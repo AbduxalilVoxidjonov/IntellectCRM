@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { SchoolClass } from '@/types'
+import type { Group } from '@/types'
 import type { ClassPayload } from '@/api/services/classes'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
@@ -10,7 +10,7 @@ interface Props {
   open: boolean
   onClose: () => void
   onSubmit: (values: ClassPayload) => void
-  initial?: SchoolClass | null
+  initial?: Group | null
 }
 
 const empty: ClassPayload = {
@@ -53,7 +53,7 @@ export function ClassFormModal({ open, onClose, onSubmit, initial }: Props) {
     <Modal
       open={open}
       onClose={onClose}
-      title={initial ? 'Sinfni tahrirlash' : 'Yangi sinf'}
+      title={initial ? 'Guruhni tahrirlash' : 'Yangi guruh'}
       size="sm"
       footer={
         <>
@@ -69,20 +69,20 @@ export function ClassFormModal({ open, onClose, onSubmit, initial }: Props) {
       <form id="class-form" onSubmit={handleSubmit} className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <Input
-            label="Sinf nomi"
+            label="Guruh nomi"
             required
             placeholder="3-A"
             value={form.name}
             onChange={(e) => update('name', e.target.value)}
           />
           <Select
-            label="Sinf (daraja)"
+            label="Guruh (daraja)"
             value={form.grade}
             onChange={(e) => update('grade', Number(e.target.value))}
           >
             {gradeOptions.map((g) => (
               <option key={g} value={g}>
-                {g}-sinf
+                {g}-guruh
               </option>
             ))}
           </Select>

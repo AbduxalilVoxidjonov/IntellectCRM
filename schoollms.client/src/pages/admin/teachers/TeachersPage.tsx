@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Plus, Search, Eye, Pencil, Trash2, Archive, RotateCcw, Download } from 'lucide-react'
-import type { Gender, SchoolClass, Subject, Teacher } from '@/types'
+import type { Gender, Group, Subject, Teacher } from '@/types'
 import type { TeacherPayload } from '@/api/services/teachers'
 import {
   getTeachers,
@@ -35,7 +35,7 @@ export function TeachersPage() {
   const [teachers, setTeachers] = useState<Teacher[]>([])
   const [archived, setArchived] = useState<Teacher[]>([])
   const [subjects, setSubjects] = useState<Subject[]>([])
-  const [classes, setClasses] = useState<SchoolClass[]>([])
+  const [classes, setClasses] = useState<Group[]>([])
   const [loading, setLoading] = useState(true)
 
   const [tab, setTab] = useState<Tab>('active')
@@ -194,7 +194,7 @@ export function TeachersPage() {
                   {tab === 'active' ? (
                     <>
                       <th className="px-4 py-3">Tug'ilgan kun</th>
-                      <th className="px-4 py-3">Sinf rahbarligi</th>
+                      <th className="px-4 py-3">Guruh rahbarligi</th>
                       <th className="px-4 py-3">Fanlar</th>
                       <th className="px-4 py-3">Toifa</th>
                     </>

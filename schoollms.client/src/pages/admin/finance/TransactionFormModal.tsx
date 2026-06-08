@@ -5,7 +5,7 @@ import type {
   FinanceTransaction,
   MonthLedger,
   MonthSalary,
-  SchoolClass,
+  Group,
   Student,
   Teacher,
 } from '@/types'
@@ -41,7 +41,7 @@ export function TransactionFormModal({ open, onClose, onSubmit, initial }: Props
   const [teachers, setTeachers] = useState<Teacher[]>([])
   const [monthInfo, setMonthInfo] = useState<MonthSalary | null>(null)
   // O'quvchi to'lovi uchun: sinf/o'quvchi tanlash + tanlangan o'quvchining oylar holati
-  const [classes, setClasses] = useState<SchoolClass[]>([])
+  const [classes, setClasses] = useState<Group[]>([])
   const [students, setStudents] = useState<Student[]>([])
   const [classId, setClassId] = useState('')
   const [ledgerMonths, setLedgerMonths] = useState<MonthLedger[]>([])
@@ -268,19 +268,19 @@ export function TransactionFormModal({ open, onClose, onSubmit, initial }: Props
           </div>
         )}
 
-        {/* O'quvchi to'lovi: sinf → o'quvchi → qaysi oy (o'quvchilar bo'limidagi to'lovdek) */}
+        {/* O'quvchi to'lovi: guruh → o'quvchi → qaysi oy (o'quvchilar bo'limidagi to'lovdek) */}
         {showTuition && (
           <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50/60 p-3">
             <div className="grid grid-cols-2 gap-3">
               <Select
-                label="Sinf"
+                label="Guruh"
                 value={classId}
                 onChange={(e) => {
                   setClassId(e.target.value)
                   onStudentChange('')
                 }}
               >
-                <option value="">— sinf —</option>
+                <option value="">— guruh —</option>
                 {classes.map((c) => (
                   <option key={c.id} value={c.name}>
                     {c.name}
@@ -293,7 +293,7 @@ export function TransactionFormModal({ open, onClose, onSubmit, initial }: Props
                 onChange={(e) => onStudentChange(e.target.value)}
                 disabled={!classId}
               >
-                <option value="">{classId ? "— o'quvchi —" : 'avval sinf'}</option>
+                <option value="">{classId ? "— o'quvchi —" : 'avval guruh'}</option>
                 {studentsInClass.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.fullName}

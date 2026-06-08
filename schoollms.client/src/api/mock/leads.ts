@@ -30,7 +30,7 @@ export const leadsMock: Lead[] = [
     parentFullName: 'Toshmatov Akmal',
     parentPhone: '+998 93 345 67 89',
     targetGrade: 5,
-    note: 'Aka-ukasi ham shu maktabda',
+    note: 'Aka-ukasi ham shu markazda',
     stage: 'contacted',
   },
   {

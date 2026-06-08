@@ -21,7 +21,7 @@ const control =
 type Sort = 'class' | 'remaining_desc' | 'remaining_asc' | 'plus_desc' | 'minus_desc'
 
 const SORTS: { value: Sort; label: string }[] = [
-  { value: 'class', label: 'Sinf bo\'yicha' },
+  { value: 'class', label: 'Guruh bo\'yicha' },
   { value: 'remaining_desc', label: 'Eng yuqori qoldi' },
   { value: 'remaining_asc', label: 'Eng kam qoldi' },
   { value: 'plus_desc', label: 'Eng ko\'p rag\'bat (+)' },
@@ -155,7 +155,7 @@ export function BallarNazoratiPage() {
             />
           </div>
           <select value={classFilter} onChange={(e) => setClassFilter(e.target.value)} className={control}>
-            <option value="all">Barcha sinflar</option>
+            <option value="all">Barcha guruhlar</option>
             {classNames.map((c) => (
               <option key={c} value={c}>
                 {c}
@@ -180,7 +180,7 @@ export function BallarNazoratiPage() {
                 <tr>
                   <th className="w-10 px-4 py-3">#</th>
                   <th className="px-4 py-3">F.I.SH</th>
-                  <th className="px-4 py-3">Sinf</th>
+                  <th className="px-4 py-3">Guruh</th>
                   <th className="px-4 py-3 text-center">Rag'bat (+)</th>
                   <th className="px-4 py-3 text-center">Jazo (−)</th>
                   <th className="px-4 py-3 text-center">Qoldi</th>

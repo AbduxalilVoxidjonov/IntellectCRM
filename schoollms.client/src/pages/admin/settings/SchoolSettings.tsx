@@ -46,14 +46,14 @@ export function SchoolSettings() {
 
   return (
     <Card>
-      <div className="mb-1 font-semibold text-slate-800">Maktab ma'lumotlari</div>
+      <div className="mb-1 font-semibold text-slate-800">Markaz ma'lumotlari</div>
       <p className="mb-4 text-sm text-slate-400">
-        Maktab nomi va umumiy ma'lumotlar — hisobotlar va hujjatlarda ishlatiladi.
+        Markaz nomi va umumiy ma'lumotlar — hisobotlar va hujjatlarda ishlatiladi.
       </p>
       <form onSubmit={onSubmit} className="max-w-2xl space-y-4">
         <Input
-          label="Maktab nomi"
-          placeholder="Masalan: 1-sonli umumiy o'rta ta'lim maktabi"
+          label="Markaz nomi"
+          placeholder="Masalan: 1-sonli umumiy o'rta ta'lim markazi"
           value={form.name}
           onChange={(e) => update('name', e.target.value)}
           required

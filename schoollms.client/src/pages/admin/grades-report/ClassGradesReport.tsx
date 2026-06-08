@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Download, FileBarChart } from 'lucide-react'
-import type { SchoolClass, Subject } from '@/types'
+import type { Group, Subject } from '@/types'
 import { getClasses } from '@/api/services/classes'
 import { getClassReport, type ClassReport, type ClassReportStudent } from '@/api/services/gradesReport'
 import { cn } from '@/lib/utils'
@@ -170,7 +170,7 @@ function computeG2(report: ClassReport): G2VM {
 /* ---------- Komponent ---------- */
 
 export function ClassGradesReport() {
-  const [classes, setClasses] = useState<SchoolClass[]>([])
+  const [classes, setClasses] = useState<Group[]>([])
   const [loadingClasses, setLoadingClasses] = useState(true)
   const [classId, setClassId] = useState('')
   const [period, setPeriod] = useState<Period>(1)
@@ -224,21 +224,21 @@ export function ClassGradesReport() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold text-slate-800">Baholar hisoboti — Sinf bo'yicha</h1>
-        <p className="text-sm text-slate-400">Sinf va davrni tanlab hisobot quring, so'ng Excelga yuklang</p>
+        <h1 className="text-xl font-semibold text-slate-800">Baholar hisoboti — Guruh bo'yicha</h1>
+        <p className="text-sm text-slate-400">Guruh va davrni tanlab hisobot quring, so'ng Excelga yuklang</p>
       </div>
 
       {loadingClasses ? (
         <Loader label="Yuklanmoqda..." />
       ) : classes.length === 0 ? (
         <Card>
-          <p className="py-8 text-center text-sm text-slate-400">Sinflar yo'q</p>
+          <p className="py-8 text-center text-sm text-slate-400">Guruhlar yo'q</p>
         </Card>
       ) : (
         <>
           <Card className="flex flex-wrap items-end gap-4 p-4">
             <label className="block">
-              <span className="mb-1 block text-sm font-medium text-slate-600">Sinf</span>
+              <span className="mb-1 block text-sm font-medium text-slate-600">Guruh</span>
               <select
                 value={classId}
                 onChange={(e) => onClassChange(e.target.value)}
@@ -289,7 +289,7 @@ export function ClassGradesReport() {
           ) : report ? (
             report.students.length === 0 ? (
               <Card>
-                <p className="py-8 text-center text-sm text-slate-400">Bu sinfda o'quvchi yo'q</p>
+                <p className="py-8 text-center text-sm text-slate-400">Bu guruhda o'quvchi yo'q</p>
               </Card>
             ) : (
               <Card className="overflow-x-auto">
@@ -335,15 +335,15 @@ function Group1View({ vm }: { vm: G1VM }) {
   return (
     <div className="space-y-4 text-sm">
       <div>
-        <h2 className="text-lg font-semibold text-slate-800">Sinf o'zlashtirishi</h2>
+        <h2 className="text-lg font-semibold text-slate-800">Guruh o'zlashtirishi</h2>
         <p className="text-slate-500">
           {vm.className} — {vm.quarter}-chorak
         </p>
         <div className="mt-1 space-y-0.5 text-sm text-slate-600">
-          <p>Sinfning umumiy o'rtacha balli: <b>{fmt2(vm.classAvg)}</b></p>
+          <p>Guruhning umumiy o'rtacha balli: <b>{fmt2(vm.classAvg)}</b></p>
           <p>Fanlar bo'yicha bilimlar sifatining umumiy foizi: <b>{pctFmt(round2(vm.overallQuality))}</b></p>
           <p>Fanlar bo'yicha O'TM (%): <b>{pctFmt(round2(vm.overallOtm))}</b></p>
-          <p>Sinfning bilimlar sifati foizi: <b>{pctFmt(round2(vm.knowledgeQuality))}</b></p>
+          <p>Guruhning bilimlar sifati foizi: <b>{pctFmt(round2(vm.knowledgeQuality))}</b></p>
           <p>Davr oxiriga: <b>{vm.total}</b> · Baholar mavjud emas: <b>{vm.noGrades}</b></p>
         </div>
       </div>
@@ -424,7 +424,7 @@ function ClassifTable({ vm }: { vm: G1VM }) {
         <tr>
           <th className={cn(th, 'text-left')}>O'zlashtirish</th>
           <th className={th}>Soni</th>
-          <th className={th}>Sinfda %</th>
+          <th className={th}>Guruhda %</th>
           <th className={cn(th, 'text-left')}>FISH</th>
         </tr>
       </thead>
@@ -444,7 +444,7 @@ function Group2View({ vm }: { vm: G2VM }) {
   return (
     <div className="space-y-4 text-sm">
       <div>
-        <h2 className="text-lg font-semibold text-slate-800">Sinf o'zlashtirishi — butun davr</h2>
+        <h2 className="text-lg font-semibold text-slate-800">Guruh o'zlashtirishi — butun davr</h2>
         <p className="text-slate-500">{vm.className}</p>
       </div>
       <table className="border-collapse">
@@ -489,7 +489,7 @@ function Group2View({ vm }: { vm: G2VM }) {
 function Signatures({ homeroom }: { homeroom: string }) {
   return (
     <div className="space-y-2 pt-2 text-sm text-slate-600">
-      <p>Sinf rahbari _______________________________ {homeroom}</p>
+      <p>Guruh rahbari _______________________________ {homeroom}</p>
       <p>O'quv ishlari bo'yicha direktor o'rinbosari _______________________________</p>
     </div>
   )
@@ -533,9 +533,9 @@ function buildG1Xls(vm: G1VM): string {
     `<tr><td class="l">${indent ? '&nbsp;&nbsp;&nbsp;&nbsp;' : ''}${esc(label)}</td><td>${c.count}</td><td>${pctFmt(round2(c.pct))}%</td><td class="l">${c.names.map(esc).join('<br/>')}</td></tr>`
 
   return xlsDoc(`
-<h3>Sinf o'zlashtirishi</h3>
+<h3>Guruh o'zlashtirishi</h3>
 <p>${esc(vm.className)} — ${vm.quarter}-chorak</p>
-<p>Sinfning umumiy o'rtacha balli: ${fmt2(vm.classAvg)} &nbsp; Bilim sifati foizi: ${pctFmt(round2(vm.knowledgeQuality))}</p>
+<p>Guruhning umumiy o'rtacha balli: ${fmt2(vm.classAvg)} &nbsp; Bilim sifati foizi: ${pctFmt(round2(vm.knowledgeQuality))}</p>
 <p>Fanlar bo'yicha bilim sifati: ${pctFmt(round2(vm.overallQuality))} &nbsp; O'TM (%): ${pctFmt(round2(vm.overallOtm))}</p>
 <p>Davr oxiriga: ${vm.total} &nbsp; Baholar mavjud emas: ${vm.noGrades}</p><br/>
 <table>
@@ -545,7 +545,7 @@ function buildG1Xls(vm: G1VM): string {
 </table>
 <br/>
 <table>
-<thead><tr><th class="l">O'zlashtirish</th><th>Soni</th><th>Sinfda %</th><th class="l">FISH</th></tr></thead>
+<thead><tr><th class="l">O'zlashtirish</th><th>Soni</th><th>Guruhda %</th><th class="l">FISH</th></tr></thead>
 <tbody>
 ${cl("A'lochilar", vm.excellent)}
 ${cl("Yaxshi o'zlashtiruvchilar", vm.goodTotal)}
@@ -556,7 +556,7 @@ ${cl("Yaxshi o'zlashtirmaydigan", vm.poor)}
 </tbody>
 </table>
 <br/><br/>
-<p>Sinf rahbari _______________________________ ${esc(vm.homeroom)}</p>
+<p>Guruh rahbari _______________________________ ${esc(vm.homeroom)}</p>
 <p>O'quv ishlari bo'yicha direktor o'rinbosari _______________________________</p>`)
 }
 
@@ -580,13 +580,13 @@ function buildG2Xls(vm: G2VM): string {
     .join('')
 
   return xlsDoc(`
-<h3>Sinf o'zlashtirishi — butun davr</h3>
+<h3>Guruh o'zlashtirishi — butun davr</h3>
 <p>${esc(vm.className)}</p><br/>
 <table>
 <thead><tr><th>№</th><th class="l">FISH</th><th>Davr</th>${subjTh}</tr></thead>
 <tbody>${body}</tbody>
 </table>
 <br/><br/>
-<p>Sinf rahbari _______________________________ ${esc(vm.homeroom)}</p>
+<p>Guruh rahbari _______________________________ ${esc(vm.homeroom)}</p>
 <p>O'quv ishlari bo'yicha direktor o'rinbosari _______________________________</p>`)
 }

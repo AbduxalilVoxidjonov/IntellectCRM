@@ -5,15 +5,15 @@
 export const messageTemplates: { label: string; text: string }[] = [
   {
     label: "Ota-onalar yig'ilishi",
-    text: "Hurmatli ota-ona! {sinf} sinf ota-onalar yig'ilishi ___ kuni soat ___ da bo'lib o'tadi. Farzandingiz {fish}ning ishtiroki muhim. Iltimos, keling.",
+    text: "Hurmatli ota-ona! {sinf} guruh ota-onalar yig'ilishi ___ kuni soat ___ da bo'lib o'tadi. Farzandingiz {fish}ning ishtiroki muhim. Iltimos, keling.",
   },
   {
     label: 'Darsga kelmayapti',
-    text: "Hurmatli ota-ona! Farzandingiz {fish} ({sinf}) so'nggi kunlarda darslarga qatnashmayapti. Iltimos, sababini maktabga ma'lum qiling.",
+    text: "Hurmatli ota-ona! Farzandingiz {fish} ({sinf}) so'nggi kunlarda darslarga qatnashmayapti. Iltimos, sababini markazga ma'lum qiling.",
   },
   {
     label: "O'zlashtirish pasaymoqda",
-    text: "Hurmatli ota-ona! Farzandingiz {fish} ({sinf})ning o'zlashtirishi pasaymoqda. Iltimos, qulay vaqtda maktabga tashrif buyuring.",
+    text: "Hurmatli ota-ona! Farzandingiz {fish} ({sinf})ning o'zlashtirishi pasaymoqda. Iltimos, qulay vaqtda markazga tashrif buyuring.",
   },
   {
     label: 'Qarzdorlik eslatmasi',
@@ -24,7 +24,7 @@ export const messageTemplates: { label: string; text: string }[] = [
 /** Matnga qo'yiladigan o'rinbosarlar — har o'quvchiga moslab to'ldiriladi. */
 export const messageTokens: { token: string; label: string }[] = [
   { token: '{fish}', label: 'F.I.SH' },
-  { token: '{sinf}', label: 'Sinf' },
+  { token: '{sinf}', label: 'Guruh' },
   { token: '{qarzdorlik}', label: 'Qarzdorlik' },
   { token: '{balans}', label: 'Balans' },
   { token: '{ota-ona}', label: 'Ota-ona' },

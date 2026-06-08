@@ -45,7 +45,7 @@ export function TeacherLmsPage() {
       <div>
         <h1 className="text-xl font-semibold text-slate-800">Ta'lim (LMS)</h1>
         <p className="text-sm text-slate-400">
-          Sinflaringizdagi qo'shimcha ta'lim fanlari va o'quvchilar progressi
+          Guruhlaringizdagi qo'shimcha ta'lim fanlari va o'quvchilar progressi
         </p>
       </div>
 
@@ -54,7 +54,7 @@ export function TeacherLmsPage() {
       ) : subjects.length === 0 ? (
         <Card className="py-16 text-center">
           <BookOpen className="mx-auto mb-3 h-10 w-10 text-slate-300" />
-          <p className="font-medium text-slate-500">Sinflaringizda LMS fanil yo'q</p>
+          <p className="font-medium text-slate-500">Guruhlaringizda LMS fanil yo'q</p>
           <p className="mt-1 text-sm text-slate-400">
             Administrator qo'shimcha ta'lim fanlarini qo'shganda bu yerda ko'rinadi
           </p>
@@ -63,11 +63,11 @@ export function TeacherLmsPage() {
         <div className="space-y-8">
           {groups.map(({ className, items }) => (
             <div key={className}>
-              {/* Sinf sarlavhasi */}
+              {/* Guruh sarlavhasi */}
               <div className="mb-3 flex items-center gap-2">
                 <div className="h-px flex-1 bg-slate-200" />
                 <span className="rounded-full bg-slate-100 px-3 py-0.5 text-sm font-semibold text-slate-600">
-                  {className}-sinf
+                  {className}-guruh
                 </span>
                 <div className="h-px flex-1 bg-slate-200" />
               </div>

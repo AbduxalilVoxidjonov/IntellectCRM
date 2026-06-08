@@ -48,7 +48,7 @@ export function LeadDetailModal({ lead, onClose, onEdit, onDelete }: Props) {
           <Row label="F.I.SH" value={lead.fullName} />
           <Row label="Jinsi" value={genderLabels[lead.gender]} />
           <Row label="Tug'ilgan kun" value={formatDate(lead.birthDate)} />
-          <Row label="Nechinchi sinfga" value={`${lead.targetGrade}-sinf`} />
+          <Row label="Nechinchi guruhga" value={`${lead.targetGrade}-guruh`} />
           <Row label="Ota-onasi" value={lead.parentFullName || '—'} />
           <Row label="Ota-onasi raqami" value={lead.parentPhone || '—'} />
           {lead.note && (

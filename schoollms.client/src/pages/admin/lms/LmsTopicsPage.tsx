@@ -148,7 +148,7 @@ export function LmsTopicsPage() {
               onClick={() => navigate(`/admin/lms/${classId}`)}
               className="hover:text-brand-600"
             >
-              {subject.className}-sinf
+              {subject.className}-guruh
             </button>
             <span>/</span>
             <button

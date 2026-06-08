@@ -94,7 +94,7 @@ export function BroadcastPanel({ classes }: { classes: MessageClass[] }) {
   const handleSend = async () => {
     const t = text.trim()
     if (!t || sending) return
-    if (scope === 'class' && !className) return setResult('Sinf tanlang.')
+    if (scope === 'class' && !className) return setResult('Guruh tanlang.')
     if (scope === 'selected' && selectedIds.size === 0) return setResult('Hech kim tanlanmadi.')
     setSending(true)
     setResult(null)
@@ -151,7 +151,7 @@ export function BroadcastPanel({ classes }: { classes: MessageClass[] }) {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <ScopeButton active={scope === 'class'} onClick={() => setScope('class')}>
-            Sinf bo'yicha
+            Guruh bo'yicha
           </ScopeButton>
           <ScopeButton active={scope === 'all'} onClick={() => setScope('all')}>
             Barcha ota-onalar
@@ -166,7 +166,7 @@ export function BroadcastPanel({ classes }: { classes: MessageClass[] }) {
               onChange={(e) => setClassName(e.target.value)}
               className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 outline-none focus:border-brand-400"
             >
-              {classes.length === 0 && <option value="">Sinf yo'q</option>}
+              {classes.length === 0 && <option value="">Guruh yo'q</option>}
               {classes.map((c) => (
                 <option key={c.name} value={c.name}>
                   {c.name}
@@ -255,7 +255,7 @@ export function BroadcastPanel({ classes }: { classes: MessageClass[] }) {
                 Namuna ({recipients[0].studentName}):
               </p>
               <p className="whitespace-pre-wrap break-words text-sm text-slate-700">
-                📢 Maktab e'loni{'\n\n'}
+                📢 Markaz e'loni{'\n\n'}
                 {preview}
               </p>
             </div>
@@ -283,7 +283,7 @@ export function BroadcastPanel({ classes }: { classes: MessageClass[] }) {
                 <input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="O'quvchi, sinf yoki ota-ona..."
+                  placeholder="O'quvchi, guruh yoki ota-ona..."
                   className="w-full rounded-lg border border-slate-200 py-2 pl-9 pr-3 text-sm outline-none focus:border-brand-400"
                 />
               </div>

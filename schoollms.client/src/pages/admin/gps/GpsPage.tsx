@@ -412,7 +412,7 @@ function BusFormModal({
         <Input label="Haydovchi" value={form.driverName ?? ''} onChange={(e) => set('driverName', e.target.value)} />
         <Input label="Haydovchi telefoni" value={form.driverPhone ?? ''} onChange={(e) => set('driverPhone', e.target.value)} />
         <Input label="GPS qurilma ID (IMEI)" placeholder="tracker id" value={form.deviceId ?? ''} onChange={(e) => set('deviceId', e.target.value)} />
-        <Input label="Marshrut" placeholder="Chilonzor — Maktab" value={form.route ?? ''} onChange={(e) => set('route', e.target.value)} />
+        <Input label="Marshrut" placeholder="Chilonzor — Markaz" value={form.route ?? ''} onChange={(e) => set('route', e.target.value)} />
       </div>
       <div className="mt-4">
         <Input label="Izoh" value={form.note ?? ''} onChange={(e) => set('note', e.target.value)} />

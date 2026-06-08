@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import type {
-  SchoolClass,
+  Group,
   ScheduleTemplate,
   Subject,
   Teacher,
@@ -38,7 +38,7 @@ interface Lesson {
 /** Bosh sahifada bugungi (joriy hafta kuni) barcha sinflar dars jadvali. */
 export function TodaySchedule() {
   const [loading, setLoading] = useState(true)
-  const [classes, setClasses] = useState<SchoolClass[]>([])
+  const [classes, setClasses] = useState<Group[]>([])
   const [subjects, setSubjects] = useState<Subject[]>([])
   const [teachers, setTeachers] = useState<Teacher[]>([])
   const [quarter, setQuarter] = useState<number | null>(null)
@@ -147,7 +147,7 @@ export function TodaySchedule() {
           Bugun uchun o'quv davri sanasi topilmadi.
         </p>
       ) : classes.length === 0 ? (
-        <p className="py-8 text-center text-sm text-slate-400">Sinflar yo'q</p>
+        <p className="py-8 text-center text-sm text-slate-400">Guruhlar yo'q</p>
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {classes.map((c) => {

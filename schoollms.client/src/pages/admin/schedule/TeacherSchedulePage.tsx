@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type {
-  SchoolClass,
+  Group,
   ScheduleTemplate,
   SchoolSettings,
   Subject,
@@ -35,7 +35,7 @@ interface CellLesson {
 export function TeacherSchedulePage() {
   const [teachers, setTeachers] = useState<Teacher[]>([])
   const [subjects, setSubjects] = useState<Subject[]>([])
-  const [classes, setClasses] = useState<SchoolClass[]>([])
+  const [classes, setClasses] = useState<Group[]>([])
   const [settings, setSettings] = useState<SchoolSettings | null>(null)
   const [templatesByClass, setTemplatesByClass] = useState<Record<string, ScheduleTemplate[]>>({})
   const [loading, setLoading] = useState(true)
@@ -276,7 +276,7 @@ export function TeacherSchedulePage() {
 
                   {lessonCount === 0 && (
                     <p className="pt-4 text-center text-sm text-slate-400">
-                      Bu hafta uchun dars topilmadi (sinflarga jadval biriktirilganini tekshiring)
+                      Bu hafta uchun dars topilmadi (guruhlarga jadval biriktirilganini tekshiring)
                     </p>
                   )}
                 </div>

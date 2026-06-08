@@ -61,7 +61,7 @@ export function TelegramSettings() {
         )}
       </div>
       <p className="mb-4 text-sm text-slate-400">
-        Bot orqali sinf ota-onalariga e'lon yuboriladi. Tokenni Telegramdagi{' '}
+        Bot orqali guruh ota-onalariga e'lon yuboriladi. Tokenni Telegramdagi{' '}
         <span className="font-medium text-slate-500">@BotFather</span> dan oling
         (/newbot → token). Token kiritilgandan so'ng bot avtomatik ishga tushadi.
       </p>
@@ -76,14 +76,14 @@ export function TelegramSettings() {
         />
         <Input
           label="Bot nomi (ko'rsatish uchun)"
-          placeholder="Maktab LMS Bot"
+          placeholder="Markaz LMS Bot"
           value={name}
           onChange={(e) => setName(e.target.value)}
           autoComplete="off"
         />
         <Input
           label="Bot foydalanuvchi nomi (@username)"
-          placeholder="MaktabBot"
+          placeholder="MarkazBot"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
           autoComplete="off"

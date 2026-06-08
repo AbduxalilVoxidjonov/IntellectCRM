@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { ArrowLeft, Users, Star, CalendarCheck } from 'lucide-react'
-import type { SchoolClass } from '@/types'
+import type { Group } from '@/types'
 import { getClasses } from '@/api/services/classes'
 import {
   getClassPerformance,
@@ -29,7 +29,7 @@ function attColor(a: number): string {
 export function ClassDetailPage() {
   const { id = '' } = useParams()
   const navigate = useNavigate()
-  const [cls, setCls] = useState<SchoolClass | null>(null)
+  const [cls, setCls] = useState<Group | null>(null)
   const [data, setData] = useState<ClassPerformanceData | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -64,11 +64,11 @@ export function ClassDetailPage() {
         </Link>
         <div>
           <h1 className="text-xl font-semibold text-slate-800">
-            {cls ? `${cls.name}-sinf` : 'Sinf'}
+            {cls ? `${cls.name}-guruh` : 'Guruh'}
           </h1>
           {cls && (
             <p className="text-sm text-slate-400">
-              {languageLabels[cls.language]} sinfi
+              {languageLabels[cls.language]} guruhi
               {cls.room ? ` · ${cls.room}-xona` : ''} · {formatMoney(cls.monthlyFee)}
             </p>
           )}
@@ -154,7 +154,7 @@ export function ClassDetailPage() {
                         colSpan={subjects.length + 4}
                         className="px-4 py-12 text-center text-slate-400"
                       >
-                        Bu sinfda o'quvchilar yo'q
+                        Bu guruhda o'quvchilar yo'q
                       </td>
                     </tr>
                   )}

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { SchoolClass, Subject, Teacher } from '@/types'
+import type { Group, Subject, Teacher } from '@/types'
 import type { TeacherPayload } from '@/api/services/teachers'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
@@ -14,7 +14,7 @@ interface Props {
   onSubmit: (values: TeacherPayload) => void
   initial?: Teacher | null
   subjects: Subject[]
-  classes: SchoolClass[]
+  classes: Group[]
 }
 
 const empty: TeacherPayload = {
@@ -149,7 +149,7 @@ export function TeacherFormModal({ open, onClose, onSubmit, initial, subjects, c
         </div>
         <div className="grid grid-cols-2 gap-4">
           <Select
-            label="Sinf rahbarligi"
+            label="Guruh rahbarligi"
             value={form.homeroomClass}
             onChange={(e) => update('homeroomClass', e.target.value)}
           >

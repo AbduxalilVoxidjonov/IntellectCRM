@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, BookOpen, ChevronRight, Layers, Pencil, Trash2, Plus } from 'lucide-react'
-import type { LmsSubject, LmsUnlockMode, SchoolClass } from '@/types'
+import type { LmsSubject, LmsUnlockMode, Group } from '@/types'
 import {
   getLmsSubjects, createLmsSubject, updateLmsSubject, deleteLmsSubject,
 } from '@/api/services/lms'
@@ -27,7 +27,7 @@ export function LmsSubjectsPage() {
   const { classId } = useParams<{ classId: string }>()
   const navigate = useNavigate()
 
-  const [schoolClass, setSchoolClass] = useState<SchoolClass | null>(null)
+  const [schoolClass, setSchoolClass] = useState<Group | null>(null)
   const [subjects, setSubjects] = useState<LmsSubject[]>([])
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState<{ open: boolean; editing?: LmsSubject }>({ open: false })
@@ -88,14 +88,14 @@ export function LmsSubjectsPage() {
             className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-sm text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
           >
             <ArrowLeft className="h-4 w-4" />
-            Sinflar
+            Guruhlar
           </button>
           <div>
             <h1 className="text-xl font-semibold text-slate-800">
-              {schoolClass ? `${schoolClass.name}-sinf` : '...'} — Fanlar
+              {schoolClass ? `${schoolClass.name}-guruh` : '...'} — Fanlar
             </h1>
             <p className="text-sm text-slate-400">
-              Sinfga fan qo'shing, mavzularni boshqaring
+              Guruhga fan qo'shing, mavzularni boshqaring
             </p>
           </div>
         </div>
@@ -113,7 +113,7 @@ export function LmsSubjectsPage() {
       {subjects.length === 0 ? (
         <Card className="py-16 text-center">
           <BookOpen className="mx-auto mb-3 h-10 w-10 text-slate-300" />
-          <p className="text-slate-400">Bu sinfda hali fan qo'shilmagan</p>
+          <p className="text-slate-400">Bu guruhda hali fan qo'shilmagan</p>
           <button
             type="button"
             onClick={() => setModal({ open: true })}

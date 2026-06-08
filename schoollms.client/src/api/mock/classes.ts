@@ -1,6 +1,6 @@
-import type { SchoolClass } from '@/types'
+import type { Group } from '@/types'
 
-export const classesMock: SchoolClass[] = [
+export const classesMock: Group[] = [
   { id: 'c1', name: '5-A', grade: 5, language: 'uz', monthlyFee: 850000, room: '101' },
   { id: 'c2', name: '5-B', grade: 5, language: 'ru', monthlyFee: 850000, room: '102' },
   { id: 'c3', name: '6-A', grade: 6, language: 'uz', monthlyFee: 900000, room: '201' },

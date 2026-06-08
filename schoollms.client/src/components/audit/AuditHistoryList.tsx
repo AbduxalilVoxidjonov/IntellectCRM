@@ -33,7 +33,7 @@ const fieldLabels: Record<string, string> = {
   month: 'Oy',
   salary: 'Oylik',
   monthlyFee: "Oylik to'lov",
-  name: 'Sinf',
+  name: 'Guruh',
   discountPct: 'Chegirma foizi',
   discountAmount: 'Chegirma summasi',
   discountNote: 'Chegirma izohi',

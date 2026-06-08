@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Pencil, Trash2, Users, Archive, ArchiveRestore } from 'lucide-react'
-import type { SchoolClass } from '@/types'
+import type { Group } from '@/types'
 import type { ClassPayload } from '@/api/services/classes'
 import {
   getClasses,
@@ -23,11 +23,11 @@ import { ClassFormModal } from './ClassFormModal'
 
 export function ClassesPage() {
   const navigate = useNavigate()
-  const [classes, setClasses] = useState<SchoolClass[]>([])
+  const [classes, setClasses] = useState<Group[]>([])
   const [stats, setStats] = useState<Record<string, ClassStats>>({})
   const [loading, setLoading] = useState(true)
   const [formOpen, setFormOpen] = useState(false)
-  const [editing, setEditing] = useState<SchoolClass | null>(null)
+  const [editing, setEditing] = useState<Group | null>(null)
   // Oylik to'lov o'zgarganda — yangi narxni o'quvchilarga qachondan qo'llashni so'rash uchun
   const [feePrompt, setFeePrompt] = useState<{
     id: string
@@ -35,7 +35,7 @@ export function ClassesPage() {
     oldFee: number
   } | null>(null)
   /** Arxivlangan sinflar ro'yxati + arxiv ko'rinishi yoqilganmi */
-  const [archived, setArchived] = useState<SchoolClass[]>([])
+  const [archived, setArchived] = useState<Group[]>([])
   const [showArchived, setShowArchived] = useState(false)
 
   useEffect(() => {
@@ -76,18 +76,18 @@ export function ClassesPage() {
     setFeePrompt(null)
   }
 
-  const handleDelete = (c: SchoolClass) => {
-    if (!confirm(`"${c.name}" sinfini o'chirasizmi?`)) return
+  const handleDelete = (c: Group) => {
+    if (!confirm(`"${c.name}" guruhini o'chirasizmi?`)) return
     deleteClass(c.id)
       .then(() => {
         setClasses((prev) => prev.filter((x) => x.id !== c.id))
         setArchived((prev) => prev.filter((x) => x.id !== c.id))
       })
-      .catch((e) => alert(e?.response?.data?.message ?? "Sinfni o'chirib bo'lmadi"))
+      .catch((e) => alert(e?.response?.data?.message ?? "Guruhni o'chirib bo'lmadi"))
   }
 
-  const handleArchive = (c: SchoolClass) => {
-    if (!confirm(`"${c.name}" sinfini arxivlaysizmi?\nSinfdagi barcha o'quvchilar ham arxivlanadi (login bloklanadi).`))
+  const handleArchive = (c: Group) => {
+    if (!confirm(`"${c.name}" guruhini arxivlaysizmi?\nGuruhdagi barcha o'quvchilar ham arxivlanadi (login bloklanadi).`))
       return
     archiveClass(c.id)
       .then((r) => {
@@ -98,8 +98,8 @@ export function ClassesPage() {
       .catch((e) => alert(e?.response?.data?.message ?? 'Arxivlashda xatolik'))
   }
 
-  const handleUnarchive = (c: SchoolClass) => {
-    if (!confirm(`"${c.name}" sinfini arxivdan chiqarasizmi?\nSinf bilan arxivlangan o'quvchilar ham qaytariladi.`))
+  const handleUnarchive = (c: Group) => {
+    if (!confirm(`"${c.name}" guruhini arxivdan chiqarasizmi?\nGuruh bilan arxivlangan o'quvchilar ham qaytariladi.`))
       return
     unarchiveClass(c.id)
       .then((r) => {
@@ -115,17 +115,17 @@ export function ClassesPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-slate-800">
-            {showArchived ? 'Arxivlangan sinflar' : 'Sinflar va xonalar'}
+            {showArchived ? 'Arxivlangan guruhlar' : 'Guruhlar va xonalar'}
           </h1>
           <p className="text-sm text-slate-400">
-            {showArchived ? `${archived.length} ta arxivlangan sinf` : `Jami ${classes.length} ta sinf`}
+            {showArchived ? `${archived.length} ta arxivlangan guruh` : `Jami ${classes.length} ta guruh`}
           </p>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="secondary" onClick={() => setShowArchived((v) => !v)}>
             {showArchived ? (
               <>
-                <Users className="h-4 w-4" /> Faol sinflar
+                <Users className="h-4 w-4" /> Faol guruhlar
               </>
             ) : (
               <>
@@ -140,7 +140,7 @@ export function ClassesPage() {
                 setFormOpen(true)
               }}
             >
-              <Plus className="h-4 w-4" /> Yangi sinf
+              <Plus className="h-4 w-4" /> Yangi guruh
             </Button>
           )}
         </div>
@@ -157,7 +157,7 @@ export function ClassesPage() {
               <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-400">
                 <tr>
                   <th className="w-10 px-4 py-3">#</th>
-                  <th className="px-4 py-3">Sinf nomi</th>
+                  <th className="px-4 py-3">Guruh nomi</th>
                   <th className="px-4 py-3">Til</th>
                   <th className="px-4 py-3">Xona</th>
                   <th className="px-4 py-3">O'rtacha baho</th>
@@ -238,7 +238,7 @@ export function ClassesPage() {
                 {classes.length === 0 && (
                   <tr>
                     <td colSpan={8} className="px-4 py-12 text-center text-slate-400">
-                      Sinflar yo'q
+                      Guruhlar yo'q
                     </td>
                   </tr>
                 )}
@@ -275,11 +275,11 @@ export function ClassesPage() {
         {feePrompt && (
           <div className="space-y-3 text-sm text-slate-600">
             <p>
-              <span className="font-medium text-slate-800">{feePrompt.values.name}</span> sinfining
+              <span className="font-medium text-slate-800">{feePrompt.values.name}</span> guruhining
               oylik to'lovi{' '}
               <span className="font-medium">{formatMoney(feePrompt.oldFee)}</span> →{' '}
               <span className="font-medium">{formatMoney(feePrompt.values.monthlyFee)}</span> so'mga
-              o'zgardi. Yangi narx shu sinfdagi o'quvchilarga qachondan qo'llansin?
+              o'zgardi. Yangi narx shu guruhdagi o'quvchilarga qachondan qo'llansin?
             </p>
             <div className="rounded-lg bg-slate-50 px-3 py-2 text-slate-500">
               <p>
@@ -316,9 +316,9 @@ function ArchivedTable({
   onUnarchive,
   onDelete,
 }: {
-  items: SchoolClass[]
-  onUnarchive: (c: SchoolClass) => void
-  onDelete: (c: SchoolClass) => void
+  items: Group[]
+  onUnarchive: (c: Group) => void
+  onDelete: (c: Group) => void
 }) {
   return (
     <div className="overflow-x-auto">
@@ -326,7 +326,7 @@ function ArchivedTable({
         <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-400">
           <tr>
             <th className="w-10 px-4 py-3">#</th>
-            <th className="px-4 py-3">Sinf nomi</th>
+            <th className="px-4 py-3">Guruh nomi</th>
             <th className="px-4 py-3">Til</th>
             <th className="px-4 py-3">Xona</th>
             <th className="px-4 py-3">Arxiv sanasi</th>
@@ -365,7 +365,7 @@ function ArchivedTable({
           {items.length === 0 && (
             <tr>
               <td colSpan={6} className="px-4 py-12 text-center text-slate-400">
-                Arxivlangan sinf yo'q
+                Arxivlangan guruh yo'q
               </td>
             </tr>
           )}

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Users, Star, CalendarCheck } from 'lucide-react'
-import type { SchoolClass } from '@/types'
+import type { Group } from '@/types'
 import { getClasses } from '@/api/services/classes'
 import { getStudentsRating, type StudentRatingRow } from '@/api/services/classPerformance'
 import { Card } from '@/components/ui/Card'
@@ -35,7 +35,7 @@ const rankBadge = (i: number) =>
 
 export function ClassRatingPage() {
   const [rows, setRows] = useState<StudentRatingRow[]>([])
-  const [classes, setClasses] = useState<SchoolClass[]>([])
+  const [classes, setClasses] = useState<Group[]>([])
   const [loading, setLoading] = useState(true)
   const [gradeFilter, setGradeFilter] = useState<'all' | number>('all')
   const [classFilter, setClassFilter] = useState('all')
@@ -131,7 +131,7 @@ export function ClassRatingPage() {
                   <option value="all">Barcha darajalar</option>
                   {grades.map((g) => (
                     <option key={g} value={g}>
-                      {g}-sinflar
+                      {g}-guruhlar
                     </option>
                   ))}
                 </select>
@@ -140,7 +140,7 @@ export function ClassRatingPage() {
                   onChange={(e) => setClassFilter(e.target.value)}
                   className={control}
                 >
-                  <option value="all">Barcha sinflar</option>
+                  <option value="all">Barcha guruhlar</option>
                   {classOptions.map((name) => (
                     <option key={name} value={name}>
                       {name}

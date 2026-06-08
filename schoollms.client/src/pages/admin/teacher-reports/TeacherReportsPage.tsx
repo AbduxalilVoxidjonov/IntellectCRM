@@ -164,7 +164,7 @@ export function TeacherReportsPage() {
               <table className="w-full text-left text-sm">
                 <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-400">
                   <tr>
-                    <th className="px-3 py-2">Sinf</th>
+                    <th className="px-3 py-2">Guruh</th>
                     <th className="px-3 py-2">Fan</th>
                     <th className="px-3 py-2 text-center">Reja</th>
                     <th className="px-3 py-2 text-center">O'tdi</th>

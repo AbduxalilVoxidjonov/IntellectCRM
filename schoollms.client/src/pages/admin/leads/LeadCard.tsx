@@ -17,7 +17,7 @@ export function LeadCardContent({ lead, dragging }: { lead: Lead; dragging?: boo
       <div className="flex items-start justify-between gap-2">
         <p className="font-medium text-slate-800">{lead.fullName}</p>
         <span className="shrink-0 rounded-md bg-brand-50 px-1.5 py-0.5 text-xs font-medium text-brand-700">
-          {lead.targetGrade}-sinf
+          {lead.targetGrade}-guruh
         </span>
       </div>
 

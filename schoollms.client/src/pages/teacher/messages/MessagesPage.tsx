@@ -30,7 +30,7 @@ export function TeacherMessagesPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-xl font-semibold text-slate-800">Guruh chati</h1>
-        <p className="text-sm text-slate-400">Dars beradigan sinflaringiz va xodimlar chati</p>
+        <p className="text-sm text-slate-400">Dars beradigan guruhlaringiz va xodimlar chati</p>
       </div>
 
       {loading ? (
@@ -80,7 +80,7 @@ export function TeacherMessagesPage() {
 
               {classes.length === 0 && (
                 <p className="px-3 py-4 text-center text-xs text-slate-400">
-                  Sizga biriktirilgan sinf yo'q.
+                  Sizga biriktirilgan guruh yo'q.
                 </p>
               )}
             </div>

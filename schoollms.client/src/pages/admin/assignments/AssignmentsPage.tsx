@@ -9,7 +9,7 @@ import {
   Pencil,
   Trash2,
 } from 'lucide-react'
-import type { Assignment, AssignmentFormat, SchoolClass, Subject } from '@/types'
+import type { Assignment, AssignmentFormat, Group, Subject } from '@/types'
 import { getClasses } from '@/api/services/classes'
 import { getSubjects } from '@/api/services/subjects'
 import {
@@ -40,7 +40,7 @@ const formatLabel: Record<AssignmentFormat, string> = {
 
 /** Admin "Topshiriqlar" — o'qituvchidek topshiriq yaratadi/tahrirlaydi va BARCHA topshiriqlarni boshqaradi. */
 export function AssignmentsPage() {
-  const [classes, setClasses] = useState<SchoolClass[]>([])
+  const [classes, setClasses] = useState<Group[]>([])
   const [subjects, setSubjects] = useState<Subject[]>([])
   const [classId, setClassId] = useState('')
   const [assignments, setAssignments] = useState<Assignment[]>([])
@@ -99,7 +99,7 @@ export function AssignmentsPage() {
       <Card>
         <div className="flex flex-wrap items-center gap-3">
           <select className={control} value={classId} onChange={(e) => setClassId(e.target.value)}>
-            <option value="">Barcha sinflar</option>
+            <option value="">Barcha guruhlar</option>
             {classes.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}

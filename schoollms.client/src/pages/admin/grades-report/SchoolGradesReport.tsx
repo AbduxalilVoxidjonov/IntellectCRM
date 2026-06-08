@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Download, FileBarChart } from 'lucide-react'
-import type { SchoolClass } from '@/types'
+import type { Group } from '@/types'
 import { getClasses } from '@/api/services/classes'
 import {
   getSchoolGradesReport,
@@ -25,7 +25,7 @@ const quarterLabel = (qs: number[]) =>
  * bo'yicha jadval chiqadi va Excel (.xls) ko'rinishida yuklab olinadi.
  */
 export function SchoolGradesReport() {
-  const [classes, setClasses] = useState<SchoolClass[]>([])
+  const [classes, setClasses] = useState<Group[]>([])
   const [loadingClasses, setLoadingClasses] = useState(true)
   const [selectedClasses, setSelectedClasses] = useState<Set<string>>(new Set())
   const [selectedQuarters, setSelectedQuarters] = useState<Set<number>>(new Set())
@@ -88,9 +88,9 @@ export function SchoolGradesReport() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold text-slate-800">Baholar hisoboti — Maktab bo'yicha</h1>
+        <h1 className="text-xl font-semibold text-slate-800">Baholar hisoboti — Markaz bo'yicha</h1>
         <p className="text-sm text-slate-400">
-          Sinflar va choraklarni tanlab hisobot quring, so'ng Excelga yuklang
+          Guruhlar va choraklarni tanlab hisobot quring, so'ng Excelga yuklang
         </p>
       </div>
 
@@ -98,14 +98,14 @@ export function SchoolGradesReport() {
         <Loader label="Yuklanmoqda..." />
       ) : classes.length === 0 ? (
         <Card>
-          <p className="py-8 text-center text-sm text-slate-400">Sinflar yo'q</p>
+          <p className="py-8 text-center text-sm text-slate-400">Guruhlar yo'q</p>
         </Card>
       ) : (
         <>
-          {/* 1-qadam: sinflar */}
+          {/* 1-qadam: guruhlar */}
           <Card>
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="font-semibold text-slate-800">Sinflar</h2>
+              <h2 className="font-semibold text-slate-800">Guruhlar</h2>
               <button
                 type="button"
                 onClick={toggleAllClasses}
@@ -183,7 +183,7 @@ export function SchoolGradesReport() {
             report.rows.length === 0 ? (
               <Card>
                 <p className="py-8 text-center text-sm text-slate-400">
-                  Tanlangan sinf va choraklar bo'yicha ma'lumot topilmadi
+                  Tanlangan guruh va choraklar bo'yicha ma'lumot topilmadi
                 </p>
               </Card>
             ) : (
@@ -219,7 +219,7 @@ function ReportTable({ rows }: { rows: GradesProgressRow[] }) {
     <table className="w-full border-collapse text-sm">
       <thead>
         <tr>
-          <th className={th} rowSpan={3}>Sinf</th>
+          <th className={th} rowSpan={3}>Guruh</th>
           <th className={th} rowSpan={3}>Ta'lim tili</th>
           <th className={th} colSpan={11}>O'quvchilar</th>
           <th className={th} rowSpan={3}>O'rtacha reyting</th>
@@ -329,7 +329,7 @@ function buildXls(report: GradesProgressReport, qs: number[]): string {
 <table>
 <thead>
 <tr>
-  <th rowspan="3">Sinf</th><th rowspan="3">Ta'lim tili</th><th colspan="11">O'quvchilar</th>
+  <th rowspan="3">Guruh</th><th rowspan="3">Ta'lim tili</th><th colspan="11">O'quvchilar</th>
   <th rowspan="3">O'rtacha reyting</th><th rowspan="3">O'TM (%)</th>
 </tr>
 <tr>

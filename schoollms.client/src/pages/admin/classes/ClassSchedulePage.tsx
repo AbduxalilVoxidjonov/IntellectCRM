@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Plus, Pencil, Trash2, LayoutGrid, Eye } from 'lucide-react'
 import type {
-  SchoolClass,
+  Group,
   ScheduleTemplate,
   SchoolSettings,
   WeekAssignment,
@@ -36,7 +36,7 @@ export function ClassSchedulePage() {
   const { id = '' } = useParams()
   const navigate = useNavigate()
 
-  const [cls, setCls] = useState<SchoolClass | null>(null)
+  const [cls, setCls] = useState<Group | null>(null)
   const [templates, setTemplates] = useState<ScheduleTemplate[]>([])
   const [settings, setSettings] = useState<SchoolSettings | null>(null)
   const [subjects, setSubjects] = useState<Subject[]>([])

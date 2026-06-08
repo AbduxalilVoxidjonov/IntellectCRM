@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Download, FileBarChart } from 'lucide-react'
-import type { SchoolClass, Student } from '@/types'
+import type { Group, Student } from '@/types'
 import { getClasses } from '@/api/services/classes'
 import { getStudents } from '@/api/services/students'
 import { getStudentProgressReport, type StudentReport } from '@/api/services/gradesReport'
@@ -16,7 +16,7 @@ const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replac
 
 /** Bir o'quvchi bo'yicha "O'zlashtirish va qatnashish" hisoboti (reportStudentsProgress.xls ko'rinishi). */
 export function StudentGradesReport() {
-  const [classes, setClasses] = useState<SchoolClass[]>([])
+  const [classes, setClasses] = useState<Group[]>([])
   const [students, setStudents] = useState<Student[]>([])
   const [loading, setLoading] = useState(true)
   const [classId, setClassId] = useState('')
@@ -70,7 +70,7 @@ export function StudentGradesReport() {
       <div>
         <h1 className="text-xl font-semibold text-slate-800">Baholar hisoboti — O'quvchi bo'yicha</h1>
         <p className="text-sm text-slate-400">
-          Sinf va o'quvchini tanlab hisobot quring, so'ng Excelga yuklang
+          Guruh va o'quvchini tanlab hisobot quring, so'ng Excelga yuklang
         </p>
       </div>
 
@@ -78,13 +78,13 @@ export function StudentGradesReport() {
         <Loader label="Yuklanmoqda..." />
       ) : classes.length === 0 ? (
         <Card>
-          <p className="py-8 text-center text-sm text-slate-400">Sinflar yo'q</p>
+          <p className="py-8 text-center text-sm text-slate-400">Guruhlar yo'q</p>
         </Card>
       ) : (
         <>
           <Card className="flex flex-wrap items-end gap-4 p-4">
             <label className="block">
-              <span className="mb-1 block text-sm font-medium text-slate-600">Sinf</span>
+              <span className="mb-1 block text-sm font-medium text-slate-600">Guruh</span>
               <select value={classId} onChange={(e) => onClassChange(e.target.value)} className={cn(control, 'min-w-[140px]')}>
                 <option value="">Tanlang</option>
                 {classes.map((c) => (
@@ -106,7 +106,7 @@ export function StudentGradesReport() {
                 disabled={!classId}
                 className={cn(control, 'min-w-[240px] disabled:bg-slate-50')}
               >
-                <option value="">{classId ? 'Tanlang' : 'Avval sinfni tanlang'}</option>
+                <option value="">{classId ? 'Tanlang' : 'Avval guruhni tanlang'}</option>
                 {classStudents.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.fullName}
@@ -136,7 +136,7 @@ export function StudentGradesReport() {
             </Card>
           ) : classStudents.length === 0 && classId ? (
             <Card>
-              <p className="py-8 text-center text-sm text-slate-400">Bu sinfda o'quvchi yo'q</p>
+              <p className="py-8 text-center text-sm text-slate-400">Bu guruhda o'quvchi yo'q</p>
             </Card>
           ) : null}
         </>
@@ -205,7 +205,7 @@ function StudentReportView({ report }: { report: StudentReport }) {
       </table>
 
       <div className="space-y-2 pt-2 text-sm text-slate-600">
-        <p>Sinf rahbari _______________________________ {report.homeroomTeacher}</p>
+        <p>Guruh rahbari _______________________________ {report.homeroomTeacher}</p>
         <p>O'quv ishlari bo'yicha direktor o'rinbosari _______________________________</p>
         <p>Ota-ona _______________________________ {report.parentFullName}</p>
       </div>
@@ -241,7 +241,7 @@ function buildXls(report: StudentReport): string {
 <tbody>${subjRows}</tbody>
 </table>
 <br/><br/>
-<p>Sinf rahbari _______________________________ ${esc(report.homeroomTeacher)}</p>
+<p>Guruh rahbari _______________________________ ${esc(report.homeroomTeacher)}</p>
 <p>O'quv ishlari bo'yicha direktor o'rinbosari _______________________________</p>
 <p>Ota-ona _______________________________ ${esc(report.parentFullName)}</p>
 </body></html>`

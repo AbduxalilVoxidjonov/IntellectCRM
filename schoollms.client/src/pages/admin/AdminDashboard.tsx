@@ -31,7 +31,7 @@ export function AdminDashboard() {
     <div className="space-y-6">
       <div>
         <h1 className="text-xl font-semibold text-slate-800">Bosh sahifa</h1>
-        <p className="text-sm text-slate-400">Maktab bo'yicha umumiy ko'rsatkichlar</p>
+        <p className="text-sm text-slate-400">Markaz bo'yicha umumiy ko'rsatkichlar</p>
       </div>
 
       {/* Statistik kartalar */}
@@ -65,7 +65,7 @@ export function AdminDashboard() {
         />
       </div>
 
-      {/* Bugungi dars jadvali (barcha sinflar) */}
+      {/* Bugungi dars jadvali (barcha guruhlar) */}
       <TodaySchedule />
 
       {/* Statistika grafigi + reyting */}
@@ -73,7 +73,7 @@ export function AdminDashboard() {
         {/* Grafik (baho / davomat tanlash) */}
         <Card className="xl:col-span-2">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <h2 className="font-semibold text-slate-800">Sinflar bo'yicha statistika</h2>
+            <h2 className="font-semibold text-slate-800">Guruhlar bo'yicha statistika</h2>
             <div className="flex rounded-lg bg-slate-100 p-1 text-sm">
               <button onClick={() => setMetric('grade')} className={toggleBtn(metric === 'grade')}>
                 O'rtacha baho
@@ -89,9 +89,9 @@ export function AdminDashboard() {
           <ClassPerformanceChart data={classPerformance} metric={metric} />
         </Card>
 
-        {/* Eng yuqori o'rtacha baholi sinflar (Top 5) */}
+        {/* Eng yuqori o'rtacha baholi guruhlar (Top 5) */}
         <Card>
-          <h2 className="mb-1 font-semibold text-slate-800">Eng yuqori bahoga ega sinflar</h2>
+          <h2 className="mb-1 font-semibold text-slate-800">Eng yuqori bahoga ega guruhlar</h2>
           <p className="mb-4 text-xs text-slate-400">O'rtacha baho bo'yicha Top 5</p>
           <ul className="space-y-2">
             {ranked.map((c, i) => (

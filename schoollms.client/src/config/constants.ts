@@ -77,7 +77,7 @@ export const adminPermissions: { key: string; label: string }[] = [
   { key: 'teachers', label: "O'qituvchilar" },
   { key: 'attendance', label: 'Davomat' },
   { key: 'schedule', label: 'Dars jadvali' },
-  { key: 'classes', label: 'Sinflar' },
+  { key: 'classes', label: 'Guruhlar' },
   { key: 'journal', label: 'Jurnal' },
   { key: 'messages', label: 'Xabarlar' },
   { key: 'app', label: 'Ilova' },

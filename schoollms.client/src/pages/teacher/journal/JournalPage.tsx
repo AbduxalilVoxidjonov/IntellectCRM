@@ -271,7 +271,7 @@ export function TeacherJournalPage() {
         <Loader label="Yuklanmoqda..." />
       ) : classes.length === 0 ? (
         <Card>
-          <p className="py-8 text-center text-slate-400">Sizga biriktirilgan sinf/fan yo'q</p>
+          <p className="py-8 text-center text-slate-400">Sizga biriktirilgan guruh/fan yo'q</p>
         </Card>
       ) : (
         <>
@@ -314,7 +314,7 @@ export function TeacherJournalPage() {
             <Loader label="Yuklanmoqda..." />
           ) : classSubjects.length === 0 ? (
             <Card>
-              <p className="py-8 text-center text-slate-400">Bu sinfda dars beradigan faningiz yo'q</p>
+              <p className="py-8 text-center text-slate-400">Bu guruhda dars beradigan faningiz yo'q</p>
             </Card>
           ) : columns.length === 0 ? (
             <Card>
@@ -457,7 +457,7 @@ export function TeacherJournalPage() {
                       {students.length === 0 && (
                         <tr>
                           <td colSpan={columns.length + 2} className="px-4 py-10 text-center text-slate-400">
-                            Bu sinfda o'quvchilar yo'q
+                            Bu guruhda o'quvchilar yo'q
                           </td>
                         </tr>
                       )}

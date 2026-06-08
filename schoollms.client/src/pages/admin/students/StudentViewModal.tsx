@@ -56,7 +56,7 @@ export function StudentViewModal({ student, onClose }: Props) {
           <Row label="Tug'ilgan kun" value={formatDate(student.birthDate)} />
           <Row label="Jinsi" value={genderLabels[student.gender]} />
           <Row label="Manzil" value={student.address} />
-          <Row label="Sinf" value={student.className} />
+          <Row label="Guruh" value={student.className} />
           <Row label="Ota-onasi" value={student.parentFullName} />
           <Row label="Ota-onasi raqami" value={student.parentPhone} />
           <Row label="Balans" value={formatMoney(student.balance)} />

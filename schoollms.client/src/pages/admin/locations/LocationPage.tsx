@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet'
 import L from 'leaflet'
 import { MapPin } from 'lucide-react'
-import type { SchoolClass, StudentLocationRow } from '@/types'
+import type { Group, StudentLocationRow } from '@/types'
 import { getStudentLocations } from '@/api/services/locations'
 import { getClasses } from '@/api/services/classes'
 import { Card } from '@/components/ui/Card'
@@ -30,7 +30,7 @@ const control =
  */
 export function LocationPage() {
   const [rows, setRows] = useState<StudentLocationRow[]>([])
-  const [classes, setClasses] = useState<SchoolClass[]>([])
+  const [classes, setClasses] = useState<Group[]>([])
   const [loading, setLoading] = useState(true)
   const [classFilter, setClassFilter] = useState('all')
 
@@ -76,7 +76,7 @@ export function LocationPage() {
           onChange={(e) => setClassFilter(e.target.value)}
           className={cn(control, 'min-w-[160px]')}
         >
-          <option value="all">Barcha sinflar</option>
+          <option value="all">Barcha guruhlar</option>
           {classes.map((c) => (
             <option key={c.id} value={c.name}>
               {c.name}
@@ -143,11 +143,11 @@ export function LocationPage() {
             </div>
           </Card>
 
-          {/* Sinf bo'yicha hisob */}
+          {/* Guruh bo'yicha hisob */}
           {byClass.length > 0 && (
             <Card>
               <h2 className="mb-3 text-sm font-semibold text-slate-800">
-                Sinf bo'yicha joylashuv ulushi
+                Guruh bo'yicha joylashuv ulushi
               </h2>
               <div className="flex flex-wrap gap-2">
                 {byClass.map(([name, count]) => (
@@ -176,7 +176,7 @@ export function LocationPage() {
                 <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-400">
                   <tr>
                     <th className="px-4 py-3">F.I.SH</th>
-                    <th className="px-4 py-3">Sinf</th>
+                    <th className="px-4 py-3">Guruh</th>
                     <th className="px-4 py-3">Manzil</th>
                     <th className="px-4 py-3">Koordinata</th>
                     <th className="px-4 py-3">Yangilangan</th>

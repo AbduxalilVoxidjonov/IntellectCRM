@@ -73,7 +73,7 @@ export function CamerasPage() {
         <div>
           <h1 className="text-xl font-semibold text-slate-800">Kameralar</h1>
           <p className="text-sm text-slate-400">
-            Maktab kameralarini real vaqtda kuzatish, yozuvni orqaga qaytarish va qirqib yuklab olish.
+            Markaz kameralarini real vaqtda kuzatish, yozuvni orqaga qaytarish va qirqib yuklab olish.
           </p>
         </div>
         {!selected && (

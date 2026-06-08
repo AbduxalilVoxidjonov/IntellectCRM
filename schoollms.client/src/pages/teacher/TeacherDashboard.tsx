@@ -34,18 +34,18 @@ export function TeacherDashboard() {
         <ClipboardCheck className="h-6 w-6" />
         <div>
           <p className="font-semibold">Topshiriqlar</p>
-          <p className="text-sm text-brand-600/80">Sinflaringizga qo'shimcha topshiriq yarating</p>
+          <p className="text-sm text-brand-600/80">Guruhlaringizga qo'shimcha topshiriq yarating</p>
         </div>
       </Link>
 
       <div>
-        <h2 className="mb-3 font-semibold text-slate-800">Dars beradigan sinflar</h2>
+        <h2 className="mb-3 font-semibold text-slate-800">Dars beradigan guruhlar</h2>
         {loading ? (
           <Loader label="Yuklanmoqda..." />
         ) : classes.length === 0 ? (
           <Card>
             <p className="py-8 text-center text-slate-400">
-              Sizga biriktirilgan sinf/fan yo'q. Maktab ma'muriyatiga murojaat qiling.
+              Sizga biriktirilgan guruh/fan yo'q. Markaz ma'muriyatiga murojaat qiling.
             </p>
           </Card>
         ) : (
@@ -61,7 +61,7 @@ export function TeacherDashboard() {
                   </div>
                   {c.isHomeroom && (
                     <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">
-                      <Crown className="h-3 w-3" /> Sinf rahbari
+                      <Crown className="h-3 w-3" /> Guruh rahbari
                     </span>
                   )}
                 </div>

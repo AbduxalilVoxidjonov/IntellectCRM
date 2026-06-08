@@ -165,7 +165,7 @@ export function FinancePage() {
   const handleExportStudents = () => {
     exportToCsv(
       'oquvchilar-tolov.csv',
-      ["O'quvchi", 'Sinf', 'Hisoblangan', 'Chegirma', "To'langan", 'Qarz', 'Avans'],
+      ["O'quvchi", 'Guruh', 'Hisoblangan', 'Chegirma', "To'langan", 'Qarz', 'Avans'],
       studentReport.map((r) => [
         r.fullName,
         r.className,
@@ -203,7 +203,7 @@ export function FinancePage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-slate-800">Moliya</h1>
-          <p className="text-sm text-slate-400">Maktab kirim-chiqimlari va hisobotlar</p>
+          <p className="text-sm text-slate-400">Markaz kirim-chiqimlari va hisobotlar</p>
         </div>
         <div className="flex items-center gap-2">
           <Button
@@ -551,7 +551,7 @@ export function FinancePage() {
                     <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-400">
                       <tr>
                         <th className="px-4 py-3">O'quvchi</th>
-                        <th className="px-4 py-3">Sinf</th>
+                        <th className="px-4 py-3">Guruh</th>
                         <th className="px-4 py-3 text-right">Hisoblangan</th>
                         <th className="px-4 py-3 text-right">Chegirma</th>
                         <th className="px-4 py-3 text-right">To'langan</th>

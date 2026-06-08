@@ -235,7 +235,7 @@ export function ParentsPage() {
                                 <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-400">
                                   <tr>
                                     <th className="px-3 py-2 text-left">Farzand</th>
-                                    <th className="px-3 py-2 text-left">Sinf</th>
+                                    <th className="px-3 py-2 text-left">Guruh</th>
                                     <th className="px-3 py-2 text-left">Birinchi kirish</th>
                                     <th className="px-3 py-2 text-left">Oxirgi kirish</th>
                                     <th className="px-3 py-2 text-left">Qurilma</th>

@@ -90,7 +90,7 @@ export function TeacherAssignmentsPage() {
         <Loader label="Yuklanmoqda..." />
       ) : classes.length === 0 ? (
         <Card>
-          <p className="py-10 text-center text-slate-400">Sizga biriktirilgan sinf/fan yo'q.</p>
+          <p className="py-10 text-center text-slate-400">Sizga biriktirilgan guruh/fan yo'q.</p>
         </Card>
       ) : assignments.length === 0 ? (
         <Card>

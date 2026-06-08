@@ -71,7 +71,7 @@ export function TeacherLmsSubjectPage() {
               Ta'lim
             </button>
             <span>/</span>
-            <span className="text-slate-600">{subject.className}-sinf</span>
+            <span className="text-slate-600">{subject.className}-guruh</span>
             <span>/</span>
             <span className="text-slate-800">{subject.title}</span>
           </div>

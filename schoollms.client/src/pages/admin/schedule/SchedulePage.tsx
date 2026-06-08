@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CalendarDays, ChevronRight } from 'lucide-react'
-import type { SchoolClass } from '@/types'
+import type { Group } from '@/types'
 import { getClasses } from '@/api/services/classes'
 import { languageLabels } from '@/config/constants'
 import { Loader } from '@/components/ui/Loader'
 
 export function SchedulePage() {
   const navigate = useNavigate()
-  const [classes, setClasses] = useState<SchoolClass[]>([])
+  const [classes, setClasses] = useState<Group[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -22,7 +22,7 @@ export function SchedulePage() {
       <div>
         <h1 className="text-xl font-semibold text-slate-800">Dars jadvali yaratish</h1>
         <p className="text-sm text-slate-400">
-          Jadval yaratish va haftalarga biriktirish uchun sinfni tanlang
+          Jadval yaratish va haftalarga biriktirish uchun guruhni tanlang
         </p>
       </div>
 
@@ -52,7 +52,7 @@ export function SchedulePage() {
             </button>
           ))}
           {classes.length === 0 && (
-            <p className="col-span-full py-12 text-center text-slate-400">Sinflar yo'q</p>
+            <p className="col-span-full py-12 text-center text-slate-400">Guruhlar yo'q</p>
           )}
         </div>
       )}

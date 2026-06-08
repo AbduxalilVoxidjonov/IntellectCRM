@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import type {
-  SchoolClass,
+  Group,
   ScheduleTemplate,
   SchoolSettings,
   Subject,
@@ -30,7 +30,7 @@ const control =
  * "Dars jadvali yaratish" bo'limida.
  */
 export function ClassScheduleViewPage() {
-  const [classes, setClasses] = useState<SchoolClass[]>([])
+  const [classes, setClasses] = useState<Group[]>([])
   const [subjects, setSubjects] = useState<Subject[]>([])
   const [teachers, setTeachers] = useState<Teacher[]>([])
   const [settings, setSettings] = useState<SchoolSettings | null>(null)
@@ -128,9 +128,9 @@ export function ClassScheduleViewPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold text-slate-800">Sinf dars jadvali</h1>
+        <h1 className="text-xl font-semibold text-slate-800">Guruh dars jadvali</h1>
         <p className="text-sm text-slate-400">
-          Sinf, chorak va haftani tanlang — shu hafta jadvali ko'rsatiladi
+          Guruh, chorak va haftani tanlang — shu hafta jadvali ko'rsatiladi
         </p>
       </div>
 
@@ -138,7 +138,7 @@ export function ClassScheduleViewPage() {
         <Loader label="Yuklanmoqda..." />
       ) : classes.length === 0 ? (
         <Card>
-          <p className="py-8 text-center text-sm text-slate-400">Sinflar yo'q</p>
+          <p className="py-8 text-center text-sm text-slate-400">Guruhlar yo'q</p>
         </Card>
       ) : (
         <>

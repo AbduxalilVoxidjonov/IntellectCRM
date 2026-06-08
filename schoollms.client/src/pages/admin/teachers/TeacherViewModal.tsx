@@ -64,7 +64,7 @@ export function TeacherViewModal({ teacher, subjects, onClose }: Props) {
           <Row label="Jinsi" value={genderLabels[teacher.gender]} />
           <Row label="Tug'ilgan kun" value={formatDate(teacher.birthDate)} />
           <Row label="Manzil" value={teacher.address || '—'} />
-          <Row label="Sinf rahbarligi" value={teacher.homeroomClass || '—'} />
+          <Row label="Guruh rahbarligi" value={teacher.homeroomClass || '—'} />
           <Row label="Toifa" value={teacherCategoryLabel(teacher.category)} />
           <Row
             label="Maosh hisoblanadi"

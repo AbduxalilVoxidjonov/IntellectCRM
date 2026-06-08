@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Users, BookOpen, UserX, ChevronLeft, ChevronRight } from 'lucide-react'
-import type { SchoolClass } from '@/types'
+import type { Group } from '@/types'
 import { getClasses } from '@/api/services/classes'
 import {
   getDailyAttendance,
@@ -35,7 +35,7 @@ function todayISO(): string {
 }
 
 export function AttendancePage() {
-  const [classes, setClasses] = useState<SchoolClass[]>([])
+  const [classes, setClasses] = useState<Group[]>([])
   const [classId, setClassId] = useState('')
   const [date, setDate] = useState(todayISO())
   const [data, setData] = useState<DailyAttendance | null>(null)
@@ -83,7 +83,7 @@ export function AttendancePage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-xl font-semibold text-slate-800">Davomat</h1>
-        <p className="text-sm text-slate-400">Sinf bo'yicha kunlik davomat hisoboti</p>
+        <p className="text-sm text-slate-400">Guruh bo'yicha kunlik davomat hisoboti</p>
       </div>
 
       {loading ? (
@@ -95,7 +95,7 @@ export function AttendancePage() {
             <select value={classId} onChange={(e) => setClassId(e.target.value)} className={control}>
               {classes.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.name}-sinf
+                  {c.name}-guruh
                 </option>
               ))}
             </select>

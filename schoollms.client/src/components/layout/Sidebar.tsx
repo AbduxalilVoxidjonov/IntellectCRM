@@ -57,7 +57,7 @@ export function Sidebar({ open, onNavigate }: SidebarProps) {
           <GraduationCap className="h-5 w-5" />
         </div>
         <div className="leading-tight">
-          <p className="font-semibold text-slate-800">{schoolName || 'Intellect School'}</p>
+          <p className="font-semibold text-slate-800">{schoolName || 'IntellectCRM'}</p>
           <p className="text-xs text-slate-400">{roleLabels[role]}</p>
         </div>
       </div>

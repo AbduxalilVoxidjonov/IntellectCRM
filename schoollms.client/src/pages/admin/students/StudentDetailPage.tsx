@@ -214,7 +214,7 @@ export function StudentDetailPage() {
           <InfoRow icon={Cake} label="Tug'ilgan kun" value={data.birthDate ? formatDate(data.birthDate) : '—'} />
           <InfoRow icon={CalendarPlus} label="Qabul sanasi" value={data.enrollmentDate ? formatDate(data.enrollmentDate) : '—'} />
           <InfoRow icon={MapPin} label="Manzil" value={data.address || '—'} />
-          <InfoRow icon={GraduationCap} label="Sinf rahbari" value={data.homeroomTeacher || '—'} />
+          <InfoRow icon={GraduationCap} label="Guruh rahbari" value={data.homeroomTeacher || '—'} />
           <InfoRow icon={User} label="Ota-ona" value={data.parentFullName || '—'} />
           <InfoRow icon={Phone} label="Ota-ona telefoni" value={data.parentPhone || '—'} />
           <InfoRow

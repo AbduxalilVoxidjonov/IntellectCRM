@@ -144,7 +144,7 @@ export function LeadsPage() {
         <div>
           <h1 className="text-xl font-semibold text-slate-800">Lidlar</h1>
           <p className="text-sm text-slate-400">
-            Maktabga qiziqqanlar — kartani sudrang yoki ustiga bosing
+            Markazga qiziqqanlar — kartani sudrang yoki ustiga bosing
           </p>
         </div>
         <Button

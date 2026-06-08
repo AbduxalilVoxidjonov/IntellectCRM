@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { GraduationCap, ChevronRight, BookOpen } from 'lucide-react'
-import type { LmsSubject, SchoolClass } from '@/types'
+import type { LmsSubject, Group } from '@/types'
 import { getClasses } from '@/api/services/classes'
 import { getLmsSubjects } from '@/api/services/lms'
 import { languageLabels } from '@/config/constants'
@@ -9,7 +9,7 @@ import { Loader } from '@/components/ui/Loader'
 
 export function LmsClassesPage() {
   const navigate = useNavigate()
-  const [classes, setClasses] = useState<SchoolClass[]>([])
+  const [classes, setClasses] = useState<Group[]>([])
   const [subjects, setSubjects] = useState<LmsSubject[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -29,14 +29,14 @@ export function LmsClassesPage() {
       <div>
         <h1 className="text-xl font-semibold text-slate-800">Ta'lim (LMS)</h1>
         <p className="text-sm text-slate-400">
-          Sinf tanlang — uning fanlar va dars materiallarini boshqaring
+          Guruh tanlang — uning fanlar va dars materiallarini boshqaring
         </p>
       </div>
 
       {loading ? (
         <Loader label="Yuklanmoqda..." />
       ) : classes.length === 0 ? (
-        <p className="py-12 text-center text-slate-400">Sinflar yo'q</p>
+        <p className="py-12 text-center text-slate-400">Guruhlar yo'q</p>
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {classes.map((c) => {
@@ -53,7 +53,7 @@ export function LmsClassesPage() {
                     <GraduationCap className="h-5 w-5" />
                   </div>
                   <div>
-                    <p className="font-semibold text-slate-800">{c.name}-sinf</p>
+                    <p className="font-semibold text-slate-800">{c.name}-guruh</p>
                     <p className="text-xs text-slate-400">
                       {languageLabels[c.language]}
                       {c.room ? ` · ${c.room}-xona` : ''}

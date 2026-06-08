@@ -5,7 +5,7 @@ import type {
   AssignmentScoreColumn,
   AssignmentScoreRow,
   AssignmentFormat,
-  SchoolClass,
+  Group,
 } from '@/types'
 import { getClasses } from '@/api/services/classes'
 import { getAssignmentScoreboard } from '@/api/services/assignments'
@@ -38,7 +38,7 @@ function scoreColor(score: number, max: number): string {
  * shuning uchun topshiriq ko'paysa ham jadval enga kengaymaydi.
  */
 export function AssignmentScoresPage() {
-  const [classes, setClasses] = useState<SchoolClass[]>([])
+  const [classes, setClasses] = useState<Group[]>([])
   const [classId, setClassId] = useState('')
   const [board, setBoard] = useState<AssignmentScoreboard | null>(null)
   const [loading, setLoading] = useState(false)
@@ -97,7 +97,7 @@ export function AssignmentScoresPage() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <select className={control} value={classId} onChange={(e) => setClassId(e.target.value)}>
-            {classes.length === 0 && <option value="">Sinf yo'q</option>}
+            {classes.length === 0 && <option value="">Guruh yo'q</option>}
             {classes.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
@@ -120,11 +120,11 @@ export function AssignmentScoresPage() {
         <Loader label="Yuklanmoqda..." />
       ) : !board || !hasAssignments ? (
         <Card>
-          <p className="py-12 text-center text-slate-400">Bu sinfga topshiriq berilmagan</p>
+          <p className="py-12 text-center text-slate-400">Bu guruhga topshiriq berilmagan</p>
         </Card>
       ) : board.students.length === 0 ? (
         <Card>
-          <p className="py-12 text-center text-slate-400">Sinfda o'quvchi yo'q</p>
+          <p className="py-12 text-center text-slate-400">Guruhda o'quvchi yo'q</p>
         </Card>
       ) : (
         <Card className="overflow-hidden p-0">
@@ -133,7 +133,7 @@ export function AssignmentScoresPage() {
               <tr className="border-b border-slate-200 bg-slate-50 text-slate-700">
                 <th className="w-12 px-4 py-3 text-left font-semibold">№</th>
                 <th className="px-4 py-3 text-left font-semibold">F.I.Sh.</th>
-                <th className="w-24 px-4 py-3 text-left font-semibold">Sinf</th>
+                <th className="w-24 px-4 py-3 text-left font-semibold">Guruh</th>
                 <th className="w-40 px-4 py-3 text-right font-semibold">Jami ball</th>
               </tr>
             </thead>
@@ -178,7 +178,7 @@ export function AssignmentScoresPage() {
               <div>
                 <h2 className="font-semibold text-slate-800">{selected.fullName}</h2>
                 <p className="text-sm text-slate-400">
-                  {selected.className}-sinf ·{' '}
+                  {selected.className}-guruh ·{' '}
                   {selected.gradedCount > 0 ? (
                     <span className={scoreColor(selected.totalScore, selected.totalMax)}>
                       Jami {selected.totalScore} / {selected.totalMax} ball

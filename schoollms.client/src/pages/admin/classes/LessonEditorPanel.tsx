@@ -191,7 +191,7 @@ function RowFields({
             <p className="font-semibold">Ziddiyat topildi!</p>
             <p className="mt-0.5">
               Bu o'qituvchi{' '}
-              <span className="font-semibold">{conflict.className}-sinf</span>
+              <span className="font-semibold">{conflict.className}-guruh</span>
               {' '}da shu soatda allaqachon dars bor{' '}
               <span className="text-red-500">({conflict.templateName})</span>.
             </p>

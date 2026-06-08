@@ -5,7 +5,7 @@ import type {
   JournalColumn,
   JournalEntry,
   JournalTopic,
-  SchoolClass,
+  Group,
   ScheduleTemplate,
   Student,
   Subject,
@@ -55,7 +55,7 @@ function avgColor(g: number): string {
 }
 
 export function JournalPage() {
-  const [classes, setClasses] = useState<SchoolClass[]>([])
+  const [classes, setClasses] = useState<Group[]>([])
   const [subjects, setSubjects] = useState<Subject[]>([])
   const [students, setStudents] = useState<Student[]>([])
   const [templates, setTemplates] = useState<ScheduleTemplate[]>([])
@@ -324,7 +324,7 @@ export function JournalPage() {
             <select value={classId} onChange={(e) => setClassId(e.target.value)} className={control}>
               {classes.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.name}-sinf
+                  {c.name}-guruh
                 </option>
               ))}
             </select>
@@ -355,7 +355,7 @@ export function JournalPage() {
             )}
           </div>
 
-          {/* Mavzularni Excel'dan ommaviy yuklash — sinf+fan tanlangan bo'lsa */}
+          {/* Mavzularni Excel'dan ommaviy yuklash — guruh+fan tanlangan bo'lsa */}
           {classSubjects.length > 0 && subjectId && (
             <div className="flex flex-wrap items-center gap-2">
               <Button variant="secondary" onClick={onDownloadTemplate}>
@@ -376,7 +376,7 @@ export function JournalPage() {
           ) : classSubjects.length === 0 ? (
             <Card>
               <p className="py-8 text-center text-slate-400">
-                Bu sinfda fanlar yo'q — avval dars jadvali yarating
+                Bu guruhda fanlar yo'q — avval dars jadvali yarating
               </p>
             </Card>
           ) : columns.length === 0 ? (
@@ -526,7 +526,7 @@ export function JournalPage() {
                             colSpan={columns.length + 2}
                             className="px-4 py-10 text-center text-slate-400"
                           >
-                            Bu sinfda o'quvchilar yo'q
+                            Bu guruhda o'quvchilar yo'q
                           </td>
                         </tr>
                       )}

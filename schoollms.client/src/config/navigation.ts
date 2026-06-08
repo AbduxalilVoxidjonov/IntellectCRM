@@ -79,7 +79,7 @@ export const navByRole: Record<Role, NavItem[]> = {
       icon: CalendarRange,
       perm: 'schedule',
       children: [
-        { label: 'Sinf jadvali', to: '/admin/schedule', end: true },
+        { label: 'Guruh jadvali', to: '/admin/schedule', end: true },
         { label: "O'qituvchi jadvali", to: '/admin/schedule/teachers' },
         { label: 'Dars jadvali yaratish', to: '/admin/schedule/manage' },
         { label: 'Bayram kunlari', to: '/admin/schedule/holidays' },
@@ -89,12 +89,12 @@ export const navByRole: Record<Role, NavItem[]> = {
       ],
     },
     {
-      label: 'Sinflar',
+      label: 'Guruhlar',
       to: '/admin/classes',
       icon: School,
       perm: 'classes',
       children: [
-        { label: "Sinflar ro'yxati", to: '/admin/classes', end: true },
+        { label: "Guruhlar ro'yxati", to: '/admin/classes', end: true },
         { label: 'Reyting', to: '/admin/classes/rating' },
       ],
     },
@@ -120,8 +120,8 @@ export const navByRole: Record<Role, NavItem[]> = {
       icon: ClipboardList,
       perm: 'gradesReport',
       children: [
-        { label: "Maktab bo'yicha", to: '/admin/grades-report/school' },
-        { label: "Sinf bo'yicha", to: '/admin/grades-report/class' },
+        { label: "Markaz bo'yicha", to: '/admin/grades-report/school' },
+        { label: "Guruh bo'yicha", to: '/admin/grades-report/class' },
         { label: "O'quvchi bo'yicha", to: '/admin/grades-report/student' },
       ],
     },
@@ -156,7 +156,7 @@ export const navByRole: Record<Role, NavItem[]> = {
       icon: Settings,
       perm: 'settings',
       children: [
-        { label: "Maktab ma'lumotlari", to: '/admin/settings/school' },
+        { label: "Markaz ma'lumotlari", to: '/admin/settings/school' },
         { label: 'Telegram bot', to: '/admin/settings/telegram' },
         { label: 'Push (Firebase)', to: '/admin/settings/firebase' },
         { label: 'Turniket integratsiya', to: '/admin/settings/turnstile' },

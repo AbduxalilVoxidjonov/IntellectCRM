@@ -35,7 +35,7 @@ export function MessagesPage() {
         <div>
           <h1 className="text-xl font-semibold text-slate-800">Xabarlar</h1>
           <p className="text-sm text-slate-400">
-            Sinf va xodimlar guruh chati hamda ota-onalarga e'lon
+            Guruh va xodimlar guruh chati hamda ota-onalarga e'lon
           </p>
         </div>
         <div className="inline-flex rounded-lg border border-slate-200 bg-white p-1">
@@ -114,7 +114,7 @@ export function MessagesPage() {
 
               {classes.length === 0 && (
                 <p className="px-3 py-6 text-center text-sm text-slate-400">
-                  Sinflar yo'q. Avval sinf qo'shing.
+                  Guruhlar yo'q. Avval guruh qo'shing.
                 </p>
               )}
             </div>

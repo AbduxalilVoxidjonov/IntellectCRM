@@ -39,7 +39,7 @@ const formats: { key: AssignmentFormat; label: string; desc: string; icon: typeo
   { key: 'video', label: 'Video javob', desc: 'Yozib yuborish', icon: Video },
 ]
 
-const steps = ['Asosiy', 'Mazmun va materiallar', 'Sinflar va muddat', 'Baholash']
+const steps = ['Asosiy', 'Mazmun va materiallar', 'Guruhlar va muddat', 'Baholash']
 
 const control =
   'rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-brand-400'
@@ -414,13 +414,13 @@ export function AssignmentWizard({
         </div>
       )}
 
-      {/* Qadam 3: Sinflar va muddat */}
+      {/* Qadam 3: Guruhlar va muddat */}
       {step === 2 && (
         <div className="space-y-4">
           <div>
-            <span className="mb-2 block text-sm font-medium text-slate-600">Sinflarni tanlash</span>
+            <span className="mb-2 block text-sm font-medium text-slate-600">Guruhlarni tanlash</span>
             <div className="flex flex-wrap gap-2">
-              {classes.length === 0 && <p className="text-sm text-slate-400">Sinf yo'q</p>}
+              {classes.length === 0 && <p className="text-sm text-slate-400">Guruh yo'q</p>}
               {classes.map((c) => {
                 const active = classIds.includes(c.id)
                 return (
@@ -502,7 +502,7 @@ export function AssignmentWizard({
           )}
           {!canSave && (
             <p className="text-sm text-amber-600">
-              Saqlash uchun: nom, fan va kamida bitta sinf tanlangan bo'lishi kerak.
+              Saqlash uchun: nom, fan va kamida bitta guruh tanlangan bo'lishi kerak.
             </p>
           )}
         </div>

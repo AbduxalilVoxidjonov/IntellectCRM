@@ -276,7 +276,7 @@ export function StudentFormModal({ open, onClose, onSubmit, initial }: Props) {
           />
           <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
             <Select
-              label="Sinfga biriktirish"
+              label="Guruhga biriktirish"
               value={form.className}
               onChange={(e) => update('className', e.target.value)}
             >
@@ -287,7 +287,7 @@ export function StudentFormModal({ open, onClose, onSubmit, initial }: Props) {
               ))}
             </Select>
             <Input
-              label="Maktabga kelgan sana"
+              label="Markazga kelgan sana"
               type="date"
               value={form.enrollmentDate}
               onChange={(e) => update('enrollmentDate', e.target.value)}

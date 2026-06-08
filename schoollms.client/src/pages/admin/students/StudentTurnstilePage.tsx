@@ -141,7 +141,7 @@ export function StudentTurnstilePage() {
               onChange={(e) => setClassFilter(e.target.value)}
               className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:border-brand-400"
             >
-              <option value="all">Barcha sinflar</option>
+              <option value="all">Barcha guruhlar</option>
               {classes.map((c) => (
                 <option key={c} value={c}>
                   {c}
@@ -192,7 +192,7 @@ export function StudentTurnstilePage() {
                 <tr>
                   <th className="w-12 px-3 py-2 text-center">№</th>
                   <th className="px-3 py-2">F.I.SH</th>
-                  <th className="px-3 py-2">Sinf</th>
+                  <th className="px-3 py-2">Guruh</th>
                   <th className="px-3 py-2">Qurilma ID</th>
                   <th className="px-3 py-2 text-center">Kirgan vaqti</th>
                   <th className="px-3 py-2 text-center">Chiqqan vaqti</th>

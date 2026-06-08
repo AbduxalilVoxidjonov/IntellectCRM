@@ -168,7 +168,7 @@ export interface Subject {
 
 export type ClassLanguage = 'uz' | 'ru'
 
-export interface SchoolClass {
+export interface Group {
   id: string
   /** Sinf nomi, masalan "3-A" */
   name: string

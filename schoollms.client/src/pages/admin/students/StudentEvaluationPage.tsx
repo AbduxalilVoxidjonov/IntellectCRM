@@ -180,7 +180,7 @@ export function StudentEvaluationPage() {
           value={classFilter}
           onChange={(e) => setClassFilter(e.target.value)}
         >
-          <option value="all">Barcha sinflar</option>
+          <option value="all">Barcha guruhlar</option>
           {classNames.map((c) => (
             <option key={c} value={c}>
               {c}
@@ -188,7 +188,7 @@ export function StudentEvaluationPage() {
           ))}
         </select>
         <select className={control} value={sort} onChange={(e) => setSort(e.target.value as Sort)}>
-          <option value="class">Saralash: sinf bo'yicha</option>
+          <option value="class">Saralash: guruh bo'yicha</option>
           <option value="name">Ism (A-Z)</option>
           <option value="att-desc">Davomat: qatnashgan ko'pdan</option>
           <option value="att-asc">Davomat: qatnashgan kamdan</option>
@@ -225,7 +225,7 @@ export function StudentEvaluationPage() {
                 <tr>
                   <th className="w-10 px-3 py-3">#</th>
                   <th className="px-3 py-3">FISH</th>
-                  <th className="px-3 py-3">Sinf</th>
+                  <th className="px-3 py-3">Guruh</th>
                   <th className="px-3 py-3 text-center">Qatnashgan</th>
                   <th className="px-3 py-3">Davomat sabablari</th>
                   {board.types.map((t) => (

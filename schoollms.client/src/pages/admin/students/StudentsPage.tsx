@@ -158,7 +158,7 @@ export function StudentsPage() {
   const handleExport = () => {
     exportToCsv(
       'oquvchilar.csv',
-      ['F.I.SH', 'Sinf', 'Jinsi', "Tug'ilgan kun", 'Manzil', 'Ota-ona', 'Telefon', 'Balans', 'Chegirma'],
+      ['F.I.SH', 'Guruh', 'Jinsi', "Tug'ilgan kun", 'Manzil', 'Ota-ona', 'Telefon', 'Balans', 'Chegirma'],
       selectedStudents.map((s) => [
         s.fullName,
         s.className,
@@ -378,7 +378,7 @@ export function StudentsPage() {
             onChange={(e) => setClassFilter(e.target.value)}
             className={control}
           >
-            <option value="all">Barcha sinflar</option>
+            <option value="all">Barcha guruhlar</option>
             {classNames.map((c) => (
               <option key={c} value={c}>
                 {c}
@@ -445,7 +445,7 @@ export function StudentsPage() {
                   </th>
                   <th className="w-10 px-2 py-3">#</th>
                   <th className="px-4 py-3">F.I.SH</th>
-                  <th className="px-4 py-3">Sinf</th>
+                  <th className="px-4 py-3">Guruh</th>
                   <th className="px-4 py-3">Jinsi</th>
                   <th className="px-4 py-3">Tug'ilgan kun</th>
                   <th className="px-4 py-3">Ota-ona</th>
@@ -658,7 +658,7 @@ export function StudentsPage() {
               <input
                 value={archiveReason}
                 onChange={(e) => setArchiveReason(e.target.value)}
-                placeholder="masalan: Boshqa maktabga ko'chdi, oilaviy sabab..."
+                placeholder="masalan: Boshqa markazga ko'chdi, oilaviy sabab..."
                 className={cn(control, 'w-full')}
                 autoFocus
               />

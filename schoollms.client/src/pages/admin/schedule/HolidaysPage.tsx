@@ -101,7 +101,7 @@ export function HolidaysPage() {
         <div>
           <h1 className="text-xl font-semibold text-slate-800">Bayram kunlari</h1>
           <p className="text-sm text-slate-400">
-            Kunni bosib bayram/dam olish kuni qilib belgilang — o'sha kunlari hech bir sinfda dars bo'lmaydi
+            Kunni bosib bayram/dam olish kuni qilib belgilang — o'sha kunlari hech bir guruhda dars bo'lmaydi
           </p>
         </div>
         <div className="flex gap-1 rounded-lg bg-slate-100 p-1">

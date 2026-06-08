@@ -27,7 +27,7 @@ const control =
 const sectionTitles: Record<string, string> = {
   'lesson-times': 'Dars vaqtlari',
   reasons: 'Davomat sabablari',
-  school: "Maktab ma'lumotlari",
+  school: "Markaz ma'lumotlari",
   telegram: 'Telegram bot',
   firebase: 'Push (Firebase)',
   turnstile: 'Turniket integratsiya',
@@ -197,7 +197,7 @@ export function SettingsPage() {
           </Card>
           )}
 
-          {/* Maktab ma'lumotlari */}
+          {/* Markaz ma'lumotlari */}
           {section === 'school' && <SchoolSettings />}
 
           {/* Telegram bot */}

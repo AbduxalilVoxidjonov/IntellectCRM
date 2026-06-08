@@ -80,7 +80,7 @@ export function LmsModulesPage() {
               onClick={() => navigate(`/admin/lms/${classId}`)}
               className="hover:text-brand-600"
             >
-              {subject.className}-sinf
+              {subject.className}-guruh
             </button>
             <span>/</span>
             <span className="text-slate-700">{subject.title}</span>

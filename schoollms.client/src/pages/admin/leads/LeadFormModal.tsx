@@ -110,13 +110,13 @@ export function LeadFormModal({ open, onClose, onSubmit, initial }: Props) {
             onChange={(e) => update('parentPhone', e.target.value)}
           />
           <Select
-            label="Nechinchi sinfga"
+            label="Nechinchi guruhga"
             value={form.targetGrade}
             onChange={(e) => update('targetGrade', Number(e.target.value))}
           >
             {gradeOptions.map((g) => (
               <option key={g} value={g}>
-                {g}-sinf
+                {g}-guruh
               </option>
             ))}
           </Select>

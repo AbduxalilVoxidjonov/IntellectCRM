@@ -1,25 +1,25 @@
-import type { SchoolClass } from '@/types'
+import type { Group } from '@/types'
 import { delay, uid } from '@/lib/utils'
 import { api, USE_MOCK } from '../client'
 import { classesMock } from '../mock/classes'
 
-export type ClassPayload = Omit<SchoolClass, 'id'>
+export type ClassPayload = Omit<Group, 'id'>
 
-export async function getClasses(): Promise<SchoolClass[]> {
+export async function getClasses(): Promise<Group[]> {
   if (USE_MOCK) {
     await delay()
     return classesMock
   }
-  const { data } = await api.get<SchoolClass[]>('/admin/classes')
+  const { data } = await api.get<Group[]>('/admin/classes')
   return data
 }
 
-export async function createClass(payload: ClassPayload): Promise<SchoolClass> {
+export async function createClass(payload: ClassPayload): Promise<Group> {
   if (USE_MOCK) {
     await delay(200)
     return { ...payload, id: uid() }
   }
-  const { data } = await api.post<SchoolClass>('/admin/classes', payload)
+  const { data } = await api.post<Group>('/admin/classes', payload)
   return data
 }
 
@@ -31,12 +31,12 @@ export async function updateClass(
   id: string,
   payload: ClassPayload,
   applyFee?: boolean,
-): Promise<SchoolClass> {
+): Promise<Group> {
   if (USE_MOCK) {
     await delay(200)
     return { ...payload, id }
   }
-  const { data } = await api.put<SchoolClass>(`/admin/classes/${id}`, payload, {
+  const { data } = await api.put<Group>(`/admin/classes/${id}`, payload, {
     params: applyFee === undefined ? undefined : { applyFee },
   })
   return data
@@ -51,12 +51,12 @@ export async function deleteClass(id: string): Promise<void> {
 }
 
 /** Arxivlangan sinflar ro'yxati. */
-export async function getArchivedClasses(): Promise<SchoolClass[]> {
+export async function getArchivedClasses(): Promise<Group[]> {
   if (USE_MOCK) {
     await delay()
     return []
   }
-  const { data } = await api.get<SchoolClass[]>('/admin/classes/archived')
+  const { data } = await api.get<Group[]>('/admin/classes/archived')
   return data
 }
 

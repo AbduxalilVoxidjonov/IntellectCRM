@@ -102,11 +102,11 @@ export function TeacherEvaluationPage() {
         </p>
       </div>
 
-      {/* Sinf + fan + oy tanlovi */}
+      {/* Guruh + fan + oy tanlovi */}
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50/60 p-3">
-        <span className="text-sm font-medium text-slate-600">Sinf:</span>
+        <span className="text-sm font-medium text-slate-600">Guruh:</span>
         <select className={control} value={classId} onChange={(e) => setClassId(e.target.value)}>
-          {classes.length === 0 && <option value="">— dars beradigan sinf yo'q —</option>}
+          {classes.length === 0 && <option value="">— dars beradigan guruh yo'q —</option>}
           {classes.map((c) => (
             <option key={c.classId} value={c.classId}>
               {c.className}
@@ -148,7 +148,7 @@ export function TeacherEvaluationPage() {
           </p>
         </Card>
       ) : !classId || !subjectId ? (
-        <Card className="py-16 text-center text-slate-400">Sinf va fan tanlang</Card>
+        <Card className="py-16 text-center text-slate-400">Guruh va fan tanlang</Card>
       ) : (
         <Card className="p-0">
           <div className="overflow-x-auto">
@@ -178,7 +178,7 @@ export function TeacherEvaluationPage() {
                 {board.rows.length === 0 && (
                   <tr>
                     <td colSpan={3 + board.types.length} className="px-4 py-12 text-center text-slate-400">
-                      Bu sinfda o'quvchi yo'q
+                      Bu guruhda o'quvchi yo'q
                     </td>
                   </tr>
                 )}

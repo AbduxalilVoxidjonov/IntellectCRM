@@ -17,7 +17,7 @@ export const financeMock: FinanceTransaction[] = [
   // May
   { id: 'f-05-1', date: '2026-05-05', direction: 'expense', category: 'salary', amount: 25_000_000, note: "O'qituvchilar oyligi" },
   { id: 'f-05-2', date: '2026-05-10', direction: 'expense', category: 'utilities', amount: 4_200_000, note: 'Kommunal to\'lovlar' },
-  { id: 'f-05-3', date: '2026-05-03', direction: 'expense', category: 'repair', amount: 5_500_000, note: 'Sinf xonasi ta\'miri' },
+  { id: 'f-05-3', date: '2026-05-03', direction: 'expense', category: 'repair', amount: 5_500_000, note: 'Guruh xonasi ta\'miri' },
   { id: 'f-05-4', date: '2026-05-15', direction: 'income', category: 'donation', amount: 10_000_000, note: 'Homiy yordami' },
   { id: 'f-05-5', date: '2026-05-08', direction: 'income', category: 'tuition', amount: 900_000, note: "O'quvchi to'lovi — Jahongir Aliyev", studentId: 's5', studentName: 'Jahongir Aliyev' },
 ]

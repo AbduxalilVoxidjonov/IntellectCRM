@@ -177,7 +177,7 @@ export function PushComposer({ classes }: { classes: MessageClass[] }) {
 
           {audience === 'parents' && (
             <select value={className} onChange={(e) => setClassName(e.target.value)} className={control}>
-              <option value="">Barcha sinflar</option>
+              <option value="">Barcha guruhlar</option>
               {classes.map((c) => (
                 <option key={c.name} value={c.name}>
                   {c.name}
@@ -198,7 +198,7 @@ export function PushComposer({ classes }: { classes: MessageClass[] }) {
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Ism, sinf yoki o'qituvchi..."
+                placeholder="Ism, guruh yoki o'qituvchi..."
                 className="w-full rounded-lg border border-slate-200 py-2 pl-9 pr-3 text-sm outline-none focus:border-brand-400"
               />
             </div>
