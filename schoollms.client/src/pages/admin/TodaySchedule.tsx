@@ -33,8 +33,6 @@ interface Lesson {
   teacherName: string
   /** Dars o'tildimi (yashil) yoki yo'q (qizil) */
   conducted: boolean
-  /** Bo'linish: 0 = butun sinf, 1/2 = guruh */
-  subGroup: number
 }
 
 /** Bosh sahifada bugungi (joriy hafta kuni) barcha sinflar dars jadvali. */
@@ -66,7 +64,7 @@ export function TodaySchedule() {
         setClasses(cls)
         setSubjects(subs)
         setTeachers(tchs)
-        setConductedSet(new Set(conducted.map((c) => `${c.classId}|${c.subjectId}|${c.period}|${c.subGroup ?? 0}`)))
+        setConductedSet(new Set(conducted.map((c) => `${c.classId}|${c.subjectId}|${c.period}`)))
 
         const q = settings.quarters.find(
           (x) => x.startDate && x.endDate && x.startDate <= iso && iso <= x.endDate,
@@ -114,13 +112,12 @@ export function TodaySchedule() {
       assigned: true,
       lessons: tpl.lessons
         .filter((l) => l.day === weekday)
-        .sort((a, b) => a.period - b.period || (a.subGroup ?? 0) - (b.subGroup ?? 0))
+        .sort((a, b) => a.period - b.period)
         .map((l) => ({
           period: l.period,
           subjectName: subjectName(l.subjectId),
           teacherName: teacherName(l.teacherId),
-          conducted: conductedSet.has(`${classId}|${l.subjectId}|${l.period}|${l.subGroup ?? 0}`),
-          subGroup: l.subGroup ?? 0,
+          conducted: conductedSet.has(`${classId}|${l.subjectId}|${l.period}`),
         })),
     }
   }
@@ -147,10 +144,7 @@ export function TodaySchedule() {
         <p className="py-8 text-center text-sm text-slate-400">Bugun dam olish kuni — dars yo'q</p>
       ) : quarter == null ? (
         <p className="py-8 text-center text-sm text-slate-400">
-          Bugun uchun o'quv chorak sanasi topilmadi.{' '}
-          <Link to="/admin/settings/quarters" className="text-brand-600 hover:underline">
-            Choraklar sozlamasi
-          </Link>
+          Bugun uchun o'quv davri sanasi topilmadi.
         </p>
       ) : classes.length === 0 ? (
         <p className="py-8 text-center text-sm text-slate-400">Sinflar yo'q</p>
@@ -197,18 +191,6 @@ export function TodaySchedule() {
                         >
                           {l.subjectName || '—'}
                         </span>
-                        {l.subGroup > 0 && (
-                          <span
-                            className={cn(
-                              'rounded px-1 text-[10px] font-semibold',
-                              l.subGroup === 1
-                                ? 'bg-sky-200 text-sky-800'
-                                : 'bg-violet-200 text-violet-800',
-                            )}
-                          >
-                            G{l.subGroup}
-                          </span>
-                        )}
                         {l.teacherName && (
                           <span className="text-xs text-slate-500">· {l.teacherName}</span>
                         )}

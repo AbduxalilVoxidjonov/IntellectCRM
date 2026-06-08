@@ -112,11 +112,11 @@ public class StudentEvaluationController(AppDbContext db) : ControllerBase
         var monthPrefix = month + "-";
 
         var students = await db.Students.Where(s => !s.IsArchived)
-            .Select(s => new { s.Id, s.FullName, s.ClassName, s.SubGroup }).ToListAsync();
+            .Select(s => new { s.Id, s.FullName, s.ClassName }).ToListAsync();
         var classes = await db.Classes.Select(c => new { c.Id, c.Name }).ToListAsync();
         var conducted = (await db.LessonNotes
                 .Where(n => n.Conducted && n.Date.StartsWith(monthPrefix))
-                .Select(n => new { n.ClassId, n.SubjectId, n.Date, n.Period, n.SubGroup }).ToListAsync())
+                .Select(n => new { n.ClassId, n.SubjectId, n.Date, n.Period }).ToListAsync())
             .Where(n => string.CompareOrdinal(n.Date, start) >= 0 && string.CompareOrdinal(n.Date, end) <= 0)
             .ToList();
         var marks = (await db.JournalEntries
@@ -142,10 +142,10 @@ public class StudentEvaluationController(AppDbContext db) : ControllerBase
         var reasonMap = reasons.ToDictionary(r => r.Id);
         var lateSet = reasons.Where(r => r.IsLate).Select(r => r.Id).ToHashSet();
 
-        // O'tilgan darslar sinf bo'yicha: (SubjectId, Date, Period, SubGroup)
+        // O'tilgan darslar sinf bo'yicha: (SubjectId, Date, Period)
         var conductedByClass = conducted
             .GroupBy(c => c.ClassId)
-            .ToDictionary(g => g.Key, g => g.Select(c => (c.SubjectId, c.Date, c.Period, c.SubGroup)).ToList());
+            .ToDictionary(g => g.Key, g => g.Select(c => (c.SubjectId, c.Date, c.Period)).ToList());
         var marksByStudent = marks.GroupBy(m => m.StudentId)
             .ToDictionary(g => g.Key, g => g.ToList());
         var gradesByStudent = allGrades.GroupBy(g => g.StudentId)
@@ -153,14 +153,13 @@ public class StudentEvaluationController(AppDbContext db) : ControllerBase
 
         var rows = students.Select(s =>
         {
-            // Shu o'quvchi qatnashadigan o'tilgan darslar (butun sinf yoki o'z guruhi).
+            // Shu o'quvchi qatnashadigan o'tilgan darslar.
             var studentConducted = new HashSet<(string, string, int)>();
             if (s.ClassName is not null && classIdByName.TryGetValue(s.ClassName, out var classId)
                 && conductedByClass.TryGetValue(classId, out var classConducted))
             {
                 foreach (var c in classConducted)
-                    if (c.SubGroup == 0 || c.SubGroup == s.SubGroup)
-                        studentConducted.Add((c.SubjectId, c.Date, c.Period));
+                    studentConducted.Add((c.SubjectId, c.Date, c.Period));
             }
             var conductedCount = studentConducted.Count;
 

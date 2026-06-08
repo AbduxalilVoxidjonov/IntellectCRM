@@ -25,14 +25,11 @@ public static class StudentProfileBuilder
         var lateSet = reasons.Where(r => r.IsLate).Select(r => r.Id).ToHashSet();
 
         // ---- Qatnashish (o'tilgan / qatnashgan) — Analytics bilan bir xil ----
-        var conductedNotes = classId is null
-            ? new List<(string SubjectId, string Date, int Period, int SubGroup)>()
+        var studentConducted = classId is null
+            ? new HashSet<(string SubjectId, string Date, int Period)>()
             : (await db.LessonNotes.Where(n => n.Conducted && n.ClassId == classId)
-                    .Select(n => new { n.SubjectId, n.Date, n.Period, n.SubGroup }).ToListAsync())
-                .Select(n => (n.SubjectId, n.Date, n.Period, n.SubGroup)).ToList();
-        var studentConducted = conductedNotes
-            .Where(c => c.SubGroup == 0 || c.SubGroup == st.SubGroup)
-            .Select(c => (c.SubjectId, c.Date, c.Period)).ToHashSet();
+                    .Select(n => new { n.SubjectId, n.Date, n.Period }).ToListAsync())
+                .Select(n => (n.SubjectId, n.Date, n.Period)).ToHashSet();
         var conducted = studentConducted.Count;
         var absent = entries.Count(e => e.ReasonId != null && !lateSet.Contains(e.ReasonId)
             && studentConducted.Contains((e.SubjectId, e.Date, e.Period)));
@@ -122,8 +119,9 @@ public static class StudentProfileBuilder
         // mavjud bo'lganlari). Belgisi yo'q choraklarda 0 ko'rinadi.
         var markByQ = entries.Where(e => e.Homework != 0 || e.Behavior != 0)
             .GroupBy(e => e.Quarter).ToDictionary(g => g.Key, g => g.ToList());
-        var quarterNos = await db.Quarters.OrderBy(q => q.Quarter).Select(q => q.Quarter).ToListAsync();
-        if (quarterNos.Count == 0) quarterNos = markByQ.Keys.OrderBy(k => k).ToList();
+        // Chorak davri tizimi olib tashlandi — mavjud Quarter qiymatlari bo'yicha (yo'q bo'lsa [1]).
+        var quarterNos = markByQ.Keys.OrderBy(k => k).ToList();
+        if (quarterNos.Count == 0) quarterNos = new List<int> { 1 };
         var trend = quarterNos.Select(q =>
         {
             var list = markByQ.GetValueOrDefault(q) ?? new List<JournalEntry>();
@@ -141,7 +139,7 @@ public static class StudentProfileBuilder
             st.ParentFullName, st.ParentPhone, st.Gender, st.BirthDate,
             st.EnrollmentDate, st.Balance, st.BirthCertificateUrl,
             st.Address, st.DiscountPct, st.DiscountAmount, st.DiscountNote,
-            st.SubGroup, st.ParentPassportUrl,
+            st.ParentPassportUrl,
             report.Subjects, report.Grades, avgGrade,
             report.Attendance, conducted, attended, pct, reasonCounts,
             disciplineScore, plus, minus, dPoints,

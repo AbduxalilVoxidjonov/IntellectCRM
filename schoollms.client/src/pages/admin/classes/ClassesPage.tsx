@@ -20,7 +20,6 @@ import { Button } from '@/components/ui/Button'
 import { Loader } from '@/components/ui/Loader'
 import { Modal } from '@/components/ui/Modal'
 import { ClassFormModal } from './ClassFormModal'
-import { ClassGroupsModal } from './ClassGroupsModal'
 
 export function ClassesPage() {
   const navigate = useNavigate()
@@ -35,8 +34,6 @@ export function ClassesPage() {
     values: ClassPayload
     oldFee: number
   } | null>(null)
-  /** Sinf guruhlarini boshqarish oynasi (Guruhlar tugmasi bilan ochiladi) */
-  const [groupsFor, setGroupsFor] = useState<SchoolClass | null>(null)
   /** Arxivlangan sinflar ro'yxati + arxiv ko'rinishi yoqilganmi */
   const [archived, setArchived] = useState<SchoolClass[]>([])
   const [showArchived, setShowArchived] = useState(false)
@@ -216,11 +213,6 @@ export function ClassesPage() {
                         onClick={(e) => e.stopPropagation()}
                       >
                         <IconBtn
-                          icon={Users}
-                          title="Guruhlar (1/2)"
-                          onClick={() => setGroupsFor(c)}
-                        />
-                        <IconBtn
                           icon={Pencil}
                           title="Tahrirlash"
                           onClick={() => {
@@ -264,13 +256,6 @@ export function ClassesPage() {
         }}
         onSubmit={handleSubmit}
         initial={editing}
-      />
-
-      <ClassGroupsModal
-        open={!!groupsFor}
-        classId={groupsFor?.id ?? ''}
-        className={groupsFor?.name ?? ''}
-        onClose={() => setGroupsFor(null)}
       />
 
       <Modal

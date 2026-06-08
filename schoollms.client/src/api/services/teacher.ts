@@ -7,7 +7,6 @@ import type {
   JournalEntry,
   JournalTopic,
   PortalMeta,
-  QuarterGradeRow,
   SalaryLedger,
   Student,
   Subject,
@@ -254,28 +253,6 @@ export async function setTeacherNote(
   await api.put('/teacher/journal/notes', {
     classId, subjectId, quarter, date, period, topic, homework, conducted,
   })
-}
-
-export async function getTeacherQuarterGrades(
-  classId: string,
-  subjectId: string,
-  quarter: number,
-): Promise<QuarterGradeRow[]> {
-  if (USE_MOCK) return []
-  const { data } = await api.get<QuarterGradeRow[]>('/teacher/journal/quarter-grades', {
-    params: { classId, subjectId, quarter },
-  })
-  return data
-}
-
-export async function setTeacherQuarterGrade(
-  classId: string,
-  subjectId: string,
-  quarter: number,
-  studentId: string,
-  grade: number | null,
-): Promise<void> {
-  await api.put('/teacher/journal/quarter-grades', { classId, subjectId, quarter, studentId, grade })
 }
 
 /* ---------- Guruh chati ---------- */

@@ -21,8 +21,6 @@ public static class StudentReportBuilder
             : await db.ScheduleTemplates.Include(t => t.Lessons).Where(t => t.ClassId == cls.Id).ToListAsync();
         var entries = await db.JournalEntries
             .Where(e => e.StudentId == st.Id && (cls == null || e.ClassId == cls.Id)).ToListAsync();
-        var quarterGrades = await db.QuarterGrades
-            .Where(g => g.StudentId == st.Id && (cls == null || g.ClassId == cls.Id)).ToListAsync();
         var reasonRows = await db.AbsenceReasons.ToListAsync();
         var lateIds = reasonRows.Where(r => r.IsLate).Select(r => r.Id).ToHashSet();
         var reasons = reasonRows.ToDictionary(r => r.Id, r => r.Name.ToLowerInvariant());
@@ -42,9 +40,6 @@ public static class StudentReportBuilder
             var byQ = entries.Where(e => e.SubjectId == subj.Id && e.Grade != null)
                 .GroupBy(e => e.Quarter)
                 .ToDictionary(g => g.Key, g => Math.Round(g.Average(e => (double)e.Grade!.Value), 2));
-            // Rasmiy chorak bahosi kunlik o'rtacha o'rnini bosadi (kiritilgan chorak uchun).
-            foreach (var qg in quarterGrades.Where(g => g.SubjectId == subj.Id))
-                byQ[qg.Quarter] = qg.Grade;
             if (byQ.Count > 0) grades[subj.Id] = byQ;
         }
 

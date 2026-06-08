@@ -25,11 +25,11 @@ public class JournalController(AppDbContext db, FcmService fcm) : ControllerBase
     {
         var fromNotes = await db.LessonNotes
             .Where(n => n.Date == date && n.Conducted)
-            .Select(n => new ConductedLessonDto(n.ClassId, n.SubjectId, n.Period, n.SubGroup))
+            .Select(n => new ConductedLessonDto(n.ClassId, n.SubjectId, n.Period))
             .ToListAsync();
         var fromEntries = await db.JournalEntries
             .Where(e => e.Date == date && (e.Grade != null || e.ReasonId != null))
-            .Select(e => new ConductedLessonDto(e.ClassId, e.SubjectId, e.Period, e.SubGroup))
+            .Select(e => new ConductedLessonDto(e.ClassId, e.SubjectId, e.Period))
             .ToListAsync();
         return fromNotes.Concat(fromEntries).Distinct().ToList();
     }
@@ -108,20 +108,5 @@ public class JournalController(AppDbContext db, FcmService fcm) : ControllerBase
         }
 
         return await JournalService.ImportTopicsAsync(db, classId, subjectId, quarter, rows);
-    }
-
-    /* ---------- Chorak (yakuniy) bahosi ---------- */
-
-    /// <summary>Fan+chorak bo'yicha o'quvchilarning chorak bahosi + tavsiya (kunlik o'rtacha).</summary>
-    [HttpGet("quarter-grades")]
-    public async Task<ActionResult<IEnumerable<QuarterGradeRowDto>>> GetQuarterGrades(
-        [FromQuery] string classId, [FromQuery] string subjectId, [FromQuery] int quarter)
-        => await JournalService.GetQuarterGradesAsync(db, classId, subjectId, quarter);
-
-    [HttpPut("quarter-grades")]
-    public async Task<IActionResult> SetQuarterGrade(SetQuarterGradeRequest req)
-    {
-        await JournalService.SetQuarterGradeAsync(db, req);
-        return NoContent();
     }
 }

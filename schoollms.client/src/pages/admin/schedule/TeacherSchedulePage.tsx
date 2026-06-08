@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
 import type {
   SchoolClass,
   ScheduleTemplate,
@@ -27,7 +26,6 @@ const control =
 interface CellLesson {
   className: string
   subjectName: string
-  subGroup: number
 }
 
 /**
@@ -125,7 +123,6 @@ export function TeacherSchedulePage() {
         ;(g[l.period][l.day] ??= []).push({
           className: c.name,
           subjectName: subjectName(l.subjectId),
-          subGroup: l.subGroup ?? 0,
         })
       }
     }
@@ -211,10 +208,7 @@ export function TeacherSchedulePage() {
           {weeks.length === 0 ? (
             <Card>
               <p className="py-8 text-center text-sm text-slate-400">
-                Bu chorak uchun sanalar kiritilmagan.{' '}
-                <Link to="/admin/settings/quarters" className="text-brand-600 hover:underline">
-                  Choraklar sozlamasiga o'ting
-                </Link>
+                Bu davr uchun sanalar kiritilmagan.
               </p>
             </Card>
           ) : (
@@ -267,18 +261,6 @@ export function TeacherSchedulePage() {
                                         <p className="text-sm font-medium text-slate-800">
                                           {s.subjectName || '—'}
                                         </p>
-                                        {s.subGroup > 0 && (
-                                          <span
-                                            className={cn(
-                                              'rounded px-1 text-[10px] font-semibold',
-                                              s.subGroup === 1
-                                                ? 'bg-sky-200 text-sky-800'
-                                                : 'bg-violet-200 text-violet-800',
-                                            )}
-                                          >
-                                            G{s.subGroup}
-                                          </span>
-                                        )}
                                       </div>
                                       <p className="mt-0.5 text-xs text-brand-700">{s.className}</p>
                                     </div>

@@ -35,47 +35,22 @@ const sectionTitles: Record<string, string> = {
   cameras: 'Kamera integratsiya',
 }
 
-/**
- * O'quv yilida har doim 4 ta chorak bo'ladi — bazada yo'q (yoki kam) bo'lsa ham
- * 1-4 choraklar uchun (bo'sh sanali) qatorlarni ko'rsatamiz, mavjud sanalarni saqlab.
- */
-function normalizeQuarters(loaded: QuarterPeriod[]): QuarterPeriod[] {
-  return [1, 2, 3, 4].map(
-    (quarter) =>
-      loaded.find((q) => q.quarter === quarter) ?? {
-        quarter,
-        startDate: '',
-        endDate: '',
-        gradesOpen: false,
-      },
-  )
-}
-
 export function SettingsPage() {
-  const { section = 'quarters' } = useParams()
-  const [quarters, setQuarters] = useState<QuarterPeriod[]>([])
+  const { section = 'lesson-times' } = useParams()
   const [lessonTimes, setLessonTimes] = useState<LessonTime[]>([])
   const [reasons, setReasons] = useState<AbsenceReason[]>([])
   const [loading, setLoading] = useState(true)
-  const [qStatus, setQStatus] = useState<Status>('idle')
   const [tStatus, setTStatus] = useState<Status>('idle')
   const [rStatus, setRStatus] = useState<Status>('idle')
 
   useEffect(() => {
     getSettings()
       .then((s) => {
-        setQuarters(normalizeQuarters(s.quarters))
         setLessonTimes(s.lessonTimes)
         setReasons(s.absenceReasons)
       })
       .finally(() => setLoading(false))
   }, [])
-
-  const updateQuarter = (i: number, field: 'startDate' | 'endDate', value: string) =>
-    setQuarters((prev) => prev.map((q, idx) => (idx === i ? { ...q, [field]: value } : q)))
-
-  const toggleQuarterOpen = (i: number) =>
-    setQuarters((prev) => prev.map((q, idx) => (idx === i ? { ...q, gradesOpen: !q.gradesOpen } : q)))
 
   const updateTime = (i: number, field: 'startTime' | 'endTime', value: string) =>
     setLessonTimes((prev) => prev.map((t, idx) => (idx === i ? { ...t, [field]: value } : t)))
@@ -87,14 +62,6 @@ export function SettingsPage() {
     setLessonTimes((prev) =>
       prev.filter((_, idx) => idx !== i).map((t, idx) => ({ ...t, period: idx + 1 })),
     )
-
-  const onSaveQuarters = async () => {
-    setQStatus('saving')
-    // Faqat ikkala sanasi to'ldirilgan choraklarni saqlaymiz.
-    await saveQuarters(quarters.filter((q) => q.startDate && q.endDate))
-    setQStatus('saved')
-    setTimeout(() => setQStatus('idle'), 2000)
-  }
 
   const onSaveTimes = async () => {
     setTStatus('saving')
@@ -133,66 +100,6 @@ export function SettingsPage() {
         <Loader label="Yuklanmoqda..." />
       ) : (
         <div className="max-w-3xl space-y-6">
-          {/* Choraklar sanalari */}
-          {section === 'quarters' && (
-          <Card>
-            <div className="mb-1 flex items-center justify-between">
-              <h2 className="font-semibold text-slate-800">Choraklar</h2>
-              <SaveButton status={qStatus} onClick={onSaveQuarters} />
-            </div>
-            <p className="mb-4 text-sm text-slate-400">
-              Chorak sanalari va o'qituvchilarga chorak bahosini kiritishni ochish. "Baho ochiq"
-              belgilanmagan chorakka o'qituvchi chorak bahosini qo'ya olmaydi (administrator baribir qo'ya oladi).
-            </p>
-            <div className="space-y-3">
-              {quarters.map((q, i) => {
-                const hasDates = !!q.startDate && !!q.endDate
-                return (
-                  <div
-                    key={q.quarter}
-                    className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-100 p-2"
-                  >
-                    <span className="w-20 text-sm font-medium text-slate-600">{q.quarter}-chorak</span>
-                    <input
-                      type="date"
-                      value={q.startDate}
-                      onChange={(e) => updateQuarter(i, 'startDate', e.target.value)}
-                      className={control}
-                    />
-                    <span className="text-slate-400">—</span>
-                    <input
-                      type="date"
-                      value={q.endDate}
-                      onChange={(e) => updateQuarter(i, 'endDate', e.target.value)}
-                      className={control}
-                    />
-                    <label
-                      className={cn(
-                        'ml-auto inline-flex items-center gap-1.5 whitespace-nowrap text-sm',
-                        hasDates ? 'cursor-pointer text-slate-600' : 'cursor-not-allowed text-slate-300',
-                      )}
-                      title={
-                        hasDates
-                          ? "Ochiq bo'lsa, o'qituvchilar shu chorak bahosini kirita oladi"
-                          : 'Avval chorak sanalarini kiriting'
-                      }
-                    >
-                      <input
-                        type="checkbox"
-                        checked={q.gradesOpen}
-                        disabled={!hasDates}
-                        onChange={() => toggleQuarterOpen(i)}
-                        className="h-4 w-4 rounded border-slate-300 accent-brand-600"
-                      />
-                      Baho ochiq
-                    </label>
-                  </div>
-                )
-              })}
-            </div>
-          </Card>
-          )}
-
           {/* Dars vaqtlari */}
           {section === 'lesson-times' && (
           <Card>

@@ -11,40 +11,46 @@ namespace IntellectCRM.Application.Services;
 /// </summary>
 public static class JournalService
 {
-    /// <summary>Fanning chorakdagi darslari (sana + dars raqami). Bir kunda bir fan bir necha marta bo'lishi mumkin.</summary>
+    /// <summary>
+    /// Fanning darslari (sana + dars raqami). Bir kunda bir fan bir necha marta bo'lishi mumkin.
+    /// Chorak davri tizimi olib tashlandi — endi hafta raqamlari o'quv yili boshidan (eng erta
+    /// qabul oyining 1-sanasidan) ketma-ket sanaladi: WeekAssignment.Week → shu hafta dushanbasi.
+    /// </summary>
     public static async Task<List<JournalColumnDto>> ComputeColumnsAsync(
         IAppDbContext db, string classId, string subjectId, int quarter)
     {
-        var q = await db.Quarters.FirstOrDefaultAsync(x => x.Quarter == quarter);
-        if (q is null) return [];
-
-        var weeks = ScheduleMath.GetQuarterWeeks(q.StartDate, q.EndDate);
         var assignments = await db.WeekAssignments
             .Where(a => a.ClassId == classId && a.Quarter == quarter).ToListAsync();
+        if (assignments.Count == 0) return [];
+
+        // O'quv yili boshi (eng erta faol o'quvchining qabul oyi) — hafta raqamlarining tayanchi.
+        var startMonth = await TuitionService.AcademicYearStartMonthAsync(db); // "yyyy-MM"
+        var yearStart = $"{startMonth}-01";
+        var firstMonday = ScheduleMath.MondayOfISO(yearStart);
+
         var templates = await db.ScheduleTemplates.Include(t => t.Lessons)
             .Where(t => t.ClassId == classId).ToListAsync();
         // Bayram kunlari — bu sanalarda dars yo'q, jurnal ustuni chiqmaydi.
         var holidays = (await db.Holidays.Select(h => h.Date).ToListAsync()).ToHashSet();
 
         var cols = new List<JournalColumnDto>();
-        foreach (var w in weeks)
+        foreach (var a in assignments)
         {
-            var a = assignments.FirstOrDefault(x => x.Week == w.Week);
-            if (a?.TemplateId is null) continue;
+            if (a.TemplateId is null || a.Week <= 0) continue;
             var tpl = templates.FirstOrDefault(t => t.Id == a.TemplateId);
             if (tpl is null) continue;
-            // Bir kunda bir fan bir necha marta bo'lsa — har biri (sana+dars+guruh) alohida ustun.
+            // Shu hafta raqamining dushanbasi (1-hafta = o'quv yili birinchi dushanbasi).
+            var weekMonday = ScheduleMath.AddDaysISO(firstMonday, (a.Week - 1) * 7);
             foreach (var l in tpl.Lessons.Where(l => l.SubjectId == subjectId))
             {
-                var d = ScheduleMath.AddDaysISO(ScheduleMath.MondayOfISO(w.StartISO), l.Day);
-                if (string.CompareOrdinal(d, q.StartDate) >= 0 && string.CompareOrdinal(d, q.EndDate) <= 0
-                    && !holidays.Contains(d))
-                    cols.Add(new JournalColumnDto(d, l.Period, l.SubGroup));
+                var d = ScheduleMath.AddDaysISO(weekMonday, l.Day);
+                if (!holidays.Contains(d))
+                    cols.Add(new JournalColumnDto(d, l.Period));
             }
         }
         return cols
-            .GroupBy(c => (c.Date, c.Period, c.SubGroup)).Select(g => g.First())
-            .OrderBy(c => c.Date, StringComparer.Ordinal).ThenBy(c => c.Period).ThenBy(c => c.SubGroup)
+            .GroupBy(c => (c.Date, c.Period)).Select(g => g.First())
+            .OrderBy(c => c.Date, StringComparer.Ordinal).ThenBy(c => c.Period)
             .ToList();
     }
 
@@ -57,8 +63,6 @@ public static class JournalService
 
     /// <summary>
     /// Bitta katakni belgilash — baho yoki davomat sababi (mavjud bo'lsa ustiga yoziladi).
-    /// SubGroup o'quvchining Student.SubGroup'idan olinadi — guruh o'zgarsa journal yozuvi
-    /// yangi guruh ostida ko'rinadi.
     /// </summary>
     public static async Task SetEntryAsync(IAppDbContext db, SetJournalEntryRequest req, FcmService? fcm = null)
     {
@@ -69,9 +73,7 @@ public static class JournalService
         var oldGrade = entry?.Grade;
         var oldReason = entry?.ReasonId;
 
-        // O'quvchining guruhi — yozuvga ham, mos LessonNote'ga ham SubGroup sifatida yoziladi.
         var student = await db.Students.FindAsync(req.StudentId);
-        var subGroup = student?.SubGroup ?? 0;
 
         if (entry is null)
         {
@@ -83,7 +85,6 @@ public static class JournalService
                 StudentId = req.StudentId,
                 Date = req.Date,
                 Period = req.Period,
-                SubGroup = subGroup,
             };
             db.JournalEntries.Add(entry);
         }
@@ -92,15 +93,13 @@ public static class JournalService
         entry.Homework = req.Homework;
         entry.Behavior = req.Behavior;
         entry.Mastery = req.Mastery;
-        entry.SubGroup = subGroup;
 
         // Baho/davomat/uyga vazifa/xulq/o'zlashtirish kiritilsa — shu darsni "o'tildi" deb avtomatik belgilaymiz.
         if (req.Grade.HasValue || req.ReasonId is not null || req.Homework != 0 || req.Behavior != 0 || req.Mastery.HasValue)
         {
             var note = await db.LessonNotes.FirstOrDefaultAsync(n =>
                 n.ClassId == req.ClassId && n.SubjectId == req.SubjectId &&
-                n.Quarter == req.Quarter && n.Date == req.Date && n.Period == req.Period &&
-                n.SubGroup == subGroup);
+                n.Quarter == req.Quarter && n.Date == req.Date && n.Period == req.Period);
             if (note is null)
                 db.LessonNotes.Add(new LessonNote
                 {
@@ -109,7 +108,6 @@ public static class JournalService
                     Quarter = req.Quarter,
                     Date = req.Date,
                     Period = req.Period,
-                    SubGroup = subGroup,
                     Conducted = true,
                 });
             else if (!note.Conducted)
@@ -168,72 +166,18 @@ public static class JournalService
         await db.SaveChangesAsync();
     }
 
-    /* ---------- Chorak (yakuniy) bahosi ---------- */
-
-    /// <summary>Fan+chorak bo'yicha har o'quvchining chorak bahosi (explicit) va tavsiyasi (kunlik o'rtacha).
-    /// Faqat baho yoki kunlik baholari bor o'quvchilar qaytadi.</summary>
-    public static async Task<List<QuarterGradeRowDto>> GetQuarterGradesAsync(
-        IAppDbContext db, string classId, string subjectId, int quarter)
-    {
-        var explicitGrades = await db.QuarterGrades
-            .Where(g => g.ClassId == classId && g.SubjectId == subjectId && g.Quarter == quarter)
-            .ToListAsync();
-        var recommended = (await db.JournalEntries
-                .Where(e => e.ClassId == classId && e.SubjectId == subjectId
-                            && e.Quarter == quarter && e.Grade != null).ToListAsync())
-            .GroupBy(e => e.StudentId)
-            .ToDictionary(g => g.Key, g => Math.Round(g.Average(e => (double)e.Grade!.Value), 2));
-
-        return explicitGrades.Select(g => g.StudentId).Union(recommended.Keys).Distinct()
-            .Select(sid => new QuarterGradeRowDto(
-                sid,
-                explicitGrades.FirstOrDefault(g => g.StudentId == sid)?.Grade,
-                recommended.TryGetValue(sid, out var r) ? r : null))
-            .ToList();
-    }
-
-    /// <summary>Chorak bahosini belgilash (upsert). Grade null bo'lsa — mavjud baho o'chiriladi.</summary>
-    public static async Task SetQuarterGradeAsync(IAppDbContext db, SetQuarterGradeRequest req)
-    {
-        var existing = await db.QuarterGrades.FirstOrDefaultAsync(g =>
-            g.ClassId == req.ClassId && g.SubjectId == req.SubjectId &&
-            g.Quarter == req.Quarter && g.StudentId == req.StudentId);
-
-        if (req.Grade is null)
-        {
-            if (existing is not null) db.QuarterGrades.Remove(existing);
-        }
-        else if (existing is null)
-        {
-            db.QuarterGrades.Add(new QuarterGrade
-            {
-                ClassId = req.ClassId,
-                SubjectId = req.SubjectId,
-                Quarter = req.Quarter,
-                StudentId = req.StudentId,
-                Grade = req.Grade.Value,
-            });
-        }
-        else
-        {
-            existing.Grade = req.Grade.Value;
-        }
-        await db.SaveChangesAsync();
-    }
-
     public static async Task<List<JournalTopicDto>> GetNotesAsync(
         IAppDbContext db, string classId, string subjectId, int quarter) =>
         await db.LessonNotes
             .Where(n => n.ClassId == classId && n.SubjectId == subjectId && n.Quarter == quarter)
-            .Select(n => new JournalTopicDto(n.Date, n.Period, n.Topic, n.Homework, n.Conducted, n.SubGroup))
+            .Select(n => new JournalTopicDto(n.Date, n.Period, n.Topic, n.Homework, n.Conducted))
             .ToListAsync();
 
     public static async Task SetNoteAsync(IAppDbContext db, SetLessonNoteRequest req)
     {
         var note = await db.LessonNotes.FirstOrDefaultAsync(n =>
             n.ClassId == req.ClassId && n.SubjectId == req.SubjectId &&
-            n.Quarter == req.Quarter && n.Date == req.Date && n.Period == req.Period &&
-            n.SubGroup == req.SubGroup);
+            n.Quarter == req.Quarter && n.Date == req.Date && n.Period == req.Period);
 
         // Mavzu, uyga vazifa va "dars o'tildi" — uchchovi ham bo'sh bo'lsa yozuvni o'chiramiz.
         var empty = string.IsNullOrWhiteSpace(req.Topic) && string.IsNullOrWhiteSpace(req.Homework) && !req.Conducted;
@@ -250,7 +194,6 @@ public static class JournalService
                 Quarter = req.Quarter,
                 Date = req.Date,
                 Period = req.Period,
-                SubGroup = req.SubGroup,
                 Topic = req.Topic,
                 Homework = req.Homework,
                 Conducted = req.Conducted,
@@ -278,12 +221,12 @@ public static class JournalService
         var cols = await ComputeColumnsAsync(db, classId, subjectId, quarter);
         var notes = (await db.LessonNotes
                 .Where(n => n.ClassId == classId && n.SubjectId == subjectId && n.Quarter == quarter).ToListAsync())
-            .GroupBy(n => (n.Date, n.Period, n.SubGroup)).ToDictionary(g => g.Key, g => g.First());
+            .GroupBy(n => (n.Date, n.Period)).ToDictionary(g => g.Key, g => g.First());
 
-        // Har bir dars slotiga jadval tartibidagi raqam beriladi (1-asosli); sana/guruh shu raqamdan kelib chiqadi.
+        // Har bir dars slotiga jadval tartibidagi raqam beriladi (1-asosli); sana shu raqamdan kelib chiqadi.
         var rows = cols.Select((c, i) =>
         {
-            notes.TryGetValue((c.Date, c.Period, c.SubGroup), out var n);
+            notes.TryGetValue((c.Date, c.Period), out var n);
             return (IReadOnlyList<string>)new[]
             {
                 (i + 1).ToString(), n?.Topic ?? "", n?.Homework ?? "",
@@ -316,7 +259,7 @@ public static class JournalService
         var cols = await ComputeColumnsAsync(db, classId, subjectId, quarter);
         var notes = (await db.LessonNotes
                 .Where(n => n.ClassId == classId && n.SubjectId == subjectId && n.Quarter == quarter).ToListAsync())
-            .GroupBy(n => (n.Date, n.Period, n.SubGroup)).ToDictionary(g => g.Key, g => g.First());
+            .GroupBy(n => (n.Date, n.Period)).ToDictionary(g => g.Key, g => g.First());
 
         var errors = new List<TopicImportRowErrorDto>();
         int imported = 0, skipped = 0;
@@ -337,7 +280,7 @@ public static class JournalService
             { errors.Add(new TopicImportRowErrorDto(excelRow, $"Dars raqami {lessonNo} jadvalda yo'q (jami {cols.Count} ta dars)")); continue; }
 
             var slot = cols[lessonNo - 1];
-            var key = (slot.Date, slot.Period, slot.SubGroup);
+            var key = (slot.Date, slot.Period);
 
             if (notes.TryGetValue(key, out var n))
             {
@@ -350,7 +293,7 @@ public static class JournalService
                 var fresh = new LessonNote
                 {
                     ClassId = classId, SubjectId = subjectId, Quarter = quarter,
-                    Date = slot.Date, Period = slot.Period, SubGroup = slot.SubGroup,
+                    Date = slot.Date, Period = slot.Period,
                     Topic = topic, Homework = homework, Conducted = false,
                 };
                 db.LessonNotes.Add(fresh);

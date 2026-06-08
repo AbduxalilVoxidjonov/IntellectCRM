@@ -180,18 +180,6 @@ export function TeacherReportsPage() {
                       <td className="px-3 py-2 font-medium text-slate-700">{b.className}</td>
                       <td className="px-3 py-2 text-slate-600">
                         {b.subjectName}
-                        {b.subGroup > 0 && (
-                          <span
-                            className={cn(
-                              'ml-1 rounded px-1 text-[10px] font-semibold',
-                              b.subGroup === 1
-                                ? 'bg-sky-200 text-sky-800'
-                                : 'bg-violet-200 text-violet-800',
-                            )}
-                          >
-                            G{b.subGroup}
-                          </span>
-                        )}
                       </td>
                       <td className="px-3 py-2 text-center text-slate-600">{b.expected}</td>
                       <td className="px-3 py-2 text-center text-slate-600">{b.conducted}</td>

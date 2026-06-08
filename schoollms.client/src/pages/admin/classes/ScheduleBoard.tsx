@@ -91,9 +91,6 @@ export function ScheduleBoard({ classId, template }: Props) {
                     </td>
                     {weekDays.map((_, day) => {
                       const slotLessons = lessonsAt(day, period)
-                      const isSplit =
-                        slotLessons.length > 1 ||
-                        (slotLessons.length === 1 && (slotLessons[0].subGroup ?? 0) > 0)
                       const isSelected = selected?.day === day && selected?.period === period
                       return (
                         <td key={day} className="px-1.5 py-1.5 align-top">
@@ -110,34 +107,6 @@ export function ScheduleBoard({ classId, template }: Props) {
                           >
                             {slotLessons.length === 0 ? (
                               <Plus className="mx-auto h-4 w-4" />
-                            ) : isSplit ? (
-                              <div className="space-y-1">
-                                {slotLessons
-                                  .slice()
-                                  .sort((a, b) => (a.subGroup ?? 0) - (b.subGroup ?? 0))
-                                  .map((l, i) => (
-                                    <div key={i} className="flex flex-col">
-                                      <span
-                                        className={cn(
-                                          'inline-block w-fit rounded px-1 text-[10px] font-semibold',
-                                          l.subGroup === 1
-                                            ? 'bg-sky-200 text-sky-800'
-                                            : 'bg-violet-200 text-violet-800',
-                                        )}
-                                      >
-                                        G{l.subGroup}
-                                      </span>
-                                      <span className="text-xs font-medium text-slate-800">
-                                        {subjectName(l.subjectId)}
-                                      </span>
-                                      {l.teacherId && (
-                                        <span className="text-[11px] text-slate-500">
-                                          {teacherName(l.teacherId)}
-                                        </span>
-                                      )}
-                                    </div>
-                                  ))}
-                              </div>
                             ) : (
                               <>
                                 <span className="text-sm font-medium text-slate-800">

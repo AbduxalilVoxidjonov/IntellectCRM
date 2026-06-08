@@ -20,6 +20,21 @@ public class AttendanceController(AppDbContext db) : ControllerBase
         s.Id, s.FullName, s.BirthDate, s.Address, s.Gender,
         s.ParentFullName, s.ParentPhone, s.ClassName, s.EnrollmentDate, s.Balance);
 
+    /// <summary>Sana o'quv yili birinchi dushanbasidan nechanchi haftaga to'g'ri kelishi (1-asosli).
+    /// Sana o'quv yili boshidan oldin bo'lsa 0 qaytaradi.</summary>
+    private async Task<int> WeekNumberForDateAsync(string date)
+    {
+        if (!DateOnly.TryParseExact(date, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var d))
+            return 0;
+        var startMonth = await TuitionService.AcademicYearStartMonthAsync(db); // "yyyy-MM"
+        var firstMondayIso = ScheduleMath.MondayOfISO($"{startMonth}-01");
+        if (!DateOnly.TryParseExact(firstMondayIso, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var fm))
+            return 0;
+        var days = d.DayNumber - fm.DayNumber;
+        if (days < 0) return 0;
+        return days / 7 + 1;
+    }
+
     [HttpGet]
     public async Task<ActionResult<DailyAttendanceDto>> GetDaily(
         [FromQuery] string classId, [FromQuery] string date)
@@ -37,16 +52,13 @@ public class AttendanceController(AppDbContext db) : ControllerBase
         if (jsDay == 0) return new DailyAttendanceDto(total, []);
         var lessonDay = jsDay - 1; // Dushanba=0 ... Shanba=5
 
-        var q = await db.Quarters.FirstOrDefaultAsync(x =>
-            string.Compare(date, x.StartDate) >= 0 && string.Compare(date, x.EndDate) <= 0);
-        if (q is null) return new DailyAttendanceDto(total, []);
-
-        var week = ScheduleMath.GetQuarterWeeks(q.StartDate, q.EndDate)
-            .FirstOrDefault(w => string.CompareOrdinal(date, w.StartISO) >= 0 && string.CompareOrdinal(date, w.EndISO) <= 0);
-        if (week is null) return new DailyAttendanceDto(total, []);
+        // Chorak davri tizimi olib tashlandi — sana qaysi WeekAssignment.Week ekanini o'quv yili
+        // birinchi dushanbasiga nisbatan hisoblaymiz.
+        var week = await WeekNumberForDateAsync(date);
+        if (week <= 0) return new DailyAttendanceDto(total, []);
 
         var assignment = await db.WeekAssignments.FirstOrDefaultAsync(a =>
-            a.ClassId == classId && a.Quarter == q.Quarter && a.Week == week.Week);
+            a.ClassId == classId && a.Week == week);
         if (assignment?.TemplateId is null) return new DailyAttendanceDto(total, []);
 
         var tpl = await db.ScheduleTemplates.Include(t => t.Lessons)
@@ -61,7 +73,7 @@ public class AttendanceController(AppDbContext db) : ControllerBase
             .ToHashSet();
 
         var entries = await db.JournalEntries
-            .Where(e => e.ClassId == classId && e.Quarter == q.Quarter && e.Date == date && e.ReasonId != null)
+            .Where(e => e.ClassId == classId && e.Date == date && e.ReasonId != null)
             .ToListAsync();
 
         var result = new List<SubjectAttendanceDto>();
@@ -92,16 +104,11 @@ public class AttendanceController(AppDbContext db) : ControllerBase
         var students = await db.Students.Where(s => s.ClassName == cls.Name)
             .OrderBy(s => s.FullName).ToListAsync();
 
-        var q = await db.Quarters.FirstOrDefaultAsync(x =>
-            string.Compare(date, x.StartDate) >= 0 && string.Compare(date, x.EndDate) <= 0);
-
         var reasons = await db.AbsenceReasons.ToDictionaryAsync(r => r.Id, r => r.Name);
 
-        var entries = q is null
-            ? new List<JournalEntry>()
-            : await db.JournalEntries.Where(e =>
-                e.ClassId == classId && e.SubjectId == subjectId && e.Quarter == q.Quarter &&
-                e.Date == date && e.ReasonId != null).ToListAsync();
+        var entries = await db.JournalEntries.Where(e =>
+            e.ClassId == classId && e.SubjectId == subjectId &&
+            e.Date == date && e.ReasonId != null).ToListAsync();
 
         return students.Select(s =>
         {

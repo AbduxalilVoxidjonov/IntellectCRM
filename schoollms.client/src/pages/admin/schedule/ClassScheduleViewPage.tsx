@@ -192,10 +192,7 @@ export function ClassScheduleViewPage() {
           {weeks.length === 0 ? (
             <Card>
               <p className="py-8 text-center text-sm text-slate-400">
-                Bu chorak uchun sanalar kiritilmagan.{' '}
-                <Link to="/admin/settings/quarters" className="text-brand-600 hover:underline">
-                  Choraklar sozlamasiga o'ting
-                </Link>
+                Bu davr uchun sanalar kiritilmagan.
               </p>
             </Card>
           ) : (
@@ -283,7 +280,6 @@ export function ClassScheduleViewPage() {
                               )
                             }
                             const items = lessonsAt(day, period)
-                            const split = items.length > 1 || (items.length === 1 && (items[0].subGroup ?? 0) > 0)
                             return (
                               <td key={day} className="px-1 py-1 align-top">
                                 <div
@@ -293,35 +289,7 @@ export function ClassScheduleViewPage() {
                                       : 'min-h-[52px] rounded-lg border border-dashed border-slate-200'
                                   }
                                 >
-                                  {items.length > 0 && (split ? (
-                                    <div className="space-y-1">
-                                      {items
-                                        .slice()
-                                        .sort((a, b) => (a.subGroup ?? 0) - (b.subGroup ?? 0))
-                                        .map((l, i) => (
-                                          <div key={i} className="flex flex-col">
-                                            <span
-                                              className={cn(
-                                                'inline-block w-fit rounded px-1 text-[10px] font-semibold',
-                                                l.subGroup === 1
-                                                  ? 'bg-sky-200 text-sky-800'
-                                                  : 'bg-violet-200 text-violet-800',
-                                              )}
-                                            >
-                                              G{l.subGroup}
-                                            </span>
-                                            <span className="text-xs font-medium text-slate-800">
-                                              {subjectName(l.subjectId) || '—'}
-                                            </span>
-                                            {l.teacherId && (
-                                              <span className="text-[11px] text-slate-500">
-                                                {teacherName(l.teacherId)}
-                                              </span>
-                                            )}
-                                          </div>
-                                        ))}
-                                    </div>
-                                  ) : (
+                                  {items.length > 0 && (
                                     <>
                                       <p className="text-sm font-medium text-slate-800">
                                         {subjectName(items[0].subjectId) || '—'}
@@ -332,7 +300,7 @@ export function ClassScheduleViewPage() {
                                         </p>
                                       )}
                                     </>
-                                  ))}
+                                  )}
                                 </div>
                               </td>
                             )

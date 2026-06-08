@@ -88,9 +88,7 @@ public class ClassAnalyticsController(AppDbContext db) : ControllerBase
                 .Where(e => quarterList.Contains(e.Quarter)).ToList();
             var notes = (await db.LessonNotes.Where(n => n.ClassId == cls.Id).ToListAsync())
                 .Where(n => quarterList.Contains(n.Quarter)).ToList();
-            var qgrades = (await db.QuarterGrades.Where(g => g.ClassId == cls.Id).ToListAsync())
-                .Where(g => quarterList.Contains(g.Quarter)).ToList();
-            var res = Analytics.BuildClass(cls, students, subjects, templates, entries, notes, qgrades, lateIds);
+            var res = Analytics.BuildClass(cls, students, subjects, templates, entries, notes, lateIds);
             perClass.Add((cls, ComputeStat(res)));
         }
 
@@ -139,7 +137,6 @@ public class ClassAnalyticsController(AppDbContext db) : ControllerBase
             .Where(t => t.ClassId == cls.Id).ToListAsync();
         var entries = await db.JournalEntries
             .Where(e => e.ClassId == cls.Id && e.Grade != null).ToListAsync();
-        var quarterGrades = await db.QuarterGrades.Where(g => g.ClassId == cls.Id).ToListAsync();
 
         var fromSchedule = templates.SelectMany(t => t.Lessons).Select(l => l.SubjectId).Distinct().ToList();
         var subjectIds = fromSchedule.Count > 0 ? fromSchedule : allSubjects.Select(s => s.Id).ToList();
@@ -161,9 +158,6 @@ public class ClassAnalyticsController(AppDbContext db) : ControllerBase
                     .Where(e => e.StudentId == s.Id && e.SubjectId == subj.Id)
                     .GroupBy(e => e.Quarter)
                     .ToDictionary(g => g.Key, g => Math.Round(g.Average(e => (double)e.Grade!.Value), 2));
-                // Rasmiy chorak bahosi kunlik o'rtacha o'rnini bosadi.
-                foreach (var qg in quarterGrades.Where(g => g.StudentId == s.Id && g.SubjectId == subj.Id))
-                    byQuarter[qg.Quarter] = qg.Grade;
                 if (byQuarter.Count > 0) avgs[subj.Id] = byQuarter;
             }
             return new ClassReportStudentDto(s.Id, s.FullName, avgs);

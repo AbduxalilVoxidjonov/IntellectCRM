@@ -17,28 +17,11 @@ public class SettingsController(AppDbContext db, TelegramService telegram) : Con
     [HttpGet]
     public async Task<ActionResult<SchoolSettingsDto>> Get()
     {
-        var quarters = await db.Quarters.OrderBy(q => q.Quarter)
-            .Select(q => new QuarterPeriodDto(q.Quarter, q.StartDate, q.EndDate, q.GradesOpen)).ToListAsync();
         var lessonTimes = await db.LessonTimes.OrderBy(t => t.Period)
             .Select(t => new LessonTimeDto(t.Period, t.StartTime, t.EndTime)).ToListAsync();
         var reasons = await db.AbsenceReasons
             .Select(r => new AbsenceReasonDto(r.Id, r.Name, r.Short, r.IsLate)).ToListAsync();
-        return new SchoolSettingsDto(quarters, lessonTimes, reasons);
-    }
-
-    [HttpPut("quarters")]
-    public async Task<IActionResult> SaveQuarters(SaveQuartersRequest req)
-    {
-        db.Quarters.RemoveRange(db.Quarters);
-        db.Quarters.AddRange(req.Quarters.Select(q => new QuarterPeriod
-        {
-            Quarter = q.Quarter,
-            StartDate = q.StartDate,
-            EndDate = q.EndDate,
-            GradesOpen = q.GradesOpen,
-        }));
-        await db.SaveChangesAsync();
-        return NoContent();
+        return new SchoolSettingsDto(lessonTimes, reasons);
     }
 
     [HttpPut("lesson-times")]

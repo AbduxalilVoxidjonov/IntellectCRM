@@ -115,12 +115,6 @@ public class Student
     /// <summary>Chegirma sababi/izohi (admin uchun, ko'rsatish uchun saqlanadi).</summary>
     public string DiscountNote { get; set; } = string.Empty;
     /// <summary>
-    /// Sinf ichidagi kichik guruh: 0 = guruhsiz (yoki butun sinf), 1 = birinchi guruh, 2 = ikkinchi guruh.
-    /// Faqat o'quv yili boshida (jurnal yozuvlari hali yo'q paytda) o'zgartirilishi mumkin.
-    /// Bo'lingan darslarda (ScheduleLesson.SubGroup != 0) faqat shu guruhdagi o'quvchilar qatnashadi.
-    /// </summary>
-    public int SubGroup { get; set; }
-    /// <summary>
     /// O'quvchi arxivga ko'chirilganmi (boshqa maktabga ketgan, o'qishdan chiqarilgan, ...).
     /// Arxivlangan o'quvchi faol ro'yxatdan yashirinadi, oylik to'lov hisoblanmaydi, login bloklanadi,
     /// lekin tarixiy ma'lumotlari (jurnal, davomat, to'lovlar) saqlanadi.
@@ -267,24 +261,6 @@ public class JournalEntry
     public int Behavior { get; set; }
     /// <summary>Shu darsni o'zlashtirish foizi (0-100). null = belgilanmagan.</summary>
     public int? Mastery { get; set; }
-    /// <summary>Bo'linish: 0 = butun sinf, 1 = 1-guruh, 2 = 2-guruh. ScheduleLesson.SubGroup'ga mos.</summary>
-    public int SubGroup { get; set; }
-}
-
-/// <summary>
-/// O'quvchining fan bo'yicha chorak (yakuniy) bahosi. Kunlik baholardan hisoblanган tavsiya
-/// (o'rtacha) o'rniga o'qituvchi qo'ygan rasmiy chorak bahosi — hisobotlarda shu ishlatiladi.
-/// (ClassId, SubjectId, Quarter, StudentId) bo'yicha yagona.
-/// </summary>
-public class QuarterGrade
-{
-    public string Id { get; set; } = Guid.NewGuid().ToString();
-    public string ClassId { get; set; } = string.Empty;
-    public string SubjectId { get; set; } = string.Empty;
-    public int Quarter { get; set; }
-    public string StudentId { get; set; } = string.Empty;
-    /// <summary>Chorak bahosi (2-5).</summary>
-    public int Grade { get; set; }
 }
 
 /// <summary>Dars mavzusi va uyga vazifa (sana bo'yicha).</summary>
@@ -301,8 +277,6 @@ public class LessonNote
     public string? Homework { get; set; }
     /// <summary>Dars o'tildimi (ptichka). false = dars o'tilmadi.</summary>
     public bool Conducted { get; set; }
-    /// <summary>Bo'linish: 0 = butun sinf, 1 = 1-guruh, 2 = 2-guruh. ScheduleLesson.SubGroup'ga mos.</summary>
-    public int SubGroup { get; set; }
 }
 
 /// <summary>Sinf uchun nomli dars jadvali varianti.</summary>
@@ -325,12 +299,6 @@ public class ScheduleLesson
     public int Period { get; set; }
     public string SubjectId { get; set; } = string.Empty;
     public string TeacherId { get; set; } = string.Empty;
-    /// <summary>
-    /// Bo'linish: 0 = butun sinfga (default), 1 = faqat 1-guruhga, 2 = faqat 2-guruhga. Bitta
-    /// (Day,Period) uchun YOKI bitta SubGroup=0 lesson, YOKI ikki yozuv (SubGroup=1 va SubGroup=2)
-    /// saqlanadi.
-    /// </summary>
-    public int SubGroup { get; set; }
 }
 
 /// <summary>Chorak ichidagi haftaga jadval biriktirish.</summary>
@@ -430,20 +398,6 @@ public class EvaluationGrade
     public int Score { get; set; }
     /// <summary>Oxirgi yangilangan vaqt (ISO).</summary>
     public string UpdatedAt { get; set; } = string.Empty;
-}
-
-/// <summary>Chorak davri.</summary>
-public class QuarterPeriod
-{
-    public string Id { get; set; } = Guid.NewGuid().ToString();
-    public int Quarter { get; set; }
-    public string StartDate { get; set; } = string.Empty;
-    public string EndDate { get; set; } = string.Empty;
-    /// <summary>
-    /// O'qituvchilarga shu chorak bahosini kiritish OCHIQmi (admin boshqaradi). Default — yopiq:
-    /// ochilmaguncha o'qituvchi chorak bahosini qo'ya olmaydi (admin baribir qo'ya oladi).
-    /// </summary>
-    public bool GradesOpen { get; set; }
 }
 
 /// <summary>

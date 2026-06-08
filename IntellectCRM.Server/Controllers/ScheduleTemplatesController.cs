@@ -15,8 +15,8 @@ public class ScheduleTemplatesController(AppDbContext db) : ControllerBase
 {
     private static ScheduleTemplateDto ToDto(ScheduleTemplate t) => new(
         t.Id, t.ClassId, t.Name,
-        t.Lessons.OrderBy(l => l.Day).ThenBy(l => l.Period).ThenBy(l => l.SubGroup)
-            .Select(l => new ScheduleLessonDto(l.Day, l.Period, l.SubjectId, l.TeacherId, l.SubGroup)).ToList());
+        t.Lessons.OrderBy(l => l.Day).ThenBy(l => l.Period)
+            .Select(l => new ScheduleLessonDto(l.Day, l.Period, l.SubjectId, l.TeacherId)).ToList());
 
     [HttpGet]
     public async Task<ActionResult<IEnumerable<ScheduleTemplateDto>>> GetAll(string classId)
@@ -59,8 +59,8 @@ public class ScheduleTemplatesController(AppDbContext db) : ControllerBase
 
     /// <summary>
     /// Jadval katagini butun sinf uchun belgilash (eski oqim — orqaga moslik).
-    /// Avval (Day,Period) dagi BARCHA yozuvlar (jumladan guruh bo'linishlari ham) o'chiriladi va
-    /// bitta SubGroup=0 lesson qo'shiladi. Yangi UI <c>cell</c> endpoint'idan foydalanadi.
+    /// Avval (Day,Period) dagi BARCHA yozuvlar o'chiriladi va bitta lesson qo'shiladi.
+    /// Yangi UI <c>cell</c> endpoint'idan foydalanadi.
     /// </summary>
     [HttpPut("{templateId}/{day:int}/{period:int}")]
     public async Task<IActionResult> SetSlot(string classId, string templateId, int day, int period, ScheduleLessonDto lesson)
@@ -78,13 +78,12 @@ public class ScheduleTemplatesController(AppDbContext db) : ControllerBase
             Period = period,
             SubjectId = lesson.SubjectId,
             TeacherId = lesson.TeacherId,
-            SubGroup = lesson.SubGroup,
         });
         await db.SaveChangesAsync();
         return NoContent();
     }
 
-    /// <summary>Jadval katagini tozalash (har qanday guruhdagi).</summary>
+    /// <summary>Jadval katagini tozalash.</summary>
     [HttpDelete("{templateId}/{day:int}/{period:int}")]
     public async Task<IActionResult> ClearSlot(string classId, string templateId, int day, int period)
     {
@@ -100,8 +99,7 @@ public class ScheduleTemplatesController(AppDbContext db) : ControllerBase
 
     /// <summary>
     /// Bir katak (Day,Period) ning to'liq holatini almashtirish. Lessons: bo'sh = tozalash,
-    /// 1 ta (SubGroup=0) = butun sinf, 2 ta (SubGroup=1 va SubGroup=2) = bo'lingan.
-    /// Validatsiya: SubGroup 0/1/2 dan tashqari va dublikat bo'lsa 400. Day/Period mos kelmasa 400.
+    /// 1 ta = butun sinf darsi. Day/Period mos kelmasa 400.
     /// </summary>
     [HttpPut("{templateId}/cell")]
     public async Task<IActionResult> SetCell(string classId, string templateId, SetCellRequest req)
@@ -113,12 +111,8 @@ public class ScheduleTemplatesController(AppDbContext db) : ControllerBase
         var lessons = req.Lessons ?? new();
         if (lessons.Any(l => l.Day != req.Day || l.Period != req.Period))
             return BadRequest(new { message = "Day/Period darslarda mos kelmaydi" });
-        if (lessons.Any(l => l.SubGroup is < 0 or > 2))
-            return BadRequest(new { message = "SubGroup 0, 1 yoki 2 bo'lishi kerak" });
-        if (lessons.Count > 1 && lessons.Any(l => l.SubGroup == 0))
-            return BadRequest(new { message = "SubGroup=0 (butun sinf) bilan boshqa guruh birga bo'lmaydi" });
-        if (lessons.GroupBy(l => l.SubGroup).Any(g => g.Count() > 1))
-            return BadRequest(new { message = "Bitta guruhda bir nechta dars bo'lishi mumkin emas" });
+        if (lessons.Count > 1)
+            return BadRequest(new { message = "Bir katakda faqat bitta dars bo'lishi mumkin" });
 
         var existing = tpl.Lessons.Where(l => l.Day == req.Day && l.Period == req.Period).ToList();
         db.RemoveRange(existing);
@@ -131,7 +125,6 @@ public class ScheduleTemplatesController(AppDbContext db) : ControllerBase
                 Period = l.Period,
                 SubjectId = l.SubjectId,
                 TeacherId = l.TeacherId,
-                SubGroup = l.SubGroup,
             });
         }
         await db.SaveChangesAsync();

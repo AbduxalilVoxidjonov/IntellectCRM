@@ -5,7 +5,6 @@ import type {
   JournalColumn,
   JournalEntry,
   JournalTopic,
-  QuarterGradeRow,
   SchoolClass,
   ScheduleTemplate,
   Student,
@@ -23,13 +22,10 @@ import {
   clearJournalEntry,
   getLessonNotes,
   setLessonNote,
-  getQuarterGrades,
-  setQuarterGrade,
   downloadTopicsTemplate,
   importTopics,
   type TopicImportResult,
 } from '@/api/services/journal'
-import { quarters } from '@/config/constants'
 import { getCurrentQuarterAndWeek } from '@/lib/weeks'
 import { formatDate, cn } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
@@ -37,7 +33,6 @@ import { Loader } from '@/components/ui/Loader'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
 import { JournalCellModal } from './JournalCellModal'
-import { QuarterGradeModal } from './QuarterGradeModal'
 
 const control =
   'rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:border-brand-400'
@@ -70,22 +65,15 @@ export function JournalPage() {
   const [classId, setClassId] = useState('')
   const [subjectId, setSubjectId] = useState('')
   const [quarter, setQuarter] = useState(1)
-  /**
-   * Guruh filtri: 0 = Butun sinf (SubGroup=0 darslari, hamma o'quvchi), 1/2 = mos guruh
-   * (faqat shu guruh darslari va shu guruh o'quvchilari). Sinf/fan o'zgarsa 0 ga qaytadi.
-   */
-  const [groupFilter, setGroupFilter] = useState<0 | 1 | 2>(0)
 
   const [columns, setColumns] = useState<JournalColumn[]>([])
   const [entries, setEntries] = useState<JournalEntry[]>([])
   const [topics, setTopics] = useState<JournalTopic[]>([])
-  const [quarterGrades, setQuarterGrades] = useState<QuarterGradeRow[]>([])
   const [dataLoading, setDataLoading] = useState(false)
 
   const [editing, setEditing] = useState<{ student: Student; date: string; period: number } | null>(
     null,
   )
-  const [editingQuarter, setEditingQuarter] = useState<Student | null>(null)
 
   // Mavzularni Excel'dan yuklash.
   const fileRef = useRef<HTMLInputElement>(null)
@@ -137,14 +125,7 @@ export function JournalPage() {
       const ids = [...new Set(tpls.flatMap((t) => t.lessons.map((l) => l.subjectId)))]
       setSubjectId(ids[0] ?? '')
     })
-    // Sinf o'zgarsa guruh filtrini "Butun sinf"ga qaytaramiz.
-    setGroupFilter(0)
   }, [classId])
-
-  useEffect(() => {
-    // Fan o'zgarsa ham guruh filtrini "Butun sinf"ga qaytaramiz.
-    setGroupFilter(0)
-  }, [subjectId])
 
   useEffect(() => {
     if (!classId || !subjectId) {
@@ -152,7 +133,6 @@ export function JournalPage() {
       setColumns([])
       setEntries([])
       setTopics([])
-      setQuarterGrades([])
       return
     }
     setDataLoading(true)
@@ -160,34 +140,19 @@ export function JournalPage() {
       getJournalColumns(classId, subjectId, quarter),
       getJournalEntries(classId, subjectId, quarter),
       getLessonNotes(classId, subjectId, quarter),
-      getQuarterGrades(classId, subjectId, quarter),
     ])
-      .then(([cols, ents, tps, qg]) => {
+      .then(([cols, ents, tps]) => {
         setColumns(cols)
         setEntries(ents)
         setTopics(tps)
-        setQuarterGrades(qg)
       })
       .finally(() => setDataLoading(false))
   }, [classId, subjectId, quarter])
 
   const selectedClass = classes.find((c) => c.id === classId) ?? null
-  const allClassStudents = selectedClass
+  const classStudents = selectedClass
     ? students.filter((s) => s.className === selectedClass.name)
     : []
-
-  // Sinfda guruh bo'linishi bormi (kamida bir o'quvchi G1/G2 da)? — guruh filtrini ko'rsatish-yashirish.
-  const classIsGrouped = allClassStudents.some((s) => (s.subGroup ?? 0) > 0)
-
-  // Joriy guruh filtri bo'yicha tanlangan o'quvchilar.
-  // Butun sinf (0) — hamma; 1/2 — faqat shu guruh.
-  const classStudents =
-    groupFilter === 0
-      ? allClassStudents
-      : allClassStudents.filter((s) => (s.subGroup ?? 0) === groupFilter)
-
-  // Joriy guruh filtri bo'yicha ustunlar (jurnal ustunlari ham guruh asosida ajralgan).
-  const visibleColumns = columns.filter((c) => (c.subGroup ?? 0) === groupFilter)
 
   const classSubjects = useMemo(() => {
     const ids = [...new Set(templates.flatMap((t) => t.lessons.map((l) => l.subjectId)))]
@@ -200,26 +165,20 @@ export function JournalPage() {
     entries.find((e) => e.studentId === studentId && e.date === date && e.period === period) ?? null
   const reasonShort = (rid: string) => reasons.find((r) => r.id === rid)?.short ?? '?'
   const reasonIsLate = (rid: string) => reasons.find((r) => r.id === rid)?.isLate ?? false
-  const topicFor = (date: string, period: number, subGroup: number) =>
-    topics.find((t) => t.date === date && t.period === period && (t.subGroup ?? 0) === subGroup)?.topic ?? ''
-  const homeworkFor = (date: string, period: number, subGroup: number) =>
-    topics.find((t) => t.date === date && t.period === period && (t.subGroup ?? 0) === subGroup)?.homework ?? ''
-  const conductedFor = (date: string, period: number, subGroup: number) =>
-    topics.find((t) => t.date === date && t.period === period && (t.subGroup ?? 0) === subGroup)?.conducted ?? false
+  const topicFor = (date: string, period: number) =>
+    topics.find((t) => t.date === date && t.period === period)?.topic ?? ''
+  const homeworkFor = (date: string, period: number) =>
+    topics.find((t) => t.date === date && t.period === period)?.homework ?? ''
+  const conductedFor = (date: string, period: number) =>
+    topics.find((t) => t.date === date && t.period === period)?.conducted ?? false
 
-  const quarterAvg = (studentId: string, studentSubGroup: number): number | null => {
-    // O'quvchining guruhiga taalluqli ustunlar bo'yicha o'rtacha (SubGroup=0 hammaga).
-    // Joriy filter bo'yicha emas — chorak bahosi o'quvchining JAMI baholaridan hisoblanadi.
+  const studentAvg = (studentId: string): number | null => {
     const vals = columns
-      .filter((c) => (c.subGroup ?? 0) === 0 || (c.subGroup ?? 0) === studentSubGroup)
       .map((c) => entryFor(studentId, c.date, c.period)?.grade)
       .filter((g): g is number => g != null)
     if (!vals.length) return null
     return Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 10) / 10
   }
-
-  const quarterGradeFor = (studentId: string): number | null =>
-    quarterGrades.find((q) => q.studentId === studentId)?.grade ?? null
 
   const upsertLocal = (
     studentId: string,
@@ -233,24 +192,18 @@ export function JournalPage() {
     ])
 
   // Baho/davomat kiritilganda shu darsni "o'tildi" deb mahalliy belgilaymiz (backend ham auto-belgilaydi).
-  const markConductedLocal = (date: string, period: number, subGroup: number) =>
+  const markConductedLocal = (date: string, period: number) =>
     setTopics((prev) => {
-      const existing = prev.find(
-        (t) => t.date === date && t.period === period && (t.subGroup ?? 0) === subGroup,
-      )
+      const existing = prev.find((t) => t.date === date && t.period === period)
       if (existing?.conducted) return prev
       const merged: JournalTopic = {
         date,
         period,
-        subGroup,
         topic: existing?.topic ?? '',
         homework: existing?.homework ?? '',
         conducted: true,
       }
-      return [
-        ...prev.filter((t) => !(t.date === date && t.period === period && (t.subGroup ?? 0) === subGroup)),
-        merged,
-      ]
+      return [...prev.filter((t) => !(t.date === date && t.period === period)), merged]
     })
 
   // Baho va davomat sababini birga saqlaymiz (ikkalasi ham bo'sh bo'lsa — katakni tozalaymiz).
@@ -276,8 +229,7 @@ export function JournalPage() {
         behavior,
         mastery,
       })
-      // O'quvchining guruhi mos darsni "o'tildi" deb belgilash uchun ishlatiladi.
-      markConductedLocal(date, period, student.subGroup ?? 0)
+      markConductedLocal(date, period)
       setJournalEntry(classId, subjectId, quarter, student.id, date, period, {
         grade,
         reasonId,
@@ -299,83 +251,50 @@ export function JournalPage() {
     setEditing(null)
   }
 
-  const handleSetQuarterGrade = (grade: number) => {
-    if (!editingQuarter) return
-    const s = editingQuarter
-    setQuarterGrades((prev) => {
-      const rec = prev.find((q) => q.studentId === s.id)?.recommended
-      return [...prev.filter((q) => q.studentId !== s.id), { studentId: s.id, grade, recommended: rec }]
-    })
-    setQuarterGrade(classId, subjectId, quarter, s.id, grade)
-    setEditingQuarter(null)
-  }
-
-  const handleClearQuarterGrade = () => {
-    if (!editingQuarter) return
-    const s = editingQuarter
-    setQuarterGrades((prev) => prev.map((q) => (q.studentId === s.id ? { ...q, grade: undefined } : q)))
-    setQuarterGrade(classId, subjectId, quarter, s.id, null)
-    setEditingQuarter(null)
-  }
-
   const handleNoteChange = (
     date: string,
     period: number,
-    subGroup: number,
     field: 'topic' | 'homework',
     value: string,
   ) =>
     setTopics((prev) => {
-      const existing = prev.find(
-        (t) => t.date === date && t.period === period && (t.subGroup ?? 0) === subGroup,
-      )
+      const existing = prev.find((t) => t.date === date && t.period === period)
       const merged: JournalTopic = {
         date,
         period,
-        subGroup,
         topic: existing?.topic ?? '',
         homework: existing?.homework ?? '',
         conducted: existing?.conducted ?? false,
         [field]: value,
       }
-      return [
-        ...prev.filter((t) => !(t.date === date && t.period === period && (t.subGroup ?? 0) === subGroup)),
-        merged,
-      ]
+      return [...prev.filter((t) => !(t.date === date && t.period === period)), merged]
     })
 
-  const handleNoteBlur = (date: string, period: number, subGroup: number) =>
+  const handleNoteBlur = (date: string, period: number) =>
     setLessonNote(
       classId,
       subjectId,
       quarter,
       date,
       period,
-      topicFor(date, period, subGroup),
-      homeworkFor(date, period, subGroup),
-      conductedFor(date, period, subGroup),
-      subGroup,
+      topicFor(date, period),
+      homeworkFor(date, period),
+      conductedFor(date, period),
     )
 
   // "Dars o'tildi" ptichkasini almashtirish (mavzu/uyga vazifa saqlanadi)
-  const handleToggleConducted = (date: string, period: number, subGroup: number) => {
-    const next = !conductedFor(date, period, subGroup)
+  const handleToggleConducted = (date: string, period: number) => {
+    const next = !conductedFor(date, period)
     setTopics((prev) => {
-      const existing = prev.find(
-        (t) => t.date === date && t.period === period && (t.subGroup ?? 0) === subGroup,
-      )
+      const existing = prev.find((t) => t.date === date && t.period === period)
       const merged: JournalTopic = {
         date,
         period,
-        subGroup,
         topic: existing?.topic ?? '',
         homework: existing?.homework ?? '',
         conducted: next,
       }
-      return [
-        ...prev.filter((t) => !(t.date === date && t.period === period && (t.subGroup ?? 0) === subGroup)),
-        merged,
-      ]
+      return [...prev.filter((t) => !(t.date === date && t.period === period)), merged]
     })
     setLessonNote(
       classId,
@@ -383,10 +302,9 @@ export function JournalPage() {
       quarter,
       date,
       period,
-      topicFor(date, period, subGroup),
-      homeworkFor(date, period, subGroup),
+      topicFor(date, period),
+      homeworkFor(date, period),
       next,
-      subGroup,
     )
   }
 
@@ -426,43 +344,6 @@ export function JournalPage() {
                 ))
               )}
             </select>
-            {/* Guruh filtri — sinf bo'lingan bo'lsa ko'rinadi (dropdown tanlovi) */}
-            {classIsGrouped && (
-              <select
-                value={groupFilter}
-                onChange={(e) => setGroupFilter(Number(e.target.value) as 0 | 1 | 2)}
-                className={cn(
-                  control,
-                  groupFilter === 1
-                    ? 'border-sky-300 bg-sky-50 text-sky-800'
-                    : groupFilter === 2
-                      ? 'border-violet-300 bg-violet-50 text-violet-800'
-                      : '',
-                )}
-                title="Guruh tanlash"
-              >
-                <option value={0}>Butun sinf</option>
-                <option value={1}>1-guruh</option>
-                <option value={2}>2-guruh</option>
-              </select>
-            )}
-            <div className="flex w-fit gap-1 rounded-lg bg-slate-100 p-1">
-              {quarters.map((q) => (
-                <button
-                  key={q}
-                  type="button"
-                  onClick={() => setQuarter(q)}
-                  className={cn(
-                    'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
-                    q === quarter
-                      ? 'bg-white text-brand-700 shadow-sm'
-                      : 'text-slate-500 hover:text-slate-700',
-                  )}
-                >
-                  {q}-chorak
-                </button>
-              ))}
-            </div>
             {reasons.length > 0 && (
               <div className="ml-auto flex flex-wrap items-center gap-2 text-xs text-slate-400">
                 {reasons.map((r) => (
@@ -501,15 +382,7 @@ export function JournalPage() {
           ) : columns.length === 0 ? (
             <Card>
               <p className="py-8 text-center text-slate-400">
-                Bu fan uchun chorakda dars sanalari yo'q — haftalarga jadval biriktiring
-              </p>
-            </Card>
-          ) : visibleColumns.length === 0 ? (
-            <Card>
-              <p className="py-8 text-center text-slate-400">
-                {groupFilter === 0
-                  ? "Bu fan butun sinf darslarini topmadi (faqat guruhlarga bo'lingan)"
-                  : `Bu fanda ${groupFilter}-guruh uchun dars yo'q`}
+                Bu fan uchun dars sanalari yo'q — haftalarga jadval biriktiring
               </p>
             </Card>
           ) : (
@@ -523,10 +396,8 @@ export function JournalPage() {
                         <th className="sticky left-0 z-10 bg-slate-50 px-3 py-2 text-left text-xs font-medium uppercase">
                           F.I.SH
                         </th>
-                        {visibleColumns.map((c) => {
-                          const sg = c.subGroup ?? 0
-                          return (
-                          <th key={`${c.date}-${c.period}-${sg}`} className="px-1 py-2 text-center">
+                        {columns.map((c) => (
+                          <th key={`${c.date}-${c.period}`} className="px-1 py-2 text-center">
                             <div className="text-[10px] font-normal text-slate-400">
                               {weekdayShort(c.date)}
                             </div>
@@ -534,26 +405,13 @@ export function JournalPage() {
                               {formatDate(c.date).slice(0, 5)}
                             </div>
                             <div className="text-[10px] text-slate-400">{c.period}-dars</div>
-                            {sg > 0 && (
-                              <div
-                                className={cn(
-                                  'mx-auto mt-0.5 inline-block rounded px-1 text-[10px] font-semibold',
-                                  sg === 1
-                                    ? 'bg-sky-100 text-sky-700'
-                                    : 'bg-violet-100 text-violet-700',
-                                )}
-                                title={`${sg}-guruh darsi`}
-                              >
-                                G{sg}
-                              </div>
-                            )}
                             <button
                               type="button"
-                              onClick={() => handleToggleConducted(c.date, c.period, sg)}
-                              title={conductedFor(c.date, c.period, sg) ? "Dars o'tildi" : "Dars o'tilmadi"}
+                              onClick={() => handleToggleConducted(c.date, c.period)}
+                              title={conductedFor(c.date, c.period) ? "Dars o'tildi" : "Dars o'tilmadi"}
                               className={cn(
                                 'mx-auto mt-1 flex h-5 w-5 items-center justify-center rounded transition-colors',
-                                conductedFor(c.date, c.period, sg)
+                                conductedFor(c.date, c.period)
                                   ? 'bg-emerald-100 text-emerald-600'
                                   : 'bg-slate-100 text-slate-300 hover:text-slate-400',
                               )}
@@ -561,42 +419,24 @@ export function JournalPage() {
                               <Check className="h-3.5 w-3.5" />
                             </button>
                           </th>
-                        )})}
+                        ))}
                         <th className="px-3 py-2 text-center text-xs font-medium uppercase">
-                          Chorak
+                          O'rtacha
                         </th>
                       </tr>
                     </thead>
                     <tbody>
                       {classStudents.map((s) => {
-                        const ssg = s.subGroup ?? 0
-                        const avg = quarterAvg(s.id, ssg)
-                        const qGrade = quarterGradeFor(s.id)
+                        const avg = studentAvg(s.id)
                         return (
                           <tr key={s.id} className="border-t border-slate-100 hover:bg-slate-50/40">
                             <td className="sticky left-0 z-10 bg-white px-3 py-1.5 font-medium text-slate-800">
-                              <div className="flex items-center gap-1.5">
-                                <span>{s.fullName}</span>
-                                {ssg > 0 && (
-                                  <span
-                                    className={cn(
-                                      'rounded px-1 text-[10px] font-semibold',
-                                      ssg === 1
-                                        ? 'bg-sky-100 text-sky-700'
-                                        : 'bg-violet-100 text-violet-700',
-                                    )}
-                                    title={`${ssg}-guruh`}
-                                  >
-                                    G{ssg}
-                                  </span>
-                                )}
-                              </div>
+                              {s.fullName}
                             </td>
-                            {visibleColumns.map((c) => {
+                            {columns.map((c) => {
                               const entry = entryFor(s.id, c.date, c.period)
-                              const colSg = c.subGroup ?? 0
                               return (
-                                <td key={`${c.date}-${c.period}-${colSg}`} className="px-1 py-1 text-center">
+                                <td key={`${c.date}-${c.period}`} className="px-1 py-1 text-center">
                                   {(() => {
                                     const late = entry?.reasonId ? reasonIsLate(entry.reasonId) : false
                                     return (
@@ -669,31 +509,13 @@ export function JournalPage() {
                               )
                             })}
                             <td className="px-3 py-1.5 text-center">
-                              <button
-                                type="button"
-                                onClick={() => setEditingQuarter(s)}
-                                title="Chorak bahosini belgilash"
-                                className="mx-auto flex h-9 min-w-[2.75rem] flex-col items-center justify-center rounded-md border border-slate-200 px-2 transition-colors hover:border-brand-300 hover:bg-brand-50"
-                              >
-                                {qGrade != null ? (
-                                  <>
-                                    <span className={cn('text-sm font-bold leading-none', gradeColor(qGrade))}>
-                                      {qGrade}
-                                    </span>
-                                    {avg != null && (
-                                      <span className="text-[10px] leading-tight text-slate-400">
-                                        ≈{avg.toFixed(1)}
-                                      </span>
-                                    )}
-                                  </>
-                                ) : avg != null ? (
-                                  <span className={cn('text-sm font-semibold', avgColor(avg))}>
-                                    {avg.toFixed(1)}
-                                  </span>
-                                ) : (
-                                  <span className="text-slate-300">—</span>
-                                )}
-                              </button>
+                              {avg != null ? (
+                                <span className={cn('text-sm font-semibold', avgColor(avg))}>
+                                  {avg.toFixed(1)}
+                                </span>
+                              ) : (
+                                <span className="text-slate-300">—</span>
+                              )}
                             </td>
                           </tr>
                         )
@@ -701,7 +523,7 @@ export function JournalPage() {
                       {classStudents.length === 0 && (
                         <tr>
                           <td
-                            colSpan={visibleColumns.length + 2}
+                            colSpan={columns.length + 2}
                             className="px-4 py-10 text-center text-slate-400"
                           >
                             Bu sinfda o'quvchilar yo'q
@@ -720,57 +542,43 @@ export function JournalPage() {
                   <h2 className="font-semibold text-slate-800">Mavzu va uyga vazifa</h2>
                 </div>
                 <div className="max-h-[34rem] space-y-3 overflow-y-auto pr-1">
-                  {visibleColumns.map((c) => {
-                    const sg = c.subGroup ?? 0
-                    return (
-                    <div key={`${c.date}-${c.period}-${sg}`} className="rounded-xl border border-slate-100 p-2.5">
+                  {columns.map((c) => (
+                    <div key={`${c.date}-${c.period}`} className="rounded-xl border border-slate-100 p-2.5">
                       <div className="mb-1.5 flex items-center justify-between gap-2">
                         <span className="text-xs font-semibold text-slate-500">
                           {weekdayShort(c.date)}, {formatDate(c.date).slice(0, 5)} · {c.period}-dars
-                          {sg > 0 && (
-                            <span
-                              className={cn(
-                                'ml-1.5 rounded px-1 text-[10px] font-semibold',
-                                sg === 1
-                                  ? 'bg-sky-100 text-sky-700'
-                                  : 'bg-violet-100 text-violet-700',
-                              )}
-                            >
-                              G{sg}
-                            </span>
-                          )}
                         </span>
                         <label
                           className={cn(
                             'flex cursor-pointer items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium',
-                            conductedFor(c.date, c.period, sg) ? 'text-emerald-600' : 'text-slate-400',
+                            conductedFor(c.date, c.period) ? 'text-emerald-600' : 'text-slate-400',
                           )}
                         >
                           <input
                             type="checkbox"
-                            checked={conductedFor(c.date, c.period, sg)}
-                            onChange={() => handleToggleConducted(c.date, c.period, sg)}
+                            checked={conductedFor(c.date, c.period)}
+                            onChange={() => handleToggleConducted(c.date, c.period)}
                             className="h-3.5 w-3.5 accent-emerald-600"
                           />
-                          {conductedFor(c.date, c.period, sg) ? "Dars o'tildi" : "Dars o'tilmadi"}
+                          {conductedFor(c.date, c.period) ? "Dars o'tildi" : "Dars o'tilmadi"}
                         </label>
                       </div>
                       <input
-                        value={topicFor(c.date, c.period, sg)}
-                        onChange={(e) => handleNoteChange(c.date, c.period, sg, 'topic', e.target.value)}
-                        onBlur={() => handleNoteBlur(c.date, c.period, sg)}
+                        value={topicFor(c.date, c.period)}
+                        onChange={(e) => handleNoteChange(c.date, c.period, 'topic', e.target.value)}
+                        onBlur={() => handleNoteBlur(c.date, c.period)}
                         placeholder="Mavzu..."
                         className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-brand-400"
                       />
                       <input
-                        value={homeworkFor(c.date, c.period, sg)}
-                        onChange={(e) => handleNoteChange(c.date, c.period, sg, 'homework', e.target.value)}
-                        onBlur={() => handleNoteBlur(c.date, c.period, sg)}
+                        value={homeworkFor(c.date, c.period)}
+                        onChange={(e) => handleNoteChange(c.date, c.period, 'homework', e.target.value)}
+                        onBlur={() => handleNoteBlur(c.date, c.period)}
                         placeholder="Uyga vazifa..."
                         className="mt-1.5 w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm outline-none focus:border-brand-400"
                       />
                     </div>
-                  )})}
+                  ))}
                 </div>
               </Card>
             </div>
@@ -787,16 +595,6 @@ export function JournalPage() {
         onClose={() => setEditing(null)}
         onSave={handleSaveCell}
         onClear={handleClearCell}
-      />
-
-      <QuarterGradeModal
-        open={!!editingQuarter}
-        studentName={editingQuarter?.fullName ?? ''}
-        grade={editingQuarter ? quarterGradeFor(editingQuarter.id) : null}
-        recommended={editingQuarter ? quarterAvg(editingQuarter.id, editingQuarter.subGroup ?? 0) : null}
-        onClose={() => setEditingQuarter(null)}
-        onSetGrade={handleSetQuarterGrade}
-        onClear={handleClearQuarterGrade}
       />
 
       <Modal

@@ -10,13 +10,13 @@ namespace IntellectCRM.Application.Services;
 /// baho qo'ymoqdami, mavzu va uy vazifa bermoqdami.
 ///
 /// <para>Jurnal yozuvlarida (LessonNote/JournalEntry) o'qituvchi id'si yo'q — kim o'qitishi dars
-/// jadvalidan (ScheduleLesson.TeacherId) (ClassId, SubjectId, SubGroup) kaliti orqali aniqlanadi.
+/// jadvalidan (ScheduleLesson.TeacherId) (ClassId, SubjectId) kaliti orqali aniqlanadi.
 /// "Reja" (Expected) = haftalarga biriktirilgan jadvaldan kelib chiqib BUGUNGACHA bo'lishi kerak
 /// bo'lgan dars sonidir.</para>
 /// </summary>
 public static class TeacherActivityReport
 {
-    /// <summary>Bir (o'qituvchi, sinf, fan, guruh) kesimi bo'yicha yig'ma sonlar.</summary>
+    /// <summary>Bir (o'qituvchi, sinf, fan) kesimi bo'yicha yig'ma sonlar.</summary>
     private sealed class Agg
     {
         public int Expected, Conducted, Topic, Homework, Grades;
@@ -24,7 +24,7 @@ public static class TeacherActivityReport
 
     private sealed class Computed
     {
-        public Dictionary<(string Teacher, string Class, string Subject, int Sub), Agg> ByKey = new();
+        public Dictionary<(string Teacher, string Class, string Subject), Agg> ByKey = new();
         public Dictionary<string, string> LastActivity = new(); // teacherId -> ISO sana
     }
 
@@ -53,12 +53,10 @@ public static class TeacherActivityReport
             .Select(kv => new TeacherReportBreakdownDto(
                 classNames.GetValueOrDefault(kv.Key.Class, kv.Key.Class),
                 subjectNames.GetValueOrDefault(kv.Key.Subject, kv.Key.Subject),
-                kv.Key.Sub,
                 kv.Value.Expected, kv.Value.Conducted, Pct(kv.Value.Conducted, kv.Value.Expected, cap: true),
                 kv.Value.Grades, Pct(kv.Value.Topic, kv.Value.Conducted), Pct(kv.Value.Homework, kv.Value.Conducted)))
             .OrderBy(r => r.ClassName, StringComparer.OrdinalIgnoreCase)
             .ThenBy(r => r.SubjectName, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(r => r.SubGroup)
             .ToList();
 
         return new TeacherReportDetailDto(
@@ -70,13 +68,13 @@ public static class TeacherActivityReport
 
     // ---------- Ichki hisoblash ----------
 
-    private static List<KeyValuePair<(string Teacher, string Class, string Subject, int Sub), Agg>>
+    private static List<KeyValuePair<(string Teacher, string Class, string Subject), Agg>>
         KeysFor(Computed c, string teacherId) =>
         c.ByKey.Where(kv => kv.Key.Teacher == teacherId).ToList();
 
     private static TeacherReportRowDto Row(
         string teacherId, string fullName, bool isArchived,
-        List<KeyValuePair<(string Teacher, string Class, string Subject, int Sub), Agg>> keys,
+        List<KeyValuePair<(string Teacher, string Class, string Subject), Agg>> keys,
         string? lastActivity)
     {
         var exp = keys.Sum(k => k.Value.Expected);
@@ -117,11 +115,10 @@ public static class TeacherActivityReport
         var classNames = classes.ToDictionary(c => c.Id, c => c.Name);
         var subjectNames = await db.Subjects.ToDictionaryAsync(s => s.Id, s => s.Name);
         var templates = await db.ScheduleTemplates.Include(t => t.Lessons).ToListAsync();
-        var assignments = await db.WeekAssignments.ToListAsync();
-
-        var quartersQ = db.Quarters.AsQueryable();
-        if (quarter > 0) quartersQ = quartersQ.Where(q => q.Quarter == quarter);
-        var quarters = await quartersQ.OrderBy(q => q.Quarter).ToListAsync();
+        var assignmentsAll = await db.WeekAssignments.ToListAsync();
+        var assignments = quarter > 0
+            ? assignmentsAll.Where(a => a.Quarter == quarter).ToList()
+            : assignmentsAll;
 
         var notesQ = db.LessonNotes.AsQueryable();
         if (quarter > 0) notesQ = notesQ.Where(n => n.Quarter == quarter);
@@ -131,31 +128,30 @@ public static class TeacherActivityReport
         if (quarter > 0) entriesQ = entriesQ.Where(e => e.Quarter == quarter);
         var entries = await entriesQ.ToListAsync();
 
-        // (ClassId, SubjectId, SubGroup) -> TeacherId; va (ClassId, SubjectId) -> o'qituvchilar to'plami.
-        var exact = new Dictionary<(string, string, int), string>();
+        // (ClassId, SubjectId) -> TeacherId; va (ClassId, SubjectId) -> o'qituvchilar to'plami.
+        var exact = new Dictionary<(string, string), string>();
         var bySubject = new Dictionary<(string, string), HashSet<string>>();
         foreach (var tpl in templates)
             foreach (var l in tpl.Lessons)
             {
                 if (string.IsNullOrEmpty(l.TeacherId)) continue;
-                exact[(tpl.ClassId, l.SubjectId, l.SubGroup)] = l.TeacherId;
+                exact[(tpl.ClassId, l.SubjectId)] = l.TeacherId;
                 if (!bySubject.TryGetValue((tpl.ClassId, l.SubjectId), out var set))
                     bySubject[(tpl.ClassId, l.SubjectId)] = set = new();
                 set.Add(l.TeacherId);
             }
 
-        string? Attribute(string classId, string subjectId, int sub)
+        string? Attribute(string classId, string subjectId)
         {
-            if (exact.TryGetValue((classId, subjectId, sub), out var t1)) return t1;
-            if (exact.TryGetValue((classId, subjectId, 0), out var t0)) return t0;
+            if (exact.TryGetValue((classId, subjectId), out var t1)) return t1;
             if (bySubject.TryGetValue((classId, subjectId), out var set) && set.Count == 1) return set.First();
             return null;
         }
 
         var c = new Computed();
-        Agg Key(string teacher, string classId, string subjectId, int sub)
+        Agg Key(string teacher, string classId, string subjectId)
         {
-            var k = (teacher, classId, subjectId, sub);
+            var k = (teacher, classId, subjectId);
             if (!c.ByKey.TryGetValue(k, out var a)) c.ByKey[k] = a = new();
             return a;
         }
@@ -167,38 +163,32 @@ public static class TeacherActivityReport
         }
 
         // --- Reja (Expected): jadval × biriktirilgan haftalar, bugungacha ---
+        // Chorak davri tizimi olib tashlandi — hafta raqamlari o'quv yili boshidan sanaladi.
         var today = AppClock.Today.ToString("yyyy-MM-dd");
-        foreach (var q in quarters)
+        var startMonth = await TuitionService.AcademicYearStartMonthAsync(db);
+        var firstMonday = ScheduleMath.MondayOfISO($"{startMonth}-01");
+        foreach (var a in assignments)
         {
-            var weeks = ScheduleMath.GetQuarterWeeks(q.StartDate, q.EndDate);
-            foreach (var cls in classes)
-                foreach (var w in weeks)
-                {
-                    var a = assignments.FirstOrDefault(x =>
-                        x.ClassId == cls.Id && x.Quarter == q.Quarter && x.Week == w.Week);
-                    if (a?.TemplateId is null) continue;
-                    var tpl = templates.FirstOrDefault(t => t.Id == a.TemplateId);
-                    if (tpl is null) continue;
-                    var monday = ScheduleMath.MondayOfISO(w.StartISO);
-                    foreach (var l in tpl.Lessons)
-                    {
-                        if (string.IsNullOrEmpty(l.TeacherId)) continue;
-                        var date = ScheduleMath.AddDaysISO(monday, l.Day);
-                        if (string.CompareOrdinal(date, q.StartDate) < 0 ||
-                            string.CompareOrdinal(date, q.EndDate) > 0) continue;
-                        if (string.CompareOrdinal(date, today) > 0) continue; // kelajak dars — hali reja emas
-                        Key(l.TeacherId, cls.Id, l.SubjectId, l.SubGroup).Expected++;
-                    }
-                }
+            if (a.TemplateId is null || a.Week <= 0) continue;
+            var tpl = templates.FirstOrDefault(t => t.Id == a.TemplateId);
+            if (tpl is null) continue;
+            var monday = ScheduleMath.AddDaysISO(firstMonday, (a.Week - 1) * 7);
+            foreach (var l in tpl.Lessons)
+            {
+                if (string.IsNullOrEmpty(l.TeacherId)) continue;
+                var date = ScheduleMath.AddDaysISO(monday, l.Day);
+                if (string.CompareOrdinal(date, today) > 0) continue; // kelajak dars — hali reja emas
+                Key(l.TeacherId, a.ClassId, l.SubjectId).Expected++;
+            }
         }
 
         // --- O'tilgan darslar + mavzu/uy vazifa (LessonNote) ---
         foreach (var n in notes)
         {
             if (!n.Conducted) continue;
-            var teacher = Attribute(n.ClassId, n.SubjectId, n.SubGroup);
+            var teacher = Attribute(n.ClassId, n.SubjectId);
             if (teacher is null) continue;
-            var agg = Key(teacher, n.ClassId, n.SubjectId, n.SubGroup);
+            var agg = Key(teacher, n.ClassId, n.SubjectId);
             agg.Conducted++;
             if (!string.IsNullOrWhiteSpace(n.Topic)) agg.Topic++;
             if (!string.IsNullOrWhiteSpace(n.Homework)) agg.Homework++;
@@ -208,9 +198,9 @@ public static class TeacherActivityReport
         // --- Qo'yilgan baholar (JournalEntry) ---
         foreach (var e in entries)
         {
-            var teacher = Attribute(e.ClassId, e.SubjectId, e.SubGroup);
+            var teacher = Attribute(e.ClassId, e.SubjectId);
             if (teacher is null) continue;
-            Key(teacher, e.ClassId, e.SubjectId, e.SubGroup).Grades++;
+            Key(teacher, e.ClassId, e.SubjectId).Grades++;
             Touch(teacher, e.Date);
         }
 

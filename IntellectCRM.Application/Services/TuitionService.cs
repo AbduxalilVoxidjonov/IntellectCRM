@@ -67,16 +67,16 @@ public static class TuitionService
     }
 
     /// <summary>
-    /// O'quv yili boshlanish oyi ("yyyy-MM") — choraklardagi ENG ERTA StartDate'ning oyi
-    /// (1-chorak qaysi oydan boshlangan bo'lsa). Choraklar belgilanmagan bo'lsa — joriy yil yanvari.
-    /// Maosh hisobi yanvardan emas, shu oydan boshlanadi.
+    /// O'quv yili boshlanish oyi ("yyyy-MM") — faol (arxivlanmagan) o'quvchilarning ENG ERTA
+    /// qabul (EnrollmentDate) oyi. Faol o'quvchi yoki sana bo'lmasa — joriy oy.
+    /// Maosh/hisob shu oydan boshlanadi.
     /// </summary>
     public static async Task<string> AcademicYearStartMonthAsync(IAppDbContext db)
     {
-        var starts = await db.Quarters
-            .Where(q => q.StartDate.Length >= 7)
-            .Select(q => q.StartDate).ToListAsync();
-        return starts.Count == 0 ? $"{AppClock.Now.Year:D4}-01" : starts.Min()![..7];
+        var dates = await db.Students
+            .Where(s => !s.IsArchived && s.EnrollmentDate.Length >= 7)
+            .Select(s => s.EnrollmentDate).ToListAsync();
+        return dates.Count == 0 ? CurrentMonth() : dates.Min()![..7];
     }
 
     /// <summary>Bitta oy uchun hisoblash. Allaqachon hisoblangan o'quvchilar o'tkazib yuboriladi.</summary>

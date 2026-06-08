@@ -337,8 +337,6 @@ public class StudentPortalController(
 
         var (curQ, curW) = await PortalSchedule.CurrentQuarterWeekAsync(db);
         var lessons = await PortalSchedule.LessonsForWeekAsync(db, cls.Id, quarter ?? curQ, week ?? curW);
-        // O'quvchi guruhiga mos darslar (SubGroup=0 yoki o'z guruhi).
-        lessons = PortalSchedule.ForStudent(lessons, s.SubGroup).ToList();
 
         var subjects = await db.Subjects.ToDictionaryAsync(x => x.Id, x => x.Name);
         var teachers = await db.Teachers.ToDictionaryAsync(x => x.Id, x => x.FullName);
@@ -422,8 +420,7 @@ public class StudentPortalController(
 
         var subjects = await db.Subjects.ToDictionaryAsync(x => x.Id, x => x.Name);
         var notes = await db.LessonNotes
-            .Where(n => n.ClassId == cls.Id && n.Quarter == q &&
-                        (n.SubGroup == 0 || n.SubGroup == s.SubGroup))
+            .Where(n => n.ClassId == cls.Id && n.Quarter == q)
             .ToListAsync();
 
         // O'quvchining shu chorakdagi jurnal yozuvlari (baho/davomat sababi) — (Date, Period, SubjectId) bo'yicha kalit.
@@ -468,17 +465,12 @@ public class StudentPortalController(
         var q = quarter ?? curQ;
         var w = week ?? curW;
 
-        // Hafta sanalari (Du..Sha) — chorakka qisilgan.
-        var qp = await db.Quarters.FirstOrDefaultAsync(x => x.Quarter == q);
-        if (qp is null) return new List<StudentJournalRowDto>();
-        var weeks = ScheduleMath.GetQuarterWeeks(qp.StartDate, qp.EndDate);
-        var wk = weeks.FirstOrDefault(x => x.Week == w);
-        if (wk is null) return new List<StudentJournalRowDto>();
-        var monday = ScheduleMath.MondayOfISO(wk.StartISO);
+        // Chorak davri tizimi olib tashlandi — hafta dushanbasi o'quv yili birinchi dushanbasidan.
+        var startMonth = await TuitionService.AcademicYearStartMonthAsync(db);
+        var firstMonday = ScheduleMath.MondayOfISO($"{startMonth}-01");
+        var monday = ScheduleMath.AddDaysISO(firstMonday, Math.Max(0, w - 1) * 7);
 
         var lessons = await PortalSchedule.LessonsForWeekAsync(db, cls.Id, q, w);
-        // Faqat o'quvchi guruhiga tegishli darslar (SubGroup=0 yoki o'z guruhi).
-        lessons = PortalSchedule.ForStudent(lessons, s.SubGroup).ToList();
         var subjects = await db.Subjects.ToDictionaryAsync(x => x.Id, x => x.Name);
         var teachers = await db.Teachers.ToDictionaryAsync(x => x.Id, x => x.FullName);
         var times = await db.LessonTimes.ToDictionaryAsync(x => x.Period);
@@ -486,7 +478,7 @@ public class StudentPortalController(
         var notes = await db.LessonNotes
             .Where(n => n.ClassId == cls.Id && n.Quarter == q)
             .ToListAsync();
-        var noteMap = notes.ToDictionary(n => (n.Date, n.Period, n.SubjectId, n.SubGroup));
+        var noteMap = notes.ToDictionary(n => (n.Date, n.Period, n.SubjectId));
 
         var entries = await db.JournalEntries
             .Where(e => e.ClassId == cls.Id && e.Quarter == q && e.StudentId == s.Id)
@@ -499,11 +491,8 @@ public class StudentPortalController(
         foreach (var l in lessons.OrderBy(x => x.Day).ThenBy(x => x.Period))
         {
             var date = ScheduleMath.AddDaysISO(monday, l.Day);
-            // Hafta chorak chetiga qisilgan bo'lsa kunni tashqarida qoldiramiz.
-            if (string.CompareOrdinal(date, wk.StartISO) < 0 ||
-                string.CompareOrdinal(date, wk.EndISO) > 0) continue;
 
-            noteMap.TryGetValue((date, l.Period, l.SubjectId, l.SubGroup), out var n);
+            noteMap.TryGetValue((date, l.Period, l.SubjectId), out var n);
             entryMap.TryGetValue((date, l.Period, l.SubjectId), out var en);
             AbsenceReason? r = null;
             if (en?.ReasonId is not null) reasons.TryGetValue(en.ReasonId, out r);
@@ -591,8 +580,6 @@ public class StudentPortalController(
         if (cls is not null)
         {
             var lessons = await PortalSchedule.LessonsForWeekAsync(db, cls.Id, meta.CurrentQuarter, meta.CurrentWeek);
-            // O'quvchi guruhi bo'yicha filtr.
-            lessons = PortalSchedule.ForStudent(lessons, s.SubGroup).ToList();
             var subjects = await db.Subjects.ToDictionaryAsync(x => x.Id, x => x.Name);
             var teachers = await db.Teachers.ToDictionaryAsync(x => x.Id, x => x.FullName);
             var times = await db.LessonTimes.ToDictionaryAsync(x => x.Period);
@@ -606,7 +593,7 @@ public class StudentPortalController(
                     return new StudentLessonDto(
                         l.Day, l.Period, lt?.StartTime, lt?.EndTime,
                         l.SubjectId, subjects.GetValueOrDefault(l.SubjectId, ""),
-                        l.TeacherId, teachers.GetValueOrDefault(l.TeacherId, ""), l.SubGroup);
+                        l.TeacherId, teachers.GetValueOrDefault(l.TeacherId, ""));
                 })
                 .ToList();
 
@@ -1012,7 +999,7 @@ public class StudentPortalController(
         var q = quarter ?? curQ;
         var cls = await db.Classes.FirstOrDefaultAsync(c => c.Name == s.ClassName);
         if (cls is null) return new StudentSubjectsProgressDto(q, 0, 0, 0, new());
-        return await SubjectProgressService.ForStudentAsync(db, cls.Id, q, s.SubGroup);
+        return await SubjectProgressService.ForStudentAsync(db, cls.Id, q);
     }
 
     /// <summary>Bitta fanga kirilganda — darslar ro'yxati (yashil = o'tilgan, qizil = hali yo'q).</summary>
@@ -1027,7 +1014,7 @@ public class StudentPortalController(
         if (cls is null) return NotFound();
         var (curQ, _) = await PortalSchedule.CurrentQuarterWeekAsync(db);
         var dto = await SubjectProgressService.ForStudentSubjectAsync(
-            db, cls.Id, quarter ?? curQ, s.SubGroup, subjectId);
+            db, cls.Id, quarter ?? curQ, subjectId);
         return dto is null ? NotFound() : dto;
     }
 

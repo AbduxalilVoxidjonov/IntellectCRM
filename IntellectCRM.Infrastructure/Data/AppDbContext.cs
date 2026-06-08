@@ -24,12 +24,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<Lead> Leads => Set<Lead>();
     public DbSet<LeadStage> LeadStages => Set<LeadStage>();
     public DbSet<JournalEntry> JournalEntries => Set<JournalEntry>();
-    public DbSet<QuarterGrade> QuarterGrades => Set<QuarterGrade>();
     public DbSet<LessonNote> LessonNotes => Set<LessonNote>();
     public DbSet<ScheduleTemplate> ScheduleTemplates => Set<ScheduleTemplate>();
     public DbSet<WeekAssignment> WeekAssignments => Set<WeekAssignment>();
     public DbSet<AbsenceReason> AbsenceReasons => Set<AbsenceReason>();
-    public DbSet<QuarterPeriod> Quarters => Set<QuarterPeriod>();
     public DbSet<LessonTime> LessonTimes => Set<LessonTime>();
     public DbSet<Holiday> Holidays => Set<Holiday>();
     public DbSet<DisciplineReason> DisciplineReasons => Set<DisciplineReason>();
@@ -77,7 +75,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         foreach (var (type, prop) in new (Type, string)[]
         {
             (typeof(JournalEntry), "ClassId"), (typeof(JournalEntry), "SubjectId"),
-            (typeof(QuarterGrade), "ClassId"), (typeof(QuarterGrade), "SubjectId"), (typeof(QuarterGrade), "StudentId"),
             (typeof(LessonNote), "ClassId"), (typeof(LessonNote), "SubjectId"),
             (typeof(WeekAssignment), "ClassId"),
             (typeof(ScheduleTemplate), "ClassId"),
@@ -123,7 +120,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
 
         // Tez-tez ishlatiladigan filtrlar uchun indekslar
         b.Entity<JournalEntry>().HasIndex(e => new { e.ClassId, e.SubjectId, e.Quarter });
-        b.Entity<QuarterGrade>().HasIndex(g => new { g.ClassId, g.SubjectId, g.Quarter, g.StudentId }).IsUnique();
         b.Entity<LessonNote>().HasIndex(e => new { e.ClassId, e.SubjectId, e.Quarter });
         b.Entity<WeekAssignment>().HasIndex(e => new { e.ClassId, e.Quarter });
         b.Entity<ScheduleTemplate>().HasIndex(t => t.ClassId);

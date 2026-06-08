@@ -5,8 +5,6 @@ import type {
   JournalColumn,
   JournalEntry,
   JournalTopic,
-  QuarterGradeRow,
-  QuarterPeriod,
   Student,
   TeacherClass,
 } from '@/types'
@@ -20,15 +18,11 @@ import {
   clearTeacherEntry,
   getTeacherTopics,
   setTeacherNote,
-  getTeacherQuarterGrades,
-  setTeacherQuarterGrade,
 } from '@/api/services/teacher'
-import { quarters } from '@/config/constants'
 import { formatDate, cn } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
 import { Loader } from '@/components/ui/Loader'
 import { JournalCellModal } from '@/pages/admin/journal/JournalCellModal'
-import { QuarterGradeModal } from '@/pages/admin/journal/QuarterGradeModal'
 
 const control =
   'rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:border-brand-400'
@@ -52,7 +46,6 @@ function avgColor(g: number): string {
 export function TeacherJournalPage() {
   const [classes, setClasses] = useState<TeacherClass[]>([])
   const [reasons, setReasons] = useState<AbsenceReason[]>([])
-  const [metaQuarters, setMetaQuarters] = useState<QuarterPeriod[]>([])
   const [students, setStudents] = useState<Student[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -63,11 +56,9 @@ export function TeacherJournalPage() {
   const [columns, setColumns] = useState<JournalColumn[]>([])
   const [entries, setEntries] = useState<JournalEntry[]>([])
   const [topics, setTopics] = useState<JournalTopic[]>([])
-  const [quarterGrades, setQuarterGrades] = useState<QuarterGradeRow[]>([])
   const [dataLoading, setDataLoading] = useState(false)
 
   const [editing, setEditing] = useState<{ student: Student; date: string; period: number } | null>(null)
-  const [editingQuarter, setEditingQuarter] = useState<Student | null>(null)
 
   // Bugungi sana (yyyy-MM-dd, mahalliy). Sanasi kelmagan (kelajakdagi) darslarga baho/jurnal
   // kiritib bo'lmaydi — dars hali o'tilmagan.
@@ -82,7 +73,6 @@ export function TeacherJournalPage() {
       .then(([cl, meta]) => {
         setClasses(cl)
         setReasons(meta?.absenceReasons ?? [])
-        setMetaQuarters(meta?.quarters ?? [])
         setClassId(cl[0]?.classId ?? '')
         if (meta?.currentQuarter) setQuarter(meta.currentQuarter)
       })
@@ -91,9 +81,6 @@ export function TeacherJournalPage() {
 
   const selectedClass = classes.find((c) => c.classId === classId) ?? null
   const classSubjects = useMemo(() => selectedClass?.subjects ?? [], [selectedClass])
-
-  // Tanlangan chorak uchun chorak bahosini kiritish admin tomonidan ochilganmi.
-  const quarterOpen = metaQuarters.find((q) => q.quarter === quarter)?.gradesOpen ?? false
 
   // Sinf o'zgarsa — fanni moslab, o'quvchilarni yuklaymiz.
   useEffect(() => {
@@ -113,7 +100,6 @@ export function TeacherJournalPage() {
       setColumns([])
       setEntries([])
       setTopics([])
-      setQuarterGrades([])
       return
     }
     setDataLoading(true)
@@ -121,13 +107,11 @@ export function TeacherJournalPage() {
       getTeacherLessons(classId, subjectId, quarter),
       getTeacherEntries(classId, subjectId, quarter),
       getTeacherTopics(classId, subjectId, quarter),
-      getTeacherQuarterGrades(classId, subjectId, quarter),
     ])
-      .then(([cols, ents, tps, qg]) => {
+      .then(([cols, ents, tps]) => {
         setColumns(cols)
         setEntries(ents)
         setTopics(tps)
-        setQuarterGrades(qg)
       })
       .finally(() => setDataLoading(false))
   }, [classId, subjectId, quarter])
@@ -143,15 +127,13 @@ export function TeacherJournalPage() {
   const conductedFor = (date: string, period: number) =>
     topics.find((t) => t.date === date && t.period === period)?.conducted ?? false
 
-  const quarterAvg = (studentId: string): number | null => {
+  const studentAvg = (studentId: string): number | null => {
     const vals = columns
       .map((c) => entryFor(studentId, c.date, c.period)?.grade)
       .filter((g): g is number => g != null)
     if (!vals.length) return null
     return Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 10) / 10
   }
-  const quarterGradeFor = (studentId: string): number | null =>
-    quarterGrades.find((q) => q.studentId === studentId)?.grade ?? null
 
   const upsertLocal = (
     studentId: string,
@@ -220,25 +202,6 @@ export function TeacherJournalPage() {
     )
     clearTeacherEntry(classId, subjectId, quarter, student.id, date, period)
     setEditing(null)
-  }
-
-  const handleSetQuarterGrade = (grade: number) => {
-    if (!editingQuarter) return
-    const s = editingQuarter
-    setQuarterGrades((prev) => {
-      const rec = prev.find((q) => q.studentId === s.id)?.recommended
-      return [...prev.filter((q) => q.studentId !== s.id), { studentId: s.id, grade, recommended: rec }]
-    })
-    setTeacherQuarterGrade(classId, subjectId, quarter, s.id, grade)
-    setEditingQuarter(null)
-  }
-
-  const handleClearQuarterGrade = () => {
-    if (!editingQuarter) return
-    const s = editingQuarter
-    setQuarterGrades((prev) => prev.map((q) => (q.studentId === s.id ? { ...q, grade: undefined } : q)))
-    setTeacherQuarterGrade(classId, subjectId, quarter, s.id, null)
-    setEditingQuarter(null)
   }
 
   const handleNoteChange = (
@@ -336,21 +299,6 @@ export function TeacherJournalPage() {
                 ))
               )}
             </select>
-            <div className="flex w-fit gap-1 rounded-lg bg-slate-100 p-1">
-              {quarters.map((q) => (
-                <button
-                  key={q}
-                  type="button"
-                  onClick={() => setQuarter(q)}
-                  className={cn(
-                    'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
-                    q === quarter ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-500 hover:text-slate-700',
-                  )}
-                >
-                  {q}-chorak
-                </button>
-              ))}
-            </div>
             {reasons.length > 0 && (
               <div className="ml-auto flex flex-wrap items-center gap-2 text-xs text-slate-400">
                 {reasons.map((r) => (
@@ -411,19 +359,13 @@ export function TeacherJournalPage() {
                           </th>
                         ))}
                         <th className="px-3 py-2 text-center text-xs font-medium uppercase">
-                          Chorak
-                          {!quarterOpen && (
-                            <span className="mt-0.5 block text-[9px] font-normal normal-case text-amber-600">
-                              yopiq
-                            </span>
-                          )}
+                          O'rtacha
                         </th>
                       </tr>
                     </thead>
                     <tbody>
                       {students.map((s) => {
-                        const avg = quarterAvg(s.id)
-                        const qGrade = quarterGradeFor(s.id)
+                        const avg = studentAvg(s.id)
                         return (
                           <tr key={s.id} className="border-t border-slate-100 hover:bg-slate-50/40">
                             <td className="sticky left-0 z-10 bg-white px-3 py-1.5 font-medium text-slate-800">
@@ -501,41 +443,13 @@ export function TeacherJournalPage() {
                               )
                             })}
                             <td className="px-3 py-1.5 text-center">
-                              <button
-                                type="button"
-                                onClick={() => setEditingQuarter(s)}
-                                disabled={!quarterOpen}
-                                title={
-                                  quarterOpen
-                                    ? 'Chorak bahosini belgilash'
-                                    : 'Chorak bahosini kiritish yopiq — administrator ochishi kerak'
-                                }
-                                className={cn(
-                                  'mx-auto flex h-9 min-w-[2.75rem] flex-col items-center justify-center rounded-md border border-slate-200 px-2 transition-colors',
-                                  quarterOpen
-                                    ? 'hover:border-brand-300 hover:bg-brand-50'
-                                    : 'cursor-not-allowed opacity-60',
-                                )}
-                              >
-                                {qGrade != null ? (
-                                  <>
-                                    <span className={cn('text-sm font-bold leading-none', gradeColor(qGrade))}>
-                                      {qGrade}
-                                    </span>
-                                    {avg != null && (
-                                      <span className="text-[10px] leading-tight text-slate-400">
-                                        ≈{avg.toFixed(1)}
-                                      </span>
-                                    )}
-                                  </>
-                                ) : avg != null ? (
-                                  <span className={cn('text-sm font-semibold', avgColor(avg))}>
-                                    {avg.toFixed(1)}
-                                  </span>
-                                ) : (
-                                  <span className="text-slate-300">—</span>
-                                )}
-                              </button>
+                              {avg != null ? (
+                                <span className={cn('text-sm font-semibold', avgColor(avg))}>
+                                  {avg.toFixed(1)}
+                                </span>
+                              ) : (
+                                <span className="text-slate-300">—</span>
+                              )}
                             </td>
                           </tr>
                         )
@@ -617,16 +531,6 @@ export function TeacherJournalPage() {
         onClose={() => setEditing(null)}
         onSave={handleSaveCell}
         onClear={handleClearCell}
-      />
-
-      <QuarterGradeModal
-        open={!!editingQuarter}
-        studentName={editingQuarter?.fullName ?? ''}
-        grade={editingQuarter ? quarterGradeFor(editingQuarter.id) : null}
-        recommended={editingQuarter ? quarterAvg(editingQuarter.id) : null}
-        onClose={() => setEditingQuarter(null)}
-        onSetGrade={handleSetQuarterGrade}
-        onClear={handleClearQuarterGrade}
       />
     </div>
   )

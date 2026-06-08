@@ -354,7 +354,7 @@ public class TeacherPortalController(
                 result.Add(new TeacherLessonDto(
                     l.Day, l.Period, lt?.StartTime, lt?.EndTime,
                     a.ClassId, classes.GetValueOrDefault(a.ClassId, ""),
-                    l.SubjectId, subjects.GetValueOrDefault(l.SubjectId, ""), l.SubGroup));
+                    l.SubjectId, subjects.GetValueOrDefault(l.SubjectId, "")));
             }
         }
         return result.OrderBy(r => r.Day).ThenBy(r => r.Period).ToList();
@@ -388,7 +388,7 @@ public class TeacherPortalController(
             .Select(s => new StudentDto(
                 s.Id, s.FullName, s.BirthDate, s.Address, s.Gender,
                 s.ParentFullName, s.ParentPhone, s.ClassName, s.EnrollmentDate, s.Balance,
-                s.DiscountPct, s.DiscountAmount, s.DiscountNote, s.SubGroup,
+                s.DiscountPct, s.DiscountAmount, s.DiscountNote,
                 s.LastName, s.FirstName, s.MiddleName, s.BirthCertificateUrl,
                 s.ParentLastName, s.ParentFirstName, s.ParentMiddleName, s.ParentPassportUrl,
                 s.IsArchived, s.ArchivedAt, s.ArchiveReason))
@@ -482,26 +482,6 @@ public class TeacherPortalController(
         }
 
         return await JournalService.ImportTopicsAsync(db, classId, subjectId, quarter, rows);
-    }
-
-    [HttpGet("journal/quarter-grades")]
-    public async Task<ActionResult<IEnumerable<QuarterGradeRowDto>>> QuarterGrades(
-        [FromQuery] string classId, [FromQuery] string subjectId, [FromQuery] int quarter)
-    {
-        if (!await Authorized(classId, subjectId)) return Forbid();
-        return await JournalService.GetQuarterGradesAsync(db, classId, subjectId, quarter);
-    }
-
-    [HttpPut("journal/quarter-grades")]
-    public async Task<IActionResult> SetQuarterGrade(SetQuarterGradeRequest req)
-    {
-        if (!await Authorized(req.ClassId, req.SubjectId)) return Forbid();
-        // Chorak bahosini kiritish FAQAT admin ochgan chorak uchun ruxsat etiladi.
-        var q = await db.Quarters.FirstOrDefaultAsync(x => x.Quarter == req.Quarter);
-        if (q is null || !q.GradesOpen)
-            return StatusCode(403, new { message = "Bu chorak uchun baho kiritish yopiq — administrator ochishi kerak." });
-        await JournalService.SetQuarterGradeAsync(db, req);
-        return NoContent();
     }
 
     // ---------- O'quvchilarni baholash (fan o'qituvchisi o'z fanidan) ----------

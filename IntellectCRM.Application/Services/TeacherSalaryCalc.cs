@@ -62,11 +62,12 @@ public static class TeacherSalaryCalc
     public static decimal Monthly(int weeklyLessons, string? category, SchoolMeta? meta) =>
         weeklyLessons * WeeksPerMonth * RateFor(meta, category);
 
-    /// <summary>Choraklar (dars jadvali davrlari) — har biri (StartDate, EndDate) "yyyy-MM-dd".</summary>
-    public static async Task<List<(string Start, string End)>> QuarterRangesAsync(IAppDbContext db) =>
-        (await db.Quarters.Where(q => q.StartDate.Length >= 10 && q.EndDate.Length >= 10)
-            .Select(q => new { q.StartDate, q.EndDate }).ToListAsync())
-        .Select(q => (q.StartDate, q.EndDate)).ToList();
+    /// <summary>
+    /// Chorak (dars jadvali davrlari) tizimi olib tashlandi — endi davr cheklovi yo'q.
+    /// Bo'sh ro'yxat qaytaradi (barcha kunlar "chorak ichida" deb hisoblanadi).
+    /// </summary>
+    public static Task<List<(string Start, string End)>> QuarterRangesAsync(IAppDbContext db) =>
+        Task.FromResult(new List<(string Start, string End)>());
 
     /// <summary>Sana biror chorak (dars jadvali davri) ichidami. Choraklar bo'sh = cheklov yo'q (true).</summary>
     public static bool InQuarter(string date, IReadOnlyList<(string Start, string End)>? quarters)

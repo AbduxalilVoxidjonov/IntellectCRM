@@ -25,12 +25,10 @@ public interface IAppDbContext
     DbSet<Lead> Leads { get; }
     DbSet<LeadStage> LeadStages { get; }
     DbSet<JournalEntry> JournalEntries { get; }
-    DbSet<QuarterGrade> QuarterGrades { get; }
     DbSet<LessonNote> LessonNotes { get; }
     DbSet<ScheduleTemplate> ScheduleTemplates { get; }
     DbSet<WeekAssignment> WeekAssignments { get; }
     DbSet<AbsenceReason> AbsenceReasons { get; }
-    DbSet<QuarterPeriod> Quarters { get; }
     DbSet<LessonTime> LessonTimes { get; }
     DbSet<Holiday> Holidays { get; }
     DbSet<DisciplineReason> DisciplineReasons { get; }

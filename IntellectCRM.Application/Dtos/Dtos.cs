@@ -29,7 +29,6 @@ public record StudentPayload(
     string ParentFullName, string ParentPhone, string ClassName, string? EnrollmentDate,
     string? NewPassword = null,
     int? DiscountPct = null, decimal? DiscountAmount = null, string? DiscountNote = null,
-    int? SubGroup = null,
     string? LastName = null, string? FirstName = null, string? MiddleName = null,
     string? BirthCertificateUrl = null,
     string? ParentLastName = null, string? ParentFirstName = null, string? ParentMiddleName = null,
@@ -191,11 +190,8 @@ public record StagePayload(string Title, string Color);
 public record ReorderRequest(List<string> Ids);
 
 /* ---------- Journal ---------- */
-/// <summary>
-/// Jurnal ustuni — bir dars (sana + dars raqami + guruh). SubGroup: 0 = butun sinf,
-/// 1 = 1-guruh, 2 = 2-guruh. Bo'lingan darsda har guruh o'z ustunini oladi.
-/// </summary>
-public record JournalColumnDto(string Date, int Period, int SubGroup = 0);
+/// <summary>Jurnal ustuni — bir dars (sana + dars raqami).</summary>
+public record JournalColumnDto(string Date, int Period);
 /// <summary>Mavzular Excel importidagi xato qator (Excel qator raqami + sabab).</summary>
 public record TopicImportRowErrorDto(int Row, string Reason);
 /// <summary>Mavzular Excel import natijasi: to'ldirilgan / o'tkazib yuborilgan (bo'sh) / xato qatorlar.</summary>
@@ -206,55 +202,30 @@ public record JournalEntryDto(
 public record SetJournalEntryRequest(
     string ClassId, string SubjectId, int Quarter, string StudentId, string Date, int Period,
     int? Grade, string? ReasonId, int Homework = 0, int Behavior = 0, int? Mastery = null);
-public record JournalTopicDto(string Date, int Period, string Topic, string? Homework, bool Conducted, int SubGroup = 0);
-/// <summary>Berilgan sanada o'tilgan (conducted) darslar — sinf+fan+dars raqami+guruh.</summary>
-public record ConductedLessonDto(string ClassId, string SubjectId, int Period, int SubGroup = 0);
+public record JournalTopicDto(string Date, int Period, string Topic, string? Homework, bool Conducted);
+/// <summary>Berilgan sanada o'tilgan (conducted) darslar — sinf+fan+dars raqami.</summary>
+public record ConductedLessonDto(string ClassId, string SubjectId, int Period);
 public record SetLessonNoteRequest(
-    string ClassId, string SubjectId, int Quarter, string Date, int Period, string Topic, string? Homework, bool Conducted,
-    int SubGroup = 0);
-/// <summary>O'quvchining chorak bahosi: Grade = o'qituvchi qo'ygan rasmiy baho (yo'q bo'lsa null),
-/// Recommended = kunlik baholar o'rtachasidan tavsiya (baho yo'q bo'lsa null).</summary>
-public record QuarterGradeRowDto(string StudentId, int? Grade, double? Recommended);
-/// <summary>Chorak bahosini belgilash; Grade null bo'lsa — mavjud baho o'chiriladi.</summary>
-public record SetQuarterGradeRequest(string ClassId, string SubjectId, int Quarter, string StudentId, int? Grade);
+    string ClassId, string SubjectId, int Quarter, string Date, int Period, string Topic, string? Homework, bool Conducted);
 
 /* ---------- Settings ---------- */
-/// <summary>GradesOpen — o'qituvchilarga shu chorak bahosini kiritish ochiqmi (admin boshqaradi).</summary>
-public record QuarterPeriodDto(int Quarter, string StartDate, string EndDate, bool GradesOpen);
 public record LessonTimeDto(int Period, string StartTime, string EndTime);
 public record AbsenceReasonDto(string Id, string Name, string Short, bool IsLate);
 public record SchoolSettingsDto(
-    List<QuarterPeriodDto> Quarters, List<LessonTimeDto> LessonTimes, List<AbsenceReasonDto> AbsenceReasons);
-public record SaveQuartersRequest(List<QuarterPeriodDto> Quarters);
+    List<LessonTimeDto> LessonTimes, List<AbsenceReasonDto> AbsenceReasons);
 public record SaveLessonTimesRequest(List<LessonTimeDto> LessonTimes);
 public record SaveAbsenceReasonsRequest(List<AbsenceReasonDto> AbsenceReasons);
 
 /* ---------- Schedule templates ---------- */
-/// <summary>Bitta dars katagi. SubGroup: 0 = butun sinf, 1 = 1-guruh, 2 = 2-guruh.</summary>
-public record ScheduleLessonDto(int Day, int Period, string SubjectId, string TeacherId, int SubGroup = 0);
+/// <summary>Bitta dars katagi.</summary>
+public record ScheduleLessonDto(int Day, int Period, string SubjectId, string TeacherId);
 public record ScheduleTemplateDto(string Id, string ClassId, string Name, List<ScheduleLessonDto> Lessons);
 public record CreateTemplateRequest(string Name);
 public record RenameTemplateRequest(string Name);
 /// <summary>
-/// Bir (Day, Period) katakni to'liq holatga o'rnatish: bo'sh (Lessons=[]),
-/// butun sinf (1 ta lesson, SubGroup=0) yoki bo'lingan (2 ta lesson, SubGroup=1/2).
+/// Bir (Day, Period) katakni to'liq holatga o'rnatish: bo'sh (Lessons=[]) yoki bitta dars.
 /// </summary>
 public record SetCellRequest(int Day, int Period, List<ScheduleLessonDto> Lessons);
-
-/* ---------- Sinf guruhlari ---------- */
-public record GroupAssignmentDto(string StudentId, int SubGroup);
-/// <summary>Sinfdagi bitta o'quvchining guruhdagi pozitsiyasi.</summary>
-public record GroupStudentDto(string Id, string FullName, int SubGroup);
-/// <summary>
-/// Sinf guruhlari holati. Locked=true bo'lsa — o'quv yili allaqachon boshlangan (jurnalda
-/// yozuv bor). <see cref="CanEdit"/> joriy foydalanuvchining tahrirlash huquqi:
-/// admin'larda Locked'ga teskari, superadmin'da har doim true (qulflangan bo'lsa ham override).
-/// </summary>
-public record ClassGroupsDto(
-    string ClassId, string ClassName, bool Locked, string? LockReason, bool CanEdit,
-    int UngroupedCount, int Group1Count, int Group2Count, List<GroupStudentDto> Students);
-/// <summary>Guruh tayinlashni saqlash so'rovi. Berilmagan o'quvchilar o'zgarmaydi.</summary>
-public record SaveGroupsRequest(List<GroupAssignmentDto> Assignments);
 
 /* ---------- Week assignments ---------- */
 public record WeekAssignmentDto(int Week, string? TemplateId);
@@ -272,7 +243,7 @@ public record SubjectDto(string Id, string Name);
 public record StudentDto(
     string Id, string FullName, string BirthDate, string Address, string Gender,
     string ParentFullName, string ParentPhone, string ClassName, string EnrollmentDate, decimal Balance,
-    int DiscountPct = 0, decimal DiscountAmount = 0, string DiscountNote = "", int SubGroup = 0,
+    int DiscountPct = 0, decimal DiscountAmount = 0, string DiscountNote = "",
     string LastName = "", string FirstName = "", string MiddleName = "",
     string? BirthCertificateUrl = null,
     string ParentLastName = "", string ParentFirstName = "", string ParentMiddleName = "",
@@ -373,7 +344,7 @@ public record TeacherReportRowDto(
 
 /// <summary>O'qituvchi hisoboti — sinf/fan kesimida bitta qator (batafsil ko'rinish).</summary>
 public record TeacherReportBreakdownDto(
-    string ClassName, string SubjectName, int SubGroup,
+    string ClassName, string SubjectName,
     int Expected, int Conducted, int? DonePct,
     int Grades, int? TopicPct, int? HomeworkPct);
 
@@ -416,7 +387,7 @@ public record TeacherAppRowDto(
     string TeacherId, string FullName, string Phone,
     bool IsActivated, string? ActivatedAt, string? LastSeenAt,
     string DeviceName, string Platform, string AppId);
-/// <summary>Sinf hisobotidagi bitta o'quvchi qatori. Studentga SubGroup ham kiradi (StudentDto orqali).</summary>
+/// <summary>Sinf hisobotidagi bitta o'quvchi qatori.</summary>
 public record ClassStudentRowDto(StudentDto Student, Dictionary<string, double> Grades, double Average, double? Attendance);
 public record ClassPerformanceDataDto(List<SubjectDto> Subjects, List<ClassStudentRowDto> Rows);
 public record ClassStatsDto(int StudentsCount, double AverageGrade, double? Attendance);
@@ -471,7 +442,7 @@ public record StudentNotebookDto(
     string EnrollmentDate, decimal Balance, string? PhotoUrl,
     // Shaxsiy ma'lumotlar
     string Address, int DiscountPct, decimal DiscountAmount, string DiscountNote,
-    int SubGroup, string? ParentPassportUrl,
+    string? ParentPassportUrl,
     // O'zlashtirish
     List<SubjectDto> Subjects, Dictionary<string, Dictionary<int, double>> Grades, double AvgGrade,
     // Davomat
@@ -581,7 +552,7 @@ public record TeacherClassDto(
 /// <summary>O'qituvchi jadvalidagi bitta dars (qaysi sinf, fan, kun, dars raqami, vaqt, guruh).</summary>
 public record TeacherLessonDto(
     int Day, int Period, string? StartTime, string? EndTime,
-    string ClassId, string ClassName, string SubjectId, string SubjectName, int SubGroup = 0);
+    string ClassId, string ClassName, string SubjectId, string SubjectName);
 
 /* ---------- Student portal (ilova) ---------- */
 /// <summary>O'quvchining o'z profili (ilovada ko'rsatish uchun).</summary>
@@ -592,7 +563,7 @@ public record StudentProfileDto(
 /// <summary>O'quvchi jadvalidagi bitta dars (fan, o'qituvchi, kun, dars raqami, vaqt).</summary>
 public record StudentLessonDto(
     int Day, int Period, string? StartTime, string? EndTime,
-    string SubjectId, string SubjectName, string TeacherId, string TeacherName, int SubGroup = 0);
+    string SubjectId, string SubjectName, string TeacherId, string TeacherName);
 /// <summary>O'quvchi uchun dars mavzusi va uyga vazifa (sana + fan bo'yicha).
 /// Shu o'quvchining o'sha (sana + dars raqami) jurnal yozuvi bo'lsa — Grade va Reason ham
 /// bog'lab qaytariladi (bugungi/haftalik baholarni alohida endpoint'siz ko'rsatish uchun).</summary>
@@ -647,10 +618,10 @@ public record SaveUserSettingsRequest(string? Language, string? Theme, bool? Not
 /// <summary>Push qurilma tokenini ro'yxatdan o'tkazish so'rovi.</summary>
 public record RegisterDeviceRequest(string Token, string? Platform, string? DeviceName, string? AppId);
 
-/// <summary>Portal umumiy konteksti: choraklar, dars vaqtlari, davomat sabablari + joriy chorak/hafta.</summary>
+/// <summary>Portal umumiy konteksti: dars vaqtlari, davomat sabablari + joriy chorak/hafta.</summary>
 public record PortalMetaDto(
-    List<QuarterPeriodDto> Quarters, List<LessonTimeDto> LessonTimes,
-    List<AbsenceReasonDto> AbsenceReasons, int CurrentQuarter, int CurrentWeek);
+    List<LessonTimeDto> LessonTimes,
+    List<AbsenceReasonDto> AbsenceReasons, int CurrentQuarter = 1, int CurrentWeek = 1);
 
 /* ---------- O'quvchi: topshiriqlar/testlar (xavfsiz — to'g'ri javob OSHKOR QILINMAYDI) ---------- */
 
@@ -939,9 +910,9 @@ public record SubjectProgressDetailDto(
     int Planned, int Conducted, int Remaining, int Percent,
     List<SubjectLessonDto> Lessons);
 
-/// <summary>O'qituvchi progresi — bitta (sinf, fan, guruh) kesimi.</summary>
+/// <summary>O'qituvchi progresi — bitta (sinf, fan) kesimi.</summary>
 public record TeacherSubjectProgressDto(
-    string ClassId, string ClassName, string SubjectId, string SubjectName, int SubGroup,
+    string ClassId, string ClassName, string SubjectId, string SubjectName,
     int Planned, int Conducted, int Remaining, int Percent, int ExpectedByToday);
 
 /// <summary>O'qituvchining umumiy o'tilgan darslar progresi + kesimlar bo'yicha yoyilma.</summary>

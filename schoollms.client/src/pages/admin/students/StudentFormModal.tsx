@@ -38,7 +38,6 @@ const empty: StudentPayload = {
   discountPct: 0,
   discountAmount: 0,
   discountNote: '',
-  subGroup: 0,
 }
 
 /** "Familiya Ism Sharifi" stringidan parts. Eski yozuvlarni tahrirda taqsimlaymiz. */
@@ -113,7 +112,6 @@ export function StudentFormModal({ open, onClose, onSubmit, initial }: Props) {
         discountPct: initial.discountPct,
         discountAmount: initial.discountAmount,
         discountNote: initial.discountNote,
-        subGroup: initial.subGroup,
       })
     } else {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- yangi forma boshlash (maqsadli)

@@ -80,7 +80,6 @@ export interface StudentNotebook {
   discountPct: number
   discountAmount: number
   discountNote: string
-  subGroup: number
   parentPassportUrl?: string | null
   // O'zlashtirish
   subjects: Subject[]
