@@ -551,8 +551,7 @@ public class TurnstileEvent
 
 public class CenterMeta
 {
-    // Shared-DB: har maktab uchun bitta CenterMeta qatori — Id unikal (Guid). Eski "current"
-    // qiymati tenantlar bo'ylab to'qnashar edi. Joriy maktab qatori query filter orqali topiladi.
+    // Bitta markaz — bitta CenterMeta qatori. Id unikal (Guid).
     public string Id { get; set; } = Guid.NewGuid().ToString();
     /// <summary>Joriy o'quv yili, masalan "2025/2026".</summary>
     public string CurrentYear { get; set; } = string.Empty;

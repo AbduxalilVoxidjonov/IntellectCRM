@@ -5,7 +5,7 @@ using IntellectCRM.Domain;
 namespace IntellectCRM.Infrastructure.Data;
 
 /// <summary>
-/// Maktab ma'lumotlar bazasi (bitta maktab — multi-tenant emas).
+/// Markaz ma'lumotlar bazasi (bitta o'quv markazi — multi-tenant emas).
 /// </summary>
 public class AppDbContext(DbContextOptions<AppDbContext> options)
     : DbContext(options), IAppDbContext

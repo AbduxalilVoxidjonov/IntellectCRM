@@ -38,9 +38,8 @@ public class TelegramService(
     /// </summary>
     public void Load(IAppDbContext db)
     {
-        // Shared-DB: boot'da so'rov (tenant) konteksti yo'q — global filter CenterMeta'ni yashiradi.
-        // Tokenli maktab qatorini tenant'lararo qidiramiz (xotirada bitta token — amalda bitta maktab uchun).
-        var meta = db.CenterMeta.IgnoreQueryFilters()
+        // Bitta markaz — tokenli CenterMeta qatorini topamiz (xotirada bitta token).
+        var meta = db.CenterMeta
             .FirstOrDefault(m => m.TelegramBotToken != "");
 
         // Hech kimda token yo'q — eski appsettings urug'i (mavjud birinchi qatorga bir marta ko'chiriladi).
