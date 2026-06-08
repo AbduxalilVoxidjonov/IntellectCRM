@@ -28,7 +28,7 @@ public class StudentPortalController(
     /// <summary>Berilgan foydalanuvchining qurilmalariga push yuboradi (fire-and-forget).</summary>
     private async Task PushToUserAsync(string userId, string title, string body)
     {
-        var meta = await db.SchoolMeta.FirstOrDefaultAsync();
+        var meta = await db.CenterMeta.FirstOrDefaultAsync();
         var json = meta?.FcmServiceAccountJson ?? "";
         if (!FcmService.IsConfigured(json)) return;
         var tokens = await db.DeviceTokens.Where(d => d.UserId == userId)
@@ -197,7 +197,7 @@ public class StudentPortalController(
     [HttpGet("school")]
     public async Task<ActionResult<SchoolNameDto>> School()
     {
-        var m = await db.SchoolMeta.FirstOrDefaultAsync();
+        var m = await db.CenterMeta.FirstOrDefaultAsync();
         return new SchoolNameDto(m?.Name ?? "");
     }
 
@@ -211,7 +211,7 @@ public class StudentPortalController(
     [HttpGet("push-config")]
     public async Task<ActionResult<PushClientConfigDto>> PushConfig()
     {
-        var m = await db.SchoolMeta.FirstOrDefaultAsync();
+        var m = await db.CenterMeta.FirstOrDefaultAsync();
         var sa = m?.FcmServiceAccountJson ?? "";
         var web = (m?.FcmWebConfigJson ?? "").Trim();
         var vapid = (m?.FcmVapidKey ?? "").Trim();
@@ -768,7 +768,7 @@ public class StudentPortalController(
         if (!BusWindowOpen())
             return new StudentBusesDto(false, BusVisibleFromHour, BusVisibleToHour, iso, Array.Empty<StudentBusDto>());
 
-        var meta = await db.SchoolMeta.FirstOrDefaultAsync();
+        var meta = await db.CenterMeta.FirstOrDefaultAsync();
         var onlineMin = meta?.GpsOnlineMinutes ?? 5;
 
         var buses = await db.Buses.Where(b => b.IsActive).OrderBy(b => b.Name).ToListAsync();
@@ -802,7 +802,7 @@ public class StudentPortalController(
         var bus = await db.Buses.FirstOrDefaultAsync(b => b.Id == id && b.IsActive);
         if (bus is null) return NotFound();
 
-        var meta = await db.SchoolMeta.FirstOrDefaultAsync();
+        var meta = await db.CenterMeta.FirstOrDefaultAsync();
         var points = await db.BusLocations
             .Where(l => l.BusId == id && l.RecordedAt.StartsWith(d))
             .ToListAsync();

@@ -23,7 +23,7 @@ public class SalaryRatesController(AppDbContext db, AuditService audit) : Contro
     {
         var m = string.IsNullOrEmpty(month) || month.Length < 7 ? AppClock.Now.ToString("yyyy-MM") : month[..7];
 
-        var meta = await db.SchoolMeta.FirstOrDefaultAsync();
+        var meta = await db.CenterMeta.FirstOrDefaultAsync();
         var byWeekdayAll = await TeacherSalaryCalc.LessonsByWeekdayAsync(db);
         var quarters = await TeacherSalaryCalc.QuarterRangesAsync(db);
         var teachers = await db.Teachers.Where(t => !t.IsArchived)
@@ -67,7 +67,7 @@ public class SalaryRatesController(AppDbContext db, AuditService audit) : Contro
         if (t is null) return NotFound();
 
         var m = string.IsNullOrEmpty(month) || month.Length < 7 ? AppClock.Now.ToString("yyyy-MM") : month[..7];
-        var meta = await db.SchoolMeta.FirstOrDefaultAsync();
+        var meta = await db.CenterMeta.FirstOrDefaultAsync();
         var byWeekday = (await TeacherSalaryCalc.LessonsByWeekdayAsync(db)).GetValueOrDefault(t.Id) ?? new int[6];
         var quarters = await TeacherSalaryCalc.QuarterRangesAsync(db);
         var rate = TeacherSalaryCalc.RateFor(meta, t.Category);
@@ -146,11 +146,11 @@ public class SalaryRatesController(AppDbContext db, AuditService audit) : Contro
         if (req.Oliy < 0 || req.T1 < 0 || req.T2 < 0 || req.Mutaxasis < 0)
             return BadRequest(new { message = "Narx manfiy bo'lishi mumkin emas" });
 
-        var meta = await db.SchoolMeta.FirstOrDefaultAsync();
+        var meta = await db.CenterMeta.FirstOrDefaultAsync();
         if (meta is null)
         {
-            meta = new SchoolMeta();
-            db.SchoolMeta.Add(meta);
+            meta = new CenterMeta();
+            db.CenterMeta.Add(meta);
         }
         meta.SalaryRateOliy = req.Oliy;
         meta.SalaryRate1 = req.T1;

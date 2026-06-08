@@ -130,7 +130,7 @@ public static class JournalService
         var notifyAbsence = !notifyGrade && req.ReasonId is not null && req.ReasonId != oldReason;
         if (!notifyGrade && !notifyAbsence) return;
 
-        var meta = await db.SchoolMeta.FirstOrDefaultAsync();
+        var meta = await db.CenterMeta.FirstOrDefaultAsync();
         var json = meta?.FcmServiceAccountJson ?? "";
         if (!FcmService.IsConfigured(json)) return;
 

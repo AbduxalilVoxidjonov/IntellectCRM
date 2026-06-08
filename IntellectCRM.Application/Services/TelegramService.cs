@@ -7,7 +7,7 @@ namespace IntellectCRM.Application.Services;
 
 /// <summary>
 /// Telegram Bot API bilan ishlash: e'lon yuborish (sendMessage) va bot yangilanishlarini olish
-/// (getUpdates, long polling). Token endi BAZADAN (SchoolMeta) — admin "Sozlamalar" bo'limidan
+/// (getUpdates, long polling). Token endi BAZADAN (CenterMeta) — admin "Sozlamalar" bo'limidan
 /// kiritadi; xizmat tokenni xotirada saqlaydi (Load startupda yuklaydi, Set saqlangach yangilaydi).
 /// Eski appsettings "Telegram:BotToken" faqat birinchi marta (DB bo'sh bo'lsa) urug' sifatida ishlatiladi.
 /// Token bo'sh bo'lsa xizmat "sozlanmagan" — hech narsa yubormaydi, ilova baribir ishlaydi.
@@ -33,14 +33,14 @@ public class TelegramService(
     }
 
     /// <summary>
-    /// Startupda chaqiriladi: tokenni SchoolMeta'dan yuklaydi. DB bo'sh, lekin appsettings'da token
+    /// Startupda chaqiriladi: tokenni CenterMeta'dan yuklaydi. DB bo'sh, lekin appsettings'da token
     /// bo'lsa — uni bir marta DB'ga ko'chiradi (orqaga moslik + UI'da ko'rinishi uchun).
     /// </summary>
     public void Load(IAppDbContext db)
     {
-        // Shared-DB: boot'da so'rov (tenant) konteksti yo'q — global filter SchoolMeta'ni yashiradi.
+        // Shared-DB: boot'da so'rov (tenant) konteksti yo'q — global filter CenterMeta'ni yashiradi.
         // Tokenli maktab qatorini tenant'lararo qidiramiz (xotirada bitta token — amalda bitta maktab uchun).
-        var meta = db.SchoolMeta.IgnoreQueryFilters()
+        var meta = db.CenterMeta.IgnoreQueryFilters()
             .FirstOrDefault(m => m.TelegramBotToken != "");
 
         // Hech kimda token yo'q — eski appsettings urug'i (mavjud birinchi qatorga bir marta ko'chiriladi).
@@ -49,7 +49,7 @@ public class TelegramService(
             var cfgToken = config["Telegram:BotToken"];
             if (!string.IsNullOrWhiteSpace(cfgToken))
             {
-                var any = db.SchoolMeta.IgnoreQueryFilters().FirstOrDefault();
+                var any = db.CenterMeta.IgnoreQueryFilters().FirstOrDefault();
                 if (any is not null)
                 {
                     any.TelegramBotToken = cfgToken.Trim();

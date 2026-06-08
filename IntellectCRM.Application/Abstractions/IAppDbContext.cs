@@ -21,7 +21,7 @@ public interface IAppDbContext
     DbSet<BusLocation> BusLocations { get; }
     DbSet<Camera> Cameras { get; }
     DbSet<Subject> Subjects { get; }
-    DbSet<SchoolClass> Classes { get; }
+    DbSet<Group> Classes { get; }
     DbSet<Lead> Leads { get; }
     DbSet<LeadStage> LeadStages { get; }
     DbSet<JournalEntry> JournalEntries { get; }
@@ -38,7 +38,7 @@ public interface IAppDbContext
     DbSet<FinanceTransaction> FinanceTransactions { get; }
     DbSet<MonthlyCharge> MonthlyCharges { get; }
     DbSet<AuditLog> AuditLogs { get; }
-    DbSet<SchoolMeta> SchoolMeta { get; }
+    DbSet<CenterMeta> CenterMeta { get; }
     DbSet<ChatMessage> ChatMessages { get; }
     DbSet<Broadcast> Broadcasts { get; }
     DbSet<PushMessage> PushMessages { get; }

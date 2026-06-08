@@ -20,7 +20,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<BusLocation> BusLocations => Set<BusLocation>();
     public DbSet<Camera> Cameras => Set<Camera>();
     public DbSet<Subject> Subjects => Set<Subject>();
-    public DbSet<SchoolClass> Classes => Set<SchoolClass>();
+    public DbSet<Group> Classes => Set<Group>();
     public DbSet<Lead> Leads => Set<Lead>();
     public DbSet<LeadStage> LeadStages => Set<LeadStage>();
     public DbSet<JournalEntry> JournalEntries => Set<JournalEntry>();
@@ -37,7 +37,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<FinanceTransaction> FinanceTransactions => Set<FinanceTransaction>();
     public DbSet<MonthlyCharge> MonthlyCharges => Set<MonthlyCharge>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
-    public DbSet<SchoolMeta> SchoolMeta => Set<SchoolMeta>();
+    public DbSet<CenterMeta> CenterMeta => Set<CenterMeta>();
     public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
     public DbSet<Broadcast> Broadcasts => Set<Broadcast>();
     public DbSet<PushMessage> PushMessages => Set<PushMessage>();
@@ -105,7 +105,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         // Pul maydonlari uchun aniqlik (SQL Server decimal(18,2))
         b.Entity<Student>().Property(s => s.Balance).HasPrecision(18, 2);
         b.Entity<Student>().Property(s => s.DiscountAmount).HasPrecision(18, 2);
-        b.Entity<SchoolClass>().Property(c => c.MonthlyFee).HasPrecision(18, 2);
+        b.Entity<Group>().Property(c => c.MonthlyFee).HasPrecision(18, 2);
         b.Entity<FinanceTransaction>().Property(t => t.Amount).HasPrecision(18, 2);
         b.Entity<MonthlyCharge>().Property(c => c.Amount).HasPrecision(18, 2);
         b.Entity<MonthlyCharge>().Property(c => c.Discount).HasPrecision(18, 2);

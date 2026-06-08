@@ -18,7 +18,7 @@ public static class Analytics
         s.ParentFullName, s.ParentPhone, s.ClassName, s.EnrollmentDate, s.Balance);
 
     public static ClassResult BuildClass(
-        SchoolClass cls,
+        Group cls,
         IReadOnlyList<Student> allStudents,
         IReadOnlyList<Subject> allSubjects,
         IReadOnlyList<ScheduleTemplate> classTemplates,

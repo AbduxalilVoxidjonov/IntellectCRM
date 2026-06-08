@@ -256,7 +256,7 @@ public class MessagesController(AppDbContext db, ChatService chat, TelegramServi
     [HttpGet("push/status")]
     public async Task<ActionResult<object>> PushStatus()
     {
-        var m = await db.SchoolMeta.FirstOrDefaultAsync();
+        var m = await db.CenterMeta.FirstOrDefaultAsync();
         return Ok(new { configured = FcmService.IsConfigured(m?.FcmServiceAccountJson) });
     }
 
@@ -334,7 +334,7 @@ public class MessagesController(AppDbContext db, ChatService chat, TelegramServi
             .GroupBy(d => d.UserId)
             .ToDictionary(g => g.Key, g => g.Select(x => x.Token).Distinct().ToList());
 
-        var meta = await db.SchoolMeta.FirstOrDefaultAsync();
+        var meta = await db.CenterMeta.FirstOrDefaultAsync();
         var json = meta?.FcmServiceAccountJson ?? "";
         var recipientCount = tokensByUser.Sum(kv => kv.Value.Count);
         var sent = 0;

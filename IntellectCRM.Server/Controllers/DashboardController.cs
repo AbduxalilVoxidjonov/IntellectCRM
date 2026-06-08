@@ -39,7 +39,7 @@ public class DashboardController(AppDbContext db) : ControllerBase
 
         // Sinf davomati: o'tilgan darslar × o'quvchilar = imkoniyatlar; davomatsizliklar ayriladi.
         // O'tilgan dars bo'lmasa — ma'lumot yo'q (null), o'rtachaga qo'shilmaydi.
-        (long Opp, int Abs) ClassAttParts(SchoolClass c)
+        (long Opp, int Abs) ClassAttParts(Group c)
         {
             if (!conductedByClass.TryGetValue(c.Id, out var set) || set.Count == 0) return (0, 0);
             var studentsN = students.Count(s => s.ClassName == c.Name);

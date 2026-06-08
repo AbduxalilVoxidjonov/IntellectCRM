@@ -67,7 +67,7 @@ public class StudentsController(AppDbContext db, AuditService audit) : Controlle
     /// hammasini qo'shib bo'lgach bir marta saqlaydi. <paramref name="cls"/> — oldindan topilgan sinf
     /// (narx/hisob uchun; null bo'lsa oylik hisob yozilmaydi).
     /// </summary>
-    private Student AddStudent(StudentPayload p, SchoolClass? cls)
+    private Student AddStudent(StudentPayload p, Group? cls)
     {
         var enrollment = string.IsNullOrWhiteSpace(p.EnrollmentDate)
             ? AppClock.Today.ToString("yyyy-MM-dd")

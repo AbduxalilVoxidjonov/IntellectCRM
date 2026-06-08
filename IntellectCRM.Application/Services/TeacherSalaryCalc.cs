@@ -44,8 +44,8 @@ public static class TeacherSalaryCalc
     public static async Task<Dictionary<string, int>> WeeklyLessonsAsync(IAppDbContext db) =>
         (await LessonsByWeekdayAsync(db)).ToDictionary(kv => kv.Key, kv => kv.Value.Sum());
 
-    /// <summary>Toifa kaliti bo'yicha bir soat dars narxi (SchoolMeta'dan).</summary>
-    public static decimal RateFor(SchoolMeta? meta, string? category)
+    /// <summary>Toifa kaliti bo'yicha bir soat dars narxi (CenterMeta'dan).</summary>
+    public static decimal RateFor(CenterMeta? meta, string? category)
     {
         if (meta is null) return 0m;
         return category switch
@@ -59,7 +59,7 @@ public static class TeacherSalaryCalc
     }
 
     /// <summary>Reja (nominal) oylik = haftalik darslar × 4 × toifa narxi (davomatsiz).</summary>
-    public static decimal Monthly(int weeklyLessons, string? category, SchoolMeta? meta) =>
+    public static decimal Monthly(int weeklyLessons, string? category, CenterMeta? meta) =>
         weeklyLessons * WeeksPerMonth * RateFor(meta, category);
 
     /// <summary>
@@ -144,7 +144,7 @@ public static class TeacherSalaryCalc
     /// Bitta oy uchun yakuniy maosh (so'm): chorak davri + qisman birinchi oy + davomat + ustama bilan.
     /// </summary>
     public static decimal MonthlyForMonth(
-        int[] byWeekday, string? category, SchoolMeta? meta, string month, string? startDate,
+        int[] byWeekday, string? category, CenterMeta? meta, string month, string? startDate,
         IEnumerable<string> absentDatesInMonth, decimal bonusPct,
         IReadOnlyList<(string Start, string End)>? quarters = null)
     {
@@ -160,7 +160,7 @@ public static class TeacherSalaryCalc
     /// <summary>Bitta o'qituvchining REJA (nominal) oyligi — davomat hisobga olinmaydi.</summary>
     public static async Task<decimal> MonthlyAsync(IAppDbContext db, Teacher t)
     {
-        var meta = await db.SchoolMeta.FirstOrDefaultAsync();
+        var meta = await db.CenterMeta.FirstOrDefaultAsync();
         var weekly = (await WeeklyLessonsAsync(db)).GetValueOrDefault(t.Id);
         return Monthly(weekly, t.Category, meta);
     }

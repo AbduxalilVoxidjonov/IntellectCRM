@@ -71,7 +71,7 @@ public class TeacherPortalController(
     [HttpGet("school")]
     public async Task<ActionResult<SchoolNameDto>> School()
     {
-        var m = await db.SchoolMeta.FirstOrDefaultAsync();
+        var m = await db.CenterMeta.FirstOrDefaultAsync();
         return new SchoolNameDto(m?.Name ?? "");
     }
 
@@ -88,7 +88,7 @@ public class TeacherPortalController(
     [HttpGet("push-config")]
     public async Task<ActionResult<PushClientConfigDto>> PushConfig()
     {
-        var m = await db.SchoolMeta.FirstOrDefaultAsync();
+        var m = await db.CenterMeta.FirstOrDefaultAsync();
         var sa = m?.FcmServiceAccountJson ?? "";
         var web = (m?.FcmWebConfigJson ?? "").Trim();
         var vapid = (m?.FcmVapidKey ?? "").Trim();
@@ -184,7 +184,7 @@ public class TeacherPortalController(
 
         if (s.UserId is not null)
         {
-            var meta = await db.SchoolMeta.FirstOrDefaultAsync();
+            var meta = await db.CenterMeta.FirstOrDefaultAsync();
             var json = meta?.FcmServiceAccountJson ?? "";
             if (FcmService.IsConfigured(json))
             {
@@ -220,7 +220,7 @@ public class TeacherPortalController(
             var student = await db.Students.FindAsync(pr.StudentId);
             if (student?.UserId is not null)
             {
-                var meta = await db.SchoolMeta.FirstOrDefaultAsync();
+                var meta = await db.CenterMeta.FirstOrDefaultAsync();
                 var json = meta?.FcmServiceAccountJson ?? "";
                 if (FcmService.IsConfigured(json))
                 {

@@ -163,7 +163,7 @@ public class Teacher
     /// avtomatik hisoblanadi (<see cref="Category"/>). Qo'lda kiritilmaydi.</summary>
     public decimal Salary { get; set; }
     /// <summary>O'qituvchi toifasi — bir soat dars narxini belgilaydi: "oliy" | "1" | "2" | "mutaxasis"
-    /// (bo'sh = hali belgilanmagan, narxi 0). Soat narxlari SchoolMeta'da toifa bo'yicha saqlanadi.</summary>
+    /// (bo'sh = hali belgilanmagan, narxi 0). Soat narxlari CenterMeta'da toifa bo'yicha saqlanadi.</summary>
     public string Category { get; set; } = string.Empty;
     /// <summary>Ustama foizi (%). Oylik maoshga shu foiz qo'shiladi (0 = ustama yo'q). Masalan 50 → +50%.</summary>
     public decimal BonusPct { get; set; }
@@ -201,7 +201,7 @@ public class Subject
 }
 
 /// <summary>Sinf.</summary>
-public class SchoolClass
+public class Group
 {
     public string Id { get; set; } = Guid.NewGuid().ToString();
     public string Name { get; set; } = string.Empty;
@@ -549,9 +549,9 @@ public class TurnstileEvent
     public string CreatedAt { get; set; } = string.Empty;
 }
 
-public class SchoolMeta
+public class CenterMeta
 {
-    // Shared-DB: har maktab uchun bitta SchoolMeta qatori — Id unikal (Guid). Eski "current"
+    // Shared-DB: har maktab uchun bitta CenterMeta qatori — Id unikal (Guid). Eski "current"
     // qiymati tenantlar bo'ylab to'qnashar edi. Joriy maktab qatori query filter orqali topiladi.
     public string Id { get; set; } = Guid.NewGuid().ToString();
     /// <summary>Joriy o'quv yili, masalan "2025/2026".</summary>
@@ -913,7 +913,7 @@ public class ContractTemplate
 public class LmsSubject
 {
     public string Id { get; set; } = Guid.NewGuid().ToString();
-    /// <summary>Tegishli sinf (SchoolClass.Id). Sinfga kiruvchi o'quvchilar ko'radi.</summary>
+    /// <summary>Tegishli sinf (Group.Id). Sinfga kiruvchi o'quvchilar ko'radi.</summary>
     public string ClassId { get; set; } = string.Empty;
     public string Title { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;

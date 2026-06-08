@@ -15,7 +15,7 @@ public class ClassAnalyticsController(AppDbContext db) : ControllerBase
     private async Task<(List<Student>, List<Subject>)> LoadCommon() =>
         (await db.Students.ToListAsync(), await db.Subjects.ToListAsync());
 
-    private async Task<Analytics.ClassResult> BuildFor(SchoolClass cls, List<Student> students, List<Subject> subjects)
+    private async Task<Analytics.ClassResult> BuildFor(Group cls, List<Student> students, List<Subject> subjects)
     {
         var templates = await db.ScheduleTemplates.Include(t => t.Lessons).Where(t => t.ClassId == cls.Id).ToListAsync();
         var entries = await db.JournalEntries.Where(e => e.ClassId == cls.Id).ToListAsync();
@@ -79,7 +79,7 @@ public class ClassAnalyticsController(AppDbContext db) : ControllerBase
             .OrderBy(c => c.Grade).ThenBy(c => c.Name).ToListAsync();
 
         var lateIds = await db.AbsenceReasons.Where(r => r.IsLate).Select(r => r.Id).ToListAsync();
-        var perClass = new List<(SchoolClass Cls, ClassStat Stat)>();
+        var perClass = new List<(Group Cls, ClassStat Stat)>();
         foreach (var cls in classes)
         {
             var templates = await db.ScheduleTemplates.Include(t => t.Lessons)
@@ -251,7 +251,7 @@ public class ClassAnalyticsController(AppDbContext db) : ControllerBase
         return stat;
     }
 
-    private static GradesProgressRowDto ClassRow(SchoolClass cls, ClassStat s) => new(
+    private static GradesProgressRowDto ClassRow(Group cls, ClassStat s) => new(
         "class", cls.Name, LangLabel(cls.Language), s.Total, s.HasGrades,
         s.Excellent, s.ExcellentPct, string.Join("\n", s.ExcellentNames),
         s.Good, s.GoodPct,

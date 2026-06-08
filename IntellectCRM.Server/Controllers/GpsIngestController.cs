@@ -12,7 +12,7 @@ namespace IntellectCRM.Server.Controllers;
 /// <summary>
 /// GPS tracker / haydovchi ilovasi avtobus joylashuvini shu yerga yuboradi (webhook).
 /// Tenant — subdomen (host) bo'yicha aniqlanadi; <c>deviceId</c> avtobusga bog'lanadi.
-/// Tokenli himoya: SchoolMeta.GpsIngestToken o'rnatilgan bo'lsa, so'rovdagi token mos kelishi shart.
+/// Tokenli himoya: CenterMeta.GpsIngestToken o'rnatilgan bo'lsa, so'rovdagi token mos kelishi shart.
 /// </summary>
 [ApiController]
 [AllowAnonymous]
@@ -22,7 +22,7 @@ public class GpsIngestController(AppDbContext db, IHubContext<LiveHub> live) : C
     [HttpPost]
     public async Task<IActionResult> Push(GpsPingRequest req)
     {
-        var meta = await db.SchoolMeta.FirstOrDefaultAsync();
+        var meta = await db.CenterMeta.FirstOrDefaultAsync();
         if (meta is null || !meta.GpsEnabled)
             return BadRequest(new { message = "GPS integratsiyasi yoqilmagan" });
         if (!string.IsNullOrEmpty(meta.GpsIngestToken) && req.Token != meta.GpsIngestToken)

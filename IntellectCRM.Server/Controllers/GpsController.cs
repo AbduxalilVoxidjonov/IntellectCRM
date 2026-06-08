@@ -25,7 +25,7 @@ public class GpsController(AppDbContext db) : ControllerBase
     [HttpGet("buses")]
     public async Task<ActionResult<IEnumerable<BusLiveDto>>> Buses()
     {
-        var meta = await db.SchoolMeta.FirstOrDefaultAsync();
+        var meta = await db.CenterMeta.FirstOrDefaultAsync();
         var onlineMin = meta?.GpsOnlineMinutes ?? 5;
         var now = AppClock.Now;
 
@@ -106,7 +106,7 @@ public class GpsController(AppDbContext db) : ControllerBase
         if (b is null) return NotFound();
         var d = string.IsNullOrEmpty(date) || date.Length < 10 ? AppClock.Today.ToString("yyyy-MM-dd") : date[..10];
 
-        var meta = await db.SchoolMeta.FirstOrDefaultAsync();
+        var meta = await db.CenterMeta.FirstOrDefaultAsync();
         var points = await db.BusLocations
             .Where(l => l.BusId == id && l.RecordedAt.StartsWith(d))
             .ToListAsync();

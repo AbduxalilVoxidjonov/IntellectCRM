@@ -129,7 +129,7 @@ public class FinanceController(AppDbContext db, AuditService audit) : Controller
 
         var teachers = await db.Teachers.OrderBy(t => t.FullName).ToListAsync();
         // Oylik maosh — dars jadvali + toifa narxidan; har oy DAVOMATga moslanadi (kelmagan kun chegiriladi).
-        var meta = await db.SchoolMeta.FirstOrDefaultAsync();
+        var meta = await db.CenterMeta.FirstOrDefaultAsync();
         var byWeekdayAll = await TeacherSalaryCalc.LessonsByWeekdayAsync(db);
         var quarters = await TeacherSalaryCalc.QuarterRangesAsync(db);
         var absentAll = await db.TeacherAttendances

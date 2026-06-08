@@ -10,12 +10,12 @@ namespace IntellectCRM.Server.Controllers;
 [ApiController]
 [Authorize]
 [Route("api/school")]
-public class SchoolController(AppDbContext db) : ControllerBase
+public class CenterController(AppDbContext db) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<SchoolNameDto>> Get()
     {
-        var m = await db.SchoolMeta.FirstOrDefaultAsync();
+        var m = await db.CenterMeta.FirstOrDefaultAsync();
         return new SchoolNameDto(m?.Name ?? "");
     }
 }

@@ -16,7 +16,7 @@ public class ClassesController(AppDbContext db, AuditService audit) : Controller
 {
     /// <summary>Faol (arxivlanmagan) sinflar. <paramref name="includeArchived"/>=true bo'lsa hammasi.</summary>
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<SchoolClass>>> GetAll([FromQuery] bool includeArchived = false)
+    public async Task<ActionResult<IEnumerable<Group>>> GetAll([FromQuery] bool includeArchived = false)
     {
         var q = db.Classes.AsQueryable();
         if (!includeArchived) q = q.Where(c => !c.IsArchived);
@@ -25,14 +25,14 @@ public class ClassesController(AppDbContext db, AuditService audit) : Controller
 
     /// <summary>Arxivlangan sinflar ro'yxati.</summary>
     [HttpGet("archived")]
-    public async Task<ActionResult<IEnumerable<SchoolClass>>> GetArchived() =>
+    public async Task<ActionResult<IEnumerable<Group>>> GetArchived() =>
         await db.Classes.Where(c => c.IsArchived)
             .OrderByDescending(c => c.ArchivedAt).ThenBy(c => c.Name).ToListAsync();
 
     [HttpPost]
-    public async Task<ActionResult<SchoolClass>> Create(ClassPayload p)
+    public async Task<ActionResult<Group>> Create(ClassPayload p)
     {
-        var cls = new SchoolClass
+        var cls = new Group
         {
             Name = p.Name,
             Grade = p.Grade,
@@ -58,7 +58,7 @@ public class ClassesController(AppDbContext db, AuditService audit) : Controller
     /// narx keyingi oy hisoblashidan amal qiladi.
     /// </summary>
     [HttpPut("{id}")]
-    public async Task<ActionResult<SchoolClass>> Update(string id, ClassPayload p, [FromQuery] bool applyFee = false)
+    public async Task<ActionResult<Group>> Update(string id, ClassPayload p, [FromQuery] bool applyFee = false)
     {
         var cls = await db.Classes.FindAsync(id);
         if (cls is null) return NotFound();

@@ -10,7 +10,7 @@ using IntellectCRM.Domain;
 namespace IntellectCRM.Application.Services;
 
 /// <summary>
-/// Turniket jonli kuzatuvi. Integratsiya YOQILGAN bo'lsa (SchoolMeta.TurnstileEnabled + host),
+/// Turniket jonli kuzatuvi. Integratsiya YOQILGAN bo'lsa (CenterMeta.TurnstileEnabled + host),
 /// har ~20 soniyada qurilmadan hodisalarni sinxronlaydi va yangi o'tish bo'lsa admin panellariga
 /// (LiveHub "turnstile" → "turnstileChanged") push qiladi — davomat/o'quvchi turniketi jonli yangilanadi.
 /// Yoqilmagan bo'lsa hech narsa qilmaydi (qurilmaga so'rov yubormaydi).
@@ -33,7 +33,7 @@ public class TurnstileLiveService(
                 var db = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
                 var turnstile = scope.ServiceProvider.GetRequiredService<TurnstileService>();
 
-                var meta = await db.SchoolMeta.FirstOrDefaultAsync(stoppingToken);
+                var meta = await db.CenterMeta.FirstOrDefaultAsync(stoppingToken);
                 if (meta is { TurnstileEnabled: true } && !string.IsNullOrWhiteSpace(meta.TurnstileHost))
                 {
                     var res = await turnstile.SyncAsync(db);

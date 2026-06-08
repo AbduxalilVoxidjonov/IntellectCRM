@@ -107,7 +107,7 @@ public class ContractsController(AppDbContext db, ContractService contracts, Tel
             var subjects = await db.Subjects.ToDictionaryAsync(s => s.Id, s => s.Name);
             var teachers = await db.Teachers.ToListAsync();
             // Oylik — dars jadvali + toifa narxidan avtomatik hisoblanadi.
-            var meta = await db.SchoolMeta.FirstOrDefaultAsync();
+            var meta = await db.CenterMeta.FirstOrDefaultAsync();
             var weekly = await TeacherSalaryCalc.WeeklyLessonsAsync(db);
             foreach (var key in keys)
             {

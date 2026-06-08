@@ -177,7 +177,7 @@ builder.Services.AddHostedService<IntellectCRM.Application.Services.TurnstileLiv
 builder.Services.AddHttpClient();
 builder.Services.AddSingleton<TelegramService>();
 builder.Services.AddHostedService<TelegramBotService>();
-// FCM (Firebase push) — service account SchoolMeta'da; token keshi uchun singleton.
+// FCM (Firebase push) — service account CenterMeta'da; token keshi uchun singleton.
 builder.Services.AddSingleton<FcmService>();
 
 // O'zgarishlar tarixi (audit) — joriy foydalanuvchini aniqlash uchun HttpContext kerak

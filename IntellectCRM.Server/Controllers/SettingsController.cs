@@ -41,7 +41,7 @@ public class SettingsController(AppDbContext db, TelegramService telegram) : Con
     [HttpGet("school")]
     public async Task<ActionResult<SchoolInfoDto>> GetSchool()
     {
-        var m = await db.SchoolMeta.FirstOrDefaultAsync();
+        var m = await db.CenterMeta.FirstOrDefaultAsync();
         return new SchoolInfoDto(
             m?.Name ?? "", m?.Director ?? "", m?.Phone ?? "", m?.Email ?? "",
             m?.Address ?? "", m?.Region ?? "", m?.District ?? "");
@@ -50,11 +50,11 @@ public class SettingsController(AppDbContext db, TelegramService telegram) : Con
     [HttpPut("school")]
     public async Task<IActionResult> SaveSchool(SchoolInfoDto req)
     {
-        var m = await db.SchoolMeta.FirstOrDefaultAsync();
+        var m = await db.CenterMeta.FirstOrDefaultAsync();
         if (m is null)
         {
-            m = new SchoolMeta();
-            db.SchoolMeta.Add(m);
+            m = new CenterMeta();
+            db.CenterMeta.Add(m);
         }
         m.Name = req.Name;
         m.Director = req.Director;
@@ -72,7 +72,7 @@ public class SettingsController(AppDbContext db, TelegramService telegram) : Con
     [HttpGet("telegram")]
     public async Task<ActionResult<TelegramSettingsDto>> GetTelegram()
     {
-        var m = await db.SchoolMeta.FirstOrDefaultAsync();
+        var m = await db.CenterMeta.FirstOrDefaultAsync();
         return new TelegramSettingsDto(
             m?.TelegramBotToken ?? "", m?.TelegramBotUsername ?? "", m?.TelegramBotName ?? "",
             telegram.IsConfigured);
@@ -81,11 +81,11 @@ public class SettingsController(AppDbContext db, TelegramService telegram) : Con
     [HttpPut("telegram")]
     public async Task<ActionResult<TelegramSettingsDto>> SaveTelegram(SaveTelegramSettingsRequest req)
     {
-        var m = await db.SchoolMeta.FirstOrDefaultAsync();
+        var m = await db.CenterMeta.FirstOrDefaultAsync();
         if (m is null)
         {
-            m = new SchoolMeta();
-            db.SchoolMeta.Add(m);
+            m = new CenterMeta();
+            db.CenterMeta.Add(m);
         }
         m.TelegramBotToken = (req.BotToken ?? "").Trim();
         m.TelegramBotUsername = (req.BotUsername ?? "").Trim().TrimStart('@');
@@ -116,7 +116,7 @@ public class SettingsController(AppDbContext db, TelegramService telegram) : Con
     [HttpGet("firebase")]
     public async Task<ActionResult<FirebaseSettingsDto>> GetFirebase()
     {
-        var m = await db.SchoolMeta.FirstOrDefaultAsync();
+        var m = await db.CenterMeta.FirstOrDefaultAsync();
         var json = m?.FcmServiceAccountJson ?? "";
         var web = m?.FcmWebConfigJson ?? "";
         var vapid = m?.FcmVapidKey ?? "";
@@ -138,8 +138,8 @@ public class SettingsController(AppDbContext db, TelegramService telegram) : Con
         }
         var vapid = (req.VapidKey ?? "").Trim();
 
-        var m = await db.SchoolMeta.FirstOrDefaultAsync();
-        if (m is null) { m = new SchoolMeta(); db.SchoolMeta.Add(m); }
+        var m = await db.CenterMeta.FirstOrDefaultAsync();
+        if (m is null) { m = new CenterMeta(); db.CenterMeta.Add(m); }
         m.FcmServiceAccountJson = json;
         m.FcmWebConfigJson = web;
         m.FcmVapidKey = vapid;
@@ -153,7 +153,7 @@ public class SettingsController(AppDbContext db, TelegramService telegram) : Con
     [HttpGet("turnstile")]
     public async Task<ActionResult<TurnstileSettingsDto>> GetTurnstile()
     {
-        var m = await db.SchoolMeta.FirstOrDefaultAsync();
+        var m = await db.CenterMeta.FirstOrDefaultAsync();
         var teachers = (await db.Teachers.Where(t => !t.IsArchived).OrderBy(t => t.FullName).ToListAsync())
             .Select(t => new TeacherDeviceMapDto(t.Id, t.FullName, t.DeviceUserId)).ToList();
         return new TurnstileSettingsDto(
@@ -168,8 +168,8 @@ public class SettingsController(AppDbContext db, TelegramService telegram) : Con
     [HttpPut("turnstile")]
     public async Task<ActionResult<TurnstileSettingsDto>> SaveTurnstile(SaveTurnstileSettingsRequest req)
     {
-        var m = await db.SchoolMeta.FirstOrDefaultAsync();
-        if (m is null) { m = new SchoolMeta(); db.SchoolMeta.Add(m); }
+        var m = await db.CenterMeta.FirstOrDefaultAsync();
+        if (m is null) { m = new CenterMeta(); db.CenterMeta.Add(m); }
         m.TurnstileEnabled = req.Enabled;
         m.TurnstileVendor = (req.Vendor ?? m.TurnstileVendor).Trim().ToLowerInvariant();
         m.TurnstileHost = (req.Host ?? "").Trim();
@@ -197,7 +197,7 @@ public class SettingsController(AppDbContext db, TelegramService telegram) : Con
     [HttpGet("gps")]
     public async Task<ActionResult<GpsSettingsDto>> GetGps()
     {
-        var m = await db.SchoolMeta.FirstOrDefaultAsync();
+        var m = await db.CenterMeta.FirstOrDefaultAsync();
         var busCount = await db.Buses.CountAsync();
         return new GpsSettingsDto(
             m?.GpsEnabled ?? false, m?.GpsIngestToken ?? "",
@@ -207,8 +207,8 @@ public class SettingsController(AppDbContext db, TelegramService telegram) : Con
     [HttpPut("gps")]
     public async Task<ActionResult<GpsSettingsDto>> SaveGps(SaveGpsSettingsRequest req)
     {
-        var m = await db.SchoolMeta.FirstOrDefaultAsync();
-        if (m is null) { m = new SchoolMeta(); db.SchoolMeta.Add(m); }
+        var m = await db.CenterMeta.FirstOrDefaultAsync();
+        if (m is null) { m = new CenterMeta(); db.CenterMeta.Add(m); }
         m.GpsEnabled = req.Enabled;
         m.GpsIngestToken = (req.IngestToken ?? "").Trim();
         if (req.OnlineMinutes is > 0) m.GpsOnlineMinutes = req.OnlineMinutes.Value;
@@ -223,7 +223,7 @@ public class SettingsController(AppDbContext db, TelegramService telegram) : Con
     [HttpGet("cameras")]
     public async Task<ActionResult<CameraSettingsDto>> GetCameras()
     {
-        var m = await db.SchoolMeta.FirstOrDefaultAsync();
+        var m = await db.CenterMeta.FirstOrDefaultAsync();
         var count = await db.Cameras.CountAsync();
         return new CameraSettingsDto(m?.CameraEnabled ?? false, count);
     }
@@ -231,8 +231,8 @@ public class SettingsController(AppDbContext db, TelegramService telegram) : Con
     [HttpPut("cameras")]
     public async Task<ActionResult<CameraSettingsDto>> SaveCameras(SaveCameraSettingsRequest req)
     {
-        var m = await db.SchoolMeta.FirstOrDefaultAsync();
-        if (m is null) { m = new SchoolMeta(); db.SchoolMeta.Add(m); }
+        var m = await db.CenterMeta.FirstOrDefaultAsync();
+        if (m is null) { m = new CenterMeta(); db.CenterMeta.Add(m); }
         m.CameraEnabled = req.Enabled;
         await db.SaveChangesAsync();
         return await GetCameras();

@@ -21,7 +21,7 @@ public static class SalaryLedger
         var toMonth = string.IsNullOrEmpty(to) ? TuitionService.CurrentMonth() : to[..7];
 
         // Oylik maosh — dars jadvali + toifa narxidan; har oy DAVOMATga moslanadi (kelmagan kun chegiriladi).
-        var meta = await db.SchoolMeta.FirstOrDefaultAsync();
+        var meta = await db.CenterMeta.FirstOrDefaultAsync();
         // Faqat chorak (dars jadvali) davridagi oylar hisoblanadi — tashqaridagi oylarga maosh yo'q.
         var quarters = await TeacherSalaryCalc.QuarterRangesAsync(db);
         var byWeekday = (await TeacherSalaryCalc.LessonsByWeekdayAsync(db)).GetValueOrDefault(teacher.Id)

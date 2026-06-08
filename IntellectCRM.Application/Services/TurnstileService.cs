@@ -20,7 +20,7 @@ public class TurnstileService
     /// <summary>Tanlangan kun uchun dashboard — har o'qituvchi: holat, kelgan/ketgan vaqt, kechikish.</summary>
     public async Task<TeacherAttendanceDashboardDto> BuildDashboardAsync(IAppDbContext db, string date)
     {
-        var meta = await db.SchoolMeta.FirstOrDefaultAsync();
+        var meta = await db.CenterMeta.FirstOrDefaultAsync();
         var quarters = await TeacherSalaryCalc.QuarterRangesAsync(db);
         var inPeriod = TeacherSalaryCalc.InQuarter(date, quarters);
         var today = AppClock.Today.ToString("yyyy-MM-dd");
@@ -75,7 +75,7 @@ public class TurnstileService
     /// </summary>
     public async Task<StudentTurnstileDashboardDto> BuildStudentDashboardAsync(IAppDbContext db, string date)
     {
-        var meta = await db.SchoolMeta.FirstOrDefaultAsync();
+        var meta = await db.CenterMeta.FirstOrDefaultAsync();
         var students = await db.Students.Where(s => !s.IsArchived)
             .OrderBy(s => s.ClassName).ThenBy(s => s.FullName).ToListAsync();
 
@@ -108,7 +108,7 @@ public class TurnstileService
     /// <summary>Qurilmadan so'nggi (≈2 kun) hodisalarni tortib olib, davomatni qayta hisoblaydi.</summary>
     public async Task<TurnstileSyncResultDto> SyncAsync(IAppDbContext db)
     {
-        var meta = await db.SchoolMeta.FirstOrDefaultAsync();
+        var meta = await db.CenterMeta.FirstOrDefaultAsync();
         if (meta is null || !meta.TurnstileEnabled)
             return new TurnstileSyncResultDto(false, "Turniket integratsiyasi yoqilmagan (Sozlamalar).", 0, 0, "");
         if (string.IsNullOrWhiteSpace(meta.TurnstileHost))
@@ -183,7 +183,7 @@ public class TurnstileService
     /// (faqat "manual" bo'lmagan yozuvlar ustiga yoziladi — admin tuzatgan yozuvlar saqlanadi).</summary>
     public async Task<int> RecomputeAsync(IAppDbContext db, DateTime from, DateTime to)
     {
-        var meta = await db.SchoolMeta.FirstOrDefaultAsync();
+        var meta = await db.CenterMeta.FirstOrDefaultAsync();
         var quarters = await TeacherSalaryCalc.QuarterRangesAsync(db);
         var firstPeriod = await FirstPeriodByWeekdayAsync(db);
         var lessonStart = await LessonStartByPeriodAsync(db);
@@ -307,7 +307,7 @@ public class TurnstileService
     /// <summary>Bitta xom o'tish hodisasi.</summary>
     public record RawEvent(string DeviceUserId, string EventAt, string Direction, string DeviceName);
 
-    private static async Task<List<RawEvent>> FetchHikvisionAsync(SchoolMeta meta, DateTime from, DateTime to)
+    private static async Task<List<RawEvent>> FetchHikvisionAsync(CenterMeta meta, DateTime from, DateTime to)
     {
         var port = meta.TurnstilePort > 0 ? meta.TurnstilePort : 80;
         var baseUrl = $"http://{meta.TurnstileHost}:{port}";
