@@ -1,0 +1,115 @@
+# IntellectCRM — prod: app (API + SPA) + MySQL 8 + Cloudflare Tunnel + kunlik backup.
+# Bitta o'quv markazi (multi-tenant YO'Q). Sozlamalar .env faylidan keladi (.env.example dan nusxa oling).
+# Diqqat: app porti TASHQARIGA OCHILMAGAN — unga faqat cloudflared (ichki tarmoq) kiradi.
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: intellectcrm-mysql
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD}"
+      MYSQL_DATABASE: "intellectcrm"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    restart: unless-stopped
+
+  app:
+    build:
+      context: .
+      args:
+        VITE_ROOT_DOMAIN: "${ROOT_DOMAIN}"   # frontend domenni shu qiymatga nisbatan aniqlaydi
+        VITE_USE_MOCK: "false"
+    container_name: intellectcrm-app
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Production"
+      ASPNETCORE_URLS: "http://+:8080"
+      ConnectionStrings__Default: "Server=mysql;Port=3306;Database=intellectcrm;User=root;Password=${MYSQL_ROOT_PASSWORD};CharSet=utf8mb4"
+      Tenancy__RootDomain: "${ROOT_DOMAIN}"
+      App__Host: "${APP_HOST}"             # FAQAT shu host ilovani (SPA) ochadi; qolganlari -> landing
+      Jwt__Key: "${JWT_KEY}"               # >=32 belgi; prod'da MAJBURIY
+    volumes:
+      - uploads:/app/uploads               # yuklangan fayllar (rasm, hujjat)
+      - dpkeys:/app/keys                   # DataProtection kalitlari — deploylar oralig'ida saqlanadi
+    depends_on:
+      mysql:
+        condition: service_healthy
+    restart: unless-stopped
+    # Diqqat: bu yerda `ports:` YO'Q — internetga ochilmaydi (faqat cloudflared kiradi).
+
+  # Kamera media-shlyuzi: IP kameralar RTSP oqimini brauzer ko'radigan HLS ga o'giradi.
+  mediamtx:
+    image: bluenviron/mediamtx:latest
+    container_name: intellectcrm-mediamtx
+    environment:
+      MTX_API: "yes"
+      MTX_HLS: "yes"
+      MTX_PLAYBACK: "yes"
+      MTX_HLSVARIANT: "mpegts"
+      MTX_PATHDEFAULTS_RECORDPATH: "/recordings/%path/%Y-%m-%d_%H-%M-%S-%f"
+    volumes:
+      - cam-recordings:/recordings
+    restart: unless-stopped
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: intellectcrm-tunnel
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: "${TUNNEL_TOKEN}"
+      # QUIC (UDP) edge ulanishi uzilib qolmasligi uchun HTTP/2 (TCP) — barqarorroq.
+      TUNNEL_TRANSPORT_PROTOCOL: "http2"
+    depends_on:
+      - app
+    restart: unless-stopped
+
+  # Kunlik avtomatik backup (mysqldump). Har kuni BACKUP_HOUR (UTC) da `intellectcrm` bazasini
+  # /backups ga .sql.gz qilib oladi va BACKUP_RETENTION_DAYS dan eski nusxalarni o'chiradi.
+  backup:
+    image: mysql:8.0
+    container_name: intellectcrm-backup
+    environment:
+      MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD}"
+      BACKUP_HOUR: "21"            # 21:00 UTC = 02:00 Toshkent (kechasi, yuk kam paytda)
+      BACKUP_RETENTION_DAYS: "7"   # 7 kundan eski nusxalar o'chiriladi
+    volumes:
+      - mysql-backups:/backups
+    depends_on:
+      mysql:
+        condition: service_healthy
+    restart: unless-stopped
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        echo "[backup] xizmat ishga tushdi; har kuni $${BACKUP_HOUR}:00 UTC da, saqlash $${BACKUP_RETENTION_DAYS} kun"
+        while true; do
+          now=$$(date -u +%s)
+          next=$$(date -u -d "today $${BACKUP_HOUR}:00" +%s)
+          [ "$$next" -le "$$now" ] && next=$$(date -u -d "tomorrow $${BACKUP_HOUR}:00" +%s)
+          sleep $$(( next - now ))
+          ts=$$(date -u +%Y%m%d_%H%M)
+          echo "[backup] $$ts — boshlandi"
+          if mysqldump -h mysql -uroot -p"$$MYSQL_ROOT_PASSWORD" --single-transaction --routines --events \
+               --databases intellectcrm | gzip > "/backups/intellectcrm_$${ts}.sql.gz"; then
+            echo "[backup] tugadi: intellectcrm_$${ts}.sql.gz"
+          else
+            echo "[backup] XATO: dump muvaffaqiyatsiz"
+            rm -f "/backups/intellectcrm_$${ts}.sql.gz"
+          fi
+          find /backups -name '*.sql.gz' -type f -mtime +$${BACKUP_RETENTION_DAYS} -delete
+        done
+
+volumes:
+  mysql-data:
+  mysql-backups:
+  uploads:
+  dpkeys:
+  cam-recordings:

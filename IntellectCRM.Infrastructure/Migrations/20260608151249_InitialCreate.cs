@@ -281,6 +281,74 @@ namespace IntellectCRM.Infrastructure.Migrations
                 .Annotation("Relational:Collation", "utf8mb4_unicode_ci");
 
             migrationBuilder.CreateTable(
+                name: "CenterMeta",
+                columns: table => new
+                {
+                    Id = table.Column<string>(type: "varchar(255)", nullable: false, collation: "utf8mb4_unicode_ci")
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    CurrentYear = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    Name = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    Director = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    Phone = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    Email = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    Address = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    Region = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    District = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    TelegramBotToken = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    TelegramBotUsername = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    TelegramBotName = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    FcmServiceAccountJson = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    FcmWebConfigJson = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    FcmVapidKey = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    SalaryRateOliy = table.Column<decimal>(type: "decimal(65,30)", nullable: false),
+                    SalaryRate1 = table.Column<decimal>(type: "decimal(65,30)", nullable: false),
+                    SalaryRate2 = table.Column<decimal>(type: "decimal(65,30)", nullable: false),
+                    SalaryRateMutaxasis = table.Column<decimal>(type: "decimal(65,30)", nullable: false),
+                    TurnstileEnabled = table.Column<bool>(type: "tinyint(1)", nullable: false),
+                    TurnstileVendor = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    TurnstileHost = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    TurnstilePort = table.Column<int>(type: "int", nullable: false),
+                    TurnstileUsername = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    TurnstilePassword = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    WorkStartTime = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    LateGraceMinutes = table.Column<int>(type: "int", nullable: false),
+                    TurnstileLastSync = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    GpsEnabled = table.Column<bool>(type: "tinyint(1)", nullable: false),
+                    GpsIngestToken = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    GpsOnlineMinutes = table.Column<int>(type: "int", nullable: false),
+                    GpsStopRadiusM = table.Column<int>(type: "int", nullable: false),
+                    GpsStopMinMinutes = table.Column<int>(type: "int", nullable: false),
+                    CameraEnabled = table.Column<bool>(type: "tinyint(1)", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_CenterMeta", x => x.Id);
+                })
+                .Annotation("MySql:CharSet", "utf8mb4")
+                .Annotation("Relational:Collation", "utf8mb4_unicode_ci");
+
+            migrationBuilder.CreateTable(
                 name: "ChatMessages",
                 columns: table => new
                 {
@@ -451,30 +519,6 @@ namespace IntellectCRM.Infrastructure.Migrations
                 .Annotation("Relational:Collation", "utf8mb4_unicode_ci");
 
             migrationBuilder.CreateTable(
-                name: "Dishes",
-                columns: table => new
-                {
-                    Id = table.Column<string>(type: "varchar(255)", nullable: false, collation: "utf8mb4_unicode_ci")
-                        .Annotation("MySql:CharSet", "utf8mb4"),
-                    Date = table.Column<string>(type: "varchar(200)", maxLength: 200, nullable: false, collation: "utf8mb4_unicode_ci")
-                        .Annotation("MySql:CharSet", "utf8mb4"),
-                    Meal = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
-                        .Annotation("MySql:CharSet", "utf8mb4"),
-                    Name = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
-                        .Annotation("MySql:CharSet", "utf8mb4"),
-                    Ingredients = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
-                        .Annotation("MySql:CharSet", "utf8mb4"),
-                    ImageUrl = table.Column<string>(type: "longtext", nullable: true, collation: "utf8mb4_unicode_ci")
-                        .Annotation("MySql:CharSet", "utf8mb4")
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_Dishes", x => x.Id);
-                })
-                .Annotation("MySql:CharSet", "utf8mb4")
-                .Annotation("Relational:Collation", "utf8mb4_unicode_ci");
-
-            migrationBuilder.CreateTable(
                 name: "EvaluationGrades",
                 columns: table => new
                 {
@@ -621,8 +665,7 @@ namespace IntellectCRM.Infrastructure.Migrations
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     Homework = table.Column<int>(type: "int", nullable: false),
                     Behavior = table.Column<int>(type: "int", nullable: false),
-                    Mastery = table.Column<int>(type: "int", nullable: true),
-                    SubGroup = table.Column<int>(type: "int", nullable: false)
+                    Mastery = table.Column<int>(type: "int", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -697,8 +740,7 @@ namespace IntellectCRM.Infrastructure.Migrations
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     Homework = table.Column<string>(type: "longtext", nullable: true, collation: "utf8mb4_unicode_ci")
                         .Annotation("MySql:CharSet", "utf8mb4"),
-                    Conducted = table.Column<bool>(type: "tinyint(1)", nullable: false),
-                    SubGroup = table.Column<int>(type: "int", nullable: false)
+                    Conducted = table.Column<bool>(type: "tinyint(1)", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -832,48 +874,6 @@ namespace IntellectCRM.Infrastructure.Migrations
                 .Annotation("Relational:Collation", "utf8mb4_unicode_ci");
 
             migrationBuilder.CreateTable(
-                name: "QuarterGrades",
-                columns: table => new
-                {
-                    Id = table.Column<string>(type: "varchar(255)", nullable: false, collation: "utf8mb4_unicode_ci")
-                        .Annotation("MySql:CharSet", "utf8mb4"),
-                    ClassId = table.Column<string>(type: "varchar(200)", maxLength: 200, nullable: false, collation: "utf8mb4_unicode_ci")
-                        .Annotation("MySql:CharSet", "utf8mb4"),
-                    SubjectId = table.Column<string>(type: "varchar(200)", maxLength: 200, nullable: false, collation: "utf8mb4_unicode_ci")
-                        .Annotation("MySql:CharSet", "utf8mb4"),
-                    Quarter = table.Column<int>(type: "int", nullable: false),
-                    StudentId = table.Column<string>(type: "varchar(200)", maxLength: 200, nullable: false, collation: "utf8mb4_unicode_ci")
-                        .Annotation("MySql:CharSet", "utf8mb4"),
-                    Grade = table.Column<int>(type: "int", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_QuarterGrades", x => x.Id);
-                })
-                .Annotation("MySql:CharSet", "utf8mb4")
-                .Annotation("Relational:Collation", "utf8mb4_unicode_ci");
-
-            migrationBuilder.CreateTable(
-                name: "Quarters",
-                columns: table => new
-                {
-                    Id = table.Column<string>(type: "varchar(255)", nullable: false, collation: "utf8mb4_unicode_ci")
-                        .Annotation("MySql:CharSet", "utf8mb4"),
-                    Quarter = table.Column<int>(type: "int", nullable: false),
-                    StartDate = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
-                        .Annotation("MySql:CharSet", "utf8mb4"),
-                    EndDate = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
-                        .Annotation("MySql:CharSet", "utf8mb4"),
-                    GradesOpen = table.Column<bool>(type: "tinyint(1)", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_Quarters", x => x.Id);
-                })
-                .Annotation("MySql:CharSet", "utf8mb4")
-                .Annotation("Relational:Collation", "utf8mb4_unicode_ci");
-
-            migrationBuilder.CreateTable(
                 name: "ScheduleTemplates",
                 columns: table => new
                 {
@@ -887,98 +887,6 @@ namespace IntellectCRM.Infrastructure.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_ScheduleTemplates", x => x.Id);
-                })
-                .Annotation("MySql:CharSet", "utf8mb4")
-                .Annotation("Relational:Collation", "utf8mb4_unicode_ci");
-
-            migrationBuilder.CreateTable(
-                name: "SchoolMeta",
-                columns: table => new
-                {
-                    Id = table.Column<string>(type: "varchar(255)", nullable: false, collation: "utf8mb4_unicode_ci")
-                        .Annotation("MySql:CharSet", "utf8mb4"),
-                    CurrentYear = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
-                        .Annotation("MySql:CharSet", "utf8mb4"),
-                    Name = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
-                        .Annotation("MySql:CharSet", "utf8mb4"),
-                    Director = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
-                        .Annotation("MySql:CharSet", "utf8mb4"),
-                    Phone = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
-                        .Annotation("MySql:CharSet", "utf8mb4"),
-                    Email = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
-                        .Annotation("MySql:CharSet", "utf8mb4"),
-                    Address = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
-                        .Annotation("MySql:CharSet", "utf8mb4"),
-                    Region = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
-                        .Annotation("MySql:CharSet", "utf8mb4"),
-                    District = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
-                        .Annotation("MySql:CharSet", "utf8mb4"),
-                    TelegramBotToken = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
-                        .Annotation("MySql:CharSet", "utf8mb4"),
-                    TelegramBotUsername = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
-                        .Annotation("MySql:CharSet", "utf8mb4"),
-                    TelegramBotName = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
-                        .Annotation("MySql:CharSet", "utf8mb4"),
-                    FcmServiceAccountJson = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
-                        .Annotation("MySql:CharSet", "utf8mb4"),
-                    FcmWebConfigJson = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
-                        .Annotation("MySql:CharSet", "utf8mb4"),
-                    FcmVapidKey = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
-                        .Annotation("MySql:CharSet", "utf8mb4"),
-                    SalaryRateOliy = table.Column<decimal>(type: "decimal(65,30)", nullable: false),
-                    SalaryRate1 = table.Column<decimal>(type: "decimal(65,30)", nullable: false),
-                    SalaryRate2 = table.Column<decimal>(type: "decimal(65,30)", nullable: false),
-                    SalaryRateMutaxasis = table.Column<decimal>(type: "decimal(65,30)", nullable: false),
-                    TurnstileEnabled = table.Column<bool>(type: "tinyint(1)", nullable: false),
-                    TurnstileVendor = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
-                        .Annotation("MySql:CharSet", "utf8mb4"),
-                    TurnstileHost = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
-                        .Annotation("MySql:CharSet", "utf8mb4"),
-                    TurnstilePort = table.Column<int>(type: "int", nullable: false),
-                    TurnstileUsername = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
-                        .Annotation("MySql:CharSet", "utf8mb4"),
-                    TurnstilePassword = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
-                        .Annotation("MySql:CharSet", "utf8mb4"),
-                    WorkStartTime = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
-                        .Annotation("MySql:CharSet", "utf8mb4"),
-                    LateGraceMinutes = table.Column<int>(type: "int", nullable: false),
-                    TurnstileLastSync = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
-                        .Annotation("MySql:CharSet", "utf8mb4"),
-                    GpsEnabled = table.Column<bool>(type: "tinyint(1)", nullable: false),
-                    GpsIngestToken = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
-                        .Annotation("MySql:CharSet", "utf8mb4"),
-                    GpsOnlineMinutes = table.Column<int>(type: "int", nullable: false),
-                    GpsStopRadiusM = table.Column<int>(type: "int", nullable: false),
-                    GpsStopMinMinutes = table.Column<int>(type: "int", nullable: false),
-                    CameraEnabled = table.Column<bool>(type: "tinyint(1)", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_SchoolMeta", x => x.Id);
-                })
-                .Annotation("MySql:CharSet", "utf8mb4")
-                .Annotation("Relational:Collation", "utf8mb4_unicode_ci");
-
-            migrationBuilder.CreateTable(
-                name: "SchoolYearArchives",
-                columns: table => new
-                {
-                    Id = table.Column<string>(type: "varchar(255)", nullable: false, collation: "utf8mb4_unicode_ci")
-                        .Annotation("MySql:CharSet", "utf8mb4"),
-                    Year = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
-                        .Annotation("MySql:CharSet", "utf8mb4"),
-                    CreatedAt = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
-                        .Annotation("MySql:CharSet", "utf8mb4"),
-                    StudentsCount = table.Column<int>(type: "int", nullable: false),
-                    ClassesCount = table.Column<int>(type: "int", nullable: false),
-                    JournalCount = table.Column<int>(type: "int", nullable: false),
-                    FinanceCount = table.Column<int>(type: "int", nullable: false),
-                    Data = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
-                        .Annotation("MySql:CharSet", "utf8mb4")
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_SchoolYearArchives", x => x.Id);
                 })
                 .Annotation("MySql:CharSet", "utf8mb4")
                 .Annotation("Relational:Collation", "utf8mb4_unicode_ci");
@@ -1028,7 +936,6 @@ namespace IntellectCRM.Infrastructure.Migrations
                     DiscountAmount = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
                     DiscountNote = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
                         .Annotation("MySql:CharSet", "utf8mb4"),
-                    SubGroup = table.Column<int>(type: "int", nullable: false),
                     IsArchived = table.Column<bool>(type: "tinyint(1)", nullable: false),
                     ArchivedAt = table.Column<string>(type: "longtext", nullable: true, collation: "utf8mb4_unicode_ci")
                         .Annotation("MySql:CharSet", "utf8mb4"),
@@ -1366,8 +1273,7 @@ namespace IntellectCRM.Infrastructure.Migrations
                     SubjectId = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     TeacherId = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
-                        .Annotation("MySql:CharSet", "utf8mb4"),
-                    SubGroup = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("MySql:CharSet", "utf8mb4")
                 },
                 constraints: table =>
                 {
@@ -1545,11 +1451,6 @@ namespace IntellectCRM.Infrastructure.Migrations
                 column: "UserId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Dishes_Date",
-                table: "Dishes",
-                column: "Date");
-
-            migrationBuilder.CreateIndex(
                 name: "IX_Feedbacks_Status_CreatedAt",
                 table: "Feedbacks",
                 columns: new[] { "Status", "CreatedAt" });
@@ -1609,12 +1510,6 @@ namespace IntellectCRM.Infrastructure.Migrations
                 name: "IX_MonthlyCharges_StudentId_Month",
                 table: "MonthlyCharges",
                 columns: new[] { "StudentId", "Month" },
-                unique: true);
-
-            migrationBuilder.CreateIndex(
-                name: "IX_QuarterGrades_ClassId_SubjectId_Quarter_StudentId",
-                table: "QuarterGrades",
-                columns: new[] { "ClassId", "SubjectId", "Quarter", "StudentId" },
                 unique: true);
 
             migrationBuilder.CreateIndex(
@@ -1689,6 +1584,9 @@ namespace IntellectCRM.Infrastructure.Migrations
                 name: "Cameras");
 
             migrationBuilder.DropTable(
+                name: "CenterMeta");
+
+            migrationBuilder.DropTable(
                 name: "ChatMessages");
 
             migrationBuilder.DropTable(
@@ -1708,9 +1606,6 @@ namespace IntellectCRM.Infrastructure.Migrations
 
             migrationBuilder.DropTable(
                 name: "DisciplineReasons");
-
-            migrationBuilder.DropTable(
-                name: "Dishes");
 
             migrationBuilder.DropTable(
                 name: "EvaluationGrades");
@@ -1758,19 +1653,7 @@ namespace IntellectCRM.Infrastructure.Migrations
                 name: "PushMessages");
 
             migrationBuilder.DropTable(
-                name: "QuarterGrades");
-
-            migrationBuilder.DropTable(
-                name: "Quarters");
-
-            migrationBuilder.DropTable(
                 name: "ScheduleLesson");
-
-            migrationBuilder.DropTable(
-                name: "SchoolMeta");
-
-            migrationBuilder.DropTable(
-                name: "SchoolYearArchives");
 
             migrationBuilder.DropTable(
                 name: "Students");
