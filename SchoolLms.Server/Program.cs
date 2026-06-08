@@ -13,6 +13,7 @@ using SchoolLms.Application.Hubs;
 using SchoolLms.Application.Services;
 using SchoolLms.Infrastructure.Auth;
 using SchoolLms.Infrastructure.Data;
+using SchoolLms.Server.Controllers;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -25,17 +26,19 @@ var rootDomains = (builder.Configuration["Tenancy:RootDomain"] ?? "")
     .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
 // ---------- Xizmatlar ----------
+// MySQL 8 (Pomelo). Server versiyasini ANIQ beramiz (AutoDetect ulanish ochadi — design-time
+// `dotnet ef` uchun jonli baza shart bo'lmasligi kerak).
 builder.Services.AddDbContext<AppDbContext>(opt =>
-    opt.UseSqlServer(defaultConn,
-            sql =>
+    opt.UseMySql(defaultConn, new MySqlServerVersion(new Version(8, 0, 36)),
+            my =>
             {
                 // Vaqtinchalik DB uzilishlarini avtomatik qayta urinish bilan chidaydi.
-                sql.EnableRetryOnFailure(
+                my.EnableRetryOnFailure(
                     maxRetryCount: 5,
                     maxRetryDelay: TimeSpan.FromSeconds(10),
                     errorNumbersToAdd: null);
                 // Ko'p kolleksiyali Include'larni alohida so'rovlarga ajratadi — kartezian portlashning oldini oladi.
-                sql.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery);
+                my.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery);
             }));
 
 // Application qatlamidagi xizmatlar konkret AppDbContext o'rniga IAppDbContext'ga
@@ -102,7 +105,7 @@ builder.Services
             {
                 var accessToken = context.Request.Query["access_token"];
                 var path = context.HttpContext.Request.Path;
-                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs/chat"))
+                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
                     context.Token = accessToken;
                 return Task.CompletedTask;
             },
@@ -125,7 +128,17 @@ builder.Services
                 else if (p.IsInRole(Roles.Student))
                     blocked = !await db.Students.AnyAsync(s => s.UserId == userId && !s.IsArchived);
                 else if (p.IsInRole(Roles.Staff) || p.IsInRole(Roles.Admin) || p.IsInRole(Roles.SuperAdmin))
-                    blocked = !await db.Users.AnyAsync(u => u.Id == userId);
+                {
+                    var u = await db.Users.FirstOrDefaultAsync(x => x.Id == userId);
+                    blocked = u is null;
+                    // Xodim (staff) ruxsatlarini HAR so'rovda DB'dan claim sifatida qo'shamiz — tokenga
+                    // yozilmaydi, shuning uchun superadmin ruxsatni o'zgartirsa darrov amal qiladi
+                    // (qayta login shart emas). AdminPerm atributi shu claim'larni tekshiradi.
+                    if (!blocked && p.IsInRole(Roles.Staff) && u!.Permissions is { Count: > 0 } perms
+                        && p.Identity is ClaimsIdentity ident)
+                        foreach (var perm in perms)
+                            ident.AddClaim(new Claim(AdminPermAttribute.ClaimType, perm));
+                }
                 else
                     blocked = false; // parent / boshqa — tegmaymiz
 
@@ -157,6 +170,7 @@ builder.Services.AddScoped<ChatService>();
 
 // Oylik to'lovlarni avtomatik hisoblovchi fon xizmati
 builder.Services.AddHostedService<SchoolLms.Application.Services.TuitionAccrualService>();
+builder.Services.AddHostedService<SchoolLms.Application.Services.TurnstileLiveService>();
 
 // Telegram bot (e'lon yuborish + ota-onalarni kontakt orqali ro'yxatga olish).
 // Token appsettings "Telegram:BotToken" da; bo'sh bo'lsa bot ishga tushmaydi.
@@ -206,164 +220,6 @@ using (var scope = app.Services.CreateScope())
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     db.Database.Migrate();
 
-    // EvaluationGrades.SubjectId — fan bo'yicha baholash uchun. Migratsiyasiz, idempotent qo'shamiz
-    // (WDAC `dotnet ef` ni bloklaydi; ustun mavjud bo'lsa hech narsa qilmaydi).
-    db.Database.ExecuteSqlRaw(
-        "IF COL_LENGTH('EvaluationGrades','SubjectId') IS NULL " +
-        "ALTER TABLE [EvaluationGrades] ADD [SubjectId] nvarchar(max) NOT NULL DEFAULT '';");
-
-    // Sinfni arxivlash — Classes.IsArchived/ArchivedAt + Students.ArchivedWithClass (sinf bilan
-    // arxivlangan o'quvchi belgisi). Migratsiyasiz, idempotent (WDAC `dotnet ef` ni bloklaydi).
-    db.Database.ExecuteSqlRaw(
-        "IF COL_LENGTH('Classes','IsArchived') IS NULL " +
-        "ALTER TABLE [Classes] ADD [IsArchived] bit NOT NULL DEFAULT 0;");
-    db.Database.ExecuteSqlRaw(
-        "IF COL_LENGTH('Classes','ArchivedAt') IS NULL " +
-        "ALTER TABLE [Classes] ADD [ArchivedAt] nvarchar(max) NULL;");
-    db.Database.ExecuteSqlRaw(
-        "IF COL_LENGTH('Students','ArchivedWithClass') IS NULL " +
-        "ALTER TABLE [Students] ADD [ArchivedWithClass] bit NOT NULL DEFAULT 0;");
-
-    // O'qituvchi maoshi — toifa bo'yicha avtomatik hisoblash. Teachers.Category (toifa) +
-    // SchoolMeta'da har toifa uchun bir soat narxi. Migratsiyasiz, idempotent.
-    db.Database.ExecuteSqlRaw(
-        "IF COL_LENGTH('Teachers','Category') IS NULL " +
-        "ALTER TABLE [Teachers] ADD [Category] nvarchar(max) NOT NULL DEFAULT '';");
-    db.Database.ExecuteSqlRaw(
-        "IF COL_LENGTH('Teachers','BonusPct') IS NULL " +
-        "ALTER TABLE [Teachers] ADD [BonusPct] decimal(18,2) NOT NULL DEFAULT 0;");
-    db.Database.ExecuteSqlRaw(
-        "IF COL_LENGTH('Teachers','SalaryStartDate') IS NULL " +
-        "ALTER TABLE [Teachers] ADD [SalaryStartDate] nvarchar(max) NOT NULL DEFAULT '';");
-    foreach (var col in new[] { "SalaryRateOliy", "SalaryRate1", "SalaryRate2", "SalaryRateMutaxasis" })
-        db.Database.ExecuteSqlRaw(
-            $"IF COL_LENGTH('SchoolMeta','{col}') IS NULL " +
-            $"ALTER TABLE [SchoolMeta] ADD [{col}] decimal(18,2) NOT NULL DEFAULT 0;");
-
-    // O'qituvchilar davomati — yangi jadval (migratsiyasiz; shadow TenantId ustuni bilan global filterga
-    // mos). Idempotent: faqat yo'q bo'lsa yaratiladi.
-    db.Database.ExecuteSqlRaw(
-        "IF OBJECT_ID('TeacherAttendances') IS NULL " +
-        "CREATE TABLE [TeacherAttendances] (" +
-        "  [Id] nvarchar(450) NOT NULL CONSTRAINT [PK_TeacherAttendances] PRIMARY KEY," +
-        "  [TeacherId] nvarchar(max) NOT NULL DEFAULT ''," +
-        "  [Date] nvarchar(max) NOT NULL DEFAULT ''," +
-        "  [Status] nvarchar(max) NOT NULL DEFAULT ''," +
-        "  [Note] nvarchar(max) NOT NULL DEFAULT ''," +
-        "  [TenantId] nvarchar(64) NOT NULL DEFAULT '');");
-    db.Database.ExecuteSqlRaw(
-        "IF OBJECT_ID('TeacherAttendances') IS NOT NULL AND NOT EXISTS " +
-        "(SELECT 1 FROM sys.indexes WHERE name='IX_TeacherAttendances_TenantId') " +
-        "CREATE INDEX [IX_TeacherAttendances_TenantId] ON [TeacherAttendances]([TenantId]);");
-
-    // Turniket/FaceID integratsiyasi — o'qituvchilar davomatini avtomatik yuklash. Migratsiyasiz, idempotent.
-    db.Database.ExecuteSqlRaw(
-        "IF COL_LENGTH('Teachers','DeviceUserId') IS NULL " +
-        "ALTER TABLE [Teachers] ADD [DeviceUserId] nvarchar(max) NOT NULL DEFAULT '';");
-    foreach (var c in new[] { "CheckIn", "CheckOut" })
-        db.Database.ExecuteSqlRaw(
-            $"IF COL_LENGTH('TeacherAttendances','{c}') IS NULL " +
-            $"ALTER TABLE [TeacherAttendances] ADD [{c}] nvarchar(max) NOT NULL DEFAULT '';");
-    db.Database.ExecuteSqlRaw(
-        "IF COL_LENGTH('TeacherAttendances','Source') IS NULL " +
-        "ALTER TABLE [TeacherAttendances] ADD [Source] nvarchar(max) NOT NULL DEFAULT 'manual';");
-    foreach (var c in new[] { "TurnstileVendor", "TurnstileHost", "TurnstileUsername", "TurnstilePassword", "WorkStartTime", "TurnstileLastSync" })
-        db.Database.ExecuteSqlRaw(
-            $"IF COL_LENGTH('SchoolMeta','{c}') IS NULL " +
-            $"ALTER TABLE [SchoolMeta] ADD [{c}] nvarchar(max) NOT NULL DEFAULT '';");
-    db.Database.ExecuteSqlRaw(
-        "IF COL_LENGTH('SchoolMeta','TurnstileEnabled') IS NULL " +
-        "ALTER TABLE [SchoolMeta] ADD [TurnstileEnabled] bit NOT NULL DEFAULT 0;");
-    db.Database.ExecuteSqlRaw(
-        "IF COL_LENGTH('SchoolMeta','TurnstilePort') IS NULL " +
-        "ALTER TABLE [SchoolMeta] ADD [TurnstilePort] int NOT NULL DEFAULT 80;");
-    db.Database.ExecuteSqlRaw(
-        "IF COL_LENGTH('SchoolMeta','LateGraceMinutes') IS NULL " +
-        "ALTER TABLE [SchoolMeta] ADD [LateGraceMinutes] int NOT NULL DEFAULT 10;");
-    db.Database.ExecuteSqlRaw(
-        "IF OBJECT_ID('TurnstileEvents') IS NULL " +
-        "CREATE TABLE [TurnstileEvents] (" +
-        "  [Id] nvarchar(450) NOT NULL CONSTRAINT [PK_TurnstileEvents] PRIMARY KEY," +
-        "  [TeacherId] nvarchar(max) NOT NULL DEFAULT ''," +
-        "  [DeviceUserId] nvarchar(max) NOT NULL DEFAULT ''," +
-        "  [EventAt] nvarchar(max) NOT NULL DEFAULT ''," +
-        "  [Direction] nvarchar(max) NOT NULL DEFAULT 'in'," +
-        "  [DeviceName] nvarchar(max) NOT NULL DEFAULT ''," +
-        "  [CreatedAt] nvarchar(max) NOT NULL DEFAULT ''," +
-        "  [TenantId] nvarchar(64) NOT NULL DEFAULT '');");
-    db.Database.ExecuteSqlRaw(
-        "IF OBJECT_ID('TurnstileEvents') IS NOT NULL AND NOT EXISTS " +
-        "(SELECT 1 FROM sys.indexes WHERE name='IX_TurnstileEvents_TenantId') " +
-        "CREATE INDEX [IX_TurnstileEvents_TenantId] ON [TurnstileEvents]([TenantId]);");
-
-    // GPS — maktab avtobuslarini kuzatish. Migratsiyasiz, idempotent.
-    foreach (var c in new[] { "GpsIngestToken" })
-        db.Database.ExecuteSqlRaw(
-            $"IF COL_LENGTH('SchoolMeta','{c}') IS NULL " +
-            $"ALTER TABLE [SchoolMeta] ADD [{c}] nvarchar(max) NOT NULL DEFAULT '';");
-    db.Database.ExecuteSqlRaw(
-        "IF COL_LENGTH('SchoolMeta','GpsEnabled') IS NULL " +
-        "ALTER TABLE [SchoolMeta] ADD [GpsEnabled] bit NOT NULL DEFAULT 0;");
-    foreach (var (c, def) in new[] { ("GpsOnlineMinutes", 5), ("GpsStopRadiusM", 60), ("GpsStopMinMinutes", 3) })
-        db.Database.ExecuteSqlRaw(
-            $"IF COL_LENGTH('SchoolMeta','{c}') IS NULL " +
-            $"ALTER TABLE [SchoolMeta] ADD [{c}] int NOT NULL DEFAULT {def};");
-    db.Database.ExecuteSqlRaw(
-        "IF OBJECT_ID('Buses') IS NULL " +
-        "CREATE TABLE [Buses] (" +
-        "  [Id] nvarchar(450) NOT NULL CONSTRAINT [PK_Buses] PRIMARY KEY," +
-        "  [Name] nvarchar(max) NOT NULL DEFAULT ''," +
-        "  [PlateNumber] nvarchar(max) NOT NULL DEFAULT ''," +
-        "  [DriverName] nvarchar(max) NOT NULL DEFAULT ''," +
-        "  [DriverPhone] nvarchar(max) NOT NULL DEFAULT ''," +
-        "  [DeviceId] nvarchar(max) NOT NULL DEFAULT ''," +
-        "  [Route] nvarchar(max) NOT NULL DEFAULT ''," +
-        "  [IsActive] bit NOT NULL DEFAULT 1," +
-        "  [Note] nvarchar(max) NOT NULL DEFAULT ''," +
-        "  [TenantId] nvarchar(64) NOT NULL DEFAULT '');");
-    db.Database.ExecuteSqlRaw(
-        "IF OBJECT_ID('Buses') IS NOT NULL AND NOT EXISTS " +
-        "(SELECT 1 FROM sys.indexes WHERE name='IX_Buses_TenantId') " +
-        "CREATE INDEX [IX_Buses_TenantId] ON [Buses]([TenantId]);");
-    db.Database.ExecuteSqlRaw(
-        "IF OBJECT_ID('BusLocations') IS NULL " +
-        "CREATE TABLE [BusLocations] (" +
-        "  [Id] nvarchar(450) NOT NULL CONSTRAINT [PK_BusLocations] PRIMARY KEY," +
-        "  [BusId] nvarchar(max) NOT NULL DEFAULT ''," +
-        "  [Latitude] float NOT NULL DEFAULT 0," +
-        "  [Longitude] float NOT NULL DEFAULT 0," +
-        "  [Speed] float NOT NULL DEFAULT 0," +
-        "  [RecordedAt] nvarchar(max) NOT NULL DEFAULT ''," +
-        "  [CreatedAt] nvarchar(max) NOT NULL DEFAULT ''," +
-        "  [TenantId] nvarchar(64) NOT NULL DEFAULT '');");
-    db.Database.ExecuteSqlRaw(
-        "IF OBJECT_ID('BusLocations') IS NOT NULL AND NOT EXISTS " +
-        "(SELECT 1 FROM sys.indexes WHERE name='IX_BusLocations_TenantId') " +
-        "CREATE INDEX [IX_BusLocations_TenantId] ON [BusLocations]([TenantId]);");
-
-    // Kamera (videokuzatuv) — media-shlyuz (MediaMTX) orqali. Migratsiyasiz, idempotent.
-    db.Database.ExecuteSqlRaw(
-        "IF COL_LENGTH('SchoolMeta','CameraEnabled') IS NULL " +
-        "ALTER TABLE [SchoolMeta] ADD [CameraEnabled] bit NOT NULL DEFAULT 0;");
-    db.Database.ExecuteSqlRaw(
-        "IF OBJECT_ID('Cameras') IS NULL " +
-        "CREATE TABLE [Cameras] (" +
-        "  [Id] nvarchar(450) NOT NULL CONSTRAINT [PK_Cameras] PRIMARY KEY," +
-        "  [Name] nvarchar(max) NOT NULL DEFAULT ''," +
-        "  [Location] nvarchar(max) NOT NULL DEFAULT ''," +
-        "  [RtspUrl] nvarchar(max) NOT NULL DEFAULT ''," +
-        "  [RtspSubUrl] nvarchar(max) NOT NULL DEFAULT ''," +
-        "  [IsActive] bit NOT NULL DEFAULT 1," +
-        "  [Note] nvarchar(max) NOT NULL DEFAULT ''," +
-        "  [TenantId] nvarchar(64) NOT NULL DEFAULT '');");
-    db.Database.ExecuteSqlRaw(
-        "IF OBJECT_ID('Cameras') IS NOT NULL AND NOT EXISTS " +
-        "(SELECT 1 FROM sys.indexes WHERE name='IX_Cameras_TenantId') " +
-        "CREATE INDEX [IX_Cameras_TenantId] ON [Cameras]([TenantId]);");
-    db.Database.ExecuteSqlRaw(
-        "IF COL_LENGTH('Cameras','RetentionDays') IS NULL " +
-        "ALTER TABLE [Cameras] ADD [RetentionDays] int NOT NULL DEFAULT 7;");
-
     // Telegram bot tokeni — restartdan keyin bot avtomatik ishga tushadi; token yo'q bo'lsa
     // admin Sozlamadan kiritguncha kutadi.
     scope.ServiceProvider.GetRequiredService<TelegramService>().Load(db);
@@ -406,8 +262,11 @@ app.Use(async (context, next) =>
             "default-src 'self'; " +
             "img-src 'self' data: blob: https:; " +
             "style-src 'self' 'unsafe-inline'; " +
-            "script-src 'self'; " +
-            "connect-src 'self' ws: wss:; " +
+            // gstatic — FCM web SW (firebase-messaging-sw.js) importScripts qiladi.
+            "script-src 'self' https://www.gstatic.com; " +
+            "worker-src 'self'; " +
+            // googleapis/gstatic — FCM web token olish (getToken) so'rovlari.
+            "connect-src 'self' ws: wss: https://*.googleapis.com https://*.gstatic.com https://fcm.googleapis.com; " +
             "font-src 'self' data:; " +
             "frame-ancestors 'none'; object-src 'none'; base-uri 'self'";
     }
@@ -429,7 +288,7 @@ app.UseStaticFiles(new StaticFileOptions
         // Faqat Vite kontent-hashli assetlar (/assets/...) abadiy keshlanadi (nomi har build'da
         // o'zgaradi). Qolganlari — html, landing.css/landing.js, favicon (nomi o'zgarmaydi) —
         // no-cache, aks holda yangilanishlar brauzer/Cloudflare keshida ko'rinmay qoladi.
-        if (path.StartsWith("/assets/", StringComparison.OrdinalIgnoreCase))
+        if (path.Contains("/assets/", StringComparison.OrdinalIgnoreCase))
             headers.CacheControl = "public,max-age=31536000,immutable";
         else
             headers.CacheControl = "no-cache";
@@ -460,6 +319,7 @@ app.UseOutputCache();
 
 app.MapControllers();
 app.MapHub<ChatHub>("/hubs/chat");
+app.MapHub<LiveHub>("/hubs/live");
 
 // API "tirikligi": https://<domen>/api ochilganda SPA HTML emas, JSON qaytaradi.
 app.MapGet("/api", () => Results.Ok(new
@@ -485,8 +345,32 @@ bool IsLandingHost(string h) => rootDomains.Any(r =>
     h.Equals(r, StringComparison.OrdinalIgnoreCase) ||
     h.Equals("www." + r, StringComparison.OrdinalIgnoreCase));
 
+// DIQQAT: o'qituvchi PWA (`/teacher/`) statik fayllari (assets, manifest, sw.js, ikonlar)
+// yuqoridagi UseStaticFiles orqali beriladi. Ularni ALOHIDA pattern'li fallback bilan tutmaymiz —
+// pattern'li `MapFallback("/teacher/{**slug}")` `nonfile` cheklovisiz bo'lib, real fayllarni ham
+// tutib statik middleware'ni soyalaydi. Buning o'rniga `/teacher/` ni quyidagi GENERIC fallback
+// ichida (u `nonfile` cheklovli — fayllarga tegmaydi) hal qilamiz.
 app.MapFallback(async ctx =>
 {
+    var path = ctx.Request.Path.Value ?? "";
+
+    // O'qituvchi PWA: `/teacher` → trailing-slash'ga (relative manifest/icon to'g'ri yechilishi uchun);
+    // `/teacher/` va ichki nonfile yo'llar → teacher index.html.
+    if (path.Equals("/teacher", StringComparison.OrdinalIgnoreCase))
+    {
+        ctx.Response.Redirect("/teacher/", permanent: false);
+        return;
+    }
+    if (path.StartsWith("/teacher/", StringComparison.OrdinalIgnoreCase))
+    {
+        var teacherIndex = Path.Combine(webRoot, "teacher", "index.html");
+        if (!File.Exists(teacherIndex)) { ctx.Response.StatusCode = StatusCodes.Status404NotFound; return; }
+        ctx.Response.ContentType = "text/html; charset=utf-8";
+        ctx.Response.Headers.CacheControl = "no-cache";
+        await ctx.Response.SendFileAsync(teacherIndex);
+        return;
+    }
+
     var host = ctx.Request.Host.Host;
     var isApp = appHost.Length > 0
         ? host.Equals(appHost, StringComparison.OrdinalIgnoreCase)

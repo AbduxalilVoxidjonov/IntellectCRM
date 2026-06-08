@@ -61,12 +61,49 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
 
     // LMS (Ta'lim)
     public DbSet<LmsSubject> LmsSubjects => Set<LmsSubject>();
+    public DbSet<LmsModule> LmsModules => Set<LmsModule>();
     public DbSet<LmsTopic> LmsTopics => Set<LmsTopic>();
     public DbSet<LmsMaterial> LmsMaterials => Set<LmsMaterial>();
     public DbSet<LmsProgress> LmsProgresses => Set<LmsProgress>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
+        // MySQL: butun baza utf8mb4 (o'zbek/kirill matn) + barqaror taqqoslash.
+        b.HasCharSet("utf8mb4");
+        b.UseCollation("utf8mb4_unicode_ci");
+
+        // MySQL: indeksda qatnashadigan string ustunlar default `longtext` bo'lib indekslanmaydi —
+        // ularga aniq maksimal uzunlik beramiz (varchar). PK/UserSettings.UserId — Pomelo o'zi
+        // varchar(255) qiladi. Qolgan matn maydonlari longtext bo'lib qoladi (kesilmaydi).
+        b.Entity<AppUser>().Property(u => u.Email).HasMaxLength(256);
+        foreach (var (type, prop) in new (Type, string)[]
+        {
+            (typeof(JournalEntry), "ClassId"), (typeof(JournalEntry), "SubjectId"),
+            (typeof(QuarterGrade), "ClassId"), (typeof(QuarterGrade), "SubjectId"), (typeof(QuarterGrade), "StudentId"),
+            (typeof(LessonNote), "ClassId"), (typeof(LessonNote), "SubjectId"),
+            (typeof(WeekAssignment), "ClassId"),
+            (typeof(Dish), "Date"),
+            (typeof(ScheduleTemplate), "ClassId"),
+            (typeof(FinanceTransaction), "Date"),
+            (typeof(MonthlyCharge), "StudentId"), (typeof(MonthlyCharge), "Month"),
+            (typeof(AuditLog), "EntityType"), (typeof(AuditLog), "EntityId"), (typeof(AuditLog), "Timestamp"),
+            (typeof(AuditLog), "StudentId"), (typeof(AuditLog), "TeacherId"),
+            (typeof(ChatMessage), "ClassName"),
+            (typeof(Broadcast), "ClassName"),
+            (typeof(TelegramRegistration), "StudentId"),
+            (typeof(Assignment), "ClassId"), (typeof(Assignment), "SubjectId"), (typeof(Assignment), "CreatedByUserId"),
+            (typeof(AssignmentSubmission), "AssignmentId"), (typeof(AssignmentSubmission), "StudentId"),
+            (typeof(DeviceToken), "Token"), (typeof(DeviceToken), "UserId"),
+            (typeof(ContractTemplate), "Target"),
+            (typeof(Contract), "Target"), (typeof(Contract), "RecipientKey"),
+            (typeof(Feedback), "Status"),
+            (typeof(LmsSubject), "ClassId"),
+            (typeof(LmsProgress), "StudentId"), (typeof(LmsProgress), "TopicId"),
+            (typeof(LmsModule), "SubjectId"),
+            (typeof(LmsTopic), "ModuleId"),
+        })
+            b.Entity(type).Property(prop).HasMaxLength(200);
+
         // Login (Email) unikal — DB darajasidagi unique indeks TOCTOU poyga holatida ham dublikatni
         // bloklaydi (parallel ro'yxatdan o'tish login'ni buzmasin).
         b.Entity<AppUser>().HasIndex(u => u.Email).IsUnique();
@@ -134,8 +171,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         // LMS (Ta'lim)
         b.Entity<LmsSubject>().HasIndex(s => s.ClassId);
         b.Entity<LmsSubject>()
-            .HasMany(s => s.Topics).WithOne(t => t.Subject)
-            .HasForeignKey(t => t.SubjectId).OnDelete(DeleteBehavior.Cascade);
+            .HasMany(s => s.Modules).WithOne(m => m.Subject)
+            .HasForeignKey(m => m.SubjectId).OnDelete(DeleteBehavior.Cascade);
+        b.Entity<LmsModule>()
+            .HasMany(m => m.Topics).WithOne(t => t.Module)
+            .HasForeignKey(t => t.ModuleId).OnDelete(DeleteBehavior.Cascade);
         b.Entity<LmsTopic>()
             .HasMany(t => t.Materials).WithOne(m => m.Topic)
             .HasForeignKey(m => m.TopicId).OnDelete(DeleteBehavior.Cascade);
@@ -146,7 +186,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
             .HasIndex(p => new { p.StudentId, p.TopicId }).IsUnique();
         b.Entity<LmsProgress>()
             .HasIndex(p => p.StudentId);
+        b.Entity<LmsModule>()
+            .HasIndex(m => new { m.SubjectId, m.Order });
         b.Entity<LmsTopic>()
-            .HasIndex(t => new { t.SubjectId, t.Order });
+            .HasIndex(t => new { t.ModuleId, t.Order });
     }
 }
