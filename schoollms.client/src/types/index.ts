@@ -155,28 +155,6 @@ export interface Student {
   discountAmount: number
   /** Chegirma izohi/sababi (masalan "Aka-uka chegirmasi"). */
   discountNote: string
-  /**
-   * Sinf ichidagi guruh: 0 = guruhsiz (yoki butun sinfga), 1 = 1-guruh, 2 = 2-guruh.
-   * Bo'lingan darslarda (ScheduleLesson.subGroup != 0) faqat shu guruhdagi o'quvchi qatnashadi.
-   * Faqat o'quv yili boshida (jurnal yozuvi yo'q paytda) o'zgartirilishi mumkin.
-   * Belgilanmagan = 0.
-   */
-  subGroup?: number
-}
-
-/** Sinfdagi guruh tayinlash (admin "Guruhlar" oynasi uchun) */
-export interface ClassGroups {
-  classId: string
-  className: string
-  /** O'quv yili boshlangan (jurnalda yozuv bor) — oddiy admin o'zgartira olmaydi */
-  locked: boolean
-  lockReason: string | null
-  /** Joriy foydalanuvchi tahrirlay oladimi: !locked YOKI superadmin */
-  canEdit: boolean
-  ungroupedCount: number
-  group1Count: number
-  group2Count: number
-  students: { id: string; fullName: string; subGroup: number }[]
 }
 
 /* ---------- Fanlar ---------- */
@@ -218,8 +196,6 @@ export interface ScheduleLesson {
   subjectId: string
   /** O'qituvchi id'si (bo'sh bo'lishi mumkin) */
   teacherId: string
-  /** Bo'linish: 0 = butun sinf (default), 1 = 1-guruh, 2 = 2-guruh. Belgilanmagan = 0. */
-  subGroup?: number
 }
 
 /** Sinf uchun nomli dars jadvali varianti */
@@ -238,33 +214,13 @@ export interface WeekAssignment {
   templateId: string | null
 }
 
-/* ---------- Oshxona ---------- */
-
-export type MealType = 'breakfast' | 'lunch' | 'dinner'
-
-export interface Dish {
-  id: string
-  name: string
-  /** Tarkibi */
-  ingredients: string
-  /** Rasm (data URL yoki yuklangan manzil) */
-  imageUrl?: string
-}
-
-export interface DayMenu {
-  date: string
-  meals: Record<MealType, Dish[]>
-}
-
 /* ---------- Jurnal ---------- */
 
-/** Jurnal ustuni: bitta dars (sana + dars raqami + guruh). Bo'lingan darsda har guruh o'z ustunini oladi. */
+/** Jurnal ustuni: bitta dars (sana + dars raqami). */
 export interface JournalColumn {
   date: string
   /** Dars raqami (1-10) */
   period: number
-  /** Bo'linish: 0 = butun sinf, 1 = 1-guruh, 2 = 2-guruh. Belgilanmagan = 0. */
-  subGroup?: number
 }
 
 export interface JournalEntry {
@@ -285,7 +241,7 @@ export interface JournalEntry {
   mastery?: number | null
 }
 
-/** Dars ma'lumoti (sana + dars raqami + guruh bo'yicha): mavzu, uyga vazifa, o'tildi */
+/** Dars ma'lumoti (sana + dars raqami bo'yicha): mavzu, uyga vazifa, o'tildi */
 export interface JournalTopic {
   date: string
   period: number
@@ -293,17 +249,6 @@ export interface JournalTopic {
   homework?: string
   /** Dars o'tildimi (ptichka) */
   conducted: boolean
-  /** Bo'linish: 0 = butun sinf, 1 = 1-guruh, 2 = 2-guruh. Belgilanmagan = 0. */
-  subGroup?: number
-}
-
-/** O'quvchining fan+chorak bo'yicha chorak bahosi va tavsiyasi */
-export interface QuarterGradeRow {
-  studentId: string
-  /** O'qituvchi qo'ygan rasmiy chorak bahosi (yo'q bo'lsa undefined) */
-  grade?: number
-  /** Kunlik baholar o'rtachasidan tavsiya etilgan baho (yo'q bo'lsa undefined) */
-  recommended?: number
 }
 
 /* ---------- Sozlamalar ---------- */
@@ -523,7 +468,6 @@ export interface TeacherReportRow {
 export interface TeacherReportBreakdown {
   className: string
   subjectName: string
-  subGroup: number
   expected: number
   conducted: number
   donePct: number | null
@@ -1073,8 +1017,6 @@ export interface TeacherLesson {
   className: string
   subjectId: string
   subjectName: string
-  /** Bo'linish: 0 = butun sinf, 1 = 1-guruh, 2 = 2-guruh. Belgilanmagan = 0. */
-  subGroup?: number
 }
 
 /* ─── LMS (Ta'lim) ─────────────────────────────────────────── */

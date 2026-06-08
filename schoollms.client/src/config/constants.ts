@@ -1,4 +1,4 @@
-import type { ClassLanguage, FinanceDirection, Gender, MealType, MonthStatus } from '@/types'
+import type { ClassLanguage, FinanceDirection, Gender, MonthStatus } from '@/types'
 
 export const genderLabels: Record<Gender, string> = {
   male: 'Erkak',
@@ -85,7 +85,6 @@ export const adminPermissions: { key: string; label: string }[] = [
   { key: 'teacherReports', label: "O'qituvchilar hisoboti" },
   { key: 'contracts', label: 'Shartnomalar' },
   { key: 'finance', label: 'Moliya' },
-  { key: 'academicYear', label: "Yangi o'quv yili" },
   { key: 'settings', label: 'Sozlamalar' },
   { key: 'staff', label: 'Xodimlar' },
   { key: 'feedback', label: 'Taklif va shikoyatlar' },
@@ -93,15 +92,6 @@ export const adminPermissions: { key: string; label: string }[] = [
   { key: 'cameras', label: 'Kameralar' },
   { key: 'discipline', label: 'Intizomiy ball' },
 ]
-
-/** Oshxona — kunlik 3 mahal */
-export const mealOrder: MealType[] = ['breakfast', 'lunch', 'dinner']
-
-export const mealLabels: Record<MealType, string> = {
-  breakfast: 'Nonushta',
-  lunch: 'Tushlik',
-  dinner: 'Kechki ovqat',
-}
 
 /* ---------- Moliya ---------- */
 

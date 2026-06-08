@@ -159,37 +159,6 @@ public class StudentPortalController(
         return NoContent();
     }
 
-    // ---------- Oshxona (kunlik menyu — butun maktab, faqat ko'rish) ----------
-
-    /// <summary>Bitta kun oshxona menyusi (nonushta/tushlik/kechki).</summary>
-    [HttpGet("canteen/{date}")]
-    public async Task<ActionResult<DayMenuDto>> CanteenDay(string date)
-    {
-        var dishes = await db.Dishes.Where(d => d.Date == date).ToListAsync();
-        return CanteenMenu.BuildDay(date, dishes);
-    }
-
-    /// <summary>Sana oralig'i bo'yicha kunlik menyular (start..end, ISO sanalar).</summary>
-    [HttpGet("canteen")]
-    public async Task<ActionResult<IEnumerable<DayMenuDto>>> CanteenRange(
-        [FromQuery] string start, [FromQuery] string end)
-    {
-        if (string.IsNullOrWhiteSpace(start) || string.IsNullOrWhiteSpace(end))
-            return BadRequest(new { message = "start va end kerak" });
-        var dishes = await db.Dishes
-            .Where(d => string.Compare(d.Date, start) >= 0 && string.Compare(d.Date, end) <= 0)
-            .ToListAsync();
-        var result = new List<DayMenuDto>();
-        var cur = start;
-        // Cheksiz oraliqdan himoya — eng ko'pi 120 kun.
-        for (var i = 0; string.CompareOrdinal(cur, end) <= 0 && i < 120; i++)
-        {
-            result.Add(CanteenMenu.BuildDay(cur, dishes.Where(d => d.Date == cur)));
-            cur = ScheduleMath.AddDaysISO(cur, 1);
-        }
-        return result;
-    }
-
     [HttpGet("me")]
     public async Task<ActionResult<StudentProfileDto>> Profile([FromQuery] string? studentId)
     {

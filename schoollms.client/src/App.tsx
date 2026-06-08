@@ -30,7 +30,6 @@ import { ContractsPage } from '@/pages/admin/contracts/ContractsPage'
 import { BranchesPage } from '@/pages/admin/branches/BranchesPage'
 import { StaffPage } from '@/pages/admin/staff/StaffPage'
 import { FeedbackPage } from '@/pages/admin/feedback/FeedbackPage'
-import { AcademicYearPage } from '@/pages/admin/academic-year/AcademicYearPage'
 import { SubjectsPage } from '@/pages/admin/subjects/SubjectsPage'
 import { JournalPage } from '@/pages/admin/journal/JournalPage'
 import { MessagesPage } from '@/pages/admin/messages/MessagesPage'
@@ -46,7 +45,6 @@ import { GpsPage } from '@/pages/admin/gps/GpsPage'
 import { CamerasPage } from '@/pages/admin/cameras/CamerasPage'
 import { ParentsPage } from '@/pages/admin/parents/ParentsPage'
 import { TeacherAppPage } from '@/pages/admin/parents/TeacherAppPage'
-import { CanteenPage } from '@/pages/admin/canteen/CanteenPage'
 import { FinancePage } from '@/pages/admin/finance/FinancePage'
 import { SettingsPage } from '@/pages/admin/settings/SettingsPage'
 import { AccountPage } from '@/pages/admin/account/AccountPage'
@@ -101,9 +99,7 @@ export default function App() {
           <Route path="locations" element={<RequirePerm perm="app"><LocationPage /></RequirePerm>} />
           <Route path="parents" element={<RequirePerm perm="app"><ParentsPage /></RequirePerm>} />
           <Route path="app/teachers" element={<RequirePerm perm="app"><TeacherAppPage /></RequirePerm>} />
-          <Route path="canteen" element={<RequirePerm perm="app"><CanteenPage /></RequirePerm>} />
           <Route path="finance" element={<RequirePerm perm="finance"><FinancePage /></RequirePerm>} />
-          <Route path="academic-year" element={<RequirePerm perm="academicYear"><AcademicYearPage /></RequirePerm>} />
           <Route path="settings" element={<Navigate to="/admin/settings/school" replace />} />
           <Route path="settings/:section" element={<RequirePerm perm="settings"><SettingsPage /></RequirePerm>} />
           <Route path="account" element={<AccountPage />} />

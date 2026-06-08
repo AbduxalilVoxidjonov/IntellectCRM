@@ -248,18 +248,6 @@ public class LeadStage
     public int Order { get; set; }
 }
 
-/// <summary>Oshxona taomi — muayyan sana va ovqat turiga biriktirilgan.</summary>
-public class Dish
-{
-    public string Id { get; set; } = Guid.NewGuid().ToString();
-    public string Date { get; set; } = string.Empty;
-    /// <summary>breakfast | lunch | dinner</summary>
-    public string Meal { get; set; } = "breakfast";
-    public string Name { get; set; } = string.Empty;
-    public string Ingredients { get; set; } = string.Empty;
-    public string? ImageUrl { get; set; }
-}
-
 /// <summary>Jurnal katagi — baho yoki davomat sababi.</summary>
 public class JournalEntry
 {
@@ -688,22 +676,6 @@ public class SchoolMeta
     // ---------- Kamera (videokuzatuv) integratsiyasi ----------
     /// <summary>Kamera kuzatuvi yoqilganmi.</summary>
     public bool CameraEnabled { get; set; }
-}
-
-/// <summary>Yangi o'quv yiliga o'tishda saqlangan eski o'quv yili arxivi (to'liq snapshot).</summary>
-public class SchoolYearArchive
-{
-    public string Id { get; set; } = Guid.NewGuid().ToString();
-    /// <summary>Arxivlangan o'quv yili ("2025/2026").</summary>
-    public string Year { get; set; } = string.Empty;
-    /// <summary>Arxivlangan vaqt (ISO "yyyy-MM-ddTHH:mm:ss").</summary>
-    public string CreatedAt { get; set; } = string.Empty;
-    public int StudentsCount { get; set; }
-    public int ClassesCount { get; set; }
-    public int JournalCount { get; set; }
-    public int FinanceCount { get; set; }
-    /// <summary>To'liq ma'lumot snapshot (JSON).</summary>
-    public string Data { get; set; } = string.Empty;
 }
 
 /// <summary>

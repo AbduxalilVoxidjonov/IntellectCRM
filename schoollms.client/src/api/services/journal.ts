@@ -1,4 +1,4 @@
-import type { JournalColumn, JournalEntry, JournalTopic, QuarterGradeRow } from '@/types'
+import type { JournalColumn, JournalEntry, JournalTopic } from '@/types'
 import { delay } from '@/lib/utils'
 import { getQuarterWeeks, addDaysISO, mondayOfISO } from '@/lib/weeks'
 import { api, USE_MOCK } from '../client'
@@ -11,7 +11,7 @@ import { journalTopicsMock } from '../mock/journalTopics'
 const gkey = (classId: string, subjectId: string, quarter: number) =>
   `${classId}-${subjectId}-${quarter}`
 
-/** Fanning chorakdagi darslari (sana + dars raqami + guruh) — raspisaniyadan hisoblanadi */
+/** Fanning chorakdagi darslari (sana + dars raqami) — raspisaniyadan hisoblanadi */
 function computeColumns(classId: string, subjectId: string, quarter: number): JournalColumn[] {
   const q = settingsMock.quarters.find((x) => x.quarter === quarter)
   if (!q) return []
@@ -30,34 +30,31 @@ function computeColumns(classId: string, subjectId: string, quarter: number): Jo
       .forEach((l) => {
         const d = addDaysISO(mondayOfISO(w.startISO), l.day)
         if (d >= q.startDate && d <= q.endDate)
-          cols.push({ date: d, period: l.period, subGroup: l.subGroup ?? 0 })
+          cols.push({ date: d, period: l.period })
       })
   })
   const seen = new Set<string>()
   return cols
     .filter((c) => {
-      const k = `${c.date}|${c.period}|${c.subGroup}`
+      const k = `${c.date}|${c.period}`
       if (seen.has(k)) return false
       seen.add(k)
       return true
     })
     .sort((a, b) =>
       a.date === b.date
-        ? a.period === b.period
-          ? (a.subGroup ?? 0) - (b.subGroup ?? 0)
-          : a.period - b.period
+        ? a.period - b.period
         : a.date < b.date
           ? -1
           : 1,
     )
 }
 
-/** Berilgan sanada o'tilgan darslar (sinf+fan+dars raqami+guruh) — bosh sahifada yashil/qizil ko'rsatish uchun */
+/** Berilgan sanada o'tilgan darslar (sinf+fan+dars raqami) — bosh sahifada yashil/qizil ko'rsatish uchun */
 export interface ConductedLesson {
   classId: string
   subjectId: string
   period: number
-  subGroup: number
 }
 
 export async function getConductedLessons(date: string): Promise<ConductedLesson[]> {
@@ -193,21 +190,18 @@ export async function setLessonNote(
   topic: string,
   homework: string,
   conducted: boolean,
-  subGroup = 0,
 ): Promise<void> {
   if (USE_MOCK) {
     await delay(100)
     const k = gkey(classId, subjectId, quarter)
     const arr = (journalTopicsMock[k] ??= [])
-    const i = arr.findIndex(
-      (t) => t.date === date && t.period === period && (t.subGroup ?? 0) === subGroup,
-    )
+    const i = arr.findIndex((t) => t.date === date && t.period === period)
     if (topic.trim() === '' && homework.trim() === '' && !conducted) {
       if (i >= 0) arr.splice(i, 1)
     } else if (i >= 0) {
-      arr[i] = { date, period, topic, homework, conducted, subGroup }
+      arr[i] = { date, period, topic, homework, conducted }
     } else {
-      arr.push({ date, period, topic, homework, conducted, subGroup })
+      arr.push({ date, period, topic, homework, conducted })
     }
     return
   }
@@ -220,62 +214,7 @@ export async function setLessonNote(
     topic,
     homework,
     conducted,
-    subGroup,
   })
-}
-
-/* ---------- Chorak (yakuniy) bahosi ---------- */
-
-const quarterGradesMock: Record<string, Record<string, number>> = {} // gkey -> studentId -> baho
-
-/** Fan+chorak bo'yicha o'quvchilarning chorak bahosi (explicit) va tavsiyasi (kunlik o'rtacha) */
-export async function getQuarterGrades(
-  classId: string,
-  subjectId: string,
-  quarter: number,
-): Promise<QuarterGradeRow[]> {
-  if (USE_MOCK) {
-    await delay()
-    const k = gkey(classId, subjectId, quarter)
-    const explicit = quarterGradesMock[k] ?? {}
-    const byStudent = new Map<string, number[]>()
-    ;(journalMock[k] ?? []).forEach((e) => {
-      if (e.grade == null) return
-      const arr = byStudent.get(e.studentId) ?? []
-      arr.push(e.grade)
-      byStudent.set(e.studentId, arr)
-    })
-    const ids = new Set<string>([...Object.keys(explicit), ...byStudent.keys()])
-    return [...ids].map((studentId) => {
-      const ds = byStudent.get(studentId)
-      const recommended =
-        ds && ds.length ? Math.round((ds.reduce((a, b) => a + b, 0) / ds.length) * 100) / 100 : undefined
-      return { studentId, grade: explicit[studentId], recommended }
-    })
-  }
-  const { data } = await api.get<QuarterGradeRow[]>('/admin/journal/quarter-grades', {
-    params: { classId, subjectId, quarter },
-  })
-  return data
-}
-
-/** Chorak bahosini belgilash; grade=null bo'lsa — mavjud baho o'chiriladi */
-export async function setQuarterGrade(
-  classId: string,
-  subjectId: string,
-  quarter: number,
-  studentId: string,
-  grade: number | null,
-): Promise<void> {
-  if (USE_MOCK) {
-    await delay(100)
-    const k = gkey(classId, subjectId, quarter)
-    const store = (quarterGradesMock[k] ??= {})
-    if (grade == null) delete store[studentId]
-    else store[studentId] = grade
-    return
-  }
-  await api.put('/admin/journal/quarter-grades', { classId, subjectId, quarter, studentId, grade })
 }
 
 /* ---------- Mavzularni Excel'dan ommaviy yuklash ---------- */

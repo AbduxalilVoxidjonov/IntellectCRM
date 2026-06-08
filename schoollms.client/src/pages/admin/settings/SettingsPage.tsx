@@ -1,14 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { Check, Plus, Trash2 } from 'lucide-react'
-import type { AbsenceReason, LessonTime, QuarterPeriod } from '@/types'
+import type { AbsenceReason, LessonTime } from '@/types'
 import {
   getSettings,
-  saveQuarters,
   saveLessonTimes,
   saveAbsenceReasons,
 } from '@/api/services/settings'
-import { uid, cn } from '@/lib/utils'
+import { uid } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Loader } from '@/components/ui/Loader'
@@ -26,7 +25,6 @@ const control =
   'rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-brand-400'
 
 const sectionTitles: Record<string, string> = {
-  quarters: 'Choraklar sanalari',
   'lesson-times': 'Dars vaqtlari',
   reasons: 'Davomat sabablari',
   school: "Maktab ma'lumotlari",

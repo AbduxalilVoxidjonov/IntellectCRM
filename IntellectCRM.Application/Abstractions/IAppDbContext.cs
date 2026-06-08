@@ -24,7 +24,6 @@ public interface IAppDbContext
     DbSet<SchoolClass> Classes { get; }
     DbSet<Lead> Leads { get; }
     DbSet<LeadStage> LeadStages { get; }
-    DbSet<Dish> Dishes { get; }
     DbSet<JournalEntry> JournalEntries { get; }
     DbSet<QuarterGrade> QuarterGrades { get; }
     DbSet<LessonNote> LessonNotes { get; }
@@ -42,7 +41,6 @@ public interface IAppDbContext
     DbSet<MonthlyCharge> MonthlyCharges { get; }
     DbSet<AuditLog> AuditLogs { get; }
     DbSet<SchoolMeta> SchoolMeta { get; }
-    DbSet<SchoolYearArchive> SchoolYearArchives { get; }
     DbSet<ChatMessage> ChatMessages { get; }
     DbSet<Broadcast> Broadcasts { get; }
     DbSet<PushMessage> PushMessages { get; }

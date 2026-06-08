@@ -1,4 +1,4 @@
-import type { AbsenceReason, LessonTime, QuarterPeriod, SchoolSettings } from '@/types'
+import type { AbsenceReason, LessonTime, SchoolSettings } from '@/types'
 import { delay } from '@/lib/utils'
 import { api, USE_MOCK } from '../client'
 import { settingsMock } from '../mock/settings'
@@ -10,14 +10,6 @@ export async function getSettings(): Promise<SchoolSettings> {
   }
   const { data } = await api.get<SchoolSettings>('/admin/settings')
   return data
-}
-
-export async function saveQuarters(quarters: QuarterPeriod[]): Promise<void> {
-  if (USE_MOCK) {
-    await delay(250)
-    return
-  }
-  await api.put('/admin/settings/quarters', { quarters })
 }
 
 export async function saveLessonTimes(lessonTimes: LessonTime[]): Promise<void> {

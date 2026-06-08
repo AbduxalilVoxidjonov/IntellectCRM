@@ -190,11 +190,6 @@ public record LeadStageRequest(string Stage);
 public record StagePayload(string Title, string Color);
 public record ReorderRequest(List<string> Ids);
 
-/* ---------- Canteen ---------- */
-public record DishPayload(string Name, string Ingredients, string? ImageUrl);
-public record DishDto(string Id, string Name, string Ingredients, string? ImageUrl);
-public record DayMenuDto(string Date, Dictionary<string, List<DishDto>> Meals);
-
 /* ---------- Journal ---------- */
 /// <summary>
 /// Jurnal ustuni — bir dars (sana + dars raqami + guruh). SubGroup: 0 = butun sinf,
@@ -507,17 +502,6 @@ public record PortalRatingDto(
     List<PortalRatingRowDto> SchoolRows,
     int? MeSchoolRank, int SchoolSize);
 
-/* ---------- Yangi o'quv yiliga o'tish ---------- */
-public record AcademicYearInfoDto(
-    string CurrentYear, int Students, int Classes, int JournalEntries,
-    int WeekAssignments, int FinanceTransactions);
-public record ArchiveListItemDto(
-    string Id, string Year, string CreatedAt,
-    int StudentsCount, int ClassesCount, int JournalCount, int FinanceCount);
-public record RolloverRequest(
-    string NewYear, bool PromoteStudents,
-    bool ClearGrades, bool ClearSchedule, bool ClearQuarters, bool ClearFinance);
-public record RolloverResultDto(string OldYear, string NewYear, int Promoted, int Graduated);
 
 /// <summary>Maktab ma'lumotlari (profil sozlamasi).</summary>
 public record SchoolInfoDto(

@@ -23,7 +23,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<SchoolClass> Classes => Set<SchoolClass>();
     public DbSet<Lead> Leads => Set<Lead>();
     public DbSet<LeadStage> LeadStages => Set<LeadStage>();
-    public DbSet<Dish> Dishes => Set<Dish>();
     public DbSet<JournalEntry> JournalEntries => Set<JournalEntry>();
     public DbSet<QuarterGrade> QuarterGrades => Set<QuarterGrade>();
     public DbSet<LessonNote> LessonNotes => Set<LessonNote>();
@@ -41,7 +40,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<MonthlyCharge> MonthlyCharges => Set<MonthlyCharge>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<SchoolMeta> SchoolMeta => Set<SchoolMeta>();
-    public DbSet<SchoolYearArchive> SchoolYearArchives => Set<SchoolYearArchive>();
     public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
     public DbSet<Broadcast> Broadcasts => Set<Broadcast>();
     public DbSet<PushMessage> PushMessages => Set<PushMessage>();
@@ -82,7 +80,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
             (typeof(QuarterGrade), "ClassId"), (typeof(QuarterGrade), "SubjectId"), (typeof(QuarterGrade), "StudentId"),
             (typeof(LessonNote), "ClassId"), (typeof(LessonNote), "SubjectId"),
             (typeof(WeekAssignment), "ClassId"),
-            (typeof(Dish), "Date"),
             (typeof(ScheduleTemplate), "ClassId"),
             (typeof(FinanceTransaction), "Date"),
             (typeof(MonthlyCharge), "StudentId"), (typeof(MonthlyCharge), "Month"),
@@ -129,7 +126,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         b.Entity<QuarterGrade>().HasIndex(g => new { g.ClassId, g.SubjectId, g.Quarter, g.StudentId }).IsUnique();
         b.Entity<LessonNote>().HasIndex(e => new { e.ClassId, e.SubjectId, e.Quarter });
         b.Entity<WeekAssignment>().HasIndex(e => new { e.ClassId, e.Quarter });
-        b.Entity<Dish>().HasIndex(d => d.Date);
         b.Entity<ScheduleTemplate>().HasIndex(t => t.ClassId);
         b.Entity<FinanceTransaction>().HasIndex(t => t.Date);
         b.Entity<MonthlyCharge>().HasIndex(c => new { c.StudentId, c.Month }).IsUnique();
