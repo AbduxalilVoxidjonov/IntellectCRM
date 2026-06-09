@@ -48,7 +48,16 @@ export interface NavItem {
 export const navByRole: Record<Role, NavItem[]> = {
   admin: [
     { label: 'Bosh sahifa', to: '/admin', icon: LayoutDashboard },
-    { label: 'Lidlar', to: '/admin/leads', icon: UserPlus, perm: 'leads' },
+    {
+      label: 'Lidlar',
+      to: '/admin/leads',
+      icon: UserPlus,
+      perm: 'leads',
+      children: [
+        { label: 'Lidlar (Kanban)', to: '/admin/leads', end: true },
+        { label: 'CRM statistika', to: '/admin/crm-stats', perm: 'leads' },
+      ],
+    },
     {
       label: "O'quvchilar",
       to: '/admin/students',

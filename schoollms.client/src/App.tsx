@@ -5,6 +5,7 @@ import { RequirePerm } from '@/components/auth/RequirePerm'
 import { LoginPage } from '@/pages/LoginPage'
 import { AdminDashboard } from '@/pages/admin/AdminDashboard'
 import { LeadsPage } from '@/pages/admin/leads/LeadsPage'
+import { CrmStatsPage } from '@/pages/admin/leads/CrmStatsPage'
 import { StudentsPage } from '@/pages/admin/students/StudentsPage'
 import { StudentEvaluationPage } from '@/pages/admin/students/StudentEvaluationPage'
 import { EvaluationTypesPage } from '@/pages/admin/students/EvaluationTypesPage'
@@ -63,6 +64,7 @@ export default function App() {
         <Route path="/admin" element={<AppLayout />}>
           <Route index element={<AdminDashboard />} />
           <Route path="leads" element={<RequirePerm perm="leads"><LeadsPage /></RequirePerm>} />
+          <Route path="crm-stats" element={<RequirePerm perm="leads"><CrmStatsPage /></RequirePerm>} />
           <Route path="students" element={<RequirePerm perm="students"><StudentsPage /></RequirePerm>} />
           <Route path="students/baholash" element={<RequirePerm perm="students"><StudentEvaluationPage /></RequirePerm>} />
           <Route path="students/baholash-turlari" element={<RequirePerm perm="students"><EvaluationTypesPage /></RequirePerm>} />

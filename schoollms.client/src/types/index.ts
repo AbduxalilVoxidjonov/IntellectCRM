@@ -98,6 +98,51 @@ export interface Lead {
   note?: string
   /** Tegishli ustun (Stage) id'si */
   stage: string
+  /** Lid manbasi (Instagram, Referral, Sayt, Telegram, Tashrif, Boshqa) */
+  source?: string
+  /** Qiziqqan fani / yo'nalishi */
+  interestSubject?: string
+  /** Yaratilgan vaqti (ISO) */
+  createdAt?: string
+  /** Aylantirilgan o'quvchi id'si (null = hali aylantirilmagan) */
+  convertedStudentId?: string | null
+}
+
+/** Lid tarixidagi voqea turi */
+export type LeadEventType = 'note' | 'stage' | 'call' | 'trial' | 'convert' | 'created'
+
+/** Lid tarixi (timeline) yozuvi */
+export interface LeadEvent {
+  id: string
+  type: LeadEventType
+  text: string
+  actorName: string
+  createdAt: string
+}
+
+/** Sinov darsi natijasi */
+export type TrialResult = 'pending' | 'stayed' | 'left'
+
+/** Lidga belgilangan sinov darsi */
+export interface TrialLesson {
+  id: string
+  leadId: string
+  groupId: string
+  groupName: string
+  scheduledAt: string
+  result: TrialResult
+  createdAt: string
+}
+
+/** CRM statistikasi */
+export interface CrmStats {
+  totalLeads: number
+  converted: number
+  /** Konversiya foizi (0-100) */
+  conversionRate: number
+  byStage: { label: string; count: number }[]
+  bySource: { label: string; count: number }[]
+  monthly: { month: string; created: number; converted: number }[]
 }
 
 /* ---------- O'quvchilar ---------- */

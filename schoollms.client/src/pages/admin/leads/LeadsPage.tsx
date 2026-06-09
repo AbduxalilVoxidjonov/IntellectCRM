@@ -202,6 +202,14 @@ export function LeadsPage() {
         onClose={() => setDetailLead(null)}
         onEdit={handleLeadEdit}
         onDelete={handleLeadDelete}
+        onConverted={(leadId, studentId) => {
+          setLeads((prev) =>
+            prev.map((l) => (l.id === leadId ? { ...l, convertedStudentId: studentId } : l)),
+          )
+          setDetailLead((prev) =>
+            prev && prev.id === leadId ? { ...prev, convertedStudentId: studentId } : prev,
+          )
+        }}
       />
       <LeadFormModal
         open={leadFormOpen}

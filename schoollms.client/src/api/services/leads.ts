@@ -1,4 +1,4 @@
-import type { Lead } from '@/types'
+import type { Lead, LeadEvent, LeadEventType, TrialLesson, TrialResult, CrmStats } from '@/types'
 import { delay, uid } from '@/lib/utils'
 import { api, USE_MOCK } from '../client'
 import { leadsMock } from '../mock/leads'
@@ -45,4 +45,75 @@ export async function deleteLead(id: string): Promise<void> {
     return
   }
   await api.delete(`/admin/leads/${id}`)
+}
+
+/* ---------- CRM: tarix (timeline) ---------- */
+
+export async function getLeadEvents(id: string): Promise<LeadEvent[]> {
+  if (USE_MOCK) {
+    await delay(200)
+    return []
+  }
+  const { data } = await api.get<LeadEvent[]>(`/admin/leads/${id}/events`)
+  return data
+}
+
+export async function addLeadEvent(id: string, type: LeadEventType, text: string): Promise<void> {
+  if (USE_MOCK) {
+    await delay(200)
+    return
+  }
+  await api.post(`/admin/leads/${id}/events`, { type, text })
+}
+
+/* ---------- CRM: sinov darslari ---------- */
+
+export async function getLeadTrials(id: string): Promise<TrialLesson[]> {
+  if (USE_MOCK) {
+    await delay(200)
+    return []
+  }
+  const { data } = await api.get<TrialLesson[]>(`/admin/leads/${id}/trials`)
+  return data
+}
+
+export async function scheduleTrial(id: string, groupId: string, scheduledAt: string): Promise<void> {
+  if (USE_MOCK) {
+    await delay(200)
+    return
+  }
+  await api.post(`/admin/leads/${id}/trials`, { groupId, scheduledAt })
+}
+
+export async function setTrialResult(trialId: string, result: TrialResult): Promise<void> {
+  if (USE_MOCK) {
+    await delay(200)
+    return
+  }
+  await api.patch(`/admin/leads/trials/${trialId}`, { result })
+}
+
+/* ---------- CRM: o'quvchiga aylantirish ---------- */
+
+export async function convertLead(
+  id: string,
+  body: { enrollmentDate?: string; groupId?: string },
+): Promise<{ studentId: string }> {
+  if (USE_MOCK) {
+    await delay(300)
+    return { studentId: uid() }
+  }
+  const { data } = await api.post<{ studentId: string }>(`/admin/leads/${id}/convert`, body)
+  return data
+}
+
+/* ---------- CRM: statistika ---------- */
+
+export async function getCrmStats(): Promise<CrmStats> {
+  if (USE_MOCK) {
+    await delay(300)
+    return { totalLeads: 0, converted: 0, conversionRate: 0, byStage: [], bySource: [], monthly: [] }
+  }
+  const { data } = await api.get<CrmStats>('/admin/leads/stats')
+  return data
 }

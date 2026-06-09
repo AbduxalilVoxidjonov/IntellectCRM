@@ -23,6 +23,16 @@ export const teacherCategoryLabel = (c?: string): string =>
 /** 1-11 sinflar */
 export const gradeOptions: number[] = Array.from({ length: 11 }, (_, i) => i + 1)
 
+/** Lid manbalari (CRM) */
+export const leadSourceOptions: string[] = [
+  'Instagram',
+  'Referral',
+  'Sayt',
+  'Telegram',
+  'Tashrif',
+  'Boshqa',
+]
+
 export const languageLabels: Record<ClassLanguage, string> = {
   uz: "O'zbek",
   ru: 'Rus',
@@ -73,6 +83,7 @@ export const teacherPermissions: { key: string; label: string }[] = [
  */
 export const adminPermissions: { key: string; label: string }[] = [
   { key: 'leads', label: 'Lidlar' },
+  { key: 'crmStats', label: 'CRM statistika' },
   { key: 'students', label: "O'quvchilar" },
   { key: 'teachers', label: "O'qituvchilar" },
   { key: 'attendance', label: 'Davomat' },

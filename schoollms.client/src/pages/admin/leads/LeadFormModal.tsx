@@ -3,7 +3,7 @@ import type { Lead } from '@/types'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input, Select, Textarea } from '@/components/ui/Input'
-import { genderOptions, gradeOptions } from '@/config/constants'
+import { genderOptions, gradeOptions, leadSourceOptions } from '@/config/constants'
 
 export type LeadFormValues = Omit<Lead, 'id' | 'stage'>
 
@@ -23,6 +23,8 @@ const empty: LeadFormValues = {
   parentPhone: '',
   targetGrade: 1,
   note: '',
+  source: '',
+  interestSubject: '',
 }
 
 export function LeadFormModal({ open, onClose, onSubmit, initial }: Props) {
@@ -41,6 +43,8 @@ export function LeadFormModal({ open, onClose, onSubmit, initial }: Props) {
             parentPhone: initial.parentPhone,
             targetGrade: initial.targetGrade,
             note: initial.note ?? '',
+            source: initial.source ?? '',
+            interestSubject: initial.interestSubject ?? '',
           }
         : empty,
     )
@@ -120,6 +124,26 @@ export function LeadFormModal({ open, onClose, onSubmit, initial }: Props) {
               </option>
             ))}
           </Select>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <Select
+            label="Manba"
+            value={form.source ?? ''}
+            onChange={(e) => update('source', e.target.value)}
+          >
+            <option value="">— tanlanmagan —</option>
+            {leadSourceOptions.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </Select>
+          <Input
+            label="Qiziqqan fani"
+            placeholder="Masalan: Matematika"
+            value={form.interestSubject ?? ''}
+            onChange={(e) => update('interestSubject', e.target.value)}
+          />
         </div>
         <Textarea
           label="Izoh"
