@@ -21,7 +21,8 @@ public class SettingsController(AppDbContext db, TelegramService telegram) : Con
             .Select(t => new LessonTimeDto(t.Period, t.StartTime, t.EndTime)).ToListAsync();
         var reasons = await db.AbsenceReasons
             .Select(r => new AbsenceReasonDto(r.Id, r.Name, r.Short, r.IsLate)).ToListAsync();
-        return new SchoolSettingsDto(lessonTimes, reasons);
+        var quarters = await TuitionService.SyntheticPeriodsAsync(db);
+        return new SchoolSettingsDto(lessonTimes, reasons, quarters);
     }
 
     [HttpPut("lesson-times")]

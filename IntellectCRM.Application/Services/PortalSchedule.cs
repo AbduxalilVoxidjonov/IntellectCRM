@@ -37,6 +37,7 @@ public static class PortalSchedule
         var reasons = await db.AbsenceReasons
             .Select(r => new AbsenceReasonDto(r.Id, r.Name, r.Short, r.IsLate)).ToListAsync();
         var (curQ, curW) = await CurrentQuarterWeekAsync(db);
-        return new PortalMetaDto(lessonTimes, reasons, curQ, curW);
+        var quarters = await TuitionService.SyntheticPeriodsAsync(db);
+        return new PortalMetaDto(lessonTimes, reasons, quarters, curQ, curW);
     }
 }

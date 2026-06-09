@@ -107,7 +107,7 @@ export async function getOccupiedSlots(
 
 /**
  * Bitta (Day,Period) katakning to'liq holatini almashtirish.
- * Lessons: [] = tozalash, [SubGroup=0] = butun sinf, [SubGroup=1, SubGroup=2] = bo'lingan.
+  * Lessons: [] = darsni tozalash, [bitta lesson] = guruh darsi.
  */
 export async function setTemplateCell(
   classId: string,

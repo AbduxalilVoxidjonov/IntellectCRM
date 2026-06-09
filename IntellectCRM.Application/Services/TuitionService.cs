@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using IntellectCRM.Application.Abstractions;
+using IntellectCRM.Application.Dtos;
 using IntellectCRM.Domain;
 
 namespace IntellectCRM.Application.Services;
@@ -77,6 +78,19 @@ public static class TuitionService
             .Where(s => !s.IsArchived && s.EnrollmentDate.Length >= 7)
             .Select(s => s.EnrollmentDate).ToListAsync();
         return dates.Count == 0 ? CurrentMonth() : dates.Min()![..7];
+    }
+
+    /// <summary>
+    /// Frontend jadval/hafta navigatsiyasi uchun BITTA sintetik davr (markazda chorak tizimi yo'q).
+    /// O'quv yili boshlanish oyidan ~10 oy oraliq. Frontend shu davrni haftalarga bo'lib jadvalni
+    /// ko'rsatadi (eski chorak-asosli mantiq buzilmasin).
+    /// </summary>
+    public static async Task<List<QuarterPeriodDto>> SyntheticPeriodsAsync(IAppDbContext db)
+    {
+        var start = await AcademicYearStartMonthAsync(db);
+        var end = start;
+        for (var i = 0; i < 10; i++) end = NextMonth(end);
+        return new List<QuarterPeriodDto> { new(1, $"{start}-01", $"{end}-28", true) };
     }
 
     /// <summary>

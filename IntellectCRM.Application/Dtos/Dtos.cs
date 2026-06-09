@@ -251,8 +251,12 @@ public record SetLessonNoteRequest(
 /* ---------- Settings ---------- */
 public record LessonTimeDto(int Period, string StartTime, string EndTime);
 public record AbsenceReasonDto(string Id, string Name, string Short, bool IsLate);
+/// <summary>Jadval/hafta navigatsiyasi uchun davr oralig'i. Markazda chorak tizimi YO'Q —
+/// bu o'quv yili oralig'idan sintez qilingan bitta davr (frontend hafta hisobi uchun).</summary>
+public record QuarterPeriodDto(int Quarter, string StartDate, string EndDate, bool GradesOpen);
 public record SchoolSettingsDto(
-    List<LessonTimeDto> LessonTimes, List<AbsenceReasonDto> AbsenceReasons);
+    List<LessonTimeDto> LessonTimes, List<AbsenceReasonDto> AbsenceReasons,
+    List<QuarterPeriodDto> Quarters);
 public record SaveLessonTimesRequest(List<LessonTimeDto> LessonTimes);
 public record SaveAbsenceReasonsRequest(List<AbsenceReasonDto> AbsenceReasons);
 
@@ -658,10 +662,11 @@ public record SaveUserSettingsRequest(string? Language, string? Theme, bool? Not
 /// <summary>Push qurilma tokenini ro'yxatdan o'tkazish so'rovi.</summary>
 public record RegisterDeviceRequest(string Token, string? Platform, string? DeviceName, string? AppId);
 
-/// <summary>Portal umumiy konteksti: dars vaqtlari, davomat sabablari + joriy chorak/hafta.</summary>
+/// <summary>Portal umumiy konteksti: dars vaqtlari, davomat sabablari, davr(lar) + joriy chorak/hafta.</summary>
 public record PortalMetaDto(
     List<LessonTimeDto> LessonTimes,
-    List<AbsenceReasonDto> AbsenceReasons, int CurrentQuarter = 1, int CurrentWeek = 1);
+    List<AbsenceReasonDto> AbsenceReasons, List<QuarterPeriodDto> Quarters,
+    int CurrentQuarter = 1, int CurrentWeek = 1);
 
 /* ---------- O'quvchi: topshiriqlar/testlar (xavfsiz — to'g'ri javob OSHKOR QILINMAYDI) ---------- */
 
