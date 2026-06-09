@@ -4,7 +4,7 @@
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <SpaRoot>..\schoollms.client</SpaRoot>
+    <SpaRoot>..\IntellectCRM.Client</SpaRoot>
     <SpaProxyLaunchCommand>npm run dev</SpaProxyLaunchCommand>
     <SpaProxyServerUrl>https://localhost:57472</SpaProxyServerUrl>
   </PropertyGroup>
@@ -31,7 +31,7 @@
        (node) bosqichda quriladi, shuning uchun -p:BuildSpa=false bilan bu havola o'chiriladi
        (dotnet SDK obrazida npm yo'q). -->
   <ItemGroup Condition="'$(BuildSpa)' != 'false'">
-    <ProjectReference Include="..\schoollms.client\schoollms.client.esproj">
+    <ProjectReference Include="..\IntellectCRM.Client\IntellectCRM.Client.esproj">
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
     </ProjectReference>
   </ItemGroup>

@@ -1,6 +1,6 @@
 <Solution>
   <Project Path="IntellectCRM.Application/IntellectCRM.Application.csproj" Id="3fccf54a-c194-4df6-92b9-b0cdbb7fb220" />
-  <Project Path="schoollms.client/schoollms.client.esproj">
+  <Project Path="IntellectCRM.Client/IntellectCRM.Client.esproj">
     <Build />
     <Deploy />
   </Project>

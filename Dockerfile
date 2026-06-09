@@ -6,9 +6,9 @@
 # ---------- 1) Frontend (Vite) build ----------
 FROM node:20-alpine AS client
 WORKDIR /client
-COPY schoollms.client/package*.json ./
+COPY IntellectCRM.Client/package*.json ./
 RUN npm ci
-COPY schoollms.client/ ./
+COPY IntellectCRM.Client/ ./
 # Build-time env: frontend real domenni tanishi va REAL API'ga (mock emas) ulanishi uchun.
 ARG VITE_ROOT_DOMAIN=intellectcrm.uz
 ARG VITE_USE_MOCK=false

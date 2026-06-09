@@ -44,7 +44,7 @@ export default defineConfig(({ command }): UserConfig => {
             ? `${env.APPDATA}/ASP.NET/https`
             : `${env.HOME}/.aspnet/https`
 
-    const certificateName = 'schoollms.client'
+    const certificateName = 'intellectcrm.client'
     const certFilePath = path.join(baseFolder, `${certificateName}.pem`)
     const keyFilePath = path.join(baseFolder, `${certificateName}.key`)
 

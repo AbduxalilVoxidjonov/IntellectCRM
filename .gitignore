@@ -18,10 +18,10 @@ node_modules/
 dist/
 
 # Uploads (runtime data)
-SchoolLms.Server/uploads/
+IntellectCRM.Server/uploads/
 
 # Local secrets
 appsettings.*.local.json
 
 # Server statik (Docker build dist'dan yaratadi)
-SchoolLms.Server/wwwroot/
+IntellectCRM.Server/wwwroot/
