@@ -192,14 +192,38 @@ public record SetStudentGroupsRequest(List<string> GroupIds);
 public record GroupFillRowDto(
     string GroupId, string Name, int Grade, int Capacity, int Enrolled, int FreeSeats, string Status);
 
-/* ---------- Leads ---------- */
+/* ---------- Leads (CRM) ---------- */
 public record LeadCreateRequest(
     string FullName, string Gender, string BirthDate, string ParentFullName,
-    string ParentPhone, int TargetGrade, string? Note, string Stage);
+    string ParentPhone, int TargetGrade, string? Note, string Stage,
+    string? Source = null, string? InterestSubject = null);
 public record LeadUpdateRequest(
     string FullName, string Gender, string BirthDate, string ParentFullName,
-    string ParentPhone, int TargetGrade, string? Note);
+    string ParentPhone, int TargetGrade, string? Note,
+    string? Source = null, string? InterestSubject = null);
 public record LeadStageRequest(string Stage);
+
+/// <summary>Lid hodisasi (tarix).</summary>
+public record LeadEventDto(string Id, string Type, string Text, string ActorName, string CreatedAt);
+/// <summary>Lidga hodisa/izoh qo'shish.</summary>
+public record AddLeadEventRequest(string Type, string Text);
+/// <summary>Lidni o'quvchiga aylantirish. EnrollmentDate berilmasa — bugun; GroupId berilsa o'quvchi shu guruhga qo'shiladi.</summary>
+public record ConvertLeadRequest(string? EnrollmentDate, string? GroupId);
+/// <summary>Sinov darsi.</summary>
+public record TrialLessonDto(
+    string Id, string LeadId, string GroupId, string GroupName, string ScheduledAt, string Result, string CreatedAt);
+/// <summary>Sinov darsini belgilash.</summary>
+public record ScheduleTrialRequest(string GroupId, string ScheduledAt);
+/// <summary>Sinov darsi natijasi: stayed (qoldi) | left (ketdi).</summary>
+public record TrialResultRequest(string Result);
+
+/// <summary>CRM statistikasi: jami, bosqich/manba bo'yicha, konversiya %, oylik dinamika.</summary>
+public record CrmStatChartItemDto(string Label, int Count);
+public record CrmMonthlyDto(string Month, int Created, int Converted);
+public record CrmStatsDto(
+    int TotalLeads, int Converted, double ConversionRate,
+    List<CrmStatChartItemDto> ByStage, List<CrmStatChartItemDto> BySource,
+    List<CrmMonthlyDto> Monthly);
 
 /* ---------- Lead stages ---------- */
 public record StagePayload(string Title, string Color);

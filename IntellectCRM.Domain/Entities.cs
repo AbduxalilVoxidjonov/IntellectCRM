@@ -252,6 +252,14 @@ public class Lead
     public string ParentPhone { get; set; } = string.Empty;
     public int TargetGrade { get; set; }
     public string? Note { get; set; }
+    /// <summary>Manba: instagram | referral | sayt | telegram | walkin | other ...</summary>
+    public string Source { get; set; } = string.Empty;
+    /// <summary>Qiziqqan fani/yo'nalishi (matn yoki Subject id).</summary>
+    public string InterestSubject { get; set; } = string.Empty;
+    /// <summary>Yaratilgan vaqt (ISO "yyyy-MM-ddTHH:mm:ss").</summary>
+    public string CreatedAt { get; set; } = string.Empty;
+    /// <summary>O'quvchiga aylantirilgan bo'lsa — yaratilgan Student id'si (null = hali emas).</summary>
+    public string? ConvertedStudentId { get; set; }
     /// <summary>Tegishli ustun (LeadStage) id'si.</summary>
     public string Stage { get; set; } = string.Empty;
 }
@@ -265,6 +273,35 @@ public class LeadStage
     public string Color { get; set; } = "slate";
     /// <summary>Ustunlar tartibi.</summary>
     public int Order { get; set; }
+}
+
+/// <summary>Lid hodisasi (tarix) — kim, qachon, nima qildi.</summary>
+public class LeadEvent
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string LeadId { get; set; } = string.Empty;
+    /// <summary>Turi: note | stage | call | trial | convert | created.</summary>
+    public string Type { get; set; } = "note";
+    /// <summary>Izoh / tafsilot.</summary>
+    public string Text { get; set; } = string.Empty;
+    /// <summary>Bajargan foydalanuvchi ismi.</summary>
+    public string ActorName { get; set; } = string.Empty;
+    /// <summary>Vaqt (ISO "yyyy-MM-ddTHH:mm:ss").</summary>
+    public string CreatedAt { get; set; } = string.Empty;
+}
+
+/// <summary>Lid uchun sinov darsi — guruh + sana; natija lid statusini yangilaydi.</summary>
+public class TrialLesson
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string LeadId { get; set; } = string.Empty;
+    /// <summary>Tayinlangan guruh (Group id'si).</summary>
+    public string GroupId { get; set; } = string.Empty;
+    /// <summary>Sinov darsi vaqti (ISO "yyyy-MM-ddTHH:mm").</summary>
+    public string ScheduledAt { get; set; } = string.Empty;
+    /// <summary>Natija: pending (kutilmoqda) | stayed (qoldi) | left (ketdi).</summary>
+    public string Result { get; set; } = "pending";
+    public string CreatedAt { get; set; } = string.Empty;
 }
 
 /// <summary>Jurnal katagi — baho yoki davomat sababi.</summary>

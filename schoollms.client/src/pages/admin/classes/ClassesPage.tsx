@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Pencil, Trash2, Users, Archive, ArchiveRestore } from 'lucide-react'
-import type { Group } from '@/types'
+import { Plus, Pencil, Trash2, Users, Archive, ArchiveRestore, LayoutGrid } from 'lucide-react'
+import type { Group, GroupFillRow } from '@/types'
 import type { ClassPayload } from '@/api/services/classes'
 import {
   getClasses,
@@ -11,6 +11,7 @@ import {
   getArchivedClasses,
   archiveClass,
   unarchiveClass,
+  getGroupFill,
 } from '@/api/services/classes'
 import { getClassesStats, type ClassStats } from '@/api/services/classPerformance'
 import { languageLabels } from '@/config/constants'
@@ -20,6 +21,7 @@ import { Button } from '@/components/ui/Button'
 import { Loader } from '@/components/ui/Loader'
 import { Modal } from '@/components/ui/Modal'
 import { ClassFormModal } from './ClassFormModal'
+import { ClassMembersModal } from './ClassMembersModal'
 
 export function ClassesPage() {
   const navigate = useNavigate()
@@ -37,6 +39,11 @@ export function ClassesPage() {
   /** Arxivlangan sinflar ro'yxati + arxiv ko'rinishi yoqilganmi */
   const [archived, setArchived] = useState<Group[]>([])
   const [showArchived, setShowArchived] = useState(false)
+  /** A'zolarni boshqarish modali uchun tanlangan guruh */
+  const [membersOf, setMembersOf] = useState<Group | null>(null)
+  /** Guruh to'ldirish ko'rinishi */
+  const [fill, setFill] = useState<GroupFillRow[]>([])
+  const [showFill, setShowFill] = useState(false)
 
   useEffect(() => {
     Promise.all([getClasses(), getClassesStats(), getArchivedClasses()])
@@ -122,6 +129,20 @@ export function ClassesPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {!showArchived && (
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setShowFill((v) => {
+                  const next = !v
+                  if (next && fill.length === 0) getGroupFill().then(setFill).catch(() => {})
+                  return next
+                })
+              }}
+            >
+              <LayoutGrid className="h-4 w-4" /> {showFill ? 'Jadvalni yopish' : "Guruh to'ldirish"}
+            </Button>
+          )}
           <Button variant="secondary" onClick={() => setShowArchived((v) => !v)}>
             {showArchived ? (
               <>
@@ -213,6 +234,11 @@ export function ClassesPage() {
                         onClick={(e) => e.stopPropagation()}
                       >
                         <IconBtn
+                          icon={Users}
+                          title="A'zolar"
+                          onClick={() => setMembersOf(c)}
+                        />
+                        <IconBtn
                           icon={Pencil}
                           title="Tahrirlash"
                           onClick={() => {
@@ -248,6 +274,65 @@ export function ClassesPage() {
         )}
       </Card>
 
+      {showFill && !showArchived && (
+        <Card className="p-0">
+          <div className="border-b border-slate-100 px-4 py-3">
+            <h2 className="text-sm font-semibold text-slate-700">Guruh to'ldirish</h2>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-400">
+                <tr>
+                  <th className="px-4 py-3">Guruh</th>
+                  <th className="px-4 py-3">Daraja</th>
+                  <th className="px-4 py-3">O'quvchilar</th>
+                  <th className="px-4 py-3">Sig'im</th>
+                  <th className="px-4 py-3">Bo'sh o'rin</th>
+                  <th className="px-4 py-3">Holat</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {fill.map((r) => (
+                  <tr key={r.groupId} className="hover:bg-slate-50/60">
+                    <td className="px-4 py-3 font-medium text-slate-800">{r.name}</td>
+                    <td className="px-4 py-3 text-slate-600">{r.grade}</td>
+                    <td className="px-4 py-3 text-slate-600">{r.enrolled}</td>
+                    <td className="px-4 py-3 text-slate-600">{r.capacity === 0 ? 'cheksiz' : r.capacity}</td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={cn(
+                          'font-medium',
+                          r.capacity > 0 && r.freeSeats === 0 ? 'text-red-600' : 'text-emerald-600',
+                        )}
+                      >
+                        {r.capacity === 0 ? '—' : r.freeSeats}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={cn(
+                          'rounded-md px-2 py-0.5 text-xs font-medium',
+                          statusBadge(r.status),
+                        )}
+                      >
+                        {statusLabel(r.status)}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+                {fill.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-12 text-center text-slate-400">
+                      Ma'lumot yo'q
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+
       <ClassFormModal
         open={formOpen}
         onClose={() => {
@@ -257,6 +342,8 @@ export function ClassesPage() {
         onSubmit={handleSubmit}
         initial={editing}
       />
+
+      <ClassMembersModal group={membersOf} onClose={() => setMembersOf(null)} />
 
       <Modal
         open={!!feePrompt}
@@ -309,6 +396,18 @@ function attColor(a: number): string {
   if (a >= 95) return 'text-emerald-600'
   if (a >= 90) return 'text-amber-600'
   return 'text-red-600'
+}
+
+function statusLabel(s: GroupFillRow['status']): string {
+  return s === 'full' ? "To'lgan" : s === 'archived' ? 'Arxiv' : 'Faol'
+}
+
+function statusBadge(s: GroupFillRow['status']): string {
+  return s === 'full'
+    ? 'bg-red-50 text-red-700'
+    : s === 'archived'
+      ? 'bg-slate-100 text-slate-500'
+      : 'bg-emerald-50 text-emerald-700'
 }
 
 function ArchivedTable({

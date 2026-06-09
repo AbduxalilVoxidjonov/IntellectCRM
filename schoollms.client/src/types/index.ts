@@ -184,6 +184,44 @@ export interface Group {
   isArchived?: boolean
   /** Arxivga olingan sana (ISO) */
   archivedAt?: string | null
+  /** Guruh holati */
+  status?: 'active' | 'full' | 'archived'
+  /** Boshlanish sanasi (ISO) */
+  startDate?: string
+  /** Tugash sanasi (ISO) */
+  endDate?: string
+  /** Sig'im (0 = cheksiz) */
+  capacity?: number
+}
+
+/** Guruh a'zosi (many-to-many a'zolik) */
+export interface GroupMember {
+  studentId: string
+  fullName: string
+  joinedAt: string
+  leftAt?: string | null
+  isActive: boolean
+}
+
+/** O'quvchining guruh a'zoligi */
+export interface StudentGroupMembership {
+  id: string
+  groupId: string
+  groupName: string
+  joinedAt: string
+  leftAt?: string | null
+  isActive: boolean
+}
+
+/** Guruh to'ldirish qatori */
+export interface GroupFillRow {
+  groupId: string
+  name: string
+  grade: number
+  capacity: number
+  enrolled: number
+  freeSeats: number
+  status: 'active' | 'full' | 'archived'
 }
 
 /* ---------- Dars jadvali ---------- */

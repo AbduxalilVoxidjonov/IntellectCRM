@@ -19,6 +19,10 @@ const empty: ClassPayload = {
   language: 'uz',
   monthlyFee: 0,
   room: '',
+  status: 'active',
+  startDate: '',
+  endDate: '',
+  capacity: 0,
 }
 
 export function ClassFormModal({ open, onClose, onSubmit, initial }: Props) {
@@ -35,6 +39,10 @@ export function ClassFormModal({ open, onClose, onSubmit, initial }: Props) {
             language: initial.language,
             monthlyFee: initial.monthlyFee,
             room: initial.room ?? '',
+            status: initial.status ?? 'active',
+            startDate: initial.startDate ?? '',
+            endDate: initial.endDate ?? '',
+            capacity: initial.capacity ?? 0,
           }
         : empty,
     )
@@ -114,6 +122,38 @@ export function ClassFormModal({ open, onClose, onSubmit, initial }: Props) {
           value={form.monthlyFee}
           onChange={(e) => update('monthlyFee', Number(e.target.value))}
         />
+        <div className="grid grid-cols-2 gap-4">
+          <Select
+            label="Holat"
+            value={form.status ?? 'active'}
+            onChange={(e) => update('status', e.target.value as Group['status'])}
+          >
+            <option value="active">Faol</option>
+            <option value="full">To'lgan</option>
+            <option value="archived">Arxiv</option>
+          </Select>
+          <Input
+            label="Sig'im (0 = cheksiz)"
+            type="number"
+            min={0}
+            value={form.capacity ?? 0}
+            onChange={(e) => update('capacity', Number(e.target.value))}
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <Input
+            label="Boshlanish sanasi"
+            type="date"
+            value={form.startDate ?? ''}
+            onChange={(e) => update('startDate', e.target.value)}
+          />
+          <Input
+            label="Tugash sanasi"
+            type="date"
+            value={form.endDate ?? ''}
+            onChange={(e) => update('endDate', e.target.value)}
+          />
+        </div>
       </form>
     </Modal>
   )

@@ -25,6 +25,8 @@ public interface IAppDbContext
     DbSet<StudentGroup> StudentGroups { get; }
     DbSet<Lead> Leads { get; }
     DbSet<LeadStage> LeadStages { get; }
+    DbSet<LeadEvent> LeadEvents { get; }
+    DbSet<TrialLesson> TrialLessons { get; }
     DbSet<JournalEntry> JournalEntries { get; }
     DbSet<LessonNote> LessonNotes { get; }
     DbSet<ScheduleTemplate> ScheduleTemplates { get; }

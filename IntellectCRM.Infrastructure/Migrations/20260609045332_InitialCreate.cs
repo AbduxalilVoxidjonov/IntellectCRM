@@ -684,6 +684,30 @@ namespace IntellectCRM.Infrastructure.Migrations
                 .Annotation("Relational:Collation", "utf8mb4_unicode_ci");
 
             migrationBuilder.CreateTable(
+                name: "LeadEvents",
+                columns: table => new
+                {
+                    Id = table.Column<string>(type: "varchar(255)", nullable: false, collation: "utf8mb4_unicode_ci")
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    LeadId = table.Column<string>(type: "varchar(200)", maxLength: 200, nullable: false, collation: "utf8mb4_unicode_ci")
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    Type = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    Text = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    ActorName = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    CreatedAt = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
+                        .Annotation("MySql:CharSet", "utf8mb4")
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_LeadEvents", x => x.Id);
+                })
+                .Annotation("MySql:CharSet", "utf8mb4")
+                .Annotation("Relational:Collation", "utf8mb4_unicode_ci");
+
+            migrationBuilder.CreateTable(
                 name: "Leads",
                 columns: table => new
                 {
@@ -701,6 +725,14 @@ namespace IntellectCRM.Infrastructure.Migrations
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     TargetGrade = table.Column<int>(type: "int", nullable: false),
                     Note = table.Column<string>(type: "longtext", nullable: true, collation: "utf8mb4_unicode_ci")
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    Source = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    InterestSubject = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    CreatedAt = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    ConvertedStudentId = table.Column<string>(type: "longtext", nullable: true, collation: "utf8mb4_unicode_ci")
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     Stage = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
                         .Annotation("MySql:CharSet", "utf8mb4")
@@ -1108,6 +1140,30 @@ namespace IntellectCRM.Infrastructure.Migrations
                 .Annotation("Relational:Collation", "utf8mb4_unicode_ci");
 
             migrationBuilder.CreateTable(
+                name: "TrialLessons",
+                columns: table => new
+                {
+                    Id = table.Column<string>(type: "varchar(255)", nullable: false, collation: "utf8mb4_unicode_ci")
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    LeadId = table.Column<string>(type: "varchar(200)", maxLength: 200, nullable: false, collation: "utf8mb4_unicode_ci")
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    GroupId = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    ScheduledAt = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    Result = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    CreatedAt = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
+                        .Annotation("MySql:CharSet", "utf8mb4")
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_TrialLessons", x => x.Id);
+                })
+                .Annotation("MySql:CharSet", "utf8mb4")
+                .Annotation("Relational:Collation", "utf8mb4_unicode_ci");
+
+            migrationBuilder.CreateTable(
                 name: "TurnstileEvents",
                 columns: table => new
                 {
@@ -1498,6 +1554,11 @@ namespace IntellectCRM.Infrastructure.Migrations
                 columns: new[] { "ClassId", "SubjectId", "Quarter" });
 
             migrationBuilder.CreateIndex(
+                name: "IX_LeadEvents_LeadId",
+                table: "LeadEvents",
+                column: "LeadId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_LessonNotes_ClassId_SubjectId_Quarter",
                 table: "LessonNotes",
                 columns: new[] { "ClassId", "SubjectId", "Quarter" });
@@ -1587,6 +1648,11 @@ namespace IntellectCRM.Infrastructure.Migrations
                 column: "AssignmentId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_TrialLessons_LeadId",
+                table: "TrialLessons",
+                column: "LeadId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Users_Email",
                 table: "Users",
                 column: "Email",
@@ -1674,6 +1740,9 @@ namespace IntellectCRM.Infrastructure.Migrations
                 name: "JournalEntries");
 
             migrationBuilder.DropTable(
+                name: "LeadEvents");
+
+            migrationBuilder.DropTable(
                 name: "Leads");
 
             migrationBuilder.DropTable(
@@ -1723,6 +1792,9 @@ namespace IntellectCRM.Infrastructure.Migrations
 
             migrationBuilder.DropTable(
                 name: "TestQuestions");
+
+            migrationBuilder.DropTable(
+                name: "TrialLessons");
 
             migrationBuilder.DropTable(
                 name: "TurnstileEvents");

@@ -1,4 +1,4 @@
-import type { Group } from '@/types'
+import type { Group, GroupMember, StudentGroupMembership, GroupFillRow } from '@/types'
 import { delay, uid } from '@/lib/utils'
 import { api, USE_MOCK } from '../client'
 import { classesMock } from '../mock/classes'
@@ -69,5 +69,65 @@ export async function archiveClass(id: string): Promise<{ archivedStudents: numb
 /** Sinfni arxivdan chiqarish — sinf bilan arxivlangan o'quvchilar ham qaytariladi. */
 export async function unarchiveClass(id: string): Promise<{ restoredStudents: number }> {
   const { data } = await api.post<{ restoredStudents: number }>(`/admin/classes/${id}/unarchive`)
+  return data
+}
+
+/* ---------- Guruh a'zoligi (many-to-many) ---------- */
+
+/** Guruh a'zolari ro'yxati. */
+export async function getGroupMembers(id: string): Promise<GroupMember[]> {
+  if (USE_MOCK) {
+    await delay()
+    return []
+  }
+  const { data } = await api.get<GroupMember[]>(`/admin/classes/${id}/members`)
+  return data
+}
+
+/** Guruhga o'quvchi qo'shish. To'lgan/allaqachon a'zo bo'lsa server 409/400 qaytaradi. */
+export async function addGroupMember(
+  id: string,
+  studentId: string,
+  joinedAt?: string,
+): Promise<{ ok: boolean }> {
+  if (USE_MOCK) {
+    await delay(150)
+    return { ok: true }
+  }
+  const { data } = await api.post<{ ok: boolean }>(`/admin/classes/${id}/members`, {
+    studentId,
+    joinedAt,
+  })
+  return data
+}
+
+/** Guruhdan o'quvchini chiqarish (left deb belgilanadi). */
+export async function removeGroupMember(id: string, studentId: string): Promise<void> {
+  if (USE_MOCK) {
+    await delay(150)
+    return
+  }
+  await api.delete(`/admin/classes/${id}/members/${studentId}`)
+}
+
+/** O'quvchining barcha guruh a'zoliklari. */
+export async function getStudentGroups(studentId: string): Promise<StudentGroupMembership[]> {
+  if (USE_MOCK) {
+    await delay()
+    return []
+  }
+  const { data } = await api.get<StudentGroupMembership[]>(
+    `/admin/classes/student/${studentId}/groups`,
+  )
+  return data
+}
+
+/** Guruhlar to'ldirilishi (sig'im / a'zolar / bo'sh o'rin). */
+export async function getGroupFill(): Promise<GroupFillRow[]> {
+  if (USE_MOCK) {
+    await delay()
+    return []
+  }
+  const { data } = await api.get<GroupFillRow[]>('/admin/classes/fill')
   return data
 }

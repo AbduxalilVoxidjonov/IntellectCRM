@@ -24,6 +24,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<StudentGroup> StudentGroups => Set<StudentGroup>();
     public DbSet<Lead> Leads => Set<Lead>();
     public DbSet<LeadStage> LeadStages => Set<LeadStage>();
+    public DbSet<LeadEvent> LeadEvents => Set<LeadEvent>();
+    public DbSet<TrialLesson> TrialLessons => Set<TrialLesson>();
     public DbSet<JournalEntry> JournalEntries => Set<JournalEntry>();
     public DbSet<LessonNote> LessonNotes => Set<LessonNote>();
     public DbSet<ScheduleTemplate> ScheduleTemplates => Set<ScheduleTemplate>();
@@ -79,6 +81,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
             (typeof(LessonNote), "ClassId"), (typeof(LessonNote), "SubjectId"),
             (typeof(WeekAssignment), "ClassId"),
             (typeof(StudentGroup), "StudentId"), (typeof(StudentGroup), "GroupId"),
+            (typeof(LeadEvent), "LeadId"), (typeof(TrialLesson), "LeadId"),
             (typeof(ScheduleTemplate), "ClassId"),
             (typeof(FinanceTransaction), "Date"),
             (typeof(MonthlyCharge), "StudentId"), (typeof(MonthlyCharge), "Month"),
@@ -127,6 +130,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         b.Entity<StudentGroup>().HasIndex(sg => new { sg.StudentId, sg.GroupId }).IsUnique();
         b.Entity<StudentGroup>().HasIndex(sg => sg.GroupId);
         b.Entity<StudentGroup>().HasIndex(sg => new { sg.StudentId, sg.IsActive });
+        b.Entity<LeadEvent>().HasIndex(e => e.LeadId);
+        b.Entity<TrialLesson>().HasIndex(t => t.LeadId);
         b.Entity<ScheduleTemplate>().HasIndex(t => t.ClassId);
         b.Entity<FinanceTransaction>().HasIndex(t => t.Date);
         b.Entity<MonthlyCharge>().HasIndex(c => new { c.StudentId, c.Month }).IsUnique();

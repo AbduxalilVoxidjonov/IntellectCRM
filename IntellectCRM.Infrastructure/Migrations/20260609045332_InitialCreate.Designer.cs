@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace IntellectCRM.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260609044841_InitialCreate")]
+    [Migration("20260609045332_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -1117,11 +1117,22 @@ namespace IntellectCRM.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("longtext");
 
+                    b.Property<string>("ConvertedStudentId")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("CreatedAt")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
                     b.Property<string>("FullName")
                         .IsRequired()
                         .HasColumnType("longtext");
 
                     b.Property<string>("Gender")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("InterestSubject")
                         .IsRequired()
                         .HasColumnType("longtext");
 
@@ -1136,6 +1147,10 @@ namespace IntellectCRM.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("longtext");
 
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
                     b.Property<string>("Stage")
                         .IsRequired()
                         .HasColumnType("longtext");
@@ -1146,6 +1161,39 @@ namespace IntellectCRM.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Leads");
+                });
+
+            modelBuilder.Entity("IntellectCRM.Domain.LeadEvent", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("varchar(255)");
+
+                    b.Property<string>("ActorName")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("CreatedAt")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("LeadId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LeadId");
+
+                    b.ToTable("LeadEvents");
                 });
 
             modelBuilder.Entity("IntellectCRM.Domain.LeadStage", b =>
@@ -1913,6 +1961,39 @@ namespace IntellectCRM.Infrastructure.Migrations
                     b.HasIndex("AssignmentId");
 
                     b.ToTable("TestQuestions");
+                });
+
+            modelBuilder.Entity("IntellectCRM.Domain.TrialLesson", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("varchar(255)");
+
+                    b.Property<string>("CreatedAt")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("GroupId")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("LeadId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<string>("Result")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("ScheduledAt")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LeadId");
+
+                    b.ToTable("TrialLessons");
                 });
 
             modelBuilder.Entity("IntellectCRM.Domain.TurnstileEvent", b =>
