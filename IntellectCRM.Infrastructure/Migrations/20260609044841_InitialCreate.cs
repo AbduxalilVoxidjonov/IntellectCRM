@@ -288,6 +288,8 @@ namespace IntellectCRM.Infrastructure.Migrations
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     CurrentYear = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
                         .Annotation("MySql:CharSet", "utf8mb4"),
+                    BillingMode = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
+                        .Annotation("MySql:CharSet", "utf8mb4"),
                     Name = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     Director = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
@@ -387,6 +389,13 @@ namespace IntellectCRM.Infrastructure.Migrations
                     MonthlyFee = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
                     Room = table.Column<string>(type: "longtext", nullable: true, collation: "utf8mb4_unicode_ci")
                         .Annotation("MySql:CharSet", "utf8mb4"),
+                    Status = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    StartDate = table.Column<string>(type: "longtext", nullable: true, collation: "utf8mb4_unicode_ci")
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    EndDate = table.Column<string>(type: "longtext", nullable: true, collation: "utf8mb4_unicode_ci")
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    Capacity = table.Column<int>(type: "int", nullable: false),
                     IsArchived = table.Column<bool>(type: "tinyint(1)", nullable: false),
                     ArchivedAt = table.Column<string>(type: "longtext", nullable: true, collation: "utf8mb4_unicode_ci")
                         .Annotation("MySql:CharSet", "utf8mb4")
@@ -887,6 +896,29 @@ namespace IntellectCRM.Infrastructure.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_ScheduleTemplates", x => x.Id);
+                })
+                .Annotation("MySql:CharSet", "utf8mb4")
+                .Annotation("Relational:Collation", "utf8mb4_unicode_ci");
+
+            migrationBuilder.CreateTable(
+                name: "StudentGroups",
+                columns: table => new
+                {
+                    Id = table.Column<string>(type: "varchar(255)", nullable: false, collation: "utf8mb4_unicode_ci")
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    StudentId = table.Column<string>(type: "varchar(200)", maxLength: 200, nullable: false, collation: "utf8mb4_unicode_ci")
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    GroupId = table.Column<string>(type: "varchar(200)", maxLength: 200, nullable: false, collation: "utf8mb4_unicode_ci")
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    JoinedAt = table.Column<string>(type: "longtext", nullable: false, collation: "utf8mb4_unicode_ci")
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    LeftAt = table.Column<string>(type: "longtext", nullable: true, collation: "utf8mb4_unicode_ci")
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    IsActive = table.Column<bool>(type: "tinyint(1)", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_StudentGroups", x => x.Id);
                 })
                 .Annotation("MySql:CharSet", "utf8mb4")
                 .Annotation("Relational:Collation", "utf8mb4_unicode_ci");
@@ -1523,6 +1555,22 @@ namespace IntellectCRM.Infrastructure.Migrations
                 column: "ClassId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_StudentGroups_GroupId",
+                table: "StudentGroups",
+                column: "GroupId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StudentGroups_StudentId_GroupId",
+                table: "StudentGroups",
+                columns: new[] { "StudentId", "GroupId" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StudentGroups_StudentId_IsActive",
+                table: "StudentGroups",
+                columns: new[] { "StudentId", "IsActive" });
+
+            migrationBuilder.CreateIndex(
                 name: "IX_TelegramRegistrations_ChatId",
                 table: "TelegramRegistrations",
                 column: "ChatId");
@@ -1654,6 +1702,9 @@ namespace IntellectCRM.Infrastructure.Migrations
 
             migrationBuilder.DropTable(
                 name: "ScheduleLesson");
+
+            migrationBuilder.DropTable(
+                name: "StudentGroups");
 
             migrationBuilder.DropTable(
                 name: "Students");

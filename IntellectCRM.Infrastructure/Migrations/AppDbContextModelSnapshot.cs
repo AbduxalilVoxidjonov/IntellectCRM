@@ -507,6 +507,10 @@ namespace IntellectCRM.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("longtext");
 
+                    b.Property<string>("BillingMode")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
                     b.Property<bool>("CameraEnabled")
                         .HasColumnType("tinyint(1)");
 
@@ -993,6 +997,12 @@ namespace IntellectCRM.Infrastructure.Migrations
                     b.Property<string>("ArchivedAt")
                         .HasColumnType("longtext");
 
+                    b.Property<int>("Capacity")
+                        .HasColumnType("int");
+
+                    b.Property<string>("EndDate")
+                        .HasColumnType("longtext");
+
                     b.Property<int>("Grade")
                         .HasColumnType("int");
 
@@ -1012,6 +1022,13 @@ namespace IntellectCRM.Infrastructure.Migrations
                         .HasColumnType("longtext");
 
                     b.Property<string>("Room")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("StartDate")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
                         .HasColumnType("longtext");
 
                     b.HasKey("Id");
@@ -1657,6 +1674,43 @@ namespace IntellectCRM.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Students");
+                });
+
+            modelBuilder.Entity("IntellectCRM.Domain.StudentGroup", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("varchar(255)");
+
+                    b.Property<string>("GroupId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<string>("JoinedAt")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("LeftAt")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("StudentId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GroupId");
+
+                    b.HasIndex("StudentId", "GroupId")
+                        .IsUnique();
+
+                    b.HasIndex("StudentId", "IsActive");
+
+                    b.ToTable("StudentGroups");
                 });
 
             modelBuilder.Entity("IntellectCRM.Domain.Subject", b =>

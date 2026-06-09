@@ -79,10 +79,34 @@ public static class TuitionService
         return dates.Count == 0 ? CurrentMonth() : dates.Min()![..7];
     }
 
+    /// <summary>
+    /// O'quvchining shu paytdagi to'liq oylik to'lovi (chegirmasiz). Ko'p-guruh: barcha FAOL
+    /// guruhlari oylik narxining yig'indisi (aggregate). A'zoligi bo'lmasa — eski ClassName
+    /// bo'yicha guruh narxi (orqaga moslik). <paramref name="feesById"/>/<paramref name="feesByName"/>
+    /// — oldindan yuklangan narx jadvallari; <paramref name="activeGroupIds"/> — o'quvchining
+    /// faol guruh id'lari.
+    /// </summary>
+    public static decimal GrossFee(
+        Student s,
+        IDictionary<string, decimal> feesById,
+        IDictionary<string, decimal> feesByName,
+        IReadOnlyCollection<string>? activeGroupIds)
+    {
+        if (activeGroupIds is { Count: > 0 })
+            return activeGroupIds.Sum(gid => feesById.TryGetValue(gid, out var f) ? f : 0m);
+        return feesByName.TryGetValue(s.ClassName, out var fee) ? fee : 0m;
+    }
+
     /// <summary>Bitta oy uchun hisoblash. Allaqachon hisoblangan o'quvchilar o'tkazib yuboriladi.</summary>
     public static async Task<(int Count, decimal Total)> AccrueMonth(IAppDbContext db, string month)
     {
-        var fees = await db.Classes.ToDictionaryAsync(c => c.Name, c => c.MonthlyFee);
+        var classList = await db.Classes.ToListAsync();
+        var feesById = classList.ToDictionary(c => c.Id, c => c.MonthlyFee);
+        var feesByName = classList.GroupBy(c => c.Name).ToDictionary(g => g.Key, g => g.First().MonthlyFee);
+        // Faol guruh a'zoliklari (o'quvchi -> guruh id'lari).
+        var memberships = (await db.StudentGroups.Where(sg => sg.IsActive).ToListAsync())
+            .GroupBy(sg => sg.StudentId)
+            .ToDictionary(g => g.Key, g => (IReadOnlyCollection<string>)g.Select(x => x.GroupId).ToList());
         var already = (await db.MonthlyCharges.Where(c => c.Month == month)
             .Select(c => c.StudentId).ToListAsync()).ToHashSet();
         // Arxivlangan o'quvchilarga oylik hisoblanmaydi.
@@ -95,7 +119,9 @@ public static class TuitionService
             if (already.Contains(s.Id)) continue;
             // O'quvchi shu oydan oldin kelmagan bo'lsa, hisoblamaymiz.
             if (!string.IsNullOrEmpty(s.EnrollmentDate) && string.CompareOrdinal(s.EnrollmentDate[..7], month) > 0) continue;
-            if (!fees.TryGetValue(s.ClassName, out var fee) || fee <= 0) continue;
+            memberships.TryGetValue(s.Id, out var gids);
+            var fee = GrossFee(s, feesById, feesByName, gids);
+            if (fee <= 0) continue;
             var discount = DiscountFor(fee, s.DiscountPct, s.DiscountAmount);
             var effective = fee - discount;
             // Amount = to'liq sinf narxi; Discount = chegirma; balans faqat effective uchun kamayadi.

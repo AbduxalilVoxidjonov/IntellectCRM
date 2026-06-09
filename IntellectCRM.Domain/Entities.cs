@@ -210,10 +210,35 @@ public class Group
     public string Language { get; set; } = "uz";
     public decimal MonthlyFee { get; set; }
     public string? Room { get; set; }
-    /// <summary>Sinf arxivlangan (faol ro'yxatdan olib qo'yilgan). Arxivlanganda unga bog'langan
+    /// <summary>Guruh holati: active (faol) | full (to'lgan) | archived (arxiv).</summary>
+    public string Status { get; set; } = "active";
+    /// <summary>Kurs boshlanish sanasi (ISO "YYYY-MM-DD"). Ixtiyoriy.</summary>
+    public string? StartDate { get; set; }
+    /// <summary>Kurs tugash sanasi (ISO "YYYY-MM-DD"). Ixtiyoriy.</summary>
+    public string? EndDate { get; set; }
+    /// <summary>O'quvchilar soni chegarasi (0 = cheksiz).</summary>
+    public int Capacity { get; set; }
+    /// <summary>Guruh arxivlangan (faol ro'yxatdan olib qo'yilgan). Arxivlanganda unga bog'langan
     /// o'quvchilar ham arxivlanadi; arxivdan chiqarilganda — qaytariladi.</summary>
     public bool IsArchived { get; set; }
     public string? ArchivedAt { get; set; }
+}
+
+/// <summary>
+/// O'quvchi ↔ Guruh a'zoligi (M2M). Bir o'quvchi bir vaqtda bir nechta guruhda bo'lishi mumkin.
+/// JoinedAt — qo'shilish sanasi, LeftAt — chiqish sanasi (null = hozir ham a'zo).
+/// </summary>
+public class StudentGroup
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string StudentId { get; set; } = string.Empty;
+    public string GroupId { get; set; } = string.Empty;
+    /// <summary>Guruhga qo'shilgan sana (ISO "YYYY-MM-DD").</summary>
+    public string JoinedAt { get; set; } = string.Empty;
+    /// <summary>Guruhdan chiqqan sana (ISO). null = hozir ham faol a'zo.</summary>
+    public string? LeftAt { get; set; }
+    /// <summary>Faol a'zomi (LeftAt null bo'lsa true).</summary>
+    public bool IsActive { get; set; } = true;
 }
 
 /// <summary>Lid (maktabga qiziqqan).</summary>
@@ -555,6 +580,9 @@ public class CenterMeta
     public string Id { get; set; } = Guid.NewGuid().ToString();
     /// <summary>Joriy o'quv yili, masalan "2025/2026".</summary>
     public string CurrentYear { get; set; } = string.Empty;
+    /// <summary>Ko'p-guruh to'lov rejimi: aggregate (barcha faol guruhlar yig'indisi — bitta oylik hisob) |
+    /// perGroup (kelajakda — har guruh uchun alohida). Default: aggregate.</summary>
+    public string BillingMode { get; set; } = "aggregate";
     /// <summary>Maktab nomi.</summary>
     public string Name { get; set; } = string.Empty;
     /// <summary>Direktor F.I.SH.</summary>

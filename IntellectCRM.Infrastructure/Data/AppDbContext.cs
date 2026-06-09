@@ -21,6 +21,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<Camera> Cameras => Set<Camera>();
     public DbSet<Subject> Subjects => Set<Subject>();
     public DbSet<Group> Classes => Set<Group>();
+    public DbSet<StudentGroup> StudentGroups => Set<StudentGroup>();
     public DbSet<Lead> Leads => Set<Lead>();
     public DbSet<LeadStage> LeadStages => Set<LeadStage>();
     public DbSet<JournalEntry> JournalEntries => Set<JournalEntry>();
@@ -77,6 +78,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
             (typeof(JournalEntry), "ClassId"), (typeof(JournalEntry), "SubjectId"),
             (typeof(LessonNote), "ClassId"), (typeof(LessonNote), "SubjectId"),
             (typeof(WeekAssignment), "ClassId"),
+            (typeof(StudentGroup), "StudentId"), (typeof(StudentGroup), "GroupId"),
             (typeof(ScheduleTemplate), "ClassId"),
             (typeof(FinanceTransaction), "Date"),
             (typeof(MonthlyCharge), "StudentId"), (typeof(MonthlyCharge), "Month"),
@@ -122,6 +124,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         b.Entity<JournalEntry>().HasIndex(e => new { e.ClassId, e.SubjectId, e.Quarter });
         b.Entity<LessonNote>().HasIndex(e => new { e.ClassId, e.SubjectId, e.Quarter });
         b.Entity<WeekAssignment>().HasIndex(e => new { e.ClassId, e.Quarter });
+        b.Entity<StudentGroup>().HasIndex(sg => new { sg.StudentId, sg.GroupId }).IsUnique();
+        b.Entity<StudentGroup>().HasIndex(sg => sg.GroupId);
+        b.Entity<StudentGroup>().HasIndex(sg => new { sg.StudentId, sg.IsActive });
         b.Entity<ScheduleTemplate>().HasIndex(t => t.ClassId);
         b.Entity<FinanceTransaction>().HasIndex(t => t.Date);
         b.Entity<MonthlyCharge>().HasIndex(c => new { c.StudentId, c.Month }).IsUnique();

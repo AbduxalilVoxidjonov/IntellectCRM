@@ -39,6 +39,10 @@ public class ClassesController(AppDbContext db, AuditService audit) : Controller
             Language = p.Language,
             MonthlyFee = p.MonthlyFee,
             Room = p.Room,
+            Status = string.IsNullOrWhiteSpace(p.Status) ? "active" : p.Status!,
+            StartDate = p.StartDate,
+            EndDate = p.EndDate,
+            Capacity = p.Capacity,
         };
         db.Classes.Add(cls);
 
@@ -70,6 +74,10 @@ public class ClassesController(AppDbContext db, AuditService audit) : Controller
         cls.Language = p.Language;
         cls.MonthlyFee = p.MonthlyFee;
         cls.Room = p.Room;
+        if (!string.IsNullOrWhiteSpace(p.Status)) cls.Status = p.Status!;
+        cls.StartDate = p.StartDate;
+        cls.EndDate = p.EndDate;
+        cls.Capacity = p.Capacity;
 
         if (oldFee != cls.MonthlyFee)
         {
@@ -195,6 +203,109 @@ public class ClassesController(AppDbContext db, AuditService audit) : Controller
             $"Sinf arxivdan chiqarildi ({cls.Name}) — {students.Count} ta o'quvchi bilan");
         await db.SaveChangesAsync();
         return Ok(new { restoredStudents = students.Count });
+    }
+
+    // ---------- Guruh a'zoligi (M2M) ----------
+
+    /// <summary>Guruh a'zolari (faol + o'tgan). Faol a'zolar yuqorida.</summary>
+    [HttpGet("{id}/members")]
+    public async Task<ActionResult<IEnumerable<GroupMemberDto>>> Members(string id)
+    {
+        var rows = await (from sg in db.StudentGroups
+                          join s in db.Students on sg.StudentId equals s.Id
+                          where sg.GroupId == id
+                          orderby sg.IsActive descending, s.FullName
+                          select new GroupMemberDto(s.Id, s.FullName, sg.JoinedAt, sg.LeftAt, sg.IsActive))
+                         .ToListAsync();
+        return rows;
+    }
+
+    /// <summary>O'quvchini guruhga qo'shish (M2M). Sig'im to'lgan bo'lsa rad etadi. Avval guruhsiz
+    /// o'quvchining asosiy ClassName'i shu guruh nomiga o'rnatiladi (eski ko'rinishlar uchun).</summary>
+    [HttpPost("{id}/members")]
+    public async Task<IActionResult> AddMember(string id, AddStudentToGroupRequest req)
+    {
+        var cls = await db.Classes.FindAsync(id);
+        if (cls is null) return NotFound(new { message = "Guruh topilmadi" });
+        var s = await db.Students.FindAsync(req.StudentId);
+        if (s is null) return NotFound(new { message = "O'quvchi topilmadi" });
+
+        var existing = await db.StudentGroups
+            .FirstOrDefaultAsync(sg => sg.StudentId == req.StudentId && sg.GroupId == id);
+        if (existing is { IsActive: true })
+            return BadRequest(new { message = "O'quvchi allaqachon shu guruhda" });
+
+        if (cls.Capacity > 0)
+        {
+            var enrolled = await db.StudentGroups.CountAsync(sg => sg.GroupId == id && sg.IsActive);
+            if (enrolled >= cls.Capacity)
+                return BadRequest(new { message = $"Guruh to'lgan ({cls.Capacity} o'rin)" });
+        }
+
+        var joinedAt = string.IsNullOrWhiteSpace(req.JoinedAt)
+            ? AppClock.Today.ToString("yyyy-MM-dd") : req.JoinedAt!;
+        if (existing is not null)
+        {
+            existing.IsActive = true;
+            existing.LeftAt = null;
+            existing.JoinedAt = joinedAt;
+        }
+        else
+        {
+            db.StudentGroups.Add(new StudentGroup
+            {
+                StudentId = req.StudentId, GroupId = id, JoinedAt = joinedAt, IsActive = true,
+            });
+        }
+        // Eski (single-class) ko'rinishlar uchun asosiy guruh nomini to'ldiramiz.
+        if (string.IsNullOrWhiteSpace(s.ClassName)) s.ClassName = cls.Name;
+
+        await db.SaveChangesAsync();
+        return Ok(new { ok = true });
+    }
+
+    /// <summary>O'quvchini guruhdan chiqarish (LeftAt belgilanadi, IsActive=false). Tarix saqlanadi.</summary>
+    [HttpDelete("{id}/members/{studentId}")]
+    public async Task<IActionResult> RemoveMember(string id, string studentId)
+    {
+        var sg = await db.StudentGroups
+            .FirstOrDefaultAsync(x => x.GroupId == id && x.StudentId == studentId && x.IsActive);
+        if (sg is null) return NotFound(new { message = "Faol a'zolik topilmadi" });
+        sg.IsActive = false;
+        sg.LeftAt = AppClock.Today.ToString("yyyy-MM-dd");
+        await db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    /// <summary>O'quvchining barcha guruh a'zoliklari (faol + o'tgan).</summary>
+    [HttpGet("student/{studentId}/groups")]
+    public async Task<ActionResult<IEnumerable<StudentGroupDto>>> StudentGroups(string studentId)
+    {
+        var rows = await (from sg in db.StudentGroups
+                          join c in db.Classes on sg.GroupId equals c.Id
+                          where sg.StudentId == studentId
+                          orderby sg.IsActive descending, c.Name
+                          select new StudentGroupDto(sg.Id, c.Id, c.Name, sg.JoinedAt, sg.LeftAt, sg.IsActive))
+                         .ToListAsync();
+        return rows;
+    }
+
+    /// <summary>Guruh to'ldirish hisoboti: har guruhda nechta o'quvchi, nechta bo'sh o'rin.</summary>
+    [HttpGet("fill")]
+    public async Task<ActionResult<IEnumerable<GroupFillRowDto>>> Fill()
+    {
+        var groups = await db.Classes.Where(c => !c.IsArchived)
+            .OrderBy(c => c.Grade).ThenBy(c => c.Name).ToListAsync();
+        var counts = (await db.StudentGroups.Where(sg => sg.IsActive)
+                .GroupBy(sg => sg.GroupId)
+                .Select(g => new { GroupId = g.Key, Count = g.Count() }).ToListAsync())
+            .ToDictionary(x => x.GroupId, x => x.Count);
+        return groups.Select(c =>
+        {
+            var enrolled = counts.GetValueOrDefault(c.Id, 0);
+            var free = c.Capacity > 0 ? Math.Max(0, c.Capacity - enrolled) : 0;
+            return new GroupFillRowDto(c.Id, c.Name, c.Grade, c.Capacity, enrolled, free, c.Status);
+        }).ToList();
     }
 
 }

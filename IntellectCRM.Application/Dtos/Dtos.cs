@@ -173,8 +173,24 @@ public record StudentFinanceRowDto(
 /* ---------- Subjects ---------- */
 public record SubjectPayload(string Name);
 
-/* ---------- Classes ---------- */
-public record ClassPayload(string Name, int Grade, string Language, decimal MonthlyFee, string? Room);
+/* ---------- Guruhlar (Groups) ---------- */
+public record ClassPayload(
+    string Name, int Grade, string Language, decimal MonthlyFee, string? Room,
+    string? Status = null, string? StartDate = null, string? EndDate = null, int Capacity = 0);
+
+/// <summary>O'quvchining bitta guruh a'zoligi (M2M).</summary>
+public record StudentGroupDto(
+    string Id, string GroupId, string GroupName, string JoinedAt, string? LeftAt, bool IsActive);
+/// <summary>Guruhdagi bitta o'quvchi (a'zolar ro'yxati).</summary>
+public record GroupMemberDto(
+    string StudentId, string FullName, string JoinedAt, string? LeftAt, bool IsActive);
+/// <summary>O'quvchini guruhga qo'shish so'rovi.</summary>
+public record AddStudentToGroupRequest(string StudentId, string? JoinedAt);
+/// <summary>O'quvchini bir nechta guruhga biriktirish (to'liq to'plam — berilmaganlar chiqariladi).</summary>
+public record SetStudentGroupsRequest(List<string> GroupIds);
+/// <summary>Guruh to'ldirish hisoboti qatori: sig'im vs ro'yxatdagilar.</summary>
+public record GroupFillRowDto(
+    string GroupId, string Name, int Grade, int Capacity, int Enrolled, int FreeSeats, string Status);
 
 /* ---------- Leads ---------- */
 public record LeadCreateRequest(
