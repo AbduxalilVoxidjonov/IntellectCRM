@@ -117,14 +117,14 @@ export async function updateTransaction(
   return data
 }
 
-export async function deleteTransaction(id: string): Promise<void> {
+export async function deleteTransaction(id: string, reasonId?: string): Promise<void> {
   if (USE_MOCK) {
     await delay(200)
     const i = financeMock.findIndex((t) => t.id === id)
     if (i >= 0) financeMock.splice(i, 1)
     return
   }
-  await api.delete(`/admin/finance/transactions/${id}`)
+  await api.delete(`/admin/finance/transactions/${id}`, { params: reasonId ? { reasonId } : undefined })
 }
 
 export async function getFinanceSummary(from?: string, to?: string): Promise<FinanceSummary> {

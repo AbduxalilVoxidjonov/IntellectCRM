@@ -34,6 +34,7 @@ import { AuditHistoryModal } from '@/components/audit/AuditHistoryModal'
 import type { AuditFilters } from '@/api/services/audit'
 import { TransactionFormModal } from './TransactionFormModal'
 import { TeacherSalaryDetailModal } from './TeacherSalaryDetailModal'
+import { ReasonPromptModal } from '@/components/ui/ReasonPromptModal'
 
 const todayStr = new Date().toISOString().slice(0, 10)
 const yearOf = (d: string) => Number(d.slice(0, 4))
@@ -81,6 +82,7 @@ export function FinancePage() {
   const [editing, setEditing] = useState<FinanceTransaction | null>(null)
   const [audit, setAudit] = useState<{ filters: AuditFilters; title: string } | null>(null)
   const [detailTeacher, setDetailTeacher] = useState<SalaryReportRow | null>(null)
+  const [deleting, setDeleting] = useState<FinanceTransaction | null>(null)
 
   const load = useCallback(() => {
     setLoading(true)
@@ -119,10 +121,15 @@ export function FinancePage() {
     load()
   }
 
-  const handleDelete = async (t: FinanceTransaction) => {
-    if (!confirm("Ushbu moliyaviy amalni o'chirishni tasdiqlaysizmi?")) return
-    await deleteTransaction(t.id)
-    load()
+  const handleDelete = (t: FinanceTransaction) => setDeleting(t)
+
+  const doDelete = (reasonId?: string) => {
+    const t = deleting
+    if (!t) return
+    deleteTransaction(t.id, reasonId).then(() => {
+      setDeleting(null)
+      load()
+    })
   }
 
   const handleAccrue = async () => {
@@ -657,6 +664,17 @@ export function FinancePage() {
         from={from}
         to={to}
         onClose={() => setDetailTeacher(null)}
+      />
+
+      <ReasonPromptModal
+        open={!!deleting}
+        category="finance_delete"
+        title="Tranzaksiyani o'chirish"
+        message={deleting ? "Ushbu moliyaviy amalni o'chirasizmi?" : undefined}
+        confirmLabel="O'chirish"
+        tone="red"
+        onConfirm={doDelete}
+        onClose={() => setDeleting(null)}
       />
     </div>
   )

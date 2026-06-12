@@ -470,3 +470,13 @@ docker compose up -d --build    # app + mssql + cloudflared + backup + mediamtx
   (JSON deserialize → originalni qayta qo'shadi), DELETE /{id} (butunlay). Migratsiya `AddArchivedRecords`. Frontend: nav
   "Arxiv" (Sozlamalar ostida), `/admin/archive` `ArchivePage` — 6 tab (Lidlar/Talabalar/O'qituvchilar/Xodimlar/Guruhlar/
   Moliya) + sanoq, Tiklash + Butunlay o'chirish. Backend 0, tsc+vite yashil, deploy ✅.
+- 2026-06-12: **O'chirish sabablari kengaytirildi (Talaba/O'qituvchi/Xodim/Moliya) + finance arxivida o'quvchi
+  nomi (2 parallel subagent).** 4 yangi sabab kategoriyasi: `student_delete`/`teacher_delete`/`staff_delete`/
+  `finance_delete` (ActionReasonsController.Categories + ReasonsPage 4 karta). Program.cs seed PER-KATEGORIYA
+  idempotent qilindi (jadval bo'sh bo'lmasa ham, sanog'i 0 bo'lgan kategoriyalar seed bo'ladi → yangi 4 ta prodda
+  paydo bo'ldi). Delete endpointlar (`StudentsController`/`TeachersController`/`StaffController`/`FinanceController`)
+  `?reasonId=` qabul qiladi → sabab matni `ArchiveService.Snapshot` reason + auditga yoziladi. Frontend: 4 sahifa
+  (StudentsPage/TeachersPage/StaffPage/FinancePage) `confirm()` o'rniga `ReasonPromptModal` (kategoriya bo'yicha) —
+  o'chirishdan oldin sabab so'raydi. **Finance arxivi:** snapshot title endi o'quvchi nomi ("{FISH} — to'lov",
+  bo'lmasa "{Kirim/Chiqim} {kategoriya}"), subtitle "{summa} so'm · {oy}" — kim to'lovi ekani ko'rinadi. Sxema
+  o'zgarmadi (migratsiya yo'q). Backend 0, tsc+vite yashil, deploy ✅.

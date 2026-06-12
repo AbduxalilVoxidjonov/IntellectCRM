@@ -21,6 +21,7 @@ public class ActionReasonsController(AppDbContext db) : ControllerBase
     private static readonly HashSet<string> Categories = new()
     {
         "freeze", "return_trial", "remove_active", "remove_trial", "remove_frozen", "lead_delete", "group_delete",
+        "student_delete", "teacher_delete", "staff_delete", "finance_delete",
     };
 
     [HttpGet]

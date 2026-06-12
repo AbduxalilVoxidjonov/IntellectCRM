@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Plus, Trash2, Check, UserX, Snowflake, RotateCcw, UserMinus, Users, Layers } from 'lucide-react'
+import { Plus, Trash2, Check, UserX, Snowflake, RotateCcw, UserMinus, Users, Layers, GraduationCap, Briefcase, Wallet } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { AbsenceReason, ActionReason } from '@/types'
 import { getSettings, saveAbsenceReasons } from '@/api/services/settings'
@@ -24,6 +24,10 @@ const CATEGORIES: { key: string; title: string; sub: string; icon: LucideIcon }[
   { key: 'remove_frozen', title: "Muzlatilgan talaba o'chirilganda", sub: 'Muzlatilgan a’zo chiqarilganda', icon: UserX },
   { key: 'lead_delete', title: "Lid o'chirilganda", sub: 'Lid (mijoz) o’chirilganda', icon: Users },
   { key: 'group_delete', title: "Guruh o'chirilganda", sub: 'Guruh o’chirilganda', icon: Layers },
+  { key: 'student_delete', title: "Talaba o'chirilganda", sub: "O'quvchi butunlay o'chirilganda", icon: UserMinus },
+  { key: 'teacher_delete', title: "O'qituvchi o'chirilganda", sub: "O'qituvchi butunlay o'chirilganda", icon: GraduationCap },
+  { key: 'staff_delete', title: "Xodim o'chirilganda", sub: "Xodim akkaunti o'chirilganda", icon: Briefcase },
+  { key: 'finance_delete', title: "To'lov o'chirilganda", sub: "Moliyada tranzaksiya/to'lov o'chirilganda", icon: Wallet },
 ]
 
 const control =

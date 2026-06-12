@@ -136,10 +136,11 @@ public class TeachersController(AppDbContext db, AuditService audit) : Controlle
     }
 
     [HttpDelete("{id}")]
-    public async Task<IActionResult> Delete(string id)
+    public async Task<IActionResult> Delete(string id, [FromQuery] string? reasonId = null)
     {
         var teacher = await db.Teachers.FindAsync(id);
         if (teacher is null) return NotFound();
+        var reason = string.IsNullOrWhiteSpace(reasonId) ? "" : (await db.ActionReasons.Where(r => r.Id == reasonId).Select(r => r.Label).FirstOrDefaultAsync() ?? "");
         // Biriktirilgan tizim akkauntini ham o'chiramiz.
         if (teacher.UserId is not null)
         {
@@ -147,7 +148,7 @@ public class TeachersController(AppDbContext db, AuditService audit) : Controlle
             if (user is not null) db.Users.Remove(user);
         }
         var actor = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value ?? "Admin";
-        ArchiveService.Snapshot(db, "teacher", teacher.Id, teacher.FullName, teacher.Phone ?? "", teacher, null, actor);
+        ArchiveService.Snapshot(db, "teacher", teacher.Id, teacher.FullName, teacher.Phone ?? "", teacher, reason.Length > 0 ? reason : null, actor);
         db.Teachers.Remove(teacher);
         await db.SaveChangesAsync();
         return NoContent();

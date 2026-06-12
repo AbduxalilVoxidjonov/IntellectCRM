@@ -62,12 +62,12 @@ export async function updateTeacher(id: string, payload: TeacherPayload): Promis
   return data
 }
 
-export async function deleteTeacher(id: string): Promise<void> {
+export async function deleteTeacher(id: string, reasonId?: string): Promise<void> {
   if (USE_MOCK) {
     await delay(200)
     return
   }
-  await api.delete(`/admin/teachers/${id}`)
+  await api.delete(`/admin/teachers/${id}`, { params: reasonId ? { reasonId } : undefined })
 }
 
 /** Faqat arxivlangan o'qituvchilar */

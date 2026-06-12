@@ -39,6 +39,7 @@ import { Modal } from '@/components/ui/Modal'
 import { Textarea } from '@/components/ui/Input'
 import { TeacherFormModal } from './TeacherFormModal'
 import { TeacherViewModal } from './TeacherViewModal'
+import { ReasonPromptModal } from '@/components/ui/ReasonPromptModal'
 
 type Tab = 'active' | 'archived'
 
@@ -85,6 +86,7 @@ export function TeachersPage() {
   // Arxivga ko'chirish tasdiq oynasi
   const [archiveTarget, setArchiveTarget] = useState<Teacher | null>(null)
   const [reason, setReason] = useState('')
+  const [deleting, setDeleting] = useState<Teacher | null>(null)
 
   useEffect(() => {
     Promise.all([getTeachers(), getArchivedTeachers(), getSubjects(), getClasses()])
@@ -155,11 +157,15 @@ export function TeachersPage() {
     })
   }
 
-  const handleDelete = (t: Teacher) => {
-    if (!confirm(`"${t.fullName}" o'qituvchini BUTUNLAY o'chirasizmi? Bu amalni ortga qaytarib bo'lmaydi.`))
-      return
-    if (!confirm('Aniq ishonchingiz komilmi? Barcha ma\'lumotlari o\'chadi.')) return
-    deleteTeacher(t.id).then(() => setArchived((prev) => prev.filter((x) => x.id !== t.id)))
+  const handleDelete = (t: Teacher) => setDeleting(t)
+
+  const doDelete = (reasonId?: string) => {
+    const t = deleting
+    if (!t) return
+    deleteTeacher(t.id, reasonId).then(() => {
+      setArchived((prev) => prev.filter((x) => x.id !== t.id))
+      setDeleting(null)
+    })
   }
 
   return (
@@ -468,6 +474,17 @@ export function TeachersPage() {
         subjects={subjects}
         groups={viewing ? teacherGroups(viewing.id) : []}
         onClose={() => setViewing(null)}
+      />
+
+      <ReasonPromptModal
+        open={!!deleting}
+        category="teacher_delete"
+        title="O'qituvchini o'chirish"
+        message={deleting ? `"${deleting.fullName}" o'qituvchini BUTUNLAY o'chirasizmi? Bu amalni ortga qaytarib bo'lmaydi.` : undefined}
+        confirmLabel="O'chirish"
+        tone="red"
+        onConfirm={doDelete}
+        onClose={() => setDeleting(null)}
       />
 
       {/* Arxivga ko'chirish tasdiqi */}

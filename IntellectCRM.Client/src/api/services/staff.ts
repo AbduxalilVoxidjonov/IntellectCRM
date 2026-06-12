@@ -23,8 +23,8 @@ export async function updateStaff(id: string, payload: StaffPayload): Promise<St
   return data
 }
 
-export async function deleteStaff(id: string): Promise<void> {
-  await api.delete(`/admin/staff/${id}`)
+export async function deleteStaff(id: string, reasonId?: string): Promise<void> {
+  await api.delete(`/admin/staff/${id}`, { params: reasonId ? { reasonId } : undefined })
 }
 
 export async function getStaffCredentials(id: string): Promise<Credentials> {

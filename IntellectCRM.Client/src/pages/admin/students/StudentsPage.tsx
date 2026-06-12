@@ -31,6 +31,7 @@ import { StudentFormModal } from './StudentFormModal'
 import { SmsModal } from './SmsModal'
 import { PaymentModal } from './PaymentModal'
 import { PaymentHistoryModal } from './PaymentHistoryModal'
+import { ReasonPromptModal } from '@/components/ui/ReasonPromptModal'
 
 type BalanceFilter = 'all' | 'debt' | 'paid'
 type Tab = 'active' | 'archived'
@@ -83,6 +84,7 @@ export function StudentsPage() {
   const [smsOpen, setSmsOpen] = useState(false)
   const [paying, setPaying] = useState<Student | null>(null)
   const [historyOf, setHistoryOf] = useState<Student | null>(null)
+  const [deleting, setDeleting] = useState<Student | null>(null)
 
   // Excel'dan ommaviy import
   const [importing, setImporting] = useState(false)
@@ -247,9 +249,12 @@ export function StudentsPage() {
     setPaying(null)
   }
 
-  const handleDelete = (s: Student) => {
-    if (!confirm(`"${s.fullName}" o'quvchini BUTUNLAY o'chirishni tasdiqlaysizmi? Bu amal qaytarib bo'lmaydi.`)) return
-    deleteStudent(s.id).then(() => {
+  const handleDelete = (s: Student) => setDeleting(s)
+
+  const doDelete = (reasonId?: string) => {
+    const s = deleting
+    if (!s) return
+    deleteStudent(s.id, reasonId).then(() => {
       setStudents((prev) => prev.filter((x) => x.id !== s.id))
       setArchived((prev) => prev.filter((x) => x.id !== s.id))
       setSelected((prev) => {
@@ -257,6 +262,7 @@ export function StudentsPage() {
         next.delete(s.id)
         return next
       })
+      setDeleting(null)
     })
   }
 
@@ -605,6 +611,17 @@ export function StudentsPage() {
       <SmsModal open={smsOpen} onClose={() => setSmsOpen(false)} recipients={selectedStudents} />
       <PaymentModal student={paying} onClose={() => setPaying(null)} onSubmit={handlePayment} />
       <PaymentHistoryModal studentId={historyOf?.id ?? null} onClose={() => setHistoryOf(null)} />
+
+      <ReasonPromptModal
+        open={!!deleting}
+        category="student_delete"
+        title="O'quvchini o'chirish"
+        message={deleting ? `"${deleting.fullName}" o'quvchini BUTUNLAY o'chirasizmi? Bu amalni ortga qaytarib bo'lmaydi.` : undefined}
+        confirmLabel="O'chirish"
+        tone="red"
+        onConfirm={doDelete}
+        onClose={() => setDeleting(null)}
+      />
 
       {/* Excel'dan import natijasi */}
       <Modal

@@ -245,9 +245,10 @@ using (var scope = app.Services.CreateScope())
         app.Logger.LogWarning("[seed] Super admin yaratildi — login: '{Login}', parol: '{Password}'", login, pwd);
     }
 
-    // Amal sabablari (muzlatish/o'chirish/sinovga qaytarish/lid/guruh) — jadval BO'SH bo'lsa standart
-    // sabablar bilan to'ldiriladi (admin keyin Sabablar bo'limida o'zgartiradi).
-    if (!db.ActionReasons.Any())
+    // Amal sabablari (muzlatish/o'chirish/sinovga qaytarish/lid/guruh) — standart sabablar bilan
+    // to'ldiriladi (admin keyin Sabablar bo'limida o'zgartiradi). PER-KATEGORIYA idempotent: jadval
+    // prod'da allaqachon to'ldirilgan bo'lsa ham, faqat hozir BO'SH kategoriyalar seed qilinadi
+    // (yangi kategoriyalar restartda qo'shiladi, mavjudlari takrorlanmaydi).
     {
         var defaults = new (string Cat, string[] Labels)[]
         {
@@ -258,12 +259,25 @@ using (var scope = app.Services.CreateScope())
             ("remove_frozen", new[] { "Uzoq vaqt qaytmadi", "Boshqa markazga o'tdi", "Voz kechdi" }),
             ("lead_delete", new[] { "Aloqaga chiqmadi", "Qiziqmadi", "Noto'g'ri raqam", "Takror / spam" }),
             ("group_delete", new[] { "O'quvchi yetarli emas", "O'qituvchi ketdi", "Kurs tugadi", "Guruhlar birlashtirildi" }),
+            ("student_delete", new[] { "Boshqa markazga o'tdi", "Ko'chib ketdi", "Xato kiritilgan", "Voz kechdi" }),
+            ("teacher_delete", new[] { "Ishdan bo'shadi", "Boshqa joyga o'tdi", "Xato kiritilgan" }),
+            ("staff_delete", new[] { "Ishdan bo'shadi", "Xato kiritilgan" }),
+            ("finance_delete", new[] { "Xato kiritilgan", "Takroriy to'lov", "Bekor qilindi", "Qaytarib berildi" }),
         };
+        var existingCats = db.ActionReasons.Select(r => r.Category).Distinct().ToHashSet();
+        var seeded = false;
         foreach (var (cat, labels) in defaults)
+        {
+            if (existingCats.Contains(cat)) continue;
             for (var i = 0; i < labels.Length; i++)
                 db.ActionReasons.Add(new ActionReason { Category = cat, Label = labels[i], Order = i });
-        db.SaveChanges();
-        app.Logger.LogInformation("[seed] Standart amal sabablari yaratildi");
+            seeded = true;
+        }
+        if (seeded)
+        {
+            db.SaveChanges();
+            app.Logger.LogInformation("[seed] Standart amal sabablari yaratildi");
+        }
     }
 
     // Telegram bot tokeni — restartdan keyin bot avtomatik ishga tushadi; token yo'q bo'lsa

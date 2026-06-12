@@ -197,18 +197,22 @@ public class FinanceController(AppDbContext db, AuditService audit) : Controller
     }
 
     [HttpDelete("transactions/{id}")]
-    public async Task<IActionResult> Delete(string id)
+    public async Task<IActionResult> Delete(string id, [FromQuery] string? reasonId = null)
     {
         var tx = await db.FinanceTransactions.FindAsync(id);
         if (tx is null) return NotFound();
 
+        var reason = string.IsNullOrWhiteSpace(reasonId) ? "" : (await db.ActionReasons.Where(r => r.Id == reasonId).Select(r => r.Label).FirstOrDefaultAsync() ?? "");
         var dir = tx.Direction == "income" ? "Kirim" : "Chiqim";
         var actor = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value ?? "Admin";
+        // To'lov o'quvchiga tegishli bo'lsa — arxiv sarlavhasida kimning to'lovi ekanini ko'rsatamiz.
+        var sName = tx.StudentId is null ? null : await db.Students.Where(s => s.Id == tx.StudentId).Select(s => s.FullName).FirstOrDefaultAsync();
         ArchiveService.Snapshot(db, "finance", tx.Id,
-            $"{(tx.Direction == "income" ? "Kirim" : "Chiqim")} {tx.Category}",
-            $"{tx.Amount} so'm", tx, null, actor);
+            sName != null ? $"{sName} — to'lov" : $"{(tx.Direction == "income" ? "Kirim" : "Chiqim")} {tx.Category}",
+            $"{tx.Amount} so'm" + (string.IsNullOrEmpty(tx.Month) ? "" : $" · {tx.Month}"),
+            tx, reason.Length > 0 ? reason : null, actor);
         audit.Record(AuditService.EntityFinanceTransaction, tx.Id, "delete",
-            $"O'chirildi: {dir} {tx.Category} — {AuditService.Money(tx.Amount)} so'm",
+            $"O'chirildi: {dir} {tx.Category} — {AuditService.Money(tx.Amount)} so'm" + (reason.Length > 0 ? $" — sabab: {reason}" : ""),
             before: AuditService.Snapshot(tx), studentId: tx.StudentId, teacherId: tx.TeacherId);
 
         // To'lov o'chirilsa — o'quvchi balansiga qo'shilgan summani QAYTARAMIZ (qarz tiklanadi).

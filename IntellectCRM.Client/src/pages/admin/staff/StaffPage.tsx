@@ -22,6 +22,7 @@ import { Loader } from '@/components/ui/Loader'
 import { Modal } from '@/components/ui/Modal'
 import { Input } from '@/components/ui/Input'
 import { CredentialsBox } from '@/components/ui/CredentialsBox'
+import { ReasonPromptModal } from '@/components/ui/ReasonPromptModal'
 
 const POSITIONS = ['Kassir', 'Administrator', "Direktor o'rinbosari", 'Qorovul', 'Hisobchi']
 
@@ -63,6 +64,7 @@ export function StaffPage() {
   const [credOf, setCredOf] = useState<Staff | null>(null)
   const [creds, setCreds] = useState<Credentials | null>(null)
   const [credLoading, setCredLoading] = useState(false)
+  const [deleting, setDeleting] = useState<Staff | null>(null)
 
   const syncDraft = (list: Staff[]) =>
     setDraft(Object.fromEntries(list.map((s) => [s.id, new Set(s.permissions)])))
@@ -122,14 +124,18 @@ export function StaffPage() {
     }
   }
 
-  const handleDelete = (s: Staff) => {
-    if (!confirm(`"${s.fullName}" xodimni o'chirasizmi? Akkaunti ham o'chadi.`)) return
-    deleteStaff(s.id).then(() => {
+  const handleDelete = (s: Staff) => setDeleting(s)
+
+  const doDelete = (reasonId?: string) => {
+    const s = deleting
+    if (!s) return
+    deleteStaff(s.id, reasonId).then(() => {
       setStaff((p) => p.filter((x) => x.id !== s.id))
       setDraft((d) => {
         const { [s.id]: _, ...rest } = d
         return rest
       })
+      setDeleting(null)
     })
   }
 
@@ -397,6 +403,17 @@ export function StaffPage() {
           }
         />
       </Modal>
+
+      <ReasonPromptModal
+        open={!!deleting}
+        category="staff_delete"
+        title="Xodimni o'chirish"
+        message={deleting ? `"${deleting.fullName}" xodimni o'chirasizmi? Akkaunti ham o'chadi.` : undefined}
+        confirmLabel="O'chirish"
+        tone="red"
+        onConfirm={doDelete}
+        onClose={() => setDeleting(null)}
+      />
     </div>
   )
 }

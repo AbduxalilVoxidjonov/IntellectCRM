@@ -246,12 +246,12 @@ export async function updateStudent(
   })
 }
 
-export async function deleteStudent(id: string): Promise<void> {
+export async function deleteStudent(id: string, reasonId?: string): Promise<void> {
   if (USE_MOCK) {
     await delay(200)
     return
   }
-  await api.delete(`/admin/students/${id}`)
+  await api.delete(`/admin/students/${id}`, { params: reasonId ? { reasonId } : undefined })
 }
 
 /** O'quvchining tizim akkaunti (login/parol) */

@@ -405,10 +405,11 @@ public class StudentsController(AppDbContext db, AuditService audit) : Controlle
     }
 
     [HttpDelete("{id}")]
-    public async Task<IActionResult> Delete(string id)
+    public async Task<IActionResult> Delete(string id, [FromQuery] string? reasonId = null)
     {
         var student = await db.Students.FindAsync(id);
         if (student is null) return NotFound();
+        var reason = string.IsNullOrWhiteSpace(reasonId) ? "" : (await db.ActionReasons.Where(r => r.Id == reasonId).Select(r => r.Label).FirstOrDefaultAsync() ?? "");
         // Bog'liq qatorlar orphan qolmasligi uchun ularni ham olib tashlaymiz: oylik hisob, guruh a'zoliklari,
         // jurnal yozuvlari, oylik baholar, intizomiy ballar. (Moliya yozuvlari audit uchun saqlanadi.)
         db.MonthlyCharges.RemoveRange(db.MonthlyCharges.Where(c => c.StudentId == id));
@@ -425,7 +426,7 @@ public class StudentsController(AppDbContext db, AuditService audit) : Controlle
         }
         var actor = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value ?? "Admin";
         ArchiveService.Snapshot(db, "student", student.Id, student.FullName,
-            student.Phone ?? student.ClassName ?? "", student, null, actor);
+            student.Phone ?? student.ClassName ?? "", student, reason.Length > 0 ? reason : null, actor);
         db.Students.Remove(student);
         await db.SaveChangesAsync();
         return NoContent();
