@@ -514,4 +514,10 @@ docker compose up -d --build    # app + mssql + cloudflared + backup + mediamtx
   → "ingliz tili" (4 daraja A1-B2 · 16 mavzu[grammatika/lug'at/vazifa/can-do] · 151 band); `matematika.xlsx` →
   "matematika" (12 daraja[Algebra 7-bosqich + Geometriya 5] · 32 mavzu · 172 band). Jonli: GET tree, progress
   toggle roundtrip ✓. Backend 0, tsc+vite yashil, deploy ✅. Manba xlsx repo ildizida saqlandi.
-  indeksi; bir nechta N+1 (perf); staff GET barcha bo'limni o'qiy oladi (dizayn).
+- 2026-06-12: **O'quv dasturi qayta tashkil + UI (2-ustun + card).** (1) English'ni 4 alohida daraja-kursga
+  KO'CHIRDIM (API import orqali): A1→Beginner(40 band), A2→Elementary(37), B1→Pre-Intermediate(38), B2→Intermediate(36);
+  so'ng "ingliz tili" kursini O'CHIRDIM (dastur tozalandi + subject delete). DIQQAT: TEST-G guruhi ingliz tili'ga
+  bog'langan edi — endi CourseId dangling (qayta biriktirish kerak). (2) `CurriculumEditorPage` + `StudentDetailPage`
+  checklist: mavzular endi 2-USTUNDA (`lg:grid-cols-2`) — ko'rish/yozishga qulay; topik karta ko'rinishida. (3)
+  `SubjectsPage` Kurslar jadval→**CARD grid** (kurs nomi havola→o'quv dasturi, narx, "O'quv dasturi" tugma+tahrir/o'chir).
+  Frontend-only (delete/import API), tsc+vite yashil, deploy ✅.

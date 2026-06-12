@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Plus, Pencil, Trash2, BookOpen, ListChecks } from 'lucide-react'
 import type { Subject } from '@/types'
 import type { SubjectPayload } from '@/api/services/subjects'
@@ -101,63 +101,50 @@ export function SubjectsPage() {
           </div>
         </Card>
       ) : (
-        <Card tight>
-          <div className="table-wrap">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th className="w-10">#</th>
-                  <th>Kurs nomi</th>
-                  <th className="num">Oylik narx</th>
-                  <th className="text-right">Amallar</th>
-                </tr>
-              </thead>
-              <tbody>
-                {subjects.map((s, i) => (
-                  <tr key={s.id}>
-                    <td className="num text-slate-400">{i + 1}</td>
-                    <td>
-                      <div className="cell-user">
-                        <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-600">
-                          <BookOpen className="h-5 w-5" />
-                        </div>
-                        <div className="meta">
-                          <strong className="text-slate-800">{s.name}</strong>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="num font-medium text-slate-700">
-                      {formatMoney(s.price)} <span className="text-slate-400">so'm</span>
-                    </td>
-                    <td>
-                      <div className="flex items-center justify-end gap-0.5">
-                        <IconBtn
-                          icon={ListChecks}
-                          title="O'quv dasturi"
-                          onClick={() => navigate(`/admin/subjects/${s.id}/curriculum`)}
-                        />
-                        <IconBtn
-                          icon={Pencil}
-                          title="Tahrirlash"
-                          onClick={() => {
-                            setEditing(s)
-                            setFormOpen(true)
-                          }}
-                        />
-                        <IconBtn
-                          icon={Trash2}
-                          title="O'chirish"
-                          danger
-                          onClick={() => handleDelete(s)}
-                        />
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {subjects.map((s) => (
+            <div
+              key={s.id}
+              className="group flex flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-[var(--shadow-1)] transition-shadow hover:shadow-[var(--shadow-pop)]"
+            >
+              {/* Kurs nomi (bosilsa o'quv dasturi) */}
+              <Link to={`/admin/subjects/${s.id}/curriculum`} className="flex items-start gap-3">
+                <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-600 transition-colors group-hover:bg-brand-100">
+                  <BookOpen className="h-[22px] w-[22px]" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-base font-bold tracking-tight text-slate-800 transition-colors group-hover:text-brand-600">
+                    {s.name}
+                  </p>
+                  <p className="mt-0.5 text-sm text-slate-500">
+                    <span className="font-mono font-medium text-slate-700">{formatMoney(s.price)}</span>{' '}
+                    so'm / oy
+                  </p>
+                </div>
+              </Link>
+
+              {/* Amallar */}
+              <div className="mt-4 flex items-center gap-2 border-t border-slate-100 pt-3">
+                <button
+                  type="button"
+                  onClick={() => navigate(`/admin/subjects/${s.id}/curriculum`)}
+                  className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-brand-50 px-3 py-2 text-sm font-medium text-brand-700 transition-colors hover:bg-brand-100"
+                >
+                  <ListChecks className="h-4 w-4" /> O'quv dasturi
+                </button>
+                <IconBtn
+                  icon={Pencil}
+                  title="Tahrirlash"
+                  onClick={() => {
+                    setEditing(s)
+                    setFormOpen(true)
+                  }}
+                />
+                <IconBtn icon={Trash2} title="O'chirish" danger onClick={() => handleDelete(s)} />
+              </div>
+            </div>
+          ))}
+        </div>
       )}
 
       <SubjectFormModal

@@ -332,7 +332,7 @@ function LevelBlock({
           {level.topics.length === 0 ? (
             <p className="px-1 text-xs text-slate-400">Mavzu yo'q — quyida qo'shing.</p>
           ) : (
-            <div className="space-y-2.5">
+            <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
               {level.topics.map((topic) => (
                 <TopicBlock
                   key={topic.id}
@@ -392,7 +392,7 @@ function TopicBlock({ topic, onSave, onDelete, onAddItem, onSaveItem, onDeleteIt
   }
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-slate-50/40 p-2.5">
+    <div className="h-full rounded-xl border border-slate-200 bg-white p-3 shadow-[var(--shadow-1)]">
       {/* Mavzu sarlavhasi */}
       <div className="flex items-center gap-2">
         <input
@@ -401,7 +401,7 @@ function TopicBlock({ topic, onSave, onDelete, onAddItem, onSaveItem, onDeleteIt
           onBlur={() => onSave(title, note)}
           onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
           placeholder="Mavzu nomi"
-          className="min-w-0 flex-1 rounded-lg border border-transparent bg-white px-2.5 py-1.5 text-sm font-medium text-slate-800 outline-none transition-colors hover:border-slate-200 focus:border-brand-400"
+          className="min-w-0 flex-1 rounded-lg border border-transparent bg-slate-50 px-2.5 py-1.5 text-sm font-semibold text-slate-800 outline-none transition-colors hover:border-slate-200 focus:border-brand-400 focus:bg-white"
         />
         <span className="hidden flex-shrink-0 text-xs text-slate-400 sm:inline">{topic.items.length} band</span>
         <button

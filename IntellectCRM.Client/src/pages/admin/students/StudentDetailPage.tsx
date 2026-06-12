@@ -944,15 +944,19 @@ function LevelBlock({
         </span>
       </button>
       {open && (
-        <div className="space-y-3 border-t border-slate-100 px-3 py-3">
+        <div className="border-t border-slate-100 px-3 py-3">
           {level.topics.length === 0 ? (
             <p className="text-xs text-slate-400">Mavzu yo'q</p>
           ) : (
-            level.topics.map((topic) => {
-              const tDone = topic.items.filter((it) => done.has(it.id)).length
-              return (
-                <div key={topic.id}>
-                  <div className="mb-1.5 flex items-center justify-between gap-2">
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              {level.topics.map((topic) => {
+                const tDone = topic.items.filter((it) => done.has(it.id)).length
+                return (
+                  <div
+                    key={topic.id}
+                    className="rounded-xl border border-slate-200 bg-slate-50/40 p-3"
+                  >
+                    <div className="mb-1.5 flex items-center justify-between gap-2">
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
                       {topic.title}
                     </p>
@@ -1001,9 +1005,10 @@ function LevelBlock({
                       })}
                     </div>
                   )}
-                </div>
-              )
-            })
+                  </div>
+                )
+              })}
+            </div>
           )}
         </div>
       )}
