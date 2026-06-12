@@ -30,13 +30,13 @@ public class TeacherPortalController(
         return uid is null ? null : await db.Teachers.FirstOrDefaultAsync(t => t.UserId == uid);
     }
 
-    /// <summary>O'qituvchi shu sinfda shu fanni o'qitadimi (jadval template'lari bo'yicha)?</summary>
+    /// <summary>O'qituvchi shu guruhda shu kursni (fan) o'qitadimi? Biriktirish to'g'ridan-to'g'ri
+    /// guruhda: Group.TeacherId (o'qituvchi) + Group.CourseId (kurs). subjectId bo'sh = faqat o'qituvchi.</summary>
     private async Task<bool> Teaches(string teacherId, string classId, string subjectId)
     {
-        var templates = await db.ScheduleTemplates.Include(t => t.Lessons)
-            .Where(t => t.ClassId == classId).ToListAsync();
-        return templates.SelectMany(t => t.Lessons)
-            .Any(l => l.TeacherId == teacherId && l.SubjectId == subjectId);
+        var g = await db.Classes.FindAsync(classId);
+        return g != null && g.TeacherId == teacherId
+            && (g.CourseId == subjectId || string.IsNullOrEmpty(subjectId));
     }
 
     /// <summary>O'qituvchi shu sinfda umuman dars beradimi yoki sinf rahbarimi?</summary>
@@ -45,9 +45,7 @@ public class TeacherPortalController(
         var cls = await db.Classes.FindAsync(classId);
         if (cls is null) return false;
         if (!string.IsNullOrEmpty(teacher.HomeroomClass) && teacher.HomeroomClass == cls.Name) return true;
-        var templates = await db.ScheduleTemplates.Include(t => t.Lessons)
-            .Where(t => t.ClassId == classId).ToListAsync();
-        return templates.SelectMany(t => t.Lessons).Any(l => l.TeacherId == teacher.Id);
+        return cls.TeacherId == teacher.Id;
     }
 
     // ---------- Profil ----------
@@ -59,7 +57,7 @@ public class TeacherPortalController(
         if (t is null) return NotFound();
         var user = t.UserId is null ? null : await db.Users.FindAsync(t.UserId);
         var names = (await db.Subjects.Where(s => t.SubjectIds.Contains(s.Id)).ToListAsync())
-            .Select(s => new SubjectDto(s.Id, s.Name))
+            .Select(s => new SubjectDto(s.Id, s.Name, s.Price))
             .OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase).ToList();
         return new TeacherProfileDto(t.Id, t.FullName, user?.Email ?? "", t.HomeroomClass, names, t.Permissions, t.PhotoUrl);
     }
@@ -74,11 +72,6 @@ public class TeacherPortalController(
         var m = await db.CenterMeta.FirstOrDefaultAsync();
         return new SchoolNameDto(m?.Name ?? "");
     }
-
-    /// <summary>Bayram/dam olish kunlari — bu sanalarda dars bo'lmaydi (jadvalda "Bayram" deb ko'rsating).</summary>
-    [HttpGet("holidays")]
-    public async Task<ActionResult<IEnumerable<HolidayDto>>> Holidays() =>
-        await db.Holidays.OrderBy(h => h.Date).Select(h => new HolidayDto(h.Date, h.Name)).ToListAsync();
 
     /// <summary>
     /// Web (PWA) push uchun Firebase web konfiguratsiyasi + VAPID ochiq kaliti. Brauzer shu config
@@ -292,19 +285,17 @@ public class TeacherPortalController(
         var t = await Me();
         if (t is null) return NotFound();
 
-        var templates = await db.ScheduleTemplates.Include(x => x.Lessons).ToListAsync();
         var subjectNames = await db.Subjects.ToDictionaryAsync(s => s.Id, s => s.Name);
         var classes = await db.Classes.ToListAsync();
 
-        // O'qituvchi qaysi sinfda qaysi fanlarni o'qitishini jadval template'laridan yig'amiz.
-        var taught = new Dictionary<string, HashSet<string>>(); // classId -> subjectIds
-        foreach (var tpl in templates)
-            foreach (var l in tpl.Lessons.Where(l => l.TeacherId == t.Id))
-            {
-                if (!taught.TryGetValue(tpl.ClassId, out var set))
-                    taught[tpl.ClassId] = set = new();
-                set.Add(l.SubjectId);
-            }
+        // O'qituvchi qaysi guruhda qaysi kursni o'qitishi to'g'ridan-to'g'ri guruhda: Group.TeacherId + Group.CourseId.
+        var taught = new Dictionary<string, HashSet<string>>(); // classId -> subjectIds (CourseId)
+        foreach (var g in classes.Where(c => c.TeacherId == t.Id))
+        {
+            if (!taught.TryGetValue(g.Id, out var set))
+                taught[g.Id] = set = new();
+            if (!string.IsNullOrEmpty(g.CourseId)) set.Add(g.CourseId);
+        }
 
         var result = new List<TeacherClassDto>();
         foreach (var cls in classes)
@@ -318,46 +309,6 @@ public class TeacherPortalController(
             result.Add(new TeacherClassDto(cls.Id, cls.Name, cls.Grade, isHomeroom, subjects));
         }
         return result.OrderBy(c => c.Grade).ThenBy(c => c.ClassName).ToList();
-    }
-
-    // ---------- Jadval ----------
-
-    [HttpGet("schedule")]
-    public async Task<ActionResult<IEnumerable<TeacherLessonDto>>> Schedule(
-        [FromQuery] int? quarter, [FromQuery] int? week)
-    {
-        var t = await Me();
-        if (t is null) return NotFound();
-        if (!t.Permissions.Contains(TeacherPermissions.Schedule)) return Forbid();
-
-        var (curQ, curW) = await PortalSchedule.CurrentQuarterWeekAsync(db);
-        var q = quarter ?? curQ;
-        var w = week ?? curW;
-
-        var assignments = await db.WeekAssignments
-            .Where(x => x.Quarter == q && x.Week == w && x.TemplateId != null).ToListAsync();
-        var templateIds = assignments.Select(a => a.TemplateId!).Distinct().ToList();
-        var templates = await db.ScheduleTemplates.Include(x => x.Lessons)
-            .Where(x => templateIds.Contains(x.Id)).ToListAsync();
-        var classes = await db.Classes.ToDictionaryAsync(c => c.Id, c => c.Name);
-        var subjects = await db.Subjects.ToDictionaryAsync(s => s.Id, s => s.Name);
-        var times = await db.LessonTimes.ToDictionaryAsync(x => x.Period);
-
-        var result = new List<TeacherLessonDto>();
-        foreach (var a in assignments)
-        {
-            var tpl = templates.FirstOrDefault(x => x.Id == a.TemplateId);
-            if (tpl is null) continue;
-            foreach (var l in tpl.Lessons.Where(l => l.TeacherId == t.Id))
-            {
-                times.TryGetValue(l.Period, out var lt);
-                result.Add(new TeacherLessonDto(
-                    l.Day, l.Period, lt?.StartTime, lt?.EndTime,
-                    a.ClassId, classes.GetValueOrDefault(a.ClassId, ""),
-                    l.SubjectId, subjects.GetValueOrDefault(l.SubjectId, "")));
-            }
-        }
-        return result.OrderBy(r => r.Day).ThenBy(r => r.Period).ToList();
     }
 
     // ---------- Maosh (faqat o'ziniki) ----------
@@ -761,8 +712,7 @@ public class TeacherPortalController(
     {
         var t = await Me();
         if (t is null) return NotFound();
-        var (curQ, _) = await PortalSchedule.CurrentQuarterWeekAsync(db);
-        return await SubjectProgressService.ForTeacherAsync(db, t.Id, quarter ?? curQ);
+        return await SubjectProgressService.ForTeacherAsync(db, t.Id, quarter ?? 1);
     }
 
     // ---------- Taklif va shikoyatlar (o'qituvchi → admin) ----------
@@ -819,10 +769,9 @@ public class TeacherPortalController(
     private async Task<HashSet<string>> TaughtClassIdsAsync(Teacher t)
     {
         var ids = new HashSet<string>(StringComparer.Ordinal);
-        var templates = await db.ScheduleTemplates.Include(x => x.Lessons).ToListAsync();
-        foreach (var tpl in templates)
-            if (tpl.Lessons.Any(l => l.TeacherId == t.Id))
-                ids.Add(tpl.ClassId);
+        var groupIds = await db.Classes.Where(c => c.TeacherId == t.Id)
+            .Select(c => c.Id).ToListAsync();
+        foreach (var gid in groupIds) ids.Add(gid);
         if (!string.IsNullOrEmpty(t.HomeroomClass))
         {
             var hc = await db.Classes.FirstOrDefaultAsync(c => c.Name == t.HomeroomClass);

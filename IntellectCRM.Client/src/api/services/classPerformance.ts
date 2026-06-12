@@ -4,7 +4,6 @@ import { api, USE_MOCK } from '../client'
 import { studentsMock } from '../mock/students'
 import { subjectsMock } from '../mock/subjects'
 import { classesMock } from '../mock/classes'
-import { templatesMock } from '../mock/scheduleTemplates'
 
 export interface ClassStudentRow {
   student: Student
@@ -47,13 +46,8 @@ function buildMock(classId: string): ClassPerformanceData {
 
   const students = studentsMock.filter((s) => s.className === cls.name)
 
-  // Sinf fanlari — barcha jadval variantlaridan; bo'sh bo'lsa, barcha fanlar
-  const allLessons = (templatesMock[classId] ?? []).flatMap((t) => t.lessons)
-  const fromSchedule = [...new Set(allLessons.map((l) => l.subjectId))]
-  const subjectIds = fromSchedule.length ? fromSchedule : subjectsMock.map((s) => s.id)
-  const subjects = subjectIds
-    .map((id) => subjectsMock.find((s) => s.id === id))
-    .filter((s): s is Subject => Boolean(s))
+  // Sinf fanlari — mock rejimda barcha fanlar (jadval entity yo'q).
+  const subjects = subjectsMock.slice()
 
   const rows: ClassStudentRow[] = students.map((student) => {
     const grades: Record<string, number> = {}

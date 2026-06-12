@@ -43,11 +43,12 @@ export async function getEvaluationBoard(
   month?: string,
   week = 0,
   subjectId?: string,
+  groupId?: string,
 ): Promise<EvaluationBoard> {
   if (USE_MOCK)
-    return { months: [], month: '', week: 0, types: [], rows: [], subjectId: 'all', subjects: [] }
+    return { months: [], month: '', week: 0, types: [], rows: [], subjectId: 'all', subjects: [], groups: [], groupId: 'all' }
   const { data } = await api.get<EvaluationBoard>('/admin/student-evaluation/board', {
-    params: { month, week, subjectId },
+    params: { month, week, subjectId, groupId },
   })
   return data
 }

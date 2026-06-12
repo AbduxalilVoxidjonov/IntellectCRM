@@ -6,19 +6,15 @@ using IntellectCRM.Domain;
 namespace IntellectCRM.Application.Services;
 
 /// <summary>
-/// "Fan progresi" — dars jadvali (reja) va jurnaldagi "dars o'tildi" belgilashi
-/// (<see cref="LessonNote.Conducted"/>) asosida hisoblanadi. LMS moduliga bog'liq EMAS.
+/// "Fan progresi" — qo'lda qo'shilgan darslar (<see cref="LessonNote"/>) va ulardagi "dars o'tildi"
+/// belgisi (<see cref="LessonNote.Conducted"/>) asosida. Dars jadvali olib tashlandi.
 ///
-/// <para><b>Reja (Planned)</b> = sinfga biriktirilgan jadval (template) bo'yicha shu fanning jami
-/// dars kataklari soni. <b>O'tilgan (Conducted)</b> = o'sha kataklardan o'qituvchi "o'tildi" deb
-/// belgilaganlari. <b>Progress</b> = Conducted / Planned.</para>
-///
-/// <para>Chorak davri tizimi olib tashlandi — hafta raqamlari o'quv yili boshidan (eng erta qabul
-/// oyining 1-sanasidan) ketma-ket sanaladi: WeekAssignment.Week → shu hafta dushanbasi.</para>
+/// <para><b>Reja (Planned)</b> = shu fan uchun qo'shilgan darslar (LessonNote) soni.
+/// <b>O'tilgan (Conducted)</b> = o'qituvchi "o'tildi" deb belgilaganlari. <b>Progress</b> = Conducted / Planned.</para>
 /// </summary>
 public static class SubjectProgressService
 {
-    /// <summary>Bitta reja dars nusxasi (aniq kun + dars raqami).</summary>
+    /// <summary>Bitta dars nusxasi (aniq kun + dars raqami).</summary>
     public sealed class LessonSlot
     {
         public string Date { get; init; } = "";
@@ -34,55 +30,23 @@ public static class SubjectProgressService
 
     private static int Pct(int a, int b) => b <= 0 ? 0 : (int)Math.Round(a * 100.0 / b);
 
-    /// <summary>O'quv yili birinchi dushanbasi (hafta raqamlarining tayanchi).</summary>
-    private static async Task<string> FirstMondayAsync(IAppDbContext db)
-    {
-        var startMonth = await TuitionService.AcademicYearStartMonthAsync(db); // "yyyy-MM"
-        return ScheduleMath.MondayOfISO($"{startMonth}-01");
-    }
-
-    /// <summary>Sinfning BARCHA reja dars nusxalari (har birida o'tilgan/topic bilan).</summary>
+    /// <summary>Sinfning BARCHA darslari (qo'lda qo'shilgan LessonNote nusxalari).</summary>
     public static async Task<List<LessonSlot>> ClassSlotsAsync(
         IAppDbContext db, string classId, int quarter)
     {
-        var assignments = await db.WeekAssignments
-            .Where(a => a.ClassId == classId && a.Quarter == quarter && a.TemplateId != null)
-            .ToListAsync();
-        if (assignments.Count == 0) return new();
-
-        var templateIds = assignments.Select(a => a.TemplateId!).Distinct().ToList();
-        var templates = (await db.ScheduleTemplates.Include(t => t.Lessons)
-                .Where(t => templateIds.Contains(t.Id)).ToListAsync())
-            .ToDictionary(t => t.Id, t => t.Lessons);
-
         var notes = await db.LessonNotes
             .Where(n => n.ClassId == classId && n.Quarter == quarter)
             .ToListAsync();
-        var noteMap = notes.ToDictionary(n => (n.Date, n.Period, n.SubjectId));
-
-        var firstMonday = await FirstMondayAsync(db);
-        var slots = new List<LessonSlot>();
-        foreach (var a in assignments)
+        return notes.Select(n => new LessonSlot
         {
-            if (a.TemplateId is null || a.Week <= 0 || !templates.TryGetValue(a.TemplateId, out var lessons)) continue;
-            var monday = ScheduleMath.AddDaysISO(firstMonday, (a.Week - 1) * 7);
-            foreach (var l in lessons)
-            {
-                var date = ScheduleMath.AddDaysISO(monday, l.Day);
-                noteMap.TryGetValue((date, l.Period, l.SubjectId), out var n);
-                slots.Add(new LessonSlot
-                {
-                    Date = date,
-                    Period = l.Period,
-                    SubjectId = l.SubjectId,
-                    TeacherId = l.TeacherId,
-                    Conducted = n?.Conducted ?? false,
-                    Topic = n?.Topic ?? "",
-                    Homework = n?.Homework,
-                });
-            }
-        }
-        return slots;
+            Date = n.Date,
+            Period = n.Period,
+            SubjectId = n.SubjectId,
+            TeacherId = "",
+            Conducted = n.Conducted,
+            Topic = n.Topic,
+            Homework = n.Homework,
+        }).ToList();
     }
 
     /// <summary>O'quvchi/ota-ona: umumiy + har bir fan progresi.</summary>
@@ -128,17 +92,14 @@ public static class SubjectProgressService
         if (slots.Count == 0) return null;
 
         var name = (await db.Subjects.FindAsync(subjectId))?.Name ?? "";
-        var times = await db.LessonTimes.ToDictionaryAsync(x => x.Period);
         var today = Today;
 
+        // Dars vaqtlari (qo'ng'iroqlar jadvali) olib tashlandi — boshlanish/tugash vaqti yo'q (null).
         var lessons = slots.Select(s =>
-        {
-            times.TryGetValue(s.Period, out var lt);
-            return new SubjectLessonDto(
-                s.Date, s.Period, lt?.StartTime, lt?.EndTime,
+            new SubjectLessonDto(
+                s.Date, s.Period, null, null,
                 s.Topic, s.Homework, s.Conducted,
-                string.CompareOrdinal(s.Date, today) <= 0);
-        }).ToList();
+                string.CompareOrdinal(s.Date, today) <= 0)).ToList();
 
         var planned = slots.Count;
         var conducted = slots.Count(s => s.Conducted);
@@ -148,54 +109,38 @@ public static class SubjectProgressService
     }
 
     /// <summary>
-    /// O'qituvchi: o'zi o'tadigan barcha (sinf, fan) bo'yicha o'tilgan darslar progresi.
-    /// Barcha kerakli ma'lumot BIR martada yuklanadi (sinflar bo'ylab takroriy so'rov yo'q).
+    /// O'qituvchi: o'zi biriktirilgan barcha (guruh, fan) bo'yicha o'tilgan darslar progresi.
+    /// O'qituvchining guruhlari <see cref="Group.TeacherId"/> orqali, har guruhning fani esa
+    /// uning <see cref="Group.CourseId"/> orqali aniqlanadi (bir guruh — bitta kurs).
     /// </summary>
     public static async Task<TeacherProgressDto> ForTeacherAsync(IAppDbContext db, string teacherId, int quarter)
     {
-        var templates = await db.ScheduleTemplates.Include(t => t.Lessons).ToListAsync();
+        var groups = await db.Classes.Where(c => c.TeacherId == teacherId).ToListAsync();
+        if (groups.Count == 0) return new TeacherProgressDto(quarter, 0, 0, 0, new());
 
-        // O'qituvchi dars beradigan sinflar (jadval template'laridan).
-        var taughtClassIds = templates
-            .Where(t => t.Lessons.Any(l => l.TeacherId == teacherId))
-            .Select(t => t.ClassId).ToHashSet(StringComparer.Ordinal);
-
-        if (taughtClassIds.Count == 0)
-            return new TeacherProgressDto(quarter, 0, 0, 0, new());
-
+        var classIds = groups.Select(g => g.Id).ToHashSet(StringComparer.Ordinal);
         var classNames = await db.Classes.ToDictionaryAsync(c => c.Id, c => c.Name);
         var subjectNames = await db.Subjects.ToDictionaryAsync(s => s.Id, s => s.Name);
 
-        // Faqat shu sinflar + chorak uchun: hafta biriktiruvlari va jurnal yozuvlari — bir martada.
-        var assignments = await db.WeekAssignments
-            .Where(a => a.Quarter == quarter && a.TemplateId != null && taughtClassIds.Contains(a.ClassId))
-            .ToListAsync();
         var notes = await db.LessonNotes
-            .Where(n => n.Quarter == quarter && taughtClassIds.Contains(n.ClassId))
+            .Where(n => n.Quarter == quarter && classIds.Contains(n.ClassId))
             .ToListAsync();
-        var noteMap = notes.ToDictionary(n => (n.ClassId, n.Date, n.Period, n.SubjectId));
-        var tplById = templates.ToDictionary(t => t.Id, t => t.Lessons);
-
-        var firstMonday = await FirstMondayAsync(db);
         var today = Today;
 
-        // (sinf, fan) -> (reja, o'tilgan, bugungacha kutilgan)
+        // Biriktirilgan (guruh, fan=CourseId) lar bo'yicha jamlash.
         var agg = new Dictionary<(string ClassId, string SubjectId), (int Planned, int Conducted, int Expected)>();
-        foreach (var a in assignments)
+        foreach (var g in groups)
+            if (!string.IsNullOrEmpty(g.CourseId))
+                agg[(g.Id, g.CourseId)] = (0, 0, 0);
+
+        foreach (var n in notes)
         {
-            if (a.TemplateId is null || a.Week <= 0 || !tplById.TryGetValue(a.TemplateId, out var lessons)) continue;
-            var monday = ScheduleMath.AddDaysISO(firstMonday, (a.Week - 1) * 7);
-            foreach (var l in lessons.Where(l => l.TeacherId == teacherId))
-            {
-                var date = ScheduleMath.AddDaysISO(monday, l.Day);
-                noteMap.TryGetValue((a.ClassId, date, l.Period, l.SubjectId), out var n);
-                var key = (a.ClassId, l.SubjectId);
-                agg.TryGetValue(key, out var cur);
-                cur.Planned++;
-                if (n?.Conducted == true) cur.Conducted++;
-                if (string.CompareOrdinal(date, today) <= 0) cur.Expected++;
-                agg[key] = cur;
-            }
+            var key = (n.ClassId, n.SubjectId);
+            if (!agg.TryGetValue(key, out var cur)) continue; // bu o'qituvchiga biriktirilmagan
+            cur.Planned++;
+            if (n.Conducted) cur.Conducted++;
+            if (string.CompareOrdinal(n.Date, today) <= 0) cur.Expected++;
+            agg[key] = cur;
         }
 
         var items = agg

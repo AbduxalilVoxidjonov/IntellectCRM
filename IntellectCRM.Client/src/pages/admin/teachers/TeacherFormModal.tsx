@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
-import type { Group, Subject, Teacher } from '@/types'
+import type { Subject, Teacher } from '@/types'
 import type { TeacherPayload } from '@/api/services/teachers'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input, Select } from '@/components/ui/Input'
 import { PhotoUpload } from '@/components/ui/PhotoUpload'
-import { genderOptions, teacherPermissions, teacherCategories } from '@/config/constants'
+import { genderOptions, teacherPermissions } from '@/config/constants'
 import { cn, randomPassword } from '@/lib/utils'
 
 interface Props {
@@ -14,7 +14,6 @@ interface Props {
   onSubmit: (values: TeacherPayload) => void
   initial?: Teacher | null
   subjects: Subject[]
-  classes: Group[]
 }
 
 const empty: TeacherPayload = {
@@ -25,7 +24,9 @@ const empty: TeacherPayload = {
   phone: '',
   homeroomClass: '',
   subjectIds: [],
+  salaryMode: 'fixed',
   salary: 0,
+  salaryPercent: 0,
   category: '',
   salaryStartMonth: '',
   salaryStartDate: '',
@@ -34,7 +35,7 @@ const empty: TeacherPayload = {
   permissions: teacherPermissions.map((p) => p.key),
 }
 
-export function TeacherFormModal({ open, onClose, onSubmit, initial, subjects, classes }: Props) {
+export function TeacherFormModal({ open, onClose, onSubmit, initial, subjects }: Props) {
   const [form, setForm] = useState<TeacherPayload>(empty)
 
   useEffect(() => {
@@ -50,7 +51,10 @@ export function TeacherFormModal({ open, onClose, onSubmit, initial, subjects, c
             phone: initial.phone ?? '',
             homeroomClass: initial.homeroomClass,
             subjectIds: [...initial.subjectIds],
+            // Maosh rejimi/foizi — "Oylik hisoblash" sahifasida tahrirlanadi; bu yerda saqlanib qoladi (reset bo'lmaydi).
+            salaryMode: initial.salaryMode ?? 'fixed',
             salary: initial.salary,
+            salaryPercent: initial.salaryPercent ?? 0,
             category: initial.category ?? '',
             salaryStartMonth: initial.salaryStartMonth ?? '',
             salaryStartDate: initial.salaryStartDate ?? '',
@@ -147,32 +151,6 @@ export function TeacherFormModal({ open, onClose, onSubmit, initial, subjects, c
             onChange={(e) => update('phone', e.target.value)}
           />
         </div>
-        <div className="grid grid-cols-2 gap-4">
-          <Select
-            label="Guruh rahbarligi"
-            value={form.homeroomClass}
-            onChange={(e) => update('homeroomClass', e.target.value)}
-          >
-            <option value="">Yo'q</option>
-            {classes.map((c) => (
-              <option key={c.id} value={c.name}>
-                {c.name}
-              </option>
-            ))}
-          </Select>
-          <Select
-            label="Toifa"
-            value={form.category ?? ''}
-            onChange={(e) => update('category', e.target.value)}
-          >
-            <option value="">Tanlanmagan</option>
-            {teacherCategories.map((c) => (
-              <option key={c.value} value={c.value}>
-                {c.label}
-              </option>
-            ))}
-          </Select>
-        </div>
         <div>
           <Input
             label="Maosh qaysi kundan hisoblansin"
@@ -181,9 +159,9 @@ export function TeacherFormModal({ open, onClose, onSubmit, initial, subjects, c
             onChange={(e) => update('salaryStartDate', e.target.value)}
           />
           <p className="mt-1 text-xs text-slate-400">
-            Oylik maosh — <b>dars jadvali</b> va toifaning bir soat narxidan <b>avtomatik</b> hisoblanadi
-            ("O'qituvchilar → Oylik hisoblash"). O'qituvchi <b>oy o'rtasida</b> kelsa — shu kunni belgilang,
-            birinchi oy o'sha kundan oy oxirigacha qisman hisoblanadi. Bo'sh = o'quv yili boshidan.
+            Oylik maosh — <b>"O'qituvchilar → Oylik hisoblash"</b> sahifasida belgilanadi (qat'iy summa yoki
+            guruh to'lovidan foiz). O'qituvchi <b>oy o'rtasida</b> kelsa — shu kunni belgilang (qat'iy rejimda
+            birinchi oy o'sha kundan oy oxirigacha qisman). Bo'sh = o'quv yili boshidan.
           </p>
         </div>
 

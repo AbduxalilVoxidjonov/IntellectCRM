@@ -1,54 +1,11 @@
 import type { JournalColumn, JournalEntry, JournalTopic } from '@/types'
 import { delay } from '@/lib/utils'
-import { getQuarterWeeks, addDaysISO, mondayOfISO } from '@/lib/weeks'
 import { api, USE_MOCK } from '../client'
-import { templatesMock } from '../mock/scheduleTemplates'
-import { weekAssignmentsMock } from '../mock/weekAssignments'
-import { settingsMock } from '../mock/settings'
 import { journalMock } from '../mock/journal'
 import { journalTopicsMock } from '../mock/journalTopics'
 
 const gkey = (classId: string, subjectId: string, quarter: number) =>
   `${classId}-${subjectId}-${quarter}`
-
-/** Fanning chorakdagi darslari (sana + dars raqami) — raspisaniyadan hisoblanadi */
-function computeColumns(classId: string, subjectId: string, quarter: number): JournalColumn[] {
-  const q = settingsMock.quarters.find((x) => x.quarter === quarter)
-  if (!q) return []
-  const weeks = getQuarterWeeks(q.startDate, q.endDate)
-  const assignments = weekAssignmentsMock[`${classId}-${quarter}`] ?? []
-  const templates = templatesMock[classId] ?? []
-
-  const cols: JournalColumn[] = []
-  weeks.forEach((w) => {
-    const a = assignments.find((x) => x.week === w.week)
-    if (!a?.templateId) return
-    const tpl = templates.find((t) => t.id === a.templateId)
-    if (!tpl) return
-    tpl.lessons
-      .filter((l) => l.subjectId === subjectId)
-      .forEach((l) => {
-        const d = addDaysISO(mondayOfISO(w.startISO), l.day)
-        if (d >= q.startDate && d <= q.endDate)
-          cols.push({ date: d, period: l.period })
-      })
-  })
-  const seen = new Set<string>()
-  return cols
-    .filter((c) => {
-      const k = `${c.date}|${c.period}`
-      if (seen.has(k)) return false
-      seen.add(k)
-      return true
-    })
-    .sort((a, b) =>
-      a.date === b.date
-        ? a.period - b.period
-        : a.date < b.date
-          ? -1
-          : 1,
-    )
-}
 
 /** Berilgan sanada o'tilgan darslar (sinf+fan+dars raqami) — bosh sahifada yashil/qizil ko'rsatish uchun */
 export interface ConductedLesson {
@@ -68,6 +25,53 @@ export async function getConductedLessons(date: string): Promise<ConductedLesson
   return data
 }
 
+/* ---------- Guruh OYLIK jurnali (guruh sahifasi) ---------- */
+
+export interface GroupJournalInfo {
+  id: string
+  name: string
+  courseId: string
+  courseName: string
+  teacherName: string
+  days: number[]
+  startTime: string
+  endTime: string
+  room: string
+  startDate: string
+  monthlyFee: number
+}
+export interface GroupJournalStudent {
+  studentId: string
+  fullName: string
+  status: string
+  activatedAt: string
+  /** O'quvchi balansi (manfiy = qarz). */
+  balance: number
+}
+export interface GroupJournal {
+  group: GroupJournalInfo
+  months: string[]
+  month: string
+  columns: JournalColumn[]
+  students: GroupJournalStudent[]
+  entries: JournalEntry[]
+  /** "O'tildi" deb belgilangan dars sanalari — sababsiz o'quvchi shu kunda keldi (yashil). */
+  conductedDates: string[]
+}
+
+/** Guruhning bitta oylik jurnali — ustunlar guruh dars kunlari bo'yicha avtomatik, qatorlar faqat faol o'quvchilar. */
+export async function getGroupJournal(classId: string, month?: string): Promise<GroupJournal> {
+  if (USE_MOCK) {
+    await delay()
+    return {
+      group: { id: classId, name: '', courseId: '', courseName: '', teacherName: '', days: [], startTime: '', endTime: '', room: '', startDate: '', monthlyFee: 0 },
+      months: [], month: month ?? '', columns: [], students: [], entries: [], conductedDates: [],
+    }
+  }
+  const { data } = await api.get<GroupJournal>('/admin/journal/group', { params: { classId, month } })
+  return data
+}
+
 export async function getJournalColumns(
   classId: string,
   subjectId: string,
@@ -75,7 +79,7 @@ export async function getJournalColumns(
 ): Promise<JournalColumn[]> {
   if (USE_MOCK) {
     await delay()
-    return computeColumns(classId, subjectId, quarter)
+    return []
   }
   const { data } = await api.get<JournalColumn[]>('/admin/journal/columns', {
     params: { classId, subjectId, quarter },
@@ -139,6 +143,26 @@ export async function setJournalEntry(
     return
   }
   await api.put('/admin/journal', { classId, subjectId, quarter, studentId, date, period, ...payload })
+}
+
+/** Bitta dars (sana) uchun BARCHA o'quvchiga birdan davomat. absent=false → hammasi keldi; true → hammasi kelmadi
+ * (reasonId berilsa shu sabab, aks holda standart "Sababsiz"). */
+export async function bulkAttendance(
+  classId: string,
+  subjectId: string,
+  date: string,
+  period: number,
+  studentIds: string[],
+  opts: { absent: boolean; reasonId?: string | null },
+): Promise<void> {
+  if (USE_MOCK) {
+    await delay(120)
+    return
+  }
+  await api.post('/admin/journal/bulk-attendance', {
+    classId, subjectId, date, period, studentIds,
+    absent: opts.absent, reasonId: opts.reasonId ?? null,
+  })
 }
 
 export async function clearJournalEntry(

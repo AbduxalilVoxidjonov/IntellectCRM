@@ -2,7 +2,6 @@ import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import axios from 'axios'
-import { GraduationCap } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { useAuth } from '@/context/auth-context'
@@ -51,15 +50,19 @@ export function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-100 px-4">
-      <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-        <div className="mb-6 flex flex-col items-center gap-3 text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-600 text-white">
-            <GraduationCap className="h-6 w-6" />
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-50 px-4">
+      {/* Yumshoq fon nuri — premium his */}
+      <div className="pointer-events-none absolute -top-40 left-1/2 h-[480px] w-[480px] -translate-x-1/2 rounded-full bg-brand-200/40 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-40 right-0 h-[360px] w-[360px] rounded-full bg-fuchsia-200/30 blur-3xl" />
+
+      <div className="relative w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-8 shadow-[var(--shadow-2,0_10px_40px_-12px_rgba(0,0,0,0.18))]">
+        <div className="mb-7 flex flex-col items-center gap-4 text-center">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-600 to-fuchsia-600 text-lg font-bold tracking-tight text-white shadow-[0_8px_24px_-6px_oklch(0.5_0.18_282_/_0.5)]">
+            IC
           </div>
           <div>
-            <h1 className="text-lg font-semibold text-slate-800">IntellectCRM</h1>
-            <p className="text-sm text-slate-400">Tizimga kirish</p>
+            <h1 className="text-xl font-bold tracking-tight text-slate-800">IntellectCRM</h1>
+            <p className="mt-1 text-sm text-slate-400">Tizimga kirish</p>
           </div>
         </div>
 

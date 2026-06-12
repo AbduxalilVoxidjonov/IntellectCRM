@@ -39,12 +39,12 @@ export async function updateLeadStage(id: string, stage: string): Promise<void> 
   await api.patch(`/admin/leads/${id}`, { stage })
 }
 
-export async function deleteLead(id: string): Promise<void> {
+export async function deleteLead(id: string, reasonId?: string): Promise<void> {
   if (USE_MOCK) {
     await delay(200)
     return
   }
-  await api.delete(`/admin/leads/${id}`)
+  await api.delete(`/admin/leads/${id}`, { params: reasonId ? { reasonId } : undefined })
 }
 
 /* ---------- CRM: tarix (timeline) ---------- */

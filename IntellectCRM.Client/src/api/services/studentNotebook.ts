@@ -22,9 +22,9 @@ export interface SubjectEvaluation {
   evaluations: MonthlyEvaluation[]
 }
 
-/** O'quvchining bitta chorakdagi uy vazifa/xulq jamlamasi */
-export interface QuarterMarks {
-  quarter: number
+/** O'quvchining bitta OYDAGI ("yyyy-MM") uy vazifa/xulq jamlamasi */
+export interface MonthMarks {
+  month: string
   homeworkDone: number
   homeworkMissed: number
   behaviorGood: number
@@ -52,7 +52,7 @@ export interface StudentAssignmentScores {
   items: AssignmentScoreItem[]
 }
 
-/** Davomat — har metrika chorak ("1".."4") → son */
+/** Davomat — har metrika OY ("yyyy-MM") → son */
 export interface NotebookAttendance {
   missedDays: Record<string, number>
   illnessDays: Record<string, number>
@@ -83,7 +83,7 @@ export interface StudentNotebook {
   parentPassportUrl?: string | null
   // O'zlashtirish
   subjects: Subject[]
-  /** subjectId → chorak ("1".."4") → o'rtacha baho */
+  /** subjectId → OY ("yyyy-MM") → o'rtacha baho */
   grades: Record<string, Record<string, number>>
   avgGrade: number
   // Davomat
@@ -108,7 +108,7 @@ export interface StudentNotebook {
   homeworkMissed: number
   behaviorGood: number
   behaviorBad: number
-  marksTrend: QuarterMarks[]
+  marksTrend: MonthMarks[]
 }
 
 export async function getStudentNotebook(id: string): Promise<StudentNotebook> {

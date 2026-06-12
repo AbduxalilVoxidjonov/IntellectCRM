@@ -21,7 +21,7 @@ public static class Analytics
         Group cls,
         IReadOnlyList<Student> allStudents,
         IReadOnlyList<Subject> allSubjects,
-        IReadOnlyList<ScheduleTemplate> classTemplates,
+        IReadOnlyList<string> assignedSubjectIds,
         IReadOnlyList<JournalEntry> classEntries,
         IReadOnlyList<LessonNote> classNotes,
         IReadOnlyCollection<string>? lateReasonIds = null)
@@ -35,12 +35,13 @@ public static class Analytics
         var conductedNotes = classNotes.Where(n => n.Conducted)
             .Select(n => (n.SubjectId, n.Date, n.Period)).ToHashSet();
 
-        var fromSchedule = classTemplates.SelectMany(t => t.Lessons).Select(l => l.SubjectId).Distinct().ToList();
-        var subjectIds = fromSchedule.Count > 0 ? fromSchedule : allSubjects.Select(s => s.Id).ToList();
+        var subjectIds = assignedSubjectIds.Count > 0
+            ? assignedSubjectIds.Distinct().ToList()
+            : allSubjects.Select(s => s.Id).ToList();
         var subjects = subjectIds
             .Select(id => allSubjects.FirstOrDefault(s => s.Id == id))
             .Where(s => s is not null)
-            .Select(s => new SubjectDto(s!.Id, s.Name))
+            .Select(s => new SubjectDto(s!.Id, s.Name, s.Price))
             .ToList();
 
         var rows = students.Select(student =>

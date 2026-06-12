@@ -17,8 +17,6 @@ public interface IAppDbContext
     DbSet<Teacher> Teachers { get; }
     DbSet<TeacherAttendance> TeacherAttendances { get; }
     DbSet<TurnstileEvent> TurnstileEvents { get; }
-    DbSet<Bus> Buses { get; }
-    DbSet<BusLocation> BusLocations { get; }
     DbSet<Camera> Cameras { get; }
     DbSet<Subject> Subjects { get; }
     DbSet<Group> Classes { get; }
@@ -29,11 +27,7 @@ public interface IAppDbContext
     DbSet<TrialLesson> TrialLessons { get; }
     DbSet<JournalEntry> JournalEntries { get; }
     DbSet<LessonNote> LessonNotes { get; }
-    DbSet<ScheduleTemplate> ScheduleTemplates { get; }
-    DbSet<WeekAssignment> WeekAssignments { get; }
     DbSet<AbsenceReason> AbsenceReasons { get; }
-    DbSet<LessonTime> LessonTimes { get; }
-    DbSet<Holiday> Holidays { get; }
     DbSet<DisciplineReason> DisciplineReasons { get; }
     DbSet<DisciplinePoint> DisciplinePoints { get; }
     DbSet<EvaluationType> EvaluationTypes { get; }
@@ -61,9 +55,19 @@ public interface IAppDbContext
 
     // LMS (Ta'lim)
     DbSet<LmsSubject> LmsSubjects { get; }
+    DbSet<LmsModule> LmsModules { get; }
     DbSet<LmsTopic> LmsTopics { get; }
     DbSet<LmsMaterial> LmsMaterials { get; }
     DbSet<LmsProgress> LmsProgresses { get; }
+
+    // Amal sabablari (muzlatish/o'chirish/sinovga qaytarish/lid/guruh)
+    DbSet<ActionReason> ActionReasons { get; }
+
+    // Daraja testi (placement test → lid)
+    DbSet<LevelTest> LevelTests { get; }
+    DbSet<LevelTestQuestion> LevelTestQuestions { get; }
+    DbSet<LevelTestBand> LevelTestBands { get; }
+    DbSet<LevelTestSubmission> LevelTestSubmissions { get; }
 
     int SaveChanges();
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);

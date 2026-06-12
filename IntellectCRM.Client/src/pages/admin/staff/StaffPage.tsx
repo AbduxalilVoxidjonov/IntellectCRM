@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Plus, Eye, Pencil, Trash2, Check } from 'lucide-react'
+import { Plus, Eye, Pencil, Trash2, Check, Users } from 'lucide-react'
 import type { Staff, Credentials } from '@/types'
 import {
   getStaff,
@@ -16,12 +16,30 @@ import { useAuth } from '@/context/auth-context'
 import { cn, randomPassword } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
+import { Badge } from '@/components/ui/Badge'
+import { PageHeader } from '@/components/ui/PageHeader'
 import { Loader } from '@/components/ui/Loader'
 import { Modal } from '@/components/ui/Modal'
 import { Input } from '@/components/ui/Input'
 import { CredentialsBox } from '@/components/ui/CredentialsBox'
 
 const POSITIONS = ['Kassir', 'Administrator', "Direktor o'rinbosari", 'Qorovul', 'Hisobchi']
+
+// Avatar uchun ism harflari (faqat ko'rinish uchun)
+const initialsOf = (name: string) =>
+  name
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((s) => s[0]?.toUpperCase())
+    .join('')
+
+const AVATAR_COLORS = ['#7c3aed', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#6366f1', '#ec4899', '#14b8a6']
+const avatarColor = (name: string) => {
+  let h = 0
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0
+  return AVATAR_COLORS[h % AVATAR_COLORS.length]
+}
 
 export function StaffPage() {
   const { user } = useAuth()
@@ -145,27 +163,37 @@ export function StaffPage() {
     })
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-800">Xodimlar va rollar</h1>
-          <p className="text-sm text-slate-400">
+    <div>
+      <PageHeader
+        title="Xodimlar va rollar"
+        sub={
+          <>
             O'qituvchi bo'lmagan ishchilar (kassir, administrator, ...)
-            {canManageRoles ? ' — har biriga kerakli bo\'limlarni (rollarni) shu yerda belgilang.' : '.'}
-          </p>
-        </div>
-        <Button onClick={openCreate}>
-          <Plus className="h-4 w-4" /> Yangi xodim
-        </Button>
-      </div>
+            {canManageRoles
+              ? " — har biriga kerakli bo'limlarni (rollarni) shu yerda belgilang."
+              : "."}
+          </>
+        }
+        actions={
+          <Button onClick={openCreate}>
+            <Plus className="h-4 w-4" /> Yangi xodim
+          </Button>
+        }
+      />
 
       {loading ? (
-        <Loader label="Yuklanmoqda..." />
+        <Card>
+          <Loader label="Yuklanmoqda..." />
+        </Card>
       ) : staff.length === 0 ? (
         <Card>
-          <p className="py-12 text-center text-slate-400">
-            Hali xodim qo'shilmagan. "Yangi xodim" tugmasi orqali qo'shing.
-          </p>
+          <div className="state">
+            <div className="state-icon">
+              <Users className="h-6 w-6" />
+            </div>
+            <h4>Hali xodim qo'shilmagan</h4>
+            <p>"Yangi xodim" tugmasi orqali qo'shing.</p>
+          </div>
         </Card>
       ) : (
         <div className="space-y-4">
@@ -174,11 +202,16 @@ export function StaffPage() {
             return (
               <Card key={s.id}>
                 <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
-                  <div>
-                    <p className="font-semibold text-slate-800">{s.fullName}</p>
-                    <p className="text-xs text-slate-400">
-                      {s.position || 'Xodim'} · <code>{s.login}</code>
-                    </p>
+                  <div className="cell-user">
+                    <div className="avatar h-10 w-10 text-sm" style={{ background: avatarColor(s.fullName) }}>
+                      {initialsOf(s.fullName)}
+                    </div>
+                    <div className="meta">
+                      <strong className="text-slate-800">{s.fullName}</strong>
+                      <span className="text-slate-400">
+                        {s.position || 'Xodim'} · <code className="font-mono">{s.login}</code>
+                      </span>
+                    </div>
                   </div>
                   <div className="flex items-center gap-0.5">
                     <IconBtn icon={Eye} title="Login/parol" onClick={() => showCredentials(s)} />
@@ -227,12 +260,9 @@ export function StaffPage() {
                       s.permissions.map((key) => {
                         const label = adminPermissions.find((p) => p.key === key)?.label ?? key
                         return (
-                          <span
-                            key={key}
-                            className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs text-slate-600"
-                          >
+                          <Badge key={key} tone="violet">
                             {label}
-                          </span>
+                          </Badge>
                         )
                       })
                     )}
@@ -336,8 +366,8 @@ export function StaffPage() {
             <p className="text-xs text-slate-400">
               Saqlangach tizimga kirish uchun login va parol avtomatik yaratiladi va ko'rsatiladi.
               {canManageRoles
-                ? ' Ruxsatlarni keyinroq ham har bir xodim kartasidan o\'zgartirishingiz mumkin.'
-                : ' Ruxsatlarni (bo\'limlarni) tizim egasi belgilaydi.'}
+                ? " Ruxsatlarni keyinroq ham har bir xodim kartasidan o'zgartirishingiz mumkin."
+                : " Ruxsatlarni (bo'limlarni) tizim egasi belgilaydi."}
             </p>
           )}
         </form>

@@ -26,19 +26,19 @@ var rootDomains = (builder.Configuration["Tenancy:RootDomain"] ?? "")
     .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
 // ---------- Xizmatlar ----------
-// MySQL 8 (Pomelo). Server versiyasini ANIQ beramiz (AutoDetect ulanish ochadi — design-time
-// `dotnet ef` uchun jonli baza shart bo'lmasligi kerak).
+// SQL Server (lokal: LocalDB / SQL Express / to'liq instansiya). Connection string
+// `ConnectionStrings:Default` orqali beriladi (dev: appsettings.json, prod: muhit o'zgaruvchisi).
 builder.Services.AddDbContext<AppDbContext>(opt =>
-    opt.UseMySql(defaultConn, new MySqlServerVersion(new Version(8, 0, 36)),
-            my =>
+    opt.UseSqlServer(defaultConn,
+            sql =>
             {
                 // Vaqtinchalik DB uzilishlarini avtomatik qayta urinish bilan chidaydi.
-                my.EnableRetryOnFailure(
+                sql.EnableRetryOnFailure(
                     maxRetryCount: 5,
                     maxRetryDelay: TimeSpan.FromSeconds(10),
                     errorNumbersToAdd: null);
                 // Ko'p kolleksiyali Include'larni alohida so'rovlarga ajratadi — kartezian portlashning oldini oladi.
-                my.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery);
+                sql.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery);
             }));
 
 // Application qatlamidagi xizmatlar konkret AppDbContext o'rniga IAppDbContext'ga
@@ -171,6 +171,8 @@ builder.Services.AddScoped<ChatService>();
 // Oylik to'lovlarni avtomatik hisoblovchi fon xizmati
 builder.Services.AddHostedService<IntellectCRM.Application.Services.TuitionAccrualService>();
 builder.Services.AddHostedService<IntellectCRM.Application.Services.TurnstileLiveService>();
+// Avtomatik to'lov eslatmasi (qarzdorlarga Telegram + push, 09:00 Toshkent).
+builder.Services.AddHostedService<IntellectCRM.Application.Services.PaymentReminderService>();
 
 // Telegram bot (e'lon yuborish + ota-onalarni kontakt orqali ro'yxatga olish).
 // Token appsettings "Telegram:BotToken" da; bo'sh bo'lsa bot ishga tushmaydi.
@@ -219,6 +221,50 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     db.Database.Migrate();
+
+    // Birinchi ishga tushish: hech qanday foydalanuvchi bo'lmasa, standart SUPER ADMIN yaratamiz —
+    // aks holda tizimga kira oladigan hech kim bo'lmaydi. Login/parol muhit o'zgaruvchisidan keladi
+    // (Seed__OwnerLogin / Seed__OwnerPassword). Parol berilmasa — tasodifiy generatsiya qilinadi va
+    // loglarga yoziladi. Diqqat: `Email` maydoni aslida USERNAME (login), email emas.
+    if (!db.Users.Any())
+    {
+        var login = app.Configuration["Seed:OwnerLogin"];
+        if (string.IsNullOrWhiteSpace(login)) login = "admin";
+        var pwd = app.Configuration["Seed:OwnerPassword"];
+        if (string.IsNullOrWhiteSpace(pwd)) pwd = AccountFactory.GeneratePassword(10);
+        var owner = new AppUser
+        {
+            FullName = "Super Admin",
+            Role = Roles.SuperAdmin,
+            Email = login,
+            PasswordHash = PasswordHasher.Hash(pwd),
+            InitialPassword = pwd,   // birinchi login'gacha ko'rinadi (AuthController tozalaydi)
+        };
+        db.Users.Add(owner);
+        db.SaveChanges();
+        app.Logger.LogWarning("[seed] Super admin yaratildi — login: '{Login}', parol: '{Password}'", login, pwd);
+    }
+
+    // Amal sabablari (muzlatish/o'chirish/sinovga qaytarish/lid/guruh) — jadval BO'SH bo'lsa standart
+    // sabablar bilan to'ldiriladi (admin keyin Sabablar bo'limida o'zgartiradi).
+    if (!db.ActionReasons.Any())
+    {
+        var defaults = new (string Cat, string[] Labels)[]
+        {
+            ("freeze", new[] { "Sog'liq sababli", "Ta'til / sayohat", "Moliyaviy qiyinchilik", "Vaqtincha tanaffus" }),
+            ("return_trial", new[] { "Qayta sinov so'radi", "To'lov muammosi", "Darajani qayta tekshirish" }),
+            ("remove_active", new[] { "Boshqa markazga o'tdi", "Ko'chib ketdi", "Darslardan voz kechdi", "Moliyaviy sabab" }),
+            ("remove_trial", new[] { "Sinovdan keyin qoldirmadi", "Qiziqmadi", "Narx mos kelmadi" }),
+            ("remove_frozen", new[] { "Uzoq vaqt qaytmadi", "Boshqa markazga o'tdi", "Voz kechdi" }),
+            ("lead_delete", new[] { "Aloqaga chiqmadi", "Qiziqmadi", "Noto'g'ri raqam", "Takror / spam" }),
+            ("group_delete", new[] { "O'quvchi yetarli emas", "O'qituvchi ketdi", "Kurs tugadi", "Guruhlar birlashtirildi" }),
+        };
+        foreach (var (cat, labels) in defaults)
+            for (var i = 0; i < labels.Length; i++)
+                db.ActionReasons.Add(new ActionReason { Category = cat, Label = labels[i], Order = i });
+        db.SaveChanges();
+        app.Logger.LogInformation("[seed] Standart amal sabablari yaratildi");
+    }
 
     // Telegram bot tokeni — restartdan keyin bot avtomatik ishga tushadi; token yo'q bo'lsa
     // admin Sozlamadan kiritguncha kutadi.

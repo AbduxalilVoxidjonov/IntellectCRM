@@ -373,7 +373,7 @@ function InfoCell({
   return (
     <div className="rounded-lg bg-white px-2 py-1.5">
       <p className="text-xs text-slate-400">{label}</p>
-      <p className={cn('mt-0.5 font-semibold', valueClass)}>{value}</p>
+      <p className={cn('mt-0.5 font-mono font-semibold', valueClass)}>{value}</p>
     </div>
   )
 }

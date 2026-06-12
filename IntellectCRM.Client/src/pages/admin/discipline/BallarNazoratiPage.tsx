@@ -11,12 +11,11 @@ import {
 import { cn, formatDate } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
+import { Badge } from '@/components/ui/Badge'
+import { PageHeader } from '@/components/ui/PageHeader'
 import { Loader } from '@/components/ui/Loader'
 import { Modal } from '@/components/ui/Modal'
-import { Input } from '@/components/ui/Input'
-
-const control =
-  'rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-brand-400'
+import { Input, Select } from '@/components/ui/Input'
 
 type Sort = 'class' | 'remaining_desc' | 'remaining_asc' | 'plus_desc' | 'minus_desc'
 
@@ -134,76 +133,88 @@ export function BallarNazoratiPage() {
   const otherReasons = useMemo(() => reasons.filter((r) => r.kind === 'other'), [reasons])
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-slate-800">Ballar nazorati</h1>
-        <p className="text-sm text-slate-400">
-          Har o'quvchi 100 balldan boshlaydi. Sabab bo'yicha ball kiriting — qoldi avtomatik hisoblanadi.
-        </p>
-      </div>
+    <div>
+      <PageHeader
+        title="Ballar nazorati"
+        sub="Har o'quvchi 100 balldan boshlaydi. Sabab bo'yicha ball kiriting — qoldi avtomatik hisoblanadi."
+      />
 
-      <Card className="p-0">
-        {/* Filtrlar */}
-        <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 p-4">
-          <div className="relative min-w-[200px] flex-1">
-            <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+      {/* Qidiruv + filtr toolbar */}
+      <div className="toolbar">
+        <div className="left">
+          <div className="search-inline">
+            <Search className="h-4 w-4 text-slate-400" />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="F.I.SH bo'yicha qidirish..."
-              className={cn(control, 'w-full pl-9')}
             />
           </div>
-          <select value={classFilter} onChange={(e) => setClassFilter(e.target.value)} className={control}>
+        </div>
+        <div className="right">
+          <Select value={classFilter} onChange={(e) => setClassFilter(e.target.value)}>
             <option value="all">Barcha guruhlar</option>
             {classNames.map((c) => (
               <option key={c} value={c}>
                 {c}
               </option>
             ))}
-          </select>
-          <select value={sort} onChange={(e) => setSort(e.target.value as Sort)} className={control}>
+          </Select>
+          <Select value={sort} onChange={(e) => setSort(e.target.value as Sort)}>
             {SORTS.map((s) => (
               <option key={s.value} value={s.value}>
                 {s.label}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
+      </div>
 
-        {loading ? (
+      {loading ? (
+        <Card>
           <Loader label="Yuklanmoqda..." />
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-400">
+        </Card>
+      ) : rows.length === 0 ? (
+        <Card>
+          <div className="state">
+            <h4>O'quvchi topilmadi</h4>
+            <p>Filtrlarni o'zgartirib ko'ring.</p>
+          </div>
+        </Card>
+      ) : (
+        <Card tight>
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
                 <tr>
-                  <th className="w-10 px-4 py-3">#</th>
-                  <th className="px-4 py-3">F.I.SH</th>
-                  <th className="px-4 py-3">Guruh</th>
-                  <th className="px-4 py-3 text-center">Rag'bat (+)</th>
-                  <th className="px-4 py-3 text-center">Jazo (−)</th>
-                  <th className="px-4 py-3 text-center">Qoldi</th>
-                  <th className="px-4 py-3 text-right">Amallar</th>
+                  <th className="w-10">#</th>
+                  <th>F.I.SH</th>
+                  <th>Guruh</th>
+                  <th className="num">Rag'bat (+)</th>
+                  <th className="num">Jazo (−)</th>
+                  <th className="num">Qoldi</th>
+                  <th className="text-right">Amallar</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody>
                 {rows.map((r, i) => (
-                  <tr key={r.studentId} className="hover:bg-slate-50/60">
-                    <td className="px-4 py-3 text-slate-400">{i + 1}</td>
-                    <td className="px-4 py-3 font-medium text-slate-800">{r.fullName}</td>
-                    <td className="px-4 py-3">
-                      <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
-                        {r.className}
-                      </span>
+                  <tr key={r.studentId}>
+                    <td className="num text-slate-400">{i + 1}</td>
+                    <td className="font-medium text-slate-800">{r.fullName}</td>
+                    <td>
+                      {r.className ? (
+                        <Badge tone="default">{r.className}</Badge>
+                      ) : (
+                        <span className="text-slate-400">—</span>
+                      )}
                     </td>
-                    <td className="px-4 py-3 text-center font-medium text-emerald-600">
+                    <td className="num font-semibold text-emerald-600">
                       {r.plus > 0 ? `+${r.plus}` : '—'}
                     </td>
-                    <td className="px-4 py-3 text-center font-medium text-red-600">
+                    <td className="num font-semibold text-red-600">
                       {r.minus > 0 ? `−${r.minus}` : '—'}
                     </td>
-                    <td className="px-4 py-3 text-center">
+                    <td className="num">
                       <span
                         className={cn(
                           'inline-block min-w-[44px] rounded-md px-2 py-0.5 text-sm font-bold',
@@ -217,7 +228,7 @@ export function BallarNazoratiPage() {
                         {r.remaining}
                       </span>
                     </td>
-                    <td className="px-4 py-3">
+                    <td>
                       <div className="flex items-center justify-end gap-0.5">
                         <button
                           type="button"
@@ -239,18 +250,11 @@ export function BallarNazoratiPage() {
                     </td>
                   </tr>
                 ))}
-                {rows.length === 0 && (
-                  <tr>
-                    <td colSpan={7} className="px-4 py-12 text-center text-slate-400">
-                      O'quvchi topilmadi
-                    </td>
-                  </tr>
-                )}
               </tbody>
             </table>
           </div>
-        )}
-      </Card>
+        </Card>
+      )}
 
       {/* Ball kiritish */}
       <Modal
@@ -275,33 +279,30 @@ export function BallarNazoratiPage() {
               Avval "Ball sabablar" bo'limida sabab qo'shing.
             </p>
           ) : (
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-600">Sabab</label>
-              <select
-                value={reasonId}
-                onChange={(e) => setReasonId(e.target.value)}
-                className={cn(control, 'w-full')}
-              >
-                {otherReasons.length > 0 && (
-                  <optgroup label="Boshqa sabablar">
-                    {otherReasons.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {reasonLabel(r)}
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
-                {attendanceReasons.length > 0 && (
-                  <optgroup label="Davomat sabablari">
-                    {attendanceReasons.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {reasonLabel(r)}
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
-              </select>
-            </div>
+            <Select
+              label="Sabab"
+              value={reasonId}
+              onChange={(e) => setReasonId(e.target.value)}
+            >
+              {otherReasons.length > 0 && (
+                <optgroup label="Boshqa sabablar">
+                  {otherReasons.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {reasonLabel(r)}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              {attendanceReasons.length > 0 && (
+                <optgroup label="Davomat sabablari">
+                  {attendanceReasons.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {reasonLabel(r)}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+            </Select>
           )}
           <Input
             label="Izoh (ixtiyoriy)"
@@ -336,7 +337,7 @@ export function BallarNazoratiPage() {
               >
                 <span
                   className={cn(
-                    'shrink-0 rounded-md px-2 py-0.5 text-sm font-bold',
+                    'shrink-0 rounded-md px-2 py-0.5 font-mono text-sm font-bold',
                     p.points < 0 ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600',
                   )}
                 >
@@ -345,15 +346,13 @@ export function BallarNazoratiPage() {
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium text-slate-700">{p.reasonName}</p>
                   <p className="text-xs text-slate-400">
-                    {formatDate(p.createdAt)}
+                    <span className="font-mono">{formatDate(p.createdAt)}</span>
                     {p.note ? ` · ${p.note}` : ''}
                     {p.createdBy ? ` · ${p.createdBy}` : ''}
                   </p>
                 </div>
                 {p.source === 'attendance' ? (
-                  <span className="shrink-0 rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500">
-                    jurnal
-                  </span>
+                  <Badge tone="default">jurnal</Badge>
                 ) : (
                   <button
                     type="button"

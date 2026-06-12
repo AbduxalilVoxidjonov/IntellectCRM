@@ -133,7 +133,7 @@ export function AuditHistoryList({ filters, emptyLabel = "O'zgarishlar tarixi yo
   return (
     <ul className="space-y-2">
       {logs.map((log) => {
-        const cfg = actionConfig[log.action]
+        const cfg = actionConfig[log.action] ?? { label: log.action, cls: 'bg-slate-100 text-slate-600' }
         const hasDetail = !!(log.before || log.after)
         const open = openId === log.id
         return (

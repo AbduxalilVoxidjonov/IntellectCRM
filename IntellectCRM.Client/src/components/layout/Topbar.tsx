@@ -3,6 +3,7 @@ import { Bell, ChevronDown, LogOut, Menu, Search, Settings } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/context/auth-context'
 import { roleLabels } from '@/config/navigation'
+import { TopbarStudentSearch } from './TopbarStudentSearch'
 
 interface TopbarProps {
   onMenuClick: () => void
@@ -52,45 +53,39 @@ export function Topbar({ onMenuClick }: TopbarProps) {
     .toUpperCase()
 
   return (
-    <header className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-4 sm:px-6">
-      <div className="flex items-center gap-3">
+    <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-slate-200 bg-[oklch(0.99_0.004_80_/_0.85)] px-4 backdrop-blur-md sm:gap-4 sm:px-6">
+      <div className="flex shrink-0 items-center gap-3">
         <button
           onClick={onMenuClick}
-          className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100"
+          className="flex h-[34px] w-[34px] items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition-colors hover:border-slate-300 hover:bg-slate-50 lg:hidden"
           title="Menyu"
         >
-          <Menu className="h-5 w-5" />
+          <Menu className="h-[18px] w-[18px]" />
         </button>
-        <div className="leading-tight">
-          <p className="text-sm text-slate-400">Xush kelibsiz 👋</p>
-          <p className="font-semibold text-slate-800">{user.fullName}</p>
+        <div className="hidden leading-tight lg:block">
+          <p className="text-xs text-slate-400">Xush kelibsiz 👋</p>
+          <p className="text-sm font-bold tracking-tight text-slate-800">{user.fullName}</p>
         </div>
       </div>
 
-      <div className="flex items-center gap-3 sm:gap-4">
-        {/* Buyruq paneli (Ctrl+K) — desktopda keng tugma, mobil ekranda faqat ikona */}
+      {/* Global o'quvchi qidiruvi — barcha sahifalarda, desktopda inline (keng) */}
+      <div className="hidden flex-1 justify-center sm:flex">
+        <TopbarStudentSearch />
+      </div>
+
+      <div className="flex shrink-0 items-center gap-2.5">
+        {/* Mobil ekranda buyruq paneli (Ctrl+K) ikonasi */}
         <button
           onClick={() => window.dispatchEvent(new Event('cmdk:open'))}
-          className="hidden items-center gap-2 rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-400 transition-colors hover:bg-slate-50 sm:flex"
-          title="Qidirish (Ctrl+K)"
-        >
-          <Search className="h-4 w-4" />
-          <span>Qidirish...</span>
-          <kbd className="rounded border border-slate-200 bg-slate-50 px-1.5 text-[10px] text-slate-400">
-            Ctrl K
-          </kbd>
-        </button>
-        <button
-          onClick={() => window.dispatchEvent(new Event('cmdk:open'))}
-          className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 sm:hidden"
+          className="flex h-[34px] w-[34px] items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition-colors hover:border-slate-300 hover:bg-slate-50 sm:hidden"
           title="Qidirish"
         >
-          <Search className="h-5 w-5" />
+          <Search className="h-[18px] w-[18px]" />
         </button>
 
-        <button className="relative rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-50">
-          <Bell className="h-5 w-5" />
-          <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-red-500" />
+        <button className="relative flex h-[34px] w-[34px] items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition-colors hover:border-slate-300 hover:bg-slate-50">
+          <Bell className="h-[18px] w-[18px]" />
+          <span className="absolute right-1.5 top-1.5 h-[7px] w-[7px] rounded-full border-2 border-white bg-red-500" />
         </button>
 
         {/* Profil — bosilganda akkaunt sozlamalari/chiqish menyusi ochiladi */}

@@ -2,22 +2,25 @@ import { useEffect, useState } from 'react'
 import type { Credentials, Student, StudentGroupMembership } from '@/types'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
+import { Badge } from '@/components/ui/Badge'
 import { CredentialsBox } from '@/components/ui/CredentialsBox'
 import { getStudentCredentials, resetStudentPassword } from '@/api/services/students'
 import { getStudentGroups } from '@/api/services/classes'
 import { genderLabels } from '@/config/constants'
-import { formatDate, formatMoney } from '@/lib/utils'
+import { formatDate, formatMoney, cn } from '@/lib/utils'
 
 interface Props {
   student: Student | null
   onClose: () => void
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+function Row({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div className="flex justify-between gap-4 border-b border-slate-100 py-2.5 last:border-0">
       <span className="text-sm text-slate-400">{label}</span>
-      <span className="text-right text-sm font-medium text-slate-800">{value}</span>
+      <span className={cn('text-right text-sm font-medium text-slate-800', mono && 'font-mono')}>
+        {value}
+      </span>
     </div>
   )
 }
@@ -62,7 +65,7 @@ export function StudentViewModal({ student, onClose }: Props) {
       {student && (
         <div className="space-y-0">
           <Row label="F.I.SH" value={student.fullName} />
-          <Row label="Tug'ilgan kun" value={formatDate(student.birthDate)} />
+          <Row label="Tug'ilgan kun" value={formatDate(student.birthDate)} mono />
           <Row label="Jinsi" value={genderLabels[student.gender]} />
           <Row label="Manzil" value={student.address} />
           <Row label="Guruh" value={student.className} />
@@ -71,20 +74,17 @@ export function StudentViewModal({ student, onClose }: Props) {
               <span className="mb-1.5 block text-sm text-slate-400">Guruhlar</span>
               <div className="flex flex-wrap gap-1.5">
                 {activeGroups.map((g) => (
-                  <span
-                    key={g.id}
-                    className="inline-flex items-center gap-1.5 rounded-md bg-brand-50 px-2 py-1 text-xs font-medium text-brand-700"
-                  >
+                  <Badge key={g.id} tone="violet">
                     {g.groupName}
-                    <span className="text-brand-400">{formatDate(g.joinedAt)}</span>
-                  </span>
+                    <span className="font-mono text-brand-400">{formatDate(g.joinedAt)}</span>
+                  </Badge>
                 ))}
               </div>
             </div>
           )}
           <Row label="Ota-onasi" value={student.parentFullName} />
-          <Row label="Ota-onasi raqami" value={student.parentPhone} />
-          <Row label="Balans" value={formatMoney(student.balance)} />
+          <Row label="Ota-onasi raqami" value={student.parentPhone} mono />
+          <Row label="Balans" value={formatMoney(student.balance)} mono />
           {(student.discountPct > 0 || student.discountAmount > 0) && (
             <Row
               label="Chegirma"

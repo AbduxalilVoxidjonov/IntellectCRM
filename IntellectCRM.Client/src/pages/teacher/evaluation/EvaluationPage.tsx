@@ -5,9 +5,8 @@ import { getMyClasses, getTeacherEvalBoard, setTeacherEvalGrade } from '@/api/se
 import { cn } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
 import { Loader } from '@/components/ui/Loader'
-
-const control =
-  'rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-brand-400'
+import { PageHeader } from '@/components/ui/PageHeader'
+import { Select } from '@/components/ui/Input'
 
 const uzMonths = [
   'Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'Iyun',
@@ -94,78 +93,88 @@ export function TeacherEvaluationPage() {
   if (loading) return <Loader label="Yuklanmoqda..." />
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-slate-800">Feedback</h1>
-        <p className="text-sm text-slate-400">
-          O'z faningiz bo'yicha o'quvchilarga feedback nomi kesimida feedback bering (1-5, oylik)
-        </p>
-      </div>
+    <div>
+      <PageHeader
+        title="Feedback"
+        sub="O'z faningiz bo'yicha o'quvchilarga feedback nomi kesimida feedback bering (1-5, oylik)"
+      />
 
       {/* Guruh + fan + oy tanlovi */}
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50/60 p-3">
-        <span className="text-sm font-medium text-slate-600">Guruh:</span>
-        <select className={control} value={classId} onChange={(e) => setClassId(e.target.value)}>
-          {classes.length === 0 && <option value="">— dars beradigan guruh yo'q —</option>}
-          {classes.map((c) => (
-            <option key={c.classId} value={c.classId}>
-              {c.className}
-            </option>
-          ))}
-        </select>
+      <div className="toolbar">
+        <div className="left">
+          <span className="text-sm font-medium text-slate-600">Guruh:</span>
+          <Select value={classId} onChange={(e) => setClassId(e.target.value)}>
+            {classes.length === 0 && <option value="">— dars beradigan guruh yo'q —</option>}
+            {classes.map((c) => (
+              <option key={c.classId} value={c.classId}>
+                {c.className}
+              </option>
+            ))}
+          </Select>
 
-        <span className="ml-2 text-sm font-medium text-slate-600">Fan:</span>
-        <select className={control} value={subjectId} onChange={(e) => setSubjectId(e.target.value)}>
-          {subjects.length === 0 && <option value="">— fan yo'q —</option>}
-          {subjects.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-            </option>
-          ))}
-        </select>
+          <span className="ml-1 text-sm font-medium text-slate-600">Fan:</span>
+          <Select value={subjectId} onChange={(e) => setSubjectId(e.target.value)}>
+            {subjects.length === 0 && <option value="">— fan yo'q —</option>}
+            {subjects.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </Select>
 
-        <CalendarRange className="ml-2 h-5 w-5 text-brand-600" />
-        <span className="text-sm font-medium text-slate-600">Oy:</span>
-        <select className={control} value={month} onChange={(e) => onMonth(e.target.value)}>
-          {(board.months.length ? board.months : month ? [month] : []).map((m) => (
-            <option key={m} value={m}>
-              {monthLabel(m)}
-            </option>
-          ))}
-        </select>
+          <span className="ml-1 inline-flex items-center gap-1 text-sm font-medium text-slate-600">
+            <CalendarRange className="h-4 w-4 text-brand-600" />
+            Oy:
+          </span>
+          <Select value={month} onChange={(e) => onMonth(e.target.value)}>
+            {(board.months.length ? board.months : month ? [month] : []).map((m) => (
+              <option key={m} value={m}>
+                {monthLabel(m)}
+              </option>
+            ))}
+          </Select>
+        </div>
       </div>
 
       {dataLoading ? (
-        <Loader label="Yuklanmoqda..." />
+        <Card>
+          <Loader label="Yuklanmoqda..." />
+        </Card>
       ) : board.types.length === 0 ? (
-        <Card className="flex flex-col items-center justify-center gap-3 py-16 text-center">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100">
-            <ClipboardList className="h-7 w-7 text-slate-400" />
+        <Card>
+          <div className="state">
+            <div className="state-icon">
+              <ClipboardList className="h-6 w-6" />
+            </div>
+            <h4>Hali feedback nomi yo'q</h4>
+            <p>
+              Feedback nomlarini administrator qo'shadi — qo'shilgach shu yerda har bir nom bo'yicha 1-5 feedback qo'yasiz.
+            </p>
           </div>
-          <p className="text-sm font-medium text-slate-600">Hali feedback nomi yo'q</p>
-          <p className="max-w-sm text-sm text-slate-400">
-            Feedback nomlarini administrator qo'shadi — qo'shilgach shu yerda har bir nom bo'yicha 1-5 feedback qo'yasiz.
-          </p>
         </Card>
       ) : !classId || !subjectId ? (
-        <Card className="py-16 text-center text-slate-400">Guruh va fan tanlang</Card>
+        <Card>
+          <div className="state">
+            <h4>Guruh va fan tanlang</h4>
+          </div>
+        </Card>
       ) : (
-        <Card className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-400">
+        <Card tight>
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
                 <tr>
-                  <th className="w-10 px-3 py-3">#</th>
-                  <th className="px-3 py-3">FISH</th>
+                  <th className="w-10 num">№</th>
+                  <th>F.I.Sh.</th>
                   {board.types.map((t) => (
-                    <th key={t.id} className="px-3 py-3 text-center" title={t.description}>
+                    <th key={t.id} className="text-center" title={t.description}>
                       {t.name}
                     </th>
                   ))}
-                  <th className="px-3 py-3 text-center">O'rtacha</th>
+                  <th className="num text-center">O'rtacha</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody>
                 {board.rows.map((row, i) => (
                   <EvalRow
                     key={row.studentId}
@@ -203,19 +212,23 @@ function EvalRow({
   onGrade: (studentId: string, typeId: string, score: number | null) => void
 }) {
   return (
-    <tr className="hover:bg-slate-50/60">
-      <td className="px-3 py-2 text-slate-400">{index + 1}</td>
-      <td className="whitespace-nowrap px-3 py-2 font-medium text-slate-800">{row.fullName}</td>
+    <tr>
+      <td className="num text-slate-400">{index + 1}</td>
+      <td className="whitespace-nowrap font-medium text-slate-700">{row.fullName}</td>
       {typeIds.map((typeId) => (
-        <td key={typeId} className="px-3 py-2 text-center">
+        <td key={typeId} className="text-center">
           <GradeSelect
             value={row.grades[typeId] ?? null}
             onChange={(score) => onGrade(row.studentId, typeId, score)}
           />
         </td>
       ))}
-      <td className="px-3 py-2 text-center font-semibold text-slate-700">
-        {row.avgGrade > 0 ? row.avgGrade : <span className="text-slate-300">—</span>}
+      <td className="num text-center">
+        {row.avgGrade > 0 ? (
+          <span className="font-mono font-semibold text-slate-700">{row.avgGrade}</span>
+        ) : (
+          <span className="text-slate-300">—</span>
+        )}
       </td>
     </tr>
   )
@@ -241,7 +254,7 @@ function GradeSelect({
       value={value ?? ''}
       onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)}
       className={cn(
-        'w-14 rounded-md border px-2 py-1 text-center text-sm font-semibold outline-none focus:border-brand-400',
+        'w-14 rounded-md border px-2 py-1 text-center font-mono text-sm font-semibold outline-none focus:border-brand-400',
         value ? gradeColor[value] : 'border-slate-200 bg-white text-slate-400',
       )}
     >

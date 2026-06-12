@@ -121,47 +121,20 @@ public class FinanceController(AppDbContext db, AuditService audit) : Controller
             ? await TuitionService.AcademicYearStartMonthAsync(db) : from[..7];
         var toMonth = string.IsNullOrEmpty(to) ? TuitionService.CurrentMonth() : to[..7];
 
-        var paid = await db.FinanceTransactions
-            .Where(t => t.Direction == "expense" && t.Category == "salary" && t.TeacherId != null)
-            .Where(t => string.Compare(t.Date, $"{fromMonth}-01") >= 0
-                        && string.Compare(t.Date, $"{toMonth}-31") <= 0)
-            .ToListAsync();
-
         var teachers = await db.Teachers.OrderBy(t => t.FullName).ToListAsync();
-        // Oylik maosh — dars jadvali + toifa narxidan; har oy DAVOMATga moslanadi (kelmagan kun chegiriladi).
-        var meta = await db.CenterMeta.FirstOrDefaultAsync();
-        var byWeekdayAll = await TeacherSalaryCalc.LessonsByWeekdayAsync(db);
-        var quarters = await TeacherSalaryCalc.QuarterRangesAsync(db);
-        var absentAll = await db.TeacherAttendances
-            .Where(a => a.Status == "absent" && a.Date.Length >= 7)
-            .Select(a => new { a.TeacherId, a.Date }).ToListAsync();
-        return teachers.Select(te =>
+        // YAGONA MANTIQ: har o'qituvchi uchun SalaryLedger ishlatamiz — u "fixed" ham, "percent" (guruh
+        // to'lovidan foiz) ham hisoblaydi. Ilgari bu yer faqat te.Salary'ga tayanardi → foizli oylik
+        // moliyada 0 bo'lib ko'rinmasdi (bug).
+        var result = new List<SalaryReportRowDto>();
+        foreach (var te in teachers)
         {
-            var byWeekday = byWeekdayAll.GetValueOrDefault(te.Id) ?? new int[6];
-            var nominalMonthly = TeacherSalaryCalc.WithBonus(
-                TeacherSalaryCalc.Monthly(byWeekday.Sum(), te.Category, meta), te.BonusPct);
-            var absByMonth = absentAll.Where(a => a.TeacherId == te.Id)
-                .GroupBy(a => a.Date[..7])
-                .ToDictionary(g => g.Key, g => (IEnumerable<string>)g.Select(x => x.Date).ToList());
-
-            // Oylik o'qituvchi ishga kirgan KUNdan hisoblanadi (birinchi oy qisman). Avvalgi oylar — 0.
-            var startDate = TeacherSalaryCalc.StartDateOf(te);
-            var teacherStartMonth = startDate is { Length: >= 7 } ? startDate[..7] : fromMonth;
-            var startMonth = string.CompareOrdinal(teacherStartMonth, fromMonth) > 0 ? teacherStartMonth : fromMonth;
-            var monthList = string.CompareOrdinal(startMonth, toMonth) > 0
-                ? new List<string>()
-                : TuitionService.MonthRange(startMonth, toMonth).ToList();
-
-            var rows = paid.Where(t => t.TeacherId == te.Id
-                                       && string.Compare(t.Date, $"{startMonth}-01") >= 0).ToList();
-            var totalPaid = rows.Sum(r => r.Amount);
-            var expected = monthList.Sum(mn => TeacherSalaryCalc.MonthlyForMonth(
-                byWeekday, te.Category, meta, mn, startDate,
-                absByMonth.GetValueOrDefault(mn) ?? Enumerable.Empty<string>(), te.BonusPct, quarters));
-            return new SalaryReportRowDto(
-                te.Id, te.FullName, nominalMonthly, totalPaid, rows.Count,
-                monthList.Count, expected, expected - totalPaid);
-        }).ToList();
+            var ledger = await Application.Services.SalaryLedger.BuildAsync(db, te, from, to);
+            result.Add(new SalaryReportRowDto(
+                te.Id, te.FullName, ledger.Salary, ledger.TotalPaid, ledger.Payments.Count,
+                ledger.Months.Count, ledger.TotalExpected, ledger.Remaining,
+                te.SalaryMode, te.SalaryPercent));
+        }
+        return result;
     }
 
     /// <summary>O'quvchilar bo'yicha to'lov hisoboti (joriy holat):

@@ -87,7 +87,10 @@ public class Student
     public string Address { get; set; } = string.Empty;
     /// <summary>male | female</summary>
     public string Gender { get; set; } = "male";
-    /// <summary>To'liq ota-ona FISH — saqlanadi. Parts'dan join qilinadi.</summary>
+    /// <summary>O'quvchining o'z telefon raqami (lid formasiga mos).</summary>
+    public string Phone { get; set; } = string.Empty;
+    /// <summary>To'liq ota-ona FISH — ASOSIY kontakt (ota, bo'lmasa ona) dan to'ldiriladi. Ota-ona
+    /// portali login (telefon), Telegram, e'lonlar shunga tayanadi — shuning uchun saqlanadi.</summary>
     public string ParentFullName { get; set; } = string.Empty;
     /// <summary>Ota-ona familiyasi (alohida).</summary>
     public string ParentLastName { get; set; } = string.Empty;
@@ -95,10 +98,24 @@ public class Student
     public string ParentFirstName { get; set; } = string.Empty;
     /// <summary>Ota-ona otasining ismi / sharifi (alohida).</summary>
     public string ParentMiddleName { get; set; } = string.Empty;
+    /// <summary>ASOSIY ota-ona telefoni (ota, bo'lmasa ona) — portal login/Telegram/e'lon uchun.</summary>
     public string ParentPhone { get; set; } = string.Empty;
-    /// <summary>Ota-onaning rasmi (profil surati) manzili (`/uploads/...`).</summary>
+    /// <summary>Otasi F.I.SH (lid formasiga mos).</summary>
+    public string FatherFullName { get; set; } = string.Empty;
+    /// <summary>Otasi telefon raqami.</summary>
+    public string FatherPhone { get; set; } = string.Empty;
+    /// <summary>Onasi F.I.SH.</summary>
+    public string MotherFullName { get; set; } = string.Empty;
+    /// <summary>Onasi telefon raqami.</summary>
+    public string MotherPhone { get; set; } = string.Empty;
+    /// <summary>Ota-onaning rasmi (profil surati) manzili (`/uploads/...`). Formadan olib tashlandi —
+    /// eski yozuvlar uchun saqlanadi.</summary>
     public string? ParentPassportUrl { get; set; }
     public string ClassName { get; set; } = string.Empty;
+    /// <summary>O'quvchi FAOL a'zo bo'lgan barcha guruh nomlari (ro'yxat ko'rinishi uchun; DB'ga yozilmaydi —
+    /// ro'yxat endpointida M2M a'zoliklardan to'ldiriladi).</summary>
+    [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+    public List<string> Groups { get; set; } = new();
     /// <summary>Maktabga kelgan (qabul) sanasi (ISO "YYYY-MM-DD"). Oylik to'lov shu oydan boshlanadi.</summary>
     public string EnrollmentDate { get; set; } = string.Empty;
     /// <summary>Balans (so'm): manfiy = qarzdor, 0 = qarzsiz, musbat = avans.</summary>
@@ -159,9 +176,15 @@ public class Teacher
     public string HomeroomClass { get; set; } = string.Empty;
     /// <summary>Dars beradigan fanlar (Subject id'lari). EF Core 8 primitive collection.</summary>
     public List<string> SubjectIds { get; set; } = new();
-    /// <summary>Oylik ish haqi (so'm). ESKI — endi oylik dars jadvali + toifa soat narxidan
-    /// avtomatik hisoblanadi (<see cref="Category"/>). Qo'lda kiritilmaydi.</summary>
+    /// <summary>Maosh rejimi: "fixed" (qat'iy oylik summa — <see cref="Salary"/>) | "percent" (foizli —
+    /// o'qituvchi o'tadigan guruh(lar) o'quvchilaridan SHU OYDA haqiqatan yig'ilgan to'lovning
+    /// <see cref="SalaryPercent"/> foizi). Standart: "fixed".</summary>
+    public string SalaryMode { get; set; } = "fixed";
+    /// <summary>Qat'iy oylik ish haqi (so'm). <see cref="SalaryMode"/>=="fixed" da ishlatiladi (admin qo'lda kiritadi).</summary>
     public decimal Salary { get; set; }
+    /// <summary>Foizli maosh ulushi (%). <see cref="SalaryMode"/>=="percent" da: o'qituvchi guruhlaridan shu oyda
+    /// yig'ilgan to'lovning shu foizi maosh sifatida hisoblanadi. Masalan 40 → yig'ilganning 40%i.</summary>
+    public decimal SalaryPercent { get; set; }
     /// <summary>O'qituvchi toifasi — bir soat dars narxini belgilaydi: "oliy" | "1" | "2" | "mutaxasis"
     /// (bo'sh = hali belgilanmagan, narxi 0). Soat narxlari CenterMeta'da toifa bo'yicha saqlanadi.</summary>
     public string Category { get; set; } = string.Empty;
@@ -193,11 +216,13 @@ public class Teacher
     public string? ArchiveReason { get; set; }
 }
 
-/// <summary>Fan.</summary>
+/// <summary>Kurs (oldin "Fan"). Nom + oylik narx.</summary>
 public class Subject
 {
     public string Id { get; set; } = Guid.NewGuid().ToString();
     public string Name { get; set; } = string.Empty;
+    /// <summary>Kurs oylik narxi (so'm). Guruh shu kursga biriktirilganda guruh oyligi (MonthlyFee) shundan keladi.</summary>
+    public decimal Price { get; set; }
 }
 
 /// <summary>Sinf.</summary>
@@ -222,6 +247,20 @@ public class Group
     /// o'quvchilar ham arxivlanadi; arxivdan chiqarilganda — qaytariladi.</summary>
     public bool IsArchived { get; set; }
     public string? ArchivedAt { get; set; }
+
+    // ---------- Kurs / biriktirish (eski "Fan biriktirish" o'rnida — guruh yaratishda kiritiladi) ----------
+    /// <summary>Guruh kursi (Subject id). Guruh oyligi (MonthlyFee) shu kurs narxidan keladi.</summary>
+    public string CourseId { get; set; } = string.Empty;
+    /// <summary>Biriktirilgan o'qituvchi (Teacher id).</summary>
+    public string TeacherId { get; set; } = string.Empty;
+    /// <summary>Izoh.</summary>
+    public string Note { get; set; } = string.Empty;
+    /// <summary>Dars kunlari (0=Dushanba ... 6=Yakshanba).</summary>
+    public List<int> Days { get; set; } = new();
+    /// <summary>Dars boshlanish vaqti "HH:mm".</summary>
+    public string StartTime { get; set; } = string.Empty;
+    /// <summary>Dars tugash vaqti "HH:mm".</summary>
+    public string EndTime { get; set; } = string.Empty;
 }
 
 /// <summary>
@@ -239,6 +278,14 @@ public class StudentGroup
     public string? LeftAt { get; set; }
     /// <summary>Faol a'zomi (LeftAt null bo'lsa true).</summary>
     public bool IsActive { get; set; } = true;
+    /// <summary>To'lov holati: "trial" (sinov — oylik hisoblanmaydi) | "active" (faol — oylik hisoblanadi)
+    /// | "frozen" (muzlatilgan — to'xtatilgan). Yangi a'zo qo'shilganda "trial".</summary>
+    public string Status { get; set; } = "trial";
+    /// <summary>Aktivlashtirilgan sana (ISO "YYYY-MM-DD"). Birinchi (qisman) oy = (oylik narx ÷ shu oydagi
+    /// jami dars) × shu sanadan oy oxirigacha qolgan darslar (guruh kunlari bo'yicha); keyingi oylar — to'liq.</summary>
+    public string ActivatedAt { get; set; } = string.Empty;
+    /// <summary>Muzlatilgan sana (ISO). Shu oydan boshlab oylik to'lov hisoblanmaydi. Bo'sh = muzlatilmagan.</summary>
+    public string FrozenAt { get; set; } = string.Empty;
 }
 
 /// <summary>Lid (maktabga qiziqqan).</summary>
@@ -248,9 +295,16 @@ public class Lead
     public string FullName { get; set; } = string.Empty;
     public string Gender { get; set; } = "male";
     public string BirthDate { get; set; } = string.Empty;
-    public string ParentFullName { get; set; } = string.Empty;
-    public string ParentPhone { get; set; } = string.Empty;
-    public int TargetGrade { get; set; }
+    /// <summary>O'quvchining o'z telefon raqami.</summary>
+    public string Phone { get; set; } = string.Empty;
+    /// <summary>Otasining F.I.SH.</summary>
+    public string FatherFullName { get; set; } = string.Empty;
+    /// <summary>Otasining telefon raqami.</summary>
+    public string FatherPhone { get; set; } = string.Empty;
+    /// <summary>Onasining F.I.SH.</summary>
+    public string MotherFullName { get; set; } = string.Empty;
+    /// <summary>Onasining telefon raqami.</summary>
+    public string MotherPhone { get; set; } = string.Empty;
     public string? Note { get; set; }
     /// <summary>Manba: instagram | referral | sayt | telegram | walkin | other ...</summary>
     public string Source { get; set; } = string.Empty;
@@ -339,38 +393,6 @@ public class LessonNote
     public string? Homework { get; set; }
     /// <summary>Dars o'tildimi (ptichka). false = dars o'tilmadi.</summary>
     public bool Conducted { get; set; }
-}
-
-/// <summary>Sinf uchun nomli dars jadvali varianti.</summary>
-public class ScheduleTemplate
-{
-    public string Id { get; set; } = Guid.NewGuid().ToString();
-    public string ClassId { get; set; } = string.Empty;
-    public string Name { get; set; } = string.Empty;
-    public List<ScheduleLesson> Lessons { get; set; } = new();
-}
-
-/// <summary>Jadvaldagi bitta dars katagi.</summary>
-public class ScheduleLesson
-{
-    public string Id { get; set; } = Guid.NewGuid().ToString();
-    public string TemplateId { get; set; } = string.Empty;
-    /// <summary>Hafta kuni: 0=Dushanba ... 5=Shanba</summary>
-    public int Day { get; set; }
-    /// <summary>Dars raqami: 1-10</summary>
-    public int Period { get; set; }
-    public string SubjectId { get; set; } = string.Empty;
-    public string TeacherId { get; set; } = string.Empty;
-}
-
-/// <summary>Chorak ichidagi haftaga jadval biriktirish.</summary>
-public class WeekAssignment
-{
-    public string Id { get; set; } = Guid.NewGuid().ToString();
-    public string ClassId { get; set; } = string.Empty;
-    public int Quarter { get; set; }
-    public int Week { get; set; }
-    public string? TemplateId { get; set; }
 }
 
 /// <summary>Davomat sababi (kelmaganlik turi).</summary>
@@ -462,34 +484,14 @@ public class EvaluationGrade
     public string UpdatedAt { get; set; } = string.Empty;
 }
 
-/// <summary>
-/// Bayram / dam olish kuni — shu sanada hech bir sinfda dars bo'lmaydi. Dars jadvali
-/// ko'rinishlarida "Bayram" deb belgilanadi va jurnal ustunlaridan chiqarib tashlanadi.
-/// Butun maktab uchun (sinfga bog'liq emas).
-/// </summary>
-public class Holiday
-{
-    public string Id { get; set; } = Guid.NewGuid().ToString();
-    /// <summary>Sana "YYYY-MM-DD".</summary>
-    public string Date { get; set; } = string.Empty;
-    /// <summary>Nomi (ixtiyoriy, masalan "Navro'z bayrami").</summary>
-    public string Name { get; set; } = string.Empty;
-}
-
-/// <summary>Dars vaqti (qo'ng'iroqlar jadvali).</summary>
-public class LessonTime
-{
-    public string Id { get; set; } = Guid.NewGuid().ToString();
-    public int Period { get; set; }
-    public string StartTime { get; set; } = string.Empty;
-    public string EndTime { get; set; } = string.Empty;
-}
-
 /// <summary>O'quvchiga oy uchun hisoblangan oylik to'lov (qarz yozuvi/tarix).</summary>
 public class MonthlyCharge
 {
     public string Id { get; set; } = Guid.NewGuid().ToString();
     public string StudentId { get; set; } = string.Empty;
+    /// <summary>QAYSI GURUH uchun hisoblangan (Group id). Per-guruh billing: har faol a'zolik uchun alohida
+    /// hisob qatori. null = guruhsiz o'quvchi (eski ClassName narxi bo'yicha — orqaga moslik).</summary>
+    public string? GroupId { get; set; }
     /// <summary>Oy ("YYYY-MM").</summary>
     public string Month { get; set; } = string.Empty;
     /// <summary>Hisoblangan TO'LIQ summa (o'sha paytdagi sinf oylik to'lovi). Chegirma ALOHIDA.</summary>
@@ -498,6 +500,8 @@ public class MonthlyCharge
     public decimal Discount { get; set; }
     /// <summary>Hisoblangan sana (ISO "YYYY-MM-DD").</summary>
     public string Date { get; set; } = string.Empty;
+    /// <summary>Super admin qo'lda tahrirlagan — avtomatik qayta hisob (Update/kurs-narx) bu yozuvni O'ZGARTIRMAYDI.</summary>
+    public bool Locked { get; set; }
 }
 
 /// <summary>Moliyaviy amal — kirim yoki chiqim.</summary>
@@ -515,6 +519,10 @@ public class FinanceTransaction
     public string? Note { get; set; }
     /// <summary>O'quvchi to'lovi bo'lsa — tegishli o'quvchi id'si.</summary>
     public string? StudentId { get; set; }
+    /// <summary>O'quvchi tuition to'lovi bo'lsa — QAYSI GURUH uchun to'langani (Group id). O'quvchi bir nechta
+    /// guruhda o'qisa, to'lov kiritishda guruh tanlanadi; o'qituvchining foizli maoshi shu tegga tayanadi.
+    /// null = teglanmagan (eski to'lov yoki bitta guruh — foiz hisobida narx nisbatida taqsimlanadi).</summary>
+    public string? GroupId { get; set; }
     /// <summary>O'qituvchi maoshi bo'lsa — tegishli o'qituvchi id'si.</summary>
     public string? TeacherId { get; set; }
     /// <summary>Oylik to'lov bo'lsa — qaysi oy uchun ("YYYY-MM"). Boshqa amallar uchun null.</summary>
@@ -540,39 +548,6 @@ public class TeacherAttendance
     /// <summary>Manba: "manual" (admin qo'lda) | "turnstile" (qurilmadan avtomatik). Sinxronlash
     /// "manual" yozuvlarni o'zgartirmaydi (admin qo'lda tuzatgan bo'lsa saqlanadi).</summary>
     public string Source { get; set; } = "manual";
-}
-
-/// <summary>Maktab avtobusi (GPS bilan kuzatiladi).</summary>
-public class Bus
-{
-    public string Id { get; set; } = Guid.NewGuid().ToString();
-    /// <summary>Avtobus nomi/raqami, masalan "1-avtobus".</summary>
-    public string Name { get; set; } = string.Empty;
-    /// <summary>Davlat raqami ("01 A 123 BC").</summary>
-    public string PlateNumber { get; set; } = string.Empty;
-    public string DriverName { get; set; } = string.Empty;
-    public string DriverPhone { get; set; } = string.Empty;
-    /// <summary>GPS tracker qurilma ID'si (IMEI / id) — GPS hodisalari shu orqali avtobusga bog'lanadi.</summary>
-    public string DeviceId { get; set; } = string.Empty;
-    /// <summary>Marshrut nomi (ixtiyoriy).</summary>
-    public string Route { get; set; } = string.Empty;
-    public bool IsActive { get; set; } = true;
-    public string Note { get; set; } = string.Empty;
-}
-
-/// <summary>Avtobusning bitta GPS nuqtasi (iz / trail).</summary>
-public class BusLocation
-{
-    public string Id { get; set; } = Guid.NewGuid().ToString();
-    public string BusId { get; set; } = string.Empty;
-    public double Latitude { get; set; }
-    public double Longitude { get; set; }
-    /// <summary>Tezlik (km/soat).</summary>
-    public double Speed { get; set; }
-    /// <summary>Qurilma vaqti (ISO "yyyy-MM-ddTHH:mm:ss").</summary>
-    public string RecordedAt { get; set; } = string.Empty;
-    /// <summary>Tizimga yozilgan vaqt (ISO).</summary>
-    public string CreatedAt { get; set; } = string.Empty;
 }
 
 /// <summary>Maktab kamerasi (IP/RTSP). Media-shlyuz (MediaMTX) orqali brauzerda jonli + playback.</summary>
@@ -679,21 +654,15 @@ public class CenterMeta
     /// <summary>Oxirgi muvaffaqiyatli sinxronlash vaqti (ISO).</summary>
     public string TurnstileLastSync { get; set; } = string.Empty;
 
-    // ---------- GPS (maktab avtobuslarini kuzatish) integratsiyasi ----------
-    /// <summary>GPS kuzatuv yoqilganmi.</summary>
-    public bool GpsEnabled { get; set; }
-    /// <summary>Webhook kalit (ixtiyoriy) — tracker hodisa yuborganda shu token tekshiriladi (bo'sh = tekshirilmaydi).</summary>
-    public string GpsIngestToken { get; set; } = string.Empty;
-    /// <summary>"Onlayn" deb hisoblash uchun oxirgi signal necha daqiqa ichida bo'lishi kerak.</summary>
-    public int GpsOnlineMinutes { get; set; } = 5;
-    /// <summary>To'xtash deb hisoblanadigan radius (metr) — shu radiusda turib qolsa to'xtash.</summary>
-    public int GpsStopRadiusM { get; set; } = 60;
-    /// <summary>To'xtash deb hisoblanadigan eng kichik davomiylik (daqiqa).</summary>
-    public int GpsStopMinMinutes { get; set; } = 3;
-
     // ---------- Kamera (videokuzatuv) integratsiyasi ----------
     /// <summary>Kamera kuzatuvi yoqilganmi.</summary>
     public bool CameraEnabled { get; set; }
+
+    // ---------- Avtomatik to'lov eslatmasi ----------
+    /// <summary>Avtomatik to'lov eslatmasi yoqilganmi (default true). Yoqilgan bo'lsa fon xizmati
+    /// har oyning 1-sanasida barcha qarzdorlarga, keyin har 2 kunda hali to'lamaganlarga
+    /// Telegram + push orqali eslatma yuboradi (ertalab 09:00, Toshkent vaqti).</summary>
+    public bool PaymentRemindersEnabled { get; set; } = true;
 }
 
 /// <summary>
@@ -1061,4 +1030,87 @@ public class Contract
     public bool Delivered { get; set; }
     /// <summary>sent</summary>
     public string Status { get; set; } = "sent";
+}
+
+// ============================ DARAJA TESTI (placement/level test) ============================
+// Admin kurs uchun common test yaratadi → ommaviy URL (`/test/{slug}`) shakllanadi → bo'lajak
+// o'quvchi (anonim) kirib, ismi/telefoni bilan testni ishlaydi → ball/daraja hisoblanadi va
+// CRM'da yangi LID bo'lib tushadi (Source="Daraja testi").
+
+/// <summary>Daraja (level) testi — bitta kursga bog'langan ommaviy savol to'plami.</summary>
+public class LevelTest
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    /// <summary>Test nomi (masalan "Ingliz tili daraja testi").</summary>
+    public string Title { get; set; } = string.Empty;
+    /// <summary>Bog'langan kurs (Subject id). Lid InterestSubject'i shu kurs bo'ladi. Ixtiyoriy.</summary>
+    public string CourseId { get; set; } = string.Empty;
+    /// <summary>Ommaviy URL uchun qisqa noyob token (`/test/{slug}`).</summary>
+    public string Slug { get; set; } = string.Empty;
+    /// <summary>Test boshида ko'rsatiladigan kirish matni / yo'riqnoma.</summary>
+    public string Intro { get; set; } = string.Empty;
+    /// <summary>Faolmi — faqat faol test ommaviy URL orqali ochiladi.</summary>
+    public bool IsActive { get; set; } = true;
+    public string CreatedAt { get; set; } = string.Empty;
+}
+
+/// <summary>Daraja testi savoli (ko'p variantli — bitta to'g'ri javob).</summary>
+public class LevelTestQuestion
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string TestId { get; set; } = string.Empty;
+    public string Text { get; set; } = string.Empty;
+    /// <summary>Javob variantlari (EF Core 8 primitive collection).</summary>
+    public List<string> Options { get; set; } = new();
+    /// <summary>To'g'ri variant indeksi (Options ichida).</summary>
+    public int CorrectIndex { get; set; }
+    public int Order { get; set; }
+}
+
+/// <summary>
+/// Amal sababi — turli amallar (muzlatish, o'chirish, sinovga qaytarish, lid/guruh o'chirish) bajarilganda
+/// tanlanadigan sozlanadigan sabablar ro'yxati. Davomat (kelmaganlik) sababi alohida — <see cref="AbsenceReason"/>.
+/// Kategoriya kalitlari: freeze | return_trial | remove_active | remove_trial | remove_frozen | lead_delete | group_delete.
+/// </summary>
+public class ActionReason
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    /// <summary>Kategoriya kaliti (yuqoridagi ro'yxat).</summary>
+    public string Category { get; set; } = string.Empty;
+    public string Label { get; set; } = string.Empty;
+    public int Order { get; set; }
+}
+
+/// <summary>Daraja diapazoni — ball foiziga qarab daraja yorlig'i (masalan ≥75% → "Yuqori").</summary>
+public class LevelTestBand
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string TestId { get; set; } = string.Empty;
+    /// <summary>Daraja nomi (masalan "Boshlang'ich", "O'rta", "Yuqori" yoki "A1", "B1"...).</summary>
+    public string Label { get; set; } = string.Empty;
+    /// <summary>Shu darajaga tushish uchun MINIMAL ball foizi (0..100).</summary>
+    public int MinPercent { get; set; }
+    public int Order { get; set; }
+}
+
+/// <summary>Daraja testi topshiruvi — kim ishladi, nechi ball, qaysi daraja, va yaratilgan lid.</summary>
+public class LevelTestSubmission
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string TestId { get; set; } = string.Empty;
+    public string FullName { get; set; } = string.Empty;
+    public string Phone { get; set; } = string.Empty;
+    /// <summary>Yoshi (ixtiyoriy, 0 = kiritilmagan).</summary>
+    public int Age { get; set; }
+    /// <summary>To'g'ri javoblar soni.</summary>
+    public int Score { get; set; }
+    /// <summary>Jami savollar soni.</summary>
+    public int Total { get; set; }
+    /// <summary>Ball foizi (0..100).</summary>
+    public int Percent { get; set; }
+    /// <summary>Aniqlangan daraja yorlig'i.</summary>
+    public string Level { get; set; } = string.Empty;
+    public string CreatedAt { get; set; } = string.Empty;
+    /// <summary>Shu topshiruvdan yaratilgan Lid id'si.</summary>
+    public string LeadId { get; set; } = string.Empty;
 }

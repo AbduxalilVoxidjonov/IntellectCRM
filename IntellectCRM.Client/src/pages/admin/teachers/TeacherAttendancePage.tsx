@@ -15,6 +15,7 @@ import { connectLiveTopic } from '@/api/services/live'
 import { cn } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
+import { PageHeader } from '@/components/ui/PageHeader'
 import { Loader } from '@/components/ui/Loader'
 
 // Bo'sh → keldi → kelmadi → kechikdi → bo'sh
@@ -47,15 +48,15 @@ const syncLabel = (iso: string) => (iso && iso.length >= 16 ? `${iso.slice(0, 10
 
 export function TeacherAttendancePage() {
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-slate-800">O'qituvchilar davomati</h1>
-        <p className="text-sm text-slate-400">
-          Turniket/FaceID qurilmasidan avtomatik yuklanadi. Kunlik holat — kim keldi, soat nechada, kechikdimi.
-        </p>
+    <div>
+      <PageHeader
+        title="O'qituvchilar davomati"
+        sub="Turniket/FaceID qurilmasidan avtomatik yuklanadi. Kunlik holat — kim keldi, soat nechada, kechikdimi."
+      />
+      <div className="space-y-6">
+        <MonthlyGrid />
+        <DashboardSection />
       </div>
-      <MonthlyGrid />
-      <DashboardSection />
     </div>
   )
 }
@@ -192,7 +193,7 @@ function DashboardSection() {
                   : 'border-slate-100 bg-slate-50/60 hover:bg-slate-100',
               )}
             >
-              <div className={cn('text-2xl font-bold', c.cls)}>{c.value}</div>
+              <div className={cn('font-mono text-2xl font-bold', c.cls)}>{c.value}</div>
               <div className="text-xs text-slate-400">{c.label}</div>
             </button>
           )
@@ -241,8 +242,8 @@ function DashboardSection() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-3 py-2 text-center font-medium text-slate-700">{r.checkIn || '—'}</td>
-                    <td className="px-3 py-2 text-center text-slate-500">{r.checkOut || '—'}</td>
+                    <td className="px-3 py-2 text-center font-mono font-medium text-slate-700">{r.checkIn || '—'}</td>
+                    <td className="px-3 py-2 text-center font-mono text-slate-500">{r.checkOut || '—'}</td>
                     <td className="px-3 py-2 text-center text-xs">
                       {r.status === 'late' && r.lateMinutes > 0 ? (
                         <span className="text-amber-600">+{r.lateMinutes} daq</span>
@@ -470,7 +471,7 @@ function MonthlyGrid() {
                           </td>
                         )
                       })}
-                      <td className="whitespace-nowrap px-2 py-1.5 text-center text-xs">
+                      <td className="whitespace-nowrap px-2 py-1.5 text-center font-mono text-xs">
                         <span className="font-semibold text-emerald-600">{c.present}</span>
                         <span className="text-slate-300"> / </span>
                         <span className="font-semibold text-red-600">{c.absent}</span>

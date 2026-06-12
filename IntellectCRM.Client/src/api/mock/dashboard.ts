@@ -26,4 +26,12 @@ export const adminDashboardMock: AdminDashboard = {
     { id: '2', name: '5-B', studentsCount: 31, averageGrade: 4.1 },
     { id: '5', name: '8-B', studentsCount: 27, averageGrade: 4.0 },
   ],
+  studentBreakdown: {
+    active: 980,
+    inactive: 268,
+    debtors: 142,
+    paid: 1106,
+    withGroup: 1090,
+    withoutGroup: 158,
+  },
 }

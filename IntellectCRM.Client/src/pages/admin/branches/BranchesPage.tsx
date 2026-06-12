@@ -12,6 +12,8 @@ import {
 } from '@/api/services/branches'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
+import { Badge } from '@/components/ui/Badge'
+import { PageHeader } from '@/components/ui/PageHeader'
 import { Loader } from '@/components/ui/Loader'
 import { Modal } from '@/components/ui/Modal'
 import { Input } from '@/components/ui/Input'
@@ -112,30 +114,38 @@ export function BranchesPage() {
   const hasPoint = form.latitude !== 0 || form.longitude !== 0
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-800">Filiallar</h1>
-          <p className="text-sm text-slate-400">Filial nomi, manzil, joylashuv (xarita) va radius</p>
-        </div>
-        <Button onClick={openCreate}>
-          <Plus className="h-4 w-4" /> Yangi filial
-        </Button>
-      </div>
+    <div>
+      <PageHeader
+        title="Filiallar"
+        sub="Filial nomi, manzil, joylashuv (xarita) va radius"
+        actions={
+          <Button onClick={openCreate}>
+            <Plus className="h-4 w-4" /> Yangi filial
+          </Button>
+        }
+      />
 
       {loading ? (
-        <Loader label="Yuklanmoqda..." />
+        <Card>
+          <Loader label="Yuklanmoqda..." />
+        </Card>
       ) : branches.length === 0 ? (
         <Card>
-          <p className="py-10 text-center text-slate-400">Hali filial qo'shilmagan</p>
+          <div className="state">
+            <div className="state-icon">
+              <MapPin className="h-6 w-6" />
+            </div>
+            <h4>Hali filial qo'shilmagan</h4>
+            <p>"Yangi filial" tugmasi orqali qo'shing.</p>
+          </div>
         </Card>
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           {branches.map((b) => (
             <Card key={b.id} className="flex flex-col gap-2">
               <div className="flex items-start justify-between gap-2">
-                <div>
-                  <p className="font-semibold text-slate-800">{b.name}</p>
+                <div className="min-w-0">
+                  <p className="truncate font-semibold text-slate-800">{b.name}</p>
                   <p className="text-sm text-slate-500">{b.address || '—'}</p>
                 </div>
                 <div className="flex items-center gap-0.5">
@@ -157,9 +167,16 @@ export function BranchesPage() {
                   </button>
                 </div>
               </div>
-              <div className="flex items-center gap-2 text-xs text-slate-400">
-                <MapPin className="h-3.5 w-3.5" />
-                {b.latitude.toFixed(5)}, {b.longitude.toFixed(5)} · radius {b.radiusMeters} m
+              <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
+                <span className="inline-flex items-center gap-1">
+                  <MapPin className="h-3.5 w-3.5" />
+                  <span className="font-mono">
+                    {b.latitude.toFixed(5)}, {b.longitude.toFixed(5)}
+                  </span>
+                </span>
+                <Badge tone="violet">
+                  radius <span className="font-mono">{b.radiusMeters}</span> m
+                </Badge>
               </div>
               <div className="h-40 overflow-hidden rounded-lg">
                 <MapContainer

@@ -81,11 +81,11 @@ export function JournalCellModal({
         </>
       }
     >
-      <p className="mb-4 text-sm text-slate-400">{dateLabel}</p>
+      <p className="mb-4 font-mono text-sm text-slate-400">{dateLabel}</p>
 
       <div className="space-y-4">
         <div>
-          <p className="mb-2 text-sm font-medium text-slate-600">Baho</p>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Baho</p>
           <div className="flex gap-2">
             {grades.map((g) => (
               <button
@@ -93,10 +93,10 @@ export function JournalCellModal({
                 type="button"
                 onClick={() => setGrade((cur) => (cur === g ? null : g))}
                 className={cn(
-                  'flex h-10 w-10 items-center justify-center rounded-lg border text-sm font-semibold transition-colors',
+                  'flex h-11 w-11 items-center justify-center rounded-xl border font-mono text-base font-bold transition-all',
                   grade === g
-                    ? 'border-brand-500 bg-brand-600 text-white'
-                    : 'border-slate-200 text-slate-700 hover:bg-slate-50',
+                    ? 'border-brand-500 bg-brand-600 text-white shadow-[0_2px_8px_oklch(0.5_0.18_282_/_0.25)]'
+                    : 'border-slate-200 text-slate-700 hover:border-brand-300 hover:bg-slate-50',
                 )}
               >
                 {g}
@@ -107,7 +107,7 @@ export function JournalCellModal({
 
         {lateReasons.length > 0 && (
           <div>
-            <p className="mb-2 text-sm font-medium text-slate-600">Kech keldi</p>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Kech keldi</p>
             <div className="flex flex-wrap gap-2">
               {lateReasons.map((r) => (
                 <button
@@ -115,7 +115,7 @@ export function JournalCellModal({
                   type="button"
                   onClick={() => toggleReason(r.id)}
                   className={cn(
-                    'rounded-lg border px-3 py-2 text-sm font-medium transition-colors',
+                    'rounded-lg border px-3 py-2 text-sm font-semibold transition-colors',
                     reasonId === r.id
                       ? 'border-amber-400 bg-amber-50 text-amber-700'
                       : 'border-slate-200 text-slate-700 hover:bg-slate-50',
@@ -134,7 +134,7 @@ export function JournalCellModal({
         )}
 
         <div>
-          <p className="mb-2 text-sm font-medium text-slate-600">Davomat (kelmadi)</p>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Davomat (kelmadi)</p>
           {absentReasons.length === 0 ? (
             <p className="text-xs text-slate-400">Sabablar yo'q — Sozlamalarda qo'shing</p>
           ) : (
@@ -145,7 +145,7 @@ export function JournalCellModal({
                   type="button"
                   onClick={() => toggleReason(r.id)}
                   className={cn(
-                    'rounded-lg border px-3 py-2 text-sm font-medium transition-colors',
+                    'rounded-lg border px-3 py-2 text-sm font-semibold transition-colors',
                     reasonId === r.id
                       ? 'border-red-400 bg-red-50 text-red-600'
                       : 'border-slate-200 text-slate-700 hover:bg-slate-50',
@@ -160,13 +160,13 @@ export function JournalCellModal({
 
         {/* Uyga vazifa — har o'quvchiga (qildi/qilmadi) */}
         <div>
-          <p className="mb-2 text-sm font-medium text-slate-600">Uyga vazifa</p>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Uyga vazifa</p>
           <div className="flex gap-2">
             <button
               type="button"
               onClick={() => toggle(homework, setHomework, 1)}
               className={cn(
-                'rounded-lg border px-3 py-2 text-sm font-medium transition-colors',
+                'rounded-lg border px-3 py-2 text-sm font-semibold transition-colors',
                 homework === 1
                   ? 'border-emerald-400 bg-emerald-50 text-emerald-700'
                   : 'border-slate-200 text-slate-700 hover:bg-slate-50',
@@ -178,7 +178,7 @@ export function JournalCellModal({
               type="button"
               onClick={() => toggle(homework, setHomework, 2)}
               className={cn(
-                'rounded-lg border px-3 py-2 text-sm font-medium transition-colors',
+                'rounded-lg border px-3 py-2 text-sm font-semibold transition-colors',
                 homework === 2
                   ? 'border-red-400 bg-red-50 text-red-600'
                   : 'border-slate-200 text-slate-700 hover:bg-slate-50',
@@ -191,13 +191,13 @@ export function JournalCellModal({
 
         {/* Xulq — har o'quvchiga (yaxshi/yomon) */}
         <div>
-          <p className="mb-2 text-sm font-medium text-slate-600">Xulq</p>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Xulq</p>
           <div className="flex gap-2">
             <button
               type="button"
               onClick={() => toggle(behavior, setBehavior, 1)}
               className={cn(
-                'rounded-lg border px-3 py-2 text-sm font-medium transition-colors',
+                'rounded-lg border px-3 py-2 text-sm font-semibold transition-colors',
                 behavior === 1
                   ? 'border-emerald-400 bg-emerald-50 text-emerald-700'
                   : 'border-slate-200 text-slate-700 hover:bg-slate-50',
@@ -209,7 +209,7 @@ export function JournalCellModal({
               type="button"
               onClick={() => toggle(behavior, setBehavior, 2)}
               className={cn(
-                'rounded-lg border px-3 py-2 text-sm font-medium transition-colors',
+                'rounded-lg border px-3 py-2 text-sm font-semibold transition-colors',
                 behavior === 2
                   ? 'border-red-400 bg-red-50 text-red-600'
                   : 'border-slate-200 text-slate-700 hover:bg-slate-50',
@@ -222,7 +222,7 @@ export function JournalCellModal({
 
         {/* O'zlashtirish foizi — shu darsni necha % o'zlashtirdi */}
         <div>
-          <p className="mb-2 text-sm font-medium text-slate-600">Darsni o'zlashtirish (%)</p>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Darsni o'zlashtirish (%)</p>
           <div className="flex items-center gap-2">
             <input
               type="number"
@@ -237,7 +237,7 @@ export function JournalCellModal({
                 const n = Math.max(0, Math.min(100, Number(v)))
                 setMastery(Number.isNaN(n) ? '' : n)
               }}
-              className="w-28 rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-brand-400"
+              className="w-28 rounded-lg border border-slate-200 px-3 py-2 font-mono text-sm outline-none transition-colors focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
             />
             <span className="text-sm text-slate-400">%</span>
             {mastery !== '' && (

@@ -1,17 +1,21 @@
 import { useEffect, useState } from 'react'
-import { Archive } from 'lucide-react'
+import { Archive, Activity, TrendingDown, HelpCircle } from 'lucide-react'
 import type { TeacherReportRow, TeacherReportDetail } from '@/types'
 import { getTeacherReport, getTeacherReportDetail } from '@/api/services/teacherReports'
 import { quarters } from '@/config/constants'
 import { formatDate, cn } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
+import { PageHeader } from '@/components/ui/PageHeader'
+import { StatCard } from '@/components/ui/StatCard'
+import { Badge } from '@/components/ui/Badge'
+import type { BadgeTone } from '@/components/ui/Badge'
 import { Loader } from '@/components/ui/Loader'
 import { Modal } from '@/components/ui/Modal'
 
-const statusMeta: Record<TeacherReportRow['status'], { label: string; cls: string }> = {
-  active: { label: 'Faol', cls: 'bg-emerald-50 text-emerald-700' },
-  low: { label: 'Sust', cls: 'bg-amber-50 text-amber-700' },
-  none: { label: "Ma'lumot yo'q", cls: 'bg-slate-100 text-slate-500' },
+const statusMeta: Record<TeacherReportRow['status'], { label: string; tone: BadgeTone }> = {
+  active: { label: 'Faol', tone: 'green' },
+  low: { label: 'Sust', tone: 'amber' },
+  none: { label: "Ma'lumot yo'q", tone: 'default' },
 }
 
 export function TeacherReportsPage() {
@@ -48,84 +52,109 @@ export function TeacherReportsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-800">O'qituvchilar hisoboti</h1>
-          <p className="text-sm text-slate-400">
-            Dars o'tilishi (jadvalga nisbatan), baho, mavzu va uy vazifa faolligi
-          </p>
-        </div>
-        <div className="flex w-fit gap-1 rounded-lg bg-slate-100 p-1">
-          <QuarterBtn active={quarter === 0} onClick={() => setQuarter(0)}>
-            Barcha
-          </QuarterBtn>
-          {quarters.map((q) => (
-            <QuarterBtn key={q} active={quarter === q} onClick={() => setQuarter(q)}>
-              {q}-chorak
-            </QuarterBtn>
-          ))}
-        </div>
+    <div>
+      <PageHeader
+        title="O'qituvchilar hisoboti"
+        sub="Dars o'tilishi (jadvalga nisbatan), baho, mavzu va uy vazifa faolligi"
+        actions={
+          <div className="tabs">
+            <button
+              type="button"
+              className={cn('tab', quarter === 0 && 'active')}
+              onClick={() => setQuarter(0)}
+            >
+              Barcha
+            </button>
+            {quarters.map((q) => (
+              <button
+                key={q}
+                type="button"
+                className={cn('tab', quarter === q && 'active')}
+                onClick={() => setQuarter(q)}
+              >
+                {q}-chorak
+              </button>
+            ))}
+          </div>
+        }
+      />
+
+      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <StatCard
+          label="Faol"
+          value={counts.active}
+          icon={Activity}
+          iconBg="bg-emerald-50"
+          iconColor="text-emerald-600"
+        />
+        <StatCard
+          label="Sust"
+          value={counts.low}
+          icon={TrendingDown}
+          iconBg="bg-amber-50"
+          iconColor="text-amber-600"
+        />
+        <StatCard
+          label="Ma'lumot yo'q"
+          value={counts.none}
+          icon={HelpCircle}
+          iconBg="bg-slate-100"
+          iconColor="text-slate-500"
+        />
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
-        <StatCard label="Faol" value={counts.active} cls="text-emerald-600" />
-        <StatCard label="Sust" value={counts.low} cls="text-amber-600" />
-        <StatCard label="Ma'lumot yo'q" value={counts.none} cls="text-slate-400" />
-      </div>
-
-      <Card className="p-0">
+      <Card tight>
         {loading ? (
           <Loader label="Yuklanmoqda..." />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-400">
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
                 <tr>
-                  <th className="px-4 py-3">O'qituvchi</th>
-                  <th className="px-4 py-3 text-center">Reja</th>
-                  <th className="px-4 py-3 text-center">O'tdi</th>
-                  <th className="px-4 py-3 text-center">Bajarildi</th>
-                  <th className="px-4 py-3 text-center">Baho</th>
-                  <th className="px-4 py-3 text-center">Mavzu</th>
-                  <th className="px-4 py-3 text-center">Uy vaz.</th>
-                  <th className="px-4 py-3">Oxirgi faollik</th>
-                  <th className="px-4 py-3">Holat</th>
+                  <th>O'qituvchi</th>
+                  <th className="num">Reja</th>
+                  <th className="num">O'tdi</th>
+                  <th className="num">Bajarildi</th>
+                  <th className="num">Baho</th>
+                  <th className="num">Mavzu</th>
+                  <th className="num">Uy vaz.</th>
+                  <th>Oxirgi faollik</th>
+                  <th>Holat</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody>
                 {rows.map((r) => (
                   <tr
                     key={r.teacherId}
                     onClick={() => openDetail(r.teacherId)}
-                    className="cursor-pointer hover:bg-slate-50/60"
+                    className="cursor-pointer"
                   >
-                    <td className="px-4 py-3 font-medium text-slate-800">
+                    <td className="font-medium text-slate-800">
                       <span className="flex items-center gap-2">
                         {r.fullName}
                         {r.isArchived && (
-                          <span className="inline-flex items-center gap-1 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">
+                          <Badge tone="default">
                             <Archive className="h-3 w-3" /> arxiv
-                          </span>
+                          </Badge>
                         )}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-center text-slate-600">{r.expected}</td>
-                    <td className="px-4 py-3 text-center text-slate-600">{r.conducted}</td>
-                    <td className="px-4 py-3 text-center">
+                    <td className="num text-slate-600">{r.expected}</td>
+                    <td className="num text-slate-600">{r.conducted}</td>
+                    <td className="num">
                       <PctCell v={r.donePct} />
                     </td>
-                    <td className="px-4 py-3 text-center text-slate-600">{r.grades}</td>
-                    <td className="px-4 py-3 text-center">
+                    <td className="num text-slate-600">{r.grades}</td>
+                    <td className="num">
                       <PctCell v={r.topicPct} />
                     </td>
-                    <td className="px-4 py-3 text-center">
+                    <td className="num">
                       <PctCell v={r.homeworkPct} />
                     </td>
-                    <td className="px-4 py-3 text-slate-500">
+                    <td className="font-mono text-slate-500">
                       {r.lastActivity ? formatDate(r.lastActivity) : '—'}
                     </td>
-                    <td className="px-4 py-3">
+                    <td>
                       <StatusBadge status={r.status} />
                     </td>
                   </tr>
@@ -160,37 +189,35 @@ export function TeacherReportsPage() {
               <Metric label="Baholar" value={String(detail.grades)} />
             </div>
 
-            <div className="overflow-x-auto rounded-xl border border-slate-100">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-400">
+            <div className="table-wrap rounded-xl border border-slate-100">
+              <table className="table">
+                <thead>
                   <tr>
-                    <th className="px-3 py-2">Guruh</th>
-                    <th className="px-3 py-2">Fan</th>
-                    <th className="px-3 py-2 text-center">Reja</th>
-                    <th className="px-3 py-2 text-center">O'tdi</th>
-                    <th className="px-3 py-2 text-center">Bajarildi</th>
-                    <th className="px-3 py-2 text-center">Baho</th>
-                    <th className="px-3 py-2 text-center">Mavzu</th>
-                    <th className="px-3 py-2 text-center">Uy vaz.</th>
+                    <th>Guruh</th>
+                    <th>Fan</th>
+                    <th className="num">Reja</th>
+                    <th className="num">O'tdi</th>
+                    <th className="num">Bajarildi</th>
+                    <th className="num">Baho</th>
+                    <th className="num">Mavzu</th>
+                    <th className="num">Uy vaz.</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody>
                   {detail.rows.map((b, i) => (
                     <tr key={i}>
-                      <td className="px-3 py-2 font-medium text-slate-700">{b.className}</td>
-                      <td className="px-3 py-2 text-slate-600">
-                        {b.subjectName}
-                      </td>
-                      <td className="px-3 py-2 text-center text-slate-600">{b.expected}</td>
-                      <td className="px-3 py-2 text-center text-slate-600">{b.conducted}</td>
-                      <td className="px-3 py-2 text-center">
+                      <td className="font-medium text-slate-700">{b.className}</td>
+                      <td className="text-slate-600">{b.subjectName}</td>
+                      <td className="num text-slate-600">{b.expected}</td>
+                      <td className="num text-slate-600">{b.conducted}</td>
+                      <td className="num">
                         <PctCell v={b.donePct} />
                       </td>
-                      <td className="px-3 py-2 text-center text-slate-600">{b.grades}</td>
-                      <td className="px-3 py-2 text-center">
+                      <td className="num text-slate-600">{b.grades}</td>
+                      <td className="num">
                         <PctCell v={b.topicPct} />
                       </td>
-                      <td className="px-3 py-2 text-center">
+                      <td className="num">
                         <PctCell v={b.homeworkPct} />
                       </td>
                     </tr>
@@ -213,55 +240,25 @@ export function TeacherReportsPage() {
 }
 
 function PctCell({ v }: { v: number | null }) {
-  if (v == null) return <span className="text-slate-300">—</span>
+  if (v == null) return <span className="font-mono text-slate-300">—</span>
   const color = v >= 70 ? 'text-emerald-600' : v >= 40 ? 'text-amber-600' : 'text-red-600'
-  return <span className={cn('font-medium', color)}>{v}%</span>
+  return <span className={cn('font-mono font-semibold', color)}>{v}%</span>
 }
 
 function StatusBadge({ status }: { status: TeacherReportRow['status'] }) {
   const m = statusMeta[status]
   return (
-    <span className={cn('rounded-md px-2 py-0.5 text-xs font-medium', m.cls)}>{m.label}</span>
-  )
-}
-
-function StatCard({ label, value, cls }: { label: string; value: number; cls: string }) {
-  return (
-    <Card className="flex flex-col">
-      <span className="text-xs text-slate-400">{label}</span>
-      <span className={cn('text-2xl font-semibold', cls)}>{value}</span>
-    </Card>
+    <Badge tone={m.tone} dot>
+      {m.label}
+    </Badge>
   )
 }
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-xl bg-slate-50 px-3 py-2">
-      <p className="text-xs text-slate-400">{label}</p>
-      <p className="text-lg font-semibold text-slate-800">{value}</p>
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{label}</p>
+      <p className="mt-0.5 font-mono text-lg font-semibold text-slate-800">{value}</p>
     </div>
-  )
-}
-
-function QuarterBtn({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean
-  onClick: () => void
-  children: React.ReactNode
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
-        active ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-500 hover:text-slate-700',
-      )}
-    >
-      {children}
-    </button>
   )
 }

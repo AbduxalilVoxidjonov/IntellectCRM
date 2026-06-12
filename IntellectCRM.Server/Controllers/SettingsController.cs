@@ -17,26 +17,11 @@ public class SettingsController(AppDbContext db, TelegramService telegram) : Con
     [HttpGet]
     public async Task<ActionResult<SchoolSettingsDto>> Get()
     {
-        var lessonTimes = await db.LessonTimes.OrderBy(t => t.Period)
-            .Select(t => new LessonTimeDto(t.Period, t.StartTime, t.EndTime)).ToListAsync();
         var reasons = await db.AbsenceReasons
             .Select(r => new AbsenceReasonDto(r.Id, r.Name, r.Short, r.IsLate)).ToListAsync();
         var quarters = await TuitionService.SyntheticPeriodsAsync(db);
-        return new SchoolSettingsDto(lessonTimes, reasons, quarters);
-    }
-
-    [HttpPut("lesson-times")]
-    public async Task<IActionResult> SaveLessonTimes(SaveLessonTimesRequest req)
-    {
-        db.LessonTimes.RemoveRange(db.LessonTimes);
-        db.LessonTimes.AddRange(req.LessonTimes.Select(t => new LessonTime
-        {
-            Period = t.Period,
-            StartTime = t.StartTime,
-            EndTime = t.EndTime,
-        }));
-        await db.SaveChangesAsync();
-        return NoContent();
+        // Dars vaqtlari (qo'ng'iroqlar jadvali) olib tashlandi — bo'sh ro'yxat.
+        return new SchoolSettingsDto(new List<LessonTimeDto>(), reasons, quarters);
     }
 
     [HttpGet("school")]
@@ -193,32 +178,6 @@ public class SettingsController(AppDbContext db, TelegramService telegram) : Con
         return await GetTurnstile();
     }
 
-    // ---------- GPS (avtobus kuzatuvi) integratsiyasi ----------
-
-    [HttpGet("gps")]
-    public async Task<ActionResult<GpsSettingsDto>> GetGps()
-    {
-        var m = await db.CenterMeta.FirstOrDefaultAsync();
-        var busCount = await db.Buses.CountAsync();
-        return new GpsSettingsDto(
-            m?.GpsEnabled ?? false, m?.GpsIngestToken ?? "",
-            m?.GpsOnlineMinutes ?? 5, m?.GpsStopRadiusM ?? 60, m?.GpsStopMinMinutes ?? 3, busCount);
-    }
-
-    [HttpPut("gps")]
-    public async Task<ActionResult<GpsSettingsDto>> SaveGps(SaveGpsSettingsRequest req)
-    {
-        var m = await db.CenterMeta.FirstOrDefaultAsync();
-        if (m is null) { m = new CenterMeta(); db.CenterMeta.Add(m); }
-        m.GpsEnabled = req.Enabled;
-        m.GpsIngestToken = (req.IngestToken ?? "").Trim();
-        if (req.OnlineMinutes is > 0) m.GpsOnlineMinutes = req.OnlineMinutes.Value;
-        if (req.StopRadiusM is > 0) m.GpsStopRadiusM = req.StopRadiusM.Value;
-        if (req.StopMinMinutes is > 0) m.GpsStopMinMinutes = req.StopMinMinutes.Value;
-        await db.SaveChangesAsync();
-        return await GetGps();
-    }
-
     // ---------- Kamera (videokuzatuv) integratsiyasi ----------
 
     [HttpGet("cameras")]
@@ -237,6 +196,27 @@ public class SettingsController(AppDbContext db, TelegramService telegram) : Con
         m.CameraEnabled = req.Enabled;
         await db.SaveChangesAsync();
         return await GetCameras();
+    }
+
+    // ---------- Avtomatik to'lov eslatmasi ----------
+
+    [HttpGet("payment-reminders")]
+    public async Task<ActionResult<PaymentReminderSettingsDto>> GetPaymentReminders()
+    {
+        var m = await db.CenterMeta.FirstOrDefaultAsync();
+        // Yozuv hali yo'q bo'lsa — default YONIQ.
+        return new PaymentReminderSettingsDto(m?.PaymentRemindersEnabled ?? true);
+    }
+
+    [HttpPut("payment-reminders")]
+    public async Task<ActionResult<PaymentReminderSettingsDto>> SavePaymentReminders(
+        SavePaymentReminderSettingsRequest req)
+    {
+        var m = await db.CenterMeta.FirstOrDefaultAsync();
+        if (m is null) { m = new CenterMeta(); db.CenterMeta.Add(m); }
+        m.PaymentRemindersEnabled = req.Enabled;
+        await db.SaveChangesAsync();
+        return new PaymentReminderSettingsDto(m.PaymentRemindersEnabled);
     }
 
     [HttpPut("absence-reasons")]

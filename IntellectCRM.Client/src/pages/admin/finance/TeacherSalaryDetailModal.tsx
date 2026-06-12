@@ -3,6 +3,8 @@ import type { MonthStatus, SalaryLedger, SalaryReportRow } from '@/types'
 import { getSalaryLedger } from '@/api/services/teachers'
 import { Modal } from '@/components/ui/Modal'
 import { Loader } from '@/components/ui/Loader'
+import { Badge } from '@/components/ui/Badge'
+import type { BadgeTone } from '@/components/ui/Badge'
 import { AuditHistoryList } from '@/components/audit/AuditHistoryList'
 import { formatDate, formatMoney, cn } from '@/lib/utils'
 import { formatMonth, monthStatusLabels } from '@/config/constants'
@@ -14,10 +16,10 @@ interface Props {
   onClose: () => void
 }
 
-const statusStyles: Record<MonthStatus, string> = {
-  paid: 'bg-emerald-50 text-emerald-700',
-  partial: 'bg-amber-50 text-amber-700',
-  unpaid: 'bg-red-50 text-red-700',
+const statusTones: Record<MonthStatus, BadgeTone> = {
+  paid: 'green',
+  partial: 'amber',
+  unpaid: 'red',
 }
 
 export function TeacherSalaryDetailModal({ teacher, from, to, onClose }: Props) {
@@ -44,13 +46,17 @@ export function TeacherSalaryDetailModal({ teacher, from, to, onClose }: Props) 
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50 px-4 py-3">
             <div>
               <p className="font-semibold text-slate-800">{ledger.fullName}</p>
-              <p className="text-sm text-slate-500">Belgilangan oylik: {formatMoney(ledger.salary)}</p>
+              <p className="text-sm text-slate-500">
+                {ledger.salaryMode === 'percent'
+                  ? `Foizli maosh: guruh to'lovining ${ledger.salaryPercent ?? 0}%i`
+                  : `Belgilangan oylik: ${formatMoney(ledger.salary)}`}
+              </p>
             </div>
             <div className="text-right">
               <p className="text-xs text-slate-400">Qoldiq</p>
               <p
                 className={cn(
-                  'text-lg font-semibold',
+                  'font-mono text-lg font-semibold',
                   ledger.remaining > 0
                     ? 'text-red-600'
                     : ledger.remaining < 0
@@ -80,39 +86,32 @@ export function TeacherSalaryDetailModal({ teacher, from, to, onClose }: Props) 
           <div>
             <p className="mb-2 text-sm font-medium text-slate-600">Qaysi oyda qancha berilgani</p>
             <div className="overflow-hidden rounded-xl border border-slate-200">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-400">
+              <table className="table">
+                <thead>
                   <tr>
-                    <th className="px-4 py-2.5">Oy</th>
-                    <th className="px-4 py-2.5 text-right">Belgilangan</th>
-                    <th className="px-4 py-2.5 text-right">Berilgan</th>
-                    <th className="px-4 py-2.5 text-right">Qoldiq</th>
-                    <th className="px-4 py-2.5 text-center">Holat</th>
+                    <th>Oy</th>
+                    <th className="num">Belgilangan</th>
+                    <th className="num">Berilgan</th>
+                    <th className="num">Qoldiq</th>
+                    <th className="num">Holat</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody>
                   {ledger.months.map((m) => (
-                    <tr key={m.month} className="hover:bg-slate-50/60">
-                      <td className="px-4 py-2.5 font-medium text-slate-700">{formatMonth(m.month)}</td>
-                      <td className="px-4 py-2.5 text-right text-slate-600">{formatMoney(m.expected)}</td>
-                      <td className="px-4 py-2.5 text-right text-emerald-600">{formatMoney(m.paid)}</td>
+                    <tr key={m.month}>
+                      <td className="font-medium text-slate-700">{formatMonth(m.month)}</td>
+                      <td className="num text-slate-600">{formatMoney(m.expected)}</td>
+                      <td className="num text-emerald-600">{formatMoney(m.paid)}</td>
                       <td
                         className={cn(
-                          'px-4 py-2.5 text-right',
+                          'num',
                           m.remaining > 0 ? 'text-red-600' : 'text-slate-400',
                         )}
                       >
                         {m.remaining < 0 ? `+${formatMoney(-m.remaining)}` : formatMoney(m.remaining)}
                       </td>
-                      <td className="px-4 py-2.5 text-center">
-                        <span
-                          className={cn(
-                            'rounded-md px-2 py-0.5 text-xs font-medium',
-                            statusStyles[m.status],
-                          )}
-                        >
-                          {monthStatusLabels[m.status]}
-                        </span>
+                      <td className="num">
+                        <Badge tone={statusTones[m.status]}>{monthStatusLabels[m.status]}</Badge>
                       </td>
                     </tr>
                   ))}
@@ -120,8 +119,8 @@ export function TeacherSalaryDetailModal({ teacher, from, to, onClose }: Props) 
                 <tfoot className="border-t border-slate-200 bg-slate-50 text-sm font-semibold text-slate-700">
                   <tr>
                     <td className="px-4 py-2.5">Jami</td>
-                    <td className="px-4 py-2.5 text-right">{formatMoney(ledger.totalExpected)}</td>
-                    <td className="px-4 py-2.5 text-right text-emerald-700">{formatMoney(ledger.totalPaid)}</td>
+                    <td className="px-4 py-2.5 text-right font-mono">{formatMoney(ledger.totalExpected)}</td>
+                    <td className="px-4 py-2.5 text-right font-mono text-emerald-700">{formatMoney(ledger.totalPaid)}</td>
                     <td className="px-4 py-2.5 text-right" colSpan={2} />
                   </tr>
                 </tfoot>
@@ -141,8 +140,8 @@ export function TeacherSalaryDetailModal({ teacher, from, to, onClose }: Props) 
                     key={i}
                     className="flex items-center justify-between rounded-lg border border-slate-100 px-3 py-2 text-sm"
                   >
-                    <span className="text-slate-500">{formatDate(p.date)}</span>
-                    <span className="font-medium text-slate-700">{formatMoney(p.amount)}</span>
+                    <span className="font-mono text-slate-500">{formatDate(p.date)}</span>
+                    <span className="font-mono font-semibold text-slate-700">{formatMoney(p.amount)}</span>
                   </li>
                 ))}
               </ul>
@@ -175,7 +174,7 @@ function SummaryCell({
   return (
     <div className="rounded-xl border border-slate-100 px-3 py-2.5 text-center">
       <p className="text-xs text-slate-400">{label}</p>
-      <p className={cn('mt-0.5 font-semibold', valueClass)}>{value}</p>
+      <p className={cn('mt-0.5 font-mono font-semibold', valueClass)}>{value}</p>
     </div>
   )
 }

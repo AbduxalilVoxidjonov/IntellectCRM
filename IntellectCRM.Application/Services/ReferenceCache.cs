@@ -24,9 +24,16 @@ public class ReferenceCache(IMemoryCache cache, IServiceScopeFactory scopeFactor
             return await load(db);
         }))!;
 
-    /// <summary>Portal meta (choraklar, dars vaqtlari, davomat sabablari + joriy chorak/hafta). TTL 30s.</summary>
+    /// <summary>Portal meta (sintetik davr, davomat sabablari + joriy davr/hafta). Dars jadvali/dars
+    /// vaqtlari olib tashlandi — LessonTimes bo'sh, CurrentQuarter/Week = 1. TTL 30s.</summary>
     public Task<PortalMetaDto> MetaAsync() =>
-        GetAsync("ref:meta", TimeSpan.FromSeconds(30), PortalSchedule.BuildMetaAsync);
+        GetAsync("ref:meta", TimeSpan.FromSeconds(30), async db =>
+        {
+            var reasons = await db.AbsenceReasons.OrderBy(r => r.Name)
+                .Select(r => new AbsenceReasonDto(r.Id, r.Name, r.Short, r.IsLate)).ToListAsync();
+            var quarters = await TuitionService.SyntheticPeriodsAsync(db);
+            return new PortalMetaDto(new List<LessonTimeDto>(), reasons, quarters, 1, 1);
+        });
 
     /// <summary>Fan id → nomi. TTL 2 daqiqa.</summary>
     public Task<Dictionary<string, string>> SubjectNamesAsync() =>

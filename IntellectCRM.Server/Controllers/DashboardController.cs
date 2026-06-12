@@ -19,8 +19,13 @@ public class DashboardController(AppDbContext db) : ControllerBase
         var studentsCount = await db.Students.CountAsync();
         var teachersCount = await db.Teachers.CountAsync();
         var classes = await db.Classes.OrderBy(c => c.Grade).ToListAsync();
-        var students = await db.Students.ToListAsync();
         var entries = await db.JournalEntries.ToListAsync();
+
+        // Guruh a'zolari — M2M faol a'zoliklar bo'yicha (ClassName yorlig'i emas; o'quvchi bir nechta guruhda bo'lishi mumkin).
+        var membersByClass = (await db.StudentGroups.Where(sg => sg.IsActive).Select(sg => sg.GroupId).ToListAsync())
+            .GroupBy(gid => gid)
+            .ToDictionary(g => g.Key, g => g.Count());
+        int MembersOf(Group c) => membersByClass.TryGetValue(c.Id, out var n) ? n : 0;
 
         // Davomat FAQAT o'tilgan darslar bo'yicha (Conducted=true). O'tilmagan darslar hisobga olinmaydi.
         var conductedByClass = (await db.LessonNotes.Where(n => n.Conducted).ToListAsync())
@@ -42,7 +47,7 @@ public class DashboardController(AppDbContext db) : ControllerBase
         (long Opp, int Abs) ClassAttParts(Group c)
         {
             if (!conductedByClass.TryGetValue(c.Id, out var set) || set.Count == 0) return (0, 0);
-            var studentsN = students.Count(s => s.ClassName == c.Name);
+            var studentsN = MembersOf(c);
             if (studentsN == 0) return (0, 0);
             var abs = entries.Count(e => e.ClassId == c.Id && e.ReasonId != null
                 && !lateReasonIds.Contains(e.ReasonId) && set.Contains((e.SubjectId, e.Date, e.Period)));
@@ -63,15 +68,41 @@ public class DashboardController(AppDbContext db) : ControllerBase
 
         var stats = new AdminStatsDto(studentsCount, teachersCount, AvgGrade(entries), Rate(totalOpp, totalAbs));
 
+        // O'quvchilar bo'yicha taqsimot — faqat arxivlanmaganlar.
+        var activeStudents = await db.Students.Where(s => !s.IsArchived).Select(s => new { s.Id, s.Balance }).ToListAsync();
+        var nonArchivedTotal = activeStudents.Count;
+        // Faol a'zoliklar (guruhli) va Status=="active" a'zoliklar.
+        var memberships = await db.StudentGroups
+            .Where(sg => sg.IsActive)
+            .Select(sg => new { sg.StudentId, sg.Status })
+            .ToListAsync();
+        var nonArchivedIds = activeStudents.Select(s => s.Id).ToHashSet();
+        var withGroupIds = memberships
+            .Where(m => nonArchivedIds.Contains(m.StudentId))
+            .Select(m => m.StudentId).ToHashSet();
+        var activeMemberIds = memberships
+            .Where(m => m.Status == "active" && nonArchivedIds.Contains(m.StudentId))
+            .Select(m => m.StudentId).ToHashSet();
+        var withGroup = withGroupIds.Count;
+        var activeCount = activeMemberIds.Count;
+        var debtors = activeStudents.Count(s => s.Balance < 0);
+        var studentBreakdown = new StudentBreakdownDto(
+            activeCount,
+            nonArchivedTotal - activeCount,
+            debtors,
+            nonArchivedTotal - debtors,
+            withGroup,
+            nonArchivedTotal - withGroup);
+
         var topClasses = classes
             .Select(c => new TopClassDto(
                 c.Id, c.Name,
-                students.Count(s => s.ClassName == c.Name),
+                MembersOf(c),
                 AvgGrade(entries.Where(e => e.ClassId == c.Id))))
             .OrderByDescending(t => t.AverageGrade)
             .Take(5)
             .ToList();
 
-        return new AdminDashboardDto(stats, classPerformance, topClasses);
+        return new AdminDashboardDto(stats, classPerformance, topClasses, studentBreakdown);
     }
 }

@@ -11,6 +11,7 @@ import {
 } from '@/api/services/teacher'
 import { Loader } from '@/components/ui/Loader'
 import { Card } from '@/components/ui/Card'
+import { PageHeader } from '@/components/ui/PageHeader'
 import { LmsProgressMatrix } from '@/components/lms/LmsProgressMatrix'
 import { cn } from '@/lib/utils'
 
@@ -57,39 +58,37 @@ export function TeacherLmsSubjectPage() {
   if (!subject) return <p className="py-12 text-center text-slate-400">Fan topilmadi</p>
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="mb-1 flex items-center gap-2 text-sm text-slate-400">
-            <button
-              type="button"
-              onClick={() => navigate('/teacher/lms')}
-              className="flex items-center gap-1 hover:text-brand-600"
-            >
-              <ArrowLeft className="h-3.5 w-3.5" />
-              Ta'lim
-            </button>
-            <span>/</span>
-            <span className="text-slate-600">{subject.className}-guruh</span>
-            <span>/</span>
-            <span className="text-slate-800">{subject.title}</span>
-          </div>
-          <h1 className="text-xl font-semibold text-slate-800">{subject.title}</h1>
-          {subject.description && (
-            <p className="mt-0.5 text-sm text-slate-400">{subject.description}</p>
-          )}
-        </div>
-
-        {/* Mavzular soni badge */}
-        <div className="flex items-center gap-2 rounded-xl bg-slate-100 px-3 py-1.5 text-sm text-slate-600">
-          <BookOpen className="h-4 w-4" />
-          {topics.length} ta mavzu
-        </div>
+    <div>
+      {/* Breadcrumb */}
+      <div className="subnav">
+        <button
+          type="button"
+          onClick={() => navigate('/teacher/lms')}
+          className="subnav-tab"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" />
+          Ta'lim
+        </button>
+        <span className="text-slate-300">/</span>
+        <span className="subnav-tab">{subject.className}-guruh</span>
+        <span className="text-slate-300">/</span>
+        <span className="subnav-tab active">{subject.title}</span>
       </div>
 
+      {/* Header */}
+      <PageHeader
+        title={subject.title}
+        sub={subject.description || undefined}
+        actions={
+          <div className="flex items-center gap-2 rounded-xl bg-slate-100 px-3 py-1.5 text-sm text-slate-600">
+            <BookOpen className="h-4 w-4" />
+            <span className="font-mono">{topics.length}</span> ta mavzu
+          </div>
+        }
+      />
+
       {/* Tab */}
-      <div className="inline-flex rounded-lg border border-slate-200 bg-white p-1">
+      <div className="tabs mb-5">
         <TabBtn active={tab === 'topics'} onClick={() => switchTab('topics')}>
           Mavzular
         </TabBtn>
@@ -102,16 +101,20 @@ export function TeacherLmsSubjectPage() {
       {/* ─── MAVZULAR ─── */}
       {tab === 'topics' && (
         topics.length === 0 ? (
-          <Card className="py-12 text-center text-slate-400">Mavzular yo'q</Card>
+          <Card>
+            <div className="state">
+              <h4>Mavzular yo'q</h4>
+            </div>
+          </Card>
         ) : (
           <div className="space-y-2">
             {topics.map((t) => (
               <div
                 key={t.id}
-                className="flex items-start gap-4 rounded-xl border border-slate-200 bg-white px-4 py-3.5 shadow-sm"
+                className="flex items-start gap-4 rounded-xl border border-slate-200 bg-white px-4 py-3.5 shadow-[var(--shadow-1)]"
               >
                 {/* Tartib */}
-                <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-sm font-bold text-brand-700">
+                <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand-50 font-mono text-sm font-bold text-brand-700">
                   {t.order}
                 </div>
 
@@ -159,7 +162,7 @@ export function TeacherLmsSubjectPage() {
                 {/* O'quvchilar tugatladi */}
                 {t.completedCount > 0 && (
                   <div className="shrink-0 rounded-lg bg-emerald-50 px-2.5 py-1 text-center">
-                    <p className="text-sm font-bold text-emerald-700">{t.completedCount}</p>
+                    <p className="font-mono text-sm font-bold text-emerald-700">{t.completedCount}</p>
                     <p className="text-[10px] text-emerald-600">tugaldi</p>
                   </div>
                 )}
@@ -194,10 +197,7 @@ function TabBtn({
     <button
       type="button"
       onClick={onClick}
-      className={cn(
-        'inline-flex items-center gap-1.5 rounded-md px-4 py-1.5 text-sm font-medium transition-colors',
-        active ? 'bg-brand-600 text-white' : 'text-slate-600 hover:bg-slate-50',
-      )}
+      className={cn('tab inline-flex items-center gap-1.5', active && 'active')}
     >
       {children}
     </button>

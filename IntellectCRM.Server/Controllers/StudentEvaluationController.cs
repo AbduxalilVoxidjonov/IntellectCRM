@@ -93,7 +93,8 @@ public class StudentEvaluationController(AppDbContext db) : ControllerBase
     /// </summary>
     [HttpGet("board")]
     public async Task<ActionResult<EvaluationBoardDto>> GetBoard(
-        [FromQuery] string? month, [FromQuery] int week = 0, [FromQuery] string? subjectId = null)
+        [FromQuery] string? month, [FromQuery] int week = 0, [FromQuery] string? subjectId = null,
+        [FromQuery] string? groupId = null)
     {
         // Mavjud oylar katalogi (o'tilgan dars + davomat belgilaridan) + joriy oy.
         var lessonMonths = await db.LessonNotes.Where(n => n.Conducted && n.Date.Length >= 7)
@@ -111,9 +112,25 @@ public class StudentEvaluationController(AppDbContext db) : ControllerBase
         var (start, end) = PeriodRange(month, week);
         var monthPrefix = month + "-";
 
-        var students = await db.Students.Where(s => !s.IsArchived)
-            .Select(s => new { s.Id, s.FullName, s.ClassName }).ToListAsync();
-        var classes = await db.Classes.Select(c => new { c.Id, c.Name }).ToListAsync();
+        // Guruhlar (filtr uchun) + tanlangan guruh. Guruh tanlansa — SHU guruh kursi bo'yicha baholanadi
+        // va faqat SHU guruhning faol a'zolari ko'rinadi (ko'p guruhli o'quvchi har guruhida chiqadi).
+        var allGroups = await db.Classes.OrderBy(c => c.Name)
+            .Select(c => new { c.Id, c.Name, c.CourseId }).ToListAsync();
+        var selectedGroup = !string.IsNullOrEmpty(groupId) && groupId != "all"
+            ? allGroups.FirstOrDefault(g => g.Id == groupId) : null;
+        var groupOptions = allGroups.Select(g => new GroupOptionDto(g.Id, g.Name)).ToList();
+        if (selectedGroup is not null && !string.IsNullOrEmpty(selectedGroup.CourseId))
+            subjectId = selectedGroup.CourseId; // guruh tanlansa fan = guruh kursi.
+
+        var groupMemberIds = selectedGroup is not null
+            ? (await db.StudentGroups.Where(sg => sg.GroupId == selectedGroup.Id && sg.IsActive)
+                .Select(sg => sg.StudentId).ToListAsync()).ToHashSet()
+            : null;
+        var students = (await db.Students.Where(s => !s.IsArchived)
+                .Select(s => new { s.Id, s.FullName, s.ClassName }).ToListAsync())
+            .Where(s => groupMemberIds == null || groupMemberIds.Contains(s.Id))
+            .ToList();
+        var classes = allGroups.Select(c => new { c.Id, c.Name }).ToList();
         var conducted = (await db.LessonNotes
                 .Where(n => n.Conducted && n.Date.StartsWith(monthPrefix))
                 .Select(n => new { n.ClassId, n.SubjectId, n.Date, n.Period }).ToListAsync())
@@ -128,7 +145,7 @@ public class StudentEvaluationController(AppDbContext db) : ControllerBase
         var types = await db.EvaluationTypes.OrderBy(t => t.CreatedAt)
             .Select(t => new EvaluationTypeDto(t.Id, t.Name, t.Description)).ToListAsync();
         var subjects = await db.Subjects.OrderBy(s => s.Name)
-            .Select(s => new SubjectDto(s.Id, s.Name)).ToListAsync();
+            .Select(s => new SubjectDto(s.Id, s.Name, s.Price)).ToListAsync();
         // Tanlangan fan: bo'sh/"all" = hamma fan (fanlar o'rtachasi, faqat ko'rish);
         // aniq fan id'si = shu fan baholari (tahrirlanadi).
         var selectedSubject = subjectId ?? "";
@@ -153,10 +170,12 @@ public class StudentEvaluationController(AppDbContext db) : ControllerBase
 
         var rows = students.Select(s =>
         {
-            // Shu o'quvchi qatnashadigan o'tilgan darslar.
+            // Shu o'quvchi qatnashadigan o'tilgan darslar — guruh tanlansa SHU guruh, aks holda ClassName guruhi.
             var studentConducted = new HashSet<(string, string, int)>();
-            if (s.ClassName is not null && classIdByName.TryGetValue(s.ClassName, out var classId)
-                && conductedByClass.TryGetValue(classId, out var classConducted))
+            string? resolvedClassId = selectedGroup?.Id;
+            if (resolvedClassId is null && s.ClassName is not null)
+                classIdByName.TryGetValue(s.ClassName, out resolvedClassId);
+            if (resolvedClassId is not null && conductedByClass.TryGetValue(resolvedClassId, out var classConducted))
             {
                 foreach (var c in classConducted)
                     studentConducted.Add((c.SubjectId, c.Date, c.Period));
@@ -196,7 +215,8 @@ public class StudentEvaluationController(AppDbContext db) : ControllerBase
         .ToList();
 
         return new EvaluationBoardDto(months, month, week, types, rows,
-            bySubject ? selectedSubject : "all", subjects);
+            bySubject ? selectedSubject : "all", subjects, groupOptions,
+            selectedGroup?.Id ?? "all");
     }
 
     /// <summary>

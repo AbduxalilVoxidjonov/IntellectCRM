@@ -5,6 +5,8 @@ import { subjectsMock } from '../mock/subjects'
 
 export interface SubjectPayload {
   name: string
+  /** Kurs narxi (so'm) */
+  price: number
 }
 
 export async function getSubjects(): Promise<Subject[]> {
@@ -25,12 +27,23 @@ export async function createSubject(payload: SubjectPayload): Promise<Subject> {
   return data
 }
 
-export async function updateSubject(id: string, payload: SubjectPayload): Promise<Subject> {
+/**
+ * Kursni yangilash. Narx o'zgargan bo'lsa, `applyFee` orqali yangi narx shu kursga bog'langan
+ * guruhlardagi o'quvchilarning joriy oyiga qo'llanishini boshqaramiz: true = joriy oydan,
+ * false = keyingi oydan.
+ */
+export async function updateSubject(
+  id: string,
+  payload: SubjectPayload,
+  applyFee?: boolean,
+): Promise<Subject> {
   if (USE_MOCK) {
     await delay(200)
     return { id, ...payload }
   }
-  const { data } = await api.put<Subject>(`/admin/subjects/${id}`, payload)
+  const { data } = await api.put<Subject>(`/admin/subjects/${id}`, payload, {
+    params: applyFee === undefined ? undefined : { applyFee },
+  })
   return data
 }
 

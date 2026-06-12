@@ -20,6 +20,8 @@ import {
 import { uploadAdminFile } from '@/api/services/students'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
+import { Badge } from '@/components/ui/Badge'
+import { PageHeader } from '@/components/ui/PageHeader'
 import { Loader } from '@/components/ui/Loader'
 import { cn } from '@/lib/utils'
 
@@ -133,32 +135,40 @@ export function ContractsPage() {
   const sentFail = results?.filter((r) => !r.ok).length ?? 0
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-slate-800">Shartnomalar</h1>
-        <p className="text-sm text-slate-400">
-          Word andoza yuklang, oluvchilarni tanlang — @-o'rinbosarlar to'ldirilib Telegram orqali yuboriladi
-        </p>
-      </div>
-
-      {/* Target tab */}
-      <div className="inline-flex rounded-lg border border-slate-200 bg-white p-1">
-        <TabButton active={target === 'staff'} onClick={() => setTarget('staff')}>
-          Xodimlar
-        </TabButton>
-        <TabButton active={target === 'parent'} onClick={() => setTarget('parent')}>
-          Ota-onalar
-        </TabButton>
-      </div>
+    <div>
+      <PageHeader
+        title="Shartnomalar"
+        sub="Word andoza yuklang, oluvchilarni tanlang — @-o'rinbosarlar to'ldirilib Telegram orqali yuboriladi"
+        actions={
+          <div className="tabs" role="tablist">
+            <button
+              type="button"
+              className={cn('tab', target === 'staff' && 'active')}
+              onClick={() => setTarget('staff')}
+            >
+              Xodimlar
+            </button>
+            <button
+              type="button"
+              className={cn('tab', target === 'parent' && 'active')}
+              onClick={() => setTarget('parent')}
+            >
+              Ota-onalar
+            </button>
+          </div>
+        }
+      />
 
       {loading ? (
-        <Loader label="Yuklanmoqda..." />
+        <Card>
+          <Loader label="Yuklanmoqda..." />
+        </Card>
       ) : (
-        <>
+        <div className="space-y-5">
           {/* Andoza paneli */}
-          <Card>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="font-semibold text-slate-800">Word andoza</h2>
+          <Card
+            title="Word andoza"
+            actions={
               <label
                 className={cn(
                   'inline-flex cursor-pointer items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-700',
@@ -169,9 +179,9 @@ export function ContractsPage() {
                 {uploading ? 'Yuklanmoqda...' : 'Word yuklash (.docx)'}
                 <input type="file" accept={DOCX} hidden onChange={handleUpload} />
               </label>
-            </div>
-
-            <div className="mt-3 space-y-2">
+            }
+          >
+            <div className="space-y-2">
               {templates.map((t) => (
                 <label
                   key={t.id}
@@ -223,7 +233,7 @@ export function ContractsPage() {
                 {TOKENS[target].map((tok) => (
                   <code
                     key={tok}
-                    className="rounded bg-white px-1.5 py-0.5 text-xs font-medium text-brand-700 ring-1 ring-slate-200"
+                    className="rounded bg-white px-1.5 py-0.5 font-mono text-xs font-medium text-brand-700 ring-1 ring-slate-200"
                   >
                     {tok}
                   </code>
@@ -236,7 +246,12 @@ export function ContractsPage() {
           {results && (
             <Card className={cn('border', sentFail ? 'border-amber-200' : 'border-emerald-200')}>
               <p className="text-sm font-medium text-slate-700">
-                {sentOk} ta yuborildi{sentFail > 0 ? `, ${sentFail} ta yuborilmadi` : ''}
+                <span className="font-mono">{sentOk}</span> ta yuborildi
+                {sentFail > 0 && (
+                  <>
+                    , <span className="font-mono">{sentFail}</span> ta yuborilmadi
+                  </>
+                )}
               </p>
               {sentFail > 0 && (
                 <ul className="mt-2 space-y-1 text-xs text-slate-500">
@@ -253,22 +268,21 @@ export function ContractsPage() {
           )}
 
           {/* Oluvchilar */}
-          <Card className="p-0">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-4">
-              <h2 className="font-semibold text-slate-800">
-                Oluvchilar {target === 'staff' ? '(xodimlar)' : '(ota-onalar)'}
-              </h2>
+          <Card
+            tight
+            title={`Oluvchilar ${target === 'staff' ? '(xodimlar)' : '(ota-onalar)'}`}
+            actions={
               <Button onClick={handleSend} disabled={!selectedTpl || checked.size === 0 || sending}>
                 <Send className="h-4 w-4" />
                 {sending ? 'Yuborilmoqda...' : `Tanlanganlarni yuborish (${checked.size})`}
               </Button>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-400">
+            }
+          >
+            <div className="table-wrap">
+              <table className="table">
+                <thead>
                   <tr>
-                    <th className="w-10 px-4 py-3">
+                    <th className="w-10">
                       <input
                         type="checkbox"
                         checked={allChecked}
@@ -277,16 +291,16 @@ export function ContractsPage() {
                         className="h-4 w-4 accent-brand-600"
                       />
                     </th>
-                    <th className="px-4 py-3">{target === 'staff' ? 'F.I.SH' : 'Ota-ona'}</th>
-                    <th className="px-4 py-3">{target === 'staff' ? 'Telefon' : 'Telefon · farzandlar'}</th>
-                    <th className="px-4 py-3">Telegram</th>
-                    <th className="px-4 py-3 text-center">Oxirgi raqam</th>
+                    <th>{target === 'staff' ? 'F.I.SH' : 'Ota-ona'}</th>
+                    <th>{target === 'staff' ? 'Telefon' : 'Telefon · farzandlar'}</th>
+                    <th>Telegram</th>
+                    <th className="num">Oxirgi raqam</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody>
                   {rows.map((r) => (
-                    <tr key={r.key} className={cn('hover:bg-slate-50/60', !r.registered && 'opacity-60')}>
-                      <td className="px-4 py-3">
+                    <tr key={r.key} className={cn(!r.registered && 'opacity-60')}>
+                      <td>
                         <input
                           type="checkbox"
                           checked={checked.has(r.key)}
@@ -295,20 +309,20 @@ export function ContractsPage() {
                           className="h-4 w-4 accent-brand-600 disabled:cursor-not-allowed"
                         />
                       </td>
-                      <td className="px-4 py-3 font-medium text-slate-800">{r.name}</td>
-                      <td className="px-4 py-3 text-slate-500">{r.sub}</td>
-                      <td className="px-4 py-3">
+                      <td className="font-medium text-slate-800">{r.name}</td>
+                      <td className="text-slate-500">{r.sub}</td>
+                      <td>
                         {r.registered ? (
-                          <span className="inline-flex items-center gap-1 rounded bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                          <Badge tone="green">
                             <CheckCircle2 className="h-3 w-3" /> Ro'yxatda
-                          </span>
+                          </Badge>
                         ) : (
-                          <span className="inline-flex items-center gap-1 rounded bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
+                          <Badge tone="amber">
                             <AlertTriangle className="h-3 w-3" /> Ro'yxatdan o'tmagan
-                          </span>
+                          </Badge>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-center text-slate-600">
+                      <td className="num text-slate-600">
                         {r.lastNumber != null ? `№ ${r.lastNumber}` : '—'}
                       </td>
                     </tr>
@@ -328,31 +342,8 @@ export function ContractsPage() {
               telefon raqamini ulashish ({target === 'staff' ? 'xodim telefoni' : 'ota-ona telefoni'} bilan moslashadi).
             </p>
           </Card>
-        </>
+        </div>
       )}
     </div>
-  )
-}
-
-function TabButton({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean
-  onClick: () => void
-  children: React.ReactNode
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        'rounded-md px-4 py-1.5 text-sm font-medium transition-colors',
-        active ? 'bg-brand-600 text-white' : 'text-slate-600 hover:bg-slate-50',
-      )}
-    >
-      {children}
-    </button>
   )
 }

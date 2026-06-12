@@ -57,11 +57,28 @@ export interface TopClass {
   averageGrade: number
 }
 
+export interface StudentBreakdown {
+  /** Faol talabalar (status=="active" faol a'zolik) */
+  active: number
+  /** Aktiv bo'lmagan talabalar */
+  inactive: number
+  /** Qarzdorlar (Balance < 0) */
+  debtors: number
+  /** Qarzi yo'q talabalar */
+  paid: number
+  /** Guruhi bor talabalar */
+  withGroup: number
+  /** Guruhsiz talabalar */
+  withoutGroup: number
+}
+
 export interface AdminDashboard {
   stats: AdminStats
   classPerformance: ClassPerformance[]
   /** O'rtacha baho bo'yicha eng yuqori sinflar */
   topClasses: TopClass[]
+  /** O'quvchilar bo'yicha taqsimot */
+  studentBreakdown: StudentBreakdown
 }
 
 /* ---------- Lidlar (maktabga qiziqqanlar) ---------- */
@@ -89,12 +106,16 @@ export interface Lead {
   fullName: string
   gender: Gender
   birthDate: string
-  /** Ota-onasi FISH */
-  parentFullName: string
-  /** Ota-onasi telefon raqami */
-  parentPhone: string
-  /** Nechinchi sinfga kelmoqchi (1-11) */
-  targetGrade: number
+  /** O'quvchining o'z telefon raqami */
+  phone: string
+  /** Otasining FISH */
+  fatherFullName: string
+  /** Otasining telefon raqami */
+  fatherPhone: string
+  /** Onasining FISH */
+  motherFullName: string
+  /** Onasining telefon raqami */
+  motherPhone: string
   note?: string
   /** Tegishli ustun (Stage) id'si */
   stage: string
@@ -162,6 +183,16 @@ export interface Student {
   birthCertificateUrl?: string | null
   address: string
   gender: Gender
+  /** O'quvchining o'z telefon raqami */
+  phone?: string
+  /** Otasi F.I.SH */
+  fatherFullName?: string
+  /** Otasi telefon raqami */
+  fatherPhone?: string
+  /** Onasi F.I.SH */
+  motherFullName?: string
+  /** Onasi telefon raqami */
+  motherPhone?: string
   /** Ota-onasi FISH — parts'dan join */
   parentFullName: string
   /** Ota-ona familiyasi */
@@ -188,8 +219,10 @@ export interface Student {
   archivedAt?: string | null
   /** Arxivga olish sababi */
   archiveReason?: string | null
-  /** Biriktirilgan sinf, masalan "9-A" */
+  /** Biriktirilgan asosiy guruh (ClassName) */
   className: string
+  /** O'quvchi FAOL a'zo bo'lgan barcha guruh nomlari (ro'yxat ko'rinishi uchun) */
+  groups?: string[]
   /** Maktabga kelgan (qabul) sanasi (ISO) — oylik to'lov shu oydan boshlanadi */
   enrollmentDate: string
   /** Balans (so'm): manfiy = qarzdor, 0 = qarzsiz, musbat = avans */
@@ -202,11 +235,13 @@ export interface Student {
   discountNote: string
 }
 
-/* ---------- Fanlar ---------- */
+/* ---------- Kurslar (fanlar) ---------- */
 
 export interface Subject {
   id: string
   name: string
+  /** Kurs narxi (so'm) — guruh oylik to'lovi shundan to'ldiriladi */
+  price: number
 }
 
 /* ---------- Sinflar ---------- */
@@ -231,12 +266,24 @@ export interface Group {
   archivedAt?: string | null
   /** Guruh holati */
   status?: 'active' | 'full' | 'archived'
-  /** Boshlanish sanasi (ISO) */
+  /** Boshlanish/tashkil topgan sanasi (ISO "YYYY-MM-DD") */
   startDate?: string
   /** Tugash sanasi (ISO) */
   endDate?: string
   /** Sig'im (0 = cheksiz) */
   capacity?: number
+  /** Biriktirilgan kurs (Subject) id'si */
+  courseId?: string
+  /** Biriktirilgan o'qituvchi (Teacher) id'si */
+  teacherId?: string
+  /** Izoh */
+  note?: string
+  /** Hafta kunlari (0=Dushanba .. 6=Yakshanba) */
+  days?: number[]
+  /** Dars boshlanish vaqti "HH:mm" */
+  startTime?: string
+  /** Dars tugash vaqti "HH:mm" */
+  endTime?: string
 }
 
 /** Guruh a'zosi (many-to-many a'zolik) */
@@ -246,6 +293,14 @@ export interface GroupMember {
   joinedAt: string
   leftAt?: string | null
   isActive: boolean
+  /** To'lov holati: 'trial' (sinov) | 'active' (aktiv) | 'frozen' (muzlatilgan) */
+  status: string
+  /** Aktivlashtirilgan sana (ISO) */
+  activatedAt: string
+  /** Muzlatilgan sana (ISO) */
+  frozenAt: string
+  /** O'quvchi balansi (manfiy = qarz). */
+  balance: number
 }
 
 /** O'quvchining guruh a'zoligi */
@@ -256,6 +311,14 @@ export interface StudentGroupMembership {
   joinedAt: string
   leftAt?: string | null
   isActive: boolean
+  status: string
+  courseName: string
+  teacherName: string
+  monthlyFee: number
+  days: number[]
+  startTime: string
+  endTime: string
+  room: string
 }
 
 /** Guruh to'ldirish qatori */
@@ -269,32 +332,24 @@ export interface GroupFillRow {
   status: 'active' | 'full' | 'archived'
 }
 
-/* ---------- Dars jadvali ---------- */
-
-export interface ScheduleLesson {
-  /** Hafta kuni: 0=Dushanba ... 5=Shanba */
-  day: number
-  /** Dars raqami: 1-10 */
-  period: number
-  subjectId: string
-  /** O'qituvchi id'si (bo'sh bo'lishi mumkin) */
-  teacherId: string
+/** Bitta guruh bo'yicha oylik hisob (to'lov oynasi uchun — aggregate emas) */
+export interface GroupMonth {
+  /** "YYYY-MM" */
+  month: string
+  /** Shu guruhning shu oyga oylik to'lovi (chegirma ayirilgan) */
+  fee: number
+  /** Shu guruhga teglangan to'langan summa */
+  paid: number
+  /** Qoldiq (fee − paid) */
+  remaining: number
+  status: MonthStatus
 }
 
-/** Sinf uchun nomli dars jadvali varianti */
-export interface ScheduleTemplate {
-  id: string
-  classId: string
-  name: string
-  lessons: ScheduleLesson[]
-}
-
-/** Chorak ichidagi haftaga jadval biriktirish */
-export interface WeekAssignment {
-  /** Hafta raqami (1-based) */
-  week: number
-  /** Tegishli jadval (template) id'si yoki null */
-  templateId: string | null
+export interface GroupLedger {
+  groupId: string
+  groupName: string
+  courseName: string
+  months: GroupMonth[]
 }
 
 /* ---------- Jurnal ---------- */
@@ -345,14 +400,6 @@ export interface QuarterPeriod {
   gradesOpen: boolean
 }
 
-export interface LessonTime {
-  /** Dars raqami 1-10 */
-  period: number
-  /** "HH:MM" */
-  startTime: string
-  endTime: string
-}
-
 /** Davomat sababi (kelmaganlik turi) */
 export interface AbsenceReason {
   id: string
@@ -365,7 +412,6 @@ export interface AbsenceReason {
 
 export interface SchoolSettings {
   quarters: QuarterPeriod[]
-  lessonTimes: LessonTime[]
   absenceReasons: AbsenceReason[]
 }
 
@@ -385,6 +431,8 @@ export interface FinanceTransaction {
   note?: string
   /** O'quvchi to'lovi bo'lsa — tegishli o'quvchi id'si */
   studentId?: string
+  /** Tuition to'lovi bo'lsa — qaysi guruh uchun (Group id); null = teglanmagan */
+  groupId?: string | null
   /** Backend qaytaradigan o'quvchi nomi (qulaylik uchun) */
   studentName?: string
   /** O'qituvchi maoshi bo'lsa — tegishli o'qituvchi id'si */
@@ -439,6 +487,13 @@ export interface MonthLedger {
   /** Qolgan qarz = charged − discount − paid */
   remaining: number
   status: MonthStatus
+  /** Shu oyda qaysi kurslarga (qancha) — breakdown */
+  courses: MonthCourse[]
+}
+
+export interface MonthCourse {
+  courseName: string
+  fee: number
 }
 
 export interface LedgerPayment {
@@ -505,8 +560,12 @@ export interface Teacher {
   homeroomClass: string
   /** Dars beradigan fanlar (Subject id'lari) */
   subjectIds: string[]
-  /** Oylik ish haqi (so'm) — endi jadval + toifa narxidan AVTOMATIK hisoblanadi (faqat ko'rsatish) */
+  /** Maosh rejimi: 'fixed' (qat'iy summa) | 'percent' (guruh to'lovidan foiz). Standart 'fixed'. */
+  salaryMode?: string
+  /** Qat'iy oylik ish haqi (so'm) — salaryMode='fixed' da ishlatiladi */
   salary: number
+  /** Foizli maosh ulushi (%) — salaryMode='percent' da: guruhdan yig'ilgan to'lovning shu foizi */
+  salaryPercent?: number
   /** O'qituvchi toifasi: "oliy" | "1" | "2" | "mutaxasis" (bo'sh = belgilanmagan). Soat narxini belgilaydi. */
   category?: string
   /** Oylik qaysi oydan hisoblansin ("YYYY-MM"); bo'sh = hisobot davri boshidan (eski maydon) */
@@ -686,6 +745,10 @@ export interface SalaryLedger {
   remaining: number
   months: MonthSalary[]
   payments: LedgerPayment[]
+  /** Maosh rejimi: 'fixed' | 'percent' */
+  salaryMode?: string
+  /** Foizli ulush (%) — salaryMode='percent' bo'lsa */
+  salaryPercent?: number
 }
 
 export interface SalaryReportRow {
@@ -702,6 +765,10 @@ export interface SalaryReportRow {
   expected: number
   /** Qoldiq (kerakli − berilgan); manfiy = ortiqcha berilgan */
   remaining: number
+  /** Maosh rejimi: 'fixed' | 'percent' */
+  salaryMode?: string
+  /** Foizli ulush (%) — salaryMode='percent' bo'lsa */
+  salaryPercent?: number
 }
 
 /** O'quvchilar bo'yicha moliya hisoboti qatori (joriy holat) */
@@ -828,6 +895,10 @@ export interface EvaluationBoard {
   subjectId?: string
   /** Mavjud fanlar (admin board fan selektori uchun). */
   subjects?: { id: string; name: string }[]
+  /** Mavjud guruhlar (guruh selektori uchun). */
+  groups?: { id: string; name: string }[]
+  /** Tanlangan guruh id'si ("all" = barcha guruhlar). */
+  groupId?: string
 }
 
 /* ---------- Intizomiy ball ---------- */
@@ -862,14 +933,6 @@ export interface DisciplinePoint {
   createdBy: string
   /** "manual" — qo'lda (o'chirsa bo'ladi), "attendance" — jurnal davomati (faqat ko'rish) */
   source: 'manual' | 'attendance'
-}
-
-/** Bayram/dam olish kuni (butun maktab) — bu sanada dars bo'lmaydi */
-export interface Holiday {
-  /** Sana "YYYY-MM-DD" */
-  date: string
-  /** Nomi (ixtiyoriy, masalan "Navro'z") */
-  name: string
 }
 
 /** Telegram bot holati (admin UI uchun) */
@@ -1081,25 +1144,12 @@ export interface TeacherClass {
   subjects: Subject[]
 }
 
-/** Portal umumiy konteksti (choraklar, dars vaqtlari, davomat sabablari + joriy chorak/hafta) */
+/** Portal umumiy konteksti (choraklar, davomat sabablari + joriy chorak/hafta) */
 export interface PortalMeta {
   quarters: QuarterPeriod[]
-  lessonTimes: LessonTime[]
   absenceReasons: AbsenceReason[]
   currentQuarter: number
   currentWeek: number
-}
-
-/** O'qituvchi jadvalidagi bitta dars */
-export interface TeacherLesson {
-  day: number
-  period: number
-  startTime?: string | null
-  endTime?: string | null
-  classId: string
-  className: string
-  subjectId: string
-  subjectName: string
 }
 
 /* ─── LMS (Ta'lim) ─────────────────────────────────────────── */
@@ -1164,4 +1214,101 @@ export interface LmsStudentProgress {
 export interface LmsProgressReport {
   topics: LmsTopicBrief[]
   students: LmsStudentProgress[]
+}
+
+// ===================== Amal sabablari (action reasons) =====================
+
+/** Kategoriya: freeze | return_trial | remove_active | remove_trial | remove_frozen | lead_delete | group_delete */
+export interface ActionReason {
+  id: string
+  category: string
+  label: string
+  order: number
+}
+
+// ===================== Daraja testi (placement test) =====================
+
+export interface LevelTestListItem {
+  id: string
+  title: string
+  courseId: string
+  courseName: string
+  slug: string
+  isActive: boolean
+  createdAt: string
+  questionCount: number
+  submissionCount: number
+}
+
+export interface LevelTestQuestion {
+  id: string
+  text: string
+  options: string[]
+  correctIndex: number
+  order: number
+}
+
+export interface LevelTestBand {
+  id: string
+  label: string
+  minPercent: number
+  order: number
+}
+
+export interface LevelTestDetail {
+  id: string
+  title: string
+  courseId: string
+  courseName: string
+  slug: string
+  intro: string
+  isActive: boolean
+  createdAt: string
+  questions: LevelTestQuestion[]
+  bands: LevelTestBand[]
+}
+
+export interface LevelTestSubmission {
+  id: string
+  fullName: string
+  phone: string
+  age: number
+  score: number
+  total: number
+  percent: number
+  level: string
+  createdAt: string
+  leadId: string
+}
+
+/** Test yaratish/yangilash payload'i */
+export interface LevelTestPayload {
+  title: string
+  courseId: string
+  intro: string
+  isActive: boolean
+  questions: { id?: string; text: string; options: string[]; correctIndex: number }[]
+  bands: { id?: string; label: string; minPercent: number }[]
+}
+
+// Ommaviy (anonim)
+export interface PublicTestQuestion {
+  id: string
+  text: string
+  options: string[]
+}
+
+export interface PublicTest {
+  title: string
+  intro: string
+  courseName: string
+  questions: PublicTestQuestion[]
+}
+
+export interface TestResult {
+  score: number
+  total: number
+  percent: number
+  level: string
+  message: string
 }

@@ -11,6 +11,9 @@ import {
 } from '@/api/services/lms'
 import { Loader } from '@/components/ui/Loader'
 import { Card } from '@/components/ui/Card'
+import { Badge } from '@/components/ui/Badge'
+import { Button } from '@/components/ui/Button'
+import { PageHeader } from '@/components/ui/PageHeader'
 import { LmsProgressMatrix } from '@/components/lms/LmsProgressMatrix'
 import { cn } from '@/lib/utils'
 import { LmsSubjectModal } from './LmsSubjectModal'
@@ -129,89 +132,75 @@ export function LmsTopicsPage() {
   if (!subject) return <p className="py-12 text-center text-slate-400">Fan topilmadi</p>
 
   return (
-    <div className="space-y-6">
-      {/* Breadcrumb + amallar */}
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          {/* Breadcrumb */}
-          <div className="mb-1 flex items-center gap-1 text-sm text-slate-400">
-            <button
-              type="button"
-              onClick={() => navigate('/admin/lms')}
-              className="hover:text-brand-600"
-            >
-              Ta'lim
-            </button>
-            <span>/</span>
-            <button
-              type="button"
-              onClick={() => navigate(`/admin/lms/${classId}`)}
-              className="hover:text-brand-600"
-            >
-              {subject.className}-guruh
-            </button>
-            <span>/</span>
-            <button
-              type="button"
-              onClick={() => navigate(`/admin/lms/${classId}/${subjectId}`)}
-              className="hover:text-brand-600"
-            >
-              {subject.title}
-            </button>
-            <span>/</span>
-            <span className="text-slate-700">{module?.title ?? '...'}</span>
-          </div>
+    <div>
+      {/* Breadcrumb */}
+      <div className="mb-3 flex flex-wrap items-center gap-1 text-sm text-slate-400">
+        <button type="button" onClick={() => navigate('/admin/lms')} className="hover:text-brand-600">
+          Ta'lim
+        </button>
+        <span>/</span>
+        <button
+          type="button"
+          onClick={() => navigate(`/admin/lms/${classId}`)}
+          className="hover:text-brand-600"
+        >
+          {subject.className}-guruh
+        </button>
+        <span>/</span>
+        <button
+          type="button"
+          onClick={() => navigate(`/admin/lms/${classId}/${subjectId}`)}
+          className="hover:text-brand-600"
+        >
+          {subject.title}
+        </button>
+        <span>/</span>
+        <span className="text-slate-700">{module?.title ?? '...'}</span>
+      </div>
 
-          <div className="flex items-center gap-2">
+      <PageHeader
+        title={
+          <span className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => navigate(`/admin/lms/${classId}/${subjectId}`)}
-              className="flex items-center gap-1 rounded-lg px-2 py-1 text-sm text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
             >
               <ArrowLeft className="h-4 w-4" />
             </button>
-            <h1 className="text-xl font-semibold text-slate-800">{module?.title ?? subject.title}</h1>
-          </div>
-
-          {module?.description && (
-            <p className="mt-0.5 pl-8 text-sm text-slate-400">{module.description}</p>
-          )}
-        </div>
-
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => setSubjectModal(true)}
-            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
-          >
-            Sozlamalar
-          </button>
-          <button
-            type="button"
-            onClick={() => setTopicModal({ open: true })}
-            className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-700"
-          >
-            <Plus className="h-4 w-4" />
-            Yangi mavzu
-          </button>
-        </div>
-      </div>
+            {module?.title ?? subject.title}
+          </span>
+        }
+        sub={module?.description || undefined}
+        actions={
+          <>
+            <Button variant="secondary" onClick={() => setSubjectModal(true)}>
+              Sozlamalar
+            </Button>
+            <Button onClick={() => setTopicModal({ open: true })}>
+              <Plus className="h-4 w-4" /> Yangi mavzu
+            </Button>
+          </>
+        }
+      />
 
       {/* Fan sozlamalari banner */}
-      <div className="flex flex-wrap items-center gap-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-        <span>
-          <span className="font-medium">Ochilish:</span>{' '}
-          <span className="rounded-full bg-white px-2.5 py-0.5 text-xs font-semibold text-slate-700 shadow-sm">
+      <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+        <span className="flex items-center gap-2">
+          <span className="font-medium">Ochilish:</span>
+          <Badge tone="violet">
             {unlockLabels[subject.unlockMode] ?? subject.unlockMode}
             {subject.unlockMode === 'batch' && ` (${subject.batchSize} ta)`}
-          </span>
+          </Badge>
         </span>
-        <span className="text-slate-400">|</span>
-        <span className="text-slate-400">{topics.length} ta mavzu</span>
+        <span className="text-slate-300">|</span>
+        <span className="text-slate-400">
+          <span className="font-mono">{topics.length}</span> ta mavzu
+        </span>
       </div>
 
       {/* Tab: mavzular / o'quvchilar progressi */}
-      <div className="inline-flex rounded-lg border border-slate-200 bg-white p-1">
+      <div className="tabs mb-4" role="tablist">
         <TabBtn active={tab === 'topics'} onClick={() => switchTab('topics')}>Mavzular</TabBtn>
         <TabBtn active={tab === 'progress'} onClick={() => switchTab('progress')}>
           <Users className="h-3.5 w-3.5" />
@@ -221,25 +210,28 @@ export function LmsTopicsPage() {
 
       {/* Mavzular ro'yxati */}
       {tab === 'topics' && (topics.length === 0 ? (
-        <Card className="py-16 text-center">
-          <p className="text-slate-400">Hali mavzu qo'shilmagan</p>
-          <button
-            type="button"
-            onClick={() => setTopicModal({ open: true })}
-            className="mt-3 text-sm font-medium text-brand-600 hover:text-brand-700"
-          >
-            Birinchi mavzuni qo'shing →
-          </button>
+        <Card>
+          <div className="state">
+            <h4>Mavzu qo'shilmagan</h4>
+            <p>Bu modulda hali mavzu qo'shilmagan.</p>
+            <button
+              type="button"
+              onClick={() => setTopicModal({ open: true })}
+              className="mt-1 text-sm font-medium text-brand-600 hover:text-brand-700"
+            >
+              Birinchi mavzuni qo'shing →
+            </button>
+          </div>
         </Card>
       ) : (
         <div className="space-y-2">
           {topics.map((t, i) => (
             <div
               key={t.id}
-              className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm"
+              className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-[var(--shadow-1)]"
             >
               {/* Tartib raqami */}
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-sm font-bold text-slate-600">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 font-mono text-sm font-bold text-slate-600">
                 {t.order}
               </div>
 
@@ -265,12 +257,12 @@ export function LmsTopicsPage() {
                   {t.materials.length > 0 && (
                     <span className="flex items-center gap-1 text-xs text-slate-500">
                       <Paperclip className="h-3.5 w-3.5" />
-                      {t.materials.length} ta material
+                      <span className="font-mono">{t.materials.length}</span> ta material
                     </span>
                   )}
                   {t.completedCount > 0 && (
                     <span className="text-xs text-emerald-600">
-                      ✓ {t.completedCount} o'quvchi
+                      ✓ <span className="font-mono">{t.completedCount}</span> o'quvchi
                     </span>
                   )}
                 </div>
@@ -355,10 +347,7 @@ function TabBtn({ active, onClick, children }: {
     <button
       type="button"
       onClick={onClick}
-      className={cn(
-        'inline-flex items-center gap-1.5 rounded-md px-4 py-1.5 text-sm font-medium transition-colors',
-        active ? 'bg-brand-600 text-white' : 'text-slate-600 hover:bg-slate-50',
-      )}
+      className={cn('tab inline-flex items-center gap-1.5', active && 'active')}
     >
       {children}
     </button>

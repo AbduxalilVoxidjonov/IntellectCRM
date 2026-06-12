@@ -12,46 +12,96 @@ namespace IntellectCRM.Application.Services;
 public static class JournalService
 {
     /// <summary>
-    /// Fanning darslari (sana + dars raqami). Bir kunda bir fan bir necha marta bo'lishi mumkin.
-    /// Chorak davri tizimi olib tashlandi — endi hafta raqamlari o'quv yili boshidan (eng erta
-    /// qabul oyining 1-sanasidan) ketma-ket sanaladi: WeekAssignment.Week → shu hafta dushanbasi.
+    /// Fanning darslari (sana + dars raqami). Dars jadvali olib tashlandi — ustunlar endi QO'LDA
+    /// qo'shilgan darslardan (LessonNote) keladi: o'qituvchi/admin dars qo'shsa yoki birinchi baho/davomat
+    /// kiritilsa LessonNote yaratiladi (Conducted=true) va ustun paydo bo'ladi. Bir kunda bir fan bir
+    /// necha marta bo'lishi mumkin (Period — oddiy tartib raqami).
     /// </summary>
     public static async Task<List<JournalColumnDto>> ComputeColumnsAsync(
-        IAppDbContext db, string classId, string subjectId, int quarter)
+        IAppDbContext db, string classId, string subjectId, int quarter) =>
+        await db.LessonNotes
+            .Where(n => n.ClassId == classId && n.SubjectId == subjectId && n.Quarter == quarter)
+            .OrderBy(n => n.Date).ThenBy(n => n.Period)
+            .Select(n => new JournalColumnDto(n.Date, n.Period))
+            .ToListAsync();
+
+    /// <summary>
+    /// Guruhning bitta OYLIK jurnali. Dars jadvali yo'q — ustunlar guruh <see cref="Group.Days"/> (hafta
+    /// kunlari) bo'yicha SHU OYDAGI sanalardan avtomatik quriladi (Period=1). Qatorlar — faqat FAOL a'zolar.
+    /// Mavjud oylar: guruh boshlanish sanasidan (yoki eng erta a'zolik) joriy oygacha. Fan = guruh kursi.
+    /// </summary>
+    public static async Task<GroupJournalDto?> GroupMonthAsync(IAppDbContext db, string classId, string? month)
     {
-        var assignments = await db.WeekAssignments
-            .Where(a => a.ClassId == classId && a.Quarter == quarter).ToListAsync();
-        if (assignments.Count == 0) return [];
+        var cls = await db.Classes.FindAsync(classId);
+        if (cls is null) return null;
+        var subjectId = cls.CourseId ?? "";
+        var courseName = string.IsNullOrEmpty(subjectId) ? "" : (await db.Subjects.FindAsync(subjectId))?.Name ?? "";
+        var teacherName = string.IsNullOrEmpty(cls.TeacherId) ? "" : (await db.Teachers.FindAsync(cls.TeacherId))?.FullName ?? "";
 
-        // O'quv yili boshi (eng erta faol o'quvchining qabul oyi) — hafta raqamlarining tayanchi.
-        var startMonth = await TuitionService.AcademicYearStartMonthAsync(db); // "yyyy-MM"
-        var yearStart = $"{startMonth}-01";
-        var firstMonday = ScheduleMath.MondayOfISO(yearStart);
-
-        var templates = await db.ScheduleTemplates.Include(t => t.Lessons)
-            .Where(t => t.ClassId == classId).ToListAsync();
-        // Bayram kunlari — bu sanalarda dars yo'q, jurnal ustuni chiqmaydi.
-        var holidays = (await db.Holidays.Select(h => h.Date).ToListAsync()).ToHashSet();
-
-        var cols = new List<JournalColumnDto>();
-        foreach (var a in assignments)
-        {
-            if (a.TemplateId is null || a.Week <= 0) continue;
-            var tpl = templates.FirstOrDefault(t => t.Id == a.TemplateId);
-            if (tpl is null) continue;
-            // Shu hafta raqamining dushanbasi (1-hafta = o'quv yili birinchi dushanbasi).
-            var weekMonday = ScheduleMath.AddDaysISO(firstMonday, (a.Week - 1) * 7);
-            foreach (var l in tpl.Lessons.Where(l => l.SubjectId == subjectId))
+        // Faol a'zolar (IsActive). Status: trial/active/frozen.
+        var memberships = await db.StudentGroups.Where(sg => sg.GroupId == classId && sg.IsActive).ToListAsync();
+        var ids = memberships.Select(m => m.StudentId).ToList();
+        var studentById = (await db.Students.Where(s => ids.Contains(s.Id)).ToListAsync())
+            .ToDictionary(s => s.Id);
+        var students = memberships
+            .Where(m => studentById.ContainsKey(m.StudentId))
+            .Select(m =>
             {
-                var d = ScheduleMath.AddDaysISO(weekMonday, l.Day);
-                if (!holidays.Contains(d))
-                    cols.Add(new JournalColumnDto(d, l.Period));
-            }
-        }
-        return cols
-            .GroupBy(c => (c.Date, c.Period)).Select(g => g.First())
-            .OrderBy(c => c.Date, StringComparer.Ordinal).ThenBy(c => c.Period)
+                var st = studentById[m.StudentId];
+                return new GroupJournalStudentDto(m.StudentId, st.FullName, m.Status ?? "trial", m.ActivatedAt ?? "", st.Balance);
+            })
+            .OrderBy(s => s.FullName, StringComparer.OrdinalIgnoreCase)
             .ToList();
+
+        // Mavjud oylar: guruh StartDate (yoki eng erta a'zolik JoinedAt) oyidan joriy oygacha.
+        var starts = new List<string>();
+        if (!string.IsNullOrEmpty(cls.StartDate) && cls.StartDate.Length >= 7) starts.Add(cls.StartDate[..7]);
+        foreach (var m in memberships)
+            if (!string.IsNullOrEmpty(m.JoinedAt) && m.JoinedAt.Length >= 7) starts.Add(m.JoinedAt[..7]);
+        var cur = TuitionService.CurrentMonth();
+        var from = starts.Count > 0 ? starts.Min()! : cur;
+        if (string.CompareOrdinal(from, cur) > 0) from = cur;
+        var months = TuitionService.MonthRange(from, cur).ToList();
+        if (months.Count == 0) months.Add(cur);
+        var resolved = !string.IsNullOrEmpty(month) && months.Contains(month) ? month! : months[^1];
+
+        // Ustunlar: shu oyda guruh kunlariga to'g'ri keladigan sanalar (Period=1).
+        var columns = LessonDatesInMonth(cls.Days, resolved)
+            .Select(d => new JournalColumnDto(d, 1)).ToList();
+
+        // Yozuvlar: shu guruh + kurs + oy (sana prefiksi bo'yicha).
+        var entries = string.IsNullOrEmpty(subjectId)
+            ? new List<JournalEntryDto>()
+            : await db.JournalEntries
+                .Where(e => e.ClassId == classId && e.SubjectId == subjectId && e.Date.StartsWith(resolved))
+                .Select(e => new JournalEntryDto(e.StudentId, e.Date, e.Period, e.Grade, e.ReasonId, e.Homework, e.Behavior, e.Mastery))
+                .ToListAsync();
+
+        // "O'tildi" deb belgilangan dars sanalari — sababsiz o'quvchi shu kunda KELDI (yashil) deb ko'rsatiladi.
+        var conductedDates = string.IsNullOrEmpty(subjectId)
+            ? new List<string>()
+            : await db.LessonNotes
+                .Where(n => n.ClassId == classId && n.SubjectId == subjectId && n.Conducted && n.Date.StartsWith(resolved))
+                .Select(n => n.Date).Distinct().ToListAsync();
+
+        var info = new GroupJournalInfoDto(
+            cls.Id, cls.Name, subjectId, courseName, teacherName,
+            cls.Days, cls.StartTime, cls.EndTime, cls.Room ?? "", cls.StartDate ?? "", cls.MonthlyFee);
+        return new GroupJournalDto(info, months, resolved, columns, students, entries, conductedDates);
+    }
+
+    /// <summary>"yyyy-MM" oyidagi, berilgan hafta kunlariga (0=Du..6=Yak) to'g'ri keladigan sanalar ("yyyy-MM-dd").</summary>
+    private static IEnumerable<string> LessonDatesInMonth(IReadOnlyCollection<int> days, string month)
+    {
+        if (days.Count == 0 || month.Length < 7) yield break;
+        var y = int.Parse(month[..4]);
+        var m = int.Parse(month[5..7]);
+        var set = days.ToHashSet();
+        for (var day = 1; day <= DateTime.DaysInMonth(y, m); day++)
+        {
+            var d = new DateOnly(y, m, day);
+            if (set.Contains(((int)d.DayOfWeek + 6) % 7)) yield return d.ToString("yyyy-MM-dd");
+        }
     }
 
     public static async Task<List<JournalEntryDto>> GetEntriesAsync(
@@ -153,6 +203,79 @@ public static class JournalService
         }
         // FCM faqat HTTP (db'ga tegmaydi) — jurnal javobini bloklamaslik uchun kutmaymiz.
         _ = fcm.SendAsync(json, tokens, title, body);
+    }
+
+    /// <summary>
+    /// Bitta dars (sana+dars raqami) uchun BARCHA berilgan o'quvchiga birdan davomat. <c>ReasonId == null</c> →
+    /// "hammasi keldi": mavjud davomat sabablari tozalanadi (baho saqlanadi). <c>ReasonId != null</c> →
+    /// "hammasi kelmadi": har bir o'quvchiga shu sabab yoziladi. Ikkala holatda ham dars "o'tildi" (Conducted) bo'ladi.
+    /// </summary>
+    public static async Task BulkAttendanceAsync(IAppDbContext db, BulkAttendanceRequest req)
+    {
+        const int quarter = 1;
+        if (req.StudentIds.Count == 0) return;
+
+        // Darsni "o'tildi" deb belgilash (LessonNote).
+        var note = await db.LessonNotes.FirstOrDefaultAsync(n =>
+            n.ClassId == req.ClassId && n.SubjectId == req.SubjectId &&
+            n.Quarter == quarter && n.Date == req.Date && n.Period == req.Period);
+        if (note is null)
+            db.LessonNotes.Add(new LessonNote
+            {
+                ClassId = req.ClassId, SubjectId = req.SubjectId, Quarter = quarter,
+                Date = req.Date, Period = req.Period, Conducted = true,
+            });
+        else
+            note.Conducted = true;
+
+        // Hammasi KELMADI bo'lsa — sabab: berilgani, yo'q bo'lsa birinchi (kech bo'lmagan) sabab,
+        // umuman sabab bo'lmasa standart "Sababsiz" avtomatik yaratiladi (yo'q tugmasi har doim ishlasin).
+        string? absentReasonId = null;
+        if (req.Absent)
+        {
+            absentReasonId = req.ReasonId;
+            if (string.IsNullOrEmpty(absentReasonId))
+            {
+                var def = await db.AbsenceReasons.FirstOrDefaultAsync(r => !r.IsLate);
+                if (def is null)
+                {
+                    def = new AbsenceReason { Name = "Sababsiz", Short = "S", IsLate = false, Points = 0 };
+                    db.AbsenceReasons.Add(def);
+                }
+                absentReasonId = def.Id;
+            }
+        }
+
+        var existing = await db.JournalEntries.Where(e =>
+            e.ClassId == req.ClassId && e.SubjectId == req.SubjectId && e.Quarter == quarter &&
+            e.Date == req.Date && e.Period == req.Period && req.StudentIds.Contains(e.StudentId)).ToListAsync();
+        var byStudent = existing.ToDictionary(e => e.StudentId);
+
+        foreach (var sid in req.StudentIds)
+        {
+            byStudent.TryGetValue(sid, out var entry);
+            if (req.Absent)
+            {
+                // Hammasi kelmadi — har bir o'quvchiga sabab yoziladi (mavjud baho saqlanadi).
+                if (entry is null)
+                {
+                    entry = new JournalEntry
+                    {
+                        ClassId = req.ClassId, SubjectId = req.SubjectId, Quarter = quarter,
+                        StudentId = sid, Date = req.Date, Period = req.Period,
+                    };
+                    db.JournalEntries.Add(entry);
+                }
+                entry.ReasonId = absentReasonId;
+            }
+            else if (entry is not null)
+            {
+                // Hammasi keldi — davomat sababi tozalanadi (baho/uy vazifa/xulq tegilmaydi).
+                entry.ReasonId = null;
+            }
+        }
+
+        await db.SaveChangesAsync();
     }
 
     public static async Task ClearEntryAsync(

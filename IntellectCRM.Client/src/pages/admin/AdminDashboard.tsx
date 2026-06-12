@@ -1,16 +1,27 @@
 import { useState } from 'react'
-import { Users, GraduationCap, Star, CalendarCheck } from 'lucide-react'
+import {
+  Users,
+  GraduationCap,
+  Star,
+  CalendarCheck,
+  UserCheck,
+  UserX,
+  Wallet,
+  BadgeCheck,
+  UsersRound,
+  UserMinus,
+} from 'lucide-react'
 import { getAdminDashboard } from '@/api/services/dashboard'
 import { useAsync } from '@/hooks/useAsync'
 import { Card } from '@/components/ui/Card'
 import { StatCard } from '@/components/ui/StatCard'
+import { PageHeader } from '@/components/ui/PageHeader'
 import { Loader } from '@/components/ui/Loader'
 import {
   ClassPerformanceChart,
   type Metric,
 } from '@/components/charts/ClassPerformanceChart'
 import { cn } from '@/lib/utils'
-import { TodaySchedule } from './TodaySchedule'
 
 export function AdminDashboard() {
   const { data, loading, error } = useAsync(getAdminDashboard, [])
@@ -20,7 +31,7 @@ export function AdminDashboard() {
   if (error) return <p className="text-red-600">Xatolik: {error}</p>
   if (!data) return null
 
-  const { stats, classPerformance, topClasses } = data
+  const { stats, classPerformance, topClasses, studentBreakdown } = data
 
   // O'rtacha baho bo'yicha eng yuqori 5 ta sinf
   const ranked = [...topClasses]
@@ -28,14 +39,11 @@ export function AdminDashboard() {
     .slice(0, 5)
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-slate-800">Bosh sahifa</h1>
-        <p className="text-sm text-slate-400">Markaz bo'yicha umumiy ko'rsatkichlar</p>
-      </div>
+    <div>
+      <PageHeader title="Bosh sahifa" sub="Markaz bo'yicha umumiy ko'rsatkichlar" />
 
       {/* Statistik kartalar */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="kpi-grid mb-4">
         <StatCard
           label="O'quvchilar soni"
           value={stats.studentsCount.toLocaleString()}
@@ -65,43 +73,94 @@ export function AdminDashboard() {
         />
       </div>
 
-      {/* Bugungi dars jadvali (barcha guruhlar) */}
-      <TodaySchedule />
+      {/* O'quvchilar bo'yicha taqsimot */}
+      <div className="kpi-grid mb-4">
+        <StatCard
+          label="Aktiv talabalar"
+          value={studentBreakdown.active.toLocaleString()}
+          icon={UserCheck}
+          iconBg="bg-emerald-50"
+          iconColor="text-emerald-600"
+        />
+        <StatCard
+          label="Aktiv emas"
+          value={studentBreakdown.inactive.toLocaleString()}
+          icon={UserX}
+          iconBg="bg-slate-100"
+          iconColor="text-slate-500"
+        />
+        <StatCard
+          label="Qarzdorlar"
+          value={studentBreakdown.debtors.toLocaleString()}
+          icon={Wallet}
+          iconBg="bg-red-50"
+          iconColor="text-red-600"
+        />
+        <StatCard
+          label="Qarzi yo'q"
+          value={studentBreakdown.paid.toLocaleString()}
+          icon={BadgeCheck}
+          iconBg="bg-emerald-50"
+          iconColor="text-emerald-600"
+        />
+        <StatCard
+          label="Guruhli"
+          value={studentBreakdown.withGroup.toLocaleString()}
+          icon={UsersRound}
+          iconBg="bg-violet-50"
+          iconColor="text-violet-600"
+        />
+        <StatCard
+          label="Guruhsiz"
+          value={studentBreakdown.withoutGroup.toLocaleString()}
+          icon={UserMinus}
+          iconBg="bg-amber-50"
+          iconColor="text-amber-600"
+        />
+      </div>
 
       {/* Statistika grafigi + reyting */}
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         {/* Grafik (baho / davomat tanlash) */}
-        <Card className="xl:col-span-2">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <h2 className="font-semibold text-slate-800">Guruhlar bo'yicha statistika</h2>
-            <div className="flex rounded-lg bg-slate-100 p-1 text-sm">
-              <button onClick={() => setMetric('grade')} className={toggleBtn(metric === 'grade')}>
+        <Card
+          className="xl:col-span-2"
+          title="Guruhlar bo'yicha statistika"
+          sub={metric === 'grade' ? "O'rtacha baho bo'yicha" : "Davomat bo'yicha"}
+          actions={
+            <div className="tabs" role="tablist">
+              <button
+                type="button"
+                role="tab"
+                onClick={() => setMetric('grade')}
+                className={cn('tab', metric === 'grade' && 'active')}
+              >
                 O'rtacha baho
               </button>
               <button
+                type="button"
+                role="tab"
                 onClick={() => setMetric('attendance')}
-                className={toggleBtn(metric === 'attendance')}
+                className={cn('tab', metric === 'attendance' && 'active')}
               >
                 Davomat
               </button>
             </div>
-          </div>
+          }
+        >
           <ClassPerformanceChart data={classPerformance} metric={metric} />
         </Card>
 
         {/* Eng yuqori o'rtacha baholi guruhlar (Top 5) */}
-        <Card>
-          <h2 className="mb-1 font-semibold text-slate-800">Eng yuqori bahoga ega guruhlar</h2>
-          <p className="mb-4 text-xs text-slate-400">O'rtacha baho bo'yicha Top 5</p>
+        <Card title="Eng yuqori bahoga ega guruhlar" sub="O'rtacha baho bo'yicha Top 5">
           <ul className="space-y-2">
             {ranked.map((c, i) => (
               <li
                 key={c.id}
-                className="flex items-center gap-3 rounded-xl border border-slate-100 p-3"
+                className="flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50/40 p-3 transition-colors hover:bg-slate-50"
               >
                 <div
                   className={cn(
-                    'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-sm font-bold',
+                    'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg font-mono text-sm font-bold',
                     i === 0
                       ? 'bg-amber-100 text-amber-700'
                       : 'bg-slate-100 text-slate-500',
@@ -110,12 +169,12 @@ export function AdminDashboard() {
                   {i + 1}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="font-medium text-slate-800">{c.name}</p>
-                  <p className="text-xs text-slate-400">{c.studentsCount} o'quvchi</p>
+                  <p className="truncate font-semibold text-slate-800">{c.name}</p>
+                  <p className="font-mono text-xs text-slate-400">{c.studentsCount} o'quvchi</p>
                 </div>
                 <div className="flex items-center gap-1 text-amber-600">
                   <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
-                  <span className="font-semibold">{c.averageGrade.toFixed(1)}</span>
+                  <span className="font-mono font-semibold">{c.averageGrade.toFixed(1)}</span>
                 </div>
               </li>
             ))}
@@ -123,12 +182,5 @@ export function AdminDashboard() {
         </Card>
       </div>
     </div>
-  )
-}
-
-function toggleBtn(active: boolean): string {
-  return cn(
-    'rounded-md px-3 py-1 font-medium transition-colors',
-    active ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-500 hover:text-slate-700',
   )
 }

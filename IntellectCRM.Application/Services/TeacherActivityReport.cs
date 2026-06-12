@@ -114,11 +114,6 @@ public static class TeacherActivityReport
         var classes = await db.Classes.ToListAsync();
         var classNames = classes.ToDictionary(c => c.Id, c => c.Name);
         var subjectNames = await db.Subjects.ToDictionaryAsync(s => s.Id, s => s.Name);
-        var templates = await db.ScheduleTemplates.Include(t => t.Lessons).ToListAsync();
-        var assignmentsAll = await db.WeekAssignments.ToListAsync();
-        var assignments = quarter > 0
-            ? assignmentsAll.Where(a => a.Quarter == quarter).ToList()
-            : assignmentsAll;
 
         var notesQ = db.LessonNotes.AsQueryable();
         if (quarter > 0) notesQ = notesQ.Where(n => n.Quarter == quarter);
@@ -128,18 +123,18 @@ public static class TeacherActivityReport
         if (quarter > 0) entriesQ = entriesQ.Where(e => e.Quarter == quarter);
         var entries = await entriesQ.ToListAsync();
 
-        // (ClassId, SubjectId) -> TeacherId; va (ClassId, SubjectId) -> o'qituvchilar to'plami.
+        // (ClassId, SubjectId=CourseId) -> TeacherId; va (ClassId, SubjectId) -> o'qituvchilar to'plami.
+        // Biriktirish endi to'g'ridan-to'g'ri guruhda: Group.TeacherId (o'qituvchi) + Group.CourseId (kurs).
         var exact = new Dictionary<(string, string), string>();
         var bySubject = new Dictionary<(string, string), HashSet<string>>();
-        foreach (var tpl in templates)
-            foreach (var l in tpl.Lessons)
-            {
-                if (string.IsNullOrEmpty(l.TeacherId)) continue;
-                exact[(tpl.ClassId, l.SubjectId)] = l.TeacherId;
-                if (!bySubject.TryGetValue((tpl.ClassId, l.SubjectId), out var set))
-                    bySubject[(tpl.ClassId, l.SubjectId)] = set = new();
-                set.Add(l.TeacherId);
-            }
+        foreach (var g in classes)
+        {
+            if (string.IsNullOrEmpty(g.TeacherId) || string.IsNullOrEmpty(g.CourseId)) continue;
+            exact[(g.Id, g.CourseId)] = g.TeacherId;
+            if (!bySubject.TryGetValue((g.Id, g.CourseId), out var set))
+                bySubject[(g.Id, g.CourseId)] = set = new();
+            set.Add(g.TeacherId);
+        }
 
         string? Attribute(string classId, string subjectId)
         {
@@ -162,24 +157,14 @@ public static class TeacherActivityReport
                 c.LastActivity[teacher] = date;
         }
 
-        // --- Reja (Expected): jadval × biriktirilgan haftalar, bugungacha ---
-        // Chorak davri tizimi olib tashlandi — hafta raqamlari o'quv yili boshidan sanaladi.
+        // --- Reja (Expected): qo'lda qo'shilgan darslar, bugungacha (jadval olib tashlandi) ---
         var today = AppClock.Today.ToString("yyyy-MM-dd");
-        var startMonth = await TuitionService.AcademicYearStartMonthAsync(db);
-        var firstMonday = ScheduleMath.MondayOfISO($"{startMonth}-01");
-        foreach (var a in assignments)
+        foreach (var n in notes)
         {
-            if (a.TemplateId is null || a.Week <= 0) continue;
-            var tpl = templates.FirstOrDefault(t => t.Id == a.TemplateId);
-            if (tpl is null) continue;
-            var monday = ScheduleMath.AddDaysISO(firstMonday, (a.Week - 1) * 7);
-            foreach (var l in tpl.Lessons)
-            {
-                if (string.IsNullOrEmpty(l.TeacherId)) continue;
-                var date = ScheduleMath.AddDaysISO(monday, l.Day);
-                if (string.CompareOrdinal(date, today) > 0) continue; // kelajak dars — hali reja emas
-                Key(l.TeacherId, a.ClassId, l.SubjectId).Expected++;
-            }
+            if (string.CompareOrdinal(n.Date, today) > 0) continue; // kelajak dars — hali reja emas
+            var teacher = Attribute(n.ClassId, n.SubjectId);
+            if (teacher is null) continue;
+            Key(teacher, n.ClassId, n.SubjectId).Expected++;
         }
 
         // --- O'tilgan darslar + mavzu/uy vazifa (LessonNote) ---

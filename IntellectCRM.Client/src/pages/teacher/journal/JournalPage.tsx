@@ -22,10 +22,9 @@ import {
 import { formatDate, cn } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
 import { Loader } from '@/components/ui/Loader'
+import { PageHeader } from '@/components/ui/PageHeader'
+import { Select } from '@/components/ui/Input'
 import { JournalCellModal } from '@/pages/admin/journal/JournalCellModal'
-
-const control =
-  'rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:border-brand-400'
 
 const weekdayShort = (iso: string) =>
   ['Ya', 'Du', 'Se', 'Ch', 'Pa', 'Ju', 'Sh'][new Date(iso).getDay()] ?? ''
@@ -261,46 +260,49 @@ export function TeacherJournalPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-slate-800">Jurnal</h1>
-        <p className="text-sm text-slate-400">Baholar, davomat va mavzular</p>
-      </div>
+    <div>
+      <PageHeader title="Jurnal" sub="Baholar, davomat va mavzular" />
 
       {loading ? (
-        <Loader label="Yuklanmoqda..." />
+        <Card>
+          <Loader label="Yuklanmoqda..." />
+        </Card>
       ) : classes.length === 0 ? (
         <Card>
-          <p className="py-8 text-center text-slate-400">Sizga biriktirilgan guruh/fan yo'q</p>
+          <div className="state">
+            <h4>Guruh/fan yo'q</h4>
+            <p>Sizga biriktirilgan guruh/fan yo'q.</p>
+          </div>
         </Card>
       ) : (
         <>
-          <div className="flex flex-wrap items-center gap-3">
-            <select value={classId} onChange={(e) => setClassId(e.target.value)} className={control}>
-              {classes.map((c) => (
-                <option key={c.classId} value={c.classId}>
-                  {c.className}
-                </option>
-              ))}
-            </select>
-            <select
-              value={subjectId}
-              onChange={(e) => setSubjectId(e.target.value)}
-              className={control}
-              disabled={classSubjects.length === 0}
-            >
-              {classSubjects.length === 0 ? (
-                <option value="">Fan yo'q</option>
-              ) : (
-                classSubjects.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
+          <div className="toolbar">
+            <div className="left">
+              <Select value={classId} onChange={(e) => setClassId(e.target.value)}>
+                {classes.map((c) => (
+                  <option key={c.classId} value={c.classId}>
+                    {c.className}
                   </option>
-                ))
-              )}
-            </select>
+                ))}
+              </Select>
+              <Select
+                value={subjectId}
+                onChange={(e) => setSubjectId(e.target.value)}
+                disabled={classSubjects.length === 0}
+              >
+                {classSubjects.length === 0 ? (
+                  <option value="">Fan yo'q</option>
+                ) : (
+                  classSubjects.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))
+                )}
+              </Select>
+            </div>
             {reasons.length > 0 && (
-              <div className="ml-auto flex flex-wrap items-center gap-2 text-xs text-slate-400">
+              <div className="right flex-wrap text-xs text-slate-400">
                 {reasons.map((r) => (
                   <span key={r.id}>
                     <b className="text-slate-600">{r.short}</b> — {r.name}
@@ -311,16 +313,20 @@ export function TeacherJournalPage() {
           </div>
 
           {dataLoading ? (
-            <Loader label="Yuklanmoqda..." />
+            <Card>
+              <Loader label="Yuklanmoqda..." />
+            </Card>
           ) : classSubjects.length === 0 ? (
             <Card>
-              <p className="py-8 text-center text-slate-400">Bu guruhda dars beradigan faningiz yo'q</p>
+              <div className="state">
+                <h4>Bu guruhda dars beradigan faningiz yo'q</h4>
+              </div>
             </Card>
           ) : columns.length === 0 ? (
             <Card>
-              <p className="py-8 text-center text-slate-400">
-                Bu fan uchun chorakda dars sanalari yo'q
-              </p>
+              <div className="state">
+                <h4>Bu fan uchun chorakda dars sanalari yo'q</h4>
+              </div>
             </Card>
           ) : (
             <div className="grid grid-cols-1 gap-6 xl:grid-cols-3 xl:items-start">
@@ -330,13 +336,13 @@ export function TeacherJournalPage() {
                   <table className="w-full border-separate border-spacing-0 text-sm">
                     <thead>
                       <tr className="bg-slate-50 text-slate-400">
-                        <th className="sticky left-0 z-10 bg-slate-50 px-3 py-2 text-left text-xs font-medium uppercase">
-                          F.I.SH
+                        <th className="sticky left-0 z-10 border-b border-slate-200 bg-slate-50 px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wider">
+                          F.I.Sh.
                         </th>
                         {columns.map((c) => (
-                          <th key={`${c.date}-${c.period}`} className="px-1 py-2 text-center">
+                          <th key={`${c.date}-${c.period}`} className="border-b border-l border-slate-200 px-1 py-2 text-center">
                             <div className="text-[10px] font-normal text-slate-400">{weekdayShort(c.date)}</div>
-                            <div className="text-xs font-medium text-slate-500">
+                            <div className="font-mono text-xs font-medium text-slate-500">
                               {formatDate(c.date).slice(0, 5)}
                             </div>
                             <div className="text-[10px] text-slate-400">{c.period}-dars</div>
@@ -358,7 +364,7 @@ export function TeacherJournalPage() {
                             </button>
                           </th>
                         ))}
-                        <th className="px-3 py-2 text-center text-xs font-medium uppercase">
+                        <th className="border-b border-l border-slate-200 px-3 py-2 text-center text-[11px] font-semibold uppercase tracking-wider">
                           O'rtacha
                         </th>
                       </tr>
@@ -367,8 +373,8 @@ export function TeacherJournalPage() {
                       {students.map((s) => {
                         const avg = studentAvg(s.id)
                         return (
-                          <tr key={s.id} className="border-t border-slate-100 hover:bg-slate-50/40">
-                            <td className="sticky left-0 z-10 bg-white px-3 py-1.5 font-medium text-slate-800">
+                          <tr key={s.id} className="border-t border-slate-100 even:bg-slate-50/40 hover:bg-slate-50/60">
+                            <td className="sticky left-0 z-10 border-r border-slate-200 bg-white px-3 py-1.5 font-medium text-slate-800">
                               {s.fullName}
                             </td>
                             {columns.map((c) => {
@@ -398,7 +404,7 @@ export function TeacherJournalPage() {
                                     )}
                                   >
                                     {entry?.grade != null ? (
-                                      <span className={gradeColor(entry.grade)}>{entry.grade}</span>
+                                      <span className={cn('font-mono', gradeColor(entry.grade))}>{entry.grade}</span>
                                     ) : entry?.reasonId ? (
                                       <span
                                         className={cn(
@@ -442,9 +448,9 @@ export function TeacherJournalPage() {
                                 </td>
                               )
                             })}
-                            <td className="px-3 py-1.5 text-center">
+                            <td className="border-l border-slate-100 px-3 py-1.5 text-center">
                               {avg != null ? (
-                                <span className={cn('text-sm font-semibold', avgColor(avg))}>
+                                <span className={cn('font-mono text-sm font-semibold', avgColor(avg))}>
                                   {avg.toFixed(1)}
                                 </span>
                               ) : (
@@ -477,7 +483,7 @@ export function TeacherJournalPage() {
                     <div key={`${c.date}-${c.period}`} className="rounded-xl border border-slate-100 p-2.5">
                       <div className="mb-1.5 flex items-center justify-between gap-2">
                         <span className="text-xs font-semibold text-slate-500">
-                          {weekdayShort(c.date)}, {formatDate(c.date).slice(0, 5)} · {c.period}-dars
+                          {weekdayShort(c.date)}, <span className="font-mono">{formatDate(c.date).slice(0, 5)}</span> · {c.period}-dars
                         </span>
                         <label
                           className={cn(

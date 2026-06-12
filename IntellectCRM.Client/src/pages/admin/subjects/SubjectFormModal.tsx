@@ -14,23 +14,27 @@ interface Props {
 
 export function SubjectFormModal({ open, onClose, onSubmit, initial }: Props) {
   const [name, setName] = useState('')
+  const [price, setPrice] = useState(0)
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- modal ochilganda formani initial bilan sinxronlash (maqsadli)
-    if (open) setName(initial?.name ?? '')
+    if (open) {
+      setName(initial?.name ?? '')
+      setPrice(initial?.price ?? 0)
+    }
   }, [open, initial])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!name.trim()) return
-    onSubmit({ name: name.trim() })
+    onSubmit({ name: name.trim(), price })
   }
 
   return (
     <Modal
       open={open}
       onClose={onClose}
-      title={initial ? 'Fanni tahrirlash' : 'Yangi fan'}
+      title={initial ? 'Kursni tahrirlash' : 'Yangi kurs'}
       size="sm"
       footer={
         <>
@@ -43,13 +47,22 @@ export function SubjectFormModal({ open, onClose, onSubmit, initial }: Props) {
         </>
       }
     >
-      <form id="subject-form" onSubmit={handleSubmit}>
+      <form id="subject-form" onSubmit={handleSubmit} className="space-y-4">
         <Input
-          label="Fan nomi"
+          label="Kurs nomi"
           required
           placeholder="Masalan: Matematika"
           value={name}
           onChange={(e) => setName(e.target.value)}
+        />
+        <Input
+          label="Narx (so'm)"
+          type="number"
+          min={0}
+          step={50000}
+          className="font-mono"
+          value={price}
+          onChange={(e) => setPrice(Number(e.target.value))}
         />
       </form>
     </Modal>

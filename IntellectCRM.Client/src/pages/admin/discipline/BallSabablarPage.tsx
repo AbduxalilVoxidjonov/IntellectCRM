@@ -11,6 +11,7 @@ import {
 import { cn } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
+import { PageHeader } from '@/components/ui/PageHeader'
 import { Loader } from '@/components/ui/Loader'
 import { Modal } from '@/components/ui/Modal'
 import { Input } from '@/components/ui/Input'
@@ -70,7 +71,7 @@ export function BallSabablarPage() {
   const PointsBadge = ({ p }: { p: number }) => (
     <span
       className={cn(
-        'rounded-md px-2 py-0.5 text-sm font-semibold',
+        'rounded-md px-2 py-0.5 font-mono text-sm font-semibold',
         p === 0
           ? 'bg-slate-100 text-slate-400'
           : p < 0
@@ -83,51 +84,52 @@ export function BallSabablarPage() {
   )
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-800">Ball sabablar</h1>
-          <p className="text-sm text-slate-400">
-            Intizomiy ball sabablari — har biriga ball (manfiy = jazo, musbat = rag'bat)
-          </p>
-        </div>
-        <Button onClick={openCreate}>
-          <Plus className="h-4 w-4" /> Yangi sabab
-        </Button>
-      </div>
+    <div>
+      <PageHeader
+        title="Ball sabablar"
+        sub="Intizomiy ball sabablari — har biriga ball (manfiy = jazo, musbat = rag'bat)"
+        actions={
+          <Button onClick={openCreate}>
+            <Plus className="h-4 w-4" /> Yangi sabab
+          </Button>
+        }
+      />
 
       {loading ? (
-        <Loader label="Yuklanmoqda..." />
+        <Card>
+          <Loader label="Yuklanmoqda..." />
+        </Card>
       ) : (
-        <>
+        <div className="space-y-5">
           {/* Davomat sabablari (jurnal bilan bog'liq) */}
-          <Card className="p-0">
-            <div className="flex items-center gap-2 border-b border-slate-100 p-4">
-              <CalendarCheck className="h-4 w-4 text-brand-600" />
-              <p className="font-semibold text-slate-800">Davomat sabablari</p>
-              <span className="text-xs text-slate-400">
-                — jurnalda shu sabab bilan davomat qo'yilsa, qoldiga ta'sir qiladi (nomi "Davomat sabablari"da)
+          <Card
+            tight
+            title={
+              <span className="inline-flex items-center gap-2">
+                <CalendarCheck className="h-4 w-4 text-brand-600" /> Davomat sabablari
               </span>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-400">
+            }
+            sub={'jurnalda shu sabab bilan davomat qo\'yilsa, qoldiga ta\'sir qiladi (nomi "Davomat sabablari"da)'}
+          >
+            <div className="table-wrap">
+              <table className="table">
+                <thead>
                   <tr>
-                    <th className="w-10 px-4 py-3">#</th>
-                    <th className="px-4 py-3">Sabab</th>
-                    <th className="px-4 py-3">Ball</th>
-                    <th className="px-4 py-3 text-right">Amallar</th>
+                    <th className="w-10">#</th>
+                    <th>Sabab</th>
+                    <th>Ball</th>
+                    <th className="text-right">Amallar</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody>
                   {attendance.map((r, i) => (
-                    <tr key={r.id} className="hover:bg-slate-50/60">
-                      <td className="px-4 py-3 text-slate-400">{i + 1}</td>
-                      <td className="px-4 py-3 font-medium text-slate-800">{r.name}</td>
-                      <td className="px-4 py-3">
+                    <tr key={r.id}>
+                      <td className="num text-slate-400">{i + 1}</td>
+                      <td className="font-medium text-slate-800">{r.name}</td>
+                      <td>
                         <PointsBadge p={r.points} />
                       </td>
-                      <td className="px-4 py-3">
+                      <td>
                         <div className="flex items-center justify-end">
                           <button
                             type="button"
@@ -154,30 +156,30 @@ export function BallSabablarPage() {
           </Card>
 
           {/* Boshqa intizomiy sabablar */}
-          <Card className="p-0">
-            <div className="border-b border-slate-100 p-4">
-              <p className="font-semibold text-slate-800">Boshqa intizomiy sabablar</p>
-              <span className="text-xs text-slate-400">— qo'lda kiritiladigan sabablar (janjal, rag'bat va h.k.)</span>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-400">
+          <Card
+            tight
+            title="Boshqa intizomiy sabablar"
+            sub="qo'lda kiritiladigan sabablar (janjal, rag'bat va h.k.)"
+          >
+            <div className="table-wrap">
+              <table className="table">
+                <thead>
                   <tr>
-                    <th className="w-10 px-4 py-3">#</th>
-                    <th className="px-4 py-3">Sabab</th>
-                    <th className="px-4 py-3">Ball</th>
-                    <th className="px-4 py-3 text-right">Amallar</th>
+                    <th className="w-10">#</th>
+                    <th>Sabab</th>
+                    <th>Ball</th>
+                    <th className="text-right">Amallar</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody>
                   {other.map((r, i) => (
-                    <tr key={r.id} className="hover:bg-slate-50/60">
-                      <td className="px-4 py-3 text-slate-400">{i + 1}</td>
-                      <td className="px-4 py-3 font-medium text-slate-800">{r.name}</td>
-                      <td className="px-4 py-3">
+                    <tr key={r.id}>
+                      <td className="num text-slate-400">{i + 1}</td>
+                      <td className="font-medium text-slate-800">{r.name}</td>
+                      <td>
                         <PointsBadge p={r.points} />
                       </td>
-                      <td className="px-4 py-3">
+                      <td>
                         <div className="flex items-center justify-end gap-0.5">
                           <button
                             type="button"
@@ -210,7 +212,7 @@ export function BallSabablarPage() {
               </table>
             </div>
           </Card>
-        </>
+        </div>
       )}
 
       <Modal
@@ -251,6 +253,7 @@ export function BallSabablarPage() {
           <Input
             label="Ball (manfiy = jazo, musbat = rag'bat)"
             type="number"
+            className="font-mono"
             value={points}
             onChange={(e) => setPoints(Number(e.target.value) || 0)}
           />

@@ -7,6 +7,7 @@ import {
   type TelegramConfig,
 } from '@/api/services/settings'
 import { Card } from '@/components/ui/Card'
+import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Loader } from '@/components/ui/Loader'
@@ -47,19 +48,22 @@ export function TelegramSettings() {
   if (loading) return <Loader label="Yuklanmoqda..." />
 
   return (
-    <Card>
-      <div className="mb-1 flex items-center gap-2">
-        <span className="font-semibold text-slate-800">Telegram bot</span>
-        {configured ? (
-          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
-            <CheckCircle2 className="h-3.5 w-3.5" /> Sozlangan
-          </span>
-        ) : (
-          <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
-            <XCircle className="h-3.5 w-3.5" /> Sozlanmagan
-          </span>
-        )}
-      </div>
+    <Card
+      title={
+        <span className="flex items-center gap-2">
+          Telegram bot
+          {configured ? (
+            <Badge tone="green">
+              <CheckCircle2 className="h-3.5 w-3.5" /> Sozlangan
+            </Badge>
+          ) : (
+            <Badge tone="default">
+              <XCircle className="h-3.5 w-3.5" /> Sozlanmagan
+            </Badge>
+          )}
+        </span>
+      }
+    >
       <p className="mb-4 text-sm text-slate-400">
         Bot orqali guruh ota-onalariga e'lon yuboriladi. Tokenni Telegramdagi{' '}
         <span className="font-medium text-slate-500">@BotFather</span> dan oling

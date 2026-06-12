@@ -20,25 +20,10 @@ public static class TeacherSalaryCalc
     /// (indeks 0=Dushanba ... 5=Shanba; <see cref="ScheduleLesson.Day"/> bilan bir xil).
     /// Har sinf uchun faqat bitta asosiy (eng ko'p darsli) shablon, faqat mavjud sinflar.
     /// </summary>
-    public static async Task<Dictionary<string, int[]>> LessonsByWeekdayAsync(IAppDbContext db)
-    {
-        var classSet = (await db.Classes.Where(c => !c.IsArchived).Select(c => c.Id).ToListAsync())
-            .ToHashSet();
-        var templates = (await db.ScheduleTemplates.Include(t => t.Lessons).ToListAsync())
-            .Where(t => classSet.Contains(t.ClassId)).ToList();
-        var mainPerClass = templates
-            .GroupBy(t => t.ClassId)
-            .Select(g => g.OrderByDescending(t => t.Lessons.Count).ThenBy(t => t.Id).First());
-
-        var result = new Dictionary<string, int[]>();
-        foreach (var tpl in mainPerClass)
-            foreach (var l in tpl.Lessons.Where(l => !string.IsNullOrEmpty(l.TeacherId) && l.Day is >= 0 and < 6))
-            {
-                if (!result.TryGetValue(l.TeacherId, out var arr)) result[l.TeacherId] = arr = new int[6];
-                arr[l.Day]++;
-            }
-        return result;
-    }
+    public static Task<Dictionary<string, int[]>> LessonsByWeekdayAsync(IAppDbContext db) =>
+        // Dars jadvali olib tashlandi — maosh QO'LDA kiritiladi (Teacher.Salary). Avtomatik "haftalik
+        // darslar" hisobi yo'q, shuning uchun bo'sh qaytaradi (lesson-asoslangan barcha hisoblar 0 bo'ladi).
+        Task.FromResult(new Dictionary<string, int[]>());
 
     /// <summary>Har o'qituvchining haftalik darslar soni (teacherId → son).</summary>
     public static async Task<Dictionary<string, int>> WeeklyLessonsAsync(IAppDbContext db) =>

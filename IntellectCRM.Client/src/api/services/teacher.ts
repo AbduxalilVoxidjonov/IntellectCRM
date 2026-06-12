@@ -11,8 +11,6 @@ import type {
   Student,
   Subject,
   TeacherClass,
-  TeacherLesson,
-  Holiday,
   EvaluationBoard,
   EvaluationType,
 } from '@/types'
@@ -163,23 +161,6 @@ export async function getTeacherAssignmentTypes(): Promise<AssignmentType[]> {
 export async function getTeacherMeta(): Promise<PortalMeta | null> {
   if (USE_MOCK) return null
   const { data } = await api.get<PortalMeta>('/teacher/meta')
-  return data
-}
-
-/* ---------- Dars jadvali ---------- */
-
-export async function getTeacherSchedule(quarter: number, week: number): Promise<TeacherLesson[]> {
-  if (USE_MOCK) return []
-  const { data } = await api.get<TeacherLesson[]>('/teacher/schedule', {
-    params: { quarter, week },
-  })
-  return data
-}
-
-/** Bayram kunlari — bu sanalarda dars bo'lmaydi (jadvalda "Bayram" deb ko'rsatiladi). */
-export async function getTeacherHolidays(): Promise<Holiday[]> {
-  if (USE_MOCK) return []
-  const { data } = await api.get<Holiday[]>('/teacher/holidays')
   return data
 }
 

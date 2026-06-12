@@ -60,9 +60,16 @@ public class StudentPortalController(
             var user = await db.Users.FindAsync(uid);
             if (user is null) return null;
             var phone = NormalizePhone(user.Email);
-            return await db.Students
-                .Where(s => !s.IsArchived)
-                .FirstOrDefaultAsync(s => NormalizePhone(s.ParentPhone) == phone);
+            // Ota ham, ona ham kira oladi — ASOSIY/ota/ona telefonidan birortasi mos kelsa yetarli.
+            var children = (await db.Students.Where(s => !s.IsArchived).ToListAsync())
+                .Where(s => NormalizePhone(s.ParentPhone) == phone
+                            || NormalizePhone(s.FatherPhone) == phone
+                            || NormalizePhone(s.MotherPhone) == phone)
+                .ToList();
+            // studentId berilsa — SHU farzand (FAQAT o'ziniki bo'lsa; egalik tekshiruvi). Aks holda birinchi farzand.
+            return string.IsNullOrWhiteSpace(studentId)
+                ? children.FirstOrDefault()
+                : children.FirstOrDefault(s => s.Id == studentId);
         }
 
         return await db.Students.FirstOrDefaultAsync(s => s.UserId == uid);
@@ -201,11 +208,6 @@ public class StudentPortalController(
         return new SchoolNameDto(m?.Name ?? "");
     }
 
-    /// <summary>Bayram/dam olish kunlari — bu sanalarda dars bo'lmaydi (jadvalda "Bayram" deb ko'rsating).</summary>
-    [HttpGet("holidays")]
-    public async Task<ActionResult<IEnumerable<HolidayDto>>> Holidays() =>
-        await db.Holidays.OrderBy(h => h.Date).Select(h => new HolidayDto(h.Date, h.Name)).ToListAsync();
-
     /// <summary>Web (PWA) push uchun Firebase web config + VAPID — brauzer FCM token olishi uchun.
     /// Bitta Firebase loyiha barcha ilovalar uchun (teacher/student) ishlaydi.</summary>
     [HttpGet("push-config")]
@@ -284,7 +286,13 @@ public class StudentPortalController(
         if (User.IsInRole("parent"))
         {
             var user = uid is null ? null : await db.Users.FindAsync(uid);
-            return NormalizePhone(user?.Email) == NormalizePhone(s.ParentPhone) ? s : null;
+            var phone = NormalizePhone(user?.Email);
+            // Ota yoki ona telefoni mos kelsa — egalik tasdiqlanadi.
+            var ok = phone.Length > 0 && (
+                NormalizePhone(s.ParentPhone) == phone
+                || NormalizePhone(s.FatherPhone) == phone
+                || NormalizePhone(s.MotherPhone) == phone);
+            return ok ? s : null;
         }
         return s;
     }
@@ -321,38 +329,6 @@ public class StudentPortalController(
         var minus = items.Where(i => i.Points < 0).Sum(i => -i.Points);
         var ordered = items.OrderByDescending(i => i.CreatedAt, StringComparer.Ordinal).ToList();
         return new StudentDisciplineDto(100 + plus - minus, plus, minus, ordered);
-    }
-
-    // ---------- Jadval (o'z sinfi) ----------
-
-    [HttpGet("schedule")]
-    public async Task<ActionResult<IEnumerable<StudentLessonDto>>> Schedule(
-        [FromQuery] int? quarter, [FromQuery] int? week, [FromQuery] string? studentId)
-    {
-        if (User.IsInRole("admin") && string.IsNullOrWhiteSpace(studentId)) return NeedStudentId();
-        var s = await TargetAsync(studentId);
-        if (s is null) return NotFound();
-        var cls = await db.Classes.FirstOrDefaultAsync(c => c.Name == s.ClassName);
-        if (cls is null) return new List<StudentLessonDto>();
-
-        var (curQ, curW) = await PortalSchedule.CurrentQuarterWeekAsync(db);
-        var lessons = await PortalSchedule.LessonsForWeekAsync(db, cls.Id, quarter ?? curQ, week ?? curW);
-
-        var subjects = await db.Subjects.ToDictionaryAsync(x => x.Id, x => x.Name);
-        var teachers = await db.Teachers.ToDictionaryAsync(x => x.Id, x => x.FullName);
-        var times = await db.LessonTimes.ToDictionaryAsync(x => x.Period);
-
-        return lessons
-            .OrderBy(l => l.Day).ThenBy(l => l.Period)
-            .Select(l =>
-            {
-                times.TryGetValue(l.Period, out var lt);
-                return new StudentLessonDto(
-                    l.Day, l.Period, lt?.StartTime, lt?.EndTime,
-                    l.SubjectId, subjects.GetValueOrDefault(l.SubjectId, ""),
-                    l.TeacherId, teachers.GetValueOrDefault(l.TeacherId, ""));
-            })
-            .ToList();
     }
 
     // ---------- Baholar va davomat (o'ziniki) ----------
@@ -415,8 +391,7 @@ public class StudentPortalController(
         var cls = await db.Classes.FirstOrDefaultAsync(c => c.Name == s.ClassName);
         if (cls is null) return new List<HomeworkItemDto>();
 
-        var (curQ, _) = await PortalSchedule.CurrentQuarterWeekAsync(db);
-        var q = quarter ?? curQ;
+        var q = quarter ?? 1;
 
         var subjects = await db.Subjects.ToDictionaryAsync(x => x.Id, x => x.Name);
         var notes = await db.LessonNotes
@@ -447,9 +422,9 @@ public class StudentPortalController(
     }
 
     /// <summary>
-    /// O'quvchi jurnali — chorak (ixtiyoriy hafta) bo'yicha sinfning haftalik jadvali asosida
-    /// qatorlar (sana + dars raqami + fan + o'qituvchi + mavzu/uyga vazifa + shu o'quvchining bahosi/sababi).
-    /// Hafta ko'rsatilmasa joriy hafta ishlatiladi.
+    /// O'quvchi jurnali — chorak bo'yicha sinfda yozilgan darslar (LessonNote) asosida qatorlar
+    /// (sana + dars raqami + fan + o'qituvchi + mavzu/uyga vazifa + shu o'quvchining bahosi/sababi).
+    /// Jadval (haftalik) tizimi olib tashlangan — qatorlar haqiqiy yozilgan darslardan keladi.
     /// </summary>
     [HttpGet("journal")]
     public async Task<ActionResult<IEnumerable<StudentJournalRowDto>>> Journal(
@@ -461,24 +436,19 @@ public class StudentPortalController(
         var cls = await db.Classes.FirstOrDefaultAsync(c => c.Name == s.ClassName);
         if (cls is null) return new List<StudentJournalRowDto>();
 
-        var (curQ, curW) = await PortalSchedule.CurrentQuarterWeekAsync(db);
-        var q = quarter ?? curQ;
-        var w = week ?? curW;
+        var q = quarter ?? 1;
+        var w = week ?? 1;
 
-        // Chorak davri tizimi olib tashlandi — hafta dushanbasi o'quv yili birinchi dushanbasidan.
-        var startMonth = await TuitionService.AcademicYearStartMonthAsync(db);
-        var firstMonday = ScheduleMath.MondayOfISO($"{startMonth}-01");
-        var monday = ScheduleMath.AddDaysISO(firstMonday, Math.Max(0, w - 1) * 7);
-
-        var lessons = await PortalSchedule.LessonsForWeekAsync(db, cls.Id, q, w);
         var subjects = await db.Subjects.ToDictionaryAsync(x => x.Id, x => x.Name);
-        var teachers = await db.Teachers.ToDictionaryAsync(x => x.Id, x => x.FullName);
-        var times = await db.LessonTimes.ToDictionaryAsync(x => x.Period);
+        var teacherNames = await db.Teachers.ToDictionaryAsync(x => x.Id, x => x.FullName);
+        // Dars beruvchi o'qituvchi — guruhga to'g'ridan-to'g'ri biriktirilgan (Group.CourseId -> Group.TeacherId).
+        var teacherByGroupSubject = new Dictionary<string, string>();
+        if (!string.IsNullOrEmpty(cls.CourseId) && !string.IsNullOrEmpty(cls.TeacherId))
+            teacherByGroupSubject[cls.CourseId] = cls.TeacherId;
 
         var notes = await db.LessonNotes
             .Where(n => n.ClassId == cls.Id && n.Quarter == q)
             .ToListAsync();
-        var noteMap = notes.ToDictionary(n => (n.Date, n.Period, n.SubjectId));
 
         var entries = await db.JournalEntries
             .Where(e => e.ClassId == cls.Id && e.Quarter == q && e.StudentId == s.Id)
@@ -488,22 +458,19 @@ public class StudentPortalController(
         var reasons = await db.AbsenceReasons.ToDictionaryAsync(r => r.Id);
 
         var rows = new List<StudentJournalRowDto>();
-        foreach (var l in lessons.OrderBy(x => x.Day).ThenBy(x => x.Period))
+        foreach (var n in notes.OrderBy(x => x.Date, StringComparer.Ordinal).ThenBy(x => x.Period))
         {
-            var date = ScheduleMath.AddDaysISO(monday, l.Day);
-
-            noteMap.TryGetValue((date, l.Period, l.SubjectId), out var n);
-            entryMap.TryGetValue((date, l.Period, l.SubjectId), out var en);
+            entryMap.TryGetValue((n.Date, n.Period, n.SubjectId), out var en);
             AbsenceReason? r = null;
             if (en?.ReasonId is not null) reasons.TryGetValue(en.ReasonId, out r);
-            times.TryGetValue(l.Period, out var lt);
+            var teacherId = teacherByGroupSubject.GetValueOrDefault(n.SubjectId, "");
 
             rows.Add(new StudentJournalRowDto(
-                date, l.Period, q, w,
-                lt?.StartTime, lt?.EndTime,
-                l.SubjectId, subjects.GetValueOrDefault(l.SubjectId, ""),
-                l.TeacherId, teachers.GetValueOrDefault(l.TeacherId, ""),
-                n?.Topic ?? "", n?.Homework, n?.Conducted ?? false,
+                n.Date, n.Period, q, w,
+                null, null,
+                n.SubjectId, subjects.GetValueOrDefault(n.SubjectId, ""),
+                teacherId, teacherNames.GetValueOrDefault(teacherId, ""),
+                n.Topic ?? "", n.Homework, n.Conducted,
                 en?.Grade, en?.ReasonId, r?.Name, r?.IsLate ?? false));
         }
         return rows;
@@ -571,29 +538,32 @@ public class StudentPortalController(
 
         var cls = await db.Classes.FirstOrDefaultAsync(c => c.Name == s.ClassName);
 
-        // Bugungi darslar (joriy chorak + joriy hafta, kun = today.DayOfWeek 0=Du..5=Sha).
+        // Bugungi darslar — jadval tizimi olib tashlangan; bugun yozilgan darslar (LessonNote) bo'yicha.
         var today = AppClock.Today.ToString("yyyy-MM-dd");
-        var apiDay = ((int)AppClock.Now.DayOfWeek + 6) % 7; // C# Sun=0..Sat=6 → Mon=0..Sun=6 (sun=6=ignore)
 
         var todayLessons = new List<StudentLessonDto>();
         var todayGrades = new List<HomeworkItemDto>();
         if (cls is not null)
         {
-            var lessons = await PortalSchedule.LessonsForWeekAsync(db, cls.Id, meta.CurrentQuarter, meta.CurrentWeek);
             var subjects = await db.Subjects.ToDictionaryAsync(x => x.Id, x => x.Name);
-            var teachers = await db.Teachers.ToDictionaryAsync(x => x.Id, x => x.FullName);
-            var times = await db.LessonTimes.ToDictionaryAsync(x => x.Period);
+            var teacherNames = await db.Teachers.ToDictionaryAsync(x => x.Id, x => x.FullName);
+            var teacherByGroupSubject = new Dictionary<string, string>();
+            if (!string.IsNullOrEmpty(cls.CourseId) && !string.IsNullOrEmpty(cls.TeacherId))
+                teacherByGroupSubject[cls.CourseId] = cls.TeacherId;
 
-            todayLessons = lessons
-                .Where(l => l.Day == apiDay)
-                .OrderBy(l => l.Period)
-                .Select(l =>
+            var todayNotes = await db.LessonNotes
+                .Where(n => n.ClassId == cls.Id && n.Date == today)
+                .ToListAsync();
+
+            todayLessons = todayNotes
+                .OrderBy(n => n.Period)
+                .Select(n =>
                 {
-                    times.TryGetValue(l.Period, out var lt);
+                    var teacherId = teacherByGroupSubject.GetValueOrDefault(n.SubjectId, "");
                     return new StudentLessonDto(
-                        l.Day, l.Period, lt?.StartTime, lt?.EndTime,
-                        l.SubjectId, subjects.GetValueOrDefault(l.SubjectId, ""),
-                        l.TeacherId, teachers.GetValueOrDefault(l.TeacherId, ""));
+                        0, n.Period, null, null,
+                        n.SubjectId, subjects.GetValueOrDefault(n.SubjectId, ""),
+                        teacherId, teacherNames.GetValueOrDefault(teacherId, ""));
                 })
                 .ToList();
 
@@ -742,71 +712,6 @@ public class StudentPortalController(
         var s = await TargetAsync(studentId);
         if (s is null) return NotFound();
         return new StudentLocationDto(s.Latitude, s.Longitude, s.LocationAddress, s.LocationUpdatedAt);
-    }
-
-    // ---------- Avtobus GPS (o'quvchi/ota-ona — FAQAT ertalabki oyna) ----------
-
-    /// <summary>XAVFSIZLIK: o'quvchi/ota-ona avtobus joylashuvini faqat ertalab shu oynada ko'radi
-    /// (06:00–09:00, Asia/Tashkent). Tashqarida hech narsa ko'rinmaydi.</summary>
-    private const int BusVisibleFromHour = 6;
-    private const int BusVisibleToHour = 9; // [06:00, 09:00) — 9:00 dan keyin ko'rinmaydi
-
-    private static bool BusWindowOpen()
-    {
-        var h = AppClock.Now.Hour;
-        return h >= BusVisibleFromHour && h < BusVisibleToHour;
-    }
-
-    /// <summary>Faol avtobuslarning jonli joylashuvi — FAQAT ertalabki oynada (06:00–09:00). Oynadan
-    /// tashqarida Available=false va bo'sh ro'yxat qaytadi (mobil ilova xaritani yashiradi).</summary>
-    [HttpGet("buses")]
-    [Authorize(Roles = "student,parent")]
-    public async Task<ActionResult<StudentBusesDto>> Buses()
-    {
-        var now = AppClock.Now;
-        var iso = now.ToString("yyyy-MM-ddTHH:mm:ss");
-        if (!BusWindowOpen())
-            return new StudentBusesDto(false, BusVisibleFromHour, BusVisibleToHour, iso, Array.Empty<StudentBusDto>());
-
-        var meta = await db.CenterMeta.FirstOrDefaultAsync();
-        var onlineMin = meta?.GpsOnlineMinutes ?? 5;
-
-        var buses = await db.Buses.Where(b => b.IsActive).OrderBy(b => b.Name).ToListAsync();
-        var ids = buses.Select(b => b.Id).ToList();
-        var latest = (await db.BusLocations.Where(l => ids.Contains(l.BusId)).ToListAsync())
-            .GroupBy(l => l.BusId)
-            .ToDictionary(g => g.Key, g => g.OrderByDescending(x => x.RecordedAt, StringComparer.Ordinal).First());
-
-        var list = buses.Select(b =>
-        {
-            latest.TryGetValue(b.Id, out var l);
-            var online = l is not null && DateTime.TryParse(l.RecordedAt, out var t)
-                         && (now - t).TotalMinutes <= onlineMin;
-            return new StudentBusDto(b.Id, b.Name, b.PlateNumber, b.DriverName, b.DriverPhone,
-                b.Route, l?.Latitude, l?.Longitude, l?.Speed, l?.RecordedAt, online);
-        }).ToList();
-
-        return new StudentBusesDto(true, BusVisibleFromHour, BusVisibleToHour, iso, list);
-    }
-
-    /// <summary>Bitta avtobusning BUGUNGI izi (yo'nalish chizig'i + to'xtashlar) — FAQAT ertalabki oynada.
-    /// Faqat bugungi kun (tarixiy harakatni ko'rib bo'lmaydi). Oynadan tashqarida bo'sh iz qaytadi.</summary>
-    [HttpGet("buses/{id}/track")]
-    [Authorize(Roles = "student,parent")]
-    public async Task<ActionResult<BusTrackDto>> BusTrack(string id)
-    {
-        var d = AppClock.Today.ToString("yyyy-MM-dd");
-        if (!BusWindowOpen())
-            return new BusTrackDto(d, new(), new(), 0, 0, 0);
-
-        var bus = await db.Buses.FirstOrDefaultAsync(b => b.Id == id && b.IsActive);
-        if (bus is null) return NotFound();
-
-        var meta = await db.CenterMeta.FirstOrDefaultAsync();
-        var points = await db.BusLocations
-            .Where(l => l.BusId == id && l.RecordedAt.StartsWith(d))
-            .ToListAsync();
-        return GpsService.Analyze(d, points, meta?.GpsStopRadiusM ?? 60, meta?.GpsStopMinMinutes ?? 3);
     }
 
     // ---------- Push bildirishnoma (qurilma tokeni) ----------
@@ -995,8 +900,7 @@ public class StudentPortalController(
         if (User.IsInRole("admin") && string.IsNullOrWhiteSpace(studentId)) return NeedStudentId();
         var s = await TargetAsync(studentId);
         if (s is null) return NotFound();
-        var (curQ, _) = await PortalSchedule.CurrentQuarterWeekAsync(db);
-        var q = quarter ?? curQ;
+        var q = quarter ?? 1;
         var cls = await db.Classes.FirstOrDefaultAsync(c => c.Name == s.ClassName);
         if (cls is null) return new StudentSubjectsProgressDto(q, 0, 0, 0, new());
         return await SubjectProgressService.ForStudentAsync(db, cls.Id, q);
@@ -1012,9 +916,8 @@ public class StudentPortalController(
         if (s is null) return NotFound();
         var cls = await db.Classes.FirstOrDefaultAsync(c => c.Name == s.ClassName);
         if (cls is null) return NotFound();
-        var (curQ, _) = await PortalSchedule.CurrentQuarterWeekAsync(db);
         var dto = await SubjectProgressService.ForStudentSubjectAsync(
-            db, cls.Id, quarter ?? curQ, subjectId);
+            db, cls.Id, quarter ?? 1, subjectId);
         return dto is null ? NotFound() : dto;
     }
 

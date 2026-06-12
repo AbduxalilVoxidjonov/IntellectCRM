@@ -3,7 +3,7 @@ import type { Lead } from '@/types'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input, Select, Textarea } from '@/components/ui/Input'
-import { genderOptions, gradeOptions, leadSourceOptions } from '@/config/constants'
+import { genderOptions, leadSourceOptions } from '@/config/constants'
 
 export type LeadFormValues = Omit<Lead, 'id' | 'stage'>
 
@@ -19,9 +19,11 @@ const empty: LeadFormValues = {
   fullName: '',
   gender: 'male',
   birthDate: '',
-  parentFullName: '',
-  parentPhone: '',
-  targetGrade: 1,
+  phone: '',
+  fatherFullName: '',
+  fatherPhone: '',
+  motherFullName: '',
+  motherPhone: '',
   note: '',
   source: '',
   interestSubject: '',
@@ -39,9 +41,11 @@ export function LeadFormModal({ open, onClose, onSubmit, initial }: Props) {
             fullName: initial.fullName,
             gender: initial.gender,
             birthDate: initial.birthDate,
-            parentFullName: initial.parentFullName,
-            parentPhone: initial.parentPhone,
-            targetGrade: initial.targetGrade,
+            phone: initial.phone,
+            fatherFullName: initial.fatherFullName,
+            fatherPhone: initial.fatherPhone,
+            motherFullName: initial.motherFullName,
+            motherPhone: initial.motherPhone,
             note: initial.note ?? '',
             source: initial.source ?? '',
             interestSubject: initial.interestSubject ?? '',
@@ -102,28 +106,36 @@ export function LeadFormModal({ open, onClose, onSubmit, initial }: Props) {
           />
         </div>
         <Input
-          label="Ota-onasi F.I.SH"
-          value={form.parentFullName}
-          onChange={(e) => update('parentFullName', e.target.value)}
+          label="O'z telefon raqami"
+          placeholder="+998 90 123 45 67"
+          value={form.phone}
+          onChange={(e) => update('phone', e.target.value)}
         />
         <div className="grid grid-cols-2 gap-4">
           <Input
-            label="Ota-onasi raqami"
-            placeholder="+998 90 123 45 67"
-            value={form.parentPhone}
-            onChange={(e) => update('parentPhone', e.target.value)}
+            label="Otasi F.I.SH"
+            value={form.fatherFullName}
+            onChange={(e) => update('fatherFullName', e.target.value)}
           />
-          <Select
-            label="Nechinchi guruhga"
-            value={form.targetGrade}
-            onChange={(e) => update('targetGrade', Number(e.target.value))}
-          >
-            {gradeOptions.map((g) => (
-              <option key={g} value={g}>
-                {g}-guruh
-              </option>
-            ))}
-          </Select>
+          <Input
+            label="Otasi raqami"
+            placeholder="+998 90 123 45 67"
+            value={form.fatherPhone}
+            onChange={(e) => update('fatherPhone', e.target.value)}
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <Input
+            label="Onasi F.I.SH"
+            value={form.motherFullName}
+            onChange={(e) => update('motherFullName', e.target.value)}
+          />
+          <Input
+            label="Onasi raqami"
+            placeholder="+998 90 123 45 67"
+            value={form.motherPhone}
+            onChange={(e) => update('motherPhone', e.target.value)}
+          />
         </div>
         <div className="grid grid-cols-2 gap-4">
           <Select

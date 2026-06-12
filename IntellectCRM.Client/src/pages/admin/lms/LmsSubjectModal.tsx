@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react'
-import { X } from 'lucide-react'
 import type { LmsSubject, LmsUnlockMode } from '@/types'
 import type { SaveSubjectPayload } from '@/api/services/lms'
+import { Modal } from '@/components/ui/Modal'
+import { Button } from '@/components/ui/Button'
+import { Input, Textarea } from '@/components/ui/Input'
+import { cn } from '@/lib/utils'
 
 interface Props {
   open: boolean
@@ -13,9 +16,9 @@ interface Props {
 }
 
 const MODES: { value: LmsUnlockMode; label: string; desc: string }[] = [
-  { value: 'all', label: 'Hammasi ochiq', desc: 'Barcha mavzular bir vaqtda ko\'rinadi' },
+  { value: 'all', label: 'Hammasi ochiq', desc: "Barcha mavzular bir vaqtda ko'rinadi" },
   { value: 'sequential', label: 'Ketma-ket', desc: 'Oldingi mavzu tugallananda keyingisi ochiladi' },
-  { value: 'batch', label: 'Guruhli', desc: 'Bir vaqtda N ta mavzu ochiq bo\'ladi' },
+  { value: 'batch', label: 'Guruhli', desc: "Bir vaqtda N ta mavzu ochiq bo'ladi" },
 ]
 
 export function LmsSubjectModal({ open, editing, saving, onClose, onSave }: Props) {
@@ -33,8 +36,6 @@ export function LmsSubjectModal({ open, editing, saving, onClose, onSave }: Prop
     }
   }, [open, editing])
 
-  if (!open) return null
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!title.trim()) return
@@ -48,109 +49,89 @@ export function LmsSubjectModal({ open, editing, saving, onClose, onSave }: Prop
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
-      <div className="w-full max-w-lg rounded-2xl bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
-          <h2 className="font-semibold text-slate-800">
-            {editing ? 'Fanni tahrirlash' : "Yangi fan qo'shish"}
-          </h2>
-          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600">
-            <X className="h-5 w-5" />
-          </button>
+    <Modal
+      open={open}
+      onClose={onClose}
+      size="md"
+      title={editing ? 'Fanni tahrirlash' : "Yangi fan qo'shish"}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            Bekor qilish
+          </Button>
+          <Button type="submit" form="lms-subject-form" disabled={saving || !title.trim()}>
+            {saving ? 'Saqlanmoqda...' : 'Saqlash'}
+          </Button>
+        </>
+      }
+    >
+      <form id="lms-subject-form" onSubmit={handleSubmit} className="space-y-4">
+        <Input
+          label="Fan nomi"
+          required
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="Masalan: Matematika, Fizika..."
+        />
+
+        <Textarea
+          label="Ta'rif"
+          rows={2}
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="Qisqacha ta'rif..."
+        />
+
+        {/* Ochilish tartibi */}
+        <div>
+          <span className="mb-1.5 block text-sm font-medium text-slate-600">
+            Mavzular ochilish tartibi
+          </span>
+          <div className="space-y-2">
+            {MODES.map((m) => (
+              <label
+                key={m.value}
+                className={cn(
+                  'flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors',
+                  unlockMode === m.value
+                    ? 'border-brand-300 bg-brand-50'
+                    : 'border-slate-200 hover:border-slate-300',
+                )}
+              >
+                <input
+                  type="radio"
+                  name="unlockMode"
+                  value={m.value}
+                  checked={unlockMode === m.value}
+                  onChange={() => setUnlockMode(m.value)}
+                  className="mt-0.5 accent-brand-600"
+                />
+                <div>
+                  <p className="text-sm font-medium text-slate-800">{m.label}</p>
+                  <p className="text-xs text-slate-500">{m.desc}</p>
+                </div>
+              </label>
+            ))}
+          </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4 p-6">
-          {/* Nomi */}
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Fan nomi *</label>
-            <input
-              required
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Masalan: Matematika, Fizika..."
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-brand-400"
-            />
-          </div>
-
-          {/* Ta'rif */}
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Ta'rif</label>
-            <textarea
-              rows={2}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Qisqacha ta'rif..."
-              className="w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-brand-400"
-            />
-          </div>
-
-          {/* Ochilish tartibi */}
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700">
-              Mavzular ochilish tartibi
+        {/* Guruh hajmi */}
+        {unlockMode === 'batch' && (
+          <div className="flex items-center gap-3 rounded-lg bg-brand-50 px-3 py-2">
+            <label className="text-sm font-medium text-slate-700">
+              Bir vaqtda ochiq mavzular soni:
             </label>
-            <div className="space-y-2">
-              {MODES.map((m) => (
-                <label
-                  key={m.value}
-                  className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${
-                    unlockMode === m.value
-                      ? 'border-brand-300 bg-brand-50'
-                      : 'border-slate-200 hover:border-slate-300'
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="unlockMode"
-                    value={m.value}
-                    checked={unlockMode === m.value}
-                    onChange={() => setUnlockMode(m.value)}
-                    className="mt-0.5 accent-brand-600"
-                  />
-                  <div>
-                    <p className="text-sm font-medium text-slate-800">{m.label}</p>
-                    <p className="text-xs text-slate-500">{m.desc}</p>
-                  </div>
-                </label>
-              ))}
-            </div>
+            <input
+              type="number"
+              min={1}
+              max={50}
+              value={batchSize}
+              onChange={(e) => setBatchSize(Math.max(1, Number(e.target.value)))}
+              className="w-20 rounded-lg border border-brand-200 bg-white px-3 py-1.5 font-mono text-sm outline-none focus:border-brand-400"
+            />
           </div>
-
-          {/* Guruh hajmi */}
-          {unlockMode === 'batch' && (
-            <div className="flex items-center gap-3 rounded-lg bg-brand-50 px-3 py-2">
-              <label className="text-sm font-medium text-slate-700">
-                Bir vaqtda ochiq mavzular soni:
-              </label>
-              <input
-                type="number"
-                min={1}
-                max={50}
-                value={batchSize}
-                onChange={(e) => setBatchSize(Math.max(1, Number(e.target.value)))}
-                className="w-20 rounded-lg border border-brand-200 bg-white px-3 py-1.5 text-sm outline-none focus:border-brand-400"
-              />
-            </div>
-          )}
-
-          <div className="flex justify-end gap-2 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
-            >
-              Bekor qilish
-            </button>
-            <button
-              type="submit"
-              disabled={saving || !title.trim()}
-              className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-700 disabled:opacity-50"
-            >
-              {saving ? 'Saqlanmoqda...' : 'Saqlash'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        )}
+      </form>
+    </Modal>
   )
 }

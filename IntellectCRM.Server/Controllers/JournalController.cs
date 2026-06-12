@@ -39,11 +39,29 @@ public class JournalController(AppDbContext db, FcmService fcm) : ControllerBase
         [FromQuery] string classId, [FromQuery] string subjectId, [FromQuery] int quarter)
         => await JournalService.GetEntriesAsync(db, classId, subjectId, quarter);
 
+    /// <summary>Guruhning bitta OYLIK jurnali (guruh sahifasi uchun): ustunlar guruh dars kunlari bo'yicha
+    /// avtomatik, qatorlar faqat faol o'quvchilar, oyma-oy navigatsiya. <paramref name="month"/> berilmasa — oxirgi oy.</summary>
+    [HttpGet("group")]
+    public async Task<ActionResult<GroupJournalDto>> GroupMonth(
+        [FromQuery] string classId, [FromQuery] string? month)
+    {
+        var result = await JournalService.GroupMonthAsync(db, classId, month);
+        return result is null ? NotFound(new { message = "Guruh topilmadi" }) : result;
+    }
+
     /// <summary>Bitta katakni belgilash — baho yoki davomat sababi (mavjud bo'lsa ustiga yoziladi).</summary>
     [HttpPut]
     public async Task<IActionResult> SetEntry(SetJournalEntryRequest req)
     {
         await JournalService.SetEntryAsync(db, req, fcm);
+        return NoContent();
+    }
+
+    /// <summary>Bitta dars (sana) uchun BARCHA o'quvchiga birdan davomat: reasonId null = hammasi keldi, aks holda hammasi shu sabab bilan kelmadi.</summary>
+    [HttpPost("bulk-attendance")]
+    public async Task<IActionResult> BulkAttendance(BulkAttendanceRequest req)
+    {
+        await JournalService.BulkAttendanceAsync(db, req);
         return NoContent();
     }
 

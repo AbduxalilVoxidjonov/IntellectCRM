@@ -69,12 +69,10 @@ export function AccountSettings() {
   }
 
   return (
-    <Card>
-      <div className="mb-1 font-semibold text-slate-800">Administrator akkaunti</div>
-      <p className="mb-4 text-sm text-slate-400">
-        Tizimga kirish login va parolingizni shu yerdan o'zgartirasiz. Login o'zgarsa,
-        keyingi safar yangi login bilan kirasiz (qaytadan kirish shart emas).
-      </p>
+    <Card
+      title="Administrator akkaunti"
+      sub="Tizimga kirish login va parolingizni shu yerdan o'zgartirasiz. Login o'zgarsa, keyingi safar yangi login bilan kirasiz (qaytadan kirish shart emas)."
+    >
       <form onSubmit={onSubmit} className="max-w-md space-y-4">
         <Input
           label="Login"

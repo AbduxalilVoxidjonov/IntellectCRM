@@ -60,11 +60,8 @@ public class ChatService(IAppDbContext db, IHubContext<ChatHub> hub)
                     var names = new HashSet<string>(StringComparer.Ordinal);
                     if (!string.IsNullOrEmpty(t.HomeroomClass)) names.Add(t.HomeroomClass);
 
-                    // Dars beradigan sinflar — jadval template'laridan.
-                    var taughtClassIds = (await db.ScheduleTemplates.Include(x => x.Lessons).ToListAsync())
-                        .Where(tpl => tpl.Lessons.Any(l => l.TeacherId == t.Id))
-                        .Select(tpl => tpl.ClassId).Distinct().ToList();
-                    var taughtNames = await db.Classes.Where(c => taughtClassIds.Contains(c.Id))
+                    // Dars beradigan guruhlar — guruhga biriktirilgan o'qituvchi (Group.TeacherId).
+                    var taughtNames = await db.Classes.Where(c => c.TeacherId == t.Id)
                         .Select(c => c.Name).ToListAsync();
                     foreach (var n in taughtNames) names.Add(n);
 

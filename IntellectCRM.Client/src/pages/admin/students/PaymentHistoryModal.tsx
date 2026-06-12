@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
-import type { MonthStatus, Student, StudentLedger } from '@/types'
-import { getStudentLedger } from '@/api/services/students'
+import { Check, Pencil, X } from 'lucide-react'
+import type { MonthStatus, StudentLedger } from '@/types'
+import { getStudentLedger, editStudentCharge } from '@/api/services/students'
+import { useAuth } from '@/context/auth-context'
 import { Modal } from '@/components/ui/Modal'
 import { Loader } from '@/components/ui/Loader'
 import { AuditHistoryList } from '@/components/audit/AuditHistoryList'
@@ -8,7 +10,7 @@ import { formatDate, formatMoney, cn } from '@/lib/utils'
 import { formatMonth, monthStatusLabels } from '@/config/constants'
 
 interface Props {
-  student: Student | null
+  studentId: string | null
   onClose: () => void
 }
 
@@ -18,22 +20,51 @@ const statusStyles: Record<MonthStatus, string> = {
   unpaid: 'bg-red-50 text-red-700',
 }
 
-export function PaymentHistoryModal({ student, onClose }: Props) {
+export function PaymentHistoryModal({ studentId, onClose }: Props) {
+  const { user } = useAuth()
+  const isSuper = user?.role === 'superadmin'
   const [ledger, setLedger] = useState<StudentLedger | null>(null)
   const [loading, setLoading] = useState(false)
+  /** Hisoblangan summani qo'lda tahrirlash (faqat super admin). */
+  const [editMonth, setEditMonth] = useState<string | null>(null)
+  const [editVal, setEditVal] = useState('')
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    if (!student) return
+    if (!studentId) return
     // eslint-disable-next-line react-hooks/set-state-in-effect -- modal ochilganda tarixni yuklash (maqsadli)
     setLoading(true)
     setLedger(null)
-    getStudentLedger(student.id)
+    setEditMonth(null)
+    getStudentLedger(studentId)
       .then(setLedger)
       .finally(() => setLoading(false))
-  }, [student])
+  }, [studentId])
+
+  const saveEdit = async (month: string) => {
+    if (!studentId) return
+    const amount = Number(editVal)
+    if (!Number.isFinite(amount) || amount < 0) {
+      alert("Summa noto'g'ri")
+      return
+    }
+    setSaving(true)
+    try {
+      // Guruhsiz (ClassName) hisob — groupId=undefined yuboriladi (backend null = ClassName).
+      // Ko'p guruhli oy bu yerga kelmaydi (tahrir tugmasi disable).
+      await editStudentCharge(studentId, month, amount)
+      const fresh = await getStudentLedger(studentId)
+      setLedger(fresh)
+      setEditMonth(null)
+    } catch (e: any) {
+      alert(e?.response?.data?.message ?? "Tahrirlab bo'lmadi")
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
-    <Modal open={!!student} onClose={onClose} size="lg" title="To'lov tarixi">
+    <Modal open={!!studentId} onClose={onClose} size="lg" title="To'lov tarixi">
       {loading || !ledger ? (
         <Loader label="Yuklanmoqda..." />
       ) : (
@@ -43,14 +74,14 @@ export function PaymentHistoryModal({ student, onClose }: Props) {
             <div>
               <p className="font-semibold text-slate-800">{ledger.student.fullName}</p>
               <p className="text-sm text-slate-500">
-                {ledger.student.className} · oylik {formatMoney(ledger.monthlyFee)}
+                {ledger.student.className} · oylik <span className="font-mono">{formatMoney(ledger.monthlyFee)}</span>
               </p>
             </div>
             <div className="text-right">
               <p className="text-xs text-slate-400">Joriy balans</p>
               <p
                 className={cn(
-                  'text-lg font-semibold',
+                  'font-mono text-lg font-semibold',
                   ledger.balance < 0
                     ? 'text-red-600'
                     : ledger.balance > 0
@@ -81,22 +112,96 @@ export function PaymentHistoryModal({ student, onClose }: Props) {
                 <tbody className="divide-y divide-slate-100">
                   {ledger.months.map((m) => (
                     <tr key={m.month} className="hover:bg-slate-50/60">
-                      <td className="px-4 py-2.5 font-medium text-slate-700">{formatMonth(m.month)}</td>
-                      <td className="px-4 py-2.5 text-right text-slate-600">{formatMoney(m.charged)}</td>
+                      <td className="px-4 py-2.5 align-top font-medium text-slate-700">
+                        {formatMonth(m.month)}
+                        {m.courses.length > 0 && (
+                          <div className="mt-1 space-y-0.5">
+                            {m.courses.map((co, i) => (
+                              <div key={i} className="flex items-center gap-1.5 text-xs font-normal text-slate-400">
+                                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-brand-300" />
+                                {co.courseName} · <span className="font-mono">{formatMoney(co.fee)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-2.5 text-right text-slate-600">
+                        {isSuper && editMonth === m.month ? (
+                          <div className="flex items-center justify-end gap-1">
+                            <input
+                              type="number"
+                              autoFocus
+                              value={editVal}
+                              disabled={saving}
+                              onChange={(e) => setEditVal(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') saveEdit(m.month)
+                                if (e.key === 'Escape') setEditMonth(null)
+                              }}
+                              className="w-28 rounded-md border border-slate-200 px-2 py-1 text-right text-sm outline-none focus:border-brand-400 disabled:opacity-50"
+                            />
+                            <button
+                              type="button"
+                              title="Saqlash"
+                              disabled={saving}
+                              onClick={() => saveEdit(m.month)}
+                              className="rounded p-1 text-emerald-600 hover:bg-emerald-50 disabled:opacity-50"
+                            >
+                              <Check className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
+                              title="Bekor"
+                              disabled={saving}
+                              onClick={() => setEditMonth(null)}
+                              className="rounded p-1 text-slate-400 hover:bg-slate-100 disabled:opacity-50"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-end gap-1.5">
+                            <span className="font-mono">{formatMoney(m.charged)}</span>
+                            {isSuper &&
+                              (m.courses.length > 1 ? (
+                                <button
+                                  type="button"
+                                  disabled
+                                  title="Ko'p guruhli oy — har guruhni to'lov oynasidan tahrirlang"
+                                  className="cursor-not-allowed rounded p-0.5 text-slate-200"
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  title="Tahrirlash"
+                                  onClick={() => {
+                                    setEditMonth(m.month)
+                                    setEditVal(String(m.charged))
+                                  }}
+                                  className="rounded p-0.5 text-slate-300 transition-colors hover:bg-slate-100 hover:text-brand-600"
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </button>
+                              ))}
+                          </div>
+                        )}
+                      </td>
                       <td
                         className={cn(
-                          'px-4 py-2.5 text-right',
+                          'px-4 py-2.5 text-right font-mono',
                           m.discount > 0 ? 'text-amber-600 font-medium' : 'text-slate-300',
                         )}
                       >
                         {m.discount > 0 ? `−${formatMoney(m.discount)}` : '—'}
                       </td>
-                      <td className="px-4 py-2.5 text-right text-emerald-600 font-medium">
+                      <td className="px-4 py-2.5 text-right font-mono text-emerald-600 font-medium">
                         {formatMoney(m.paid)}
                       </td>
                       <td
                         className={cn(
-                          'px-4 py-2.5 text-right',
+                          'px-4 py-2.5 text-right font-mono',
                           m.remaining > 0 ? 'text-red-600' : 'text-slate-400',
                         )}
                       >
@@ -118,11 +223,11 @@ export function PaymentHistoryModal({ student, onClose }: Props) {
                 <tfoot className="border-t border-slate-200 bg-slate-50 text-sm font-semibold text-slate-700">
                   <tr>
                     <td className="px-4 py-2.5">Jami</td>
-                    <td className="px-4 py-2.5 text-right">{formatMoney(ledger.totalCharged)}</td>
-                    <td className="px-4 py-2.5 text-right text-amber-700">
+                    <td className="px-4 py-2.5 text-right font-mono">{formatMoney(ledger.totalCharged)}</td>
+                    <td className="px-4 py-2.5 text-right font-mono text-amber-700">
                       {ledger.totalDiscount > 0 ? `−${formatMoney(ledger.totalDiscount)}` : '—'}
                     </td>
-                    <td className="px-4 py-2.5 text-right text-emerald-700">
+                    <td className="px-4 py-2.5 text-right font-mono text-emerald-700">
                       {formatMoney(ledger.totalPaid)}
                     </td>
                     <td className="px-4 py-2.5 text-right" colSpan={2} />
@@ -145,14 +250,14 @@ export function PaymentHistoryModal({ student, onClose }: Props) {
                     className="flex items-center justify-between rounded-lg border border-slate-100 px-3 py-2 text-sm"
                   >
                     <span className="flex items-center gap-2 text-slate-500">
-                      {formatDate(p.date)}
+                      <span className="font-mono">{formatDate(p.date)}</span>
                       {p.month && (
                         <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-500">
                           {formatMonth(p.month)} uchun
                         </span>
                       )}
                     </span>
-                    <span className="font-medium text-emerald-600">+{formatMoney(p.amount)}</span>
+                    <span className="font-mono font-medium text-emerald-600">+{formatMoney(p.amount)}</span>
                   </li>
                 ))}
               </ul>

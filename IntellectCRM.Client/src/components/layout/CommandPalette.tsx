@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search } from 'lucide-react'
+import { Search, User } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import type { Role } from '@/types'
+import type { Role, Student } from '@/types'
 import { useAuth } from '@/context/auth-context'
 import { navByRole } from '@/config/navigation'
+import { searchStudents } from '@/api/services/students'
 import { cn } from '@/lib/utils'
 
 interface Cmd {
@@ -15,9 +16,21 @@ interface Cmd {
   icon: LucideIcon
 }
 
+/** Qidiruv natijasidagi o'quvchi (arxivdagilar ham — `archived` bilan belgilanadi). */
+interface StudentHit {
+  id: string
+  fullName: string
+  /** Ko'rsatish uchun raqam (o'z, bo'lmasa ota-ona) */
+  phone?: string
+  className?: string
+  archived: boolean
+}
+
 /**
- * Ctrl/⌘+K buyruq paneli — istalgan admin/o'qituvchi bo'limini tez qidirib o'tish uchun.
- * Ro'yxat Sidebar bilan bir xil mantiqda (rol + ruxsat) filtrlanadi.
+ * Ctrl/⌘+K buyruq paneli — bo'limlar bo'ylab tez o'tish + o'quvchini FISH yoki TELEFON
+ * (o'z/ota/ona/ota-ona) bo'yicha global qidirish. Arxivlangan o'quvchilar ham chiqadi
+ * (ularga "arxiv" badge); tanlansa o'quvchi detal sahifasiga (`/admin/students/:id`) o'tadi.
+ * Bo'lim ro'yxati Sidebar bilan bir xil mantiqda (rol + ruxsat) filtrlanadi.
  * Boshqa joydan ochish uchun: `window.dispatchEvent(new Event('cmdk:open'))`.
  */
 export function CommandPalette() {
@@ -26,8 +39,13 @@ export function CommandPalette() {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [active, setActive] = useState(0)
+  const [students, setStudents] = useState<StudentHit[]>([])
+  const [searching, setSearching] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
+
+  // O'quvchi qidiruvi faqat admin (students ruxsati borlar) uchun.
+  const canSearchStudents = !!user && (!user.permissions || user.permissions.includes('students'))
 
   // Ochish/yopish: Ctrl/⌘+K yoki tashqi 'cmdk:open' hodisasi
   useEffect(() => {
@@ -51,6 +69,7 @@ export function CommandPalette() {
     if (!open) return
     setQuery('')
     setActive(0)
+    setStudents([])
     const t = setTimeout(() => inputRef.current?.focus(), 0)
     return () => clearTimeout(t)
   }, [open])
@@ -76,7 +95,7 @@ export function CommandPalette() {
     return out
   }, [user])
 
-  const results = useMemo(() => {
+  const sectionResults = useMemo(() => {
     const q = query.trim().toLowerCase()
     if (!q) return commands
     return commands.filter(
@@ -84,23 +103,78 @@ export function CommandPalette() {
     )
   }, [commands, query])
 
+  // O'quvchilarni FISH/telefon bo'yicha qidirish (debounce). Arxivdagilar ham qaytadi.
+  useEffect(() => {
+    if (!open || !canSearchStudents) {
+      setStudents([])
+      return
+    }
+    const q = query.trim()
+    if (q.length < 2) {
+      setStudents([])
+      setSearching(false)
+      return
+    }
+    setSearching(true)
+    let cancelled = false
+    const t = setTimeout(async () => {
+      try {
+        const list = await searchStudents(q)
+        if (cancelled) return
+        setStudents(
+          list.map((s: Student) => ({
+            id: s.id,
+            fullName: s.fullName,
+            phone: s.phone || s.parentPhone || s.fatherPhone || s.motherPhone || undefined,
+            className: s.groups?.[0] || s.className || undefined,
+            archived: !!s.isArchived,
+          })),
+        )
+      } catch {
+        if (!cancelled) setStudents([])
+      } finally {
+        if (!cancelled) setSearching(false)
+      }
+    }, 250)
+    return () => {
+      cancelled = true
+      clearTimeout(t)
+    }
+  }, [query, open, canSearchStudents])
+
+  // Birlashtirilgan tekis ro'yxat: avval bo'limlar, keyin o'quvchilar (klaviatura navigatsiyasi uchun)
+  const total = sectionResults.length + students.length
+
   // Qidiruv o'zgarsa tanlovni boshiga qaytaramiz
-  useEffect(() => setActive(0), [query])
+  useEffect(() => setActive(0), [query, students.length])
 
   // Tanlangan element ko'rinishda turishi uchun unga aylantiramiz
   useEffect(() => {
     listRef.current
       ?.querySelector<HTMLElement>(`[data-idx="${active}"]`)
       ?.scrollIntoView({ block: 'nearest' })
-  }, [active, results])
+  }, [active, total])
 
   if (!open) return null
 
-  const go = (c?: Cmd) => {
-    const target = c ?? results[active]
-    if (!target) return
+  const goSection = (c: Cmd) => {
     setOpen(false)
-    navigate(target.to)
+    navigate(c.to)
+  }
+
+  const goStudent = (s: StudentHit) => {
+    setOpen(false)
+    navigate(`/admin/students/${s.id}`)
+  }
+
+  const goActive = () => {
+    if (active < sectionResults.length) {
+      const c = sectionResults[active]
+      if (c) goSection(c)
+    } else {
+      const s = students[active - sectionResults.length]
+      if (s) goStudent(s)
+    }
   }
 
   const onKeyDown = (e: React.KeyboardEvent) => {
@@ -108,15 +182,17 @@ export function CommandPalette() {
       setOpen(false)
     } else if (e.key === 'ArrowDown') {
       e.preventDefault()
-      setActive((a) => Math.min(a + 1, results.length - 1))
+      setActive((a) => Math.min(a + 1, total - 1))
     } else if (e.key === 'ArrowUp') {
       e.preventDefault()
       setActive((a) => Math.max(a - 1, 0))
     } else if (e.key === 'Enter') {
       e.preventDefault()
-      go()
+      goActive()
     }
   }
+
+  const hasQuery = query.trim().length > 0
 
   return (
     <div
@@ -134,7 +210,9 @@ export function CommandPalette() {
             ref={inputRef}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Bo'lim qidirish..."
+            placeholder={
+              canSearchStudents ? "O'quvchi (FISH/telefon) yoki bo'lim qidirish..." : "Bo'lim qidirish..."
+            }
             className="flex-1 bg-transparent py-4 text-sm text-slate-800 outline-none placeholder:text-slate-400"
           />
           <kbd className="rounded border border-slate-200 px-1.5 py-0.5 text-[10px] text-slate-400">
@@ -142,29 +220,87 @@ export function CommandPalette() {
           </kbd>
         </div>
 
-        <div ref={listRef} className="max-h-80 overflow-y-auto p-2">
-          {results.length === 0 ? (
-            <p className="py-10 text-center text-sm text-slate-400">Hech narsa topilmadi</p>
+        <div ref={listRef} className="max-h-96 overflow-y-auto p-2">
+          {total === 0 ? (
+            <p className="py-10 text-center text-sm text-slate-400">
+              {searching ? 'Qidirilmoqda...' : 'Hech narsa topilmadi'}
+            </p>
           ) : (
-            results.map((c, i) => (
-              <button
-                key={c.to + c.label}
-                type="button"
-                data-idx={i}
-                onMouseEnter={() => setActive(i)}
-                onClick={() => go(c)}
-                className={cn(
-                  'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors',
-                  i === active ? 'bg-brand-50 text-brand-700' : 'text-slate-700 hover:bg-slate-50',
-                )}
-              >
-                <c.icon className="h-4 w-4 shrink-0 text-slate-400" />
-                <span className="flex-1 truncate">
-                  {c.group && <span className="text-slate-400">{c.group} · </span>}
-                  {c.label}
-                </span>
-              </button>
-            ))
+            <>
+              {sectionResults.length > 0 && (
+                <>
+                  <p className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                    Bo'limlar
+                  </p>
+                  {sectionResults.map((c, i) => (
+                    <button
+                      key={c.to + c.label}
+                      type="button"
+                      data-idx={i}
+                      onMouseEnter={() => setActive(i)}
+                      onClick={() => goSection(c)}
+                      className={cn(
+                        'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors',
+                        i === active ? 'bg-brand-50 text-brand-700' : 'text-slate-700 hover:bg-slate-50',
+                      )}
+                    >
+                      <c.icon className="h-4 w-4 shrink-0 text-slate-400" />
+                      <span className="flex-1 truncate">
+                        {c.group && <span className="text-slate-400">{c.group} · </span>}
+                        {c.label}
+                      </span>
+                    </button>
+                  ))}
+                </>
+              )}
+
+              {canSearchStudents && hasQuery && (students.length > 0 || searching) && (
+                <>
+                  <p className="px-3 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                    O'quvchilar
+                  </p>
+                  {searching && students.length === 0 ? (
+                    <p className="px-3 py-2 text-sm text-slate-400">Qidirilmoqda...</p>
+                  ) : (
+                    students.map((s, j) => {
+                      const idx = sectionResults.length + j
+                      return (
+                        <button
+                          key={s.id}
+                          type="button"
+                          data-idx={idx}
+                          onMouseEnter={() => setActive(idx)}
+                          onClick={() => goStudent(s)}
+                          className={cn(
+                            'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors',
+                            idx === active ? 'bg-brand-50 text-brand-700' : 'text-slate-700 hover:bg-slate-50',
+                          )}
+                        >
+                          <User className="h-4 w-4 shrink-0 text-slate-400" />
+                          <span className="flex min-w-0 flex-1 flex-col">
+                            <span className="flex items-center gap-2">
+                              <span className="truncate">{s.fullName}</span>
+                              {s.archived && (
+                                <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
+                                  arxiv
+                                </span>
+                              )}
+                            </span>
+                            {(s.phone || s.className) && (
+                              <span className="truncate text-xs text-slate-400">
+                                {s.className && <span>{s.className}</span>}
+                                {s.className && s.phone && <span> · </span>}
+                                {s.phone && <span className="font-mono">{s.phone}</span>}
+                              </span>
+                            )}
+                          </span>
+                        </button>
+                      )
+                    })
+                  )}
+                </>
+              )}
+            </>
           )}
         </div>
 

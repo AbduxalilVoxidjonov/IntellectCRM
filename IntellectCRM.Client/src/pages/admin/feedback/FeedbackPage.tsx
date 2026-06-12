@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
-import { MessageSquareWarning, Lightbulb, CheckCircle2, GraduationCap, Users } from 'lucide-react'
+import { MessageSquareWarning, Lightbulb, CheckCircle2, GraduationCap, Users, Inbox } from 'lucide-react'
 import type { Feedback } from '@/types'
 import { getFeedback, resolveFeedback } from '@/api/services/feedback'
 import { formatDate, cn } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
+import { Badge } from '@/components/ui/Badge'
+import { PageHeader } from '@/components/ui/PageHeader'
 import { Loader } from '@/components/ui/Loader'
 
 type TypeFilter = '' | 'suggestion' | 'complaint'
@@ -31,60 +33,105 @@ export function FeedbackPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-slate-800">Taklif va shikoyatlar</h1>
-        <p className="text-sm text-slate-400">Ota-onalar ilova orqali yuborgan murojaatlar</p>
-      </div>
+    <div>
+      <PageHeader
+        title="Taklif va shikoyatlar"
+        sub="Ota-onalar ilova orqali yuborgan murojaatlar"
+      />
 
-      <div className="flex flex-wrap gap-2">
-        <Seg label="Hammasi" active={type === ''} onClick={() => setType('')} />
-        <Seg label="Takliflar" active={type === 'suggestion'} onClick={() => setType('suggestion')} />
-        <Seg label="Shikoyatlar" active={type === 'complaint'} onClick={() => setType('complaint')} />
-        <span className="mx-1 w-px bg-slate-200" />
-        <Seg label="Barcha holat" active={status === ''} onClick={() => setStatus('')} />
-        <Seg label="Yangi" active={status === 'new'} onClick={() => setStatus('new')} />
-        <Seg label="Hal qilingan" active={status === 'resolved'} onClick={() => setStatus('resolved')} />
+      <div className="toolbar">
+        <div className="left">
+          <button
+            type="button"
+            className={cn('filter-chip', type === '' && 'active')}
+            onClick={() => setType('')}
+          >
+            Hammasi
+          </button>
+          <button
+            type="button"
+            className={cn('filter-chip', type === 'suggestion' && 'active')}
+            onClick={() => setType('suggestion')}
+          >
+            Takliflar
+          </button>
+          <button
+            type="button"
+            className={cn('filter-chip', type === 'complaint' && 'active')}
+            onClick={() => setType('complaint')}
+          >
+            Shikoyatlar
+          </button>
+        </div>
+        <div className="right">
+          <button
+            type="button"
+            className={cn('filter-chip', status === '' && 'active')}
+            onClick={() => setStatus('')}
+          >
+            Barcha holat
+          </button>
+          <button
+            type="button"
+            className={cn('filter-chip', status === 'new' && 'active')}
+            onClick={() => setStatus('new')}
+          >
+            Yangi
+          </button>
+          <button
+            type="button"
+            className={cn('filter-chip', status === 'resolved' && 'active')}
+            onClick={() => setStatus('resolved')}
+          >
+            Hal qilingan
+          </button>
+        </div>
       </div>
 
       {loading ? (
-        <Loader label="Yuklanmoqda..." />
+        <Card>
+          <Loader label="Yuklanmoqda..." />
+        </Card>
       ) : items.length === 0 ? (
         <Card>
-          <p className="py-10 text-center text-slate-400">Murojaatlar yo'q</p>
+          <div className="state">
+            <div className="state-icon">
+              <Inbox className="h-6 w-6" />
+            </div>
+            <h4>Murojaatlar yo'q</h4>
+            <p>Tanlangan filtrlar bo'yicha murojaat topilmadi.</p>
+          </div>
         </Card>
       ) : (
         <div className="space-y-3">
           {items.map((f) => (
             <Card key={f.id} className="flex flex-col gap-2">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-1.5">
                   {f.type === 'complaint' ? (
-                    <span className="inline-flex items-center gap-1 rounded-md bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">
+                    <Badge tone="red">
                       <MessageSquareWarning className="h-3.5 w-3.5" /> Shikoyat
-                    </span>
+                    </Badge>
                   ) : (
-                    <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
+                    <Badge tone="amber">
                       <Lightbulb className="h-3.5 w-3.5" /> Taklif
-                    </span>
+                    </Badge>
                   )}
                   {f.senderRole === 'teacher' ? (
-                    <span className="inline-flex items-center gap-1 rounded-md bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700">
+                    <Badge tone="violet">
                       <GraduationCap className="h-3.5 w-3.5" /> O'qituvchi
-                    </span>
+                    </Badge>
                   ) : (
-                    <span className="inline-flex items-center gap-1 rounded-md bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-700">
+                    <Badge tone="blue">
                       <Users className="h-3.5 w-3.5" /> Ota-ona
-                    </span>
+                    </Badge>
                   )}
                   {f.status === 'resolved' ? (
-                    <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                    <Badge tone="green">
                       <CheckCircle2 className="h-3.5 w-3.5" /> Hal qilingan
-                    </span>
+                    </Badge>
                   ) : (
-                    <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
-                      Yangi
-                    </span>
+                    <Badge tone="default">Yangi</Badge>
                   )}
                 </div>
                 {f.status === 'new' && (
@@ -104,31 +151,16 @@ export function FeedbackPage() {
                 </a>
               )}
               <div className="text-xs text-slate-400">
-                {f.senderName || f.parentName || f.studentName || 'Noma\'lum'}
+                {f.senderName || f.parentName || f.studentName || "Noma'lum"}
                 {f.senderRole === 'parent' && f.studentName ? ` · farzandi: ${f.studentName}` : ''}
                 {f.senderRole === 'parent' && f.className ? ` · ${f.className}` : ''}
                 {' · '}
-                {formatDate(f.createdAt)}
+                <span className="font-mono">{formatDate(f.createdAt)}</span>
               </div>
             </Card>
           ))}
         </div>
       )}
     </div>
-  )
-}
-
-function Seg({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        'rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors',
-        active ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-slate-200 text-slate-600 hover:bg-slate-50',
-      )}
-    >
-      {label}
-    </button>
   )
 }

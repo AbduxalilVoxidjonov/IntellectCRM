@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using IntellectCRM.Infrastructure.Data;
 using IntellectCRM.Application.Dtos;
+using IntellectCRM.Application.Services;
 using IntellectCRM.Domain;
 
 namespace IntellectCRM.Server.Controllers;
@@ -11,7 +12,7 @@ namespace IntellectCRM.Server.Controllers;
 [Authorize]
 [AdminPerm("leads")]
 [Route("api/admin/leads")]
-public class LeadsController(AppDbContext db) : ControllerBase
+public class LeadsController(AppDbContext db, AuditService audit) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<IEnumerable<Lead>>> GetAll() =>
@@ -25,9 +26,11 @@ public class LeadsController(AppDbContext db) : ControllerBase
             FullName = p.FullName,
             Gender = p.Gender,
             BirthDate = p.BirthDate,
-            ParentFullName = p.ParentFullName,
-            ParentPhone = p.ParentPhone,
-            TargetGrade = p.TargetGrade,
+            Phone = p.Phone ?? "",
+            FatherFullName = p.FatherFullName ?? "",
+            FatherPhone = p.FatherPhone ?? "",
+            MotherFullName = p.MotherFullName ?? "",
+            MotherPhone = p.MotherPhone ?? "",
             Note = p.Note,
             Stage = p.Stage,
             Source = p.Source ?? "",
@@ -48,9 +51,11 @@ public class LeadsController(AppDbContext db) : ControllerBase
         lead.FullName = p.FullName;
         lead.Gender = p.Gender;
         lead.BirthDate = p.BirthDate;
-        lead.ParentFullName = p.ParentFullName;
-        lead.ParentPhone = p.ParentPhone;
-        lead.TargetGrade = p.TargetGrade;
+        lead.Phone = p.Phone ?? "";
+        lead.FatherFullName = p.FatherFullName ?? "";
+        lead.FatherPhone = p.FatherPhone ?? "";
+        lead.MotherFullName = p.MotherFullName ?? "";
+        lead.MotherPhone = p.MotherPhone ?? "";
         lead.Note = p.Note;
         if (p.Source is not null) lead.Source = p.Source;
         if (p.InterestSubject is not null) lead.InterestSubject = p.InterestSubject;
@@ -72,13 +77,18 @@ public class LeadsController(AppDbContext db) : ControllerBase
     }
 
     [HttpDelete("{id}")]
-    public async Task<IActionResult> Delete(string id)
+    public async Task<IActionResult> Delete(string id, [FromQuery] string? reasonId = null)
     {
         var lead = await db.Leads.FindAsync(id);
         if (lead is null) return NotFound();
         db.LeadEvents.RemoveRange(db.LeadEvents.Where(e => e.LeadId == id));
         db.TrialLessons.RemoveRange(db.TrialLessons.Where(t => t.LeadId == id));
         db.Leads.Remove(lead);
+
+        var reason = string.IsNullOrWhiteSpace(reasonId) ? ""
+            : (await db.ActionReasons.Where(r => r.Id == reasonId).Select(r => r.Label).FirstOrDefaultAsync() ?? "");
+        audit.Record("Lead", id, "delete",
+            $"Lid o'chirildi ({lead.FullName})" + (reason.Length > 0 ? $" — sabab: {reason}" : ""));
         await db.SaveChangesAsync();
         return NoContent();
     }
@@ -162,8 +172,9 @@ public class LeadsController(AppDbContext db) : ControllerBase
             FullName = lead.FullName,
             Gender = lead.Gender,
             BirthDate = lead.BirthDate,
-            ParentFullName = lead.ParentFullName,
-            ParentPhone = lead.ParentPhone,
+            // Student'da bitta ota-ona maydoni bor — otani asosiy qilamiz (bo'lmasa ona).
+            ParentFullName = !string.IsNullOrWhiteSpace(lead.FatherFullName) ? lead.FatherFullName : lead.MotherFullName,
+            ParentPhone = !string.IsNullOrWhiteSpace(lead.FatherPhone) ? lead.FatherPhone : lead.MotherPhone,
             EnrollmentDate = enrollment,
             ClassName = group?.Name ?? "",
         };

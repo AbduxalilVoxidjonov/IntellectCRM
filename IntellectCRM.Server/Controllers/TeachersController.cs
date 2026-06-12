@@ -48,7 +48,10 @@ public class TeachersController(AppDbContext db, AuditService audit) : Controlle
             PhotoUrl = p.PhotoUrl,
             HomeroomClass = p.HomeroomClass,
             SubjectIds = p.SubjectIds ?? new(),
-            // Oylik endi avtomatik (jadval + toifa narxi) — qo'lda summa kiritilmaydi; toifa tanlanadi.
+            // Maosh QO'LDA: rejim "fixed" (qat'iy summa) yoki "percent" (guruh to'lovidan foiz).
+            SalaryMode = p.SalaryMode == "percent" ? "percent" : "fixed",
+            Salary = p.Salary,
+            SalaryPercent = p.SalaryPercent,
             Category = p.Category ?? "",
             SalaryStartDate = p.SalaryStartDate ?? "",
             SalaryStartMonth = !string.IsNullOrEmpty(p.SalaryStartDate) && p.SalaryStartDate.Length >= 7
@@ -87,6 +90,10 @@ public class TeachersController(AppDbContext db, AuditService audit) : Controlle
         teacher.PhotoUrl = p.PhotoUrl;
         teacher.HomeroomClass = p.HomeroomClass;
         teacher.SubjectIds = p.SubjectIds ?? new();
+        // Maosh: rejim + qat'iy summa + foiz (qo'lda kiritiladi).
+        teacher.SalaryMode = p.SalaryMode == "percent" ? "percent" : "fixed";
+        teacher.Salary = p.Salary;
+        teacher.SalaryPercent = p.SalaryPercent;
         // Toifa — berilsa yangilaymiz (oylik avtomatik shu toifa narxidan hisoblanadi).
         if (p.Category is not null) teacher.Category = p.Category;
         teacher.SalaryStartDate = p.SalaryStartDate ?? "";
@@ -276,53 +283,6 @@ public class TeachersController(AppDbContext db, AuditService audit) : Controlle
         return File(bytes,
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             $"oqituvchilar_{AppClock.Now:yyyy-MM-dd}.xlsx");
-    }
-
-    /// <summary>O'qituvchiga maosh berish — moliyaga chiqim (salary) sifatida yoziladi.</summary>
-    [HttpPost("{id}/salary-payments")]
-    public async Task<IActionResult> PaySalary(string id, SalaryPaymentRequest req)
-    {
-        var teacher = await db.Teachers.FindAsync(id);
-        if (teacher is null) return NotFound();
-
-        if (req.Amount <= 0)
-            return BadRequest(new { message = "Maosh summasi musbat bo'lishi kerak" });
-
-        var tx = new FinanceTransaction
-        {
-            Date = AppClock.Today.ToString("yyyy-MM-dd"),
-            Direction = "expense",
-            Category = "salary",
-            Amount = req.Amount,
-            TeacherId = teacher.Id,
-            Note = string.IsNullOrWhiteSpace(req.Note) ? $"Oylik maosh — {teacher.FullName}" : req.Note,
-        };
-        db.FinanceTransactions.Add(tx);
-
-        audit.Record(AuditService.EntityFinanceTransaction, tx.Id, "create",
-            $"Maosh berildi: {AuditService.Money(req.Amount)} so'm",
-            after: AuditService.Snapshot(tx), teacherId: teacher.Id);
-
-        await db.SaveChangesAsync();
-        return NoContent();
-    }
-
-    /// <summary>O'qituvchiga berilgan maoshlar tarixi.</summary>
-    [HttpGet("{id}/salary-history")]
-    public async Task<ActionResult<SalaryHistoryDto>> SalaryHistory(string id)
-    {
-        var teacher = await db.Teachers.FindAsync(id);
-        if (teacher is null) return NotFound();
-
-        var payments = await db.FinanceTransactions
-            .Where(t => t.TeacherId == id && t.Direction == "expense" && t.Category == "salary")
-            .OrderByDescending(t => t.Date)
-            .Select(t => new PaymentDto(t.Date, t.Amount, t.Note, t.Month))
-            .ToListAsync();
-
-        var monthly = await TeacherSalaryCalc.MonthlyAsync(db, teacher);
-        return new SalaryHistoryDto(teacher.Id, teacher.FullName, monthly,
-            payments.Sum(p => p.Amount), payments);
     }
 
     /// <summary>

@@ -20,9 +20,11 @@ import {
   type StagePayload,
 } from '@/api/services/stages'
 import { Button } from '@/components/ui/Button'
+import { PageHeader } from '@/components/ui/PageHeader'
 import { Loader } from '@/components/ui/Loader'
 import { LeadColumn } from './LeadColumn'
 import { LeadCardContent } from './LeadCard'
+import { ReasonPromptModal } from '@/components/ui/ReasonPromptModal'
 import { LeadFormModal, type LeadFormValues } from './LeadFormModal'
 import { LeadDetailModal } from './LeadDetailModal'
 import { StageFormModal } from './StageFormModal'
@@ -35,6 +37,7 @@ export function LeadsPage() {
 
   // modallar
   const [detailLead, setDetailLead] = useState<Lead | null>(null)
+  const [deletingLead, setDeletingLead] = useState<Lead | null>(null)
   const [leadFormOpen, setLeadFormOpen] = useState(false)
   const [editingLead, setEditingLead] = useState<Lead | null>(null)
   const [stageFormOpen, setStageFormOpen] = useState(false)
@@ -89,11 +92,15 @@ export function LeadsPage() {
     setLeadFormOpen(true)
   }
 
-  const handleLeadDelete = (lead: Lead) => {
-    if (!confirm(`"${lead.fullName}" lidini o'chirishni tasdiqlaysizmi?`)) return
-    deleteLead(lead.id).then(() => {
+  const handleLeadDelete = (lead: Lead) => setDeletingLead(lead)
+
+  const doDeleteLead = (reasonId: string | undefined) => {
+    const lead = deletingLead
+    if (!lead) return
+    deleteLead(lead.id, reasonId).then(() => {
       setLeads((prev) => prev.filter((l) => l.id !== lead.id))
       setDetailLead(null)
+      setDeletingLead(null)
     })
   }
 
@@ -137,31 +144,34 @@ export function LeadsPage() {
   }
 
   const activeLead = activeId ? leads.find((l) => l.id === activeId) : null
+  const convertedCount = leads.filter((l) => l.convertedStudentId).length
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-800">Lidlar</h1>
-          <p className="text-sm text-slate-400">
-            Markazga qiziqqanlar — kartani sudrang yoki ustiga bosing
-          </p>
-        </div>
-        <Button
-          onClick={() => {
-            setEditingLead(null)
-            setLeadFormOpen(true)
-          }}
-        >
-          <Plus className="h-4 w-4" /> Yangi lid
-        </Button>
-      </div>
+    <div>
+      <PageHeader
+        title="Lidlar"
+        sub={
+          <>
+            {leads.length} ta lid · {convertedCount} aylantirilgan — kartani sudrang yoki ustiga bosing
+          </>
+        }
+        actions={
+          <Button
+            onClick={() => {
+              setEditingLead(null)
+              setLeadFormOpen(true)
+            }}
+          >
+            <Plus className="h-4 w-4" /> Yangi lid
+          </Button>
+        }
+      />
 
       {loading ? (
         <Loader label="Yuklanmoqda..." />
       ) : (
         <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-          <div className="flex gap-4 overflow-x-auto pb-2">
+          <div className="flex items-start gap-3.5 overflow-x-auto pb-2">
             {stages.map((stage, i) => (
               <LeadColumn
                 key={stage.id}
@@ -184,7 +194,7 @@ export function LeadsPage() {
                 setEditingStage(null)
                 setStageFormOpen(true)
               }}
-              className="flex min-h-[200px] w-64 shrink-0 flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-200 text-sm text-slate-400 transition-colors hover:border-brand-300 hover:text-brand-600"
+              className="flex min-h-[200px] w-64 shrink-0 flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-200 text-sm font-medium text-slate-400 transition-colors hover:border-brand-300 hover:bg-brand-50/40 hover:text-brand-600"
             >
               <Plus className="h-5 w-5" /> Ustun qo'shish
             </button>
@@ -210,6 +220,17 @@ export function LeadsPage() {
             prev && prev.id === leadId ? { ...prev, convertedStudentId: studentId } : prev,
           )
         }}
+      />
+
+      <ReasonPromptModal
+        open={!!deletingLead}
+        category="lead_delete"
+        title="Lidni o'chirish"
+        message={deletingLead ? `"${deletingLead.fullName}" lidini o'chirasizmi?` : undefined}
+        confirmLabel="O'chirish"
+        tone="red"
+        onConfirm={doDeleteLead}
+        onClose={() => setDeletingLead(null)}
       />
       <LeadFormModal
         open={leadFormOpen}

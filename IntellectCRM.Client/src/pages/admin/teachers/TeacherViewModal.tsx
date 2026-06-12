@@ -1,28 +1,39 @@
 import { useEffect, useState } from 'react'
-import type { Credentials, Subject, Teacher } from '@/types'
+import { Link } from 'react-router-dom'
+import { ArrowUpRight } from 'lucide-react'
+import type { Credentials, Group, Subject, Teacher } from '@/types'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { CredentialsBox } from '@/components/ui/CredentialsBox'
 import { getTeacherCredentials, resetTeacherPassword } from '@/api/services/teachers'
-import { genderLabels, formatMonth, teacherCategoryLabel } from '@/config/constants'
-import { formatDate } from '@/lib/utils'
+import { genderLabels, formatMonth } from '@/config/constants'
+import { formatDate, formatMoney, cn } from '@/lib/utils'
 
 interface Props {
   teacher: Teacher | null
   subjects: Subject[]
+  /** O'qituvchi o'tadigan guruhlar (Group.teacherId bo'yicha) */
+  groups?: Group[]
   onClose: () => void
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+function Row({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div className="flex justify-between gap-4 border-b border-slate-100 py-2.5 last:border-0">
       <span className="text-sm text-slate-400">{label}</span>
-      <span className="text-right text-sm font-medium text-slate-800">{value}</span>
+      <span
+        className={cn(
+          'text-right text-sm font-medium text-slate-800',
+          mono && 'font-mono',
+        )}
+      >
+        {value}
+      </span>
     </div>
   )
 }
 
-export function TeacherViewModal({ teacher, subjects, onClose }: Props) {
+export function TeacherViewModal({ teacher, subjects, groups = [], onClose }: Props) {
   const [credentials, setCredentials] = useState<Credentials | null>(null)
 
   useEffect(() => {
@@ -60,12 +71,61 @@ export function TeacherViewModal({ teacher, subjects, onClose }: Props) {
     >
       {teacher && (
         <div>
-          <Row label="F.I.SH" value={teacher.fullName} />
-          <Row label="Jinsi" value={genderLabels[teacher.gender]} />
+          {/* Sarlavha — avatar + ism */}
+          <div className="mb-4 flex items-center gap-3">
+            {teacher.photoUrl ? (
+              <img
+                src={teacher.photoUrl}
+                alt=""
+                className="h-12 w-12 rounded-full object-cover"
+              />
+            ) : (
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-50 text-base font-semibold text-brand-600">
+                {teacher.fullName
+                  .split(' ')
+                  .filter(Boolean)
+                  .slice(0, 2)
+                  .map((s) => s[0]?.toUpperCase())
+                  .join('')}
+              </div>
+            )}
+            <div>
+              <div className="font-semibold text-slate-800">{teacher.fullName}</div>
+              <div className="text-xs text-slate-400">{genderLabels[teacher.gender]}</div>
+            </div>
+          </div>
           <Row label="Tug'ilgan kun" value={formatDate(teacher.birthDate)} />
           <Row label="Manzil" value={teacher.address || '—'} />
-          <Row label="Guruh rahbarligi" value={teacher.homeroomClass || '—'} />
-          <Row label="Toifa" value={teacherCategoryLabel(teacher.category)} />
+          <div className="flex flex-wrap items-start justify-between gap-2 border-b border-slate-50 py-2 last:border-0">
+            <span className="text-sm text-slate-400">Guruhlari</span>
+            <div className="flex max-w-[70%] flex-wrap justify-end gap-1.5">
+              {groups.length > 0 ? (
+                groups.map((g) => (
+                  <Link
+                    key={g.id}
+                    to={`/admin/classes/${g.id}`}
+                    onClick={onClose}
+                    className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-xs font-medium text-slate-600 transition-colors hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700"
+                    title={`${g.name} guruhiga o'tish`}
+                  >
+                    {g.name}
+                    <ArrowUpRight className="h-3 w-3" />
+                  </Link>
+                ))
+              ) : (
+                <span className="text-sm text-slate-700">—</span>
+              )}
+            </div>
+          </div>
+          <Row
+            label="Maosh turi"
+            mono
+            value={
+              teacher.salaryMode === 'percent'
+                ? `Foiz — guruh to'lovining ${teacher.salaryPercent ?? 0}%i`
+                : `Qat'iy summa — ${formatMoney(teacher.salary)}`
+            }
+          />
           <Row
             label="Maosh hisoblanadi"
             value={

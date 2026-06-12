@@ -17,6 +17,7 @@ import { Users, UserCheck, Percent } from 'lucide-react'
 import { getCrmStats } from '@/api/services/leads'
 import { useAsync } from '@/hooks/useAsync'
 import { Card } from '@/components/ui/Card'
+import { PageHeader } from '@/components/ui/PageHeader'
 import { StatCard } from '@/components/ui/StatCard'
 import { Loader } from '@/components/ui/Loader'
 import { monthShortNames } from '@/config/constants'
@@ -43,10 +44,10 @@ export function CrmStatsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-slate-800">CRM statistika</h1>
-        <p className="text-sm text-slate-400">Lidlar va konversiya bo'yicha umumiy ko'rsatkichlar</p>
-      </div>
+      <PageHeader
+        title="CRM statistika"
+        sub="Lidlar va konversiya bo'yicha umumiy ko'rsatkichlar"
+      />
 
       {/* KPI kartalar */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">

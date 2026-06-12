@@ -11,6 +11,8 @@ import {
 import { connectLiveTopic } from '@/api/services/live'
 import { cn } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
+import { Badge } from '@/components/ui/Badge'
+import { PageHeader } from '@/components/ui/PageHeader'
 import { Button } from '@/components/ui/Button'
 import { Loader } from '@/components/ui/Loader'
 
@@ -98,28 +100,24 @@ export function StudentTurnstilePage() {
   })
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-slate-800">O'quvchilar turniketi</h1>
-        <p className="text-sm text-slate-400">
-          Turniket/FaceID qurilmasidan avtomatik — har o'quvchining kirgan va chiqqan vaqti. O'tishlar saqlanib boradi,
-          istalgan kunni tanlab ko'rishingiz mumkin.
-        </p>
-      </div>
+    <div className="space-y-5">
+      <PageHeader
+        title="O'quvchilar turniketi"
+        sub="Turniket/FaceID qurilmasidan avtomatik — har o'quvchining kirgan va chiqqan vaqti. O'tishlar saqlanib boradi, istalgan kunni tanlab ko'rishingiz mumkin."
+      />
 
       <Card>
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             {dash?.turnstileEnabled ? (
-              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+              <Badge tone="green">
                 <Wifi className="h-3.5 w-3.5" /> Turniket yoqilgan
-              </span>
+              </Badge>
             ) : (
-              <Link
-                to="/admin/settings/turnstile"
-                className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500 hover:bg-slate-200"
-              >
-                <WifiOff className="h-3.5 w-3.5" /> Turniket o'chiq — sozlash
+              <Link to="/admin/settings/turnstile" className="hover:opacity-80">
+                <Badge>
+                  <WifiOff className="h-3.5 w-3.5" /> Turniket o'chiq — sozlash
+                </Badge>
               </Link>
             )}
             {dash?.lastSync && (
@@ -164,15 +162,15 @@ export function StudentTurnstilePage() {
         {/* Jamlama */}
         <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
           <div className="rounded-xl border border-slate-100 bg-slate-50/60 px-4 py-3">
-            <div className="text-2xl font-bold text-slate-800">{dash?.total ?? 0}</div>
+            <div className="font-mono text-2xl font-semibold text-slate-800">{dash?.total ?? 0}</div>
             <div className="text-xs text-slate-400">Jami o'quvchi</div>
           </div>
           <div className="rounded-xl border border-slate-100 bg-slate-50/60 px-4 py-3">
-            <div className="text-2xl font-bold text-emerald-600">{dash?.present ?? 0}</div>
+            <div className="font-mono text-2xl font-semibold text-emerald-600">{dash?.present ?? 0}</div>
             <div className="text-xs text-slate-400">Bugun o'tgan</div>
           </div>
           <div className="rounded-xl border border-slate-100 bg-slate-50/60 px-4 py-3">
-            <div className="text-2xl font-bold text-slate-400">
+            <div className="font-mono text-2xl font-semibold text-slate-400">
               {(dash?.total ?? 0) - (dash?.present ?? 0)}
             </div>
             <div className="text-xs text-slate-400">O'tmagan</div>
@@ -186,25 +184,25 @@ export function StudentTurnstilePage() {
         ) : visibleRows.length === 0 ? (
           <p className="py-8 text-center text-slate-400">Filtrga mos o'quvchi topilmadi</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-400">
+          <div className="table-wrap -mx-5 -mb-5">
+            <table className="table">
+              <thead>
                 <tr>
-                  <th className="w-12 px-3 py-2 text-center">№</th>
-                  <th className="px-3 py-2">F.I.SH</th>
-                  <th className="px-3 py-2">Guruh</th>
-                  <th className="px-3 py-2">Qurilma ID</th>
-                  <th className="px-3 py-2 text-center">Kirgan vaqti</th>
-                  <th className="px-3 py-2 text-center">Chiqqan vaqti</th>
+                  <th className="w-12 text-center">№</th>
+                  <th>F.I.SH</th>
+                  <th>Guruh</th>
+                  <th>Qurilma ID</th>
+                  <th className="text-center">Kirgan vaqti</th>
+                  <th className="text-center">Chiqqan vaqti</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody>
                 {visibleRows.map((r, i) => (
-                  <tr key={r.studentId} className="hover:bg-slate-50/60">
-                    <td className="px-3 py-2 text-center text-slate-400">{i + 1}</td>
-                    <td className="px-3 py-2 font-medium text-slate-800">{r.fullName}</td>
-                    <td className="px-3 py-2 text-slate-500">{r.className || '—'}</td>
-                    <td className="px-3 py-2">
+                  <tr key={r.studentId}>
+                    <td className="text-center font-mono text-slate-400">{i + 1}</td>
+                    <td className="font-medium text-slate-800">{r.fullName}</td>
+                    <td className="text-slate-500">{r.className || '—'}</td>
+                    <td>
                       <input
                         value={drafts[r.studentId] ?? r.deviceUserId}
                         onChange={(e) => setDrafts((p) => ({ ...p, [r.studentId]: e.target.value }))}
@@ -213,21 +211,21 @@ export function StudentTurnstilePage() {
                         disabled={savingId === r.studentId}
                         placeholder="ID..."
                         title="Turniket qurilmasidagi raqam (employeeNo)"
-                        className="w-28 rounded-md border border-slate-200 bg-white px-2 py-1 text-sm text-slate-700 outline-none focus:border-brand-400 disabled:opacity-50"
+                        className="w-28 rounded-md border border-slate-200 bg-white px-2 py-1 font-mono text-sm text-slate-700 outline-none focus:border-brand-400 disabled:opacity-50"
                       />
                     </td>
-                    <td className="px-3 py-2 text-center">
+                    <td className="text-center">
                       {r.checkIn ? (
-                        <span className="inline-flex items-center gap-1 font-medium text-emerald-700">
+                        <span className="inline-flex items-center gap-1 font-mono font-semibold text-emerald-700">
                           <LogIn className="h-3.5 w-3.5" /> {r.checkIn}
                         </span>
                       ) : (
                         <span className="text-slate-300">—</span>
                       )}
                     </td>
-                    <td className="px-3 py-2 text-center">
+                    <td className="text-center">
                       {r.checkOut ? (
-                        <span className="inline-flex items-center gap-1 font-medium text-slate-500">
+                        <span className="inline-flex items-center gap-1 font-mono font-semibold text-slate-500">
                           <LogOut className="h-3.5 w-3.5" /> {r.checkOut}
                         </span>
                       ) : (

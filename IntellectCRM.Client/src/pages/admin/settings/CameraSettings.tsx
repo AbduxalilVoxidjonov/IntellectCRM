@@ -4,6 +4,7 @@ import { Check, CheckCircle2, XCircle, Info } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { getCameraSettings, saveCameraSettings, type CameraConfig } from '@/api/services/settings'
 import { Card } from '@/components/ui/Card'
+import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Loader } from '@/components/ui/Loader'
 
@@ -35,19 +36,22 @@ export function CameraSettings() {
 
   return (
     <form onSubmit={onSubmit} className="space-y-6">
-      <Card>
-        <div className="mb-1 flex items-center gap-2">
-          <span className="font-semibold text-slate-800">Kamera integratsiya</span>
-          {cfg.enabled ? (
-            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
-              <CheckCircle2 className="h-3.5 w-3.5" /> Yoqilgan
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
-              <XCircle className="h-3.5 w-3.5" /> O'chiq
-            </span>
-          )}
-        </div>
+      <Card
+        title={
+          <span className="flex items-center gap-2">
+            Kamera integratsiya
+            {cfg.enabled ? (
+              <Badge tone="green">
+                <CheckCircle2 className="h-3.5 w-3.5" /> Yoqilgan
+              </Badge>
+            ) : (
+              <Badge tone="default">
+                <XCircle className="h-3.5 w-3.5" /> O'chiq
+              </Badge>
+            )}
+          </span>
+        }
+      >
         <p className="mb-4 text-sm text-slate-400">
           IP kameralar (RTSP) media-shlyuz orqali brauzerda ko'rinadi. Kameralarni qo'shish va kuzatish —{' '}
           <Link to="/admin/boshqaruv/cameras" className="font-medium text-brand-600 hover:underline">Boshqaruv → Kameralar</Link>.

@@ -24,12 +24,12 @@ import {
 import { formatDate } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
+import { Badge } from '@/components/ui/Badge'
+import { PageHeader } from '@/components/ui/PageHeader'
 import { Loader } from '@/components/ui/Loader'
+import { Select } from '@/components/ui/Input'
 import { SubmissionsModal } from '@/components/assignments/SubmissionsModal'
 import { AssignmentWizard } from '@/components/assignments/AssignmentWizard'
-
-const control =
-  'rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:border-brand-400'
 
 const formatLabel: Record<AssignmentFormat, string> = {
   written: 'Yozma',
@@ -85,35 +85,47 @@ export function AssignmentsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-800">Topshiriqlar</h1>
-          <p className="text-sm text-slate-400">Topshiriq va testlar — yaratish va barchasini boshqarish</p>
-        </div>
-        <Button onClick={openNew} disabled={classes.length === 0}>
-          <Plus className="h-4 w-4" /> Yangi topshiriq
-        </Button>
-      </div>
+    <div>
+      <PageHeader
+        title="Topshiriqlar"
+        sub="Topshiriq va testlar — yaratish va barchasini boshqarish"
+        actions={
+          <Button onClick={openNew} disabled={classes.length === 0}>
+            <Plus className="h-4 w-4" /> Yangi topshiriq
+          </Button>
+        }
+      />
 
-      <Card>
-        <div className="flex flex-wrap items-center gap-3">
-          <select className={control} value={classId} onChange={(e) => setClassId(e.target.value)}>
+      <div className="toolbar">
+        <div className="left">
+          <Select
+            className="min-w-[200px]"
+            value={classId}
+            onChange={(e) => setClassId(e.target.value)}
+          >
             <option value="">Barcha guruhlar</option>
             {classes.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
-      </Card>
+      </div>
 
       {loading ? (
-        <Loader label="Yuklanmoqda..." />
+        <Card>
+          <Loader label="Yuklanmoqda..." />
+        </Card>
       ) : assignments.length === 0 ? (
         <Card>
-          <p className="py-10 text-center text-slate-400">Topshiriq yo'q</p>
+          <div className="state">
+            <div className="state-icon">
+              <ClipboardCheck className="h-6 w-6" />
+            </div>
+            <h4>Topshiriq yo'q</h4>
+            <p>Yangi topshiriq qo'shing yoki boshqa guruhni tanlang.</p>
+          </div>
         </Card>
       ) : (
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
@@ -144,17 +156,11 @@ export function AssignmentsPage() {
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-1.5 text-xs">
-                <span className="rounded-full bg-brand-50 px-2 py-0.5 font-medium text-brand-700">
-                  {formatLabel[a.format]}
-                </span>
-                {a.subjectName && (
-                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-600">{a.subjectName}</span>
-                )}
+              <div className="flex flex-wrap items-center gap-1.5">
+                <Badge tone="violet">{formatLabel[a.format]}</Badge>
+                {a.subjectName && <Badge>{a.subjectName}</Badge>}
                 {a.classNames.map((n) => (
-                  <span key={n} className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-600">
-                    {n}
-                  </span>
+                  <Badge key={n}>{n}</Badge>
                 ))}
               </div>
 
@@ -166,22 +172,24 @@ export function AssignmentsPage() {
                 {a.dueDate && (
                   <span className="inline-flex items-center gap-1 text-amber-600">
                     <CalendarClock className="h-3.5 w-3.5" />
-                    {formatDate(a.dueDate)}
+                    <span className="font-mono">{formatDate(a.dueDate)}</span>
                   </span>
                 )}
                 {a.materials.length > 0 && (
                   <span className="inline-flex items-center gap-1">
                     <Paperclip className="h-3.5 w-3.5" />
-                    {a.materials.length} material
+                    <span className="font-mono">{a.materials.length}</span> material
                   </span>
                 )}
                 {a.format === 'test' && (
                   <span className="inline-flex items-center gap-1">
                     <ListChecks className="h-3.5 w-3.5" />
-                    {a.questions.length} savol
+                    <span className="font-mono">{a.questions.length}</span> savol
                   </span>
                 )}
-                <span>Maks: {a.maxScore} ball</span>
+                <span>
+                  Maks: <span className="font-mono text-slate-600">{a.maxScore}</span> ball
+                </span>
               </div>
 
               <button

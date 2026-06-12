@@ -1,7 +1,20 @@
-import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Plus, Pencil, Trash2, Users, Archive, ArchiveRestore, LayoutGrid } from 'lucide-react'
-import type { Group, GroupFillRow } from '@/types'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  Users,
+  Archive,
+  ArchiveRestore,
+  LayoutGrid,
+  List,
+  ArrowDown,
+  CalendarDays,
+  Clock,
+  User,
+} from 'lucide-react'
+import type { Group, GroupFillRow, Teacher } from '@/types'
 import type { ClassPayload } from '@/api/services/classes'
 import {
   getClasses,
@@ -14,19 +27,49 @@ import {
   getGroupFill,
 } from '@/api/services/classes'
 import { getClassesStats, type ClassStats } from '@/api/services/classPerformance'
+import { getTeachers } from '@/api/services/teachers'
 import { languageLabels } from '@/config/constants'
 import { formatMoney, cn } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
+import { Badge } from '@/components/ui/Badge'
+import { PageHeader } from '@/components/ui/PageHeader'
 import { Loader } from '@/components/ui/Loader'
 import { Modal } from '@/components/ui/Modal'
+import { ReasonPromptModal } from '@/components/ui/ReasonPromptModal'
 import { ClassFormModal } from './ClassFormModal'
 import { ClassMembersModal } from './ClassMembersModal'
+
+// Avatar uchun ism harflari va barqaror rang (faqat ko'rinish uchun)
+const initialsOf = (name: string) =>
+  name
+    .split(/[\s-]+/)
+    .filter(Boolean)
+    .slice(0, 3)
+    .map((s) => s[0]?.toUpperCase())
+    .join('')
+
+const AVATAR_COLORS = [
+  '#7c3aed',
+  '#0ea5e9',
+  '#10b981',
+  '#f59e0b',
+  '#ef4444',
+  '#6366f1',
+  '#ec4899',
+  '#14b8a6',
+]
+const avatarColor = (name: string) => {
+  let h = 0
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0
+  return AVATAR_COLORS[h % AVATAR_COLORS.length]
+}
 
 export function ClassesPage() {
   const navigate = useNavigate()
   const [classes, setClasses] = useState<Group[]>([])
   const [stats, setStats] = useState<Record<string, ClassStats>>({})
+  const [teachers, setTeachers] = useState<Teacher[]>([])
   const [loading, setLoading] = useState(true)
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<Group | null>(null)
@@ -41,16 +84,35 @@ export function ClassesPage() {
   const [showArchived, setShowArchived] = useState(false)
   /** A'zolarni boshqarish modali uchun tanlangan guruh */
   const [membersOf, setMembersOf] = useState<Group | null>(null)
+  const [deletingGroup, setDeletingGroup] = useState<Group | null>(null)
   /** Guruh to'ldirish ko'rinishi */
   const [fill, setFill] = useState<GroupFillRow[]>([])
   const [showFill, setShowFill] = useState(false)
+  /** Saralash (reyting): tartib bo'yicha | o'rtacha baho | davomat. Baho/davomat — yuqoridan pastga. */
+  const [sort, setSort] = useState<'order' | 'grade' | 'attendance'>('order')
+  /** Ko'rinish: kartalar yoki jadval */
+  const [view, setView] = useState<'card' | 'table'>('card')
+
+  const sortedClasses = useMemo(() => {
+    if (sort === 'order') return classes
+    return [...classes].sort((a, b) => {
+      const sa = stats[a.id]
+      const sb = stats[b.id]
+      if (sort === 'grade') return (sb?.averageGrade ?? -1) - (sa?.averageGrade ?? -1)
+      return (sb?.attendance ?? -1) - (sa?.attendance ?? -1)
+    })
+  }, [classes, stats, sort])
+
+  const teacherName = (id?: string) =>
+    id ? (teachers.find((t) => t.id === id)?.fullName ?? '—') : '—'
 
   useEffect(() => {
-    Promise.all([getClasses(), getClassesStats(), getArchivedClasses()])
-      .then(([cl, st, ar]) => {
+    Promise.all([getClasses(), getClassesStats(), getArchivedClasses(), getTeachers()])
+      .then(([cl, st, ar, te]) => {
         setClasses(cl)
         setStats(st)
         setArchived(ar)
+        setTeachers(te)
       })
       .finally(() => setLoading(false))
   }, [])
@@ -83,12 +145,16 @@ export function ClassesPage() {
     setFeePrompt(null)
   }
 
-  const handleDelete = (c: Group) => {
-    if (!confirm(`"${c.name}" guruhini o'chirasizmi?`)) return
-    deleteClass(c.id)
+  const handleDelete = (c: Group) => setDeletingGroup(c)
+
+  const doDeleteGroup = (reasonId: string | undefined) => {
+    const c = deletingGroup
+    if (!c) return
+    deleteClass(c.id, reasonId)
       .then(() => {
         setClasses((prev) => prev.filter((x) => x.id !== c.id))
         setArchived((prev) => prev.filter((x) => x.id !== c.id))
+        setDeletingGroup(null)
       })
       .catch((e) => alert(e?.response?.data?.message ?? "Guruhni o'chirib bo'lmadi"))
   }
@@ -118,164 +184,348 @@ export function ClassesPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-800">
-            {showArchived ? 'Arxivlangan guruhlar' : 'Guruhlar va xonalar'}
-          </h1>
-          <p className="text-sm text-slate-400">
-            {showArchived ? `${archived.length} ta arxivlangan guruh` : `Jami ${classes.length} ta guruh`}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {!showArchived && (
-            <Button
-              variant="secondary"
-              onClick={() => {
-                setShowFill((v) => {
-                  const next = !v
-                  if (next && fill.length === 0) getGroupFill().then(setFill).catch(() => {})
-                  return next
-                })
-              }}
-            >
-              <LayoutGrid className="h-4 w-4" /> {showFill ? 'Jadvalni yopish' : "Guruh to'ldirish"}
-            </Button>
-          )}
-          <Button variant="secondary" onClick={() => setShowArchived((v) => !v)}>
-            {showArchived ? (
-              <>
-                <Users className="h-4 w-4" /> Faol guruhlar
-              </>
-            ) : (
-              <>
-                <Archive className="h-4 w-4" /> Arxiv ({archived.length})
-              </>
+    <div>
+      <PageHeader
+        title={showArchived ? 'Arxivlangan guruhlar' : 'Guruhlar'}
+        sub={
+          showArchived
+            ? `${archived.length} ta arxivlangan guruh`
+            : `Jami ${classes.length} ta guruh`
+        }
+        actions={
+          <>
+            {!showArchived && (
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setShowFill((v) => {
+                    const next = !v
+                    if (next && fill.length === 0) getGroupFill().then(setFill).catch(() => {})
+                    return next
+                  })
+                }}
+              >
+                <LayoutGrid className="h-4 w-4" /> {showFill ? 'Jadvalni yopish' : "Guruh to'ldirish"}
+              </Button>
             )}
-          </Button>
-          {!showArchived && (
-            <Button
-              onClick={() => {
-                setEditing(null)
-                setFormOpen(true)
-              }}
-            >
-              <Plus className="h-4 w-4" /> Yangi guruh
+            <Button variant="secondary" onClick={() => setShowArchived((v) => !v)}>
+              {showArchived ? (
+                <>
+                  <Users className="h-4 w-4" /> Faol guruhlar
+                </>
+              ) : (
+                <>
+                  <Archive className="h-4 w-4" /> Arxiv ({archived.length})
+                </>
+              )}
             </Button>
-          )}
-        </div>
-      </div>
+            {!showArchived && (
+              <Button
+                onClick={() => {
+                  setEditing(null)
+                  setFormOpen(true)
+                }}
+              >
+                <Plus className="h-4 w-4" /> Yangi guruh
+              </Button>
+            )}
+          </>
+        }
+      />
 
-      <Card className="p-0">
-        {loading ? (
+      {/* Saralash (reyting) toolbar — faqat faol guruhlar uchun */}
+      {!showArchived && !loading && classes.length > 0 && (
+        <div className="toolbar">
+          <div className="left">
+            <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+              Saralash:
+            </span>
+            <SortChip
+              label="Tartib"
+              active={sort === 'order'}
+              onClick={() => setSort('order')}
+            />
+            <SortChip
+              label="O'rtacha baho"
+              active={sort === 'grade'}
+              onClick={() => setSort('grade')}
+            />
+            <SortChip
+              label="Davomat"
+              active={sort === 'attendance'}
+              onClick={() => setSort('attendance')}
+            />
+          </div>
+
+          {/* Ko'rinishni tanlash: kartalar | jadval */}
+          <div className="right">
+            <div className="tabs" role="tablist">
+              <button
+                type="button"
+                role="tab"
+                onClick={() => setView('card')}
+                className={cn('tab inline-flex items-center gap-1.5', view === 'card' && 'active')}
+              >
+                <LayoutGrid className="h-3.5 w-3.5" /> Kartalar
+              </button>
+              <button
+                type="button"
+                role="tab"
+                onClick={() => setView('table')}
+                className={cn('tab inline-flex items-center gap-1.5', view === 'table' && 'active')}
+              >
+                <List className="h-3.5 w-3.5" /> Jadval
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {loading ? (
+        <Card>
           <Loader label="Yuklanmoqda..." />
-        ) : showArchived ? (
+        </Card>
+      ) : showArchived ? (
+        <Card tight>
           <ArchivedTable items={archived} onUnarchive={handleUnarchive} onDelete={handleDelete} />
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-400">
+        </Card>
+      ) : classes.length === 0 ? (
+        <Card>
+          <div className="state">
+            <h4>Guruhlar yo'q</h4>
+            <p>Yangi guruh qo'shing.</p>
+          </div>
+        </Card>
+      ) : view === 'table' ? (
+        /* ---- Faol guruhlar — jadval ko'rinishi ---- */
+        <Card tight>
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
                 <tr>
-                  <th className="w-10 px-4 py-3">#</th>
-                  <th className="px-4 py-3">Guruh nomi</th>
-                  <th className="px-4 py-3">Til</th>
-                  <th className="px-4 py-3">Xona</th>
-                  <th className="px-4 py-3">O'rtacha baho</th>
-                  <th className="px-4 py-3">Davomat</th>
-                  <th className="px-4 py-3">Oylik to'lov</th>
-                  <th className="px-4 py-3 text-right">Amallar</th>
+                  <th>Guruh</th>
+                  <th>Til</th>
+                  <th>O'qituvchi</th>
+                  <th>Kunlar</th>
+                  <th>Vaqt</th>
+                  <th className="num">O'quvchilar</th>
+                  <th className="num">O'rtacha</th>
+                  <th className="num">Davomat</th>
+                  <th className="num">Oylik to'lov</th>
+                  <th className="text-right">Amallar</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
-                {classes.map((c, i) => (
-                  <tr
-                    key={c.id}
-                    onClick={() => navigate(`/admin/classes/${c.id}`)}
-                    className="cursor-pointer hover:bg-slate-50/60"
-                  >
-                    <td className="px-4 py-3 text-slate-400">{i + 1}</td>
-                    <td className="px-4 py-3 font-medium text-slate-800">{c.name}</td>
-                    <td className="px-4 py-3">
-                      <span
+              <tbody>
+                {sortedClasses.map((c) => {
+                  const st = stats[c.id]
+                  return (
+                    <tr
+                      key={c.id}
+                      className="cursor-pointer"
+                      onClick={() => navigate(`/admin/classes/${c.id}`)}
+                    >
+                      <td>
+                        <div className="cell-user">
+                          <div className="avatar" style={{ background: avatarColor(c.name) }}>
+                            {initialsOf(c.name)}
+                          </div>
+                          <div className="meta">
+                            <strong>
+                              <Link
+                                to={`/admin/classes/${c.id}`}
+                                onClick={(e) => e.stopPropagation()}
+                                className="text-inherit no-underline hover:underline"
+                              >
+                                {c.name}
+                              </Link>
+                            </strong>
+                            <span>{c.room || '—'}</span>
+                          </div>
+                        </div>
+                      </td>
+                      <td>
+                        <Badge tone={c.language === 'uz' ? 'blue' : 'amber'}>
+                          {languageLabels[c.language]}
+                        </Badge>
+                      </td>
+                      <td className="text-slate-600">{teacherName(c.teacherId)}</td>
+                      <td className="text-slate-600">{formatDays(c.days)}</td>
+                      <td className="num text-slate-600">{formatTime(c.startTime, c.endTime)}</td>
+                      <td className="num">{st ? st.studentsCount : '—'}</td>
+                      <td className={cn('num font-semibold', st && gradeColor(st.averageGrade))}>
+                        {st ? st.averageGrade.toFixed(1) : '—'}
+                      </td>
+                      <td
                         className={cn(
-                          'rounded-md px-2 py-0.5 text-xs font-medium',
-                          c.language === 'uz'
-                            ? 'bg-blue-50 text-blue-700'
-                            : 'bg-amber-50 text-amber-700',
+                          'num font-semibold',
+                          st && st.attendance != null && attColor(st.attendance),
                         )}
                       >
-                        {languageLabels[c.language]}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-slate-600">{c.room || '—'}</td>
-                    <td className="px-4 py-3">
-                      {stats[c.id] ? (
-                        <span className={cn('font-semibold', gradeColor(stats[c.id].averageGrade))}>
-                          {stats[c.id].averageGrade.toFixed(1)}
-                        </span>
-                      ) : (
-                        <span className="text-slate-400">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      {stats[c.id] && stats[c.id].attendance != null ? (
-                        <span className={cn('font-medium', attColor(stats[c.id].attendance!))}>
-                          {stats[c.id].attendance}%
-                        </span>
-                      ) : (
-                        <span className="text-slate-400">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-slate-600">{formatMoney(c.monthlyFee)}</td>
-                    <td className="px-4 py-3">
-                      <div
-                        className="flex items-center justify-end gap-0.5"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <IconBtn
-                          icon={Users}
-                          title="A'zolar"
-                          onClick={() => setMembersOf(c)}
-                        />
-                        <IconBtn
-                          icon={Pencil}
-                          title="Tahrirlash"
-                          onClick={() => {
-                            setEditing(c)
-                            setFormOpen(true)
-                          }}
-                        />
-                        <IconBtn
-                          icon={Archive}
-                          title="Arxivlash (o'quvchilari bilan)"
-                          onClick={() => handleArchive(c)}
-                        />
-                        <IconBtn
-                          icon={Trash2}
-                          title="O'chirish"
-                          danger
-                          onClick={() => handleDelete(c)}
-                        />
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {classes.length === 0 && (
-                  <tr>
-                    <td colSpan={8} className="px-4 py-12 text-center text-slate-400">
-                      Guruhlar yo'q
-                    </td>
-                  </tr>
-                )}
+                        {st && st.attendance != null ? `${st.attendance}%` : '—'}
+                      </td>
+                      <td className="num font-semibold text-slate-800">
+                        {formatMoney(c.monthlyFee)}
+                      </td>
+                      <td onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-end gap-0.5">
+                          <IconBtn icon={Users} title="A'zolar" onClick={() => setMembersOf(c)} />
+                          <IconBtn
+                            icon={Pencil}
+                            title="Tahrirlash"
+                            onClick={() => {
+                              setEditing(c)
+                              setFormOpen(true)
+                            }}
+                          />
+                          <IconBtn icon={Archive} title="Arxivlash" onClick={() => handleArchive(c)} />
+                          <IconBtn icon={Trash2} title="O'chirish" danger onClick={() => handleDelete(c)} />
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
-        )}
-      </Card>
+        </Card>
+      ) : (
+        /* ---- Faol guruhlar — kartalar (kattaroq) ---- */
+        <div className="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(340px,1fr))]">
+          {sortedClasses.map((c) => {
+            const st = stats[c.id]
+            return (
+              <div
+                key={c.id}
+                className="entity-card cursor-pointer"
+                style={{ padding: '18px 20px' }}
+                onClick={() => navigate(`/admin/classes/${c.id}`)}
+              >
+                <div className="ec-head">
+                  <div
+                    className="avatar h-12 w-12 text-[15px]"
+                    style={{ background: avatarColor(c.name) }}
+                  >
+                    {initialsOf(c.name)}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="ec-name truncate">
+                      <Link
+                        to={`/admin/classes/${c.id}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-inherit no-underline hover:underline"
+                      >
+                        {c.name}
+                      </Link>
+                    </div>
+                    <div className="ec-meta truncate">{languageLabels[c.language]}</div>
+                  </div>
+                  <Badge tone={c.language === 'uz' ? 'blue' : 'amber'}>
+                    {languageLabels[c.language]}
+                  </Badge>
+                </div>
+
+                {/* O'qituvchi · kunlar · vaqt · xona */}
+                <div className="flex flex-col gap-1.5 text-[12.5px]">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="inline-flex items-center gap-1.5 text-slate-400">
+                      <User className="h-3.5 w-3.5" /> O'qituvchi
+                    </span>
+                    <span className="truncate font-medium text-slate-700">
+                      {teacherName(c.teacherId)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="inline-flex items-center gap-1.5 text-slate-400">
+                      <CalendarDays className="h-3.5 w-3.5" /> Kunlar
+                    </span>
+                    <span className="text-slate-600">{formatDays(c.days)}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="inline-flex items-center gap-1.5 text-slate-400">
+                      <Clock className="h-3.5 w-3.5" /> Vaqt
+                    </span>
+                    <span className="font-mono text-slate-600">
+                      {formatTime(c.startTime, c.endTime)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Statistika bloki: o'quvchilar · o'rtacha baho · davomat */}
+                <div className="ec-stats">
+                  <div>
+                    <div className="ec-stat-label">O'quvchilar</div>
+                    <div className="ec-stat-value">{st ? st.studentsCount : '—'}</div>
+                  </div>
+                  <div>
+                    <div className="ec-stat-label">O'rtacha</div>
+                    <div className={cn('ec-stat-value', st && gradeColor(st.averageGrade))}>
+                      {st ? st.averageGrade.toFixed(1) : '—'}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="ec-stat-label">Davomat</div>
+                    <div
+                      className={cn(
+                        'ec-stat-value',
+                        st && st.attendance != null && attColor(st.attendance),
+                      )}
+                    >
+                      {st && st.attendance != null ? `${st.attendance}%` : '—'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Oylik to'lov + xona */}
+                <div className="flex items-center justify-between text-[12.5px]">
+                  <span className="text-slate-400">Oylik to'lov</span>
+                  <span className="font-mono font-semibold text-slate-800">
+                    {formatMoney(c.monthlyFee)}
+                  </span>
+                </div>
+
+                <div className="ec-foot" onClick={(e) => e.stopPropagation()}>
+                  <Button
+                    variant="secondary"
+                    className="flex-1"
+                    onClick={() => setMembersOf(c)}
+                  >
+                    <Users className="h-4 w-4" /> A'zolar
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    className="flex-1"
+                    onClick={() => {
+                      setEditing(c)
+                      setFormOpen(true)
+                    }}
+                  >
+                    <Pencil className="h-4 w-4" /> Tahrirlash
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    title="Arxivlash (o'quvchilari bilan)"
+                    aria-label="Arxivlash"
+                    onClick={() => handleArchive(c)}
+                  >
+                    <Archive className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    title="O'chirish"
+                    aria-label="O'chirish"
+                    onClick={() => handleDelete(c)}
+                  >
+                    <Trash2 className="h-4 w-4 text-red-500" />
+                  </Button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
 
       {showFill && !showArchived && (
-        <Card className="p-0">
+        <Card tight className="mt-5">
           <div className="border-b border-slate-100 px-4 py-3">
             <h2 className="text-sm font-semibold text-slate-700">Guruh to'ldirish</h2>
           </div>
@@ -345,6 +595,17 @@ export function ClassesPage() {
 
       <ClassMembersModal group={membersOf} onClose={() => setMembersOf(null)} />
 
+      <ReasonPromptModal
+        open={!!deletingGroup}
+        category="group_delete"
+        title="Guruhni o'chirish"
+        message={deletingGroup ? `"${deletingGroup.name}" guruhini o'chirasizmi?` : undefined}
+        confirmLabel="O'chirish"
+        tone="red"
+        onConfirm={doDeleteGroup}
+        onClose={() => setDeletingGroup(null)}
+      />
+
       <Modal
         open={!!feePrompt}
         onClose={() => setFeePrompt(null)}
@@ -396,6 +657,31 @@ function attColor(a: number): string {
   if (a >= 95) return 'text-emerald-600'
   if (a >= 90) return 'text-amber-600'
   return 'text-red-600'
+}
+
+const DAY_SHORT = ['Du', 'Se', 'Cho', 'Pay', 'Ju', 'Sha', 'Yak']
+function formatDays(days?: number[]): string {
+  if (!days || days.length === 0) return '—'
+  return [...days].sort((a, b) => a - b).map((d) => DAY_SHORT[d] ?? '?').join(', ')
+}
+function formatTime(start?: string, end?: string): string {
+  if (start && end) return `${start}–${end}`
+  return start || end || '—'
+}
+
+/** Saralash chipi (reyting uchun — bosilganda yuqoridan pastga saralaydi). */
+function SortChip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title="Reyting bo'yicha saralash"
+      className={cn('filter-chip', active && 'active')}
+    >
+      {label}
+      {active && label !== 'Tartib' && <ArrowDown className="h-3 w-3" />}
+    </button>
+  )
 }
 
 function statusLabel(s: GroupFillRow['status']): string {

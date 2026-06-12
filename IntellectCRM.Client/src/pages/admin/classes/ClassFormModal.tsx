@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react'
-import type { Group } from '@/types'
+import type { Group, Subject, Teacher } from '@/types'
 import type { ClassPayload } from '@/api/services/classes'
+import { getSubjects } from '@/api/services/subjects'
+import { getTeachers } from '@/api/services/teachers'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
-import { Input, Select } from '@/components/ui/Input'
-import { languageOptions, gradeOptions } from '@/config/constants'
+import { Input, Select, Textarea } from '@/components/ui/Input'
+import { languageOptions } from '@/config/constants'
+import { cn } from '@/lib/utils'
 
 interface Props {
   open: boolean
@@ -13,9 +16,20 @@ interface Props {
   initial?: Group | null
 }
 
+/** Hafta kunlari (0=Dushanba .. 6=Yakshanba) — backend kontrakti */
+const dayLabels: { value: number; label: string }[] = [
+  { value: 0, label: 'Du' },
+  { value: 1, label: 'Se' },
+  { value: 2, label: 'Cho' },
+  { value: 3, label: 'Pay' },
+  { value: 4, label: 'Ju' },
+  { value: 5, label: 'Sha' },
+  { value: 6, label: 'Yak' },
+]
+
 const empty: ClassPayload = {
   name: '',
-  grade: 1,
+  grade: 0,
   language: 'uz',
   monthlyFee: 0,
   room: '',
@@ -23,10 +37,28 @@ const empty: ClassPayload = {
   startDate: '',
   endDate: '',
   capacity: 0,
+  courseId: '',
+  teacherId: '',
+  note: '',
+  days: [],
+  startTime: '',
+  endTime: '',
 }
 
 export function ClassFormModal({ open, onClose, onSubmit, initial }: Props) {
   const [form, setForm] = useState<ClassPayload>(empty)
+  const [subjects, setSubjects] = useState<Subject[]>([])
+  const [teachers, setTeachers] = useState<Teacher[]>([])
+
+  useEffect(() => {
+    if (!open) return
+    Promise.all([getSubjects(), getTeachers()])
+      .then(([s, t]) => {
+        setSubjects(s)
+        setTeachers(t)
+      })
+      .catch(() => {})
+  }, [open])
 
   useEffect(() => {
     if (!open) return
@@ -43,6 +75,12 @@ export function ClassFormModal({ open, onClose, onSubmit, initial }: Props) {
             startDate: initial.startDate ?? '',
             endDate: initial.endDate ?? '',
             capacity: initial.capacity ?? 0,
+            courseId: initial.courseId ?? '',
+            teacherId: initial.teacherId ?? '',
+            note: initial.note ?? '',
+            days: initial.days ?? [],
+            startTime: initial.startTime ?? '',
+            endTime: initial.endTime ?? '',
           }
         : empty,
     )
@@ -51,9 +89,33 @@ export function ClassFormModal({ open, onClose, onSubmit, initial }: Props) {
   const update = <K extends keyof ClassPayload>(key: K, value: ClassPayload[K]) =>
     setForm((f) => ({ ...f, [key]: value }))
 
+  /** Kurs tanlanganda oylik narxni avtomatik to'ldirish (tahrirlash mumkin). */
+  const onCourseChange = (courseId: string) => {
+    const course = subjects.find((s) => s.id === courseId)
+    setForm((f) => ({
+      ...f,
+      courseId,
+      monthlyFee: course ? course.price : f.monthlyFee,
+    }))
+  }
+
+  const toggleDay = (day: number) =>
+    setForm((f) => {
+      const days = f.days ?? []
+      return {
+        ...f,
+        days: days.includes(day) ? days.filter((d) => d !== day) : [...days, day].sort((a, b) => a - b),
+      }
+    })
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!form.name.trim()) return
+    // O'qituvchi biriktirish MAJBURIY (foizli maosh, jurnal, hisobotlar shunga tayanadi).
+    if (!form.teacherId) {
+      alert("Guruhga o'qituvchi biriktirish majburiy")
+      return
+    }
     onSubmit(form)
   }
 
@@ -62,7 +124,7 @@ export function ClassFormModal({ open, onClose, onSubmit, initial }: Props) {
       open={open}
       onClose={onClose}
       title={initial ? 'Guruhni tahrirlash' : 'Yangi guruh'}
-      size="sm"
+      size="md"
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>
@@ -75,33 +137,59 @@ export function ClassFormModal({ open, onClose, onSubmit, initial }: Props) {
       }
     >
       <form id="class-form" onSubmit={handleSubmit} className="space-y-4">
+        <Input
+          label="Guruh nomi"
+          required
+          placeholder="Masalan: Ingliz tili — ertalabki"
+          value={form.name}
+          onChange={(e) => update('name', e.target.value)}
+        />
+
         <div className="grid grid-cols-2 gap-4">
-          <Input
-            label="Guruh nomi"
-            required
-            placeholder="3-A"
-            value={form.name}
-            onChange={(e) => update('name', e.target.value)}
-          />
           <Select
-            label="Guruh (daraja)"
-            value={form.grade}
-            onChange={(e) => update('grade', Number(e.target.value))}
+            label="Kurs"
+            value={form.courseId ?? ''}
+            onChange={(e) => onCourseChange(e.target.value)}
           >
-            {gradeOptions.map((g) => (
-              <option key={g} value={g}>
-                {g}-guruh
+            <option value="">Tanlang...</option>
+            {subjects.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
               </option>
             ))}
           </Select>
+          <Input
+            label="Oylik narx (so'm)"
+            type="number"
+            min={0}
+            step={50000}
+            value={form.monthlyFee}
+            onChange={(e) => update('monthlyFee', Number(e.target.value))}
+          />
         </div>
+
         <div className="grid grid-cols-2 gap-4">
+          <Select
+            label="O'qituvchi *"
+            value={form.teacherId ?? ''}
+            onChange={(e) => update('teacherId', e.target.value)}
+          >
+            <option value="">Tanlang...</option>
+            {teachers.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.fullName}
+              </option>
+            ))}
+          </Select>
           <Input
             label="Xona"
             placeholder="301"
             value={form.room}
             onChange={(e) => update('room', e.target.value)}
           />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
           <Select
             label="Til"
             value={form.language}
@@ -113,15 +201,53 @@ export function ClassFormModal({ open, onClose, onSubmit, initial }: Props) {
               </option>
             ))}
           </Select>
+          <Input
+            label="Tashkil topgan sana"
+            type="date"
+            value={form.startDate ?? ''}
+            onChange={(e) => update('startDate', e.target.value)}
+          />
         </div>
-        <Input
-          label="Oylik to'lov (so'm)"
-          type="number"
-          min={0}
-          step={50000}
-          value={form.monthlyFee}
-          onChange={(e) => update('monthlyFee', Number(e.target.value))}
-        />
+
+        <div>
+          <span className="mb-1 block text-sm font-medium text-slate-600">Hafta kunlari</span>
+          <div className="flex flex-wrap gap-1.5">
+            {dayLabels.map((d) => {
+              const active = (form.days ?? []).includes(d.value)
+              return (
+                <button
+                  key={d.value}
+                  type="button"
+                  onClick={() => toggleDay(d.value)}
+                  className={cn(
+                    'rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors',
+                    active
+                      ? 'border-brand-400 bg-brand-50 text-brand-700'
+                      : 'border-slate-200 text-slate-500 hover:bg-slate-50',
+                  )}
+                >
+                  {d.label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <Input
+            label="Boshlanish vaqti"
+            type="time"
+            value={form.startTime ?? ''}
+            onChange={(e) => update('startTime', e.target.value)}
+          />
+          <Input
+            label="Tugash vaqti"
+            type="time"
+            value={form.endTime ?? ''}
+            onChange={(e) => update('endTime', e.target.value)}
+          />
+        </div>
+
         <div className="grid grid-cols-2 gap-4">
           <Select
             label="Holat"
@@ -140,20 +266,14 @@ export function ClassFormModal({ open, onClose, onSubmit, initial }: Props) {
             onChange={(e) => update('capacity', Number(e.target.value))}
           />
         </div>
-        <div className="grid grid-cols-2 gap-4">
-          <Input
-            label="Boshlanish sanasi"
-            type="date"
-            value={form.startDate ?? ''}
-            onChange={(e) => update('startDate', e.target.value)}
-          />
-          <Input
-            label="Tugash sanasi"
-            type="date"
-            value={form.endDate ?? ''}
-            onChange={(e) => update('endDate', e.target.value)}
-          />
-        </div>
+
+        <Textarea
+          label="Izoh"
+          rows={2}
+          placeholder="Qo'shimcha ma'lumot"
+          value={form.note ?? ''}
+          onChange={(e) => update('note', e.target.value)}
+        />
       </form>
     </Modal>
   )

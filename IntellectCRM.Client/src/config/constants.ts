@@ -20,9 +20,6 @@ export const teacherCategories: { value: string; label: string }[] = [
 export const teacherCategoryLabel = (c?: string): string =>
   teacherCategories.find((x) => x.value === c)?.label ?? '—'
 
-/** 1-11 sinflar */
-export const gradeOptions: number[] = Array.from({ length: 11 }, (_, i) => i + 1)
-
 /** Lid manbalari (CRM) */
 export const leadSourceOptions: string[] = [
   'Instagram',
@@ -43,20 +40,7 @@ export const languageOptions: { value: ClassLanguage; label: string }[] = [
   { value: 'ru', label: 'Rus' },
 ]
 
-/** Hafta kunlari (Dushanba–Shanba) */
-export const weekDays: string[] = [
-  'Dushanba',
-  'Seshanba',
-  'Chorshanba',
-  'Payshanba',
-  'Juma',
-  'Shanba',
-]
-
-/** Dars raqamlari (kuniga 10 tagacha dars) */
-export const schedulePeriods: number[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-
-/** Choraklar */
+/** Choraklar (o'qituvchilar hisoboti uchun) */
 export const quarters: number[] = [1, 2, 3, 4]
 
 /**
@@ -83,23 +67,18 @@ export const teacherPermissions: { key: string; label: string }[] = [
  */
 export const adminPermissions: { key: string; label: string }[] = [
   { key: 'leads', label: 'Lidlar' },
-  { key: 'crmStats', label: 'CRM statistika' },
   { key: 'students', label: "O'quvchilar" },
   { key: 'teachers', label: "O'qituvchilar" },
-  { key: 'attendance', label: 'Davomat' },
-  { key: 'schedule', label: 'Dars jadvali' },
+  { key: 'schedule', label: 'Kurslar' },
   { key: 'classes', label: 'Guruhlar' },
-  { key: 'journal', label: 'Jurnal' },
   { key: 'messages', label: 'Xabarlar' },
   { key: 'app', label: 'Ilova' },
-  { key: 'gradesReport', label: 'Baholar hisoboti' },
   { key: 'teacherReports', label: "O'qituvchilar hisoboti" },
   { key: 'contracts', label: 'Shartnomalar' },
   { key: 'finance', label: 'Moliya' },
   { key: 'settings', label: 'Sozlamalar' },
   { key: 'staff', label: 'Xodimlar' },
   { key: 'feedback', label: 'Taklif va shikoyatlar' },
-  { key: 'gps', label: 'GPS (avtobus)' },
   { key: 'cameras', label: 'Kameralar' },
   { key: 'discipline', label: 'Intizomiy ball' },
 ]

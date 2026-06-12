@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import {
   ArrowLeft, GraduationCap, CalendarCheck, ShieldAlert, ClipboardCheck,
   User, Phone, Wallet, BookOpen, MapPin, Cake, CalendarPlus, Percent, IdCard,
+  School, Clock, CalendarDays, ChevronRight, History,
 } from 'lucide-react'
 import { genderLabels } from '@/config/constants'
 import {
@@ -11,18 +12,35 @@ import {
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts'
 import { getStudentNotebook, type StudentNotebook } from '@/api/services/studentNotebook'
+import { getStudentGroups } from '@/api/services/classes'
+import type { StudentGroupMembership } from '@/types'
 import { cn, formatDate, formatMoney } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
+import { Badge, type BadgeTone } from '@/components/ui/Badge'
 import { StatCard } from '@/components/ui/StatCard'
 import { Loader } from '@/components/ui/Loader'
+import { PaymentHistoryModal } from './PaymentHistoryModal'
 
-const quarters = ['1', '2', '3', '4']
 const uzMonths = [
   'Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'Iyun',
   'Iyul', 'Avgust', 'Sentabr', 'Oktabr', 'Noyabr', 'Dekabr',
 ]
 const monthLabel = (m: string) =>
   m && m.length >= 7 ? `${uzMonths[Number(m.slice(5, 7)) - 1] ?? m} ${m.slice(0, 4)}` : m
+const weekdayShort = ['Du', 'Se', 'Cho', 'Pa', 'Ju', 'Sha', 'Ya']
+
+function groupStatusBadge(status: string): { label: string; tone: BadgeTone } {
+  switch (status) {
+    case 'active':
+      return { label: 'Aktiv', tone: 'green' }
+    case 'frozen':
+      return { label: 'Muzlatilgan', tone: 'blue' }
+    case 'left':
+      return { label: 'Chiqgan', tone: 'default' }
+    default:
+      return { label: 'Sinov', tone: 'amber' }
+  }
+}
 
 const evalColors = ['#1f47f5', '#16a34a', '#f59e0b', '#dc2626', '#7c3aed', '#0891b2', '#db2777', '#65a30d']
 // Har fan uchun alohida rang (statistika uslubidagi rangli nuqtalar/legend uchun)
@@ -37,12 +55,14 @@ const tooltipStyle = { borderRadius: 12, border: '1px solid #e2e8f0' }
 export function StudentDetailPage() {
   const { id } = useParams<{ id: string }>()
   const [data, setData] = useState<StudentNotebook | null>(null)
+  const [groups, setGroups] = useState<StudentGroupMembership[]>([])
+  const [showHistory, setShowHistory] = useState(false)
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
   /** Oylik baholash jadvalida tanlangan oy ("YYYY-MM"). */
   const [evalMonth, setEvalMonth] = useState('')
-  /** Fan baholari dinamikasida tanlangan chorak ("1".."4"). */
-  const [gradeQuarter, setGradeQuarter] = useState('1')
+  /** Fan baholari dinamikasida tanlangan oy ("YYYY-MM"). */
+  const [gradeMonth, setGradeMonth] = useState('')
 
   useEffect(() => {
     if (!id) return
@@ -51,38 +71,59 @@ export function StudentDetailPage() {
       .then(setData)
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false))
+    getStudentGroups(id)
+      .then(setGroups)
+      .catch(() => {})
   }, [id])
+
+  // O'quvchining barcha oylari — qabul oyidan (yoki eng erta ma'lumot oyidan) joriy/oxirgi oygacha uzluksiz.
+  const allMonths = useMemo(() => {
+    if (!data) return []
+    const present = new Set<string>()
+    Object.values(data.grades).forEach((mm) => Object.keys(mm).forEach((k) => present.add(k)))
+    const a = data.attendance
+    ;[a.missedDays, a.illnessDays, a.missedLessons, a.illnessLessons, a.lateCount].forEach((d) =>
+      Object.keys(d).forEach((k) => present.add(k)),
+    )
+    data.marksTrend.forEach((m) => present.add(m.month))
+    const enroll = data.enrollmentDate && data.enrollmentDate.length >= 7 ? data.enrollmentDate.slice(0, 7) : ''
+    const cur = new Date().toISOString().slice(0, 7)
+    const sorted = [...present].sort()
+    const from = [enroll, sorted[0]].filter(Boolean).sort()[0] ?? cur
+    const to = [sorted[sorted.length - 1] ?? '', cur].filter(Boolean).sort().slice(-1)[0] ?? from
+    return monthRangeList(from, to)
+  }, [data])
 
   const attendanceChart = useMemo(() => {
     if (!data) return []
-    return quarters.map((q) => ({
-      name: `${q}-chorak`,
-      Qoldirgan: data.attendance.missedLessons[q] ?? 0,
-      'Kech keldi': data.attendance.lateCount[q] ?? 0,
+    return allMonths.map((m) => ({
+      name: monthLabel(m),
+      Qoldirgan: data.attendance.missedLessons[m] ?? 0,
+      'Kech keldi': data.attendance.lateCount[m] ?? 0,
     }))
-  }, [data])
+  }, [data, allMonths])
 
-  // Standart chorak — bahosi bor eng oxirgi chorak.
-  const lastGradeQuarter = useMemo(() => {
-    if (!data) return '1'
-    for (const q of [...quarters].reverse())
-      if (data.subjects.some((s) => data.grades[s.id]?.[q] != null)) return q
-    return '1'
-  }, [data])
-  useEffect(() => setGradeQuarter(lastGradeQuarter), [lastGradeQuarter])
+  // Standart oy — bahosi bor eng oxirgi oy (bo'lmasa oxirgi oy).
+  const lastGradeMonth = useMemo(() => {
+    if (!data) return ''
+    for (const m of [...allMonths].reverse())
+      if (data.subjects.some((s) => data.grades[s.id]?.[m] != null)) return m
+    return allMonths[allMonths.length - 1] ?? ''
+  }, [data, allMonths])
+  useEffect(() => setGradeMonth(lastGradeMonth), [lastGradeMonth])
 
-  // Tanlangan chorakda har fan o'rtacha bahosi (bar chart) — fan rangi barqaror (subjects tartibida).
-  const quarterBars = useMemo(() => {
+  // Tanlangan oyda har fan o'rtacha bahosi (bar chart) — fan rangi barqaror (subjects tartibida).
+  const monthBars = useMemo(() => {
     if (!data) return []
     return data.subjects
       .map((s, idx) => ({ s, idx }))
-      .filter(({ s }) => data.grades[s.id]?.[gradeQuarter] != null)
+      .filter(({ s }) => data.grades[s.id]?.[gradeMonth] != null)
       .map(({ s, idx }) => ({
         name: s.name,
-        baho: data.grades[s.id]?.[gradeQuarter] ?? 0,
+        baho: data.grades[s.id]?.[gradeMonth] ?? 0,
         color: dynColors[idx % dynColors.length],
       }))
-  }, [data, gradeQuarter])
+  }, [data, gradeMonth])
 
 
   // Oylik baholash — barcha oylar (fanlar bo'yicha) katalogi.
@@ -138,7 +179,7 @@ export function StudentDetailPage() {
   const marksChart = useMemo(
     () =>
       data?.marksTrend.map((m) => ({
-        name: `${m.quarter}-chorak`,
+        name: monthLabel(m.month),
         'Uy vazifa ✓': m.homeworkDone,
         'Uy vazifa ✗': m.homeworkMissed,
         'Xulq ✓': m.behaviorGood,
@@ -201,10 +242,17 @@ export function StudentDetailPage() {
           <p className="flex items-center justify-end gap-1 text-xs text-slate-500">
             <Wallet className="h-3.5 w-3.5" /> Balans
           </p>
-          <p className={cn('text-lg font-semibold', data.balance < 0 ? 'text-red-600' : 'text-emerald-700')}>
+          <p className={cn('font-mono text-lg font-semibold', data.balance < 0 ? 'text-red-600' : 'text-emerald-700')}>
             {formatMoney(data.balance)}
           </p>
         </div>
+        <button
+          type="button"
+          onClick={() => setShowHistory(true)}
+          className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:border-brand-300 hover:text-brand-700"
+        >
+          <History className="h-4 w-4" /> To'lov tarixi
+        </button>
       </Card>
 
       {/* Shaxsiy ma'lumotlar */}
@@ -248,6 +296,59 @@ export function StudentDetailPage() {
         )}
       </Section>
 
+      {/* Guruhlar — o'quvchi bir nechta guruhda bo'lishi mumkin (har biri karta) */}
+      {groups.length > 0 && (
+        <Section title="Guruhlar" icon={School}>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {groups.map((gr) => {
+              const sb = groupStatusBadge(gr.isActive ? gr.status : 'left')
+              return (
+                <Link
+                  key={gr.id}
+                  to={`/admin/classes/${gr.groupId}`}
+                  className="group flex flex-col gap-2 rounded-xl border border-slate-200 p-4 transition-colors hover:border-brand-300 hover:bg-brand-50/30"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-semibold text-slate-800">{gr.groupName}</span>
+                    <Badge tone={sb.tone}>{sb.label}</Badge>
+                  </div>
+                  {gr.courseName && (
+                    <p className="flex items-center gap-1.5 text-sm text-slate-500">
+                      <BookOpen className="h-3.5 w-3.5 text-slate-400" /> {gr.courseName}
+                    </p>
+                  )}
+                  {gr.teacherName && (
+                    <p className="flex items-center gap-1.5 text-sm text-slate-500">
+                      <User className="h-3.5 w-3.5 text-slate-400" /> {gr.teacherName}
+                    </p>
+                  )}
+                  {(gr.days.length > 0 || gr.startTime) && (
+                    <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400">
+                      {gr.days.length > 0 && (
+                        <span className="inline-flex items-center gap-1">
+                          <CalendarDays className="h-3.5 w-3.5" /> {gr.days.map((d) => weekdayShort[d] ?? d).join(', ')}
+                        </span>
+                      )}
+                      {gr.startTime && (
+                        <span className="inline-flex items-center gap-1">
+                          <Clock className="h-3.5 w-3.5" /> {gr.startTime}{gr.endTime ? `–${gr.endTime}` : ''}
+                        </span>
+                      )}
+                    </p>
+                  )}
+                  <div className="mt-auto flex items-center justify-between pt-1">
+                    <span className="inline-flex items-center gap-1 font-mono text-sm font-medium text-slate-600">
+                      <Wallet className="h-3.5 w-3.5 text-slate-400" /> {formatMoney(gr.monthlyFee)}
+                    </span>
+                    <ChevronRight className="h-4 w-4 text-slate-300 transition-transform group-hover:translate-x-0.5 group-hover:text-brand-500" />
+                  </div>
+                </Link>
+              )
+            })}
+          </div>
+        </Section>
+      )}
+
       {/* Stat kartalar */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
@@ -285,7 +386,7 @@ export function StudentDetailPage() {
 
       {/* Diagrammalar */}
       <div className="grid gap-6 lg:grid-cols-2">
-        <Section title="Davomat (chorak bo'yicha)" icon={CalendarCheck}>
+        <Section title="Davomat (oy bo'yicha)" icon={CalendarCheck}>
           <ResponsiveContainer width="100%" height={280}>
             <BarChart data={attendanceChart} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={gridStroke} />
@@ -300,7 +401,7 @@ export function StudentDetailPage() {
         </Section>
 
         {marksChart.length > 0 && (
-          <Section title="Uy vazifa va xulq (choraklik)" icon={BookOpen}>
+          <Section title="Uy vazifa va xulq (oylik)" icon={BookOpen}>
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={marksChart} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={gridStroke} />
@@ -320,30 +421,30 @@ export function StudentDetailPage() {
 
       {/* Fan baholari dinamikasi — chorak tanlanadi, har fan o'rtacha bahosi bar chartda */}
       {data.subjects.length > 0 && (
-        <Section title="Fan baholari dinamikasi (chorak bo'yicha)" icon={GraduationCap}>
+        <Section title="Fan baholari dinamikasi (oy bo'yicha)" icon={GraduationCap}>
           <div className="mb-4 flex flex-wrap gap-1.5">
-            {quarters.map((q) => (
+            {allMonths.map((m) => (
               <button
-                key={q}
+                key={m}
                 type="button"
-                onClick={() => setGradeQuarter(q)}
+                onClick={() => setGradeMonth(m)}
                 className={cn(
                   'rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
-                  gradeQuarter === q
+                  gradeMonth === m
                     ? 'bg-brand-600 text-white'
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200',
                 )}
               >
-                {q}-chorak
+                {monthLabel(m)}
               </button>
             ))}
           </div>
 
-          {quarterBars.length === 0 ? (
-            <Empty>Bu chorakda baho yo'q</Empty>
+          {monthBars.length === 0 ? (
+            <Empty>Bu oyda baho yo'q</Empty>
           ) : (
             <ResponsiveContainer width="100%" height={340}>
-              <BarChart data={quarterBars} margin={{ top: 16, right: 20, left: 8, bottom: 8 }}>
+              <BarChart data={monthBars} margin={{ top: 16, right: 20, left: 8, bottom: 8 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={gridStroke} />
                 <XAxis
                   dataKey="name"
@@ -358,7 +459,7 @@ export function StudentDetailPage() {
                 <YAxis domain={[0, 5]} ticks={[1, 2, 3, 4, 5]} tickLine={false} axisLine={false} width={28} tick={axisTick} />
                 <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'rgba(0,0,0,0.04)' }} />
                 <Bar dataKey="baho" name="O'rtacha baho" radius={[6, 6, 0, 0]} maxBarSize={52}>
-                  {quarterBars.map((b) => (
+                  {monthBars.map((b) => (
                     <Cell key={b.name} fill={b.color} />
                   ))}
                 </Bar>
@@ -368,8 +469,8 @@ export function StudentDetailPage() {
         </Section>
       )}
 
-      {/* Baholar matritsasi (fan × chorak) */}
-      <Section title="Baholar (fan × chorak)" icon={GraduationCap}>
+      {/* Baholar matritsasi (fan × oy) */}
+      <Section title="Baholar (fan × oy)" icon={GraduationCap}>
         {data.subjects.length === 0 ? (
           <Empty>Fan yo'q</Empty>
         ) : (
@@ -378,26 +479,26 @@ export function StudentDetailPage() {
               <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-400">
                 <tr>
                   <th className="px-3 py-2">Fan</th>
-                  {quarters.map((q) => (
-                    <th key={q} className="px-3 py-2 text-center">{q}-chorak</th>
+                  {allMonths.map((m) => (
+                    <th key={m} className="whitespace-nowrap px-3 py-2 text-center">{monthLabel(m)}</th>
                   ))}
                   <th className="px-3 py-2 text-center">O'rtacha</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {data.subjects.map((s) => {
-                  const byQ = data.grades[s.id] ?? {}
-                  const vals = Object.values(byQ)
+                  const byM = data.grades[s.id] ?? {}
+                  const vals = Object.values(byM)
                   const avg = vals.length ? Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 10) / 10 : null
                   return (
                     <tr key={s.id} className="hover:bg-slate-50/60">
                       <td className="px-3 py-2 font-medium text-slate-700">{s.name}</td>
-                      {quarters.map((q) => (
-                        <td key={q} className="px-3 py-2 text-center">
-                          {byQ[q] != null ? <span className={gradeCls(byQ[q])}>{byQ[q]}</span> : <span className="text-slate-300">—</span>}
+                      {allMonths.map((m) => (
+                        <td key={m} className="px-3 py-2 text-center">
+                          {byM[m] != null ? <span className={gradeCls(byM[m])}>{byM[m]}</span> : <span className="text-slate-300">—</span>}
                         </td>
                       ))}
-                      <td className="px-3 py-2 text-center font-semibold text-slate-800">{avg ?? '—'}</td>
+                      <td className="px-3 py-2 text-center font-mono font-semibold text-slate-800">{avg ?? '—'}</td>
                     </tr>
                   )
                 })}
@@ -554,7 +655,7 @@ export function StudentDetailPage() {
                               )}
                             </td>
                           ))}
-                          <td className="px-3 py-2 text-center font-semibold text-slate-800">{e?.avg || '—'}</td>
+                          <td className="px-3 py-2 text-center font-mono font-semibold text-slate-800">{e?.avg || '—'}</td>
                         </tr>
                       )
                     })}
@@ -593,7 +694,7 @@ export function StudentDetailPage() {
                         <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-400">—</span>
                       )}
                     </td>
-                    <td className="px-3 py-2 text-center font-semibold text-slate-800">
+                    <td className="px-3 py-2 text-center font-mono font-semibold text-slate-800">
                       {a.score != null ? `${a.score}/${a.maxScore}` : <span className="text-slate-300">—</span>}
                     </td>
                   </tr>
@@ -614,7 +715,7 @@ export function StudentDetailPage() {
               <div key={p.id} className="flex items-center gap-3 rounded-lg border border-slate-100 px-3 py-2">
                 <span
                   className={cn(
-                    'rounded-md px-2 py-0.5 text-sm font-semibold',
+                    'rounded-md px-2 py-0.5 font-mono text-sm font-semibold',
                     p.points < 0 ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600',
                   )}
                 >
@@ -624,12 +725,17 @@ export function StudentDetailPage() {
                   <p className="truncate text-sm font-medium text-slate-700">{p.reasonName}</p>
                   {p.note && <p className="truncate text-xs text-slate-400">{p.note}</p>}
                 </div>
-                <span className="shrink-0 text-xs text-slate-400">{formatDate(p.createdAt)}</span>
+                <span className="shrink-0 font-mono text-xs text-slate-400">{formatDate(p.createdAt)}</span>
               </div>
             ))}
           </div>
         )}
       </Section>
+
+      <PaymentHistoryModal
+        studentId={showHistory ? (data?.id ?? null) : null}
+        onClose={() => setShowHistory(false)}
+      />
     </div>
   )
 }
@@ -687,6 +793,25 @@ function InfoRow({
       </div>
     </div>
   )
+}
+
+/** "yyyy-MM" dan "yyyy-MM" gacha (inklyuziv) uzluksiz oylar ro'yxati. */
+function monthRangeList(from: string, to: string): string[] {
+  if (!from || !to || from > to) return from ? [from] : []
+  const out: string[] = []
+  let y = Number(from.slice(0, 4))
+  let m = Number(from.slice(5, 7))
+  const ty = Number(to.slice(0, 4))
+  const tm = Number(to.slice(5, 7))
+  while (y < ty || (y === ty && m <= tm)) {
+    out.push(`${y}-${String(m).padStart(2, '0')}`)
+    m++
+    if (m > 12) {
+      m = 1
+      y++
+    }
+  }
+  return out
 }
 
 function initials(name: string): string {

@@ -8,12 +8,13 @@ import {
   type TeacherDeviceMap,
 } from '@/api/services/settings'
 import { Card } from '@/components/ui/Card'
+import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
-import { Input, Time24Input } from '@/components/ui/Input'
+import { Input, Select, Time24Input } from '@/components/ui/Input'
 import { Loader } from '@/components/ui/Loader'
 
 const control =
-  'rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-brand-400'
+  'rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition-colors focus:border-brand-400 focus:ring-2 focus:ring-brand-100'
 
 /**
  * Turniket / FaceID integratsiya sozlamasi. Qurilma (Hikvision/ZKTeco) o'tish hodisalaridan
@@ -68,19 +69,22 @@ export function TurnstileSettings() {
 
   return (
     <form onSubmit={onSubmit} className="space-y-6">
-      <Card>
-        <div className="mb-1 flex items-center gap-2">
-          <span className="font-semibold text-slate-800">Turniket integratsiya</span>
-          {cfg.enabled ? (
-            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
-              <CheckCircle2 className="h-3.5 w-3.5" /> Yoqilgan
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
-              <XCircle className="h-3.5 w-3.5" /> O'chiq
-            </span>
-          )}
-        </div>
+      <Card
+        title={
+          <span className="flex items-center gap-2">
+            Turniket integratsiya
+            {cfg.enabled ? (
+              <Badge tone="green">
+                <CheckCircle2 className="h-3.5 w-3.5" /> Yoqilgan
+              </Badge>
+            ) : (
+              <Badge tone="default">
+                <XCircle className="h-3.5 w-3.5" /> O'chiq
+              </Badge>
+            )}
+          </span>
+        }
+      >
         <p className="mb-4 text-sm text-slate-400">
           Turniket/FaceID qurilmasidan o'qituvchilar davomati avtomatik yuklanadi. Natija{' '}
           <span className="font-medium text-slate-500">O'qituvchilar → Davomat</span> bo'limida (dashboard)
@@ -98,13 +102,14 @@ export function TurnstileSettings() {
         </label>
 
         <div className="grid max-w-2xl grid-cols-1 gap-4 sm:grid-cols-2">
-          <label className="flex flex-col gap-1 text-sm">
-            <span className="font-medium text-slate-600">Qurilma turi</span>
-            <select value={cfg.vendor} onChange={(e) => set('vendor', e.target.value)} className={control}>
-              <option value="hikvision">Hikvision (ISAPI)</option>
-              <option value="zkteco">ZKTeco</option>
-            </select>
-          </label>
+          <Select
+            label="Qurilma turi"
+            value={cfg.vendor}
+            onChange={(e) => set('vendor', e.target.value)}
+          >
+            <option value="hikvision">Hikvision (ISAPI)</option>
+            <option value="zkteco">ZKTeco</option>
+          </Select>
           <Input
             label="Qurilma manzili (IP / host)"
             placeholder="192.168.1.64"
@@ -138,8 +143,7 @@ export function TurnstileSettings() {
         </div>
       </Card>
 
-      <Card>
-        <h3 className="mb-1 font-semibold text-slate-800">Kechikish qoidasi</h3>
+      <Card title="Kechikish qoidasi">
         <p className="mb-4 text-sm text-slate-400">
           Kelgan vaqt — <b>ish boshlanish vaqti</b> va o'sha kungi <b>birinchi dars</b>dan (qaysi biri erta
           bo'lsa) + grace dan keyin bo'lsa "kechikdi" deb belgilanadi. Umuman kelmasa — "kelmadi".
@@ -162,13 +166,14 @@ export function TurnstileSettings() {
         </div>
       </Card>
 
-      <Card>
-        <div className="mb-1 flex items-center justify-between">
-          <h3 className="font-semibold text-slate-800">O'qituvchi qurilma ID lari</h3>
-          <span className="text-xs text-slate-400">
+      <Card
+        title="O'qituvchi qurilma ID lari"
+        actions={
+          <span className="font-mono text-xs text-slate-400">
             Moslashtirilgan: {mapped} / {cfg.teachers.length}
           </span>
-        </div>
+        }
+      >
         <p className="mb-3 flex items-start gap-1.5 text-sm text-slate-400">
           <Info className="mt-0.5 h-4 w-4 shrink-0" />
           Qurilmadagi xodim ID'sini (personId / employeeNo) shu yerga kiriting — davomat hodisalari shu ID

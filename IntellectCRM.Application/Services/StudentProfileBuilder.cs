@@ -16,7 +16,14 @@ public static class StudentProfileBuilder
     public static async Task<StudentNotebookDto> BuildAsync(IAppDbContext db, Student st)
     {
         var cls = await db.Classes.FirstOrDefaultAsync(c => c.Name == st.ClassName);
-        var classId = cls?.Id;
+        // O'quvchining FAOL guruh(lar)i (M2M) — yo'q bo'lsa ClassName (StudentReportBuilder bilan bir xil mantiq).
+        var memberGroupIds = await db.StudentGroups
+            .Where(sg => sg.StudentId == st.Id && sg.IsActive).Select(sg => sg.GroupId).ToListAsync();
+        var classIds = memberGroupIds.Count > 0
+            ? memberGroupIds.ToHashSet()
+            : (cls is null ? new HashSet<string>() : new HashSet<string> { cls.Id });
+        // Topshiriqlar bitta sinfga tegishli — asosiy (ClassName) sinf, bo'lmasa birinchi guruh.
+        var classId = cls?.Id ?? classIds.FirstOrDefault();
 
         var report = await StudentReportBuilder.BuildAsync(db, st);
         var entries = await db.JournalEntries.Where(e => e.StudentId == st.Id).ToListAsync();
@@ -24,10 +31,10 @@ public static class StudentProfileBuilder
         var reasonMap = reasons.ToDictionary(r => r.Id);
         var lateSet = reasons.Where(r => r.IsLate).Select(r => r.Id).ToHashSet();
 
-        // ---- Qatnashish (o'tilgan / qatnashgan) — Analytics bilan bir xil ----
-        var studentConducted = classId is null
+        // ---- Qatnashish (o'tilgan / qatnashgan) — o'quvchining faol guruh(lar)i bo'yicha ----
+        var studentConducted = classIds.Count == 0
             ? new HashSet<(string SubjectId, string Date, int Period)>()
-            : (await db.LessonNotes.Where(n => n.Conducted && n.ClassId == classId)
+            : (await db.LessonNotes.Where(n => n.Conducted && classIds.Contains(n.ClassId))
                     .Select(n => new { n.SubjectId, n.Date, n.Period }).ToListAsync())
                 .Select(n => (n.SubjectId, n.Date, n.Period)).ToHashSet();
         var conducted = studentConducted.Count;
@@ -72,18 +79,19 @@ public static class StudentProfileBuilder
         // ---- Oylik baholash (fan kesimida + umumiy fanlar o'rtachasi) ----
         var evalTypes = await db.EvaluationTypes.OrderBy(t => t.CreatedAt)
             .Select(t => new EvaluationTypeDto(t.Id, t.Name, t.Description)).ToListAsync();
-        var subjNames = report.Subjects.ToDictionary(x => x.Id, x => x.Name);
         // Faqat fan kesimidagi baholar — "Umumiy" (SubjectId="") ga baho qo'yilmaydi,
         // umumiy statistika butunlay fanlar o'rtachasidan hisoblanadi.
         var evalGrades = (await db.EvaluationGrades.Where(g => g.StudentId == st.Id).ToListAsync())
             .Where(g => !string.IsNullOrEmpty(g.Month) && !string.IsNullOrEmpty(g.SubjectId))
             .ToList();
 
-        // Fan kesimida: har fan uchun (oy → turlar bo'yicha baho) + fan o'rtachasi.
-        var evalsBySubject = evalGrades
-            .GroupBy(g => g.SubjectId ?? "")
-            .Select(sg =>
+        // Fan kesimida: o'quvchining BARCHA biriktirilgan kurslari (baho qo'yilmagan bo'lsa ham KO'RINADI —
+        // shu sabab ko'p guruhli o'quvchida hamma kurs/guruh chiqadi, faqat baholangani emas).
+        var gradesBySubj = evalGrades.GroupBy(g => g.SubjectId).ToDictionary(g => g.Key, g => g.ToList());
+        var evalsBySubject = report.Subjects
+            .Select(subj =>
             {
+                var sg = gradesBySubj.GetValueOrDefault(subj.Id) ?? new List<EvaluationGrade>();
                 var months = sg.GroupBy(g => g.Month)
                     .OrderBy(m => m.Key, StringComparer.Ordinal)
                     .Select(m =>
@@ -91,9 +99,8 @@ public static class StudentProfileBuilder
                         var dict = m.GroupBy(x => x.EvaluationTypeId).ToDictionary(x => x.Key, x => x.First().Score);
                         return new MonthlyEvaluationDto(m.Key, dict, dict.Count > 0 ? Math.Round(dict.Values.Average(), 1) : 0);
                     }).ToList();
-                var subjAvg = sg.Any() ? Math.Round(sg.Average(x => x.Score), 1) : 0;
-                var name = string.IsNullOrEmpty(sg.Key) ? "Umumiy" : subjNames.GetValueOrDefault(sg.Key, "—");
-                return new SubjectEvaluationDto(sg.Key, name, subjAvg, months);
+                var subjAvg = sg.Count > 0 ? Math.Round(sg.Average(x => x.Score), 1) : 0;
+                return new SubjectEvaluationDto(subj.Id, subj.Name, subjAvg, months);
             })
             .OrderBy(x => x.SubjectName, StringComparer.OrdinalIgnoreCase)
             .ToList();
@@ -110,28 +117,48 @@ public static class StudentProfileBuilder
                 return new MonthlyEvaluationDto(g.Key, dict, avg);
             }).ToList();
 
-        // ---- Uy vazifa + xulq (jami + choraklik trend) ----
+        // ---- O'zlashtirish: fan → OY ("yyyy-MM") → o'rtacha baho (daftar oyma-oy) ----
+        var gradesByMonth = new Dictionary<string, Dictionary<string, double>>();
+        foreach (var subj in report.Subjects)
+        {
+            var byM = entries.Where(e => e.SubjectId == subj.Id && e.Grade != null && e.Date.Length >= 7)
+                .GroupBy(e => e.Date[..7])
+                .ToDictionary(g => g.Key, g => Math.Round(g.Average(e => (double)e.Grade!.Value), 2));
+            if (byM.Count > 0) gradesByMonth[subj.Id] = byM;
+        }
+
+        // ---- Davomat oyma-oy: har metrika OY → son ----
+        var illSet = reasons.Where(r => !r.IsLate && r.Name.ToLowerInvariant().Contains("kasal"))
+            .Select(r => r.Id).ToHashSet();
+        var absencesM = entries.Where(e => e.ReasonId != null && e.Date.Length >= 7).ToList();
+        bool IsLateE(JournalEntry e) => lateSet.Contains(e.ReasonId!);
+        bool IsIllE(JournalEntry e) => illSet.Contains(e.ReasonId!);
+        Dictionary<string, int> PerM(Func<JournalEntry, bool> pred) =>
+            absencesM.Where(pred).GroupBy(e => e.Date[..7]).ToDictionary(g => g.Key, g => g.Count());
+        Dictionary<string, int> PerMDays(Func<JournalEntry, bool> pred) =>
+            absencesM.Where(pred).GroupBy(e => e.Date[..7])
+                .ToDictionary(g => g.Key, g => g.Select(e => e.Date).Distinct().Count());
+        var monthlyAttendance = new MonthlyAttendanceDto(
+            PerMDays(e => !IsLateE(e)), PerMDays(IsIllE),
+            PerM(e => !IsLateE(e)), PerM(IsIllE), PerM(IsLateE));
+
+        // ---- Uy vazifa + xulq (jami + OYMA-OY trend) ----
         var hwDone = entries.Count(e => e.Homework == 1);
         var hwMissed = entries.Count(e => e.Homework == 2);
         var bGood = entries.Count(e => e.Behavior == 1);
         var bBad = entries.Count(e => e.Behavior == 2);
-        // Choraklik — jurnaldagidek: belgilangan choraklar (1..4) bo'yicha (sozlanmagan bo'lsa
-        // mavjud bo'lganlari). Belgisi yo'q choraklarda 0 ko'rinadi.
-        var markByQ = entries.Where(e => e.Homework != 0 || e.Behavior != 0)
-            .GroupBy(e => e.Quarter).ToDictionary(g => g.Key, g => g.ToList());
-        // Chorak davri tizimi olib tashlandi — mavjud Quarter qiymatlari bo'yicha (yo'q bo'lsa [1]).
-        var quarterNos = markByQ.Keys.OrderBy(k => k).ToList();
-        if (quarterNos.Count == 0) quarterNos = new List<int> { 1 };
-        var trend = quarterNos.Select(q =>
+        var markByMonth = entries.Where(e => (e.Homework != 0 || e.Behavior != 0) && e.Date.Length >= 7)
+            .GroupBy(e => e.Date[..7]).ToDictionary(g => g.Key, g => g.ToList());
+        var trend = markByMonth.Keys.OrderBy(k => k, StringComparer.Ordinal).Select(m =>
         {
-            var list = markByQ.GetValueOrDefault(q) ?? new List<JournalEntry>();
-            return new QuarterMarksDto(q,
+            var list = markByMonth[m];
+            return new MonthMarksDto(m,
                 list.Count(e => e.Homework == 1), list.Count(e => e.Homework == 2),
                 list.Count(e => e.Behavior == 1), list.Count(e => e.Behavior == 2));
         }).ToList();
 
-        // ---- O'rtacha baho (barcha fan/chorak baholarining o'rtachasi) ----
-        var allGradeVals = report.Grades.Values.SelectMany(d => d.Values).ToList();
+        // ---- O'rtacha baho (barcha fan/oy baholarining o'rtachasi) ----
+        var allGradeVals = gradesByMonth.Values.SelectMany(d => d.Values).ToList();
         var avgGrade = allGradeVals.Count > 0 ? Math.Round(allGradeVals.Average(), 1) : 0;
 
         return new StudentNotebookDto(
@@ -140,8 +167,8 @@ public static class StudentProfileBuilder
             st.EnrollmentDate, st.Balance, st.BirthCertificateUrl,
             st.Address, st.DiscountPct, st.DiscountAmount, st.DiscountNote,
             st.ParentPassportUrl,
-            report.Subjects, report.Grades, avgGrade,
-            report.Attendance, conducted, attended, pct, reasonCounts,
+            report.Subjects, gradesByMonth, avgGrade,
+            monthlyAttendance, conducted, attended, pct, reasonCounts,
             disciplineScore, plus, minus, dPoints,
             assignments,
             evalTypes, evals, evalsBySubject,

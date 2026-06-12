@@ -16,8 +16,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<Teacher> Teachers => Set<Teacher>();
     public DbSet<TeacherAttendance> TeacherAttendances => Set<TeacherAttendance>();
     public DbSet<TurnstileEvent> TurnstileEvents => Set<TurnstileEvent>();
-    public DbSet<Bus> Buses => Set<Bus>();
-    public DbSet<BusLocation> BusLocations => Set<BusLocation>();
     public DbSet<Camera> Cameras => Set<Camera>();
     public DbSet<Subject> Subjects => Set<Subject>();
     public DbSet<Group> Classes => Set<Group>();
@@ -28,11 +26,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<TrialLesson> TrialLessons => Set<TrialLesson>();
     public DbSet<JournalEntry> JournalEntries => Set<JournalEntry>();
     public DbSet<LessonNote> LessonNotes => Set<LessonNote>();
-    public DbSet<ScheduleTemplate> ScheduleTemplates => Set<ScheduleTemplate>();
-    public DbSet<WeekAssignment> WeekAssignments => Set<WeekAssignment>();
     public DbSet<AbsenceReason> AbsenceReasons => Set<AbsenceReason>();
-    public DbSet<LessonTime> LessonTimes => Set<LessonTime>();
-    public DbSet<Holiday> Holidays => Set<Holiday>();
     public DbSet<DisciplineReason> DisciplineReasons => Set<DisciplineReason>();
     public DbSet<DisciplinePoint> DisciplinePoints => Set<DisciplinePoint>();
     public DbSet<EvaluationType> EvaluationTypes => Set<EvaluationType>();
@@ -65,26 +59,30 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<LmsMaterial> LmsMaterials => Set<LmsMaterial>();
     public DbSet<LmsProgress> LmsProgresses => Set<LmsProgress>();
 
+    // Amal sabablari (muzlatish/o'chirish/sinovga qaytarish/lid/guruh)
+    public DbSet<ActionReason> ActionReasons => Set<ActionReason>();
+
+    // Daraja testi (placement test → lid)
+    public DbSet<LevelTest> LevelTests => Set<LevelTest>();
+    public DbSet<LevelTestQuestion> LevelTestQuestions => Set<LevelTestQuestion>();
+    public DbSet<LevelTestBand> LevelTestBands => Set<LevelTestBand>();
+    public DbSet<LevelTestSubmission> LevelTestSubmissions => Set<LevelTestSubmission>();
+
     protected override void OnModelCreating(ModelBuilder b)
     {
-        // MySQL: butun baza utf8mb4 (o'zbek/kirill matn) + barqaror taqqoslash.
-        b.HasCharSet("utf8mb4");
-        b.UseCollation("utf8mb4_unicode_ci");
-
-        // MySQL: indeksda qatnashadigan string ustunlar default `longtext` bo'lib indekslanmaydi —
-        // ularga aniq maksimal uzunlik beramiz (varchar). PK/UserSettings.UserId — Pomelo o'zi
-        // varchar(255) qiladi. Qolgan matn maydonlari longtext bo'lib qoladi (kesilmaydi).
+        // SQL Server: indeksda qatnashadigan string ustunlar default `nvarchar(max)` bo'lib
+        // indekslanmaydi — ularga aniq maksimal uzunlik beramiz (nvarchar(N)). Qolgan matn
+        // maydonlari nvarchar(max) bo'lib qoladi (kesilmaydi). Unicode (o'zbek/kirill) — nvarchar
+        // tabiatan qo'llab-quvvatlaydi, alohida charset sozlash shart emas.
         b.Entity<AppUser>().Property(u => u.Email).HasMaxLength(256);
         foreach (var (type, prop) in new (Type, string)[]
         {
             (typeof(JournalEntry), "ClassId"), (typeof(JournalEntry), "SubjectId"),
             (typeof(LessonNote), "ClassId"), (typeof(LessonNote), "SubjectId"),
-            (typeof(WeekAssignment), "ClassId"),
             (typeof(StudentGroup), "StudentId"), (typeof(StudentGroup), "GroupId"),
             (typeof(LeadEvent), "LeadId"), (typeof(TrialLesson), "LeadId"),
-            (typeof(ScheduleTemplate), "ClassId"),
             (typeof(FinanceTransaction), "Date"),
-            (typeof(MonthlyCharge), "StudentId"), (typeof(MonthlyCharge), "Month"),
+            (typeof(MonthlyCharge), "StudentId"), (typeof(MonthlyCharge), "Month"), (typeof(MonthlyCharge), "GroupId"),
             (typeof(AuditLog), "EntityType"), (typeof(AuditLog), "EntityId"), (typeof(AuditLog), "Timestamp"),
             (typeof(AuditLog), "StudentId"), (typeof(AuditLog), "TeacherId"),
             (typeof(ChatMessage), "ClassName"),
@@ -111,30 +109,30 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         b.Entity<Student>().Property(s => s.Balance).HasPrecision(18, 2);
         b.Entity<Student>().Property(s => s.DiscountAmount).HasPrecision(18, 2);
         b.Entity<Group>().Property(c => c.MonthlyFee).HasPrecision(18, 2);
+        b.Entity<Subject>().Property(s => s.Price).HasPrecision(18, 2);
         b.Entity<FinanceTransaction>().Property(t => t.Amount).HasPrecision(18, 2);
         b.Entity<MonthlyCharge>().Property(c => c.Amount).HasPrecision(18, 2);
         b.Entity<MonthlyCharge>().Property(c => c.Discount).HasPrecision(18, 2);
         b.Entity<Teacher>().Property(t => t.Salary).HasPrecision(18, 2);
-
-        // ScheduleTemplate -> Lessons (egasiz/owned emas, oddiy bog'liqlik)
-        b.Entity<ScheduleTemplate>()
-            .HasMany(t => t.Lessons)
-            .WithOne()
-            .HasForeignKey(l => l.TemplateId)
-            .OnDelete(DeleteBehavior.Cascade);
+        b.Entity<Teacher>().Property(t => t.BonusPct).HasPrecision(18, 2);
+        b.Entity<Teacher>().Property(t => t.SalaryPercent).HasPrecision(18, 2);
+        b.Entity<CenterMeta>().Property(m => m.SalaryRate1).HasPrecision(18, 2);
+        b.Entity<CenterMeta>().Property(m => m.SalaryRate2).HasPrecision(18, 2);
+        b.Entity<CenterMeta>().Property(m => m.SalaryRateMutaxasis).HasPrecision(18, 2);
+        b.Entity<CenterMeta>().Property(m => m.SalaryRateOliy).HasPrecision(18, 2);
 
         // Tez-tez ishlatiladigan filtrlar uchun indekslar
         b.Entity<JournalEntry>().HasIndex(e => new { e.ClassId, e.SubjectId, e.Quarter });
         b.Entity<LessonNote>().HasIndex(e => new { e.ClassId, e.SubjectId, e.Quarter });
-        b.Entity<WeekAssignment>().HasIndex(e => new { e.ClassId, e.Quarter });
+        b.Entity<Group>().HasIndex(c => c.TeacherId);
         b.Entity<StudentGroup>().HasIndex(sg => new { sg.StudentId, sg.GroupId }).IsUnique();
         b.Entity<StudentGroup>().HasIndex(sg => sg.GroupId);
         b.Entity<StudentGroup>().HasIndex(sg => new { sg.StudentId, sg.IsActive });
         b.Entity<LeadEvent>().HasIndex(e => e.LeadId);
         b.Entity<TrialLesson>().HasIndex(t => t.LeadId);
-        b.Entity<ScheduleTemplate>().HasIndex(t => t.ClassId);
         b.Entity<FinanceTransaction>().HasIndex(t => t.Date);
-        b.Entity<MonthlyCharge>().HasIndex(c => new { c.StudentId, c.Month }).IsUnique();
+        // Per-guruh billing: har (o'quvchi, guruh, oy) uchun bitta hisob.
+        b.Entity<MonthlyCharge>().HasIndex(c => new { c.StudentId, c.GroupId, c.Month }).IsUnique();
         b.Entity<AuditLog>().HasIndex(a => new { a.EntityType, a.EntityId });
         b.Entity<AuditLog>().HasIndex(a => a.Timestamp);
         b.Entity<AuditLog>().HasIndex(a => a.StudentId);
@@ -171,6 +169,13 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         b.Entity<Feedback>().HasIndex(f => new { f.Status, f.CreatedAt });
 
         // LMS (Ta'lim)
+        // SQL Server: FK ustun (SubjectId/ModuleId/TopicId, loop'da nvarchar(200)) o'zi ishora qilgan
+        // asosiy kalit bilan AYNAN bir xil uzunlikda bo'lishi shart. String PK default nvarchar(450)
+        // bo'lgani uchun bu kalitlarni ham 200 ga tushiramiz — GUID id'lar (36 belgi) bemalol sig'adi,
+        // qo'shimcha bonus: (SubjectId,Order)/(ModuleId,Order) kompozit indekslari 900 bayt limitiga sig'adi.
+        b.Entity<LmsSubject>().Property(s => s.Id).HasMaxLength(200);
+        b.Entity<LmsModule>().Property(m => m.Id).HasMaxLength(200);
+        b.Entity<LmsTopic>().Property(t => t.Id).HasMaxLength(200);
         b.Entity<LmsSubject>().HasIndex(s => s.ClassId);
         b.Entity<LmsSubject>()
             .HasMany(s => s.Modules).WithOne(m => m.Subject)
@@ -192,5 +197,14 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
             .HasIndex(m => new { m.SubjectId, m.Order });
         b.Entity<LmsTopic>()
             .HasIndex(t => new { t.ModuleId, t.Order });
+
+        b.Entity<ActionReason>().HasIndex(r => new { r.Category, r.Order });
+
+        // Daraja testi — Slug ommaviy URL kaliti (noyob, indekslanishi uchun uzunlik beriladi).
+        b.Entity<LevelTest>().Property(t => t.Slug).HasMaxLength(64);
+        b.Entity<LevelTest>().HasIndex(t => t.Slug).IsUnique();
+        b.Entity<LevelTestQuestion>().HasIndex(q => new { q.TestId, q.Order });
+        b.Entity<LevelTestBand>().HasIndex(x => new { x.TestId, x.Order });
+        b.Entity<LevelTestSubmission>().HasIndex(s => new { s.TestId, s.CreatedAt });
     }
 }

@@ -8,6 +8,8 @@ import {
 import { cn } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
+import { Badge } from '@/components/ui/Badge'
+import { PageHeader } from '@/components/ui/PageHeader'
 import { Input } from '@/components/ui/Input'
 import { Loader } from '@/components/ui/Loader'
 import { Modal } from '@/components/ui/Modal'
@@ -68,23 +70,23 @@ export function CamerasPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-800">Kameralar</h1>
-          <p className="text-sm text-slate-400">
-            Markaz kameralarini real vaqtda kuzatish, yozuvni orqaga qaytarish va qirqib yuklab olish.
-          </p>
-        </div>
-        {!selected && (
-          <Button onClick={() => { setEditing(null); setModalOpen(true) }}>
-            <Plus className="h-4 w-4" /> Kamera qo'shish
-          </Button>
-        )}
-      </div>
+    <div>
+      <PageHeader
+        title="Kameralar"
+        sub="Markaz kameralarini real vaqtda kuzatish, yozuvni orqaga qaytarish va qirqib yuklab olish."
+        actions={
+          !selected && (
+            <Button onClick={() => { setEditing(null); setModalOpen(true) }}>
+              <Plus className="h-4 w-4" /> Kamera qo'shish
+            </Button>
+          )
+        }
+      />
 
       {loading ? (
-        <Loader label="Yuklanmoqda..." />
+        <Card>
+          <Loader label="Yuklanmoqda..." />
+        </Card>
       ) : selected ? (
         <SingleCamera
           camera={selected}
@@ -94,10 +96,12 @@ export function CamerasPage() {
         />
       ) : cameras.length === 0 ? (
         <Card>
-          <div className="py-12 text-center text-sm text-slate-400">
-            <Video className="mx-auto mb-2 h-8 w-8 text-slate-300" />
-            <p>Hali kamera qo'shilmagan.</p>
-            <p className="mt-1 text-xs">"Kamera qo'shish" orqali RTSP manzilini kiriting.</p>
+          <div className="state">
+            <div className="state-icon">
+              <Video className="h-6 w-6" />
+            </div>
+            <h4>Hali kamera qo'shilmagan</h4>
+            <p>"Kamera qo'shish" orqali RTSP manzilini kiriting.</p>
           </div>
         </Card>
       ) : (
@@ -113,7 +117,14 @@ export function CamerasPage() {
               </button>
               <div className="flex items-center justify-between gap-2 px-3 py-2">
                 <div className="min-w-0">
-                  <div className="truncate font-medium text-slate-800">{c.name}</div>
+                  <div className="flex items-center gap-2">
+                    <span className="truncate font-medium text-slate-800">{c.name}</span>
+                    {c.isActive ? (
+                      <Badge tone="green" dot>Faol</Badge>
+                    ) : (
+                      <Badge tone="default">O'chiq</Badge>
+                    )}
+                  </div>
                   {c.location && <div className="truncate text-xs text-slate-400">{c.location}</div>}
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
@@ -202,8 +213,8 @@ function SingleCamera({
       </div>
 
       <Card className="overflow-hidden p-0">
-        <div className="border-b border-slate-100 bg-slate-50 px-3 py-1.5 text-xs font-medium text-emerald-600">
-          ● Jonli
+        <div className="flex items-center border-b border-slate-100 bg-slate-50 px-3 py-1.5">
+          <Badge tone="green" dot>Jonli</Badge>
         </div>
         <LivePlayer id={camera.id} className="aspect-video w-full" />
       </Card>

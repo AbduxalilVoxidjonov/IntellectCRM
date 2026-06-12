@@ -6,7 +6,9 @@ import {
   type FirebaseConfig,
 } from '@/api/services/settings'
 import { Card } from '@/components/ui/Card'
+import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
+import { Input, Textarea } from '@/components/ui/Input'
 import { Loader } from '@/components/ui/Loader'
 
 /**
@@ -94,24 +96,27 @@ export function FirebaseSettings() {
 
   if (loading) return <Loader label="Yuklanmoqda..." />
 
-  const Badge = ({ ok, label }: { ok: boolean; label: string }) =>
+  const StatusChip = ({ ok, label }: { ok: boolean; label: string }) =>
     ok ? (
-      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+      <Badge tone="green">
         <CheckCircle2 className="h-3.5 w-3.5" /> {label}
-      </span>
+      </Badge>
     ) : (
-      <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
+      <Badge tone="default">
         <XCircle className="h-3.5 w-3.5" /> {label}
-      </span>
+      </Badge>
     )
 
   return (
-    <Card>
-      <div className="mb-1 flex flex-wrap items-center gap-2">
-        <span className="font-semibold text-slate-800">Push (Firebase)</span>
-        <Badge ok={configured} label={configured ? 'Yuborish sozlangan' : 'Yuborish sozlanmagan'} />
-        <Badge ok={webConfigured} label={webConfigured ? 'Web push sozlangan' : 'Web push sozlanmagan'} />
-      </div>
+    <Card
+      title={
+        <span className="flex flex-wrap items-center gap-2">
+          Push (Firebase)
+          <StatusChip ok={configured} label={configured ? 'Yuborish sozlangan' : 'Yuborish sozlanmagan'} />
+          <StatusChip ok={webConfigured} label={webConfigured ? 'Web push sozlangan' : 'Web push sozlanmagan'} />
+        </span>
+      }
+    >
       <p className="mb-4 text-sm text-slate-400">
         Bildirishnoma (push) uchun Firebase sozlamalari. <b>Service account</b> — push yuborish uchun
         (server). <b>Web app config + VAPID</b> — web (PWA: o'qituvchi sayti) brauzerda bildirishnoma
@@ -127,12 +132,12 @@ export function FirebaseSettings() {
             Firebase Console → Project Settings → Service accounts → "Generate new private key" →
             yuklab olingan JSON faylni to'liq shu yerga qo'ying.
           </p>
-          <textarea
+          <Textarea
             value={json}
             onChange={(e) => setJson(e.target.value)}
             placeholder='{ "type": "service_account", "project_id": "...", "private_key": "...", "client_email": "..." }'
             spellCheck={false}
-            className="h-44 w-full rounded-lg border border-slate-200 px-3 py-2 font-mono text-xs text-slate-800 outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
+            className="h-44 font-mono text-xs"
           />
         </div>
 
@@ -145,12 +150,12 @@ export function FirebaseSettings() {
             "Add app" → Web) → "SDK setup and configuration" → <code>firebaseConfig</code> obyektini
             (apiKey, authDomain, projectId, messagingSenderId, appId) JSON ko'rinishida shu yerga qo'ying.
           </p>
-          <textarea
+          <Textarea
             value={webJson}
             onChange={(e) => setWebJson(e.target.value)}
             placeholder='{ "apiKey": "...", "authDomain": "...", "projectId": "...", "messagingSenderId": "...", "appId": "..." }'
             spellCheck={false}
-            className="h-32 w-full rounded-lg border border-slate-200 px-3 py-2 font-mono text-xs text-slate-800 outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
+            className="h-32 font-mono text-xs"
           />
         </div>
 
@@ -160,12 +165,12 @@ export function FirebaseSettings() {
             Firebase Console → Project Settings → Cloud Messaging → "Web configuration" → "Web Push
             certificates" → Key pair (B... bilan boshlanadigan uzun matn).
           </p>
-          <input
+          <Input
             value={vapid}
             onChange={(e) => setVapid(e.target.value)}
             placeholder="BPxxxx…"
             spellCheck={false}
-            className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono text-xs text-slate-800 outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
+            className="font-mono text-xs"
           />
         </div>
 

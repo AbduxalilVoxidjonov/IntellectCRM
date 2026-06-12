@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { StudentViewModal } from './StudentViewModal'
 import { Plus, Search, Pencil, Trash2, Send, Download, X, Wallet, History, Archive, RotateCcw, FileDown, Upload } from 'lucide-react'
 import type { Gender, Student } from '@/types'
@@ -22,6 +22,8 @@ import { genderLabels } from '@/config/constants'
 import { formatDate, formatMoney, exportToCsv, cn } from '@/lib/utils'
 import { useAuth } from '@/context/auth-context'
 import { Card } from '@/components/ui/Card'
+import { Badge } from '@/components/ui/Badge'
+import { PageHeader } from '@/components/ui/PageHeader'
 import { Button } from '@/components/ui/Button'
 import { Loader } from '@/components/ui/Loader'
 import { Modal } from '@/components/ui/Modal'
@@ -33,8 +35,23 @@ import { PaymentHistoryModal } from './PaymentHistoryModal'
 type BalanceFilter = 'all' | 'debt' | 'paid'
 type Tab = 'active' | 'archived'
 
+/** Filtr select'lari uchun yagona ko'rinish (toolbar ichida). */
 const control =
-  'rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-brand-400'
+  'rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 outline-none transition-colors focus:border-brand-400 focus:ring-2 focus:ring-brand-100'
+
+/** Ism bo'yicha barqaror avatar rangi (crm/ namunasidagi kabi). */
+const AVATAR_COLORS = [
+  '#7c3aed', '#2563eb', '#0891b2', '#16a34a', '#ca8a04', '#dc2626', '#db2777', '#9333ea',
+]
+function avatarColor(name: string): string {
+  let h = 0
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0
+  return AVATAR_COLORS[h % AVATAR_COLORS.length]
+}
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/)
+  return ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase() || '?'
+}
 
 export function StudentsPage() {
   const { user } = useAuth()
@@ -119,7 +136,10 @@ export function StudentsPage() {
       !q ||
       s.fullName.toLowerCase().includes(q) ||
       s.parentFullName.toLowerCase().includes(q)
-    const matchClass = classFilter === 'all' || s.className === classFilter
+    const matchClass =
+      classFilter === 'all' ||
+      s.className === classFilter ||
+      (s.groups ?? []).includes(classFilter)
     const matchGender = genderFilter === 'all' || s.gender === genderFilter
     const matchBalance =
       balanceFilter === 'all' ||
@@ -161,7 +181,7 @@ export function StudentsPage() {
       ['F.I.SH', 'Guruh', 'Jinsi', "Tug'ilgan kun", 'Manzil', 'Ota-ona', 'Telefon', 'Balans', 'Chegirma'],
       selectedStudents.map((s) => [
         s.fullName,
-        s.className,
+        s.groups && s.groups.length > 0 ? s.groups.join(', ') : s.className,
         genderLabels[s.gender],
         formatDate(s.birthDate),
         s.address,
@@ -217,10 +237,10 @@ export function StudentsPage() {
     setEditing(null)
   }
 
-  const handlePayment = (amount: number, month: string) => {
+  const handlePayment = (amount: number, month: string, groupId?: string) => {
     if (!paying) return
     const id = paying.id
-    addPayment(id, amount, month)
+    addPayment(id, amount, month, groupId)
     setStudents((prev) =>
       prev.map((s) => (s.id === id ? { ...s, balance: s.balance + amount } : s)),
     )
@@ -277,100 +297,89 @@ export function StudentsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-800">O'quvchilar</h1>
-          <p className="text-sm text-slate-400">
-            {tab === 'active'
-              ? `Faol: ${students.length} ta · Arxivda: ${archived.length} ta`
-              : `Arxivda: ${archived.length} ta o'quvchi`}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {/* Faol/Arxiv tab toggle */}
-          <div className="flex gap-1 rounded-lg bg-slate-100 p-1">
-            <button
-              type="button"
-              onClick={() => {
-                setTab('active')
-                clearSelection()
-              }}
-              className={cn(
-                'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
-                tab === 'active'
-                  ? 'bg-white text-brand-700 shadow-sm'
-                  : 'text-slate-500 hover:text-slate-700',
-              )}
-            >
-              Faol
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setTab('archived')
-                clearSelection()
-              }}
-              className={cn(
-                'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
-                tab === 'archived'
-                  ? 'bg-white text-amber-700 shadow-sm'
-                  : 'text-slate-500 hover:text-slate-700',
-              )}
-            >
-              <Archive className="mr-1 inline h-4 w-4" />
-              Arxiv ({archived.length})
-            </button>
-          </div>
-          {/* Faqat superadmin: barcha o'quvchilarni login/parol bilan Excel'ga yuklab olish.
-              Parol faqat foydalanuvchi hali kirmagan bo'lsa ko'rinadi. */}
-          {user?.role === 'superadmin' && (
-            <Button variant="secondary" onClick={() => downloadStudentCredentials()}>
-              <Download className="h-4 w-4" /> Login/parollar
-            </Button>
-          )}
-          {tab === 'active' && (
-            <>
-              <Button variant="secondary" onClick={() => downloadStudentImportTemplate()}>
-                <FileDown className="h-4 w-4" /> Shablon
-              </Button>
-              <Button
-                variant="secondary"
-                disabled={importing}
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <Upload className="h-4 w-4" /> {importing ? 'Yuklanmoqda…' : 'Excel yuklash'}
-              </Button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".xlsx"
-                className="hidden"
-                onChange={handleImportFile}
-              />
-              <Button
+    <div className="space-y-5">
+      <PageHeader
+        title="O'quvchilar"
+        sub={
+          tab === 'active'
+            ? `Faol: ${students.length} ta · Arxivda: ${archived.length} ta`
+            : `Arxivda: ${archived.length} ta o'quvchi`
+        }
+        actions={
+          <>
+            {/* Faol/Arxiv tab toggle */}
+            <div className="tabs">
+              <button
+                type="button"
                 onClick={() => {
-                  setEditing(null)
-                  setFormOpen(true)
+                  setTab('active')
+                  clearSelection()
                 }}
+                className={cn('tab', tab === 'active' && 'active')}
               >
-                <Plus className="h-4 w-4" /> Yangi qo'shish
+                Faol
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setTab('archived')
+                  clearSelection()
+                }}
+                className={cn('tab', tab === 'archived' && 'active')}
+              >
+                <Archive className="mr-1 inline h-4 w-4" />
+                Arxiv ({archived.length})
+              </button>
+            </div>
+            {/* Faqat superadmin: barcha o'quvchilarni login/parol bilan Excel'ga yuklab olish.
+                Parol faqat foydalanuvchi hali kirmagan bo'lsa ko'rinadi. */}
+            {user?.role === 'superadmin' && (
+              <Button variant="secondary" onClick={() => downloadStudentCredentials()}>
+                <Download className="h-4 w-4" /> Login/parollar
               </Button>
-            </>
-          )}
-        </div>
-      </div>
+            )}
+            {tab === 'active' && (
+              <>
+                <Button variant="secondary" onClick={() => downloadStudentImportTemplate()}>
+                  <FileDown className="h-4 w-4" /> Shablon
+                </Button>
+                <Button
+                  variant="secondary"
+                  disabled={importing}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Upload className="h-4 w-4" /> {importing ? 'Yuklanmoqda…' : 'Excel yuklash'}
+                </Button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".xlsx"
+                  className="hidden"
+                  onChange={handleImportFile}
+                />
+                <Button
+                  onClick={() => {
+                    setEditing(null)
+                    setFormOpen(true)
+                  }}
+                >
+                  <Plus className="h-4 w-4" /> Yangi qo'shish
+                </Button>
+              </>
+            )}
+          </>
+        }
+      />
 
-      <Card className="p-0">
-        {/* Filtrlar */}
-        <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 p-4">
-          <div className="relative flex-1 min-w-[200px]">
-            <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+      {/* Filtrlar — toolbar */}
+      <div className="toolbar">
+        <div className="left">
+          <div className="search-inline">
+            <Search className="h-4 w-4 shrink-0 text-slate-400" />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="F.I.SH yoki ota-ona bo'yicha qidirish..."
-              className={cn(control, 'w-full pl-9')}
             />
           </div>
           <select
@@ -404,11 +413,16 @@ export function StudentsPage() {
             <option value="paid">Qarzsizlar</option>
           </select>
         </div>
+        <div className="right">
+          <span className="text-sm text-slate-400">{filtered.length} ta</span>
+        </div>
+      </div>
 
+      <Card tight>
         {/* Tanlanganlar uchun amal paneli */}
         {selected.size > 0 && (
           <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 bg-brand-50/60 px-4 py-3">
-            <span className="text-sm font-medium text-brand-700">
+            <span className="text-sm font-semibold text-brand-700">
               {selected.size} ta tanlandi
             </span>
             <Button variant="secondary" onClick={() => setSmsOpen(true)}>
@@ -430,11 +444,11 @@ export function StudentsPage() {
         {loading ? (
           <Loader label="Yuklanmoqda..." />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-400">
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
                 <tr>
-                  <th className="w-10 px-4 py-3">
+                  <th className="w-10">
                     <input
                       ref={headerCbRef}
                       type="checkbox"
@@ -443,28 +457,28 @@ export function StudentsPage() {
                       className="h-4 w-4 accent-brand-600"
                     />
                   </th>
-                  <th className="w-10 px-2 py-3">#</th>
-                  <th className="px-4 py-3">F.I.SH</th>
-                  <th className="px-4 py-3">Guruh</th>
-                  <th className="px-4 py-3">Jinsi</th>
-                  <th className="px-4 py-3">Tug'ilgan kun</th>
-                  <th className="px-4 py-3">Ota-ona</th>
-                  <th className="px-4 py-3">Telefon</th>
-                  <th className="px-4 py-3">Balans</th>
-                  {tab === 'archived' && <th className="px-4 py-3">Arxiv sanasi</th>}
-                  {tab === 'archived' && <th className="px-4 py-3">Sabab</th>}
-                  <th className="px-4 py-3 text-right">Amallar</th>
+                  <th className="w-10">#</th>
+                  <th>F.I.SH</th>
+                  <th>Guruh</th>
+                  <th>Jinsi</th>
+                  <th>Tug'ilgan kun</th>
+                  <th>Ota-ona</th>
+                  <th>Telefon</th>
+                  <th className="num">Balans</th>
+                  {tab === 'archived' && <th>Arxiv sanasi</th>}
+                  {tab === 'archived' && <th>Sabab</th>}
+                  <th className="text-right">Amallar</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody>
                 {filtered.map((s, i) => (
                   <tr
                     key={s.id}
                     onClick={() => openNotebook(s)}
                     title="Shaxsiy daftarni ochish"
-                    className="cursor-pointer hover:bg-slate-50/60"
+                    className="cursor-pointer"
                   >
-                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                    <td onClick={(e) => e.stopPropagation()}>
                       <input
                         type="checkbox"
                         checked={selected.has(s.id)}
@@ -472,42 +486,68 @@ export function StudentsPage() {
                         className="h-4 w-4 accent-brand-600"
                       />
                     </td>
-                    <td className="px-2 py-3 text-slate-400">{i + 1}</td>
-                    <td className="px-4 py-3 font-medium text-slate-800">
-                      {s.fullName}
+                    <td className="font-mono text-slate-400">{i + 1}</td>
+                    <td>
+                      <div className="cell-user">
+                        <div className="avatar" style={{ background: avatarColor(s.fullName) }}>
+                          {initials(s.fullName)}
+                        </div>
+                        <div className="meta">
+                          <strong>
+                            <Link
+                              to={`/admin/students/${s.id}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className="text-inherit no-underline hover:underline"
+                            >
+                              {s.fullName}
+                            </Link>
+                          </strong>
+                          <span>{genderLabels[s.gender]}</span>
+                        </div>
+                      </div>
                     </td>
-                    <td className="px-4 py-3">
-                      <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
-                        {s.className}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-slate-600">{genderLabels[s.gender]}</td>
-                    <td className="px-4 py-3 text-slate-600">{formatDate(s.birthDate)}</td>
-                    <td className="px-4 py-3 text-slate-600">{s.parentFullName}</td>
-                    <td className="px-4 py-3 text-slate-600">{s.parentPhone}</td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={cn(
-                          'font-medium',
-                          s.balance < 0
-                            ? 'text-red-600'
-                            : s.balance > 0
-                              ? 'text-emerald-600'
-                              : 'text-slate-500',
+                    <td>
+                      <div className="flex flex-wrap gap-1">
+                        {(s.groups && s.groups.length > 0
+                          ? s.groups
+                          : s.className
+                            ? [s.className]
+                            : []
+                        ).map((g, gi) => (
+                          <Badge key={gi} tone="violet">
+                            {g}
+                          </Badge>
+                        ))}
+                        {(!s.groups || s.groups.length === 0) && !s.className && (
+                          <span className="text-xs text-slate-300">—</span>
                         )}
-                      >
-                        {s.balance > 0 ? `+${formatMoney(s.balance)}` : formatMoney(s.balance)}
-                      </span>
+                      </div>
+                    </td>
+                    <td className="text-slate-600">{genderLabels[s.gender]}</td>
+                    <td className="font-mono text-slate-600">{formatDate(s.birthDate)}</td>
+                    <td className="text-slate-600">{s.parentFullName}</td>
+                    <td className="font-mono text-slate-600">{s.parentPhone}</td>
+                    <td
+                      className={cn(
+                        'num font-semibold',
+                        s.balance < 0
+                          ? 'text-red-600'
+                          : s.balance > 0
+                            ? 'text-emerald-600'
+                            : 'text-slate-500',
+                      )}
+                    >
+                      {s.balance > 0 ? `+${formatMoney(s.balance)}` : formatMoney(s.balance)}
                     </td>
                     {tab === 'archived' && (
-                      <td className="px-4 py-3 text-slate-600">{s.archivedAt ? formatDate(s.archivedAt) : '—'}</td>
+                      <td className="font-mono text-slate-600">{s.archivedAt ? formatDate(s.archivedAt) : '—'}</td>
                     )}
                     {tab === 'archived' && (
-                      <td className="px-4 py-3 text-slate-600 max-w-[18rem] truncate" title={s.archiveReason ?? ''}>
+                      <td className="max-w-[18rem] truncate text-slate-600" title={s.archiveReason ?? ''}>
                         {s.archiveReason || '—'}
                       </td>
                     )}
-                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                    <td onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-0.5">
                         {tab === 'active' ? (
                           <>
@@ -564,7 +604,7 @@ export function StudentsPage() {
       <StudentViewModal student={viewing} onClose={() => setViewing(null)} />
       <SmsModal open={smsOpen} onClose={() => setSmsOpen(false)} recipients={selectedStudents} />
       <PaymentModal student={paying} onClose={() => setPaying(null)} onSubmit={handlePayment} />
-      <PaymentHistoryModal student={historyOf} onClose={() => setHistoryOf(null)} />
+      <PaymentHistoryModal studentId={historyOf?.id ?? null} onClose={() => setHistoryOf(null)} />
 
       {/* Excel'dan import natijasi */}
       <Modal

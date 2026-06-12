@@ -33,13 +33,25 @@ interface Props {
   onConverted?: (leadId: string, studentId: string) => void
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+function Row({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div className="flex justify-between gap-4 border-b border-slate-100 py-2.5 last:border-0">
       <span className="text-sm text-slate-400">{label}</span>
-      <span className="text-right text-sm font-medium text-slate-800">{value}</span>
+      <span
+        className={`text-right text-sm font-medium text-slate-800 ${mono ? 'font-mono' : ''}`}
+      >
+        {value}
+      </span>
     </div>
   )
+}
+
+/** Ism-sharifdan bosh harflar (avatar uchun) */
+function leadInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return '?'
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return (parts[0][0] + parts[1][0]).toUpperCase()
 }
 
 const eventTypeLabels: Record<LeadEventType, string> = {
@@ -199,17 +211,34 @@ export function LeadDetailModal({ lead, onClose, onEdit, onDelete, onConverted }
     >
       {lead && (
         <div className="space-y-6">
+          {/* Sarlavha — avatar + ism */}
+          <div className="flex items-center gap-3">
+            <span className="avatar h-12 w-12 bg-brand-500 text-base">
+              {leadInitials(lead.fullName)}
+            </span>
+            <div className="min-w-0">
+              <p className="truncate text-lg font-bold tracking-tight text-slate-800">
+                {lead.fullName}
+              </p>
+              <p className="text-sm text-slate-400">
+                {genderLabels[lead.gender]}
+                {lead.interestSubject ? ` · ${lead.interestSubject}` : ''}
+              </p>
+            </div>
+          </div>
+
           {/* Asosiy ma'lumotlar */}
           <div>
-            <Row label="F.I.SH" value={lead.fullName} />
             <Row label="Jinsi" value={genderLabels[lead.gender]} />
-            <Row label="Tug'ilgan kun" value={formatDate(lead.birthDate)} />
-            <Row label="Nechinchi guruhga" value={`${lead.targetGrade}-guruh`} />
-            <Row label="Ota-onasi" value={lead.parentFullName || '—'} />
-            <Row label="Ota-onasi raqami" value={lead.parentPhone || '—'} />
+            <Row label="Tug'ilgan kun" value={formatDate(lead.birthDate)} mono />
+            <Row label="O'z raqami" value={lead.phone || '—'} mono />
+            <Row label="Otasi" value={lead.fatherFullName || '—'} />
+            <Row label="Otasi raqami" value={lead.fatherPhone || '—'} mono />
+            <Row label="Onasi" value={lead.motherFullName || '—'} />
+            <Row label="Onasi raqami" value={lead.motherPhone || '—'} mono />
             <Row label="Manba" value={lead.source || '—'} />
             <Row label="Qiziqqan fani" value={lead.interestSubject || '—'} />
-            {lead.createdAt && <Row label="Yaratilgan" value={formatDate(lead.createdAt)} />}
+            {lead.createdAt && <Row label="Yaratilgan" value={formatDate(lead.createdAt)} mono />}
             {lead.note && (
               <div className="pt-3">
                 <p className="mb-1 text-sm text-slate-400">Izoh</p>
@@ -274,7 +303,7 @@ export function LeadDetailModal({ lead, onClose, onEdit, onDelete, onConverted }
                   >
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-slate-800">{t.groupName}</p>
-                      <p className="text-xs text-slate-400">{formatDateTime(t.scheduledAt)}</p>
+                      <p className="font-mono text-xs text-slate-400">{formatDateTime(t.scheduledAt)}</p>
                     </div>
                     <div className="flex items-center gap-2">
                       <span
@@ -377,7 +406,7 @@ export function LeadDetailModal({ lead, onClose, onEdit, onDelete, onConverted }
                       <p className="text-sm text-slate-700">{ev.text}</p>
                       <p className="text-xs text-slate-400">
                         {ev.actorName ? `${ev.actorName} • ` : ''}
-                        {formatDateTime(ev.createdAt)}
+                        <span className="font-mono">{formatDateTime(ev.createdAt)}</span>
                       </p>
                     </div>
                   </li>

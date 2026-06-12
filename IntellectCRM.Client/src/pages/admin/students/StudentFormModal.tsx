@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { Upload, X, FileText, Loader2 } from 'lucide-react'
+import { Upload, X, FileText, Loader2, AlertTriangle } from 'lucide-react'
 import type { Student } from '@/types'
-import type { StudentPayload } from '@/api/services/students'
-import { uploadAdminFile, getStudentCredentials } from '@/api/services/students'
+import type { StudentPayload, PhoneMatch } from '@/api/services/students'
+import { uploadAdminFile, getStudentCredentials, checkStudentPhones } from '@/api/services/students'
 import { getClasses } from '@/api/services/classes'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
@@ -27,12 +27,11 @@ const empty: StudentPayload = {
   birthCertificateUrl: null,
   address: '',
   gender: 'male',
-  parentFullName: '',
-  parentLastName: '',
-  parentFirstName: '',
-  parentMiddleName: '',
-  parentPhone: '',
-  parentPassportUrl: null,
+  phone: '',
+  fatherFullName: '',
+  fatherPhone: '',
+  motherFullName: '',
+  motherPhone: '',
   className: '',
   enrollmentDate: new Date().toISOString().slice(0, 10),
   discountPct: 0,
@@ -61,9 +60,15 @@ export function StudentFormModal({ open, onClose, onSubmit, initial }: Props) {
   const [form, setForm] = useState<StudentPayload>(empty)
   const [classNames, setClassNames] = useState<string[]>([])
   /** Fayl yuklash holatlari (har maydon uchun alohida). */
-  const [uploading, setUploading] = useState<{ birth?: boolean; passport?: boolean }>({})
+  const [uploading, setUploading] = useState<{ birth?: boolean }>({})
   /** Tahrirlanayotgan o'quvchining login (username)i — backend'dan olinadi, faqat ko'rsatish uchun. */
   const [login, setLogin] = useState('')
+  /** Telefon dublikati tekshiruvi holati. */
+  const [checking, setChecking] = useState(false)
+  /** Topilgan dublikatlar (bo'lsa — tasdiq modali ochiladi). */
+  const [dupes, setDupes] = useState<PhoneMatch[]>([])
+  /** Dublikat tasdig'ini kutayotgan payload ("Baribir saqlash" uchun). */
+  const [pending, setPending] = useState<StudentPayload | null>(null)
 
   useEffect(() => {
     if (open) getClasses().then((cs) => setClassNames(cs.map((c) => c.name)))
@@ -83,14 +88,15 @@ export function StudentFormModal({ open, onClose, onSubmit, initial }: Props) {
 
   useEffect(() => {
     if (!open) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- modal qayta ochilganda dublikat holatini tozalash (maqsadli)
+    setDupes([])
+    setPending(null)
+    setChecking(false)
     if (initial) {
       // Tahrirda: agar parts saqlanmagan bo'lsa, FullName'dan parse qilamiz (eski o'quvchilar).
       const sParts = initial.lastName || initial.firstName || initial.middleName
         ? { last: initial.lastName ?? '', first: initial.firstName ?? '', middle: initial.middleName ?? '' }
         : splitFullName(initial.fullName)
-      const pParts = initial.parentLastName || initial.parentFirstName || initial.parentMiddleName
-        ? { last: initial.parentLastName ?? '', first: initial.parentFirstName ?? '', middle: initial.parentMiddleName ?? '' }
-        : splitFullName(initial.parentFullName)
       // eslint-disable-next-line react-hooks/set-state-in-effect -- modal ochilganda formani initial bilan sinxronlash (maqsadli)
       setForm({
         fullName: initial.fullName,
@@ -101,12 +107,11 @@ export function StudentFormModal({ open, onClose, onSubmit, initial }: Props) {
         birthCertificateUrl: initial.birthCertificateUrl ?? null,
         address: initial.address,
         gender: initial.gender,
-        parentFullName: initial.parentFullName,
-        parentLastName: pParts.last,
-        parentFirstName: pParts.first,
-        parentMiddleName: pParts.middle,
-        parentPhone: initial.parentPhone,
-        parentPassportUrl: initial.parentPassportUrl ?? null,
+        phone: initial.phone ?? '',
+        fatherFullName: initial.fatherFullName ?? '',
+        fatherPhone: initial.fatherPhone ?? '',
+        motherFullName: initial.motherFullName ?? '',
+        motherPhone: initial.motherPhone ?? '',
         className: initial.className,
         enrollmentDate: initial.enrollmentDate,
         discountPct: initial.discountPct,
@@ -119,32 +124,23 @@ export function StudentFormModal({ open, onClose, onSubmit, initial }: Props) {
     }
   }, [open, initial])
 
-  // Yangi o'quvchida sinf tanlanmagan bo'lsa, birinchi sinfni standart qilamiz
-  useEffect(() => {
-    if (open && !initial && classNames.length) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- sinflar yuklangach standart sinfni o'rnatish (maqsadli)
-      setForm((f) => (f.className ? f : { ...f, className: classNames[0] }))
-    }
-  }, [open, initial, classNames])
-
-  const update = <K extends keyof StudentPayload>(key: K, value: StudentPayload[K]) =>
+  const update =<K extends keyof StudentPayload>(key: K, value: StudentPayload[K]) =>
     setForm((f) => ({ ...f, [key]: value }))
 
   /** Fayl yuklash — admin uploads endpoint'iga uzatib, qaytgan URL'ni formaga yozadi. */
-  const handleUpload = async (key: 'birthCertificateUrl' | 'parentPassportUrl', file: File) => {
-    const flag = key === 'birthCertificateUrl' ? 'birth' : 'passport'
-    setUploading((u) => ({ ...u, [flag]: true }))
+  const handleUpload = async (key: 'birthCertificateUrl', file: File) => {
+    setUploading((u) => ({ ...u, birth: true }))
     try {
       const res = await uploadAdminFile(file)
       update(key, res.url)
     } catch {
       // mock yoki tarmoq xatosi — sukut bilan o'tkazamiz; istasangiz toast ko'rsatish mumkin
     } finally {
-      setUploading((u) => ({ ...u, [flag]: false }))
+      setUploading((u) => ({ ...u, birth: false }))
     }
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     const last = (form.lastName ?? '').trim()
     const first = (form.firstName ?? '').trim()
@@ -156,11 +152,33 @@ export function StudentFormModal({ open, onClose, onSubmit, initial }: Props) {
       return
     }
     const fullName = joinName(last, first, middle)
-    const parentFullName = joinName(form.parentLastName, form.parentFirstName, form.parentMiddleName)
-    onSubmit({ ...form, fullName, parentFullName })
+    const payload = { ...form, fullName }
+
+    // Telefon dublikatini tekshiramiz (o'quvchi/ota/ona raqami — arxivdagilar ham).
+    setChecking(true)
+    try {
+      const matches = await checkStudentPhones({
+        phone: form.phone ?? undefined,
+        fatherPhone: form.fatherPhone ?? undefined,
+        motherPhone: form.motherPhone ?? undefined,
+        excludeId: initial?.id,
+      })
+      if (matches.length > 0) {
+        setPending(payload)
+        setDupes(matches)
+        return // tasdiq modalida "Baribir saqlash" kutiladi
+      }
+    } catch {
+      // Tekshiruv ishlamasa (tarmoq/mok) — saqlashni bloklamaymiz.
+    } finally {
+      setChecking(false)
+    }
+
+    onSubmit(payload)
   }
 
   return (
+    <>
     <Modal
       open={open}
       onClose={onClose}
@@ -171,8 +189,8 @@ export function StudentFormModal({ open, onClose, onSubmit, initial }: Props) {
           <Button variant="secondary" onClick={onClose}>
             Bekor qilish
           </Button>
-          <Button type="submit" form="student-form">
-            Saqlash
+          <Button type="submit" form="student-form" disabled={checking}>
+            {checking ? 'Tekshirilmoqda...' : 'Saqlash'}
           </Button>
         </>
       }
@@ -219,6 +237,14 @@ export function StudentFormModal({ open, onClose, onSubmit, initial }: Props) {
             </Select>
           </div>
           <div className="mt-3">
+            <Input
+              label="O'z telefon raqami"
+              placeholder="+998 90 123 45 67"
+              value={form.phone ?? ''}
+              onChange={(e) => update('phone', e.target.value)}
+            />
+          </div>
+          <div className="mt-3">
             <FileField
               label="O'quvchi rasmi"
               url={form.birthCertificateUrl ?? null}
@@ -231,38 +257,30 @@ export function StudentFormModal({ open, onClose, onSubmit, initial }: Props) {
 
         {/* ---------- Ota-ona ---------- */}
         <Section title="Ota-ona">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <Input
-              label="Familiya"
-              value={form.parentLastName ?? ''}
-              onChange={(e) => update('parentLastName', e.target.value)}
+              label="Otasi F.I.SH"
+              value={form.fatherFullName ?? ''}
+              onChange={(e) => update('fatherFullName', e.target.value)}
             />
             <Input
-              label="Ism"
-              value={form.parentFirstName ?? ''}
-              onChange={(e) => update('parentFirstName', e.target.value)}
-            />
-            <Input
-              label="Otasining ismi"
-              value={form.parentMiddleName ?? ''}
-              onChange={(e) => update('parentMiddleName', e.target.value)}
-            />
-          </div>
-          <div className="mt-3">
-            <Input
-              label="Telefon raqami"
+              label="Otasi raqami"
               placeholder="+998 90 123 45 67"
-              value={form.parentPhone}
-              onChange={(e) => update('parentPhone', e.target.value)}
+              value={form.fatherPhone ?? ''}
+              onChange={(e) => update('fatherPhone', e.target.value)}
             />
           </div>
-          <div className="mt-3">
-            <FileField
-              label="Ota-ona rasmi"
-              url={form.parentPassportUrl ?? null}
-              uploading={uploading.passport}
-              onUpload={(f) => handleUpload('parentPassportUrl', f)}
-              onClear={() => update('parentPassportUrl', null)}
+          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+            <Input
+              label="Onasi F.I.SH"
+              value={form.motherFullName ?? ''}
+              onChange={(e) => update('motherFullName', e.target.value)}
+            />
+            <Input
+              label="Onasi raqami"
+              placeholder="+998 90 123 45 67"
+              value={form.motherPhone ?? ''}
+              onChange={(e) => update('motherPhone', e.target.value)}
             />
           </div>
         </Section>
@@ -280,6 +298,7 @@ export function StudentFormModal({ open, onClose, onSubmit, initial }: Props) {
               value={form.className}
               onChange={(e) => update('className', e.target.value)}
             >
+              <option value="">— guruhsiz —</option>
               {classNames.map((c) => (
                 <option key={c} value={c}>
                   {c}
@@ -369,6 +388,72 @@ export function StudentFormModal({ open, onClose, onSubmit, initial }: Props) {
         )}
       </form>
     </Modal>
+
+    {/* Telefon dublikati ogohlantirishi — "Baribir saqlash" / "Bekor qilish" */}
+    <Modal
+      open={dupes.length > 0}
+      onClose={() => {
+        setDupes([])
+        setPending(null)
+      }}
+      size="md"
+      title="Bunday raqam allaqachon mavjud"
+      footer={
+        <>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setDupes([])
+              setPending(null)
+            }}
+          >
+            Bekor qilish
+          </Button>
+          <Button
+            variant="danger"
+            onClick={() => {
+              const p = pending
+              setDupes([])
+              setPending(null)
+              if (p) onSubmit(p)
+            }}
+          >
+            Baribir saqlash
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-3">
+        <div className="flex items-start gap-2.5 rounded-lg bg-amber-50 px-3 py-2.5 text-sm text-amber-700">
+          <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+          <p>
+            Kiritilgan raqam(lar) allaqachon quyidagi o'quvchi(lar)da ishlatilgan. Baribir saqlashni
+            xohlaysizmi?
+          </p>
+        </div>
+        <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200">
+          {dupes.map((d, i) => (
+            <li key={`${d.studentId}-${i}`} className="flex items-center gap-3 px-3 py-2.5">
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-slate-800">
+                  {d.fullName}
+                  {d.isArchived && (
+                    <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-semibold text-slate-500">
+                      arxivda
+                    </span>
+                  )}
+                </p>
+                <p className="truncate text-xs text-slate-400">
+                  {d.className || 'guruhsiz'} · {d.role} raqami
+                </p>
+              </div>
+              <span className="font-mono text-sm text-slate-600">{d.phone}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </Modal>
+    </>
   )
 }
 

@@ -9,7 +9,7 @@
 
 - **Backend:** ASP.NET Core 8 (C#), Clean Architecture
 - **Frontend:** React + TypeScript + Vite + Tailwind + Recharts
-- **DB:** MySQL 8 (`Pomelo.EntityFrameworkCore.MySql`), utf8mb4
+- **DB:** SQL Server (`Microsoft.EntityFrameworkCore.SqlServer`). Lokal dev: LocalDB (`(localdb)\MSSQLLocalDB`, baza `IntellectCRM_DB`). nvarchar — Unicode tabiatan.
 - **Real-time:** SignalR | **Auth:** JWT | **Push:** FCM | **Bot:** Telegram | **Hujjat:** OpenXML
 - **Infra:** Docker Compose + Cloudflare Tunnel
 
@@ -26,22 +26,46 @@ IntellectCRM.slnx
 ## 3. Joriy holat
 - **Branch:** `intellectcrm-transform` (master'ga MERGE QILINMAGAN — foydalanuvchi ruxsatini kutadi).
 - **Build:** backend 0 xato; frontend `tsc -b` 0 + `vite build` ✓.
-- **Migratsiya:** bitta `InitialCreate` (53 jadval) — jonli MySQL 8 da tasdiqlangan.
+- **Migratsiya:** bitta `InitialCreate` (53 jadval) — LocalDB (SQL Server) da qo'llanib tasdiqlangan.
 - **TZ 10/10 faza bajarilgan.**
 
 ## 4. Muhim arxitektura qarorlari (ESLAB QOLISH)
 - **Multi-tenant YO'Q** — `TenantId`/Control Plane/obuna olib tashlangan. `Roles.PlatformOwner` = yagona egasi.
 - **Entity rename:** `SchoolClass` → **`Group`**, `SchoolMeta` → **`CenterMeta`**, `SchoolController` → `CenterController`.
   DbSet nomi hali `Classes` (jadval "Classes"), `db.CenterMeta`.
-- **Olib tashlangan:** Canteen(Dish), Quarters(QuarterPeriod/QuarterGrade), AcademicYear/rollover, SubGroup(1/2).
+- **Olib tashlangan:** Canteen(Dish), Quarters(QuarterPeriod/QuarterGrade), AcademicYear/rollover, SubGroup(1/2),
+  **Avtobus-GPS** (Bus/BusLocation entity, GpsService, GpsController/GpsIngestController, CenterMeta.Gps* maydonlari,
+  o'quvchi portali avtobus oynasi, admin GPS sahifasi+sozlamasi, frontend nav/route). `PickupRequest` (ota-ona
+  "farzandni oldim") SAQLANDI — u avtobus-GPS emas. `LiveHub` qoldi (turniket uchun); kamera/turniket alohida.
 - **`int Quarter`** entitylarda OPAQUE ustun sifatida qoldi (default 1) — jurnal indekslari uchun.
-- **Jadval/hafta hisobi:** markazda chorak entity yo'q; `TuitionService.SyntheticPeriodsAsync` o'quv yili
-  boshidan ~10 oylik **bitta sintetik davr** qaytaradi (`SchoolSettingsDto.Quarters`, `PortalMetaDto.Quarters`).
-  Frontend hafta navigatsiyasi shunga tayanadi — buni buzmang.
+- **Dars jadvali OLIB TASHLANDI** (ScheduleTemplate/ScheduleLesson/WeekAssignment/Holiday/LessonTime yo'q).
+  Jurnal ustunlari endi **qo'lda qo'shilgan darslardan** (`LessonNote`: ClassId, SubjectId, Quarter=1, Date, Period,
+  Topic, Homework, Conducted) keladi — `JournalService.ComputeColumnsAsync` shularni qaytaradi. "Dars qo'shish" =
+  `PUT /api/admin/journal/notes` `conducted:true` bilan (LessonNote upsert → yangi ustun).
+- **Kurs (`Subject`) + Guruh (`Group`) modeli** ("Fan biriktirish"/`TeachingAssignment` OLIB TASHLANDI):
+  - `Subject` = **Kurs** (UI'da "Kurslar"), `Name` + `Price` (oylik narx).
+  - `Group`da endi: `CourseId` (kurs), `TeacherId` (o'qituvchi — guruh yaratishda tanlanadi), `Room`, `StartDate`,
+    `Note`, `Days` (List<int> 0=Du..6=Yak), `StartTime`/`EndTime` ("HH:mm"). Guruh yaratish/tahrirlashda `CourseId`
+    berilsa **`MonthlyFee` avtomatik kurs `Price`idan** o'rnatiladi.
+  - **O'qituvchi↔guruh** = `Group.TeacherId`. "Guruh fani" = `Group.CourseId` (bir guruh — bitta kurs). Jurnal,
+    o'qituvchi ilovasi, hisobotlar, davomat shunga tayanadi (eski TeachingAssignment so'rovlari shularga ko'chirildi).
+- **Maosh QO'LDA, 2 rejim** (`Teacher.SalaryMode`): **"fixed"** — admin `Teacher.Salary` qat'iy summasini kiritadi;
+  **"percent"** — o'qituvchi guruh(lar)idan SHU OYDA haqiqatan yig'ilgan tuition to'lovining `Teacher.SalaryPercent`
+  foizi (yig'ilgan sayin o'sib boradi). Hisob: `SalaryLedger.CollectedForTeacherGroupsAsync` — guruh = `Group.TeacherId`;
+  to'lov `FinanceTransaction.GroupId` tegiga ega bo'lsa 100% o'sha guruhga, **teglanmagan** to'lov esa o'quvchining shu
+  oydagi billable guruhlari `MonthlyFee` nisbatida taqsimlanadi. Frontend `TeacherSalaryPage` (rejim toggle + foiz).
+  DIQQAT: `TeachersController.Create/Update` endi `Salary/SalaryMode/SalaryPercent`ni YOZADI (ilgari Salary umuman
+  yozilmasdi — latent bug); `TeacherFormModal` bu maydonlarni round-trip qiladi (profil tahrirda reset bo'lmaydi).
+- **Quarter** hamon opaque (=1). `TuitionService.SyntheticPeriodsAsync` (sintetik davr) saqlanadi.
 - **M2M guruhlar:** `StudentGroup` (StudentId, GroupId, JoinedAt, LeftAt?, IsActive). `Student.ClassName`
   "asosiy guruh" yorlig'i sifatida SAQLANADI (jurnal/chat/hisobot o'zgarmasdan ishlaydi).
-- **Billing:** `TuitionService.AccrueMonth` — o'quvchi oyligi = barcha FAOL guruhlari `MonthlyFee` yig'indisi
-  (aggregate); a'zoligi bo'lmasa eski ClassName narxi. `CenterMeta.BillingMode` = "aggregate" (perGroup — kelajak).
+- **Billing + a'zolik holati:** `StudentGroup.Status` = "trial" (sinov — to'lov YO'Q) | "active" | "frozen".
+  Guruhga qo'shilganda "trial". **Aktivlashtirish** (`/members/{sid}/activate` {date}): birinchi (qisman) oy =
+  (guruh `MonthlyFee` ÷ SHU OYDAGI jami dars) × shu sanadan oy oxirigacha qolgan darslar (`group.Days` bo'yicha) —
+  qolgan ≤ jami bo'lgani uchun to'liqdan oshmaydi, chegirma qo'llanadi (`TuitionService.ChargeActivationProrateAsync`). **Muzlatish** (`/members/{sid}/freeze`
+  {date}): shu oydan boshlab hisoblanmaydi. `AccrueMonth` har oy = FAOL a'zoliklarning `MonthlyFee` yig'indisi —
+  faqat Status=="active", aktivlashtirilgan oydan KEYINGI oylar, muzlatish oyidan OLDIN (a'zoligi yo'q o'quvchi — eski
+  ClassName narxi). `MonthlyCharge` hamon per (StudentId, Month) aggregate.
 - **CRM:** `Lead`(Source/InterestSubject/CreatedAt/ConvertedStudentId), `LeadEvent`(tarix), `TrialLesson`(sinov).
   Endpointlar `LeadsController`da: events, trials, `/{id}/convert`, `/stats`.
 - **Guruh endpointlari** `ClassesController`da: `/{id}/members`, `/student/{id}/groups`, `/fill`.
@@ -57,9 +81,8 @@ dotnet build IntellectCRM.slnx -p:BuildSpa=false
 # Frontend
 cd IntellectCRM.Client && npx tsc -b && npm run build
 
-# Mahalliy ishga tushirish (MySQL kerak)
-docker run -d --name icrm-mysql -p 3306:3306 -e MYSQL_ROOT_PASSWORD=root -e MYSQL_DATABASE=intellectcrm mysql:8.0
-dotnet run --project IntellectCRM.Server          # API + avtomatik migratsiya
+# Mahalliy ishga tushirish (SQL Server LocalDB — Windows'da o'rnatilgan bo'ladi, alohida docker shart emas)
+dotnet run --project IntellectCRM.Server          # API + avtomatik migratsiya (baza: IntellectCRM_DB)
 cd IntellectCRM.Client && npm run dev             # (ixtiyoriy) frontend dev
 
 # Migratsiyani qayta yaratish (model o'zgarsa): Migrations/ ni o'chir -> build -> add
@@ -67,16 +90,21 @@ rm -rf IntellectCRM.Infrastructure/Migrations
 dotnet build IntellectCRM.Server/IntellectCRM.Server.csproj -p:BuildSpa=false
 dotnet ef migrations add InitialCreate --project IntellectCRM.Infrastructure --startup-project IntellectCRM.Server --no-build
 # DIQQAT: ef bilan ishlashda avval BUILD qiling (migratsiya assembly'ga kirishi uchun), so'ng --no-build.
+# DIQQAT 2: `migrations add`dan KEYIN `database update --no-build` qilishdan oldin YANA build qiling —
+#          aks holda yangi migratsiya assembly'ga kirmaydi va EF "already up to date" deb o'tkazib yuboradi.
 ```
 
 ## 6. Deploy (prod)
 ```bash
-docker compose up -d --build    # app + mysql + cloudflared + backup + mediamtx
+docker compose up -d --build    # app + mssql + cloudflared + backup + mediamtx
 ```
 - **`.env`** (git'ga tushmaydi): `ROOT_DOMAIN=intellectschool.uz`, `APP_HOST=crm.intellectschool.uz`,
-  `MYSQL_ROOT_PASSWORD`, `JWT_KEY`, `TUNNEL_TOKEN` (tunnel `80531fd7`, sinovdan o'tgan).
+  `MSSQL_SA_PASSWORD` (murakkab!), `MSSQL_PID=Express`, `JWT_KEY`, `TUNNEL_TOKEN` (tunnel `80531fd7`, sinovdan o'tgan).
+- **DB:** SQL Server 2022 (Express, prod uchun bepul, baza <=10GB). Server'da **>=2GB RAM** kerak. Baza `IntellectCRM_DB`.
 - **Cloudflare panel:** Public Hostname `crm.intellectschool.uz` → HTTP → `app:8080`.
-- App porti internetga ochilmaydi (faqat cloudflared). Backup: kunlik 02:00 Toshkent, mysqldump, 7 kun.
+- App porti internetga ochilmaydi (faqat cloudflared). Backup: kunlik 02:00 Toshkent, `BACKUP DATABASE`→`.bak.gz`, 7 kun.
+- Diqqat: `BACKUP DATABASE` faylni mssql konteyner ichiga yozadi — `mssql-backups` volume mssql va backup
+  xizmatida ulashilgan; backup xizmati `root` bo'lib volume'ni 777 qiladi (engine `.bak` yoza olishi uchun).
 
 ## 7. Qolgan/ixtiyoriy
 - [ ] `intellectcrm-transform` → `master` merge (foydalanuvchi ruxsati bilan).
@@ -90,4 +118,339 @@ docker compose up -d --build    # app + mysql + cloudflared + backup + mediamtx
 - 2026-06-09: Mijoz proyekti `schoollms.client` → `IntellectCRM.Client` (commit `e967b0a`).
 - 2026-06-09: `.env` MySQL formatiga + yangi Cloudflare token (`80531fd7`); `APP_HOST=crm.intellectschool.uz`
   (subdomen). Token jonli sinovdan o'tdi ("Registered tunnel connection"). `dotnet run` → `--project IntellectCRM.Server`.
-- (keyingi o'zgarishlar shu yerga qo'shiladi)
+- 2026-06-09: **DB MySQL → SQL Server** (lokal). `Pomelo.EntityFrameworkCore.MySql` → `Microsoft.EntityFrameworkCore.SqlServer`;
+  `Program.cs` `UseMySql` → `UseSqlServer`; `AppDbContext` dan `HasCharSet/UseCollation(utf8mb4)` olib tashlandi;
+  connection string → `(localdb)\MSSQLLocalDB;Database=IntellectCRM_DB`. Beshta `decimal` (Teacher.BonusPct,
+  CenterMeta.SalaryRate1/2/Mutaxasis/Oliy) ga `HasPrecision(18,2)` qo'shildi. LMS FK mosligi uchun
+  `LmsSubject/LmsModule/LmsTopic.Id` → `HasMaxLength(200)` (string PK default nvarchar(450), FK ustun 200 edi;
+  kompozit indeks 900 bayt limiti uchun ham 200 kerak). `InitialCreate` qayta yaratildi va LocalDB'ga qo'llandi
+  (53 jadval, 7 FK). Build (solution, SPA'siz) yashil.
+- 2026-06-09: **Docker prod ham SQL Server'ga o'tkazildi.** `docker-compose.yml`: `mysql:8.0` → `mcr.microsoft.com/mssql/server:2022-latest`
+  (Express, `mssql-data`+`mssql-backups` volume, sqlcmd healthcheck); app connection string → `Server=mssql,1433;...TrustServerCertificate=True`;
+  backup `mysqldump` → `BACKUP DATABASE`+gzip (umumiy volume orqali, chunki SQL Server .bak'ni server konteyneriga yozadi).
+  `.env.example`: `MYSQL_ROOT_PASSWORD` → `MSSQL_SA_PASSWORD`+`MSSQL_PID`. `DEPLOY.md` yangilandi. `docker compose config` → exit 0 (validatsiya o'tdi).
+- 2026-06-09: **Docker stack jonli sinovdan o'tdi.** `docker compose up` → mssql healthy, app migratsiya qilib `IntellectCRM_DB`
+  (53 jadval) yaratdi, login API HTTP 200 + JWT, backup zanjiri (`BACKUP DATABASE`→gzip umumiy volume orqali) ishladi.
+- 2026-06-09: **Super admin bootstrap qo'shildi** (`Program.cs` seed bloki). Ilgari hech qanday admin SEED QILINMAGAN edi —
+  `Users` bo'sh, kira oladigan hech kim yo'q edi (multi-tenant olib tashlanganda bootstrap ham yo'qolgan). Endi birinchi
+  ishga tushishda `Users` bo'sh bo'lsa `Roles.SuperAdmin` yaratiladi; login/parol `Seed__OwnerLogin`/`Seed__OwnerPassword`
+  (compose: `OWNER_LOGIN`/`OWNER_PASSWORD`) dan, berilmasa generatsiya + logga yoziladi. DIQQAT: `AppUser.Email` aslida
+  USERNAME (login), email emas. `PlatformOwner` roli hech bir `[Authorize]` da ishlatilmaydi — funksional super admin = `superadmin`.
+- 2026-06-10: **MUHIM jarayon o'zgarishi — bazani BUZMASLIK.** Endi har sxema o'zgarishida INKREMENTAL migratsiya
+  (`migrations add <nom>` — Migrations/ ni O'CHIRMASDAN, InitialCreate'ni qayta yaratmasdan); app `Migrate()` mavjud
+  bazaga `ALTER` qo'llaydi; docker `app` qayta quriladi, `mssql-data` volume O'CHIRILMAYDI. Ma'lumot saqlanadi.
+- 2026-06-10: O'quvchi formasi lid kabi: o'z `Phone` + `Father/Mother(FullName,Phone)`; `ParentFullName/Phone` ota
+  (bo'lmasa ona)dan avtomatik (portal login/Telegram/e'lon uchun); portal login ota YOKI ona raqamiga mos. Ota-ona
+  rasmi olib tashlandi. (StudentPayload'da ParentFullName/Phone endi nullable.)
+- 2026-06-10: **A'zolik holati + qisman-oy billing.** `StudentGroup`ga `Status`(trial/active/frozen)/`ActivatedAt`/
+  `FrozenAt` (inkremental migratsiya `AddMembershipStatus` — baza saqlandi). A'zolar modalida Aktivlashtirish/Muzlatish
+  (sana bilan). Aktivlashtirishda qisman oy = (oylik÷12)×qolgan darslar. Jonli sinov: 1.2M kurs, 15-iyun aktiv → 700k
+  (7 dars × 100k), balans/MonthlyCharge to'g'ri. Build backend 0, tsc+vite yashil.
+- 2026-06-09: **Avtobus-GPS to'liq olib tashlandi.** Backend: `Bus`/`BusLocation` entity, `Buses`/`BusLocations` DbSet
+  (AppDbContext+IAppDbContext), `GpsService`, `GpsController`, `GpsIngestController`, `CenterMeta.Gps*` (5 maydon),
+  `SettingsController` gps endpointlari, `StudentPortalController` avtobus oynasi (uy-joylashuv QOLDI), Dtos Bus/Gps
+  recordlari, `LiveHub` doc gps eslatmasi. Frontend: `gps/GpsPage`, `GpsSettings`, `api/services/gps.ts` o'chirildi;
+  `navigation`/`App.tsx`/`constants`/`SettingsPage`/`settings.ts`/`landing.html` tozalandi. Migratsiya qayta yaratildi
+  → 53→**51 jadval**. Build: backend 0 xato, `tsc -b`+`vite` yashil. Docker qayta qurildi (toza DB, 51 jadval,
+  admin qayta seed), login HTTP 200, eski GPS endpointlar 404. `PickupRequest` ataylab SAQLANDI (avtobus emas).
+- 2026-06-09: **Lid formasi qayta tuzildi.** `Lead`dan `TargetGrade` ("nechinchi guruh"), `ParentFullName`, `ParentPhone`
+  olib tashlandi; qo'shildi: `Phone` (o'quvchi o'z raqami), `FatherFullName`+`FatherPhone`, `MotherFullName`+`MotherPhone`
+  (ota va ona ALOHIDA). DTO (LeadCreate/Update), `LeadsController` (Create/Update + Convert: Student'da bitta ota-ona
+  maydoni bo'lgani uchun ota asosiy, bo'lmasa ona; lid o'z raqami Lead'da qoladi), frontend (`types`, `LeadFormModal`,
+  `LeadCard`, `LeadDetailModal`, mock) yangilandi. Migratsiya qayta yaratildi. Build yashil; Docker'da lid yaratish
+  HTTP 200 + maydonlar saqlandi. ESLATMA: Student modeli o'zgarmadi (hali bitta ota-ona maydoni).
+- 2026-06-09: **Dars jadvali to'liq olib tashlandi + jurnal qayta qurildi** (eng katta o'zgarish; 2 subagent parallel —
+  backend `.cs` + frontend `.ts`, kesishmaydigan fayllar). O'chirildi: ScheduleTemplate/ScheduleLesson/WeekAssignment/
+  Holiday/LessonTime entitylari, jadval/bayram/dars-vaqti kontrollerlari (ScheduleTemplates/Holidays/ScheduleUtils/
+  WeekAssignments), PortalSchedule servisi, 5 menyu + frontend sahifalar (guruh/o'qituvchi jadvali, jadval yaratish,
+  bayram, dars vaqti). Yangi: `TeachingAssignment` entity + controller + "Fan biriktirish" admin sahifasi. Jurnal:
+  ustunlar qo'lda darslardan (LessonNote) + "Dars qo'shish" tugmasi. Maosh qo'lga o'tdi (`TeacherSalaryPage`).
+  8 servis (Journal/Analytics/Rating/Chat/SubjectProgress/StudentReport/TeacherActivity/Turnstile/Salary) +
+  Attendance/Settings/Classes/ClassAnalytics/TeacherPortal/StudentPortal kontrollerlari sxemasiz modelga ko'chirildi.
+  Migratsiya qayta yaratildi (47 jadval). Build: backend 0 xato, tsc+vite yashil. Docker jonli sinov: login OK,
+  `/api/admin/teaching-assignments` 200, eski jadval/bayram/dars-vaqti endpointlari 404. `Fanlar`+`Davomat sabablari` qoldi.
+- 2026-06-10: **Kurs/Guruh modeli (2 subagent parallel).** "Fanlar" → **"Kurslar"** (`Subject`ga `Price` qo'shildi).
+  **"Fan biriktirish" (`TeachingAssignment`) butunlay olib tashlandi** — o'qituvchi endi GURUH yaratishda biriktiriladi.
+  `Group`ga qo'shildi: `CourseId`, `TeacherId`, `Note`, `Days`, `StartTime`, `EndTime` (Room/StartDate bor edi); kurs
+  tanlanganda `MonthlyFee` avtomatik kurs narxidan. Barcha eski TeachingAssignment so'rovlari `Group.TeacherId/CourseId`ga
+  ko'chirildi (~12 servis/kontroller). Frontend: Kurslar+narx, guruh formasi (kurs→narx, xona, sana, o'qituvchi, izoh,
+  hafta kunlari, vaqtlar), Fan-biriktirish sahifasi o'chirildi. Migratsiya qayta yaratildi. Build: backend 0, tsc+vite yashil.
+  Docker jonli sinov: kurs(narx 500000) → guruh yaratildi → **MonthlyFee avtomatik 500000**, days/vaqt/xona saqlandi. ✅
+- 2026-06-10: **Aktivlashtirish billing formulasi to'g'rilandi + super-admin oylik tahrir.** Qisman-oy = `oylik × qolgan_dars
+  ÷ SHU_OYDAGI_jami_dars` (ilgari `÷12` edi → oy boshida to'liq oyga yopishardi). `TuitionService.ChargeActivationProrate`
+  (`LessonsInRange` guruh `Days` bo'yicha). Jonli DB'da eski `÷12` yozuvlari to'g'ri formulaga moslandi (TEST-G,
+  1.2M/13 = 92307.69/dars). **Super admin** oylik HISOBLANGAN summani qo'lda tahrirlay oladi: `PUT /admin/students/{id}/
+  charges/{month}` (`[Authorize(SuperAdmin)]`, `EditChargeRequest`, balans effektiv farqqa moslanadi, auditga yoziladi);
+  frontend `PaymentHistoryModal` "Hisoblangan" katagi super-admin uchun inline tahrirlanadi (`editStudentCharge`).
+- 2026-06-10: **O'quvchi daftari (StudentDetailPage) choraklik → OYMA-OY** (Part 3). `StudentProfileBuilder` baho/davomat/
+  uy-vazifa-xulqni `JournalEntry.Date[..7]` (oy) bo'yicha guruhlaydi (ilgari opaque `Quarter`). Yangi DTO: `MonthMarksDto`,
+  `MonthlyAttendanceDto`; `StudentNotebookDto.Grades`=fan→oy→baho, `Attendance`=oylik, `MarksTrend`=oylik. `StudentReportDto`/
+  `StudentAttendanceDto` (portal+baholar-hisoboti) TEGILMADI — izolyatsiya. Frontend: oylar qabul oyidan joriy oygacha
+  uzluksiz (`monthRangeList`), grafik/jadval/tugmalar oy bo'yicha. Build: backend 0, tsc+vite yashil, deploy ✅ (DB saqlandi).
+  QOLDI: Part 2 — guruh detal sahifasi + guruh `Days` bo'yicha avtomatik OYLIK jurnal (faqat aktiv o'quvchilar, oyma-oy nav).
+- 2026-06-10: **Guruh OYLIK jurnali + guruh detal sahifasi** (Part 2). Backend: `JournalService.GroupMonthAsync` +
+  `GET /admin/journal/group?classId=&month=` → guruh ma'lumoti (kurs/o'qituvchi/kunlar/vaqt) + mavjud oylar (guruh
+  StartDate/eng-erta a'zolikdan joriy oygacha) + ustunlar **guruh `Days` bo'yicha shu oydagi sanalardan AVTOMATIK**
+  (`LessonDatesInMonth`, Period=1) + faqat FAOL a'zolar + shu oy yozuvlari. Fan = guruh `CourseId`. DTO: `GroupJournalDto/
+  Info/Student`. Frontend: `ClassDetailPage` to'liq qayta yozildi — guruh ma'lumot kartasi + oylik jurnal grid (oyma-oy
+  nav, sticky o'quvchi ustuni, status badge, katak bosilsa mavjud `JournalCellModal`). Yozuv `setJournalEntry`
+  (subjectId=CourseId, quarter=1, period=1). Jonli sinov (TEST-G, 074bb979…): 13 dars ustuni (Du/Chor/Juma iyun), 10
+  faol o'quvchi; PUT baho→204→jurnalda ko'rindi→daftarda oylik baho `{kurs:{"2026-06":5}}`. Build: backend 0, tsc+vite
+  yashil, deploy ✅ (DB saqlandi).
+- 2026-06-10: **Guruh jurnali — muzlatilganlar grid'dan chiqarildi + "Jurnal" menyusi olib tashlandi + o'quvchi
+  guruhlari kartalari.** (1) `ClassDetailPage` jurnal grid'i endi faqat `status != 'frozen'` (faol/sinov) o'quvchilarni
+  ko'rsatadi; muzlatilganlar jadval ostida alohida "Muzlatilgan — jurnalga qo'shilmagan" ro'yxatida (frontend filtri).
+  (2) "O'quv bo'limi" menyusidagi **"Jurnal"** (`/admin/journal`) butunlay olib tashlandi: `navigation.ts` band,
+  `App.tsx` route+import, `pages/admin/journal/JournalPage.tsx` o'chirildi (jurnal endi faqat guruh sahifasidan).
+  `JournalCellModal.tsx` SAQLANDI (o'qituvchi ilovasi + guruh jurnali ishlatadi). (3) `StudentGroupDto` boyitildi
+  (Status/CourseName/TeacherName/MonthlyFee/Days/StartTime/EndTime/Room); `ClassesController.StudentGroups` shularni
+  qaytaradi; `StudentDetailPage`da "Guruhlar" bo'limi — o'quvchining har bir guruhi KARTA (kurs/o'qituvchi/holat/kunlar/
+  vaqt/narx), guruh sahifasiga havola. Build: backend 0, tsc+vite yashil; jonli sinov: E V2 (active)/Test Aziz (frozen)
+  guruh kartalari to'g'ri. Deploy ✅ (DB saqlandi).
+- 2026-06-10: **Guruh jurnali — jadval ko'rinishi + sarlavha sanasi bilan ommaviy davomat.** (1) Jurnal grid'i
+  haqiqiy jadval ko'rinishida: vertikal+gorizontal chiziqlar (`border-r`/`border-b`), o'quvchi ustuni sticky+qalin
+  ajratgich (`border-r-2`), sarlavha to'q fon (`bg-slate-100`), zebra qatorlar (`even:bg-slate-50`), bugungi kun
+  ustuni ajratilgan (`today`). (2) **Sarlavhadagi sana bosilsa** — shu kun uchun BARCHA (faqat faol/sinov) o'quvchiga
+  birdan davomat modali: "Hammasi keldi (bor)" yoki "Hammasi kelmadi" (sabab tanlab). Backend: `BulkAttendanceRequest`
+  + `JournalService.BulkAttendanceAsync` (reasonId null → dars o'tildi + sabablar tozalanadi; reasonId → har kimga
+  shu sabab) + `POST /admin/journal/bulk-attendance`. Frontend: `bulkAttendance` servis + `ClassDetailPage` modal.
+  Jonli sinov: 9 faol o'quvchi (frozen chiqarib), "Hammasi keldi" → 204 + LessonNote Conducted=1. Deploy ✅.
+  ESLATMA: "Hammasi kelmadi" sabab tugmalari uchun Sozlamalar → Davomat sabablari'da sabab bo'lishi kerak (hozir bo'sh).
+- 2026-06-10: **Jurnal kataklari to'liq rangli (keldi=yashil, baho=bahoga qarab).** `GroupJournalDto`ga
+  `ConductedDates` (o'tildi deb belgilangan dars sanalari) qo'shildi. Katak rangi: baho bo'lsa to'liq fon bahoga
+  qarab (`gradeFill`: 5=yashil,4=ko'k,3=sariq,past=qizil); sabab bo'lsa qizil/sariq (kech); **keldi** (dars o'tildi +
+  baho yo'q + sabab yo'q) = **yashil ✓**; aks holda kulrang "·". "Hammasi keldi" bosilsa shu kun `conducted` bo'lib,
+  sababsiz hamma yashil ✓ bo'ladi. Jonli sinov: bulk-present 06-08 → conductedDates'da chiqdi. Deploy ✅ (DB saqlandi).
+- 2026-06-10: **Ommaviy davomat — "Hammasi kelmadi (yo'q)" qo'shildi + "Sabablar" menyusi ko'chirildi.**
+  `BulkAttendanceRequest`ga `bool Absent` qo'shildi: false→keldi (sabab tozalanadi), true→kelmadi (ReasonId berilsa
+  shu sabab, aks holda BIRINCHI kech-bo'lmagan sabab, umuman yo'q bo'lsa standart **"Sababsiz"** AVTOMATIK yaratiladi —
+  shuning uchun "yo'q" sozlamasiz ham ishlaydi). Modal: ikki asosiy tugma — yashil "✓ Hammasi keldi" + qizil
+  "✗ Hammasi kelmadi"; sabablar sozlangan bo'lsa qo'shimcha "sabab bilan kelmadi" tugmalari. `bulkAttendance` servisi
+  `{absent, reasonId}` qabul qiladi. Jonli sinov: absent 06-10 → 9 yozuv + "Sababsiz" avto-yaratildi (sinov tozalandi).
+  **Navigatsiya:** "Davomat sabablari" Kurslar submenyusidan olib tashlandi; O'quv bo'limi ichiga to'g'ridan-to'g'ri
+  **"Sabablar"** (`/admin/settings/reasons`, perm `settings`) qo'shildi; "Kurslar" oddiy bandga aylandi. Deploy ✅.
+- 2026-06-10: **O'quv bo'limidan "Davomat" olib tashlandi** (davomat endi guruh jurnalida bor/yo'q orqali). `navigation.ts`
+  band, `App.tsx` route+import o'chirildi, `pages/admin/attendance/` (AttendancePage+SubjectAttendanceModal) o'chirildi.
+  O'quv bo'limi endi: Kurslar · Sabablar · Baholar hisoboti · Intizomiy ball · Shartnomalar. Build yashil, deploy ✅.
+- 2026-06-10: **"Baholar hisoboti" to'liq olib tashlandi** (chorak-asosli, monthly modelga zid edi). Frontend: nav band,
+  App.tsx route+import, `pages/admin/grades-report/` (4 sahifa), `services/gradesReport.ts`, `pages/ComingSoon.tsx`,
+  `constants.ts` `gradesReport` perm kaliti o'chirildi. Backend: `ClassAnalyticsController` 3 endpoint (grades-report/
+  school|class|student) + faqat ular ishlatgan yordamchilar (ClassStat/Classify/ComputeStat/ClassRow/ParallelRow/
+  AggregateRow/LangLabel/...) olib tashlandi; `Performance`/`Stats`/`Rating` SAQLANDI. DTO: GradesProgressReportDto/
+  RowDto, ClassReportDto/StudentDto o'chirildi; `StudentReportDto`/`StudentReportBuilder`/`StudentAttendanceDto` PORTAL
+  uchun SAQLANDI. O'quv bo'limi endi: Kurslar · Sabablar · Intizomiy ball · Shartnomalar. Build yashil, deploy ✅.
+- 2026-06-10: **Guruh jurnali UI: oy tugmalari + o'quvchidan aktiv/muzlat + qarz rangi + a'zolar modali chiroyliroq.**
+  (1) Oy navigatsiyasi dropdown→yonma-yon tugmalar (faqat mavjud oylar). (2) Jurnalda o'quvchi nomi (yoki muzlatilganlar
+  ro'yxati) bosilsa modal: sana bilan Aktivlashtirish/Muzlatish (`activateMember`/`freezeMember`). (3) Qarz rangi:
+  `GroupJournalStudentDto`/`GroupMemberDto`ga `Balance` qo'shildi — qarzi yo'q=yashil, qarz=qizil (nuqta+nom). (4)
+  `ClassMembersModal` aktiv/muzlat tugmalari yorliqli pill'ga aylandi + qarz rangi. Frontend `GroupJournalStudent`/
+  `GroupMember` tiplari `balance` oldi. Build yashil, deploy ✅; jonli: E V2 balance −1.1M qaytdi.
+- 2026-06-10: **PLATFORMA AUDITI — tozalash (A,C) + bug tuzatish (D).** 4 parallel agent audit qildi.
+  **A (o'lik kod):** `ScheduleMath.cs`, ~18 o'lik DTO (Schedule/Holiday/LessonTime/Quarter/Feedback/StudentGroups
+  qoldiqlari), frontend `services/attendance.ts`+`lib/weeks.ts`, `constants` (gradeOptions/weekDays/schedulePeriods),
+  o'lik perm kalitlari (crmStats/attendance/journal) o'chirildi; `schedule` perm yorlig'i "Kurslar"ga. `appsettings`
+  `Tenancy:PlatformSubdomains` olib tashlandi. **C:** `SalaryRatesController` + Teachers `salary-payments`/`salary-history`
+  + orfan maosh DTO klasteri o'chirildi (maosh qo'lda); `AttendanceController` + 3 attendance DTO o'chirildi (Davomat
+  sahifasi olib tashlangan, frontend chaqirmaydi); eski SchoolLms nusxasi (`.claude/worktrees/...` 6.6M) o'chirildi;
+  `IAppDbContext`ga `LmsModules` qo'shildi. **D (bug):** (1) aktivlashtirish proratesi IDEMPOTENT (qayta aktivda
+  ustiga qo'shmay almashtiradi); (2) **ClassName↔a'zolik**: `StudentProfileBuilder`/`StudentReportBuilder` endi FAOL
+  a'zolik guruhlari bo'yicha (yo'q bo'lsa ClassName); `StudentsController.Update` a'zolikli o'quvchida ClassName-billing
+  qilmaydi; (3) `MonthlyCharge.Locked` (inkremental migratsiya `AddMonthlyChargeLocked`): EditCharge Locked qo'yadi,
+  Update/kurs-narx Locked'ni o'zgartirmaydi; (4) guruh/o'quvchi o'chirilganda bog'liq qatorlar ham o'chiriladi + faol
+  a'zo bo'lsa bloklanadi. Build 0 xato, tsc+vite yashil, deploy ✅, smoke-test o'tdi. **QOLDI (B):** o'qituvchi React
+  portali + `ui-web` — erishib bo'lmaydi, deployda `/teacher/` PWA YO'Q (404); o'chirish xavfsiz, foydalanuvchi qaror qiladi.
+- 2026-06-10: **Muzlatish QISMAN hisob + to'lov-tahrir o'quvchi sahifasida + muzlatilganlar baho/davomati ko'rinadi.**
+  (1) `TuitionService.ChargeFreezeProrateAsync` + `FreezeMember` chaqiradi: muzlatish OYI = shu sanagacha qatnashgan
+  darslar uchun qisman (fee × muzlatishgacha_dars ÷ jami; faol-boshlanish = shu oyda aktiv bo'lsa o'sha sana, aks holda
+  oy boshi); idempotent + Locked'ni hurmat qiladi. Jonli: Erta T 06-02→06-15 muzlat → June 461538.46 (5/13). (2)
+  `PaymentHistoryModal` `student`→`studentId` ga refaktor; `StudentDetailPage`ga "To'lov tarixi" tugmasi qo'shildi
+  (super admin o'sha yerdan hisoblangan oylikni tahrirlaydi) — `StudentsPage` ham moslandi. (3) Guruh jurnalida
+  muzlatilganlar endi jadval OSTIDA read-only qatorlar (baho/davomat ustunlari bilan ko'rinadi, SAQLANADI) — avvalgi
+  oddiy ro'yxat o'rniga; nomi bosilsa aktivlashtirish. (4) Muzlatilganlar ro'yxati tagma-tag. Build yashil, deploy ✅.
+- 2026-06-10: **To'lov tarixi crash (oq ekran) tuzatildi + oy×kurs breakdown.** Crash sababi: `EditCharge` audit
+  `action="edit"` yozardi, `AuditHistoryList` esa faqat create/update/delete'ni biladi → `actionConfig["edit"]`
+  undefined → render crash. Tuzatish: `AuditHistoryList` noma'lum action'ga fallback (`?? {label, cls}`), `EditCharge`
+  endi `"update"`. **Breakdown:** `MonthLedgerDto`ga `List<MonthCourseDto> Courses` qo'shildi — `StudentLedger`
+  a'zolik (sana oralig'i) yoki ClassName bo'yicha har oy uchun kurs nomi+narxini hisoblaydi; `PaymentHistoryModal`
+  oy ostida kurslarni ko'rsatadi. Jonli: Voxidjonov June → matematika 500k + ingliz tili 1.2M. Build yashil, deploy ✅.
+- 2026-06-10: **O'quvchi "Oylik feedback" bo'limi — barcha kurslar chiqadi.** Bug: `StudentProfileBuilder`
+  `evalsBySubject` faqat baho QO'YILGAN fanlarni guruhlardi → ko'p guruhli o'quvchida boshqa kurslar chiqmasdi.
+  Tuzatish: `evalsBySubject` endi `report.Subjects` (o'quvchining barcha biriktirilgan kurslari) bo'yicha quriladi —
+  baho yo'q kurs ham ko'rinadi (bo'sh oylar bilan). Jonli: Voxidjonov feedback → ingliz tili + matematika ikkalasi. Deploy ✅.
+- 2026-06-10: **Baholash (feedback) sahifasi guruh-asosli + filtrlar bir qatorda.** Bug: guruh filtri o'quvchilarning
+  ClassName'idan qurilardi → hamma ClassName=TEST-G bo'lgani uchun faqat TEST-G chiqardi; ko'p guruhli o'quvchi boshqa
+  guruhida baholanmasdi. Tuzatish: `StudentEvaluationController.GetBoard`ga `groupId` param + `Groups` (barcha guruhlar)
+  + `GroupId` qaytariladi; guruh tanlansa SHU guruh FAOL a'zolari + fan=guruh `CourseId` (shu kurs bo'yicha baho);
+  qatnashish hisobi ham tanlangan guruh bo'yicha. Frontend `StudentEvaluationPage`: Guruh dropdowni (board.groups'dan),
+  filtrlar BIR QATORDA (Oy·Guruh·Fan·qidiruv·saralash), guruh tanlansa Fan locked (=guruh kursi). Jonli: test B → matematika
+  (Voxidjonov), TEST-G → ingliz tili — bitta o'quvchi ikkala guruhida baholanadi. Build yashil, deploy ✅.
+- 2026-06-10: **O'quvchilar ro'yxatida BARCHA a'zo guruhlar.** `Student` entity'ga `[NotMapped] List<string> Groups`;
+  `GetAll` M2M faol a'zoliklardan guruh nomlarini to'ldiradi (DB'ga yozilmaydi). Frontend `Student.groups`; jadval
+  "Guruh" ustuni barcha guruhlarni chip sifatida (a'zolik bo'lmasa ClassName), filtr+eksport ham guruhlar bo'yicha.
+  Jonli: Voxidjonov ['test B','TEST-G']. Deploy ✅. **Foydalanuvchi avtonomiya berdi — har o'zgarishda ruxsat so'ramayman.**
+- 2026-06-11: **Dashboard "Eng yuqori bahoga ega guruhlar" 0 o'quvchi bug'i tuzatildi.** `DashboardController` guruh
+  o'quvchilarini `Student.ClassName == guruh.Name` bilan sanardi (M2M'gacha qolgan) → a'zolik orqali qo'shilgan
+  o'quvchi 0 chiqardi. Endi `StudentGroups` (faol a'zolik) bo'yicha sanaladi (`topClasses` + davomat). Jonli DB:
+  test B 0→1, TEST-G 11. Deploy ✅.
+- 2026-06-11: **O'qituvchi FOIZLI maoshi + guruh-teglangan to'lov.** (1) `Teacher.SalaryMode`(fixed/percent) +
+  `SalaryPercent`; foizli rejimda oylik = guruhdan shu oyda yig'ilgan to'lovning foizi (`SalaryLedger`). (2)
+  `FinanceTransaction.GroupId` — o'quvchi to'lov kiritishda bir nechta guruhda bo'lsa QAYSI guruh uchun ekani so'raladi
+  (`PaymentModal` selektori; bitta guruh — avtomatik); teglangan to'lov 100% o'sha guruhga, teglanmagan — fee nisbatida.
+  (3) `TeacherSalaryPage` rejim toggle + foiz. (4) Latent bug: `TeachersController` ilgari `Salary`ni umuman yozmasdi —
+  endi yoziladi; `TeacherFormModal` salary maydonlarini round-trip qiladi. Inkremental migratsiya
+  `AddSalaryPercentAndPaymentGroup` (Teachers.SalaryMode/SalaryPercent, FinanceTransactions.GroupId — baza saqlandi).
+  Jonli sinov (Foiz Test 40%, test B, Voxidjonov ikki guruhda): teglangan 500k→200k (100% test B); teglanmagan 1.7M→
+  +200k (500/1700 ulush); iyun jami 400k. ✅ Sinov ma'lumotlari tozalandi (balans/guruh/o'qituvchi tiklandi). Deploy ✅.
+- 2026-06-11: **"Toifa" (Category) UI olib tashlandi** — maosh endi qat'iy/foizli (soat narxi/toifaga bog'liq emas).
+  `TeacherFormModal` (yaratish/tahrir) toifa selektori o'chirildi + maosh izohi yangilandi; `TeachersPage` "Toifa"
+  ustuni, `TeacherViewModal` "Toifa" qatori "Maosh turi" (qat'iy summa / foiz)ga almashtirildi. `Teacher.Category`
+  entity/DB'da opaque dead-field sifatida qoldi (round-trip; migratsiya shart emas). `teacherCategories`/`teacherCategoryLabel`
+  konstantalari endi ishlatilmaydi. Frontend-only; tsc+vite yashil, deploy ✅.
+- 2026-06-11: **Guruh-asosli to'lov oynasi + o'qituvchi majburiy + foizli maosh moliyada ko'rinmas bug'i.**
+  (1) **Per-guruh to'lov:** `PaymentModal` endi guruh tanlanmaguncha oy/summa ko'rsatmaydi; guruh tanlangach SHU
+  guruh oylik hisobi (`GET /admin/students/{id}/group-ledger?groupId=` → `StudentGroupLedger`) — aggregate emas,
+  shu guruh narxi (aktiv/muzlat qisman oylari bilan) + shu guruhga TEGLANGAN to'lovlar. Bir nechta guruhli o'quvchida
+  endi to'g'ri (boshqa guruh summasi aralashmaydi); bitta guruh — avto. DTO `GroupMonthDto`/`GroupLedgerDto`. (2)
+  **O'qituvchi MAJBURIY:** `ClassesController.Create/Update` TeacherId bo'sh/yo'q bo'lsa 400; `ClassFormModal` "O'qituvchi *"
+  required. (3) **BUG:** moliya `salary-report` faqat `te.Salary`ga tayanardi → foizli o'qituvchi oyligi 0 ko'rinardi;
+  endi `SalaryLedger.BuildAsync` ishlatadi (fixed+percent), `SalaryReportRowDto`+frontend `SalaryReportRow`ga
+  `salaryMode`/`salaryPercent` qo'shildi, "Oylik" ustunida foiz ko'rinadi. Jonli sinov: Foiz Test 40% test B →
+  moliyada expected 800k (= 40% × 2M, 4 ta teglangan to'lovdan, hammasi to'g'ri); group-ledger fee 500k/paid 1M/paid;
+  o'qituvchisiz guruh POST→400. Sxema o'zgarmadi (migratsiya yo'q). Sinov ma'lumotlari tozalandi. Deploy ✅.
+- 2026-06-11: **O'qituvchi formasidan "Guruh rahbarligi" olib tashlandi** — bog'lanish bir yo'nalishli: guruhga
+  o'qituvchi biriktiriladi (guruh formasi, `Group.TeacherId`), o'qituvchiga guruh emas. `TeacherFormModal` homeroom
+  selektori + `classes` prop olib tashlandi (`homeroomClass` form state'da round-trip — eski qiymat saqlanadi).
+  `TeachersPage`: "Guruh rahbarligi" ustuni → "Guruhlari" (o'qituvchi o'tadigan guruhlar, `Group.teacherId` bo'yicha
+  chip); `TeacherViewModal`: "Guruh rahbarligi" qatori → "Guruhlari" (yangi `groups` prop). `Teacher.HomeroomClass`
+  entity/DB'da QOLDI (TeacherPortal/ChatService/StudentPortal homeroom mantig'i ishlatadi; eksport "Sinf rahbarligi"
+  ustuni ham qoldi). Frontend-only; tsc+vite yashil, deploy ✅.
+- 2026-06-11: **UI REDIZAYN — `crm/` namuna qiyofasiga o'tkazish boshlandi (Faza 0 + asosiy 6 sahifa).** Foydalanuvchi
+  `crm/` papkasiga tayyor dizayn namunasini qo'shdi (static React-via-CDN: `styles.css`, `components/`, `pages/`).
+  Tanlangan qiyofa: **binafsha (violet)** asosiy rang + **Manrope** shrift + raqamlar **JetBrains Mono**. Strategiya A
+  (token+primitiv kaskad): Tailwind'da qolib, tokenlarni `@theme`ga, namuna komponent CSS klasslarini `index.css`ga
+  ko'chirib, umumiy primitiv+shell'ni yangilash → deyarli barcha sahifaga avtomatik tarqaladi. **Faza 0 (men):**
+  `index.html` Google Fonts (Manrope+JetBrains Mono); `index.css` — brand-* violet oklch ramp, font-sans=Manrope,
+  font-mono=JetBrains Mono, namuna `:root` tokenlari + ko'chirilgan klasslar (`.kpi*`,`.card*`,`.badge`,`.table*`,
+  `.entity-card*`,`.kanban*`,`.lead-card*`,`.subnav`,`.tabs`,`.toolbar`,`.cal*`,`.attend*`,`.state`,`.skeleton`,
+  `.tt-card`,`.pagination`...); primitivlar yangilandi (Button/Card/StatCard→KPI/Modal — backward-compatible) + yangi
+  `Badge`, `PageHeader`; shell (Sidebar — brand-mark gradient+bo'lim yorlig'i+user footer, Topbar — sticky+blur+icon-btn).
+  **Faza 1 (6 parallel subagent):** Dashboard, Lidlar(Kanban+dnd saqlandi), O'quvchilar, Guruhlar(jurnal grid logikasi
+  tegilmadi), O'qituvchilar, Moliya — faqat prezentatsiya o'zgardi, logika/API/handlerlar saqlandi. tsc+vite YASHIL.
+  Bitta bug tuzatildi: AdminDashboard single-quote string ichida apostrof (`'Davomat bo'yicha'` → `"..."`).
+  QOLDI: qolgan admin sahifalari (account/assignments/lms/messages/settings/staff/contracts/discipline/subjects/
+  teacher-reports/cameras/locations/parents/branches/feedback/journal) + o'qituvchi portali + login/auth + umumiy
+  komponentlar (chat/charts/audit/lms). Deploy hali QILINMADI (faqat lokal build).
+- 2026-06-11: **UI redizayn — Faza 2 + 3 (qolgan admin + o'qituvchi portali + login).** 8 ta parallel subagent
+  (kesishmaydigan papkalar). Faza 2 (admin): settings(6)+account(2), subjects+discipline+contracts(5), messages(3)+
+  journal modal(1), assignments+assignment-scores+lms(9), staff+branches+feedback+cameras(4), teacher-reports+
+  locations+parents(4). Faza 3: LoginPage (binafsha gradient brand-mark, premium auth card) + o'qituvchi portali
+  (dashboard, journal[grid logikasi tegilmadi], evaluation, assignments, lms×2, messages). Hammasi prezentatsiya-only:
+  PageHeader + Card(title/sub/actions) + Badge + .table + .entity-grid + font-mono raqamlar. Logika/API/handler/
+  SignalR/leaflet/hls/dnd saqlandi. 2 bug tuzatildi: AdminDashboard apostrof-string, TeacherLmsSubjectPage PageHeader
+  import. tsc+vite YASHIL; app real brauzerda (dist→http) yuklanib /login render bo'ldi. **Brif qoidasi:** Uzbek
+  apostrof (bo'yicha) single-quote string'ni buzadi → har doim "..." double-quote. Student/parent web yo'q (mobil).
+  QOLGAN (ixtiyoriy polish): umumiy komponentlar — components/charts (.tt-card tooltip), chat paneli, audit, lms
+  matritsa.
+- 2026-06-11: **UI redizayn PRODGA DEPLOY qilindi.** `docker compose up -d --build app` (faqat `app` qayta qurildi;
+  mssql/cloudflared/backup/mediamtx tegilmadi, `intellectcrm_mssql-data` volume SAQLANDI — frontend-only, migratsiya yo'q).
+  App qayta ishga tushdi: loglar toza ("Now listening :8080", "Application started", migratsiya/exception yo'q), mssql
+  healthy. End-to-end sinov (crm.intellectschool.uz orqali cloudflared): index.html yangi build (Manrope shrift +
+  yangi CSS hash `index-BVIhvvZx.css`), login API noto'g'ri parolga HTTP 401. ✅ Redizayn jonli.
+- 2026-06-11: **Asosiy shrift Manrope → Plus Jakarta Sans** (foydalanuvchi "chiroyliroq" so'radi). `index.html` Google
+  Fonts link + `index.css` `--font-sans`; Manrope'ga xos `font-feature-settings` (ss01/cv11) olib tashlandi; raqamlar
+  hamon JetBrains Mono. Build yashil, `app` qayta deploy (mssql-data saqlandi); prodda tasdiqlandi (index.html
+  Plus+Jakarta+Sans, yangi CSS hash, login 401). ✅
+- 2026-06-11: **Guruhlar sahifasi: karta/jadval ko'rinish tugmasi + kattaroq kartalar.** `ClassesPage`ga `view`
+  ('card'|'table') state; saralash toolbar'ining o'ng tomonida `.tabs` (Kartalar | Jadval). Karta grid endi
+  `minmax(340px,1fr)` (oldin 280) + karta padding 18/20px + avatar h-12 — sal kattaroq. Jadval ko'rinishi: `.table`
+  (Guruh[cell-user]/Til[Badge]/O'qituvchi/Kunlar/Vaqt/O'quvchilar/O'rtacha/Davomat/Oylik/Amallar), qator bosilsa
+  detalga, amallar IconBtn. Logika o'zgarmadi.
+- 2026-06-11: **SHRIFT → Times New Roman (hamma joyda, foydalanuvchi talabi).** `index.css` `@theme`: `--font-sans`
+  VA `--font-mono` = `'Times New Roman', Times, serif` (raqamlar ham — "boshqada emas"). `index.html`dan Google Fonts
+  link/preconnect olib tashlandi (kerak emas, TNR tizim shrifti). `font-mono` className'lari (54 fayl) avtomatik TNR —
+  theme var orqali, faylga tegilmadi. Build yashil, `app` deploy (mssql-data saqlandi); prodda tasdiqlandi (yangi CSS
+  hash `index-GWlIYhDW.css` ichida "Times New Roman", Google Fonts yo'q, login 401). ✅
+  ESLATMA: landing.html (public marketing) alohida — TNR'ga o'tkazilmadi (CRM app emas).
+- 2026-06-11: **SHRIFT → Montserrat (Google Font, hamma joyda).** Foydalanuvchi TNR o'rniga Montserrat so'radi.
+  `index.html`ga Montserrat Google Fonts link (+preconnect) qaytarildi; `index.css` `--font-sans`+`--font-mono` =
+  'Montserrat'. Build yashil, `app` deploy (mssql-data saqlandi); prodda tasdiqlandi (index.html Montserrat link,
+  CSS hash `index-DCDAoc8w.css` ichida "Montserrat", login 401). ✅
+- 2026-06-11: **Kurs narxi o'zgarganda "hozirgi oy / keyingi oy" so'rovi + bog'langan guruhlarga tarqalishi.**
+  Ilgari `SubjectsController.Update` faqat `Subject.Price`ni o'zgartirardi — bog'langan guruhlar `MonthlyFee`si
+  va o'quvchilar tegilmasdi (narx faqat keyingi guruh create/edit'da olinardi). Endi: narx o'zgarsa, `CourseId==id`
+  bo'lgan BARCHA guruhlarning `MonthlyFee`si yangi narxga yangilanadi; `?applyFee=true` ("Ha — joriy oydan") bo'lsa,
+  shu guruhlardagi o'quvchilarning JORIY oy `MonthlyCharge`i yangi narxga moslanadi (balans farqqa, `Locked` tegilmaydi),
+  `false` ("Yo'q") — keyingi oydan. Joriy-oy qayta hisoblash logikasi `TuitionService.ApplyGroupFeeToCurrentMonthAsync`
+  (umumiy) ga ajratildi; `ClassesController.Update` ham shuni ishlatadi (guruh-to'lov xulqi bir xil qoldi). Frontend:
+  `updateSubject(id, payload, applyFee?)` + `SubjectsPage` narx o'zgarsa prompt modal (guruhdagi `feePrompt` kabi).
+  Audit `EntityClassFee` (kurs + guruhlar soni + qo'llangan o'quvchilar). ESLATMA: billing aggregate (ClassName
+  bo'yicha) — ko'p guruhli o'quvchida bitta guruh narxiga moslanadi (mavjud cheklov, perGroup TODO). Sxema o'zgarmadi
+  (migratsiya yo'q). Backend 0 xato, tsc+vite yashil, `app` deploy (mssql-data saqlandi), prodda app sog'lom. ✅
+- 2026-06-11: **O'quvchi formasida telefon DUBLIKAT tekshiruvi (arxivdagilar ham) + "Baribir saqlash/Bekor qilish".**
+  Saqlash bosilganda, o'quvchi/ota/ona raqami allaqachon biror o'quvchida (arxivdagilar ham) ishlatilganmi tekshiriladi —
+  bo'lsa, ogohlantirish modali (mos kelgan o'quvchi(lar) nomi/guruhi/arxiv holati/qaysi raqam) + "Baribir saqlash"
+  (davom etadi) / "Bekor qilish". Backend: `POST /api/admin/students/check-phones` (`CheckPhonesRequest`→`PhoneMatchDto[]`),
+  `PhoneUtil.Key` (oxirgi 9 raqam) bo'yicha normallashtirilgan solishtirish, `ExcludeId` (tahrirdagi o'zini chiqarish),
+  barcha o'quvchilar (arxiv ham). Frontend: `checkStudentPhones` servis (`USE_MOCK`→[]) + `StudentFormModal` async
+  handleSubmit (tekshiradi → dublikat bo'lsa tasdiq modali, aks holda onSubmit; tekshiruv xatosi saqlashni bloklamaydi).
+  Sxema o'zgarmadi. Backend 0 xato, tsc+vite yashil, deploy ✅ (endpoint 401 — ulangan, app sog'lom).
+  ESLATMA: lid (Lead) formasiga qo'llanmadi — faqat o'quvchi (foydalanuvchi shuni so'radi).
+- 2026-06-12: **MUZLATISHDA "o'qilmagan keyingi kunlar" hisoblanishi + freeze→reactivate "ikki marta" bug'i
+  tuzatildi (ildiz: aggregate+per-guruh dublikat hisob qatori).** Ildiz sabab: o'quvchi guruhsiz (faqat
+  `ClassName`) paytda `AccrueMonth` aggregate `MonthlyCharge(GroupId=null, to'liq oy)` yozadi; keyin guruhga
+  qo'shilib aktiv bo'lganda per-guruh `MonthlyCharge(GroupId=<guruh>)` yoziladi, lekin eski `null` qator
+  O'CHIRILMAGAN edi → `StudentLedger` oy summasini ikkala qatorni qo'shib IKKI BARAVAR ko'rsatardi, va
+  `ChargeFreezeProrate` faqat per-guruh qatorni studied qismга kamaytirgani uchun aggregate `null` qator to'liq
+  oy bo'lib qolib MUZLATILGANDAN keyin ham o'qilmagan kunlarni hisoblardi. Tuzatish (`TuitionService`): (1)
+  `PurgeDuplicateAggregateChargesAsync` — bir (o'quvchi, oy) uchun HAM null HAM per-guruh qator bo'lsa, null
+  qatorni o'chiradi + effektivni balansga qaytaradi; `AccrueDue` boshida chaqiriladi (har 12 soat/finance/startup
+  — o'z-o'zini tuzatadi, mavjud prod ma'lumotini tozalaydi). (2) `PurgeAggregateRowAsync` — `ChargeActivationProrate`
+  va `ChargeFreezeProrate` per-guruh qator yozishdan OLDIN shu oyning null qatorini darhol tozalaydi (muzlatishda
+  zudlik bilan). `StudentsController.Update` allaqachon `!hasMembership` bilan himoyalangan (yangi null yaratmaydi),
+  shuning uchun dublikat faqat o'tish davridan qolgan. Sxema o'zgarmadi (migratsiya yo'q). Backend 0 xato.
+  TEKSHIRUV SQL (prod): bir (StudentId,Month) uchun null va per-guruh qatorlar birga turganini topish.
+  Jonli tekshirildi: muzlatish studied qismга kamayadi (92307.69=1.2M×1/13), AccrueDue frozen hisobni
+  qayta inflatsiya qilmaydi, freeze→reactivate bitta to'g'ri qator, dup_months=0. Deploy ✅ (app rebuild).
+- 2026-06-12: **UI: (1) Guruh a'zolar oynasi kengaytirildi; (2) Topbar'da doimiy global o'quvchi qidiruvi.**
+  (1) `ClassMembersModal` `size="md"`→`"lg"` (max-w-xl→max-w-3xl, 576→768px) — jadval kengroq. (2) Yangi
+  `TopbarStudentSearch` komponenti — Topbar'da DOIM ko'rinadigan inline input (desktop sm+), barcha sahifalarda;
+  FISH/telefon (o'z/ota/ona) bo'yicha `searchStudents` (debounce 250ms), natijalar dropdown, tanlansa
+  `/admin/students/:id`; arxivdagilar "arxiv" badge; faqat `students` ruxsati borlar uchun. Ilgari Topbar'da
+  faqat Ctrl+K tugmasi (cmdk modal) bor edi — endi desktopda to'g'ridan-to'g'ri yoziladigan keng input,
+  mobil'da cmdk ikona qoldi (`CommandPalette` SAQLANDI — bo'lim navigatsiyasi uchun). "Xush kelibsiz" matni
+  qidiruvga joy berish uchun `lg:block` (faqat katta ekranda). tsc+vite yashil, deploy ✅ (yangi build
+  `index-CTmg6lXd.js`, app sog'lom, /admin/students 12 o'quvchi qaytardi). Frontend-only, sxema o'zgarmadi.
+- 2026-06-12: **Guruh a'zolar oynasi `xl` + ichidan yangi o'quvchi qo'shish.** `ClassMembersModal` `lg`→`xl`
+  (768→1024px). Qidiruv yoniga "+ Yangi o'quvchi" tugmasi — `StudentFormModal` (yaratish) ochiladi, saqlangach
+  `createStudent`→`addGroupMember` bilan darhol shu guruhga qo'shiladi. Frontend-only, tsc yashil, deploy ✅.
+- 2026-06-12: **YANGI MODUL — Daraja testi (placement test → lid).** O'quv bo'limi ichiga qo'shildi. Admin kurs
+  uchun test yaratadi (savollar: ko'p variantli, bitta to'g'ri javob; daraja diapazonlari: ball% ≥ min → daraja
+  yorlig'i) → ommaviy URL `/test/{slug}` shakllanadi. Bo'lajak o'quvchi (ANONIM) kirib, FISH/telefon/yosh qoldiradi,
+  testni ishlaydi → ball/daraja hisoblanadi va **CRM'da yangi LID** bo'lib tushadi (Source="Daraja testi",
+  InterestSubject=kurs, birinchi Stage'ga, LeadEvent+LevelTestSubmission). Backend: 4 entity (LevelTest/Question/
+  Band/Submission), `LevelTestService` (slug gen, scoring, lid yaratish), `LevelTestsController` (admin CRUD+natijalar,
+  perm `schedule`), `PublicTestController` ([AllowAnonymous] get/submit). Inkremental migratsiya `AddLevelTest`
+  (4 jadval qo'shildi, hech narsa o'chmadi — baza saqlanadi). Frontend: types, `levelTests`+`publicTest` servis,
+  nav "Daraja testi", `LevelTestsPage` (ro'yxat+URL nusxa+yangi test), `LevelTestEditorPage` (savollar/diapazon
+  editori + natijalar tab + URL), public `/test/:slug` `PublicTestPage` (intro+kontakt → savollar 1-by-1 progress →
+  natija+daraja, brand binafsha dizayn). Slug noyob (`HasMaxLength(64)`+unique indeks). Backend 0 xato, tsc+vite
+  yashil. Deploy: app rebuild (migratsiya startupда avto, `mssql-data` saqlandi).
+- 2026-06-12: **Markaziy "Sabablar" + amallarga ulash (A).** Yangi `ActionReason`(Category/Label/Order) entity +
+  `ActionReasonsController` (CRUD, perm settings) + inkremental migratsiya `AddActionReasons` (1 jadval) + Program.cs
+  seed (jadval bo'sh bo'lsa 7 kategoriya × standart sabablar; prodda 25 ta seed bo'ldi). 7 kategoriya: freeze,
+  return_trial, remove_active, remove_trial, remove_frozen, lead_delete, group_delete. Davomat (kelmaganlik) ALOHIDA
+  (`AbsenceReason`, eski API). Yangi `pages/admin/reasons/ReasonsPage` (`/admin/reasons`) — davomat + 7 kategoriya bir
+  joyda (nav "Sabablar" shu yerga); `ReasonPromptModal` qayta ishlatiladigan komponent. Amallarga ulandi (sabab →
+  AuditLog): FreezeMember (freeze) + RemoveMember (holatga qarab remove_active/trial/frozen) + yangi ReturnToTrial
+  (return_trial) — `ClassMembersModal`; guruh Delete (group_delete) — `ClassesPage`; lid Delete (lead_delete) —
+  `LeadsPage`. `MembershipStatusRequest`ga `ReasonId`; delete endpointlarga `?reasonId=`; `LeadsController`ga
+  `AuditService` inject. Jonli: 25 sabab 7 kategoriyada. ✓
+- 2026-06-12: **(B) O'qituvchi guruhlari bosiladigan + (C) navigatsiyalar `<Link>` (o'ng tugma→yangi tab) +
+  (D) dashboard talaba analitikasi.** 2 parallel subagent (kesishmaydigan fayllar). **B:** `TeacherViewModal`
+  "Guruhlari" — har guruh `<Link to=/admin/classes/:id>` chip (bosilsa o'tadi). **C:** StudentsPage (ism),
+  ClassesPage (ism karta+jadval), LevelTestsPage (sarlavha), LMS (class/subject/module kartalari) — asosiy nav
+  `<a href>` (`<Link>`) bo'ldi → o'ng tugma "yangi tabda ochish" ishlaydi. **D:** `DashboardController` + yangi
+  `StudentBreakdownDto`(Active/Inactive/Debtors/Paid/WithGroup/WithoutGroup) + `AdminDashboard` 6 KPI plitka.
+  Ta'rif: faqat arxivlanmagan; active=≥1 faol(active) a'zolik; withGroup=≥1 faol a'zolik; debtors=Balance<0; qolgani
+  jami−komplement. Jonli: active=10/inactive=2/debtors=8/paid=4/withGroup=12/withoutGroup=0. tsc+backend+vite yashil,
+  deploy ✅ (`index-CWh-WK8v.js`). **Foydalanuvchi: doim subagentlardan foydalan (osonlashadi).**

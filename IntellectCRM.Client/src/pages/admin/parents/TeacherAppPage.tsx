@@ -3,11 +3,11 @@ import { Search, Smartphone, CheckCircle2, Circle } from 'lucide-react'
 import type { TeacherAppRow } from '@/types'
 import { getTeacherAppUsers } from '@/api/services/parents'
 import { Card } from '@/components/ui/Card'
+import { PageHeader } from '@/components/ui/PageHeader'
+import { StatCard } from '@/components/ui/StatCard'
+import { Badge } from '@/components/ui/Badge'
 import { Loader } from '@/components/ui/Loader'
 import { cn } from '@/lib/utils'
-
-const control =
-  'rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-brand-400'
 
 type ActivationFilter = 'all' | 'activated' | 'inactive'
 
@@ -66,41 +66,53 @@ export function TeacherAppPage() {
   }, [rows])
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-slate-800">O'qituvchilar</h1>
-        <p className="text-sm text-slate-400">
-          Ilova foydalanuvchilari (o'qituvchilar) — faollik va qurilma ma'lumoti
-        </p>
+    <div>
+      <PageHeader
+        title="O'qituvchilar"
+        sub="Ilova foydalanuvchilari (o'qituvchilar) — faollik va qurilma ma'lumoti"
+      />
+
+      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <StatCard
+          label="Jami o'qituvchilar"
+          value={stats.total}
+          icon={Smartphone}
+          iconBg="bg-slate-100"
+          iconColor="text-slate-600"
+        />
+        <StatCard
+          label="Ilovani aktivlashtirgan"
+          value={stats.activated}
+          icon={CheckCircle2}
+          iconBg="bg-emerald-50"
+          iconColor="text-emerald-600"
+        />
+        <StatCard
+          label="Hali aktivlashtirmagan"
+          value={stats.inactive}
+          icon={Circle}
+          iconBg="bg-amber-50"
+          iconColor="text-amber-600"
+        />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <StatCard label="Jami o'qituvchilar" value={stats.total} icon={Smartphone} color="slate" />
-        <StatCard label="Ilovani aktivlashtirgan" value={stats.activated} icon={CheckCircle2} color="emerald" />
-        <StatCard label="Hali aktivlashtirmagan" value={stats.inactive} icon={Circle} color="amber" />
-      </div>
-
-      <Card className="p-0">
+      <Card tight>
         <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 p-4">
-          <div className="relative flex-1 min-w-[200px]">
-            <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+          <div className="search-inline flex-1">
+            <Search className="h-4 w-4 text-slate-400" />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="O'qituvchi yoki telefon..."
-              className={cn(control, 'w-full pl-9')}
             />
           </div>
-          <div className="flex gap-1 rounded-lg bg-slate-100 p-1">
+          <div className="tabs">
             {(['all', 'activated', 'inactive'] as ActivationFilter[]).map((f) => (
               <button
                 key={f}
                 type="button"
                 onClick={() => setFilter(f)}
-                className={cn(
-                  'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
-                  f === filter ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-500 hover:text-slate-700',
-                )}
+                className={cn('tab', f === filter && 'active')}
               >
                 {f === 'all' ? 'Hammasi' : f === 'activated' ? 'Aktiv' : 'Aktiv emas'}
               </button>
@@ -115,35 +127,35 @@ export function TeacherAppPage() {
             {rows.length === 0 ? "O'qituvchilar topilmadi" : "Filtrga mos natija yo'q"}
           </p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-400">
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
                 <tr>
-                  <th className="px-4 py-3">F.I.SH</th>
-                  <th className="px-4 py-3">Telefon</th>
-                  <th className="px-4 py-3">Holat</th>
-                  <th className="px-4 py-3">Qurilma</th>
-                  <th className="px-4 py-3">Aktivlashtirilgan</th>
-                  <th className="px-4 py-3">Oxirgi kirish</th>
+                  <th>F.I.SH</th>
+                  <th>Telefon</th>
+                  <th>Holat</th>
+                  <th>Qurilma</th>
+                  <th>Aktivlashtirilgan</th>
+                  <th>Oxirgi kirish</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody>
                 {filtered.map((r) => (
-                  <tr key={r.teacherId} className="hover:bg-slate-50/60">
-                    <td className="px-4 py-3 font-medium text-slate-800">{r.fullName}</td>
-                    <td className="px-4 py-3 text-slate-600">{r.phone || '—'}</td>
-                    <td className="px-4 py-3">
+                  <tr key={r.teacherId}>
+                    <td className="font-medium text-slate-800">{r.fullName}</td>
+                    <td className="font-mono text-slate-600">{r.phone || '—'}</td>
+                    <td>
                       {r.isActivated ? (
-                        <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                        <Badge tone="green">
                           <CheckCircle2 className="h-3.5 w-3.5" /> Aktiv
-                        </span>
+                        </Badge>
                       ) : (
-                        <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
+                        <Badge tone="amber">
                           <Circle className="h-3.5 w-3.5" /> Kirmagan
-                        </span>
+                        </Badge>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-slate-600">
+                    <td className="text-slate-600">
                       {r.deviceName ? (
                         <span className="inline-flex items-center gap-1">
                           <Smartphone className="h-3.5 w-3.5 text-slate-400" />
@@ -154,9 +166,9 @@ export function TeacherAppPage() {
                         '—'
                       )}
                     </td>
-                    <td className="px-4 py-3 text-slate-600">{formatDateTime(r.activatedAt)}</td>
-                    <td className="px-4 py-3">
-                      <div className="text-sm text-slate-700">{formatDateTime(r.lastSeenAt)}</div>
+                    <td className="font-mono text-slate-600">{formatDateTime(r.activatedAt)}</td>
+                    <td>
+                      <div className="font-mono text-slate-700">{formatDateTime(r.lastSeenAt)}</div>
                       {r.lastSeenAt && <div className="text-[11px] text-slate-400">{timeAgo(r.lastSeenAt)}</div>}
                     </td>
                   </tr>
@@ -167,36 +179,5 @@ export function TeacherAppPage() {
         )}
       </Card>
     </div>
-  )
-}
-
-function StatCard({
-  label,
-  value,
-  icon: Icon,
-  color,
-}: {
-  label: string
-  value: number
-  icon: typeof Smartphone
-  color: 'slate' | 'emerald' | 'amber'
-}) {
-  const colors = {
-    slate: 'bg-slate-100 text-slate-600',
-    emerald: 'bg-emerald-100 text-emerald-600',
-    amber: 'bg-amber-100 text-amber-600',
-  }[color]
-  return (
-    <Card>
-      <div className="flex items-center gap-3">
-        <div className={cn('flex h-10 w-10 items-center justify-center rounded-lg', colors)}>
-          <Icon className="h-5 w-5" />
-        </div>
-        <div>
-          <p className="text-xs uppercase tracking-wide text-slate-400">{label}</p>
-          <p className="text-2xl font-semibold text-slate-800">{value}</p>
-        </div>
-      </div>
-    </Card>
   )
 }

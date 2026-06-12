@@ -14,23 +14,32 @@ public static class StudentReportBuilder
 {
     public static async Task<StudentReportDto> BuildAsync(IAppDbContext db, Student st)
     {
-        var cls = await db.Classes.FirstOrDefaultAsync(c => c.Name == st.ClassName);
+        // O'quvchining FAOL guruh(lar)i (M2M) bo'yicha — yo'q bo'lsa ClassName bo'yicha (orqaga moslik).
+        var memberGroupIds = await db.StudentGroups
+            .Where(sg => sg.StudentId == st.Id && sg.IsActive).Select(sg => sg.GroupId).ToListAsync();
+        List<Group> groups;
+        if (memberGroupIds.Count > 0)
+            groups = await db.Classes.Where(c => memberGroupIds.Contains(c.Id)).ToListAsync();
+        else
+        {
+            var byName = await db.Classes.FirstOrDefaultAsync(c => c.Name == st.ClassName);
+            groups = byName is null ? new List<Group>() : new List<Group> { byName };
+        }
+        var classIds = groups.Select(g => g.Id).ToHashSet();
         var allSubjects = await db.Subjects.ToListAsync();
-        var templates = cls is null
-            ? new List<ScheduleTemplate>()
-            : await db.ScheduleTemplates.Include(t => t.Lessons).Where(t => t.ClassId == cls.Id).ToListAsync();
-        var entries = await db.JournalEntries
-            .Where(e => e.StudentId == st.Id && (cls == null || e.ClassId == cls.Id)).ToListAsync();
+        var assignedSubjectIds = groups
+            .Where(g => !string.IsNullOrEmpty(g.CourseId)).Select(g => g.CourseId).Distinct().ToList();
+        var entries = (await db.JournalEntries.Where(e => e.StudentId == st.Id).ToListAsync())
+            .Where(e => classIds.Count == 0 || classIds.Contains(e.ClassId)).ToList();
         var reasonRows = await db.AbsenceReasons.ToListAsync();
         var lateIds = reasonRows.Where(r => r.IsLate).Select(r => r.Id).ToHashSet();
         var reasons = reasonRows.ToDictionary(r => r.Id, r => r.Name.ToLowerInvariant());
 
-        var fromSchedule = templates.SelectMany(t => t.Lessons).Select(l => l.SubjectId).Distinct().ToList();
-        var subjectIds = fromSchedule.Count > 0 ? fromSchedule : allSubjects.Select(s => s.Id).ToList();
+        var subjectIds = assignedSubjectIds.Count > 0 ? assignedSubjectIds : allSubjects.Select(s => s.Id).ToList();
         var subjects = subjectIds
             .Select(id => allSubjects.FirstOrDefault(s => s.Id == id))
             .Where(s => s is not null)
-            .Select(s => new SubjectDto(s!.Id, s.Name))
+            .Select(s => new SubjectDto(s!.Id, s.Name, s.Price))
             .OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
@@ -56,9 +65,11 @@ public static class StudentReportBuilder
             PerQDays(e => !IsLate(e)), PerQDays(IsIll),
             PerQ(e => !IsLate(e)), PerQ(IsIll), PerQ(IsLate));
 
-        var homeroom = cls is null
+        // Guruh rahbari = asosiy guruh (ClassName mos kelgani, bo'lmasa birinchisi) o'qituvchisi.
+        var primary = groups.FirstOrDefault(g => g.Name == st.ClassName) ?? groups.FirstOrDefault();
+        var homeroom = primary is null || string.IsNullOrEmpty(primary.TeacherId)
             ? ""
-            : (await db.Teachers.FirstOrDefaultAsync(t => t.HomeroomClass == cls.Name))?.FullName ?? "";
+            : (await db.Teachers.FindAsync(primary.TeacherId))?.FullName ?? "";
 
         return new StudentReportDto(
             st.Id, st.FullName, st.ClassName, homeroom, st.ParentFullName, subjects, grades, attendance);

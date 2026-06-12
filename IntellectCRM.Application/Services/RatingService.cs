@@ -21,11 +21,11 @@ public static class RatingService
         var result = new List<StudentRatingRowDto>();
         foreach (var cls in classes)
         {
-            var templates = await db.ScheduleTemplates.Include(t => t.Lessons)
-                .Where(t => t.ClassId == cls.Id).ToListAsync();
+            var assignedSubjectIds = string.IsNullOrEmpty(cls.CourseId)
+                ? new List<string>() : new List<string> { cls.CourseId };
             var entries = await db.JournalEntries.Where(e => e.ClassId == cls.Id).ToListAsync();
             var notes = await db.LessonNotes.Where(n => n.ClassId == cls.Id).ToListAsync();
-            var rows = Analytics.BuildClass(cls, students, subjects, templates, entries, notes, lateReasonIds: lateIds).Rows;
+            var rows = Analytics.BuildClass(cls, students, subjects, assignedSubjectIds, entries, notes, lateReasonIds: lateIds).Rows;
             result.AddRange(rows.Select(r =>
                 new StudentRatingRowDto(r.Student, cls.Name, cls.Grade, r.Average, r.Attendance)));
         }

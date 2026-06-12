@@ -1,4 +1,4 @@
-import type { AbsenceReason, LessonTime, SchoolSettings } from '@/types'
+import type { AbsenceReason, SchoolSettings } from '@/types'
 import { delay } from '@/lib/utils'
 import { api, USE_MOCK } from '../client'
 import { settingsMock } from '../mock/settings'
@@ -10,14 +10,6 @@ export async function getSettings(): Promise<SchoolSettings> {
   }
   const { data } = await api.get<SchoolSettings>('/admin/settings')
   return data
-}
-
-export async function saveLessonTimes(lessonTimes: LessonTime[]): Promise<void> {
-  if (USE_MOCK) {
-    await delay(250)
-    return
-  }
-  await api.put('/admin/settings/lesson-times', { lessonTimes })
 }
 
 export async function saveAbsenceReasons(absenceReasons: AbsenceReason[]): Promise<void> {
@@ -191,35 +183,6 @@ export async function saveTurnstileSettings(payload: SaveTurnstilePayload): Prom
   return data
 }
 
-/* ---------- GPS (avtobus kuzatuvi) integratsiyasi ---------- */
-
-export interface GpsConfig {
-  enabled: boolean
-  ingestToken: string
-  onlineMinutes: number
-  stopRadiusM: number
-  stopMinMinutes: number
-  busCount: number
-}
-
-export interface SaveGpsPayload {
-  enabled: boolean
-  ingestToken?: string
-  onlineMinutes: number
-  stopRadiusM: number
-  stopMinMinutes: number
-}
-
-export async function getGpsSettings(): Promise<GpsConfig> {
-  const { data } = await api.get<GpsConfig>('/admin/settings/gps')
-  return data
-}
-
-export async function saveGpsSettings(payload: SaveGpsPayload): Promise<GpsConfig> {
-  const { data } = await api.put<GpsConfig>('/admin/settings/gps', payload)
-  return data
-}
-
 /* ---------- Kamera (videokuzatuv) integratsiyasi ---------- */
 
 export interface CameraConfig {
@@ -234,6 +197,33 @@ export async function getCameraSettings(): Promise<CameraConfig> {
 
 export async function saveCameraSettings(payload: { enabled: boolean }): Promise<CameraConfig> {
   const { data } = await api.put<CameraConfig>('/admin/settings/cameras', payload)
+  return data
+}
+
+/* ---------- Avtomatik to'lov eslatmasi ---------- */
+
+export interface PaymentReminderConfig {
+  /** Avtomatik to'lov eslatmasi yoqilganmi (default true) */
+  enabled: boolean
+}
+
+export async function getPaymentReminderSettings(): Promise<PaymentReminderConfig> {
+  if (USE_MOCK) {
+    await delay()
+    return { enabled: true }
+  }
+  const { data } = await api.get<PaymentReminderConfig>('/admin/settings/payment-reminders')
+  return data
+}
+
+export async function savePaymentReminderSettings(payload: {
+  enabled: boolean
+}): Promise<PaymentReminderConfig> {
+  if (USE_MOCK) {
+    await delay(250)
+    return payload
+  }
+  const { data } = await api.put<PaymentReminderConfig>('/admin/settings/payment-reminders', payload)
   return data
 }
 

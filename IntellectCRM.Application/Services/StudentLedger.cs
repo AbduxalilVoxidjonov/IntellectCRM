@@ -15,14 +15,51 @@ namespace IntellectCRM.Application.Services;
 /// </summary>
 public static class StudentLedger
 {
+    /// <summary>Oy bo'yicha aggregate hisob (barcha guruhlar yig'indisi) — to'lov allokatsiyasi uchun.</summary>
+    private record ChargeRow(string Month, decimal Amount, decimal Discount);
+
     public static async Task<StudentLedgerDto> BuildAsync(IAppDbContext db, Student student)
     {
         var rawFee = (await db.Classes.FirstOrDefaultAsync(c => c.Name == student.ClassName))?.MonthlyFee ?? 0m;
         // Joriy effektiv oylik (yangi oy uchun nima hisoblanadi) — chegirma ayirilgan.
         var fee = TuitionService.ChargeFor(rawFee, student.DiscountPct, student.DiscountAmount);
 
-        var charges = await db.MonthlyCharges.Where(c => c.StudentId == student.Id)
-            .OrderBy(c => c.Month).ToListAsync();
+        // Per-guruh hisoblar — bir oyda bir nechta (har guruh) bo'lishi mumkin; oy bo'yicha aggregate qilamiz.
+        var chargeRows = await db.MonthlyCharges.Where(c => c.StudentId == student.Id).ToListAsync();
+        var charges = chargeRows
+            .GroupBy(c => c.Month)
+            .Select(g => new ChargeRow(g.Key, g.Sum(c => c.Amount), g.Sum(c => c.Discount)))
+            .OrderBy(c => c.Month).ToList();
+
+        // Kurs breakdown uchun: guruh id → kurs nomi (perGroup hisob qatorlaridan quriladi).
+        var chargeGroupIds = chargeRows.Where(c => c.GroupId != null).Select(c => c.GroupId!).Distinct().ToList();
+        var groupsById = (await db.Classes.Where(c => chargeGroupIds.Contains(c.Id)).ToListAsync())
+            .ToDictionary(c => c.Id);
+        var nameGroup = await db.Classes.FirstOrDefaultAsync(c => c.Name == student.ClassName);
+        var courseIds = groupsById.Values.Select(g => g.CourseId)
+            .Concat(nameGroup is null ? Array.Empty<string>() : new[] { nameGroup.CourseId })
+            .Where(s => !string.IsNullOrEmpty(s)).Distinct().ToList();
+        var courseNames = (await db.Subjects.Where(s => courseIds.Contains(s.Id)).ToListAsync())
+            .ToDictionary(s => s.Id, s => s.Name);
+
+        List<MonthCourseDto> CoursesForMonth(string month)
+        {
+            // Shu oyning per-guruh hisob qatorlari — har biri guruh (kurs) nomi + summasi.
+            return chargeRows.Where(c => c.Month == month).Select(c =>
+            {
+                if (c.GroupId is null)
+                {
+                    var nm = nameGroup is null ? student.ClassName
+                        : string.IsNullOrEmpty(nameGroup.CourseId) ? nameGroup.Name
+                        : courseNames.GetValueOrDefault(nameGroup.CourseId, nameGroup.Name);
+                    return new MonthCourseDto(string.IsNullOrEmpty(nm) ? "—" : nm, c.Amount);
+                }
+                if (!groupsById.TryGetValue(c.GroupId, out var g))
+                    return new MonthCourseDto("—", c.Amount);
+                var name = string.IsNullOrEmpty(g.CourseId) ? g.Name : courseNames.GetValueOrDefault(g.CourseId, g.Name);
+                return new MonthCourseDto(name, c.Amount);
+            }).ToList();
+        }
         var payments = await db.FinanceTransactions
             .Where(t => t.StudentId == student.Id && t.Direction == "income" && t.Category == "tuition")
             .OrderByDescending(t => t.Date).ToListAsync();
@@ -76,7 +113,7 @@ public static class StudentLedger
             else if (remaining <= 0) status = "paid";
             else if (paid > 0) status = "partial";
             else status = "unpaid";
-            months.Add(new MonthLedgerDto(c.Month, c.Amount, c.Discount, paid, remaining, status));
+            months.Add(new MonthLedgerDto(c.Month, c.Amount, c.Discount, paid, remaining, status, CoursesForMonth(c.Month)));
         }
 
         var paymentDtos = payments.Select(t => new PaymentDto(t.Date, t.Amount, t.Note, t.Month)).ToList();

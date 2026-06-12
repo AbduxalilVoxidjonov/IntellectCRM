@@ -42,12 +42,12 @@ export async function updateClass(
   return data
 }
 
-export async function deleteClass(id: string): Promise<void> {
+export async function deleteClass(id: string, reasonId?: string): Promise<void> {
   if (USE_MOCK) {
     await delay(200)
     return
   }
-  await api.delete(`/admin/classes/${id}`)
+  await api.delete(`/admin/classes/${id}`, { params: reasonId ? { reasonId } : undefined })
 }
 
 /** Arxivlangan sinflar ro'yxati. */
@@ -101,13 +101,42 @@ export async function addGroupMember(
   return data
 }
 
-/** Guruhdan o'quvchini chiqarish (left deb belgilanadi). */
-export async function removeGroupMember(id: string, studentId: string): Promise<void> {
+/** Guruhdan o'quvchini chiqarish (left deb belgilanadi). Sabab (ixtiyoriy) auditga yoziladi. */
+export async function removeGroupMember(id: string, studentId: string, reasonId?: string): Promise<void> {
   if (USE_MOCK) {
     await delay(150)
     return
   }
-  await api.delete(`/admin/classes/${id}/members/${studentId}`)
+  await api.delete(`/admin/classes/${id}/members/${studentId}`, {
+    params: reasonId ? { reasonId } : undefined,
+  })
+}
+
+/** A'zolikni AKTIVLASHTIRISH (sinov → faol). Birinchi (qisman) oy to'lovi shu sanadan avtomatik hisoblanadi. */
+export async function activateMember(id: string, studentId: string, date: string): Promise<void> {
+  if (USE_MOCK) {
+    await delay(150)
+    return
+  }
+  await api.post(`/admin/classes/${id}/members/${studentId}/activate`, { date })
+}
+
+/** A'zolikni MUZLATISH — kiritilgan sanadan boshlab oylik to'lov hisoblanmaydi. Sabab (ixtiyoriy). */
+export async function freezeMember(id: string, studentId: string, date: string, reasonId?: string): Promise<void> {
+  if (USE_MOCK) {
+    await delay(150)
+    return
+  }
+  await api.post(`/admin/classes/${id}/members/${studentId}/freeze`, { date, reasonId })
+}
+
+/** A'zolikni SINOVGA qaytarish (active/frozen → trial). Sabab (ixtiyoriy). */
+export async function returnMemberToTrial(id: string, studentId: string, reasonId?: string): Promise<void> {
+  if (USE_MOCK) {
+    await delay(150)
+    return
+  }
+  await api.post(`/admin/classes/${id}/members/${studentId}/return-trial`, { reasonId })
 }
 
 /** O'quvchining barcha guruh a'zoliklari. */

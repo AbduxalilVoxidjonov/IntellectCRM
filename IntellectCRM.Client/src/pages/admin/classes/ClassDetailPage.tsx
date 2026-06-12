@@ -1,169 +1,608 @@
-import { useEffect, useState } from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
-import { ArrowLeft, Users, Star, CalendarCheck } from 'lucide-react'
-import type { Group } from '@/types'
-import { getClasses } from '@/api/services/classes'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useParams, Link } from 'react-router-dom'
 import {
-  getClassPerformance,
-  type ClassPerformanceData,
-} from '@/api/services/classPerformance'
-import { languageLabels } from '@/config/constants'
-import { formatMoney, cn } from '@/lib/utils'
+  ArrowLeft, Users, BookOpen, User,
+  CalendarDays, Clock, MapPin, Wallet, Snowflake, CheckCircle2,
+} from 'lucide-react'
+import type { AbsenceReason } from '@/types'
+import {
+  getGroupJournal, setJournalEntry, clearJournalEntry, bulkAttendance,
+  type GroupJournal,
+} from '@/api/services/journal'
+import { activateMember, freezeMember } from '@/api/services/classes'
+import { getSettings } from '@/api/services/settings'
+import { cn, formatMoney, formatDate } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
-import { StatCard } from '@/components/ui/StatCard'
 import { Loader } from '@/components/ui/Loader'
+import { Modal } from '@/components/ui/Modal'
+import { Button } from '@/components/ui/Button'
+import { JournalCellModal } from '../journal/JournalCellModal'
 
-function gradeColor(g: number): string {
-  if (g >= 4.5) return 'text-emerald-600'
-  if (g >= 4) return 'text-brand-600'
-  if (g >= 3.5) return 'text-amber-600'
-  return 'text-red-600'
+const weekdayShort = ['Du', 'Se', 'Cho', 'Pa', 'Ju', 'Sha', 'Ya']
+const uzMonths = [
+  'Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'Iyun',
+  'Iyul', 'Avgust', 'Sentabr', 'Oktabr', 'Noyabr', 'Dekabr',
+]
+const monthLabel = (m: string) =>
+  m && m.length >= 7 ? `${uzMonths[Number(m.slice(5, 7)) - 1] ?? m} ${m.slice(0, 4)}` : m
+
+function statusBadge(status: string): { label: string; cls: string } {
+  switch (status) {
+    case 'active':
+      return { label: 'Aktiv', cls: 'bg-emerald-50 text-emerald-700' }
+    case 'frozen':
+      return { label: 'Muzlatilgan', cls: 'bg-sky-50 text-sky-700' }
+    default:
+      return { label: 'Sinov', cls: 'bg-amber-50 text-amber-700' }
+  }
 }
 
-function attColor(a: number): string {
-  if (a >= 95) return 'text-emerald-600'
-  if (a >= 90) return 'text-amber-600'
-  return 'text-red-600'
+/** Baho katakchasi to'liq rangi — bahoga qarab (5=yashil, 4=ko'k, 3=sariq, past=qizil). */
+function gradeFill(g: number): string {
+  return g >= 5
+    ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+    : g >= 4
+      ? 'bg-brand-50 text-brand-700 hover:bg-brand-100'
+      : g >= 3
+        ? 'bg-amber-50 text-amber-700 hover:bg-amber-100'
+        : 'bg-red-50 text-red-600 hover:bg-red-100'
 }
 
 export function ClassDetailPage() {
   const { id = '' } = useParams()
-  const navigate = useNavigate()
-  const [cls, setCls] = useState<Group | null>(null)
-  const [data, setData] = useState<ClassPerformanceData | null>(null)
+  const [journal, setJournal] = useState<GroupJournal | null>(null)
+  const [reasons, setReasons] = useState<AbsenceReason[]>([])
   const [loading, setLoading] = useState(true)
+  const [cell, setCell] = useState<{ studentId: string; studentName: string; date: string } | null>(null)
+  const [saving, setSaving] = useState(false)
+  /** Sarlavhadagi sana bosilganda — shu kun uchun hammaga davomat modali. */
+  const [bulkDate, setBulkDate] = useState<string | null>(null)
+  const [bulkSaving, setBulkSaving] = useState(false)
+  /** O'quvchi nomi bosilganda — aktivlashtirish/muzlatish modali. */
+  const [memberModal, setMemberModal] = useState<{ studentId: string; fullName: string; status: string } | null>(null)
+  const [memberDate, setMemberDate] = useState('')
+  const [memberSaving, setMemberSaving] = useState(false)
+
+  const load = useCallback(
+    (month?: string) => {
+      if (!id) return
+      setLoading(true)
+      getGroupJournal(id, month)
+        .then(setJournal)
+        .finally(() => setLoading(false))
+    },
+    [id],
+  )
 
   useEffect(() => {
-    Promise.all([getClasses(), getClassPerformance(id)])
-      .then(([cl, perf]) => {
-        setCls(cl.find((c) => c.id === id) ?? null)
-        setData(perf)
-      })
-      .finally(() => setLoading(false))
-  }, [id])
+    load()
+    getSettings()
+      .then((s) => setReasons(s.absenceReasons))
+      .catch(() => {})
+  }, [load])
 
-  const rows = data?.rows ?? []
-  const subjects = data?.subjects ?? []
-  const studentsCount = rows.length
-  const classAverage = studentsCount
-    ? Math.round((rows.reduce((a, r) => a + r.average, 0) / studentsCount) * 10) / 10
-    : 0
-  const attVals = rows.map((r) => r.attendance).filter((a): a is number => a != null)
-  const avgAttendance = attVals.length
-    ? Math.round(attVals.reduce((a, b) => a + b, 0) / attVals.length)
-    : null
+  const reasonById = useMemo(
+    () => new Map(reasons.map((r) => [r.id, r])),
+    [reasons],
+  )
+  const entryMap = useMemo(
+    () => new Map((journal?.entries ?? []).map((e) => [`${e.studentId}|${e.date}`, e])),
+    [journal],
+  )
+  // "O'tildi" deb belgilangan darslar — sababsiz o'quvchi shu kunda KELDI (yashil) deb ko'rsatiladi.
+  const conductedSet = useMemo(() => new Set(journal?.conductedDates ?? []), [journal])
+  // Muzlatilganlar jurnalga QO'SHILMAYDI — grid'da faqat faol/sinov o'quvchilar, muzlatilganlar pastda alohida.
+  const journalStudents = useMemo(
+    () => (journal?.students ?? []).filter((s) => s.status !== 'frozen'),
+    [journal],
+  )
+  const frozenStudents = useMemo(
+    () => (journal?.students ?? []).filter((s) => s.status === 'frozen'),
+    [journal],
+  )
+
+  const g = journal?.group
+  const today = new Date().toISOString().slice(0, 10)
+
+  const handleSave = async (
+    grade: number | null,
+    reasonId: string | null,
+    homework: number,
+    behavior: number,
+    mastery: number | null,
+  ) => {
+    if (!journal || !cell) return
+    setSaving(true)
+    try {
+      await setJournalEntry(journal.group.id, journal.group.courseId, 1, cell.studentId, cell.date, 1, {
+        grade, reasonId, homework, behavior, mastery,
+      })
+      setCell(null)
+      load(journal.month)
+    } catch (e: any) {
+      alert(e?.response?.data?.message ?? 'Saqlab bo\'lmadi')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleClear = async () => {
+    if (!journal || !cell) return
+    setSaving(true)
+    try {
+      await clearJournalEntry(journal.group.id, journal.group.courseId, 1, cell.studentId, cell.date, 1)
+      setCell(null)
+      load(journal.month)
+    } catch (e: any) {
+      alert(e?.response?.data?.message ?? 'Tozalab bo\'lmadi')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // O'quvchi nomi bosilganda — aktivlashtirish/muzlatish (sana bilan).
+  const openMember = (st: { studentId: string; fullName: string; status: string }) => {
+    setMemberDate(today)
+    setMemberModal({ studentId: st.studentId, fullName: st.fullName, status: st.status })
+  }
+  const doMember = async (kind: 'activate' | 'freeze') => {
+    if (!journal || !memberModal) return
+    setMemberSaving(true)
+    try {
+      if (kind === 'activate') await activateMember(journal.group.id, memberModal.studentId, memberDate)
+      else await freezeMember(journal.group.id, memberModal.studentId, memberDate)
+      setMemberModal(null)
+      load(journal.month)
+    } catch (e: any) {
+      alert(e?.response?.data?.message ?? 'Amal bajarilmadi')
+    } finally {
+      setMemberSaving(false)
+    }
+  }
+
+  const absentReasons = useMemo(() => reasons.filter((r) => !r.isLate), [reasons])
+
+  // Sarlavhadagi sana bosilganda — shu darsdagi BARCHA o'quvchiga birdan davomat.
+  // absent=false → hammasi keldi; true → hammasi kelmadi (reasonId berilsa shu sabab, aks holda standart).
+  const doBulk = async (absent: boolean, reasonId: string | null) => {
+    if (!journal || !bulkDate) return
+    setBulkSaving(true)
+    try {
+      await bulkAttendance(
+        journal.group.id,
+        journal.group.courseId,
+        bulkDate,
+        1,
+        journalStudents.map((s) => s.studentId),
+        { absent, reasonId },
+      )
+      setBulkDate(null)
+      load(journal.month)
+    } catch (e: any) {
+      alert(e?.response?.data?.message ?? 'Saqlab bo\'lmadi')
+    } finally {
+      setBulkSaving(false)
+    }
+  }
+
+  const cellEntry = cell ? entryMap.get(`${cell.studentId}|${cell.date}`) ?? null : null
 
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
         <Link
           to="/admin/classes"
-          className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100"
+          className="rounded-lg border border-slate-200 bg-white p-2 text-slate-500 transition-colors hover:border-slate-300 hover:bg-slate-50"
         >
           <ArrowLeft className="h-5 w-5" />
         </Link>
-        <div>
-          <h1 className="text-xl font-semibold text-slate-800">
-            {cls ? `${cls.name}-guruh` : 'Guruh'}
-          </h1>
-          {cls && (
-            <p className="text-sm text-slate-400">
-              {languageLabels[cls.language]} guruhi
-              {cls.room ? ` · ${cls.room}-xona` : ''} · {formatMoney(cls.monthlyFee)}
+        <div className="min-w-0">
+          <h1 className="text-2xl font-bold tracking-tight text-slate-800">{g ? g.name : 'Guruh'}</h1>
+          {g && (
+            <p className="mt-0.5 text-sm text-slate-400">
+              {g.courseName || 'Kurs biriktirilmagan'}
+              {g.teacherName ? ` · ${g.teacherName}` : ''}
             </p>
           )}
         </div>
       </div>
 
-      {loading ? (
+      {loading && !journal ? (
         <Loader label="Yuklanmoqda..." />
+      ) : !g ? (
+        <Card className="py-16 text-center text-slate-400">Guruh topilmadi</Card>
       ) : (
         <>
-          {/* Umumiy ko'rsatkichlar */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <StatCard label="O'quvchilar" value={studentsCount} icon={Users} />
-            <StatCard
-              label="O'rtacha baho"
-              value={classAverage.toFixed(1)}
-              icon={Star}
-              iconBg="bg-amber-50"
-              iconColor="text-amber-600"
-            />
-            <StatCard
-              label="O'rtacha davomat"
-              value={avgAttendance == null ? '—' : `${avgAttendance}%`}
-              icon={CalendarCheck}
-              iconBg="bg-emerald-50"
-              iconColor="text-emerald-600"
-            />
-          </div>
-
-          {/* O'quvchilar va baholar */}
-          <Card className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-400">
-                  <tr>
-                    <th className="w-10 px-4 py-3">#</th>
-                    <th className="px-4 py-3">F.I.SH</th>
-                    {subjects.map((s) => (
-                      <th key={s.id} className="px-3 py-3 text-center font-medium">
-                        {s.name}
-                      </th>
-                    ))}
-                    <th className="px-3 py-3 text-center">O'rtacha</th>
-                    <th className="px-3 py-3 text-center">Davomat</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {rows.map((r, i) => (
-                    <tr
-                      key={r.student.id}
-                      onClick={() => navigate(`/admin/students/${r.student.id}`)}
-                      className="cursor-pointer hover:bg-slate-50/60"
-                      title="O'quvchining baholari dinamikasini ko'rish"
-                    >
-                      <td className="px-4 py-3 text-slate-400">{i + 1}</td>
-                      <td className="px-4 py-3 font-medium text-slate-800">
-                        {r.student.fullName}
-                      </td>
-                      {subjects.map((s) => (
-                        <td
-                          key={s.id}
-                          className={cn('px-3 py-3 text-center font-medium', gradeColor(r.grades[s.id]))}
-                        >
-                          {r.grades[s.id]?.toFixed(1) ?? '—'}
-                        </td>
-                      ))}
-                      <td className={cn('px-3 py-3 text-center font-semibold', gradeColor(r.average))}>
-                        {r.average.toFixed(1)}
-                      </td>
-                      <td
-                        className={cn(
-                          'px-3 py-3 text-center font-medium',
-                          r.attendance == null ? 'text-slate-300' : attColor(r.attendance),
-                        )}
-                      >
-                        {r.attendance == null ? '—' : `${r.attendance}%`}
-                      </td>
-                    </tr>
-                  ))}
-                  {rows.length === 0 && (
-                    <tr>
-                      <td
-                        colSpan={subjects.length + 4}
-                        className="px-4 py-12 text-center text-slate-400"
-                      >
-                        Bu guruhda o'quvchilar yo'q
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+          {/* Guruh ma'lumotlari */}
+          <Card>
+            <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
+              <Info icon={BookOpen} label="Kurs" value={g.courseName || '—'} />
+              <Info icon={User} label="O'qituvchi" value={g.teacherName || '—'} />
+              <Info icon={Wallet} label="Oylik to'lov" value={formatMoney(g.monthlyFee)} mono />
+              <Info
+                icon={CalendarDays}
+                label="Dars kunlari"
+                value={g.days.length ? g.days.map((d) => weekdayShort[d] ?? d).join(', ') : '—'}
+              />
+              <Info
+                icon={Clock}
+                label="Dars vaqti"
+                value={g.startTime || g.endTime ? `${g.startTime || '—'}${g.endTime ? ` – ${g.endTime}` : ''}` : '—'}
+                mono
+              />
+              <Info icon={MapPin} label="Xona" value={g.room || '—'} />
             </div>
+          </Card>
+
+          {/* Oylik jurnal */}
+          <Card className="p-0">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
+              <div className="flex items-center gap-2">
+                <BookOpen className="h-5 w-5 text-brand-600" />
+                <h2 className="font-semibold text-slate-800">Jurnal (oylik)</h2>
+                <span className="inline-flex items-center gap-1 text-sm text-slate-400">
+                  <Users className="h-4 w-4" /> {journalStudents.length} o'quvchi
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {journal?.months.map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => load(m)}
+                    title={monthLabel(m)}
+                    className={cn(
+                      'rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
+                      journal.month === m
+                        ? 'bg-brand-600 text-white'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200',
+                    )}
+                  >
+                    {uzMonths[Number(m.slice(5, 7)) - 1] ?? m}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {!g.courseId ? (
+              <p className="px-4 py-12 text-center text-sm text-slate-400">
+                Guruhga kurs biriktirilmagan — jurnal yuritib bo'lmaydi.
+              </p>
+            ) : journalStudents.length === 0 && frozenStudents.length === 0 ? (
+              <p className="px-4 py-12 text-center text-sm text-slate-400">
+                Bu guruhda o'quvchi yo'q.
+              </p>
+            ) : (journal?.columns.length ?? 0) === 0 ? (
+              <p className="px-4 py-12 text-center text-sm text-slate-400">
+                {monthLabel(journal?.month ?? '')} oyida bu guruh kunlariga dars to'g'ri kelmadi.
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full border-collapse text-sm">
+                  <thead>
+                    <tr className="bg-slate-100 text-xs text-slate-500">
+                      <th className="sticky left-0 z-20 border-b-2 border-r-2 border-slate-200 bg-slate-100 px-4 py-2.5 text-left font-semibold">
+                        O'quvchi
+                      </th>
+                      {journal!.columns.map((c) => {
+                        const dt = new Date(c.date)
+                        const wd = (dt.getDay() + 6) % 7
+                        const isToday = c.date === today
+                        return (
+                          <th
+                            key={c.date}
+                            className={cn(
+                              'border-b-2 border-r border-slate-200 p-0 text-center font-semibold',
+                              isToday ? 'bg-brand-100 text-brand-700' : 'text-slate-500',
+                            )}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => setBulkDate(c.date)}
+                              title="Shu kun uchun hammaga davomat (keldi / kelmadi)"
+                              className="w-full px-2 py-1.5 transition-colors hover:bg-brand-200/40"
+                            >
+                              <div className="text-sm">{c.date.slice(8, 10)}</div>
+                              <div
+                                className={cn(
+                                  'text-[10px] font-medium',
+                                  isToday ? 'text-brand-500' : 'text-slate-400',
+                                )}
+                              >
+                                {weekdayShort[wd]}
+                              </div>
+                            </button>
+                          </th>
+                        )
+                      })}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {journalStudents.map((st) => {
+                      const sb = statusBadge(st.status)
+                      return (
+                        <tr key={st.studentId} className="bg-white even:bg-slate-50 hover:bg-brand-50">
+                          <td className="sticky left-0 z-10 border-b border-r-2 border-slate-200 bg-inherit px-2 py-1">
+                            <button
+                              type="button"
+                              onClick={() => openMember(st)}
+                              title="Aktivlashtirish / Muzlatish"
+                              className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left transition-colors hover:bg-slate-100"
+                            >
+                              <span
+                                className={cn(
+                                  'h-2 w-2 shrink-0 rounded-full',
+                                  st.balance < 0 ? 'bg-red-500' : 'bg-emerald-500',
+                                )}
+                                title={st.balance < 0 ? `Qarz: ${formatMoney(st.balance)}` : 'Qarzi yo\'q'}
+                              />
+                              <span className={cn('font-medium', st.balance < 0 ? 'text-red-600' : 'text-emerald-700')}>
+                                {st.fullName}
+                              </span>
+                              <span className={cn('rounded px-1.5 py-0.5 text-[10px] font-medium', sb.cls)}>
+                                {sb.label}
+                              </span>
+                            </button>
+                          </td>
+                          {journal!.columns.map((c) => {
+                            const e = entryMap.get(`${st.studentId}|${c.date}`)
+                            const reason = e?.reasonId ? reasonById.get(e.reasonId) : undefined
+                            const isToday = c.date === today
+                            // Keldi (yashil): dars o'tildi + baho yo'q + sabab yo'q.
+                            const present = e?.grade == null && !reason && conductedSet.has(c.date)
+                            return (
+                              <td
+                                key={c.date}
+                                className={cn(
+                                  'border-b border-r border-slate-100 p-1 text-center',
+                                  isToday && 'bg-brand-50/30',
+                                )}
+                              >
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setCell({ studentId: st.studentId, studentName: st.fullName, date: c.date })
+                                  }
+                                  className={cn(
+                                    'flex h-9 w-full min-w-9 items-center justify-center rounded-md text-sm font-semibold transition-colors',
+                                    e?.grade != null
+                                      ? gradeFill(e.grade)
+                                      : reason
+                                        ? reason.isLate
+                                          ? 'bg-amber-50 text-amber-700 hover:bg-amber-100'
+                                          : 'bg-red-50 text-red-600 hover:bg-red-100'
+                                        : present
+                                          ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
+                                          : 'text-slate-300 hover:bg-brand-50',
+                                  )}
+                                  title={`${st.fullName} — ${formatDate(c.date)}`}
+                                >
+                                  {e?.grade != null
+                                    ? e.grade
+                                    : reason
+                                      ? reason.short || reason.name.slice(0, 2)
+                                      : present
+                                        ? '✓'
+                                        : '·'}
+                                </button>
+                              </td>
+                            )
+                          })}
+                        </tr>
+                      )
+                    })}
+
+                    {/* Muzlatilganlar — jurnalga qo'shilmaydi, lekin baho/davomati SAQLANADI va ko'rinadi (faqat o'qish) */}
+                    {frozenStudents.length > 0 && (
+                      <>
+                        <tr>
+                          <td
+                            colSpan={1 + journal!.columns.length}
+                            className="border-b border-t-2 border-slate-200 bg-slate-50 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400"
+                          >
+                            Muzlatilgan (faqat ko'rish — baho/davomat saqlanadi)
+                          </td>
+                        </tr>
+                        {frozenStudents.map((st) => (
+                          <tr key={st.studentId} className="bg-slate-50 text-slate-400">
+                            <td className="sticky left-0 z-10 border-b border-r-2 border-slate-200 bg-inherit px-2 py-1">
+                              <button
+                                type="button"
+                                onClick={() => openMember(st)}
+                                title="Aktivlashtirish"
+                                className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left transition-colors hover:bg-slate-100"
+                              >
+                                <Snowflake className="h-3.5 w-3.5 shrink-0 text-sky-500" />
+                                <span className={cn('font-medium', st.balance < 0 ? 'text-red-600' : 'text-slate-500')}>
+                                  {st.fullName}
+                                </span>
+                              </button>
+                            </td>
+                            {journal!.columns.map((c) => {
+                              const e = entryMap.get(`${st.studentId}|${c.date}`)
+                              const reason = e?.reasonId ? reasonById.get(e.reasonId) : undefined
+                              return (
+                                <td key={c.date} className="border-b border-r border-slate-100 p-1 text-center">
+                                  <span
+                                    className={cn(
+                                      'inline-flex h-7 min-w-7 items-center justify-center rounded px-1 text-sm font-semibold',
+                                      e?.grade != null
+                                        ? gradeFill(e.grade)
+                                        : reason
+                                          ? reason.isLate
+                                            ? 'bg-amber-50 text-amber-700'
+                                            : 'bg-red-50 text-red-600'
+                                          : 'text-slate-300',
+                                    )}
+                                  >
+                                    {e?.grade != null
+                                      ? e.grade
+                                      : reason
+                                        ? reason.short || reason.name.slice(0, 2)
+                                        : '·'}
+                                  </span>
+                                </td>
+                              )
+                            })}
+                          </tr>
+                        ))}
+                      </>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </Card>
         </>
       )}
+
+      <JournalCellModal
+        open={!!cell}
+        studentName={cell?.studentName ?? ''}
+        dateLabel={cell ? formatDate(cell.date) : ''}
+        entry={cellEntry}
+        reasons={reasons}
+        onClose={() => !saving && setCell(null)}
+        onSave={handleSave}
+        onClear={handleClear}
+      />
+
+      {/* Sarlavha sanasi bosilganda — shu kun uchun hammaga birdan davomat */}
+      <Modal
+        open={!!bulkDate}
+        onClose={() => !bulkSaving && setBulkDate(null)}
+        size="sm"
+        title={bulkDate ? `${formatDate(bulkDate)} — davomat` : 'Davomat'}
+        footer={
+          <Button variant="secondary" onClick={() => setBulkDate(null)} disabled={bulkSaving}>
+            Yopish
+          </Button>
+        }
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-slate-500">
+            Shu darsdagi <span className="font-semibold text-slate-700">{journalStudents.length}</span> o'quvchiga
+            birdan qo'llanadi.
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => doBulk(false, null)}
+              disabled={bulkSaving}
+              className="rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:opacity-50"
+            >
+              ✓ Hammasi keldi
+            </button>
+            <button
+              type="button"
+              onClick={() => doBulk(true, null)}
+              disabled={bulkSaving}
+              className="rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:opacity-50"
+            >
+              ✗ Hammasi kelmadi
+            </button>
+          </div>
+          {absentReasons.length > 0 && (
+            <div>
+              <p className="mb-2 text-sm font-medium text-slate-600">Yoki sabab bilan kelmadi:</p>
+              <div className="flex flex-wrap gap-2">
+                {absentReasons.map((r) => (
+                  <button
+                    key={r.id}
+                    type="button"
+                    disabled={bulkSaving}
+                    onClick={() => doBulk(true, r.id)}
+                    className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-100 disabled:opacity-50"
+                  >
+                    {r.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </Modal>
+
+      {/* O'quvchi nomi bosilganda — aktivlashtirish / muzlatish */}
+      <Modal
+        open={!!memberModal}
+        onClose={() => !memberSaving && setMemberModal(null)}
+        size="sm"
+        title={memberModal?.fullName ?? "A'zolik"}
+        footer={
+          <Button variant="secondary" onClick={() => setMemberModal(null)} disabled={memberSaving}>
+            Yopish
+          </Button>
+        }
+      >
+        {memberModal && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-slate-500">Holat:</span>
+              <span className={cn('rounded-md px-2 py-0.5 text-xs font-medium', statusBadge(memberModal.status).cls)}>
+                {statusBadge(memberModal.status).label}
+              </span>
+            </div>
+            <div>
+              <span className="mb-1 block text-sm font-medium text-slate-600">Sana</span>
+              <input
+                type="date"
+                value={memberDate}
+                onChange={(e) => setMemberDate(e.target.value)}
+                className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 outline-none focus:border-brand-400"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                disabled={memberSaving || memberModal.status === 'active'}
+                onClick={() => doMember('activate')}
+                className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:opacity-40"
+              >
+                <CheckCircle2 className="h-4 w-4" /> Aktivlashtirish
+              </button>
+              <button
+                type="button"
+                disabled={memberSaving || memberModal.status !== 'active'}
+                onClick={() => doMember('freeze')}
+                className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-sky-700 disabled:opacity-40"
+              >
+                <Snowflake className="h-4 w-4" /> Muzlatish
+              </button>
+            </div>
+            <p className="text-xs text-slate-400">
+              Aktivlashtirilganda shu sanadan qisman oylik hisoblanadi; muzlatilganda shu sanadan to'lov to'xtaydi.
+            </p>
+          </div>
+        )}
+      </Modal>
+    </div>
+  )
+}
+
+function Info({
+  icon: Icon,
+  label,
+  value,
+  mono,
+}: {
+  icon: typeof BookOpen
+  label: string
+  value: string
+  /** Raqam/pul/vaqt qiymatlari uchun mono shrift */
+  mono?: boolean
+}) {
+  return (
+    <div className="flex items-start gap-2.5">
+      <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-slate-50 text-slate-400">
+        <Icon className="h-4 w-4" />
+      </span>
+      <div className="min-w-0">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{label}</p>
+        <p className={cn('break-words text-sm font-semibold text-slate-700', mono && 'font-mono')}>
+          {value}
+        </p>
+      </div>
     </div>
   )
 }

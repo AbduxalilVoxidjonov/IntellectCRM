@@ -5,10 +5,12 @@ import type { EvaluationBoard, EvaluationRow } from '@/types'
 import { getEvaluationBoard, setEvaluationGrade } from '@/api/services/studentEvaluation'
 import { cn } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
+import { Badge } from '@/components/ui/Badge'
+import { PageHeader } from '@/components/ui/PageHeader'
 import { Loader } from '@/components/ui/Loader'
 
 const control =
-  'rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-brand-400'
+  'rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 outline-none transition-colors focus:border-brand-400 focus:ring-2 focus:ring-brand-100'
 
 type Sort = 'class' | 'name' | 'att-desc' | 'att-asc' | 'grade-desc' | 'grade-asc'
 
@@ -37,58 +39,57 @@ export function StudentEvaluationPage() {
   const [loading, setLoading] = useState(true)
   const [month, setMonth] = useState('')
   const [search, setSearch] = useState('')
-  const [classFilter, setClassFilter] = useState('all')
+  const [groupId, setGroupId] = useState('all')
   const [sort, setSort] = useState<Sort>('class')
-  /** Tanlangan fan id — baho doim shu fan bo'yicha qo'yiladi (umumiy yo'q). */
+  /** Tanlangan fan id — baho shu fan bo'yicha qo'yiladi (guruh tanlansa = guruh kursi). */
   const [subjectId, setSubjectId] = useState('')
 
-  const load = useCallback((m?: string, subj?: string) => {
+  const load = useCallback((m?: string, subj?: string, grp?: string) => {
     setLoading(true)
-    getEvaluationBoard(m || undefined, 0, subj)
+    getEvaluationBoard(m || undefined, 0, subj, grp)
       .then((b) => {
         setBoard(b)
         setMonth(b.month)
+        // Guruh tanlangan bo'lsa fan = guruh kursi (backend o'rnatadi) — sinxronlaymiz.
+        if (grp && grp !== 'all') setSubjectId(b.subjectId ?? '')
       })
       .finally(() => setLoading(false))
   }, [])
 
   // Dastlab fanlar ro'yxatini olish uchun yuklaymiz (subjectsiz).
   useEffect(() => {
-    load(undefined, undefined)
+    load(undefined, undefined, undefined)
   }, [load])
 
-  // Fanlar kelgach birinchi fanni avtomatik tanlaymiz (umumiy ko'rinish yo'q).
+  // "Barcha guruhlar" rejimida fanlar kelgach birinchi fanni avtomatik tanlaymiz.
   useEffect(() => {
-    if (!subjectId && board.subjects && board.subjects.length > 0) {
+    if (groupId === 'all' && !subjectId && board.subjects && board.subjects.length > 0) {
       const first = board.subjects[0].id
       setSubjectId(first)
-      load(board.month || undefined, first)
+      load(board.month || undefined, first, 'all')
     }
-  }, [board.subjects, board.month, subjectId, load])
+  }, [board.subjects, board.month, subjectId, groupId, load])
 
   const editable = subjectId !== '' && subjectId !== 'all'
 
   const onMonth = (m: string) => {
     setMonth(m)
-    load(m, subjectId)
+    load(m, groupId === 'all' ? subjectId : undefined, groupId)
   }
 
   const onSubject = (s: string) => {
     setSubjectId(s)
-    load(month, s)
+    load(month, s, 'all') // fan tanlash faqat "Barcha guruhlar" rejimida.
   }
 
-  const classNames = useMemo(
-    () =>
-      [...new Set(board.rows.map((r) => r.className).filter(Boolean))].sort((a, b) =>
-        a.localeCompare(b),
-      ),
-    [board.rows],
-  )
+  const onGroup = (g: string) => {
+    setGroupId(g)
+    if (g === 'all') load(month, subjectId || undefined, 'all')
+    else load(month, undefined, g) // fan = guruh kursi (avtomatik).
+  }
 
   const rows = useMemo(() => {
     let r = board.rows
-    if (classFilter !== 'all') r = r.filter((x) => x.className === classFilter)
     const q = search.trim().toLowerCase()
     if (q) r = r.filter((x) => x.fullName.toLowerCase().includes(q))
     const arr = [...r]
@@ -110,7 +111,7 @@ export function StudentEvaluationPage() {
         break
     }
     return arr
-  }, [board.rows, classFilter, search, sort])
+  }, [board.rows, search, sort])
 
   const onGrade = (studentId: string, typeId: string, score: number | null) => {
     if (!editable) return // "Hammasi (o'rtacha)" — faqat ko'rish
@@ -131,17 +132,15 @@ export function StudentEvaluationPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-slate-800">O'quvchilarga feedback</h1>
-        <p className="text-sm text-slate-400">
-          Har oy bir marta — fan kesimida feedback turlari (yozma, og'zaki/suhbat...) bo'yicha 1-5
-        </p>
-      </div>
+    <div className="space-y-5">
+      <PageHeader
+        title="O'quvchilarga feedback"
+        sub="Har oy bir marta — fan kesimida feedback turlari (yozma, og'zaki/suhbat...) bo'yicha 1-5"
+      />
 
-      {/* Oy + fan tanlovi */}
+      {/* Filtrlar — bir qatorda: Oy · Guruh · Fan · qidiruv · saralash */}
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50/60 p-3">
-        <CalendarRange className="h-5 w-5 text-brand-600" />
+        <CalendarRange className="h-5 w-5 shrink-0 text-brand-600" />
         <span className="text-sm font-medium text-slate-600">Oy:</span>
         <select className={control} value={month} onChange={(e) => onMonth(e.target.value)}>
           {(board.months.length ? board.months : month ? [month] : []).map((m) => (
@@ -150,8 +149,23 @@ export function StudentEvaluationPage() {
             </option>
           ))}
         </select>
-        <span className="ml-2 text-sm font-medium text-slate-600">Fan:</span>
-        <select className={control} value={subjectId} onChange={(e) => onSubject(e.target.value)}>
+        <span className="text-sm font-medium text-slate-600">Guruh:</span>
+        <select className={control} value={groupId} onChange={(e) => onGroup(e.target.value)}>
+          <option value="all">Barcha guruhlar</option>
+          {(board.groups ?? []).map((g) => (
+            <option key={g.id} value={g.id}>
+              {g.name}
+            </option>
+          ))}
+        </select>
+        <span className="text-sm font-medium text-slate-600">Fan:</span>
+        <select
+          className={control}
+          value={subjectId}
+          disabled={groupId !== 'all'}
+          title={groupId !== 'all' ? 'Guruh tanlanganda fan = guruh kursi' : undefined}
+          onChange={(e) => onSubject(e.target.value)}
+        >
           {(board.subjects ?? []).length === 0 && <option value="">Fan yo'q</option>}
           {(board.subjects ?? []).map((s) => (
             <option key={s.id} value={s.id}>
@@ -159,41 +173,22 @@ export function StudentEvaluationPage() {
             </option>
           ))}
         </select>
-        <span className="text-xs text-slate-400">
-          Tanlangan fan bo'yicha feedback qo'yiladi — umumiy o'rtacha o'quvchi profilida ko'rinadi
-        </span>
-      </div>
-
-      {/* Filtrlar */}
-      <div className="flex flex-wrap items-center gap-2">
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <input
-            className={cn(control, 'w-64 pl-9')}
-            placeholder="Ism, familiya bo'yicha qidirish..."
+            className={cn(control, 'w-48 pl-9')}
+            placeholder="Ism bo'yicha qidirish..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <select
-          className={control}
-          value={classFilter}
-          onChange={(e) => setClassFilter(e.target.value)}
-        >
-          <option value="all">Barcha guruhlar</option>
-          {classNames.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </select>
         <select className={control} value={sort} onChange={(e) => setSort(e.target.value as Sort)}>
-          <option value="class">Saralash: guruh bo'yicha</option>
+          <option value="class">Saralash: guruh</option>
           <option value="name">Ism (A-Z)</option>
-          <option value="att-desc">Davomat: qatnashgan ko'pdan</option>
-          <option value="att-asc">Davomat: qatnashgan kamdan</option>
-          <option value="grade-desc">Baho: yuqoridan</option>
-          <option value="grade-asc">Baho: pastdan</option>
+          <option value="att-desc">Qatnashgan ko'pdan</option>
+          <option value="att-asc">Qatnashgan kamdan</option>
+          <option value="grade-desc">Baho yuqoridan</option>
+          <option value="grade-asc">Baho pastdan</option>
         </select>
         <span className="ml-auto text-sm text-slate-400">{rows.length} o'quvchi</span>
       </div>
@@ -218,24 +213,24 @@ export function StudentEvaluationPage() {
           </p>
         </Card>
       ) : (
-        <Card className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-400">
+        <Card tight>
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
                 <tr>
-                  <th className="w-10 px-3 py-3">#</th>
-                  <th className="px-3 py-3">FISH</th>
-                  <th className="px-3 py-3">Guruh</th>
-                  <th className="px-3 py-3 text-center">Qatnashgan</th>
-                  <th className="px-3 py-3">Davomat sabablari</th>
+                  <th className="w-10">#</th>
+                  <th>FISH</th>
+                  <th>Guruh</th>
+                  <th className="text-center">Qatnashgan</th>
+                  <th>Davomat sabablari</th>
                   {board.types.map((t) => (
-                    <th key={t.id} className="px-3 py-3 text-center" title={t.description}>
+                    <th key={t.id} className="text-center" title={t.description}>
                       {t.name}
                     </th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody>
                 {rows.map((row, i) => (
                   <EvalRow
                     key={row.studentId}
@@ -279,13 +274,13 @@ function EvalRow({
   onGrade: (studentId: string, typeId: string, score: number | null) => void
 }) {
   return (
-    <tr className="hover:bg-slate-50/60">
-      <td className="px-3 py-2 text-slate-400">{index + 1}</td>
-      <td className="whitespace-nowrap px-3 py-2 font-medium text-slate-800">{row.fullName}</td>
-      <td className="whitespace-nowrap px-3 py-2 text-slate-500">{row.className}</td>
-      <td className="whitespace-nowrap px-3 py-2 text-center">
+    <tr>
+      <td className="font-mono text-slate-400">{index + 1}</td>
+      <td className="whitespace-nowrap font-medium text-slate-800">{row.fullName}</td>
+      <td className="whitespace-nowrap text-slate-500">{row.className}</td>
+      <td className="whitespace-nowrap text-center">
         {row.conducted > 0 ? (
-          <span className="font-medium text-slate-700">
+          <span className="font-mono font-semibold text-slate-700">
             {row.attended}
             <span className="text-slate-400"> / {row.conducted}</span>
           </span>
@@ -293,29 +288,22 @@ function EvalRow({
           <span className="text-slate-300">—</span>
         )}
       </td>
-      <td className="px-3 py-2">
+      <td>
         {row.reasons.length === 0 ? (
           <span className="text-slate-300">—</span>
         ) : (
           <div className="flex flex-wrap gap-1">
             {row.reasons.map((r) => (
-              <span
-                key={r.reasonId}
-                title={r.name}
-                className={cn(
-                  'inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium',
-                  r.isLate ? 'bg-amber-50 text-amber-700' : 'bg-red-50 text-red-600',
-                )}
-              >
-                {r.short || r.name}
+              <Badge key={r.reasonId} tone={r.isLate ? 'amber' : 'red'}>
+                <span title={r.name}>{r.short || r.name}</span>
                 <span className="font-semibold">×{r.count}</span>
-              </span>
+              </Badge>
             ))}
           </div>
         )}
       </td>
       {typeIds.map((typeId) => (
-        <td key={typeId} className="px-3 py-2 text-center">
+        <td key={typeId} className="text-center">
           <GradeSelect
             value={row.grades[typeId] ?? null}
             disabled={!editable}

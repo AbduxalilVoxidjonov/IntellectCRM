@@ -6,6 +6,9 @@ import type { Group, StudentLocationRow } from '@/types'
 import { getStudentLocations } from '@/api/services/locations'
 import { getClasses } from '@/api/services/classes'
 import { Card } from '@/components/ui/Card'
+import { PageHeader } from '@/components/ui/PageHeader'
+import { Badge } from '@/components/ui/Badge'
+import { Select } from '@/components/ui/Input'
 import { Loader } from '@/components/ui/Loader'
 import { formatDate, cn } from '@/lib/utils'
 
@@ -20,9 +23,6 @@ const defaultIcon = new L.Icon({
   popupAnchor: [1, -34],
   shadowSize: [41, 41],
 })
-
-const control =
-  'rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-brand-400'
 
 /**
  * Admin "Joylashuv" sahifasi — o'quvchilar mobil ilova orqali yuborgan uy joylashuvi xaritada.
@@ -62,44 +62,49 @@ export function LocationPage() {
   }, [rows])
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-800">Joylashuv</h1>
-          <p className="text-sm text-slate-400">
+    <div>
+      <PageHeader
+        title="Joylashuv"
+        sub={
+          <>
             O'quvchilar mobil ilova orqali yuborgan uy joylashuvi —{' '}
-            <b>{filtered.length}</b> ta pin
-          </p>
-        </div>
-        <select
-          value={classFilter}
-          onChange={(e) => setClassFilter(e.target.value)}
-          className={cn(control, 'min-w-[160px]')}
-        >
-          <option value="all">Barcha guruhlar</option>
-          {classes.map((c) => (
-            <option key={c.id} value={c.name}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-      </div>
+            <b className="font-mono text-slate-600">{filtered.length}</b> ta pin
+          </>
+        }
+        actions={
+          <Select
+            value={classFilter}
+            onChange={(e) => setClassFilter(e.target.value)}
+            className="min-w-[160px]"
+          >
+            <option value="all">Barcha guruhlar</option>
+            {classes.map((c) => (
+              <option key={c.id} value={c.name}>
+                {c.name}
+              </option>
+            ))}
+          </Select>
+        }
+      />
 
       {loading ? (
         <Loader label="Yuklanmoqda..." />
       ) : rows.length === 0 ? (
         <Card>
-          <div className="py-12 text-center text-sm text-slate-400">
-            <MapPin className="mx-auto mb-2 h-8 w-8 text-slate-300" />
+          <div className="state">
+            <div className="state-icon">
+              <MapPin className="h-6 w-6" />
+            </div>
+            <h4>Joylashuv yo'q</h4>
             <p>Hozircha hech bir o'quvchi mobil ilova orqali joylashuv yubormagan.</p>
-            <p className="mt-1 text-xs">
+            <p className="text-xs">
               O'quvchilar ilovaga kirib "Joylashuvni saqlash" bosgach, bu yerda pin ko'rinadi.
             </p>
           </div>
         </Card>
       ) : (
-        <>
-          <Card className="p-0 overflow-hidden">
+        <div className="space-y-6">
+          <Card tight className="overflow-hidden">
             <div style={{ height: 500 }}>
               <MapContainer
                 center={center}
@@ -123,7 +128,7 @@ export function LocationPage() {
                         <p className="text-slate-500">{r.className}</p>
                         {r.address && <p className="mt-1 text-xs text-slate-600">{r.address}</p>}
                         {r.updatedAt && (
-                          <p className="mt-1 text-[11px] text-slate-400">
+                          <p className="mt-1 font-mono text-[11px] text-slate-400">
                             Yangilangan: {formatDate(r.updatedAt.slice(0, 10))}
                           </p>
                         )}
@@ -145,10 +150,7 @@ export function LocationPage() {
 
           {/* Guruh bo'yicha hisob */}
           {byClass.length > 0 && (
-            <Card>
-              <h2 className="mb-3 text-sm font-semibold text-slate-800">
-                Guruh bo'yicha joylashuv ulushi
-              </h2>
+            <Card title="Guruh bo'yicha joylashuv ulushi">
               <div className="flex flex-wrap gap-2">
                 {byClass.map(([name, count]) => (
                   <button
@@ -156,13 +158,13 @@ export function LocationPage() {
                     type="button"
                     onClick={() => setClassFilter(name)}
                     className={cn(
-                      'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+                      'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition-colors',
                       classFilter === name
-                        ? 'border-brand-300 bg-brand-50 text-brand-700'
+                        ? 'border-transparent bg-brand-50 text-brand-700'
                         : 'border-slate-200 bg-white text-slate-600 hover:border-brand-200',
                     )}
                   >
-                    {name} <b>· {count}</b>
+                    {name} <span className="font-mono">· {count}</span>
                   </button>
                 ))}
               </div>
@@ -170,43 +172,41 @@ export function LocationPage() {
           )}
 
           {/* Jadval */}
-          <Card className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-400">
+          <Card tight>
+            <div className="table-wrap">
+              <table className="table">
+                <thead>
                   <tr>
-                    <th className="px-4 py-3">F.I.SH</th>
-                    <th className="px-4 py-3">Guruh</th>
-                    <th className="px-4 py-3">Manzil</th>
-                    <th className="px-4 py-3">Koordinata</th>
-                    <th className="px-4 py-3">Yangilangan</th>
-                    <th className="px-4 py-3"></th>
+                    <th>F.I.SH</th>
+                    <th>Guruh</th>
+                    <th>Manzil</th>
+                    <th>Koordinata</th>
+                    <th>Yangilangan</th>
+                    <th></th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody>
                   {filtered.map((r) => (
-                    <tr key={r.studentId} className="hover:bg-slate-50/60">
-                      <td className="px-4 py-3 font-medium text-slate-800">{r.fullName}</td>
-                      <td className="px-4 py-3">
-                        <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
-                          {r.className}
-                        </span>
+                    <tr key={r.studentId}>
+                      <td className="font-medium text-slate-800">{r.fullName}</td>
+                      <td>
+                        <Badge tone="default">{r.className}</Badge>
                       </td>
-                      <td className="px-4 py-3 text-slate-600 max-w-[24rem] truncate" title={r.address ?? ''}>
+                      <td className="max-w-[24rem] truncate text-slate-600" title={r.address ?? ''}>
                         {r.address || '—'}
                       </td>
-                      <td className="px-4 py-3 text-xs text-slate-500">
+                      <td className="font-mono text-xs text-slate-500">
                         {r.latitude.toFixed(5)}, {r.longitude.toFixed(5)}
                       </td>
-                      <td className="px-4 py-3 text-xs text-slate-500">
+                      <td className="font-mono text-xs text-slate-500">
                         {r.updatedAt ? formatDate(r.updatedAt.slice(0, 10)) : '—'}
                       </td>
-                      <td className="px-4 py-3 text-right">
+                      <td className="text-right">
                         <a
                           href={`https://www.google.com/maps?q=${r.latitude},${r.longitude}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-xs font-medium text-brand-600 hover:text-brand-700"
+                          className="text-xs font-semibold text-brand-600 hover:text-brand-700"
                         >
                           Xaritada →
                         </a>
@@ -217,7 +217,7 @@ export function LocationPage() {
               </table>
             </div>
           </Card>
-        </>
+        </div>
       )}
     </div>
   )

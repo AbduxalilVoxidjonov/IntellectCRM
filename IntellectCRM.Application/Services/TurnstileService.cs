@@ -273,28 +273,13 @@ public class TurnstileService
         return candidates.Count == 0 ? "" : candidates.Min()!;
     }
 
-    /// <summary>teacherId → int[6]: har hafta kunidagi ENG ERTA (eng kichik) dars raqami (0 = dars yo'q).</summary>
-    private static async Task<Dictionary<string, int[]>> FirstPeriodByWeekdayAsync(IAppDbContext db)
-    {
-        var classSet = (await db.Classes.Where(c => !c.IsArchived).Select(c => c.Id).ToListAsync()).ToHashSet();
-        var templates = (await db.ScheduleTemplates.Include(x => x.Lessons).ToListAsync())
-            .Where(x => classSet.Contains(x.ClassId)).ToList();
-        var main = templates.GroupBy(x => x.ClassId)
-            .Select(g => g.OrderByDescending(x => x.Lessons.Count).ThenBy(x => x.Id).First());
+    /// <summary>Dars jadvali/dars vaqtlari olib tashlandi — birinchi dars vaqtidan kelib chiqib kutilgan
+    /// kelishni hisoblab bo'lmaydi, shuning uchun bo'sh (ish boshlanish vaqti yagona asos bo'lib qoladi).</summary>
+    private static Task<Dictionary<string, int[]>> FirstPeriodByWeekdayAsync(IAppDbContext db) =>
+        Task.FromResult(new Dictionary<string, int[]>());
 
-        var res = new Dictionary<string, int[]>();
-        foreach (var tpl in main)
-            foreach (var l in tpl.Lessons.Where(l => !string.IsNullOrEmpty(l.TeacherId) && l.Day is >= 0 and < 6 && l.Period > 0))
-            {
-                if (!res.TryGetValue(l.TeacherId, out var arr)) res[l.TeacherId] = arr = new int[6];
-                if (arr[l.Day] == 0 || l.Period < arr[l.Day]) arr[l.Day] = l.Period;
-            }
-        return res;
-    }
-
-    private static async Task<Dictionary<int, string>> LessonStartByPeriodAsync(IAppDbContext db) =>
-        (await db.LessonTimes.Where(t => t.StartTime != "").ToListAsync())
-        .GroupBy(t => t.Period).ToDictionary(g => g.Key, g => g.First().StartTime.Length >= 5 ? g.First().StartTime[..5] : g.First().StartTime);
+    private static Task<Dictionary<int, string>> LessonStartByPeriodAsync(IAppDbContext db) =>
+        Task.FromResult(new Dictionary<int, string>());
 
     private static int MinutesBetween(string fromHhmm, string toHhmm)
     {

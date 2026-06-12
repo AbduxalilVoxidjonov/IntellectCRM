@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Trophy, X, CalendarClock } from 'lucide-react'
+import { Trophy, CalendarClock } from 'lucide-react'
 import type {
   AssignmentScoreboard,
   AssignmentScoreColumn,
@@ -11,10 +11,11 @@ import { getClasses } from '@/api/services/classes'
 import { getAssignmentScoreboard } from '@/api/services/assignments'
 import { formatDate } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
+import { Badge } from '@/components/ui/Badge'
+import { PageHeader } from '@/components/ui/PageHeader'
 import { Loader } from '@/components/ui/Loader'
-
-const control =
-  'rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:border-brand-400'
+import { Modal } from '@/components/ui/Modal'
+import { Select } from '@/components/ui/Input'
 
 const formatLabel: Record<AssignmentFormat, string> = {
   written: 'Yozma',
@@ -84,120 +85,114 @@ export function AssignmentScoresPage() {
   }, [board, sort])
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Trophy className="h-6 w-6 text-brand-600" />
-          <div>
-            <h1 className="text-xl font-semibold text-slate-800">Topshiriqlar bali</h1>
-            <p className="text-sm text-slate-400">
-              O'quvchini bosing — uning barcha topshiriq ballari ochiladi
-            </p>
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <select className={control} value={classId} onChange={(e) => setClassId(e.target.value)}>
-            {classes.length === 0 && <option value="">Guruh yo'q</option>}
-            {classes.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-          <select
-            className={control}
-            value={sort}
-            onChange={(e) => setSort(e.target.value as 'name' | 'high' | 'low')}
-          >
-            <option value="name">Ism bo'yicha (A–Z)</option>
-            <option value="high">Yuqori ball bo'yicha</option>
-            <option value="low">Past ball bo'yicha</option>
-          </select>
-        </div>
-      </div>
+    <div>
+      <PageHeader
+        title="Topshiriqlar bali"
+        sub="O'quvchini bosing — uning barcha topshiriq ballari ochiladi"
+        actions={
+          <>
+            <Select value={classId} onChange={(e) => setClassId(e.target.value)}>
+              {classes.length === 0 && <option value="">Guruh yo'q</option>}
+              {classes.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </Select>
+            <Select
+              value={sort}
+              onChange={(e) => setSort(e.target.value as 'name' | 'high' | 'low')}
+            >
+              <option value="name">Ism bo'yicha (A–Z)</option>
+              <option value="high">Yuqori ball bo'yicha</option>
+              <option value="low">Past ball bo'yicha</option>
+            </Select>
+          </>
+        }
+      />
 
       {loading ? (
-        <Loader label="Yuklanmoqda..." />
+        <Card>
+          <Loader label="Yuklanmoqda..." />
+        </Card>
       ) : !board || !hasAssignments ? (
         <Card>
-          <p className="py-12 text-center text-slate-400">Bu guruhga topshiriq berilmagan</p>
+          <div className="state">
+            <div className="state-icon">
+              <Trophy className="h-6 w-6" />
+            </div>
+            <h4>Topshiriq berilmagan</h4>
+            <p>Bu guruhga hali topshiriq berilmagan.</p>
+          </div>
         </Card>
       ) : board.students.length === 0 ? (
         <Card>
-          <p className="py-12 text-center text-slate-400">Guruhda o'quvchi yo'q</p>
+          <div className="state">
+            <h4>O'quvchi yo'q</h4>
+            <p>Guruhda hali o'quvchi yo'q.</p>
+          </div>
         </Card>
       ) : (
-        <Card className="overflow-hidden p-0">
-          <table className="w-full border-collapse text-sm">
-            <thead>
-              <tr className="border-b border-slate-200 bg-slate-50 text-slate-700">
-                <th className="w-12 px-4 py-3 text-left font-semibold">№</th>
-                <th className="px-4 py-3 text-left font-semibold">F.I.Sh.</th>
-                <th className="w-24 px-4 py-3 text-left font-semibold">Guruh</th>
-                <th className="w-40 px-4 py-3 text-right font-semibold">Jami ball</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sortedStudents.map((row, i) => (
-                <tr
-                  key={row.studentId}
-                  onClick={() => setSelected(row)}
-                  className="cursor-pointer border-b border-slate-100 transition-colors hover:bg-brand-50/50"
-                >
-                  <td className="px-4 py-2.5 text-slate-400">{i + 1}</td>
-                  <td className="px-4 py-2.5 font-medium text-slate-700">{row.fullName}</td>
-                  <td className="px-4 py-2.5 text-slate-500">{row.className}</td>
-                  <td className="px-4 py-2.5 text-right">
-                    {row.gradedCount > 0 ? (
-                      <span className={`font-semibold ${scoreColor(row.totalScore, row.totalMax)}`}>
-                        {row.totalScore}
-                        <span className="font-normal text-slate-400"> / {row.totalMax}</span>
-                      </span>
-                    ) : (
-                      <span className="text-slate-300">— / —</span>
-                    )}
-                  </td>
+        <Card tight>
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th className="w-12">№</th>
+                  <th>F.I.Sh.</th>
+                  <th className="w-24">Guruh</th>
+                  <th className="num w-40">Jami ball</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {sortedStudents.map((row, i) => (
+                  <tr
+                    key={row.studentId}
+                    onClick={() => setSelected(row)}
+                    className="cursor-pointer"
+                  >
+                    <td className="num text-slate-400">{i + 1}</td>
+                    <td className="font-medium text-slate-700">{row.fullName}</td>
+                    <td className="text-slate-500">{row.className}</td>
+                    <td className="num">
+                      {row.gradedCount > 0 ? (
+                        <span className={`font-semibold ${scoreColor(row.totalScore, row.totalMax)}`}>
+                          {row.totalScore}
+                          <span className="font-normal text-slate-400"> / {row.totalMax}</span>
+                        </span>
+                      ) : (
+                        <span className="text-slate-300">— / —</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </Card>
       )}
 
       {/* O'quvchi tafsiloti — barcha topshiriqlar vertikal */}
-      {selected && (
-        <div
-          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4 py-8"
-          onClick={() => setSelected(null)}
-        >
-          <div
-            className="w-full max-w-xl rounded-2xl bg-white shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-6 py-4">
-              <div>
-                <h2 className="font-semibold text-slate-800">{selected.fullName}</h2>
-                <p className="text-sm text-slate-400">
-                  {selected.className}-guruh ·{' '}
-                  {selected.gradedCount > 0 ? (
-                    <span className={scoreColor(selected.totalScore, selected.totalMax)}>
-                      Jami {selected.totalScore} / {selected.totalMax} ball
-                    </span>
-                  ) : (
-                    "hali baholanmagan"
-                  )}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSelected(null)}
-                className="text-slate-400 hover:text-slate-600"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
+      <Modal
+        open={!!selected}
+        onClose={() => setSelected(null)}
+        size="md"
+        title={selected?.fullName}
+      >
+        {selected && (
+          <div className="space-y-4">
+            <p className="text-sm text-slate-400">
+              {selected.className}-guruh ·{' '}
+              {selected.gradedCount > 0 ? (
+                <span className={scoreColor(selected.totalScore, selected.totalMax)}>
+                  Jami <span className="font-mono">{selected.totalScore} / {selected.totalMax}</span> ball
+                </span>
+              ) : (
+                "hali baholanmagan"
+              )}
+            </p>
 
-            <div className="max-h-[70vh] space-y-2 overflow-y-auto p-4">
+            <div className="space-y-2">
               {selected.cells.map((c) => {
                 const col = colById.get(c.assignmentId)
                 if (!col) return null
@@ -209,25 +204,19 @@ export function AssignmentScoresPage() {
                     <div className="min-w-0">
                       <p className="truncate font-medium text-slate-800">{col.title}</p>
                       <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
-                        <span className="rounded-full bg-brand-50 px-2 py-0.5 font-medium text-brand-700">
-                          {formatLabel[col.format]}
-                        </span>
-                        {col.subjectName && (
-                          <span className="rounded-full bg-white px-2 py-0.5 text-slate-500">
-                            {col.subjectName}
-                          </span>
-                        )}
+                        <Badge tone="violet">{formatLabel[col.format]}</Badge>
+                        {col.subjectName && <Badge>{col.subjectName}</Badge>}
                         {col.dueDate && (
                           <span className="inline-flex items-center gap-1 text-amber-600">
                             <CalendarClock className="h-3.5 w-3.5" />
-                            {formatDate(col.dueDate)}
+                            <span className="font-mono">{formatDate(col.dueDate)}</span>
                           </span>
                         )}
                       </div>
                     </div>
                     <div className="shrink-0 text-right">
                       {c.score !== null ? (
-                        <span className={`text-lg font-bold ${scoreColor(c.score, col.maxScore)}`}>
+                        <span className={`font-mono text-lg font-bold ${scoreColor(c.score, col.maxScore)}`}>
                           {c.score}
                           <span className="text-sm font-normal text-slate-400"> / {col.maxScore}</span>
                         </span>
@@ -242,8 +231,8 @@ export function AssignmentScoresPage() {
               })}
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </Modal>
     </div>
   )
 }

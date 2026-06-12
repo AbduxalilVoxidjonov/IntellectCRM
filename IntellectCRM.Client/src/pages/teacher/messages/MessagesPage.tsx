@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Briefcase } from 'lucide-react'
+import { Briefcase, MessageSquare } from 'lucide-react'
 import { getTeacherChatClasses, getTeacherChat, sendTeacherChat } from '@/api/services/teacher'
 import { STAFF_CHANNEL, STAFF_CHANNEL_LABEL } from '@/config/constants'
 import { useUnread } from '@/context/unread-context'
+import { PageHeader } from '@/components/ui/PageHeader'
 import { Card } from '@/components/ui/Card'
 import { Loader } from '@/components/ui/Loader'
 import { cn } from '@/lib/utils'
@@ -28,17 +29,14 @@ export function TeacherMessagesPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-slate-800">Guruh chati</h1>
-        <p className="text-sm text-slate-400">Dars beradigan guruhlaringiz va xodimlar chati</p>
-      </div>
+      <PageHeader title="Guruh chati" sub="Dars beradigan guruhlaringiz va xodimlar chati" />
 
       {loading ? (
         <Loader label="Yuklanmoqda..." />
       ) : (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[240px_1fr]">
-          <Card className="p-2">
-            <div className="max-h-[70vh] space-y-1 overflow-y-auto">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[260px_1fr]">
+          <Card title="Kanallar" tight>
+            <div className="max-h-[70vh] space-y-1 overflow-y-auto p-2">
               {/* Xodimlar kanali — har bir o'qituvchiga ochiq */}
               <button
                 type="button"
@@ -46,14 +44,14 @@ export function TeacherMessagesPage() {
                 className={cn(
                   'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors',
                   selected === STAFF_CHANNEL
-                    ? 'bg-brand-50 text-brand-700'
+                    ? 'bg-brand-50 font-semibold text-brand-700'
                     : 'text-slate-600 hover:bg-slate-50',
                 )}
               >
-                <Briefcase className="h-4 w-4 text-slate-400" />
-                <span className="font-medium">{STAFF_CHANNEL_LABEL}</span>
+                <Briefcase className="h-4 w-4 shrink-0 text-slate-400" />
+                <span className="truncate font-medium">{STAFF_CHANNEL_LABEL}</span>
                 <span className="ml-auto flex items-center gap-1.5">
-                  <span className="text-xs text-slate-400">barcha</span>
+                  <span className="font-mono text-xs text-slate-400">barcha</span>
                   {unreadChannels.has(STAFF_CHANNEL) && (
                     <span className="h-2 w-2 shrink-0 rounded-full bg-red-500" />
                   )}
@@ -67,13 +65,16 @@ export function TeacherMessagesPage() {
                   type="button"
                   onClick={() => setSelected(c)}
                   className={cn(
-                    'flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors',
-                    selected === c ? 'bg-brand-50 text-brand-700' : 'text-slate-600 hover:bg-slate-50',
+                    'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors',
+                    selected === c
+                      ? 'bg-brand-50 font-semibold text-brand-700'
+                      : 'text-slate-600 hover:bg-slate-50',
                   )}
                 >
-                  {c}
+                  <MessageSquare className="h-4 w-4 shrink-0 text-slate-400" />
+                  <span className="truncate font-medium">{c}</span>
                   {unreadChannels.has(c) && (
-                    <span className="h-2 w-2 shrink-0 rounded-full bg-red-500" />
+                    <span className="ml-auto h-2 w-2 shrink-0 rounded-full bg-red-500" />
                   )}
                 </button>
               ))}

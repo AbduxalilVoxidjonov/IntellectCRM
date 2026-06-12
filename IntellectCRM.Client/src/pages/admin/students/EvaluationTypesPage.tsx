@@ -8,6 +8,7 @@ import {
   deleteEvaluationType,
 } from '@/api/services/studentEvaluation'
 import { Card } from '@/components/ui/Card'
+import { PageHeader } from '@/components/ui/PageHeader'
 import { Button } from '@/components/ui/Button'
 import { Loader } from '@/components/ui/Loader'
 import { Modal } from '@/components/ui/Modal'
@@ -66,18 +67,16 @@ export function EvaluationTypesPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-800">Feedback nomi</h1>
-          <p className="text-sm text-slate-400">
-            Feedback nomi — xohlagancha qo'shing (masalan: Og'zaki/Suhbat, Yozma, Nazorat ishi)
-          </p>
-        </div>
-        <Button onClick={openCreate}>
-          <Plus className="h-4 w-4" /> Yangi feedback nomi
-        </Button>
-      </div>
+    <div className="space-y-5">
+      <PageHeader
+        title="Feedback nomi"
+        sub="Feedback nomi — xohlagancha qo'shing (masalan: Og'zaki/Suhbat, Yozma, Nazorat ishi)"
+        actions={
+          <Button onClick={openCreate}>
+            <Plus className="h-4 w-4" /> Yangi feedback nomi
+          </Button>
+        }
+      />
 
       {loading ? (
         <Loader label="Yuklanmoqda..." />
@@ -92,24 +91,24 @@ export function EvaluationTypesPage() {
           </p>
         </Card>
       ) : (
-        <Card className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-400">
+        <Card tight>
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
                 <tr>
-                  <th className="w-10 px-4 py-3">#</th>
-                  <th className="px-4 py-3">Nomi</th>
-                  <th className="px-4 py-3">Izoh</th>
-                  <th className="px-4 py-3 text-right">Amallar</th>
+                  <th className="w-10">#</th>
+                  <th>Nomi</th>
+                  <th>Izoh</th>
+                  <th className="text-right">Amallar</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody>
                 {types.map((t, i) => (
-                  <tr key={t.id} className="hover:bg-slate-50/60">
-                    <td className="px-4 py-3 text-slate-400">{i + 1}</td>
-                    <td className="px-4 py-3 font-medium text-slate-800">{t.name}</td>
-                    <td className="px-4 py-3 text-slate-500">{t.description || '—'}</td>
-                    <td className="px-4 py-3">
+                  <tr key={t.id}>
+                    <td className="font-mono text-slate-400">{i + 1}</td>
+                    <td className="font-medium text-slate-800">{t.name}</td>
+                    <td className="text-slate-500">{t.description || '—'}</td>
+                    <td>
                       <div className="flex items-center justify-end gap-0.5">
                         <button
                           type="button"

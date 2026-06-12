@@ -22,8 +22,10 @@ import {
 } from '@/api/services/teacher'
 import { formatDate } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
+import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Loader } from '@/components/ui/Loader'
+import { PageHeader } from '@/components/ui/PageHeader'
 import { SubmissionsModal } from '@/components/assignments/SubmissionsModal'
 import { AssignmentWizard } from '@/components/assignments/AssignmentWizard'
 
@@ -75,37 +77,46 @@ export function TeacherAssignmentsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-800">Topshiriqlar</h1>
-          <p className="text-sm text-slate-400">O'zingiz yaratgan topshiriq va testlar</p>
-        </div>
-        <Button onClick={openNew} disabled={classes.length === 0}>
-          <Plus className="h-4 w-4" /> Yangi topshiriq
-        </Button>
-      </div>
+    <div>
+      <PageHeader
+        title="Topshiriqlar"
+        sub="O'zingiz yaratgan topshiriq va testlar"
+        actions={
+          <Button onClick={openNew} disabled={classes.length === 0}>
+            <Plus className="h-4 w-4" /> Yangi topshiriq
+          </Button>
+        }
+      />
 
       {loading ? (
-        <Loader label="Yuklanmoqda..." />
+        <Card>
+          <Loader label="Yuklanmoqda..." />
+        </Card>
       ) : classes.length === 0 ? (
         <Card>
-          <p className="py-10 text-center text-slate-400">Sizga biriktirilgan guruh/fan yo'q.</p>
+          <div className="state">
+            <h4>Guruh/fan yo'q</h4>
+            <p>Sizga biriktirilgan guruh/fan yo'q.</p>
+          </div>
         </Card>
       ) : assignments.length === 0 ? (
         <Card>
-          <p className="py-10 text-center text-slate-400">
-            Hali topshiriq yo'q. "Yangi topshiriq" tugmasi orqali yarating.
-          </p>
+          <div className="state">
+            <div className="state-icon">
+              <ClipboardCheck className="h-6 w-6" />
+            </div>
+            <h4>Hali topshiriq yo'q</h4>
+            <p>"Yangi topshiriq" tugmasi orqali yarating.</p>
+          </div>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+        <div className="entity-grid">
           {assignments.map((a) => (
-            <Card key={a.id} className="space-y-2">
+            <div key={a.id} className="entity-card">
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <ClipboardCheck className="h-5 w-5 shrink-0 text-brand-600" />
-                  <p className="font-semibold text-slate-800">{a.title}</p>
+                  <p className="ec-name">{a.title}</p>
                 </div>
                 <div className="flex shrink-0 items-center gap-0.5">
                   <button
@@ -127,17 +138,11 @@ export function TeacherAssignmentsPage() {
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-1.5 text-xs">
-                <span className="rounded-full bg-brand-50 px-2 py-0.5 font-medium text-brand-700">
-                  {formatLabel[a.format]}
-                </span>
-                {a.subjectName && (
-                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-600">{a.subjectName}</span>
-                )}
+              <div className="flex flex-wrap items-center gap-1.5">
+                <Badge tone="violet">{formatLabel[a.format]}</Badge>
+                {a.subjectName && <Badge>{a.subjectName}</Badge>}
                 {a.classNames.map((n) => (
-                  <span key={n} className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-600">
-                    {n}
-                  </span>
+                  <Badge key={n}>{n}</Badge>
                 ))}
               </div>
 
@@ -149,22 +154,24 @@ export function TeacherAssignmentsPage() {
                 {a.dueDate && (
                   <span className="inline-flex items-center gap-1 text-amber-600">
                     <CalendarClock className="h-3.5 w-3.5" />
-                    {formatDateTime(a.dueDate)}
+                    <span className="font-mono">{formatDateTime(a.dueDate)}</span>
                   </span>
                 )}
                 {a.materials.length > 0 && (
                   <span className="inline-flex items-center gap-1">
                     <Paperclip className="h-3.5 w-3.5" />
-                    {a.materials.length} material
+                    <span className="font-mono">{a.materials.length}</span> material
                   </span>
                 )}
                 {a.format === 'test' && (
                   <span className="inline-flex items-center gap-1">
                     <ListChecks className="h-3.5 w-3.5" />
-                    {a.questions.length} savol
+                    <span className="font-mono">{a.questions.length}</span> savol
                   </span>
                 )}
-                <span>Maks: {a.maxScore} ball</span>
+                <span>
+                  Maks: <span className="font-mono text-slate-500">{a.maxScore}</span> ball
+                </span>
               </div>
 
               <button
@@ -174,7 +181,7 @@ export function TeacherAssignmentsPage() {
               >
                 <Users className="h-4 w-4" /> Kim bajardi
               </button>
-            </Card>
+            </div>
           ))}
         </div>
       )}

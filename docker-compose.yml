@@ -1,25 +1,26 @@
-# IntellectCRM — prod: app (API + SPA) + MySQL 8 + Cloudflare Tunnel + kunlik backup.
+# IntellectCRM — prod: app (API + SPA) + SQL Server 2022 + Cloudflare Tunnel + kunlik backup.
 # Bitta o'quv markazi (multi-tenant YO'Q). Sozlamalar .env faylidan keladi (.env.example dan nusxa oling).
 # Diqqat: app porti TASHQARIGA OCHILMAGAN — unga faqat cloudflared (ichki tarmoq) kiradi.
+# SQL Server: ~2GB RAM talab qiladi; Express edition prod uchun bepul (baza hajmi <=10GB).
 
 services:
-  mysql:
-    image: mysql:8.0
-    container_name: intellectcrm-mysql
-    command:
-      - --character-set-server=utf8mb4
-      - --collation-server=utf8mb4_unicode_ci
+  mssql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: intellectcrm-mssql
     environment:
-      MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD}"
-      MYSQL_DATABASE: "intellectcrm"
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD}"
+      MSSQL_PID: "${MSSQL_PID:-Express}"   # Express = prod uchun bepul (<=10GB). Developer = to'liq, FAQAT sinov uchun.
     volumes:
-      - mysql-data:/var/lib/mysql
+      - mssql-data:/var/opt/mssql          # baza, log, secrets — shu volume'da
+      - mssql-backups:/var/backups         # BACKUP DATABASE shu yerga yozadi (backup xizmati ham ko'radi)
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent || exit 1"]
+      # tools18 sqlcmd shifrlangan ulanadi -> self-signed sertifikatga ishonish uchun -C.
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -Q \"SELECT 1\" -b -o /dev/null || exit 1"]
       interval: 10s
       timeout: 5s
-      retries: 12
-      start_period: 30s
+      retries: 15
+      start_period: 40s
     restart: unless-stopped
 
   app:
@@ -32,15 +33,19 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: "Production"
       ASPNETCORE_URLS: "http://+:8080"
-      ConnectionStrings__Default: "Server=mysql;Port=3306;Database=intellectcrm;User=root;Password=${MYSQL_ROOT_PASSWORD};CharSet=utf8mb4"
+      # SQL Server: self-signed sertifikat -> TrustServerCertificate=True majburiy.
+      ConnectionStrings__Default: "Server=mssql,1433;Database=IntellectCRM_DB;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True;Encrypt=True;MultipleActiveResultSets=true"
       Tenancy__RootDomain: "${ROOT_DOMAIN}"
       App__Host: "${APP_HOST}"             # FAQAT shu host ilovani (SPA) ochadi; qolganlari -> landing
       Jwt__Key: "${JWT_KEY}"               # >=32 belgi; prod'da MAJBURIY
+      # Birinchi ishga tushishda (baza bo'sh bo'lsa) shu login/parol bilan super admin yaratiladi.
+      Seed__OwnerLogin: "${OWNER_LOGIN:-admin}"
+      Seed__OwnerPassword: "${OWNER_PASSWORD}"
     volumes:
       - uploads:/app/uploads               # yuklangan fayllar (rasm, hujjat)
       - dpkeys:/app/keys                   # DataProtection kalitlari — deploylar oralig'ida saqlanadi
     depends_on:
-      mysql:
+      mssql:
         condition: service_healthy
     restart: unless-stopped
     # Diqqat: bu yerda `ports:` YO'Q — internetga ochilmaydi (faqat cloudflared kiradi).
@@ -71,45 +76,50 @@ services:
       - app
     restart: unless-stopped
 
-  # Kunlik avtomatik backup (mysqldump). Har kuni BACKUP_HOUR (UTC) da `intellectcrm` bazasini
-  # /backups ga .sql.gz qilib oladi va BACKUP_RETENTION_DAYS dan eski nusxalarni o'chiradi.
+  # Kunlik avtomatik backup. SQL Server'da `BACKUP DATABASE` faylni SERVER (mssql konteyner) ichiga
+  # yozadi — shuning uchun `mssql-backups` volume mssql'da /var/backups, bu yerda /backups bo'lib ulashiladi.
+  # Har kuni BACKUP_HOUR (UTC) da .bak oladi, gzip qiladi va BACKUP_RETENTION_DAYS dan eskini o'chiradi.
   backup:
-    image: mysql:8.0
+    image: mcr.microsoft.com/mssql/server:2022-latest
     container_name: intellectcrm-backup
+    user: root                       # umumiy volume'ni 777 qilib, mssql engine .bak yoza olishi uchun
     environment:
-      MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD}"
-      BACKUP_HOUR: "21"            # 21:00 UTC = 02:00 Toshkent (kechasi, yuk kam paytda)
-      BACKUP_RETENTION_DAYS: "7"   # 7 kundan eski nusxalar o'chiriladi
+      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD}"
+      BACKUP_HOUR: "21"              # 21:00 UTC = 02:00 Toshkent (kechasi, yuk kam paytda)
+      BACKUP_RETENTION_DAYS: "7"     # 7 kundan eski nusxalar o'chiriladi
     volumes:
-      - mysql-backups:/backups
+      - mssql-backups:/backups
     depends_on:
-      mysql:
+      mssql:
         condition: service_healthy
     restart: unless-stopped
     entrypoint: ["/bin/bash", "-c"]
     command:
       - |
+        chmod 777 /backups 2>/dev/null || true
         echo "[backup] xizmat ishga tushdi; har kuni $${BACKUP_HOUR}:00 UTC da, saqlash $${BACKUP_RETENTION_DAYS} kun"
+        SQLCMD=/opt/mssql-tools18/bin/sqlcmd
         while true; do
           now=$$(date -u +%s)
           next=$$(date -u -d "today $${BACKUP_HOUR}:00" +%s)
           [ "$$next" -le "$$now" ] && next=$$(date -u -d "tomorrow $${BACKUP_HOUR}:00" +%s)
           sleep $$(( next - now ))
           ts=$$(date -u +%Y%m%d_%H%M)
+          bak="/backups/IntellectCRM_DB_$${ts}.bak"
           echo "[backup] $$ts — boshlandi"
-          if mysqldump -h mysql -uroot -p"$$MYSQL_ROOT_PASSWORD" --single-transaction --routines --events \
-               --databases intellectcrm | gzip > "/backups/intellectcrm_$${ts}.sql.gz"; then
-            echo "[backup] tugadi: intellectcrm_$${ts}.sql.gz"
+          if $$SQLCMD -C -S mssql -U sa -P "$$MSSQL_SA_PASSWORD" -b -Q \
+               "BACKUP DATABASE [IntellectCRM_DB] TO DISK = N'$$bak' WITH INIT, FORMAT, NAME = 'IntellectCRM_DB full';"; then
+            gzip -f "$$bak" && echo "[backup] tugadi: $${bak}.gz"
           else
-            echo "[backup] XATO: dump muvaffaqiyatsiz"
-            rm -f "/backups/intellectcrm_$${ts}.sql.gz"
+            echo "[backup] XATO: BACKUP muvaffaqiyatsiz"
+            rm -f "$$bak"
           fi
-          find /backups -name '*.sql.gz' -type f -mtime +$${BACKUP_RETENTION_DAYS} -delete
+          find /backups -name '*.bak.gz' -type f -mtime +$${BACKUP_RETENTION_DAYS} -delete
         done
 
 volumes:
-  mysql-data:
-  mysql-backups:
+  mssql-data:
+  mssql-backups:
   uploads:
   dpkeys:
   cam-recordings:

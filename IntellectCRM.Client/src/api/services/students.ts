@@ -96,7 +96,12 @@ export async function uploadAdminFile(file: File): Promise<UploadedFile> {
 
 /** Forma maydonlari (balans bu yerda emas — u to'lov orqali o'zgaradi).
  *  newPassword — ixtiyoriy: tahrirda kiritilsa o'quvchi akkaunti paroli almashtiriladi. */
-export type StudentPayload = Omit<Student, 'id' | 'balance'> & { newPassword?: string }
+export type StudentPayload = Omit<Student, 'id' | 'balance' | 'parentFullName' | 'parentPhone'> & {
+  newPassword?: string
+  /** Backend father/mother'dan o'zi hosil qiladi — forma yubormaydi (ixtiyoriy). */
+  parentFullName?: string
+  parentPhone?: string
+}
 
 export async function getStudents(): Promise<Student[]> {
   if (USE_MOCK) {
@@ -105,6 +110,38 @@ export async function getStudents(): Promise<Student[]> {
   }
   const { data } = await api.get<Student[]>('/admin/students')
   return data
+}
+
+/**
+ * Global qidiruv (Ctrl+K) uchun o'quvchilarni FISH yoki telefon (o'z/ota/ona/ota-ona) bo'yicha
+ * qidiradi — ARXIVLANGANLAR ham qaytadi (natijada `isArchived` bilan belgilanadi). Mavjud
+ * `GET /admin/students?includeArchived=true` endpointidan foydalanadi (yangi backend shart emas);
+ * filtrlash frontend'da. `limit` — qaytariladigan maksimal natija.
+ */
+export async function searchStudents(q: string, limit = 12): Promise<Student[]> {
+  const term = q.trim().toLowerCase()
+  if (!term) return []
+  let all: Student[]
+  if (USE_MOCK) {
+    await delay(100)
+    all = studentsMock
+  } else {
+    const { data } = await api.get<Student[]>('/admin/students', {
+      params: { includeArchived: true },
+    })
+    all = data
+  }
+  // Telefonni faqat raqamlar bo'yicha solishtirish uchun normallashtiramiz (oxirgi raqamlar).
+  const digits = term.replace(/\D/g, '')
+  const matches = all.filter((s) => {
+    if (s.fullName?.toLowerCase().includes(term)) return true
+    if (digits.length >= 3) {
+      const phones = [s.phone, s.fatherPhone, s.motherPhone, s.parentPhone]
+      return phones.some((p) => p && p.replace(/\D/g, '').includes(digits))
+    }
+    return false
+  })
+  return matches.slice(0, limit)
 }
 
 /** Faqat arxivlangan o'quvchilar ro'yxati (alohida ko'rish uchun). */
@@ -148,9 +185,46 @@ export async function createStudent(payload: StudentPayload): Promise<Student> {
       const [cy, cm] = cur.split('-').map(Number)
       months = (cy - ey) * 12 + (cm - em) + 1
     }
-    return { ...payload, id: uid(), balance: -fee * months }
+    return {
+      ...payload,
+      parentFullName: payload.parentFullName ?? payload.fatherFullName ?? payload.motherFullName ?? '',
+      parentPhone: payload.parentPhone ?? payload.fatherPhone ?? payload.motherPhone ?? '',
+      id: uid(),
+      balance: -fee * months,
+    }
   }
   const { data } = await api.post<Student>('/admin/students', payload)
+  return data
+}
+
+/** Telefon dublikati — mos kelgan mavjud o'quvchi (arxivdagilar ham). */
+export interface PhoneMatch {
+  /** Kiritilgan (mos kelgan) raqam */
+  phone: string
+  studentId: string
+  fullName: string
+  className: string
+  isArchived: boolean
+  /** Mavjud yozuvda qaysi raqam mos keldi: O'quvchi / Ota / Ona / Ota-ona */
+  role: string
+}
+
+/**
+ * Kiritilgan raqamlar (o'quvchi o'zi / ota / ona) allaqachon biror o'quvchida (ARXIVDAGILAR ham)
+ * bormi — tekshiradi. `excludeId` — tahrirdagi o'quvchining o'zi. Bo'sh massiv = dublikat yo'q.
+ */
+export async function checkStudentPhones(req: {
+  phone?: string
+  fatherPhone?: string
+  motherPhone?: string
+  parentPhone?: string
+  excludeId?: string
+}): Promise<PhoneMatch[]> {
+  if (USE_MOCK) {
+    await delay(150)
+    return []
+  }
+  const { data } = await api.post<PhoneMatch[]>('/admin/students/check-phones', req)
   return data
 }
 
@@ -200,14 +274,32 @@ export async function resetStudentPassword(id: string): Promise<Credentials> {
   return data
 }
 
+/** Bitta guruh bo'yicha o'quvchining oylik hisobi (to'lov oynasi uchun) — aggregate emas. */
+export async function getGroupLedger(
+  studentId: string,
+  groupId: string,
+): Promise<import('@/types').GroupLedger> {
+  const { data } = await api.get<import('@/types').GroupLedger>(
+    `/admin/students/${studentId}/group-ledger`,
+    { params: { groupId } },
+  )
+  return data
+}
+
 /** O'quvchiga to'lov kiritish — balansga qo'shiladi.
- *  `month` ("YYYY-MM") berilsa, to'lov shu oy uchun hisoblanadi. */
-export async function addPayment(id: string, amount: number, month?: string): Promise<void> {
+ *  `month` ("YYYY-MM") berilsa, to'lov shu oy uchun hisoblanadi.
+ *  `groupId` berilsa, to'lov shu guruh uchun hisoblanadi (o'qituvchi foizli maoshi shunga tayanadi). */
+export async function addPayment(
+  id: string,
+  amount: number,
+  month?: string,
+  groupId?: string,
+): Promise<void> {
   if (USE_MOCK) {
     await delay(250)
     return
   }
-  await api.post(`/admin/students/${id}/payments`, { amount, month })
+  await api.post(`/admin/students/${id}/payments`, { amount, month, groupId })
 }
 
 const LEDGER_MONTHS = ['2026-01', '2026-02', '2026-03', '2026-04', '2026-05']
@@ -233,7 +325,7 @@ export async function getStudentLedger(id: string): Promise<StudentLedger> {
       pool -= paid
       const remaining = fee - paid
       const status: MonthStatus = remaining === 0 ? 'paid' : paid > 0 ? 'partial' : 'unpaid'
-      return { month, charged: rawFee, discount: monthDiscount, paid, remaining, status }
+      return { month, charged: rawFee, discount: monthDiscount, paid, remaining, status, courses: [] }
     })
     const payments = financeMock
       .filter((t) => t.studentId === id && t.category === 'tuition')
@@ -252,4 +344,21 @@ export async function getStudentLedger(id: string): Promise<StudentLedger> {
   }
   const { data } = await api.get<StudentLedger>(`/admin/students/${id}/ledger`)
   return data
+}
+
+/** FAQAT super admin: shu oyning hisoblangan (avtomatik) summasini qo'lda tahrirlaydi.
+ *  `groupId` berilsa — shu guruh hisobi; null/bo'sh — guruhsiz (ClassName) hisobi. */
+export async function editStudentCharge(
+  id: string,
+  month: string,
+  amount: number,
+  groupId?: string,
+): Promise<void> {
+  if (USE_MOCK) {
+    await delay(150)
+    return
+  }
+  await api.put(`/admin/students/${id}/charges/${month}`, { amount }, {
+    params: groupId ? { groupId } : undefined,
+  })
 }
