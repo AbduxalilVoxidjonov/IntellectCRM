@@ -32,6 +32,14 @@ public class PublicTestController(AppDbContext db) : ControllerBase
             return BadRequest(new { message = "Ism-familiyani kiriting" });
         if (string.IsNullOrWhiteSpace(req.Phone))
             return BadRequest(new { message = "Telefon raqamini kiriting" });
+        // Anonim endpoint — kirishni cheklab qo'yamiz (spam / ortiqcha uzun matn oldini olish).
+        if (req.FullName.Trim().Length > 100)
+            return BadRequest(new { message = "Ism-familiya juda uzun" });
+        if (req.Phone.Trim().Length > 32)
+            return BadRequest(new { message = "Telefon raqami juda uzun" });
+        // Yoshni 0..120 oralig'iga moslab beramiz.
+        var safeAge = Math.Clamp(req.Age, 0, 120);
+        if (safeAge != req.Age) req = req with { Age = safeAge };
 
         var result = await LevelTestService.SubmitAsync(db, slug, req);
         if (result is null) return NotFound(new { message = "Test topilmadi yoki faol emas" });

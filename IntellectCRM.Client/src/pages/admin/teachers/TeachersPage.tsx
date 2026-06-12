@@ -162,10 +162,12 @@ export function TeachersPage() {
   const doDelete = (reasonId?: string) => {
     const t = deleting
     if (!t) return
-    deleteTeacher(t.id, reasonId).then(() => {
-      setArchived((prev) => prev.filter((x) => x.id !== t.id))
-      setDeleting(null)
-    })
+    deleteTeacher(t.id, reasonId)
+      .then(() => {
+        setArchived((prev) => prev.filter((x) => x.id !== t.id))
+        setDeleting(null)
+      })
+      .catch((e) => alert(e?.response?.data?.message ?? "O'chirib bo'lmadi"))
   }
 
   return (

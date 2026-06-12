@@ -345,7 +345,7 @@ export function LevelTestEditorPage() {
                   .map((b, i) => ({ b, i }))
                   .sort((a, z) => a.b.minPercent - z.b.minPercent)
                   .map(({ b, i }) => (
-                    <div key={i} className="flex items-center gap-2">
+                    <div key={b.id ?? i} className="flex items-center gap-2">
                       <GripVertical className="h-4 w-4 shrink-0 text-slate-300" />
                       <input
                         value={b.label}

@@ -140,6 +140,10 @@ public class TeachersController(AppDbContext db, AuditService audit) : Controlle
     {
         var teacher = await db.Teachers.FindAsync(id);
         if (teacher is null) return NotFound();
+        // O'qituvchi guruhda MAJBURIY — faol guruhga biriktirilgan bo'lsa o'chirib bo'lmaydi (yetim TeacherId oldini olish).
+        var owns = await db.Classes.CountAsync(c => c.TeacherId == id && !c.IsArchived);
+        if (owns > 0)
+            return BadRequest(new { message = $"Bu o'qituvchi {owns} ta faol guruhga biriktirilgan — avval guruhga boshqa o'qituvchi tayinlang yoki guruhni arxivlang." });
         var reason = string.IsNullOrWhiteSpace(reasonId) ? "" : (await db.ActionReasons.Where(r => r.Id == reasonId).Select(r => r.Label).FirstOrDefaultAsync() ?? "");
         // Biriktirilgan tizim akkauntini ham o'chiramiz.
         if (teacher.UserId is not null)

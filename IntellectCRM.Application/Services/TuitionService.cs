@@ -190,7 +190,10 @@ public static class TuitionService
     /// shu oy MonthlyCharge'iga qo'shiladi yoki yaratiladi). Formula: bir dars = guruh oylik narxi ÷ SHU
     /// OYDAGI jami dars soni (guruh kunlari bo'yicha); to'lov = bir dars × shu sanadan oy oxirigacha qolgan
     /// dars. Qolgan ≤ jami bo'lgani uchun to'liq oylikdan oshmaydi. Chegirma qo'llanadi. SaveChanges — chaqiruvchida.</summary>
-    public static async Task ChargeActivationProrateAsync(IAppDbContext db, Student s, Group cls, string dateIso)
+    /// <param name="addSegment">true bo'lsa (shu OYDA muzlatilgandan keyin QAYTA aktivlashtirish) — yangi
+    /// studied segment mavjud (muzlatishgacha studied) hisobga QO'SHILADI, almashtirilmaydi. Aks holda
+    /// (birinchi aktivlashtirish / ikki marta bosish) idempotent ALMASHTIRADI.</param>
+    public static async Task ChargeActivationProrateAsync(IAppDbContext db, Student s, Group cls, string dateIso, bool addSegment = false)
     {
         if (cls.MonthlyFee <= 0 || dateIso.Length < 10 || !DateOnly.TryParse(dateIso, out var d)) return;
         var monthStart = new DateOnly(d.Year, d.Month, 1);
@@ -221,13 +224,29 @@ public static class TuitionService
         }
         else
         {
-            // IDEMPOTENT: qayta aktivlashtirilsa (yoki ikki marta bosilsa) shu oy hisobini ustiga QO'SHMAY
-            // ALMASHTIRAMIZ — ikki marta yozilib qolmasin. Eski effektivni balansga qaytarib, yangisini yechamiz.
+            if (existing.Locked) return; // qo'lda tahrirlangan — tegmaymiz.
             var oldEffective = Math.Max(0m, existing.Amount - existing.Discount);
-            existing.Amount = gross;
-            existing.Discount = discount;
-            existing.Date = dateIso;
-            s.Balance += oldEffective - effective;
+            if (addSegment)
+            {
+                // SHU OYDA muzlatilgandan keyin QAYTA aktivlashtirish: mavjud hisob = muzlatishgacha studied
+                // segment. Yangi segment (shu sanadan oy oxirigacha) USTIGA QO'SHILADI — gap (muzlatish↔qayta
+                // aktiv) hisoblanmaydi, studied portion yo'qolmaydi.
+                var newAmount = existing.Amount + gross;
+                var newDiscount = DiscountFor(newAmount, s.DiscountPct, s.DiscountAmount);
+                existing.Amount = newAmount;
+                existing.Discount = newDiscount;
+                existing.Date = dateIso;
+                s.Balance += oldEffective - (newAmount - newDiscount);
+            }
+            else
+            {
+                // IDEMPOTENT: birinchi aktivlashtirish (eski to'liq AccrueMonth qatori ustidan) yoki ikki marta
+                // bosish — ALMASHTIRAMIZ (ikki marta yozilmasin).
+                existing.Amount = gross;
+                existing.Discount = discount;
+                existing.Date = dateIso;
+                s.Balance += oldEffective - effective;
+            }
         }
     }
 

@@ -56,29 +56,71 @@ public class ArchiveController(AppDbContext db) : ControllerBase
         var rec = await db.ArchivedRecords.FindAsync(id);
         if (rec is null) return NotFound();
 
+        const string existsMessage = "Bu yozuv allaqachon mavjud — tiklab bo'lmaydi";
         try
         {
             var json = rec.Json;
             switch (rec.Type)
             {
                 case "lead":
-                    db.Leads.Add(JsonSerializer.Deserialize<Lead>(json)!);
+                {
+                    var lead = JsonSerializer.Deserialize<Lead>(json)!;
+                    if (await db.Leads.AnyAsync(x => x.Id == lead.Id))
+                        return BadRequest(new { message = existsMessage });
+                    db.Leads.Add(lead);
                     break;
+                }
                 case "student":
-                    db.Students.Add(JsonSerializer.Deserialize<Student>(json)!);
+                {
+                    var student = JsonSerializer.Deserialize<Student>(json)!;
+                    if (await db.Students.AnyAsync(x => x.Id == student.Id))
+                        return BadRequest(new { message = existsMessage });
+                    db.Students.Add(student);
                     break;
+                }
                 case "teacher":
-                    db.Teachers.Add(JsonSerializer.Deserialize<Teacher>(json)!);
+                {
+                    var teacher = JsonSerializer.Deserialize<Teacher>(json)!;
+                    if (await db.Teachers.AnyAsync(x => x.Id == teacher.Id))
+                        return BadRequest(new { message = existsMessage });
+                    db.Teachers.Add(teacher);
                     break;
+                }
                 case "staff":
-                    db.Users.Add(JsonSerializer.Deserialize<AppUser>(json)!);
+                {
+                    var user = JsonSerializer.Deserialize<AppUser>(json)!;
+                    if (await db.Users.AnyAsync(x => x.Id == user.Id))
+                        return BadRequest(new { message = existsMessage });
+                    // Login (Email) band bo'lsa — tiklab bo'lmaydi (boshqa user shu login bilan turibdi).
+                    if (await db.Users.AnyAsync(u => u.Email == user.Email && u.Id != user.Id))
+                        return BadRequest(new { message = "Bu login band — tiklab bo'lmaydi" });
+                    // Xavfsizlik: eski ruxsatlarni jimgina tiklamaymiz — admin qayta beradi.
+                    user.Permissions = new();
+                    db.Users.Add(user);
                     break;
+                }
                 case "group":
-                    db.Classes.Add(JsonSerializer.Deserialize<Group>(json)!);
+                {
+                    var group = JsonSerializer.Deserialize<Group>(json)!;
+                    if (await db.Classes.AnyAsync(x => x.Id == group.Id))
+                        return BadRequest(new { message = existsMessage });
+                    db.Classes.Add(group);
                     break;
+                }
                 case "finance":
-                    db.FinanceTransactions.Add(JsonSerializer.Deserialize<FinanceTransaction>(json)!);
+                {
+                    var tx = JsonSerializer.Deserialize<FinanceTransaction>(json)!;
+                    if (await db.FinanceTransactions.AnyAsync(x => x.Id == tx.Id))
+                        return BadRequest(new { message = existsMessage });
+                    db.FinanceTransactions.Add(tx);
+                    // O'chirishda balans QAYTARILGAN edi (FinanceController.Delete) — tiklashda QAYTA qo'llaymiz.
+                    if (tx.Direction == "income" && tx.Category == "tuition" && !string.IsNullOrEmpty(tx.StudentId))
+                    {
+                        var student = await db.Students.FindAsync(tx.StudentId);
+                        if (student is not null) student.Balance += tx.Amount;
+                    }
                     break;
+                }
                 default:
                     return BadRequest(new { message = $"Noma'lum arxiv turi: {rec.Type}" });
             }

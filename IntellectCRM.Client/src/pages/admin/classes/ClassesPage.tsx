@@ -29,7 +29,7 @@ import {
 import { getClassesStats, type ClassStats } from '@/api/services/classPerformance'
 import { getTeachers } from '@/api/services/teachers'
 import { languageLabels } from '@/config/constants'
-import { formatMoney, cn } from '@/lib/utils'
+import { formatMoney, formatDate, cn } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
@@ -734,7 +734,7 @@ function ArchivedTable({
                 </span>
               </td>
               <td className="px-4 py-3 text-slate-600">{c.room || '—'}</td>
-              <td className="px-4 py-3 text-slate-500">{c.archivedAt || '—'}</td>
+              <td className="px-4 py-3 text-slate-500">{c.archivedAt ? formatDate(c.archivedAt) : '—'}</td>
               <td className="px-4 py-3">
                 <div className="flex items-center justify-end gap-0.5">
                   <IconBtn

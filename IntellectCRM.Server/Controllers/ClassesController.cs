@@ -147,10 +147,15 @@ public class ClassesController(AppDbContext db, AuditService audit) : Controller
                 message = $"Bu guruhda {Math.Max(byName, activeMembers)} ta faol o'quvchi bor — guruhni o'chirib bo'lmaydi. " +
                           "Avval o'quvchilarni chiqaring yoki arxivlang.",
             });
-        // Bog'liq qatorlar orphan qolmasin: a'zoliklar (o'tganlar ham), jurnal yozuvlari, dars eslatmalari.
+        // Bog'liq qatorlar orphan qolmasin: a'zoliklar (o'tganlar ham), jurnal yozuvlari, dars eslatmalari,
+        // shu guruhga tegishli per-guruh oylik hisoblar (aks holda ledger yo'q guruhni hisoblardi).
         db.StudentGroups.RemoveRange(db.StudentGroups.Where(sg => sg.GroupId == id));
         db.JournalEntries.RemoveRange(db.JournalEntries.Where(e => e.ClassId == id));
         db.LessonNotes.RemoveRange(db.LessonNotes.Where(n => n.ClassId == id));
+        db.MonthlyCharges.RemoveRange(db.MonthlyCharges.Where(c => c.GroupId == id));
+        // Moliya tarixi SAQLANADI, lekin yo'q guruhga ishora qilmasin — GroupId tozalanadi (to'lov qoladi).
+        await db.FinanceTransactions.Where(t => t.GroupId == id)
+            .ForEachAsync(t => t.GroupId = null);
         db.Classes.Remove(cls);
 
         var reason = await ReasonLabelAsync(reasonId);
@@ -351,13 +356,18 @@ public class ClassesController(AppDbContext db, AuditService audit) : Controller
         if (cls is null) return NotFound(new { message = "Guruh topilmadi" });
         var date = string.IsNullOrWhiteSpace(req.Date) ? AppClock.Today.ToString("yyyy-MM-dd") : req.Date!.Trim();
 
+        // SHU OYDA muzlatilgandan keyin qayta aktivlashtirilyaptimi? Bo'lsa, muzlatishgacha studied segment
+        // saqlanib, yangi segment USTIGA QO'SHILADI (aks holda studied portion yo'qolardi).
+        var reactivateFromFreeze = sg.Status == "frozen"
+            && sg.FrozenAt.Length >= 7 && date.Length >= 7 && sg.FrozenAt[..7] == date[..7];
+
         sg.Status = "active";
         sg.ActivatedAt = date;
         sg.FrozenAt = string.Empty;
 
         var s = await db.Students.FindAsync(studentId);
         if (s is not null)
-            await TuitionService.ChargeActivationProrateAsync(db, s, cls, date);
+            await TuitionService.ChargeActivationProrateAsync(db, s, cls, date, addSegment: reactivateFromFreeze);
 
         await db.SaveChangesAsync();
         return Ok(new { ok = true });

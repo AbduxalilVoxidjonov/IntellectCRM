@@ -126,10 +126,12 @@ export function FinancePage() {
   const doDelete = (reasonId?: string) => {
     const t = deleting
     if (!t) return
-    deleteTransaction(t.id, reasonId).then(() => {
-      setDeleting(null)
-      load()
-    })
+    deleteTransaction(t.id, reasonId)
+      .then(() => {
+        setDeleting(null)
+        load()
+      })
+      .catch((e) => alert(e?.response?.data?.message ?? "O'chirib bo'lmadi"))
   }
 
   const handleAccrue = async () => {

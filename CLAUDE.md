@@ -487,3 +487,18 @@ docker compose up -d --build    # app + mssql + cloudflared + backup + mediamtx
   (satrdan, TZ-xavfsiz). 2 parallel subagent 8 faylni o'tkazdi (AuditHistoryList, LeadDetailModal, ChatPanel,
   TeacherAttendancePage, TeacherAppPage, ParentsPage, teacher/AssignmentsPage, SubmissionsModal). O'lik
   `teacher/ui-web/*.jsx` tegilmadi. Frontend-only, tsc+vite yashil, deploy ✅.
+- 2026-06-12: **TO'LIQ PLATFORMA AUDITI + buglar tuzatildi (5 review subagent + 2 fix subagent + billing o'zim).**
+  5 read-only agent (billing/membership/security/frontend/data) audit qildi. Tuzatilgan asosiy buglar: **(1)** Finance
+  arxiv tiklash balansni qaytarmasdi (o'chirishda −, tiklashda + yo'q edi) → `ArchiveController` finance restore endi
+  `Balance += Amount`. **(2)** Arxiv tiklashda Id mavjudligi tekshirilmasdi (PK crash) + staff old parol/ruxsat tiklanardi
+  → Id-guard + staff `Permissions` tozalanadi + Email band tekshiruvi. **(3)** O'qituvchi o'chirish guruh `TeacherId`ni
+  dangling qoldirardi → faol guruhga biriktirilgan bo'lsa 400 (block). **(4)** Public test submit cheklovsiz (spam) →
+  FullName≤100/Phone≤32/Age 0..120. **(5 billing — o'zim)** freeze→reactivate (bir oyda) studied segmentni yo'qotardi
+  (revenue loss) → `ChargeActivationProrate(addSegment)` — muzlatishgacha studied segment USTIGA yangi segment qo'shiladi
+  (ALMASHTIRMAY); `ActivateMember` `reactivateFromFreeze` ni hisoblaydi; Locked hurmat qilinadi. **(6)** guruh o'chirilganda
+  orphan `MonthlyCharges`(GroupId) tozalanadi + `FinanceTransaction.GroupId` null. **(7 frontend)** 4 delete handlerga
+  `.catch(alert)` (jim xato emas), `ReasonPromptModal` double-submit guard, ClassesPage arxiv sana `formatDate`,
+  LevelTest band key barqaror. Backend 0, tsc+vite yashil, deploy ✅. **QOLDI (hisobotda, dizayn qarori kerak):**
+  guruhdan chiqqan o'quvchini ClassName bilan billing (avto-to'lov xavfli — tasdiq kerak); FinanceController.Create
+  tuition `Month` o'rnatmaydi; Group.Name unique emas (FirstOrDefault fee manbai); MonthlyCharge null-GroupId duplicate
+  indeksi; bir nechta N+1 (perf); staff GET barcha bo'limni o'qiy oladi (dizayn).

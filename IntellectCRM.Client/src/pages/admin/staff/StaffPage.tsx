@@ -129,14 +129,16 @@ export function StaffPage() {
   const doDelete = (reasonId?: string) => {
     const s = deleting
     if (!s) return
-    deleteStaff(s.id, reasonId).then(() => {
-      setStaff((p) => p.filter((x) => x.id !== s.id))
-      setDraft((d) => {
-        const { [s.id]: _, ...rest } = d
-        return rest
+    deleteStaff(s.id, reasonId)
+      .then(() => {
+        setStaff((p) => p.filter((x) => x.id !== s.id))
+        setDraft((d) => {
+          const { [s.id]: _, ...rest } = d
+          return rest
+        })
+        setDeleting(null)
       })
-      setDeleting(null)
-    })
+      .catch((e) => alert(e?.response?.data?.message ?? "O'chirib bo'lmadi"))
   }
 
   const toggle = (staffId: string, key: string) =>

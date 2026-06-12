@@ -254,16 +254,18 @@ export function StudentsPage() {
   const doDelete = (reasonId?: string) => {
     const s = deleting
     if (!s) return
-    deleteStudent(s.id, reasonId).then(() => {
-      setStudents((prev) => prev.filter((x) => x.id !== s.id))
-      setArchived((prev) => prev.filter((x) => x.id !== s.id))
-      setSelected((prev) => {
-        const next = new Set(prev)
-        next.delete(s.id)
-        return next
+    deleteStudent(s.id, reasonId)
+      .then(() => {
+        setStudents((prev) => prev.filter((x) => x.id !== s.id))
+        setArchived((prev) => prev.filter((x) => x.id !== s.id))
+        setSelected((prev) => {
+          const next = new Set(prev)
+          next.delete(s.id)
+          return next
+        })
+        setDeleting(null)
       })
-      setDeleting(null)
-    })
+      .catch((e) => alert(e?.response?.data?.message ?? "O'chirib bo'lmadi"))
   }
 
   /** Arxivga ko'chirish — sabab so'raydi va backend'ga uzatadi. */

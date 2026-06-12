@@ -30,10 +30,12 @@ export function ReasonPromptModal({
   const [reasons, setReasons] = useState<ActionReason[]>([])
   const [selected, setSelected] = useState<string | undefined>(undefined)
   const [date, setDate] = useState('')
+  const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
     if (!open) return
     setSelected(undefined)
+    setSubmitting(false)
     setDate(defaultDate ?? new Date().toISOString().slice(0, 10))
     getActionReasons()
       .then((all) => setReasons(all.filter((r) => r.category === category)))
@@ -58,8 +60,13 @@ export function ReasonPromptModal({
           </Button>
           <button
             type="button"
-            onClick={() => onConfirm(selected, showDate ? date : undefined)}
-            className={cn('rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors', toneCls)}
+            disabled={submitting}
+            onClick={() => {
+              if (submitting) return
+              setSubmitting(true)
+              onConfirm(selected, showDate ? date : undefined)
+            }}
+            className={cn('rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors disabled:opacity-50', toneCls)}
           >
             {confirmLabel}
           </button>
