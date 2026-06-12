@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using IntellectCRM.Infrastructure.Auth;
 using IntellectCRM.Infrastructure.Data;
 using IntellectCRM.Application.Dtos;
+using IntellectCRM.Application.Services;
 using IntellectCRM.Domain;
 
 namespace IntellectCRM.Server.Controllers;
@@ -67,6 +68,8 @@ public class StaffController(AppDbContext db) : ControllerBase
     {
         var user = await db.Users.FindAsync(id);
         if (user is null || user.Role != Roles.Staff) return NotFound();
+        var actor = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value ?? "Admin";
+        ArchiveService.Snapshot(db, "staff", user.Id, user.FullName, user.Email ?? "", user, null, actor);
         db.Users.Remove(user);
         await db.SaveChangesAsync();
         return NoContent();

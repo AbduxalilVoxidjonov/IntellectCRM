@@ -83,7 +83,7 @@ public static class SalaryLedger
 
         var totalExpected = months.Sum(m => m.Expected);
         var totalPaid = payments.Sum(p => p.Amount);
-        var paymentDtos = payments.Select(t => new PaymentDto(t.Date, t.Amount, t.Note, t.Month)).ToList();
+        var paymentDtos = payments.Select(t => new PaymentDto(t.Date, t.Amount, t.Note, t.Month, t.Comment)).ToList();
 
         return new SalaryLedgerDto(
             teacher.Id, teacher.FullName, plannedMonthly,

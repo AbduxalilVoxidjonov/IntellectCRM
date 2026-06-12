@@ -62,6 +62,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     // Amal sabablari (muzlatish/o'chirish/sinovga qaytarish/lid/guruh)
     public DbSet<ActionReason> ActionReasons => Set<ActionReason>();
 
+    // Arxiv — o'chirilgan entity'larning JSON suratlari (ko'rish/tiklash uchun)
+    public DbSet<ArchivedRecord> ArchivedRecords => Set<ArchivedRecord>();
+
     // Daraja testi (placement test → lid)
     public DbSet<LevelTest> LevelTests => Set<LevelTest>();
     public DbSet<LevelTestQuestion> LevelTestQuestions => Set<LevelTestQuestion>();
@@ -199,6 +202,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
             .HasIndex(t => new { t.ModuleId, t.Order });
 
         b.Entity<ActionReason>().HasIndex(r => new { r.Category, r.Order });
+
+        b.Entity<ArchivedRecord>().HasIndex(r => new { r.Type, r.DeletedAt });
 
         // Daraja testi — Slug ommaviy URL kaliti (noyob, indekslanishi uchun uzunlik beriladi).
         b.Entity<LevelTest>().Property(t => t.Slug).HasMaxLength(64);

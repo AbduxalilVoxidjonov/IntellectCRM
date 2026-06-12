@@ -63,6 +63,9 @@ public interface IAppDbContext
     // Amal sabablari (muzlatish/o'chirish/sinovga qaytarish/lid/guruh)
     DbSet<ActionReason> ActionReasons { get; }
 
+    // Arxiv — o'chirilgan entity'larning JSON suratlari (ko'rish/tiklash uchun)
+    DbSet<ArchivedRecord> ArchivedRecords { get; }
+
     // Daraja testi (placement test → lid)
     DbSet<LevelTest> LevelTests { get; }
     DbSet<LevelTestQuestion> LevelTestQuestions { get; }

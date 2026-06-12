@@ -146,6 +146,8 @@ public class TeachersController(AppDbContext db, AuditService audit) : Controlle
             var user = await db.Users.FindAsync(teacher.UserId);
             if (user is not null) db.Users.Remove(user);
         }
+        var actor = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value ?? "Admin";
+        ArchiveService.Snapshot(db, "teacher", teacher.Id, teacher.FullName, teacher.Phone ?? "", teacher, null, actor);
         db.Teachers.Remove(teacher);
         await db.SaveChangesAsync();
         return NoContent();

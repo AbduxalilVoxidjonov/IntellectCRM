@@ -36,7 +36,7 @@ public record StudentPayload(
     string? Phone = null,
     string? FatherFullName = null, string? FatherPhone = null,
     string? MotherFullName = null, string? MotherPhone = null);
-public record PaymentRequest(decimal Amount, string? Month, string? GroupId = null);
+public record PaymentRequest(decimal Amount, string? Month, string? GroupId = null, string? Comment = null);
 
 /* ---------- Telefon dublikatini tekshirish (o'quvchi/ota-ona raqami) ---------- */
 public record CheckPhonesRequest(
@@ -524,7 +524,7 @@ public record MonthCourseDto(string CourseName, decimal Fee);
 public record MonthLedgerDto(
     string Month, decimal Charged, decimal Discount, decimal Paid, decimal Remaining, string Status,
     List<MonthCourseDto> Courses);
-public record PaymentDto(string Date, decimal Amount, string? Note, string? Month);
+public record PaymentDto(string Date, decimal Amount, string? Note, string? Month, string? Comment);
 /// <summary>To'lov oynasi uchun BITTA guruh bo'yicha oylik hisob: shu guruhning oylik to'lovi (chegirma
 /// ayirilgan), shu guruhga teglangan to'langan summa va qoldiq. Aggregate emas — faqat shu guruh.</summary>
 public record GroupMonthDto(string Month, decimal Fee, decimal Paid, decimal Remaining, string Status);
@@ -975,3 +975,8 @@ public record TestSubmitRequest(
 
 /// <summary>Test natijasi (topshirgandan keyin ko'rsatiladi).</summary>
 public record TestResultDto(int Score, int Total, int Percent, string Level, string Message);
+
+/// <summary>Arxiv yozuvi (o'chirilgan entity surati) — ko'rsatish uchun.</summary>
+public record ArchivedRecordDto(
+    string Id, string Type, string EntityId, string Title, string Subtitle,
+    string? Reason, string DeletedAt, string ActorName);

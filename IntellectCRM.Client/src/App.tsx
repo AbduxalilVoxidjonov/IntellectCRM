@@ -25,6 +25,7 @@ import { StaffPage } from '@/pages/admin/staff/StaffPage'
 import { FeedbackPage } from '@/pages/admin/feedback/FeedbackPage'
 import { SubjectsPage } from '@/pages/admin/subjects/SubjectsPage'
 import { ReasonsPage } from '@/pages/admin/reasons/ReasonsPage'
+import { ArchivePage } from '@/pages/admin/archive/ArchivePage'
 import { LevelTestsPage } from '@/pages/admin/level-tests/LevelTestsPage'
 import { LevelTestEditorPage } from '@/pages/admin/level-tests/LevelTestEditorPage'
 import { PublicTestPage } from '@/pages/public/PublicTestPage'
@@ -74,6 +75,7 @@ export default function App() {
           <Route path="discipline/reasons" element={<RequirePerm perm="discipline"><BallSabablarPage /></RequirePerm>} />
           <Route path="subjects" element={<RequirePerm perm="schedule"><SubjectsPage /></RequirePerm>} />
           <Route path="reasons" element={<RequirePerm perm="settings"><ReasonsPage /></RequirePerm>} />
+          <Route path="archive" element={<RequirePerm perm="settings"><ArchivePage /></RequirePerm>} />
           <Route path="level-tests" element={<RequirePerm perm="schedule"><LevelTestsPage /></RequirePerm>} />
           <Route path="level-tests/:id" element={<RequirePerm perm="schedule"><LevelTestEditorPage /></RequirePerm>} />
           <Route path="assignments" element={<RequirePerm perm="app"><AssignmentsPage /></RequirePerm>} />

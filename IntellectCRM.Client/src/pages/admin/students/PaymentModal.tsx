@@ -13,7 +13,7 @@ import { formatMonth, monthStatusLabels } from '@/config/constants'
 interface Props {
   student: Student | null
   onClose: () => void
-  onSubmit: (amount: number, month: string, groupId?: string) => void
+  onSubmit: (amount: number, month: string, groupId?: string, comment?: string) => void
 }
 
 /** Oy qatori (guruh yoki aggregate hisobdan normallashtirilgan) */
@@ -35,6 +35,7 @@ export function PaymentModal({ student, onClose, onSubmit }: Props) {
   const [rows, setRows] = useState<Row[]>([])
   const [groups, setGroups] = useState<StudentGroupMembership[]>([])
   const [groupId, setGroupId] = useState<string>('')
+  const [comment, setComment] = useState("")
   const [loading, setLoading] = useState(false) // boshlang'ich (guruhlar) yuklash
   const [loadingMonths, setLoadingMonths] = useState(false) // tanlangan guruh oylari
 
@@ -46,6 +47,7 @@ export function PaymentModal({ student, onClose, onSubmit }: Props) {
     setRows([])
     setGroups([])
     setGroupId('')
+    setComment("")
     setAmount(0)
     setMonth(currentMonth())
     getStudentGroups(student.id)
@@ -108,7 +110,7 @@ export function PaymentModal({ student, onClose, onSubmit }: Props) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (amount <= 0 || !month || (needGroup && !groupId)) return
-    onSubmit(amount, month, groupId || undefined)
+    onSubmit(amount, month, groupId || undefined, comment.trim() || undefined)
   }
 
   const selected = rows.find((r) => r.month === month)
@@ -244,6 +246,17 @@ export function PaymentModal({ student, onClose, onSubmit }: Props) {
                     </span>
                   </p>
                 )}
+
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-600">Izoh (ixtiyoriy)</label>
+                  <textarea
+                    rows={2}
+                    value={comment}
+                    onChange={(e) => setComment(e.target.value)}
+                    placeholder="To'lov haqida izoh (ixtiyoriy)..."
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-brand-400"
+                  />
+                </div>
               </>
             )}
           </form>

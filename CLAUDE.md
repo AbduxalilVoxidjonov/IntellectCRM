@@ -454,3 +454,19 @@ docker compose up -d --build    # app + mssql + cloudflared + backup + mediamtx
   Ta'rif: faqat arxivlanmagan; active=≥1 faol(active) a'zolik; withGroup=≥1 faol a'zolik; debtors=Balance<0; qolgani
   jami−komplement. Jonli: active=10/inactive=2/debtors=8/paid=4/withGroup=12/withoutGroup=0. tsc+backend+vite yashil,
   deploy ✅ (`index-CWh-WK8v.js`). **Foydalanuvchi: doim subagentlardan foydalan (osonlashadi).**
+- 2026-06-12: **GIT: yangi private repo.** Eski `origin` (SchoolLms) BOSHQA loyiha — `schoollms` deb qayta nomlandi.
+  Yangi `github.com/AbduxalilVoxidjonov/IntellectCRM` (private) yaratildi (GitHub API + credential token), kod `main`
+  branch'da (400 fayl). `.gitignore` to'g'ri (`.env`/bin/obj/node_modules/dist chiqarilgan; root `.env` parollar tracked emas).
+- 2026-06-12: **(E) To'lov izohi + (F) moliya o'chirish balans bug'i (2 parallel subagent).** **E:** `FinanceTransaction.Comment`
+  (user izohi, avto-`Note` alohida) + migratsiya `AddPaymentComment`; `PaymentRequest.Comment`, `PaymentDto.Comment`,
+  `PaymentModal` "Izoh" textarea, `addPayment(...,comment)`, `PaymentHistoryModal` izohni ko'rsatadi. **F BUG:** moliyada
+  to'lov o'chirilganda o'quvchi balansi qaytmasdi (faqat `AddPayment` `Balance+=`, lekin `FinanceController.Delete` tegmasdi).
+  Tuzatish: `StudentBalanceEffect`(income+tuition+studentId→Amount) + `ApplyBalanceAsync`; Delete `-effect` qaytaradi,
+  Create `+effect`, Update delta (o'quvchi o'zgarsa eskidan qaytarib yangiga). Backend 0, tsc+vite yashil, deploy ✅.
+- 2026-06-12: **(G) ARXIV bo'limi — o'chirilganlarni saqlash (2 parallel subagent).** Yondashuv: `ArchivedRecord` snapshot
+  jadvali (Type/EntityId/Title/Subtitle/Json/Reason/DeletedAt/ActorName) — o'chirishda entity JSON sifatida saqlanadi
+  (originallar ro'yxatlarga tegmaydi). `ArchiveService.Snapshot` 6 delete endpointga ulandi: Lid/Talaba/O'qituvchi/Xodim/
+  Guruh/Moliya (mavjud delete xulqi saqlandi). `ArchiveController` (perm settings): GET ?type, GET /counts, POST /{id}/restore
+  (JSON deserialize → originalni qayta qo'shadi), DELETE /{id} (butunlay). Migratsiya `AddArchivedRecords`. Frontend: nav
+  "Arxiv" (Sozlamalar ostida), `/admin/archive` `ArchivePage` — 6 tab (Lidlar/Talabalar/O'qituvchilar/Xodimlar/Guruhlar/
+  Moliya) + sanoq, Tiklash + Butunlay o'chirish. Backend 0, tsc+vite yashil, deploy ✅.

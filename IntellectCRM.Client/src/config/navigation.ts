@@ -15,6 +15,7 @@ import {
   BarChart3,
   Building2,
   BookOpen,
+  Archive,
 } from 'lucide-react'
 import type { Role } from '@/types'
 
@@ -142,6 +143,7 @@ export const navByRole: Record<Role, NavItem[]> = {
         { label: "To'lov eslatmasi", to: '/admin/settings/payment-reminders' },
       ],
     },
+    { label: 'Arxiv', to: '/admin/archive', icon: Archive, perm: 'settings' },
   ],
   teacher: [
     { label: 'Bosh sahifa', to: '/teacher', icon: LayoutDashboard },

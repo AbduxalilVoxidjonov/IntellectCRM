@@ -154,6 +154,9 @@ public class ClassesController(AppDbContext db, AuditService audit) : Controller
         db.Classes.Remove(cls);
 
         var reason = await ReasonLabelAsync(reasonId);
+        var actor = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value ?? "Admin";
+        ArchiveService.Snapshot(db, "group", cls.Id, cls.Name, "", cls,
+            reason.Length > 0 ? reason : null, actor);
         audit.Record("Group", id, "delete",
             $"Guruh o'chirildi ({cls.Name})" + (reason.Length > 0 ? $" — sabab: {reason}" : ""));
         await db.SaveChangesAsync();

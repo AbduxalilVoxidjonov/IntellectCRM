@@ -87,6 +87,9 @@ public class LeadsController(AppDbContext db, AuditService audit) : ControllerBa
 
         var reason = string.IsNullOrWhiteSpace(reasonId) ? ""
             : (await db.ActionReasons.Where(r => r.Id == reasonId).Select(r => r.Label).FirstOrDefaultAsync() ?? "");
+        var actor = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value ?? "Admin";
+        ArchiveService.Snapshot(db, "lead", lead.Id, lead.FullName, lead.Phone ?? "", lead,
+            reason.Length > 0 ? reason : null, actor);
         audit.Record("Lead", id, "delete",
             $"Lid o'chirildi ({lead.FullName})" + (reason.Length > 0 ? $" — sabab: {reason}" : ""));
         await db.SaveChangesAsync();

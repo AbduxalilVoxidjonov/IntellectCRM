@@ -63,6 +63,8 @@ public class FinanceController(AppDbContext db, AuditService audit) : Controller
             TeacherId = p.TeacherId,
         };
         db.FinanceTransactions.Add(tx);
+        // O'quvchiga bog'langan tuition kirimi balansni oshiradi (izchillik — o'chirishda qaytariladi).
+        await ApplyBalanceAsync(tx.StudentId, StudentBalanceEffect(tx));
 
         var dir = tx.Direction == "income" ? "Kirim" : "Chiqim";
         var summary = tx is { Category: "salary", TeacherId: not null }
@@ -85,6 +87,9 @@ public class FinanceController(AppDbContext db, AuditService audit) : Controller
             return BadRequest(new { message = "Summa musbat bo'lishi kerak" });
 
         var before = AuditService.Snapshot(tx);
+        // Eski balans ta'sirini (eski o'quvchida) hisoblab olamiz — tahrirdan keyin delta qo'llaymiz.
+        var oldEffect = StudentBalanceEffect(tx);
+        var oldStudentId = tx.StudentId;
         var changes = new List<string>();
         if (tx.Amount != p.Amount)
             changes.Add($"summa {AuditService.Money(tx.Amount)} → {AuditService.Money(p.Amount)} so'm");
@@ -100,6 +105,16 @@ public class FinanceController(AppDbContext db, AuditService audit) : Controller
         tx.Note = p.Note;
         tx.StudentId = p.StudentId;
         tx.TeacherId = p.TeacherId;
+
+        // Balansni moslaymiz: o'quvchi o'zgarmasa — delta; o'zgarsa — eskidan qaytarib, yangisiga qo'llaymiz.
+        var newEffect = StudentBalanceEffect(tx);
+        if (oldStudentId == tx.StudentId)
+            await ApplyBalanceAsync(tx.StudentId, newEffect - oldEffect);
+        else
+        {
+            await ApplyBalanceAsync(oldStudentId, -oldEffect);
+            await ApplyBalanceAsync(tx.StudentId, newEffect);
+        }
 
         audit.Record(AuditService.EntityFinanceTransaction, tx.Id, "update",
             changes.Count > 0 ? "Tahrirlandi: " + string.Join(", ", changes) : "Tahrirlandi",
@@ -169,6 +184,18 @@ public class FinanceController(AppDbContext db, AuditService audit) : Controller
         }).OrderByDescending(r => r.Debt).ThenBy(r => r.FullName).ToList();
     }
 
+    /// <summary>Tranzaksiyaning o'quvchi BALANSIGA ta'siri: o'quvchiga bog'langan tuition KIRIMI balansni
+    /// shu summaga oshiradi (qarzni kamaytiradi). Boshqa turdagilar (chiqim/maosh/guruhsiz) — 0.</summary>
+    private static decimal StudentBalanceEffect(FinanceTransaction tx) =>
+        tx.Direction == "income" && tx.Category == "tuition" && !string.IsNullOrEmpty(tx.StudentId) ? tx.Amount : 0m;
+
+    private async Task ApplyBalanceAsync(string? studentId, decimal delta)
+    {
+        if (delta == 0m || string.IsNullOrEmpty(studentId)) return;
+        var st = await db.Students.FindAsync(studentId);
+        if (st is not null) st.Balance += delta;
+    }
+
     [HttpDelete("transactions/{id}")]
     public async Task<IActionResult> Delete(string id)
     {
@@ -176,10 +203,16 @@ public class FinanceController(AppDbContext db, AuditService audit) : Controller
         if (tx is null) return NotFound();
 
         var dir = tx.Direction == "income" ? "Kirim" : "Chiqim";
+        var actor = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value ?? "Admin";
+        ArchiveService.Snapshot(db, "finance", tx.Id,
+            $"{(tx.Direction == "income" ? "Kirim" : "Chiqim")} {tx.Category}",
+            $"{tx.Amount} so'm", tx, null, actor);
         audit.Record(AuditService.EntityFinanceTransaction, tx.Id, "delete",
             $"O'chirildi: {dir} {tx.Category} — {AuditService.Money(tx.Amount)} so'm",
             before: AuditService.Snapshot(tx), studentId: tx.StudentId, teacherId: tx.TeacherId);
 
+        // To'lov o'chirilsa — o'quvchi balansiga qo'shilgan summani QAYTARAMIZ (qarz tiklanadi).
+        await ApplyBalanceAsync(tx.StudentId, -StudentBalanceEffect(tx));
         db.FinanceTransactions.Remove(tx);
         await db.SaveChangesAsync();
         return NoContent();

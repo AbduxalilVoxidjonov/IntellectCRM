@@ -247,17 +247,20 @@ export function PaymentHistoryModal({ studentId, onClose }: Props) {
                 {ledger.payments.map((p, i) => (
                   <li
                     key={i}
-                    className="flex items-center justify-between rounded-lg border border-slate-100 px-3 py-2 text-sm"
+                    className="rounded-lg border border-slate-100 px-3 py-2 text-sm"
                   >
-                    <span className="flex items-center gap-2 text-slate-500">
-                      <span className="font-mono">{formatDate(p.date)}</span>
-                      {p.month && (
-                        <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-500">
-                          {formatMonth(p.month)} uchun
-                        </span>
-                      )}
-                    </span>
-                    <span className="font-mono font-medium text-emerald-600">+{formatMoney(p.amount)}</span>
+                    <div className="flex items-center justify-between">
+                      <span className="flex items-center gap-2 text-slate-500">
+                        <span className="font-mono">{formatDate(p.date)}</span>
+                        {p.month && (
+                          <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-500">
+                            {formatMonth(p.month)} uchun
+                          </span>
+                        )}
+                      </span>
+                      <span className="font-mono font-medium text-emerald-600">+{formatMoney(p.amount)}</span>
+                    </div>
+                    {p.comment && <p className="mt-0.5 text-xs text-slate-500">{p.comment}</p>}
                   </li>
                 ))}
               </ul>

@@ -517,6 +517,8 @@ public class FinanceTransaction
     /// <summary>Summa (har doim musbat; yo'nalish belgini aniqlaydi).</summary>
     public decimal Amount { get; set; }
     public string? Note { get; set; }
+    /// <summary>Kassir qo'lda yozgan izoh (ixtiyoriy) — to'lov haqida qo'shimcha ma'lumot.</summary>
+    public string? Comment { get; set; }
     /// <summary>O'quvchi to'lovi bo'lsa — tegishli o'quvchi id'si.</summary>
     public string? StudentId { get; set; }
     /// <summary>O'quvchi tuition to'lovi bo'lsa — QAYSI GURUH uchun to'langani (Group id). O'quvchi bir nechta
@@ -1079,6 +1081,33 @@ public class ActionReason
     public string Category { get; set; } = string.Empty;
     public string Label { get; set; } = string.Empty;
     public int Order { get; set; }
+}
+
+/// <summary>
+/// Arxiv yozuvi — o'chirilgan entity'ning JSON suratini (snapshot) saqlaydi. O'chirish
+/// endpointlari entity'ni hard-delete qilishdan OLDIN bu yerga surat oladi, shu sababli
+/// o'chirilgan Lid/O'quvchi/O'qituvchi/Xodim/Guruh/Moliya yozuvini keyinchalik ko'rish va
+/// TIKLASH mumkin. <see cref="Type"/> ∈ {"lead","student","teacher","staff","group","finance"}.
+/// </summary>
+public class ArchivedRecord
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    /// <summary>Entity turi: lead | student | teacher | staff | group | finance.</summary>
+    public string Type { get; set; } = string.Empty;
+    /// <summary>Asl entity'ning Id'si.</summary>
+    public string EntityId { get; set; } = string.Empty;
+    /// <summary>Ko'rsatish uchun sarlavha (masalan F.I.SH yoki guruh nomi).</summary>
+    public string Title { get; set; } = string.Empty;
+    /// <summary>Ko'rsatish uchun ostsarlavha (masalan telefon yoki summa).</summary>
+    public string Subtitle { get; set; } = string.Empty;
+    /// <summary>Asl entity'ning to'liq JSON surati (tiklash uchun deserializatsiya qilinadi).</summary>
+    public string Json { get; set; } = string.Empty;
+    /// <summary>O'chirish sababi (ixtiyoriy).</summary>
+    public string? Reason { get; set; }
+    /// <summary>O'chirilgan vaqt (ISO, mahalliy Toshkent vaqti).</summary>
+    public string DeletedAt { get; set; } = string.Empty;
+    /// <summary>O'chirgan foydalanuvchi nomi.</summary>
+    public string ActorName { get; set; } = string.Empty;
 }
 
 /// <summary>Daraja diapazoni — ball foiziga qarab daraja yorlig'i (masalan ≥75% → "Yuqori").</summary>

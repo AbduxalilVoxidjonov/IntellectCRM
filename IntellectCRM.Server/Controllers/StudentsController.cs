@@ -423,6 +423,9 @@ public class StudentsController(AppDbContext db, AuditService audit) : Controlle
             var user = await db.Users.FindAsync(student.UserId);
             if (user is not null) db.Users.Remove(user);
         }
+        var actor = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value ?? "Admin";
+        ArchiveService.Snapshot(db, "student", student.Id, student.FullName,
+            student.Phone ?? student.ClassName ?? "", student, null, actor);
         db.Students.Remove(student);
         await db.SaveChangesAsync();
         return NoContent();
@@ -801,6 +804,7 @@ public class StudentsController(AppDbContext db, AuditService audit) : Controlle
             Note = $"O'quvchi to'lovi ({month})"
                 + (groupName is null ? "" : $" [{groupName}]")
                 + $" — {student.FullName}",
+            Comment = string.IsNullOrWhiteSpace(req.Comment) ? null : req.Comment.Trim(),
         };
         db.FinanceTransactions.Add(tx);
 

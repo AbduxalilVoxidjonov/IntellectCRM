@@ -500,6 +500,8 @@ export interface LedgerPayment {
   date: string
   amount: number
   note?: string
+  /** Foydalanuvchi kiritgan izoh (ixtiyoriy) */
+  comment?: string
   /** Qaysi oy uchun to'langani ("YYYY-MM"), agar biriktirilgan bo'lsa */
   month?: string
 }
@@ -1311,4 +1313,16 @@ export interface TestResult {
   percent: number
   level: string
   message: string
+}
+
+/** Arxivlangan (o'chirilgan) yozuv — Arxiv bo'limida ko'rsatiladi. */
+export interface ArchivedRecord {
+  id: string
+  type: string
+  entityId: string
+  title: string
+  subtitle: string
+  reason?: string
+  deletedAt: string
+  actorName: string
 }
