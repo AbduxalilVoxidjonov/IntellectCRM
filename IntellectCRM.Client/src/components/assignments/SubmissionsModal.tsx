@@ -3,7 +3,7 @@ import { Check, X, Paperclip, Save } from 'lucide-react'
 import type { AssignmentResult, SubmissionRow } from '@/types'
 import { Modal } from '@/components/ui/Modal'
 import { Loader } from '@/components/ui/Loader'
-import { cn } from '@/lib/utils'
+import { cn, formatDateTime } from '@/lib/utils'
 
 type Filter = 'all' | 'done' | 'pending'
 
@@ -286,15 +286,4 @@ function FilterChip({
       {label}
     </button>
   )
-}
-
-function formatDateTime(iso: string): string {
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return ''
-  return d.toLocaleString('ru-RU', {
-    day: '2-digit',
-    month: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
 }

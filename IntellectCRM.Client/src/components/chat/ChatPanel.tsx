@@ -6,7 +6,7 @@ import { useUnread } from '@/context/unread-context'
 import { Card } from '@/components/ui/Card'
 import { Loader } from '@/components/ui/Loader'
 import { roleLabels } from '@/config/navigation'
-import { cn } from '@/lib/utils'
+import { cn, formatTime } from '@/lib/utils'
 
 interface Props {
   className: string
@@ -154,10 +154,4 @@ export function ChatPanel({ className, fetchMessages, sendMessage, title, subtit
       </form>
     </Card>
   )
-}
-
-function formatTime(iso: string): string {
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return ''
-  return d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
 }

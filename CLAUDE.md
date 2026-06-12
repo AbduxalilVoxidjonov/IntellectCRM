@@ -480,3 +480,10 @@ docker compose up -d --build    # app + mssql + cloudflared + backup + mediamtx
   o'chirishdan oldin sabab so'raydi. **Finance arxivi:** snapshot title endi o'quvchi nomi ("{FISH} — to'lov",
   bo'lmasa "{Kirim/Chiqim} {kategoriya}"), subtitle "{summa} so'm · {oy}" — kim to'lovi ekani ko'rinadi. Sxema
   o'zgarmadi (migratsiya yo'q). Backend 0, tsc+vite yashil, deploy ✅.
+- 2026-06-12: **Sana/vaqt formati BIRLASHTIRILDI (bo'limlar bo'yicha har xil chiqardi).** Sabab: markaziy
+  `formatDateTime`/`formatTime` yo'q edi — 6 xil mahalliy versiya (ba'zisi `ru-RU`, ba'zisi `new Date` TZ-bog'liq,
+  ba'zisi xom ISO "T"). `lib/utils`: `formatDate` endi satrdan o'qiydi (`yyyy-MM-dd` regex, `new Date()` emas) →
+  brauzer TZ'idan qat'i nazar Toshkent sanasi aynan; yangi `formatDateTime`→"DD.MM.YYYY HH:mm", `formatTime`→"HH:mm"
+  (satrdan, TZ-xavfsiz). 2 parallel subagent 8 faylni o'tkazdi (AuditHistoryList, LeadDetailModal, ChatPanel,
+  TeacherAttendancePage, TeacherAppPage, ParentsPage, teacher/AssignmentsPage, SubmissionsModal). O'lik
+  `teacher/ui-web/*.jsx` tegilmadi. Frontend-only, tsc+vite yashil, deploy ✅.

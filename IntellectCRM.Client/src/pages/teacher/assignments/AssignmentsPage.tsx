@@ -20,7 +20,7 @@ import {
   getTeacherAssignmentResults,
   setTeacherSubmission,
 } from '@/api/services/teacher'
-import { formatDate } from '@/lib/utils'
+import { formatDateTime } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
@@ -214,11 +214,4 @@ export function TeacherAssignmentsPage() {
       />
     </div>
   )
-}
-
-function formatDateTime(iso: string): string {
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return formatDate(iso)
-  const time = d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
-  return `${formatDate(iso)} ${time}`
 }

@@ -13,7 +13,7 @@ import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input, Select } from '@/components/ui/Input'
 import { genderLabels } from '@/config/constants'
-import { formatDate } from '@/lib/utils'
+import { formatDate, formatDateTime } from '@/lib/utils'
 import {
   getLeadEvents,
   addLeadEvent,
@@ -82,15 +82,6 @@ const trialResultColors: Record<TrialLesson['result'], string> = {
   pending: 'bg-amber-50 text-amber-600',
   stayed: 'bg-emerald-50 text-emerald-600',
   left: 'bg-rose-50 text-rose-600',
-}
-
-function formatDateTime(iso: string): string {
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return iso
-  const date = formatDate(iso)
-  const hh = String(d.getHours()).padStart(2, '0')
-  const mm = String(d.getMinutes()).padStart(2, '0')
-  return `${date} ${hh}:${mm}`
 }
 
 export function LeadDetailModal({ lead, onClose, onEdit, onDelete, onConverted }: Props) {

@@ -3,7 +3,7 @@ import { ChevronDown, Clock } from 'lucide-react'
 import type { AuditAction, AuditLog } from '@/types'
 import { getAuditLogs, type AuditFilters } from '@/api/services/audit'
 import { Loader } from '@/components/ui/Loader'
-import { formatDate, formatMoney, cn } from '@/lib/utils'
+import { formatDateTime, formatMoney, cn } from '@/lib/utils'
 
 interface Props {
   filters: AuditFilters
@@ -15,12 +15,6 @@ const actionConfig: Record<AuditAction, { label: string; cls: string }> = {
   create: { label: "Qo'shildi", cls: 'bg-emerald-50 text-emerald-700' },
   update: { label: 'Tahrirlandi', cls: 'bg-amber-50 text-amber-700' },
   delete: { label: "O'chirildi", cls: 'bg-red-50 text-red-700' },
-}
-
-/** "yyyy-MM-ddTHH:mm:ss" -> "21.05.2026 09:57" */
-function formatDateTime(ts: string): string {
-  const [d, t] = ts.split('T')
-  return `${formatDate(d)}${t ? ` ${t.slice(0, 5)}` : ''}`
 }
 
 const moneyKeys = new Set(['amount', 'salary', 'monthlyFee', 'discountAmount'])

@@ -7,18 +7,9 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { StatCard } from '@/components/ui/StatCard'
 import { Badge } from '@/components/ui/Badge'
 import { Loader } from '@/components/ui/Loader'
-import { cn } from '@/lib/utils'
+import { cn, formatDateTime } from '@/lib/utils'
 
 type ActivationFilter = 'all' | 'activated' | 'inactive'
-
-/** "YYYY-MM-DDThh:mm:ss" ni o'qiladigan ko'rinishga keltirish. */
-function formatDateTime(iso: string | null): string {
-  if (!iso) return '—'
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return iso
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`
-}
 
 /** Hozirgi vaqtdan farqi (masalan "2 kun oldin"). */
 function timeAgo(iso: string | null): string {

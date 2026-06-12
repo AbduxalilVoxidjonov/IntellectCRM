@@ -12,7 +12,7 @@ import {
   type AttendanceDashboard,
 } from '@/api/services/teacherAttendance'
 import { connectLiveTopic } from '@/api/services/live'
-import { cn } from '@/lib/utils'
+import { cn, formatDateTime } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { PageHeader } from '@/components/ui/PageHeader'
@@ -44,7 +44,7 @@ const today = () => {
 const currentMonth = () => today().slice(0, 7)
 const initials = (name: string) =>
   name.split(' ').filter(Boolean).slice(0, 2).map((s) => s[0]?.toUpperCase()).join('')
-const syncLabel = (iso: string) => (iso && iso.length >= 16 ? `${iso.slice(0, 10)} ${iso.slice(11, 16)}` : '—')
+const syncLabel = (iso: string) => formatDateTime(iso)
 
 export function TeacherAttendancePage() {
   return (
