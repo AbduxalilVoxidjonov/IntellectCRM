@@ -502,3 +502,16 @@ docker compose up -d --build    # app + mssql + cloudflared + backup + mediamtx
   guruhdan chiqqan o'quvchini ClassName bilan billing (avto-to'lov xavfli — tasdiq kerak); FinanceController.Create
   tuition `Month` o'rnatmaydi; Group.Name unique emas (FirstOrDefault fee manbai); MonthlyCharge null-GroupId duplicate
   indeksi; bir nechta N+1 (perf); staff GET barcha bo'limni o'qiy oladi (dizayn).
+- 2026-06-12: **YANGI MODUL — Kurs o'quv dasturi (syllabus/roadmap) + o'quvchi checklist (3 parallel subagent).**
+  Ierarxiya: `Course(Subject) → CourseLevel(daraja) → CourseTopic(mavzu) → CourseItem(band)` + `CourseProgress`
+  (o'quvchi×band, Done). Backend: 4 entity+DbSet+indeks, inkremental migratsiya `AddCourseCurriculum`, `CurriculumController`
+  (perm schedule) — GET tree, daraja/mavzu/band CRUD (kaskad delete), `POST {id}/import` (butun dasturni almashtiradi),
+  `GET {id}/progress/{studentId}` (bajarilgan band id'lari), `POST progress` (upsert). Frontend: types+`curriculum.ts`
+  servis (men), `CurriculumEditorPage` (`/admin/subjects/:id/curriculum`, Kurslardan "O'quv dasturi" tugmasi —
+  yig'iladigan daraja→mavzu→band, inline tahrir), `StudentDetailPage` "O'quv dasturi (checklist)" bo'limi (o'quvchining
+  faol guruhlari kursi bo'yicha, groupId→courseId xarita orqali; progress bar + checkbox toggle, optimistik).
+  **2 Excel import qilindi** (python/openpyxl bilan parselab `{levels:[...]}` JSON → import endpoint): `english.xlsx`
+  → "ingliz tili" (4 daraja A1-B2 · 16 mavzu[grammatika/lug'at/vazifa/can-do] · 151 band); `matematika.xlsx` →
+  "matematika" (12 daraja[Algebra 7-bosqich + Geometriya 5] · 32 mavzu · 172 band). Jonli: GET tree, progress
+  toggle roundtrip ✓. Backend 0, tsc+vite yashil, deploy ✅. Manba xlsx repo ildizida saqlandi.
+  indeksi; bir nechta N+1 (perf); staff GET barcha bo'limni o'qiy oladi (dizayn).

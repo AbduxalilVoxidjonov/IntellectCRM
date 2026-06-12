@@ -59,6 +59,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<LmsMaterial> LmsMaterials => Set<LmsMaterial>();
     public DbSet<LmsProgress> LmsProgresses => Set<LmsProgress>();
 
+    // Kurs sillabusi (Daraja → Mavzu → Band) + o'quvchi progressi
+    public DbSet<CourseLevel> CourseLevels => Set<CourseLevel>();
+    public DbSet<CourseTopic> CourseTopics => Set<CourseTopic>();
+    public DbSet<CourseItem> CourseItems => Set<CourseItem>();
+    public DbSet<CourseProgress> CourseProgresses => Set<CourseProgress>();
+
     // Amal sabablari (muzlatish/o'chirish/sinovga qaytarish/lid/guruh)
     public DbSet<ActionReason> ActionReasons => Set<ActionReason>();
 
@@ -200,6 +206,20 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
             .HasIndex(m => new { m.SubjectId, m.Order });
         b.Entity<LmsTopic>()
             .HasIndex(t => new { t.ModuleId, t.Order });
+
+        // Kurs sillabusi — indekslarda qatnashadigan string ustunlarga aniq uzunlik beriladi.
+        foreach (var (type, prop) in new (Type, string)[]
+        {
+            (typeof(CourseLevel), "SubjectId"),
+            (typeof(CourseTopic), "LevelId"),
+            (typeof(CourseItem), "TopicId"),
+            (typeof(CourseProgress), "StudentId"), (typeof(CourseProgress), "ItemId"),
+        })
+            b.Entity(type).Property(prop).HasMaxLength(200);
+        b.Entity<CourseLevel>().HasIndex(l => new { l.SubjectId, l.Order });
+        b.Entity<CourseTopic>().HasIndex(t => new { t.LevelId, t.Order });
+        b.Entity<CourseItem>().HasIndex(i => new { i.TopicId, i.Order });
+        b.Entity<CourseProgress>().HasIndex(p => new { p.StudentId, p.ItemId }).IsUnique();
 
         b.Entity<ActionReason>().HasIndex(r => new { r.Category, r.Order });
 

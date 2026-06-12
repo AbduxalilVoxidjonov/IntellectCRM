@@ -980,3 +980,36 @@ public record TestResultDto(int Score, int Total, int Percent, string Level, str
 public record ArchivedRecordDto(
     string Id, string Type, string EntityId, string Title, string Subtitle,
     string? Reason, string DeletedAt, string ActorName);
+
+/* ---------- Kurs sillabusi (Daraja → Mavzu → Band) ---------- */
+
+/// <summary>Sillabus bandi (3-bosqich) — ko'rsatish uchun.</summary>
+public record CurriculumItemDto(string Id, string Text, string Note, int Order);
+
+/// <summary>Sillabus mavzusi (2-bosqich) + uning bandlari.</summary>
+public record CurriculumTopicDto(string Id, string Title, string Note, int Order, List<CurriculumItemDto> Items);
+
+/// <summary>Sillabus darajasi (1-bosqich) + uning mavzulari.</summary>
+public record CurriculumLevelDto(string Id, string Name, string Note, int Order, List<CurriculumTopicDto> Topics);
+
+/// <summary>Kursning to'liq sillabusi (Daraja → Mavzu → Band).</summary>
+public record CurriculumDto(string SubjectId, string CourseName, List<CurriculumLevelDto> Levels);
+
+/// <summary>Daraja yaratish/yangilash payload'i.</summary>
+public record LevelInput(string Name, string? Note);
+/// <summary>Mavzu yaratish/yangilash payload'i.</summary>
+public record TopicInput(string Title, string? Note);
+/// <summary>Band yaratish/yangilash payload'i.</summary>
+public record ItemInput(string Text, string? Note);
+
+/// <summary>Import: band.</summary>
+public record ImportItemDto(string Text, string? Note);
+/// <summary>Import: mavzu + bandlari.</summary>
+public record ImportTopicDto(string Title, string? Note, List<ImportItemDto> Items);
+/// <summary>Import: daraja + mavzulari.</summary>
+public record ImportLevelDto(string Name, string? Note, List<ImportTopicDto> Topics);
+/// <summary>Butun sillabusni almashtirish (import) payload'i.</summary>
+public record CurriculumImportDto(List<ImportLevelDto> Levels);
+
+/// <summary>O'quvchining bir sillabus bandi bo'yicha holatini o'rnatish so'rovi.</summary>
+public record SetProgressRequest(string StudentId, string ItemId, bool Done);

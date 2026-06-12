@@ -1218,6 +1218,34 @@ export interface LmsProgressReport {
   students: LmsStudentProgress[]
 }
 
+// ===================== Kurs o'quv dasturi (curriculum / syllabus) =====================
+
+export interface CurriculumItem {
+  id: string
+  text: string
+  note: string
+  order: number
+}
+export interface CurriculumTopic {
+  id: string
+  title: string
+  note: string
+  order: number
+  items: CurriculumItem[]
+}
+export interface CurriculumLevel {
+  id: string
+  name: string
+  note: string
+  order: number
+  topics: CurriculumTopic[]
+}
+export interface Curriculum {
+  subjectId: string
+  courseName: string
+  levels: CurriculumLevel[]
+}
+
 // ===================== Amal sabablari (action reasons) =====================
 
 /** Kategoriya: freeze | return_trial | remove_active | remove_trial | remove_frozen | lead_delete | group_delete */

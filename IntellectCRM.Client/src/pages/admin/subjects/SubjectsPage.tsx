@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Plus, Pencil, Trash2, BookOpen } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Plus, Pencil, Trash2, BookOpen, ListChecks } from 'lucide-react'
 import type { Subject } from '@/types'
 import type { SubjectPayload } from '@/api/services/subjects'
 import {
@@ -17,6 +18,7 @@ import { cn, formatMoney } from '@/lib/utils'
 import { SubjectFormModal } from './SubjectFormModal'
 
 export function SubjectsPage() {
+  const navigate = useNavigate()
   const [subjects, setSubjects] = useState<Subject[]>([])
   const [loading, setLoading] = useState(true)
   const [formOpen, setFormOpen] = useState(false)
@@ -129,6 +131,11 @@ export function SubjectsPage() {
                     </td>
                     <td>
                       <div className="flex items-center justify-end gap-0.5">
+                        <IconBtn
+                          icon={ListChecks}
+                          title="O'quv dasturi"
+                          onClick={() => navigate(`/admin/subjects/${s.id}/curriculum`)}
+                        />
                         <IconBtn
                           icon={Pencil}
                           title="Tahrirlash"

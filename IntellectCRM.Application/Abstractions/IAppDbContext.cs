@@ -60,6 +60,12 @@ public interface IAppDbContext
     DbSet<LmsMaterial> LmsMaterials { get; }
     DbSet<LmsProgress> LmsProgresses { get; }
 
+    // Kurs sillabusi (Daraja → Mavzu → Band) + o'quvchi progressi
+    DbSet<CourseLevel> CourseLevels { get; }
+    DbSet<CourseTopic> CourseTopics { get; }
+    DbSet<CourseItem> CourseItems { get; }
+    DbSet<CourseProgress> CourseProgresses { get; }
+
     // Amal sabablari (muzlatish/o'chirish/sinovga qaytarish/lid/guruh)
     DbSet<ActionReason> ActionReasons { get; }
 

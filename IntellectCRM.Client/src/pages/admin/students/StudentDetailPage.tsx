@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import {
   ArrowLeft, GraduationCap, CalendarCheck, ShieldAlert, ClipboardCheck,
   User, Phone, Wallet, BookOpen, MapPin, Cake, CalendarPlus, Percent, IdCard,
-  School, Clock, CalendarDays, ChevronRight, History,
+  School, Clock, CalendarDays, ChevronRight, History, ListChecks, ChevronDown, Check,
 } from 'lucide-react'
 import { genderLabels } from '@/config/constants'
 import {
@@ -12,8 +12,9 @@ import {
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts'
 import { getStudentNotebook, type StudentNotebook } from '@/api/services/studentNotebook'
-import { getStudentGroups } from '@/api/services/classes'
-import type { StudentGroupMembership } from '@/types'
+import { getStudentGroups, getClasses } from '@/api/services/classes'
+import { getCurriculum, getProgress, setProgress } from '@/api/services/curriculum'
+import type { StudentGroupMembership, Curriculum } from '@/types'
 import { cn, formatDate, formatMoney } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
 import { Badge, type BadgeTone } from '@/components/ui/Badge'
@@ -56,6 +57,8 @@ export function StudentDetailPage() {
   const { id } = useParams<{ id: string }>()
   const [data, setData] = useState<StudentNotebook | null>(null)
   const [groups, setGroups] = useState<StudentGroupMembership[]>([])
+  /** groupId → courseId (Group.courseId) — o'quv dasturini olish uchun kurs id'sini topish. */
+  const [groupCourse, setGroupCourse] = useState<Record<string, string>>({})
   const [showHistory, setShowHistory] = useState(false)
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
@@ -75,6 +78,35 @@ export function StudentDetailPage() {
       .then(setGroups)
       .catch(() => {})
   }, [id])
+
+  // O'quv dasturi uchun guruh→kurs id xaritasi. A'zolikda faqat courseName bor (courseId yo'q),
+  // shuning uchun guruhlar ro'yxatidan (Group.courseId) groupId orqali kurs id'sini topamiz.
+  useEffect(() => {
+    getClasses()
+      .then((list) => {
+        const map: Record<string, string> = {}
+        list.forEach((g) => {
+          if (g.courseId) map[g.id] = g.courseId
+        })
+        setGroupCourse(map)
+      })
+      .catch(() => {})
+  }, [])
+
+  // O'quvchi o'qiydigan ALOHIDA kurslar — faqat FAOL a'zolikdagi guruhlardan, groupId→courseId orqali.
+  const studentCourses = useMemo(() => {
+    const seen = new Set<string>()
+    const out: { courseId: string; courseName: string }[] = []
+    groups
+      .filter((g) => g.isActive)
+      .forEach((g) => {
+        const courseId = groupCourse[g.groupId]
+        if (!courseId || seen.has(courseId)) return
+        seen.add(courseId)
+        out.push({ courseId, courseName: g.courseName })
+      })
+    return out
+  }, [groups, groupCourse])
 
   // O'quvchining barcha oylari — qabul oyidan (yoki eng erta ma'lumot oyidan) joriy/oxirgi oygacha uzluksiz.
   const allMonths = useMemo(() => {
@@ -348,6 +380,24 @@ export function StudentDetailPage() {
           </div>
         </Section>
       )}
+
+      {/* O'quv dasturi (checklist) — har kurs uchun daraja → mavzu → band, bajarilganini belgilash */}
+      <Section title="O'quv dasturi (checklist)" icon={ListChecks}>
+        {studentCourses.length === 0 ? (
+          <Empty>O'quvchi hech qaysi kursga biriktirilmagan</Empty>
+        ) : (
+          <div className="space-y-5">
+            {studentCourses.map((c) => (
+              <CourseCurriculum
+                key={c.courseId}
+                courseId={c.courseId}
+                fallbackName={c.courseName}
+                studentId={data.id}
+              />
+            ))}
+          </div>
+        )}
+      </Section>
 
       {/* Stat kartalar */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -736,6 +786,227 @@ export function StudentDetailPage() {
         studentId={showHistory ? (data?.id ?? null) : null}
         onClose={() => setShowHistory(false)}
       />
+    </div>
+  )
+}
+
+/** Bitta kurs o'quv dasturi: o'z progress bari + yopilgan darajalar (har biri x/y), band checklisti. */
+function CourseCurriculum({
+  courseId,
+  fallbackName,
+  studentId,
+}: {
+  courseId: string
+  fallbackName: string
+  studentId: string
+}) {
+  const [curriculum, setCurriculum] = useState<Curriculum | null>(null)
+  /** Bajarilgan band id'lari (optimistik). */
+  const [done, setDone] = useState<Set<string>>(new Set())
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
+
+  useEffect(() => {
+    let alive = true
+    setLoading(true)
+    setError(false)
+    Promise.all([getCurriculum(courseId), getProgress(courseId, studentId)])
+      .then(([c, ids]) => {
+        if (!alive) return
+        setCurriculum(c)
+        setDone(new Set(ids))
+      })
+      .catch(() => {
+        if (alive) setError(true)
+      })
+      .finally(() => {
+        if (alive) setLoading(false)
+      })
+    return () => {
+      alive = false
+    }
+  }, [courseId, studentId])
+
+  // Optimistik toggle — xatoda asl holatga qaytaramiz.
+  const toggle = (itemId: string, next: boolean) => {
+    setDone((prev) => {
+      const copy = new Set(prev)
+      if (next) copy.add(itemId)
+      else copy.delete(itemId)
+      return copy
+    })
+    setProgress(studentId, itemId, next).catch(() => {
+      setDone((prev) => {
+        const copy = new Set(prev)
+        if (next) copy.delete(itemId)
+        else copy.add(itemId)
+        return copy
+      })
+    })
+  }
+
+  const name = curriculum?.courseName || fallbackName
+
+  if (loading) {
+    return (
+      <div className="rounded-2xl border border-slate-100 bg-slate-50/40 p-4">
+        <p className="text-sm font-semibold text-slate-700">{name}</p>
+        <div className="mt-3 space-y-2">
+          <div className="h-3 w-full animate-pulse rounded bg-slate-200/70" />
+          <div className="h-3 w-2/3 animate-pulse rounded bg-slate-200/70" />
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="rounded-2xl border border-slate-100 bg-slate-50/40 p-4">
+        <p className="text-sm font-semibold text-slate-700">{name}</p>
+        <p className="mt-2 text-sm text-slate-400">O'quv dasturini yuklab bo'lmadi</p>
+      </div>
+    )
+  }
+
+  const allItems = (curriculum?.levels ?? []).flatMap((lv) => lv.topics.flatMap((t) => t.items))
+  if (allItems.length === 0) {
+    return (
+      <div className="rounded-2xl border border-slate-100 bg-slate-50/40 p-4">
+        <p className="text-sm font-semibold text-slate-700">{name}</p>
+        <p className="mt-2 text-sm text-slate-400">O'quv dasturi kiritilmagan</p>
+      </div>
+    )
+  }
+
+  const totalDone = allItems.filter((it) => done.has(it.id)).length
+  const total = allItems.length
+  const pct = total ? Math.round((totalDone / total) * 100) : 0
+
+  return (
+    <div className="rounded-2xl border border-slate-100 bg-slate-50/40 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="flex items-center gap-1.5 text-sm font-semibold text-slate-800">
+          <BookOpen className="h-4 w-4 text-brand-600" /> {name}
+        </p>
+        <span className="font-mono text-xs font-medium text-slate-500">
+          {totalDone}/{total} · {pct}%
+        </span>
+      </div>
+      <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-slate-200/70">
+        <div
+          className="h-full rounded-full bg-brand-500 transition-all"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <div className="mt-3 space-y-2">
+        {curriculum!.levels.map((lv) => (
+          <LevelBlock key={lv.id} level={lv} done={done} onToggle={toggle} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/** Yopiladigan daraja: o'z x/y hisobi bilan; ochilganda mavzular va band checklisti. */
+function LevelBlock({
+  level,
+  done,
+  onToggle,
+}: {
+  level: Curriculum['levels'][number]
+  done: Set<string>
+  onToggle: (itemId: string, next: boolean) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const items = level.topics.flatMap((t) => t.items)
+  const lvDone = items.filter((it) => done.has(it.id)).length
+  const lvTotal = items.length
+  const complete = lvTotal > 0 && lvDone === lvTotal
+
+  return (
+    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center gap-2 px-3 py-2.5 text-left transition-colors hover:bg-slate-50"
+      >
+        <ChevronDown
+          className={cn('h-4 w-4 shrink-0 text-slate-400 transition-transform', open && 'rotate-180')}
+        />
+        <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-700">{level.name}</span>
+        <span
+          className={cn(
+            'shrink-0 rounded-md px-2 py-0.5 font-mono text-xs font-semibold',
+            complete ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500',
+          )}
+        >
+          {lvDone}/{lvTotal}
+        </span>
+      </button>
+      {open && (
+        <div className="space-y-3 border-t border-slate-100 px-3 py-3">
+          {level.topics.length === 0 ? (
+            <p className="text-xs text-slate-400">Mavzu yo'q</p>
+          ) : (
+            level.topics.map((topic) => {
+              const tDone = topic.items.filter((it) => done.has(it.id)).length
+              return (
+                <div key={topic.id}>
+                  <div className="mb-1.5 flex items-center justify-between gap-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                      {topic.title}
+                    </p>
+                    {topic.items.length > 0 && (
+                      <span className="shrink-0 font-mono text-[11px] text-slate-400">
+                        {tDone}/{topic.items.length}
+                      </span>
+                    )}
+                  </div>
+                  {topic.items.length === 0 ? (
+                    <p className="text-xs text-slate-300">Band yo'q</p>
+                  ) : (
+                    <div className="space-y-1">
+                      {topic.items.map((item) => {
+                        const checked = done.has(item.id)
+                        return (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => onToggle(item.id, !checked)}
+                            className="flex w-full items-start gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-slate-50"
+                          >
+                            <span
+                              className={cn(
+                                'mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors',
+                                checked
+                                  ? 'border-brand-500 bg-brand-500 text-white'
+                                  : 'border-slate-300 bg-white text-transparent',
+                              )}
+                            >
+                              <Check className="h-3 w-3" strokeWidth={3} />
+                            </span>
+                            <span
+                              className={cn(
+                                'min-w-0 flex-1 text-sm',
+                                checked ? 'text-slate-400 line-through' : 'text-slate-700',
+                              )}
+                            >
+                              {item.text}
+                              {item.note && (
+                                <span className="ml-1 text-xs text-slate-400">— {item.note}</span>
+                              )}
+                            </span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )
+            })
+          )}
+        </div>
+      )}
     </div>
   )
 }

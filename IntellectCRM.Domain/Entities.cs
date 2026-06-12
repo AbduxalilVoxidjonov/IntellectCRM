@@ -1143,3 +1143,46 @@ public class LevelTestSubmission
     /// <summary>Shu topshiruvdan yaratilgan Lid id'si.</summary>
     public string LeadId { get; set; } = string.Empty;
 }
+
+
+/// <summary>Kurs darajasi (sillabus 1-bosqich): kurs (Subject) ichidagi daraja, masalan "A1", "Boshlang'ich".</summary>
+public class CourseLevel
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string SubjectId { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string Note { get; set; } = string.Empty;
+    public int Order { get; set; }
+}
+
+/// <summary>Kurs mavzusi (sillabus 2-bosqich): daraja ichidagi mavzu.</summary>
+public class CourseTopic
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string SubjectId { get; set; } = string.Empty;
+    public string LevelId { get; set; } = string.Empty;
+    public string Title { get; set; } = string.Empty;
+    public string Note { get; set; } = string.Empty;
+    public int Order { get; set; }
+}
+
+/// <summary>Kurs bandi (sillabus 3-bosqich): mavzu ichidagi alohida o'rganiladigan band.</summary>
+public class CourseItem
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string SubjectId { get; set; } = string.Empty;
+    public string TopicId { get; set; } = string.Empty;
+    public string Text { get; set; } = string.Empty;
+    public string Note { get; set; } = string.Empty;
+    public int Order { get; set; }
+}
+
+/// <summary>O'quvchining bir sillabus bandi bo'yicha bajarilganlik holati (per-item progress).</summary>
+public class CourseProgress
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string StudentId { get; set; } = string.Empty;
+    public string ItemId { get; set; } = string.Empty;
+    public bool Done { get; set; }
+    public string UpdatedAt { get; set; } = string.Empty;
+}
