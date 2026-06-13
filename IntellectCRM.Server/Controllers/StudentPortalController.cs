@@ -208,19 +208,6 @@ public class StudentPortalController(
         return new SchoolNameDto(m?.Name ?? "");
     }
 
-    /// <summary>Web (PWA) push uchun Firebase web config + VAPID — brauzer FCM token olishi uchun.
-    /// Bitta Firebase loyiha barcha ilovalar uchun (teacher/student) ishlaydi.</summary>
-    [HttpGet("push-config")]
-    public async Task<ActionResult<PushClientConfigDto>> PushConfig()
-    {
-        var m = await db.CenterMeta.FirstOrDefaultAsync();
-        var sa = m?.FcmServiceAccountJson ?? "";
-        var web = (m?.FcmWebConfigJson ?? "").Trim();
-        var vapid = (m?.FcmVapidKey ?? "").Trim();
-        var enabled = FcmService.IsConfigured(sa) && web.Length > 0 && vapid.Length > 0;
-        return new PushClientConfigDto(enabled, web, vapid);
-    }
-
     // ---------- Farzandni olib ketish (pickup) ----------
 
     /// <summary>

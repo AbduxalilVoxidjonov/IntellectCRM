@@ -476,14 +476,10 @@ public record SchoolNameDto(string Name);
 public record TelegramSettingsDto(string BotToken, string BotUsername, string BotName, bool Configured);
 /// <summary>Telegram bot sozlamasini saqlash so'rovi.</summary>
 public record SaveTelegramSettingsRequest(string? BotToken, string? BotUsername, string? BotName);
-/// <summary>Firebase (FCM push) sozlamasi. Configured = service account JSON to'g'ri kiritilgan.</summary>
-public record FirebaseSettingsDto(
-    string ServiceAccountJson, bool Configured,
-    string WebConfigJson, string VapidKey, bool WebConfigured);
-public record SaveFirebaseSettingsRequest(
-    string? ServiceAccountJson, string? WebConfigJson, string? VapidKey);
-/// <summary>Web (PWA) push uchun klient konfiguratsiyasi — brauzer FCM token olishi uchun.</summary>
-public record PushClientConfigDto(bool Enabled, string WebConfigJson, string VapidKey);
+/// <summary>Firebase (FCM push) sozlamasi — faqat native (Flutter) ilovaga push yuborish uchun
+/// Service Account JSON. Configured = JSON to'g'ri kiritilgan.</summary>
+public record FirebaseSettingsDto(string ServiceAccountJson, bool Configured);
+public record SaveFirebaseSettingsRequest(string? ServiceAccountJson);
 
 /// <summary>Turniket/FaceID integratsiya sozlamasi (o'qituvchilar davomati avtomatik).
 /// Parol javobda BO'SH qaytadi (xavfsizlik); HasPassword saqlanganini bildiradi.</summary>

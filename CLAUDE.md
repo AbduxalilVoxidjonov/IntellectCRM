@@ -113,6 +113,17 @@ docker compose up -d --build    # app + mssql + cloudflared + backup + mediamtx
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-13: **Push (Firebase) — faqat NATIVE (Flutter) ilovaga soddalashtirildi (PWA/web push olib tashlandi).**
+  Loyiha — bitta Flutter WebView ilovasi (student+teacher), push native FCM (firebase_messaging) orqali, web push
+  (service worker) WebView'da ishlamaydi. Shuning uchun web config + VAPID kerak emas — faqat **Service Account JSON**
+  (server push yuborish). Olib tashlandi: `PushClientConfigDto`; `GET /student/push-config` + `GET /teacher/push-config`
+  endpointlari; `SettingsController` `WebPushReady` + web/vapid GET/PUT mantig'i; `FirebaseSettingsDto`/`SaveFirebaseSettingsRequest`dan
+  WebConfigJson/VapidKey; frontend `FirebaseConfig`/`SaveFirebaseInput`dan web/vapid; `FirebaseSettings.tsx` qayta yozildi
+  (faqat Service Account JSON + Flutter izohi: google-services.json bilan bitta loyiha). `CenterMeta.FcmWebConfigJson/
+  FcmVapidKey` ustunlari vestigial qoldi (endi o'qilmaydi/yozilmaydi; migratsiya yo'q). `notifications/register` (token
+  ro'yxati) va FcmService/triggerlar (baho/to'lov/e'lon) SAQLANDI. Backend 0, tsc yashil, deploy ✅; jonli:
+  push-config 404, firebase sozlama = {serviceAccountJson, configured}. ESLATMA (foydalanuvchiga): native token har
+  LOGIN'da register qilinadi (token oxirgi kirgan userga bog'lanadi), logout'da unregister.
 - 2026-06-13: **O'quvchi "Umumiy statistika" — to'liq diagrammали ekran (barcha yig'ilgan ma'lumot).** `getStudentNotebook`
   endi typed (`StudentNotebook` interfeysi — grades trend, attendance+reasons, discipline, assignments, oylik
   evaluations/feedback, homework/behavior). `Statistics.tsx` to'liq qayta yozildi (custom SVG/CSS diagrammalar, Recharts
