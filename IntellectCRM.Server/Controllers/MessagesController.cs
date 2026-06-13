@@ -374,6 +374,16 @@ public class MessagesController(AppDbContext db, ChatService chat, TelegramServi
             sent += await fcm.SendAsync(json, toks, t, b);
         }
 
+        // Ilova tarixiga — AUDIENCE'dagi HAR foydalanuvchi uchun (push yetmasa ham bildirishnoma ro'yxatida ko'rinadi).
+        foreach (var userId in userIds)
+        {
+            var t = title;
+            var b = body;
+            if (studentByUser.TryGetValue(userId, out var stn)) { t = PersonalizePush(title, stn); b = PersonalizePush(body, stn); }
+            else if (teacherByUser.TryGetValue(userId, out var tchn)) { t = PersonalizeTeacherPush(title, tchn); b = PersonalizeTeacherPush(body, tchn); }
+            NotificationStore.Add(db, userId, t, b, "announcement");
+        }
+
         var user = await db.Users.FindAsync(Uid);
         var pm = new PushMessage
         {

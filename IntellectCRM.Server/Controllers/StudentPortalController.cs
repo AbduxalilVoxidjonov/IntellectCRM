@@ -208,6 +208,31 @@ public class StudentPortalController(
         return new SchoolNameDto(m?.Name ?? "", m?.TelegramChannel ?? "");
     }
 
+    /// <summary>Ilova bildirishnomalari tarixi (yuborilgan push'lar) — o'qilmaganlar soni bilan.</summary>
+    [HttpGet("notifications")]
+    public async Task<ActionResult<NotificationsResponseDto>> Notifications()
+    {
+        var uid = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (uid is null) return Unauthorized();
+        var items = await db.UserNotifications.Where(n => n.UserId == uid)
+            .OrderByDescending(n => n.CreatedAt).Take(100).ToListAsync();
+        var unread = items.Count(n => n.ReadAt == null);
+        return new NotificationsResponseDto(unread, items.Select(n =>
+            new UserNotificationDto(n.Id, n.Title, n.Body, n.Type, n.CreatedAt.ToString("o"), n.ReadAt != null)).ToList());
+    }
+
+    /// <summary>Barcha bildirishnomalarni o'qilgan deb belgilaydi.</summary>
+    [HttpPost("notifications/read")]
+    public async Task<IActionResult> MarkNotificationsRead()
+    {
+        var uid = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (uid is null) return Unauthorized();
+        var unread = await db.UserNotifications.Where(n => n.UserId == uid && n.ReadAt == null).ToListAsync();
+        foreach (var n in unread) n.ReadAt = AppClock.Now;
+        await db.SaveChangesAsync();
+        return NoContent();
+    }
+
     // ---------- Farzandni olib ketish (pickup) ----------
 
     /// <summary>

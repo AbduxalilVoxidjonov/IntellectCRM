@@ -48,6 +48,7 @@ public interface IAppDbContext
     DbSet<AssignmentSubmission> AssignmentSubmissions { get; }
     DbSet<UserSettings> UserSettings { get; }
     DbSet<DeviceToken> DeviceTokens { get; }
+    DbSet<UserNotification> UserNotifications { get; }
     DbSet<ContractTemplate> ContractTemplates { get; }
     DbSet<Contract> Contracts { get; }
     DbSet<Branch> Branches { get; }

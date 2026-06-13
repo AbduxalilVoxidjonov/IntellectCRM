@@ -175,33 +175,38 @@ public static class JournalService
         IAppDbContext db, FcmService? fcm, SetJournalEntryRequest req, Student? student,
         int? oldGrade, string? oldReason)
     {
-        if (fcm is null || student?.UserId is null) return;
+        if (student?.UserId is null) return;
         var notifyGrade = req.Grade.HasValue && req.Grade != oldGrade;
         var notifyAbsence = !notifyGrade && req.ReasonId is not null && req.ReasonId != oldReason;
         if (!notifyGrade && !notifyAbsence) return;
 
-        var meta = await db.CenterMeta.FirstOrDefaultAsync();
-        var json = meta?.FcmServiceAccountJson ?? "";
-        if (!FcmService.IsConfigured(json)) return;
-
-        var tokens = await db.DeviceTokens.Where(d => d.UserId == student.UserId)
-            .Select(d => d.Token).Distinct().ToListAsync();
-        if (tokens.Count == 0) return;
-
         var subject = (await db.Subjects.FindAsync(req.SubjectId))?.Name ?? "";
-        string title, body;
+        string title, body, type;
         if (notifyGrade)
         {
             title = "Yangi baho";
             body = $"{student.FullName}: {subject} fanidan {req.Grade} baho ({req.Date})";
+            type = "grade";
         }
         else
         {
             var reason = (await db.AbsenceReasons.FindAsync(req.ReasonId!))?.Name ?? "Davomat";
             title = "Davomat";
             body = $"{student.FullName}: {subject} darsida — {reason} ({req.Date})";
+            type = "attendance";
         }
-        // FCM faqat HTTP (db'ga tegmaydi) — jurnal javobini bloklamaslik uchun kutmaymiz.
+
+        // Tarixga yozamiz — push sozlanmagan yoki token bo'lmasa ham ilovada ko'rinadi.
+        NotificationStore.Add(db, student.UserId, title, body, type);
+        await db.SaveChangesAsync();
+
+        // Push (FCM sozlangan + token bor bo'lsa) — fire-and-forget, jurnal javobini bloklamaymiz.
+        var meta = await db.CenterMeta.FirstOrDefaultAsync();
+        var json = meta?.FcmServiceAccountJson ?? "";
+        if (fcm is null || !FcmService.IsConfigured(json)) return;
+        var tokens = await db.DeviceTokens.Where(d => d.UserId == student.UserId)
+            .Select(d => d.Token).Distinct().ToListAsync();
+        if (tokens.Count == 0) return;
         _ = fcm.SendAsync(json, tokens, title, body);
     }
 

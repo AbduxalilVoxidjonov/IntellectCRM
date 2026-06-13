@@ -4,12 +4,23 @@ import {
   getStudentDashboard,
   getStudentNotebook,
   getStudentSchool,
+  getStudentNotifications,
+  markStudentNotificationsRead,
   type StudentDashboard,
   type StudentNotebook,
+  type NotificationsResponse,
 } from '@/api/services/studentPortal'
 import { useAuth } from '@/context/auth-context'
-import { Icon, fmtMoney, gradeColor } from '@/pages/student/lib'
+import { Icon, fmtDate, fmtMoney, fmtTime, gradeColor } from '@/pages/student/lib'
 import { telegramUrl } from '@/lib/utils'
+
+const NOTIF_ICON: Record<string, string> = {
+  grade: 'chart',
+  attendance: 'checkCircle',
+  payment: 'wallet',
+  announcement: 'bell',
+  pickup: 'user',
+}
 
 /* ============================================================
    O'quvchi Dashboard — to'liq salom + bildirishnoma + qisqacha
@@ -31,6 +42,7 @@ export function StudentDashboardScreen() {
   const [dash, setDash] = useState<StudentDashboard | null>(null)
   const [nb, setNb] = useState<StudentNotebook | null>(null)
   const [channel, setChannel] = useState('')
+  const [notifs, setNotifs] = useState<NotificationsResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [notifOpen, setNotifOpen] = useState(false)
 
@@ -40,18 +52,29 @@ export function StudentDashboardScreen() {
       getStudentDashboard().catch(() => null),
       getStudentNotebook().catch(() => null),
       getStudentSchool().catch(() => null),
+      getStudentNotifications().catch(() => null),
     ])
-      .then(([d, n, s]) => {
+      .then(([d, n, s, nt]) => {
         if (!on) return
         setDash(d)
         setNb(n)
         setChannel(s?.telegramChannel || '')
+        setNotifs(nt)
       })
       .finally(() => on && setLoading(false))
     return () => {
       on = false
     }
   }, [])
+
+  // Qo'ng'iroq bosilganda — panel ochiladi va o'qilgan deb belgilanadi.
+  const openNotifs = () => {
+    setNotifOpen(true)
+    if (notifs && notifs.unread > 0) {
+      markStudentNotificationsRead().catch(() => {})
+      setNotifs({ unread: 0, items: notifs.items.map((i) => ({ ...i, read: true })) })
+    }
+  }
 
   const fullName = dash?.profile?.fullName || user?.fullName || "O'quvchi"
   const className = dash?.profile?.className || '—'
@@ -80,8 +103,11 @@ export function StudentDashboardScreen() {
               Salom, <span style={{ color: 'var(--accent)' }}>{fullName}</span> {'\u{1F44B}'}
             </div>
           </div>
-          <button className="iconbtn press" onClick={() => setNotifOpen(true)} aria-label="Bildirishnomalar">
+          <button className="iconbtn press" onClick={openNotifs} aria-label="Bildirishnomalar">
             <Icon name="bell" size={20} color="var(--text)" />
+            {notifs && notifs.unread > 0 && (
+              <span className="nbadge">{notifs.unread > 9 ? '9+' : notifs.unread}</span>
+            )}
           </button>
         </div>
       </div>
@@ -184,15 +210,60 @@ export function StudentDashboardScreen() {
                 <Icon name="x" size={18} color="var(--text)" />
               </button>
             </div>
-            <div className="empty" style={{ paddingTop: 24, paddingBottom: 24 }}>
-              <div className="empty-ic">
-                <Icon name="bell" size={26} color="var(--faint)" />
+            {!notifs || notifs.items.length === 0 ? (
+              <div className="empty" style={{ paddingTop: 24, paddingBottom: 24 }}>
+                <div className="empty-ic">
+                  <Icon name="bell" size={26} color="var(--faint)" />
+                </div>
+                <div style={{ fontWeight: 800, fontSize: 15 }}>Bildirishnoma yo'q</div>
+                <div className="muted" style={{ fontSize: 13, marginTop: 6 }}>
+                  Yangi e'lon va baholar shu yerda ko'rinadi.
+                </div>
               </div>
-              <div style={{ fontWeight: 800, fontSize: 15 }}>Bildirishnoma yo'q</div>
-              <div className="muted" style={{ fontSize: 13, marginTop: 6 }}>
-                Yangi e'lon va baholar shu yerda ko'rinadi.
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingBottom: 8 }}>
+                {notifs.items.map((n) => (
+                  <div
+                    key={n.id}
+                    className="row gap10"
+                    style={{
+                      alignItems: 'flex-start',
+                      padding: 12,
+                      borderRadius: 14,
+                      background: 'var(--surface2)',
+                      border: '1px solid var(--border)',
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 36,
+                        height: 36,
+                        borderRadius: 11,
+                        background: 'var(--accentSoft)',
+                        color: 'var(--accent)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flex: 'none',
+                      }}
+                    >
+                      <Icon name={NOTIF_ICON[n.type] || 'bell'} size={18} color="var(--accent)" />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>{n.title}</div>
+                      {n.body && (
+                        <div className="muted" style={{ fontSize: 13, marginTop: 2, lineHeight: 1.4 }}>
+                          {n.body}
+                        </div>
+                      )}
+                      <div className="faint" style={{ fontSize: 11, marginTop: 4 }}>
+                        {fmtDate(n.createdAt)} · {fmtTime(n.createdAt)}
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
-            </div>
+            )}
           </div>
         </div>
       )}

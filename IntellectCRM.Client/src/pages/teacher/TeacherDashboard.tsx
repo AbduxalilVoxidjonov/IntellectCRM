@@ -1,10 +1,16 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Bell, GraduationCap, BookOpen, ClipboardCheck, ChevronRight, Users, Send } from 'lucide-react'
+import { Bell, GraduationCap, BookOpen, ClipboardCheck, ChevronRight, Users, Send, X } from 'lucide-react'
 import type { TeacherClass } from '@/types'
-import { getMyClasses, getTeacherSchool } from '@/api/services/teacher'
+import {
+  getMyClasses,
+  getTeacherSchool,
+  getTeacherNotifications,
+  markTeacherNotificationsRead,
+  type NotificationsResponse,
+} from '@/api/services/teacher'
 import { useAuth } from '@/context/auth-context'
-import { telegramUrl } from '@/lib/utils'
+import { telegramUrl, formatDateTime } from '@/lib/utils'
 
 const WEEKDAYS_UZ = ['Yakshanba', 'Dushanba', 'Seshanba', 'Chorshanba', 'Payshanba', 'Juma', 'Shanba']
 const MONTHS_UZ = [
@@ -43,6 +49,8 @@ export function TeacherDashboard() {
   const { user } = useAuth()
   const [classes, setClasses] = useState<TeacherClass[]>([])
   const [channel, setChannel] = useState('')
+  const [notifs, setNotifs] = useState<NotificationsResponse | null>(null)
+  const [notifOpen, setNotifOpen] = useState(false)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -52,7 +60,18 @@ export function TeacherDashboard() {
     getTeacherSchool()
       .then((s) => setChannel(s.telegramChannel || ''))
       .catch(() => {})
+    getTeacherNotifications()
+      .then(setNotifs)
+      .catch(() => {})
   }, [])
+
+  const openNotifs = () => {
+    setNotifOpen(true)
+    if (notifs && notifs.unread > 0) {
+      markTeacherNotificationsRead().catch(() => {})
+      setNotifs({ unread: 0, items: notifs.items.map((i) => ({ ...i, read: true })) })
+    }
+  }
 
   const subjectCount = classes.reduce((acc, c) => acc + c.subjects.length, 0)
 
@@ -71,10 +90,16 @@ export function TeacherDashboard() {
         </div>
         <button
           type="button"
+          onClick={openNotifs}
           className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-panel2 text-ink"
           aria-label="Bildirishnomalar"
         >
           <Bell className="h-5 w-5" />
+          {notifs && notifs.unread > 0 && (
+            <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white ring-2 ring-paper">
+              {notifs.unread > 9 ? '9+' : notifs.unread}
+            </span>
+          )}
         </button>
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-teal-500 to-teal-700 text-[14px] font-extrabold text-white">
           {initials(fullName)}
@@ -192,6 +217,52 @@ export function TeacherDashboard() {
           </div>
         )}
       </div>
+
+      {/* Bildirishnomalar paneli */}
+      {notifOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/40"
+          onClick={() => setNotifOpen(false)}
+        >
+          <div
+            className="max-h-[80dvh] w-full max-w-md overflow-y-auto rounded-t-[24px] border border-line bg-white p-4 pb-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-line" />
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-[17px] font-extrabold text-ink">Bildirishnomalar</p>
+              <button
+                type="button"
+                onClick={() => setNotifOpen(false)}
+                className="grid h-9 w-9 place-items-center rounded-xl bg-panel2 text-ink"
+                aria-label="Yopish"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            {!notifs || notifs.items.length === 0 ? (
+              <div className="py-10 text-center text-[13px] text-mute">
+                Bildirishnoma yo'q. Yangi e'lonlar shu yerda ko'rinadi.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {notifs.items.map((n) => (
+                  <div key={n.id} className="flex gap-3 rounded-[14px] border border-line bg-panel2 p-3">
+                    <div className="grid h-9 w-9 shrink-0 place-items-center rounded-[11px] bg-tealsoft text-teal-600">
+                      <Bell className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[14px] font-bold text-ink">{n.title}</p>
+                      {n.body && <p className="mt-0.5 text-[13px] text-mute">{n.body}</p>}
+                      <p className="mt-1 text-[11px] text-faint">{formatDateTime(n.createdAt)}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -113,6 +113,17 @@ docker compose up -d --build    # app + mssql + cloudflared + backup + mediamtx
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-13: **Bildirishnomalar TARIXI — yuborilgan push'lar ilovada saqlanadi (qo'ng'iroq ro'yxati).** Muammo:
+  push kelardi-yu, ilovada saqlanmasdi. Yangi `UserNotification` entity (UserId/Title/Body/Type/CreatedAt/ReadAt) +
+  inkremental migratsiya `AddUserNotifications` (CreateTable). `NotificationStore.Add(db, userId, title, body, type)`
+  helper. Yozish ulandi: **MessagesController.SendPush** (broadcast → AUDIENCE'dagi HAR userga, token yo'q bo'lsa
+  ham), **JournalService** baho/davomat push (qayta tuzildi: tarix DOIM yoziladi, so'ng push), **PaymentReminderService**
+  (to'lov). Endpointlar (student+teacher, JWT userId bo'yicha): `GET notifications` (unread + items), `POST
+  notifications/read`. Frontend: `studentPortal`/`teacher` servislariga `getXNotifications`/`markXNotificationsRead` +
+  tiplar; **Student + Teacher Dashboard qo'ng'irog'i** — o'qilmaganlar BADGE + bosilsa panel (ro'yxat: ikona/sarlavha/
+  matn/sana) + o'qilgan deb belgilash. Backend 0, tsc+vite yashil, deploy ✅ (migratsiya qo'llandi); E2E: admin push →
+  student `/notifications` unread:1 (token 0 bo'lsa ham saqlandi). ESLATMA: ota-ona o'z userId bo'yicha so'raydi
+  (bildirishnomalar o'quvchi userId'siga yoziladi — student/teacher uchun ishlaydi).
 - 2026-06-13: **Push diagnostikasi — sabab: 0 qurilma ro'yxatda (Flutter token uzatmayapti).** Tekshiruv: Service
   Account SOZLANGAN (configured=true, 2375 belgi), LEKIN `push/devices` count=0 → yuborishga token yo'q, shuning uchun
   hech narsa bormaydi. FcmService kodi to'g'ri (FCM v1 + `notification` bloki). Yaxshilashlar: (1) `FcmService.SendAsync`

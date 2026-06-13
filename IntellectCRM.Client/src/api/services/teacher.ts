@@ -143,6 +143,29 @@ export async function getTeacherSchool(): Promise<{ name: string; telegramChanne
   return data
 }
 
+/* ---------- Bildirishnomalar (ilova tarixi) ---------- */
+export interface AppNotification {
+  id: string
+  title: string
+  body: string
+  type: string
+  createdAt: string
+  read: boolean
+}
+export interface NotificationsResponse {
+  unread: number
+  items: AppNotification[]
+}
+
+export async function getTeacherNotifications(): Promise<NotificationsResponse> {
+  if (USE_MOCK) return { unread: 0, items: [] }
+  const { data } = await api.get<NotificationsResponse>('/teacher/notifications')
+  return data
+}
+export async function markTeacherNotificationsRead(): Promise<void> {
+  await api.post('/teacher/notifications/read')
+}
+
 /* ---------- Maosh (faqat o'ziniki) ---------- */
 
 export async function getTeacherSalary(from?: string, to?: string): Promise<SalaryLedger | null> {

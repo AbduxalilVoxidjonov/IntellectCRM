@@ -114,6 +114,9 @@ public class PaymentReminderService(
                 if (body.Length == 0) continue;
                 students++;
 
+                // Ilova tarixiga (push/telegram bo'lmasa ham ilovada ko'rinadi).
+                NotificationStore.Add(db, s.UserId, title, body, "payment");
+
                 // Telegram.
                 if (telegramReady && regsByStudent.TryGetValue(s.Id, out var chats))
                 {
@@ -132,6 +135,8 @@ public class PaymentReminderService(
                 logger.LogWarning(ex, "To'lov eslatmasi: o'quvchi {Id} uchun xatolik", s.Id);
             }
         }
+
+        if (students > 0) await db.SaveChangesAsync(ct);
 
         logger.LogInformation(
             "To'lov eslatmasi yuborildi: {Students} qarzdor, Telegram {Tg}, push {Push}.",

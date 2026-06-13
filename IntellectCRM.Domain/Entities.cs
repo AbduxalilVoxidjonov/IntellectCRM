@@ -926,6 +926,23 @@ public class DeviceToken
 }
 
 /// <summary>
+/// Foydalanuvchiga (o'quvchi/o'qituvchi) yuborilgan bildirishnoma — ilovadagi "Bildirishnomalar"
+/// tarixi uchun (push yetib bormasa ham saqlanadi). Har push yuborilganda yoziladi.
+/// </summary>
+public class UserNotification
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string UserId { get; set; } = string.Empty;
+    public string Title { get; set; } = string.Empty;
+    public string Body { get; set; } = string.Empty;
+    /// <summary>grade | payment | announcement | pickup | general ...</summary>
+    public string Type { get; set; } = "general";
+    public DateTime CreatedAt { get; set; } = AppClock.Now;
+    /// <summary>O'qilgan vaqti (null = o'qilmagan).</summary>
+    public DateTime? ReadAt { get; set; }
+}
+
+/// <summary>
 /// Shartnoma uchun yuklangan Word (.docx) andoza. Har target uchun (ota-ona / xodim) alohida.
 /// Ichida `@` bilan boshlanuvchi o'rinbosarlar (masalan @fish) bo'ladi — yuborishda almashtiriladi.
 /// </summary>

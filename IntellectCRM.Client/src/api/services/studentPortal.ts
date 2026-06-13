@@ -451,6 +451,28 @@ export async function sendStudentChat(text: string) {
   return data
 }
 
+// ---------- Bildirishnomalar (ilova tarixi) ----------
+export interface AppNotification {
+  id: string
+  title: string
+  body: string
+  type: string
+  createdAt: string
+  read: boolean
+}
+export interface NotificationsResponse {
+  unread: number
+  items: AppNotification[]
+}
+
+export async function getStudentNotifications(): Promise<NotificationsResponse> {
+  const { data } = await api.get<NotificationsResponse>('/student/notifications')
+  return data
+}
+export async function markStudentNotificationsRead(): Promise<void> {
+  await api.post('/student/notifications/read')
+}
+
 // ---------- Feedback ----------
 export async function sendStudentFeedback(type: 'suggestion' | 'complaint', text: string, image?: File | null) {
   const fd = new FormData()

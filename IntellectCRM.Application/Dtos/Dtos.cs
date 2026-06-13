@@ -511,6 +511,10 @@ public record FinanceSummaryDto(
 public record FinanceMonthlyDto(string Month, decimal Income, decimal Expense);
 public record AccrueResultDto(List<string> Months, int Count, decimal Total);
 
+/* ---------- Ilova bildirishnomalari (o'quvchi/o'qituvchi tarixi) ---------- */
+public record UserNotificationDto(string Id, string Title, string Body, string Type, string CreatedAt, bool Read);
+public record NotificationsResponseDto(int Unread, List<UserNotificationDto> Items);
+
 /* ---------- Kurs/guruh kesimida moliyaviy hisobot ---------- */
 /// <summary>Bitta kurs (Subject) bo'yicha davr hisobi: hisoblangan/yig'ilgan, yig'ilish foizi,
 /// to'liq to'lagan o'quvchilar nisbati. Daromad bo'yicha saralanadi.</summary>

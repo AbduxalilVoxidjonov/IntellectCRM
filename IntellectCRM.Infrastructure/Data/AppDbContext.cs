@@ -47,6 +47,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<AssignmentSubmission> AssignmentSubmissions => Set<AssignmentSubmission>();
     public DbSet<UserSettings> UserSettings => Set<UserSettings>();
     public DbSet<DeviceToken> DeviceTokens => Set<DeviceToken>();
+    public DbSet<UserNotification> UserNotifications => Set<UserNotification>();
     public DbSet<ContractTemplate> ContractTemplates => Set<ContractTemplate>();
     public DbSet<Contract> Contracts => Set<Contract>();
     public DbSet<Branch> Branches => Set<Branch>();
