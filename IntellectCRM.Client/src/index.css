@@ -250,7 +250,7 @@ body {
 }
 /* layout */
 .student-app .screen { flex: 1; display: flex; flex-direction: column; min-height: 0; animation: st-fade 0.22s ease; }
-.student-app .scroll { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.student-app .scroll { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 .student-app .pad { padding: 0 16px; }
 .student-app .h-pad { padding: 0 20px; }
 .student-app .center { flex: 1; display: flex; align-items: center; justify-content: center; }
@@ -285,8 +285,8 @@ body {
 .student-app .spin { width: 34px; height: 34px; border: 3px solid var(--surface3); border-top-color: var(--accent); border-radius: 50%; animation: st-rot 0.8s linear infinite; }
 .student-app .badge { display: flex; align-items: center; justify-content: center; font-weight: 800; color: #fff; }
 .student-app .subj { display: flex; align-items: center; justify-content: center; font-weight: 800; }
-/* header */
-.student-app .hd { background: var(--bg); padding: 8px 16px; }
+/* header — scroll paytida yuqorida yopishib turadi (WebView app-bar hissi) */
+.student-app .hd { position: sticky; top: 0; z-index: 5; background: var(--bg); padding: 8px 16px; }
 .student-app .hd.lg { padding: 6px 20px 10px; }
 .student-app .hd-big { font-size: 30px; font-weight: 800; letter-spacing: -0.7px; line-height: 1.05; }
 .student-app .hd-sm { font-size: 18px; font-weight: 800; letter-spacing: -0.3px; }

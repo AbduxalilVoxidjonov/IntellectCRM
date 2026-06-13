@@ -172,7 +172,7 @@ export function StudentChatScreen() {
   )
 
   return (
-    <div className="screen" style={{ display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 }}>
+    <div className="screen" style={{ display: 'flex', flexDirection: 'column', minHeight: 0, height: '100%' }}>
       {header}
       <div ref={listRef} className="scroll" style={{ flex: 1, padding: 14 }}>
         {loading ? (

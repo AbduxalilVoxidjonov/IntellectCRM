@@ -40,12 +40,16 @@ export function StudentMobileLayout() {
   }, [])
 
   return (
-    <div className="student-app" data-theme={theme} style={{ minHeight: '100dvh', background: 'var(--bg)' }}>
+    <div
+      className="student-app"
+      data-theme={theme}
+      style={{ height: '100dvh', overflow: 'hidden', background: 'var(--bg)' }}
+    >
       <div
         style={{
           maxWidth: 480,
           margin: '0 auto',
-          minHeight: '100dvh',
+          height: '100%',
           background: 'var(--bg)',
           display: 'flex',
           flexDirection: 'column',
@@ -53,7 +57,7 @@ export function StudentMobileLayout() {
           overflow: 'hidden',
         }}
       >
-        <div className="scroll">
+        <div className="scroll" style={{ minHeight: 0 }}>
           <Outlet />
         </div>
 

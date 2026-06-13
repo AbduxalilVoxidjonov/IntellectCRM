@@ -113,6 +113,15 @@ docker compose up -d --build    # app + mssql + cloudflared + backup + mediamtx
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-13: **O'quvchi portali — telefon/WebView layout tuzatildi (pastki nav pinlanmasdi).** Muammo: `StudentMobileLayout`
+  shell `minHeight:100dvh` (FIXED emas) edi → kontent uzun bo'lsa butun ustun o'sib, BODY scroll bo'lardi va pastki
+  5-tab nav viewport tagida qolib pinlanmasdi (telefon ilova hissi yo'q). Tuzatish: (1) shell `height:100dvh` +
+  `overflow:hidden`, ichki ustun `height:100%` → nav DOIM pastda pinlanadi, kontent o'rtada (header↔nav) scroll bo'ladi,
+  nav ostida yashirinmaydi. (2) `.student-app .scroll`ga `min-height:0` (flex scroll to'g'ri ishlashi uchun). (3)
+  `.student-app .hd` endi `position:sticky; top:0` — ekran sarlavhalari scroll paytida yuqorida yopishib turadi
+  (WebView app-bar hissi; detal ekranlarda orqaga tugma doim ko'rinadi). (4) Chat root `flex:1`→`height:100%` →
+  xabarlar ro'yxati scroll, yozish maydoni (composer) pastda pinlanadi. tsc+vite yashil, `app` deploy; built CSS'da
+  sticky+min-height:0 tasdiqlandi, /student 200. ✅
 - 2026-06-13: **Sinf rahbarligi (homeroom) GURUHLARDAN olib tashlandi + o'quvchi web-login bloki ochildi.**
   (1) **Web-login:** `AuthProvider` student/parent rolini "Mobil ilovadan foydalaning" deb bloklardi (3 joy: login
   throw, readStoredUser, fetchMe effekti) — HAMMASI olib tashlandi. Endi bitta ilovadan (Flutter WebView) o'qituvchi
