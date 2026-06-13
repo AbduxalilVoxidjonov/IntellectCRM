@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Upload,
   FileText,
+  FilePlus2,
+  Pencil,
   Trash2,
   Send,
   CheckCircle2,
@@ -12,6 +14,8 @@ import type { ContractTemplate, ParentRecipient, StaffRecipient, SendResult } fr
 import {
   getTemplates,
   createTemplate,
+  createCustomTemplate,
+  updateCustomTemplate,
   deleteTemplate,
   getParentRecipients,
   getStaffRecipients,
@@ -21,6 +25,7 @@ import { uploadAdminFile } from '@/api/services/students'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
+import { Modal } from '@/components/ui/Modal'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Loader } from '@/components/ui/Loader'
 import { cn } from '@/lib/utils'
@@ -30,6 +35,20 @@ type Target = 'parent' | 'staff'
 const TOKENS: Record<Target, string[]> = {
   parent: ['@ota_ona', '@telefon', '@farzandlar', '@sana', '@raqam'],
   staff: ['@fish', '@telefon', '@lavozim', '@fanlar', '@tugilgan_kun', '@manzil', '@oylik', '@sana', '@raqam'],
+}
+
+const TOKEN_LABELS: Record<string, string> = {
+  '@ota_ona': 'Ota-ona F.I.SH',
+  '@fish': 'Xodim F.I.SH',
+  '@telefon': 'Telefon',
+  '@farzandlar': 'Farzandlar',
+  '@lavozim': 'Lavozim',
+  '@fanlar': 'Fanlar',
+  '@tugilgan_kun': "Tug'ilgan kun",
+  '@manzil': 'Manzil',
+  '@oylik': 'Oylik',
+  '@sana': 'Sana',
+  '@raqam': 'Shartnoma raqami',
 }
 
 const DOCX = '.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document'
@@ -45,6 +64,7 @@ export function ContractsPage() {
   const [uploading, setUploading] = useState(false)
   const [sending, setSending] = useState(false)
   const [results, setResults] = useState<SendResult[] | null>(null)
+  const [editor, setEditor] = useState<ContractTemplate | 'new' | null>(null)
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- target almashganda qayta yuklash (maqsadli)
@@ -76,6 +96,12 @@ export function ContractsPage() {
       setUploading(false)
       e.target.value = ''
     }
+  }
+
+  const handleEditorSaved = (tpl: ContractTemplate, isNew: boolean) => {
+    setTemplates((prev) => (isNew ? [tpl, ...prev] : prev.map((t) => (t.id === tpl.id ? tpl : t))))
+    setSelectedTpl(tpl.id)
+    setEditor(null)
   }
 
   const handleDeleteTpl = async (id: string) => {
@@ -167,18 +193,28 @@ export function ContractsPage() {
         <div className="space-y-5">
           {/* Andoza paneli */}
           <Card
-            title="Word andoza"
+            title="Andozalar"
             actions={
-              <label
-                className={cn(
-                  'inline-flex cursor-pointer items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-700',
-                  uploading && 'pointer-events-none opacity-60',
-                )}
-              >
-                <Upload className="h-4 w-4" />
-                {uploading ? 'Yuklanmoqda...' : 'Word yuklash (.docx)'}
-                <input type="file" accept={DOCX} hidden onChange={handleUpload} />
-              </label>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditor('new')}
+                  className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-brand-200 bg-brand-50 px-4 py-2 text-sm font-medium text-brand-700 transition-colors hover:bg-brand-100"
+                >
+                  <FilePlus2 className="h-4 w-4" />
+                  Matnli andoza yaratish
+                </button>
+                <label
+                  className={cn(
+                    'inline-flex cursor-pointer items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-700',
+                    uploading && 'pointer-events-none opacity-60',
+                  )}
+                >
+                  <Upload className="h-4 w-4" />
+                  {uploading ? 'Yuklanmoqda...' : 'Word yuklash (.docx)'}
+                  <input type="file" accept={DOCX} hidden onChange={handleUpload} />
+                </label>
+              </div>
             }
           >
             <div className="space-y-2">
@@ -199,11 +235,33 @@ export function ContractsPage() {
                     onChange={() => setSelectedTpl(t.id)}
                     className="h-4 w-4 accent-brand-600"
                   />
-                  <FileText className="h-5 w-5 text-slate-400" />
+                  {t.body ? (
+                    <FilePlus2 className="h-5 w-5 text-brand-500" />
+                  ) : (
+                    <FileText className="h-5 w-5 text-slate-400" />
+                  )}
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-slate-800">{t.name || t.fileName}</p>
-                    <p className="truncate text-xs text-slate-400">{t.fileName}</p>
+                    <p className="flex items-center gap-2 truncate text-sm font-medium text-slate-800">
+                      {t.name || t.fileName || 'Andoza'}
+                      {t.body && <Badge tone="violet">Matnli</Badge>}
+                    </p>
+                    <p className="truncate text-xs text-slate-400">
+                      {t.body ? t.body.slice(0, 80) || 'Matnli andoza' : t.fileName}
+                    </p>
                   </div>
+                  {t.body && (
+                    <button
+                      type="button"
+                      title="Tahrirlash"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        setEditor(t)
+                      }}
+                      className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-brand-50 hover:text-brand-600"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                  )}
                   <button
                     type="button"
                     title="O'chirish"
@@ -219,7 +277,7 @@ export function ContractsPage() {
               ))}
               {templates.length === 0 && (
                 <p className="py-4 text-center text-sm text-slate-400">
-                  Hali andoza yuklanmagan. Yuqoridan Word (.docx) yuklang.
+                  Hali andoza yo'q. "Matnli andoza yaratish" tugmasi orqali matn yozing yoki Word (.docx) yuklang.
                 </p>
               )}
             </div>
@@ -227,7 +285,7 @@ export function ContractsPage() {
             {/* Token yordami */}
             <div className="mt-3 rounded-lg bg-slate-50 p-3">
               <p className="mb-1 text-xs font-medium text-slate-500">
-                Andozada quyidagi o'rinbosarlardan foydalaning (yuborishda almashtiriladi):
+                Andozada quyidagi o'rinbosarlardan foydalaning (yuborishda haqiqiy ma'lumotga almashtiriladi):
               </p>
               <div className="flex flex-wrap gap-1.5">
                 {TOKENS[target].map((tok) => (
@@ -344,6 +402,131 @@ export function ContractsPage() {
           </Card>
         </div>
       )}
+
+      {editor && (
+        <CustomTemplateModal
+          target={target}
+          template={editor === 'new' ? null : editor}
+          onClose={() => setEditor(null)}
+          onSaved={handleEditorSaved}
+        />
+      )}
     </div>
+  )
+}
+
+/** Custom (matnli) andoza yaratish/tahrirlash modali — token palitrasi bilan. */
+function CustomTemplateModal({
+  target,
+  template,
+  onClose,
+  onSaved,
+}: {
+  target: Target
+  template: ContractTemplate | null
+  onClose: () => void
+  onSaved: (tpl: ContractTemplate, isNew: boolean) => void
+}) {
+  const isNew = template === null
+  const [name, setName] = useState(template?.name ?? '')
+  const [body, setBody] = useState(template?.body ?? '')
+  const [saving, setSaving] = useState(false)
+  const bodyRef = useRef<HTMLTextAreaElement>(null)
+
+  const insertToken = (tok: string) => {
+    const el = bodyRef.current
+    if (!el) {
+      setBody((b) => b + tok)
+      return
+    }
+    const start = el.selectionStart
+    const end = el.selectionEnd
+    setBody((b) => b.slice(0, start) + tok + b.slice(end))
+    // Kursorni qo'shilgan token oxiriga qo'yamiz.
+    requestAnimationFrame(() => {
+      el.focus()
+      el.selectionStart = el.selectionEnd = start + tok.length
+    })
+  }
+
+  const handleSave = async () => {
+    if (!body.trim()) return
+    setSaving(true)
+    try {
+      const tpl = isNew
+        ? await createCustomTemplate(target, name.trim(), body.trim())
+        : await updateCustomTemplate(template.id, target, name.trim(), body.trim())
+      onSaved(tpl, isNew)
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Saqlashda xatolik')
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      size="lg"
+      title={isNew ? 'Matnli andoza yaratish' : 'Matnli andozani tahrirlash'}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>
+            Bekor qilish
+          </Button>
+          <Button onClick={handleSave} disabled={!body.trim() || saving}>
+            {saving ? 'Saqlanmoqda...' : 'Saqlash'}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-700">Andoza nomi</label>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Masalan: O'quvchi shartnomasi"
+            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
+          />
+        </div>
+
+        <div>
+          <p className="mb-1.5 text-xs font-medium text-slate-500">
+            O'rinbosar qo'shish uchun bosing (yuborishda almashtiriladi):
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {TOKENS[target].map((tok) => (
+              <button
+                key={tok}
+                type="button"
+                onClick={() => insertToken(tok)}
+                title={TOKEN_LABELS[tok]}
+                className="rounded bg-brand-50 px-2 py-1 font-mono text-xs font-medium text-brand-700 ring-1 ring-brand-200 transition-colors hover:bg-brand-100"
+              >
+                {tok}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-700">Andoza matni</label>
+          <textarea
+            ref={bodyRef}
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            rows={14}
+            placeholder={
+              "SHARTNOMA № @raqam\n\nSana: @sana\n\nUshbu shartnoma bir tomondan o'quv markazi va ikkinchi tomondan\n@ota_ona (tel: @telefon) o'rtasida tuzildi.\n\nFarzand(lar): @farzandlar"
+            }
+            className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono text-sm leading-relaxed outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
+          />
+          <p className="mt-1 text-xs text-slate-400">
+            Har bir qator alohida paragrafga aylanadi. Yuborishda matndan .docx hosil qilinadi.
+          </p>
+        </div>
+      </div>
+    </Modal>
   )
 }

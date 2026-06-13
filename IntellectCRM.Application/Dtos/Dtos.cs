@@ -723,10 +723,11 @@ public record UploadedFileDto(string Name, string Url, long Size, string Content
 
 /* ---------- Shartnomalar ---------- */
 
-/// <summary>Yuklangan Word andoza (ota-ona/xodim).</summary>
-public record ContractTemplateDto(string Id, string Target, string Name, string FileUrl, string FileName, string UploadedAt);
-/// <summary>Shartnoma andozasini yaratish so'rovi (fayl avval /api/admin/uploads orqali yuklanadi).</summary>
-public record CreateContractTemplateRequest(string Target, string Name, string FileUrl, string FileName);
+/// <summary>Shartnoma andozasi (yuklangan Word YOKI custom matnli). Body bo'sh bo'lmasa — matnli andoza.</summary>
+public record ContractTemplateDto(string Id, string Target, string Name, string FileUrl, string FileName, string Body, string UploadedAt);
+/// <summary>Shartnoma andozasini yaratish/tahrirlash so'rovi. Word fayl (FileUrl, avval /api/admin/uploads orqali)
+/// YOKI custom matn (Body) — kamida bittasi bo'lishi shart.</summary>
+public record CreateContractTemplateRequest(string Target, string Name, string? FileUrl, string? FileName, string? Body);
 /// <summary>Ota-ona oluvchi qatori (telefon bo'yicha guruhlangan).</summary>
 public record ParentRecipientDto(
     string Key, string ParentName, string Phone, List<string> Children, bool Registered, int? LastNumber);

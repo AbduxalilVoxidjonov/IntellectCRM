@@ -43,6 +43,29 @@ public class ContractService(IWebHostEnvironment env)
         return ms.ToArray();
     }
 
+    /// <summary>
+    /// Custom (matnli) andozadan to'ldirilgan .docx hosil qiladi: matndagi `@`-o'rinbosarlar
+    /// almashtiriladi, har bir satr alohida paragrafga aylanadi. Fayl yuklash shart emas.
+    /// </summary>
+    public byte[] BuildDocxFromText(string body, IDictionary<string, string> tokens)
+    {
+        var text = Apply(body ?? string.Empty, tokens);
+        using var ms = new MemoryStream();
+        using (var doc = WordprocessingDocument.Create(ms, DocumentFormat.OpenXml.WordprocessingDocumentType.Document))
+        {
+            var main = doc.AddMainDocumentPart();
+            var docBody = new Body();
+            foreach (var line in text.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n'))
+            {
+                var run = new Run(new Text(line) { Space = DocumentFormat.OpenXml.SpaceProcessingModeValues.Preserve });
+                docBody.Append(new Paragraph(run));
+            }
+            main.Document = new Document(docBody);
+            main.Document.Save();
+        }
+        return ms.ToArray();
+    }
+
     private static void ReplaceIn(DocumentFormat.OpenXml.OpenXmlElement root, IDictionary<string, string> tokens)
     {
         foreach (var para in root.Descendants<Paragraph>())

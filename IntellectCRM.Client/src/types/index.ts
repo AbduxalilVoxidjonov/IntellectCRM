@@ -634,6 +634,8 @@ export interface ContractTemplate {
   name: string
   fileUrl: string
   fileName: string
+  /** Custom (matnli) andoza tanasi — bo'sh bo'lmasa matnli andoza (fayl emas) */
+  body: string
   uploadedAt: string
 }
 

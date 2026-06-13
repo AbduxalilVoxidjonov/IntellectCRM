@@ -113,6 +113,17 @@ docker compose up -d --build    # app + mssql + cloudflared + backup + mediamtx
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-13: **Shartnoma — CUSTOM (matnli) andoza yaratish qo'shildi** (ilgari faqat .docx yuklash bor edi).
+  `ContractTemplate`ga `Body` maydoni (custom andoza matni — @-o'rinbosarli); bo'sh bo'lmasa fayl o'rniga matndan
+  .docx hosil qilinadi. Inkremental migratsiya `AddContractTemplateBody` (faqat `Body` ustuni — baza saqlandi).
+  `ContractService.BuildDocxFromText(body, tokens)` — matnni OpenXML bilan .docx ga aylantiradi (har qator = paragraf,
+  @tokenlar almashtiriladi). `ContractsController`: `CreateTemplate` endi fayl YOKI body qabul qiladi; yangi
+  `PUT templates/{id}` (faqat matnli andozani tahrir); `Send` custom bo'lsa `BuildDocxFromText`, aks holda eski
+  `FillTemplate`. DTO: `ContractTemplateDto`+`Body`, `CreateContractTemplateRequest` FileUrl/FileName/Body nullable.
+  Frontend: `ContractsPage`ga "Matnli andoza yaratish" tugmasi + `CustomTemplateModal` (nom + matn textarea + token
+  palitrasi — bosilsa kursorga token qo'shadi); matnli andozalar ro'yxatda "Matnli" badge + tahrir (qalam) tugmasi.
+  Build: backend 0 xato, tsc+vite yashil, deploy ✅ (Body ustuni qo'llandi). Jonli E2E: create(fayl yo'q)→readback
+  (@tokenlar saqlandi)→update→delete hammasi OK.
 - 2026-06-13: **Pickup (farzandni olib ketish) TO'LIQ olib tashlandi.** `PickupRequest` entity + DbSet (IAppDbContext+
   AppDbContext) + DTO'lar (CreatePickupRequest/PickupRequestDto/HomeroomStudentDto/HandoverRequest) o'chirildi.
   StudentPortalController: `PushToUserAsync`+`PickupDto` helperlar, `POST/GET pickup`, `ResolveOwnStudentAsync`

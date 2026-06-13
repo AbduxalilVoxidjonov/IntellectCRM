@@ -935,10 +935,13 @@ public class ContractTemplate
     /// <summary>parent | staff</summary>
     public string Target { get; set; } = "parent";
     public string Name { get; set; } = string.Empty;
-    /// <summary>Yuklangan fayl manzili ("/uploads/...").</summary>
+    /// <summary>Yuklangan fayl manzili ("/uploads/..."). Custom (matnli) andozada bo'sh.</summary>
     public string FileUrl { get; set; } = string.Empty;
-    /// <summary>Asl fayl nomi (ko'rsatish uchun).</summary>
+    /// <summary>Asl fayl nomi (ko'rsatish uchun). Custom andozada bo'sh.</summary>
     public string FileName { get; set; } = string.Empty;
+    /// <summary>Custom (matnli) andoza tanasi — @-o'rinbosarli matn. Bo'sh bo'lmasa,
+    /// yuborishda shu matndan .docx hosil qilinadi (fayl o'rniga).</summary>
+    public string Body { get; set; } = string.Empty;
     public DateTime UploadedAt { get; set; } = AppClock.Now;
 }
 

@@ -33,6 +33,35 @@ export async function createTemplate(
   return data
 }
 
+/** Custom (matnli) andoza yaratish — fayl shart emas, @-o'rinbosarli matn */
+export async function createCustomTemplate(
+  target: Target,
+  name: string,
+  body: string,
+): Promise<ContractTemplate> {
+  const { data } = await api.post<ContractTemplate>('/admin/contracts/templates', {
+    target,
+    name,
+    body,
+  })
+  return data
+}
+
+/** Custom (matnli) andozani tahrirlash */
+export async function updateCustomTemplate(
+  id: string,
+  target: Target,
+  name: string,
+  body: string,
+): Promise<ContractTemplate> {
+  const { data } = await api.put<ContractTemplate>(`/admin/contracts/templates/${id}`, {
+    target,
+    name,
+    body,
+  })
+  return data
+}
+
 export async function deleteTemplate(id: string): Promise<void> {
   await api.delete(`/admin/contracts/templates/${id}`)
 }

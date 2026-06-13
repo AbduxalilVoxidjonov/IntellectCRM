@@ -34,16 +34,34 @@ public class ContractsController(AppDbContext db, ContractService contracts, Tel
     [HttpPost("templates")]
     public async Task<ActionResult<ContractTemplateDto>> CreateTemplate(CreateContractTemplateRequest req)
     {
-        if (string.IsNullOrWhiteSpace(req.FileUrl))
-            return BadRequest(new { message = "Word fayl yuklang" });
+        // Word fayl YOKI custom matn — kamida bittasi bo'lishi shart.
+        if (string.IsNullOrWhiteSpace(req.FileUrl) && string.IsNullOrWhiteSpace(req.Body))
+            return BadRequest(new { message = "Word fayl yuklang yoki matnli andoza yozing" });
         var tpl = new ContractTemplate
         {
             Target = req.Target == "staff" ? "staff" : "parent",
             Name = (req.Name ?? "").Trim(),
-            FileUrl = req.FileUrl,
+            FileUrl = req.FileUrl ?? "",
             FileName = req.FileName ?? "",
+            Body = (req.Body ?? "").Trim(),
         };
         db.ContractTemplates.Add(tpl);
+        await db.SaveChangesAsync();
+        return ToDto(tpl);
+    }
+
+    /// <summary>Custom (matnli) andozani tahrirlash — nom va matn.</summary>
+    [HttpPut("templates/{id}")]
+    public async Task<ActionResult<ContractTemplateDto>> UpdateTemplate(string id, CreateContractTemplateRequest req)
+    {
+        var tpl = await db.ContractTemplates.FindAsync(id);
+        if (tpl is null) return NotFound();
+        if (string.IsNullOrWhiteSpace(tpl.Body))
+            return BadRequest(new { message = "Faqat matnli andozani tahrirlash mumkin" });
+        if (string.IsNullOrWhiteSpace(req.Body))
+            return BadRequest(new { message = "Matnli andoza bo'sh bo'lishi mumkin emas" });
+        tpl.Name = (req.Name ?? "").Trim();
+        tpl.Body = req.Body.Trim();
         await db.SaveChangesAsync();
         return ToDto(tpl);
     }
@@ -94,8 +112,17 @@ public class ContractsController(AppDbContext db, ContractService contracts, Tel
     {
         var tpl = await db.ContractTemplates.FindAsync(req.TemplateId);
         if (tpl is null) return BadRequest(new { message = "Andoza topilmadi" });
-        var bytes = contracts.ReadTemplate(tpl.FileUrl);
-        if (bytes is null) return BadRequest(new { message = "Andoza fayli topilmadi" });
+
+        // Custom (matnli) andoza — matndan hosil qilamiz; aks holda yuklangan .docx faylni to'ldiramiz.
+        var isCustom = !string.IsNullOrWhiteSpace(tpl.Body);
+        byte[]? bytes = null;
+        if (!isCustom)
+        {
+            bytes = contracts.ReadTemplate(tpl.FileUrl);
+            if (bytes is null) return BadRequest(new { message = "Andoza fayli topilmadi" });
+        }
+        byte[] Render(IDictionary<string, string> tokens) =>
+            isCustom ? contracts.BuildDocxFromText(tpl.Body, tokens) : contracts.FillTemplate(bytes!, tokens);
 
         var number = await db.Contracts.AnyAsync() ? await db.Contracts.MaxAsync(c => c.Number) : 0;
         var today = AppClock.Now.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture);
@@ -119,7 +146,7 @@ public class ContractsController(AppDbContext db, ContractService contracts, Tel
 
                 number++;
                 var monthly = TeacherSalaryCalc.Monthly(weekly.GetValueOrDefault(t.Id), t.Category, meta);
-                var filled = contracts.FillTemplate(bytes, StaffTokens(t, subjects, number, today, monthly));
+                var filled = Render(StaffTokens(t, subjects, number, today, monthly));
                 var ok = await DeliverAsync(chatIds, filled, number);
                 db.Contracts.Add(new Contract
                 {
@@ -146,7 +173,7 @@ public class ContractsController(AppDbContext db, ContractService contracts, Tel
                 if (chatIds.Count == 0) { results.Add(new(key, false, null, "Telegramda ro'yxatdan o'tmagan")); continue; }
 
                 number++;
-                var filled = contracts.FillTemplate(bytes, ParentTokens(g, number, today));
+                var filled = Render(ParentTokens(g, number, today));
                 var ok = await DeliverAsync(chatIds, filled, number);
                 db.Contracts.Add(new Contract
                 {
@@ -249,5 +276,5 @@ public class ContractsController(AppDbContext db, ContractService contracts, Tel
             ? d.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture) : iso;
 
     private static ContractTemplateDto ToDto(ContractTemplate t) =>
-        new(t.Id, t.Target, t.Name, t.FileUrl, t.FileName, t.UploadedAt.ToString("o"));
+        new(t.Id, t.Target, t.Name, t.FileUrl, t.FileName, t.Body, t.UploadedAt.ToString("o"));
 }
