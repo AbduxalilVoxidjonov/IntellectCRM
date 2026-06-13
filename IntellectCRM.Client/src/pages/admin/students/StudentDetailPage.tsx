@@ -386,7 +386,7 @@ export function StudentDetailPage() {
         {studentCourses.length === 0 ? (
           <Empty>O'quvchi hech qaysi kursga biriktirilmagan</Empty>
         ) : (
-          <div className="space-y-5">
+          <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
             {studentCourses.map((c) => (
               <CourseCurriculum
                 key={c.courseId}
@@ -969,7 +969,7 @@ function LevelBlock({
                   {topic.items.length === 0 ? (
                     <p className="text-xs text-slate-300">Band yo'q</p>
                   ) : (
-                    <div className="space-y-1">
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-1">
                       {topic.items.map((item) => {
                         const checked = done.has(item.id)
                         return (

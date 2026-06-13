@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
-  ArrowLeft, Plus, Trash2, ChevronRight, ChevronDown, ListChecks, BookOpen, GripVertical,
+  ArrowLeft, Plus, Trash2, ChevronRight, ChevronDown, ListChecks, BookOpen,
 } from 'lucide-react'
 import type { Curriculum, CurriculumLevel, CurriculumTopic, CurriculumItem } from '@/types'
 import {
@@ -422,12 +422,11 @@ function TopicBlock({ topic, onSave, onDelete, onAddItem, onSaveItem, onDeleteIt
         className="mt-1.5 w-full rounded-lg border border-transparent bg-transparent px-2.5 py-1 text-xs text-slate-500 outline-none transition-colors hover:border-slate-200 focus:border-brand-400 focus:bg-white"
       />
 
-      {/* Bandlar */}
+      {/* Bandlar — 2 ustun */}
       {topic.items.length > 0 && (
-        <div className="mt-2 space-y-1">
+        <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1">
           {topic.items.map((item) => (
-            <div key={item.id} className="flex items-center gap-1.5">
-              <GripVertical className="h-3.5 w-3.5 flex-shrink-0 text-slate-300" />
+            <div key={item.id} className="flex items-center gap-1">
               <input
                 key={item.id}
                 defaultValue={item.text}

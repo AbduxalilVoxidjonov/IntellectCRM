@@ -875,7 +875,7 @@ function CurriculumSection({
                               <p className="mt-1 text-xs text-slate-400">{topic.note}</p>
                             )}
                             {topic.items.length > 0 && (
-                              <div className="mt-2 space-y-1">
+                              <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1">
                                 {topic.items.map((item) => {
                                   const isNext = item.id === nextItemId
                                   return (
