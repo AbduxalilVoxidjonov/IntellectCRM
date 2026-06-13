@@ -263,6 +263,50 @@ export async function getStudentTelegram(studentId?: string) {
   return data
 }
 
+// ---------- O'quv dasturi (curriculum roadmap) ----------
+export interface CurriculumItem {
+  id: string
+  text: string
+  note: string
+  order: number
+  covered: boolean
+  coveredDate: string
+}
+export interface CurriculumTopic {
+  id: string
+  title: string
+  note: string
+  order: number
+  items: CurriculumItem[]
+}
+export interface CurriculumLevel {
+  id: string
+  name: string
+  note: string
+  order: number
+  topics: CurriculumTopic[]
+}
+export interface StudentCurriculum {
+  groupId: string
+  courseId: string
+  courseName: string
+  totalItems: number
+  coveredCount: number
+  revisionLessons: number
+  totalLessons: number
+  remainingItems: number
+  estLessonsLeft: number
+  lessonsPerWeek: number
+  estFinishDate: string
+  levels: CurriculumLevel[]
+}
+
+/** O'quvchining har faol guruh kursi bo'yicha o'quv dasturi (o'tilgan/qolgan + prognoz). */
+export async function getStudentCurriculum(studentId?: string) {
+  const { data } = await api.get<StudentCurriculum[]>('/student/curriculum', { params: sid(studentId) })
+  return data
+}
+
 // ---------- Dashboard ----------
 export async function getStudentDashboard(studentId?: string) {
   const { data } = await api.get<StudentDashboard>('/student/dashboard', { params: sid(studentId) })

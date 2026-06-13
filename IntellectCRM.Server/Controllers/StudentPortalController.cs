@@ -921,6 +921,30 @@ public class StudentPortalController(
         return dto is null ? NotFound() : dto;
     }
 
+    /// <summary>O'quvchining O'QUV DASTURI — har bir faol guruh kursi bo'yicha o'tilgan/qolgan bandlar +
+    /// foiz + tugash prognozi (Duolingo uslubidagi yo'l-xarita uchun). Guruh kursida dastur bo'lmasa chiqmaydi.</summary>
+    [HttpGet("curriculum")]
+    public async Task<ActionResult<IEnumerable<GroupCurriculumDto>>> Curriculum([FromQuery] string? studentId)
+    {
+        if (User.IsInRole("admin") && string.IsNullOrWhiteSpace(studentId)) return NeedStudentId();
+        var s = await TargetAsync(studentId);
+        if (s is null) return NotFound();
+
+        var groupIds = await db.StudentGroups
+            .Where(sg => sg.StudentId == s.Id && sg.IsActive)
+            .Select(sg => sg.GroupId).Distinct().ToListAsync();
+        var groups = await db.Classes
+            .Where(c => groupIds.Contains(c.Id) && c.CourseId != "").ToListAsync();
+
+        var result = new List<GroupCurriculumDto>();
+        foreach (var g in groups)
+        {
+            var dto = await CurriculumForecast.BuildGroupAsync(db, g);
+            if (dto.TotalItems > 0) result.Add(dto); // faqat dasturi bor kurslar
+        }
+        return result.OrderByDescending(r => r.TotalItems).ToList();
+    }
+
     /* ─── LMS (Ta'lim) ──────────────────────────────────────── */
 
     /// <summary>O'quvchining sinfi uchun LMS fanlar ro'yxati (progress bilan).</summary>

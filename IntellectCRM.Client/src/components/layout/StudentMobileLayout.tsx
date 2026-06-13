@@ -10,7 +10,7 @@ interface Tab {
 }
 
 const TABS: Tab[] = [
-  { to: '/student', label: 'Boshqaruv', icon: 'home', end: true },
+  { to: '/student', label: 'Dashboard', icon: 'home', end: true },
   { to: '/student/progress', label: 'Progress', icon: 'chart' },
   { to: '/student/assignments', label: 'Topshiriq', icon: 'clipboard' },
   { to: '/student/chat', label: 'Chat', icon: 'chat' },
