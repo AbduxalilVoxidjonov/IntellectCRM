@@ -948,7 +948,7 @@ function LevelBlock({
           {level.topics.length === 0 ? (
             <p className="text-xs text-slate-400">Mavzu yo'q</p>
           ) : (
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <div className="grid grid-cols-2 gap-4">
               {level.topics.map((topic) => {
                 const tDone = topic.items.filter((it) => done.has(it.id)).length
                 return (

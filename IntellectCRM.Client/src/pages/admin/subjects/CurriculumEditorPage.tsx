@@ -332,7 +332,7 @@ function LevelBlock({
           {level.topics.length === 0 ? (
             <p className="px-1 text-xs text-slate-400">Mavzu yo'q — quyida qo'shing.</p>
           ) : (
-            <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
+            <div className="grid grid-cols-2 items-start gap-4">
               {level.topics.map((topic) => (
                 <TopicBlock
                   key={topic.id}
