@@ -1,5 +1,6 @@
 import type {
   ContractTemplate,
+  ContractField,
   ParentRecipient,
   StaffRecipient,
   SendResult,
@@ -33,16 +34,18 @@ export async function createTemplate(
   return data
 }
 
-/** Custom (matnli) andoza yaratish — fayl shart emas, @-o'rinbosarli matn */
+/** Custom (matnli) andoza yaratish — fayl shart emas, @-o'rinbosarli matn + qo'shimcha o'rinbosarlar */
 export async function createCustomTemplate(
   target: Target,
   name: string,
   body: string,
+  fields: ContractField[],
 ): Promise<ContractTemplate> {
   const { data } = await api.post<ContractTemplate>('/admin/contracts/templates', {
     target,
     name,
     body,
+    fields,
   })
   return data
 }
@@ -53,11 +56,13 @@ export async function updateCustomTemplate(
   target: Target,
   name: string,
   body: string,
+  fields: ContractField[],
 ): Promise<ContractTemplate> {
   const { data } = await api.put<ContractTemplate>(`/admin/contracts/templates/${id}`, {
     target,
     name,
     body,
+    fields,
   })
   return data
 }

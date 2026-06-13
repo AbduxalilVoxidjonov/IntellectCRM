@@ -124,6 +124,17 @@ docker compose up -d --build    # app + mssql + cloudflared + backup + mediamtx
   palitrasi — bosilsa kursorga token qo'shadi); matnli andozalar ro'yxatda "Matnli" badge + tahrir (qalam) tugmasi.
   Build: backend 0 xato, tsc+vite yashil, deploy ✅ (Body ustuni qo'llandi). Jonli E2E: create(fayl yo'q)→readback
   (@tokenlar saqlandi)→update→delete hammasi OK.
+- 2026-06-13: **Shartnoma (davomi) — custom @-o'rinbosar (doimiy qiymatli) qo'shish.** Foydalanuvchi: matnli
+  andozada O'ZI nomlagan @-token + doimiy qiymat kerak (built-in tokenlar ham qoladi). `ContractTemplate.FieldsJson`
+  (JSON: [{key:"@direktor",value:"Aliyev A."}]) + inkremental migratsiya `AddContractTemplateFields` (faqat ustun).
+  DTO: `ContractFieldDto(Key,Value)`; `ContractTemplateDto`+`Fields`, `CreateContractTemplateRequest`+`Fields?`.
+  `ContractsController`: `SerializeFields`/`ParseFields`/`CleanTokenKey` (kalit normallashtirish: bitta @ + faqat
+  harf/_, regex bilan mos; bo'sh kalit chiqariladi); Create/Update FieldsJson yozadi; **Send** custom fieldlarni
+  per-oluvchi tokenlar bilan birlashtiradi (built-in nom ustun) — BuildDocxFromText VA FillTemplate ikkalasiga
+  ham qo'llanadi. Frontend: `CustomTemplateModal`ga "Qo'shimcha o'rinbosarlar" muharriri (kalit+qiymat qatorlari,
+  qo'shish/o'chirish; kalit jonli tozalanadi) + custom kalitlar palitrada (binafsha chip, matnga kiritiladi).
+  Backend 0, tsc+vite yashil, deploy ✅ (FieldsJson qo'llandi). Jonli E2E: 3 field→2 saqlandi (bo'sh chiqarildi),
+  "markaz nomi!!"→@markaznomi, @direktor=Aliyev A. readback OK.
 - 2026-06-13: **Pickup (farzandni olib ketish) TO'LIQ olib tashlandi.** `PickupRequest` entity + DbSet (IAppDbContext+
   AppDbContext) + DTO'lar (CreatePickupRequest/PickupRequestDto/HomeroomStudentDto/HandoverRequest) o'chirildi.
   StudentPortalController: `PushToUserAsync`+`PickupDto` helperlar, `POST/GET pickup`, `ResolveOwnStudentAsync`

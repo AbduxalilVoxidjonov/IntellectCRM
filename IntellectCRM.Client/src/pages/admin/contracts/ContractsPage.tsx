@@ -5,12 +5,14 @@ import {
   FilePlus2,
   Pencil,
   Trash2,
+  Plus,
+  X,
   Send,
   CheckCircle2,
   XCircle,
   AlertTriangle,
 } from 'lucide-react'
-import type { ContractTemplate, ParentRecipient, StaffRecipient, SendResult } from '@/types'
+import type { ContractTemplate, ContractField, ParentRecipient, StaffRecipient, SendResult } from '@/types'
 import {
   getTemplates,
   createTemplate,
@@ -430,8 +432,18 @@ function CustomTemplateModal({
   const isNew = template === null
   const [name, setName] = useState(template?.name ?? '')
   const [body, setBody] = useState(template?.body ?? '')
+  const [fields, setFields] = useState<ContractField[]>(template?.fields ?? [])
   const [saving, setSaving] = useState(false)
   const bodyRef = useRef<HTMLTextAreaElement>(null)
+
+  // Token kalitini normallashtirish: bitta "@" + faqat harf/pastki chiziq (backend regex bilan mos).
+  const cleanKey = (raw: string) => {
+    const c = raw.replace(/^@+/, '').replace(/[^A-Za-z_]/g, '')
+    return c ? '@' + c : ''
+  }
+
+  // Andoza matniga kiritish mumkin bo'lgan custom kalitlar (bo'sh bo'lmaganlari).
+  const customKeys = fields.map((f) => cleanKey(f.key)).filter((k) => k.length > 1)
 
   const insertToken = (tok: string) => {
     const el = bodyRef.current
@@ -449,13 +461,22 @@ function CustomTemplateModal({
     })
   }
 
+  const addField = () => setFields((f) => [...f, { key: '', value: '' }])
+  const updateField = (i: number, patch: Partial<ContractField>) =>
+    setFields((f) => f.map((x, idx) => (idx === i ? { ...x, ...patch } : x)))
+  const removeField = (i: number) => setFields((f) => f.filter((_, idx) => idx !== i))
+
   const handleSave = async () => {
     if (!body.trim()) return
+    // Tozalangan custom o'rinbosarlar (bo'sh kalit chiqarib tashlanadi).
+    const cleanFields = fields
+      .map((f) => ({ key: cleanKey(f.key), value: f.value.trim() }))
+      .filter((f) => f.key.length > 1)
     setSaving(true)
     try {
       const tpl = isNew
-        ? await createCustomTemplate(target, name.trim(), body.trim())
-        : await updateCustomTemplate(template.id, target, name.trim(), body.trim())
+        ? await createCustomTemplate(target, name.trim(), body.trim(), cleanFields)
+        : await updateCustomTemplate(template.id, target, name.trim(), body.trim(), cleanFields)
       onSaved(tpl, isNew)
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Saqlashda xatolik')
@@ -507,7 +528,74 @@ function CustomTemplateModal({
                 {tok}
               </button>
             ))}
+            {customKeys.map((tok) => (
+              <button
+                key={tok}
+                type="button"
+                onClick={() => insertToken(tok)}
+                title="Qo'shimcha o'rinbosar"
+                className="rounded bg-violet-100 px-2 py-1 font-mono text-xs font-medium text-violet-700 ring-1 ring-violet-200 transition-colors hover:bg-violet-200"
+              >
+                {tok}
+              </button>
+            ))}
           </div>
+        </div>
+
+        {/* Foydalanuvchi aniqlagan qo'shimcha o'rinbosarlar (doimiy qiymat) */}
+        <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-3">
+          <div className="mb-2 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-slate-700">Qo'shimcha o'rinbosarlar</p>
+              <p className="text-xs text-slate-400">
+                O'zingiz nomlagan @-token + doimiy qiymat (masalan @direktor = "Aliyev A.")
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={addField}
+              className="inline-flex items-center gap-1 rounded-lg border border-brand-200 bg-white px-2.5 py-1.5 text-xs font-medium text-brand-700 transition-colors hover:bg-brand-50"
+            >
+              <Plus className="h-3.5 w-3.5" /> Qo'shish
+            </button>
+          </div>
+          {fields.length === 0 ? (
+            <p className="py-1 text-center text-xs text-slate-400">
+              Qo'shimcha o'rinbosar yo'q. Kerak bo'lsa "Qo'shish" bosing.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {fields.map((f, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <div className="relative w-44 shrink-0">
+                    <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 font-mono text-sm text-slate-400">
+                      @
+                    </span>
+                    <input
+                      value={f.key.replace(/^@+/, '')}
+                      onChange={(e) => updateField(i, { key: cleanKey(e.target.value) })}
+                      placeholder="direktor"
+                      className="w-full rounded-lg border border-slate-200 py-1.5 pl-6 pr-2 font-mono text-sm outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
+                    />
+                  </div>
+                  <input
+                    value={f.value}
+                    onChange={(e) => updateField(i, { value: e.target.value })}
+                    placeholder="Qiymati (masalan: Aliyev A.)"
+                    className="min-w-0 flex-1 rounded-lg border border-slate-200 px-3 py-1.5 text-sm outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
+                  />
+                  <button
+                    type="button"
+                    title="O'chirish"
+                    onClick={() => removeField(i)}
+                    className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div>

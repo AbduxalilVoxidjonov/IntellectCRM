@@ -628,6 +628,12 @@ export interface TeacherReportDetail extends TeacherReportRow {
 /* ---------- Shartnomalar ---------- */
 
 /** target: 'parent' | 'staff' */
+/** Foydalanuvchi qo'shgan qo'shimcha @-o'rinbosar (doimiy qiymat bilan) */
+export interface ContractField {
+  key: string
+  value: string
+}
+
 export interface ContractTemplate {
   id: string
   target: 'parent' | 'staff'
@@ -636,6 +642,8 @@ export interface ContractTemplate {
   fileName: string
   /** Custom (matnli) andoza tanasi — bo'sh bo'lmasa matnli andoza (fayl emas) */
   body: string
+  /** Foydalanuvchi qo'shgan qo'shimcha o'rinbosarlar (doimiy qiymatli) */
+  fields: ContractField[]
   uploadedAt: string
 }
 

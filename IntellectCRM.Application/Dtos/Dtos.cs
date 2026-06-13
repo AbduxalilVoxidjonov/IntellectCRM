@@ -723,11 +723,14 @@ public record UploadedFileDto(string Name, string Url, long Size, string Content
 
 /* ---------- Shartnomalar ---------- */
 
-/// <summary>Shartnoma andozasi (yuklangan Word YOKI custom matnli). Body bo'sh bo'lmasa — matnli andoza.</summary>
-public record ContractTemplateDto(string Id, string Target, string Name, string FileUrl, string FileName, string Body, string UploadedAt);
+/// <summary>Foydalanuvchi aniqlagan qo'shimcha @-o'rinbosar (doimiy qiymat bilan).</summary>
+public record ContractFieldDto(string Key, string Value);
+/// <summary>Shartnoma andozasi (yuklangan Word YOKI custom matnli). Body bo'sh bo'lmasa — matnli andoza.
+/// Fields — foydalanuvchi qo'shgan qo'shimcha o'rinbosarlar (doimiy qiymatli).</summary>
+public record ContractTemplateDto(string Id, string Target, string Name, string FileUrl, string FileName, string Body, List<ContractFieldDto> Fields, string UploadedAt);
 /// <summary>Shartnoma andozasini yaratish/tahrirlash so'rovi. Word fayl (FileUrl, avval /api/admin/uploads orqali)
-/// YOKI custom matn (Body) — kamida bittasi bo'lishi shart.</summary>
-public record CreateContractTemplateRequest(string Target, string Name, string? FileUrl, string? FileName, string? Body);
+/// YOKI custom matn (Body) — kamida bittasi bo'lishi shart. Fields — qo'shimcha doimiy o'rinbosarlar.</summary>
+public record CreateContractTemplateRequest(string Target, string Name, string? FileUrl, string? FileName, string? Body, List<ContractFieldDto>? Fields);
 /// <summary>Ota-ona oluvchi qatori (telefon bo'yicha guruhlangan).</summary>
 public record ParentRecipientDto(
     string Key, string ParentName, string Phone, List<string> Children, bool Registered, int? LastNumber);

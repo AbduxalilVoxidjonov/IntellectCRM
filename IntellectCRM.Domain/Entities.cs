@@ -942,6 +942,10 @@ public class ContractTemplate
     /// <summary>Custom (matnli) andoza tanasi — @-o'rinbosarli matn. Bo'sh bo'lmasa,
     /// yuborishda shu matndan .docx hosil qilinadi (fayl o'rniga).</summary>
     public string Body { get; set; } = string.Empty;
+    /// <summary>Foydalanuvchi aniqlagan qo'shimcha @-o'rinbosarlar (doimiy qiymat bilan) —
+    /// JSON: [{"key":"@direktor","value":"Aliyev A."}]. Yuborishda built-in tokenlar bilan
+    /// birga almashtiriladi (built-in token nomi ustun).</summary>
+    public string FieldsJson { get; set; } = string.Empty;
     public DateTime UploadedAt { get; set; } = AppClock.Now;
 }
 

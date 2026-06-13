@@ -6,6 +6,7 @@ using IntellectCRM.Application.Dtos;
 using IntellectCRM.Domain;
 using IntellectCRM.Application.Services;
 using System.Globalization;
+using System.Text.Json;
 
 namespace IntellectCRM.Server.Controllers;
 
@@ -44,6 +45,7 @@ public class ContractsController(AppDbContext db, ContractService contracts, Tel
             FileUrl = req.FileUrl ?? "",
             FileName = req.FileName ?? "",
             Body = (req.Body ?? "").Trim(),
+            FieldsJson = SerializeFields(req.Fields),
         };
         db.ContractTemplates.Add(tpl);
         await db.SaveChangesAsync();
@@ -62,6 +64,7 @@ public class ContractsController(AppDbContext db, ContractService contracts, Tel
             return BadRequest(new { message = "Matnli andoza bo'sh bo'lishi mumkin emas" });
         tpl.Name = (req.Name ?? "").Trim();
         tpl.Body = req.Body.Trim();
+        tpl.FieldsJson = SerializeFields(req.Fields);
         await db.SaveChangesAsync();
         return ToDto(tpl);
     }
@@ -121,8 +124,16 @@ public class ContractsController(AppDbContext db, ContractService contracts, Tel
             bytes = contracts.ReadTemplate(tpl.FileUrl);
             if (bytes is null) return BadRequest(new { message = "Andoza fayli topilmadi" });
         }
-        byte[] Render(IDictionary<string, string> tokens) =>
-            isCustom ? contracts.BuildDocxFromText(tpl.Body, tokens) : contracts.FillTemplate(bytes!, tokens);
+        // Foydalanuvchi qo'shgan qo'shimcha o'rinbosarlar (doimiy qiymatli) — barcha oluvchilar uchun bir xil.
+        var customFields = ParseFields(tpl.FieldsJson);
+        byte[] Render(IDictionary<string, string> tokens)
+        {
+            // Avval custom qiymatlar, so'ng built-in oluvchi tokenlari (nom to'qnashsa built-in ustun).
+            var merged = new Dictionary<string, string>();
+            foreach (var f in customFields) merged[f.Key] = f.Value;
+            foreach (var kv in tokens) merged[kv.Key] = kv.Value;
+            return isCustom ? contracts.BuildDocxFromText(tpl.Body, merged) : contracts.FillTemplate(bytes!, merged);
+        }
 
         var number = await db.Contracts.AnyAsync() ? await db.Contracts.MaxAsync(c => c.Number) : 0;
         var today = AppClock.Now.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture);
@@ -276,5 +287,34 @@ public class ContractsController(AppDbContext db, ContractService contracts, Tel
             ? d.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture) : iso;
 
     private static ContractTemplateDto ToDto(ContractTemplate t) =>
-        new(t.Id, t.Target, t.Name, t.FileUrl, t.FileName, t.Body, t.UploadedAt.ToString("o"));
+        new(t.Id, t.Target, t.Name, t.FileUrl, t.FileName, t.Body, ParseFields(t.FieldsJson), t.UploadedAt.ToString("o"));
+
+    /// <summary>FieldsJson → tozalangan o'rinbosarlar ro'yxati (yaroqsiz/bo'sh kalitlar chiqarib tashlanadi).</summary>
+    private static List<ContractFieldDto> ParseFields(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return new();
+        try
+        {
+            var list = JsonSerializer.Deserialize<List<ContractFieldDto>>(json) ?? new();
+            return list.Select(f => new ContractFieldDto(CleanTokenKey(f.Key), f.Value ?? ""))
+                       .Where(f => f.Key.Length > 1).ToList();
+        }
+        catch { return new(); }
+    }
+
+    private static string SerializeFields(IEnumerable<ContractFieldDto>? fields)
+    {
+        var clean = (fields ?? Enumerable.Empty<ContractFieldDto>())
+            .Select(f => new ContractFieldDto(CleanTokenKey(f.Key), (f.Value ?? "").Trim()))
+            .Where(f => f.Key.Length > 1)
+            .ToList();
+        return clean.Count == 0 ? "" : JsonSerializer.Serialize(clean);
+    }
+
+    /// <summary>Token kalitini normallashtiradi: bitta "@" prefiks + faqat harf/pastki chiziq (regex bilan mos).</summary>
+    private static string CleanTokenKey(string? key)
+    {
+        var cleaned = new string((key ?? "").TrimStart('@').Where(c => char.IsLetter(c) || c == '_').ToArray());
+        return cleaned.Length == 0 ? "" : "@" + cleaned;
+    }
 }
