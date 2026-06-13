@@ -531,4 +531,16 @@ docker compose up -d --build    # app + mssql + cloudflared + backup + mediamtx
   `curriculum.ts`ga `getGroupCurriculum/setGroupCover/changeGroupRevision`; `ClassDetailPage`ga "O'quv dasturi
   (darsda o'tilgan)" bo'limi — prognoz kartasi (progress bar + "O'tilgan X/N · Takrorlash R · Qolgan · ~est dars ·
   ≈sana"), 2-ustunli daraja→mavzu→band checkbox, "keyingi" band ajratilgan, +/− takrorlash. Backend 0, tsc+vite yashil,
-  deploy ✅. ESLATMA: TEST-G ingliz tili (o'chirilgan)ga bog'liq — kursi yo'q, dasturi bo'sh ko'rinadi.
+  deploy ✅. ESLATMA: TEST-G ingliz tili (o'chirilgan)ga bog'liq — kursi yo'q, dasturi bo'sh ko'rinadi.- 2026-06-13: **O'QITUVCHI PORTALI ISHGA TUSHIRILDI (Flutter WebView uchun) — audit + critical fix.** 2 audit
+  subagent (backend/frontend) o'qituvchi API+portalni xaritalashtirdi. TOPILGAN: backend `api/teacher/*`
+  (TeacherPortalController) asosan tayyor va to'g'ri scoped (jurnal/feedback/chat/topshiriq/LMS/maosh/sinf rahbar),
+  LEKIN frontend portal **404 berardi** — 7 ta tayyor `pages/teacher/*.tsx` routerга ULANMAGAN edi (`/teacher/*` →
+  `TeacherAppRedirect` → mavjud bo'lmagan static PWA → Program.cs 404 tuzog'i). TUZATISH: (1) App.tsx'ga
+  `<ProtectedRoute role="teacher"><AppLayout>` blok + 7 route (dashboard/journal/evaluation/assignments/lms/lms/:id/
+  messages/account) — admin shell (Sidebar `navByRole['teacher']`, mobil-moslashgan) qayta ishlatiladi;
+  TeacherAppRedirect olib tashlandi. (2) Program.cs `/teacher/index.html` 404 tuzog'i o'chirildi → `/teacher/*`
+  SPA index.html'ga tushadi. Jonli: o'qituvchi login (role=teacher), `/teacher` HTTP 200, `GET /teacher/me`+`/classes`
+  ishladi. tsc+backend 0, deploy ✅. **QOLDI (kamchiliklar):** (1) o'quv dasturi coverage o'qituvchida YO'Q (admin-only
+  `CurriculumController [AdminPerm schedule]` — `api/teacher/curriculum` kerak; teacher `schedule` ruxsati ishlatilmaydi);
+  (2) o'qituvchi maosh SAHIFASI yo'q (endpoint bor); (3) jurnal eski per-cell model (admin monthly). Test o'qituvchi
+  paroli tiklandi: abduxalilvoxidjonov / krwp5yen.

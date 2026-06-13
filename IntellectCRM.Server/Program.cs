@@ -412,25 +412,8 @@ bool IsLandingHost(string h) => rootDomains.Any(r =>
 // ichida (u `nonfile` cheklovli — fayllarga tegmaydi) hal qilamiz.
 app.MapFallback(async ctx =>
 {
-    var path = ctx.Request.Path.Value ?? "";
-
-    // O'qituvchi PWA: `/teacher` → trailing-slash'ga (relative manifest/icon to'g'ri yechilishi uchun);
-    // `/teacher/` va ichki nonfile yo'llar → teacher index.html.
-    if (path.Equals("/teacher", StringComparison.OrdinalIgnoreCase))
-    {
-        ctx.Response.Redirect("/teacher/", permanent: false);
-        return;
-    }
-    if (path.StartsWith("/teacher/", StringComparison.OrdinalIgnoreCase))
-    {
-        var teacherIndex = Path.Combine(webRoot, "teacher", "index.html");
-        if (!File.Exists(teacherIndex)) { ctx.Response.StatusCode = StatusCodes.Status404NotFound; return; }
-        ctx.Response.ContentType = "text/html; charset=utf-8";
-        ctx.Response.Headers.CacheControl = "no-cache";
-        await ctx.Response.SendFileAsync(teacherIndex);
-        return;
-    }
-
+    // O'qituvchi portali endi SPA ichida (/teacher/* → React router) — alohida PWA YO'Q,
+    // shuning uchun /teacher/* ham quyidagi umumiy SPA fallback (index.html) orqali beriladi.
     var host = ctx.Request.Host.Host;
     var isApp = appHost.Length > 0
         ? host.Equals(appHost, StringComparison.OrdinalIgnoreCase)

@@ -44,7 +44,14 @@ import { TeacherAppPage } from '@/pages/admin/parents/TeacherAppPage'
 import { FinancePage } from '@/pages/admin/finance/FinancePage'
 import { SettingsPage } from '@/pages/admin/settings/SettingsPage'
 import { AccountPage } from '@/pages/admin/account/AccountPage'
-import { TeacherAppRedirect } from '@/components/TeacherAppRedirect'
+// O'qituvchi portali (SPA ichida, /teacher/*)
+import { TeacherDashboard } from '@/pages/teacher/TeacherDashboard'
+import { TeacherJournalPage } from '@/pages/teacher/journal/JournalPage'
+import { TeacherEvaluationPage } from '@/pages/teacher/evaluation/EvaluationPage'
+import { TeacherAssignmentsPage } from '@/pages/teacher/assignments/AssignmentsPage'
+import { TeacherLmsPage } from '@/pages/teacher/lms/TeacherLmsPage'
+import { TeacherLmsSubjectPage } from '@/pages/teacher/lms/TeacherLmsSubjectPage'
+import { TeacherMessagesPage } from '@/pages/teacher/messages/MessagesPage'
 
 export default function App() {
   return (
@@ -109,9 +116,20 @@ export default function App() {
         </Route>
       </Route>
 
-      {/* O'qituvchi — alohida o'rnatiladigan PWA (/teacher/, wwwroot/teacher statik ilova).
-          SPA shu manzilga kelsa (login redirect / RootRedirect) to'liq sahifa bilan o'sha ilovaga o'tamiz. */}
-      <Route path="/teacher/*" element={<TeacherAppRedirect />} />
+      {/* O'qituvchi portali — SPA ichida, admin shell (Sidebar/Topbar) qayta ishlatiladi.
+          Sidebar `navByRole['teacher']` ni ko'rsatadi. Telefon (Flutter WebView) uchun mos. */}
+      <Route element={<ProtectedRoute role="teacher" />}>
+        <Route path="/teacher" element={<AppLayout />}>
+          <Route index element={<TeacherDashboard />} />
+          <Route path="journal" element={<RequirePerm perm="journal"><TeacherJournalPage /></RequirePerm>} />
+          <Route path="evaluation" element={<TeacherEvaluationPage />} />
+          <Route path="assignments" element={<RequirePerm perm="assignments"><TeacherAssignmentsPage /></RequirePerm>} />
+          <Route path="lms" element={<TeacherLmsPage />} />
+          <Route path="lms/:subjectId" element={<TeacherLmsSubjectPage />} />
+          <Route path="messages" element={<RequirePerm perm="messages"><TeacherMessagesPage /></RequirePerm>} />
+          <Route path="account" element={<AccountPage />} />
+        </Route>
+      </Route>
 
       <Route path="*" element={<RootRedirect />} />
     </Routes>
