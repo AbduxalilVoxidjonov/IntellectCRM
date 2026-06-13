@@ -113,6 +113,15 @@ docker compose up -d --build    # app + mssql + cloudflared + backup + mediamtx
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-13: **Telegram kanal — login'da o'qituvchi/o'quvchi dashboardida "Kanalga o'tish" tugmasi.** `CenterMeta.
+  TelegramChannel` (inkremental migratsiya `AddTelegramChannel` — faqat AddColumn). Admin Sozlamalar → Telegram'ga
+  "Kanal" maydoni (havola yoki @username). Portallarga `school` endpoint orqali chiqadi: `SchoolNameDto`ga
+  `TelegramChannel` (default "" — admin getSchoolName buzilmadi); teacher+student `school` endpointlari kanalni
+  qaytaradi. `TelegramSettingsDto`/`SaveTelegramSettingsRequest`ga `Channel`. Frontend: `lib/utils.telegramUrl`
+  (@username/url→t.me havola); `getTeacherSchool`/`getStudentSchool` kanalni oladi; **teacher Dashboard** banner (teal,
+  #229ED9 Telegram rang); **student Dashboard** banner — FAQAT `role==='student'` (ota-ona EMAS, foydalanuvchi talabi).
+  Kanal bo'sh bo'lsa banner ko'rinmaydi. Backend 0, tsc+vite yashil, deploy ✅ (migratsiya qo'llandi); E2E: admin kanal
+  saqladi → student/school telegramChannel qaytardi. Sinov qiymati tozalandi.
 - 2026-06-13: **Push — web tarafda avtomatik qurilma register/unregister HOOK (Flutter WebView uchun).** Yangi
   `api/services/push.ts`: `setFcmToken/getFcmToken` (Flutter `window.__FCM_TOKEN__` yoki `postMessage({type:'fcm-token',
   token})` orqali beradi), `registerDevice/unregisterDevice` (rol bo'yicha `/student` yoki `/teacher` endpoint; parent/

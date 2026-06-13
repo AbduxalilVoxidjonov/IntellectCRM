@@ -61,7 +61,7 @@ public class SettingsController(AppDbContext db, TelegramService telegram) : Con
         var m = await db.CenterMeta.FirstOrDefaultAsync();
         return new TelegramSettingsDto(
             m?.TelegramBotToken ?? "", m?.TelegramBotUsername ?? "", m?.TelegramBotName ?? "",
-            telegram.IsConfigured);
+            telegram.IsConfigured, m?.TelegramChannel ?? "");
     }
 
     [HttpPut("telegram")]
@@ -76,12 +76,13 @@ public class SettingsController(AppDbContext db, TelegramService telegram) : Con
         m.TelegramBotToken = (req.BotToken ?? "").Trim();
         m.TelegramBotUsername = (req.BotUsername ?? "").Trim().TrimStart('@');
         m.TelegramBotName = (req.BotName ?? "").Trim();
+        m.TelegramChannel = (req.Channel ?? "").Trim();
         await db.SaveChangesAsync();
 
         // Ishlab turgan xizmat (va bot) darrov yangi tokenni ishlatishi uchun keshni yangilaymiz.
         telegram.Set(m.TelegramBotToken, m.TelegramBotUsername, m.TelegramBotName);
 
-        return new TelegramSettingsDto(m.TelegramBotToken, m.TelegramBotUsername, m.TelegramBotName, telegram.IsConfigured);
+        return new TelegramSettingsDto(m.TelegramBotToken, m.TelegramBotUsername, m.TelegramBotName, telegram.IsConfigured, m.TelegramChannel);
     }
 
     // ---------- Push (Firebase / FCM) — faqat native (Flutter) ilovaga ----------

@@ -66,6 +66,14 @@ export function formatMoney(n: number): string {
   return `${new Intl.NumberFormat('ru-RU').format(n)} so'm`
 }
 
+/** Telegram kanal manzilini to'liq havolaga aylantiradi (@username / username / to'liq URL). */
+export function telegramUrl(raw: string): string {
+  const s = (raw || '').trim()
+  if (!s) return ''
+  if (/^https?:\/\//i.test(s)) return s
+  return `https://t.me/${s.replace(/^@/, '')}`
+}
+
 /** Tasodifiy parol (chalkashtirmaydigan belgilardan — 0/O, 1/l/I yo'q) */
 export function randomPassword(length = 6): string {
   const alphabet = 'abcdefghijkmnpqrstuvwxyz23456789'

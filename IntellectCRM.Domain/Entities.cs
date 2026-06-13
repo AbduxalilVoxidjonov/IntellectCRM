@@ -612,6 +612,8 @@ public class CenterMeta
     public string TelegramBotUsername { get; set; } = string.Empty;
     /// <summary>Telegram bot ko'rsatiladigan nomi (masalan "Maktab LMS Bot") — UI/ilovada ko'rsatish uchun.</summary>
     public string TelegramBotName { get; set; } = string.Empty;
+    /// <summary>Markaz Telegram kanali (havola yoki @username) — o'quvchi/o'qituvchi ilovasida "kanalga o'tish".</summary>
+    public string TelegramChannel { get; set; } = string.Empty;
     /// <summary>
     /// Firebase service account (JSON, to'liq) — ilovaga push (FCM) yuborish uchun. Bo'sh bo'lsa
     /// push yuborilmaydi. Admin "Sozlamalar → Push (Firebase)" bo'limidan kiritadi.

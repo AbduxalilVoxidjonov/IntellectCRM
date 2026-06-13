@@ -68,12 +68,14 @@ export interface TelegramConfig {
   botName: string
   /** Token bo'sh emasligini bildiradi (bot ishlashga tayyor) */
   configured: boolean
+  /** Markaz Telegram kanali (havola yoki @username) — o'quvchi/o'qituvchi ilovasida ko'rinadi */
+  channel: string
 }
 
 export async function getTelegramSettings(): Promise<TelegramConfig> {
   if (USE_MOCK) {
     await delay()
-    return { botToken: '', botUsername: '', botName: '', configured: false }
+    return { botToken: '', botUsername: '', botName: '', configured: false, channel: '' }
   }
   const { data } = await api.get<TelegramConfig>('/admin/settings/telegram')
   return data
@@ -83,6 +85,7 @@ export async function saveTelegramSettings(cfg: {
   botToken: string
   botUsername: string
   botName: string
+  channel: string
 }): Promise<TelegramConfig> {
   if (USE_MOCK) {
     await delay(250)

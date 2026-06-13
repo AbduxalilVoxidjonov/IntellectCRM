@@ -17,6 +17,7 @@ export function TelegramSettings() {
   const [token, setToken] = useState('')
   const [username, setUsername] = useState('')
   const [name, setName] = useState('')
+  const [channel, setChannel] = useState('')
   const [configured, setConfigured] = useState(false)
   const [loading, setLoading] = useState(true)
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
@@ -27,6 +28,7 @@ export function TelegramSettings() {
         setToken(c.botToken)
         setUsername(c.botUsername)
         setName(c.botName)
+        setChannel(c.channel)
         setConfigured(c.configured)
       })
       .finally(() => setLoading(false))
@@ -39,6 +41,7 @@ export function TelegramSettings() {
       botToken: token.trim(),
       botUsername: username.trim(),
       botName: name.trim(),
+      channel: channel.trim(),
     })
     setConfigured(saved.configured)
     setStatus('saved')
@@ -97,6 +100,20 @@ export function TelegramSettings() {
           Ota-ona botni ochib (masalan {username ? `@${username}` : '@BotUsername'}) "Start" bossin va
           telefon raqamini ulashsin — raqami o'quvchining ota-ona raqami bilan solishtirilib, e'lon
           oluvchilar ro'yxatiga qo'shiladi.
+        </div>
+
+        <div className="border-t border-slate-100 pt-4">
+          <Input
+            label="Telegram kanal (o'quvchi/o'qituvchi ilovasida ko'rinadi)"
+            placeholder="@intellectschool yoki https://t.me/intellectschool"
+            value={channel}
+            onChange={(e) => setChannel(e.target.value)}
+            autoComplete="off"
+          />
+          <p className="mt-1 text-xs text-slate-400">
+            To'ldirilsa — o'quvchi va o'qituvchi ilovasida "Telegram kanalga o'tish" tugmasi chiqadi.
+            Botdan alohida (markaz e'lonlari kanali).
+          </p>
         </div>
 
         <div className="flex items-center gap-3">

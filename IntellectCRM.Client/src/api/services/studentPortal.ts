@@ -255,7 +255,7 @@ export async function getStudentMeta() {
   return data
 }
 export async function getStudentSchool() {
-  const { data } = await api.get<{ name: string }>('/student/school')
+  const { data } = await api.get<{ name: string; telegramChannel: string }>('/student/school')
   return data
 }
 export async function getStudentTelegram(studentId?: string) {

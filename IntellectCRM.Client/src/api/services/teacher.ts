@@ -136,6 +136,13 @@ export async function getTeacherMeta(): Promise<PortalMeta | null> {
   return data
 }
 
+/** Markaz nomi + Telegram kanali (o'qituvchi ilovasi uchun). */
+export async function getTeacherSchool(): Promise<{ name: string; telegramChannel: string }> {
+  if (USE_MOCK) return { name: '', telegramChannel: '' }
+  const { data } = await api.get<{ name: string; telegramChannel: string }>('/teacher/school')
+  return data
+}
+
 /* ---------- Maosh (faqat o'ziniki) ---------- */
 
 export async function getTeacherSalary(from?: string, to?: string): Promise<SalaryLedger | null> {

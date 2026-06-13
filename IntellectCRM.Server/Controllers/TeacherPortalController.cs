@@ -61,7 +61,7 @@ public class TeacherPortalController(
     public async Task<ActionResult<SchoolNameDto>> School()
     {
         var m = await db.CenterMeta.FirstOrDefaultAsync();
-        return new SchoolNameDto(m?.Name ?? "");
+        return new SchoolNameDto(m?.Name ?? "", m?.TelegramChannel ?? "");
     }
 
     // ---------- Farzandni olib ketish (pickup) — sinf rahbari ----------

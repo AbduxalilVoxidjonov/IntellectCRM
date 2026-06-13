@@ -3,11 +3,13 @@ import { useNavigate } from 'react-router-dom'
 import {
   getStudentDashboard,
   getStudentNotebook,
+  getStudentSchool,
   type StudentDashboard,
   type StudentNotebook,
 } from '@/api/services/studentPortal'
 import { useAuth } from '@/context/auth-context'
 import { Icon, fmtMoney, gradeColor } from '@/pages/student/lib'
+import { telegramUrl } from '@/lib/utils'
 
 /* ============================================================
    O'quvchi Dashboard — to'liq salom + bildirishnoma + qisqacha
@@ -28,16 +30,22 @@ export function StudentDashboardScreen() {
   const navigate = useNavigate()
   const [dash, setDash] = useState<StudentDashboard | null>(null)
   const [nb, setNb] = useState<StudentNotebook | null>(null)
+  const [channel, setChannel] = useState('')
   const [loading, setLoading] = useState(true)
   const [notifOpen, setNotifOpen] = useState(false)
 
   useEffect(() => {
     let on = true
-    Promise.all([getStudentDashboard().catch(() => null), getStudentNotebook().catch(() => null)])
-      .then(([d, n]) => {
+    Promise.all([
+      getStudentDashboard().catch(() => null),
+      getStudentNotebook().catch(() => null),
+      getStudentSchool().catch(() => null),
+    ])
+      .then(([d, n, s]) => {
         if (!on) return
         setDash(d)
         setNb(n)
+        setChannel(s?.telegramChannel || '')
       })
       .finally(() => on && setLoading(false))
     return () => {
@@ -102,6 +110,40 @@ export function StudentDashboardScreen() {
               />
               <Quick icon="school" label="Guruh" value={className} tone="var(--accent)" small />
             </div>
+
+            {/* Telegram kanal (sozlangan bo'lsa, faqat o'quvchi) */}
+            {channel.trim() && user?.role === 'student' && (
+              <a
+                href={telegramUrl(channel)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="card press"
+                style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 12, textDecoration: 'none' }}
+              >
+                <div
+                  style={{
+                    width: 42,
+                    height: 42,
+                    borderRadius: 13,
+                    background: '#229ED9',
+                    color: '#fff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flex: 'none',
+                  }}
+                >
+                  <Icon name="send" size={20} color="#fff" />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text)' }}>Telegram kanalimiz</div>
+                  <div className="muted" style={{ fontSize: 12 }}>
+                    Markaz e'lonlari — kanalga o'ting
+                  </div>
+                </div>
+                <Icon name="chevR" size={18} color="var(--faint)" />
+              </a>
+            )}
 
             {/* Umumiy statistika */}
             <div className="sh" style={{ marginTop: 18 }}>

@@ -471,11 +471,11 @@ public record SchoolInfoDto(
     string Name, string Director, string Phone, string Email,
     string Address, string Region, string District);
 /// <summary>Maktab nomi (brending — barcha foydalanuvchilar uchun).</summary>
-public record SchoolNameDto(string Name);
+public record SchoolNameDto(string Name, string TelegramChannel = "");
 /// <summary>Telegram bot sozlamasi (admin). Configured = token bo'sh emasligini bildiradi.</summary>
-public record TelegramSettingsDto(string BotToken, string BotUsername, string BotName, bool Configured);
+public record TelegramSettingsDto(string BotToken, string BotUsername, string BotName, bool Configured, string Channel = "");
 /// <summary>Telegram bot sozlamasini saqlash so'rovi.</summary>
-public record SaveTelegramSettingsRequest(string? BotToken, string? BotUsername, string? BotName);
+public record SaveTelegramSettingsRequest(string? BotToken, string? BotUsername, string? BotName, string? Channel);
 /// <summary>Firebase (FCM push) sozlamasi — faqat native (Flutter) ilovaga push yuborish uchun
 /// Service Account JSON. Configured = JSON to'g'ri kiritilgan.</summary>
 public record FirebaseSettingsDto(string ServiceAccountJson, bool Configured);

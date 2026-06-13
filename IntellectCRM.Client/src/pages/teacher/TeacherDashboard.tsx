@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Bell, GraduationCap, BookOpen, ClipboardCheck, ChevronRight, Users } from 'lucide-react'
+import { Bell, GraduationCap, BookOpen, ClipboardCheck, ChevronRight, Users, Send } from 'lucide-react'
 import type { TeacherClass } from '@/types'
-import { getMyClasses } from '@/api/services/teacher'
+import { getMyClasses, getTeacherSchool } from '@/api/services/teacher'
 import { useAuth } from '@/context/auth-context'
+import { telegramUrl } from '@/lib/utils'
 
 const WEEKDAYS_UZ = ['Yakshanba', 'Dushanba', 'Seshanba', 'Chorshanba', 'Payshanba', 'Juma', 'Shanba']
 const MONTHS_UZ = [
@@ -41,12 +42,16 @@ function groupInitials(name: string): string {
 export function TeacherDashboard() {
   const { user } = useAuth()
   const [classes, setClasses] = useState<TeacherClass[]>([])
+  const [channel, setChannel] = useState('')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     getMyClasses()
       .then(setClasses)
       .finally(() => setLoading(false))
+    getTeacherSchool()
+      .then((s) => setChannel(s.telegramChannel || ''))
+      .catch(() => {})
   }, [])
 
   const subjectCount = classes.reduce((acc, c) => acc + c.subjects.length, 0)
@@ -115,6 +120,28 @@ export function TeacherDashboard() {
         </div>
         <ChevronRight className="h-5 w-5 shrink-0 text-white/80" />
       </Link>
+
+      {/* ── Telegram kanal (sozlangan bo'lsa) ── */}
+      {channel.trim() && (
+        <a
+          href={telegramUrl(channel)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="tap-scale mb-5 flex items-center gap-3.5 rounded-[20px] border border-line bg-white p-3.5 shadow-[var(--shadow-card)]"
+        >
+          <div
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-white"
+            style={{ background: '#229ED9' }}
+          >
+            <Send className="h-5 w-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-[15px] font-bold tracking-tight text-ink">Telegram kanalimiz</p>
+            <p className="mt-0.5 text-[12px] text-mute">Markaz e'lonlari — kanalga o'ting</p>
+          </div>
+          <ChevronRight className="h-5 w-5 shrink-0 text-faint" />
+        </a>
+      )}
 
       {/* ── Mening guruhlarim ── */}
       <div>
