@@ -1,5 +1,11 @@
 import { useEffect, useState } from 'react'
-import { getStudentDashboard, getStudentNotebook, type StudentDashboard } from '@/api/services/studentPortal'
+import { useNavigate } from 'react-router-dom'
+import {
+  getStudentDashboard,
+  getStudentNotebook,
+  type StudentDashboard,
+  type StudentNotebook,
+} from '@/api/services/studentPortal'
 import { useAuth } from '@/context/auth-context'
 import { Icon, fmtMoney, gradeColor } from '@/pages/student/lib'
 
@@ -19,8 +25,9 @@ const num = (v: unknown): number => (typeof v === 'number' && isFinite(v) ? v : 
 
 export function StudentDashboardScreen() {
   const { user } = useAuth()
+  const navigate = useNavigate()
   const [dash, setDash] = useState<StudentDashboard | null>(null)
-  const [nb, setNb] = useState<Record<string, unknown> | null>(null)
+  const [nb, setNb] = useState<StudentNotebook | null>(null)
   const [loading, setLoading] = useState(true)
   const [notifOpen, setNotifOpen] = useState(false)
 
@@ -99,6 +106,14 @@ export function StudentDashboardScreen() {
             {/* Umumiy statistika */}
             <div className="sh" style={{ marginTop: 18 }}>
               <div className="sh-title">Umumiy statistika</div>
+              <button
+                className="sh-act press"
+                onClick={() => navigate('/student/statistics')}
+                style={{ background: 'none' }}
+              >
+                Batafsil
+                <Icon name="chevR" size={16} color="var(--accent)" />
+              </button>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
               <Stat icon="chart" label="O'rtacha baho" value={avg > 0 ? avg.toFixed(2) : '—'} color={gradeColor(avg)} />

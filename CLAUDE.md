@@ -113,6 +113,14 @@ docker compose up -d --build    # app + mssql + cloudflared + backup + mediamtx
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-13: **O'quvchi "Umumiy statistika" — to'liq diagrammали ekran (barcha yig'ilgan ma'lumot).** `getStudentNotebook`
+  endi typed (`StudentNotebook` interfeysi — grades trend, attendance+reasons, discipline, assignments, oylik
+  evaluations/feedback, homework/behavior). `Statistics.tsx` to'liq qayta yozildi (custom SVG/CSS diagrammalar, Recharts
+  emas — yengil, blue-temaga mos): KPI plitalar + Baholar trendi (oylik bar) + Fanlar o'rtachasi (HBar) + Davomat
+  (donut + kech) + Davomat sabablari (HBar) + Intizomiy ball (ring + rag'bat/jazo) + Topshiriqlar (ring + ball) +
+  Oylik feedback (fan kesimida HBar) + Uy vazifa/xulq (donut). Bo'sh bo'limlar avtomatik yashiriladi. Dashboard
+  "Umumiy statistika" sarlavhasiga "Batafsil →" (→ /student/statistics) qo'shildi; nb typed. tsc+vite yashil, deploy
+  ✅; jonli notebook: davomat 1/2, intizom 100, 1 sabab/feedback.
 - 2026-06-13: **O'quvchi Dashboard/Progress qayta tashkil + profildan chorak olib tashlandi.** (1) Duolingo o'quv
   dasturi yo'l-xaritasi (ForecastCard+Roadmap+Node) Dashboard'dan **Progress** tabiga ko'chirildi — Progress segmentlari
   endi **Dastur** (curriculum) · Sinf · Maktab (eski "Fanlar" subjects-progress segmenti almashtirildi; SubjectProgressDetail

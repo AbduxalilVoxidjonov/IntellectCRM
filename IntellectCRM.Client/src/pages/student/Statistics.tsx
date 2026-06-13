@@ -1,213 +1,441 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getStudentNotebook } from '@/api/services/studentPortal'
-import { Icon, gradeColor, subjectColor, subjInitial } from '@/pages/student/lib'
+import { getStudentNotebook, type StudentNotebook } from '@/api/services/studentPortal'
+import { Icon, Ring, gradeColor, subjectColor, MONTHS } from '@/pages/student/lib'
 
 /* ============================================================
-   O'quvchi portali — Umumiy statistika (notebook'dan, loose).
+   O'quvchi — UMUMIY STATISTIKA (o'quvchi haqida yig'ilgan barcha
+   ma'lumot diagrammalarda): baholar trendi, fanlar o'rtachasi,
+   davomat + sabablar, intizom, topshiriqlar, oylik feedback,
+   uy vazifa va xulq.
    ============================================================ */
 
-interface Notebook {
-  avgGrade?: number
-  attendancePct?: number
-  attended?: number
-  conducted?: number
-  disciplineScore?: number
-  homeworkDone?: number
-  homeworkMissed?: number
-  subjects?: Array<{ id: string; name: string }>
-  grades?: Record<string, Record<string, number>>
-}
-
-function gradeChip(grade: number, size = 34): ReactNode {
-  const col = gradeColor(grade)
-  const label = grade === Math.round(grade) ? String(Math.round(grade)) : grade.toFixed(1)
-  return (
-    <div
-      className="badge"
-      style={{
-        width: size,
-        height: size,
-        borderRadius: size * 0.32,
-        background: `color-mix(in srgb,${col} 16%,var(--surface))`,
-        color: col,
-        fontSize: size * 0.5,
-      }}
-    >
-      {label}
-    </div>
-  )
-}
+const sumVals = (o: Record<string, number> | undefined) =>
+  o ? Object.values(o).reduce((a, b) => a + (b || 0), 0) : 0
+const monthShort = (m: string) => (m && m.length >= 7 ? (MONTHS[+m.slice(5, 7) - 1] || m).slice(0, 3) : m)
 
 export function StudentStatisticsScreen() {
   const navigate = useNavigate()
-  const [n, setN] = useState<Notebook | null>(null)
+  const [nb, setNb] = useState<StudentNotebook | null>(null)
   const [err, setErr] = useState<string | null>(null)
 
   useEffect(() => {
     let on = true
     getStudentNotebook()
-      .then((d) => on && setN((d || {}) as Notebook))
+      .then((d) => on && setNb(d))
       .catch((e) => on && setErr(e?.message || String(e)))
     return () => {
       on = false
     }
   }, [])
 
-  const head = (
-    <div className="hd">
-      <div className="row gap10" style={{ minHeight: 38 }}>
-        <button className="iconbtn press" onClick={() => navigate(-1)}>
-          <Icon name="chevL" size={22} />
-        </button>
-        <div className="hd-sm" style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          Umumiy statistika
-        </div>
-      </div>
-    </div>
-  )
-
-  if (err) {
-    return (
-      <div className="screen">
-        {head}
-        <div className="center">
-          <Empty title="Yuklab bo'lmadi" sub={err} ic="alert" />
-        </div>
-      </div>
-    )
-  }
-  if (!n) {
-    return (
-      <div className="screen">
-        {head}
-        <div className="center">
-          <div className="spin" />
-        </div>
-      </div>
-    )
-  }
-
-  const tile = (ic: string, color: string, value: string, label: string, sub?: string) => (
-    <div className="card" style={{ flex: 1 }}>
-      <div
-        style={{
-          width: 36,
-          height: 36,
-          borderRadius: 11,
-          background: `color-mix(in srgb,${color} 13%,transparent)`,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <Icon name={ic} size={18} color={color} />
-      </div>
-      <div style={{ fontSize: 22, fontWeight: 800, marginTop: 8, color }}>{value}</div>
-      <div style={{ fontSize: 12, fontWeight: 700 }}>{label}</div>
-      {sub && (
-        <div className="faint" style={{ fontSize: 11 }}>
-          {sub}
-        </div>
-      )}
-    </div>
-  )
-
-  const hwDone = n.homeworkDone || 0
-  const hwTotal = hwDone + (n.homeworkMissed || 0)
-  const discScore = n.disciplineScore != null ? n.disciplineScore : 100
-  const discColor = discScore >= 85 ? 'var(--green)' : discScore >= 60 ? 'var(--amber)' : 'var(--red)'
-  const subjects = n.subjects || []
-
   return (
     <div className="screen">
-      {head}
-      <div className="scroll pad" style={{ paddingBottom: 24 }}>
-        <div className="row gap10" style={{ marginBottom: 10 }}>
-          {tile('chart', 'var(--accent)', n.avgGrade != null ? n.avgGrade.toFixed(2) : '—', "O'rtacha baho")}
-          {tile(
-            'checkCircle',
-            'var(--green)',
-            `${n.attendancePct || 0}%`,
-            'Davomat',
-            `${n.attended || 0}/${n.conducted || 0} dars`,
-          )}
+      <div className="hd">
+        <div className="row gap10">
+          <button className="iconbtn press" onClick={() => navigate(-1)} aria-label="Orqaga">
+            <Icon name="chevL" size={20} color="var(--text)" />
+          </button>
+          <div className="hd-sm">Umumiy statistika</div>
         </div>
-        <div className="row gap10" style={{ marginBottom: 16 }}>
-          {tile('shield', discColor, String(discScore), 'Intizom balli')}
-          {tile(
-            'book',
-            'var(--violet)',
-            hwTotal ? `${Math.round((hwDone / hwTotal) * 100)}%` : '—',
-            'Uy vazifa',
-            `${hwDone}/${hwTotal}`,
-          )}
-        </div>
+      </div>
 
-        <div className="sh">
-          <div className="sh-title">Fanlar bo'yicha</div>
-        </div>
-
-        {subjects.length ? (
-          <div className="card" style={{ padding: 4 }}>
-            {subjects.map((s, i) => {
-              const months = n.grades?.[s.name] || {}
-              const vals = Object.values(months).filter((v) => typeof v === 'number') as number[]
-              const avg = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0
-              const col = subjectColor(s.id)
-              return (
-                <div
-                  key={s.id}
-                  className="row gap12"
-                  style={{ padding: 11, borderBottom: i < subjects.length - 1 ? '1px solid var(--border)' : undefined }}
-                >
-                  <div
-                    className="subj"
-                    style={{
-                      width: 38,
-                      height: 38,
-                      borderRadius: 13,
-                      flex: 'none',
-                      background: col + '22',
-                      color: col,
-                      fontSize: 16,
-                    }}
-                  >
-                    {subjInitial(s.name)}
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 14.5, fontWeight: 700 }}>{s.name}</div>
-                    <div className="muted" style={{ fontSize: 12 }}>
-                      {avg > 0 ? `O'rtacha: ${avg.toFixed(2)}` : 'Baho yo‘q'}
-                    </div>
-                  </div>
-                  {avg > 0 ? gradeChip(avg, 34) : null}
-                </div>
-              )
-            })}
+      <div className="scroll">
+        {err ? (
+          <Empty ic="alert" title="Yuklab bo'lmadi" sub={err} />
+        ) : !nb ? (
+          <div className="center" style={{ minHeight: '40dvh' }}>
+            <div className="spin" />
           </div>
         ) : (
-          <div className="card">
-            <Empty title="Ma'lumot yo'q" ic="chart" />
-          </div>
+          <Body nb={nb} />
         )}
       </div>
     </div>
   )
 }
 
-function Empty({ title, sub, ic = 'sparkle' }: { title: string; sub?: string; ic?: string }) {
+function Body({ nb }: { nb: StudentNotebook }) {
+  // ---- Baholar trendi (oylik, fanlar o'rtachasi) ----
+  const monthSet = new Set<string>()
+  Object.values(nb.grades || {}).forEach((m) => Object.keys(m).forEach((mo) => monthSet.add(mo)))
+  const months = [...monthSet].sort().slice(-6)
+  const gradeTrend = months.map((mo) => {
+    const vals = Object.values(nb.grades || {})
+      .map((m) => m[mo])
+      .filter((v): v is number => typeof v === 'number' && v > 0)
+    return { label: monthShort(mo), value: vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0 }
+  })
+
+  // ---- Fanlar bo'yicha o'rtacha ----
+  const subjAvg = Object.entries(nb.grades || {})
+    .map(([name, m]) => {
+      const vals = Object.values(m).filter((v) => v > 0)
+      return { name, avg: vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0 }
+    })
+    .filter((s) => s.avg > 0)
+    .sort((a, b) => b.avg - a.avg)
+
+  // ---- Davomat ----
+  const attended = nb.attended || 0
+  const conducted = nb.conducted || 0
+  const absent = Math.max(0, conducted - attended)
+  const lateTotal = sumVals(nb.attendance?.lateCount)
+
+  // ---- Intizom ----
+  const disc = nb.disciplineScore || 0
+  const discColor = disc >= 85 ? 'var(--green)' : disc >= 60 ? 'var(--amber)' : 'var(--red)'
+
+  // ---- Topshiriqlar ----
+  const a = nb.assignments
+  const aPct = a && a.totalMax > 0 ? Math.round((a.totalScore / a.totalMax) * 100) : 0
+
+  // ---- Oylik feedback (fan kesimida) ----
+  const feedback = (nb.evaluationsBySubject || []).filter((s) => s.avg > 0).sort((x, y) => y.avg - x.avg)
+
+  // ---- Uy vazifa ----
+  const hwDone = nb.homeworkDone || 0
+  const hwMissed = nb.homeworkMissed || 0
+  const hwPct = hwDone + hwMissed > 0 ? Math.round((hwDone / (hwDone + hwMissed)) * 100) : 0
+
   return (
-    <div className="empty">
-      <div className="empty-ic">
-        <Icon name={ic} size={30} />
+    <div className="pad" style={{ paddingBottom: 28 }}>
+      {/* KPI plitalar */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8, marginTop: 4 }}>
+        <Kpi value={nb.avgGrade > 0 ? nb.avgGrade.toFixed(1) : '—'} label="Baho" color={gradeColor(nb.avgGrade)} />
+        <Kpi value={`${nb.attendancePct || 0}%`} label="Davomat" color="var(--green)" />
+        <Kpi value={`${disc}`} label="Intizom" color={discColor} />
+        <Kpi value={`${aPct}%`} label="Topshiriq" color="var(--violet)" />
       </div>
-      <div style={{ fontSize: 16, fontWeight: 800 }}>{title}</div>
-      {sub && (
-        <div className="muted" style={{ fontSize: 13.5, marginTop: 6, lineHeight: 1.5 }}>
-          {sub}
-        </div>
+
+      {/* Baholar trendi */}
+      <Section title="Baholar trendi" sub="Oylik o'rtacha baho">
+        {gradeTrend.some((d) => d.value > 0) ? (
+          <TrendBars data={gradeTrend} max={5} color="var(--accent)" fmt={(v) => v.toFixed(1)} />
+        ) : (
+          <Note>Hali baho yo'q.</Note>
+        )}
+      </Section>
+
+      {/* Fanlar bo'yicha o'rtacha */}
+      {subjAvg.length > 0 && (
+        <Section title="Fanlar bo'yicha o'rtacha">
+          {subjAvg.map((s) => (
+            <HBar
+              key={s.name}
+              label={s.name}
+              value={s.avg}
+              max={5}
+              color={gradeColor(s.avg)}
+              right={s.avg.toFixed(1)}
+              dot={subjectColor(s.name)}
+            />
+          ))}
+        </Section>
       )}
+
+      {/* Davomat */}
+      <Section title="Davomat" sub={`${conducted} darsdan ${attended} ta qatnashildi`}>
+        <div className="row" style={{ gap: 18, alignItems: 'center' }}>
+          <DonutC
+            size={118}
+            stroke={15}
+            segments={[
+              { value: attended, color: 'var(--green)' },
+              { value: absent, color: 'var(--red)' },
+            ]}
+            top={`${nb.attendancePct || 0}%`}
+            bottom="davomat"
+          />
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <Legend color="var(--green)" label="Qatnashdi" value={attended} />
+            <Legend color="var(--red)" label="Qoldirdi" value={absent} />
+            <Legend color="var(--amber)" label="Kech qoldi" value={lateTotal} />
+          </div>
+        </div>
+      </Section>
+
+      {/* Davomat sabablari */}
+      {(nb.reasons || []).length > 0 && (
+        <Section title="Davomat bo'yicha sabablar">
+          {[...nb.reasons]
+            .sort((x, y) => y.count - x.count)
+            .map((r) => (
+              <HBar
+                key={r.reasonId}
+                label={r.name}
+                value={r.count}
+                max={Math.max(...nb.reasons.map((x) => x.count), 1)}
+                color={r.isLate ? 'var(--amber)' : 'var(--red)'}
+                right={`${r.count}`}
+              />
+            ))}
+        </Section>
+      )}
+
+      {/* Intizomiy ball */}
+      <Section title="Intizomiy ball" sub="100 balldan boshlanadi">
+        <div className="row" style={{ gap: 18, alignItems: 'center' }}>
+          <Ring value={disc} max={100} size={104} stroke={12} color={discColor}>
+            <div style={{ fontSize: 26, fontWeight: 800, color: discColor }}>{disc}</div>
+            <div className="muted" style={{ fontSize: 10 }}>
+              ball
+            </div>
+          </Ring>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <Legend color="var(--green)" label="Rag'bat" value={`+${nb.disciplinePlus || 0}`} />
+            <Legend color="var(--red)" label="Jazo" value={`−${nb.disciplineMinus || 0}`} />
+          </div>
+        </div>
+      </Section>
+
+      {/* Topshiriqlar */}
+      {a && a.count > 0 && (
+        <Section title="Topshiriqlar" sub={`${a.gradedCount}/${a.count} baholandi`}>
+          <div className="row" style={{ gap: 18, alignItems: 'center' }}>
+            <Ring value={aPct} max={100} size={104} stroke={12} color="var(--violet)">
+              <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--violet)' }}>{aPct}%</div>
+              <div className="muted" style={{ fontSize: 10 }}>
+                ball
+              </div>
+            </Ring>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <Legend color="var(--violet)" label="To'plangan ball" value={`${a.totalScore}/${a.totalMax}`} />
+              <Legend color="var(--accent)" label="Topshiriqlar" value={a.count} />
+            </div>
+          </div>
+        </Section>
+      )}
+
+      {/* Oylik feedback (baholash) */}
+      {feedback.length > 0 && (
+        <Section title="Oylik feedback (baholash)" sub="Fan bo'yicha o'rtacha (1-5)">
+          {feedback.map((s) => (
+            <HBar
+              key={s.subjectId}
+              label={s.subjectName}
+              value={s.avg}
+              max={5}
+              color={gradeColor(s.avg)}
+              right={s.avg.toFixed(1)}
+              dot={subjectColor(s.subjectId)}
+            />
+          ))}
+        </Section>
+      )}
+
+      {/* Uy vazifa va xulq */}
+      <Section title="Uy vazifa va xulq">
+        <div className="row" style={{ gap: 18, alignItems: 'center' }}>
+          <DonutC
+            size={104}
+            stroke={13}
+            segments={[
+              { value: hwDone, color: 'var(--green)' },
+              { value: hwMissed, color: 'var(--red)' },
+            ]}
+            top={`${hwPct}%`}
+            bottom="bajardi"
+          />
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <Legend color="var(--green)" label="Uy vazifa bajardi" value={hwDone} />
+            <Legend color="var(--red)" label="Bajarmadi" value={hwMissed} />
+            <Legend color="var(--accent)" label="Yaxshi xulq" value={nb.behaviorGood || 0} />
+            <Legend color="var(--amber)" label="Intizomsizlik" value={nb.behaviorBad || 0} />
+          </div>
+        </div>
+      </Section>
+    </div>
+  )
+}
+
+/* ---------- Diagramma va layout yordamchilari ---------- */
+
+function Section({ title, sub, children }: { title: string; sub?: string; children: ReactNode }) {
+  return (
+    <div style={{ marginTop: 18 }}>
+      <div className="sh" style={{ paddingBottom: 8 }}>
+        <div>
+          <div className="sh-title">{title}</div>
+          {sub && (
+            <div className="muted" style={{ fontSize: 12, fontWeight: 600 }}>
+              {sub}
+            </div>
+          )}
+        </div>
+      </div>
+      <div className="card">{children}</div>
+    </div>
+  )
+}
+
+function Kpi({ value, label, color }: { value: string; label: string; color: string }) {
+  return (
+    <div className="card" style={{ padding: 10, textAlign: 'center' }}>
+      <div style={{ fontSize: 19, fontWeight: 800, color }}>{value}</div>
+      <div className="muted" style={{ fontSize: 10, marginTop: 1 }}>
+        {label}
+      </div>
+    </div>
+  )
+}
+
+function Legend({ color, label, value }: { color: string; label: string; value: ReactNode }) {
+  return (
+    <div className="row sp gap8">
+      <div className="row gap8" style={{ minWidth: 0 }}>
+        <span style={{ width: 10, height: 10, borderRadius: 3, background: color, flex: 'none' }} />
+        <span className="muted" style={{ fontSize: 12.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {label}
+        </span>
+      </div>
+      <span style={{ fontSize: 14, fontWeight: 800, color }}>{value}</span>
+    </div>
+  )
+}
+
+function HBar({
+  label,
+  value,
+  max,
+  color,
+  right,
+  dot,
+}: {
+  label: string
+  value: number
+  max: number
+  color: string
+  right: string
+  dot?: string
+}) {
+  const pct = max > 0 ? Math.min(100, (value / max) * 100) : 0
+  return (
+    <div style={{ marginBottom: 11 }}>
+      <div className="row sp" style={{ marginBottom: 5, gap: 8 }}>
+        <span className="row gap6" style={{ minWidth: 0 }}>
+          {dot && <span style={{ width: 8, height: 8, borderRadius: '50%', background: dot, flex: 'none' }} />}
+          <span style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {label}
+          </span>
+        </span>
+        <span style={{ fontSize: 13.5, fontWeight: 800, color, flex: 'none' }}>{right}</span>
+      </div>
+      <div className="progress">
+        <div style={{ width: `${pct}%`, background: color }} />
+      </div>
+    </div>
+  )
+}
+
+function TrendBars({
+  data,
+  max,
+  color,
+  fmt,
+}: {
+  data: { label: string; value: number }[]
+  max: number
+  color: string
+  fmt: (v: number) => string
+}) {
+  return (
+    <div className="row" style={{ alignItems: 'flex-end', gap: 8, height: 116 }}>
+      {data.map((d, i) => {
+        const h = max > 0 && d.value > 0 ? Math.max(6, Math.round((d.value / max) * 86)) : 3
+        return (
+          <div
+            key={i}
+            style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', gap: 4, height: '100%' }}
+          >
+            <div style={{ fontSize: 10.5, fontWeight: 800, color }}>{d.value > 0 ? fmt(d.value) : ''}</div>
+            <div
+              style={{
+                width: '100%',
+                maxWidth: 30,
+                height: h,
+                background: d.value > 0 ? color : 'var(--surface3)',
+                borderRadius: '7px 7px 3px 3px',
+              }}
+            />
+            <div className="faint" style={{ fontSize: 10 }}>
+              {d.label}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function DonutC({
+  size,
+  stroke,
+  segments,
+  top,
+  bottom,
+}: {
+  size: number
+  stroke: number
+  segments: { value: number; color: string }[]
+  top: string
+  bottom: string
+}) {
+  const r = (size - stroke) / 2
+  const c = 2 * Math.PI * r
+  const total = segments.reduce((acc, s) => acc + Math.max(0, s.value), 0) || 1
+  let acc = 0
+  return (
+    <div style={{ position: 'relative', width: size, height: size, flex: 'none' }}>
+      <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--surface3)" strokeWidth={stroke} />
+        {segments.map((s, i) => {
+          const len = (Math.max(0, s.value) / total) * c
+          const node = (
+            <circle
+              key={i}
+              cx={size / 2}
+              cy={size / 2}
+              r={r}
+              fill="none"
+              stroke={s.color}
+              strokeWidth={stroke}
+              strokeDasharray={`${len} ${c - len}`}
+              strokeDashoffset={-acc}
+            />
+          )
+          acc += len
+          return node
+        })}
+      </svg>
+      <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ fontSize: size > 110 ? 22 : 18, fontWeight: 800, color: 'var(--text)' }}>{top}</div>
+        <div className="muted" style={{ fontSize: 10 }}>
+          {bottom}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function Note({ children }: { children: ReactNode }) {
+  return (
+    <div className="muted" style={{ fontSize: 13, textAlign: 'center', padding: '8px 0' }}>
+      {children}
+    </div>
+  )
+}
+
+function Empty({ ic, title, sub }: { ic: string; title: string; sub: string }) {
+  return (
+    <div className="empty" style={{ paddingTop: 56 }}>
+      <div className="empty-ic">
+        <Icon name={ic} size={28} color="var(--faint)" />
+      </div>
+      <div style={{ fontWeight: 800, fontSize: 16 }}>{title}</div>
+      <div className="muted" style={{ fontSize: 13.5, marginTop: 6 }}>
+        {sub}
+      </div>
     </div>
   )
 }

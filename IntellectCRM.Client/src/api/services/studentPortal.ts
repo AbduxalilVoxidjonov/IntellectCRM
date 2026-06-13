@@ -318,8 +318,51 @@ export async function getStudentGrades(studentId?: string) {
   const { data } = await api.get<StudentGradesReport>('/student/grades', { params: sid(studentId) })
   return data
 }
+export interface AttendanceReasonCount { reasonId: string; name: string; short: string; isLate: boolean; count: number }
+export interface MonthlyAttendance {
+  missedDays: Record<string, number>
+  illnessDays: Record<string, number>
+  missedLessons: Record<string, number>
+  illnessLessons: Record<string, number>
+  lateCount: Record<string, number>
+}
+export interface MonthlyEvaluation { month: string; grades: Record<string, number>; avg: number }
+export interface SubjectEvaluation { subjectId: string; subjectName: string; avg: number; evaluations: MonthlyEvaluation[] }
+export interface MonthMarks { month: string; homeworkDone: number; homeworkMissed: number; behaviorGood: number; behaviorBad: number }
+export interface NotebookAssignmentScore { assignmentId: string; subjectName: string; title: string; format: string; maxScore: number; score?: number | null; completed: boolean }
+export interface NotebookAssignments { count: number; gradedCount: number; totalScore: number; totalMax: number; items: NotebookAssignmentScore[] }
+export interface NotebookDisciplinePoint { id: string; reasonName: string; points: number; note: string; createdAt: string; source: string }
+export interface StudentNotebook {
+  id: string
+  fullName: string
+  className: string
+  balance: number
+  avgGrade: number
+  subjects: SubjectRef[]
+  /** fan nomi → oy ("yyyy-MM") → o'rtacha baho */
+  grades: Record<string, Record<string, number>>
+  attendance: MonthlyAttendance
+  conducted: number
+  attended: number
+  attendancePct: number
+  reasons: AttendanceReasonCount[]
+  disciplineScore: number
+  disciplinePlus: number
+  disciplineMinus: number
+  disciplinePoints: NotebookDisciplinePoint[]
+  assignments: NotebookAssignments
+  evaluationTypes: { id: string; name: string }[]
+  evaluations: MonthlyEvaluation[]
+  evaluationsBySubject: SubjectEvaluation[]
+  homeworkDone: number
+  homeworkMissed: number
+  behaviorGood: number
+  behaviorBad: number
+  marksTrend: MonthMarks[]
+}
+
 export async function getStudentNotebook(studentId?: string) {
-  const { data } = await api.get<Record<string, unknown>>('/student/notebook', { params: sid(studentId) })
+  const { data } = await api.get<StudentNotebook>('/student/notebook', { params: sid(studentId) })
   return data
 }
 export async function getStudentAttendance(quarter = 1, studentId?: string) {
