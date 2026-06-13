@@ -3,12 +3,8 @@ import type {
   AssignmentResult,
   AssignmentType,
   ChatMessage,
-  JournalColumn,
-  JournalEntry,
-  JournalTopic,
   PortalMeta,
   SalaryLedger,
-  Student,
   Subject,
   TeacherClass,
   EvaluationBoard,
@@ -75,32 +71,6 @@ export async function setTeacherEvalGrade(
   await api.post('/teacher/evaluation/grade', {
     classId, subjectId, studentId, typeId, month, week: 0, score,
   })
-}
-
-/** Fanning chorakdagi darslari (sana + dars raqami) — o'qituvchi jadvalidan */
-export async function getTeacherLessons(
-  classId: string,
-  subjectId: string,
-  quarter: number,
-): Promise<JournalColumn[]> {
-  if (USE_MOCK) return []
-  const { data } = await api.get<JournalColumn[]>('/teacher/journal/columns', {
-    params: { classId, subjectId, quarter },
-  })
-  return data
-}
-
-/** Dars mavzulari/uyga vazifalari (jurnaldan) */
-export async function getTeacherTopics(
-  classId: string,
-  subjectId: string,
-  quarter: number,
-): Promise<JournalTopic[]> {
-  if (USE_MOCK) return []
-  const { data } = await api.get<JournalTopic[]>('/teacher/journal/notes', {
-    params: { classId, subjectId, quarter },
-  })
-  return data
 }
 
 /** O'qituvchining o'zi yaratgan topshiriqlari */
@@ -174,68 +144,6 @@ export async function getTeacherSalary(from?: string, to?: string): Promise<Sala
     params: { from, to },
   })
   return data
-}
-
-/* ---------- Jurnal (faqat o'zi dars beradigan sinf+fan) ---------- */
-
-export async function getTeacherStudents(classId: string): Promise<Student[]> {
-  if (USE_MOCK) return []
-  const { data } = await api.get<Student[]>('/teacher/journal/students', { params: { classId } })
-  return data
-}
-
-export async function getTeacherEntries(
-  classId: string,
-  subjectId: string,
-  quarter: number,
-): Promise<JournalEntry[]> {
-  if (USE_MOCK) return []
-  const { data } = await api.get<JournalEntry[]>('/teacher/journal', {
-    params: { classId, subjectId, quarter },
-  })
-  return data
-}
-
-export async function setTeacherEntry(
-  classId: string,
-  subjectId: string,
-  quarter: number,
-  studentId: string,
-  date: string,
-  period: number,
-  payload: { grade?: number | null; reasonId?: string | null; homework?: number; behavior?: number; mastery?: number | null },
-): Promise<void> {
-  await api.put('/teacher/journal', {
-    classId, subjectId, quarter, studentId, date, period, ...payload,
-  })
-}
-
-export async function clearTeacherEntry(
-  classId: string,
-  subjectId: string,
-  quarter: number,
-  studentId: string,
-  date: string,
-  period: number,
-): Promise<void> {
-  await api.delete('/teacher/journal', {
-    params: { classId, subjectId, quarter, studentId, date, period },
-  })
-}
-
-export async function setTeacherNote(
-  classId: string,
-  subjectId: string,
-  quarter: number,
-  date: string,
-  period: number,
-  topic: string,
-  homework: string,
-  conducted: boolean,
-): Promise<void> {
-  await api.put('/teacher/journal/notes', {
-    classId, subjectId, quarter, date, period, topic, homework, conducted,
-  })
 }
 
 /* ---------- Guruh OYLIK jurnali (o'qituvchi guruh sahifasi — admin bilan bir xil shakl) ---------- */
@@ -334,7 +242,7 @@ export async function sendTeacherChat(className: string, text: string): Promise<
 }
 
 /**
- * Har bir kanal uchun oxirgi xabar vaqti — o'qilmagan xabarlarni aniqlash uchun.
+ * Har bir kanal uchun oxirgi xabar vaqti — o'qilmagan xabarlarni aniqlash uchun (unread-context).
  * Qaytadi: { [channelName]: ISO vaqt yoki null (xabari yo'q kanal) }
  */
 export async function getTeacherLastMessages(): Promise<Record<string, string | null>> {

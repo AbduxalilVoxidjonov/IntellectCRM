@@ -113,6 +113,21 @@ docker compose up -d --build    # app + mssql + cloudflared + backup + mediamtx
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-13: **Tozalash — eski SchoolLms/ishlatilmayotgan/chorak-hafta APIlar olib tashlandi (audit asosida).**
+  Read-only audit agent student vs teacher API'ni solishtirib xavfsiz o'chirish ro'yxatini berdi. **Frontend:**
+  o'lik `pages/teacher/journal/JournalPage.tsx` (rout qilinmagan) + `pages/teacher/ui-web/` (**244 MB** eski JSX
+  prototip, hech kim import qilmaydi) o'chirildi; `teacher.ts`dan o'lik legacy funksiyalar (getTeacher Lessons/Topics/
+  Students/Entries/setEntry/clearEntry/setNote) + ishlatilmagan importlar olib tashlandi. **Backend teacher:** legacy
+  chorak endpointlari — `GET journal/students|columns|journal(entries)|notes(GET+PUT)|topics-template|topics-import`,
+  `GET progress` — olib tashlandi (PUT/DELETE journal SAQLANDI — modern oylik UI ishlatadi; `Authorized` helper qoldi,
+  `TeachesClass` o'lik bo'lib o'chirildi). **Backend student:** `GET homework`, `GET journal` (chorak/hafta, web
+  chaqiruvchisi yo'q) olib tashlandi. SAQLANDI (RISKLI/native ilova uchun): pickup/homeroom/location/telegram/
+  notifications/push-config/school, chorak opaque plumbing (attendance/subjects-progress, meta currentQuarter/Week),
+  shared JournalService/SubjectProgressService. `getTeacherLastMessages` QAYTARILDI (audit xato — `unread-context`
+  ishlatadi). Backend 0, tsc yashil, deploy ✅; jonli: o'chirilganlar 404, saqlanganlar 401. **Student↔Teacher API
+  taqqoslash:** jurnal (teacher modern oylik + legacy o'chirildi; student chorak o'chirildi), chat (teacher ko'p-kanal
+  + last-messages, student bitta-kanal), topshiriq (teacher yozadi/student o'qiydi), LMS (ikkalasi), curriculum
+  (ikkalasi CurriculumForecast'dan) — izchil, dublikat yo'q.
 - 2026-06-13: **O'quvchi portali — ikonkalar Material Symbols (font) → lucide SVG (WebView'da "icon yo'q, hammasi
   yozuv, algov-dalgov" tuzatildi).** Muammo: student portal ikonkalari Material Symbols Rounded LIGATURE-font edi
   (`<span class="ms">account_balance_wallet</span>`); WebView'da ligature shakllanmagani uchun glyph o'rniga UZUN

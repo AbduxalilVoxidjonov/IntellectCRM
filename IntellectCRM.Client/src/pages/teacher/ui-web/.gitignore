@@ -1,5 +1,0 @@
-node_modules
-dist
-.playwright-mcp
-*.local
-.DS_Store

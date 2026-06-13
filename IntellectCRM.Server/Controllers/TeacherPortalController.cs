@@ -39,15 +39,6 @@ public class TeacherPortalController(
             && (g.CourseId == subjectId || string.IsNullOrEmpty(subjectId));
     }
 
-    /// <summary>O'qituvchi shu sinfda umuman dars beradimi yoki sinf rahbarimi?</summary>
-    private async Task<bool> TeachesClass(Teacher teacher, string classId)
-    {
-        var cls = await db.Classes.FindAsync(classId);
-        if (cls is null) return false;
-        if (!string.IsNullOrEmpty(teacher.HomeroomClass) && teacher.HomeroomClass == cls.Name) return true;
-        return cls.TeacherId == teacher.Id;
-    }
-
     // ---------- Profil ----------
 
     [HttpGet("me")]
@@ -322,48 +313,9 @@ public class TeacherPortalController(
         return await SalaryLedger.BuildAsync(db, t, from, to);
     }
 
-    // ---------- Jurnal (faqat o'zi dars beradigan sinf+fan) ----------
-    // LEGACY (chorak-asosli) — yangi OYLIK guruh jurnali (journal/group + journal/bulk-attendance)
-    // bilan ALMASHTIRILDI. Eski frontend hali chaqirishi mumkin, shuning uchun saqlanadi. Yangi UI
-    // pastdagi "ZAMONAVIY" bo'limdagi journal/group endpointini ishlatadi.
-
-    [HttpGet("journal/students")]
-    public async Task<ActionResult<IEnumerable<StudentDto>>> JournalStudents([FromQuery] string classId)
-    {
-        var t = await Me();
-        if (t is null) return NotFound();
-        if (!t.Permissions.Contains(TeacherPermissions.Journal) || !await TeachesClass(t, classId))
-            return Forbid();
-
-        var cls = await db.Classes.FindAsync(classId);
-        if (cls is null) return NotFound();
-        return await db.Students.Where(s => s.ClassName == cls.Name)
-            .OrderBy(s => s.FullName)
-            .Select(s => new StudentDto(
-                s.Id, s.FullName, s.BirthDate, s.Address, s.Gender,
-                s.ParentFullName, s.ParentPhone, s.ClassName, s.EnrollmentDate, s.Balance,
-                s.DiscountPct, s.DiscountAmount, s.DiscountNote,
-                s.LastName, s.FirstName, s.MiddleName, s.BirthCertificateUrl,
-                s.ParentLastName, s.ParentFirstName, s.ParentMiddleName, s.ParentPassportUrl,
-                s.IsArchived, s.ArchivedAt, s.ArchiveReason))
-            .ToListAsync();
-    }
-
-    [HttpGet("journal/columns")]
-    public async Task<ActionResult<IEnumerable<JournalColumnDto>>> Columns(
-        [FromQuery] string classId, [FromQuery] string subjectId, [FromQuery] int quarter)
-    {
-        if (!await Authorized(classId, subjectId)) return Forbid();
-        return await JournalService.ComputeColumnsAsync(db, classId, subjectId, quarter);
-    }
-
-    [HttpGet("journal")]
-    public async Task<ActionResult<IEnumerable<JournalEntryDto>>> Entries(
-        [FromQuery] string classId, [FromQuery] string subjectId, [FromQuery] int quarter)
-    {
-        if (!await Authorized(classId, subjectId)) return Forbid();
-        return await JournalService.GetEntriesAsync(db, classId, subjectId, quarter);
-    }
+    // ---------- Jurnal katak (PUT/DELETE) ----------
+    // ZAMONAVIY oylik guruh jurnali (journal/group) shu ikki endpointni quarter/period opaque=1 bilan
+    // ishlatadi (bitta katakni belgilash/tozalash). Eski chorak GET endpointlari olib tashlandi.
 
     [HttpPut("journal")]
     public async Task<IActionResult> SetEntry(SetJournalEntryRequest req)
@@ -384,58 +336,6 @@ public class TeacherPortalController(
         if (!await Authorized(classId, subjectId)) return Forbid();
         await JournalService.ClearEntryAsync(db, classId, subjectId, quarter, studentId, date, period);
         return NoContent();
-    }
-
-    [HttpGet("journal/notes")]
-    public async Task<ActionResult<IEnumerable<JournalTopicDto>>> Notes(
-        [FromQuery] string classId, [FromQuery] string subjectId, [FromQuery] int quarter)
-    {
-        if (!await Authorized(classId, subjectId)) return Forbid();
-        return await JournalService.GetNotesAsync(db, classId, subjectId, quarter);
-    }
-
-    [HttpPut("journal/notes")]
-    public async Task<IActionResult> SetNote(SetLessonNoteRequest req)
-    {
-        if (!await Authorized(req.ClassId, req.SubjectId)) return Forbid();
-        await JournalService.SetNoteAsync(db, req);
-        return NoContent();
-    }
-
-    /// <summary>Mavzular shabloni (.xlsx) — o'qituvchi o'z sinf+fani uchun jadval kunlari bilan.</summary>
-    [HttpGet("journal/topics-template")]
-    public async Task<IActionResult> TopicsTemplate(
-        [FromQuery] string classId, [FromQuery] string subjectId, [FromQuery] int quarter)
-    {
-        if (!await Authorized(classId, subjectId)) return Forbid();
-        var bytes = await JournalService.TopicTemplateXlsxAsync(db, classId, subjectId, quarter);
-        return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "mavzular_shablon.xlsx");
-    }
-
-    /// <summary>To'ldirilgan Excel'dan mavzu+uy vazifani import (darsni "o'tilgan" qilmaydi).</summary>
-    [HttpPost("journal/topics-import")]
-    [RequestSizeLimit(10 * 1024 * 1024)]
-    public async Task<ActionResult<TopicImportResultDto>> TopicsImport(
-        [FromForm] string classId, [FromForm] string subjectId, [FromForm] int quarter, IFormFile? file)
-    {
-        if (!await Authorized(classId, subjectId)) return Forbid();
-        if (file is null || file.Length == 0)
-            return BadRequest(new { message = "Fayl tanlanmagan" });
-        if (!file.FileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))
-            return BadRequest(new { message = "Faqat .xlsx (Excel) fayl qabul qilinadi" });
-
-        List<string[]> rows;
-        try
-        {
-            await using var stream = file.OpenReadStream();
-            rows = ExcelImport.ReadRows(stream, JournalService.TopicHeaders.Length);
-        }
-        catch
-        {
-            return BadRequest(new { message = "Faylni o'qib bo'lmadi — buzilmagan .xlsx ekanini tekshiring" });
-        }
-
-        return await JournalService.ImportTopicsAsync(db, classId, subjectId, quarter, rows);
     }
 
     // ---------- O'quvchilarni baholash (fan o'qituvchisi o'z fanidan) ----------
@@ -830,21 +730,6 @@ public class TeacherPortalController(
         return await db.AssignmentTypes.Select(t => new AssignmentTypeDto(t.Id, t.Name)).ToListAsync();
     }
 
-    // ---------- Fan progresi (o'zi o'tgan darslar) ----------
-    // LEGACY (chorak-asosli) — yangi sillabus o'tilishi/prognoz (curriculum/group/{id}) bilan
-    // ALMASHTIRILDI. Saqlanadi, lekin yangi UI curriculum endpointlarini ishlatadi.
-
-    /// <summary>
-    /// O'qituvchining o'tilgan darslar progresi — umumiy (o'tilgan/reja) + har bir
-    /// (sinf, fan, guruh) kesimi bo'yicha yoyilma. Reja jadvaldan, o'tilgan jurnaldan ("dars o'tildi").
-    /// </summary>
-    [HttpGet("progress")]
-    public async Task<ActionResult<TeacherProgressDto>> Progress([FromQuery] int? quarter)
-    {
-        var t = await Me();
-        if (t is null) return NotFound();
-        return await SubjectProgressService.ForTeacherAsync(db, t.Id, quarter ?? 1);
-    }
 
     // ---------- Taklif va shikoyatlar (o'qituvchi → admin) ----------
 
