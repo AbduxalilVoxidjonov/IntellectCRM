@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { GraduationCap, BookOpen, Crown, Wallet, LogOut, Percent } from 'lucide-react'
+import { GraduationCap, BookOpen, Crown, Wallet, LogOut } from 'lucide-react'
 import type { SalaryLedger, TeacherClass } from '@/types'
 import { getMyClasses, getTeacherSalary } from '@/api/services/teacher'
 import { useAuth } from '@/context/auth-context'
@@ -47,6 +47,9 @@ export function TeacherProfilePage() {
   })()
   const currentMonth = salary?.months?.find((m) => m.month === ym) ?? null
   const isPercent = salary?.salaryMode === 'percent'
+  const expected = currentMonth?.expected ?? 0
+  const paid = currentMonth?.paid ?? 0
+  const remaining = Math.max(0, expected - paid)
 
   return (
     <div className="space-y-4">
@@ -77,45 +80,25 @@ export function TeacherProfilePage() {
         <MiniStat icon={Crown} value={homeroomCount} label="Rahbarlik" />
       </div>
 
-      {/* Maosh xulosasi (mavjud bo'lsa) */}
+      {/* Maosh xulosasi — FAQAT hisoblangan summa (foiz/ulush ko'rsatilmaydi) */}
       {salary && (
-        <Card title="Maosh" sub={isPercent ? 'Foizli rejim' : "Qat'iy oylik"} tight>
+        <Card title="Maosh" sub={isPercent ? "Yig'ilgan to'lovga asoslangan" : "Qat'iy oylik"} tight>
           <div className="space-y-3 p-[18px]">
-            {isPercent ? (
-              <div className="flex items-center gap-3 rounded-xl border border-brand-100 bg-brand-50 p-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white text-brand-600">
-                  <Percent className="h-5 w-5" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-slate-500">Ulush</p>
-                  <p className="font-mono text-lg font-extrabold text-slate-800">
-                    {salary.salaryPercent ?? 0}%
-                  </p>
-                </div>
+            <div className="flex items-center gap-3 rounded-xl border border-brand-100 bg-brand-50 p-3.5">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-white text-brand-600">
+                <Wallet className="h-5 w-5" />
               </div>
-            ) : (
-              <div className="flex items-center gap-3 rounded-xl border border-brand-100 bg-brand-50 p-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white text-brand-600">
-                  <Wallet className="h-5 w-5" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-slate-500">Belgilangan oylik</p>
-                  <p className="font-mono text-lg font-extrabold text-slate-800">
-                    {formatMoney(salary.salary)}
-                  </p>
-                </div>
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-slate-500">Joriy oy hisoblandi</p>
+                <p className="font-mono text-xl font-extrabold text-slate-800">
+                  {formatMoney(expected)}
+                </p>
               </div>
-            )}
+            </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <SalaryCell
-                label="Joriy oy hisoblandi"
-                value={formatMoney(currentMonth?.expected ?? 0)}
-              />
-              <SalaryCell
-                label="Joriy oy berildi"
-                value={formatMoney(currentMonth?.paid ?? 0)}
-              />
+              <SalaryCell label="Berildi" value={formatMoney(paid)} />
+              <SalaryCell label="Qoldi" value={formatMoney(remaining)} />
             </div>
           </div>
         </Card>

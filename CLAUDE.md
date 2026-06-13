@@ -113,6 +113,17 @@ docker compose up -d --build    # app + mssql + cloudflared + backup + mediamtx
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-13: **O'qituvchi portali UX tuzatishlari (3 muammo).** (1) **Profil maoshi — FOIZ/ULUSH ko'rsatilmaydi.**
+  `TeacherProfilePage` ilgari foizli rejimda "Ulush X%" ko'rsatardi; endi rejimdan qat'i nazar faqat HISOBLANGAN summa
+  ("Joriy oy hisoblandi" = `expected`) + "Berildi" (`paid`) + "Qoldi" (`expected-paid`). `Percent` ikona/`salaryPercent`/
+  `salary.salary` UI'dan olib tashlandi (sub matni "Yig'ilgan to'lovga asoslangan"/"Qat'iy oylik"). (2) **Xabarlar
+  mobil oqimi.** `messages/MessagesPage` admin 2-ustun `lg:grid` edi → `max-w-md` shell'da stacklanib yaroqsiz
+  ko'rinardi. Endi: kanal RO'YXATI (to'liq-kenglik app-kartalar, xodimlar gradient binafsha + guruhlar brend, o'qilmagan
+  nuqta) → bosilsa to'liq-ekran suhbat (`ChatPanel`) + "← Kanallar" orqaga tugmasi. (3) **Guruh jurnali — o'quv dasturi
+  "kichik/margin" tuzatildi.** `TeacherGroupDetailPage` `CurriculumSection` daraxti ichma-ich 3 qavat bordered/shadow
+  karta edi (daraja>mavzu>band) → tekislandi: daraja = yengil yoyiladigan qator (`divide-y`), mavzu = mayda uppercase
+  sarlavha, bandlar = TO'LIQ-kenglik check qatorlar (faqat `px-4` inset) → kenglik tiklandi, app-ko'rinish. Frontend-only,
+  tsc+vite yashil, `app` deploy (mssql-data saqlandi), jonli /teacher 200, yangi build. ✅
 - 2026-06-13: **O'qituvchi portali — "Jurnal" tab olib tashlandi, guruh-ichiga-kirib-oylik-baholash oqimi +
   `teacher_api.md` real API'ga moslandi.** (1) Pastki nav endi 4 tab: Bosh sahifa · Topshiriqlar · Xabarlar · Profil
   ("Jurnal" tab/route olib tashlandi; `JournalPage.tsx` faylda qoldi, import/route yo'q). (2) Bosh sahifada

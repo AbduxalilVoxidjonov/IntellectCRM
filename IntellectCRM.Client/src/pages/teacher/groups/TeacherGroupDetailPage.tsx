@@ -631,8 +631,8 @@ function CurriculumSection({
                 </div>
               </div>
 
-              {/* DASTUR DARAXTI — darajalar (default yopiq) */}
-              <div className="space-y-3 p-4">
+              {/* DASTUR DARAXTI — tekis (ichma-ich kartasiz, to'liq kenglik) */}
+              <div className="divide-y divide-slate-100">
                 {curr.levels.map((level) => {
                   const levelTotal = level.topics.reduce((s, t) => s + t.items.length, 0)
                   const levelCovered = level.topics.reduce(
@@ -640,20 +640,18 @@ function CurriculumSection({
                     0,
                   )
                   const lvOpen = expanded.has(level.id)
+                  const complete = levelTotal > 0 && levelCovered === levelTotal
                   return (
-                    <div
-                      key={level.id}
-                      className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[var(--shadow-1)]"
-                    >
+                    <div key={level.id}>
                       <button
                         type="button"
                         onClick={() => onToggleLevel(level.id)}
-                        className="flex w-full items-center gap-2 border-b border-slate-100 bg-slate-50/60 px-3 py-2.5 text-left transition-colors hover:bg-slate-100/60"
+                        className="flex w-full items-center gap-2.5 px-4 py-3 text-left transition-colors hover:bg-slate-50"
                       >
-                        <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-slate-400">
+                        <span className="shrink-0 text-slate-400">
                           {lvOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                         </span>
-                        <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-600">
+                        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand-50 text-brand-600">
                           <BookOpen className="h-4 w-4" />
                         </span>
                         <span className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-800">
@@ -661,10 +659,8 @@ function CurriculumSection({
                         </span>
                         <span
                           className={cn(
-                            'flex-shrink-0 rounded-full px-2.5 py-1 text-xs font-medium',
-                            levelTotal > 0 && levelCovered === levelTotal
-                              ? 'bg-emerald-50 text-emerald-700'
-                              : 'bg-slate-100 text-slate-500',
+                            'shrink-0 rounded-full px-2.5 py-1 text-xs font-medium',
+                            complete ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500',
                           )}
                         >
                           <span className="font-mono">{levelCovered}/{levelTotal}</span>
@@ -672,81 +668,67 @@ function CurriculumSection({
                       </button>
 
                       {lvOpen && (
-                        <div className="p-3">
-                          {level.note && <p className="mb-2 px-1 text-xs text-slate-400">{level.note}</p>}
+                        <div className="bg-slate-50/40 pb-1.5">
+                          {level.note && <p className="px-4 pb-1 text-xs text-slate-400">{level.note}</p>}
                           {level.topics.length === 0 ? (
-                            <p className="px-1 text-xs text-slate-400">Mavzu yo'q.</p>
+                            <p className="px-4 py-2 text-xs text-slate-400">Mavzu yo'q.</p>
                           ) : (
-                            <div className="space-y-3">
-                              {level.topics.map((topic) => {
-                                const tCovered = topic.items.filter((it) => it.covered).length
-                                return (
-                                  <div
-                                    key={topic.id}
-                                    className="rounded-xl border border-slate-200 bg-white p-3 shadow-[var(--shadow-1)]"
-                                  >
-                                    <div className="flex items-center gap-2">
-                                      <h4 className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-800">
-                                        {topic.title}
-                                      </h4>
-                                      <span className="flex-shrink-0 text-xs text-slate-400">
-                                        <span className="font-mono">{tCovered}/{topic.items.length}</span> band
-                                      </span>
-                                    </div>
-                                    {topic.note && (
-                                      <p className="mt-1 text-xs text-slate-400">{topic.note}</p>
-                                    )}
-                                    {topic.items.length > 0 && (
-                                      <div className="mt-2 space-y-1">
-                                        {topic.items.map((item) => {
-                                          const isNext = item.id === nextItemId
-                                          return (
-                                            <label
-                                              key={item.id}
-                                              className={cn(
-                                                'flex cursor-pointer items-start gap-2 rounded-md px-2 py-1.5 transition-colors',
-                                                item.covered
-                                                  ? 'bg-emerald-50/50'
-                                                  : isNext
-                                                    ? 'bg-brand-50/60 ring-1 ring-brand-200'
-                                                    : 'hover:bg-slate-50',
-                                              )}
-                                            >
-                                              <input
-                                                type="checkbox"
-                                                checked={item.covered}
-                                                onChange={() => onToggleCover(item.id, !item.covered)}
-                                                className="mt-0.5 h-4 w-4 flex-shrink-0 cursor-pointer rounded border-slate-300 text-brand-600 focus:ring-brand-400"
-                                              />
-                                              <span
-                                                className={cn(
-                                                  'min-w-0 flex-1 text-sm',
-                                                  item.covered
-                                                    ? 'text-slate-400 line-through'
-                                                    : 'text-slate-700',
-                                                )}
-                                              >
-                                                {item.text}
-                                                {isNext && (
-                                                  <span className="ml-2 rounded bg-brand-100 px-1.5 py-0.5 text-[10px] font-medium text-brand-700 no-underline">
-                                                    keyingi
-                                                  </span>
-                                                )}
-                                              </span>
-                                              {item.covered && item.coveredDate && (
-                                                <span className="ml-auto flex-shrink-0 self-center whitespace-nowrap rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-400 no-underline">
-                                                  {formatDate(item.coveredDate)}
-                                                </span>
-                                              )}
-                                            </label>
-                                          )
-                                        })}
-                                      </div>
-                                    )}
+                            level.topics.map((topic) => {
+                              const tCovered = topic.items.filter((it) => it.covered).length
+                              return (
+                                <div key={topic.id} className="pt-2">
+                                  <div className="flex items-center gap-2 px-4 pb-0.5">
+                                    <h4 className="min-w-0 flex-1 truncate text-[11px] font-bold uppercase tracking-wide text-slate-400">
+                                      {topic.title}
+                                    </h4>
+                                    <span className="shrink-0 text-[11px] text-slate-400">
+                                      <span className="font-mono">{tCovered}/{topic.items.length}</span>
+                                    </span>
                                   </div>
-                                )
-                              })}
-                            </div>
+                                  {topic.items.map((item) => {
+                                    const isNext = item.id === nextItemId
+                                    return (
+                                      <label
+                                        key={item.id}
+                                        className={cn(
+                                          'flex cursor-pointer items-center gap-2.5 px-4 py-2 transition-colors',
+                                          item.covered
+                                            ? 'bg-emerald-50/40'
+                                            : isNext
+                                              ? 'bg-brand-50/50'
+                                              : 'hover:bg-white',
+                                        )}
+                                      >
+                                        <input
+                                          type="checkbox"
+                                          checked={item.covered}
+                                          onChange={() => onToggleCover(item.id, !item.covered)}
+                                          className="h-4 w-4 shrink-0 cursor-pointer rounded border-slate-300 text-brand-600 focus:ring-brand-400"
+                                        />
+                                        <span
+                                          className={cn(
+                                            'min-w-0 flex-1 text-sm',
+                                            item.covered ? 'text-slate-400 line-through' : 'text-slate-700',
+                                          )}
+                                        >
+                                          {item.text}
+                                          {isNext && (
+                                            <span className="ml-2 rounded bg-brand-100 px-1.5 py-0.5 text-[10px] font-medium text-brand-700 no-underline">
+                                              keyingi
+                                            </span>
+                                          )}
+                                        </span>
+                                        {item.covered && item.coveredDate && (
+                                          <span className="shrink-0 self-center whitespace-nowrap rounded bg-white px-1.5 py-0.5 font-mono text-[11px] text-slate-400 no-underline">
+                                            {formatDate(item.coveredDate)}
+                                          </span>
+                                        )}
+                                      </label>
+                                    )
+                                  })}
+                                </div>
+                              )
+                            })
                           )}
                         </div>
                       )}
