@@ -544,3 +544,13 @@ docker compose up -d --build    # app + mssql + cloudflared + backup + mediamtx
   `CurriculumController [AdminPerm schedule]` — `api/teacher/curriculum` kerak; teacher `schedule` ruxsati ishlatilmaydi);
   (2) o'qituvchi maosh SAHIFASI yo'q (endpoint bor); (3) jurnal eski per-cell model (admin monthly). Test o'qituvchi
   paroli tiklandi: abduxalilvoxidjonov / krwp5yen.
+- 2026-06-13: **O'qituvchi API modernizatsiya + portal MOBIL WEB-APP (2 subagent).** (1) Backend: `TeacherPortalController`ga
+  5 modern endpoint qo'shildi (teacher-scoped, Group.TeacherId==me): `GET journal/group?classId&month` (oylik jurnal,
+  JournalService.GroupMonthAsync), `POST journal/bulk-attendance`, `GET curriculum/group/{id}` (o'quv dasturi coverage +
+  prognoz, perm `schedule` endi ishlatiladi), `POST cover`, `POST revision`. Eski CHORAK-asosli endpointlar (journal/
+  columns?quarter, journal?quarter, notes?quarter, quarter-grades, schedule?quarter, progress?quarter, topics-import)
+  LEGACY deb belgilandi (o'chirilmadi — eski front chaqirishi mumkin). (2) Frontend: o'qituvchi portali endi MOBIL
+  WEB-APP — `TeacherMobileLayout` (bottom-nav 5 tab: Bosh sahifa/Jurnal/Topshiriqlar/Xabarlar/Profil, app-like, eski
+  ui-web dizayni), admin shell o'rniga; yangi `TeacherProfilePage` (ism/login/guruh/maosh/chiqish); dashboard+journal
+  mobil-friendly. Migratsiya yo'q (mavjud DTO/service qayta ishlatildi). tsc+backend+vite 0, deploy ✅.
+  QOLDI: o'qituvchi journal/curriculum ekranlarini yangi monthly endpointlarga ulash (hozir UI eski; backend tayyor).

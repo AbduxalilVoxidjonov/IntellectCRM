@@ -52,6 +52,8 @@ import { TeacherAssignmentsPage } from '@/pages/teacher/assignments/AssignmentsP
 import { TeacherLmsPage } from '@/pages/teacher/lms/TeacherLmsPage'
 import { TeacherLmsSubjectPage } from '@/pages/teacher/lms/TeacherLmsSubjectPage'
 import { TeacherMessagesPage } from '@/pages/teacher/messages/MessagesPage'
+import { TeacherProfilePage } from '@/pages/teacher/TeacherProfilePage'
+import { TeacherMobileLayout } from '@/components/layout/TeacherMobileLayout'
 
 export default function App() {
   return (
@@ -116,10 +118,10 @@ export default function App() {
         </Route>
       </Route>
 
-      {/* O'qituvchi portali — SPA ichida, admin shell (Sidebar/Topbar) qayta ishlatiladi.
-          Sidebar `navByRole['teacher']` ni ko'rsatadi. Telefon (Flutter WebView) uchun mos. */}
+      {/* O'qituvchi portali — MOBIL ilova qobig'i (telefon, Flutter WebView orqali).
+          Admin Sidebar/Topbar O'RNIGA pastki tab navigatsiya (TeacherMobileLayout). */}
       <Route element={<ProtectedRoute role="teacher" />}>
-        <Route path="/teacher" element={<AppLayout />}>
+        <Route path="/teacher" element={<TeacherMobileLayout />}>
           <Route index element={<TeacherDashboard />} />
           <Route path="journal" element={<RequirePerm perm="journal"><TeacherJournalPage /></RequirePerm>} />
           <Route path="evaluation" element={<TeacherEvaluationPage />} />
@@ -127,6 +129,7 @@ export default function App() {
           <Route path="lms" element={<TeacherLmsPage />} />
           <Route path="lms/:subjectId" element={<TeacherLmsSubjectPage />} />
           <Route path="messages" element={<RequirePerm perm="messages"><TeacherMessagesPage /></RequirePerm>} />
+          <Route path="profile" element={<TeacherProfilePage />} />
           <Route path="account" element={<AccountPage />} />
         </Route>
       </Route>

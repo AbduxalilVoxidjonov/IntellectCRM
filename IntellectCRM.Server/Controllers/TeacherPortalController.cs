@@ -323,6 +323,9 @@ public class TeacherPortalController(
     }
 
     // ---------- Jurnal (faqat o'zi dars beradigan sinf+fan) ----------
+    // LEGACY (chorak-asosli) — yangi OYLIK guruh jurnali (journal/group + journal/bulk-attendance)
+    // bilan ALMASHTIRILDI. Eski frontend hali chaqirishi mumkin, shuning uchun saqlanadi. Yangi UI
+    // pastdagi "ZAMONAVIY" bo'limdagi journal/group endpointini ishlatadi.
 
     [HttpGet("journal/students")]
     public async Task<ActionResult<IEnumerable<StudentDto>>> JournalStudents([FromQuery] string classId)
@@ -554,6 +557,213 @@ public class TeacherPortalController(
             && await Teaches(t.Id, classId, subjectId);
     }
 
+    /// <summary>Guruh joriy o'qituvchinikimi (Group.TeacherId == me). Topilmasa null, egasi bo'lmasa false.</summary>
+    private async Task<(Teacher? Me, Group? Group, bool Owns)> ResolveOwnedGroup(string classId)
+    {
+        var t = await Me();
+        if (t is null) return (null, null, false);
+        var g = await db.Classes.FindAsync(classId);
+        if (g is null) return (t, null, false);
+        return (t, g, g.TeacherId == t.Id);
+    }
+
+    // ---------- ZAMONAVIY: Guruh OYLIK jurnali + sillabus o'tilishi (admin bilan bir xil, o'qituvchiga skoplangan) ----------
+    // Yangi monthly model: guruh dars kunlari bo'yicha avtomatik ustunlar + sillabus o'tilishi/prognoz.
+    // Faqat guruh EGASI (Group.TeacherId == me) kirishi mumkin (aks holda 403/404).
+
+    /// <summary>Guruhning bitta OYLIK jurnali (admin <c>GET /admin/journal/group</c> bilan bir xil), faqat o'z guruhi uchun.</summary>
+    [HttpGet("journal/group")]
+    public async Task<ActionResult<GroupJournalDto>> JournalGroupMonth(
+        [FromQuery] string classId, [FromQuery] string? month)
+    {
+        var (t, g, owns) = await ResolveOwnedGroup(classId);
+        if (t is null) return NotFound();
+        if (!t.Permissions.Contains(TeacherPermissions.Journal)) return Forbid();
+        if (g is null) return NotFound(new { message = "Guruh topilmadi" });
+        if (!owns) return Forbid();
+        var result = await JournalService.GroupMonthAsync(db, classId, month);
+        return result is null ? NotFound(new { message = "Guruh topilmadi" }) : result;
+    }
+
+    /// <summary>Bitta dars (sana) uchun BARCHA o'quvchiga birdan davomat (admin bilan bir xil), faqat o'z guruhi uchun.</summary>
+    [HttpPost("journal/bulk-attendance")]
+    public async Task<IActionResult> JournalBulkAttendance(BulkAttendanceRequest req)
+    {
+        var (t, g, owns) = await ResolveOwnedGroup(req.ClassId);
+        if (t is null) return NotFound();
+        if (!t.Permissions.Contains(TeacherPermissions.Journal)) return Forbid();
+        if (g is null) return NotFound(new { message = "Guruh topilmadi" });
+        if (!owns) return Forbid();
+        await JournalService.BulkAttendanceAsync(db, req);
+        return NoContent();
+    }
+
+    /// <summary>Guruh sillabus o'tilishi + tugash prognozi (admin <c>GET /admin/curriculum/group/{id}</c> bilan bir xil), o'z guruhi uchun.</summary>
+    [HttpGet("curriculum/group/{groupId}")]
+    public async Task<ActionResult<GroupCurriculumDto>> CurriculumGroup(string groupId)
+    {
+        var (t, group, owns) = await ResolveOwnedGroup(groupId);
+        if (t is null) return NotFound();
+        if (!t.Permissions.Contains(TeacherPermissions.Schedule)) return Forbid();
+        if (group is null) return NotFound();
+        if (!owns) return Forbid();
+
+        var courseId = group.CourseId;
+        var subject = await db.Subjects.FindAsync(courseId);
+        var courseName = subject?.Name ?? "";
+
+        var levels = await db.CourseLevels
+            .Where(l => l.SubjectId == courseId)
+            .OrderBy(l => l.Order).ToListAsync();
+        var topics = await db.CourseTopics
+            .Where(tp => tp.SubjectId == courseId)
+            .OrderBy(tp => tp.Order).ToListAsync();
+        var items = await db.CourseItems
+            .Where(i => i.SubjectId == courseId)
+            .OrderBy(i => i.Order).ToListAsync();
+
+        var existingItemIds = items.Select(i => i.Id).ToHashSet();
+
+        var logs = await db.GroupCurriculumLogs
+            .Where(gl => gl.GroupId == groupId).ToListAsync();
+
+        var coveredItemIds = logs
+            .Where(l => !l.IsRevision && l.ItemId != "" && existingItemIds.Contains(l.ItemId))
+            .Select(l => l.ItemId).Distinct().ToHashSet();
+
+        var coverDateByItem = logs
+            .Where(l => !l.IsRevision && l.ItemId != "")
+            .GroupBy(l => l.ItemId)
+            .ToDictionary(
+                grp => grp.Key,
+                grp => grp.OrderBy(l => l.Date).ThenBy(l => l.CreatedAt).First().Date);
+
+        var totalItems = items.Count;
+        var coveredCount = coveredItemIds.Count;
+        var revisionLessons = logs.Count(l => l.IsRevision);
+        var totalLessons = coveredCount + revisionLessons;
+        var remainingItems = Math.Max(0, totalItems - coveredCount);
+
+        var pace = totalLessons > 0 ? (double)coveredCount / totalLessons : 1.0;
+        pace = Math.Max(pace, 0.1);
+        var estLessonsLeft = remainingItems == 0 ? 0 : (int)Math.Ceiling(remainingItems / pace);
+
+        var days = group.Days ?? new List<int>();
+        var lessonsPerWeek = days.Count > 0 ? days.Count : 3;
+
+        var estFinishDate = "";
+        if (estLessonsLeft > 0)
+        {
+            if (days.Count > 0)
+            {
+                var daySet = days.ToHashSet();
+                var date = AppClock.Today;
+                var counted = 0;
+                var guard = 0;
+                while (counted < estLessonsLeft && guard < 3000)
+                {
+                    date = date.AddDays(1);
+                    var weekday = ((int)date.DayOfWeek + 6) % 7; // Monday=0..Sunday=6
+                    if (daySet.Contains(weekday)) counted++;
+                    guard++;
+                }
+                estFinishDate = date.ToString("yyyy-MM-dd");
+            }
+            else
+            {
+                estFinishDate = AppClock.Today.AddDays(estLessonsLeft * 7 / 3).ToString("yyyy-MM-dd");
+            }
+        }
+
+        var levelDtos = levels.Select(l => new GroupCurriculumLevelDto(
+            l.Id, l.Name, l.Note, l.Order,
+            topics.Where(tp => tp.LevelId == l.Id).Select(tp => new GroupCurriculumTopicDto(
+                tp.Id, tp.Title, tp.Note, tp.Order,
+                items.Where(i => i.TopicId == tp.Id).Select(i => new GroupCurriculumItemDto(
+                    i.Id, i.Text, i.Note, i.Order, coveredItemIds.Contains(i.Id),
+                    coveredItemIds.Contains(i.Id) && coverDateByItem.TryGetValue(i.Id, out var cd) ? cd : "")).ToList()
+            )).ToList()
+        )).ToList();
+
+        return new GroupCurriculumDto(
+            groupId, courseId, courseName,
+            totalItems, coveredCount, revisionLessons, totalLessons,
+            remainingItems, estLessonsLeft, lessonsPerWeek, estFinishDate,
+            levelDtos);
+    }
+
+    /// <summary>Bandni o'tilgan/o'tilmagan qilish (admin <c>POST /admin/curriculum/group/{id}/cover</c> bilan bir xil), o'z guruhi uchun.</summary>
+    [HttpPost("curriculum/group/{groupId}/cover")]
+    public async Task<ActionResult> CurriculumCover(string groupId, CoverRequest req)
+    {
+        var (t, group, owns) = await ResolveOwnedGroup(groupId);
+        if (t is null) return NotFound();
+        if (!t.Permissions.Contains(TeacherPermissions.Schedule)) return Forbid();
+        if (group is null) return NotFound();
+        if (!owns) return Forbid();
+
+        if (req.Covered)
+        {
+            var exists = await db.GroupCurriculumLogs
+                .AnyAsync(g => g.GroupId == groupId && g.ItemId == req.ItemId && !g.IsRevision);
+            if (!exists)
+            {
+                db.GroupCurriculumLogs.Add(new GroupCurriculumLog
+                {
+                    GroupId = groupId,
+                    ItemId = req.ItemId,
+                    IsRevision = false,
+                    Date = AppClock.Today.ToString("yyyy-MM-dd"),
+                    CreatedAt = AppClock.Now.ToString("yyyy-MM-ddTHH:mm:ss"),
+                });
+            }
+        }
+        else
+        {
+            await db.GroupCurriculumLogs
+                .Where(g => g.GroupId == groupId && g.ItemId == req.ItemId && !g.IsRevision)
+                .ExecuteDeleteAsync();
+        }
+        await db.SaveChangesAsync();
+        return Ok(new { ok = true });
+    }
+
+    /// <summary>Takrorlash darsi qo'shish/olib tashlash (admin <c>POST /admin/curriculum/group/{id}/revision</c> bilan bir xil), o'z guruhi uchun.</summary>
+    [HttpPost("curriculum/group/{groupId}/revision")]
+    public async Task<ActionResult> CurriculumRevision(string groupId, RevisionRequest req)
+    {
+        var (t, group, owns) = await ResolveOwnedGroup(groupId);
+        if (t is null) return NotFound();
+        if (!t.Permissions.Contains(TeacherPermissions.Schedule)) return Forbid();
+        if (group is null) return NotFound();
+        if (!owns) return Forbid();
+
+        if (req.Delta > 0)
+        {
+            db.GroupCurriculumLogs.Add(new GroupCurriculumLog
+            {
+                GroupId = groupId,
+                ItemId = "",
+                IsRevision = true,
+                Date = AppClock.Today.ToString("yyyy-MM-dd"),
+                CreatedAt = AppClock.Now.ToString("yyyy-MM-ddTHH:mm:ss"),
+            });
+        }
+        else if (req.Delta < 0)
+        {
+            var last = await db.GroupCurriculumLogs
+                .Where(g => g.GroupId == groupId && g.IsRevision)
+                .OrderByDescending(g => g.CreatedAt)
+                .FirstOrDefaultAsync();
+            if (last != null) db.GroupCurriculumLogs.Remove(last);
+        }
+        await db.SaveChangesAsync();
+
+        var revisionLessons = await db.GroupCurriculumLogs
+            .CountAsync(g => g.GroupId == groupId && g.IsRevision);
+        return Ok(new { ok = true, revisionLessons });
+    }
+
     // ---------- Guruh chati (dars beradigan sinflar + sinf rahbarligi) ----------
 
     /// <summary>
@@ -702,6 +912,8 @@ public class TeacherPortalController(
     }
 
     // ---------- Fan progresi (o'zi o'tgan darslar) ----------
+    // LEGACY (chorak-asosli) — yangi sillabus o'tilishi/prognoz (curriculum/group/{id}) bilan
+    // ALMASHTIRILDI. Saqlanadi, lekin yangi UI curriculum endpointlarini ishlatadi.
 
     /// <summary>
     /// O'qituvchining o'tilgan darslar progresi — umumiy (o'tilgan/reja) + har bir
