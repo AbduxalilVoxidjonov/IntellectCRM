@@ -966,6 +966,10 @@ export interface PushMessage {
   createdAt: string
   recipientCount: number
   sentCount: number
+  /** Nechta oluvchi "Tasdiqlash" bosgani */
+  confirmedCount: number
+  /** Jami oluvchi (bildirishnoma yozilganlar) */
+  targetCount: number
 }
 
 /* ---------- Topshiriqlar (qo'shimcha) ---------- */

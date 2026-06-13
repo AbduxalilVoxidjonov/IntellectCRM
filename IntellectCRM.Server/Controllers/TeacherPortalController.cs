@@ -74,7 +74,8 @@ public class TeacherPortalController(
             .OrderByDescending(n => n.CreatedAt).Take(100).ToListAsync();
         var unread = items.Count(n => n.ReadAt == null);
         return new NotificationsResponseDto(unread, items.Select(n =>
-            new UserNotificationDto(n.Id, n.Title, n.Body, n.Type, n.CreatedAt.ToString("o"), n.ReadAt != null)).ToList());
+            new UserNotificationDto(n.Id, n.Title, n.Body, n.Type, n.CreatedAt.ToString("o"),
+                n.ReadAt != null, n.ConfirmedAt != null)).ToList());
     }
 
     /// <summary>Barcha bildirishnomalarni o'qilgan deb belgilaydi.</summary>
@@ -86,6 +87,23 @@ public class TeacherPortalController(
         var unread = await db.UserNotifications.Where(n => n.UserId == uid && n.ReadAt == null).ToListAsync();
         foreach (var n in unread) n.ReadAt = AppClock.Now;
         await db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    /// <summary>Bitta bildirishnomani TASDIQLAYDI — admin shu holatni ko'radi.</summary>
+    [HttpPost("notifications/{id}/confirm")]
+    public async Task<IActionResult> ConfirmNotification(string id)
+    {
+        var uid = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (uid is null) return Unauthorized();
+        var n = await db.UserNotifications.FirstOrDefaultAsync(x => x.Id == id && x.UserId == uid);
+        if (n is null) return NotFound();
+        if (n.ConfirmedAt is null)
+        {
+            n.ConfirmedAt = AppClock.Now;
+            n.ReadAt ??= AppClock.Now;
+            await db.SaveChangesAsync();
+        }
         return NoContent();
     }
 

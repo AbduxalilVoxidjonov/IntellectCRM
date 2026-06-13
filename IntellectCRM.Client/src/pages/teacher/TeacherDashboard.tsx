@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Bell, GraduationCap, BookOpen, ClipboardCheck, ChevronRight, Users, Send, X } from 'lucide-react'
+import { Bell, GraduationCap, BookOpen, ClipboardCheck, ChevronRight, Users, Send, X, CheckCircle2 } from 'lucide-react'
 import type { TeacherClass } from '@/types'
 import {
   getMyClasses,
   getTeacherSchool,
   getTeacherNotifications,
   markTeacherNotificationsRead,
+  confirmTeacherNotification,
   type NotificationsResponse,
 } from '@/api/services/teacher'
 import { useAuth } from '@/context/auth-context'
@@ -69,8 +70,13 @@ export function TeacherDashboard() {
     setNotifOpen(true)
     if (notifs && notifs.unread > 0) {
       markTeacherNotificationsRead().catch(() => {})
-      setNotifs({ unread: 0, items: notifs.items.map((i) => ({ ...i, read: true })) })
+      setNotifs((p) => (p ? { unread: 0, items: p.items.map((i) => ({ ...i, read: true })) } : p))
     }
+  }
+
+  const confirmNotif = (id: string) => {
+    confirmTeacherNotification(id).catch(() => {})
+    setNotifs((p) => (p ? { ...p, items: p.items.map((i) => (i.id === id ? { ...i, confirmed: true } : i)) } : p))
   }
 
   const subjectCount = classes.reduce((acc, c) => acc + c.subjects.length, 0)
@@ -255,6 +261,20 @@ export function TeacherDashboard() {
                       <p className="text-[14px] font-bold text-ink">{n.title}</p>
                       {n.body && <p className="mt-0.5 text-[13px] text-mute">{n.body}</p>}
                       <p className="mt-1 text-[11px] text-faint">{formatDateTime(n.createdAt)}</p>
+                      {n.type === 'announcement' &&
+                        (n.confirmed ? (
+                          <p className="mt-2 inline-flex items-center gap-1 text-[12px] font-bold text-emerald-600">
+                            <CheckCircle2 className="h-3.5 w-3.5" /> Tasdiqlandi
+                          </p>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => confirmNotif(n.id)}
+                            className="tap-scale mt-2 rounded-[10px] bg-teal-600 px-4 py-1.5 text-[13px] font-bold text-white"
+                          >
+                            Tasdiqlash
+                          </button>
+                        ))}
                     </div>
                   </div>
                 ))}

@@ -938,8 +938,12 @@ public class UserNotification
     /// <summary>grade | payment | announcement | pickup | general ...</summary>
     public string Type { get; set; } = "general";
     public DateTime CreatedAt { get; set; } = AppClock.Now;
-    /// <summary>O'qilgan vaqti (null = o'qilmagan).</summary>
+    /// <summary>O'qilgan vaqti (null = o'qilmagan) — qo'ng'iroq ochilganda.</summary>
     public DateTime? ReadAt { get; set; }
+    /// <summary>Foydalanuvchi "Tasdiqlash" tugmasini bosgan vaqti (null = tasdiqlanmagan) — admin ko'radi.</summary>
+    public DateTime? ConfirmedAt { get; set; }
+    /// <summary>Admin e'loni (broadcast) bo'lsa — manba PushMessage id'si (tasdiqlarni shu broadcast'ga bog'lash uchun).</summary>
+    public string PushMessageId { get; set; } = string.Empty;
 }
 
 /// <summary>

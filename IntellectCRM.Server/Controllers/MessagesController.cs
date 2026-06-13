@@ -302,9 +302,37 @@ public class MessagesController(AppDbContext db, ChatService chat, TelegramServi
     public async Task<ActionResult<IEnumerable<PushMessageDto>>> PushHistory()
     {
         var list = await db.PushMessages.OrderByDescending(p => p.CreatedAt).Take(100).ToListAsync();
-        return list.Select(p => new PushMessageDto(
-            p.Id, p.Audience, p.Title, p.Body, p.SenderName, p.CreatedAt.ToString("o"),
-            p.RecipientCount, p.SentCount)).ToList();
+        var ids = list.Select(p => p.Id).ToList();
+        // Har broadcast bo'yicha: jami oluvchi (tarix) + tasdiqlaganlar soni.
+        var stats = (await db.UserNotifications.Where(n => ids.Contains(n.PushMessageId)).ToListAsync())
+            .GroupBy(n => n.PushMessageId)
+            .ToDictionary(g => g.Key, g => (Target: g.Count(), Confirmed: g.Count(n => n.ConfirmedAt != null)));
+        return list.Select(p =>
+        {
+            stats.TryGetValue(p.Id, out var s);
+            return new PushMessageDto(p.Id, p.Audience, p.Title, p.Body, p.SenderName, p.CreatedAt.ToString("o"),
+                p.RecipientCount, p.SentCount, s.Confirmed, s.Target);
+        }).ToList();
+    }
+
+    /// <summary>Bitta e'lon (broadcast) bo'yicha kim tasdiqlagani — admin ko'rishi uchun.</summary>
+    [HttpGet("push/{id}/confirmations")]
+    public async Task<ActionResult<IEnumerable<PushConfirmationDto>>> PushConfirmations(string id)
+    {
+        var notifs = await db.UserNotifications.Where(n => n.PushMessageId == id).ToListAsync();
+        if (notifs.Count == 0) return new List<PushConfirmationDto>();
+        var userIds = notifs.Select(n => n.UserId).Distinct().ToList();
+        var studentByUser = (await db.Students.Where(s => s.UserId != null && userIds.Contains(s.UserId)).ToListAsync())
+            .GroupBy(s => s.UserId!).ToDictionary(g => g.Key, g => g.First());
+        var teacherByUser = (await db.Teachers.Where(t => t.UserId != null && userIds.Contains(t.UserId)).ToListAsync())
+            .GroupBy(t => t.UserId!).ToDictionary(g => g.Key, g => g.First());
+        return notifs.Select(n =>
+        {
+            string name = "—", group = "";
+            if (studentByUser.TryGetValue(n.UserId, out var st)) { name = st.FullName; group = st.ClassName; }
+            else if (teacherByUser.TryGetValue(n.UserId, out var tch)) { name = tch.FullName; group = "O'qituvchi"; }
+            return new PushConfirmationDto(name, group, n.ConfirmedAt != null, n.ConfirmedAt?.ToString("o"));
+        }).OrderByDescending(c => c.Confirmed).ThenBy(c => c.Name, StringComparer.OrdinalIgnoreCase).ToList();
     }
 
     /// <summary>
@@ -375,18 +403,20 @@ public class MessagesController(AppDbContext db, ChatService chat, TelegramServi
         }
 
         // Ilova tarixiga — AUDIENCE'dagi HAR foydalanuvchi uchun (push yetmasa ham bildirishnoma ro'yxatida ko'rinadi).
+        var pushId = Guid.NewGuid().ToString();
         foreach (var userId in userIds)
         {
             var t = title;
             var b = body;
             if (studentByUser.TryGetValue(userId, out var stn)) { t = PersonalizePush(title, stn); b = PersonalizePush(body, stn); }
             else if (teacherByUser.TryGetValue(userId, out var tchn)) { t = PersonalizeTeacherPush(title, tchn); b = PersonalizeTeacherPush(body, tchn); }
-            NotificationStore.Add(db, userId, t, b, "announcement");
+            NotificationStore.Add(db, userId, t, b, "announcement", pushId);
         }
 
         var user = await db.Users.FindAsync(Uid);
         var pm = new PushMessage
         {
+            Id = pushId,
             Audience = label,
             Title = title,
             Body = body,

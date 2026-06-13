@@ -114,6 +114,19 @@ export async function getPushMessages(): Promise<PushMessage[]> {
   return data
 }
 
+export interface PushConfirmation {
+  name: string
+  group: string
+  confirmed: boolean
+  confirmedAt: string | null
+}
+/** Bitta e'lon bo'yicha kim tasdiqlagani (admin ko'rishi uchun). */
+export async function getPushConfirmations(id: string): Promise<PushConfirmation[]> {
+  if (USE_MOCK) return []
+  const { data } = await api.get<PushConfirmation[]>(`/admin/messages/push/${id}/confirmations`)
+  return data
+}
+
 /** Ilovaga push yuborish */
 export async function sendPush(req: SendPushReq): Promise<PushMessage> {
   const { data } = await api.post<PushMessage>('/admin/messages/push/send', req)

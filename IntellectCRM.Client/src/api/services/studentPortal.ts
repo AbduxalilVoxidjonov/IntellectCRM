@@ -459,6 +459,7 @@ export interface AppNotification {
   type: string
   createdAt: string
   read: boolean
+  confirmed: boolean
 }
 export interface NotificationsResponse {
   unread: number
@@ -471,6 +472,9 @@ export async function getStudentNotifications(): Promise<NotificationsResponse> 
 }
 export async function markStudentNotificationsRead(): Promise<void> {
   await api.post('/student/notifications/read')
+}
+export async function confirmStudentNotification(id: string): Promise<void> {
+  await api.post(`/student/notifications/${id}/confirm`)
 }
 
 // ---------- Feedback ----------

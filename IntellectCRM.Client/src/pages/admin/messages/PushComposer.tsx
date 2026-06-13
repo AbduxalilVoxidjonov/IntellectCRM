@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Send, AlertTriangle, Search, Check } from 'lucide-react'
+import { Send, AlertTriangle, Search, Check, CheckCircle2, ChevronDown } from 'lucide-react'
 import type { MessageClass, PushMessage, PushRecipient } from '@/types'
 import {
   getPushStatus,
   getPushMessages,
   getPushRecipients,
   sendPush,
+  getPushConfirmations,
   type SendPushReq,
+  type PushConfirmation,
 } from '@/api/services/messages'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -30,6 +32,24 @@ export function PushComposer({ classes }: { classes: MessageClass[] }) {
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
   const [result, setResult] = useState<string | null>(null)
+
+  // Tasdiqlash detali (kim tasdiqlagan) — bitta e'lon bo'yicha
+  const [openId, setOpenId] = useState<string | null>(null)
+  const [confs, setConfs] = useState<PushConfirmation[]>([])
+  const [confLoading, setConfLoading] = useState(false)
+
+  const toggleConfs = (id: string) => {
+    if (openId === id) {
+      setOpenId(null)
+      return
+    }
+    setOpenId(id)
+    setConfs([])
+    setConfLoading(true)
+    getPushConfirmations(id)
+      .then(setConfs)
+      .finally(() => setConfLoading(false))
+  }
 
   // "Tanlab" rejim uchun
   const [recipients, setRecipients] = useState<PushRecipient[]>([])
@@ -331,6 +351,46 @@ export function PushComposer({ classes }: { classes: MessageClass[] }) {
                     <span className="font-mono">{formatDate(p.createdAt)}</span>
                     <span className="font-mono">{p.sentCount}/{p.recipientCount} yuborildi</span>
                   </div>
+
+                  {p.targetCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => toggleConfs(p.id)}
+                      className="mt-2 flex w-full items-center gap-1.5 rounded-md bg-emerald-50 px-2 py-1.5 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-100"
+                    >
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      <span className="font-mono">{p.confirmedCount}/{p.targetCount}</span> tasdiqladi
+                      <ChevronDown
+                        className={cn('ml-auto h-3.5 w-3.5 transition-transform', openId === p.id && 'rotate-180')}
+                      />
+                    </button>
+                  )}
+
+                  {openId === p.id && (
+                    <div className="mt-2 space-y-1 border-t border-slate-100 pt-2">
+                      {confLoading ? (
+                        <p className="text-xs text-slate-400">Yuklanmoqda...</p>
+                      ) : confs.length === 0 ? (
+                        <p className="text-xs text-slate-400">Oluvchi yo'q</p>
+                      ) : (
+                        confs.map((c, i) => (
+                          <div key={i} className="flex items-center justify-between gap-2 text-xs">
+                            <span className="min-w-0 truncate text-slate-600">
+                              {c.name}
+                              {c.group ? ` · ${c.group}` : ''}
+                            </span>
+                            {c.confirmed ? (
+                              <span className="inline-flex shrink-0 items-center gap-1 font-medium text-emerald-600">
+                                <Check className="h-3 w-3" /> Tasdiqladi
+                              </span>
+                            ) : (
+                              <span className="shrink-0 text-slate-400">kutilmoqda</span>
+                            )}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

@@ -151,6 +151,7 @@ export interface AppNotification {
   type: string
   createdAt: string
   read: boolean
+  confirmed: boolean
 }
 export interface NotificationsResponse {
   unread: number
@@ -164,6 +165,9 @@ export async function getTeacherNotifications(): Promise<NotificationsResponse> 
 }
 export async function markTeacherNotificationsRead(): Promise<void> {
   await api.post('/teacher/notifications/read')
+}
+export async function confirmTeacherNotification(id: string): Promise<void> {
+  await api.post(`/teacher/notifications/${id}/confirm`)
 }
 
 /* ---------- Maosh (faqat o'ziniki) ---------- */

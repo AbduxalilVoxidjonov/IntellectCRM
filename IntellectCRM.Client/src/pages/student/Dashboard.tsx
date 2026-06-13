@@ -6,6 +6,7 @@ import {
   getStudentSchool,
   getStudentNotifications,
   markStudentNotificationsRead,
+  confirmStudentNotification,
   type StudentDashboard,
   type StudentNotebook,
   type NotificationsResponse,
@@ -72,8 +73,14 @@ export function StudentDashboardScreen() {
     setNotifOpen(true)
     if (notifs && notifs.unread > 0) {
       markStudentNotificationsRead().catch(() => {})
-      setNotifs({ unread: 0, items: notifs.items.map((i) => ({ ...i, read: true })) })
+      setNotifs((p) => (p ? { unread: 0, items: p.items.map((i) => ({ ...i, read: true })) } : p))
     }
+  }
+
+  // "Tasdiqlash" tugmasi (admin e'loni uchun) — admin shu holatni ko'radi.
+  const confirmNotif = (id: string) => {
+    confirmStudentNotification(id).catch(() => {})
+    setNotifs((p) => (p ? { ...p, items: p.items.map((i) => (i.id === id ? { ...i, confirmed: true } : i)) } : p))
   }
 
   const fullName = dash?.profile?.fullName || user?.fullName || "O'quvchi"
@@ -259,6 +266,22 @@ export function StudentDashboardScreen() {
                       <div className="faint" style={{ fontSize: 11, marginTop: 4 }}>
                         {fmtDate(n.createdAt)} · {fmtTime(n.createdAt)}
                       </div>
+                      {n.type === 'announcement' &&
+                        (n.confirmed ? (
+                          <div
+                            style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 700, color: 'var(--green)' }}
+                          >
+                            <Icon name="checkCircle" size={14} color="var(--green)" /> Tasdiqlandi
+                          </div>
+                        ) : (
+                          <button
+                            className="press"
+                            onClick={() => confirmNotif(n.id)}
+                            style={{ marginTop: 8, padding: '7px 16px', borderRadius: 10, background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 700 }}
+                          >
+                            Tasdiqlash
+                          </button>
+                        ))}
                     </div>
                   </div>
                 ))}

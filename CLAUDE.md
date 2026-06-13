@@ -113,6 +113,15 @@ docker compose up -d --build    # app + mssql + cloudflared + backup + mediamtx
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-13: **Bildirishnoma TASDIQLASH (read-receipt) — admin e'lonida "Tasdiqlash" tugmasi, admin kim tasdiqlaganini
+  ko'radi.** `UserNotification`ga `ConfirmedAt` + `PushMessageId` (broadcast'ga bog'lash) + inkremental migratsiya
+  `AddNotificationConfirm`. `NotificationStore.Add`ga `pushMessageId`; `MessagesController.SendPush` PushMessage Id'sini
+  oldindan yaratib bildirishnomalarni unga bog'laydi. Endpointlar: `POST /student|teacher/notifications/{id}/confirm`;
+  `UserNotificationDto`ga `Confirmed`. Admin: `PushMessageDto`ga `ConfirmedCount`+`TargetCount` (PushHistory hisoblaydi);
+  `GET /admin/messages/push/{id}/confirmations` (kim tasdiqlagan — ism/guruh/holat). Frontend: student+teacher
+  Dashboard bildirishnomasida — `type==='announcement'` bo'lsa **"Tasdiqlash"** tugmasi (bosilsa → "✓ Tasdiqlandi");
+  admin `PushComposer` tarixida **"X/Y tasdiqladi"** + bosilsa kim tasdiqlagani ro'yxati. tsc+vite yashil, deploy ✅
+  (migratsiya qo'llandi); E2E: admin push → student confirm 204 → admin tarixi confirmedCount 1/1 + "E V2 · TEST-G · tasdiqladi".
 - 2026-06-13: **Bildirishnomalar TARIXI — yuborilgan push'lar ilovada saqlanadi (qo'ng'iroq ro'yxati).** Muammo:
   push kelardi-yu, ilovada saqlanmasdi. Yangi `UserNotification` entity (UserId/Title/Body/Type/CreatedAt/ReadAt) +
   inkremental migratsiya `AddUserNotifications` (CreateTable). `NotificationStore.Add(db, userId, title, body, type)`

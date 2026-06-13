@@ -512,7 +512,7 @@ public record FinanceMonthlyDto(string Month, decimal Income, decimal Expense);
 public record AccrueResultDto(List<string> Months, int Count, decimal Total);
 
 /* ---------- Ilova bildirishnomalari (o'quvchi/o'qituvchi tarixi) ---------- */
-public record UserNotificationDto(string Id, string Title, string Body, string Type, string CreatedAt, bool Read);
+public record UserNotificationDto(string Id, string Title, string Body, string Type, string CreatedAt, bool Read, bool Confirmed);
 public record NotificationsResponseDto(int Unread, List<UserNotificationDto> Items);
 
 /* ---------- Kurs/guruh kesimida moliyaviy hisobot ---------- */
@@ -703,10 +703,12 @@ public record TelegramParentDto(
 public record SendPushRequest(string Audience, string? ClassName, List<string>? UserIds, string Title, string Body);
 /// <summary>Push uchun tanlanadigan oluvchi. UserId — akkaunt id; HasDevice = qurilma ulangan (push yetadi).</summary>
 public record PushRecipientDto(string UserId, string Name, string Group, string Detail, bool HasDevice);
-/// <summary>Yuborilgan push (tarix). CreatedAt — ISO.</summary>
+/// <summary>Yuborilgan push (tarix). CreatedAt — ISO. ConfirmedCount/TargetCount — tasdiqlash holati.</summary>
 public record PushMessageDto(
     string Id, string Audience, string Title, string Body, string SenderName, string CreatedAt,
-    int RecipientCount, int SentCount);
+    int RecipientCount, int SentCount, int ConfirmedCount = 0, int TargetCount = 0);
+/// <summary>Bitta e'lon (broadcast) bo'yicha oluvchining tasdiqlash holati — admin ko'rishi uchun.</summary>
+public record PushConfirmationDto(string Name, string Group, bool Confirmed, string? ConfirmedAt);
 
 /* ---------- Assignments (qo'shimcha topshiriqlar) ---------- */
 
