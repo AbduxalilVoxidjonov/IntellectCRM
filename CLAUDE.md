@@ -113,6 +113,17 @@ docker compose up -d --build    # app + mssql + cloudflared + backup + mediamtx
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-13: **O'quvchi portali — UY JOYLASHUVI ekrani qo'shildi (student GPS/xaritadan joylashuv yuboradi).**
+  Backend allaqachon bor edi (`Student.Latitude/Longitude/LocationAddress/LocationUpdatedAt`, `PUT/GET /student/location`,
+  admin `/admin/locations` xaritasi) — student portalida UI YO'Q edi (GPS olib tashlanganda qurilmagan). Qo'shildi:
+  `studentPortal.ts` `getStudentLocation`/`updateStudentLocation` + `StudentLocation` tip; yangi `pages/student/Location.tsx`
+  (`StudentLocationScreen`) — Leaflet xarita (OSM tile, CDN pin), "Joriy joylashuvim" tugmasi (`navigator.geolocation`
+  → marker + recenter), xaritaga bosib yoki marker'ni surib nuqta tanlash, koordinata + oxirgi yangilangan vaqt,
+  "Saqlash" → PUT. App.tsx route `student/location`; Profil menyusiga "Uy joylashuvi" (pin, qizil). lib.tsx'ga
+  `pin`(MapPin)+`locate`(LocateFixed) ikonkalari. tsc+vite yashil, deploy ✅ (frontend-only, migratsiya yo'q).
+  Jonli E2E: E V2 login → PUT (41.311081,69.279737) → GET qaytardi → admin /locations 1 o'quvchi ko'rsatdi. ESLATMA:
+  WebView'da GPS uchun Flutter location ruxsatini bersin (onGeolocationPermissionsShowPrompt → grant). Test E V2 paroli
+  reset: ev2 / 476eh7fg.
 - 2026-06-13: **Telegram kanal tugmasi — bosilganda native ilova ochilmasdi (tuzatildi).** Muammo: banner
   `<a href="https://t.me/..." target="_blank">` edi — Flutter WebView'da `target="_blank"` ko'p-oyna yo'qligida
   HECH NIMA qilmaydi (o'lik tugma), `https://t.me` esa WebView ICHIDA web-sahifa sifatida ochiladi (ilova emas).

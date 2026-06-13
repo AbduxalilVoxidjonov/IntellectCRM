@@ -5,7 +5,7 @@ import {
   Eye, EyeOff, Send, Paperclip, Plus, Search, X, Clock, Sun, Moon, Camera, Video,
   FileText, Download, Pencil, Lock, Mail, Phone, Trophy, Flame, Info, AlertTriangle,
   Sparkles, RefreshCw, LayoutGrid, List, ArrowRight, Upload, MessageSquare, Image,
-  Images, Trash2, GraduationCap, ShieldCheck, type LucideIcon,
+  Images, Trash2, GraduationCap, ShieldCheck, MapPin, LocateFixed, type LucideIcon,
 } from 'lucide-react'
 
 /* ============================================================
@@ -26,6 +26,7 @@ const ICONS: Record<string, LucideIcon> = {
   info: Info, alert: AlertTriangle, sparkle: Sparkles, refresh: RefreshCw, grid: LayoutGrid,
   list: List, arrowR: ArrowRight, upload: Upload, feedback: MessageSquare, image: Image,
   gallery: Images, trash: Trash2, school: GraduationCap, shield: ShieldCheck, telegram: Send,
+  pin: MapPin, locate: LocateFixed,
 }
 
 export function Icon({

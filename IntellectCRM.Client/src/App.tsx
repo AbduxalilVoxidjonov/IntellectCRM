@@ -73,6 +73,7 @@ import { StudentFinanceScreen } from '@/pages/student/Finance'
 import { StudentFeedbackScreen } from '@/pages/student/Feedback'
 import { StudentProfileScreen } from '@/pages/student/Profile'
 import { StudentSettingsScreen } from '@/pages/student/Settings'
+import { StudentLocationScreen } from '@/pages/student/Location'
 import { StudentAccountScreen } from '@/pages/student/Account'
 
 export default function App() {
@@ -175,6 +176,7 @@ export default function App() {
           <Route path="feedback" element={<StudentFeedbackScreen />} />
           <Route path="profile" element={<StudentProfileScreen />} />
           <Route path="settings" element={<StudentSettingsScreen />} />
+          <Route path="location" element={<StudentLocationScreen />} />
           <Route path="account" element={<StudentAccountScreen />} />
         </Route>
       </Route>

@@ -258,6 +258,23 @@ export async function getStudentSchool() {
   const { data } = await api.get<{ name: string; telegramChannel: string }>('/student/school')
   return data
 }
+
+// ---------- Uy joylashuvi ----------
+export interface StudentLocation {
+  latitude: number | null
+  longitude: number | null
+  address: string | null
+  updatedAt: string | null
+}
+/** Saqlangan uy joylashuvini o'qish (hali yo'q bo'lsa null'lar). */
+export async function getStudentLocation(studentId?: string) {
+  const { data } = await api.get<StudentLocation>('/student/location', { params: sid(studentId) })
+  return data
+}
+/** Uy joylashuvini yangilash (GPS yoki xaritadan tanlangan nuqta). */
+export async function updateStudentLocation(latitude: number, longitude: number, address?: string) {
+  await api.put('/student/location', { latitude, longitude, address: address ?? '' })
+}
 export async function getStudentTelegram(studentId?: string) {
   const { data } = await api.get<TelegramStatus>('/student/telegram', { params: sid(studentId) })
   return data
