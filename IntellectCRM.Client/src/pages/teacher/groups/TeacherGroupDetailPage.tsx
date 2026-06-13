@@ -33,7 +33,7 @@ function gradeFill(g: number): string {
   return g >= 5
     ? 'bg-emerald-50 text-emerald-700'
     : g >= 4
-      ? 'bg-brand-50 text-brand-700'
+      ? 'bg-tealsoft text-teal-700'
       : g >= 3
         ? 'bg-amber-50 text-amber-700'
         : 'bg-red-50 text-red-600'
@@ -216,19 +216,19 @@ export function TeacherGroupDetailPage() {
   const cellEntry = cell ? entryMap.get(`${cell.studentId}|${cell.date}`) ?? null : null
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 px-4 pt-3 pb-6">
       {/* Sarlavha */}
       <div className="flex items-center gap-3">
         <Link
           to="/teacher"
-          className="rounded-lg border border-slate-200 bg-white p-2 text-slate-500 transition-colors hover:bg-slate-50"
+          className="rounded-[14px] border border-line bg-white p-2 text-mute transition-colors hover:bg-tealsoft hover:text-teal-700"
         >
           <ArrowLeft className="h-5 w-5" />
         </Link>
         <div className="min-w-0">
-          <h1 className="truncate text-xl font-bold tracking-tight text-slate-800">{g ? g.name : 'Guruh'}</h1>
+          <h1 className="truncate text-xl font-extrabold tracking-tight text-ink">{g ? g.name : 'Guruh'}</h1>
           {g && (
-            <p className="mt-0.5 truncate text-sm text-slate-400">
+            <p className="mt-0.5 truncate text-sm text-faint">
               {g.courseName || 'Kurs biriktirilmagan'}
             </p>
           )}
@@ -238,11 +238,11 @@ export function TeacherGroupDetailPage() {
       {loading && !journal ? (
         <Loader label="Yuklanmoqda..." />
       ) : !g ? (
-        <Card className="py-16 text-center text-slate-400">Guruh topilmadi</Card>
+        <Card className="rounded-[20px] border border-line bg-white py-16 text-center text-faint shadow-[var(--shadow-card)]">Guruh topilmadi</Card>
       ) : (
         <>
           {/* Guruh ma'lumotlari */}
-          <Card>
+          <Card className="rounded-[20px] border border-line bg-white shadow-[var(--shadow-card)]">
             <div className="grid grid-cols-2 gap-x-4 gap-y-4">
               <Info icon={BookOpen} label="Kurs" value={g.courseName || '—'} />
               <Info icon={User} label="O'qituvchi" value={g.teacherName || '—'} />
@@ -263,18 +263,18 @@ export function TeacherGroupDetailPage() {
           </Card>
 
           {/* Oylik jurnal */}
-          <Card className="p-0">
-            <div className="flex items-center gap-2 border-b border-slate-100 px-4 py-3">
-              <BookOpen className="h-5 w-5 text-brand-600" />
-              <h2 className="font-semibold text-slate-800">Jurnal</h2>
-              <span className="inline-flex items-center gap-1 text-sm text-slate-400">
+          <Card className="rounded-[20px] border border-line bg-white p-0 shadow-[var(--shadow-card)]">
+            <div className="flex items-center gap-2 border-b border-line-soft px-4 py-3">
+              <BookOpen className="h-5 w-5 text-teal-600" />
+              <h2 className="font-semibold text-ink">Jurnal</h2>
+              <span className="inline-flex items-center gap-1 text-sm text-faint">
                 <Users className="h-4 w-4" /> {journalStudents.length}
               </span>
             </div>
 
             {/* Oy navigatsiyasi — gorizontal skroll */}
             {journal && journal.months.length > 0 && (
-              <div className="flex gap-1.5 overflow-x-auto border-b border-slate-100 px-4 py-2.5">
+              <div className="flex gap-1.5 overflow-x-auto border-b border-line-soft px-4 py-2.5">
                 {journal.months.map((m) => (
                   <button
                     key={m}
@@ -284,8 +284,8 @@ export function TeacherGroupDetailPage() {
                     className={cn(
                       'shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
                       journal.month === m
-                        ? 'bg-brand-600 text-white'
-                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200',
+                        ? 'bg-teal-600 text-white'
+                        : 'bg-panel3 text-mute hover:bg-tealsoft',
                     )}
                   >
                     {uzMonths[Number(m.slice(5, 7)) - 1] ?? m}
@@ -295,23 +295,23 @@ export function TeacherGroupDetailPage() {
             )}
 
             {!g.courseId ? (
-              <p className="px-4 py-12 text-center text-sm text-slate-400">
+              <p className="px-4 py-12 text-center text-sm text-faint">
                 Guruhga kurs biriktirilmagan — jurnal yuritib bo'lmaydi.
               </p>
             ) : journalStudents.length === 0 ? (
-              <p className="px-4 py-12 text-center text-sm text-slate-400">
+              <p className="px-4 py-12 text-center text-sm text-faint">
                 Bu guruhda faol o'quvchi yo'q.
               </p>
             ) : (journal?.columns.length ?? 0) === 0 ? (
-              <p className="px-4 py-12 text-center text-sm text-slate-400">
+              <p className="px-4 py-12 text-center text-sm text-faint">
                 {monthLabel(journal?.month ?? '')} oyida bu guruh kunlariga dars to'g'ri kelmadi.
               </p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="min-w-full border-collapse text-sm">
                   <thead>
-                    <tr className="bg-slate-100 text-xs text-slate-500">
-                      <th className="sticky left-0 z-20 border-b-2 border-r-2 border-slate-200 bg-slate-100 px-3 py-2.5 text-left font-semibold">
+                    <tr className="bg-panel3 text-xs text-mute">
+                      <th className="sticky left-0 z-20 border-b-2 border-r-2 border-line bg-panel3 px-3 py-2.5 text-left font-semibold">
                         O'quvchi
                       </th>
                       {journal!.columns.map((c) => {
@@ -322,21 +322,21 @@ export function TeacherGroupDetailPage() {
                           <th
                             key={c.date}
                             className={cn(
-                              'border-b-2 border-r border-slate-200 p-0 text-center font-semibold',
-                              isToday ? 'bg-brand-100 text-brand-700' : 'text-slate-500',
+                              'border-b-2 border-r border-line p-0 text-center font-semibold',
+                              isToday ? 'bg-tealsoft text-teal-700' : 'text-mute',
                             )}
                           >
                             <button
                               type="button"
                               onClick={() => setBulkDate(c.date)}
                               title="Shu kun uchun hammaga davomat"
-                              className="w-full px-2 py-1.5 transition-colors hover:bg-brand-200/40"
+                              className="w-full px-2 py-1.5 transition-colors hover:bg-tealsoft"
                             >
                               <div className="text-sm">{c.date.slice(8, 10)}</div>
                               <div
                                 className={cn(
                                   'text-[10px] font-medium',
-                                  isToday ? 'text-brand-500' : 'text-slate-400',
+                                  isToday ? 'text-teal-500' : 'text-faint',
                                 )}
                               >
                                 {weekdayShort[wd]}
@@ -349,9 +349,9 @@ export function TeacherGroupDetailPage() {
                   </thead>
                   <tbody>
                     {journalStudents.map((st) => (
-                      <tr key={st.studentId} className="bg-white even:bg-slate-50">
-                        <td className="sticky left-0 z-10 border-b border-r-2 border-slate-200 bg-inherit px-3 py-2">
-                          <span className="block max-w-[8rem] truncate text-sm font-medium text-slate-700">
+                      <tr key={st.studentId} className="bg-white even:bg-panel2">
+                        <td className="sticky left-0 z-10 border-b border-r-2 border-line bg-inherit px-3 py-2">
+                          <span className="block max-w-[8rem] truncate text-sm font-medium text-ink">
                             {st.fullName}
                           </span>
                         </td>
@@ -365,8 +365,8 @@ export function TeacherGroupDetailPage() {
                             <td
                               key={c.date}
                               className={cn(
-                                'border-b border-r border-slate-100 p-1 text-center',
-                                isToday && 'bg-brand-50/30',
+                                'border-b border-r border-line-soft p-1 text-center',
+                                isToday && 'bg-tealsoft',
                               )}
                             >
                               <button
@@ -384,7 +384,7 @@ export function TeacherGroupDetailPage() {
                                         : 'bg-red-50 text-red-600'
                                       : present
                                         ? 'bg-emerald-50 text-emerald-600'
-                                        : 'text-slate-300',
+                                        : 'text-faint',
                                 )}
                                 title={`${st.fullName} — ${formatDate(c.date)}`}
                               >
@@ -447,8 +447,8 @@ export function TeacherGroupDetailPage() {
         }
       >
         <div className="space-y-4">
-          <p className="text-sm text-slate-500">
-            Shu darsdagi <span className="font-semibold text-slate-700">{journalStudents.length}</span> o'quvchiga
+          <p className="text-sm text-mute">
+            Shu darsdagi <span className="font-semibold text-ink">{journalStudents.length}</span> o'quvchiga
             birdan qo'llanadi.
           </p>
           <div className="grid grid-cols-2 gap-2">
@@ -471,7 +471,7 @@ export function TeacherGroupDetailPage() {
           </div>
           {absentReasons.length > 0 && (
             <div>
-              <p className="mb-2 text-sm font-medium text-slate-600">Yoki sabab bilan kelmadi:</p>
+              <p className="mb-2 text-sm font-medium text-mute">Yoki sabab bilan kelmadi:</p>
               <div className="flex flex-wrap gap-2">
                 {absentReasons.map((r) => (
                   <button
@@ -506,12 +506,12 @@ function Info({
 }) {
   return (
     <div className="flex items-start gap-2.5">
-      <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-slate-50 text-slate-400">
+      <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-tealsoft text-teal-600">
         <Icon className="h-4 w-4" />
       </span>
       <div className="min-w-0">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{label}</p>
-        <p className={cn('break-words text-sm font-semibold text-slate-700', mono && 'font-mono')}>
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-faint">{label}</p>
+        <p className={cn('break-words text-sm font-semibold text-ink', mono && 'font-mono')}>
           {value}
         </p>
       </div>
@@ -539,50 +539,50 @@ function CurriculumSection({
     curr && curr.totalItems > 0 ? Math.round((curr.coveredCount / curr.totalItems) * 100) : 0
 
   return (
-    <Card className="p-0">
+    <Card className="rounded-[20px] border border-line bg-white p-0 shadow-[var(--shadow-card)]">
       <button
         type="button"
         onClick={onToggleOpen}
         className="flex w-full items-center gap-2 px-4 py-3 text-left"
       >
-        <ListChecks className="h-5 w-5 text-brand-600" />
-        <h2 className="flex-1 font-semibold text-slate-800">O'quv dasturi (darsda o'tilgan)</h2>
+        <ListChecks className="h-5 w-5 text-teal-600" />
+        <h2 className="flex-1 font-semibold text-ink">O'quv dasturi (darsda o'tilgan)</h2>
         {curr && curr.totalItems > 0 && (
-          <span className="font-mono text-sm font-semibold text-brand-700">
+          <span className="font-mono text-sm font-semibold text-teal-700">
             {curr.coveredCount}/{curr.totalItems}
           </span>
         )}
         {open ? (
-          <ChevronDown className="h-4 w-4 text-slate-400" />
+          <ChevronDown className="h-4 w-4 text-faint" />
         ) : (
-          <ChevronRight className="h-4 w-4 text-slate-400" />
+          <ChevronRight className="h-4 w-4 text-faint" />
         )}
       </button>
 
       {open && (
-        <div className="border-t border-slate-100">
+        <div className="border-t border-line-soft">
           {loading && !curr ? (
             <div className="px-4 py-6">
               <Loader label="O'quv dasturi yuklanmoqda..." />
             </div>
           ) : !curr || curr.totalItems === 0 || curr.levels.length === 0 ? (
-            <p className="px-4 py-10 text-center text-sm text-slate-400">
+            <p className="px-4 py-10 text-center text-sm text-faint">
               Bu guruh kursida o'quv dasturi yo'q.
             </p>
           ) : (
             <>
               {/* PROGNOZ KARTASI */}
-              <div className="border-b border-slate-100 px-4 py-4">
+              <div className="border-b border-line-soft px-4 py-4">
                 <div className="mb-4">
                   <div className="mb-1.5 flex items-center justify-between text-sm">
-                    <span className="font-medium text-slate-600">Bajarildi</span>
-                    <span className="font-mono font-semibold text-brand-700">
+                    <span className="font-medium text-mute">Bajarildi</span>
+                    <span className="font-mono font-semibold text-teal-700">
                       {curr.coveredCount}/{curr.totalItems} · {pct}%
                     </span>
                   </div>
-                  <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-100">
+                  <div className="h-2.5 w-full overflow-hidden rounded-full bg-panel3">
                     <div
-                      className="h-full rounded-full bg-brand-500 transition-all"
+                      className="h-full rounded-full bg-teal-500 transition-all"
                       style={{ width: `${pct}%` }}
                     />
                   </div>
@@ -591,7 +591,7 @@ function CurriculumSection({
                 <div className="grid grid-cols-2 gap-3">
                   <ForecastTile icon={CheckCircle2} label="O'tilgan">
                     <span className="font-mono">{curr.coveredCount}</span>
-                    <span className="text-slate-400">/{curr.totalItems}</span>
+                    <span className="text-faint">/{curr.totalItems}</span>
                   </ForecastTile>
                   <ForecastTile icon={Repeat} label="Takrorlash">
                     <span className="font-mono">{curr.revisionLessons}</span>
@@ -600,10 +600,10 @@ function CurriculumSection({
                     <span className="font-mono">{curr.remainingItems}</span> band
                   </ForecastTile>
                   <ForecastTile icon={CalendarClock} label="Tugatishga">
-                    <span className="text-slate-500">~</span>
+                    <span className="text-mute">~</span>
                     <span className="font-mono">{curr.estLessonsLeft}</span> dars
                     {curr.estFinishDate && (
-                      <span className="mt-0.5 block text-xs font-normal text-slate-400">
+                      <span className="mt-0.5 block text-xs font-normal text-faint">
                         ≈ {formatDate(curr.estFinishDate)} da
                       </span>
                     )}
@@ -615,7 +615,7 @@ function CurriculumSection({
                     type="button"
                     disabled={revSaving}
                     onClick={() => onChangeRevision(1)}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-brand-50 px-3 py-2 text-sm font-medium text-brand-700 transition-colors hover:bg-brand-100 disabled:opacity-50"
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-tealsoft px-3 py-2 text-sm font-medium text-teal-700 transition-colors hover:bg-teal-100 disabled:opacity-50"
                   >
                     <Plus className="h-4 w-4" /> Takrorlash darsi
                   </button>
@@ -624,7 +624,7 @@ function CurriculumSection({
                     disabled={revSaving || curr.revisionLessons <= 0}
                     onClick={() => onChangeRevision(-1)}
                     title="Oxirgi takrorlash darsini olib tashlash"
-                    className="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white p-2 text-slate-500 transition-colors hover:bg-slate-50 disabled:opacity-40"
+                    className="inline-flex items-center justify-center rounded-lg border border-line bg-white p-2 text-mute transition-colors hover:bg-panel2 disabled:opacity-40"
                   >
                     <Minus className="h-4 w-4" />
                   </button>
@@ -632,7 +632,7 @@ function CurriculumSection({
               </div>
 
               {/* DASTUR DARAXTI — tekis (ichma-ich kartasiz, to'liq kenglik) */}
-              <div className="divide-y divide-slate-100">
+              <div className="divide-y divide-line-soft">
                 {curr.levels.map((level) => {
                   const levelTotal = level.topics.reduce((s, t) => s + t.items.length, 0)
                   const levelCovered = level.topics.reduce(
@@ -646,21 +646,21 @@ function CurriculumSection({
                       <button
                         type="button"
                         onClick={() => onToggleLevel(level.id)}
-                        className="flex w-full items-center gap-2.5 px-4 py-3 text-left transition-colors hover:bg-slate-50"
+                        className="flex w-full items-center gap-2.5 px-4 py-3 text-left transition-colors hover:bg-panel2"
                       >
-                        <span className="shrink-0 text-slate-400">
+                        <span className="shrink-0 text-faint">
                           {lvOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                         </span>
-                        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand-50 text-brand-600">
+                        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-tealsoft text-teal-600">
                           <BookOpen className="h-4 w-4" />
                         </span>
-                        <span className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-800">
+                        <span className="min-w-0 flex-1 truncate text-sm font-semibold text-ink">
                           {level.name}
                         </span>
                         <span
                           className={cn(
                             'shrink-0 rounded-full px-2.5 py-1 text-xs font-medium',
-                            complete ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500',
+                            complete ? 'bg-emerald-50 text-emerald-700' : 'bg-panel3 text-mute',
                           )}
                         >
                           <span className="font-mono">{levelCovered}/{levelTotal}</span>
@@ -668,20 +668,20 @@ function CurriculumSection({
                       </button>
 
                       {lvOpen && (
-                        <div className="bg-slate-50/40 pb-1.5">
-                          {level.note && <p className="px-4 pb-1 text-xs text-slate-400">{level.note}</p>}
+                        <div className="bg-panel2 pb-1.5">
+                          {level.note && <p className="px-4 pb-1 text-xs text-faint">{level.note}</p>}
                           {level.topics.length === 0 ? (
-                            <p className="px-4 py-2 text-xs text-slate-400">Mavzu yo'q.</p>
+                            <p className="px-4 py-2 text-xs text-faint">Mavzu yo'q.</p>
                           ) : (
                             level.topics.map((topic) => {
                               const tCovered = topic.items.filter((it) => it.covered).length
                               return (
                                 <div key={topic.id} className="pt-2">
                                   <div className="flex items-center gap-2 px-4 pb-0.5">
-                                    <h4 className="min-w-0 flex-1 truncate text-[11px] font-bold uppercase tracking-wide text-slate-400">
+                                    <h4 className="min-w-0 flex-1 truncate text-[11px] font-bold uppercase tracking-wide text-faint">
                                       {topic.title}
                                     </h4>
-                                    <span className="shrink-0 text-[11px] text-slate-400">
+                                    <span className="shrink-0 text-[11px] text-faint">
                                       <span className="font-mono">{tCovered}/{topic.items.length}</span>
                                     </span>
                                   </div>
@@ -695,7 +695,7 @@ function CurriculumSection({
                                           item.covered
                                             ? 'bg-emerald-50/40'
                                             : isNext
-                                              ? 'bg-brand-50/50'
+                                              ? 'bg-tealsoft'
                                               : 'hover:bg-white',
                                         )}
                                       >
@@ -703,23 +703,23 @@ function CurriculumSection({
                                           type="checkbox"
                                           checked={item.covered}
                                           onChange={() => onToggleCover(item.id, !item.covered)}
-                                          className="h-4 w-4 shrink-0 cursor-pointer rounded border-slate-300 text-brand-600 focus:ring-brand-400"
+                                          className="h-4 w-4 shrink-0 cursor-pointer rounded border-line text-teal-600 focus:ring-teal-400"
                                         />
                                         <span
                                           className={cn(
                                             'min-w-0 flex-1 text-sm',
-                                            item.covered ? 'text-slate-400 line-through' : 'text-slate-700',
+                                            item.covered ? 'text-faint line-through' : 'text-ink',
                                           )}
                                         >
                                           {item.text}
                                           {isNext && (
-                                            <span className="ml-2 rounded bg-brand-100 px-1.5 py-0.5 text-[10px] font-medium text-brand-700 no-underline">
+                                            <span className="ml-2 rounded bg-tealsoft px-1.5 py-0.5 text-[10px] font-medium text-teal-700 no-underline">
                                               keyingi
                                             </span>
                                           )}
                                         </span>
                                         {item.covered && item.coveredDate && (
-                                          <span className="shrink-0 self-center whitespace-nowrap rounded bg-white px-1.5 py-0.5 font-mono text-[11px] text-slate-400 no-underline">
+                                          <span className="shrink-0 self-center whitespace-nowrap rounded bg-white px-1.5 py-0.5 font-mono text-[11px] text-faint no-underline">
                                             {formatDate(item.coveredDate)}
                                           </span>
                                         )}
@@ -754,12 +754,12 @@ function ForecastTile({
   children: ReactNode
 }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-3">
-      <div className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+    <div className="rounded-[18px] border border-line bg-white p-3 shadow-[var(--shadow-card)]">
+      <div className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-faint">
         <Icon className="h-3.5 w-3.5" />
         {label}
       </div>
-      <div className="text-sm font-semibold text-slate-700">{children}</div>
+      <div className="text-sm font-semibold text-ink">{children}</div>
     </div>
   )
 }

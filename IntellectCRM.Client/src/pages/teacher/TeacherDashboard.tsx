@@ -1,14 +1,50 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { GraduationCap, ClipboardCheck, Crown, BookOpen, Users, ChevronRight } from 'lucide-react'
+import {
+  Bell,
+  GraduationCap,
+  BookOpen,
+  Crown,
+  ClipboardCheck,
+  ChevronRight,
+  Users,
+} from 'lucide-react'
 import type { TeacherClass } from '@/types'
 import { getMyClasses } from '@/api/services/teacher'
 import { useAuth } from '@/context/auth-context'
-import { PageHeader } from '@/components/ui/PageHeader'
-import { StatCard } from '@/components/ui/StatCard'
-import { Card } from '@/components/ui/Card'
-import { Badge } from '@/components/ui/Badge'
-import { Loader } from '@/components/ui/Loader'
+
+const WEEKDAYS_UZ = ['Yakshanba', 'Dushanba', 'Seshanba', 'Chorshanba', 'Payshanba', 'Juma', 'Shanba']
+const MONTHS_UZ = [
+  'yanvar',
+  'fevral',
+  'mart',
+  'aprel',
+  'may',
+  'iyun',
+  'iyul',
+  'avgust',
+  'sentabr',
+  'oktabr',
+  'noyabr',
+  'dekabr',
+]
+
+function todayLineUz(): string {
+  const d = new Date()
+  return `${d.getDate()}-${MONTHS_UZ[d.getMonth()]}, ${WEEKDAYS_UZ[d.getDay()]}`
+}
+
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return '?'
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return (parts[0][0] + parts[1][0]).toUpperCase()
+}
+
+function groupInitials(name: string): string {
+  const cleaned = name.replace(/\s+/g, '')
+  return cleaned.slice(0, 3).toUpperCase() || '?'
+}
 
 export function TeacherDashboard() {
   const { user } = useAuth()
@@ -21,96 +57,156 @@ export function TeacherDashboard() {
       .finally(() => setLoading(false))
   }, [])
 
-  // Faqat allaqachon yuklangan ma'lumotdan hisoblanadi
   const homeroomCount = classes.filter((c) => c.isHomeroom).length
   const subjectCount = classes.reduce((acc, c) => acc + c.subjects.length, 0)
+  const homeroomGroups = classes.filter((c) => c.isHomeroom)
+
+  const fullName = user?.fullName ?? ''
+  const firstName = fullName.trim().split(/\s+/)[0] || 'ustoz'
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title={`Assalomu alaykum${user?.fullName ? `, ${user.fullName}` : ''}!`}
-        sub="O'qituvchi paneli"
-      />
-
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        <StatCard
-          label="Guruhlar"
-          value={classes.length}
-          icon={GraduationCap}
-          iconBg="bg-brand-50"
-          iconColor="text-brand-600"
-          hint="Dars beradigan guruhlar"
-        />
-        <StatCard
-          label="Fanlar"
-          value={subjectCount}
-          icon={BookOpen}
-          iconBg="bg-sky-50"
-          iconColor="text-sky-600"
-          hint="Jami biriktirilgan fanlar"
-        />
-        <StatCard
-          label="Rahbarlik"
-          value={homeroomCount}
-          icon={Crown}
-          iconBg="bg-amber-50"
-          iconColor="text-amber-600"
-          hint="Guruh rahbari"
-        />
+    <div className="px-4 pb-6">
+      {/* ── Header ── */}
+      <div className="flex items-center gap-2.5 pt-2 pb-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-[12px] font-medium text-mute">{todayLineUz()}</p>
+          <p className="text-[22px] font-extrabold tracking-tight text-ink">
+            Assalomu alaykum, <span className="text-teal-600">{firstName}</span> {"\u{1F44B}"}
+          </p>
+        </div>
+        <button
+          type="button"
+          className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-panel2 text-ink"
+          aria-label="Bildirishnomalar"
+        >
+          <Bell className="h-5 w-5" />
+        </button>
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-teal-500 to-teal-700 text-[14px] font-extrabold text-white">
+          {initials(fullName)}
+        </div>
       </div>
 
+      {/* ── Tezkor statistika ── */}
+      <div className="flex gap-2.5 pb-4">
+        <div className="flex-1 rounded-[18px] border border-line bg-white p-3.5">
+          <div className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-tealsoft text-teal-600">
+            <GraduationCap className="h-4 w-4" />
+          </div>
+          <p className="mt-3 text-[22px] font-extrabold tracking-tight text-ink font-mono">
+            {classes.length}
+          </p>
+          <p className="mt-1 text-[11px] leading-tight text-mute">Guruhlar</p>
+        </div>
+        <div className="flex-1 rounded-[18px] border border-line bg-white p-3.5">
+          <div className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-sky-100 text-sky-600">
+            <BookOpen className="h-4 w-4" />
+          </div>
+          <p className="mt-3 text-[22px] font-extrabold tracking-tight text-ink font-mono">
+            {subjectCount}
+          </p>
+          <p className="mt-1 text-[11px] leading-tight text-mute">Fanlar</p>
+        </div>
+        <div className="flex-1 rounded-[18px] border border-line bg-white p-3.5">
+          <div className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-amber-100 text-amber-600">
+            <Crown className="h-4 w-4" />
+          </div>
+          <p className="mt-3 text-[22px] font-extrabold tracking-tight text-ink font-mono">
+            {homeroomCount}
+          </p>
+          <p className="mt-1 text-[11px] leading-tight text-mute">Rahbarlik</p>
+        </div>
+      </div>
+
+      {/* ── Topshiriqlar yorlig'i ── */}
       <Link
         to="/teacher/assignments"
-        className="flex items-center gap-3 rounded-xl border border-brand-200 bg-brand-50 p-4 text-brand-700 shadow-[var(--shadow-1)] transition-colors hover:bg-brand-100"
+        className="tap-scale mb-5 flex items-center gap-3.5 rounded-[20px] p-[18px] text-white shadow-[var(--shadow-glow)]"
+        style={{ background: 'linear-gradient(135deg,#0D9488,#115E59)' }}
       >
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white text-brand-600">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/20 text-white">
           <ClipboardCheck className="h-5 w-5" />
         </div>
-        <div>
-          <p className="font-bold tracking-tight">Topshiriqlar</p>
-          <p className="text-sm text-brand-600/80">Guruhlaringizga qo'shimcha topshiriq yarating</p>
+        <div className="min-w-0 flex-1">
+          <p className="text-[16px] font-extrabold tracking-tight">Topshiriqlar</p>
+          <p className="mt-0.5 text-[13px] text-white/85">
+            Guruhlaringizga topshiriq yarating va kuzating
+          </p>
         </div>
+        <ChevronRight className="h-5 w-5 shrink-0 text-white/80" />
       </Link>
 
-      <Card title="Dars beradigan guruhlar" tight>
+      {/* ── Sinf rahbarligi ── */}
+      {homeroomGroups.length > 0 && (
+        <div className="mb-5">
+          <p className="px-1 pb-2 text-[13px] font-bold tracking-tight text-ink">Sinf rahbarligi</p>
+          <div className="space-y-2.5">
+            {homeroomGroups.map((c) => (
+              <Link
+                key={c.classId}
+                to={`/teacher/groups/${c.classId}`}
+                className="tap-scale flex items-center gap-3.5 rounded-[20px] border border-line bg-white p-[18px] shadow-[var(--shadow-card)]"
+              >
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-teal-500 to-teal-700 text-[16px] font-extrabold text-white">
+                  {groupInitials(c.className)}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[16px] font-bold text-ink">{c.className}</p>
+                  <p className="truncate text-[13px] text-mute">
+                    {c.subjects.length > 0
+                      ? c.subjects.map((s) => s.name).join(', ')
+                      : 'Fan biriktirilmagan'}
+                  </p>
+                </div>
+                <ChevronRight className="h-5 w-5 shrink-0 text-faint" />
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Mening guruhlarim ── */}
+      <div>
+        <p className="px-1 pb-2 text-[13px] font-bold tracking-tight text-ink">Mening guruhlarim</p>
         {loading ? (
-          <div className="p-5">
-            <Loader label="Yuklanmoqda..." />
+          <div className="space-y-2.5">
+            <div className="skeleton h-[78px] rounded-[20px]" />
+            <div className="skeleton h-[78px] rounded-[20px]" />
+            <div className="skeleton h-[78px] rounded-[20px]" />
           </div>
         ) : classes.length === 0 ? (
-          <div className="state px-5 py-10 text-center text-sm text-slate-400">
-            Sizga biriktirilgan guruh/fan yo'q. Markaz ma'muriyatiga murojaat qiling.
+          <div className="rounded-[20px] border border-line bg-white px-5 py-10 text-center text-[13px] text-mute shadow-[var(--shadow-card)]">
+            Sizga biriktirilgan guruh yo'q. Markaz ma'muriyatiga murojaat qiling.
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-3 p-[18px] sm:grid-cols-2 lg:grid-cols-3">
+          <div className="space-y-2.5">
             {classes.map((c) => (
               <Link
                 key={c.classId}
                 to={`/teacher/groups/${c.classId}`}
-                className="group flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-[var(--shadow-1)] transition-colors hover:border-brand-300 hover:bg-brand-50/40 active:bg-brand-50"
+                className="tap-scale flex items-center gap-3.5 rounded-[20px] border border-line bg-white p-3.5 shadow-[var(--shadow-card)]"
               >
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-600">
-                  <GraduationCap className="h-6 w-6" />
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-teal-500 to-teal-700 text-[14px] font-extrabold text-white">
+                  {groupInitials(c.className)}
                 </div>
-                <div className="min-w-0 flex-1 space-y-1.5">
-                  <div className="flex items-center gap-2">
-                    <p className="truncate font-bold tracking-tight text-slate-800">{c.className}</p>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <p className="truncate text-[15px] font-bold text-ink">{c.className}</p>
                     {c.isHomeroom && (
-                      <Badge tone="amber">
-                        <Crown className="h-3 w-3" /> Rahbar
-                      </Badge>
+                      <span className="shrink-0 rounded bg-tealsoft px-1.5 py-0.5 text-[10px] font-bold text-teal-700">
+                        RAHBAR
+                      </span>
                     )}
                   </div>
-                  <div className="flex flex-wrap gap-1.5">
+                  <div className="mt-1 flex flex-wrap gap-1.5">
                     {c.subjects.length === 0 ? (
-                      <span className="inline-flex items-center gap-1 text-xs text-slate-400">
-                        <Users className="h-3.5 w-3.5" /> Dars beradigan fan yo'q
+                      <span className="inline-flex items-center gap-1 text-[12px] text-faint">
+                        <Users className="h-3.5 w-3.5" /> Fan biriktirilmagan
                       </span>
                     ) : (
                       c.subjects.map((s) => (
                         <span
                           key={s.id}
-                          className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600"
+                          className="rounded-lg bg-chip px-2.5 py-1 text-[12px] font-semibold text-ink"
                         >
                           {s.name}
                         </span>
@@ -118,12 +214,12 @@ export function TeacherDashboard() {
                     )}
                   </div>
                 </div>
-                <ChevronRight className="h-5 w-5 shrink-0 text-slate-300 transition-colors group-hover:text-brand-500" />
+                <ChevronRight className="h-5 w-5 shrink-0 text-faint" />
               </Link>
             ))}
           </div>
         )}
-      </Card>
+      </div>
     </div>
   )
 }

@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 
-export type BadgeTone = 'default' | 'violet' | 'green' | 'amber' | 'red' | 'blue'
+export type BadgeTone = 'default' | 'violet' | 'green' | 'amber' | 'red' | 'blue' | 'teal'
 
 const tones: Record<BadgeTone, string> = {
   default: 'border-slate-200 bg-slate-50 text-slate-600',
@@ -10,6 +10,7 @@ const tones: Record<BadgeTone, string> = {
   amber: 'border-transparent bg-amber-50 text-amber-600',
   red: 'border-transparent bg-red-50 text-red-600',
   blue: 'border-transparent bg-sky-50 text-sky-600',
+  teal: 'border-transparent bg-tealsoft text-teal-700',
 }
 
 interface BadgeProps {

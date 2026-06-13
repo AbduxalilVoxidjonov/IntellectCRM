@@ -55,10 +55,10 @@ export function TeacherLmsSubjectPage() {
   }
 
   if (loading) return <Loader label="Yuklanmoqda..." />
-  if (!subject) return <p className="py-12 text-center text-slate-400">Fan topilmadi</p>
+  if (!subject) return <p className="px-4 py-12 text-center text-faint">Fan topilmadi</p>
 
   return (
-    <div>
+    <div className="px-4 pt-3 pb-6">
       {/* Breadcrumb */}
       <div className="subnav">
         <button
@@ -69,9 +69,9 @@ export function TeacherLmsSubjectPage() {
           <ArrowLeft className="h-3.5 w-3.5" />
           Ta'lim
         </button>
-        <span className="text-slate-300">/</span>
+        <span className="text-faint">/</span>
         <span className="subnav-tab">{subject.className}-guruh</span>
-        <span className="text-slate-300">/</span>
+        <span className="text-faint">/</span>
         <span className="subnav-tab active">{subject.title}</span>
       </div>
 
@@ -80,7 +80,7 @@ export function TeacherLmsSubjectPage() {
         title={subject.title}
         sub={subject.description || undefined}
         actions={
-          <div className="flex items-center gap-2 rounded-xl bg-slate-100 px-3 py-1.5 text-sm text-slate-600">
+          <div className="flex items-center gap-2 rounded-xl bg-chip px-3 py-1.5 text-sm text-mute">
             <BookOpen className="h-4 w-4" />
             <span className="font-mono">{topics.length}</span> ta mavzu
           </div>
@@ -111,36 +111,36 @@ export function TeacherLmsSubjectPage() {
             {topics.map((t) => (
               <div
                 key={t.id}
-                className="flex items-start gap-4 rounded-xl border border-slate-200 bg-white px-4 py-3.5 shadow-[var(--shadow-1)]"
+                className="flex items-start gap-4 rounded-[18px] border border-line bg-white px-4 py-3.5 shadow-[var(--shadow-card)]"
               >
                 {/* Tartib */}
-                <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand-50 font-mono text-sm font-bold text-brand-700">
+                <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-tealsoft font-mono text-sm font-bold text-teal-700">
                   {t.order}
                 </div>
 
                 {/* Asosiy ma'lumot */}
                 <div className="min-w-0 flex-1">
-                  <p className="font-medium text-slate-800">{t.title}</p>
+                  <p className="font-medium text-ink">{t.title}</p>
                   {t.description && (
-                    <p className="mt-0.5 text-xs text-slate-400">{t.description}</p>
+                    <p className="mt-0.5 text-xs text-faint">{t.description}</p>
                   )}
 
                   {/* Kontent indikatorlari */}
                   <div className="mt-2 flex flex-wrap items-center gap-3">
                     {t.videoUrl && (
-                      <span className="flex items-center gap-1 text-xs font-medium text-brand-600">
+                      <span className="flex items-center gap-1 text-xs font-medium text-teal-600">
                         <Video className="h-3.5 w-3.5" />
                         Video
                       </span>
                     )}
                     {t.textContent && (
-                      <span className="flex items-center gap-1 text-xs text-slate-500">
+                      <span className="flex items-center gap-1 text-xs text-mute">
                         <FileText className="h-3.5 w-3.5" />
                         Matn
                       </span>
                     )}
                     {t.materials.length > 0 && (
-                      <span className="flex items-center gap-1 text-xs text-slate-500">
+                      <span className="flex items-center gap-1 text-xs text-mute">
                         <Paperclip className="h-3.5 w-3.5" />
                         {t.materials.length} fayl
                       </span>
@@ -151,7 +151,7 @@ export function TeacherLmsSubjectPage() {
                         href={m.url}
                         target="_blank"
                         rel="noreferrer"
-                        className="truncate text-xs text-slate-400 underline hover:text-brand-600"
+                        className="truncate text-xs text-faint underline hover:text-teal-600"
                       >
                         {m.name}
                       </a>

@@ -3,7 +3,6 @@ import { ArrowLeft, Briefcase, MessageSquare, ChevronRight } from 'lucide-react'
 import { getTeacherChatClasses, getTeacherChat, sendTeacherChat } from '@/api/services/teacher'
 import { STAFF_CHANNEL, STAFF_CHANNEL_LABEL } from '@/config/constants'
 import { useUnread } from '@/context/unread-context'
-import { PageHeader } from '@/components/ui/PageHeader'
 import { Loader } from '@/components/ui/Loader'
 import { cn } from '@/lib/utils'
 import { ChatPanel } from '@/components/chat/ChatPanel'
@@ -30,11 +29,11 @@ export function TeacherMessagesPage() {
   if (selected) {
     const isStaff = selected === STAFF_CHANNEL
     return (
-      <div className="space-y-3">
+      <div className="space-y-3 bg-paper px-4 pb-6 pt-3">
         <button
           type="button"
           onClick={() => setSelected(null)}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
+          className="tap-scale inline-flex items-center gap-1.5 rounded-xl bg-tealsoft px-3 py-2 text-[13px] font-semibold text-teal-700"
         >
           <ArrowLeft className="h-4 w-4" /> Kanallar
         </button>
@@ -52,8 +51,12 @@ export function TeacherMessagesPage() {
 
   // ---- Kanallar ro'yxati ----
   return (
-    <div className="space-y-4">
-      <PageHeader title="Xabarlar" sub="Guruh va xodimlar chati" />
+    <div className="min-h-full bg-paper px-4 pb-6 pt-3">
+      {/* Ekran sarlavhasi (shell global headeri olib tashlangan) */}
+      <div className="mb-4">
+        <p className="text-[22px] font-extrabold tracking-tight text-ink">Xabarlar</p>
+        <p className="text-[12px] text-mute">Guruh va xodimlar chati</p>
+      </div>
 
       {loading ? (
         <Loader label="Yuklanmoqda..." />
@@ -81,7 +84,7 @@ export function TeacherMessagesPage() {
           ))}
 
           {classes.length === 0 && (
-            <p className="rounded-xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-400">
+            <p className="rounded-[18px] border border-dashed border-line px-4 py-8 text-center text-[13px] text-faint">
               Sizga biriktirilgan guruh yo'q.
             </p>
           )}
@@ -110,24 +113,24 @@ function ChannelRow({
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-white p-3.5 text-left shadow-[var(--shadow-1)] transition-colors hover:border-brand-300 hover:bg-brand-50/40 active:bg-brand-50"
+      className="tap-scale flex w-full items-center gap-3 rounded-[18px] border border-line bg-white p-3.5 text-left shadow-[var(--shadow-card)]"
     >
       <div
         className={cn(
-          'flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-white',
+          'flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-white',
           staff
             ? 'bg-gradient-to-br from-violet-500 to-fuchsia-600'
-            : 'bg-gradient-to-br from-brand-500 to-brand-700',
+            : 'bg-gradient-to-br from-teal-500 to-teal-700',
         )}
       >
         <Icon className="h-5 w-5" />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="truncate font-bold tracking-tight text-slate-800">{name}</p>
-        <p className="truncate text-xs text-slate-400">{hint}</p>
+        <p className="truncate font-bold tracking-tight text-ink">{name}</p>
+        <p className="truncate text-[12px] text-faint">{hint}</p>
       </div>
       {unread && <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-red-500" />}
-      <ChevronRight className="h-5 w-5 shrink-0 text-slate-300" />
+      <ChevronRight className="h-5 w-5 shrink-0 text-faint" />
     </button>
   )
 }

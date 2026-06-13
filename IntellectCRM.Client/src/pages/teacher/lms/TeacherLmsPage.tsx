@@ -17,7 +17,7 @@ const unlockLabel: Record<LmsUnlockMode, string> = {
 const unlockTone: Record<LmsUnlockMode, BadgeTone> = {
   all: 'green',
   sequential: 'amber',
-  batch: 'violet',
+  batch: 'teal',
 }
 
 export function TeacherLmsPage() {
@@ -43,7 +43,7 @@ export function TeacherLmsPage() {
   const groups = Object.values(byClass)
 
   return (
-    <div>
+    <div className="px-4 pt-3 pb-6">
       <PageHeader
         title="Ta'lim (LMS)"
         sub="Guruhlaringizdagi qo'shimcha ta'lim fanlari va o'quvchilar progressi"
@@ -69,11 +69,11 @@ export function TeacherLmsPage() {
             <div key={className}>
               {/* Guruh sarlavhasi */}
               <div className="mb-3 flex items-center gap-2">
-                <div className="h-px flex-1 bg-slate-200" />
-                <span className="rounded-full bg-slate-100 px-3 py-0.5 text-sm font-semibold text-slate-600">
+                <div className="h-px flex-1 bg-line" />
+                <span className="rounded-full bg-chip px-3 py-0.5 text-sm font-semibold text-mute">
                   {className}-guruh
                 </span>
-                <div className="h-px flex-1 bg-slate-200" />
+                <div className="h-px flex-1 bg-line" />
               </div>
 
               {/* Fanlar kartochalari */}
@@ -86,7 +86,7 @@ export function TeacherLmsPage() {
                     className="entity-card text-left"
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-600">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-tealsoft text-teal-600">
                         <BookOpen className="h-5 w-5" />
                       </div>
                       <Badge tone={unlockTone[s.unlockMode]}>
@@ -103,11 +103,11 @@ export function TeacherLmsPage() {
                     </div>
 
                     <div className="flex items-center justify-between">
-                      <span className="flex items-center gap-1 text-xs text-slate-500">
+                      <span className="flex items-center gap-1 text-xs text-mute">
                         <Layers className="h-3.5 w-3.5" />
                         <span className="font-mono">{s.topicsCount}</span> ta mavzu
                       </span>
-                      <span className="flex items-center gap-1 text-xs font-medium text-brand-600">
+                      <span className="flex items-center gap-1 text-xs font-medium text-teal-600">
                         Ko'rish <ChevronRight className="h-3.5 w-3.5" />
                       </span>
                     </div>

@@ -1,0 +1,670 @@
+<!doctype html>
+<html lang="uz">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Teacher App — HTML UI Kit</title>
+
+  <!-- Fonts: Plus Jakarta Sans (UI) + JetBrains Mono (raqamlar) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400..800;1,400..700&family=JetBrains+Mono:wght@400..700&display=swap"
+    rel="stylesheet"
+  />
+
+  <!-- Tailwind Play CDN — build kerak emas, faylni brauzerda ochsangiz ishlaydi -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    // ── Dizayn tokenlari (lib/core/theme/app_colors.dart dan 1:1 ko'chirilgan) ──
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            teal: {
+              50:'#F0FDFA',100:'#CCFBF1',300:'#5EEAD4',400:'#2DD4BF',500:'#14B8A6',
+              600:'#0D9488',700:'#0F766E',800:'#115E59',900:'#134E4A',950:'#042F2E',
+            },
+            grade: { 5:'#059669', 4:'#0D9488', 3:'#D97706', 2:'#EA580C', 1:'#E11D48' },
+            success:'#10B981', warning:'#F59E0B', danger:'#EF4444', info:'#3B82F6',
+            // Theme-aware (CSS o'zgaruvchilari orqali, .dark almashtiradi)
+            bg:'var(--bg)', 'bg-alt':'var(--bg-alt)',
+            surface:'var(--surface)', surface2:'var(--surface2)', surface3:'var(--surface3)',
+            border:'var(--border)', 'border-soft':'var(--border-soft)',
+            text:'var(--text)', muted:'var(--muted)', faint:'var(--faint)',
+            primary:'var(--primary)', 'primary-soft':'var(--primary-soft)', chip:'var(--chip)',
+          },
+          fontFamily: {
+            sans:['"Plus Jakarta Sans"','system-ui','sans-serif'],
+            mono:['"JetBrains Mono"','ui-monospace','monospace'],
+          },
+          borderRadius: {
+            xl:'14px','2xl':'16px','3xl':'18px','4xl':'20px','5xl':'22px','6xl':'24px',
+          },
+          boxShadow: {
+            card:'0 2px 8px rgba(15,26,23,0.04)',
+            soft:'0 1px 2px rgba(15,26,23,0.04)',
+            sheet:'0 -8px 32px rgba(0,0,0,0.12)',
+            glow:'0 12px 28px rgba(13,148,136,0.30)',
+            fab:'0 8px 24px rgba(13,148,136,0.40)',
+          },
+        },
+      },
+    }
+  </script>
+
+  <style>
+    /* ── Theme-aware tokenlar: light = :root, dark = .dark (HTML class) ── */
+    :root{
+      --bg:#fbfcfc; --bg-alt:#f4f6f5; --surface:#ffffff; --surface2:#f8fafa; --surface3:#eff3f2;
+      --border:#e7eceb; --border-soft:#f0f3f2; --text:#0f1a17; --muted:#5a6360; --faint:#94a09b;
+      --primary:#0d9488; --primary-soft:#dbf5f0; --chip:#f0f4f3;
+    }
+    .dark{
+      --bg:#07120f; --bg-alt:#0c1a17; --surface:#11201c; --surface2:#162822; --surface3:#1c322b;
+      --border:#1f352e; --border-soft:#1f352e; --text:#ecf5f2; --muted:#95a8a2; --faint:#5e726c;
+      --primary:#2dd4bf; --primary-soft:#0f2e29; --chip:#162822;
+    }
+    *{ -webkit-tap-highlight-color:transparent; }
+    body{ margin:0; font-family:'Plus Jakarta Sans',system-ui,sans-serif; -webkit-font-smoothing:antialiased; }
+    .no-scrollbar::-webkit-scrollbar{ display:none; }
+    .no-scrollbar{ -ms-overflow-style:none; scrollbar-width:none; }
+    /* TapScale — bosilganda kichrayadi (Flutter dagi kabi) */
+    .tap-scale{ transition:transform .1s ease-out; cursor:pointer; }
+    .tap-scale:active{ transform:scale(.97); }
+    @keyframes pulse-dot{ 0%,100%{opacity:1} 50%{opacity:.4} }
+    /* Lucide uslubidagi ikonkalar: chiziqli (stroke) */
+    .ico{ width:1em; height:1em; fill:none; stroke:currentColor; stroke-width:2;
+          stroke-linecap:round; stroke-linejoin:round; flex:0 0 auto; }
+    .screen{ display:none; height:100%; }
+    .screen.active{ display:flex; flex-direction:column; }
+  </style>
+</head>
+
+<body>
+  <!-- ═══════════ IKONKA SPRITE (Lucide path'lari, bir marta) ═══════════ -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <symbol id="i-moon" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></symbol>
+      <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M6.3 17.7l-1.4 1.4M19.1 4.9l-1.4 1.4"/></symbol>
+      <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></symbol>
+      <symbol id="i-calendar" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18M8 2v4M16 2v4"/></symbol>
+      <symbol id="i-clipboard" viewBox="0 0 24 24"><rect width="8" height="4" x="8" y="2" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4M12 16h4M8 11h.01M8 16h.01"/></symbol>
+      <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></symbol>
+      <symbol id="i-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></symbol>
+      <symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+      <symbol id="i-chevron-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+      <symbol id="i-chevron-up" viewBox="0 0 24 24"><path d="m18 15-6-6-6 6"/></symbol>
+      <symbol id="i-sparkles" viewBox="0 0 24 24"><path d="M9.9 15.5A2 2 0 0 0 8.5 14.1l-6.1-1.6a.5.5 0 0 1 0-1l6.1-1.6A2 2 0 0 0 9.9 8.5l1.6-6.1a.5.5 0 0 1 1 0L14.1 8.5A2 2 0 0 0 15.5 9.9l6.1 1.6a.5.5 0 0 1 0 1l-6.1 1.6a2 2 0 0 0-1.4 1.4l-1.6 6.1a.5.5 0 0 1-1 0z"/><path d="M20 3v4M22 5h-4M4 17v2M5 18H3"/></symbol>
+      <symbol id="i-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></symbol>
+      <symbol id="i-mail" viewBox="0 0 24 24"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></symbol>
+      <symbol id="i-lock" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+      <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></symbol>
+      <symbol id="i-eye-off" viewBox="0 0 24 24"><path d="M10.7 5.1A10.7 10.7 0 0 1 22 12s-1 2-3 3.7M6.6 6.6A10.7 10.7 0 0 0 2 12s3.5 7 10 7a10 10 0 0 0 4-.8"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2M2 2l20 20"/></symbol>
+      <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"/></symbol>
+      <symbol id="i-edit" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></symbol>
+      <symbol id="i-paperclip" viewBox="0 0 24 24"><path d="m21.4 11-9.2 9.2a6 6 0 0 1-8.5-8.5l8.6-8.6A4 4 0 1 1 18 8.8l-8.6 8.6a2 2 0 0 1-2.8-2.8l8.5-8.5"/></symbol>
+      <symbol id="i-check-circle" viewBox="0 0 24 24"><path d="M21.8 10A10 10 0 1 1 17 3.3"/><path d="m9 11 3 3L22 4"/></symbol>
+      <symbol id="i-video" viewBox="0 0 24 24"><path d="m16 13 5.2 3.5a.5.5 0 0 0 .8-.4V7.9a.5.5 0 0 0-.8-.4L16 10.5"/><rect x="2" y="6" width="14" height="12" rx="2"/></symbol>
+      <symbol id="i-inbox" viewBox="0 0 24 24"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.5 5.1 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.5-6.9A2 2 0 0 0 16.8 4H7.2a2 2 0 0 0-1.8 1.1z"/></symbol>
+      <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+      <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/></symbol>
+      <symbol id="i-home" viewBox="0 0 24 24"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></symbol>
+      <symbol id="i-message-circle" viewBox="0 0 24 24"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></symbol>
+      <symbol id="i-user" viewBox="0 0 24 24"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></symbol>
+      <symbol id="i-cap" viewBox="0 0 24 24"><path d="M21.4 10.9a1 1 0 0 0 0-1.8L12.8 5.2a2 2 0 0 0-1.6 0L2.6 9.1a1 1 0 0 0 0 1.8l8.6 3.9a2 2 0 0 0 1.6 0z"/><path d="M22 10v6M6 12.5V16a6 3 0 0 0 12 0v-3.5"/></symbol>
+      <symbol id="i-wallet" viewBox="0 0 24 24"><path d="M19 7V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-2"/><path d="M16 12h4v4h-4a2 2 0 0 1 0-4Z"/></symbol>
+      <symbol id="i-badge" viewBox="0 0 24 24"><path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/></symbol>
+      <symbol id="i-line-chart" viewBox="0 0 24 24"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="m19 9-5 5-4-4-3 3"/></symbol>
+      <symbol id="i-warn-msg" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M12 7v2M12 13h.01"/></symbol>
+      <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01"/></symbol>
+      <symbol id="i-languages" viewBox="0 0 24 24"><path d="m5 8 6 6M4 14l6-6 2-3M2 5h12M7 2h1M22 22l-5-10-5 10M14 18h6"/></symbol>
+      <symbol id="i-logout" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5M21 12H9"/></symbol>
+    </defs>
+  </svg>
+
+  <!-- ═══════════════════ GALEREYA QOBIG'I (App.jsx) ═══════════════════ -->
+  <div id="root">
+    <div class="min-h-screen flex bg-bg-alt text-text font-sans">
+
+      <!-- ── Yon panel: ekranlar ro'yxati + light/dark ── -->
+      <aside class="w-64 shrink-0 h-screen sticky top-0 overflow-y-auto border-r border-border bg-surface p-4">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <p class="text-[15px] font-extrabold text-text">Teacher App</p>
+            <p class="text-[11px] text-muted">HTML UI Kit · toza HTML</p>
+          </div>
+          <button id="themeBtn" title="Light / Dark"
+            class="w-9 h-9 rounded-xl bg-surface2 border border-border flex items-center justify-center text-text text-[16px]">
+            <svg class="ico" id="themeIcon"><use href="#i-moon"></use></svg>
+          </button>
+        </div>
+
+        <div class="mb-4">
+          <p class="px-2 mb-1 text-[10px] font-bold uppercase tracking-wide text-faint">Kirish</p>
+          <button data-target="login" class="navItem w-full text-left px-3 py-2 rounded-xl text-[13px] mb-0.5 text-muted hover:bg-surface2">Login / Kirish</button>
+        </div>
+        <div class="mb-4">
+          <p class="px-2 mb-1 text-[10px] font-bold uppercase tracking-wide text-faint">Asosiy (bottom nav)</p>
+          <button data-target="home"        data-tab="0" class="navItem w-full text-left px-3 py-2 rounded-xl text-[13px] mb-0.5 text-muted hover:bg-surface2">Dashboard</button>
+          <button data-target="journal"     data-tab="1" class="navItem w-full text-left px-3 py-2 rounded-xl text-[13px] mb-0.5 text-muted hover:bg-surface2">Jurnal (tanlash)</button>
+          <button data-target="assignments" data-tab="2" class="navItem w-full text-left px-3 py-2 rounded-xl text-[13px] mb-0.5 text-muted hover:bg-surface2">Vazifalar</button>
+          <button data-target="chat"        data-tab="3" class="navItem w-full text-left px-3 py-2 rounded-xl text-[13px] mb-0.5 text-muted hover:bg-surface2">Suhbat (kanallar)</button>
+          <button data-target="profile"     data-tab="4" class="navItem w-full text-left px-3 py-2 rounded-xl text-[13px] mb-0.5 text-muted hover:bg-surface2">Profil</button>
+        </div>
+        <p class="px-2 mt-6 text-[10px] leading-relaxed text-faint">
+          Bu — Flutter ilovasining asosiy ekranlari toza HTML+Tailwind ko'rinishida.
+          Har bir ekran markup'ini boshqa platformaga to'g'ridan-to'g'ri ko'chirsangiz bo'ladi.
+        </p>
+      </aside>
+
+      <!-- ── Telefon viewport ── -->
+      <main class="flex-1 flex flex-col items-center justify-start p-8 gap-4">
+        <p class="text-[13px] text-muted" id="screenLabel">Dashboard · bottom-nav ekrani</p>
+        <div class="relative bg-bg rounded-[44px] border-[10px] border-neutral-900 shadow-2xl overflow-hidden"
+             style="width:390px; height:820px">
+          <div class="absolute inset-0 flex flex-col">
+            <div class="flex-1 overflow-hidden" id="screenHost">
+
+              <!-- ╔══════════════════ LOGIN ══════════════════╗ -->
+              <div class="screen" data-screen="login">
+                <div class="relative h-full bg-bg overflow-hidden">
+                  <div class="absolute -top-24 -right-16 w-72 h-72 rounded-full" style="background:radial-gradient(circle,rgba(94,234,212,.45),transparent 70%)"></div>
+                  <div class="absolute -bottom-20 -left-20 w-60 h-60 rounded-full" style="background:radial-gradient(circle,rgba(20,184,166,.20),transparent 70%)"></div>
+                  <div class="relative h-full overflow-y-auto no-scrollbar px-7 pt-16 pb-6">
+                    <div class="flex flex-col items-center">
+                      <div class="w-[76px] h-[76px] rounded-[22px] flex items-center justify-center text-white shadow-glow" style="background:linear-gradient(135deg,#14B8A6,#0F766E)">
+                        <svg width="38" height="38" viewBox="0 0 19 19" fill="none">
+                          <path d="M3 4.25C3 3.56 3.56 3 4.25 3H9.5V16H4.25C3.56 16 3 15.44 3 14.75V4.25Z" fill="white" fill-opacity=".95"/>
+                          <path d="M16 4.25C16 3.56 15.44 3 14.75 3H9.5V16H14.75C15.44 16 16 15.44 16 14.75V4.25Z" fill="white" fill-opacity=".7"/>
+                          <path d="M5.5 6H8.5M5.5 8H8.5M5.5 10H7.5" stroke="#0F766E" stroke-width="1.5" stroke-linecap="round"/>
+                        </svg>
+                      </div>
+                      <p class="mt-5 text-[26px] font-extrabold text-text" style="letter-spacing:-.03em">Maktab</p>
+                      <p class="mt-1 text-[13px] text-muted">O'qituvchi kabineti</p>
+                    </div>
+                    <div class="mt-12">
+                      <p class="text-[24px] font-extrabold text-text" style="letter-spacing:-.025em">Xush kelibsiz!</p>
+                      <p class="mt-1.5 text-[14px] text-muted leading-relaxed">Hisobingizga kirib, darslar va o'quvchilarni boshqarishni davom ettiring.</p>
+                    </div>
+                    <div class="mt-8 space-y-3.5">
+                      <div>
+                        <p class="text-[12px] font-bold text-muted uppercase mb-1.5">Email</p>
+                        <div class="flex items-center gap-2.5 px-4 h-12 rounded-xl bg-surface2 border border-border focus-within:border-primary">
+                          <svg class="ico text-[18px] text-faint"><use href="#i-mail"></use></svg>
+                          <input placeholder="email@school.uz" class="flex-1 bg-transparent outline-none text-[15px] text-text placeholder:text-faint" />
+                        </div>
+                      </div>
+                      <div>
+                        <p class="text-[12px] font-bold text-muted uppercase mb-1.5">Parol</p>
+                        <div class="flex items-center gap-2.5 px-4 h-12 rounded-xl bg-surface2 border border-border focus-within:border-primary">
+                          <svg class="ico text-[18px] text-faint"><use href="#i-lock"></use></svg>
+                          <input id="passInput" type="password" placeholder="Parolingiz" class="flex-1 bg-transparent outline-none text-[15px] text-text placeholder:text-faint" />
+                          <button id="passEye" class="text-faint"><svg class="ico text-[18px]"><use href="#i-eye"></use></svg></button>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="text-right mt-1">
+                      <button class="text-[13px] font-semibold text-primary py-2">Parolni unutdingizmi?</button>
+                    </div>
+                    <div class="mt-2">
+                      <button class="w-full h-[54px] rounded-2xl bg-primary text-white font-semibold text-[15px]">Kirish</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- ╔══════════════════ DASHBOARD ══════════════════╗ -->
+              <div class="screen" data-screen="home">
+                <div class="h-full flex flex-col bg-bg">
+                  <div class="flex items-center gap-2.5 px-5 pt-2 pb-3">
+                    <div class="flex-1">
+                      <p class="text-[12px] font-medium text-muted">6-iyun, Shanba</p>
+                      <p class="text-[22px] font-extrabold text-text" style="letter-spacing:-.025em">Assalomu alaykum, <span class="text-primary">Dilnoza</span> 👋</p>
+                    </div>
+                    <button class="relative w-10 h-10 rounded-xl bg-surface2 flex items-center justify-center text-text text-[21px]">
+                      <svg class="ico"><use href="#i-bell"></use></svg>
+                      <span class="absolute top-2 right-2 min-w-[16px] h-4 px-1 rounded-full bg-danger border-[1.5px] border-surface2 text-white text-[9px] font-bold flex items-center justify-center">3</span>
+                    </button>
+                    <div class="shrink-0 rounded-full flex items-center justify-center text-white font-bold" style="width:40px;height:40px;background:#DB2777;font-size:15px">DK</div>
+                  </div>
+
+                  <div class="flex-1 overflow-y-auto no-scrollbar pb-6">
+                    <!-- Hozir dars hero -->
+                    <div class="px-4 pt-1 pb-4">
+                      <div class="tap-scale p-[18px] rounded-6xl text-white shadow-glow" style="background:linear-gradient(135deg,#0D9488,#115E59)">
+                        <div class="flex items-center">
+                          <span class="w-2 h-2 rounded-full" style="background:#FBBF24"></span>
+                          <span class="ml-2 text-[11px] font-bold tracking-wide">HOZIR DARS KETMOQDA</span>
+                          <span class="ml-auto px-2.5 py-1 rounded-lg bg-white/20 text-[12px] font-extrabold font-mono">3-dars</span>
+                        </div>
+                        <div class="mt-3.5 flex items-start">
+                          <div class="flex-1">
+                            <p class="text-[26px] font-extrabold leading-tight" style="letter-spacing:-.025em">Geometriya</p>
+                            <p class="mt-1 text-[14px] text-white/85">9-A</p>
+                            <div class="mt-2 flex items-center gap-1.5">
+                              <svg class="ico text-[13px]"><use href="#i-clock"></use></svg>
+                              <span class="text-[13px] font-bold font-mono text-white/90">10:20 – 11:05</span>
+                            </div>
+                          </div>
+                          <div class="ml-3 px-4 py-2.5 rounded-xl bg-white flex items-center gap-1.5 shadow-lg">
+                            <span class="text-[14px] font-extrabold text-teal-700">Jurnal</span>
+                            <svg class="ico text-[15px] text-teal-700"><use href="#i-arrow-right"></use></svg>
+                          </div>
+                        </div>
+                        <div class="mt-4 flex items-center gap-3">
+                          <div class="flex-1 h-1.5 rounded bg-white/20 overflow-hidden">
+                            <div class="h-full rounded" style="width:60%;background:#FBBF24"></div>
+                          </div>
+                          <span class="text-[11px] font-bold text-white/90">18 daqiqa qoldi</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Tezkor statistika -->
+                    <div class="px-4 pb-3 flex gap-2.5">
+                      <div class="flex-1 p-3.5 rounded-3xl bg-surface border border-border">
+                        <div class="w-8 h-8 rounded-[10px] flex items-center justify-center text-[16px]" style="background:rgba(13,148,136,.12);color:#0D9488"><svg class="ico"><use href="#i-calendar"></use></svg></div>
+                        <p class="mt-3 text-[22px] font-extrabold text-text font-mono" style="letter-spacing:-.02em">4</p>
+                        <p class="mt-1 text-[11px] text-muted leading-tight">Bugungi darslar</p>
+                      </div>
+                      <div class="flex-1 p-3.5 rounded-3xl bg-surface border border-border">
+                        <div class="w-8 h-8 rounded-[10px] flex items-center justify-center text-[16px]" style="background:rgba(245,158,11,.12);color:#F59E0B"><svg class="ico"><use href="#i-clipboard"></use></svg></div>
+                        <p class="mt-3 text-[22px] font-extrabold text-text font-mono" style="letter-spacing:-.02em">2-chorak</p>
+                        <p class="mt-1 text-[11px] text-muted leading-tight">7-hafta</p>
+                      </div>
+                    </div>
+
+                    <!-- Jadval sarlavhasi + segment -->
+                    <div class="px-5 pt-2 pb-2 flex items-center gap-2">
+                      <p class="flex-1 text-[13px] font-bold text-text tracking-tight">Dars jadvali</p>
+                      <div class="w-40">
+                        <div class="flex p-[3px] bg-surface2 rounded-xl" id="homeSeg">
+                          <button data-seg="day"  class="flex-1 py-2 px-3 rounded-[10px] text-[13px] text-center bg-surface shadow-soft font-bold text-text">Bugun</button>
+                          <button data-seg="week" class="flex-1 py-2 px-3 rounded-[10px] text-[13px] text-center font-semibold text-muted">Hafta</button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Bugungi darslar -->
+                    <div id="homeDay">
+                      <!-- LessonRow x4 -->
+                      <div class="px-4 pb-2"><div class="tap-scale p-3.5 rounded-3xl bg-surface border border-border flex items-center gap-3.5">
+                        <div class="w-[50px] flex flex-col items-center"><span class="text-[14px] font-bold text-text font-mono">08:30</span><span class="w-6 h-px bg-border my-0.5"></span><span class="text-[11px] text-faint font-mono">09:15</span></div>
+                        <div class="flex-1"><div class="flex items-center gap-2"><span class="text-[15px] font-bold text-text">Matematika</span></div><p class="text-[13px] text-muted">9-A</p></div>
+                      </div></div>
+                      <div class="px-4 pb-2"><div class="tap-scale p-3.5 rounded-3xl bg-surface border border-border flex items-center gap-3.5">
+                        <div class="w-[50px] flex flex-col items-center"><span class="text-[14px] font-bold text-text font-mono">09:25</span><span class="w-6 h-px bg-border my-0.5"></span><span class="text-[11px] text-faint font-mono">10:10</span></div>
+                        <div class="flex-1"><div class="flex items-center gap-2"><span class="text-[15px] font-bold text-text">Algebra</span><span class="px-1.5 py-0.5 rounded bg-surface3 text-[10px] font-bold text-muted">1-G</span></div><p class="text-[13px] text-muted">10-B</p></div>
+                      </div></div>
+                      <div class="px-4 pb-2"><div class="tap-scale p-3.5 rounded-3xl bg-surface border border-border flex items-center gap-3.5">
+                        <div class="w-[50px] flex flex-col items-center"><span class="text-[14px] font-bold text-text font-mono">10:20</span><span class="w-6 h-px bg-border my-0.5"></span><span class="text-[11px] text-faint font-mono">11:05</span></div>
+                        <div class="flex-1"><div class="flex items-center gap-2"><span class="text-[15px] font-bold text-text">Geometriya</span></div><p class="text-[13px] text-muted">9-A</p></div>
+                      </div></div>
+                      <div class="px-4 pb-2"><div class="tap-scale p-3.5 rounded-3xl bg-surface border border-border flex items-center gap-3.5">
+                        <div class="w-[50px] flex flex-col items-center"><span class="text-[14px] font-bold text-text font-mono">11:15</span><span class="w-6 h-px bg-border my-0.5"></span><span class="text-[11px] text-faint font-mono">12:00</span></div>
+                        <div class="flex-1"><div class="flex items-center gap-2"><span class="text-[15px] font-bold text-text">Matematika</span></div><p class="text-[13px] text-muted">11-A</p></div>
+                      </div></div>
+                    </div>
+
+                    <!-- Hafta ko'rinishi (yashirin) -->
+                    <div id="homeWeek" class="hidden">
+                      <div class="px-5 pt-2 pb-1.5 flex items-center gap-2"><span class="text-[13px] font-extrabold text-text">Dushanba</span><span class="text-[12px] text-faint">· 2 dars</span></div>
+                      <div class="px-4 pb-2"><div class="tap-scale p-3.5 rounded-3xl bg-surface border border-border flex items-center gap-3.5"><div class="w-[50px] flex flex-col items-center"><span class="text-[14px] font-bold text-text font-mono">08:30</span><span class="w-6 h-px bg-border my-0.5"></span><span class="text-[11px] text-faint font-mono">09:15</span></div><div class="flex-1"><span class="text-[15px] font-bold text-text">Algebra</span><p class="text-[13px] text-muted">10-B</p></div></div></div>
+                      <div class="px-4 pb-2"><div class="tap-scale p-3.5 rounded-3xl bg-surface border border-border flex items-center gap-3.5"><div class="w-[50px] flex flex-col items-center"><span class="text-[14px] font-bold text-text font-mono">09:25</span><span class="w-6 h-px bg-border my-0.5"></span><span class="text-[11px] text-faint font-mono">10:10</span></div><div class="flex-1"><span class="text-[15px] font-bold text-text">Matematika</span><p class="text-[13px] text-muted">9-A</p></div></div></div>
+                      <div class="px-5 pt-2 pb-1.5 flex items-center gap-2"><span class="text-[13px] font-extrabold text-text">Seshanba</span><span class="text-[12px] text-faint">· 1 dars</span></div>
+                      <div class="px-4 pb-2"><div class="tap-scale p-3.5 rounded-3xl bg-surface border border-border flex items-center gap-3.5"><div class="w-[50px] flex flex-col items-center"><span class="text-[14px] font-bold text-text font-mono">08:30</span><span class="w-6 h-px bg-border my-0.5"></span><span class="text-[11px] text-faint font-mono">09:15</span></div><div class="flex-1"><span class="text-[15px] font-bold text-text">Geometriya</span><p class="text-[13px] text-muted">11-A</p></div></div></div>
+                    </div>
+
+                    <!-- Sinf rahbarligi -->
+                    <div class="px-5 pt-2 pb-2"><p class="text-[13px] font-bold text-text tracking-tight">Sinf rahbarligi</p></div>
+                    <div class="px-4 pb-6">
+                      <div class="tap-scale p-[18px] rounded-4xl bg-surface border border-border shadow-card flex items-center gap-3.5">
+                        <div class="w-14 h-14 rounded-2xl flex items-center justify-center text-white text-[18px] font-extrabold" style="background:linear-gradient(135deg,#14B8A6,#0F766E)">9A</div>
+                        <div class="flex-1"><p class="text-[16px] font-bold text-text">9-A sinfi</p><p class="text-[13px] text-muted">Matematika, Geometriya</p></div>
+                        <svg class="ico text-[20px] text-faint"><use href="#i-chevron-right"></use></svg>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- ╔══════════════════ JURNAL (tanlash) ══════════════════╗ -->
+              <div class="screen" data-screen="journal">
+                <div class="h-full flex flex-col bg-bg">
+                  <div class="flex items-center px-4 pt-2 pb-1">
+                    <div class="flex-1"><p class="text-[22px] font-extrabold text-text" style="letter-spacing:-.025em">Jurnal</p><p class="text-[12px] text-muted">Sinf va fanni tanlang</p></div>
+                  </div>
+                  <div class="px-4 pt-1 pb-3">
+                    <div class="px-3 py-2.5 rounded-xl bg-primary-soft flex items-center gap-2.5">
+                      <svg class="ico text-[18px] text-primary"><use href="#i-sparkles"></use></svg>
+                      <span class="text-[13px] font-semibold text-primary">2-chorak ochiq · 7-hafta · Chorak bahosi kiritish ochiq</span>
+                    </div>
+                  </div>
+                  <div class="flex-1 overflow-y-auto no-scrollbar px-4 pb-6">
+                    <p class="px-1 pb-2 text-[12px] font-bold text-muted tracking-wide">9-sinflar</p>
+                    <!-- 9-A (rahbar) -->
+                    <div class="mb-2.5 rounded-3xl bg-surface border border-border classCard">
+                      <button class="classToggle w-full p-3.5 flex items-center gap-3">
+                        <div class="w-12 h-12 rounded-xl flex items-center justify-center text-white text-[14px] font-extrabold" style="background:#7C3AED">9-A</div>
+                        <div class="flex-1 text-left"><div class="flex items-center gap-1.5"><span class="text-[15px] font-bold text-text">9-A sinfi</span><span class="px-1.5 py-0.5 rounded bg-primary-soft text-[10px] font-bold text-primary">RAHBAR</span></div><p class="text-[12px] text-muted">Matematika, Geometriya</p></div>
+                        <svg class="ico text-[20px] text-faint chevron"><use href="#i-chevron-down"></use></svg>
+                      </button>
+                      <div class="classBody hidden px-3.5 pb-3.5 space-y-1.5">
+                        <div class="tap-scale px-3.5 py-3 rounded-xl bg-surface2 border border-border flex items-center gap-2.5"><div class="w-8 h-8 rounded-lg bg-surface flex items-center justify-center text-primary text-[16px]"><svg class="ico"><use href="#i-book-open"></use></svg></div><span class="flex-1 text-[14px] font-semibold text-text">Matematika</span><svg class="ico text-[16px] text-faint"><use href="#i-arrow-right"></use></svg></div>
+                        <div class="tap-scale px-3.5 py-3 rounded-xl bg-surface2 border border-border flex items-center gap-2.5"><div class="w-8 h-8 rounded-lg bg-surface flex items-center justify-center text-primary text-[16px]"><svg class="ico"><use href="#i-book-open"></use></svg></div><span class="flex-1 text-[14px] font-semibold text-text">Geometriya</span><svg class="ico text-[16px] text-faint"><use href="#i-arrow-right"></use></svg></div>
+                      </div>
+                    </div>
+                    <!-- 9-B -->
+                    <div class="mb-2.5 rounded-3xl bg-surface border border-border classCard">
+                      <button class="classToggle w-full p-3.5 flex items-center gap-3">
+                        <div class="w-12 h-12 rounded-xl flex items-center justify-center text-white text-[14px] font-extrabold" style="background:#DB2777">9-B</div>
+                        <div class="flex-1 text-left"><div class="flex items-center gap-1.5"><span class="text-[15px] font-bold text-text">9-B sinfi</span></div><p class="text-[12px] text-muted">Matematika</p></div>
+                        <svg class="ico text-[20px] text-faint chevron"><use href="#i-chevron-down"></use></svg>
+                      </button>
+                      <div class="classBody hidden px-3.5 pb-3.5 space-y-1.5">
+                        <div class="tap-scale px-3.5 py-3 rounded-xl bg-surface2 border border-border flex items-center gap-2.5"><div class="w-8 h-8 rounded-lg bg-surface flex items-center justify-center text-primary text-[16px]"><svg class="ico"><use href="#i-book-open"></use></svg></div><span class="flex-1 text-[14px] font-semibold text-text">Matematika</span><svg class="ico text-[16px] text-faint"><use href="#i-arrow-right"></use></svg></div>
+                      </div>
+                    </div>
+                    <div class="h-2"></div>
+                    <p class="px-1 pb-2 text-[12px] font-bold text-muted tracking-wide">10-sinflar</p>
+                    <div class="mb-2.5 rounded-3xl bg-surface border border-border classCard">
+                      <button class="classToggle w-full p-3.5 flex items-center gap-3">
+                        <div class="w-12 h-12 rounded-xl flex items-center justify-center text-white text-[14px] font-extrabold" style="background:#0891B2">10-B</div>
+                        <div class="flex-1 text-left"><div class="flex items-center gap-1.5"><span class="text-[15px] font-bold text-text">10-B sinfi</span></div><p class="text-[12px] text-muted">Algebra</p></div>
+                        <svg class="ico text-[20px] text-faint chevron"><use href="#i-chevron-down"></use></svg>
+                      </button>
+                      <div class="classBody hidden px-3.5 pb-3.5 space-y-1.5">
+                        <div class="tap-scale px-3.5 py-3 rounded-xl bg-surface2 border border-border flex items-center gap-2.5"><div class="w-8 h-8 rounded-lg bg-surface flex items-center justify-center text-primary text-[16px]"><svg class="ico"><use href="#i-book-open"></use></svg></div><span class="flex-1 text-[14px] font-semibold text-text">Algebra</span><svg class="ico text-[16px] text-faint"><use href="#i-arrow-right"></use></svg></div>
+                      </div>
+                    </div>
+                    <div class="h-2"></div>
+                    <p class="px-1 pb-2 text-[12px] font-bold text-muted tracking-wide">11-sinflar</p>
+                    <div class="mb-2.5 rounded-3xl bg-surface border border-border classCard">
+                      <button class="classToggle w-full p-3.5 flex items-center gap-3">
+                        <div class="w-12 h-12 rounded-xl flex items-center justify-center text-white text-[14px] font-extrabold" style="background:#10B981">11-A</div>
+                        <div class="flex-1 text-left"><div class="flex items-center gap-1.5"><span class="text-[15px] font-bold text-text">11-A sinfi</span></div><p class="text-[12px] text-muted">Geometriya, Algebra</p></div>
+                        <svg class="ico text-[20px] text-faint chevron"><use href="#i-chevron-down"></use></svg>
+                      </button>
+                      <div class="classBody hidden px-3.5 pb-3.5 space-y-1.5">
+                        <div class="tap-scale px-3.5 py-3 rounded-xl bg-surface2 border border-border flex items-center gap-2.5"><div class="w-8 h-8 rounded-lg bg-surface flex items-center justify-center text-primary text-[16px]"><svg class="ico"><use href="#i-book-open"></use></svg></div><span class="flex-1 text-[14px] font-semibold text-text">Geometriya</span><svg class="ico text-[16px] text-faint"><use href="#i-arrow-right"></use></svg></div>
+                        <div class="tap-scale px-3.5 py-3 rounded-xl bg-surface2 border border-border flex items-center gap-2.5"><div class="w-8 h-8 rounded-lg bg-surface flex items-center justify-center text-primary text-[16px]"><svg class="ico"><use href="#i-book-open"></use></svg></div><span class="flex-1 text-[14px] font-semibold text-text">Algebra</span><svg class="ico text-[16px] text-faint"><use href="#i-arrow-right"></use></svg></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- ╔══════════════════ VAZIFALAR ══════════════════╗ -->
+              <div class="screen" data-screen="assignments">
+                <div class="relative h-full flex flex-col bg-bg">
+                  <div class="flex items-center px-4 pt-2 pb-1"><div class="flex-1"><p class="text-[22px] font-extrabold text-text" style="letter-spacing:-.025em">Topshiriqlar</p><p class="text-[12px] text-muted">4 ta faol</p></div></div>
+
+                  <!-- Format chiplari -->
+                  <div class="flex gap-1.5 px-4 py-3 overflow-x-auto no-scrollbar" id="fmtChips">
+                    <button data-fmt="all"     class="fmtChip shrink-0 px-3 py-2 rounded-full border flex items-center gap-1.5 text-[13px] font-semibold bg-primary border-primary text-white">Hammasi <span class="px-1.5 rounded-lg text-[10px] font-extrabold font-mono bg-white/25 text-white">4</span></button>
+                    <button data-fmt="test"    class="fmtChip shrink-0 px-3 py-2 rounded-full border flex items-center gap-1.5 text-[13px] font-semibold bg-surface border-border text-text">Test <span class="px-1.5 rounded-lg text-[10px] font-extrabold font-mono bg-surface3 text-muted">1</span></button>
+                    <button data-fmt="written" class="fmtChip shrink-0 px-3 py-2 rounded-full border flex items-center gap-1.5 text-[13px] font-semibold bg-surface border-border text-text">Yozma <span class="px-1.5 rounded-lg text-[10px] font-extrabold font-mono bg-surface3 text-muted">1</span></button>
+                    <button data-fmt="file"    class="fmtChip shrink-0 px-3 py-2 rounded-full border flex items-center gap-1.5 text-[13px] font-semibold bg-surface border-border text-text">Fayl <span class="px-1.5 rounded-lg text-[10px] font-extrabold font-mono bg-surface3 text-muted">1</span></button>
+                    <button data-fmt="video"   class="fmtChip shrink-0 px-3 py-2 rounded-full border flex items-center gap-1.5 text-[13px] font-semibold bg-surface border-border text-text">Video <span class="px-1.5 rounded-lg text-[10px] font-extrabold font-mono bg-surface3 text-muted">1</span></button>
+                  </div>
+                  <!-- Sinf chiplari -->
+                  <div class="flex gap-1.5 px-4 pb-2 overflow-x-auto no-scrollbar">
+                    <button class="shrink-0 px-3.5 py-1.5 rounded-full border text-[13px] font-semibold bg-primary-soft border-primary text-primary">Barcha sinflar</button>
+                    <button class="shrink-0 px-3.5 py-1.5 rounded-full border text-[13px] font-semibold bg-surface border-border text-text">9-A</button>
+                    <button class="shrink-0 px-3.5 py-1.5 rounded-full border text-[13px] font-semibold bg-surface border-border text-text">9-B</button>
+                    <button class="shrink-0 px-3.5 py-1.5 rounded-full border text-[13px] font-semibold bg-surface border-border text-text">10-B</button>
+                    <button class="shrink-0 px-3.5 py-1.5 rounded-full border text-[13px] font-semibold bg-surface border-border text-text">11-A</button>
+                  </div>
+
+                  <div class="flex-1 overflow-y-auto no-scrollbar px-4 pt-1 pb-24" id="assignList">
+                    <!-- TEST -->
+                    <div class="tap-scale block mb-3 assignCard" data-fmt="test">
+                      <div class="p-4 rounded-4xl bg-surface border border-border">
+                        <div class="flex items-center gap-3">
+                          <div class="w-11 h-11 rounded-xl flex items-center justify-center text-[20px]" style="background:#0D94881F;color:#0D9488"><svg class="ico"><use href="#i-check-circle"></use></svg></div>
+                          <div class="flex-1"><div class="flex items-center gap-1 text-[10px] font-bold tracking-wide" style="color:#0D9488">TEST <span class="text-faint">·</span> <span class="text-[11px] font-semibold text-muted">Algebra</span></div><p class="mt-0.5 text-[15px] font-bold text-text leading-snug">Kvadrat tenglamalar — nazorat testi</p></div>
+                        </div>
+                        <div class="mt-3 flex flex-wrap gap-1.5"><span class="px-2.5 py-1 rounded-lg bg-chip text-[12px] font-semibold text-text">9-A</span><span class="px-2.5 py-1 rounded-lg bg-chip text-[12px] font-semibold text-text">9-B</span></div>
+                        <div class="mt-3 p-3 rounded-[10px] bg-surface2"><div class="flex items-center text-[12px]"><span class="text-muted">Topshirishdi: </span><span class="font-bold text-text font-mono">8/60</span><span class="ml-auto text-[11px] text-muted">⚡ Avto-baho</span></div><div class="mt-1.5 h-1.5 rounded bg-surface3 overflow-hidden"><div class="h-full rounded" style="width:50%;background:#0D9488"></div></div></div>
+                        <div class="mt-3 pt-3 border-t border-border flex items-center gap-1.5"><svg class="ico text-[14px] text-muted"><use href="#i-clock"></use></svg><span class="text-[11px] font-semibold text-muted">4 kun qoldi</span></div>
+                      </div>
+                    </div>
+                    <!-- YOZMA -->
+                    <div class="tap-scale block mb-3 assignCard" data-fmt="written">
+                      <div class="p-4 rounded-4xl bg-surface border border-border">
+                        <div class="flex items-center gap-3">
+                          <div class="w-11 h-11 rounded-xl flex items-center justify-center text-[20px]" style="background:#0EA5E91F;color:#0EA5E9"><svg class="ico"><use href="#i-edit"></use></svg></div>
+                          <div class="flex-1"><div class="flex items-center gap-1 text-[10px] font-bold tracking-wide" style="color:#0EA5E9">YOZMA <span class="text-faint">·</span> <span class="text-[11px] font-semibold text-muted">Geometriya</span></div><p class="mt-0.5 text-[15px] font-bold text-text leading-snug">Geometrik shakllar yuzasi (yozma)</p></div>
+                        </div>
+                        <div class="mt-3 flex flex-wrap gap-1.5"><span class="px-2.5 py-1 rounded-lg bg-chip text-[12px] font-semibold text-text">11-A</span></div>
+                        <div class="mt-3 p-3 rounded-[10px] bg-surface2"><div class="flex items-center text-[12px]"><span class="text-muted">Topshirishdi: </span><span class="font-bold text-text font-mono">8/30</span></div><div class="mt-1.5 h-1.5 rounded bg-surface3 overflow-hidden"><div class="h-full rounded" style="width:50%;background:#0EA5E9"></div></div></div>
+                        <div class="mt-3 pt-3 border-t border-border flex items-center gap-1.5"><svg class="ico text-[14px] text-muted"><use href="#i-clock"></use></svg><span class="text-[11px] font-semibold text-muted">2 kun qoldi</span></div>
+                      </div>
+                    </div>
+                    <!-- FAYL -->
+                    <div class="tap-scale block mb-3 assignCard" data-fmt="file">
+                      <div class="p-4 rounded-4xl bg-surface border border-border">
+                        <div class="flex items-center gap-3">
+                          <div class="w-11 h-11 rounded-xl flex items-center justify-center text-[20px]" style="background:#7C3AED1F;color:#7C3AED"><svg class="ico"><use href="#i-paperclip"></use></svg></div>
+                          <div class="flex-1"><div class="flex items-center gap-1 text-[10px] font-bold tracking-wide" style="color:#7C3AED">FAYL <span class="text-faint">·</span> <span class="text-[11px] font-semibold text-muted">Matematika</span></div><p class="mt-0.5 text-[15px] font-bold text-text leading-snug">Loyiha hisoboti — fayl yuklash</p></div>
+                        </div>
+                        <div class="mt-3 flex flex-wrap gap-1.5"><span class="px-2.5 py-1 rounded-lg bg-chip text-[12px] font-semibold text-text">10-B</span></div>
+                        <div class="mt-3 p-3 rounded-[10px] bg-surface2"><div class="flex items-center text-[12px]"><span class="text-muted">Topshirishdi: </span><span class="font-bold text-text font-mono">8/30</span></div><div class="mt-1.5 h-1.5 rounded bg-surface3 overflow-hidden"><div class="h-full rounded" style="width:50%;background:#7C3AED"></div></div></div>
+                        <div class="mt-3 pt-3 border-t border-border flex items-center gap-1.5"><svg class="ico text-[14px] text-muted"><use href="#i-clock"></use></svg><span class="text-[11px] font-semibold text-danger">4 kun kech</span></div>
+                      </div>
+                    </div>
+                    <!-- VIDEO -->
+                    <div class="tap-scale block mb-3 assignCard" data-fmt="video">
+                      <div class="p-4 rounded-4xl bg-surface border border-border">
+                        <div class="flex items-center gap-3">
+                          <div class="w-11 h-11 rounded-xl flex items-center justify-center text-[20px]" style="background:#DB27771F;color:#DB2777"><svg class="ico"><use href="#i-video"></use></svg></div>
+                          <div class="flex-1"><div class="flex items-center gap-1 text-[10px] font-bold tracking-wide" style="color:#DB2777">VIDEO <span class="text-faint">·</span> <span class="text-[11px] font-semibold text-muted">Algebra</span></div><p class="mt-0.5 text-[15px] font-bold text-text leading-snug">Video tushuntirish — funksiyalar</p></div>
+                        </div>
+                        <div class="mt-3 flex flex-wrap gap-1.5"><span class="px-2.5 py-1 rounded-lg bg-chip text-[12px] font-semibold text-text">9-A</span></div>
+                        <div class="mt-3 p-3 rounded-[10px] bg-surface2"><div class="flex items-center text-[12px]"><span class="text-muted">Topshirishdi: </span><span class="font-bold text-text font-mono">8/30</span></div><div class="mt-1.5 h-1.5 rounded bg-surface3 overflow-hidden"><div class="h-full rounded" style="width:50%;background:#DB2777"></div></div></div>
+                        <div class="mt-3 pt-3 border-t border-border flex items-center gap-1.5"><svg class="ico text-[14px] text-muted"><use href="#i-clock"></use></svg><span class="text-[11px] font-semibold text-muted">Muddat yo'q</span></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <button class="absolute bottom-6 right-5 w-[60px] h-[60px] rounded-3xl bg-primary text-white flex items-center justify-center shadow-fab text-[28px]"><svg class="ico"><use href="#i-plus"></use></svg></button>
+                </div>
+              </div>
+
+              <!-- ╔══════════════════ SUHBAT (kanallar) ══════════════════╗ -->
+              <div class="screen" data-screen="chat">
+                <div class="h-full flex flex-col bg-bg">
+                  <div class="flex items-center px-4 pt-2 pb-1"><div class="flex-1"><p class="text-[22px] font-extrabold text-text" style="letter-spacing:-.025em">Xabarlar</p></div><div class="w-10 h-10 rounded-xl bg-surface2 flex items-center justify-center text-text text-[20px]"><svg class="ico"><use href="#i-search"></use></svg></div></div>
+                  <div class="px-4 -mt-1"><div class="flex items-center gap-1 text-[12px] text-muted"><span class="w-[7px] h-[7px] rounded-full bg-success"></span> Online · 4 guruh</div></div>
+                  <div class="px-4 pt-3 pb-1"><div class="flex items-center gap-2 px-4 h-11 rounded-xl bg-surface2 border border-border"><svg class="ico text-[18px] text-faint"><use href="#i-search"></use></svg><input placeholder="Qidirish..." class="flex-1 bg-transparent outline-none text-[14px] text-text placeholder:text-faint" /></div></div>
+                  <div class="flex-1 overflow-y-auto no-scrollbar px-4 pt-2 pb-6 space-y-1.5">
+                    <button class="w-full p-3 rounded-3xl bg-surface border border-border flex items-center gap-3 text-left">
+                      <div class="w-12 h-12 rounded-2xl flex items-center justify-center text-white text-[14px] font-extrabold" style="background:linear-gradient(135deg,#14B8A6,#0F766E)">9-A</div>
+                      <div class="flex-1 min-w-0"><p class="text-[14px] font-bold text-text truncate">9-A</p><p class="text-[12px] text-muted truncate">Madina Y.: Rahmat, tushunarli!</p></div>
+                      <div class="flex flex-col items-end gap-1"><span class="text-[11px] font-semibold text-faint">14:32</span><span class="min-w-[20px] h-5 px-1.5 rounded-full bg-primary text-white text-[11px] font-extrabold flex items-center justify-center">2</span></div>
+                    </button>
+                    <button class="w-full p-3 rounded-3xl bg-surface border border-border flex items-center gap-3 text-left">
+                      <div class="w-12 h-12 rounded-2xl flex items-center justify-center text-white text-[22px]" style="background:linear-gradient(135deg,#7C3AED,#C026D3)"><svg class="ico"><use href="#i-users"></use></svg></div>
+                      <div class="flex-1 min-w-0"><p class="text-[14px] font-bold text-text truncate">Xodimlar</p><p class="text-[12px] text-muted truncate">Admin: Ertaga yig'ilish 15:00</p></div>
+                      <div class="flex flex-col items-end gap-1"><span class="text-[11px] font-semibold text-faint">12:10</span></div>
+                    </button>
+                    <button class="w-full p-3 rounded-3xl bg-surface border border-border flex items-center gap-3 text-left">
+                      <div class="w-12 h-12 rounded-2xl flex items-center justify-center text-white text-[14px] font-extrabold" style="background:linear-gradient(135deg,#14B8A6,#0F766E)">10-B</div>
+                      <div class="flex-1 min-w-0"><p class="text-[14px] font-bold text-text truncate">10-B</p><p class="text-[12px] text-muted truncate">Otabek N.: Uy vazifa qayerda?</p></div>
+                      <div class="flex flex-col items-end gap-1"><span class="text-[11px] font-semibold text-faint">Kecha</span></div>
+                    </button>
+                    <button class="w-full p-3 rounded-3xl bg-surface border border-border flex items-center gap-3 text-left">
+                      <div class="w-12 h-12 rounded-2xl flex items-center justify-center text-white text-[14px] font-extrabold" style="background:linear-gradient(135deg,#14B8A6,#0F766E)">11-A</div>
+                      <div class="flex-1 min-w-0"><p class="text-[14px] font-bold text-text truncate">11-A</p><p class="text-[12px] text-muted truncate">Siz: Darslik 45-bet</p></div>
+                      <div class="flex flex-col items-end gap-1"><span class="text-[11px] font-semibold text-faint">Du</span></div>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- ╔══════════════════ PROFIL ══════════════════╗ -->
+              <div class="screen" data-screen="profile">
+                <div class="h-full flex flex-col bg-bg">
+                  <div class="px-4 pt-2 pb-1"><p class="text-[17px] font-extrabold text-text">Profil</p></div>
+                  <div class="flex-1 overflow-y-auto no-scrollbar px-4 pt-2 pb-6">
+                    <!-- Header card -->
+                    <div class="rounded-4xl bg-surface border border-border overflow-hidden">
+                      <div class="h-[90px]" style="background:linear-gradient(135deg,#14B8A6,#0F766E)"></div>
+                      <div class="flex flex-col items-center -mt-10 pb-3">
+                        <div class="shrink-0 rounded-full flex items-center justify-center text-white font-bold" style="width:80px;height:80px;background:#DB2777;font-size:30px;box-shadow:0 0 0 2px var(--bg),0 0 0 5px #DB277780">DK</div>
+                        <p class="mt-3 text-[18px] font-extrabold text-text">Dilnoza Karimova</p>
+                        <p class="text-[12px] text-muted">dilnoza@school.uz</p>
+                        <span class="mt-3 px-2.5 py-1 rounded-lg bg-primary-soft flex items-center gap-1 text-[12px] font-semibold text-primary"><svg class="ico text-[12px]"><use href="#i-cap"></use></svg> O'qituvchi</span>
+                        <div class="w-full px-5 mt-4 divide-y divide-border">
+                          <div class="flex items-start gap-3 py-2"><span class="text-muted text-[18px]"><svg class="ico"><use href="#i-badge"></use></svg></span><div><p class="text-[11px] text-muted">Sinf rahbarligi</p><p class="text-[14px] font-semibold text-text">9-A sinf</p></div></div>
+                          <div class="flex items-start gap-3 py-2"><span class="text-muted text-[18px]"><svg class="ico"><use href="#i-book-open"></use></svg></span><div><p class="text-[11px] text-muted">Fanlar</p><p class="text-[14px] font-semibold text-text">Matematika, Geometriya</p></div></div>
+                          <div class="flex items-start gap-3 py-2"><span class="text-muted text-[18px]"><svg class="ico"><use href="#i-wallet"></use></svg></span><div><p class="text-[11px] text-muted">Oylik</p><p class="text-[14px] font-semibold text-text">5 400 000 so'm</p></div></div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Bo'limlar -->
+                    <div class="mt-4">
+                      <p class="pl-1 pb-2 block text-[13px] font-bold text-text tracking-tight">Bo'limlar</p>
+                      <div class="rounded-4xl bg-surface border border-border overflow-hidden">
+                        <button class="w-full px-4 py-3.5 flex items-center gap-3 text-left border-b border-border"><span class="w-8 h-8 rounded-[10px] bg-surface2 flex items-center justify-center text-text text-[16px]"><svg class="ico"><use href="#i-line-chart"></use></svg></span><div class="flex-1"><p class="text-[14px] font-semibold text-text">Dars o'tilishi</p><p class="text-[11px] text-muted">O'tilgan darslar progresi</p></div><svg class="ico text-[16px] text-faint"><use href="#i-chevron-right"></use></svg></button>
+                        <button class="w-full px-4 py-3.5 flex items-center gap-3 text-left border-b border-border"><span class="w-8 h-8 rounded-[10px] bg-surface2 flex items-center justify-center text-text text-[16px]"><svg class="ico"><use href="#i-book-open"></use></svg></span><div class="flex-1"><p class="text-[14px] font-semibold text-text">Ta'lim</p><p class="text-[11px] text-muted">O'quv materiallar va progress</p></div><svg class="ico text-[16px] text-faint"><use href="#i-chevron-right"></use></svg></button>
+                        <button class="w-full px-4 py-3.5 flex items-center gap-3 text-left border-b border-border"><span class="w-8 h-8 rounded-[10px] bg-surface2 flex items-center justify-center text-text text-[16px]"><svg class="ico"><use href="#i-wallet"></use></svg></span><div class="flex-1"><p class="text-[14px] font-semibold text-text">Maosh</p><p class="text-[11px] text-muted">Oylik hisob-kitob</p></div><svg class="ico text-[16px] text-faint"><use href="#i-chevron-right"></use></svg></button>
+                        <button class="w-full px-4 py-3.5 flex items-center gap-3 text-left border-b border-border"><span class="w-8 h-8 rounded-[10px] bg-surface2 flex items-center justify-center text-text text-[16px]"><svg class="ico"><use href="#i-warn-msg"></use></svg></span><div class="flex-1"><p class="text-[14px] font-semibold text-text">Taklif va shikoyatlar</p><p class="text-[11px] text-muted">Adminga murojaat yuborish</p></div><svg class="ico text-[16px] text-faint"><use href="#i-chevron-right"></use></svg></button>
+                        <button class="w-full px-4 py-3.5 flex items-center gap-3 text-left"><span class="w-8 h-8 rounded-[10px] bg-surface2 flex items-center justify-center text-text text-[16px]"><svg class="ico"><use href="#i-help"></use></svg></span><div class="flex-1"><p class="text-[14px] font-semibold text-text">Yordam markazi</p></div><svg class="ico text-[16px] text-faint"><use href="#i-chevron-right"></use></svg></button>
+                      </div>
+                    </div>
+
+                    <!-- Hisob -->
+                    <div class="mt-4">
+                      <p class="pl-1 pb-2 block text-[13px] font-bold text-text tracking-tight">Hisob</p>
+                      <div class="rounded-4xl bg-surface border border-border overflow-hidden">
+                        <button class="w-full px-4 py-3.5 flex items-center gap-3 text-left border-b border-border"><span class="w-8 h-8 rounded-[10px] bg-surface2 flex items-center justify-center text-text text-[16px]"><svg class="ico"><use href="#i-languages"></use></svg></span><div class="flex-1"><p class="text-[14px] font-semibold text-text">Til</p><p class="text-[11px] text-muted">O'zbekcha</p></div><svg class="ico text-[16px] text-faint"><use href="#i-chevron-right"></use></svg></button>
+                        <button class="w-full px-4 py-3.5 flex items-center gap-3 text-left"><span class="w-8 h-8 rounded-[10px] bg-surface2 flex items-center justify-center text-text text-[16px]"><svg class="ico"><use href="#i-lock"></use></svg></span><div class="flex-1"><p class="text-[14px] font-semibold text-text">Parolni o'zgartirish</p></div><svg class="ico text-[16px] text-faint"><use href="#i-chevron-right"></use></svg></button>
+                      </div>
+                    </div>
+
+                    <div class="mt-4"><button class="w-full h-12 rounded-xl bg-transparent text-danger border border-border font-semibold text-[15px] inline-flex items-center justify-center gap-2"><svg class="ico text-[18px]"><use href="#i-logout"></use></svg> Chiqish</button></div>
+                    <p class="mt-5 text-center text-[11px] text-faint">Maktab Portali · v1.0.0 · 2026</p>
+                  </div>
+                </div>
+              </div>
+
+            </div><!-- /screenHost -->
+
+            <!-- ── Bottom nav (faqat tab ekranlari uchun) ── -->
+            <div id="bottomNav" class="bg-surface border-t border-border">
+              <div class="h-[60px] flex">
+                <button data-tab="0" class="bnav flex-1 flex flex-col items-center justify-center gap-0.5"><span class="bnav-pill w-14 h-7 rounded-xl flex items-center justify-center text-[22px]"><svg class="ico"><use href="#i-home"></use></svg></span><span class="bnav-lbl text-[10.5px] tracking-tight">Dashboard</span></button>
+                <button data-tab="1" class="bnav flex-1 flex flex-col items-center justify-center gap-0.5"><span class="bnav-pill w-14 h-7 rounded-xl flex items-center justify-center text-[22px]"><svg class="ico"><use href="#i-book-open"></use></svg></span><span class="bnav-lbl text-[10.5px] tracking-tight">Jurnal</span></button>
+                <button data-tab="2" class="bnav flex-1 flex flex-col items-center justify-center gap-0.5"><span class="bnav-pill w-14 h-7 rounded-xl flex items-center justify-center text-[22px]"><svg class="ico"><use href="#i-clipboard"></use></svg></span><span class="bnav-lbl text-[10.5px] tracking-tight">Vazifa</span></button>
+                <button data-tab="3" class="bnav flex-1 flex flex-col items-center justify-center gap-0.5"><span class="bnav-pill w-14 h-7 rounded-xl flex items-center justify-center text-[22px]"><svg class="ico"><use href="#i-message-circle"></use></svg></span><span class="bnav-lbl text-[10.5px] tracking-tight">Suhbat</span></button>
+                <button data-tab="4" class="bnav flex-1 flex flex-col items-center justify-center gap-0.5"><span class="bnav-pill w-14 h-7 rounded-xl flex items-center justify-center text-[22px]"><svg class="ico"><use href="#i-user"></use></svg></span><span class="bnav-lbl text-[10.5px] tracking-tight">Profil</span></button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- ═══════════════════ INTERAKTIVLIK (vanilla JS) ═══════════════════ -->
+  <script>
+    const TAB_OF = { home:0, journal:1, assignments:2, chat:3, profile:4 };
+    const LABEL  = { login:'Login / Kirish', home:'Dashboard', journal:'Jurnal (tanlash)', assignments:'Vazifalar', chat:'Suhbat (kanallar)', profile:'Profil' };
+
+    const $  = (s, r=document) => r.querySelector(s);
+    const $$ = (s, r=document) => [...r.querySelectorAll(s)];
+
+    function setBottomNav(idx){
+      $$('.bnav').forEach(b=>{
+        const on = +b.dataset.tab === idx;
+        $('.bnav-pill', b).classList.toggle('bg-primary-soft', on);
+        const ic = $('.ico', b);
+        ic.classList.toggle('text-primary', on);
+        ic.classList.toggle('text-faint', !on);
+        ic.style.strokeWidth = on ? '2.4' : '2';
+        const lbl = $('.bnav-lbl', b);
+        lbl.classList.toggle('font-bold', on);   lbl.classList.toggle('text-primary', on);
+        lbl.classList.toggle('font-medium', !on); lbl.classList.toggle('text-faint', !on);
+      });
+    }
+
+    function show(screen){
+      $$('.screen').forEach(s => s.classList.toggle('active', s.dataset.screen === screen));
+      const isTab = screen in TAB_OF;
+      $('#bottomNav').style.display = isTab ? '' : 'none';
+      if (isTab) setBottomNav(TAB_OF[screen]);
+      $('#screenLabel').textContent = LABEL[screen] + (isTab ? ' · bottom-nav ekrani' : ' · ichki ekran');
+      // sidebar highlight
+      $$('.navItem').forEach(n=>{
+        const on = n.dataset.target === screen;
+        n.classList.toggle('bg-primary-soft', on); n.classList.toggle('text-primary', on); n.classList.toggle('font-bold', on);
+        n.classList.toggle('text-muted', !on);
+      });
+    }
+
+    // Sidebar + bottom nav navigatsiyasi
+    $$('.navItem').forEach(n => n.addEventListener('click', () => show(n.dataset.target)));
+    $$('.bnav').forEach(b => b.addEventListener('click', () => {
+      show(Object.keys(TAB_OF).find(k => TAB_OF[k] === +b.dataset.tab));
+    }));
+
+    // Light / Dark
+    $('#themeBtn').addEventListener('click', () => {
+      const dark = $('#root').classList.toggle('dark');
+      $('#themeIcon').firstElementChild.setAttribute('href', dark ? '#i-sun' : '#i-moon');
+    });
+
+    // Login — parolni ko'rsatish
+    $('#passEye').addEventListener('click', () => {
+      const inp = $('#passInput'), use = $('#passEye .ico use');
+      const hidden = inp.type === 'password';
+      inp.type = hidden ? 'text' : 'password';
+      use.setAttribute('href', hidden ? '#i-eye-off' : '#i-eye');
+    });
+
+    // Dashboard — Bugun / Hafta segment
+    $$('#homeSeg button').forEach(btn => btn.addEventListener('click', () => {
+      const day = btn.dataset.seg === 'day';
+      $$('#homeSeg button').forEach(b => {
+        const on = b === btn;
+        b.classList.toggle('bg-surface', on); b.classList.toggle('shadow-soft', on);
+        b.classList.toggle('font-bold', on);  b.classList.toggle('text-text', on);
+        b.classList.toggle('font-semibold', !on); b.classList.toggle('text-muted', !on);
+      });
+      $('#homeDay').classList.toggle('hidden', !day);
+      $('#homeWeek').classList.toggle('hidden', day);
+    }));
+
+    // Jurnal — sinf kartasini ochish/yopish
+    $$('.classToggle').forEach(t => t.addEventListener('click', () => {
+      const body = $('.classBody', t.parentElement);
+      const open = body.classList.toggle('hidden') === false;
+      $('.chevron use', t).setAttribute('href', open ? '#i-chevron-up' : '#i-chevron-down');
+    }));
+
+    // Vazifalar — format bo'yicha filtr
+    $$('.fmtChip').forEach(chip => chip.addEventListener('click', () => {
+      const fmt = chip.dataset.fmt;
+      $$('.fmtChip').forEach(c => {
+        const on = c === chip;
+        c.classList.toggle('bg-primary', on);  c.classList.toggle('border-primary', on); c.classList.toggle('text-white', on);
+        c.classList.toggle('bg-surface', !on); c.classList.toggle('border-border', !on); c.classList.toggle('text-text', !on);
+        const badge = $('span', c);
+        badge.classList.toggle('bg-white/25', on); badge.classList.toggle('text-white', on);
+        badge.classList.toggle('bg-surface3', !on); badge.classList.toggle('text-muted', !on);
+      });
+      $$('.assignCard').forEach(card => {
+        card.style.display = (fmt === 'all' || card.dataset.fmt === fmt) ? '' : 'none';
+      });
+    }));
+
+    // Boshlang'ich ekran
+    show('home');
+  </script>
+</body>
+</html>

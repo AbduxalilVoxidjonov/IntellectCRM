@@ -93,7 +93,7 @@ export function TeacherEvaluationPage() {
   if (loading) return <Loader label="Yuklanmoqda..." />
 
   return (
-    <div>
+    <div className="px-4 pt-3 pb-6">
       <PageHeader
         title="Feedback"
         sub="O'z faningiz bo'yicha o'quvchilarga feedback nomi kesimida feedback bering (1-5, oylik)"
@@ -102,7 +102,7 @@ export function TeacherEvaluationPage() {
       {/* Guruh + fan + oy tanlovi */}
       <div className="toolbar">
         <div className="left">
-          <span className="text-sm font-medium text-slate-600">Guruh:</span>
+          <span className="text-sm font-medium text-mute">Guruh:</span>
           <Select value={classId} onChange={(e) => setClassId(e.target.value)}>
             {classes.length === 0 && <option value="">— dars beradigan guruh yo'q —</option>}
             {classes.map((c) => (
@@ -112,7 +112,7 @@ export function TeacherEvaluationPage() {
             ))}
           </Select>
 
-          <span className="ml-1 text-sm font-medium text-slate-600">Fan:</span>
+          <span className="ml-1 text-sm font-medium text-mute">Fan:</span>
           <Select value={subjectId} onChange={(e) => setSubjectId(e.target.value)}>
             {subjects.length === 0 && <option value="">— fan yo'q —</option>}
             {subjects.map((s) => (
@@ -122,8 +122,8 @@ export function TeacherEvaluationPage() {
             ))}
           </Select>
 
-          <span className="ml-1 inline-flex items-center gap-1 text-sm font-medium text-slate-600">
-            <CalendarRange className="h-4 w-4 text-brand-600" />
+          <span className="ml-1 inline-flex items-center gap-1 text-sm font-medium text-mute">
+            <CalendarRange className="h-4 w-4 text-teal-600" />
             Oy:
           </span>
           <Select value={month} onChange={(e) => onMonth(e.target.value)}>
@@ -186,7 +186,7 @@ export function TeacherEvaluationPage() {
                 ))}
                 {board.rows.length === 0 && (
                   <tr>
-                    <td colSpan={3 + board.types.length} className="px-4 py-12 text-center text-slate-400">
+                    <td colSpan={3 + board.types.length} className="px-4 py-12 text-center text-faint">
                       Bu guruhda o'quvchi yo'q
                     </td>
                   </tr>
@@ -213,8 +213,8 @@ function EvalRow({
 }) {
   return (
     <tr>
-      <td className="num text-slate-400">{index + 1}</td>
-      <td className="whitespace-nowrap font-medium text-slate-700">{row.fullName}</td>
+      <td className="num text-faint">{index + 1}</td>
+      <td className="whitespace-nowrap font-medium text-ink">{row.fullName}</td>
       {typeIds.map((typeId) => (
         <td key={typeId} className="text-center">
           <GradeSelect
@@ -225,9 +225,9 @@ function EvalRow({
       ))}
       <td className="num text-center">
         {row.avgGrade > 0 ? (
-          <span className="font-mono font-semibold text-slate-700">{row.avgGrade}</span>
+          <span className="font-mono font-semibold text-ink">{row.avgGrade}</span>
         ) : (
-          <span className="text-slate-300">—</span>
+          <span className="text-faint">—</span>
         )}
       </td>
     </tr>
@@ -236,7 +236,7 @@ function EvalRow({
 
 const gradeColor: Record<number, string> = {
   5: 'text-emerald-700 border-emerald-200 bg-emerald-50',
-  4: 'text-brand-700 border-brand-200 bg-brand-50',
+  4: 'text-teal-700 border-teal-300 bg-tealsoft',
   3: 'text-amber-700 border-amber-200 bg-amber-50',
   2: 'text-red-600 border-red-200 bg-red-50',
   1: 'text-red-700 border-red-300 bg-red-50',
@@ -254,8 +254,8 @@ function GradeSelect({
       value={value ?? ''}
       onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)}
       className={cn(
-        'w-14 rounded-md border px-2 py-1 text-center font-mono text-sm font-semibold outline-none focus:border-brand-400',
-        value ? gradeColor[value] : 'border-slate-200 bg-white text-slate-400',
+        'w-14 rounded-md border px-2 py-1 text-center font-mono text-sm font-semibold outline-none focus:border-teal-400',
+        value ? gradeColor[value] : 'border-line bg-white text-faint',
       )}
     >
       <option value="">–</option>

@@ -1,36 +1,29 @@
-import { useEffect, useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
-import {
-  LayoutDashboard,
-  ClipboardCheck,
-  MessageSquare,
-  User,
-} from 'lucide-react'
+import { Home, BookOpen, ClipboardList, MessageCircle, User } from 'lucide-react'
 import { UnreadProvider, useUnread } from '@/context/unread-context'
-import { useAuth } from '@/context/auth-context'
-import { getSchoolName } from '@/api/services/settings'
 import { cn } from '@/lib/utils'
 
 interface Tab {
   to: string
   label: string
-  icon: typeof LayoutDashboard
+  icon: typeof Home
   end?: boolean
   /** Xabarlar tabida o'qilmagan nuqtasi ko'rsatiladimi */
   badge?: boolean
 }
 
 const TABS: Tab[] = [
-  { to: '/teacher', label: 'Bosh sahifa', icon: LayoutDashboard, end: true },
-  { to: '/teacher/assignments', label: 'Topshiriqlar', icon: ClipboardCheck },
-  { to: '/teacher/messages', label: 'Xabarlar', icon: MessageSquare, badge: true },
+  { to: '/teacher', label: 'Bosh', icon: Home, end: true },
+  { to: '/teacher/journal', label: 'Jurnal', icon: BookOpen },
+  { to: '/teacher/assignments', label: 'Vazifa', icon: ClipboardList },
+  { to: '/teacher/messages', label: 'Suhbat', icon: MessageCircle, badge: true },
   { to: '/teacher/profile', label: 'Profil', icon: User },
 ]
 
 /**
- * O'qituvchi portali uchun MOBIL ilova qobig'i (telefon, Flutter WebView orqali ochiladi).
- * Admin Sidebar/Topbar O'RNIGA: yengil yuqori panel + pastki tab navigatsiya (4 tab).
- * Namuna: src/pages/teacher/ui-web (binafsha brend, app-kartalar, pastki tab bar).
+ * O'qituvchi portali — MOBIL ilova qobig'i (telefon, Flutter WebView orqali).
+ * Dizayn: teacher.html (teal UI-kit). Har bir ekran o'z sarlavhasini beradi;
+ * qobiq faqat skroll qiladigan kontent + pastki 5-tab teal navigatsiyani beradi.
  */
 export function TeacherMobileLayout() {
   return (
@@ -41,49 +34,21 @@ export function TeacherMobileLayout() {
 }
 
 function Shell() {
-  const { user } = useAuth()
   const { unreadChannels } = useUnread()
   const hasUnread = unreadChannels.size > 0
-  const [schoolName, setSchoolName] = useState('')
-
-  useEffect(() => {
-    const load = () => {
-      getSchoolName()
-        .then(setSchoolName)
-        .catch(() => {})
-    }
-    load()
-    window.addEventListener('school:updated', load)
-    return () => window.removeEventListener('school:updated', load)
-  }, [])
 
   return (
-    <div className="flex h-[100dvh] justify-center bg-slate-100">
-      {/* Telefon kengligida markazlashtirilgan ustun — keng ekranda ham mobil ko'rinish */}
-      <div className="flex h-full w-full max-w-md flex-col overflow-hidden bg-slate-50 shadow-xl">
-        {/* Yuqori panel — yengil, brend belgisi + markaz/o'qituvchi nomi */}
-        <header className="flex shrink-0 items-center gap-3 border-b border-slate-200 bg-white px-4 py-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 text-sm font-extrabold text-white shadow-sm">
-            {(schoolName || 'IC').slice(0, 2).toUpperCase()}
-          </div>
-          <div className="min-w-0 flex-1 leading-tight">
-            <p className="truncate text-sm font-bold tracking-tight text-slate-800">
-              {schoolName || 'IntellectCRM'}
-            </p>
-            <p className="truncate text-xs text-slate-400">
-              {user?.fullName || "O'qituvchi paneli"}
-            </p>
-          </div>
-        </header>
-
-        {/* Kontent — skroll qiladi, pastki nav ostida yashirinmasligi uchun pastki bo'shliq */}
-        <main className="flex-1 overflow-y-auto px-4 pb-24 pt-4">
+    <div className="teacher-app flex h-[100dvh] justify-center bg-neutral-200 text-ink">
+      {/* Telefon kengligida markazlashtirilgan ustun (keng ekranda ham mobil ko'rinish) */}
+      <div className="flex h-full w-full max-w-md flex-col overflow-hidden bg-paper shadow-2xl">
+        {/* Kontent — har bir ekran o'z sarlavha/paddingini beradi */}
+        <main className="flex-1 overflow-y-auto">
           <Outlet />
         </main>
 
-        {/* PASTKI NAVIGATSIYA — 4 tab (mobil ilova kabi) */}
-        <nav className="shrink-0 border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)]">
-          <div className="flex h-14">
+        {/* PASTKI NAVIGATSIYA — 5 tab (teal soft-pill) */}
+        <nav className="shrink-0 border-t border-line bg-white pb-[env(safe-area-inset-bottom)]">
+          <div className="flex h-[60px]">
             {TABS.map((tab) => {
               const Icon = tab.icon
               return (
@@ -95,22 +60,26 @@ function Shell() {
                 >
                   {({ isActive }) => (
                     <>
-                      <span className="relative">
-                        <Icon
-                          className={cn(
-                            'h-6 w-6 transition-colors',
-                            isActive ? 'text-brand-600' : 'text-slate-400',
-                          )}
-                          strokeWidth={isActive ? 2.4 : 2}
-                        />
-                        {tab.badge && hasUnread && (
-                          <span className="absolute -right-1 -top-0.5 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white" />
+                      <span
+                        className={cn(
+                          'flex h-7 w-14 items-center justify-center rounded-xl transition-colors',
+                          isActive ? 'bg-tealsoft' : 'bg-transparent',
                         )}
+                      >
+                        <span className="relative">
+                          <Icon
+                            className={cn('h-[22px] w-[22px]', isActive ? 'text-teal-600' : 'text-faint')}
+                            strokeWidth={isActive ? 2.4 : 2}
+                          />
+                          {tab.badge && hasUnread && (
+                            <span className="absolute -right-1.5 -top-1 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white" />
+                          )}
+                        </span>
                       </span>
                       <span
                         className={cn(
-                          'text-[10px] tracking-tight',
-                          isActive ? 'font-bold text-brand-600' : 'font-medium text-slate-400',
+                          'text-[10.5px] tracking-tight',
+                          isActive ? 'font-bold text-teal-600' : 'font-medium text-faint',
                         )}
                       >
                         {tab.label}

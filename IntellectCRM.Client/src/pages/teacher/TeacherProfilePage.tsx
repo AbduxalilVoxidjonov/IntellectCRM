@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react'
-import { GraduationCap, BookOpen, Crown, Wallet, LogOut } from 'lucide-react'
+import { GraduationCap, BookOpen, Wallet, LogOut } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import type { SalaryLedger, TeacherClass } from '@/types'
 import { getMyClasses, getTeacherSalary } from '@/api/services/teacher'
 import { useAuth } from '@/context/auth-context'
-import { Card } from '@/components/ui/Card'
-import { Badge } from '@/components/ui/Badge'
 import { Loader } from '@/components/ui/Loader'
 import { formatMoney } from '@/lib/utils'
 
@@ -18,7 +17,7 @@ function initialsOf(name: string): string {
     .toUpperCase()
 }
 
-/** O'qituvchi profili — mobil ekran: nom/login, guruh/fanlar, maosh xulosasi, chiqish. */
+/** O'qituvchi profili — mobil ekran (teal): header karta, ma'lumot qatorlari, guruhlar, chiqish. */
 export function TeacherProfilePage() {
   const { user, logout } = useAuth()
   const [classes, setClasses] = useState<TeacherClass[]>([])
@@ -40,151 +39,137 @@ export function TeacherProfilePage() {
   const homeroomCount = classes.filter((c) => c.isHomeroom).length
   const subjectCount = classes.reduce((acc, c) => acc + c.subjects.length, 0)
 
-  // Joriy oy maoshi (mavjud bo'lsa)
+  // Joriy oy maoshi (mavjud bo'lsa) — FAQAT hisoblangan summa ko'rsatiladi (foiz emas)
   const ym = (() => {
     const d = new Date()
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
   })()
   const currentMonth = salary?.months?.find((m) => m.month === ym) ?? null
-  const isPercent = salary?.salaryMode === 'percent'
-  const expected = currentMonth?.expected ?? 0
-  const paid = currentMonth?.paid ?? 0
-  const remaining = Math.max(0, expected - paid)
 
   return (
-    <div className="space-y-4">
-      {/* Profil sarlavhasi */}
-      <Card>
-        <div className="flex items-center gap-4">
-          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 text-xl font-extrabold text-white shadow-sm">
+    <div className="px-4 pt-3 pb-6">
+      {/* Sarlavha */}
+      <p className="mb-3 text-[17px] font-extrabold text-ink">Profil</p>
+
+      {/* Header karta — teal cover + avatar + ma'lumot qatorlari */}
+      <div className="overflow-hidden rounded-[20px] border border-line bg-white shadow-[var(--shadow-card)]">
+        <div className="h-[90px] bg-gradient-to-br from-teal-500 to-teal-700" />
+        <div className="-mt-10 flex flex-col items-center pb-4">
+          <div
+            className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-teal-500 to-teal-700 text-[30px] font-bold text-white"
+            style={{ boxShadow: '0 0 0 2px var(--color-paper), 0 0 0 5px rgba(13,148,136,.5)' }}
+          >
             {initialsOf(user?.fullName || 'O')}
           </div>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-lg font-extrabold tracking-tight text-slate-800">
-              {user?.fullName || "O'qituvchi"}
-            </p>
-            {user?.email && (
-              <p className="truncate text-sm text-slate-400">{user.email}</p>
-            )}
-            <span className="mt-1 inline-flex">
-              <Badge tone="violet">O'qituvchi</Badge>
-            </span>
+          <p className="mt-3 text-[18px] font-extrabold text-ink">
+            {user?.fullName || "O'qituvchi"}
+          </p>
+          {user?.email && <p className="text-[12px] text-mute">{user.email}</p>}
+          <span className="mt-3 inline-flex items-center gap-1 rounded-lg bg-tealsoft px-2.5 py-1 text-[12px] font-semibold text-teal-700">
+            <GraduationCap className="h-3.5 w-3.5" />
+            O'qituvchi
+          </span>
+
+          {/* Ma'lumot qatorlari */}
+          <div className="mt-4 w-full divide-y divide-line px-5">
+            <InfoRow
+              icon={GraduationCap}
+              label="Sinf rahbarligi"
+              value={homeroomCount > 0 ? `${homeroomCount} ta sinf` : '—'}
+            />
+            <InfoRow
+              icon={BookOpen}
+              label="Fanlar"
+              value={subjectCount > 0 ? String(subjectCount) : '—'}
+            />
+            <InfoRow
+              icon={Wallet}
+              label="Maosh"
+              value={formatMoney(currentMonth?.expected ?? 0)}
+              mono
+            />
           </div>
         </div>
-      </Card>
-
-      {/* Qisqacha statistika */}
-      <div className="grid grid-cols-3 gap-3">
-        <MiniStat icon={GraduationCap} value={classes.length} label="Guruhlar" />
-        <MiniStat icon={BookOpen} value={subjectCount} label="Fanlar" />
-        <MiniStat icon={Crown} value={homeroomCount} label="Rahbarlik" />
       </div>
 
-      {/* Maosh xulosasi — FAQAT hisoblangan summa (foiz/ulush ko'rsatilmaydi) */}
-      {salary && (
-        <Card title="Maosh" sub={isPercent ? "Yig'ilgan to'lovga asoslangan" : "Qat'iy oylik"} tight>
-          <div className="space-y-3 p-[18px]">
-            <div className="flex items-center gap-3 rounded-xl border border-brand-100 bg-brand-50 p-3.5">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-white text-brand-600">
-                <Wallet className="h-5 w-5" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-slate-500">Joriy oy hisoblandi</p>
-                <p className="font-mono text-xl font-extrabold text-slate-800">
-                  {formatMoney(expected)}
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <SalaryCell label="Berildi" value={formatMoney(paid)} />
-              <SalaryCell label="Qoldi" value={formatMoney(remaining)} />
-            </div>
-          </div>
-        </Card>
-      )}
-
-      {/* Guruhlar/fanlar */}
-      <Card title="Dars beradigan guruhlar" tight>
+      {/* Dars beradigan guruhlar */}
+      <div className="mt-4">
+        <p className="pb-2 pl-1 text-[13px] font-bold tracking-tight text-ink">
+          Dars beradigan guruhlar
+        </p>
         {loading ? (
-          <div className="p-5">
+          <div className="rounded-[20px] border border-line bg-white p-5 shadow-[var(--shadow-card)]">
             <Loader label="Yuklanmoqda..." />
           </div>
         ) : classes.length === 0 ? (
-          <div className="state px-5 py-8 text-center text-sm text-slate-400">
+          <div className="rounded-[20px] border border-line bg-white px-5 py-8 text-center text-[13px] text-faint shadow-[var(--shadow-card)]">
             Sizga biriktirilgan guruh/fan yo'q.
           </div>
         ) : (
-          <div className="space-y-2.5 p-[18px]">
-            {classes.map((c) => (
-              <div
+          <div className="overflow-hidden rounded-[20px] border border-line bg-white shadow-[var(--shadow-card)]">
+            {classes.map((c, i) => (
+              <Link
                 key={c.classId}
-                className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-[var(--shadow-1)]"
+                to={`/teacher/groups/${c.classId}`}
+                className={
+                  'tap-scale flex items-center gap-3 px-4 py-3.5 text-left' +
+                  (i < classes.length - 1 ? ' border-b border-line' : '')
+                }
               >
-                <div className="flex items-center justify-between gap-2">
-                  <p className="font-bold tracking-tight text-slate-800">{c.className}</p>
-                  {c.isHomeroom && (
-                    <Badge tone="amber">
-                      <Crown className="h-3 w-3" /> Rahbar
-                    </Badge>
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-tealsoft text-[15px] font-extrabold text-teal-700">
+                  {initialsOf(c.className)}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[14px] font-bold text-ink">{c.className}</p>
+                  {c.subjects.length > 0 && (
+                    <p className="truncate text-[11px] text-mute">
+                      {c.subjects.map((s) => s.name).join(', ')}
+                    </p>
                   )}
                 </div>
-                {c.subjects.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {c.subjects.map((s) => (
-                      <span
-                        key={s.id}
-                        className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600"
-                      >
-                        {s.name}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
+              </Link>
             ))}
           </div>
         )}
-      </Card>
+      </div>
 
       {/* Chiqish */}
-      <button
-        type="button"
-        onClick={logout}
-        className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 p-3.5 font-bold text-red-600 transition-colors hover:bg-red-100"
-      >
-        <LogOut className="h-5 w-5" />
-        Chiqish
-      </button>
+      <div className="mt-4">
+        <button
+          type="button"
+          onClick={logout}
+          className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-line bg-transparent text-[15px] font-semibold text-red-500"
+        >
+          <LogOut className="h-[18px] w-[18px]" />
+          Chiqish
+        </button>
+      </div>
     </div>
   )
 }
 
-function MiniStat({
+function InfoRow({
   icon: Icon,
-  value,
   label,
+  value,
+  mono,
 }: {
   icon: typeof GraduationCap
-  value: number
   label: string
+  value: string
+  mono?: boolean
 }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-3 text-center shadow-[var(--shadow-1)]">
-      <div className="mx-auto flex h-9 w-9 items-center justify-center rounded-lg bg-brand-50 text-brand-600">
-        <Icon className="h-5 w-5" />
+    <div className="flex items-start gap-3 py-2.5">
+      <span className="mt-0.5 text-mute">
+        <Icon className="h-[18px] w-[18px]" />
+      </span>
+      <div className="min-w-0">
+        <p className="text-[11px] text-mute">{label}</p>
+        <p className={'text-[14px] font-semibold text-ink' + (mono ? ' font-mono' : '')}>
+          {value}
+        </p>
       </div>
-      <p className="mt-2 font-mono text-xl font-extrabold text-slate-800">{value}</p>
-      <p className="text-[11px] text-slate-400">{label}</p>
-    </div>
-  )
-}
-
-function SalaryCell({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-      <p className="text-xs text-slate-400">{label}</p>
-      <p className="mt-1 font-mono text-sm font-extrabold text-slate-800">{value}</p>
     </div>
   )
 }

@@ -113,6 +113,22 @@ docker compose up -d --build    # app + mssql + cloudflared + backup + mediamtx
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-13: **O'qituvchi portali TO'LIQ TEAL REDIZAYN (`teacher.html` namunasi asosida, 1 foundation + 4 parallel
+  subagent).** Foydalanuvchi ildizga `teacher.html` (teal mobil UI-kit: Login/Dashboard/Jurnal-picker/Vazifa+FAB/
+  Suhbat/Profil, 5-tab teal bottom-nav, Plus Jakarta Sans + JetBrains Mono) qo'shdi — o'qituvchi qismi shunga
+  moslandi. **Foundation (men):** (1) `index.html` — Plus Jakarta Sans + JetBrains Mono Google Fonts. (2) `index.css`
+  `@theme` — teal-kulrang nomli ranglar: `ink/mute/faint/line/line-soft/paper/paper2/panel2/panel3/tealsoft/chip`
+  (teal ramp = Tailwind default `teal-*`, qayta aniqlanmadi; MAVJUD `:root` violet tokenlari bilan to'qnashmaslik
+  uchun YANGI nomlar). `.teacher-app` scope: Plus Jakarta Sans, `.teacher-app .font-mono`→JetBrains Mono, yashirin
+  scrollbar, `tap-scale`, `--shadow-card/soft/glow/fab`. (3) `TeacherMobileLayout` — global header OLIB TASHLANDI
+  (har ekran o'z sarlavhasini beradi), `teacher-app` wrapper, **5-tab teal soft-pill bottom-nav** (Bosh·Jurnal·Vazifa·
+  Suhbat·Profil). **Subagentlar (prezentatsiya-only, logika/API saqlandi):** A=Dashboard (salom+sana+stats+rahbarlik+
+  guruhlar) + YANGI `groups/TeacherGroupsPage` (Jurnal-tab guruh-picker); B=`TeacherGroupDetailPage` teal reskin
+  (jurnal grid+curriculum logikasi tegilmadi); C=Assignments (format chiplari+FAB) + Messages (kanal kartalar+suhbat);
+  D=Profil (teal cover karta + ma'lumot qatorlari, **maosh faqat hisoblangan summa, foiz YO'Q**) + Evaluation + LMS
+  (yengil). App.tsx: `journal`→TeacherGroupsPage route. tsc 0 (1 unused import tuzatildi), vite yashil, `app` deploy
+  (mssql-data saqlandi); jonli /teacher 200, /teacher/journal 200, build CSS'da teal tokenlar+shriftlar tasdiqlandi.
+  DIQQAT: faqat `/teacher/*` teal; admin binafsha (Montserrat) o'zgarmadi (token nomlari to'qnashmaydi). ✅
 - 2026-06-13: **O'qituvchi portali UX tuzatishlari (3 muammo).** (1) **Profil maoshi — FOIZ/ULUSH ko'rsatilmaydi.**
   `TeacherProfilePage` ilgari foizli rejimda "Ulush X%" ko'rsatardi; endi rejimdan qat'i nazar faqat HISOBLANGAN summa
   ("Joriy oy hisoblandi" = `expected`) + "Berildi" (`paid`) + "Qoldi" (`expected-paid`). `Percent` ikona/`salaryPercent`/
