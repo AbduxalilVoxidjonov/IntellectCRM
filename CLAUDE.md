@@ -113,6 +113,14 @@ docker compose up -d --build    # app + mssql + cloudflared + backup + mediamtx
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-13: **Push — web tarafda avtomatik qurilma register/unregister HOOK (Flutter WebView uchun).** Yangi
+  `api/services/push.ts`: `setFcmToken/getFcmToken` (Flutter `window.__FCM_TOKEN__` yoki `postMessage({type:'fcm-token',
+  token})` orqali beradi), `registerDevice/unregisterDevice` (rol bo'yicha `/student` yoki `/teacher` endpoint; parent/
+  admin — register endpointi yo'q). `AuthProvider`ga ulandi: **login** → token bo'lsa darhol register (token oxirgi
+  kirgan userga bog'lanadi); **logout** → unregister (JWT hali tozalanmagan — explicit Authorization header bilan,
+  timing xavfsiz); **postMessage listener** → Flutter token kelganda/yangilanganda (agar kirilgan bo'lsa) qayta register.
+  Flutter faqat tokenni `window`ga/postMessage bilan beradi — qolgani avtomatik. tsc+vite yashil, deploy ✅; jonli E2E:
+  student token bilan register 200 {ok:true}, unregister 200.
 - 2026-06-13: **Push (Firebase) — faqat NATIVE (Flutter) ilovaga soddalashtirildi (PWA/web push olib tashlandi).**
   Loyiha — bitta Flutter WebView ilovasi (student+teacher), push native FCM (firebase_messaging) orqali, web push
   (service worker) WebView'da ishlamaydi. Shuning uchun web config + VAPID kerak emas — faqat **Service Account JSON**
