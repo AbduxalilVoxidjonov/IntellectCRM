@@ -566,9 +566,9 @@ public record AuditLogDto(
 public record TeacherProfileDto(
     string Id, string FullName, string Email, string HomeroomClass, List<SubjectDto> Subjects,
     List<string> Permissions, string? PhotoUrl = null);
-/// <summary>O'qituvchi dars beradigan bitta sinf (qaysi fanlarni va sinf rahbarimi).</summary>
+/// <summary>O'qituvchi dars beradigan bitta guruh (qaysi kurslarni o'qitishi).</summary>
 public record TeacherClassDto(
-    string ClassId, string ClassName, int Grade, bool IsHomeroom, List<SubjectDto> Subjects);
+    string ClassId, string ClassName, int Grade, List<SubjectDto> Subjects);
 /* ---------- Student portal (ilova) ---------- */
 /// <summary>O'quvchining o'z profili (ilovada ko'rsatish uchun).</summary>
 public record StudentProfileDto(

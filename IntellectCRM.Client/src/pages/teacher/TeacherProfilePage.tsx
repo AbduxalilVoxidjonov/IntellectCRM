@@ -36,7 +36,6 @@ export function TeacherProfilePage() {
       .finally(() => setLoading(false))
   }, [])
 
-  const homeroomCount = classes.filter((c) => c.isHomeroom).length
   const subjectCount = classes.reduce((acc, c) => acc + c.subjects.length, 0)
 
   // Joriy oy maoshi (mavjud bo'lsa) — FAQAT hisoblangan summa ko'rsatiladi (foiz emas)
@@ -74,8 +73,8 @@ export function TeacherProfilePage() {
           <div className="mt-4 w-full divide-y divide-line px-5">
             <InfoRow
               icon={GraduationCap}
-              label="Sinf rahbarligi"
-              value={homeroomCount > 0 ? `${homeroomCount} ta sinf` : '—'}
+              label="Guruhlar"
+              value={classes.length > 0 ? `${classes.length} ta guruh` : '—'}
             />
             <InfoRow
               icon={BookOpen}

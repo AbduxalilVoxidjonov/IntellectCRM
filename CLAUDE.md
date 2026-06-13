@@ -113,6 +113,17 @@ docker compose up -d --build    # app + mssql + cloudflared + backup + mediamtx
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-13: **Sinf rahbarligi (homeroom) GURUHLARDAN olib tashlandi + o'quvchi web-login bloki ochildi.**
+  (1) **Web-login:** `AuthProvider` student/parent rolini "Mobil ilovadan foydalaning" deb bloklardi (3 joy: login
+  throw, readStoredUser, fetchMe effekti) — HAMMASI olib tashlandi. Endi bitta ilovadan (Flutter WebView) o'qituvchi
+  ham, o'quvchi/ota-ona ham kira oladi → `/student`. (2) **Sinf rahbari:** o'quv markazida "sinf rahbari" tushunchasi
+  kerak emas. `TeacherClassDto`dan `IsHomeroom` olib tashlandi; `TeacherPortalController.Classes()` endi FAQAT
+  o'qituvchi dars beradigan guruhlarni qaytaradi (Group.TeacherId==me; homeroom-only sinf inklyuziyasi olib tashlandi).
+  Frontend: `TeacherClass.isHomeroom` tipi olib tashlandi; teacher portalida RAHBAR badge (Dashboard "Mening guruhlarim"
+  + TeacherGroupsPage), "Sinf rahbarligi" bo'limi (Dashboard), "Rahbarlik" statistikasi (3→2 stat), Profil "Sinf
+  rahbarligi" qatori (→ "Guruhlar") — hammasi olib tashlandi. `Teacher.HomeroomClass` entity/pickup-homeroom endpointlar
+  QOLDI (alohida vestigial; guruh konteksti emas). Backend 0, tsc+vite yashil, deploy ✅; jonli: `/teacher/classes`
+  endi isHomeroom maydonisiz (test B + TEST-G). DIQQAT: test teacher paroli reset (abduxalilvoxidjonov / rqcd8dv3).
 - 2026-06-13: **YANGI — O'QUVCHI portali (student web ilova, `student.html` blue dizayni asosida, noldan).**
   Avval student frontend UMUMAN yo'q edi (faqat boy `StudentPortalController` ~40 endpoint). Foundation (men):
   (1) `index.html` TIKLANDI — oldingi moliya commitida (`00a1afa`) tasodifan o'chgan edi (foydalanuvchi student.html

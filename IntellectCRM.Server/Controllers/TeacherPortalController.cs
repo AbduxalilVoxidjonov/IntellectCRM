@@ -300,13 +300,13 @@ public class TeacherPortalController(
         var result = new List<TeacherClassDto>();
         foreach (var cls in classes)
         {
-            var isHomeroom = !string.IsNullOrEmpty(t.HomeroomClass) && t.HomeroomClass == cls.Name;
+            // Faqat o'qituvchi DARS BERADIGAN guruhlar (Group.TeacherId == me). Sinf rahbarligi tushunchasi olib tashlandi.
             taught.TryGetValue(cls.Id, out var subjIds);
-            if (!isHomeroom && (subjIds is null || subjIds.Count == 0)) continue;
-            var subjects = (subjIds ?? new())
+            if (subjIds is null || subjIds.Count == 0) continue;
+            var subjects = subjIds
                 .Select(id => new SubjectDto(id, subjectNames.GetValueOrDefault(id, "")))
                 .OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase).ToList();
-            result.Add(new TeacherClassDto(cls.Id, cls.Name, cls.Grade, isHomeroom, subjects));
+            result.Add(new TeacherClassDto(cls.Id, cls.Name, cls.Grade, subjects));
         }
         return result.OrderBy(c => c.Grade).ThenBy(c => c.ClassName).ToList();
     }

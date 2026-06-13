@@ -50,14 +50,7 @@ export function TeacherGroupsPage() {
                 {groupInitials(c.className)}
               </div>
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5">
-                  <p className="truncate text-[15px] font-bold text-ink">{c.className}</p>
-                  {c.isHomeroom && (
-                    <span className="shrink-0 rounded bg-tealsoft px-1.5 py-0.5 text-[10px] font-bold text-teal-700">
-                      RAHBAR
-                    </span>
-                  )}
-                </div>
+                <p className="truncate text-[15px] font-bold text-ink">{c.className}</p>
                 <p className="mt-0.5 truncate text-[12px] text-mute">
                   {c.subjects.length > 0 ? (
                     c.subjects.map((s) => s.name).join(', ')

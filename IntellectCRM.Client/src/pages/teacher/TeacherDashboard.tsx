@@ -1,14 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import {
-  Bell,
-  GraduationCap,
-  BookOpen,
-  Crown,
-  ClipboardCheck,
-  ChevronRight,
-  Users,
-} from 'lucide-react'
+import { Bell, GraduationCap, BookOpen, ClipboardCheck, ChevronRight, Users } from 'lucide-react'
 import type { TeacherClass } from '@/types'
 import { getMyClasses } from '@/api/services/teacher'
 import { useAuth } from '@/context/auth-context'
@@ -57,9 +49,7 @@ export function TeacherDashboard() {
       .finally(() => setLoading(false))
   }, [])
 
-  const homeroomCount = classes.filter((c) => c.isHomeroom).length
   const subjectCount = classes.reduce((acc, c) => acc + c.subjects.length, 0)
-  const homeroomGroups = classes.filter((c) => c.isHomeroom)
 
   const fullName = user?.fullName ?? ''
   const firstName = fullName.trim().split(/\s+/)[0] || 'ustoz'
@@ -106,15 +96,6 @@ export function TeacherDashboard() {
           </p>
           <p className="mt-1 text-[11px] leading-tight text-mute">Fanlar</p>
         </div>
-        <div className="flex-1 rounded-[18px] border border-line bg-white p-3.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-amber-100 text-amber-600">
-            <Crown className="h-4 w-4" />
-          </div>
-          <p className="mt-3 text-[22px] font-extrabold tracking-tight text-ink font-mono">
-            {homeroomCount}
-          </p>
-          <p className="mt-1 text-[11px] leading-tight text-mute">Rahbarlik</p>
-        </div>
       </div>
 
       {/* ── Topshiriqlar yorlig'i ── */}
@@ -134,35 +115,6 @@ export function TeacherDashboard() {
         </div>
         <ChevronRight className="h-5 w-5 shrink-0 text-white/80" />
       </Link>
-
-      {/* ── Sinf rahbarligi ── */}
-      {homeroomGroups.length > 0 && (
-        <div className="mb-5">
-          <p className="px-1 pb-2 text-[13px] font-bold tracking-tight text-ink">Sinf rahbarligi</p>
-          <div className="space-y-2.5">
-            {homeroomGroups.map((c) => (
-              <Link
-                key={c.classId}
-                to={`/teacher/groups/${c.classId}`}
-                className="tap-scale flex items-center gap-3.5 rounded-[20px] border border-line bg-white p-[18px] shadow-[var(--shadow-card)]"
-              >
-                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-teal-500 to-teal-700 text-[16px] font-extrabold text-white">
-                  {groupInitials(c.className)}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-[16px] font-bold text-ink">{c.className}</p>
-                  <p className="truncate text-[13px] text-mute">
-                    {c.subjects.length > 0
-                      ? c.subjects.map((s) => s.name).join(', ')
-                      : 'Fan biriktirilmagan'}
-                  </p>
-                </div>
-                <ChevronRight className="h-5 w-5 shrink-0 text-faint" />
-              </Link>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* ── Mening guruhlarim ── */}
       <div>
@@ -189,14 +141,7 @@ export function TeacherDashboard() {
                   {groupInitials(c.className)}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5">
-                    <p className="truncate text-[15px] font-bold text-ink">{c.className}</p>
-                    {c.isHomeroom && (
-                      <span className="shrink-0 rounded bg-tealsoft px-1.5 py-0.5 text-[10px] font-bold text-teal-700">
-                        RAHBAR
-                      </span>
-                    )}
-                  </div>
+                  <p className="truncate text-[15px] font-bold text-ink">{c.className}</p>
                   <div className="mt-1 flex flex-wrap gap-1.5">
                     {c.subjects.length === 0 ? (
                       <span className="inline-flex items-center gap-1 text-[12px] text-faint">

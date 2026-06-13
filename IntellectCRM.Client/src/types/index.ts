@@ -1136,13 +1136,12 @@ export interface StudentLocationRow {
   updatedAt?: string | null
 }
 
-/** O'qituvchi dars beradigan sinf (o'qituvchi paneli uchun) */
+/** O'qituvchi dars beradigan guruh (o'qituvchi paneli uchun) */
 export interface TeacherClass {
   classId: string
   className: string
   grade: number
-  isHomeroom: boolean
-  /** Shu sinfda o'qituvchi dars beradigan fanlar */
+  /** Shu guruhda o'qituvchi o'qitadigan kurs(lar) */
   subjects: Subject[]
 }
 
