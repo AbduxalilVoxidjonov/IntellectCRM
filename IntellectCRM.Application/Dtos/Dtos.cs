@@ -995,6 +995,24 @@ public record CurriculumLevelDto(string Id, string Name, string Note, int Order,
 /// <summary>Kursning to'liq sillabusi (Daraja → Mavzu → Band).</summary>
 public record CurriculumDto(string SubjectId, string CourseName, List<CurriculumLevelDto> Levels);
 
+// ---- Guruh sillabus o'tilishi + tugash prognozi ----
+/// <summary>Guruh sillabus bandi: o'tilgan (Covered) bayrog'i bilan.</summary>
+public record GroupCurriculumItemDto(string Id, string Text, string Note, int Order, bool Covered);
+/// <summary>Guruh sillabus mavzusi.</summary>
+public record GroupCurriculumTopicDto(string Id, string Title, string Note, int Order, List<GroupCurriculumItemDto> Items);
+/// <summary>Guruh sillabus darajasi.</summary>
+public record GroupCurriculumLevelDto(string Id, string Name, string Note, int Order, List<GroupCurriculumTopicDto> Topics);
+/// <summary>Guruhning sillabus o'tilishi + tugash prognozi.</summary>
+public record GroupCurriculumDto(
+    string GroupId, string CourseId, string CourseName,
+    int TotalItems, int CoveredCount, int RevisionLessons, int TotalLessons,
+    int RemainingItems, int EstLessonsLeft, int LessonsPerWeek, string EstFinishDate,
+    List<GroupCurriculumLevelDto> Levels);
+/// <summary>Bandni o'tilgan/o'tilmagan deb belgilash payload'i.</summary>
+public record CoverRequest(string ItemId, bool Covered);
+/// <summary>Takrorlash darsi qo'shish/olib tashlash payload'i (Delta &gt; 0 qo'shadi, &lt; 0 olib tashlaydi).</summary>
+public record RevisionRequest(int Delta);
+
 /// <summary>Daraja yaratish/yangilash payload'i.</summary>
 public record LevelInput(string Name, string? Note);
 /// <summary>Mavzu yaratish/yangilash payload'i.</summary>

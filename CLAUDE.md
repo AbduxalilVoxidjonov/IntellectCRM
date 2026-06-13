@@ -521,3 +521,14 @@ docker compose up -d --build    # app + mssql + cloudflared + backup + mediamtx
   checklist: mavzular endi 2-USTUNDA (`lg:grid-cols-2`) — ko'rish/yozishga qulay; topik karta ko'rinishida. (3)
   `SubjectsPage` Kurslar jadval→**CARD grid** (kurs nomi havola→o'quv dasturi, narx, "O'quv dasturi" tugma+tahrir/o'chir).
   Frontend-only (delete/import API), tsc+vite yashil, deploy ✅.
+- 2026-06-13: **GURUH o'quv dasturi — darsda o'tilgan + tugatish PROGNOZI (2 parallel subagent).** Yangi
+  `GroupCurriculumLog`(GroupId/ItemId/IsRevision/Date) + inkremental migratsiya `AddGroupCurriculumLog`. Guruh kursi
+  (Group.CourseId) dasturidan checklist: dars o'tilganda band "o'tildi" belgilanadi (log), yoki **"takrorlash"** darsi
+  (band'siz log — yangi mavzu qo'shmaydi). `CurriculumController`ga 3 endpoint: `GET group/{groupId}` (tree+covered
+  bayroqlari + PROGNOZ), `POST .../cover {itemId,covered}`, `POST .../revision {delta}`. **Prognoz:** totalItems,
+  coveredCount, revisionLessons; pace=covered/totalLessons (≥0.1); estLessonsLeft=ceil(remaining/pace) — takrorlash
+  pace'ni tushirib tugashni suradi; estFinishDate = guruh `Days` bo'yicha oldinga yurib hisoblanadi. Frontend:
+  `curriculum.ts`ga `getGroupCurriculum/setGroupCover/changeGroupRevision`; `ClassDetailPage`ga "O'quv dasturi
+  (darsda o'tilgan)" bo'limi — prognoz kartasi (progress bar + "O'tilgan X/N · Takrorlash R · Qolgan · ~est dars ·
+  ≈sana"), 2-ustunli daraja→mavzu→band checkbox, "keyingi" band ajratilgan, +/− takrorlash. Backend 0, tsc+vite yashil,
+  deploy ✅. ESLATMA: TEST-G ingliz tili (o'chirilgan)ga bog'liq — kursi yo'q, dasturi bo'sh ko'rinadi.

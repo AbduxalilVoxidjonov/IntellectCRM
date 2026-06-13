@@ -64,6 +64,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<CourseTopic> CourseTopics => Set<CourseTopic>();
     public DbSet<CourseItem> CourseItems => Set<CourseItem>();
     public DbSet<CourseProgress> CourseProgresses => Set<CourseProgress>();
+    public DbSet<GroupCurriculumLog> GroupCurriculumLogs => Set<GroupCurriculumLog>();
 
     // Amal sabablari (muzlatish/o'chirish/sinovga qaytarish/lid/guruh)
     public DbSet<ActionReason> ActionReasons => Set<ActionReason>();
@@ -142,6 +143,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         b.Entity<FinanceTransaction>().HasIndex(t => t.Date);
         // Per-guruh billing: har (o'quvchi, guruh, oy) uchun bitta hisob.
         b.Entity<MonthlyCharge>().HasIndex(c => new { c.StudentId, c.GroupId, c.Month }).IsUnique();
+        b.Entity<GroupCurriculumLog>().HasIndex(g => new { g.GroupId, g.ItemId });
+
         b.Entity<AuditLog>().HasIndex(a => new { a.EntityType, a.EntityId });
         b.Entity<AuditLog>().HasIndex(a => a.Timestamp);
         b.Entity<AuditLog>().HasIndex(a => a.StudentId);

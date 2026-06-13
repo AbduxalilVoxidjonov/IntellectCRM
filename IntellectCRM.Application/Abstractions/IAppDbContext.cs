@@ -65,6 +65,7 @@ public interface IAppDbContext
     DbSet<CourseTopic> CourseTopics { get; }
     DbSet<CourseItem> CourseItems { get; }
     DbSet<CourseProgress> CourseProgresses { get; }
+    DbSet<GroupCurriculumLog> GroupCurriculumLogs { get; }
 
     // Amal sabablari (muzlatish/o'chirish/sinovga qaytarish/lid/guruh)
     DbSet<ActionReason> ActionReasons { get; }

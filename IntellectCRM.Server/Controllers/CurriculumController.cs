@@ -292,4 +292,146 @@ public class CurriculumController(AppDbContext db) : ControllerBase
         await db.SaveChangesAsync();
         return Ok(new { ok = true });
     }
+
+    // ---- Guruh sillabus o'tilishi + tugash prognozi ----
+
+    [HttpGet("group/{groupId}")]
+    public async Task<ActionResult<GroupCurriculumDto>> GetGroupCurriculum(string groupId)
+    {
+        var group = await db.Classes.FindAsync(groupId);
+        if (group == null) return NotFound();
+
+        var courseId = group.CourseId;
+        var subject = await db.Subjects.FindAsync(courseId);
+        var courseName = subject?.Name ?? "";
+
+        var levels = await db.CourseLevels
+            .Where(l => l.SubjectId == courseId)
+            .OrderBy(l => l.Order).ToListAsync();
+        var topics = await db.CourseTopics
+            .Where(t => t.SubjectId == courseId)
+            .OrderBy(t => t.Order).ToListAsync();
+        var items = await db.CourseItems
+            .Where(i => i.SubjectId == courseId)
+            .OrderBy(i => i.Order).ToListAsync();
+
+        var existingItemIds = items.Select(i => i.Id).ToHashSet();
+
+        var logs = await db.GroupCurriculumLogs
+            .Where(g => g.GroupId == groupId).ToListAsync();
+
+        var coveredItemIds = logs
+            .Where(l => !l.IsRevision && l.ItemId != "" && existingItemIds.Contains(l.ItemId))
+            .Select(l => l.ItemId).Distinct().ToHashSet();
+
+        var totalItems = items.Count;
+        var coveredCount = coveredItemIds.Count;
+        var revisionLessons = logs.Count(l => l.IsRevision);
+        var totalLessons = coveredCount + revisionLessons;
+        var remainingItems = Math.Max(0, totalItems - coveredCount);
+
+        var pace = totalLessons > 0 ? (double)coveredCount / totalLessons : 1.0;
+        pace = Math.Max(pace, 0.1);
+        var estLessonsLeft = remainingItems == 0 ? 0 : (int)Math.Ceiling(remainingItems / pace);
+
+        var days = group.Days ?? new List<int>();
+        var lessonsPerWeek = days.Count > 0 ? days.Count : 3;
+
+        var estFinishDate = "";
+        if (estLessonsLeft > 0)
+        {
+            if (days.Count > 0)
+            {
+                var daySet = days.ToHashSet();
+                var date = AppClock.Today;
+                var counted = 0;
+                var guard = 0;
+                while (counted < estLessonsLeft && guard < 3000)
+                {
+                    date = date.AddDays(1);
+                    var weekday = ((int)date.DayOfWeek + 6) % 7; // Monday=0..Sunday=6
+                    if (daySet.Contains(weekday)) counted++;
+                    guard++;
+                }
+                estFinishDate = date.ToString("yyyy-MM-dd");
+            }
+            else
+            {
+                estFinishDate = AppClock.Today.AddDays(estLessonsLeft * 7 / 3).ToString("yyyy-MM-dd");
+            }
+        }
+
+        var levelDtos = levels.Select(l => new GroupCurriculumLevelDto(
+            l.Id, l.Name, l.Note, l.Order,
+            topics.Where(t => t.LevelId == l.Id).Select(t => new GroupCurriculumTopicDto(
+                t.Id, t.Title, t.Note, t.Order,
+                items.Where(i => i.TopicId == t.Id).Select(i => new GroupCurriculumItemDto(
+                    i.Id, i.Text, i.Note, i.Order, coveredItemIds.Contains(i.Id))).ToList()
+            )).ToList()
+        )).ToList();
+
+        return new GroupCurriculumDto(
+            groupId, courseId, courseName,
+            totalItems, coveredCount, revisionLessons, totalLessons,
+            remainingItems, estLessonsLeft, lessonsPerWeek, estFinishDate,
+            levelDtos);
+    }
+
+    [HttpPost("group/{groupId}/cover")]
+    public async Task<ActionResult> CoverItem(string groupId, CoverRequest req)
+    {
+        if (req.Covered)
+        {
+            var exists = await db.GroupCurriculumLogs
+                .AnyAsync(g => g.GroupId == groupId && g.ItemId == req.ItemId && !g.IsRevision);
+            if (!exists)
+            {
+                db.GroupCurriculumLogs.Add(new GroupCurriculumLog
+                {
+                    GroupId = groupId,
+                    ItemId = req.ItemId,
+                    IsRevision = false,
+                    Date = AppClock.Today.ToString("yyyy-MM-dd"),
+                    CreatedAt = AppClock.Now.ToString("yyyy-MM-ddTHH:mm:ss"),
+                });
+            }
+        }
+        else
+        {
+            await db.GroupCurriculumLogs
+                .Where(g => g.GroupId == groupId && g.ItemId == req.ItemId && !g.IsRevision)
+                .ExecuteDeleteAsync();
+        }
+        await db.SaveChangesAsync();
+        return Ok(new { ok = true });
+    }
+
+    [HttpPost("group/{groupId}/revision")]
+    public async Task<ActionResult> Revision(string groupId, RevisionRequest req)
+    {
+        if (req.Delta > 0)
+        {
+            db.GroupCurriculumLogs.Add(new GroupCurriculumLog
+            {
+                GroupId = groupId,
+                ItemId = "",
+                IsRevision = true,
+                Date = AppClock.Today.ToString("yyyy-MM-dd"),
+                CreatedAt = AppClock.Now.ToString("yyyy-MM-ddTHH:mm:ss"),
+            });
+        }
+        else if (req.Delta < 0)
+        {
+            var last = await db.GroupCurriculumLogs
+                .Where(g => g.GroupId == groupId && g.IsRevision)
+                .OrderByDescending(g => g.CreatedAt)
+                .FirstOrDefaultAsync();
+            if (last != null) db.GroupCurriculumLogs.Remove(last);
+        }
+        await db.SaveChangesAsync();
+
+        var revisionLessons = await db.GroupCurriculumLogs
+            .CountAsync(g => g.GroupId == groupId && g.IsRevision);
+        return Ok(new { ok = true, revisionLessons });
+    }
 }

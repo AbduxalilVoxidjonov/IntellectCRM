@@ -1186,3 +1186,15 @@ public class CourseProgress
     public bool Done { get; set; }
     public string UpdatedAt { get; set; } = string.Empty;
 }
+
+/// <summary>Guruh darajasida sillabus o'tilishi: o'tilgan band (ItemId, IsRevision=false) yoki
+/// takrorlash darsi (ItemId="", IsRevision=true — sillabusni ilgarilatmaydi).</summary>
+public class GroupCurriculumLog
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string GroupId { get; set; } = string.Empty;
+    public string ItemId { get; set; } = string.Empty;
+    public bool IsRevision { get; set; }
+    public string Date { get; set; } = string.Empty;
+    public string CreatedAt { get; set; } = string.Empty;
+}

@@ -1,14 +1,19 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import {
   ArrowLeft, Users, BookOpen, User,
   CalendarDays, Clock, MapPin, Wallet, Snowflake, CheckCircle2,
+  ListChecks, ChevronRight, ChevronDown, Plus, Minus, Repeat, CalendarClock, Flag,
 } from 'lucide-react'
 import type { AbsenceReason } from '@/types'
 import {
   getGroupJournal, setJournalEntry, clearJournalEntry, bulkAttendance,
   type GroupJournal,
 } from '@/api/services/journal'
+import {
+  getGroupCurriculum, setGroupCover, changeGroupRevision,
+  type GroupCurriculum,
+} from '@/api/services/curriculum'
 import { activateMember, freezeMember } from '@/api/services/classes'
 import { getSettings } from '@/api/services/settings'
 import { cn, formatMoney, formatDate } from '@/lib/utils'
@@ -62,6 +67,25 @@ export function ClassDetailPage() {
   const [memberModal, setMemberModal] = useState<{ studentId: string; fullName: string; status: string } | null>(null)
   const [memberDate, setMemberDate] = useState('')
   const [memberSaving, setMemberSaving] = useState(false)
+
+  // ---- Guruh o'quv dasturi (darsda o'tilgan) ----
+  const [curr, setCurr] = useState<GroupCurriculum | null>(null)
+  const [currLoading, setCurrLoading] = useState(true)
+  const [currExpanded, setCurrExpanded] = useState<Set<string>>(new Set())
+  const [revSaving, setRevSaving] = useState(false)
+
+  const loadCurr = useCallback(() => {
+    if (!id) return
+    setCurrLoading(true)
+    getGroupCurriculum(id)
+      .then(setCurr)
+      .catch(() => setCurr(null))
+      .finally(() => setCurrLoading(false))
+  }, [id])
+
+  useEffect(() => {
+    loadCurr()
+  }, [loadCurr])
 
   const load = useCallback(
     (month?: string) => {
@@ -161,6 +185,62 @@ export function ClassDetailPage() {
   }
 
   const absentReasons = useMemo(() => reasons.filter((r) => !r.isLate), [reasons])
+
+  // Daraja yoyish/yig'ish (default — yopiq)
+  const toggleLevel = (levelId: string) =>
+    setCurrExpanded((s) => {
+      const next = new Set(s)
+      if (next.has(levelId)) next.delete(levelId)
+      else next.add(levelId)
+      return next
+    })
+
+  // Birinchi o'tilmagan band — "keyingi" maslahati uchun
+  const nextItemId = useMemo(() => {
+    if (!curr) return null
+    for (const lv of curr.levels)
+      for (const tp of lv.topics)
+        for (const it of tp.items) if (!it.covered) return it.id
+    return null
+  }, [curr])
+
+  // Band belgilash — optimistik (mahalliy holatni darhol yangilaymiz), so'ng refetch (prognoz aniq qolishi uchun)
+  const toggleCover = async (itemId: string, covered: boolean) => {
+    if (!curr) return
+    const prev = curr
+    setCurr({
+      ...curr,
+      coveredCount: curr.coveredCount + (covered ? 1 : -1),
+      levels: curr.levels.map((lv) => ({
+        ...lv,
+        topics: lv.topics.map((tp) => ({
+          ...tp,
+          items: tp.items.map((it) => (it.id === itemId ? { ...it, covered } : it)),
+        })),
+      })),
+    })
+    try {
+      await setGroupCover(id, itemId, covered)
+      loadCurr()
+    } catch {
+      setCurr(prev)
+      alert('Saqlab bo\'lmadi')
+    }
+  }
+
+  // Takrorlash darsi +1 / -1
+  const changeRevision = async (delta: number) => {
+    if (!curr || revSaving) return
+    setRevSaving(true)
+    try {
+      await changeGroupRevision(id, delta)
+      loadCurr()
+    } catch {
+      alert('Saqlab bo\'lmadi')
+    } finally {
+      setRevSaving(false)
+    }
+  }
 
   // Sarlavhadagi sana bosilganda — shu darsdagi BARCHA o'quvchiga birdan davomat.
   // absent=false → hammasi keldi; true → hammasi kelmadi (reasonId berilsa shu sabab, aks holda standart).
@@ -453,6 +533,18 @@ export function ClassDetailPage() {
               </div>
             )}
           </Card>
+
+          {/* O'quv dasturi — darsda o'tilgan bandlar + tugatish prognozi */}
+          <CurriculumSection
+            curr={curr}
+            loading={currLoading}
+            expanded={currExpanded}
+            onToggleLevel={toggleLevel}
+            onToggleCover={toggleCover}
+            onChangeRevision={changeRevision}
+            revSaving={revSaving}
+            nextItemId={nextItemId}
+          />
         </>
       )}
 
@@ -603,6 +695,258 @@ function Info({
           {value}
         </p>
       </div>
+    </div>
+  )
+}
+
+// ============================ O'quv dasturi bo'limi ============================
+
+function CurriculumSection({
+  curr, loading, expanded, onToggleLevel, onToggleCover, onChangeRevision, revSaving, nextItemId,
+}: {
+  curr: GroupCurriculum | null
+  loading: boolean
+  expanded: Set<string>
+  onToggleLevel: (levelId: string) => void
+  onToggleCover: (itemId: string, covered: boolean) => void
+  onChangeRevision: (delta: number) => void
+  revSaving: boolean
+  nextItemId: string | null
+}) {
+  if (loading && !curr) {
+    return (
+      <Card>
+        <Loader label="O'quv dasturi yuklanmoqda..." />
+      </Card>
+    )
+  }
+  if (!curr || curr.totalItems === 0 || curr.levels.length === 0) {
+    return (
+      <Card className="py-10 text-center text-sm text-slate-400">
+        Bu guruh kursida o'quv dasturi yo'q.
+      </Card>
+    )
+  }
+
+  const pct = curr.totalItems > 0 ? Math.round((curr.coveredCount / curr.totalItems) * 100) : 0
+
+  return (
+    <Card className="p-0">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
+        <div className="flex items-center gap-2">
+          <ListChecks className="h-5 w-5 text-brand-600" />
+          <h2 className="font-semibold text-slate-800">O'quv dasturi (darsda o'tilgan)</h2>
+        </div>
+      </div>
+
+      {/* PROGNOZ KARTASI */}
+      <div className="border-b border-slate-100 px-4 py-4">
+        {/* Progress bar */}
+        <div className="mb-4">
+          <div className="mb-1.5 flex items-center justify-between text-sm">
+            <span className="font-medium text-slate-600">Bajarildi</span>
+            <span className="font-mono font-semibold text-brand-700">
+              {curr.coveredCount}/{curr.totalItems} · {pct}%
+            </span>
+          </div>
+          <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-100">
+            <div
+              className="h-full rounded-full bg-brand-500 transition-all"
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Stat plitalar */}
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <ForecastTile icon={CheckCircle2} label="O'tilgan">
+            <span className="font-mono">{curr.coveredCount}</span>
+            <span className="text-slate-400">/{curr.totalItems}</span>
+          </ForecastTile>
+          <ForecastTile icon={Repeat} label="Takrorlash darslari">
+            <span className="font-mono">{curr.revisionLessons}</span>
+          </ForecastTile>
+          <ForecastTile icon={Flag} label="Qolgan">
+            <span className="font-mono">{curr.remainingItems}</span> band
+          </ForecastTile>
+          <ForecastTile icon={CalendarClock} label="Tugatishga">
+            <span className="text-slate-500">~</span>
+            <span className="font-mono">{curr.estLessonsLeft}</span> dars
+            {curr.estFinishDate && (
+              <span className="mt-0.5 block text-xs font-normal text-slate-400">
+                ≈ {formatDate(curr.estFinishDate)} da tugaydi
+              </span>
+            )}
+          </ForecastTile>
+        </div>
+
+        {/* Takrorlash darsi tugmalari */}
+        <div className="mt-4 flex items-center gap-2">
+          <button
+            type="button"
+            disabled={revSaving}
+            onClick={() => onChangeRevision(1)}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-brand-50 px-3 py-2 text-sm font-medium text-brand-700 transition-colors hover:bg-brand-100 disabled:opacity-50"
+          >
+            <Plus className="h-4 w-4" /> Takrorlash darsi
+          </button>
+          <button
+            type="button"
+            disabled={revSaving || curr.revisionLessons <= 0}
+            onClick={() => onChangeRevision(-1)}
+            title="Oxirgi takrorlash darsini olib tashlash"
+            className="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white p-2 text-slate-500 transition-colors hover:bg-slate-50 disabled:opacity-40"
+          >
+            <Minus className="h-4 w-4" />
+          </button>
+          <span className="text-xs text-slate-400">
+            Jami darslar: <span className="font-mono">{curr.totalLessons}</span>
+            {curr.lessonsPerWeek > 0 && (
+              <> · haftasiga <span className="font-mono">{curr.lessonsPerWeek}</span> dars</>
+            )}
+          </span>
+        </div>
+      </div>
+
+      {/* DASTUR DARAXTI — darajalar (default yopiq) */}
+      <div className="space-y-3 p-4">
+        {curr.levels.map((level) => {
+          const levelTotal = level.topics.reduce((s, t) => s + t.items.length, 0)
+          const levelCovered = level.topics.reduce(
+            (s, t) => s + t.items.filter((it) => it.covered).length,
+            0,
+          )
+          const open = expanded.has(level.id)
+          return (
+            <div
+              key={level.id}
+              className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[var(--shadow-1)]"
+            >
+              {/* Daraja sarlavhasi */}
+              <button
+                type="button"
+                onClick={() => onToggleLevel(level.id)}
+                className="flex w-full items-center gap-2 border-b border-slate-100 bg-slate-50/60 px-3 py-2.5 text-left transition-colors hover:bg-slate-100/60"
+              >
+                <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-slate-400">
+                  {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                </span>
+                <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-600">
+                  <BookOpen className="h-4 w-4" />
+                </span>
+                <span className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-800">
+                  {level.name}
+                </span>
+                <span
+                  className={cn(
+                    'flex-shrink-0 rounded-full px-2.5 py-1 text-xs font-medium',
+                    levelTotal > 0 && levelCovered === levelTotal
+                      ? 'bg-emerald-50 text-emerald-700'
+                      : 'bg-slate-100 text-slate-500',
+                  )}
+                >
+                  <span className="font-mono">{levelCovered}/{levelTotal}</span>
+                </span>
+              </button>
+
+              {open && (
+                <div className="p-3">
+                  {level.note && <p className="mb-2 px-1 text-xs text-slate-400">{level.note}</p>}
+                  {level.topics.length === 0 ? (
+                    <p className="px-1 text-xs text-slate-400">Mavzu yo'q.</p>
+                  ) : (
+                    <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
+                      {level.topics.map((topic) => {
+                        const tCovered = topic.items.filter((it) => it.covered).length
+                        return (
+                          <div
+                            key={topic.id}
+                            className="h-full rounded-xl border border-slate-200 bg-white p-3 shadow-[var(--shadow-1)]"
+                          >
+                            <div className="flex items-center gap-2">
+                              <h4 className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-800">
+                                {topic.title}
+                              </h4>
+                              <span className="flex-shrink-0 text-xs text-slate-400">
+                                <span className="font-mono">{tCovered}/{topic.items.length}</span> band
+                              </span>
+                            </div>
+                            {topic.note && (
+                              <p className="mt-1 text-xs text-slate-400">{topic.note}</p>
+                            )}
+                            {topic.items.length > 0 && (
+                              <div className="mt-2 space-y-1">
+                                {topic.items.map((item) => {
+                                  const isNext = item.id === nextItemId
+                                  return (
+                                    <label
+                                      key={item.id}
+                                      className={cn(
+                                        'flex cursor-pointer items-start gap-2 rounded-md px-2 py-1.5 transition-colors',
+                                        item.covered
+                                          ? 'bg-emerald-50/50'
+                                          : isNext
+                                            ? 'bg-brand-50/60 ring-1 ring-brand-200'
+                                            : 'hover:bg-slate-50',
+                                      )}
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={item.covered}
+                                        onChange={() => onToggleCover(item.id, !item.covered)}
+                                        className="mt-0.5 h-4 w-4 flex-shrink-0 cursor-pointer rounded border-slate-300 text-brand-600 focus:ring-brand-400"
+                                      />
+                                      <span
+                                        className={cn(
+                                          'min-w-0 flex-1 text-sm',
+                                          item.covered
+                                            ? 'text-slate-400 line-through'
+                                            : 'text-slate-700',
+                                        )}
+                                      >
+                                        {item.text}
+                                        {isNext && (
+                                          <span className="ml-2 rounded bg-brand-100 px-1.5 py-0.5 text-[10px] font-medium text-brand-700 no-underline">
+                                            keyingi
+                                          </span>
+                                        )}
+                                      </span>
+                                    </label>
+                                  )
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </Card>
+  )
+}
+
+function ForecastTile({
+  icon: Icon,
+  label,
+  children,
+}: {
+  icon: typeof BookOpen
+  label: string
+  children: ReactNode
+}) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-3">
+      <div className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+        <Icon className="h-3.5 w-3.5" />
+        {label}
+      </div>
+      <div className="text-sm font-semibold text-slate-700">{children}</div>
     </div>
   )
 }
