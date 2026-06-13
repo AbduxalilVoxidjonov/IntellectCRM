@@ -1,25 +1,31 @@
 import type { CSSProperties, ReactNode } from 'react'
+import {
+  Home, Calendar, ClipboardList, MessageCircle, User, BarChart3, Check, CheckCircle2,
+  BookOpen, Wallet, Settings, Bell, ChevronRight, ChevronLeft, ChevronDown, LogOut,
+  Eye, EyeOff, Send, Paperclip, Plus, Search, X, Clock, Sun, Moon, Camera, Video,
+  FileText, Download, Pencil, Lock, Mail, Phone, Trophy, Flame, Info, AlertTriangle,
+  Sparkles, RefreshCw, LayoutGrid, List, ArrowRight, Upload, MessageSquare, Image,
+  Images, Trash2, GraduationCap, ShieldCheck, type LucideIcon,
+} from 'lucide-react'
 
 /* ============================================================
    O'quvchi portali — umumiy yordamchilar (student.html'dan).
-   Material Symbols ikonka, Ring, ranglar, formatlash.
+   Ikonkalar: lucide SVG (font/ligature'ga bog'liq emas — WebView'da ishonchli).
+   Ring, ranglar, formatlash.
    ============================================================ */
 
-/** Material Symbols Rounded glyph xaritasi (student.html ICONS). */
-export const MS: Record<string, string> = {
-  home: 'home', calendar: 'calendar_today', clipboard: 'assignment', chat: 'forum',
-  user: 'person', chart: 'bar_chart', check: 'check', checkCircle: 'check_circle',
-  book: 'menu_book', wallet: 'account_balance_wallet', settings: 'settings',
-  bell: 'notifications', chevR: 'chevron_right', chevL: 'chevron_left',
-  chevD: 'keyboard_arrow_down', logout: 'logout', eye: 'visibility', eyeOff: 'visibility_off',
-  send: 'send', paperclip: 'attach_file', plus: 'add', search: 'search', x: 'close',
-  clock: 'schedule', sun: 'light_mode', moon: 'dark_mode', camera: 'photo_camera',
-  video: 'videocam', file: 'description', download: 'download', edit: 'edit', lock: 'lock',
-  mail: 'mail', phone: 'call', award: 'emoji_events', flame: 'local_fire_department',
-  info: 'info', alert: 'warning', sparkle: 'auto_awesome', refresh: 'refresh',
-  grid: 'grid_view', list: 'format_list_bulleted', arrowR: 'arrow_forward',
-  upload: 'upload_file', feedback: 'rate_review', image: 'image', gallery: 'photo_library',
-  trash: 'delete', school: 'school', shield: 'verified_user', telegram: 'send',
+/** student.html ICONS kalitlari → lucide komponent. */
+const ICONS: Record<string, LucideIcon> = {
+  home: Home, calendar: Calendar, clipboard: ClipboardList, chat: MessageCircle,
+  user: User, chart: BarChart3, check: Check, checkCircle: CheckCircle2, book: BookOpen,
+  wallet: Wallet, settings: Settings, bell: Bell, chevR: ChevronRight, chevL: ChevronLeft,
+  chevD: ChevronDown, logout: LogOut, eye: Eye, eyeOff: EyeOff, send: Send,
+  paperclip: Paperclip, plus: Plus, search: Search, x: X, clock: Clock, sun: Sun,
+  moon: Moon, camera: Camera, video: Video, file: FileText, download: Download,
+  edit: Pencil, lock: Lock, mail: Mail, phone: Phone, award: Trophy, flame: Flame,
+  info: Info, alert: AlertTriangle, sparkle: Sparkles, refresh: RefreshCw, grid: LayoutGrid,
+  list: List, arrowR: ArrowRight, upload: Upload, feedback: MessageSquare, image: Image,
+  gallery: Images, trash: Trash2, school: GraduationCap, shield: ShieldCheck, telegram: Send,
 }
 
 export function Icon({
@@ -37,19 +43,9 @@ export function Icon({
   className?: string
   style?: CSSProperties
 }) {
-  const glyph = MS[name] ?? 'radio_button_unchecked'
+  const Cmp = ICONS[name] ?? Home
   return (
-    <span
-      className={'ms' + (className ? ' ' + className : '')}
-      style={{
-        fontSize: size,
-        color,
-        fontVariationSettings: fill ? "'FILL' 1" : undefined,
-        ...style,
-      }}
-    >
-      {glyph}
-    </span>
+    <Cmp size={size} color={color} strokeWidth={fill ? 2.6 : 2} className={className} style={style} />
   )
 }
 

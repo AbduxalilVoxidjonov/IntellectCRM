@@ -113,6 +113,15 @@ docker compose up -d --build    # app + mssql + cloudflared + backup + mediamtx
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-13: **O'quvchi portali — ikonkalar Material Symbols (font) → lucide SVG (WebView'da "icon yo'q, hammasi
+  yozuv, algov-dalgov" tuzatildi).** Muammo: student portal ikonkalari Material Symbols Rounded LIGATURE-font edi
+  (`<span class="ms">account_balance_wallet</span>`); WebView'da ligature shakllanmagani uchun glyph o'rniga UZUN
+  MATN ("account_balance_wallet", "check_circle"...) chiqib, layoutni butunlay buzgan (navbar/sarlavhalar matn,
+  ikonkalar yo'q). Yechim: `lib.tsx` `Icon` komponenti endi font o'rniga **lucide SVG** render qiladi (ICONS map:
+  kalit→lucide komponent; `fill`→strokeWidth). 17 ekran `<Icon name>` orqali ishlatadi → BIR fayl o'zgarishi hammasini
+  tuzatdi (teacher/admin allaqachon lucide ishlatadi — ishonchli). `index.html`dan Material Symbols font linki +
+  ortiqcha yuk olib tashlandi (`.ms` CSS klassi ishlatilmaydi, qoldi — zararsiz). tsc+vite yashil, deploy ✅,
+  /student 200, index.html'da Material Symbols yo'q. ✅
 - 2026-06-13: **O'quvchi portali — telefon/WebView layout tuzatildi (pastki nav pinlanmasdi).** Muammo: `StudentMobileLayout`
   shell `minHeight:100dvh` (FIXED emas) edi → kontent uzun bo'lsa butun ustun o'sib, BODY scroll bo'lardi va pastki
   5-tab nav viewport tagida qolib pinlanmasdi (telefon ilova hissi yo'q). Tuzatish: (1) shell `height:100dvh` +
