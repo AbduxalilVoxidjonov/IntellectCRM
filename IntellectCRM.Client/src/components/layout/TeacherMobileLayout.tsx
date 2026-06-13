@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import {
   LayoutDashboard,
-  NotebookText,
   ClipboardCheck,
   MessageSquare,
   User,
@@ -23,7 +22,6 @@ interface Tab {
 
 const TABS: Tab[] = [
   { to: '/teacher', label: 'Bosh sahifa', icon: LayoutDashboard, end: true },
-  { to: '/teacher/journal', label: 'Jurnal', icon: NotebookText },
   { to: '/teacher/assignments', label: 'Topshiriqlar', icon: ClipboardCheck },
   { to: '/teacher/messages', label: 'Xabarlar', icon: MessageSquare, badge: true },
   { to: '/teacher/profile', label: 'Profil', icon: User },
@@ -31,7 +29,7 @@ const TABS: Tab[] = [
 
 /**
  * O'qituvchi portali uchun MOBIL ilova qobig'i (telefon, Flutter WebView orqali ochiladi).
- * Admin Sidebar/Topbar O'RNIGA: yengil yuqori panel + pastki tab navigatsiya (5 tab).
+ * Admin Sidebar/Topbar O'RNIGA: yengil yuqori panel + pastki tab navigatsiya (4 tab).
  * Namuna: src/pages/teacher/ui-web (binafsha brend, app-kartalar, pastki tab bar).
  */
 export function TeacherMobileLayout() {
@@ -83,7 +81,7 @@ function Shell() {
           <Outlet />
         </main>
 
-        {/* PASTKI NAVIGATSIYA — 5 tab (mobil ilova kabi) */}
+        {/* PASTKI NAVIGATSIYA — 4 tab (mobil ilova kabi) */}
         <nav className="shrink-0 border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)]">
           <div className="flex h-14">
             {TABS.map((tab) => {

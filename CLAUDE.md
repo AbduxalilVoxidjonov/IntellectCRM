@@ -113,6 +113,22 @@ docker compose up -d --build    # app + mssql + cloudflared + backup + mediamtx
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-13: **O'qituvchi portali — "Jurnal" tab olib tashlandi, guruh-ichiga-kirib-oylik-baholash oqimi +
+  `teacher_api.md` real API'ga moslandi.** (1) Pastki nav endi 4 tab: Bosh sahifa · Topshiriqlar · Xabarlar · Profil
+  ("Jurnal" tab/route olib tashlandi; `JournalPage.tsx` faylda qoldi, import/route yo'q). (2) Bosh sahifada
+  o'qituvchi guruhlari KARTA (bosiladi) → `/teacher/groups/:id` → yangi `TeacherGroupDetailPage` (admin
+  `ClassDetailPage` ko'rinishi mobilga moslangan): oy chiplari + oylik jurnal grid (sticky o'quvchi ustuni, gorizontal
+  scroll, katak bosilsa `JournalCellModal`, sarlavha-sana bosilsa ommaviy davomat) + collapsible o'quv dasturi
+  (sillabus) bo'limi (prognoz + bandlar checkbox). Backend ENDPOINTLAR avval qo'shilgan (zamonaviy, o'qituvchiga
+  skoplangan): `GET /teacher/journal/group?classId&month`, `PUT /teacher/journal` (quarter/period opaque=1,
+  subjectId=courseId), `DELETE /teacher/journal`, `POST /teacher/journal/bulk-attendance`, `GET /teacher/curriculum/
+  group/{id}`, `POST .../cover`, `POST .../revision` — hammasi `ResolveOwnedGroup` (Group.TeacherId==me) bilan
+  himoyalangan. (3) `teacher.ts` servisga shu funksiyalar qo'shildi (`GroupJournal`/`GroupCurriculum` tiplari admin
+  servislardan import). (4) `teacher_api.md` TO'LIQ qayta yozildi: bitta-markaz login (tenant/409/maktab kodi olib
+  tashlandi), jurnal CHORAK→OYLIK guruh-asosli (ASOSIY bo'lim), sillabus o'tilishi bo'limi qo'shildi, mavjud bo'lmagan
+  endpointlar (schedule/holidays/quarter-grades) olib tashlandi, eski chorak endpointlar "Legacy" deb belgilandi,
+  Base URL `crm.intellectschool.uz`. Build: tsc 0 + vite yashil, `app` deploy (mssql-data saqlandi), jonli: /teacher
+  200, journal/group+curriculum/group 401 (ulangan), /teacher/groups/:id SPA 200. ✅
 - 2026-06-08: Faza 0-10 bajarildi (MySQL ko'chish, namespace/entity rename, modul olib tashlash, M2M
   guruhlar, Leads CRM, infra). Backend+frontend build yashil. Branch `intellectcrm-transform`, 12 commit.
 - 2026-06-09: Mijoz proyekti `schoollms.client` → `IntellectCRM.Client` (commit `e967b0a`).

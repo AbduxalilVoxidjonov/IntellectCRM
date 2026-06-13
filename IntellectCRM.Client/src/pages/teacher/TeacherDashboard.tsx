@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { GraduationCap, ClipboardCheck, Crown, BookOpen, Users } from 'lucide-react'
+import { GraduationCap, ClipboardCheck, Crown, BookOpen, Users, ChevronRight } from 'lucide-react'
 import type { TeacherClass } from '@/types'
 import { getMyClasses } from '@/api/services/teacher'
 import { useAuth } from '@/context/auth-context'
@@ -84,40 +84,42 @@ export function TeacherDashboard() {
         ) : (
           <div className="grid grid-cols-1 gap-3 p-[18px] sm:grid-cols-2 lg:grid-cols-3">
             {classes.map((c) => (
-              <div
+              <Link
                 key={c.classId}
-                className="space-y-2.5 rounded-xl border border-slate-200 bg-white p-4 shadow-[var(--shadow-1)]"
+                to={`/teacher/groups/${c.classId}`}
+                className="group flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-[var(--shadow-1)] transition-colors hover:border-brand-300 hover:bg-brand-50/40 active:bg-brand-50"
               >
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-600">
+                  <GraduationCap className="h-6 w-6" />
+                </div>
+                <div className="min-w-0 flex-1 space-y-1.5">
                   <div className="flex items-center gap-2">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-50 text-brand-600">
-                      <GraduationCap className="h-5 w-5" />
-                    </div>
-                    <p className="font-bold tracking-tight text-slate-800">{c.className}</p>
+                    <p className="truncate font-bold tracking-tight text-slate-800">{c.className}</p>
+                    {c.isHomeroom && (
+                      <Badge tone="amber">
+                        <Crown className="h-3 w-3" /> Rahbar
+                      </Badge>
+                    )}
                   </div>
-                  {c.isHomeroom && (
-                    <Badge tone="amber">
-                      <Crown className="h-3 w-3" /> Guruh rahbari
-                    </Badge>
-                  )}
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {c.subjects.length === 0 ? (
-                    <span className="inline-flex items-center gap-1 text-xs text-slate-400">
-                      <Users className="h-3.5 w-3.5" /> Dars beradigan fan yo'q
-                    </span>
-                  ) : (
-                    c.subjects.map((s) => (
-                      <span
-                        key={s.id}
-                        className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600"
-                      >
-                        {s.name}
+                  <div className="flex flex-wrap gap-1.5">
+                    {c.subjects.length === 0 ? (
+                      <span className="inline-flex items-center gap-1 text-xs text-slate-400">
+                        <Users className="h-3.5 w-3.5" /> Dars beradigan fan yo'q
                       </span>
-                    ))
-                  )}
+                    ) : (
+                      c.subjects.map((s) => (
+                        <span
+                          key={s.id}
+                          className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600"
+                        >
+                          {s.name}
+                        </span>
+                      ))
+                    )}
+                  </div>
                 </div>
-              </div>
+                <ChevronRight className="h-5 w-5 shrink-0 text-slate-300 transition-colors group-hover:text-brand-500" />
+              </Link>
             ))}
           </div>
         )}

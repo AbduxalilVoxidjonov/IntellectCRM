@@ -16,6 +16,8 @@ import type {
 } from '@/types'
 import { api, USE_MOCK } from '../client'
 import type { MaterialInput, SaveAssignmentInput } from './assignments'
+import type { GroupJournal } from './journal'
+import type { GroupCurriculum } from './curriculum'
 
 /** O'qituvchi profili (panel sarlavhasi/salom uchun) */
 export interface TeacherProfile {
@@ -234,6 +236,80 @@ export async function setTeacherNote(
   await api.put('/teacher/journal/notes', {
     classId, subjectId, quarter, date, period, topic, homework, conducted,
   })
+}
+
+/* ---------- Guruh OYLIK jurnali (o'qituvchi guruh sahifasi — admin bilan bir xil shakl) ---------- */
+
+interface TeacherEntryPayload {
+  grade?: number | null
+  reasonId?: string | null
+  homework?: number
+  behavior?: number
+  mastery?: number | null
+}
+
+/** Guruhning bitta oylik jurnali (ustunlar guruh dars kunlaridan, qatorlar faqat faol o'quvchilar). */
+export async function getTeacherGroupJournal(classId: string, month?: string): Promise<GroupJournal> {
+  if (USE_MOCK) {
+    return {
+      group: { id: classId, name: '', courseId: '', courseName: '', teacherName: '', days: [], startTime: '', endTime: '', room: '', startDate: '', monthlyFee: 0 },
+      months: [], month: month ?? '', columns: [], students: [], entries: [], conductedDates: [],
+    }
+  }
+  const { data } = await api.get<GroupJournal>('/teacher/journal/group', { params: { classId, month } })
+  return data
+}
+
+/** Bitta katakni belgilash (baho/davomat/uy vazifa/xulq/o'zlashtirish). subjectId = guruh kursi. */
+export async function setTeacherJournalEntry(
+  classId: string,
+  courseId: string,
+  studentId: string,
+  date: string,
+  payload: TeacherEntryPayload,
+): Promise<void> {
+  await api.put('/teacher/journal', {
+    classId, subjectId: courseId, quarter: 1, studentId, date, period: 1, ...payload,
+  })
+}
+
+/** Bitta katakni tozalash. */
+export async function clearTeacherJournalEntry(
+  classId: string,
+  courseId: string,
+  studentId: string,
+  date: string,
+): Promise<void> {
+  await api.delete('/teacher/journal', {
+    params: { classId, subjectId: courseId, quarter: 1, studentId, date, period: 1 },
+  })
+}
+
+/** Bitta dars (sana) uchun BARCHA faol o'quvchiga birdan davomat. absent=false → keldi; true → kelmadi. */
+export async function bulkTeacherAttendance(
+  classId: string,
+  date: string,
+  absent: boolean,
+  reasonId?: string | null,
+): Promise<void> {
+  await api.post('/teacher/journal/bulk-attendance', {
+    classId, date, absent, reasonId: reasonId ?? null,
+  })
+}
+
+/* ---------- Guruh o'quv dasturi (darsda o'tilgan bandlar + tugatish prognozi) ---------- */
+
+export async function getTeacherGroupCurriculum(groupId: string): Promise<GroupCurriculum> {
+  const { data } = await api.get<GroupCurriculum>(`/teacher/curriculum/group/${groupId}`)
+  return data
+}
+
+export async function setTeacherGroupCover(groupId: string, itemId: string, covered: boolean): Promise<void> {
+  await api.post(`/teacher/curriculum/group/${groupId}/cover`, { itemId, covered })
+}
+
+export async function changeTeacherGroupRevision(groupId: string, delta: number): Promise<void> {
+  await api.post(`/teacher/curriculum/group/${groupId}/revision`, { delta })
 }
 
 /* ---------- Guruh chati ---------- */

@@ -46,7 +46,7 @@ import { SettingsPage } from '@/pages/admin/settings/SettingsPage'
 import { AccountPage } from '@/pages/admin/account/AccountPage'
 // O'qituvchi portali (SPA ichida, /teacher/*)
 import { TeacherDashboard } from '@/pages/teacher/TeacherDashboard'
-import { TeacherJournalPage } from '@/pages/teacher/journal/JournalPage'
+import { TeacherGroupDetailPage } from '@/pages/teacher/groups/TeacherGroupDetailPage'
 import { TeacherEvaluationPage } from '@/pages/teacher/evaluation/EvaluationPage'
 import { TeacherAssignmentsPage } from '@/pages/teacher/assignments/AssignmentsPage'
 import { TeacherLmsPage } from '@/pages/teacher/lms/TeacherLmsPage'
@@ -123,7 +123,7 @@ export default function App() {
       <Route element={<ProtectedRoute role="teacher" />}>
         <Route path="/teacher" element={<TeacherMobileLayout />}>
           <Route index element={<TeacherDashboard />} />
-          <Route path="journal" element={<RequirePerm perm="journal"><TeacherJournalPage /></RequirePerm>} />
+          <Route path="groups/:id" element={<RequirePerm perm="journal"><TeacherGroupDetailPage /></RequirePerm>} />
           <Route path="evaluation" element={<TeacherEvaluationPage />} />
           <Route path="assignments" element={<RequirePerm perm="assignments"><TeacherAssignmentsPage /></RequirePerm>} />
           <Route path="lms" element={<TeacherLmsPage />} />
