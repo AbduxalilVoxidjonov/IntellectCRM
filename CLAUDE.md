@@ -113,6 +113,15 @@ docker compose up -d --build    # app + mssql + cloudflared + backup + mediamtx
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-13: **O'qituvchi chat TO'LIQ EKRAN + o'quvchi Progress (Duolingo) chiroyliroq.** (1) **Teacher chat:** suhbatga
+  kirilganda marginlar bor edi (`px-4 pb-6 pt-3` o'rab + ChatPanel `h-[70vh]` karta) → endi to'liq ekran. `ChatPanel`ga
+  `fullHeight` (kartasiz `h-full flex-col`, composer pastda pinlanadi) + `onBack` (sarlavhada orqaga tugma) proplari
+  qo'shildi (admin 2-ustun `h-[70vh]` karta DEFAULT — buzilmadi). `TeacherMessagesPage` suhbat ko'rinishi: o'rovchi
+  marginlar olib tashlandi, `<div className="h-full"><ChatPanel fullHeight onBack/></div>`. (2) **Progress Dastur
+  (Duolingo yo'l-xaritasi):** `ForecastCard` — kurs rangli gradient fon + so'lg'in bitiruv-shapka dekori; `Roadmap`
+  daraja paneli — ta'limiy rangli gradient fon + so'lg'in dekor ikonkalar (`Deco`: book/edit/sparkle/flame/award) +
+  yo'l chizig'i o'tilgan qismi kurs rangida (qolgani so'lg'in) + daraja sarlavhasi gradient + ikona qutisi; oxirida
+  `FinishNode` (kurs yakuni sovrini — tugatilganda oltin 🏆). Frontend-only, tsc+vite yashil, deploy ✅.
 - 2026-06-13: **O'quvchi portali — UY JOYLASHUVI ekrani qo'shildi (student GPS/xaritadan joylashuv yuboradi).**
   Backend allaqachon bor edi (`Student.Latitude/Longitude/LocationAddress/LocationUpdatedAt`, `PUT/GET /student/location`,
   admin `/admin/locations` xaritasi) — student portalida UI YO'Q edi (GPS olib tashlanganda qurilmagan). Qo'shildi:

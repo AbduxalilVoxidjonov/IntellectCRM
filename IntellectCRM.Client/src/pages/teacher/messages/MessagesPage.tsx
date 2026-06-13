@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ArrowLeft, Briefcase, MessageSquare, ChevronRight } from 'lucide-react'
+import { Briefcase, MessageSquare, ChevronRight } from 'lucide-react'
 import { getTeacherChatClasses, getTeacherChat, sendTeacherChat } from '@/api/services/teacher'
 import { STAFF_CHANNEL, STAFF_CHANNEL_LABEL } from '@/config/constants'
 import { useUnread } from '@/context/unread-context'
@@ -25,25 +25,20 @@ export function TeacherMessagesPage() {
       .finally(() => setLoading(false))
   }, [])
 
-  // ---- Suhbat ko'rinishi ----
+  // ---- Suhbat ko'rinishi (TO'LIQ EKRAN — marginlarsiz) ----
   if (selected) {
     const isStaff = selected === STAFF_CHANNEL
     return (
-      <div className="space-y-3 bg-paper px-4 pb-6 pt-3">
-        <button
-          type="button"
-          onClick={() => setSelected(null)}
-          className="tap-scale inline-flex items-center gap-1.5 rounded-xl bg-tealsoft px-3 py-2 text-[13px] font-semibold text-teal-700"
-        >
-          <ArrowLeft className="h-4 w-4" /> Kanallar
-        </button>
+      <div className="h-full">
         <ChatPanel
           key={selected}
           className={selected}
           fetchMessages={getTeacherChat}
           sendMessage={sendTeacherChat}
           title={isStaff ? STAFF_CHANNEL_LABEL : `${selected} — guruh chati`}
-          subtitle={isStaff ? "Barcha o'qituvchilar va adminlar" : undefined}
+          subtitle={isStaff ? "Barcha o'qituvchilar va adminlar" : 'Guruh chati'}
+          fullHeight
+          onBack={() => setSelected(null)}
         />
       </div>
     )

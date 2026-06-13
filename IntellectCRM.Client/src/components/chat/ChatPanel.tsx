@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Send } from 'lucide-react'
+import { Send, ArrowLeft } from 'lucide-react'
 import type { ChatMessage } from '@/types'
 import { useAuth } from '@/context/auth-context'
 import { useUnread } from '@/context/unread-context'
@@ -18,13 +18,17 @@ interface Props {
   title?: string
   /** Sarlavha ostidagi izoh (a'zolar haqida) */
   subtitle?: string
+  /** To'liq ekran rejimi (mobil): kartasiz, h-full — butun maydonni egallaydi. */
+  fullHeight?: boolean
+  /** Berilsa — sarlavhada orqaga tugma ko'rsatiladi (mobil suhbatdan ro'yxatga qaytish). */
+  onBack?: () => void
 }
 
 /**
  * Bitta sinfning guruh chati: real-time (SignalR) xabarlar + yozish maydoni.
  * SignalR ulanishi UnreadProvider orqali global tarzda boshqariladi — alohida ulanish ochilmaydi.
  */
-export function ChatPanel({ className, fetchMessages, sendMessage, title, subtitle }: Props) {
+export function ChatPanel({ className, fetchMessages, sendMessage, title, subtitle, fullHeight, onBack }: Props) {
   const { user } = useAuth()
   const { markRead, subscribe, onReconnect } = useUnread()
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -84,13 +88,25 @@ export function ChatPanel({ className, fetchMessages, sendMessage, title, subtit
     }
   }
 
-  return (
-    <Card className="flex h-[70vh] flex-col p-0">
-      <div className="border-b border-slate-100 px-4 py-3">
-        <p className="font-semibold text-slate-800">{title ?? `${className} — guruh chati`}</p>
-        <p className="text-xs text-slate-400">
-          {subtitle ?? "O'quvchilar, dars beruvchi o'qituvchilar va admin"}
-        </p>
+  const content = (
+    <>
+      <div className="flex items-center gap-2.5 border-b border-slate-100 px-4 py-3">
+        {onBack && (
+          <button
+            type="button"
+            onClick={onBack}
+            className="tap-scale -ml-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100"
+            title="Orqaga"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </button>
+        )}
+        <div className="min-w-0">
+          <p className="truncate font-semibold text-slate-800">{title ?? `${className} — guruh chati`}</p>
+          <p className="truncate text-xs text-slate-400">
+            {subtitle ?? "O'quvchilar, dars beruvchi o'qituvchilar va admin"}
+          </p>
+        </div>
       </div>
 
       <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
@@ -152,6 +168,12 @@ export function ChatPanel({ className, fetchMessages, sendMessage, title, subtit
           <Send className="h-4 w-4" />
         </button>
       </form>
-    </Card>
+    </>
   )
+
+  // To'liq ekran (mobil): kartasiz, butun maydonni egallaydi — composer pastda pinlanadi.
+  if (fullHeight) {
+    return <div className="flex h-full flex-col bg-white">{content}</div>
+  }
+  return <Card className="flex h-[70vh] flex-col p-0">{content}</Card>
 }

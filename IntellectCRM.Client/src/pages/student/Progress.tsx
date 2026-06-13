@@ -93,7 +93,23 @@ function ForecastCard({ cur }: { cur: StudentCurriculum }) {
   const done = cur.remainingItems <= 0
   const col = subjectColor(cur.courseId)
   return (
-    <div className="card" style={{ marginTop: 4, display: 'flex', gap: 14, alignItems: 'center' }}>
+    <div
+      className="card"
+      style={{
+        marginTop: 4,
+        display: 'flex',
+        gap: 14,
+        alignItems: 'center',
+        position: 'relative',
+        overflow: 'hidden',
+        background: `linear-gradient(135deg, ${col}16, var(--surface) 58%)`,
+        borderColor: `${col}2e`,
+      }}
+    >
+      {/* Ta'limiy dekor — fonda so'lg'in bitiruv shapkasi */}
+      <div style={{ position: 'absolute', right: -14, bottom: -16, opacity: 0.08, pointerEvents: 'none' }}>
+        <Icon name="school" size={104} color={col} fill />
+      </div>
       <Ring value={pct} max={100} size={80} stroke={9} color={col}>
         <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)' }}>{pct}%</div>
         <div style={{ fontSize: 10, color: 'var(--muted)' }}>o'tildi</div>
@@ -122,17 +138,67 @@ function ForecastCard({ cur }: { cur: StudentCurriculum }) {
   )
 }
 
+/** Roadmap panel fonidagi so'lg'in ta'limiy ikonkalar (kurs rangida). */
+function Deco({ col }: { col: string }) {
+  const items: Array<{ name: string; size: number; rot: number; pos: React.CSSProperties }> = [
+    { name: 'book', size: 44, rot: -12, pos: { top: 10, left: 12 } },
+    { name: 'edit', size: 36, rot: 14, pos: { top: 78, right: 16 } },
+    { name: 'sparkle', size: 30, rot: 0, pos: { bottom: 60, left: 20 } },
+    { name: 'flame', size: 32, rot: -8, pos: { bottom: 14, right: 18 } },
+    { name: 'award', size: 30, rot: 10, pos: { top: 150, left: 18 } },
+  ]
+  return (
+    <div style={{ position: 'absolute', inset: 0, borderRadius: 20, overflow: 'hidden', pointerEvents: 'none' }}>
+      {items.map((d, i) => (
+        <div key={i} style={{ position: 'absolute', opacity: 0.07, transform: `rotate(${d.rot}deg)`, ...d.pos }}>
+          <Icon name={d.name} size={d.size} color={col} fill />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/** Kurs yakuni — sovrin belgisi (tugatilganda oltin). */
+function FinishNode({ done, color }: { done: boolean; color: string }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, marginTop: 2 }}>
+      <div
+        style={{
+          width: 66,
+          height: 66,
+          borderRadius: '50%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: done ? 'linear-gradient(135deg,#F5B301,#E8920A)' : 'var(--surface3)',
+          color: done ? '#fff' : 'var(--faint)',
+          boxShadow: done ? '0 8px 22px rgba(245,179,1,.42)' : 'none',
+          border: done ? 'none' : `2px dashed ${color}55`,
+        }}
+      >
+        <Icon name="award" size={32} color={done ? '#fff' : 'var(--faint)'} fill={done} />
+      </div>
+      <div style={{ fontSize: 12, fontWeight: 800, color: done ? '#E8920A' : 'var(--faint)' }}>
+        {done ? "Kurs yakunlandi! \u{1F3C6}" : 'Kurs yakuni'}
+      </div>
+    </div>
+  )
+}
+
 function Roadmap({ cur }: { cur: StudentCurriculum }) {
   const nextId = findNext(cur)
   const col = subjectColor(cur.courseId)
+  const allDone = cur.remainingItems <= 0
   return (
     <div style={{ marginTop: 18 }}>
       {cur.levels.map((lv) => {
         const items = lv.topics.flatMap((t) => t.items)
         if (!items.length) return null
         const cov = items.filter((i) => i.covered).length
+        const lvDone = cov === items.length
+        const coveredFrac = items.length > 0 ? cov / items.length : 0
         return (
-          <div key={lv.id} style={{ marginBottom: 10 }}>
+          <div key={lv.id} style={{ marginBottom: 14 }}>
             <div
               style={{
                 display: 'flex',
@@ -140,13 +206,26 @@ function Roadmap({ cur }: { cur: StudentCurriculum }) {
                 gap: 10,
                 padding: '13px 14px',
                 borderRadius: 16,
-                background: col,
+                background: `linear-gradient(135deg, ${col}, ${col}cc)`,
                 color: '#fff',
-                marginBottom: 4,
+                marginBottom: 6,
                 boxShadow: `0 8px 20px ${col}40`,
               }}
             >
-              <Icon name="book" size={20} color="#fff" fill />
+              <div
+                style={{
+                  width: 34,
+                  height: 34,
+                  borderRadius: 11,
+                  background: 'rgba(255,255,255,.22)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flex: 'none',
+                }}
+              >
+                <Icon name={lvDone ? 'award' : 'book'} size={19} color="#fff" fill />
+              </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 10.5, fontWeight: 700, opacity: 0.85, textTransform: 'uppercase', letterSpacing: 0.4 }}>
                   Bo'lim
@@ -158,20 +237,31 @@ function Roadmap({ cur }: { cur: StudentCurriculum }) {
               </div>
             </div>
 
-            <div style={{ position: 'relative', padding: '10px 0 4px' }}>
+            <div
+              style={{
+                position: 'relative',
+                borderRadius: 20,
+                padding: '16px 0 12px',
+                background: `linear-gradient(180deg, ${col}12, ${col}04)`,
+                border: `1px solid ${col}1f`,
+              }}
+            >
+              <Deco col={col} />
+              {/* Yo'l chizig'i — o'tilgan qismi kurs rangida, qolgani so'lg'in */}
               <div
                 style={{
                   position: 'absolute',
                   left: '50%',
-                  top: 6,
-                  bottom: 6,
-                  width: 3,
-                  background: 'var(--surface3)',
-                  transform: 'translateX(-1.5px)',
-                  borderRadius: 3,
+                  top: 12,
+                  bottom: 12,
+                  width: 4,
+                  transform: 'translateX(-2px)',
+                  borderRadius: 4,
+                  background: `linear-gradient(${col} ${Math.round(coveredFrac * 100)}%, ${col}26 ${Math.round(coveredFrac * 100)}%)`,
+                  opacity: 0.55,
                 }}
               />
-              <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+              <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18 }}>
                 {items.map((it, idx) => (
                   <Node
                     key={it.id}
@@ -186,6 +276,7 @@ function Roadmap({ cur }: { cur: StudentCurriculum }) {
           </div>
         )
       })}
+      <FinishNode done={allDone} color={col} />
     </div>
   )
 }
