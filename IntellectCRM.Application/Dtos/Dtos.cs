@@ -515,6 +515,25 @@ public record FinanceSummaryDto(
 public record FinanceMonthlyDto(string Month, decimal Income, decimal Expense);
 public record AccrueResultDto(List<string> Months, int Count, decimal Total);
 
+/* ---------- Kurs/guruh kesimida moliyaviy hisobot ---------- */
+/// <summary>Bitta kurs (Subject) bo'yicha davr hisobi: hisoblangan/yig'ilgan, yig'ilish foizi,
+/// to'liq to'lagan o'quvchilar nisbati. Daromad bo'yicha saralanadi.</summary>
+public record CourseFinanceRowDto(
+    string CourseId, string CourseName, decimal Price,
+    int GroupCount, int StudentCount,
+    decimal Billed, decimal Collected, decimal CollectionPct,
+    int FullyPaidStudents, int BillableStudents, decimal PaidPct);
+/// <summary>Bitta guruh bo'yicha davr hisobi (qaysi o'qituvchi guruhi faolroq).</summary>
+public record GroupFinanceRowDto(
+    string GroupId, string GroupName, string CourseName, string TeacherName,
+    int StudentCount, decimal Billed, decimal Collected, decimal CollectionPct,
+    int FullyPaidStudents, int BillableStudents);
+public record CourseFinanceReportDto(
+    string From, string To,
+    decimal TotalBilled, decimal TotalCollected, decimal CollectionPct,
+    List<CourseFinanceRowDto> Courses,
+    List<GroupFinanceRowDto> Groups);
+
 /* ---------- O'quvchi to'lov tarixi (ledger) ---------- */
 /// <summary>Bitta oyning hisobi.
 /// Charged = to'liq oylik (sinf narxi); Discount = shu oy uchun berilgan chegirma;

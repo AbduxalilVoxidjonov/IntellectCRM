@@ -244,6 +244,62 @@ export async function accrueTuition(month?: string): Promise<AccrueResult> {
   return data
 }
 
+/* ---------- Kurs/guruh kesimida moliyaviy hisobot ---------- */
+export interface CourseFinanceRow {
+  courseId: string
+  courseName: string
+  price: number
+  groupCount: number
+  studentCount: number
+  billed: number
+  collected: number
+  collectionPct: number
+  fullyPaidStudents: number
+  billableStudents: number
+  paidPct: number
+}
+export interface GroupFinanceRow {
+  groupId: string
+  groupName: string
+  courseName: string
+  teacherName: string
+  studentCount: number
+  billed: number
+  collected: number
+  collectionPct: number
+  fullyPaidStudents: number
+  billableStudents: number
+}
+export interface CourseFinanceReport {
+  from: string
+  to: string
+  totalBilled: number
+  totalCollected: number
+  collectionPct: number
+  courses: CourseFinanceRow[]
+  groups: GroupFinanceRow[]
+}
+
+/** Kurs/guruh kesimida moliyaviy hisobot (qaysi kurs ko'p daromad, to'lov to'liqligi, faol guruh). */
+export async function getCourseReport(from?: string, to?: string): Promise<CourseFinanceReport> {
+  if (USE_MOCK) {
+    await delay()
+    return {
+      from: from ?? '',
+      to: to ?? '',
+      totalBilled: 0,
+      totalCollected: 0,
+      collectionPct: 0,
+      courses: [],
+      groups: [],
+    }
+  }
+  const { data } = await api.get<CourseFinanceReport>('/admin/finance/course-report', {
+    params: { from, to },
+  })
+  return data
+}
+
 export async function getFinanceMonthly(year: number): Promise<FinanceMonthly[]> {
   if (USE_MOCK) {
     await delay()

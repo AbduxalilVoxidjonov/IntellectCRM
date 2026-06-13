@@ -256,6 +256,13 @@ public class FinanceController(AppDbContext db, AuditService audit) : Controller
             studentDebt, studentAdvance, txs.Count);
     }
 
+    /// <summary>Kurs/guruh kesimida moliyaviy hisobot: qaysi kurs ko'p daromad keltiradi,
+    /// qaysi kurs o'quvchilari to'lovni to'liq qildi, qaysi guruh (o'qituvchi) to'lov yig'ishda faolroq.</summary>
+    [HttpGet("course-report")]
+    public async Task<ActionResult<CourseFinanceReportDto>> CourseReport(
+        [FromQuery] string? from, [FromQuery] string? to) =>
+        await CourseFinanceReport.BuildAsync(db, from, to);
+
     /// <summary>Oylik to'lovni qo'lda hisoblash. month berilmasa — hisoblanmagan barcha oylar.</summary>
     [HttpPost("accrue")]
     public async Task<ActionResult<AccrueResultDto>> Accrue([FromQuery] string? month)

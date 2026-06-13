@@ -292,7 +292,7 @@ export function TeacherAssignmentsPage() {
           type="button"
           onClick={openNew}
           title="Yangi topshiriq"
-          className="tap-scale fixed bottom-6 right-5 z-20 flex h-[60px] w-[60px] items-center justify-center rounded-3xl bg-teal-600 text-white shadow-[var(--shadow-fab)]"
+          className="tap-scale fixed bottom-[84px] right-5 z-20 flex h-[60px] w-[60px] items-center justify-center rounded-3xl bg-teal-600 text-white shadow-[var(--shadow-fab)]"
         >
           <Plus className="h-7 w-7" />
         </button>

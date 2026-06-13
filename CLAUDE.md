@@ -113,6 +113,18 @@ docker compose up -d --build    # app + mssql + cloudflared + backup + mediamtx
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-13: **Moliya — YANGI "Kurslar" hisobot tabi (kurs/guruh kesimida daromad).** Foydalanuvchi: qaysi kurs
+  ko'p daromad keltiradi, qaysi kurs o'quvchilari to'lovni to'liq qildi, qaysi guruh (o'qituvchi) faolroq. Backend:
+  yangi `CourseFinanceReport.BuildAsync(db, from, to)` servisi — **yig'ilgan (collected)** = davrdagi tuition
+  to'lovlarini guruhga tegishli qilib (teglangan 100%; teglanmagan narx nisbatida billable guruhlarga — `SalaryLedger`
+  attribution mantig'i umumlashtirildi, per-guruh + per-(o'quvchi,guruh)); **hisoblangan (billed)** = `MonthlyCharge`
+  (Amount−Discount, GroupId yozuvlari); **to'liq to'lagan** = yig'ilgan ≥ hisoblangan (billable ichida). DTO:
+  `CourseFinanceReportDto`/`CourseFinanceRowDto`/`GroupFinanceRowDto` (Dtos.cs). Endpoint `GET /admin/finance/
+  course-report?from=&to=` (AdminPerm finance). Frontend: `finance.ts` `getCourseReport` + tiplar; `FinancePage`ga
+  **"Kurslar"** tab (overview yonida) — 3 stat (jami yig'ilgan/hisoblangan/yig'ilish %), "Kurslar bo'yicha daromad"
+  jadvali (daromad reytingi + yig'ilgan bar + yig'ilish % + to'liq to'lagan X/Y), "Guruhlar bo'yicha faollik" jadvali
+  (qaysi o'qituvchi guruhi faolroq) + CSV eksport. Davr tanlash mavjud from/to'dan. Backend 0 xato, tsc+vite yashil,
+  `app` deploy (mssql-data saqlandi). Jonli: Beginner kursi billed 1.476M/collected 700k/47.4%, guruh breakdown to'g'ri. ✅
 - 2026-06-13: **O'qituvchi portali TO'LIQ TEAL REDIZAYN (`teacher.html` namunasi asosida, 1 foundation + 4 parallel
   subagent).** Foydalanuvchi ildizga `teacher.html` (teal mobil UI-kit: Login/Dashboard/Jurnal-picker/Vazifa+FAB/
   Suhbat/Profil, 5-tab teal bottom-nav, Plus Jakarta Sans + JetBrains Mono) qo'shdi — o'qituvchi qismi shunga
