@@ -55,6 +55,25 @@ import { TeacherLmsSubjectPage } from '@/pages/teacher/lms/TeacherLmsSubjectPage
 import { TeacherMessagesPage } from '@/pages/teacher/messages/MessagesPage'
 import { TeacherProfilePage } from '@/pages/teacher/TeacherProfilePage'
 import { TeacherMobileLayout } from '@/components/layout/TeacherMobileLayout'
+// O'quvchi portali (SPA ichida, /student/*)
+import { StudentMobileLayout } from '@/components/layout/StudentMobileLayout'
+import { StudentDashboardScreen } from '@/pages/student/Dashboard'
+import { StudentProgressScreen } from '@/pages/student/Progress'
+import { SubjectProgressDetailScreen } from '@/pages/student/SubjectProgressDetail'
+import { StudentGradesScreen } from '@/pages/student/Grades'
+import { StudentAttendanceScreen } from '@/pages/student/Attendance'
+import { StudentDisciplineScreen } from '@/pages/student/Discipline'
+import { StudentStatisticsScreen } from '@/pages/student/Statistics'
+import { StudentAssignmentsScreen } from '@/pages/student/Assignments'
+import { StudentAssignmentDetailScreen } from '@/pages/student/AssignmentDetail'
+import { StudentLmsTopicsScreen } from '@/pages/student/LmsTopics'
+import { StudentLmsTopicDetailScreen } from '@/pages/student/LmsTopicDetail'
+import { StudentChatScreen } from '@/pages/student/Chat'
+import { StudentFinanceScreen } from '@/pages/student/Finance'
+import { StudentFeedbackScreen } from '@/pages/student/Feedback'
+import { StudentProfileScreen } from '@/pages/student/Profile'
+import { StudentSettingsScreen } from '@/pages/student/Settings'
+import { StudentAccountScreen } from '@/pages/student/Account'
 
 export default function App() {
   return (
@@ -133,6 +152,30 @@ export default function App() {
           <Route path="messages" element={<RequirePerm perm="messages"><TeacherMessagesPage /></RequirePerm>} />
           <Route path="profile" element={<TeacherProfilePage />} />
           <Route path="account" element={<AccountPage />} />
+        </Route>
+      </Route>
+
+      {/* O'quvchi/ota-ona portali — MOBIL web ilova (student.html dizayni, blue).
+          Pastki 5-tab navigatsiya (StudentMobileLayout). */}
+      <Route element={<ProtectedRoute role="student" />}>
+        <Route path="/student" element={<StudentMobileLayout />}>
+          <Route index element={<StudentDashboardScreen />} />
+          <Route path="progress" element={<StudentProgressScreen />} />
+          <Route path="progress/subject/:id" element={<SubjectProgressDetailScreen />} />
+          <Route path="grades" element={<StudentGradesScreen />} />
+          <Route path="attendance" element={<StudentAttendanceScreen />} />
+          <Route path="discipline" element={<StudentDisciplineScreen />} />
+          <Route path="statistics" element={<StudentStatisticsScreen />} />
+          <Route path="assignments" element={<StudentAssignmentsScreen />} />
+          <Route path="assignments/:id" element={<StudentAssignmentDetailScreen />} />
+          <Route path="lms/:subjectId" element={<StudentLmsTopicsScreen />} />
+          <Route path="lms/:subjectId/topic/:topicId" element={<StudentLmsTopicDetailScreen />} />
+          <Route path="chat" element={<StudentChatScreen />} />
+          <Route path="finance" element={<StudentFinanceScreen />} />
+          <Route path="feedback" element={<StudentFeedbackScreen />} />
+          <Route path="profile" element={<StudentProfileScreen />} />
+          <Route path="settings" element={<StudentSettingsScreen />} />
+          <Route path="account" element={<StudentAccountScreen />} />
         </Route>
       </Route>
 

@@ -170,9 +170,9 @@ export const homeByRole: Record<Role, string> = {
   superadmin: '/admin',
   admin: '/admin',
   teacher: '/teacher',
-  // O'quvchi/ota-ona web orqali kira olmaydi (mobil ilova) — login sahifasiga.
-  student: '/login',
-  parent: '/login',
+  // O'quvchi va ota-ona — o'quvchi portali (mobil web ilova).
+  student: '/student',
+  parent: '/student',
   staff: '/admin',
 }
 

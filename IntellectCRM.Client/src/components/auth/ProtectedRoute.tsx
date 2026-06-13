@@ -22,7 +22,13 @@ export function ProtectedRoute({ role }: { role?: Role }) {
   if (role) {
     // "admin" darvozasi: admin + superadmin + xodim (staff). Xodimning ko'radigan bo'limlari
     // nav filtri (Sidebar) va route RequirePerm bilan cheklanadi.
-    const allowed = role === 'admin' ? ['admin', 'superadmin', 'staff'] : [role]
+    // "student" darvozasi: o'quvchi + ota-ona (ikkalasi o'quvchi portalini ko'radi).
+    const allowed =
+      role === 'admin'
+        ? ['admin', 'superadmin', 'staff']
+        : role === 'student'
+          ? ['student', 'parent']
+          : [role]
     if (!allowed.includes(user.role)) {
       return <Navigate to={homeByRole[user.role]} replace />
     }

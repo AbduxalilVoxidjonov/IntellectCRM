@@ -146,6 +146,182 @@ body {
 }
 
 /* ============================================================
+   O'QUVCHI portali (blue) — student.html dizayni
+   Hammasi .student-app ostida scoped (admin/teacher tegilmaydi).
+   Manrope shrift, Material Symbols ikonkalar, light/dark.
+   ============================================================ */
+.student-app {
+  --accent: #2563eb;
+  --accentD: #1d4ed8;
+  --accentSoft: #e9f0ff;
+  --onAccent: #fff;
+  --bg: #eef1f8;
+  --surface: #fff;
+  --surface2: #f4f7fc;
+  --surface3: #e9eef7;
+  --text: #0f1729;
+  --muted: #5d6b85;
+  --faint: #98a4bc;
+  --border: #e8ecf4;
+  --borderStrong: #dbe1ec;
+  --green: #16a34a;
+  --greenSoft: #e7f6ec;
+  --red: #ef4444;
+  --redSoft: #fdeaea;
+  --amber: #f59e0b;
+  --amberSoft: #fdf2e1;
+  --violet: #7c3aed;
+  --violetSoft: #f0e9ff;
+  --shadow: 0 6px 18px rgba(16, 32, 67, 0.06);
+
+  font-family: 'Manrope', system-ui, sans-serif;
+  font-weight: 600;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+.student-app[data-theme='dark'] {
+  --accent: #3b82f6;
+  --accentD: #2563eb;
+  --accentSoft: #18253f;
+  --bg: #0a0f1c;
+  --surface: #131b2d;
+  --surface2: #1a2338;
+  --surface3: #222e48;
+  --text: #eef2fb;
+  --muted: #9aa8c4;
+  --faint: #64718c;
+  --border: rgba(255, 255, 255, 0.08);
+  --borderStrong: rgba(255, 255, 255, 0.14);
+  --green: #22c55e;
+  --greenSoft: #11271b;
+  --red: #f87171;
+  --redSoft: #2b1518;
+  --amber: #fbbf24;
+  --amberSoft: #2a2110;
+  --violet: #a78bfa;
+  --violetSoft: #211a3a;
+  --shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+.student-app * {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+.student-app *::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+.student-app button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+  color: inherit;
+}
+.student-app input,
+.student-app textarea {
+  font-family: inherit;
+  color: inherit;
+}
+/* Material Symbols ikonka */
+.student-app .ms {
+  font-family: 'Material Symbols Rounded';
+  font-weight: normal;
+  font-style: normal;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  direction: ltr;
+  -webkit-font-feature-settings: 'liga';
+  user-select: none;
+}
+@keyframes st-fade {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; }
+}
+@keyframes st-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+@keyframes st-rot {
+  to { transform: rotate(360deg); }
+}
+/* layout */
+.student-app .screen { flex: 1; display: flex; flex-direction: column; min-height: 0; animation: st-fade 0.22s ease; }
+.student-app .scroll { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.student-app .pad { padding: 0 16px; }
+.student-app .h-pad { padding: 0 20px; }
+.student-app .center { flex: 1; display: flex; align-items: center; justify-content: center; }
+.student-app .row { display: flex; align-items: center; }
+.student-app .col { display: flex; flex-direction: column; }
+.student-app .sp { justify-content: space-between; }
+.student-app .gap6 { gap: 6px; } .student-app .gap8 { gap: 8px; }
+.student-app .gap10 { gap: 10px; } .student-app .gap12 { gap: 12px; }
+.student-app .muted { color: var(--muted); } .student-app .faint { color: var(--faint); }
+/* primitives */
+.student-app .card { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; box-shadow: var(--shadow); padding: 16px; }
+.student-app .press { transition: transform 0.12s ease; cursor: pointer; }
+.student-app .press:active { transform: scale(0.975); }
+.student-app .chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 9px; border-radius: 8px; font-size: 12px; font-weight: 700; }
+.student-app .progress { height: 8px; background: var(--surface3); border-radius: 8px; overflow: hidden; }
+.student-app .progress > div { height: 100%; border-radius: 8px; transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1); }
+.student-app .btn { display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 700; border-radius: 15px; height: 50px; padding: 0 20px; font-size: 16px; width: 100%; }
+.student-app .btn-lg { height: 56px; border-radius: 17px; font-size: 17px; }
+.student-app .btn-primary { background: var(--accent); color: #fff; box-shadow: 0 6px 18px rgba(37, 99, 235, 0.32); }
+.student-app .btn-soft { background: var(--accentSoft); color: var(--accent); }
+.student-app .btn-ghost { background: var(--surface3); color: var(--text); }
+.student-app .btn-danger { background: var(--redSoft); color: var(--red); }
+.student-app .btn-outline { background: transparent; color: var(--text); border: 1.5px solid var(--borderStrong); }
+.student-app .btn[disabled] { opacity: 0.45; pointer-events: none; }
+.student-app .iconbtn { width: 38px; height: 38px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow); display: flex; align-items: center; justify-content: center; position: relative; flex: none; }
+.student-app .nbadge { position: absolute; top: -3px; right: -3px; min-width: 17px; height: 17px; padding: 0 4px; background: var(--red); color: #fff; border-radius: 9px; border: 2px solid var(--bg); font-size: 10.5px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+.student-app .empty { padding: 48px 24px; display: flex; flex-direction: column; align-items: center; text-align: center; }
+.student-app .empty-ic { width: 64px; height: 64px; border-radius: 20px; background: var(--surface3); display: flex; align-items: center; justify-content: center; color: var(--faint); margin-bottom: 10px; }
+.student-app .ring { position: relative; display: flex; align-items: center; justify-content: center; flex: none; }
+.student-app .ring svg { transform: rotate(-90deg); }
+.student-app .ring-c { position: absolute; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.student-app .spin { width: 34px; height: 34px; border: 3px solid var(--surface3); border-top-color: var(--accent); border-radius: 50%; animation: st-rot 0.8s linear infinite; }
+.student-app .badge { display: flex; align-items: center; justify-content: center; font-weight: 800; color: #fff; }
+.student-app .subj { display: flex; align-items: center; justify-content: center; font-weight: 800; }
+/* header */
+.student-app .hd { background: var(--bg); padding: 8px 16px; }
+.student-app .hd.lg { padding: 6px 20px 10px; }
+.student-app .hd-big { font-size: 30px; font-weight: 800; letter-spacing: -0.7px; line-height: 1.05; }
+.student-app .hd-sm { font-size: 18px; font-weight: 800; letter-spacing: -0.3px; }
+.student-app .hd-sub { font-size: 13.5px; font-weight: 600; color: var(--muted); }
+.student-app .sh { display: flex; align-items: center; justify-content: space-between; padding: 4px 2px 10px; }
+.student-app .sh-title { font-size: 17px; font-weight: 800; letter-spacing: -0.3px; }
+.student-app .sh-act { display: flex; align-items: center; color: var(--accent); font-size: 13.5px; font-weight: 700; }
+/* bottom nav */
+.student-app .tabbar { display: flex; background: var(--surface); border-top: 1px solid var(--border); padding: 8px 8px calc(8px + env(safe-area-inset-bottom)); flex: none; }
+.student-app .tab { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 4px 0; color: var(--faint); font-size: 10.5px; font-weight: 600; background: none; }
+.student-app .tab.on { color: var(--accent); font-weight: 800; }
+/* segmented / pills */
+.student-app .seg { display: flex; height: 46px; padding: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; }
+.student-app .seg > button { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; border-radius: 11px; font-size: 13px; font-weight: 700; color: var(--muted); transition: 0.18s; }
+.student-app .seg > button.on { background: var(--accent); color: #fff; }
+.student-app .pill { display: flex; align-items: center; justify-content: center; gap: 6px; height: 38px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border); font-size: 13px; font-weight: 700; color: var(--muted); }
+.student-app .pill.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+/* inputs */
+.student-app .field { display: flex; align-items: center; gap: 10px; height: 54px; padding: 0 14px; background: var(--surface2); border: 1px solid var(--border); border-radius: 15px; }
+.student-app .field input { flex: 1; border: none; background: none; outline: none; font-size: 16px; font-weight: 600; }
+.student-app .ta { width: 100%; border: 1px solid var(--border); border-radius: 16px; background: var(--surface); padding: 14px; font-size: 15px; line-height: 1.5; font-weight: 600; outline: none; resize: vertical; }
+.student-app .ta:focus, .student-app .field:focus-within { border-color: var(--accent); }
+/* sheet / toast / switch / hero */
+.student-app .scrim { position: fixed; inset: 0; background: rgba(8, 12, 24, 0.45); z-index: 50; display: flex; align-items: flex-end; justify-content: center; animation: st-fade 0.2s; }
+.student-app .sheet { width: 100%; max-width: 480px; background: var(--surface); border: 1px solid var(--border); border-radius: 26px 26px 0 0; padding: 10px 18px 30px; max-height: 84dvh; overflow-y: auto; animation: st-up 0.26s cubic-bezier(0.22, 1, 0.36, 1); }
+.student-app .grab { width: 40px; height: 5px; background: var(--borderStrong); border-radius: 5px; margin: 4px auto 14px; }
+.student-app .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 90; background: var(--text); color: var(--bg); padding: 12px 18px; border-radius: 14px; font-size: 13.5px; font-weight: 700; max-width: 90%; box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25); animation: st-fade 0.2s; }
+.student-app .switch { width: 50px; height: 30px; border-radius: 15px; background: var(--borderStrong); padding: 3px; display: flex; transition: 0.2s; flex: none; }
+.student-app .switch.on { background: var(--accent); justify-content: flex-end; }
+.student-app .switch > i { width: 24px; height: 24px; border-radius: 50%; background: #fff; display: block; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.25); transition: 0.2s; }
+.student-app .hero { border-radius: 22px; padding: 18px; color: #fff; background: linear-gradient(135deg, var(--accent), #5340c4); box-shadow: 0 14px 34px rgba(37, 99, 235, 0.3); }
+.student-app .divline { border-bottom: 1px solid var(--border); }
+.student-app a { color: var(--accent); }
+
+/* ============================================================
    Ported component classes from crm/styles.css
    (app-shell grid / sidebar / topbar are handled in Tailwind)
    ============================================================ */

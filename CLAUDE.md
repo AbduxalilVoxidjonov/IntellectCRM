@@ -113,6 +113,21 @@ docker compose up -d --build    # app + mssql + cloudflared + backup + mediamtx
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-13: **YANGI — O'QUVCHI portali (student web ilova, `student.html` blue dizayni asosida, noldan).**
+  Avval student frontend UMUMAN yo'q edi (faqat boy `StudentPortalController` ~40 endpoint). Foundation (men):
+  (1) `index.html` TIKLANDI — oldingi moliya commitida (`00a1afa`) tasodifan o'chgan edi (foydalanuvchi student.html
+  qo'shganda; `git add -A` o'chirishni commit qilgan) → Vite build buzilgan edi; + Manrope & Material Symbols shriftlari.
+  (2) `index.css` — `.student-app` scoped blue dizayn tizimi (student.html'dan 1:1 portlandi: tokenlar light/dark,
+  `.card/.btn/.chip/.hero/.ring/.seg/.pill/.field/.ta/.sheet/.tabbar/.hd/.sh/...`, `.ms` Material Symbols).
+  (3) `studentPortal.ts` servis (40 endpoint + tiplar). (4) `pages/student/lib.tsx` (Icon/Ring/gradeColor/subjectColor/
+  fmtMoney/fmtDate...). (5) `StudentMobileLayout` (480px, 5-tab: Boshqaruv/Progress/Topshiriq/Chat/Profil, light/dark).
+  (6) `ProtectedRoute` student darvozasi = student+parent; `homeByRole` student/parent → `/student`; App.tsx 17 route.
+  **17 ekran (4 parallel subagent):** Dashboard, Profile, Settings, Account / Progress(+rating), SubjectProgressDetail,
+  Grades, Attendance, Discipline, Statistics / Assignments, AssignmentDetail(+test runner), LmsTopics, LmsTopicDetail /
+  Chat, Finance, Feedback. **Adaptatsiya:** olib tashlangan funksiyalar (oshxona/avtobus/lokatsiya/jadval/chorak/
+  tenant) qurilmadi; chorak opaque=1. tsc 0 (birinchi urinishda), vite yashil, `app` deploy (mssql-data saqlandi).
+  **Jonli E2E:** student login (ev2, role=student) → dashboard/me/grades/finance/assignments/rating hammasi 200,
+  dashboard "E V2/TEST-G/fee 400k". DIQQAT: test uchun "E V2" o'quvchi paroli reset qilindi (mkcqx9z8). ✅
 - 2026-06-13: **Moliya — YANGI "Kurslar" hisobot tabi (kurs/guruh kesimida daromad).** Foydalanuvchi: qaysi kurs
   ko'p daromad keltiradi, qaysi kurs o'quvchilari to'lovni to'liq qildi, qaysi guruh (o'qituvchi) faolroq. Backend:
   yangi `CourseFinanceReport.BuildAsync(db, from, to)` servisi — **yig'ilgan (collected)** = davrdagi tuition
