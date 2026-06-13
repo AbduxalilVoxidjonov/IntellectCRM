@@ -12,6 +12,8 @@ import { api } from '../client'
 declare global {
   interface Window {
     __FCM_TOKEN__?: string
+    /** Flutter to'g'ridan-to'g'ri chaqiradi: controller.runJavaScript("window.registerFcmToken('<token>')"). */
+    registerFcmToken?: (token: string) => void
   }
 }
 

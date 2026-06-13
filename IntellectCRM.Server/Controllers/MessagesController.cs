@@ -260,6 +260,24 @@ public class MessagesController(AppDbContext db, ChatService chat, TelegramServi
         return Ok(new { configured = FcmService.IsConfigured(m?.FcmServiceAccountJson) });
     }
 
+    /// <summary>Ro'yxatdan o'tgan qurilma tokenlari soni + so'nggilari — push nega yetib bormayotganini
+    /// tekshirish uchun (0 bo'lsa: ilova FCM tokenni ro'yxatdan o'tkazmayapti).</summary>
+    [HttpGet("push/devices")]
+    public async Task<ActionResult<object>> PushDevices()
+    {
+        var all = await db.DeviceTokens.OrderByDescending(d => d.LastSeenAt).ToListAsync();
+        var logins = await db.Users.ToDictionaryAsync(u => u.Id, u => u.Email);
+        var recent = all.Take(20).Select(d => new
+        {
+            login = logins.GetValueOrDefault(d.UserId, ""),
+            d.Platform,
+            d.DeviceName,
+            lastSeenAt = d.LastSeenAt.ToString("o"),
+            tokenTail = d.Token.Length > 12 ? "…" + d.Token[^12..] : d.Token,
+        });
+        return Ok(new { count = all.Count, recent });
+    }
+
     /// <summary>"Tanlab" push uchun oluvchilar ro'yxati: ota-onalar (o'quvchi akkaunti) + o'qituvchilar.</summary>
     [HttpGet("push/recipients")]
     public async Task<ActionResult<IEnumerable<PushRecipientDto>>> PushRecipients()

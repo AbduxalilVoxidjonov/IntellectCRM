@@ -72,6 +72,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const u = readStoredUser()
       if (u && localStorage.getItem(TOKEN_KEY)) registerDevice(u.role, token).catch(() => {})
     }
+    // Flutter to'g'ridan-to'g'ri chaqirishi uchun global funksiya (eng ishonchli yo'l).
+    window.registerFcmToken = (token: string) => {
+      if (typeof token === 'string' && token) tryRegister(token)
+    }
     // Flutter ilova ochilishida window.__FCM_TOKEN__ ni oldindan qo'ygan bo'lishi mumkin.
     const initial = getFcmToken()
     if (initial) tryRegister(initial)
@@ -81,7 +85,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (d && d.type === 'fcm-token' && typeof d.token === 'string' && d.token) tryRegister(d.token)
     }
     window.addEventListener('message', onMsg)
-    return () => window.removeEventListener('message', onMsg)
+    return () => {
+      window.removeEventListener('message', onMsg)
+      delete window.registerFcmToken
+    }
   }, [])
 
   const value = useMemo(

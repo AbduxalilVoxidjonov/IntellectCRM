@@ -113,6 +113,15 @@ docker compose up -d --build    # app + mssql + cloudflared + backup + mediamtx
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-13: **Push diagnostikasi — sabab: 0 qurilma ro'yxatda (Flutter token uzatmayapti).** Tekshiruv: Service
+  Account SOZLANGAN (configured=true, 2375 belgi), LEKIN `push/devices` count=0 → yuborishga token yo'q, shuning uchun
+  hech narsa bormaydi. FcmService kodi to'g'ri (FCM v1 + `notification` bloki). Yaxshilashlar: (1) `FcmService.SendAsync`
+  endi muvaffaqiyatsiz FCM javobini (status+body) LOGGA yozadi — token bo'lsa-yu push rad etilsa sababi ko'rinadi
+  (yaroqsiz token, loyiha mos kelmasligi). (2) `window.registerFcmToken(token)` global qo'shildi (`push.ts` tipi +
+  `AuthProvider` o'rnatadi) — Flutter to'g'ridan-to'g'ri chaqiradigan ishonchli nuqta (window/postMessage'dan tashqari).
+  (3) `GET /admin/messages/push/devices` — ro'yxatdagi qurilmalar soni+so'nggilari (debug). Backend 0, tsc+vite yashil,
+  deploy ✅; jonli: devices count=0 (Flutter integratsiyasi kerak). HAL: Flutter `getToken()` → `window.registerFcmToken
+  ('<token>')`; ruxsat (POST_NOTIFICATIONS) bering; google-services.json Service Account bilan bitta loyiha bo'lsin.
 - 2026-06-13: **Telegram kanal — login'da o'qituvchi/o'quvchi dashboardida "Kanalga o'tish" tugmasi.** `CenterMeta.
   TelegramChannel` (inkremental migratsiya `AddTelegramChannel` — faqat AddColumn). Admin Sozlamalar → Telegram'ga
   "Kanal" maydoni (havola yoki @username). Portallarga `school` endpoint orqali chiqadi: `SchoolNameDto`ga

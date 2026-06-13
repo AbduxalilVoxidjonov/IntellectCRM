@@ -65,6 +65,13 @@ public class FcmService(IHttpClientFactory httpFactory, ILogger<FcmService> logg
                 req.Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
                 var resp = await client.SendAsync(req, ct);
                 if (resp.IsSuccessStatusCode) sent++;
+                else
+                {
+                    // Xatoni KO'RINADIGAN qilamiz: FCM aniq sababni qaytaradi (token yaroqsiz,
+                    // loyiha mos kelmaydi (SenderId mismatch), ruxsat yo'q va h.k.).
+                    var err = await resp.Content.ReadAsStringAsync(ct);
+                    logger.LogWarning("FCM push rad etildi ({Status}): {Body}", (int)resp.StatusCode, err);
+                }
             }
             catch (Exception ex) { logger.LogWarning(ex, "FCM push yuborishda xato"); }
         }
