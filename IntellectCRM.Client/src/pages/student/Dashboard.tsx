@@ -13,7 +13,7 @@ import {
 } from '@/api/services/studentPortal'
 import { useAuth } from '@/context/auth-context'
 import { Icon, fmtDate, fmtMoney, fmtTime, gradeColor } from '@/pages/student/lib'
-import { telegramUrl } from '@/lib/utils'
+import { telegramUrl, openTelegram } from '@/lib/utils'
 
 const NOTIF_ICON: Record<string, string> = {
   grade: 'chart',
@@ -148,8 +148,10 @@ export function StudentDashboardScreen() {
             {channel.trim() && user?.role === 'student' && (
               <a
                 href={telegramUrl(channel)}
-                target="_blank"
-                rel="noopener noreferrer"
+                onClick={(e) => {
+                  e.preventDefault()
+                  openTelegram(channel)
+                }}
                 className="card press"
                 style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 12, textDecoration: 'none' }}
               >

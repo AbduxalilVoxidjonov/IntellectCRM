@@ -11,7 +11,7 @@ import {
   type NotificationsResponse,
 } from '@/api/services/teacher'
 import { useAuth } from '@/context/auth-context'
-import { telegramUrl, formatDateTime } from '@/lib/utils'
+import { telegramUrl, openTelegram, formatDateTime } from '@/lib/utils'
 
 const WEEKDAYS_UZ = ['Yakshanba', 'Dushanba', 'Seshanba', 'Chorshanba', 'Payshanba', 'Juma', 'Shanba']
 const MONTHS_UZ = [
@@ -156,8 +156,10 @@ export function TeacherDashboard() {
       {channel.trim() && (
         <a
           href={telegramUrl(channel)}
-          target="_blank"
-          rel="noopener noreferrer"
+          onClick={(e) => {
+            e.preventDefault()
+            openTelegram(channel)
+          }}
           className="tap-scale mb-5 flex items-center gap-3.5 rounded-[20px] border border-line bg-white p-3.5 shadow-[var(--shadow-card)]"
         >
           <div

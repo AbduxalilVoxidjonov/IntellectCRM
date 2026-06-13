@@ -113,6 +113,20 @@ docker compose up -d --build    # app + mssql + cloudflared + backup + mediamtx
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-13: **Telegram kanal tugmasi — bosilganda native ilova ochilmasdi (tuzatildi).** Muammo: banner
+  `<a href="https://t.me/..." target="_blank">` edi — Flutter WebView'da `target="_blank"` ko'p-oyna yo'qligida
+  HECH NIMA qilmaydi (o'lik tugma), `https://t.me` esa WebView ICHIDA web-sahifa sifatida ochiladi (ilova emas).
+  Yechim (`lib/utils`): `telegramTargets(raw)` — manzildan **native `tg://`** (`tg://resolve?domain=` username uchun,
+  `tg://join?invite=` +invite/joinchat uchun) VA web (`https://t.me`) havolalarini quradi; `openTelegram(raw)` —
+  (1) native ko'prik `window.openExternalUrl` bo'lsa tashqi ilovada ochadi, (2) aks holda `tg://` deep-link bilan
+  ilovani ochishga urinadi (same-window, target=_blank EMAS), (3) ~1.2s ichida ochilmasa `https://t.me`ga zaxira
+  (visibilitychange bilan aniqlaydi). Ikkala banner (teacher `TeacherDashboard` + student `Dashboard`) `target=_blank`
+  o'rniga `onClick→openTelegram(channel)` (preventDefault). `telegramUrl` eski API zaxira sifatida qoldi.
+  tsc+vite yashil, deploy ✅ (frontend-only, migratsiya yo'q); bundle'da tg://resolve+tg://join+openExternalUrl,
+  jonli yangi bundle. ESLATMA (Flutter, 100% kafolat uchun): WebView `onNavigationRequest`da `http(s)`-bo'lmagan
+  sxemalarni (`tg:`) `url_launcher` `LaunchMode.externalApplication` bilan ochsin — shunda `tg://` deep-link
+  to'g'ridan-to'g'ri ishlaydi; YOKI Flutter `runJavaScript("window.openExternalUrl=function(u){...}")` o'rnatib
+  url_launcher chaqirsin.
 - 2026-06-13: **Shartnoma — CUSTOM (matnli) andoza yaratish qo'shildi** (ilgari faqat .docx yuklash bor edi).
   `ContractTemplate`ga `Body` maydoni (custom andoza matni — @-o'rinbosarli); bo'sh bo'lmasa fayl o'rniga matndan
   .docx hosil qilinadi. Inkremental migratsiya `AddContractTemplateBody` (faqat `Body` ustuni — baza saqlandi).

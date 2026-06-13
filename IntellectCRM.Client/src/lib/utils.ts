@@ -66,12 +66,87 @@ export function formatMoney(n: number): string {
   return `${new Intl.NumberFormat('ru-RU').format(n)} so'm`
 }
 
-/** Telegram kanal manzilini to'liq havolaga aylantiradi (@username / username / to'liq URL). */
-export function telegramUrl(raw: string): string {
+export interface TelegramTargets {
+  /** Native ilova deep-link (tg://) — Telegram ilovasini to'g'ridan-to'g'ri ochadi. */
+  app: string
+  /** Web havola (https://t.me/...) — brauzer/zaxira. */
+  web: string
+}
+
+/**
+ * Telegram kanal manzilidan (@username / username / t.me/... / +invite / to'liq URL)
+ * native ilova (tg://) va web (https://t.me) havolalarini quradi.
+ */
+export function telegramTargets(raw: string): TelegramTargets {
   const s = (raw || '').trim()
-  if (!s) return ''
-  if (/^https?:\/\//i.test(s)) return s
-  return `https://t.me/${s.replace(/^@/, '')}`
+  if (!s) return { app: '', web: '' }
+  // Kanal "yo'lini" (username yoki +invite/joinchat) ajratamiz.
+  let rest = s
+  if (/^https?:\/\//i.test(s)) {
+    try {
+      rest = new URL(s).pathname.replace(/^\/+/, '')
+    } catch {
+      rest = ''
+    }
+  } else {
+    rest = s.replace(/^t\.me\//i, '').replace(/^@/, '')
+  }
+  rest = rest.replace(/\/+$/, '')
+  const web = rest ? `https://t.me/${rest}` : /^https?:\/\//i.test(s) ? s : ''
+  let app = ''
+  if (/^\+/.test(rest)) app = `tg://join?invite=${encodeURIComponent(rest.slice(1))}`
+  else if (/^joinchat\//i.test(rest)) app = `tg://join?invite=${encodeURIComponent(rest.replace(/^joinchat\//i, ''))}`
+  else if (rest) app = `tg://resolve?domain=${encodeURIComponent(rest.split('/')[0])}`
+  return { app, web }
+}
+
+/** Telegram kanal manzilini to'liq web havolaga aylantiradi (eski API — zaxira). */
+export function telegramUrl(raw: string): string {
+  return telegramTargets(raw).web
+}
+
+/**
+ * Bosilganda Telegram ilovasini kanalga ochadi (Flutter WebView ichida ham).
+ * Tartib: (1) native ko'prik (window.openExternalUrl) bo'lsa — tashqi ilovada ochadi;
+ * (2) aks holda tg:// deep-link bilan ilovani ochishga urinadi, ~1.2s ichida ochilmasa
+ * (3) https://t.me web havolasiga o'tadi.
+ */
+export function openTelegram(raw: string): void {
+  const { app, web } = telegramTargets(raw)
+  if (!app && !web) return
+  const target = app || web
+
+  // (1) Native ko'prik — Flutter runJavaScript bilan window.openExternalUrl o'rnatsa,
+  // url_launcher (externalApplication) orqali Telegram ilovasi ochiladi. Eng ishonchli.
+  const hook = (window as unknown as { openExternalUrl?: (u: string) => void }).openExternalUrl
+  if (typeof hook === 'function') {
+    try {
+      hook(target)
+      return
+    } catch {
+      /* ko'prik ishlamadi — pastdagi usulga o'tamiz */
+    }
+  }
+
+  // Ko'prik yo'q: deep-link bilan ilovani ochishga urinamiz, ochilmasa web havolaga zaxira.
+  if (!app) {
+    window.location.href = web
+    return
+  }
+  let switched = false
+  const onHide = () => {
+    if (document.visibilityState === 'hidden') {
+      switched = true
+      cleanup()
+    }
+  }
+  const cleanup = () => document.removeEventListener('visibilitychange', onHide)
+  document.addEventListener('visibilitychange', onHide)
+  window.setTimeout(() => {
+    cleanup()
+    if (!switched && web) window.location.href = web
+  }, 1200)
+  window.location.href = app
 }
 
 /** Tasodifiy parol (chalkashtirmaydigan belgilardan — 0/O, 1/l/I yo'q) */
