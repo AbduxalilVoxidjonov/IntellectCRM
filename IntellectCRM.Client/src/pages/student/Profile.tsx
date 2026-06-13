@@ -166,14 +166,9 @@ export function StudentProfileScreen() {
                 {schoolName}
               </div>
             )}
-            <div className="row" style={{ justifyContent: 'center', gap: 28, marginTop: 18 }}>
+            <div className="row" style={{ justifyContent: 'center', gap: 32, marginTop: 18 }}>
               <MiniStat value={gpa > 0 ? gpa.toFixed(2) : '—'} label="O'rtacha" color={gradeColor(gpa)} />
-              <MiniStat
-                value={String(dash?.meta?.currentQuarter || 1)}
-                label="Chorak"
-                color="var(--text)"
-              />
-              <MiniStat value={className || '—'} label="Sinf" color="var(--text)" />
+              <MiniStat value={className || '—'} label="Guruh" color="var(--text)" />
             </div>
           </div>
 

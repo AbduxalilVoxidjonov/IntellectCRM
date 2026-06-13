@@ -1,38 +1,46 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import {
-  getStudentSubjectsProgress,
+  getStudentCurriculum,
   getStudentRating,
-  type StudentSubjectsProgress,
+  type StudentCurriculum,
+  type CurriculumItem,
   type StudentRating,
   type RatingRow,
 } from '@/api/services/studentPortal'
-import { Icon, Ring, gradeColor, subjectColor, subjInitial, initials } from '@/pages/student/lib'
+import { Icon, Ring, gradeColor, subjectColor, initials, fmtDate } from '@/pages/student/lib'
 
 /* ============================================================
-   O'quvchi portali — Progress ekrani (Fanlar / Sinf / Maktab).
+   O'quvchi portali — Progress ekrani (Dastur / Sinf / Maktab).
+   "Dastur" = Duolingo uslubidagi o'quv dasturi yo'l-xaritasi.
    ============================================================ */
 
 type Mode = 0 | 1 | 2
 
 const SUBS = [
-  "Fanlar bo'yicha o'zlashtirish",
+  "O'quv dasturi — o'tilgan / qolgan",
   'Sinf reytingi — barcha o‘quvchilar',
   'Maktab reytingi — TOP 15',
 ]
 const TABS: Array<[string, string]> = [
-  ['chart', 'Fanlar'],
+  ['book', 'Dastur'],
   ['award', 'Sinf'],
   ['school', 'Maktab'],
 ]
 
-function SubjectsView({ navigate }: { navigate: (id: string) => void }) {
-  const [data, setData] = useState<StudentSubjectsProgress | null>(null)
+/** Birinchi o'tilmagan band (kurs tartibida) — "hozir o'rganiladigan". */
+function findNext(cur: StudentCurriculum): string | null {
+  for (const lv of cur.levels) for (const tp of lv.topics) for (const it of tp.items) if (!it.covered) return it.id
+  return null
+}
+
+function DasturView() {
+  const [courses, setCourses] = useState<StudentCurriculum[] | null>(null)
   const [err, setErr] = useState<string | null>(null)
+  const [sel, setSel] = useState(0)
   useEffect(() => {
     let on = true
-    getStudentSubjectsProgress(1)
-      .then((d) => on && setData(d))
+    getStudentCurriculum()
+      .then((c) => on && setCourses(c))
       .catch((e) => on && setErr(e?.message || String(e)))
     return () => {
       on = false
@@ -40,93 +48,205 @@ function SubjectsView({ navigate }: { navigate: (id: string) => void }) {
   }, [])
 
   if (err) return <EmptyState title="Yuklab bo'lmadi" sub={err} ic="alert" />
-  if (!data) return <Loading />
+  if (!courses) return <Loading />
+  if (!courses.length)
+    return (
+      <div className="card" style={{ margin: '0 16px' }}>
+        <EmptyState title="O'quv dasturi yo'q" sub="Hozircha kursingizga o'quv dasturi biriktirilmagan." ic="book" />
+      </div>
+    )
 
+  const cur = courses[Math.min(sel, courses.length - 1)]
   return (
-    <div className="pad" style={{ paddingBottom: 24 }}>
-      <div className="card row" style={{ gap: 18 }}>
-        <Ring value={data.totalPercent} max={100} size={92} stroke={11} color="var(--accent)">
-          <div style={{ fontSize: 24, fontWeight: 800, lineHeight: 1, color: 'var(--accent)' }}>
-            {data.totalPercent}%
-          </div>
-          <div className="muted" style={{ fontSize: 10.5, fontWeight: 700 }}>
-            umumiy
-          </div>
-        </Ring>
-        <div style={{ flex: 1 }}>
-          <div className="muted" style={{ fontSize: 13, fontWeight: 700 }}>
-            O'tilgan darslar
-          </div>
-          <div style={{ fontSize: 24, fontWeight: 800, lineHeight: 1, margin: '4px 0' }}>
-            {data.totalConducted} / {data.totalPlanned}
-          </div>
-          <div className="faint" style={{ fontSize: 12 }}>
-            reja darslardan o'tildi
-          </div>
-        </div>
-      </div>
-
-      <div style={{ height: 16 }} />
-      <div className="sh">
-        <div className="sh-title">Fanlar bo'yicha</div>
-      </div>
-
-      {(data.subjects || []).length ? (
-        (data.subjects || []).map((s) => {
-          const col = subjectColor(s.subjectId)
-          return (
+    <div className="pad" style={{ paddingBottom: 28 }}>
+      {courses.length > 1 && (
+        <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
+          {courses.map((c, i) => (
             <button
-              key={s.subjectId}
-              className="card press"
-              onClick={() => navigate(s.subjectId)}
-              style={{ width: '100%', textAlign: 'left', borderRadius: 16, marginBottom: 10 }}
+              key={c.groupId}
+              onClick={() => setSel(i)}
+              className="press"
+              style={{
+                flex: 'none',
+                padding: '8px 14px',
+                borderRadius: 12,
+                fontSize: 13,
+                fontWeight: 700,
+                background: i === sel ? 'var(--accent)' : 'var(--surface)',
+                color: i === sel ? '#fff' : 'var(--muted)',
+                border: `1px solid ${i === sel ? 'var(--accent)' : 'var(--border)'}`,
+              }}
             >
-              <div className="row gap12">
-                <div
-                  className="subj"
-                  style={{
-                    width: 42,
-                    height: 42,
-                    borderRadius: 13,
-                    flex: 'none',
-                    background: subjectColor(s.subjectId) + '22',
-                    color: col,
-                    fontSize: 18,
-                  }}
-                >
-                  {subjInitial(s.subjectName)}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div className="row sp">
-                    <div
-                      style={{
-                        fontSize: 15,
-                        fontWeight: 700,
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                      }}
-                    >
-                      {s.subjectName}
-                    </div>
-                  </div>
-                  <div className="muted" style={{ fontSize: 12.5 }}>
-                    {s.conducted}/{s.planned} dars · {s.remaining} qoldi
-                  </div>
-                </div>
-                <div style={{ fontSize: 16, fontWeight: 800, color: col }}>{s.percent}%</div>
-              </div>
-              <div style={{ height: 10 }} />
-              <div className="progress">
-                <div style={{ width: `${Math.max(0, Math.min(100, s.percent))}%`, background: 'var(--accent)' }} />
-              </div>
+              {c.courseName}
             </button>
-          )
-        })
-      ) : (
-        <div className="card">
-          <EmptyState title="Ma'lumot yo'q" sub="Fan progresi topilmadi." ic="chart" />
+          ))}
         </div>
+      )}
+      <ForecastCard cur={cur} />
+      <Roadmap cur={cur} />
+    </div>
+  )
+}
+
+function ForecastCard({ cur }: { cur: StudentCurriculum }) {
+  const pct = cur.totalItems > 0 ? Math.round((cur.coveredCount / cur.totalItems) * 100) : 0
+  const done = cur.remainingItems <= 0
+  const col = subjectColor(cur.courseId)
+  return (
+    <div className="card" style={{ marginTop: 4, display: 'flex', gap: 14, alignItems: 'center' }}>
+      <Ring value={pct} max={100} size={80} stroke={9} color={col}>
+        <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)' }}>{pct}%</div>
+        <div style={{ fontSize: 10, color: 'var(--muted)' }}>o'tildi</div>
+      </Ring>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text)' }}>{cur.courseName}</div>
+        <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 2 }}>
+          O'tildi {cur.coveredCount}/{cur.totalItems} mavzu
+        </div>
+        <div className="progress" style={{ marginTop: 8 }}>
+          <div style={{ width: `${pct}%`, background: col }} />
+        </div>
+        <div style={{ fontSize: 12.5, marginTop: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Icon name={done ? 'award' : 'clock'} size={15} color={done ? 'var(--green)' : col} fill={done} />
+          {done ? (
+            <span style={{ color: 'var(--green)', fontWeight: 700 }}>Kurs tugatildi! {'\u{1F389}'}</span>
+          ) : (
+            <span style={{ color: 'var(--muted)' }}>
+              ~{cur.estLessonsLeft} dars qoldi
+              {cur.estFinishDate ? ` · ≈ ${fmtDate(cur.estFinishDate)}` : ''}
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function Roadmap({ cur }: { cur: StudentCurriculum }) {
+  const nextId = findNext(cur)
+  const col = subjectColor(cur.courseId)
+  return (
+    <div style={{ marginTop: 18 }}>
+      {cur.levels.map((lv) => {
+        const items = lv.topics.flatMap((t) => t.items)
+        if (!items.length) return null
+        const cov = items.filter((i) => i.covered).length
+        return (
+          <div key={lv.id} style={{ marginBottom: 10 }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '13px 14px',
+                borderRadius: 16,
+                background: col,
+                color: '#fff',
+                marginBottom: 4,
+                boxShadow: `0 8px 20px ${col}40`,
+              }}
+            >
+              <Icon name="book" size={20} color="#fff" fill />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 10.5, fontWeight: 700, opacity: 0.85, textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                  Bo'lim
+                </div>
+                <div style={{ fontSize: 16, fontWeight: 800 }}>{lv.name}</div>
+              </div>
+              <div style={{ fontSize: 13, fontWeight: 800 }}>
+                {cov}/{items.length}
+              </div>
+            </div>
+
+            <div style={{ position: 'relative', padding: '10px 0 4px' }}>
+              <div
+                style={{
+                  position: 'absolute',
+                  left: '50%',
+                  top: 6,
+                  bottom: 6,
+                  width: 3,
+                  background: 'var(--surface3)',
+                  transform: 'translateX(-1.5px)',
+                  borderRadius: 3,
+                }}
+              />
+              <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+                {items.map((it, idx) => (
+                  <Node
+                    key={it.id}
+                    item={it}
+                    state={it.covered ? 'done' : it.id === nextId ? 'now' : 'lock'}
+                    offset={Math.round(Math.sin(idx * 0.85) * 58)}
+                    color={col}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function Node({
+  item,
+  state,
+  offset,
+  color,
+}: {
+  item: CurriculumItem
+  state: 'done' | 'now' | 'lock'
+  offset: number
+  color: string
+}) {
+  const bg = state === 'done' ? 'var(--green)' : state === 'now' ? color : 'var(--surface3)'
+  const fg = state === 'lock' ? 'var(--faint)' : '#fff'
+  const icon = state === 'done' ? 'check' : state === 'now' ? 'book' : 'lock'
+  return (
+    <div style={{ transform: `translateX(${offset}px)`, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, maxWidth: 150 }}>
+      <div
+        style={{
+          width: 58,
+          height: 58,
+          borderRadius: '50%',
+          background: bg,
+          color: fg,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flex: 'none',
+          border: state === 'lock' ? '1px solid var(--border)' : 'none',
+          boxShadow:
+            state === 'now'
+              ? `0 0 0 4px var(--surface), 0 0 0 7px ${color}`
+              : state === 'done'
+                ? '0 4px 10px rgba(22,163,74,.30)'
+                : 'none',
+        }}
+      >
+        <Icon name={icon} size={26} color={fg} fill={state !== 'lock'} />
+      </div>
+      <div
+        style={{
+          fontSize: 11,
+          fontWeight: 700,
+          color: state === 'lock' ? 'var(--faint)' : 'var(--text)',
+          textAlign: 'center',
+          lineHeight: 1.2,
+          maxWidth: 132,
+          overflow: 'hidden',
+          display: '-webkit-box',
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: 'vertical',
+        }}
+      >
+        {item.text}
+      </div>
+      {state === 'now' && <div style={{ fontSize: 10, fontWeight: 800, color }}>HOZIR</div>}
+      {state === 'done' && item.coveredDate && (
+        <div style={{ fontSize: 10, color: 'var(--faint)' }}>{fmtDate(item.coveredDate)}</div>
       )}
     </div>
   )
@@ -338,16 +458,11 @@ function EmptyState({ title, sub, ic = 'sparkle' }: { title: string; sub?: strin
 
 export function StudentProgressScreen() {
   const [mode, setMode] = useState<Mode>(0)
-  const navigate = useNavigate()
 
   return (
     <div className="screen">
       <div className="hd lg">
-        <div className="row sp" style={{ minHeight: 38 }}>
-          <div />
-          <div className="row gap8" />
-        </div>
-        <div className="hd-sub" style={{ marginTop: 8 }}>
+        <div className="hd-sub" style={{ marginTop: 4 }}>
           {SUBS[mode]}
         </div>
         <div className="hd-big">Progress</div>
@@ -365,11 +480,7 @@ export function StudentProgressScreen() {
       </div>
 
       <div className="scroll">
-        {mode === 0 ? (
-          <SubjectsView navigate={(id) => navigate(`/student/progress/subject/${id}`)} />
-        ) : (
-          <RatingView scope={mode === 2 ? 'school' : 'class'} />
-        )}
+        {mode === 0 ? <DasturView /> : <RatingView scope={mode === 2 ? 'school' : 'class'} />}
       </div>
     </div>
   )

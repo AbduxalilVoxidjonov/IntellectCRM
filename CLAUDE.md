@@ -113,6 +113,13 @@ docker compose up -d --build    # app + mssql + cloudflared + backup + mediamtx
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-13: **O'quvchi Dashboard/Progress qayta tashkil + profildan chorak olib tashlandi.** (1) Duolingo o'quv
+  dasturi yo'l-xaritasi (ForecastCard+Roadmap+Node) Dashboard'dan **Progress** tabiga ko'chirildi — Progress segmentlari
+  endi **Dastur** (curriculum) · Sinf · Maktab (eski "Fanlar" subjects-progress segmenti almashtirildi; SubjectProgressDetail
+  route orphan, zararsiz qoldi). (2) **Dashboard** qayta yozildi: to'liq **FISH bilan salom** ("Salom, {fullName} 👋"),
+  tepa-o'ngda **bildirishnoma (qo'ng'iroq)** tugmasi → sheet (hozircha bo'sh holat), **qisqacha ko'rsatkichlar** (Dars
+  qoldirdi · Balans · Guruh) + **umumiy statistika** (O'rtacha baho/Davomat%/Intizom/Uy vazifa% — notebook'dan). (3)
+  **Profil**dagi "Chorak" ministati olib tashlandi (O'rtacha + Guruh qoldi). tsc+vite yashil, deploy ✅, /student 200.
 - 2026-06-13: **Tozalash — eski SchoolLms/ishlatilmayotgan/chorak-hafta APIlar olib tashlandi (audit asosida).**
   Read-only audit agent student vs teacher API'ni solishtirib xavfsiz o'chirish ro'yxatini berdi. **Frontend:**
   o'lik `pages/teacher/journal/JournalPage.tsx` (rout qilinmagan) + `pages/teacher/ui-web/` (**244 MB** eski JSX

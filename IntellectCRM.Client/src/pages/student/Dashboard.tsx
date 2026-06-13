@@ -1,16 +1,12 @@
 import { useEffect, useState } from 'react'
-import {
-  getStudentCurriculum,
-  type StudentCurriculum,
-  type CurriculumItem,
-} from '@/api/services/studentPortal'
+import { getStudentDashboard, getStudentNotebook, type StudentDashboard } from '@/api/services/studentPortal'
 import { useAuth } from '@/context/auth-context'
-import { Icon, Ring, fmtDate, subjectColor } from '@/pages/student/lib'
+import { Icon, fmtMoney, gradeColor } from '@/pages/student/lib'
 
 /* ============================================================
-   O'quvchi Dashboard — O'QUV DASTURI (Duolingo uslubidagi yo'l-xarita).
-   Har kurs bo'yicha: o'tilgan/qolgan + foiz + tugash prognozi; bo'limlar
-   (darajalar) bo'yicha mavzular tugun-tugun yo'l ko'rinishida.
+   O'quvchi Dashboard — to'liq salom + bildirishnoma + qisqacha
+   ko'rsatkichlar (dars qoldirish / balans / guruh) + umumiy statistika.
+   (O'quv dasturi yo'l-xaritasi "Progress" tabига ko'chirildi.)
    ============================================================ */
 
 const WD = ['Yakshanba', 'Dushanba', 'Seshanba', 'Chorshanba', 'Payshanba', 'Juma', 'Shanba']
@@ -19,276 +15,223 @@ function todayLine(): string {
   const d = new Date()
   return `${d.getDate()}-${MO[d.getMonth()]}, ${WD[d.getDay()]}`
 }
-
-/** Birinchi o'tilmagan band (kurs tartibida) — "hozir o'rganiladigan". */
-function findNext(cur: StudentCurriculum): string | null {
-  for (const lv of cur.levels) for (const tp of lv.topics) for (const it of tp.items) if (!it.covered) return it.id
-  return null
-}
+const num = (v: unknown): number => (typeof v === 'number' && isFinite(v) ? v : 0)
 
 export function StudentDashboardScreen() {
   const { user } = useAuth()
-  const first = (user?.fullName || '').trim().split(/\s+/)[0] || ''
-  const [courses, setCourses] = useState<StudentCurriculum[] | null>(null)
-  const [err, setErr] = useState<string | null>(null)
-  const [sel, setSel] = useState(0)
+  const [dash, setDash] = useState<StudentDashboard | null>(null)
+  const [nb, setNb] = useState<Record<string, unknown> | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [notifOpen, setNotifOpen] = useState(false)
 
   useEffect(() => {
     let on = true
-    getStudentCurriculum()
-      .then((c) => on && setCourses(c))
-      .catch((e) => on && setErr(e?.message || String(e)))
+    Promise.all([getStudentDashboard().catch(() => null), getStudentNotebook().catch(() => null)])
+      .then(([d, n]) => {
+        if (!on) return
+        setDash(d)
+        setNb(n)
+      })
+      .finally(() => on && setLoading(false))
     return () => {
       on = false
     }
   }, [])
 
-  const header = (
-    <div className="hd lg">
-      <div className="hd-sub">{todayLine()}</div>
-      <div className="hd-big">
-        Salom, <span style={{ color: 'var(--accent)' }}>{first}</span> {'\u{1F44B}'}
-      </div>
-    </div>
-  )
+  const fullName = dash?.profile?.fullName || user?.fullName || "O'quvchi"
+  const className = dash?.profile?.className || '—'
+  const balance = dash?.balance ?? 0
 
-  if (courses === null && !err)
-    return (
-      <>
-        {header}
-        <div className="center" style={{ minHeight: '50dvh' }}>
-          <div className="spin" />
-        </div>
-      </>
-    )
-  if (err)
-    return (
-      <>
-        {header}
-        <Empty ic="alert" title="Yuklab bo'lmadi" sub={err} />
-      </>
-    )
-  if (!courses || !courses.length)
-    return (
-      <>
-        {header}
-        <Empty ic="book" title="O'quv dasturi yo'q" sub="Hozircha kursingizga o'quv dasturi biriktirilmagan." />
-      </>
-    )
-
-  const cur = courses[Math.min(sel, courses.length - 1)]
+  // Umumiy statistika (notebook'dan, bo'sh bo'lsa 0)
+  const avg = num(nb?.avgGrade)
+  const attended = num(nb?.attended)
+  const conducted = num(nb?.conducted)
+  const missed = Math.max(0, conducted - attended)
+  const attPct = num(nb?.attendancePct)
+  const discipline = num(nb?.disciplineScore) || 100
+  const hwDone = num(nb?.homeworkDone)
+  const hwMissed = num(nb?.homeworkMissed)
+  const hwPct = hwDone + hwMissed > 0 ? Math.round((hwDone / (hwDone + hwMissed)) * 100) : 0
+  const discColor = discipline >= 85 ? 'var(--green)' : discipline >= 60 ? 'var(--amber)' : 'var(--red)'
 
   return (
-    <>
-      {header}
-      <div className="pad" style={{ paddingBottom: 28 }}>
-        {courses.length > 1 && (
-          <div style={{ display: 'flex', gap: 8, overflowX: 'auto', padding: '6px 0 2px' }}>
-            {courses.map((c, i) => (
-              <button
-                key={c.groupId}
-                onClick={() => setSel(i)}
-                className="press"
-                style={{
-                  flex: 'none',
-                  padding: '8px 14px',
-                  borderRadius: 12,
-                  fontSize: 13,
-                  fontWeight: 700,
-                  background: i === sel ? 'var(--accent)' : 'var(--surface)',
-                  color: i === sel ? '#fff' : 'var(--muted)',
-                  border: `1px solid ${i === sel ? 'var(--accent)' : 'var(--border)'}`,
-                }}
-              >
-                {c.courseName}
-              </button>
-            ))}
+    <div className="screen">
+      {/* Salom + bildirishnoma */}
+      <div className="hd" style={{ paddingTop: 10, paddingBottom: 6 }}>
+        <div className="row sp gap10">
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div className="muted" style={{ fontSize: 12.5, fontWeight: 600 }}>{todayLine()}</div>
+            <div style={{ fontSize: 21, fontWeight: 800, letterSpacing: '-.3px', lineHeight: 1.15 }}>
+              Salom, <span style={{ color: 'var(--accent)' }}>{fullName}</span> {'\u{1F44B}'}
+            </div>
+          </div>
+          <button className="iconbtn press" onClick={() => setNotifOpen(true)} aria-label="Bildirishnomalar">
+            <Icon name="bell" size={20} color="var(--text)" />
+          </button>
+        </div>
+      </div>
+
+      <div className="scroll">
+        {loading ? (
+          <div className="center" style={{ minHeight: '40dvh' }}>
+            <div className="spin" />
+          </div>
+        ) : (
+          <div className="pad" style={{ paddingBottom: 28 }}>
+            {/* Qisqacha: dars qoldirish · balans · guruh */}
+            <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+              <Quick
+                icon="alert"
+                label="Dars qoldirdi"
+                value={`${missed}`}
+                tone={missed > 0 ? 'var(--amber)' : 'var(--muted)'}
+              />
+              <Quick
+                icon="wallet"
+                label="Balans"
+                value={fmtMoney(balance)}
+                tone={balance < 0 ? 'var(--red)' : balance > 0 ? 'var(--green)' : 'var(--muted)'}
+                small
+              />
+              <Quick icon="school" label="Guruh" value={className} tone="var(--accent)" small />
+            </div>
+
+            {/* Umumiy statistika */}
+            <div className="sh" style={{ marginTop: 18 }}>
+              <div className="sh-title">Umumiy statistika</div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <Stat icon="chart" label="O'rtacha baho" value={avg > 0 ? avg.toFixed(2) : '—'} color={gradeColor(avg)} />
+              <Stat
+                icon="checkCircle"
+                label="Davomat"
+                value={`${attPct}%`}
+                color="var(--green)"
+                sub={conducted > 0 ? `${attended}/${conducted} dars` : undefined}
+              />
+              <Stat icon="shield" label="Intizom balli" value={`${discipline}`} color={discColor} />
+              <Stat icon="checkCircle" label="Uy vazifa" value={`${hwPct}%`} color="var(--violet)" />
+            </div>
           </div>
         )}
-
-        <ForecastCard cur={cur} />
-        <Roadmap cur={cur} />
       </div>
-    </>
-  )
-}
 
-function ForecastCard({ cur }: { cur: StudentCurriculum }) {
-  const pct = cur.totalItems > 0 ? Math.round((cur.coveredCount / cur.totalItems) * 100) : 0
-  const done = cur.remainingItems <= 0
-  const col = subjectColor(cur.courseId)
-  return (
-    <div className="card" style={{ marginTop: 12, display: 'flex', gap: 14, alignItems: 'center' }}>
-      <Ring value={pct} max={100} size={78} stroke={8} color={col}>
-        <div style={{ fontSize: 19, fontWeight: 800, color: 'var(--text)' }}>{pct}%</div>
-        <div style={{ fontSize: 10, color: 'var(--muted)' }}>o'tildi</div>
-      </Ring>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text)' }}>{cur.courseName}</div>
-        <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 2 }}>
-          O'tildi {cur.coveredCount}/{cur.totalItems} mavzu
-        </div>
-        <div className="progress" style={{ marginTop: 8 }}>
-          <div style={{ width: `${pct}%`, background: col }} />
-        </div>
-        <div style={{ fontSize: 12.5, marginTop: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
-          <Icon name={done ? 'award' : 'clock'} size={15} color={done ? 'var(--green)' : col} fill={done} />
-          {done ? (
-            <span style={{ color: 'var(--green)', fontWeight: 700 }}>Kurs tugatildi! {'\u{1F389}'}</span>
-          ) : (
-            <span style={{ color: 'var(--muted)' }}>
-              ~{cur.estLessonsLeft} dars qoldi
-              {cur.estFinishDate ? ` · ≈ ${fmtDate(cur.estFinishDate)}` : ''}
-            </span>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function Roadmap({ cur }: { cur: StudentCurriculum }) {
-  const nextId = findNext(cur)
-  const col = subjectColor(cur.courseId)
-  return (
-    <div style={{ marginTop: 18 }}>
-      {cur.levels.map((lv) => {
-        const items = lv.topics.flatMap((t) => t.items)
-        if (!items.length) return null
-        const cov = items.filter((i) => i.covered).length
-        return (
-          <div key={lv.id} style={{ marginBottom: 10 }}>
-            {/* Bo'lim (daraja) banneri */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                padding: '13px 14px',
-                borderRadius: 16,
-                background: col,
-                color: '#fff',
-                marginBottom: 4,
-                boxShadow: `0 8px 20px ${col}40`,
-              }}
-            >
-              <Icon name="book" size={20} color="#fff" fill />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 10.5, fontWeight: 700, opacity: 0.85, textTransform: 'uppercase', letterSpacing: 0.4 }}>
-                  Bo'lim
-                </div>
-                <div style={{ fontSize: 16, fontWeight: 800 }}>{lv.name}</div>
-              </div>
-              <div style={{ fontSize: 13, fontWeight: 800 }}>
-                {cov}/{items.length}
-              </div>
+      {/* Bildirishnomalar paneli */}
+      {notifOpen && (
+        <div className="scrim" onClick={() => setNotifOpen(false)}>
+          <div className="sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="grab" />
+            <div className="row sp" style={{ marginBottom: 8 }}>
+              <div style={{ fontSize: 17, fontWeight: 800 }}>Bildirishnomalar</div>
+              <button className="iconbtn press" onClick={() => setNotifOpen(false)} aria-label="Yopish">
+                <Icon name="x" size={18} color="var(--text)" />
+              </button>
             </div>
-
-            {/* Yo'l (tugunlar) */}
-            <div style={{ position: 'relative', padding: '10px 0 4px' }}>
-              <div
-                style={{
-                  position: 'absolute',
-                  left: '50%',
-                  top: 6,
-                  bottom: 6,
-                  width: 3,
-                  background: 'var(--surface3)',
-                  transform: 'translateX(-1.5px)',
-                  borderRadius: 3,
-                }}
-              />
-              <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-                {items.map((it, idx) => (
-                  <Node
-                    key={it.id}
-                    item={it}
-                    state={it.covered ? 'done' : it.id === nextId ? 'now' : 'lock'}
-                    offset={Math.round(Math.sin(idx * 0.85) * 58)}
-                    color={col}
-                  />
-                ))}
+            <div className="empty" style={{ paddingTop: 24, paddingBottom: 24 }}>
+              <div className="empty-ic">
+                <Icon name="bell" size={26} color="var(--faint)" />
+              </div>
+              <div style={{ fontWeight: 800, fontSize: 15 }}>Bildirishnoma yo'q</div>
+              <div className="muted" style={{ fontSize: 13, marginTop: 6 }}>
+                Yangi e'lon va baholar shu yerda ko'rinadi.
               </div>
             </div>
           </div>
-        )
-      })}
-    </div>
-  )
-}
-
-function Node({
-  item,
-  state,
-  offset,
-  color,
-}: {
-  item: CurriculumItem
-  state: 'done' | 'now' | 'lock'
-  offset: number
-  color: string
-}) {
-  const bg = state === 'done' ? 'var(--green)' : state === 'now' ? color : 'var(--surface3)'
-  const fg = state === 'lock' ? 'var(--faint)' : '#fff'
-  const icon = state === 'done' ? 'check' : state === 'now' ? 'book' : 'lock'
-  return (
-    <div style={{ transform: `translateX(${offset}px)`, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, maxWidth: 150 }}>
-      <div
-        style={{
-          width: 58,
-          height: 58,
-          borderRadius: '50%',
-          background: bg,
-          color: fg,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          flex: 'none',
-          border: state === 'lock' ? '1px solid var(--border)' : 'none',
-          boxShadow:
-            state === 'now'
-              ? `0 0 0 4px var(--surface), 0 0 0 7px ${color}`
-              : state === 'done'
-                ? '0 4px 10px rgba(22,163,74,.30)'
-                : 'none',
-        }}
-      >
-        <Icon name={icon} size={26} color={fg} fill={state !== 'lock'} />
-      </div>
-      <div
-        style={{
-          fontSize: 11,
-          fontWeight: 700,
-          color: state === 'lock' ? 'var(--faint)' : 'var(--text)',
-          textAlign: 'center',
-          lineHeight: 1.2,
-          maxWidth: 132,
-          overflow: 'hidden',
-          display: '-webkit-box',
-          WebkitLineClamp: 2,
-          WebkitBoxOrient: 'vertical',
-        }}
-      >
-        {item.text}
-      </div>
-      {state === 'now' && <div style={{ fontSize: 10, fontWeight: 800, color }}>HOZIR</div>}
-      {state === 'done' && item.coveredDate && (
-        <div style={{ fontSize: 10, color: 'var(--faint)' }}>{fmtDate(item.coveredDate)}</div>
+        </div>
       )}
     </div>
   )
 }
 
-function Empty({ ic, title, sub }: { ic: string; title: string; sub: string }) {
+function Quick({
+  icon,
+  label,
+  value,
+  tone,
+  small,
+}: {
+  icon: string
+  label: string
+  value: string
+  tone: string
+  small?: boolean
+}) {
   return (
-    <div className="empty" style={{ paddingTop: 56 }}>
-      <div className="empty-ic">
-        <Icon name={ic} size={28} color="var(--faint)" />
+    <div className="card" style={{ flex: 1, minWidth: 0, padding: 12 }}>
+      <div
+        style={{
+          width: 30,
+          height: 30,
+          borderRadius: 9,
+          background: `color-mix(in srgb,${tone} 14%,transparent)`,
+          color: tone,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <Icon name={icon} size={17} color={tone} />
       </div>
-      <div style={{ fontWeight: 800, fontSize: 16, color: 'var(--text)' }}>{title}</div>
-      <div className="muted" style={{ fontSize: 13.5, marginTop: 6 }}>
-        {sub}
+      <div
+        style={{
+          marginTop: 8,
+          fontSize: small ? 14 : 20,
+          fontWeight: 800,
+          color: tone,
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+        }}
+      >
+        {value}
       </div>
+      <div className="muted" style={{ fontSize: 10.5, marginTop: 2 }}>
+        {label}
+      </div>
+    </div>
+  )
+}
+
+function Stat({
+  icon,
+  label,
+  value,
+  color,
+  sub,
+}: {
+  icon: string
+  label: string
+  value: string
+  color: string
+  sub?: string
+}) {
+  return (
+    <div className="card" style={{ padding: 14 }}>
+      <div className="row sp">
+        <div
+          style={{
+            width: 32,
+            height: 32,
+            borderRadius: 10,
+            background: `color-mix(in srgb,${color} 14%,transparent)`,
+            color,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Icon name={icon} size={18} color={color} />
+        </div>
+      </div>
+      <div style={{ fontSize: 22, fontWeight: 800, color, marginTop: 8 }}>{value}</div>
+      <div className="muted" style={{ fontSize: 11.5, marginTop: 1 }}>
+        {label}
+      </div>
+      {sub && (
+        <div className="faint" style={{ fontSize: 10.5, marginTop: 1 }}>
+          {sub}
+        </div>
+      )}
     </div>
   )
 }
