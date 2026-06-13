@@ -4,6 +4,7 @@ import {
   ArrowLeft, GraduationCap, CalendarCheck, ShieldAlert, ClipboardCheck,
   User, Phone, Wallet, BookOpen, MapPin, Cake, CalendarPlus, Percent, IdCard,
   School, Clock, CalendarDays, ChevronRight, History, ListChecks, ChevronDown, Check,
+  CalendarClock,
 } from 'lucide-react'
 import { genderLabels } from '@/config/constants'
 import {
@@ -13,7 +14,7 @@ import {
 } from 'recharts'
 import { getStudentNotebook, type StudentNotebook } from '@/api/services/studentNotebook'
 import { getStudentGroups, getClasses } from '@/api/services/classes'
-import { getCurriculum, getProgress, setProgress } from '@/api/services/curriculum'
+import { getCurriculum, getProgress, setProgress, getStudentCoverageLog, type CoverageLogEntry } from '@/api/services/curriculum'
 import type { StudentGroupMembership, Curriculum } from '@/types'
 import { cn, formatDate, formatMoney } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
@@ -66,6 +67,8 @@ export function StudentDetailPage() {
   const [evalMonth, setEvalMonth] = useState('')
   /** Fan baholari dinamikasida tanlangan oy ("YYYY-MM"). */
   const [gradeMonth, setGradeMonth] = useState('')
+  /** Darslar tarixi — o'tilgan mavzular jadvali (eng yangisi birinchi). */
+  const [coverageLog, setCoverageLog] = useState<CoverageLogEntry[]>([])
 
   useEffect(() => {
     if (!id) return
@@ -76,6 +79,9 @@ export function StudentDetailPage() {
       .finally(() => setLoading(false))
     getStudentGroups(id)
       .then(setGroups)
+      .catch(() => {})
+    getStudentCoverageLog(id)
+      .then(setCoverageLog)
       .catch(() => {})
   }, [id])
 
@@ -396,6 +402,49 @@ export function StudentDetailPage() {
               />
             ))}
           </div>
+        )}
+      </Section>
+
+      {/* Darslar tarixi — guruh jurnalida belgilangan o'tilgan mavzular, eng yangisi birinchi */}
+      <Section title="Darslar tarixi (o'tilgan mavzular)" icon={CalendarClock}>
+        {coverageLog.length === 0 ? (
+          <Empty>Hali dars o'tilmagan</Empty>
+        ) : (
+          <ul className="space-y-2">
+            {coverageLog.map((e, i) => (
+              <li
+                key={`${e.date}-${i}`}
+                className="flex items-start gap-3 rounded-lg border border-slate-100 bg-white px-3 py-2.5 transition-colors hover:border-brand-200 hover:bg-brand-50/30"
+              >
+                <span className="mt-0.5 shrink-0 rounded-md bg-brand-50 px-2 py-1 font-mono text-xs font-semibold text-brand-700">
+                  {formatDate(e.date)}
+                </span>
+                <div className="min-w-0 flex-1">
+                  {e.isRevision ? (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge tone="amber">Takrorlash</Badge>
+                      <span className="text-sm text-slate-600">
+                        {e.courseName}
+                        {e.groupName ? ` · ${e.groupName}` : ''}
+                      </span>
+                    </div>
+                  ) : (
+                    <>
+                      <p className="break-words text-sm font-semibold text-slate-800">{e.topicTitle}</p>
+                      {e.itemText && (
+                        <p className="mt-0.5 break-words text-sm text-slate-500">{e.itemText}</p>
+                      )}
+                      <p className="mt-1 text-xs text-slate-400">
+                        {e.courseName}
+                        {e.groupName ? ` · ${e.groupName}` : ''}
+                        {e.levelName ? ` · ${e.levelName}` : ''}
+                      </p>
+                    </>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
         )}
       </Section>
 

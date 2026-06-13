@@ -996,8 +996,10 @@ public record CurriculumLevelDto(string Id, string Name, string Note, int Order,
 public record CurriculumDto(string SubjectId, string CourseName, List<CurriculumLevelDto> Levels);
 
 // ---- Guruh sillabus o'tilishi + tugash prognozi ----
-/// <summary>Guruh sillabus bandi: o'tilgan (Covered) bayrog'i bilan.</summary>
-public record GroupCurriculumItemDto(string Id, string Text, string Note, int Order, bool Covered);
+/// <summary>Guruh sillabus bandi: o'tilgan (Covered) bayrog'i + o'tilgan sana (CoveredDate) bilan.</summary>
+public record GroupCurriculumItemDto(string Id, string Text, string Note, int Order, bool Covered, string CoveredDate);
+/// <summary>O'quvchining bir guruhda o'tilgan sillabus bandi (yoki takrorlash darsi) — vaqt jadvali yozuvi.</summary>
+public record CoverageLogEntryDto(string Date, string CourseName, string GroupName, string LevelName, string TopicTitle, string ItemText, bool IsRevision);
 /// <summary>Guruh sillabus mavzusi.</summary>
 public record GroupCurriculumTopicDto(string Id, string Title, string Note, int Order, List<GroupCurriculumItemDto> Items);
 /// <summary>Guruh sillabus darajasi.</summary>

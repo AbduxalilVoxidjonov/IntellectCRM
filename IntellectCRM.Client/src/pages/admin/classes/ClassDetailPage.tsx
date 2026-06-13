@@ -911,6 +911,11 @@ function CurriculumSection({
                                           </span>
                                         )}
                                       </span>
+                                      {item.covered && item.coveredDate && (
+                                        <span className="ml-auto flex-shrink-0 self-center whitespace-nowrap rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-mono text-slate-400 no-underline">
+                                          {formatDate(item.coveredDate)}
+                                        </span>
+                                      )}
                                     </label>
                                   )
                                 })}

@@ -324,6 +324,14 @@ public class CurriculumController(AppDbContext db) : ControllerBase
             .Where(l => !l.IsRevision && l.ItemId != "" && existingItemIds.Contains(l.ItemId))
             .Select(l => l.ItemId).Distinct().ToHashSet();
 
+        // Har band uchun eng erta o'tilgan sana (bir nechta yozuv bo'lsa Date, so'ng CreatedAt bo'yicha).
+        var coverDateByItem = logs
+            .Where(l => !l.IsRevision && l.ItemId != "")
+            .GroupBy(l => l.ItemId)
+            .ToDictionary(
+                g => g.Key,
+                g => g.OrderBy(l => l.Date).ThenBy(l => l.CreatedAt).First().Date);
+
         var totalItems = items.Count;
         var coveredCount = coveredItemIds.Count;
         var revisionLessons = logs.Count(l => l.IsRevision);
@@ -366,7 +374,8 @@ public class CurriculumController(AppDbContext db) : ControllerBase
             topics.Where(t => t.LevelId == l.Id).Select(t => new GroupCurriculumTopicDto(
                 t.Id, t.Title, t.Note, t.Order,
                 items.Where(i => i.TopicId == t.Id).Select(i => new GroupCurriculumItemDto(
-                    i.Id, i.Text, i.Note, i.Order, coveredItemIds.Contains(i.Id))).ToList()
+                    i.Id, i.Text, i.Note, i.Order, coveredItemIds.Contains(i.Id),
+                    coveredItemIds.Contains(i.Id) && coverDateByItem.TryGetValue(i.Id, out var cd) ? cd : "")).ToList()
             )).ToList()
         )).ToList();
 
@@ -433,5 +442,80 @@ public class CurriculumController(AppDbContext db) : ControllerBase
         var revisionLessons = await db.GroupCurriculumLogs
             .CountAsync(g => g.GroupId == groupId && g.IsRevision);
         return Ok(new { ok = true, revisionLessons });
+    }
+
+    // ---- O'quvchining o'tilgan sillabus vaqt jadvali (per-student coverage timeline) ----
+
+    [HttpGet("student/{studentId}/coverage-log")]
+    public async Task<ActionResult<List<CoverageLogEntryDto>>> GetStudentCoverageLog(string studentId)
+    {
+        // O'quvchining FAOL guruh a'zoliklari.
+        var groupIds = await db.StudentGroups
+            .Where(sg => sg.StudentId == studentId && sg.IsActive)
+            .Select(sg => sg.GroupId)
+            .Distinct()
+            .ToListAsync();
+        if (groupIds.Count == 0) return new List<CoverageLogEntryDto>();
+
+        var groups = await db.Classes
+            .Where(g => groupIds.Contains(g.Id))
+            .ToListAsync();
+
+        var courseIds = groups.Select(g => g.CourseId).Where(c => c != "").Distinct().ToList();
+
+        var subjects = await db.Subjects
+            .Where(s => courseIds.Contains(s.Id))
+            .ToListAsync();
+        var courseNameById = subjects.ToDictionary(s => s.Id, s => s.Name);
+
+        // Tegishli kurslarning band/mavzu/daraja lug'atlari (per-log so'rovsiz).
+        var items = await db.CourseItems
+            .Where(i => courseIds.Contains(i.SubjectId))
+            .ToListAsync();
+        var topics = await db.CourseTopics
+            .Where(t => courseIds.Contains(t.SubjectId))
+            .ToListAsync();
+        var levels = await db.CourseLevels
+            .Where(l => courseIds.Contains(l.SubjectId))
+            .ToListAsync();
+
+        var itemById = items.ToDictionary(i => i.Id);
+        var topicById = topics.ToDictionary(t => t.Id);
+        var levelById = levels.ToDictionary(l => l.Id);
+
+        var logs = await db.GroupCurriculumLogs
+            .Where(g => groupIds.Contains(g.GroupId))
+            .ToListAsync();
+
+        var entries = new List<(string Date, string CreatedAt, CoverageLogEntryDto Dto)>();
+
+        foreach (var log in logs)
+        {
+            var group = groups.FirstOrDefault(g => g.Id == log.GroupId);
+            if (group == null) continue;
+            var groupName = group.Name;
+            var courseName = courseNameById.TryGetValue(group.CourseId, out var cn) ? cn : "";
+
+            if (log.IsRevision)
+            {
+                entries.Add((log.Date, log.CreatedAt, new CoverageLogEntryDto(
+                    log.Date, courseName, groupName, "", "", "Takrorlash darsi", true)));
+            }
+            else
+            {
+                if (!itemById.TryGetValue(log.ItemId, out var item)) continue; // band o'chirilgan
+                var topicTitle = topicById.TryGetValue(item.TopicId, out var topic) ? topic.Title : "";
+                var levelName = topicById.TryGetValue(item.TopicId, out var tp)
+                    && levelById.TryGetValue(tp.LevelId, out var level) ? level.Name : "";
+                entries.Add((log.Date, log.CreatedAt, new CoverageLogEntryDto(
+                    log.Date, courseName, groupName, levelName, topicTitle, item.Text, false)));
+            }
+        }
+
+        return entries
+            .OrderByDescending(e => e.Date)
+            .ThenByDescending(e => e.CreatedAt)
+            .Select(e => e.Dto)
+            .ToList();
     }
 }

@@ -61,6 +61,7 @@ export interface GroupCurriculumItem {
   note: string
   order: number
   covered: boolean
+  coveredDate: string
 }
 export interface GroupCurriculumTopic {
   id: string
@@ -107,4 +108,21 @@ export async function changeGroupRevision(groupId: string, delta: number): Promi
     { delta },
   )
   return { revisionLessons: data.revisionLessons }
+}
+
+// ---- O'quvchi darslar tarixi (o'tilgan mavzular jadvali, eng yangisi birinchi) ----
+
+export interface CoverageLogEntry {
+  date: string
+  courseName: string
+  groupName: string
+  levelName: string
+  topicTitle: string
+  itemText: string
+  isRevision: boolean
+}
+
+export async function getStudentCoverageLog(studentId: string): Promise<CoverageLogEntry[]> {
+  const { data } = await api.get<CoverageLogEntry[]>(`/admin/curriculum/student/${studentId}/coverage-log`)
+  return data
 }
