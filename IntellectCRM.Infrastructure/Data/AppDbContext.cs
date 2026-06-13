@@ -38,7 +38,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
     public DbSet<Broadcast> Broadcasts => Set<Broadcast>();
     public DbSet<PushMessage> PushMessages => Set<PushMessage>();
-    public DbSet<PickupRequest> PickupRequests => Set<PickupRequest>();
     public DbSet<TelegramRegistration> TelegramRegistrations => Set<TelegramRegistration>();
     public DbSet<Assignment> Assignments => Set<Assignment>();
     public DbSet<AssignmentType> AssignmentTypes => Set<AssignmentType>();

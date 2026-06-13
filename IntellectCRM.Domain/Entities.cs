@@ -749,27 +749,6 @@ public class PushMessage
     public int SentCount { get; set; }
 }
 
-/// <summary>
-/// Farzandni olib ketish so'rovi. Ota-ona ilovada "Farzandimni olishga keldim" bossa yaratiladi;
-/// sinf rahbari ilovada "Qabul qildim" bossa Accepted bo'ladi. Har ikki tomonga push boradi.
-/// </summary>
-public class PickupRequest
-{
-    public string Id { get; set; } = Guid.NewGuid().ToString();
-    public string StudentId { get; set; } = string.Empty;
-    /// <summary>O'quvchi F.I.SH (nusxa — ko'rsatish uchun).</summary>
-    public string StudentName { get; set; } = string.Empty;
-    public string ClassName { get; set; } = string.Empty;
-    /// <summary>So'rovchi (ota-ona/oila akkaunti) UserId — javob push'i shu yerga boradi.</summary>
-    public string RequestedByUserId { get; set; } = string.Empty;
-    /// <summary>pending | accepted</summary>
-    public string Status { get; set; } = "pending";
-    public string CreatedAt { get; set; } = string.Empty;
-    public string? AcceptedAt { get; set; }
-    public string? AcceptedByTeacherId { get; set; }
-    /// <summary>Qabul qilgan (sinf rahbari) F.I.SH.</summary>
-    public string? AcceptedByName { get; set; }
-}
 
 /// <summary>
 /// Ota-onaning Telegram ro'yxati — Telegram chatId o'quvchiga bog'lanadi (sinf o'quvchidan

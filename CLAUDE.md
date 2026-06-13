@@ -113,6 +113,15 @@ docker compose up -d --build    # app + mssql + cloudflared + backup + mediamtx
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-13: **Pickup (farzandni olib ketish) TO'LIQ olib tashlandi.** `PickupRequest` entity + DbSet (IAppDbContext+
+  AppDbContext) + DTO'lar (CreatePickupRequest/PickupRequestDto/HomeroomStudentDto/HandoverRequest) o'chirildi.
+  StudentPortalController: `PushToUserAsync`+`PickupDto` helperlar, `POST/GET pickup`, `ResolveOwnStudentAsync`
+  (faqat pickup ishlatardi) olib tashlandi; konstruktordan `FcmService fcm` (endi unread) olib tashlandi.
+  TeacherPortalController: `PickupDto`, `GET pickups`, `GET homeroom`, `POST homeroom/handover`, `POST pickups/{id}/accept`
+  olib tashlandi. Inkremental migratsiya `RemovePickup` (faqat DropTable PickupRequests). Frontend'da pickup UI yo'q
+  edi (faqat NOTIF_ICON map'da `pickup` kaliti qoldi — zararsiz). `Teacher.HomeroomClass` maydoni SAQLANDI (ChatService/
+  StudentReportBuilder homeroom o'qituvchi yorlig'i uchun). Backend 0 xato, tsc+vite yashil, deploy ✅; jonli:
+  student/pickup·teacher/pickups·homeroom·handover hammasi 404.
 - 2026-06-13: **Bildirishnoma TASDIQLASH (read-receipt) — admin e'lonida "Tasdiqlash" tugmasi, admin kim tasdiqlaganini
   ko'radi.** `UserNotification`ga `ConfirmedAt` + `PushMessageId` (broadcast'ga bog'lash) + inkremental migratsiya
   `AddNotificationConfirm`. `NotificationStore.Add`ga `pushMessageId`; `MessagesController.SendPush` PushMessage Id'sini

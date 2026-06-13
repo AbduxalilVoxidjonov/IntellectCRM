@@ -39,7 +39,6 @@ public interface IAppDbContext
     DbSet<ChatMessage> ChatMessages { get; }
     DbSet<Broadcast> Broadcasts { get; }
     DbSet<PushMessage> PushMessages { get; }
-    DbSet<PickupRequest> PickupRequests { get; }
     DbSet<TelegramRegistration> TelegramRegistrations { get; }
     DbSet<Assignment> Assignments { get; }
     DbSet<AssignmentType> AssignmentTypes { get; }

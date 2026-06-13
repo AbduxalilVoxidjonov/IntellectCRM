@@ -615,18 +615,6 @@ public record StudentDashboardDto(
 /// <summary>O'quvchi/foydalanuvchi shaxsiy sozlamasi (til, tema, bildirishnoma).</summary>
 public record UserSettingsDto(string Language, string Theme, bool NotificationsEnabled);
 
-/* ---------- Farzandni olib ketish (pickup) ---------- */
-/// <summary>Ota-ona "Farzandimni olishga keldim" so'rovi (ixtiyoriy studentId — bir nechta farzand bo'lsa).</summary>
-public record CreatePickupRequest(string? StudentId);
-/// <summary>Pickup so'rovi holati. Status: "pending" | "accepted".</summary>
-public record PickupRequestDto(
-    string Id, string StudentId, string StudentName, string ClassName, string Status,
-    string CreatedAt, string? AcceptedAt, string? AcceptedByName);
-/// <summary>Sinf rahbarligi ro'yxatidagi bitta o'quvchi — ota-onasi kelgan (pending) bo'lsa belgilanadi.</summary>
-public record HomeroomStudentDto(
-    string StudentId, string FullName, bool HasPendingPickup, string? Status, string? RequestedAt);
-/// <summary>Sinf rahbari farzandni ota-onasiga topshirish so'rovi.</summary>
-public record HandoverRequest(string StudentId);
 /// <summary>Sozlamani yangilash so'rovi. Berilgan maydonlar yangilanadi, qolganlari saqlanadi.</summary>
 public record SaveUserSettingsRequest(string? Language, string? Theme, bool? NotificationsEnabled);
 
