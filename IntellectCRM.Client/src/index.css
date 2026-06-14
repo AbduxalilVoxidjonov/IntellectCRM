@@ -145,6 +145,77 @@ body {
   transform: scale(0.97);
 }
 
+/* ── O'qituvchi portali — TUNGI REJIM (.teacher-app.dark) ──
+   Semantik tokenlar qayta aniqlanadi (text-ink/bg-paper/border-line/bg-tealsoft...
+   avtomatik moslashadi) + komponentlardagi hardcoded neutral utility'lar
+   (bg-white, slate-*) dark qiymatga remap qilinadi → har bir o'qituvchi ekrani
+   faylga tegmasdan dark-aware bo'ladi. */
+.teacher-app.dark {
+  --color-ink: #e9efed;
+  --color-mute: #9aa6a2;
+  --color-faint: #6f7a76;
+  --color-line: #26322e;
+  --color-line-soft: #1f2a27;
+  --color-paper: #0e1513;
+  --color-paper2: #131c19;
+  --color-panel2: #16201d;
+  --color-panel3: #1c2723;
+  --color-tealsoft: #0f3a34;
+  --color-chip: #18221f;
+  --shadow-card: 0 2px 10px rgba(0, 0, 0, 0.5);
+  --shadow-soft: 0 1px 3px rgba(0, 0, 0, 0.4);
+  color: var(--color-ink);
+}
+/* Tashqi ramka (480px ustun atrofi) — chuqur fon */
+.teacher-app.dark.bg-neutral-200,
+.teacher-app.dark .bg-neutral-200 {
+  background-color: #05080a !important;
+}
+/* Oq yuzalar (kartalar, nav, modal) → panel foni */
+.teacher-app.dark .bg-white {
+  background-color: var(--color-panel2) !important;
+}
+.teacher-app.dark .bg-slate-50,
+.teacher-app.dark .bg-slate-100 {
+  background-color: var(--color-panel3) !important;
+}
+.teacher-app.dark .bg-slate-200 {
+  background-color: #243029 !important;
+}
+/* Matnlar */
+.teacher-app.dark .text-slate-800,
+.teacher-app.dark .text-slate-700 {
+  color: var(--color-ink) !important;
+}
+.teacher-app.dark .text-slate-600,
+.teacher-app.dark .text-slate-500 {
+  color: var(--color-mute) !important;
+}
+.teacher-app.dark .text-slate-400 {
+  color: var(--color-faint) !important;
+}
+/* Chegaralar */
+.teacher-app.dark .border-slate-100,
+.teacher-app.dark .border-slate-200 {
+  border-color: var(--color-line) !important;
+}
+/* Teal aksent matni — dark fonda yorqinroq (o'qilishi uchun) */
+.teacher-app.dark .text-teal-700,
+.teacher-app.dark .text-teal-600 {
+  color: #5eead4 !important;
+}
+/* Input/textarea */
+.teacher-app.dark input,
+.teacher-app.dark textarea,
+.teacher-app.dark select {
+  background-color: var(--color-panel2);
+  color: var(--color-ink);
+}
+.teacher-app.dark input::placeholder,
+.teacher-app.dark textarea::placeholder {
+  color: var(--color-faint);
+}
+
 /* ============================================================
    O'QUVCHI portali (blue) — student.html dizayni
    Hammasi .student-app ostida scoped (admin/teacher tegilmaydi).

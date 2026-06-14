@@ -1,11 +1,23 @@
 import { useEffect, useState } from 'react'
-import { GraduationCap, BookOpen, Wallet, LogOut, MessageSquare, ChevronRight } from 'lucide-react'
+import {
+  GraduationCap, BookOpen, Wallet, LogOut, MessageSquare, ChevronRight,
+  ListChecks, BarChart3, Lock, Moon, Bell,
+} from 'lucide-react'
 import { Link } from 'react-router-dom'
 import type { SalaryLedger, TeacherClass } from '@/types'
 import { getMyClasses, getTeacherSalary } from '@/api/services/teacher'
+import { getTeacherTheme, setTeacherTheme } from '@/components/layout/TeacherMobileLayout'
 import { useAuth } from '@/context/auth-context'
 import { Loader } from '@/components/ui/Loader'
-import { formatMoney } from '@/lib/utils'
+import { formatMoney, cn } from '@/lib/utils'
+
+const MENU: { to: string; label: string; sub: string; icon: typeof BookOpen; color: string }[] = [
+  { to: '/teacher/coverage', label: "Dars o'tilishi", sub: "Kurs dasturi o'tilishi + prognoz", icon: ListChecks, color: '#0d9488' },
+  { to: '/teacher/learning', label: "Ta'lim progresi", sub: "O'quvchilar o'zlashtirishi", icon: BarChart3, color: '#2563eb' },
+  { to: '/teacher/salary', label: 'Maosh', sub: 'Oylik hisob va tarix', icon: Wallet, color: '#7c3aed' },
+  { to: '/teacher/feedback', label: 'Taklif va shikoyat', sub: 'Adminga xabar yuborish', icon: MessageSquare, color: '#0d9488' },
+  { to: '/teacher/account', label: 'Parolni almashtirish', sub: 'Hisob xavfsizligi', icon: Lock, color: '#64748b' },
+]
 
 function initialsOf(name: string): string {
   return name
@@ -23,6 +35,19 @@ export function TeacherProfilePage() {
   const [classes, setClasses] = useState<TeacherClass[]>([])
   const [salary, setSalary] = useState<SalaryLedger | null>(null)
   const [loading, setLoading] = useState(true)
+  const [dark, setDark] = useState<boolean>(() => getTeacherTheme() === 'dark')
+  const [push, setPush] = useState<boolean>(() => localStorage.getItem('teacher_push') !== 'off')
+
+  const toggleDark = () => {
+    const next = !dark
+    setDark(next)
+    setTeacherTheme(next ? 'dark' : 'light')
+  }
+  const togglePush = () => {
+    const next = !push
+    setPush(next)
+    localStorage.setItem('teacher_push', next ? 'on' : 'off')
+  }
 
   useEffect(() => {
     Promise.all([
@@ -132,18 +157,55 @@ export function TeacherProfilePage() {
         )}
       </div>
 
-      {/* Boshqa */}
+      {/* Bo'limlar menyusi */}
       <div className="mt-4 overflow-hidden rounded-[20px] border border-line bg-white shadow-[var(--shadow-card)]">
-        <Link to="/teacher/feedback" className="tap-scale flex items-center gap-3 px-4 py-3.5 text-left">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-tealsoft text-teal-700">
-            <MessageSquare className="h-[18px] w-[18px]" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-[14px] font-bold text-ink">Taklif va shikoyat</p>
-            <p className="text-[11px] text-mute">Adminga taklif yoki shikoyat yuborish</p>
-          </div>
-          <ChevronRight className="h-5 w-5 shrink-0 text-faint" />
-        </Link>
+        {MENU.map((m, i) => {
+          const Icon = m.icon
+          return (
+            <Link
+              key={m.to}
+              to={m.to}
+              className={cn(
+                'tap-scale flex items-center gap-3 px-4 py-3.5 text-left',
+                i < MENU.length - 1 && 'border-b border-line',
+              )}
+            >
+              <div
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px]"
+                style={{ background: m.color + '22', color: m.color }}
+              >
+                <Icon className="h-[18px] w-[18px]" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[14px] font-bold text-ink">{m.label}</p>
+                <p className="text-[11px] text-mute">{m.sub}</p>
+              </div>
+              <ChevronRight className="h-5 w-5 shrink-0 text-faint" />
+            </Link>
+          )
+        })}
+      </div>
+
+      {/* Sozlamalar */}
+      <p className="mb-2 mt-5 pl-1 text-[13px] font-bold tracking-tight text-ink">Sozlamalar</p>
+      <div className="overflow-hidden rounded-[20px] border border-line bg-white shadow-[var(--shadow-card)]">
+        <ToggleRow
+          icon={Moon}
+          color="#7c3aed"
+          label="Tungi rejim"
+          sub={dark ? 'Yoqilgan' : "O'chirilgan"}
+          on={dark}
+          onToggle={toggleDark}
+          border
+        />
+        <ToggleRow
+          icon={Bell}
+          color="#0d9488"
+          label="Bildirishnoma"
+          sub={push ? 'Yoqilgan' : "O'chirilgan"}
+          on={push}
+          onToggle={togglePush}
+        />
       </div>
 
       {/* Chiqish */}
@@ -184,5 +246,56 @@ function InfoRow({
         </p>
       </div>
     </div>
+  )
+}
+
+function ToggleRow({
+  icon: Icon,
+  color,
+  label,
+  sub,
+  on,
+  onToggle,
+  border,
+}: {
+  icon: typeof GraduationCap
+  color: string
+  label: string
+  sub: string
+  on: boolean
+  onToggle: () => void
+  border?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className={cn('flex w-full items-center gap-3 px-4 py-3.5 text-left', border && 'border-b border-line')}
+    >
+      <div
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px]"
+        style={{ background: color + '22', color }}
+      >
+        <Icon className="h-[18px] w-[18px]" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-[14px] font-bold text-ink">{label}</p>
+        <p className="text-[11px] text-mute">{sub}</p>
+      </div>
+      {/* Toggle switch */}
+      <span
+        className={cn(
+          'relative h-6 w-11 shrink-0 rounded-full transition-colors',
+          on ? 'bg-teal-600' : 'bg-slate-200',
+        )}
+      >
+        <span
+          className={cn(
+            'absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform',
+            on ? 'translate-x-[22px]' : 'translate-x-0.5',
+          )}
+        />
+      </span>
+    </button>
   )
 }

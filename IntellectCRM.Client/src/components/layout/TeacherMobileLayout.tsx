@@ -1,7 +1,18 @@
+import { useEffect, useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { Home, BookOpen, ClipboardList, MessageCircle, User } from 'lucide-react'
 import { UnreadProvider, useUnread } from '@/context/unread-context'
 import { cn } from '@/lib/utils'
+
+/** Joriy o'qituvchi temasi ('light' | 'dark') — localStorage'dan. */
+export function getTeacherTheme(): 'light' | 'dark' {
+  return localStorage.getItem('teacher_theme') === 'dark' ? 'dark' : 'light'
+}
+/** Temani saqlash + boshqa komponentlarni xabardor qilish (custom event). */
+export function setTeacherTheme(t: 'light' | 'dark') {
+  localStorage.setItem('teacher_theme', t)
+  window.dispatchEvent(new Event('teacher-theme'))
+}
 
 interface Tab {
   to: string
@@ -36,9 +47,15 @@ export function TeacherMobileLayout() {
 function Shell() {
   const { unreadChannels } = useUnread()
   const hasUnread = unreadChannels.size > 0
+  const [theme, setTheme] = useState<'light' | 'dark'>(getTeacherTheme)
+  useEffect(() => {
+    const onChange = () => setTheme(getTeacherTheme())
+    window.addEventListener('teacher-theme', onChange)
+    return () => window.removeEventListener('teacher-theme', onChange)
+  }, [])
 
   return (
-    <div className="teacher-app flex h-[100dvh] justify-center bg-neutral-200 text-ink">
+    <div className={cn('teacher-app flex h-[100dvh] justify-center bg-neutral-200 text-ink', theme === 'dark' && 'dark')}>
       {/* Telefon kengligida markazlashtirilgan ustun (keng ekranda ham mobil ko'rinish) */}
       <div className="flex h-full w-full max-w-md flex-col overflow-hidden bg-paper shadow-2xl">
         {/* Kontent — har bir ekran o'z sarlavha/paddingini beradi */}

@@ -113,6 +113,20 @@ docker compose up -d --build    # app + mssql + cloudflared + backup + mediamtx
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-14: **O'qituvchi profil TO'LIQ kengaytirildi — tungi rejim + barcha bo'limlar (4 parallel subagent).**
+  (1) **TUNGI REJIM:** `.teacher-app.dark` CSS bloki (index.css) — semantik tokenlar (ink/mute/faint/line/paper/
+  panel/tealsoft/chip) dark qiymatga + hardcoded neutral utility'lar (`bg-white`→panel, `bg/text/border-slate-*`,
+  `text-teal-*` yorqinlash) `!important` bilan remap → har bir o'qituvchi ekrani faylga tegmasdan dark-aware. Toggle:
+  `TeacherMobileLayout`ga `getTeacherTheme/setTeacherTheme` (localStorage `teacher_theme` + `teacher-theme` event) +
+  Shell `dark` klassini qo'llaydi. (2) **PROFIL HUB:** `TeacherProfilePage` qayta tashkil — menyu (Dars o'tilishi,
+  Ta'lim progresi, Maosh, Taklif va shikoyat, Parolni almashtirish) + "Sozlamalar" karta (Tungi rejim + Bildirishnoma
+  toggle'lari). (3) **4 yangi ekran (subagentlar, teal):** `salary/SalaryPage`(getTeacherSalary — hisoblandi/berildi/
+  qoldi + oylar), `coverage/CoveragePage`(Dars o'tilishi — har guruh getTeacherGroupCurriculum coverage%+prognoz),
+  `learning/LearningPage`(Ta'lim progresi — har guruh getTeacherGroupJournal o'rtacha baho+baholar soni), `account/
+  AccountPage`(parol — updateAccount /auth/account). Har guruh fetch try/catch bilan (404 guruh o'tkazib yuboriladi).
+  App.tsx 4 route (`TeacherSalaryPage`→`TeacherOwnSalaryPage` alias, admin bilan to'qnashmaslik uchun). Parol almashtirish
+  shared `auth.updateAccount` (PUT /auth/account, role-agnostik). tsc+vite yashil, deploy ✅; jonli: salary OK,
+  SPA routes 200, dark CSS bundle'da (21 qoida). Test teacher: abduxalilvoxidjonov/5fgvph3z.
 - 2026-06-14: **Audit tuzatishlari (H1/H2/H3/H4) + o'lik fayl o'chirildi.** To'liq tizim auditi (3 parallel agent).
   **H1/H2 (HAQIQIY BUG, tuzatildi):** moliyada tuition to'lovni TAHRIRLAGANDA `Month`/`GroupId`/`Comment` yo'qolardi
   (`FinanceTransactionPayload` DTO'da bu maydonlar yo'q edi) → per-guruh hisobot + foizli o'qituvchi maoshi buzilardi.
