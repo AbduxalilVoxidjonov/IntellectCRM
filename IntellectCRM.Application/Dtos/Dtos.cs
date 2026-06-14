@@ -498,10 +498,10 @@ public record SaveTurnstileSettingsRequest(
 public record FinanceTransactionDto(
     string Id, string Date, string Direction, string Category, decimal Amount,
     string? Note, string? StudentId, string? StudentName, string? TeacherId, string? TeacherName,
-    string? Month);
+    string? Month, string? GroupId = null, string? Comment = null);
 public record FinanceTransactionPayload(
     string Date, string Direction, string Category, decimal Amount, string? Note,
-    string? StudentId, string? TeacherId);
+    string? StudentId, string? TeacherId, string? Month = null, string? GroupId = null, string? Comment = null);
 public record CategoryAmountDto(string Category, decimal Amount);
 public record FinanceSummaryDto(
     decimal TotalIncome, decimal TotalExpense, decimal Net,

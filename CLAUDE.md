@@ -113,6 +113,17 @@ docker compose up -d --build    # app + mssql + cloudflared + backup + mediamtx
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-14: **Audit tuzatishlari (H1/H2/H3/H4) + o'lik fayl o'chirildi.** To'liq tizim auditi (3 parallel agent).
+  **H1/H2 (HAQIQIY BUG, tuzatildi):** moliyada tuition to'lovni TAHRIRLAGANDA `Month`/`GroupId`/`Comment` yo'qolardi
+  (`FinanceTransactionPayload` DTO'da bu maydonlar yo'q edi) → per-guruh hisobot + foizli o'qituvchi maoshi buzilardi.
+  Yechim: DTO'ga Month/GroupId/Comment (ixtiyoriy) qo'shildi; `FinanceController.Create` ularni yozadi; **`Update`
+  bo'sh kelsa ESKI qiymatni saqlaydi** (preserve-if-empty — tahrir formasi yubormasa ham yo'qolmaydi); `FinanceTransactionDto`
+  GroupId/Comment qaytaradi. Jonli E2E: create(month+group)→edit(yubormay)→teglar SAQLANDI ✓. **H3/H4 (allaqachon
+  himoyalangan):** `MonthlyCharge(StudentId,GroupId,Month)` UNIQUE indeks PROD'DA ALLAQACHON BOR (model+DB tasdiqlandi;
+  CLAUDE.md TODO eskirган) + `ChargeActivationProrateAsync` idempotent upsert → bir (o'quvchi,guruh,oy) uchun dublikat
+  hisob STRUKTURAVIY imkonsiz (qayta qo'shishda ham). To'lov double-click himoyasi qo'shildi: `PaymentModal` `submitting`
+  state (tugma bloklanadi). **O'lik kod:** `components/TeacherAppRedirect.tsx` (0 import) o'chirildi. Audit xulosasi:
+  loyiha toza (boshqa o'lik kod yo'q; vestigial maydonlar ataylab). Backend 0, tsc+vite yashil, deploy ✅ (migratsiya yo'q).
 - 2026-06-14: **O'qituvchi portali — "Taklif va shikoyat" ekrani qo'shildi.** Backend allaqachon bor edi
   (`POST /teacher/feedback` [FromForm] type/text/image → Feedback{SenderRole=teacher,TeacherId}; admin `FeedbackController`
   SenderRole bilan ko'rsatadi) — faqat UI yo'q edi. `teacher.ts` `sendTeacherFeedback(type,text,image?)` (multipart);

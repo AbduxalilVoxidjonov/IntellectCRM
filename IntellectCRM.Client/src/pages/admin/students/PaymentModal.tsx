@@ -13,7 +13,7 @@ import { formatMonth, monthStatusLabels } from '@/config/constants'
 interface Props {
   student: Student | null
   onClose: () => void
-  onSubmit: (amount: number, month: string, groupId?: string, comment?: string) => void
+  onSubmit: (amount: number, month: string, groupId?: string, comment?: string) => void | Promise<void>
 }
 
 /** Oy qatori (guruh yoki aggregate hisobdan normallashtirilgan) */
@@ -107,10 +107,17 @@ export function PaymentModal({ student, onClose, onSubmit }: Props) {
     setAmount(r && r.remaining > 0 ? r.remaining : 0)
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [submitting, setSubmitting] = useState(false)
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (amount <= 0 || !month || (needGroup && !groupId)) return
-    onSubmit(amount, month, groupId || undefined, comment.trim() || undefined)
+    // Ikki marta bosishdan himoya (dublikat to'lov yaratilmasin).
+    if (submitting || amount <= 0 || !month || (needGroup && !groupId)) return
+    setSubmitting(true)
+    try {
+      await onSubmit(amount, month, groupId || undefined, comment.trim() || undefined)
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   const selected = rows.find((r) => r.month === month)
@@ -131,9 +138,9 @@ export function PaymentModal({ student, onClose, onSubmit }: Props) {
           <Button
             type="submit"
             form="payment-form"
-            disabled={amount <= 0 || !month || (needGroup && !groupId) || loading || loadingMonths}
+            disabled={amount <= 0 || !month || (needGroup && !groupId) || loading || loadingMonths || submitting}
           >
-            <Wallet className="h-4 w-4" /> Saqlash
+            <Wallet className="h-4 w-4" /> {submitting ? 'Saqlanmoqda...' : 'Saqlash'}
           </Button>
         </>
       }

@@ -27,7 +27,7 @@ public class FinanceController(AppDbContext db, AuditService audit) : Controller
         new(t.Id, t.Date, t.Direction, t.Category, t.Amount, t.Note,
             t.StudentId, t.StudentId is not null && students.TryGetValue(t.StudentId, out var s) ? s : null,
             t.TeacherId, t.TeacherId is not null && teachers.TryGetValue(t.TeacherId, out var te) ? te : null,
-            t.Month);
+            t.Month, t.GroupId, t.Comment);
 
     [HttpGet("transactions")]
     public async Task<ActionResult<IEnumerable<FinanceTransactionDto>>> GetTransactions(
@@ -61,6 +61,10 @@ public class FinanceController(AppDbContext db, AuditService audit) : Controller
             Note = p.Note,
             StudentId = p.StudentId,
             TeacherId = p.TeacherId,
+            // Tuition kirimi uchun oy/guruh teglari (foizli maosh + per-guruh hisobot shularga tayanadi).
+            Month = string.IsNullOrWhiteSpace(p.Month) ? null : p.Month,
+            GroupId = string.IsNullOrWhiteSpace(p.GroupId) ? null : p.GroupId,
+            Comment = p.Comment,
         };
         db.FinanceTransactions.Add(tx);
         // O'quvchiga bog'langan tuition kirimi balansni oshiradi (izchillik — o'chirishda qaytariladi).
@@ -105,6 +109,11 @@ public class FinanceController(AppDbContext db, AuditService audit) : Controller
         tx.Note = p.Note;
         tx.StudentId = p.StudentId;
         tx.TeacherId = p.TeacherId;
+        // Oy/guruh teglarini SAQLAB QOLAMIZ: tahrir formasi ularni yubormasa (bo'sh kelsa) eski qiymat qoladi —
+        // aks holda tuition to'lovni tahrirlaganda Month/GroupId yo'qolib, foizli maosh + per-guruh hisobot buzilardi.
+        if (!string.IsNullOrWhiteSpace(p.Month)) tx.Month = p.Month;
+        if (!string.IsNullOrWhiteSpace(p.GroupId)) tx.GroupId = p.GroupId;
+        if (p.Comment is not null) tx.Comment = p.Comment;
 
         // Balansni moslaymiz: o'quvchi o'zgarmasa — delta; o'zgarsa — eskidan qaytarib, yangisiga qo'llaymiz.
         var newEffect = StudentBalanceEffect(tx);
