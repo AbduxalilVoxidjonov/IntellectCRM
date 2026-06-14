@@ -170,6 +170,19 @@ export async function confirmTeacherNotification(id: string): Promise<void> {
   await api.post(`/teacher/notifications/${id}/confirm`)
 }
 
+/* ---------- Taklif va shikoyat (o'qituvchi → admin) ---------- */
+export async function sendTeacherFeedback(
+  type: 'suggestion' | 'complaint',
+  text: string,
+  image?: File | null,
+): Promise<void> {
+  const fd = new FormData()
+  fd.append('type', type)
+  fd.append('text', text)
+  if (image) fd.append('image', image)
+  await api.post('/teacher/feedback', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+}
+
 /* ---------- Maosh (faqat o'ziniki) ---------- */
 
 export async function getTeacherSalary(from?: string, to?: string): Promise<SalaryLedger | null> {

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { GraduationCap, BookOpen, Wallet, LogOut } from 'lucide-react'
+import { GraduationCap, BookOpen, Wallet, LogOut, MessageSquare, ChevronRight } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import type { SalaryLedger, TeacherClass } from '@/types'
 import { getMyClasses, getTeacherSalary } from '@/api/services/teacher'
@@ -130,6 +130,20 @@ export function TeacherProfilePage() {
             ))}
           </div>
         )}
+      </div>
+
+      {/* Boshqa */}
+      <div className="mt-4 overflow-hidden rounded-[20px] border border-line bg-white shadow-[var(--shadow-card)]">
+        <Link to="/teacher/feedback" className="tap-scale flex items-center gap-3 px-4 py-3.5 text-left">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-tealsoft text-teal-700">
+            <MessageSquare className="h-[18px] w-[18px]" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-[14px] font-bold text-ink">Taklif va shikoyat</p>
+            <p className="text-[11px] text-mute">Adminga taklif yoki shikoyat yuborish</p>
+          </div>
+          <ChevronRight className="h-5 w-5 shrink-0 text-faint" />
+        </Link>
       </div>
 
       {/* Chiqish */}

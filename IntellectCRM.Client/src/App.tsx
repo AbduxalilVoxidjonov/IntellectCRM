@@ -54,6 +54,7 @@ import { TeacherLmsPage } from '@/pages/teacher/lms/TeacherLmsPage'
 import { TeacherLmsSubjectPage } from '@/pages/teacher/lms/TeacherLmsSubjectPage'
 import { TeacherMessagesPage } from '@/pages/teacher/messages/MessagesPage'
 import { TeacherProfilePage } from '@/pages/teacher/TeacherProfilePage'
+import { TeacherFeedbackPage } from '@/pages/teacher/feedback/FeedbackPage'
 import { TeacherMobileLayout } from '@/components/layout/TeacherMobileLayout'
 // O'quvchi portali (SPA ichida, /student/*)
 import { StudentMobileLayout } from '@/components/layout/StudentMobileLayout'
@@ -151,6 +152,7 @@ export default function App() {
           <Route path="lms" element={<TeacherLmsPage />} />
           <Route path="lms/:subjectId" element={<TeacherLmsSubjectPage />} />
           <Route path="messages" element={<RequirePerm perm="messages"><TeacherMessagesPage /></RequirePerm>} />
+          <Route path="feedback" element={<TeacherFeedbackPage />} />
           <Route path="profile" element={<TeacherProfilePage />} />
           <Route path="account" element={<AccountPage />} />
         </Route>

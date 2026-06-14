@@ -113,6 +113,12 @@ docker compose up -d --build    # app + mssql + cloudflared + backup + mediamtx
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-14: **O'qituvchi portali — "Taklif va shikoyat" ekrani qo'shildi.** Backend allaqachon bor edi
+  (`POST /teacher/feedback` [FromForm] type/text/image → Feedback{SenderRole=teacher,TeacherId}; admin `FeedbackController`
+  SenderRole bilan ko'rsatadi) — faqat UI yo'q edi. `teacher.ts` `sendTeacherFeedback(type,text,image?)` (multipart);
+  yangi `pages/teacher/feedback/FeedbackPage.tsx` (teal: Taklif/Shikoyat segment + matn≥5 + ixtiyoriy rasm + toast).
+  App.tsx route `teacher/feedback`; `TeacherProfilePage`ga "Taklif va shikoyat" menyu qatori. tsc+vite yashil, deploy ✅.
+  Jonli E2E: o'qituvchi POST 204 → admin /admin/feedback teacher-dan 1 ko'rdi. (Test teacher: abduxalilvoxidjonov/5hyeacwi)
 - 2026-06-13: **O'qituvchi chat TO'LIQ EKRAN + o'quvchi Progress (Duolingo) chiroyliroq.** (1) **Teacher chat:** suhbatga
   kirilganda marginlar bor edi (`px-4 pb-6 pt-3` o'rab + ChatPanel `h-[70vh]` karta) → endi to'liq ekran. `ChatPanel`ga
   `fullHeight` (kartasiz `h-full flex-col`, composer pastda pinlanadi) + `onBack` (sarlavhada orqaga tugma) proplari
