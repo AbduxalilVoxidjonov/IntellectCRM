@@ -232,7 +232,10 @@ using (var scope = app.Services.CreateScope())
         var login = app.Configuration["Seed:OwnerLogin"];
         if (string.IsNullOrWhiteSpace(login)) login = "admin";
         var pwd = app.Configuration["Seed:OwnerPassword"];
-        if (string.IsNullOrWhiteSpace(pwd)) pwd = AccountFactory.GeneratePassword(10);
+        // Parol .env'da berilmaganda — tasodifiy generatsiya (faqat shu holatda logga yoziladi,
+        // aks holda kira oladigan hech kim bo'lmaydi). Berilgan parol HECH QACHON logga yozilmaydi.
+        var generated = string.IsNullOrWhiteSpace(pwd);
+        if (generated) pwd = AccountFactory.GeneratePassword(10);
         var owner = new AppUser
         {
             FullName = "Super Admin",
@@ -243,7 +246,15 @@ using (var scope = app.Services.CreateScope())
         };
         db.Users.Add(owner);
         db.SaveChanges();
-        app.Logger.LogWarning("[seed] Super admin yaratildi — login: '{Login}', parol: '{Password}'", login, pwd);
+        if (generated)
+            app.Logger.LogWarning(
+                "[seed] Super admin yaratildi — login: '{Login}', parol: '{Password}' "
+                + "(OWNER_PASSWORD berilmagani uchun generatsiya qilindi — ko'chirib oling va kirgach o'zgartiring).",
+                login, pwd);
+        else
+            app.Logger.LogInformation(
+                "[seed] Super admin yaratildi — login: '{Login}' (parol .env'dagi OWNER_PASSWORD — logga yozilmadi).",
+                login);
     }
 
     // Amal sabablari (muzlatish/o'chirish/sinovga qaytarish/lid/guruh) — standart sabablar bilan
