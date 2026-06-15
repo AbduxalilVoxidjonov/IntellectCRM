@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getStudentNotebook, type StudentNotebook } from '@/api/services/studentPortal'
 import { Icon, Ring, gradeColor, subjectColor, MONTHS } from '@/pages/student/lib'
+import { GradingPanel } from '@/pages/student/GradingPanel'
 
 /* ============================================================
    O'quvchi — UMUMIY STATISTIKA (o'quvchi haqida yig'ilgan barcha
@@ -97,6 +98,14 @@ function Body({ nb }: { nb: StudentNotebook }) {
   const hwDone = nb.homeworkDone || 0
   const hwMissed = nb.homeworkMissed || 0
   const hwPct = hwDone + hwMissed > 0 ? Math.round((hwDone / (hwDone + hwMissed)) * 100) : 0
+
+  // ---- Uy vazifa oylik trend (marksTrend) ----
+  const hwTrend = (nb.marksTrend || [])
+    .slice(-6)
+    .map((m) => {
+      const tot = (m.homeworkDone || 0) + (m.homeworkMissed || 0)
+      return { label: monthShort(m.month), value: tot > 0 ? Math.round((m.homeworkDone / tot) * 100) : 0, tot }
+    })
 
   return (
     <div className="pad" style={{ paddingBottom: 28 }}>
@@ -245,6 +254,16 @@ function Body({ nb }: { nb: StudentNotebook }) {
           </div>
         </div>
       </Section>
+
+      {/* Uy vazifa oylik trend */}
+      {hwTrend.some((d) => d.tot > 0) && (
+        <Section title="Uy vazifa trendi" sub="Oylik bajarish foizi">
+          <TrendBars data={hwTrend} max={100} color="var(--green)" fmt={(v) => `${v}%`} />
+        </Section>
+      )}
+
+      {/* Baholash mezonlari (oylik + har darslik) — jurnaldagi baholash */}
+      <GradingPanel hideWhenEmpty title="Baholash mezonlari" />
     </div>
   )
 }

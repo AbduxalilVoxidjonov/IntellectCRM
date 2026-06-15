@@ -669,13 +669,16 @@ public class StudentPortalController(
     /// natija + avto-baho saqlanadi va qaytariladi.</summary>
     [HttpPost("assignments/{id}/speaking")]
     [Authorize(Roles = "student,parent")]
-    [RequestSizeLimit(25_000_000)]
+    [RequestSizeLimit(8_000_000)]
     public async Task<ActionResult<SpeakingResultDto>> SubmitSpeaking(string id, IFormFile audio)
     {
         var s = await TargetAsync(null);
         if (s is null) return NotFound();
+        // FIX 1 — egalik: topshiriq o'quvchining guruhiga tegishli bo'lishi shart (normal yo'l kabi).
+        var classId = await ClassIdOf(s);
         var a = await db.Assignments.FindAsync(id);
-        if (a is null || a.Format != "speaking") return NotFound(new { message = "Speaking topshirig'i topilmadi" });
+        if (a is null || a.Format != "speaking" || classId is null || !a.ClassIds.Contains(classId))
+            return NotFound(new { message = "Speaking topshirig'i topilmadi" });
 
         var meta = await db.CenterMeta.FirstOrDefaultAsync();
         var key = meta?.AzureSpeechKey ?? "";
@@ -683,10 +686,21 @@ public class StudentPortalController(
         if (!AzureSpeechService.IsConfigured(key, region))
             return BadRequest(new { message = "Speaking baholash hali sozlanmagan (admin Azure kalitini kiritishi kerak)." });
         if (audio is null || audio.Length == 0) return BadRequest(new { message = "Audio bo'sh" });
+        // FIX 3 — hajm chegarasi (60s 16kHz mono WAV ≈ 2 MB; 8 MB yetarli zaxira).
+        if (audio.Length > 8_000_000) return BadRequest(new { message = "Audio juda katta (8 MB dan oshmasin)." });
+
+        var sub = await db.AssignmentSubmissions.FirstOrDefaultAsync(x => x.AssignmentId == id && x.StudentId == s.Id);
+        // FIX 4 — rate-limit: ketma-ket pullik Azure chaqiruvlarini cheklash (5s cooldown).
+        if (sub is not null && DateTime.TryParse(sub.SubmittedAt, out var last)
+            && (AppClock.Now - last).TotalSeconds < 5)
+            return BadRequest(new { message = "Biroz kuting — qayta urinishdan oldin bir necha soniya o'ting." });
 
         using var ms = new MemoryStream();
         await audio.CopyToAsync(ms);
         var bytes = ms.ToArray();
+        // FIX 3 — kontent tekshiruvi: faqat haqiqiy WAV Azure'ga ketadi (ixtiyoriy bayt emas).
+        if (!AzureSpeechService.LooksLikeWav(bytes))
+            return BadRequest(new { message = "Audio formati noto'g'ri (WAV kutilgan)." });
 
         var result = await AzureSpeechService.AssessAsync(bytes, a.ReferenceText, key, region);
         if (result.Error is not null) return BadRequest(new { message = result.Error });
@@ -696,11 +710,12 @@ public class StudentPortalController(
         var stored = $"speaking-{Guid.NewGuid():N}.wav";
         await System.IO.File.WriteAllBytesAsync(System.IO.Path.Combine(dir, stored), bytes);
 
-        var sub = await db.AssignmentSubmissions.FirstOrDefaultAsync(x => x.AssignmentId == id && x.StudentId == s.Id);
         if (sub is null) { sub = new AssignmentSubmission { AssignmentId = id, StudentId = s.Id }; db.AssignmentSubmissions.Add(sub); }
         sub.Completed = true;
         sub.SubmittedAt = AppClock.Now.ToString("yyyy-MM-ddTHH:mm:ss");
-        sub.Score = (int)Math.Round(result.PronScore);
+        // FIX 2 — PronScore (0..100) ni topshiriq MaxScore'iga masshtablash (boshqa formatlar kabi).
+        var max = a.MaxScore > 0 ? a.MaxScore : 100;
+        sub.Score = Math.Clamp((int)Math.Round(result.PronScore * max / 100.0), 0, max);
         sub.FileUrl = $"/uploads/{stored}";
         sub.SpeakingResultJson = JsonSerializer.Serialize(result);
         await db.SaveChangesAsync();

@@ -54,6 +54,8 @@ export interface TopClass {
   id: string
   name: string
   studentsCount: number
+  /** Aktiv (Status=="active") a'zolar soni — sinov/muzlatilgan emas */
+  activeCount: number
   averageGrade: number
 }
 

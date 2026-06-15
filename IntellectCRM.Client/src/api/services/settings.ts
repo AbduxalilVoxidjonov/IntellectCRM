@@ -95,6 +95,38 @@ export async function saveTelegramSettings(cfg: {
   return data
 }
 
+/* ---------- Ilova (APK) — Telegram bot yuboradi ---------- */
+
+export interface AppApkConfig {
+  studentApkName: string
+  studentApkSize: number
+  teacherApkName: string
+  teacherApkSize: number
+}
+
+export async function getAppApkSettings(): Promise<AppApkConfig> {
+  if (USE_MOCK) {
+    await delay()
+    return { studentApkName: '', studentApkSize: 0, teacherApkName: '', teacherApkSize: 0 }
+  }
+  const { data } = await api.get<AppApkConfig>('/admin/settings/app-apk')
+  return data
+}
+
+export async function uploadAppApk(role: 'student' | 'teacher', file: File): Promise<AppApkConfig> {
+  const fd = new FormData()
+  fd.append('file', file)
+  const { data } = await api.post<AppApkConfig>(`/admin/settings/app-apk/${role}`, fd, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+  return data
+}
+
+export async function deleteAppApk(role: 'student' | 'teacher'): Promise<AppApkConfig> {
+  const { data } = await api.delete<AppApkConfig>(`/admin/settings/app-apk/${role}`)
+  return data
+}
+
 /* ---------- Push (Firebase / FCM) sozlamasi ---------- */
 
 export interface FirebaseConfig {

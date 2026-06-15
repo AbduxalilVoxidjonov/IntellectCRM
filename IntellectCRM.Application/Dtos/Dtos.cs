@@ -243,7 +243,7 @@ public record SaveAbsenceReasonsRequest(List<AbsenceReasonDto> AbsenceReasons);
 /* ---------- Dashboard ---------- */
 public record AdminStatsDto(int StudentsCount, int TeachersCount, double AverageGrade, double? AttendanceRate);
 public record ClassPerformanceItemDto(string ClassId, string ClassName, double AverageGrade, double? AttendanceRate);
-public record TopClassDto(string Id, string Name, int StudentsCount, double AverageGrade);
+public record TopClassDto(string Id, string Name, int StudentsCount, int ActiveCount, double AverageGrade);
 public record StudentBreakdownDto(int Active, int Inactive, int Debtors, int Paid, int WithGroup, int WithoutGroup);
 public record AdminDashboardDto(
     AdminStatsDto Stats, List<ClassPerformanceItemDto> ClassPerformance, List<TopClassDto> TopClasses,
@@ -476,6 +476,9 @@ public record SchoolNameDto(string Name, string TelegramChannel = "");
 public record TelegramSettingsDto(string BotToken, string BotUsername, string BotName, bool Configured, string Channel = "");
 /// <summary>Telegram bot sozlamasini saqlash so'rovi.</summary>
 public record SaveTelegramSettingsRequest(string? BotToken, string? BotUsername, string? BotName, string? Channel);
+/// <summary>Ilova (APK) sozlamasi — Telegram bot ro'yxatdan o'tgan o'quvchi/o'qituvchiga yuboradigan fayl(lar).
+/// Nom + hajm (bayt; 0 = yuklanmagan).</summary>
+public record AppApkSettingsDto(string StudentApkName, long StudentApkSize, string TeacherApkName, long TeacherApkSize);
 /// <summary>Firebase (FCM push) sozlamasi — faqat native (Flutter) ilovaga push yuborish uchun
 /// Service Account JSON. Configured = JSON to'g'ri kiritilgan.</summary>
 public record FirebaseSettingsDto(string ServiceAccountJson, bool Configured);

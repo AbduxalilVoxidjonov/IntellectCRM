@@ -129,6 +129,69 @@ docker compose up -d --build    # app + mssql + cloudflared + backup + mediamtx
   deploy ✅ (migratsiya). Jonli E2E: speaking topshiriq yaratildi (referenceText) → o'quvchi ko'rdi → kalitsiz submit
   400 "sozlanmagan". ESLATMA: Flutter WebView'da mic uchun RECORD_AUDIO ruxsati + onPermissionRequest grant kerak;
   Azure baholash faqat admin kalit/region kiritgach ishlaydi.
+- 2026-06-15: **Dashboard "Eng yuqori bahoga ega guruhlar" — AKTIV talabalar soni qo'shildi.** Karta ilgari faqat
+  jami a'zo (`MembersOf`, IsActive — sinov/muzlatilgan ham) ko'rsatardi; endi AKTIV (Status=="active") son ham.
+  `DashboardController`: `classMemberships` (GroupId+Status) → `membersByClass`+`activeByClass`; `ActiveOf(c)`.
+  `TopClassDto`ga `ActiveCount` (StudentsCount'dan keyin); TS `TopClass.activeCount`; mock yangilandi; AdminDashboard
+  karta "● {activeCount} aktiv · {studentsCount} o'quvchi" (aktiv yashil). Migratsiya yo'q. Backend 0, tsc+vite yashil,
+  deploy ✅. Jonli: TEST-G 8 aktiv/12 jami (4 sinov/muzlatilgan), test B 3/3. (Per-guruh aktiv yig'indisi breakdown.active=10
+  dan farq qilishi mumkin — o'quvchi bir nechta guruhda aktiv bo'lsa har guruhda sanaladi, breakdown'da bir marta.)
+- 2026-06-15: **SQL INJECTION auditi — loyiha HIMOYALANGAN (kod o'zgartirilmadi).** Butun kodbaza skani: xom SQL
+  YO'Q (FromSqlRaw/FromSqlInterpolated/ExecuteSqlRaw/Interpolated/SqlCommand/ADO.NET/Dapper/Dynamic LINQ/migrationBuilder.Sql —
+  hech biri). Barcha DB kirishi EF Core 8 (SqlServer) LINQ orqali → EF avtomatik PARAMETRLAYDI. Bulk `ExecuteDelete/
+  UpdateAsync` ham LINQ-predikat (parametrli). `db.Database.Migrate()` faqat (kiritmasiz). Qidiruv/filtr `.Contains(ids)`/
+  `==` (parametrlangan IN/=) yoki client-side. Backup/connection: qat'iy DB nomi + env parol (kiritma emas). XULOSA:
+  SQLi zaifligi yo'q — kod tuzatish shart emas (kalit-so'z bloklash kabi anti-pattern QILINMADI). QOLDI (ixtiyoriy
+  defense-in-depth, infra): app DB'ga `sa` (sysadmin) bilan ulanadi — least-privilege login tavsiya etiladi (migratsiya
+  uchun DDL ruxsati kerakligi sabab — foydalanuvchi qarori bilan).
+- 2026-06-15: **O'quvchi STATISTIKA bo'limiga BAHOLASH mezonlari (har darslik) + uy-vazifa trendi qo'shildi (audit).**
+  Audit: `Statistics.tsx` `StudentNotebook`ning deyarli barchasini ko'rsatardi (baho/davomat/intizom/topshiriq/feedback/
+  uy-vazifa), lekin (1) `marksTrend` (oylik uy-vazifa) render qilinmagan, (2) **baholash mezonlari** (alohida
+  `/student/grading` endpoint) umuman yo'q edi — faqat Profil menyusidagi alohida ekranda. Yechim: `Grading.tsx`
+  tanasi umumiy **`GradingPanel`** komponentiga ajratildi (`pages/student/GradingPanel.tsx`: oy nav + guruh tab +
+  oylik mezon xulosasi done/total + har darslik mezon ✓/✗ grid; `hideWhenEmpty`+`title` proplari). Grading ekrani endi
+  ingichka wrapper (shu panelni ishlatadi — dublikat yo'q). `Statistics.tsx`: oxiriga `<GradingPanel hideWhenEmpty
+  title="Baholash mezonlari"/>` (baholash bo'lmasa umuman ko'rinmaydi) + `marksTrend`dan "Uy vazifa trendi" (oylik
+  bajarish %, ma'lumot bo'lsa). Frontend-only, migratsiya yo'q. tsc+vite yashil, deploy ✅. Jonli: ev2 → /student/grading
+  1 guruh (6 mezon × 13 dars) → statistikada oylik+har darslik chiqadi; marksTrend bo'sh → trend yashirin. ESLATMA:
+  per-item detallar (har topshiriq/intizom hodisalari) o'z ekranlarida qoladi; statistika = agregat + baholash.
+- 2026-06-15: **Telegram bot — ro'yxatdan o'tgan o'quvchi/o'qituvchiga ILOVA (APK) yuborish + MAJBURIY kanal obunasi.**
+  Mavjud bot (`TelegramBotService`, long polling: /start→kontakt→ParentPhone/Teacher.Phone moslik→`TelegramRegistration`)
+  kengaytirildi. Yangi oqim: kontakt → moslik (topilmasa "ro'yxatda yo'q") → **MAJBURIY kanal obunasi** (sozlangan
+  ommaviy @kanal bo'lsa `getChatMember`; left/kicked→"obuna bo'ling" + inline [Kanalga obuna]+[✅ Tekshirish], status
+  null=tekshirib bo'lmadi→fail-open+log) → register → **mos APK yuboriladi**. `TelegramService`ga: `SendDocumentReturningIdAsync`
+  (file_id keshli — bir marta yuklab keyin file_id bilan yuboradi), `GetChatMemberStatusAsync`, `AnswerCallbackAsync`,
+  `ChannelUsername` helper; `getUpdates` `allowed_updates`ga `callback_query` qo'shildi. Bot: in-memory `_pendingPhone`
+  (chatId→telefon, obunadan oldin), callback "check_sub" qayta tekshiradi; `IHostEnvironment` inject (APK faylni o'qish).
+  APK rol bo'yicha (o'quvchi/o'qituvchi); biri yo'q bo'lsa ikkinchisiga qaytadi (bitta ilova bo'lsa bittasini yuklash
+  yetarli). **CenterMeta**ga 6 ustun (Student/Teacher × ApkName/Path/FileId) + migratsiya `AddAppApk`. `SettingsController`:
+  `IWebHostEnvironment` inject + `GET/POST{role}/DELETE{role} app-apk` (.apk only, ≤50MB Telegram chegarasi, yangi yuklasa
+  FileId kesh bo'shaydi). DTO `AppApkSettingsDto`. **Frontend:** `settings.ts` getAppApkSettings/uploadAppApk/deleteAppApk;
+  `TelegramSettings.tsx`ga "Ilova (APK)" karta (2 slot: o'quvchi/o'qituvchi — yuklash/almashtirish/o'chirish + nom/hajm).
+  Backend 0, tsc+vite yashil, deploy ✅ (migratsiya qo'llandi). Jonli E2E: GET app-apk 200 (ustunlar bor), student .apk
+  upload→nom/hajm qaytdi, non-apk→400, noto'g'ri rol→400, delete→tozalandi. ESLATMA: obuna darvozasi HAQIQATAN ishlashi
+  uchun kanal OMMAVIY (@username) bo'lib, bot kanal ADMINI bo'lishi shart (getChatMember talabi); APK>50MB Telegram bot
+  orqali yuborilmaydi (kelajakda public URL/file_id fallback). Bot real token+kanalsiz jonli sinab bo'lmadi (kod tekshirildi).
+- 2026-06-15: **Bosh sahifaga DARS JADVALI (raspisaniye) — guruhlar haftalik jadvali, har guruh alohida rangda.**
+  Yangi `components/dashboard/WeeklySchedule.tsx` (frontend-only — `getClasses`+`getTeachers`+`getSubjects`ni
+  `useAsync` bilan parallel oladi; backend o'zgarmadi, migratsiya yo'q). `/admin/classes` `teacherName`/`courseName`
+  QAYTARMAYDI (faqat `teacherId`/`courseId`) → komponent nom xaritalarini o'zi quradi. Arxivlanmagan + `days.length>0`
+  + `startTime` bo'lgan guruhlar 7-ustunli grid (Du..Yak)ga joylashadi (kun ustunida boshlanish vaqti bo'yicha
+  saralangan rangli bloklar: guruh nomi/kurs/vaqt/o'qituvchi/xona; bugun ustuni `bg-brand-600`). Har guruhga 12-rangli
+  PALETTE'dan barqaror rang (indeks bo'yicha) — bir o'qituvchining har guruhi turli rangda; legenda o'qituvchi bo'yicha
+  guruhlanadi (rangli chiplar). `todayIdx=(getDay()+6)%7`. AdminDashboard pastiga `<WeeklySchedule/>` qo'shildi. Inline
+  hex rang (Tailwind dinamik klass purge'idan qochish). tsc+vite yashil, deploy ✅; jonli: 2 guruh (test B/matematika,
+  TEST-G/Beginner) Du/Cho/Jum, har biri alohida rang.
+- 2026-06-15: **Speaking AUDIT tuzatmalari (code-review topgan 4 backend bug — `SubmitSpeaking`).** (1) **Egalik:**
+  ilgari faqat `Format=="speaking"` tekshirardi → har qanday o'quvchi istalgan speaking id'ga pullik Azure chaqirardi;
+  endi `ClassIdOf(s)` + `a.ClassIds.Contains(classId)` (normal yo'l kabi), aks holda 404. (2) **MaxScore masshtab:**
+  `Score=Round(PronScore)` (0..100) → `Math.Clamp(Round(PronScore*MaxScore/100),0,MaxScore)` — scoreboard `totalMax+=
+  MaxScore` bilan mos (MaxScore≠100 da foiz buzilmaydi). (3) **Validatsiya:** `RequestSizeLimit` 25MB→8MB + `audio.Length
+  >8MB` 400 + `AzureSpeechService.LooksLikeWav` (RIFF/WAVE sniff) — ixtiyoriy/buzuq bayt Azure'ga ketmaydi. (4) **Rate-
+  limit:** mavjud `sub.SubmittedAt`dan 5s cooldown (ketma-ket pullik chaqiruvni cheklaydi). Sxema o'zgarmadi (migratsiya
+  yo'q). Backend 0, deploy ✅. Jonli E2E: begona guruh A2→404 (egalik), o'z guruhi A1 kalitsiz→400 "sozlanmagan" (egalik
+  o'tdi). QOLDI (review, past, tuzatilmagan): region URL validatsiyasi (SSRF, admin-gated), catch ex.Message oqishi,
+  /uploads ovoz auth'siz, wavRecorder resume() yo'q (WebView bo'sh WAV xavfi), mic→destination echo.
 - 2026-06-15: **O'quvchilar ro'yxatiga "Holat" (Aktiv / Aktiv emas) ustuni.** Kursda aktivlik = kamida bitta a'zoligi
   `Status=="active"` (sinov/muzlatilgan/guruhsiz EMAS). `Student`ga `[NotMapped] bool Active` (DB'ga yozilmaydi —
   migratsiya yo'q); `StudentsController.GetAll` mavjud a'zolik so'roviga `sg.Status` qo'shib hisoblaydi (active

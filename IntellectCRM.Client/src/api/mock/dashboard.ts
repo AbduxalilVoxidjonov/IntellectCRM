@@ -19,12 +19,12 @@ export const adminDashboardMock: AdminDashboard = {
     { classId: '8', className: '11-A', averageGrade: 4.4, attendanceRate: 96 },
   ],
   topClasses: [
-    { id: '6', name: '9-A', studentsCount: 28, averageGrade: 4.6 },
-    { id: '1', name: '5-A', studentsCount: 30, averageGrade: 4.5 },
-    { id: '8', name: '11-A', studentsCount: 26, averageGrade: 4.4 },
-    { id: '4', name: '7-A', studentsCount: 29, averageGrade: 4.3 },
-    { id: '2', name: '5-B', studentsCount: 31, averageGrade: 4.1 },
-    { id: '5', name: '8-B', studentsCount: 27, averageGrade: 4.0 },
+    { id: '6', name: '9-A', studentsCount: 28, activeCount: 25, averageGrade: 4.6 },
+    { id: '1', name: '5-A', studentsCount: 30, activeCount: 27, averageGrade: 4.5 },
+    { id: '8', name: '11-A', studentsCount: 26, activeCount: 24, averageGrade: 4.4 },
+    { id: '4', name: '7-A', studentsCount: 29, activeCount: 26, averageGrade: 4.3 },
+    { id: '2', name: '5-B', studentsCount: 31, activeCount: 28, averageGrade: 4.1 },
+    { id: '5', name: '8-B', studentsCount: 27, activeCount: 23, averageGrade: 4.0 },
   ],
   studentBreakdown: {
     active: 980,

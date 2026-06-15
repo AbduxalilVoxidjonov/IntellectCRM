@@ -655,6 +655,16 @@ public class CenterMeta
     public string TelegramBotName { get; set; } = string.Empty;
     /// <summary>Markaz Telegram kanali (havola yoki @username) — o'quvchi/o'qituvchi ilovasida "kanalga o'tish".</summary>
     public string TelegramChannel { get; set; } = string.Empty;
+    /// <summary>O'quvchi ilovasi APK fayli — Telegram bot ro'yxatdan o'tgan o'quvchiga yuboradi.
+    /// Name = ko'rsatiladigan nom; Path = serverdagi nisbiy yo'l (uploads/...); FileId = Telegram
+    /// keshlangan file_id (bir marta yuklangach qayta yuklamasdan yuboriladi, yangi APK yuklanganda bo'shatiladi).</summary>
+    public string StudentApkName { get; set; } = string.Empty;
+    public string StudentApkPath { get; set; } = string.Empty;
+    public string StudentApkFileId { get; set; } = string.Empty;
+    /// <summary>O'qituvchi ilovasi APK fayli (yuqoridagi kabi). Bo'sh bo'lsa o'quvchi APK'siga qaytadi.</summary>
+    public string TeacherApkName { get; set; } = string.Empty;
+    public string TeacherApkPath { get; set; } = string.Empty;
+    public string TeacherApkFileId { get; set; } = string.Empty;
     /// <summary>
     /// Firebase service account (JSON, to'liq) — ilovaga push (FCM) yuborish uchun. Bo'sh bo'lsa
     /// push yuborilmaydi. Admin "Sozlamalar → Push (Firebase)" bo'limidan kiritadi.

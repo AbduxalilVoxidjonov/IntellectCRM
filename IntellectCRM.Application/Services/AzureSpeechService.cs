@@ -19,6 +19,13 @@ public static class AzureSpeechService
     public static bool IsConfigured(string? key, string? region) =>
         !string.IsNullOrWhiteSpace(key) && !string.IsNullOrWhiteSpace(region);
 
+    /// <summary>Baytlar haqiqiy WAV (RIFF/WAVE) ekanini tekshiradi — ixtiyoriy/buzuq yuklamani
+    /// pullik Azure chaqirig'iga jo'natmaslik uchun.</summary>
+    public static bool LooksLikeWav(byte[] b) =>
+        b.Length >= 12 &&
+        b[0] == (byte)'R' && b[1] == (byte)'I' && b[2] == (byte)'F' && b[3] == (byte)'F' &&
+        b[8] == (byte)'W' && b[9] == (byte)'A' && b[10] == (byte)'V' && b[11] == (byte)'E';
+
     public static async Task<SpeakingResultDto> AssessAsync(
         byte[] wav, string referenceText, string key, string region, string language = "en-US")
     {

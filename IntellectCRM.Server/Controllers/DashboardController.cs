@@ -22,10 +22,15 @@ public class DashboardController(AppDbContext db) : ControllerBase
         var entries = await db.JournalEntries.ToListAsync();
 
         // Guruh a'zolari — M2M faol a'zoliklar bo'yicha (ClassName yorlig'i emas; o'quvchi bir nechta guruhda bo'lishi mumkin).
-        var membersByClass = (await db.StudentGroups.Where(sg => sg.IsActive).Select(sg => sg.GroupId).ToListAsync())
-            .GroupBy(gid => gid)
+        var classMemberships = await db.StudentGroups.Where(sg => sg.IsActive)
+            .Select(sg => new { sg.GroupId, sg.Status }).ToListAsync();
+        var membersByClass = classMemberships.GroupBy(m => m.GroupId)
+            .ToDictionary(g => g.Key, g => g.Count());
+        // Aktiv a'zolar — Status=="active" (sinov/muzlatilgan emas).
+        var activeByClass = classMemberships.Where(m => m.Status == "active").GroupBy(m => m.GroupId)
             .ToDictionary(g => g.Key, g => g.Count());
         int MembersOf(Group c) => membersByClass.TryGetValue(c.Id, out var n) ? n : 0;
+        int ActiveOf(Group c) => activeByClass.TryGetValue(c.Id, out var n) ? n : 0;
 
         // Davomat FAQAT o'tilgan darslar bo'yicha (Conducted=true). O'tilmagan darslar hisobga olinmaydi.
         var conductedByClass = (await db.LessonNotes.Where(n => n.Conducted).ToListAsync())
@@ -98,6 +103,7 @@ public class DashboardController(AppDbContext db) : ControllerBase
             .Select(c => new TopClassDto(
                 c.Id, c.Name,
                 MembersOf(c),
+                ActiveOf(c),
                 AvgGrade(entries.Where(e => e.ClassId == c.Id))))
             .OrderByDescending(t => t.AverageGrade)
             .Take(5)

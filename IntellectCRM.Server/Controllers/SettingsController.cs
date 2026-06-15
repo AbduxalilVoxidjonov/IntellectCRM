@@ -12,7 +12,7 @@ namespace IntellectCRM.Server.Controllers;
 [Authorize]
 [AdminPerm("settings")]
 [Route("api/admin/settings")]
-public class SettingsController(AppDbContext db, TelegramService telegram) : ControllerBase
+public class SettingsController(AppDbContext db, TelegramService telegram, IWebHostEnvironment env) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<SchoolSettingsDto>> Get()
@@ -131,6 +131,98 @@ public class SettingsController(AppDbContext db, TelegramService telegram) : Con
         if (req.Region is not null) m.AzureSpeechRegion = req.Region.Trim();
         await db.SaveChangesAsync();
         return new AzureSpeechSettingsDto(m.AzureSpeechRegion, AzureSpeechService.IsConfigured(m.AzureSpeechKey, m.AzureSpeechRegion));
+    }
+
+    // ---------- Ilova (APK) — Telegram bot ro'yxatdan o'tganga yuboradi ----------
+
+    private const long MaxApkBytes = 50_000_000; // Telegram bot sendDocument chegarasi ~50 MB
+
+    [HttpGet("app-apk")]
+    public async Task<ActionResult<AppApkSettingsDto>> GetAppApk()
+    {
+        var m = await db.CenterMeta.FirstOrDefaultAsync();
+        return AppApkDto(m);
+    }
+
+    [HttpPost("app-apk/{role}")]
+    [RequestSizeLimit(MaxApkBytes + 2_000_000)]
+    public async Task<ActionResult<AppApkSettingsDto>> UploadAppApk(string role, IFormFile file)
+    {
+        if (role is not ("student" or "teacher"))
+            return BadRequest(new { message = "role 'student' yoki 'teacher' bo'lishi kerak" });
+        if (file is null || file.Length == 0) return BadRequest(new { message = "Fayl bo'sh" });
+        if (file.Length > MaxApkBytes)
+            return BadRequest(new { message = "APK 50 MB dan katta — Telegram bot orqali yuborib bo'lmaydi." });
+        if (!file.FileName.EndsWith(".apk", StringComparison.OrdinalIgnoreCase))
+            return BadRequest(new { message = "Faqat .apk fayl qabul qilinadi" });
+
+        var dir = System.IO.Path.Combine(env.ContentRootPath, "uploads");
+        System.IO.Directory.CreateDirectory(dir);
+        var stored = $"app-{role}-{Guid.NewGuid():N}.apk";
+        await using (var fs = System.IO.File.Create(System.IO.Path.Combine(dir, stored)))
+            await file.CopyToAsync(fs);
+
+        var m = await db.CenterMeta.FirstOrDefaultAsync();
+        if (m is null) { m = new CenterMeta(); db.CenterMeta.Add(m); }
+        var relPath = $"uploads/{stored}";
+        var name = System.IO.Path.GetFileName(file.FileName);
+        if (role == "student")
+        {
+            DeleteApk(m.StudentApkPath);
+            m.StudentApkName = name; m.StudentApkPath = relPath; m.StudentApkFileId = ""; // kesh bo'shatiladi
+        }
+        else
+        {
+            DeleteApk(m.TeacherApkPath);
+            m.TeacherApkName = name; m.TeacherApkPath = relPath; m.TeacherApkFileId = "";
+        }
+        await db.SaveChangesAsync();
+        return AppApkDto(m);
+    }
+
+    [HttpDelete("app-apk/{role}")]
+    public async Task<ActionResult<AppApkSettingsDto>> DeleteAppApk(string role)
+    {
+        if (role is not ("student" or "teacher"))
+            return BadRequest(new { message = "role 'student' yoki 'teacher' bo'lishi kerak" });
+        var m = await db.CenterMeta.FirstOrDefaultAsync();
+        if (m is null) return AppApkDto(null);
+        if (role == "student")
+        {
+            DeleteApk(m.StudentApkPath);
+            m.StudentApkName = ""; m.StudentApkPath = ""; m.StudentApkFileId = "";
+        }
+        else
+        {
+            DeleteApk(m.TeacherApkPath);
+            m.TeacherApkName = ""; m.TeacherApkPath = ""; m.TeacherApkFileId = "";
+        }
+        await db.SaveChangesAsync();
+        return AppApkDto(m);
+    }
+
+    private void DeleteApk(string relPath)
+    {
+        if (string.IsNullOrWhiteSpace(relPath)) return;
+        try
+        {
+            var abs = System.IO.Path.Combine(env.ContentRootPath, relPath);
+            if (System.IO.File.Exists(abs)) System.IO.File.Delete(abs);
+        }
+        catch { /* eski faylni o'chirib bo'lmasa — e'tiborsiz */ }
+    }
+
+    private AppApkSettingsDto AppApkDto(CenterMeta? m)
+    {
+        long Size(string relPath)
+        {
+            if (string.IsNullOrWhiteSpace(relPath)) return 0;
+            var abs = System.IO.Path.Combine(env.ContentRootPath, relPath);
+            return System.IO.File.Exists(abs) ? new System.IO.FileInfo(abs).Length : 0;
+        }
+        return new AppApkSettingsDto(
+            m?.StudentApkName ?? "", Size(m?.StudentApkPath ?? ""),
+            m?.TeacherApkName ?? "", Size(m?.TeacherApkPath ?? ""));
     }
 
     // ---------- Turniket / FaceID integratsiyasi ----------

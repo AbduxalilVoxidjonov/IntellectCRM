@@ -21,6 +21,7 @@ import {
   ClassPerformanceChart,
   type Metric,
 } from '@/components/charts/ClassPerformanceChart'
+import { WeeklySchedule } from '@/components/dashboard/WeeklySchedule'
 import { cn } from '@/lib/utils'
 
 export function AdminDashboard() {
@@ -170,7 +171,11 @@ export function AdminDashboard() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-semibold text-slate-800">{c.name}</p>
-                  <p className="font-mono text-xs text-slate-400">{c.studentsCount} o'quvchi</p>
+                  <p className="font-mono text-xs text-slate-400">
+                    <span className="font-semibold text-emerald-600">{c.activeCount} aktiv</span>
+                    {' · '}
+                    {c.studentsCount} o'quvchi
+                  </p>
                 </div>
                 <div className="flex items-center gap-1 text-amber-600">
                   <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
@@ -180,6 +185,11 @@ export function AdminDashboard() {
             ))}
           </ul>
         </Card>
+      </div>
+
+      {/* Dars jadvali (raspisaniye) — yaratilgan guruhlarning haftalik jadvali */}
+      <div className="mt-4">
+        <WeeklySchedule />
       </div>
     </div>
   )
