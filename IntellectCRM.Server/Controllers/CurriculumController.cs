@@ -59,19 +59,16 @@ public class CurriculumController(AppDbContext db) : ControllerBase
     {
         var qc = qCounts.GetValueOrDefault(i.Id, 0);
         var vocabCount = ParseVocab(i.VocabJson).Count;
-        var meta = !string.IsNullOrWhiteSpace(i.Meta) ? i.Meta
-            : i.Type == "test" ? $"{qc} savol"
-            : i.Type == "vocab" ? $"{vocabCount} so'z"
-            : "";
-        var ready = i.Type switch
-        {
-            "video" => !string.IsNullOrWhiteSpace(i.VideoUrl),
-            "audio" => !string.IsNullOrWhiteSpace(i.AudioUrl),
-            "text" => !string.IsNullOrWhiteSpace(i.TextContent),
-            "vocab" => vocabCount > 0,
-            "test" => qc > 0,
-            _ => false,
-        };
+        // Dars BIR NECHTA bo'limdan iborat bo'lishi mumkin (video+matn+audio+lug'at+test) —
+        // mavjud bo'limlar ro'yxati + tayyorlik (kamida bitta bo'lim to'ldirilgan).
+        var sections = new List<string>();
+        if (!string.IsNullOrWhiteSpace(i.VideoUrl)) sections.Add("Video");
+        if (!string.IsNullOrWhiteSpace(i.TextContent)) sections.Add("Matn");
+        if (!string.IsNullOrWhiteSpace(i.AudioUrl)) sections.Add("Audio");
+        if (vocabCount > 0) sections.Add("Lug'at");
+        if (qc > 0) sections.Add("Test");
+        var meta = !string.IsNullOrWhiteSpace(i.Meta) ? i.Meta : string.Join(" · ", sections);
+        var ready = sections.Count > 0;
         return new CurriculumItemDto(i.Id, i.Text, i.Note, i.Order, i.Type, meta, ready);
     }
 
@@ -276,11 +273,9 @@ public class CurriculumController(AppDbContext db) : ControllerBase
                 Order = order++,
             });
 
-        // Meta: berilmasa avtomatik (test → savol soni, lug'at → so'z soni).
-        item.Meta = !string.IsNullOrWhiteSpace(req.Meta) ? req.Meta.Trim()
-            : item.Type == "test" ? $"{questions.Count} savol"
-            : item.Type == "vocab" ? $"{vocab.Count} so'z"
-            : "";
+        // Meta — foydalanuvchi erkin yorlig'i (masalan "12 daq"); bo'sh bo'lsa daraxtda
+        // bo'limlar ro'yxati avtomatik ko'rsatiladi (ToItemDto).
+        item.Meta = (req.Meta ?? "").Trim();
 
         await db.SaveChangesAsync();
         return NoContent();

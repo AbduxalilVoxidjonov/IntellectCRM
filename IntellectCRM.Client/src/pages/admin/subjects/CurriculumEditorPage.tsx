@@ -623,25 +623,34 @@ function LessonEditor({ itemId, onSaved }: LessonEditorProps) {
           className={control}
         />
 
-        {/* Tur tanlash */}
-        <label className="mb-1.5 mt-4 block text-xs font-semibold text-slate-500">Dars turi</label>
+        {/* Bo'limlar — bir nechtasini to'ldirsa bo'ladi (o'quvchi ketma-ket ko'radi) */}
+        <label className="mb-1.5 mt-4 block text-xs font-semibold text-slate-500">
+          Dars bo'limlari <span className="font-normal text-slate-400">— bir nechtasini to'ldiring (yashil = to'ldirilgan)</span>
+        </label>
         <div className="flex flex-wrap gap-2">
           {LESSON_TYPES.map((t) => {
             const TIcon = t.icon
             const on = type === t.type
+            const filled =
+              t.type === 'video' ? !!videoUrl
+              : t.type === 'audio' ? !!audioUrl
+              : t.type === 'text' ? !!textContent.trim()
+              : t.type === 'vocab' ? vocab.some((v) => v.term.trim() || v.meaning.trim())
+              : t.type === 'test' ? questions.some((q) => q.text.trim()) : false
             return (
               <button
                 key={t.type}
                 type="button"
                 onClick={() => setType(t.type)}
                 className={cn(
-                  'inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-[13px] font-semibold transition-colors',
+                  'relative inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-[13px] font-semibold transition-colors',
                   on
                     ? 'border-brand-400 bg-brand-50 text-brand-700'
                     : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50',
                 )}
               >
                 <TIcon className="h-4 w-4" /> {t.label}
+                {filled && <span className="ml-0.5 h-2 w-2 rounded-full bg-emerald-500" title="To'ldirilgan" />}
               </button>
             )
           })}
@@ -654,8 +663,6 @@ function LessonEditor({ itemId, onSaved }: LessonEditorProps) {
               kind={type}
               url={type === 'video' ? videoUrl : audioUrl}
               onUrl={type === 'video' ? setVideoUrl : setAudioUrl}
-              textContent={textContent}
-              onTextContent={setTextContent}
               meta={meta}
               onMeta={setMeta}
             />
@@ -707,13 +714,11 @@ interface MediaEditorProps {
   kind: 'video' | 'audio'
   url: string
   onUrl: (v: string) => void
-  textContent: string
-  onTextContent: (v: string) => void
   meta: string
   onMeta: (v: string) => void
 }
 
-function MediaEditor({ kind, url, onUrl, textContent, onTextContent, meta, onMeta }: MediaEditorProps) {
+function MediaEditor({ kind, url, onUrl, meta, onMeta }: MediaEditorProps) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
   const isVideo = kind === 'video'
@@ -774,17 +779,6 @@ function MediaEditor({ kind, url, onUrl, textContent, onTextContent, meta, onMet
           onChange={(e) => onMeta(e.target.value)}
           placeholder="masalan: 12 daq"
           className={cn(control, 'max-w-[200px]')}
-        />
-      </div>
-
-      <div>
-        <label className="mb-1.5 block text-xs font-semibold text-slate-500">Tavsif</label>
-        <textarea
-          value={textContent}
-          onChange={(e) => onTextContent(e.target.value)}
-          placeholder="Dars haqida qisqacha..."
-          rows={4}
-          className={cn(control, 'resize-y leading-relaxed')}
         />
       </div>
     </div>

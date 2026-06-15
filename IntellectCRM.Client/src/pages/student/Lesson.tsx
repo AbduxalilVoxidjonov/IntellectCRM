@@ -1,21 +1,24 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { getStudentLesson, type LessonContent, type LessonQuestion } from '@/api/services/studentPortal'
 import { Icon } from '@/pages/student/lib'
 
 /* ============================================================
    O'quvchi portali — DARS ko'rish (Duolingo node bosilganda ochiladi).
-   Tur bo'yicha: video / matn / audio / lug'at / test (interaktiv).
+   Bitta dars BIR NECHTA bo'limdan iborat bo'lishi mumkin: video → matn →
+   audio → lug'at → test. O'quvchi tepadagi progress bilan ketma-ket o'tadi.
    ============================================================ */
 
-const TYPE_LABEL: Record<string, string> = {
-  video: 'Video dars',
-  text: "Matnli dars",
-  audio: 'Audio dars',
+type SectionKind = 'video' | 'text' | 'audio' | 'vocab' | 'test'
+
+const SECTION_LABEL: Record<SectionKind, string> = {
+  video: 'Video',
+  text: 'Matn',
+  audio: 'Audio',
   vocab: "Lug'at",
   test: 'Test',
 }
-const TYPE_ICON: Record<string, string> = {
+const SECTION_ICON: Record<SectionKind, string> = {
   video: 'video',
   text: 'file',
   audio: 'clock',
@@ -23,7 +26,7 @@ const TYPE_ICON: Record<string, string> = {
   test: 'checkCircle',
 }
 
-/** YouTube/oddiy URL'dan embed havolasini quradi (YouTube bo'lsa iframe, aks holda null). */
+/** YouTube/oddiy URL'dan embed havolasini quradi (YouTube bo'lsa iframe). */
 function youtubeEmbed(url: string): string | null {
   const m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([\w-]{11})/)
   return m ? `https://www.youtube.com/embed/${m[1]}` : null
@@ -34,6 +37,7 @@ export function StudentLessonScreen() {
   const nav = useNavigate()
   const [lesson, setLesson] = useState<LessonContent | null>(null)
   const [err, setErr] = useState<string | null>(null)
+  const [step, setStep] = useState(0)
 
   useEffect(() => {
     let alive = true
@@ -44,6 +48,22 @@ export function StudentLessonScreen() {
       alive = false
     }
   }, [id])
+
+  // Mavjud bo'limlar (faqat to'ldirilganlari) — qat'iy tartibda.
+  const sections = useMemo<SectionKind[]>(() => {
+    if (!lesson) return []
+    const s: SectionKind[] = []
+    if (lesson.videoUrl) s.push('video')
+    if (lesson.textContent) s.push('text')
+    if (lesson.audioUrl) s.push('audio')
+    if (lesson.vocab.length) s.push('vocab')
+    if (lesson.questions.length) s.push('test')
+    return s
+  }, [lesson])
+
+  const total = sections.length
+  const cur = sections[Math.min(step, total - 1)]
+  const isLast = step >= total - 1
 
   return (
     <div className="screen">
@@ -56,6 +76,35 @@ export function StudentLessonScreen() {
             {lesson?.text || 'Dars'}
           </div>
         </div>
+
+        {/* Tepadagi progress — bo'limlar bo'yicha */}
+        {total > 0 && (
+          <div style={{ marginTop: 10 }}>
+            <div style={{ display: 'flex', gap: 5 }}>
+              {sections.map((_, i) => (
+                <div
+                  key={i}
+                  style={{
+                    flex: 1,
+                    height: 6,
+                    borderRadius: 6,
+                    background: i <= step ? 'var(--accent)' : 'var(--surface3)',
+                    transition: 'background .2s',
+                  }}
+                />
+              ))}
+            </div>
+            <div className="row" style={{ justifyContent: 'space-between', marginTop: 6 }}>
+              <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--accent)', display: 'inline-flex', gap: 5, alignItems: 'center' }}>
+                <Icon name={SECTION_ICON[cur]} size={14} color="var(--accent)" />
+                {SECTION_LABEL[cur]}
+              </span>
+              <span className="muted" style={{ fontSize: 12, fontWeight: 700 }}>
+                {step + 1} / {total}
+              </span>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="scroll" style={{ paddingBottom: 28 }}>
@@ -69,19 +118,55 @@ export function StudentLessonScreen() {
             </div>
           ) : !lesson ? (
             <div className="center"><div className="spin" /></div>
+          ) : total === 0 ? (
+            <div className="card" style={{ marginTop: 12 }}>
+              <div className="empty">
+                <div className="empty-ic"><Icon name="book" size={28} /></div>
+                <div style={{ fontSize: 15, fontWeight: 800 }}>Kontent hali qo'shilmagan</div>
+              </div>
+            </div>
           ) : (
             <>
-              {/* Tur belgisi */}
-              <div className="chip" style={{ marginTop: 4, marginBottom: 12, color: 'var(--accent)', background: 'var(--accentSoft)', display: 'inline-flex', gap: 6 }}>
-                <Icon name={TYPE_ICON[lesson.type] || 'book'} size={14} color="var(--accent)" />
-                {TYPE_LABEL[lesson.type] || 'Dars'}{lesson.meta ? ` · ${lesson.meta}` : ''}
+              <div style={{ marginTop: 4 }}>
+                {cur === 'video' && <VideoBlock lesson={lesson} />}
+                {cur === 'audio' && <AudioBlock lesson={lesson} />}
+                {cur === 'text' && <TextBlock text={lesson.textContent} />}
+                {cur === 'vocab' && <VocabBlock lesson={lesson} />}
+                {cur === 'test' && <TestRunner questions={lesson.questions} />}
               </div>
 
-              {lesson.type === 'video' && <VideoBlock lesson={lesson} />}
-              {lesson.type === 'audio' && <AudioBlock lesson={lesson} />}
-              {lesson.type === 'text' && <TextBlock text={lesson.textContent} />}
-              {lesson.type === 'vocab' && <VocabBlock lesson={lesson} />}
-              {lesson.type === 'test' && <TestRunner questions={lesson.questions} />}
+              {/* Navigatsiya: oldingi / keyingi-tugatdim */}
+              <div className="row gap10" style={{ marginTop: 20 }}>
+                {step > 0 && (
+                  <button
+                    type="button"
+                    className="btn btn-ghost press"
+                    style={{ flex: 1 }}
+                    onClick={() => setStep((s) => Math.max(0, s - 1))}
+                  >
+                    <Icon name="chevL" size={18} />
+                    Oldingi
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="btn btn-primary press"
+                  style={{ flex: 2 }}
+                  onClick={() => (isLast ? nav(-1) : setStep((s) => s + 1))}
+                >
+                  {isLast ? (
+                    <>
+                      <Icon name="check" size={18} color="#fff" />
+                      Yakunlash
+                    </>
+                  ) : (
+                    <>
+                      Tugatdim · Keyingi
+                      <Icon name="arrowR" size={18} color="#fff" />
+                    </>
+                  )}
+                </button>
+              </div>
             </>
           )}
         </div>
@@ -93,55 +178,39 @@ export function StudentLessonScreen() {
 function VideoBlock({ lesson }: { lesson: LessonContent }) {
   const embed = lesson.videoUrl ? youtubeEmbed(lesson.videoUrl) : null
   return (
-    <>
-      {lesson.videoUrl ? (
-        <div style={{ position: 'relative', width: '100%', aspectRatio: '16 / 9', borderRadius: 16, overflow: 'hidden', background: '#000' }}>
-          {embed ? (
-            <iframe
-              src={embed}
-              title={lesson.text}
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 0 }}
-            />
-          ) : (
-            <video src={lesson.videoUrl} controls style={{ width: '100%', height: '100%' }} />
-          )}
-        </div>
+    <div style={{ position: 'relative', width: '100%', aspectRatio: '16 / 9', borderRadius: 16, overflow: 'hidden', background: '#000' }}>
+      {embed ? (
+        <iframe
+          src={embed}
+          title={lesson.text}
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 0 }}
+        />
       ) : (
-        <p className="muted" style={{ fontSize: 13 }}>Video yuklanmagan.</p>
+        <video src={lesson.videoUrl} controls style={{ width: '100%', height: '100%' }} />
       )}
-      {lesson.textContent && <TextBlock text={lesson.textContent} top />}
-    </>
+    </div>
   )
 }
 
 function AudioBlock({ lesson }: { lesson: LessonContent }) {
   return (
-    <>
-      {lesson.audioUrl ? (
-        <div className="card" style={{ marginBottom: 12 }}>
-          <audio src={lesson.audioUrl} controls style={{ width: '100%' }} />
-        </div>
-      ) : (
-        <p className="muted" style={{ fontSize: 13 }}>Audio yuklanmagan.</p>
-      )}
-      {lesson.textContent && <TextBlock text={lesson.textContent} />}
-    </>
+    <div className="card">
+      <audio src={lesson.audioUrl} controls style={{ width: '100%' }} />
+    </div>
   )
 }
 
-function TextBlock({ text, top }: { text: string; top?: boolean }) {
-  if (!text) return null
+function TextBlock({ text }: { text: string }) {
   return (
-    <div className="card" style={{ marginTop: top ? 12 : 0, whiteSpace: 'pre-wrap', lineHeight: 1.6, fontSize: 15 }}>
+    <div className="card" style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6, fontSize: 15 }}>
       {text}
     </div>
   )
 }
 
 function VocabBlock({ lesson }: { lesson: LessonContent }) {
-  if (!lesson.vocab.length) return <p className="muted" style={{ fontSize: 13 }}>So'zlar yo'q.</p>
   return (
     <div className="card" style={{ padding: 4 }}>
       {lesson.vocab.map((v, i) => (
@@ -166,15 +235,10 @@ function VocabBlock({ lesson }: { lesson: LessonContent }) {
 /** Interaktiv test — variant tanlanadi, darhol to'g'ri/xato ko'rinadi (Duolingo uslubi). */
 function TestRunner({ questions }: { questions: LessonQuestion[] }) {
   const [answers, setAnswers] = useState<Record<string, number>>({})
-
-  if (!questions.length) return <p className="muted" style={{ fontSize: 13 }}>Savollar yo'q.</p>
-
-  const answered = Object.keys(answers).length
   const correct = questions.filter((q) => answers[q.id] === q.correctIndex).length
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      {/* Ball */}
       <div className="card row" style={{ justifyContent: 'space-between', alignItems: 'center', background: 'var(--accentSoft)', borderColor: 'transparent' }}>
         <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--accent)' }}>Natija</span>
         <span style={{ fontSize: 16, fontWeight: 800, color: 'var(--accent)' }}>{correct} / {questions.length}</span>
@@ -226,14 +290,6 @@ function TestRunner({ questions }: { questions: LessonQuestion[] }) {
           </div>
         )
       })}
-
-      {answered === questions.length && (
-        <div className="card" style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: 17, fontWeight: 800 }}>
-            {correct === questions.length ? "Barakalla! Hammasi to'g'ri \u{1F389}" : `${correct}/${questions.length} to'g'ri`}
-          </div>
-        </div>
-      )}
     </div>
   )
 }

@@ -113,6 +113,19 @@ docker compose up -d --build    # app + mssql + cloudflared + backup + mediamtx
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-15: **Dars KO'P BO'LIMLI bo'ldi (video+matn+audio+lug'at+test) — o'quvchi ketma-ket ko'radi (oldin faqat
+  `type` chiqardi).** Muammo: har dars BITTA `type`ga ega edi, o'quvchi ko'rinishi faqat shu turni ko'rsatardi (admin
+  bir nechta bo'lim to'ldirsa ham faqat test chiqardi). Aslida `CourseItem` barcha maydonlarni (videoUrl/textContent/
+  audioUrl/vocab/questions) birga saqlaydi — editor allaqachon hammasini saqlardi. Yechim: **(1) O'quvchi viewer**
+  (`Lesson.tsx`) qayta yozildi — STEPPER: mavjud bo'limlar (qat'iy tartib: Video→Matn→Audio→Lug'at→Test) tepada segment
+  progress + "Tugatdim · Keyingi"/"Oldingi"/"Yakunlash" bilan ketma-ket. (2) **Backend** `ToItemDto`: `ready`=kamida
+  bitta bo'lim to'ldirilgan, `meta`=bo'limlar ro'yxati ("Video · Matn · Lug'at · Test"); `SaveItemContent` meta avto-
+  hisoblashni olib tashladi (erkin yorliq, bo'sh bo'lsa tree bo'lim ro'yxatini ko'rsatadi). (3) **Editor** decoupling:
+  video/audio "Tavsif" (textContent) olib tashlandi — Matn endi ALOHIDA bo'lim (to'qnashuv yo'q); tur tugmalariga
+  "to'ldirilgan" yashil nuqta + "bir nechtasini to'ldiring" izohi. Backend 0, tsc+vite yashil, deploy ✅. Jonli E2E:
+  video+matn+lug'at(2)+test(2) saqlandi → tree meta='Video · Matn · Lug'at · Test' ready=True → o'quvchi hammasini oldi
+  (video=T text=T vocab=2 test=2). DIQQAT: PowerShell `Invoke-WebRequest|ConvertFrom-Json` ham massiv javoblarni ba'zan
+  ustun-massivga aylantiradi — subject id'lar qo'shilib ketadi; test uchun ID'ni hardcode qilish ishonchli.
 - 2026-06-15: **YANGI EPIK — O'quv dasturi KONTENTLI (Modul→Mavzu→Dars, dars ichida video/matn/audio/lug'at/test).**
   Foydalanuvchi `modul.png` (Kurs tahrirlovchi: chap modul-daraxt + o'ng dars tahrir/test tuzuvchi) namunasini berdi.
   Qaror: mavjud `CourseLevel→CourseTopic→CourseItem` (3 daraja, Modul→Mavzu→Dars ga mos) KENGAYTIRILADI — eski
