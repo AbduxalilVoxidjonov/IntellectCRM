@@ -1,4 +1,6 @@
+import { useEffect } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
+import { getPublicBrand } from '@/api/services/settings'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { ProtectedRoute, RootRedirect } from '@/components/auth/ProtectedRoute'
 import { RequirePerm } from '@/components/auth/RequirePerm'
@@ -85,6 +87,25 @@ import { StudentGradingScreen } from '@/pages/student/Grading'
 import { StudentAccountScreen } from '@/pages/student/Account'
 
 export default function App() {
+  // Brauzer TAB'i — markaz brendingi: nom → sarlavha, logo → favicon (sozlangach avtomatik).
+  useEffect(() => {
+    getPublicBrand()
+      .then((b) => {
+        if (b.name) document.title = b.name
+        if (b.logoUrl) {
+          let link = document.querySelector<HTMLLinkElement>("link[rel='icon']")
+          if (!link) {
+            link = document.createElement('link')
+            link.rel = 'icon'
+            document.head.appendChild(link)
+          }
+          link.removeAttribute('type') // logo png/jpg bo'lishi mumkin — brauzer o'zi aniqlaydi
+          link.href = b.logoUrl
+        }
+      })
+      .catch(() => {})
+  }, [])
+
   return (
     <Routes>
       {/* Ochiq sahifa */}
