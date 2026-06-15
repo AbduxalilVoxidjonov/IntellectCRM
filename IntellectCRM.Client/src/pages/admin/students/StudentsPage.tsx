@@ -180,10 +180,11 @@ export function StudentsPage() {
   const handleExport = () => {
     exportToCsv(
       'oquvchilar.csv',
-      ['F.I.SH', 'Guruh', 'Jinsi', "Tug'ilgan kun", 'Manzil', 'Ota-ona', 'Telefon', 'Balans', 'Chegirma'],
+      ['F.I.SH', 'Guruh', 'Holat', 'Jinsi', "Tug'ilgan kun", 'Manzil', 'Ota-ona', 'Telefon', 'Balans', 'Chegirma'],
       selectedStudents.map((s) => [
         s.fullName,
         s.groups && s.groups.length > 0 ? s.groups.join(', ') : s.className,
+        s.active ? 'Aktiv' : 'Aktiv emas',
         genderLabels[s.gender],
         formatDate(s.birthDate),
         s.address,
@@ -468,6 +469,7 @@ export function StudentsPage() {
                   <th className="w-10">#</th>
                   <th>F.I.SH</th>
                   <th>Guruh</th>
+                  <th>Holat</th>
                   <th>Jinsi</th>
                   <th>Tug'ilgan kun</th>
                   <th>Ota-ona</th>
@@ -531,6 +533,17 @@ export function StudentsPage() {
                         )}
                       </div>
                     </td>
+                    <td>
+                      {s.active ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Aktiv
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
+                          <span className="h-1.5 w-1.5 rounded-full bg-slate-400" /> Aktiv emas
+                        </span>
+                      )}
+                    </td>
                     <td className="text-slate-600">{genderLabels[s.gender]}</td>
                     <td className="font-mono text-slate-600">{formatDate(s.birthDate)}</td>
                     <td className="text-slate-600">{s.parentFullName}</td>
@@ -588,7 +601,7 @@ export function StudentsPage() {
                 ))}
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan={tab === 'archived' ? 12 : 10} className="px-4 py-12 text-center text-slate-400">
+                    <td colSpan={tab === 'archived' ? 13 : 11} className="px-4 py-12 text-center text-slate-400">
                       {tab === 'archived' ? 'Arxivda o\'quvchi yo\'q' : 'Hech narsa topilmadi'}
                     </td>
                   </tr>

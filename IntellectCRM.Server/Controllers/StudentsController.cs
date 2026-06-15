@@ -35,12 +35,17 @@ public class StudentsController(AppDbContext db, AuditService audit) : Controlle
         var memberships = await (from sg in db.StudentGroups
                                  join c in db.Classes on sg.GroupId equals c.Id
                                  where sg.IsActive && ids.Contains(sg.StudentId)
-                                 select new { sg.StudentId, c.Name }).ToListAsync();
+                                 select new { sg.StudentId, c.Name, sg.Status }).ToListAsync();
         var byStudent = memberships.GroupBy(m => m.StudentId)
             .ToDictionary(g => g.Key, g => g.Select(x => x.Name).Distinct()
                 .OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList());
+        // Kursda aktiv = kamida bitta a'zoligi Status=="active" (sinov/muzlatilgan emas).
+        var activeIds = memberships.Where(m => m.Status == "active").Select(m => m.StudentId).ToHashSet();
         foreach (var s in students)
+        {
             s.Groups = byStudent.GetValueOrDefault(s.Id) ?? new List<string>();
+            s.Active = activeIds.Contains(s.Id);
+        }
         return students;
     }
 

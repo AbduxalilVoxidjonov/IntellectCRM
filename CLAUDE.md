@@ -129,6 +129,12 @@ docker compose up -d --build    # app + mssql + cloudflared + backup + mediamtx
   deploy ✅ (migratsiya). Jonli E2E: speaking topshiriq yaratildi (referenceText) → o'quvchi ko'rdi → kalitsiz submit
   400 "sozlanmagan". ESLATMA: Flutter WebView'da mic uchun RECORD_AUDIO ruxsati + onPermissionRequest grant kerak;
   Azure baholash faqat admin kalit/region kiritgach ishlaydi.
+- 2026-06-15: **O'quvchilar ro'yxatiga "Holat" (Aktiv / Aktiv emas) ustuni.** Kursda aktivlik = kamida bitta a'zoligi
+  `Status=="active"` (sinov/muzlatilgan/guruhsiz EMAS). `Student`ga `[NotMapped] bool Active` (DB'ga yozilmaydi —
+  migratsiya yo'q); `StudentsController.GetAll` mavjud a'zolik so'roviga `sg.Status` qo'shib hisoblaydi (active
+  a'zolik bo'lganlar HashSet). TS `Student.active?`; `StudentsPage` "Guruh"dan keyin "Holat" ustuni (yashil "● Aktiv" /
+  kulrang "● Aktiv emas" badge) + CSV eksportga "Holat" + colSpan 10→11 / 12→13. Backend 0, tsc+vite yashil, deploy ✅;
+  jonli: 13 o'quvchidan 10 aktiv / 3 aktiv emas (E V2 guruhda bor-u sinov/muzlatilgan → aktiv emas).
 - 2026-06-15: **O'quvchi profiliga BAHOLASH statistikasi (oylik + har darslik).** Backend `GET /student/grading?month=`
   (`StudentPortalController.Grading`): o'quvchining har faol guruhi bo'yicha — mezonlarda OYLIK xulosa (done/total =
   shu oyda nechta darsda bajardi / jami dars) + HAR DARSLIK (har sana → bajarilgan mezon id'lari). DTO `StudentGradingGroupDto`/

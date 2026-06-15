@@ -116,6 +116,10 @@ public class Student
     /// ro'yxat endpointida M2M a'zoliklardan to'ldiriladi).</summary>
     [System.ComponentModel.DataAnnotations.Schema.NotMapped]
     public List<string> Groups { get; set; } = new();
+    /// <summary>Kursda FAOL — kamida bitta a'zoligi Status=="active" (sinov/muzlatilgan/guruhsiz emas).
+    /// DB'ga yozilmaydi; ro'yxat endpointida M2M a'zoliklardan hisoblanadi.</summary>
+    [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+    public bool Active { get; set; }
     /// <summary>Maktabga kelgan (qabul) sanasi (ISO "YYYY-MM-DD"). Oylik to'lov shu oydan boshlanadi.</summary>
     public string EnrollmentDate { get; set; } = string.Empty;
     /// <summary>Balans (so'm): manfiy = qarzdor, 0 = qarzsiz, musbat = avans.</summary>
