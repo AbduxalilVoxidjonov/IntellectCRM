@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using IntellectCRM.Infrastructure.Data;
 using IntellectCRM.Application.Dtos;
 using IntellectCRM.Application.Services;
@@ -15,6 +16,14 @@ namespace IntellectCRM.Server.Controllers;
 [Route("api/public/test")]
 public class PublicTestController(AppDbContext db) : ControllerBase
 {
+    /// <summary>Ommaviy brending — markaz nomi/logo/telefon (login, daraja testi kabi sahifalar uchun).</summary>
+    [HttpGet("/api/public/brand")]
+    public async Task<ActionResult<PublicBrandDto>> Brand()
+    {
+        var m = await db.CenterMeta.FirstOrDefaultAsync();
+        return new PublicBrandDto(m?.Name ?? "", m?.LogoUrl ?? "", m?.Phone ?? "");
+    }
+
     /// <summary>Slug bo'yicha faol testni oladi (to'g'ri javobSIZ). Topilmasa 404.</summary>
     [HttpGet("{slug}")]
     public async Task<ActionResult<PublicTestDto>> Get(string slug)

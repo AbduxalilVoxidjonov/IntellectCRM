@@ -1,7 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Check } from 'lucide-react'
-import { getSchoolInfo, saveSchoolInfo, type SchoolInfo } from '@/api/services/settings'
+import {
+  getSchoolInfo,
+  saveSchoolInfo,
+  uploadLogo,
+  deleteLogo,
+  type SchoolInfo,
+} from '@/api/services/settings'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -15,6 +21,7 @@ const empty: SchoolInfo = {
   address: '',
   region: '',
   district: '',
+  logoUrl: '',
 }
 
 /** Maktabga oid umumiy ma'lumotlar (nomi, direktor, manzil va h.k.) kiritiladigan sozlama. */
@@ -22,6 +29,8 @@ export function SchoolSettings() {
   const [form, setForm] = useState<SchoolInfo>(empty)
   const [loading, setLoading] = useState(true)
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
+  const [logoBusy, setLogoBusy] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     getSchoolInfo()
@@ -42,6 +51,31 @@ export function SchoolSettings() {
     setTimeout(() => setStatus('idle'), 2000)
   }
 
+  const onPickLogo = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = '' // bir xil faylni qayta tanlash imkonini beradi
+    if (!file) return
+    setLogoBusy(true)
+    try {
+      const updated = await uploadLogo(file)
+      setForm((f) => ({ ...f, logoUrl: updated.logoUrl }))
+      window.dispatchEvent(new Event('school:updated'))
+    } finally {
+      setLogoBusy(false)
+    }
+  }
+
+  const onRemoveLogo = async () => {
+    setLogoBusy(true)
+    try {
+      const updated = await deleteLogo()
+      setForm((f) => ({ ...f, logoUrl: updated.logoUrl }))
+      window.dispatchEvent(new Event('school:updated'))
+    } finally {
+      setLogoBusy(false)
+    }
+  }
+
   if (loading) return <Loader label="Yuklanmoqda..." />
 
   return (
@@ -49,6 +83,42 @@ export function SchoolSettings() {
       title="Markaz ma'lumotlari"
       sub="Markaz nomi va umumiy ma'lumotlar — hisobotlar va hujjatlarda ishlatiladi."
     >
+      {/* Logo */}
+      <div className="mb-6 max-w-2xl">
+        <p className="mb-2 text-sm font-medium text-slate-700">Logo</p>
+        <div className="flex items-center gap-4">
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+            {form.logoUrl ? (
+              <img src={form.logoUrl} alt="Logo" className="h-full w-full object-contain" />
+            ) : (
+              <span className="text-[11px] text-slate-400">Logo yo'q</span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={onPickLogo}
+            />
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={logoBusy}
+              onClick={() => fileRef.current?.click()}
+            >
+              {logoBusy ? 'Yuklanmoqda...' : 'Logo yuklash'}
+            </Button>
+            {form.logoUrl && (
+              <Button type="button" variant="ghost" disabled={logoBusy} onClick={onRemoveLogo}>
+                O'chirish
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+
       <form onSubmit={onSubmit} className="max-w-2xl space-y-4">
         <Input
           label="Markaz nomi"

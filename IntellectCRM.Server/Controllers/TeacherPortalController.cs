@@ -61,7 +61,7 @@ public class TeacherPortalController(
     public async Task<ActionResult<SchoolNameDto>> School()
     {
         var m = await db.CenterMeta.FirstOrDefaultAsync();
-        return new SchoolNameDto(m?.Name ?? "", m?.TelegramChannel ?? "");
+        return new SchoolNameDto(m?.Name ?? "", m?.TelegramChannel ?? "", m?.LogoUrl ?? "");
     }
 
     /// <summary>Ilova bildirishnomalari tarixi (yuborilgan push'lar) — o'qilmaganlar soni bilan.</summary>

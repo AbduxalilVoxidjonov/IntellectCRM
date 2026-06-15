@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import axios from 'axios'
@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { useAuth } from '@/context/auth-context'
 import { homeByRole } from '@/config/navigation'
+import { getPublicBrand, type PublicBrand } from '@/api/services/settings'
 
 interface LocationState {
   from?: string
@@ -28,6 +29,13 @@ export function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [brand, setBrand] = useState<PublicBrand>({ name: '', logoUrl: '', phone: '' })
+
+  useEffect(() => {
+    getPublicBrand()
+      .then(setBrand)
+      .catch(() => {})
+  }, [])
 
   // Allaqachon kirgan bo'lsa — o'z bo'limiga
   if (isAuthenticated && user) {
@@ -57,11 +65,21 @@ export function LoginPage() {
 
       <div className="relative w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-8 shadow-[var(--shadow-2,0_10px_40px_-12px_rgba(0,0,0,0.18))]">
         <div className="mb-7 flex flex-col items-center gap-4 text-center">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-600 to-fuchsia-600 text-lg font-bold tracking-tight text-white shadow-[0_8px_24px_-6px_oklch(0.5_0.18_282_/_0.5)]">
-            IC
-          </div>
+          {brand.logoUrl ? (
+            <img
+              src={brand.logoUrl}
+              alt="Logo"
+              className="h-14 w-14 rounded-2xl object-contain"
+            />
+          ) : (
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-600 to-fuchsia-600 text-lg font-bold tracking-tight text-white shadow-[0_8px_24px_-6px_oklch(0.5_0.18_282_/_0.5)]">
+              IC
+            </div>
+          )}
           <div>
-            <h1 className="text-xl font-bold tracking-tight text-slate-800">IntellectCRM</h1>
+            <h1 className="text-xl font-bold tracking-tight text-slate-800">
+              {brand.name || 'IntellectCRM'}
+            </h1>
             <p className="mt-1 text-sm text-slate-400">Tizimga kirish</p>
           </div>
         </div>

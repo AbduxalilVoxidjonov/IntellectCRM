@@ -30,6 +30,7 @@ export interface SchoolInfo {
   address: string
   region: string
   district: string
+  logoUrl: string
 }
 
 const emptySchoolInfo: SchoolInfo = {
@@ -40,6 +41,7 @@ const emptySchoolInfo: SchoolInfo = {
   address: '',
   region: '',
   district: '',
+  logoUrl: '',
 }
 
 export async function getSchoolInfo(): Promise<SchoolInfo> {
@@ -57,6 +59,40 @@ export async function saveSchoolInfo(info: SchoolInfo): Promise<void> {
     return
   }
   await api.put('/admin/settings/school', info)
+}
+
+/** Markaz logosini yuklash (rasm) — yangilangan SchoolInfo qaytadi. */
+export async function uploadLogo(file: File): Promise<SchoolInfo> {
+  const fd = new FormData()
+  fd.append('file', file)
+  const { data } = await api.post<SchoolInfo>('/admin/settings/logo', fd, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+  return data
+}
+
+/** Markaz logosini o'chirish — yangilangan SchoolInfo qaytadi. */
+export async function deleteLogo(): Promise<SchoolInfo> {
+  const { data } = await api.delete<SchoolInfo>('/admin/settings/logo')
+  return data
+}
+
+/* ---------- Ommaviy brending (autentifikatsiyasiz) ---------- */
+
+export interface PublicBrand {
+  name: string
+  logoUrl: string
+  phone: string
+}
+
+/** Login/test sahifalari uchun ommaviy brending (tokensiz). */
+export async function getPublicBrand(): Promise<PublicBrand> {
+  if (USE_MOCK) {
+    await delay()
+    return { name: '', logoUrl: '', phone: '' }
+  }
+  const { data } = await api.get<PublicBrand>('/public/brand')
+  return data
 }
 
 /* ---------- Telegram bot sozlamasi ---------- */
@@ -269,12 +305,18 @@ export async function savePaymentReminderSettings(payload: {
   return data
 }
 
-/** Maktab nomi (brending — barcha rollar uchun) */
-export async function getSchoolName(): Promise<string> {
+/** Maktab nomi + logo (brending — barcha rollar uchun) */
+export interface SchoolName {
+  name: string
+  telegramChannel: string
+  logoUrl: string
+}
+
+export async function getSchoolName(): Promise<SchoolName> {
   if (USE_MOCK) {
     await delay()
-    return ''
+    return { name: '', telegramChannel: '', logoUrl: '' }
   }
-  const { data } = await api.get<{ name: string }>('/school')
-  return data.name
+  const { data } = await api.get<SchoolName>('/school')
+  return data
 }

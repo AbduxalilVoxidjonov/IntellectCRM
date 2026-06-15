@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom'
 import { GraduationCap, ArrowRight, ArrowLeft, Check, Loader2, PartyPopper, AlertCircle } from 'lucide-react'
 import type { PublicTest, TestResult } from '@/types'
 import { getPublicTest, submitPublicTest } from '@/api/services/publicTest'
+import { getPublicBrand, type PublicBrand } from '@/api/services/settings'
 
 type Phase = 'loading' | 'notfound' | 'intro' | 'quiz' | 'done'
 
@@ -23,6 +24,7 @@ export function PublicTestPage() {
   const [submitting, setSubmitting] = useState(false)
   const [result, setResult] = useState<TestResult | null>(null)
   const [error, setError] = useState('')
+  const [brand, setBrand] = useState<PublicBrand>({ name: '', logoUrl: '', phone: '' })
 
   useEffect(() => {
     getPublicTest(slug)
@@ -32,6 +34,12 @@ export function PublicTestPage() {
       })
       .catch(() => setPhase('notfound'))
   }, [slug])
+
+  useEffect(() => {
+    getPublicBrand()
+      .then(setBrand)
+      .catch(() => {})
+  }, [])
 
   const start = () => {
     if (!fullName.trim()) return setError('Ism-familiyangizni kiriting')
@@ -72,10 +80,20 @@ export function PublicTestPage() {
       <div className="mx-auto w-full max-w-xl">
         {/* Brand */}
         <div className="mb-6 flex items-center justify-center gap-2.5">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-lg">
-            <GraduationCap className="h-6 w-6" />
-          </div>
-          <span className="text-lg font-bold tracking-tight text-slate-800">IntellectCRM</span>
+          {brand.logoUrl ? (
+            <img
+              src={brand.logoUrl}
+              alt="Logo"
+              className="h-10 w-10 rounded-xl object-contain shadow-lg"
+            />
+          ) : (
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-lg">
+              <GraduationCap className="h-6 w-6" />
+            </div>
+          )}
+          <span className="text-lg font-bold tracking-tight text-slate-800">
+            {brand.name || 'IntellectCRM'}
+          </span>
         </div>
 
         <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-xl">
@@ -293,7 +311,9 @@ export function PublicTestPage() {
           )}
         </div>
 
-        <p className="mt-6 text-center text-xs text-slate-400">IntellectCRM · O'quv markazi</p>
+        <p className="mt-6 text-center text-xs text-slate-400">
+          {brand.name || 'IntellectCRM'} · O'quv markazi
+        </p>
       </div>
     </div>
   )

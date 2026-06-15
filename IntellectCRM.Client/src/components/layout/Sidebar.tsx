@@ -28,12 +28,16 @@ export function Sidebar({ open, onNavigate }: SidebarProps) {
   const { unreadChannels } = useUnread()
   const totalUnread = unreadChannels.size
   const [schoolName, setSchoolName] = useState('')
+  const [logoUrl, setLogoUrl] = useState('')
 
-  // Maktab nomini yuklaymiz; sozlamada saqlangach 'school:updated' hodisasi bilan yangilanadi.
+  // Maktab nomi va logosini yuklaymiz; sozlamada saqlangach 'school:updated' hodisasi bilan yangilanadi.
   useEffect(() => {
     const load = () => {
       getSchoolName()
-        .then(setSchoolName)
+        .then((s) => {
+          setSchoolName(s.name)
+          setLogoUrl(s.logoUrl)
+        })
         .catch(() => {})
     }
     load()
@@ -66,9 +70,17 @@ export function Sidebar({ open, onNavigate }: SidebarProps) {
     >
       {/* Brend */}
       <div className="flex items-center gap-2.5 border-b border-slate-100 px-5 py-4">
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-brand-600 to-fuchsia-600 text-[13px] font-extrabold tracking-tight text-white shadow-[0_4px_10px_oklch(0.5_0.18_282_/_0.3)]">
-          IC
-        </div>
+        {logoUrl ? (
+          <img
+            src={logoUrl}
+            alt="Logo"
+            className="h-8 w-8 shrink-0 rounded-lg object-contain"
+          />
+        ) : (
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-brand-600 to-fuchsia-600 text-[13px] font-extrabold tracking-tight text-white shadow-[0_4px_10px_oklch(0.5_0.18_282_/_0.3)]">
+            IC
+          </div>
+        )}
         <div className="min-w-0 leading-tight">
           <p className="truncate text-sm font-bold tracking-tight text-slate-800">
             {schoolName || 'IntellectCRM'}

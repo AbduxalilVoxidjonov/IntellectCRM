@@ -30,7 +30,7 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
         var m = await db.CenterMeta.FirstOrDefaultAsync();
         return new SchoolInfoDto(
             m?.Name ?? "", m?.Director ?? "", m?.Phone ?? "", m?.Email ?? "",
-            m?.Address ?? "", m?.Region ?? "", m?.District ?? "");
+            m?.Address ?? "", m?.Region ?? "", m?.District ?? "", m?.LogoUrl ?? "");
     }
 
     [HttpPut("school")]
@@ -51,6 +51,35 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
         m.District = req.District;
         await db.SaveChangesAsync();
         return NoContent();
+    }
+
+    /// <summary>Markaz logotipini yuklaydi (rasm) — barcha foydalanuvchi ko'radigan joylarda ko'rsatiladi.</summary>
+    [HttpPost("logo")]
+    [RequestSizeLimit(8_000_000)]
+    public async Task<ActionResult<SchoolInfoDto>> UploadLogo(IFormFile file)
+    {
+        if (Application.Services.UploadGuard.Validate(file) is { } error)
+            return BadRequest(new { message = error });
+        var dir = System.IO.Path.Combine(env.ContentRootPath, "uploads");
+        System.IO.Directory.CreateDirectory(dir);
+        var stored = Application.Services.UploadGuard.SafeName(file);
+        await using (var fs = System.IO.File.Create(System.IO.Path.Combine(dir, stored)))
+            await file.CopyToAsync(fs);
+
+        var m = await db.CenterMeta.FirstOrDefaultAsync();
+        if (m is null) { m = new CenterMeta(); db.CenterMeta.Add(m); }
+        m.LogoUrl = $"/uploads/{stored}";
+        await db.SaveChangesAsync();
+        return await GetSchool();
+    }
+
+    /// <summary>Logotipni o'chiradi.</summary>
+    [HttpDelete("logo")]
+    public async Task<ActionResult<SchoolInfoDto>> DeleteLogo()
+    {
+        var m = await db.CenterMeta.FirstOrDefaultAsync();
+        if (m is not null) { m.LogoUrl = ""; await db.SaveChangesAsync(); }
+        return await GetSchool();
     }
 
     // ---------- Telegram bot ----------

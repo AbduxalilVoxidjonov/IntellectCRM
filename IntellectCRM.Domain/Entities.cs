@@ -640,6 +640,9 @@ public class CenterMeta
     public string BillingMode { get; set; } = "aggregate";
     /// <summary>Maktab nomi.</summary>
     public string Name { get; set; } = string.Empty;
+    /// <summary>Markaz logotipi (`/uploads/...`) — barcha foydalanuvchi ko'radigan joylarda (login,
+    /// daraja testi, portal sarlavhalari) nom yonida ko'rsatiladi. Bo'sh bo'lsa standart ikona.</summary>
+    public string LogoUrl { get; set; } = string.Empty;
     /// <summary>Direktor F.I.SH.</summary>
     public string Director { get; set; } = string.Empty;
     public string Phone { get; set; } = string.Empty;

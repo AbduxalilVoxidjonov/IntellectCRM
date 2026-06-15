@@ -16,6 +16,6 @@ public class CenterController(AppDbContext db) : ControllerBase
     public async Task<ActionResult<SchoolNameDto>> Get()
     {
         var m = await db.CenterMeta.FirstOrDefaultAsync();
-        return new SchoolNameDto(m?.Name ?? "");
+        return new SchoolNameDto(m?.Name ?? "", "", m?.LogoUrl ?? "");
     }
 }
