@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Check, ClipboardCheck, ChevronLeft, ChevronRight } from 'lucide-react'
-import type { GradingBoard, SetGrade } from '@/api/services/grading'
+import { Check, ClipboardCheck, ChevronLeft, ChevronRight, ChevronDown, X } from 'lucide-react'
+import type { GradingBoard, SetGrade, BulkGrade } from '@/api/services/grading'
 import { Loader } from '@/components/ui/Loader'
 import { cn } from '@/lib/utils'
 
@@ -8,28 +8,36 @@ interface Props {
   groupId: string
   fetchBoard: (groupId: string, month?: string) => Promise<GradingBoard>
   saveGrade: (req: SetGrade) => Promise<void>
+  bulkGrade: (req: BulkGrade) => Promise<void>
 }
 
 const MONTHS = [
   'Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'Iyun',
   'Iyul', 'Avgust', 'Sentabr', 'Oktabr', 'Noyabr', 'Dekabr',
 ]
+const WD = ['Ya', 'Du', 'Se', 'Ch', 'Pa', 'Ju', 'Sh'] // 0=Yak..6=Shan
 function monthLabel(m: string) {
   const [y, mm] = m.split('-')
   return `${MONTHS[Number(mm) - 1] ?? mm} ${y}`
 }
+function weekday(d: string) {
+  const [y, m, day] = d.split('-').map(Number)
+  return WD[new Date(y, m - 1, day).getDay()]
+}
+const TODAY = new Date().toISOString().slice(0, 10)
 
 /**
  * Guruh BAHOLASH grid'i (umumiy — admin va o'qituvchi guruh detalida).
- * Mezonlar bo'yicha HAR DARSGA "bajardi/bajarmadi" belgilanadi: oy → dars sanasi tanlanadi,
- * keyin o'quvchilar × mezonlar grid'ida har katak ✓ qilinadi.
+ * Mezonlar bo'yicha HAR DARSGA "bajardi/bajarmadi". Oy → dars sanasi (jurnaldagidek)
+ * tanlanadi; mezon sarlavhasiga bosilsa BARCHAGA belgilash/belgilamaslik.
  */
-export function GradingSection({ groupId, fetchBoard, saveGrade }: Props) {
+export function GradingSection({ groupId, fetchBoard, saveGrade, bulkGrade }: Props) {
   const [board, setBoard] = useState<GradingBoard | null>(null)
   const [loading, setLoading] = useState(true)
   const [date, setDate] = useState('')
   const [done, setDone] = useState<Set<string>>(new Set()) // "studentId|criterionId|date"
   const [savingKey, setSavingKey] = useState<string | null>(null)
+  const [menuFor, setMenuFor] = useState<string | null>(null)
 
   const load = useCallback(
     (month?: string) => {
@@ -37,9 +45,8 @@ export function GradingSection({ groupId, fetchBoard, saveGrade }: Props) {
       fetchBoard(groupId, month)
         .then((b) => {
           setBoard(b)
-          const today = new Date().toISOString().slice(0, 10)
           setDate((d) =>
-            b.dates.includes(d) ? d : b.dates.includes(today) ? today : b.dates[b.dates.length - 1] ?? '',
+            b.dates.includes(d) ? d : b.dates.includes(TODAY) ? TODAY : b.dates[b.dates.length - 1] ?? '',
           )
           const s = new Set<string>()
           b.students.forEach((st) => st.doneKeys.forEach((k) => s.add(`${st.studentId}|${k}`)))
@@ -71,6 +78,21 @@ export function GradingSection({ groupId, fetchBoard, saveGrade }: Props) {
     }
   }
 
+  const applyBulk = async (cid: string, value: boolean) => {
+    setMenuFor(null)
+    if (!date || !board) return
+    setDone((s) => {
+      const n = new Set(s)
+      board.students.forEach((st) => {
+        const key = `${st.studentId}|${cid}|${date}`
+        if (value) n.add(key)
+        else n.delete(key)
+      })
+      return n
+    })
+    await bulkGrade({ groupId, criterionId: cid, date, done: value })
+  }
+
   if (loading) return <Loader label="Yuklanmoqda..." />
   if (!board || board.criteria.length === 0)
     return (
@@ -96,18 +118,16 @@ export function GradingSection({ groupId, fetchBoard, saveGrade }: Props) {
           type="button"
           onClick={() => gotoMonth(idx - 1)}
           disabled={idx <= 0}
-          className="rounded-lg border border-slate-200 p-1.5 text-slate-500 disabled:opacity-40 hover:bg-slate-50"
+          className="rounded-lg border border-slate-200 p-1.5 text-slate-500 hover:bg-slate-50 disabled:opacity-40"
         >
           <ChevronLeft className="h-4 w-4" />
         </button>
-        <span className="min-w-[120px] text-center text-sm font-semibold text-slate-700">
-          {monthLabel(board.month)}
-        </span>
+        <span className="min-w-[120px] text-center text-sm font-semibold text-slate-700">{monthLabel(board.month)}</span>
         <button
           type="button"
           onClick={() => gotoMonth(idx + 1)}
           disabled={idx >= board.months.length - 1}
-          className="rounded-lg border border-slate-200 p-1.5 text-slate-500 disabled:opacity-40 hover:bg-slate-50"
+          className="rounded-lg border border-slate-200 p-1.5 text-slate-500 hover:bg-slate-50 disabled:opacity-40"
         >
           <ChevronRight className="h-4 w-4" />
         </button>
@@ -117,21 +137,30 @@ export function GradingSection({ groupId, fetchBoard, saveGrade }: Props) {
         <p className="py-6 text-center text-sm text-slate-400">Bu oyda dars kuni yo'q.</p>
       ) : (
         <>
-          {/* Dars sanasi tanlash */}
-          <div className="flex flex-wrap justify-center gap-1.5">
+          {/* Dars sanalari — jurnaldagidek (hafta kuni + sana) */}
+          <div className="flex gap-1.5 overflow-x-auto pb-1">
             {board.dates.map((d) => {
               const day = Number(d.slice(8, 10))
+              const sel = d === date
+              const isToday = d === TODAY
               return (
                 <button
                   key={d}
                   type="button"
                   onClick={() => setDate(d)}
                   className={cn(
-                    'h-8 w-8 rounded-lg text-sm font-semibold transition-colors',
-                    d === date ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200',
+                    'flex h-12 w-11 shrink-0 flex-col items-center justify-center rounded-xl border transition-colors',
+                    sel
+                      ? 'border-slate-800 bg-slate-800 text-white'
+                      : isToday
+                        ? 'border-teal-300 bg-teal-50 text-teal-700'
+                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50',
                   )}
                 >
-                  {day}
+                  <span className={cn('text-[10px] font-medium', sel ? 'text-white/80' : 'text-slate-400')}>
+                    {weekday(d)}
+                  </span>
+                  <span className="text-[15px] font-bold">{day}</span>
                 </button>
               )
             })}
@@ -148,8 +177,34 @@ export function GradingSection({ groupId, fetchBoard, saveGrade }: Props) {
                       O'quvchi
                     </th>
                     {board.criteria.map((c) => (
-                      <th key={c.id} className="min-w-[90px] border-b border-slate-200 px-2 py-2 text-center font-semibold text-slate-700">
-                        {c.name}
+                      <th key={c.id} className="relative min-w-[96px] border-b border-slate-200 px-2 py-2 text-center">
+                        <button
+                          type="button"
+                          onClick={() => setMenuFor(menuFor === c.id ? null : c.id)}
+                          title="Hammaga belgilash / belgilamaslik"
+                          className="mx-auto inline-flex items-center gap-1 font-semibold text-slate-700 hover:text-slate-900"
+                        >
+                          {c.name}
+                          <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
+                        </button>
+                        {menuFor === c.id && (
+                          <div className="absolute left-1/2 top-full z-30 mt-1 w-48 -translate-x-1/2 overflow-hidden rounded-xl border border-slate-200 bg-white text-left shadow-lg">
+                            <button
+                              type="button"
+                              onClick={() => applyBulk(c.id, true)}
+                              className="flex w-full items-center gap-2 px-3 py-2.5 text-[13px] font-medium normal-case text-slate-700 hover:bg-emerald-50"
+                            >
+                              <Check className="h-4 w-4 text-emerald-600" /> Hammaga belgilash
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => applyBulk(c.id, false)}
+                              className="flex w-full items-center gap-2 border-t border-slate-100 px-3 py-2.5 text-[13px] font-medium normal-case text-slate-700 hover:bg-red-50"
+                            >
+                              <X className="h-4 w-4 text-red-500" /> Belgilamaslik
+                            </button>
+                          </div>
+                        )}
                       </th>
                     ))}
                   </tr>
@@ -190,6 +245,9 @@ export function GradingSection({ groupId, fetchBoard, saveGrade }: Props) {
           )}
         </>
       )}
+
+      {/* Menyuni yopish uchun fon */}
+      {menuFor && <div className="fixed inset-0 z-20" onClick={() => setMenuFor(null)} />}
     </div>
   )
 }

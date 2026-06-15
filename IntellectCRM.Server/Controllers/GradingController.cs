@@ -106,6 +106,17 @@ public class GradingController(AppDbContext db) : ControllerBase
         return Ok(new { ok = true });
     }
 
+    /// <summary>Shu sanada bitta mezon bo'yicha BARCHA faol o'quvchini ommaviy belgilash/belgilamaslik.</summary>
+    [HttpPost("grade/bulk")]
+    public async Task<ActionResult> BulkGrade(BulkCriterionGradeRequest req)
+    {
+        var group = await db.Classes.FindAsync(req.GroupId);
+        if (group is null) return NotFound();
+        await BulkGradeAsync(db, group, req.CriterionId, req.Date, req.Done);
+        await db.SaveChangesAsync();
+        return Ok(new { ok = true });
+    }
+
     // ---------- Umumiy yordamchilar (teacher ham ishlatadi) ----------
 
     /// <summary>Guruh baholash grid'ini quradi: oy(lar) + dars sanalari + biriktirilgan mezonlar +
@@ -171,6 +182,36 @@ public class GradingController(AppDbContext db) : ControllerBase
         else if (existing is not null)
         {
             db.CriterionGrades.Remove(existing);
+        }
+    }
+
+    /// <summary>Shu sanada bitta mezon bo'yicha guruhning BARCHA faol (frozen emas) o'quvchisini belgilaydi/olib tashlaydi.</summary>
+    public static async Task BulkGradeAsync(AppDbContext db, Group group, string criterionId, string date, bool done)
+    {
+        var memberIds = await db.StudentGroups
+            .Where(sg => sg.GroupId == group.Id && sg.IsActive && sg.Status != "frozen")
+            .Select(sg => sg.StudentId).ToListAsync();
+        var existing = await db.CriterionGrades
+            .Where(g => g.GroupId == group.Id && g.CriterionId == criterionId && g.Date == date).ToListAsync();
+        var byStudent = existing.ToDictionary(g => g.StudentId);
+        var now = AppClock.Now.ToString("yyyy-MM-ddTHH:mm:ss");
+        foreach (var sid in memberIds)
+        {
+            byStudent.TryGetValue(sid, out var e);
+            if (done)
+            {
+                if (e is null)
+                    db.CriterionGrades.Add(new CriterionGrade
+                    {
+                        GroupId = group.Id, StudentId = sid, CriterionId = criterionId,
+                        Date = date, Done = true, UpdatedAt = now,
+                    });
+                else { e.Done = true; e.UpdatedAt = now; }
+            }
+            else if (e is not null)
+            {
+                db.CriterionGrades.Remove(e);
+            }
         }
     }
 }

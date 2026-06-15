@@ -16,7 +16,7 @@ import type { GroupCurriculum } from '@/api/services/curriculum'
 import { cn, formatDate } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
 import { GradingSection } from '@/components/grading/GradingSection'
-import { getTeacherGradingBoard, setTeacherGrade } from '@/api/services/teacher'
+import { getTeacherGradingBoard, setTeacherGrade, bulkTeacherGrade } from '@/api/services/teacher'
 import { Loader } from '@/components/ui/Loader'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
@@ -440,7 +440,7 @@ export function TeacherGroupDetailPage() {
           {groupView === 'baholash' && (
             <Card className="rounded-[20px] border border-line bg-white shadow-[var(--shadow-card)]">
               <h2 className="mb-3 font-semibold text-ink">Baholash</h2>
-              <GradingSection groupId={id} fetchBoard={getTeacherGradingBoard} saveGrade={setTeacherGrade} />
+              <GradingSection groupId={id} fetchBoard={getTeacherGradingBoard} saveGrade={setTeacherGrade} bulkGrade={bulkTeacherGrade} />
             </Card>
           )}
 

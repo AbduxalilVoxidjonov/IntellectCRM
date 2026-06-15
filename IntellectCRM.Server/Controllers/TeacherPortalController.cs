@@ -411,6 +411,19 @@ public class TeacherPortalController(
         return Ok(new { ok = true });
     }
 
+    /// <summary>Shu sanada bitta mezon bo'yicha BARCHA o'quvchini ommaviy belgilash — FAQAT o'z guruhi.</summary>
+    [HttpPost("grading/grade/bulk")]
+    public async Task<IActionResult> GradingBulk(BulkCriterionGradeRequest req)
+    {
+        var (t, g, owns) = await ResolveOwnedGroup(req.GroupId);
+        if (t is null) return NotFound();
+        if (g is null) return NotFound();
+        if (!owns) return Forbid();
+        await GradingController.BulkGradeAsync(db, g, req.CriterionId, req.Date, req.Done);
+        await db.SaveChangesAsync();
+        return Ok(new { ok = true });
+    }
+
     /// <summary>Guruh sillabus o'tilishi + tugash prognozi (admin <c>GET /admin/curriculum/group/{id}</c> bilan bir xil), o'z guruhi uchun.</summary>
     [HttpGet("curriculum/group/{groupId}")]
     public async Task<ActionResult<GroupCurriculumDto>> CurriculumGroup(string groupId)

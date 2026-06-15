@@ -113,6 +113,16 @@ docker compose up -d --build    # app + mssql + cloudflared + backup + mediamtx
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-15: **O'qituvchi portali RESPONSIV (web+ilova ajralgan) + baholash chiroyli sanalar + ommaviy belgilash.**
+  (1) **Responsiv:** `TeacherMobileLayout` — telefon/WebView yo'li AYNAN o'zgarmadi (mobil-first, default stillar);
+  desktop (`lg:`) qatlam QO'SHILDI: chap yon-menyu (avatar+ism+vertikal nav, `hidden lg:flex`), kontent kengroq
+  (`max-w-md lg:max-w-4xl`), bottom-nav `lg:hidden`. Tailwind mobile-first → WebView (telefon kengligi) `lg:` ni
+  KO'RMAYDI → ilova bayt-ma-bayt bir xil; web va ilova aralashmaydi. (2) **Chiroyli sanalar:** GradingSection dars
+  sanalari endi jurnaldagidek — hafta kuni (Du/Se/Ch..) + sana, bugun teal, tanlangani to'q. (3) **Ommaviy belgilash:**
+  mezon sarlavhasiga bosilsa popover — "Hammaga belgilash" / "Belgilamaslik" (shu sanada, frozen emas barchaga).
+  Backend `BulkCriterionGradeRequest` + `BulkGradeAsync` + `POST grade/bulk` (admin) + `POST teacher/grading/grade/bulk`
+  (o'z guruhi). Frontend `bulkGrade`/`bulkTeacherGrade` + GradingSection prop. tsc+vite+backend 0, deploy ✅ (migratsiya
+  yo'q). Jonli E2E: bulk 8/8 belgilandi → 0 ga olindi. QOLDI: o'quvchi profiliga baholash statistikasi (oylik+har darslik).
 - 2026-06-15: **Baholash → HAR DARSGA CHECK (bajardi/bajarmadi) + Jurnal/Baholash toggle + frozen chiqarildi.**
   Foydalanuvchi: baho 1-5 emas, har mezon CHECK (bajardi/bajarmadi); BIR MARTA emas HAR DARSGA; guruh detalida
   "Jurnal | Baholash" toggle. **Backend:** `CriterionGrade` `Score(double)` → `Date(string)`+`Done(bool)` (unique

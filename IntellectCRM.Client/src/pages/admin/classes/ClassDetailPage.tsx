@@ -19,7 +19,7 @@ import { getSettings } from '@/api/services/settings'
 import { cn, formatMoney, formatDate } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
 import { GradingSection } from '@/components/grading/GradingSection'
-import { getGradingBoard, setGrade } from '@/api/services/grading'
+import { getGradingBoard, setGrade, bulkGrade } from '@/api/services/grading'
 import { Loader } from '@/components/ui/Loader'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
@@ -566,7 +566,7 @@ export function ClassDetailPage() {
           {/* Baholash — har darsga mezonlar bo'yicha bajardi/bajarmadi */}
           {groupView === 'baholash' && (
             <Card title="Baholash" sub="Har darsga mezonlar bo'yicha o'quvchini belgilang (bajardi / bajarmadi)">
-              <GradingSection groupId={id} fetchBoard={getGradingBoard} saveGrade={setGrade} />
+              <GradingSection groupId={id} fetchBoard={getGradingBoard} saveGrade={setGrade} bulkGrade={bulkGrade} />
             </Card>
           )}
 

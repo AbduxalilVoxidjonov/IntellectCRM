@@ -999,6 +999,8 @@ public record GradingBoardDto(
     List<GradingBoardCriterionDto> Criteria, List<GradingBoardStudentDto> Students);
 /// <summary>Bitta katakni belgilash: shu sanada shu mezon bo'yicha bajardi (Done) yoki yo'q.</summary>
 public record SetCriterionGradeRequest(string GroupId, string StudentId, string CriterionId, string Date, bool Done);
+/// <summary>Shu sanada bitta mezon bo'yicha BARCHA faol o'quvchini belgilash/belgilamaslik (ommaviy).</summary>
+public record BulkCriterionGradeRequest(string GroupId, string CriterionId, string Date, bool Done);
 
 // ---- Ommaviy (anonim) ----
 

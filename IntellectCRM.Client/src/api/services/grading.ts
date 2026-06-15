@@ -39,6 +39,12 @@ export interface SetGrade {
   date: string
   done: boolean
 }
+export interface BulkGrade {
+  groupId: string
+  criterionId: string
+  date: string
+  done: boolean
+}
 
 // ---- Mezonlar (pul) ----
 export async function getCriteria(): Promise<GradingCriterion[]> {
@@ -74,4 +80,7 @@ export async function getGradingBoard(groupId: string, month?: string): Promise<
 }
 export async function setGrade(req: SetGrade): Promise<void> {
   await api.post('/admin/grading/grade', req)
+}
+export async function bulkGrade(req: BulkGrade): Promise<void> {
+  await api.post('/admin/grading/grade/bulk', req)
 }
