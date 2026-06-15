@@ -25,3 +25,8 @@ appsettings.*.local.json
 
 # Server statik (Docker build dist'dan yaratadi)
 IntellectCRM.Server/wwwroot/
+
+# Dev artefaktlari (kurriкulum import manbasi + dizayn maketi) — serverga kerak emas
+english.xlsx
+matematika.xlsx
+modul.png
