@@ -26,10 +26,6 @@ var builder = WebApplication.CreateBuilder(args);
 var defaultConn = builder.Configuration.GetConnectionString("Default")
     ?? throw new InvalidOperationException("ConnectionStrings:Default sozlanmagan.");
 
-// Apex (asosiy domen) → landing sahifa; subdomen → ilova (SPA). Faqat shu uchun root domen kerak.
-var rootDomains = (builder.Configuration["Tenancy:RootDomain"] ?? "")
-    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-
 // ---------- Xizmatlar ----------
 // PostgreSQL (Npgsql). Connection string `ConnectionStrings:Default` orqali beriladi
 // (dev: appsettings.json, prod: muhit o'zgaruvchisi). 1GB RAM serverga ham sig'adi.
@@ -399,31 +395,15 @@ app.MapGet("/api/health", () => Results.Ok(new { status = "healthy" }));
 // Noma'lum /api/* yo'llari — SPA HTML emas, 404 JSON qaytsin (mobil/klient uchun toza).
 app.MapFallback("/api/{**slug}", () => Results.NotFound(new { message = "API endpoint topilmadi" }));
 
-// SPA / landing fallback:
-//  • Faqat ILOVA HOSTI (App:Host, masalan `test.intellectschool.uz`) → React SPA (index.html);
-//  • boshqa hammasi (apex `intellectschool.uz`, `www`, `admin` va h.k.) → landing sahifa (landing.html).
-//  • App:Host sozlanmagan bo'lsa (dev) — apex/www dan boshqa hammasi SPA (eski xulq).
+// SPA fallback: BARCHA host va yo'l (crm.intellectschool.uz va boshqalar) → React SPA (index.html).
+// Landing sahifa OLIB TASHLANDI — saytga kirilganda to'g'ridan-to'g'ri login chiqadi
+// (React `RootRedirect` autentifikatsiyasiz foydalanuvchini `/login`ga yuboradi).
 var webRoot = app.Environment.WebRootPath
     ?? Path.Combine(app.Environment.ContentRootPath, "wwwroot");
-var appHost = (builder.Configuration["App:Host"] ?? "").Trim();
-bool IsLandingHost(string h) => rootDomains.Any(r =>
-    h.Equals(r, StringComparison.OrdinalIgnoreCase) ||
-    h.Equals("www." + r, StringComparison.OrdinalIgnoreCase));
 
-// DIQQAT: o'qituvchi PWA (`/teacher/`) statik fayllari (assets, manifest, sw.js, ikonlar)
-// yuqoridagi UseStaticFiles orqali beriladi. Ularni ALOHIDA pattern'li fallback bilan tutmaymiz —
-// pattern'li `MapFallback("/teacher/{**slug}")` `nonfile` cheklovisiz bo'lib, real fayllarni ham
-// tutib statik middleware'ni soyalaydi. Buning o'rniga `/teacher/` ni quyidagi GENERIC fallback
-// ichida (u `nonfile` cheklovli — fayllarga tegmaydi) hal qilamiz.
 app.MapFallback(async ctx =>
 {
-    // O'qituvchi portali endi SPA ichida (/teacher/* → React router) — alohida PWA YO'Q,
-    // shuning uchun /teacher/* ham quyidagi umumiy SPA fallback (index.html) orqali beriladi.
-    var host = ctx.Request.Host.Host;
-    var isApp = appHost.Length > 0
-        ? host.Equals(appHost, StringComparison.OrdinalIgnoreCase)
-        : !IsLandingHost(host); // dev: App:Host yo'q — apex/www dan boshqa hammasi ilova
-    var file = Path.Combine(webRoot, isApp ? "index.html" : "landing.html");
+    var file = Path.Combine(webRoot, "index.html");
     if (!File.Exists(file)) { ctx.Response.StatusCode = StatusCodes.Status404NotFound; return; }
     ctx.Response.ContentType = "text/html; charset=utf-8";
     ctx.Response.Headers.CacheControl = "no-cache";
