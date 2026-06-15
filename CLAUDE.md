@@ -113,6 +113,14 @@ docker compose up -d --build    # app + mssql + cloudflared + backup + mediamtx
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-15: **O'quvchi profiliga BAHOLASH statistikasi (oylik + har darslik).** Backend `GET /student/grading?month=`
+  (`StudentPortalController.Grading`): o'quvchining har faol guruhi bo'yicha — mezonlarda OYLIK xulosa (done/total =
+  shu oyda nechta darsda bajardi / jami dars) + HAR DARSLIK (har sana → bajarilgan mezon id'lari). DTO `StudentGradingGroupDto`/
+  `StudentGradingCriterionDto`/`StudentGradingDateDto`. Frontend `studentPortal.ts` `getStudentGrading`+tiplar; yangi
+  `pages/student/Grading.tsx` (`StudentGradingScreen`, route `/student/grading`, Profil menyusiga "Baholash") — guruh
+  tanlash + oy nav + Oylik xulosa (mezon: done/total + progress bar + %) + Har darslik (sana[hafta kuni+kun] → mezon
+  chiplari ✓/✗). Backend 0, tsc+vite yashil, deploy ✅ (migratsiya yo'q). Jonli E2E: E V2 → 1 guruh, oylik "Uy vazifa
+  2/13", har darslik 2026-06-01 1 mezon bajarilgan.
 - 2026-06-15: **O'qituvchi portali RESPONSIV (web+ilova ajralgan) + baholash chiroyli sanalar + ommaviy belgilash.**
   (1) **Responsiv:** `TeacherMobileLayout` — telefon/WebView yo'li AYNAN o'zgarmadi (mobil-first, default stillar);
   desktop (`lg:`) qatlam QO'SHILDI: chap yon-menyu (avatar+ism+vertikal nav, `hidden lg:flex`), kontent kengroq

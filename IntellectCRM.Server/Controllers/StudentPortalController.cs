@@ -828,6 +828,63 @@ public class StudentPortalController(
         catch { return null; }
     }
 
+    /// <summary>O'quvchining BAHOLASH statistikasi (har faol guruh bo'yicha): mezonlarda
+    /// OYLIK xulosa (nechta darsda bajardi / jami) + HAR DARSLIK belgilar.</summary>
+    [HttpGet("grading")]
+    public async Task<ActionResult<IEnumerable<StudentGradingGroupDto>>> Grading(
+        [FromQuery] string? studentId, [FromQuery] string? month)
+    {
+        if (User.IsInRole("admin") && string.IsNullOrWhiteSpace(studentId)) return NeedStudentId();
+        var s = await TargetAsync(studentId);
+        if (s is null) return NotFound();
+
+        var groups = await (from sg in db.StudentGroups
+                            join c in db.Classes on sg.GroupId equals c.Id
+                            where sg.StudentId == s.Id && sg.IsActive
+                            select c).ToListAsync();
+
+        var result = new List<StudentGradingGroupDto>();
+        var cur = TuitionService.CurrentMonth();
+        foreach (var g in groups)
+        {
+            var assigns = await db.GroupGradingCriteria.Where(x => x.GroupId == g.Id)
+                .OrderBy(x => x.Order).ToListAsync();
+            if (assigns.Count == 0) continue;
+            var critIds = assigns.Select(a => a.CriterionId).ToList();
+            var critDict = await db.GradingCriteria.Where(c => critIds.Contains(c.Id)).ToDictionaryAsync(c => c.Id);
+            var orderedCrits = assigns.Where(a => critDict.ContainsKey(a.CriterionId))
+                .Select(a => critDict[a.CriterionId]).ToList();
+            if (orderedCrits.Count == 0) continue;
+
+            var startMonth = !string.IsNullOrEmpty(g.StartDate) && g.StartDate.Length >= 7 ? g.StartDate[..7] : cur;
+            if (string.CompareOrdinal(startMonth, cur) > 0) startMonth = cur;
+            var months = TuitionService.MonthRange(startMonth, cur).ToList();
+            if (months.Count == 0) months.Add(cur);
+            var resolved = !string.IsNullOrEmpty(month) && months.Contains(month) ? month! : months[^1];
+            var dates = JournalService.LessonDatesInMonth(g.Days, resolved).ToList();
+            var dateSet = dates.ToHashSet();
+
+            var marks = await db.CriterionGrades
+                .Where(x => x.GroupId == g.Id && x.StudentId == s.Id && x.Done && x.Date.StartsWith(resolved))
+                .Select(x => new { x.CriterionId, x.Date }).ToListAsync();
+
+            var byCriterion = marks.GroupBy(m => m.CriterionId)
+                .ToDictionary(gr => gr.Key, gr => gr.Select(x => x.Date).ToHashSet());
+            var criteria = orderedCrits.Select(c => new StudentGradingCriterionDto(
+                c.Id, c.Name,
+                byCriterion.TryGetValue(c.Id, out var ds) ? ds.Count(d => dateSet.Contains(d)) : 0,
+                dates.Count)).ToList();
+
+            var byDate = marks.GroupBy(m => m.Date)
+                .ToDictionary(gr => gr.Key, gr => gr.Select(x => x.CriterionId).ToList());
+            var lessons = dates.Select(d => new StudentGradingDateDto(
+                d, byDate.TryGetValue(d, out var cids) ? cids : new List<string>())).ToList();
+
+            result.Add(new StudentGradingGroupDto(g.Id, g.Name, months, resolved, dates, criteria, lessons));
+        }
+        return result;
+    }
+
     /* ─── LMS (Ta'lim) ──────────────────────────────────────── */
 
     /// <summary>O'quvchining sinfi uchun LMS fanlar ro'yxati (progress bilan).</summary>

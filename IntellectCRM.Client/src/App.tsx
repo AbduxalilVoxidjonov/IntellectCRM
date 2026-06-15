@@ -81,6 +81,7 @@ import { StudentProfileScreen } from '@/pages/student/Profile'
 import { StudentSettingsScreen } from '@/pages/student/Settings'
 import { StudentLocationScreen } from '@/pages/student/Location'
 import { StudentLessonScreen } from '@/pages/student/Lesson'
+import { StudentGradingScreen } from '@/pages/student/Grading'
 import { StudentAccountScreen } from '@/pages/student/Account'
 
 export default function App() {
@@ -191,6 +192,7 @@ export default function App() {
           <Route path="settings" element={<StudentSettingsScreen />} />
           <Route path="location" element={<StudentLocationScreen />} />
           <Route path="lesson/:id" element={<StudentLessonScreen />} />
+          <Route path="grading" element={<StudentGradingScreen />} />
           <Route path="account" element={<StudentAccountScreen />} />
         </Route>
       </Route>

@@ -324,6 +324,25 @@ export async function getStudentCurriculum(studentId?: string) {
   return data
 }
 
+// ---------- Baholash statistikasi (oylik + har darslik) ----------
+export interface StudentGradingCriterion { id: string; name: string; done: number; total: number }
+export interface StudentGradingDate { date: string; doneCriterionIds: string[] }
+export interface StudentGradingGroup {
+  groupId: string
+  groupName: string
+  months: string[]
+  month: string
+  dates: string[]
+  criteria: StudentGradingCriterion[]
+  lessons: StudentGradingDate[]
+}
+export async function getStudentGrading(month?: string, studentId?: string) {
+  const { data } = await api.get<StudentGradingGroup[]>('/student/grading', {
+    params: { ...sid(studentId), ...(month ? { month } : {}) },
+  })
+  return data
+}
+
 // ---------- Dars kontenti (Duolingo node bosilganda) ----------
 export type LessonType = 'text' | 'video' | 'audio' | 'vocab' | 'test'
 export interface LessonVocab { term: string; meaning: string }

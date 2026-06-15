@@ -1002,6 +1002,16 @@ public record SetCriterionGradeRequest(string GroupId, string StudentId, string 
 /// <summary>Shu sanada bitta mezon bo'yicha BARCHA faol o'quvchini belgilash/belgilamaslik (ommaviy).</summary>
 public record BulkCriterionGradeRequest(string GroupId, string CriterionId, string Date, bool Done);
 
+/* ---------- O'quvchi baholash statistikasi (oylik + har darslik) ---------- */
+/// <summary>Mezon bo'yicha OYLIK xulosa: shu oyda nechta darsda bajargan / jami dars.</summary>
+public record StudentGradingCriterionDto(string Id, string Name, int Done, int Total);
+/// <summary>Bitta dars (sana) — shu darsda bajarilgan mezon id'lari.</summary>
+public record StudentGradingDateDto(string Date, List<string> DoneCriterionIds);
+/// <summary>O'quvchining bitta guruhdagi baholash statistikasi (oylik xulosa + har darslik).</summary>
+public record StudentGradingGroupDto(
+    string GroupId, string GroupName, List<string> Months, string Month, List<string> Dates,
+    List<StudentGradingCriterionDto> Criteria, List<StudentGradingDateDto> Lessons);
+
 // ---- Ommaviy (anonim) ----
 
 /// <summary>Ommaviy test savoli (to'g'ri javobSIZ).</summary>

@@ -26,6 +26,7 @@ const MENU: MenuEntry[] = [
   { icon: 'grid', label: 'Umumiy statistika', color: '#1B7A66', to: '/student/statistics' },
   { icon: 'chart', label: 'Baholar', color: '#2563EB', to: '/student/grades' },
   { icon: 'checkCircle', label: 'Davomat', color: '#16A34A', to: '/student/attendance' },
+  { icon: 'check', label: 'Baholash', color: '#0D9488', to: '/student/grading' },
   { icon: 'shield', label: 'Intizomiy ball', color: '#0EA5E9', to: '/student/discipline' },
   { icon: 'wallet', label: "To'lovlar", color: '#7C3AED', to: '/student/finance' },
   { icon: 'feedback', label: 'Taklif va shikoyat', color: '#0D9488', to: '/student/feedback' },
