@@ -1,7 +1,53 @@
 import { api } from '../client'
-import type { Curriculum } from '@/types'
+import type { Curriculum, LessonType } from '@/types'
 
-/** Kurs o'quv dasturi (daraja → mavzu → band) + o'quvchi progressi. */
+/** Kurs o'quv dasturi (modul → mavzu → dars) + dars kontenti + o'quvchi progressi. */
+
+// ---- Dars kontenti (video/matn/audio/lug'at/test) ----
+export interface VocabEntry {
+  term: string
+  meaning: string
+}
+export interface CourseQuestion {
+  id: string
+  text: string
+  options: string[]
+  correctIndex: number
+}
+export interface CourseItemDetail {
+  id: string
+  topicId: string
+  text: string
+  note: string
+  order: number
+  type: LessonType
+  videoUrl: string
+  audioUrl: string
+  textContent: string
+  meta: string
+  vocab: VocabEntry[]
+  questions: CourseQuestion[]
+}
+export interface SaveItemContent {
+  text: string
+  type: LessonType
+  videoUrl?: string
+  audioUrl?: string
+  textContent?: string
+  meta?: string
+  vocab?: VocabEntry[]
+  questions?: CourseQuestion[]
+}
+
+/** Bitta darsning to'liq kontentini o'qish (tahrirlovchi/ko'rish uchun). */
+export async function getCourseItem(id: string): Promise<CourseItemDetail> {
+  const { data } = await api.get<CourseItemDetail>(`/admin/curriculum/item/${id}`)
+  return data
+}
+/** Dars kontentini saqlash (nom + tur + kontent + lug'at + test savollari). */
+export async function saveItemContent(id: string, payload: SaveItemContent): Promise<void> {
+  await api.put(`/admin/curriculum/items/${id}/content`, payload)
+}
 
 export async function getCurriculum(subjectId: string): Promise<Curriculum> {
   const { data } = await api.get<Curriculum>(`/admin/curriculum/${subjectId}`)

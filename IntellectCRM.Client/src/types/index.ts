@@ -1233,11 +1233,20 @@ export interface LmsProgressReport {
 
 // ===================== Kurs o'quv dasturi (curriculum / syllabus) =====================
 
+/** Dars turi: matnli / video / audio / lug'at / test */
+export type LessonType = 'text' | 'video' | 'audio' | 'vocab' | 'test'
+
 export interface CurriculumItem {
   id: string
   text: string
   note: string
   order: number
+  /** Dars turi (kontent) */
+  type: LessonType
+  /** Qisqa meta yorlig'i ("12 daq" / "15 so'z" / "10 savol") */
+  meta: string
+  /** Dars kontenti to'liq kiritilganmi (tayyor) */
+  ready: boolean
 }
 export interface CurriculumTopic {
   id: string
