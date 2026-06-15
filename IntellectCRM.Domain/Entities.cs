@@ -1137,8 +1137,13 @@ public class LevelTestQuestion
     public string Text { get; set; } = string.Empty;
     /// <summary>Javob variantlari (EF Core 8 primitive collection).</summary>
     public List<string> Options { get; set; } = new();
-    /// <summary>To'g'ri variant indeksi (Options ichida).</summary>
+    /// <summary>To'g'ri variant indeksi (Options ichida) — faqat Kind=="question" uchun.</summary>
     public int CorrectIndex { get; set; }
+    /// <summary>Element turi: "question" (baholanadigan savol, to'g'ri javobli) yoki
+    /// "survey" (so'rovnoma — checkbox, to'g'ri javobsiz, BAHOLANMAYDI, javob lidda saqlanadi).</summary>
+    public string Kind { get; set; } = "question";
+    /// <summary>So'rovnoma uchun: ko'p variant tanlash mumkinmi (checkbox). false = bitta (radio).</summary>
+    public bool Multiple { get; set; }
     public int Order { get; set; }
 }
 
@@ -1215,6 +1220,9 @@ public class LevelTestSubmission
     public string CreatedAt { get; set; } = string.Empty;
     /// <summary>Shu topshiruvdan yaratilgan Lid id'si.</summary>
     public string LeadId { get; set; } = string.Empty;
+    /// <summary>So'rovnoma (survey) javoblari JSON: [{"q":"savol matni","a":["tanlangan variant",...]}].
+    /// Baholanmaydi — admin natijalarda va lidda ko'rsatish uchun.</summary>
+    public string SurveyJson { get; set; } = string.Empty;
 }
 
 

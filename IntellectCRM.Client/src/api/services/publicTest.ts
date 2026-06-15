@@ -15,7 +15,13 @@ export async function getPublicTest(slug: string): Promise<PublicTest> {
 /** Testni topshiradi → ball/daraja + lid yaratiladi. */
 export async function submitPublicTest(
   slug: string,
-  body: { fullName: string; phone: string; age: number; answers: Record<string, number> },
+  body: {
+    fullName: string
+    phone: string
+    age: number
+    answers: Record<string, number>
+    surveyAnswers?: Record<string, number[]>
+  },
 ): Promise<TestResult> {
   const { data } = await api.post<TestResult>(`/public/test/${slug}/submit`, body)
   return data

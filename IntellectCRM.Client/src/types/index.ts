@@ -1304,6 +1304,10 @@ export interface LevelTestQuestion {
   options: string[]
   correctIndex: number
   order: number
+  /** "question" (baholanadigan, to'g'ri javobli) yoki "survey" (so'rovnoma, checkbox, baholanmaydi) */
+  kind: 'question' | 'survey'
+  /** survey uchun: ko'p tanlash (checkbox) mumkinmi */
+  multiple: boolean
 }
 
 export interface LevelTestBand {
@@ -1337,6 +1341,8 @@ export interface LevelTestSubmission {
   level: string
   createdAt: string
   leadId: string
+  /** So'rovnoma javoblari (baholanmagan) */
+  survey: { question: string; answers: string[] }[]
 }
 
 /** Test yaratish/yangilash payload'i */
@@ -1345,7 +1351,14 @@ export interface LevelTestPayload {
   courseId: string
   intro: string
   isActive: boolean
-  questions: { id?: string; text: string; options: string[]; correctIndex: number }[]
+  questions: {
+    id?: string
+    text: string
+    options: string[]
+    correctIndex: number
+    kind?: 'question' | 'survey'
+    multiple?: boolean
+  }[]
   bands: { id?: string; label: string; minPercent: number }[]
 }
 
@@ -1354,6 +1367,8 @@ export interface PublicTestQuestion {
   id: string
   text: string
   options: string[]
+  kind: 'question' | 'survey'
+  multiple: boolean
 }
 
 export interface PublicTest {

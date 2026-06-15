@@ -17,7 +17,14 @@ import { Input, Select, Textarea } from '@/components/ui/Input'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { cn, formatDate } from '@/lib/utils'
 
-interface QState { id?: string; text: string; options: string[]; correctIndex: number }
+interface QState {
+  id?: string
+  text: string
+  options: string[]
+  correctIndex: number
+  kind: 'question' | 'survey'
+  multiple: boolean
+}
 interface BState { id?: string; label: string; minPercent: number }
 
 function testUrl(slug: string) {
@@ -56,7 +63,7 @@ export function LevelTestEditorPage() {
         setCourseId(d.courseId)
         setIntro(d.intro)
         setIsActive(d.isActive)
-        setQuestions(d.questions.map((q) => ({ id: q.id, text: q.text, options: q.options, correctIndex: q.correctIndex })))
+        setQuestions(d.questions.map((q) => ({ id: q.id, text: q.text, options: q.options, correctIndex: q.correctIndex, kind: q.kind, multiple: q.multiple })))
         setBands(d.bands.map((b) => ({ id: b.id, label: b.label, minPercent: b.minPercent })))
       })
       .catch(() => setDetail(null))
@@ -81,7 +88,9 @@ export function LevelTestEditorPage() {
 
   // ---- Savollar ----
   const addQuestion = () =>
-    setQuestions((qs) => [...qs, { text: '', options: ['', ''], correctIndex: 0 }])
+    setQuestions((qs) => [...qs, { text: '', options: ['', ''], correctIndex: 0, kind: 'question', multiple: false }])
+  const addSurvey = () =>
+    setQuestions((qs) => [...qs, { text: '', options: ['', ''], correctIndex: 0, kind: 'survey', multiple: true }])
   const removeQuestion = (i: number) => setQuestions((qs) => qs.filter((_, x) => x !== i))
   const patchQuestion = (i: number, patch: Partial<QState>) =>
     setQuestions((qs) => qs.map((q, x) => (x === i ? { ...q, ...patch } : q)))
@@ -124,6 +133,8 @@ export function LevelTestEditorPage() {
             text: q.text.trim(),
             options: q.options.map((o) => o.trim()).filter((o) => o.length > 0),
             correctIndex: q.correctIndex,
+            kind: q.kind,
+            multiple: q.multiple,
           }))
           .filter((q) => q.text.length > 0 && q.options.length >= 2),
         bands: bands
@@ -132,7 +143,7 @@ export function LevelTestEditorPage() {
       })
       setDetail(updated)
       // Tozalangan/qayta tartiblangan ma'lumotni qaytadan yuklaymiz
-      setQuestions(updated.questions.map((q) => ({ id: q.id, text: q.text, options: q.options, correctIndex: q.correctIndex })))
+      setQuestions(updated.questions.map((q) => ({ id: q.id, text: q.text, options: q.options, correctIndex: q.correctIndex, kind: q.kind, multiple: q.multiple })))
       setBands(updated.bands.map((b) => ({ id: b.id, label: b.label, minPercent: b.minPercent })))
     } catch (e: any) {
       alert(e?.response?.data?.message ?? 'Saqlab bo\'lmadi')
@@ -260,18 +271,23 @@ export function LevelTestEditorPage() {
             </label>
           </Card>
 
-          {/* Savollar */}
+          {/* Elementlar: savol (baholanadi) + so'rovnoma (checkbox, baholanmaydi) */}
           <Card
-            title={`Savollar (${questions.length})`}
-            sub="Har savolда bitta to'g'ri javobni belgilang (yashil doira)"
+            title={`Elementlar (${questions.length})`}
+            sub="Savol — to'g'ri javobli (baholanadi). So'rovnoma — checkbox, to'g'ri javobsiz (lid ma'lumoti)."
             actions={
-              <Button variant="secondary" onClick={addQuestion}>
-                <Plus className="h-4 w-4" /> Savol
-              </Button>
+              <div className="flex gap-2">
+                <Button variant="secondary" onClick={addQuestion}>
+                  <Plus className="h-4 w-4" /> Savol
+                </Button>
+                <Button variant="secondary" onClick={addSurvey}>
+                  <Plus className="h-4 w-4" /> So'rovnoma
+                </Button>
+              </div>
             }
           >
             {questions.length === 0 ? (
-              <p className="py-6 text-center text-sm text-slate-400">Savol yo'q. "Savol" tugmasini bosing.</p>
+              <p className="py-6 text-center text-sm text-slate-400">Element yo'q. "Savol" yoki "So'rovnoma" tugmasini bosing.</p>
             ) : (
               <div className="space-y-4">
                 {questions.map((q, i) => (
@@ -289,29 +305,63 @@ export function LevelTestEditorPage() {
                       />
                       <button
                         onClick={() => removeQuestion(i)}
-                        title="Savolni o'chirish"
+                        title="O'chirish"
                         className="mt-1 rounded-lg p-1.5 text-slate-300 transition-colors hover:bg-red-50 hover:text-red-600"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
                     </div>
 
+                    <div className="mt-2 flex flex-wrap items-center gap-2 pl-8">
+                      <span
+                        className={cn(
+                          'rounded px-2 py-0.5 text-[11px] font-semibold',
+                          q.kind === 'survey' ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700',
+                        )}
+                      >
+                        {q.kind === 'survey' ? "So'rovnoma" : 'Savol'}
+                      </span>
+                      {q.kind === 'survey' ? (
+                        <label className="flex cursor-pointer items-center gap-1.5 text-xs text-slate-500">
+                          <input
+                            type="checkbox"
+                            checked={q.multiple}
+                            onChange={(e) => patchQuestion(i, { multiple: e.target.checked })}
+                            className="h-3.5 w-3.5 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+                          />
+                          Ko'p tanlash (checkbox)
+                        </label>
+                      ) : (
+                        <span className="text-[11px] text-slate-400">To'g'ri javobni belgilang (yashil doira)</span>
+                      )}
+                    </div>
+
                     <div className="mt-2 space-y-1.5 pl-8">
                       {q.options.map((opt, oi) => (
                         <div key={oi} className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => patchQuestion(i, { correctIndex: oi })}
-                            title="To'g'ri javob"
-                            className={cn(
-                              'flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors',
-                              q.correctIndex === oi
-                                ? 'border-emerald-500 bg-emerald-500 text-white'
-                                : 'border-slate-300 text-transparent hover:border-emerald-400',
-                            )}
-                          >
-                            <Check className="h-3 w-3" />
-                          </button>
+                          {q.kind === 'question' ? (
+                            <button
+                              type="button"
+                              onClick={() => patchQuestion(i, { correctIndex: oi })}
+                              title="To'g'ri javob"
+                              className={cn(
+                                'flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors',
+                                q.correctIndex === oi
+                                  ? 'border-emerald-500 bg-emerald-500 text-white'
+                                  : 'border-slate-300 text-transparent hover:border-emerald-400',
+                              )}
+                            >
+                              <Check className="h-3 w-3" />
+                            </button>
+                          ) : (
+                            <span
+                              title="So'rovnoma varianti (to'g'ri javob yo'q)"
+                              className={cn(
+                                'h-4 w-4 shrink-0 border-2 border-slate-300',
+                                q.multiple ? 'rounded' : 'rounded-full',
+                              )}
+                            />
+                          )}
                           <input
                             value={opt}
                             onChange={(e) => setOption(i, oi, e.target.value)}
@@ -422,7 +472,19 @@ export function LevelTestEditorPage() {
                 <tbody className="divide-y divide-slate-50">
                   {subs.map((s) => (
                     <tr key={s.id} className="hover:bg-slate-50/60">
-                      <td className="px-3 py-2 font-medium text-slate-700">{s.fullName}</td>
+                      <td className="px-3 py-2 font-medium text-slate-700">
+                        {s.fullName}
+                        {s.survey?.length > 0 && (
+                          <div className="mt-1 space-y-0.5">
+                            {s.survey.map((sv, k) => (
+                              <div key={k} className="text-[11px] font-normal text-slate-400">
+                                <span className="text-slate-500">{sv.question}:</span>{' '}
+                                {sv.answers.length ? sv.answers.join(', ') : '—'}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </td>
                       <td className="px-3 py-2 font-mono text-slate-500">{s.phone}</td>
                       <td className="px-3 py-2 text-center text-slate-500">{s.age || '—'}</td>
                       <td className="px-3 py-2 text-center font-mono text-slate-700">

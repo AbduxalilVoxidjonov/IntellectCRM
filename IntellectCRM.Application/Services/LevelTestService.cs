@@ -28,7 +28,7 @@ public static class LevelTestService
         return new LevelTestDetailDto(
             t.Id, t.Title, t.CourseId, await CourseNameAsync(db, t.CourseId), t.Slug, t.Intro,
             t.IsActive, t.CreatedAt,
-            questions.Select(q => new LevelTestQuestionDto(q.Id, q.Text, q.Options, q.CorrectIndex, q.Order)).ToList(),
+            questions.Select(q => new LevelTestQuestionDto(q.Id, q.Text, q.Options, q.CorrectIndex, q.Order, q.Kind, q.Multiple)).ToList(),
             bands.Select(x => new LevelTestBandDto(x.Id, x.Label, x.MinPercent, x.Order)).ToList());
     }
 
@@ -67,7 +67,7 @@ public static class LevelTestService
             .OrderBy(q => q.Order).ToListAsync();
         return new PublicTestDto(
             test.Title, test.Intro, await CourseNameAsync(db, test.CourseId),
-            questions.Select(q => new PublicTestQuestionDto(q.Id, q.Text, q.Options)).ToList());
+            questions.Select(q => new PublicTestQuestionDto(q.Id, q.Text, q.Options, q.Kind, q.Multiple)).ToList());
     }
 
     /// <summary>Ball foiziga mos daraja yorlig'i — foiz ≥ MinPercent bo'lgan ENG YUQORI diapazon.</summary>
@@ -88,14 +88,34 @@ public static class LevelTestService
         var test = await db.LevelTests.FirstOrDefaultAsync(t => t.Slug == slug && t.IsActive);
         if (test is null) return null;
 
-        var questions = await db.LevelTestQuestions.Where(q => q.TestId == test.Id).ToListAsync();
+        var items = await db.LevelTestQuestions.Where(q => q.TestId == test.Id).ToListAsync();
         var bands = await db.LevelTestBands.Where(x => x.TestId == test.Id).ToListAsync();
 
-        var total = questions.Count;
+        // Baholash FAQAT savollar ("question") bo'yicha; so'rovnoma ("survey") chiqarib tashlanadi.
+        var graded = items.Where(q => q.Kind != "survey").ToList();
+        var total = graded.Count;
         var score = 0;
-        foreach (var q in questions)
+        foreach (var q in graded)
             if (req.Answers != null && req.Answers.TryGetValue(q.Id, out var picked) && picked == q.CorrectIndex)
                 score++;
+
+        // So'rovnoma javoblari (baholanmaydi) — tanlangan variant matnlarini yig'amiz.
+        var surveyAnswers = new List<SurveyAnswerDto>();
+        foreach (var s in items.Where(q => q.Kind == "survey").OrderBy(x => x.Order))
+        {
+            var picks = new List<string>();
+            if (req.SurveyAnswers != null && req.SurveyAnswers.TryGetValue(s.Id, out var idxs) && idxs != null)
+                foreach (var i in idxs.Distinct())
+                    if (i >= 0 && i < s.Options.Count) picks.Add(s.Options[i]);
+            surveyAnswers.Add(new SurveyAnswerDto(s.Text, picks));
+        }
+        var surveyJson = surveyAnswers.Count > 0
+            ? System.Text.Json.JsonSerializer.Serialize(surveyAnswers)
+            : "";
+        var surveyText = surveyAnswers.Count > 0
+            ? "\nSo'rovnoma:\n" + string.Join("\n", surveyAnswers.Select(
+                a => $"• {a.Question}: {(a.Answers.Count > 0 ? string.Join(", ", a.Answers) : "—")}"))
+            : "";
 
         var percent = total > 0 ? (int)Math.Round(score * 100.0 / total) : 0;
         var level = ResolveLevel(bands, percent);
@@ -112,7 +132,7 @@ public static class LevelTestService
             Source = "Daraja testi",
             InterestSubject = string.IsNullOrEmpty(courseName) ? test.Title : courseName,
             Note = $"Daraja testi: {score}/{total} ({percent}%){levelText}"
-                   + (req.Age > 0 ? $". Yoshi: {req.Age}" : ""),
+                   + (req.Age > 0 ? $". Yoshi: {req.Age}" : "") + surveyText,
             Stage = firstStage,
             CreatedAt = now,
         };
@@ -126,6 +146,7 @@ public static class LevelTestService
         {
             TestId = test.Id, FullName = lead.FullName, Phone = lead.Phone, Age = req.Age,
             Score = score, Total = total, Percent = percent, Level = level, CreatedAt = now, LeadId = lead.Id,
+            SurveyJson = surveyJson,
         });
         await db.SaveChangesAsync();
 

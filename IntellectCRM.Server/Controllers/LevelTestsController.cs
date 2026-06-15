@@ -96,12 +96,22 @@ public class LevelTestsController(AppDbContext db) : ControllerBase
 
     /// <summary>Natijalar — testni topshirganlar (har biri CRM'da lid).</summary>
     [HttpGet("{id}/submissions")]
-    public async Task<ActionResult<IEnumerable<LevelTestSubmissionDto>>> Submissions(string id) =>
-        await db.LevelTestSubmissions.Where(s => s.TestId == id)
-            .OrderByDescending(s => s.CreatedAt)
-            .Select(s => new LevelTestSubmissionDto(
-                s.Id, s.FullName, s.Phone, s.Age, s.Score, s.Total, s.Percent, s.Level, s.CreatedAt, s.LeadId))
-            .ToListAsync();
+    public async Task<ActionResult<IEnumerable<LevelTestSubmissionDto>>> Submissions(string id)
+    {
+        var subs = await db.LevelTestSubmissions.Where(s => s.TestId == id)
+            .OrderByDescending(s => s.CreatedAt).ToListAsync();
+        return subs.Select(s => new LevelTestSubmissionDto(
+            s.Id, s.FullName, s.Phone, s.Age, s.Score, s.Total, s.Percent, s.Level, s.CreatedAt, s.LeadId,
+            ParseSurvey(s.SurveyJson))).ToList();
+    }
+
+    /// <summary>SurveyJson → DTO ro'yxati (buzilgan bo'lsa bo'sh).</summary>
+    private static List<SurveyAnswerDto> ParseSurvey(string json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return new();
+        try { return System.Text.Json.JsonSerializer.Deserialize<List<SurveyAnswerDto>>(json) ?? new(); }
+        catch { return new(); }
+    }
 
     /// <summary>Daraja testi STATISTIKASI — topshiruvchilar voronkasi:
     /// lid → o'quvchiga aylandi → guruhga qo'shildi → to'lov qildi → aktiv.</summary>
@@ -162,10 +172,12 @@ public class LevelTestsController(AppDbContext db) : ControllerBase
             if (string.IsNullOrWhiteSpace(q.Text)) continue;
             var opts = (q.Options ?? new()).Select(o => (o ?? "").Trim()).Where(o => o.Length > 0).ToList();
             if (opts.Count < 2) continue; // kamida 2 variant
+            var kind = q.Kind == "survey" ? "survey" : "question";
             var correct = q.CorrectIndex >= 0 && q.CorrectIndex < opts.Count ? q.CorrectIndex : 0;
             db.LevelTestQuestions.Add(new LevelTestQuestion
             {
-                TestId = testId, Text = q.Text.Trim(), Options = opts, CorrectIndex = correct, Order = order++,
+                TestId = testId, Text = q.Text.Trim(), Options = opts, CorrectIndex = correct,
+                Kind = kind, Multiple = kind == "survey" && q.Multiple, Order = order++,
             });
         }
     }

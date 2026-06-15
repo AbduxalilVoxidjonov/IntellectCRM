@@ -19,6 +19,7 @@ export function PublicTestPage() {
   // Test
   const [step, setStep] = useState(0)
   const [answers, setAnswers] = useState<Record<string, number>>({})
+  const [surveyAnswers, setSurveyAnswers] = useState<Record<string, number[]>>({})
   const [submitting, setSubmitting] = useState(false)
   const [result, setResult] = useState<TestResult | null>(null)
   const [error, setError] = useState('')
@@ -49,6 +50,7 @@ export function PublicTestPage() {
         phone: phone.trim(),
         age: Number(age) || 0,
         answers,
+        surveyAnswers,
       })
       setResult(r)
       setPhase('done')
@@ -61,7 +63,8 @@ export function PublicTestPage() {
 
   const questions = test?.questions ?? []
   const q = questions[step]
-  const answered = q ? answers[q.id] !== undefined : false
+  // So'rovnoma ixtiyoriy (har doim "javob berilgan" deb hisoblanadi); savol — variant tanlanishi shart.
+  const answered = q ? (q.kind === 'survey' ? true : answers[q.id] !== undefined) : false
   const progress = questions.length ? Math.round(((step + (answered ? 1 : 0)) / questions.length) * 100) : 0
 
   return (
@@ -171,13 +174,38 @@ export function PublicTestPage() {
 
               <div className="px-6 py-6">
                 <h2 className="text-base font-semibold leading-relaxed text-slate-800">{q.text}</h2>
+                {q.kind === 'survey' && (
+                  <p className="mt-1 text-xs text-slate-400">
+                    So'rovnoma{q.multiple ? ' — bir nechtasini tanlashingiz mumkin' : ''} (ixtiyoriy)
+                  </p>
+                )}
                 <div className="mt-4 space-y-2.5">
                   {q.options.map((opt, oi) => {
-                    const selected = answers[q.id] === oi
+                    const isSurvey = q.kind === 'survey'
+                    const selected = isSurvey
+                      ? (surveyAnswers[q.id]?.includes(oi) ?? false)
+                      : answers[q.id] === oi
+                    const onPick = () => {
+                      if (!isSurvey) {
+                        setAnswers((a) => ({ ...a, [q.id]: oi }))
+                      } else {
+                        setSurveyAnswers((a) => {
+                          const cur = a[q.id] ?? []
+                          if (q.multiple)
+                            return {
+                              ...a,
+                              [q.id]: cur.includes(oi) ? cur.filter((x) => x !== oi) : [...cur, oi],
+                            }
+                          return { ...a, [q.id]: [oi] }
+                        })
+                      }
+                    }
+                    // checkbox (ko'p tanlash) → kvadrat; radio/savol → doira
+                    const square = isSurvey && q.multiple
                     return (
                       <button
                         key={oi}
-                        onClick={() => setAnswers((a) => ({ ...a, [q.id]: oi }))}
+                        onClick={onPick}
                         className={
                           'flex w-full items-center gap-3 rounded-xl border-2 px-4 py-3 text-left text-sm transition-colors ' +
                           (selected
@@ -187,11 +215,12 @@ export function PublicTestPage() {
                       >
                         <span
                           className={
-                            'flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 text-xs font-bold ' +
+                            'flex h-6 w-6 shrink-0 items-center justify-center border-2 text-xs font-bold ' +
+                            (square ? 'rounded-md ' : 'rounded-full ') +
                             (selected ? 'border-brand-500 bg-brand-500 text-white' : 'border-slate-300 text-slate-400')
                           }
                         >
-                          {selected ? <Check className="h-3.5 w-3.5" /> : String.fromCharCode(65 + oi)}
+                          {selected ? <Check className="h-3.5 w-3.5" /> : isSurvey ? '' : String.fromCharCode(65 + oi)}
                         </span>
                         <span className="flex-1">{opt}</span>
                       </button>

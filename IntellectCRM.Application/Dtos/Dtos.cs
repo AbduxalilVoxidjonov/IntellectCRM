@@ -950,8 +950,9 @@ public record LevelTestListDto(
     string Id, string Title, string CourseId, string CourseName, string Slug,
     bool IsActive, string CreatedAt, int QuestionCount, int SubmissionCount);
 
-/// <summary>Test savoli (admin — to'g'ri javob bilan).</summary>
-public record LevelTestQuestionDto(string Id, string Text, List<string> Options, int CorrectIndex, int Order);
+/// <summary>Test elementi (admin) — Kind="question" (to'g'ri javobli) yoki "survey" (so'rovnoma, checkbox).</summary>
+public record LevelTestQuestionDto(string Id, string Text, List<string> Options, int CorrectIndex, int Order,
+    string Kind = "question", bool Multiple = false);
 
 /// <summary>Daraja diapazoni.</summary>
 public record LevelTestBandDto(string Id, string Label, int MinPercent, int Order);
@@ -962,8 +963,9 @@ public record LevelTestDetailDto(
     bool IsActive, string CreatedAt,
     List<LevelTestQuestionDto> Questions, List<LevelTestBandDto> Bands);
 
-/// <summary>Savol kiritish/yangilash payload'i (Id bo'sh bo'lsa yangi).</summary>
-public record LevelTestQuestionInput(string? Id, string Text, List<string> Options, int CorrectIndex);
+/// <summary>Element kiritish/yangilash payload'i (Id bo'sh bo'lsa yangi). Kind="question"|"survey".</summary>
+public record LevelTestQuestionInput(string? Id, string Text, List<string> Options, int CorrectIndex,
+    string Kind = "question", bool Multiple = false);
 
 /// <summary>Daraja diapazoni payload'i.</summary>
 public record LevelTestBandInput(string? Id, string Label, int MinPercent);
@@ -973,10 +975,13 @@ public record LevelTestPayload(
     string Title, string CourseId, string Intro, bool IsActive,
     List<LevelTestQuestionInput> Questions, List<LevelTestBandInput> Bands);
 
+/// <summary>So'rovnoma javobi (admin natijalarda) — savol matni + tanlangan variant(lar).</summary>
+public record SurveyAnswerDto(string Question, List<string> Answers);
+
 /// <summary>Test topshiruvi (admin — natijalar ro'yxati).</summary>
 public record LevelTestSubmissionDto(
     string Id, string FullName, string Phone, int Age, int Score, int Total,
-    int Percent, string Level, string CreatedAt, string LeadId);
+    int Percent, string Level, string CreatedAt, string LeadId, List<SurveyAnswerDto> Survey);
 
 /// <summary>Daraja testi topshiruvchisining VORONKA holati: lid → o'quvchi → guruh → to'lov → aktiv.</summary>
 public record LevelTestStatRowDto(
@@ -1031,16 +1036,19 @@ public record StudentGradingGroupDto(
 
 // ---- Ommaviy (anonim) ----
 
-/// <summary>Ommaviy test savoli (to'g'ri javobSIZ).</summary>
-public record PublicTestQuestionDto(string Id, string Text, List<string> Options);
+/// <summary>Ommaviy test elementi (to'g'ri javobSIZ). Kind="question" (radio) yoki "survey" (checkbox).</summary>
+public record PublicTestQuestionDto(string Id, string Text, List<string> Options,
+    string Kind = "question", bool Multiple = false);
 
 /// <summary>Ommaviy test ko'rinishi (test ishlovchi uchun).</summary>
 public record PublicTestDto(
     string Title, string Intro, string CourseName, List<PublicTestQuestionDto> Questions);
 
-/// <summary>Test topshirish so'rovi: kontakt + javoblar (savol id → tanlangan variant indeksi).</summary>
+/// <summary>Test topshirish so'rovi: kontakt + savol javoblari (savol id → variant indeksi) +
+/// so'rovnoma javoblari (element id → tanlangan variant indekslari ro'yxati).</summary>
 public record TestSubmitRequest(
-    string FullName, string Phone, int Age, Dictionary<string, int> Answers);
+    string FullName, string Phone, int Age, Dictionary<string, int> Answers,
+    Dictionary<string, List<int>>? SurveyAnswers = null);
 
 /// <summary>Test natijasi (topshirgandan keyin ko'rsatiladi).</summary>
 public record TestResultDto(int Score, int Total, int Percent, string Level, string Message);
