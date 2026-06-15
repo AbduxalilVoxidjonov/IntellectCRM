@@ -158,7 +158,7 @@ export interface StudentAssignment {
   subjectName: string
   title: string
   description: string
-  format: 'written' | 'file' | 'test' | 'video'
+  format: 'written' | 'file' | 'test' | 'video' | 'speaking'
   startDate?: string | null
   dueDate?: string | null
   lateAccept: boolean
@@ -169,6 +169,35 @@ export interface StudentAssignment {
   completed: boolean
   submittedAt?: string | null
   score?: number | null
+  /** Speaking topshirig'i uchun o'qiladigan matn */
+  referenceText?: string
+}
+
+// ---------- Speaking (Azure talaffuz bahosi) ----------
+export interface SpeakingWord { word: string; accuracy: number; errorType: string }
+export interface SpeakingResult {
+  recognizedText: string
+  pronScore: number
+  accuracy: number
+  fluency: number
+  completeness: number
+  prosody: number
+  words: SpeakingWord[]
+  error: string | null
+}
+/** Audio (WAV) yuborib, Azure talaffuz bahosini olish (natija saqlanadi). */
+export async function submitSpeaking(assignmentId: string, audio: Blob): Promise<SpeakingResult> {
+  const fd = new FormData()
+  fd.append('audio', audio, 'speaking.wav')
+  const { data } = await api.post<SpeakingResult>(`/student/assignments/${assignmentId}/speaking`, fd, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+  return data
+}
+/** Oldingi speaking natijasi (bor bo'lsa) — 204 bo'lsa null. */
+export async function getSpeaking(assignmentId: string, studentId?: string): Promise<SpeakingResult | null> {
+  const { data } = await api.get<SpeakingResult>(`/student/assignments/${assignmentId}/speaking`, { params: sid(studentId) })
+  return data || null
 }
 export interface TestQuestion { id: string; text: string; options: string[] }
 export interface StudentAssignmentDetail extends Omit<StudentAssignment, 'questionCount'> {

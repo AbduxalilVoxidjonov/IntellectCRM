@@ -57,6 +57,7 @@ public static class AssignmentService
             LatePenaltyPct = req.LatePenaltyPct,
             MaxScore = req.MaxScore > 0 ? req.MaxScore : 100,
             AutoGrade = req.AutoGrade,
+            ReferenceText = (req.ReferenceText ?? "").Trim(),
             CreatedAt = AppClock.Now,
         };
         Apply(a, req);
@@ -81,6 +82,7 @@ public static class AssignmentService
         a.LatePenaltyPct = req.LatePenaltyPct;
         a.MaxScore = req.MaxScore > 0 ? req.MaxScore : 100;
         a.AutoGrade = req.AutoGrade;
+        a.ReferenceText = (req.ReferenceText ?? "").Trim();
 
         // Materiallar va savollarni qaytadan yozamiz (eskini o'chirib, yangisini qo'shamiz).
         db.AssignmentMaterials.RemoveRange(a.Materials);
@@ -241,7 +243,7 @@ public static class AssignmentService
                 a.Id, subjects.GetValueOrDefault(a.SubjectId, ""), a.Title, a.Description, a.Format,
                 a.StartDate, a.DueDate, a.LateAccept, a.LatePenaltyPct, a.MaxScore,
                 a.Questions.Count, a.Materials.Select(Mat).ToList(),
-                sub?.Completed ?? false, sub?.SubmittedAt, sub?.Score);
+                sub?.Completed ?? false, sub?.SubmittedAt, sub?.Score, a.ReferenceText);
         }).ToList();
     }
 
@@ -259,7 +261,7 @@ public static class AssignmentService
             a.Id, subjectName, a.Title, a.Description, a.Format,
             a.StartDate, a.DueDate, a.LateAccept, a.LatePenaltyPct, a.MaxScore,
             a.Materials.Select(Mat).ToList(), questions,
-            sub?.Completed ?? false, sub?.SubmittedAt, sub?.Score, sub?.AnswerText, sub?.FileUrl);
+            sub?.Completed ?? false, sub?.SubmittedAt, sub?.Score, sub?.AnswerText, sub?.FileUrl, a.ReferenceText);
     }
 
     public static async Task<SubmitResultDto?> SubmitAsync(
@@ -356,5 +358,6 @@ public static class AssignmentService
         a.CreatedAt.ToString("o"),
         a.Materials.Select(m => new AssignmentMaterialDto(m.Id, m.Name, m.Url, m.Size, m.ContentType)).ToList(),
         a.Questions.OrderBy(q => q.Order)
-            .Select(q => new TestQuestionDto(q.Id, q.Text, q.Options, q.CorrectIndex, q.Order)).ToList());
+            .Select(q => new TestQuestionDto(q.Id, q.Text, q.Options, q.CorrectIndex, q.Order)).ToList(),
+        a.ReferenceText);
 }

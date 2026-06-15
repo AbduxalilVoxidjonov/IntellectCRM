@@ -110,6 +110,29 @@ public class SettingsController(AppDbContext db, TelegramService telegram) : Con
         return new FirebaseSettingsDto(json, FcmService.IsConfigured(json));
     }
 
+    // ---------- Speaking (Azure Pronunciation Assessment) ----------
+
+    [HttpGet("azure-speech")]
+    public async Task<ActionResult<AzureSpeechSettingsDto>> GetAzureSpeech()
+    {
+        var m = await db.CenterMeta.FirstOrDefaultAsync();
+        return new AzureSpeechSettingsDto(
+            m?.AzureSpeechRegion ?? "",
+            AzureSpeechService.IsConfigured(m?.AzureSpeechKey, m?.AzureSpeechRegion));
+    }
+
+    [HttpPut("azure-speech")]
+    public async Task<ActionResult<AzureSpeechSettingsDto>> SaveAzureSpeech(SaveAzureSpeechRequest req)
+    {
+        var m = await db.CenterMeta.FirstOrDefaultAsync();
+        if (m is null) { m = new CenterMeta(); db.CenterMeta.Add(m); }
+        // Kalit faqat yangi qiymat berilsa yangilanadi (bo'sh qoldirilsa eski saqlanadi — GET kalitni qaytarmaydi).
+        if (!string.IsNullOrWhiteSpace(req.Key)) m.AzureSpeechKey = req.Key.Trim();
+        if (req.Region is not null) m.AzureSpeechRegion = req.Region.Trim();
+        await db.SaveChangesAsync();
+        return new AzureSpeechSettingsDto(m.AzureSpeechRegion, AzureSpeechService.IsConfigured(m.AzureSpeechKey, m.AzureSpeechRegion));
+    }
+
     // ---------- Turniket / FaceID integratsiyasi ----------
 
     [HttpGet("turnstile")]

@@ -668,6 +668,13 @@ public class CenterMeta
     /// </summary>
     public string FcmVapidKey { get; set; } = string.Empty;
 
+    /// <summary>Azure Speech (Cognitive Services) maxfiy kaliti — Speaking topshirig'i talaffuzni
+    /// baholash uchun (Pronunciation Assessment). Bo'sh bo'lsa speaking baholanmaydi. Admin
+    /// "Sozlamalar → Speaking (Azure)" bo'limidan kiritadi.</summary>
+    public string AzureSpeechKey { get; set; } = string.Empty;
+    /// <summary>Azure Speech resursi hududi (region), masalan "eastus", "westeurope".</summary>
+    public string AzureSpeechRegion { get; set; } = string.Empty;
+
     /// <summary>O'qituvchi maoshi hisoblashda toifa bo'yicha BIR SOAT dars narxi (so'm).
     /// Oylik maosh = haftalik darslar soni × 4 × shu narx. Admin "Dars jadvali → Oylik hisoblash"da kiritadi.</summary>
     public decimal SalaryRateOliy { get; set; }
@@ -836,6 +843,9 @@ public class Assignment
     public int MaxScore { get; set; } = 100;
     /// <summary>Test uchun avto-baholash yoqilganmi.</summary>
     public bool AutoGrade { get; set; }
+    /// <summary>Speaking topshirig'i uchun o'qiladigan matn (talaffuzni baholash shu matnga taqqoslanadi).
+    /// Bo'sh bo'lsa erkin gapirish (unscripted) — to'liqlik balli bo'lmaydi.</summary>
+    public string ReferenceText { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; } = AppClock.Now;
 
     // Eski (oddiy topshiriq) ustunlari — orqaga moslik uchun saqlanadi, yangi forma ishlatmaydi.
@@ -892,8 +902,11 @@ public class AssignmentSubmission
     public int? Score { get; set; }
     /// <summary>O'quvchi yozma javobi (format=written), ixtiyoriy.</summary>
     public string? AnswerText { get; set; }
-    /// <summary>O'quvchi yuklagan fayl manzili (format=file/video), ixtiyoriy.</summary>
+    /// <summary>O'quvchi yuklagan fayl manzili (format=file/video/speaking audio), ixtiyoriy.</summary>
     public string? FileUrl { get; set; }
+    /// <summary>Speaking baholash natijasi (JSON: tanilgan matn + accuracy/fluency/completeness/prosody/
+    /// pronScore + per-word). Azure Pronunciation Assessment'dan keladi.</summary>
+    public string? SpeakingResultJson { get; set; }
 }
 
 /// <summary>Qo'shimcha topshiriq turi (Uy vazifasi, Mustaqil ish, Test ...). Sozlamalarda boshqariladi.</summary>

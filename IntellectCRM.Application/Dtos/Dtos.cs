@@ -636,13 +636,14 @@ public record StudentAssignmentDto(
     string Id, string SubjectName, string Title, string Description, string Format,
     string? StartDate, string? DueDate, bool LateAccept, int LatePenaltyPct, int MaxScore,
     int QuestionCount, List<AssignmentMaterialDto> Materials,
-    bool Completed, string? SubmittedAt, int? Score);
+    bool Completed, string? SubmittedAt, int? Score, string ReferenceText = "");
 /// <summary>O'quvchi topshiriq tafsiloti (test bo'lsa — javobsiz savollar bilan).</summary>
 public record StudentAssignmentDetailDto(
     string Id, string SubjectName, string Title, string Description, string Format,
     string? StartDate, string? DueDate, bool LateAccept, int LatePenaltyPct, int MaxScore,
     List<AssignmentMaterialDto> Materials, List<StudentTestQuestionDto> Questions,
-    bool Completed, string? SubmittedAt, int? Score, string? AnswerText, string? FileUrl);
+    bool Completed, string? SubmittedAt, int? Score, string? AnswerText, string? FileUrl,
+    string ReferenceText = "");
 /// <summary>Test javobi: savol id + tanlangan variant indeksi.</summary>
 public record TestAnswerInput(string QuestionId, int SelectedIndex);
 /// <summary>Topshiriqni topshirish: test uchun Answers; yozma uchun AnswerText; fayl/video uchun FileUrl.</summary>
@@ -710,14 +711,15 @@ public record AssignmentDto(
     string Description, string Format, List<string> ClassIds, List<string> ClassNames,
     string? StartDate, string? DueDate, bool LateAccept, int LatePenaltyPct, int MaxScore,
     bool AutoGrade, string CreatedAt,
-    List<AssignmentMaterialDto> Materials, List<TestQuestionDto> Questions);
+    List<AssignmentMaterialDto> Materials, List<TestQuestionDto> Questions, string ReferenceText = "");
 public record MaterialInput(string Name, string Url, long Size, string ContentType);
 public record QuestionInput(string Text, List<string> Options, int CorrectIndex);
 /// <summary>Topshiriq yaratish/tahrirlash so'rovi (ham create, ham update).</summary>
 public record SaveAssignmentRequest(
     string SubjectId, string Title, string? Description, string Format, List<string> ClassIds,
     string? StartDate, string? DueDate, bool LateAccept, int LatePenaltyPct, int MaxScore,
-    bool AutoGrade, List<MaterialInput>? Materials, List<QuestionInput>? Questions);
+    bool AutoGrade, List<MaterialInput>? Materials, List<QuestionInput>? Questions,
+    string? ReferenceText = null);
 /// <summary>Yuklangan fayl haqida ma'lumot (upload javobida).</summary>
 public record UploadedFileDto(string Name, string Url, long Size, string ContentType);
 
@@ -1001,6 +1003,18 @@ public record GradingBoardDto(
 public record SetCriterionGradeRequest(string GroupId, string StudentId, string CriterionId, string Date, bool Done);
 /// <summary>Shu sanada bitta mezon bo'yicha BARCHA faol o'quvchini belgilash/belgilamaslik (ommaviy).</summary>
 public record BulkCriterionGradeRequest(string GroupId, string CriterionId, string Date, bool Done);
+
+/* ---------- Speaking (Azure Pronunciation Assessment) ---------- */
+/// <summary>Bitta so'z bo'yicha talaffuz natijasi: aniqlik bali + xato turi (None/Mispronunciation/Omission/Insertion).</summary>
+public record SpeakingWordDto(string Word, double Accuracy, string ErrorType);
+/// <summary>Speaking baholash natijasi (Azure): tanilgan matn + ballar (0..100) + per-word.</summary>
+public record SpeakingResultDto(
+    string RecognizedText, double PronScore, double Accuracy, double Fluency,
+    double Completeness, double Prosody, List<SpeakingWordDto> Words, string? Error);
+/// <summary>Azure Speech sozlamasi holati (kalit qaytarilmaydi — faqat region + sozlanganmi).</summary>
+public record AzureSpeechSettingsDto(string Region, bool Configured);
+/// <summary>Azure Speech kalit/region saqlash so'rovi.</summary>
+public record SaveAzureSpeechRequest(string? Key, string? Region);
 
 /* ---------- O'quvchi baholash statistikasi (oylik + har darslik) ---------- */
 /// <summary>Mezon bo'yicha OYLIK xulosa: shu oyda nechta darsda bajargan / jami dars.</summary>

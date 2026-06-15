@@ -11,6 +11,7 @@ import {
 } from '@/api/services/studentPortal'
 import { Icon, Ring, fmtDate, fmtTime, subjectColor, subjInitial } from '@/pages/student/lib'
 import { formatMeta, dueLabel } from '@/pages/student/Assignments'
+import { SpeakingRecorder } from '@/pages/student/SpeakingRecorder'
 
 /* ============================================================
    O'quvchi portali — Topshiriq tafsiloti + topshirish (test/yozma/fayl/video).
@@ -264,7 +265,14 @@ export function StudentAssignmentDetailScreen() {
           </>
         )}
 
-        {!a.completed && (
+        {a.format === 'speaking' && (
+          <>
+            <div style={{ height: 16 }} />
+            <SpeakingRecorder assignmentId={a.id} referenceText={a.referenceText || ''} />
+          </>
+        )}
+
+        {!a.completed && a.format !== 'speaking' && (
           <>
             <div style={{ height: 16 }} />
             {a.format === 'test' && (

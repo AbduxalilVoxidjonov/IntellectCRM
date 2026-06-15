@@ -665,6 +665,64 @@ public class StudentPortalController(
         return await AssignmentService.ListForStudentAsync(db, classId, s.Id);
     }
 
+    /// <summary>SPEAKING topshirig'i — o'quvchi audio (WAV) yuboradi, Azure talaffuzni baholaydi,
+    /// natija + avto-baho saqlanadi va qaytariladi.</summary>
+    [HttpPost("assignments/{id}/speaking")]
+    [Authorize(Roles = "student,parent")]
+    [RequestSizeLimit(25_000_000)]
+    public async Task<ActionResult<SpeakingResultDto>> SubmitSpeaking(string id, IFormFile audio)
+    {
+        var s = await TargetAsync(null);
+        if (s is null) return NotFound();
+        var a = await db.Assignments.FindAsync(id);
+        if (a is null || a.Format != "speaking") return NotFound(new { message = "Speaking topshirig'i topilmadi" });
+
+        var meta = await db.CenterMeta.FirstOrDefaultAsync();
+        var key = meta?.AzureSpeechKey ?? "";
+        var region = meta?.AzureSpeechRegion ?? "";
+        if (!AzureSpeechService.IsConfigured(key, region))
+            return BadRequest(new { message = "Speaking baholash hali sozlanmagan (admin Azure kalitini kiritishi kerak)." });
+        if (audio is null || audio.Length == 0) return BadRequest(new { message = "Audio bo'sh" });
+
+        using var ms = new MemoryStream();
+        await audio.CopyToAsync(ms);
+        var bytes = ms.ToArray();
+
+        var result = await AzureSpeechService.AssessAsync(bytes, a.ReferenceText, key, region);
+        if (result.Error is not null) return BadRequest(new { message = result.Error });
+
+        var dir = System.IO.Path.Combine(env.ContentRootPath, "uploads");
+        System.IO.Directory.CreateDirectory(dir);
+        var stored = $"speaking-{Guid.NewGuid():N}.wav";
+        await System.IO.File.WriteAllBytesAsync(System.IO.Path.Combine(dir, stored), bytes);
+
+        var sub = await db.AssignmentSubmissions.FirstOrDefaultAsync(x => x.AssignmentId == id && x.StudentId == s.Id);
+        if (sub is null) { sub = new AssignmentSubmission { AssignmentId = id, StudentId = s.Id }; db.AssignmentSubmissions.Add(sub); }
+        sub.Completed = true;
+        sub.SubmittedAt = AppClock.Now.ToString("yyyy-MM-ddTHH:mm:ss");
+        sub.Score = (int)Math.Round(result.PronScore);
+        sub.FileUrl = $"/uploads/{stored}";
+        sub.SpeakingResultJson = JsonSerializer.Serialize(result);
+        await db.SaveChangesAsync();
+        return result;
+    }
+
+    /// <summary>Oldingi speaking natijasini o'qish (bor bo'lsa) — qaytadan ko'rsatish uchun.</summary>
+    [HttpGet("assignments/{id}/speaking")]
+    public async Task<ActionResult<SpeakingResultDto>> GetSpeaking(string id, [FromQuery] string? studentId)
+    {
+        var s = await TargetAsync(studentId);
+        if (s is null) return NotFound();
+        var sub = await db.AssignmentSubmissions.FirstOrDefaultAsync(x => x.AssignmentId == id && x.StudentId == s.Id);
+        if (sub?.SpeakingResultJson is null) return NoContent();
+        try
+        {
+            var r = JsonSerializer.Deserialize<SpeakingResultDto>(sub.SpeakingResultJson);
+            return r is null ? NoContent() : r;
+        }
+        catch { return NoContent(); }
+    }
+
     /// <summary>
     /// "Topshiriq ballari" — o'quvchiga berilgan topshiriqlar va uning har biridagi bali (+ yig'ma).
     /// Ota-ona ham shu orqali farzandi ballarini ko'radi.

@@ -985,7 +985,7 @@ export interface PushMessage {
 /* ---------- Topshiriqlar (qo'shimcha) ---------- */
 
 /** Topshiriq formati */
-export type AssignmentFormat = 'written' | 'file' | 'test' | 'video'
+export type AssignmentFormat = 'written' | 'file' | 'test' | 'video' | 'speaking'
 
 /** Topshiriqqa biriktirilgan material (yuklangan fayl yoki havola) */
 export interface AssignmentMaterial {
@@ -1090,6 +1090,8 @@ export interface Assignment {
   createdAt: string
   materials: AssignmentMaterial[]
   questions: TestQuestion[]
+  /** Speaking (format=speaking) uchun o'qiladigan matn */
+  referenceText?: string
 }
 
 /** Topshiriq turi (Sozlamalarda boshqariladi) */

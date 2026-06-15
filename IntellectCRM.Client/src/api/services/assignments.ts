@@ -31,6 +31,8 @@ export interface SaveAssignmentInput {
   autoGrade: boolean
   materials: MaterialInput[]
   questions: QuestionInput[]
+  /** Speaking (format=speaking) uchun o'qiladigan matn */
+  referenceText?: string
 }
 
 /** Admin: barcha topshiriqlar (yoki sinf bo'yicha) — FAQAT KO'RISH */

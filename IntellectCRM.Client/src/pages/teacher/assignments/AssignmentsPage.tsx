@@ -3,6 +3,7 @@ import {
   Plus,
   Pencil,
   Trash2,
+  Mic,
   ClipboardCheck,
   Paperclip,
   ListChecks,
@@ -32,6 +33,7 @@ const formatLabel: Record<AssignmentFormat, string> = {
   file: 'Fayl',
   test: 'Test',
   video: 'Video',
+  speaking: 'Speaking',
 }
 
 // Har bir format uchun ikona + rang (teal dizayn — teacher.html dagi kabi).
@@ -40,6 +42,7 @@ const formatMeta: Record<AssignmentFormat, { icon: typeof ClipboardCheck; color:
   written: { icon: Pencil, color: 'text-sky-500', soft: 'bg-sky-50' },
   file: { icon: Paperclip, color: 'text-violet-600', soft: 'bg-violet-50' },
   video: { icon: Video, color: 'text-pink-600', soft: 'bg-pink-50' },
+  speaking: { icon: Mic, color: 'text-amber-600', soft: 'bg-amber-50' },
 }
 
 export function TeacherAssignmentsPage() {
@@ -72,7 +75,7 @@ export function TeacherAssignmentsPage() {
 
   // Format bo'yicha sanoq (chip badge uchun) + filtrlangan ro'yxat.
   const fmtCounts = useMemo(() => {
-    const c: Record<AssignmentFormat, number> = { written: 0, file: 0, test: 0, video: 0 }
+    const c: Record<AssignmentFormat, number> = { written: 0, file: 0, test: 0, video: 0, speaking: 0 }
     assignments.forEach((a) => {
       c[a.format] += 1
     })

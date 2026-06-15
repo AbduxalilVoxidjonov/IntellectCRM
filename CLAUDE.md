@@ -113,6 +113,22 @@ docker compose up -d --build    # app + mssql + cloudflared + backup + mediamtx
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-15: **YANGI — SPEAKING topshirig'i (Azure Pronunciation Assessment, AI avto-baho).** Topshiriqlarga yangi
+  format "speaking": o'quvchi diktafonda gapiradi → Azure talaffuzni baholaydi → avto-ball + batafsil review.
+  **Backend:** `CenterMeta.AzureSpeechKey/Region` + `SettingsController` GET/PUT `/admin/settings/azure-speech`;
+  `Assignment.ReferenceText` (o'qiladigan matn) + `AssignmentSubmission.SpeakingResultJson`; migratsiya
+  `AddSpeakingAssignment` (4 ustun). `AzureSpeechService` (REST, SDK'siz — Docker yengil): WAV PCM 16k → Pronunciation
+  Assessment (Comprehensive + prosody) → recognizedText + PronScore/Accuracy/Fluency/Completeness/Prosody + per-word.
+  Student endpoint `POST /student/assignments/{id}/speaking` (multipart audio) → Azure → submission saqlaydi (Score=
+  PronScore, SpeakingResultJson) + qaytaradi; `GET .../speaking` oldingi natija. Kalit yo'q bo'lsa 400. DTO:
+  SpeakingResultDto/WordDto, AzureSpeechSettingsDto. **Frontend:** `wavRecorder.ts` (mic→16k mono WAV, server
+  konvertatsiyasiz, WebView'da ham); `AssignmentWizard`ga "Speaking" format + o'qiladigan matn maydoni (admin+teacher
+  shared); `SpeakingRecorder.tsx` (diktafon yozish→yuborish→review: umumiy ball + 4 bal bar + tanilgan matn + per-word
+  rang) — `AssignmentDetail`da format=speaking bo'lsa ko'rsatiladi; admin `AzureSpeechSettings.tsx` (Sozlamalar →
+  "Speaking (Azure)" — kalit+region). AssignmentFormat'ga 'speaking' (5 Record map yangilandi). tsc+vite+backend 0,
+  deploy ✅ (migratsiya). Jonli E2E: speaking topshiriq yaratildi (referenceText) → o'quvchi ko'rdi → kalitsiz submit
+  400 "sozlanmagan". ESLATMA: Flutter WebView'da mic uchun RECORD_AUDIO ruxsati + onPermissionRequest grant kerak;
+  Azure baholash faqat admin kalit/region kiritgach ishlaydi.
 - 2026-06-15: **O'quvchi profiliga BAHOLASH statistikasi (oylik + har darslik).** Backend `GET /student/grading?month=`
   (`StudentPortalController.Grading`): o'quvchining har faol guruhi bo'yicha — mezonlarda OYLIK xulosa (done/total =
   shu oyda nechta darsda bajardi / jami dars) + HAR DARSLIK (har sana → bajarilgan mezon id'lari). DTO `StudentGradingGroupDto`/

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Plus, Trash2, Upload, Check, FileText, PenLine, ListChecks, Video } from 'lucide-react'
+import { Plus, Trash2, Upload, Check, FileText, PenLine, ListChecks, Video, Mic } from 'lucide-react'
 import type { Assignment, AssignmentFormat, Subject } from '@/types'
 import type { MaterialInput, SaveAssignmentInput } from '@/api/services/assignments'
 import { Modal } from '@/components/ui/Modal'
@@ -37,6 +37,7 @@ const formats: { key: AssignmentFormat; label: string; desc: string; icon: typeo
   { key: 'written', label: 'Yozma topshiriq', desc: 'Matn, insho', icon: PenLine },
   { key: 'test', label: 'Test', desc: 'Variant tanlash', icon: ListChecks },
   { key: 'video', label: 'Video javob', desc: 'Yozib yuborish', icon: Video },
+  { key: 'speaking', label: 'Speaking', desc: 'Talaffuz (Azure AI)', icon: Mic },
 ]
 
 const steps = ['Asosiy', 'Mazmun va materiallar', 'Guruhlar va muddat', 'Baholash']
@@ -65,6 +66,7 @@ export function AssignmentWizard({
   const [subjectId, setSubjectId] = useState('')
   const [format, setFormat] = useState<AssignmentFormat>('written')
   const [description, setDescription] = useState('')
+  const [referenceText, setReferenceText] = useState('')
   const [materials, setMaterials] = useState<MaterialInput[]>([])
   const [classIds, setClassIds] = useState<string[]>([])
   const [startDate, setStartDate] = useState('')
@@ -86,6 +88,7 @@ export function AssignmentWizard({
     setSubjectId(initial?.subjectId ?? subjects[0]?.id ?? '')
     setFormat(initial?.format ?? 'written')
     setDescription(initial?.description ?? '')
+    setReferenceText(initial?.referenceText ?? '')
     setMaterials(initial ? initial.materials.map((m) => ({ name: m.name, url: m.url, size: m.size, contentType: m.contentType })) : [])
     setClassIds(initial ? [...initial.classIds] : [])
     setStartDate(initial?.startDate?.slice(0, 16) ?? '')
@@ -171,6 +174,7 @@ export function AssignmentWizard({
               .filter((q) => q.text.trim())
               .map((q) => ({ text: q.text.trim(), options: q.options, correctIndex: q.correctIndex }))
           : [],
+      referenceText: format === 'speaking' ? referenceText.trim() : '',
     }
     try {
       await onSubmit(input, initial?.id ?? null)
@@ -287,6 +291,16 @@ export function AssignmentWizard({
             value={description}
             onChange={(e) => setDescription(e.target.value)}
           />
+
+          {format === 'speaking' && (
+            <Textarea
+              label="O'qiladigan matn (Speaking)"
+              rows={4}
+              placeholder="O'quvchi shu matnni ovoz chiqarib o'qiydi; Azure talaffuzni shu matnga taqqoslab baholaydi. Bo'sh qoldirsangiz — erkin gapiradi."
+              value={referenceText}
+              onChange={(e) => setReferenceText(e.target.value)}
+            />
+          )}
 
           <div>
             <div className="mb-2 flex items-center justify-between">

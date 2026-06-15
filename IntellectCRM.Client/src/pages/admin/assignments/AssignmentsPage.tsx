@@ -36,6 +36,7 @@ const formatLabel: Record<AssignmentFormat, string> = {
   file: 'Fayl',
   test: 'Test',
   video: 'Video',
+  speaking: 'Speaking',
 }
 
 /** Admin "Topshiriqlar" — o'qituvchidek topshiriq yaratadi/tahrirlaydi va BARCHA topshiriqlarni boshqaradi. */

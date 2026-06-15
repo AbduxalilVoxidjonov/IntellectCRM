@@ -14,6 +14,7 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { SchoolSettings } from './SchoolSettings'
 import { TelegramSettings } from './TelegramSettings'
 import { FirebaseSettings } from './FirebaseSettings'
+import { AzureSpeechSettings } from './AzureSpeechSettings'
 import { TurnstileSettings } from './TurnstileSettings'
 import { CameraSettings } from './CameraSettings'
 import { PaymentReminderSettings } from './PaymentReminderSettings'
@@ -28,6 +29,7 @@ const sectionTitles: Record<string, string> = {
   school: "Markaz ma'lumotlari",
   telegram: 'Telegram bot',
   firebase: 'Push (Firebase)',
+  'azure-speech': 'Speaking (Azure)',
   turnstile: 'Turniket integratsiya',
   cameras: 'Kamera integratsiya',
   'payment-reminders': "Avtomatik to'lov eslatmasi",
@@ -138,6 +140,9 @@ export function SettingsPage() {
 
           {/* Push (Firebase) */}
           {section === 'firebase' && <FirebaseSettings />}
+
+          {/* Speaking (Azure) */}
+          {section === 'azure-speech' && <AzureSpeechSettings />}
 
           {/* Turniket / FaceID integratsiya */}
           {section === 'turnstile' && <TurnstileSettings />}

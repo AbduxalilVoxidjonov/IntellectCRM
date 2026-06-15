@@ -126,6 +126,25 @@ export async function saveFirebaseSettings(input: SaveFirebaseInput): Promise<Fi
   return data
 }
 
+/* ---------- Speaking (Azure Pronunciation Assessment) ---------- */
+
+export interface AzureSpeechConfig {
+  region: string
+  configured: boolean
+}
+export async function getAzureSpeechSettings(): Promise<AzureSpeechConfig> {
+  if (USE_MOCK) {
+    await delay()
+    return { region: '', configured: false }
+  }
+  const { data } = await api.get<AzureSpeechConfig>('/admin/settings/azure-speech')
+  return data
+}
+export async function saveAzureSpeechSettings(input: { key?: string; region: string }): Promise<AzureSpeechConfig> {
+  const { data } = await api.put<AzureSpeechConfig>('/admin/settings/azure-speech', input)
+  return data
+}
+
 /* ---------- Turniket / FaceID integratsiyasi ---------- */
 
 export interface TeacherDeviceMap {

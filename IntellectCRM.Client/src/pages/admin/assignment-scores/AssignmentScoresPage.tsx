@@ -22,6 +22,7 @@ const formatLabel: Record<AssignmentFormat, string> = {
   file: 'Fayl',
   test: 'Test',
   video: 'Video',
+  speaking: 'Speaking',
 }
 
 /** Ball nisbatiga qarab rang (yashil = yaxshi, sariq = o'rta, qizil = past). */

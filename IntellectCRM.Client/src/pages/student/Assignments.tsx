@@ -23,6 +23,7 @@ export function formatMeta(f: string): { label: string; icon: string; color: str
     written: { label: 'Yozma', icon: 'edit', color: '#7C3AED' },
     file: { label: 'Fayl', icon: 'file', color: '#0D9488' },
     video: { label: 'Video', icon: 'video', color: '#EA580C' },
+    speaking: { label: 'Speaking', icon: 'sparkle', color: '#0D9488' },
   }
   return map[f] || { label: f, icon: 'file', color: '#64708A' }
 }
