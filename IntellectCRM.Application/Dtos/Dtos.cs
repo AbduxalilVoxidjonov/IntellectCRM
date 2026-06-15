@@ -981,6 +981,24 @@ public record LevelTestStatRowDto(
 public record LevelTestStatsDto(
     int Total, int Converted, int JoinedGroup, int Paid, int Active, List<LevelTestStatRowDto> Rows);
 
+/* ---------- Baholash mezonlari (grading criteria) ---------- */
+/// <summary>Baholash mezoni (kriteriya).</summary>
+public record GradingCriterionDto(string Id, string Name, string Description, int MaxScore, int Order);
+/// <summary>Mezon yaratish/yangilash payload'i.</summary>
+public record CriterionInput(string Name, string? Description, int MaxScore);
+/// <summary>Guruhga biriktirilgan mezonlar ro'yxatini saqlash (to'liq almashtiriladi).</summary>
+public record GroupCriteriaInput(List<string> CriterionIds);
+/// <summary>Baholash grid'idagi ustun (mezon).</summary>
+public record GradingBoardCriterionDto(string Id, string Name, int MaxScore, int Order);
+/// <summary>Baholash grid'idagi qator (o'quvchi) — mezon id → baho.</summary>
+public record GradingBoardStudentDto(string StudentId, string FullName, Dictionary<string, double> Scores);
+/// <summary>Guruh baholash grid'i: biriktirilgan mezonlar (ustun) + faol o'quvchilar (qator) + bahalar.</summary>
+public record GradingBoardDto(
+    string GroupId, string GroupName,
+    List<GradingBoardCriterionDto> Criteria, List<GradingBoardStudentDto> Students);
+/// <summary>Bitta katak bahosini saqlash.</summary>
+public record SetCriterionGradeRequest(string GroupId, string StudentId, string CriterionId, double Score);
+
 // ---- Ommaviy (anonim) ----
 
 /// <summary>Ommaviy test savoli (to'g'ri javobSIZ).</summary>

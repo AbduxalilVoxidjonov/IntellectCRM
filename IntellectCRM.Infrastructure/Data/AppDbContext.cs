@@ -31,6 +31,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<DisciplinePoint> DisciplinePoints => Set<DisciplinePoint>();
     public DbSet<EvaluationType> EvaluationTypes => Set<EvaluationType>();
     public DbSet<EvaluationGrade> EvaluationGrades => Set<EvaluationGrade>();
+    public DbSet<GradingCriterion> GradingCriteria => Set<GradingCriterion>();
+    public DbSet<GroupGradingCriterion> GroupGradingCriteria => Set<GroupGradingCriterion>();
+    public DbSet<CriterionGrade> CriterionGrades => Set<CriterionGrade>();
     public DbSet<FinanceTransaction> FinanceTransactions => Set<FinanceTransaction>();
     public DbSet<MonthlyCharge> MonthlyCharges => Set<MonthlyCharge>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
@@ -146,6 +149,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         b.Entity<MonthlyCharge>().HasIndex(c => new { c.StudentId, c.GroupId, c.Month }).IsUnique();
         b.Entity<GroupCurriculumLog>().HasIndex(g => new { g.GroupId, g.ItemId });
         b.Entity<CourseQuestion>().HasIndex(q => q.ItemId);
+        b.Entity<CriterionGrade>().Property(g => g.Score).HasPrecision(5, 2);
+        b.Entity<GroupGradingCriterion>().HasIndex(g => g.GroupId);
+        b.Entity<GroupGradingCriterion>().HasIndex(g => new { g.GroupId, g.CriterionId }).IsUnique();
+        b.Entity<CriterionGrade>().HasIndex(g => new { g.GroupId, g.StudentId, g.CriterionId }).IsUnique();
 
         b.Entity<AuditLog>().HasIndex(a => new { a.EntityType, a.EntityId });
         b.Entity<AuditLog>().HasIndex(a => a.Timestamp);

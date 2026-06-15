@@ -386,6 +386,31 @@ public class TeacherPortalController(
         return NoContent();
     }
 
+    /// <summary>Guruh BAHOLASH grid'i (mezonlar × o'quvchilar) — FAQAT o'z guruhi uchun.
+    /// Mezonlarni admin biriktiradi; o'qituvchi o'z guruhi o'quvchilarini shu mezonlar bo'yicha baholaydi.</summary>
+    [HttpGet("grading/group/{groupId}/board")]
+    public async Task<ActionResult<GradingBoardDto>> GradingBoard(string groupId)
+    {
+        var (t, g, owns) = await ResolveOwnedGroup(groupId);
+        if (t is null) return NotFound();
+        if (g is null) return NotFound();
+        if (!owns) return Forbid();
+        return await GradingController.BuildBoardAsync(db, g);
+    }
+
+    /// <summary>O'quvchining bitta mezon bahosini saqlash — FAQAT o'z guruhi uchun.</summary>
+    [HttpPost("grading/grade")]
+    public async Task<IActionResult> GradingGrade(SetCriterionGradeRequest req)
+    {
+        var (t, g, owns) = await ResolveOwnedGroup(req.GroupId);
+        if (t is null) return NotFound();
+        if (g is null) return NotFound();
+        if (!owns) return Forbid();
+        await GradingController.UpsertGradeAsync(db, req);
+        await db.SaveChangesAsync();
+        return Ok(new { ok = true });
+    }
+
     /// <summary>Guruh sillabus o'tilishi + tugash prognozi (admin <c>GET /admin/curriculum/group/{id}</c> bilan bir xil), o'z guruhi uchun.</summary>
     [HttpGet("curriculum/group/{groupId}")]
     public async Task<ActionResult<GroupCurriculumDto>> CurriculumGroup(string groupId)

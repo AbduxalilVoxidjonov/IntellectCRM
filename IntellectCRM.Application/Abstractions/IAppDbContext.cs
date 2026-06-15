@@ -32,6 +32,9 @@ public interface IAppDbContext
     DbSet<DisciplinePoint> DisciplinePoints { get; }
     DbSet<EvaluationType> EvaluationTypes { get; }
     DbSet<EvaluationGrade> EvaluationGrades { get; }
+    DbSet<GradingCriterion> GradingCriteria { get; }
+    DbSet<GroupGradingCriterion> GroupGradingCriteria { get; }
+    DbSet<CriterionGrade> CriterionGrades { get; }
     DbSet<FinanceTransaction> FinanceTransactions { get; }
     DbSet<MonthlyCharge> MonthlyCharges { get; }
     DbSet<AuditLog> AuditLogs { get; }

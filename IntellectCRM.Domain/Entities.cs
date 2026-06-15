@@ -484,6 +484,40 @@ public class EvaluationGrade
     public string UpdatedAt { get; set; } = string.Empty;
 }
 
+/// <summary>Baholash MEZONI (kriteriya) — qayta ishlatiladigan pul. Guruhlarga biriktiriladi
+/// (har guruhga boshqa-boshqa mezonlar). O'quvchilar guruh ichida shu mezonlar bo'yicha baholanadi.</summary>
+public class GradingCriterion
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string Name { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    /// <summary>Baho shkalasi yuqori chegarasi (masalan 5 yoki 100).</summary>
+    public int MaxScore { get; set; } = 5;
+    public int Order { get; set; }
+    public string CreatedAt { get; set; } = string.Empty;
+}
+
+/// <summary>Mezonni GURUHGA biriktirish (M2M): qaysi guruhda qaysi mezonlar bo'yicha baholanadi.</summary>
+public class GroupGradingCriterion
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string GroupId { get; set; } = string.Empty;
+    public string CriterionId { get; set; } = string.Empty;
+    public int Order { get; set; }
+}
+
+/// <summary>O'quvchining bir mezon bo'yicha bahosi (guruh ichida). Har (Group, Student, Criterion) uchun yagona.</summary>
+public class CriterionGrade
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string GroupId { get; set; } = string.Empty;
+    public string StudentId { get; set; } = string.Empty;
+    public string CriterionId { get; set; } = string.Empty;
+    /// <summary>Baho (0..MaxScore).</summary>
+    public double Score { get; set; }
+    public string UpdatedAt { get; set; } = string.Empty;
+}
+
 /// <summary>O'quvchiga oy uchun hisoblangan oylik to'lov (qarz yozuvi/tarix).</summary>
 public class MonthlyCharge
 {

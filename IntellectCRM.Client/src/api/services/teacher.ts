@@ -14,6 +14,7 @@ import { api, USE_MOCK } from '../client'
 import type { MaterialInput, SaveAssignmentInput } from './assignments'
 import type { GroupJournal } from './journal'
 import type { GroupCurriculum } from './curriculum'
+import type { GradingBoard, SetGrade } from './grading'
 
 /** O'qituvchi profili (panel sarlavhasi/salom uchun) */
 export interface TeacherProfile {
@@ -168,6 +169,15 @@ export async function markTeacherNotificationsRead(): Promise<void> {
 }
 export async function confirmTeacherNotification(id: string): Promise<void> {
   await api.post(`/teacher/notifications/${id}/confirm`)
+}
+
+/* ---------- Baholash mezonlari (o'z guruhi) ---------- */
+export async function getTeacherGradingBoard(groupId: string): Promise<GradingBoard> {
+  const { data } = await api.get<GradingBoard>(`/teacher/grading/group/${groupId}/board`)
+  return data
+}
+export async function setTeacherGrade(req: SetGrade): Promise<void> {
+  await api.post('/teacher/grading/grade', req)
 }
 
 /* ---------- Taklif va shikoyat (o'qituvchi → admin) ---------- */

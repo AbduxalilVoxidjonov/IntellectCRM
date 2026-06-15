@@ -113,6 +113,20 @@ docker compose up -d --build    # app + mssql + cloudflared + backup + mediamtx
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-15: **YANGI — BAHOLASH MEZONLARI (per-guruh kriteriya + guruh detalida baholash, teacher-scoped).**
+  Mavjud `EvaluationType` (global feedback board)dan ALOHIDA. **Backend:** 3 entity — `GradingCriterion`(mezon pul:
+  Name/Description/MaxScore/Order), `GroupGradingCriterion`(M2M: guruhga biriktirish), `CriterionGrade`(o'quvchi×guruh×
+  mezon bahosi, unique). Migratsiya `AddGradingCriteria` (3 jadval). `GradingController` (admin, perm schedule): mezon
+  CRUD, `GET/PUT group/{id}/criteria` (biriktirish), `GET group/{id}/board` (grid: faol o'quvchilar × mezonlar + bahalar),
+  `POST grade` (upsert, 0..MaxScore clamp). Umumiy statik helperlar `BuildBoardAsync`/`UpsertGradeAsync`. **Teacher
+  (o'z guruhi):** `TeacherPortalController` `GET teacher/grading/group/{id}/board` + `POST teacher/grading/grade` —
+  `ResolveOwnedGroup` (Group.TeacherId==me) bilan, begona guruhga 403. **Frontend:** `grading.ts` servis+tiplar; admin
+  "Baholash mezonlari" sahifa (`/admin/grading`, O'quv bo'limi nav) — mezon CRUD + guruhga biriktirish (checklist,
+  darhol saqlanadi); umumiy `GradingSection` komponenti (o'quvchilar × mezonlar grid, katakka baho, onBlur upsert) —
+  admin `ClassDetailPage` + teacher `TeacherGroupDetailPage`ga "Baholash" karta sifatida (jurnaldan keyin). teacher.ts
+  `getTeacherGradingBoard`/`setTeacherGrade`. Backend 0, tsc+vite yashil, deploy ✅ (migratsiya qo'llandi). Jonli E2E:
+  admin mezon→guruhga biriktir→board(12 o'quvchi)→baho 8.5 + clamp 999→10; teacher o'z guruhi board(students=3)+baho 4
+  saqlandi. ESLATMA: baholash o'qituvchining O'Z guruhiga tegishli (teacher-scoped, foydalanuvchi talabi).
 - 2026-06-15: **Daraja testi — STATISTIKA (voronka) tabi.** Test topshirganlar (har biri lid) qaysi bosqichda:
   lid → o'quvchiga aylandi → guruhga qo'shildi → to'lov qildi → aktiv. Backend `GET /admin/level-tests/{id}/stats`
   (`LevelTestsController.Stats`): submission `LeadId` → `Lead.ConvertedStudentId` → Student → StudentGroups(IsActive=

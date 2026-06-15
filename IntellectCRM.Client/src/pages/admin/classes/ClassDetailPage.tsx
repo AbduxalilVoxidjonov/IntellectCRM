@@ -18,6 +18,8 @@ import { activateMember, freezeMember } from '@/api/services/classes'
 import { getSettings } from '@/api/services/settings'
 import { cn, formatMoney, formatDate } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
+import { GradingSection } from '@/components/grading/GradingSection'
+import { getGradingBoard, setGrade } from '@/api/services/grading'
 import { Loader } from '@/components/ui/Loader'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
@@ -532,6 +534,11 @@ export function ClassDetailPage() {
                 </table>
               </div>
             )}
+          </Card>
+
+          {/* Baholash — guruhga biriktirilgan mezonlar bo'yicha o'quvchilarni baholash */}
+          <Card title="Baholash" sub="Guruhga biriktirilgan mezonlar bo'yicha o'quvchilarga baho qo'ying">
+            <GradingSection groupId={id} fetchBoard={getGradingBoard} saveGrade={setGrade} />
           </Card>
 
           {/* O'quv dasturi — darsda o'tilgan bandlar + tugatish prognozi */}
