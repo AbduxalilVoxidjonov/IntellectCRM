@@ -63,6 +63,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<CourseLevel> CourseLevels => Set<CourseLevel>();
     public DbSet<CourseTopic> CourseTopics => Set<CourseTopic>();
     public DbSet<CourseItem> CourseItems => Set<CourseItem>();
+    public DbSet<CourseQuestion> CourseQuestions => Set<CourseQuestion>();
     public DbSet<CourseProgress> CourseProgresses => Set<CourseProgress>();
     public DbSet<GroupCurriculumLog> GroupCurriculumLogs => Set<GroupCurriculumLog>();
 
@@ -144,6 +145,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         // Per-guruh billing: har (o'quvchi, guruh, oy) uchun bitta hisob.
         b.Entity<MonthlyCharge>().HasIndex(c => new { c.StudentId, c.GroupId, c.Month }).IsUnique();
         b.Entity<GroupCurriculumLog>().HasIndex(g => new { g.GroupId, g.ItemId });
+        b.Entity<CourseQuestion>().HasIndex(q => q.ItemId);
 
         b.Entity<AuditLog>().HasIndex(a => new { a.EntityType, a.EntityId });
         b.Entity<AuditLog>().HasIndex(a => a.Timestamp);

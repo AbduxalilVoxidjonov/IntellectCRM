@@ -1175,14 +1175,41 @@ public class CourseTopic
     public int Order { get; set; }
 }
 
-/// <summary>Kurs bandi (sillabus 3-bosqich): mavzu ichidagi alohida o'rganiladigan band.</summary>
+/// <summary>Kurs bandi / DARS (sillabus 3-bosqich): mavzu ichidagi alohida o'rganiladigan dars.
+/// Endi kontent ham olib yuradi: video/matn/audio/lug'at/test (rasm: Modul→Mavzu→Dars).</summary>
 public class CourseItem
 {
     public string Id { get; set; } = Guid.NewGuid().ToString();
     public string SubjectId { get; set; } = string.Empty;
     public string TopicId { get; set; } = string.Empty;
+    /// <summary>Dars nomi (sarlavha).</summary>
     public string Text { get; set; } = string.Empty;
     public string Note { get; set; } = string.Empty;
+    public int Order { get; set; }
+    /// <summary>Dars turi: text | video | audio | vocab | test. Default "text" (eski bandlar).</summary>
+    public string Type { get; set; } = "text";
+    /// <summary>Video havolasi (YouTube/mp4) yoki yuklangan fayl URL — "video" dars.</summary>
+    public string VideoUrl { get; set; } = string.Empty;
+    /// <summary>Audio havolasi/fayl — "audio" dars.</summary>
+    public string AudioUrl { get; set; } = string.Empty;
+    /// <summary>Matnli dars mazmuni (o'qish) yoki video/audio tavsifi.</summary>
+    public string TextContent { get; set; } = string.Empty;
+    /// <summary>Lug'at ("vocab") — JSON: [{"term":"hello","meaning":"salom"}].</summary>
+    public string VocabJson { get; set; } = string.Empty;
+    /// <summary>Qisqa meta yorlig'i (masalan "12 daq"). Test/lug'atda avtomatik sanaladi.</summary>
+    public string Meta { get; set; } = string.Empty;
+}
+
+/// <summary>Kurs darsidagi (CourseItem) test savoli: matn + variantlar + to'g'ri javob indeksi.</summary>
+public class CourseQuestion
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string ItemId { get; set; } = string.Empty;
+    public string Text { get; set; } = string.Empty;
+    /// <summary>Javob variantlari (EF Core 8 primitive collection).</summary>
+    public List<string> Options { get; set; } = new();
+    /// <summary>To'g'ri variant indeksi (Options ichida).</summary>
+    public int CorrectIndex { get; set; }
     public int Order { get; set; }
 }
 

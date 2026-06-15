@@ -5,6 +5,7 @@ using IntellectCRM.Infrastructure.Data;
 using IntellectCRM.Application.Dtos;
 using IntellectCRM.Application.Services;
 using IntellectCRM.Domain;
+using System.Text.Json;
 
 namespace IntellectCRM.Server.Controllers;
 
@@ -36,16 +37,51 @@ public class CurriculumController(AppDbContext db) : ControllerBase
             .Where(i => i.SubjectId == subjectId)
             .OrderBy(i => i.Order).ToListAsync();
 
+        // Test darslarining savol sonini olamiz (meta + tayyorlik uchun).
+        var itemIds = items.Select(i => i.Id).ToList();
+        var qCounts = (await db.CourseQuestions.Where(q => itemIds.Contains(q.ItemId))
+                .Select(q => q.ItemId).ToListAsync())
+            .GroupBy(x => x).ToDictionary(g => g.Key, g => g.Count());
+
         var levelDtos = levels.Select(l => new CurriculumLevelDto(
             l.Id, l.Name, l.Note, l.Order,
             topics.Where(t => t.LevelId == l.Id).Select(t => new CurriculumTopicDto(
                 t.Id, t.Title, t.Note, t.Order,
-                items.Where(i => i.TopicId == t.Id).Select(i => new CurriculumItemDto(
-                    i.Id, i.Text, i.Note, i.Order)).ToList()
+                items.Where(i => i.TopicId == t.Id).Select(i => ToItemDto(i, qCounts)).ToList()
             )).ToList()
         )).ToList();
 
         return new CurriculumDto(subjectId, courseName, levelDtos);
+    }
+
+    /// <summary>Dars (CourseItem) → daraxt DTO: tur, meta (test savoli/lug'at so'zi soni), tayyorlik.</summary>
+    private static CurriculumItemDto ToItemDto(CourseItem i, IReadOnlyDictionary<string, int> qCounts)
+    {
+        var qc = qCounts.GetValueOrDefault(i.Id, 0);
+        var vocabCount = ParseVocab(i.VocabJson).Count;
+        var meta = !string.IsNullOrWhiteSpace(i.Meta) ? i.Meta
+            : i.Type == "test" ? $"{qc} savol"
+            : i.Type == "vocab" ? $"{vocabCount} so'z"
+            : "";
+        var ready = i.Type switch
+        {
+            "video" => !string.IsNullOrWhiteSpace(i.VideoUrl),
+            "audio" => !string.IsNullOrWhiteSpace(i.AudioUrl),
+            "text" => !string.IsNullOrWhiteSpace(i.TextContent),
+            "vocab" => vocabCount > 0,
+            "test" => qc > 0,
+            _ => false,
+        };
+        return new CurriculumItemDto(i.Id, i.Text, i.Note, i.Order, i.Type, meta, ready);
+    }
+
+    private static readonly string[] AllowedTypes = { "text", "video", "audio", "vocab", "test" };
+    private static string NormalizeType(string? t) => t is not null && AllowedTypes.Contains(t) ? t : "text";
+    private static List<VocabEntryDto> ParseVocab(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return new();
+        try { return JsonSerializer.Deserialize<List<VocabEntryDto>>(json) ?? new(); }
+        catch { return new(); }
     }
 
     // ---- Daraja ----
@@ -91,6 +127,7 @@ public class CurriculumController(AppDbContext db) : ControllerBase
             .Where(i => topicIds.Contains(i.TopicId)).Select(i => i.Id).ToListAsync();
 
         await db.CourseProgresses.Where(p => itemIds.Contains(p.ItemId)).ExecuteDeleteAsync();
+        await db.CourseQuestions.Where(q => itemIds.Contains(q.ItemId)).ExecuteDeleteAsync();
         await db.CourseItems.Where(i => itemIds.Contains(i.Id)).ExecuteDeleteAsync();
         await db.CourseTopics.Where(t => t.LevelId == id).ExecuteDeleteAsync();
         db.CourseLevels.Remove(level);
@@ -141,6 +178,7 @@ public class CurriculumController(AppDbContext db) : ControllerBase
         var itemIds = await db.CourseItems
             .Where(i => i.TopicId == id).Select(i => i.Id).ToListAsync();
         await db.CourseProgresses.Where(p => itemIds.Contains(p.ItemId)).ExecuteDeleteAsync();
+        await db.CourseQuestions.Where(q => itemIds.Contains(q.ItemId)).ExecuteDeleteAsync();
         await db.CourseItems.Where(i => i.TopicId == id).ExecuteDeleteAsync();
         db.CourseTopics.Remove(topic);
         await db.SaveChangesAsync();
@@ -187,7 +225,63 @@ public class CurriculumController(AppDbContext db) : ControllerBase
         var item = await db.CourseItems.FindAsync(id);
         if (item == null) return NotFound();
         await db.CourseProgresses.Where(p => p.ItemId == id).ExecuteDeleteAsync();
+        await db.CourseQuestions.Where(q => q.ItemId == id).ExecuteDeleteAsync();
         db.CourseItems.Remove(item);
+        await db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    // ---- Dars KONTENTI (video/matn/audio/lug'at/test) ----
+
+    /// <summary>Bitta darsning to'liq kontenti — tahrirlovchi va ko'rish ekranlari uchun.</summary>
+    [HttpGet("item/{id}")]
+    public async Task<ActionResult<CourseItemDetailDto>> GetItem(string id)
+    {
+        var i = await db.CourseItems.FindAsync(id);
+        if (i == null) return NotFound();
+        var qs = await db.CourseQuestions.Where(q => q.ItemId == id).OrderBy(q => q.Order)
+            .Select(q => new CourseQuestionDto(q.Id, q.Text, q.Options, q.CorrectIndex)).ToListAsync();
+        return new CourseItemDetailDto(
+            i.Id, i.TopicId, i.Text, i.Note, i.Order, i.Type,
+            i.VideoUrl, i.AudioUrl, i.TextContent, i.Meta, ParseVocab(i.VocabJson), qs);
+    }
+
+    /// <summary>Dars kontentini saqlash: nom + tur + (video/matn/audio/lug'at) + test savollari (almashtiriladi).</summary>
+    [HttpPut("items/{id}/content")]
+    public async Task<ActionResult> SaveItemContent(string id, SaveItemContentRequest req)
+    {
+        var item = await db.CourseItems.FindAsync(id);
+        if (item == null) return NotFound();
+
+        item.Text = (req.Text ?? "").Trim();
+        item.Type = NormalizeType(req.Type);
+        item.VideoUrl = (req.VideoUrl ?? "").Trim();
+        item.AudioUrl = (req.AudioUrl ?? "").Trim();
+        item.TextContent = req.TextContent ?? "";
+
+        var vocab = (req.Vocab ?? new()).Where(v => !string.IsNullOrWhiteSpace(v.Term)).ToList();
+        item.VocabJson = vocab.Count > 0 ? JsonSerializer.Serialize(vocab) : "";
+
+        // Test savollari — to'liq almashtiriladi.
+        await db.CourseQuestions.Where(q => q.ItemId == id).ExecuteDeleteAsync();
+        var questions = (req.Questions ?? new()).Where(q => !string.IsNullOrWhiteSpace(q.Text)).ToList();
+        var order = 0;
+        foreach (var q in questions)
+            db.CourseQuestions.Add(new CourseQuestion
+            {
+                ItemId = id,
+                Text = q.Text.Trim(),
+                Options = (q.Options ?? new()).Select(o => o ?? "").ToList(),
+                CorrectIndex = q.CorrectIndex,
+                Order = order++,
+            });
+
+        // Meta: berilmasa avtomatik (test → savol soni, lug'at → so'z soni).
+        item.Meta = !string.IsNullOrWhiteSpace(req.Meta) ? req.Meta.Trim()
+            : item.Type == "test" ? $"{questions.Count} savol"
+            : item.Type == "vocab" ? $"{vocab.Count} so'z"
+            : "";
+
         await db.SaveChangesAsync();
         return NoContent();
     }

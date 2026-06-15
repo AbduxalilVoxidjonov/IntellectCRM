@@ -64,6 +64,7 @@ public interface IAppDbContext
     DbSet<CourseLevel> CourseLevels { get; }
     DbSet<CourseTopic> CourseTopics { get; }
     DbSet<CourseItem> CourseItems { get; }
+    DbSet<CourseQuestion> CourseQuestions { get; }
     DbSet<CourseProgress> CourseProgresses { get; }
     DbSet<GroupCurriculumLog> GroupCurriculumLogs { get; }
 

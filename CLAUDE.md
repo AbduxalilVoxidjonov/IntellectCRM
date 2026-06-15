@@ -113,6 +113,20 @@ docker compose up -d --build    # app + mssql + cloudflared + backup + mediamtx
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-15: **YANGI EPIK — O'quv dasturi KONTENTLI (Modul→Mavzu→Dars, dars ichida video/matn/audio/lug'at/test).**
+  Foydalanuvchi `modul.png` (Kurs tahrirlovchi: chap modul-daraxt + o'ng dars tahrir/test tuzuvchi) namunasini berdi.
+  Qaror: mavjud `CourseLevel→CourseTopic→CourseItem` (3 daraja, Modul→Mavzu→Dars ga mos) KENGAYTIRILADI — eski
+  Duolingo yo'l-xaritasi + o'qituvchi "dars o'tilishi" SAQLANADI (additive). **P1 (backend, BAJARILDI):** `CourseItem`ga
+  `Type`(text/video/audio/vocab/test)/`VideoUrl`/`AudioUrl`/`TextContent`/`VocabJson`/`Meta`; yangi `CourseQuestion`
+  entity (test savoli: Text/Options/CorrectIndex/Order) + DbSet + indeks; inkremental migratsiya `AddCourseLessonContent`
+  (6 ustun + CourseQuestions jadval, baza saqlandi). `CurriculumController`: tree endi item'ga Type/Meta/Ready qaytaradi
+  (`ToItemDto` — test savol soni/lug'at so'z soni meta, tayyorlik), yangi `GET item/{id}` (to'liq kontent+savollar),
+  `PUT items/{id}/content` (nom+tur+kontent+lug'at+savollar — savollar to'liq almashtiriladi), topic/level delete
+  CourseQuestions ham tozalaydi. DTO: `CurriculumItemDto`+Type/Meta/Ready, `CourseItemDetailDto`, `CourseQuestionDto`,
+  `VocabEntryDto`, `SaveItemContentRequest`. Backend 0, deploy ✅ (migratsiya qo'llandi); jonli E2E: level→topic→item
+  yaratish → video kontent saqlandi → test (2 savol) PUT OK → readback type/savollar/meta/ready to'g'ri → cascade delete.
+  **QOLDI:** P2 (admin editor — rasm joylashuvi), P3 (o'quvchi Duolingo node bosilsa darsni ochib ko'rish + test runner).
+  Foydalanuvchi: o'quvchi Duolingo ko'rinishi SHUNDAYLIGICHA qoladi, node bosilsa ichiga kirib admin yuklagan kontentni ko'radi.
 - 2026-06-14: **O'qituvchi profil TO'LIQ kengaytirildi — tungi rejim + barcha bo'limlar (4 parallel subagent).**
   (1) **TUNGI REJIM:** `.teacher-app.dark` CSS bloki (index.css) — semantik tokenlar (ink/mute/faint/line/paper/
   panel/tealsoft/chip) dark qiymatga + hardcoded neutral utility'lar (`bg-white`→panel, `bg/text/border-slate-*`,

@@ -996,8 +996,22 @@ public record ArchivedRecordDto(
 
 /* ---------- Kurs sillabusi (Daraja → Mavzu → Band) ---------- */
 
-/// <summary>Sillabus bandi (3-bosqich) — ko'rsatish uchun.</summary>
-public record CurriculumItemDto(string Id, string Text, string Note, int Order);
+/// <summary>Sillabus bandi / DARS (3-bosqich) — daraxtda ko'rsatish uchun (tur + meta + tayyorlik).</summary>
+public record CurriculumItemDto(string Id, string Text, string Note, int Order, string Type, string Meta, bool Ready);
+
+/// <summary>Lug'at (vocab) yozuvi: so'z + tarjima.</summary>
+public record VocabEntryDto(string Term, string Meaning);
+/// <summary>Test savoli: matn + variantlar + to'g'ri javob indeksi.</summary>
+public record CourseQuestionDto(string Id, string Text, List<string> Options, int CorrectIndex);
+/// <summary>Bitta darsning TO'LIQ kontenti (tahrirlovchi + ko'rish ekrani uchun).</summary>
+public record CourseItemDetailDto(
+    string Id, string TopicId, string Text, string Note, int Order,
+    string Type, string VideoUrl, string AudioUrl, string TextContent, string Meta,
+    List<VocabEntryDto> Vocab, List<CourseQuestionDto> Questions);
+/// <summary>Dars kontentini saqlash payload'i (nom + tur + kontent + lug'at + test savollari).</summary>
+public record SaveItemContentRequest(
+    string Text, string Type, string? VideoUrl, string? AudioUrl, string? TextContent, string? Meta,
+    List<VocabEntryDto>? Vocab, List<CourseQuestionDto>? Questions);
 
 /// <summary>Sillabus mavzusi (2-bosqich) + uning bandlari.</summary>
 public record CurriculumTopicDto(string Id, string Title, string Note, int Order, List<CurriculumItemDto> Items);
