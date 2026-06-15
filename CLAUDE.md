@@ -113,6 +113,19 @@ docker compose up -d --build    # app + mssql + cloudflared + backup + mediamtx
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-15: **Dars QULFI (o'qituvchi o'tgach ochiladi) + video mobil + joylashuv ko'prigi + lug'at MOSLASH o'yini.**
+  (1) **Qulf:** o'quvchi darsni FAQAT o'qituvchi shu guruhda "o'tildi" qilgach (GroupCurriculumLog) ocha oladi.
+  Frontend (`Progress.tsx`): roadmap node FAQAT `it.covered` bo'lsa `/student/lesson/:id`ga o'tadi, aks holda toast
+  ("Bu dars hali yopiq..."). Backend NAZORAT: `GET /student/curriculum/item/{id}` covered bo'lmasa **403** (locked)
+  qaytaradi (myGroups GroupCurriculumLog tekshiruvi). Jonli E2E: uncovered→403, o'qituvchi cover→200 (video=True).
+  DIQQAT: `StudentGroupDto.Id`=a'zolik id, `.GroupId`=guruh(Class) id — cover GROUP id bilan. (2) **Video mobil:**
+  `youtube-nocookie/embed?playsinline=1&rel=0`, `<video playsInline>`, + "tashqi ilovada ochish" fallback havola
+  (WebView ichida ochilmasa). (3) **Joylashuv:** native ko'prik — `window.__setLocation(lat,lng)` / postMessage
+  `{type:'location'}` (Flutter beradi) + `window.requestNativeLocation()` hook + navigator.geolocation; aniqroq xato
+  matni. (4) **Lug'at MOSLASH o'yini:** `Lesson.tsx` VocabBlock — so'zlar tartibda, tarjimalar CHALKASH; so'zni tanlab
+  to'g'ri tarjimani bossa yashil/qulflanadi, xato bo'lsa qizil chaqnaydi; "Moslandi X/N" + "Barakalla". tsc+vite yashil,
+  deploy ✅. ESLATMA (Flutter): video ichki o'ynashi uchun WebView `allowsInlineMediaPlayback`/`mediaPlaybackRequiresUserGesture:false`;
+  GPS uchun geolocation ruxsati (onGeolocationPermissionsShowPrompt→grant) yoki `requestNativeLocation` ni implement qilsin.
 - 2026-06-15: **Dars KO'P BO'LIMLI bo'ldi (video+matn+audio+lug'at+test) — o'quvchi ketma-ket ko'radi (oldin faqat
   `type` chiqardi).** Muammo: har dars BITTA `type`ga ega edi, o'quvchi ko'rinishi faqat shu turni ko'rsatardi (admin
   bir nechta bo'lim to'ldirsa ham faqat test chiqardi). Aslida `CourseItem` barcha maydonlarni (videoUrl/textContent/

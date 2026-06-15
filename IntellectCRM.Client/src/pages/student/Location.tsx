@@ -69,30 +69,79 @@ export function StudentLocationScreen() {
     }
   }, [])
 
-  // Joriy GPS joylashuvni olish.
+  // Native (Flutter) joylashuv ko'prigi: Flutter GPS'ni olib, bizga shu yo'l bilan beradi:
+  //   window.__setLocation(lat, lng)   YOKI   postMessage({type:'location', lat, lng})
+  useEffect(() => {
+    const w = window as unknown as { __setLocation?: (lat: number, lng: number) => void }
+    const apply = (lat: number, lng: number) => {
+      if (typeof lat === 'number' && typeof lng === 'number' && !Number.isNaN(lat)) {
+        setPos([lat, lng])
+        setLocating(false)
+        setErr('')
+      }
+    }
+    w.__setLocation = apply
+    const onMsg = (e: MessageEvent) => {
+      try {
+        const d = typeof e.data === 'string' ? JSON.parse(e.data) : e.data
+        if (d && d.type === 'location') apply(Number(d.lat), Number(d.lng))
+      } catch {
+        /* boshqa xabar — e'tibor bermaymiz */
+      }
+    }
+    window.addEventListener('message', onMsg)
+    return () => {
+      window.removeEventListener('message', onMsg)
+      delete w.__setLocation
+    }
+  }, [])
+
+  // Joriy GPS joylashuvni olish — native ko'prik (Flutter) + brauzer geolocation.
   const locate = () => {
     setErr('')
     setOk(false)
-    if (!('geolocation' in navigator)) {
-      setErr("Qurilma joylashuvni qo'llab-quvvatlamaydi.")
-      return
-    }
     setLocating(true)
-    navigator.geolocation.getCurrentPosition(
-      (p) => {
-        setPos([p.coords.latitude, p.coords.longitude])
-        setLocating(false)
-      },
-      (e) => {
-        setLocating(false)
-        setErr(
-          e.code === e.PERMISSION_DENIED
-            ? "Joylashuvga ruxsat berilmadi. Ilova sozlamalaridan ruxsat bering."
-            : "Joylashuvni aniqlab bo'lmadi. Qaytadan urinib ko'ring.",
-        )
-      },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
-    )
+
+    // 1) Native ko'prik bo'lsa — Flutter'dan so'raymiz (u __setLocation orqali qaytaradi).
+    const w = window as unknown as { requestNativeLocation?: () => void }
+    let nativeAsked = false
+    try {
+      if (typeof w.requestNativeLocation === 'function') {
+        w.requestNativeLocation()
+        nativeAsked = true
+      }
+    } catch {
+      /* ko'prik ishlamadi */
+    }
+
+    // 2) Brauzer geolocation (WebView ruxsat bergan bo'lsa).
+    if ('geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (p) => {
+          setPos([p.coords.latitude, p.coords.longitude])
+          setLocating(false)
+        },
+        (e) => {
+          // Native javob kelayotgan bo'lsa biroz kutamiz; aks holda xato.
+          window.setTimeout(() => {
+            setLocating((cur) => {
+              if (cur) {
+                setErr(
+                  e.code === e.PERMISSION_DENIED
+                    ? "Joylashuvga ruxsat berilmadi. Ilova sozlamalaridan (yoki telefon sozlamalari) joylashuv ruxsatini yoqing."
+                    : "Joylashuvni aniqlab bo'lmadi. Internet/GPS yoniqligini tekshirib, qaytadan urinib ko'ring.",
+                )
+              }
+              return false
+            })
+          }, nativeAsked ? 5000 : 0)
+        },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+      )
+    } else if (!nativeAsked) {
+      setLocating(false)
+      setErr("Qurilma joylashuvni qo'llab-quvvatlamaydi. Ilovani yangilang yoki telefonda GPS'ni yoqing.")
+    }
   }
 
   const save = async () => {

@@ -188,9 +188,22 @@ function FinishNode({ done, color }: { done: boolean; color: string }) {
 
 function Roadmap({ cur }: { cur: StudentCurriculum }) {
   const nav = useNavigate()
+  const [toast, setToast] = useState<string | null>(null)
+  useEffect(() => {
+    if (!toast) return
+    const t = setTimeout(() => setToast(null), 2400)
+    return () => clearTimeout(t)
+  }, [toast])
   const nextId = findNext(cur)
   const col = subjectColor(cur.courseId)
   const allDone = cur.remainingItems <= 0
+
+  // Dars FAQAT o'qituvchi "o'tildi" qilgach (covered) ochiladi; aks holda yopiq.
+  const openLesson = (it: CurriculumItem) => {
+    if (it.covered) nav(`/student/lesson/${it.id}`)
+    else setToast("Bu dars hali yopiq — o'qituvchi o'tgach ochiladi")
+  }
+
   return (
     <div style={{ marginTop: 18 }}>
       {cur.levels.map((lv) => {
@@ -271,7 +284,7 @@ function Roadmap({ cur }: { cur: StudentCurriculum }) {
                     state={it.covered ? 'done' : it.id === nextId ? 'now' : 'lock'}
                     offset={Math.round(Math.sin(idx * 0.85) * 58)}
                     color={col}
-                    onOpen={() => nav(`/student/lesson/${it.id}`)}
+                    onOpen={() => openLesson(it)}
                   />
                 ))}
               </div>
@@ -280,6 +293,7 @@ function Roadmap({ cur }: { cur: StudentCurriculum }) {
         )
       })}
       <FinishNode done={allDone} color={col} />
+      {toast && <div className="toast">{toast}</div>}
     </div>
   )
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { getStudentLesson, type LessonContent, type LessonQuestion } from '@/api/services/studentPortal'
 import { Icon } from '@/pages/student/lib'
@@ -26,10 +26,11 @@ const SECTION_ICON: Record<SectionKind, string> = {
   test: 'checkCircle',
 }
 
-/** YouTube/oddiy URL'dan embed havolasini quradi (YouTube bo'lsa iframe). */
+/** YouTube/oddiy URL'dan embed havolasini quradi (YouTube bo'lsa iframe).
+ * playsinline=1 — telefonda (WebView) ichki o'ynashi uchun; nocookie — kamroq bloklash. */
 function youtubeEmbed(url: string): string | null {
-  const m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([\w-]{11})/)
-  return m ? `https://www.youtube.com/embed/${m[1]}` : null
+  const m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/|v\/))([\w-]{11})/)
+  return m ? `https://www.youtube-nocookie.com/embed/${m[1]}?playsinline=1&rel=0&modestbranding=1` : null
 }
 
 export function StudentLessonScreen() {
@@ -178,19 +179,33 @@ export function StudentLessonScreen() {
 function VideoBlock({ lesson }: { lesson: LessonContent }) {
   const embed = lesson.videoUrl ? youtubeEmbed(lesson.videoUrl) : null
   return (
-    <div style={{ position: 'relative', width: '100%', aspectRatio: '16 / 9', borderRadius: 16, overflow: 'hidden', background: '#000' }}>
-      {embed ? (
-        <iframe
-          src={embed}
-          title={lesson.text}
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-          allowFullScreen
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 0 }}
-        />
-      ) : (
-        <video src={lesson.videoUrl} controls style={{ width: '100%', height: '100%' }} />
-      )}
-    </div>
+    <>
+      <div style={{ position: 'relative', width: '100%', aspectRatio: '16 / 9', borderRadius: 16, overflow: 'hidden', background: '#000' }}>
+        {embed ? (
+          <iframe
+            src={embed}
+            title={lesson.text}
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+            allowFullScreen
+            referrerPolicy="strict-origin-when-cross-origin"
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 0 }}
+          />
+        ) : (
+          <video src={lesson.videoUrl} controls playsInline preload="metadata" style={{ width: '100%', height: '100%' }} />
+        )}
+      </div>
+      {/* Telefonda ichida ochilmasa — tashqi havola (YouTube ilovasi) */}
+      <a
+        href={lesson.videoUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="row gap10 press"
+        style={{ marginTop: 10, justifyContent: 'center', fontSize: 13.5, fontWeight: 700, color: 'var(--accent)' }}
+      >
+        <Icon name="arrowR" size={16} color="var(--accent)" />
+        Video ochilmasa — tashqi ilovada ochish
+      </a>
+    </>
   )
 }
 
@@ -210,25 +225,105 @@ function TextBlock({ text }: { text: string }) {
   )
 }
 
+/** Lug'at — CHALKASHTIRILGAN MOSLASH o'yini: so'zni tanlab, to'g'ri tarjimasini tanlaydi. */
 function VocabBlock({ lesson }: { lesson: LessonContent }) {
+  const pairs = lesson.vocab
+  // Tarjimalarni bir marta aralashtiramiz (so'zlar tartibda, tarjimalar chalkash).
+  const shuffled = useMemo(() => {
+    const arr = pairs.map((p, i) => ({ meaning: p.meaning, idx: i }))
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1))
+      ;[arr[i], arr[j]] = [arr[j], arr[i]]
+    }
+    return arr
+  }, [pairs])
+
+  const [sel, setSel] = useState<number | null>(null) // tanlangan so'z indeksi
+  const [matched, setMatched] = useState<Set<number>>(new Set())
+  const [wrong, setWrong] = useState<number | null>(null) // xato chaqnash (tarjima idx)
+
+  const tapTerm = (i: number) => {
+    if (matched.has(i)) return
+    setSel((cur) => (cur === i ? null : i))
+  }
+  const tapMeaning = (m: { meaning: string; idx: number }) => {
+    if (matched.has(m.idx) || sel === null) return
+    if (m.idx === sel) {
+      setMatched((s) => new Set(s).add(sel))
+      setSel(null)
+    } else {
+      setWrong(m.idx)
+      window.setTimeout(() => setWrong(null), 450)
+      setSel(null)
+    }
+  }
+
+  const done = matched.size === pairs.length
+
+  const chip = (active: boolean, ok: boolean, bad: boolean): CSSProperties => ({
+    width: '100%',
+    textAlign: 'center',
+    padding: '12px 10px',
+    borderRadius: 13,
+    fontSize: 14.5,
+    fontWeight: 700,
+    border: `1.5px solid ${ok ? 'var(--green,#16a34a)' : bad ? 'var(--red,#dc2626)' : active ? 'var(--accent)' : 'var(--border)'}`,
+    background: ok ? 'var(--greenSoft,#dcfce7)' : bad ? 'var(--redSoft,#fee2e2)' : active ? 'var(--accentSoft)' : 'var(--surface)',
+    color: ok ? 'var(--green,#16a34a)' : bad ? 'var(--red,#dc2626)' : active ? 'var(--accent)' : 'var(--text)',
+    opacity: ok ? 0.85 : 1,
+  })
+
   return (
-    <div className="card" style={{ padding: 4 }}>
-      {lesson.vocab.map((v, i) => (
-        <div
-          key={i}
-          className="row"
-          style={{
-            justifyContent: 'space-between',
-            gap: 12,
-            padding: '11px 12px',
-            borderBottom: i < lesson.vocab.length - 1 ? '1px solid var(--border)' : undefined,
-          }}
-        >
-          <span style={{ fontSize: 15, fontWeight: 700 }}>{v.term}</span>
-          <span className="muted" style={{ fontSize: 14, textAlign: 'right' }}>{v.meaning}</span>
+    <>
+      <p className="muted" style={{ fontSize: 13, marginBottom: 12, textAlign: 'center' }}>
+        So'zni tanlab, to'g'ri tarjimasini bosing
+      </p>
+      <div className="card row" style={{ justifyContent: 'space-between', alignItems: 'center', background: 'var(--accentSoft)', borderColor: 'transparent', marginBottom: 12 }}>
+        <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--accent)' }}>Moslandi</span>
+        <span style={{ fontSize: 16, fontWeight: 800, color: 'var(--accent)' }}>{matched.size} / {pairs.length}</span>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        {/* So'zlar (tartibda) */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {pairs.map((p, i) => (
+            <button
+              key={i}
+              type="button"
+              className="press"
+              disabled={matched.has(i)}
+              onClick={() => tapTerm(i)}
+              style={chip(sel === i, matched.has(i), false)}
+            >
+              {p.term}
+            </button>
+          ))}
         </div>
-      ))}
-    </div>
+        {/* Tarjimalar (chalkash) */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {shuffled.map((m) => (
+            <button
+              key={m.idx}
+              type="button"
+              className="press"
+              disabled={matched.has(m.idx)}
+              onClick={() => tapMeaning(m)}
+              style={chip(false, matched.has(m.idx), wrong === m.idx)}
+            >
+              {m.meaning}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {done && (
+        <div className="card" style={{ textAlign: 'center', marginTop: 12 }}>
+          <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--green,#16a34a)' }}>
+            Barakalla! Hammasi to'g'ri moslandi {'\u{1F389}'}
+          </div>
+        </div>
+      )}
+    </>
   )
 }
 

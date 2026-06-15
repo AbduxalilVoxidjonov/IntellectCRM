@@ -797,12 +797,20 @@ public class StudentPortalController(
         var i = await db.CourseItems.FindAsync(id);
         if (i is null) return NotFound();
 
-        // O'quvchining faol guruhlari kurslari (SubjectId) — faqat shularning darsini ko'rsatamiz.
-        var courseIds = await (from sg in db.StudentGroups
-                               join c in db.Classes on sg.GroupId equals c.Id
-                               where sg.StudentId == s.Id && sg.IsActive && c.CourseId != ""
-                               select c.CourseId).Distinct().ToListAsync();
-        if (!courseIds.Contains(i.SubjectId)) return NotFound();
+        // O'quvchining faol guruhlari + ularning kurslari.
+        var myGroups = await (from sg in db.StudentGroups
+                              join c in db.Classes on sg.GroupId equals c.Id
+                              where sg.StudentId == s.Id && sg.IsActive
+                              select new { sg.GroupId, c.CourseId }).ToListAsync();
+        // Faqat o'quvchining kursidagi darsni ko'rsatamiz.
+        if (!myGroups.Any(g => g.CourseId == i.SubjectId)) return NotFound();
+
+        // NAZORAT: dars FAQAT o'qituvchi shu guruhda "o'tildi" qilgach (GroupCurriculumLog) ochiladi.
+        var myGroupIds = myGroups.Select(g => g.GroupId).ToList();
+        var covered = await db.GroupCurriculumLogs
+            .AnyAsync(g => myGroupIds.Contains(g.GroupId) && g.ItemId == id && !g.IsRevision);
+        if (!covered)
+            return StatusCode(403, new { message = "Bu dars hali ochilmagan — o'qituvchi o'tgach ochiladi", locked = true });
 
         var qs = await db.CourseQuestions.Where(q => q.ItemId == id).OrderBy(q => q.Order)
             .Select(q => new CourseQuestionDto(q.Id, q.Text, q.Options, q.CorrectIndex)).ToListAsync();
