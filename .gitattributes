@@ -1,0 +1,8 @@
+# Deploy-kritik fayllar HAR DOIM LF bo'lsin — ular Linux konteyner ichida bajariladi yoki
+# Ubuntu'da parse qilinadi. Windows'da tahrirlanганда CRLF kirib qolsa (masalan backup bash
+# skripti yoki .env), Ubuntu'da `\r` xatolarga olib keladi. Shuning uchun LF majburiy.
+Dockerfile          text eol=lf
+docker-compose.yml  text eol=lf
+*.sh                text eol=lf
+.env.example        text eol=lf
+.dockerignore       text eol=lf
