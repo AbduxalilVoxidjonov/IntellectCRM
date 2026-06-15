@@ -389,13 +389,13 @@ public class TeacherPortalController(
     /// <summary>Guruh BAHOLASH grid'i (mezonlar × o'quvchilar) — FAQAT o'z guruhi uchun.
     /// Mezonlarni admin biriktiradi; o'qituvchi o'z guruhi o'quvchilarini shu mezonlar bo'yicha baholaydi.</summary>
     [HttpGet("grading/group/{groupId}/board")]
-    public async Task<ActionResult<GradingBoardDto>> GradingBoard(string groupId)
+    public async Task<ActionResult<GradingBoardDto>> GradingBoard(string groupId, [FromQuery] string? month)
     {
         var (t, g, owns) = await ResolveOwnedGroup(groupId);
         if (t is null) return NotFound();
         if (g is null) return NotFound();
         if (!owns) return Forbid();
-        return await GradingController.BuildBoardAsync(db, g);
+        return await GradingController.BuildBoardAsync(db, g, month);
     }
 
     /// <summary>O'quvchining bitta mezon bahosini saqlash — FAQAT o'z guruhi uchun.</summary>

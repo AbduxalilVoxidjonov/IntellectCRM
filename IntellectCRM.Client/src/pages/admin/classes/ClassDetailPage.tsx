@@ -71,6 +71,7 @@ export function ClassDetailPage() {
   const [memberSaving, setMemberSaving] = useState(false)
 
   // ---- Guruh o'quv dasturi (darsda o'tilgan) ----
+  const [groupView, setGroupView] = useState<'jurnal' | 'baholash'>('jurnal')
   const [curr, setCurr] = useState<GroupCurriculum | null>(null)
   const [currLoading, setCurrLoading] = useState(true)
   const [currExpanded, setCurrExpanded] = useState<Set<string>>(new Set())
@@ -316,7 +317,32 @@ export function ClassDetailPage() {
             </div>
           </Card>
 
+          {/* Jurnal / Baholash toggle */}
+          <div className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1">
+            <button
+              type="button"
+              onClick={() => setGroupView('jurnal')}
+              className={
+                'rounded-lg px-4 py-1.5 text-sm font-semibold transition-colors ' +
+                (groupView === 'jurnal' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700')
+              }
+            >
+              Jurnal
+            </button>
+            <button
+              type="button"
+              onClick={() => setGroupView('baholash')}
+              className={
+                'rounded-lg px-4 py-1.5 text-sm font-semibold transition-colors ' +
+                (groupView === 'baholash' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700')
+              }
+            >
+              Baholash
+            </button>
+          </div>
+
           {/* Oylik jurnal */}
+          {groupView === 'jurnal' && (
           <Card className="p-0">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
               <div className="flex items-center gap-2">
@@ -535,11 +561,14 @@ export function ClassDetailPage() {
               </div>
             )}
           </Card>
+          )}
 
-          {/* Baholash — guruhga biriktirilgan mezonlar bo'yicha o'quvchilarni baholash */}
-          <Card title="Baholash" sub="Guruhga biriktirilgan mezonlar bo'yicha o'quvchilarga baho qo'ying">
-            <GradingSection groupId={id} fetchBoard={getGradingBoard} saveGrade={setGrade} />
-          </Card>
+          {/* Baholash — har darsga mezonlar bo'yicha bajardi/bajarmadi */}
+          {groupView === 'baholash' && (
+            <Card title="Baholash" sub="Har darsga mezonlar bo'yicha o'quvchini belgilang (bajardi / bajarmadi)">
+              <GradingSection groupId={id} fetchBoard={getGradingBoard} saveGrade={setGrade} />
+            </Card>
+          )}
 
           {/* O'quv dasturi — darsda o'tilgan bandlar + tugatish prognozi */}
           <CurriculumSection

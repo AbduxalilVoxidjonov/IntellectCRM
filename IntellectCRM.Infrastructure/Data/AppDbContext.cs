@@ -149,10 +149,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         b.Entity<MonthlyCharge>().HasIndex(c => new { c.StudentId, c.GroupId, c.Month }).IsUnique();
         b.Entity<GroupCurriculumLog>().HasIndex(g => new { g.GroupId, g.ItemId });
         b.Entity<CourseQuestion>().HasIndex(q => q.ItemId);
-        b.Entity<CriterionGrade>().Property(g => g.Score).HasPrecision(5, 2);
         b.Entity<GroupGradingCriterion>().HasIndex(g => g.GroupId);
         b.Entity<GroupGradingCriterion>().HasIndex(g => new { g.GroupId, g.CriterionId }).IsUnique();
-        b.Entity<CriterionGrade>().HasIndex(g => new { g.GroupId, g.StudentId, g.CriterionId }).IsUnique();
+        b.Entity<CriterionGrade>().HasIndex(g => new { g.GroupId, g.StudentId, g.CriterionId, g.Date }).IsUnique();
+        b.Entity<CriterionGrade>().HasIndex(g => new { g.GroupId, g.Date });
 
         b.Entity<AuditLog>().HasIndex(a => new { a.EntityType, a.EntityId });
         b.Entity<AuditLog>().HasIndex(a => a.Timestamp);

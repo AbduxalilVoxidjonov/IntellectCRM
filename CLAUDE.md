@@ -113,6 +113,18 @@ docker compose up -d --build    # app + mssql + cloudflared + backup + mediamtx
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-15: **Baholash → HAR DARSGA CHECK (bajardi/bajarmadi) + Jurnal/Baholash toggle + frozen chiqarildi.**
+  Foydalanuvchi: baho 1-5 emas, har mezon CHECK (bajardi/bajarmadi); BIR MARTA emas HAR DARSGA; guruh detalida
+  "Jurnal | Baholash" toggle. **Backend:** `CriterionGrade` `Score(double)` → `Date(string)`+`Done(bool)` (unique
+  Group+Student+Criterion+Date); migratsiya `GradingPerLessonCheck` (Score drop, Date/Done add, indeks). `BuildBoardAsync`
+  endi oy param oladi → months/month/dates(JournalService.LessonDatesInMonth public qilindi)/criteria/students(doneKeys);
+  `UpsertGradeAsync` Done=true→yozadi, false→o'chiradi (sparse). **Frozen baholanmaydi:** memberlar `IsActive && Status!=
+  "frozen"` (jurnal gridi kabi). MaxScore vestigial (mezonlar endi check). **Frontend:** `grading.ts`/`teacher.ts`
+  tiplar+month param; `GradingSection` qayta yozildi — oy nav + dars-sana chiplari + o'quvchilar×mezonlar CHECK grid
+  (katak ✓ toggle, sparse upsert); admin `GradingCriteriaPage` maxScore olib tashlandi; admin `ClassDetailPage` +
+  teacher `TeacherGroupDetailPage`ga "Jurnal | Baholash" segmented toggle (tanlangani ko'rinadi). Backend 0, tsc+vite
+  yashil, deploy ✅ (migratsiya). Jonli E2E: board 13 sana/8 o'quvchi (12→8: 4 frozen chiqdi)/1 mezon → 2026-06-01 ✓
+  belgilandi (doneKeys) → olib tashlandi (sparse).
 - 2026-06-15: **YANGI — BAHOLASH MEZONLARI (per-guruh kriteriya + guruh detalida baholash, teacher-scoped).**
   Mavjud `EvaluationType` (global feedback board)dan ALOHIDA. **Backend:** 3 entity — `GradingCriterion`(mezon pul:
   Name/Description/MaxScore/Order), `GroupGradingCriterion`(M2M: guruhga biriktirish), `CriterionGrade`(o'quvchi×guruh×

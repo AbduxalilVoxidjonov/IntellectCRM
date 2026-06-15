@@ -12,18 +12,23 @@ export interface GradingCriterion {
 export interface GradingBoardCriterion {
   id: string
   name: string
-  maxScore: number
   order: number
 }
 export interface GradingBoardStudent {
   studentId: string
   fullName: string
-  /** mezon id → baho */
-  scores: Record<string, number>
+  /** "criterionId|date" — "bajardi" belgilangan kataklar */
+  doneKeys: string[]
 }
 export interface GradingBoard {
   groupId: string
   groupName: string
+  /** Mavjud oylar ("YYYY-MM") */
+  months: string[]
+  /** Joriy tanlangan oy */
+  month: string
+  /** Shu oydagi dars sanalari ("YYYY-MM-DD") */
+  dates: string[]
   criteria: GradingBoardCriterion[]
   students: GradingBoardStudent[]
 }
@@ -31,7 +36,8 @@ export interface SetGrade {
   groupId: string
   studentId: string
   criterionId: string
-  score: number
+  date: string
+  done: boolean
 }
 
 // ---- Mezonlar (pul) ----
@@ -39,12 +45,12 @@ export async function getCriteria(): Promise<GradingCriterion[]> {
   const { data } = await api.get<GradingCriterion[]>('/admin/grading/criteria')
   return data
 }
-export async function createCriterion(name: string, description: string, maxScore: number): Promise<GradingCriterion> {
-  const { data } = await api.post<GradingCriterion>('/admin/grading/criteria', { name, description, maxScore })
+export async function createCriterion(name: string, description: string): Promise<GradingCriterion> {
+  const { data } = await api.post<GradingCriterion>('/admin/grading/criteria', { name, description, maxScore: 1 })
   return data
 }
-export async function updateCriterion(id: string, name: string, description: string, maxScore: number): Promise<void> {
-  await api.put(`/admin/grading/criteria/${id}`, { name, description, maxScore })
+export async function updateCriterion(id: string, name: string, description: string): Promise<void> {
+  await api.put(`/admin/grading/criteria/${id}`, { name, description, maxScore: 1 })
 }
 export async function deleteCriterion(id: string): Promise<void> {
   await api.delete(`/admin/grading/criteria/${id}`)
@@ -60,8 +66,10 @@ export async function setGroupCriteria(groupId: string, criterionIds: string[]):
 }
 
 // ---- Baholash grid'i (admin) ----
-export async function getGradingBoard(groupId: string): Promise<GradingBoard> {
-  const { data } = await api.get<GradingBoard>(`/admin/grading/group/${groupId}/board`)
+export async function getGradingBoard(groupId: string, month?: string): Promise<GradingBoard> {
+  const { data } = await api.get<GradingBoard>(`/admin/grading/group/${groupId}/board`, {
+    params: month ? { month } : {},
+  })
   return data
 }
 export async function setGrade(req: SetGrade): Promise<void> {

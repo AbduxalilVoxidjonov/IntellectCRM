@@ -172,8 +172,10 @@ export async function confirmTeacherNotification(id: string): Promise<void> {
 }
 
 /* ---------- Baholash mezonlari (o'z guruhi) ---------- */
-export async function getTeacherGradingBoard(groupId: string): Promise<GradingBoard> {
-  const { data } = await api.get<GradingBoard>(`/teacher/grading/group/${groupId}/board`)
+export async function getTeacherGradingBoard(groupId: string, month?: string): Promise<GradingBoard> {
+  const { data } = await api.get<GradingBoard>(`/teacher/grading/group/${groupId}/board`, {
+    params: month ? { month } : {},
+  })
   return data
 }
 export async function setTeacherGrade(req: SetGrade): Promise<void> {

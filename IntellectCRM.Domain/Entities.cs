@@ -506,15 +506,18 @@ public class GroupGradingCriterion
     public int Order { get; set; }
 }
 
-/// <summary>O'quvchining bir mezon bo'yicha bahosi (guruh ichida). Har (Group, Student, Criterion) uchun yagona.</summary>
+/// <summary>O'quvchining bir mezon bo'yicha HAR DARSGA belgisi (bajardi/bajarmadi) — guruh ichida.
+/// Har (Group, Student, Criterion, Date) uchun yagona. Done=true bo'lsa "bajardi".</summary>
 public class CriterionGrade
 {
     public string Id { get; set; } = Guid.NewGuid().ToString();
     public string GroupId { get; set; } = string.Empty;
     public string StudentId { get; set; } = string.Empty;
     public string CriterionId { get; set; } = string.Empty;
-    /// <summary>Baho (0..MaxScore).</summary>
-    public double Score { get; set; }
+    /// <summary>Dars sanasi ("yyyy-MM-dd").</summary>
+    public string Date { get; set; } = string.Empty;
+    /// <summary>Bajardi (true) yoki yo'q (false).</summary>
+    public bool Done { get; set; }
     public string UpdatedAt { get; set; } = string.Empty;
 }
 

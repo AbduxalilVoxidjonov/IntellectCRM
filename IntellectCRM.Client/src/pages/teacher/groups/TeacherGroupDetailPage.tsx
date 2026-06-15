@@ -53,6 +53,7 @@ export function TeacherGroupDetailPage() {
   const [bulkSaving, setBulkSaving] = useState(false)
 
   // ---- Guruh o'quv dasturi (darsda o'tilgan) ----
+  const [groupView, setGroupView] = useState<'jurnal' | 'baholash'>('jurnal')
   const [curr, setCurr] = useState<GroupCurriculum | null>(null)
   const [currLoading, setCurrLoading] = useState(true)
   const [currOpen, setCurrOpen] = useState(false)
@@ -264,7 +265,32 @@ export function TeacherGroupDetailPage() {
             </div>
           </Card>
 
+          {/* Jurnal / Baholash toggle */}
+          <div className="inline-flex rounded-xl border border-line bg-paper2 p-1">
+            <button
+              type="button"
+              onClick={() => setGroupView('jurnal')}
+              className={cn(
+                'rounded-lg px-4 py-1.5 text-sm font-semibold transition-colors',
+                groupView === 'jurnal' ? 'bg-white text-ink shadow-sm' : 'text-mute',
+              )}
+            >
+              Jurnal
+            </button>
+            <button
+              type="button"
+              onClick={() => setGroupView('baholash')}
+              className={cn(
+                'rounded-lg px-4 py-1.5 text-sm font-semibold transition-colors',
+                groupView === 'baholash' ? 'bg-white text-ink shadow-sm' : 'text-mute',
+              )}
+            >
+              Baholash
+            </button>
+          </div>
+
           {/* Oylik jurnal */}
+          {groupView === 'jurnal' && (
           <Card className="rounded-[20px] border border-line bg-white p-0 shadow-[var(--shadow-card)]">
             <div className="flex items-center gap-2 border-b border-line-soft px-4 py-3">
               <BookOpen className="h-5 w-5 text-teal-600" />
@@ -408,12 +434,15 @@ export function TeacherGroupDetailPage() {
               </div>
             )}
           </Card>
+          )}
 
-          {/* Baholash — guruh mezonlari bo'yicha o'quvchilarni baholash (faqat o'z guruhi) */}
-          <Card className="rounded-[20px] border border-line bg-white shadow-[var(--shadow-card)]">
-            <h2 className="mb-3 font-semibold text-ink">Baholash</h2>
-            <GradingSection groupId={id} fetchBoard={getTeacherGradingBoard} saveGrade={setTeacherGrade} />
-          </Card>
+          {/* Baholash — har darsga mezonlar bo'yicha bajardi/bajarmadi (faqat o'z guruhi) */}
+          {groupView === 'baholash' && (
+            <Card className="rounded-[20px] border border-line bg-white shadow-[var(--shadow-card)]">
+              <h2 className="mb-3 font-semibold text-ink">Baholash</h2>
+              <GradingSection groupId={id} fetchBoard={getTeacherGradingBoard} saveGrade={setTeacherGrade} />
+            </Card>
+          )}
 
           {/* O'quv dasturi — yig'iladigan (default yopiq) */}
           <CurriculumSection

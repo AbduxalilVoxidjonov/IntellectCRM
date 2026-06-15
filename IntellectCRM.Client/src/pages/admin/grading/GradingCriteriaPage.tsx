@@ -29,7 +29,6 @@ export function GradingCriteriaPage() {
   const [editing, setEditing] = useState<GradingCriterion | null>(null)
   const [fName, setFName] = useState('')
   const [fDesc, setFDesc] = useState('')
-  const [fMax, setFMax] = useState('5')
   const [saving, setSaving] = useState(false)
 
   // Guruhga biriktirish
@@ -67,7 +66,6 @@ export function GradingCriteriaPage() {
     setEditing(null)
     setFName('')
     setFDesc('')
-    setFMax('5')
     setFormOpen(true)
   }
 
@@ -75,19 +73,17 @@ export function GradingCriteriaPage() {
     setEditing(c)
     setFName(c.name)
     setFDesc(c.description)
-    setFMax(String(c.maxScore))
     setFormOpen(true)
   }
 
   const handleSave = async () => {
     if (!fName.trim() || saving) return
     setSaving(true)
-    const max = Number(fMax) || 0
     try {
       if (editing) {
-        await updateCriterion(editing.id, fName.trim(), fDesc.trim(), max)
+        await updateCriterion(editing.id, fName.trim(), fDesc.trim())
       } else {
-        await createCriterion(fName.trim(), fDesc.trim(), max)
+        await createCriterion(fName.trim(), fDesc.trim())
       }
       const fresh = await getCriteria()
       setCriteria(fresh)
@@ -170,12 +166,7 @@ export function GradingCriteriaPage() {
               {criteria.map((c) => (
                 <div key={c.id} className="flex items-start gap-3 py-3 first:pt-0 last:pb-0">
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="truncate font-bold text-slate-800">{c.name}</p>
-                      <span className="shrink-0 rounded-md bg-brand-50 px-1.5 py-0.5 font-mono text-xs font-semibold text-brand-700">
-                        /{c.maxScore}
-                      </span>
-                    </div>
+                    <p className="truncate font-bold text-slate-800">{c.name}</p>
                     {c.description && (
                       <p className="mt-0.5 text-xs text-slate-400">{c.description}</p>
                     )}
@@ -258,9 +249,6 @@ export function GradingCriteriaPage() {
                             </span>
                           )}
                         </span>
-                        <span className="shrink-0 font-mono text-xs text-slate-400">
-                          /{c.maxScore}
-                        </span>
                       </label>
                     )
                   })}
@@ -309,16 +297,9 @@ export function GradingCriteriaPage() {
           <Textarea
             label="Izoh"
             rows={3}
-            placeholder="Ixtiyoriy izoh"
+            placeholder="Ixtiyoriy izoh (masalan: uy vazifasini bajardimi)"
             value={fDesc}
             onChange={(e) => setFDesc(e.target.value)}
-          />
-          <Input
-            label="Maksimal ball"
-            type="number"
-            min={1}
-            value={fMax}
-            onChange={(e) => setFMax(e.target.value)}
           />
         </div>
       </Modal>

@@ -989,15 +989,16 @@ public record CriterionInput(string Name, string? Description, int MaxScore);
 /// <summary>Guruhga biriktirilgan mezonlar ro'yxatini saqlash (to'liq almashtiriladi).</summary>
 public record GroupCriteriaInput(List<string> CriterionIds);
 /// <summary>Baholash grid'idagi ustun (mezon).</summary>
-public record GradingBoardCriterionDto(string Id, string Name, int MaxScore, int Order);
-/// <summary>Baholash grid'idagi qator (o'quvchi) — mezon id → baho.</summary>
-public record GradingBoardStudentDto(string StudentId, string FullName, Dictionary<string, double> Scores);
-/// <summary>Guruh baholash grid'i: biriktirilgan mezonlar (ustun) + faol o'quvchilar (qator) + bahalar.</summary>
+public record GradingBoardCriterionDto(string Id, string Name, int Order);
+/// <summary>Baholash grid'idagi qator (o'quvchi). DoneKeys — "criterionId|date" bo'yicha "bajardi" belgilangan kataklar.</summary>
+public record GradingBoardStudentDto(string StudentId, string FullName, List<string> DoneKeys);
+/// <summary>Guruh baholash grid'i: oy(lar) + dars sanalari + mezonlar (ustun) + faol o'quvchilar + bajardi belgilar.</summary>
 public record GradingBoardDto(
     string GroupId, string GroupName,
+    List<string> Months, string Month, List<string> Dates,
     List<GradingBoardCriterionDto> Criteria, List<GradingBoardStudentDto> Students);
-/// <summary>Bitta katak bahosini saqlash.</summary>
-public record SetCriterionGradeRequest(string GroupId, string StudentId, string CriterionId, double Score);
+/// <summary>Bitta katakni belgilash: shu sanada shu mezon bo'yicha bajardi (Done) yoki yo'q.</summary>
+public record SetCriterionGradeRequest(string GroupId, string StudentId, string CriterionId, string Date, bool Done);
 
 // ---- Ommaviy (anonim) ----
 

@@ -91,7 +91,7 @@ public static class JournalService
     }
 
     /// <summary>"yyyy-MM" oyidagi, berilgan hafta kunlariga (0=Du..6=Yak) to'g'ri keladigan sanalar ("yyyy-MM-dd").</summary>
-    private static IEnumerable<string> LessonDatesInMonth(IReadOnlyCollection<int> days, string month)
+    public static IEnumerable<string> LessonDatesInMonth(IReadOnlyCollection<int> days, string month)
     {
         if (days.Count == 0 || month.Length < 7) yield break;
         var y = int.Parse(month[..4]);

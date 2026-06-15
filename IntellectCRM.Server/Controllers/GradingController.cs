@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using IntellectCRM.Infrastructure.Data;
 using IntellectCRM.Application.Dtos;
+using IntellectCRM.Application.Services;
 using IntellectCRM.Domain;
 
 namespace IntellectCRM.Server.Controllers;
@@ -90,11 +91,11 @@ public class GradingController(AppDbContext db) : ControllerBase
     // ---------- Baholash grid'i ----------
 
     [HttpGet("group/{groupId}/board")]
-    public async Task<ActionResult<GradingBoardDto>> Board(string groupId)
+    public async Task<ActionResult<GradingBoardDto>> Board(string groupId, [FromQuery] string? month)
     {
         var group = await db.Classes.FindAsync(groupId);
         if (group is null) return NotFound();
-        return await BuildBoardAsync(db, group);
+        return await BuildBoardAsync(db, group, month);
     }
 
     [HttpPost("grade")]
@@ -107,51 +108,69 @@ public class GradingController(AppDbContext db) : ControllerBase
 
     // ---------- Umumiy yordamchilar (teacher ham ishlatadi) ----------
 
-    /// <summary>Guruh baholash grid'ini quradi: biriktirilgan mezonlar + faol o'quvchilar + bahalar.</summary>
-    public static async Task<GradingBoardDto> BuildBoardAsync(AppDbContext db, Group group)
+    /// <summary>Guruh baholash grid'ini quradi: oy(lar) + dars sanalari + biriktirilgan mezonlar +
+    /// faol o'quvchilar + HAR DARSGA "bajardi" belgilari.</summary>
+    public static async Task<GradingBoardDto> BuildBoardAsync(AppDbContext db, Group group, string? month)
     {
+        // Oylar: guruh boshlanishidan joriy oygacha (jurnaldagi kabi).
+        var cur = TuitionService.CurrentMonth();
+        var startMonth = !string.IsNullOrEmpty(group.StartDate) && group.StartDate.Length >= 7 ? group.StartDate[..7] : cur;
+        if (string.CompareOrdinal(startMonth, cur) > 0) startMonth = cur;
+        var months = TuitionService.MonthRange(startMonth, cur).ToList();
+        if (months.Count == 0) months.Add(cur);
+        var resolved = !string.IsNullOrEmpty(month) && months.Contains(month) ? month! : months[^1];
+
+        var dates = JournalService.LessonDatesInMonth(group.Days, resolved).ToList();
+
         var assigns = await db.GroupGradingCriteria.Where(g => g.GroupId == group.Id)
             .OrderBy(g => g.Order).ToListAsync();
         var critIds = assigns.Select(a => a.CriterionId).ToList();
         var critDict = await db.GradingCriteria.Where(c => critIds.Contains(c.Id)).ToDictionaryAsync(c => c.Id);
         var criteria = assigns
             .Where(a => critDict.ContainsKey(a.CriterionId))
-            .Select(a => { var c = critDict[a.CriterionId]; return new GradingBoardCriterionDto(c.Id, c.Name, c.MaxScore, a.Order); })
+            .Select(a => new GradingBoardCriterionDto(a.CriterionId, critDict[a.CriterionId].Name, a.Order))
             .ToList();
 
-        var memberIds = await db.StudentGroups.Where(sg => sg.GroupId == group.Id && sg.IsActive)
+        // Muzlatilgan (frozen) o'quvchi baholanmaydi — jurnal gridi kabi faqat faol/sinov.
+        var memberIds = await db.StudentGroups
+            .Where(sg => sg.GroupId == group.Id && sg.IsActive && sg.Status != "frozen")
             .Select(sg => sg.StudentId).ToListAsync();
         var students = await db.Students.Where(s => memberIds.Contains(s.Id) && !s.IsArchived)
             .OrderBy(s => s.FullName).ToListAsync();
-        var grades = await db.CriterionGrades.Where(g => g.GroupId == group.Id).ToListAsync();
-        var lookup = grades.GroupBy(g => g.StudentId)
-            .ToDictionary(g => g.Key, g => g.ToDictionary(x => x.CriterionId, x => x.Score));
+
+        // "Bajardi" belgilar — faqat shu oydagi sanalar (sparse: faqat Done=true).
+        var marks = await db.CriterionGrades
+            .Where(g => g.GroupId == group.Id && g.Done && g.Date.StartsWith(resolved))
+            .Select(g => new { g.StudentId, g.CriterionId, g.Date }).ToListAsync();
+        var byStudent = marks.GroupBy(m => m.StudentId)
+            .ToDictionary(g => g.Key, g => g.Select(x => $"{x.CriterionId}|{x.Date}").ToList());
 
         var rows = students.Select(s => new GradingBoardStudentDto(
-            s.Id, s.FullName,
-            lookup.TryGetValue(s.Id, out var d) ? d : new Dictionary<string, double>())).ToList();
+            s.Id, s.FullName, byStudent.TryGetValue(s.Id, out var d) ? d : new List<string>())).ToList();
 
-        return new GradingBoardDto(group.Id, group.Name, criteria, rows);
+        return new GradingBoardDto(group.Id, group.Name, months, resolved, dates, criteria, rows);
     }
 
-    /// <summary>Bitta katak bahosini upsert qiladi (0..MaxScore oralig'iga kesiladi).</summary>
+    /// <summary>Bitta katakni belgilash: Done=true → yozuv (bajardi); Done=false → yozuvni o'chiramiz (sparse).</summary>
     public static async Task UpsertGradeAsync(AppDbContext db, SetCriterionGradeRequest req)
     {
-        var max = await db.GradingCriteria.Where(c => c.Id == req.CriterionId).Select(c => (int?)c.MaxScore).FirstOrDefaultAsync() ?? 5;
-        var score = Math.Clamp(req.Score, 0, max);
         var existing = await db.CriterionGrades.FirstOrDefaultAsync(
-            g => g.GroupId == req.GroupId && g.StudentId == req.StudentId && g.CriterionId == req.CriterionId);
+            g => g.GroupId == req.GroupId && g.StudentId == req.StudentId
+                 && g.CriterionId == req.CriterionId && g.Date == req.Date);
         var now = AppClock.Now.ToString("yyyy-MM-ddTHH:mm:ss");
-        if (existing is null)
-            db.CriterionGrades.Add(new CriterionGrade
-            {
-                GroupId = req.GroupId, StudentId = req.StudentId, CriterionId = req.CriterionId,
-                Score = score, UpdatedAt = now,
-            });
-        else
+        if (req.Done)
         {
-            existing.Score = score;
-            existing.UpdatedAt = now;
+            if (existing is null)
+                db.CriterionGrades.Add(new CriterionGrade
+                {
+                    GroupId = req.GroupId, StudentId = req.StudentId, CriterionId = req.CriterionId,
+                    Date = req.Date, Done = true, UpdatedAt = now,
+                });
+            else { existing.Done = true; existing.UpdatedAt = now; }
+        }
+        else if (existing is not null)
+        {
+            db.CriterionGrades.Remove(existing);
         }
     }
 }
