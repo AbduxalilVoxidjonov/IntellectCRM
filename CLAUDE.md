@@ -125,8 +125,20 @@ docker compose up -d --build    # app + mssql + cloudflared + backup + mediamtx
   CourseQuestions ham tozalaydi. DTO: `CurriculumItemDto`+Type/Meta/Ready, `CourseItemDetailDto`, `CourseQuestionDto`,
   `VocabEntryDto`, `SaveItemContentRequest`. Backend 0, deploy ✅ (migratsiya qo'llandi); jonli E2E: level→topic→item
   yaratish → video kontent saqlandi → test (2 savol) PUT OK → readback type/savollar/meta/ready to'g'ri → cascade delete.
-  **QOLDI:** P2 (admin editor — rasm joylashuvi), P3 (o'quvchi Duolingo node bosilsa darsni ochib ko'rish + test runner).
-  Foydalanuvchi: o'quvchi Duolingo ko'rinishi SHUNDAYLIGICHA qoladi, node bosilsa ichiga kirib admin yuklagan kontentni ko'radi.
+  **P2 (admin editor, BAJARILDI):** `CurriculumEditorPage` 2-panel qayta dizayn (admin binafsha tema, modul.png joylashuvi) —
+  chap: O'quv dasturi daraxti (X/Y dars tayyor + progress, +Modul; modul→mavzu→dars, tur ikonkasi+meta+tayyor nuqtasi,
+  +Mavzu/+Dars; dars bosilsa tanlanadi); o'ng: Dars tafsilotlari (nom, tur tanlash, video URL+yuklash+tavsif / matn /
+  audio / lug'at qatorlari / Test tuzuvchi savol+variant+to'g'ri) → Saqlash `saveItemContent` → tree refresh. Frontend
+  `curriculum.ts`ga `getCourseItem`/`saveItemContent`+tiplar; `CurriculumItem`ga type/meta/ready. (subagent qurdi.)
+  **P3 (o'quvchi ko'rish, BAJARILDI — FAQAT o'quvchi, foydalanuvchi: o'qituvchiga shart emas, u faqat "o'tildi" qiladi):**
+  backend `GET /student/curriculum/item/{id}` (o'quvchi faqat o'z FAOL guruh kursidagi darsni ko'radi — ownership join);
+  yangi `pages/student/Lesson.tsx` (`StudentLessonScreen`, route `/student/lesson/:id`) — tur bo'yicha: YouTube/mp4
+  video player + tavsif, matn, audio player, lug'at jadvali, INTERAKTIV test runner (variant tanlanadi→darhol yashil/qizil
+  feedback + ball). `Progress.tsx` Duolingo roadmap node endi BOSILADI (button) → `/student/lesson/:id` (roadmap o'zi
+  o'zgarmadi). `studentPortal.ts` `getStudentLesson`+tiplar. Backend 0, tsc+vite yashil, deploy ✅; jonli E2E (curl+
+  ConvertFrom-Json): E V2 (Beginner frozen a'zo) darsni ochdi → type=video/videoUrl/meta/desc qaytdi; ownership guard
+  ishlaydi. ESLATMA: PowerShell IRM massiv javoblarni ustun-massivga aylantiradi (test buzilardi) → `(IWR).Content|
+  ConvertFrom-Json` ishlat.
 - 2026-06-14: **O'qituvchi profil TO'LIQ kengaytirildi — tungi rejim + barcha bo'limlar (4 parallel subagent).**
   (1) **TUNGI REJIM:** `.teacher-app.dark` CSS bloki (index.css) — semantik tokenlar (ink/mute/faint/line/paper/
   panel/tealsoft/chip) dark qiymatga + hardcoded neutral utility'lar (`bg-white`→panel, `bg/text/border-slate-*`,

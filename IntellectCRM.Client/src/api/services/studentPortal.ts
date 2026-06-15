@@ -324,6 +324,30 @@ export async function getStudentCurriculum(studentId?: string) {
   return data
 }
 
+// ---------- Dars kontenti (Duolingo node bosilganda) ----------
+export type LessonType = 'text' | 'video' | 'audio' | 'vocab' | 'test'
+export interface LessonVocab { term: string; meaning: string }
+export interface LessonQuestion { id: string; text: string; options: string[]; correctIndex: number }
+export interface LessonContent {
+  id: string
+  topicId: string
+  text: string
+  note: string
+  order: number
+  type: LessonType
+  videoUrl: string
+  audioUrl: string
+  textContent: string
+  meta: string
+  vocab: LessonVocab[]
+  questions: LessonQuestion[]
+}
+/** Bitta darsning to'liq kontenti (video/matn/audio/lug'at/test). */
+export async function getStudentLesson(itemId: string, studentId?: string) {
+  const { data } = await api.get<LessonContent>(`/student/curriculum/item/${itemId}`, { params: sid(studentId) })
+  return data
+}
+
 // ---------- Dashboard ----------
 export async function getStudentDashboard(studentId?: string) {
   const { data } = await api.get<StudentDashboard>('/student/dashboard', { params: sid(studentId) })

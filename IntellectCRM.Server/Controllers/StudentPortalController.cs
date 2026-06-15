@@ -8,6 +8,7 @@ using IntellectCRM.Application.Dtos;
 using IntellectCRM.Domain;
 using IntellectCRM.Application.Services;
 using System.Security.Claims;
+using System.Text.Json;
 
 namespace IntellectCRM.Server.Controllers;
 
@@ -782,6 +783,41 @@ public class StudentPortalController(
             if (dto.TotalItems > 0) result.Add(dto); // faqat dasturi bor kurslar
         }
         return result.OrderByDescending(r => r.TotalItems).ToList();
+    }
+
+    /// <summary>Bitta DARS kontentini o'qish (Duolingo node bosilganda ochiladi): video/matn/audio/lug'at/test.
+    /// O'quvchi faqat o'z faol guruh(lar)i kursidagi darsni ko'ra oladi.</summary>
+    [HttpGet("curriculum/item/{id}")]
+    public async Task<ActionResult<CourseItemDetailDto>> CurriculumItem(string id, [FromQuery] string? studentId)
+    {
+        if (User.IsInRole("admin") && string.IsNullOrWhiteSpace(studentId)) return NeedStudentId();
+        var s = await TargetAsync(studentId);
+        if (s is null) return NotFound();
+
+        var i = await db.CourseItems.FindAsync(id);
+        if (i is null) return NotFound();
+
+        // O'quvchining faol guruhlari kurslari (SubjectId) — faqat shularning darsini ko'rsatamiz.
+        var courseIds = await (from sg in db.StudentGroups
+                               join c in db.Classes on sg.GroupId equals c.Id
+                               where sg.StudentId == s.Id && sg.IsActive && c.CourseId != ""
+                               select c.CourseId).Distinct().ToListAsync();
+        if (!courseIds.Contains(i.SubjectId)) return NotFound();
+
+        var qs = await db.CourseQuestions.Where(q => q.ItemId == id).OrderBy(q => q.Order)
+            .Select(q => new CourseQuestionDto(q.Id, q.Text, q.Options, q.CorrectIndex)).ToListAsync();
+        var vocab = string.IsNullOrWhiteSpace(i.VocabJson)
+            ? new List<VocabEntryDto>()
+            : (TryDeserialize(i.VocabJson) ?? new());
+        return new CourseItemDetailDto(
+            i.Id, i.TopicId, i.Text, i.Note, i.Order, i.Type,
+            i.VideoUrl, i.AudioUrl, i.TextContent, i.Meta, vocab, qs);
+    }
+
+    private static List<VocabEntryDto>? TryDeserialize(string json)
+    {
+        try { return JsonSerializer.Deserialize<List<VocabEntryDto>>(json); }
+        catch { return null; }
     }
 
     /* ─── LMS (Ta'lim) ──────────────────────────────────────── */

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   getStudentCurriculum,
   getStudentRating,
@@ -186,6 +187,7 @@ function FinishNode({ done, color }: { done: boolean; color: string }) {
 }
 
 function Roadmap({ cur }: { cur: StudentCurriculum }) {
+  const nav = useNavigate()
   const nextId = findNext(cur)
   const col = subjectColor(cur.courseId)
   const allDone = cur.remainingItems <= 0
@@ -269,6 +271,7 @@ function Roadmap({ cur }: { cur: StudentCurriculum }) {
                     state={it.covered ? 'done' : it.id === nextId ? 'now' : 'lock'}
                     offset={Math.round(Math.sin(idx * 0.85) * 58)}
                     color={col}
+                    onOpen={() => nav(`/student/lesson/${it.id}`)}
                   />
                 ))}
               </div>
@@ -286,18 +289,23 @@ function Node({
   state,
   offset,
   color,
+  onOpen,
 }: {
   item: CurriculumItem
   state: 'done' | 'now' | 'lock'
   offset: number
   color: string
+  onOpen: () => void
 }) {
   const bg = state === 'done' ? 'var(--green)' : state === 'now' ? color : 'var(--surface3)'
   const fg = state === 'lock' ? 'var(--faint)' : '#fff'
   const icon = state === 'done' ? 'check' : state === 'now' ? 'book' : 'lock'
   return (
     <div style={{ transform: `translateX(${offset}px)`, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, maxWidth: 150 }}>
-      <div
+      <button
+        type="button"
+        onClick={onOpen}
+        className="press"
         style={{
           width: 58,
           height: 58,
@@ -318,7 +326,7 @@ function Node({
         }}
       >
         <Icon name={icon} size={26} color={fg} fill={state !== 'lock'} />
-      </div>
+      </button>
       <div
         style={{
           fontSize: 11,
