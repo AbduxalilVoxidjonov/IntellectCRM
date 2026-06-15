@@ -40,3 +40,31 @@ export async function getLevelTestSubmissions(id: string): Promise<LevelTestSubm
   const { data } = await api.get<LevelTestSubmission[]>(`/admin/level-tests/${id}/submissions`)
   return data
 }
+
+/** Topshiruvchilar voronkasi: lid → o'quvchi → guruh → to'lov → aktiv. */
+export interface LevelTestStatRow {
+  submissionId: string
+  fullName: string
+  phone: string
+  level: string
+  percent: number
+  createdAt: string
+  leadId: string
+  studentId: string | null
+  converted: boolean
+  joinedGroup: boolean
+  paid: boolean
+  active: boolean
+}
+export interface LevelTestStats {
+  total: number
+  converted: number
+  joinedGroup: number
+  paid: number
+  active: number
+  rows: LevelTestStatRow[]
+}
+export async function getLevelTestStats(id: string): Promise<LevelTestStats> {
+  const { data } = await api.get<LevelTestStats>(`/admin/level-tests/${id}/stats`)
+  return data
+}

@@ -2,9 +2,13 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft, Plus, Trash2, Copy, Check, ExternalLink, Link2, GripVertical, Save, ListChecks, Users,
+  BarChart3, UserCheck, Wallet, Zap,
 } from 'lucide-react'
 import type { LevelTestDetail, LevelTestSubmission, Subject } from '@/types'
-import { getLevelTest, updateLevelTest, getLevelTestSubmissions } from '@/api/services/levelTests'
+import {
+  getLevelTest, updateLevelTest, getLevelTestSubmissions,
+  getLevelTestStats, type LevelTestStats,
+} from '@/api/services/levelTests'
 import { getSubjects } from '@/api/services/subjects'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -28,8 +32,9 @@ export function LevelTestEditorPage() {
   const [saving, setSaving] = useState(false)
   const [detail, setDetail] = useState<LevelTestDetail | null>(null)
   const [subjects, setSubjects] = useState<Subject[]>([])
-  const [tab, setTab] = useState<'edit' | 'results'>('edit')
+  const [tab, setTab] = useState<'edit' | 'results' | 'stats'>('edit')
   const [copied, setCopied] = useState(false)
+  const [stats, setStats] = useState<LevelTestStats | null>(null)
 
   // Forma holati
   const [title, setTitle] = useState('')
@@ -60,7 +65,8 @@ export function LevelTestEditorPage() {
 
   useEffect(() => {
     if (tab === 'results' && subs === null) getLevelTestSubmissions(id).then(setSubs)
-  }, [tab, subs, id])
+    if (tab === 'stats' && stats === null) getLevelTestStats(id).then(setStats)
+  }, [tab, subs, stats, id])
 
   const copy = async () => {
     if (!detail) return
@@ -208,6 +214,15 @@ export function LevelTestEditorPage() {
           )}
         >
           <Users className="h-4 w-4" /> Natijalar
+        </button>
+        <button
+          onClick={() => setTab('stats')}
+          className={cn(
+            'flex flex-1 items-center justify-center gap-1.5 rounded-md py-1.5 font-medium transition-colors',
+            tab === 'stats' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700',
+          )}
+        >
+          <BarChart3 className="h-4 w-4" /> Statistika
         </button>
       </div>
 
@@ -383,7 +398,7 @@ export function LevelTestEditorPage() {
             </Button>
           </div>
         </div>
-      ) : (
+      ) : tab === 'results' ? (
         <Card title="Testni topshirganlar" sub="Har bir topshiruvchi CRM Lidlar bo'limida yangi lid bo'lib turadi">
           {subs === null ? (
             <Loader label="Yuklanmoqda..." />
@@ -439,7 +454,88 @@ export function LevelTestEditorPage() {
             </div>
           )}
         </Card>
+      ) : (
+        <StatsPanel stats={stats} />
       )}
+    </div>
+  )
+}
+
+// ============================ Statistika paneli ============================
+
+function StatsPanel({ stats }: { stats: LevelTestStats | null }) {
+  if (!stats) return <Card><Loader label="Yuklanmoqda..." /></Card>
+  if (stats.total === 0)
+    return <Card><p className="py-8 text-center text-sm text-slate-400">Hali hech kim topshirmagan.</p></Card>
+
+  const pct = (n: number) => (stats.total > 0 ? Math.round((n / stats.total) * 100) : 0)
+  const KPI = [
+    { label: 'Topshirgan', value: stats.total, sub: 'jami lid', icon: Users, color: 'text-slate-600', bg: 'bg-slate-100' },
+    { label: "O'quvchi bo'ldi", value: stats.converted, sub: `${pct(stats.converted)}%`, icon: UserCheck, color: 'text-blue-600', bg: 'bg-blue-50' },
+    { label: 'Guruhga qo’shildi', value: stats.joinedGroup, sub: `${pct(stats.joinedGroup)}%`, icon: ListChecks, color: 'text-violet-600', bg: 'bg-violet-50' },
+    { label: 'To’lov qildi', value: stats.paid, sub: `${pct(stats.paid)}%`, icon: Wallet, color: 'text-amber-600', bg: 'bg-amber-50' },
+    { label: 'Aktiv', value: stats.active, sub: `${pct(stats.active)}%`, icon: Zap, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+  ]
+
+  const Dot = ({ on }: { on: boolean }) =>
+    on ? <Check className="mx-auto h-4 w-4 text-emerald-600" /> : <span className="text-slate-300">—</span>
+
+  return (
+    <div className="space-y-4">
+      {/* Voronka KPI */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+        {KPI.map((k) => {
+          const KIcon = k.icon
+          return (
+            <Card key={k.label} className="text-center">
+              <div className={cn('mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-lg', k.bg, k.color)}>
+                <KIcon className="h-5 w-5" />
+              </div>
+              <div className="font-mono text-2xl font-bold text-slate-800">{k.value}</div>
+              <div className="text-[13px] font-semibold text-slate-700">{k.label}</div>
+              <div className="text-xs text-slate-400">{k.sub}</div>
+            </Card>
+          )
+        })}
+      </div>
+
+      {/* Jadval */}
+      <Card title="Topshiruvchilar" sub="Lid → o'quvchi → guruh → to'lov → aktiv">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead className="border-b border-slate-100 text-xs uppercase tracking-wide text-slate-400">
+              <tr>
+                <th className="px-3 py-2">F.I.SH</th>
+                <th className="px-3 py-2">Telefon</th>
+                <th className="px-3 py-2">Daraja</th>
+                <th className="px-3 py-2 text-center">Foiz</th>
+                <th className="px-3 py-2 text-center">O'quvchi</th>
+                <th className="px-3 py-2 text-center">Guruh</th>
+                <th className="px-3 py-2 text-center">To'lov</th>
+                <th className="px-3 py-2 text-center">Aktiv</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {stats.rows.map((r) => (
+                <tr key={r.submissionId} className="hover:bg-slate-50/60">
+                  <td className="px-3 py-2 font-medium text-slate-700">{r.fullName}</td>
+                  <td className="px-3 py-2 font-mono text-slate-500">{r.phone}</td>
+                  <td className="px-3 py-2">
+                    {r.level ? (
+                      <span className="rounded-md bg-brand-50 px-2 py-0.5 text-xs font-semibold text-brand-700">{r.level}</span>
+                    ) : '—'}
+                  </td>
+                  <td className="px-3 py-2 text-center font-mono text-slate-600">{r.percent}%</td>
+                  <td className="px-3 py-2 text-center"><Dot on={r.converted} /></td>
+                  <td className="px-3 py-2 text-center"><Dot on={r.joinedGroup} /></td>
+                  <td className="px-3 py-2 text-center"><Dot on={r.paid} /></td>
+                  <td className="px-3 py-2 text-center"><Dot on={r.active} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
     </div>
   )
 }

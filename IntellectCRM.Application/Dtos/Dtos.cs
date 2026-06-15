@@ -973,6 +973,14 @@ public record LevelTestSubmissionDto(
     string Id, string FullName, string Phone, int Age, int Score, int Total,
     int Percent, string Level, string CreatedAt, string LeadId);
 
+/// <summary>Daraja testi topshiruvchisining VORONKA holati: lid → o'quvchi → guruh → to'lov → aktiv.</summary>
+public record LevelTestStatRowDto(
+    string SubmissionId, string FullName, string Phone, string Level, int Percent, string CreatedAt,
+    string LeadId, string? StudentId, bool Converted, bool JoinedGroup, bool Paid, bool Active);
+/// <summary>Daraja testi statistikasi: jami + voronka (qancha o'quvchiga aylandi, guruhga qo'shildi, to'ladi, aktiv).</summary>
+public record LevelTestStatsDto(
+    int Total, int Converted, int JoinedGroup, int Paid, int Active, List<LevelTestStatRowDto> Rows);
+
 // ---- Ommaviy (anonim) ----
 
 /// <summary>Ommaviy test savoli (to'g'ri javobSIZ).</summary>

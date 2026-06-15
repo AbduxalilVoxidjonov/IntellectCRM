@@ -113,6 +113,15 @@ docker compose up -d --build    # app + mssql + cloudflared + backup + mediamtx
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-15: **Daraja testi — STATISTIKA (voronka) tabi.** Test topshirganlar (har biri lid) qaysi bosqichda:
+  lid → o'quvchiga aylandi → guruhga qo'shildi → to'lov qildi → aktiv. Backend `GET /admin/level-tests/{id}/stats`
+  (`LevelTestsController.Stats`): submission `LeadId` → `Lead.ConvertedStudentId` → Student → StudentGroups(IsActive=
+  qo'shildi, Status=="active"=aktiv) + FinanceTransactions(tuition kirimi=to'lov). DTO: `LevelTestStatsDto`(Total/
+  Converted/JoinedGroup/Paid/Active+Rows), `LevelTestStatRowDto`. Frontend: `levelTests.ts` `getLevelTestStats`+tiplar;
+  `LevelTestEditorPage`ga 3-tab "Statistika" — 5 KPI plitka (Topshirgan/O'quvchi bo'ldi/Guruhga qo'shildi/To'lov qildi/
+  Aktiv + foiz) + topshiruvchilar jadvali (har qatorda ✓/— ustunlar). Backend 0, tsc+vite yashil, deploy ✅. Jonli E2E:
+  public submit→total=1/converted=0→lid convert→converted=1/joined=0/paid=0/active=0 (voronka to'g'ri); sinov ma'lumoti
+  tozalandi.
 - 2026-06-15: **Dars QULFI (o'qituvchi o'tgach ochiladi) + video mobil + joylashuv ko'prigi + lug'at MOSLASH o'yini.**
   (1) **Qulf:** o'quvchi darsni FAQAT o'qituvchi shu guruhda "o'tildi" qilgach (GroupCurriculumLog) ocha oladi.
   Frontend (`Progress.tsx`): roadmap node FAQAT `it.covered` bo'lsa `/student/lesson/:id`ga o'tadi, aks holda toast
