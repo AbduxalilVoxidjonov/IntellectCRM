@@ -9,7 +9,7 @@
 
 - **Backend:** ASP.NET Core 8 (C#), Clean Architecture
 - **Frontend:** React + TypeScript + Vite + Tailwind + Recharts
-- **DB:** SQL Server (`Microsoft.EntityFrameworkCore.SqlServer`). Lokal dev: LocalDB (`(localdb)\MSSQLLocalDB`, baza `IntellectCRM_DB`). nvarchar — Unicode tabiatan.
+- **DB:** PostgreSQL 16 (`Npgsql.EntityFrameworkCore.PostgreSQL`). Baza `intellectcrm`. 1GB RAM serverga sig'adi. DIQQAT: Program.cs'da `AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true)` — AppClock.Now (Kind=Unspecified) ni `timestamp`ga saqlaydi. decimal→`numeric(18,2)`. (Ilgari SQL Server edi; 1GB uchun ko'chirildi.)
 - **Real-time:** SignalR | **Auth:** JWT | **Push:** FCM | **Bot:** Telegram | **Hujjat:** OpenXML
 - **Infra:** Docker Compose + Cloudflare Tunnel
 
@@ -26,7 +26,7 @@ IntellectCRM.slnx
 ## 3. Joriy holat
 - **Branch:** `intellectcrm-transform` (master'ga MERGE QILINMAGAN — foydalanuvchi ruxsatini kutadi).
 - **Build:** backend 0 xato; frontend `tsc -b` 0 + `vite build` ✓.
-- **Migratsiya:** bitta `InitialCreate` (53 jadval) — LocalDB (SQL Server) da qo'llanib tasdiqlangan.
+- **Migratsiya:** bitta `InitialCreate` (61 jadval) — PostgreSQL'da qo'llanib tasdiqlangan (jonli E2E: migrate+seed+login).
 - **TZ 10/10 faza bajarilgan.**
 
 ## 4. Muhim arxitektura qarorlari (ESLAB QOLISH)
@@ -81,8 +81,8 @@ dotnet build IntellectCRM.slnx -p:BuildSpa=false
 # Frontend
 cd IntellectCRM.Client && npx tsc -b && npm run build
 
-# Mahalliy ishga tushirish (SQL Server LocalDB — Windows'da o'rnatilgan bo'ladi, alohida docker shart emas)
-dotnet run --project IntellectCRM.Server          # API + avtomatik migratsiya (baza: IntellectCRM_DB)
+# Mahalliy ishga tushirish (PostgreSQL kerak — docker: `docker run -d -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=intellectcrm -p 5432:5432 postgres:16-alpine`)
+dotnet run --project IntellectCRM.Server          # API + avtomatik migratsiya (baza: intellectcrm)
 cd IntellectCRM.Client && npm run dev             # (ixtiyoriy) frontend dev
 
 # Migratsiyani qayta yaratish (model o'zgarsa): Migrations/ ni o'chir -> build -> add
@@ -96,15 +96,16 @@ dotnet ef migrations add InitialCreate --project IntellectCRM.Infrastructure --s
 
 ## 6. Deploy (prod)
 ```bash
-docker compose up -d --build    # app + mssql + cloudflared + backup + mediamtx
+docker compose up -d --build    # app + postgres + cloudflared + backup + mediamtx
 ```
 - **`.env`** (git'ga tushmaydi): `ROOT_DOMAIN=intellectschool.uz`, `APP_HOST=crm.intellectschool.uz`,
-  `MSSQL_SA_PASSWORD` (murakkab!), `MSSQL_PID=Express`, `JWT_KEY`, `TUNNEL_TOKEN` (tunnel `80531fd7`, sinovdan o'tgan).
-- **DB:** SQL Server 2022 (Express, prod uchun bepul, baza <=10GB). Server'da **>=2GB RAM** kerak. Baza `IntellectCRM_DB`.
-- **Cloudflare panel:** Public Hostname `crm.intellectschool.uz` → HTTP → `app:8080`.
-- App porti internetga ochilmaydi (faqat cloudflared). Backup: kunlik 02:00 Toshkent, `BACKUP DATABASE`→`.bak.gz`, 7 kun.
-- Diqqat: `BACKUP DATABASE` faylni mssql konteyner ichiga yozadi — `mssql-backups` volume mssql va backup
-  xizmatida ulashilgan; backup xizmati `root` bo'lib volume'ni 777 qiladi (engine `.bak` yoza olishi uchun).
+  `POSTGRES_PASSWORD` (kuchli!), `POSTGRES_USER`/`POSTGRES_DB` (default intellectcrm), `JWT_KEY`, `TUNNEL_TOKEN` (tunnel `80531fd7`).
+- **DB:** PostgreSQL 16 (alpine). Server'da **>=1GB RAM** (+swap tavsiya). Baza `intellectcrm`. Volume `postgres-data`.
+- **Cloudflare panel:** Public Hostname `crm.intellectschool.uz` → HTTP → `app:8080`. Ko'chirishda eski serverdagi
+  cloudflared'ni to'xtating (bir tokenni 2 joyda ishlatmang).
+- App porti internetga ochilmaydi (faqat cloudflared). Backup: kunlik 02:00 Toshkent, `pg_dump`→`.sql.gz`, 7 kun
+  (`postgres-backups` volume, backup konteynerda). Restore: `docker exec intellectcrm-backup sh -c "gunzip -c ...|psql"`.
+- **Ubuntu/Docker auditi + noldan o'rnatish** — DEPLOY.md "0-bo'lim" (Docker o'rnatish, swap, klon, run, tekshirish).
 
 ## 7. Qolgan/ixtiyoriy
 - [ ] `intellectcrm-transform` → `master` merge (foydalanuvchi ruxsati bilan).
@@ -129,6 +130,21 @@ docker compose up -d --build    # app + mssql + cloudflared + backup + mediamtx
   deploy ✅ (migratsiya). Jonli E2E: speaking topshiriq yaratildi (referenceText) → o'quvchi ko'rdi → kalitsiz submit
   400 "sozlanmagan". ESLATMA: Flutter WebView'da mic uchun RECORD_AUDIO ruxsati + onPermissionRequest grant kerak;
   Azure baholash faqat admin kalit/region kiritgach ishlaydi.
+- 2026-06-15: **DB SQL Server → PostgreSQL ko'chirildi (1GB RAM server uchun).** SQL Server fizik >=2GB talab qiladi
+  (swap yordam bermaydi) → 1GB server uchun Postgres'ga o'tildi. Loyiha XOM SQL'siz (LINQ-only) bo'lgani uchun xavf past.
+  **Backend:** `Npgsql.EntityFrameworkCore.PostgreSQL` (Infrastructure.csproj; Server'dan o'lik `Pomelo.MySql` olib tashlandi);
+  Program.cs `UseSqlServer`→`UseNpgsql` (EnableRetryOnFailure `errorCodesToAdd`, SplitQuery saqlandi) + **eng tepada
+  `AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true)`** (AppClock.Now Kind=Unspecified → `timestamp`
+  timezonesiz; aks holda Npgsql 6+ `timestamptz` UTC talab qilib istisno tashlardi). appsettings.json dev conn →
+  `Host=...;Username=postgres`. decimal→`numeric(18,2)` (billing aniq). Migratsiyalar O'CHIRILIB bitta `InitialCreate`
+  qayta yaratildi (Postgres tiplari; yangi baza bo'sh — to'g'ri). **docker-compose:** `mssql`→`postgres:16-alpine`
+  (pg_isready healthcheck, `postgres-data` volume); conn string `Host=postgres;...`; backup `BACKUP DATABASE`→`pg_dump|gzip`
+  (.sql.gz, busybox-portable soat-poll rejasi); volume'lar `postgres-data`/`postgres-backups`. `.env.example`:
+  `MSSQL_*`→`POSTGRES_PASSWORD/USER/DB`. DEPLOY.md + CLAUDE.md yangilandi. **Test:** vaqtinchalik Postgres konteynerda
+  (prodga tegmasdan) — migratsiya 61 jadval yaratdi, decimal=numeric(18,2); ilova ulanib startupda Migrate+seed
+  (super admin+sabablar), login→JWT, noto'g'ri parol→401, Users=admin/superadmin. Backend 0, compose validatsiya OK.
+  ESLATMA: Postgres string solishtiruvi CASE-SENSITIVE (SQL Server CI emas) — login/qidiruv aniq harf; ID'lar GUID
+  (ta'sir yo'q). Eski SQL Server prod ma'lumotini Postgres'ga ko'chirish kerak bo'lsa — alohida bir martalik (pgloader).
 - 2026-06-15: **Dashboard "Eng yuqori bahoga ega guruhlar" — AKTIV talabalar soni qo'shildi.** Karta ilgari faqat
   jami a'zo (`MembersOf`, IsActive — sinov/muzlatilgan ham) ko'rsatardi; endi AKTIV (Status=="active") son ham.
   `DashboardController`: `classMemberships` (GroupId+Status) → `membersByClass`+`activeByClass`; `ActiveOf(c)`.

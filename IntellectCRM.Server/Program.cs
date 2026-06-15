@@ -16,6 +16,11 @@ using IntellectCRM.Infrastructure.Data;
 using IntellectCRM.Server.Controllers;
 using System.Text;
 
+// PostgreSQL (Npgsql): DateTime (Kind=Unspecified, AppClock — Toshkent local) ni `timestamp`
+// (timezonesiz) sifatida saqlash — SQL Server'dagi xulqni saqlaydi. Aks holda Npgsql 6+ default
+// `timestamptz` UTC talab qilib, har bir yozuvda istisno tashlaydi. Boshqa hech narsadan oldin o'rnatilishi shart.
+AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+
 var builder = WebApplication.CreateBuilder(args);
 
 var defaultConn = builder.Configuration.GetConnectionString("Default")
@@ -26,19 +31,19 @@ var rootDomains = (builder.Configuration["Tenancy:RootDomain"] ?? "")
     .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
 // ---------- Xizmatlar ----------
-// SQL Server (lokal: LocalDB / SQL Express / to'liq instansiya). Connection string
-// `ConnectionStrings:Default` orqali beriladi (dev: appsettings.json, prod: muhit o'zgaruvchisi).
+// PostgreSQL (Npgsql). Connection string `ConnectionStrings:Default` orqali beriladi
+// (dev: appsettings.json, prod: muhit o'zgaruvchisi). 1GB RAM serverga ham sig'adi.
 builder.Services.AddDbContext<AppDbContext>(opt =>
-    opt.UseSqlServer(defaultConn,
-            sql =>
+    opt.UseNpgsql(defaultConn,
+            npg =>
             {
                 // Vaqtinchalik DB uzilishlarini avtomatik qayta urinish bilan chidaydi.
-                sql.EnableRetryOnFailure(
+                npg.EnableRetryOnFailure(
                     maxRetryCount: 5,
                     maxRetryDelay: TimeSpan.FromSeconds(10),
-                    errorNumbersToAdd: null);
+                    errorCodesToAdd: null);
                 // Ko'p kolleksiyali Include'larni alohida so'rovlarga ajratadi — kartezian portlashning oldini oladi.
-                sql.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery);
+                npg.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery);
             }));
 
 // Application qatlamidagi xizmatlar konkret AppDbContext o'rniga IAppDbContext'ga

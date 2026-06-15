@@ -1,4 +1,4 @@
-# IntellectCRM — Deploy (Docker + SQL Server 2022 + Cloudflare Tunnel)
+# IntellectCRM — Deploy (Docker + PostgreSQL + Cloudflare Tunnel)
 
 Bitta o'quv markazi uchun. Tashqi kirish faqat **Cloudflare Tunnel** orqali (port internetga ochilmaydi).
 
@@ -20,7 +20,7 @@ sudo apt-get update
 sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 sudo usermod -aG docker $USER && newgrp docker   # docker'ni sudo'siz ishlatish (qayta login kerak bo'lishi mumkin)
 
-# 0.2 — RAM tekshiruvi. SQL Server >=2GB RAM talab qiladi. <4GB bo'lsa swap qo'shing:
+# 0.2 — RAM. PostgreSQL yengil — 1GB serverga ham sig'adi. Barqarorlik uchun swap tavsiya:
 free -h
 sudo fallocate -l 2G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile
 echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab    # qayta yuklashda saqlanadi
@@ -39,7 +39,7 @@ docker compose up -d --build
 # 0.6 — Tekshirish
 docker compose ps                       # hammasi "running"/"healthy" bo'lsin
 docker compose logs -f app              # "Now listening on :8080" + "Application started" + migratsiya
-docker compose logs mssql | tail        # SQL Server tayyorligi
+docker compose logs postgres | tail     # PostgreSQL tayyorligi
 ```
 
 > ⚠️ **Diqqat:** `.env` ni Ubuntu'da (LF) yarating yoki klondan `cp` qiling — Windows'dan CRLF bilan
@@ -54,15 +54,15 @@ sudo ufw allow OpenSSH && sudo ufw enable
 
 ## 1. Talablar
 - Docker + Docker Compose
-- Server'da kamida **2GB bo'sh RAM** (SQL Server talabi)
+- Server'da kamida **1GB RAM** (+swap tavsiya) — PostgreSQL yengil
 - Cloudflare hisobi (Zero Trust → Tunnels) va tunnel tokeni
 - Domen (Cloudflare DNS'da)
 
 ## 2. Sozlash
 ```bash
 cp .env.example .env
-# .env ni tahrirlang: ROOT_DOMAIN, APP_HOST, MSSQL_SA_PASSWORD, JWT_KEY, TUNNEL_TOKEN
-# MSSQL_SA_PASSWORD: murakkab bo'lsin (>=8 belgi, katta+kichik harf+raqam+belgi) — aks holda mssql ishga tushmaydi
+# .env ni tahrirlang: ROOT_DOMAIN, APP_HOST, POSTGRES_PASSWORD, JWT_KEY, TUNNEL_TOKEN
+# POSTGRES_PASSWORD: kuchli parol qo'ying
 # JWT_KEY: openssl rand -base64 48
 ```
 
@@ -77,25 +77,24 @@ docker compose up -d --build
 ```
 Servislar:
 - **app** — API + SPA (8080, faqat tunnel orqali)
-- **mssql** — SQL Server 2022 (Express), bazа `IntellectCRM_DB`, `mssql-data` volume
+- **postgres** — PostgreSQL 16 (alpine), bazа `intellectcrm`, `postgres-data` volume
 - **cloudflared** — tashqi kirish
-- **backup** — har kuni 02:00 (Toshkent) `BACKUP DATABASE` → `/backups/*.bak.gz`, 7 kun saqlanadi
+- **backup** — har kuni 02:00 (Toshkent) `pg_dump` → `/backups/*.sql.gz`, 7 kun saqlanadi
 - **mediamtx** — kamera RTSP→HLS shlyuzi
 
 ## 5. Migratsiya (baza sxemasi)
-App birinchi ishga tushganda `db.Database.Migrate()` avtomatik EF migratsiyalarini qo'llaydi — bo'sh serverда `IntellectCRM_DB` bazasini yaratib, barcha jadvallarni quradi. Qo'lda:
+App birinchi ishga tushganda `db.Database.Migrate()` avtomatik EF migratsiyalarini qo'llaydi — bo'sh bazada barcha jadvallarni quradi (61 jadval). Qo'lda:
 ```bash
-ConnectionStrings__Default="Server=localhost,1433;Database=IntellectCRM_DB;User Id=sa;Password=...;TrustServerCertificate=True;Encrypt=True" \
+ConnectionStrings__Default="Host=localhost;Port=5432;Database=intellectcrm;Username=intellectcrm;Password=..." \
 dotnet ef database update --project IntellectCRM.Infrastructure --startup-project IntellectCRM.Server
 ```
 
 ## 6. Backup'dan tiklash
-`.bak` faylni mssql konteyner ko'radigan volume'ga qo'yib (yoki backup volume'idan), `RESTORE` qiling:
+`pg_dump` SQL nusxasini `psql` orqali tiklang. Backup volume + psql + PG ulanish o'zgaruvchilari
+`backup` konteynerda bor — restore'ni o'sha yerdan ishlatish eng oson (ehtiyot: mavjud ma'lumot ustiga yozadi):
 ```bash
-# .bak.gz ni yeching va backup volume ichiga (mssql /var/backups da ko'radi) joylang
-docker exec intellectcrm-backup bash -c "gunzip -k /backups/IntellectCRM_DB_YYYYMMDD_HHMM.bak.gz"
-docker exec intellectcrm-mssql /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -Q \
-  "RESTORE DATABASE [IntellectCRM_DB] FROM DISK = N'/var/backups/IntellectCRM_DB_YYYYMMDD_HHMM.bak' WITH REPLACE"
+docker exec intellectcrm-backup sh -c \
+  "gunzip -c /backups/intellectcrm_YYYYMMDD_HHMM.sql.gz | psql"
 ```
 
 ## 7. Eslatmalar
@@ -106,8 +105,8 @@ docker exec intellectcrm-mssql /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U 
   (`APP_HOST` orqali kiring). Birinchi kirgach parolni o'zgartiring. Parolni bermasangiz — app logida
   generatsiya qilingan parol chiqadi (`docker compose logs app | grep -i parol`).
 - **Yangilash (kod o'zgargach):** `git pull && docker compose up -d --build app` (faqat `app` qayta quriladi;
-  `mssql-data` volume va baza SAQLANADI — migratsiyalar inkremental qo'llanadi).
+  `postgres-data` volume va baza SAQLANADI — migratsiyalar inkremental qo'llanadi).
 - **Kamera (mediamtx):** hozir tashqi HLS porti ochilmagan — kamera oqimi brauzerga yetishi uchun mediamtx
   HLS portiga (8888) alohida Cloudflare route kerak. Kamera ishlatilmasa — e'tiborsiz.
-- **Volume'lar:** `mssql-data` (baza), `mssql-backups`, `uploads`, `dpkeys`, `cam-recordings` — `docker compose down`
+- **Volume'lar:** `postgres-data` (baza), `postgres-backups`, `uploads`, `dpkeys`, `cam-recordings` — `docker compose down`
   da SAQLANADI; faqat `docker compose down -v` ularni O'CHIRADI (ishlatmang).
