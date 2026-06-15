@@ -52,6 +52,25 @@ shuning uchun INBOUND port shart emas. SSH'dan tashqari hammasini yopish mumkin:
 sudo ufw allow OpenSSH && sudo ufw enable
 ```
 
+## 0b. Lokal test (localhost) — serverga ta'sir qilmasdan
+
+Lokal mashinada (Docker Desktop) sinash uchun `docker-compose.override.yml` ishlatiladi. Bu fayl
+Docker Compose tomonidan AVTOMATIK qo'shiladi va **`.gitignore`da** — ya'ni serverga TUSHMAYDI.
+
+```bash
+# Bir marta (lokal mashinada):
+cp docker-compose.override.example.yml docker-compose.override.yml
+docker compose up -d --build
+# Brauzer: http://localhost:8080   (login: .env dagi OWNER_LOGIN / OWNER_PASSWORD)
+```
+
+- **Lokal** (override bor) → `app` **localhost:8080** da, `postgres` **5432** da; **cloudflared ISHLAMAYDI**
+  (tunnel kerak emas, prod tunnelga ulanmaydi).
+- **Server** (override YO'Q — git'dan kelmaydi) → `docker compose up -d --build` AYNAN o'sha buyruq, lekin
+  to'liq prod (cloudflared + port ochilmaydi). **Pull qilinganda lokal config serverga o'tib qolmaydi.**
+
+> Server buyrug'i o'zgarmaydi. Farq faqat lokalda override fayl borligida.
+
 ## 1. Talablar
 - Docker + Docker Compose
 - Server'da kamida **1GB RAM** (+swap tavsiya) — PostgreSQL yengil

@@ -30,3 +30,6 @@ IntellectCRM.Server/wwwroot/
 english.xlsx
 matematika.xlsx
 modul.png
+
+# Lokal docker override (faqat shu mashinada — serverga tushmaydi)
+docker-compose.override.yml

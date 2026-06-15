@@ -1,0 +1,30 @@
+# ============================================================================
+#  LOKAL TEST override (localhost) — NUSXA OLING: `docker-compose.override.yml`
+#  (override fayl .gitignore'da — serverga TUSHMAYDI; server prod config'da qoladi).
+#
+#  Docker Compose `docker-compose.override.yml`ni AVTOMATIK qo'shadi (qo'shimcha -f shart emas).
+#  Shuning uchun:
+#    • LOKAL (bu mashinada, override bor)  → `docker compose up -d --build` → http://localhost:8080,
+#      cloudflared ishlamaydi (tunnel kerak emas).
+#    • SERVER (override YO'Q, git'dan kelmagan) → `docker compose up -d --build` → prod
+#      (cloudflared + port ochilmaydi). HECH NIMA o'zgarmaydi.
+#
+#  O'rnatish (bu mashinada bir marta):
+#    cp docker-compose.override.example.yml docker-compose.override.yml
+#    docker compose up -d --build
+#    # brauzer: http://localhost:8080  (login: .env dagi OWNER_LOGIN/OWNER_PASSWORD)
+# ============================================================================
+
+services:
+  app:
+    ports:
+      - "8080:8080"          # ilova localhost:8080 da ochiladi (prod'da port ochilmaydi)
+
+  postgres:
+    ports:
+      - "5432:5432"          # (ixtiyoriy) lokal DB kirish: psql/DBeaver localhost:5432
+
+  cloudflared:
+    # Lokalda cloudflared KERAK EMAS — profil bilan o'chiramiz (oddiy `up` uni ishga tushirmaydi).
+    # Serverda override yo'q → cloudflared profilsiz → normal ishlaydi.
+    profiles: ["donotstart"]
