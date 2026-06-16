@@ -12,6 +12,9 @@ public class AppUser
     /// <summary>admin | teacher | student | parent</summary>
     public string Role { get; set; } = "admin";
     public string Email { get; set; } = string.Empty;
+    /// <summary>Telefon raqami — admin/xodim Telegram botda ro'yxatdan o'tib (yangi lid) xabarnomalarini
+    /// olishi uchun shu raqam bo'yicha moslashtiriladi. Bo'sh = botda moslab bo'lmaydi.</summary>
+    public string Phone { get; set; } = string.Empty;
     public string? AvatarUrl { get; set; }
     public string PasswordHash { get; set; } = string.Empty;
     /// <summary>
@@ -857,6 +860,9 @@ public class TelegramRegistration
     public string StudentId { get; set; } = string.Empty;
     /// <summary>Bog'langan o'qituvchi id'si (xodim ro'yxati uchun). Ota-ona yozuvida null.</summary>
     public string? TeacherId { get; set; }
+    /// <summary>Bog'langan tizim foydalanuvchisi (AppUser) id'si — ADMIN/xodim ro'yxati uchun
+    /// (yangi lid xabarnomalarini olish). O'quvchi/o'qituvchi yozuvida null.</summary>
+    public string? UserId { get; set; }
     /// <summary>Telegram chat (foydalanuvchi) id'si — bot shu manzilga e'lon yuboradi.</summary>
     public long ChatId { get; set; }
     /// <summary>Ulashgan foydalanuvchining Telegram ismi (ko'rsatish uchun).</summary>

@@ -7,13 +7,13 @@ namespace IntellectCRM.Application.Dtos;
 public record LoginRequest(string Email, string Password);
 public record UserDto(
     string Id, string FullName, string Role, string Email, string? AvatarUrl,
-    List<string>? Permissions = null);
+    List<string>? Permissions = null, string Phone = "");
 public record LoginResponse(string Token, UserDto User);
 /// <summary>O'quvchi/o'qituvchiga biriktirilgan tizim akkaunti ma'lumotlari (admin uchun).</summary>
 public record CredentialsDto(string Login, string Password, string Role);
 /// <summary>Joriy foydalanuvchi o'z login (email) va/yoki parolini o'zgartirishi uchun.
 /// NewPassword bo'sh bo'lsa — parol o'zgarmaydi. CurrentPassword har doim talab qilinadi.</summary>
-public record UpdateAccountRequest(string? Email, string CurrentPassword, string? NewPassword);
+public record UpdateAccountRequest(string? Email, string CurrentPassword, string? NewPassword, string? Phone = null);
 /// <summary>O'quvchi/ota-ona ilova ichida o'z parolini almashtirishi uchun.
 /// Joriy parol bilan tasdiqlanadi; yangi parol kamida 8 belgi.</summary>
 public record ChangePasswordRequest(string CurrentPassword, string NewPassword);
@@ -791,8 +791,8 @@ public record BranchPayload(
     string Name, string Address, double Latitude, double Longitude, int RadiusMeters);
 
 /// <summary>Xodim (o'qituvchi bo'lmagan ishchi) — admin akkaunti bilan.</summary>
-public record StaffDto(string Id, string FullName, string Position, string Login, List<string> Permissions);
-public record StaffPayload(string FullName, string Position, string? NewPassword = null);
+public record StaffDto(string Id, string FullName, string Position, string Login, List<string> Permissions, string Phone = "");
+public record StaffPayload(string FullName, string Position, string? NewPassword = null, string? Phone = null);
 /// <summary>Xodimning admin bo'lim ruxsatlari (faqat superadmin o'zgartiradi).</summary>
 public record SetStaffPermissionsRequest(List<string> Permissions);
 

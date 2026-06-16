@@ -53,6 +53,8 @@ export interface UpdateAccountPayload {
   currentPassword: string
   /** Yangi parol; bo'sh bo'lsa parol o'zgarmaydi */
   newPassword?: string
+  /** Telefon — admin botda yangi lid xabarnomasini olishi uchun (bo'sh = o'zgarmaydi) */
+  phone?: string
 }
 
 /** Joriy foydalanuvchi o'z login/parolini o'zgartiradi — yangilangan foydalanuvchini qaytaradi. */

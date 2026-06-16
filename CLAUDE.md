@@ -114,6 +114,19 @@ docker compose up -d --build    # app + postgres + cloudflared + backup + mediam
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-16: **Telegram bot — ADMIN/xodim ro'yxatdan o'tib YANGI LID xabarnomasini oladi.** `AppUser.Phone`
+  (admin/xodim telefoni) + `TelegramRegistration.UserId` (admin yozuvi) + migratsiya `AddAdminPhoneAndTgUser`.
+  Bot kontakt kelganda endi o'quvchi/o'qituvchi BILAN BIR QATORDA admin/superadmin/staff AppUser.Phone'ni ham
+  moslaydi → mos kelsa UserId registratsiya yoziladi (APK yuborilmaydi, "yangi lid xabarnomasi olasiz" deydi).
+  `LeadNotifier.NotifyNewLeadAsync` (yangi servis): yangi lid yaratilganda UserId-registratsiyali admin/superadmin
+  (har doim) yoki staff (leads ruxsati) chatlariga Telegram xabar (ism/telefon/manba/qiziqish). Chaqiriladi:
+  `LeadsController.Create` (qo'lda) + `LevelTestService.SubmitAsync` (daraja testi; PublicTestController telegram
+  uzatadi). Telefon kiritish: xodim formasi (StaffPayload/StaffController/StaffPage) + akkaunt sozlamalari
+  (UpdateAccountRequest/AuthController/AccountSettings) — superadmin o'z telefonini akkauntdan kiritadi. UserDto/
+  User.phone qaytadi. Backend 0, tsc+vite yashil, deploy ✅ (Phone+UserId ustunlar tasdiqlandi); E2E: admin login →
+  account phone saqlandi/me roundtrip → lid yaratish 200 (notifier bot o'chiq → no-op, lid buzilmadi). ESLATMA:
+  haqiqiy yuborish uchun bot tokeni kerak; xabar borishi uchun admin o'z telefonini kiritib BOTGA shu raqamni
+  yuborib ro'yxatdan o'tishi shart.
 - 2026-06-16: **YANGI — SUPPORT o'qituvchi (bo'sh vaqt + bron darslari).** `Teacher.IsSupport` (admin
   O'qituvchi formasida "Support o'qituvchi" checkbox). Yangi `SupportSlot` entity (TeacherId/Date/StartTime/EndTime/
   Status[open|booked|done]/StudentId?/BookedAt/Topic/Notes) — bitta slot = bitta bron = bitta dars (1:1). Migratsiya

@@ -80,13 +80,13 @@ export function StaffPage() {
 
   const openCreate = () => {
     setEditing(null)
-    setForm({ fullName: '', position: '' })
+    setForm({ fullName: '', position: '', phone: '' })
     setFormPerms(new Set())
     setFormOpen(true)
   }
   const openEdit = (s: Staff) => {
     setEditing(s)
-    setForm({ fullName: s.fullName, position: s.position })
+    setForm({ fullName: s.fullName, position: s.position, phone: s.phone ?? '' })
     setFormOpen(true)
   }
 

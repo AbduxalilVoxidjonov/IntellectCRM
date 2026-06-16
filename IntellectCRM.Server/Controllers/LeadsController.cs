@@ -12,7 +12,7 @@ namespace IntellectCRM.Server.Controllers;
 [Authorize]
 [AdminPerm("leads")]
 [Route("api/admin/leads")]
-public class LeadsController(AppDbContext db, AuditService audit) : ControllerBase
+public class LeadsController(AppDbContext db, AuditService audit, TelegramService telegram) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<IEnumerable<Lead>>> GetAll() =>
@@ -40,6 +40,8 @@ public class LeadsController(AppDbContext db, AuditService audit) : ControllerBa
         db.Leads.Add(lead);
         AddEvent(lead.Id, "created", $"Lid yaratildi ({lead.FullName})");
         await db.SaveChangesAsync();
+        // Botda ro'yxatdan o'tgan admin/xodimlarga yangi lid xabarnomasi.
+        await LeadNotifier.NotifyNewLeadAsync(db, telegram, lead);
         return lead;
     }
 

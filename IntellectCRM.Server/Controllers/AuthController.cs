@@ -71,7 +71,7 @@ public class AuthController(AppDbContext db, JwtTokenService jwt, ILogger<AuthCo
         var id = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         var user = await db.Users.FindAsync(id);
         if (user is null) return Unauthorized();
-        return new UserDto(user.Id, user.FullName, user.Role, user.Email, user.AvatarUrl, await PermsFor(user));
+        return new UserDto(user.Id, user.FullName, user.Role, user.Email, user.AvatarUrl, await PermsFor(user), user.Phone);
     }
 
     /// <summary>Joriy foydalanuvchi o'z login (email) va/yoki parolini o'zgartiradi.
@@ -102,7 +102,10 @@ public class AuthController(AppDbContext db, JwtTokenService jwt, ILogger<AuthCo
             user.SetOwnPassword(req.NewPassword);
         }
 
+        // Telefon — berilsa yangilaymiz (admin/xodim botda yangi lid xabarnomasini olishi uchun).
+        if (req.Phone is not null) user.Phone = req.Phone.Trim();
+
         await db.SaveChangesAsync();
-        return new UserDto(user.Id, user.FullName, user.Role, user.Email, user.AvatarUrl);
+        return new UserDto(user.Id, user.FullName, user.Role, user.Email, user.AvatarUrl, await PermsFor(user), user.Phone);
     }
 }

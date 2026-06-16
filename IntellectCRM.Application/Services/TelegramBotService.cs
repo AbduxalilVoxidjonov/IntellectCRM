@@ -140,9 +140,14 @@ public class TelegramBotService(
             .Where(s => PhoneUtil.Key(s.ParentPhone) == key).ToList();
         var matchedTeachers = (await db.Teachers.Where(t => !t.IsArchived).ToListAsync(ct))
             .Where(t => PhoneUtil.Key(t.Phone) == key).ToList();
+        // Admin/xodim — telefon AppUser.Phone bilan moslashsa (yangi lid xabarnomalarini olish uchun).
+        var matchedAdmins = (await db.Users
+                .Where(u => u.Role == Roles.Admin || u.Role == Roles.SuperAdmin || u.Role == Roles.Staff)
+                .ToListAsync(ct))
+            .Where(u => PhoneUtil.Key(u.Phone) == key).ToList();
 
         // Ro'yxatdan o'tmagan — to'xtatamiz.
-        if (matchedStudents.Count == 0 && matchedTeachers.Count == 0)
+        if (matchedStudents.Count == 0 && matchedTeachers.Count == 0 && matchedAdmins.Count == 0)
         {
             _pendingPhone.TryRemove(chatId, out _);
             await telegram.SendMessageAsync(chatId,
@@ -173,13 +178,14 @@ public class TelegramBotService(
         }
 
         _pendingPhone.TryRemove(chatId, out _);
-        await CompleteAsync(db, meta, chatId, phone!, senderName, matchedStudents, matchedTeachers, ct);
+        await CompleteAsync(db, meta, chatId, phone!, senderName, matchedStudents, matchedTeachers, matchedAdmins, ct);
     }
 
-    /// <summary>Obuna o'tdi: TelegramRegistration yozadi va mos APK(lar)ni yuboradi.</summary>
+    /// <summary>Obuna o'tdi: TelegramRegistration yozadi va mos APK(lar)ni yuboradi.
+    /// Admin/xodim moslansa — UserId yozuvi (yangi lid xabarnomalari uchun); APK yuborilmaydi.</summary>
     private async Task CompleteAsync(
         IAppDbContext db, CenterMeta? meta, long chatId, string phone, string senderName,
-        List<Student> students, List<Teacher> teachers, CancellationToken ct)
+        List<Student> students, List<Teacher> teachers, List<AppUser> admins, CancellationToken ct)
     {
         var digits = PhoneUtil.DigitsOnly(phone);
         var linked = new List<string>();
@@ -205,17 +211,36 @@ public class TelegramBotService(
                 });
             linked.Add($"{tch.FullName} (xodim)");
         }
+        foreach (var u in admins)
+        {
+            var exists = await db.TelegramRegistrations.AnyAsync(r => r.UserId == u.Id && r.ChatId == chatId, ct);
+            if (!exists)
+                db.TelegramRegistrations.Add(new TelegramRegistration
+                {
+                    UserId = u.Id, StudentId = "", ChatId = chatId, ParentName = senderName,
+                    Phone = digits, CreatedAt = AppClock.Now,
+                });
+            linked.Add($"{u.FullName} (admin)");
+        }
         await db.SaveChangesAsync(ct);
 
         await telegram.SendMessageAsync(chatId,
             "✅ Ro'yxatdan o'tdingiz:\n• " + string.Join("\n• ", linked), ct: ct);
 
-        // Mos ILOVA (APK) — o'quvchi va/yoki o'qituvchi.
-        var sentAny = await SendAppApkAsync(db, meta, chatId, students.Count > 0, teachers.Count > 0, ct);
-        if (!sentAny)
+        // Admin/xodim — yangi lid xabarnomalari haqida ma'lumot.
+        if (admins.Count > 0)
             await telegram.SendMessageAsync(chatId,
-                "ℹ️ Ilova fayli hali yuklanmagan. Iltimos, birozdan so'ng qayta urinib ko'ring yoki ma'muriyatga murojaat qiling.",
-                ct: ct);
+                "🔔 Yangi lid tushganda shu yerga xabar olasiz.", ct: ct);
+
+        // Mos ILOVA (APK) — FAQAT o'quvchi/o'qituvchi uchun (admin web paneldan foydalanadi).
+        if (students.Count > 0 || teachers.Count > 0)
+        {
+            var sentAny = await SendAppApkAsync(db, meta, chatId, students.Count > 0, teachers.Count > 0, ct);
+            if (!sentAny)
+                await telegram.SendMessageAsync(chatId,
+                    "ℹ️ Ilova fayli hali yuklanmagan. Iltimos, birozdan so'ng qayta urinib ko'ring yoki ma'muriyatga murojaat qiling.",
+                    ct: ct);
+        }
     }
 
     /// <summary>Roli bo'yicha APK(lar)ni yuboradi (keshlangan file_id bo'lsa qayta yuklamasdan).

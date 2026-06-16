@@ -5,6 +5,8 @@ export interface StaffPayload {
   fullName: string
   position: string
   newPassword?: string
+  /** Telefon — xodim botda yangi lid xabarnomasini olishi uchun (leads ruxsati bo'lsa) */
+  phone?: string
 }
 
 export async function getStaff(): Promise<Staff[]> {

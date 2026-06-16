@@ -20,6 +20,7 @@ function errorMessage(err: unknown): string {
 export function AccountSettings() {
   const { user, updateUser } = useAuth()
   const [login, setLogin] = useState(user?.email ?? '')
+  const [phone, setPhone] = useState(user?.phone ?? '')
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -55,6 +56,7 @@ export function AccountSettings() {
         email: login.trim(),
         currentPassword,
         newPassword: newPassword || undefined,
+        phone: phone.trim(),
       })
       updateUser(updated)
       setCurrentPassword('')
@@ -83,6 +85,16 @@ export function AccountSettings() {
           onChange={(e) => setLogin(e.target.value)}
           required
         />
+        <Input
+          label="Telefon (Telegram bot — yangi lid xabarnomasi)"
+          type="tel"
+          placeholder="+998 ..."
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+        />
+        <p className="-mt-2 text-xs text-slate-400">
+          Shu raqamni Telegram botga yuborib ro'yxatdan o'tsangiz, yangi lid tushganda botdan xabar olasiz.
+        </p>
         <Input
           label="Joriy parol"
           type="password"

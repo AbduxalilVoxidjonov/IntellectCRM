@@ -14,7 +14,7 @@ namespace IntellectCRM.Server.Controllers;
 [ApiController]
 [AllowAnonymous]
 [Route("api/public/test")]
-public class PublicTestController(AppDbContext db) : ControllerBase
+public class PublicTestController(AppDbContext db, TelegramService telegram) : ControllerBase
 {
     /// <summary>Ommaviy brending — markaz nomi/logo/telefon (login, daraja testi kabi sahifalar uchun).</summary>
     [HttpGet("/api/public/brand")]
@@ -50,7 +50,7 @@ public class PublicTestController(AppDbContext db) : ControllerBase
         var safeAge = Math.Clamp(req.Age, 0, 120);
         if (safeAge != req.Age) req = req with { Age = safeAge };
 
-        var result = await LevelTestService.SubmitAsync(db, slug, req);
+        var result = await LevelTestService.SubmitAsync(db, slug, req, telegram);
         if (result is null) return NotFound(new { message = "Test topilmadi yoki faol emas" });
         return result;
     }

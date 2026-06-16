@@ -83,7 +83,8 @@ public static class LevelTestService
     /// (Source="Daraja testi", InterestSubject=kurs). Test yo'q/faol emas bo'lsa null qaytaradi.
     /// SaveChanges shu yerda bajariladi.
     /// </summary>
-    public static async Task<TestResultDto?> SubmitAsync(IAppDbContext db, string slug, TestSubmitRequest req)
+    public static async Task<TestResultDto?> SubmitAsync(
+        IAppDbContext db, string slug, TestSubmitRequest req, TelegramService? telegram = null)
     {
         var test = await db.LevelTests.FirstOrDefaultAsync(t => t.Slug == slug && t.IsActive);
         if (test is null) return null;
@@ -149,6 +150,10 @@ public static class LevelTestService
             SurveyJson = surveyJson,
         });
         await db.SaveChangesAsync();
+
+        // Botda ro'yxatdan o'tgan admin/xodimlarga yangi lid xabarnomasi.
+        if (telegram is not null)
+            await LeadNotifier.NotifyNewLeadAsync(db, telegram, lead);
 
         var msg = total == 0
             ? "Rahmat! Ma'lumotlaringiz qabul qilindi — tez orada bog'lanamiz."

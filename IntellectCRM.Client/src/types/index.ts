@@ -16,6 +16,8 @@ export interface User {
   role: Role
   email?: string
   avatarUrl?: string
+  /** Telefon — admin/xodim botda yangi lid xabarnomasini olishi uchun */
+  phone?: string
   /** O'qituvchi uchun ochiq bo'limlar (nav filtri); boshqa rollarda bo'lmaydi */
   permissions?: string[]
 }
@@ -705,6 +707,8 @@ export interface Staff {
   login: string
   /** Ochiq admin bo'limlari (adminPermissions kalitlari) */
   permissions: string[]
+  /** Telefon — botda yangi lid xabarnomasini olish uchun */
+  phone?: string
 }
 
 /** Taklif yoki shikoyat (ota-ona ilovasidan) */
