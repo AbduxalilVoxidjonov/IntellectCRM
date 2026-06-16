@@ -985,13 +985,13 @@ public record LevelTestSubmissionDto(
     string Id, string FullName, string Phone, int Age, int Score, int Total,
     int Percent, string Level, string CreatedAt, string LeadId, List<SurveyAnswerDto> Survey);
 
-/// <summary>Daraja testi topshiruvchisining VORONKA holati: lid → o'quvchi → guruh → to'lov → aktiv.</summary>
+/// <summary>Daraja testi topshiruvchisi: aktiv bo'ldimi + qaysi guruh(lar)ga qo'shilgan va o'qituvchisi (FISH).</summary>
 public record LevelTestStatRowDto(
     string SubmissionId, string FullName, string Phone, string Level, int Percent, string CreatedAt,
-    string LeadId, string? StudentId, bool Converted, bool JoinedGroup, bool Paid, bool Active);
-/// <summary>Daraja testi statistikasi: jami + voronka (qancha o'quvchiga aylandi, guruhga qo'shildi, to'ladi, aktiv).</summary>
+    string LeadId, string? StudentId, bool Active, string GroupName, string TeacherName);
+/// <summary>Daraja testi statistikasi: jami topshirgan + nechtasi aktiv o'quvchiga aylandi.</summary>
 public record LevelTestStatsDto(
-    int Total, int Converted, int JoinedGroup, int Paid, int Active, List<LevelTestStatRowDto> Rows);
+    int Total, int Active, List<LevelTestStatRowDto> Rows);
 
 /* ---------- Baholash mezonlari (grading criteria) ---------- */
 /// <summary>Baholash mezoni (kriteriya).</summary>
