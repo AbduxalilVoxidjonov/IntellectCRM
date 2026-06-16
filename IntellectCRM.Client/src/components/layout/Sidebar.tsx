@@ -64,8 +64,11 @@ export function Sidebar({ open, onNavigate }: SidebarProps) {
   return (
     <aside
       className={cn(
-        'fixed inset-y-0 left-0 z-40 flex w-64 shrink-0 flex-col border-r border-slate-200 bg-white transition-transform duration-200',
-        open ? 'translate-x-0 lg:static lg:translate-x-0' : '-translate-x-full lg:hidden',
+        // Desktopda (lg) DOIM statik va ko'rinadi — `open` faqat mobil drawer'ni boshqaradi.
+        // (Ilgari `open=false` da `lg:hidden` edi → tor oynada ochib kattalashtirilganda sidebar
+        //  ham, hamburger ham yo'qolib, navigatsiyasiz qolinardi.)
+        'fixed inset-y-0 left-0 z-40 flex w-64 shrink-0 flex-col border-r border-slate-200 bg-white transition-transform duration-200 lg:static lg:translate-x-0',
+        open ? 'translate-x-0' : '-translate-x-full',
       )}
     >
       {/* Brend */}

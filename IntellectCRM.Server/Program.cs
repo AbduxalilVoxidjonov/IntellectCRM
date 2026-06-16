@@ -292,6 +292,45 @@ using (var scope = app.Services.CreateScope())
         }
     }
 
+    // Lid bosqichlari (kanban ustunlari) — standart voronka bilan to'ldiriladi. IDEMPOTENT: faqat
+    // jadval BO'SH bo'lsa seed qilinadi (admin keyin nomlash/o'chirish/tartiblashni o'zgartiradi).
+    // Bu MUHIM: bosqich yo'q paytda daraja testidan tushgan lid Stage="" bilan yaratilib, kanbanda
+    // ko'rinmay qolardi (hech qaysi ustunga tushmaydi). Bosqich doim mavjud bo'lsa — to'g'ri tushadi.
+    if (!db.LeadStages.Any())
+    {
+        var stages = new (string Title, string Color)[]
+        {
+            ("Yangi", "blue"),
+            ("Bog'lanildi", "cyan"),
+            ("Sinov darsi", "amber"),
+            ("O'ylanmoqda", "violet"),
+            ("Aylantirildi", "emerald"),
+        };
+        for (var i = 0; i < stages.Length; i++)
+            db.LeadStages.Add(new LeadStage { Title = stages[i].Title, Color = stages[i].Color, Order = i });
+        db.SaveChanges();
+        app.Logger.LogInformation("[seed] Standart lid bosqichlari yaratildi");
+    }
+
+    // YETIM LIDLARNI TUZATISH: bosqichi mavjud bo'lmagan (eski bo'sh "" yoki o'chirilgan ustunga
+    // tegishli) lidlar kanbanda ko'rinmaydi — ularni birinchi (Order) bosqichga ko'chiramiz.
+    // Har restartda arzon ishlaydi (faqat yetim bo'lsa yozadi) → prod'dagi mavjud yetimlarni tuzatadi.
+    {
+        var validStageIds = db.LeadStages.Select(s => s.Id).ToList();
+        var firstStageId = db.LeadStages.OrderBy(s => s.Order).Select(s => s.Id).FirstOrDefault();
+        if (firstStageId is not null)
+        {
+            var orphans = db.Leads.Where(l => !validStageIds.Contains(l.Stage)).ToList();
+            if (orphans.Count > 0)
+            {
+                foreach (var l in orphans) l.Stage = firstStageId;
+                db.SaveChanges();
+                app.Logger.LogInformation(
+                    "[repair] {Count} ta yetim lid (bosqichsiz) birinchi bosqichga ko'chirildi", orphans.Count);
+            }
+        }
+    }
+
     // Telegram bot tokeni — restartdan keyin bot avtomatik ishga tushadi; token yo'q bo'lsa
     // admin Sozlamadan kiritguncha kutadi.
     scope.ServiceProvider.GetRequiredService<TelegramService>().Load(db);

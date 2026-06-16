@@ -145,6 +145,10 @@ export function LeadsPage() {
 
   const activeLead = activeId ? leads.find((l) => l.id === activeId) : null
   const convertedCount = leads.filter((l) => l.convertedStudentId).length
+  // Xavfsizlik tarmog'i: bosqichi mavjud ustunlardan biriga MOS KELMAYDIGAN lid (eski bo'sh "" yoki
+  // o'chirilgan ustun — masalan daraja testidan bosqich yo'q paytda tushgan) ko'rinmay qolmasin —
+  // birinchi ustunda ko'rsatamiz (sudrab to'g'ri ustunga o'tkazish mumkin).
+  const stageIds = new Set(stages.map((s) => s.id))
 
   return (
     <div>
@@ -176,7 +180,7 @@ export function LeadsPage() {
               <LeadColumn
                 key={stage.id}
                 stage={stage}
-                leads={leads.filter((l) => l.stage === stage.id)}
+                leads={leads.filter((l) => l.stage === stage.id || (i === 0 && !stageIds.has(l.stage)))}
                 isFirst={i === 0}
                 isLast={i === stages.length - 1}
                 onCardClick={setDetailLead}
