@@ -580,6 +580,8 @@ export interface Teacher {
   salaryStartDate?: string
   /** O'qituvchi web panelida ochiq bo'limlar (admin belgilaydi) */
   permissions: string[]
+  /** Support o'qituvchimi — bo'sh vaqt slotlari + bron (Ilova → Support) */
+  isSupport?: boolean
   /** Arxivlanganmi (ishdan ketgan/to'xtatilgan) */
   isArchived?: boolean
   /** Arxivga olingan sana (ISO) */

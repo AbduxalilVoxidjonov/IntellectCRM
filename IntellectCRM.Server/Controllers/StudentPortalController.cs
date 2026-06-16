@@ -1164,4 +1164,77 @@ public class StudentPortalController(
         }
         return NoContent();
     }
+
+    // ---------- Support (yordam darslari — bo'sh vaqtga bron) ----------
+
+    /// <summary>Support ekrani: bo'sh slotli support o'qituvchilar + o'quvchining o'z bronlari.</summary>
+    [HttpGet("support")]
+    public async Task<ActionResult<StudentSupportDto>> Support([FromQuery] string? studentId = null)
+    {
+        var s = await TargetAsync(studentId);
+        if (s is null) return NotFound();
+        var today = AppClock.Today.ToString("yyyy-MM-dd");
+
+        var supports = await db.Teachers.Where(t => t.IsSupport && !t.IsArchived)
+            .OrderBy(t => t.FullName).ToListAsync();
+        var supIds = supports.Select(t => t.Id).ToList();
+
+        // Bo'sh + bugundan keyingi slotlar (sana ISO bo'lgani uchun matn taqqoslash to'g'ri).
+        var openSlots = (await db.SupportSlots
+                .Where(x => supIds.Contains(x.TeacherId) && x.Status == "open").ToListAsync())
+            .Where(x => string.CompareOrdinal(x.Date, today) >= 0)
+            .OrderBy(x => x.Date).ThenBy(x => x.StartTime).ToList();
+        var openByTeacher = openSlots.GroupBy(x => x.TeacherId).ToDictionary(g => g.Key, g => g.ToList());
+
+        var supDtos = supports
+            .Select(t => new StudentSupportTeacherDto(t.Id, t.FullName, t.PhotoUrl,
+                (openByTeacher.GetValueOrDefault(t.Id) ?? new())
+                    .Select(x => new StudentSupportSlotDto(x.Id, x.Date, x.StartTime, x.EndTime)).ToList()))
+            .Where(d => d.OpenSlots.Count > 0)
+            .ToList();
+
+        // Mening bronlarim (barcha holatlar — o'tilganlari mavzu/izoh bilan).
+        var mine = await db.SupportSlots.Where(x => x.StudentId == s.Id)
+            .OrderByDescending(x => x.Date).ThenBy(x => x.StartTime).ToListAsync();
+        var tNames = (await db.Teachers.Where(t => mine.Select(m => m.TeacherId).Contains(t.Id)).ToListAsync())
+            .ToDictionary(t => t.Id, t => t.FullName);
+        var myBookings = mine.Select(x => new StudentSupportBookingDto(
+            x.Id, x.TeacherId, tNames.GetValueOrDefault(x.TeacherId, ""), x.Date, x.StartTime, x.EndTime,
+            x.Status, x.Topic, x.Notes)).ToList();
+
+        return new StudentSupportDto(supDtos, myBookings);
+    }
+
+    /// <summary>Bo'sh slotni bron qilish.</summary>
+    [HttpPost("support/slots/{id}/book")]
+    public async Task<IActionResult> BookSupport(string id, [FromQuery] string? studentId = null)
+    {
+        var s = await TargetAsync(studentId);
+        if (s is null) return NotFound();
+        var slot = await db.SupportSlots.FindAsync(id);
+        if (slot is null) return NotFound();
+        if (slot.Status != "open" || slot.StudentId != null)
+            return BadRequest(new { message = "Bu vaqt allaqachon band qilingan" });
+        slot.StudentId = s.Id;
+        slot.Status = "booked";
+        slot.BookedAt = AppClock.Now.ToString("yyyy-MM-ddTHH:mm:ss");
+        await db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    /// <summary>O'z bronini bekor qilish (o'tilgan darsdan tashqari) — slot yana bo'sh bo'ladi.</summary>
+    [HttpPost("support/slots/{id}/cancel")]
+    public async Task<IActionResult> CancelSupport(string id, [FromQuery] string? studentId = null)
+    {
+        var s = await TargetAsync(studentId);
+        if (s is null) return NotFound();
+        var slot = await db.SupportSlots.FindAsync(id);
+        if (slot is null || slot.StudentId != s.Id) return NotFound();
+        if (slot.Status == "done") return BadRequest(new { message = "O'tilgan darsni bekor qilib bo'lmaydi" });
+        slot.StudentId = null;
+        slot.Status = "open";
+        slot.BookedAt = null;
+        await db.SaveChangesAsync();
+        return NoContent();
+    }
 }

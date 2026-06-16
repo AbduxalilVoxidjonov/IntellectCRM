@@ -212,12 +212,46 @@ public class Teacher
     /// </summary>
     public List<string> Permissions { get; set; } = new();
 
+    /// <summary>SUPPORT o'qituvchimi — bo'sh vaqt slotlarini e'lon qiladi, o'quvchilar bron qiladi
+    /// (qo'shimcha/yordam darslari). Admin O'qituvchi formasida belgilaydi. Bo'lim: "Ilova → Support".</summary>
+    public bool IsSupport { get; set; }
+
     /// <summary>Arxivlanganmi (ishdan ketgan/to'xtatilgan). Faol ro'yxatdan yashiriladi, login bloklanadi.</summary>
     public bool IsArchived { get; set; }
     /// <summary>Arxivga olingan sana ("YYYY-MM-DD").</summary>
     public string? ArchivedAt { get; set; }
     /// <summary>Arxivga olish sababi.</summary>
     public string? ArchiveReason { get; set; }
+}
+
+/// <summary>
+/// Support o'qituvchining bo'sh vaqt SLOTi + bron. Support slot e'lon qiladi (open); o'quvchi
+/// uni bron qiladi (StudentId qo'yiladi, booked); support dars o'tgach mavzu/izoh yozib yopadi (done).
+/// Bitta slot = bitta bron = bitta dars yozuvi (1:1).
+/// </summary>
+public class SupportSlot
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    /// <summary>Support o'qituvchi (Teacher.Id, IsSupport=true).</summary>
+    public string TeacherId { get; set; } = string.Empty;
+    /// <summary>Sana "yyyy-MM-dd".</summary>
+    public string Date { get; set; } = string.Empty;
+    /// <summary>Boshlanish vaqti "HH:mm".</summary>
+    public string StartTime { get; set; } = string.Empty;
+    /// <summary>Tugash vaqti "HH:mm".</summary>
+    public string EndTime { get; set; } = string.Empty;
+    /// <summary>Holat: "open" (bo'sh) | "booked" (bron qilingan) | "done" (dars o'tildi).</summary>
+    public string Status { get; set; } = "open";
+    /// <summary>Bron qilgan o'quvchi (Student.Id); null = hali bo'sh.</summary>
+    public string? StudentId { get; set; }
+    /// <summary>Bron qilingan vaqt (ISO "yyyy-MM-ddTHH:mm:ss").</summary>
+    public string? BookedAt { get; set; }
+    /// <summary>Dars mavzusi — support dars o'tgach yozadi.</summary>
+    public string Topic { get; set; } = string.Empty;
+    /// <summary>Dars izohi (nimalar bo'lgani) — support dars o'tgach yozadi.</summary>
+    public string Notes { get; set; } = string.Empty;
+    /// <summary>Slot yaratilgan vaqt (ISO).</summary>
+    public string CreatedAt { get; set; } = AppClock.Now.ToString("yyyy-MM-ddTHH:mm:ss");
 }
 
 /// <summary>Kurs (oldin "Fan"). Nom + oylik narx.</summary>

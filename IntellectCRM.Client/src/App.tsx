@@ -32,6 +32,8 @@ import { ArchivePage } from '@/pages/admin/archive/ArchivePage'
 import { GradingCriteriaPage } from '@/pages/admin/grading/GradingCriteriaPage'
 import { LevelTestsPage } from '@/pages/admin/level-tests/LevelTestsPage'
 import { LevelTestEditorPage } from '@/pages/admin/level-tests/LevelTestEditorPage'
+import { SupportPage } from '@/pages/admin/support/SupportPage'
+import { SupportDetailPage } from '@/pages/admin/support/SupportDetailPage'
 import { PublicTestPage } from '@/pages/public/PublicTestPage'
 import { MessagesPage } from '@/pages/admin/messages/MessagesPage'
 import { AssignmentsPage } from '@/pages/admin/assignments/AssignmentsPage'
@@ -57,6 +59,7 @@ import { TeacherLmsPage } from '@/pages/teacher/lms/TeacherLmsPage'
 import { TeacherLmsSubjectPage } from '@/pages/teacher/lms/TeacherLmsSubjectPage'
 import { TeacherMessagesPage } from '@/pages/teacher/messages/MessagesPage'
 import { TeacherProfilePage } from '@/pages/teacher/TeacherProfilePage'
+import { TeacherSupportPage } from '@/pages/teacher/support/SupportPage'
 import { TeacherFeedbackPage } from '@/pages/teacher/feedback/FeedbackPage'
 import { TeacherSalaryPage as TeacherOwnSalaryPage } from '@/pages/teacher/salary/SalaryPage'
 import { TeacherCoveragePage } from '@/pages/teacher/coverage/CoveragePage'
@@ -84,6 +87,7 @@ import { StudentSettingsScreen } from '@/pages/student/Settings'
 import { StudentLocationScreen } from '@/pages/student/Location'
 import { StudentLessonScreen } from '@/pages/student/Lesson'
 import { StudentGradingScreen } from '@/pages/student/Grading'
+import { StudentSupportScreen } from '@/pages/student/Support'
 import { StudentAccountScreen } from '@/pages/student/Account'
 
 export default function App() {
@@ -140,6 +144,8 @@ export default function App() {
           <Route path="grading" element={<RequirePerm perm="schedule"><GradingCriteriaPage /></RequirePerm>} />
           <Route path="level-tests" element={<RequirePerm perm="schedule"><LevelTestsPage /></RequirePerm>} />
           <Route path="level-tests/:id" element={<RequirePerm perm="schedule"><LevelTestEditorPage /></RequirePerm>} />
+          <Route path="support" element={<RequirePerm perm="app"><SupportPage /></RequirePerm>} />
+          <Route path="support/:id" element={<RequirePerm perm="app"><SupportDetailPage /></RequirePerm>} />
           <Route path="assignments" element={<RequirePerm perm="app"><AssignmentsPage /></RequirePerm>} />
           <Route path="assignment-scores" element={<RequirePerm perm="app"><AssignmentScoresPage /></RequirePerm>} />
           <Route path="lms" element={<RequirePerm perm="app"><LmsClassesPage /></RequirePerm>} />
@@ -182,6 +188,7 @@ export default function App() {
           <Route path="lms/:subjectId" element={<TeacherLmsSubjectPage />} />
           <Route path="messages" element={<RequirePerm perm="messages"><TeacherMessagesPage /></RequirePerm>} />
           <Route path="feedback" element={<TeacherFeedbackPage />} />
+          <Route path="support" element={<TeacherSupportPage />} />
           <Route path="salary" element={<TeacherOwnSalaryPage />} />
           <Route path="coverage" element={<TeacherCoveragePage />} />
           <Route path="learning" element={<TeacherLearningPage />} />
@@ -214,6 +221,7 @@ export default function App() {
           <Route path="location" element={<StudentLocationScreen />} />
           <Route path="lesson/:id" element={<StudentLessonScreen />} />
           <Route path="grading" element={<StudentGradingScreen />} />
+          <Route path="support" element={<StudentSupportScreen />} />
           <Route path="account" element={<StudentAccountScreen />} />
         </Route>
       </Route>

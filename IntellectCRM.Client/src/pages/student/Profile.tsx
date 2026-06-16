@@ -30,6 +30,7 @@ const MENU: MenuEntry[] = [
   { icon: 'shield', label: 'Intizomiy ball', color: '#0EA5E9', to: '/student/discipline' },
   { icon: 'wallet', label: "To'lovlar", color: '#7C3AED', to: '/student/finance' },
   { icon: 'feedback', label: 'Taklif va shikoyat', color: '#0D9488', to: '/student/feedback' },
+  { icon: 'clock', label: 'Support', color: '#0EA5E9', to: '/student/support' },
   { icon: 'pin', label: 'Uy joylashuvi', color: '#DC2626', to: '/student/location' },
   { icon: 'settings', label: 'Sozlamalar', color: '#64748B', to: '/student/settings' },
 ]

@@ -1,17 +1,24 @@
 import { useEffect, useState } from 'react'
 import {
   GraduationCap, BookOpen, Wallet, LogOut, MessageSquare, ChevronRight,
-  ListChecks, BarChart3, Lock, Moon, Bell,
+  ListChecks, BarChart3, Lock, Moon, Bell, LifeBuoy,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import type { SalaryLedger, TeacherClass } from '@/types'
-import { getMyClasses, getTeacherSalary } from '@/api/services/teacher'
+import { getMyClasses, getTeacherSalary, getTeacherProfile } from '@/api/services/teacher'
 import { getTeacherTheme, setTeacherTheme } from '@/components/layout/TeacherMobileLayout'
 import { useAuth } from '@/context/auth-context'
 import { Loader } from '@/components/ui/Loader'
 import { formatMoney, cn } from '@/lib/utils'
 
-const MENU: { to: string; label: string; sub: string; icon: typeof BookOpen; color: string }[] = [
+type MenuItem = { to: string; label: string; sub: string; icon: typeof BookOpen; color: string }
+
+// Support o'qituvchi uchun qo'shimcha bo'lim (faqat IsSupport bo'lsa ko'rsatiladi).
+const SUPPORT_MENU: MenuItem = {
+  to: '/teacher/support', label: 'Support', sub: "Bo'sh vaqt va bron darslari", icon: LifeBuoy, color: '#0d9488',
+}
+
+const MENU: MenuItem[] = [
   { to: '/teacher/coverage', label: "Dars o'tilishi", sub: "Kurs dasturi o'tilishi + prognoz", icon: ListChecks, color: '#0d9488' },
   { to: '/teacher/learning', label: "Ta'lim progresi", sub: "O'quvchilar o'zlashtirishi", icon: BarChart3, color: '#2563eb' },
   { to: '/teacher/salary', label: 'Maosh', sub: 'Oylik hisob va tarix', icon: Wallet, color: '#7c3aed' },
@@ -35,6 +42,7 @@ export function TeacherProfilePage() {
   const [classes, setClasses] = useState<TeacherClass[]>([])
   const [salary, setSalary] = useState<SalaryLedger | null>(null)
   const [loading, setLoading] = useState(true)
+  const [isSupport, setIsSupport] = useState(false)
   const [dark, setDark] = useState<boolean>(() => getTeacherTheme() === 'dark')
   const [push, setPush] = useState<boolean>(() => localStorage.getItem('teacher_push') !== 'off')
 
@@ -53,13 +61,18 @@ export function TeacherProfilePage() {
     Promise.all([
       getMyClasses().catch(() => [] as TeacherClass[]),
       getTeacherSalary().catch(() => null),
+      getTeacherProfile().catch(() => null),
     ])
-      .then(([cl, sal]) => {
+      .then(([cl, sal, prof]) => {
         setClasses(cl)
         setSalary(sal)
+        setIsSupport(!!prof?.isSupport)
       })
       .finally(() => setLoading(false))
   }, [])
+
+  // Support o'qituvchiga "Support" bo'limi menyu boshida qo'shiladi.
+  const menu = isSupport ? [SUPPORT_MENU, ...MENU] : MENU
 
   const subjectCount = classes.reduce((acc, c) => acc + c.subjects.length, 0)
 
@@ -159,7 +172,7 @@ export function TeacherProfilePage() {
 
       {/* Bo'limlar menyusi */}
       <div className="mt-4 overflow-hidden rounded-[20px] border border-line bg-white shadow-[var(--shadow-card)]">
-        {MENU.map((m, i) => {
+        {menu.map((m, i) => {
           const Icon = m.icon
           return (
             <Link
@@ -167,7 +180,7 @@ export function TeacherProfilePage() {
               to={m.to}
               className={cn(
                 'tap-scale flex items-center gap-3 px-4 py-3.5 text-left',
-                i < MENU.length - 1 && 'border-b border-line',
+                i < menu.length - 1 && 'border-b border-line',
               )}
             >
               <div

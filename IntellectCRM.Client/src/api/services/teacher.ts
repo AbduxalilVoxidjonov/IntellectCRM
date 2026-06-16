@@ -23,6 +23,8 @@ export interface TeacherProfile {
   email: string
   homeroomClass: string
   subjects: Subject[]
+  /** Support o'qituvchimi (bo'sh vaqt/bron bo'limi ko'rinadimi). */
+  isSupport?: boolean
 }
 
 export async function getTeacherProfile(): Promise<TeacherProfile | null> {

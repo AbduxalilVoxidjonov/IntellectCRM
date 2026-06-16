@@ -82,6 +82,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<LevelTestBand> LevelTestBands => Set<LevelTestBand>();
     public DbSet<LevelTestSubmission> LevelTestSubmissions => Set<LevelTestSubmission>();
 
+    // Support o'qituvchi bo'sh vaqt slotlari + bron
+    public DbSet<SupportSlot> SupportSlots => Set<SupportSlot>();
+
     protected override void OnModelCreating(ModelBuilder b)
     {
         // SQL Server: indeksda qatnashadigan string ustunlar default `nvarchar(max)` bo'lib

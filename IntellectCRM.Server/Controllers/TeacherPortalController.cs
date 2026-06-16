@@ -50,7 +50,7 @@ public class TeacherPortalController(
         var names = (await db.Subjects.Where(s => t.SubjectIds.Contains(s.Id)).ToListAsync())
             .Select(s => new SubjectDto(s.Id, s.Name, s.Price))
             .OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase).ToList();
-        return new TeacherProfileDto(t.Id, t.FullName, user?.Email ?? "", t.HomeroomClass, names, t.Permissions, t.PhotoUrl);
+        return new TeacherProfileDto(t.Id, t.FullName, user?.Email ?? "", t.HomeroomClass, names, t.Permissions, t.PhotoUrl, t.IsSupport);
     }
 
     [HttpGet("meta")]
@@ -812,5 +812,118 @@ public class TeacherPortalController(
                 var done = byStudent.GetValueOrDefault(s.Id, new List<string>());
                 return new LmsStudentProgressDto(s.Id, s.FullName, done, done.Count, topics.Count);
             }).ToList());
+    }
+
+    // ---------- Support (bo'sh vaqt slotlari + bron) ----------
+
+    /// <summary>O'z slotlarim (barcha holatlar): bo'sh / bron qilingan / o'tilgan.</summary>
+    [HttpGet("support/slots")]
+    public async Task<ActionResult<IEnumerable<SupportSlotDto>>> SupportSlots()
+    {
+        var me = await Me();
+        if (me is null) return NotFound();
+        var slots = await db.SupportSlots.Where(s => s.TeacherId == me.Id)
+            .OrderByDescending(s => s.Date).ThenBy(s => s.StartTime).ToListAsync();
+        var names = await SupportService.StudentNamesAsync(db, slots.Select(s => s.StudentId));
+        return slots.Select(s => new SupportSlotDto(
+            s.Id, s.TeacherId, s.Date, s.StartTime, s.EndTime, s.Status,
+            s.StudentId, s.StudentId != null ? names.GetValueOrDefault(s.StudentId, "") : "",
+            s.Topic, s.Notes, s.BookedAt)).ToList();
+    }
+
+    /// <summary>Bo'sh vaqt bloki qo'shish. SlotMinutes>0 bo'lsa blok har odamga shuncha daqiqalik bron
+    /// slotlarga bo'linadi (1 soat + 30 → 2 slot). RepeatWeeks>0 — shu hafta kuni keyingi N haftaga ham.</summary>
+    [HttpPost("support/slots")]
+    public async Task<IActionResult> AddSupportSlot(CreateSupportSlotRequest req)
+    {
+        var me = await Me();
+        if (me is null) return NotFound();
+        if (!me.IsSupport) return BadRequest(new { message = "Siz support o'qituvchi emassiz" });
+        if (string.IsNullOrWhiteSpace(req.Date) || string.IsNullOrWhiteSpace(req.StartTime)
+            || string.IsNullOrWhiteSpace(req.EndTime))
+            return BadRequest(new { message = "Sana va vaqtni to'liq kiriting" });
+        if (!DateTime.TryParse(req.Date, out var baseDate))
+            return BadRequest(new { message = "Sana noto'g'ri" });
+
+        // Blokni har odamga ajratilgan davomiylik bo'yicha qism-slotlarga bo'lamiz.
+        var subs = SplitInterval(req.StartTime, req.EndTime, req.SlotMinutes);
+        if (subs.Count == 0)
+            return BadRequest(new { message = "Vaqt oralig'i noto'g'ri (tugash boshlanishdan keyin bo'lsin)" });
+
+        var repeat = Math.Clamp(req.RepeatWeeks, 0, 12);
+        var created = 0;
+        for (var w = 0; w <= repeat; w++)
+        {
+            var d = baseDate.AddDays(7 * w).ToString("yyyy-MM-dd");
+            foreach (var (st, en) in subs)
+            {
+                // Dublikat oldini olamiz (shu sana+boshlanish vaqti allaqachon bo'lsa o'tkazib yuboramiz).
+                var exists = await db.SupportSlots.AnyAsync(
+                    s => s.TeacherId == me.Id && s.Date == d && s.StartTime == st);
+                if (exists) continue;
+                db.SupportSlots.Add(new SupportSlot
+                {
+                    TeacherId = me.Id, Date = d, StartTime = st, EndTime = en,
+                });
+                created++;
+            }
+        }
+        await db.SaveChangesAsync();
+        return Ok(new { created });
+    }
+
+    /// <summary>"HH:mm" blokni <paramref name="minutes"/> daqiqalik qism-slotlarga bo'ladi.
+    /// minutes ≤ 0 yoki blokdan katta → butun blok bitta slot. Faqat to'liq sig'gan qismlar olinadi.</summary>
+    private static List<(string Start, string End)> SplitInterval(string start, string end, int minutes)
+    {
+        var res = new List<(string, string)>();
+        if (!TryMinutes(start, out var s) || !TryMinutes(end, out var e) || e <= s) return res;
+        if (minutes <= 0 || minutes >= (e - s)) { res.Add((Fmt(s), Fmt(e))); return res; }
+        for (var t = s; t + minutes <= e; t += minutes)
+            res.Add((Fmt(t), Fmt(t + minutes)));
+        return res;
+    }
+
+    private static bool TryMinutes(string hhmm, out int total)
+    {
+        total = 0;
+        var parts = (hhmm ?? "").Split(':');
+        if (parts.Length != 2 || !int.TryParse(parts[0], out var h) || !int.TryParse(parts[1], out var m))
+            return false;
+        if (h is < 0 or > 23 || m is < 0 or > 59) return false;
+        total = h * 60 + m;
+        return true;
+    }
+
+    private static string Fmt(int total) => $"{total / 60:D2}:{total % 60:D2}";
+
+    /// <summary>Slotni o'chirish (o'tilgan darsdan tashqari). Bron qilingan bo'lsa ham o'chiriladi.</summary>
+    [HttpDelete("support/slots/{id}")]
+    public async Task<IActionResult> DeleteSupportSlot(string id)
+    {
+        var me = await Me();
+        if (me is null) return NotFound();
+        var slot = await db.SupportSlots.FindAsync(id);
+        if (slot is null || slot.TeacherId != me.Id) return NotFound();
+        if (slot.Status == "done") return BadRequest(new { message = "O'tilgan darsni o'chirib bo'lmaydi" });
+        db.SupportSlots.Remove(slot);
+        await db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    /// <summary>Bron qilingan darsni YOPISH: mavzu + izoh yozib "o'tildi" qiladi.</summary>
+    [HttpPost("support/slots/{id}/complete")]
+    public async Task<IActionResult> CompleteSupportSlot(string id, CompleteSupportRequest req)
+    {
+        var me = await Me();
+        if (me is null) return NotFound();
+        var slot = await db.SupportSlots.FindAsync(id);
+        if (slot is null || slot.TeacherId != me.Id) return NotFound();
+        if (slot.StudentId is null) return BadRequest(new { message = "Bu slot bron qilinmagan" });
+        slot.Topic = (req.Topic ?? "").Trim();
+        slot.Notes = (req.Notes ?? "").Trim();
+        slot.Status = "done";
+        await db.SaveChangesAsync();
+        return NoContent();
     }
 }

@@ -83,6 +83,9 @@ public interface IAppDbContext
     DbSet<LevelTestBand> LevelTestBands { get; }
     DbSet<LevelTestSubmission> LevelTestSubmissions { get; }
 
+    // Support o'qituvchi bo'sh vaqt slotlari + bron
+    DbSet<SupportSlot> SupportSlots { get; }
+
     int SaveChanges();
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

@@ -56,7 +56,7 @@ public record TeacherPayload(
     string HomeroomClass, List<string> SubjectIds, decimal Salary, string? SalaryStartMonth,
     string? NewPassword = null, List<string>? Permissions = null, string? Phone = null,
     string? PhotoUrl = null, string? Category = null, string? SalaryStartDate = null,
-    string? SalaryMode = null, decimal SalaryPercent = 0);
+    string? SalaryMode = null, decimal SalaryPercent = 0, bool IsSupport = false);
 public record MonthSalaryDto(string Month, decimal Expected, decimal Paid, decimal Remaining, string Status);
 public record SalaryLedgerDto(
     string TeacherId, string FullName, decimal Salary,
@@ -570,7 +570,39 @@ public record AuditLogDto(
 /// <summary>O'qituvchining o'z profili (ilovada ko'rsatish uchun).</summary>
 public record TeacherProfileDto(
     string Id, string FullName, string Email, string HomeroomClass, List<SubjectDto> Subjects,
-    List<string> Permissions, string? PhotoUrl = null);
+    List<string> Permissions, string? PhotoUrl = null, bool IsSupport = false);
+
+/* ---------- Support o'qituvchi (bo'sh vaqt slot + bron) ---------- */
+/// <summary>Admin "Support" ro'yxati elementi — support o'qituvchi + slot statistikasi.</summary>
+public record SupportTeacherDto(
+    string Id, string FullName, string Phone, string? PhotoUrl,
+    int OpenCount, int BookedCount, int DoneCount);
+/// <summary>Bitta support slot/dars yozuvi (admin va o'qituvchi ko'rinishi uchun umumiy).</summary>
+public record SupportSlotDto(
+    string Id, string TeacherId, string Date, string StartTime, string EndTime, string Status,
+    string? StudentId, string StudentName, string Topic, string Notes, string? BookedAt);
+/// <summary>Admin: bitta support o'qituvchi tafsiloti + uning slot/darslari (eng yangi birinchi).</summary>
+public record SupportTeacherDetailDto(
+    string Id, string FullName, string Phone, string? PhotoUrl, List<SupportSlotDto> Slots);
+/// <summary>Support slot yaratish: sana + bo'sh vaqt bloki (StartTime..EndTime). SlotMinutes>0 bo'lsa
+/// blok HAR ODAMGA shuncha daqiqalik bron-slotlarga bo'linadi (masalan 1 soat + 30 → 2 slot).
+/// SlotMinutes=0 → butun blok bitta slot. RepeatWeeks>0 — shu hafta kuni keyingi N haftaga ham.</summary>
+public record CreateSupportSlotRequest(
+    string Date, string StartTime, string EndTime, int SlotMinutes = 0, int RepeatWeeks = 0);
+/// <summary>Support dars yopish: mavzu + izoh.</summary>
+public record CompleteSupportRequest(string Topic, string Notes);
+/// <summary>O'quvchi ko'rinishidagi support o'qituvchi — bo'sh slotlari bilan.</summary>
+public record StudentSupportTeacherDto(
+    string TeacherId, string FullName, string? PhotoUrl, List<StudentSupportSlotDto> OpenSlots);
+/// <summary>O'quvchi uchun bo'sh slot (bron qilish mumkin).</summary>
+public record StudentSupportSlotDto(string Id, string Date, string StartTime, string EndTime);
+/// <summary>O'quvchining support broni (o'z bronlari ro'yxati).</summary>
+public record StudentSupportBookingDto(
+    string Id, string TeacherId, string TeacherName, string Date, string StartTime, string EndTime,
+    string Status, string Topic, string Notes);
+/// <summary>O'quvchi support ekrani: bo'sh slotli supportlar + mening bronlarim.</summary>
+public record StudentSupportDto(
+    List<StudentSupportTeacherDto> Supports, List<StudentSupportBookingDto> MyBookings);
 /// <summary>O'qituvchi dars beradigan bitta guruh (qaysi kurslarni o'qitishi).</summary>
 public record TeacherClassDto(
     string ClassId, string ClassName, int Grade, List<SubjectDto> Subjects);

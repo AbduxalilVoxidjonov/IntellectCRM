@@ -53,6 +53,7 @@ public class TeachersController(AppDbContext db, AuditService audit) : Controlle
             Salary = p.Salary,
             SalaryPercent = p.SalaryPercent,
             Category = p.Category ?? "",
+            IsSupport = p.IsSupport,
             SalaryStartDate = p.SalaryStartDate ?? "",
             SalaryStartMonth = !string.IsNullOrEmpty(p.SalaryStartDate) && p.SalaryStartDate.Length >= 7
                 ? p.SalaryStartDate[..7]
@@ -96,6 +97,7 @@ public class TeachersController(AppDbContext db, AuditService audit) : Controlle
         teacher.SalaryPercent = p.SalaryPercent;
         // Toifa — berilsa yangilaymiz (oylik avtomatik shu toifa narxidan hisoblanadi).
         if (p.Category is not null) teacher.Category = p.Category;
+        teacher.IsSupport = p.IsSupport;
         teacher.SalaryStartDate = p.SalaryStartDate ?? "";
         teacher.SalaryStartMonth = !string.IsNullOrEmpty(p.SalaryStartDate) && p.SalaryStartDate.Length >= 7
             ? p.SalaryStartDate[..7]

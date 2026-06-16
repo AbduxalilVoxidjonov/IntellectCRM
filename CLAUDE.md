@@ -114,6 +114,24 @@ docker compose up -d --build    # app + postgres + cloudflared + backup + mediam
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-16: **YANGI — SUPPORT o'qituvchi (bo'sh vaqt + bron darslari).** `Teacher.IsSupport` (admin
+  O'qituvchi formasida "Support o'qituvchi" checkbox). Yangi `SupportSlot` entity (TeacherId/Date/StartTime/EndTime/
+  Status[open|booked|done]/StudentId?/BookedAt/Topic/Notes) — bitta slot = bitta bron = bitta dars (1:1). Migratsiya
+  `AddSupport` (Teachers.IsSupport + SupportSlots jadval). **Backend:** admin `SupportController` (`/admin/support/teachers`
+  list+stats, `/teachers/{id}` tafsilot = o'tilgan/bron/bo'sh slotlar — kim, qachon, mavzu); teacher `TeacherPortalController`
+  (`GET/POST/DELETE support/slots`, `POST support/slots/{id}/complete` mavzu+izoh) — **blok qism-slotlarga bo'linadi**:
+  `CreateSupportSlotRequest.SlotMinutes` (har odamga ajratilgan davomiylik, masalan 1 soat + 30 → 2 slot) + `RepeatWeeks`
+  (haftalik/oylik takror); student `StudentPortalController` (`GET support`, `POST support/slots/{id}/book|cancel`).
+  `SupportService.StudentNamesAsync` umumiy. **Frontend:** `api/services/support.ts` (barcha API+tiplar); admin
+  `pages/admin/support/SupportPage`+`SupportDetailPage` (nav "Ilova → Support", `/admin/support`); teacher
+  `pages/teacher/support/SupportPage` (`TeacherSupportPage`, Profil menyuda faqat IsSupport bo'lsa, `/teacher/support`);
+  student `pages/student/Support` (`StudentSupportScreen`, Profil menyuda, `/student/support`). `TeacherProfile.isSupport`
+  /teacher/me'dan keladi; TeacherFormModal checkbox round-trip. 3 ekran 3 parallel subagent bilan qurildi. Backend 0,
+  tsc+vite yashil, deploy ✅ (migratsiya qo'llandi: SupportSlots jadval + IsSupport ustun tasdiqlandi); 9 endpoint 401
+  (auth-gated), 3 SPA route 200. Oqim: admin teacher'ni support qiladi → support bo'sh vaqt bloki + per-odam daqiqa
+  kiritadi (slotlarga bo'linadi) → o'quvchi Profil→Support'dan slot bron qiladi → support "Darsni yopish" (mavzu+izoh)
+  → admin SupportDetail'da kim/qachon/mavzu ko'radi.
+
 - 2026-06-15: **YANGI — SPEAKING topshirig'i (Azure Pronunciation Assessment, AI avto-baho).** Topshiriqlarga yangi
   format "speaking": o'quvchi diktafonda gapiradi → Azure talaffuzni baholaydi → avto-ball + batafsil review.
   **Backend:** `CenterMeta.AzureSpeechKey/Region` + `SettingsController` GET/PUT `/admin/settings/azure-speech`;

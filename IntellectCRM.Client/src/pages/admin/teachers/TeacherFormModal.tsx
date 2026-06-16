@@ -31,6 +31,7 @@ const empty: TeacherPayload = {
   salaryStartMonth: '',
   salaryStartDate: '',
   photoUrl: null,
+  isSupport: false,
   // Yangi o'qituvchiga standart — barcha bo'limlar ochiq.
   permissions: teacherPermissions.map((p) => p.key),
 }
@@ -59,6 +60,7 @@ export function TeacherFormModal({ open, onClose, onSubmit, initial, subjects }:
             salaryStartMonth: initial.salaryStartMonth ?? '',
             salaryStartDate: initial.salaryStartDate ?? '',
             photoUrl: initial.photoUrl ?? null,
+            isSupport: initial.isSupport ?? false,
             permissions: [...(initial.permissions ?? [])],
           }
         : empty,
@@ -190,6 +192,23 @@ export function TeacherFormModal({ open, onClose, onSubmit, initial, subjects }:
               <p className="text-sm text-slate-400">Avval fan qo'shing</p>
             )}
           </div>
+        </div>
+
+        <div className="border-t border-slate-100 pt-4">
+          <label className="flex cursor-pointer items-start gap-2.5">
+            <input
+              type="checkbox"
+              checked={form.isSupport ?? false}
+              onChange={(e) => update('isSupport', e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+            />
+            <span>
+              <span className="block text-sm font-medium text-slate-700">Support o'qituvchi</span>
+              <span className="block text-xs text-slate-400">
+                Bo'sh vaqt slotlarini e'lon qiladi, o'quvchilar bron qiladi (Ilova → Support).
+              </span>
+            </span>
+          </label>
         </div>
 
         <div className="border-t border-slate-100 pt-4">

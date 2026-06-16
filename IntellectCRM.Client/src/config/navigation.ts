@@ -112,6 +112,7 @@ export const navByRole: Record<Role, NavItem[]> = {
         { label: 'Topshiriqlar', to: '/admin/assignments' },
         { label: 'Topshiriqlar bali', to: '/admin/assignment-scores' },
         { label: "Ta'lim (LMS)", to: '/admin/lms' },
+        { label: 'Support', to: '/admin/support' },
         { label: 'Joylashuv', to: '/admin/locations' },
         { label: 'Ota-onalar', to: '/admin/parents' },
         { label: "O'qituvchilar", to: '/admin/app/teachers' },
