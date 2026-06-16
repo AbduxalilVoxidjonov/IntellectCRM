@@ -113,8 +113,8 @@ public class LevelTestsController(AppDbContext db) : ControllerBase
         catch { return new(); }
     }
 
-    /// <summary>Daraja testi STATISTIKASI — topshiruvchilar voronkasi:
-    /// lid → o'quvchiga aylandi → guruhga qo'shildi → to'lov qildi → aktiv.</summary>
+    /// <summary>Daraja testi STATISTIKASI — topshiruvchilardan nechtasi AKTIV o'quvchi bo'ldi +
+    /// qaysi guruh(lar)ga qo'shilgani va o'qituvchisi (FISH).</summary>
     [HttpGet("{id}/stats")]
     public async Task<ActionResult<LevelTestStatsDto>> Stats(string id)
     {
@@ -132,35 +132,52 @@ public class LevelTestsController(AppDbContext db) : ControllerBase
         // Mavjud (arxivlanmagan) o'quvchilar
         var existing = (await db.Students.Where(st => studentIds.Contains(st.Id) && !st.IsArchived)
             .Select(st => st.Id).ToListAsync()).ToHashSet();
-        // Faol guruh a'zoligi (qo'shilgan) + aktiv (Status=="active")
-        var memberships = await db.StudentGroups.Where(sg => studentIds.Contains(sg.StudentId) && sg.IsActive)
-            .Select(sg => new { sg.StudentId, sg.Status }).ToListAsync();
-        var joined = memberships.Select(m => m.StudentId).ToHashSet();
-        var active = memberships.Where(m => m.Status == "active").Select(m => m.StudentId).ToHashSet();
-        // To'lov qilganlar (o'quvchiga bog'langan tuition kirimi)
-        var paid = (await db.FinanceTransactions
-            .Where(t => t.Direction == "income" && t.Category == "tuition" && t.StudentId != null
-                        && studentIds.Contains(t.StudentId))
-            .Select(t => t.StudentId!).Distinct().ToListAsync()).ToHashSet();
+        // AKTIV guruh a'zoliklari (Status=="active") — guruh + o'qituvchi (FISH) uchun.
+        var activeMemberships = await db.StudentGroups
+            .Where(sg => studentIds.Contains(sg.StudentId) && sg.IsActive && sg.Status == "active")
+            .Select(sg => new { sg.StudentId, sg.GroupId }).ToListAsync();
+        var active = activeMemberships.Select(m => m.StudentId).ToHashSet();
+
+        // Guruh nomi + o'qituvchi (FISH)
+        var groupIds = activeMemberships.Select(m => m.GroupId).Distinct().ToList();
+        var groups = await db.Classes.Where(g => groupIds.Contains(g.Id))
+            .Select(g => new { g.Id, g.Name, g.TeacherId }).ToListAsync();
+        var groupById = groups.ToDictionary(g => g.Id, g => g);
+        var teacherIds = groups.Select(g => g.TeacherId).Where(t => !string.IsNullOrEmpty(t)).Distinct().ToList();
+        var teacherNames = await db.Teachers.Where(t => teacherIds.Contains(t.Id))
+            .ToDictionaryAsync(t => t.Id, t => t.FullName);
+
+        // O'quvchi → aktiv guruh(lar)i nomi va o'qituvchisi (bir nechta bo'lsa vergul bilan)
+        var byStudent = activeMemberships
+            .GroupBy(m => m.StudentId)
+            .ToDictionary(
+                g => g.Key,
+                g =>
+                {
+                    var names = new List<string>();
+                    var teachers = new List<string>();
+                    foreach (var m in g)
+                    {
+                        if (!groupById.TryGetValue(m.GroupId, out var grp)) continue;
+                        if (!string.IsNullOrEmpty(grp.Name)) names.Add(grp.Name);
+                        var tn = teacherNames.GetValueOrDefault(grp.TeacherId ?? "", "");
+                        if (!string.IsNullOrEmpty(tn)) teachers.Add(tn);
+                    }
+                    return (Groups: string.Join(", ", names.Distinct()),
+                            Teachers: string.Join(", ", teachers.Distinct()));
+                });
 
         var rows = subs.Select(s =>
         {
             string? sid = leadToStudent.TryGetValue(s.LeadId, out var v) && existing.Contains(v) ? v : null;
+            var isActive = sid != null && active.Contains(sid);
+            var info = sid != null && byStudent.TryGetValue(sid, out var gi) ? gi : ("", "");
             return new LevelTestStatRowDto(
                 s.Id, s.FullName, s.Phone, s.Level, s.Percent, s.CreatedAt, s.LeadId,
-                sid, sid != null,
-                sid != null && joined.Contains(sid),
-                sid != null && paid.Contains(sid),
-                sid != null && active.Contains(sid));
+                sid, isActive, info.Item1, info.Item2);
         }).ToList();
 
-        return new LevelTestStatsDto(
-            rows.Count,
-            rows.Count(r => r.Converted),
-            rows.Count(r => r.JoinedGroup),
-            rows.Count(r => r.Paid),
-            rows.Count(r => r.Active),
-            rows);
+        return new LevelTestStatsDto(rows.Count, rows.Count(r => r.Active), rows);
     }
 
     private void WriteQuestions(string testId, List<LevelTestQuestionInput>? questions)

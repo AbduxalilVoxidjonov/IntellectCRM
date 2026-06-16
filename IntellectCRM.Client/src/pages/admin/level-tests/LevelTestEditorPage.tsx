@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft, Plus, Trash2, Copy, Check, ExternalLink, Link2, GripVertical, Save, ListChecks, Users,
-  BarChart3, UserCheck, Wallet, Zap,
+  BarChart3, Zap,
 } from 'lucide-react'
 import type { LevelTestDetail, LevelTestSubmission, Subject } from '@/types'
 import {
@@ -533,10 +533,7 @@ function StatsPanel({ stats }: { stats: LevelTestStats | null }) {
   const pct = (n: number) => (stats.total > 0 ? Math.round((n / stats.total) * 100) : 0)
   const KPI = [
     { label: 'Topshirgan', value: stats.total, sub: 'jami lid', icon: Users, color: 'text-slate-600', bg: 'bg-slate-100' },
-    { label: "O'quvchi bo'ldi", value: stats.converted, sub: `${pct(stats.converted)}%`, icon: UserCheck, color: 'text-blue-600', bg: 'bg-blue-50' },
-    { label: 'Guruhga qo’shildi', value: stats.joinedGroup, sub: `${pct(stats.joinedGroup)}%`, icon: ListChecks, color: 'text-violet-600', bg: 'bg-violet-50' },
-    { label: 'To’lov qildi', value: stats.paid, sub: `${pct(stats.paid)}%`, icon: Wallet, color: 'text-amber-600', bg: 'bg-amber-50' },
-    { label: 'Aktiv', value: stats.active, sub: `${pct(stats.active)}%`, icon: Zap, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+    { label: 'Aktiv o’quvchi', value: stats.active, sub: `${pct(stats.active)}%`, icon: Zap, color: 'text-emerald-600', bg: 'bg-emerald-50' },
   ]
 
   const Dot = ({ on }: { on: boolean }) =>
@@ -544,8 +541,8 @@ function StatsPanel({ stats }: { stats: LevelTestStats | null }) {
 
   return (
     <div className="space-y-4">
-      {/* Voronka KPI */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+      {/* KPI */}
+      <div className="grid grid-cols-2 gap-3">
         {KPI.map((k) => {
           const KIcon = k.icon
           return (
@@ -562,7 +559,7 @@ function StatsPanel({ stats }: { stats: LevelTestStats | null }) {
       </div>
 
       {/* Jadval */}
-      <Card title="Topshiruvchilar" sub="Lid → o'quvchi → guruh → to'lov → aktiv">
+      <Card title="Topshiruvchilar" sub="Aktiv o'quvchi bo'lganlar — guruhi va o'qituvchisi (FISH)">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead className="border-b border-slate-100 text-xs uppercase tracking-wide text-slate-400">
@@ -571,10 +568,9 @@ function StatsPanel({ stats }: { stats: LevelTestStats | null }) {
                 <th className="px-3 py-2">Telefon</th>
                 <th className="px-3 py-2">Daraja</th>
                 <th className="px-3 py-2 text-center">Foiz</th>
-                <th className="px-3 py-2 text-center">O'quvchi</th>
-                <th className="px-3 py-2 text-center">Guruh</th>
-                <th className="px-3 py-2 text-center">To'lov</th>
                 <th className="px-3 py-2 text-center">Aktiv</th>
+                <th className="px-3 py-2">Guruh</th>
+                <th className="px-3 py-2">O'qituvchi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -588,10 +584,9 @@ function StatsPanel({ stats }: { stats: LevelTestStats | null }) {
                     ) : '—'}
                   </td>
                   <td className="px-3 py-2 text-center font-mono text-slate-600">{r.percent}%</td>
-                  <td className="px-3 py-2 text-center"><Dot on={r.converted} /></td>
-                  <td className="px-3 py-2 text-center"><Dot on={r.joinedGroup} /></td>
-                  <td className="px-3 py-2 text-center"><Dot on={r.paid} /></td>
                   <td className="px-3 py-2 text-center"><Dot on={r.active} /></td>
+                  <td className="px-3 py-2 text-slate-600">{r.groupName || <span className="text-slate-300">—</span>}</td>
+                  <td className="px-3 py-2 text-slate-600">{r.teacherName || <span className="text-slate-300">—</span>}</td>
                 </tr>
               ))}
             </tbody>

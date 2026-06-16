@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Outlet } from 'react-router-dom'
 import { UnreadProvider } from '@/context/unread-context'
 import { Sidebar } from './Sidebar'
@@ -14,6 +14,16 @@ export function AppLayout() {
   const closeOnMobile = () => {
     if (window.innerWidth < 1024) setOpen(false)
   }
+
+  // Breakpoint (lg=1024px) KESIB O'TILGANDA holatni moslaymiz: desktopga o'tilsa drawer ochiq
+  // (desktopda sidebar baribir statik ko'rinadi), mobilga o'tilsa yopiq. matchMedia faqat chegara
+  // o'zgarganda ishlaydi (har resize/scroll'da emas) — mobil drawer holatini buzmaydi.
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)')
+    const onChange = (e: MediaQueryListEvent) => setOpen(e.matches)
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
 
   return (
     <UnreadProvider>

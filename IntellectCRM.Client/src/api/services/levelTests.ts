@@ -41,7 +41,7 @@ export async function getLevelTestSubmissions(id: string): Promise<LevelTestSubm
   return data
 }
 
-/** Topshiruvchilar voronkasi: lid → o'quvchi → guruh → to'lov → aktiv. */
+/** Topshiruvchi: aktiv o'quvchi bo'ldimi + qaysi guruh(lar)ga qo'shilgan va o'qituvchisi (FISH). */
 export interface LevelTestStatRow {
   submissionId: string
   fullName: string
@@ -51,16 +51,12 @@ export interface LevelTestStatRow {
   createdAt: string
   leadId: string
   studentId: string | null
-  converted: boolean
-  joinedGroup: boolean
-  paid: boolean
   active: boolean
+  groupName: string
+  teacherName: string
 }
 export interface LevelTestStats {
   total: number
-  converted: number
-  joinedGroup: number
-  paid: number
   active: number
   rows: LevelTestStatRow[]
 }
