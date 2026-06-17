@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom'
 import {
   ArrowLeft, Users, BookOpen, User,
   CalendarDays, Clock, MapPin, Wallet, Snowflake, CheckCircle2,
-  ListChecks, ChevronRight, ChevronDown, Plus, Minus, Repeat, CalendarClock, Flag,
+  ListChecks, ChevronRight, ChevronDown, Plus, Minus, Repeat, CalendarClock, Flag, TrendingUp,
 } from 'lucide-react'
 import type { AbsenceReason } from '@/types'
 import {
@@ -19,7 +19,7 @@ import { getSettings } from '@/api/services/settings'
 import { cn, formatMoney, formatDate } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
 import { GradingSection } from '@/components/grading/GradingSection'
-import { getGradingBoard, setGrade, bulkGrade } from '@/api/services/grading'
+import { getGradingBoard, setGrade, bulkGrade, type GradingBoard } from '@/api/services/grading'
 import { Loader } from '@/components/ui/Loader'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
@@ -71,7 +71,9 @@ export function ClassDetailPage() {
   const [memberSaving, setMemberSaving] = useState(false)
 
   // ---- Guruh o'quv dasturi (darsda o'tilgan) ----
-  const [groupView, setGroupView] = useState<'jurnal' | 'baholash'>('jurnal')
+  const [groupView, setGroupView] = useState<'jurnal' | 'baholash' | 'reyting'>('jurnal')
+  const [grading, setGrading] = useState<GradingBoard | null>(null)
+  const [gradingLoading, setGradingLoading] = useState(false)
   const [curr, setCurr] = useState<GroupCurriculum | null>(null)
   const [currLoading, setCurrLoading] = useState(true)
   const [currExpanded, setCurrExpanded] = useState<Set<string>>(new Set())
@@ -101,12 +103,30 @@ export function ClassDetailPage() {
     [id],
   )
 
+  const loadGrading = useCallback(
+    (month?: string) => {
+      if (!id) return
+      setGradingLoading(true)
+      getGradingBoard(id, month)
+        .then(setGrading)
+        .catch(() => setGrading(null))
+        .finally(() => setGradingLoading(false))
+    },
+    [id],
+  )
+
   useEffect(() => {
     load()
     getSettings()
       .then((s) => setReasons(s.absenceReasons))
       .catch(() => {})
   }, [load])
+
+  useEffect(() => {
+    if (groupView === 'reyting' && journal?.month) {
+      loadGrading(journal.month)
+    }
+  }, [groupView, journal?.month, loadGrading])
 
   const reasonById = useMemo(
     () => new Map(reasons.map((r) => [r.id, r])),
@@ -350,6 +370,16 @@ export function ClassDetailPage() {
               }
             >
               Baholash
+            </button>
+            <button
+              type="button"
+              onClick={() => setGroupView('reyting')}
+              className={
+                'rounded-lg px-4 py-1.5 text-sm font-semibold transition-colors ' +
+                (groupView === 'reyting' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700')
+              }
+            >
+              Reyting
             </button>
           </div>
 
@@ -620,6 +650,9 @@ export function ClassDetailPage() {
               <GradingSection groupId={id} fetchBoard={getGradingBoard} saveGrade={setGrade} bulkGrade={bulkGrade} />
             </Card>
           )}
+
+          {/* Reyting — o'quvchilarning o'rtacha bahosi va baholash statistikasi */}
+          {groupView === 'reyting' && <RatingsTab grading={grading} loading={gradingLoading} />}
 
           {/* O'quv dasturi — darsda o'tilgan bandlar + tugatish prognozi */}
           <CurriculumSection
@@ -1041,6 +1074,208 @@ function ForecastTile({
         {label}
       </div>
       <div className="text-sm font-semibold text-slate-700">{children}</div>
+    </div>
+  )
+}
+
+// ============================ Reyting bo'limi ============================
+
+function RatingsTab({ grading, loading }: { grading: GradingBoard | null; loading: boolean }) {
+  if (loading) {
+    return <Loader label="Reyting yuklanmoqda..." />
+  }
+
+  if (!grading || grading.students.length === 0) {
+    return (
+      <Card className="rounded-lg border border-slate-200 bg-white py-12 px-4 text-center text-slate-400">
+        <TrendingUp className="mx-auto mb-3 h-8 w-8 opacity-40" />
+        <p>Baholash mezonlari topilmadi yoki o'quvchi yo'q.</p>
+      </Card>
+    )
+  }
+
+  // Har o'quvchi uchun baholash statistikasini hisoblash
+  const studentStats = grading.students.map((student: any) => {
+    const doneKeys = new Set(student.doneKeys)
+    const criteria = grading.criteria.length
+    const totalPossible = grading.dates.length * criteria
+    const done = doneKeys.size
+    const percentage = totalPossible > 0 ? Math.round((done / totalPossible) * 100) : 0
+
+    // Har mezon bo'yicha necha darsda bajardi hisoblash
+    const criteriaStats = grading.criteria.map((crit: any) => {
+      let count = 0
+      for (const key of doneKeys) {
+        const [critId] = (key as string).split("|")
+        if (critId === crit.id) count++
+      }
+      return { criterion: crit, done: count, total: grading.dates.length }
+    })
+
+    return { student, done, totalPossible, percentage, criteriaStats }
+  })
+
+  // O'rtacha bahoni hisoblash
+  const avgPercentage =
+    studentStats.length > 0
+      ? Math.round(studentStats.reduce((s, st) => s + st.percentage, 0) / studentStats.length)
+      : 0
+
+  return (
+    <div className="space-y-4">
+      {/* KPI kartalar */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <RatingKpi label="O'rtacha" value={`${avgPercentage}%`} icon={TrendingUp} />
+        <RatingKpi
+          label="Jami o'quvchi"
+          value={String(studentStats.length)}
+          icon={Users}
+        />
+        <RatingKpi
+          label="To'liq bajarildi"
+          value={String(studentStats.filter((s: any) => s.percentage === 100).length)}
+          icon={CheckCircle2}
+        />
+        <RatingKpi
+          label="Bo'sh"
+          value={String(studentStats.filter((s: any) => s.percentage === 0).length)}
+          icon={Flag}
+        />
+      </div>
+
+      {/* O'quvchilar jadvali */}
+      <Card className="rounded-lg border border-slate-200 bg-white p-0">
+        <div className="overflow-x-auto">
+          <table className="min-w-full border-collapse">
+            <thead>
+              <tr className="bg-slate-100">
+                <th className="border-b border-slate-200 px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">
+                  O'quvchi
+                </th>
+                <th className="border-b border-slate-200 px-3 py-3 text-center text-xs font-semibold uppercase text-slate-500">
+                  Bajarildi
+                </th>
+                <th className="border-b border-slate-200 px-3 py-3 text-center text-xs font-semibold uppercase text-slate-500">
+                  Foiz
+                </th>
+                {grading.criteria.slice(0, 3).map((crit: any) => (
+                  <th
+                    key={crit.id}
+                    className="border-b border-slate-200 px-3 py-3 text-center text-xs font-semibold uppercase text-slate-500"
+                    title={crit.name}
+                  >
+                    <span className="block max-w-[60px] truncate">{crit.name}</span>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {studentStats.map((stat: any) => (
+                <tr key={stat.student.studentId} className="border-b border-slate-200 hover:bg-slate-50">
+                  <td className="px-4 py-3 text-sm font-medium text-slate-800">
+                    {stat.student.fullName}
+                  </td>
+                  <td className="px-3 py-3 text-center text-sm font-semibold text-slate-800">
+                    <span className="font-mono">{stat.done}</span>
+                    <span className="text-slate-400">/{stat.totalPossible}</span>
+                  </td>
+                  <td className="px-3 py-3">
+                    <div className="flex items-center justify-center gap-2">
+                      <div className="h-2 w-16 overflow-hidden rounded-full bg-slate-200">
+                        <div
+                          className={cn(
+                            "h-full rounded-full transition-all",
+                            stat.percentage >= 80
+                              ? "bg-emerald-500"
+                              : stat.percentage >= 50
+                                ? "bg-amber-500"
+                                : "bg-red-500",
+                          )}
+                          style={{ width: `${stat.percentage}%` }}
+                        />
+                      </div>
+                      <span className="font-mono text-xs font-semibold text-slate-800 w-8 text-right">
+                        {stat.percentage}%
+                      </span>
+                    </div>
+                  </td>
+                  {stat.criteriaStats.slice(0, 3).map((cs: any) => (
+                    <td
+                      key={cs.criterion.id}
+                      className="px-3 py-3 text-center text-sm font-semibold text-slate-800"
+                    >
+                      <span className="font-mono text-brand-600">{cs.done}</span>
+                      <span className="text-slate-400">/{cs.total}</span>
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      {/* Mezonlar bo'yicha detallar (agar ko'p bo'lsa) */}
+      {grading.criteria.length > 3 && (
+        <Card className="rounded-lg border border-slate-200 bg-white p-4">
+          <h3 className="mb-4 font-semibold text-slate-800">Mezonlar bo'yicha tahlil</h3>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {grading.criteria.map((crit: any) => {
+              let totalDone = 0
+              for (const student of grading.students) {
+                for (const key of student.doneKeys) {
+                  const [critId] = (key as string).split("|")
+                  if (critId === crit.id) totalDone++
+                }
+              }
+              const pct =
+                grading.students.length * grading.dates.length > 0
+                  ? Math.round((totalDone / (grading.students.length * grading.dates.length)) * 100)
+                  : 0
+              return (
+                <div key={crit.id} className="rounded-lg bg-slate-50 p-3">
+                  <p className="mb-2 text-sm font-semibold text-slate-800">{crit.name}</p>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1">
+                      <div className="h-2 overflow-hidden rounded-full bg-slate-200">
+                        <div
+                          className="h-full rounded-full bg-brand-500 transition-all"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </div>
+                    <span className="font-mono text-xs font-semibold text-slate-800 w-10 text-right">{pct}%</span>
+                  </div>
+                  <p className="mt-1 text-xs text-slate-400">
+                    <span className="font-mono font-semibold">{totalDone}</span> /{" "}
+                    {grading.students.length * grading.dates.length}
+                  </p>
+                </div>
+              )
+            })}
+          </div>
+        </Card>
+      )}
+    </div>
+  )
+}
+
+function RatingKpi({
+  label,
+  value,
+  icon: Icon,
+}: {
+  label: string
+  value: string
+  icon: typeof Users
+}) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-3">
+      <div className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+        <Icon className="h-3.5 w-3.5" />
+        {label}
+      </div>
+      <div className="text-lg font-semibold text-slate-800">{value}</div>
     </div>
   )
 }
