@@ -63,8 +63,8 @@ public class TeachersController(AppDbContext db, AuditService audit) : Controlle
         };
         db.Teachers.Add(teacher);
 
-        // O'qituvchiga "teacher" rolli tizim akkaunti generatsiya qilib biriktiramiz.
-        var account = AccountFactory.CreateAccountFor(db, "teacher", teacher.FullName);
+        // Tizim akkaunti: support bo'lsa "support" roli (alohida portal /support), aks holda "teacher".
+        var account = AccountFactory.CreateAccountFor(db, teacher.IsSupport ? Roles.Support : Roles.Teacher, teacher.FullName);
         teacher.UserId = account.Id;
 
         if (!string.IsNullOrEmpty(teacher.Category))
@@ -112,11 +112,16 @@ public class TeachersController(AppDbContext db, AuditService audit) : Controlle
             var pwd = p.NewPassword.Trim();
             if (pwd.Length < MinPasswordLength) return BadRequest(new { message = WeakPasswordMessage });
             // Akkaunt yo'q bo'lsa — yaratib biriktiramiz.
-            user ??= AccountFactory.CreateAccountFor(db, "teacher", teacher.FullName);
+            user ??= AccountFactory.CreateAccountFor(db, teacher.IsSupport ? Roles.Support : Roles.Teacher, teacher.FullName);
             teacher.UserId = user.Id;
             user.SetInitialPassword(pwd);
         }
-        if (user is not null) user.FullName = teacher.FullName;
+        if (user is not null)
+        {
+            user.FullName = teacher.FullName;
+            // Support belgisi o'zgarsa akkaunt rolini ham sinxronlaymiz (portal: /support yoki /teacher).
+            user.Role = teacher.IsSupport ? Roles.Support : Roles.Teacher;
+        }
 
         if (oldCategory != teacher.Category || oldStart != teacher.SalaryStartMonth)
         {

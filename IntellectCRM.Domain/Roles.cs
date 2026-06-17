@@ -19,6 +19,10 @@ public static class Roles
     public const string Admin = "admin";
     public const string Teacher = "teacher";
     public const string Student = "student";
+    /// <summary>Support o'qituvchi — alohida portal (`/support`). O'z bo'sh vaqt slotlarini kiritadi,
+    /// o'quvchilar bron qiladi; o'tilgan darslari/bronlarini ko'radi. Teacher record'iga bog'langan
+    /// (IsSupport=true); admin/superadmin ham slot kirita oladi (admin Support bo'limi).</summary>
+    public const string Support = "support";
     /// <summary>O'qituvchi bo'lmagan xodim (kassir, administrator, ...). Admin paneliga
     /// kiradi, lekin faqat <see cref="AppUser.Permissions"/> dagi bo'limlarni ko'radi.</summary>
     public const string Staff = "staff";
