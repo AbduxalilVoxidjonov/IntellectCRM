@@ -17,7 +17,7 @@ import type { GroupCurriculum } from '@/api/services/curriculum'
 import { cn, formatDate } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
 import { GradingSection } from '@/components/grading/GradingSection'
-import type { GradingBoard } from '@/api/services/grading'
+import { getGradingBoard, setGrade, bulkGrade, type GradingBoard } from '@/api/services/grading'
 import { Loader } from '@/components/ui/Loader'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
@@ -91,7 +91,7 @@ export function TeacherGroupDetailPage() {
     (month?: string) => {
       if (!id) return
       setGradingLoading(true)
-      getGradingBoard(id, month)
+      getTeacherGradingBoard(id, month)
         .then(setGrading)
         .catch(() => setGrading(null))
         .finally(() => setGradingLoading(false))
