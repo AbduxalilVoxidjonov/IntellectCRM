@@ -8,6 +8,8 @@ interface Props {
   open: boolean
   studentName: string
   dateLabel: string
+  date?: string
+  startDate?: string
   entry: JournalEntry | null
   reasons: AbsenceReason[]
   onClose: () => void
@@ -28,6 +30,8 @@ export function JournalCellModal({
   open,
   studentName,
   dateLabel,
+  date,
+  startDate,
   entry,
   reasons,
   onClose,
@@ -56,6 +60,7 @@ export function JournalCellModal({
   const lateReasons = reasons.filter((r) => r.isLate)
   const absentReasons = reasons.filter((r) => !r.isLate)
   const selectedLate = reasonId != null && lateReasons.some((r) => r.id === reasonId)
+  const isBeforeStart = !!(startDate && date && date < startDate)
 
   const toggleReason = (id: string) => setReasonId((cur) => (cur === id ? null : id))
 
@@ -75,13 +80,18 @@ export function JournalCellModal({
           <Button variant="secondary" onClick={onClose}>
             Bekor qilish
           </Button>
-          <Button onClick={() => onSave(grade, reasonId, homework, behavior, mastery === '' ? null : typeof mastery === 'number' ? mastery : null)}>
+          <Button disabled={isBeforeStart} onClick={() => onSave(grade, reasonId, homework, behavior, mastery === '' ? null : typeof mastery === 'number' ? mastery : null)}>
             Saqlash
           </Button>
         </>
       }
     >
       <p className="mb-4 font-mono text-sm text-slate-400">{dateLabel}</p>
+      {isBeforeStart && (
+        <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">
+          <strong>Ogohlantirish:</strong> Sana guruh yaratilishidan oldin. Saqlab bo'lmaydi.
+        </div>
+      )}
 
       <div className="space-y-4">
         <div>

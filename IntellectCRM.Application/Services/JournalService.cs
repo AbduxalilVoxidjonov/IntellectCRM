@@ -227,6 +227,13 @@ public static class JournalService
         const int quarter = 1;
         if (req.StudentIds.Count == 0) return;
 
+        // Guruhning StartDate'i tekshirish — undan oldin dars bo'lmaydi.
+        var cls = await db.Classes.FindAsync(req.ClassId);
+        if (cls is null)
+            throw new InvalidOperationException("Guruh topilmadi");
+        if (!string.IsNullOrEmpty(cls.StartDate) && string.Compare(req.Date, cls.StartDate) < 0)
+            throw new InvalidOperationException("Sana guruh yaratilishidan oldin");
+
         // Darsni "o'tildi" deb belgilash (LessonNote).
         var note = await db.LessonNotes.FirstOrDefaultAsync(n =>
             n.ClassId == req.ClassId && n.SubjectId == req.SubjectId &&
