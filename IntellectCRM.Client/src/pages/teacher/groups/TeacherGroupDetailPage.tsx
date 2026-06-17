@@ -121,10 +121,44 @@ export function TeacherGroupDetailPage() {
     [journal],
   )
   const conductedSet = useMemo(() => new Set(journal?.conductedDates ?? []), [journal])
-  // Muzlatilganlar jurnalga QO'SHILMAYDI — grid'da faqat faol/sinov o'quvchilar.
+  // O'quvchilari jurnalga kiritilgan va baholashga kiritilgan baholarning yig'indisi bo'yicha saralash.
+  const sortedAndScoredStudents = useMemo(() => {
+    const students = (journal?.students ?? []).filter((s) => s.status !== 'frozen')
+    if (!grading || grading.students.length === 0) {
+      // Faqat jurnal bahosi
+      return students.map((s, idx) => {
+        const totalGrade = journal!.columns.reduce((sum, c) => {
+          const e = entryMap.get(`${s.studentId}|${c.date}`)
+          return sum + (e?.grade ?? 0)
+        }, 0)
+        return { ...s, journalTotal: totalGrade, gradingTotal: 0, combinedTotal: totalGrade, originalIndex: idx }
+      })
+        .sort((a, b) => b.combinedTotal - a.combinedTotal || a.originalIndex - b.originalIndex)
+    }
+    // Baholash va jurnal baholarini birlashtirish
+    const gradingStudentMap = new Map(grading.students.map((gs) => [gs.studentId, gs]))
+    return students.map((s, idx) => {
+      const journalTotal = journal!.columns.reduce((sum, c) => {
+        const e = entryMap.get(`${s.studentId}|${c.date}`)
+        return sum + (e?.grade ?? 0)
+      }, 0)
+      const gs = gradingStudentMap.get(s.studentId)
+      const doneKeys = new Set(gs?.doneKeys ?? [])
+      const gradingTotal = doneKeys.size
+      return {
+        ...s,
+        journalTotal,
+        gradingTotal,
+        combinedTotal: journalTotal + gradingTotal,
+        originalIndex: idx,
+      }
+    })
+      .sort((a, b) => b.combinedTotal - a.combinedTotal || a.originalIndex - b.originalIndex)
+  }, [journal, grading, entryMap])
+
   const journalStudents = useMemo(
-    () => (journal?.students ?? []).filter((s) => s.status !== 'frozen'),
-    [journal],
+    () => sortedAndScoredStudents,
+    [sortedAndScoredStudents],
   )
 
   const g = journal?.group
@@ -427,10 +461,6 @@ export function TeacherGroupDetailPage() {
                     </thead>
                     <tbody>
                       {journalStudents.map((st, idx) => {
-                        const totalGrade = journal!.columns.reduce((sum, c) => {
-                          const e = entryMap.get(`${st.studentId}|${c.date}`)
-                          return sum + (e?.grade ?? 0)
-                        }, 0)
                         return (
                         <tr key={st.studentId} className="bg-white even:bg-panel2">
                           <td className="border-b border-r border-line bg-inherit px-2 py-2 text-center">
@@ -490,8 +520,8 @@ export function TeacherGroupDetailPage() {
                             )
                           })}
                           <td className="sticky right-0 z-10 border-b border-l-2 border-line bg-inherit px-3 py-2 text-center">
-                            <span className={cn('inline-flex h-8 w-8 items-center justify-center rounded-md font-semibold text-ink', totalGrade > 0 ? 'bg-tealsoft text-teal-700' : 'text-faint')}>
-                              {totalGrade || '—'}
+                            <span className={cn('inline-flex h-8 w-8 items-center justify-center rounded-md font-semibold text-ink', st.combinedTotal > 0 ? 'bg-tealsoft text-teal-700' : 'text-faint')}>
+                              {st.combinedTotal || '—'}
                             </span>
                           </td>
                         </tr>
@@ -518,7 +548,7 @@ export function TeacherGroupDetailPage() {
           )}
 
           {/* Reyting — o'quvchilarning o'rtacha bahosi va baholash statistikasi */}
-          {groupView === "reyting" && <RatingsTab grading={grading} loading={gradingLoading} />}
+          {groupView === "reyting" && <RatingsTab grading={grading} journal={journal} loading={gradingLoading} />}
 
           {/* O'quv dasturi — yig'iladigan (default yopiq) */}
           <CurriculumSection
@@ -634,7 +664,7 @@ function Info({
 
 // ============================ Reyting bo'limi ============================
 
-function RatingsTab({ grading, loading }: { grading: GradingBoard | null; loading: boolean }) {
+function RatingsTab({ grading, journal, loading }: { grading: GradingBoard | null; journal: GroupJournal | null; loading: boolean }) {
   if (loading) {
     return <Loader label="Reyting yuklanmoqda..." />
   }
@@ -648,7 +678,21 @@ function RatingsTab({ grading, loading }: { grading: GradingBoard | null; loadin
     )
   }
 
-  // Har o'quvchi uchun baholash statistikasini hisoblash
+  // Jurnal baholarini hisoblash
+  const journalGradesByStudent = new Map<string, number>()
+  if (journal) {
+    const entryMap = new Map((journal.entries ?? []).map((e) => [`${e.studentId}|${e.date}`, e]))
+    for (const student of grading.students) {
+      let total = 0
+      for (const col of journal.columns) {
+        const e = entryMap.get(`${student.studentId}|${col.date}`)
+        if (e?.grade) total += e.grade
+      }
+      journalGradesByStudent.set(student.studentId, total)
+    }
+  }
+
+  // Har o'quvchi uchun baholash statistikasini hisoblash + jurnal bahosi
   const studentStats = grading.students.map((student) => {
     const doneKeys = new Set(student.doneKeys)
     const criteria = grading.criteria.length
@@ -666,8 +710,14 @@ function RatingsTab({ grading, loading }: { grading: GradingBoard | null; loadin
       return { criterion: crit, done: count, total: grading.dates.length }
     })
 
-    return { student, done, totalPossible, percentage, criteriaStats }
+    // Kombindan reyting = jurnal baho + baholash mezonlari yig'indisi
+    const journalTotal = journalGradesByStudent.get(student.studentId) ?? 0
+    const combinedRating = journalTotal + done
+
+    return { student, done, totalPossible, percentage, criteriaStats, journalTotal, combinedRating }
   })
+    // Kombindan reyting bo'yicha saralash
+    .sort((a, b) => b.combinedRating - a.combinedRating)
 
   // O'rtacha bahoni hisoblash
   const avgPercentage =
@@ -707,10 +757,13 @@ function RatingsTab({ grading, loading }: { grading: GradingBoard | null; loadin
                   O'quvchi
                 </th>
                 <th className="border-b border-line px-3 py-3 text-center text-xs font-semibold uppercase text-mute">
+                  Jurnal
+                </th>
+                <th className="border-b border-line px-3 py-3 text-center text-xs font-semibold uppercase text-mute">
                   Bajarildi
                 </th>
                 <th className="border-b border-line px-3 py-3 text-center text-xs font-semibold uppercase text-mute">
-                  Foiz
+                  Jami
                 </th>
                 {grading.criteria.slice(0, 3).map((crit) => (
                   <th
@@ -730,28 +783,16 @@ function RatingsTab({ grading, loading }: { grading: GradingBoard | null; loadin
                     {stat.student.fullName}
                   </td>
                   <td className="px-3 py-3 text-center text-sm font-semibold text-ink">
+                    <span className="font-mono">{stat.journalTotal}</span>
+                  </td>
+                  <td className="px-3 py-3 text-center text-sm font-semibold text-ink">
                     <span className="font-mono">{stat.done}</span>
                     <span className="text-faint">/{stat.totalPossible}</span>
                   </td>
-                  <td className="px-3 py-3">
-                    <div className="flex items-center justify-center gap-2">
-                      <div className="h-2 w-16 overflow-hidden rounded-full bg-panel3">
-                        <div
-                          className={cn(
-                            "h-full rounded-full transition-all",
-                            stat.percentage >= 80
-                              ? "bg-emerald-500"
-                              : stat.percentage >= 50
-                                ? "bg-amber-500"
-                                : "bg-red-500",
-                          )}
-                          style={{ width: `${stat.percentage}%` }}
-                        />
-                      </div>
-                      <span className="font-mono text-xs font-semibold text-ink w-8 text-right">
-                        {stat.percentage}%
-                      </span>
-                    </div>
+                  <td className="px-3 py-3 text-center text-sm font-bold text-ink">
+                    <span className={cn('inline-flex h-8 w-8 items-center justify-center rounded-md font-semibold', stat.combinedRating > 0 ? 'bg-tealsoft text-teal-700' : 'text-faint')}>
+                      {stat.combinedRating || '—'}
+                    </span>
                   </td>
                   {stat.criteriaStats.slice(0, 3).map((cs) => (
                     <td

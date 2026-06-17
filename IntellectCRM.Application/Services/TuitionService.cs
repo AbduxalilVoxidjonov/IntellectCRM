@@ -195,12 +195,14 @@ public static class TuitionService
     /// (birinchi aktivlashtirish / ikki marta bosish) idempotent ALMASHTIRADI.</param>
     public static async Task ChargeActivationProrateAsync(IAppDbContext db, Student s, Group cls, string dateIso, bool addSegment = false)
     {
-        if (cls.MonthlyFee <= 0 || dateIso.Length < 10 || !DateOnly.TryParse(dateIso, out var d)) return;
-        var monthStart = new DateOnly(d.Year, d.Month, 1);
-        var monthEnd = new DateOnly(d.Year, d.Month, DateTime.DaysInMonth(d.Year, d.Month));
-        var totalInMonth = LessonsInRange(cls.Days, monthStart, monthEnd);
-        var remaining = LessonsInRange(cls.Days, d, monthEnd);
-        if (totalInMonth <= 0 || remaining <= 0) return; // shu oyda dars yo'q — qisman to'lov yo'q
+        try
+        {
+            if (cls.MonthlyFee <= 0 || dateIso.Length < 10 || !DateOnly.TryParse(dateIso, out var d)) return;
+            var monthStart = new DateOnly(d.Year, d.Month, 1);
+            var monthEnd = new DateOnly(d.Year, d.Month, DateTime.DaysInMonth(d.Year, d.Month));
+            var totalInMonth = LessonsInRange(cls.Days, monthStart, monthEnd);
+            var remaining = LessonsInRange(cls.Days, d, monthEnd);
+            if (totalInMonth <= 0 || remaining <= 0) return; // shu oyda dars yo'q — qisman to'lov yo'q
 
         // Bir dars = oylik narx ÷ shu oydagi jami dars; to'lov = bir dars × qolgan dars (qolgan ≤ jami → to'liqdan oshmaydi).
         var gross = decimal.Round(cls.MonthlyFee * remaining / totalInMonth, 2);
@@ -247,6 +249,12 @@ public static class TuitionService
                 existing.Date = dateIso;
                 s.Balance += oldEffective - effective;
             }
+        }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"ChargeActivationProrateAsync error: {ex.Message}\n{ex.StackTrace}");
+            throw;
         }
     }
 

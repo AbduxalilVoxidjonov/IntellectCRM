@@ -123,6 +123,11 @@ public static class JournalService
         if (!string.IsNullOrEmpty(cls.StartDate) && string.Compare(req.Date, cls.StartDate) < 0)
             throw new InvalidOperationException("Sana guruh yaratilishidan oldin");
 
+        // Tutkun: kelasi kunlarga baho/davomat kirita olmassin.
+        var today = AppClock.Today.ToString("yyyy-MM-dd");
+        if (string.Compare(req.Date, today) > 0)
+            throw new InvalidOperationException("Kelasi kunlarga o'quvchi ma'lumoti kirita olmassin");
+
         var entry = await db.JournalEntries.FirstOrDefaultAsync(e =>
             e.ClassId == req.ClassId && e.SubjectId == req.SubjectId && e.Quarter == req.Quarter &&
             e.StudentId == req.StudentId && e.Date == req.Date && e.Period == req.Period);
@@ -233,6 +238,11 @@ public static class JournalService
             throw new InvalidOperationException("Guruh topilmadi");
         if (!string.IsNullOrEmpty(cls.StartDate) && string.Compare(req.Date, cls.StartDate) < 0)
             throw new InvalidOperationException("Sana guruh yaratilishidan oldin");
+
+        // Tutkun: kelasi kunlarga davomat kirita olmassin.
+        var today = AppClock.Today.ToString("yyyy-MM-dd");
+        if (string.Compare(req.Date, today) > 0)
+            throw new InvalidOperationException("Kelasi kunlarga o'quvchi ma'lumoti kirita olmassin");
 
         // Darsni "o'tildi" deb belgilash (LessonNote).
         var note = await db.LessonNotes.FirstOrDefaultAsync(n =>
