@@ -1017,10 +1017,11 @@ public record LevelTestSubmissionDto(
     string Id, string FullName, string Phone, int Age, int Score, int Total,
     int Percent, string Level, string CreatedAt, string LeadId, List<SurveyAnswerDto> Survey);
 
-/// <summary>Daraja testi topshiruvchisi: aktiv bo'ldimi + qaysi guruh(lar)ga qo'shilgan va o'qituvchisi (FISH).</summary>
+/// <summary>Daraja testi topshiruvchisi: aktiv bo'ldimi + qaysi guruh(lar)ga qo'shilgan va o'qituvchisi (FISH).
+/// IsDeleted — lid o'chirilgan yoki o'quvchi o'chirilgan (lead→student→archived).</summary>
 public record LevelTestStatRowDto(
     string SubmissionId, string FullName, string Phone, string Level, int Percent, string CreatedAt,
-    string LeadId, string? StudentId, bool Active, string GroupName, string TeacherName);
+    string LeadId, string? StudentId, bool Active, string GroupName, string TeacherName, bool IsDeleted = false);
 /// <summary>Daraja testi statistikasi: jami topshirgan + nechtasi aktiv o'quvchiga aylandi.</summary>
 public record LevelTestStatsDto(
     int Total, int Active, List<LevelTestStatRowDto> Rows);

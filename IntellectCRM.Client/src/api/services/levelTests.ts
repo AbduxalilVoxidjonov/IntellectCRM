@@ -41,7 +41,8 @@ export async function getLevelTestSubmissions(id: string): Promise<LevelTestSubm
   return data
 }
 
-/** Topshiruvchi: aktiv o'quvchi bo'ldimi + qaysi guruh(lar)ga qo'shilgan va o'qituvchisi (FISH). */
+/** Topshiruvchi: aktiv o'quvchi bo'ldimi + qaysi guruh(lar)ga qo'shilgan va o'qituvchisi (FISH).
+ * isDeleted — lid o'chirilgan yoki o'quvchi o'chirilgan/arxivlangan. */
 export interface LevelTestStatRow {
   submissionId: string
   fullName: string
@@ -54,6 +55,7 @@ export interface LevelTestStatRow {
   active: boolean
   groupName: string
   teacherName: string
+  isDeleted: boolean
 }
 export interface LevelTestStats {
   total: number

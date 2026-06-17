@@ -575,8 +575,17 @@ function StatsPanel({ stats }: { stats: LevelTestStats | null }) {
             </thead>
             <tbody className="divide-y divide-slate-50">
               {stats.rows.map((r) => (
-                <tr key={r.submissionId} className="hover:bg-slate-50/60">
-                  <td className="px-3 py-2 font-medium text-slate-700">{r.fullName}</td>
+                <tr
+                  key={r.submissionId}
+                  className={cn(
+                    'hover:bg-slate-50/60',
+                    r.isDeleted && 'bg-red-50/40 line-through',
+                  )}
+                >
+                  <td className={cn('px-3 py-2 font-medium text-slate-700', r.isDeleted && 'text-red-600')}>
+                    {r.fullName}
+                    {r.isDeleted && <span className="ml-2 text-[11px] font-normal text-red-500">(o'chirilgan)</span>}
+                  </td>
                   <td className="px-3 py-2 font-mono text-slate-500">{r.phone}</td>
                   <td className="px-3 py-2">
                     {r.level ? (

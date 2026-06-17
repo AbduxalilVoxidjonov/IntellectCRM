@@ -169,12 +169,14 @@ public class LevelTestsController(AppDbContext db) : ControllerBase
 
         var rows = subs.Select(s =>
         {
-            string? sid = leadToStudent.TryGetValue(s.LeadId, out var v) && existing.Contains(v) ? v : null;
+            string? sid = leadToStudent.TryGetValue(s.LeadId, out var v) ? v : null;
+            // IsDeleted: lid yo'q (ConvertedStudentId yo'q yoki lid o'chirilgan), YOKI o'quvchi o'chirilgan/arxivlangan
+            bool isDeleted = string.IsNullOrEmpty(s.LeadId) || sid == null || !existing.Contains(sid);
             var isActive = sid != null && active.Contains(sid);
             var info = sid != null && byStudent.TryGetValue(sid, out var gi) ? gi : ("", "");
             return new LevelTestStatRowDto(
                 s.Id, s.FullName, s.Phone, s.Level, s.Percent, s.CreatedAt, s.LeadId,
-                sid, isActive, info.Item1, info.Item2);
+                sid, isActive, info.Item1, info.Item2, isDeleted);
         }).ToList();
 
         return new LevelTestStatsDto(rows.Count, rows.Count(r => r.Active), rows);
