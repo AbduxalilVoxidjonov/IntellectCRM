@@ -10,7 +10,7 @@ import type { AbsenceReason } from '@/types'
 import {
   getTeacherGroupJournal, setTeacherJournalEntry, clearTeacherJournalEntry, bulkTeacherAttendance,
   getTeacherGroupCurriculum, setTeacherGroupCover, changeTeacherGroupRevision,
-  getTeacherMeta,
+  getTeacherMeta, getTeacherGradingBoard, setTeacherGrade, bulkTeacherGrade,
 } from '@/api/services/teacher'
 import type { GroupJournal } from '@/api/services/journal'
 import type { GroupCurriculum } from '@/api/services/curriculum'
@@ -91,7 +91,7 @@ export function TeacherGroupDetailPage() {
     (month?: string) => {
       if (!id) return
       setGradingLoading(true)
-      getTeacherGradingBoard(id, month)
+      getGradingBoard(id, month)
         .then(setGrading)
         .catch(() => setGrading(null))
         .finally(() => setGradingLoading(false))
