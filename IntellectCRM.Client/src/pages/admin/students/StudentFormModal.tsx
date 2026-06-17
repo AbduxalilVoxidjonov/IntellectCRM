@@ -135,8 +135,8 @@ export function StudentFormModal({ open, onClose, onSubmit, initial }: Props) {
       update(key, res.url)
       // Muvaffaqiyat feedback (ixtiyoriy, silent o'tish mumkin — UI indikatori bor)
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Fayl yuklab bo'lmadi'
-      alert(`❌ ${msg}`)
+      const errMsg = err instanceof Error ? err.message : 'Fayl yuklab boʻlmadi (error)'
+      alert(`❌ ${errMsg}`)
     } finally {
       setUploading((u) => ({ ...u, birth: false }))
     }

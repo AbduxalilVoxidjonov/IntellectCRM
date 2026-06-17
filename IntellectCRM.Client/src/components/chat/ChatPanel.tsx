@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Send, ArrowLeft, AlertCircle, CheckCircle } from 'lucide-react'
+import { Send, ArrowLeft, AlertCircle } from 'lucide-react'
 import type { ChatMessage } from '@/types'
 import { useAuth } from '@/context/auth-context'
 import { useUnread } from '@/context/unread-context'
@@ -39,7 +39,7 @@ export function ChatPanel({ className, fetchMessages, sendMessage, title, subtit
   const [connectionError, setConnectionError] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const classRef = useRef(className)
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout>()
+  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   useEffect(() => {
     classRef.current = className
@@ -83,7 +83,8 @@ export function ChatPanel({ className, fetchMessages, sendMessage, title, subtit
         fetchMessages(classRef.current)
           .then(setMessages)
           .catch((err) => {
-            setConnectionError(err instanceof Error ? err.message : 'Xabarlar yuklab bo'lmadi')
+            const msg = err instanceof Error ? err.message : 'Xabarlar yuklab boʻlmadi (error)'
+            setConnectionError(msg)
           })
       }
     }
