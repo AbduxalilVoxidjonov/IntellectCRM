@@ -56,8 +56,11 @@ export function PaymentHistoryModal({ studentId, onClose }: Props) {
       const fresh = await getStudentLedger(studentId)
       setLedger(fresh)
       setEditMonth(null)
-    } catch (e: any) {
-      alert(e?.response?.data?.message ?? "Tahrirlab bo'lmadi")
+    } catch (err) {
+      const message = err instanceof Error
+        ? err.message
+        : (err as any)?.response?.data?.message ?? "Tahrirlab bo'lmadi"
+      alert(message)
     } finally {
       setSaving(false)
     }
