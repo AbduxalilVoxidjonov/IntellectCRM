@@ -84,8 +84,11 @@ export function LevelTestsPage() {
     try {
       await deleteLevelTest(t.id)
       setTests((prev) => prev.filter((x) => x.id !== t.id))
-    } catch (e: any) {
-      alert(e?.response?.data?.message ?? 'O\'chirib bo\'lmadi')
+    } catch (err) {
+      const message = err instanceof Error
+        ? err.message
+        : (err as any)?.response?.data?.message ?? 'O\'chirib bo\'lmadi'
+      alert(message)
     }
   }
 

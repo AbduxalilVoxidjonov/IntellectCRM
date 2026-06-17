@@ -96,6 +96,15 @@ export function ChatPanel({ className, fetchMessages, sendMessage, title, subtit
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
+  // Timeout cleanup
+  useEffect(() => {
+    return () => {
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current)
+      }
+    }
+  }, [])
+
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault()
     const t = text.trim()
