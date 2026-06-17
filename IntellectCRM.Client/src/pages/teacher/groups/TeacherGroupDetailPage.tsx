@@ -230,8 +230,11 @@ export function TeacherGroupDetailPage() {
       await bulkTeacherAttendance(journal.group.id, bulkDate, absent, reasonId)
       setBulkDate(null)
       load(journal.month)
-    } catch (e: any) {
-      alert(e?.response?.data?.message ?? "Saqlab bo'lmadi")
+    } catch (err) {
+      const message = err instanceof Error
+        ? err.message
+        : (err as any)?.response?.data?.message ?? "Saqlab bo'lmadi"
+      alert(message)
     } finally {
       setBulkSaving(false)
     }
