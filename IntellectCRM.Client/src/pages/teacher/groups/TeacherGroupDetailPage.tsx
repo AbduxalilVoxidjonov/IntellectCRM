@@ -408,10 +408,18 @@ export function TeacherGroupDetailPage() {
                             </th>
                           )
                         })}
+                        <th className="sticky right-0 z-10 border-b-2 border-l-2 border-line bg-panel2 px-3 py-1.5 text-center font-semibold text-mute">
+                          Jami
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
-                      {journalStudents.map((st) => (
+                      {journalStudents.map((st) => {
+                        const totalGrade = journal!.columns.reduce((sum, c) => {
+                          const e = entryMap.get(`${st.studentId}|${c.date}`)
+                          return sum + (e?.grade ?? 0)
+                        }, 0)
+                        return (
                         <tr key={st.studentId} className="bg-white even:bg-panel2">
                           <td className="sticky left-0 z-10 border-b border-r-2 border-line bg-inherit px-3 py-2">
                             <span className="block max-w-[8rem] truncate text-sm font-medium text-ink">
@@ -466,8 +474,14 @@ export function TeacherGroupDetailPage() {
                               </td>
                             )
                           })}
+                          <td className="sticky right-0 z-10 border-b border-l-2 border-line bg-inherit px-3 py-2 text-center">
+                            <span className={cn('inline-flex h-8 w-8 items-center justify-center rounded-md font-semibold text-ink', totalGrade > 0 ? 'bg-tealsoft text-teal-700' : 'text-faint')}>
+                              {totalGrade || '—'}
+                            </span>
+                          </td>
                         </tr>
-                      ))}
+                      )
+                      })}
                     </tbody>
                   </table>
                 </div>
