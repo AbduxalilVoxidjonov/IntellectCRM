@@ -359,7 +359,9 @@ export async function editStudentCharge(
     await delay(150)
     return
   }
-  await api.put(`/admin/students/${id}/charges/${month}`, { amount }, {
+  // Olib tashla :1/:0 agar bor bo'lsa (backend Month faqat YYYY-MM formatda kutadi)
+  const cleanMonth = month.split(':')[0]
+  await api.put(`/admin/students/${id}/charges/${cleanMonth}`, { amount }, {
     params: groupId ? { groupId } : undefined,
   })
 }
