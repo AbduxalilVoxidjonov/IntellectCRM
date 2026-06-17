@@ -146,8 +146,11 @@ export function TeacherGroupDetailPage() {
       })
       setCell(null)
       load(journal.month)
-    } catch (e: any) {
-      alert(e?.response?.data?.message ?? "Saqlab bo'lmadi")
+    } catch (err) {
+      const message = err instanceof Error
+        ? err.message
+        : (err as any)?.response?.data?.message ?? "Saqlab bo'lmadi"
+      alert(message)
     } finally {
       setSaving(false)
     }
@@ -160,8 +163,11 @@ export function TeacherGroupDetailPage() {
       await clearTeacherJournalEntry(journal.group.id, journal.group.courseId, cell.studentId, cell.date)
       setCell(null)
       load(journal.month)
-    } catch (e: any) {
-      alert(e?.response?.data?.message ?? "Tozalab bo'lmadi")
+    } catch (err) {
+      const message = err instanceof Error
+        ? err.message
+        : (err as any)?.response?.data?.message ?? "Tozalab bo'lmadi"
+      alert(message)
     } finally {
       setSaving(false)
     }
