@@ -477,8 +477,8 @@ export function TeacherGroupDetailPage() {
                                     : reason
                                       ? reason.short || reason.name.slice(0, 2)
                                       : present
-                                        ? "âœ“"
-                                        : "Â·"}
+                                        ? "✓"
+                                        : "·"}
                                 </button>
                               </td>
                             )
@@ -565,7 +565,7 @@ export function TeacherGroupDetailPage() {
               disabled={bulkSaving}
               className="rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:opacity-50"
             >
-              âœ“ Hammasi keldi
+              ✓ Hammasi keldi
             </button>
             <button
               type="button"
@@ -573,7 +573,7 @@ export function TeacherGroupDetailPage() {
               disabled={bulkSaving}
               className="rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:opacity-50"
             >
-              âœ— Hammasi kelmadi
+              ✗ Hammasi kelmadi
             </button>
           </div>
           {absentReasons.length > 0 && (
@@ -894,7 +894,7 @@ function CurriculumSection({
                   <div className="mb-1.5 flex items-center justify-between text-sm">
                     <span className="font-medium text-mute">Bajarildi</span>
                     <span className="font-mono font-semibold text-teal-700">
-                      {curr.coveredCount}/{curr.totalItems} Â· {pct}%
+                      {curr.coveredCount}/{curr.totalItems} · {pct}%
                     </span>
                   </div>
                   <div className="h-2.5 w-full overflow-hidden rounded-full bg-panel3">
@@ -918,7 +918,7 @@ function CurriculumSection({
                     <span className="font-mono">{curr.estLessonsLeft}</span> dars
                     {curr.estFinishDate && (
                       <span className="mt-0.5 block text-xs font-normal text-faint">
-                        â‰ˆ {formatDate(curr.estFinishDate)} da
+                        ≈ {formatDate(curr.estFinishDate)} da
                       </span>
                     )}
                   </ForecastTile>
