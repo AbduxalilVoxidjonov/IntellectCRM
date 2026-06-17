@@ -17,7 +17,7 @@ import {
 } from '@/api/services/curriculum'
 import type { CourseItemDetail, VocabEntry, CourseQuestion, SaveItemContent } from '@/api/services/curriculum'
 import { uploadAdminFile } from '@/api/services/students'
-import { getSubjects } from '@/api/services/admin'
+import { getSubjects } from '@/api/services/subjects'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Loader } from '@/components/ui/Loader'
@@ -72,7 +72,7 @@ export function CurriculumEditorPage() {
         })
         .catch(() => setData(null)),
       getSubjects()
-        .then((s) => setSubjects(s.filter((subj) => subj.id !== id)))
+        .then((s: Subject[]) => setSubjects(s.filter((subj: Subject) => subj.id !== id)))
         .catch(() => setSubjects([])),
     ]).finally(() => setLoading(false))
   }, [id])
