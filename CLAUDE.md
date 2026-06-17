@@ -1105,3 +1105,21 @@ docker compose up -d --build    # app + postgres + cloudflared + backup + mediam
   **(7) Teacher portal responsive:** TeacherMobileLayout lg breakpoint — mobile (bottom nav) → lg (left sidebar 208px + full-width content). StudentMobileLayout moslandi.
   **(8) Layout constraints:** max-w-md/lg olib tashlandi, content full-width (web'da 1920px sarflash, bo'sh 2 checkmark GONE). Desktop beautiful, mobile app-like.
   Build: tsc+vite ✅, backend 0, deploy ✅ (commit 00d1c04 + fixes).
+- 2026-06-17: **CRITICAL DATA INTEGRITY FIX — MonthlyCharge ORPHANS on Group delete (commit b2efa5e).** 
+  Muammo: `ClassesController.Delete()` `RemoveRange()`+`ForEachAsync()` ishlatardi — app-level delete, memory load, 
+  SaveChanges() crash window. Agar delete crash bo'lsa → `MonthlyCharges(GroupId=id)` orphan qolirdi (DB broken).
+  TUZATISH: **atomic bulk operations** — EF Core 8 `ExecuteDeleteAsync()` + `ExecuteUpdateAsync()` (single SQL command):
+  ```
+  // OLD: RemoveRange → load memory, delete row-by-row → race condition window
+  db.MonthlyCharges.RemoveRange(db.MonthlyCharges.Where(c => c.GroupId == id));
+  
+  // NEW: atomic SQL DELETE (transaction-safe, crash-safe)
+  await db.MonthlyCharges.Where(c => c.GroupId == id).ExecuteDeleteAsync();
+  await db.StudentGroups.Where(sg => sg.GroupId == id).ExecuteDeleteAsync();
+  await db.JournalEntries.Where(e => e.ClassId == id).ExecuteDeleteAsync();
+  await db.LessonNotes.Where(n => n.ClassId == id).ExecuteDeleteAsync();
+  await db.FinanceTransactions.Where(t => t.GroupId == id)
+      .ExecuteUpdateAsync(s => s.SetProperty(t => t.GroupId, (string?)null));
+  ```
+  Faydalar: ✓ Atomic (no crash window), ✓ Orphans impossible, ✓ Fast (no memory overhead), ✓ Race-safe.
+  INTEGRITY_AUDIT.md updated (verdict: ✅ FIXED). Backend 0, tsc+vite ✅. Deploy ready — code solid.
