@@ -17,9 +17,9 @@
   --color-brand-800: oklch(0.4 0.15 282);
   --color-brand-900: oklch(0.34 0.12 282);
 
-  /* GLOBAL SHRIFT: Times New Roman — barcha portal (admin, teacher, student) */
-  --font-sans: 'Times New Roman', Times, serif;
-  --font-mono: 'Times New Roman', Times, serif;
+  /* GLOBAL SHRIFT: Pliant (Google Fonts) — barcha portal (admin, teacher, student) */
+  --font-sans: 'Pliant', sans-serif;
+  --font-mono: 'Pliant', sans-serif;
 
   /* ── O'qituvchi portali (teal) — teacher.html dizayn tokenlari ──
      Teal ramp = Tailwind default teal-* (teal-600 = #0d9488), shuning uchun
@@ -85,6 +85,8 @@ body {
   background: var(--bg);
   color: var(--fg);
   font-family: var(--font-ui);
+  font-optical-sizing: auto;
+  font-variation-settings: 'wdth' 100;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
