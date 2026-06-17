@@ -426,7 +426,7 @@ export function ClassDetailPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {journalStudents.map((st) => {
+                    {journalStudents.map((st, idx) => {
                       const sb = statusBadge(st.status)
                       return (
                         <tr key={st.studentId} className="bg-white even:bg-slate-50 hover:bg-brand-50">
@@ -437,6 +437,7 @@ export function ClassDetailPage() {
                               title="Aktivlashtirish / Muzlatish"
                               className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left transition-colors hover:bg-slate-100"
                             >
+                              <span className="w-6 shrink-0 text-right text-xs font-medium text-slate-400">{idx + 1}.</span>
                               <span
                                 className={cn(
                                   'h-2 w-2 shrink-0 rounded-full',
@@ -511,7 +512,7 @@ export function ClassDetailPage() {
                             Muzlatilgan (faqat ko'rish — baho/davomat saqlanadi)
                           </td>
                         </tr>
-                        {frozenStudents.map((st) => (
+                        {frozenStudents.map((st, idx) => (
                           <tr key={st.studentId} className="bg-slate-50 text-slate-400">
                             <td className="sticky left-0 z-10 border-b border-r-2 border-slate-200 bg-inherit px-2 py-1">
                               <button
@@ -520,6 +521,7 @@ export function ClassDetailPage() {
                                 title="Aktivlashtirish"
                                 className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left transition-colors hover:bg-slate-100"
                               >
+                                <span className="w-6 shrink-0 text-right text-xs font-medium text-slate-300">{journalStudents.length + idx + 1}.</span>
                                 <Snowflake className="h-3.5 w-3.5 shrink-0 text-sky-500" />
                                 <span className={cn('font-medium', st.balance < 0 ? 'text-red-600' : 'text-slate-500')}>
                                   {st.fullName}

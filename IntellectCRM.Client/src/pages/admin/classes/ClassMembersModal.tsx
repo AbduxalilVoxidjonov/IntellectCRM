@@ -243,12 +243,13 @@ export function ClassMembersModal({ group, onClose }: Props) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {activeMembers.map((m) => {
+                {activeMembers.map((m, idx) => {
                   const sb = statusBadge(m.status)
                   return (
                     <tr key={m.studentId} className="hover:bg-slate-50/60">
                       <td className="px-3 py-2">
                         <div className="flex items-center gap-2">
+                          <span className="w-6 text-right text-xs font-medium text-slate-400">{idx + 1}.</span>
                           <span
                             className={cn(
                               'h-2 w-2 shrink-0 rounded-full',
@@ -317,7 +318,7 @@ export function ClassMembersModal({ group, onClose }: Props) {
                     </tr>
                   )
                 })}
-                {activeMembers.length === 0 && (
+                {activeMembers.length === 0 && members.filter(m => !m.isActive).length === 0 && (
                   <tr>
                     <td colSpan={4} className="px-3 py-8 text-center text-slate-400">
                       A'zolar yo'q
@@ -327,6 +328,55 @@ export function ClassMembersModal({ group, onClose }: Props) {
               </tbody>
             </table>
           </div>
+
+          {/* Muzlatilgan a'zolar */}
+          {members.filter(m => !m.isActive).length > 0 && (
+            <div className="overflow-hidden rounded-lg border border-slate-100">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-400">
+                  <tr>
+                    <th colSpan={4} className="px-3 py-2">Muzlatilgan a'zolar</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 bg-slate-50">
+                  {members.filter(m => !m.isActive).map((m, idx) => (
+                    <tr key={m.studentId} className="text-slate-400">
+                      <td className="px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          <span className="w-6 text-right text-xs font-medium text-slate-400">{activeMembers.length + idx + 1}.</span>
+                          <span
+                            className={cn(
+                              'h-2 w-2 shrink-0 rounded-full',
+                              m.balance < 0 ? 'bg-red-500' : 'bg-slate-300',
+                            )}
+                            title={m.balance < 0 ? `Qarz: ${formatMoney(m.balance)}` : 'Qarzi yo\'q'}
+                          />
+                          <span className={cn('font-medium', m.balance < 0 ? 'text-red-600' : 'text-slate-500')}>
+                            {m.fullName}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-3 py-2">
+                        <span className="rounded-md bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-700">Muzlatilgan</span>
+                        {m.frozenAt && <span className="ml-1 text-xs text-slate-400">{formatDate(m.frozenAt)}</span>}
+                      </td>
+                      <td className="px-3 py-2 text-slate-400">{formatDate(m.joinedAt)}</td>
+                      <td className="px-3 py-2 text-right">
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => openActivate(m)}
+                          className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 transition-colors hover:bg-emerald-100 disabled:opacity-50"
+                        >
+                          <CheckCircle2 className="h-3.5 w-3.5" /> Aktivlashtirish
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
     </Modal>
