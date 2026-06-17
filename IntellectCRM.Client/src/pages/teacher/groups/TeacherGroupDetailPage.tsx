@@ -31,7 +31,7 @@ const uzMonths = [
 const monthLabel = (m: string) =>
   m && m.length >= 7 ? `${uzMonths[Number(m.slice(5, 7)) - 1] ?? m} ${m.slice(0, 4)}` : m
 
-/** Baho katakchasi to'liq rangi â€” bahoga qarab (5=yashil, 4=ko'k, 3=sariq, past=qizil). */
+/** Baho katakchasi to'liq rangi — bahoga qarab (5=yashil, 4=ko'k, 3=sariq, past=qizil). */
 function gradeFill(g: number): string {
   return g >= 5
     ? 'bg-emerald-50 text-emerald-700'
@@ -51,7 +51,7 @@ export function TeacherGroupDetailPage() {
   const [gradingLoading, setGradingLoading] = useState(false)
   const [cell, setCell] = useState<{ studentId: string; studentName: string; date: string } | null>(null)
   const [saving, setSaving] = useState(false)
-  /** Sarlavhadagi sana bosilganda â€” shu kun uchun hammaga davomat modali. */
+  /** Sarlavhadagi sana bosilganda — shu kun uchun hammaga davomat modali. */
   const [bulkDate, setBulkDate] = useState<string | null>(null)
   const [bulkSaving, setBulkSaving] = useState(false)
 
@@ -121,7 +121,7 @@ export function TeacherGroupDetailPage() {
     [journal],
   )
   const conductedSet = useMemo(() => new Set(journal?.conductedDates ?? []), [journal])
-  // Muzlatilganlar jurnalga QO'SHILMAYDI â€” grid'da faqat faol/sinov o'quvchilar.
+  // Muzlatilganlar jurnalga QO'SHILMAYDI — grid'da faqat faol/sinov o'quvchilar.
   const journalStudents = useMemo(
     () => (journal?.students ?? []).filter((s) => s.status !== 'frozen'),
     [journal],
@@ -167,7 +167,7 @@ export function TeacherGroupDetailPage() {
     }
   }
 
-  // Daraja yoyish/yig'ish (default â€” yopiq)
+  // Daraja yoyish/yig'ish (default — yopiq)
   const toggleLevel = (levelId: string) =>
     setCurrExpanded((s) => {
       const next = new Set(s)
@@ -176,7 +176,7 @@ export function TeacherGroupDetailPage() {
       return next
     })
 
-  // Birinchi o'tilmagan band â€” "keyingi" maslahati uchun
+  // Birinchi o'tilmagan band — "keyingi" maslahati uchun
   const nextItemId = useMemo(() => {
     if (!curr) return null
     for (const lv of curr.levels)
@@ -185,7 +185,7 @@ export function TeacherGroupDetailPage() {
     return null
   }, [curr])
 
-  // Band belgilash â€” optimistik, so'ng refetch (prognoz aniq qolishi uchun)
+  // Band belgilash — optimistik, so'ng refetch (prognoz aniq qolishi uchun)
   const toggleCover = async (itemId: string, covered: boolean) => {
     if (!curr) return
     const prev = curr
@@ -222,7 +222,7 @@ export function TeacherGroupDetailPage() {
     }
   }
 
-  // Sarlavhadagi sana bosilganda â€” shu darsdagi BARCHA o'quvchiga birdan davomat.
+  // Sarlavhadagi sana bosilganda — shu darsdagi BARCHA o'quvchiga birdan davomat.
   const doBulk = async (absent: boolean, reasonId: string | null) => {
     if (!journal || !bulkDate) return
     setBulkSaving(true)
@@ -270,22 +270,22 @@ export function TeacherGroupDetailPage() {
           {/* Guruh ma'lumotlari */}
           <Card className="rounded-[20px] border border-line bg-white shadow-[var(--shadow-card)]">
             <div className="grid grid-cols-2 gap-x-4 gap-y-4">
-              <Info icon={BookOpen} label="Kurs" value={g.courseName || "â€”"} />
-              <Info icon={User} label="O'qituvchi" value={g.teacherName || "â€”"} />
+              <Info icon={BookOpen} label="Kurs" value={g.courseName || "—"} />
+              <Info icon={User} label="O'qituvchi" value={g.teacherName || "—"} />
               <Info
                 icon={CalendarDays}
                 label="Kunlar"
-                value={g.days.length ? g.days.map((d) => weekdayShort[d] ?? d).join(", ") : "â€”"}
+                value={g.days.length ? g.days.map((d) => weekdayShort[d] ?? d).join(", ") : "—"}
               />
               <Info
                 icon={Clock}
                 label="Vaqt"
                 value={
-                  g.startTime || g.endTime ? `${g.startTime || "â€”"}${g.endTime ? ` â€“ ${g.endTime}` : ""}` : "â€”"
+                  g.startTime || g.endTime ? `${g.startTime || "—"}${g.endTime ? ` â€“ ${g.endTime}` : ""}` : "—"
                 }
                 mono
               />
-              <Info icon={MapPin} label="Xona" value={g.room || "â€”"} />
+              <Info icon={MapPin} label="Xona" value={g.room || "—"} />
               <Info icon={Users} label="O'quvchilar" value={String(journalStudents.length)} mono />
             </div>
           </Card>
@@ -335,7 +335,7 @@ export function TeacherGroupDetailPage() {
                 </span>
               </div>
 
-              {/* Oy navigatsiyasi â€” gorizontal skroll */}
+              {/* Oy navigatsiyasi — gorizontal skroll */}
               {journal && journal.months.length > 0 && (
                 <div className="flex gap-1.5 overflow-x-auto border-b border-line-soft px-4 py-2.5">
                   {journal.months.map((m) => (
@@ -359,7 +359,7 @@ export function TeacherGroupDetailPage() {
 
               {!g.courseId ? (
                 <p className="px-4 py-12 text-center text-sm text-faint">
-                  Guruhga kurs biriktirilmagan â€” jurnal yuritib bo'lmaydi.
+                  Guruhga kurs biriktirilmagan — jurnal yuritib bo'lmaydi.
                 </p>
               ) : journalStudents.length === 0 ? (
                 <p className="px-4 py-12 text-center text-sm text-faint">
@@ -461,7 +461,7 @@ export function TeacherGroupDetailPage() {
                                           ? "bg-emerald-50 text-emerald-600"
                                           : "text-faint",
                                   )}
-                                  title={`${st.fullName} â€” ${formatDate(c.date)}`}
+                                  title={`${st.fullName} — ${formatDate(c.date)}`}
                                 >
                                   {e?.grade != null
                                     ? e.grade
@@ -489,7 +489,7 @@ export function TeacherGroupDetailPage() {
             </Card>
           )}
 
-          {/* Baholash â€” har darsga mezonlar bo'yicha bajardi/bajarmadi (faqat o'z guruhi) */}
+          {/* Baholash — har darsga mezonlar bo'yicha bajardi/bajarmadi (faqat o'z guruhi) */}
           {groupView === "baholash" && (
             <Card className="rounded-[20px] border border-line bg-white shadow-[var(--shadow-card)]">
               <h2 className="mb-3 font-semibold text-ink">Baholash</h2>
@@ -502,10 +502,10 @@ export function TeacherGroupDetailPage() {
             </Card>
           )}
 
-          {/* Reyting â€” o'quvchilarning o'rtacha bahosi va baholash statistikasi */}
+          {/* Reyting — o'quvchilarning o'rtacha bahosi va baholash statistikasi */}
           {groupView === "reyting" && <RatingsTab grading={grading} loading={gradingLoading} />}
 
-          {/* O'quv dasturi â€” yig'iladigan (default yopiq) */}
+          {/* O'quv dasturi — yig'iladigan (default yopiq) */}
           <CurriculumSection
             curr={curr}
             loading={currLoading}
@@ -532,12 +532,12 @@ export function TeacherGroupDetailPage() {
         onClear={handleClear}
       />
 
-      {/* Sarlavha sanasi bosilganda â€” shu kun uchun hammaga birdan davomat */}
+      {/* Sarlavha sanasi bosilganda — shu kun uchun hammaga birdan davomat */}
       <Modal
         open={!!bulkDate}
         onClose={() => !bulkSaving && setBulkDate(null)}
         size="sm"
-        title={bulkDate ? `${formatDate(bulkDate)} â€” davomat` : "Davomat"}
+        title={bulkDate ? `${formatDate(bulkDate)} — davomat` : "Davomat"}
         footer={
           <Button variant="secondary" onClick={() => setBulkDate(null)} disabled={bulkSaving}>
             Yopish
@@ -936,7 +936,7 @@ function CurriculumSection({
                 </div>
               </div>
 
-              {/* DASTUR DARAXTI â€” tekis (ichma-ich kartasiz, to'liq kenglik) */}
+              {/* DASTUR DARAXTI — tekis (ichma-ich kartasiz, to'liq kenglik) */}
               <div className="divide-y divide-line-soft">
                 {curr.levels.map((level) => {
                   const levelTotal = level.topics.reduce((s, t) => s + t.items.length, 0)
