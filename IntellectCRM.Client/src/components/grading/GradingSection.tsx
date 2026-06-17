@@ -42,6 +42,7 @@ export function GradingSection({ groupId, fetchBoard, saveGrade, bulkGrade }: Pr
   const load = useCallback(
     (month?: string) => {
       setLoading(true)
+      setMenuFor(null) // Navda o'zgarganda bulk menyu yopiladi
       fetchBoard(groupId, month)
         .then((b) => {
           setBoard(b)
