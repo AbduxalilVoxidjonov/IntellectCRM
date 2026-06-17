@@ -116,6 +116,13 @@ public static class JournalService
     /// </summary>
     public static async Task SetEntryAsync(IAppDbContext db, SetJournalEntryRequest req, FcmService? fcm = null)
     {
+        // Guruhning StartDate'i tekshirish — undan oldin dars bo'lmaydi.
+        var cls = await db.Classes.FindAsync(req.ClassId);
+        if (cls is null)
+            throw new InvalidOperationException("Guruh topilmadi");
+        if (!string.IsNullOrEmpty(cls.StartDate) && string.Compare(req.Date, cls.StartDate) < 0)
+            throw new InvalidOperationException("Sana guruh yaratilishidan oldin");
+
         var entry = await db.JournalEntries.FirstOrDefaultAsync(e =>
             e.ClassId == req.ClassId && e.SubjectId == req.SubjectId && e.Quarter == req.Quarter &&
             e.StudentId == req.StudentId && e.Date == req.Date && e.Period == req.Period);
