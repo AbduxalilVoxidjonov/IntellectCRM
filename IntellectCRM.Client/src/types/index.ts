@@ -499,6 +499,8 @@ export interface MonthLedger {
   status: MonthStatus
   /** Shu oyda qaysi kurslarga (qancha) — breakdown */
   courses: MonthCourse[]
+  /** Shu oy uchun guruh ID (per-group hisob bo'lsa) */
+  groupId?: string
 }
 
 export interface MonthCourse {
