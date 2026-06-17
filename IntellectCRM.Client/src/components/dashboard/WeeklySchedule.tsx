@@ -35,6 +35,7 @@ interface Block {
   name: string
   course: string
   teacher: string
+  teacherId?: string
   room: string
   start: string
   end: string
@@ -69,14 +70,32 @@ export function WeeklySchedule() {
     const byDay: Block[][] = [[], [], [], [], [], [], []]
     const byTeacher = new Map<string, { teacher: string; groups: Block[] }>()
 
-    active.forEach((g, i) => {
-      const color = PALETTE[i % PALETTE.length]
+    // Birinchi o'qituvchilarga barqaror ko'rsatkich tayinlaymiz
+    const teacherIndices = new Map<string, number>()
+    let nextTeacherIdx = 0
+
+    active.forEach((g) => {
       const teacher = (g.teacherId && tName.get(g.teacherId)) || 'Biriktirilmagan'
+
+      // O'qituvchi uchun barqaror indeks (birinchi marta uchraydi -> yangi indeks, keyingi vaqtlar -> shu indeks ishlatiladi)
+      const teacherKey = g.teacherId || 'none'
+      if (!teacherIndices.has(teacherKey)) {
+        teacherIndices.set(teacherKey, nextTeacherIdx++)
+      }
+      const teacherIdx = teacherIndices.get(teacherKey)!
+
+      // Bir o'qituvchining guruhlari uchun alohida ranglar (o'qituvchi o'z ranglar ketidan ishlatadi)
+      const groupsOfTeacher = active.filter((x) => (x.teacherId || 'none') === teacherKey)
+      const groupIdx = groupsOfTeacher.indexOf(g)
+      const colorIdx = (teacherIdx * 4 + groupIdx) % PALETTE.length
+      const color = PALETTE[colorIdx]
+
       const block: Block = {
         groupId: g.id,
         name: g.name,
         course: (g.courseId && cName.get(g.courseId)) || '',
         teacher,
+        teacherId: g.teacherId,
         room: g.room ?? '',
         start: g.startTime ?? '',
         end: g.endTime ?? '',
@@ -84,9 +103,8 @@ export function WeeklySchedule() {
       }
       for (const d of g.days ?? []) if (d >= 0 && d <= 6) byDay[d].push(block)
 
-      const key = g.teacherId || 'none'
-      if (!byTeacher.has(key)) byTeacher.set(key, { teacher, groups: [] })
-      byTeacher.get(key)!.groups.push(block)
+      if (!byTeacher.has(teacherKey)) byTeacher.set(teacherKey, { teacher, groups: [] })
+      byTeacher.get(teacherKey)!.groups.push(block)
     })
 
     // Har kun ustunini boshlanish vaqti bo'yicha saralash.

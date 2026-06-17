@@ -131,6 +131,8 @@ export interface Lead {
   createdAt?: string
   /** Aylantirilgan o'quvchi id'si (null = hali aylantirilmagan) */
   convertedStudentId?: string | null
+  /** Birinchi dars davomat holati: "attended" | "absent" | "no-lesson" */
+  firstLessonAttendance?: 'attended' | 'absent' | 'no-lesson'
 }
 
 /** Lid tarixidagi voqea turi */

@@ -283,6 +283,108 @@ public class CurriculumController(AppDbContext db) : ControllerBase
 
     // ---- Import (butun sillabusni almashtirish) ----
 
+    // ---- Copy level (daraja) to another course ----
+
+    /// <summary>
+    /// Daraja bilan barcha mavzular va darslari (kontent siz) boshqa kursga nusxalanadi.
+    /// ID'lar yangi yaratiladi, content bo'lim nomi va izoh qoladi.
+    /// </summary>
+    [HttpPost("levels/{levelId}/copy-to/{targetSubjectId}")]
+    public async Task<ActionResult> CopyLevelToSubject(string levelId, string targetSubjectId)
+    {
+        var sourceLevel = await db.CourseLevels.FindAsync(levelId);
+        if (sourceLevel == null) return NotFound("Daraja topilmadi");
+
+        var targetSubject = await db.Subjects.FindAsync(targetSubjectId);
+        if (targetSubject == null) return NotFound("Maqsadli kurs topilmadi");
+
+        // Source daraja mavzulari va bandlari
+        var sourceTopics = await db.CourseTopics
+            .Where(t => t.LevelId == levelId)
+            .OrderBy(t => t.Order)
+            .ToListAsync();
+
+        var sourceTopicIds = sourceTopics.Select(t => t.Id).ToList();
+        var sourceItems = await db.CourseItems
+            .Where(i => sourceTopicIds.Contains(i.TopicId))
+            .OrderBy(i => i.Order)
+            .ToListAsync();
+
+        // Target subject dagi ushbu nomi bo'lgan daraja mavjudmi?
+        var existingLevel = await db.CourseLevels
+            .FirstOrDefaultAsync(l => l.SubjectId == targetSubjectId && l.Name == sourceLevel.Name);
+
+        if (existingLevel != null)
+            return BadRequest($"\"{sourceLevel.Name}\" nomi bilan daraja allaqachon mavjud");
+
+        // Yangi daraja yaratish
+        var maxOrder = await db.CourseLevels
+            .Where(l => l.SubjectId == targetSubjectId)
+            .Select(l => (int?)l.Order)
+            .MaxAsync() ?? -1;
+
+        var newLevel = new CourseLevel
+        {
+            SubjectId = targetSubjectId,
+            Name = sourceLevel.Name,
+            Note = sourceLevel.Note,
+            Order = maxOrder + 1,
+        };
+        db.CourseLevels.Add(newLevel);
+
+        // Old→New mapping (mavzu va bandlar)
+        var topicMapping = new Dictionary<string, string>(); // Old → New
+        var itemMapping = new Dictionary<string, string>(); // Old → New
+
+        // Mavzularni nusxalash
+        foreach (var sourceTopic in sourceTopics)
+        {
+            var newTopic = new CourseTopic
+            {
+                SubjectId = targetSubjectId,
+                LevelId = newLevel.Id,
+                Title = sourceTopic.Title,
+                Note = sourceTopic.Note,
+                Order = sourceTopic.Order,
+            };
+            db.CourseTopics.Add(newTopic);
+            topicMapping[sourceTopic.Id] = newTopic.Id;
+        }
+
+        // EF in-memory ID'lari yaratishi uchun SaveChanges chaqirish
+        await db.SaveChangesAsync();
+
+        // Bandlarni nusxalash (kontent yo'q, faqat nom va izoh)
+        foreach (var sourceItem in sourceItems)
+        {
+            if (!topicMapping.TryGetValue(sourceItem.TopicId, out var newTopicId))
+                continue;
+
+            var newItem = new CourseItem
+            {
+                SubjectId = targetSubjectId,
+                TopicId = newTopicId,
+                Text = sourceItem.Text,
+                Note = sourceItem.Note,
+                Type = sourceItem.Type,
+                Order = sourceItem.Order,
+                // Kontent maydonlari BO'SH qoladi (video, audio, matn, lug'at, test)
+            };
+            db.CourseItems.Add(newItem);
+            itemMapping[sourceItem.Id] = newItem.Id;
+        }
+
+        await db.SaveChangesAsync();
+
+        return Ok(new
+        {
+            levelId = newLevel.Id,
+            levelName = newLevel.Name,
+            topicCount = sourceTopics.Count,
+            itemCount = sourceItems.Count,
+        });
+    }
+
     [HttpPost("{subjectId}/import")]
     public async Task<ActionResult> Import(string subjectId, CurriculumImportDto payload)
     {

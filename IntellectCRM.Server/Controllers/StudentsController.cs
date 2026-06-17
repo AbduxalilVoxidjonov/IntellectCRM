@@ -143,8 +143,9 @@ public class StudentsController(AppDbContext db, AuditService audit) : Controlle
     /// db kontekstiga qo'shadi. SaveChanges QILMAYDI — chaqiruvchi (bitta yaratish yoki ommaviy import)
     /// hammasini qo'shib bo'lgach bir marta saqlaydi. <paramref name="cls"/> — oldindan topilgan sinf
     /// (narx/hisob uchun; null bo'lsa oylik hisob yozilmaydi).
+    /// `status` — a'zolik holati (trial/active/frozen); bo'sh bo'lsa default "trial".
     /// </summary>
-    private Student AddStudent(StudentPayload p, Group? cls)
+    private Student AddStudent(StudentPayload p, Group? cls, string status = "")
     {
         var enrollment = string.IsNullOrWhiteSpace(p.EnrollmentDate)
             ? AppClock.Today.ToString("yyyy-MM-dd")
@@ -209,18 +210,21 @@ public class StudentsController(AppDbContext db, AuditService audit) : Controlle
         var account = AccountFactory.CreateAccountFor(db, "student", student.FullName);
         student.UserId = account.Id;
 
-        // Guruh tanlangan bo'lsa — M2M a'zolik yaratamiz (SINOV holatida), shunda o'quvchi guruh
-        // a'zolari ro'yxatida ko'rinadi. Oylik to'lov DARROV yozilmaydi — a'zolik AKTIVLASHTIRILGANDA
-        // boshlanadi (qisman birinchi oy + keyingi to'liq oylar; muzlatilsa to'xtaydi).
+        // Guruh tanlangan bo'lsa — M2M a'zolik yaratamiz. Status: trial/active/frozen (default: trial)
+        // Oylik to'lov DARROV yozilmaydi — a'zolik AKTIVLASHTIRILGANDA boshlanadi
+        // (qisman birinchi oy + keyingi to'liq oylar; muzlatilsa to'xtaydi).
         if (cls is not null)
+        {
+            var memberStatus = NormalizeStatus(status);
             db.StudentGroups.Add(new StudentGroup
             {
                 StudentId = student.Id,
                 GroupId = cls.Id,
                 JoinedAt = enrollment,
-                IsActive = true,
-                Status = "trial",
+                IsActive = memberStatus != "frozen", // frozen — IsActive = false
+                Status = memberStatus,
             });
+        }
 
         // Chegirma berilgan bo'lsa — audit yozuvi.
         if (student.DiscountPct > 0 || student.DiscountAmount > 0)
@@ -590,9 +594,8 @@ public class StudentsController(AppDbContext db, AuditService audit) : Controlle
     // Import shabloni ustunlari (1-varaq). Tartibi import o'qishi bilan AYNAN bir xil bo'lishi shart.
     private static readonly string[] ImportHeaders =
     {
-        "F.I.SH (o'quvchi)*", "Sinf*", "Tug'ilgan sana (YYYY-MM-DD)", "Jinsi (o'g'il/qiz)",
-        "Manzil", "Ota-ona F.I.SH", "Ota-ona telefoni", "Qabul sanasi (YYYY-MM-DD)",
-        "Chegirma %", "Chegirma summa (so'm)",
+        "F.I.SH (o'quvchi)*", "Telefon", "Ota ismi", "Ota tel", "Ona ismi", "Ona tel",
+        "Guruh", "Holat", "Tug'ilgan sana (YYYY-MM-DD)", "Jinsi (o'g'il/qiz)",
     };
 
     /// <summary>
@@ -603,24 +606,28 @@ public class StudentsController(AppDbContext db, AuditService audit) : Controlle
     [HttpGet("import-template")]
     public async Task<IActionResult> ImportTemplate()
     {
-        var classes = await db.Classes.OrderBy(c => c.Name).Select(c => c.Name).ToListAsync();
+        var groupNames = await db.Classes.OrderBy(c => c.Name).Select(c => c.Name).ToListAsync();
+        var statuses = new[] { "trial", "active", "frozen" };
 
         var info = new List<IReadOnlyList<string>>
         {
             new[] { "F.I.SH (o'quvchi)*", "Majburiy. Masalan: Aliyev Vali Aliyevich" },
-            new[] { "Sinf*", "Majburiy — pastdagi ro'yxatdagi aniq nom" },
-            new[] { "Tug'ilgan sana", "YYYY-MM-DD, masalan 2015-03-21" },
+            new[] { "Telefon", "ixtiyoriy. O'quvchining o'z raqami" },
+            new[] { "Ota ismi", "ixtiyoriy. Masalan: Aliyev Ali" },
+            new[] { "Ota tel", "ixtiyoriy. Masalan: +998901234567" },
+            new[] { "Ona ismi", "ixtiyoriy. Masalan: Aliyeva Nodira" },
+            new[] { "Ona tel", "ixtiyoriy. Masalan: +998901234568" },
+            new[] { "Guruh", "Majburiy — pastdagi ro'yxatdagi aniq nom (bitta)" },
+            new[] { "Holat", "ixtiyoriy: trial, active yoki frozen (default: trial)" },
+            new[] { "Tug'ilgan sana", "YYYY-MM-DD, masalan 2015-03-21 (ixtiyoriy)" },
             new[] { "Jinsi", "o'g'il yoki qiz (bo'sh bo'lsa — o'g'il)" },
-            new[] { "Manzil", "ixtiyoriy" },
-            new[] { "Ota-ona F.I.SH", "ixtiyoriy" },
-            new[] { "Ota-ona telefoni", "masalan +998901234567" },
-            new[] { "Qabul sanasi", "YYYY-MM-DD (bo'sh bo'lsa — bugun)" },
-            new[] { "Chegirma %", "0–100 (ixtiyoriy)" },
-            new[] { "Chegirma summa", "so'mda (ixtiyoriy)" },
             new[] { "", "" },
-            new[] { "Mavjud sinflar:", classes.Count == 0 ? "(sinf yaratilmagan)" : "" },
+            new[] { "Mavjud guruhlar:", groupNames.Count == 0 ? "(guruh yaratilmagan)" : "" },
         };
-        info.AddRange(classes.Select(c => (IReadOnlyList<string>)new[] { c, "" }));
+        info.AddRange(groupNames.Select(c => (IReadOnlyList<string>)new[] { c, "" }));
+        info.Add(new[] { "", "" });
+        info.Add(new[] { "Holat qiymatları:", "" });
+        info.AddRange(statuses.Select(s => (IReadOnlyList<string>)new[] { s, "" }));
 
         var bytes = ExcelExport.Build(new[]
         {
@@ -664,6 +671,7 @@ public class StudentsController(AppDbContext db, AuditService audit) : Controlle
         int created = 0, skipped = 0;
 
         // 0-qator — sarlavha; ma'lumot 1-indeksdan boshlanadi (Excel'dagi 2-qator).
+        // Yangi ustunlar tartibi: 0=FISH, 1=telefon, 2=ota ismi, 3=ota tel, 4=ona ismi, 5=ona tel, 6=guruh*, 7=holat, 8=tug'ilgan sana, 9=jinsi
         for (var i = 1; i < rows.Count; i++)
         {
             var r = rows[i];
@@ -672,27 +680,36 @@ public class StudentsController(AppDbContext db, AuditService audit) : Controlle
             if (r.All(string.IsNullOrWhiteSpace)) { skipped++; continue; }
 
             var fullName = r[0].Trim();
-            var className = r[1].Trim();
+            var groupName = r[6].Trim();
             if (string.IsNullOrWhiteSpace(fullName))
             { errors.Add(new StudentImportRowErrorDto(excelRow, "F.I.SH bo'sh")); continue; }
-            if (string.IsNullOrWhiteSpace(className))
-            { errors.Add(new StudentImportRowErrorDto(excelRow, "Sinf bo'sh")); continue; }
-            if (!classByName.TryGetValue(className, out var cls))
-            { errors.Add(new StudentImportRowErrorDto(excelRow, $"Sinf topilmadi: \"{className}\"")); continue; }
+            if (string.IsNullOrWhiteSpace(groupName))
+            { errors.Add(new StudentImportRowErrorDto(excelRow, "Guruh bo'sh")); continue; }
+            if (!classByName.TryGetValue(groupName, out var cls))
+            { errors.Add(new StudentImportRowErrorDto(excelRow, $"Guruh topilmadi: \"{groupName}\"")); continue; }
+
+            // Ota-ona: father yoki mother (bo'lsa) ishlatiladi
+            var fatherFullName = r[2].Trim();
+            var fatherPhone = r[3].Trim();
+            var motherFullName = r[4].Trim();
+            var motherPhone = r[5].Trim();
 
             var payload = new StudentPayload(
                 FullName: fullName,
-                BirthDate: NormalizeDate(r[2]),
-                Address: r[4].Trim(),
-                Gender: NormalizeGender(r[3]),
-                ParentFullName: r[5].Trim(),
-                ParentPhone: r[6].Trim(),
+                BirthDate: NormalizeDate(r[8]),
+                Address: "",
+                Gender: NormalizeGender(r[9]),
+                ParentFullName: null,
+                ParentPhone: null,
                 ClassName: cls.Name,
-                EnrollmentDate: NormalizeDate(r[7]) is { Length: > 0 } e ? e : null,
-                DiscountPct: ParseIntOrNull(r[8]),
-                DiscountAmount: ParseDecimalOrNull(r[9]));
+                EnrollmentDate: null,
+                Phone: r[1].Trim(),
+                FatherFullName: fatherFullName.Length > 0 ? fatherFullName : null,
+                FatherPhone: fatherPhone.Length > 0 ? fatherPhone : null,
+                MotherFullName: motherFullName.Length > 0 ? motherFullName : null,
+                MotherPhone: motherPhone.Length > 0 ? motherPhone : null);
 
-            AddStudent(payload, cls);
+            AddStudent(payload, cls, r[7].Trim()); // status ixtiyoriy parametri
             created++;
         }
 
@@ -705,6 +722,13 @@ public class StudentsController(AppDbContext db, AuditService audit) : Controlle
         var v = (raw ?? "").Trim().ToLowerInvariant();
         // qiz/female/ayol → female; qolgan hammasi (bo'sh, o'g'il, erkak, male, ...) → male
         return v is "qiz" or "female" or "ayol" or "f" or "q" or "2" ? "female" : "male";
+    }
+
+    private static string NormalizeStatus(string raw)
+    {
+        var v = (raw ?? "").Trim().ToLowerInvariant();
+        // active yoki frozen bo'lsa shuning o'zi, aks holda default "trial"
+        return v is "active" or "frozen" ? v : "trial";
     }
 
     private static readonly string[] DateFormats =

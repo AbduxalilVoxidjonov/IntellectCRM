@@ -15,8 +15,25 @@ namespace IntellectCRM.Server.Controllers;
 public class LeadsController(AppDbContext db, AuditService audit, TelegramService telegram) : ControllerBase
 {
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<Lead>>> GetAll() =>
-        await db.Leads.ToListAsync();
+    public async Task<ActionResult<IEnumerable<LeadWithAttendanceDto>>> GetAll()
+    {
+        var leads = await db.Leads.ToListAsync();
+        var result = new List<LeadWithAttendanceDto>();
+
+        foreach (var lead in leads)
+        {
+            var attendance = await GetFirstLessonAttendanceAsync(lead);
+            result.Add(new LeadWithAttendanceDto(
+                lead.Id, lead.FullName, lead.Gender, lead.BirthDate, lead.Phone,
+                lead.FatherFullName, lead.FatherPhone, lead.MotherFullName,
+                lead.MotherPhone, lead.Note, lead.Stage, lead.Source,
+                lead.InterestSubject, lead.CreatedAt, lead.ConvertedStudentId,
+                attendance
+            ));
+        }
+
+        return result;
+    }
 
     [HttpPost]
     public async Task<ActionResult<Lead>> Create(LeadCreateRequest p)
@@ -227,6 +244,60 @@ public class LeadsController(AppDbContext db, AuditService audit, TelegramServic
     }
 
     // ---------- Yordamchilar ----------
+
+    /// <summary>
+    /// Konvertilgan o'quvchining birinchi dars davomat holatini aniqlash.
+    /// 1. Lid ConvertedStudentId bo'lmasa: "no-lesson" (hali o'quvchi emas)
+    /// 2. O'quvchining faol guruhlari va birinchi o'tilgan darsni topish
+    /// 3. JournalEntry'da shu dars uchun o'quvchining yozuvi bor/yo'qligini tekshirish
+    /// 4. Grade/ReasonId orqali davomat holatini aniqlash: bo'sh = attended, ReasonId = absent
+    /// </summary>
+    private async Task<string> GetFirstLessonAttendanceAsync(Lead lead)
+    {
+        if (string.IsNullOrWhiteSpace(lead.ConvertedStudentId))
+            return "no-lesson";
+
+        var student = await db.Students.FirstOrDefaultAsync(s => s.Id == lead.ConvertedStudentId);
+        if (student is null)
+            return "no-lesson";
+
+        // O'quvchining faol guruhlari
+        var studentGroupIds = await db.StudentGroups
+            .Where(sg => sg.StudentId == student.Id && sg.IsActive && sg.Status == "active")
+            .Select(sg => sg.GroupId)
+            .ToListAsync();
+
+        if (studentGroupIds.Count == 0)
+            return "no-lesson";
+
+        // Birinchi o'tilgan darsni topish (LessonNote: Conducted=true)
+        var firstLesson = await db.LessonNotes
+            .Where(ln => studentGroupIds.Contains(ln.ClassId) && ln.Conducted)
+            .OrderBy(ln => ln.Date)
+            .ThenBy(ln => ln.Period)
+            .FirstOrDefaultAsync();
+
+        if (firstLesson is null)
+            return "no-lesson";
+
+        // Shu dars uchun o'quvchining JournalEntry yozuvini topish
+        var journalEntry = await db.JournalEntries
+            .FirstOrDefaultAsync(je => je.ClassId == firstLesson.ClassId
+                && je.SubjectId == firstLesson.SubjectId
+                && je.StudentId == student.Id
+                && je.Date == firstLesson.Date
+                && je.Period == firstLesson.Period);
+
+        if (journalEntry is null)
+            return "no-lesson";
+
+        // Agar ReasonId to'ldirilgan bo'lsa — kelmadi (absent)
+        if (!string.IsNullOrWhiteSpace(journalEntry.ReasonId))
+            return "absent";
+
+        // Agar ReasonId bo'sh bo'lsa — keldi (attended)
+        return "attended";
+    }
 
     private static string Now() => AppClock.Now.ToString("yyyy-MM-ddTHH:mm:ss");
 

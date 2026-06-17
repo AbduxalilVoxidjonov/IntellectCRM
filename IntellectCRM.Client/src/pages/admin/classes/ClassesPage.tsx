@@ -92,16 +92,23 @@ export function ClassesPage() {
   const [sort, setSort] = useState<'order' | 'grade' | 'attendance'>('order')
   /** Ko'rinish: kartalar yoki jadval */
   const [view, setView] = useState<'card' | 'table'>('card')
+  /** O'qituvchi filteri — faqat shu o'qituvchining guruhlari ko'rsatiladi */
+  const [teacherFilter, setTeacherFilter] = useState('all')
+
+  const filteredClasses = useMemo(() => {
+    if (teacherFilter === 'all') return classes
+    return classes.filter((c) => c.teacherId === teacherFilter)
+  }, [classes, teacherFilter])
 
   const sortedClasses = useMemo(() => {
-    if (sort === 'order') return classes
-    return [...classes].sort((a, b) => {
+    if (sort === 'order') return filteredClasses
+    return [...filteredClasses].sort((a, b) => {
       const sa = stats[a.id]
       const sb = stats[b.id]
       if (sort === 'grade') return (sb?.averageGrade ?? -1) - (sa?.averageGrade ?? -1)
       return (sb?.attendance ?? -1) - (sa?.attendance ?? -1)
     })
-  }, [classes, stats, sort])
+  }, [filteredClasses, stats, sort])
 
   const teacherName = (id?: string) =>
     id ? (teachers.find((t) => t.id === id)?.fullName ?? '—') : '—'
@@ -237,6 +244,22 @@ export function ClassesPage() {
       {!showArchived && !loading && classes.length > 0 && (
         <div className="toolbar">
           <div className="left">
+            <select
+              value={teacherFilter}
+              onChange={(e) => setTeacherFilter(e.target.value)}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 outline-none transition-colors focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
+            >
+              <option value="all">Barcha o'qituvchilar</option>
+              {teachers
+                .filter((t) => classes.some((c) => c.teacherId === t.id))
+                .sort((a, b) => a.fullName.localeCompare(b.fullName))
+                .map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.fullName}
+                  </option>
+                ))}
+            </select>
+
             <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
               Saralash:
             </span>
@@ -417,7 +440,14 @@ export function ClassesPage() {
                         {c.name}
                       </Link>
                     </div>
-                    <div className="ec-meta truncate">{languageLabels[c.language]}</div>
+                    <div className="ec-meta truncate">
+                      {languageLabels[c.language]}
+                      {st && st.studentsCount > 0 && (
+                        <span className="ml-2 text-slate-500">
+                          • {st.studentsCount} o'quvchi
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <Badge tone={c.language === 'uz' ? 'blue' : 'amber'}>
                     {languageLabels[c.language]}
@@ -454,7 +484,9 @@ export function ClassesPage() {
                 <div className="ec-stats">
                   <div>
                     <div className="ec-stat-label">O'quvchilar</div>
-                    <div className="ec-stat-value">{st ? st.studentsCount : '—'}</div>
+                    <div className="ec-stat-value font-semibold">
+                      {st?.studentsCount ?? '—'}
+                    </div>
                   </div>
                   <div>
                     <div className="ec-stat-label">O'rtacha</div>

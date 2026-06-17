@@ -178,6 +178,13 @@ public record ScheduleTrialRequest(string GroupId, string ScheduledAt);
 /// <summary>Sinov darsi natijasi: stayed (qoldi) | left (ketdi).</summary>
 public record TrialResultRequest(string Result);
 
+/// <summary>Lid + birinchi dars davomat holati: "attended" | "absent" | "no-lesson".</summary>
+public record LeadWithAttendanceDto(
+    string Id, string FullName, string Gender, string BirthDate, string Phone,
+    string FatherFullName, string FatherPhone, string MotherFullName, string MotherPhone,
+    string? Note, string Stage, string Source, string InterestSubject, string? CreatedAt,
+    string? ConvertedStudentId, string? FirstLessonAttendance);
+
 /// <summary>CRM statistikasi: jami, bosqich/manba bo'yicha, konversiya %, oylik dinamika.</summary>
 public record CrmStatChartItemDto(string Label, int Count);
 public record CrmMonthlyDto(string Month, int Created, int Converted);

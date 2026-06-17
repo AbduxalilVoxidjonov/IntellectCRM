@@ -230,6 +230,30 @@ export function LeadDetailModal({ lead, onClose, onEdit, onDelete, onConverted }
             <Row label="Manba" value={lead.source || '—'} />
             <Row label="Qiziqqan fani" value={lead.interestSubject || '—'} />
             {lead.createdAt && <Row label="Yaratilgan" value={formatDate(lead.createdAt)} mono />}
+            {lead.convertedStudentId && lead.firstLessonAttendance && (
+              <div className="border-b border-slate-100 py-2.5">
+                <div className="flex justify-between gap-4">
+                  <span className="text-sm text-slate-400">Birinchi dars davomat</span>
+                  <span className="text-right">
+                    {lead.firstLessonAttendance === 'attended' && (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-700">
+                        ✓ Keldi
+                      </span>
+                    )}
+                    {lead.firstLessonAttendance === 'absent' && (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-3 py-1.5 text-sm font-medium text-rose-700">
+                        ✗ Kelmadi
+                      </span>
+                    )}
+                    {lead.firstLessonAttendance === 'no-lesson' && (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-50 px-3 py-1.5 text-sm font-medium text-slate-600">
+                        — Dars yo&apos;q
+                      </span>
+                    )}
+                  </span>
+                </div>
+              </div>
+            )}
             {lead.note && (
               <div className="pt-3">
                 <p className="mb-1 text-sm text-slate-400">Izoh</p>

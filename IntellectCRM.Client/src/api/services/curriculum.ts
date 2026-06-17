@@ -172,3 +172,20 @@ export async function getStudentCoverageLog(studentId: string): Promise<Coverage
   const { data } = await api.get<CoverageLogEntry[]>(`/admin/curriculum/student/${studentId}/coverage-log`)
   return data
 }
+
+// ---- Daraja nusxalash (boshqa kursga) ----
+
+export interface CopyLevelResult {
+  levelId: string
+  levelName: string
+  topicCount: number
+  itemCount: number
+}
+
+export async function copyLevelToSubject(levelId: string, targetSubjectId: string): Promise<CopyLevelResult> {
+  const { data } = await api.post<CopyLevelResult>(
+    `/admin/curriculum/levels/${levelId}/copy-to/${targetSubjectId}`,
+    {},
+  )
+  return data
+}

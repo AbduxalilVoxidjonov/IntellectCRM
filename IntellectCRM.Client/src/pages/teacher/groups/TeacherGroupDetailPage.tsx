@@ -4,6 +4,7 @@ import {
   ArrowLeft, Users, BookOpen, User,
   CalendarDays, Clock, MapPin, CheckCircle2,
   ListChecks, ChevronRight, ChevronDown, Plus, Minus, Repeat, CalendarClock, Flag,
+  TrendingUp,
 } from 'lucide-react'
 import type { AbsenceReason } from '@/types'
 import {
@@ -16,7 +17,7 @@ import type { GroupCurriculum } from '@/api/services/curriculum'
 import { cn, formatDate } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
 import { GradingSection } from '@/components/grading/GradingSection'
-import { getTeacherGradingBoard, setTeacherGrade, bulkTeacherGrade } from '@/api/services/teacher'
+import type { GradingBoard } from '@/api/services/grading'
 import { Loader } from '@/components/ui/Loader'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
@@ -44,8 +45,10 @@ function gradeFill(g: number): string {
 export function TeacherGroupDetailPage() {
   const { id = '' } = useParams()
   const [journal, setJournal] = useState<GroupJournal | null>(null)
+  const [grading, setGrading] = useState<GradingBoard | null>(null)
   const [reasons, setReasons] = useState<AbsenceReason[]>([])
   const [loading, setLoading] = useState(true)
+  const [gradingLoading, setGradingLoading] = useState(false)
   const [cell, setCell] = useState<{ studentId: string; studentName: string; date: string } | null>(null)
   const [saving, setSaving] = useState(false)
   /** Sarlavhadagi sana bosilganda — shu kun uchun hammaga davomat modali. */
@@ -53,7 +56,7 @@ export function TeacherGroupDetailPage() {
   const [bulkSaving, setBulkSaving] = useState(false)
 
   // ---- Guruh o'quv dasturi (darsda o'tilgan) ----
-  const [groupView, setGroupView] = useState<'jurnal' | 'baholash'>('jurnal')
+  const [groupView, setGroupView] = useState<'jurnal' | 'baholash' | 'reyting'>('jurnal')
   const [curr, setCurr] = useState<GroupCurriculum | null>(null)
   const [currLoading, setCurrLoading] = useState(true)
   const [currOpen, setCurrOpen] = useState(false)
@@ -84,12 +87,30 @@ export function TeacherGroupDetailPage() {
     [id],
   )
 
+  const loadGrading = useCallback(
+    (month?: string) => {
+      if (!id) return
+      setGradingLoading(true)
+      getGradingBoard(id, month)
+        .then(setGrading)
+        .catch(() => setGrading(null))
+        .finally(() => setGradingLoading(false))
+    },
+    [id],
+  )
+
   useEffect(() => {
     load()
     getTeacherMeta()
       .then((m) => setReasons(m?.absenceReasons ?? []))
       .catch(() => {})
   }, [load])
+
+  useEffect(() => {
+    if (groupView === 'reyting' && journal?.month) {
+      loadGrading(journal.month)
+    }
+  }, [groupView, journal?.month, loadGrading])
 
   const reasonById = useMemo(
     () => new Map(reasons.map((r) => [r.id, r])),
@@ -229,10 +250,10 @@ export function TeacherGroupDetailPage() {
           <ArrowLeft className="h-5 w-5" />
         </Link>
         <div className="min-w-0">
-          <h1 className="truncate text-xl font-extrabold tracking-tight text-ink">{g ? g.name : 'Guruh'}</h1>
+          <h1 className="truncate text-xl font-extrabold tracking-tight text-ink">{g ? g.name : "Guruh"}</h1>
           {g && (
             <p className="mt-0.5 truncate text-sm text-faint">
-              {g.courseName || 'Kurs biriktirilmagan'}
+              {g.courseName || "Kurs biriktirilmagan"}
             </p>
           )}
         </div>
@@ -241,208 +262,234 @@ export function TeacherGroupDetailPage() {
       {loading && !journal ? (
         <Loader label="Yuklanmoqda..." />
       ) : !g ? (
-        <Card className="rounded-[20px] border border-line bg-white py-16 text-center text-faint shadow-[var(--shadow-card)]">Guruh topilmadi</Card>
+        <Card className="rounded-[20px] border border-line bg-white py-16 text-center text-faint shadow-[var(--shadow-card)]">
+          Guruh topilmadi
+        </Card>
       ) : (
         <>
           {/* Guruh ma'lumotlari */}
           <Card className="rounded-[20px] border border-line bg-white shadow-[var(--shadow-card)]">
             <div className="grid grid-cols-2 gap-x-4 gap-y-4">
-              <Info icon={BookOpen} label="Kurs" value={g.courseName || '—'} />
-              <Info icon={User} label="O'qituvchi" value={g.teacherName || '—'} />
+              <Info icon={BookOpen} label="Kurs" value={g.courseName || "—"} />
+              <Info icon={User} label="O'qituvchi" value={g.teacherName || "—"} />
               <Info
                 icon={CalendarDays}
                 label="Kunlar"
-                value={g.days.length ? g.days.map((d) => weekdayShort[d] ?? d).join(', ') : '—'}
+                value={g.days.length ? g.days.map((d) => weekdayShort[d] ?? d).join(", ") : "—"}
               />
               <Info
                 icon={Clock}
                 label="Vaqt"
-                value={g.startTime || g.endTime ? `${g.startTime || '—'}${g.endTime ? ` – ${g.endTime}` : ''}` : '—'}
+                value={
+                  g.startTime || g.endTime ? `${g.startTime || "—"}${g.endTime ? ` – ${g.endTime}` : ""}` : "—"
+                }
                 mono
               />
-              <Info icon={MapPin} label="Xona" value={g.room || '—'} />
+              <Info icon={MapPin} label="Xona" value={g.room || "—"} />
               <Info icon={Users} label="O'quvchilar" value={String(journalStudents.length)} mono />
             </div>
           </Card>
 
-          {/* Jurnal / Baholash toggle */}
+          {/* Jurnal / Baholash / Reyting toggle */}
           <div className="inline-flex rounded-xl border border-line bg-paper2 p-1">
             <button
               type="button"
-              onClick={() => setGroupView('jurnal')}
+              onClick={() => setGroupView("jurnal")}
               className={cn(
-                'rounded-lg px-4 py-1.5 text-sm font-semibold transition-colors',
-                groupView === 'jurnal' ? 'bg-white text-ink shadow-sm' : 'text-mute',
+                "rounded-lg px-4 py-1.5 text-sm font-semibold transition-colors",
+                groupView === "jurnal" ? "bg-white text-ink shadow-sm" : "text-mute",
               )}
             >
               Jurnal
             </button>
             <button
               type="button"
-              onClick={() => setGroupView('baholash')}
+              onClick={() => setGroupView("baholash")}
               className={cn(
-                'rounded-lg px-4 py-1.5 text-sm font-semibold transition-colors',
-                groupView === 'baholash' ? 'bg-white text-ink shadow-sm' : 'text-mute',
+                "rounded-lg px-4 py-1.5 text-sm font-semibold transition-colors",
+                groupView === "baholash" ? "bg-white text-ink shadow-sm" : "text-mute",
               )}
             >
               Baholash
             </button>
+            <button
+              type="button"
+              onClick={() => setGroupView("reyting")}
+              className={cn(
+                "rounded-lg px-4 py-1.5 text-sm font-semibold transition-colors",
+                groupView === "reyting" ? "bg-white text-ink shadow-sm" : "text-mute",
+              )}
+            >
+              Reyting
+            </button>
           </div>
 
           {/* Oylik jurnal */}
-          {groupView === 'jurnal' && (
-          <Card className="rounded-[20px] border border-line bg-white p-0 shadow-[var(--shadow-card)]">
-            <div className="flex items-center gap-2 border-b border-line-soft px-4 py-3">
-              <BookOpen className="h-5 w-5 text-teal-600" />
-              <h2 className="font-semibold text-ink">Jurnal</h2>
-              <span className="inline-flex items-center gap-1 text-sm text-faint">
-                <Users className="h-4 w-4" /> {journalStudents.length}
-              </span>
-            </div>
-
-            {/* Oy navigatsiyasi — gorizontal skroll */}
-            {journal && journal.months.length > 0 && (
-              <div className="flex gap-1.5 overflow-x-auto border-b border-line-soft px-4 py-2.5">
-                {journal.months.map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => load(m)}
-                    title={monthLabel(m)}
-                    className={cn(
-                      'shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
-                      journal.month === m
-                        ? 'bg-teal-600 text-white'
-                        : 'bg-panel3 text-mute hover:bg-tealsoft',
-                    )}
-                  >
-                    {uzMonths[Number(m.slice(5, 7)) - 1] ?? m}
-                  </button>
-                ))}
+          {groupView === "jurnal" && (
+            <Card className="rounded-[20px] border border-line bg-white p-0 shadow-[var(--shadow-card)]">
+              <div className="flex items-center gap-2 border-b border-line-soft px-4 py-3">
+                <BookOpen className="h-5 w-5 text-teal-600" />
+                <h2 className="font-semibold text-ink">Jurnal</h2>
+                <span className="inline-flex items-center gap-1 text-sm text-faint">
+                  <Users className="h-4 w-4" /> {journalStudents.length}
+                </span>
               </div>
-            )}
 
-            {!g.courseId ? (
-              <p className="px-4 py-12 text-center text-sm text-faint">
-                Guruhga kurs biriktirilmagan — jurnal yuritib bo'lmaydi.
-              </p>
-            ) : journalStudents.length === 0 ? (
-              <p className="px-4 py-12 text-center text-sm text-faint">
-                Bu guruhda faol o'quvchi yo'q.
-              </p>
-            ) : (journal?.columns.length ?? 0) === 0 ? (
-              <p className="px-4 py-12 text-center text-sm text-faint">
-                {monthLabel(journal?.month ?? '')} oyida bu guruh kunlariga dars to'g'ri kelmadi.
-              </p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full border-collapse text-sm">
-                  <thead>
-                    <tr className="bg-panel3 text-xs text-mute">
-                      <th className="sticky left-0 z-20 border-b-2 border-r-2 border-line bg-panel3 px-3 py-2.5 text-left font-semibold">
-                        O'quvchi
-                      </th>
-                      {journal!.columns.map((c) => {
-                        const dt = new Date(c.date)
-                        const wd = (dt.getDay() + 6) % 7
-                        const isToday = c.date === today
-                        return (
-                          <th
-                            key={c.date}
-                            className={cn(
-                              'border-b-2 border-r border-line p-0 text-center font-semibold',
-                              isToday ? 'bg-tealsoft text-teal-700' : 'text-mute',
-                            )}
-                          >
-                            <button
-                              type="button"
-                              onClick={() => setBulkDate(c.date)}
-                              title="Shu kun uchun hammaga davomat"
-                              className="w-full px-2 py-1.5 transition-colors hover:bg-tealsoft"
-                            >
-                              <div className="text-sm">{c.date.slice(8, 10)}</div>
-                              <div
-                                className={cn(
-                                  'text-[10px] font-medium',
-                                  isToday ? 'text-teal-500' : 'text-faint',
-                                )}
-                              >
-                                {weekdayShort[wd]}
-                              </div>
-                            </button>
-                          </th>
-                        )
-                      })}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {journalStudents.map((st) => (
-                      <tr key={st.studentId} className="bg-white even:bg-panel2">
-                        <td className="sticky left-0 z-10 border-b border-r-2 border-line bg-inherit px-3 py-2">
-                          <span className="block max-w-[8rem] truncate text-sm font-medium text-ink">
-                            {st.fullName}
-                          </span>
-                        </td>
+              {/* Oy navigatsiyasi — gorizontal skroll */}
+              {journal && journal.months.length > 0 && (
+                <div className="flex gap-1.5 overflow-x-auto border-b border-line-soft px-4 py-2.5">
+                  {journal.months.map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => load(m)}
+                      title={monthLabel(m)}
+                      className={cn(
+                        "shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
+                        journal.month === m
+                          ? "bg-teal-600 text-white"
+                          : "bg-panel3 text-mute hover:bg-tealsoft",
+                      )}
+                    >
+                      {uzMonths[Number(m.slice(5, 7)) - 1] ?? m}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {!g.courseId ? (
+                <p className="px-4 py-12 text-center text-sm text-faint">
+                  Guruhga kurs biriktirilmagan — jurnal yuritib bo'lmaydi.
+                </p>
+              ) : journalStudents.length === 0 ? (
+                <p className="px-4 py-12 text-center text-sm text-faint">
+                  Bu guruhda faol o'quvchi yo'q.
+                </p>
+              ) : (journal?.columns.length ?? 0) === 0 ? (
+                <p className="px-4 py-12 text-center text-sm text-faint">
+                  {monthLabel(journal?.month ?? "")} oyida bu guruh kunlariga dars to'g'ri kelmadi.
+                </p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full border-collapse text-sm">
+                    <thead>
+                      <tr className="bg-panel3 text-xs text-mute">
+                        <th className="sticky left-0 z-20 border-b-2 border-r-2 border-line bg-panel3 px-3 py-2.5 text-left font-semibold">
+                          O'quvchi
+                        </th>
                         {journal!.columns.map((c) => {
-                          const e = entryMap.get(`${st.studentId}|${c.date}`)
-                          const reason = e?.reasonId ? reasonById.get(e.reasonId) : undefined
+                          const dt = new Date(c.date)
+                          const wd = (dt.getDay() + 6) % 7
                           const isToday = c.date === today
-                          // Keldi (yashil): dars o'tildi + baho yo'q + sabab yo'q.
-                          const present = e?.grade == null && !reason && conductedSet.has(c.date)
                           return (
-                            <td
+                            <th
                               key={c.date}
                               className={cn(
-                                'border-b border-r border-line-soft p-1 text-center',
-                                isToday && 'bg-tealsoft',
+                                "border-b-2 border-r border-line p-0 text-center font-semibold",
+                                isToday ? "bg-tealsoft text-teal-700" : "text-mute",
                               )}
                             >
                               <button
                                 type="button"
-                                onClick={() =>
-                                  setCell({ studentId: st.studentId, studentName: st.fullName, date: c.date })
-                                }
-                                className={cn(
-                                  'flex h-9 w-full min-w-9 items-center justify-center rounded-md text-sm font-semibold transition-colors',
-                                  e?.grade != null
-                                    ? gradeFill(e.grade)
-                                    : reason
-                                      ? reason.isLate
-                                        ? 'bg-amber-50 text-amber-700'
-                                        : 'bg-red-50 text-red-600'
-                                      : present
-                                        ? 'bg-emerald-50 text-emerald-600'
-                                        : 'text-faint',
-                                )}
-                                title={`${st.fullName} — ${formatDate(c.date)}`}
+                                onClick={() => setBulkDate(c.date)}
+                                title="Shu kun uchun hammaga davomat"
+                                className="w-full px-2 py-1.5 transition-colors hover:bg-tealsoft"
                               >
-                                {e?.grade != null
-                                  ? e.grade
-                                  : reason
-                                    ? reason.short || reason.name.slice(0, 2)
-                                    : present
-                                      ? '✓'
-                                      : '·'}
+                                <div className="text-sm">{c.date.slice(8, 10)}</div>
+                                <div
+                                  className={cn(
+                                    "text-[10px] font-medium",
+                                    isToday ? "text-teal-500" : "text-faint",
+                                  )}
+                                >
+                                  {weekdayShort[wd]}
+                                </div>
                               </button>
-                            </td>
+                            </th>
                           )
                         })}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </Card>
+                    </thead>
+                    <tbody>
+                      {journalStudents.map((st) => (
+                        <tr key={st.studentId} className="bg-white even:bg-panel2">
+                          <td className="sticky left-0 z-10 border-b border-r-2 border-line bg-inherit px-3 py-2">
+                            <span className="block max-w-[8rem] truncate text-sm font-medium text-ink">
+                              {st.fullName}
+                            </span>
+                          </td>
+                          {journal!.columns.map((c) => {
+                            const e = entryMap.get(`${st.studentId}|${c.date}`)
+                            const reason = e?.reasonId ? reasonById.get(e.reasonId) : undefined
+                            const isToday = c.date === today
+                            // Keldi (yashil): dars o'tildi + baho yo'q + sabab yo'q.
+                            const present = e?.grade == null && !reason && conductedSet.has(c.date)
+                            return (
+                              <td
+                                key={c.date}
+                                className={cn(
+                                  "border-b border-r border-line-soft p-1 text-center",
+                                  isToday && "bg-tealsoft",
+                                )}
+                              >
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setCell({
+                                      studentId: st.studentId,
+                                      studentName: st.fullName,
+                                      date: c.date,
+                                    })
+                                  }
+                                  className={cn(
+                                    "flex h-9 w-full min-w-9 items-center justify-center rounded-md text-sm font-semibold transition-colors",
+                                    e?.grade != null
+                                      ? gradeFill(e.grade)
+                                      : reason
+                                        ? reason.isLate
+                                          ? "bg-amber-50 text-amber-700"
+                                          : "bg-red-50 text-red-600"
+                                        : present
+                                          ? "bg-emerald-50 text-emerald-600"
+                                          : "text-faint",
+                                  )}
+                                  title={`${st.fullName} — ${formatDate(c.date)}`}
+                                >
+                                  {e?.grade != null
+                                    ? e.grade
+                                    : reason
+                                      ? reason.short || reason.name.slice(0, 2)
+                                      : present
+                                        ? "✓"
+                                        : "·"}
+                                </button>
+                              </td>
+                            )
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </Card>
           )}
 
           {/* Baholash — har darsga mezonlar bo'yicha bajardi/bajarmadi (faqat o'z guruhi) */}
-          {groupView === 'baholash' && (
+          {groupView === "baholash" && (
             <Card className="rounded-[20px] border border-line bg-white shadow-[var(--shadow-card)]">
               <h2 className="mb-3 font-semibold text-ink">Baholash</h2>
-              <GradingSection groupId={id} fetchBoard={getTeacherGradingBoard} saveGrade={setTeacherGrade} bulkGrade={bulkTeacherGrade} />
+              <GradingSection
+                groupId={id}
+                fetchBoard={getGradingBoard}
+                saveGrade={setGrade}
+                bulkGrade={bulkGrade}
+              />
             </Card>
           )}
+
+          {/* Reyting — o'quvchilarning o'rtacha bahosi va baholash statistikasi */}
+          {groupView === "reyting" && <RatingsTab grading={grading} loading={gradingLoading} />}
 
           {/* O'quv dasturi — yig'iladigan (default yopiq) */}
           <CurriculumSection
@@ -462,8 +509,8 @@ export function TeacherGroupDetailPage() {
 
       <JournalCellModal
         open={!!cell}
-        studentName={cell?.studentName ?? ''}
-        dateLabel={cell ? formatDate(cell.date) : ''}
+        studentName={cell?.studentName ?? ""}
+        dateLabel={cell ? formatDate(cell.date) : ""}
         entry={cellEntry}
         reasons={reasons}
         onClose={() => !saving && setCell(null)}
@@ -476,7 +523,7 @@ export function TeacherGroupDetailPage() {
         open={!!bulkDate}
         onClose={() => !bulkSaving && setBulkDate(null)}
         size="sm"
-        title={bulkDate ? `${formatDate(bulkDate)} — davomat` : 'Davomat'}
+        title={bulkDate ? `${formatDate(bulkDate)} — davomat` : "Davomat"}
         footer={
           <Button variant="secondary" onClick={() => setBulkDate(null)} disabled={bulkSaving}>
             Yopish
@@ -548,7 +595,7 @@ function Info({
       </span>
       <div className="min-w-0">
         <p className="text-[11px] font-semibold uppercase tracking-wide text-faint">{label}</p>
-        <p className={cn('break-words text-sm font-semibold text-ink', mono && 'font-mono')}>
+        <p className={cn("break-words text-sm font-semibold text-ink", mono && "font-mono")}>
           {value}
         </p>
       </div>
@@ -556,10 +603,221 @@ function Info({
   )
 }
 
+// ============================ Reyting bo'limi ============================
+
+function RatingsTab({ grading, loading }: { grading: GradingBoard | null; loading: boolean }) {
+  if (loading) {
+    return <Loader label="Reyting yuklanmoqda..." />
+  }
+
+  if (!grading || grading.students.length === 0) {
+    return (
+      <Card className="rounded-[20px] border border-line bg-white py-12 px-4 text-center text-faint shadow-[var(--shadow-card)]">
+        <TrendingUp className="mx-auto mb-3 h-8 w-8 opacity-40" />
+        <p>Baholash mezonlari topilmadi yoki o'quvchi yo'q.</p>
+      </Card>
+    )
+  }
+
+  // Har o'quvchi uchun baholash statistikasini hisoblash
+  const studentStats = grading.students.map((student) => {
+    const doneKeys = new Set(student.doneKeys)
+    const criteria = grading.criteria.length
+    const totalPossible = grading.dates.length * criteria
+    const done = doneKeys.size
+    const percentage = totalPossible > 0 ? Math.round((done / totalPossible) * 100) : 0
+
+    // Har mezon bo'yicha necha darsda bajardi hisoblash
+    const criteriaStats = grading.criteria.map((crit) => {
+      let count = 0
+      for (const key of doneKeys) {
+        const [critId] = key.split("|")
+        if (critId === crit.id) count++
+      }
+      return { criterion: crit, done: count, total: grading.dates.length }
+    })
+
+    return { student, done, totalPossible, percentage, criteriaStats }
+  })
+
+  // O'rtacha bahoni hisoblash
+  const avgPercentage =
+    studentStats.length > 0
+      ? Math.round(studentStats.reduce((s, st) => s + st.percentage, 0) / studentStats.length)
+      : 0
+
+  return (
+    <div className="space-y-4">
+      {/* KPI kartalar */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <RatingKpi label="O'rtacha" value={`${avgPercentage}%`} icon={TrendingUp} />
+        <RatingKpi
+          label="Jami o'quvchi"
+          value={String(studentStats.length)}
+          icon={Users}
+        />
+        <RatingKpi
+          label="To'liq bajarildi"
+          value={String(studentStats.filter((s) => s.percentage === 100).length)}
+          icon={CheckCircle2}
+        />
+        <RatingKpi
+          label="Bo'sh"
+          value={String(studentStats.filter((s) => s.percentage === 0).length)}
+          icon={Flag}
+        />
+      </div>
+
+      {/* O'quvchilar jadvali */}
+      <Card className="rounded-[20px] border border-line bg-white p-0 shadow-[var(--shadow-card)]">
+        <div className="overflow-x-auto">
+          <table className="min-w-full border-collapse">
+            <thead>
+              <tr className="bg-panel3">
+                <th className="border-b border-line px-4 py-3 text-left text-xs font-semibold uppercase text-mute">
+                  O'quvchi
+                </th>
+                <th className="border-b border-line px-3 py-3 text-center text-xs font-semibold uppercase text-mute">
+                  Bajarildi
+                </th>
+                <th className="border-b border-line px-3 py-3 text-center text-xs font-semibold uppercase text-mute">
+                  Foiz
+                </th>
+                {grading.criteria.slice(0, 3).map((crit) => (
+                  <th
+                    key={crit.id}
+                    className="border-b border-line px-3 py-3 text-center text-xs font-semibold uppercase text-mute"
+                    title={crit.name}
+                  >
+                    <span className="block max-w-[60px] truncate">{crit.name}</span>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {studentStats.map((stat) => (
+                <tr key={stat.student.studentId} className="border-b border-line-soft hover:bg-panel2">
+                  <td className="px-4 py-3 text-sm font-medium text-ink">
+                    {stat.student.fullName}
+                  </td>
+                  <td className="px-3 py-3 text-center text-sm font-semibold text-ink">
+                    <span className="font-mono">{stat.done}</span>
+                    <span className="text-faint">/{stat.totalPossible}</span>
+                  </td>
+                  <td className="px-3 py-3">
+                    <div className="flex items-center justify-center gap-2">
+                      <div className="h-2 w-16 overflow-hidden rounded-full bg-panel3">
+                        <div
+                          className={cn(
+                            "h-full rounded-full transition-all",
+                            stat.percentage >= 80
+                              ? "bg-emerald-500"
+                              : stat.percentage >= 50
+                                ? "bg-amber-500"
+                                : "bg-red-500",
+                          )}
+                          style={{ width: `${stat.percentage}%` }}
+                        />
+                      </div>
+                      <span className="font-mono text-xs font-semibold text-ink w-8 text-right">
+                        {stat.percentage}%
+                      </span>
+                    </div>
+                  </td>
+                  {stat.criteriaStats.slice(0, 3).map((cs) => (
+                    <td
+                      key={cs.criterion.id}
+                      className="px-3 py-3 text-center text-sm font-semibold text-ink"
+                    >
+                      <span className="font-mono text-teal-600">{cs.done}</span>
+                      <span className="text-faint">/{cs.total}</span>
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      {/* Mezonlar bo'yicha detallar (agar ko'p bo'lsa) */}
+      {grading.criteria.length > 3 && (
+        <Card className="rounded-[20px] border border-line bg-white p-4 shadow-[var(--shadow-card)]">
+          <h3 className="mb-4 font-semibold text-ink">Mezonlar bo'yicha tahlil</h3>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {grading.criteria.map((crit) => {
+              let totalDone = 0
+              for (const student of grading.students) {
+                for (const key of student.doneKeys) {
+                  const [critId] = key.split("|")
+                  if (critId === crit.id) totalDone++
+                }
+              }
+              const pct =
+                grading.students.length * grading.dates.length > 0
+                  ? Math.round((totalDone / (grading.students.length * grading.dates.length)) * 100)
+                  : 0
+              return (
+                <div key={crit.id} className="rounded-lg bg-panel2 p-3">
+                  <p className="mb-2 text-sm font-semibold text-ink">{crit.name}</p>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1">
+                      <div className="h-2 overflow-hidden rounded-full bg-panel3">
+                        <div
+                          className="h-full rounded-full bg-teal-500 transition-all"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </div>
+                    <span className="font-mono text-xs font-semibold text-ink w-10 text-right">{pct}%</span>
+                  </div>
+                  <p className="mt-1 text-xs text-faint">
+                    <span className="font-mono font-semibold">{totalDone}</span> /{" "}
+                    {grading.students.length * grading.dates.length}
+                  </p>
+                </div>
+              )
+            })}
+          </div>
+        </Card>
+      )}
+    </div>
+  )
+}
+
+function RatingKpi({
+  label,
+  value,
+  icon: Icon,
+}: {
+  label: string
+  value: string
+  icon: typeof Users
+}) {
+  return (
+    <div className="rounded-[18px] border border-line bg-white p-3 shadow-[var(--shadow-card)]">
+      <div className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-faint">
+        <Icon className="h-3.5 w-3.5" />
+        {label}
+      </div>
+      <div className="text-lg font-semibold text-ink">{value}</div>
+    </div>
+  )
+}
+
 // ============================ O'quv dasturi bo'limi ============================
 
 function CurriculumSection({
-  curr, loading, open, onToggleOpen, expanded, onToggleLevel, onToggleCover, onChangeRevision, revSaving, nextItemId,
+  curr,
+  loading,
+  open,
+  onToggleOpen,
+  expanded,
+  onToggleLevel,
+  onToggleCover,
+  onChangeRevision,
+  revSaving,
+  nextItemId,
 }: {
   curr: GroupCurriculum | null
   loading: boolean
@@ -572,8 +830,7 @@ function CurriculumSection({
   revSaving: boolean
   nextItemId: string | null
 }) {
-  const pct =
-    curr && curr.totalItems > 0 ? Math.round((curr.coveredCount / curr.totalItems) * 100) : 0
+  const pct = curr && curr.totalItems > 0 ? Math.round((curr.coveredCount / curr.totalItems) * 100) : 0
 
   return (
     <Card className="rounded-[20px] border border-line bg-white p-0 shadow-[var(--shadow-card)]">
@@ -618,10 +875,7 @@ function CurriculumSection({
                     </span>
                   </div>
                   <div className="h-2.5 w-full overflow-hidden rounded-full bg-panel3">
-                    <div
-                      className="h-full rounded-full bg-teal-500 transition-all"
-                      style={{ width: `${pct}%` }}
-                    />
+                    <div className="h-full rounded-full bg-teal-500 transition-all" style={{ width: `${pct}%` }} />
                   </div>
                 </div>
 
@@ -696,11 +950,13 @@ function CurriculumSection({
                         </span>
                         <span
                           className={cn(
-                            'shrink-0 rounded-full px-2.5 py-1 text-xs font-medium',
-                            complete ? 'bg-emerald-50 text-emerald-700' : 'bg-panel3 text-mute',
+                            "shrink-0 rounded-full px-2.5 py-1 text-xs font-medium",
+                            complete ? "bg-emerald-50 text-emerald-700" : "bg-panel3 text-mute",
                           )}
                         >
-                          <span className="font-mono">{levelCovered}/{levelTotal}</span>
+                          <span className="font-mono">
+                            {levelCovered}/{levelTotal}
+                          </span>
                         </span>
                       </button>
 
@@ -719,7 +975,9 @@ function CurriculumSection({
                                       {topic.title}
                                     </h4>
                                     <span className="shrink-0 text-[11px] text-faint">
-                                      <span className="font-mono">{tCovered}/{topic.items.length}</span>
+                                      <span className="font-mono">
+                                        {tCovered}/{topic.items.length}
+                                      </span>
                                     </span>
                                   </div>
                                   {topic.items.map((item) => {
@@ -728,12 +986,12 @@ function CurriculumSection({
                                       <label
                                         key={item.id}
                                         className={cn(
-                                          'flex cursor-pointer items-center gap-2.5 px-4 py-2 transition-colors',
+                                          "flex cursor-pointer items-center gap-2.5 px-4 py-2 transition-colors",
                                           item.covered
-                                            ? 'bg-emerald-50/40'
+                                            ? "bg-emerald-50/40"
                                             : isNext
-                                              ? 'bg-tealsoft'
-                                              : 'hover:bg-white',
+                                              ? "bg-tealsoft"
+                                              : "hover:bg-white",
                                         )}
                                       >
                                         <input
@@ -744,8 +1002,8 @@ function CurriculumSection({
                                         />
                                         <span
                                           className={cn(
-                                            'min-w-0 flex-1 text-sm',
-                                            item.covered ? 'text-faint line-through' : 'text-ink',
+                                            "min-w-0 flex-1 text-sm",
+                                            item.covered ? "text-faint line-through" : "text-ink",
                                           )}
                                         >
                                           {item.text}

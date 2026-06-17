@@ -34,6 +34,30 @@ export function LeadCardContent({ lead, dragging }: { lead: Lead; dragging?: boo
   const phone = lead.phone || lead.fatherPhone || lead.motherPhone || ''
   const meta = lead.interestSubject || genderLabels[lead.gender]
 
+  // Birinchi dars davomat rangi
+  const attendanceColor =
+    lead.firstLessonAttendance === 'attended'
+      ? 'bg-emerald-50'
+      : lead.firstLessonAttendance === 'absent'
+        ? 'bg-rose-50'
+        : 'bg-slate-50'
+
+  const attendanceText =
+    lead.firstLessonAttendance === 'attended'
+      ? '✓ Keldi'
+      : lead.firstLessonAttendance === 'absent'
+        ? '✗ Kelmadi'
+        : lead.convertedStudentId
+          ? '— Dars yo\'q'
+          : ''
+
+  const attendanceTextColor =
+    lead.firstLessonAttendance === 'attended'
+      ? 'text-emerald-600'
+      : lead.firstLessonAttendance === 'absent'
+        ? 'text-rose-600'
+        : 'text-slate-400'
+
   return (
     <div className={cn('lead-card', dragging && 'dragging')}>
       <div className="lead-top">
@@ -55,6 +79,17 @@ export function LeadCardContent({ lead, dragging }: { lead: Lead; dragging?: boo
         <Badge tone="violet">{genderLabels[lead.gender]}</Badge>
         {lead.source && <Badge tone="blue">{lead.source}</Badge>}
         {lead.convertedStudentId && <Badge tone="green">Aylantirilgan</Badge>}
+        {attendanceText && (
+          <div
+            className={cn(
+              'inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-medium',
+              attendanceColor,
+              attendanceTextColor,
+            )}
+          >
+            {attendanceText}
+          </div>
+        )}
       </div>
 
       <div className="lead-foot">

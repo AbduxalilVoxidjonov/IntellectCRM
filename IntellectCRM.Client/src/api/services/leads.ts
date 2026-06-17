@@ -11,7 +11,10 @@ export async function getLeads(): Promise<Lead[]> {
     return leadsMock
   }
   const { data } = await api.get<Lead[]>('/admin/leads')
-  return data
+  return data.map((l: any) => ({
+    ...l,
+    firstLessonAttendance: l.firstLessonAttendance || 'no-lesson',
+  }))
 }
 
 export async function createLead(payload: LeadPayload, stage: string): Promise<Lead> {

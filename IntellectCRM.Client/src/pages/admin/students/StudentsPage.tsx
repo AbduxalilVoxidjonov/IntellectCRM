@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { StudentViewModal } from './StudentViewModal'
 import { Plus, Search, Pencil, Trash2, Send, Download, X, Wallet, History, Archive, RotateCcw, FileDown, Upload } from 'lucide-react'
-import type { Gender, Student } from '@/types'
+import type { Gender, Student, Teacher } from '@/types'
 import type { StudentPayload, StudentImportResult } from '@/api/services/students'
 import {
   getStudents,
@@ -18,6 +18,7 @@ import {
   importStudents,
 } from '@/api/services/students'
 import { getClasses } from '@/api/services/classes'
+import { getTeachers } from '@/api/services/teachers'
 import { genderLabels } from '@/config/constants'
 import { formatDate, formatMoney, exportToCsv, cn } from '@/lib/utils'
 import { useAuth } from '@/context/auth-context'
@@ -61,6 +62,8 @@ export function StudentsPage() {
   const [students, setStudents] = useState<Student[]>([])
   const [archived, setArchived] = useState<Student[]>([])
   const [classNames, setClassNames] = useState<string[]>([])
+  const [teachers, setTeachers] = useState<Teacher[]>([])
+  const [groupTeachers, setGroupTeachers] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   /** Arxivlash modali — sabab kiritish uchun. */
   const [archiveTarget, setArchiveTarget] = useState<Student | null>(null)
@@ -69,6 +72,7 @@ export function StudentsPage() {
   // filtrlar
   const [search, setSearch] = useState('')
   const [classFilter, setClassFilter] = useState('all')
+  const [teacherFilter, setTeacherFilter] = useState('all')
   const [genderFilter, setGenderFilter] = useState<'all' | Gender>('all')
   const [balanceFilter, setBalanceFilter] = useState<BalanceFilter>('all')
 
@@ -126,7 +130,16 @@ export function StudentsPage() {
         setArchived(arch)
       })
       .finally(() => setLoading(false))
-    getClasses().then((cs) => setClassNames(cs.map((c) => c.name)))
+    Promise.all([getClasses(), getTeachers()]).then(([cs, ts]) => {
+      setClassNames(cs.map((c) => c.name))
+      setTeachers(ts)
+      // Guruh nomi -> o'qituvchi ID xarita
+      const mapping: Record<string, string> = {}
+      cs.forEach((c) => {
+        if (c.teacherId) mapping[c.name] = c.teacherId
+      })
+      setGroupTeachers(mapping)
+    })
   }, [])
 
   // Joriy tab manbai.
@@ -142,11 +155,14 @@ export function StudentsPage() {
       classFilter === 'all' ||
       s.className === classFilter ||
       (s.groups ?? []).includes(classFilter)
+    const matchTeacher =
+      teacherFilter === 'all' ||
+      (s.groups ?? []).some((gname) => groupTeachers[gname] === teacherFilter)
     const matchGender = genderFilter === 'all' || s.gender === genderFilter
     const matchBalance =
       balanceFilter === 'all' ||
       (balanceFilter === 'debt' ? s.balance < 0 : s.balance >= 0)
-    return matchSearch && matchClass && matchGender && matchBalance
+    return matchSearch && matchClass && matchTeacher && matchGender && matchBalance
   })
 
   const selectedStudents = source.filter((s) => selected.has(s.id))
@@ -402,6 +418,21 @@ export function StudentsPage() {
                 {c}
               </option>
             ))}
+          </select>
+          <select
+            value={teacherFilter}
+            onChange={(e) => setTeacherFilter(e.target.value)}
+            className={control}
+          >
+            <option value="all">Barcha o'qituvchilar</option>
+            {teachers
+              .filter((t) => Object.values(groupTeachers).includes(t.id))
+              .sort((a, b) => a.fullName.localeCompare(b.fullName))
+              .map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.fullName}
+                </option>
+              ))}
           </select>
           <select
             value={genderFilter}
