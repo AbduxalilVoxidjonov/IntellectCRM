@@ -145,8 +145,11 @@ export function LevelTestEditorPage() {
       // Tozalangan/qayta tartiblangan ma'lumotni qaytadan yuklaymiz
       setQuestions(updated.questions.map((q) => ({ id: q.id, text: q.text, options: q.options, correctIndex: q.correctIndex, kind: q.kind, multiple: q.multiple })))
       setBands(updated.bands.map((b) => ({ id: b.id, label: b.label, minPercent: b.minPercent })))
-    } catch (e: any) {
-      alert(e?.response?.data?.message ?? 'Saqlab bo\'lmadi')
+    } catch (err) {
+      const message = err instanceof Error
+        ? err.message
+        : (err as any)?.response?.data?.message ?? 'Saqlab bo\'lmadi'
+      alert(message)
     } finally {
       setSaving(false)
     }

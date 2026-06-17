@@ -63,13 +63,32 @@ export function ChatPanel({ className, fetchMessages, sendMessage, title, subtit
     })
   }, [className, markRead, subscribe])
 
-  // SignalR qayta ulanganda xabarlarni re-fetch qilamiz.
+  // SignalR qayta ulanganda xabarlarni re-fetch qilamiz + notification ko'rsatamiz.
   useEffect(() => {
-    return onReconnect(() => {
-      fetchMessages(classRef.current)
-        .then(setMessages)
-        .catch(() => {})
-    })
+    const handleReconnect = (status: 'reconnecting' | 'reconnected') => {
+      if (status === 'reconnecting') {
+        setReconnecting(true)
+        setConnectionError(null)
+        // 3 sekunddan ko'p bo'lsa ogohlantirish (qo'ng'iroq ko'rinadi)
+        reconnectTimeoutRef.current = setTimeout(() => {
+          setConnectionError('Ulanmoqda...')
+        }, 3000)
+      } else if (status === 'reconnected') {
+        setReconnecting(false)
+        setConnectionError(null)
+        if (reconnectTimeoutRef.current) {
+          clearTimeout(reconnectTimeoutRef.current)
+        }
+        // Xabarlarni qayta yuklaymiz
+        fetchMessages(classRef.current)
+          .then(setMessages)
+          .catch((err) => {
+            setConnectionError(err instanceof Error ? err.message : 'Xabarlar yuklab bo'lmadi')
+          })
+      }
+    }
+
+    return onReconnect(handleReconnect)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchMessages barqaror deb hisoblanadi
   }, [onReconnect])
 
@@ -111,6 +130,30 @@ export function ChatPanel({ className, fetchMessages, sendMessage, title, subtit
           </p>
         </div>
       </div>
+
+      {/* SignalR ulanish holati — notification */}
+      {(reconnecting || connectionError) && (
+        <div
+          className={cn(
+            'flex items-center gap-2 px-4 py-2 text-sm',
+            connectionError
+              ? 'bg-red-50 text-red-700'
+              : 'bg-amber-50 text-amber-700'
+          )}
+        >
+          {connectionError ? (
+            <>
+              <AlertCircle className="h-4 w-4 flex-shrink-0" />
+              <span>{connectionError}</span>
+            </>
+          ) : (
+            <>
+              <div className="h-2 w-2 animate-pulse rounded-full bg-amber-600" />
+              <span>Ulanmoqda...</span>
+            </>
+          )}
+        </div>
+      )}
 
       <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
         {loading ? (

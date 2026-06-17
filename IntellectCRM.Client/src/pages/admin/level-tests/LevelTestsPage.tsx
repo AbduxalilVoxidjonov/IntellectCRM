@@ -69,8 +69,11 @@ export function LevelTestsPage() {
       setNewTitle('')
       setNewCourse('')
       navigate(`/admin/level-tests/${created.id}`)
-    } catch (e: any) {
-      alert(e?.response?.data?.message ?? 'Test yaratib bo\'lmadi')
+    } catch (err) {
+      const message = err instanceof Error
+        ? err.message
+        : (err as any)?.response?.data?.message ?? 'Test yaratib bo\'lmadi'
+      alert(message)
     } finally {
       setBusy(false)
     }

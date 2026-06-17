@@ -146,8 +146,11 @@ export function ClassDetailPage() {
       })
       setCell(null)
       load(journal.month)
-    } catch (e: any) {
-      alert(e?.response?.data?.message ?? 'Saqlab bo\'lmadi')
+    } catch (err) {
+      const message = err instanceof Error
+        ? err.message
+        : (err as any)?.response?.data?.message ?? 'Saqlab bo\'lmadi'
+      alert(message)
     } finally {
       setSaving(false)
     }
@@ -160,8 +163,11 @@ export function ClassDetailPage() {
       await clearJournalEntry(journal.group.id, journal.group.courseId, 1, cell.studentId, cell.date, 1)
       setCell(null)
       load(journal.month)
-    } catch (e: any) {
-      alert(e?.response?.data?.message ?? 'Tozalab bo\'lmadi')
+    } catch (err) {
+      const message = err instanceof Error
+        ? err.message
+        : (err as any)?.response?.data?.message ?? 'Tozalab bo\'lmadi'
+      alert(message)
     } finally {
       setSaving(false)
     }
@@ -180,8 +186,11 @@ export function ClassDetailPage() {
       else await freezeMember(journal.group.id, memberModal.studentId, memberDate)
       setMemberModal(null)
       load(journal.month)
-    } catch (e: any) {
-      alert(e?.response?.data?.message ?? 'Amal bajarilmadi')
+    } catch (err) {
+      const message = err instanceof Error
+        ? err.message
+        : (err as any)?.response?.data?.message ?? 'Amal bajarilmadi'
+      alert(message)
     } finally {
       setMemberSaving(false)
     }
@@ -261,8 +270,11 @@ export function ClassDetailPage() {
       )
       setBulkDate(null)
       load(journal.month)
-    } catch (e: any) {
-      alert(e?.response?.data?.message ?? 'Saqlab bo\'lmadi')
+    } catch (err) {
+      const message = err instanceof Error
+        ? err.message
+        : (err as any)?.response?.data?.message ?? 'Saqlab bo\'lmadi'
+      alert(message)
     } finally {
       setBulkSaving(false)
     }

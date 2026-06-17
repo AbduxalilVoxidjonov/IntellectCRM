@@ -34,8 +34,8 @@ interface UnreadContextValue {
   markRead: (channel: string) => void
   /** Real-time xabar olish uchun kanalga obuna bo'lish. Unsubscribe funksiyasini qaytaradi. */
   subscribe: (channel: string, cb: (msg: ChatMessage) => void) => () => void
-  /** SignalR qayta ulanganda chaqiriladigan callback qo'shish. Tozalash funksiyasini qaytaradi. */
-  onReconnect: (cb: () => void) => () => void
+  /** SignalR qayta ulanganda chaqiriladigan callback qo'shish (status orqali). Tozalash funksiyasini qaytaradi. */
+  onReconnect: (cb: (status: 'reconnecting' | 'reconnected') => void) => () => void
 }
 
 const UnreadContext = createContext<UnreadContextValue | null>(null)
@@ -67,8 +67,8 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
 
   // Aktiv ChatPanel callbacklari (kanal → callback)
   const subscribersRef = useRef<Map<string, (msg: ChatMessage) => void>>(new Map())
-  // Qayta ulanish tinglovchilari (ChatPanel re-fetch uchun)
-  const reconnectListenersRef = useRef<Set<() => void>>(new Set())
+  // Qayta ulanish tinglovchilari (ChatPanel re-fetch uchun) — status bilan
+  const reconnectListenersRef = useRef<Set<(status: 'reconnecting' | 'reconnected') => void>>(new Set())
 
   useEffect(() => {
     if (!user) return
@@ -117,8 +117,11 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
     })
 
     if (conn) {
+      conn.onreconnecting(() => {
+        reconnectListenersRef.current.forEach((cb) => cb('reconnecting'))
+      })
       conn.onreconnected(() => {
-        reconnectListenersRef.current.forEach((cb) => cb())
+        reconnectListenersRef.current.forEach((cb) => cb('reconnected'))
       })
       conn.start().catch(() => {})
     }
@@ -151,7 +154,7 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  const onReconnect = useCallback((cb: () => void) => {
+  const onReconnect = useCallback((cb: (status: 'reconnecting' | 'reconnected') => void) => {
     reconnectListenersRef.current.add(cb)
     return () => {
       reconnectListenersRef.current.delete(cb)

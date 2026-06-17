@@ -87,8 +87,11 @@ export function ClassMembersModal({ group, onClose }: Props) {
       const fresh = await getGroupMembers(group.id)
       setMembers(fresh)
       setQuery('')
-    } catch (e: any) {
-      alert(e?.response?.data?.message ?? `"${fullName}" ni qo'shib bo'lmadi`)
+    } catch (err) {
+      const message = err instanceof Error
+        ? err.message
+        : (err as any)?.response?.data?.message ?? `"${fullName}" ni qo'shib bo'lmadi`
+      alert(message)
     } finally {
       setBusy(false)
     }
@@ -104,8 +107,11 @@ export function ClassMembersModal({ group, onClose }: Props) {
       const fresh = await getGroupMembers(group.id)
       setMembers(fresh)
       setNewStudentOpen(false)
-    } catch (e: any) {
-      alert(e?.response?.data?.message ?? "Yangi o'quvchini qo'shib bo'lmadi")
+    } catch (err) {
+      const message = err instanceof Error
+        ? err.message
+        : (err as any)?.response?.data?.message ?? "Yangi o'quvchini qo'shib bo'lmadi"
+      alert(message)
     } finally {
       setBusy(false)
     }
@@ -124,8 +130,11 @@ export function ClassMembersModal({ group, onClose }: Props) {
       const fresh = await getGroupMembers(group.id)
       setMembers(fresh)
       setDateAction(null)
-    } catch (e: any) {
-      alert(e?.response?.data?.message ?? 'Amal bajarilmadi')
+    } catch (err) {
+      const message = err instanceof Error
+        ? err.message
+        : (err as any)?.response?.data?.message ?? 'Amal bajarilmadi'
+      alert(message)
     } finally {
       setBusy(false)
     }
@@ -143,8 +152,11 @@ export function ClassMembersModal({ group, onClose }: Props) {
       const fresh = await getGroupMembers(group.id)
       setMembers(fresh)
       setReasonAction(null)
-    } catch (e: any) {
-      alert(e?.response?.data?.message ?? 'Amal bajarilmadi')
+    } catch (err) {
+      const message = err instanceof Error
+        ? err.message
+        : (err as any)?.response?.data?.message ?? 'Amal bajarilmadi'
+      alert(message)
     } finally {
       setBusy(false)
     }
