@@ -89,8 +89,11 @@ export function GradingCriteriaPage() {
       setCriteria(fresh)
       setFormOpen(false)
       setEditing(null)
-    } catch (e: any) {
-      alert(e?.response?.data?.message ?? "Saqlab bo'lmadi")
+    } catch (err) {
+      const message = err instanceof Error
+        ? err.message
+        : (err as any)?.response?.data?.message ?? "Saqlab bo'lmadi"
+      alert(message)
     } finally {
       setSaving(false)
     }
@@ -102,8 +105,11 @@ export function GradingCriteriaPage() {
       await deleteCriterion(c.id)
       setCriteria((prev) => prev.filter((x) => x.id !== c.id))
       setAssigned((prev) => prev.filter((id) => id !== c.id))
-    } catch (e: any) {
-      alert(e?.response?.data?.message ?? "O'chirib bo'lmadi")
+    } catch (err) {
+      const message = err instanceof Error
+        ? err.message
+        : (err as any)?.response?.data?.message ?? "O'chirib bo'lmadi"
+      alert(message)
     }
   }
 
@@ -119,9 +125,12 @@ export function GradingCriteriaPage() {
       await setGroupCriteria(groupId, next)
       setAssignSaved(true)
       setTimeout(() => setAssignSaved(false), 1600)
-    } catch (e: any) {
+    } catch (err) {
       // Xato bo'lsa — eski holatga qaytaramiz
-      alert(e?.response?.data?.message ?? "Saqlab bo'lmadi")
+      const message = err instanceof Error
+        ? err.message
+        : (err as any)?.response?.data?.message ?? "Saqlab bo'lmadi"
+      alert(message)
       try {
         const ids = await getGroupCriteria(groupId)
         setAssigned(ids)

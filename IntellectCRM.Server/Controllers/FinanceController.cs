@@ -52,6 +52,30 @@ public class FinanceController(AppDbContext db, AuditService audit) : Controller
         if (p.Amount <= 0)
             return BadRequest(new { message = "Summa musbat bo'lishi kerak" });
 
+        // IDEMPOTENCY CHECK: oxirgi 5 soniyada bir xil tranzaksiya bo'lsa — dublikat qo'shmasdan
+        // mavjudni qaytaramiz (admin double-click yoki network retry uchun).
+        // Shartlar: bir xil StudentId, Amount, Direction, Category, Type (tuition/salary/other),
+        // Month va GroupId → bitta tranzaksiya (summa yoxud sana o'zgargan bo'lsa yangi).
+        var txType = p.Category == "tuition" ? "tuition"
+                   : (p.Category == "salary" ? "salary" : "other");
+        var recentDuplicate = await db.FinanceTransactions
+            .Where(t => t.StudentId == p.StudentId
+                && t.TeacherId == p.TeacherId
+                && t.Amount == p.Amount
+                && t.Direction == p.Direction
+                && t.Category == p.Category
+                && t.Month == (string.IsNullOrWhiteSpace(p.Month) ? null : p.Month)
+                && t.GroupId == (string.IsNullOrWhiteSpace(p.GroupId) ? null : p.GroupId))
+            .OrderByDescending(t => t.CreatedAt)
+            .FirstOrDefaultAsync();
+
+        if (recentDuplicate != null
+            && DateTime.UtcNow.Subtract(recentDuplicate.CreatedAt).TotalSeconds < 5)
+        {
+            // Idempotent: oxirgi 5s ichida bir xil qiymatli tranzaksiya — qaytaramiz.
+            return ToDto(recentDuplicate, await StudentNames(), await TeacherNames());
+        }
+
         var tx = new FinanceTransaction
         {
             Date = p.Date,

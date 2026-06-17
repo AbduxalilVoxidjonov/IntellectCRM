@@ -133,8 +133,10 @@ export function StudentFormModal({ open, onClose, onSubmit, initial }: Props) {
     try {
       const res = await uploadAdminFile(file)
       update(key, res.url)
-    } catch {
-      // mock yoki tarmoq xatosi — sukut bilan o'tkazamiz; istasangiz toast ko'rsatish mumkin
+      // Muvaffaqiyat feedback (ixtiyoriy, silent o'tish mumkin — UI indikatori bor)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Fayl yuklab bo'lmadi'
+      alert(`❌ ${msg}`)
     } finally {
       setUploading((u) => ({ ...u, birth: false }))
     }

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Send, ArrowLeft } from 'lucide-react'
+import { Send, ArrowLeft, AlertCircle, CheckCircle } from 'lucide-react'
 import type { ChatMessage } from '@/types'
 import { useAuth } from '@/context/auth-context'
 import { useUnread } from '@/context/unread-context'
@@ -35,8 +35,11 @@ export function ChatPanel({ className, fetchMessages, sendMessage, title, subtit
   const [text, setText] = useState('')
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
+  const [reconnecting, setReconnecting] = useState(false)
+  const [connectionError, setConnectionError] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const classRef = useRef(className)
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout>()
 
   useEffect(() => {
     classRef.current = className

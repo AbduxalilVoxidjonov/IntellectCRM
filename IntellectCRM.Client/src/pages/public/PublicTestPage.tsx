@@ -62,8 +62,11 @@ export function PublicTestPage() {
       })
       setResult(r)
       setPhase('done')
-    } catch (e: any) {
-      setError(e?.response?.data?.message ?? 'Xatolik yuz berdi. Qayta urinib ko\'ring.')
+    } catch (err) {
+      const message = err instanceof Error
+        ? err.message
+        : (err as any)?.response?.data?.message ?? 'Xatolik yuz berdi. Qayta urinib ko\'ring.'
+      setError(message)
     } finally {
       setSubmitting(false)
     }

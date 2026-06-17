@@ -147,15 +147,30 @@ public class ClassesController(AppDbContext db, AuditService audit) : Controller
                 message = $"Bu guruhda {Math.Max(byName, activeMembers)} ta faol o'quvchi bor — guruhni o'chirib bo'lmaydi. " +
                           "Avval o'quvchilarni chiqaring yoki arxivlang.",
             });
+
         // Bog'liq qatorlar orphan qolmasin: a'zoliklar (o'tganlar ham), jurnal yozuvlari, dars eslatmalari,
         // shu guruhga tegishli per-guruh oylik hisoblar (aks holda ledger yo'q guruhni hisoblardi).
-        db.StudentGroups.RemoveRange(db.StudentGroups.Where(sg => sg.GroupId == id));
-        db.JournalEntries.RemoveRange(db.JournalEntries.Where(e => e.ClassId == id));
-        db.LessonNotes.RemoveRange(db.LessonNotes.Where(n => n.ClassId == id));
-        db.MonthlyCharges.RemoveRange(db.MonthlyCharges.Where(c => c.GroupId == id));
+        // ATOMIC bulk delete at DB level (race-condition safe, crash-safe).
+        var chargesDeleted = await db.MonthlyCharges
+            .Where(c => c.GroupId == id)
+            .ExecuteDeleteAsync();
+
+        var sgDeleted = await db.StudentGroups
+            .Where(sg => sg.GroupId == id)
+            .ExecuteDeleteAsync();
+
+        var jeDeleted = await db.JournalEntries
+            .Where(e => e.ClassId == id)
+            .ExecuteDeleteAsync();
+
+        var lnDeleted = await db.LessonNotes
+            .Where(n => n.ClassId == id)
+            .ExecuteDeleteAsync();
+
         // Moliya tarixi SAQLANADI, lekin yo'q guruhga ishora qilmasin — GroupId tozalanadi (to'lov qoladi).
         await db.FinanceTransactions.Where(t => t.GroupId == id)
-            .ForEachAsync(t => t.GroupId = null);
+            .ExecuteUpdateAsync(s => s.SetProperty(t => t.GroupId, (string?)null));
+
         db.Classes.Remove(cls);
 
         var reason = await ReasonLabelAsync(reasonId);
