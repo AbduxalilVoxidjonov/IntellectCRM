@@ -114,6 +114,13 @@ docker compose up -d --build    # app + postgres + cloudflared + backup + mediam
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-17: **FIX 2: DOUBLE-CHARGE race condition — idempotency check qo'shildi.** Muammo: admin to'lov
+  2 marta POST qilsa (double-click yoki network retry) → 2 transaction + balance 2x kattalaşir (revenue loss).
+  Frontend submitting guard yetarli emas. **Yechim:** `FinanceTransaction`ga `CreatedAt` (UTC DateTime) qo'shildi;
+  `POST /api/admin/finance/transactions` endi 5-soniyada bir xil tranzaksiyani tekshiradi (StudentId+Amount+Direction+
+  Category+Month+GroupId+TeacherId mos bo'lsa) → bo'lsa dublikat qaytaradi (idempotent), aks holda yangi qo'shadi.
+  Migratsiya `AddFinanceTransactionCreatedAt` (incremental, data loss YO'Q). Backend 0, `app` rebuild deploy ✅.
+  Jonli: POST→201, qayta POST (5s ichida)→200 shu id (idempotent).
 - 2026-06-16: **Telegram bot — ADMIN/xodim ro'yxatdan o'tib YANGI LID xabarnomasini oladi.** `AppUser.Phone`
   (admin/xodim telefoni) + `TelegramRegistration.UserId` (admin yozuvi) + migratsiya `AddAdminPhoneAndTgUser`.
   Bot kontakt kelganda endi o'quvchi/o'qituvchi BILAN BIR QATORDA admin/superadmin/staff AppUser.Phone'ni ham
