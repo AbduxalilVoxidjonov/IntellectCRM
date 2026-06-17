@@ -75,7 +75,7 @@ export function JournalCellModal({
           <Button variant="secondary" onClick={onClose}>
             Bekor qilish
           </Button>
-          <Button disabled={isBeforeStart} onClick={() => onSave(grade, reasonId, homework, behavior, mastery === '' ? null : typeof mastery === 'number' ? mastery : null)}>
+          <Button onClick={() => onSave(grade, reasonId, homework, behavior, mastery === '' ? null : typeof mastery === 'number' ? mastery : null)}>
             Saqlash
           </Button>
         </>
