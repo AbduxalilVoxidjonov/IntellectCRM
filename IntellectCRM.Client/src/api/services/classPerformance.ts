@@ -1,9 +1,10 @@
-import type { Student, Subject } from '@/types'
+import type { Student, Subject, Group } from '@/types'
 import { delay } from '@/lib/utils'
 import { api, USE_MOCK } from '../client'
 import { studentsMock } from '../mock/students'
 import { subjectsMock } from '../mock/subjects'
 import { classesMock } from '../mock/classes'
+import { getClasses } from './classes'
 
 export interface ClassStudentRow {
   student: Student
@@ -172,7 +173,7 @@ export async function getAllGroupsGradingStats(month?: string): Promise<Record<s
     const results: Record<string, GradingGroupStats> = {}
 
     // Parallel fetch
-    const promises = allClasses.map((c) =>
+    const promises = allClasses.map((c: Group) =>
       getGroupGradingStats(c.id, month)
         .then((stats) => {
           results[c.id] = stats

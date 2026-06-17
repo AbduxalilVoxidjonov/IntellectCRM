@@ -9,7 +9,6 @@ import {
   Wallet,
   BadgeCheck,
   UsersRound,
-  UserMinus,
   CheckSquare,
 } from 'lucide-react'
 import { getAdminDashboard } from '@/api/services/dashboard'
