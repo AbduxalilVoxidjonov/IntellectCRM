@@ -1073,3 +1073,18 @@ docker compose up -d --build    # app + postgres + cloudflared + backup + mediam
   ui-web dizayni), admin shell o'rniga; yangi `TeacherProfilePage` (ism/login/guruh/maosh/chiqish); dashboard+journal
   mobil-friendly. Migratsiya yo'q (mavjud DTO/service qayta ishlatildi). tsc+backend+vite 0, deploy ✅.
   QOLDI: o'qituvchi journal/curriculum ekranlarini yangi monthly endpointlarga ulash (hozir UI eski; backend tayyor).
+- 2026-06-17: **MEGA-UPDATE — 8 ta parallel bug fix + feature (workflow):** 
+  **(1) Jurnal baholash mezonlari:** ClassDetailPage'da grading criteria columns + total sum (har o'quvchi uchun barcha mezon ball yig'indisi).
+  `getGradingBoard` parallel load + grid ustunlar.
+  **(2) Leads attendance:** Lead'ni birinchi darsga kelishi/kelmasi rangga (yashil/qizil badge). LeadCard+LeadDetailModal.
+  **(3) Groups count:** ClassesPage'da o'quvchi soni disappear bug'i — card/jadval ko'rinishida doim ko'rinadi.
+  **(4) Import template:** StudentsPage Excel shablon — F.I.SH/Tel/Ota/Ona/Guruh/Holat ustunlari.
+  **(5) Curriculum copy:** CurriculumEditorPage — daraja "Copy to..." (boshqa kursga deep copy, M2M).
+  **(6) Schedule coloring:** WeeklySchedule o'qituvchi bo'yicha rang (12-palette) + ClassesPage/StudentsPage teacher filter.
+  **(7) Bulk grading fix:** GradingSection "Hammaga" modal'da selection clear — nav change'da reset.
+  **(8) Teacher journal totals:** TeacherGroupDetailPage grading tab + Ratings tab (o'quvchi baholar summary).
+  8 parallel agent, 15 fayl, backend 0 xato, tsc+vite ✅, deploy ✅.
+- 2026-06-17: **Jurnal StartDate validation:** Guruh StartDate'dan OLDIN bo'lgan kunlarga baho/davomat qo'yishni blok.
+  Backend: `JournalService.SetEntryAsync` date validation (400). Frontend: date < StartDate → sarrang disabled + warning.
+  `JournalCellModal` red alert + disabled Save. ClassDetailPage grid ustunlari disabled/grayed. Backend 0, deploy ✅.
+- 2026-06-17: **GIT:** Barcha o'zgarishlar main branch'ga merge qilindi (crm → main). origin/main up-to-date. ✅
