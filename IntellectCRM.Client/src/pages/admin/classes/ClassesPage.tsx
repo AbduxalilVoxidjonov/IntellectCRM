@@ -423,6 +423,7 @@ export function ClassesPage() {
         <div className="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(340px,1fr))]">
           {sortedClasses.map((c) => {
             const st = stats[c.id]
+            const gs = gradingStats[c.id]
             return (
               <div
                 key={c.id}
@@ -487,7 +488,7 @@ export function ClassesPage() {
                   </div>
                 </div>
 
-                {/* Statistika bloki: o'quvchilar · o'rtacha baho · davomat */}
+                {/* Statistika bloki: o'quvchilar · o'rtacha baho · davomat · baholash */}
                 <div className="ec-stats">
                   <div>
                     <div className="ec-stat-label">O'quvchilar</div>
@@ -510,6 +511,12 @@ export function ClassesPage() {
                       )}
                     >
                       {st && st.attendance != null ? `${st.attendance}%` : '—'}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="ec-stat-label">Baholash</div>
+                    <div className="ec-stat-value font-mono font-semibold text-blue-600">
+                      {gs ? `📊 ${gs.averageScore.toFixed(1)}` : '—'}
                     </div>
                   </div>
                 </div>
