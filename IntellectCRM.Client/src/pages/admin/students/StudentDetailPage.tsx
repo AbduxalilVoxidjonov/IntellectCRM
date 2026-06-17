@@ -15,6 +15,7 @@ import {
 import { getStudentNotebook, type StudentNotebook } from '@/api/services/studentNotebook'
 import { getStudentGroups, getClasses } from '@/api/services/classes'
 import { getCurriculum, getProgress, setProgress, getStudentCoverageLog, type CoverageLogEntry } from '@/api/services/curriculum'
+import { getStudentGradingSummary, type MonthGradingSummary } from '@/api/services/grading'
 import type { StudentGroupMembership, Curriculum } from '@/types'
 import { cn, formatDate, formatMoney } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
@@ -69,6 +70,8 @@ export function StudentDetailPage() {
   const [gradeMonth, setGradeMonth] = useState('')
   /** Darslar tarixi — o'tilgan mavzular jadvali (eng yangisi birinchi). */
   const [coverageLog, setCoverageLog] = useState<CoverageLogEntry[]>([])
+  /** Baholash xulosa (oylik o'rtacha + jami mezonlar). */
+  const [gradingSummary, setGradingSummary] = useState<MonthGradingSummary[]>([])
 
   useEffect(() => {
     if (!id) return
@@ -82,6 +85,9 @@ export function StudentDetailPage() {
       .catch(() => {})
     getStudentCoverageLog(id)
       .then(setCoverageLog)
+      .catch(() => {})
+    getStudentGradingSummary(id)
+      .then(setGradingSummary)
       .catch(() => {})
   }, [id])
 
@@ -803,6 +809,33 @@ export function StudentDetailPage() {
           </div>
         )}
       </Section>
+
+      {/* Baholash xulosa (oylik o'rtacha + jami) */}
+      {gradingSummary.length > 0 && (
+        <Section title="Baholash xulosa" icon={ClipboardCheck}>
+          <div className="flex flex-wrap gap-2">
+            {gradingSummary.map((month) => (
+              <div
+                key={month.month}
+                className="flex flex-col gap-1 rounded-lg border border-slate-200 bg-gradient-to-br from-brand-50 to-slate-50 px-4 py-3"
+              >
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                  {monthLabel(month.month)}
+                </p>
+                <div className="flex items-baseline gap-2">
+                  <span className="font-mono text-lg font-semibold text-slate-800">
+                    {month.averageScore.toFixed(2)}
+                  </span>
+                  <span className="text-xs text-slate-400">o'rtacha</span>
+                </div>
+                <p className="text-xs text-slate-600">
+                  Jami: <span className="font-mono font-semibold">{month.totalScore}/{month.criteriaCount}</span>
+                </p>
+              </div>
+            ))}
+          </div>
+        </Section>
+      )}
 
       {/* Intizomiy ball tarixi */}
       <Section title="Intizomiy ball tarixi" icon={ShieldAlert}>

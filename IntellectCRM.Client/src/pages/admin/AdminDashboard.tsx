@@ -10,6 +10,7 @@ import {
   BadgeCheck,
   UsersRound,
   UserMinus,
+  CheckSquare,
 } from 'lucide-react'
 import { getAdminDashboard } from '@/api/services/dashboard'
 import { useAsync } from '@/hooks/useAsync'
@@ -74,7 +75,7 @@ export function AdminDashboard() {
         />
       </div>
 
-      {/* O'quvchilar bo'yicha taqsimot */}
+      {/* O'quvchilar bo'yicha taqsimot + Baholash faollik */}
       <div className="kpi-grid mb-4">
         <StatCard
           label="Aktiv talabalar"
@@ -112,11 +113,12 @@ export function AdminDashboard() {
           iconColor="text-violet-600"
         />
         <StatCard
-          label="Guruhsiz"
-          value={studentBreakdown.withoutGroup.toLocaleString()}
-          icon={UserMinus}
-          iconBg="bg-amber-50"
-          iconColor="text-amber-600"
+          label="Baholash faollik"
+          value={(data.totalGradesCount ?? 0).toLocaleString()}
+          icon={CheckSquare}
+          iconBg="bg-blue-50"
+          iconColor="text-blue-600"
+          hint="shu oyda kiritilgan ba'holar"
         />
       </div>
 

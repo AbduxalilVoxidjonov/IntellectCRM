@@ -26,7 +26,7 @@ import {
   unarchiveClass,
   getGroupFill,
 } from '@/api/services/classes'
-import { getClassesStats, type ClassStats } from '@/api/services/classPerformance'
+import { getClassesStats, type ClassStats, getAllGroupsGradingStats, type GradingGroupStats } from '@/api/services/classPerformance'
 import { getTeachers } from '@/api/services/teachers'
 import { languageLabels } from '@/config/constants'
 import { formatMoney, formatDate, cn } from '@/lib/utils'
@@ -69,6 +69,7 @@ export function ClassesPage() {
   const navigate = useNavigate()
   const [classes, setClasses] = useState<Group[]>([])
   const [stats, setStats] = useState<Record<string, ClassStats>>({})
+  const [gradingStats, setGradingStats] = useState<Record<string, GradingGroupStats>>({})
   const [teachers, setTeachers] = useState<Teacher[]>([])
   const [loading, setLoading] = useState(true)
   const [formOpen, setFormOpen] = useState(false)
@@ -114,12 +115,13 @@ export function ClassesPage() {
     id ? (teachers.find((t) => t.id === id)?.fullName ?? '—') : '—'
 
   useEffect(() => {
-    Promise.all([getClasses(), getClassesStats(), getArchivedClasses(), getTeachers()])
-      .then(([cl, st, ar, te]) => {
+    Promise.all([getClasses(), getClassesStats(), getArchivedClasses(), getTeachers(), getAllGroupsGradingStats()])
+      .then(([cl, st, ar, te, gs]) => {
         setClasses(cl)
         setStats(st)
         setArchived(ar)
         setTeachers(te)
+        setGradingStats(gs)
       })
       .finally(() => setLoading(false))
   }, [])
@@ -334,6 +336,7 @@ export function ClassesPage() {
                   <th className="num">O'quvchilar</th>
                   <th className="num">O'rtacha</th>
                   <th className="num">Davomat</th>
+                  <th className="num">Baholash</th>
                   <th className="num">Oylik to'lov</th>
                   <th className="text-right">Amallar</th>
                 </tr>
@@ -341,6 +344,7 @@ export function ClassesPage() {
               <tbody>
                 {sortedClasses.map((c) => {
                   const st = stats[c.id]
+                  const gs = gradingStats[c.id]
                   return (
                     <tr
                       key={c.id}
@@ -385,6 +389,9 @@ export function ClassesPage() {
                         )}
                       >
                         {st && st.attendance != null ? `${st.attendance}%` : '—'}
+                      </td>
+                      <td className="num text-slate-700 font-mono">
+                        {gs ? `${gs.totalGrades}` : '—'}
                       </td>
                       <td className="num font-semibold text-slate-800">
                         {formatMoney(c.monthlyFee)}

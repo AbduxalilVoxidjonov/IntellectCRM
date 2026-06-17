@@ -117,6 +117,54 @@ public class GradingController(AppDbContext db) : ControllerBase
         return Ok(new { ok = true });
     }
 
+    /// <summary>O'quvchining baholash xulosa (oylik o'rtacha + jami) — barcha faol guruhlari bo'yicha.</summary>
+    [HttpGet("student/{studentId}/summary")]
+    [AllowAnonymous]  // Admin endpoint uchun ruxsat yo'q esa — 401; boshqa admin-specific o'zgartirishlar yo'q.
+    public async Task<ActionResult<IEnumerable<MonthGradingSummaryDto>>> StudentGradingSummary(string studentId)
+    {
+        // Qatnashlik tekshirishi: faqat o'quvchining faol guruhlari (admin uchun).
+        var groups = await db.StudentGroups
+            .Where(sg => sg.StudentId == studentId && sg.IsActive && sg.Status != "frozen")
+            .Select(sg => sg.GroupId).ToListAsync();
+
+        if (groups.Count == 0)
+            return Ok(new List<MonthGradingSummaryDto>());
+
+        // Barcha oylar: qaysi oyda baholash bor, ularni top'laydi.
+        var marks = await db.CriterionGrades
+            .Where(g => groups.Contains(g.GroupId) && g.StudentId == studentId && g.Done)
+            .Select(g => new { Month = g.Date.Substring(0, 7) })
+            .Distinct()
+            .GroupBy(x => x.Month)
+            .Select(g => new { Month = g.Key, Count = g.Count() })
+            .ToListAsync();
+
+        var summary = new List<MonthGradingSummaryDto>();
+
+        foreach (var m in marks.OrderBy(m => m.Month))
+        {
+            var monthMarks = await db.CriterionGrades
+                .Where(g => groups.Contains(g.GroupId) && g.StudentId == studentId && g.Done && g.Date.StartsWith(m.Month))
+                .ToListAsync();
+
+            if (monthMarks.Count == 0) continue;
+
+            // O'rtacha: har mezon 1 ball (Done=true) — shuning uchun COUNT/jami mezonlar soni.
+            var totalBaholang = monthMarks.Count;  // Har "done" mark = 1 ball
+            var uniqueCriteria = monthMarks.Select(m => m.CriterionId).Distinct().Count();
+
+            var avg = uniqueCriteria > 0 ? Math.Round((double)totalBaholang / uniqueCriteria, 2) : 0;
+
+            summary.Add(new MonthGradingSummaryDto(
+                m.Month,
+                avg,
+                totalBaholang,
+                uniqueCriteria));
+        }
+
+        return Ok(summary);
+    }
+
     // ---------- Umumiy yordamchilar (teacher ham ishlatadi) ----------
 
     /// <summary>Guruh baholash grid'ini quradi: oy(lar) + dars sanalari + biriktirilgan mezonlar +
@@ -213,5 +261,38 @@ public class GradingController(AppDbContext db) : ControllerBase
                 db.CriterionGrades.Remove(e);
             }
         }
+    }
+
+    /// <summary>Guruh uchun baholash statistikasi: oylik mezon ballari + nechta ba'ho kiritilgan.</summary>
+    [HttpGet("group/{groupId}/summary")]
+    public async Task<ActionResult<GradingGroupSummaryDto>> GetGroupSummary(string groupId, [FromQuery] string? month)
+    {
+        var group = await db.Classes.FindAsync(groupId);
+        if (group is null) return NotFound();
+
+        var cur = TuitionService.CurrentMonth();
+        var resolved = !string.IsNullOrEmpty(month) && month.Length >= 7 ? month : cur;
+
+        // Faol a'zolar (frozen emas)
+        var memberIds = await db.StudentGroups
+            .Where(sg => sg.GroupId == groupId && sg.IsActive && sg.Status != "frozen")
+            .Select(sg => sg.StudentId).ToListAsync();
+
+        // Shu oy baholari (CriterionGrades, Done=true)
+        var grades = await db.CriterionGrades
+            .Where(g => g.GroupId == groupId && g.Done && g.Date.StartsWith(resolved))
+            .ToListAsync();
+
+        var totalGrades = grades.Count;
+        var avgScore = 0.0;
+        if (totalGrades > 0)
+        {
+            var scores = grades.GroupBy(g => new { g.StudentId, g.Date })
+                .Select(g => g.Count()) // Har dars-o'quvchi bo'yicha mezon soni
+                .ToList();
+            avgScore = Math.Round(scores.DefaultIfEmpty(0).Average(), 1);
+        }
+
+        return new GradingGroupSummaryDto(groupId, group.Name, memberIds.Count, totalGrades, avgScore);
     }
 }

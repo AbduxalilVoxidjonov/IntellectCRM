@@ -208,38 +208,52 @@ export function GradingSection({ groupId, fetchBoard, saveGrade, bulkGrade }: Pr
                         )}
                       </th>
                     ))}
+                    <th className="sticky right-0 z-10 border-b border-l border-slate-200 bg-slate-50 px-3 py-2 text-center font-semibold text-slate-600">
+                      Jami
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {board.students.map((s, i) => (
-                    <tr key={s.studentId} className={i % 2 ? 'bg-slate-50/40' : ''}>
-                      <td className="sticky left-0 z-10 border-b border-r border-slate-200 bg-inherit px-3 py-2 font-medium text-slate-700">
-                        {s.fullName}
-                      </td>
-                      {board.criteria.map((c) => {
-                        const key = `${s.studentId}|${c.id}|${date}`
-                        const isDone = done.has(key)
-                        return (
-                          <td key={c.id} className="border-b border-slate-100 px-2 py-1.5 text-center">
-                            <button
-                              type="button"
-                              onClick={() => toggle(s.studentId, c.id)}
-                              title={isDone ? 'Bajardi' : 'Belgilash'}
-                              className={cn(
-                                'mx-auto flex h-7 w-7 items-center justify-center rounded-lg border transition-colors',
-                                isDone
-                                  ? 'border-emerald-500 bg-emerald-500 text-white'
-                                  : 'border-slate-300 bg-white text-transparent hover:border-emerald-400',
-                                savingKey === key && 'ring-2 ring-emerald-200',
-                              )}
-                            >
-                              <Check className="h-4 w-4" />
-                            </button>
-                          </td>
-                        )
-                      })}
-                    </tr>
-                  ))}
+                  {board.students.map((s, i) => {
+                    const totalDone = board.criteria.reduce((count, c) => {
+                      const key = `${s.studentId}|${c.id}|${date}`
+                      return count + (done.has(key) ? 1 : 0)
+                    }, 0)
+                    return (
+                      <tr key={s.studentId} className={i % 2 ? 'bg-slate-50/40' : ''}>
+                        <td className="sticky left-0 z-10 border-b border-r border-slate-200 bg-inherit px-3 py-2 font-medium text-slate-700">
+                          {s.fullName}
+                        </td>
+                        {board.criteria.map((c) => {
+                          const key = `${s.studentId}|${c.id}|${date}`
+                          const isDone = done.has(key)
+                          return (
+                            <td key={c.id} className="border-b border-slate-100 px-2 py-1.5 text-center">
+                              <button
+                                type="button"
+                                onClick={() => toggle(s.studentId, c.id)}
+                                title={isDone ? 'Bajardi' : 'Belgilash'}
+                                className={cn(
+                                  'mx-auto flex h-7 w-7 items-center justify-center rounded-lg border transition-colors',
+                                  isDone
+                                    ? 'border-emerald-500 bg-emerald-500 text-white'
+                                    : 'border-slate-300 bg-white text-transparent hover:border-emerald-400',
+                                  savingKey === key && 'ring-2 ring-emerald-200',
+                                )}
+                              >
+                                <Check className="h-4 w-4" />
+                              </button>
+                            </td>
+                          )
+                        })}
+                        <td className="sticky right-0 z-10 border-b border-l border-slate-100 bg-inherit px-3 py-2 text-center">
+                          <span className={cn('inline-flex h-7 w-7 items-center justify-center rounded-lg font-semibold text-slate-600', totalDone > 0 ? 'bg-violet-100 text-violet-700' : 'text-slate-400')}>
+                            {totalDone || '—'}
+                          </span>
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>

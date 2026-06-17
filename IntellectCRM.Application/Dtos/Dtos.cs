@@ -254,7 +254,7 @@ public record TopClassDto(string Id, string Name, int StudentsCount, int ActiveC
 public record StudentBreakdownDto(int Active, int Inactive, int Debtors, int Paid, int WithGroup, int WithoutGroup);
 public record AdminDashboardDto(
     AdminStatsDto Stats, List<ClassPerformanceItemDto> ClassPerformance, List<TopClassDto> TopClasses,
-    StudentBreakdownDto StudentBreakdown);
+    StudentBreakdownDto StudentBreakdown, int TotalGradesCount = 0);
 
 /* ---------- Class performance / rating ---------- */
 public record SubjectDto(string Id, string Name, decimal Price = 0);
@@ -1053,6 +1053,8 @@ public record GradingBoardDto(
 public record SetCriterionGradeRequest(string GroupId, string StudentId, string CriterionId, string Date, bool Done);
 /// <summary>Shu sanada bitta mezon bo'yicha BARCHA faol o'quvchini belgilash/belgilamaslik (ommaviy).</summary>
 public record BulkCriterionGradeRequest(string GroupId, string CriterionId, string Date, bool Done);
+/// <summary>Guruh baholash statistikasi: oylik mezon ballari + nechta ba'ho kiritilgan.</summary>
+public record GradingGroupSummaryDto(string GroupId, string GroupName, int ActiveStudents, int TotalGrades, double AverageScore);
 
 /* ---------- Speaking (Azure Pronunciation Assessment) ---------- */
 /// <summary>Bitta so'z bo'yicha talaffuz natijasi: aniqlik bali + xato turi (None/Mispronunciation/Omission/Insertion).</summary>
@@ -1075,6 +1077,21 @@ public record StudentGradingDateDto(string Date, List<string> DoneCriterionIds);
 public record StudentGradingGroupDto(
     string GroupId, string GroupName, List<string> Months, string Month, List<string> Dates,
     List<StudentGradingCriterionDto> Criteria, List<StudentGradingDateDto> Lessons);
+
+/* ---------- Baholash aggregatsiya (o'quvchi-level totals) ---------- */
+/// <summary>Guruh baholash jadvali ichida o'quvchi qatori: nechta mezon biriktirilgan,
+/// nechta mezon checklari bajarilgan, o'rtacha hajm (TotalScore/CriteriaCount).</summary>
+public record StudentGradingTotalDto(
+    string Id,
+    string FullName,
+    int CriteriaCount,
+    int TotalScore,
+    double AverageScore);
+
+/* ---------- Baholash xulosa (oylik o'rtacha va jami) ---------- */
+/// <summary>Bitta oyda baholash xulosa: o'rtacha ba'ho + jami ba'holi darslar / jami mezonlar.</summary>
+public record MonthGradingSummaryDto(
+    string Month, double AverageScore, int TotalScore, int CriteriaCount);
 
 // ---- Ommaviy (anonim) ----
 

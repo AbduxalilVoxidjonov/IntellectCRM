@@ -408,66 +408,80 @@ export function TeacherGroupDetailPage() {
                             </th>
                           )
                         })}
+                        <th className="sticky right-0 z-20 border-b-2 border-l-2 border-line bg-panel3 px-3 py-2.5 text-center font-semibold text-mute">
+                          Jami
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
-                      {journalStudents.map((st) => (
-                        <tr key={st.studentId} className="bg-white even:bg-panel2">
-                          <td className="sticky left-0 z-10 border-b border-r-2 border-line bg-inherit px-3 py-2">
-                            <span className="block max-w-[8rem] truncate text-sm font-medium text-ink">
-                              {st.fullName}
-                            </span>
-                          </td>
-                          {journal!.columns.map((c) => {
-                            const e = entryMap.get(`${st.studentId}|${c.date}`)
-                            const reason = e?.reasonId ? reasonById.get(e.reasonId) : undefined
-                            const isToday = c.date === today
-                            // Keldi (yashil): dars o'tildi + baho yo'q + sabab yo'q.
-                            const present = e?.grade == null && !reason && conductedSet.has(c.date)
-                            return (
-                              <td
-                                key={c.date}
-                                className={cn(
-                                  "border-b border-r border-line-soft p-1 text-center",
-                                  isToday && "bg-tealsoft",
-                                )}
-                              >
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setCell({
-                                      studentId: st.studentId,
-                                      studentName: st.fullName,
-                                      date: c.date,
-                                    })
-                                  }
+                      {journalStudents.map((st) => {
+                        const totalGrade = journal!.columns.reduce((sum, c) => {
+                          const e = entryMap.get(`${st.studentId}|${c.date}`)
+                          return sum + (e?.grade ?? 0)
+                        }, 0)
+                        return (
+                          <tr key={st.studentId} className=”bg-white even:bg-panel2”>
+                            <td className=”sticky left-0 z-10 border-b border-r-2 border-line bg-inherit px-3 py-2”>
+                              <span className=”block max-w-[8rem] truncate text-sm font-medium text-ink”>
+                                {st.fullName}
+                              </span>
+                            </td>
+                            {journal!.columns.map((c) => {
+                              const e = entryMap.get(`${st.studentId}|${c.date}`)
+                              const reason = e?.reasonId ? reasonById.get(e.reasonId) : undefined
+                              const isToday = c.date === today
+                              // Keldi (yashil): dars o'tildi + baho yo'q + sabab yo'q.
+                              const present = e?.grade == null && !reason && conductedSet.has(c.date)
+                              return (
+                                <td
+                                  key={c.date}
                                   className={cn(
-                                    "flex h-9 w-full min-w-9 items-center justify-center rounded-md text-sm font-semibold transition-colors",
-                                    e?.grade != null
-                                      ? gradeFill(e.grade)
-                                      : reason
-                                        ? reason.isLate
-                                          ? "bg-amber-50 text-amber-700"
-                                          : "bg-red-50 text-red-600"
-                                        : present
-                                          ? "bg-emerald-50 text-emerald-600"
-                                          : "text-faint",
+                                    “border-b border-r border-line-soft p-1 text-center”,
+                                    isToday && “bg-tealsoft”,
                                   )}
-                                  title={`${st.fullName} â€” ${formatDate(c.date)}`}
                                 >
-                                  {e?.grade != null
-                                    ? e.grade
-                                    : reason
-                                      ? reason.short || reason.name.slice(0, 2)
-                                      : present
-                                        ? "âœ“"
-                                        : "Â·"}
-                                </button>
-                              </td>
-                            )
-                          })}
-                        </tr>
-                      ))}
+                                  <button
+                                    type=”button”
+                                    onClick={() =>
+                                      setCell({
+                                        studentId: st.studentId,
+                                        studentName: st.fullName,
+                                        date: c.date,
+                                      })
+                                    }
+                                    className={cn(
+                                      “flex h-9 w-full min-w-9 items-center justify-center rounded-md text-sm font-semibold transition-colors”,
+                                      e?.grade != null
+                                        ? gradeFill(e.grade)
+                                        : reason
+                                          ? reason.isLate
+                                            ? “bg-amber-50 text-amber-700”
+                                            : “bg-red-50 text-red-600”
+                                          : present
+                                            ? “bg-emerald-50 text-emerald-600”
+                                            : “text-faint”,
+                                    )}
+                                    title={`${st.fullName} – ${formatDate(c.date)}`}
+                                  >
+                                    {e?.grade != null
+                                      ? e.grade
+                                      : reason
+                                        ? reason.short || reason.name.slice(0, 2)
+                                        : present
+                                          ? “✓”
+                                          : “·”}
+                                  </button>
+                                </td>
+                              )
+                            })}
+                            <td className=”sticky right-0 z-10 border-b border-l-2 border-line bg-inherit px-3 py-2 text-center”>
+                              <span className={cn('inline-flex h-8 w-8 items-center justify-center rounded-md font-semibold text-ink', totalGrade > 0 ? 'bg-tealsoft text-teal-700' : 'text-faint')}>
+                                {totalGrade || '—'}
+                              </span>
+                            </td>
+                          </tr>
+                        )
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -475,7 +489,7 @@ export function TeacherGroupDetailPage() {
             </Card>
           )}
 
-          {/* Baholash â€” har darsga mezonlar bo'yicha bajardi/bajarmadi (faqat o'z guruhi) */}
+          {/* Baholash — har darsga mezonlar bo'yicha bajardi/bajarmadi (faqat o'z guruhi) */}
           {groupView === "baholash" && (
             <Card className="rounded-[20px] border border-line bg-white shadow-[var(--shadow-card)]">
               <h2 className="mb-3 font-semibold text-ink">Baholash</h2>
@@ -488,7 +502,7 @@ export function TeacherGroupDetailPage() {
             </Card>
           )}
 
-          {/* Reyting â€” o'quvchilarning o'rtacha bahosi va baholash statistikasi */}
+          {/* Reyting — o'quvchilarning o'rtacha bahosi va baholash statistikasi */}
           {groupView === "reyting" && <RatingsTab grading={grading} loading={gradingLoading} />}
 
           {/* O'quv dasturi â€” yig'iladigan (default yopiq) */}

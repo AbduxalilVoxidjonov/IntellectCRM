@@ -83,6 +83,8 @@ export interface AdminDashboard {
   topClasses: TopClass[]
   /** O'quvchilar bo'yicha taqsimot */
   studentBreakdown: StudentBreakdown
+  /** Shu oyda nechta ba'ho kiritilgan */
+  totalGradesCount?: number
 }
 
 /* ---------- Lidlar (maktabga qiziqqanlar) ---------- */

@@ -134,3 +134,57 @@ export async function getClassesStats(): Promise<Record<string, ClassStats>> {
   const { data } = await api.get<Record<string, ClassStats>>('/admin/classes/stats')
   return data
 }
+
+export interface GradingGroupStats {
+  groupId: string
+  groupName: string
+  activeStudents: number
+  totalGrades: number
+  averageScore: number
+}
+
+/** Guruh baholash statistikasi — shu oyda nechta ba'ho kiritilgan */
+export async function getGroupGradingStats(groupId: string, month?: string): Promise<GradingGroupStats> {
+  if (USE_MOCK) {
+    await delay(100)
+    return {
+      groupId,
+      groupName: 'Test Group',
+      activeStudents: 12,
+      totalGrades: 45,
+      averageScore: 2.1,
+    }
+  }
+  const { data } = await api.get<GradingGroupStats>(`/admin/grading/group/${groupId}/summary`, {
+    params: month ? { month } : undefined,
+  })
+  return data
+}
+
+/** Barcha guruhlar uchun baholash statistikasi */
+export async function getAllGroupsGradingStats(month?: string): Promise<Record<string, GradingGroupStats>> {
+  if (USE_MOCK) {
+    await delay()
+    return {}
+  }
+  try {
+    const allClasses = await getClasses()
+    const results: Record<string, GradingGroupStats> = {}
+
+    // Parallel fetch
+    const promises = allClasses.map((c) =>
+      getGroupGradingStats(c.id, month)
+        .then((stats) => {
+          results[c.id] = stats
+        })
+        .catch(() => {
+          // Ignore errors for individual groups
+        }),
+    )
+    await Promise.all(promises)
+
+    return results
+  } catch {
+    return {}
+  }
+}

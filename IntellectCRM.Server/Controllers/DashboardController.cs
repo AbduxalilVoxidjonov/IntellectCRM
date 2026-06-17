@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using IntellectCRM.Infrastructure.Data;
 using IntellectCRM.Application.Dtos;
+using IntellectCRM.Application.Services;
 
 using IntellectCRM.Domain;
 
@@ -99,6 +100,13 @@ public class DashboardController(AppDbContext db) : ControllerBase
             withGroup,
             nonArchivedTotal - withGroup);
 
+        // Grading statistikasi — shu oyda nechta ba'ho kiritilgan
+        var cur = TuitionService.CurrentMonth();
+        var grades = await db.CriterionGrades.Where(g => g.Done && g.Date.StartsWith(cur)).ToListAsync();
+        var gradesByClass = grades.GroupBy(g => g.GroupId)
+            .ToDictionary(g => g.Key, g => g.Count());
+        int GradesOf(Group c) => gradesByClass.TryGetValue(c.Id, out var n) ? n : 0;
+
         var topClasses = classes
             .Select(c => new TopClassDto(
                 c.Id, c.Name,
@@ -109,6 +117,9 @@ public class DashboardController(AppDbContext db) : ControllerBase
             .Take(5)
             .ToList();
 
-        return new AdminDashboardDto(stats, classPerformance, topClasses, studentBreakdown);
+        // Baholash faollik — barcha guruhlarda shu oyda nechta ba'ho kiritilgan
+        var totalGradesCount = grades.Count;
+
+        return new AdminDashboardDto(stats, classPerformance, topClasses, studentBreakdown, totalGradesCount);
     }
 }

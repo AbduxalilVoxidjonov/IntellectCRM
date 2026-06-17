@@ -84,3 +84,15 @@ export async function setGrade(req: SetGrade): Promise<void> {
 export async function bulkGrade(req: BulkGrade): Promise<void> {
   await api.post('/admin/grading/grade/bulk', req)
 }
+
+// ---- O'quvchi baholash xulosa ----
+export interface MonthGradingSummary {
+  month: string
+  averageScore: number
+  totalScore: number
+  criteriaCount: number
+}
+export async function getStudentGradingSummary(studentId: string): Promise<MonthGradingSummary[]> {
+  const { data } = await api.get<MonthGradingSummary[]>(`/admin/grading/student/${studentId}/summary`)
+  return data
+}

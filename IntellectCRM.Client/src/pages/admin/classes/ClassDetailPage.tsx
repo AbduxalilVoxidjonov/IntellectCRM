@@ -428,11 +428,19 @@ export function ClassDetailPage() {
                           </th>
                         )
                       })}
+                      <th className="sticky right-0 z-20 border-b-2 border-l-2 border-slate-200 bg-slate-100 px-4 py-2.5 text-center font-semibold text-slate-600">
+                        Jami
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
                     {journalStudents.map((st) => {
                       const sb = statusBadge(st.status)
+                      // Jami baho — dars ustunlaridagi baholarni qo'shish
+                      const totalGrade = journal!.columns.reduce((sum, c) => {
+                        const e = entryMap.get(`${st.studentId}|${c.date}`)
+                        return sum + (e?.grade ?? 0)
+                      }, 0)
                       return (
                         <tr key={st.studentId} className="bg-white even:bg-slate-50 hover:bg-brand-50">
                           <td className="sticky left-0 z-10 border-b border-r-2 border-slate-200 bg-inherit px-2 py-1">
@@ -505,6 +513,11 @@ export function ClassDetailPage() {
                               </td>
                             )
                           })}
+                          <td className="sticky right-0 z-10 border-b border-l-2 border-slate-200 bg-inherit px-4 py-1 text-center">
+                            <span className={cn('inline-flex h-8 w-8 items-center justify-center rounded-md font-semibold text-slate-600', totalGrade > 0 ? 'bg-violet-100 text-violet-700' : 'text-slate-400')}>
+                              {totalGrade || '—'}
+                            </span>
+                          </td>
                         </tr>
                       )
                     })}
@@ -514,55 +527,66 @@ export function ClassDetailPage() {
                       <>
                         <tr>
                           <td
-                            colSpan={1 + journal!.columns.length}
+                            colSpan={2 + journal!.columns.length}
                             className="border-b border-t-2 border-slate-200 bg-slate-50 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400"
                           >
                             Muzlatilgan (faqat ko'rish — baho/davomat saqlanadi)
                           </td>
                         </tr>
-                        {frozenStudents.map((st) => (
-                          <tr key={st.studentId} className="bg-slate-50 text-slate-400">
-                            <td className="sticky left-0 z-10 border-b border-r-2 border-slate-200 bg-inherit px-2 py-1">
-                              <button
-                                type="button"
-                                onClick={() => openMember(st)}
-                                title="Aktivlashtirish"
-                                className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left transition-colors hover:bg-slate-100"
-                              >
-                                <Snowflake className="h-3.5 w-3.5 shrink-0 text-sky-500" />
-                                <span className={cn('font-medium', st.balance < 0 ? 'text-red-600' : 'text-slate-500')}>
-                                  {st.fullName}
-                                </span>
-                              </button>
-                            </td>
-                            {journal!.columns.map((c) => {
-                              const e = entryMap.get(`${st.studentId}|${c.date}`)
-                              const reason = e?.reasonId ? reasonById.get(e.reasonId) : undefined
-                              return (
-                                <td key={c.date} className="border-b border-r border-slate-100 p-1 text-center">
-                                  <span
-                                    className={cn(
-                                      'inline-flex h-7 min-w-7 items-center justify-center rounded px-1 text-sm font-semibold',
-                                      e?.grade != null
-                                        ? gradeFill(e.grade)
-                                        : reason
-                                          ? reason.isLate
-                                            ? 'bg-amber-50 text-amber-700'
-                                            : 'bg-red-50 text-red-600'
-                                          : 'text-slate-300',
-                                    )}
-                                  >
-                                    {e?.grade != null
-                                      ? e.grade
-                                      : reason
-                                        ? reason.short || reason.name.slice(0, 2)
-                                        : '·'}
+                        {frozenStudents.map((st) => {
+                          const totalGrade = journal!.columns.reduce((sum, c) => {
+                            const e = entryMap.get(`${st.studentId}|${c.date}`)
+                            return sum + (e?.grade ?? 0)
+                          }, 0)
+                          return (
+                            <tr key={st.studentId} className="bg-slate-50 text-slate-400">
+                              <td className="sticky left-0 z-10 border-b border-r-2 border-slate-200 bg-inherit px-2 py-1">
+                                <button
+                                  type="button"
+                                  onClick={() => openMember(st)}
+                                  title="Aktivlashtirish"
+                                  className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left transition-colors hover:bg-slate-100"
+                                >
+                                  <Snowflake className="h-3.5 w-3.5 shrink-0 text-sky-500" />
+                                  <span className={cn('font-medium', st.balance < 0 ? 'text-red-600' : 'text-slate-500')}>
+                                    {st.fullName}
                                   </span>
-                                </td>
-                              )
-                            })}
-                          </tr>
-                        ))}
+                                </button>
+                              </td>
+                              {journal!.columns.map((c) => {
+                                const e = entryMap.get(`${st.studentId}|${c.date}`)
+                                const reason = e?.reasonId ? reasonById.get(e.reasonId) : undefined
+                                return (
+                                  <td key={c.date} className="border-b border-r border-slate-100 p-1 text-center">
+                                    <span
+                                      className={cn(
+                                        'inline-flex h-7 min-w-7 items-center justify-center rounded px-1 text-sm font-semibold',
+                                        e?.grade != null
+                                          ? gradeFill(e.grade)
+                                          : reason
+                                            ? reason.isLate
+                                              ? 'bg-amber-50 text-amber-700'
+                                              : 'bg-red-50 text-red-600'
+                                            : 'text-slate-300',
+                                      )}
+                                    >
+                                      {e?.grade != null
+                                        ? e.grade
+                                        : reason
+                                          ? reason.short || reason.name.slice(0, 2)
+                                          : '·'}
+                                    </span>
+                                  </td>
+                                )
+                              })}
+                              <td className="sticky right-0 z-10 border-b border-l-2 border-slate-200 bg-inherit px-4 py-1 text-center">
+                                <span className={cn('inline-flex h-8 w-8 items-center justify-center rounded-md font-semibold text-slate-400', totalGrade > 0 ? 'bg-slate-200 text-slate-600' : '')}>
+                                  {totalGrade || '—'}
+                                </span>
+                              </td>
+                            </tr>
+                          )
+                        })}
                       </>
                     )}
                   </tbody>
