@@ -19,7 +19,7 @@ import { getSettings } from '@/api/services/settings'
 import { cn, formatMoney, formatDate } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
 import { GradingSection } from '@/components/grading/GradingSection'
-import { getGradingBoard, setGrade, bulkGrade } from '@/api/services/grading'
+import { getGradingBoard, setGrade, bulkGrade, type GradingBoard } from '@/api/services/grading'
 import { Loader } from '@/components/ui/Loader'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
@@ -55,6 +55,26 @@ function gradeFill(g: number): string {
         : 'bg-red-50 text-red-600 hover:bg-red-100'
 }
 
+/** O'quvchi bitta mezon bo'yicha "bajardi" belgilari soni. */
+function getStudentCriterionScore(
+  studentId: string,
+  criterionId: string,
+  board: GradingBoard | null,
+): number {
+  if (!board) return 0
+  const student = board.students.find((s) => s.studentId === studentId)
+  if (!student) return 0
+  return student.doneKeys.filter((k) => k.startsWith(`${criterionId}|`)).length
+}
+
+/** O'quvchining BARCHA mezonlar bo'yicha jami "bajardi" belgilar soni. */
+function getStudentTotalScore(studentId: string, board: GradingBoard | null): number {
+  if (!board) return 0
+  const student = board.students.find((s) => s.studentId === studentId)
+  if (!student) return 0
+  return student.doneKeys.length
+}
+
 export function ClassDetailPage() {
   const { id = '' } = useParams()
   const [journal, setJournal] = useState<GroupJournal | null>(null)
@@ -77,6 +97,9 @@ export function ClassDetailPage() {
   const [currExpanded, setCurrExpanded] = useState<Set<string>>(new Set())
   const [revSaving, setRevSaving] = useState(false)
 
+  // ---- Baholash mezonlari jurnalda ko'rsatish ----
+  const [board, setBoard] = useState<GradingBoard | null>(null)
+
   const loadCurr = useCallback(() => {
     if (!id) return
     setCurrLoading(true)
@@ -94,8 +117,14 @@ export function ClassDetailPage() {
     (month?: string) => {
       if (!id) return
       setLoading(true)
-      getGroupJournal(id, month)
-        .then(setJournal)
+      Promise.all([
+        getGroupJournal(id, month),
+        getGradingBoard(id, month),
+      ])
+        .then(([j, b]) => {
+          setJournal(j)
+          setBoard(b)
+        })
         .finally(() => setLoading(false))
     },
     [id],
@@ -423,6 +452,23 @@ export function ClassDetailPage() {
                           </th>
                         )
                       })}
+                      {/* Baholash mezonlari sarlavhalari */}
+                      {(board?.criteria.length ?? 0) > 0 &&
+                        board!.criteria.map((crit) => (
+                          <th
+                            key={`crit-${crit.id}`}
+                            className="border-b-2 border-r border-slate-200 bg-violet-50 p-1 text-center text-[10px] font-semibold text-violet-700"
+                            title={crit.name}
+                          >
+                            <div className="line-clamp-2">{crit.name}</div>
+                          </th>
+                        ))}
+                      {/* Jami ball ustuni */}
+                      {(board?.criteria.length ?? 0) > 0 && (
+                        <th className="sticky right-0 z-10 border-b-2 border-l-2 border-slate-200 bg-slate-100 p-1 text-center text-[10px] font-semibold text-slate-600">
+                          Jami
+                        </th>
+                      )}
                     </tr>
                   </thead>
                   <tbody>
@@ -497,6 +543,25 @@ export function ClassDetailPage() {
                               </td>
                             )
                           })}
+                          {/* Baholash mezonlari ustunlari */}
+                          {(board?.criteria.length ?? 0) > 0 &&
+                            board!.criteria.map((crit) => {
+                              const score = getStudentCriterionScore(st.studentId, crit.id, board)
+                              return (
+                                <td
+                                  key={`crit-${st.studentId}-${crit.id}`}
+                                  className="border-b border-r border-slate-100 bg-violet-50/30 p-1 text-center text-sm font-semibold text-violet-700"
+                                >
+                                  {score > 0 ? score : '·'}
+                                </td>
+                              )
+                            })}
+                          {/* Jami ball ustuni */}
+                          {(board?.criteria.length ?? 0) > 0 && (
+                            <td className="sticky right-0 z-10 border-b border-l border-slate-200 bg-slate-100 p-1 text-center text-sm font-bold text-slate-700">
+                              {getStudentTotalScore(st.studentId, board)}
+                            </td>
+                          )}
                         </tr>
                       )
                     })}
@@ -506,7 +571,7 @@ export function ClassDetailPage() {
                       <>
                         <tr>
                           <td
-                            colSpan={1 + journal!.columns.length}
+                            colSpan={1 + journal!.columns.length + (board?.criteria.length ?? 0) + ((board?.criteria.length ?? 0) > 0 ? 1 : 0)}
                             className="border-b border-t-2 border-slate-200 bg-slate-50 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400"
                           >
                             Muzlatilgan (faqat ko'rish — baho/davomat saqlanadi)
@@ -554,6 +619,25 @@ export function ClassDetailPage() {
                                 </td>
                               )
                             })}
+                            {/* Baholash mezonlari ustunlari (frozen — o'qish uchun) */}
+                            {(board?.criteria.length ?? 0) > 0 &&
+                              board!.criteria.map((crit) => {
+                                const score = getStudentCriterionScore(st.studentId, crit.id, board)
+                                return (
+                                  <td
+                                    key={`crit-${st.studentId}-${crit.id}`}
+                                    className="border-b border-r border-slate-100 bg-violet-50/10 p-1 text-center text-sm font-semibold text-slate-400"
+                                  >
+                                    {score > 0 ? score : '·'}
+                                  </td>
+                                )
+                              })}
+                            {/* Jami ball ustuni (frozen — o'qish uchun) */}
+                            {(board?.criteria.length ?? 0) > 0 && (
+                              <td className="sticky right-0 z-10 border-b border-l border-slate-100 bg-slate-50 p-1 text-center text-sm font-bold text-slate-400">
+                                {getStudentTotalScore(st.studentId, board)}
+                              </td>
+                            )}
                           </tr>
                         ))}
                       </>
