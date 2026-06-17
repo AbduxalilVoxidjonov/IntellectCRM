@@ -61,19 +61,24 @@ function Shell() {
   }, [])
 
   return (
-    <div className={cn('teacher-app flex h-[100dvh] bg-neutral-200 text-ink lg:bg-paper2', theme === 'dark' && 'dark')}>
+    <div
+      className={cn(
+        'teacher-app flex h-[100dvh] flex-col overflow-hidden bg-neutral-200 text-ink lg:flex-row lg:bg-paper2',
+        theme === 'dark' && 'dark',
+      )}
+    >
       {/* ── DESKTOP yon menyu (faqat lg+; telefon/WebView'da YO'Q) ── */}
-      <aside className="hidden w-64 shrink-0 flex-col border-r border-line bg-white lg:flex">
-        <div className="flex items-center gap-3 border-b border-line px-5 py-4">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-teal-700 text-[15px] font-bold text-white">
+      <aside className="hidden w-52 shrink-0 flex-col border-r border-line bg-white lg:flex">
+        <div className="flex items-center gap-3 border-b border-line px-4 py-4">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-teal-500 to-teal-700 text-[14px] font-bold text-white">
             {initials(user?.fullName || 'O')}
           </div>
-          <div className="min-w-0">
-            <p className="truncate text-[14px] font-bold text-ink">{user?.fullName || "O'qituvchi"}</p>
-            <p className="text-[12px] text-mute">O'qituvchi</p>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[13px] font-bold text-ink">{user?.fullName || "O'qituvchi"}</p>
+            <p className="text-[11px] text-mute">O'qituvchi</p>
           </div>
         </div>
-        <nav className="flex-1 space-y-1 p-3">
+        <nav className="flex-1 space-y-0.5 overflow-y-auto p-2">
           {TABS.map((tab) => {
             const Icon = tab.icon
             return (
@@ -83,78 +88,76 @@ function Shell() {
                 end={tab.end}
                 className={({ isActive }) =>
                   cn(
-                    'relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-[14px] font-semibold transition-colors',
+                    'relative flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-semibold transition-colors',
                     isActive ? 'bg-tealsoft text-teal-700' : 'text-mute hover:bg-paper2',
                   )
                 }
               >
-                <span className="relative">
-                  <Icon className="h-5 w-5" />
+                <span className="relative flex-shrink-0">
+                  <Icon className="h-4 w-4" />
                   {tab.badge && hasUnread && (
-                    <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white" />
+                    <span className="absolute -right-1 -top-1 h-1.5 w-1.5 rounded-full bg-red-500 ring-1 ring-white" />
                   )}
                 </span>
-                {tab.label}
+                <span className="truncate">{tab.label}</span>
               </NavLink>
             )
           })}
         </nav>
       </aside>
 
-      {/* ── Kontent maydoni: telefonda markazlashgan tor ustun, desktopda kengroq ── */}
-      <div className="flex h-full flex-1 justify-center overflow-hidden">
-        <div className="flex h-full w-full max-w-md flex-col overflow-hidden bg-paper shadow-2xl lg:max-w-4xl lg:shadow-none">
-          {/* Kontent — har bir ekran o'z sarlavha/paddingini beradi */}
-          <main className="flex-1 overflow-y-auto">
-            <Outlet />
-          </main>
+      {/* ── Kontent maydoni: full-width ── */}
+      <div className="flex h-full flex-1 flex-col overflow-hidden bg-paper">
+        {/* Kontent — har bir ekran o'z sarlavha/paddingini beradi */}
+        <main className="flex-1 overflow-y-auto">
+          <Outlet />
+        </main>
 
-          {/* PASTKI NAVIGATSIYA — 5 tab (faqat telefon/WebView; desktopda yon menyu) */}
-          <nav className="shrink-0 border-t border-line bg-white pb-[env(safe-area-inset-bottom)] lg:hidden">
-            <div className="flex h-[60px]">
-              {TABS.map((tab) => {
-                const Icon = tab.icon
-                return (
-                  <NavLink
-                    key={tab.to}
-                    to={tab.to}
-                    end={tab.end}
-                    className="relative flex flex-1 flex-col items-center justify-center gap-0.5"
-                  >
-                    {({ isActive }) => (
-                      <>
-                        <span
-                          className={cn(
-                            'flex h-7 w-14 items-center justify-center rounded-xl transition-colors',
-                            isActive ? 'bg-tealsoft' : 'bg-transparent',
+        {/* PASTKI NAVIGATSIYA — 5 tab (faqat telefon/WebView; desktopda yon menyu) */}
+        <nav className="shrink-0 border-t border-line bg-white pb-[env(safe-area-inset-bottom)] lg:hidden">
+          <div className="flex h-[60px]">
+            {TABS.map((tab) => {
+              const Icon = tab.icon
+              return (
+                <NavLink
+                  key={tab.to}
+                  to={tab.to}
+                  end={tab.end}
+                  className="relative flex flex-1 flex-col items-center justify-center gap-0.5"
+                >
+                  {({ isActive }) => (
+                    <>
+                      <span
+                        className={cn(
+                          'flex h-7 w-14 items-center justify-center rounded-xl transition-colors',
+                          isActive ? 'bg-tealsoft' : 'bg-transparent',
+                        )}
+                      >
+                        <span className="relative">
+                          <Icon
+                            className={cn('h-[22px] w-[22px]', isActive ? 'text-teal-600' : 'text-faint')}
+                            strokeWidth={isActive ? 2.4 : 2}
+                          />
+                          {tab.badge && hasUnread && (
+                            <span className="absolute -right-1.5 -top-1 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white" />
                           )}
-                        >
-                          <span className="relative">
-                            <Icon
-                              className={cn('h-[22px] w-[22px]', isActive ? 'text-teal-600' : 'text-faint')}
-                              strokeWidth={isActive ? 2.4 : 2}
-                            />
-                            {tab.badge && hasUnread && (
-                              <span className="absolute -right-1.5 -top-1 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white" />
-                            )}
-                          </span>
                         </span>
-                        <span
-                          className={cn(
-                            'text-[10.5px] tracking-tight',
-                            isActive ? 'font-bold text-teal-600' : 'font-medium text-faint',
-                          )}
-                        >
-                          {tab.label}
-                        </span>
-                      </>
-                    )}
-                  </NavLink>
-                )
-              })}
-            </div>
-          </nav>
-        </div>
+                      </span>
+                      <span
+                        className={cn(
+                          'text-[10.5px] tracking-tight',
+                          isActive ? 'font-bold text-teal-600' : 'font-medium text-faint',
+                        )}
+                      >
+                        {tab.label}
+                      </span>
+                    </>
+                  )}
+                </NavLink>
+              )
+            })}
+          </div>
+        </nav>
       </div>
     </div>
   )

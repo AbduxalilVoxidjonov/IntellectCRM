@@ -41,33 +41,21 @@ export function StudentMobileLayout() {
 
   return (
     <div
-      className="student-app"
+      className="student-app flex h-[100dvh] flex-col overflow-hidden"
       data-theme={theme}
-      style={{ height: '100dvh', overflow: 'hidden', background: 'var(--bg)' }}
     >
-      <div
-        style={{
-          maxWidth: 480,
-          margin: '0 auto',
-          height: '100%',
-          background: 'var(--bg)',
-          display: 'flex',
-          flexDirection: 'column',
-          position: 'relative',
-          overflow: 'hidden',
-        }}
-      >
-        <div className="scroll" style={{ minHeight: 0 }}>
-          <Outlet />
-        </div>
+      <div className="scroll flex-1 overflow-y-auto">
+        <Outlet />
+      </div>
 
-        <nav className="tabbar">
+      <nav className="tabbar shrink-0 border-t border-border bg-surface pb-[env(safe-area-inset-bottom)]">
+        <div className="flex">
           {TABS.map((tab) => (
             <NavLink
               key={tab.to}
               to={tab.to}
               end={tab.end}
-              className={({ isActive }) => 'tab' + (isActive ? ' on' : '')}
+              className={({ isActive }) => 'tab flex-1' + (isActive ? ' on' : '')}
               style={{ textDecoration: 'none' }}
             >
               {({ isActive }) => (
@@ -78,8 +66,8 @@ export function StudentMobileLayout() {
               )}
             </NavLink>
           ))}
-        </nav>
-      </div>
+        </div>
+      </nav>
     </div>
   )
 }
