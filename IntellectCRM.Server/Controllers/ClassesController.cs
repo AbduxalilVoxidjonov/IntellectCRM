@@ -371,42 +371,31 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
             if (cls is null) return NotFound(new { message = "Guruh topilmadi" });
             var date = string.IsNullOrWhiteSpace(req.Date) ? AppClock.Today.ToString("yyyy-MM-dd") : req.Date!.Trim();
 
-            // TRANSACTION: atomik read-modify-write, freeze race condition bilan.
-            using (var trans = await db.Database.BeginTransactionAsync())
-            {
-                // Refresh'langan ma'lumot bilan oqiylik (dirty-read oldini olish).
-                var sg = await db.StudentGroups
-                    .FirstOrDefaultAsync(x => x.GroupId == id && x.StudentId == studentId && x.IsActive);
-                if (sg is null)
-                {
-                    await trans.RollbackAsync();
-                    return NotFound(new { message = "Faol a'zolik topilmadi" });
-                }
+            // Refresh'langan ma'lumot bilan oqiylik (dirty-read oldini olish).
+            var sg = await db.StudentGroups
+                .FirstOrDefaultAsync(x => x.GroupId == id && x.StudentId == studentId && x.IsActive);
+            if (sg is null)
+                return NotFound(new { message = "Faol a'zolik topilmadi" });
 
-                // GUARD: aktivlashtirish shunas freeze bilan race qiladigan status tekshiri.
-                // Agar allaqachon muzlatilgan bo'lsa (transaction boshida) — fail.
-                if (sg.Status == "frozen")
-                {
-                    await trans.RollbackAsync();
-                    return BadRequest(new { message = "Bu a'zolik allaqachon muzlatilgan; qayta aktivlashtirish imkonsiz" });
-                }
+            // GUARD: aktivlashtirish shunas freeze bilan race qiladigan status tekshiri.
+            // Agar allaqachon muzlatilgan bo'lsa — fail.
+            if (sg.Status == "frozen")
+                return BadRequest(new { message = "Bu a'zolik allaqachon muzlatilgan; qayta aktivlashtirish imkonsiz" });
 
-                // SHU OYDA muzlatilgandan keyin qayta aktivlashtirilyaptimi? Bo'lsa, muzlatishgacha studied segment
-                // saqlanib, yangi segment USTIGA QO'SHILADI (aks holda studied portion yo'qolardi).
-                var reactivateFromFreeze = sg.Status == "frozen"
-                    && sg.FrozenAt.Length >= 7 && date.Length >= 7 && sg.FrozenAt[..7] == date[..7];
+            // SHU OYDA muzlatilgandan keyin qayta aktivlashtirilyaptimi? Bo'lsa, muzlatishgacha studied segment
+            // saqlanib, yangi segment USTIGA QO'SHILADI (aks holda studied portion yo'qolardi).
+            var reactivateFromFreeze = sg.Status == "frozen"
+                && sg.FrozenAt.Length >= 7 && date.Length >= 7 && sg.FrozenAt[..7] == date[..7];
 
-                sg.Status = "active";
-                sg.ActivatedAt = date;
-                sg.FrozenAt = string.Empty;
+            sg.Status = "active";
+            sg.ActivatedAt = date;
+            sg.FrozenAt = string.Empty;
 
-                var s = await db.Students.FindAsync(studentId);
-                if (s is not null)
-                    await TuitionService.ChargeActivationProrateAsync(db, s, cls, date, addSegment: reactivateFromFreeze);
+            var s = await db.Students.FindAsync(studentId);
+            if (s is not null)
+                await TuitionService.ChargeActivationProrateAsync(db, s, cls, date, addSegment: reactivateFromFreeze);
 
-                await db.SaveChangesAsync();
-                await trans.CommitAsync();
-            }
+            await db.SaveChangesAsync();
 
             return Ok(new { ok = true });
         }
@@ -424,44 +413,32 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
     {
         var date = string.IsNullOrWhiteSpace(req.Date) ? AppClock.Today.ToString("yyyy-MM-dd") : req.Date!.Trim();
 
-        // TRANSACTION: atomik read-modify-write, activation race condition bilan.
-        using (var trans = await db.Database.BeginTransactionAsync())
-        {
-            // Refresh'langan ma'lumot bilan oqiylik (dirty-read oldini olish).
-            var sg = await db.StudentGroups
-                .FirstOrDefaultAsync(x => x.GroupId == id && x.StudentId == studentId && x.IsActive);
-            if (sg is null)
-            {
-                await trans.RollbackAsync();
-                return NotFound(new { message = "Faol a'zolik topilmadi" });
-            }
+        // Refresh'langan ma'lumot bilan oqiylik (dirty-read oldini olish).
+        var sg = await db.StudentGroups
+            .FirstOrDefaultAsync(x => x.GroupId == id && x.StudentId == studentId && x.IsActive);
+        if (sg is null)
+            return NotFound(new { message = "Faol a'zolik topilmadi" });
 
-            // GUARD: muzlatish shunas activation bilan race qiladigan status tekshiri.
-            // Agar allaqachon faol bo'lsan (active) va shu paytda activation qilingan bo'lsa, freeze shunas qilmaydi.
-            // Bu yerda bizda "frozen" emaslik garantiyasi allaqachon bor (transaction boshida read qildi).
-            if (sg.Status != "active" && sg.Status != "trial")
-            {
-                await trans.RollbackAsync();
-                return BadRequest(new { message = $"A'zolik holatini o'zgartirib bo'lmadi (hozirgi holat: {sg.Status})" });
-            }
+        // GUARD: muzlatish shunas activation bilan race qiladigan status tekshiri.
+        // Agar allaqachon faol bo'lsan (active) va shu paytda activation qilingan bo'lsa, freeze shunas qilmaydi.
+        if (sg.Status != "active" && sg.Status != "trial")
+            return BadRequest(new { message = $"A'zolik holatini o'zgartirib bo'lmadi (hozirgi holat: {sg.Status})" });
 
-            var activatedAt = sg.ActivatedAt;
-            sg.Status = "frozen";
-            sg.FrozenAt = date;
+        var activatedAt = sg.ActivatedAt;
+        sg.Status = "frozen";
+        sg.FrozenAt = date;
 
-            // Muzlatish OYINING qisman to'lovi: shu sanagacha qatnashgan darslar uchun (to'liq oy emas).
-            var cls = await db.Classes.FindAsync(id);
-            var s = await db.Students.FindAsync(studentId);
-            if (cls is not null && s is not null)
-                await TuitionService.ChargeFreezeProrateAsync(db, s, cls, activatedAt, date);
+        // Muzlatish OYINING qisman to'lovi: shu sanagacha qatnashgan darslar uchun (to'liq oy emas).
+        var cls = await db.Classes.FindAsync(id);
+        var s = await db.Students.FindAsync(studentId);
+        if (cls is not null && s is not null)
+            await TuitionService.ChargeFreezeProrateAsync(db, s, cls, activatedAt, date);
 
-            var reason = await ReasonLabelAsync(req.ReasonId);
-            audit.Record("Membership", $"{id}:{studentId}", "update",
-                $"Muzlatildi ({date}, guruh: {cls?.Name ?? id})" + (reason.Length > 0 ? $" — sabab: {reason}" : ""),
-                studentId: studentId);
-            await db.SaveChangesAsync();
-            await trans.CommitAsync();
-        }
+        var reason = await ReasonLabelAsync(req.ReasonId);
+        audit.Record("Membership", $"{id}:{studentId}", "update",
+            $"Muzlatildi ({date}, guruh: {cls?.Name ?? id})" + (reason.Length > 0 ? $" — sabab: {reason}" : ""),
+            studentId: studentId);
+        await db.SaveChangesAsync();
 
         return Ok(new { ok = true });
     }
