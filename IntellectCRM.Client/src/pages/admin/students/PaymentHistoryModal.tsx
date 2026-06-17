@@ -41,7 +41,7 @@ export function PaymentHistoryModal({ studentId, onClose }: Props) {
       .finally(() => setLoading(false))
   }, [studentId])
 
-  const saveEdit = async (month: string) => {
+  const saveEdit = async (month: string, groupId?: string) => {
     if (!studentId) return
     const amount = Number(editVal)
     if (!Number.isFinite(amount) || amount < 0) {
@@ -52,7 +52,7 @@ export function PaymentHistoryModal({ studentId, onClose }: Props) {
     try {
       // Guruhsiz (ClassName) hisob — groupId=undefined yuboriladi (backend null = ClassName).
       // Ko'p guruhli oy bu yerga kelmaydi (tahrir tugmasi disable).
-      await editStudentCharge(studentId, month, amount)
+      await editStudentCharge(studentId, month, amount, groupId)
       const fresh = await getStudentLedger(studentId)
       setLedger(fresh)
       setEditMonth(null)
@@ -138,7 +138,7 @@ export function PaymentHistoryModal({ studentId, onClose }: Props) {
                               disabled={saving}
                               onChange={(e) => setEditVal(e.target.value)}
                               onKeyDown={(e) => {
-                                if (e.key === 'Enter') saveEdit(m.month)
+                                if (e.key === 'Enter') saveEdit(m.month, m.groupId)
                                 if (e.key === 'Escape') setEditMonth(null)
                               }}
                               className="w-28 rounded-md border border-slate-200 px-2 py-1 text-right text-sm outline-none focus:border-brand-400 disabled:opacity-50"
@@ -147,7 +147,7 @@ export function PaymentHistoryModal({ studentId, onClose }: Props) {
                               type="button"
                               title="Saqlash"
                               disabled={saving}
-                              onClick={() => saveEdit(m.month)}
+                              onClick={() => saveEdit(m.month, m.groupId)}
                               className="rounded p-1 text-emerald-600 hover:bg-emerald-50 disabled:opacity-50"
                             >
                               <Check className="h-4 w-4" />

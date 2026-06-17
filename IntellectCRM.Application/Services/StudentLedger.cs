@@ -16,7 +16,7 @@ namespace IntellectCRM.Application.Services;
 public static class StudentLedger
 {
     /// <summary>Oy bo'yicha aggregate hisob (barcha guruhlar yig'indisi) — to'lov allokatsiyasi uchun.</summary>
-    private record ChargeRow(string Month, decimal Amount, decimal Discount);
+    private record ChargeRow(string Month, decimal Amount, decimal Discount, string? GroupId = null);
 
     public static async Task<StudentLedgerDto> BuildAsync(IAppDbContext db, Student student)
     {
@@ -28,7 +28,7 @@ public static class StudentLedger
         var chargeRows = await db.MonthlyCharges.Where(c => c.StudentId == student.Id).ToListAsync();
         var charges = chargeRows
             .GroupBy(c => c.Month)
-            .Select(g => new ChargeRow(g.Key, g.Sum(c => c.Amount), g.Sum(c => c.Discount)))
+            .Select(g => new ChargeRow(g.Key, g.Sum(c => c.Amount), g.Sum(c => c.Discount), g.First().GroupId))
             .OrderBy(c => c.Month).ToList();
 
         // Kurs breakdown uchun: guruh id → kurs nomi (perGroup hisob qatorlaridan quriladi).
@@ -113,7 +113,7 @@ public static class StudentLedger
             else if (remaining <= 0) status = "paid";
             else if (paid > 0) status = "partial";
             else status = "unpaid";
-            months.Add(new MonthLedgerDto(c.Month, c.Amount, c.Discount, paid, remaining, status, CoursesForMonth(c.Month)));
+            months.Add(new MonthLedgerDto(c.Month, c.Amount, c.Discount, paid, remaining, status, CoursesForMonth(c.Month), c.GroupId));
         }
 
         var paymentDtos = payments.Select(t => new PaymentDto(t.Date, t.Amount, t.Note, t.Month, t.Comment)).ToList();

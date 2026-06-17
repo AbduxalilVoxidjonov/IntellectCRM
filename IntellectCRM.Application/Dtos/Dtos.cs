@@ -554,7 +554,7 @@ public record CourseFinanceReportDto(
 public record MonthCourseDto(string CourseName, decimal Fee);
 public record MonthLedgerDto(
     string Month, decimal Charged, decimal Discount, decimal Paid, decimal Remaining, string Status,
-    List<MonthCourseDto> Courses);
+    List<MonthCourseDto> Courses, string? GroupId = null);
 public record PaymentDto(string Date, decimal Amount, string? Note, string? Month, string? Comment);
 /// <summary>To'lov oynasi uchun BITTA guruh bo'yicha oylik hisob: shu guruhning oylik to'lovi (chegirma
 /// ayirilgan), shu guruhga teglangan to'langan summa va qoldiq. Aggregate emas — faqat shu guruh.</summary>
