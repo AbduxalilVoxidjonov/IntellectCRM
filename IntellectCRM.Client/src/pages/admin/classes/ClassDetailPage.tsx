@@ -425,25 +425,30 @@ export function ClassDetailPage() {
                         const dt = new Date(c.date)
                         const wd = (dt.getDay() + 6) % 7
                         const isToday = c.date === today
+                        const isBeforeStart = !!(g.startDate && c.date < g.startDate)
                         return (
                           <th
                             key={c.date}
                             className={cn(
                               'border-b-2 border-r border-slate-200 p-0 text-center font-semibold',
-                              isToday ? 'bg-brand-100 text-brand-700' : 'text-slate-500',
+                              isBeforeStart ? 'bg-slate-50 text-slate-300' : isToday ? 'bg-brand-100 text-brand-700' : 'text-slate-500',
                             )}
                           >
                             <button
                               type="button"
+                              disabled={isBeforeStart}
                               onClick={() => setBulkDate(c.date)}
-                              title="Shu kun uchun hammaga davomat (keldi / kelmadi)"
-                              className="w-full px-2 py-1.5 transition-colors hover:bg-brand-200/40"
+                              title={isBeforeStart ? 'Sana guruh yaratilishidan oldin' : 'Shu kun uchun hammaga davomat (keldi / kelmadi)'}
+                              className={cn(
+                                'w-full px-2 py-1.5 transition-colors',
+                                isBeforeStart ? 'cursor-not-allowed opacity-50' : 'hover:bg-brand-200/40',
+                              )}
                             >
                               <div className="text-sm">{c.date.slice(8, 10)}</div>
                               <div
                                 className={cn(
                                   'text-[10px] font-medium',
-                                  isToday ? 'text-brand-500' : 'text-slate-400',
+                                  isBeforeStart ? 'text-slate-300' : isToday ? 'text-brand-500' : 'text-slate-400',
                                 )}
                               >
                                 {weekdayShort[wd]}
@@ -503,6 +508,7 @@ export function ClassDetailPage() {
                             const e = entryMap.get(`${st.studentId}|${c.date}`)
                             const reason = e?.reasonId ? reasonById.get(e.reasonId) : undefined
                             const isToday = c.date === today
+                            const isBeforeStart = !!(g.startDate && c.date < g.startDate)
                             // Keldi (yashil): dars o'tildi + baho yo'q + sabab yo'q.
                             const present = e?.grade == null && !reason && conductedSet.has(c.date)
                             return (
@@ -510,27 +516,30 @@ export function ClassDetailPage() {
                                 key={c.date}
                                 className={cn(
                                   'border-b border-r border-slate-100 p-1 text-center',
-                                  isToday && 'bg-brand-50/30',
+                                  isBeforeStart ? 'bg-slate-50' : isToday && 'bg-brand-50/30',
                                 )}
                               >
                                 <button
                                   type="button"
+                                  disabled={isBeforeStart}
                                   onClick={() =>
                                     setCell({ studentId: st.studentId, studentName: st.fullName, date: c.date })
                                   }
                                   className={cn(
                                     'flex h-9 w-full min-w-9 items-center justify-center rounded-md text-sm font-semibold transition-colors',
-                                    e?.grade != null
-                                      ? gradeFill(e.grade)
-                                      : reason
-                                        ? reason.isLate
-                                          ? 'bg-amber-50 text-amber-700 hover:bg-amber-100'
-                                          : 'bg-red-50 text-red-600 hover:bg-red-100'
-                                        : present
-                                          ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
-                                          : 'text-slate-300 hover:bg-brand-50',
+                                    isBeforeStart
+                                      ? 'cursor-not-allowed text-slate-200'
+                                      : e?.grade != null
+                                        ? gradeFill(e.grade)
+                                        : reason
+                                          ? reason.isLate
+                                            ? 'bg-amber-50 text-amber-700 hover:bg-amber-100'
+                                            : 'bg-red-50 text-red-600 hover:bg-red-100'
+                                          : present
+                                            ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
+                                            : 'text-slate-300 hover:bg-brand-50',
                                   )}
-                                  title={`${st.fullName} — ${formatDate(c.date)}`}
+                                  title={isBeforeStart ? 'Sana guruh yaratilishidan oldin' : `${st.fullName} — ${formatDate(c.date)}`}
                                 >
                                   {e?.grade != null
                                     ? e.grade
@@ -674,6 +683,8 @@ export function ClassDetailPage() {
         open={!!cell}
         studentName={cell?.studentName ?? ''}
         dateLabel={cell ? formatDate(cell.date) : ''}
+        date={cell?.date}
+        startDate={g?.startDate}
         entry={cellEntry}
         reasons={reasons}
         onClose={() => !saving && setCell(null)}

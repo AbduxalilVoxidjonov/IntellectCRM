@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+﻿import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import {
   ArrowLeft, Users, BookOpen, User,
@@ -17,7 +17,7 @@ import type { GroupCurriculum } from '@/api/services/curriculum'
 import { cn, formatDate } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
 import { GradingSection } from '@/components/grading/GradingSection'
-import { getGradingBoard, setGrade, bulkGrade, type GradingBoard } from '@/api/services/grading'
+import type { GradingBoard } from "@/api/services/grading"
 import { Loader } from '@/components/ui/Loader'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
@@ -31,7 +31,7 @@ const uzMonths = [
 const monthLabel = (m: string) =>
   m && m.length >= 7 ? `${uzMonths[Number(m.slice(5, 7)) - 1] ?? m} ${m.slice(0, 4)}` : m
 
-/** Baho katakchasi to'liq rangi — bahoga qarab (5=yashil, 4=ko'k, 3=sariq, past=qizil). */
+/** Baho katakchasi to'liq rangi â€” bahoga qarab (5=yashil, 4=ko'k, 3=sariq, past=qizil). */
 function gradeFill(g: number): string {
   return g >= 5
     ? 'bg-emerald-50 text-emerald-700'
@@ -51,7 +51,7 @@ export function TeacherGroupDetailPage() {
   const [gradingLoading, setGradingLoading] = useState(false)
   const [cell, setCell] = useState<{ studentId: string; studentName: string; date: string } | null>(null)
   const [saving, setSaving] = useState(false)
-  /** Sarlavhadagi sana bosilganda — shu kun uchun hammaga davomat modali. */
+  /** Sarlavhadagi sana bosilganda â€” shu kun uchun hammaga davomat modali. */
   const [bulkDate, setBulkDate] = useState<string | null>(null)
   const [bulkSaving, setBulkSaving] = useState(false)
 
@@ -91,7 +91,7 @@ export function TeacherGroupDetailPage() {
     (month?: string) => {
       if (!id) return
       setGradingLoading(true)
-      getGradingBoard(id, month)
+      getTeacherGradingBoard(id, month)
         .then(setGrading)
         .catch(() => setGrading(null))
         .finally(() => setGradingLoading(false))
@@ -121,7 +121,7 @@ export function TeacherGroupDetailPage() {
     [journal],
   )
   const conductedSet = useMemo(() => new Set(journal?.conductedDates ?? []), [journal])
-  // Muzlatilganlar jurnalga QO'SHILMAYDI — grid'da faqat faol/sinov o'quvchilar.
+  // Muzlatilganlar jurnalga QO'SHILMAYDI â€” grid'da faqat faol/sinov o'quvchilar.
   const journalStudents = useMemo(
     () => (journal?.students ?? []).filter((s) => s.status !== 'frozen'),
     [journal],
@@ -167,7 +167,7 @@ export function TeacherGroupDetailPage() {
     }
   }
 
-  // Daraja yoyish/yig'ish (default — yopiq)
+  // Daraja yoyish/yig'ish (default â€” yopiq)
   const toggleLevel = (levelId: string) =>
     setCurrExpanded((s) => {
       const next = new Set(s)
@@ -176,7 +176,7 @@ export function TeacherGroupDetailPage() {
       return next
     })
 
-  // Birinchi o'tilmagan band — "keyingi" maslahati uchun
+  // Birinchi o'tilmagan band â€” "keyingi" maslahati uchun
   const nextItemId = useMemo(() => {
     if (!curr) return null
     for (const lv of curr.levels)
@@ -185,7 +185,7 @@ export function TeacherGroupDetailPage() {
     return null
   }, [curr])
 
-  // Band belgilash — optimistik, so'ng refetch (prognoz aniq qolishi uchun)
+  // Band belgilash â€” optimistik, so'ng refetch (prognoz aniq qolishi uchun)
   const toggleCover = async (itemId: string, covered: boolean) => {
     if (!curr) return
     const prev = curr
@@ -222,7 +222,7 @@ export function TeacherGroupDetailPage() {
     }
   }
 
-  // Sarlavhadagi sana bosilganda — shu darsdagi BARCHA o'quvchiga birdan davomat.
+  // Sarlavhadagi sana bosilganda â€” shu darsdagi BARCHA o'quvchiga birdan davomat.
   const doBulk = async (absent: boolean, reasonId: string | null) => {
     if (!journal || !bulkDate) return
     setBulkSaving(true)
@@ -270,22 +270,22 @@ export function TeacherGroupDetailPage() {
           {/* Guruh ma'lumotlari */}
           <Card className="rounded-[20px] border border-line bg-white shadow-[var(--shadow-card)]">
             <div className="grid grid-cols-2 gap-x-4 gap-y-4">
-              <Info icon={BookOpen} label="Kurs" value={g.courseName || "—"} />
-              <Info icon={User} label="O'qituvchi" value={g.teacherName || "—"} />
+              <Info icon={BookOpen} label="Kurs" value={g.courseName || "â€”"} />
+              <Info icon={User} label="O'qituvchi" value={g.teacherName || "â€”"} />
               <Info
                 icon={CalendarDays}
                 label="Kunlar"
-                value={g.days.length ? g.days.map((d) => weekdayShort[d] ?? d).join(", ") : "—"}
+                value={g.days.length ? g.days.map((d) => weekdayShort[d] ?? d).join(", ") : "â€”"}
               />
               <Info
                 icon={Clock}
                 label="Vaqt"
                 value={
-                  g.startTime || g.endTime ? `${g.startTime || "—"}${g.endTime ? ` – ${g.endTime}` : ""}` : "—"
+                  g.startTime || g.endTime ? `${g.startTime || "â€”"}${g.endTime ? ` â€“ ${g.endTime}` : ""}` : "â€”"
                 }
                 mono
               />
-              <Info icon={MapPin} label="Xona" value={g.room || "—"} />
+              <Info icon={MapPin} label="Xona" value={g.room || "â€”"} />
               <Info icon={Users} label="O'quvchilar" value={String(journalStudents.length)} mono />
             </div>
           </Card>
@@ -335,7 +335,7 @@ export function TeacherGroupDetailPage() {
                 </span>
               </div>
 
-              {/* Oy navigatsiyasi — gorizontal skroll */}
+              {/* Oy navigatsiyasi â€” gorizontal skroll */}
               {journal && journal.months.length > 0 && (
                 <div className="flex gap-1.5 overflow-x-auto border-b border-line-soft px-4 py-2.5">
                   {journal.months.map((m) => (
@@ -359,7 +359,7 @@ export function TeacherGroupDetailPage() {
 
               {!g.courseId ? (
                 <p className="px-4 py-12 text-center text-sm text-faint">
-                  Guruhga kurs biriktirilmagan — jurnal yuritib bo'lmaydi.
+                  Guruhga kurs biriktirilmagan â€” jurnal yuritib bo'lmaydi.
                 </p>
               ) : journalStudents.length === 0 ? (
                 <p className="px-4 py-12 text-center text-sm text-faint">
@@ -453,15 +453,15 @@ export function TeacherGroupDetailPage() {
                                           ? "bg-emerald-50 text-emerald-600"
                                           : "text-faint",
                                   )}
-                                  title={`${st.fullName} — ${formatDate(c.date)}`}
+                                  title={`${st.fullName} â€” ${formatDate(c.date)}`}
                                 >
                                   {e?.grade != null
                                     ? e.grade
                                     : reason
                                       ? reason.short || reason.name.slice(0, 2)
                                       : present
-                                        ? "✓"
-                                        : "·"}
+                                        ? "âœ“"
+                                        : "Â·"}
                                 </button>
                               </td>
                             )
@@ -475,23 +475,23 @@ export function TeacherGroupDetailPage() {
             </Card>
           )}
 
-          {/* Baholash — har darsga mezonlar bo'yicha bajardi/bajarmadi (faqat o'z guruhi) */}
+          {/* Baholash â€” har darsga mezonlar bo'yicha bajardi/bajarmadi (faqat o'z guruhi) */}
           {groupView === "baholash" && (
             <Card className="rounded-[20px] border border-line bg-white shadow-[var(--shadow-card)]">
               <h2 className="mb-3 font-semibold text-ink">Baholash</h2>
               <GradingSection
                 groupId={id}
-                fetchBoard={getGradingBoard}
-                saveGrade={setGrade}
-                bulkGrade={bulkGrade}
+                fetchBoard={getTeacherGradingBoard}
+                saveGrade={setTeacherGrade}
+                bulkGrade={bulkTeacherGrade}
               />
             </Card>
           )}
 
-          {/* Reyting — o'quvchilarning o'rtacha bahosi va baholash statistikasi */}
+          {/* Reyting â€” o'quvchilarning o'rtacha bahosi va baholash statistikasi */}
           {groupView === "reyting" && <RatingsTab grading={grading} loading={gradingLoading} />}
 
-          {/* O'quv dasturi — yig'iladigan (default yopiq) */}
+          {/* O'quv dasturi â€” yig'iladigan (default yopiq) */}
           <CurriculumSection
             curr={curr}
             loading={currLoading}
@@ -518,12 +518,12 @@ export function TeacherGroupDetailPage() {
         onClear={handleClear}
       />
 
-      {/* Sarlavha sanasi bosilganda — shu kun uchun hammaga birdan davomat */}
+      {/* Sarlavha sanasi bosilganda â€” shu kun uchun hammaga birdan davomat */}
       <Modal
         open={!!bulkDate}
         onClose={() => !bulkSaving && setBulkDate(null)}
         size="sm"
-        title={bulkDate ? `${formatDate(bulkDate)} — davomat` : "Davomat"}
+        title={bulkDate ? `${formatDate(bulkDate)} â€” davomat` : "Davomat"}
         footer={
           <Button variant="secondary" onClick={() => setBulkDate(null)} disabled={bulkSaving}>
             Yopish
@@ -542,7 +542,7 @@ export function TeacherGroupDetailPage() {
               disabled={bulkSaving}
               className="rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:opacity-50"
             >
-              ✓ Hammasi keldi
+              âœ“ Hammasi keldi
             </button>
             <button
               type="button"
@@ -550,7 +550,7 @@ export function TeacherGroupDetailPage() {
               disabled={bulkSaving}
               className="rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:opacity-50"
             >
-              ✗ Hammasi kelmadi
+              âœ— Hammasi kelmadi
             </button>
           </div>
           {absentReasons.length > 0 && (
@@ -871,7 +871,7 @@ function CurriculumSection({
                   <div className="mb-1.5 flex items-center justify-between text-sm">
                     <span className="font-medium text-mute">Bajarildi</span>
                     <span className="font-mono font-semibold text-teal-700">
-                      {curr.coveredCount}/{curr.totalItems} · {pct}%
+                      {curr.coveredCount}/{curr.totalItems} Â· {pct}%
                     </span>
                   </div>
                   <div className="h-2.5 w-full overflow-hidden rounded-full bg-panel3">
@@ -895,7 +895,7 @@ function CurriculumSection({
                     <span className="font-mono">{curr.estLessonsLeft}</span> dars
                     {curr.estFinishDate && (
                       <span className="mt-0.5 block text-xs font-normal text-faint">
-                        ≈ {formatDate(curr.estFinishDate)} da
+                        â‰ˆ {formatDate(curr.estFinishDate)} da
                       </span>
                     )}
                   </ForecastTile>
@@ -922,7 +922,7 @@ function CurriculumSection({
                 </div>
               </div>
 
-              {/* DASTUR DARAXTI — tekis (ichma-ich kartasiz, to'liq kenglik) */}
+              {/* DASTUR DARAXTI â€” tekis (ichma-ich kartasiz, to'liq kenglik) */}
               <div className="divide-y divide-line-soft">
                 {curr.levels.map((level) => {
                   const levelTotal = level.topics.reduce((s, t) => s + t.items.length, 0)
@@ -1058,3 +1058,4 @@ function ForecastTile({
     </div>
   )
 }
+

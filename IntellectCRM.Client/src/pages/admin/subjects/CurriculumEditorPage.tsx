@@ -2,10 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft, Plus, Trash2, ChevronDown, ChevronUp, ListChecks, Check,
-  Video, FileText, Music, BookOpen, ClipboardCheck, Upload, Loader2, GripVertical,
+  Video, FileText, Music, BookOpen, ClipboardCheck, Upload, Loader2, GripVertical, Copy, X,
 } from 'lucide-react'
 import type {
-  Curriculum, CurriculumLevel, CurriculumTopic, CurriculumItem, LessonType,
+  Curriculum, CurriculumLevel, CurriculumTopic, CurriculumItem, LessonType, Subject,
 } from '@/types'
 import {
   getCurriculum,
@@ -13,9 +13,11 @@ import {
   createTopic, updateTopic, deleteTopic,
   createItem, deleteItem,
   getCourseItem, saveItemContent,
+  copyLevelToSubject,
 } from '@/api/services/curriculum'
 import type { CourseItemDetail, VocabEntry, CourseQuestion, SaveItemContent } from '@/api/services/curriculum'
 import { uploadAdminFile } from '@/api/services/students'
+import { getSubjects } from '@/api/services/admin'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Loader } from '@/components/ui/Loader'
@@ -50,18 +52,29 @@ export function CurriculumEditorPage() {
 
   const [loading, setLoading] = useState(true)
   const [data, setData] = useState<Curriculum | null>(null)
+  const [subjects, setSubjects] = useState<Subject[]>([])
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [addingLevel, setAddingLevel] = useState(false)
 
+  // Copy modal state
+  const [copyingLevelId, setCopyingLevelId] = useState<string | null>(null)
+  const [copyingLevelName, setCopyingLevelName] = useState<string>('')
+  const [copyTarget, setCopyTarget] = useState<string>('')
+  const [isCopying, setIsCopying] = useState(false)
+
   useEffect(() => {
-    getCurriculum(id)
-      .then((c) => {
-        setData(c)
-        if (c.levels.length > 0) setExpanded(new Set([c.levels[0].id]))
-      })
-      .catch(() => setData(null))
-      .finally(() => setLoading(false))
+    Promise.all([
+      getCurriculum(id)
+        .then((c) => {
+          setData(c)
+          if (c.levels.length > 0) setExpanded(new Set([c.levels[0].id]))
+        })
+        .catch(() => setData(null)),
+      getSubjects()
+        .then((s) => setSubjects(s.filter((subj) => subj.id !== id)))
+        .catch(() => setSubjects([])),
+    ]).finally(() => setLoading(false))
   }, [id])
 
   // ---- Lokal holatni yangilash yordamchilari ----
@@ -102,6 +115,22 @@ export function CurriculumEditorPage() {
     if (!confirm(`"${level.name}" modulini (barcha mavzu va darslari bilan) o'chirasizmi?`)) return
     await deleteLevel(level.id)
     patchLevels((ls) => ls.filter((l) => l.id !== level.id))
+  }
+
+  const doCopyLevel = async () => {
+    if (!copyTarget || !copyingLevelId) return
+    setIsCopying(true)
+    try {
+      const result = await copyLevelToSubject(copyingLevelId, copyTarget)
+      alert(`✓ "${copyingLevelName}" → "${subjects.find((s) => s.id === copyTarget)?.name}": ${result.topicCount} mavzu va ${result.itemCount} dars nusxalandi!`)
+      setCopyingLevelId(null)
+      setCopyingLevelName('')
+      setCopyTarget('')
+    } catch (err: any) {
+      alert(`Xato: ${err.response?.data?.message || err.message}`)
+    } finally {
+      setIsCopying(false)
+    }
   }
 
   // ---- Mavzu ----
@@ -256,6 +285,11 @@ export function CurriculumEditorPage() {
                     onToggle={() => toggle(level.id)}
                     onSaveName={(name) => saveLevel(level, name)}
                     onDelete={() => removeLevel(level)}
+                    onCopy={(levelId, levelName) => {
+                      setCopyingLevelId(levelId)
+                      setCopyingLevelName(levelName)
+                      setCopyTarget('')
+                    }}
                     onAddTopic={() => addTopic(level.id)}
                     onSaveTopic={(topic, title) => saveTopic(level.id, topic, title)}
                     onDeleteTopic={(topic) => removeTopic(level.id, topic)}
@@ -290,6 +324,64 @@ export function CurriculumEditorPage() {
           )}
         </div>
       </div>
+
+      {/* ===== Copy modal ===== */}
+      {copyingLevelId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <Card className="w-full max-w-md">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-slate-800">"{copyingLevelName}" modulini nusxalash</h3>
+                <p className="text-xs text-slate-500">Maqsadli kursni tanlang:</p>
+              </div>
+              <button
+                onClick={() => setCopyingLevelId(null)}
+                className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-2 max-h-64 overflow-y-auto">
+              {subjects.length === 0 ? (
+                <p className="text-xs text-slate-400">Mavjud kurslar yo'q</p>
+              ) : (
+                subjects.map((subj) => (
+                  <button
+                    key={subj.id}
+                    onClick={() => setCopyTarget(subj.id)}
+                    className={cn(
+                      'w-full rounded-lg border px-3 py-2 text-left text-sm transition-colors',
+                      copyTarget === subj.id
+                        ? 'border-brand-400 bg-brand-50 font-medium text-brand-700'
+                        : 'border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50',
+                    )}
+                  >
+                    {subj.name}
+                  </button>
+                ))
+              )}
+            </div>
+
+            <div className="mt-4 flex gap-2">
+              <Button
+                variant="secondary"
+                onClick={() => setCopyingLevelId(null)}
+                disabled={isCopying}
+              >
+                Bekor qilish
+              </Button>
+              <Button
+                onClick={doCopyLevel}
+                disabled={!copyTarget || isCopying}
+              >
+                {isCopying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Copy className="h-4 w-4" />}
+                Nusxalash
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   )
 }
@@ -304,6 +396,7 @@ interface ModuleBlockProps {
   onToggle: () => void
   onSaveName: (name: string) => void
   onDelete: () => void
+  onCopy: (levelId: string, levelName: string) => void
   onAddTopic: () => void
   onSaveTopic: (topic: CurriculumTopic, title: string) => void
   onDeleteTopic: (topic: CurriculumTopic) => void
@@ -313,7 +406,7 @@ interface ModuleBlockProps {
 }
 
 function ModuleBlock({
-  index, level, open, selectedId, onToggle, onSaveName, onDelete,
+  index, level, open, selectedId, onToggle, onSaveName, onDelete, onCopy,
   onAddTopic, onSaveTopic, onDeleteTopic, onAddItem, onSelectItem, onDeleteItem,
 }: ModuleBlockProps) {
   const [name, setName] = useState(level.name)
@@ -342,6 +435,14 @@ function ModuleBlock({
         <span className="flex-shrink-0 text-xs font-medium text-slate-400">
           {ready}/{total}
         </span>
+        <button
+          type="button"
+          onClick={() => onCopy(level.id, level.name)}
+          className="flex-shrink-0 rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-brand-50 hover:text-brand-600"
+          title="Modulni nusxalash"
+        >
+          <Copy className="h-4 w-4" />
+        </button>
         <button
           type="button"
           onClick={onDelete}

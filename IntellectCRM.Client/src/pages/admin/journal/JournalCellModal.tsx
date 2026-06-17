@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import type { AbsenceReason, JournalEntry } from '@/types'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
@@ -8,6 +8,8 @@ interface Props {
   open: boolean
   studentName: string
   dateLabel: string
+  date?: string
+  startDate?: string
   entry: JournalEntry | null
   reasons: AbsenceReason[]
   onClose: () => void
@@ -28,6 +30,8 @@ export function JournalCellModal({
   open,
   studentName,
   dateLabel,
+  date,
+  startDate,
   entry,
   reasons,
   onClose,
@@ -56,6 +60,7 @@ export function JournalCellModal({
   const lateReasons = reasons.filter((r) => r.isLate)
   const absentReasons = reasons.filter((r) => !r.isLate)
   const selectedLate = reasonId != null && lateReasons.some((r) => r.id === reasonId)
+  const isBeforeStart = !!(startDate && date && date < startDate)
 
   const toggleReason = (id: string) => setReasonId((cur) => (cur === id ? null : id))
 
@@ -75,13 +80,18 @@ export function JournalCellModal({
           <Button variant="secondary" onClick={onClose}>
             Bekor qilish
           </Button>
-          <Button onClick={() => onSave(grade, reasonId, homework, behavior, mastery === '' ? null : mastery)}>
+          <Button disabled={isBeforeStart} onClick={() => onSave(grade, reasonId, homework, behavior, mastery === '' ? null : typeof mastery === 'number' ? mastery : null)}>
             Saqlash
           </Button>
         </>
       }
     >
       <p className="mb-4 font-mono text-sm text-slate-400">{dateLabel}</p>
+      {isBeforeStart && (
+        <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">
+          <strong>Ogohlantirish:</strong> Sana guruh yaratilishidan oldin. Saqlab bo'lmaydi.
+        </div>
+      )}
 
       <div className="space-y-4">
         <div>
@@ -127,7 +137,7 @@ export function JournalCellModal({
             </div>
             {selectedLate && (
               <p className="mt-1.5 text-xs text-amber-600">
-                Kech kelgan — darsda qatnashgan, baho ham qo'yishingiz mumkin.
+                Kech kelgan â€” darsda qatnashgan, baho ham qo'yishingiz mumkin.
               </p>
             )}
           </div>
@@ -136,7 +146,7 @@ export function JournalCellModal({
         <div>
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Davomat (kelmadi)</p>
           {absentReasons.length === 0 ? (
-            <p className="text-xs text-slate-400">Sabablar yo'q — Sozlamalarda qo'shing</p>
+            <p className="text-xs text-slate-400">Sabablar yo'q â€” Sozlamalarda qo'shing</p>
           ) : (
             <div className="flex flex-wrap gap-2">
               {absentReasons.map((r) => (
@@ -158,7 +168,7 @@ export function JournalCellModal({
           )}
         </div>
 
-        {/* Uyga vazifa — har o'quvchiga (qildi/qilmadi) */}
+        {/* Uyga vazifa â€” har o'quvchiga (qildi/qilmadi) */}
         <div>
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Uyga vazifa</p>
           <div className="flex gap-2">
@@ -189,7 +199,7 @@ export function JournalCellModal({
           </div>
         </div>
 
-        {/* Xulq — har o'quvchiga (yaxshi/yomon) */}
+        {/* Xulq â€” har o'quvchiga (yaxshi/yomon) */}
         <div>
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Xulq</p>
           <div className="flex gap-2">
@@ -220,7 +230,7 @@ export function JournalCellModal({
           </div>
         </div>
 
-        {/* O'zlashtirish foizi — shu darsni necha % o'zlashtirdi */}
+        {/* O'zlashtirish foizi â€” shu darsni necha % o'zlashtirdi */}
         <div>
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Darsni o'zlashtirish (%)</p>
           <div className="flex items-center gap-2">
