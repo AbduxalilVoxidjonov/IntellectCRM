@@ -1088,3 +1088,13 @@ docker compose up -d --build    # app + postgres + cloudflared + backup + mediam
   Backend: `JournalService.SetEntryAsync` date validation (400). Frontend: date < StartDate → sarrang disabled + warning.
   `JournalCellModal` red alert + disabled Save. ClassDetailPage grid ustunlari disabled/grayed. Backend 0, deploy ✅.
 - 2026-06-17: **GIT:** Barcha o'zgarishlar main branch'ga merge qilindi (crm → main). origin/main up-to-date. ✅
+- 2026-06-17: **MEGA-UPDATE 2 — Jami ba'holar xulosa + o'qituvchi portali responsiveness (4 agent + 3 subagent):**
+  **(1) Journal TOTAL columns:** ClassDetailPage + TeacherGroupDetailPage + GradingSection — har o'quvchining barcha baholari yig'indisi (TOTAL ustun sticky right).
+  **(2) Student profile grading:** "Baholash xulosa" karta — oylik o'rtachasi + jami yig'indi. `GET /student/grading/summary` endpoint.
+  **(3) Admin dashboard stats:** "Baholash faollik" KPI + "Baholash" ustuni ClassesPage'da grading count. `getAllGroupsGradingStats` batch.
+  **(4) TypeScript fixes:** CurriculumEditorPage import, classPerformance.ts getClasses, AdminDashboard unused import.
+  **(5) Teacher journal TOTAL:** TeacherGroupDetailPage jurnalda TOTAL column qo'shildi (sticky, tealsoft).
+  **(6) Fonts global:** index.css Times New Roman barcha portal'da (admin + teacher + student = bir xil).
+  **(7) Teacher portal responsive:** TeacherMobileLayout lg breakpoint — mobile (bottom nav) → lg (left sidebar 208px + full-width content). StudentMobileLayout moslandi.
+  **(8) Layout constraints:** max-w-md/lg olib tashlandi, content full-width (web'da 1920px sarflash, bo'sh 2 checkmark GONE). Desktop beautiful, mobile app-like.
+  Build: tsc+vite ✅, backend 0, deploy ✅ (commit 00d1c04 + fixes).
