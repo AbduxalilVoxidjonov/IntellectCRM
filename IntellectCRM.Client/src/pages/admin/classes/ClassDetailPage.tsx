@@ -401,6 +401,9 @@ export function ClassDetailPage() {
                 <table className="min-w-full border-collapse text-sm">
                   <thead>
                     <tr className="bg-slate-100 text-xs text-slate-500">
+                      <th className="border-b-2 border-r border-slate-200 bg-slate-100 px-2 py-2.5 text-center font-semibold w-8">
+                        №
+                      </th>
                       <th className="sticky left-0 z-20 border-b-2 border-r-2 border-slate-200 bg-slate-100 px-4 py-2.5 text-left font-semibold">
                         O'quvchi
                       </th>
@@ -446,7 +449,7 @@ export function ClassDetailPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {journalStudents.map((st) => {
+                    {journalStudents.map((st, idx) => {
                       const sb = statusBadge(st.status)
                       // Jami baho — dars ustunlaridagi baholarni qo'shish
                       const totalGrade = journal!.columns.reduce((sum, c) => {
@@ -455,6 +458,9 @@ export function ClassDetailPage() {
                       }, 0)
                       return (
                         <tr key={st.studentId} className="bg-white even:bg-slate-50 hover:bg-brand-50">
+                          <td className="border-b border-r border-slate-200 bg-inherit px-2 py-1 text-center">
+                            <span className="text-xs font-medium text-slate-500">{idx + 1}</span>
+                          </td>
                           <td className="sticky left-0 z-10 border-b border-r-2 border-slate-200 bg-inherit px-2 py-1">
                             <button
                               type="button"
