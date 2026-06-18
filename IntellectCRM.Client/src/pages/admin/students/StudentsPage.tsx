@@ -65,9 +65,8 @@ export function StudentsPage() {
   const [teachers, setTeachers] = useState<Teacher[]>([])
   const [groupTeachers, setGroupTeachers] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
-  /** Arxivlash modali — sabab kiritish uchun. */
+  /** Arxivga ko'chirish — ReasonPromptModal uchun. */
   const [archiveTarget, setArchiveTarget] = useState<Student | null>(null)
-  const [archiveReason, setArchiveReason] = useState('')
 
   // filtrlar
   const [search, setSearch] = useState('')
@@ -292,31 +291,58 @@ export function StudentsPage() {
       .catch((e) => alert(e?.response?.data?.message ?? "O'chirib bo'lmadi"))
   }
 
-  /** Arxivga ko'chirish — sabab so'raydi va backend'ga uzatadi. */
-  const openArchive = (s: Student) => {
+  /** Bitta o'quvchini arxivga ko'chirish — ReasonPromptModal ochadi. */
+  const handleArchive = (s: Student) => {
     setArchiveTarget(s)
-    setArchiveReason('')
   }
-  const confirmArchive = () => {
+
+  /** Arxiv sababi tanlandi — backend'ga yuborish. */
+  const doArchive = (reasonId?: string) => {
     if (!archiveTarget) return
     const s = archiveTarget
-    archiveStudent(s.id, archiveReason.trim()).then(() => {
-      // Faol ro'yxatdan olib tashlab, arxivga qo'shamiz (yangi sana bilan).
-      const updated: Student = {
-        ...s,
-        isArchived: true,
-        archivedAt: new Date().toISOString().slice(0, 10),
-        archiveReason: archiveReason.trim() || null,
-      }
-      setStudents((prev) => prev.filter((x) => x.id !== s.id))
-      setArchived((prev) => [updated, ...prev])
-      setSelected((prev) => {
-        const next = new Set(prev)
-        next.delete(s.id)
-        return next
+    archiveStudent(s.id, undefined, reasonId)
+      .then(() => {
+        // Faol ro'yxatdan olib tashlab, arxivga qo'shamiz.
+        const updated: Student = {
+          ...s,
+          isArchived: true,
+          archivedAt: new Date().toISOString().slice(0, 10),
+          archiveReason: reasonId ? undefined : null, // Sabab label backend'dan qaytaradi
+        }
+        setStudents((prev) => prev.filter((x) => x.id !== s.id))
+        setArchived((prev) => [updated, ...prev])
+        setSelected((prev) => {
+          const next = new Set(prev)
+          next.delete(s.id)
+          return next
+        })
+        setArchiveTarget(null)
       })
-      setArchiveTarget(null)
-    })
+      .catch((e) => alert(e?.response?.data?.message ?? "Arxivlashda xatolik"))
+  }
+
+  /** Tanlanganlarni arxivga ko'chirish — ReasonPromptModal ochadi. */
+  const handleArchiveSelected = (reasonId?: string) => {
+    const toArchive = selectedStudents
+    if (toArchive.length === 0) return
+    setArchivingSelected(true)
+    Promise.all(toArchive.map((s) => archiveStudent(s.id, undefined, reasonId)))
+      .then(() => {
+        // Barcha tanlanganlarni arxivga ko'chirish
+        const now = new Date().toISOString().slice(0, 10)
+        const archived = toArchive.map((s) => ({
+          ...s,
+          isArchived: true,
+          archivedAt: now,
+          archiveReason: reasonId ? undefined : null,
+        }))
+        setStudents((prev) => prev.filter((s) => !toArchive.some((x) => x.id === s.id)))
+        setArchived((prev) => [...archived, ...prev])
+        setSelected(new Set())
+        setArchiveReasonModal(false)
+      })
+      .catch((e) => alert(e?.response?.data?.message ?? "Arxivlashda xatolik"))
+      .finally(() => setArchivingSelected(false))
   }
   /** Arxivdan qaytarish. */
   const handleRestore = (s: Student) => {
@@ -683,7 +709,7 @@ export function StudentsPage() {
                                 setFormOpen(true)
                               }}
                             />
-                            <IconBtn icon={Archive} title="Arxivga ko'chirish" onClick={() => openArchive(s)} />
+                            <IconBtn icon={Archive} title="Arxivga ko'chirish" onClick={() => handleArchive(s)} />
                           </>
                         ) : (
                           <>
@@ -795,50 +821,33 @@ export function StudentsPage() {
         )}
       </Modal>
 
-      {/* Arxivga ko'chirish modali — sabab kiritish */}
-      <Modal
+      {/* Bitta o'quvchini arxivga ko'chirish — sabab bilan ReasonPromptModal */}
+      <ReasonPromptModal
         open={!!archiveTarget}
-        onClose={() => setArchiveTarget(null)}
+        category="archive_student"
         title="O'quvchini arxivga ko'chirish"
-        size="sm"
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setArchiveTarget(null)}>
-              Bekor qilish
-            </Button>
-            <Button variant="danger" onClick={confirmArchive}>
-              <Archive className="h-4 w-4" /> Arxivga ko'chirish
-            </Button>
-          </>
+        message={
+          archiveTarget
+            ? `"${archiveTarget.fullName}" o'quvchini arxivga ko'chirasiz. Tarixiy ma'lumotlar (jurnal, davomat, to'lovlar) saqlanadi, lekin faol ro'yxatdan yashirinadi, oylik to'lov hisoblanmaydi va login bloklanadi.`
+            : undefined
         }
-      >
-        {archiveTarget && (
-          <div className="space-y-3 text-sm text-slate-600">
-            <p>
-              <span className="font-medium text-slate-800">{archiveTarget.fullName}</span>{' '}
-              o'quvchini arxivga ko'chirasiz. Tarixiy ma'lumotlar (jurnal, davomat, to'lovlar)
-              saqlanadi, lekin:
-            </p>
-            <ul className="ml-5 list-disc space-y-0.5 text-slate-500">
-              <li>Faol ro'yxatdan yashirinadi (jurnal/davomat/dashboardda ko'rinmaydi)</li>
-              <li>Oylik to'lov hisoblanmaydi</li>
-              <li>Login bloklanadi (akkaunt paroli o'chiriladi)</li>
-            </ul>
-            <div>
-              <span className="mb-1 block text-sm font-medium text-slate-700">
-                Sababi (ixtiyoriy)
-              </span>
-              <input
-                value={archiveReason}
-                onChange={(e) => setArchiveReason(e.target.value)}
-                placeholder="masalan: Boshqa markazga ko'chdi, oilaviy sabab..."
-                className={cn(control, 'w-full')}
-                autoFocus
-              />
-            </div>
-          </div>
-        )}
-      </Modal>
+        confirmLabel="Arxivga ko'chirish"
+        tone="red"
+        onConfirm={doArchive}
+        onClose={() => setArchiveTarget(null)}
+      />
+
+      {/* Tanlanganlarni arxivga ko'chirish — sabab bilan ReasonPromptModal */}
+      <ReasonPromptModal
+        open={archiveReasonModal}
+        category="archive_student"
+        title="Tanlanganlarni arxivga ko'chirish"
+        message={`${selectedStudents.length} ta o'quvchini arxivga ko'chirasiz.`}
+        confirmLabel="Arxivga ko'chirish"
+        tone="red"
+        onConfirm={handleArchiveSelected}
+        onClose={() => setArchiveReasonModal(false)}
+      />
 
       <Modal
         open={!!discountPrompt}

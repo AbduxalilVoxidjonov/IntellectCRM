@@ -154,13 +154,13 @@ export async function getArchivedStudents(): Promise<Student[]> {
   return data
 }
 
-/** O'quvchini arxivga ko'chirish (sabab bilan). Login bloklanadi. */
-export async function archiveStudent(id: string, reason: string): Promise<void> {
+/** O'quvchini arxivga ko'chirish (sabab yoki reasonId bilan). Login bloklanadi. */
+export async function archiveStudent(id: string, reason?: string, reasonId?: string): Promise<void> {
   if (USE_MOCK) {
     await delay(150)
     return
   }
-  await api.post(`/admin/students/${id}/archive`, { reason })
+  await api.post(`/admin/students/${id}/archive`, { reason, reasonId })
 }
 
 /** Arxivdan qaytarish. Ixtiyoriy yangi parol bilan (parol bo'sh = login bloklangicha qoladi). */
