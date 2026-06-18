@@ -5,8 +5,10 @@ import {
   getStudentDashboard,
   getStudentGrades,
   getStudentSchool,
+  getStudentCertificates,
   type StudentDashboard,
   type StudentGradesReport,
+  type StudentCertificateDto,
 } from '@/api/services/studentPortal'
 import { Icon, gradeColor, initials, fmtDate } from '@/pages/student/lib'
 
@@ -29,6 +31,7 @@ const MENU: MenuEntry[] = [
   { icon: 'check', label: 'Baholash', color: '#0D9488', to: '/student/grading' },
   { icon: 'shield', label: 'Intizomiy ball', color: '#0EA5E9', to: '/student/discipline' },
   { icon: 'wallet', label: "To'lovlar", color: '#7C3AED', to: '/student/finance' },
+  { icon: 'award', label: 'Sertifikatlar', color: '#D97706', to: '/student/certificates' },
   { icon: 'feedback', label: 'Taklif va shikoyat', color: '#0D9488', to: '/student/feedback' },
   { icon: 'clock', label: 'Support', color: '#0EA5E9', to: '/student/support' },
   { icon: 'pin', label: 'Uy joylashuvi', color: '#DC2626', to: '/student/location' },
@@ -41,6 +44,7 @@ export function StudentProfileScreen() {
   const [dash, setDash] = useState<StudentDashboard | null>(null)
   const [report, setReport] = useState<StudentGradesReport | null>(null)
   const [schoolName, setSchoolName] = useState<string>('')
+  const [certCount, setCertCount] = useState<number>(0)
   const [loading, setLoading] = useState(true)
   const [confirmOpen, setConfirmOpen] = useState(false)
 
@@ -60,6 +64,12 @@ export function StudentProfileScreen() {
         try {
           const s = await getStudentSchool()
           if (alive && s?.name) setSchoolName(s.name)
+        } catch {
+          /* ignore */
+        }
+        try {
+          const certs: StudentCertificateDto[] = await getStudentCertificates()
+          if (alive) setCertCount(certs.length)
         } catch {
           /* ignore */
         }
@@ -245,36 +255,54 @@ export function StudentProfileScreen() {
           {/* Menu */}
           <div style={{ height: 16 }} />
           <div className="card" style={{ padding: 4 }}>
-            {MENU.map((m, i) => (
-              <button
-                key={m.to}
-                className="press row gap12"
-                onClick={() => nav(m.to)}
-                style={{
-                  width: '100%',
-                  textAlign: 'left',
-                  padding: '12px 11px',
-                  borderBottom: i === MENU.length - 1 ? undefined : '1px solid var(--border)',
-                }}
-              >
-                <div
+            {MENU.map((m, i) => {
+              const isCerts = m.to === '/student/certificates'
+              return (
+                <button
+                  key={m.to}
+                  className="press row gap12"
+                  onClick={() => nav(m.to)}
                   style={{
-                    width: 34,
-                    height: 34,
-                    borderRadius: 10,
-                    background: m.color + '22',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flex: 'none',
+                    width: '100%',
+                    textAlign: 'left',
+                    padding: '12px 11px',
+                    borderBottom: i === MENU.length - 1 ? undefined : '1px solid var(--border)',
                   }}
                 >
-                  <Icon name={m.icon} size={18} color={m.color} />
-                </div>
-                <span style={{ flex: 1, fontSize: 15, fontWeight: 700 }}>{m.label}</span>
-                <Icon name="chevR" size={18} color="var(--faint)" />
-              </button>
-            ))}
+                  <div
+                    style={{
+                      width: 34,
+                      height: 34,
+                      borderRadius: 10,
+                      background: m.color + '22',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flex: 'none',
+                    }}
+                  >
+                    <Icon name={m.icon} size={18} color={m.color} />
+                  </div>
+                  <span style={{ flex: 1, fontSize: 15, fontWeight: 700 }}>{m.label}</span>
+                  {isCerts && certCount > 0 && (
+                    <span
+                      style={{
+                        fontSize: 11.5,
+                        fontWeight: 800,
+                        color: '#fff',
+                        background: '#D97706',
+                        borderRadius: 8,
+                        padding: '2px 7px',
+                        marginRight: 4,
+                      }}
+                    >
+                      {certCount}
+                    </span>
+                  )}
+                  <Icon name="chevR" size={18} color="var(--faint)" />
+                </button>
+              )
+            })}
           </div>
 
           {/* Chiqish */}

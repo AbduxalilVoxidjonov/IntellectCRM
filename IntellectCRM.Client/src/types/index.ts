@@ -1419,3 +1419,18 @@ export interface ArchivedRecord {
   deletedAt: string
   actorName: string
 }
+
+/* ---------- O'quvchi sertifikati ---------- */
+
+export interface StudentCertificateDto {
+  id: string
+  courseName: string
+  issuedAt: string
+  expiresAt?: string | null
+  /** "active" | "expired" | "revoked" */
+  status: string
+  fileName: string
+  downloadUrl: string
+  downloadCount: number
+  metadata?: Record<string, string> | null
+}

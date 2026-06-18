@@ -585,3 +585,21 @@ export async function sendStudentFeedback(type: 'suggestion' | 'complaint', text
   if (image) fd.append('image', image)
   await api.post('/student/feedback', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
 }
+
+// ---------- Sertifikatlar ----------
+export interface StudentCertificateDto {
+  id: string
+  courseName: string
+  issuedAt: string
+  expiresAt?: string | null
+  status: string
+  fileName: string
+  downloadUrl: string
+  downloadCount: number
+  metadata?: Record<string, string> | null
+}
+
+export async function getStudentCertificates(): Promise<StudentCertificateDto[]> {
+  const { data } = await api.get<StudentCertificateDto[]>('/student/certificates')
+  return data
+}

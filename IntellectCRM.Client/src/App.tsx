@@ -89,6 +89,7 @@ import { StudentLessonScreen } from '@/pages/student/Lesson'
 import { StudentGradingScreen } from '@/pages/student/Grading'
 import { StudentSupportScreen } from '@/pages/student/Support'
 import { StudentAccountScreen } from '@/pages/student/Account'
+import { CertificatesPage } from '@/pages/student/Certificates'
 
 export default function App() {
   // Brauzer TAB'i — markaz brendingi: nom → sarlavha, logo → favicon (sozlangach avtomatik).
@@ -223,6 +224,7 @@ export default function App() {
           <Route path="grading" element={<StudentGradingScreen />} />
           <Route path="support" element={<StudentSupportScreen />} />
           <Route path="account" element={<StudentAccountScreen />} />
+          <Route path="certificates" element={<CertificatesPage />} />
         </Route>
       </Route>
 
