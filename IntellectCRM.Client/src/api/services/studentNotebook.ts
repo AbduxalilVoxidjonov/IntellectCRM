@@ -61,6 +61,15 @@ export interface NotebookAttendance {
   lateCount: Record<string, number>
 }
 
+/** O'zlashtirish darajalarining taqsimoti (darsga munosabat) — % bo'yicha */
+export interface MasteryDistribution {
+  nonReactive: number
+  reactive: number
+  active: number
+  proActive: number
+  totalLessons: number
+}
+
 /** O'quvchi shaxsiy daftari — bitta o'quvchi haqida barcha ma'lumot */
 export interface StudentNotebook {
   // Profil
@@ -109,6 +118,8 @@ export interface StudentNotebook {
   behaviorGood: number
   behaviorBad: number
   marksTrend: MonthMarks[]
+  // O'zlashtirish darajasi taqsimoti
+  masteryDistribution?: MasteryDistribution | null
 }
 
 export async function getStudentNotebook(id: string): Promise<StudentNotebook> {
