@@ -354,47 +354,6 @@ export function StudentsPage() {
     })
   }
 
-  /** Tanlanganlarni arxivga ko'chirish — sabab modali ko'rsatadi. */
-  const handleArchiveSelected = async (reasonId: string | undefined) => {
-    const ids = Array.from(selected)
-    const toArchive = source.filter((s) => ids.includes(s.id))
-
-    if (toArchive.length === 0) return
-
-    setArchivingSelected(true)
-    let archived = 0
-    let failed = 0
-
-    for (const s of toArchive) {
-      try {
-        await archiveStudent(s.id, reasonId || '')
-        const updated: Student = {
-          ...s,
-          isArchived: true,
-          archivedAt: new Date().toISOString().slice(0, 10),
-          archiveReason: reasonId || null,
-        }
-        setStudents((prev) => prev.filter((x) => x.id !== s.id))
-        setArchived((prev) => [updated, ...prev])
-        archived++
-      } catch (err) {
-        failed++
-        const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'xato'
-        console.error(`"${s.fullName}" arxivga ko'chirilmadi: ${msg}`)
-      }
-    }
-
-    setSelected(new Set())
-    setArchivingSelected(false)
-    setArchiveReasonModal(false)
-
-    if (failed === 0) {
-      alert(`✓ ${archived} ta o'quvchi arxivga ko'chirildi`)
-    } else {
-      alert(`✓ ${archived} ta arxivga ko'chirildi · ✗ ${failed} ta xato`)
-    }
-  }
-
   return (
     <div className="space-y-5">
       <PageHeader
