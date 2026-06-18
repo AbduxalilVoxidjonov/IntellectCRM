@@ -1,4 +1,4 @@
-import type { JournalColumn, JournalEntry, JournalTopic } from '@/types'
+import type { JournalColumn, JournalEntry, JournalTopic, MasteryLevel } from '@/types'
 import { delay } from '@/lib/utils'
 import { api, USE_MOCK } from '../client'
 import { journalMock } from '../mock/journal'
@@ -111,8 +111,8 @@ interface EntryPayload {
   homework?: number
   /** Xulq: 0 = belgilanmagan, 1 = yaxshi, 2 = yomon */
   behavior?: number
-  /** O'zlashtirish foizi 0-100; null = tozalash */
-  mastery?: number | null
+  /** O'zlashtirish darajasi (MasteryLevel); null = tozalash */
+  mastery?: MasteryLevel | null
 }
 
 /** Bitta katakni belgilash — baho yoki davomat sababi (sana + dars raqami bo'yicha) */

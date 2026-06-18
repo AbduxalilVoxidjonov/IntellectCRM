@@ -4,6 +4,25 @@ namespace IntellectCRM.Domain;
 // EF Core entity'lari. ID'lar string (frontend uid() — UUID ishlatadi),
 // sanalar esa ISO ("YYYY-MM-DD") ko'rinishida string sifatida saqlanadi.
 
+/// <summary>
+/// Dars o'zlashtirish darajasi (mastery level) — o'qituvchi darsda o'quvchining
+/// o'zlashtirish holati qaysi darajada ekanini belgilaydi.
+/// </summary>
+public enum MasteryLevel
+{
+    /// <summary>0 — reaktiv emas (o'rgani emas, tushunarli emas).</summary>
+    NonReactive = 0,
+
+    /// <summary>1 — reaktiv (o'rgani lekin yordam bilan).</summary>
+    Reactive = 1,
+
+    /// <summary>2 — faol (o'rgani va mustaqil ishlay oladi).</summary>
+    Active = 2,
+
+    /// <summary>3 — proaktiv (chuqur o'rgani va boshqalarga o'rgata oladi).</summary>
+    ProActive = 3
+}
+
 /// <summary>Tizim foydalanuvchisi (autentifikatsiya uchun).</summary>
 public class AppUser
 {
@@ -416,8 +435,9 @@ public class JournalEntry
     public int Homework { get; set; }
     /// <summary>Xulq: 0 = belgilanmagan, 1 = yaxshi, 2 = yomon.</summary>
     public int Behavior { get; set; }
-    /// <summary>Shu darsni o'zlashtirish foizi (0-100). null = belgilanmagan.</summary>
-    public int? Mastery { get; set; }
+    /// <summary>Shu darsni o'zlashtirish darajasi (MasteryLevel enum). null = belgilanmagan.
+    /// EF Core database savni int sifatida saqlaydi va enum qiymatiga o'zgartiradi.</summary>
+    public MasteryLevel? Mastery { get; set; }
 }
 
 /// <summary>Dars mavzusi va uyga vazifa (sana bo'yicha).</summary>

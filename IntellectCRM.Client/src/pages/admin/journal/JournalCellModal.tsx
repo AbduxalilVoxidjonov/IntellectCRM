@@ -1,5 +1,5 @@
 ﻿import { useEffect, useState } from 'react'
-import type { AbsenceReason, JournalEntry } from '@/types'
+import type { AbsenceReason, JournalEntry, MasteryLevel } from '@/types'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/utils'
@@ -13,13 +13,13 @@ interface Props {
   entry: JournalEntry | null
   reasons: AbsenceReason[]
   onClose: () => void
-  /** Baho, davomat, uyga vazifa (0/1/2), xulq (0/1/2) va o'zlashtirish %ni birga saqlaydi. */
+  /** Baho, davomat, uyga vazifa (0/1/2), xulq (0/1/2) va o'zlashtirish darajasini birga saqlaydi. */
   onSave: (
     grade: number | null,
     reasonId: string | null,
     homework: number,
     behavior: number,
-    mastery: number | null,
+    mastery: MasteryLevel | null,
   ) => void
   onClear: () => void
 }
@@ -80,7 +80,7 @@ export function JournalCellModal({
           <Button variant="secondary" onClick={onClose}>
             Bekor qilish
           </Button>
-          <Button disabled={isBeforeStart} onClick={() => onSave(grade, reasonId, homework, behavior, mastery === '' ? null : typeof mastery === 'number' ? mastery : null)}>
+          <Button disabled={isBeforeStart} onClick={() => onSave(grade, reasonId, homework, behavior, mastery === '' ? null : (mastery as MasteryLevel))}>
             Saqlash
           </Button>
         </>

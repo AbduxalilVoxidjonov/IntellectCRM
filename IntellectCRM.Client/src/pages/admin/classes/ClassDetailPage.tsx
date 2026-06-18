@@ -5,7 +5,7 @@ import {
   CalendarDays, Clock, MapPin, Wallet, Snowflake, CheckCircle2,
   ListChecks, ChevronRight, ChevronDown, Plus, Minus, Repeat, CalendarClock, Flag, TrendingUp,
 } from 'lucide-react'
-import type { AbsenceReason } from '@/types'
+import type { AbsenceReason, MasteryLevel } from '@/types'
 import {
   getGroupJournal, setJournalEntry, clearJournalEntry, bulkAttendance,
   type GroupJournal,
@@ -192,7 +192,7 @@ export function ClassDetailPage() {
     reasonId: string | null,
     homework: number,
     behavior: number,
-    mastery: number | null,
+    mastery: MasteryLevel | null,
   ) => {
     if (!journal || !cell) return
     setSaving(true)

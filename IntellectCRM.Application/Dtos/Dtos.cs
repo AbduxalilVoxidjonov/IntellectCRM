@@ -1,6 +1,7 @@
 namespace IntellectCRM.Application.Dtos;
 
 using System.ComponentModel.DataAnnotations;
+using IntellectCRM.Domain;
 
 // Frontend servislari kutadigan so'rov (request) va javob (response) shakllari.
 // JSON camelCase'ga ASP.NET Core standart sozlamasi orqali aylantiriladi.
@@ -238,10 +239,10 @@ public record TopicImportRowErrorDto(int Row, string Reason);
 public record TopicImportResultDto(int Imported, int Skipped, int Errors, List<TopicImportRowErrorDto> RowErrors);
 public record JournalEntryDto(
     string StudentId, string Date, int Period, int? Grade, string? ReasonId,
-    int Homework, int Behavior, int? Mastery);
+    int Homework, int Behavior, MasteryLevel? Mastery);
 public record SetJournalEntryRequest(
     string ClassId, string SubjectId, int Quarter, string StudentId, string Date, int Period,
-    int? Grade, string? ReasonId, int Homework = 0, int Behavior = 0, int? Mastery = null);
+    int? Grade, string? ReasonId, int Homework = 0, int Behavior = 0, MasteryLevel? Mastery = null);
 public record JournalTopicDto(string Date, int Period, string Topic, string? Homework, bool Conducted);
 /// <summary>Berilgan sanada o'tilgan (conducted) darslar — sinf+fan+dars raqami.</summary>
 public record ConductedLessonDto(string ClassId, string SubjectId, int Period);

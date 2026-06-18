@@ -364,6 +364,16 @@ export interface GroupLedger {
 
 /* ---------- Jurnal ---------- */
 
+/**
+ * Dars o'zlashtirish darajasi (mastery level) — o'qituvchi darsda o'quvchining
+ * o'zlashtirish holati qaysi darajada ekanini belgilaydi.
+ * - 0 = NonReactive (reaktiv emas — o'rgani emas, tushunarli emas)
+ * - 1 = Reactive (reaktiv — o'rgani lekin yordam bilan)
+ * - 2 = Active (faol — o'rgani va mustaqil ishlay oladi)
+ * - 3 = ProActive (proaktiv — chuqur o'rgani va boshqalarga o'rgata oladi)
+ */
+export type MasteryLevel = 0 | 1 | 2 | 3
+
 /** Jurnal ustuni: bitta dars (sana + dars raqami). */
 export interface JournalColumn {
   date: string
@@ -385,8 +395,8 @@ export interface JournalEntry {
   homework?: number
   /** Xulq: 0 = belgilanmagan, 1 = yaxshi, 2 = yomon */
   behavior?: number
-  /** Shu darsni o'zlashtirish foizi (0-100); null/undefined = belgilanmagan */
-  mastery?: number | null
+  /** Shu darsni o'zlashtirish darajasi (MasteryLevel: 0-3); null/undefined = belgilanmagan */
+  mastery?: MasteryLevel | null
 }
 
 /** Dars ma'lumoti (sana + dars raqami bo'yicha): mavzu, uyga vazifa, o'tildi */
