@@ -75,6 +75,7 @@ export function StudentsPage() {
   const [teacherFilter, setTeacherFilter] = useState('all')
   const [genderFilter, setGenderFilter] = useState<'all' | Gender>('all')
   const [balanceFilter, setBalanceFilter] = useState<BalanceFilter>('all')
+  const [activeFilter, setActiveFilter] = useState<'all' | 'active' | 'inactive'>('all')
 
   // tanlash
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -162,7 +163,10 @@ export function StudentsPage() {
     const matchBalance =
       balanceFilter === 'all' ||
       (balanceFilter === 'debt' ? s.balance < 0 : s.balance >= 0)
-    return matchSearch && matchClass && matchTeacher && matchGender && matchBalance
+    const matchActive =
+      activeFilter === 'all' ||
+      (activeFilter === 'active' ? s.active : !s.active)
+    return matchSearch && matchClass && matchTeacher && matchGender && matchBalance && matchActive
   })
 
   const selectedStudents = source.filter((s) => selected.has(s.id))
@@ -455,6 +459,15 @@ export function StudentsPage() {
             <option value="all">Barcha balans</option>
             <option value="debt">Qarzdorlar</option>
             <option value="paid">Qarzsizlar</option>
+          </select>
+          <select
+            value={activeFilter}
+            onChange={(e) => setActiveFilter(e.target.value as 'all' | 'active' | 'inactive')}
+            className={control}
+          >
+            <option value="all">Barcha holat</option>
+            <option value="active">● Aktiv</option>
+            <option value="inactive">● Aktiv emas</option>
           </select>
         </div>
         <div className="right">
