@@ -1123,3 +1123,14 @@ docker compose up -d --build    # app + postgres + cloudflared + backup + mediam
   ```
   Faydalar: ✓ Atomic (no crash window), ✓ Orphans impossible, ✓ Fast (no memory overhead), ✓ Race-safe.
   INTEGRITY_AUDIT.md updated (verdict: ✅ FIXED). Backend 0, tsc+vite ✅. Deploy ready — code solid.
+- 2026-06-18: **TELEFON NORMALIZATSIYA — barcha kontrollerlarda `PhoneUtil.Normalize()` qo'shildi (commit d74deb3).**
+  Variantlar: (A) Kiritish-vaqtida normalize (database), (B) Display-vaqtida format (UI), (C) Tanlama. **Tanlov: Variant A**.
+  Taqdim qilingan `PhoneUtil.Normalize()` metodini tg'ri joylarida qo'llandi. **Kontollerlar (5):**
+  1. **StudentsController** — Create/Update: `Student.Phone`, `Student.FatherPhone`, `Student.MotherPhone`, `Student.ParentPhone` + Excel import.
+  2. **TeachersController** — Create/Update: `Teacher.Phone`.
+  3. **StaffController** — Create/Update: `AppUser.Phone`.
+  4. **LeadsController** — Create/Update: `Lead.Phone`, `Lead.FatherPhone`, `Lead.MotherPhone`.
+  5. **AuthController** — UpdateAccount: `AppUser.Phone`.
+  **Jami:** 22 telefon normalizatsiya chaqiruvi (taplangan).
+  **Formatla:** `PhoneUtil.Normalize()` — faqat raqamlarni saqlaydi, "998" prefiksi qo'shadi, `+998-XX-XXX-XX-XX` formatiga keltiriladi.
+  Noto'g'ri format bo'lsa asl kiritilgan qiymat qaytaradi (backward compatible). Build: 0 xato, deploy ✅.
