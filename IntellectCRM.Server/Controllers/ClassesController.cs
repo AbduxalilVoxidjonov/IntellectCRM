@@ -12,7 +12,7 @@ namespace IntellectCRM.Server.Controllers;
 [Authorize]
 [AdminPerm("classes")]
 [Route("api/admin/classes")]
-public class ClassesController(AppDbContext db, AuditService audit, ILogger<ClassesController> logger) : ControllerBase
+public class ClassesController(AppDbContext db, AuditService audit, ILogger<ClassesController> logger, CertificateService certService) : ControllerBase
 {
     /// <summary>Faol (arxivlanmagan) sinflar. <paramref name="includeArchived"/>=true bo'lsa hammasi.</summary>
     [HttpGet]
@@ -509,6 +509,94 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
             var free = c.Capacity > 0 ? Math.Max(0, c.Capacity - enrolled) : 0;
             return new GroupFillRowDto(c.Id, c.Name, c.Grade, c.Capacity, enrolled, free, c.Status);
         }).ToList();
+    }
+
+    /// <summary>
+    /// Guruhni YAKUNLAB, a'zolarni keyingi kursga o'tkazadi.
+    /// <list type="bullet">
+    ///   <item>Barcha faol a'zolar Status="completed", IsActive=false qilinadi.</item>
+    ///   <item>Guruh kursi TargetCourseId ga almashtiriladi.</item>
+    ///   <item>O'quv dasturi logi (GroupCurriculumLog) tozalanadi.</item>
+    ///   <item>Har bir a'zo uchun yangi StudentGroup "trial" statusida yaratiladi.</item>
+    ///   <item>Asl kurs uchun sertifikat avto-yaratiladi (fire-and-forget).</item>
+    /// </list>
+    /// </summary>
+    [HttpPost("{id}/complete-and-transfer")]
+    [Authorize]
+    public async Task<ActionResult<CompleteAndTransferResultDto>> CompleteAndTransfer(
+        string id, CompleteAndTransferRequest req)
+    {
+        var group = await db.Classes.FindAsync(id);
+        if (group is null) return NotFound(new { message = "Guruh topilmadi" });
+
+        var targetCourse = await db.Subjects.FindAsync(req.TargetCourseId);
+        if (targetCourse is null)
+            return BadRequest(new { message = "Maqsad kurs topilmadi" });
+
+        var originalCourseId = group.CourseId ?? "";
+
+        // Faol a'zoliklarni olish.
+        var activeMembers = await db.StudentGroups
+            .Where(sg => sg.GroupId == id && sg.IsActive)
+            .ToListAsync();
+
+        if (activeMembers.Count == 0)
+            return BadRequest(new { message = "Guruhda faol a'zo yo'q" });
+
+        var now = AppClock.Now;
+        var today = AppClock.Today.ToString("yyyy-MM-dd");
+
+        // 1. Mavjud a'zoliklarni "completed" qilamiz.
+        foreach (var m in activeMembers)
+        {
+            m.Status = "completed";
+            m.IsActive = false;
+            m.LeftAt = today;
+        }
+
+        // 2. Guruh kursini maqsad kursga o'tkazamiz.
+        group.CourseId = req.TargetCourseId;
+        group.MonthlyFee = targetCourse.Price;
+
+        // 3. O'quv dasturi logini tozalaymiz (yangi kurs boshlanadi).
+        await db.GroupCurriculumLogs
+            .Where(l => l.GroupId == id)
+            .ExecuteDeleteAsync();
+
+        // 4. Har bir a'zo uchun yangi "trial" a'zolik yaratamiz.
+        var newMemberships = activeMembers.Select(m => new StudentGroup
+        {
+            StudentId = m.StudentId,
+            GroupId = id,
+            JoinedAt = today,
+            Status = "trial",
+            IsActive = true,
+        }).ToList();
+
+        db.StudentGroups.AddRange(newMemberships);
+        await db.SaveChangesAsync();
+
+        // 5. Audit log.
+        audit.Record(
+            "Group", id, "complete-and-transfer",
+            $"Guruh yakunlandi: {activeMembers.Count} a'zo, {originalCourseId} → {req.TargetCourseId}");
+
+        // 6. Sertifikatlar fire-and-forget (original kurs uchun).
+        if (!string.IsNullOrEmpty(originalCourseId))
+        {
+            var studentIds = activeMembers.Select(m => m.StudentId).ToList();
+            var notes = req.CompletionNotes;
+            _ = Task.Run(async () =>
+            {
+                foreach (var sid in studentIds)
+                {
+                    try { await certService.GenerateCertificateAsync(sid, originalCourseId, notes); }
+                    catch (Exception ex) { logger.LogWarning(ex, "Sertifikat yaratishda xato: student={S}", sid); }
+                }
+            });
+        }
+
+        return Ok(new CompleteAndTransferResultDto(activeMembers.Count));
     }
 
 }

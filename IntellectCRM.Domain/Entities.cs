@@ -1375,3 +1375,81 @@ public class GroupCurriculumLog
     public string Date { get; set; } = string.Empty;
     public string CreatedAt { get; set; } = string.Empty;
 }
+
+// ============================ SERTIFIKAT ============================
+
+/// <summary>
+/// Sertifikat andozasi (HTML shablon): kurs bo'yicha o'quvchiga beriladigan
+/// sertifikatning HTML shabloni. Tokenlar: {{student_name}}, {{course_name}},
+/// {{issue_date}}, {{certificate_number}}, {{expires_date}}.
+/// </summary>
+public class CertificateTemplate
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    /// <summary>Andoza nomi (admin ko'rishi uchun, masalan "Ingliz tili A1 sertifikat").</summary>
+    public string Name { get; set; } = string.Empty;
+    /// <summary>Bog'langan kurs (Subject) id'si.</summary>
+    public string CourseId { get; set; } = string.Empty;
+    /// <summary>HTML shablon matni — @-o'rinbosarlar bilan (@fish, @kurs, @sana, @muddati, @kod).</summary>
+    public string HtmlTemplate { get; set; } = string.Empty;
+    /// <summary>Amal qilish muddati (kunlarda). 0 — muddatsiz.</summary>
+    public int ValidityDays { get; set; }
+    public DateTime CreatedAt { get; set; } = AppClock.Now;
+}
+
+
+/// <summary>
+/// Berilgan sertifikat (yangi model): o'quvchi + kurs + HTML fayl.
+/// SHA-256 hash bilan himoyalangan. Status: active | revoked | expired.
+/// </summary>
+public class StudentCertificate
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    /// <summary>Sertifikat berilgan o'quvchi.</summary>
+    public string StudentId { get; set; } = string.Empty;
+    /// <summary>Sertifikat kurs (Subject) id'si.</summary>
+    public string CourseId { get; set; } = string.Empty;
+    /// <summary>Fayl nomi (masalan "CERT-20260618-A1B2C3.html").</summary>
+    public string FileName { get; set; } = string.Empty;
+    /// <summary>Fayl yo'li — /uploads/certificates/... (server tomoni).</summary>
+    public string FilePath { get; set; } = string.Empty;
+    /// <summary>Fayl SHA-256 hash (hex) — hujjat butunligini tekshirish uchun.</summary>
+    public string FileHash { get; set; } = string.Empty;
+    /// <summary>Fayl hajmi (bayt).</summary>
+    public long FileSize { get; set; }
+    /// <summary>Sertifikat berilgan sana.</summary>
+    public DateTime IssuedAt { get; set; } = AppClock.Now;
+    /// <summary>Amal qilish muddati. Null — muddatsiz.</summary>
+    public DateTime? ExpiresAt { get; set; }
+    /// <summary>active | revoked | expired</summary>
+    public string Status { get; set; } = "active";
+    /// <summary>Bekor qilingan sana. Null — bekor qilinmagan.</summary>
+    public DateTime? RevokedAt { get; set; }
+    /// <summary>Bekor qilish sababi.</summary>
+    public string? RevokeReason { get; set; }
+    /// <summary>Qo'shimcha meta ma'lumotlar (JSON).</summary>
+    public string? Metadata { get; set; }
+    public DateTime CreatedAt { get; set; } = AppClock.Now;
+    /// <summary>Birinchi yuklab olish vaqti.</summary>
+    public DateTime? DownloadedAt { get; set; }
+    /// <summary>Jami yuklab olishlar soni.</summary>
+    public int DownloadCount { get; set; }
+}
+
+/// <summary>
+/// Sertifikat tekshiruvi yozuvi: /verify/{id} so'rovida qoldiriladi.
+/// IsValid: hash to'g'ri va status==active bo'lsa true.
+/// </summary>
+public class CertificateVerification
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    /// <summary>Tekshirilgan StudentCertificate id'si.</summary>
+    public string StudentCertificateId { get; set; } = string.Empty;
+    public DateTime VerifiedAt { get; set; } = AppClock.Now;
+    /// <summary>Tekshiruvchi IP manzili.</summary>
+    public string VerifiedFrom { get; set; } = string.Empty;
+    /// <summary>Sertifikat haqiqiy va amal qiladimi.</summary>
+    public bool IsValid { get; set; }
+    /// <summary>Hash to'g'ri tekshirilganmi (SHA-256 mos kelgan).</summary>
+    public bool HashMatched { get; set; }
+}

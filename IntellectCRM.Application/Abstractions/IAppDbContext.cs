@@ -86,6 +86,11 @@ public interface IAppDbContext
     // Support o'qituvchi bo'sh vaqt slotlari + bron
     DbSet<SupportSlot> SupportSlots { get; }
 
+    // Sertifikatlar
+    DbSet<CertificateTemplate> CertificateTemplates { get; }
+    DbSet<StudentCertificate> StudentCertificates { get; }
+    DbSet<CertificateVerification> CertificateVerifications { get; }
+
     int SaveChanges();
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

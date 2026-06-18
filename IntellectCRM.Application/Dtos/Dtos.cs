@@ -1219,5 +1219,55 @@ public record ImportLevelDto(string Name, string? Note, List<ImportTopicDto> Top
 /// <summary>Butun sillabusni almashtirish (import) payload'i.</summary>
 public record CurriculumImportDto(List<ImportLevelDto> Levels);
 
+// ============================ SERTIFIKAT ============================
+
+/// <summary>O'quvchi sertifikati (portal ko'rinishi).</summary>
+public record StudentCertificateDto(
+    string Id,
+    string CourseName,
+    string IssuedAt,
+    string ExpiresAt,
+    string Status,
+    string FileName,
+    string DownloadUrl,
+    int DownloadCount,
+    string Metadata);
+
+/// <summary>Sertifikat andozasi yaratish so'rovi (admin: kurs + HTML shablon).</summary>
+public record CreateCertificateTemplateRequest(
+    string Name,
+    string CourseId,
+    string HtmlTemplate,
+    int ValidityDays = 0);
+
+/// <summary>Sertifikat andozasi (admin ko'rinishi).</summary>
+public record CertificateTemplateDto(
+    string Id,
+    string Name,
+    string CourseId,
+    string CourseName,
+    int ValidityDays,
+    string CreatedAt);
+
+/// <summary>Ommaviy sertifikat tekshirish natijasi.</summary>
+public record CertificateVerificationDto(
+    bool IsValid,
+    string StudentName,
+    string CourseName,
+    string IssuedAt,
+    string ExpiresAt,
+    string Status,
+    bool HashMatched,
+    string Metadata,
+    string ErrorMessage);
+
+/// <summary>Guruhni tugallab boshqa kursga ko'chirish so'rovi.</summary>
+public record CompleteAndTransferRequest(
+    string TargetCourseId,
+    string? CompletionNotes = null);
+
+/// <summary>Complete-and-Transfer natijasi.</summary>
+public record CompleteAndTransferResultDto(int CompletedCount);
+
 /// <summary>O'quvchining bir sillabus bandi bo'yicha holatini o'rnatish so'rovi.</summary>
 public record SetProgressRequest(string StudentId, string ItemId, bool Done);

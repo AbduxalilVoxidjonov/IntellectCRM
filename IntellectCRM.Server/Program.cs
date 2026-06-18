@@ -190,6 +190,9 @@ builder.Services.AddScoped<IntellectCRM.Application.Services.AuditService>();
 // Shartnoma andozasini (Word) to'ldirish xizmati
 builder.Services.AddScoped<IntellectCRM.Application.Services.ContractService>();
 
+// Sertifikat tizimi (HTML yaratish, hash, tekshirish)
+builder.Services.AddScoped<IntellectCRM.Application.Services.CertificateService>();
+
 // Turniket/FaceID integratsiyasi — o'qituvchilar davomatini avtomatik yuklash
 builder.Services.AddScoped<IntellectCRM.Application.Services.TurnstileService>();
 

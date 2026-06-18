@@ -85,6 +85,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     // Support o'qituvchi bo'sh vaqt slotlari + bron
     public DbSet<SupportSlot> SupportSlots => Set<SupportSlot>();
 
+    // Sertifikatlar
+    public DbSet<CertificateTemplate> CertificateTemplates => Set<CertificateTemplate>();
+    public DbSet<StudentCertificate> StudentCertificates => Set<StudentCertificate>();
+    public DbSet<CertificateVerification> CertificateVerifications => Set<CertificateVerification>();
+
     protected override void OnModelCreating(ModelBuilder b)
     {
         // SQL Server: indeksda qatnashadigan string ustunlar default `nvarchar(max)` bo'lib
@@ -246,5 +251,32 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         b.Entity<LevelTestQuestion>().HasIndex(q => new { q.TestId, q.Order });
         b.Entity<LevelTestBand>().HasIndex(x => new { x.TestId, x.Order });
         b.Entity<LevelTestSubmission>().HasIndex(s => new { s.TestId, s.CreatedAt });
+
+        // Sertifikatlar
+        b.Entity<CertificateTemplate>().Property(t => t.CourseId).HasMaxLength(200);
+        b.Entity<CertificateTemplate>().HasIndex(t => t.CourseId);
+
+        // StudentCertificate
+        b.Entity<StudentCertificate>().Property(c => c.StudentId).HasMaxLength(200);
+        b.Entity<StudentCertificate>().Property(c => c.CourseId).HasMaxLength(200);
+        b.Entity<StudentCertificate>()
+            .HasOne<Student>().WithMany()
+            .HasForeignKey(c => c.StudentId)
+            .OnDelete(DeleteBehavior.Cascade);
+        b.Entity<StudentCertificate>()
+            .HasOne<Subject>().WithMany()
+            .HasForeignKey(c => c.CourseId)
+            .OnDelete(DeleteBehavior.Restrict);
+        b.Entity<StudentCertificate>().HasIndex(c => new { c.StudentId, c.CourseId });
+        b.Entity<StudentCertificate>().HasIndex(c => c.Status);
+        b.Entity<StudentCertificate>().HasIndex(c => new { c.StudentId, c.CourseId, c.IssuedAt }).IsUnique();
+
+        // CertificateVerification → StudentCertificate (FK, CASCADE)
+        b.Entity<CertificateVerification>().Property(v => v.StudentCertificateId).HasMaxLength(200);
+        b.Entity<CertificateVerification>()
+            .HasOne<StudentCertificate>().WithMany()
+            .HasForeignKey(v => v.StudentCertificateId)
+            .OnDelete(DeleteBehavior.Cascade);
+        b.Entity<CertificateVerification>().HasIndex(v => v.StudentCertificateId);
     }
 }
