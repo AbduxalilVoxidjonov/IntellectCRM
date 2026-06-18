@@ -165,16 +165,16 @@ public class StudentsController(AppDbContext db, AuditService audit) : Controlle
 
         // Lid formasiga mos: o'quvchi telefoni + ota/ona (FISH+telefon).
         var fatherFull = (p.FatherFullName ?? "").Trim();
-        var fatherPhone = (p.FatherPhone ?? "").Trim();
+        var fatherPhone = PhoneUtil.Normalize(p.FatherPhone ?? "");
         var motherFull = (p.MotherFullName ?? "").Trim();
-        var motherPhone = (p.MotherPhone ?? "").Trim();
+        var motherPhone = PhoneUtil.Normalize(p.MotherPhone ?? "");
 
         // ASOSIY ota-ona kontakti — ota (bo'lmasa ona) dan; ikkalasi bo'sh bo'lsa eski parts/payload.
         var parentFull = DerivePrimary(fatherFull, motherFull,
             (parentLast + parentFirst + parentMiddle) == ""
                 ? (p.ParentFullName ?? "").Trim()
                 : JoinName(parentLast, parentFirst, parentMiddle));
-        var parentPhone = DerivePrimary(fatherPhone, motherPhone, (p.ParentPhone ?? "").Trim());
+        var parentPhone = DerivePrimary(fatherPhone, motherPhone, PhoneUtil.Normalize(p.ParentPhone ?? ""));
 
         var student = new Student
         {
@@ -185,7 +185,7 @@ public class StudentsController(AppDbContext db, AuditService audit) : Controlle
             BirthDate = p.BirthDate,
             Address = p.Address,
             Gender = p.Gender,
-            Phone = (p.Phone ?? "").Trim(),
+            Phone = PhoneUtil.Normalize(p.Phone ?? ""),
             BirthCertificateUrl = string.IsNullOrWhiteSpace(p.BirthCertificateUrl) ? null : p.BirthCertificateUrl,
             ParentFullName = parentFull,
             ParentLastName = parentLast,
@@ -289,7 +289,7 @@ public class StudentsController(AppDbContext db, AuditService audit) : Controlle
         student.BirthDate = p.BirthDate;
         student.Address = p.Address;
         student.Gender = p.Gender;
-        student.Phone = (p.Phone ?? "").Trim();
+        student.Phone = PhoneUtil.Normalize(p.Phone ?? "");
         if (p.BirthCertificateUrl is not null)
             student.BirthCertificateUrl = string.IsNullOrWhiteSpace(p.BirthCertificateUrl) ? null : p.BirthCertificateUrl;
         // Eski FISH parts berilsa ham yangilanadi (orqaga moslik); lekin ASOSIY kontakt ota/onadan keladi.
@@ -301,11 +301,11 @@ public class StudentsController(AppDbContext db, AuditService audit) : Controlle
         }
         // Lid formasiga mos: ota/ona (FISH+telefon) — va ulardan ASOSIY ota-ona kontaktini chiqaramiz.
         student.FatherFullName = (p.FatherFullName ?? "").Trim();
-        student.FatherPhone = (p.FatherPhone ?? "").Trim();
+        student.FatherPhone = PhoneUtil.Normalize(p.FatherPhone ?? "");
         student.MotherFullName = (p.MotherFullName ?? "").Trim();
-        student.MotherPhone = (p.MotherPhone ?? "").Trim();
+        student.MotherPhone = PhoneUtil.Normalize(p.MotherPhone ?? "");
         student.ParentFullName = DerivePrimary(student.FatherFullName, student.MotherFullName, (p.ParentFullName ?? "").Trim());
-        student.ParentPhone = DerivePrimary(student.FatherPhone, student.MotherPhone, (p.ParentPhone ?? "").Trim());
+        student.ParentPhone = DerivePrimary(student.FatherPhone, student.MotherPhone, PhoneUtil.Normalize(p.ParentPhone ?? ""));
         if (p.ParentPassportUrl is not null)
             student.ParentPassportUrl = string.IsNullOrWhiteSpace(p.ParentPassportUrl) ? null : p.ParentPassportUrl;
         student.ClassName = p.ClassName;
@@ -703,11 +703,11 @@ public class StudentsController(AppDbContext db, AuditService audit) : Controlle
                 ParentPhone: null,
                 ClassName: cls.Name,
                 EnrollmentDate: null,
-                Phone: r[1].Trim(),
+                Phone: PhoneUtil.Normalize(r[1]),
                 FatherFullName: fatherFullName.Length > 0 ? fatherFullName : null,
-                FatherPhone: fatherPhone.Length > 0 ? fatherPhone : null,
+                FatherPhone: fatherPhone.Length > 0 ? PhoneUtil.Normalize(fatherPhone) : null,
                 MotherFullName: motherFullName.Length > 0 ? motherFullName : null,
-                MotherPhone: motherPhone.Length > 0 ? motherPhone : null);
+                MotherPhone: motherPhone.Length > 0 ? PhoneUtil.Normalize(motherPhone) : null);
 
             AddStudent(payload, cls, r[7].Trim()); // status ixtiyoriy parametri
             created++;

@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using IntellectCRM.Infrastructure.Auth;
 using IntellectCRM.Infrastructure.Data;
 using IntellectCRM.Application.Dtos;
-
+using IntellectCRM.Application.Services;
 using IntellectCRM.Domain;
 
 namespace IntellectCRM.Server.Controllers;
@@ -103,7 +103,7 @@ public class AuthController(AppDbContext db, JwtTokenService jwt, ILogger<AuthCo
         }
 
         // Telefon — berilsa yangilaymiz (admin/xodim botda yangi lid xabarnomasini olishi uchun).
-        if (req.Phone is not null) user.Phone = req.Phone.Trim();
+        if (req.Phone is not null) user.Phone = PhoneUtil.Normalize(req.Phone);
 
         await db.SaveChangesAsync();
         return new UserDto(user.Id, user.FullName, user.Role, user.Email, user.AvatarUrl, await PermsFor(user), user.Phone);

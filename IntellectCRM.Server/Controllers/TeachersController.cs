@@ -44,7 +44,7 @@ public class TeachersController(AppDbContext db, AuditService audit) : Controlle
             BirthDate = p.BirthDate,
             Address = p.Address,
             Gender = p.Gender,
-            Phone = p.Phone ?? "",
+            Phone = PhoneUtil.Normalize(p.Phone ?? ""),
             PhotoUrl = p.PhotoUrl,
             HomeroomClass = p.HomeroomClass,
             SubjectIds = p.SubjectIds ?? new(),
@@ -87,7 +87,7 @@ public class TeachersController(AppDbContext db, AuditService audit) : Controlle
         teacher.BirthDate = p.BirthDate;
         teacher.Address = p.Address;
         teacher.Gender = p.Gender;
-        teacher.Phone = p.Phone ?? "";
+        teacher.Phone = PhoneUtil.Normalize(p.Phone ?? "");
         teacher.PhotoUrl = p.PhotoUrl;
         teacher.HomeroomClass = p.HomeroomClass;
         teacher.SubjectIds = p.SubjectIds ?? new();

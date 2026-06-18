@@ -36,7 +36,7 @@ public class StaffController(AppDbContext db) : ControllerBase
         if (string.IsNullOrWhiteSpace(p.FullName)) return BadRequest(new { message = "F.I.SH kerak" });
         var user = AccountFactory.CreateAccountFor(db, Roles.Staff, p.FullName.Trim());
         user.Position = (p.Position ?? "").Trim();
-        user.Phone = (p.Phone ?? "").Trim();
+        user.Phone = PhoneUtil.Normalize(p.Phone ?? "");
         if (!string.IsNullOrWhiteSpace(p.NewPassword))
         {
             if (p.NewPassword.Trim().Length < MinPasswordLength)
@@ -54,7 +54,7 @@ public class StaffController(AppDbContext db) : ControllerBase
         if (user is null || user.Role != Roles.Staff) return NotFound();
         user.FullName = p.FullName.Trim();
         user.Position = (p.Position ?? "").Trim();
-        user.Phone = (p.Phone ?? "").Trim();
+        user.Phone = PhoneUtil.Normalize(p.Phone ?? "");
         if (!string.IsNullOrWhiteSpace(p.NewPassword))
         {
             if (p.NewPassword.Trim().Length < MinPasswordLength)
