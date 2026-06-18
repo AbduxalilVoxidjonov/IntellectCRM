@@ -1,5 +1,7 @@
 namespace IntellectCRM.Application.Dtos;
 
+using System.ComponentModel.DataAnnotations;
+
 // Frontend servislari kutadigan so'rov (request) va javob (response) shakllari.
 // JSON camelCase'ga ASP.NET Core standart sozlamasi orqali aylantiriladi.
 
@@ -12,7 +14,9 @@ public record LoginResponse(string Token, UserDto User);
 /// <summary>O'quvchi/o'qituvchiga biriktirilgan tizim akkaunti ma'lumotlari (admin uchun).</summary>
 public record CredentialsDto(string Login, string Password, string Role);
 /// <summary>Joriy foydalanuvchi o'z login (email) va/yoki parolini o'zgartirishi uchun.
-/// NewPassword bo'sh bo'lsa — parol o'zgarmaydi. CurrentPassword har doim talab qilinadi.</summary>
+/// NewPassword bo'sh bo'lsa — parol o'zgarmaydi. CurrentPassword har doim talab qilinadi.
+/// <paramref name="Phone"/> — ixtiyoriy, kiritilsa PhoneUtil.Normalize() orqali standartlashtirilib saqlanadi
+/// (format: +998-XX-XXX-XX-XX; maksimum 32 belgi).</summary>
 public record UpdateAccountRequest(string? Email, string CurrentPassword, string? NewPassword, string? Phone = null);
 /// <summary>O'quvchi/ota-ona ilova ichida o'z parolini almashtirishi uchun.
 /// Joriy parol bilan tasdiqlanadi; yangi parol kamida 8 belgi.</summary>
@@ -23,6 +27,15 @@ public record ChangePasswordRequest(string CurrentPassword, string NewPassword);
 /// O'quvchi yaratish/tahrirlash so'rovi. FISH alohida-alohida kiritiladi (LastName/FirstName/MiddleName);
 /// agar bo'lsa, ulardan FullName yig'iladi. Ota-ona FISH ham alohida.
 /// FullName/ParentFullName ixtiyoriy — yo'q bo'lsa parts'dan yig'iladi.
+///
+/// TELEFON VALIDATSIYA (PhoneUtil.Normalize orqali standartlashtirilib saqlanadi):
+/// - <paramref name="Phone"/> — o'quvchi o'z raqami (ixtiyoriy, max 32 belgi); format: +998-XX-XXX-XX-XX
+/// - <paramref name="FatherPhone"/> — ota raqami (ixtiyoriy, max 32 belgi)
+/// - <paramref name="MotherPhone"/> — ona raqami (ixtiyoriy, max 32 belgi)
+/// - <paramref name="ParentPhone"/> — asosiy ota-ona kontakti (ixtiyoriy, max 32 belgi);
+///   tahrirda fatherPhone/motherPhone bo'lsa ular asosiy kontakt uchun ishlatiladi
+/// Raqamlar ixtiyoriy; kiritilsa kamida 7 ta raqam bo'lishi kerak va 998 prefiksini o'z ichiga olishi kerak yoki
+/// avtomatik 998 prefiksi qo'shiladi. Standartlashtirilgan format: +998-XX-XXX-XX-XX.
 /// </summary>
 public record StudentPayload(
     string FullName, string BirthDate, string Address, string Gender,
@@ -51,6 +64,11 @@ public record StudentImportRowErrorDto(int Row, string Message);
 public record StudentImportResultDto(int Created, int Failed, int Skipped, List<StudentImportRowErrorDto> Errors);
 
 /* ---------- Teachers ---------- */
+/// <summary>O'qituvchi yaratish/tahrirlash so'rovi.
+/// <paramref name="Phone"/> — o'qituvchi telefoni (ixtiyoriy, max 32 belgi);
+/// PhoneUtil.Normalize() orqali standartlashtirilib saqlanadi (format: +998-XX-XXX-XX-XX).
+/// Kiritilsa kamita 7 ta raqam bo'lishi kerak. 998 prefiksi avtomatik qo'shiladi.
+/// </summary>
 public record TeacherPayload(
     string FullName, string BirthDate, string Address, string Gender,
     string HomeroomClass, List<string> SubjectIds, decimal Salary, string? SalaryStartMonth,
@@ -152,11 +170,25 @@ public record GroupFillRowDto(
     string GroupId, string Name, int Grade, int Capacity, int Enrolled, int FreeSeats, string Status);
 
 /* ---------- Leads (CRM) ---------- */
+/// <summary>Lid (bo'lajak o'quvchi) yaratish so'rovi.
+/// TELEFON VALIDATSIYA (PhoneUtil.Normalize orqali standartlashtirilib saqlanadi):
+/// - <paramref name="Phone"/> — lidning o'z raqami (ixtiyoriy, max 32 belgi); format: +998-XX-XXX-XX-XX
+/// - <paramref name="FatherPhone"/> — ota raqami (ixtiyoriy, max 32 belgi)
+/// - <paramref name="MotherPhone"/> — ona raqami (ixtiyoriy, max 32 belgi)
+/// Raqamlar ixtiyoriy; kiritilsa kamita 7 ta raqam bo'lishi kerak. 998 prefiksi avtomatik qo'shiladi.
+/// </summary>
 public record LeadCreateRequest(
     string FullName, string Gender, string BirthDate,
     string? Phone, string? FatherFullName, string? FatherPhone,
     string? MotherFullName, string? MotherPhone, string? Note, string Stage,
     string? Source = null, string? InterestSubject = null);
+/// <summary>Lid (bo'lajak o'quvchi) tahrirlash so'rovi.
+/// TELEFON VALIDATSIYA (PhoneUtil.Normalize orqali standartlashtirilib saqlanadi):
+/// - <paramref name="Phone"/> — lidning o'z raqami (ixtiyoriy, max 32 belgi); format: +998-XX-XXX-XX-XX
+/// - <paramref name="FatherPhone"/> — ota raqami (ixtiyoriy, max 32 belgi)
+/// - <paramref name="MotherPhone"/> — ona raqami (ixtiyoriy, max 32 belgi)
+/// Raqamlar ixtiyoriy; kiritilsa kamita 7 ta raqam bo'lishi kerak. 998 prefiksi avtomatik qo'shiladi.
+/// </summary>
 public record LeadUpdateRequest(
     string FullName, string Gender, string BirthDate,
     string? Phone, string? FatherFullName, string? FatherPhone,
@@ -799,6 +831,11 @@ public record BranchPayload(
 
 /// <summary>Xodim (o'qituvchi bo'lmagan ishchi) — admin akkaunti bilan.</summary>
 public record StaffDto(string Id, string FullName, string Position, string Login, List<string> Permissions, string Phone = "");
+/// <summary>Xodim yaratish/tahrirlash so'rovi.
+/// <paramref name="Phone"/> — xodim telefoni (ixtiyoriy, max 32 belgi);
+/// PhoneUtil.Normalize() orqali standartlashtirilib saqlanadi (format: +998-XX-XXX-XX-XX).
+/// Kiritilsa kamita 7 ta raqam bo'lishi kerak. 998 prefiksi avtomatik qo'shiladi.
+/// </summary>
 public record StaffPayload(string FullName, string Position, string? NewPassword = null, string? Phone = null);
 /// <summary>Xodimning admin bo'lim ruxsatlari (faqat superadmin o'zgartiradi).</summary>
 public record SetStaffPermissionsRequest(List<string> Permissions);
