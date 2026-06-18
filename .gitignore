@@ -25,6 +25,10 @@ appsettings.*.local.json
 
 # Server statik (Docker build dist'dan yaratadi)
 IntellectCRM.Server/wwwroot/
+# Andozalar (server-side HTML shablonlar) - gitda saqlanadi
+!IntellectCRM.Server/wwwroot/
+!IntellectCRM.Server/wwwroot/templates/
+!IntellectCRM.Server/wwwroot/templates/**
 
 # Dev artefaktlari (kurriкulum import manbasi + dizayn maketi) — serverga kerak emas
 english.xlsx

@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8"/>
+<style>
+  @page {
+    size: A4 landscape;
+    margin: 0;
+  }
+
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  body {
+    width: 297mm;
+    height: 210mm;
+    font-family: Georgia, "Times New Roman", serif;
+    background: #ffffff;
+    overflow: hidden;
+  }
+
+  /* ---- border frame ---- */
+  .frame-outer {
+    position: absolute;
+    inset: 8mm;
+    border: 3px solid {accentColor};
+  }
+
+  .frame-inner {
+    position: absolute;
+    inset: 11mm;
+    border: 1px solid {accentColor};
+    opacity: 0.45;
+  }
+
+  /* ---- decorative corners ---- */
+  .corner {
+    position: absolute;
+    width: 22mm;
+    height: 22mm;
+  }
+  .corner-tl { top: 5mm;  left: 5mm;  border-top: 4px solid {accentColor}; border-left: 4px solid {accentColor}; }
+  .corner-tr { top: 5mm;  right: 5mm; border-top: 4px solid {accentColor}; border-right: 4px solid {accentColor}; }
+  .corner-bl { bottom: 5mm; left: 5mm;  border-bottom: 4px solid {accentColor}; border-left: 4px solid {accentColor}; }
+  .corner-br { bottom: 5mm; right: 5mm; border-bottom: 4px solid {accentColor}; border-right: 4px solid {accentColor}; }
+
+  /* ---- content wrapper ---- */
+  .content {
+    position: absolute;
+    inset: 14mm 14mm 14mm 14mm;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    text-align: center;
+  }
+
+  /* ---- header ---- */
+  .issuer {
+    font-size: 10pt;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: {accentColor};
+    font-weight: 600;
+  }
+
+  .cert-title {
+    font-size: 32pt;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: {accentColor};
+    font-weight: 700;
+    line-height: 1.1;
+    margin-top: 1mm;
+  }
+
+  .divider {
+    width: 60mm;
+    height: 1.5px;
+    background: linear-gradient(to right, transparent, {accentColor}, transparent);
+    margin: 2mm auto;
+  }
+
+  /* ---- body ---- */
+  .body-section {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1mm;
+  }
+
+  .presented-to {
+    font-size: 9pt;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: #555;
+  }
+
+  .student-name {
+    font-size: 26pt;
+    color: #1a1a1a;
+    font-style: italic;
+    font-weight: 700;
+    border-bottom: 1.5px solid #ccb;
+    padding-bottom: 1mm;
+    min-width: 100mm;
+  }
+
+  .award-text {
+    font-size: 9.5pt;
+    color: #444;
+    max-width: 180mm;
+    line-height: 1.55;
+    margin-top: 2mm;
+  }
+
+  .course-name {
+    font-size: 14pt;
+    font-weight: 700;
+    color: {accentColor};
+    font-style: italic;
+  }
+
+  /* ---- stats row ---- */
+  .stats-row {
+    display: flex;
+    gap: 12mm;
+    justify-content: center;
+    margin-top: 2mm;
+  }
+
+  .stat-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 28mm;
+  }
+
+  .stat-value {
+    font-size: 16pt;
+    font-weight: 700;
+    color: {accentColor};
+    font-family: Georgia, serif;
+  }
+
+  .stat-label {
+    font-size: 7pt;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #777;
+    margin-top: 0.5mm;
+  }
+
+  /* ---- footer ---- */
+  .footer {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    padding-top: 3mm;
+    border-top: 1px solid #ddd;
+  }
+
+  .footer-left {
+    text-align: left;
+  }
+
+  .footer-center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1mm;
+  }
+
+  .footer-right {
+    text-align: right;
+  }
+
+  .cert-number {
+    font-size: 7.5pt;
+    color: #777;
+    font-family: "Courier New", monospace;
+    letter-spacing: 0.05em;
+  }
+
+  .cert-date {
+    font-size: 8.5pt;
+    color: #444;
+  }
+
+  .cert-date-label {
+    font-size: 7pt;
+    text-transform: uppercase;
+    color: #999;
+    letter-spacing: 0.1em;
+  }
+
+  .issuer-address {
+    font-size: 7pt;
+    color: #888;
+    margin-top: 0.5mm;
+  }
+
+  .qr-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5mm;
+  }
+
+  .qr-label {
+    font-size: 6pt;
+    text-transform: uppercase;
+    color: #999;
+    letter-spacing: 0.08em;
+  }
+
+  .notes-text {
+    font-size: 8pt;
+    color: #666;
+    font-style: italic;
+    margin-top: 1mm;
+  }
+</style>
+</head>
+<body>
+
+<!-- Decorative borders -->
+<div class="frame-outer"></div>
+<div class="frame-inner"></div>
+<div class="corner corner-tl"></div>
+<div class="corner corner-tr"></div>
+<div class="corner corner-bl"></div>
+<div class="corner corner-br"></div>
+
+<div class="content">
+
+  <!-- Header -->
+  <div style="width:100%; text-align:center;">
+    <div class="issuer">{issuedBy}</div>
+    <div class="cert-title">Sertifikat</div>
+    <div class="divider"></div>
+  </div>
+
+  <!-- Body -->
+  <div class="body-section">
+    <div class="presented-to">Ushbu sertifikat taqdim etiladi</div>
+    <div class="student-name">{studentName}</div>
+    <div class="award-text">
+      <span class="course-name">"{courseName}"</span> kursini muvaffaqiyatli tamomlagan holda,
+      o'quv dasturini to'liq o'zlashtirganligini tasdiqlovchi ushbu sertifikat berildi.
+    </div>
+    <div class="stats-row">
+      <div class="stat-box">
+        <div class="stat-value">{progressPercent}%</div>
+        <div class="stat-label">O'zlashtirish</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value">{averageScore}</div>
+        <div class="stat-label">O'rtacha baho</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value">{darsCount}</div>
+        <div class="stat-label">Dars soni</div>
+      </div>
+    </div>
+    {completionNotesBlock}
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+
+    <div class="footer-left">
+      <div class="cert-number">Sertifikat: {certificateNumber}</div>
+      <div class="issuer-address">{issuedByAddress}</div>
+    </div>
+
+    <div class="footer-center">
+      <div class="qr-section">
+        [QR_CODE_IMAGE]
+        <div class="qr-label">Tekshirish</div>
+      </div>
+    </div>
+
+    <div class="footer-right">
+      <div class="cert-date-label">Berilgan sana</div>
+      <div class="cert-date">{completionDate}</div>
+    </div>
+
+  </div>
+
+</div>
+
+</body>
+</html>
