@@ -301,8 +301,8 @@ public record StudentDto(
     string? ParentPassportUrl = null,
     bool IsArchived = false, string? ArchivedAt = null, string? ArchiveReason = null);
 
-/// <summary>O'quvchini arxivlash so'rovi — sababini saqlaydi.</summary>
-public record ArchiveStudentRequest(string Reason);
+/// <summary>O'quvchini arxivlash so'rovi — sababini saqlaydi (ReasonId yo'ki Reason).</summary>
+public record ArchiveStudentRequest(string? Reason = null, string? ReasonId = null);
 
 /* ---------- Intizomiy ball ---------- */
 /// <summary>

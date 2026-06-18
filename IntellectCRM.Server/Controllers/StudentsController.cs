@@ -446,6 +446,7 @@ public class StudentsController(AppDbContext db, AuditService audit) : Controlle
     /// <summary>
     /// O'quvchini arxivga ko'chirish: <c>IsArchived=true</c>, sana saqlanadi, sabab yoziladi,
     /// akkaunt login bloklanadi (PasswordHash bo'shaltiriladi). Tarixiy ma'lumotlar saqlanadi.
+    /// ReasonId berilsa, ActionReason.Label yoziladi; aks holda Reason suz berilsa yoziladi.
     /// </summary>
     [HttpPost("{id}/archive")]
     public async Task<IActionResult> Archive(string id, ArchiveStudentRequest req)
@@ -457,7 +458,17 @@ public class StudentsController(AppDbContext db, AuditService audit) : Controlle
 
         student.IsArchived = true;
         student.ArchivedAt = AppClock.Today.ToString("yyyy-MM-dd");
-        student.ArchiveReason = (req.Reason ?? "").Trim();
+
+        // Sabab: ReasonId bo'lsa undan Label, aks holda Reason suz
+        if (!string.IsNullOrWhiteSpace(req.ReasonId))
+        {
+            var reason = await db.ActionReasons.FindAsync(req.ReasonId);
+            student.ArchiveReason = reason?.Label ?? (req.Reason ?? "").Trim();
+        }
+        else
+        {
+            student.ArchiveReason = (req.Reason ?? "").Trim();
+        }
 
         // Login bloklash — PasswordHash bo'shaltiriladi (login imkonsiz bo'ladi).
         if (student.UserId is not null)

@@ -90,6 +90,9 @@ export function StudentsPage() {
   const [paying, setPaying] = useState<Student | null>(null)
   const [historyOf, setHistoryOf] = useState<Student | null>(null)
   const [deleting, setDeleting] = useState<Student | null>(null)
+  /** Tanlanganlarni arxivga ko'chirish — sabab kiritish uchun */
+  const [archivingSelected, setArchivingSelected] = useState(false)
+  const [archiveReasonModal, setArchiveReasonModal] = useState(false)
 
   // Excel'dan ommaviy import
   const [importing, setImporting] = useState(false)
@@ -325,6 +328,47 @@ export function StudentsPage() {
     })
   }
 
+  /** Tanlanganlarni arxivga ko'chirish — sabab modali ko'rsatadi. */
+  const handleArchiveSelected = async (reasonId: string | undefined) => {
+    const ids = Array.from(selected)
+    const toArchive = source.filter((s) => ids.includes(s.id))
+
+    if (toArchive.length === 0) return
+
+    setArchivingSelected(true)
+    let archived = 0
+    let failed = 0
+
+    for (const s of toArchive) {
+      try {
+        await archiveStudent(s.id, reasonId || '')
+        const updated: Student = {
+          ...s,
+          isArchived: true,
+          archivedAt: new Date().toISOString().slice(0, 10),
+          archiveReason: reasonId || null,
+        }
+        setStudents((prev) => prev.filter((x) => x.id !== s.id))
+        setArchived((prev) => [updated, ...prev])
+        archived++
+      } catch (err) {
+        failed++
+        const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'xato'
+        console.error(`"${s.fullName}" arxivga ko'chirilmadi: ${msg}`)
+      }
+    }
+
+    setSelected(new Set())
+    setArchivingSelected(false)
+    setArchiveReasonModal(false)
+
+    if (failed === 0) {
+      alert(`✓ ${archived} ta o'quvchi arxivga ko'chirildi`)
+    } else {
+      alert(`✓ ${archived} ta arxivga ko'chirildi · ✗ ${failed} ta xato`)
+    }
+  }
+
   return (
     <div className="space-y-5">
       <PageHeader
@@ -487,6 +531,15 @@ export function StudentsPage() {
             </Button>
             <Button variant="secondary" onClick={handleExport}>
               <Download className="h-4 w-4" /> Yuklab olish (CSV)
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => setArchiveReasonModal(true)}
+              disabled={archivingSelected}
+              className="text-red-600 hover:text-red-700"
+            >
+              <Archive className="h-4 w-4" />
+              {archivingSelected ? "Arxivga ko'chirilyapti…" : "Arxivga ko'chirish"}
             </Button>
             <button
               onClick={clearSelection}
@@ -830,6 +883,20 @@ export function StudentsPage() {
           </div>
         )}
       </Modal>
+
+      {/* Tanlanganlarni arxivga ko'chirish — sabab bilan modali */}
+      <ReasonPromptModal
+        open={archiveReasonModal}
+        category="student_delete"
+        title="Tanlanganlarni arxivga ko'chirish"
+        message={`${selected.size} ta o'quvchini arxivga ko'chirasiz. Tarixiy ma'lumotlar (jurnal, davomat, to'lovlar) saqlanadi, lekin faol ro'yxatdan yashirinadi va oylik to'lov hisoblanmaydi.`}
+        confirmLabel={archivingSelected ? "Arxivga ko'chirilyapti…" : "Arxivga ko'chirish"}
+        tone="red"
+        onConfirm={handleArchiveSelected}
+        onClose={() => {
+          if (!archivingSelected) setArchiveReasonModal(false)
+        }}
+      />
     </div>
   )
 }
