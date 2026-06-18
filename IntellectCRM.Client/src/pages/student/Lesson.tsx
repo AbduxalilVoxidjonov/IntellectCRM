@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { getStudentLesson, type LessonContent, type LessonQuestion } from '@/api/services/studentPortal'
+import { getStudentLesson, getStudentCurriculum, type LessonContent, type LessonQuestion } from '@/api/services/studentPortal'
 import { Icon } from '@/pages/student/lib'
 
 /* ============================================================
    O'quvchi portali — DARS ko'rish (Duolingo node bosilganda ochiladi).
    Bitta dars BIR NECHTA bo'limdan iborat bo'lishi mumkin: video → matn →
    audio → lug'at → test. O'quvchi tepadagi progress bilan ketma-ket o'tadi.
+   Ko'p kurs bo'lsa, tepada kurs selector ko'rinadi.
    ============================================================ */
 
 type SectionKind = 'video' | 'text' | 'audio' | 'vocab' | 'test'
@@ -39,16 +40,47 @@ export function StudentLessonScreen() {
   const [lesson, setLesson] = useState<LessonContent | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [step, setStep] = useState(0)
+  const [selectedCourseId, setSelectedCourseId] = useState<string>('')
+  const [courses, setCourses] = useState<Array<{ id: string; name: string }>>([])
 
+  // Dars kontentini va kurslarni parallel yuklash
   useEffect(() => {
     let alive = true
-    getStudentLesson(id)
-      .then((l) => alive && setLesson(l))
+    Promise.all([
+      getStudentLesson(id),
+      getStudentCurriculum()
+    ])
+      .then(([l, curriculums]) => {
+        if (!alive) return
+        setLesson(l)
+
+        // Kurslarni deduplicate qilish
+        const courseMap = new Map<string, string>()
+        curriculums?.forEach(c => {
+          if (c.courseId && c.courseName) {
+            courseMap.set(c.courseId, c.courseName)
+          }
+        })
+
+        const uniqueCourses = Array.from(courseMap).map(([id, name]) => ({ id, name }))
+        setCourses(uniqueCourses)
+
+        // Agar bitta kurs bo'lsa, avtomatik tanlash
+        if (uniqueCourses.length === 1 && !selectedCourseId) {
+          setSelectedCourseId(uniqueCourses[0].id)
+        }
+      })
       .catch(() => alive && setErr("Dars topilmadi yoki kontent yo'q"))
+
     return () => {
       alive = false
     }
   }, [id])
+
+
+  const handleCourseChange = (courseId: string) => {
+    setSelectedCourseId(courseId)
+  }
 
   // Mavjud bo'limlar (faqat to'ldirilganlari) — qat'iy tartibda.
   const sections = useMemo<SectionKind[]>(() => {
@@ -77,6 +109,37 @@ export function StudentLessonScreen() {
             {lesson?.text || 'Dars'}
           </div>
         </div>
+
+        {/* Kurs selector — ko'p kurs bo'lsa */}
+        {courses.length > 1 && (
+          <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <label className="muted" style={{ fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>
+              Kurs:
+            </label>
+            <select
+              value={selectedCourseId}
+              onChange={(e) => handleCourseChange(e.target.value)}
+              style={{
+                flex: 1,
+                padding: '6px 10px',
+                borderRadius: 8,
+                border: '1.5px solid var(--border)',
+                background: 'var(--surface)',
+                color: 'var(--text)',
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              <option value="">— tanlang —</option>
+              {courses.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {/* Tepadagi progress — bo'limlar bo'yicha */}
         {total > 0 && (
