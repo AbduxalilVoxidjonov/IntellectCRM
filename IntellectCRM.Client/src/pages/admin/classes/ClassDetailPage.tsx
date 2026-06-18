@@ -55,6 +55,22 @@ function gradeFill(g: number): string {
         : 'bg-red-50 text-red-600 hover:bg-red-100'
 }
 
+/** Mastery darajasi — rangi va yorlig'i */
+function masteryDisplay(m: MasteryLevel | undefined): { label: string; cls: string } {
+  switch (m) {
+    case 0:
+      return { label: '😴', cls: 'bg-slate-50 text-slate-600 hover:bg-slate-100' }
+    case 1:
+      return { label: '👂', cls: 'bg-blue-50 text-blue-600 hover:bg-blue-100' }
+    case 2:
+      return { label: '🙋', cls: 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100' }
+    case 3:
+      return { label: '⭐', cls: 'bg-amber-50 text-amber-600 hover:bg-amber-100' }
+    default:
+      return { label: '', cls: '' }
+  }
+}
+
 export function ClassDetailPage() {
   const { id = '' } = useParams()
   const [journal, setJournal] = useState<GroupJournal | null>(null)
@@ -551,6 +567,7 @@ export function ClassDetailPage() {
                             const isBeforeStart = !!g.startDate && c.date < g.startDate
                             // Keldi (yashil): dars o'tildi + baho yo'q + sabab yo'q.
                             const present = e?.grade == null && !reason && conductedSet.has(c.date)
+                            const masteryInfo = e?.mastery != null ? masteryDisplay(e.mastery) : { label: '', cls: '' }
                             return (
                               <td
                                 key={c.date}
@@ -571,23 +588,27 @@ export function ClassDetailPage() {
                                       ? 'cursor-not-allowed text-slate-200'
                                       : e?.grade != null
                                         ? gradeFill(e.grade)
-                                        : reason
-                                          ? reason.isLate
-                                            ? 'bg-amber-50 text-amber-700 hover:bg-amber-100'
-                                            : 'bg-red-50 text-red-600 hover:bg-red-100'
-                                          : present
-                                            ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
-                                            : 'text-slate-300 hover:bg-brand-50',
+                                        : e?.mastery != null
+                                          ? masteryInfo.cls
+                                          : reason
+                                            ? reason.isLate
+                                              ? 'bg-amber-50 text-amber-700 hover:bg-amber-100'
+                                              : 'bg-red-50 text-red-600 hover:bg-red-100'
+                                            : present
+                                              ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
+                                              : 'text-slate-300 hover:bg-brand-50',
                                   )}
                                   title={isBeforeStart ? 'Sana guruh yaratilishidan oldin' : `${st.fullName} — ${formatDate(c.date)}`}
                                 >
                                   {e?.grade != null
                                     ? e.grade
-                                    : reason
-                                      ? reason.short || reason.name.slice(0, 2)
-                                      : present
-                                        ? '✓'
-                                        : '·'}
+                                    : e?.mastery != null
+                                      ? masteryInfo.label
+                                      : reason
+                                        ? reason.short || reason.name.slice(0, 2)
+                                        : present
+                                          ? '✓'
+                                          : '·'}
                                 </button>
                               </td>
                             )

@@ -26,6 +26,13 @@ interface Props {
 
 const grades = [1, 2, 3, 4, 5]
 
+const masteryOptions = [
+  { value: 0, label: 'Non-Reactive', desc: 'Passiv, qayd qilmaydi' },
+  { value: 1, label: 'Reactive', desc: 'Javobi beradi, undama kerak' },
+  { value: 2, label: 'Active', desc: 'Faol qatnashadi' },
+  { value: 3, label: 'Pro-Active', desc: "Kuzatuvchi, o'zini urganadi" },
+]
+
 export function JournalCellModal({
   open,
   studentName,
@@ -42,7 +49,7 @@ export function JournalCellModal({
   const [reasonId, setReasonId] = useState<string | null>(null)
   const [homework, setHomework] = useState(0)
   const [behavior, setBehavior] = useState(0)
-  const [mastery, setMastery] = useState<number | ''>('')
+  const [mastery, setMastery] = useState<MasteryLevel | ''>('')
 
   useEffect(() => {
     if (!open) return
@@ -80,7 +87,7 @@ export function JournalCellModal({
           <Button variant="secondary" onClick={onClose}>
             Bekor qilish
           </Button>
-          <Button disabled={isBeforeStart} onClick={() => onSave(grade, reasonId, homework, behavior, mastery === '' ? null : (mastery as MasteryLevel))}>
+          <Button disabled={isBeforeStart} onClick={() => onSave(grade, reasonId, homework, behavior, mastery === '' ? null : mastery)}>
             Saqlash
           </Button>
         </>
@@ -137,7 +144,7 @@ export function JournalCellModal({
             </div>
             {selectedLate && (
               <p className="mt-1.5 text-xs text-amber-600">
-                Kech kelgan â€” darsda qatnashgan, baho ham qo'yishingiz mumkin.
+                Kech kelgan - darsda qatnashgan, baho ham qo'yishingiz mumkin.
               </p>
             )}
           </div>
@@ -146,7 +153,7 @@ export function JournalCellModal({
         <div>
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Davomat (kelmadi)</p>
           {absentReasons.length === 0 ? (
-            <p className="text-xs text-slate-400">Sabablar yo'q â€” Sozlamalarda qo'shing</p>
+            <p className="text-xs text-slate-400">Sabablar yo'q - Sozlamalarda qo'shing</p>
           ) : (
             <div className="flex flex-wrap gap-2">
               {absentReasons.map((r) => (
@@ -168,7 +175,6 @@ export function JournalCellModal({
           )}
         </div>
 
-        {/* Uyga vazifa â€” har o'quvchiga (qildi/qilmadi) */}
         <div>
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Uyga vazifa</p>
           <div className="flex gap-2">
@@ -199,7 +205,6 @@ export function JournalCellModal({
           </div>
         </div>
 
-        {/* Xulq â€” har o'quvchiga (yaxshi/yomon) */}
         <div>
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Xulq</p>
           <div className="flex gap-2">
@@ -230,31 +235,34 @@ export function JournalCellModal({
           </div>
         </div>
 
-        {/* O'zlashtirish foizi â€” shu darsni necha % o'zlashtirdi */}
         <div>
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Darsni o'zlashtirish (%)</p>
-          <div className="flex items-center gap-2">
-            <input
-              type="number"
-              min={0}
-              max={100}
-              inputMode="numeric"
-              placeholder="0-100"
-              value={mastery}
-              onChange={(e) => {
-                const v = e.target.value
-                if (v === '') return setMastery('')
-                const n = Math.max(0, Math.min(100, Number(v)))
-                setMastery(Number.isNaN(n) ? '' : n)
-              }}
-              className="w-28 rounded-lg border border-slate-200 px-3 py-2 font-mono text-sm outline-none transition-colors focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
-            />
-            <span className="text-sm text-slate-400">%</span>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Darsga munosabat</p>
+          <div className="space-y-2">
+            {masteryOptions.map((opt) => (
+              <label
+                key={opt.value}
+                className="flex cursor-pointer items-center gap-3 rounded-lg border border-slate-200 p-3 transition-colors hover:bg-slate-50"
+              >
+                <input
+                  type="radio"
+                  name="mastery"
+                  value={opt.value}
+                  checked={mastery === opt.value}
+                  onChange={() => setMastery(opt.value as MasteryLevel)}
+                  className="cursor-pointer"
+                />
+                <div className="flex-1">
+                  <div className="font-semibold text-slate-700">{opt.label}</div>
+                  <div className="text-xs text-slate-500">{opt.desc}</div>
+                </div>
+              </label>
+            ))}
+
             {mastery !== '' && (
               <button
                 type="button"
                 onClick={() => setMastery('')}
-                className="text-xs text-slate-400 hover:text-slate-600"
+                className="mt-2 text-xs text-slate-400 hover:text-slate-600"
               >
                 Tozalash
               </button>

@@ -42,6 +42,22 @@ function gradeFill(g: number): string {
         : 'bg-red-50 text-red-600'
 }
 
+/** Mastery darajasi — rangi va yorlig'i */
+function masteryDisplay(m: number | undefined): { label: string; cls: string } {
+  switch (m) {
+    case 0:
+      return { label: '😴', cls: 'bg-slate-50 text-slate-600 hover:bg-slate-100' }
+    case 1:
+      return { label: '👂', cls: 'bg-blue-50 text-blue-600 hover:bg-blue-100' }
+    case 2:
+      return { label: '🙋', cls: 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100' }
+    case 3:
+      return { label: '⭐', cls: 'bg-amber-50 text-amber-600 hover:bg-amber-100' }
+    default:
+      return { label: '', cls: '' }
+  }
+}
+
 export function TeacherGroupDetailPage() {
   const { id = '' } = useParams()
   const [journal, setJournal] = useState<GroupJournal | null>(null)
@@ -477,6 +493,7 @@ export function TeacherGroupDetailPage() {
                             const isToday = c.date === today
                             // Keldi (yashil): dars o'tildi + baho yo'q + sabab yo'q.
                             const present = e?.grade == null && !reason && conductedSet.has(c.date)
+                            const masteryInfo = e?.mastery != null ? masteryDisplay(e.mastery) : { label: '', cls: '' }
                             return (
                               <td
                                 key={c.date}
@@ -498,23 +515,27 @@ export function TeacherGroupDetailPage() {
                                     "flex h-9 w-full min-w-9 items-center justify-center rounded-md text-sm font-semibold transition-colors",
                                     e?.grade != null
                                       ? gradeFill(e.grade)
-                                      : reason
-                                        ? reason.isLate
-                                          ? "bg-amber-50 text-amber-700"
-                                          : "bg-red-50 text-red-600"
-                                        : present
-                                          ? "bg-emerald-50 text-emerald-600"
-                                          : "text-faint",
+                                      : e?.mastery != null
+                                        ? masteryInfo.cls
+                                        : reason
+                                          ? reason.isLate
+                                            ? "bg-amber-50 text-amber-700"
+                                            : "bg-red-50 text-red-600"
+                                          : present
+                                            ? "bg-emerald-50 text-emerald-600"
+                                            : "text-faint",
                                   )}
                                   title={`${st.fullName} — ${formatDate(c.date)}`}
                                 >
                                   {e?.grade != null
                                     ? e.grade
-                                    : reason
-                                      ? reason.short || reason.name.slice(0, 2)
-                                      : present
-                                        ? "✓"
-                                        : "·"}
+                                    : e?.mastery != null
+                                      ? masteryInfo.label
+                                      : reason
+                                        ? reason.short || reason.name.slice(0, 2)
+                                        : present
+                                          ? "✓"
+                                          : "·"}
                                 </button>
                               </td>
                             )
