@@ -35,6 +35,7 @@ import { LevelTestEditorPage } from '@/pages/admin/level-tests/LevelTestEditorPa
 import { SupportPage } from '@/pages/admin/support/SupportPage'
 import { SupportDetailPage } from '@/pages/admin/support/SupportDetailPage'
 import { PublicTestPage } from '@/pages/public/PublicTestPage'
+import { VerifyCertificatePage } from '@/pages/public/VerifyCertificate'
 import { MessagesPage } from '@/pages/admin/messages/MessagesPage'
 import { AssignmentsPage } from '@/pages/admin/assignments/AssignmentsPage'
 import { AssignmentScoresPage } from '@/pages/admin/assignment-scores/AssignmentScoresPage'
@@ -117,6 +118,8 @@ export default function App() {
       <Route path="/login" element={<LoginPage />} />
       {/* Ommaviy daraja testi (autentifikatsiyasiz) — topshirilsa CRM'da lid bo'ladi */}
       <Route path="/test/:slug" element={<PublicTestPage />} />
+      {/* Sertifikat tekshiruvi (autentifikatsiyasiz) */}
+      <Route path="/verify-certificate/:id" element={<VerifyCertificatePage />} />
 
       <Route path="/" element={<RootRedirect />} />
 
