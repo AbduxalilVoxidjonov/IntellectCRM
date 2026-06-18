@@ -598,6 +598,14 @@ public class StudentsController(AppDbContext db, AuditService audit) : Controlle
         "Guruh", "Holat", "Tug'ilgan sana (YYYY-MM-DD)", "Jinsi (o'g'il/qiz)",
     };
 
+    // Guruh bo'yicha status mapping (guruh berilgan bo'lsa status to'ldirish uchun).
+    private static string NormalizeGroupStatus(Group? cls, string statusFromRow)
+    {
+        if (cls is null) return ""; // guruh yo'q — status ko'p muhim emas
+        var normalized = NormalizeStatus(statusFromRow);
+        return string.IsNullOrEmpty(normalized) ? "trial" : normalized;
+    }
+
     /// <summary>
     /// O'quvchilarni ommaviy kiritish uchun bo'sh Excel shabloni (.xlsx). 1-varaq "O'quvchilar" —
     /// to'ldiriladigan sarlavhalar; 2-varaq "Yo'riqnoma" — maydonlar izohi va MAVJUD sinflar ro'yxati.
@@ -617,8 +625,8 @@ public class StudentsController(AppDbContext db, AuditService audit) : Controlle
             new[] { "Ota tel", "ixtiyoriy. Masalan: +998901234567" },
             new[] { "Ona ismi", "ixtiyoriy. Masalan: Aliyeva Nodira" },
             new[] { "Ona tel", "ixtiyoriy. Masalan: +998901234568" },
-            new[] { "Guruh", "Majburiy — pastdagi ro'yxatdagi aniq nom (bitta)" },
-            new[] { "Holat", "ixtiyoriy: trial, active yoki frozen (default: trial)" },
+            new[] { "Guruh", "ixtiyoriy. Bo'sh bo'lsa, o'quvchi faqat yaratiladi; pastdagi ro'yxatdan aniq nom" },
+            new[] { "Holat", "ixtiyoriy: trial, active yoki frozen (default: trial). Guruh bo'lsa qo'llaniladi" },
             new[] { "Tug'ilgan sana", "YYYY-MM-DD, masalan 2015-03-21 (ixtiyoriy)" },
             new[] { "Jinsi", "o'g'il yoki qiz (bo'sh bo'lsa — o'g'il)" },
             new[] { "", "" },
@@ -671,7 +679,7 @@ public class StudentsController(AppDbContext db, AuditService audit) : Controlle
         int created = 0, skipped = 0;
 
         // 0-qator — sarlavha; ma'lumot 1-indeksdan boshlanadi (Excel'dagi 2-qator).
-        // Yangi ustunlar tartibi: 0=FISH, 1=telefon, 2=ota ismi, 3=ota tel, 4=ona ismi, 5=ona tel, 6=guruh*, 7=holat, 8=tug'ilgan sana, 9=jinsi
+        // Ustunlar tartibi: 0=FISH, 1=telefon, 2=ota ismi, 3=ota tel, 4=ona ismi, 5=ona tel, 6=guruh (ixtiyoriy), 7=holat, 8=tug'ilgan sana, 9=jinsi
         for (var i = 1; i < rows.Count; i++)
         {
             var r = rows[i];
@@ -680,19 +688,26 @@ public class StudentsController(AppDbContext db, AuditService audit) : Controlle
             if (r.All(string.IsNullOrWhiteSpace)) { skipped++; continue; }
 
             var fullName = r[0].Trim();
-            var groupName = r[6].Trim();
             if (string.IsNullOrWhiteSpace(fullName))
             { errors.Add(new StudentImportRowErrorDto(excelRow, "F.I.SH bo'sh")); continue; }
-            if (string.IsNullOrWhiteSpace(groupName))
-            { errors.Add(new StudentImportRowErrorDto(excelRow, "Guruh bo'sh")); continue; }
-            if (!classByName.TryGetValue(groupName, out var cls))
-            { errors.Add(new StudentImportRowErrorDto(excelRow, $"Guruh topilmadi: \"{groupName}\"")); continue; }
 
             // Ota-ona: father yoki mother (bo'lsa) ishlatiladi
             var fatherFullName = r[2].Trim();
             var fatherPhone = r[3].Trim();
             var motherFullName = r[4].Trim();
             var motherPhone = r[5].Trim();
+
+            // GURUH — ixtiyoriy. Bo'sh bo'lsa faqat Student yaratiladi (guruhga qo'shilmay).
+            var groupName = r[6].Trim();
+            Group? cls = null;
+            if (!string.IsNullOrWhiteSpace(groupName))
+            {
+                if (!classByName.TryGetValue(groupName, out cls))
+                {
+                    errors.Add(new StudentImportRowErrorDto(excelRow, $"Guruh topilmadi: \"{groupName}\""));
+                    continue;
+                }
+            }
 
             var payload = new StudentPayload(
                 FullName: fullName,
@@ -701,7 +716,7 @@ public class StudentsController(AppDbContext db, AuditService audit) : Controlle
                 Gender: NormalizeGender(r[9]),
                 ParentFullName: null,
                 ParentPhone: null,
-                ClassName: cls.Name,
+                ClassName: cls?.Name ?? "", // guruh bo'lsa guruh nomi, aks holda bo'sh
                 EnrollmentDate: null,
                 Phone: PhoneUtil.Normalize(r[1]),
                 FatherFullName: fatherFullName.Length > 0 ? fatherFullName : null,
@@ -709,7 +724,9 @@ public class StudentsController(AppDbContext db, AuditService audit) : Controlle
                 MotherFullName: motherFullName.Length > 0 ? motherFullName : null,
                 MotherPhone: motherPhone.Length > 0 ? PhoneUtil.Normalize(motherPhone) : null);
 
-            AddStudent(payload, cls, r[7].Trim()); // status ixtiyoriy parametri
+            // Holat — faqat guruh bo'lsa qo'llaniladi
+            var status = cls is not null ? NormalizeGroupStatus(cls, r[7].Trim()) : "";
+            AddStudent(payload, cls, status);
             created++;
         }
 

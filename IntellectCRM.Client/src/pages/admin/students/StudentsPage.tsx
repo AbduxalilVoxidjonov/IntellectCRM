@@ -365,7 +365,11 @@ export function StudentsPage() {
             )}
             {tab === 'active' && (
               <>
-                <Button variant="secondary" onClick={() => downloadStudentImportTemplate()}>
+                <Button
+                  variant="secondary"
+                  onClick={() => downloadStudentImportTemplate()}
+                  title="Guruh ixtiyoriy (bo'lsa qo'shiladi, bo'lmasa faqat yaratiladi)"
+                >
                   <FileDown className="h-4 w-4" /> Shablon
                 </Button>
                 <Button
