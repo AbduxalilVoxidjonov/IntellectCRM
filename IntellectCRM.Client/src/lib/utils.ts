@@ -43,6 +43,49 @@ export function formatTime(iso: string | null | undefined): string {
   return m ? m[1] : ''
 }
 
+/**
+ * Telefon raqamini maskalash: +(998) 90-123-45-67
+ * Input: "998901234567" yoki "+998901234567" yoki "901234567"
+ * Output: "(998) 90-123-45-67" (+998 prefix avtomatik qo'shiladi)
+ */
+export function maskPhone(raw: string): string {
+  if (!raw) return ''
+  // Faqat raqamlar qol
+  let digits = raw.replace(/\D/g, '')
+
+  // +998 prefix qo'sh (agar yo'q bo'lsa)
+  if (!digits.startsWith('998')) digits = '998' + digits
+
+  // Maksimal 12 raqamga chegarala (998 + 9 raqam)
+  if (digits.length > 12) digits = digits.slice(0, 12)
+
+  // Format: (998) XX-XXX-XX-XX
+  let formatted = ''
+  if (digits.length <= 3) {
+    formatted = digits.length > 0 ? '(' + digits : ''
+  } else if (digits.length <= 5) {
+    formatted = '(' + digits.slice(0, 3) + ') ' + digits.slice(3)
+  } else if (digits.length <= 8) {
+    formatted = '(' + digits.slice(0, 3) + ') ' + digits.slice(3, 5) + '-' + digits.slice(5)
+  } else if (digits.length <= 10) {
+    formatted = '(' + digits.slice(0, 3) + ') ' + digits.slice(3, 5) + '-' + digits.slice(5, 8) + '-' + digits.slice(8)
+  } else {
+    formatted = '(' + digits.slice(0, 3) + ') ' + digits.slice(3, 5) + '-' + digits.slice(5, 8) + '-' + digits.slice(8, 10) + '-' + digits.slice(10)
+  }
+
+  return formatted
+}
+
+/**
+ * Formatlanmish telefon raqamidan (+998 bilan faqat raqamlarni ol.
+ * Input: "(998) 90-123-45-67"
+ * Output: "998901234567" (backend'ga yuborish uchun)
+ */
+export function unmaskPhone(formatted: string): string {
+  if (!formatted) return ''
+  return formatted.replace(/\D/g, '')
+}
+
 /** Ma'lumotlarni CSV faylga yuklab olish (Excel uchun UTF-8 BOM bilan) */
 export function exportToCsv(filename: string, headers: string[], rows: string[][]): void {
   const escape = (v: string) => `"${String(v).replace(/"/g, '""')}"`

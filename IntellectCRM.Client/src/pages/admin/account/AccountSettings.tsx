@@ -7,6 +7,7 @@ import { updateAccount } from '@/api/services/auth'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
+import { PhoneInput } from '@/components/ui/PhoneInput'
 
 function errorMessage(err: unknown): string {
   if (axios.isAxiosError(err)) {
@@ -85,12 +86,10 @@ export function AccountSettings() {
           onChange={(e) => setLogin(e.target.value)}
           required
         />
-        <Input
+        <PhoneInput
           label="Telefon (Telegram bot — yangi lid xabarnomasi)"
-          type="tel"
-          placeholder="+998 ..."
           value={phone}
-          onChange={(e) => setPhone(e.target.value)}
+          onChange={setPhone}
         />
         <p className="-mt-2 text-xs text-slate-400">
           Shu raqamni Telegram botga yuborib ro'yxatdan o'tsangiz, yangi lid tushganda botdan xabar olasiz.

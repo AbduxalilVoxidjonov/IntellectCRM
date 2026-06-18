@@ -3,6 +3,7 @@ import type { Lead } from '@/types'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input, Select, Textarea } from '@/components/ui/Input'
+import { PhoneInput } from '@/components/ui/PhoneInput'
 import { genderOptions, leadSourceOptions } from '@/config/constants'
 
 export type LeadFormValues = Omit<Lead, 'id' | 'stage'>
@@ -105,11 +106,10 @@ export function LeadFormModal({ open, onClose, onSubmit, initial }: Props) {
             onChange={(e) => update('birthDate', e.target.value)}
           />
         </div>
-        <Input
+        <PhoneInput
           label="O'z telefon raqami"
-          placeholder="+998 90 123 45 67"
           value={form.phone}
-          onChange={(e) => update('phone', e.target.value)}
+          onChange={(phone) => update('phone', phone)}
         />
         <div className="grid grid-cols-2 gap-4">
           <Input
@@ -117,11 +117,10 @@ export function LeadFormModal({ open, onClose, onSubmit, initial }: Props) {
             value={form.fatherFullName}
             onChange={(e) => update('fatherFullName', e.target.value)}
           />
-          <Input
+          <PhoneInput
             label="Otasi raqami"
-            placeholder="+998 90 123 45 67"
             value={form.fatherPhone}
-            onChange={(e) => update('fatherPhone', e.target.value)}
+            onChange={(phone) => update('fatherPhone', phone)}
           />
         </div>
         <div className="grid grid-cols-2 gap-4">
@@ -130,11 +129,10 @@ export function LeadFormModal({ open, onClose, onSubmit, initial }: Props) {
             value={form.motherFullName}
             onChange={(e) => update('motherFullName', e.target.value)}
           />
-          <Input
+          <PhoneInput
             label="Onasi raqami"
-            placeholder="+998 90 123 45 67"
             value={form.motherPhone}
-            onChange={(e) => update('motherPhone', e.target.value)}
+            onChange={(phone) => update('motherPhone', phone)}
           />
         </div>
         <div className="grid grid-cols-2 gap-4">

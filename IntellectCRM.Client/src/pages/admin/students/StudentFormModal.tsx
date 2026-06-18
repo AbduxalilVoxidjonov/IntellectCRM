@@ -7,6 +7,7 @@ import { getClasses } from '@/api/services/classes'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input, Select } from '@/components/ui/Input'
+import { PhoneInput } from '@/components/ui/PhoneInput'
 import { genderOptions } from '@/config/constants'
 import { randomPassword, cn } from '@/lib/utils'
 
@@ -239,11 +240,10 @@ export function StudentFormModal({ open, onClose, onSubmit, initial }: Props) {
             </Select>
           </div>
           <div className="mt-3">
-            <Input
+            <PhoneInput
               label="O'z telefon raqami"
-              placeholder="+998 90 123 45 67"
               value={form.phone ?? ''}
-              onChange={(e) => update('phone', e.target.value)}
+              onChange={(phone) => update('phone', phone)}
             />
           </div>
           <div className="mt-3">
@@ -265,11 +265,10 @@ export function StudentFormModal({ open, onClose, onSubmit, initial }: Props) {
               value={form.fatherFullName ?? ''}
               onChange={(e) => update('fatherFullName', e.target.value)}
             />
-            <Input
+            <PhoneInput
               label="Otasi raqami"
-              placeholder="+998 90 123 45 67"
               value={form.fatherPhone ?? ''}
-              onChange={(e) => update('fatherPhone', e.target.value)}
+              onChange={(phone) => update('fatherPhone', phone)}
             />
           </div>
           <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -278,11 +277,10 @@ export function StudentFormModal({ open, onClose, onSubmit, initial }: Props) {
               value={form.motherFullName ?? ''}
               onChange={(e) => update('motherFullName', e.target.value)}
             />
-            <Input
+            <PhoneInput
               label="Onasi raqami"
-              placeholder="+998 90 123 45 67"
               value={form.motherPhone ?? ''}
-              onChange={(e) => update('motherPhone', e.target.value)}
+              onChange={(phone) => update('motherPhone', phone)}
             />
           </div>
         </Section>

@@ -21,6 +21,7 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { Loader } from '@/components/ui/Loader'
 import { Modal } from '@/components/ui/Modal'
 import { Input } from '@/components/ui/Input'
+import { PhoneInput } from '@/components/ui/PhoneInput'
 import { CredentialsBox } from '@/components/ui/CredentialsBox'
 import { ReasonPromptModal } from '@/components/ui/ReasonPromptModal'
 
@@ -320,6 +321,11 @@ export function StaffPage() {
               ))}
             </datalist>
           </div>
+          <PhoneInput
+            label="Telefon"
+            value={form.phone ?? ''}
+            onChange={(phone) => setForm((f) => ({ ...f, phone }))}
+          />
           {editing && (
             <div>
               <label className="mb-1 block text-sm font-medium text-slate-600">Parolni almashtirish</label>
