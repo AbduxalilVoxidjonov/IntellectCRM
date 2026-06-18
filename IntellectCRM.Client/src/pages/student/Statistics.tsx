@@ -198,38 +198,7 @@ function Body({ nb }: { nb: StudentNotebook }) {
         </div>
       </Section>
 
-      {/* Darsga munosabat (O'zlashtirish darajasi taqsimoti) */}
-      {nb.masteryDistribution && nb.masteryDistribution.totalLessons > 0 && (
-        <Section title="Darsga munosabat" sub={`Jami ${nb.masteryDistribution.totalLessons} dars baholandi`}>
-          <div className="row" style={{ gap: 18, alignItems: 'center' }}>
-            <DonutC
-              size={118}
-              stroke={15}
-              segments={[
-                { value: nb.masteryDistribution.proActive, color: 'var(--green)' },
-                { value: nb.masteryDistribution.active, color: 'var(--blue)' },
-                { value: nb.masteryDistribution.reactive, color: 'var(--amber)' },
-                { value: nb.masteryDistribution.nonReactive, color: 'var(--red)' },
-              ]}
-              top={`${Math.round(
-                ((nb.masteryDistribution.active + nb.masteryDistribution.proActive) /
-                  (nb.masteryDistribution.active +
-                    nb.masteryDistribution.proActive +
-                    nb.masteryDistribution.reactive +
-                    nb.masteryDistribution.nonReactive)) *
-                  100 || 0
-              )}%`}
-              bottom="faol"
-            />
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <Legend color="var(--green)" label="Pro-Active Star" value={`${nb.masteryDistribution.proActive.toFixed(1)}%`} />
-              <Legend color="var(--blue)" label="Active Participating" value={`${nb.masteryDistribution.active.toFixed(1)}%`} />
-              <Legend color="var(--amber)" label="Reactive Listening" value={`${nb.masteryDistribution.reactive.toFixed(1)}%`} />
-              <Legend color="var(--red)" label="Non-Reactive Passiv" value={`${nb.masteryDistribution.nonReactive.toFixed(1)}%`} />
-            </div>
-          </div>
-        </Section>
-      )}
+      {/* TODO: Darsga munosabat (O'zlashtirish darajasi taqsimoti) - implement in backend */}
 
       {/* Topshiriqlar */}
       {a && a.count > 0 && (
