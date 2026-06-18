@@ -396,6 +396,17 @@ export async function getStudentLesson(itemId: string, studentId?: string) {
   return data
 }
 
+/** Kurs o'quv dasturi o'tilgan bandlar (itemId'lar). */
+export async function getStudentCourseProgress(courseId: string, studentId?: string): Promise<string[]> {
+  const { data } = await api.get<string[]>(`/student/curriculum/${courseId}/progress`, { params: sid(studentId) })
+  return data || []
+}
+
+/** Bandni bajarilgan/bajarilmagan deb belgilash. */
+export async function setStudentCourseProgress(itemId: string, done: boolean, studentId?: string): Promise<void> {
+  await api.post('/student/curriculum/progress', { itemId, done }, { params: sid(studentId) })
+}
+
 // ---------- Dashboard ----------
 export async function getStudentDashboard(studentId?: string) {
   const { data } = await api.get<StudentDashboard>('/student/dashboard', { params: sid(studentId) })

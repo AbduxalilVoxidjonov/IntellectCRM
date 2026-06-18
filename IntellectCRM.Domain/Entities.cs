@@ -1350,12 +1350,16 @@ public class CourseQuestion
     public int Order { get; set; }
 }
 
-/// <summary>O'quvchining bir sillabus bandi bo'yicha bajarilganlik holati (per-item progress).</summary>
+/// <summary>O'quvchining bir sillabus bandi bo'yicha bajarilganlik holati (per-item progress).
+/// CourseId — tracking qaysi kurs uchun (optional, for filtering progress by course).</summary>
 public class CourseProgress
 {
     public string Id { get; set; } = Guid.NewGuid().ToString();
     public string StudentId { get; set; } = string.Empty;
     public string ItemId { get; set; } = string.Empty;
+    /// <summary>Qaysi kurs uchun band bajarilgani (Subject id). Optional — tracking uchun.
+    /// Ixtiyoriy, bo'sh bo'lsa null; null qiymatga UNIQUE indeks qo'llanmaydi.</summary>
+    public string? CourseId { get; set; }
     public bool Done { get; set; }
     public string UpdatedAt { get; set; } = string.Empty;
 }

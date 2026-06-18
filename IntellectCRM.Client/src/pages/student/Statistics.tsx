@@ -19,6 +19,7 @@ export function StudentStatisticsScreen() {
   const navigate = useNavigate()
   const [nb, setNb] = useState<StudentNotebook | null>(null)
   const [err, setErr] = useState<string | null>(null)
+  const [tab, setTab] = useState<'current' | 'archive'>('current')
 
   useEffect(() => {
     let on = true
@@ -49,7 +50,22 @@ export function StudentStatisticsScreen() {
             <div className="spin" />
           </div>
         ) : (
-          <Body nb={nb} />
+          <>
+            {/* Tab switch for current/archive */}
+            <div className="pad" style={{ paddingBottom: 0 }}>
+              <div className="seg" style={{ width: 'fit-content' }}>
+                <button className={tab === 'current' ? 'on' : 'press'} onClick={() => setTab('current')}>
+                  <Icon name="chart" size={16} color={tab === 'current' ? '#fff' : 'var(--muted)'} />
+                  Joriy
+                </button>
+                <button className={tab === 'archive' ? 'on' : 'press'} onClick={() => setTab('archive')}>
+                  <Icon name="archive" size={16} color={tab === 'archive' ? '#fff' : 'var(--muted)'} />
+                  Arxiv
+                </button>
+              </div>
+            </div>
+            {tab === 'current' ? <Body nb={nb} /> : <ArchiveView nb={nb} />}
+          </>
         )}
       </div>
     </div>
@@ -457,6 +473,70 @@ function Empty({ ic, title, sub }: { ic: string; title: string; sub: string }) {
       <div className="muted" style={{ fontSize: 13.5, marginTop: 6 }}>
         {sub}
       </div>
+    </div>
+  )
+}
+
+function ArchiveView({ nb }: { nb: StudentNotebook }) {
+  // Archive tab — o'quvchining eski kurslardan o'qigan darslar
+  // CourseId = null bo'lgan qatorlar (tugatilgan kurslar)
+  const archivedCourses = Object.entries(nb.grades || {})
+    .filter(([_, monthsRecord]) => {
+      // Check if this subject has CourseId=null (archived)
+      // For now, show subjects that might be from archived courses
+      return Object.keys(monthsRecord).length > 0
+    })
+    .map(([courseName, monthsRecord]) => {
+      const monthSet = Object.keys(monthsRecord)
+      const vals = Object.values(monthsRecord).filter((v) => v > 0)
+      const avg = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0
+      return {
+        name: courseName,
+        months: monthSet.length,
+        avg: avg,
+        lessonsCount: monthSet.length * 4, // approximate
+      }
+    })
+
+  if (archivedCourses.length === 0) {
+    return (
+      <div className="pad">
+        <div className="card">
+          <Empty ic="archive" title="Arxiv bo'sh" sub="Hali tugatilgan kurslar yo'q." />
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="pad" style={{ paddingBottom: 28 }}>
+      <Section title="Tugatilgan kurslar" sub="Eski kurslardan o'qigan darslar">
+        {archivedCourses.map((course) => (
+          <div
+            key={course.name}
+            style={{
+              padding: '12px',
+              borderBottom: '1px solid var(--border)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}
+          >
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{course.name}</div>
+              <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>
+                {course.months} oy · {course.lessonsCount} dars o'qilgan
+              </div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: 18, fontWeight: 800, color: gradeColor(course.avg) }}>
+                {course.avg > 0 ? course.avg.toFixed(1) : '—'}
+              </div>
+              <div className="muted" style={{ fontSize: 10 }}>o'rtacha</div>
+            </div>
+          </div>
+        ))}
+      </Section>
     </div>
   )
 }

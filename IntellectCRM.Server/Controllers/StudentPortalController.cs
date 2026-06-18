@@ -1237,4 +1237,84 @@ public class StudentPortalController(
         await db.SaveChangesAsync();
         return NoContent();
     }
+
+    // ---------- O'quv dasturi (curriculum) progress ----------
+
+    /// <summary>O'quvchining shu kursda o'tilgan (Done=true) bandlar id'larini qaytaradi.</summary>
+    [HttpGet("curriculum/{courseId}/progress")]
+    public async Task<ActionResult<string[]>> GetCourseProgress(string courseId)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId is null) return Unauthorized();
+
+        // O'quvchi shu kursda faol guruhda bo'lganini tekshirish
+        var hasAccess = await db.StudentGroups
+            .AnyAsync(sg => sg.StudentId == userId
+                         && sg.IsActive
+                         && sg.Status != "frozen"
+                         && db.Classes.Any(c => c.Id == sg.GroupId && c.CourseId == courseId));
+
+        if (!hasAccess) return Forbid();
+
+        var done = await db.CourseProgresses
+            .Where(p => p.StudentId == userId && p.CourseId == courseId && p.Done)
+            .Select(p => p.ItemId)
+            .ToListAsync();
+
+        return done.ToArray();
+    }
+
+    /// <summary>Dars progresini yangilash (o'tildi/o'tilmadi) — upsert. Faqat student rolida.</summary>
+    [HttpPost("curriculum/progress")]
+    [Authorize(Roles = "student")]
+    public async Task<ActionResult> SetCourseProgress([FromBody] SetCourseProgressRequest req)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId is null) return Unauthorized();
+
+        // ItemId → CourseId topish
+        var item = await db.CourseItems.FirstOrDefaultAsync(i => i.Id == req.ItemId);
+        if (item is null) return NotFound(new { message = "Dars topilmadi" });
+
+        var courseId = item.SubjectId;
+
+        // Access control — o'quvchi shu kursda faol guruhda bo'lish kerak
+        var hasAccess = await db.StudentGroups
+            .AnyAsync(sg => sg.StudentId == userId
+                         && sg.IsActive
+                         && db.Classes.Any(c => c.Id == sg.GroupId && c.CourseId == courseId));
+
+        if (!hasAccess) return Forbid();
+
+        // Upsert
+        var existing = await db.CourseProgresses
+            .FirstOrDefaultAsync(p => p.StudentId == userId
+                                   && p.ItemId == req.ItemId
+                                   && p.CourseId == courseId);
+
+        if (existing is not null)
+        {
+            existing.Done = req.Done;
+        }
+        else
+        {
+            db.CourseProgresses.Add(new CourseProgress
+            {
+                StudentId = userId,
+                ItemId = req.ItemId,
+                CourseId = courseId,
+                Done = req.Done,
+                UpdatedAt = AppClock.Now.ToString("yyyy-MM-ddTHH:mm:ss"),
+            });
+        }
+
+        await db.SaveChangesAsync();
+        return Ok(new { ok = true });
+    }
+
+    public class SetCourseProgressRequest
+    {
+        public string ItemId { get; set; } = "";
+        public bool Done { get; set; }
+    }
 }

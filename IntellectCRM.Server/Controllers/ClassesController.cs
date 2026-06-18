@@ -93,6 +93,7 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
 
         var oldFee = cls.MonthlyFee;
         var oldName = cls.Name;   // o'quvchilar hozir shu nom bilan biriktirilgan
+        var oldCourseId = cls.CourseId;  // kurs o'zgarishni kuzatamiz
         cls.Name = p.Name;
         cls.Grade = p.Grade;
         cls.Language = p.Language;
@@ -113,6 +114,23 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
         {
             var course = await db.Subjects.FindAsync(cls.CourseId);
             if (course is not null) cls.MonthlyFee = course.Price;
+        }
+
+        // Kurs o'zgarsa — o'quvchi progresi tozalanadi (o'tilgan bandlar = yangi kurs uchun irrelevant).
+        if (!string.Equals(oldCourseId, cls.CourseId, StringComparison.Ordinal) && !string.IsNullOrEmpty(oldCourseId))
+        {
+            var memberIds = await db.StudentGroups
+                .Where(sg => sg.GroupId == id && sg.IsActive)
+                .Select(sg => sg.StudentId)
+                .ToListAsync();
+
+            // Eski kurs progress'ni o'chirish (yangi kurs progress = 0 dan start).
+            if (memberIds.Count > 0)
+            {
+                await db.CourseProgresses
+                    .Where(p => p.StudentId != null && memberIds.Contains(p.StudentId) && p.CourseId == oldCourseId)
+                    .ExecuteDeleteAsync();
+            }
         }
 
         if (oldFee != cls.MonthlyFee)
