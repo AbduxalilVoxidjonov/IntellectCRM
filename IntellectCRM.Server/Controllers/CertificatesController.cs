@@ -67,6 +67,71 @@ public class CertificatesController(AppDbContext db, CertificateService certServ
         }
     }
 
+    // ─────────────────────────── ADMIN: O'QUVCHI SERTIFIKATLARI ───────────────────────────
+
+    /// <summary>
+    /// Admin: o'quvchining tugatgan kurslari + sertifikatlari (StudentDetailPage uchun).
+    /// Har sertifikat — kurs nomi, berilgan sana, holat, yuklash havolasi (admin).
+    /// </summary>
+    [HttpGet("api/admin/students/{studentId}/certificates")]
+    [Authorize]
+    public async Task<ActionResult<IEnumerable<StudentCompletedCourseDto>>> GetStudentCertificatesAdmin(string studentId)
+    {
+        var certs = await db.StudentCertificates
+            .Where(c => c.StudentId == studentId)
+            .OrderByDescending(c => c.IssuedAt)
+            .ToListAsync();
+
+        var courseIds = certs.Select(c => c.CourseId).Distinct().ToList();
+        var courseNames = await db.Subjects
+            .Where(s => courseIds.Contains(s.Id))
+            .Select(s => new { s.Id, s.Name })
+            .ToDictionaryAsync(s => s.Id, s => s.Name);
+
+        // Kurs → guruh nomi (o'quvchi shu kursdagi guruh(lar)idan birortasi — ko'rsatish uchun).
+        var groupNamesByCourse = await (
+            from sg in db.StudentGroups
+            join g in db.Classes on sg.GroupId equals g.Id
+            where sg.StudentId == studentId && courseIds.Contains(g.CourseId)
+            select new { g.CourseId, g.Name })
+            .ToListAsync();
+        var groupByCourse = groupNamesByCourse
+            .GroupBy(x => x.CourseId)
+            .ToDictionary(grp => grp.Key, grp => grp.First().Name);
+
+        return certs.Select(c => new StudentCompletedCourseDto(
+            CertificateId: c.Id,
+            CourseId: c.CourseId,
+            CourseName: courseNames.GetValueOrDefault(c.CourseId, ""),
+            IssuedAt: c.IssuedAt.ToString("yyyy-MM-dd"),
+            ExpiresAt: c.ExpiresAt?.ToString("yyyy-MM-dd") ?? "",
+            Status: c.Status,
+            FileName: c.FileName,
+            DownloadUrl: $"/api/admin/students/{studentId}/certificates/{c.Id}/download",
+            DownloadCount: c.DownloadCount,
+            GroupName: groupByCourse.GetValueOrDefault(c.CourseId, ""))).ToList();
+    }
+
+    /// <summary>Admin: o'quvchi sertifikat faylini yuklab olish.</summary>
+    [HttpGet("api/admin/students/{studentId}/certificates/{id}/download")]
+    [Authorize]
+    public async Task<IActionResult> DownloadCertificateAdmin(string studentId, string id)
+    {
+        try
+        {
+            var (bytes, fileName, contentType) = await certService.DownloadCertificateAsync(studentId, id);
+            return File(bytes, contentType, fileName);
+        }
+        catch (InvalidOperationException)
+        {
+            return NotFound(new { message = "Sertifikat topilmadi" });
+        }
+        catch (FileNotFoundException)
+        {
+            return StatusCode(500, new { message = "Fayl serverda topilmadi" });
+        }
+    }
+
     // ─────────────────────────── ADMIN ───────────────────────────
 
     /// <summary>Admin: sertifikat andozalari ro'yxati.</summary>

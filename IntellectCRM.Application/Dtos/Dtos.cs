@@ -1233,6 +1233,19 @@ public record StudentCertificateDto(
     int DownloadCount,
     string Metadata);
 
+/// <summary>Admin: o'quvchining tugatgan kursi + sertifikati (StudentDetailPage uchun).</summary>
+public record StudentCompletedCourseDto(
+    string CertificateId,
+    string CourseId,
+    string CourseName,
+    string IssuedAt,
+    string ExpiresAt,
+    string Status,
+    string FileName,
+    string DownloadUrl,
+    int DownloadCount,
+    string GroupName);
+
 /// <summary>Sertifikat andozasi yaratish so'rovi (admin: kurs + HTML shablon).</summary>
 public record CreateCertificateTemplateRequest(
     string Name,

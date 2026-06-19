@@ -4,7 +4,7 @@ import {
   ArrowLeft, GraduationCap, CalendarCheck, ShieldAlert, ClipboardCheck,
   User, Phone, Wallet, BookOpen, MapPin, Cake, CalendarPlus, Percent, IdCard,
   School, Clock, CalendarDays, ChevronRight, History, ListChecks, ChevronDown, Check,
-  CalendarClock,
+  CalendarClock, Award, Download,
 } from 'lucide-react'
 import { genderLabels } from '@/config/constants'
 import {
@@ -13,6 +13,11 @@ import {
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts'
 import { getStudentNotebook, type StudentNotebook } from '@/api/services/studentNotebook'
+import {
+  getStudentCertificates,
+  downloadStudentCertificate,
+  type StudentCompletedCourse,
+} from '@/api/services/students'
 import { getStudentGroups, getClasses } from '@/api/services/classes'
 import { getCurriculum, getProgress, setProgress, getStudentCoverageLog, type CoverageLogEntry } from '@/api/services/curriculum'
 import { getStudentGradingSummary, type MonthGradingSummary } from '@/api/services/grading'
@@ -72,6 +77,8 @@ export function StudentDetailPage() {
   const [coverageLog, setCoverageLog] = useState<CoverageLogEntry[]>([])
   /** Baholash xulosa (oylik o'rtacha + jami mezonlar). */
   const [gradingSummary, setGradingSummary] = useState<MonthGradingSummary[]>([])
+  /** Tugatgan kurslar + sertifikatlar. */
+  const [certificates, setCertificates] = useState<StudentCompletedCourse[]>([])
 
   useEffect(() => {
     if (!id) return
@@ -88,6 +95,9 @@ export function StudentDetailPage() {
       .catch(() => {})
     getStudentGradingSummary(id)
       .then(setGradingSummary)
+      .catch(() => {})
+    getStudentCertificates(id)
+      .then(setCertificates)
       .catch(() => {})
   }, [id])
 
@@ -387,6 +397,57 @@ export function StudentDetailPage() {
                     <ChevronRight className="h-4 w-4 text-slate-300 transition-transform group-hover:translate-x-0.5 group-hover:text-brand-500" />
                   </div>
                 </Link>
+              )
+            })}
+          </div>
+        </Section>
+      )}
+
+      {/* Tugatgan kurslar va sertifikatlar */}
+      {certificates.length > 0 && (
+        <Section title="Tugatgan kurslar va sertifikatlar" icon={Award}>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {certificates.map((c) => {
+              const revoked = c.status === 'revoked'
+              return (
+                <div
+                  key={c.certificateId}
+                  className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-gradient-to-br from-amber-50/60 to-slate-50 p-4"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="inline-flex items-center gap-1.5 font-semibold text-slate-800">
+                      <Award className="h-4 w-4 shrink-0 text-amber-500" />
+                      {c.courseName || 'Kurs'}
+                    </span>
+                    <Badge tone={revoked ? 'red' : 'green'}>
+                      {revoked ? 'Bekor qilingan' : 'Faol'}
+                    </Badge>
+                  </div>
+                  {c.groupName && (
+                    <p className="flex items-center gap-1.5 text-xs text-slate-500">
+                      <School className="h-3.5 w-3.5 text-slate-400" /> {c.groupName}
+                    </p>
+                  )}
+                  <p className="flex items-center gap-1.5 text-xs text-slate-500">
+                    <CalendarPlus className="h-3.5 w-3.5 text-slate-400" /> Berilgan: {formatDate(c.issuedAt)}
+                  </p>
+                  {c.expiresAt && (
+                    <p className="flex items-center gap-1.5 text-xs text-slate-400">
+                      <CalendarClock className="h-3.5 w-3.5" /> Muddati: {formatDate(c.expiresAt)}
+                    </p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      downloadStudentCertificate(data.id, c.certificateId, c.fileName).catch(() =>
+                        alert('Sertifikatni yuklab bo\'lmadi'),
+                      )
+                    }
+                    className="mt-auto inline-flex items-center justify-center gap-1.5 rounded-lg border border-brand-200 bg-white px-3 py-2 text-sm font-medium text-brand-700 transition-colors hover:border-brand-300 hover:bg-brand-50"
+                  >
+                    <Download className="h-4 w-4" /> Yuklab olish
+                  </button>
+                </div>
               )
             })}
           </div>

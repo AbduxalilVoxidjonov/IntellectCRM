@@ -365,3 +365,55 @@ export async function editStudentCharge(
     params: groupId ? { groupId } : undefined,
   })
 }
+
+/* ---------- Tugatgan kurslar + sertifikatlar ---------- */
+
+/** Admin: o'quvchining tugatgan kursi + sertifikati. */
+export interface StudentCompletedCourse {
+  certificateId: string
+  courseId: string
+  courseName: string
+  issuedAt: string
+  expiresAt: string
+  status: string
+  fileName: string
+  downloadUrl: string
+  downloadCount: number
+  groupName: string
+}
+
+/** O'quvchining tugatgan kurslari + sertifikatlari ro'yxati. */
+export async function getStudentCertificates(studentId: string): Promise<StudentCompletedCourse[]> {
+  if (USE_MOCK) {
+    await delay()
+    return []
+  }
+  const { data } = await api.get<StudentCompletedCourse[]>(
+    `/admin/students/${studentId}/certificates`,
+  )
+  return data
+}
+
+/** Sertifikat faylini yuklab olish (admin). Auth header avtomatik qo'shiladi. */
+export async function downloadStudentCertificate(
+  studentId: string,
+  certificateId: string,
+  fileName: string,
+): Promise<void> {
+  if (USE_MOCK) {
+    alert('Sertifikat faqat real serverda yuklanadi.')
+    return
+  }
+  const res = await api.get(
+    `/admin/students/${studentId}/certificates/${certificateId}/download`,
+    { responseType: 'blob' },
+  )
+  const url = URL.createObjectURL(res.data as Blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = fileName || `sertifikat_${certificateId}.html`
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+}
