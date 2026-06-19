@@ -394,6 +394,19 @@ export async function getStudentCertificates(studentId: string): Promise<Student
   return data
 }
 
+/** Admin: o'quvchiga qo'lda sertifikat yaratish (kurs bo'yicha). */
+export async function generateStudentCertificate(
+  studentId: string,
+  courseId: string,
+  notes?: string,
+): Promise<StudentCompletedCourse> {
+  const { data } = await api.post<StudentCompletedCourse>(
+    `/admin/students/${studentId}/certificates/generate`,
+    { courseId, notes },
+  )
+  return data
+}
+
 /** Sertifikat faylini yuklab olish (admin). Auth header avtomatik qo'shiladi. */
 export async function downloadStudentCertificate(
   studentId: string,

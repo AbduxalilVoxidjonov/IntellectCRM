@@ -195,6 +195,41 @@ public class CertificatesController(AppDbContext db, CertificateService certServ
         return ToTemplateDto(tpl, courseName);
     }
 
+    /// <summary>Admin: o'quvchiga qo'lda sertifikat yaratish (kurs id bo'yicha).</summary>
+    [HttpPost("api/admin/students/{studentId}/certificates/generate")]
+    [Authorize]
+    public async Task<ActionResult<StudentCompletedCourseDto>> GenerateCertificateAdmin(
+        string studentId, [FromBody] GenerateCertificateRequest req)
+    {
+        var student = await db.Students.FindAsync(studentId);
+        if (student is null) return NotFound(new { message = "O'quvchi topilmadi" });
+
+        var course = await db.Subjects.FindAsync(req.CourseId);
+        if (course is null) return BadRequest(new { message = "Kurs topilmadi" });
+
+        StudentCertificate cert;
+        try
+        {
+            cert = await certService.GenerateCertificateAsync(studentId, req.CourseId, req.Notes);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = ex.Message });
+        }
+
+        return StatusCode(201, new StudentCompletedCourseDto(
+            CertificateId: cert.Id,
+            CourseId: cert.CourseId,
+            CourseName: course.Name,
+            IssuedAt: cert.IssuedAt.ToString("yyyy-MM-dd"),
+            ExpiresAt: cert.ExpiresAt?.ToString("yyyy-MM-dd") ?? "",
+            Status: cert.Status,
+            FileName: cert.FileName,
+            DownloadUrl: $"/api/admin/students/{studentId}/certificates/{cert.Id}/download",
+            DownloadCount: cert.DownloadCount,
+            GroupName: ""));
+    }
+
     /// <summary>Admin: andozani o'chirish.</summary>
     [HttpDelete("api/admin/certificate-templates/{id}")]
     [Authorize]

@@ -16,6 +16,7 @@ import { getStudentNotebook, type StudentNotebook } from '@/api/services/student
 import {
   getStudentCertificates,
   downloadStudentCertificate,
+  generateStudentCertificate,
   type StudentCompletedCourse,
 } from '@/api/services/students'
 import { getStudentGroups, getClasses } from '@/api/services/classes'
@@ -81,6 +82,7 @@ export function StudentDetailPage() {
   const [gradingSummary, setGradingSummary] = useState<MonthGradingSummary[]>([])
   /** Tugatgan kurslar + sertifikatlar. */
   const [certificates, setCertificates] = useState<StudentCompletedCourse[]>([])
+  const [certGenerating, setCertGenerating] = useState<string | null>(null)
 
   useEffect(() => {
     if (!id) return
@@ -408,55 +410,100 @@ export function StudentDetailPage() {
       )}
 
       {/* Tugatgan kurslar va sertifikatlar */}
-      {certificates.length > 0 && (
-        <Section title="Tugatgan kurslar va sertifikatlar" icon={Award}>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {certificates.map((c) => {
-              const revoked = c.status === 'revoked'
-              return (
-                <div
-                  key={c.certificateId}
-                  className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-gradient-to-br from-amber-50/60 to-slate-50 p-4"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <span className="inline-flex items-center gap-1.5 font-semibold text-slate-800">
-                      <Award className="h-4 w-4 shrink-0 text-amber-500" />
-                      {c.courseName || 'Kurs'}
-                    </span>
-                    <Badge tone={revoked ? 'red' : 'green'}>
-                      {revoked ? 'Bekor qilingan' : 'Faol'}
-                    </Badge>
-                  </div>
-                  {c.groupName && (
-                    <p className="flex items-center gap-1.5 text-xs text-slate-500">
-                      <School className="h-3.5 w-3.5 text-slate-400" /> {c.groupName}
-                    </p>
-                  )}
-                  <p className="flex items-center gap-1.5 text-xs text-slate-500">
-                    <CalendarPlus className="h-3.5 w-3.5 text-slate-400" /> Berilgan: {formatDate(c.issuedAt)}
-                  </p>
-                  {c.expiresAt && (
-                    <p className="flex items-center gap-1.5 text-xs text-slate-400">
-                      <CalendarClock className="h-3.5 w-3.5" /> Muddati: {formatDate(c.expiresAt)}
-                    </p>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() =>
-                      downloadStudentCertificate(data.id, c.certificateId, c.fileName).catch(() =>
-                        alert('Sertifikatni yuklab bo\'lmadi'),
-                      )
-                    }
-                    className="mt-auto inline-flex items-center justify-center gap-1.5 rounded-lg border border-brand-200 bg-white px-3 py-2 text-sm font-medium text-brand-700 transition-colors hover:border-brand-300 hover:bg-brand-50"
-                  >
-                    <Download className="h-4 w-4" /> Yuklab olish
-                  </button>
+      <Section
+        title="Tugatgan kurslar va sertifikatlar"
+        icon={Award}
+      >
+        {certificates.length === 0 && studentCourses.length === 0 ? (
+          <p className="text-sm text-slate-400">Sertifikat yo'q va faol kurs topilmadi.</p>
+        ) : (
+          <>
+            {/* Mavjud sertifikatlar */}
+            {certificates.length > 0 && (
+              <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {certificates.map((c) => {
+                  const revoked = c.status === 'revoked'
+                  return (
+                    <div
+                      key={c.certificateId}
+                      className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-gradient-to-br from-amber-50/60 to-slate-50 p-4"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="inline-flex items-center gap-1.5 font-semibold text-slate-800">
+                          <Award className="h-4 w-4 shrink-0 text-amber-500" />
+                          {c.courseName || 'Kurs'}
+                        </span>
+                        <Badge tone={revoked ? 'red' : 'green'}>
+                          {revoked ? 'Bekor qilingan' : 'Faol'}
+                        </Badge>
+                      </div>
+                      {c.groupName && (
+                        <p className="flex items-center gap-1.5 text-xs text-slate-500">
+                          <School className="h-3.5 w-3.5 text-slate-400" /> {c.groupName}
+                        </p>
+                      )}
+                      <p className="flex items-center gap-1.5 text-xs text-slate-500">
+                        <CalendarPlus className="h-3.5 w-3.5 text-slate-400" /> Berilgan: {formatDate(c.issuedAt)}
+                      </p>
+                      {c.expiresAt && (
+                        <p className="flex items-center gap-1.5 text-xs text-slate-400">
+                          <CalendarClock className="h-3.5 w-3.5" /> Muddati: {formatDate(c.expiresAt)}
+                        </p>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          downloadStudentCertificate(data.id, c.certificateId, c.fileName).catch(() =>
+                            alert('Sertifikatni yuklab bo\'lmadi'),
+                          )
+                        }
+                        className="mt-auto inline-flex items-center justify-center gap-1.5 rounded-lg border border-brand-200 bg-white px-3 py-2 text-sm font-medium text-brand-700 transition-colors hover:border-brand-300 hover:bg-brand-50"
+                      >
+                        <Download className="h-4 w-4" /> Yuklab olish
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+            {/* Qo'lda sertifikat yaratish (faol kurslar bo'yicha) */}
+            {studentCourses.length > 0 && (
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  Qo'lda sertifikat yaratish
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {studentCourses.map((sc) => (
+                    <button
+                      key={sc.courseId}
+                      type="button"
+                      disabled={certGenerating === sc.courseId}
+                      onClick={async () => {
+                        setCertGenerating(sc.courseId)
+                        try {
+                          const cert = await generateStudentCertificate(data.id, sc.courseId)
+                          setCertificates((prev) => {
+                            const exists = prev.find((c) => c.certificateId === cert.certificateId)
+                            return exists ? prev : [cert, ...prev]
+                          })
+                        } catch (e: unknown) {
+                          alert('Sertifikat yaratishda xato: ' + (e instanceof Error ? e.message : String(e)))
+                        } finally {
+                          setCertGenerating(null)
+                        }
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800 transition-colors hover:bg-amber-100 disabled:opacity-50"
+                    >
+                      <Award className="h-4 w-4" />
+                      {certGenerating === sc.courseId ? 'Yaratilmoqda...' : sc.courseName + ' sertifikat'}
+                    </button>
+                  ))}
                 </div>
-              )
-            })}
-          </div>
-        </Section>
-      )}
+              </div>
+            )}
+          </>
+        )}
+      </Section>
 
       {/* O'quv dasturi (checklist) — har kurs uchun daraja → mavzu → band, bajarilganini belgilash */}
       <Section title="O'quv dasturi (checklist)" icon={ListChecks}>

@@ -1289,5 +1289,8 @@ public record CompleteAndTransferRequest(
 /// <summary>Complete-and-Transfer natijasi.</summary>
 public record CompleteAndTransferResultDto(int CompletedCount, int CertificatesGenerated);
 
+/// <summary>Admin tomonidan qo'lda sertifikat yaratish so'rovi.</summary>
+public record GenerateCertificateRequest(string CourseId, string? Notes = null);
+
 /// <summary>O'quvchining bir sillabus bandi bo'yicha holatini o'rnatish so'rovi.</summary>
 public record SetProgressRequest(string StudentId, string ItemId, bool Done);

@@ -12,7 +12,7 @@ namespace IntellectCRM.Server.Controllers;
 [Authorize]
 [AdminPerm("classes")]
 [Route("api/admin/classes")]
-public class ClassesController(AppDbContext db, AuditService audit, ILogger<ClassesController> logger, IServiceProvider sp) : ControllerBase
+public class ClassesController(AppDbContext db, AuditService audit, ILogger<ClassesController> logger, CertificateService certSvc) : ControllerBase
 {
     /// <summary>Faol (arxivlanmagan) sinflar. <paramref name="includeArchived"/>=true bo'lsa hammasi.</summary>
     [HttpGet]
@@ -583,25 +583,22 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
             "Group", id, "complete-and-transfer",
             $"Guruh yakunlandi: {activeMembers.Count} a'zo, {originalCourseId} → {req.TargetCourseId}");
 
-        // 6. Sertifikatlar fire-and-forget (original kurs uchun).
-        // IServiceProvider bilan yangi scope yaratiladi — scoped AppDbContext dispose muammosidan qochish uchun.
+        // 6. Sertifikatlar — sinxron, aylanma (request scope, bir xil DB context, xavfsiz).
         var certCount = 0;
         if (!string.IsNullOrEmpty(originalCourseId))
         {
-            certCount = activeMembers.Count;
-            var studentIds = activeMembers.Select(m => m.StudentId).ToList();
-            var notes = req.CompletionNotes;
-            var courseIdForCert = originalCourseId;
-            _ = Task.Run(async () =>
+            foreach (var m in activeMembers)
             {
-                await using var scope = sp.CreateAsyncScope();
-                var certSvc = scope.ServiceProvider.GetRequiredService<CertificateService>();
-                foreach (var sid in studentIds)
+                try
                 {
-                    try { await certSvc.GenerateCertificateAsync(sid, courseIdForCert, notes); }
-                    catch (Exception ex) { logger.LogWarning(ex, "Sertifikat yaratishda xato: student={S}", sid); }
+                    await certSvc.GenerateCertificateAsync(m.StudentId, originalCourseId, req.CompletionNotes);
+                    certCount++;
                 }
-            });
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "Sertifikat yaratishda xato: student={S}, course={C}", m.StudentId, originalCourseId);
+                }
+            }
         }
 
         return Ok(new CompleteAndTransferResultDto(activeMembers.Count, certCount));
