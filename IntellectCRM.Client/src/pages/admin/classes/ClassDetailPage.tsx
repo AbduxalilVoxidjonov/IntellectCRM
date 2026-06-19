@@ -6,7 +6,7 @@ import {
   CalendarDays, Clock, MapPin, Wallet, Snowflake, CheckCircle2,
   ListChecks, ChevronRight, ChevronDown, Plus, Minus, Repeat, CalendarClock, Flag, TrendingUp, Trophy,
 } from 'lucide-react'
-import type { AbsenceReason, MasteryLevel } from '@/types'
+import type { AbsenceReason, MasteryLevel, Subject } from '@/types'
 import {
   getGroupJournal, setJournalEntry, clearJournalEntry, bulkAttendance,
   type GroupJournal,
@@ -16,6 +16,7 @@ import {
   type GroupCurriculum,
 } from '@/api/services/curriculum'
 import { activateMember, freezeMember, completeAndTransferClass } from '@/api/services/classes'
+import { getSubjects } from '@/api/services/subjects'
 import { getSettings } from '@/api/services/settings'
 import { cn, formatMoney, formatDate } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
@@ -97,6 +98,39 @@ export function ClassDetailPage() {
   const [currExpanded, setCurrExpanded] = useState<Set<string>>(new Set())
   const [revSaving, setRevSaving] = useState(false)
 
+  // ---- "Guruhni tugatish va yangi kursga o'tkazish" modali ----
+  const [showCompleteModal, setShowCompleteModal] = useState(false)
+  const [allCourses, setAllCourses] = useState<Subject[]>([])
+  const [selectedCourseId, setSelectedCourseId] = useState('')
+  const [completionNotes, setCompletionNotes] = useState('')
+  const [completeLoading, setCompleteLoading] = useState(false)
+
+  const openCompleteModal = async () => {
+    setSelectedCourseId('')
+    setCompletionNotes('')
+    setShowCompleteModal(true)
+    try {
+      const courses = await getSubjects()
+      setAllCourses(courses)
+    } catch {
+      setAllCourses([])
+    }
+  }
+
+  const doCompleteAndTransfer = async () => {
+    if (!selectedCourseId) return
+    setCompleteLoading(true)
+    try {
+      const result = await completeAndTransferClass(id, selectedCourseId)
+      setShowCompleteModal(false)
+      alert(`Tugatildi! ${result.certificatesGenerated} ta sertifikat yaratildi.`)
+      window.location.reload()
+    } catch (e: any) {
+      alert('Xatolik: ' + (e?.response?.data?.message ?? e?.message ?? 'Amal bajarilmadi'))
+    } finally {
+      setCompleteLoading(false)
+    }
+  }
 
   const loadCurr = useCallback(() => {
     if (!id) return
@@ -379,17 +413,7 @@ export function ClassDetailPage() {
         </div>
         {g && user?.role === 'superadmin' && (
           <button
-            onClick={async () => {
-              const courseId = prompt('Yangi kurs ID\'sini kiriting:')
-              if (!courseId) return
-              try {
-                const result = await completeAndTransferClass(id, courseId)
-                alert(`✓ Tugatildi! ${result.certificatesGenerated} ta sertifikat yaratildi.`)
-                window.location.reload()
-              } catch (e: any) {
-                alert('Xatolik: ' + e?.message)
-              }
-            }}
+            onClick={openCompleteModal}
             className="flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-amber-700 transition-colors hover:bg-amber-100"
             title="Guruhni tugatish va sertifikat berish (SuperAdmin faqat)"
           >
@@ -866,6 +890,95 @@ export function ClassDetailPage() {
             </p>
           </div>
         )}
+      </Modal>
+
+      {/* Guruhni yangi kursga o'tkazish modali (SuperAdmin) */}
+      <Modal
+        open={showCompleteModal}
+        onClose={() => !completeLoading && setShowCompleteModal(false)}
+        size="sm"
+        title="Guruhni yangi kursga o'tkazish"
+        footer={
+          <div className="flex gap-2">
+            <Button
+              variant="secondary"
+              onClick={() => setShowCompleteModal(false)}
+              disabled={completeLoading}
+            >
+              Bekor qilish
+            </Button>
+            <button
+              type="button"
+              disabled={!selectedCourseId || completeLoading}
+              onClick={doCompleteAndTransfer}
+              className="inline-flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-amber-700 disabled:opacity-40"
+            >
+              <Trophy className="h-4 w-4" />
+              {completeLoading ? 'Bajarilmoqda...' : 'Tugatish'}
+            </button>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          {/* Ogohlantirish */}
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
+            Barcha faol o'quvchilar sertifikat oladi va yangi kursga sinov sifatida o'tkaziladi. Bu amal qaytarib bo'lmaydi.
+          </div>
+
+          {/* Kurs tanlash */}
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">
+              Yangi kurs <span className="text-red-500">*</span>
+            </label>
+            {allCourses.length === 0 ? (
+              <p className="text-sm text-slate-400">Kurslar yuklanmoqda...</p>
+            ) : (
+              <select
+                value={selectedCourseId}
+                onChange={(e) => setSelectedCourseId(e.target.value)}
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
+              >
+                <option value="">— Kurs tanlang —</option>
+                {allCourses.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                    {c.price ? ` — ${c.price.toLocaleString()} so'm/oy` : ''}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          {/* Tanlangan kurs tafsiloti */}
+          {selectedCourseId && (() => {
+            const course = allCourses.find((c) => c.id === selectedCourseId)
+            if (!course) return null
+            return (
+              <div className="rounded-lg border border-brand-100 bg-brand-50 px-3 py-2.5 text-sm">
+                <p className="font-semibold text-brand-800">{course.name}</p>
+                {course.price > 0 && (
+                  <p className="mt-0.5 text-brand-600">
+                    Oylik: <span className="font-mono font-semibold">{course.price.toLocaleString()}</span> so'm
+                  </p>
+                )}
+              </div>
+            )
+          })()}
+
+          {/* Ixtiyoriy izoh */}
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">
+              Izoh <span className="text-slate-400 font-normal">(ixtiyoriy)</span>
+            </label>
+            <textarea
+              value={completionNotes}
+              onChange={(e) => setCompletionNotes(e.target.value)}
+              placeholder="Masalan: A2 darajasini muvaffaqiyatli yakunladi..."
+              rows={2}
+              className="w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 outline-none placeholder:text-slate-300 focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
+            />
+          </div>
+        </div>
       </Modal>
     </div>
   )
