@@ -1,18 +1,6 @@
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
-using iText.Kernel.Pdf;
-using iText.Kernel.Pdf.Canvas;
-using iText.Kernel.Geom;
-using iText.Kernel.Colors;
-using iText.Kernel.Font;
-using iText.IO.Font.Constants;
-using iText.Layout;
-using iText.Layout.Element;
-using iText.Layout.Properties;
-using iText.Kernel.Pdf.Xobject;
-using iText.IO.Image;
-using QRCoder;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
 using IntellectCRM.Application.Abstractions;
@@ -23,42 +11,17 @@ namespace IntellectCRM.Application.Services;
 
 /// <summary>
 /// Sertifikat tizimi:
-/// Professional PDF sertifikat (A4 landscape, navy + gold dizayn, o'zbek matni).
-/// iText7 native canvas orqali quriladi — HTML→PDF emas, to'g'ri vektor chizish.
+/// HTML sertifikat (A4 landscape, navy + gold dizayn, o'zbek matni).
+/// certificate-template.html andozasidan foydalaniladi.
 /// </summary>
 public class CertificateService(IAppDbContext db, IHostEnvironment env)
 {
-    // ─────────────────────────────────────────────────────────────
-    // Asosiy ranglar (DeviceRgb, 0..255)
-    // ─────────────────────────────────────────────────────────────
-
-    // Navy ko'k (#1a3a5e)
-    private static readonly DeviceRgb Navy = new(26, 58, 94);
-    // Och navy (#1f4a7a)
-    private static readonly DeviceRgb NavyLight = new(31, 74, 122);
-    // Oltin (#FDB913)
-    private static readonly DeviceRgb Gold = new(253, 185, 19);
-    // Och oltin (#F5C842)
-    private static readonly DeviceRgb GoldLight = new(245, 200, 66);
-    // Oq
-    private static readonly DeviceRgb White = new(255, 255, 255);
-    // Qora
-    private static readonly DeviceRgb Black = new(0, 0, 0);
-    // Kulrang (#B0B8C1)
-    private static readonly DeviceRgb Gray = new(176, 184, 193);
-
-    // A4 Landscape o'lchami (pt: 1pt = 1/72 dyuym)
-    // 297mm × 210mm
-    private static readonly PageSize A4Landscape = PageSize.A4.Rotate();
-    private const float W = 841.89f; // 297mm in pt
-    private const float H = 595.28f; // 210mm in pt
-
     // ─────────────────────────────────────────────────────────────
     // Asosiy API: sertifikat yaratish
     // ─────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// O'quvchi uchun professional Uzbek PDF sertifikat yaratadi.
+    /// O'quvchi uchun HTML sertifikat yaratadi.
     /// Bir (studentId, courseId) uchun bir xil kunda idempotent.
     /// </summary>
     public async Task<StudentCertificate> GenerateCertificateAsync(
@@ -105,25 +68,26 @@ public class CertificateService(IAppDbContext db, IHostEnvironment env)
         // Tekshirish URL (QR uchun)
         var verifyUrl = $"https://crm.intellectschool.uz/verify-certificate/{certId}";
 
-        // PDF generatsiya
-        var pdfBytes = GeneratePdfCertificateUzbekAsync(
+        // HTML generatsiya
+        var htmlContent = GenerateHtmlCertificate(
             studentName: student.FullName,
             courseName: course.Name,
             teacherName: teacherName ?? "O'qituvchi",
             certNumber: certNumber,
-            certId: certId,
             issueDate: today,
             verifyUrl: verifyUrl
         );
 
+        var htmlBytes = Encoding.UTF8.GetBytes(htmlContent);
+
         // Saqlash yo'li
         var certsDir = GetCertificatesDirectory();
         var safeName = certNumber.Replace("/", "-").Replace("\\", "-");
-        var fileName = $"{safeName}.pdf";
+        var fileName = $"{safeName}.html";
         var absolutePath = System.IO.Path.Combine(certsDir, fileName);
-        await System.IO.File.WriteAllBytesAsync(absolutePath, pdfBytes);
+        await System.IO.File.WriteAllTextAsync(absolutePath, htmlContent, Encoding.UTF8);
 
-        var hash = ComputeSHA256(pdfBytes);
+        var hash = ComputeSHA256(htmlBytes);
 
         var cert = new StudentCertificate
         {
@@ -133,7 +97,7 @@ public class CertificateService(IAppDbContext db, IHostEnvironment env)
             FileName = fileName,
             FilePath = $"/uploads/certificates/{fileName}",
             FileHash = hash,
-            FileSize = pdfBytes.LongLength,
+            FileSize = htmlBytes.LongLength,
             IssuedAt = today,
             ExpiresAt = expiresAt,
             Status = "active",
@@ -154,7 +118,7 @@ public class CertificateService(IAppDbContext db, IHostEnvironment env)
             .ToListAsync();
     }
 
-    /// <summary>Sertifikat faylini (PDF baytlarini) qaytaradi.</summary>
+    /// <summary>Sertifikat faylini (HTML) qaytaradi.</summary>
     public async Task<(byte[] Bytes, string FileName, string ContentType)> DownloadCertificateAsync(
         string studentId,
         string certificateId)
@@ -174,11 +138,7 @@ public class CertificateService(IAppDbContext db, IHostEnvironment env)
         if (cert.DownloadedAt is null) cert.DownloadedAt = AppClock.Now;
         await db.SaveChangesAsync();
 
-        var contentType = cert.FileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)
-            ? "application/pdf"
-            : "text/html";
-
-        return (bytes, cert.FileName, contentType);
+        return (bytes, cert.FileName, "text/html");
     }
 
     /// <summary>Sertifikatni tekshiradi. Har tekshiruvda CertificateVerification yozuvi qoladi.</summary>
@@ -223,467 +183,44 @@ public class CertificateService(IAppDbContext db, IHostEnvironment env)
     }
 
     // ─────────────────────────────────────────────────────────────
-    // PDF GENERATSIYA — iText7 native canvas
+    // HTML GENERATSIYA — andozadan
     // ─────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Professional Uzbek PDF sertifikat yaratadi.
-    /// Navy ko'k fon + oltin bezaklar + serif shriftlar.
-    /// A4 Landscape (297mm × 210mm).
+    /// certificate-template.html andozasini o'qib tokenlarni almashtiradi.
+    /// Andoza topilmasa — ichki HTML fallback ishlatiladi.
     /// </summary>
-    private static byte[] GeneratePdfCertificateUzbekAsync(
+    private string GenerateHtmlCertificate(
         string studentName,
         string courseName,
         string teacherName,
         string certNumber,
-        string certId,
         DateTime issueDate,
         string verifyUrl)
     {
-        using var ms = new System.IO.MemoryStream();
-        using var writer = new PdfWriter(ms);
-        using var pdfDoc = new PdfDocument(writer);
+        var templatePath = GetTemplatePath();
+        string template;
 
-        pdfDoc.SetDefaultPageSize(A4Landscape);
-
-        // Canvas orqali chizish
-        var page = pdfDoc.AddNewPage(A4Landscape);
-        var canvas = new PdfCanvas(page);
-
-        // Document bitta marta yaratiladi va barcha Draw* metodlarga uzatiladi.
-        // MUHIM: har bir metodda alohida new Document(pdfDoc) yaratish mumkin EMAS —
-        // using bloki Dispose() chaqirganda pdfDoc ham yopiladi va keyingi metodlar ishlamaydi.
-        var doc = new Document(pdfDoc);
-
-        // ── 1. Navy gradient fon ──
-        DrawNavyBackground(canvas);
-
-        // ── 2. Burchak bezaklari (oltin uchburchaklar) ──
-        DrawCornerDecorations(canvas);
-
-        // ── 3. Yuqori oltin banner ──
-        DrawTopGoldBanner(canvas);
-
-        // ── 4. Medal/yulduz ──
-        DrawMedalIcon(canvas);
-
-        // ── 5. "SERTIFIKAT" sarlavha ──
-        DrawTitle(canvas, doc);
-
-        // ── 6. "Faxriyat bilan taqdim etilmoqda:" ──
-        DrawAwardedTo(canvas, doc);
-
-        // ── 7. O'quvchi ismi ──
-        DrawStudentName(canvas, doc, studentName);
-
-        // ── 8. Kurs tavsifi ──
-        DrawCourseDescription(canvas, doc, courseName);
-
-        // ── 9. Imzo bo'limi ──
-        DrawSignatureSection(canvas, doc, teacherName, issueDate);
-
-        // ── 10. QR kod + sertifikat raqami ──
-        DrawQrAndCertNumber(canvas, doc, certNumber, verifyUrl);
-
-        // ── 11. Markaziy nomi (pastki chiziq) ──
-        DrawCenterName(canvas, doc);
-
-        // ── 12. Bezak chiziqlari ──
-        DrawDecorativeLines(canvas);
-
-        canvas.Release();
-        doc.Close();   // doc.Close() pdfDoc ni ham yopadi — ms.ToArray() dan oldin chaqirilsin
-        return ms.ToArray();
-    }
-
-    private static void DrawNavyBackground(PdfCanvas canvas)
-    {
-        // Asosiy navy fon
-        canvas.SetFillColor(Navy)
-              .Rectangle(0, 0, W, H)
-              .Fill();
-
-        // Yengil gradient effekti — markazda biroz ochroq
-        canvas.SaveState()
-              .SetFillColor(NavyLight)
-              .SetExtGState(new iText.Kernel.Pdf.Extgstate.PdfExtGState().SetFillOpacity(0.3f))
-              .Rectangle(W * 0.2f, H * 0.1f, W * 0.6f, H * 0.8f)
-              .Fill()
-              .RestoreState();
-    }
-
-    private static void DrawCornerDecorations(PdfCanvas canvas)
-    {
-        float size = 70f;
-        float opacity = 0.35f;
-
-        canvas.SaveState()
-              .SetFillColor(Gold)
-              .SetExtGState(new iText.Kernel.Pdf.Extgstate.PdfExtGState().SetFillOpacity(opacity));
-
-        // Yuqori-chap uchburchak
-        canvas.MoveTo(0, H)
-              .LineTo(size, H)
-              .LineTo(0, H - size)
-              .ClosePathFillStroke();
-
-        // Yuqori-o'ng uchburchak
-        canvas.MoveTo(W, H)
-              .LineTo(W - size, H)
-              .LineTo(W, H - size)
-              .ClosePathFillStroke();
-
-        // Pastki-chap uchburchak
-        canvas.MoveTo(0, 0)
-              .LineTo(size, 0)
-              .LineTo(0, size)
-              .ClosePathFillStroke();
-
-        // Pastki-o'ng uchburchak
-        canvas.MoveTo(W, 0)
-              .LineTo(W - size, 0)
-              .LineTo(W, size)
-              .ClosePathFillStroke();
-
-        canvas.RestoreState();
-    }
-
-    private static void DrawTopGoldBanner(PdfCanvas canvas)
-    {
-        float bannerH = 85f;
-        float margin = 60f;
-        float taper = 40f;
-
-        // Trapetsiya shaklida oltin banner (yuqoridan keng, pastdan torayadi)
-        canvas.SaveState()
-              .SetFillColor(Gold);
-
-        canvas.MoveTo(margin, H)
-              .LineTo(W - margin, H)
-              .LineTo(W - margin - taper, H - bannerH)
-              .LineTo(margin + taper, H - bannerH)
-              .ClosePathFillStroke();
-
-        // Banner ustida ingichka chiziq
-        canvas.SetStrokeColor(GoldLight)
-              .SetLineWidth(1.5f)
-              .MoveTo(margin + taper * 1.2f, H - bannerH - 3)
-              .LineTo(W - margin - taper * 1.2f, H - bannerH - 3)
-              .Stroke();
-
-        canvas.RestoreState();
-    }
-
-    private static void DrawMedalIcon(PdfCanvas canvas)
-    {
-        // Medal ribbon (ikki tasma)
-        float ribbonX = W / 2f;
-        float ribbonTopY = H - 90f;
-        float ribbonW = 18f;
-        float ribbonH = 40f;
-
-        canvas.SaveState()
-              .SetFillColor(Gold);
-
-        // Chap tasma
-        canvas.MoveTo(ribbonX - ribbonW - 5, ribbonTopY)
-              .LineTo(ribbonX - 5, ribbonTopY)
-              .LineTo(ribbonX - 8, ribbonTopY - ribbonH)
-              .LineTo(ribbonX - ribbonW - 2, ribbonTopY - ribbonH)
-              .ClosePathFillStroke();
-
-        // O'ng tasma
-        canvas.MoveTo(ribbonX + 5, ribbonTopY)
-              .LineTo(ribbonX + ribbonW + 5, ribbonTopY)
-              .LineTo(ribbonX + ribbonW + 2, ribbonTopY - ribbonH)
-              .LineTo(ribbonX + 8, ribbonTopY - ribbonH)
-              .ClosePathFillStroke();
-
-        canvas.RestoreState();
-
-        // Medal doirasi
-        float cx = W / 2f;
-        float cy = H - 135f;
-        float r = 30f;
-
-        // Tashqi halqa (oltin)
-        canvas.SaveState()
-              .SetFillColor(Gold)
-              .Circle(cx, cy, r)
-              .Fill()
-              .RestoreState();
-
-        // Ichki halqa (qorong'i oltin)
-        canvas.SaveState()
-              .SetFillColor(NavyLight)
-              .Circle(cx, cy, r - 5f)
-              .Fill()
-              .RestoreState();
-
-        // Markaziy yulduz nuqtasi
-        canvas.SaveState()
-              .SetFillColor(Gold)
-              .Circle(cx, cy, 12f)
-              .Fill()
-              .RestoreState();
-
-        // Yulduz nurlari
-        DrawStarRays(canvas, cx, cy, 8f, 22f, 8);
-    }
-
-    private static void DrawStarRays(PdfCanvas canvas, float cx, float cy, float innerR, float outerR, int points)
-    {
-        canvas.SaveState().SetFillColor(Gold);
-
-        double step = Math.PI / points;
-        var pathStarted = false;
-        for (int i = 0; i < points * 2; i++)
+        if (System.IO.File.Exists(templatePath))
         {
-            double angle = i * step - Math.PI / 2;
-            float r = (i % 2 == 0) ? outerR : innerR;
-            float x = cx + (float)(r * Math.Cos(angle));
-            float y = cy + (float)(r * Math.Sin(angle));
-            if (!pathStarted) { canvas.MoveTo(x, y); pathStarted = true; }
-            else canvas.LineTo(x, y);
+            template = System.IO.File.ReadAllText(templatePath, Encoding.UTF8);
         }
-        canvas.ClosePath().Fill().RestoreState();
-    }
-
-    private static void DrawTitle(PdfCanvas canvas, Document doc)
-    {
-        var font = PdfFontFactory.CreateFont(StandardFonts.TIMES_BOLD);
-        float y = H - 195f;
-
-        // "SERTIFIKAT" sarlavha oq rangda
-        var title = new Paragraph("SERTIFIKAT")
-            .SetFont(font)
-            .SetFontSize(52f)
-            .SetFontColor(White)
-            .SetCharacterSpacing(8f)
-            .SetTextAlignment(TextAlignment.CENTER)
-            .SetFixedPosition(0, y, W);
-        doc.Add(title);
-    }
-
-    private static void DrawAwardedTo(PdfCanvas canvas, Document doc)
-    {
-        var font = PdfFontFactory.CreateFont(StandardFonts.TIMES_ITALIC);
-        float y = H - 235f;
-
-        var text = new Paragraph("Faxriyat bilan taqdim etilmoqda:")
-            .SetFont(font)
-            .SetFontSize(13f)
-            .SetFontColor(Gray)
-            .SetCharacterSpacing(1.5f)
-            .SetTextAlignment(TextAlignment.CENTER)
-            .SetFixedPosition(0, y, W);
-        doc.Add(text);
-    }
-
-    private static void DrawStudentName(PdfCanvas canvas, Document doc, string studentName)
-    {
-        var font = PdfFontFactory.CreateFont(StandardFonts.TIMES_BOLDITALIC);
-        float y = H - 280f;
-        float nameW = 520f;
-        float nameX = (W - nameW) / 2f;
-
-        // O'quvchi ismi oltin rangda — catakka katta shrift
-        var name = new Paragraph(studentName)
-            .SetFont(font)
-            .SetFontSize(38f)
-            .SetFontColor(Gold)
-            .SetTextAlignment(TextAlignment.CENTER)
-            .SetFixedPosition(nameX, y, nameW);
-        doc.Add(name);
-
-        // Tagida chiziq (gorizontal chiziqlar ismi ikki yonida)
-        float lineY = y - 2f;
-        float lineLen = 160f;
-        float gap = 15f;
-
-        canvas.SaveState()
-              .SetStrokeColor(Gold)
-              .SetLineWidth(1.2f);
-
-        // Chap chiziq
-        canvas.MoveTo(nameX - gap - lineLen, lineY)
-              .LineTo(nameX - gap, lineY)
-              .Stroke();
-
-        // O'ng chiziq
-        canvas.MoveTo(nameX + nameW + gap, lineY)
-              .LineTo(nameX + nameW + gap + lineLen, lineY)
-              .Stroke();
-
-        canvas.RestoreState();
-    }
-
-    private static void DrawCourseDescription(PdfCanvas canvas, Document doc, string courseName)
-    {
-        var font = PdfFontFactory.CreateFont(StandardFonts.TIMES_ITALIC);
-        float y = H - 320f;
-
-        var text = new Paragraph($"{courseName} kursini muvaffaqiyatli yakunladi.")
-            .SetFont(font)
-            .SetFontSize(15f)
-            .SetFontColor(White)
-            .SetTextAlignment(TextAlignment.CENTER)
-            .SetFixedPosition(0, y, W);
-        doc.Add(text);
-    }
-
-    private static void DrawSignatureSection(PdfCanvas canvas, Document doc, string teacherName, DateTime issueDate)
-    {
-        var boldFont = PdfFontFactory.CreateFont(StandardFonts.TIMES_BOLD);
-        var normalFont = PdfFontFactory.CreateFont(StandardFonts.TIMES_ROMAN);
-
-        float sigY = H - 390f;
-        float lineLen = 140f;
-        float labelY = sigY - 18f;
-        float titleY = sigY - 34f;
-
-        // Uch imzo blok: Manager | Sana | O'qituvchi
-        float managerX = W * 0.18f;
-        float dateX = W * 0.5f;
-        float teacherX = W * 0.78f;
-
-        var signPositions = new[]
+        else
         {
-            (managerX, "________________________", "Markazboshining imzosi", "Manager"),
-            (dateX, FormatDateUz(issueDate), "Tugatilgan sana", ""),
-            (teacherX, teacherName, teacherName.Length > 20 ? "" : "O'qituvchi", ""),
-        };
-
-        canvas.SaveState().SetStrokeColor(Gold).SetLineWidth(1f);
-
-        foreach (var (cx, value, label, subtitle) in signPositions)
-        {
-            float left = cx - lineLen / 2f;
-
-            // Gorizontal chiziq
-            canvas.MoveTo(left, sigY).LineTo(left + lineLen, sigY).Stroke();
-
-            // Qiymat (imzo nomi yoki sana)
-            var valPara = new Paragraph(value)
-                .SetFont(normalFont)
-                .SetFontSize(10f)
-                .SetFontColor(White)
-                .SetTextAlignment(TextAlignment.CENTER)
-                .SetFixedPosition(left, labelY, lineLen);
-            doc.Add(valPara);
-
-            // Yorliq
-            if (!string.IsNullOrEmpty(label))
-            {
-                var lblPara = new Paragraph(label)
-                    .SetFont(boldFont)
-                    .SetFontSize(9f)
-                    .SetFontColor(Gray)
-                    .SetTextAlignment(TextAlignment.CENTER)
-                    .SetFixedPosition(left, titleY, lineLen);
-                doc.Add(lblPara);
-            }
+            // Fallback: ichki minimal andoza
+            template = GetFallbackTemplate();
         }
 
-        canvas.RestoreState();
-    }
+        var issueDateStr = FormatDateUz(issueDate);
 
-    private static void DrawQrAndCertNumber(PdfCanvas canvas, Document doc, string certNumber, string verifyUrl)
-    {
-        // QR kod pastki o'ngda
-        float qrSize = 65f;
-        float qrX = W - qrSize - 28f;
-        float qrY = 22f;
-
-        try
-        {
-            var qrBase64 = GenerateQrCode(verifyUrl);
-            var qrBytes = Convert.FromBase64String(qrBase64);
-
-            var imgData = iText.IO.Image.ImageDataFactory.Create(qrBytes);
-
-            // Oq fon QR atrofida
-            canvas.SaveState()
-                  .SetFillColor(White)
-                  .Rectangle(qrX - 3, qrY - 3, qrSize + 6, qrSize + 6)
-                  .Fill()
-                  .RestoreState();
-
-            canvas.AddImageFittedIntoRectangle(imgData, new Rectangle(qrX, qrY, qrSize, qrSize), false);
-        }
-        catch
-        {
-            // QR generatsiya muvaffaqiyatsiz bo'lsa o'tkazib yuborish
-        }
-
-        // Sertifikat raqami (pastda chapda)
-        var monoFont = PdfFontFactory.CreateFont(StandardFonts.COURIER);
-        float certY = 32f;
-
-        var certPara = new Paragraph($"Sertifikat: {certNumber}")
-            .SetFont(monoFont)
-            .SetFontSize(8f)
-            .SetFontColor(Gray)
-            .SetFixedPosition(28f, certY + 12f, 300f);
-        doc.Add(certPara);
-
-        var verifyPara = new Paragraph($"Tekshirish: crm.intellectschool.uz/verify-certificate")
-            .SetFont(monoFont)
-            .SetFontSize(7.5f)
-            .SetFontColor(Gray)
-            .SetFixedPosition(28f, certY, 300f);
-        doc.Add(verifyPara);
-    }
-
-    private static void DrawCenterName(PdfCanvas canvas, Document doc)
-    {
-        // Markaziy nom — pastda markazda, kichik harflarda
-        var font = PdfFontFactory.CreateFont(StandardFonts.TIMES_ROMAN);
-
-        var centerPara = new Paragraph("Intellect Kokand o'quv markazi")
-            .SetFont(font)
-            .SetFontSize(10f)
-            .SetFontColor(Gray)
-            .SetCharacterSpacing(1f)
-            .SetTextAlignment(TextAlignment.CENTER)
-            .SetFixedPosition(0, 18f, W);
-        doc.Add(centerPara);
-    }
-
-    private static void DrawDecorativeLines(PdfCanvas canvas)
-    {
-        // Yuqori bezak chiziqlari (banner ostida)
-        float lineY1 = H - 90f;
-        float lineY2 = H - 95f;
-        float marginX = 55f;
-
-        canvas.SaveState()
-              .SetStrokeColor(Gold)
-              .SetLineWidth(0.8f);
-
-        canvas.MoveTo(marginX, lineY1)
-              .LineTo(W - marginX, lineY1)
-              .Stroke();
-
-        canvas.SetLineWidth(0.3f);
-        canvas.MoveTo(marginX, lineY2)
-              .LineTo(W - marginX, lineY2)
-              .Stroke();
-
-        // Pastki bezak chiziqlari
-        float btmY1 = 58f;
-        float btmY2 = 63f;
-        canvas.SetLineWidth(0.8f);
-        canvas.MoveTo(marginX, btmY1)
-              .LineTo(W * 0.55f, btmY1)
-              .Stroke();
-
-        canvas.SetLineWidth(0.3f);
-        canvas.MoveTo(marginX, btmY2)
-              .LineTo(W * 0.55f, btmY2)
-              .Stroke();
-
-        canvas.RestoreState();
+        return template
+            .Replace("{{student_name}}", HtmlEncode(studentName))
+            .Replace("{{course_name}}", HtmlEncode(courseName))
+            .Replace("{{teacher_name}}", HtmlEncode(teacherName))
+            .Replace("{{issue_date}}", issueDateStr)
+            .Replace("{{certificate_number}}", HtmlEncode(certNumber))
+            .Replace("{{verify_url}}", HtmlEncode(verifyUrl))
+            .Replace("[QR_CODE_IMAGE]", $"<a href=\"{HtmlEncode(verifyUrl)}\" style=\"font-size:7px;color:#8A94A0;word-break:break-all;\">QR: {HtmlEncode(verifyUrl)}</a>");
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -703,16 +240,6 @@ public class CertificateService(IAppDbContext db, IHostEnvironment env)
         var datePart = AppClock.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         var suffix = (AppClock.Now.Millisecond + AppClock.Now.Second * 1000) % 10000;
         return $"CERT-{datePart}-{suffix:D4}";
-    }
-
-    /// <summary>QR-kod yaratadi va Base64 PNG qaytaradi.</summary>
-    public static string GenerateQrCode(string content)
-    {
-        using var qrGenerator = new QRCodeGenerator();
-        var qrData = qrGenerator.CreateQrCode(content, QRCodeGenerator.ECCLevel.Q);
-        using var qrCode = new PngByteQRCode(qrData);
-        var pngBytes = qrCode.GetGraphic(3);
-        return Convert.ToBase64String(pngBytes);
     }
 
     /// <summary>Sertifikat andozasi uchun token almashtirish (HTML andoza uchun).</summary>
@@ -764,6 +291,14 @@ public class CertificateService(IAppDbContext db, IHostEnvironment env)
         return dir;
     }
 
+    private string GetTemplatePath()
+    {
+        var webRoot = env is IWebHostEnvironment webEnv
+            ? webEnv.WebRootPath
+            : env.ContentRootPath;
+        return System.IO.Path.Combine(webRoot ?? env.ContentRootPath, "templates", "certificate-template.html");
+    }
+
     private string ResolveAbsolutePath(string filePath)
     {
         var webRoot = env is IWebHostEnvironment webEnv
@@ -771,4 +306,39 @@ public class CertificateService(IAppDbContext db, IHostEnvironment env)
             : env.ContentRootPath;
         return System.IO.Path.Combine(webRoot ?? env.ContentRootPath, filePath.TrimStart('/'));
     }
+
+    private static string GetFallbackTemplate() => """
+        <!DOCTYPE html>
+        <html lang="uz">
+        <head>
+            <meta charset="UTF-8">
+            <title>Sertifikat</title>
+            <style>
+                body { font-family: 'Times New Roman', Times, serif; margin: 0; padding: 0; background: #fff; }
+                .certificate {
+                    width: 297mm; height: 210mm;
+                    background: linear-gradient(135deg, #1a3a5e 0%, #1f4a7a 50%, #0d2240 100%);
+                    color: #fff; display: flex; flex-direction: column;
+                    align-items: center; justify-content: center;
+                    padding: 40px; box-sizing: border-box; position: relative;
+                }
+                .title { font-size: 58px; font-weight: 700; letter-spacing: 8px; margin-bottom: 10px; }
+                .awarded { font-size: 13px; color: #B0B8C1; font-style: italic; margin-bottom: 12px; }
+                .student-name { font-size: 38px; color: #FDB913; font-weight: 700; font-style: italic; margin-bottom: 10px; }
+                .course { font-size: 15px; font-style: italic; margin-bottom: 20px; }
+                .cert-num { font-size: 9px; color: #8A94A0; font-family: monospace; position: absolute; bottom: 20px; left: 40px; }
+                @page { size: A4 landscape; margin: 0; }
+            </style>
+        </head>
+        <body>
+            <div class="certificate">
+                <div class="title">SERTIFIKAT</div>
+                <div class="awarded">Faxriyat bilan taqdim etilmoqda:</div>
+                <div class="student-name">{{student_name}}</div>
+                <div class="course">{{course_name}} kursini muvaffaqiyatli yakunladi.</div>
+                <div class="cert-num">Sertifikat: {{certificate_number}} &bull; {{issue_date}}</div>
+            </div>
+        </body>
+        </html>
+        """;
 }
