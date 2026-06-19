@@ -167,15 +167,18 @@ export interface CompleteAndTransferResult {
   newGroupId: string
   certificatesGenerated: number
   enrolledInNew: number
+  targetCourseName?: string
 }
 
-/** Guruhni yakunlash (Variant B): eski guruh arxivlanadi, yangi guruh ochiladi, sertifikat beriladi. */
+/** Guruhni yakunlash (Hybrid): eski guruh arxivlanadi, maqsad kurs bilan yangi guruh ochiladi, sertifikat beriladi. */
 export async function completeAndTransferClass(
   id: string,
   opts?: {
     autoEnrollNewGroup?: boolean
     newGroupName?: string
     completionNotes?: string
+    /** Yangi guruh kursi. Bo'sh bo'lsa — eski kurs qayta ishlatiladi. */
+    targetCourseId?: string
   },
 ): Promise<CompleteAndTransferResult> {
   if (USE_MOCK) {
@@ -186,6 +189,7 @@ export async function completeAndTransferClass(
       newGroupId: 'mock-new-group',
       certificatesGenerated: 5,
       enrolledInNew: 5,
+      targetCourseName: 'Elementary',
     }
   }
   const { data } = await api.post<CompleteAndTransferResult>(
@@ -194,6 +198,7 @@ export async function completeAndTransferClass(
       autoEnrollNewGroup: opts?.autoEnrollNewGroup ?? true,
       newGroupName: opts?.newGroupName ?? null,
       completionNotes: opts?.completionNotes ?? null,
+      targetCourseId: opts?.targetCourseId ?? null,
     },
   )
   return data

@@ -863,15 +863,17 @@ export function ClassDetailPage() {
         )}
       </Modal>
 
-      {/* Guruhni yakunlash modali (Variant B: arxivlash + yangi guruh) */}
+      {/* Guruhni yakunlash modali (Hybrid: arxivlash + maqsad kursga yangi guruh) */}
       <CompleteAndTransferModal
         open={showCompleteModal}
         onClose={() => setShowCompleteModal(false)}
         groupId={id}
         currentGroupName={journal?.group?.name ?? ''}
+        currentCourseId={journal?.group?.courseId ?? ''}
         onSuccess={(result) => {
+          const coursePart = result.targetCourseName ? ` (${result.targetCourseName} kursi)` : ''
           alert(
-            `Tugatildi!\n• ${result.certificatesGenerated} ta sertifikat yaratildi\n• Yangi guruh ochildi (${result.newGroupId})\n• ${result.enrolledInNew} o'quvchi yangi guruhga qo'shildi`,
+            `Tugatildi!\n• ${result.certificatesGenerated} ta sertifikat yaratildi\n• Yangi guruh ochildi${coursePart}\n• ${result.enrolledInNew} o'quvchi yangi guruhga qo'shildi`,
           )
           window.location.href = `/admin/classes/${result.newGroupId}`
         }}

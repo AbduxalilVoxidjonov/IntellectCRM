@@ -1282,21 +1282,24 @@ public record CertificateVerificationDto(
     string ErrorMessage);
 
 /// <summary>
-/// Guruhni yakunlash va YANGI guruh ochish so'rovi (Variant B).
-/// Eski guruh arxivlanadi, o'quvchilarga sertifikat beriladi, yangi guruh ochiladi.
+/// Guruhni yakunlash va YANGI guruh ochish so'rovi (Hybrid).
+/// Eski guruh arxivlanadi, o'quvchilarga sertifikat beriladi, yangi kurs/guruh ochiladi.
 /// </summary>
 public record CompleteAndTransferRequest(
     bool AutoEnrollNewGroup = true,
     string? NewGroupName = null,
-    string? CompletionNotes = null);
+    string? CompletionNotes = null,
+    /// <summary>Yangi guruh qaysi kurs bilan ochiladi. Bo'sh bo'lsa — eski guruh kursi qayta ishlatiladi.</summary>
+    string? TargetCourseId = null);
 
-/// <summary>Complete-and-Transfer (Variant B) natijasi.</summary>
+/// <summary>Complete-and-Transfer (Hybrid) natijasi.</summary>
 public record CompleteAndTransferResultDto(
     bool Ok,
     string ArchivedGroupId,
     string NewGroupId,
     int CertificatesGenerated,
-    int EnrolledInNew);
+    int EnrolledInNew,
+    string? TargetCourseName = null);
 
 /// <summary>Admin tomonidan qo'lda sertifikat yaratish so'rovi.</summary>
 public record GenerateCertificateRequest(string CourseId, string? Notes = null);

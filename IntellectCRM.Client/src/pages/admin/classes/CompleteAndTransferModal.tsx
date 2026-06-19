@@ -1,26 +1,47 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { completeAndTransferClass, type CompleteAndTransferResult } from '@/api/services/classes'
+import { getSubjects } from '@/api/services/subjects'
+import type { Subject } from '@/types'
 
 export function CompleteAndTransferModal({
   open,
   onClose,
   groupId,
   currentGroupName,
+  currentCourseId,
   onSuccess,
 }: {
   open: boolean
   onClose: () => void
   groupId: string
   currentGroupName: string
+  currentCourseId?: string
   onSuccess?: (result: CompleteAndTransferResult) => void
 }) {
+  const [courses, setCourses] = useState<Subject[]>([])
+  const [targetCourseId, setTargetCourseId] = useState<string>('')
   const [newGroupName, setNewGroupName] = useState('')
   const [notes, setNotes] = useState('')
   const [autoEnroll, setAutoEnroll] = useState(true)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Load courses when modal opens
+  useEffect(() => {
+    if (!open) return
+    getSubjects()
+      .then((data) => {
+        setCourses(data)
+        // Pre-select current course as default if available
+        if (currentCourseId) setTargetCourseId(currentCourseId)
+      })
+      .catch(() => setCourses([]))
+  }, [open, currentCourseId])
+
+  const selectedCourse = courses.find((c) => c.id === targetCourseId)
+  const resolvedNewName = newGroupName.trim() || currentGroupName
 
   async function handleSubmit() {
     setLoading(true)
@@ -30,6 +51,7 @@ export function CompleteAndTransferModal({
         autoEnrollNewGroup: autoEnroll,
         newGroupName: newGroupName.trim() || undefined,
         completionNotes: notes.trim() || undefined,
+        targetCourseId: targetCourseId || undefined,
       })
       onSuccess?.(result)
       onClose()
@@ -40,18 +62,16 @@ export function CompleteAndTransferModal({
     }
   }
 
-  const resolvedNewName = newGroupName.trim() || currentGroupName
-
   return (
     <Modal open={open} onClose={onClose} size="md">
       <div style={{ padding: '20px 24px' }}>
         {/* Header */}
         <div style={{ marginBottom: 20 }}>
           <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 4 }}>
-            Guruhni yakunlash
+            Guruhni tugatish va yangi kursga o'tkazish
           </div>
           <div style={{ fontSize: 13, color: 'var(--mute)' }}>
-            Eski guruh arxivlanadi, sertifikatlar beriladi va yangi guruh ochiladi.
+            Eski guruh arxivlanadi, sertifikatlar beriladi va yangi kursga yangi guruh ochiladi.
           </div>
         </div>
 
@@ -71,6 +91,66 @@ export function CompleteAndTransferModal({
           >
             {currentGroupName}
           </div>
+        </div>
+
+        {/* Target course selector */}
+        <div style={{ marginBottom: 16 }}>
+          <label
+            style={{ fontSize: 12, fontWeight: 700, color: 'var(--mute)', display: 'block', marginBottom: 6 }}
+          >
+            YANGI GURUH KURSI
+          </label>
+          <select
+            value={targetCourseId}
+            onChange={(e) => setTargetCourseId(e.target.value)}
+            style={{
+              width: '100%',
+              padding: '10px 12px',
+              borderRadius: 8,
+              border: '1.5px solid var(--border)',
+              fontSize: 14,
+              fontFamily: 'inherit',
+              outline: 'none',
+              boxSizing: 'border-box',
+              background: 'var(--paper)',
+              color: 'var(--ink)',
+              cursor: 'pointer',
+            }}
+          >
+            <option value="">-- Kurs tanlang (ixtiyoriy) --</option>
+            {courses.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+                {c.price ? ` — ${c.price.toLocaleString()} so'm/oy` : ''}
+              </option>
+            ))}
+          </select>
+          {selectedCourse && (
+            <div
+              style={{
+                marginTop: 6,
+                padding: '8px 12px',
+                borderRadius: 8,
+                background: '#F0FDF4',
+                fontSize: 12,
+                color: '#166534',
+                display: 'flex',
+                gap: 12,
+              }}
+            >
+              <span>
+                <strong>{selectedCourse.name}</strong>
+              </span>
+              {selectedCourse.price > 0 && (
+                <span>Oylik: {selectedCourse.price.toLocaleString()} so'm</span>
+              )}
+            </div>
+          )}
+          {!targetCourseId && (
+            <div style={{ fontSize: 11, color: 'var(--mute)', marginTop: 4 }}>
+              Bo'sh qolsa: eski guruh kursi qayta ishlatiladi
+            </div>
+          )}
         </div>
 
         {/* New group name */}
@@ -194,7 +274,12 @@ export function CompleteAndTransferModal({
           <ul style={{ margin: '4px 0 0 16px', padding: 0 }}>
             <li>Barcha faol a'zolar sertifikat oladi (eski kurs uchun)</li>
             <li>Eski guruh arxivga o'tadi (o'quvchilar arxivlanmaydi)</li>
-            <li>Xuddi shu kurs/o'qituvchi/jadval bilan yangi guruh "{resolvedNewName}" ochiladi</li>
+            <li>
+              {selectedCourse
+                ? <><strong>{selectedCourse.name}</strong> kursi bilan yangi guruh "{resolvedNewName}" ochiladi</>
+                : <>Eski kurs bilan yangi guruh "{resolvedNewName}" ochiladi</>
+              }
+            </li>
             {autoEnroll && <li>Faol a'zolar yangi guruhga "sinov" statusida qo'shiladi</li>}
           </ul>
         </div>

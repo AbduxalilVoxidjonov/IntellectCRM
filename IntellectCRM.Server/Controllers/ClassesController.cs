@@ -512,12 +512,12 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
     }
 
     /// <summary>
-    /// Guruhni YAKUNLAB ARXIVLAYDI va YANGI guruh ochadi (Variant B).
+    /// Guruhni YAKUNLAB ARXIVLAYDI va YANGI guruh ochadi (Hybrid).
     /// <list type="bullet">
     ///   <item>Barcha faol a'zolar Status="completed", IsActive=false qilinadi (eski guruhda tarix saqlanadi).</item>
     ///   <item>Eski guruh IsArchived=true, ArchivedAt=bugun qilinadi (o'quvchilar arxivlanmaydi).</item>
     ///   <item>Asl kurs uchun sertifikat yaratiladi.</item>
-    ///   <item>Xuddi shu kurs/o'qituvchi/xona/kunlar/vaqt bilan YANGI guruh yaratiladi.</item>
+    ///   <item>TargetCourseId ko'rsatilsa SHU kurs bilan, aks holda eski guruh kursi bilan YANGI guruh yaratiladi.</item>
     ///   <item>autoEnrollNewGroup=true bo'lsa, eski a'zolar yangi guruhga "trial" statusida qo'shiladi.</item>
     /// </list>
     /// </summary>
@@ -539,7 +539,21 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
             return BadRequest(new { message = "Guruhda faol a'zo yo'q" });
 
         var today = AppClock.Today.ToString("yyyy-MM-dd");
-        var courseId = group.CourseId ?? "";
+        // Sertifikat eski kurs uchun beriladi.
+        var oldCourseId = group.CourseId ?? "";
+
+        // Yangi guruh kursi: TargetCourseId ko'rsatilsa shu, aks holda eski kurs.
+        var targetCourseId = !string.IsNullOrWhiteSpace(req.TargetCourseId)
+            ? req.TargetCourseId!.Trim()
+            : oldCourseId;
+
+        // Maqsad kursni tekshiramiz (agar ko'rsatilgan bo'lsa).
+        Subject? targetCourse = null;
+        if (!string.IsNullOrEmpty(targetCourseId))
+            targetCourse = await db.Subjects.FindAsync(targetCourseId);
+
+        if (!string.IsNullOrWhiteSpace(req.TargetCourseId) && targetCourse is null)
+            return BadRequest(new { message = "Tanlangan kurs topilmadi" });
 
         // 1. Eski a'zoliklarni "completed" qilib yopamiz (tarix saqlanadi).
         foreach (var m in activeMembers)
@@ -555,9 +569,9 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
 
         await db.SaveChangesAsync();   // Completed + archive atomically
 
-        // 3. Sertifikatlar (eski kurs bo'yicha, sinxron).
+        // 3. Sertifikatlar (ESKI kurs bo'yicha, sinxron).
         var certCount = 0;
-        if (!string.IsNullOrEmpty(courseId))
+        if (!string.IsNullOrEmpty(oldCourseId))
         {
             var teacherName = string.IsNullOrEmpty(group.TeacherId)
                 ? null
@@ -571,34 +585,37 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
                 try
                 {
                     await certSvc.GenerateCertificateAsync(
-                        m.StudentId, courseId, req.CompletionNotes,
+                        m.StudentId, oldCourseId, req.CompletionNotes,
                         teacherName: teacherName);
                     certCount++;
                 }
                 catch (Exception ex)
                 {
-                    logger.LogWarning(ex, "Sertifikat yaratishda xato: student={S}, course={C}", m.StudentId, courseId);
+                    logger.LogWarning(ex, "Sertifikat yaratishda xato: student={S}, course={C}", m.StudentId, oldCourseId);
                 }
             }
         }
 
-        // 4. YANGI guruh — xuddi shu kurs/o'qituvchi/xona/kunlar/vaqt.
+        // 4. YANGI guruh — maqsad kurs + eski guruh o'qituvchi/xona/kunlar/vaqt.
         var newGroupName = !string.IsNullOrWhiteSpace(req.NewGroupName)
             ? req.NewGroupName!.Trim()
             : group.Name;
+
+        // Yangi guruh oyligi: maqsad kurs narxidan olinadi; kurs yo'q bo'lsa eski narx.
+        var newMonthlyFee = targetCourse?.Price ?? group.MonthlyFee;
 
         var newGroup = new Group
         {
             Name = newGroupName,
             Grade = group.Grade,
             Language = group.Language,
-            MonthlyFee = group.MonthlyFee,
+            MonthlyFee = newMonthlyFee,
             Room = group.Room,
             Status = "active",
             StartDate = today,
             EndDate = null,
             Capacity = group.Capacity,
-            CourseId = courseId,
+            CourseId = targetCourseId,
             TeacherId = group.TeacherId,
             Note = group.Note,
             Days = new List<int>(group.Days),
@@ -638,16 +655,19 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
         }
 
         // 6. Audit log.
+        var targetCourseName = targetCourse?.Name ?? "";
         audit.Record(
             "Group", id, "complete-and-transfer",
-            $"Guruh yakunlandi va arxivlandi ({group.Name}): {activeMembers.Count} a'zo, sertifikat={certCount}. Yangi guruh: {newGroup.Id} ({newGroupName}), enrolled={enrolledCount}");
+            $"Guruh yakunlandi va arxivlandi ({group.Name}): {activeMembers.Count} a'zo, sertifikat={certCount}. " +
+            $"Yangi guruh: {newGroup.Id} ({newGroupName}), kurs: {targetCourseName}, enrolled={enrolledCount}");
 
         return Ok(new CompleteAndTransferResultDto(
             Ok: true,
             ArchivedGroupId: id,
             NewGroupId: newGroup.Id,
             CertificatesGenerated: certCount,
-            EnrolledInNew: enrolledCount));
+            EnrolledInNew: enrolledCount,
+            TargetCourseName: targetCourseName));
     }
 
 }
