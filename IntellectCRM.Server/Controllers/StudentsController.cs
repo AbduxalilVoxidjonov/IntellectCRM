@@ -345,6 +345,24 @@ public class StudentsController(AppDbContext db, AuditService audit) : Controlle
         // ClassName narxi bo'yicha qayta hisoblamaymiz (aks holda ikki manba bir-biriga zid summa yozadi).
         var hasMembership = await db.StudentGroups.AnyAsync(sg => sg.StudentId == student.Id);
         var cls = await db.Classes.FirstOrDefaultAsync(c => c.Name == student.ClassName);
+        // Agar className YANGI qiymatga o'zgardi va o'quvchining hech qanday M2M a'zoligi yo'q bo'lsa —
+        // bu admin o'quvchini guruhga qo'shmoqchi (StudentFormModal "Guruhga biriktirish" dropdown).
+        // Bunday holatda M2M a'zolik (Status="trial") yaratamiz va billing QILINMAYDI —
+        // to'lov faqat aktivlashtirish (ActivateMember) paytida boshlanishi kerak.
+        if (classChanged && !hasMembership && cls is not null)
+        {
+            db.StudentGroups.Add(new StudentGroup
+            {
+                StudentId = student.Id,
+                GroupId = cls.Id,
+                JoinedAt = student.EnrollmentDate.Length >= 10
+                    ? student.EnrollmentDate
+                    : AppClock.Today.ToString("yyyy-MM-dd"),
+                IsActive = true,
+                Status = "trial",
+            });
+            hasMembership = true; // billing blokini o'tkazib yuborish uchun
+        }
         if (!hasMembership && cls is not null && cls.MonthlyFee > 0)
         {
             var newDiscount = TuitionService.DiscountFor(cls.MonthlyFee, student.DiscountPct, student.DiscountAmount);
