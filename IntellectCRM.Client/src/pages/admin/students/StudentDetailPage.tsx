@@ -43,6 +43,8 @@ function groupStatusBadge(status: string): { label: string; tone: BadgeTone } {
       return { label: 'Aktiv', tone: 'green' }
     case 'frozen':
       return { label: 'Muzlatilgan', tone: 'blue' }
+    case 'completed':
+      return { label: 'Tugatilgan', tone: 'teal' }
     case 'left':
       return { label: 'Chiqgan', tone: 'default' }
     default:
@@ -355,7 +357,9 @@ export function StudentDetailPage() {
         <Section title="Guruhlar" icon={School}>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {groups.map((gr) => {
-              const sb = groupStatusBadge(gr.isActive ? gr.status : 'left')
+              const sb = groupStatusBadge(
+                gr.status === 'completed' ? 'completed' : gr.isActive ? gr.status : 'left',
+              )
               return (
                 <Link
                   key={gr.id}
