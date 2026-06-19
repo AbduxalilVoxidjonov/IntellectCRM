@@ -1249,6 +1249,13 @@ public record CertificateTemplateDto(
     int ValidityDays,
     string CreatedAt);
 
+/// <summary>Sertifikat andozasini yangilash so'rovi (admin: name, courseId, HTML shablon, muddati).</summary>
+public record UpdateCertificateTemplateRequest(
+    string Name,
+    string CourseId,
+    string HtmlTemplate,
+    int ValidityDays = 0);
+
 /// <summary>Ommaviy sertifikat tekshirish natijasi.</summary>
 public record CertificateVerificationDto(
     bool IsValid,

@@ -20,6 +20,7 @@ public class AuditService(IAppDbContext db, IHttpContextAccessor http)
     public const string EntityTeacherSalary = "TeacherSalary";
     public const string EntityClassFee = "ClassFee";
     public const string EntityStudentDiscount = "StudentDiscount";
+    public const string EntityTemplate = "CertificateTemplate";
 
     /// <summary>Audit yozuvini joriy DbContext'ga qo'shadi (hali SaveChanges qilinmaydi).</summary>
     public void Record(
