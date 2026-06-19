@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom'
 import {
   ArrowLeft, Users, BookOpen, User,
   CalendarDays, Clock, MapPin, Wallet, Snowflake, CheckCircle2,
-  ListChecks, ChevronRight, ChevronDown, Plus, Minus, Repeat, CalendarClock, Flag, TrendingUp, // Trophy,
+  ListChecks, ChevronRight, ChevronDown, Plus, Minus, Repeat, CalendarClock, Flag, TrendingUp, Trophy,
 } from 'lucide-react'
 import type { AbsenceReason, MasteryLevel } from '@/types'
 import {
@@ -14,10 +14,8 @@ import {
   getGroupCurriculum, setGroupCover, changeGroupRevision,
   type GroupCurriculum,
 } from '@/api/services/curriculum'
-import { activateMember, freezeMember } from '@/api/services/classes'
+import { activateMember, freezeMember, completeAndTransferClass } from '@/api/services/classes'
 import { getSettings } from '@/api/services/settings'
-// import { getSubjects } from '@/api/services/subjects'
-// import { CompleteAndTransferModal } from './CompleteAndTransferModal'
 import { cn, formatMoney, formatDate } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
 import { GradingSection } from '@/components/grading/GradingSection'
@@ -97,19 +95,6 @@ export function ClassDetailPage() {
   const [currExpanded, setCurrExpanded] = useState<Set<string>>(new Set())
   const [revSaving, setRevSaving] = useState(false)
 
-  // ---- Tugatish modali (WIP) ----
-  // const [showCompleteModal, setShowCompleteModal] = useState(false)
-  // const [allCourses, setAllCourses] = useState<any[]>([])
-  // const [coursesLoading, setCoursesLoading] = useState(false)
-
-  // const loadCourses = useCallback(() => {
-  //   if (coursesLoading || allCourses.length > 0) return
-  //   setCoursesLoading(true)
-  //   getSubjects()
-  //     .then(setAllCourses)
-  //     .catch(() => setAllCourses([]))
-  //     .finally(() => setCoursesLoading(false))
-  // }, [coursesLoading, allCourses.length])
 
   const loadCurr = useCallback(() => {
     if (!id) return
@@ -390,12 +375,18 @@ export function ClassDetailPage() {
             )}
           </div>
         </div>
-        {/* Tugatish button (WIP - modal scope issue to fix) */}
-        {/* {g && (
+        {g && (
           <button
-            onClick={() => {
-              loadCourses()
-              setShowCompleteModal(true)
+            onClick={async () => {
+              const courseId = prompt('Yangi kurs ID\'sini kiriting:')
+              if (!courseId) return
+              try {
+                const result = await completeAndTransferClass(id, courseId)
+                alert(`✓ Tugatildi! ${result.certificatesGenerated} ta sertifikat yaratildi.`)
+                window.location.reload()
+              } catch (e: any) {
+                alert('Xatolik: ' + e?.message)
+              }
             }}
             className="flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-amber-700 transition-colors hover:bg-amber-100"
             title="Guruhni tugatish va sertifikat berish"
@@ -403,7 +394,7 @@ export function ClassDetailPage() {
             <Trophy className="h-4 w-4" />
             <span className="text-sm font-medium">Tugatish</span>
           </button>
-        )} */}
+        )}
       </div>
 
       {loading && !journal ? (
@@ -1352,7 +1343,6 @@ function RatingsTab({ grading, journal, loading }: { grading: GradingBoard | nul
         </Card>
       )}
 
-      {/* Modal WIP - scope issue to resolve */}
     </div>
   )
 }
