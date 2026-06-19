@@ -100,7 +100,7 @@ export function StudentDetailPage() {
       .catch(() => {})
     getStudentCertificates(id)
       .then(setCertificates)
-      .catch(() => {})
+      .catch((e) => console.warn('Sertifikatlar yuklanmadi:', e))
   }, [id])
 
   // O'quv dasturi uchun guruh→kurs id xaritasi. A'zolikda faqat courseName bor (courseId yo'q),

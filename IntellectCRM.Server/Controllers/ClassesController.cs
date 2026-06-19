@@ -585,8 +585,10 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
 
         // 6. Sertifikatlar fire-and-forget (original kurs uchun).
         // IServiceProvider bilan yangi scope yaratiladi — scoped AppDbContext dispose muammosidan qochish uchun.
+        var certCount = 0;
         if (!string.IsNullOrEmpty(originalCourseId))
         {
+            certCount = activeMembers.Count;
             var studentIds = activeMembers.Select(m => m.StudentId).ToList();
             var notes = req.CompletionNotes;
             var courseIdForCert = originalCourseId;
@@ -602,7 +604,7 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
             });
         }
 
-        return Ok(new CompleteAndTransferResultDto(activeMembers.Count));
+        return Ok(new CompleteAndTransferResultDto(activeMembers.Count, certCount));
     }
 
 }

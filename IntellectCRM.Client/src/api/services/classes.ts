@@ -171,9 +171,9 @@ export async function completeAndTransferClass(
     await delay(300)
     return { ok: true, certificatesGenerated: 5 }
   }
-  const { data } = await api.post<{ ok: boolean; certificatesGenerated: number }>(
+  const { data } = await api.post<{ completedCount: number; certificatesGenerated: number }>(
     `/admin/classes/${id}/complete-and-transfer`,
     { targetCourseId, completionNotes },
   )
-  return data
+  return { ok: true, certificatesGenerated: data.certificatesGenerated ?? data.completedCount ?? 0 }
 }
