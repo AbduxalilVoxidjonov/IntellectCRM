@@ -250,6 +250,11 @@ public class CertificateService(IAppDbContext db, IHostEnvironment env)
         var page = pdfDoc.AddNewPage(A4Landscape);
         var canvas = new PdfCanvas(page);
 
+        // Document bitta marta yaratiladi va barcha Draw* metodlarga uzatiladi.
+        // MUHIM: har bir metodda alohida new Document(pdfDoc) yaratish mumkin EMAS —
+        // using bloki Dispose() chaqirganda pdfDoc ham yopiladi va keyingi metodlar ishlamaydi.
+        var doc = new Document(pdfDoc);
+
         // ── 1. Navy gradient fon ──
         DrawNavyBackground(canvas);
 
@@ -263,31 +268,31 @@ public class CertificateService(IAppDbContext db, IHostEnvironment env)
         DrawMedalIcon(canvas);
 
         // ── 5. "SERTIFIKAT" sarlavha ──
-        DrawTitle(canvas, pdfDoc);
+        DrawTitle(canvas, doc);
 
         // ── 6. "Faxriyat bilan taqdim etilmoqda:" ──
-        DrawAwardedTo(canvas, pdfDoc);
+        DrawAwardedTo(canvas, doc);
 
         // ── 7. O'quvchi ismi ──
-        DrawStudentName(canvas, pdfDoc, studentName);
+        DrawStudentName(canvas, doc, studentName);
 
         // ── 8. Kurs tavsifi ──
-        DrawCourseDescription(canvas, pdfDoc, courseName);
+        DrawCourseDescription(canvas, doc, courseName);
 
         // ── 9. Imzo bo'limi ──
-        DrawSignatureSection(canvas, pdfDoc, teacherName, issueDate);
+        DrawSignatureSection(canvas, doc, teacherName, issueDate);
 
         // ── 10. QR kod + sertifikat raqami ──
-        DrawQrAndCertNumber(canvas, pdfDoc, certNumber, verifyUrl);
+        DrawQrAndCertNumber(canvas, doc, certNumber, verifyUrl);
 
         // ── 11. Markaziy nomi (pastki chiziq) ──
-        DrawCenterName(canvas, pdfDoc);
+        DrawCenterName(canvas, doc);
 
         // ── 12. Bezak chiziqlari ──
         DrawDecorativeLines(canvas);
 
         canvas.Release();
-        pdfDoc.Close();
+        doc.Close();   // doc.Close() pdfDoc ni ham yopadi — ms.ToArray() dan oldin chaqirilsin
         return ms.ToArray();
     }
 
@@ -444,13 +449,12 @@ public class CertificateService(IAppDbContext db, IHostEnvironment env)
         canvas.ClosePath().Fill().RestoreState();
     }
 
-    private static void DrawTitle(PdfCanvas canvas, PdfDocument pdfDoc)
+    private static void DrawTitle(PdfCanvas canvas, Document doc)
     {
         var font = PdfFontFactory.CreateFont(StandardFonts.TIMES_BOLD);
         float y = H - 195f;
 
         // "SERTIFIKAT" sarlavha oq rangda
-        using var doc = new Document(pdfDoc);
         var title = new Paragraph("SERTIFIKAT")
             .SetFont(font)
             .SetFontSize(52f)
@@ -461,12 +465,11 @@ public class CertificateService(IAppDbContext db, IHostEnvironment env)
         doc.Add(title);
     }
 
-    private static void DrawAwardedTo(PdfCanvas canvas, PdfDocument pdfDoc)
+    private static void DrawAwardedTo(PdfCanvas canvas, Document doc)
     {
         var font = PdfFontFactory.CreateFont(StandardFonts.TIMES_ITALIC);
         float y = H - 235f;
 
-        using var doc = new Document(pdfDoc);
         var text = new Paragraph("Faxriyat bilan taqdim etilmoqda:")
             .SetFont(font)
             .SetFontSize(13f)
@@ -477,7 +480,7 @@ public class CertificateService(IAppDbContext db, IHostEnvironment env)
         doc.Add(text);
     }
 
-    private static void DrawStudentName(PdfCanvas canvas, PdfDocument pdfDoc, string studentName)
+    private static void DrawStudentName(PdfCanvas canvas, Document doc, string studentName)
     {
         var font = PdfFontFactory.CreateFont(StandardFonts.TIMES_BOLDITALIC);
         float y = H - 280f;
@@ -485,7 +488,6 @@ public class CertificateService(IAppDbContext db, IHostEnvironment env)
         float nameX = (W - nameW) / 2f;
 
         // O'quvchi ismi oltin rangda — catakka katta shrift
-        using var doc = new Document(pdfDoc);
         var name = new Paragraph(studentName)
             .SetFont(font)
             .SetFontSize(38f)
@@ -516,12 +518,11 @@ public class CertificateService(IAppDbContext db, IHostEnvironment env)
         canvas.RestoreState();
     }
 
-    private static void DrawCourseDescription(PdfCanvas canvas, PdfDocument pdfDoc, string courseName)
+    private static void DrawCourseDescription(PdfCanvas canvas, Document doc, string courseName)
     {
         var font = PdfFontFactory.CreateFont(StandardFonts.TIMES_ITALIC);
         float y = H - 320f;
 
-        using var doc = new Document(pdfDoc);
         var text = new Paragraph($"{courseName} kursini muvaffaqiyatli yakunladi.")
             .SetFont(font)
             .SetFontSize(15f)
@@ -531,7 +532,7 @@ public class CertificateService(IAppDbContext db, IHostEnvironment env)
         doc.Add(text);
     }
 
-    private static void DrawSignatureSection(PdfCanvas canvas, PdfDocument pdfDoc, string teacherName, DateTime issueDate)
+    private static void DrawSignatureSection(PdfCanvas canvas, Document doc, string teacherName, DateTime issueDate)
     {
         var boldFont = PdfFontFactory.CreateFont(StandardFonts.TIMES_BOLD);
         var normalFont = PdfFontFactory.CreateFont(StandardFonts.TIMES_ROMAN);
@@ -554,8 +555,6 @@ public class CertificateService(IAppDbContext db, IHostEnvironment env)
         };
 
         canvas.SaveState().SetStrokeColor(Gold).SetLineWidth(1f);
-
-        using var doc = new Document(pdfDoc);
 
         foreach (var (cx, value, label, subtitle) in signPositions)
         {
@@ -589,7 +588,7 @@ public class CertificateService(IAppDbContext db, IHostEnvironment env)
         canvas.RestoreState();
     }
 
-    private static void DrawQrAndCertNumber(PdfCanvas canvas, PdfDocument pdfDoc, string certNumber, string verifyUrl)
+    private static void DrawQrAndCertNumber(PdfCanvas canvas, Document doc, string certNumber, string verifyUrl)
     {
         // QR kod pastki o'ngda
         float qrSize = 65f;
@@ -621,7 +620,6 @@ public class CertificateService(IAppDbContext db, IHostEnvironment env)
         var monoFont = PdfFontFactory.CreateFont(StandardFonts.COURIER);
         float certY = 32f;
 
-        using var doc = new Document(pdfDoc);
         var certPara = new Paragraph($"Sertifikat: {certNumber}")
             .SetFont(monoFont)
             .SetFontSize(8f)
@@ -637,12 +635,11 @@ public class CertificateService(IAppDbContext db, IHostEnvironment env)
         doc.Add(verifyPara);
     }
 
-    private static void DrawCenterName(PdfCanvas canvas, PdfDocument pdfDoc)
+    private static void DrawCenterName(PdfCanvas canvas, Document doc)
     {
         // Markaziy nom — pastda markazda, kichik harflarda
         var font = PdfFontFactory.CreateFont(StandardFonts.TIMES_ROMAN);
 
-        using var doc = new Document(pdfDoc);
         var centerPara = new Paragraph("Intellect Kokand o'quv markazi")
             .SetFont(font)
             .SetFontSize(10f)
