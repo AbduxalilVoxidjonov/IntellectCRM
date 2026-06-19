@@ -569,9 +569,10 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
 
         await db.SaveChangesAsync();   // Completed + archive atomically
 
-        // 3. Sertifikatlar (ESKI kurs bo'yicha, sinxron).
+        // 3. Sertifikatlar — eski kurs bo'yicha (eski kurs yo'q bo'lsa targetCourseId ishlatiladi).
         var certCount = 0;
-        if (!string.IsNullOrEmpty(oldCourseId))
+        var certCourseId = !string.IsNullOrEmpty(oldCourseId) ? oldCourseId : targetCourseId;
+        if (!string.IsNullOrEmpty(certCourseId))
         {
             var teacherName = string.IsNullOrEmpty(group.TeacherId)
                 ? null
@@ -580,20 +581,28 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
                     .Select(t => t.FullName)
                     .FirstOrDefaultAsync();
 
+            logger.LogInformation("CompleteAndTransfer: {Count} o'quvchi uchun sertifikat yaratish boshlanmoqda (kurs={CourseId})", activeMembers.Count, certCourseId);
+
             foreach (var m in activeMembers)
             {
                 try
                 {
                     await certSvc.GenerateCertificateAsync(
-                        m.StudentId, oldCourseId, req.CompletionNotes,
+                        m.StudentId, certCourseId, req.CompletionNotes,
                         teacherName: teacherName);
                     certCount++;
+                    logger.LogInformation("Sertifikat yaratildi: student={S}", m.StudentId);
                 }
                 catch (Exception ex)
                 {
-                    logger.LogWarning(ex, "Sertifikat yaratishda xato: student={S}, course={C}", m.StudentId, oldCourseId);
+                    logger.LogWarning(ex, "Sertifikat yaratishda xato: student={S}, course={C}: {Msg}", m.StudentId, certCourseId, ex.Message);
                 }
             }
+            logger.LogInformation("CompleteAndTransfer: {CertCount}/{Total} sertifikat yaratildi", certCount, activeMembers.Count);
+        }
+        else
+        {
+            logger.LogWarning("CompleteAndTransfer: guruhda kurs (CourseId) yo'q — sertifikat yaratilmadi (groupId={GroupId})", id);
         }
 
         // 4. YANGI guruh — maqsad kurs + eski guruh o'qituvchi/xona/kunlar/vaqt.
