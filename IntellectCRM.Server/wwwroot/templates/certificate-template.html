@@ -1,19 +1,14 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="uz">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Certificate of Achievement</title>
-    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Cinzel:wght@400;600&display=swap" rel="stylesheet">
+    <title>Sertifikat</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
-            font-family: 'Playfair Display', serif;
+            font-family: 'Times New Roman', Times, serif;
             background: #fff;
             padding: 0;
             margin: 0;
@@ -26,368 +21,294 @@
             flex-direction: column;
             justify-content: space-between;
             align-items: center;
-            background: linear-gradient(135deg, #1a2a5e 0%, #1f3a7d 50%, #0d1b3d 100%);
+            background: linear-gradient(135deg, #1a3a5e 0%, #1f4a7a 50%, #0d2240 100%);
             position: relative;
             overflow: hidden;
             page-break-after: always;
             color: #fff;
-            padding: 40px 50px;
+            padding: 36px 50px 28px;
         }
 
-        /* Navy blue gradient background */
-        .certificate::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: linear-gradient(135deg, #1a2a5e 0%, #1f3a7d 50%, #0d1b3d 100%);
-            z-index: -1;
-        }
-
-        /* Decorative corner triangles - top left */
         .corner-tl {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 0;
-            height: 0;
-            border-left: 80px solid #FDB913;
-            border-bottom: 80px solid transparent;
-            opacity: 0.3;
+            position: absolute; top: 0; left: 0;
+            width: 0; height: 0;
+            border-left: 75px solid #FDB913;
+            border-bottom: 75px solid transparent;
+            opacity: 0.35;
         }
-
-        /* Decorative corner triangles - top right */
         .corner-tr {
-            position: absolute;
-            top: 0;
-            right: 0;
-            width: 0;
-            height: 0;
-            border-right: 80px solid #FDB913;
-            border-bottom: 80px solid transparent;
-            opacity: 0.3;
+            position: absolute; top: 0; right: 0;
+            width: 0; height: 0;
+            border-right: 75px solid #FDB913;
+            border-bottom: 75px solid transparent;
+            opacity: 0.35;
         }
-
-        /* Decorative corner triangles - bottom left */
         .corner-bl {
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            width: 0;
-            height: 0;
-            border-left: 80px solid #FDB913;
-            border-top: 80px solid transparent;
-            opacity: 0.3;
+            position: absolute; bottom: 0; left: 0;
+            width: 0; height: 0;
+            border-left: 75px solid #FDB913;
+            border-top: 75px solid transparent;
+            opacity: 0.35;
         }
-
-        /* Decorative corner triangles - bottom right */
         .corner-br {
-            position: absolute;
-            bottom: 0;
-            right: 0;
-            width: 0;
-            height: 0;
-            border-right: 80px solid #FDB913;
-            border-top: 80px solid transparent;
-            opacity: 0.3;
+            position: absolute; bottom: 0; right: 0;
+            width: 0; height: 0;
+            border-right: 75px solid #FDB913;
+            border-top: 75px solid transparent;
+            opacity: 0.35;
         }
 
-        /* Gold ribbon banner - top */
         .ribbon-top {
             position: absolute;
-            top: 0;
-            left: 50%;
+            top: 0; left: 50%;
             transform: translateX(-50%);
-            width: 90%;
-            height: 120px;
+            width: 88%;
+            height: 90px;
             background: linear-gradient(to bottom, #FDB913 0%, #F0AD4E 100%);
-            clip-path: polygon(0 0, 100% 0, 85% 100%, 15% 100%);
+            clip-path: polygon(0 0, 100% 0, 86% 100%, 14% 100%);
             z-index: 1;
         }
 
         .content {
-            position: relative;
-            z-index: 2;
+            position: relative; z-index: 2;
             display: flex;
             flex-direction: column;
-            justify-content: center;
             align-items: center;
             width: 100%;
             height: 100%;
         }
 
-        /* Medal icon area */
-        .medal-container {
-            text-align: center;
-            margin-bottom: 20px;
-            position: relative;
-            z-index: 3;
+        .medal-area {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 10px;
+            margin-bottom: 6px;
         }
 
-        .medal {
-            width: 100px;
-            height: 100px;
-            position: relative;
-            display: inline-block;
-            margin-bottom: 10px;
+        .medal-ribbons {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 2px;
+        }
+
+        .ribbon-strip {
+            width: 14px;
+            height: 30px;
+            background: linear-gradient(to bottom, #FDB913, #F0AD4E);
+            clip-path: polygon(0 0, 100% 0, 80% 100%, 20% 100%);
         }
 
         .medal-circle {
-            width: 70px;
-            height: 70px;
+            width: 56px; height: 56px;
             border-radius: 50%;
-            background: radial-gradient(circle at 30% 30%, #FFD700, #FDB913);
-            border: 4px solid #F0AD4E;
-            position: absolute;
-            top: 15px;
-            left: 15px;
-            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+            background: radial-gradient(circle at 35% 35%, #FFD700, #FDB913);
+            border: 3px solid #F0AD4E;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
         }
 
-        .medal-circle::before {
-            content: '';
-            position: absolute;
-            width: 40px;
-            height: 40px;
+        .medal-inner {
+            width: 28px; height: 28px;
+            border-radius: 50%;
             background: radial-gradient(circle at 40% 40%, #FFED4E, #FDB913);
-            border-radius: 50%;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            opacity: 0.8;
         }
 
-        .medal-ribbon-left, .medal-ribbon-right {
-            position: absolute;
-            width: 25px;
-            background: linear-gradient(to right, #F0AD4E, #FFD700);
-            top: 0;
-            z-index: 0;
-        }
-
-        .medal-ribbon-left {
-            left: 20px;
-            height: 60px;
-            clip-path: polygon(0 0, 100% 5%, 80% 100%, 0 95%);
-        }
-
-        .medal-ribbon-right {
-            right: 20px;
-            height: 60px;
-            clip-path: polygon(20% 100%, 100% 95%, 100% 5%, 0 0);
-        }
-
-        /* Title */
         .title {
-            font-size: 72px;
-            font-weight: 900;
-            letter-spacing: 8px;
+            font-size: 62px;
+            font-weight: 700;
+            letter-spacing: 10px;
             text-transform: uppercase;
             color: #fff;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
-            margin-bottom: 30px;
-            font-family: 'Cinzel', serif;
+            text-shadow: 2px 2px 6px rgba(0,0,0,0.4);
+            margin-bottom: 6px;
+            font-family: 'Times New Roman', Times, serif;
             line-height: 1;
         }
 
-        /* Awarded to section */
         .awarded-text {
-            font-size: 20px;
+            font-size: 13px;
             letter-spacing: 2px;
-            color: #000;
-            margin-bottom: 15px;
-            text-transform: uppercase;
-            font-weight: 600;
-            font-family: 'Cinzel', serif;
+            color: #B0B8C1;
+            margin-bottom: 10px;
+            font-style: italic;
         }
 
-        /* Student name */
+        .student-name-row {
+            display: flex;
+            align-items: center;
+            gap: 18px;
+            margin-bottom: 10px;
+        }
+
+        .name-line {
+            width: 110px;
+            height: 1px;
+            background: #FDB913;
+        }
+
         .student-name {
-            font-size: 52px;
+            font-size: 40px;
             font-style: italic;
-            color: #000;
-            margin-bottom: 15px;
+            color: #FDB913;
             font-weight: 700;
-            font-family: 'Playfair Display', serif;
-            position: relative;
-            padding: 20px 40px;
+            font-family: 'Times New Roman', Times, serif;
+            white-space: nowrap;
         }
 
-        .student-name::before,
-        .student-name::after {
-            content: '';
-            position: absolute;
-            bottom: 5px;
-            width: 200px;
-            height: 2px;
-            background: #000;
-        }
-
-        .student-name::before {
-            left: -220px;
-        }
-
-        .student-name::after {
-            right: -220px;
-        }
-
-        /* Course description */
         .course-description {
-            font-size: 24px;
-            color: #000;
-            margin-bottom: 50px;
+            font-size: 15px;
+            color: #fff;
+            margin-bottom: 18px;
             font-style: italic;
-            font-family: 'Playfair Display', serif;
-            font-weight: 400;
         }
 
-        /* Signature section */
+        .center-name {
+            font-size: 11px;
+            color: #B0B8C1;
+            letter-spacing: 1.5px;
+            margin-bottom: 14px;
+        }
+
         .signature-section {
             display: flex;
             justify-content: space-between;
             align-items: flex-end;
             width: 100%;
-            max-width: 900px;
-            gap: 60px;
-            position: relative;
-            z-index: 2;
+            max-width: 780px;
+            gap: 40px;
         }
 
         .signature-line {
             text-align: center;
             flex: 1;
+        }
+
+        .sig-value {
+            font-size: 10px;
+            color: #fff;
+            margin-bottom: 5px;
+            min-height: 16px;
+        }
+
+        .sig-border {
+            border-top: 1px solid #FDB913;
+            padding-top: 6px;
+        }
+
+        .sig-label {
+            font-size: 9px;
+            color: #B0B8C1;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .bottom-bar {
             display: flex;
-            flex-direction: column;
-            justify-content: flex-end;
-        }
-
-        .signature-name {
-            font-size: 18px;
-            color: #000;
-            font-weight: 600;
-            margin-bottom: 8px;
-            font-family: 'Cinzel', serif;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-
-        .signature-line-text {
-            border-top: 2px solid #000;
-            padding-top: 8px;
-            font-size: 16px;
-            color: #000;
-            font-family: 'Cinzel', serif;
-            letter-spacing: 1px;
-            min-height: 30px;
-        }
-
-        .signature-title {
-            font-size: 14px;
-            color: #000;
-            margin-top: 8px;
-            font-family: 'Cinzel', serif;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-
-        /* QR code area */
-        .qr-code {
-            position: absolute;
-            bottom: 25px;
-            right: 30px;
-            width: 80px;
-            height: 80px;
-            background: #fff;
-            padding: 4px;
-            border-radius: 4px;
-            z-index: 3;
-        }
-
-        .qr-code img {
+            justify-content: space-between;
+            align-items: flex-end;
             width: 100%;
-            height: 100%;
-            object-fit: contain;
+            margin-top: 8px;
         }
 
-        /* Print styles */
+        .cert-info {
+            font-size: 8px;
+            color: #8A94A0;
+            font-family: 'Courier New', Courier, monospace;
+            line-height: 1.5;
+        }
+
+        .qr-code {
+            width: 65px; height: 65px;
+            background: #fff;
+            padding: 3px;
+            border-radius: 3px;
+        }
+
+        .qr-code img { width: 100%; height: 100%; }
+
+        .decor-line-top {
+            position: absolute;
+            top: 90px;
+            left: 50px;
+            right: 50px;
+            height: 1px;
+            background: #FDB913;
+            opacity: 0.6;
+            z-index: 2;
+        }
+
         @media print {
-            body {
-                margin: 0;
-                padding: 0;
-            }
-
-            .certificate {
-                width: 297mm;
-                height: 210mm;
-                margin: 0;
-                padding: 40px 50px;
-                box-shadow: none;
-            }
+            body { margin: 0; padding: 0; }
+            .certificate { width: 297mm; height: 210mm; margin: 0; box-shadow: none; }
         }
 
-        @page {
-            size: A4 landscape;
-            margin: 0;
-        }
+        @page { size: A4 landscape; margin: 0; }
     </style>
 </head>
 <body>
     <div class="certificate">
-        <!-- Decorative corners -->
         <div class="corner-tl"></div>
         <div class="corner-tr"></div>
         <div class="corner-bl"></div>
         <div class="corner-br"></div>
-
-        <!-- Gold ribbon banner -->
         <div class="ribbon-top"></div>
+        <div class="decor-line-top"></div>
 
-        <!-- Main content -->
         <div class="content">
-            <!-- Medal/Badge -->
-            <div class="medal-container">
-                <div class="medal">
-                    <div class="medal-ribbon-left"></div>
-                    <div class="medal-circle"></div>
-                    <div class="medal-ribbon-right"></div>
+            <div class="medal-area">
+                <div class="medal-ribbons">
+                    <div class="ribbon-strip"></div>
+                    <div class="ribbon-strip"></div>
                 </div>
+                <div class="medal-circle"><div class="medal-inner"></div></div>
             </div>
 
-            <!-- Certificate title -->
-            <div class="title">CERTIFICATE</div>
+            <div class="title">SERTIFIKAT</div>
+            <div class="center-name">Intellect Kokand o'quv markazi</div>
+            <div class="awarded-text">Faxriyat bilan taqdim etilmoqda:</div>
 
-            <!-- Awarded to text -->
-            <div class="awarded-text">PROUDLY AWARDED TO</div>
+            <div class="student-name-row">
+                <div class="name-line"></div>
+                <div class="student-name">{{student_name}}</div>
+                <div class="name-line"></div>
+            </div>
 
-            <!-- Student name with decorative lines -->
-            <div class="student-name">{{student_name}}</div>
+            <div class="course-description">{{course_name}} kursini muvaffaqiyatli yakunladi.</div>
 
-            <!-- Course description -->
-            <div class="course-description">{{course_name}}</div>
-
-            <!-- Signature section -->
             <div class="signature-section">
                 <div class="signature-line">
-                    <div class="signature-line-text">________________________</div>
-                    <div class="signature-title">Manager</div>
+                    <div class="sig-value">________________________</div>
+                    <div class="sig-border">
+                        <div class="sig-label">Markazboshining imzosi / Manager</div>
+                    </div>
                 </div>
 
                 <div class="signature-line">
-                    <div class="signature-line-text">{{issue_date}}</div>
-                    <div class="signature-title">Date</div>
+                    <div class="sig-value">{{teacher_name}}</div>
+                    <div class="sig-border">
+                        <div class="sig-label">O'qituvchi</div>
+                    </div>
                 </div>
 
                 <div class="signature-line">
-                    <div class="signature-line-text">________________________</div>
-                    <div class="signature-title">Teacher</div>
+                    <div class="sig-value">{{issue_date}}</div>
+                    <div class="sig-border">
+                        <div class="sig-label">Tugatilgan sana</div>
+                    </div>
                 </div>
             </div>
 
-            <!-- QR code placeholder -->
-            <div class="qr-code">
-                <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==" alt="QR Code" />
+            <div class="bottom-bar">
+                <div class="cert-info">
+                    Sertifikat raqami: {{certificate_number}}<br>
+                    Tekshirish: crm.intellectschool.uz/verify-certificate
+                </div>
+                <div class="qr-code">
+                    [QR_CODE_IMAGE]
+                </div>
             </div>
         </div>
     </div>

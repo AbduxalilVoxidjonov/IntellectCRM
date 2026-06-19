@@ -587,11 +587,21 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
         var certCount = 0;
         if (!string.IsNullOrEmpty(originalCourseId))
         {
+            // O'qituvchi ismini PDF sertifikatga qo'shish uchun
+            var teacherName = string.IsNullOrEmpty(group.TeacherId)
+                ? null
+                : await db.Teachers
+                    .Where(t => t.Id == group.TeacherId)
+                    .Select(t => t.FullName)
+                    .FirstOrDefaultAsync();
+
             foreach (var m in activeMembers)
             {
                 try
                 {
-                    await certSvc.GenerateCertificateAsync(m.StudentId, originalCourseId, req.CompletionNotes);
+                    await certSvc.GenerateCertificateAsync(
+                        m.StudentId, originalCourseId, req.CompletionNotes,
+                        teacherName: teacherName);
                     certCount++;
                 }
                 catch (Exception ex)
