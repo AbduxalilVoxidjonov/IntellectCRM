@@ -1135,3 +1135,15 @@ docker compose up -d --build    # app + postgres + cloudflared + backup + mediam
   **Jami:** 22 telefon normalizatsiya chaqiruvi (taplangan).
   **Formatla:** `PhoneUtil.Normalize()` — faqat raqamlarni saqlaydi, "998" prefiksi qo'shadi, `+998-XX-XXX-XX-XX` formatiga keltiriladi.
   Noto'g'ri format bo'lsa asl kiritilgan qiymat qaytaradi (backward compatible). Build: 0 xato, deploy ✅.
+- 2026-06-19: **BUG FIX — "Guruhga biriktirish" dropdown'i trial o'quvchiga qarz yozardi (commit fc585b8).**
+  Muammo: `StudentFormModal`da "Guruhga biriktirish" dropdown'i orqali o'quvchiga sinf tanlanganda va
+  `PUT /admin/students/{id}` chaqirilganda — `StudentsController.Update()` ichida `hasMembership=false` bo'lsa
+  ClassName-asosli `MonthlyCharge(GroupId=null)` yozib balansni darhol kamaytirardi. O'quvchi sinov
+  (trial) holatida bo'lsa ham, "Guruhga biriktirish" dropdowni aktivlashtirish vazifasini bajarmasdi —
+  lekin xuddi aktivlashtirgandek qarz yozilardi. **Asosiy sabab:** `Update()` `classChanged=true` va
+  `!hasMembership` bo'lsa ClassName billing loopini ishga tushirardi, M2M a'zolik yaratmasdi. 
+  **Tuzatish:** `Update()` ichida `classChanged && !hasMembership && cls != null` holatida
+  ClassName billing o'rniga `StudentGroup(Status="trial", IsActive=true)` M2M yozuvi yaratiladi →
+  `hasMembership=true` qilinadi → billing loop o'tkazib yuboriladi. To'lov faqat `ActivateMember`
+  chaqirilganda boshlanadi (oldingi xulq saqlanadi). Legacy o'quvchilar (`classChanged=false`) ta'sir
+  ko'rmaydi. Backend 0 xato, push ✅ (commit fc585b8).
