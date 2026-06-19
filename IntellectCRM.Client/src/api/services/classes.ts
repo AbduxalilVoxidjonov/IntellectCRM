@@ -160,3 +160,20 @@ export async function getGroupFill(): Promise<GroupFillRow[]> {
   const { data } = await api.get<GroupFillRow[]>('/admin/classes/fill')
   return data
 }
+
+/** Guruhni yakunlash — faol o'quvchilarga sertifikat berish + yangi kursga o'tkazish. */
+export async function completeAndTransferClass(
+  id: string,
+  targetCourseId: string,
+  completionNotes?: string,
+): Promise<{ ok: boolean; certificatesGenerated: number }> {
+  if (USE_MOCK) {
+    await delay(300)
+    return { ok: true, certificatesGenerated: 5 }
+  }
+  const { data } = await api.post<{ ok: boolean; certificatesGenerated: number }>(
+    `/admin/classes/${id}/complete-and-transfer`,
+    { targetCourseId, completionNotes },
+  )
+  return data
+}

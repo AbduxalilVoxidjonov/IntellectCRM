@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom'
 import {
   ArrowLeft, Users, BookOpen, User,
   CalendarDays, Clock, MapPin, Wallet, Snowflake, CheckCircle2,
-  ListChecks, ChevronRight, ChevronDown, Plus, Minus, Repeat, CalendarClock, Flag, TrendingUp,
+  ListChecks, ChevronRight, ChevronDown, Plus, Minus, Repeat, CalendarClock, Flag, TrendingUp, Trophy,
 } from 'lucide-react'
 import type { AbsenceReason, MasteryLevel } from '@/types'
 import {
@@ -16,6 +16,8 @@ import {
 } from '@/api/services/curriculum'
 import { activateMember, freezeMember } from '@/api/services/classes'
 import { getSettings } from '@/api/services/settings'
+import { getSubjects } from '@/api/services/subjects'
+import { CompleteAndTransferModal } from './CompleteAndTransferModal'
 import { cn, formatMoney, formatDate } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
 import { GradingSection } from '@/components/grading/GradingSection'
@@ -94,6 +96,20 @@ export function ClassDetailPage() {
   const [currLoading, setCurrLoading] = useState(true)
   const [currExpanded, setCurrExpanded] = useState<Set<string>>(new Set())
   const [revSaving, setRevSaving] = useState(false)
+
+  // ---- Tugatish modali ----
+  const [showCompleteModal, setShowCompleteModal] = useState(false)
+  const [allCourses, setAllCourses] = useState<any[]>([])
+  const [coursesLoading, setCoursesLoading] = useState(false)
+
+  const loadCourses = useCallback(() => {
+    if (coursesLoading || allCourses.length > 0) return
+    setCoursesLoading(true)
+    getSubjects()
+      .then(setAllCourses)
+      .catch(() => setAllCourses([]))
+      .finally(() => setCoursesLoading(false))
+  }, [coursesLoading, allCourses.length])
 
   const loadCurr = useCallback(() => {
     if (!id) return
@@ -356,22 +372,37 @@ export function ClassDetailPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <Link
-          to="/admin/classes"
-          className="rounded-lg border border-slate-200 bg-white p-2 text-slate-500 transition-colors hover:border-slate-300 hover:bg-slate-50"
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </Link>
-        <div className="min-w-0">
-          <h1 className="text-2xl font-bold tracking-tight text-slate-800">{g ? g.name : 'Guruh'}</h1>
-          {g && (
-            <p className="mt-0.5 text-sm text-slate-400">
-              {g.courseName || 'Kurs biriktirilmagan'}
-              {g.teacherName ? ` · ${g.teacherName}` : ''}
-            </p>
-          )}
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <Link
+            to="/admin/classes"
+            className="rounded-lg border border-slate-200 bg-white p-2 text-slate-500 transition-colors hover:border-slate-300 hover:bg-slate-50"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Link>
+          <div className="min-w-0">
+            <h1 className="text-2xl font-bold tracking-tight text-slate-800">{g ? g.name : 'Guruh'}</h1>
+            {g && (
+              <p className="mt-0.5 text-sm text-slate-400">
+                {g.courseName || 'Kurs biriktirilmagan'}
+                {g.teacherName ? ` · ${g.teacherName}` : ''}
+              </p>
+            )}
+          </div>
         </div>
+        {g && (
+          <button
+            onClick={() => {
+              loadCourses()
+              setShowCompleteModal(true)
+            }}
+            className="flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-amber-700 transition-colors hover:bg-amber-100"
+            title="Guruhni tugatish va sertifikat berish"
+          >
+            <Trophy className="h-4 w-4" />
+            <span className="text-sm font-medium">Tugatish</span>
+          </button>
+        )}
       </div>
 
       {loading && !journal ? (
@@ -1319,6 +1350,18 @@ function RatingsTab({ grading, journal, loading }: { grading: GradingBoard | nul
           </div>
         </Card>
       )}
+
+      <CompleteAndTransferModal
+        open={showCompleteModal}
+        onClose={() => setShowCompleteModal(false)}
+        groupId={id}
+        currentCourseName={g?.courseName || '—'}
+        courses={allCourses}
+        onSuccess={(result) => {
+          alert(`✓ ${result.certificatesGenerated} ta sertifikat yaratildi!`)
+          window.location.reload()
+        }}
+      />
     </div>
   )
 }
