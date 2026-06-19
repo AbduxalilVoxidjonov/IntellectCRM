@@ -174,7 +174,7 @@ export function StudentLocationScreen() {
         </div>
       </div>
 
-      <div className="pad" style={{ paddingBottom: 24 }}>
+      <div className="scroll pad" style={{ paddingBottom: 24 }}>
         {/* Izoh */}
         <div
           className="card"

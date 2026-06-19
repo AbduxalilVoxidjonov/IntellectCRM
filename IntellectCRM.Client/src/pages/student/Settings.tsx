@@ -104,7 +104,7 @@ export function StudentSettingsScreen() {
         </div>
       </div>
 
-      <div className="pad" style={{ paddingBottom: 24 }}>
+      <div className="scroll pad" style={{ paddingBottom: 24 }}>
         {/* Ko'rinish */}
         <Group title="Ko'rinish">
           <div className="row gap12" style={{ padding: '12px 11px' }}>

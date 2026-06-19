@@ -86,7 +86,7 @@ export function StudentAccountScreen() {
         </div>
       </div>
 
-      <div className="pad" style={{ paddingBottom: 24 }}>
+      <div className="scroll pad" style={{ paddingBottom: 24 }}>
         <PasswordField label="Joriy parol" placeholder="Joriy parol" value={cur} onChange={setCur} />
         <PasswordField label="Yangi parol" placeholder="Kamida 8 belgi" value={nw} onChange={setNw} />
         <PasswordField

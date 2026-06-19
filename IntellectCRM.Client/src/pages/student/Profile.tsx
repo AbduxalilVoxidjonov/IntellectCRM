@@ -140,7 +140,7 @@ export function StudentProfileScreen() {
 
   return (
     <div className="screen">
-      <div style={{ paddingBottom: 28 }}>
+      <div className="scroll" style={{ paddingBottom: 28 }}>
         <div className="hd lg">
           <div className="hd-big">Profil</div>
         </div>
@@ -318,7 +318,7 @@ export function StudentProfileScreen() {
             Intellect School · v1.0.0
           </div>
         </div>
-      </div>
+      </div> {/* end .scroll */}
 
       {/* Logout confirm sheet */}
       {confirmOpen && (

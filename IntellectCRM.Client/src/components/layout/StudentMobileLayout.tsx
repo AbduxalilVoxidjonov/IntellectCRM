@@ -41,32 +41,34 @@ export function StudentMobileLayout() {
 
   return (
     <div
-      className="student-app flex h-[100dvh] flex-col overflow-hidden"
+      className="student-app"
       data-theme={theme}
+      style={{ display: 'flex', flexDirection: 'column', height: '100dvh', overflow: 'hidden', width: '100%' }}
     >
-      <div className="scroll flex-1 overflow-y-auto">
+      {/* Content area — flex:1, min-height:0. Har sahifa .screen class bilan flex:1 oladi.
+          Tashqi overflow:hidden — sahifalar o'z ichki .scroll orqali scroll qiladi. */}
+      <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         <Outlet />
       </div>
 
-      <nav className="tabbar shrink-0 border-t border-border bg-surface pb-[env(safe-area-inset-bottom)]">
-        <div className="flex">
-          {TABS.map((tab) => (
-            <NavLink
-              key={tab.to}
-              to={tab.to}
-              end={tab.end}
-              className={({ isActive }) => 'tab flex-1' + (isActive ? ' on' : '')}
-              style={{ textDecoration: 'none' }}
-            >
-              {({ isActive }) => (
-                <>
-                  <Icon name={tab.icon} size={24} fill={isActive} />
-                  <span>{tab.label}</span>
-                </>
-              )}
-            </NavLink>
-          ))}
-        </div>
+      {/* Bottom navigation — always pinned at bottom */}
+      <nav className="tabbar">
+        {TABS.map((tab) => (
+          <NavLink
+            key={tab.to}
+            to={tab.to}
+            end={tab.end}
+            className={({ isActive }) => 'tab' + (isActive ? ' on' : '')}
+            style={{ textDecoration: 'none' }}
+          >
+            {({ isActive }) => (
+              <>
+                <Icon name={tab.icon} size={24} fill={isActive} />
+                <span>{tab.label}</span>
+              </>
+            )}
+          </NavLink>
+        ))}
       </nav>
     </div>
   )
