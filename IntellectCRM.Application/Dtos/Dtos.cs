@@ -1281,13 +1281,22 @@ public record CertificateVerificationDto(
     string Metadata,
     string ErrorMessage);
 
-/// <summary>Guruhni tugallab boshqa kursga ko'chirish so'rovi.</summary>
+/// <summary>
+/// Guruhni yakunlash va YANGI guruh ochish so'rovi (Variant B).
+/// Eski guruh arxivlanadi, o'quvchilarga sertifikat beriladi, yangi guruh ochiladi.
+/// </summary>
 public record CompleteAndTransferRequest(
-    string TargetCourseId,
+    bool AutoEnrollNewGroup = true,
+    string? NewGroupName = null,
     string? CompletionNotes = null);
 
-/// <summary>Complete-and-Transfer natijasi.</summary>
-public record CompleteAndTransferResultDto(int CompletedCount, int CertificatesGenerated);
+/// <summary>Complete-and-Transfer (Variant B) natijasi.</summary>
+public record CompleteAndTransferResultDto(
+    bool Ok,
+    string ArchivedGroupId,
+    string NewGroupId,
+    int CertificatesGenerated,
+    int EnrolledInNew);
 
 /// <summary>Admin tomonidan qo'lda sertifikat yaratish so'rovi.</summary>
 public record GenerateCertificateRequest(string CourseId, string? Notes = null);

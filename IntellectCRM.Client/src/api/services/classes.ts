@@ -161,19 +161,40 @@ export async function getGroupFill(): Promise<GroupFillRow[]> {
   return data
 }
 
-/** Guruhni yakunlash — faol o'quvchilarga sertifikat berish + yangi kursga o'tkazish. */
+export interface CompleteAndTransferResult {
+  ok: boolean
+  archivedGroupId: string
+  newGroupId: string
+  certificatesGenerated: number
+  enrolledInNew: number
+}
+
+/** Guruhni yakunlash (Variant B): eski guruh arxivlanadi, yangi guruh ochiladi, sertifikat beriladi. */
 export async function completeAndTransferClass(
   id: string,
-  targetCourseId: string,
-  completionNotes?: string,
-): Promise<{ ok: boolean; certificatesGenerated: number }> {
+  opts?: {
+    autoEnrollNewGroup?: boolean
+    newGroupName?: string
+    completionNotes?: string
+  },
+): Promise<CompleteAndTransferResult> {
   if (USE_MOCK) {
     await delay(300)
-    return { ok: true, certificatesGenerated: 5 }
+    return {
+      ok: true,
+      archivedGroupId: id,
+      newGroupId: 'mock-new-group',
+      certificatesGenerated: 5,
+      enrolledInNew: 5,
+    }
   }
-  const { data } = await api.post<{ completedCount: number; certificatesGenerated: number }>(
+  const { data } = await api.post<CompleteAndTransferResult>(
     `/admin/classes/${id}/complete-and-transfer`,
-    { targetCourseId, completionNotes },
+    {
+      autoEnrollNewGroup: opts?.autoEnrollNewGroup ?? true,
+      newGroupName: opts?.newGroupName ?? null,
+      completionNotes: opts?.completionNotes ?? null,
+    },
   )
-  return { ok: true, certificatesGenerated: data.certificatesGenerated ?? data.completedCount ?? 0 }
+  return data
 }

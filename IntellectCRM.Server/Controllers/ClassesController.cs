@@ -512,13 +512,13 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
     }
 
     /// <summary>
-    /// Guruhni YAKUNLAB, a'zolarni keyingi kursga o'tkazadi.
+    /// Guruhni YAKUNLAB ARXIVLAYDI va YANGI guruh ochadi (Variant B).
     /// <list type="bullet">
-    ///   <item>Barcha faol a'zolar Status="completed", IsActive=false qilinadi.</item>
-    ///   <item>Guruh kursi TargetCourseId ga almashtiriladi.</item>
-    ///   <item>O'quv dasturi logi (GroupCurriculumLog) tozalanadi.</item>
-    ///   <item>Har bir a'zo uchun yangi StudentGroup "trial" statusida yaratiladi.</item>
-    ///   <item>Asl kurs uchun sertifikat avto-yaratiladi (fire-and-forget).</item>
+    ///   <item>Barcha faol a'zolar Status="completed", IsActive=false qilinadi (eski guruhda tarix saqlanadi).</item>
+    ///   <item>Eski guruh IsArchived=true, ArchivedAt=bugun qilinadi (o'quvchilar arxivlanmaydi).</item>
+    ///   <item>Asl kurs uchun sertifikat yaratiladi.</item>
+    ///   <item>Xuddi shu kurs/o'qituvchi/xona/kunlar/vaqt bilan YANGI guruh yaratiladi.</item>
+    ///   <item>autoEnrollNewGroup=true bo'lsa, eski a'zolar yangi guruhga "trial" statusida qo'shiladi.</item>
     /// </list>
     /// </summary>
     [HttpPost("{id}/complete-and-transfer")]
@@ -528,12 +528,7 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
     {
         var group = await db.Classes.FindAsync(id);
         if (group is null) return NotFound(new { message = "Guruh topilmadi" });
-
-        var targetCourse = await db.Subjects.FindAsync(req.TargetCourseId);
-        if (targetCourse is null)
-            return BadRequest(new { message = "Maqsad kurs topilmadi" });
-
-        var originalCourseId = group.CourseId ?? "";
+        if (group.IsArchived) return BadRequest(new { message = "Guruh allaqachon arxivda" });
 
         // Faol a'zoliklarni olish.
         var activeMembers = await db.StudentGroups
@@ -543,10 +538,10 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
         if (activeMembers.Count == 0)
             return BadRequest(new { message = "Guruhda faol a'zo yo'q" });
 
-        var now = AppClock.Now;
         var today = AppClock.Today.ToString("yyyy-MM-dd");
+        var courseId = group.CourseId ?? "";
 
-        // 1. Mavjud a'zoliklarni "completed" qilamiz.
+        // 1. Eski a'zoliklarni "completed" qilib yopamiz (tarix saqlanadi).
         foreach (var m in activeMembers)
         {
             m.Status = "completed";
@@ -554,40 +549,16 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
             m.LeftAt = today;
         }
 
-        // 2. Guruh kursini maqsad kursga o'tkazamiz.
-        group.CourseId = req.TargetCourseId;
-        group.MonthlyFee = targetCourse.Price;
+        // 2. Eski guruhni arxivlaymiz (o'quvchilar arxivlanmaydi — faqat guruh).
+        group.IsArchived = true;
+        group.ArchivedAt = today;
 
-        // 3. O'quv dasturi logini tozalaymiz (yangi kurs boshlanadi).
-        await db.GroupCurriculumLogs
-            .Where(l => l.GroupId == id)
-            .ExecuteDeleteAsync();
+        await db.SaveChangesAsync();   // Completed + archive atomically
 
-        // 4. Har bir a'zo uchun "trial" statusiga qaytaramiz.
-        // ESLATMA: IX_StudentGroups_StudentId_GroupId UNIQUE — yangi qator qo'sha olmaymiz.
-        // Shuning uchun mavjud (hozir completed) a'zoliklarni qayta faollashtiramiz.
-        foreach (var m in activeMembers)
-        {
-            m.Status = "trial";
-            m.IsActive = true;
-            m.JoinedAt = today;
-            m.LeftAt = null;
-            m.ActivatedAt = string.Empty;
-            m.FrozenAt = string.Empty;
-        }
-
-        await db.SaveChangesAsync();
-
-        // 5. Audit log.
-        audit.Record(
-            "Group", id, "complete-and-transfer",
-            $"Guruh yakunlandi: {activeMembers.Count} a'zo, {originalCourseId} → {req.TargetCourseId}");
-
-        // 6. Sertifikatlar — sinxron, aylanma (request scope, bir xil DB context, xavfsiz).
+        // 3. Sertifikatlar (eski kurs bo'yicha, sinxron).
         var certCount = 0;
-        if (!string.IsNullOrEmpty(originalCourseId))
+        if (!string.IsNullOrEmpty(courseId))
         {
-            // O'qituvchi ismini PDF sertifikatga qo'shish uchun
             var teacherName = string.IsNullOrEmpty(group.TeacherId)
                 ? null
                 : await db.Teachers
@@ -600,18 +571,83 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
                 try
                 {
                     await certSvc.GenerateCertificateAsync(
-                        m.StudentId, originalCourseId, req.CompletionNotes,
+                        m.StudentId, courseId, req.CompletionNotes,
                         teacherName: teacherName);
                     certCount++;
                 }
                 catch (Exception ex)
                 {
-                    logger.LogWarning(ex, "Sertifikat yaratishda xato: student={S}, course={C}", m.StudentId, originalCourseId);
+                    logger.LogWarning(ex, "Sertifikat yaratishda xato: student={S}, course={C}", m.StudentId, courseId);
                 }
             }
         }
 
-        return Ok(new CompleteAndTransferResultDto(activeMembers.Count, certCount));
+        // 4. YANGI guruh — xuddi shu kurs/o'qituvchi/xona/kunlar/vaqt.
+        var newGroupName = !string.IsNullOrWhiteSpace(req.NewGroupName)
+            ? req.NewGroupName!.Trim()
+            : group.Name;
+
+        var newGroup = new Group
+        {
+            Name = newGroupName,
+            Grade = group.Grade,
+            Language = group.Language,
+            MonthlyFee = group.MonthlyFee,
+            Room = group.Room,
+            Status = "active",
+            StartDate = today,
+            EndDate = null,
+            Capacity = group.Capacity,
+            CourseId = courseId,
+            TeacherId = group.TeacherId,
+            Note = group.Note,
+            Days = new List<int>(group.Days),
+            StartTime = group.StartTime,
+            EndTime = group.EndTime,
+            IsArchived = false,
+        };
+        db.Classes.Add(newGroup);
+        await db.SaveChangesAsync();   // newGroup.Id assigned
+
+        // 5. Auto-enroll eski a'zolarni yangi guruhga "trial" statusida.
+        var enrolledCount = 0;
+        if (req.AutoEnrollNewGroup)
+        {
+            var studentIds = activeMembers.Select(m => m.StudentId).ToList();
+            foreach (var sid in studentIds)
+            {
+                db.StudentGroups.Add(new StudentGroup
+                {
+                    StudentId = sid,
+                    GroupId = newGroup.Id,
+                    JoinedAt = today,
+                    IsActive = true,
+                    Status = "trial",
+                });
+                enrolledCount++;
+            }
+
+            // Student.ClassName ni yangi guruh nomiga yangilaymiz.
+            var students = await db.Students
+                .Where(s => studentIds.Contains(s.Id))
+                .ToListAsync();
+            foreach (var s in students)
+                s.ClassName = newGroupName;
+
+            await db.SaveChangesAsync();
+        }
+
+        // 6. Audit log.
+        audit.Record(
+            "Group", id, "complete-and-transfer",
+            $"Guruh yakunlandi va arxivlandi ({group.Name}): {activeMembers.Count} a'zo, sertifikat={certCount}. Yangi guruh: {newGroup.Id} ({newGroupName}), enrolled={enrolledCount}");
+
+        return Ok(new CompleteAndTransferResultDto(
+            Ok: true,
+            ArchivedGroupId: id,
+            NewGroupId: newGroup.Id,
+            CertificatesGenerated: certCount,
+            EnrolledInNew: enrolledCount));
     }
 
 }
