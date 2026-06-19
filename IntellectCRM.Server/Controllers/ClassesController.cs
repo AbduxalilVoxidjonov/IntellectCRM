@@ -12,7 +12,7 @@ namespace IntellectCRM.Server.Controllers;
 [Authorize]
 [AdminPerm("classes")]
 [Route("api/admin/classes")]
-public class ClassesController(AppDbContext db, AuditService audit, ILogger<ClassesController> logger, CertificateService certService) : ControllerBase
+public class ClassesController(AppDbContext db, AuditService audit, ILogger<ClassesController> logger, IServiceProvider sp) : ControllerBase
 {
     /// <summary>Faol (arxivlanmagan) sinflar. <paramref name="includeArchived"/>=true bo'lsa hammasi.</summary>
     [HttpGet]
@@ -563,17 +563,19 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
             .Where(l => l.GroupId == id)
             .ExecuteDeleteAsync();
 
-        // 4. Har bir a'zo uchun yangi "trial" a'zolik yaratamiz.
-        var newMemberships = activeMembers.Select(m => new StudentGroup
+        // 4. Har bir a'zo uchun "trial" statusiga qaytaramiz.
+        // ESLATMA: IX_StudentGroups_StudentId_GroupId UNIQUE — yangi qator qo'sha olmaymiz.
+        // Shuning uchun mavjud (hozir completed) a'zoliklarni qayta faollashtiramiz.
+        foreach (var m in activeMembers)
         {
-            StudentId = m.StudentId,
-            GroupId = id,
-            JoinedAt = today,
-            Status = "trial",
-            IsActive = true,
-        }).ToList();
+            m.Status = "trial";
+            m.IsActive = true;
+            m.JoinedAt = today;
+            m.LeftAt = null;
+            m.ActivatedAt = string.Empty;
+            m.FrozenAt = string.Empty;
+        }
 
-        db.StudentGroups.AddRange(newMemberships);
         await db.SaveChangesAsync();
 
         // 5. Audit log.
@@ -582,15 +584,19 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
             $"Guruh yakunlandi: {activeMembers.Count} a'zo, {originalCourseId} → {req.TargetCourseId}");
 
         // 6. Sertifikatlar fire-and-forget (original kurs uchun).
+        // IServiceProvider bilan yangi scope yaratiladi — scoped AppDbContext dispose muammosidan qochish uchun.
         if (!string.IsNullOrEmpty(originalCourseId))
         {
             var studentIds = activeMembers.Select(m => m.StudentId).ToList();
             var notes = req.CompletionNotes;
+            var courseIdForCert = originalCourseId;
             _ = Task.Run(async () =>
             {
+                await using var scope = sp.CreateAsyncScope();
+                var certSvc = scope.ServiceProvider.GetRequiredService<CertificateService>();
                 foreach (var sid in studentIds)
                 {
-                    try { await certService.GenerateCertificateAsync(sid, originalCourseId, notes); }
+                    try { await certSvc.GenerateCertificateAsync(sid, courseIdForCert, notes); }
                     catch (Exception ex) { logger.LogWarning(ex, "Sertifikat yaratishda xato: student={S}", sid); }
                 }
             });
