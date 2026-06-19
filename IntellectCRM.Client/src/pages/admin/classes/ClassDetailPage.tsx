@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useParams, Link } from 'react-router-dom'
+import { useAuth } from '@/context/auth-context'
 import {
   ArrowLeft, Users, BookOpen, User,
   CalendarDays, Clock, MapPin, Wallet, Snowflake, CheckCircle2,
@@ -73,6 +74,7 @@ function masteryDisplay(m: MasteryLevel | undefined): { label: string; cls: stri
 
 export function ClassDetailPage() {
   const { id = '' } = useParams()
+  const { user } = useAuth()
   const [journal, setJournal] = useState<GroupJournal | null>(null)
   const [reasons, setReasons] = useState<AbsenceReason[]>([])
   const [loading, setLoading] = useState(true)
@@ -375,7 +377,7 @@ export function ClassDetailPage() {
             )}
           </div>
         </div>
-        {g && (
+        {g && user?.role === 'superadmin' && (
           <button
             onClick={async () => {
               const courseId = prompt('Yangi kurs ID\'sini kiriting:')
@@ -389,7 +391,7 @@ export function ClassDetailPage() {
               }
             }}
             className="flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-amber-700 transition-colors hover:bg-amber-100"
-            title="Guruhni tugatish va sertifikat berish"
+            title="Guruhni tugatish va sertifikat berish (SuperAdmin faqat)"
           >
             <Trophy className="h-4 w-4" />
             <span className="text-sm font-medium">Tugatish</span>
