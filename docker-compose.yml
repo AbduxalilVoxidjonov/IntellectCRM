@@ -77,6 +77,7 @@ services:
 
   # Kunlik avtomatik backup — `pg_dump` (gzip, .sql.gz). Har kuni BACKUP_HOUR (UTC) atrofida
   # oladi va BACKUP_RETENTION_DAYS dan eskini o'chiradi. Yengil (postgres-alpine, busybox sh).
+  # O'zgarish: Telegram'ga backup yuborish opsional (TELEGRAM_BOT_TOKEN + TELEGRAM_ADMIN_CHAT_ID bo'lsa).
   backup:
     image: postgres:16-alpine
     container_name: intellectcrm-backup
@@ -87,6 +88,8 @@ services:
       PGDATABASE: "${POSTGRES_DB:-intellectcrm}"
       BACKUP_HOUR: "21"              # 21:00 UTC = 02:00 Toshkent (kechasi). Bir xonali soat: "03" (nol bilan).
       BACKUP_RETENTION_DAYS: "7"     # 7 kundan eski nusxalar o'chiriladi
+      TELEGRAM_BOT_TOKEN: "${TELEGRAM_BOT_TOKEN:-}"  # Telegram Bot API tokeni (ixtiyoriy)
+      TELEGRAM_ADMIN_CHAT_ID: "${TELEGRAM_ADMIN_CHAT_ID:-}"  # Admin chat ID (ixtiyoriy)
     volumes:
       - postgres-backups:/backups
     depends_on:
@@ -105,7 +108,31 @@ services:
             ts=$$(date -u +%Y%m%d_%H%M)
             out="/backups/intellectcrm_$${ts}.sql.gz"
             echo "[backup] $$ts — boshlandi"
-            if pg_dump | gzip > "$$out"; then echo "[backup] tugadi: $$out"; else echo "[backup] XATO: pg_dump muvaffaqiyatsiz"; rm -f "$$out"; fi
+            if pg_dump | gzip > "$$out"; then
+              filesize=$$(stat -f%z "$$out" 2>/dev/null || stat -c%s "$$out" 2>/dev/null || echo "unknown")
+              echo "[backup] tugadi: $$out (hajm: $$filesize bayt)"
+              
+              # Telegram'ga yuborish (optional)
+              if [ -n "$${TELEGRAM_BOT_TOKEN}" ] && [ -n "$${TELEGRAM_ADMIN_CHAT_ID}" ]; then
+                echo "[backup] Telegram'ga yuborilmoqda..."
+                caption="✅ Backup: $$ts (UTC)"
+                response=$$(curl -s -X POST \
+                  -H "Content-Type: multipart/form-data" \
+                  -F "chat_id=$${TELEGRAM_ADMIN_CHAT_ID}" \
+                  -F "document=@$$out" \
+                  -F "caption=$$caption" \
+                  "https://api.telegram.org/bot$${TELEGRAM_BOT_TOKEN}/sendDocument" 2>&1)
+                
+                if echo "$$response" | grep -q '"ok":true'; then
+                  echo "[backup] ✅ Telegram'ga yuborildi"
+                else
+                  echo "[backup] ⚠️  Telegram xatosi (log: $$response), backup local saqlandi"
+                fi
+              fi
+            else
+              echo "[backup] XATO: pg_dump muvaffaqiyatsiz"
+              rm -f "$$out"
+            fi
             find /backups -name '*.sql.gz' -type f -mtime +$${BACKUP_RETENTION_DAYS} -delete
           fi
           sleep 300
