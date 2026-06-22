@@ -869,6 +869,26 @@ public record CreateRoomRequest(string Name, int Capacity, string? Building, str
 /// <summary>Xona tahrirlash so'rovi (IsActive bilan — faollashtirish/o'chirish).</summary>
 public record UpdateRoomRequest(string Name, int Capacity, string? Building, string? Location, bool IsActive);
 
+/// <summary>
+/// Xona sig'im samaradorligi — Total Slots = Capacity × GroupCount,
+/// Utilization = ActualStudents / TotalSlots * 100.
+/// GET /api/admin/rooms/{id}/capacity
+/// </summary>
+public record RoomCapacityMetric(
+    string RoomId,
+    string RoomName,
+    int Capacity,
+    int GroupCount,
+    int TotalSlots,
+    int ActualStudents,
+    double UtilizationPercent,
+    int Gap,
+    string Status,
+    List<RoomGroupSlotDto> Groups);
+
+/// <summary>Har bir guruhning o'quvchi soni (capacity modal uchun).</summary>
+public record RoomGroupSlotDto(string GroupId, string GroupName, int StudentCount, string? CourseName);
+
 /* ---------- Boshqaruv ---------- */
 
 /// <summary>Filial (branch).</summary>

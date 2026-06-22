@@ -105,6 +105,17 @@ public class RoomsController(AppDbContext db, IntellectCRM.Application.Services.
         return ToUtilizationDto(metric);
     }
 
+    /// <summary>
+    /// Bitta xona uchun sig'im samaradorlik metrikasi.
+    /// TotalSlots = Capacity × GroupCount; Utilization = ActualStudents / TotalSlots * 100.
+    /// </summary>
+    [HttpGet("{id}/capacity")]
+    public async Task<ActionResult<RoomCapacityMetric>> GetRoomCapacity(string id)
+    {
+        var metric = await utilization.GetRoomCapacityAsync(id);
+        return metric is null ? NotFound() : metric;
+    }
+
     private static RoomDto ToDto(Room r) =>
         new(r.Id, r.Name, r.Capacity, r.Building, r.Location,
             r.IsActive, r.CreatedAt.ToString("o"));

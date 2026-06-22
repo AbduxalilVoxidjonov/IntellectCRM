@@ -147,6 +147,61 @@ public class RoomUtilizationService(IAppDbContext db)
         return metrics.OrderByDescending(m => m.EfficiencyScore).ToList();
     }
 
+    /// <summary>
+    /// Bitta xona uchun sig'im samaradorligini hisoblaydi.
+    /// Formula: TotalSlots = Capacity × GroupCount; Utilization = ActualStudents / TotalSlots * 100.
+    /// Har guruh alohida slot beradi (bir o'quvchi bir nechta guruhda bo'lsa har guruhda 1 o'rin oladi).
+    /// </summary>
+    public async Task<IntellectCRM.Application.Dtos.RoomCapacityMetric?> GetRoomCapacityAsync(string roomId)
+    {
+        var room = await db.Rooms.FindAsync(roomId);
+        if (room is null) return null;
+
+        var groups = await db.Classes
+            .Where(c => !c.IsArchived && (c.RoomId == roomId ||
+                (c.RoomId == null && c.Room == room.Name)))
+            .ToListAsync();
+
+        var groupIds = groups.Select(g => g.Id).ToHashSet();
+
+        var membersByGroup = await db.StudentGroups
+            .Where(sg => groupIds.Contains(sg.GroupId) && sg.IsActive && sg.Status != "frozen")
+            .Select(sg => new { sg.GroupId, sg.StudentId })
+            .ToListAsync();
+
+        var memberLookup = membersByGroup
+            .GroupBy(m => m.GroupId)
+            .ToDictionary(g => g.Key, g => g.Select(m => m.StudentId).ToHashSet());
+
+        // Kurs nomlari (guruh CourseId → Subject.Name)
+        var courseIds = groups.Select(g => g.CourseId).Where(c => c != null).Distinct().ToList();
+        var courseNames = await db.Subjects
+            .Where(s => courseIds.Contains(s.Id))
+            .Select(s => new { s.Id, s.Name })
+            .ToDictionaryAsync(s => s.Id!, s => s.Name);
+
+        var groupSlots = groups.Select(g => {
+            int count = memberLookup.TryGetValue(g.Id, out var set) ? set.Count : 0;
+            string? course = g.CourseId != null && courseNames.TryGetValue(g.CourseId, out var cn) ? cn : null;
+            return new IntellectCRM.Application.Dtos.RoomGroupSlotDto(g.Id, g.Name, count, course);
+        }).ToList();
+
+        int groupCount = groups.Count;
+        int totalSlots = room.Capacity * groupCount;
+        int actualStudents = groupSlots.Sum(g => g.StudentCount);
+        double utilization = totalSlots > 0 ? Math.Round((double)actualStudents / totalSlots * 100, 1) : 0;
+        int gap = Math.Max(0, totalSlots - actualStudents);
+
+        string status = totalSlots == 0 ? "Empty"
+            : utilization > 100 ? "Overcrowded"
+            : utilization < 60  ? "Underutilized"
+            :                     "Optimal";
+
+        return new IntellectCRM.Application.Dtos.RoomCapacityMetric(
+            roomId, room.Name, room.Capacity, groupCount,
+            totalSlots, actualStudents, utilization, gap, status, groupSlots);
+    }
+
     // ---------- private helpers ----------
 
     private static double CalculateWeeklyActiveHours(List<IntellectCRM.Domain.Group> groups)
