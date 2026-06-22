@@ -81,3 +81,39 @@ export async function getRoomCapacity(roomId: string): Promise<RoomCapacityMetri
   const { data } = await api.get<RoomCapacityMetric>(`/admin/rooms/${roomId}/capacity`)
   return data
 }
+
+export interface RoomGroupDetail {
+  groupId: string
+  groupName: string
+  courseName: string
+  teacherName: string
+  studentCount: number
+  studentCapacity: number
+  utilizationPercent: number
+  days: string
+  timeSlot: string
+}
+
+export interface RoomDetailMetric {
+  roomId: string
+  roomName: string
+  building: string
+  location: string
+  capacity: number
+  groupCount: number
+  totalSlots: number
+  actualStudents: number
+  occupancyPercent: number
+  utilizationPercent: number
+  weeklyUtilizationPercent: number
+  weeklyActiveHours: number
+  efficiencyScore: number
+  efficiencyStatus: string
+  gap: number
+  groups: RoomGroupDetail[]
+}
+
+export async function getRoomDetail(roomId: string): Promise<RoomDetailMetric> {
+  const { data } = await api.get<RoomDetailMetric>(`/admin/rooms/${roomId}/detail`)
+  return data
+}

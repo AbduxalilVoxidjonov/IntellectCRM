@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { BarChart3, Building2, MapPin, Search, Users, TrendingUp, AlertTriangle, CheckCircle2, X, Layers } from 'lucide-react'
+import { BarChart3, Building2, MapPin, Search, Users, TrendingUp, AlertTriangle, CheckCircle2, X, Layers, Clock } from 'lucide-react'
 import type { RoomUtilization } from '@/types'
-import { getRoomUtilizationDashboard, getRoomCapacity, type RoomCapacityMetric } from '@/api/services/rooms'
+import { getRoomUtilizationDashboard, getRoomDetail, type RoomDetailMetric } from '@/api/services/rooms'
 import { Card } from '@/components/ui/Card'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Loader } from '@/components/ui/Loader'
@@ -13,18 +13,21 @@ const STATUS_LABELS: Record<string, string> = {
   Optimal: 'Optimal',
   Underutilized: "Kam to'lgan",
   Overcrowded: "To'lib toshgan",
+  Empty: "Bo'sh",
 }
 
 const STATUS_COLORS: Record<string, string> = {
   Optimal: 'text-emerald-700 bg-emerald-50 border-emerald-200',
   Underutilized: 'text-amber-700 bg-amber-50 border-amber-200',
   Overcrowded: 'text-red-700 bg-red-50 border-red-200',
+  Empty: 'text-slate-600 bg-slate-100 border-slate-200',
 }
 
 const STATUS_ICONS: Record<string, React.ReactNode> = {
   Optimal: <CheckCircle2 className="h-3.5 w-3.5" />,
   Underutilized: <TrendingUp className="h-3.5 w-3.5 rotate-[-45deg]" />,
   Overcrowded: <AlertTriangle className="h-3.5 w-3.5" />,
+  Empty: <BarChart3 className="h-3.5 w-3.5" />,
 }
 
 function efficiencyColor(score: number): string {
@@ -55,8 +58,8 @@ export function RoomUtilizationPage() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
-  const [capacityModal, setCapacityModal] = useState<RoomCapacityMetric | null>(null)
-  const [capacityLoading, setCapacityLoading] = useState<string | null>(null)
+  const [detailModal, setDetailModal] = useState<RoomDetailMetric | null>(null)
+  const [detailLoading, setDetailLoading] = useState<string | null>(null)
 
   useEffect(() => {
     getRoomUtilizationDashboard()
@@ -67,12 +70,12 @@ export function RoomUtilizationPage() {
       .finally(() => setLoading(false))
   }, [])
 
-  function openCapacity(roomId: string) {
-    setCapacityLoading(roomId)
-    getRoomCapacity(roomId)
-      .then(setCapacityModal)
+  function openDetail(roomId: string) {
+    setDetailLoading(roomId)
+    getRoomDetail(roomId)
+      .then(setDetailModal)
       .catch(() => {})
-      .finally(() => setCapacityLoading(null))
+      .finally(() => setDetailLoading(null))
   }
 
   const filtered = useMemo(() => {
@@ -150,15 +153,15 @@ export function RoomUtilizationPage() {
             <UtilizationCard
               key={item.roomId}
               item={item}
-              onCapacityClick={() => openCapacity(item.roomId)}
-              capacityLoading={capacityLoading === item.roomId}
+              onDetailClick={() => openDetail(item.roomId)}
+              detailLoading={detailLoading === item.roomId}
             />
           ))}
         </div>
       )}
 
-      {capacityModal && (
-        <CapacityModal metric={capacityModal} onClose={() => setCapacityModal(null)} />
+      {detailModal && (
+        <DetailModal metric={detailModal} onClose={() => setDetailModal(null)} />
       )}
     </div>
   )
@@ -173,10 +176,10 @@ function SummaryKpi({ label, value, color }: { label: string; value: string; col
   )
 }
 
-function UtilizationCard({ item, onCapacityClick, capacityLoading }: {
+function UtilizationCard({ item, onDetailClick, detailLoading }: {
   item: RoomUtilization
-  onCapacityClick: () => void
-  capacityLoading: boolean
+  onDetailClick: () => void
+  detailLoading: boolean
 }) {
   const statusLabel = STATUS_LABELS[item.efficiencyStatus] ?? item.efficiencyStatus
   const statusCls = STATUS_COLORS[item.efficiencyStatus] ?? 'text-slate-600 bg-slate-100 border-slate-200'
@@ -255,22 +258,15 @@ function UtilizationCard({ item, onCapacityClick, capacityLoading }: {
       )}
 
       <button
-        onClick={onCapacityClick}
-        disabled={capacityLoading}
+        onClick={onDetailClick}
+        disabled={detailLoading}
         className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-lg border border-brand-200 bg-brand-50 py-1.5 text-xs font-medium text-brand-700 transition hover:bg-brand-100 disabled:opacity-60"
       >
         <Layers className="h-3.5 w-3.5" />
-        {capacityLoading ? 'Yuklanmoqda...' : 'Sig\'im tahlili'}
+        {detailLoading ? 'Yuklanmoqda...' : 'Sig\'im tahlili'}
       </button>
     </div>
   )
-}
-
-const CAPACITY_STATUS_STYLES: Record<string, { cls: string; label: string }> = {
-  Optimal:      { cls: 'text-emerald-700 bg-emerald-50 border-emerald-200', label: 'Optimal' },
-  Underutilized:{ cls: 'text-amber-700 bg-amber-50 border-amber-200',      label: "Kam to'lgan" },
-  Overcrowded:  { cls: 'text-red-700 bg-red-50 border-red-200',            label: "To'lib toshgan" },
-  Empty:        { cls: 'text-slate-600 bg-slate-100 border-slate-200',     label: 'Bo\'sh' },
 }
 
 function utilizationBarColor(pct: number): string {
@@ -279,17 +275,18 @@ function utilizationBarColor(pct: number): string {
   return 'bg-amber-500'
 }
 
-function CapacityModal({ metric, onClose }: { metric: RoomCapacityMetric; onClose: () => void }) {
-  const st = CAPACITY_STATUS_STYLES[metric.status] ?? CAPACITY_STATUS_STYLES['Optimal']
+function DetailModal({ metric, onClose }: { metric: RoomDetailMetric; onClose: () => void }) {
+  const st = STATUS_COLORS[metric.efficiencyStatus] ?? 'text-slate-600 bg-slate-100 border-slate-200'
+  const stLabel = STATUS_LABELS[metric.efficiencyStatus] ?? metric.efficiencyStatus
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
-      <div className="w-full max-w-md rounded-2xl bg-white shadow-xl">
+      <div className="w-full max-w-lg rounded-2xl bg-white shadow-xl max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 flex-shrink-0">
           <div>
             <h2 className="text-base font-semibold text-slate-800">Sig'im tahlili</h2>
             <p className="text-sm text-slate-500">{metric.roomName}</p>
@@ -299,8 +296,8 @@ function CapacityModal({ metric, onClose }: { metric: RoomCapacityMetric; onClos
           </button>
         </div>
 
-        {/* Body */}
-        <div className="space-y-4 p-5">
+        {/* Body — scrollable */}
+        <div className="space-y-4 p-5 overflow-y-auto">
           {/* Asosiy metrikalar */}
           <div className="grid grid-cols-3 gap-3">
             <MetricBox label="Sig'im" value={String(metric.capacity)} sub="joy / guruh" />
@@ -308,29 +305,60 @@ function CapacityModal({ metric, onClose }: { metric: RoomCapacityMetric; onClos
             <MetricBox label="Jami slotlar" value={String(metric.totalSlots)} sub={`${metric.capacity}×${metric.groupCount}`} />
           </div>
 
-          {/* Utilization progress */}
+          {/* Occupancy progress (unique o'quvchilar / sig'im) */}
           <div>
             <div className="mb-1.5 flex items-center justify-between text-sm">
               <span className="font-medium text-slate-700">
-                O'quvchilar: <span className="font-semibold tabular-nums text-slate-900">{metric.actualStudents}</span>
-                <span className="text-slate-400"> / {metric.totalSlots}</span>
+                <span className="flex items-center gap-1">
+                  <Users className="h-4 w-4 text-slate-400" />
+                  Unique o'quvchilar:
+                  <span className="font-semibold tabular-nums text-slate-900 ml-1">{metric.actualStudents}</span>
+                  <span className="text-slate-400">/ {metric.capacity}</span>
+                </span>
               </span>
-              <span className={cn('rounded-full border px-2.5 py-0.5 text-xs font-medium', st.cls)}>
-                {st.label}
+              <span className={cn('rounded-full border px-2.5 py-0.5 text-xs font-medium', st)}>
+                {stLabel}
               </span>
             </div>
             <div className="h-3 w-full overflow-hidden rounded-full bg-slate-100">
               <div
-                className={cn('h-full rounded-full transition-all', utilizationBarColor(metric.utilizationPercent))}
-                style={{ width: `${Math.min(100, metric.utilizationPercent)}%` }}
+                className={cn('h-full rounded-full transition-all', utilizationBarColor(metric.occupancyPercent))}
+                style={{ width: `${Math.min(100, metric.occupancyPercent)}%` }}
               />
             </div>
             <div className="mt-1 flex justify-between text-xs text-slate-400">
-              <span>{metric.utilizationPercent.toFixed(1)}% to'lgan</span>
+              <span>{metric.occupancyPercent.toFixed(1)}% bandlik (unique)</span>
               <span className={metric.gap > 0 ? 'text-amber-600' : 'text-emerald-600'}>
-                {metric.gap > 0 ? `${metric.gap} bo'sh joy` : 'To\'liq band'}
+                {metric.gap > 0 ? `${metric.gap} bo'sh slot` : "To'liq band"}
               </span>
             </div>
+          </div>
+
+          {/* Slot utilization (non-unique, per-group) */}
+          <div>
+            <div className="mb-1.5 flex items-center justify-between text-xs">
+              <span className="text-slate-500">Slot bandligi (guruh bo'yicha)</span>
+              <span className="font-medium tabular-nums text-slate-700">{metric.utilizationPercent.toFixed(1)}%</span>
+            </div>
+            <ProgressBar
+              value={metric.utilizationPercent}
+              color={metric.utilizationPercent > 90 ? 'bg-red-500' : metric.utilizationPercent > 60 ? 'bg-emerald-500' : 'bg-amber-500'}
+            />
+          </div>
+
+          {/* Haftalik bandlik */}
+          <div>
+            <div className="mb-1.5 flex items-center justify-between text-xs">
+              <span className="flex items-center gap-1 text-slate-500">
+                <Clock className="h-3.5 w-3.5" />
+                Haftalik vaqt bandligi
+              </span>
+              <span className="font-medium tabular-nums text-slate-700">
+                {metric.weeklyUtilizationPercent.toFixed(1)}%
+                <span className="ml-1 text-slate-400">({Math.round(metric.weeklyActiveHours)}h/hafta)</span>
+              </span>
+            </div>
+            <ProgressBar value={metric.weeklyUtilizationPercent} color="bg-brand-500" />
           </div>
 
           {/* Guruhlar jadvali */}
@@ -338,45 +366,53 @@ function CapacityModal({ metric, onClose }: { metric: RoomCapacityMetric; onClos
             <div>
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Guruhlar bo'yicha</p>
               <div className="divide-y divide-slate-100 rounded-xl border border-slate-100">
-                {metric.groups.map((g) => {
-                  const pct = metric.capacity > 0 ? Math.round(g.studentCount / metric.capacity * 100) : 0
-                  return (
-                    <div key={g.groupId} className="flex items-center justify-between px-3 py-2.5">
-                      <div className="min-w-0">
+                {metric.groups.map((g) => (
+                  <div key={g.groupId} className="px-3 py-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium text-slate-800">{g.groupName}</p>
-                        {g.courseName && <p className="text-xs text-slate-400">{g.courseName}</p>}
+                        <div className="mt-0.5 flex flex-wrap gap-2 text-xs text-slate-400">
+                          {g.courseName && <span>{g.courseName}</span>}
+                          {g.teacherName && <span className="text-slate-500">{g.teacherName}</span>}
+                          {g.days && (
+                            <span className="flex items-center gap-0.5">
+                              {g.days}
+                              {g.timeSlot && <> · {g.timeSlot}</>}
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      <div className="ml-3 flex items-center gap-2 text-right">
+                      <div className="ml-3 flex items-center gap-2 text-right flex-shrink-0">
                         <span className="text-sm font-semibold tabular-nums text-slate-700">
                           {g.studentCount}
-                          <span className="text-xs font-normal text-slate-400">/{metric.capacity}</span>
+                          <span className="text-xs font-normal text-slate-400">/{g.studentCapacity}</span>
                         </span>
                         <span className={cn(
                           'min-w-[44px] rounded-full px-2 py-0.5 text-center text-xs font-medium',
-                          pct > 90 ? 'bg-red-100 text-red-700' :
-                          pct > 60 ? 'bg-emerald-100 text-emerald-700' :
-                                     'bg-amber-100 text-amber-700'
+                          g.utilizationPercent > 90 ? 'bg-red-100 text-red-700' :
+                          g.utilizationPercent > 60 ? 'bg-emerald-100 text-emerald-700' :
+                                                       'bg-amber-100 text-amber-700'
                         )}>
-                          {pct}%
+                          {Math.round(g.utilizationPercent)}%
                         </span>
                       </div>
                     </div>
-                  )
-                })}
+                  </div>
+                ))}
               </div>
             </div>
           )}
 
           {/* Tavsiya */}
-          {metric.gap > 0 && metric.status !== 'Overcrowded' && (
+          {metric.gap > 0 && metric.efficiencyStatus !== 'Overcrowded' && (
             <div className="flex items-start gap-2 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-700">
               <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
               <span>
-                <strong>{metric.gap} ta</strong> bo'sh o'rin bor. Yangi o'quvchilar qabul qilish tavsiya etiladi.
+                <strong>{metric.gap} ta</strong> bo'sh slot bor. Yangi o'quvchilar qabul qilish tavsiya etiladi.
               </span>
             </div>
           )}
-          {metric.status === 'Overcrowded' && (
+          {metric.efficiencyStatus === 'Overcrowded' && (
             <div className="flex items-start gap-2 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">
               <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
               <span>Xona sig'imidan oshib ketgan. Guruh sonini kamaytirish yoki kattaroq xona kerak.</span>

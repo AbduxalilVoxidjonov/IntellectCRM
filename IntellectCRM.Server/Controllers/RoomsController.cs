@@ -116,6 +116,19 @@ public class RoomsController(AppDbContext db, IntellectCRM.Application.Services.
         return metric is null ? NotFound() : metric;
     }
 
+    /// <summary>
+    /// Bitta xona uchun unified metrika — karta va modal bitta endpointdan.
+    /// OccupancyPercent = unique o'quvchilar / sig'im * 100.
+    /// UtilizationPercent = jami o'quvchi-slot / jami slotlar * 100.
+    /// Groups — har guruh tafsiloti (o'quvchi soni, kunlar, vaqt, o'qituvchi).
+    /// </summary>
+    [HttpGet("{id}/detail")]
+    public async Task<ActionResult<RoomDetailMetricDto>> GetRoomDetail(string id)
+    {
+        var metric = await utilization.GetRoomDetailMetricAsync(id);
+        return metric is null ? NotFound() : metric;
+    }
+
     private static RoomDto ToDto(Room r) =>
         new(r.Id, r.Name, r.Capacity, r.Building, r.Location,
             r.IsActive, r.CreatedAt.ToString("o"));

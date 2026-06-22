@@ -202,6 +202,102 @@ public class RoomUtilizationService(IAppDbContext db)
             totalSlots, actualStudents, utilization, gap, status, groupSlots);
     }
 
+    /// <summary>
+    /// Bitta xona uchun unified metrika — karta va modal uchun bitta manba.
+    /// OccupancyPercent = ActualStudents / Capacity * 100 (peak approximation, unique).
+    /// UtilizationPercent = ActualStudents / TotalSlots * 100 (har guruh alohida slot).
+    /// </summary>
+    public async Task<IntellectCRM.Application.Dtos.RoomDetailMetricDto?> GetRoomDetailMetricAsync(string roomId)
+    {
+        var room = await db.Rooms.FindAsync(roomId);
+        if (room is null) return null;
+
+        var groups = await db.Classes
+            .Where(c => !c.IsArchived && (c.RoomId == roomId ||
+                (c.RoomId == null && c.Room == room.Name)))
+            .ToListAsync();
+
+        var groupIds = groups.Select(g => g.Id).ToHashSet();
+
+        var membersByGroup = await db.StudentGroups
+            .Where(sg => groupIds.Contains(sg.GroupId) && sg.IsActive && sg.Status != "frozen")
+            .Select(sg => new { sg.GroupId, sg.StudentId })
+            .ToListAsync();
+
+        var memberLookup = membersByGroup
+            .GroupBy(m => m.GroupId)
+            .ToDictionary(g => g.Key, g => g.Select(m => m.StudentId).ToHashSet());
+
+        // Kurs nomlari
+        var courseIds = groups.Select(g => g.CourseId).Where(c => c != null).Distinct().ToList();
+        var courseNames = await db.Subjects
+            .Where(s => courseIds.Contains(s.Id))
+            .Select(s => new { s.Id, s.Name })
+            .ToDictionaryAsync(s => s.Id!, s => s.Name);
+
+        // O'qituvchi ismlari
+        var teacherIds = groups.Select(g => g.TeacherId).Where(t => t != null).Distinct().ToList();
+        var teacherNames = await db.Teachers
+            .Where(t => teacherIds.Contains(t.Id))
+            .Select(t => new { t.Id, t.FullName })
+            .ToDictionaryAsync(t => t.Id, t => t.FullName);
+
+        int groupCount = groups.Count;
+        int totalSlots = room.Capacity * groupCount;
+
+        // Unique faol o'quvchilar (occupancy uchun peak approx)
+        var uniqueStudents = new HashSet<string>();
+        foreach (var g in groups)
+            if (memberLookup.TryGetValue(g.Id, out var set))
+                foreach (var sid in set) uniqueStudents.Add(sid);
+        int actualStudents = uniqueStudents.Count;
+
+        // Har guruh uchun faol (non-unique) o'quvchi soni (utilization uchun)
+        int totalActualSlots = membersByGroup.Count;
+
+        double occupancyPercent = room.Capacity > 0
+            ? Math.Round((double)actualStudents / room.Capacity * 100, 1)
+            : 0;
+        double utilizationPercent = totalSlots > 0
+            ? Math.Round((double)totalActualSlots / totalSlots * 100, 1)
+            : 0;
+
+        double weeklyHours = CalculateWeeklyActiveHours(groups);
+        const double roomCapacityHoursPerWeek = 6.0 * 14.0;
+        double weeklyPct = Math.Round(Math.Min(weeklyHours / roomCapacityHoursPerWeek * 100, 100), 1);
+
+        int efficiencyScore = ComputeEfficiencyScore(occupancyPercent, weeklyPct);
+
+        string status = occupancyPercent == 0 && groupCount == 0 ? "Empty"
+            : occupancyPercent > 110 ? "Overcrowded"
+            : occupancyPercent < 30  ? "Underutilized"
+            :                          "Optimal";
+
+        int gap = Math.Max(0, totalSlots - totalActualSlots);
+
+        var groupDetails = groups.Select(g => {
+            int count = memberLookup.TryGetValue(g.Id, out var s) ? s.Count : 0;
+            string courseName = g.CourseId != null && courseNames.TryGetValue(g.CourseId, out var cn) ? cn : "";
+            string teacherName = g.TeacherId != null && teacherNames.TryGetValue(g.TeacherId, out var tn) ? tn : "";
+            double gpct = room.Capacity > 0 ? Math.Round((double)count / room.Capacity * 100, 1) : 0;
+            string days = g.Days != null && g.Days.Count > 0
+                ? string.Join("-", g.Days.Select(DayName))
+                : "";
+            string timeSlot = !string.IsNullOrEmpty(g.StartTime) && !string.IsNullOrEmpty(g.EndTime)
+                ? $"{g.StartTime}-{g.EndTime}"
+                : "";
+            return new IntellectCRM.Application.Dtos.RoomGroupDetailDto(
+                g.Id, g.Name, courseName, teacherName,
+                count, room.Capacity, gpct, days, timeSlot);
+        }).ToList();
+
+        return new IntellectCRM.Application.Dtos.RoomDetailMetricDto(
+            room.Id, room.Name, room.Building ?? "", room.Location ?? "",
+            room.Capacity, groupCount, totalSlots, actualStudents,
+            occupancyPercent, utilizationPercent, weeklyPct,
+            Math.Round(weeklyHours, 2), efficiencyScore, status, gap, groupDetails);
+    }
+
     // ---------- private helpers ----------
 
     private static double CalculateWeeklyActiveHours(List<IntellectCRM.Domain.Group> groups)
@@ -221,6 +317,9 @@ public class RoomUtilizationService(IAppDbContext db)
         }
         return total;
     }
+
+    private static string DayName(int day) =>
+        day switch { 0 => "Du", 1 => "Se", 2 => "Ch", 3 => "Pa", 4 => "Jum", 5 => "Sha", 6 => "Yak", _ => "?" };
 
     private static int TimeToMinutes(string hhmm)
     {

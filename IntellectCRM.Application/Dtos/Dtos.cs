@@ -889,6 +889,40 @@ public record RoomCapacityMetric(
 /// <summary>Har bir guruhning o'quvchi soni (capacity modal uchun).</summary>
 public record RoomGroupSlotDto(string GroupId, string GroupName, int StudentCount, string? CourseName);
 
+/// <summary>
+/// Bitta xona uchun unified metrika — karta va modal ikkalasi uchun bitta manba.
+/// GET /api/admin/rooms/{id}/detail
+/// </summary>
+public record RoomDetailMetricDto(
+    string RoomId,
+    string RoomName,
+    string Building,
+    string Location,
+    int Capacity,
+    int GroupCount,
+    int TotalSlots,
+    int ActualStudents,
+    double OccupancyPercent,
+    double UtilizationPercent,
+    double WeeklyUtilizationPercent,
+    double WeeklyActiveHours,
+    int EfficiencyScore,
+    string EfficiencyStatus,
+    int Gap,
+    List<RoomGroupDetailDto> Groups);
+
+/// <summary>Xona ichidagi har bir guruh haqida batafsil ma'lumot (detail modal uchun).</summary>
+public record RoomGroupDetailDto(
+    string GroupId,
+    string GroupName,
+    string CourseName,
+    string TeacherName,
+    int StudentCount,
+    int StudentCapacity,
+    double UtilizationPercent,
+    string Days,
+    string TimeSlot);
+
 /* ---------- Boshqaruv ---------- */
 
 /// <summary>Filial (branch).</summary>
