@@ -68,7 +68,7 @@ public class MessagesController(AppDbContext db, ChatService chat, TelegramServi
                 .Select(g => new { Name = g.Key, Last = g.Max(x => x.CreatedAt) })
                 .ToListAsync())
             .ToDictionary(x => x.Name, x => (string?)x.Last.ToString("o"));
-        return channels.ToDictionary(c => c, c => lastByChannel.GetValueOrDefault(c, null));
+        return channels.Distinct().ToDictionary(c => c, c => lastByChannel.GetValueOrDefault(c, null));
     }
 
     // ---------- Guruh chati ----------
