@@ -32,7 +32,7 @@ export function FirebaseSettings() {
     setStatus('saving')
     setError(null)
     try {
-      const saved = await saveFirebaseSettings({ serviceAccountJson: json.trim() })
+      const saved = await saveFirebaseSettings({ serviceAccountJson: (json ?? '').trim() })
       setJson(saved.serviceAccountJson)
       setConfigured(saved.configured)
       setStatus('saved')

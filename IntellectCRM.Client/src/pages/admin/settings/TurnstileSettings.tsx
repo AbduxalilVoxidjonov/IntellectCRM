@@ -46,26 +46,30 @@ export function TurnstileSettings() {
     e.preventDefault()
     if (!cfg) return
     setStatus('saving')
-    const saved = await saveTurnstileSettings({
-      enabled: cfg.enabled,
-      vendor: cfg.vendor,
-      host: cfg.host.trim(),
-      port: cfg.port,
-      username: cfg.username.trim(),
-      password: password || undefined,
-      workStartTime: cfg.workStartTime,
-      lateGraceMinutes: cfg.lateGraceMinutes,
-      teachers: cfg.teachers,
-    })
-    setCfg(saved)
-    setPassword('')
-    setStatus('saved')
-    setTimeout(() => setStatus('idle'), 2000)
+    try {
+      const saved = await saveTurnstileSettings({
+        enabled: cfg.enabled,
+        vendor: cfg.vendor,
+        host: (cfg.host ?? '').trim(),
+        port: cfg.port,
+        username: (cfg.username ?? '').trim(),
+        password: password || undefined,
+        workStartTime: cfg.workStartTime,
+        lateGraceMinutes: cfg.lateGraceMinutes,
+        teachers: cfg.teachers,
+      })
+      setCfg(saved)
+      setPassword('')
+      setStatus('saved')
+      setTimeout(() => setStatus('idle'), 2000)
+    } catch {
+      setStatus('idle')
+    }
   }
 
   if (loading || !cfg) return <Loader label="Yuklanmoqda..." />
 
-  const mapped = cfg.teachers.filter((t: TeacherDeviceMap) => t.deviceUserId.trim()).length
+  const mapped = cfg.teachers.filter((t: TeacherDeviceMap) => (t.deviceUserId ?? '').trim()).length
 
   return (
     <form onSubmit={onSubmit} className="space-y-6">

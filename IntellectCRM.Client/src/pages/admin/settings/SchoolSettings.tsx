@@ -44,11 +44,15 @@ export function SchoolSettings() {
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setStatus('saving')
-    await saveSchoolInfo({ ...form, name: form.name.trim() })
-    // Yon menyudagi maktab nomini darrov yangilash uchun.
-    window.dispatchEvent(new Event('school:updated'))
-    setStatus('saved')
-    setTimeout(() => setStatus('idle'), 2000)
+    try {
+      await saveSchoolInfo({ ...form, name: (form.name ?? '').trim() })
+      // Yon menyudagi maktab nomini darrov yangilash uchun.
+      window.dispatchEvent(new Event('school:updated'))
+      setStatus('saved')
+      setTimeout(() => setStatus('idle'), 2000)
+    } catch {
+      setStatus('idle')
+    }
   }
 
   const onPickLogo = async (e: React.ChangeEvent<HTMLInputElement>) => {

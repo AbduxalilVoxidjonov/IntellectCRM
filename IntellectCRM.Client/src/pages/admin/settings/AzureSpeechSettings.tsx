@@ -34,7 +34,7 @@ export function AzureSpeechSettings() {
     setError(null)
     try {
       // Kalit faqat yangi kiritilsa yuboriladi (bo'sh qoldirilsa eski saqlanadi).
-      const saved = await saveAzureSpeechSettings({ key: key.trim() || undefined, region: region.trim() })
+      const saved = await saveAzureSpeechSettings({ key: (key ?? '').trim() || undefined, region: (region ?? '').trim() })
       setRegion(saved.region)
       setConfigured(saved.configured)
       setKey('')

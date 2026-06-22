@@ -63,9 +63,13 @@ export function SettingsPage() {
 
   const onSaveReasons = async () => {
     setRStatus('saving')
-    await saveAbsenceReasons(reasons.filter((r) => r.name.trim()))
-    setRStatus('saved')
-    setTimeout(() => setRStatus('idle'), 2000)
+    try {
+      await saveAbsenceReasons(reasons.filter((r) => (r.name ?? '').trim()))
+      setRStatus('saved')
+      setTimeout(() => setRStatus('idle'), 2000)
+    } catch {
+      setRStatus('idle')
+    }
   }
 
   return (
