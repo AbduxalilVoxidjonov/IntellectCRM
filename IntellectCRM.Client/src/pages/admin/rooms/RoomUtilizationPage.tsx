@@ -221,8 +221,15 @@ function UtilizationCard({ item }: { item: RoomUtilization }) {
       {/* Qo'shimcha ma'lumot */}
       <div className="flex items-center justify-between border-t border-slate-100 pt-2 text-xs text-slate-500">
         <span>Faol guruhlar: <strong className="text-slate-700">{item.activeGroupCount}</strong></span>
-        <span>Sig'im: <strong className="text-slate-700">{item.capacity}</strong></span>
+        <span>Haftalik soat: <strong className="text-slate-700">{Math.round(item.weeklyActiveHours)}h</strong></span>
       </div>
+      {item.groupNames && item.groupNames.length > 0 && (
+        <div className="flex flex-wrap gap-1 border-t border-slate-100 pt-2">
+          {item.groupNames.map((name) => (
+            <span key={name} className="rounded-md bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{name}</span>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

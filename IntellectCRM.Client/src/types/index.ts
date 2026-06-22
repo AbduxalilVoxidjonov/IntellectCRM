@@ -264,11 +264,13 @@ export interface RoomUtilization {
   currentStudents: number
   occupancyPercent: number
   activeGroupCount: number
+  weeklyActiveHours: number
   weeklyUtilizationPercent: number
   efficiencyScore: number
   efficiencyStatus: string
   building?: string
   location?: string
+  groupNames?: string[]
 }
 
 /* ---------- Kurslar (fanlar) ---------- */

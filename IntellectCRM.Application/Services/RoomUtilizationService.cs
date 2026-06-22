@@ -41,9 +41,12 @@ public class RoomUtilizationService(IAppDbContext db)
             .OrderBy(r => r.Name)
             .ToListAsync();
 
-        // Barcha guruhlarni bir so'rovda tortib olamiz (N+1 dan qochamiz)
+        // Barcha arxivlanmagan guruhlarni tortib olamiz
+        // Guruh xonasi: avval RoomId (FK), bo'lmasa Room (matnli) — ikkalasini ham qo'llab-quvvatlaydi
         var allGroups = await db.Classes
-            .Where(g => !g.IsArchived && g.RoomId != null && g.RoomId != "")
+            .Where(g => !g.IsArchived && (
+                (g.RoomId != null && g.RoomId != "") ||
+                (g.Room != null && g.Room != "")))
             .ToListAsync();
 
         // Faol a'zoliklar: StudentId + GroupId (frozen emas)
@@ -52,9 +55,18 @@ public class RoomUtilizationService(IAppDbContext db)
             .Select(sg => new { sg.GroupId, sg.StudentId })
             .ToListAsync();
 
+        // Xona nomi → Id xaritasi (matnli Room field uchun)
+        var roomByName = rooms.ToDictionary(r => r.Name, r => r.Id, StringComparer.OrdinalIgnoreCase);
+
+        // Guruhlarni xona Id bo'yicha guruhlash (RoomId ustuvor; bo'lmasa Room nomi orqali)
         var groupsByRoom = allGroups
-            .GroupBy(g => g.RoomId!)
-            .ToDictionary(g => g.Key, g => g.ToList());
+            .GroupBy(g => {
+                if (!string.IsNullOrEmpty(g.RoomId)) return g.RoomId;
+                if (!string.IsNullOrEmpty(g.Room) && roomByName.TryGetValue(g.Room, out var rid)) return rid;
+                return null;
+            })
+            .Where(grp => grp.Key != null)
+            .ToDictionary(g => g.Key!, g => g.ToList());
 
         var membersByGroup = activeMembers
             .GroupBy(m => m.GroupId)
