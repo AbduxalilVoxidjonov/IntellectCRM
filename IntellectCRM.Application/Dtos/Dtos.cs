@@ -147,6 +147,10 @@ public record StudentFinanceRowDto(
 public record SubjectPayload(string Name, decimal Price = 0);
 
 /* ---------- Guruhlar (Groups) ---------- */
+/// <summary>Xona konflikti: mavjud guruh bir xil xona, kun va vaqtda ishlaydi.</summary>
+public record RoomConflictDto(
+    string GroupId, string GroupName, string SharedDays, string ExistingSlot);
+
 public record ClassPayload(
     string Name, int Grade, string Language, decimal MonthlyFee, string? Room,
     string? Status = null, string? StartDate = null, string? EndDate = null, int Capacity = 0,

@@ -12,7 +12,7 @@ namespace IntellectCRM.Server.Controllers;
 [Authorize]
 [AdminPerm("classes")]
 [Route("api/admin/classes")]
-public class ClassesController(AppDbContext db, AuditService audit, ILogger<ClassesController> logger, CertificateService certSvc) : ControllerBase
+public class ClassesController(AppDbContext db, AuditService audit, ILogger<ClassesController> logger, CertificateService certSvc, RoomConflictService roomConflict) : ControllerBase
 {
     /// <summary>Faol (arxivlanmagan) sinflar. <paramref name="includeArchived"/>=true bo'lsa hammasi.</summary>
     [HttpGet]
@@ -37,6 +37,18 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
             return BadRequest(new { message = "Guruhga o'qituvchi biriktirish majburiy" });
         if (await db.Teachers.FindAsync(p.TeacherId) is null)
             return BadRequest(new { message = "Tanlangan o'qituvchi topilmadi" });
+
+        // Xona konflikti tekshiruvi (REJECT emas — WARNING; frontend qayta so'rasa saqlaydi).
+        var conflicts = await roomConflict.CheckRoomConflictAsync(
+            p.Room, p.Days ?? [], p.StartTime, p.EndTime);
+        if (conflicts.Count > 0)
+            return Ok(new
+            {
+                roomConflict = true,
+                message = "Xonada vaqt konflikti bor",
+                conflicts = conflicts.Select(c => new RoomConflictDto(
+                    c.GroupId, c.GroupName, c.SharedDays, c.ExistingSlot)),
+            });
 
         var cls = new Group
         {
@@ -90,6 +102,18 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
             return BadRequest(new { message = "Guruhga o'qituvchi biriktirish majburiy" });
         if (await db.Teachers.FindAsync(p.TeacherId) is null)
             return BadRequest(new { message = "Tanlangan o'qituvchi topilmadi" });
+
+        // Xona konflikti tekshiruvi — o'z id'si hisoba olinmaydi (excludeGroupId=id).
+        var conflicts = await roomConflict.CheckRoomConflictAsync(
+            p.Room, p.Days ?? [], p.StartTime, p.EndTime, excludeGroupId: id);
+        if (conflicts.Count > 0)
+            return Ok(new
+            {
+                roomConflict = true,
+                message = "Xonada vaqt konflikti bor",
+                conflicts = conflicts.Select(c => new RoomConflictDto(
+                    c.GroupId, c.GroupName, c.SharedDays, c.ExistingSlot)),
+            });
 
         var oldFee = cls.MonthlyFee;
         var oldName = cls.Name;   // o'quvchilar hozir shu nom bilan biriktirilgan
