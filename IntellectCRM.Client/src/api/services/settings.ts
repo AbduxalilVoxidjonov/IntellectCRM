@@ -305,6 +305,42 @@ export async function savePaymentReminderSettings(payload: {
   return data
 }
 
+/* ---------- Telegram backup sozlamasi ---------- */
+
+export interface TelegramBackupConfig {
+  adminChatId: string
+  scheduleHour: number
+  enabled: boolean
+  lastSentAt?: string
+}
+
+export async function getTelegramBackupConfig(): Promise<TelegramBackupConfig> {
+  if (USE_MOCK) {
+    await delay()
+    return { adminChatId: '', scheduleHour: 21, enabled: false }
+  }
+  const { data } = await api.get<TelegramBackupConfig>('/admin/settings/telegram-backup')
+  return data
+}
+
+export async function saveTelegramBackupConfig(cfg: TelegramBackupConfig): Promise<TelegramBackupConfig> {
+  if (USE_MOCK) {
+    await delay(250)
+    return cfg
+  }
+  const { data } = await api.put<TelegramBackupConfig>('/admin/settings/telegram-backup', cfg)
+  return data
+}
+
+export async function testTelegramBackup(): Promise<{ success: boolean; message: string }> {
+  if (USE_MOCK) {
+    await delay(1200)
+    return { success: true, message: "Test backup yuborildi" }
+  }
+  const { data } = await api.post<{ success: boolean; message: string }>('/admin/settings/telegram-backup/test')
+  return data
+}
+
 /** Maktab nomi + logo (brending — barcha rollar uchun) */
 export interface SchoolName {
   name: string
