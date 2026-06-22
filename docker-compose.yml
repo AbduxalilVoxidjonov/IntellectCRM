@@ -15,10 +15,10 @@ services:
       - postgres-data:/var/lib/postgresql/data   # baza shu volume'da (deploylar oralig'ida saqlanadi)
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-intellectcrm} -d ${POSTGRES_DB:-intellectcrm}"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 20s
+      interval: 5s
+      timeout: 10s
+      retries: 30
+      start_period: 40s
     restart: unless-stopped
 
   app:
@@ -38,6 +38,8 @@ services:
       # Birinchi ishga tushishda (baza bo'sh bo'lsa) shu login/parol bilan super admin yaratiladi.
       Seed__OwnerLogin: "${OWNER_LOGIN:-admin}"
       Seed__OwnerPassword: "${OWNER_PASSWORD}"
+      # EF Core migratsiya retry'lari — 1GB RAM server'da startup sekin bo'lishi mumkin
+      DOTNET_SYSTEM_NET_SOCKETS_INLINE_OPERATIONS: "true"
     volumes:
       - uploads:/app/uploads               # yuklangan fayllar (rasm, hujjat)
       - dpkeys:/app/keys                   # DataProtection kalitlari — deploylar oralig'ida saqlanadi

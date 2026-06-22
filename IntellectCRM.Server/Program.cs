@@ -224,7 +224,25 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    db.Database.Migrate();
+
+    // Migration startup retry — baza init bo'lgunga qadar kutadi (1GB server sekin bo'lishi mumkin)
+    var maxRetries = 10;
+    for (var attempt = 1; attempt <= maxRetries; attempt++)
+    {
+        try
+        {
+            db.Database.Migrate();
+            app.Logger.LogInformation("[migration] muvaffaqiyatli (urinish {Attempt}/{Max})", attempt, maxRetries);
+            break;
+        }
+        catch (Exception ex) when (attempt < maxRetries)
+        {
+            app.Logger.LogWarning(ex,
+                "[migration] urinish {Attempt}/{Max} muvaffaqiyatsiz — {Seconds}s kutishdan keyin qayta",
+                attempt, maxRetries, attempt * 3);
+            await Task.Delay(TimeSpan.FromSeconds(attempt * 3));
+        }
+    }
 
     // Birinchi ishga tushish: hech qanday foydalanuvchi bo'lmasa, standart SUPER ADMIN yaratamiz —
     // aks holda tizimga kira oladigan hech kim bo'lmaydi. Login/parol muhit o'zgaruvchisidan keladi
