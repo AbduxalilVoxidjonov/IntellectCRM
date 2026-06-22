@@ -33,27 +33,33 @@ export function TelegramSettings() {
   useEffect(() => {
     getTelegramSettings()
       .then((c: TelegramConfig) => {
-        setToken(c.botToken)
-        setUsername(c.botUsername)
-        setName(c.botName)
-        setChannel(c.channel)
+        setToken(c.botToken ?? '')
+        setUsername(c.botUsername ?? '')
+        setName(c.botName ?? '')
+        setChannel(c.channel ?? '')
         setConfigured(c.configured)
       })
+      .catch(() => setLoading(false))
       .finally(() => setLoading(false))
   }, [])
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setStatus('saving')
-    const saved = await saveTelegramSettings({
-      botToken: token.trim(),
-      botUsername: username.trim(),
-      botName: name.trim(),
-      channel: channel.trim(),
-    })
-    setConfigured(saved.configured)
-    setStatus('saved')
-    setTimeout(() => setStatus('idle'), 2000)
+    try {
+      const saved = await saveTelegramSettings({
+        botToken: (token ?? '').trim(),
+        botUsername: (username ?? '').trim(),
+        botName: (name ?? '').trim(),
+        channel: (channel ?? '').trim(),
+      })
+      setConfigured(saved.configured)
+      setStatus('saved')
+      setTimeout(() => setStatus('idle'), 2000)
+    } catch (err) {
+      console.error('Telegram sozlamalarini saqlashda xato:', err)
+      setStatus('idle')
+    }
   }
 
   if (loading) return <Loader label="Yuklanmoqda..." />
