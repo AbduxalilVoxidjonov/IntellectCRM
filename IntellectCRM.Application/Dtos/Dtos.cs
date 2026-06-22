@@ -832,6 +832,19 @@ public record SendContractsRequest(string Target, string TemplateId, List<string
 /// <summary>Bitta oluvchi uchun yuborish natijasi.</summary>
 public record SendResultDto(string RecipientKey, bool Ok, int? Number, string Message);
 
+/* ---------- O'quv xonalari ---------- */
+
+/// <summary>O'quv xonasi (auditoriya).</summary>
+public record RoomDto(
+    string Id, string Name, int Capacity, string? Building, string? Location,
+    bool IsActive, string CreatedAt);
+
+/// <summary>Xona yaratish so'rovi.</summary>
+public record CreateRoomRequest(string Name, int Capacity, string? Building, string? Location);
+
+/// <summary>Xona tahrirlash so'rovi (IsActive bilan — faollashtirish/o'chirish).</summary>
+public record UpdateRoomRequest(string Name, int Capacity, string? Building, string? Location, bool IsActive);
+
 /* ---------- Boshqaruv ---------- */
 
 /// <summary>Filial (branch).</summary>

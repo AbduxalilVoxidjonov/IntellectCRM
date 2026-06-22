@@ -285,6 +285,21 @@ public class Subject
     public decimal Price { get; set; }
 }
 
+/// <summary>O'quv xonasi (auditoriya). Guruhlarga FK orqali bog'lanadi.</summary>
+public class Room
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string Name { get; set; } = "";
+    /// <summary>Xona sig'imi (o'quvchilar soni). Default 30.</summary>
+    public int Capacity { get; set; } = 30;
+    /// <summary>Bino nomi yoki raqami (ixtiyoriy).</summary>
+    public string? Building { get; set; }
+    /// <summary>Xona joylashuvi/tavsifi (ixtiyoriy).</summary>
+    public string? Location { get; set; }
+    public bool IsActive { get; set; } = true;
+    public DateTime CreatedAt { get; set; } = AppClock.Now;
+}
+
 /// <summary>Sinf.</summary>
 public class Group
 {
@@ -294,7 +309,10 @@ public class Group
     /// <summary>uz | ru</summary>
     public string Language { get; set; } = "uz";
     public decimal MonthlyFee { get; set; }
+    /// <summary>Xona nomi (matnli, eski — backward compat). Yangi guruhlarda RoomId ishlatiladi.</summary>
     public string? Room { get; set; }
+    /// <summary>O'quv xonasi FK (Room.Id). Nullable — xona ko'rsatilmasa null.</summary>
+    public string? RoomId { get; set; }
     /// <summary>Guruh holati: active (faol) | full (to'lgan) | archived (arxiv).</summary>
     public string Status { get; set; } = "active";
     /// <summary>Kurs boshlanish sanasi (ISO "YYYY-MM-DD"). Ixtiyoriy.</summary>

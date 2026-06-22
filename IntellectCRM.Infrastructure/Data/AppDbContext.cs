@@ -93,6 +93,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     // Xodim roli shablonlari
     public DbSet<StaffRoleTemplate> StaffRoleTemplates => Set<StaffRoleTemplate>();
 
+    // O'quv xonalari
+    public DbSet<Room> Rooms => Set<Room>();
+
     protected override void OnModelCreating(ModelBuilder b)
     {
         // SQL Server: indeksda qatnashadigan string ustunlar default `nvarchar(max)` bo'lib
@@ -281,5 +284,16 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
             .HasForeignKey(v => v.StudentCertificateId)
             .OnDelete(DeleteBehavior.Cascade);
         b.Entity<CertificateVerification>().HasIndex(v => v.StudentCertificateId);
+
+        // O'quv xonalari — tez-tez ishlatiladigan filtrlar
+        b.Entity<Room>().HasIndex(r => r.IsActive);
+        b.Entity<Room>().HasIndex(r => new { r.Name, r.IsActive });
+
+        // Group.RoomId → Room (SET NULL on delete)
+        b.Entity<Group>().HasIndex(c => c.RoomId);
+        b.Entity<Group>()
+            .HasOne<Room>().WithMany()
+            .HasForeignKey(c => c.RoomId)
+            .OnDelete(DeleteBehavior.SetNull);
     }
 }

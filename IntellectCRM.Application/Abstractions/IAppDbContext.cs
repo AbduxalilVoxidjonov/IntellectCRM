@@ -91,6 +91,9 @@ public interface IAppDbContext
     DbSet<StudentCertificate> StudentCertificates { get; }
     DbSet<CertificateVerification> CertificateVerifications { get; }
 
+    // O'quv xonalari
+    DbSet<Room> Rooms { get; }
+
     int SaveChanges();
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

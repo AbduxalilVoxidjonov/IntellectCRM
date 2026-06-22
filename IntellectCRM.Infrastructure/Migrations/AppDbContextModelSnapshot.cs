@@ -519,6 +519,9 @@ namespace IntellectCRM.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<int>("BackupScheduleHour")
+                        .HasColumnType("integer");
+
                     b.Property<string>("BillingMode")
                         .IsRequired()
                         .HasColumnType("text");
@@ -616,6 +619,15 @@ namespace IntellectCRM.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("TelegramAdminChatId")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("TelegramBackupEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("TelegramBackupLastSentAt")
+                        .HasColumnType("timestamp without time zone");
+
                     b.Property<string>("TelegramBotName")
                         .IsRequired()
                         .HasColumnType("text");
@@ -631,20 +643,6 @@ namespace IntellectCRM.Infrastructure.Migrations
                     b.Property<string>("TelegramChannel")
                         .IsRequired()
                         .HasColumnType("text");
-
-                    b.Property<string>("TelegramAdminChatId")
-                        .HasColumnType("text");
-
-                    b.Property<int>("BackupScheduleHour")
-                        .HasDefaultValue(21)
-                        .HasColumnType("integer");
-
-                    b.Property<bool>("TelegramBackupEnabled")
-                        .HasDefaultValue(true)
-                        .HasColumnType("boolean");
-
-                    b.Property<DateTime?>("TelegramBackupLastSentAt")
-                        .HasColumnType("timestamp without time zone");
 
                     b.Property<bool>("TurnstileEnabled")
                         .HasColumnType("boolean");
@@ -2097,6 +2095,35 @@ namespace IntellectCRM.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("PushMessages");
+                });
+
+            modelBuilder.Entity("IntellectCRM.Domain.StaffRoleTemplate", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<List<string>>("DefaultPermissions")
+                        .IsRequired()
+                        .HasColumnType("text[]");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("StaffRoleTemplates");
                 });
 
             modelBuilder.Entity("IntellectCRM.Domain.Student", b =>
