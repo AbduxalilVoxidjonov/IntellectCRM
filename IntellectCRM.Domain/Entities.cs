@@ -787,6 +787,17 @@ public class CenterMeta
     /// har oyning 1-sanasida barcha qarzdorlarga, keyin har 2 kunda hali to'lamaganlarga
     /// Telegram + push orqali eslatma yuboradi (ertalab 09:00, Toshkent vaqti).</summary>
     public bool PaymentRemindersEnabled { get; set; } = true;
+
+    // ---------- Telegram backup ----------
+    /// <summary>Telegram admin chat ID — backup faylini yuborish uchun. Faqat raqam (masalan 123456789).
+    /// Bo'sh bo'lsa Telegram backup o'chiriladi.</summary>
+    public string? TelegramAdminChatId { get; set; }
+    /// <summary>Backup yuborish soati (UTC, 0-23). Default 21 (21:00 UTC = 02:00 Toshkent).</summary>
+    public int BackupScheduleHour { get; set; } = 21;
+    /// <summary>Telegram backup yoqilganmi (default true).</summary>
+    public bool TelegramBackupEnabled { get; set; } = true;
+    /// <summary>Oxirgi muvaffaqiyatli Telegram backup yuborish vaqti (tracking uchun).</summary>
+    public DateTime? TelegramBackupLastSentAt { get; set; }
 }
 
 /// <summary>

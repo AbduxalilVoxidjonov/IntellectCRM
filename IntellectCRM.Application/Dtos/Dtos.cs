@@ -518,6 +518,17 @@ public record PublicBrandDto(string Name, string LogoUrl, string Phone);
 public record TelegramSettingsDto(string BotToken, string BotUsername, string BotName, bool Configured, string Channel = "");
 /// <summary>Telegram bot sozlamasini saqlash so'rovi.</summary>
 public record SaveTelegramSettingsRequest(string? BotToken, string? BotUsername, string? BotName, string? Channel);
+/// <summary>Telegram backup konfiguratsiyasi — DB'dan o'qilgan holat.</summary>
+public record TelegramBackupConfigDto(
+    string? AdminChatId,
+    int ScheduleHour,
+    bool Enabled,
+    DateTime? LastSentAt);
+/// <summary>Telegram backup sozlamasini yangilash so'rovi.</summary>
+public record SaveTelegramBackupConfigRequest(
+    string? AdminChatId,
+    int ScheduleHour,
+    bool Enabled);
 /// <summary>Ilova (APK) sozlamasi — Telegram bot ro'yxatdan o'tgan o'quvchi/o'qituvchiga yuboradigan fayl(lar).
 /// Nom + hajm (bayt; 0 = yuklanmagan).</summary>
 public record AppApkSettingsDto(string StudentApkName, long StudentApkSize, string TeacherApkName, long TeacherApkSize);

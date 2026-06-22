@@ -298,6 +298,44 @@ public class TelegramBotService(
         return any;
     }
 
+    /// <summary>Backup faylini Telegram chat'ga yuboradi (SendDocument).
+    /// <paramref name="chatId"/> — admin chat ID (CenterMeta.TelegramAdminChatId).
+    /// <paramref name="fileData"/> — backup fayl baytlari.
+    /// <paramref name="fileName"/> — fayl nomi (masalan "backup-2026-06-22.sql.gz").
+    /// Xatolik bo'lsa log'ga yozadi, exception otmaydi.
+    /// Muvaffaqiyatli yuborilsa true qaytaradi.</summary>
+    public async Task<bool> SendBackupFileAsync(long chatId, byte[] fileData, string fileName)
+    {
+        if (!telegram.IsConfigured)
+        {
+            logger.LogWarning("Telegram backup yuborib bo'lmadi — bot sozlanmagan.");
+            return false;
+        }
+        if (chatId == 0 || fileData.Length == 0)
+        {
+            logger.LogWarning("Telegram backup: chatId ({Id}) yoki fayl bo'sh.", chatId);
+            return false;
+        }
+        try
+        {
+            var caption = $"Backup: {fileName}\nVaqt: {AppClock.Now:yyyy-MM-dd HH:mm} (UTC)";
+            var result = await telegram.SendDocumentReturningIdAsync(
+                chatId, null, fileData, fileName, "application/gzip", caption, CancellationToken.None);
+            if (result is not null)
+            {
+                logger.LogInformation("Telegram backup muvaffaqiyatli yuborildi: {File} → chatId {Id}", fileName, chatId);
+                return true;
+            }
+            logger.LogWarning("Telegram backup yuborilmadi (null file_id): chatId {Id}", chatId);
+            return false;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Telegram backup yuborishda xato: chatId {Id}, file {File}", chatId, fileName);
+            return false;
+        }
+    }
+
     private static string FileName(string name) =>
         string.IsNullOrWhiteSpace(name) ? "app.apk"
         : name.EndsWith(".apk", StringComparison.OrdinalIgnoreCase) ? name : name + ".apk";

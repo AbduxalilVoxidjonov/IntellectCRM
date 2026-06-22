@@ -114,6 +114,47 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
         return new TelegramSettingsDto(m.TelegramBotToken, m.TelegramBotUsername, m.TelegramBotName, telegram.IsConfigured, m.TelegramChannel);
     }
 
+    // ---------- Telegram backup ----------
+
+    [HttpGet("telegram-backup")]
+    public async Task<ActionResult<TelegramBackupConfigDto>> GetTelegramBackupConfig()
+    {
+        var m = await db.CenterMeta.FirstOrDefaultAsync();
+        return new TelegramBackupConfigDto(
+            m?.TelegramAdminChatId,
+            m?.BackupScheduleHour ?? 21,
+            m?.TelegramBackupEnabled ?? true,
+            m?.TelegramBackupLastSentAt);
+    }
+
+    [HttpPost("telegram-backup")]
+    public async Task<ActionResult<TelegramBackupConfigDto>> SaveTelegramBackupConfig(SaveTelegramBackupConfigRequest req)
+    {
+        if (req.ScheduleHour is < 0 or > 23)
+            return BadRequest(new { message = "ScheduleHour 0-23 oralig'ida bo'lishi kerak" });
+
+        var chatId = (req.AdminChatId ?? "").Trim();
+        if (chatId.Length > 0)
+        {
+            if (!long.TryParse(chatId, out var parsed) || parsed == 0)
+                return BadRequest(new { message = "AdminChatId faqat raqam bo'lishi kerak (masalan: 123456789)" });
+        }
+
+        var m = await db.CenterMeta.FirstOrDefaultAsync();
+        if (m is null) { m = new CenterMeta(); db.CenterMeta.Add(m); }
+
+        m.TelegramAdminChatId = chatId.Length > 0 ? chatId : null;
+        m.BackupScheduleHour = req.ScheduleHour;
+        m.TelegramBackupEnabled = req.Enabled;
+        await db.SaveChangesAsync();
+
+        return new TelegramBackupConfigDto(
+            m.TelegramAdminChatId,
+            m.BackupScheduleHour,
+            m.TelegramBackupEnabled,
+            m.TelegramBackupLastSentAt);
+    }
+
     // ---------- Push (Firebase / FCM) — faqat native (Flutter) ilovaga ----------
     // PWA/web push olib tashlandi: ilova FCM tokenni native oladi, server Service Account
     // JSON bilan o'sha tokenga push yuboradi (web config / VAPID kerak emas).

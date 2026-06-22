@@ -632,6 +632,20 @@ namespace IntellectCRM.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("TelegramAdminChatId")
+                        .HasColumnType("text");
+
+                    b.Property<int>("BackupScheduleHour")
+                        .HasDefaultValue(21)
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("TelegramBackupEnabled")
+                        .HasDefaultValue(true)
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("TelegramBackupLastSentAt")
+                        .HasColumnType("timestamp without time zone");
+
                     b.Property<bool>("TurnstileEnabled")
                         .HasColumnType("boolean");
 
