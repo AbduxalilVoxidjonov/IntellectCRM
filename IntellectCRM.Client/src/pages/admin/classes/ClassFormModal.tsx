@@ -34,6 +34,7 @@ const empty: ClassPayload = {
   language: 'uz',
   monthlyFee: 0,
   room: '',
+  roomId: '',
   status: 'active',
   startDate: '',
   endDate: '',
@@ -79,6 +80,7 @@ export function ClassFormModal({ open, onClose, onSubmit, initial }: Props) {
             language: initial.language,
             monthlyFee: initial.monthlyFee,
             room: initial.room ?? '',
+            roomId: initial.roomId ?? '',
             status: initial.status ?? 'active',
             startDate: initial.startDate ?? '',
             endDate: initial.endDate ?? '',
@@ -124,13 +126,15 @@ export function ClassFormModal({ open, onClose, onSubmit, initial }: Props) {
       alert("Guruhga o'qituvchi biriktirish majburiy")
       return
     }
-    doSubmit(form)
+    try {
+      doSubmit(form)
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      alert(msg ?? 'Saqlashda xatolik yuz berdi')
+    }
   }
 
   const doSubmit = (values: ClassPayload) => {
-    // Backend roomConflict qaytarsa ogohlantiramiz; onSubmit callback xato tashlamaydi.
-    // Agar caller onSubmit ichida Promise qaytarsa va {roomConflict, conflictList} bo'lsa — handle.
-    // Hozirgi arxitekturada onSubmit sync (ClassesPage), shuning uchun:
     onSubmit(values)
   }
 
@@ -232,12 +236,19 @@ export function ClassFormModal({ open, onClose, onSubmit, initial }: Props) {
           </Select>
           <Select
             label="Xona"
-            value={form.room}
-            onChange={(e) => update('room', e.target.value)}
+            value={form.roomId ?? ''}
+            onChange={(e) => {
+              const selectedRoom = rooms.find((r) => r.id === e.target.value)
+              setForm((f) => ({
+                ...f,
+                roomId: e.target.value,
+                room: selectedRoom?.name ?? '',
+              }))
+            }}
           >
-            <option value="">Tanlang yoki kiriting...</option>
+            <option value="">Tanlang...</option>
             {rooms.map((r) => (
-              <option key={r.id} value={r.name}>
+              <option key={r.id} value={r.id}>
                 {r.name}{r.building ? ` (${r.building})` : ''} — {r.capacity} o'rin
               </option>
             ))}

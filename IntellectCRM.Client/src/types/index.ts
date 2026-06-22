@@ -296,8 +296,10 @@ export interface Group {
   language: ClassLanguage
   /** Oylik to'lov (so'm) */
   monthlyFee: number
-  /** Xona raqami */
+  /** Xona raqami (matnli, eski — backward compat) */
   room?: string
+  /** Xona FK (Room.Id). Yangi guruhlarda shu ishlatiladi. */
+  roomId?: string
   /** Sinf arxivlangan (arxivlanganda o'quvchilari ham arxivlanadi) */
   isArchived?: boolean
   /** Arxivga olingan sana (ISO) */

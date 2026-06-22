@@ -38,9 +38,17 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
         if (await db.Teachers.FindAsync(p.TeacherId) is null)
             return BadRequest(new { message = "Tanlangan o'qituvchi topilmadi" });
 
+        // RoomId berilsa — xona nomini DB dan olish (Room string field uchun).
+        string? resolvedRoomName = p.Room;
+        if (!string.IsNullOrWhiteSpace(p.RoomId))
+        {
+            var roomEntity = await db.Rooms.FindAsync(p.RoomId);
+            if (roomEntity is not null) resolvedRoomName = roomEntity.Name;
+        }
+
         // Xona konflikti tekshiruvi (REJECT emas — WARNING; frontend qayta so'rasa saqlaydi).
         var conflicts = await roomConflict.CheckRoomConflictAsync(
-            p.Room, p.Days ?? [], p.StartTime, p.EndTime);
+            p.RoomId, p.Days ?? [], p.StartTime, p.EndTime);
         if (conflicts.Count > 0)
             return Ok(new
             {
@@ -56,7 +64,8 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
             Grade = p.Grade,
             Language = p.Language,
             MonthlyFee = p.MonthlyFee,
-            Room = p.Room,
+            Room = resolvedRoomName,
+            RoomId = string.IsNullOrWhiteSpace(p.RoomId) ? null : p.RoomId,
             Status = string.IsNullOrWhiteSpace(p.Status) ? "active" : p.Status!,
             StartDate = p.StartDate,
             EndDate = p.EndDate,
@@ -103,9 +112,17 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
         if (await db.Teachers.FindAsync(p.TeacherId) is null)
             return BadRequest(new { message = "Tanlangan o'qituvchi topilmadi" });
 
+        // RoomId berilsa — xona nomini DB dan olish (Room string field uchun).
+        string? resolvedRoomName = p.Room;
+        if (!string.IsNullOrWhiteSpace(p.RoomId))
+        {
+            var roomEntity = await db.Rooms.FindAsync(p.RoomId);
+            if (roomEntity is not null) resolvedRoomName = roomEntity.Name;
+        }
+
         // Xona konflikti tekshiruvi — o'z id'si hisoba olinmaydi (excludeGroupId=id).
         var conflicts = await roomConflict.CheckRoomConflictAsync(
-            p.Room, p.Days ?? [], p.StartTime, p.EndTime, excludeGroupId: id);
+            p.RoomId, p.Days ?? [], p.StartTime, p.EndTime, excludeGroupId: id);
         if (conflicts.Count > 0)
             return Ok(new
             {
@@ -122,7 +139,8 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
         cls.Grade = p.Grade;
         cls.Language = p.Language;
         cls.MonthlyFee = p.MonthlyFee;
-        cls.Room = p.Room;
+        cls.Room = resolvedRoomName;
+        cls.RoomId = string.IsNullOrWhiteSpace(p.RoomId) ? null : p.RoomId;
         if (!string.IsNullOrWhiteSpace(p.Status)) cls.Status = p.Status!;
         cls.StartDate = p.StartDate;
         cls.EndDate = p.EndDate;

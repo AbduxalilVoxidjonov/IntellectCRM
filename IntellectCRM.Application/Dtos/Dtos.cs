@@ -155,7 +155,8 @@ public record ClassPayload(
     string Name, int Grade, string Language, decimal MonthlyFee, string? Room,
     string? Status = null, string? StartDate = null, string? EndDate = null, int Capacity = 0,
     string? CourseId = null, string? TeacherId = null, string? Note = null,
-    List<int>? Days = null, string? StartTime = null, string? EndTime = null);
+    List<int>? Days = null, string? StartTime = null, string? EndTime = null,
+    string? RoomId = null);
 
 /// <summary>O'quvchining bitta guruh a'zoligi (M2M).</summary>
 public record StudentGroupDto(

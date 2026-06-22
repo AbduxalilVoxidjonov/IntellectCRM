@@ -127,9 +127,23 @@ export function ClassesPage() {
   }, [])
 
   const applyUpdate = (id: string, values: ClassPayload, applyFee?: boolean) =>
-    updateClass(id, values, applyFee).then((u) =>
-      setClasses((prev) => prev.map((c) => (c.id === u.id ? u : c))),
-    )
+    updateClass(id, values, applyFee)
+      .then((u) => {
+        // Backend xona konflikti warning qaytarsa (200 + roomConflict=true) — yangilamaymiz
+        const any = u as unknown as Record<string, unknown>
+        if (any.roomConflict) {
+          const list = (any.conflicts as Array<{ groupName: string; sharedDays: string; existingSlot: string }> | undefined)
+            ?.map((c) => `${c.groupName} (${c.sharedDays}, ${c.existingSlot})`)
+            .join('; ')
+          alert(`Xonada vaqt konflikti: ${list ?? ''}`)
+          return
+        }
+        setClasses((prev) => prev.map((c) => (c.id === u.id ? u : c)))
+      })
+      .catch((e: unknown) => {
+        const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
+        alert(msg ?? 'Saqlashda xatolik yuz berdi')
+      })
 
   const handleSubmit = (values: ClassPayload) => {
     if (editing) {
@@ -142,7 +156,22 @@ export function ClassesPage() {
       }
       applyUpdate(editing.id, values)
     } else {
-      createClass(values).then((c) => setClasses((prev) => [...prev, c]))
+      createClass(values)
+        .then((c) => {
+          const any = c as unknown as Record<string, unknown>
+          if (any.roomConflict) {
+            const list = (any.conflicts as Array<{ groupName: string; sharedDays: string; existingSlot: string }> | undefined)
+              ?.map((x) => `${x.groupName} (${x.sharedDays}, ${x.existingSlot})`)
+              .join('; ')
+            alert(`Xonada vaqt konflikti: ${list ?? ''}`)
+            return
+          }
+          setClasses((prev) => [...prev, c])
+        })
+        .catch((e: unknown) => {
+          const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
+          alert(msg ?? 'Saqlashda xatolik yuz berdi')
+        })
     }
     setFormOpen(false)
     setEditing(null)

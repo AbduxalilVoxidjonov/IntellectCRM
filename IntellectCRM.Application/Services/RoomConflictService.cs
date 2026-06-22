@@ -21,22 +21,22 @@ public class RoomConflictService(IAppDbContext db)
     }
 
     /// <summary>
-    /// Berilgan xona, kunlar va vaqt oralig'i uchun konfliktli guruhlarni qaytaradi.
-    /// Bo'sh room/days/time berilsa — bo'sh ro'yxat (tekshirish o'tkazilmaydi).
+    /// Berilgan xona (FK RoomId), kunlar va vaqt oralig'i uchun konfliktli guruhlarni qaytaradi.
+    /// Bo'sh roomId/days/time berilsa — bo'sh ro'yxat (tekshirish o'tkazilmaydi).
     /// <paramref name="excludeGroupId"/> — tahrirlash paytida o'z id'sini chiqarib tashlash uchun.
     /// </summary>
     public async Task<List<ConflictInfo>> CheckRoomConflictAsync(
-        string? room, List<int> days, string? startTime, string? endTime,
+        string? roomId, List<int> days, string? startTime, string? endTime,
         string? excludeGroupId = null)
     {
-        if (string.IsNullOrWhiteSpace(room)
+        if (string.IsNullOrWhiteSpace(roomId)
             || days.Count == 0
             || string.IsNullOrWhiteSpace(startTime)
             || string.IsNullOrWhiteSpace(endTime))
             return [];
 
         var existing = await db.Classes
-            .Where(g => g.Room == room
+            .Where(g => g.RoomId == roomId
                      && !g.IsArchived
                      && g.Id != excludeGroupId
                      && g.Days != null
