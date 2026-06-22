@@ -58,16 +58,8 @@ public class TeacherAttendanceController(
             .Select(a => new TeacherAttendanceDto(a.TeacherId, a.Date, a.Status, a.Note))
             .ToListAsync();
 
-        // Chorak (dars jadvali) davrlari — davomat faqat shu kunlarda belgilanadi.
-        var quarters = (await TeacherSalaryCalc.QuarterRangesAsync(db))
-            .Select(q => new DateRangeDto(q.Start, q.End)).ToList();
-
-        return new TeacherAttendanceBoardDto(teachers, entries, quarters);
+        return new TeacherAttendanceBoardDto(teachers, entries);
     }
-
-    /// <summary>Sana biror chorak (dars jadvali) ichidami (choraklar yo'q = cheklov yo'q).</summary>
-    private async Task<bool> InTeachingPeriodAsync(string date) =>
-        TeacherSalaryCalc.InQuarter(date, await TeacherSalaryCalc.QuarterRangesAsync(db));
 
     /// <summary>Bitta kun-katakni belgilash. Status bo'sh / noto'g'ri bo'lsa — belgini o'chiradi.</summary>
     [HttpPut]
@@ -82,9 +74,6 @@ public class TeacherAttendanceController(
         var start = TeacherSalaryCalc.StartDateOf(teacher);
         if (start is not null && string.CompareOrdinal(req.Date, start) < 0)
             return BadRequest(new { message = "O'qituvchi bu sanadan keyin ishga kirgan — davomat belgilab bo'lmaydi" });
-        // Dars jadvali (chorak) davridan tashqari kunlarga davomat belgilanmaydi — agar belgi qo'yilayotgan bo'lsa.
-        if (Valid.Contains(req.Status ?? "") && !await InTeachingPeriodAsync(req.Date))
-            return BadRequest(new { message = "Bu kun dars jadvali (chorak) davrida emas — davomat belgilab bo'lmaydi" });
 
         var existing = await db.TeacherAttendances
             .FirstOrDefaultAsync(a => a.TeacherId == req.TeacherId && a.Date == req.Date);
@@ -131,10 +120,6 @@ public class TeacherAttendanceController(
         if (!Valid.Contains(status))
         {
             db.TeacherAttendances.RemoveRange(existing);
-        }
-        else if (!await InTeachingPeriodAsync(req.Date))
-        {
-            return BadRequest(new { message = "Bu kun dars jadvali (chorak) davrida emas" });
         }
         else
         {

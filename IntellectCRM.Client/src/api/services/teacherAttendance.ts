@@ -12,8 +12,6 @@ export interface TeacherAttendanceEntry {
 export interface TeacherAttendanceBoard {
   teachers: { id: string; fullName: string; startDate: string }[]
   entries: TeacherAttendanceEntry[]
-  /** Chorak (dars jadvali) davrlari — davomat faqat shu kunlarda belgilanadi */
-  quarters: { start: string; end: string }[]
 }
 
 export async function getTeacherAttendance(month: string): Promise<TeacherAttendanceBoard> {
@@ -60,7 +58,6 @@ export interface AttendanceDashboard {
   date: string
   turnstileEnabled: boolean
   lastSync: string
-  inTeachingPeriod: boolean
   summary: { total: number; present: number; late: number; absent: number; notArrived: number }
   rows: DashboardRow[]
 }

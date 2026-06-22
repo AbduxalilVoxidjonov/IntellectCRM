@@ -29,9 +29,9 @@ public static class TeacherActivityReport
     }
 
     /// <summary>Umumiy ko'rinish: barcha o'qituvchilar bo'yicha bitta-bitta qator.</summary>
-    public static async Task<List<TeacherReportRowDto>> BuildOverviewAsync(IAppDbContext db, int quarter)
+    public static async Task<List<TeacherReportRowDto>> BuildOverviewAsync(IAppDbContext db)
     {
-        var (c, teachers, _, _) = await ComputeAsync(db, quarter);
+        var (c, teachers, _, _) = await ComputeAsync(db);
         var rows = teachers
             .Select(t => Row(t.Id, t.FullName, t.IsArchived, KeysFor(c, t.Id), c.LastActivity.GetValueOrDefault(t.Id)))
             .OrderBy(r => r.IsArchived).ThenBy(r => r.FullName, StringComparer.OrdinalIgnoreCase)
@@ -40,9 +40,9 @@ public static class TeacherActivityReport
     }
 
     /// <summary>Bitta o'qituvchining batafsil hisoboti (sinf/fan yoyilmasi bilan).</summary>
-    public static async Task<TeacherReportDetailDto?> BuildDetailAsync(IAppDbContext db, string teacherId, int quarter)
+    public static async Task<TeacherReportDetailDto?> BuildDetailAsync(IAppDbContext db, string teacherId)
     {
-        var (c, teachers, classNames, subjectNames) = await ComputeAsync(db, quarter);
+        var (c, teachers, classNames, subjectNames) = await ComputeAsync(db);
         var teacher = teachers.FirstOrDefault(t => t.Id == teacherId);
         if (teacher is null) return null;
 
@@ -108,20 +108,15 @@ public static class TeacherActivityReport
         Computed Computed,
         List<Teacher> Teachers,
         Dictionary<string, string> ClassNames,
-        Dictionary<string, string> SubjectNames)> ComputeAsync(IAppDbContext db, int quarter)
+        Dictionary<string, string> SubjectNames)> ComputeAsync(IAppDbContext db)
     {
         var teachers = await db.Teachers.ToListAsync();
         var classes = await db.Classes.ToListAsync();
         var classNames = classes.ToDictionary(c => c.Id, c => c.Name);
         var subjectNames = await db.Subjects.ToDictionaryAsync(s => s.Id, s => s.Name);
 
-        var notesQ = db.LessonNotes.AsQueryable();
-        if (quarter > 0) notesQ = notesQ.Where(n => n.Quarter == quarter);
-        var notes = await notesQ.ToListAsync();
-
-        var entriesQ = db.JournalEntries.Where(e => e.Grade != null);
-        if (quarter > 0) entriesQ = entriesQ.Where(e => e.Quarter == quarter);
-        var entries = await entriesQ.ToListAsync();
+        var notes = await db.LessonNotes.ToListAsync();
+        var entries = await db.JournalEntries.Where(e => e.Grade != null).ToListAsync();
 
         // (ClassId, SubjectId=CourseId) -> TeacherId; va (ClassId, SubjectId) -> o'qituvchilar to'plami.
         // Biriktirish endi to'g'ridan-to'g'ri guruhda: Group.TeacherId (o'qituvchi) + Group.CourseId (kurs).

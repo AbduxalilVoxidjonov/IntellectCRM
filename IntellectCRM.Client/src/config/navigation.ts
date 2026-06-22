@@ -12,7 +12,6 @@ import {
   ClipboardCheck,
   Settings,
   Smartphone,
-  BarChart3,
   Building2,
   BookOpen,
   Archive,
@@ -79,6 +78,7 @@ export const navByRole: Record<Role, NavItem[]> = {
         { label: "O'qituvchilar ro'yxati", to: '/admin/teachers', end: true },
         { label: "O'qituvchilar davomati", to: '/admin/teachers/attendance' },
         { label: 'Oylik hisoblash', to: '/admin/teachers/salary' },
+        { label: "O'qituvchilar hisoboti", to: '/admin/teacher-reports', perm: 'teacherReports' },
       ],
     },
     { label: 'Guruhlar', to: '/admin/classes', icon: School, perm: 'classes' },
@@ -129,7 +129,6 @@ export const navByRole: Record<Role, NavItem[]> = {
         { label: "O'qituvchilar", to: '/admin/app/teachers' },
       ],
     },
-    { label: "O'qituvchilar hisoboti", to: '/admin/teacher-reports', icon: BarChart3, perm: 'teacherReports' },
     { label: 'Moliya', to: '/admin/finance', icon: Wallet, perm: 'finance' },
     {
       label: 'Boshqaruv',

@@ -90,9 +90,8 @@ public record SalaryReportRowDto(
 /// <summary>O'qituvchilar davomati — oylik board (o'qituvchilar + belgilangan kunlar).</summary>
 public record TeacherNameDto(string Id, string FullName, string StartDate = "");
 public record TeacherAttendanceDto(string TeacherId, string Date, string Status, string Note);
-public record DateRangeDto(string Start, string End);
 public record TeacherAttendanceBoardDto(
-    List<TeacherNameDto> Teachers, List<TeacherAttendanceDto> Entries, List<DateRangeDto> Quarters);
+    List<TeacherNameDto> Teachers, List<TeacherAttendanceDto> Entries);
 public record SetTeacherAttendanceRequest(string TeacherId, string Date, string? Status, string? Note);
 /// <summary>Bitta kun uchun BARCHA faol o'qituvchini belgilash (status bo'sh = o'sha kun tozalanadi).</summary>
 public record SetTeacherAttendanceDayRequest(string Date, string? Status);
@@ -106,7 +105,7 @@ public record TeacherDashboardRowDto(
 public record AttendanceSummaryDto(int Total, int Present, int Late, int Absent, int NotArrived);
 /// <summary>O'qituvchilar davomati dashboard (tanlangan kun).</summary>
 public record TeacherAttendanceDashboardDto(
-    string Date, bool TurnstileEnabled, string LastSync, bool InTeachingPeriod,
+    string Date, bool TurnstileEnabled, string LastSync,
     AttendanceSummaryDto Summary, List<TeacherDashboardRowDto> Rows);
 /// <summary>Sinxronlash natijasi.</summary>
 public record TurnstileSyncResultDto(bool Ok, string Message, int EventsFetched, int Updated, string LastSync);

@@ -107,7 +107,7 @@ function DashboardSection() {
 
   // Holatni qo'lda almashtirish (admin tuzatishi mumkin — manual sifatida saqlanadi)
   const cycle = (teacherId: string, current: string) => {
-    if (!dash?.inTeachingPeriod) return
+    if (!dash) return
     const next = CYCLE[current] ?? 'present'
     setDash((prev) =>
       prev
@@ -204,8 +204,6 @@ function DashboardSection() {
         <Loader label="Yuklanmoqda..." />
       ) : !dash || dash.rows.length === 0 ? (
         <p className="py-8 text-center text-slate-400">O'qituvchi yo'q</p>
-      ) : !dash.inTeachingPeriod ? (
-        <p className="py-8 text-center text-slate-400">Bu kun dars jadvali (chorak) davrida emas</p>
       ) : visibleRows.length === 0 ? (
         <p className="py-8 text-center text-slate-400">Filtrga mos o'qituvchi topilmadi</p>
       ) : (
@@ -283,7 +281,7 @@ function DashboardSection() {
 
 function MonthlyGrid() {
   const [month, setMonth] = useState(currentMonth())
-  const [board, setBoard] = useState<TeacherAttendanceBoard>({ teachers: [], entries: [], quarters: [] })
+  const [board, setBoard] = useState<TeacherAttendanceBoard>({ teachers: [], entries: [] })
   const [loading, setLoading] = useState(true)
 
   const load = useCallback((m: string) => {
@@ -303,10 +301,6 @@ function MonthlyGrid() {
       .filter((d) => !isSunday(d))
   }, [month])
 
-  // Sana dars jadvali (chorak) davrida ekanmi. Choraklar bo'sh = cheklov yo'q (hammasi ochiq).
-  const inQuarter = (date: string) =>
-    board.quarters.length === 0 || board.quarters.some((q) => date >= q.start && date <= q.end)
-
   // teacherId|date → status (tezkor qidiruv uchun)
   const map = useMemo(() => {
     const m: Record<string, string> = {}
@@ -319,7 +313,7 @@ function MonthlyGrid() {
 
   const cycle = (teacherId: string, date: string) => {
     const teacher = board.teachers.find((x) => x.id === teacherId)
-    if (!inQuarter(date) || (teacher && notYet(teacher.startDate, date))) return
+    if (teacher && notYet(teacher.startDate, date)) return
 
     const prevStatus = statusOf(teacherId, date)
     const next = CYCLE[prevStatus] ?? 'present'
@@ -339,14 +333,13 @@ function MonthlyGrid() {
   }
 
   const activeOn = (date: string) =>
-    inQuarter(date) ? board.teachers.filter((t) => !notYet(t.startDate, date)) : []
+    board.teachers.filter((t) => !notYet(t.startDate, date))
   const allPresent = (date: string) => {
     const act = activeOn(date)
     return act.length > 0 && act.every((t) => statusOf(t.id, date) === 'present')
   }
 
   const toggleDay = (date: string) => {
-    if (!inQuarter(date)) return
     const makePresent = !allPresent(date)
     const act = activeOn(date)
     setBoard((prev) => {
@@ -403,24 +396,13 @@ function MonthlyGrid() {
                     F.I.SH
                   </th>
                   {days.map((d) => {
-                    const off = !inQuarter(d)
                     return (
                       <th key={d} className="px-0.5 py-1 text-center">
                         <button
                           type="button"
-                          disabled={off}
                           onClick={() => toggleDay(d)}
-                          title={
-                            off
-                              ? 'Dars jadvali (chorak) davri emas'
-                              : allPresent(d)
-                                ? 'Bosing: shu kunni tozalash'
-                                : 'Bosing: hammasi keldi'
-                          }
-                          className={cn(
-                            'mx-auto flex flex-col items-center rounded-md px-1 py-0.5 transition-colors',
-                            off ? 'cursor-not-allowed opacity-40' : 'hover:bg-brand-50',
-                          )}
+                          title={allPresent(d) ? 'Bosing: shu kunni tozalash' : 'Bosing: hammasi keldi'}
+                          className="mx-auto flex flex-col items-center rounded-md px-1 py-0.5 transition-colors hover:bg-brand-50"
                         >
                           <span className="text-[10px] font-normal text-slate-400">{weekdayShort(d)}</span>
                           <span className="text-xs font-semibold text-slate-600">{d.slice(8)}</span>
@@ -440,12 +422,11 @@ function MonthlyGrid() {
                         {t.fullName}
                       </td>
                       {days.map((d) => {
-                        const offQuarter = !inQuarter(d)
-                        if (offQuarter || notYet(t.startDate, d)) {
+                        if (notYet(t.startDate, d)) {
                           return (
                             <td key={d} className="px-0.5 py-1 text-center">
                               <span
-                                title={offQuarter ? 'Dars jadvali (chorak) davri emas' : "O'qituvchi hali ishga kirmagan"}
+                                title="O'qituvchi hali ishga kirmagan"
                                 className="mx-auto flex h-7 w-7 items-center justify-center rounded-md bg-slate-50 text-slate-200"
                               >
                                 ·

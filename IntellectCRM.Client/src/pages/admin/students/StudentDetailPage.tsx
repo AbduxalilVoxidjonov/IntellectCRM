@@ -636,7 +636,7 @@ export function StudentDetailPage() {
         )}
       </div>
 
-      {/* Fan baholari dinamikasi — chorak tanlanadi, har fan o'rtacha bahosi bar chartda */}
+      {/* Fan baholari dinamikasi — oy tanlanadi, har fan o'rtacha bahosi bar chartda */}
       {data.subjects.length > 0 && (
         <Section title="Fan baholari dinamikasi (oy bo'yicha)" icon={GraduationCap}>
           <div className="mb-4 flex flex-wrap gap-1.5">

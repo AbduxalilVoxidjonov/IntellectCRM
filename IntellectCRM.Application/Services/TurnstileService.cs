@@ -21,8 +21,6 @@ public class TurnstileService
     public async Task<TeacherAttendanceDashboardDto> BuildDashboardAsync(IAppDbContext db, string date)
     {
         var meta = await db.CenterMeta.FirstOrDefaultAsync();
-        var quarters = await TeacherSalaryCalc.QuarterRangesAsync(db);
-        var inPeriod = TeacherSalaryCalc.InQuarter(date, quarters);
         var today = AppClock.Today.ToString("yyyy-MM-dd");
         var isPast = string.CompareOrdinal(date, today) < 0;
 
@@ -43,8 +41,8 @@ public class TurnstileService
 
             entries.TryGetValue(t.Id, out var e);
             var status = e?.Status ?? "";
-            // Davomat yozuvi yo'q + chorak davri + ishga kirgan + o'tgan kun → kelmadi (jonli).
-            if (status == "" && inPeriod && !notYet && isPast) status = "absent";
+            // Davomat yozuvi yo'q + ishga kirgan + o'tgan kun → kelmadi (jonli).
+            if (status == "" && !notYet && isPast) status = "absent";
 
             var lateMin = 0;
             if (status == "late" && e is not null && e.CheckIn.Length == 5 && expected.Length == 5)
@@ -55,7 +53,7 @@ public class TurnstileService
                 case "present": present++; break;
                 case "late": late++; break;
                 case "absent": absent++; break;
-                default: if (!notYet && inPeriod) notArrived++; break;
+                default: if (!notYet) notArrived++; break;
             }
 
             rows.Add(new TeacherDashboardRowDto(
@@ -65,7 +63,7 @@ public class TurnstileService
 
         var summary = new AttendanceSummaryDto(teachers.Count, present, late, absent, notArrived);
         return new TeacherAttendanceDashboardDto(
-            date, meta?.TurnstileEnabled ?? false, meta?.TurnstileLastSync ?? "", inPeriod, summary, rows);
+            date, meta?.TurnstileEnabled ?? false, meta?.TurnstileLastSync ?? "", summary, rows);
     }
 
     /// <summary>
@@ -184,7 +182,6 @@ public class TurnstileService
     public async Task<int> RecomputeAsync(IAppDbContext db, DateTime from, DateTime to)
     {
         var meta = await db.CenterMeta.FirstOrDefaultAsync();
-        var quarters = await TeacherSalaryCalc.QuarterRangesAsync(db);
         var firstPeriod = await FirstPeriodByWeekdayAsync(db);
         var lessonStart = await LessonStartByPeriodAsync(db);
         var today = AppClock.Today.ToString("yyyy-MM-dd");
@@ -213,7 +210,6 @@ public class TurnstileService
         for (var d = fromDate; d <= toDate; d = d.AddDays(1))
         {
             var date = d.ToString("yyyy-MM-dd");
-            if (!TeacherSalaryCalc.InQuarter(date, quarters)) continue;
             var isPast = string.CompareOrdinal(date, today) < 0;
             foreach (var t in teachers)
             {

@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { Archive, Activity, TrendingDown, HelpCircle } from 'lucide-react'
 import type { TeacherReportRow, TeacherReportDetail } from '@/types'
 import { getTeacherReport, getTeacherReportDetail } from '@/api/services/teacherReports'
-import { quarters } from '@/config/constants'
 import { formatDate, cn } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
 import { PageHeader } from '@/components/ui/PageHeader'
@@ -19,7 +18,6 @@ const statusMeta: Record<TeacherReportRow['status'], { label: string; tone: Badg
 }
 
 export function TeacherReportsPage() {
-  const [quarter, setQuarter] = useState(0) // 0 = barcha choraklar
   const [rows, setRows] = useState<TeacherReportRow[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -28,19 +26,17 @@ export function TeacherReportsPage() {
   const [detailLoading, setDetailLoading] = useState(false)
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- chorak o'zgarganda hisobotni qayta yuklash (maqsadli)
     setLoading(true)
-    setDetailOpen(false)
-    getTeacherReport(quarter)
+    getTeacherReport()
       .then(setRows)
       .finally(() => setLoading(false))
-  }, [quarter])
+  }, [])
 
   const openDetail = (id: string) => {
     setDetailOpen(true)
     setDetail(null)
     setDetailLoading(true)
-    getTeacherReportDetail(id, quarter)
+    getTeacherReportDetail(id)
       .then(setDetail)
       .finally(() => setDetailLoading(false))
   }
@@ -55,28 +51,7 @@ export function TeacherReportsPage() {
     <div>
       <PageHeader
         title="O'qituvchilar hisoboti"
-        sub="Dars o'tilishi (jadvalga nisbatan), baho, mavzu va uy vazifa faolligi"
-        actions={
-          <div className="tabs">
-            <button
-              type="button"
-              className={cn('tab', quarter === 0 && 'active')}
-              onClick={() => setQuarter(0)}
-            >
-              Barcha
-            </button>
-            {quarters.map((q) => (
-              <button
-                key={q}
-                type="button"
-                className={cn('tab', quarter === q && 'active')}
-                onClick={() => setQuarter(q)}
-              >
-                {q}-chorak
-              </button>
-            ))}
-          </div>
-        }
+        sub="Dars o'tilishi, baho, mavzu va uy vazifa faolligi"
       />
 
       <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">

@@ -40,9 +40,6 @@ export const languageOptions: { value: ClassLanguage; label: string }[] = [
   { value: 'ru', label: 'Rus' },
 ]
 
-/** Choraklar (o'qituvchilar hisoboti uchun) */
-export const quarters: number[] = [1, 2, 3, 4]
-
 /**
  * Xodimlar (barcha o'qituvchi + admin) umumiy guruh chati uchun maxsus kanal kaliti.
  * Backenddagi ChatService.StaffChannel bilan bir xil bo'lishi shart.
