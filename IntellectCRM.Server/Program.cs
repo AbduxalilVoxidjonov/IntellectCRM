@@ -399,7 +399,8 @@ using (var scope = app.Services.CreateScope())
 
     // Telegram bot tokeni — restartdan keyin bot avtomatik ishga tushadi; token yo'q bo'lsa
     // admin Sozlamadan kiritguncha kutadi.
-    scope.ServiceProvider.GetRequiredService<TelegramService>().Load(db);
+    // TODO: AddTelegramBackupConfig migration kerak
+    // scope.ServiceProvider.GetRequiredService<TelegramService>().Load(db);
 }
 
 // ---------- Pipeline ----------
