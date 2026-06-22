@@ -18,6 +18,8 @@ import { TeacherAttendancePage } from '@/pages/admin/teachers/TeacherAttendanceP
 import { TeacherSalaryPage } from '@/pages/admin/teachers/TeacherSalaryPage'
 import { ClassesPage } from '@/pages/admin/classes/ClassesPage'
 import { ClassDetailPage } from '@/pages/admin/classes/ClassDetailPage'
+import { RoomsPage } from '@/pages/admin/rooms/RoomsPage'
+import { RoomUtilizationPage } from '@/pages/admin/rooms/RoomUtilizationPage'
 import { BallarNazoratiPage } from '@/pages/admin/discipline/BallarNazoratiPage'
 import { BallSabablarPage } from '@/pages/admin/discipline/BallSabablarPage'
 import { TeacherReportsPage } from '@/pages/admin/teacher-reports/TeacherReportsPage'
@@ -138,6 +140,8 @@ export default function App() {
           <Route path="teachers/attendance" element={<RequirePerm perm="teachers"><TeacherAttendancePage /></RequirePerm>} />
           <Route path="classes" element={<RequirePerm perm="classes"><ClassesPage /></RequirePerm>} />
           <Route path="classes/:id" element={<RequirePerm perm="classes"><ClassDetailPage /></RequirePerm>} />
+          <Route path="rooms" element={<RequirePerm perm="classes"><RoomsPage /></RequirePerm>} />
+          <Route path="rooms/utilization" element={<RequirePerm perm="classes"><RoomUtilizationPage /></RequirePerm>} />
           <Route path="teachers/salary" element={<RequirePerm perm="teachers"><TeacherSalaryPage /></RequirePerm>} />
           <Route path="discipline" element={<RequirePerm perm="discipline"><BallarNazoratiPage /></RequirePerm>} />
           <Route path="discipline/reasons" element={<RequirePerm perm="discipline"><BallSabablarPage /></RequirePerm>} />

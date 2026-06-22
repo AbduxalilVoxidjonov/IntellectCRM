@@ -245,6 +245,32 @@ export interface Student {
   discountNote: string
 }
 
+/* ---------- Xonalar ---------- */
+
+export interface Room {
+  id: string
+  name: string
+  capacity: number
+  building?: string
+  location?: string
+  isActive: boolean
+  createdAt: string
+}
+
+export interface RoomUtilization {
+  roomId: string
+  roomName: string
+  capacity: number
+  currentStudents: number
+  occupancyPercent: number
+  activeGroupCount: number
+  weeklyUtilizationPercent: number
+  efficiencyScore: number
+  efficiencyStatus: string
+  building?: string
+  location?: string
+}
+
 /* ---------- Kurslar (fanlar) ---------- */
 
 export interface Subject {

@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import type { Group, Subject, Teacher } from '@/types'
+import type { Group, Subject, Teacher, Room } from '@/types'
 import type { ClassPayload } from '@/api/services/classes'
 import { getSubjects } from '@/api/services/subjects'
 import { getTeachers } from '@/api/services/teachers'
+import { getRooms } from '@/api/services/rooms'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input, Select, Textarea } from '@/components/ui/Input'
@@ -49,13 +50,20 @@ export function ClassFormModal({ open, onClose, onSubmit, initial }: Props) {
   const [form, setForm] = useState<ClassPayload>(empty)
   const [subjects, setSubjects] = useState<Subject[]>([])
   const [teachers, setTeachers] = useState<Teacher[]>([])
+  const [rooms, setRooms] = useState<Room[]>([])
+  // Xona konflikt ogohlantirishini ko'rsatish uchun (backend 200 + roomConflict: true)
+  const [roomConflict, setRoomConflict] = useState<{
+    conflictList: string
+    pendingSubmit: ClassPayload
+  } | null>(null)
 
   useEffect(() => {
     if (!open) return
-    Promise.all([getSubjects(), getTeachers()])
-      .then(([s, t]) => {
+    Promise.all([getSubjects(), getTeachers(), getRooms()])
+      .then(([s, t, r]) => {
         setSubjects(s)
         setTeachers(t)
+        setRooms(r.filter((rm) => rm.isActive))
       })
       .catch(() => {})
   }, [open])
@@ -116,10 +124,51 @@ export function ClassFormModal({ open, onClose, onSubmit, initial }: Props) {
       alert("Guruhga o'qituvchi biriktirish majburiy")
       return
     }
-    onSubmit(form)
+    doSubmit(form)
+  }
+
+  const doSubmit = (values: ClassPayload) => {
+    // Backend roomConflict qaytarsa ogohlantiramiz; onSubmit callback xato tashlamaydi.
+    // Agar caller onSubmit ichida Promise qaytarsa va {roomConflict, conflictList} bo'lsa — handle.
+    // Hozirgi arxitekturada onSubmit sync (ClassesPage), shuning uchun:
+    onSubmit(values)
+  }
+
+  const handleConflictForce = () => {
+    if (!roomConflict) return
+    onSubmit(roomConflict.pendingSubmit)
+    setRoomConflict(null)
   }
 
   return (
+    <>
+    {/* Xona konflikt ogohlantiruv modali */}
+    {roomConflict && (
+      <Modal
+        open
+        onClose={() => setRoomConflict(null)}
+        title="Xonada jadval konflikti!"
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setRoomConflict(null)}>
+              Bekor qilish
+            </Button>
+            <Button variant="danger" onClick={handleConflictForce}>
+              Baribir saqlash
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <p className="text-sm text-red-700 font-medium">
+            Tanlangan xona shu vaqt oralig'ida band:
+          </p>
+          <p className="text-sm text-slate-600">{roomConflict.conflictList}</p>
+          <p className="text-sm text-slate-500">Davom etishni xohlaysizmi?</p>
+        </div>
+      </Modal>
+    )}
     <Modal
       open={open}
       onClose={onClose}
@@ -181,12 +230,18 @@ export function ClassFormModal({ open, onClose, onSubmit, initial }: Props) {
               </option>
             ))}
           </Select>
-          <Input
+          <Select
             label="Xona"
-            placeholder="301"
             value={form.room}
             onChange={(e) => update('room', e.target.value)}
-          />
+          >
+            <option value="">Tanlang yoki kiriting...</option>
+            {rooms.map((r) => (
+              <option key={r.id} value={r.name}>
+                {r.name}{r.building ? ` (${r.building})` : ''} — {r.capacity} o'rin
+              </option>
+            ))}
+          </Select>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
@@ -276,5 +331,6 @@ export function ClassFormModal({ open, onClose, onSubmit, initial }: Props) {
         />
       </form>
     </Modal>
+    </>
   )
 }

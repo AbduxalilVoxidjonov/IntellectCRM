@@ -16,6 +16,7 @@ import {
   Building2,
   BookOpen,
   Archive,
+  DoorOpen,
 } from 'lucide-react'
 import type { Role } from '@/types'
 
@@ -81,6 +82,16 @@ export const navByRole: Record<Role, NavItem[]> = {
       ],
     },
     { label: 'Guruhlar', to: '/admin/classes', icon: School, perm: 'classes' },
+    {
+      label: 'Xonalar',
+      to: '/admin/rooms',
+      icon: DoorOpen,
+      perm: 'classes',
+      children: [
+        { label: "Xonalar ro'yxati", to: '/admin/rooms', end: true },
+        { label: 'Samaradorlik', to: '/admin/rooms/utilization' },
+      ],
+    },
     {
       label: "O'quv bo'limi",
       to: '/admin/oquv-bolimi',
