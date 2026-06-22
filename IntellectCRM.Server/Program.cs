@@ -354,7 +354,10 @@ using (var scope = app.Services.CreateScope())
 
     // Xodim roli shablonlari — yangi xodim qo'shishda tanlash uchun standart rolle/ruxsatlar.
     // IDEMPOTENT: jadval BO'SH bo'lsa seed qilinadi (admin keyin tahrir qila oladi).
-    if (!db.StaffRoleTemplates.Any())
+    // TRY-CATCH: jadval yo'q bo'lsa (migration qo'llanmagan) logga yozib o'tadi.
+    try
+    {
+        if (!db.StaffRoleTemplates.Any())
     {
         var templates = new (string Code, string Name, string Desc, string[] Perms)[]
         {
@@ -380,6 +383,12 @@ using (var scope = app.Services.CreateScope())
         }
         db.SaveChanges();
         app.Logger.LogInformation("[seed] Standart xodim roli shablonlari (3 ta) yaratildi");
+        }
+    }
+    catch (Exception ex)
+    {
+        app.Logger.LogWarning(ex,
+            "[seed] StaffRoleTemplates seed failed (migration qo'llanmagan bo'lsa normal) — keyingi restartda qayta urinyadi");
     }
 
     // Telegram bot tokeni — restartdan keyin bot avtomatik ishga tushadi; token yo'q bo'lsa
