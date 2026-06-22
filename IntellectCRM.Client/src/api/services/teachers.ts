@@ -4,6 +4,7 @@ import type {
   MonthStatus,
   SalaryLedger,
   Teacher,
+  TeacherPerformance,
 } from '@/types'
 import { delay, uid } from '@/lib/utils'
 import { api, USE_MOCK } from '../client'
@@ -166,6 +167,16 @@ export async function getSalaryLedger(id: string, from?: string, to?: string): P
   const { data } = await api.get<SalaryLedger>(`/admin/teachers/${id}/salary-ledger`, {
     params: { from, to },
   })
+  return data
+}
+
+/** Barcha faol o'qituvchilarning talaba saqlab qolish statistikasi (lifetime, per-group) */
+export async function getTeacherPerformance(): Promise<TeacherPerformance[]> {
+  if (USE_MOCK) {
+    await delay()
+    return []
+  }
+  const { data } = await api.get<TeacherPerformance[]>('/admin/teachers/performance')
   return data
 }
 

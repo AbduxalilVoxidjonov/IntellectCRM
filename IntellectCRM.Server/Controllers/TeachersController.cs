@@ -300,6 +300,71 @@ public class TeachersController(AppDbContext db, AuditService audit) : Controlle
     }
 
     /// <summary>
+    /// Barcha faol o'qituvchilarning talaba saqlab qolish statistikasi (lifetime, per-group).
+    /// Qaytadi: retention%, loss%, effectiveness score — saralash retention bo'yicha (kamayish).
+    /// </summary>
+    [HttpGet("performance")]
+    public async Task<ActionResult<List<TeacherPerformanceDto>>> GetPerformance()
+    {
+        // Faol o'qituvchilar va ularning guruhlari (arxivlanmagan)
+        var teachers = await db.Teachers
+            .Where(t => !t.IsArchived)
+            .OrderBy(t => t.FullName)
+            .ToListAsync();
+
+        var teacherIds = teachers.Select(t => t.Id).ToList();
+
+        // Guruhlar (TeacherId in list) + StudentGroup a'zoliklari
+        var groups = await db.Classes
+            .Where(c => c.TeacherId != null && teacherIds.Contains(c.TeacherId!) && !c.IsArchived)
+            .Select(c => new { c.Id, c.TeacherId })
+            .ToListAsync();
+
+        var groupIds = groups.Select(g => g.Id).ToList();
+
+        var memberships = await db.StudentGroups
+            .Where(sg => groupIds.Contains(sg.GroupId))
+            .Select(sg => new { sg.GroupId, sg.Status, sg.IsActive, sg.LeftAt })
+            .ToListAsync();
+
+        // groupId → teacherId xaritasi
+        var groupTeacher = groups.ToDictionary(g => g.Id, g => g.TeacherId!);
+
+        // Per-teacher aggregat
+        var byTeacher = memberships
+            .GroupBy(sg => groupTeacher.GetValueOrDefault(sg.GroupId, ""))
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        var groupCount = groups
+            .GroupBy(g => g.TeacherId!)
+            .ToDictionary(g => g.Key, g => g.Count());
+
+        var result = teachers.Select(t =>
+        {
+            var slots = byTeacher.GetValueOrDefault(t.Id, new());
+            int total    = slots.Count;
+            int active   = slots.Count(s => s.Status == "active" && s.IsActive);
+            int frozen   = slots.Count(s => s.Status == "frozen");
+            int left     = slots.Count(s => !s.IsActive || s.LeftAt != null);
+            double retention = total > 0 ? Math.Round((double)active / total * 100, 1) : 0;
+            double loss      = total > 0 ? Math.Round((double)(frozen + left) / total * 100, 1) : 0;
+
+            return new TeacherPerformanceDto(
+                t.Id, t.FullName, t.Phone ?? "",
+                total, active, frozen, left,
+                retention, loss,
+                (int)Math.Round(retention),
+                groupCount.GetValueOrDefault(t.Id, 0)
+            );
+        })
+        .OrderByDescending(x => x.RetentionPercent)
+        .ThenBy(x => x.TeacherName)
+        .ToList();
+
+        return result;
+    }
+
+    /// <summary>
     /// O'qituvchi maoshi bo'yicha batafsil hisob (davr bo'yicha): jami berilgan, qoldiq va
     /// har oyda qancha oylik berilgani. Oylar davr (from..to) bo'yicha, oy = to'lov sanasi oyi.
     /// </summary>

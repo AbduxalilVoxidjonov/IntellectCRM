@@ -76,6 +76,21 @@ export interface StudentBreakdown {
   withoutGroup: number
 }
 
+/** O'qituvchining talaba saqlab qolish statistikasi (lifetime, per-group) */
+export interface TeacherPerformance {
+  teacherId: string
+  teacherName: string
+  phone: string
+  totalStudents: number
+  activeStudents: number
+  frozenStudents: number
+  leftStudents: number
+  retentionPercent: number
+  lossPercent: number
+  effectivenessScore: number
+  groupCount: number
+}
+
 export interface AdminDashboard {
   stats: AdminStats
   classPerformance: ClassPerformance[]

@@ -1422,3 +1422,30 @@ public record GenerateCertificateRequest(string CourseId, string? Notes = null);
 
 /// <summary>O'quvchining bir sillabus bandi bo'yicha holatini o'rnatish so'rovi.</summary>
 public record SetProgressRequest(string StudentId, string ItemId, bool Done);
+
+/* ---------- Teacher performance ---------- */
+/// <summary>
+/// Bitta o'qituvchining talaba saqlab qolish statistikasi (barcha guruhlari bo'yicha lifetime).
+/// Per-group hisob: bir talaba 2 guruhda bo'lsa = 2 slot.
+/// </summary>
+public record TeacherPerformanceDto(
+    string TeacherId,
+    string TeacherName,
+    string Phone,
+    /// <summary>Umumiy slot soni (StudentGroup yozuvlari).</summary>
+    int TotalStudents,
+    /// <summary>Hozirda faol (Status=="active") slotlar.</summary>
+    int ActiveStudents,
+    /// <summary>Muzlatilgan (Status=="frozen") slotlar.</summary>
+    int FrozenStudents,
+    /// <summary>Guruhdan chiqib ketgan (IsActive==false) slotlar.</summary>
+    int LeftStudents,
+    /// <summary>Active / Total * 100 (0-100).</summary>
+    double RetentionPercent,
+    /// <summary>(Frozen + Left) / Total * 100 (0-100).</summary>
+    double LossPercent,
+    /// <summary>0-100 ball: round(RetentionPercent).</summary>
+    int EffectivenessScore,
+    /// <summary>O'qituvchi biriktirilgan guruhlar soni (arxivlanmagan).</summary>
+    int GroupCount
+);
