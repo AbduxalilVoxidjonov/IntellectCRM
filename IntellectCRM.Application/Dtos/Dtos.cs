@@ -892,6 +892,9 @@ public record RoomGroupSlotDto(string GroupId, string GroupName, int StudentCoun
 /// <summary>
 /// Bitta xona uchun unified metrika — karta va modal ikkalasi uchun bitta manba.
 /// GET /api/admin/rooms/{id}/detail
+/// ActualStudents = barcha guruhlardagi o'quvchilar yig'indisi (unique emas — har guruh alohida slot).
+/// OccupancyPercent = ActualStudents / TotalSlots (barcha guruhlar birlashtirilgan).
+/// UtilizationPercent = ActualStudents / (Capacity × GroupCount) — OccupancyPercent bilan bir xil.
 /// </summary>
 public record RoomDetailMetricDto(
     string RoomId,
@@ -900,10 +903,10 @@ public record RoomDetailMetricDto(
     string Location,
     int Capacity,
     int GroupCount,
-    int TotalSlots,
-    int ActualStudents,
-    double OccupancyPercent,
-    double UtilizationPercent,
+    int TotalSlots,  // = Capacity × GroupCount
+    int ActualStudents,  // = SUM of all groups' active students (NOT unique)
+    double OccupancyPercent,  // = ActualStudents / TotalSlots * 100
+    double UtilizationPercent,  // = ActualStudents / (Capacity × GroupCount) — alias of OccupancyPercent
     double WeeklyUtilizationPercent,
     double WeeklyActiveHours,
     int EfficiencyScore,

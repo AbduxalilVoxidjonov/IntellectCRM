@@ -245,22 +245,17 @@ public class RoomUtilizationService(IAppDbContext db)
         int groupCount = groups.Count;
         int totalSlots = room.Capacity * groupCount;
 
-        // Unique faol o'quvchilar (occupancy uchun peak approx)
-        var uniqueStudents = new HashSet<string>();
-        foreach (var g in groups)
-            if (memberLookup.TryGetValue(g.Id, out var set))
-                foreach (var sid in set) uniqueStudents.Add(sid);
-        int actualStudents = uniqueStudents.Count;
+        // FIX: ActualStudents = barcha guruhlardagi o'quvchilar YIG'INDISI (unique emas)
+        // Har guruh alohida slot beradi, shuning uchun bir o'quvchi bir nechta guruhda bo'lsa har guruhda sanaladi.
+        int actualStudents = groups.Sum(g =>
+            memberLookup.TryGetValue(g.Id, out var s) ? s.Count : 0);
 
-        // Har guruh uchun faol (non-unique) o'quvchi soni (utilization uchun)
-        int totalActualSlots = membersByGroup.Count;
-
-        double occupancyPercent = room.Capacity > 0
-            ? Math.Round((double)actualStudents / room.Capacity * 100, 1)
+        // OccupancyPercent = ActualStudents / TotalSlots (barcha guruhlar birlashtirilgan)
+        double occupancyPercent = totalSlots > 0
+            ? Math.Round((double)actualStudents / totalSlots * 100, 1)
             : 0;
-        double utilizationPercent = totalSlots > 0
-            ? Math.Round((double)totalActualSlots / totalSlots * 100, 1)
-            : 0;
+        // UtilizationPercent = ActualStudents / (Capacity × GroupCount) — xuddi shu formula, alias
+        double utilizationPercent = occupancyPercent;
 
         double weeklyHours = CalculateWeeklyActiveHours(groups);
         const double roomCapacityHoursPerWeek = 6.0 * 14.0;
@@ -268,12 +263,12 @@ public class RoomUtilizationService(IAppDbContext db)
 
         int efficiencyScore = ComputeEfficiencyScore(occupancyPercent, weeklyPct);
 
-        string status = occupancyPercent == 0 && groupCount == 0 ? "Empty"
-            : occupancyPercent > 110 ? "Overcrowded"
-            : occupancyPercent < 30  ? "Underutilized"
+        string status = groupCount == 0 ? "Bo'sh"
+            : occupancyPercent > 100 ? "To'lib toshgan"
+            : occupancyPercent < 30  ? "Kam to'lgan"
             :                          "Optimal";
 
-        int gap = Math.Max(0, totalSlots - totalActualSlots);
+        int gap = Math.Max(0, totalSlots - actualStudents);
 
         var groupDetails = groups.Select(g => {
             int count = memberLookup.TryGetValue(g.Id, out var s) ? s.Count : 0;
