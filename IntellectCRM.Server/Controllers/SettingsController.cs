@@ -369,6 +369,25 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
         return new PaymentReminderSettingsDto(m?.PaymentRemindersEnabled ?? true);
     }
 
+    [HttpPost("telegram-backup/test")]
+    public async Task<ActionResult<object>> TestTelegramBackup()
+    {
+        var m = await db.CenterMeta.FirstOrDefaultAsync();
+        var chatIdStr = m?.TelegramAdminChatId ?? "";
+        if (string.IsNullOrWhiteSpace(chatIdStr))
+            return BadRequest(new { success = false, message = "Admin Chat ID kiritilmagan. Avval Chat ID saqlang." });
+        if (!long.TryParse(chatIdStr.Trim(), out var chatId) || chatId == 0)
+            return BadRequest(new { success = false, message = "Admin Chat ID noto'g'ri format (faqat raqam bo'lishi kerak)." });
+        if (!telegram.IsConfigured)
+            return BadRequest(new { success = false, message = "Telegram bot sozlanmagan. Avval bot token saqlang." });
+
+        var sent = await telegram.SendMessageAsync(chatId,
+            $"IntellectCRM Backup testi — {AppClock.Now:yyyy-MM-dd HH:mm}. Bu xabar test maqsadida yuborildi.");
+        if (sent)
+            return Ok(new { success = true, message = "Test xabari muvaffaqiyatli yuborildi." });
+        return Ok(new { success = false, message = "Xabar yuborishda xatolik. Chat ID va bot tokenni tekshiring." });
+    }
+
     [HttpPut("payment-reminders")]
     public async Task<ActionResult<PaymentReminderSettingsDto>> SavePaymentReminders(
         SavePaymentReminderSettingsRequest req)
