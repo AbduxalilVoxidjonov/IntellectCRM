@@ -334,6 +334,36 @@ using (var scope = app.Services.CreateScope())
         }
     }
 
+    // Xodim roli shablonlari — yangi xodim qo'shishda tanlash uchun standart rolle/ruxsatlar.
+    // IDEMPOTENT: jadval BO'SH bo'lsa seed qilinadi (admin keyin tahrir qila oladi).
+    if (!db.StaffRoleTemplates.Any())
+    {
+        var templates = new (string Code, string Name, string Desc, string[] Perms)[]
+        {
+            ("call_operator", "Qo'ng'iroq operatori",
+                "Qo'ng'iroq qabul qiladi, lidlarni yaratadi va boshqaradi",
+                new[] { "leads", "messages" }),
+            ("cashier", "Kassir",
+                "To'lovlarni kiritadi va boshqaradi, o'quvchi ma'lumotlarini ko'radi",
+                new[] { "students", "finance", "messages" }),
+            ("administrator", "Administrator",
+                "Asosiy boshqaruv — guruhlar, o'quvchilar, o'qituvchilar, o'quv bo'limi",
+                new[] { "leads", "students", "teachers", "classes", "schedule", "messages", "app" }),
+        };
+        foreach (var (code, name, desc, perms) in templates)
+        {
+            db.StaffRoleTemplates.Add(new StaffRoleTemplate
+            {
+                Code = code,
+                Name = name,
+                Description = desc,
+                DefaultPermissions = new List<string>(perms),
+            });
+        }
+        db.SaveChanges();
+        app.Logger.LogInformation("[seed] Standart xodim roli shablonlari (3 ta) yaratildi");
+    }
+
     // Telegram bot tokeni — restartdan keyin bot avtomatik ishga tushadi; token yo'q bo'lsa
     // admin Sozlamadan kiritguncha kutadi.
     scope.ServiceProvider.GetRequiredService<TelegramService>().Load(db);

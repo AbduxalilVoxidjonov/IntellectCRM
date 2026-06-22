@@ -1,15 +1,16 @@
 import { useEffect, useState } from 'react'
 import { Plus, Eye, Pencil, Trash2, Check, Users } from 'lucide-react'
-import type { Staff, Credentials } from '@/types'
+import type { Staff, Credentials, StaffRoleTemplate } from '@/types'
 import {
   getStaff,
+  getStaffRoleTemplates,
   createStaff,
   updateStaff,
   deleteStaff,
   getStaffCredentials,
   resetStaffPassword,
   setStaffPermissions,
-  type StaffPayload,
+  type CreateStaffWithTemplatePayload,
 } from '@/api/services/staff'
 import { adminPermissions } from '@/config/constants'
 import { useAuth } from '@/context/auth-context'
@@ -49,12 +50,14 @@ export function StaffPage() {
   const canManageRoles = user?.role === 'superadmin'
 
   const [staff, setStaff] = useState<Staff[]>([])
+  const [templates, setTemplates] = useState<StaffRoleTemplate[]>([])
   const [loading, setLoading] = useState(true)
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<Staff | null>(null)
-  const [form, setForm] = useState<StaffPayload>({ fullName: '', position: '' })
-  // Yangi xodim yaratishda darrov beriladigan ruxsatlar
-  const [formPerms, setFormPerms] = useState<Set<string>>(new Set())
+  const [form, setForm] = useState<CreateStaffWithTemplatePayload>({ fullName: '', position: '' })
+  // Template selection va qo'shimcha ruxsatlari
+  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null)
+  const [extraPerms, setExtraPerms] = useState<Set<string>>(new Set())
   const [saving, setSaving] = useState(false)
 
   // Har bir xodim uchun tahrirlanayotgan ruxsatlar (id → kalitlar to'plami)
@@ -71,18 +74,20 @@ export function StaffPage() {
     setDraft(Object.fromEntries(list.map((s) => [s.id, new Set(s.permissions)])))
 
   useEffect(() => {
-    getStaff()
-      .then((list) => {
+    Promise.all([
+      getStaff().then((list) => {
         setStaff(list)
         syncDraft(list)
-      })
-      .finally(() => setLoading(false))
+      }),
+      getStaffRoleTemplates().then(setTemplates),
+    ]).finally(() => setLoading(false))
   }, [])
 
   const openCreate = () => {
     setEditing(null)
     setForm({ fullName: '', position: '', phone: '' })
-    setFormPerms(new Set())
+    setSelectedTemplate(null)
+    setExtraPerms(new Set())
     setFormOpen(true)
   }
   const openEdit = (s: Staff) => {
@@ -110,15 +115,17 @@ export function StaffPage() {
         setStaff((p) => p.map((x) => (x.id === u.id ? u : x)))
         setFormOpen(false)
       } else {
-        let created = await createStaff(form)
-        // Yangi xodimga tanlangan rollarni darrov beramiz (faqat superadmin)
-        if (canManageRoles && formPerms.size > 0) {
-          created = await setStaffPermissions(created.id, [...formPerms])
+        // Template + extra ruxsatlari bilan xodim yaratish
+        const payload: CreateStaffWithTemplatePayload = {
+          ...form,
+          templateCode: selectedTemplate ?? undefined,
+          extraPermissions: extraPerms.size > 0 ? [...extraPerms] : undefined,
         }
+        const created = await createStaff(payload)
         setStaff((p) => [created, ...p])
         setDraft((d) => ({ ...d, [created.id]: new Set(created.permissions) }))
         setFormOpen(false)
-        showCredentials(created) // login/parolni darrov ko'rsatamiz
+        showCredentials(created)
       }
     } finally {
       setSaving(false)
@@ -162,14 +169,6 @@ export function StaffPage() {
       .then((u) => setStaff((p) => p.map((x) => (x.id === u.id ? u : x))))
       .finally(() => setSavingPermsId(null))
   }
-
-  const toggleFormPerm = (key: string) =>
-    setFormPerms((s) => {
-      const next = new Set(s)
-      if (next.has(key)) next.delete(key)
-      else next.add(key)
-      return next
-    })
 
   return (
     <div>
@@ -349,30 +348,83 @@ export function StaffPage() {
             </div>
           )}
           {!editing && canManageRoles && (
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-600">
-                Ruxsatlar (rollar)
-              </label>
-              <div className="flex flex-wrap gap-2">
-                {adminPermissions.map((p) => {
-                  const active = formPerms.has(p.key)
-                  return (
-                    <button
-                      key={p.key}
-                      type="button"
-                      onClick={() => toggleFormPerm(p.key)}
-                      className={cn(
-                        'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm transition-colors',
-                        active
-                          ? 'border-brand-500 bg-brand-50 text-brand-700'
-                          : 'border-slate-200 text-slate-600 hover:bg-slate-50',
-                      )}
+            <div className="space-y-4">
+              {/* Rolle shabloni tanlash */}
+              {templates.length > 0 && (
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-600">
+                    Rolle shabloni (ixtiyoriy)
+                  </label>
+                  <div className="space-y-2">
+                    <select
+                      value={selectedTemplate ?? ''}
+                      onChange={(e) => setSelectedTemplate(e.target.value || null)}
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
                     >
-                      {active && <Check className="h-3.5 w-3.5" />}
-                      {p.label}
-                    </button>
-                  )
-                })}
+                      <option value="">— Tanlang yoki qo'lda belgilang —</option>
+                      {templates.map((t) => (
+                        <option key={t.id} value={t.code}>
+                          {t.name}
+                        </option>
+                      ))}
+                    </select>
+                    {selectedTemplate && (
+                      <p className="text-xs text-slate-500">
+                        {templates.find((t) => t.code === selectedTemplate)?.description}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Default + qo'shimcha ruxsatlari */}
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-600">
+                  Ruxsatlar (rollar)
+                </label>
+                {selectedTemplate && (
+                  <p className="mb-2 text-xs text-slate-500">
+                    ✓ {templates.find((t) => t.code === selectedTemplate)?.defaultPermissions?.length ?? 0} default ruxsat
+                    {extraPerms.size > 0 && ` + ${extraPerms.size} qo'shimcha`}
+                  </p>
+                )}
+                <div className="flex flex-wrap gap-2">
+                  {adminPermissions.map((p) => {
+                    const isDefault = selectedTemplate
+                      ? templates.find((t) => t.code === selectedTemplate)?.defaultPermissions?.includes(p.key) ?? false
+                      : false
+                    const isExtra = extraPerms.has(p.key)
+                    const active = isDefault || isExtra
+                    return (
+                      <button
+                        key={p.key}
+                        type="button"
+                        onClick={() => {
+                          if (isDefault) return // default'ni qayta tanlash mumkin emas
+                          setExtraPerms((s) => {
+                            const next = new Set(s)
+                            if (next.has(p.key)) next.delete(p.key)
+                            else next.add(p.key)
+                            return next
+                          })
+                        }}
+                        disabled={isDefault}
+                        className={cn(
+                          'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm transition-colors',
+                          isDefault
+                            ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                            : active
+                              ? 'border-brand-500 bg-brand-50 text-brand-700'
+                              : 'border-slate-200 text-slate-600 hover:bg-slate-50',
+                        )}
+                      >
+                        {active && <Check className="h-3.5 w-3.5" />}
+                        {p.label}
+                        {isDefault && <span className="text-xs opacity-60">(default)</span>}
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
             </div>
           )}

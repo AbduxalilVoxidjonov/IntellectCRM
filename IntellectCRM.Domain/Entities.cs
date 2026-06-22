@@ -1453,3 +1453,22 @@ public class CertificateVerification
     /// <summary>Hash to'g'ri tekshirilganmi (SHA-256 mos kelgan).</summary>
     public bool HashMatched { get; set; }
 }
+
+/// <summary>Xodim roli shabloni — standart roller (Qo'ng'iroq operatori, Kassir, Administrator).
+/// Yangi xodim qo'shishda shablonni tanlab olsa, default ruxsatlari avtomatik belgilanadi.
+/// Keyin qo'shimcha ruxsatlarni qo'shish mumkin.</summary>
+public class StaffRoleTemplate
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    /// <summary>Shablonning kodli nomi (system uchun): call_operator, cashier, administrator.</summary>
+    public string Code { get; set; } = string.Empty;
+    /// <summary>Ko'rsatiladigan nomi: "Qo'ng'iroq operatori", "Kassir", "Administrator".</summary>
+    public string Name { get; set; } = string.Empty;
+    /// <summary>Izoh (ixtiyoriy): "Qo'ng'iroq qabul qiladi va lidlarni boshqaradi" va h.k.</summary>
+    public string Description { get; set; } = string.Empty;
+    /// <summary>Default ruxsatlari (adminPermissions kalitlari)  — JSON massiv stringlar:
+    /// ["leads","messages"] — yangi xodimga belgilanadi. Keyin qo'shimcha ruxsatlarni qo'shish mumkin.</summary>
+    public List<string> DefaultPermissions { get; set; } = new();
+    /// <summary>Yaratilgan vaqt — faqat info uchun.</summary>
+    public DateTime CreatedAt { get; set; } = AppClock.Now;
+}

@@ -1,4 +1,4 @@
-import type { Staff, Credentials } from '@/types'
+import type { Staff, Credentials, StaffRoleTemplate } from '@/types'
 import { api, USE_MOCK } from '../client'
 
 export interface StaffPayload {
@@ -9,18 +9,35 @@ export interface StaffPayload {
   phone?: string
 }
 
+export interface CreateStaffWithTemplatePayload {
+  fullName: string
+  position: string
+  phone?: string
+  newPassword?: string
+  /** Rolle shabloni kodi (call_operator, cashier, administrator) */
+  templateCode?: string
+  /** Qo'shimcha ruxsatlari */
+  extraPermissions?: string[]
+}
+
+export async function getStaffRoleTemplates(): Promise<StaffRoleTemplate[]> {
+  if (USE_MOCK) return []
+  const { data } = await api.get<StaffRoleTemplate[]>('/admin/staff/role-templates')
+  return data
+}
+
 export async function getStaff(): Promise<Staff[]> {
   if (USE_MOCK) return []
   const { data } = await api.get<Staff[]>('/admin/staff')
   return data
 }
 
-export async function createStaff(payload: StaffPayload): Promise<Staff> {
+export async function createStaff(payload: CreateStaffWithTemplatePayload): Promise<Staff> {
   const { data } = await api.post<Staff>('/admin/staff', payload)
   return data
 }
 
-export async function updateStaff(id: string, payload: StaffPayload): Promise<Staff> {
+export async function updateStaff(id: string, payload: CreateStaffWithTemplatePayload): Promise<Staff> {
   const { data } = await api.put<Staff>(`/admin/staff/${id}`, payload)
   return data
 }

@@ -841,6 +841,14 @@ public record StaffPayload(string FullName, string Position, string? NewPassword
 /// <summary>Xodimning admin bo'lim ruxsatlari (faqat superadmin o'zgartiradi).</summary>
 public record SetStaffPermissionsRequest(List<string> Permissions);
 
+/// <summary>Xodim roli shabloni — yangi xodim qo'shishda template tanlab olsa, default ruxsatlari avtomatik belgilanadi.</summary>
+public record StaffRoleTemplateDto(string Id, string Code, string Name, string Description, List<string> DefaultPermissions);
+
+/// <summary>Xodim yaratishda rolle shablonini tanlab, qo'shimcha ruxsatlari bilan qo'shish so'rovi.</summary>
+public record CreateStaffWithTemplateRequest(
+    string FullName, string Position, string? Phone = null, string? NewPassword = null,
+    string? TemplateCode = null, List<string>? ExtraPermissions = null);
+
 /// <summary>Taklif/shikoyat — admin ko'rinishi uchun (yuboruvchi roli/ismi + ixtiyoriy rasm bilan).</summary>
 public record FeedbackDto(
     string Id, string StudentName, string ParentName, string ClassName,

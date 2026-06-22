@@ -90,6 +90,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<StudentCertificate> StudentCertificates => Set<StudentCertificate>();
     public DbSet<CertificateVerification> CertificateVerifications => Set<CertificateVerification>();
 
+    // Xodim roli shablonlari
+    public DbSet<StaffRoleTemplate> StaffRoleTemplates => Set<StaffRoleTemplate>();
+
     protected override void OnModelCreating(ModelBuilder b)
     {
         // SQL Server: indeksda qatnashadigan string ustunlar default `nvarchar(max)` bo'lib

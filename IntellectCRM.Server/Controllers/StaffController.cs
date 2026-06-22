@@ -30,36 +30,64 @@ public class StaffController(AppDbContext db) : ControllerBase
         (await db.Users.Where(u => u.Role == Roles.Staff).OrderBy(u => u.FullName).ToListAsync())
             .Select(ToDto).ToList();
 
+    /// <summary>Barcha xodim roli shablonlari — yangi xodim qo'shishda tanlash uchun.</summary>
+    [HttpGet("role-templates")]
+    public async Task<ActionResult<IEnumerable<StaffRoleTemplateDto>>> GetRoleTemplates() =>
+        (await db.StaffRoleTemplates.ToListAsync())
+            .Select(t => new StaffRoleTemplateDto(t.Id, t.Code, t.Name, t.Description, t.DefaultPermissions))
+            .ToList();
+
     [HttpPost]
-    public async Task<ActionResult<StaffDto>> Create(StaffPayload p)
+    public async Task<ActionResult<StaffDto>> Create(CreateStaffWithTemplateRequest req)
     {
-        if (string.IsNullOrWhiteSpace(p.FullName)) return BadRequest(new { message = "F.I.SH kerak" });
-        var user = AccountFactory.CreateAccountFor(db, Roles.Staff, p.FullName.Trim());
-        user.Position = (p.Position ?? "").Trim();
-        user.Phone = PhoneUtil.Normalize(p.Phone ?? "");
-        if (!string.IsNullOrWhiteSpace(p.NewPassword))
+        if (string.IsNullOrWhiteSpace(req.FullName)) return BadRequest(new { message = "F.I.SH kerak" });
+        var user = AccountFactory.CreateAccountFor(db, Roles.Staff, req.FullName.Trim());
+        user.Position = (req.Position ?? "").Trim();
+        user.Phone = PhoneUtil.Normalize(req.Phone ?? "");
+
+        // Role template tanlansa — default ruxsatlari qo'shiladi
+        var permissions = new List<string>();
+        if (!string.IsNullOrWhiteSpace(req.TemplateCode))
         {
-            if (p.NewPassword.Trim().Length < MinPasswordLength)
+            var template = await db.StaffRoleTemplates
+                .FirstOrDefaultAsync(t => t.Code == req.TemplateCode.Trim());
+            if (template is not null)
+            {
+                permissions.AddRange(template.DefaultPermissions);
+            }
+        }
+        // Qo'shimcha ruxsatlari qo'shiladi
+        if (req.ExtraPermissions?.Count > 0)
+        {
+            foreach (var perm in req.ExtraPermissions)
+                if (!string.IsNullOrWhiteSpace(perm) && !permissions.Contains(perm))
+                    permissions.Add(perm);
+        }
+        user.Permissions = permissions;
+
+        if (!string.IsNullOrWhiteSpace(req.NewPassword))
+        {
+            if (req.NewPassword.Trim().Length < MinPasswordLength)
                 return BadRequest(new { message = WeakPasswordMessage });
-            user.SetInitialPassword(p.NewPassword.Trim());
+            user.SetInitialPassword(req.NewPassword.Trim());
         }
         await db.SaveChangesAsync();
         return ToDto(user);
     }
 
     [HttpPut("{id}")]
-    public async Task<ActionResult<StaffDto>> Update(string id, StaffPayload p)
+    public async Task<ActionResult<StaffDto>> Update(string id, CreateStaffWithTemplateRequest req)
     {
         var user = await db.Users.FindAsync(id);
         if (user is null || user.Role != Roles.Staff) return NotFound();
-        user.FullName = p.FullName.Trim();
-        user.Position = (p.Position ?? "").Trim();
-        user.Phone = PhoneUtil.Normalize(p.Phone ?? "");
-        if (!string.IsNullOrWhiteSpace(p.NewPassword))
+        user.FullName = req.FullName.Trim();
+        user.Position = (req.Position ?? "").Trim();
+        user.Phone = PhoneUtil.Normalize(req.Phone ?? "");
+        if (!string.IsNullOrWhiteSpace(req.NewPassword))
         {
-            if (p.NewPassword.Trim().Length < MinPasswordLength)
+            if (req.NewPassword.Trim().Length < MinPasswordLength)
                 return BadRequest(new { message = WeakPasswordMessage });
-            user.SetInitialPassword(p.NewPassword.Trim());
+            user.SetInitialPassword(req.NewPassword.Trim());
         }
         await db.SaveChangesAsync();
         return ToDto(user);

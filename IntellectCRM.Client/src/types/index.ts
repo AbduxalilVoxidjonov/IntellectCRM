@@ -727,6 +727,15 @@ export interface Staff {
   phone?: string
 }
 
+/** Xodim roli shabloni — yangi xodim qo'shishda template tanlab olsa, default ruxsatlari avtomatik belgilanadi */
+export interface StaffRoleTemplate {
+  id: string
+  code: string
+  name: string
+  description: string
+  defaultPermissions: string[]
+}
+
 /** Taklif yoki shikoyat (ota-ona ilovasidan) */
 export interface Feedback {
   id: string
