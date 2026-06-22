@@ -15,7 +15,7 @@ namespace IntellectCRM.Server.Controllers;
 [Authorize]
 [AdminPerm("settings")]
 [Route("api/admin/rooms")]
-public class RoomsController(AppDbContext db) : ControllerBase
+public class RoomsController(AppDbContext db, IntellectCRM.Application.Services.RoomUtilizationService utilization) : ControllerBase
 {
     [HttpGet]
     public async Task<List<RoomDto>> GetAll() =>
@@ -78,7 +78,41 @@ public class RoomsController(AppDbContext db) : ControllerBase
         return NoContent();
     }
 
+    /// <summary>
+    /// Barcha faol xonalar uchun bandlik + samaradorlik metrikalari.
+    /// Saralash: EfficiencyScore desc (eng samarali xonalar yuqorida).
+    /// </summary>
+    [HttpGet("utilization-dashboard")]
+    public async Task<List<RoomUtilizationDto>> GetUtilizationDashboard()
+    {
+        var metrics = await utilization.GetRoomUtilizationAsync();
+        return metrics.Select(ToUtilizationDto).ToList();
+    }
+
+    /// <summary>
+    /// Bitta xona uchun batafsil samaradorlik metrikasi.
+    /// </summary>
+    [HttpGet("{id}/utilization")]
+    public async Task<ActionResult<RoomUtilizationDto>> GetRoomUtilization(string id)
+    {
+        var room = await db.Rooms.FindAsync(id);
+        if (room is null) return NotFound();
+
+        var metrics = await utilization.GetRoomUtilizationAsync();
+        var metric = metrics.FirstOrDefault(m => m.RoomId == id);
+        if (metric is null) return NotFound();
+
+        return ToUtilizationDto(metric);
+    }
+
     private static RoomDto ToDto(Room r) =>
         new(r.Id, r.Name, r.Capacity, r.Building, r.Location,
             r.IsActive, r.CreatedAt.ToString("o"));
+
+    private static RoomUtilizationDto ToUtilizationDto(
+        IntellectCRM.Application.Services.RoomUtilizationService.RoomUtilizationMetric m) =>
+        new(m.RoomId, m.RoomName, m.Capacity, m.CurrentStudents,
+            m.OccupancyPercent, m.ActiveGroupCount, m.WeeklyActiveHours,
+            m.WeeklyUtilizationPercent, m.EfficiencyScore, m.EfficiencyStatus,
+            m.Building, m.Location, m.GroupNames);
 }

@@ -843,6 +843,25 @@ public record RoomDto(
     string Id, string Name, int Capacity, string? Building, string? Location,
     bool IsActive, string CreatedAt);
 
+/// <summary>
+/// Xona samaradorlik metrikasi — bandlik, o'quvchi soni, haftalik bandlik foizi.
+/// GET /api/admin/rooms/utilization-dashboard
+/// </summary>
+public record RoomUtilizationDto(
+    string RoomId,
+    string RoomName,
+    int Capacity,
+    int CurrentStudents,
+    double OccupancyPercent,
+    int ActiveGroupCount,
+    double WeeklyActiveHours,
+    double WeeklyUtilizationPercent,
+    int EfficiencyScore,
+    string EfficiencyStatus,
+    string Building,
+    string Location,
+    List<string> GroupNames);
+
 /// <summary>Xona yaratish so'rovi.</summary>
 public record CreateRoomRequest(string Name, int Capacity, string? Building, string? Location);
 
