@@ -26,22 +26,20 @@ namespace IntellectCRM.Infrastructure.Migrations
                     table.PrimaryKey("PK_StaffRoleTemplates", x => x.Id);
                 });
 
-            // Seed 3 ta template
-            migrationBuilder.InsertData(
-                table: "StaffRoleTemplates",
-                columns: new[] { "Id", "Code", "Name", "Description", "DefaultPermissions", "CreatedAt" },
-                values: new object[,]
-                {
-                    { "template-call-operator", "call_operator", "Qo'ng'iroq operatori", "Qo'ng'iroq qabul qiladi va lidlarni boshqaradi", "[\"leads\",\"messages\"]", DateTime.UtcNow },
-                    { "template-cashier", "cashier", "Kassir", "To'lovlarni kiritadi va boshqaradi, o'quvchi ma'lumotlarini ko'radi", "[\"students\",\"finance\",\"messages\"]", DateTime.UtcNow },
-                    { "template-administrator", "administrator", "Administrator", "Asosiy boshqaruv — guruhlar, o'quvchilar, o'qituvchilar, o'quv bo'limi", "[\"leads\",\"students\",\"teachers\",\"classes\",\"schedule\",\"messages\",\"app\"]", DateTime.UtcNow }
-                });
+            // Seed 3 ta template (raw SQL — InsertData emas, entity mapping kerak emas)
+            migrationBuilder.Sql(
+                @"INSERT INTO ""StaffRoleTemplates"" (""Id"", ""Code"", ""Name"", ""Description"", ""DefaultPermissions"", ""CreatedAt"")
+                VALUES
+                ('template-call-operator', 'call_operator', 'Qo''ng''iroq operatori', 'Qo''ng''iroq qabul qiladi va lidlarni boshqaradi', '[""leads"",""messages""]', CURRENT_TIMESTAMP),
+                ('template-cashier', 'cashier', 'Kassir', 'To''lovlarni kiritadi va boshqaradi, o''quvchi ma''lumotlarini ko''radi', '[""students"",""finance"",""messages""]', CURRENT_TIMESTAMP),
+                ('template-administrator', 'administrator', 'Administrator', 'Asosiy boshqaruv — guruhlar, o''quvchilar, o''qituvchilar, o''quv bo''limi', '[""leads"",""students"",""teachers"",""classes"",""schedule"",""messages"",""app""]', CURRENT_TIMESTAMP)
+                ON CONFLICT DO NOTHING");
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-
+            migrationBuilder.DropTable(name: "StaffRoleTemplates");
         }
     }
 }
