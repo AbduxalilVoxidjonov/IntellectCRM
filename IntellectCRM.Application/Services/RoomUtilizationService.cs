@@ -14,9 +14,13 @@ public class RoomUtilizationService(IAppDbContext db)
         public string RoomId { get; set; } = string.Empty;
         public string RoomName { get; set; } = string.Empty;
         public int Capacity { get; set; }
-        /// <summary>Faol (active/trial, frozen emas) o'quvchilar yig'indisi (unique, peak approx).</summary>
+        /// <summary>Faol (active/trial, frozen emas) o'quvchilar yig'indisi (per-guruh, unique emas).</summary>
         public int CurrentStudents { get; set; }
-        /// <summary>Bandlik foizi: CurrentStudents / Capacity * 100.</summary>
+        /// <summary>Jami slotlar: Capacity x GroupCount.</summary>
+        public int TotalSlots { get; set; }
+        /// <summary>Bo'sh slotlar: TotalSlots - CurrentStudents (min 0).</summary>
+        public int Gap { get; set; }
+        /// <summary>Bandlik foizi: CurrentStudents / TotalSlots * 100.</summary>
         public double OccupancyPercent { get; set; }
         /// <summary>Xonaga biriktirilgan arxivlanmagan guruhlar soni.</summary>
         public int ActiveGroupCount { get; set; }
@@ -26,7 +30,7 @@ public class RoomUtilizationService(IAppDbContext db)
         public double WeeklyUtilizationPercent { get; set; }
         /// <summary>Samaradorlik ball 0-100: bandlik (60%) + haftalik bandlik (40%).</summary>
         public int EfficiencyScore { get; set; }
-        /// <summary>"Optimal" | "Underutilized" | "Overcrowded" | "Empty"</summary>
+        /// <summary>"Optimal" | "To'lib toshgan" | "Kam to'lgan" | "Bo'sh"</summary>
         public string EfficiencyStatus { get; set; } = string.Empty;
         public string Building { get; set; } = string.Empty;
         public string Location { get; set; } = string.Empty;
@@ -86,12 +90,14 @@ public class RoomUtilizationService(IAppDbContext db)
                     RoomName = room.Name,
                     Capacity = room.Capacity,
                     CurrentStudents = 0,
+                    TotalSlots = 0,
+                    Gap = 0,
                     OccupancyPercent = 0,
                     ActiveGroupCount = 0,
                     WeeklyActiveHours = 0,
                     WeeklyUtilizationPercent = 0,
                     EfficiencyScore = 0,
-                    EfficiencyStatus = "Empty",
+                    EfficiencyStatus = "Bo'sh",
                     Building = room.Building ?? "",
                     Location = room.Location ?? "",
                     GroupNames = [],
@@ -99,19 +105,16 @@ public class RoomUtilizationService(IAppDbContext db)
                 continue;
             }
 
-            // Unique faol o'quvchilar (peak approximation: bir o'quvchi bir xonada nechta guruhda bo'lsa ham 1 marta)
-            var uniqueStudents = new HashSet<string>();
-            foreach (var g in groups)
-            {
-                if (membersByGroup.TryGetValue(g.Id, out var students))
-                    foreach (var sid in students)
-                        uniqueStudents.Add(sid);
-            }
-            int currentStudents = uniqueStudents.Count;
+            // Per-guruh o'quvchilar yig'indisi (bir o'quvchi bir nechta guruhda bo'lsa har guruhda sanaladi)
+            int currentStudents = groups.Sum(g =>
+                membersByGroup.TryGetValue(g.Id, out var students) ? students.Count : 0);
 
-            double occupancyPct = room.Capacity > 0
-                ? Math.Round((double)currentStudents / room.Capacity * 100, 1)
+            int groupCount = groups.Count;
+            int totalSlots = room.Capacity * groupCount;
+            double occupancyPct = totalSlots > 0
+                ? Math.Round((double)currentStudents / totalSlots * 100, 1)
                 : 0;
+            int gap = Math.Max(0, totalSlots - currentStudents);
 
             double weeklyHours = CalculateWeeklyActiveHours(groups);
             // 6 ish kuni, kuniga 14 soat (08:00–22:00)
@@ -120,11 +123,10 @@ public class RoomUtilizationService(IAppDbContext db)
 
             int score = ComputeEfficiencyScore(occupancyPct, weeklyPct);
 
-            string status = currentStudents == 0 && groups.Count == 0
-                ? "Empty"
-                : occupancyPct > 110 ? "Overcrowded"
-                : occupancyPct < 30   ? "Underutilized"
-                :                       "Optimal";
+            string status = occupancyPct > 100 ? "To'lib toshgan"
+                : occupancyPct < 30            ? "Kam to'lgan"
+                : currentStudents == 0         ? "Bo'sh"
+                :                                "Optimal";
 
             metrics.Add(new RoomUtilizationMetric
             {
@@ -132,6 +134,8 @@ public class RoomUtilizationService(IAppDbContext db)
                 RoomName = room.Name,
                 Capacity = room.Capacity,
                 CurrentStudents = currentStudents,
+                TotalSlots = totalSlots,
+                Gap = gap,
                 OccupancyPercent = occupancyPct,
                 ActiveGroupCount = groups.Count,
                 WeeklyActiveHours = Math.Round(weeklyHours, 2),

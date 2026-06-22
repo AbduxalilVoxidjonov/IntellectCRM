@@ -262,6 +262,9 @@ export interface RoomUtilization {
   roomName: string
   capacity: number
   currentStudents: number
+  totalSlots?: number
+  gap?: number
+  groupCount?: number
   occupancyPercent: number
   activeGroupCount: number
   weeklyActiveHours: number

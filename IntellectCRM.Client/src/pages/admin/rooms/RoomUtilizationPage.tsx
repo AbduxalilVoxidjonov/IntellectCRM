@@ -7,10 +7,14 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { Loader } from '@/components/ui/Loader'
 import { cn } from '@/lib/utils'
 
-type StatusFilter = 'all' | 'Optimal' | 'Underutilized' | 'Overcrowded'
+type StatusFilter = "all" | "Optimal" | "Kam to'lgan" | "To'lib toshgan" | "Bo'sh"
 
 const STATUS_LABELS: Record<string, string> = {
   Optimal: 'Optimal',
+  "Kam to'lgan": "Kam to'lgan",
+  "To'lib toshgan": "To'lib toshgan",
+  "Bo'sh": "Bo'sh",
+  // legacy English keys (fallback)
   Underutilized: "Kam to'lgan",
   Overcrowded: "To'lib toshgan",
   Empty: "Bo'sh",
@@ -18,6 +22,10 @@ const STATUS_LABELS: Record<string, string> = {
 
 const STATUS_COLORS: Record<string, string> = {
   Optimal: 'text-emerald-700 bg-emerald-50 border-emerald-200',
+  "Kam to'lgan": 'text-amber-700 bg-amber-50 border-amber-200',
+  "To'lib toshgan": 'text-red-700 bg-red-50 border-red-200',
+  "Bo'sh": 'text-slate-600 bg-slate-100 border-slate-200',
+  // legacy English keys (fallback)
   Underutilized: 'text-amber-700 bg-amber-50 border-amber-200',
   Overcrowded: 'text-red-700 bg-red-50 border-red-200',
   Empty: 'text-slate-600 bg-slate-100 border-slate-200',
@@ -25,6 +33,10 @@ const STATUS_COLORS: Record<string, string> = {
 
 const STATUS_ICONS: Record<string, React.ReactNode> = {
   Optimal: <CheckCircle2 className="h-3.5 w-3.5" />,
+  "Kam to'lgan": <TrendingUp className="h-3.5 w-3.5 rotate-[-45deg]" />,
+  "To'lib toshgan": <AlertTriangle className="h-3.5 w-3.5" />,
+  "Bo'sh": <BarChart3 className="h-3.5 w-3.5" />,
+  // legacy English keys (fallback)
   Underutilized: <TrendingUp className="h-3.5 w-3.5 rotate-[-45deg]" />,
   Overcrowded: <AlertTriangle className="h-3.5 w-3.5" />,
   Empty: <BarChart3 className="h-3.5 w-3.5" />,
@@ -89,8 +101,8 @@ export function RoomUtilizationPage() {
 
   const summary = useMemo(() => {
     const optimal = items.filter((i) => i.efficiencyStatus === 'Optimal').length
-    const under = items.filter((i) => i.efficiencyStatus === 'Underutilized').length
-    const over = items.filter((i) => i.efficiencyStatus === 'Overcrowded').length
+    const under = items.filter((i) => i.efficiencyStatus === "Kam to'lgan" || i.efficiencyStatus === 'Underutilized').length
+    const over = items.filter((i) => i.efficiencyStatus === "To'lib toshgan" || i.efficiencyStatus === 'Overcrowded').length
     const avgEff = items.length > 0
       ? Math.round(items.reduce((s, i) => s + i.efficiencyScore, 0) / items.length)
       : 0
@@ -133,8 +145,9 @@ export function RoomUtilizationPage() {
         >
           <option value="all">Barcha holatlar</option>
           <option value="Optimal">Optimal</option>
-          <option value="Underutilized">Kam to'lgan</option>
-          <option value="Overcrowded">To'lib toshgan</option>
+          <option value="Kam to'lgan">Kam to'lgan</option>
+          <option value="To'lib toshgan">To'lib toshgan</option>
+          <option value="Bo'sh">Bo'sh</option>
         </select>
       </div>
 
@@ -225,7 +238,7 @@ function UtilizationCard({ item, onDetailClick, detailLoading }: {
         <div className="mb-1.5 flex items-center justify-between text-xs">
           <span className="flex items-center gap-1 text-slate-500">
             <Users className="h-3.5 w-3.5" />
-            O'quvchilar ({item.currentStudents}/{item.capacity})
+            O'quvchilar ({item.currentStudents}/{item.totalSlots ?? item.capacity})
           </span>
           <span className="font-medium tabular-nums text-slate-700">{Math.round(item.occupancyPercent)}%</span>
         </div>
@@ -404,7 +417,7 @@ function DetailModal({ metric, onClose }: { metric: RoomDetailMetric; onClose: (
           )}
 
           {/* Tavsiya */}
-          {metric.gap > 0 && metric.efficiencyStatus !== 'Overcrowded' && (
+          {metric.gap > 0 && metric.efficiencyStatus !== "To'lib toshgan" && metric.efficiencyStatus !== 'Overcrowded' && (
             <div className="flex items-start gap-2 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-700">
               <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
               <span>
@@ -412,7 +425,7 @@ function DetailModal({ metric, onClose }: { metric: RoomDetailMetric; onClose: (
               </span>
             </div>
           )}
-          {metric.efficiencyStatus === 'Overcrowded' && (
+          {(metric.efficiencyStatus === "To'lib toshgan" || metric.efficiencyStatus === 'Overcrowded') && (
             <div className="flex items-start gap-2 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">
               <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
               <span>Xona sig'imidan oshib ketgan. Guruh sonini kamaytirish yoki kattaroq xona kerak.</span>

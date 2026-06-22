@@ -136,6 +136,7 @@ public class RoomsController(AppDbContext db, IntellectCRM.Application.Services.
     private static RoomUtilizationDto ToUtilizationDto(
         IntellectCRM.Application.Services.RoomUtilizationService.RoomUtilizationMetric m) =>
         new(m.RoomId, m.RoomName, m.Capacity, m.CurrentStudents,
+            m.TotalSlots, m.Gap, m.ActiveGroupCount,
             m.OccupancyPercent, m.ActiveGroupCount, m.WeeklyActiveHours,
             m.WeeklyUtilizationPercent, m.EfficiencyScore, m.EfficiencyStatus,
             m.Building, m.Location, m.GroupNames);
