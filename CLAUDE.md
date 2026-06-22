@@ -1148,3 +1148,11 @@ docker compose up -d --build    # app + postgres + cloudflared + backup + mediam
   `hasMembership=true` qilinadi → billing loop o'tkazib yuboriladi. To'lov faqat `ActivateMember`
   chaqirilganda boshlanadi (oldingi xulq saqlanadi). Legacy o'quvchilar (`classChanged=false`) ta'sir
   ko'rmaydi. Backend 0 xato, push ✅ (commit fc585b8).
+- 2026-06-22: **BUG FIX — Xona boshqaruvi (Room management) audit va utilization tuzatildi (commit 0beee72).**
+  Muammo: `RoomUtilizationService` guruhlarni `g.RoomId != null` bilan filterlab, xona bog'lanishini FK orqali izlardi.
+  Lekin guruh formasi xonani `Group.Room` (matnli string) sifatida saqlaydi, `Group.RoomId` (FK) ni emas.
+  Natija: utilization dashboard barcha xonalar uchun "Empty" (0 guruh, 0 o'quvchi) ko'rsatardi.
+  Tuzatish: `RoomUtilizationService` endi `RoomId` (ustuvor) va `Room` (xona nomi bo'yicha text match) ikkalasini
+  qo'llab-quvvatlaydi (backward-compatible). Frontend `RoomUtilization` tipiga `weeklyActiveHours` va `groupNames`
+  qo'shildi (backend qaytaradi, lekin tip to'liq emas edi); `RoomUtilizationPage` da guruh nomlari chiplari ko'rinadi.
+  Rooms jadvali hozir bo'sh (0 xona) — tizim to'g'ri, ma'lumot hali kiritilmagan. Backend 0, tsc yashil, deploy ✅.
