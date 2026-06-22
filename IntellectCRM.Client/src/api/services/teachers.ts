@@ -180,6 +180,28 @@ export async function getTeacherPerformance(): Promise<TeacherPerformance[]> {
   return data
 }
 
+/** Bitta o'qituvchining talaba saqlab qolish statistikasi */
+export async function getTeacherPerformanceSingle(id: string): Promise<TeacherPerformance> {
+  if (USE_MOCK) {
+    await delay()
+    return {
+      teacherId: id,
+      teacherName: '',
+      phone: '',
+      totalStudents: 0,
+      activeStudents: 0,
+      frozenStudents: 0,
+      leftStudents: 0,
+      retentionPercent: 0,
+      lossPercent: 0,
+      effectivenessScore: 0,
+      groupCount: 0,
+    }
+  }
+  const { data } = await api.get<TeacherPerformance>(`/admin/teachers/${id}/performance`)
+  return data
+}
+
 /** Bitta oy uchun maosh holati (belgilangan/berilgan/qoldiq) — to'lov oynasi uchun */
 export async function getSalaryMonth(id: string, month: string): Promise<MonthSalary | null> {
   const ledger = await getSalaryLedger(id, `${month}-01`, `${month}-31`)

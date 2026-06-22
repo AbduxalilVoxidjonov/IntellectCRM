@@ -1,0 +1,609 @@
+import { useEffect, useState } from 'react'
+import { Link, useParams } from 'react-router-dom'
+import {
+  ArrowLeft,
+  ArrowUpRight,
+  Users,
+  TrendingUp,
+  Wallet,
+  Info,
+} from 'lucide-react'
+import type { Credentials, Group, Subject, Teacher, TeacherPerformance } from '@/types'
+import {
+  getTeachers,
+  getTeacherCredentials,
+  getTeacherPerformanceSingle,
+  getSalaryLedger,
+  resetTeacherPassword,
+} from '@/api/services/teachers'
+import { getClasses } from '@/api/services/classes'
+import { getSubjects } from '@/api/services/subjects'
+import { genderLabels, formatMonth } from '@/config/constants'
+import { formatDate, formatMoney, cn } from '@/lib/utils'
+import { Card } from '@/components/ui/Card'
+import { Badge } from '@/components/ui/Badge'
+import { StatCard } from '@/components/ui/StatCard'
+import { Loader } from '@/components/ui/Loader'
+import { PageHeader } from '@/components/ui/PageHeader'
+import { CredentialsBox } from '@/components/ui/CredentialsBox'
+
+type Tab = 'info' | 'groups' | 'salary' | 'performance'
+
+const weekdayShort = ['Du', 'Se', 'Cho', 'Pa', 'Ju', 'Sha', 'Ya']
+
+function RetentionBar({ value }: { value: number }) {
+  const pct = Math.min(100, Math.max(0, value))
+  const color = pct >= 80 ? 'bg-emerald-500' : pct >= 50 ? 'bg-amber-400' : 'bg-red-500'
+  return (
+    <div className="flex items-center gap-2">
+      <div className="h-1.5 w-20 overflow-hidden rounded-full bg-slate-100">
+        <div className={cn('h-full rounded-full', color)} style={{ width: `${pct}%` }} />
+      </div>
+      <span className="w-10 font-mono text-xs text-slate-700">{value}%</span>
+    </div>
+  )
+}
+
+function scoreColor(score: number) {
+  if (score >= 80) return 'text-emerald-700 bg-emerald-50'
+  if (score >= 50) return 'text-amber-700 bg-amber-50'
+  return 'text-red-700 bg-red-50'
+}
+
+function scoreDot(score: number) {
+  if (score >= 80) return 'bg-emerald-500'
+  if (score >= 50) return 'bg-amber-400'
+  return 'bg-red-500'
+}
+
+export function TeacherDetailPage() {
+  const { id } = useParams<{ id: string }>()
+
+  const [teacher, setTeacher] = useState<Teacher | null>(null)
+  const [groups, setGroups] = useState<Group[]>([])
+  const [subjects, setSubjects] = useState<Subject[]>([])
+  const [loading, setLoading] = useState(true)
+  const [tab, setTab] = useState<Tab>('info')
+
+  // Performance
+  const [perf, setPerf] = useState<TeacherPerformance | null>(null)
+  const [perfLoading, setPerfLoading] = useState(false)
+
+  // Salary
+  const [salaryLoading, setSalaryLoading] = useState(false)
+  const [salaryRows, setSalaryRows] = useState<
+    { month: string; expected: number; paid: number; remaining: number; status: string }[]
+  >([])
+
+  // Credentials
+  const [credentials, setCredentials] = useState<Credentials | null>(null)
+
+  useEffect(() => {
+    if (!id) return
+    Promise.all([getTeachers(), getClasses(), getSubjects()])
+      .then(([teachers, classes, subs]) => {
+        const t = teachers.find((x) => x.id === id) ?? null
+        setTeacher(t)
+        setGroups(classes.filter((c) => c.teacherId === id && !c.isArchived))
+        setSubjects(subs)
+      })
+      .finally(() => setLoading(false))
+  }, [id])
+
+  useEffect(() => {
+    if (!id || !teacher) return
+    getTeacherCredentials(id)
+      .then(setCredentials)
+      .catch(() => setCredentials(null))
+  }, [id, teacher])
+
+  useEffect(() => {
+    if (tab !== 'performance' || !id || perf) return
+    setPerfLoading(true)
+    getTeacherPerformanceSingle(id)
+      .then(setPerf)
+      .finally(() => setPerfLoading(false))
+  }, [tab, id, perf])
+
+  useEffect(() => {
+    if (tab !== 'salary' || !id || salaryRows.length > 0) return
+    setSalaryLoading(true)
+    getSalaryLedger(id)
+      .then((ledger) => setSalaryRows(ledger.months))
+      .finally(() => setSalaryLoading(false))
+  }, [tab, id, salaryRows.length])
+
+  if (loading)
+    return (
+      <div className="flex min-h-[300px] items-center justify-center">
+        <Loader label="Yuklanmoqda..." />
+      </div>
+    )
+
+  if (!teacher)
+    return (
+      <Card>
+        <div className="state">
+          <h4>O'qituvchi topilmadi</h4>
+          <p>
+            <Link to="/admin/teachers" className="text-brand-600 hover:underline">
+              Ro'yxatga qaytish
+            </Link>
+          </p>
+        </div>
+      </Card>
+    )
+
+  const subjectNames = teacher.subjectIds
+    .map((sid) => subjects.find((s) => s.id === sid)?.name)
+    .filter(Boolean)
+    .join(', ')
+
+  return (
+    <div>
+      <PageHeader
+        title={teacher.fullName}
+        sub={
+          <Link
+            to="/admin/teachers"
+            className="inline-flex items-center gap-1 text-xs text-slate-400 hover:text-brand-600"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            O'qituvchilar ro'yxati
+          </Link>
+        }
+      />
+
+      {/* Tabs */}
+      <div className="tabs mb-4" role="tablist">
+        <button
+          type="button"
+          className={cn('tab', tab === 'info' && 'active')}
+          onClick={() => setTab('info')}
+        >
+          <Info className="mr-1 inline h-3.5 w-3.5" />
+          Ma'lumot
+        </button>
+        <button
+          type="button"
+          className={cn('tab', tab === 'groups' && 'active')}
+          onClick={() => setTab('groups')}
+        >
+          <Users className="mr-1 inline h-3.5 w-3.5" />
+          Guruhlar ({groups.length})
+        </button>
+        <button
+          type="button"
+          className={cn('tab', tab === 'salary' && 'active')}
+          onClick={() => setTab('salary')}
+        >
+          <Wallet className="mr-1 inline h-3.5 w-3.5" />
+          Maosh
+        </button>
+        <button
+          type="button"
+          className={cn('tab', tab === 'performance' && 'active')}
+          onClick={() => setTab('performance')}
+        >
+          <TrendingUp className="mr-1 inline h-3.5 w-3.5" />
+          Performance
+        </button>
+      </div>
+
+      {/* INFO TAB */}
+      {tab === 'info' && (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <Card title="Shaxsiy ma'lumotlar">
+            <div className="mb-4 flex items-center gap-3">
+              {teacher.photoUrl ? (
+                <img
+                  src={teacher.photoUrl}
+                  alt=""
+                  className="h-14 w-14 rounded-full object-cover"
+                />
+              ) : (
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-brand-50 text-lg font-semibold text-brand-600">
+                  {teacher.fullName
+                    .split(' ')
+                    .filter(Boolean)
+                    .slice(0, 2)
+                    .map((s) => s[0]?.toUpperCase())
+                    .join('')}
+                </div>
+              )}
+              <div>
+                <div className="text-base font-semibold text-slate-800">{teacher.fullName}</div>
+                <div className="text-xs text-slate-400">{genderLabels[teacher.gender]}</div>
+              </div>
+              <Badge tone={teacher.salaryMode === 'percent' ? 'blue' : 'violet'} dot className="ml-auto">
+                {teacher.salaryMode === 'percent' ? 'Foiz' : "Qat'iy"}
+              </Badge>
+            </div>
+            <InfoRow label="Tug'ilgan kun" value={teacher.birthDate ? formatDate(teacher.birthDate) : '—'} />
+            <InfoRow label="Manzil" value={teacher.address || '—'} />
+            <InfoRow label="Telefon" value={teacher.phone || '—'} mono />
+            <InfoRow
+              label="Fanlar"
+              value={subjectNames || '—'}
+            />
+            <InfoRow
+              label="Maosh turi"
+              mono
+              value={
+                teacher.salaryMode === 'percent'
+                  ? `Foiz — guruh to'lovining ${teacher.salaryPercent ?? 0}%i`
+                  : `Qat'iy summa — ${formatMoney(teacher.salary)}`
+              }
+            />
+            <InfoRow
+              label="Maosh hisoblanadi"
+              value={
+                teacher.salaryStartDate
+                  ? `${formatDate(teacher.salaryStartDate)} dan`
+                  : teacher.salaryStartMonth
+                    ? `${formatMonth(teacher.salaryStartMonth)} dan`
+                    : "o'quv yili boshidan"
+              }
+            />
+          </Card>
+
+          <Card title="Tizim akkaunti">
+            <CredentialsBox
+              credentials={credentials}
+              onReset={async () => {
+                const c = await resetTeacherPassword(teacher.id)
+                setCredentials(c)
+              }}
+            />
+          </Card>
+        </div>
+      )}
+
+      {/* GROUPS TAB */}
+      {tab === 'groups' && (
+        <div className="space-y-4">
+          {groups.length === 0 ? (
+            <Card>
+              <div className="state">
+                <h4>Guruh biriktirilmagan</h4>
+                <p>Bu o'qituvchiga hech qanday faol guruh biriktirilmagan.</p>
+              </div>
+            </Card>
+          ) : (
+            <Card tight>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-400">
+                    <tr>
+                      <th className="px-4 py-3">Guruh</th>
+                      <th className="px-4 py-3">Kurs</th>
+                      <th className="px-4 py-3">Xona</th>
+                      <th className="px-4 py-3">Kunlar</th>
+                      <th className="px-4 py-3">Vaqt</th>
+                      <th className="px-4 py-3">Oylik</th>
+                      <th className="px-4 py-3 text-right">Amallar</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {groups.map((g) => (
+                      <tr key={g.id} className="hover:bg-slate-50/60">
+                        <td className="px-4 py-3 font-medium text-slate-800">{g.name}</td>
+                        <td className="px-4 py-3 text-slate-600">
+                          {subjects.find((s) => s.id === g.courseId)?.name ?? '—'}
+                        </td>
+                        <td className="px-4 py-3 text-slate-600">{g.room || '—'}</td>
+                        <td className="px-4 py-3">
+                          {g.days && g.days.length > 0 ? (
+                            <div className="flex flex-wrap gap-1">
+                              {g.days.map((d) => (
+                                <span
+                                  key={d}
+                                  className="rounded bg-brand-50 px-1.5 py-0.5 text-xs font-medium text-brand-700"
+                                >
+                                  {weekdayShort[d] ?? d}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
+                        <td className="px-4 py-3 font-mono text-xs text-slate-600">
+                          {g.startTime && g.endTime ? `${g.startTime}–${g.endTime}` : '—'}
+                        </td>
+                        <td className="px-4 py-3 font-mono text-slate-700">
+                          {g.monthlyFee ? formatMoney(g.monthlyFee) : '—'}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <Link
+                            to={`/admin/classes/${g.id}`}
+                            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600 transition-colors hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700"
+                          >
+                            Ko'rish
+                            <ArrowUpRight className="h-3 w-3" />
+                          </Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {/* SALARY TAB */}
+      {tab === 'salary' && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <StatCard
+              label="Maosh turi"
+              value={teacher.salaryMode === 'percent' ? 'Foizli' : "Qat'iy"}
+              icon={Wallet}
+            />
+            <StatCard
+              label={teacher.salaryMode === 'percent' ? 'Foiz' : "Qat'iy summa"}
+              value={
+                teacher.salaryMode === 'percent'
+                  ? `${teacher.salaryPercent ?? 0}%`
+                  : formatMoney(teacher.salary)
+              }
+              icon={Wallet}
+              iconBg="bg-emerald-50"
+              iconColor="text-emerald-600"
+            />
+            <StatCard
+              label="Guruhlar soni"
+              value={groups.length}
+              icon={Users}
+              iconBg="bg-sky-50"
+              iconColor="text-sky-600"
+            />
+          </div>
+
+          {salaryLoading ? (
+            <Card>
+              <Loader label="Yuklanmoqda..." />
+            </Card>
+          ) : salaryRows.length === 0 ? (
+            <Card>
+              <div className="state">
+                <h4>Maosh yozuvi yo'q</h4>
+                <p>Ushbu o'qituvchi uchun maosh ma'lumotlari topilmadi.</p>
+              </div>
+            </Card>
+          ) : (
+            <Card tight>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-400">
+                    <tr>
+                      <th className="px-4 py-3">Oy</th>
+                      <th className="px-4 py-3 text-right">Hisoblangan</th>
+                      <th className="px-4 py-3 text-right">Berildi</th>
+                      <th className="px-4 py-3 text-right">Qoldiq</th>
+                      <th className="px-4 py-3">Holat</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {salaryRows.map((row) => (
+                      <tr key={row.month} className="hover:bg-slate-50/60">
+                        <td className="px-4 py-3 font-medium text-slate-800">
+                          {formatMonth(row.month)}
+                        </td>
+                        <td className="px-4 py-3 text-right font-mono text-slate-700">
+                          {formatMoney(row.expected)}
+                        </td>
+                        <td className="px-4 py-3 text-right font-mono text-emerald-700">
+                          {formatMoney(row.paid)}
+                        </td>
+                        <td className="px-4 py-3 text-right font-mono text-red-600">
+                          {formatMoney(row.remaining)}
+                        </td>
+                        <td className="px-4 py-3">
+                          <Badge
+                            tone={
+                              row.status === 'paid'
+                                ? 'green'
+                                : row.status === 'partial'
+                                  ? 'amber'
+                                  : 'default'
+                            }
+                            dot
+                          >
+                            {row.status === 'paid'
+                              ? "To'liq"
+                              : row.status === 'partial'
+                                ? 'Qisman'
+                                : "To'lanmadi"}
+                          </Badge>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {/* PERFORMANCE TAB */}
+      {tab === 'performance' && (
+        <div className="space-y-4">
+          {perfLoading || !perf ? (
+            <Card>
+              <Loader label="Yuklanmoqda..." />
+            </Card>
+          ) : (
+            <>
+              {/* KPI cards */}
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <StatCard label="Jami o'quvchilar" value={perf.totalStudents} icon={Users} />
+                <StatCard
+                  label="Faol"
+                  value={perf.activeStudents}
+                  icon={Users}
+                  iconBg="bg-emerald-50"
+                  iconColor="text-emerald-600"
+                />
+                <StatCard
+                  label="Muzlatilgan"
+                  value={perf.frozenStudents}
+                  icon={Users}
+                  iconBg="bg-amber-50"
+                  iconColor="text-amber-600"
+                />
+                <StatCard
+                  label="Ketgan"
+                  value={perf.leftStudents}
+                  icon={Users}
+                  iconBg="bg-red-50"
+                  iconColor="text-red-500"
+                />
+              </div>
+
+              {/* Retention & Loss bars */}
+              <Card title="Saqlab qolish statistikasi">
+                <div className="space-y-5 p-1">
+                  <div className="flex items-center gap-4">
+                    <div className="w-36 text-sm text-slate-500">Retention (Faol %)</div>
+                    <div className="flex flex-1 items-center gap-3">
+                      <div className="relative h-4 flex-1 overflow-hidden rounded-full bg-slate-100">
+                        <div
+                          className={cn(
+                            'h-full rounded-full transition-all',
+                            perf.retentionPercent >= 80
+                              ? 'bg-emerald-500'
+                              : perf.retentionPercent >= 50
+                                ? 'bg-amber-400'
+                                : 'bg-red-500',
+                          )}
+                          style={{ width: `${perf.retentionPercent}%` }}
+                        />
+                      </div>
+                      <span className="w-14 text-right font-mono text-sm font-semibold text-slate-700">
+                        {perf.retentionPercent}%
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-4">
+                    <div className="w-36 text-sm text-slate-500">Loss (Chiqib ketgan %)</div>
+                    <div className="flex flex-1 items-center gap-3">
+                      <div className="relative h-4 flex-1 overflow-hidden rounded-full bg-slate-100">
+                        <div
+                          className="h-full rounded-full bg-red-400 transition-all"
+                          style={{ width: `${perf.lossPercent}%` }}
+                        />
+                      </div>
+                      <span className="w-14 text-right font-mono text-sm font-semibold text-slate-700">
+                        {perf.lossPercent}%
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Score badge */}
+                <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-4">
+                  <span className="text-sm text-slate-500">Samaradorlik bali</span>
+                  <span
+                    className={cn(
+                      'inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold',
+                      scoreColor(perf.effectivenessScore),
+                    )}
+                  >
+                    <span className={cn('h-2 w-2 rounded-full', scoreDot(perf.effectivenessScore))} />
+                    {perf.effectivenessScore} / 100
+                  </span>
+                </div>
+              </Card>
+
+              {/* Detail table */}
+              <Card title="Batafsil ko'rsatkichlar">
+                <div className="divide-y divide-slate-100">
+                  <MetricRow label="Guruhlar soni" value={String(perf.groupCount)} />
+                  <MetricRow label="Jami o'quvchilar (slot)" value={String(perf.totalStudents)} />
+                  <MetricRow
+                    label="Faol o'quvchilar"
+                    value={String(perf.activeStudents)}
+                    color="text-emerald-700"
+                  />
+                  <MetricRow
+                    label="Muzlatilgan"
+                    value={String(perf.frozenStudents)}
+                    color="text-amber-600"
+                  />
+                  <MetricRow
+                    label="Ketgan"
+                    value={String(perf.leftStudents)}
+                    color="text-red-500"
+                  />
+                  <MetricRow
+                    label="Retention %"
+                    value={`${perf.retentionPercent}%`}
+                    extra={<RetentionBar value={perf.retentionPercent} />}
+                  />
+                  <MetricRow label="Loss %" value={`${perf.lossPercent}%`} />
+                </div>
+              </Card>
+
+              {perf.totalStudents === 0 && (
+                <Card>
+                  <div className="state">
+                    <h4>Ma'lumot yo'q</h4>
+                    <p>
+                      Bu o'qituvchining guruhlarida hali o'quvchilar yo'q yoki guruh biriktirilmagan.
+                    </p>
+                  </div>
+                </Card>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function InfoRow({
+  label,
+  value,
+  mono,
+}: {
+  label: string
+  value: string
+  mono?: boolean
+}) {
+  return (
+    <div className="flex justify-between gap-4 border-b border-slate-100 py-2.5 last:border-0">
+      <span className="text-sm text-slate-400">{label}</span>
+      <span className={cn('text-right text-sm font-medium text-slate-800', mono && 'font-mono')}>
+        {value}
+      </span>
+    </div>
+  )
+}
+
+function MetricRow({
+  label,
+  value,
+  color,
+  extra,
+}: {
+  label: string
+  value: string
+  color?: string
+  extra?: React.ReactNode
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4 py-3">
+      <span className="text-sm text-slate-500">{label}</span>
+      <div className="flex items-center gap-3">
+        {extra}
+        <span className={cn('font-mono text-sm font-semibold text-slate-800', color)}>{value}</span>
+      </div>
+    </div>
+  )
+}

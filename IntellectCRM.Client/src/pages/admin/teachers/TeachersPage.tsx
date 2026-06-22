@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
   Plus,
   Search,
@@ -11,9 +12,9 @@ import {
   Users,
   GraduationCap,
   BookOpen,
-  TrendingUp,
+  ArrowUpRight,
 } from 'lucide-react'
-import type { Gender, Group, Subject, Teacher, TeacherPerformance } from '@/types'
+import type { Gender, Group, Subject, Teacher } from '@/types'
 import type { TeacherPayload } from '@/api/services/teachers'
 import {
   getTeachers,
@@ -24,7 +25,6 @@ import {
   archiveTeacher,
   restoreTeacher,
   downloadTeacherCredentials,
-  getTeacherPerformance,
 } from '@/api/services/teachers'
 import { useAuth } from '@/context/auth-context'
 import { getSubjects } from '@/api/services/subjects'
@@ -43,7 +43,7 @@ import { TeacherFormModal } from './TeacherFormModal'
 import { TeacherViewModal } from './TeacherViewModal'
 import { ReasonPromptModal } from '@/components/ui/ReasonPromptModal'
 
-type Tab = 'active' | 'archived' | 'performance'
+type Tab = 'active' | 'archived'
 
 // Avatar uchun ism harflari va barqaror rang (faqat ko'rinish uchun)
 const initialsOf = (name: string) =>
@@ -90,10 +90,6 @@ export function TeachersPage() {
   const [reason, setReason] = useState('')
   const [deleting, setDeleting] = useState<Teacher | null>(null)
 
-  // Performance tab
-  const [performance, setPerformance] = useState<TeacherPerformance[]>([])
-  const [perfLoading, setPerfLoading] = useState(false)
-
   useEffect(() => {
     Promise.all([getTeachers(), getArchivedTeachers(), getSubjects(), getClasses()])
       .then(([t, a, s, c]) => {
@@ -105,20 +101,11 @@ export function TeachersPage() {
       .finally(() => setLoading(false))
   }, [])
 
-  useEffect(() => {
-    if (tab !== 'performance') return
-    if (performance.length > 0) return
-    setPerfLoading(true)
-    getTeacherPerformance()
-      .then(setPerformance)
-      .finally(() => setPerfLoading(false))
-  }, [tab, performance.length])
-
   const subjectName = (id: string) => subjects.find((s) => s.id === id)?.name ?? id
   // O'qituvchi o'tadigan guruhlar (guruhga o'qituvchi guruh formasida biriktiriladi — Group.teacherId).
   const teacherGroups = (tid: string) => classes.filter((c) => c.teacherId === tid && !c.isArchived)
 
-  const source = tab === 'active' ? teachers : archived
+  const source = tab === 'archived' ? archived : teachers
   const filtered = source.filter((t) => {
     const q = search.trim().toLowerCase()
     const matchSearch = !q || t.fullName.toLowerCase().includes(q)
@@ -232,7 +219,7 @@ export function TeachersPage() {
         />
       </div>
 
-      {/* Faol | Arxiv | Performance toggle */}
+      {/* Faol | Arxiv toggle */}
       <div className="tabs mb-4" role="tablist">
         <button
           type="button"
@@ -248,23 +235,10 @@ export function TeachersPage() {
         >
           Arxiv ({archived.length})
         </button>
-        <button
-          type="button"
-          className={cn('tab', tab === 'performance' && 'active')}
-          onClick={() => setTab('performance')}
-        >
-          <TrendingUp className="mr-1 inline h-3.5 w-3.5" />
-          Performance
-        </button>
       </div>
 
-      {/* Performance tabi kontenti */}
-      {tab === 'performance' && (
-        <PerformanceTab data={performance} loading={perfLoading} />
-      )}
-
-      {/* Qidiruv + filtr toolbar — performance tabida yashiriladi */}
-      <div className={cn('toolbar', tab === 'performance' && 'hidden')}>
+      {/* Qidiruv + filtr toolbar */}
+      <div className={cn('toolbar')}>
         <div className="left">
           <div className="search-inline">
             <Search className="h-4 w-4 text-slate-400" />
@@ -300,18 +274,18 @@ export function TeachersPage() {
         </div>
       </div>
 
-      {tab !== 'performance' && loading ? (
+      {loading ? (
         <Card>
           <Loader label="Yuklanmoqda..." />
         </Card>
-      ) : tab !== 'performance' && filtered.length === 0 ? (
+      ) : filtered.length === 0 ? (
         <Card>
           <div className="state">
             <h4>{tab === 'active' ? 'Hech narsa topilmadi' : "Arxivda o'qituvchi yo'q"}</h4>
             <p>Filtrlarni o'zgartirib ko'ring.</p>
           </div>
         </Card>
-      ) : tab === 'performance' ? null : tab === 'active' ? (
+      ) : tab === 'active' ? (
         /* ---- Faol o'qituvchilar — kartalar ---- */
         <div className="entity-grid">
           {filtered.map((t) => {
@@ -389,18 +363,26 @@ export function TeachersPage() {
                 )}
 
                 <div className="ec-foot">
-                  <Button variant="secondary" className="flex-1" onClick={() => setViewing(t)}>
-                    <Eye className="h-4 w-4" /> Ko'rish
+                  <Link
+                    to={`/admin/teachers/${t.id}`}
+                    className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition-colors hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700"
+                  >
+                    <ArrowUpRight className="h-4 w-4" /> Batafsil
+                  </Link>
+                  <Button
+                    variant="secondary"
+                    onClick={() => setViewing(t)}
+                  >
+                    <Eye className="h-4 w-4" />
                   </Button>
                   <Button
                     variant="secondary"
-                    className="flex-1"
                     onClick={() => {
                       setEditing(t)
                       setFormOpen(true)
                     }}
                   >
-                    <Pencil className="h-4 w-4" /> Tahrirlash
+                    <Pencil className="h-4 w-4" />
                   </Button>
                   <Button
                     variant="secondary"
@@ -549,142 +531,6 @@ export function TeachersPage() {
           />
         </div>
       </Modal>
-    </div>
-  )
-}
-
-/* ---- Performance tab ---- */
-function scoreColor(score: number) {
-  if (score >= 80) return 'text-emerald-700 bg-emerald-50'
-  if (score >= 50) return 'text-amber-700 bg-amber-50'
-  return 'text-red-700 bg-red-50'
-}
-
-function scoreDot(score: number) {
-  if (score >= 80) return 'bg-emerald-500'
-  if (score >= 50) return 'bg-amber-400'
-  return 'bg-red-500'
-}
-
-function exportPerformanceCsv(data: TeacherPerformance[]) {
-  const header = ['F.I.SH', 'Telefon', 'Guruhlar', 'Jami', 'Faol', 'Muzlatilgan', "Ketgan", 'Retention%', 'Loss%', 'Ball']
-  const rows = data.map((d) => [
-    d.teacherName, d.phone, String(d.groupCount),
-    String(d.totalStudents), String(d.activeStudents), String(d.frozenStudents), String(d.leftStudents),
-    String(d.retentionPercent), String(d.lossPercent), String(d.effectivenessScore),
-  ])
-  const csv = [header, ...rows].map((r) => r.map((v) => `"${v}"`).join(',')).join('\n')
-  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `teacher_performance_${new Date().toISOString().slice(0, 10)}.csv`
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  URL.revokeObjectURL(url)
-}
-
-function PerformanceTab({ data, loading }: { data: TeacherPerformance[]; loading: boolean }) {
-  if (loading)
-    return (
-      <Card>
-        <Loader label="Yuklanmoqda..." />
-      </Card>
-    )
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-slate-500">
-          Faol o'qituvchilarning talaba saqlab qolish statistikasi (barcha guruhlar bo'yicha, lifetime).
-        </p>
-        <Button variant="secondary" onClick={() => exportPerformanceCsv(data)}>
-          <Download className="h-4 w-4" /> CSV
-        </Button>
-      </div>
-
-      {data.length === 0 ? (
-        <Card>
-          <div className="state">
-            <h4>Ma'lumot yo'q</h4>
-            <p>Hech qanday faol o'qituvchi topilmadi.</p>
-          </div>
-        </Card>
-      ) : (
-        <Card tight>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-400">
-                <tr>
-                  <th className="w-8 px-4 py-3">#</th>
-                  <th className="px-4 py-3">O'qituvchi</th>
-                  <th className="px-4 py-3 text-center">Guruhlar</th>
-                  <th className="px-4 py-3 text-center">Jami</th>
-                  <th className="px-4 py-3 text-center">Faol</th>
-                  <th className="px-4 py-3 text-center">Muzlatilgan</th>
-                  <th className="px-4 py-3 text-center">Ketgan</th>
-                  <th className="px-4 py-3 text-center">Retention%</th>
-                  <th className="px-4 py-3 text-center">Loss%</th>
-                  <th className="px-4 py-3 text-center">Ball</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {data.map((d, i) => (
-                  <tr key={d.teacherId} className="hover:bg-slate-50/60">
-                    <td className="px-4 py-3 text-slate-400">{i + 1}</td>
-                    <td className="px-4 py-3">
-                      <div className="font-medium text-slate-800">{d.teacherName}</div>
-                      {d.phone && <div className="font-mono text-xs text-slate-400">{d.phone}</div>}
-                    </td>
-                    <td className="px-4 py-3 text-center font-mono text-slate-700">{d.groupCount}</td>
-                    <td className="px-4 py-3 text-center font-mono text-slate-700">{d.totalStudents}</td>
-                    <td className="px-4 py-3 text-center">
-                      <span className="font-mono font-semibold text-emerald-700">{d.activeStudents}</span>
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <span className="font-mono text-amber-600">{d.frozenStudents}</span>
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <span className="font-mono text-red-500">{d.leftStudents}</span>
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <RetentionBar value={d.retentionPercent} />
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <span className="font-mono text-slate-600">{d.lossPercent}%</span>
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <span
-                        className={cn(
-                          'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold',
-                          scoreColor(d.effectivenessScore),
-                        )}
-                      >
-                        <span className={cn('h-1.5 w-1.5 rounded-full', scoreDot(d.effectivenessScore))} />
-                        {d.effectivenessScore}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      )}
-    </div>
-  )
-}
-
-function RetentionBar({ value }: { value: number }) {
-  const pct = Math.min(100, Math.max(0, value))
-  const color = pct >= 80 ? 'bg-emerald-500' : pct >= 50 ? 'bg-amber-400' : 'bg-red-500'
-  return (
-    <div className="flex items-center gap-2">
-      <div className="h-1.5 w-16 overflow-hidden rounded-full bg-slate-100">
-        <div className={cn('h-full rounded-full', color)} style={{ width: `${pct}%` }} />
-      </div>
-      <span className="w-10 font-mono text-xs text-slate-700">{value}%</span>
     </div>
   )
 }

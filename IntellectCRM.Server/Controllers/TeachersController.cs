@@ -300,6 +300,42 @@ public class TeachersController(AppDbContext db, AuditService audit) : Controlle
     }
 
     /// <summary>
+    /// Bitta o'qituvchining talaba saqlab qolish statistikasi (lifetime, per-group).
+    /// Barcha guruhlar aggregati: retention%, loss%, effectiveness score.
+    /// </summary>
+    [HttpGet("{id}/performance")]
+    public async Task<ActionResult<TeacherPerformanceDto>> GetSinglePerformance(string id)
+    {
+        var teacher = await db.Teachers.FindAsync(id);
+        if (teacher is null) return NotFound();
+
+        var groups = await db.Classes
+            .Where(c => c.TeacherId == id && !c.IsArchived)
+            .Select(c => c.Id)
+            .ToListAsync();
+
+        var memberships = await db.StudentGroups
+            .Where(sg => groups.Contains(sg.GroupId))
+            .Select(sg => new { sg.Status, sg.IsActive, sg.LeftAt })
+            .ToListAsync();
+
+        int total    = memberships.Count;
+        int active   = memberships.Count(s => s.Status == "active" && s.IsActive);
+        int frozen   = memberships.Count(s => s.Status == "frozen");
+        int left     = memberships.Count(s => !s.IsActive || s.LeftAt != null);
+        double retention = total > 0 ? Math.Round((double)active / total * 100, 1) : 0;
+        double loss      = total > 0 ? Math.Round((double)(frozen + left) / total * 100, 1) : 0;
+
+        return new TeacherPerformanceDto(
+            teacher.Id, teacher.FullName, teacher.Phone ?? "",
+            total, active, frozen, left,
+            retention, loss,
+            (int)Math.Round(retention),
+            groups.Count
+        );
+    }
+
+    /// <summary>
     /// Barcha faol o'qituvchilarning talaba saqlab qolish statistikasi (lifetime, per-group).
     /// Qaytadi: retention%, loss%, effectiveness score — saralash retention bo'yicha (kamayish).
     /// </summary>

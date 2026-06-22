@@ -14,6 +14,7 @@ import { EvaluationTypesPage } from '@/pages/admin/students/EvaluationTypesPage'
 import { StudentDetailPage } from '@/pages/admin/students/StudentDetailPage'
 import { StudentTurnstilePage } from '@/pages/admin/students/StudentTurnstilePage'
 import { TeachersPage } from '@/pages/admin/teachers/TeachersPage'
+import { TeacherDetailPage } from '@/pages/admin/teachers/TeacherDetailPage'
 import { TeacherAttendancePage } from '@/pages/admin/teachers/TeacherAttendancePage'
 import { TeacherSalaryPage } from '@/pages/admin/teachers/TeacherSalaryPage'
 import { ClassesPage } from '@/pages/admin/classes/ClassesPage'
@@ -137,6 +138,7 @@ export default function App() {
           <Route path="students/turniket" element={<RequirePerm perm="students"><StudentTurnstilePage /></RequirePerm>} />
           <Route path="students/:id" element={<RequirePerm perm="students"><StudentDetailPage /></RequirePerm>} />
           <Route path="teachers" element={<RequirePerm perm="teachers"><TeachersPage /></RequirePerm>} />
+          <Route path="teachers/:id" element={<RequirePerm perm="teachers"><TeacherDetailPage /></RequirePerm>} />
           <Route path="teachers/attendance" element={<RequirePerm perm="teachers"><TeacherAttendancePage /></RequirePerm>} />
           <Route path="classes" element={<RequirePerm perm="classes"><ClassesPage /></RequirePerm>} />
           <Route path="classes/:id" element={<RequirePerm perm="classes"><ClassDetailPage /></RequirePerm>} />
