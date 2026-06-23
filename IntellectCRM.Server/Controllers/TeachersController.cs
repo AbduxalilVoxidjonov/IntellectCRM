@@ -63,8 +63,9 @@ public class TeachersController(AppDbContext db, AuditService audit) : Controlle
         };
         db.Teachers.Add(teacher);
 
-        // Tizim akkaunti: support bo'lsa "support" roli (alohida portal /support), aks holda "teacher".
-        var account = AccountFactory.CreateAccountFor(db, teacher.IsSupport ? Roles.Support : Roles.Teacher, teacher.FullName);
+        // Tizim akkaunti: doimo "teacher" roli. Support o'qituvchi ham teacher portaliga kiradi —
+        // "Support" sahifasi profil menyusida IsSupport bayrog'i bo'yicha ko'rinadi (alohida rol kerak emas).
+        var account = AccountFactory.CreateAccountFor(db, Roles.Teacher, teacher.FullName);
         teacher.UserId = account.Id;
 
         if (!string.IsNullOrEmpty(teacher.Category))
@@ -112,15 +113,16 @@ public class TeachersController(AppDbContext db, AuditService audit) : Controlle
             var pwd = p.NewPassword.Trim();
             if (pwd.Length < MinPasswordLength) return BadRequest(new { message = WeakPasswordMessage });
             // Akkaunt yo'q bo'lsa — yaratib biriktiramiz.
-            user ??= AccountFactory.CreateAccountFor(db, teacher.IsSupport ? Roles.Support : Roles.Teacher, teacher.FullName);
+            user ??= AccountFactory.CreateAccountFor(db, Roles.Teacher, teacher.FullName);
             teacher.UserId = user.Id;
             user.SetInitialPassword(pwd);
         }
         if (user is not null)
         {
             user.FullName = teacher.FullName;
-            // Support belgisi o'zgarsa akkaunt rolini ham sinxronlaymiz (portal: /support yoki /teacher).
-            user.Role = teacher.IsSupport ? Roles.Support : Roles.Teacher;
+            // Akkaunt roli doimo "teacher" (eski "support" rolli akkauntni ham shu yerda tuzatadi —
+            // support sahifasi teacher portalida IsSupport bo'yicha ko'rinadi).
+            user.Role = Roles.Teacher;
         }
 
         if (oldCategory != teacher.Category || oldStart != teacher.SalaryStartMonth)

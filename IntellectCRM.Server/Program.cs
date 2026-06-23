@@ -250,6 +250,21 @@ using (var scope = app.Services.CreateScope())
         }
     }
 
+    // SELF-HEAL: eski "support" rolli akkauntlar role="teacher" bo'lishi kerak (support sahifasi
+    // teacher portalida IsSupport bo'yicha ko'rinadi). "support" rol bilan ular /teacher portaliga
+    // kira olmasdi — bir martalik idempotent tuzatish.
+    try
+    {
+        var movedSupport = await db.Users.Where(u => u.Role == "support")
+            .ExecuteUpdateAsync(up => up.SetProperty(u => u.Role, Roles.Teacher));
+        if (movedSupport > 0)
+            app.Logger.LogInformation("[fix] {N} ta 'support' rolli akkaunt 'teacher'ga ko'chirildi", movedSupport);
+    }
+    catch (Exception ex)
+    {
+        app.Logger.LogWarning(ex, "[fix] support→teacher rol ko'chirish o'tkazib yuborildi");
+    }
+
     // Birinchi ishga tushish: hech qanday foydalanuvchi bo'lmasa, standart SUPER ADMIN yaratamiz —
     // aks holda tizimga kira oladigan hech kim bo'lmaydi. Login/parol muhit o'zgaruvchisidan keladi
     // (Seed__OwnerLogin / Seed__OwnerPassword). Parol berilmasa — tasodifiy generatsiya qilinadi va

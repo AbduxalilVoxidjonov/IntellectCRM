@@ -1211,14 +1211,19 @@ public class StudentPortalController(
     {
         var s = await TargetAsync(studentId);
         if (s is null) return NotFound();
-        var slot = await db.SupportSlots.FindAsync(id);
-        if (slot is null) return NotFound();
-        if (slot.Status != "open" || slot.StudentId != null)
-            return BadRequest(new { message = "Bu vaqt allaqachon band qilingan" });
-        slot.StudentId = s.Id;
-        slot.Status = "booked";
-        slot.BookedAt = AppClock.Now.ToString("yyyy-MM-ddTHH:mm:ss");
-        await db.SaveChangesAsync();
+        var bookedAt = AppClock.Now.ToString("yyyy-MM-ddTHH:mm:ss");
+        // ATOMIK bron: faqat hali "open" va egasi yo'q slot yangilanadi. Ikki o'quvchi bir vaqtda bron
+        // qilsa — faqat bittasi 1 qator yangilaydi, ikkinchisi 0 qator oladi → "band qilingan" (race-safe).
+        var affected = await db.SupportSlots
+            .Where(x => x.Id == id && x.Status == "open" && x.StudentId == null)
+            .ExecuteUpdateAsync(up => up
+                .SetProperty(x => x.StudentId, s.Id)
+                .SetProperty(x => x.Status, "booked")
+                .SetProperty(x => x.BookedAt, bookedAt));
+        if (affected == 0)
+            return await db.SupportSlots.AnyAsync(x => x.Id == id)
+                ? BadRequest(new { message = "Bu vaqt allaqachon band qilingan" })
+                : NotFound();
         return NoContent();
     }
 

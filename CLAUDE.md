@@ -114,6 +114,22 @@ docker compose up -d --build    # app + postgres + cloudflared + backup + mediam
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-23: **SUPPORT tizimi — KRITIK bug tuzatildi (support portali umuman ishlamasdi) + tozalash.**
+  Ildiz: `TeachersController` IsSupport o'qituvchiga `AppUser.Role="support"` berardi, LEKIN frontend "support"
+  rolini umuman tanimaydi (`Role` tipida yo'q, `homeByRole`da yo'q) va support sahifasi `/teacher/support`
+  (TeacherPortalController, role="teacher") endpointlarini chaqiradi. Natija: support o'qituvchi login qilsa
+  teacher portaliga KIRA OLMASDI (role gate) → butun support portali ishlamasdi. Bundan tashqari `/api/support`
+  (`SupportPortalController`, role="support") — frontend hech qachon chaqirmaydigan O'LIK dublikat edi.
+  **Yechim (Option A):** support o'qituvchi ham `role="teacher"` (+ `Teacher.IsSupport` bayrog'i) — "Support"
+  sahifasi teacher portalida IsSupport bo'yicha ko'rinadi (frontend allaqachon shunday qurilgan). O'zgarishlar:
+  TeachersController Create/Update rolni doimo `Roles.Teacher` qiladi (eski support akkauntni tahrirda ham
+  tuzatadi); `Program.cs` startup self-heal (mavjud `Role="support"` → `"teacher"`, idempotent ExecuteUpdate);
+  o'lik `SupportPortalController.cs` O'CHIRILDI; `SupportService` faqat `StudentNamesAsync` qoldi (ListAsync/
+  AddAsync/DeleteAsync/CompleteAsync — faqat SupportPortal ishlatardi, o'chirildi); `Roles.Support` konstantasi
+  olib tashlandi (endi alohida rol yo'q). **Bonus bug:** o'quvchi slot bron qilish (`StudentPortalController.
+  BookSupport`) check-then-act RACE edi (2 o'quvchi bir slotga) → atomik `ExecuteUpdateAsync` (faqat "open"+egasiz
+  qator) bilan race-safe qilindi. ESLATMA (qolgan, dizayn): support bron qilingan slotni o'chira oladi (o'quvchi
+  broni jimgina yo'qoladi); o'tilgan slot o'chirilmaydi. Backend 0, deploy ✅.
 - 2026-06-23: **Aktivlashtirish (qisman-oy) billing FORMULASI o'zgartirildi + kursga "bir dars narxi" qo'shildi.**
   Muammo: oy o'rtasida aktivlashtirilganda eski formula `oylik × qolgan_dars ÷ shu_oydagi_jami_dars` edi → 13 darsli
   oyda to'lov biroz kam chiqardi. **Yangi formula** (`TuitionService.ProratedLessonCharge`, yagona helper): qolgan
