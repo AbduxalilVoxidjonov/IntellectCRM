@@ -330,7 +330,7 @@ export async function saveTelegramBackupConfig(cfg: TelegramBackupConfig): Promi
     await delay(250)
     return cfg
   }
-  const { data } = await api.put<TelegramBackupConfig>('/admin/settings/telegram-backup', cfg)
+  const { data } = await api.post<TelegramBackupConfig>('/admin/settings/telegram-backup', cfg)
   return data
 }
 

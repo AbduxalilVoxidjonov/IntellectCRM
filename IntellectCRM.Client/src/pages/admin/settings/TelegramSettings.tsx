@@ -150,6 +150,12 @@ export function TelegramSettings() {
   )
 }
 
+/** Axios xato javobidan backend xabarini ajratib oladi ({ message } yoki { error }). */
+function backendMessage(e: unknown): string {
+  const data = (e as { response?: { data?: { message?: string; error?: string } } })?.response?.data
+  return data?.message || data?.error || ''
+}
+
 function fmtDateTime(iso?: string): string {
   if (!iso) return ''
   const d = new Date(iso)
@@ -194,13 +200,15 @@ function TelegramBackupSection() {
     const err = validateChatId(cfg.adminChatId)
     if (err) { setChatIdError(err); return }
     setStatus('saving')
+    setTestResult(null)
     try {
       const updated = await saveTelegramBackupConfig(cfg)
-      setCfg(updated)
+      setCfg({ ...updated, adminChatId: updated.adminChatId ?? '' })
       setStatus('saved')
       setTimeout(() => setStatus('idle'), 2000)
-    } catch {
+    } catch (e) {
       setStatus('idle')
+      setTestResult({ success: false, message: backendMessage(e) || 'Saqlashda xatolik' })
     }
   }
 
@@ -213,8 +221,8 @@ function TelegramBackupSection() {
     try {
       const res = await testTelegramBackup()
       setTestResult(res)
-    } catch {
-      setTestResult({ success: false, message: "So'rov yuborishda xatolik" })
+    } catch (e) {
+      setTestResult({ success: false, message: backendMessage(e) || "So'rov yuborishda xatolik" })
     } finally {
       setTesting(false)
     }
