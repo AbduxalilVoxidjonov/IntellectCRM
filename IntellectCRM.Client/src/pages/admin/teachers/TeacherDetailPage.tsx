@@ -625,9 +625,9 @@ type SalaryRow = {
 }
 
 /**
- * O'qituvchining HAR guruhi uchun alohida maosh sozlamasi: "Umumiy" (o'qituvchi darajasidagi sozlamaga
- * ergashadi) | "Foiz" (shu guruh to'lovidan %) | "Qat'iy" (shu guruh uchun qat'iy summa). Saqlanganda
- * o'qituvchi oyligi guruhlar ulushi yig'indisi sifatida hisoblanadi.
+ * O'qituvchining HAR guruhi uchun alohida maosh sozlamasi: "Foiz" (shu guruh to'lovidan %) yoki
+ * "Qat'iy" (shu guruh uchun qat'iy summa) — boshqa variant yo'q. Saqlanganda o'qituvchi oyligi
+ * guruhlar ulushi yig'indisi sifatida hisoblanadi.
  */
 function GroupSalaryEditor({
   teacherId,
@@ -650,17 +650,27 @@ function GroupSalaryEditor({
     return m
   }, [lines])
 
-  const [rows, setRows] = useState<SalaryRow[]>(() =>
-    groups.map((g) => ({
-      groupId: g.id,
-      name: g.name,
-      courseName: subjects.find((s) => s.id === g.courseId)?.name ?? '',
-      monthlyFee: g.monthlyFee,
-      mode: g.teacherSalaryMode === 'percent' || g.teacherSalaryMode === 'fixed' ? g.teacherSalaryMode : '',
-      percent: g.teacherSalaryPercent ?? 0,
-      fixed: g.teacherSalaryFixed ?? 0,
-    })),
-  )
+  // Har qator FOIZ yoki QAT'IY — "umumiy" yo'q. Sozlanmagan guruh amaldagi (ledger) qiymatdan,
+  // u ham bo'lmasa "foiz 0" dan boshlanadi (admin tanlaydi).
+  const buildRows = (): SalaryRow[] =>
+    groups.map((g) => {
+      const line = (lines ?? []).find((l) => l.groupId === g.id)
+      const raw =
+        g.teacherSalaryMode === 'fixed' ? 'fixed' : g.teacherSalaryMode === 'percent' ? 'percent' : ''
+      const mode: string = raw || (line?.mode === 'fixed' ? 'fixed' : 'percent')
+      return {
+        groupId: g.id,
+        name: g.name,
+        courseName: subjects.find((s) => s.id === g.courseId)?.name ?? '',
+        monthlyFee: g.monthlyFee,
+        mode,
+        percent: raw === 'percent' ? g.teacherSalaryPercent ?? 0 : line?.percent ?? g.teacherSalaryPercent ?? 0,
+        fixed: raw === 'fixed' ? g.teacherSalaryFixed ?? 0 : line?.fixed ?? g.teacherSalaryFixed ?? 0,
+      }
+    })
+
+  const [rows, setRows] = useState<SalaryRow[]>(buildRows)
+  const [initial] = useState<SalaryRow[]>(buildRows)
   const [busy, setBusy] = useState(false)
   const [saved, setSaved] = useState(false)
 
@@ -670,20 +680,15 @@ function GroupSalaryEditor({
   const dirty = useMemo(
     () =>
       rows.some((r) => {
-        const g = groups.find((x) => x.id === r.groupId)
-        const gm =
-          g?.teacherSalaryMode === 'percent' || g?.teacherSalaryMode === 'fixed'
-            ? g.teacherSalaryMode
-            : ''
-        const gp = g?.teacherSalaryPercent ?? 0
-        const gf = g?.teacherSalaryFixed ?? 0
+        const o = initial.find((x) => x.groupId === r.groupId)
         return (
-          r.mode !== gm ||
-          (r.mode === 'percent' && r.percent !== gp) ||
-          (r.mode === 'fixed' && r.fixed !== gf)
+          !o ||
+          r.mode !== o.mode ||
+          (r.mode === 'percent' && r.percent !== o.percent) ||
+          (r.mode === 'fixed' && r.fixed !== o.fixed)
         )
       }),
-    [rows, groups],
+    [rows, initial],
   )
 
   const handleSave = async () => {
@@ -738,9 +743,8 @@ function GroupSalaryEditor({
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 <div className="inline-flex rounded-lg border border-slate-200 p-0.5">
                   {[
-                    { v: '', label: 'Umumiy' },
                     { v: 'percent', label: 'Foiz' },
-                    { v: 'fixed', label: "Qat'iy" },
+                    { v: 'fixed', label: "Qat'iy summa" },
                   ].map((opt) => (
                     <button
                       key={opt.v}
@@ -784,11 +788,6 @@ function GroupSalaryEditor({
                     />
                     <span className="text-sm text-slate-500">so'm</span>
                   </div>
-                )}
-                {r.mode === '' && (
-                  <span className="text-xs text-slate-400">
-                    O'qituvchining umumiy sozlamasiga ergashadi
-                  </span>
                 )}
               </div>
             </div>
