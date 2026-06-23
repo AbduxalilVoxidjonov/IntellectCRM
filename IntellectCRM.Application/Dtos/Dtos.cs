@@ -77,11 +77,24 @@ public record TeacherPayload(
     string? PhotoUrl = null, string? Category = null, string? SalaryStartDate = null,
     string? SalaryMode = null, decimal SalaryPercent = 0, bool IsSupport = false);
 public record MonthSalaryDto(string Month, decimal Expected, decimal Paid, decimal Remaining, string Status);
+/// <summary>
+/// Maosh hisobida bitta guruhning ulushi (davr bo'yicha): qaysi rejim (foiz/qat'iy), qiymati,
+/// shu davrda guruhdan yig'ilgan to'lov bazasi va shu guruh keltirgan hisoblangan maosh.
+/// </summary>
+public record GroupSalaryLineDto(
+    string GroupId, string GroupName, string CourseName, decimal MonthlyFee,
+    string Mode, decimal Percent, decimal Fixed,
+    decimal PeriodCollected, decimal PeriodExpected);
 public record SalaryLedgerDto(
     string TeacherId, string FullName, decimal Salary,
     decimal TotalExpected, decimal TotalPaid, decimal Remaining,
     List<MonthSalaryDto> Months, List<PaymentDto> Payments,
-    string SalaryMode = "fixed", decimal SalaryPercent = 0);
+    string SalaryMode = "fixed", decimal SalaryPercent = 0,
+    List<GroupSalaryLineDto>? Groups = null);
+
+/// <summary>O'qituvchi guruhlari maosh sozlamasini yangilash (per-guruh foiz/qat'iy summa).</summary>
+public record GroupSalaryItemDto(string GroupId, string Mode, decimal Percent, decimal Fixed);
+public record GroupSalaryUpdateRequest(List<GroupSalaryItemDto> Items);
 public record SalaryReportRowDto(
     string TeacherId, string TeacherName, decimal Salary, decimal TotalPaid, int PaymentsCount,
     int Months, decimal Expected, decimal Remaining,

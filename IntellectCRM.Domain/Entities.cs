@@ -343,6 +343,22 @@ public class Group
     public string StartTime { get; set; } = string.Empty;
     /// <summary>Dars tugash vaqti "HH:mm".</summary>
     public string EndTime { get; set; } = string.Empty;
+
+    // ---------- O'qituvchi maoshi (PER-GURUH) ----------
+    /// <summary>
+    /// Shu guruh uchun o'qituvchi maoshi qanday hisoblanadi: "" (sozlanmagan — o'qituvchining umumiy
+    /// <see cref="Teacher.SalaryMode"/> sozlamasiga ergashadi) | "percent" (shu guruhdan yig'ilgan
+    /// to'lovning <see cref="TeacherSalaryPercent"/> foizi) | "fixed" (shu guruh uchun qat'iy summa
+    /// <see cref="TeacherSalaryFixed"/>). Bir o'qituvchining har guruhi alohida sozlanishi mumkin
+    /// (masalan bir guruhi 40%, keyingisi 60% yoki qat'iy summa) — o'qituvchi oyligi guruhlar yig'indisi.
+    /// </summary>
+    public string TeacherSalaryMode { get; set; } = string.Empty;
+    /// <summary>Shu guruh foizli bo'lsa — o'qituvchiga beriladigan ulush (%). Masalan 40 → guruhdan
+    /// yig'ilganning 40%i. <see cref="TeacherSalaryMode"/>=="percent" da ishlatiladi.</summary>
+    public decimal TeacherSalaryPercent { get; set; }
+    /// <summary>Shu guruh qat'iy bo'lsa — o'qituvchiga shu guruh uchun beriladigan oylik qat'iy summa (so'm).
+    /// <see cref="TeacherSalaryMode"/>=="fixed" da ishlatiladi.</summary>
+    public decimal TeacherSalaryFixed { get; set; }
 }
 
 /// <summary>

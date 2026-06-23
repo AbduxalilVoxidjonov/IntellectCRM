@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -8,13 +8,23 @@ import {
   Wallet,
   Info,
 } from 'lucide-react'
-import type { Credentials, Group, Subject, Teacher, TeacherPerformance } from '@/types'
+import type {
+  Credentials,
+  Group,
+  GroupSalaryLine,
+  SalaryLedger,
+  Subject,
+  Teacher,
+  TeacherPerformance,
+} from '@/types'
 import {
   getTeachers,
   getTeacherCredentials,
   getTeacherPerformanceSingle,
   getSalaryLedger,
   resetTeacherPassword,
+  saveGroupSalaries,
+  type GroupSalaryItem,
 } from '@/api/services/teachers'
 import { getClasses } from '@/api/services/classes'
 import { getSubjects } from '@/api/services/subjects'
@@ -71,9 +81,21 @@ export function TeacherDetailPage() {
 
   // Salary
   const [salaryLoading, setSalaryLoading] = useState(false)
-  const [salaryRows, setSalaryRows] = useState<
-    { month: string; expected: number; paid: number; remaining: number; status: string }[]
-  >([])
+  const [salaryLedger, setSalaryLedger] = useState<SalaryLedger | null>(null)
+  // Per-guruh editor mount kaliti — saqlangach yangi qiymatlar bilan qayta tiklash uchun.
+  const [salaryVersion, setSalaryVersion] = useState(0)
+
+  const reloadSalary = () => {
+    if (!id) return
+    setSalaryLoading(true)
+    Promise.all([getSalaryLedger(id), getClasses()])
+      .then(([ledger, classes]) => {
+        setSalaryLedger(ledger)
+        setGroups(classes.filter((c) => c.teacherId === id && !c.isArchived))
+        setSalaryVersion((v) => v + 1)
+      })
+      .finally(() => setSalaryLoading(false))
+  }
 
   // Credentials
   const [credentials, setCredentials] = useState<Credentials | null>(null)
@@ -106,12 +128,10 @@ export function TeacherDetailPage() {
   }, [tab, id, perf])
 
   useEffect(() => {
-    if (tab !== 'salary' || !id || salaryRows.length > 0) return
-    setSalaryLoading(true)
-    getSalaryLedger(id)
-      .then((ledger) => setSalaryRows(ledger.months))
-      .finally(() => setSalaryLoading(false))
-  }, [tab, id, salaryRows.length])
+    if (tab !== 'salary' || !id || salaryLedger) return
+    reloadSalary()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, id, salaryLedger])
 
   if (loading)
     return (
@@ -138,6 +158,9 @@ export function TeacherDetailPage() {
     .map((sid) => subjects.find((s) => s.id === sid)?.name)
     .filter(Boolean)
     .join(', ')
+
+  const now = new Date()
+  const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
 
   return (
     <div>
@@ -227,7 +250,7 @@ export function TeacherDetailPage() {
               value={subjectNames || '—'}
             />
             <InfoRow
-              label="Maosh turi"
+              label="Umumiy maosh sozlamasi"
               mono
               value={
                 teacher.salaryMode === 'percent'
@@ -336,37 +359,61 @@ export function TeacherDetailPage() {
       {/* SALARY TAB */}
       {tab === 'salary' && (
         <div className="space-y-4">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <StatCard label="Guruhlar soni" value={groups.length} icon={Users} />
             <StatCard
-              label="Maosh turi"
-              value={teacher.salaryMode === 'percent' ? 'Foizli' : "Qat'iy"}
-              icon={Wallet}
-            />
-            <StatCard
-              label={teacher.salaryMode === 'percent' ? 'Foiz' : "Qat'iy summa"}
-              value={
-                teacher.salaryMode === 'percent'
-                  ? `${teacher.salaryPercent ?? 0}%`
-                  : formatMoney(teacher.salary)
-              }
+              label="Joriy oy hisoblandi"
+              value={formatMoney(
+                salaryLedger?.months.find((m) => m.month === currentMonthKey)?.expected ?? 0,
+              )}
               icon={Wallet}
               iconBg="bg-emerald-50"
               iconColor="text-emerald-600"
             />
             <StatCard
-              label="Guruhlar soni"
-              value={groups.length}
-              icon={Users}
+              label="Jami hisoblangan"
+              value={formatMoney(salaryLedger?.totalExpected ?? 0)}
+              icon={Wallet}
               iconBg="bg-sky-50"
               iconColor="text-sky-600"
             />
+            <StatCard
+              label="Jami berildi"
+              value={formatMoney(salaryLedger?.totalPaid ?? 0)}
+              icon={Wallet}
+              iconBg="bg-violet-50"
+              iconColor="text-violet-600"
+            />
           </div>
 
-          {salaryLoading ? (
+          {/* PER-GURUH maosh sozlamasi */}
+          {groups.length === 0 ? (
+            <Card>
+              <div className="state">
+                <h4>Guruh biriktirilmagan</h4>
+                <p>
+                  Maosh per-guruh hisoblanadi. Avval bu o'qituvchiga guruh biriktiring (guruh
+                  formasida).
+                </p>
+              </div>
+            </Card>
+          ) : (
+            <GroupSalaryEditor
+              key={salaryVersion}
+              teacherId={teacher.id}
+              groups={groups}
+              subjects={subjects}
+              lines={salaryLedger?.groups}
+              saving={salaryLoading}
+              onSaved={reloadSalary}
+            />
+          )}
+
+          {salaryLoading && !salaryLedger ? (
             <Card>
               <Loader label="Yuklanmoqda..." />
             </Card>
-          ) : salaryRows.length === 0 ? (
+          ) : !salaryLedger || salaryLedger.months.length === 0 ? (
             <Card>
               <div className="state">
                 <h4>Maosh yozuvi yo'q</h4>
@@ -374,7 +421,7 @@ export function TeacherDetailPage() {
               </div>
             </Card>
           ) : (
-            <Card tight>
+            <Card tight title="Oylar bo'yicha">
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm">
                   <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-400">
@@ -387,7 +434,7 @@ export function TeacherDetailPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {salaryRows.map((row) => (
+                    {salaryLedger.months.map((row) => (
                       <tr key={row.month} className="hover:bg-slate-50/60">
                         <td className="px-4 py-3 font-medium text-slate-800">
                           {formatMonth(row.month)}
@@ -564,6 +611,216 @@ export function TeacherDetailPage() {
         </div>
       )}
     </div>
+  )
+}
+
+type SalaryRow = {
+  groupId: string
+  name: string
+  courseName: string
+  monthlyFee: number
+  mode: string
+  percent: number
+  fixed: number
+}
+
+/**
+ * O'qituvchining HAR guruhi uchun alohida maosh sozlamasi: "Umumiy" (o'qituvchi darajasidagi sozlamaga
+ * ergashadi) | "Foiz" (shu guruh to'lovidan %) | "Qat'iy" (shu guruh uchun qat'iy summa). Saqlanganda
+ * o'qituvchi oyligi guruhlar ulushi yig'indisi sifatida hisoblanadi.
+ */
+function GroupSalaryEditor({
+  teacherId,
+  groups,
+  subjects,
+  lines,
+  saving,
+  onSaved,
+}: {
+  teacherId: string
+  groups: Group[]
+  subjects: Subject[]
+  lines?: GroupSalaryLine[]
+  saving: boolean
+  onSaved: () => void
+}) {
+  const lineByGroup = useMemo(() => {
+    const m: Record<string, GroupSalaryLine> = {}
+    ;(lines ?? []).forEach((l) => (m[l.groupId] = l))
+    return m
+  }, [lines])
+
+  const [rows, setRows] = useState<SalaryRow[]>(() =>
+    groups.map((g) => ({
+      groupId: g.id,
+      name: g.name,
+      courseName: subjects.find((s) => s.id === g.courseId)?.name ?? '',
+      monthlyFee: g.monthlyFee,
+      mode: g.teacherSalaryMode === 'percent' || g.teacherSalaryMode === 'fixed' ? g.teacherSalaryMode : '',
+      percent: g.teacherSalaryPercent ?? 0,
+      fixed: g.teacherSalaryFixed ?? 0,
+    })),
+  )
+  const [busy, setBusy] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  const setRow = (gid: string, patch: Partial<SalaryRow>) =>
+    setRows((rs) => rs.map((r) => (r.groupId === gid ? { ...r, ...patch } : r)))
+
+  const dirty = useMemo(
+    () =>
+      rows.some((r) => {
+        const g = groups.find((x) => x.id === r.groupId)
+        const gm =
+          g?.teacherSalaryMode === 'percent' || g?.teacherSalaryMode === 'fixed'
+            ? g.teacherSalaryMode
+            : ''
+        const gp = g?.teacherSalaryPercent ?? 0
+        const gf = g?.teacherSalaryFixed ?? 0
+        return (
+          r.mode !== gm ||
+          (r.mode === 'percent' && r.percent !== gp) ||
+          (r.mode === 'fixed' && r.fixed !== gf)
+        )
+      }),
+    [rows, groups],
+  )
+
+  const handleSave = async () => {
+    setBusy(true)
+    setSaved(false)
+    try {
+      const items: GroupSalaryItem[] = rows.map((r) => ({
+        groupId: r.groupId,
+        mode: r.mode,
+        percent: r.mode === 'percent' ? r.percent : 0,
+        fixed: r.mode === 'fixed' ? r.fixed : 0,
+      }))
+      await saveGroupSalaries(teacherId, items)
+      setSaved(true)
+      onSaved()
+    } catch (e) {
+      alert('Saqlashda xato: ' + ((e as Error)?.message ?? ''))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const periodTotal = (lines ?? []).reduce((a, l) => a + l.periodExpected, 0)
+
+  return (
+    <Card
+      title="Per-guruh maosh"
+      sub="Har guruh uchun alohida foiz yoki qat'iy summa. O'qituvchi oyligi = guruhlar yig'indisi."
+    >
+      <div className="space-y-2">
+        {rows.map((r) => {
+          const line = lineByGroup[r.groupId]
+          return (
+            <div key={r.groupId} className="rounded-xl border border-slate-200 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="font-semibold text-slate-800">{r.name}</div>
+                  <div className="text-xs text-slate-400">
+                    {r.courseName || '—'} · oylik {formatMoney(r.monthlyFee)}
+                  </div>
+                </div>
+                {line && (
+                  <div className="text-right">
+                    <div className="text-[11px] text-slate-400">Davr bo'yicha</div>
+                    <div className="font-mono text-sm font-semibold text-emerald-700">
+                      {formatMoney(line.periodExpected)}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <div className="inline-flex rounded-lg border border-slate-200 p-0.5">
+                  {[
+                    { v: '', label: 'Umumiy' },
+                    { v: 'percent', label: 'Foiz' },
+                    { v: 'fixed', label: "Qat'iy" },
+                  ].map((opt) => (
+                    <button
+                      key={opt.v}
+                      type="button"
+                      onClick={() => setRow(r.groupId, { mode: opt.v })}
+                      className={cn(
+                        'rounded-md px-3 py-1 text-xs font-medium transition-colors',
+                        r.mode === opt.v
+                          ? 'bg-brand-600 text-white'
+                          : 'text-slate-500 hover:text-slate-700',
+                      )}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+
+                {r.mode === 'percent' && (
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step="any"
+                      value={r.percent}
+                      onChange={(e) => setRow(r.groupId, { percent: Number(e.target.value) })}
+                      className="w-24 rounded-lg border border-slate-200 px-2.5 py-1.5 font-mono text-sm focus:border-brand-400 focus:outline-none"
+                    />
+                    <span className="text-sm text-slate-500">%</span>
+                  </div>
+                )}
+                {r.mode === 'fixed' && (
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number"
+                      min={0}
+                      step="any"
+                      value={r.fixed}
+                      onChange={(e) => setRow(r.groupId, { fixed: Number(e.target.value) })}
+                      className="w-40 rounded-lg border border-slate-200 px-2.5 py-1.5 font-mono text-sm focus:border-brand-400 focus:outline-none"
+                    />
+                    <span className="text-sm text-slate-500">so'm</span>
+                  </div>
+                )}
+                {r.mode === '' && (
+                  <span className="text-xs text-slate-400">
+                    O'qituvchining umumiy sozlamasiga ergashadi
+                  </span>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
+        <div className="text-sm text-slate-500">
+          Davr jami hisoblangan:{' '}
+          <span className="font-mono font-semibold text-slate-800">{formatMoney(periodTotal)}</span>
+        </div>
+        <div className="flex items-center gap-3">
+          {saved && !dirty && (
+            <span className="text-xs font-medium text-emerald-600">Saqlandi ✓</span>
+          )}
+          <button
+            type="button"
+            disabled={busy || saving || !dirty}
+            onClick={handleSave}
+            className={cn(
+              'rounded-lg px-4 py-2 text-sm font-semibold text-white transition-colors',
+              busy || saving || !dirty
+                ? 'cursor-not-allowed bg-slate-300'
+                : 'bg-brand-600 hover:bg-brand-700',
+            )}
+          >
+            {busy ? 'Saqlanmoqda...' : 'Saqlash'}
+          </button>
+        </div>
+      </div>
+    </Card>
   )
 }
 

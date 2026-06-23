@@ -114,6 +114,21 @@ docker compose up -d --build    # app + postgres + cloudflared + backup + mediam
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-23: **O'qituvchi maoshi — PER-GURUH foiz/qat'iy summa (oyligi guruhlar yig'indisi).** Ilgari maosh
+  o'qituvchi DARAJASIDA edi (bitta `Teacher.SalaryMode` + bitta `SalaryPercent`/`Salary`). Endi HAR GURUH alohida
+  sozlanadi: bir guruhi 40%, keyingisi 60% yoki qat'iy summa bo'lishi mumkin — o'qituvchi oyligi guruhlar ulushi
+  YIG'INDISI. **Backend:** `Group`ga 3 ustun — `TeacherSalaryMode` ("" umumiy | "percent" | "fixed"),
+  `TeacherSalaryPercent`, `TeacherSalaryFixed` (inkremental migratsiya `AddGroupTeacherSalary` — 3 ustun, default 0/"",
+  data loss YO'Q). `SalaryLedger.BuildAsync` qayta yozildi: `CollectedForTeacherGroupsAsync` → `CollectedPerGroupAsync`
+  ((oy,guruh)→yig'ilgan; teglangan 100% guruhga, teglanmagan fee nisbatida har guruhga). Har oy = guruhlar ulushi
+  yig'indisi (percent → guruh yig'ilgani×foiz; fixed → qat'iy summa, 1-oy qisman proratsiya). **LEGACY fallback:**
+  hech bir guruh sozlanmagan bo'lsa eski xulq (teacher-level fixed/percent) — to'liq orqaga moslik. Guruh "umumiy"
+  (mode="") bo'lsa o'qituvchi darajasidagi sozlamaga ergashadi. `SalaryLedgerDto.Groups` (per-guruh breakdown:
+  rejim/qiymat/davr yig'ilgani/davr hisoblangani). Endpoint `PUT /admin/teachers/{id}/group-salaries` (faqat shu
+  o'qituvchi guruhlari, audit). FinanceController.salary-report o'zgarmasdan to'g'ri ishlaydi (ledger jami). **Frontend:**
+  `Group`ga 3 maydon, `SalaryLedger.groups`+`GroupSalaryLine` tip, `teachers.ts` `saveGroupSalaries`. `TeacherDetailPage`
+  Maosh tabida yangi `GroupSalaryEditor` — har guruh: Umumiy|Foiz|Qat'iy segment + qiymat input + davr bo'yicha ulush;
+  "Saqlash" → reload; KPI 4 karta (guruhlar/joriy oy/jami hisoblangan/berildi). Backend 0, tsc+vite yashil.
 - 2026-06-23: **O'qituvchilar hisoboti OYLIK bo'ldi (subagent).** Oy tanlash paneli ("Umumiy" + har oy, uzluksiz
   yillar bo'ylab `formatMonth` yorlig'i). Har o'qituvchi bo'yicha shu oyda qancha o'quvchi kelgan/aktivlashgan/
   ketgan/muzlatilgan + dars faolligi shu oy. Lifecycle EVENT-DATE oqimi (JoinedAt/ActivatedAt/FrozenAt/LeftAt oyi)

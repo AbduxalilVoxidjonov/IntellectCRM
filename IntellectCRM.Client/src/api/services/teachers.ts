@@ -170,6 +170,27 @@ export async function getSalaryLedger(id: string, from?: string, to?: string): P
   return data
 }
 
+/** Per-guruh maosh sozlamasi (bitta guruh) — yuborish uchun */
+export type GroupSalaryItem = {
+  groupId: string
+  /** '' (umumiy) | 'percent' | 'fixed' */
+  mode: string
+  percent: number
+  fixed: number
+}
+
+/**
+ * O'qituvchi guruhlarining PER-GURUH maosh sozlamasini saqlaydi (har guruhga alohida foiz yoki qat'iy summa).
+ * O'qituvchi oyligi = guruhlar ulushi yig'indisi.
+ */
+export async function saveGroupSalaries(teacherId: string, items: GroupSalaryItem[]): Promise<void> {
+  if (USE_MOCK) {
+    await delay(200)
+    return
+  }
+  await api.put(`/admin/teachers/${teacherId}/group-salaries`, { items })
+}
+
 /** Barcha faol o'qituvchilarning talaba saqlab qolish statistikasi (lifetime, per-group) */
 export async function getTeacherPerformance(): Promise<TeacherPerformance[]> {
   if (USE_MOCK) {

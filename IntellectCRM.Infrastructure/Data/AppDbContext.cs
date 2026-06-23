@@ -137,6 +137,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         b.Entity<Student>().Property(s => s.Balance).HasPrecision(18, 2);
         b.Entity<Student>().Property(s => s.DiscountAmount).HasPrecision(18, 2);
         b.Entity<Group>().Property(c => c.MonthlyFee).HasPrecision(18, 2);
+        b.Entity<Group>().Property(c => c.TeacherSalaryPercent).HasPrecision(18, 2);
+        b.Entity<Group>().Property(c => c.TeacherSalaryFixed).HasPrecision(18, 2);
         b.Entity<Subject>().Property(s => s.Price).HasPrecision(18, 2);
         b.Entity<FinanceTransaction>().Property(t => t.Amount).HasPrecision(18, 2);
         b.Entity<MonthlyCharge>().Property(c => c.Amount).HasPrecision(18, 2);

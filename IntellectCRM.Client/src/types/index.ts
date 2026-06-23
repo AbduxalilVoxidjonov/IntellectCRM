@@ -345,6 +345,12 @@ export interface Group {
   startTime?: string
   /** Dars tugash vaqti "HH:mm" */
   endTime?: string
+  /** Shu guruh uchun o'qituvchi maoshi rejimi: '' (umumiy) | 'percent' (guruh to'lovidan foiz) | 'fixed' (qat'iy summa) */
+  teacherSalaryMode?: string
+  /** Foizli bo'lsa — o'qituvchiga beriladigan ulush (%) */
+  teacherSalaryPercent?: number
+  /** Qat'iy bo'lsa — shu guruh uchun o'qituvchiga beriladigan oylik summa (so'm) */
+  teacherSalaryFixed?: number
 }
 
 /** Guruh a'zosi (many-to-many a'zolik) */
@@ -852,6 +858,24 @@ export interface MonthSalary {
   status: MonthStatus
 }
 
+/** Maosh hisobida bitta guruhning ulushi (davr bo'yicha) */
+export interface GroupSalaryLine {
+  groupId: string
+  groupName: string
+  courseName: string
+  monthlyFee: number
+  /** Amaldagi rejim: 'percent' | 'fixed' */
+  mode: string
+  /** Foizli ulush (%) */
+  percent: number
+  /** Qat'iy summa (so'm) */
+  fixed: number
+  /** Shu davrda guruhdan yig'ilgan to'lov bazasi */
+  periodCollected: number
+  /** Shu guruh keltirgan hisoblangan maosh (davr bo'yicha) */
+  periodExpected: number
+}
+
 /** O'qituvchi maoshi bo'yicha batafsil hisob (davr bo'yicha) */
 export interface SalaryLedger {
   teacherId: string
@@ -869,6 +893,8 @@ export interface SalaryLedger {
   salaryMode?: string
   /** Foizli ulush (%) — salaryMode='percent' bo'lsa */
   salaryPercent?: number
+  /** Per-guruh maosh taqsimoti (har guruh alohida rejim/qiymat + ulush) */
+  groups?: GroupSalaryLine[]
 }
 
 export interface SalaryReportRow {

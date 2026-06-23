@@ -414,4 +414,49 @@ public class TeachersController(AppDbContext db, AuditService audit) : Controlle
         if (teacher is null) return NotFound();
         return await IntellectCRM.Application.Services.SalaryLedger.BuildAsync(db, teacher, from, to);
     }
+
+    /// <summary>
+    /// O'qituvchi guruhlarining PER-GURUH maosh sozlamasini yangilaydi: har guruhga alohida rejim
+    /// ("percent" — shu guruh to'lovidan foiz | "fixed" — qat'iy summa | "" — o'qituvchi umumiy sozlamasi).
+    /// Faqat shu o'qituvchiga biriktirilgan guruhlar yangilanadi. O'qituvchi oyligi guruhlar ulushi yig'indisi.
+    /// </summary>
+    [HttpPut("{id}/group-salaries")]
+    public async Task<IActionResult> UpdateGroupSalaries(string id, GroupSalaryUpdateRequest req)
+    {
+        var teacher = await db.Teachers.FindAsync(id);
+        if (teacher is null) return NotFound();
+
+        var items = req.Items ?? new();
+        var ids = items.Select(i => i.GroupId).ToList();
+        // FAQAT shu o'qituvchining guruhlari — boshqa o'qituvchi guruhini o'zgartirib bo'lmaydi.
+        var groups = await db.Classes
+            .Where(c => c.TeacherId == id && ids.Contains(c.Id))
+            .ToListAsync();
+        var byId = groups.ToDictionary(g => g.Id);
+
+        var changed = new List<string>();
+        foreach (var it in items)
+        {
+            if (!byId.TryGetValue(it.GroupId, out var g)) continue;
+            var mode = it.Mode is "percent" or "fixed" ? it.Mode : "";
+            var pct = mode == "percent" ? Math.Max(0m, it.Percent) : 0m;
+            var fixedAmt = mode == "fixed" ? Math.Max(0m, it.Fixed) : 0m;
+            if (g.TeacherSalaryMode == mode && g.TeacherSalaryPercent == pct && g.TeacherSalaryFixed == fixedAmt)
+                continue;
+            g.TeacherSalaryMode = mode;
+            g.TeacherSalaryPercent = pct;
+            g.TeacherSalaryFixed = fixedAmt;
+            changed.Add(mode == "percent" ? $"{g.Name}: {pct}%"
+                : mode == "fixed" ? $"{g.Name}: {AuditService.Money(fixedAmt)} so'm"
+                : $"{g.Name}: umumiy");
+        }
+
+        if (changed.Count > 0)
+        {
+            audit.Record(AuditService.EntityTeacherSalary, teacher.Id, "update",
+                "Per-guruh maosh: " + string.Join(", ", changed), teacherId: teacher.Id);
+            await db.SaveChangesAsync();
+        }
+        return NoContent();
+    }
 }
