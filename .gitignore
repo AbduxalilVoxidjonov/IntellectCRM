@@ -37,3 +37,8 @@ modul.png
 
 # Lokal docker override (faqat shu mashinada — serverga tushmaydi)
 docker-compose.override.yml
+
+# Audit/review hisobot fayllari (generatsiya qilingan — repoga kerak emas)
+*AUDIT*.md
+*AUDIT*.txt
+*_AUDIT*.md
