@@ -114,6 +114,18 @@ docker compose up -d --build    # app + postgres + cloudflared + backup + mediam
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-23: **Xodimlar va rollar — buglar tuzatildi (subagent audit).** (A, xavfsizlik) `StaffController.Create`
+  ruxsat (template/extra) o'rnatishni `superadmin`ga chegaraladi — oldin "staff" ruxsatli xodim yangi xodimga
+  istalgan ruxsat (finance/settings/staff) berib privilege escalation qila olardi (`SetPermissions` superadmin-only
+  edi, lekin `Create` himoyasiz). (B) `Update` FullName null/bo'sh tekshiruvi (NRE). (C) `SetPermissions` null/bo'sh/
+  dublikat ruxsatlarni tozalaydi (null claim → `OnTokenValidated` 500 oldini olish). (D, UX) `StaffPage`
+  handleSubmit/savePerms `.catch`+alert; rol shablonlari alohida yuklanadi (ixtiyoriy shablon xatosi xodim ro'yxatini
+  buzmaydi). Sxema o'zgarmadi. Backend 0, tsc+vite yashil.
+- 2026-06-23: **O'qituvchilar hisobotiga o'quvchi KONVERSIYA/lifecycle metrikalari (subagent).** Har o'qituvchi
+  (`Group.TeacherId` guruhlari → `StudentGroup` a'zoliklari): Kelgan (jami) / Faol (active) / Sinov (trial) /
+  Muzlatilgan (frozen) / Ketgan (IsActive=false) + Sotuv konversiyasi (faol÷kelgan %). `TeacherReportRowDto`/
+  `TeacherReportDetailDto`ga 6 maydon; `TeacherActivityReport.ComputeAsync` lifecycle sanoqlari; `TeacherReportsPage`
+  6 ustun + 3 KPI karta + detail blok. Backend 0, tsc+vite yashil.
 - 2026-06-23: **Support feedback o'quvchi profilida.** Support o'qituvchiga guruh biriktirilmaydi (faqat slot),
   shuning uchun u o'quvchiga bergan feedback alohida ko'rsatiladi. Support o'tilgan darsni mavzu+izoh bilan yopadi
   (mavjud `complete` oqimi) → izoh = o'sha o'quvchiga feedback. Yangi endpoint `GET /admin/students/{id}/support-feedback`
