@@ -419,9 +419,9 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
     }
 
     /// <summary>A'zolikni AKTIVLASHTIRISH (sinov → faol). Birinchi (qisman) oy to'lovi avtomatik hisoblanadi:
-    /// (guruh oylik narxi ÷ 12) × shu sanadan oy oxirigacha qolgan darslar; to'liq oylikdan oshmaydi;
-    /// chegirma qo'llanadi. Keyingi to'liq oylar oddiy oylik hisob (AccrueMonth) orqali. TRANSACTION: race condition
-    /// (shunas vaqtda activation + freeze) oldini olish uchun atomik read-modify-write.</summary>
+    /// oyning birinchi darsidan / 12+ dars qolgan bo'lsa to'liq oylik, aks holda qolgan dars × kursning bir
+    /// dars yaxlit narxi (LessonPrice); to'liq oylikdan oshmaydi; chegirma qo'llanadi. Keyingi to'liq oylar
+    /// oddiy oylik hisob (AccrueMonth) orqali. TRANSACTION: race condition oldini olish uchun atomik read-modify-write.</summary>
     [HttpPost("{id}/members/{studentId}/activate")]
     public async Task<IActionResult> ActivateMember(string id, string studentId, MembershipStatusRequest req)
     {

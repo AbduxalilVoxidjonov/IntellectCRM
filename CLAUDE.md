@@ -114,6 +114,18 @@ docker compose up -d --build    # app + postgres + cloudflared + backup + mediam
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-23: **Aktivlashtirish (qisman-oy) billing FORMULASI o'zgartirildi + kursga "bir dars narxi" qo'shildi.**
+  Muammo: oy o'rtasida aktivlashtirilganda eski formula `oylik × qolgan_dars ÷ shu_oydagi_jami_dars` edi → 13 darsli
+  oyda to'lov biroz kam chiqardi. **Yangi formula** (`TuitionService.ProratedLessonCharge`, yagona helper): qolgan
+  dars == jami (oyning BIRINCHI darsidan) YOKI 12+ qolgan → **to'liq oylik narx**; 12 tadan kam qolgan → **qolgan dars
+  × kursning bir dars yaxlit narxi** (`Subject.LessonPrice`); to'liq oylikdan oshmaydi (cap). `LessonPrice` kiritilmagan
+  (0) bo'lsa — eski pro-rata fallback (orqaga moslik). Bir xil formula **muzlatish** (freeze) qisman to'loviga ham
+  qo'llandi (izchillik: aktivlashtir→muzlat bir oyda mos). `addSegment` (muzlatib→qayta aktiv) yig'indisi ham oylikdan
+  oshmaydi. **Subject.LessonPrice** (decimal) qo'shildi — kurs yaratish/tahrirlashda "Bir dars narxi (yaxlit)" maydoni
+  (SubjectFormModal + SubjectsPage karta + SubjectPayload/types). Proration metodlari narxni `cls.CourseId` orqali jonli
+  o'qiydi (signature/caller o'zgarmadi). Migratsiya `AddSubjectLessonPrice` (inkremental, 1 ustun default 0, data loss
+  YO'Q). Backend 0, tsc+vite yashil, deploy ✅. ESLATMA: yangi xulq uchun admin kursga LessonPrice kiritishi kerak;
+  kiritmasa eski formula ishlaydi.
 - 2026-06-23: **Xona samaradorligi (room utilization) — buglar tuzatildi.** (1) **CRASH:** `RoomUtilizationService.
   GetRoomUtilizationAsync` `rooms.ToDictionary(r => r.Name, …)` — Room.Name unique EMAS → bir xil nomli ikki faol
   xona bo'lsa ArgumentException → butun utilization-dashboard 500. Yechim: `TryAdd` loop (birinchi g'olib). Ildiz

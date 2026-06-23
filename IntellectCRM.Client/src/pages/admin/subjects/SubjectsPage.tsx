@@ -120,6 +120,11 @@ export function SubjectsPage() {
                     <span className="font-mono font-medium text-slate-700">{formatMoney(s.price)}</span>{' '}
                     so'm / oy
                   </p>
+                  {(s.lessonPrice ?? 0) > 0 && (
+                    <p className="mt-0.5 text-xs text-slate-400">
+                      <span className="font-mono">{formatMoney(s.lessonPrice ?? 0)}</span> so'm / dars
+                    </p>
+                  )}
                 </div>
               </Link>
 

@@ -172,6 +172,38 @@ public static class TuitionService
         return feesByName.TryGetValue(s.ClassName, out var fee) ? fee : 0m;
     }
 
+    /// <summary>To'liq oy chegarasi: shu sondan ko'p (yoki teng) dars bo'lsa — to'liq oylik narx olinadi.</summary>
+    public const int FullMonthLessonThreshold = 12;
+
+    /// <summary>
+    /// Qisman-oy to'lovini hisoblaydi (aktivlashtirish/muzlatish uchun yagona formula):
+    ///   - <paramref name="lessons"/> = shu segmentdagi billable dars soni (qolgan yoki qatnashilgan);
+    ///   - dars soni <paramref name="totalInMonth"/> ga teng (oyning BIRINCHI darsidan / to'liq oy)
+    ///     YOKI <see cref="FullMonthLessonThreshold"/> (12) dan katta/teng bo'lsa → TO'LIQ oylik narx;
+    ///   - aks holda (12 tadan kam) → dars soni × <paramref name="lessonFee"/> (kursning bir dars yaxlit narxi);
+    ///   - <paramref name="lessonFee"/> 0 (kursda kiritilmagan) bo'lsa → eski pro-rata (oylik × dars ÷ jami);
+    ///   - har holatda to'liq oylik narxdan OSHMAYDI (qisman oy to'liqdan qimmat bo'lib qolmasin).
+    /// </summary>
+    public static decimal ProratedLessonCharge(decimal monthlyFee, decimal lessonFee, int lessons, int totalInMonth)
+    {
+        if (monthlyFee <= 0 || lessons <= 0 || totalInMonth <= 0) return 0m;
+        // To'liq oy: birinchi darsdan (lessons == totalInMonth) yoki 12+ dars.
+        if (lessons >= totalInMonth || lessons >= FullMonthLessonThreshold)
+            return decimal.Round(monthlyFee, 2);
+        // 12 tadan kam: har bir dars uchun yaxlit summa; kursda yo'q bo'lsa eski pro-rata.
+        var partial = lessonFee > 0
+            ? lessonFee * lessons
+            : monthlyFee * lessons / totalInMonth;
+        return decimal.Round(Math.Min(partial, monthlyFee), 2);
+    }
+
+    /// <summary>Kursning (Subject) bir dars yaxlit narxi (LessonPrice). CourseId bo'sh/topilmasa 0.</summary>
+    private static async Task<decimal> LessonFeeForCourseAsync(IAppDbContext db, string? courseId)
+    {
+        if (string.IsNullOrEmpty(courseId)) return 0m;
+        return await db.Subjects.Where(x => x.Id == courseId).Select(x => x.LessonPrice).FirstOrDefaultAsync();
+    }
+
     /// <summary>Hafta kunlari (0=Du..6=Yak) bo'yicha [from..to] (inklyuziv) oralig'idagi darslar soni.</summary>
     public static int LessonsInRange(IReadOnlyCollection<int> days, DateOnly from, DateOnly to)
     {
@@ -187,9 +219,10 @@ public static class TuitionService
     }
 
     /// <summary>Aktivlashtirilgan oyning QISMAN to'lovini hisoblab o'quvchiga yozadi (balans kamayadi,
-    /// shu oy MonthlyCharge'iga qo'shiladi yoki yaratiladi). Formula: bir dars = guruh oylik narxi ÷ SHU
-    /// OYDAGI jami dars soni (guruh kunlari bo'yicha); to'lov = bir dars × shu sanadan oy oxirigacha qolgan
-    /// dars. Qolgan ≤ jami bo'lgani uchun to'liq oylikdan oshmaydi. Chegirma qo'llanadi. SaveChanges — chaqiruvchida.</summary>
+    /// shu oy MonthlyCharge'iga qo'shiladi yoki yaratiladi). Formula (<see cref="ProratedLessonCharge"/>):
+    /// oyning BIRINCHI darsidan aktivlashtirilgan (qolgan == jami) yoki 12+ dars qolgan → TO'LIQ oylik narx;
+    /// 12 tadan kam qolgan → qolgan dars × kursning bir dars yaxlit narxi (LessonPrice; kiritilmagan bo'lsa
+    /// eski pro-rata). To'liq oylikdan oshmaydi. Chegirma qo'llanadi. SaveChanges — chaqiruvchida.</summary>
     /// <param name="addSegment">true bo'lsa (shu OYDA muzlatilgandan keyin QAYTA aktivlashtirish) — yangi
     /// studied segment mavjud (muzlatishgacha studied) hisobga QO'SHILADI, almashtirilmaydi. Aks holda
     /// (birinchi aktivlashtirish / ikki marta bosish) idempotent ALMASHTIRADI.</param>
@@ -204,8 +237,10 @@ public static class TuitionService
             var remaining = LessonsInRange(cls.Days, d, monthEnd);
             if (totalInMonth <= 0 || remaining <= 0) return; // shu oyda dars yo'q — qisman to'lov yo'q
 
-        // Bir dars = oylik narx ÷ shu oydagi jami dars; to'lov = bir dars × qolgan dars (qolgan ≤ jami → to'liqdan oshmaydi).
-        var gross = decimal.Round(cls.MonthlyFee * remaining / totalInMonth, 2);
+        // Yangi formula: birinchi darsdan (remaining == jami) yoki 12+ dars qolgan → to'liq oylik;
+        // 12 tadan kam qolgan → qolgan dars × kursning bir dars yaxlit narxi (LessonPrice).
+        var lessonFee = await LessonFeeForCourseAsync(db, cls.CourseId);
+        var gross = ProratedLessonCharge(cls.MonthlyFee, lessonFee, remaining, totalInMonth);
         if (gross <= 0) return;
 
         var month = dateIso[..7];
@@ -232,8 +267,8 @@ public static class TuitionService
             {
                 // SHU OYDA muzlatilgandan keyin QAYTA aktivlashtirish: mavjud hisob = muzlatishgacha studied
                 // segment. Yangi segment (shu sanadan oy oxirigacha) USTIGA QO'SHILADI — gap (muzlatish↔qayta
-                // aktiv) hisoblanmaydi, studied portion yo'qolmaydi.
-                var newAmount = existing.Amount + gross;
+                // aktiv) hisoblanmaydi, studied portion yo'qolmaydi. Yig'indi to'liq oylikdan oshmaydi.
+                var newAmount = Math.Min(existing.Amount + gross, cls.MonthlyFee);
                 var newDiscount = DiscountFor(newAmount, s.DiscountPct, s.DiscountAmount);
                 existing.Amount = newAmount;
                 existing.Discount = newDiscount;
@@ -277,7 +312,10 @@ public static class TuitionService
             activeFrom = act;
         // Muzlatish sanasidan OLDINGI darslar (shu sananing o'zi hisoblanmaydi — "shu sanadan to'xtaydi").
         var before = fz > activeFrom ? LessonsInRange(cls.Days, activeFrom, fz.AddDays(-1)) : 0;
-        var gross = totalInMonth > 0 && before > 0 ? decimal.Round(cls.MonthlyFee * before / totalInMonth, 2) : 0m;
+        // Qatnashilgan darslar uchun (aktivlashtirish bilan bir xil formula): jami/12+ → to'liq, aks holda
+        // qatnashilgan dars × kursning bir dars yaxlit narxi (LessonPrice; yo'q bo'lsa eski pro-rata).
+        var lessonFee = await LessonFeeForCourseAsync(db, cls.CourseId);
+        var gross = ProratedLessonCharge(cls.MonthlyFee, lessonFee, before, totalInMonth);
         var discount = gross > 0 ? DiscountFor(gross, s.DiscountPct, s.DiscountAmount) : 0m;
         var effective = gross - discount;
 

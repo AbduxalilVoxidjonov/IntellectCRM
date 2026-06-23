@@ -283,6 +283,10 @@ public class Subject
     public string Name { get; set; } = string.Empty;
     /// <summary>Kurs oylik narxi (so'm). Guruh shu kursga biriktirilganda guruh oyligi (MonthlyFee) shundan keladi.</summary>
     public decimal Price { get; set; }
+    /// <summary>Bir dars uchun yaxlit narx (so'm). Qisman-oy aktivlashtirishda 12 tadan kam dars
+    /// qolganda har bir dars uchun shu summa olinadi (oylik narxdan mustaqil). 0 = kiritilmagan
+    /// (eski pro-rata formula ishlatiladi).</summary>
+    public decimal LessonPrice { get; set; }
 }
 
 /// <summary>O'quv xonasi (auditoriya). Guruhlarga FK orqali bog'lanadi.</summary>

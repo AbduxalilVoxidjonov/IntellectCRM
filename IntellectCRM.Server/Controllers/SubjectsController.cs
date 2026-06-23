@@ -21,7 +21,7 @@ public class SubjectsController(AppDbContext db, AuditService audit) : Controlle
     [HttpPost]
     public async Task<ActionResult<Subject>> Create(SubjectPayload payload)
     {
-        var subject = new Subject { Name = payload.Name, Price = payload.Price };
+        var subject = new Subject { Name = payload.Name, Price = payload.Price, LessonPrice = payload.LessonPrice };
         db.Subjects.Add(subject);
         await db.SaveChangesAsync();
         return subject;
@@ -42,6 +42,7 @@ public class SubjectsController(AppDbContext db, AuditService audit) : Controlle
         var oldPrice = subject.Price;
         subject.Name = payload.Name;
         subject.Price = payload.Price;
+        subject.LessonPrice = payload.LessonPrice;
 
         if (oldPrice != payload.Price)
         {

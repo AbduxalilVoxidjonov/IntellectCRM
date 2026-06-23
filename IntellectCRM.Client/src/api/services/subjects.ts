@@ -7,6 +7,8 @@ export interface SubjectPayload {
   name: string
   /** Kurs narxi (so'm) */
   price: number
+  /** Bir dars uchun yaxlit narx (so'm) — 12 tadan kam dars qolganda qisman-oy hisobida ishlatiladi */
+  lessonPrice?: number
 }
 
 export async function getSubjects(): Promise<Subject[]> {

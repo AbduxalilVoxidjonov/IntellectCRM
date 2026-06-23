@@ -15,19 +15,21 @@ interface Props {
 export function SubjectFormModal({ open, onClose, onSubmit, initial }: Props) {
   const [name, setName] = useState('')
   const [price, setPrice] = useState(0)
+  const [lessonPrice, setLessonPrice] = useState(0)
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- modal ochilganda formani initial bilan sinxronlash (maqsadli)
     if (open) {
       setName(initial?.name ?? '')
       setPrice(initial?.price ?? 0)
+      setLessonPrice(initial?.lessonPrice ?? 0)
     }
   }, [open, initial])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!name.trim()) return
-    onSubmit({ name: name.trim(), price })
+    onSubmit({ name: name.trim(), price, lessonPrice })
   }
 
   return (
@@ -56,7 +58,7 @@ export function SubjectFormModal({ open, onClose, onSubmit, initial }: Props) {
           onChange={(e) => setName(e.target.value)}
         />
         <Input
-          label="Narx (so'm)"
+          label="Oylik narx (so'm)"
           type="number"
           min={0}
           step={50000}
@@ -64,6 +66,21 @@ export function SubjectFormModal({ open, onClose, onSubmit, initial }: Props) {
           value={price}
           onChange={(e) => setPrice(Number(e.target.value))}
         />
+        <div>
+          <Input
+            label="Bir dars narxi (so'm, yaxlit)"
+            type="number"
+            min={0}
+            step={10000}
+            className="font-mono"
+            value={lessonPrice}
+            onChange={(e) => setLessonPrice(Number(e.target.value))}
+          />
+          <p className="mt-1 text-xs text-slate-400">
+            Oy o'rtasida aktivlashtirilganda 12 tadan kam dars qolsa — har bir dars uchun shu summa
+            olinadi. Bo'sh (0) qoldirilsa, eski (oylik ÷ jami dars) hisob ishlaydi.
+          </p>
+        </div>
       </form>
     </Modal>
   )

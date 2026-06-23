@@ -298,6 +298,9 @@ export interface Subject {
   name: string
   /** Kurs narxi (so'm) — guruh oylik to'lovi shundan to'ldiriladi */
   price: number
+  /** Bir dars uchun yaxlit narx (so'm) — qisman-oy aktivlashtirishda 12 tadan kam dars
+   *  qolganda har bir dars uchun shu summa olinadi. 0 = kiritilmagan (eski pro-rata). */
+  lessonPrice?: number
 }
 
 /* ---------- Sinflar ---------- */

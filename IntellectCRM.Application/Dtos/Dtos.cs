@@ -143,7 +143,7 @@ public record StudentFinanceRowDto(
     int DiscountPct = 0, decimal DiscountAmount = 0);
 
 /* ---------- Subjects (Kurslar) ---------- */
-public record SubjectPayload(string Name, decimal Price = 0);
+public record SubjectPayload(string Name, decimal Price = 0, decimal LessonPrice = 0);
 
 /* ---------- Guruhlar (Groups) ---------- */
 /// <summary>Xona konflikti: mavjud guruh bir xil xona, kun va vaqtda ishlaydi.</summary>
