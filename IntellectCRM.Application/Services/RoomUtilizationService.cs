@@ -59,8 +59,12 @@ public class RoomUtilizationService(IAppDbContext db)
             .Select(sg => new { sg.GroupId, sg.StudentId })
             .ToListAsync();
 
-        // Xona nomi → Id xaritasi (matnli Room field uchun)
-        var roomByName = rooms.ToDictionary(r => r.Name, r => r.Id, StringComparer.OrdinalIgnoreCase);
+        // Xona nomi → Id xaritasi (matnli Room field uchun).
+        // DIQQAT: Room.Name unique EMAS — bir xil nomli ikki xona bo'lsa ToDictionary crash berardi.
+        // TryAdd bilan birinchisi g'olib (matnli Room moslashda ham birinchi xona tanlanadi).
+        var roomByName = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var r in rooms)
+            roomByName.TryAdd(r.Name, r.Id);
 
         // Guruhlarni xona Id bo'yicha guruhlash (RoomId ustuvor; bo'lmasa Room nomi orqali)
         var groupsByRoom = allGroups

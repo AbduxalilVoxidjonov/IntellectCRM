@@ -33,9 +33,13 @@ public class RoomsController(AppDbContext db, IntellectCRM.Application.Services.
         if (req.Capacity < 1 || req.Capacity > 1000)
             return BadRequest(new { message = "Sig'im 1–1000 oralig'ida bo'lishi kerak" });
 
+        var name = req.Name.Trim();
+        if (await db.Rooms.AnyAsync(r => r.IsActive && r.Name.ToLower() == name.ToLower()))
+            return BadRequest(new { message = "Bu nomli faol xona allaqachon mavjud" });
+
         var room = new Room
         {
-            Name     = req.Name.Trim(),
+            Name     = name,
             Capacity = req.Capacity,
             Building = req.Building?.Trim(),
             Location = req.Location?.Trim(),
@@ -56,7 +60,11 @@ public class RoomsController(AppDbContext db, IntellectCRM.Application.Services.
         if (req.Capacity < 1 || req.Capacity > 1000)
             return BadRequest(new { message = "Sig'im 1–1000 oralig'ida bo'lishi kerak" });
 
-        room.Name     = req.Name.Trim();
+        var name = req.Name.Trim();
+        if (await db.Rooms.AnyAsync(r => r.IsActive && r.Id != id && r.Name.ToLower() == name.ToLower()))
+            return BadRequest(new { message = "Bu nomli faol xona allaqachon mavjud" });
+
+        room.Name     = name;
         room.Capacity = req.Capacity;
         room.Building = req.Building?.Trim();
         room.Location = req.Location?.Trim();

@@ -318,15 +318,15 @@ function DetailModal({ metric, onClose }: { metric: RoomDetailMetric; onClose: (
             <MetricBox label="Jami slotlar" value={String(metric.totalSlots)} sub={`${metric.capacity}×${metric.groupCount}`} />
           </div>
 
-          {/* Occupancy progress (unique o'quvchilar / sig'im) */}
+          {/* O'quvchilar bandligi (jami o'quvchi-slot / jami slot) */}
           <div>
             <div className="mb-1.5 flex items-center justify-between text-sm">
               <span className="font-medium text-slate-700">
                 <span className="flex items-center gap-1">
                   <Users className="h-4 w-4 text-slate-400" />
-                  Unique o'quvchilar:
+                  O'quvchilar:
                   <span className="font-semibold tabular-nums text-slate-900 ml-1">{metric.actualStudents}</span>
-                  <span className="text-slate-400">/ {metric.capacity}</span>
+                  <span className="text-slate-400">/ {metric.totalSlots}</span>
                 </span>
               </span>
               <span className={cn('rounded-full border px-2.5 py-0.5 text-xs font-medium', st)}>
@@ -340,23 +340,11 @@ function DetailModal({ metric, onClose }: { metric: RoomDetailMetric; onClose: (
               />
             </div>
             <div className="mt-1 flex justify-between text-xs text-slate-400">
-              <span>{metric.occupancyPercent.toFixed(1)}% bandlik (unique)</span>
+              <span>{metric.occupancyPercent.toFixed(1)}% bandlik</span>
               <span className={metric.gap > 0 ? 'text-amber-600' : 'text-emerald-600'}>
                 {metric.gap > 0 ? `${metric.gap} bo'sh slot` : "To'liq band"}
               </span>
             </div>
-          </div>
-
-          {/* Slot utilization (non-unique, per-group) */}
-          <div>
-            <div className="mb-1.5 flex items-center justify-between text-xs">
-              <span className="text-slate-500">Slot bandligi (guruh bo'yicha)</span>
-              <span className="font-medium tabular-nums text-slate-700">{metric.utilizationPercent.toFixed(1)}%</span>
-            </div>
-            <ProgressBar
-              value={metric.utilizationPercent}
-              color={metric.utilizationPercent > 90 ? 'bg-red-500' : metric.utilizationPercent > 60 ? 'bg-emerald-500' : 'bg-amber-500'}
-            />
           </div>
 
           {/* Haftalik bandlik */}

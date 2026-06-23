@@ -114,6 +114,17 @@ docker compose up -d --build    # app + postgres + cloudflared + backup + mediam
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-23: **Xona samaradorligi (room utilization) — buglar tuzatildi.** (1) **CRASH:** `RoomUtilizationService.
+  GetRoomUtilizationAsync` `rooms.ToDictionary(r => r.Name, …)` — Room.Name unique EMAS → bir xil nomli ikki faol
+  xona bo'lsa ArgumentException → butun utilization-dashboard 500. Yechim: `TryAdd` loop (birinchi g'olib). Ildiz
+  sabab ham yopildi: `RoomsController.Create/Update` endi dublikat faol xona nomini bloklaydi (case-insensitive,
+  Update'da o'zini chiqaradi) → 400 "Bu nomli faol xona allaqachon mavjud". (2) **MODAL noto'g'ri ko'rsatardi:**
+  `GetRoomDetailMetricAsync`da `actualStudents` = guruhlar yig'indisi (unique EMAS) va `occupancyPercent = actualStudents
+  / totalSlots`, lekin modal uni "**Unique** o'quvchilar: {actualStudents} / **capacity**" + "% bandlik (**unique**)"
+  deb ko'rsatardi (40/30 ko'rinib foiz 66.7% — qarama-qarshi). Tuzatildi: yorliq "O'quvchilar", denominator
+  `/ totalSlots`, "(unique)" olib tashlandi. Bundan tashqari `utilizationPercent === occupancyPercent` (alias) bo'lgani
+  uchun modaldagi takror "Slot bandligi" progress bar olib tashlandi. `getRoomCapacity`/`/capacity` endpoint o'lik
+  (ishlatilmaydi — tegilmadi). Backend 0, tsc+vite yashil, deploy ✅.
 - 2026-06-17: **FIX 2: DOUBLE-CHARGE race condition — idempotency check qo'shildi.** Muammo: admin to'lov
   2 marta POST qilsa (double-click yoki network retry) → 2 transaction + balance 2x kattalaşir (revenue loss).
   Frontend submitting guard yetarli emas. **Yechim:** `FinanceTransaction`ga `CreatedAt` (UTC DateTime) qo'shildi;
