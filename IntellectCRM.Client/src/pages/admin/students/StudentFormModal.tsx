@@ -331,7 +331,7 @@ export function StudentFormModal({ open, onClose, onSubmit, initial }: Props) {
               label="Aniq summa (so'm)"
               type="number"
               min={0}
-              step={1000}
+              step="any"
               value={form.discountAmount ?? 0}
               onChange={(e) =>
                 update('discountAmount', Math.max(0, Number(e.target.value) || 0))

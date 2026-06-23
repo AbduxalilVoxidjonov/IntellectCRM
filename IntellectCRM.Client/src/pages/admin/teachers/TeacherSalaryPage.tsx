@@ -157,7 +157,7 @@ export function TeacherSalaryPage() {
                             <input
                               type="number"
                               min={0}
-                              step={1000}
+                              step="any"
                               value={d.salary}
                               onChange={(e) =>
                                 patchDraft(t.id, { salary: Number(e.target.value) })

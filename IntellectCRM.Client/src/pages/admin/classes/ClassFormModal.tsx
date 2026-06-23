@@ -215,7 +215,7 @@ export function ClassFormModal({ open, onClose, onSubmit, initial }: Props) {
             label="Oylik narx (so'm)"
             type="number"
             min={0}
-            step={50000}
+            step="any"
             value={form.monthlyFee}
             onChange={(e) => update('monthlyFee', Number(e.target.value))}
           />

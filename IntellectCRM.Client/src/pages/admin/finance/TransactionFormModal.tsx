@@ -337,7 +337,7 @@ export function TransactionFormModal({ open, onClose, onSubmit, initial }: Props
             label="Summa (so'm)"
             type="number"
             min={0}
-            step={50000}
+            step="any"
             required
             value={form.amount}
             onChange={(e) => update('amount', Number(e.target.value))}

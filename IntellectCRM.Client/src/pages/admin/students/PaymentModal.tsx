@@ -240,7 +240,7 @@ export function PaymentModal({ student, onClose, onSubmit }: Props) {
                   label="To'lov summasi (so'm)"
                   type="number"
                   min={0}
-                  step={50000}
+                  step="any"
                   autoFocus
                   value={amount}
                   onChange={(e) => setAmount(Number(e.target.value))}

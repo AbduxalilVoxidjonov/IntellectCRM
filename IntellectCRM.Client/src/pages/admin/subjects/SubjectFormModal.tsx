@@ -61,7 +61,7 @@ export function SubjectFormModal({ open, onClose, onSubmit, initial }: Props) {
           label="Oylik narx (so'm)"
           type="number"
           min={0}
-          step={50000}
+          step="any"
           className="font-mono"
           value={price}
           onChange={(e) => setPrice(Number(e.target.value))}
@@ -71,7 +71,7 @@ export function SubjectFormModal({ open, onClose, onSubmit, initial }: Props) {
             label="Bir dars narxi (so'm, yaxlit)"
             type="number"
             min={0}
-            step={10000}
+            step="any"
             className="font-mono"
             value={lessonPrice}
             onChange={(e) => setLessonPrice(Number(e.target.value))}
