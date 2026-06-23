@@ -28,22 +28,22 @@ public static class TeacherActivityReport
         public Dictionary<string, string> LastActivity = new(); // teacherId -> ISO sana
     }
 
-    /// <summary>Umumiy ko'rinish: barcha o'qituvchilar bo'yicha bitta-bitta qator.</summary>
-    public static async Task<List<TeacherReportRowDto>> BuildOverviewAsync(IAppDbContext db)
+    /// <summary>Umumiy ko'rinish: barcha o'qituvchilar bo'yicha bitta-bitta qator + mavjud oylar ro'yxati.</summary>
+    public static async Task<TeacherReportOverviewDto> BuildOverviewAsync(IAppDbContext db, string? month = null)
     {
-        var (c, teachers, _, _, lifecycle) = await ComputeAsync(db);
+        var (c, teachers, _, _, lifecycle, months) = await ComputeAsync(db, month);
         var rows = teachers
             .Select(t => Row(t.Id, t.FullName, t.IsArchived, KeysFor(c, t.Id), c.LastActivity.GetValueOrDefault(t.Id),
                 lifecycle.GetValueOrDefault(t.Id, new LifecycleCounts())))
             .OrderBy(r => r.IsArchived).ThenBy(r => r.FullName, StringComparer.OrdinalIgnoreCase)
             .ToList();
-        return rows;
+        return new TeacherReportOverviewDto(months, month ?? "", rows);
     }
 
     /// <summary>Bitta o'qituvchining batafsil hisoboti (sinf/fan yoyilmasi bilan).</summary>
-    public static async Task<TeacherReportDetailDto?> BuildDetailAsync(IAppDbContext db, string teacherId)
+    public static async Task<TeacherReportDetailDto?> BuildDetailAsync(IAppDbContext db, string teacherId, string? month = null)
     {
-        var (c, teachers, classNames, subjectNames, lifecycle) = await ComputeAsync(db);
+        var (c, teachers, classNames, subjectNames, lifecycle, _) = await ComputeAsync(db, month);
         var teacher = teachers.FirstOrDefault(t => t.Id == teacherId);
         if (teacher is null) return null;
 
@@ -117,13 +117,21 @@ public static class TeacherActivityReport
         return cap && p > 100 ? 100 : p;
     }
 
+    /// <summary>"yyyy-MM" oy yorlig'i bo'sh bo'lmagan ISO sanadan (uzunligi >= 7).</summary>
+    private static string MonthOf(string? date) =>
+        !string.IsNullOrEmpty(date) && date.Length >= 7 ? date[..7] : "";
+
     private static async Task<(
         Computed Computed,
         List<Teacher> Teachers,
         Dictionary<string, string> ClassNames,
         Dictionary<string, string> SubjectNames,
-        Dictionary<string, LifecycleCounts> Lifecycle)> ComputeAsync(IAppDbContext db)
+        Dictionary<string, LifecycleCounts> Lifecycle,
+        List<string> Months)> ComputeAsync(IAppDbContext db, string? month = null)
     {
+        // null/bo'sh = Umumiy (filtr yo'q)
+        var filterMonth = string.IsNullOrEmpty(month) ? null : month;
+
         var teachers = await db.Teachers.ToListAsync();
         var classes = await db.Classes.ToListAsync();
         var classNames = classes.ToDictionary(c => c.Id, c => c.Name);
@@ -171,6 +179,7 @@ public static class TeacherActivityReport
         foreach (var n in notes)
         {
             if (string.CompareOrdinal(n.Date, today) > 0) continue; // kelajak dars — hali reja emas
+            if (filterMonth != null && MonthOf(n.Date) != filterMonth) continue;
             var teacher = Attribute(n.ClassId, n.SubjectId);
             if (teacher is null) continue;
             Key(teacher, n.ClassId, n.SubjectId).Expected++;
@@ -180,6 +189,7 @@ public static class TeacherActivityReport
         foreach (var n in notes)
         {
             if (!n.Conducted) continue;
+            if (filterMonth != null && MonthOf(n.Date) != filterMonth) continue;
             var teacher = Attribute(n.ClassId, n.SubjectId);
             if (teacher is null) continue;
             var agg = Key(teacher, n.ClassId, n.SubjectId);
@@ -192,6 +202,7 @@ public static class TeacherActivityReport
         // --- Qo'yilgan baholar (JournalEntry) ---
         foreach (var e in entries)
         {
+            if (filterMonth != null && MonthOf(e.Date) != filterMonth) continue;
             var teacher = Attribute(e.ClassId, e.SubjectId);
             if (teacher is null) continue;
             Key(teacher, e.ClassId, e.SubjectId).Grades++;
@@ -212,23 +223,61 @@ public static class TeacherActivityReport
             .Where(sg => nonArchivedGroupIds.Contains(sg.GroupId))
             .ToListAsync();
 
+        // --- Lifecycle OQIM (event sanasi bo'yicha): oylar yig'indisi = umumiy ---
+        // Came   = JoinedAt oyi (Umumiy: JoinedAt bo'sh bo'lsa ham sanaladi — eski a'zoliklar)
+        // Active = ActivatedAt oyi; Frozen = FrozenAt oyi; Left = LeftAt oyi
+        // Trial  = max(0, Came - Active) (shu oyda qo'shilib hali aktivlashmaganlar)
         var lifecycle = new Dictionary<string, LifecycleCounts>();
+        LifecycleCounts Lc(string tId)
+        {
+            if (!lifecycle.TryGetValue(tId, out var lc)) lifecycle[tId] = lc = new LifecycleCounts();
+            return lc;
+        }
         foreach (var sg in memberships)
         {
             if (!groupTeacher.TryGetValue(sg.GroupId, out var tId)) continue;
-            if (!lifecycle.TryGetValue(tId, out var lc)) lifecycle[tId] = lc = new LifecycleCounts();
 
-            lc.Came++;
-            if (!sg.IsActive)
-                lc.Left++;
-            else if (sg.Status == "active")
-                lc.Active++;
-            else if (sg.Status == "trial")
-                lc.Trial++;
-            else if (sg.Status == "frozen")
-                lc.Frozen++;
+            // Kelgan (Came): JoinedAt oyi. Umumiy'da JoinedAt bo'sh bo'lsa ham sanaladi.
+            var joinedMonth = MonthOf(sg.JoinedAt);
+            if (filterMonth == null)
+            {
+                Lc(tId).Came++;
+            }
+            else if (joinedMonth == filterMonth)
+            {
+                Lc(tId).Came++;
+            }
+
+            // Faol (Active): ActivatedAt oyi (bo'sh = hali aktivlashmagan — sanalmaydi)
+            var activatedMonth = MonthOf(sg.ActivatedAt);
+            if (activatedMonth != "" && (filterMonth == null || activatedMonth == filterMonth))
+                Lc(tId).Active++;
+
+            // Muzlatilgan (Frozen): FrozenAt oyi
+            var frozenMonth = MonthOf(sg.FrozenAt);
+            if (frozenMonth != "" && (filterMonth == null || frozenMonth == filterMonth))
+                Lc(tId).Frozen++;
+
+            // Ketgan (Left): LeftAt oyi (null/bo'sh = hozir ham a'zo)
+            var leftMonth = MonthOf(sg.LeftAt);
+            if (leftMonth != "" && (filterMonth == null || leftMonth == filterMonth))
+                Lc(tId).Left++;
         }
+        // Sinov (Trial) = max(0, Came - Active)
+        foreach (var lc in lifecycle.Values)
+            lc.Trial = Math.Max(0, lc.Came - lc.Active);
 
-        return (c, teachers, classNames, subjectNames, lifecycle);
+        // --- Mavjud oylar ro'yxati (uzluksiz, yillar bo'ylab) ---
+        var monthCandidates = new List<string>();
+        monthCandidates.AddRange(memberships.Select(sg => MonthOf(sg.JoinedAt)));
+        monthCandidates.AddRange(notes.Select(n => MonthOf(n.Date)));
+        monthCandidates.AddRange(entries.Select(e => MonthOf(e.Date)));
+        var nonEmpty = monthCandidates.Where(m => m != "").ToList();
+        var startMonth = nonEmpty.Count > 0
+            ? nonEmpty.Min()!
+            : await TuitionService.AcademicYearStartMonthAsync(db);
+        var months = TuitionService.MonthRange(startMonth, TuitionService.CurrentMonth()).ToList();
+
+        return (c, teachers, classNames, subjectNames, lifecycle, months);
     }
 }

@@ -712,6 +712,16 @@ export interface TeacherReportDetail extends TeacherReportRow {
   rows: TeacherReportBreakdown[]
 }
 
+/**
+ * Umumiy ko'rinish javobi: mavjud oylar ro'yxati ("yyyy-MM"), tanlangan oy
+ * (bo'sh = Umumiy) va o'qituvchi qatorlari.
+ */
+export interface TeacherReportOverview {
+  months: string[]
+  month: string
+  rows: TeacherReportRow[]
+}
+
 /* ---------- Shartnomalar ---------- */
 
 /** target: 'parent' | 'staff' */

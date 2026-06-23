@@ -16,16 +16,16 @@ namespace IntellectCRM.Server.Controllers;
 [Route("api/admin/teacher-reports")]
 public class TeacherReportsController(AppDbContext db) : ControllerBase
 {
-    /// <summary>Barcha o'qituvchilar bo'yicha umumiy ko'rinish.</summary>
+    /// <summary>Barcha o'qituvchilar bo'yicha umumiy ko'rinish. month bo'sh/null = Umumiy (barcha oylar yig'indisi).</summary>
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<TeacherReportRowDto>>> Overview()
-        => await TeacherActivityReport.BuildOverviewAsync(db);
+    public async Task<ActionResult<TeacherReportOverviewDto>> Overview([FromQuery] string? month = null)
+        => await TeacherActivityReport.BuildOverviewAsync(db, month);
 
-    /// <summary>Bitta o'qituvchining batafsil hisoboti (sinf/fan yoyilmasi).</summary>
+    /// <summary>Bitta o'qituvchining batafsil hisoboti (sinf/fan yoyilmasi). month bo'sh/null = Umumiy.</summary>
     [HttpGet("{id}")]
-    public async Task<ActionResult<TeacherReportDetailDto>> Detail(string id)
+    public async Task<ActionResult<TeacherReportDetailDto>> Detail(string id, [FromQuery] string? month = null)
     {
-        var dto = await TeacherActivityReport.BuildDetailAsync(db, id);
+        var dto = await TeacherActivityReport.BuildDetailAsync(db, id, month);
         return dto is null ? NotFound() : dto;
     }
 }

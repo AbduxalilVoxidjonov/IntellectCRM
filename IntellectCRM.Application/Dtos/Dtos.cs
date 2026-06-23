@@ -399,6 +399,13 @@ public record TeacherReportRowDto(
     string? LastActivity, string Status,
     int Came, int Active, int Trial, int Frozen, int Left, int? ConversionPct);
 
+/// <summary>
+/// O'qituvchilar hisoboti — umumiy ko'rinish javobi: mavjud oylar ro'yxati + tanlangan oy + qatorlar.
+/// Month = "" bo'lsa Umumiy (barcha oylar yig'indisi).
+/// </summary>
+public record TeacherReportOverviewDto(
+    List<string> Months, string Month, List<TeacherReportRowDto> Rows);
+
 /// <summary>O'qituvchi hisoboti — sinf/fan kesimida bitta qator (batafsil ko'rinish).</summary>
 public record TeacherReportBreakdownDto(
     string ClassName, string SubjectName,

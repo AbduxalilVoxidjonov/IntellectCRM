@@ -3,6 +3,7 @@ import { Archive, Activity, TrendingDown, HelpCircle, Users, UserCheck, UserMinu
 import type { TeacherReportRow, TeacherReportDetail } from '@/types'
 import { getTeacherReport, getTeacherReportDetail } from '@/api/services/teacherReports'
 import { formatDate, cn } from '@/lib/utils'
+import { formatMonth } from '@/config/constants'
 import { Card } from '@/components/ui/Card'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { StatCard } from '@/components/ui/StatCard'
@@ -19,6 +20,9 @@ const statusMeta: Record<TeacherReportRow['status'], { label: string; tone: Badg
 
 export function TeacherReportsPage() {
   const [rows, setRows] = useState<TeacherReportRow[]>([])
+  const [months, setMonths] = useState<string[]>([])
+  // "" = Umumiy (barcha oylar yig'indisi) — standart
+  const [selectedMonth, setSelectedMonth] = useState('')
   const [loading, setLoading] = useState(true)
 
   const [detail, setDetail] = useState<TeacherReportDetail | null>(null)
@@ -27,19 +31,24 @@ export function TeacherReportsPage() {
 
   useEffect(() => {
     setLoading(true)
-    getTeacherReport()
-      .then(setRows)
+    getTeacherReport(selectedMonth || undefined)
+      .then((o) => {
+        setRows(o.rows)
+        setMonths(o.months)
+      })
       .finally(() => setLoading(false))
-  }, [])
+  }, [selectedMonth])
 
   const openDetail = (id: string) => {
     setDetailOpen(true)
     setDetail(null)
     setDetailLoading(true)
-    getTeacherReportDetail(id)
+    getTeacherReportDetail(id, selectedMonth || undefined)
       .then(setDetail)
       .finally(() => setDetailLoading(false))
   }
+
+  const monthLabel = selectedMonth ? formatMonth(selectedMonth) : 'Umumiy'
 
   const counts = {
     active: rows.filter((r) => r.status === 'active').length,
@@ -57,8 +66,38 @@ export function TeacherReportsPage() {
     <div>
       <PageHeader
         title="O'qituvchilar hisoboti"
-        sub="Dars o'tilishi, baho, mavzu, uy vazifa faolligi va o'quvchi konversiyasi"
+        sub={`Dars o'tilishi, baho, mavzu, uy vazifa faolligi va o'quvchi konversiyasi — ${monthLabel}`}
       />
+
+      <div className="mb-4 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => setSelectedMonth('')}
+          className={cn(
+            'rounded-lg px-3 py-1.5 text-sm font-medium transition',
+            selectedMonth === ''
+              ? 'bg-brand-600 text-white shadow-sm'
+              : 'bg-slate-100 text-slate-600 hover:bg-slate-200',
+          )}
+        >
+          Umumiy
+        </button>
+        {months.map((m) => (
+          <button
+            key={m}
+            type="button"
+            onClick={() => setSelectedMonth(m)}
+            className={cn(
+              'rounded-lg px-3 py-1.5 text-sm font-medium transition',
+              selectedMonth === m
+                ? 'bg-brand-600 text-white shadow-sm'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200',
+            )}
+          >
+            {formatMonth(m)}
+          </button>
+        ))}
+      </div>
 
       <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
         <StatCard
@@ -195,7 +234,7 @@ export function TeacherReportsPage() {
         open={detailOpen}
         onClose={() => setDetailOpen(false)}
         size="xl"
-        title={detail ? `${detail.fullName} — hisobot` : 'Hisobot'}
+        title={detail ? `${detail.fullName} — hisobot (${monthLabel})` : 'Hisobot'}
       >
         {detailLoading || !detail ? (
           <Loader label="Yuklanmoqda..." />
