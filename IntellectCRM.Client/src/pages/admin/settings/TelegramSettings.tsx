@@ -177,8 +177,9 @@ function TelegramBackupSection() {
   }, [])
 
   const validateChatId = (val: string) => {
-    if (!val.trim()) return ''
-    if (!/^-?\d{9,}$/.test(val.trim())) return "Chat ID faqat raqamdan iborat bo'lishi va kamida 9 ta raqam bo'lishi kerak"
+    const v = (val ?? '').trim()
+    if (!v) return ''
+    if (!/^-?\d{9,}$/.test(v)) return "Chat ID faqat raqamdan iborat bo'lishi va kamida 9 ta raqam bo'lishi kerak"
     return ''
   }
 
@@ -206,7 +207,7 @@ function TelegramBackupSection() {
   const onTest = async () => {
     const err = validateChatId(cfg.adminChatId)
     if (err) { setChatIdError(err); return }
-    if (!cfg.adminChatId.trim()) { setChatIdError("Chat ID kiriting"); return }
+    if (!(cfg.adminChatId ?? '').trim()) { setChatIdError("Chat ID kiriting"); return }
     setTesting(true)
     setTestResult(null)
     try {
@@ -346,7 +347,7 @@ function TelegramBackupSection() {
           <Button
             type="button"
             variant="secondary"
-            disabled={testing || !cfg.adminChatId.trim()}
+            disabled={testing || !(cfg.adminChatId ?? '').trim()}
             onClick={onTest}
           >
             <Send className="h-4 w-4" />

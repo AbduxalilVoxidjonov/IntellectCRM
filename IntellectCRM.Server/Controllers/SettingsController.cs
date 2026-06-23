@@ -121,7 +121,7 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
     {
         var m = await db.CenterMeta.FirstOrDefaultAsync();
         return new TelegramBackupConfigDto(
-            m?.TelegramAdminChatId,
+            m?.TelegramAdminChatId ?? "",
             m?.BackupScheduleHour ?? 21,
             m?.TelegramBackupEnabled ?? true,
             m?.TelegramBackupLastSentAt);
@@ -149,7 +149,7 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
         await db.SaveChangesAsync();
 
         return new TelegramBackupConfigDto(
-            m.TelegramAdminChatId,
+            m.TelegramAdminChatId ?? "",
             m.BackupScheduleHour,
             m.TelegramBackupEnabled,
             m.TelegramBackupLastSentAt);

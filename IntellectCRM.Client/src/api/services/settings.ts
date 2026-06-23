@@ -320,7 +320,9 @@ export async function getTelegramBackupConfig(): Promise<TelegramBackupConfig> {
     return { adminChatId: '', scheduleHour: 21, enabled: false }
   }
   const { data } = await api.get<TelegramBackupConfig>('/admin/settings/telegram-backup')
-  return data
+  // Backend eski yozuvlarda adminChatId null bo'lishi mumkin — '' ga normallashtiramiz
+  // (aks holda komponentda .trim() oq ekran beradi).
+  return { ...data, adminChatId: data.adminChatId ?? '' }
 }
 
 export async function saveTelegramBackupConfig(cfg: TelegramBackupConfig): Promise<TelegramBackupConfig> {
