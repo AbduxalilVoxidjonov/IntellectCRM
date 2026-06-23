@@ -40,7 +40,8 @@ public class ChatService(IAppDbContext db, IHubContext<ChatHub> hub)
             case "admin":
             case "superadmin":
                 {
-                    var names = await db.Classes.OrderBy(c => c.Grade).ThenBy(c => c.Name)
+                    var names = await db.Classes.Where(c => !c.IsArchived)
+                        .OrderBy(c => c.Grade).ThenBy(c => c.Name)
                         .Select(c => c.Name).ToListAsync();
                     names.Add(StaffChannel);
                     return names;
@@ -61,7 +62,7 @@ public class ChatService(IAppDbContext db, IHubContext<ChatHub> hub)
                     if (!string.IsNullOrEmpty(t.HomeroomClass)) names.Add(t.HomeroomClass);
 
                     // Dars beradigan guruhlar — guruhga biriktirilgan o'qituvchi (Group.TeacherId).
-                    var taughtNames = await db.Classes.Where(c => c.TeacherId == t.Id)
+                    var taughtNames = await db.Classes.Where(c => c.TeacherId == t.Id && !c.IsArchived)
                         .Select(c => c.Name).ToListAsync();
                     foreach (var n in taughtNames) names.Add(n);
 
