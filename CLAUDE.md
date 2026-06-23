@@ -114,6 +114,15 @@ docker compose up -d --build    # app + postgres + cloudflared + backup + mediam
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-23: **O'qituvchilar hisoboti OYLIK bo'ldi (subagent).** Oy tanlash paneli ("Umumiy" + har oy, uzluksiz
+  yillar bo'ylab `formatMonth` yorlig'i). Har o'qituvchi bo'yicha shu oyda qancha o'quvchi kelgan/aktivlashgan/
+  ketgan/muzlatilgan + dars faolligi shu oy. Lifecycle EVENT-DATE oqimi (JoinedAt/ActivatedAt/FrozenAt/LeftAt oyi)
+  → oylar yig'indisi = "Umumiy". Dars faolligi `Date[..7]==month`. Oylar: eng erta data oyidan joriygacha
+  (`TuitionService.MonthRange`). `TeacherReportOverviewDto{Months,Month,Rows}`; controller `?month=`; detail ham
+  oyga bog'landi. Sxema o'zgarmadi. Backend 0, tsc+vite yashil.
+- 2026-06-23: **Pul maydonlari istalgan summani qabul qiladi (`step="any"`).** number input `step={50000}`/`{1000}`
+  HTML5 da karrali bo'lmagan summani (137000) rad etardi → forma yuborilmasdi. 7 maydon: kurs oylik/dars narxi,
+  to'lov (PaymentModal), moliya tranzaksiyasi, guruh narxi, o'qituvchi maoshi, chegirma.
 - 2026-06-23: **Xodimlar va rollar — buglar tuzatildi (subagent audit).** (A, xavfsizlik) `StaffController.Create`
   ruxsat (template/extra) o'rnatishni `superadmin`ga chegaraladi — oldin "staff" ruxsatli xodim yangi xodimga
   istalgan ruxsat (finance/settings/staff) berib privilege escalation qila olardi (`SetPermissions` superadmin-only
