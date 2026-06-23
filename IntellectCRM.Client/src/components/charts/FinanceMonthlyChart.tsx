@@ -18,7 +18,7 @@ interface Props {
 
 export function FinanceMonthlyChart({ data }: Props) {
   const chartData = data.map((d) => ({
-    name: monthShortNames[Number(d.month.slice(5, 7)) - 1] ?? d.month,
+    name: `${monthShortNames[Number(d.month.slice(5, 7)) - 1] ?? d.month} '${d.month.slice(2, 4)}`,
     Kirim: d.income,
     Chiqim: d.expense,
   }))

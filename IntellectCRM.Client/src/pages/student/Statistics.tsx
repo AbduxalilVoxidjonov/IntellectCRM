@@ -13,7 +13,8 @@ import { GradingPanel } from '@/pages/student/GradingPanel'
 
 const sumVals = (o: Record<string, number> | undefined) =>
   o ? Object.values(o).reduce((a, b) => a + (b || 0), 0) : 0
-const monthShort = (m: string) => (m && m.length >= 7 ? (MONTHS[+m.slice(5, 7) - 1] || m).slice(0, 3) : m)
+const monthShort = (m: string) =>
+  m && m.length >= 7 ? `${(MONTHS[+m.slice(5, 7) - 1] || m).slice(0, 3)} '${m.slice(2, 4)}` : m
 
 export function StudentStatisticsScreen() {
   const navigate = useNavigate()

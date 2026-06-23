@@ -480,7 +480,7 @@ export function ClassDetailPage() {
                         : 'bg-slate-100 text-slate-600 hover:bg-slate-200',
                     )}
                   >
-                    {uzMonths[Number(m.slice(5, 7)) - 1] ?? m}
+                    {monthLabel(m)}
                   </button>
                 ))}
               </div>

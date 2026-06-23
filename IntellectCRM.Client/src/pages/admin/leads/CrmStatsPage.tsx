@@ -37,7 +37,7 @@ export function CrmStatsPage() {
   const sourceData = data.bySource.map((s) => ({ name: s.label, count: s.count }))
   const stageData = data.byStage.map((s) => ({ name: s.label, value: s.count }))
   const monthlyData = data.monthly.map((m) => ({
-    name: monthShortNames[Number(m.month.slice(5, 7)) - 1] ?? m.month,
+    name: `${monthShortNames[Number(m.month.slice(5, 7)) - 1] ?? m.month} '${m.month.slice(2, 4)}`,
     Yangi: m.created,
     Aylantirilgan: m.converted,
   }))

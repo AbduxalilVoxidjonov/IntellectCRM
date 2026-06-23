@@ -410,7 +410,7 @@ export function TeacherGroupDetailPage() {
                           : "bg-panel3 text-mute hover:bg-tealsoft",
                       )}
                     >
-                      {uzMonths[Number(m.slice(5, 7)) - 1] ?? m}
+                      {monthLabel(m)}
                     </button>
                   ))}
                 </div>
