@@ -389,12 +389,15 @@ public record RestoreTeacherRequest(string? NewPassword);
 /// O'qituvchi faollik hisoboti — bitta qator (umumiy ko'rinish). Expected = jadvaldan kelib
 /// chiqib bugungacha bo'lishi kerak bo'lgan darslar; Conducted = jurnal "o'tildi" belgilari;
 /// foizlar bajarilgan/mavzu yozilgan/uy vazifa berilgan ulushini bildiradi. Status: active|low|none.
+/// Came/Active/Trial/Frozen/Left — o'quvchi lifecycle sanoqlari (shu o'qituvchi guruhlari bo'yicha).
+/// ConversionPct = Active / Came * 100 (sinovdan faolga aylanganlar foizi).
 /// </summary>
 public record TeacherReportRowDto(
     string TeacherId, string FullName, bool IsArchived,
     int Expected, int Conducted, int? DonePct,
     int Grades, int? TopicPct, int? HomeworkPct,
-    string? LastActivity, string Status);
+    string? LastActivity, string Status,
+    int Came, int Active, int Trial, int Frozen, int Left, int? ConversionPct);
 
 /// <summary>O'qituvchi hisoboti — sinf/fan kesimida bitta qator (batafsil ko'rinish).</summary>
 public record TeacherReportBreakdownDto(
@@ -408,6 +411,7 @@ public record TeacherReportDetailDto(
     int Expected, int Conducted, int? DonePct,
     int Grades, int? TopicPct, int? HomeworkPct,
     string? LastActivity, string Status,
+    int Came, int Active, int Trial, int Frozen, int Left, int? ConversionPct,
     List<TeacherReportBreakdownDto> Rows);
 
 /// <summary>O'quvchi (mobil ilova) o'z joylashuvini yangilash so'rovi — GPS dan keladi.</summary>

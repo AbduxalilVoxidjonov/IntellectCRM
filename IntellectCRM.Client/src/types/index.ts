@@ -681,6 +681,18 @@ export interface TeacherReportRow {
   /** Oxirgi faollik sanasi (ISO) yoki null */
   lastActivity: string | null
   status: 'active' | 'low' | 'none'
+  /** Jami kelgan o'quvchilar (barcha holatlar, shu o'qituvchi guruhlari) */
+  came: number
+  /** Faol (active) o'quvchilar soni */
+  active: number
+  /** Sinov (trial) o'quvchilar soni */
+  trial: number
+  /** Muzlatilgan (frozen) o'quvchilar soni */
+  frozen: number
+  /** Ketgan (IsActive=false) o'quvchilar soni */
+  left: number
+  /** Sotuv konversiyasi foizi: active/came*100; came=0 bo'lsa null */
+  conversionPct: number | null
 }
 
 /** Sinf/fan kesimida bitta qator (batafsil hisobot) */

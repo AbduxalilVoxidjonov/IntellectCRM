@@ -31,9 +31,10 @@ public static class TeacherActivityReport
     /// <summary>Umumiy ko'rinish: barcha o'qituvchilar bo'yicha bitta-bitta qator.</summary>
     public static async Task<List<TeacherReportRowDto>> BuildOverviewAsync(IAppDbContext db)
     {
-        var (c, teachers, _, _) = await ComputeAsync(db);
+        var (c, teachers, _, _, lifecycle) = await ComputeAsync(db);
         var rows = teachers
-            .Select(t => Row(t.Id, t.FullName, t.IsArchived, KeysFor(c, t.Id), c.LastActivity.GetValueOrDefault(t.Id)))
+            .Select(t => Row(t.Id, t.FullName, t.IsArchived, KeysFor(c, t.Id), c.LastActivity.GetValueOrDefault(t.Id),
+                lifecycle.GetValueOrDefault(t.Id, new LifecycleCounts())))
             .OrderBy(r => r.IsArchived).ThenBy(r => r.FullName, StringComparer.OrdinalIgnoreCase)
             .ToList();
         return rows;
@@ -42,12 +43,13 @@ public static class TeacherActivityReport
     /// <summary>Bitta o'qituvchining batafsil hisoboti (sinf/fan yoyilmasi bilan).</summary>
     public static async Task<TeacherReportDetailDto?> BuildDetailAsync(IAppDbContext db, string teacherId)
     {
-        var (c, teachers, classNames, subjectNames) = await ComputeAsync(db);
+        var (c, teachers, classNames, subjectNames, lifecycle) = await ComputeAsync(db);
         var teacher = teachers.FirstOrDefault(t => t.Id == teacherId);
         if (teacher is null) return null;
 
         var keys = KeysFor(c, teacherId);
-        var total = Row(teacher.Id, teacher.FullName, teacher.IsArchived, keys, c.LastActivity.GetValueOrDefault(teacherId));
+        var lc = lifecycle.GetValueOrDefault(teacherId, new LifecycleCounts());
+        var total = Row(teacher.Id, teacher.FullName, teacher.IsArchived, keys, c.LastActivity.GetValueOrDefault(teacherId), lc);
 
         var breakdown = keys
             .Select(kv => new TeacherReportBreakdownDto(
@@ -63,10 +65,19 @@ public static class TeacherActivityReport
             total.TeacherId, total.FullName, total.IsArchived,
             total.Expected, total.Conducted, total.DonePct,
             total.Grades, total.TopicPct, total.HomeworkPct,
-            total.LastActivity, total.Status, breakdown);
+            total.LastActivity, total.Status,
+            total.Came, total.Active, total.Trial, total.Frozen, total.Left, total.ConversionPct,
+            breakdown);
     }
 
     // ---------- Ichki hisoblash ----------
+
+    /// <summary>Bir o'qituvchi guruhlari bo'yicha o'quvchi lifecycle sanoqlari.</summary>
+    private sealed class LifecycleCounts
+    {
+        public int Came, Active, Trial, Frozen, Left;
+        public int? ConversionPct => Came > 0 ? (int)Math.Round(Active * 100.0 / Came) : null;
+    }
 
     private static List<KeyValuePair<(string Teacher, string Class, string Subject), Agg>>
         KeysFor(Computed c, string teacherId) =>
@@ -75,7 +86,8 @@ public static class TeacherActivityReport
     private static TeacherReportRowDto Row(
         string teacherId, string fullName, bool isArchived,
         List<KeyValuePair<(string Teacher, string Class, string Subject), Agg>> keys,
-        string? lastActivity)
+        string? lastActivity,
+        LifecycleCounts lc)
     {
         var exp = keys.Sum(k => k.Value.Expected);
         var cond = keys.Sum(k => k.Value.Conducted);
@@ -93,7 +105,8 @@ public static class TeacherActivityReport
         return new TeacherReportRowDto(
             teacherId, fullName, isArchived,
             exp, cond, donePct, grades,
-            Pct(topic, cond), Pct(hw, cond), lastActivity, status);
+            Pct(topic, cond), Pct(hw, cond), lastActivity, status,
+            lc.Came, lc.Active, lc.Trial, lc.Frozen, lc.Left, lc.ConversionPct);
     }
 
     /// <summary>a/b foizi (butun son). b=0 → null. cap=true bo'lsa 100 dan oshmaydi.</summary>
@@ -108,7 +121,8 @@ public static class TeacherActivityReport
         Computed Computed,
         List<Teacher> Teachers,
         Dictionary<string, string> ClassNames,
-        Dictionary<string, string> SubjectNames)> ComputeAsync(IAppDbContext db)
+        Dictionary<string, string> SubjectNames,
+        Dictionary<string, LifecycleCounts> Lifecycle)> ComputeAsync(IAppDbContext db)
     {
         var teachers = await db.Teachers.ToListAsync();
         var classes = await db.Classes.ToListAsync();
@@ -184,6 +198,37 @@ public static class TeacherActivityReport
             Touch(teacher, e.Date);
         }
 
-        return (c, teachers, classNames, subjectNames);
+        // --- O'quvchi lifecycle sanoqlari: har o'qituvchi guruhlari bo'yicha ---
+        // Arxivlanmagan guruhlar (active/full) -> TeacherId xaritasi
+        var groupTeacher = classes
+            .Where(g => !g.IsArchived && !string.IsNullOrEmpty(g.TeacherId))
+            .ToDictionary(g => g.Id, g => g.TeacherId);
+
+        // Guruh IDlari to'plami (arxivlanmagan)
+        var nonArchivedGroupIds = groupTeacher.Keys.ToHashSet();
+
+        // Barcha a'zoliklar (faqat arxivlanmagan guruhlar bo'yicha)
+        var memberships = await db.StudentGroups
+            .Where(sg => nonArchivedGroupIds.Contains(sg.GroupId))
+            .ToListAsync();
+
+        var lifecycle = new Dictionary<string, LifecycleCounts>();
+        foreach (var sg in memberships)
+        {
+            if (!groupTeacher.TryGetValue(sg.GroupId, out var tId)) continue;
+            if (!lifecycle.TryGetValue(tId, out var lc)) lifecycle[tId] = lc = new LifecycleCounts();
+
+            lc.Came++;
+            if (!sg.IsActive)
+                lc.Left++;
+            else if (sg.Status == "active")
+                lc.Active++;
+            else if (sg.Status == "trial")
+                lc.Trial++;
+            else if (sg.Status == "frozen")
+                lc.Frozen++;
+        }
+
+        return (c, teachers, classNames, subjectNames, lifecycle);
     }
 }

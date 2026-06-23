@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Archive, Activity, TrendingDown, HelpCircle } from 'lucide-react'
+import { Archive, Activity, TrendingDown, HelpCircle, Users, UserCheck, UserMinus } from 'lucide-react'
 import type { TeacherReportRow, TeacherReportDetail } from '@/types'
 import { getTeacherReport, getTeacherReportDetail } from '@/api/services/teacherReports'
 import { formatDate, cn } from '@/lib/utils'
@@ -47,16 +47,22 @@ export function TeacherReportsPage() {
     none: rows.filter((r) => r.status === 'none').length,
   }
 
+  const totals = {
+    came: rows.reduce((s, r) => s + r.came, 0),
+    active: rows.reduce((s, r) => s + r.active, 0),
+    left: rows.reduce((s, r) => s + r.left, 0),
+  }
+
   return (
     <div>
       <PageHeader
         title="O'qituvchilar hisoboti"
-        sub="Dars o'tilishi, baho, mavzu va uy vazifa faolligi"
+        sub="Dars o'tilishi, baho, mavzu, uy vazifa faolligi va o'quvchi konversiyasi"
       />
 
-      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
         <StatCard
-          label="Faol"
+          label="Faol o'qituvchilar"
           value={counts.active}
           icon={Activity}
           iconBg="bg-emerald-50"
@@ -78,6 +84,30 @@ export function TeacherReportsPage() {
         />
       </div>
 
+      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <StatCard
+          label="Jami kelgan o'quvchilar"
+          value={totals.came}
+          icon={Users}
+          iconBg="bg-blue-50"
+          iconColor="text-blue-600"
+        />
+        <StatCard
+          label="Faol o'quvchilar"
+          value={totals.active}
+          icon={UserCheck}
+          iconBg="bg-emerald-50"
+          iconColor="text-emerald-600"
+        />
+        <StatCard
+          label="Ketgan o'quvchilar"
+          value={totals.left}
+          icon={UserMinus}
+          iconBg="bg-red-50"
+          iconColor="text-red-500"
+        />
+      </div>
+
       <Card tight>
         {loading ? (
           <Loader label="Yuklanmoqda..." />
@@ -94,6 +124,12 @@ export function TeacherReportsPage() {
                   <th className="num">Mavzu</th>
                   <th className="num">Uy vaz.</th>
                   <th>Oxirgi faollik</th>
+                  <th className="num">Kelgan</th>
+                  <th className="num">Faol</th>
+                  <th className="num">Sinov</th>
+                  <th className="num">Muzl.</th>
+                  <th className="num">Ketgan</th>
+                  <th className="num">Konv.%</th>
                   <th>Holat</th>
                 </tr>
               </thead>
@@ -129,6 +165,14 @@ export function TeacherReportsPage() {
                     <td className="font-mono text-slate-500">
                       {r.lastActivity ? formatDate(r.lastActivity) : '—'}
                     </td>
+                    <td className="num font-mono text-slate-600">{r.came}</td>
+                    <td className="num font-mono text-emerald-600 font-semibold">{r.active}</td>
+                    <td className="num font-mono text-blue-500">{r.trial}</td>
+                    <td className="num font-mono text-amber-500">{r.frozen}</td>
+                    <td className="num font-mono text-red-400">{r.left}</td>
+                    <td className="num">
+                      <PctCell v={r.conversionPct} />
+                    </td>
                     <td>
                       <StatusBadge status={r.status} />
                     </td>
@@ -136,7 +180,7 @@ export function TeacherReportsPage() {
                 ))}
                 {rows.length === 0 && (
                   <tr>
-                    <td colSpan={9} className="px-4 py-12 text-center text-slate-400">
+                    <td colSpan={15} className="px-4 py-12 text-center text-slate-400">
                       O'qituvchi yo'q
                     </td>
                   </tr>
@@ -162,6 +206,32 @@ export function TeacherReportsPage() {
               <Metric label="O'tildi" value={`${detail.conducted}`} />
               <Metric label="Bajarildi" value={detail.donePct == null ? '—' : `${detail.donePct}%`} />
               <Metric label="Baholar" value={String(detail.grades)} />
+            </div>
+
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                O'quvchilar lifecycle
+              </p>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+                <LifecycleMetric label="Kelgan" value={detail.came} color="text-slate-700" />
+                <LifecycleMetric label="Faol" value={detail.active} color="text-emerald-600" />
+                <LifecycleMetric label="Sinov" value={detail.trial} color="text-blue-500" />
+                <LifecycleMetric label="Muzlatilgan" value={detail.frozen} color="text-amber-500" />
+                <LifecycleMetric label="Ketgan" value={detail.left} color="text-red-500" />
+                <LifecycleMetric
+                  label="Konversiya"
+                  value={detail.conversionPct == null ? '—' : `${detail.conversionPct}%`}
+                  color={
+                    detail.conversionPct == null
+                      ? 'text-slate-400'
+                      : detail.conversionPct >= 70
+                        ? 'text-emerald-600'
+                        : detail.conversionPct >= 40
+                          ? 'text-amber-600'
+                          : 'text-red-600'
+                  }
+                />
+              </div>
             </div>
 
             <div className="table-wrap rounded-xl border border-slate-100">
@@ -234,6 +304,23 @@ function Metric({ label, value }: { label: string; value: string }) {
     <div className="rounded-xl bg-slate-50 px-3 py-2">
       <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{label}</p>
       <p className="mt-0.5 font-mono text-lg font-semibold text-slate-800">{value}</p>
+    </div>
+  )
+}
+
+function LifecycleMetric({
+  label,
+  value,
+  color,
+}: {
+  label: string
+  value: number | string
+  color: string
+}) {
+  return (
+    <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-center">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{label}</p>
+      <p className={cn('mt-0.5 font-mono text-xl font-semibold', color)}>{value}</p>
     </div>
   )
 }
