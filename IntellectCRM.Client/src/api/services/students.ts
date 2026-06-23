@@ -382,6 +382,30 @@ export interface StudentCompletedCourse {
   groupName: string
 }
 
+/** Support o'qituvchidan kelgan feedback (o'tilgan support darsi: mavzu + izoh). */
+export interface StudentSupportFeedback {
+  date: string
+  startTime: string
+  endTime: string
+  teacherName: string
+  topic: string
+  notes: string
+}
+
+/** O'quvchiga support o'qituvchilar bergan feedback (o'tilgan support darslari). */
+export async function getStudentSupportFeedback(
+  studentId: string,
+): Promise<StudentSupportFeedback[]> {
+  if (USE_MOCK) {
+    await delay()
+    return []
+  }
+  const { data } = await api.get<StudentSupportFeedback[]>(
+    `/admin/students/${studentId}/support-feedback`,
+  )
+  return data
+}
+
 /** O'quvchining tugatgan kurslari + sertifikatlari ro'yxati. */
 export async function getStudentCertificates(studentId: string): Promise<StudentCompletedCourse[]> {
   if (USE_MOCK) {

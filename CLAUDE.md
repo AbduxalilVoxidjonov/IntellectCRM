@@ -114,6 +114,13 @@ docker compose up -d --build    # app + postgres + cloudflared + backup + mediam
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-23: **Support feedback o'quvchi profilida.** Support o'qituvchiga guruh biriktirilmaydi (faqat slot),
+  shuning uchun u o'quvchiga bergan feedback alohida ko'rsatiladi. Support o'tilgan darsni mavzu+izoh bilan yopadi
+  (mavjud `complete` oqimi) → izoh = o'sha o'quvchiga feedback. Yangi endpoint `GET /admin/students/{id}/support-feedback`
+  (`StudentsController` → done holatdagi SupportSlotlar: sana/vaqt/support ismi/mavzu/izoh, eng yangi birinchi) +
+  DTO `StudentSupportFeedbackDto`. Frontend `students.ts` `getStudentSupportFeedback` + `StudentDetailPage`ga
+  "Support feedback" bo'limi (LifeBuoy ikon, Oylik feedback'dan oldin). O'quvchining O'Z portalida bu allaqachon
+  ko'rinadi (StudentSupportBookingDto done bronlar mavzu/izoh bilan). Backend 0, tsc+vite yashil, deploy ✅.
 - 2026-06-23: **SUPPORT tizimi — KRITIK bug tuzatildi (support portali umuman ishlamasdi) + tozalash.**
   Ildiz: `TeachersController` IsSupport o'qituvchiga `AppUser.Role="support"` berardi, LEKIN frontend "support"
   rolini umuman tanimaydi (`Role` tipida yo'q, `homeByRole`da yo'q) va support sahifasi `/teacher/support`

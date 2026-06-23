@@ -658,6 +658,9 @@ public record StudentSupportBookingDto(
 /// <summary>O'quvchi support ekrani: bo'sh slotli supportlar + mening bronlarim.</summary>
 public record StudentSupportDto(
     List<StudentSupportTeacherDto> Supports, List<StudentSupportBookingDto> MyBookings);
+/// <summary>O'quvchi profilidagi support feedback — support o'qituvchining o'tilgan darsi (mavzu+izoh).</summary>
+public record StudentSupportFeedbackDto(
+    string Date, string StartTime, string EndTime, string TeacherName, string Topic, string Notes);
 /// <summary>O'qituvchi dars beradigan bitta guruh (qaysi kurslarni o'qitishi).</summary>
 public record TeacherClassDto(
     string ClassId, string ClassName, int Grade, List<SubjectDto> Subjects);

@@ -4,7 +4,7 @@ import {
   ArrowLeft, GraduationCap, CalendarCheck, ShieldAlert, ClipboardCheck,
   User, Phone, Wallet, BookOpen, MapPin, Cake, CalendarPlus, Percent, IdCard,
   School, Clock, CalendarDays, ChevronRight, History, ListChecks, ChevronDown, Check,
-  CalendarClock, Award, Download,
+  CalendarClock, Award, Download, LifeBuoy,
 } from 'lucide-react'
 import { genderLabels } from '@/config/constants'
 import {
@@ -17,7 +17,9 @@ import {
   getStudentCertificates,
   downloadStudentCertificate,
   generateStudentCertificate,
+  getStudentSupportFeedback,
   type StudentCompletedCourse,
+  type StudentSupportFeedback,
 } from '@/api/services/students'
 import { getStudentGroups, getClasses } from '@/api/services/classes'
 import { getCurriculum, getProgress, setProgress, getStudentCoverageLog, type CoverageLogEntry } from '@/api/services/curriculum'
@@ -83,6 +85,7 @@ export function StudentDetailPage() {
   /** Tugatgan kurslar + sertifikatlar. */
   const [certificates, setCertificates] = useState<StudentCompletedCourse[]>([])
   const [certGenerating, setCertGenerating] = useState<string | null>(null)
+  const [supportFeedback, setSupportFeedback] = useState<StudentSupportFeedback[]>([])
 
   useEffect(() => {
     if (!id) return
@@ -103,6 +106,9 @@ export function StudentDetailPage() {
     getStudentCertificates(id)
       .then(setCertificates)
       .catch((e) => console.warn('Sertifikatlar yuklanmadi:', e))
+    getStudentSupportFeedback(id)
+      .then(setSupportFeedback)
+      .catch(() => {})
   }, [id])
 
   // O'quv dasturi uchun guruh→kurs id xaritasi. A'zolikda faqat courseName bor (courseId yo'q),
@@ -745,6 +751,35 @@ export function StudentDetailPage() {
           </div>
         )}
       </Section>
+
+      {/* Support feedback — support o'qituvchining o'tilgan darslari (guruhsiz) */}
+      {supportFeedback.length > 0 && (
+        <Section title="Support feedback" icon={LifeBuoy}>
+          <div className="space-y-2.5">
+            {supportFeedback.map((f, i) => (
+              <div
+                key={i}
+                className="rounded-xl border border-slate-100 bg-slate-50/60 p-3"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="flex items-center gap-1.5 text-sm font-semibold text-slate-800">
+                    <LifeBuoy className="h-4 w-4 text-teal-600" />
+                    {f.teacherName || 'Support'}
+                  </span>
+                  <span className="flex items-center gap-1 font-mono text-xs text-slate-500">
+                    <CalendarClock className="h-3.5 w-3.5" />
+                    {formatDate(f.date)} · {f.startTime}–{f.endTime}
+                  </span>
+                </div>
+                {f.topic && (
+                  <p className="mt-1.5 text-sm font-medium text-slate-700">{f.topic}</p>
+                )}
+                {f.notes && <p className="mt-0.5 text-sm text-slate-500">{f.notes}</p>}
+              </div>
+            ))}
+          </div>
+        </Section>
+      )}
 
       {/* Oylik baholash */}
       {data.evaluationTypes.length > 0 && (

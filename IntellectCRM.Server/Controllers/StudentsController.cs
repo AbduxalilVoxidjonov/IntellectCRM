@@ -58,6 +58,25 @@ public class StudentsController(AppDbContext db, AuditService audit) : Controlle
         return await StudentProfileBuilder.BuildAsync(db, st);
     }
 
+    /// <summary>O'quvchiga support o'qituvchilar bergan feedback — o'tilgan (done) support darslari
+    /// (sana, support o'qituvchi ismi, mavzu, izoh), eng yangi birinchi. Support guruhga bog'lanmaydi,
+    /// shuning uchun feedback shu yerda alohida ko'rsatiladi.</summary>
+    [HttpGet("{id}/support-feedback")]
+    public async Task<ActionResult<IEnumerable<StudentSupportFeedbackDto>>> SupportFeedback(string id)
+    {
+        var slots = await db.SupportSlots
+            .Where(s => s.StudentId == id && s.Status == "done")
+            .OrderByDescending(s => s.Date).ThenByDescending(s => s.StartTime)
+            .ToListAsync();
+        if (slots.Count == 0) return new List<StudentSupportFeedbackDto>();
+        var tIds = slots.Select(s => s.TeacherId).Distinct().ToList();
+        var tNames = (await db.Teachers.Where(t => tIds.Contains(t.Id)).ToListAsync())
+            .ToDictionary(t => t.Id, t => t.FullName);
+        return slots.Select(s => new StudentSupportFeedbackDto(
+            s.Date, s.StartTime, s.EndTime, tNames.GetValueOrDefault(s.TeacherId, ""),
+            s.Topic, s.Notes)).ToList();
+    }
+
     /// <summary>Faqat arxivlangan o'quvchilar ro'yxati.</summary>
     [HttpGet("archived")]
     public async Task<ActionResult<IEnumerable<Student>>> GetArchived() =>
