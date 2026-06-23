@@ -10,7 +10,7 @@ export const genderOptions: { value: Gender; label: string }[] = [
   { value: 'female', label: 'Ayol' },
 ]
 
-/** O'qituvchi toifalari — maosh bir soat narxini belgilaydi (narx "Oylik hisoblash"da kiritiladi) */
+/** O'qituvchi toifalari (vestigial — maosh endi per-guruh, o'qituvchi "Maosh" tabida belgilanadi) */
 export const teacherCategories: { value: string; label: string }[] = [
   { value: 'oliy', label: 'Oliy toifa' },
   { value: '1', label: '1-toifa' },

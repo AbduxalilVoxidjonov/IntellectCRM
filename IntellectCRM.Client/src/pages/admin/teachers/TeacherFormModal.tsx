@@ -160,9 +160,9 @@ export function TeacherFormModal({ open, onClose, onSubmit, initial, subjects }:
             onChange={(e) => update('salaryStartDate', e.target.value)}
           />
           <p className="mt-1 text-xs text-slate-400">
-            Oylik maosh — <b>"O'qituvchilar → Oylik hisoblash"</b> sahifasida belgilanadi (qat'iy summa yoki
-            guruh to'lovidan foiz). O'qituvchi <b>oy o'rtasida</b> kelsa — shu kunni belgilang (qat'iy rejimda
-            birinchi oy o'sha kundan oy oxirigacha qisman). Bo'sh = o'quv yili boshidan.
+            Oylik maosh — o'qituvchini ochib <b>"Maosh"</b> tabida HAR GURUH uchun alohida belgilanadi
+            (foiz yoki qat'iy summa); o'qituvchi oyligi guruhlar yig'indisi. O'qituvchi <b>oy o'rtasida</b> kelsa —
+            shu kunni belgilang (qat'iy summa birinchi oy o'sha kundan oy oxirigacha qisman). Bo'sh = o'quv yili boshidan.
           </p>
         </div>
 

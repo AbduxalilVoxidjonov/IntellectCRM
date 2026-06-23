@@ -114,6 +114,13 @@ docker compose up -d --build    # app + postgres + cloudflared + backup + mediam
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-23: **"Oylik hisoblash" (teacher-level maosh) sahifasi OLIB TASHLANDI** — maosh endi PER-GURUH
+  (o'qituvchi "Maosh" tabida har guruhga alohida foiz/qat'iy summa) bo'lgani uchun teacher-level rejim sozlash
+  sahifasi ortiqcha. O'chirildi: `pages/admin/teachers/TeacherSalaryPage.tsx`, nav band ("O'qituvchilar → Oylik
+  hisoblash"), `App.tsx` import+route (`teachers/salary`). `TeacherFormModal` izohi yangilandi (maosh "Maosh"
+  tabida per-guruh belgilanadi); `salaryStartDate` input + salaryMode/Salary/SalaryPercent round-trip SAQLANDI
+  (legacy fallback + proratsiya uchun). Backend o'zgarmadi (teacher-level maydonlar legacy fallback sifatida qoladi).
+  Teacher PORTAL `SalaryPage` (o'qituvchi o'z oyligini ko'radi) TEGILMADI. tsc+vite yashil.
 - 2026-06-23: **O'qituvchi maoshi — PER-GURUH foiz/qat'iy summa (oyligi guruhlar yig'indisi).** Ilgari maosh
   o'qituvchi DARAJASIDA edi (bitta `Teacher.SalaryMode` + bitta `SalaryPercent`/`Salary`). Endi HAR GURUH alohida
   sozlanadi: bir guruhi 40%, keyingisi 60% yoki qat'iy summa bo'lishi mumkin — o'qituvchi oyligi guruhlar ulushi

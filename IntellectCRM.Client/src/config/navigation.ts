@@ -77,7 +77,6 @@ export const navByRole: Record<Role, NavItem[]> = {
       children: [
         { label: "O'qituvchilar ro'yxati", to: '/admin/teachers', end: true },
         { label: "O'qituvchilar davomati", to: '/admin/teachers/attendance' },
-        { label: 'Oylik hisoblash', to: '/admin/teachers/salary' },
         { label: "O'qituvchilar hisoboti", to: '/admin/teacher-reports', perm: 'teacherReports' },
       ],
     },
