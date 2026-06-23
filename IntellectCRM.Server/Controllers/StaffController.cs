@@ -45,23 +45,30 @@ public class StaffController(AppDbContext db) : ControllerBase
         user.Position = (req.Position ?? "").Trim();
         user.Phone = PhoneUtil.Normalize(req.Phone ?? "");
 
-        // Role template tanlansa — default ruxsatlari qo'shiladi
+        // Ruxsatlar (rollar) — FAQAT superadmin belgilay oladi (SetPermissions kabi). Oddiy "staff"
+        // ruxsati bilan kirgan xodim boshqa xodim yaratib, unga o'zboshimcha (finance/settings/staff)
+        // ruxsat berib darajasini oshira olmasligi uchun. Superadmin emas bo'lsa — ruxsatsiz yaratiladi
+        // (superadmin keyin "Rollar" orqali beradi).
         var permissions = new List<string>();
-        if (!string.IsNullOrWhiteSpace(req.TemplateCode))
+        if (User.IsInRole(Roles.SuperAdmin))
         {
-            var template = await db.StaffRoleTemplates
-                .FirstOrDefaultAsync(t => t.Code == req.TemplateCode.Trim());
-            if (template is not null)
+            // Role template tanlansa — default ruxsatlari qo'shiladi
+            if (!string.IsNullOrWhiteSpace(req.TemplateCode))
             {
-                permissions.AddRange(template.DefaultPermissions);
+                var template = await db.StaffRoleTemplates
+                    .FirstOrDefaultAsync(t => t.Code == req.TemplateCode.Trim());
+                if (template is not null)
+                {
+                    permissions.AddRange(template.DefaultPermissions);
+                }
             }
-        }
-        // Qo'shimcha ruxsatlari qo'shiladi
-        if (req.ExtraPermissions?.Count > 0)
-        {
-            foreach (var perm in req.ExtraPermissions)
-                if (!string.IsNullOrWhiteSpace(perm) && !permissions.Contains(perm))
-                    permissions.Add(perm);
+            // Qo'shimcha ruxsatlari qo'shiladi
+            if (req.ExtraPermissions?.Count > 0)
+            {
+                foreach (var perm in req.ExtraPermissions)
+                    if (!string.IsNullOrWhiteSpace(perm) && !permissions.Contains(perm))
+                        permissions.Add(perm);
+            }
         }
         user.Permissions = permissions;
 
@@ -80,6 +87,7 @@ public class StaffController(AppDbContext db) : ControllerBase
     {
         var user = await db.Users.FindAsync(id);
         if (user is null || user.Role != Roles.Staff) return NotFound();
+        if (string.IsNullOrWhiteSpace(req.FullName)) return BadRequest(new { message = "F.I.SH kerak" });
         user.FullName = req.FullName.Trim();
         user.Position = (req.Position ?? "").Trim();
         user.Phone = PhoneUtil.Normalize(req.Phone ?? "");
@@ -136,7 +144,13 @@ public class StaffController(AppDbContext db) : ControllerBase
     {
         var user = await db.Users.FindAsync(id);
         if (user is null || user.Role != Roles.Staff) return NotFound();
-        user.Permissions = req.Permissions ?? new();
+        // null/bo'sh/dublikat kalitlarni tozalaymiz — aks holda token validation'da
+        // null claim qiymati 500 (ArgumentNullException) keltirib chiqarishi mumkin.
+        user.Permissions = (req.Permissions ?? new())
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .Select(p => p.Trim())
+            .Distinct()
+            .ToList();
         await db.SaveChangesAsync();
         return ToDto(user);
     }

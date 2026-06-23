@@ -74,13 +74,16 @@ export function StaffPage() {
     setDraft(Object.fromEntries(list.map((s) => [s.id, new Set(s.permissions)])))
 
   useEffect(() => {
-    Promise.all([
-      getStaff().then((list) => {
+    getStaff()
+      .then((list) => {
         setStaff(list)
         syncDraft(list)
-      }),
-      getStaffRoleTemplates().then(setTemplates),
-    ]).finally(() => setLoading(false))
+      })
+      .finally(() => setLoading(false))
+    // Shablonlar — ixtiyoriy; yuklanmasa xodim ro'yxati buzilmaydi.
+    getStaffRoleTemplates()
+      .then(setTemplates)
+      .catch(() => setTemplates([]))
   }, [])
 
   const openCreate = () => {
@@ -127,6 +130,8 @@ export function StaffPage() {
         setFormOpen(false)
         showCredentials(created)
       }
+    } catch (err: any) {
+      alert(err?.response?.data?.message ?? "Saqlab bo'lmadi")
     } finally {
       setSaving(false)
     }
@@ -167,6 +172,7 @@ export function StaffPage() {
     setSavingPermsId(s.id)
     setStaffPermissions(s.id, perms)
       .then((u) => setStaff((p) => p.map((x) => (x.id === u.id ? u : x))))
+      .catch((e) => alert(e?.response?.data?.message ?? "Ruxsatlarni saqlab bo'lmadi"))
       .finally(() => setSavingPermsId(null))
   }
 
