@@ -114,6 +114,16 @@ docker compose up -d --build    # app + postgres + cloudflared + backup + mediam
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-24: **BUG FIX — guruh o'quvchilar SONI (studentsCount) endi M2M a'zolikdan (ClassName emas).** Muammo:
+  guruh kartasidagi "o'quvchilar soni" (`/admin/classes/stats` → `Analytics.BuildClass`) eski `Student.ClassName ==
+  guruh nomi` bo'yicha sanardi, lekin haqiqiy a'zolik M2M `StudentGroup` jadvalida (a'zolar oynasi "azolar" shu
+  manbadan ishlaydi). Natija: a'zolar oynasidan qo'shilgan (ClassName o'rnatilmaydi) yoki guruhdan chiqarilgan
+  o'quvchilarda karta soni a'zolar oynasi bilan MOS KELMASDI. **Yechim:** `Analytics.BuildClass`ga 2 ixtiyoriy param
+  (`activeMemberIds`, `anyMemberIds`); berilsa roster = FAOL `StudentGroup` a'zoligi + (orqaga moslik) bu guruh uchun
+  umuman a'zolik yozuvi YO'Q eski ClassName-o'quvchilari. `ClassAnalyticsController` (Stats/Performance) va
+  `RatingService.SchoolAsync` endi `db.StudentGroups`ni yuklab per-guruh active/any id'larni uzatadi. Param berilmasa
+  eski ClassName xulqi (to'liq orqaga moslik). Reyting ham endi a'zolik bo'yicha. Backend 0 xato. Frontend tegilmadi
+  (`studentsCount` shu endpointdan keladi). Chiqarilgan/muzlatilgan a'zo endi sanalmaydi (to'g'ri).
 - 2026-06-23: **"Oylik hisoblash" (teacher-level maosh) sahifasi OLIB TASHLANDI** — maosh endi PER-GURUH
   (o'qituvchi "Maosh" tabida har guruhga alohida foiz/qat'iy summa) bo'lgani uchun teacher-level rejim sozlash
   sahifasi ortiqcha. O'chirildi: `pages/admin/teachers/TeacherSalaryPage.tsx`, nav band ("O'qituvchilar → Oylik

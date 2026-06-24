@@ -24,11 +24,32 @@ public static class Analytics
         IReadOnlyList<string> assignedSubjectIds,
         IReadOnlyList<JournalEntry> classEntries,
         IReadOnlyList<LessonNote> classNotes,
-        IReadOnlyCollection<string>? lateReasonIds = null)
+        IReadOnlyCollection<string>? lateReasonIds = null,
+        IReadOnlyCollection<string>? activeMemberIds = null,
+        IReadOnlyCollection<string>? anyMemberIds = null)
     {
         // "Kech keldi" turidagi sabablar davomatsizlik (absence) sifatida hisoblanmaydi.
         var lateSet = lateReasonIds is null ? new HashSet<string>() : new HashSet<string>(lateReasonIds);
-        var students = allStudents.Where(s => s.ClassName == cls.Name).ToList();
+
+        // Guruh a'zolari M2M `StudentGroup` jadvalidan (a'zolar oynasi "azolar" shu manbadan ishlaydi).
+        // `activeMemberIds` berilsa — guruh roster'i = FAOL a'zolik (IsActive). Eski (M2M'gacha) o'quvchilar
+        // (bu guruh uchun umuman a'zolik yozuvi YO'Q) `ClassName` yorlig'i bo'yicha qo'shiladi — orqaga moslik.
+        // `activeMemberIds` berilmasa (null) — eski xulq: faqat `ClassName == guruh nomi`.
+        List<Student> students;
+        if (activeMemberIds is not null)
+        {
+            var activeSet = activeMemberIds as HashSet<string> ?? new HashSet<string>(activeMemberIds);
+            var anySet = anyMemberIds is null
+                ? new HashSet<string>()
+                : (anyMemberIds as HashSet<string> ?? new HashSet<string>(anyMemberIds));
+            students = allStudents
+                .Where(s => activeSet.Contains(s.Id) || (s.ClassName == cls.Name && !anySet.Contains(s.Id)))
+                .ToList();
+        }
+        else
+        {
+            students = allStudents.Where(s => s.ClassName == cls.Name).ToList();
+        }
 
         // Davomat FAQAT o'tilgan darslar bo'yicha (ptichka/baho/davomat). Bir kun ichidagi har dars
         // (sana+dars raqami) alohida hisoblanadi.
