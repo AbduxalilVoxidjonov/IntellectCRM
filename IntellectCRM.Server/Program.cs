@@ -441,7 +441,10 @@ if (!app.Environment.IsDevelopment())
 // App:Host bo'sh bo'lsa (dev) yoki page/ papkasi yo'q bo'lsa — landing O'CHIQ, hamma host SPA'ga
 // tushadi (eski xulq; CRM'ni qulflab qo'ymaslik uchun xavfsiz fallback).
 var landingDir = Path.Combine(app.Environment.ContentRootPath, "page");
-var appHost = (app.Configuration["App:Host"] ?? "").Trim().ToLowerInvariant();
+// App:Host'da port bo'lishi mumkin (masalan lokal "localhost:8080"). `Request.Host.Host` esa
+// portsiz hostname qaytaradi — shuning uchun solishtirishdan oldin appHost'dan ham portni olib
+// tashlaymiz (hostname↔hostname, port-agnostik). Aks holda lokalda hamma so'rov landing'ga ketardi.
+var appHost = (app.Configuration["App:Host"] ?? "").Trim().ToLowerInvariant().Split(':')[0];
 var landingEnabled = appHost.Length > 0 && Directory.Exists(landingDir);
 bool IsLandingHost(HttpContext c) =>
     landingEnabled && !string.Equals(c.Request.Host.Host, appHost, StringComparison.OrdinalIgnoreCase);
