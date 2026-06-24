@@ -237,8 +237,9 @@ export function LandingSettings() {
     try {
       const { url } = await uploadLandingImage(slotId, file)
       setContent((c) => (c ? { ...c, images: { ...c.images, [slotId]: url } } : c))
-    } catch {
-      setMsg('Rasm yuklashda xatolik.')
+    } catch (e: any) {
+      const m = e?.response?.data?.message
+      setMsg(m ? `Rasm yuklashda xatolik: ${m}` : 'Rasm yuklashda xatolik.')
     } finally {
       setBusySlot(null)
     }
@@ -321,7 +322,7 @@ export function LandingSettings() {
                     fileRefs.current[s.id] = el
                   }}
                   type="file"
-                  accept="image/png,image/jpeg,image/webp,image/avif"
+                  accept="image/png,image/jpeg,image/webp,image/gif"
                   hidden
                   onChange={(e) => onPickImage(s.id, e.target.files?.[0] ?? undefined)}
                 />

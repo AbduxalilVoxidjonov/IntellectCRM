@@ -50,7 +50,8 @@ public class LandingController(AppDbContext db, IWebHostEnvironment env) : Contr
 
     /// <summary>Rasm yuklaydi (sertifikat sloti, masalan cert-en) — backendda saqlanadi, images xaritasiga yoziladi.</summary>
     [HttpPost("images/{slotId}")]
-    [RequestSizeLimit(8_000_000)]
+    [RequestSizeLimit(20_000_000)]
+    [RequestFormLimits(MultipartBodyLengthLimit = 20_000_000)]
     public async Task<IActionResult> UploadImage(string slotId, IFormFile file)
     {
         slotId = SanitizeSlot(slotId);

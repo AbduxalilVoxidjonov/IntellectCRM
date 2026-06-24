@@ -33,9 +33,12 @@ export async function uploadLandingImage(
 ): Promise<{ slotId: string; url: string }> {
   const fd = new FormData()
   fd.append('file', file)
+  // DIQQAT: api klienti default `application/json` qo'yadi — multipart uchun ATAYLAB override
+  // qilamiz (aks holda fayl serverга bo'sh boradi → "Fayl bo'sh" xatosi). uploadLogo/Apk kabi.
   const { data } = await api.post<{ slotId: string; url: string }>(
     `/admin/landing/images/${slotId}`,
     fd,
+    { headers: { 'Content-Type': 'multipart/form-data' } },
   )
   return data
 }
