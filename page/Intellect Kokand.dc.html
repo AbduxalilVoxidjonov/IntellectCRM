@@ -200,7 +200,8 @@
       <div style="color:#86efac;font-weight:700;margin-top:14px">{{ t.ach.quoteBy }}</div>
     </div>
 
-    <!-- Certificates gallery -->
+    <!-- Certificates gallery — faqat backendga rasm yuklangan bo'lsa ko'rinadi -->
+    <sc-if value="{{ hasCerts }}" hint-placeholder-val="{{ true }}">
     <div style="margin-top:64px">
       <div style="text-align:center;max-width:620px;margin:0 auto 32px">
         <span style="font-weight:800;color:var(--green-l);font-size:14px;letter-spacing:1px;text-transform:uppercase">{{ t.ach.certTag }}</span>
@@ -219,6 +220,7 @@
         </sc-for>
       </div>
     </div>
+    </sc-if>
   </div>
 </section>
 
@@ -752,6 +754,15 @@ class Component extends DCLogic {
     const upd = (k) => (e) => this.setState({ form: { ...this.state.form, [k]: e.target.value } });
     const courseOptions = t.coursesList.map(c => c.name);
 
+    // Sertifikat slotlari: PRODUKSIYADA faqat backendga rasm yuklangan slotlar ko'rsatiladi
+    // (bo'sh "rasm yuklang" qutisi chiqmaydi). DC editor (omelette) runtime'da hammasi ko'rinadi.
+    const inEditor = !!(window.omelette && window.omelette.writeFile);
+    const certImgs = (window.__LANDING_CONTENT__ && window.__LANDING_CONTENT__.images) || {};
+    const certSlots = ['cert-en','cert-ielts','cert-math','cert-phys','cert-rus','cert-sat']
+      .map((id,i) => ({ id, label: t.ach.certLabels[i], placeholder: t.ach.certPh, src: certImgs[id] || '' }))
+      .filter(s => s.src || inEditor);
+    const hasCerts = certSlots.length > 0;
+
     return {
       t, langs,
       closeMenu: () => this.setState({ menuOpen: false }),
@@ -761,7 +772,8 @@ class Component extends DCLogic {
       aboutFeatures: t.aboutFeatures,
       courses, whys, faqs,
       achStats: t.achStats,
-      certSlots: ['cert-en','cert-ielts','cert-math','cert-phys','cert-rus','cert-sat'].map((id,i) => ({ id, label: t.ach.certLabels[i], placeholder: t.ach.certPh, src: ((window.__LANDING_CONTENT__ && window.__LANDING_CONTENT__.images) || {})[id] || '' })),
+      certSlots,
+      hasCerts,
       vacancies: t.vacancies,
       // ---- test (subject cards + modal) ----
       testSubjects,
