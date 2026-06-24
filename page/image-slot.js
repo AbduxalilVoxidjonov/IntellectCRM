@@ -267,7 +267,10 @@
       this._subFn = () => this._render();
       // Shadow-DOM listeners live with the shadow DOM — bound once here so
       // disconnect/reconnect (e.g. React remount) doesn't stack handlers.
-      this._empty.addEventListener('click', () => this._input.click());
+      // Faqat DC editor runtime'da (omelette) yuklash mumkin. PRODUKSIYADA (apex landing)
+      // tashrifchi rasm yuklay OLMAYDI — rasm faqat CRM superadmin paneli orqali backendga
+      // yuklanadi va `src` (window.__LANDING_CONTENT__.images) orqali ko'rsatiladi.
+      this._empty.addEventListener('click', () => { if (window.omelette && window.omelette.writeFile) this._input.click(); });
       root.addEventListener('click', (e) => {
         const act = e.target && e.target.getAttribute && e.target.getAttribute('data-act');
         if (act === 'replace') { this._exitReframe(true); this._input.click(); }
@@ -445,6 +448,8 @@
     // handleEvent — one listener object for all four drag events keeps the
     // add/remove symmetric and the depth counter correct.
     handleEvent(e) {
+      // Produksiyada (DC editor emas) drag-drop yuklash o'chiq — tashrifchi rasm qo'sha olmaydi.
+      if (!(window.omelette && window.omelette.writeFile)) return;
       if (e.type === 'dragenter' || e.type === 'dragover') {
         // Without preventDefault the browser never fires 'drop'.
         e.preventDefault();

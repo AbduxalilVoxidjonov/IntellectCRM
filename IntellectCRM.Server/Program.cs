@@ -503,6 +503,11 @@ if (landingEnabled)
     var landingIndex = Directory.EnumerateFiles(landingDir, "*.html")
         .FirstOrDefault(f => f.EndsWith(".dc.html", StringComparison.OrdinalIgnoreCase))
         ?? Path.Combine(landingDir, "index.html");
+    // HTML shabloni bir marta o'qiladi (runtime'da o'zgarmaydi). Kontent esa DB'dan — har so'rovda
+    // `window.__LANDING_CONTENT__` bo'lib inject qilinadi (superadmin Sozlamalar → Landing page'dan
+    // tahrirlaydi). DB bo'sh bo'lsa — inject yo'q, HTML ichidagi hardcoded (zaxira) kontent ishlaydi.
+    string? landingHtmlCache = File.Exists(landingIndex) ? File.ReadAllText(landingIndex) : null;
+    const string injectAnchor = "<script src=\"./support.js\"></script>";
 
     app.MapWhen(
         ctx => IsLandingHost(ctx)
@@ -517,13 +522,28 @@ if (landingEnabled)
                 FileProvider = landingProvider,
                 OnPrepareResponse = c => c.Context.Response.Headers.CacheControl = "no-cache",
             });
-            // `/` yoki fayl topilmagan har qanday yo'l → landing index.
+            // `/` yoki fayl topilmagan har qanday yo'l → landing index (DB kontenti inject qilinib).
             branch.Run(async ctx =>
             {
-                if (!File.Exists(landingIndex)) { ctx.Response.StatusCode = StatusCodes.Status404NotFound; return; }
+                if (landingHtmlCache is null) { ctx.Response.StatusCode = StatusCodes.Status404NotFound; return; }
+                var html = landingHtmlCache;
+                try
+                {
+                    var ldb = ctx.RequestServices.GetRequiredService<AppDbContext>();
+                    var row = await ldb.LandingContents.AsNoTracking().FirstOrDefaultAsync();
+                    if (row is not null && !string.IsNullOrWhiteSpace(row.Json) && html.Contains(injectAnchor))
+                    {
+                        // row.Json — DB'dagi to'g'ri JSON (controller validatsiya qiladi). `</script>` ni
+                        // string ichida bo'lsa ham xavfsiz qilish uchun ajratamiz (XSS/break-out oldini olish).
+                        var safe = row.Json.Replace("</", "<\\/");
+                        var inject = $"<script>window.__LANDING_CONTENT__ = {safe};</script>\n{injectAnchor}";
+                        html = html.Replace(injectAnchor, inject);
+                    }
+                }
+                catch (Exception ex) { app.Logger.LogWarning(ex, "[landing] kontent inject o'tkazib yuborildi"); }
                 ctx.Response.ContentType = "text/html; charset=utf-8";
                 ctx.Response.Headers.CacheControl = "no-cache";
-                await ctx.Response.SendFileAsync(landingIndex);
+                await ctx.Response.WriteAsync(html);
             });
         });
 }

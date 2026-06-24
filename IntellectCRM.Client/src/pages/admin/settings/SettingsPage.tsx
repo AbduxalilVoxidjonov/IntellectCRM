@@ -18,6 +18,7 @@ import { AzureSpeechSettings } from './AzureSpeechSettings'
 import { TurnstileSettings } from './TurnstileSettings'
 import { CameraSettings } from './CameraSettings'
 import { PaymentReminderSettings } from './PaymentReminderSettings'
+import { LandingSettings } from './LandingSettings'
 
 type Status = 'idle' | 'saving' | 'saved'
 
@@ -33,6 +34,7 @@ const sectionTitles: Record<string, string> = {
   turnstile: 'Turniket integratsiya',
   cameras: 'Kamera integratsiya',
   'payment-reminders': "Avtomatik to'lov eslatmasi",
+  landing: 'Landing page (asosiy sayt)',
 }
 
 export function SettingsPage() {
@@ -157,6 +159,7 @@ export function SettingsPage() {
 
           {/* Avtomatik to'lov eslatmasi */}
           {section === 'payment-reminders' && <PaymentReminderSettings />}
+          {section === 'landing' && <LandingSettings />}
         </div>
       )}
     </div>

@@ -214,7 +214,7 @@
               <span style="width:10px;height:10px;border-radius:3px;background:var(--green-l)"></span>
               <span style="font-family:Sora;font-weight:700;font-size:14px;color:#d1fae5">{{ cs.label }}</span>
             </div>
-            <x-import component-from-global-scope="image-slot" from="./image-slot.js" id="{{ cs.id }}" shape="rounded" radius="12" placeholder="{{ cs.placeholder }}" style="width:100%;height:200px;display:block" hint-size="100%,200px"></x-import>
+            <x-import component-from-global-scope="image-slot" from="./image-slot.js" id="{{ cs.id }}" src="{{ cs.src }}" shape="rounded" radius="12" placeholder="{{ cs.placeholder }}" style="width:100%;height:200px;display:block" hint-size="100%,200px"></x-import>
           </div>
         </sc-for>
       </div>
@@ -520,7 +520,7 @@ class Component extends DCLogic {
     ]
   };
 
-  T = {
+  T = (window.__LANDING_CONTENT__ && window.__LANDING_CONTENT__.langs) || {
     uz: {
       nav:{ about:"Markaz haqida", courses:"Kurslar", why:"Nega biz", test:"Daraja test", faq:"FAQ", vacancy:"Vakansiya", contact:"Aloqa", cta:"Bepul darsga yozilish" },
       hero:{ badge:"Qo'qondagi zamonaviy o'quv markazi", title1:"Bilim — kelajakka", title2:"eng yaxshi sarmoya", subtitle:"Intellect o'quv markazida ingliz tili, IELTS, matematika, fizika va boshqa fanlardan tajribali ustozlar bilan shug'ullaning.", cta1:"Bepul sinov darsi", cta2:"Daraja testini topshirish", cardTitle:"Intellect Kokand", cardSub:"O'quv markazi · Qo'qon" },
@@ -761,7 +761,7 @@ class Component extends DCLogic {
       aboutFeatures: t.aboutFeatures,
       courses, whys, faqs,
       achStats: t.achStats,
-      certSlots: ['cert-en','cert-ielts','cert-math','cert-phys','cert-rus','cert-sat'].map((id,i) => ({ id, label: t.ach.certLabels[i], placeholder: t.ach.certPh })),
+      certSlots: ['cert-en','cert-ielts','cert-math','cert-phys','cert-rus','cert-sat'].map((id,i) => ({ id, label: t.ach.certLabels[i], placeholder: t.ach.certPh, src: ((window.__LANDING_CONTENT__ && window.__LANDING_CONTENT__.images) || {})[id] || '' })),
       vacancies: t.vacancies,
       // ---- test (subject cards + modal) ----
       testSubjects,

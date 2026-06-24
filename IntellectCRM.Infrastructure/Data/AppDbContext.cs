@@ -96,6 +96,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     // O'quv xonalari
     public DbSet<Room> Rooms => Set<Room>();
 
+    // Apex landing sahifasi kontenti (singleton)
+    public DbSet<LandingContent> LandingContents => Set<LandingContent>();
+
     protected override void OnModelCreating(ModelBuilder b)
     {
         // SQL Server: indeksda qatnashadigan string ustunlar default `nvarchar(max)` bo'lib

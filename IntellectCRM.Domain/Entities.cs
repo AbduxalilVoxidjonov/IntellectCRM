@@ -1521,3 +1521,18 @@ public class StaffRoleTemplate
     /// <summary>Yaratilgan vaqt — faqat info uchun.</summary>
     public DateTime CreatedAt { get; set; } = AppClock.Now;
 }
+
+/// <summary>
+/// Asosiy domen (apex) landing sahifasi KONTENTI — bitta qator (singleton). Butun tahrirlanadigan
+/// kontent bitta JSON blobda saqlanadi: { langs: { uz, ru, en }, images: { slotId: url } }. Superadmin
+/// CRM panelidan (Sozlamalar → Landing page) tahrirlaydi; apex landing server bu JSON'ni HTML'ga
+/// `window.__LANDING_CONTENT__` sifatida inject qiladi. DB bo'sh bo'lsa landing HTML'dagi hardcoded
+/// (zaxira) kontentdan foydalanadi.
+/// </summary>
+public class LandingContent
+{
+    public string Id { get; set; } = "singleton";
+    /// <summary>To'liq kontent JSON: { langs:{uz,ru,en}, images:{slotId:url} }.</summary>
+    public string Json { get; set; } = string.Empty;
+    public DateTime UpdatedAt { get; set; } = AppClock.Now;
+}
