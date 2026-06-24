@@ -130,6 +130,19 @@ docker compose up -d --build    # app + postgres + cloudflared + backup + mediam
   apex `intellectschool.uz` (+ www) uchun Public Hostname → HTTP → `app:8080` qo'shilishi kerak (DNS/tunnel —
   dashboard ishi). **KEYINGI bosqich (foydalanuvchi rejasi):** superadmin crm panelidan landing kontentini
   tahrirlaydigan bo'lim — hozircha QILINMADI (statik serving birinchi qadam).
+- 2026-06-24: **FIX — landing host moslashuvi PORT-AGNOSTIK qilindi (apex→page/, crm→SPA, BITTA dokerda).**
+  Muammo: `IsLandingHost` `c.Request.Host.Host` (PORTSIZ hostname) ni `App:Host` (port BILAN bo'lishi mumkin,
+  mas. lokal `localhost:8080`) bilan solishtirardi → `"localhost" != "localhost:8080"` → hamma host landing'ga
+  ketardi (lokalda CRM ochilmasdi). Yechim (1 qator): `appHost`dan port olib tashlandi (`.Split(':')[0]`) →
+  hostname↔hostname. Prod (`crm.intellectschool.uz`, portsiz) ta'sirlanmaydi. **JONLI SINOV** (throwaway PG,
+  Production, DLL to'g'ridan ishga tushirildi — `dotnet run` SPA-proxy'sidan qochib): apex `intellectschool.uz`/
+  `www` `/`→page/ landing (Intellect Kokand+support.js+x-import), `/support.js`→200 JS, `/screenshots/trial.png`→200,
+  crm `/`→CRM SPA marker + deep route `/admin/students`→SPA fallback, crm `/support.js`→404 (izolyatsiya), `/api/health`
+  ikkala hostda backend. Backend 0 xato. **QOLDI (foydalanuvchi/infra, men qila olmayman):** Cloudflare panelida
+  apex `intellectschool.uz` (+`www`) uchun Public Hostname → HTTP → `app:8080` qo'shilishi SHART (DNS/tunnel dashboard
+  ishi) — busiz apex murojaat dokerga yetib bormaydi. **DEPLOYDA:** prod `.env` `APP_HOST=crm.intellectschool.uz`,
+  `ROOT_DOMAIN=intellectschool.uz` (lokal `.env`da hozir `localhost`). **KEYINGI (deferred, "hozircha faqat shuni"):**
+  superadmin crm subdomenidan landing kontent/ma'lumotini yuklaydigan bo'lim — hali QILINMADI.
 - 2026-06-24: **BUG FIX — guruh o'quvchilar SONI (studentsCount) endi M2M a'zolikdan (ClassName emas).** Muammo:
   guruh kartasidagi "o'quvchilar soni" (`/admin/classes/stats` → `Analytics.BuildClass`) eski `Student.ClassName ==
   guruh nomi` bo'yicha sanardi, lekin haqiqiy a'zolik M2M `StudentGroup` jadvalida (a'zolar oynasi "azolar" shu
