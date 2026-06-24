@@ -114,6 +114,22 @@ docker compose up -d --build    # app + postgres + cloudflared + backup + mediam
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-24: **YANGI — APEX domen LANDING sahifasi (intellectschool.uz → marketing sayti, crm.* → SPA).**
+  Repo ildizida `page/` statik marketing sayti bor (`Intellect Kokand.dc.html` + `support.js`/`image-slot.js` DC
+  runtime — Babel/React'ni unpkg'dan yuklab brauzerda render qiladi + `screenshots/trial.png`). **Talab:** asosiy
+  domen `intellectschool.uz`ga kirilganda shu landing, subdomen `crm.intellectschool.uz`da esa CRM (SPA) ishlasin.
+  **Yechim (Program.cs, host-based routing):** CRM SPA FAQAT `App:Host` (=`APP_HOST`=crm.intellectschool.uz) hostida;
+  boshqa BARCHA hostlar (apex + www) → `page/` (mavjud `App__Host` env va izohiga mos — "qolganlari → landing").
+  `MapWhen(IsLandingHost && !/api && !/hubs && !/uploads)` branch: `page/` statik fayllar + `/`→landing index
+  (`*.dc.html`). `/api`·`/hubs`·`/uploads` landing hostda ham backendga o'tadi. **CSP host-aware:** apex uchun
+  yumshoqroq (unsafe-inline/eval + unpkg + Google Fonts — DC runtime ishlashi uchun), crm uchun eski qat'iy CSP.
+  **Xavfsiz fallback:** `App:Host` bo'sh (dev) yoki `page/` yo'q bo'lsa landing O'CHIQ — hamma host SPA (lockout yo'q).
+  **Dockerfile:** `COPY page/ ./page/` (final stage). **Jonli sinov (lokal, Production, throwaway PG):** apex `/`→landing
+  (x-dc, 200), apex CSP unpkg/fonts, crm `/`→SPA + qat'iy CSP, apex support.js/trial.png 200, /api/health ikkala
+  hostda, crm support.js→404 (izolyatsiya). Backend 0 xato. **QOLDI (foydalanuvchi/infra):** Cloudflare panelida
+  apex `intellectschool.uz` (+ www) uchun Public Hostname → HTTP → `app:8080` qo'shilishi kerak (DNS/tunnel —
+  dashboard ishi). **KEYINGI bosqich (foydalanuvchi rejasi):** superadmin crm panelidan landing kontentini
+  tahrirlaydigan bo'lim — hozircha QILINMADI (statik serving birinchi qadam).
 - 2026-06-24: **BUG FIX — guruh o'quvchilar SONI (studentsCount) endi M2M a'zolikdan (ClassName emas).** Muammo:
   guruh kartasidagi "o'quvchilar soni" (`/admin/classes/stats` → `Analytics.BuildClass`) eski `Student.ClassName ==
   guruh nomi` bo'yicha sanardi, lekin haqiqiy a'zolik M2M `StudentGroup` jadvalida (a'zolar oynasi "azolar" shu
