@@ -130,6 +130,31 @@ docker compose up -d --build    # app + postgres + cloudflared + backup + mediam
   apex `intellectschool.uz` (+ www) uchun Public Hostname → HTTP → `app:8080` qo'shilishi kerak (DNS/tunnel —
   dashboard ishi). **KEYINGI bosqich (foydalanuvchi rejasi):** superadmin crm panelidan landing kontentini
   tahrirlaydigan bo'lim — hozircha QILINMADI (statik serving birinchi qadam).
+- 2026-06-24: **YANGI — LANDING KONTENT MUHARRIRI (Sozlamalar → Landing page, superadmin) + rasm yuklash backendda.**
+  Apex landing (`page/Intellect Kokand.dc.html`) kontenti DC-runtime HTML ichidagi inline `T` obyektida (uz/ru/en;
+  nav/hero/courses/faqs/vacancies/... ~19 bo'lim) hardcoded edi. Endi superadmin CRM'dan tahrirlaydi.
+  **Backend:** `LandingContent` entity (singleton, bitta JSON blob `{langs:{uz,ru,en}, images:{slotId:url}}`);
+  inkremental migratsiya `AddLandingContent` (1 jadval, data loss YO'Q); `LandingController` [`Authorize(Roles=
+  "superadmin")`] — `GET/PUT /api/admin/landing` (kontent), `POST/DELETE /api/admin/landing/images/{slotId}` (rasm),
+  `POST .../reset`. **Apex serving (Program.cs):** landing branch endi HTML'ni o'qib, DB kontentini
+  `<script>window.__LANDING_CONTENT__=...</script>` bo'lib support.js'dan OLDIN inject qiladi (HTML bir marta keshlanadi,
+  DB har so'rovda; `</`→`<\/` breakout himoyasi). DB BO'SH bo'lsa inject YO'Q → HTML ichidagi hardcoded (zaxira)
+  kontent ishlaydi (xavfsiz fallback, standalone DC editor ham buzilmaydi). `page/landing.default.json` (35KB, HTML
+  `T`'dan node bilan ajratilgan) — controller DB bo'sh bo'lsa shuni qaytaradi (editor uchun boshlang'ich). **Landing
+  HTML:** `T = (window.__LANDING_CONTENT__ && .langs) || {hardcoded}`; cert `x-import`ga `src="{{ cs.src }}"` +
+  certSlots `src` = injected images map. **`image-slot.js`:** tashrifchi yuklashi O'CHIRILDI — empty-click file-picker
+  va drag-drop endi FAQAT DC editor runtime'da (`window.omelette`); produksiyada rasm faqat ko'rsatiladi (`src` =
+  backend). Rasm endi superadmin CRM'dan backendga yuklanadi (`/uploads/landing-*`). **Frontend:** `Sozlamalar →
+  "Landing page"` (nav `roles:['superadmin']`; SettingsPage `section==='landing'`); `LandingSettings.tsx` — til tablari
+  (uz/ru/en) + REKURSIV kontent muharriri (satr/satrlar-massivi/obyektlar-massivi/ichma-ich obyekt — qo'shish/tahrir/
+  o'chirish, bo'limlar `<details>` collapsible) + 6 sertifikat rasm sloti (yuklash/almashtirish/o'chirish, backend) +
+  Saqlash/Standart/Saytni-ko'rish; `api/services/landing.ts`. Non-superadmin'ga komponent "faqat superadmin" deydi
+  (backend ham 403). **JONLI SINOV** (throwaway PG, Production): migratsiya `LandingContents` yaratdi; login → GET
+  default → PUT (nav.about tahrir + yangi kurs qo'shildi) → apex injection edited kontentni ko'rsatdi (TEST-EDIT-XYZ +
+  "Yangi kurs"); rasm upload 200 → apex injectionда url + `src="{{ cs.src }}"` binding; crm host injection YO'Q
+  (izolyatsiya, SPA); reset → DB bo'sh → apex hardcoded fallback. Backend 0, tsc+vite yashil, push ✅. **DEPLOYDA:**
+  `docker compose up -d --build app` (migratsiya startupда avto; `page/` Dockerfile'da nusxalanadi → default.json +
+  yangilangan HTML/image-slot.js boradi). Sxema o'zgardi → migratsiya qo'llanadi (postgres-data SAQLANADI).
 - 2026-06-24: **FIX — landing host moslashuvi PORT-AGNOSTIK qilindi (apex→page/, crm→SPA, BITTA dokerda).**
   Muammo: `IsLandingHost` `c.Request.Host.Host` (PORTSIZ hostname) ni `App:Host` (port BILAN bo'lishi mumkin,
   mas. lokal `localhost:8080`) bilan solishtirardi → `"localhost" != "localhost:8080"` → hamma host landing'ga
