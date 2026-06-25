@@ -11,10 +11,13 @@ namespace IntellectCRM.Server.Controllers;
 
 /// <summary>
 /// Asosiy domen (apex) LANDING sahifasi kontentini boshqarish — FAQAT superadmin.
-/// Kontent bitta JSON blobda (LandingContent.Json): { langs:{uz,ru,en}, images:{slotId:url} }.
-/// Tahrirlangan kontent apex landing serverига `window.__LANDING_CONTENT__` bo'lib inject qilinadi
-/// (Program.cs). DB bo'sh bo'lsa GET `page/landing.default.json` (HTML hardcoded kontentidan ajratilgan)
-/// ni qaytaradi. Rasm (sertifikat slotlari) backendga yuklanadi — `/uploads/landing-*` ostida.
+/// Kontent bitta JSON blobda (LandingContent.Json). Sodda sxema (faqat tahrirlanadigan narsalar):
+///   { courses:[{price, uz:{name,desc}, ru:{...}, en:{...}}],
+///     teachers:[{photo, uz:{name,role,bio}, ...}],
+///     certificates:[url,...], gallery:[url,...], testLink:"https://crm.../test/slug" }
+/// Statik matn (biz haqimizda, afzalliklar, FAQ...) landing HTML ichida hardcoded (editor tegmaydi).
+/// Kontent apex landing serverига `window.__LANDING_CONTENT__` bo'lib inject qilinadi (Program.cs).
+/// Rasm `/uploads/landing-*` ostida; saqlashda ishlatilmagan landing-* fayllar tozalanadi (GC).
 /// </summary>
 [ApiController]
 [Authorize(Roles = "superadmin")]
@@ -22,84 +25,57 @@ namespace IntellectCRM.Server.Controllers;
 public class LandingController(AppDbContext db, IWebHostEnvironment env) : ControllerBase
 {
     private string DefaultPath => Path.Combine(env.ContentRootPath, "page", "landing.default.json");
+    private string UploadsDir => Path.Combine(env.ContentRootPath, "uploads");
 
     private async Task<string> CurrentJsonAsync()
     {
         var row = await db.LandingContents.AsNoTracking().FirstOrDefaultAsync();
         if (row is not null && !string.IsNullOrWhiteSpace(row.Json)) return row.Json;
-        // DB bo'sh — zaxira (default) faylidan
         if (System.IO.File.Exists(DefaultPath)) return await System.IO.File.ReadAllTextAsync(DefaultPath);
-        return "{\"langs\":{},\"images\":{}}";
+        return "{\"courses\":[],\"teachers\":[],\"certificates\":[],\"gallery\":[],\"testLink\":\"\"}";
     }
 
-    /// <summary>Joriy kontent JSON ({ langs, images }). DB bo'sh bo'lsa default faylidan.</summary>
+    /// <summary>Joriy kontent JSON. DB bo'sh bo'lsa default faylidan.</summary>
     [HttpGet]
     public async Task<IActionResult> Get()
         => Content(await CurrentJsonAsync(), "application/json");
 
-    /// <summary>Kontentni saqlaydi (to'liq { langs, images } obyekti). Validatsiya: langs bo'lishi shart.</summary>
+    /// <summary>Kontentni saqlaydi (to'liq obyekt). Saqlagandan keyin yetim rasmlar tozalanadi.</summary>
     [HttpPut]
     public async Task<IActionResult> Put([FromBody] JsonElement body)
     {
-        if (body.ValueKind != JsonValueKind.Object || !body.TryGetProperty("langs", out _))
-            return BadRequest(new { message = "Noto'g'ri kontent: 'langs' bo'lishi shart." });
+        if (body.ValueKind != JsonValueKind.Object)
+            return BadRequest(new { message = "Noto'g'ri kontent — obyekt bo'lishi shart." });
         var json = body.GetRawText();
         await SaveAsync(json);
+        GcOrphanImages(json);
         return Content(json, "application/json");
     }
 
-    /// <summary>Rasm yuklaydi (sertifikat sloti, masalan cert-en) — backendda saqlanadi, images xaritasiga yoziladi.</summary>
-    [HttpPost("images/{slotId}")]
+    /// <summary>Bitta rasm yuklaydi (ustoz/sertifikat/galereya). { url } qaytaradi — frontend ro'yxatga qo'shadi.</summary>
+    [HttpPost("upload")]
     [RequestSizeLimit(20_000_000)]
     [RequestFormLimits(MultipartBodyLengthLimit = 20_000_000)]
-    public async Task<IActionResult> UploadImage(string slotId, IFormFile file)
+    public async Task<IActionResult> Upload(IFormFile file)
     {
-        slotId = SanitizeSlot(slotId);
-        if (string.IsNullOrEmpty(slotId)) return BadRequest(new { message = "Slot id noto'g'ri." });
         if (UploadGuard.Validate(file) is { } error) return BadRequest(new { message = error });
-
-        var dir = Path.Combine(env.ContentRootPath, "uploads");
-        Directory.CreateDirectory(dir);
+        Directory.CreateDirectory(UploadsDir);
         var ext = Path.GetExtension(file.FileName);
         if (string.IsNullOrWhiteSpace(ext)) ext = ".jpg";
-        var stored = $"landing-{slotId}-{Guid.NewGuid():N}{ext}";
-        await using (var fs = System.IO.File.Create(Path.Combine(dir, stored)))
+        var stored = $"landing-{Guid.NewGuid():N}{ext}";
+        await using (var fs = System.IO.File.Create(Path.Combine(UploadsDir, stored)))
             await file.CopyToAsync(fs);
-        var url = $"/uploads/{stored}";
-
-        var root = JsonNode.Parse(await CurrentJsonAsync())!.AsObject();
-        var images = root["images"] as JsonObject;
-        if (images is null) { images = new JsonObject(); root["images"] = images; }
-        // eski faylni o'chir (agar bizning yuklanganimiz bo'lsa)
-        DeleteIfOwned(images[slotId]?.GetValue<string>());
-        images[slotId] = url;
-        var json = root.ToJsonString();
-        await SaveAsync(json);
-        return Ok(new { slotId, url });
+        return Ok(new { url = $"/uploads/{stored}" });
     }
 
-    /// <summary>Slot rasmini o'chiradi (faylni va xaritadagi yozuvni).</summary>
-    [HttpDelete("images/{slotId}")]
-    public async Task<IActionResult> DeleteImage(string slotId)
-    {
-        slotId = SanitizeSlot(slotId);
-        var root = JsonNode.Parse(await CurrentJsonAsync())!.AsObject();
-        if (root["images"] is JsonObject images && images.ContainsKey(slotId))
-        {
-            DeleteIfOwned(images[slotId]?.GetValue<string>());
-            images.Remove(slotId);
-            await SaveAsync(root.ToJsonString());
-        }
-        return Ok(new { slotId });
-    }
-
-    /// <summary>Kontentni standart (default) holatga qaytaradi — DB yozuvini o'chiradi.</summary>
+    /// <summary>Kontentni standart holatga qaytaradi — DB yozuvini o'chiradi (yuklangan rasmlar ham tozalanadi).</summary>
     [HttpPost("reset")]
     public async Task<IActionResult> Reset()
     {
         var rows = await db.LandingContents.ToListAsync();
         db.LandingContents.RemoveRange(rows);
         await db.SaveChangesAsync();
+        GcOrphanImages("{}"); // hech narsa ishlatilmaydi → barcha landing-* o'chadi
         return Content(await CurrentJsonAsync(), "application/json");
     }
 
@@ -112,18 +88,38 @@ public class LandingController(AppDbContext db, IWebHostEnvironment env) : Contr
         await db.SaveChangesAsync();
     }
 
-    // faqat harf/raqam/chiziqcha (cert-en, cert-ielts ...) — yo'l hujumidan himoya
-    private static string SanitizeSlot(string s)
-        => new string((s ?? "").Where(c => char.IsLetterOrDigit(c) || c == '-' || c == '_').ToArray());
-
-    private void DeleteIfOwned(string? url)
+    // JSON ichidagi BARCHA "/uploads/landing-*" satrlarni yig'ib, uploads papkasidagi shunga mos
+    // bo'lmagan landing-* fayllarni o'chiradi (yetim rasmlar). Faqat o'zimiz yuklagan fayllar.
+    private void GcOrphanImages(string json)
     {
-        if (string.IsNullOrWhiteSpace(url) || !url.StartsWith("/uploads/landing-")) return;
         try
         {
-            var abs = Path.Combine(env.ContentRootPath, url.TrimStart('/').Replace('/', Path.DirectorySeparatorChar));
-            if (System.IO.File.Exists(abs)) System.IO.File.Delete(abs);
+            var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            CollectStrings(JsonNode.Parse(json), used);
+            if (!Directory.Exists(UploadsDir)) return;
+            foreach (var path in Directory.EnumerateFiles(UploadsDir, "landing-*"))
+            {
+                var name = Path.GetFileName(path);
+                if (!used.Contains($"/uploads/{name}"))
+                    try { System.IO.File.Delete(path); } catch { /* band/yo'q — e'tiborsiz */ }
+            }
         }
-        catch { /* fayl yo'q bo'lsa e'tiborsiz */ }
+        catch { /* GC ixtiyoriy — xato saqlashni buzmasin */ }
+    }
+
+    private static void CollectStrings(JsonNode? node, HashSet<string> sink)
+    {
+        switch (node)
+        {
+            case JsonObject obj:
+                foreach (var kv in obj) CollectStrings(kv.Value, sink);
+                break;
+            case JsonArray arr:
+                foreach (var item in arr) CollectStrings(item, sink);
+                break;
+            case JsonValue val when val.TryGetValue<string>(out var s) && !string.IsNullOrEmpty(s):
+                sink.Add(s);
+                break;
+        }
     }
 }

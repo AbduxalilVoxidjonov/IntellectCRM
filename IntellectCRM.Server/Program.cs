@@ -464,15 +464,14 @@ app.Use(async (context, next) =>
     if (!app.Environment.IsDevelopment())
     {
         headers["Content-Security-Policy"] = IsLandingHost(context)
-            // Landing (page/) — DC runtime (support.js) Babel/React'ni unpkg'dan yuklab brauzerda
-            // render qiladi (unsafe-eval + new Function), Google Fonts, inline style/script. Ochiq
-            // marketing sahifa (maxfiy ma'lumot yo'q) — yumshoqroq CSP.
+            // Landing (page/) — self-contained vanilla HTML (inline style/script, Google Fonts).
+            // Babel/unpkg/eval KERAK EMAS (DC runtime olib tashlandi). Ochiq marketing sahifa.
             ? "default-src 'self'; " +
               "img-src 'self' data: blob: https:; " +
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com; " +
+              "script-src 'self' 'unsafe-inline'; " +
               "font-src 'self' data: https://fonts.gstatic.com; " +
-              "connect-src 'self' https://unpkg.com; " +
+              "connect-src 'self'; " +
               "frame-ancestors 'none'; object-src 'none'; base-uri 'self'"
             // CRM SPA — qat'iy. Leaflet xaritasi unpkg/openstreetmap'dan rasm yuklaydi (img https:).
             : "default-src 'self'; " +
@@ -507,7 +506,8 @@ if (landingEnabled)
     // `window.__LANDING_CONTENT__` bo'lib inject qilinadi (superadmin Sozlamalar → Landing page'dan
     // tahrirlaydi). DB bo'sh bo'lsa — inject yo'q, HTML ichidagi hardcoded (zaxira) kontent ishlaydi.
     string? landingHtmlCache = File.Exists(landingIndex) ? File.ReadAllText(landingIndex) : null;
-    const string injectAnchor = "<script src=\"./support.js\"></script>";
+    // Vanilla landing — kontentni `</head>` oldidan inject qilamiz (sahifa skripti uni o'qiydi).
+    const string injectAnchor = "</head>";
 
     app.MapWhen(
         ctx => IsLandingHost(ctx)

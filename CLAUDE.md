@@ -114,6 +114,30 @@ docker compose up -d --build    # app + postgres + cloudflared + backup + mediam
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-25: **LANDING TO'LIQ QAYTA QURILDI (vanilla, 8 bo'lim) + EDITOR SODDALASHTIRILDI (4 narsa).**
+  Foydalanuvchi: apex landing yangi navigatsiya — Biz haqimizda · Afzalliklarimiz · Ustozlar · Natijalar ·
+  Narxlar · Fotogalereya · Vakansiyalar · FAQ; CRM editordan FAQAT 4 narsa tahrirlanadi — kurslar (narx+matn),
+  ustozlar (rasm+matn), sertifikatlar (rasm), daraja test LINKI. Qarorlar (foydalanuvchi): 3 til (uz/ru/en),
+  narx editorda kurs bilan kiritiladi, fotogalereya alohida rasm yuklash. **DC-runtime (support.js/image-slot.js,
+  unpkg/Babel) OLIB TASHLANDI** → `page/Intellect Kokand.dc.html` endi self-contained VANILLA (inline CSS+JS,
+  Google Fonts; window.__LANDING_CONTENT__ dan o'qiydi, statik matn HTML ichida hardcoded zaxira). 8 bo'lim +
+  hero + aloqa + footer; til almashtirish, FAQ akkordeon, rasm lightbox, "Daraja test" CTA → testLink (yo'q
+  bo'lsa #contact). **Sxema:** `{courses:[{price,uz/ru/en:{name,desc}}], teachers:[{photo,uz/ru/en:{name,role,bio}}],
+  certificates:[url], gallery:[url], testLink}` (sertifikat/galereya bo'sh bo'lsa bo'lim ko'rinmaydi). **Backend
+  (LandingController):** GET/PUT kontent (obyekt validatsiya), `POST upload` (generic rasm → {url}), `reset`;
+  saqlashda YETIM `landing-*` fayllar avto-tozalanadi (GC — JSON'da ishlatilmagan rasm o'chadi). `page/landing.default.json`
+  yangi sxemaga (editor boshlang'ich holati). LandingContent entity/jadval o'zgarmadi (faqat JSON shakli) → migratsiya
+  YO'Q. **Program.cs:** inject anchor `support.js` o'rniga `</head>` oldi; landing CSP'dan unpkg/unsafe-eval olib
+  tashlandi (vanilla → eval kerak emas). **Frontend:** `landing.ts` yangi tiplar (LandingCourse/Teacher) + generic
+  upload; `LandingSettings.tsx` to'liq qayta yozildi — uz/ru/en tab + Daraja test linki (URL + mavjud testlardan
+  tanlash → `origin/test/{slug}`) + Kurslar (narx+nom+tavsif) + Ustozlar (rasm+ism+yo'nalish+bio) + Sertifikatlar
+  (ko'p rasm grid) + Fotogalereya (ko'p rasm grid). Backend 0, tsc+vite yashil. **JONLI SINOV** (throwaway PG,
+  Production, DLL): apex `/` → vanilla landing (8 bo'lim, "Daraja test", CSP unpkgsiz, support.js/unpkg refs=0);
+  login → GET default (4 kurs/1 ustoz) → PUT (TEST-KURS-XYZ + ustoz + testLink) → apex injection `</head>` OLDIDA
+  edited kontent; crm host izolyatsiya (qat'iy CSP, landing app div yo'q); apex `/api/health` 200; upload → {url};
+  GC: galereyaga teglangan rasm SAQLANDI, teglanmagan O'CHDI. **DEPLOYDA:** `docker compose up -d --build app`
+  (`page/` Dockerfile'da nusxalanadi; migratsiya yo'q, postgres-data saqlanadi). **QOLDI (foydalanuvchi/infra):**
+  Cloudflare panelida apex `intellectschool.uz` (+www) → HTTP → `app:8080` Public Hostname (DNS/tunnel dashboard ishi).
 - 2026-06-24: **YANGI — APEX domen LANDING sahifasi (intellectschool.uz → marketing sayti, crm.* → SPA).**
   Repo ildizida `page/` statik marketing sayti bor (`Intellect Kokand.dc.html` + `support.js`/`image-slot.js` DC
   runtime — Babel/React'ni unpkg'dan yuklab brauzerda render qiladi + `screenshots/trial.png`). **Talab:** asosiy

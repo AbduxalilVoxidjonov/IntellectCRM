@@ -1,13 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
-import { Plus, Trash2, Upload, RotateCcw, ExternalLink } from 'lucide-react'
+import { Plus, Trash2, Upload, RotateCcw, ExternalLink, Link2 } from 'lucide-react'
 import {
   getLanding,
   saveLanding,
   resetLanding,
   uploadLandingImage,
-  deleteLandingImage,
   type LandingContent,
+  type LandingCourse,
+  type LandingTeacher,
 } from '@/api/services/landing'
+import { getLevelTests } from '@/api/services/levelTests'
+import type { LevelTestListItem } from '@/types'
 import { useAuth } from '@/context/auth-context'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -16,175 +19,49 @@ import { Loader } from '@/components/ui/Loader'
 const control =
   'w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition-colors focus:border-brand-400 focus:ring-2 focus:ring-brand-100'
 
-const LANGS: { code: string; label: string }[] = [
+type Lang = 'uz' | 'ru' | 'en'
+const LANGS: { code: Lang; label: string }[] = [
   { code: 'uz', label: "O'zbekcha" },
   { code: 'ru', label: 'Ruscha' },
   { code: 'en', label: 'Inglizcha' },
 ]
 
-// Sertifikat rasm slotlari (apex landing "Yutuqlarimiz" bo'limidagi galereya).
-const IMAGE_SLOTS: { id: string; label: string }[] = [
-  { id: 'cert-en', label: 'Ingliz tili' },
-  { id: 'cert-ielts', label: 'IELTS' },
-  { id: 'cert-math', label: 'Matematika' },
-  { id: 'cert-phys', label: 'Fizika' },
-  { id: 'cert-rus', label: 'Rus tili' },
-  { id: 'cert-sat', label: 'SAT' },
-]
+const ACCEPT = 'image/png,image/jpeg,image/webp,image/gif'
 
-// Kalit -> chiroyli yorliq (topilmasa kalitning o'zi ishlatiladi).
-const LABELS: Record<string, string> = {
-  nav: 'Menyu', hero: 'Bosh ekran (Hero)', heroStats: "Hero ko'rsatkichlari",
-  about: 'Markaz haqida', aboutFeatures: 'Afzalliklar', courses: 'Kurslar bo\'limi',
-  coursesList: 'Kurslar ro\'yxati', why: 'Nega biz', whys: 'Sabablar',
-  ach: 'Yutuqlar', achStats: 'Yutuq ko\'rsatkichlari', test: 'Daraja test',
-  faq: 'FAQ sarlavha', faqs: 'Savol-javoblar', vac: 'Vakansiya bo\'limi',
-  vacancies: 'Vakansiyalar', contact: 'Aloqa', trial: 'Sinov darsi', footer: 'Pastki qism',
-  about_: 'Haqida', title: 'Sarlavha', title1: 'Sarlavha 1', title2: 'Sarlavha 2',
-  subtitle: 'Tavsif', tag: 'Yorliq', badge: 'Belgi', desc: 'Tavsif', name: 'Nomi',
-  num: 'Raqam', label: 'Yorliq', level: 'Daraja', code: 'Kod', q: 'Savol', a: 'Javob',
-  cta: 'Tugma', cta1: 'Tugma 1', cta2: 'Tugma 2', p1: 'Matn 1', p2: 'Matn 2',
-  type: 'Turi', req: 'Talab', course: 'Kurs', quote: 'Iqtibos', quoteBy: 'Muallif',
-  cardTitle: 'Karta sarlavhasi', cardSub: 'Karta tavsifi', certLabels: 'Sertifikat yorliqlari',
-  certTag: 'Sertifikat yorlig\'i', certTitle: 'Sertifikat sarlavhasi', certHint: 'Sertifikat izohi',
-  certPh: 'Sertifikat placeholder', results: 'Natijalar', tiers: 'Darajalar',
-  high: 'Yuqori', mid: "O'rta", low: 'Past', tagline: 'Shior', rights: 'Huquqlar',
-  submitBtn: 'Yuborish tugmasi', applyBtn: 'Ariza tugmasi', chooseBtn: 'Tanlash tugmasi',
-  enrollBtn: 'Yozilish tugmasi', retakeBtn: 'Qayta tugmasi',
-}
-
-function labelFor(key: string): string {
-  return LABELS[key] ?? key
-}
-
-function emptyLike(sample: any): any {
-  if (typeof sample === 'string') return ''
-  if (Array.isArray(sample)) return sample.length ? [emptyLike(sample[0])] : []
-  if (sample && typeof sample === 'object') {
-    const o: Record<string, any> = {}
-    for (const k of Object.keys(sample)) o[k] = emptyLike(sample[k])
-    return o
-  }
-  return ''
-}
-
-/** Rekursiv kontent muharriri — satr / satrlar massivi / obyektlar massivi / ichma-ich obyekt. */
-function Node({
-  label,
-  value,
-  onChange,
-  depth = 0,
-}: {
-  label: string
-  value: any
-  onChange: (v: any) => void
-  depth?: number
-}) {
-  // Satr maydoni
-  if (typeof value === 'string') {
-    const long = value.length > 55 || value.includes('\n')
-    return (
-      <label className="block">
-        <span className="mb-1 block text-xs font-medium text-slate-500">{label}</span>
-        {long ? (
-          <textarea
-            className={control}
-            rows={Math.min(6, Math.max(2, Math.ceil(value.length / 60)))}
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-          />
-        ) : (
-          <input className={control} value={value} onChange={(e) => onChange(e.target.value)} />
-        )}
-      </label>
-    )
-  }
-
-  // Massiv (satrlar yoki obyektlar)
-  if (Array.isArray(value)) {
-    const updateAt = (i: number, v: any) => {
-      const next = value.slice()
-      next[i] = v
-      onChange(next)
-    }
-    return (
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-semibold text-slate-700">{label}</span>
-          <button
-            type="button"
-            onClick={() => onChange([...value, emptyLike(value[0] ?? '')])}
-            className="inline-flex items-center gap-1 rounded-md bg-brand-50 px-2 py-1 text-xs font-medium text-brand-700 hover:bg-brand-100"
-          >
-            <Plus size={13} /> Qo'shish
-          </button>
-        </div>
-        <div className="space-y-2">
-          {value.map((item, i) => (
-            <div
-              key={i}
-              className="relative rounded-lg border border-slate-200 bg-slate-50/60 p-3 pr-9"
-            >
-              <Node label={`#${i + 1}`} value={item} onChange={(v) => updateAt(i, v)} depth={depth + 1} />
-              <button
-                type="button"
-                onClick={() => onChange(value.filter((_, j) => j !== i))}
-                className="absolute right-2 top-2 rounded-md p-1 text-slate-400 hover:bg-red-50 hover:text-red-600"
-                title="O'chirish"
-              >
-                <Trash2 size={15} />
-              </button>
-            </div>
-          ))}
-          {value.length === 0 && (
-            <p className="text-xs text-slate-400">Bo'sh — "Qo'shish" tugmasini bosing.</p>
-          )}
-        </div>
-      </div>
-    )
-  }
-
-  // Obyekt
-  if (value && typeof value === 'object') {
-    return (
-      <div className={depth === 0 ? '' : 'space-y-3'}>
-        <div className="grid gap-3 sm:grid-cols-2">
-          {Object.entries(value).map(([k, v]) => {
-            const complex = Array.isArray(v) || (v && typeof v === 'object')
-            return (
-              <div key={k} className={complex ? 'sm:col-span-2' : ''}>
-                <Node
-                  label={labelFor(k)}
-                  value={v}
-                  onChange={(nv) => onChange({ ...value, [k]: nv })}
-                  depth={depth + 1}
-                />
-              </div>
-            )
-          })}
-        </div>
-      </div>
-    )
-  }
-
-  return null
-}
+const emptyCourse = (): LandingCourse => ({
+  price: '',
+  uz: { name: '', desc: '' },
+  ru: { name: '', desc: '' },
+  en: { name: '', desc: '' },
+})
+const emptyTeacher = (): LandingTeacher => ({
+  photo: '',
+  uz: { name: '', role: '', bio: '' },
+  ru: { name: '', role: '', bio: '' },
+  en: { name: '', role: '', bio: '' },
+})
 
 export function LandingSettings() {
   const { user } = useAuth()
   const [content, setContent] = useState<LandingContent | null>(null)
-  const [lang, setLang] = useState('uz')
+  const [lang, setLang] = useState<Lang>('uz')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
-  const [busySlot, setBusySlot] = useState<string | null>(null)
-  const fileRefs = useRef<Record<string, HTMLInputElement | null>>({})
+  const [busy, setBusy] = useState<string | null>(null)
+  const [tests, setTests] = useState<LevelTestListItem[]>([])
+  const certInput = useRef<HTMLInputElement | null>(null)
+  const galInput = useRef<HTMLInputElement | null>(null)
+  const teacherInputs = useRef<Record<number, HTMLInputElement | null>>({})
 
   useEffect(() => {
     getLanding()
-      .then((c) => setContent({ langs: c.langs ?? {}, images: c.images ?? {} }))
-      .catch(() => setMsg('Kontentni yuklab bo\'lmadi.'))
+      .then(setContent)
+      .catch(() => setMsg("Kontentni yuklab bo'lmadi."))
       .finally(() => setLoading(false))
+    getLevelTests()
+      .then((t) => setTests(t.filter((x) => x.isActive)))
+      .catch(() => {})
   }, [])
 
   if (user && user.role !== 'superadmin') {
@@ -196,78 +73,85 @@ export function LandingSettings() {
       </Card>
     )
   }
-
   if (loading || !content) return <Loader />
 
-  const langData = content.langs[lang]
+  const flash = (m: string) => {
+    setMsg(m)
+    setTimeout(() => setMsg(null), 2500)
+  }
+  const patch = (p: Partial<LandingContent>) => setContent((c) => (c ? { ...c, ...p } : c))
 
   const save = async () => {
     setSaving(true)
     setMsg(null)
     try {
-      const saved = await saveLanding(content)
-      setContent({ langs: saved.langs ?? {}, images: saved.images ?? {} })
-      setMsg('Saqlandi ✓')
+      setContent(await saveLanding(content))
+      flash('Saqlandi ✓')
     } catch {
-      setMsg('Saqlashda xatolik.')
+      flash('Saqlashda xatolik.')
     } finally {
       setSaving(false)
-      setTimeout(() => setMsg(null), 2500)
     }
   }
 
   const reset = async () => {
-    if (!confirm('Landing kontentini standart holatga qaytarasizmi? Tahrirlar o\'chadi.')) return
+    if (!confirm("Landing kontentini standart holatga qaytarasizmi? Tahrirlar va yuklangan rasmlar o'chadi."))
+      return
     setSaving(true)
     try {
-      const c = await resetLanding()
-      setContent({ langs: c.langs ?? {}, images: c.images ?? {} })
-      setMsg('Standart holatga qaytarildi.')
+      setContent(await resetLanding())
+      flash('Standart holatga qaytarildi.')
     } catch {
-      setMsg('Qaytarishda xatolik.')
+      flash('Qaytarishda xatolik.')
     } finally {
       setSaving(false)
-      setTimeout(() => setMsg(null), 2500)
     }
   }
 
-  const onPickImage = async (slotId: string, file?: File) => {
-    if (!file) return
-    setBusySlot(slotId)
+  const uploadOne = async (file: File): Promise<string | null> => {
     try {
-      const { url } = await uploadLandingImage(slotId, file)
-      setContent((c) => (c ? { ...c, images: { ...c.images, [slotId]: url } } : c))
+      return await uploadLandingImage(file)
     } catch (e: any) {
       const m = e?.response?.data?.message
-      setMsg(m ? `Rasm yuklashda xatolik: ${m}` : 'Rasm yuklashda xatolik.')
-    } finally {
-      setBusySlot(null)
+      flash(m ? `Rasm yuklashda xatolik: ${m}` : 'Rasm yuklashda xatolik.')
+      return null
     }
   }
 
-  const onDeleteImage = async (slotId: string) => {
-    setBusySlot(slotId)
-    try {
-      await deleteLandingImage(slotId)
-      setContent((c) => {
-        if (!c) return c
-        const images = { ...c.images }
-        delete images[slotId]
-        return { ...c, images }
-      })
-    } catch {
-      setMsg('Rasmni o\'chirishda xatolik.')
-    } finally {
-      setBusySlot(null)
-    }
+  // ---- Kurslar ----
+  const updCourse = (i: number, fn: (c: LandingCourse) => LandingCourse) =>
+    patch({ courses: content.courses.map((c, j) => (j === i ? fn(c) : c)) })
+
+  // ---- Ustozlar ----
+  const updTeacher = (i: number, fn: (t: LandingTeacher) => LandingTeacher) =>
+    patch({ teachers: content.teachers.map((t, j) => (j === i ? fn(t) : t)) })
+
+  const pickTeacherPhoto = async (i: number, file?: File) => {
+    if (!file) return
+    setBusy('teacher-' + i)
+    const url = await uploadOne(file)
+    if (url) updTeacher(i, (t) => ({ ...t, photo: url }))
+    setBusy(null)
   }
 
-  // langData yo'q bo'lsa (bo'sh kontent) — ogohlantirish.
-  const sections = langData && typeof langData === 'object' ? Object.keys(langData) : []
+  // ---- Rasm ro'yxatlari (sertifikat / galereya) ----
+  const addImages = async (key: 'certificates' | 'gallery', files: FileList | null) => {
+    if (!files || !files.length) return
+    setBusy(key)
+    const urls: string[] = []
+    for (const f of Array.from(files)) {
+      const u = await uploadOne(f)
+      if (u) urls.push(u)
+    }
+    if (urls.length) patch({ [key]: [...content[key], ...urls] } as Partial<LandingContent>)
+    setBusy(null)
+  }
+  const removeImage = (key: 'certificates' | 'gallery', i: number) =>
+    patch({ [key]: content[key].filter((_, j) => j !== i) } as Partial<LandingContent>)
 
   return (
     <div className="space-y-5">
-      {/* Yuqori panel: til tablari + saqlash */}
+      {/* Yuqori panel */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="inline-flex rounded-lg border border-slate-200 bg-white p-1">
           {LANGS.map((l) => (
@@ -302,87 +186,285 @@ export function LandingSettings() {
         </div>
       </div>
 
-      {/* Rasmlar (sertifikat galereyasi) — backendga yuklanadi */}
-      <Card title="Sertifikat rasmlari" sub="Apex landing 'Yutuqlarimiz' galereyasi. Rasm backendga yuklanadi va saytda ko'rinadi (tashrifchi yuklay olmaydi).">
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {IMAGE_SLOTS.map((s) => {
-            const url = content.images[s.id]
-            return (
-              <div key={s.id} className="rounded-lg border border-slate-200 p-3">
-                <div className="mb-2 text-sm font-medium text-slate-700">{s.label}</div>
-                <div className="mb-2 flex h-32 items-center justify-center overflow-hidden rounded-md bg-slate-100">
-                  {url ? (
-                    <img src={url} alt={s.label} className="h-full w-full object-cover" />
-                  ) : (
-                    <span className="text-xs text-slate-400">Rasm yo'q</span>
-                  )}
-                </div>
-                <input
-                  ref={(el) => {
-                    fileRefs.current[s.id] = el
-                  }}
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp,image/gif"
-                  hidden
-                  onChange={(e) => onPickImage(s.id, e.target.files?.[0] ?? undefined)}
-                />
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    disabled={busySlot === s.id}
-                    onClick={() => fileRefs.current[s.id]?.click()}
-                    className="inline-flex flex-1 items-center justify-center gap-1 rounded-md bg-brand-50 px-2 py-1.5 text-xs font-medium text-brand-700 hover:bg-brand-100 disabled:opacity-50"
-                  >
-                    <Upload size={13} /> {busySlot === s.id ? '…' : url ? 'Almashtirish' : 'Yuklash'}
-                  </button>
-                  {url && (
-                    <button
-                      type="button"
-                      disabled={busySlot === s.id}
-                      onClick={() => onDeleteImage(s.id)}
-                      className="rounded-md p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
-                      title="O'chirish"
-                    >
-                      <Trash2 size={15} />
-                    </button>
-                  )}
-                </div>
-              </div>
-            )
-          })}
+      <p className="text-xs text-slate-400">
+        Matn maydonlari <b>{LANGS.find((l) => l.code === lang)?.label}</b> tili uchun. Narx va rasmlar barcha tillar
+        uchun umumiy. O'zgartirgach <b>Saqlash</b> tugmasini bosing.
+      </p>
+
+      {/* Daraja test linki */}
+      <Card title="Daraja test linki" sub="Landing 'Daraja test' tugmalari shu manzilga olib boradi. Tayyor testdan tanlang yoki manzilni qo'lda kiriting.">
+        <div className="space-y-3">
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-slate-500">Test manzili (URL)</span>
+            <div className="flex items-center gap-2">
+              <Link2 size={16} className="text-slate-400" />
+              <input
+                className={control}
+                placeholder="https://crm.intellectschool.uz/test/..."
+                value={content.testLink}
+                onChange={(e) => patch({ testLink: e.target.value })}
+              />
+            </div>
+          </label>
+          {tests.length > 0 && (
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-slate-500">Yoki mavjud testdan tanlang</span>
+              <select
+                className={control}
+                value=""
+                onChange={(e) => {
+                  const t = tests.find((x) => x.id === e.target.value)
+                  if (t) patch({ testLink: `${window.location.origin}/test/${t.slug}` })
+                }}
+              >
+                <option value="">— Tanlang —</option>
+                {tests.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.title} ({t.courseName})
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          {content.testLink && (
+            <a
+              href={content.testLink}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 text-sm text-brand-600 hover:underline"
+            >
+              <ExternalLink size={14} /> Testni ochib ko'rish
+            </a>
+          )}
         </div>
       </Card>
 
-      {/* Matn kontenti — har bir bo'lim yig'iladigan (collapsible) */}
-      {sections.length === 0 ? (
-        <Card>
-          <p className="text-sm text-slate-600">
-            Bu til uchun kontent topilmadi. "Standart" tugmasi orqali boshlang'ich kontentni yuklang.
-          </p>
-        </Card>
-      ) : (
+      {/* Kurslar */}
+      <Card
+        title="Kurslar / Narxlar"
+        sub="Landing 'Narxlar' bo'limi. Har kurs uchun nom, tavsif va oylik narx."
+        actions={
+          <Button variant="ghost" onClick={() => patch({ courses: [...content.courses, emptyCourse()] })}>
+            <Plus size={15} className="mr-1" /> Kurs qo'shish
+          </Button>
+        }
+      >
         <div className="space-y-3">
-          {sections.map((sec) => (
-            <details key={sec} className="group rounded-xl border border-slate-200 bg-white">
-              <summary className="flex cursor-pointer list-none items-center justify-between px-5 py-3.5 font-semibold text-slate-800">
-                <span>{labelFor(sec)}</span>
-                <span className="text-slate-400 transition-transform group-open:rotate-90">›</span>
-              </summary>
-              <div className="border-t border-slate-100 px-5 py-4">
-                <Node
-                  label={labelFor(sec)}
-                  value={langData[sec]}
-                  onChange={(nv) =>
-                    setContent((c) =>
-                      c ? { ...c, langs: { ...c.langs, [lang]: { ...c.langs[lang], [sec]: nv } } } : c,
-                    )
-                  }
-                />
+          {content.courses.map((c, i) => (
+            <div key={i} className="relative rounded-lg border border-slate-200 bg-slate-50/60 p-4 pr-10">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="block">
+                  <span className="mb-1 block text-xs font-medium text-slate-500">Kurs nomi</span>
+                  <input
+                    className={control}
+                    value={c[lang].name}
+                    onChange={(e) =>
+                      updCourse(i, (x) => ({ ...x, [lang]: { ...x[lang], name: e.target.value } }))
+                    }
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-xs font-medium text-slate-500">Oylik narx (masalan: 500 000)</span>
+                  <input
+                    className={control}
+                    value={c.price}
+                    onChange={(e) => updCourse(i, (x) => ({ ...x, price: e.target.value }))}
+                  />
+                </label>
+                <label className="block sm:col-span-2">
+                  <span className="mb-1 block text-xs font-medium text-slate-500">Tavsif</span>
+                  <textarea
+                    className={control}
+                    rows={2}
+                    value={c[lang].desc}
+                    onChange={(e) =>
+                      updCourse(i, (x) => ({ ...x, [lang]: { ...x[lang], desc: e.target.value } }))
+                    }
+                  />
+                </label>
               </div>
-            </details>
+              <button
+                type="button"
+                onClick={() => patch({ courses: content.courses.filter((_, j) => j !== i) })}
+                className="absolute right-2 top-2 rounded-md p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                title="O'chirish"
+              >
+                <Trash2 size={15} />
+              </button>
+            </div>
+          ))}
+          {content.courses.length === 0 && (
+            <p className="text-xs text-slate-400">Bo'sh — "Kurs qo'shish" tugmasini bosing.</p>
+          )}
+        </div>
+      </Card>
+
+      {/* Ustozlar */}
+      <Card
+        title="Ustozlar"
+        sub="Landing 'Ustozlar' bo'limi. Har ustoz uchun rasm, ism, yo'nalish va qisqa ma'lumot."
+        actions={
+          <Button variant="ghost" onClick={() => patch({ teachers: [...content.teachers, emptyTeacher()] })}>
+            <Plus size={15} className="mr-1" /> Ustoz qo'shish
+          </Button>
+        }
+      >
+        <div className="grid gap-3 sm:grid-cols-2">
+          {content.teachers.map((t, i) => (
+            <div key={i} className="relative rounded-lg border border-slate-200 bg-slate-50/60 p-4 pr-10">
+              <div className="flex gap-3">
+                <div className="flex-none">
+                  <div className="mb-2 flex h-24 w-24 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-slate-100">
+                    {t.photo ? (
+                      <img src={t.photo} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      <span className="text-xs text-slate-400">Rasm</span>
+                    )}
+                  </div>
+                  <input
+                    ref={(el) => {
+                      teacherInputs.current[i] = el
+                    }}
+                    type="file"
+                    accept={ACCEPT}
+                    hidden
+                    onChange={(e) => pickTeacherPhoto(i, e.target.files?.[0] ?? undefined)}
+                  />
+                  <button
+                    type="button"
+                    disabled={busy === 'teacher-' + i}
+                    onClick={() => teacherInputs.current[i]?.click()}
+                    className="inline-flex w-24 items-center justify-center gap-1 rounded-md bg-brand-50 px-2 py-1.5 text-xs font-medium text-brand-700 hover:bg-brand-100 disabled:opacity-50"
+                  >
+                    <Upload size={12} /> {busy === 'teacher-' + i ? '…' : t.photo ? 'Almashtirish' : 'Yuklash'}
+                  </button>
+                </div>
+                <div className="flex-1 space-y-2">
+                  <input
+                    className={control}
+                    placeholder="Ism familiya"
+                    value={t[lang].name}
+                    onChange={(e) =>
+                      updTeacher(i, (x) => ({ ...x, [lang]: { ...x[lang], name: e.target.value } }))
+                    }
+                  />
+                  <input
+                    className={control}
+                    placeholder="Yo'nalish (masalan: Ingliz tili)"
+                    value={t[lang].role}
+                    onChange={(e) =>
+                      updTeacher(i, (x) => ({ ...x, [lang]: { ...x[lang], role: e.target.value } }))
+                    }
+                  />
+                  <textarea
+                    className={control}
+                    rows={2}
+                    placeholder="Qisqa ma'lumot"
+                    value={t[lang].bio}
+                    onChange={(e) =>
+                      updTeacher(i, (x) => ({ ...x, [lang]: { ...x[lang], bio: e.target.value } }))
+                    }
+                  />
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => patch({ teachers: content.teachers.filter((_, j) => j !== i) })}
+                className="absolute right-2 top-2 rounded-md p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                title="O'chirish"
+              >
+                <Trash2 size={15} />
+              </button>
+            </div>
+          ))}
+          {content.teachers.length === 0 && (
+            <p className="text-xs text-slate-400">Bo'sh — "Ustoz qo'shish" tugmasini bosing.</p>
+          )}
+        </div>
+      </Card>
+
+      {/* Sertifikatlar */}
+      <ImageGallery
+        title="Sertifikatlar"
+        sub="Landing 'Natijalar' bo'limidagi sertifikat galereyasi. Rasm bo'lmasa bo'lim ko'rinmaydi."
+        urls={content.certificates}
+        busy={busy === 'certificates'}
+        inputRef={certInput}
+        onAdd={(files) => addImages('certificates', files)}
+        onRemove={(i) => removeImage('certificates', i)}
+      />
+
+      {/* Fotogalereya */}
+      <ImageGallery
+        title="Fotogalereya"
+        sub="Landing 'Fotogalereya' bo'limi. Rasm bo'lmasa bo'lim umuman ko'rinmaydi."
+        urls={content.gallery}
+        busy={busy === 'gallery'}
+        inputRef={galInput}
+        onAdd={(files) => addImages('gallery', files)}
+        onRemove={(i) => removeImage('gallery', i)}
+      />
+    </div>
+  )
+}
+
+function ImageGallery({
+  title,
+  sub,
+  urls,
+  busy,
+  inputRef,
+  onAdd,
+  onRemove,
+}: {
+  title: string
+  sub: string
+  urls: string[]
+  busy: boolean
+  inputRef: React.RefObject<HTMLInputElement | null>
+  onAdd: (files: FileList | null) => void
+  onRemove: (i: number) => void
+}) {
+  return (
+    <Card
+      title={title}
+      sub={sub}
+      actions={
+        <Button variant="ghost" disabled={busy} onClick={() => inputRef.current?.click()}>
+          <Upload size={15} className="mr-1" /> {busy ? 'Yuklanmoqda…' : 'Rasm yuklash'}
+        </Button>
+      }
+    >
+      <input
+        ref={inputRef}
+        type="file"
+        accept={ACCEPT}
+        multiple
+        hidden
+        onChange={(e) => {
+          onAdd(e.target.files)
+          e.target.value = ''
+        }}
+      />
+      {urls.length === 0 ? (
+        <p className="text-xs text-slate-400">Bo'sh — "Rasm yuklash" tugmasini bosing (bir nechtasini tanlash mumkin).</p>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          {urls.map((u, i) => (
+            <div key={i} className="group relative overflow-hidden rounded-lg border border-slate-200">
+              <img src={u} alt="" className="h-32 w-full object-cover" />
+              <button
+                type="button"
+                onClick={() => onRemove(i)}
+                className="absolute right-1.5 top-1.5 rounded-md bg-white/90 p-1.5 text-slate-500 shadow hover:bg-red-50 hover:text-red-600"
+                title="O'chirish"
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
           ))}
         </div>
       )}
-    </div>
+    </Card>
   )
 }
