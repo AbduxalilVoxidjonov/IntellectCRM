@@ -114,6 +114,18 @@ docker compose up -d --build    # app + postgres + cloudflared + backup + mediam
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-25: **BUG FIX — daraja testi statistikasida HAMMA "o'chirilgan" (qizil) ko'rinardi.** Muammo
+  (`LevelTestsController.Stats`): `isDeleted = string.IsNullOrEmpty(LeadId) || sid == null || !existing.Contains(sid)`
+  — bu yerda `sid` = lidning `ConvertedStudentId`i. Test topshirgan odam birinchi bosqichdagi LID bo'lib turadi
+  (hali o'quvchiga AYLANTIRILMAGAN) → `sid == null` → `isDeleted = true` → BARCHA konvertatsiya qilinmagan lid xato
+  "o'chirilgan" deb (qizil, line-through, "(o'chirilgan)") ko'rsatilardi. **Yechim:** "o'chirilgan" endi LIDNING
+  o'zi CRM'dan o'chirilganini bildiradi (konvertatsiya holatiga bog'liq emas). Lid o'chirilganda `db.Leads`'dan
+  o'chadi (ArchiveService snapshot qoladi) → mavjud lid id'lar to'plami (`existingLeadIds`) hisoblanadi;
+  `isDeleted = LeadId bor && existingLeadIds'da YO'Q`. Endi birinchi bosqichdagi lid "o'chirilgan" emas; faqat
+  haqiqatan o'chirilgan lid qizil bo'ladi. Endi ishlatilmaydigan `existing` (arxivlanmagan o'quvchilar) so'rovi
+  olib tashlandi. Frontend tegilmadi (StatsPanel `r.isDeleted` ni ishlatadi). Sxema/migratsiya yo'q. Backend 0.
+  **JONLI E2E** (throwaway PG): test → public submit (lid yaratildi, konvertatsiya yo'q) → stats `isDeleted=False`;
+  lidni o'chirdik → stats `isDeleted=True`. **DEPLOYDA:** `docker compose up -d --build app` (migratsiya yo'q).
 - 2026-06-25: **BAHOLASH MEZON CHECKLARI SONI = JURNAL BAHOSI (avto-sinxron) + REYTING DUBLIKAT BUG TUZATILDI.**
   Foydalanuvchi: baholash (grading) bo'limida o'quvchiga bir darsda nechta mezon ✓ (ptichka) qo'yilsa, SHU SON
   jurnalga baho bo'lib tushsin (4 mezondan 3tasi belgilansa → jurnalda 3). **Backend (GradingController):** yangi

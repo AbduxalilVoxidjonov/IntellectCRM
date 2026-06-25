@@ -129,9 +129,11 @@ public class LevelTestsController(AppDbContext db) : ControllerBase
             .ToDictionary(l => l.Id, l => l.ConvertedStudentId!);
         var studentIds = leadToStudent.Values.Distinct().ToList();
 
-        // Mavjud (arxivlanmagan) o'quvchilar
-        var existing = (await db.Students.Where(st => studentIds.Contains(st.Id) && !st.IsArchived)
-            .Select(st => st.Id).ToListAsync()).ToHashSet();
+        // Hali MAVJUD lidlar (CRM'dan o'chirilmagan) — "o'chirilgan" bayrog'i UCHUN. Lid o'chirilsa
+        // db.Leads'dan o'chadi (ArchiveService snapshot qoladi). Konvertatsiya QILINMAGAN (birinchi bosqichdagi)
+        // lid ham MAVJUD bo'ladi — o'chirilgan emas (ilgari u xato "o'chirilgan" deb ko'rsatilardi).
+        var existingLeadIds = (await db.Leads.Where(l => leadIds.Contains(l.Id))
+            .Select(l => l.Id).ToListAsync()).ToHashSet();
         // AKTIV guruh a'zoliklari (Status=="active") — guruh + o'qituvchi (FISH) uchun.
         var activeMemberships = await db.StudentGroups
             .Where(sg => studentIds.Contains(sg.StudentId) && sg.IsActive && sg.Status == "active")
@@ -170,8 +172,9 @@ public class LevelTestsController(AppDbContext db) : ControllerBase
         var rows = subs.Select(s =>
         {
             string? sid = leadToStudent.TryGetValue(s.LeadId, out var v) ? v : null;
-            // IsDeleted: lid yo'q (ConvertedStudentId yo'q yoki lid o'chirilgan), YOKI o'quvchi o'chirilgan/arxivlangan
-            bool isDeleted = string.IsNullOrEmpty(s.LeadId) || sid == null || !existing.Contains(sid);
+            // IsDeleted: lid yaratilgan edi-yu, hozir CRM'da YO'Q (o'chirilgan). Konvertatsiya holati ta'sir
+            // qilmaydi — birinchi bosqichdagi (hali o'quvchiga aylanmagan) lid "o'chirilgan" emas.
+            bool isDeleted = !string.IsNullOrEmpty(s.LeadId) && !existingLeadIds.Contains(s.LeadId);
             var isActive = sid != null && active.Contains(sid);
             var info = sid != null && byStudent.TryGetValue(sid, out var gi) ? gi : ("", "");
             return new LevelTestStatRowDto(
