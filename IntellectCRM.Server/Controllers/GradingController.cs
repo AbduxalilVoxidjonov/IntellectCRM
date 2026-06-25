@@ -210,7 +210,8 @@ public class GradingController(AppDbContext db) : ControllerBase
         return new GradingBoardDto(group.Id, group.Name, months, resolved, dates, criteria, rows);
     }
 
-    /// <summary>Bitta katakni belgilash: Done=true → yozuv (bajardi); Done=false → yozuvni o'chiramiz (sparse).</summary>
+    /// <summary>Bitta katakni belgilash: Done=true → yozuv (bajardi); Done=false → yozuvni o'chiramiz (sparse).
+    /// So'ng shu (o'quvchi, sana) uchun jurnal bahosini mezon checklari soniga sinxronlaydi.</summary>
     public static async Task UpsertGradeAsync(AppDbContext db, SetCriterionGradeRequest req)
     {
         var existing = await db.CriterionGrades.FirstOrDefaultAsync(
@@ -230,6 +231,15 @@ public class GradingController(AppDbContext db) : ControllerBase
         else if (existing is not null)
         {
             db.CriterionGrades.Remove(existing);
+        }
+
+        // Mezon o'zgarishini saqlaymiz (sanoq aniq bo'lishi uchun) → so'ng jurnal bahosini sinxronlaymiz.
+        await db.SaveChangesAsync();
+        var group = await db.Classes.FindAsync(req.GroupId);
+        if (group is not null)
+        {
+            await SyncJournalGradeAsync(db, group, req.StudentId, req.Date);
+            await db.SaveChangesAsync();
         }
     }
 
@@ -260,6 +270,71 @@ public class GradingController(AppDbContext db) : ControllerBase
             {
                 db.CriterionGrades.Remove(e);
             }
+        }
+
+        // Mezon o'zgarishlarini saqlaymiz → so'ng har bir o'quvchining jurnal bahosini sinxronlaymiz.
+        await db.SaveChangesAsync();
+        foreach (var sid in memberIds)
+            await SyncJournalGradeAsync(db, group, sid, date);
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// MEZON CHECKLARI SONI = JURNAL BAHOSI. (guruh, o'quvchi, sana) bo'yicha BELGILANGAN (Done) va guruhga
+    /// BIRIKTIRILGAN mezonlar sonini hisoblab <see cref="JournalEntry.Grade"/> ga yozadi (0 bo'lsa bahoni
+    /// tozalaydi — sabab/uy vazifa saqlanadi). Kurssiz guruh yoki noto'g'ri sana (StartDate'dan oldin yoki
+    /// kelajak) — jurnalga yozilmaydi. Belgilanganda dars "o'tildi" (LessonNote.Conducted) bo'ladi.
+    /// </summary>
+    private static async Task SyncJournalGradeAsync(AppDbContext db, Group group, string studentId, string date)
+    {
+        var subjectId = group.CourseId ?? "";
+        if (string.IsNullOrEmpty(subjectId)) return; // kurssiz guruh — jurnal yo'q
+        const int quarter = 1, period = 1;
+
+        // Noto'g'ri sana (jurnal validatsiyasi bilan izchil): kelajak yoki guruh boshlanishidan oldin — o'tkazib yuboramiz.
+        var today = AppClock.Today.ToString("yyyy-MM-dd");
+        if (string.Compare(date, today) > 0) return;
+        if (!string.IsNullOrEmpty(group.StartDate) && string.Compare(date, group.StartDate) < 0) return;
+
+        // Guruhga biriktirilgan mezonlar (board ko'rsatadigan) bo'yicha belgilangan (Done) sonni hisoblaymiz.
+        var assigned = await db.GroupGradingCriteria.Where(g => g.GroupId == group.Id)
+            .Select(g => g.CriterionId).ToListAsync();
+        var count = assigned.Count == 0 ? 0 : await db.CriterionGrades.CountAsync(g =>
+            g.GroupId == group.Id && g.StudentId == studentId && g.Date == date && g.Done
+            && assigned.Contains(g.CriterionId));
+
+        var entry = await db.JournalEntries.FirstOrDefaultAsync(e =>
+            e.ClassId == group.Id && e.SubjectId == subjectId && e.Quarter == quarter &&
+            e.StudentId == studentId && e.Date == date && e.Period == period);
+
+        if (count > 0)
+        {
+            if (entry is null)
+            {
+                entry = new JournalEntry
+                {
+                    ClassId = group.Id, SubjectId = subjectId, Quarter = quarter,
+                    StudentId = studentId, Date = date, Period = period,
+                };
+                db.JournalEntries.Add(entry);
+            }
+            entry.Grade = count;
+
+            // Darsni "o'tildi" deb belgilash (jurnal ustuni/yashil holat uchun) — SetEntryAsync bilan izchil.
+            var note = await db.LessonNotes.FirstOrDefaultAsync(n =>
+                n.ClassId == group.Id && n.SubjectId == subjectId &&
+                n.Quarter == quarter && n.Date == date && n.Period == period);
+            if (note is null)
+                db.LessonNotes.Add(new LessonNote
+                {
+                    ClassId = group.Id, SubjectId = subjectId, Quarter = quarter,
+                    Date = date, Period = period, Conducted = true,
+                });
+            else if (!note.Conducted) note.Conducted = true;
+        }
+        else if (entry is not null)
+        {
+            entry.Grade = null; // checklar olib tashlandi — bahoni tozalaymiz (boshqa maydonlar saqlanadi)
         }
     }
 

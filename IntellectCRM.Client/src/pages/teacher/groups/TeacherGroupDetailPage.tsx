@@ -353,7 +353,7 @@ export function TeacherGroupDetailPage() {
           <div className="inline-flex rounded-xl border border-line bg-paper2 p-1">
             <button
               type="button"
-              onClick={() => setGroupView("jurnal")}
+              onClick={() => { setGroupView("jurnal"); load(journal?.month) }}
               className={cn(
                 "rounded-lg px-4 py-1.5 text-sm font-semibold transition-colors",
                 groupView === "jurnal" ? "bg-white text-ink shadow-sm" : "text-mute",

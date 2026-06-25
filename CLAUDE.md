@@ -114,6 +114,25 @@ docker compose up -d --build    # app + postgres + cloudflared + backup + mediam
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-25: **BAHOLASH MEZON CHECKLARI SONI = JURNAL BAHOSI (avto-sinxron) + REYTING DUBLIKAT BUG TUZATILDI.**
+  Foydalanuvchi: baholash (grading) bo'limida o'quvchiga bir darsda nechta mezon ✓ (ptichka) qo'yilsa, SHU SON
+  jurnalga baho bo'lib tushsin (4 mezondan 3tasi belgilansa → jurnalda 3). **Backend (GradingController):** yangi
+  `SyncJournalGradeAsync(db, group, studentId, date)` — (guruh, o'quvchi, sana) bo'yicha BELGILANGAN (Done) va
+  guruhga BIRIKTIRILGAN mezonlar sonini hisoblab `JournalEntry.Grade` ga yozadi (SubjectId=Group.CourseId,
+  Quarter=1, Period=1; 0 bo'lsa Grade=null, boshqa maydonlar saqlanadi; darsni LessonNote.Conducted=true qiladi;
+  kelajak/StartDate'dan oldingi sanaga yozmaydi). `UpsertGradeAsync` (bitta toggle) va `BulkGradeAsync` (mezon →
+  hamma) endi mezon o'zgarishini saqlab so'ng shu helperni chaqiradi — ADMIN ham, O'QITUVCHI portali ham bir xil
+  static helperlarni ishlatgani uchun ikkalasiga ham tatbiq bo'ladi. Kurssiz guruhda jurnal yo'q → o'tkazib yuboradi.
+  **Frontend:** GradingSection allaqachon "Jami" (check soni) ustunini ko'rsatadi; "Jurnal" tabiga bosilganda jurnal
+  qayta yuklanadi (`ClassDetailPage` + `TeacherGroupDetailPage`) — baho darhol ko'rinadi (har toggleda emas, tab
+  almashganda — yengil). **REYTING BUG (RatingService.SchoolAsync):** ilgari har (o'quvchi, guruh) uchun ALOHIDA
+  qator chiqardi → bir nechta guruhdagi o'quvchi reytingda DUBLIKAT bo'lib, o'rin/jami soni/top-15 xato edi (student
+  portali `Progress`). Endi HAR O'QUVCHI BITTA QATOR: baho/davomat barcha FAOL guruhlari bo'yicha YIG'ILADI;
+  arxivlanganlar chiqarildi; vakil sinf = ClassName yorlig'i (bor bo'lsa) yoki birinchi guruh. `Analytics.BuildClass`
+  TEGILMADI (ClassAnalytics Stats/Performance o'zgarmadi). Sxema o'zgarmadi (migratsiya YO'Q). Backend 0, tsc+vite
+  yashil. **JONLI E2E** (throwaway PG): 4 mezon biriktirildi → 3 ✓ → jurnal baho 3; 4 ✓ → 4; 2 olib tashlandi → 2;
+  hammasi olib tashlandi → null; bulk 1 ✓ → 1; o'quvchi 2 guruhda → reyting 1 qator (dedup). **DEPLOYDA:**
+  `docker compose up -d --build app` (migratsiya yo'q, postgres-data saqlanadi).
 - 2026-06-25: **LANDING TO'LIQ QAYTA QURILDI (vanilla, 8 bo'lim) + EDITOR SODDALASHTIRILDI (4 narsa).**
   Foydalanuvchi: apex landing yangi navigatsiya — Biz haqimizda · Afzalliklarimiz · Ustozlar · Natijalar ·
   Narxlar · Fotogalereya · Vakansiyalar · FAQ; CRM editordan FAQAT 4 narsa tahrirlanadi — kurslar (narx+matn),

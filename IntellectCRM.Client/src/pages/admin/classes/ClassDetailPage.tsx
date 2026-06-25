@@ -425,7 +425,7 @@ export function ClassDetailPage() {
           <div className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1">
             <button
               type="button"
-              onClick={() => setGroupView('jurnal')}
+              onClick={() => { setGroupView('jurnal'); load(journal?.month) }}
               className={
                 'rounded-lg px-4 py-1.5 text-sm font-semibold transition-colors ' +
                 (groupView === 'jurnal' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700')
