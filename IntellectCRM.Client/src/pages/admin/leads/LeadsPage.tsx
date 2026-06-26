@@ -180,7 +180,14 @@ export function LeadsPage() {
               <LeadColumn
                 key={stage.id}
                 stage={stage}
-                leads={leads.filter((l) => l.stage === stage.id || (i === 0 && !stageIds.has(l.stage)))}
+                leads={leads
+                  .filter((l) => l.stage === stage.id || (i === 0 && !stageIds.has(l.stage)))
+                  // Eng ko'p kun qolib ketgan (eng eski) lid tepada — qancha eski bo'lsa shuncha yuqori.
+                  .sort((a, b) => {
+                    const ta = a.createdAt ? new Date(a.createdAt).getTime() : Number.POSITIVE_INFINITY
+                    const tb = b.createdAt ? new Date(b.createdAt).getTime() : Number.POSITIVE_INFINITY
+                    return ta - tb
+                  })}
                 isFirst={i === 0}
                 isLast={i === stages.length - 1}
                 onCardClick={setDetailLead}

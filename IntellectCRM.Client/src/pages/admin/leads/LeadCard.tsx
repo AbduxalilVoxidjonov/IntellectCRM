@@ -21,7 +21,10 @@ function leadAgeDays(createdAt?: string): number | null {
  * lidlarga zudlik bilan e'tibor kerakligini ko'rsatadi.
  */
 function leadAging(lead: Lead): {
+  /** Chap chiziq/ramka rangi (to'q) */
   accent: string
+  /** BUTUN karta foni (yumshoq tint) */
+  bg: string
   chipBg: string
   chipText: string
   days: number | null
@@ -29,12 +32,12 @@ function leadAging(lead: Lead): {
 } {
   const converted = !!lead.convertedStudentId
   const days = leadAgeDays(lead.createdAt)
-  if (converted) return { accent: '#10b981', chipBg: '', chipText: '', days, converted }
-  if (days == null) return { accent: '#cbd5e1', chipBg: 'bg-slate-100', chipText: 'text-slate-500', days, converted }
-  if (days >= 14) return { accent: '#dc2626', chipBg: 'bg-red-50', chipText: 'text-red-600', days, converted }
-  if (days >= 7) return { accent: '#ea580c', chipBg: 'bg-orange-50', chipText: 'text-orange-600', days, converted }
-  if (days >= 3) return { accent: '#f59e0b', chipBg: 'bg-amber-50', chipText: 'text-amber-700', days, converted }
-  return { accent: '#94a3b8', chipBg: 'bg-slate-100', chipText: 'text-slate-500', days, converted }
+  if (converted) return { accent: '#10b981', bg: '#ecfdf5', chipBg: '', chipText: '', days, converted }
+  if (days == null) return { accent: '#cbd5e1', bg: '#f8fafc', chipBg: 'bg-slate-100', chipText: 'text-slate-500', days, converted }
+  if (days >= 14) return { accent: '#dc2626', bg: '#fef2f2', chipBg: 'bg-red-50', chipText: 'text-red-600', days, converted }
+  if (days >= 7) return { accent: '#ea580c', bg: '#fff7ed', chipBg: 'bg-orange-50', chipText: 'text-orange-600', days, converted }
+  if (days >= 3) return { accent: '#f59e0b', bg: '#fffbeb', chipBg: 'bg-amber-50', chipText: 'text-amber-700', days, converted }
+  return { accent: '#94a3b8', bg: '#f8fafc', chipBg: 'bg-slate-100', chipText: 'text-slate-500', days, converted }
 }
 
 function ageLabel(days: number): string {
@@ -105,7 +108,13 @@ export function LeadCardContent({ lead, dragging }: { lead: Lead; dragging?: boo
   return (
     <div
       className={cn('lead-card', dragging && 'dragging')}
-      style={{ borderLeftWidth: 3, borderLeftStyle: 'solid', borderLeftColor: aging.accent }}
+      style={{
+        background: aging.bg,
+        borderColor: aging.accent,
+        borderLeftWidth: 3,
+        borderLeftStyle: 'solid',
+        borderLeftColor: aging.accent,
+      }}
       title={ageTitle}
     >
       <div className="lead-top">
