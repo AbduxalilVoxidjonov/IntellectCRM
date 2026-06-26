@@ -88,7 +88,8 @@ services:
       PGUSER: "${POSTGRES_USER:-intellectcrm}"
       PGPASSWORD: "${POSTGRES_PASSWORD}"
       PGDATABASE: "${POSTGRES_DB:-intellectcrm}"
-      BACKUP_HOUR: "21"              # 21:00 UTC = 02:00 Toshkent (kechasi). Bir xonali soat: "03" (nol bilan).
+      BACKUP_HOUR: "${BACKUP_HOUR:-21}"        # Soat (UTC). 21 = 02:00 Toshkent (kechasi). .env'dan o'zgartiriladi.
+      BACKUP_MINUTE: "${BACKUP_MINUTE:-0}"     # Daqiqa (UTC). Masalan 30 -> 21:30 UTC. .env'dan o'zgartiriladi.
       BACKUP_RETENTION_DAYS: "7"     # 7 kundan eski nusxalar o'chiriladi
       TELEGRAM_BOT_TOKEN: "${TELEGRAM_BOT_TOKEN:-}"  # Telegram Bot API tokeni (ixtiyoriy)
       TELEGRAM_ADMIN_CHAT_ID: "${TELEGRAM_ADMIN_CHAT_ID:-}"  # Admin chat ID (ixtiyoriy)
@@ -101,7 +102,8 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        echo "[backup] xizmat ishga tushdi; har kuni $${BACKUP_HOUR}:00 UTC da, saqlash $${BACKUP_RETENTION_DAYS} kun"
+        bm=$$(printf '%02d' "$${BACKUP_MINUTE:-0}" 2>/dev/null || echo "$${BACKUP_MINUTE}")
+        echo "[backup] xizmat ishga tushdi; har kuni $${BACKUP_HOUR}:$${bm} UTC da, saqlash $${BACKUP_RETENTION_DAYS} kun"
         # postgres:16-alpine'da curl YO'Q — Telegram'ga yuborish uchun o'rnatamiz (ca-certificates HTTPS uchun).
         if [ -n "$${TELEGRAM_BOT_TOKEN}" ] && [ -n "$${TELEGRAM_ADMIN_CHAT_ID}" ] && ! command -v curl >/dev/null 2>&1; then
           echo "[backup] curl o'rnatilmoqda (Telegram uchun)..."
@@ -109,8 +111,12 @@ services:
         fi
         last=""
         while true; do
-          H=$$(date -u +%H); D=$$(date -u +%Y%m%d)
-          if [ "$$H" = "$${BACKUP_HOUR}" ] && [ "$$last" != "$$D" ]; then
+          H=$$(date -u +%H); M=$$(date -u +%M); D=$$(date -u +%Y%m%d)
+          # Daqiqagacha aniqlik: kun-ichi-daqiqasi (now) belgilangan vaqtga (target) yetganda, kuniga bir marta.
+          # 10# — leading-zero (08, 09) ni o'nlik sifatida o'qish uchun (aks holda oktal xato).
+          now=$$(( 10#$$H * 60 + 10#$$M ))
+          target=$$(( 10#$${BACKUP_HOUR} * 60 + 10#$${BACKUP_MINUTE} ))
+          if [ "$$last" != "$$D" ] && [ "$$now" -ge "$$target" ] && [ "$$now" -lt "$$(( target + 10 ))" ]; then
             last="$$D"
             ts=$$(date -u +%Y%m%d_%H%M)
             out="/backups/intellectcrm_$${ts}.sql.gz"
@@ -148,7 +154,7 @@ services:
             fi
             find /backups -name '*.sql.gz' -type f -mtime +$${BACKUP_RETENTION_DAYS} -delete
           fi
-          sleep 300
+          sleep 60
         done
 
 volumes:

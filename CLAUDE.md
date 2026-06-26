@@ -136,6 +136,11 @@ docker compose up -d --build    # app + postgres + cloudflared + backup + mediam
   **Yechim:** backup konteyner startupida (token sozlangan bo'lsa) `apk add --no-cache curl ca-certificates` o'rnatiladi
   (jonli tasdiqlandi: curl 8.19 o'rnatildi); send blokiga 50MB Telegram chegarasi guard + curl mavjudlik tekshiruvi +
   `-H Content-Type` olib tashlandi (`-F` boundary'ni o'zi qo'yadi). `docker compose config` valid.
+  **(2b) Backup vaqtiga DAQIQA qo'shildi:** ilgari faqat `BACKUP_HOUR` (soat) bor edi → endi `BACKUP_MINUTE` ham
+  (`.env`dan, default 0). Loop kun-ichi-daqiqasi solishtiruvi (`now = H*60+M >= target`, 10-daqiqali oyna, kuniga bir
+  marta `last` guard; `10#` leading-zero uchun) + poll 300s→60s (daqiqa aniqligi). docker-compose env'lari `.env`dan
+  o'qiydi (`BACKUP_HOUR:-21`, `BACKUP_MINUTE:-0`). Vaqt mantig'i jonli simulyatsiya bilan tasdiqlandi (21:30 target →
+  21:30/21:35 BACKUP, 21:40 skip, takror skip).
   **DEPLOYDA:** `docker compose up -d --build app` (AI tahlil — migratsiya startupda avto, postgres-data saqlanadi) +
   `docker compose up -d backup` (curl-fix yangi backup konteyner). Telegram backup ishlashi uchun prod `.env`da
   `TELEGRAM_BOT_TOKEN` + `TELEGRAM_ADMIN_CHAT_ID` to'ldirilgan bo'lishi SHART (admin chatga bot /start qilgan bo'lsin).
