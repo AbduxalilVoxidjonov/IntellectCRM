@@ -137,12 +137,12 @@ export default function App() {
         <Route path="/admin" element={<AppLayout />}>
           <Route index element={<AdminDashboard />} />
           {/* Marketing — ijtimoiy tarmoq avtojavob (hozircha UI/mock) */}
-          <Route path="marketing" element={<MarketingDashboard />} />
-          <Route path="marketing/inbox" element={<MarketingInbox />} />
-          <Route path="marketing/rules" element={<MarketingRules />} />
-          <Route path="marketing/channels" element={<MarketingChannels />} />
-          <Route path="marketing/ai" element={<MarketingAi />} />
-          <Route path="marketing/analytics" element={<MarketingAnalytics />} />
+          <Route path="marketing" element={<RequirePerm perm="marketing"><MarketingDashboard /></RequirePerm>} />
+          <Route path="marketing/inbox" element={<RequirePerm perm="marketing"><MarketingInbox /></RequirePerm>} />
+          <Route path="marketing/rules" element={<RequirePerm perm="marketing"><MarketingRules /></RequirePerm>} />
+          <Route path="marketing/channels" element={<RequirePerm perm="marketing"><MarketingChannels /></RequirePerm>} />
+          <Route path="marketing/ai" element={<RequirePerm perm="marketing"><MarketingAi /></RequirePerm>} />
+          <Route path="marketing/analytics" element={<RequirePerm perm="marketing"><MarketingAnalytics /></RequirePerm>} />
           <Route path="leads" element={<RequirePerm perm="leads"><LeadsPage /></RequirePerm>} />
           <Route path="crm-stats" element={<RequirePerm perm="leads"><CrmStatsPage /></RequirePerm>} />
           <Route path="students" element={<RequirePerm perm="students"><StudentsPage /></RequirePerm>} />

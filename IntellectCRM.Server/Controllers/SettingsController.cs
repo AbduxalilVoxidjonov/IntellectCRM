@@ -415,6 +415,14 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
         return Ok(new { success = false, message = "Xabar yuborishda xatolik. Chat ID va bot tokenni tekshiring." });
     }
 
+    /// <summary>Backupni HOZIR yuboradi — markaz ma'lumotlari JSON qilib Telegram orqali adminga.</summary>
+    [HttpPost("telegram-backup/run")]
+    public async Task<ActionResult<object>> RunTelegramBackup()
+    {
+        var (ok, msg) = await BackupService.SendAsync(db, telegram);
+        return Ok(new { success = ok, message = msg });
+    }
+
     [HttpPut("payment-reminders")]
     public async Task<ActionResult<PaymentReminderSettingsDto>> SavePaymentReminders(
         SavePaymentReminderSettingsRequest req)

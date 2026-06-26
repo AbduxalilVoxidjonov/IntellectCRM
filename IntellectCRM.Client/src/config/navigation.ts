@@ -51,6 +51,7 @@ export const navByRole: Record<Role, NavItem[]> = {
       label: 'Marketing',
       to: '/admin/marketing',
       icon: Megaphone,
+      perm: 'marketing',
       children: [
         { label: 'Boshqaruv paneli', to: '/admin/marketing', end: true },
         { label: 'Inbox', to: '/admin/marketing/inbox' },

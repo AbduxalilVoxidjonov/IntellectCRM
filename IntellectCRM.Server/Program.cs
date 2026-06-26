@@ -174,6 +174,8 @@ builder.Services.AddHostedService<IntellectCRM.Application.Services.TuitionAccru
 builder.Services.AddHostedService<IntellectCRM.Application.Services.TurnstileLiveService>();
 // Avtomatik to'lov eslatmasi (qarzdorlarga Telegram + push, 09:00 Toshkent).
 builder.Services.AddHostedService<IntellectCRM.Application.Services.PaymentReminderService>();
+// Kunlik avtomatik backup — markaz ma'lumotlarini JSON qilib Telegram orqali adminga (jadval CenterMeta'da).
+builder.Services.AddHostedService<IntellectCRM.Application.Services.BackupSchedulerService>();
 
 // Telegram bot (e'lon yuborish + ota-onalarni kontakt orqali ro'yxatga olish).
 // Token appsettings "Telegram:BotToken" da; bo'sh bo'lsa bot ishga tushmaydi.

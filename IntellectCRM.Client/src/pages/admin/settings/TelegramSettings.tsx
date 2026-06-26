@@ -10,6 +10,7 @@ import {
   getTelegramBackupConfig,
   saveTelegramBackupConfig,
   testTelegramBackup,
+  runTelegramBackup,
   type TelegramConfig,
   type AppApkConfig,
   type TelegramBackupConfig,
@@ -174,6 +175,7 @@ function TelegramBackupSection() {
   const [loading, setLoading] = useState(true)
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
   const [testing, setTesting] = useState(false)
+  const [running, setRunning] = useState(false)
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null)
   const [chatIdError, setChatIdError] = useState('')
 
@@ -226,6 +228,23 @@ function TelegramBackupSection() {
       setTestResult({ success: false, message: backendMessage(e) || "So'rov yuborishda xatolik" })
     } finally {
       setTesting(false)
+    }
+  }
+
+  // Backupni HOZIR yuborish (markaz ma'lumotlari JSON qilib Telegram orqali adminga).
+  const onRunBackup = async () => {
+    const err = validateChatId(cfg.adminChatId)
+    if (err) { setChatIdError(err); return }
+    if (!(cfg.adminChatId ?? '').trim()) { setChatIdError("Chat ID kiriting"); return }
+    setRunning(true)
+    setTestResult(null)
+    try {
+      const res = await runTelegramBackup()
+      setTestResult(res)
+    } catch (e) {
+      setTestResult({ success: false, message: backendMessage(e) || "Backup yuborishda xatolik" })
+    } finally {
+      setRunning(false)
     }
   }
 
@@ -370,11 +389,21 @@ function TelegramBackupSection() {
           <Button
             type="button"
             variant="secondary"
-            disabled={testing || !(cfg.adminChatId ?? '').trim()}
+            disabled={testing || running || !(cfg.adminChatId ?? '').trim()}
             onClick={onTest}
           >
             <Send className="h-4 w-4" />
-            {testing ? 'Yuborilmoqda...' : 'Test yuborish'}
+            {testing ? 'Yuborilmoqda...' : 'Test xabar'}
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={running || testing || !(cfg.adminChatId ?? '').trim()}
+            onClick={onRunBackup}
+            title="Markaz ma'lumotlarini JSON qilib hozir Telegram'ga yuboradi"
+          >
+            <Database className="h-4 w-4" />
+            {running ? 'Yuborilmoqda...' : 'Backupni hozir yuborish'}
           </Button>
           {status === 'saved' && (
             <span className="inline-flex items-center gap-1 text-sm font-medium text-emerald-600">

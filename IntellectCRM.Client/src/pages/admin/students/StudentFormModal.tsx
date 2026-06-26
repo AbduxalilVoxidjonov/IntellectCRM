@@ -160,12 +160,15 @@ export function StudentFormModal({ open, onClose, onSubmit, initial }: Props) {
     // Telefon dublikatini tekshiramiz (o'quvchi/ota/ona raqami — arxivdagilar ham).
     setChecking(true)
     try {
-      const matches = await checkStudentPhones({
+      const found = await checkStudentPhones({
         phone: form.phone ?? undefined,
         fatherPhone: form.fatherPhone ?? undefined,
         motherPhone: form.motherPhone ?? undefined,
         excludeId: initial?.id,
       })
+      // Tahrirlashda o'quvchining O'ZI dublikat sifatida chiqmasligi kafolatlanadi
+      // (backend excludeId'dan tashqari mijoz tarafida ham filtrlaymiz).
+      const matches = initial?.id ? found.filter((m) => m.studentId !== initial.id) : found
       if (matches.length > 0) {
         setPending(payload)
         setDupes(matches)

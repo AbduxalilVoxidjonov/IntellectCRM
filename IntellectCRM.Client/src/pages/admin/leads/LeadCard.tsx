@@ -1,10 +1,46 @@
 import { useDraggable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
-import { Phone } from 'lucide-react'
+import { Phone, Clock } from 'lucide-react'
 import type { Lead } from '@/types'
 import { genderLabels } from '@/config/constants'
 import { Badge } from '@/components/ui/Badge'
 import { formatDate, cn } from '@/lib/utils'
+
+/** Lid yaratilganidan beri o'tgan kun (createdAt "yyyy-MM-ddTHH:mm:ss"). */
+function leadAgeDays(createdAt?: string): number | null {
+  if (!createdAt) return null
+  const d = new Date(createdAt)
+  if (isNaN(d.getTime())) return null
+  const days = Math.floor((Date.now() - d.getTime()) / 86_400_000)
+  return days < 0 ? 0 : days
+}
+
+/**
+ * Lid rangi: o'quvchiga AYLANTIRILGAN bo'lsa YASHIL; aks holda lidlar bo'limida qancha uzoq
+ * qolib ketgan bo'lsa shuncha QIZARADI (yangi → kulrang, eski/qolib ketgan → qizil) — qaysi
+ * lidlarga zudlik bilan e'tibor kerakligini ko'rsatadi.
+ */
+function leadAging(lead: Lead): {
+  accent: string
+  chipBg: string
+  chipText: string
+  days: number | null
+  converted: boolean
+} {
+  const converted = !!lead.convertedStudentId
+  const days = leadAgeDays(lead.createdAt)
+  if (converted) return { accent: '#10b981', chipBg: '', chipText: '', days, converted }
+  if (days == null) return { accent: '#cbd5e1', chipBg: 'bg-slate-100', chipText: 'text-slate-500', days, converted }
+  if (days >= 14) return { accent: '#dc2626', chipBg: 'bg-red-50', chipText: 'text-red-600', days, converted }
+  if (days >= 7) return { accent: '#ea580c', chipBg: 'bg-orange-50', chipText: 'text-orange-600', days, converted }
+  if (days >= 3) return { accent: '#f59e0b', chipBg: 'bg-amber-50', chipText: 'text-amber-700', days, converted }
+  return { accent: '#94a3b8', chipBg: 'bg-slate-100', chipText: 'text-slate-500', days, converted }
+}
+
+function ageLabel(days: number): string {
+  if (days <= 0) return 'Bugun'
+  return `${days} kun`
+}
 
 /** Ism-sharifdan bosh harflar (avatar uchun) */
 function initials(name: string): string {
@@ -58,8 +94,20 @@ export function LeadCardContent({ lead, dragging }: { lead: Lead; dragging?: boo
         ? 'text-rose-600'
         : 'text-slate-400'
 
+  // Lid yoshi/holatiga qarab rang (yashil = aylantirilgan, qizil = uzoq qolib ketgan).
+  const aging = leadAging(lead)
+  const ageTitle = aging.converted
+    ? 'O\'quvchiga aylantirilgan'
+    : aging.days != null
+      ? `Lidlar bo'limida ${ageLabel(aging.days)} (${lead.createdAt ? formatDate(lead.createdAt) : '—'})`
+      : undefined
+
   return (
-    <div className={cn('lead-card', dragging && 'dragging')}>
+    <div
+      className={cn('lead-card', dragging && 'dragging')}
+      style={{ borderLeftWidth: 3, borderLeftStyle: 'solid', borderLeftColor: aging.accent }}
+      title={ageTitle}
+    >
       <div className="lead-top">
         <div className="flex min-w-0 items-center gap-2">
           <span
@@ -79,6 +127,17 @@ export function LeadCardContent({ lead, dragging }: { lead: Lead; dragging?: boo
         <Badge tone="violet">{genderLabels[lead.gender]}</Badge>
         {lead.source && <Badge tone="blue">{lead.source}</Badge>}
         {lead.convertedStudentId && <Badge tone="green">Aylantirilgan</Badge>}
+        {!aging.converted && aging.days != null && (
+          <div
+            className={cn(
+              'inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-medium',
+              aging.chipBg,
+              aging.chipText,
+            )}
+          >
+            <Clock className="h-3 w-3" /> {ageLabel(aging.days)}
+          </div>
+        )}
         {attendanceText && (
           <div
             className={cn(

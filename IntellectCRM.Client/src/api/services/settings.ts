@@ -364,6 +364,16 @@ export async function testTelegramBackup(): Promise<{ success: boolean; message:
   return data
 }
 
+/** Backupni HOZIR yuboradi — markaz ma'lumotlari JSON qilib Telegram orqali adminga. */
+export async function runTelegramBackup(): Promise<{ success: boolean; message: string }> {
+  if (USE_MOCK) {
+    await delay(1500)
+    return { success: true, message: 'Backup yuborildi (mock)' }
+  }
+  const { data } = await api.post<{ success: boolean; message: string }>('/admin/settings/telegram-backup/run')
+  return data
+}
+
 /** Maktab nomi + logo (brending — barcha rollar uchun) */
 export interface SchoolName {
   name: string

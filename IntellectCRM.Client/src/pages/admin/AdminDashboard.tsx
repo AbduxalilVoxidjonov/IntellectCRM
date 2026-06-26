@@ -32,12 +32,7 @@ export function AdminDashboard() {
   if (error) return <p className="text-red-600">Xatolik: {error}</p>
   if (!data) return null
 
-  const { stats, classPerformance, topClasses, studentBreakdown } = data
-
-  // O'rtacha baho bo'yicha eng yuqori 5 ta sinf
-  const ranked = [...topClasses]
-    .sort((a, b) => b.averageGrade - a.averageGrade)
-    .slice(0, 5)
+  const { stats, classPerformance, studentBreakdown } = data
 
   return (
     <div>
@@ -122,10 +117,9 @@ export function AdminDashboard() {
       </div>
 
       {/* Statistika grafigi + reyting */}
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-        {/* Grafik (baho / davomat tanlash) */}
+      <div className="grid grid-cols-1 gap-4">
+        {/* Grafik (baho / davomat tanlash) — x o'qida o'qituvchi, guruh nomi hoverda */}
         <Card
-          className="xl:col-span-2"
           title="Guruhlar bo'yicha statistika"
           sub={metric === 'grade' ? "O'rtacha baho bo'yicha" : "Davomat bo'yicha"}
           actions={
@@ -150,41 +144,6 @@ export function AdminDashboard() {
           }
         >
           <ClassPerformanceChart data={classPerformance} metric={metric} />
-        </Card>
-
-        {/* Eng yuqori o'rtacha baholi guruhlar (Top 5) */}
-        <Card title="Eng yuqori bahoga ega guruhlar" sub="O'rtacha baho bo'yicha Top 5">
-          <ul className="space-y-2">
-            {ranked.map((c, i) => (
-              <li
-                key={c.id}
-                className="flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50/40 p-3 transition-colors hover:bg-slate-50"
-              >
-                <div
-                  className={cn(
-                    'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg font-mono text-sm font-bold',
-                    i === 0
-                      ? 'bg-amber-100 text-amber-700'
-                      : 'bg-slate-100 text-slate-500',
-                  )}
-                >
-                  {i + 1}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-semibold text-slate-800">{c.name}</p>
-                  <p className="font-mono text-xs text-slate-400">
-                    <span className="font-semibold text-emerald-600">{c.activeCount} aktiv</span>
-                    {' · '}
-                    {c.studentsCount} o'quvchi
-                  </p>
-                </div>
-                <div className="flex items-center gap-1 text-amber-600">
-                  <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
-                  <span className="font-mono font-semibold">{c.averageGrade.toFixed(1)}</span>
-                </div>
-              </li>
-            ))}
-          </ul>
         </Card>
       </div>
 

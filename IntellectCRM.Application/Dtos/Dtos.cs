@@ -299,7 +299,7 @@ public record SaveAbsenceReasonsRequest(List<AbsenceReasonDto> AbsenceReasons);
 
 /* ---------- Dashboard ---------- */
 public record AdminStatsDto(int StudentsCount, int TeachersCount, double AverageGrade, double? AttendanceRate);
-public record ClassPerformanceItemDto(string ClassId, string ClassName, double AverageGrade, double? AttendanceRate);
+public record ClassPerformanceItemDto(string ClassId, string ClassName, double AverageGrade, double? AttendanceRate, string TeacherName = "");
 public record TopClassDto(string Id, string Name, int StudentsCount, int ActiveCount, double AverageGrade);
 public record StudentBreakdownDto(int Active, int Inactive, int Debtors, int Paid, int WithGroup, int WithoutGroup);
 public record AdminDashboardDto(

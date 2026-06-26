@@ -77,9 +77,9 @@ services:
       - app
     restart: unless-stopped
 
-  # Kunlik avtomatik backup — `pg_dump` (gzip, .sql.gz). Har kuni BACKUP_HOUR (UTC) atrofida
-  # oladi va BACKUP_RETENTION_DAYS dan eskini o'chiradi. Yengil (postgres-alpine, busybox sh).
-  # O'zgarish: Telegram'ga backup yuborish opsional (TELEGRAM_BOT_TOKEN + TELEGRAM_ADMIN_CHAT_ID bo'lsa).
+  # Kunlik LOKAL backup — `pg_dump` (gzip, .sql.gz), BACKUP_RETENTION_DAYS dan eskini o'chiradi.
+  # Telegram'ga yuborishni ENDI ILOVA bajaradi (app-side JSON: Sozlamalar -> Telegram bot -> Backup);
+  # bu konteyner faqat lokal Postgres dump (tiklash uchun) saqlaydi. Yengil (postgres-alpine, busybox sh).
   backup:
     image: postgres:16-alpine
     container_name: intellectcrm-backup
@@ -91,8 +91,6 @@ services:
       BACKUP_HOUR: "${BACKUP_HOUR:-21}"        # Soat (UTC). 21 = 02:00 Toshkent (kechasi). .env'dan o'zgartiriladi.
       BACKUP_MINUTE: "${BACKUP_MINUTE:-0}"     # Daqiqa (UTC). Masalan 30 -> 21:30 UTC. .env'dan o'zgartiriladi.
       BACKUP_RETENTION_DAYS: "7"     # 7 kundan eski nusxalar o'chiriladi
-      TELEGRAM_BOT_TOKEN: "${TELEGRAM_BOT_TOKEN:-}"  # Telegram Bot API tokeni (ixtiyoriy)
-      TELEGRAM_ADMIN_CHAT_ID: "${TELEGRAM_ADMIN_CHAT_ID:-}"  # Admin chat ID (ixtiyoriy)
     volumes:
       - postgres-backups:/backups
     depends_on:
@@ -102,61 +100,23 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        echo "[backup] xizmat ishga tushdi (sozlama: ilova Sozlamalar -> Telegram bot -> Backup; .env zaxira)"
-        # postgres:16-alpine'da curl YO'Q — Telegram'ga yuborish uchun o'rnatamiz (ca-certificates HTTPS uchun).
-        if ! command -v curl >/dev/null 2>&1; then
-          echo "[backup] curl o'rnatilmoqda (Telegram uchun)..."
-          apk add --no-cache curl ca-certificates >/dev/null 2>&1 && echo "[backup] curl o'rnatildi" || echo "[backup] ⚠️ curl o'rnatilmadi (internet?)"
-        fi
+        bm=$$(printf '%02d' "$${BACKUP_MINUTE:-0}" 2>/dev/null || echo "$${BACKUP_MINUTE}")
+        echo "[backup] LOKAL pg_dump xizmati ishga tushdi — har kuni $${BACKUP_HOUR}:$${bm} UTC, saqlash $${BACKUP_RETENTION_DAYS} kun."
+        echo "[backup] Telegram'ga yuborishni endi ILOVA bajaradi (Sozlamalar -> Telegram bot -> Backup, JSON)."
         last=""
         while true; do
-          # Sozlamalar DB'dan (CenterMeta) — ilova UI orqali boshqariladi; bo'sh bo'lsa .env zaxira.
-          tok="$${TELEGRAM_BOT_TOKEN}"; chat="$${TELEGRAM_ADMIN_CHAT_ID}"; bh="$${BACKUP_HOUR:-21}"; bm="$${BACKUP_MINUTE:-0}"; en="t"
-          row=$$(psql -tA -F '|' -c "SELECT COALESCE(\"TelegramBotToken\",''), COALESCE(\"TelegramAdminChatId\",''), \"BackupScheduleHour\", \"BackupScheduleMinute\", \"TelegramBackupEnabled\" FROM \"CenterMeta\" LIMIT 1" 2>/dev/null)
-          if [ -n "$$row" ]; then
-            dtok=$$(echo "$$row" | cut -d'|' -f1); dchat=$$(echo "$$row" | cut -d'|' -f2)
-            dbh=$$(echo "$$row" | cut -d'|' -f3); dbm=$$(echo "$$row" | cut -d'|' -f4); den=$$(echo "$$row" | cut -d'|' -f5)
-            [ -n "$$dtok" ] && tok="$$dtok"; [ -n "$$dchat" ] && chat="$$dchat"
-            [ -n "$$dbh" ] && bh="$$dbh"; [ -n "$$dbm" ] && bm="$$dbm"; [ -n "$$den" ] && en="$$den"
-          fi
           H=$$(date -u +%H); M=$$(date -u +%M); D=$$(date -u +%Y%m%d)
-          # Daqiqagacha aniqlik: kun-ichi-daqiqasi (now) belgilangan vaqtga (target) yetganda, kuniga bir marta.
-          # 10# — leading-zero (08, 09) ni o'nlik sifatida o'qish uchun (aks holda oktal xato).
+          # Daqiqagacha aniqlik (10# — leading-zero oktal xatosidan saqlaydi), kuniga bir marta.
           now=$$(( 10#$$H * 60 + 10#$$M ))
-          target=$$(( 10#$${bh:-21} * 60 + 10#$${bm:-0} ))
+          target=$$(( 10#$${BACKUP_HOUR:-21} * 60 + 10#$${BACKUP_MINUTE:-0} ))
           if [ "$$last" != "$$D" ] && [ "$$now" -ge "$$target" ] && [ "$$now" -lt "$$(( target + 10 ))" ]; then
             last="$$D"
             ts=$$(date -u +%Y%m%d_%H%M)
             out="/backups/intellectcrm_$${ts}.sql.gz"
-            echo "[backup] $$ts — boshlandi"
+            echo "[backup] $$ts — lokal pg_dump boshlandi"
             if pg_dump | gzip > "$$out"; then
               bytes=$$(stat -c%s "$$out" 2>/dev/null || stat -f%z "$$out" 2>/dev/null || echo 0)
-              echo "[backup] tugadi: $$out (hajm: $$bytes bayt)"
-
-              # Telegram'ga yuborish — DB'da yoqilgan (en=t) va token+chat bo'lsa.
-              if [ "$$en" = "t" ] && [ -n "$$tok" ] && [ -n "$$chat" ]; then
-                if [ "$$bytes" -gt 52428800 ]; then
-                  echo "[backup] ⚠️  Telegram chegarasi 50MB dan oshdi ($$bytes bayt) — yuborilmadi, local saqlandi"
-                elif ! command -v curl >/dev/null 2>&1; then
-                  echo "[backup] ⚠️  curl mavjud emas — Telegram'ga yuborib bo'lmadi, local saqlandi"
-                else
-                  echo "[backup] Telegram'ga yuborilmoqda..."
-                  response=$$(curl -s -X POST \
-                    -F "chat_id=$$chat" \
-                    -F "document=@$$out" \
-                    -F "caption=✅ Backup: $$ts (UTC)" \
-                    "https://api.telegram.org/bot$$tok/sendDocument" 2>&1)
-                  if echo "$$response" | grep -q '"ok":true'; then
-                    echo "[backup] ✅ Telegram'ga yuborildi"
-                    # UI'dagi "Oxirgi backup yuborildi" uchun vaqtni yozamiz (Toshkent vaqti).
-                    psql -c "UPDATE \"CenterMeta\" SET \"TelegramBackupLastSentAt\" = (NOW() AT TIME ZONE 'Asia/Tashkent')" >/dev/null 2>&1 || true
-                  else
-                    echo "[backup] ⚠️  Telegram xatosi (log: $$response), backup local saqlandi"
-                  fi
-                fi
-              else
-                echo "[backup] Telegram o'chiq yoki token/chat yo'q — faqat local saqlandi"
-              fi
+              echo "[backup] tugadi (lokal): $$out (hajm: $$bytes bayt)"
             else
               echo "[backup] XATO: pg_dump muvaffaqiyatsiz"
               rm -f "$$out"

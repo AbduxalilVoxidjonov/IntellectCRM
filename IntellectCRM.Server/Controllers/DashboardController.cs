@@ -61,16 +61,23 @@ public class DashboardController(AppDbContext db) : ControllerBase
         }
         double? Rate(long opp, int abs) => opp > 0 ? Math.Round((double)(opp - abs) / opp * 100) : null;
 
+        // Guruh statistikasi o'qituvchi bo'yicha belgilanadi (grafik x o'qida o'qituvchi, guruh nomi hoverda).
+        var teacherNames = (await db.Teachers.Select(t => new { t.Id, t.FullName }).ToListAsync())
+            .ToDictionary(t => t.Id, t => t.FullName);
         long totalOpp = 0;
         var totalAbs = 0;
-        var classPerformance = classes.Select(c =>
-        {
-            var (opp, abs) = ClassAttParts(c);
-            totalOpp += opp;
-            totalAbs += abs;
-            return new ClassPerformanceItemDto(
-                c.Id, c.Name, AvgGrade(entries.Where(e => e.ClassId == c.Id)), Rate(opp, abs));
-        }).ToList();
+        var classPerformance = classes
+            // Bir o'qituvchining guruhlari yonma-yon tursin (grafikda guruhlanadi).
+            .OrderBy(c => teacherNames.GetValueOrDefault(c.TeacherId ?? "", "")).ThenBy(c => c.Name)
+            .Select(c =>
+            {
+                var (opp, abs) = ClassAttParts(c);
+                totalOpp += opp;
+                totalAbs += abs;
+                return new ClassPerformanceItemDto(
+                    c.Id, c.Name, AvgGrade(entries.Where(e => e.ClassId == c.Id)), Rate(opp, abs),
+                    teacherNames.GetValueOrDefault(c.TeacherId ?? "", "—"));
+            }).ToList();
 
         var stats = new AdminStatsDto(studentsCount, teachersCount, AvgGrade(entries), Rate(totalOpp, totalAbs));
 

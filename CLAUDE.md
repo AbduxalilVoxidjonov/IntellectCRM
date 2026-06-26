@@ -114,6 +114,31 @@ docker compose up -d --build    # app + postgres + cloudflared + backup + mediam
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-26: **5 ta ish: lid yoshi rangi · o'quvchi-edit dublikat bug · Marketing permission · dashboard grafik ·
+  backup app-side JSON.** **(1) Lid yoshi (LeadCard):** lid o'quvchiga AYLANTIRILGAN bo'lsa YASHIL chap-chiziq;
+  aks holda lidlar bo'limida qancha uzoq qolib ketsa shuncha QIZARADI (kulrang<3kun → amber 3-6 → orange 7-13 →
+  qizil 14+) + "N kun" chip + hover'da sana. `leadAgeDays`/`leadAging` (createdAt'dan). **(2) O'quvchi edit dublikat
+  bug:** tahrirda o'quvchining O'ZI "bunday o'quvchi bor" bo'lib chiqardi. Backend `check-phones` excludeId'ni
+  to'g'ri chiqaradi (jonli tasdiqlandi: excludeId bilan []), lekin mijoz tarafida ham KAFOLAT qo'shildi:
+  `StudentFormModal` natijani `m.studentId !== initial.id` bilan filtrlaydi → o'zini hech qachon dublikat sanamaydi.
+  **(3) Marketing permission:** `adminPermissions`ga `marketing` qo'shildi (Xodimlar va rollar checklistida ko'rinadi);
+  nav `perm:'marketing'`; 6 route `<RequirePerm perm="marketing">`. Superadmin/admin (permissions yo'q) ko'radi,
+  xodim — berilsa. **(4) Dashboard grafik:** "Guruhlar bo'yicha statistika" x o'qida endi GURUH nomi emas O'QITUVCHI
+  (bir o'qituvchi nomi faqat guruhlari boshida, custom tick); guruh nomi faqat HOVER'da (tooltip). "Eng yuqori bahoga
+  ega guruhlar" Top-5 kartasi OLIB TASHLANDI; grafik to'liq kenglik. Backend `ClassPerformanceItemDto`ga `TeacherName`
+  + o'qituvchi bo'yicha tartiblash. **(5) Backup — APP-SIDE JSON (Telegram'ga yubormayotgani hal qilindi):** ilgari
+  docker `backup` konteyner (pg_dump+curl) ishonchsiz edi (qayta deploy + curl o'rnatish kerak). Endi ILOVA o'zi:
+  `BackupService.BuildJsonAsync` (60 jadval → JSON, IgnoreCycles) + `SendAsync` (ishlaydigan `TelegramService`
+  orqali adminga, LastSentAt yangilanadi); `BackupSchedulerService` (hosted, kunlik CenterMeta jadval bo'yicha,
+  daqiqa aniqligi); `POST /admin/settings/telegram-backup/run` (qo'lda) + Sozlamalar→Telegram bot→Backup'da
+  "Backupni hozir yuborish" tugmasi. Docker `backup` konteyner endi FAQAT lokal .sql.gz (tiklash uchun; Telegram
+  send + curl olib tashlandi → dublikat yo'q). **JONLI TEST** (throwaway PG): app-side run → JSON BUILD muvaffaqiyatli
+  (60 jadval serialize, send bosqichiga yetdi, faqat soxta token'da to'xtadi — real token bilan yuboradi); check-phones
+  excludeId []; backup minute roundtrip. Backend 0, tsc+vite yashil, `docker compose config` valid.
+  **DEPLOYDA:** `docker compose up -d --build app` (app-side backup; sxema o'zgarmadi — migratsiya yo'q) +
+  `docker compose up -d backup` (lokal-only). Backup ishlashi uchun: Sozlamalar→Telegram bot'da BOT TOKEN + Backup'da
+  CHAT ID, admin botga /start qilgan bo'lsin → "Backupni hozir yuborish" bilan sinab ko'rilsin.
+
 - 2026-06-26: **YANGI BO'LIM — MARKETING (ijtimoiy tarmoq avtojavob, "Javobot" UI ko'chirildi; FAQAT UI/mock).**
   Foydalanuvchi `Documents/calude.auto` (Javobot — AI avtojavob platformasi: CDN React+Babel prototip) UI'ini CRM'ga
   ko'chirishni so'radi — "Marketing" bo'limi, **boshqaruvdan (Bosh sahifa) OLDIN**, ijtimoiy tarmoq (Instagram/

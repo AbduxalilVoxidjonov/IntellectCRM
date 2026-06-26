@@ -46,6 +46,8 @@ export interface ClassPerformance {
   classId: string
   /** Masalan: "9-A" */
   className: string
+  /** Guruh o'qituvchisi (grafik x o'qida ko'rsatiladi; guruh nomi hoverda) */
+  teacherName?: string
   /** O'rtacha baho (5 ballik) */
   averageGrade: number
   /** Davomat foizi (0-100); o'tilgan dars bo'lmasa null */
