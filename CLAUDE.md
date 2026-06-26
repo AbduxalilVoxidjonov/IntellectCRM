@@ -114,6 +114,34 @@ docker compose up -d --build    # app + postgres + cloudflared + backup + mediam
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-26: **AI Tahlil v2 (kuniga 1 marta + saqlash + delta + diagrammalar) + backup DAQIQA + backup DB-driven.**
+  **(1) AI Tahlil qayta qurildi:** ilgari har bosishda matn qaytarardi. Endi: **kuniga BIR MARTA** (per o'quvchi,
+  `StudentAiAnalysis` entity, unique-ish (StudentId,Date) — bugun yozuvi bo'lsa Gemini chaqirilmaydi, mavjudi
+  qaytadi `AlreadyToday=true`, kalit tekshiruvidan OLDIN); **SAQLANADI** — o'quvchi sahifasida yangi **"AI Tahlil"
+  bo'limi** (tarix: sana+ball chiplari, tanlangani diagrammalar bilan); **DELTA** — keyingi tahlil oldingisining
+  xulosa+balliga tayanib "ozgarishlar"ni aytadi (prompt'ga oldingi yozuv kontekst sifatida beriladi); **DIAGRAMMALAR**
+  — Gemini endi STRUKTURALI JSON qaytaradi (responseMimeType=application/json): `{umumiy,kuchli[],zaif[],dinamika,
+  ozgarishlar,tavsiyalar[],baholar{akademik,davomat,intizom,uyVazifa,faollik,umumiy 0-100},trend}` → frontend
+  `AiAnalysisView` (umumiy ball SVG halqa + 5-sohali RADAR + mini-bar + matn bo'limlari + kuchli/zaif/tavsiya
+  kartalari). **Backend:** `StudentAiAnalysis` entity+DbSet+index(StudentId,Date); migratsiya
+  `AddBackupMinuteAndAiAnalysis`; `GeminiService.GenerateAsync` jsonMode; `StudentsController` `POST {id}/ai-analysis`
+  (once/day+delta+parse+saqlash) + `GET {id}/ai-analyses` (tarix); DTO AiRatingsDto/StudentAiAnalysisResultDto/
+  RecordDto/ResponseDto; defensive JSON parse (fence-strip+Sanitize+clamp). **Frontend:** students.ts yangi tiplar+
+  getStudentAiAnalyses/generateStudentAiAnalysis; `AiAnalysisView.tsx` (recharts radar+ring); `AiAnalysisModal.tsx`
+  qayta yozildi (once/day gate, "bugun qilingan" banner, PDF — strukturali HTML print); `StudentDetailPage` AI bo'lim+
+  modal records/onGenerated. **(2) Backup DAQIQA:** ilgari faqat soat — endi `BackupScheduleMinute` (CenterMeta +
+  migratsiya); Sozlamalar→Telegram bot→Backup UI'da soat:daqiqa input (0-23 : 0-59); DTO/SettingsController
+  validatsiya (daqiqa 0-59). **(3) Backup DB-DRIVEN (ildiz: UI sozlamasi dekorativ edi):** docker `backup` konteyner
+  ilgari faqat env'dan o'qirdi → UI'dagi soat/chat/yoqilgan HECH NIMA qilmasdi. Endi konteyner har 60s'da
+  `CenterMeta`'dan psql bilan token+chatId+hour+minute+enabled o'qiydi (env zaxira), yuborilgach
+  `TelegramBackupLastSentAt`ni (Toshkent) yangilaydi → UI'dagi "Oxirgi backup yuborildi" ishlaydi; bot token ham
+  DB'dan (foydalanuvchi .env'ga token yozishi shart emas). **JONLI TEST** (throwaway PG): migratsiya 0 xato →
+  StudentAiAnalyses jadval+index, CenterMeta GeminiApiKey/BackupScheduleHour/Minute ustunlar; login→backup minute
+  roundtrip(30 saqlandi, 99→400)→gemini GET(model env)→ai-analyses []→ai-analysis kalitsiz {ok:false}→insert rec→
+  GET parse OK→POST alreadyToday:true(Gemini chaqirilmadi); backup psql ekstraksiya+parsing(target=1290)+LastSentAt
+  UPDATE OK. Backend 0, tsc+vite yashil, `docker compose config` valid. **DEPLOYDA:** `docker compose up -d --build app`
+  (migratsiya avto) + `docker compose up -d backup` (DB-driven). Bot token+chat+vaqt ilovadan: Sozlamalar→Telegram bot.
+
 - 2026-06-26: **YANGI — O'quvchi profilida "AI Tahlil" (Google Gemini) + Telegram backup bug fix.**
   **(1) AI Tahlil:** har o'quvchi profili tepasida (StudentDetailPage) **"AI Tahlil"** tugmasi (binafsha gradient) —
   bosilganda o'quvchining BARCHA ma'lumotlari (`StudentProfileBuilder.BuildAsync` → StudentNotebookDto: baholar,

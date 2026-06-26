@@ -392,21 +392,63 @@ export interface StudentSupportFeedback {
   notes: string
 }
 
-/** O'quvchi AI tahlili natijasi (Gemini). */
-export interface StudentAiAnalysis {
-  ok: boolean
-  /** Markdown ko'rinishidagi tahlil matni (ok=true bo'lsa). */
-  analysis: string
+/** AI tahlilidagi sohaviy baholar (0-100) — radar/diagramma uchun. */
+export interface AiRatings {
+  akademik: number
+  davomat: number
+  intizom: number
+  uyVazifa: number
+  faollik: number
+  umumiy: number
+}
+/** AI tahlilining strukturali natijasi (matn bo'limlari + diagramma sonlari). */
+export interface StudentAiAnalysisResult {
+  umumiy: string
+  kuchli: string[]
+  zaif: string[]
+  dinamika: string
+  ozgarishlar: string
+  tavsiyalar: string[]
+  baholar: AiRatings
+  /** "yaxshilanmoqda" | "barqaror" | "yomonlashmoqda" */
+  trend: string
+}
+/** Saqlangan bitta AI tahlil yozuvi (tarix elementi). */
+export interface StudentAiAnalysisRecord {
+  id: string
+  /** "yyyy-MM-dd" */
+  date: string
+  createdAt: string
   model: string
+  overallScore: number
+  result: StudentAiAnalysisResult
+}
+/** AI tahlil yaratish javobi. */
+export interface StudentAiAnalysisResponse {
+  ok: boolean
+  /** true bo'lsa bugun allaqachon tahlil qilingan (yangi Gemini chaqirig'i bo'lmadi). */
+  alreadyToday: boolean
+  record: StudentAiAnalysisRecord | null
   error: string | null
 }
 
+/** O'quvchining saqlangan AI tahlillari tarixi (eng yangisi birinchi). */
+export async function getStudentAiAnalyses(studentId: string): Promise<StudentAiAnalysisRecord[]> {
+  if (USE_MOCK) {
+    await delay()
+    return []
+  }
+  const { data } = await api.get<StudentAiAnalysisRecord[]>(`/admin/students/${studentId}/ai-analyses`)
+  return data
+}
+
 /**
- * O'quvchining BARCHA ma'lumotlarini Google Gemini AI orqali tahlil qiladi.
+ * O'quvchining BARCHA ma'lumotlarini Gemini orqali tahlil qiladi (kuniga bir marta).
+ * Bugun qilingan bo'lsa mavjud yozuv qaytadi (alreadyToday=true), yangi chaqiruv bo'lmaydi.
  * Sozlamalar → AI Tahlil (Gemini) bo'limida API kaliti kiritilgan bo'lishi kerak.
  */
-export async function getStudentAiAnalysis(studentId: string): Promise<StudentAiAnalysis> {
-  const { data } = await api.post<StudentAiAnalysis>(`/admin/students/${studentId}/ai-analysis`)
+export async function generateStudentAiAnalysis(studentId: string): Promise<StudentAiAnalysisResponse> {
+  const { data } = await api.post<StudentAiAnalysisResponse>(`/admin/students/${studentId}/ai-analysis`)
   return data
 }
 

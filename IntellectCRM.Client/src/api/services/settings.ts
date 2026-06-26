@@ -330,6 +330,7 @@ export async function savePaymentReminderSettings(payload: {
 export interface TelegramBackupConfig {
   adminChatId: string
   scheduleHour: number
+  scheduleMinute: number
   enabled: boolean
   lastSentAt?: string
 }
@@ -337,7 +338,7 @@ export interface TelegramBackupConfig {
 export async function getTelegramBackupConfig(): Promise<TelegramBackupConfig> {
   if (USE_MOCK) {
     await delay()
-    return { adminChatId: '', scheduleHour: 21, enabled: false }
+    return { adminChatId: '', scheduleHour: 21, scheduleMinute: 0, enabled: false }
   }
   const { data } = await api.get<TelegramBackupConfig>('/admin/settings/telegram-backup')
   // Backend eski yozuvlarda adminChatId null bo'lishi mumkin — '' ga normallashtiramiz

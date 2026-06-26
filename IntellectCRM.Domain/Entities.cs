@@ -837,6 +837,8 @@ public class CenterMeta
     public string? TelegramAdminChatId { get; set; }
     /// <summary>Backup yuborish soati (UTC, 0-23). Default 21 (21:00 UTC = 02:00 Toshkent).</summary>
     public int BackupScheduleHour { get; set; } = 21;
+    /// <summary>Backup yuborish daqiqasi (0-59). Default 0.</summary>
+    public int BackupScheduleMinute { get; set; }
     /// <summary>Telegram backup yoqilganmi (default true).</summary>
     public bool TelegramBackupEnabled { get; set; } = true;
     /// <summary>Oxirgi muvaffaqiyatli Telegram backup yuborish vaqti (tracking uchun).</summary>
@@ -1488,6 +1490,30 @@ public class StudentCertificate
     public DateTime? DownloadedAt { get; set; }
     /// <summary>Jami yuklab olishlar soni.</summary>
     public int DownloadCount { get; set; }
+}
+
+/// <summary>
+/// O'quvchi AI tahlili (Gemini) — saqlanadigan yozuv. Bir o'quvchiga KUNIGA BIR MARTA
+/// yaratiladi (Date bo'yicha cheklov). ResultJson — strukturali natija (matn bo'limlari +
+/// baholar/diagramma uchun sonlar + oldingi tahlilga nisbatan o'zgarishlar). Tarix sifatida
+/// o'quvchi sahifasida "AI Tahlil" bo'limida ko'rsatiladi; keyingi tahlil oldingisiga tayanadi.
+/// </summary>
+public class StudentAiAnalysis
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string StudentId { get; set; } = string.Empty;
+    /// <summary>Tahlil sanasi "yyyy-MM-dd" (Toshkent) — kuniga bir marta cheklovi shu bo'yicha.</summary>
+    public string Date { get; set; } = string.Empty;
+    /// <summary>Yaratilgan vaqt ISO ("yyyy-MM-ddTHH:mm:ss", Toshkent).</summary>
+    public string CreatedAt { get; set; } = AppClock.Iso();
+    /// <summary>Ishlatilgan Gemini modeli.</summary>
+    public string Model { get; set; } = string.Empty;
+    /// <summary>Qisqa xulosa (umumiy holat) — ro'yxat ko'rinishi uchun.</summary>
+    public string Summary { get; set; } = string.Empty;
+    /// <summary>Umumiy ball (0-100) — tarix grafigi/badge uchun.</summary>
+    public int OverallScore { get; set; }
+    /// <summary>To'liq strukturali natija (JSON) — diagramma + matn bo'limlari.</summary>
+    public string ResultJson { get; set; } = string.Empty;
 }
 
 /// <summary>

@@ -550,12 +550,14 @@ public record SaveTelegramSettingsRequest(string? BotToken, string? BotUsername,
 public record TelegramBackupConfigDto(
     string? AdminChatId,
     int ScheduleHour,
+    int ScheduleMinute,
     bool Enabled,
     DateTime? LastSentAt);
 /// <summary>Telegram backup sozlamasini yangilash so'rovi.</summary>
 public record SaveTelegramBackupConfigRequest(
     string? AdminChatId,
     int ScheduleHour,
+    int ScheduleMinute,
     bool Enabled);
 /// <summary>Ilova (APK) sozlamasi — Telegram bot ro'yxatdan o'tgan o'quvchi/o'qituvchiga yuboradigan fayl(lar).
 /// Nom + hajm (bayt; 0 = yuklanmagan).</summary>
@@ -1252,8 +1254,20 @@ public record SaveAzureSpeechRequest(string? Key, string? Region);
 public record GeminiSettingsDto(string Model, bool Configured);
 /// <summary>Gemini API kaliti saqlash so'rovi (bo'sh qoldirilsa eski saqlanadi).</summary>
 public record SaveGeminiRequest(string? Key);
-/// <summary>O'quvchi AI tahlili natijasi — markdown matn yoki xato.</summary>
-public record StudentAiAnalysisDto(bool Ok, string Analysis, string Model, string? Error);
+/// <summary>AI tahlilidagi sohaviy baholar (0-100) — radar/diagramma uchun.</summary>
+public record AiRatingsDto(int Akademik, int Davomat, int Intizom, int UyVazifa, int Faollik, int Umumiy);
+/// <summary>O'quvchi AI tahlilining strukturali natijasi (matn bo'limlari + diagramma sonlari).</summary>
+public record StudentAiAnalysisResultDto(
+    string Umumiy, List<string> Kuchli, List<string> Zaif, string Dinamika,
+    string Ozgarishlar, List<string> Tavsiyalar, AiRatingsDto Baholar, string Trend);
+/// <summary>Saqlangan bitta AI tahlil yozuvi (tarix elementi).</summary>
+public record StudentAiAnalysisRecordDto(
+    string Id, string Date, string CreatedAt, string Model, int OverallScore,
+    StudentAiAnalysisResultDto Result);
+/// <summary>AI tahlil yaratish javobi. AlreadyToday=true bo'lsa bugun allaqachon qilingan
+/// (yangi Gemini chaqirig'i bo'lmadi, mavjud yozuv qaytdi).</summary>
+public record StudentAiAnalysisResponseDto(
+    bool Ok, bool AlreadyToday, StudentAiAnalysisRecordDto? Record, string? Error);
 
 /* ---------- O'quvchi baholash statistikasi (oylik + har darslik) ---------- */
 /// <summary>Mezon bo'yicha OYLIK xulosa: shu oyda nechta darsda bajargan / jami dars.</summary>

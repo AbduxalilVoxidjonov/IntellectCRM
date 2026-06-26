@@ -91,6 +91,9 @@ public interface IAppDbContext
     DbSet<StudentCertificate> StudentCertificates { get; }
     DbSet<CertificateVerification> CertificateVerifications { get; }
 
+    // O'quvchi AI tahlili (Gemini)
+    DbSet<StudentAiAnalysis> StudentAiAnalyses { get; }
+
     // O'quv xonalari
     DbSet<Room> Rooms { get; }
 

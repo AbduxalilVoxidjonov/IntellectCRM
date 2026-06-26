@@ -123,6 +123,7 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
         return new TelegramBackupConfigDto(
             m?.TelegramAdminChatId ?? "",
             m?.BackupScheduleHour ?? 21,
+            m?.BackupScheduleMinute ?? 0,
             m?.TelegramBackupEnabled ?? true,
             m?.TelegramBackupLastSentAt);
     }
@@ -132,6 +133,8 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
     {
         if (req.ScheduleHour is < 0 or > 23)
             return BadRequest(new { message = "ScheduleHour 0-23 oralig'ida bo'lishi kerak" });
+        if (req.ScheduleMinute is < 0 or > 59)
+            return BadRequest(new { message = "ScheduleMinute 0-59 oralig'ida bo'lishi kerak" });
 
         var chatId = (req.AdminChatId ?? "").Trim();
         if (chatId.Length > 0)
@@ -145,12 +148,14 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
 
         m.TelegramAdminChatId = chatId.Length > 0 ? chatId : null;
         m.BackupScheduleHour = req.ScheduleHour;
+        m.BackupScheduleMinute = req.ScheduleMinute;
         m.TelegramBackupEnabled = req.Enabled;
         await db.SaveChangesAsync();
 
         return new TelegramBackupConfigDto(
             m.TelegramAdminChatId ?? "",
             m.BackupScheduleHour,
+            m.BackupScheduleMinute,
             m.TelegramBackupEnabled,
             m.TelegramBackupLastSentAt);
     }

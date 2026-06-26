@@ -168,6 +168,7 @@ function TelegramBackupSection() {
   const [cfg, setCfg] = useState<TelegramBackupConfig>({
     adminChatId: '',
     scheduleHour: 21,
+    scheduleMinute: 0,
     enabled: false,
   })
   const [loading, setLoading] = useState(true)
@@ -295,30 +296,44 @@ function TelegramBackupSection() {
           )}
         </div>
 
-        {/* Schedule hour */}
+        {/* Schedule hour + minute */}
         <div className="space-y-1">
           <label className="block text-sm font-medium text-slate-700">
             <span className="inline-flex items-center gap-1.5">
-              <Clock className="h-3.5 w-3.5 text-slate-400" /> Kunlik backup vaqti (soat)
+              <Clock className="h-3.5 w-3.5 text-slate-400" /> Kunlik backup vaqti (soat:daqiqa)
             </span>
           </label>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <input
               type="number"
               min={0}
               max={23}
               value={cfg.scheduleHour}
               onChange={(e) => {
-                const h = Math.max(0, Math.min(23, Number(e.target.value)))
+                const h = Math.max(0, Math.min(23, Number(e.target.value) || 0))
                 setCfg((p) => ({ ...p, scheduleHour: h }))
               }}
-              className="w-24 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+              className="w-20 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+            />
+            <span className="text-lg font-semibold text-slate-400">:</span>
+            <input
+              type="number"
+              min={0}
+              max={59}
+              value={cfg.scheduleMinute}
+              onChange={(e) => {
+                const mm = Math.max(0, Math.min(59, Number(e.target.value) || 0))
+                setCfg((p) => ({ ...p, scheduleMinute: mm }))
+              }}
+              className="w-20 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
             />
             <span className="text-sm text-slate-500">
-              {String(cfg.scheduleHour).padStart(2, '0')}:00 (Toshkent vaqti)
+              {String(cfg.scheduleHour).padStart(2, '0')}:{String(cfg.scheduleMinute).padStart(2, '0')} (UTC)
             </span>
           </div>
-          <p className="text-xs text-slate-400">0 dan 23 gacha (masalan: 21 = kechasi 21:00)</p>
+          <p className="text-xs text-slate-400">
+            Soat 0-23, daqiqa 0-59 (UTC). Toshkent = UTC+5 — masalan 02:30 Toshkent uchun 21:30.
+          </p>
         </div>
 
         {/* Last sent info */}

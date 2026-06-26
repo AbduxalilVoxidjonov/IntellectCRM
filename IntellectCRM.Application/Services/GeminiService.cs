@@ -26,23 +26,27 @@ public static class GeminiService
         (config?["GEMINI_MODEL"] ?? config?["Gemini:Model"])?.Trim() is { Length: > 0 } m ? m : DefaultModel;
 
     /// <summary>Berilgan promptni Geminiga yuboradi va javob matnini qaytaradi.
-    /// Muvaffaqiyatsiz bo'lsa (Ok=false) sabab Error'da bo'ladi.</summary>
+    /// <paramref name="jsonMode"/>=true bo'lsa javob faqat JSON bo'lishini so'raydi
+    /// (responseMimeType=application/json). Muvaffaqiyatsiz bo'lsa (Ok=false) sabab Error'da.</summary>
     public static async Task<(bool Ok, string Text, string? Error)> GenerateAsync(
-        string apiKey, string model, string prompt)
+        string apiKey, string model, string prompt, bool jsonMode = false)
     {
         if (string.IsNullOrWhiteSpace(apiKey))
             return (false, "", "Gemini API kaliti sozlanmagan.");
         try
         {
             var url = $"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent";
-            var payload = new
-            {
-                contents = new[]
+            object payload = jsonMode
+                ? new
                 {
-                    new { role = "user", parts = new[] { new { text = prompt } } }
-                },
-                generationConfig = new { temperature = 0.5, maxOutputTokens = 2048 }
-            };
+                    contents = new[] { new { role = "user", parts = new[] { new { text = prompt } } } },
+                    generationConfig = new { temperature = 0.4, maxOutputTokens = 4096, responseMimeType = "application/json" }
+                }
+                : new
+                {
+                    contents = new[] { new { role = "user", parts = new[] { new { text = prompt } } } },
+                    generationConfig = new { temperature = 0.5, maxOutputTokens = 2048 }
+                };
 
             using var req = new HttpRequestMessage(HttpMethod.Post, url);
             req.Headers.Add("x-goog-api-key", apiKey);

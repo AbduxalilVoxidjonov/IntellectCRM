@@ -90,6 +90,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<StudentCertificate> StudentCertificates => Set<StudentCertificate>();
     public DbSet<CertificateVerification> CertificateVerifications => Set<CertificateVerification>();
 
+    // O'quvchi AI tahlili (Gemini)
+    public DbSet<StudentAiAnalysis> StudentAiAnalyses => Set<StudentAiAnalysis>();
+
     // Xodim roli shablonlari
     public DbSet<StaffRoleTemplate> StaffRoleTemplates => Set<StaffRoleTemplate>();
 
@@ -174,6 +177,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         b.Entity<CriterionGrade>().HasIndex(g => new { g.GroupId, g.Date });
 
         b.Entity<AuditLog>().HasIndex(a => new { a.EntityType, a.EntityId });
+        b.Entity<StudentAiAnalysis>().HasIndex(a => new { a.StudentId, a.Date });
         b.Entity<AuditLog>().HasIndex(a => a.Timestamp);
         b.Entity<AuditLog>().HasIndex(a => a.StudentId);
         b.Entity<AuditLog>().HasIndex(a => a.TeacherId);

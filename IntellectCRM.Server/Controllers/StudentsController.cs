@@ -58,24 +58,56 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
         return await StudentProfileBuilder.BuildAsync(db, st);
     }
 
-    /// <summary>O'quvchining BARCHA ma'lumotlarini (baholar, davomat, intizom, topshiriqlar, baholash,
-    /// to'lov balansi) Google Gemini AI orqali tahlil qiladi va o'zbek tilida xulosa+tavsiya qaytaradi.
-    /// "AI Tahlil" tugmasi shu endpointni chaqiradi. API kaliti Sozlamalar → AI Tahlil (Gemini)da.</summary>
+    private static readonly System.Text.Json.JsonSerializerOptions AiJsonOpts = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+    };
+
+    /// <summary>O'quvchining saqlangan AI tahlillari tarixi (eng yangisi birinchi). O'quvchi
+    /// sahifasidagi "AI Tahlil" bo'limi shu yozuvlarni ko'rsatadi.</summary>
+    [HttpGet("{id}/ai-analyses")]
+    public async Task<ActionResult<IEnumerable<StudentAiAnalysisRecordDto>>> AiAnalyses(string id)
+    {
+        var rows = await db.StudentAiAnalyses
+            .Where(a => a.StudentId == id)
+            .OrderByDescending(a => a.Date).ThenByDescending(a => a.CreatedAt)
+            .ToListAsync();
+        return rows.Select(ToAiRecordDto).Where(r => r is not null).Select(r => r!).ToList();
+    }
+
+    /// <summary>O'quvchining BARCHA ma'lumotlarini Google Gemini orqali tahlil qiladi (strukturali:
+    /// matn + diagramma sonlari). KUNIGA BIR MARTA: shu kun yozuvi bo'lsa Gemini chaqirilmaydi,
+    /// mavjud yozuv qaytadi (AlreadyToday=true). Oldingi tahlil bo'lsa, yangi tahlil unga nisbatan
+    /// o'zgarishlarni ham aytadi. API kaliti Sozlamalar → AI Tahlil (Gemini)da.</summary>
     [HttpPost("{id}/ai-analysis")]
-    public async Task<ActionResult<StudentAiAnalysisDto>> AiAnalysis(string id)
+    public async Task<ActionResult<StudentAiAnalysisResponseDto>> AiAnalysis(string id)
     {
         var st = await db.Students.FirstOrDefaultAsync(s => s.Id == id);
         if (st is null) return NotFound();
 
+        var today = AppClock.Today.ToString("yyyy-MM-dd");
+
+        // Kuniga bir marta: bugungi yozuv bo'lsa — uni qaytaramiz (Gemini chaqirilmaydi,
+        // kalit tekshiruvidan oldin — keshlangan tahlilni ko'rsatish kalitga bog'liq emas).
+        var todays = await db.StudentAiAnalyses
+            .FirstOrDefaultAsync(a => a.StudentId == id && a.Date == today);
+        if (todays is not null)
+            return new StudentAiAnalysisResponseDto(true, true, ToAiRecordDto(todays), null);
+
         var meta = await db.CenterMeta.FirstOrDefaultAsync();
         var model = GeminiService.ResolveModel(config);
         if (!GeminiService.IsConfigured(meta?.GeminiApiKey))
-            return new StudentAiAnalysisDto(false, "", model,
+            return new StudentAiAnalysisResponseDto(false, false, null,
                 "Gemini API kaliti sozlanmagan. Sozlamalar → AI Tahlil (Gemini) bo'limidan kalit kiriting.");
 
-        // O'quvchining to'liq profili (daftari) — tahlil uchun manba.
-        var profile = await StudentProfileBuilder.BuildAsync(db, st);
+        // Oldingi (eng yangi) tahlil — yangi tahlil unga nisbatan o'zgarishlarni aytadi.
+        var prev = await db.StudentAiAnalyses
+            .Where(a => a.StudentId == id)
+            .OrderByDescending(a => a.Date).ThenByDescending(a => a.CreatedAt)
+            .FirstOrDefaultAsync();
 
+        var profile = await StudentProfileBuilder.BuildAsync(db, st);
         var json = System.Text.Json.JsonSerializer.Serialize(profile, new System.Text.Json.JsonSerializerOptions
         {
             PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
@@ -83,25 +115,120 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
             WriteIndented = false,
         });
 
+        var prevContext = prev is null
+            ? "Bu o'quvchining BIRINCHI tahlili — oldingi tahlil yo'q. \"ozgarishlar\" maydonini bo'sh (\"\") qoldir."
+            : $"Oldingi tahlil ({prev.Date}) xulosasi: \"{prev.Summary}\". Oldingi umumiy ball: {prev.OverallScore}. " +
+              "\"ozgarishlar\" maydonida ANA SHU oldingi tahlilga nisbatan nima o'zgarganini (yaxshilangan/yomonlashgan " +
+              "joylar, ball farqi) aniq yoz.";
+
         var prompt =
             "Sen o'quv markazi uchun tajribali pedagog-tahlilchisan. Quyida bitta o'quvchining to'liq " +
-            "ma'lumotlari JSON ko'rinishida berilgan: shaxsiy ma'lumotlar, fanlar bo'yicha oylik baholar, " +
-            "davomat (qoldirgan/kasal/kech kelgan kunlar), intizomiy ball, topshiriqlar natijasi, oylik " +
-            "baholash (feedback), uy vazifa va xulq dinamikasi, hamda to'lov balansi.\n\n" +
-            "Vazifa: shu ma'lumotlarni CHUQUR tahlil qilib, FAQAT O'ZBEK TILIDA (lotin alifbosida) qisqa, " +
-            "aniq va amaliy tahlil yoz. Quyidagi tuzilishda Markdown sarlavhalari bilan yoz:\n" +
-            "## Umumiy holat\n(2-4 jumlada o'quvchining hozirgi ahvoli)\n" +
-            "## Kuchli tomonlari\n(bullet ro'yxat)\n" +
-            "## Zaif tomonlari va e'tibor talab qiladigan joylar\n(bullet ro'yxat — qaysi fan/davomat/intizom)\n" +
-            "## O'qishdagi dinamika\n(yaxshilanyaptimi yoki yomonlashyaptimi — baholar va davomat trendi bo'yicha)\n" +
-            "## Tavsiyalar\n(o'qituvchi va ota-onaga aniq, amaliy tavsiyalar bullet ro'yxat)\n\n" +
-            "Qoidalar: faqat berilgan ma'lumotga tayan, ma'lumot yetishmasa shuni ayt (to'qib chiqarma). " +
-            "Sonlarni (o'rtacha baho, davomat foizi, intizom balli) aniq keltir. Pul/balans haqida ehtiyotkor " +
-            "yoz. Javob 350 so'zdan oshmasin.\n\n" +
+            "ma'lumotlari JSON ko'rinishida: shaxsiy ma'lumotlar, fanlar bo'yicha oylik baholar, davomat " +
+            "(qoldirgan/kasal/kech), intizomiy ball, topshiriqlar natijasi, oylik baholash (feedback), uy " +
+            "vazifa va xulq dinamikasi, to'lov balansi.\n\n" +
+            "Vazifa: shu ma'lumotni CHUQUR tahlil qilib, FAQAT O'ZBEK TILIDA (lotin alifbosi) natijani QUYIDAGI " +
+            "JSON sxemasida QAYTAR (boshqa hech narsa yozma, faqat JSON):\n" +
+            "{\n" +
+            "  \"umumiy\": \"2-4 jumla — o'quvchining hozirgi umumiy holati\",\n" +
+            "  \"kuchli\": [\"kuchli tomon\", ...],\n" +
+            "  \"zaif\": [\"zaif tomon / e'tibor kerak\", ...],\n" +
+            "  \"dinamika\": \"o'qishdagi dinamika — yaxshilanmoqda/barqaror/yomonlashmoqda, sabablari bilan\",\n" +
+            "  \"ozgarishlar\": \"oldingi tahlilga nisbatan o'zgarishlar (yo'q bo'lsa bo'sh)\",\n" +
+            "  \"tavsiyalar\": [\"o'qituvchi/ota-onaga aniq amaliy tavsiya\", ...],\n" +
+            "  \"baholar\": { \"akademik\": 0-100, \"davomat\": 0-100, \"intizom\": 0-100, \"uyVazifa\": 0-100, \"faollik\": 0-100, \"umumiy\": 0-100 },\n" +
+            "  \"trend\": \"yaxshilanmoqda\" yoki \"barqaror\" yoki \"yomonlashmoqda\"\n" +
+            "}\n\n" +
+            "Qoidalar: \"baholar\" — 0..100 butun sonlar (real ma'lumotga asoslangan baho; ma'lumot yo'q soha uchun " +
+            "ehtiyotkor o'rta baho). \"umumiy\" — boshqa sohalarning umumlashmasi. Faqat berilgan ma'lumotga tayan, " +
+            "to'qib chiqarma. Har matn maydoni qisqa va aniq. " + prevContext + "\n\n" +
             "O'quvchi ma'lumotlari (JSON):\n" + json;
 
-        var (ok, text, err) = await GeminiService.GenerateAsync(meta!.GeminiApiKey, model, prompt);
-        return new StudentAiAnalysisDto(ok, text, model, err);
+        var (ok, text, err) = await GeminiService.GenerateAsync(meta!.GeminiApiKey, model, prompt, jsonMode: true);
+        if (!ok)
+            return new StudentAiAnalysisResponseDto(false, false, null, err);
+
+        var result = ParseAiResult(text);
+        if (result is null)
+            return new StudentAiAnalysisResponseDto(false, false, null,
+                "AI javobini o'qib bo'lmadi (format xato). Qaytadan urinib ko'ring.");
+
+        var rec = new StudentAiAnalysis
+        {
+            StudentId = st.Id,
+            Date = today,
+            CreatedAt = AppClock.Iso(),
+            Model = model,
+            Summary = Trim(result.Umumiy, 600),
+            OverallScore = Math.Clamp(result.Baholar.Umumiy, 0, 100),
+            ResultJson = System.Text.Json.JsonSerializer.Serialize(result, AiJsonOpts),
+        };
+        db.StudentAiAnalyses.Add(rec);
+        await db.SaveChangesAsync();
+
+        return new StudentAiAnalysisResponseDto(true, false, ToAiRecordDto(rec), null);
+    }
+
+    private static string Trim(string? s, int max)
+    {
+        s ??= "";
+        return s.Length <= max ? s : s[..max];
+    }
+
+    /// <summary>Saqlangan ResultJson'ni typed record'ga aylantiradi (yozuv → DTO).</summary>
+    private static StudentAiAnalysisRecordDto? ToAiRecordDto(StudentAiAnalysis a)
+    {
+        var result = ParseStored(a.ResultJson);
+        if (result is null) return null;
+        return new StudentAiAnalysisRecordDto(a.Id, a.Date, a.CreatedAt, a.Model, a.OverallScore, result);
+    }
+
+    private static StudentAiAnalysisResultDto? ParseStored(string json)
+    {
+        try
+        {
+            var r = System.Text.Json.JsonSerializer.Deserialize<StudentAiAnalysisResultDto>(json, AiJsonOpts);
+            return r is null ? null : Sanitize(r);
+        }
+        catch { return null; }
+    }
+
+    /// <summary>Gemini JSON javobini typed natijaga aylantiradi (kod-fence tozalanadi, null'lar to'ldiriladi).</summary>
+    private static StudentAiAnalysisResultDto? ParseAiResult(string text)
+    {
+        var t = (text ?? "").Trim();
+        // ```json ... ``` fence bo'lsa tozalaymiz.
+        if (t.StartsWith("```"))
+        {
+            var nl = t.IndexOf('\n');
+            if (nl >= 0) t = t[(nl + 1)..];
+            if (t.EndsWith("```")) t = t[..^3];
+            t = t.Trim();
+        }
+        // Birinchi { dan oxirgi } gacha (oldi/orqa shovqinni kesish).
+        var open = t.IndexOf('{');
+        var close = t.LastIndexOf('}');
+        if (open >= 0 && close > open) t = t[open..(close + 1)];
+        try
+        {
+            var r = System.Text.Json.JsonSerializer.Deserialize<StudentAiAnalysisResultDto>(t, AiJsonOpts);
+            return r is null ? null : Sanitize(r);
+        }
+        catch { return null; }
+    }
+
+    private static StudentAiAnalysisResultDto Sanitize(StudentAiAnalysisResultDto r)
+    {
+        static int C(int v) => Math.Clamp(v, 0, 100);
+        var b = r.Baholar ?? new AiRatingsDto(0, 0, 0, 0, 0, 0);
+        return new StudentAiAnalysisResultDto(
+            r.Umumiy ?? "",
+            r.Kuchli ?? new List<string>(),
+            r.Zaif ?? new List<string>(),
+            r.Dinamika ?? "",
+            r.Ozgarishlar ?? "",
+            r.Tavsiyalar ?? new List<string>(),
+            new AiRatingsDto(C(b.Akademik), C(b.Davomat), C(b.Intizom), C(b.UyVazifa), C(b.Faollik), C(b.Umumiy)),
+            r.Trend ?? "");
     }
 
     /// <summary>O'quvchiga support o'qituvchilar bergan feedback — o'tilgan (done) support darslari

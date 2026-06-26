@@ -18,8 +18,10 @@ import {
   downloadStudentCertificate,
   generateStudentCertificate,
   getStudentSupportFeedback,
+  getStudentAiAnalyses,
   type StudentCompletedCourse,
   type StudentSupportFeedback,
+  type StudentAiAnalysisRecord,
 } from '@/api/services/students'
 import { getStudentGroups, getClasses } from '@/api/services/classes'
 import { getCurriculum, getProgress, setProgress, getStudentCoverageLog, type CoverageLogEntry } from '@/api/services/curriculum'
@@ -32,6 +34,7 @@ import { StatCard } from '@/components/ui/StatCard'
 import { Loader } from '@/components/ui/Loader'
 import { PaymentHistoryModal } from './PaymentHistoryModal'
 import { AiAnalysisModal } from './AiAnalysisModal'
+import { AiAnalysisView } from './AiAnalysisView'
 
 const uzMonths = [
   'Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'Iyun',
@@ -74,6 +77,8 @@ export function StudentDetailPage() {
   const [groupCourse, setGroupCourse] = useState<Record<string, string>>({})
   const [showHistory, setShowHistory] = useState(false)
   const [showAi, setShowAi] = useState(false)
+  /** Saqlangan AI tahlillari (eng yangisi birinchi). */
+  const [aiRecords, setAiRecords] = useState<StudentAiAnalysisRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
   /** Oylik baholash jadvalida tanlangan oy ("YYYY-MM"). */
@@ -110,6 +115,9 @@ export function StudentDetailPage() {
       .catch((e) => console.warn('Sertifikatlar yuklanmadi:', e))
     getStudentSupportFeedback(id)
       .then(setSupportFeedback)
+      .catch(() => {})
+    getStudentAiAnalyses(id)
+      .then(setAiRecords)
       .catch(() => {})
   }, [id])
 
@@ -329,6 +337,9 @@ export function StudentDetailPage() {
           </button>
         </div>
       </Card>
+
+      {/* AI Tahlil — saqlangan tahlillar tarixi (kuniga bir marta) */}
+      <AiSection records={aiRecords} onOpen={() => setShowAi(true)} />
 
       {/* Shaxsiy ma'lumotlar */}
       <Section title="Shaxsiy ma'lumotlar" icon={User}>
@@ -1032,6 +1043,10 @@ export function StudentDetailPage() {
         onClose={() => setShowAi(false)}
         studentId={data.id}
         studentName={data.fullName}
+        records={aiRecords}
+        onGenerated={(rec) =>
+          setAiRecords((prev) => [rec, ...prev.filter((r) => r.id !== rec.id && r.date !== rec.date)])
+        }
       />
     </div>
   )
@@ -1278,16 +1293,19 @@ function Section({
   title,
   icon: Icon,
   children,
+  action,
 }: {
   title: string
   icon: typeof GraduationCap
   children: React.ReactNode
+  action?: React.ReactNode
 }) {
   return (
     <Card>
       <div className="mb-4 flex items-center gap-2">
         <Icon className="h-5 w-5 text-brand-600" />
         <h2 className="font-semibold text-slate-800">{title}</h2>
+        {action && <div className="ml-auto">{action}</div>}
       </div>
       {children}
     </Card>
@@ -1297,6 +1315,63 @@ function Section({
 const Empty = ({ children }: { children: React.ReactNode }) => (
   <p className="py-8 text-center text-sm text-slate-400">{children}</p>
 )
+
+/** O'quvchi sahifasidagi "AI Tahlil" bo'limi — saqlangan tahlillar (tarix) + tanlangani diagrammalar bilan. */
+function AiSection({
+  records,
+  onOpen,
+}: {
+  records: StudentAiAnalysisRecord[]
+  onOpen: () => void
+}) {
+  const [selId, setSelId] = useState<string | null>(null)
+  const sel = records.find((r) => r.id === selId) ?? records[0] ?? null
+  return (
+    <Section
+      title="AI Tahlil"
+      icon={Sparkles}
+      action={
+        <button
+          type="button"
+          onClick={onOpen}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-600 to-violet-500 px-3 py-1.5 text-xs font-semibold text-white transition-all hover:opacity-90 active:translate-y-px"
+        >
+          <Sparkles className="h-3.5 w-3.5" /> {records.length ? 'Yangi tahlil' : 'Tahlil qilish'}
+        </button>
+      }
+    >
+      {records.length === 0 ? (
+        <Empty>
+          Hali AI tahlil qilinmagan. "Tahlil qilish" tugmasini bosing — AI o'quvchining barcha ma'lumotlarini
+          (baholar, davomat, intizom, topshiriqlar, balans) tahlil qilib, diagrammalar va tavsiyalar beradi.
+        </Empty>
+      ) : (
+        <div className="space-y-4">
+          {records.length > 1 && (
+            <div className="flex flex-wrap gap-2">
+              {records.map((r) => (
+                <button
+                  key={r.id}
+                  type="button"
+                  onClick={() => setSelId(r.id)}
+                  className={cn(
+                    'rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
+                    sel?.id === r.id
+                      ? 'border-brand-300 bg-brand-50 text-brand-700'
+                      : 'border-slate-200 text-slate-500 hover:bg-slate-50',
+                  )}
+                >
+                  {formatDate(r.date)} · <span className="font-mono">{r.overallScore}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          {sel && <AiAnalysisView record={sel} />}
+        </div>
+      )}
+    </Section>
+  )
+}
 
 function InfoRow({
   icon: Icon,
