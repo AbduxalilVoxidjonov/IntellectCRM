@@ -114,6 +114,33 @@ docker compose up -d --build    # app + postgres + cloudflared + backup + mediam
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-26: **YANGI — O'quvchi profilida "AI Tahlil" (Google Gemini) + Telegram backup bug fix.**
+  **(1) AI Tahlil:** har o'quvchi profili tepasida (StudentDetailPage) **"AI Tahlil"** tugmasi (binafsha gradient) —
+  bosilganda o'quvchining BARCHA ma'lumotlari (`StudentProfileBuilder.BuildAsync` → StudentNotebookDto: baholar,
+  davomat, intizom, topshiriqlar, baholash, balans) JSON sifatida Gemini'ga yuboriladi va o'zbek tilida tuzilgan
+  tahlil (Umumiy holat · Kuchli/Zaif tomonlar · Dinamika · Tavsiyalar) qaytaradi. **Backend:** `CenterMeta.GeminiApiKey`
+  (DB'da kalit) + inkremental migratsiya `AddGeminiApiKey` (1 ustun, data loss YO'Q); model env `GEMINI_MODEL`
+  (default `gemini-3.1-flash-lite`, docker-compose + .env.example'ga qo'shildi); `GeminiService` (static, REST
+  generateContent, `x-goog-api-key` header); `SettingsController` `GET/PUT /admin/settings/gemini` (kalit saqlash —
+  GET kalitni qaytarmaydi, faqat model+configured); `StudentsController` `POST /admin/students/{id}/ai-analysis` →
+  `StudentAiAnalysisDto(Ok, Analysis, Model, Error)`. DTO: `GeminiSettingsDto`/`SaveGeminiRequest`/`StudentAiAnalysisDto`.
+  **Frontend:** `settings.ts` GeminiConfig+get/save; `GeminiSettings.tsx` (Sozlamalar → "AI Tahlil (Gemini)" nav +
+  SettingsPage `section==='gemini'`) — kalit input + model (read-only) + sozlangan badge; `students.ts`
+  `getStudentAiAnalysis`; `AiAnalysisModal.tsx` — oyna ochilganda avto-tahlil, yengil markdown→HTML render (## / - /
+  **qalin**), **"PDF yuklab olish"** (yangi oynada chiroyli formatlangan HTML + `window.print()` → brauzer "Save as
+  PDF") + "Qayta tahlil". Backend 0 xato, tsc+vite yashil. Migratsiya hand-written (EF tool v10≠EF Core 8) — `.cs`+
+  `.Designer.cs`+snapshot yangilandi, Infrastructure build 0.
+  **(2) TELEGRAM BACKUP BUG (yubormayotgan edi):** ildiz sabab — `docker-compose.yml` backup xizmati `postgres:16-alpine`
+  image'da ishlaydi, LEKIN bu image'da **`curl` YO'Q** (tasdiqlandi: `curl MISSING`); backup skripti esa Telegram'ga
+  `curl ... sendDocument` bilan yuborardi → `curl: not found` → "Telegram xatosi" log, backup faqat LOCAL saqlanardi.
+  **Yechim:** backup konteyner startupida (token sozlangan bo'lsa) `apk add --no-cache curl ca-certificates` o'rnatiladi
+  (jonli tasdiqlandi: curl 8.19 o'rnatildi); send blokiga 50MB Telegram chegarasi guard + curl mavjudlik tekshiruvi +
+  `-H Content-Type` olib tashlandi (`-F` boundary'ni o'zi qo'yadi). `docker compose config` valid.
+  **DEPLOYDA:** `docker compose up -d --build app` (AI tahlil — migratsiya startupda avto, postgres-data saqlanadi) +
+  `docker compose up -d backup` (curl-fix yangi backup konteyner). Telegram backup ishlashi uchun prod `.env`da
+  `TELEGRAM_BOT_TOKEN` + `TELEGRAM_ADMIN_CHAT_ID` to'ldirilgan bo'lishi SHART (admin chatga bot /start qilgan bo'lsin).
+  AI tahlil uchun Sozlamalar → AI Tahlil (Gemini)'da Gemini API kaliti kiritilsin (aistudio.google.com/app/apikey).
+
 - 2026-06-25: **BUG FIX — daraja testi statistikasida HAMMA "o'chirilgan" (qizil) ko'rinardi.** Muammo
   (`LevelTestsController.Stats`): `isDeleted = string.IsNullOrEmpty(LeadId) || sid == null || !existing.Contains(sid)`
   — bu yerda `sid` = lidning `ConvertedStudentId`i. Test topshirgan odam birinchi bosqichdagi LID bo'lib turadi

@@ -15,6 +15,7 @@ import { SchoolSettings } from './SchoolSettings'
 import { TelegramSettings } from './TelegramSettings'
 import { FirebaseSettings } from './FirebaseSettings'
 import { AzureSpeechSettings } from './AzureSpeechSettings'
+import { GeminiSettings } from './GeminiSettings'
 import { TurnstileSettings } from './TurnstileSettings'
 import { CameraSettings } from './CameraSettings'
 import { PaymentReminderSettings } from './PaymentReminderSettings'
@@ -31,6 +32,7 @@ const sectionTitles: Record<string, string> = {
   telegram: 'Telegram bot',
   firebase: 'Push (Firebase)',
   'azure-speech': 'Speaking (Azure)',
+  gemini: 'AI Tahlil (Gemini)',
   turnstile: 'Turniket integratsiya',
   cameras: 'Kamera integratsiya',
   'payment-reminders': "Avtomatik to'lov eslatmasi",
@@ -149,6 +151,9 @@ export function SettingsPage() {
 
           {/* Speaking (Azure) */}
           {section === 'azure-speech' && <AzureSpeechSettings />}
+
+          {/* AI Tahlil (Gemini) */}
+          {section === 'gemini' && <GeminiSettings />}
 
           {/* Turniket / FaceID integratsiya */}
           {section === 'turnstile' && <TurnstileSettings />}

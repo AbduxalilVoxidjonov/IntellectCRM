@@ -392,6 +392,24 @@ export interface StudentSupportFeedback {
   notes: string
 }
 
+/** O'quvchi AI tahlili natijasi (Gemini). */
+export interface StudentAiAnalysis {
+  ok: boolean
+  /** Markdown ko'rinishidagi tahlil matni (ok=true bo'lsa). */
+  analysis: string
+  model: string
+  error: string | null
+}
+
+/**
+ * O'quvchining BARCHA ma'lumotlarini Google Gemini AI orqali tahlil qiladi.
+ * Sozlamalar → AI Tahlil (Gemini) bo'limida API kaliti kiritilgan bo'lishi kerak.
+ */
+export async function getStudentAiAnalysis(studentId: string): Promise<StudentAiAnalysis> {
+  const { data } = await api.post<StudentAiAnalysis>(`/admin/students/${studentId}/ai-analysis`)
+  return data
+}
+
 /** O'quvchiga support o'qituvchilar bergan feedback (o'tilgan support darslari). */
 export async function getStudentSupportFeedback(
   studentId: string,

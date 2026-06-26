@@ -14,7 +14,7 @@ namespace IntellectCRM.Server.Controllers;
 [Authorize]
 [AdminPerm("students")]
 [Route("api/admin/students")]
-public class StudentsController(AppDbContext db, AuditService audit) : ControllerBase
+public class StudentsController(AppDbContext db, AuditService audit, IConfiguration config) : ControllerBase
 {
     private const int MinPasswordLength = 8;
     private const string WeakPasswordMessage = "Parol kamida 8 belgidan iborat bo'lsin";
@@ -56,6 +56,52 @@ public class StudentsController(AppDbContext db, AuditService audit) : Controlle
         var st = await db.Students.FirstOrDefaultAsync(s => s.Id == id);
         if (st is null) return NotFound();
         return await StudentProfileBuilder.BuildAsync(db, st);
+    }
+
+    /// <summary>O'quvchining BARCHA ma'lumotlarini (baholar, davomat, intizom, topshiriqlar, baholash,
+    /// to'lov balansi) Google Gemini AI orqali tahlil qiladi va o'zbek tilida xulosa+tavsiya qaytaradi.
+    /// "AI Tahlil" tugmasi shu endpointni chaqiradi. API kaliti Sozlamalar → AI Tahlil (Gemini)da.</summary>
+    [HttpPost("{id}/ai-analysis")]
+    public async Task<ActionResult<StudentAiAnalysisDto>> AiAnalysis(string id)
+    {
+        var st = await db.Students.FirstOrDefaultAsync(s => s.Id == id);
+        if (st is null) return NotFound();
+
+        var meta = await db.CenterMeta.FirstOrDefaultAsync();
+        var model = GeminiService.ResolveModel(config);
+        if (!GeminiService.IsConfigured(meta?.GeminiApiKey))
+            return new StudentAiAnalysisDto(false, "", model,
+                "Gemini API kaliti sozlanmagan. Sozlamalar → AI Tahlil (Gemini) bo'limidan kalit kiriting.");
+
+        // O'quvchining to'liq profili (daftari) — tahlil uchun manba.
+        var profile = await StudentProfileBuilder.BuildAsync(db, st);
+
+        var json = System.Text.Json.JsonSerializer.Serialize(profile, new System.Text.Json.JsonSerializerOptions
+        {
+            PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
+            Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+            WriteIndented = false,
+        });
+
+        var prompt =
+            "Sen o'quv markazi uchun tajribali pedagog-tahlilchisan. Quyida bitta o'quvchining to'liq " +
+            "ma'lumotlari JSON ko'rinishida berilgan: shaxsiy ma'lumotlar, fanlar bo'yicha oylik baholar, " +
+            "davomat (qoldirgan/kasal/kech kelgan kunlar), intizomiy ball, topshiriqlar natijasi, oylik " +
+            "baholash (feedback), uy vazifa va xulq dinamikasi, hamda to'lov balansi.\n\n" +
+            "Vazifa: shu ma'lumotlarni CHUQUR tahlil qilib, FAQAT O'ZBEK TILIDA (lotin alifbosida) qisqa, " +
+            "aniq va amaliy tahlil yoz. Quyidagi tuzilishda Markdown sarlavhalari bilan yoz:\n" +
+            "## Umumiy holat\n(2-4 jumlada o'quvchining hozirgi ahvoli)\n" +
+            "## Kuchli tomonlari\n(bullet ro'yxat)\n" +
+            "## Zaif tomonlari va e'tibor talab qiladigan joylar\n(bullet ro'yxat — qaysi fan/davomat/intizom)\n" +
+            "## O'qishdagi dinamika\n(yaxshilanyaptimi yoki yomonlashyaptimi — baholar va davomat trendi bo'yicha)\n" +
+            "## Tavsiyalar\n(o'qituvchi va ota-onaga aniq, amaliy tavsiyalar bullet ro'yxat)\n\n" +
+            "Qoidalar: faqat berilgan ma'lumotga tayan, ma'lumot yetishmasa shuni ayt (to'qib chiqarma). " +
+            "Sonlarni (o'rtacha baho, davomat foizi, intizom balli) aniq keltir. Pul/balans haqida ehtiyotkor " +
+            "yoz. Javob 350 so'zdan oshmasin.\n\n" +
+            "O'quvchi ma'lumotlari (JSON):\n" + json;
+
+        var (ok, text, err) = await GeminiService.GenerateAsync(meta!.GeminiApiKey, model, prompt);
+        return new StudentAiAnalysisDto(ok, text, model, err);
     }
 
     /// <summary>O'quvchiga support o'qituvchilar bergan feedback — o'tilgan (done) support darslari

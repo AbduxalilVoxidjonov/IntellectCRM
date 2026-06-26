@@ -12,7 +12,7 @@ namespace IntellectCRM.Server.Controllers;
 [Authorize]
 [AdminPerm("settings")]
 [Route("api/admin/settings")]
-public class SettingsController(AppDbContext db, TelegramService telegram, IWebHostEnvironment env) : ControllerBase
+public class SettingsController(AppDbContext db, TelegramService telegram, IWebHostEnvironment env, IConfiguration config) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<SchoolSettingsDto>> Get()
@@ -201,6 +201,28 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
         if (req.Region is not null) m.AzureSpeechRegion = req.Region.Trim();
         await db.SaveChangesAsync();
         return new AzureSpeechSettingsDto(m.AzureSpeechRegion, AzureSpeechService.IsConfigured(m.AzureSpeechKey, m.AzureSpeechRegion));
+    }
+
+    // ---------- AI Tahlil (Google Gemini) ----------
+
+    [HttpGet("gemini")]
+    public async Task<ActionResult<GeminiSettingsDto>> GetGemini()
+    {
+        var m = await db.CenterMeta.FirstOrDefaultAsync();
+        return new GeminiSettingsDto(
+            GeminiService.ResolveModel(config),
+            GeminiService.IsConfigured(m?.GeminiApiKey));
+    }
+
+    [HttpPut("gemini")]
+    public async Task<ActionResult<GeminiSettingsDto>> SaveGemini(SaveGeminiRequest req)
+    {
+        var m = await db.CenterMeta.FirstOrDefaultAsync();
+        if (m is null) { m = new CenterMeta(); db.CenterMeta.Add(m); }
+        // Kalit faqat yangi qiymat berilsa yangilanadi (bo'sh qoldirilsa eski saqlanadi — GET kalitni qaytarmaydi).
+        if (!string.IsNullOrWhiteSpace(req.Key)) m.GeminiApiKey = req.Key.Trim();
+        await db.SaveChangesAsync();
+        return new GeminiSettingsDto(GeminiService.ResolveModel(config), GeminiService.IsConfigured(m.GeminiApiKey));
     }
 
     // ---------- Ilova (APK) — Telegram bot ro'yxatdan o'tganga yuboradi ----------

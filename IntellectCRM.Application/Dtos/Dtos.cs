@@ -1248,6 +1248,13 @@ public record AzureSpeechSettingsDto(string Region, bool Configured);
 /// <summary>Azure Speech kalit/region saqlash so'rovi.</summary>
 public record SaveAzureSpeechRequest(string? Key, string? Region);
 
+/// <summary>Gemini AI sozlamasi holati (kalit qaytarilmaydi — faqat model + sozlanganmi).</summary>
+public record GeminiSettingsDto(string Model, bool Configured);
+/// <summary>Gemini API kaliti saqlash so'rovi (bo'sh qoldirilsa eski saqlanadi).</summary>
+public record SaveGeminiRequest(string? Key);
+/// <summary>O'quvchi AI tahlili natijasi — markdown matn yoki xato.</summary>
+public record StudentAiAnalysisDto(bool Ok, string Analysis, string Model, string? Error);
+
 /* ---------- O'quvchi baholash statistikasi (oylik + har darslik) ---------- */
 /// <summary>Mezon bo'yicha OYLIK xulosa: shu oyda nechta darsda bajargan / jami dars.</summary>
 public record StudentGradingCriterionDto(string Id, string Name, int Done, int Total);

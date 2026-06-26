@@ -789,6 +789,11 @@ public class CenterMeta
     /// <summary>Azure Speech resursi hududi (region), masalan "eastus", "westeurope".</summary>
     public string AzureSpeechRegion { get; set; } = string.Empty;
 
+    /// <summary>Google Gemini API kaliti — o'quvchi profilini AI bilan tahlil qilish uchun
+    /// ("AI Tahlil" tugmasi). Bo'sh bo'lsa tahlil ishlamaydi. Admin "Sozlamalar → AI Tahlil (Gemini)"
+    /// bo'limidan kiritadi. Model env o'zgaruvchi GEMINI_MODEL dan olinadi (default gemini-3.1-flash-lite).</summary>
+    public string GeminiApiKey { get; set; } = string.Empty;
+
     /// <summary>O'qituvchi maoshi hisoblashda toifa bo'yicha BIR SOAT dars narxi (so'm).
     /// Oylik maosh = haftalik darslar soni × 4 × shu narx. Admin "Dars jadvali → Oylik hisoblash"da kiritadi.</summary>
     public decimal SalaryRateOliy { get; set; }

@@ -4,7 +4,7 @@ import {
   ArrowLeft, GraduationCap, CalendarCheck, ShieldAlert, ClipboardCheck,
   User, Phone, Wallet, BookOpen, MapPin, Cake, CalendarPlus, Percent, IdCard,
   School, Clock, CalendarDays, ChevronRight, History, ListChecks, ChevronDown, Check,
-  CalendarClock, Award, Download, LifeBuoy,
+  CalendarClock, Award, Download, LifeBuoy, Sparkles,
 } from 'lucide-react'
 import { genderLabels } from '@/config/constants'
 import {
@@ -31,6 +31,7 @@ import { Badge, type BadgeTone } from '@/components/ui/Badge'
 import { StatCard } from '@/components/ui/StatCard'
 import { Loader } from '@/components/ui/Loader'
 import { PaymentHistoryModal } from './PaymentHistoryModal'
+import { AiAnalysisModal } from './AiAnalysisModal'
 
 const uzMonths = [
   'Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'Iyun',
@@ -72,6 +73,7 @@ export function StudentDetailPage() {
   /** groupId → courseId (Group.courseId) — o'quv dasturini olish uchun kurs id'sini topish. */
   const [groupCourse, setGroupCourse] = useState<Record<string, string>>({})
   const [showHistory, setShowHistory] = useState(false)
+  const [showAi, setShowAi] = useState(false)
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
   /** Oylik baholash jadvalida tanlangan oy ("YYYY-MM"). */
@@ -310,13 +312,22 @@ export function StudentDetailPage() {
             {formatMoney(data.balance)}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => setShowHistory(true)}
-          className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:border-brand-300 hover:text-brand-700"
-        >
-          <History className="h-4 w-4" /> To'lov tarixi
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowAi(true)}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-brand-600 to-violet-500 px-4 py-2 text-sm font-semibold text-white shadow-[0_2px_8px_oklch(0.5_0.18_282_/_0.3)] transition-all hover:opacity-90 active:translate-y-px"
+          >
+            <Sparkles className="h-4 w-4" /> AI Tahlil
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowHistory(true)}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:border-brand-300 hover:text-brand-700"
+          >
+            <History className="h-4 w-4" /> To'lov tarixi
+          </button>
+        </div>
       </Card>
 
       {/* Shaxsiy ma'lumotlar */}
@@ -1014,6 +1025,13 @@ export function StudentDetailPage() {
       <PaymentHistoryModal
         studentId={showHistory ? (data?.id ?? null) : null}
         onClose={() => setShowHistory(false)}
+      />
+
+      <AiAnalysisModal
+        open={showAi}
+        onClose={() => setShowAi(false)}
+        studentId={data.id}
+        studentName={data.fullName}
       />
     </div>
   )

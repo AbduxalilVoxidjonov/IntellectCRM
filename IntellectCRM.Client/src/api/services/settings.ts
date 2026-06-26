@@ -213,6 +213,26 @@ export async function saveAzureSpeechSettings(input: { key?: string; region: str
   return data
 }
 
+/* ---------- AI Tahlil (Google Gemini) ---------- */
+
+export interface GeminiConfig {
+  /** Ishlatiladigan model (env GEMINI_MODEL, default gemini-3.1-flash-lite). */
+  model: string
+  configured: boolean
+}
+export async function getGeminiSettings(): Promise<GeminiConfig> {
+  if (USE_MOCK) {
+    await delay()
+    return { model: 'gemini-3.1-flash-lite', configured: false }
+  }
+  const { data } = await api.get<GeminiConfig>('/admin/settings/gemini')
+  return data
+}
+export async function saveGeminiSettings(input: { key?: string }): Promise<GeminiConfig> {
+  const { data } = await api.put<GeminiConfig>('/admin/settings/gemini', input)
+  return data
+}
+
 /* ---------- Turniket / FaceID integratsiyasi ---------- */
 
 export interface TeacherDeviceMap {

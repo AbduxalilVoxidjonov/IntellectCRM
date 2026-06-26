@@ -150,6 +150,7 @@ export const navByRole: Record<Role, NavItem[]> = {
         { label: 'Telegram bot', to: '/admin/settings/telegram' },
         { label: 'Push (Firebase)', to: '/admin/settings/firebase' },
         { label: 'Speaking (Azure)', to: '/admin/settings/azure-speech' },
+        { label: 'AI Tahlil (Gemini)', to: '/admin/settings/gemini' },
         { label: 'Turniket integratsiya', to: '/admin/settings/turnstile' },
         { label: 'Kamera integratsiya', to: '/admin/settings/cameras' },
         { label: "To'lov eslatmasi", to: '/admin/settings/payment-reminders' },
