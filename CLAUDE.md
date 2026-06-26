@@ -114,6 +114,26 @@ docker compose up -d --build    # app + postgres + cloudflared + backup + mediam
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-26: **YANGI BO'LIM — MARKETING (ijtimoiy tarmoq avtojavob, "Javobot" UI ko'chirildi; FAQAT UI/mock).**
+  Foydalanuvchi `Documents/calude.auto` (Javobot — AI avtojavob platformasi: CDN React+Babel prototip) UI'ini CRM'ga
+  ko'chirishni so'radi — "Marketing" bo'limi, **boshqaruvdan (Bosh sahifa) OLDIN**, ijtimoiy tarmoq (Instagram/
+  Telegram/WhatsApp/Messenger) avtojavoblarini boshqarish uchun. Hozircha **API yo'q — faqat UI, mock ma'lumot**.
+  **Yondashuv (teacher/student portal kabi):** Javobot `styles.css` dizayn tizimi `.marketing-app` ostiga SCOPE
+  qilindi (`src/styles/marketing.css`, main.tsx'da import; shell/sidebar/topbar tashlandi — CRM'niki ishlatiladi;
+  171 qoida bundle'da). Prototip 6 sahifasi CDN-React JSX → TSX ga ko'chirildi: `src/pages/admin/marketing/`
+  — `mk.tsx` (Icon+ChannelIcon brand glyphlari+tiplar+mock data CHANNELS/RULES/CONVS/WEEK + `MarketingPage`
+  o'rovchi), `MarketingDashboard` (hero+4 stat+bar chart+kanal taqsimoti+faollik+top qoidalar), `MarketingInbox`
+  (2-panel suhbat+chat+AI taklif, full-height), `MarketingRules` (qoida kartalar+kalit so'z→javob flow+RuleModal),
+  `MarketingChannels` (ulangan/qo'shiladigan kanal kartalar), `MarketingAi` (ohang/til/xulq sozlamalari),
+  `MarketingAnalytics` (KPI+SVG area chart+qoida progress). `go(page)` → react-router `useNavigate`. **Integratsiya:**
+  navigation.ts admin massiviga "Marketing" (Megaphone ikon) BIRINCHI band — 6 sub-sahifa; App.tsx 6 route
+  (`/admin/marketing[/inbox|rules|channels|ai|analytics]`). Dizayn binafsha (--primary #6d5ef8) CRM brendiga mos,
+  shrift CRM'niki (Montserrat) — integratsiyalashgan. tsc+vite yashil. **JONLI BROWSER SINOV** (vite dev, mock
+  rejim, admin@maktab.uz login): Dashboard/Inbox/Rules/Analytics — hammasi CRM shell ichida to'g'ri render bo'ldi
+  (sidebar'da Marketing birinchi, sub-menyu; hero/stat/chart/inbox 2-panel/qoida flow/SVG chart), 0 konsol xato.
+  **QOLDI (foydalanuvchi rejasi):** backend/API — kanal ulanishi, real suhbatlar, qoida CRUD, AI integratsiya
+  (hozircha mock). Manba prototip `Documents/calude.auto` (repo'ga kiritilmadi).
+
 - 2026-06-26: **AI Tahlil v2 (kuniga 1 marta + saqlash + delta + diagrammalar) + backup DAQIQA + backup DB-driven.**
   **(1) AI Tahlil qayta qurildi:** ilgari har bosishda matn qaytarardi. Endi: **kuniga BIR MARTA** (per o'quvchi,
   `StudentAiAnalysis` entity, unique-ish (StudentId,Date) — bugun yozuvi bo'lsa Gemini chaqirilmaydi, mavjudi

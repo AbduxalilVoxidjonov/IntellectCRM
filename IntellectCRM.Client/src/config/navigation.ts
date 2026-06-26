@@ -16,6 +16,7 @@ import {
   BookOpen,
   Archive,
   DoorOpen,
+  Megaphone,
 } from 'lucide-react'
 import type { Role } from '@/types'
 
@@ -46,6 +47,19 @@ export interface NavItem {
 /** Har bir rol uchun yon menyu (sidebar) elementlari */
 export const navByRole: Record<Role, NavItem[]> = {
   admin: [
+    {
+      label: 'Marketing',
+      to: '/admin/marketing',
+      icon: Megaphone,
+      children: [
+        { label: 'Boshqaruv paneli', to: '/admin/marketing', end: true },
+        { label: 'Inbox', to: '/admin/marketing/inbox' },
+        { label: 'Javob qoidalari', to: '/admin/marketing/rules' },
+        { label: 'Kanallar', to: '/admin/marketing/channels' },
+        { label: 'AI yordamchi', to: '/admin/marketing/ai' },
+        { label: 'Analitika', to: '/admin/marketing/analytics' },
+      ],
+    },
     { label: 'Bosh sahifa', to: '/admin', icon: LayoutDashboard },
     {
       label: 'Lidlar',
