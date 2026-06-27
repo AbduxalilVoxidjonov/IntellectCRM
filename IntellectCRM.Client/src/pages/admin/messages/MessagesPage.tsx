@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { MessageSquare, Megaphone, Users, Briefcase, Bell } from 'lucide-react'
+import { MessageSquare, Megaphone, Users, Briefcase, Bell, Smartphone } from 'lucide-react'
 import type { MessageClass } from '@/types'
 import { getMessageClasses, getChat, sendChat } from '@/api/services/messages'
 import { STAFF_CHANNEL, STAFF_CHANNEL_LABEL } from '@/config/constants'
@@ -11,8 +11,9 @@ import { cn } from '@/lib/utils'
 import { ChatPanel } from '@/components/chat/ChatPanel'
 import { BroadcastPanel } from './BroadcastPanel'
 import { PushComposer } from './PushComposer'
+import { SmsComposer } from './SmsComposer'
 
-type Tab = 'chat' | 'broadcast' | 'push'
+type Tab = 'chat' | 'broadcast' | 'push' | 'sms'
 
 export function MessagesPage() {
   const { unreadChannels } = useUnread()
@@ -50,6 +51,9 @@ export function MessagesPage() {
             <TabButton active={tab === 'push'} onClick={() => setTab('push')} icon={Bell}>
               Push yuborish
             </TabButton>
+            <TabButton active={tab === 'sms'} onClick={() => setTab('sms')} icon={Smartphone}>
+              SMS yuborish
+            </TabButton>
           </div>
         }
       />
@@ -60,6 +64,8 @@ export function MessagesPage() {
         <BroadcastPanel classes={classes} />
       ) : tab === 'push' ? (
         <PushComposer classes={classes} />
+      ) : tab === 'sms' ? (
+        <SmsComposer classes={classes} />
       ) : (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-[280px_1fr]">
           <Card tight>

@@ -186,6 +186,8 @@ builder.Services.AddSingleton<TelegramService>();
 builder.Services.AddHostedService<TelegramBotService>();
 // FCM (Firebase push) — service account CenterMeta'da; token keshi uchun singleton.
 builder.Services.AddSingleton<FcmService>();
+// Eskiz.uz SMS — login/parol CenterMeta'da; token keshi uchun singleton.
+builder.Services.AddSingleton<EskizService>();
 
 // O'zgarishlar tarixi (audit) — joriy foydalanuvchini aniqlash uchun HttpContext kerak
 builder.Services.AddHttpContextAccessor();

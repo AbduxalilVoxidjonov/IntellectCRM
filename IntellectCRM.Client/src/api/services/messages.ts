@@ -133,6 +133,62 @@ export async function sendPush(req: SendPushReq): Promise<PushMessage> {
   return data
 }
 
+/* ---------- SMS (Eskiz.uz) ---------- */
+
+export interface SmsBatch {
+  id: string
+  audience: string
+  message: string
+  senderName: string
+  createdAt: string
+  recipientCount: number
+  sentCount: number
+}
+export interface SmsLog {
+  id: string
+  phoneNumber: string
+  recipientName: string
+  status: string
+  createdAt: string
+}
+export interface SendSmsReq {
+  /** Kimga: ota-onalar / o'quvchilar / o'qituvchilar / tanlangan (studentIds) */
+  audience: 'parents' | 'students' | 'teachers' | 'selected'
+  /** parents/students uchun guruh (bo'sh = barcha) */
+  className?: string
+  onlyDebtors: boolean
+  /** selected uchun tanlangan o'quvchi id'lari (ota-ona raqamiga ketadi) */
+  studentIds?: string[]
+  text: string
+}
+
+/** SMS (Eskiz) sozlanganmi + sender */
+export async function getSmsStatus(): Promise<{ configured: boolean; from: string }> {
+  if (USE_MOCK) return { configured: false, from: '4546' }
+  const { data } = await api.get<{ configured: boolean; from: string }>('/admin/messages/sms/status')
+  return data
+}
+
+/** Yuborilgan SMS partiyalari (tarix) */
+export async function getSmsBatches(): Promise<SmsBatch[]> {
+  if (USE_MOCK) return []
+  const { data } = await api.get<SmsBatch[]>('/admin/messages/sms')
+  return data
+}
+
+/** Bitta SMS partiyasi bo'yicha raqamlar va holat */
+export async function getSmsLogs(id: string): Promise<SmsLog[]> {
+  if (USE_MOCK) return []
+  const { data } = await api.get<SmsLog[]>(`/admin/messages/sms/${id}/logs`)
+  return data
+}
+
+/** SMS yuborish (Eskiz orqali, har o'quvchiga moslab) */
+export async function sendSms(req: SendSmsReq): Promise<SmsBatch> {
+  const { data } = await api.post<SmsBatch>('/admin/messages/sms/send', req)
+  return data
+}
+
 /**
  * Har bir kanal uchun oxirgi xabar vaqti — o'qilmagan xabarlarni aniqlash uchun.
  * Qaytadi: { [channelName]: ISO vaqt yoki null (xabari yo'q kanal) }

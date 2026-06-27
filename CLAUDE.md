@@ -114,6 +114,32 @@ docker compose up -d --build    # app + postgres + cloudflared + backup + mediam
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-27: **YANGI — SMS yuborish (Eskiz.uz) + Xabarlar bo'limiga "SMS yuborish" tab + yuborilgan SMS jurnali.**
+  Foydalanuvchi: Xabarlar (Guruh chati · E'lon · Push) yoniga **SMS yuborish** qo'shilsin + yuborilgan SMS'larni
+  ko'rib turish. **Backend:** `EskizService` (typed `IHttpClientFactory`, login/parol/sender CenterMeta'dan o'qiydi
+  — FcmService kabi; Bearer token CenterMeta'da keshlanadi ~30 kun, eskirsa qayta login, 401'da yangilab bir marta
+  retry; `SendSmsAsync`/`GetBalanceAsync`/`NormalizePhone` 998-format). Entitilar: `SmsBatch` (yuborish partiyasi —
+  audience/matn/kim/qachon/recipient+sent count), `SmsLog` (raqam bo'yicha: phone/name/requestId/status, callback
+  yangilaydi). CenterMeta: EskizEmail/Password/From/Token/TokenExpiresAt. Migratsiya `AddEskizSms` (2 jadval + 5
+  ustun). **Endpointlar (MessagesController):** `GET sms/status`, `GET sms` (tarix), `GET sms/{id}/logs`, `POST
+  sms/send` (audience: parents=ota-ona raqami | students=o'quvchi raqami | teachers=o'qituvchi raqami | selected;
+  className/onlyDebtors filtr; bir xil raqam bir marta — dedupe; matn {fish}{sinf}{qarzdorlik}{balans}{telefon}
+  o'rinbosar; callback_url avtomatik). Public **`POST /api/sms/callback`** ([AllowAnonymous]) — Eskiz yetkazib
+  berish holatini request_id bo'yicha SmsLog'ga yozadi (JSON yoki form-data). `SettingsController` `GET/PUT
+  /admin/settings/eskiz` (email/parol/sender — parol qaytmaydi, balans best-effort). DI: `EskizService` singleton +
+  appsettings `Eskiz:BaseUrl`. **Frontend:** `messages.ts` sms funksiyalari+tiplar; `SmsComposer.tsx` (audience tab +
+  guruh + qarzdorlar + andoza/o'rinbosar + belgi/SMS bo'lak hisoblagich + tarix kartalari → "Raqamlar va holat"
+  expand: Yetkazildi/Kutilmoqda/Yetkazilmadi badge); MessagesPage'ga **SMS yuborish** tab (Smartphone ikon);
+  `settings.ts` eskiz funksiyalari; `EskizSettings.tsx` (login/parol/sender + Sozlangan/Balans badge) + nav
+  "SMS (Eskiz)" + SettingsPage seksiya. **JONLI E2E** (throwaway PG): migratsiya 2 jadval+5 ustun; sms/status
+  false→true (creds saqlangach); settings PUT/GET (parol qaytmaydi); o'qituvchi (telefon) yaratib SMS yuborildi →
+  partiya saqlandi (recipient 1/sent 0 — soxta creds → eskiz login 401), tarix+logs ko'rsatdi (raqam 998901234567
+  ga normallashtirildi, status=login xato); callback anonim 200. Backend 0, tsc+vite yashil. **DEPLOYDA:**
+  `docker compose up -d --build app` (migratsiya avto; postgres-data saqlanadi). Ishlashi uchun: Sozlamalar →
+  SMS (Eskiz)da eskiz.uz login/parol + tasdiqlangan sender (nikname) kiritilsin (tasdiqlanmasa faqat test matni
+  ketadi; test sender "4546"). Callback ishlashi uchun domen internetdan ochiq bo'lsin (prod). **QOLDI/DEFER:**
+  OTP (telefon tasdiqlash/parol tiklash) + React PhoneInput/OtpVerification — hozir CRM'da telefon-OTP login
+  oqimi yo'q (qo'shilsa speculativ dead-code bo'lardi); kerak bo'lsa keyin ulaymiz.
 - 2026-06-27: **Bosh sahifa "Dars jadvali"ga o'qituvchi tanlash (filter).** `WeeklySchedule` karta sarlavhasiga
   o'qituvchi `<select>` qo'shildi ("Barcha o'qituvchilar" default; jadvali bor o'qituvchilar ro'yxati nom bo'yicha).
   Tanlansa FAQAT shu o'qituvchining guruhlari haftalik gridda + legendada ko'rsatiladi. Ranglar BARQAROR (barcha

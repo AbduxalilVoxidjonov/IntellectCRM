@@ -852,6 +852,18 @@ public class CenterMeta
     public bool AiDailyAnalysisEnabled { get; set; } = true;
     /// <summary>Kunlik AI tahlil soati (0-23, Toshkent). Default 8 (ertalab).</summary>
     public int AiDailyAnalysisHour { get; set; } = 8;
+
+    // ---------- Eskiz.uz SMS shlyuzi ----------
+    /// <summary>Eskiz kabinet email (login). Admin "Sozlamalar → SMS (Eskiz)"da kiritadi.</summary>
+    public string EskizEmail { get; set; } = string.Empty;
+    /// <summary>Eskiz kabinet paroli.</summary>
+    public string EskizPassword { get; set; } = string.Empty;
+    /// <summary>SMS jo'natuvchi nomi (sender) — tasdiqlangan nikname yoki test uchun "4546".</summary>
+    public string EskizFrom { get; set; } = "4546";
+    /// <summary>Eskiz Bearer tokeni (keshlangan; muddati ~30 kun). SMS yuborishda qayta login qilmaslik uchun.</summary>
+    public string EskizToken { get; set; } = string.Empty;
+    /// <summary>Eskiz token muddati (UTC) — shu vaqtdan oldin yangilanadi.</summary>
+    public DateTime? EskizTokenExpiresAt { get; set; }
 }
 
 /// <summary>
@@ -1547,6 +1559,47 @@ public class CenterAiAnalysis
     public int Health { get; set; }
     /// <summary>To'liq strukturali natija (JSON): { ai, revenue, metrics }.</summary>
     public string ResultJson { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// SMS yuborish partiyasi (Xabarlar → SMS yuborish) — bitta yuborish (bir nechta raqamga).
+/// Push/E'lon tarixiga o'xshash: kim/qachon/qancha. Har bir raqam yozuvi <see cref="SmsLog"/>da.
+/// </summary>
+public class SmsBatch
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    /// <summary>Qabul qiluvchi guruh yorlig'i (masalan "Ota-onalar — 9-A", "O'qituvchilar").</summary>
+    public string Audience { get; set; } = string.Empty;
+    /// <summary>Yuborilgan matn (andoza — o'rinbosarlar bilan).</summary>
+    public string Message { get; set; } = string.Empty;
+    public string SenderUserId { get; set; } = string.Empty;
+    public string SenderName { get; set; } = string.Empty;
+    public DateTime CreatedAt { get; set; } = AppClock.Now;
+    /// <summary>Jami oluvchilar (raqamlar) soni.</summary>
+    public int RecipientCount { get; set; }
+    /// <summary>Eskiz qabul qilgan (yuborishga ketgan) soni.</summary>
+    public int SentCount { get; set; }
+}
+
+/// <summary>
+/// Yuborilgan bitta SMS jurnali (raqam bo'yicha). Eskiz qaytargan <c>RequestId</c> orqali yetkazib
+/// berish holati (callback webhook) yangilanadi.
+/// </summary>
+public class SmsLog
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    /// <summary>Qaysi partiyaga tegishli (ixtiyoriy — OTP/avto-SMS uchun null).</summary>
+    public string? BatchId { get; set; }
+    public string PhoneNumber { get; set; } = string.Empty;
+    /// <summary>Oluvchi nomi (ko'rsatish uchun — o'quvchi/ota-ona/o'qituvchi).</summary>
+    public string RecipientName { get; set; } = string.Empty;
+    public string Message { get; set; } = string.Empty;
+    /// <summary>Eskiz qaytargan so'rov identifikatori (UUID) — callback shu bo'yicha topadi.</summary>
+    public string RequestId { get; set; } = string.Empty;
+    /// <summary>Holat: waiting | NEW | ACCEPTED | DELIVRD | UNDELIV | REJECTD | EXPIRED | error | ...</summary>
+    public string Status { get; set; } = string.Empty;
+    public DateTime CreatedAt { get; set; } = AppClock.Now;
+    public DateTime UpdatedAt { get; set; } = AppClock.Now;
 }
 
 /// <summary>

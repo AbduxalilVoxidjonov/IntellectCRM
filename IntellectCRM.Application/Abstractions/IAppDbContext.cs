@@ -100,6 +100,10 @@ public interface IAppDbContext
     // O'quv xonalari
     DbSet<Room> Rooms { get; }
 
+    // Eskiz.uz SMS — yuborish partiyalari va raqam bo'yicha jurnal
+    DbSet<SmsBatch> SmsBatches { get; }
+    DbSet<SmsLog> SmsLogs { get; }
+
     int SaveChanges();
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

@@ -233,6 +233,31 @@ export async function saveGeminiSettings(input: { key?: string }): Promise<Gemin
   return data
 }
 
+/* ---------- SMS (Eskiz.uz) ---------- */
+export interface EskizConfig {
+  email: string
+  from: string
+  configured: boolean
+  /** Hisobdagi qoldiq (so'm) — sozlangan bo'lsa, aks holda null. */
+  balance: number | null
+}
+export async function getEskizSettings(): Promise<EskizConfig> {
+  if (USE_MOCK) {
+    await delay()
+    return { email: '', from: '4546', configured: false, balance: null }
+  }
+  const { data } = await api.get<EskizConfig>('/admin/settings/eskiz')
+  return data
+}
+export async function saveEskizSettings(input: {
+  email?: string
+  password?: string
+  from?: string
+}): Promise<EskizConfig> {
+  const { data } = await api.put<EskizConfig>('/admin/settings/eskiz', input)
+  return data
+}
+
 /* ---------- Turniket / FaceID integratsiyasi ---------- */
 
 export interface TeacherDeviceMap {

@@ -822,6 +822,29 @@ public record PushMessageDto(
 /// <summary>Bitta e'lon (broadcast) bo'yicha oluvchining tasdiqlash holati — admin ko'rishi uchun.</summary>
 public record PushConfirmationDto(string Name, string Group, bool Confirmed, string? ConfirmedAt);
 
+/* ---------- SMS (Eskiz.uz) ---------- */
+/// <summary>
+/// SMS yuborish so'rovi. Audience: "parents" (o'quvchi ota-onasi raqami) | "students" (o'quvchi raqami) |
+/// "teachers" (o'qituvchi raqami) | "selected" (StudentIds — ota-ona raqami). ClassName ixtiyoriy (parents/
+/// students uchun guruh filtri). OnlyDebtors — faqat qarzdorlar. Text ichida o'rinbosarlar bo'lishi mumkin
+/// ({fish} {sinf} {qarzdorlik} {balans} {telefon}).
+/// </summary>
+public record SendSmsRequest(string Audience, string? ClassName, bool OnlyDebtors, List<string>? StudentIds, string Text);
+/// <summary>Yuborilgan SMS partiyasi (tarix). CreatedAt — ISO.</summary>
+public record SmsBatchDto(
+    string Id, string Audience, string Message, string SenderName, string CreatedAt,
+    int RecipientCount, int SentCount);
+/// <summary>Bitta SMS jurnali (raqam bo'yicha) — partiya tafsilotida ko'rsatiladi.</summary>
+public record SmsLogDto(string Id, string PhoneNumber, string RecipientName, string Status, string CreatedAt);
+/// <summary>SMS (Eskiz) holati — admin UI uchun: sozlangan, sender, balans (bo'lsa).</summary>
+public record SmsStatusDto(bool Configured, string From, decimal? Balance);
+/// <summary>Eskiz callback (yetkazib berish holati webhook'i) tanasi.</summary>
+public record EskizCallbackDto(string? request_id, string? message_id, string? phone_number, string? status, string? status_date);
+/// <summary>SMS (Eskiz) sozlamasi holati — parol qaytarilmaydi.</summary>
+public record EskizSettingsDto(string Email, string From, bool Configured, decimal? Balance);
+/// <summary>SMS (Eskiz) login/parol/sender saqlash so'rovi (bo'sh qoldirilsa eski saqlanadi).</summary>
+public record SaveEskizRequest(string? Email, string? Password, string? From);
+
 /* ---------- Assignments (qo'shimcha topshiriqlar) ---------- */
 
 /// <summary>Topshiriqqa biriktirilgan material (yuklangan fayl yoki havola).</summary>

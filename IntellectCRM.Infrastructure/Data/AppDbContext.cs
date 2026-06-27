@@ -102,6 +102,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     // O'quv xonalari
     public DbSet<Room> Rooms => Set<Room>();
 
+    // Eskiz.uz SMS
+    public DbSet<SmsBatch> SmsBatches => Set<SmsBatch>();
+    public DbSet<SmsLog> SmsLogs => Set<SmsLog>();
+
     protected override void OnModelCreating(ModelBuilder b)
     {
         // SQL Server: indeksda qatnashadigan string ustunlar default `nvarchar(max)` bo'lib
@@ -179,6 +183,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         b.Entity<AuditLog>().HasIndex(a => new { a.EntityType, a.EntityId });
         b.Entity<StudentAiAnalysis>().HasIndex(a => new { a.StudentId, a.Date });
         b.Entity<CenterAiAnalysis>().HasIndex(a => a.Date);
+        b.Entity<SmsLog>().HasIndex(s => s.RequestId);
+        b.Entity<SmsLog>().HasIndex(s => s.BatchId);
         b.Entity<AuditLog>().HasIndex(a => a.Timestamp);
         b.Entity<AuditLog>().HasIndex(a => a.StudentId);
         b.Entity<AuditLog>().HasIndex(a => a.TeacherId);

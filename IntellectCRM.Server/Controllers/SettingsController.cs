@@ -12,7 +12,7 @@ namespace IntellectCRM.Server.Controllers;
 [Authorize]
 [AdminPerm("settings")]
 [Route("api/admin/settings")]
-public class SettingsController(AppDbContext db, TelegramService telegram, IWebHostEnvironment env, IConfiguration config) : ControllerBase
+public class SettingsController(AppDbContext db, TelegramService telegram, IWebHostEnvironment env, IConfiguration config, EskizService eskiz) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<SchoolSettingsDto>> Get()
@@ -228,6 +228,34 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
         if (!string.IsNullOrWhiteSpace(req.Key)) m.GeminiApiKey = req.Key.Trim();
         await db.SaveChangesAsync();
         return new GeminiSettingsDto(GeminiService.ResolveModel(config), GeminiService.IsConfigured(m.GeminiApiKey));
+    }
+
+    // ---------- SMS (Eskiz.uz) ----------
+
+    [HttpGet("eskiz")]
+    public async Task<ActionResult<EskizSettingsDto>> GetEskiz()
+    {
+        var m = await db.CenterMeta.FirstOrDefaultAsync();
+        // Balans — sozlangan bo'lsa best-effort (tarmoq xatosi UI'ni buzmaydi).
+        decimal? balance = EskizService.IsConfigured(m) ? await eskiz.GetBalanceAsync(db) : null;
+        return new EskizSettingsDto(m?.EskizEmail ?? "", EskizService.SenderOf(m), EskizService.IsConfigured(m), balance);
+    }
+
+    [HttpPut("eskiz")]
+    public async Task<ActionResult<EskizSettingsDto>> SaveEskiz(SaveEskizRequest req)
+    {
+        var m = await db.CenterMeta.FirstOrDefaultAsync();
+        if (m is null) { m = new CenterMeta(); db.CenterMeta.Add(m); }
+        var changed = false;
+        if (req.Email is not null && req.Email.Trim() != m.EskizEmail) { m.EskizEmail = req.Email.Trim(); changed = true; }
+        // Parol faqat yangi qiymat berilsa yangilanadi (bo'sh qoldirilsa eski saqlanadi — GET parolni qaytarmaydi).
+        if (!string.IsNullOrWhiteSpace(req.Password)) { m.EskizPassword = req.Password.Trim(); changed = true; }
+        if (req.From is not null) m.EskizFrom = string.IsNullOrWhiteSpace(req.From) ? "4546" : req.From.Trim();
+        // Login/parol o'zgarsa keshlangan tokenni bekor qilamiz (yangisi bilan qayta login bo'ladi).
+        if (changed) { m.EskizToken = ""; m.EskizTokenExpiresAt = null; }
+        await db.SaveChangesAsync();
+        decimal? balance = EskizService.IsConfigured(m) ? await eskiz.GetBalanceAsync(db) : null;
+        return new EskizSettingsDto(m.EskizEmail, EskizService.SenderOf(m), EskizService.IsConfigured(m), balance);
     }
 
     // ---------- Ilova (APK) — Telegram bot ro'yxatdan o'tganga yuboradi ----------

@@ -19,6 +19,7 @@ import { GeminiSettings } from './GeminiSettings'
 import { TurnstileSettings } from './TurnstileSettings'
 import { CameraSettings } from './CameraSettings'
 import { PaymentReminderSettings } from './PaymentReminderSettings'
+import { EskizSettings } from './EskizSettings'
 
 type Status = 'idle' | 'saving' | 'saved'
 
@@ -32,6 +33,7 @@ const sectionTitles: Record<string, string> = {
   firebase: 'Push (Firebase)',
   'azure-speech': 'Speaking (Azure)',
   gemini: 'AI Tahlil (Gemini)',
+  eskiz: 'SMS (Eskiz)',
   turnstile: 'Turniket integratsiya',
   cameras: 'Kamera integratsiya',
   'payment-reminders': "Avtomatik to'lov eslatmasi",
@@ -162,6 +164,7 @@ export function SettingsPage() {
 
           {/* Avtomatik to'lov eslatmasi */}
           {section === 'payment-reminders' && <PaymentReminderSettings />}
+          {section === 'eskiz' && <EskizSettings />}
         </div>
       )}
     </div>

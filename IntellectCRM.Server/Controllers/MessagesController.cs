@@ -17,7 +17,7 @@ namespace IntellectCRM.Server.Controllers;
 [Authorize]
 [AdminPerm("messages")]
 [Route("api/admin/messages")]
-public class MessagesController(AppDbContext db, ChatService chat, TelegramService telegram, FcmService fcm) : ControllerBase
+public class MessagesController(AppDbContext db, ChatService chat, TelegramService telegram, FcmService fcm, EskizService eskiz) : ControllerBase
 {
     private string Uid => User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "";
 
@@ -430,5 +430,141 @@ public class MessagesController(AppDbContext db, ChatService chat, TelegramServi
         await db.SaveChangesAsync();
         return new PushMessageDto(pm.Id, pm.Audience, pm.Title, pm.Body, pm.SenderName,
             pm.CreatedAt.ToString("o"), pm.RecipientCount, pm.SentCount);
+    }
+
+    // ---------- SMS (Eskiz.uz) ----------
+
+    /// <summary>SMS (Eskiz) sozlanganmi + sender — admin UI ko'rsatishi uchun (tarmoqsiz, tez).</summary>
+    [HttpGet("sms/status")]
+    public async Task<ActionResult<SmsStatusDto>> SmsStatus()
+    {
+        var m = await db.CenterMeta.FirstOrDefaultAsync();
+        return new SmsStatusDto(EskizService.IsConfigured(m), EskizService.SenderOf(m), null);
+    }
+
+    /// <summary>Yuborilgan SMS partiyalari (tarix, eng yangisi birinchi).</summary>
+    [HttpGet("sms")]
+    public async Task<ActionResult<IEnumerable<SmsBatchDto>>> SmsHistory()
+    {
+        var list = await db.SmsBatches.OrderByDescending(b => b.CreatedAt).Take(100).ToListAsync();
+        return list.Select(b => new SmsBatchDto(b.Id, b.Audience, b.Message, b.SenderName,
+            b.CreatedAt.ToString("o"), b.RecipientCount, b.SentCount)).ToList();
+    }
+
+    /// <summary>Bitta SMS partiyasi bo'yicha raqamlar va yetkazib berish holati.</summary>
+    [HttpGet("sms/{id}/logs")]
+    public async Task<ActionResult<IEnumerable<SmsLogDto>>> SmsLogs(string id)
+    {
+        var logs = await db.SmsLogs.Where(l => l.BatchId == id)
+            .OrderBy(l => l.RecipientName).ToListAsync();
+        return logs.Select(l => new SmsLogDto(l.Id, l.PhoneNumber, l.RecipientName, l.Status,
+            l.CreatedAt.ToString("o"))).ToList();
+    }
+
+    /// <summary>
+    /// SMS yuborish (Eskiz). Audience: parents (o'quvchi ota-onasi raqami) | students (o'quvchi raqami) |
+    /// teachers (o'qituvchi raqami) | selected (StudentIds — ota-ona raqami). Bir xil raqam bir marta.
+    /// Matn har o'quvchiga moslab to'ldiriladi ({fish} {sinf} {qarzdorlik} {balans} {telefon}).
+    /// </summary>
+    [HttpPost("sms/send")]
+    public async Task<ActionResult<SmsBatchDto>> SendSms(SendSmsRequest req)
+    {
+        var text = req.Text?.Trim() ?? "";
+        if (text.Length == 0) return BadRequest(new { message = "SMS matni kerak" });
+        var audience = (req.Audience ?? "parents").Trim().ToLowerInvariant();
+
+        // (telefon, nom, moslangan matn) ro'yxatini yig'amiz.
+        var targets = new List<(string Phone, string Name, string Message)>();
+        string label;
+
+        if (audience == "teachers")
+        {
+            var teachers = await db.Teachers.Where(t => !t.IsArchived).ToListAsync();
+            foreach (var t in teachers)
+            {
+                if (string.IsNullOrWhiteSpace(t.Phone)) continue;
+                targets.Add((t.Phone, t.FullName, PersonalizeTeacherPush(text, t)));
+            }
+            label = "O'qituvchilar";
+        }
+        else
+        {
+            // O'quvchilar to'plami (parents/students/selected).
+            var q = db.Students.Where(s => !s.IsArchived);
+            if (audience == "selected")
+            {
+                var ids = (req.StudentIds ?? new()).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().ToList();
+                if (ids.Count == 0) return BadRequest(new { message = "Hech kim tanlanmadi" });
+                q = q.Where(s => ids.Contains(s.Id));
+                label = $"Tanlangan ({ids.Count})";
+            }
+            else
+            {
+                var cn = req.ClassName?.Trim() ?? "";
+                if (cn.Length > 0) { q = q.Where(s => s.ClassName == cn); label = cn; }
+                else label = "Barcha guruhlar";
+            }
+            var students = await q.ToListAsync();
+            if (req.OnlyDebtors) { students = students.Where(s => s.Balance < 0).ToList(); label += " — qarzdorlar"; }
+
+            var toStudentPhone = audience == "students";
+            foreach (var s in students)
+            {
+                var phone = toStudentPhone
+                    ? s.Phone
+                    : (!string.IsNullOrWhiteSpace(s.ParentPhone) ? s.ParentPhone
+                        : !string.IsNullOrWhiteSpace(s.FatherPhone) ? s.FatherPhone : s.MotherPhone);
+                if (string.IsNullOrWhiteSpace(phone)) continue;
+                targets.Add((phone, s.FullName, PersonalizePush(ReplaceToken(text, "{telefon}", phone), s)));
+            }
+            label = audience == "students" ? $"O'quvchilar — {label}" : $"Ota-onalar — {label}";
+        }
+
+        // Bir xil raqamni bir marta (normallashtirilgan kalit bo'yicha).
+        var seen = new HashSet<string>();
+        targets = targets.Where(t => seen.Add(EskizService.NormalizePhone(t.Phone))).ToList();
+        if (targets.Count == 0) return BadRequest(new { message = "Raqamli oluvchi topilmadi" });
+
+        var meta = await db.CenterMeta.FirstOrDefaultAsync();
+        if (!EskizService.IsConfigured(meta))
+            return BadRequest(new { message = "Eskiz SMS sozlanmagan. Sozlamalar → SMS (Eskiz)da login/parol kiriting." });
+
+        var callbackUrl = $"{Request.Scheme}://{Request.Host}/api/sms/callback";
+        var batchId = Guid.NewGuid().ToString();
+        var sent = 0;
+        var logs = new List<SmsLog>();
+        foreach (var t in targets)
+        {
+            var r = await eskiz.SendSmsAsync(db, t.Phone, t.Message, callbackUrl);
+            if (r.Ok) sent++;
+            logs.Add(new SmsLog
+            {
+                BatchId = batchId,
+                PhoneNumber = EskizService.NormalizePhone(t.Phone),
+                RecipientName = t.Name,
+                Message = t.Message,
+                RequestId = r.RequestId,
+                Status = r.Ok ? r.Status : (r.Error ?? "error"),
+            });
+        }
+        db.SmsLogs.AddRange(logs);
+
+        var user = await db.Users.FindAsync(Uid);
+        var batch = new SmsBatch
+        {
+            Id = batchId,
+            Audience = label,
+            Message = text,
+            SenderUserId = Uid,
+            SenderName = user?.FullName ?? "Administrator",
+            CreatedAt = AppClock.Now,
+            RecipientCount = targets.Count,
+            SentCount = sent,
+        };
+        db.SmsBatches.Add(batch);
+        await db.SaveChangesAsync();
+
+        return new SmsBatchDto(batch.Id, batch.Audience, batch.Message, batch.SenderName,
+            batch.CreatedAt.ToString("o"), batch.RecipientCount, batch.SentCount);
     }
 }
