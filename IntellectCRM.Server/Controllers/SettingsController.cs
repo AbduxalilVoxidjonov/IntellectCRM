@@ -237,8 +237,8 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
     {
         var m = await db.CenterMeta.FirstOrDefaultAsync();
         // Balans — sozlangan bo'lsa best-effort (tarmoq xatosi UI'ni buzmaydi).
-        decimal? balance = EskizService.IsConfigured(m) ? await eskiz.GetBalanceAsync(db) : null;
-        return new EskizSettingsDto(m?.EskizEmail ?? "", EskizService.SenderOf(m), EskizService.IsConfigured(m), balance);
+        decimal? balance = eskiz.IsConfigured(m) ? await eskiz.GetBalanceAsync(db) : null;
+        return new EskizSettingsDto(eskiz.DisplayEmail(m), eskiz.SenderOf(m), eskiz.IsConfigured(m), balance);
     }
 
     [HttpPut("eskiz")]
@@ -254,8 +254,8 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
         // Login/parol o'zgarsa keshlangan tokenni bekor qilamiz (yangisi bilan qayta login bo'ladi).
         if (changed) { m.EskizToken = ""; m.EskizTokenExpiresAt = null; }
         await db.SaveChangesAsync();
-        decimal? balance = EskizService.IsConfigured(m) ? await eskiz.GetBalanceAsync(db) : null;
-        return new EskizSettingsDto(m.EskizEmail, EskizService.SenderOf(m), EskizService.IsConfigured(m), balance);
+        decimal? balance = eskiz.IsConfigured(m) ? await eskiz.GetBalanceAsync(db) : null;
+        return new EskizSettingsDto(eskiz.DisplayEmail(m), eskiz.SenderOf(m), eskiz.IsConfigured(m), balance);
     }
 
     // ---------- Ilova (APK) — Telegram bot ro'yxatdan o'tganga yuboradi ----------

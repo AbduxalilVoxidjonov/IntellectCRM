@@ -439,7 +439,7 @@ public class MessagesController(AppDbContext db, ChatService chat, TelegramServi
     public async Task<ActionResult<SmsStatusDto>> SmsStatus()
     {
         var m = await db.CenterMeta.FirstOrDefaultAsync();
-        return new SmsStatusDto(EskizService.IsConfigured(m), EskizService.SenderOf(m), null);
+        return new SmsStatusDto(eskiz.IsConfigured(m), eskiz.SenderOf(m), null);
     }
 
     /// <summary>Yuborilgan SMS partiyalari (tarix, eng yangisi birinchi).</summary>
@@ -526,7 +526,7 @@ public class MessagesController(AppDbContext db, ChatService chat, TelegramServi
         if (targets.Count == 0) return BadRequest(new { message = "Raqamli oluvchi topilmadi" });
 
         var meta = await db.CenterMeta.FirstOrDefaultAsync();
-        if (!EskizService.IsConfigured(meta))
+        if (!eskiz.IsConfigured(meta))
             return BadRequest(new { message = "Eskiz SMS sozlanmagan. Sozlamalar → SMS (Eskiz)da login/parol kiriting." });
 
         var callbackUrl = $"{Request.Scheme}://{Request.Host}/api/sms/callback";

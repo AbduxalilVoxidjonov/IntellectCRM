@@ -15,11 +15,23 @@ namespace IntellectCRM.Application.Services;
 public class EskizService(
     IConfiguration config, IHttpClientFactory httpFactory, ILogger<EskizService> logger)
 {
-    public static bool IsConfigured(CenterMeta? m) =>
-        m is not null && !string.IsNullOrWhiteSpace(m.EskizEmail) && !string.IsNullOrWhiteSpace(m.EskizPassword);
+    // Login/parol/sender — avval CenterMeta (admin Sozlamalar), bo'sh bo'lsa .env / appsettings
+    // (Eskiz__Email / Eskiz__Password / Eskiz__From) zaxira sifatida ishlatiladi.
+    private string EmailOf(CenterMeta? m) =>
+        !string.IsNullOrWhiteSpace(m?.EskizEmail) ? m!.EskizEmail.Trim() : (config["Eskiz:Email"] ?? "").Trim();
+    private string PasswordOf(CenterMeta? m) =>
+        !string.IsNullOrWhiteSpace(m?.EskizPassword) ? m!.EskizPassword.Trim() : (config["Eskiz:Password"] ?? "").Trim();
 
-    public static string SenderOf(CenterMeta? m) =>
-        string.IsNullOrWhiteSpace(m?.EskizFrom) ? "4546" : m!.EskizFrom.Trim();
+    public bool IsConfigured(CenterMeta? m) =>
+        !string.IsNullOrWhiteSpace(EmailOf(m)) && !string.IsNullOrWhiteSpace(PasswordOf(m));
+
+    public string SenderOf(CenterMeta? m) =>
+        !string.IsNullOrWhiteSpace(m?.EskizFrom) ? m!.EskizFrom.Trim()
+        : !string.IsNullOrWhiteSpace(config["Eskiz:From"]) ? config["Eskiz:From"]!.Trim()
+        : "4546";
+
+    /// <summary>Ko'rsatish uchun amaldagi email (DB yoki .env).</summary>
+    public string DisplayEmail(CenterMeta? m) => EmailOf(m);
 
     private string BaseUrl => (config["Eskiz:BaseUrl"] ?? "https://notify.eskiz.uz").TrimEnd('/');
     private HttpClient Client() => httpFactory.CreateClient("eskiz");
@@ -41,16 +53,19 @@ public class EskizService(
         var meta = await db.CenterMeta.FirstOrDefaultAsync(ct);
         if (!IsConfigured(meta)) return (null, "Eskiz login/parol sozlanmagan.");
 
-        if (!forceRefresh && !string.IsNullOrWhiteSpace(meta!.EskizToken)
+        if (!forceRefresh && meta is not null && !string.IsNullOrWhiteSpace(meta.EskizToken)
             && meta.EskizTokenExpiresAt is { } exp && exp > DateTime.UtcNow.AddDays(1))
             return (meta.EskizToken, null);
+
+        // .env orqali sozlangan, lekin CenterMeta qatori bo'lmasa — tokenni keshlash uchun yaratamiz.
+        if (meta is null) { meta = new CenterMeta(); db.CenterMeta.Add(meta); }
 
         try
         {
             using var form = new MultipartFormDataContent
             {
-                { new StringContent(meta!.EskizEmail.Trim()), "email" },
-                { new StringContent(meta.EskizPassword.Trim()), "password" },
+                { new StringContent(EmailOf(meta)), "email" },
+                { new StringContent(PasswordOf(meta)), "password" },
             };
             var resp = await Client().PostAsync($"{BaseUrl}/api/auth/login", form, ct);
             var body = await resp.Content.ReadAsStringAsync(ct);

@@ -114,6 +114,22 @@ docker compose up -d --build    # app + postgres + cloudflared + backup + mediam
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-27: **Telegram yangi-lid xabarnomasiga DARAJA TESTI natijasi (batafsil) + SMS'ni .env orqali sozlash.**
+  **(1) Lid xabarnomasi batafsil:** `LeadNotifier.NotifyNewLeadAsync`ga ixtiyoriy `LevelTestSubmission? submission` +
+  `testTitle` qo'shildi; daraja testi orqali kelgan lid uchun Telegram xabari endi to'liq natijani ko'rsatadi:
+  "📊 Daraja testi natijasi · 📝 Test · ✅ Ball: X/Y (P%) · 🟢/🟡/🔴 Baho: A'lo/Yaxshi/O'rta/Past · 🎯 Daraja ·
+  🎂 Yoshi · 🗒 So'rovnoma javoblari". Testsiz oddiy lidlar uchun lid `Note` ko'rsatiladi. `LevelTestService.SubmitAsync`
+  endi submission obyektini saqlab notifier'ga uzatadi (test.Title bilan). SurveyJson parse case-insensitive (defensiv).
+  **(2) SMS .env:** EskizService endi login/parol/sender'ni avval CenterMeta (Sozlamalar)dan, bo'sh bo'lsa
+  `.env`/appsettings (`Eskiz__Email`/`Eskiz__Password`/`Eskiz__From`)dan oladi (DB ustun turadi). `IsConfigured`/
+  `SenderOf` instance metodga aylandi (config fallback); GetTokenAsync .env-only holatda CenterMeta qatorini token
+  keshlash uchun avtomatik yaratadi. docker-compose `app` env'iga `Eskiz__Email/Password/From` + `.env.example`ga
+  ESKIZ_* qo'shildi (izoh bilan). Sxema o'zgarmadi — migratsiya YO'Q. **JONLI E2E** (throwaway PG): daraja testi
+  yaratildi → ommaviy submit (1/2 50% → Intermediate, yosh 12, so'rovnoma Speaking+Grammar) → lid Note to'g'ri,
+  submission saqlandi, notifier (soxta telegram token) BuildText'ni ishlatdi (crash yo'q); SurveyJson formati
+  PascalCase, parse mos; SMS endpointlar regalmadi. Backend 0, compose valid. **DEPLOYDA:** `docker compose up -d
+  --build app` (migratsiya yo'q). SMS'ni .env'dan sozlash uchun `.env`ga ESKIZ_EMAIL/ESKIZ_PASSWORD/ESKIZ_FROM
+  yozib `docker compose up -d app` (yoki CRM Sozlamalar → SMS (Eskiz) — bu DB'da, ustun turadi).
 - 2026-06-27: **YANGI — SMS yuborish (Eskiz.uz) + Xabarlar bo'limiga "SMS yuborish" tab + yuborilgan SMS jurnali.**
   Foydalanuvchi: Xabarlar (Guruh chati · E'lon · Push) yoniga **SMS yuborish** qo'shilsin + yuborilgan SMS'larni
   ko'rib turish. **Backend:** `EskizService` (typed `IHttpClientFactory`, login/parol/sender CenterMeta'dan o'qiydi

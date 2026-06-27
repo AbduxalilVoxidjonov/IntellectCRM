@@ -143,17 +143,18 @@ public static class LevelTestService
             LeadId = lead.Id, Type = "created", ActorName = "Daraja testi", CreatedAt = now,
             Text = $"Daraja testi orqali keldi: {score}/{total} ({percent}%){levelText}",
         });
-        db.LevelTestSubmissions.Add(new LevelTestSubmission
+        var submission = new LevelTestSubmission
         {
             TestId = test.Id, FullName = lead.FullName, Phone = lead.Phone, Age = req.Age,
             Score = score, Total = total, Percent = percent, Level = level, CreatedAt = now, LeadId = lead.Id,
             SurveyJson = surveyJson,
-        });
+        };
+        db.LevelTestSubmissions.Add(submission);
         await db.SaveChangesAsync();
 
-        // Botda ro'yxatdan o'tgan admin/xodimlarga yangi lid xabarnomasi.
+        // Botda ro'yxatdan o'tgan admin/xodimlarga yangi lid xabarnomasi — test natijasi bilan (batafsil).
         if (telegram is not null)
-            await LeadNotifier.NotifyNewLeadAsync(db, telegram, lead);
+            await LeadNotifier.NotifyNewLeadAsync(db, telegram, lead, submission, test.Title);
 
         var msg = total == 0
             ? "Rahmat! Ma'lumotlaringiz qabul qilindi — tez orada bog'lanamiz."

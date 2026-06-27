@@ -37,6 +37,11 @@ services:
       Jwt__Key: "${JWT_KEY}"               # >=32 belgi; prod'da MAJBURIY
       # AI Tahlil (Gemini) modeli — kalit CRM Sozlamalaridan kiritiladi, model esa shu env'dan.
       GEMINI_MODEL: "${GEMINI_MODEL:-gemini-3.1-flash-lite}"
+      # SMS (Eskiz.uz) — login/parol/sender. CRM Sozlamalar -> SMS (Eskiz)dan ham kiritsa bo'ladi
+      # (DB ustun); bu yerda berilsa DB bo'sh bo'lganda zaxira sifatida ishlatiladi.
+      Eskiz__Email: "${ESKIZ_EMAIL:-}"
+      Eskiz__Password: "${ESKIZ_PASSWORD:-}"
+      Eskiz__From: "${ESKIZ_FROM:-4546}"
       # Birinchi ishga tushishda (baza bo'sh bo'lsa) shu login/parol bilan super admin yaratiladi.
       Seed__OwnerLogin: "${OWNER_LOGIN:-admin}"
       Seed__OwnerPassword: "${OWNER_PASSWORD}"
