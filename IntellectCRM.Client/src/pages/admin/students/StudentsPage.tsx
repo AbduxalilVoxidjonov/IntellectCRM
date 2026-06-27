@@ -660,7 +660,6 @@ export function StudentsPage() {
                           <>
                             <IconBtn icon={Wallet} title="To'lov kiritish" onClick={() => setPaying(s)} />
                             <IconBtn icon={History} title="To'lov tarixi" onClick={() => setHistoryOf(s)} />
-                            <IconBtn icon={Send} title="SMS yuborish" onClick={() => setSmsRecipients([s])} />
                             <IconBtn
                               icon={Pencil}
                               title="Tahrirlash"
