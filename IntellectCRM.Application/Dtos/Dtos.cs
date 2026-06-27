@@ -826,10 +826,10 @@ public record PushConfirmationDto(string Name, string Group, bool Confirmed, str
 /// <summary>
 /// SMS yuborish so'rovi. Audience: "parents" (o'quvchi ota-onasi raqami) | "students" (o'quvchi raqami) |
 /// "teachers" (o'qituvchi raqami) | "selected" (StudentIds — ota-ona raqami). ClassName ixtiyoriy (parents/
-/// students uchun guruh filtri). OnlyDebtors — faqat qarzdorlar. Text ichida o'rinbosarlar bo'lishi mumkin
-/// ({fish} {sinf} {qarzdorlik} {balans} {telefon}).
+/// students uchun guruh filtri). OnlyDebtors — faqat qarzdorlar. ToParent — "selected"da ota-ona (true)
+/// yoki o'quvchi (false) raqamiga. Text ichida o'rinbosarlar bo'lishi mumkin ({fish} {sinf} {qarzdorlik} {balans} {telefon}).
 /// </summary>
-public record SendSmsRequest(string Audience, string? ClassName, bool OnlyDebtors, List<string>? StudentIds, string Text);
+public record SendSmsRequest(string Audience, string? ClassName, bool OnlyDebtors, List<string>? StudentIds, string Text, bool ToParent = true);
 /// <summary>Yuborilgan SMS partiyasi (tarix). CreatedAt — ISO.</summary>
 public record SmsBatchDto(
     string Id, string Audience, string Message, string SenderName, string CreatedAt,

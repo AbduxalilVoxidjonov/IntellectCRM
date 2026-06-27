@@ -157,8 +157,10 @@ export interface SendSmsReq {
   /** parents/students uchun guruh (bo'sh = barcha) */
   className?: string
   onlyDebtors: boolean
-  /** selected uchun tanlangan o'quvchi id'lari (ota-ona raqamiga ketadi) */
+  /** selected uchun tanlangan o'quvchi id'lari */
   studentIds?: string[]
+  /** selected uchun: ota-ona (true) yoki o'quvchi (false) raqamiga */
+  toParent?: boolean
   text: string
 }
 

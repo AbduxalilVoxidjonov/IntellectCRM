@@ -85,7 +85,7 @@ export function StudentsPage() {
   // Yangi o'quvchi yaratilgach login/parolni ko'rsatish uchun (Eye tugmasi esa shaxsiy daftarga boradi).
   const [viewing, setViewing] = useState<Student | null>(null)
   const openNotebook = (s: Student) => navigate(`/admin/students/${s.id}`)
-  const [smsOpen, setSmsOpen] = useState(false)
+  const [smsRecipients, setSmsRecipients] = useState<Student[]>([])
   const [paying, setPaying] = useState<Student | null>(null)
   const [historyOf, setHistoryOf] = useState<Student | null>(null)
   const [deleting, setDeleting] = useState<Student | null>(null)
@@ -511,7 +511,7 @@ export function StudentsPage() {
             <span className="text-sm font-semibold text-brand-700">
               {selected.size} ta tanlandi
             </span>
-            <Button variant="secondary" onClick={() => setSmsOpen(true)}>
+            <Button variant="secondary" onClick={() => setSmsRecipients(selectedStudents)}>
               <Send className="h-4 w-4" /> SMS yuborish
             </Button>
             <Button variant="secondary" onClick={handleExport}>
@@ -660,6 +660,7 @@ export function StudentsPage() {
                           <>
                             <IconBtn icon={Wallet} title="To'lov kiritish" onClick={() => setPaying(s)} />
                             <IconBtn icon={History} title="To'lov tarixi" onClick={() => setHistoryOf(s)} />
+                            <IconBtn icon={Send} title="SMS yuborish" onClick={() => setSmsRecipients([s])} />
                             <IconBtn
                               icon={Pencil}
                               title="Tahrirlash"
@@ -709,7 +710,11 @@ export function StudentsPage() {
         initial={editing}
       />
       <StudentViewModal student={viewing} onClose={() => setViewing(null)} />
-      <SmsModal open={smsOpen} onClose={() => setSmsOpen(false)} recipients={selectedStudents} />
+      <SmsModal
+        open={smsRecipients.length > 0}
+        onClose={() => setSmsRecipients([])}
+        recipients={smsRecipients}
+      />
       <PaymentModal student={paying} onClose={() => setPaying(null)} onSubmit={handlePayment} />
       <PaymentHistoryModal studentId={historyOf?.id ?? null} onClose={() => setHistoryOf(null)} />
 

@@ -507,7 +507,8 @@ public class MessagesController(AppDbContext db, ChatService chat, TelegramServi
             var students = await q.ToListAsync();
             if (req.OnlyDebtors) { students = students.Where(s => s.Balance < 0).ToList(); label += " — qarzdorlar"; }
 
-            var toStudentPhone = audience == "students";
+            // O'quvchining o'z raqami: audience=="students" YOKI "selected" + ToParent=false. Aks holda ota-ona.
+            var toStudentPhone = audience == "students" || (audience == "selected" && !req.ToParent);
             foreach (var s in students)
             {
                 var phone = toStudentPhone
@@ -517,7 +518,7 @@ public class MessagesController(AppDbContext db, ChatService chat, TelegramServi
                 if (string.IsNullOrWhiteSpace(phone)) continue;
                 targets.Add((phone, s.FullName, PersonalizePush(ReplaceToken(text, "{telefon}", phone), s)));
             }
-            label = audience == "students" ? $"O'quvchilar — {label}" : $"Ota-onalar — {label}";
+            label = toStudentPhone ? $"O'quvchilar — {label}" : $"Ota-onalar — {label}";
         }
 
         // Bir xil raqamni bir marta (normallashtirilgan kalit bo'yicha).

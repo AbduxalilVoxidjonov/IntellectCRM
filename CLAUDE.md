@@ -114,6 +114,20 @@ docker compose up -d --build    # app + postgres + cloudflared + backup + mediam
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-27: **O'quvchilar ro'yxatidan SHABLON bilan SMS yuborish (bitta yoki tanlanganlarga).** Foydalanuvchi:
+  bitta raqam yozish o'rniga — o'quvchilar ro'yxatida bosib, shablon tanlab SMS yuborish. (Oldingi "Bitta raqam"
+  composer tab REVERT qilindi — commit qilinmagandi.) **Frontend:** mavjud stub `SmsModal` (faqat alert qilardi)
+  to'liq qayta yozildi — Eskiz orqali HAQIQIY yuborish: "Kimga" toggle (Ota-ona raqami / O'quvchi raqami) + tayyor
+  SHABLONLAR (`messageTemplates` chiplari) + o'rinbosar tugmalari + belgi/SMS hisoblagich + natija; sozlanmagan
+  bo'lsa ogohlantirish. `StudentsPage`: (a) HAR QATORDA "SMS yuborish" tugmasi (Send ikon) → shu o'quvchiga modal;
+  (b) tanlangan(lar) uchun mavjud bulk "SMS yuborish" tugmasi ham shu modalni ochadi (`smsRecipients: Student[]`
+  state — bitta yoki ko'p). Modal `sendSms({audience:'selected', studentIds, toParent, text})` chaqiradi. **Backend:**
+  `SendSmsRequest`ga `ToParent` (default true) qo'shildi; `MessagesController.SendSms` 'selected'da ToParent=false
+  bo'lsa o'quvchi raqamiga, aks holda ota-ona raqamiga (label mos: "O'quvchilar/Ota-onalar — Tanlangan (N)").
+  Matn har o'quvchiga moslab ({fish} va h.k.). Sxema o'zgarmadi — migratsiya YO'Q. **JONLI E2E** (throwaway PG,
+  Eskiz .env creds): status configured (from=MAKTAB); o'quvchi yaratildi (ota 935.., o'zi 901..) → selected
+  toParent=true → log 998935556677 (Ota-onalar), toParent=false → 998901112233 (O'quvchilar), matn "Salom {fish}"→
+  "Salom Olim Test". Backend 0, tsc+vite yashil. **DEPLOYDA:** `docker compose up -d --build app` (migratsiya yo'q).
 - 2026-06-27: **Telegram yangi-lid xabarnomasiga DARAJA TESTI natijasi (batafsil) + SMS'ni .env orqali sozlash.**
   **(1) Lid xabarnomasi batafsil:** `LeadNotifier.NotifyNewLeadAsync`ga ixtiyoriy `LevelTestSubmission? submission` +
   `testTitle` qo'shildi; daraja testi orqali kelgan lid uchun Telegram xabari endi to'liq natijani ko'rsatadi:
