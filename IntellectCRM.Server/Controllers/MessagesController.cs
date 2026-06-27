@@ -568,4 +568,103 @@ public class MessagesController(AppDbContext db, ChatService chat, TelegramServi
         return new SmsBatchDto(batch.Id, batch.Audience, batch.Message, batch.SenderName,
             batch.CreatedAt.ToString("o"), batch.RecipientCount, batch.SentCount);
     }
+
+    // ---------- SMS andozalari (shablonlar) — Sozlamalar → SMS (Eskiz) ----------
+
+    [HttpGet("sms/templates")]
+    public async Task<ActionResult<IEnumerable<SmsTemplateDto>>> SmsTemplates()
+    {
+        var list = await db.SmsTemplates.OrderBy(t => t.Order).ThenBy(t => t.Name).ToListAsync();
+        return list.Select(t => new SmsTemplateDto(t.Id, t.Name, t.Text, t.IsAuto, t.Order)).ToList();
+    }
+
+    [HttpPost("sms/templates")]
+    public async Task<ActionResult<SmsTemplateDto>> CreateSmsTemplate(SaveSmsTemplateRequest req)
+    {
+        var name = (req.Name ?? "").Trim();
+        var text = (req.Text ?? "").Trim();
+        if (name.Length == 0 || text.Length == 0) return BadRequest(new { message = "Nom va matn kerak" });
+        var order = (await db.SmsTemplates.MaxAsync(t => (int?)t.Order) ?? 0) + 1;
+        var t = new SmsTemplate { Name = name, Text = text, IsAuto = req.IsAuto, Order = order };
+        db.SmsTemplates.Add(t);
+        await db.SaveChangesAsync();
+        return new SmsTemplateDto(t.Id, t.Name, t.Text, t.IsAuto, t.Order);
+    }
+
+    [HttpPut("sms/templates/{id}")]
+    public async Task<ActionResult<SmsTemplateDto>> UpdateSmsTemplate(string id, SaveSmsTemplateRequest req)
+    {
+        var t = await db.SmsTemplates.FindAsync(id);
+        if (t is null) return NotFound();
+        var name = (req.Name ?? "").Trim();
+        var text = (req.Text ?? "").Trim();
+        if (name.Length == 0 || text.Length == 0) return BadRequest(new { message = "Nom va matn kerak" });
+        t.Name = name; t.Text = text; t.IsAuto = req.IsAuto;
+        await db.SaveChangesAsync();
+        return new SmsTemplateDto(t.Id, t.Name, t.Text, t.IsAuto, t.Order);
+    }
+
+    [HttpDelete("sms/templates/{id}")]
+    public async Task<IActionResult> DeleteSmsTemplate(string id)
+    {
+        var t = await db.SmsTemplates.FindAsync(id);
+        if (t is null) return NotFound();
+        db.SmsTemplates.Remove(t);
+        await db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    // ---------- Lidga SMS yuborish ----------
+
+    [HttpPost("sms/lead")]
+    public async Task<ActionResult<SmsBatchDto>> SendLeadSms(SendLeadSmsRequest req)
+    {
+        var text = (req.Text ?? "").Trim();
+        if (text.Length == 0) return BadRequest(new { message = "SMS matni kerak" });
+        var lead = await db.Leads.FirstOrDefaultAsync(l => l.Id == req.LeadId);
+        if (lead is null) return NotFound();
+        var phone = !string.IsNullOrWhiteSpace(lead.Phone) ? lead.Phone
+            : !string.IsNullOrWhiteSpace(lead.FatherPhone) ? lead.FatherPhone : lead.MotherPhone;
+        if (string.IsNullOrWhiteSpace(phone)) return BadRequest(new { message = "Lidda telefon raqami yo'q" });
+        var meta = await db.CenterMeta.FirstOrDefaultAsync();
+        if (!eskiz.IsConfigured(meta))
+            return BadRequest(new { message = "Eskiz SMS sozlanmagan. Sozlamalar → SMS (Eskiz)da login/parol kiriting." });
+
+        var msg = PersonalizeLead(text, lead, phone);
+        var callbackUrl = $"{Request.Scheme}://{Request.Host}/api/sms/callback";
+        var batchId = Guid.NewGuid().ToString();
+        var r = await eskiz.SendSmsAsync(db, phone, msg, callbackUrl);
+        db.SmsLogs.Add(new SmsLog
+        {
+            BatchId = batchId, PhoneNumber = EskizService.NormalizePhone(phone), RecipientName = lead.FullName,
+            Message = msg, RequestId = r.RequestId, Status = r.Ok ? r.Status : (r.Error ?? "error"),
+        });
+        var user = await db.Users.FindAsync(Uid);
+        var batch = new SmsBatch
+        {
+            Id = batchId, Audience = $"Lid: {lead.FullName}", Message = text, SenderUserId = Uid,
+            SenderName = user?.FullName ?? "Administrator", CreatedAt = AppClock.Now,
+            RecipientCount = 1, SentCount = r.Ok ? 1 : 0,
+        };
+        db.SmsBatches.Add(batch);
+        // Lid tarixiga yozamiz (timeline).
+        db.LeadEvents.Add(new LeadEvent
+        {
+            LeadId = lead.Id, Type = "note", ActorName = user?.FullName ?? "Admin", CreatedAt = AppClock.Iso(),
+            Text = "SMS yuborildi: " + (text.Length > 140 ? text[..140] + "…" : text),
+        });
+        await db.SaveChangesAsync();
+        return new SmsBatchDto(batch.Id, batch.Audience, batch.Message, batch.SenderName,
+            batch.CreatedAt.ToString("o"), batch.RecipientCount, batch.SentCount);
+    }
+
+    /// <summary>Lid SMS matnidagi o'rinbosarlarni to'ldiradi ({fish}, {telefon}); qolganlari bo'sh.</summary>
+    private static string PersonalizeLead(string text, Lead l, string phone)
+    {
+        var r = ReplaceToken(text, "{fish}", l.FullName);
+        r = ReplaceToken(r, "{telefon}", phone);
+        foreach (var tok in new[] { "{sinf}", "{qarzdorlik}", "{balans}", "{ota-ona}", "{ota_ona}" })
+            r = ReplaceToken(r, tok, "");
+        return r;
+    }
 }

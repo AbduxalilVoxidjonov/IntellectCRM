@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Send, AlertTriangle, Check } from 'lucide-react'
 import type { Student } from '@/types'
-import { getSmsStatus, sendSms } from '@/api/services/messages'
+import { getSmsStatus, getSmsTemplates, sendSms, type SmsTemplate } from '@/api/services/messages'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
-import { messageTemplates, messageTokens } from '@/config/messageTemplates'
+import { messageTokens } from '@/config/messageTemplates'
 import { cn } from '@/lib/utils'
 
 interface Props {
@@ -32,6 +32,7 @@ export function SmsModal({ open, onClose, recipients }: Props) {
   const [toParent, setToParent] = useState(true)
   const [message, setMessage] = useState('')
   const [configured, setConfigured] = useState(true)
+  const [templates, setTemplates] = useState<SmsTemplate[]>([])
   const [sending, setSending] = useState(false)
   const [result, setResult] = useState<string | null>(null)
   const taRef = useRef<HTMLTextAreaElement>(null)
@@ -44,6 +45,7 @@ export function SmsModal({ open, onClose, recipients }: Props) {
     setToParent(true)
     setSending(false)
     getSmsStatus().then((s) => setConfigured(s.configured))
+    getSmsTemplates().then(setTemplates).catch(() => setTemplates([]))
   }, [open])
 
   const phoneCount = useMemo(
@@ -166,14 +168,19 @@ export function SmsModal({ open, onClose, recipients }: Props) {
         <div>
           <div className="mb-1.5 text-sm font-medium text-slate-600">Shablon tanlang</div>
           <div className="flex flex-wrap gap-1.5">
-            {messageTemplates.map((t) => (
+            {templates.length === 0 && (
+              <span className="text-xs text-slate-400">
+                Andoza yo'q — Sozlamalar → SMS (Eskiz)da yarating.
+              </span>
+            )}
+            {templates.map((t) => (
               <button
-                key={t.label}
+                key={t.id}
                 type="button"
                 onClick={() => setMessage(t.text)}
                 className="rounded-full border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 transition-colors hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700"
               >
-                {t.label}
+                {t.name}
               </button>
             ))}
           </div>

@@ -12,7 +12,7 @@ namespace IntellectCRM.Server.Controllers;
 [Authorize]
 [AdminPerm("leads")]
 [Route("api/admin/leads")]
-public class LeadsController(AppDbContext db, AuditService audit, TelegramService telegram) : ControllerBase
+public class LeadsController(AppDbContext db, AuditService audit, TelegramService telegram, EskizService eskiz) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<IEnumerable<LeadWithAttendanceDto>>> GetAll()
@@ -59,6 +59,8 @@ public class LeadsController(AppDbContext db, AuditService audit, TelegramServic
         await db.SaveChangesAsync();
         // Botda ro'yxatdan o'tgan admin/xodimlarga yangi lid xabarnomasi.
         await LeadNotifier.NotifyNewLeadAsync(db, telegram, lead);
+        // Avto SMS — "Avto" deb belgilangan andoza bo'lsa, lidga avtomatik yuboriladi.
+        await LeadSmsService.AutoSendAsync(db, eskiz, lead, $"{Request.Scheme}://{Request.Host}/api/sms/callback");
         return lead;
     }
 

@@ -105,6 +105,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     // Eskiz.uz SMS
     public DbSet<SmsBatch> SmsBatches => Set<SmsBatch>();
     public DbSet<SmsLog> SmsLogs => Set<SmsLog>();
+    public DbSet<SmsTemplate> SmsTemplates => Set<SmsTemplate>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {

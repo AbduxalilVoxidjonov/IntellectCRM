@@ -7,7 +7,9 @@ import {
   CalendarClock,
   History,
   GraduationCap,
+  MessageSquare,
 } from 'lucide-react'
+import { getSmsTemplates, sendLeadSms, type SmsTemplate } from '@/api/services/messages'
 import type { Lead, LeadEvent, LeadEventType, TrialLesson, Group } from '@/types'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
@@ -94,6 +96,12 @@ export function LeadDetailModal({ lead, onClose, onEdit, onDelete, onConverted }
   const [noteText, setNoteText] = useState('')
   const [savingNote, setSavingNote] = useState(false)
 
+  // Lidga SMS yuborish
+  const [smsTemplates, setSmsTemplates] = useState<SmsTemplate[]>([])
+  const [smsText, setSmsText] = useState('')
+  const [smsSending, setSmsSending] = useState(false)
+  const [smsResult, setSmsResult] = useState<string | null>(null)
+
   const [trialGroupId, setTrialGroupId] = useState('')
   const [trialAt, setTrialAt] = useState('')
   const [savingTrial, setSavingTrial] = useState(false)
@@ -117,7 +125,10 @@ export function LeadDetailModal({ lead, onClose, onEdit, onDelete, onConverted }
     setConvertGroupId('')
     setConvertDate('')
     setConvertedStudentId(lead?.convertedStudentId ?? null)
+    setSmsText('')
+    setSmsResult(null)
     refreshTimeline(leadId)
+    getSmsTemplates().then(setSmsTemplates).catch(() => setSmsTemplates([]))
     getClasses()
       .then((gs) => setGroups(gs.filter((g) => !g.isArchived)))
       .catch(() => setGroups([]))
@@ -134,6 +145,26 @@ export function LeadDetailModal({ lead, onClose, onEdit, onDelete, onConverted }
       setEvents(fresh)
     } finally {
       setSavingNote(false)
+    }
+  }
+
+  const leadPhone = lead?.phone || lead?.fatherPhone || lead?.motherPhone || ''
+  const handleSendSms = async () => {
+    if (!leadId || !smsText.trim() || smsSending) return
+    setSmsSending(true)
+    setSmsResult(null)
+    try {
+      const b = await sendLeadSms(leadId, smsText.trim())
+      setSmsResult(b.sentCount > 0 ? 'SMS yuborildi ✓' : 'Yuborildi (holat kutilmoqda)')
+      setSmsText('')
+      refreshTimeline(leadId)
+    } catch (err: unknown) {
+      setSmsResult(
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+          'Yuborishda xatolik',
+      )
+    } finally {
+      setSmsSending(false)
     }
   }
 
@@ -261,6 +292,53 @@ export function LeadDetailModal({ lead, onClose, onEdit, onDelete, onConverted }
               </div>
             )}
           </div>
+
+          {/* SMS yuborish */}
+          <section className="rounded-xl border border-slate-100 p-4">
+            <h4 className="mb-3 flex items-center gap-2 font-semibold text-slate-800">
+              <MessageSquare className="h-4 w-4 text-brand-600" /> SMS yuborish
+            </h4>
+            {!leadPhone ? (
+              <p className="text-sm text-slate-400">Lidda telefon raqami yo'q.</p>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-xs text-slate-400">
+                  Raqam: <span className="font-mono text-slate-600">{leadPhone}</span>
+                </p>
+                {smsTemplates.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {smsTemplates.map((t) => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => setSmsText(t.text)}
+                        className="rounded-full border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 transition-colors hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700"
+                      >
+                        {t.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <textarea
+                  rows={3}
+                  value={smsText}
+                  onChange={(e) => setSmsText(e.target.value)}
+                  placeholder="SMS matni (shablon tanlang yoki yozing)..."
+                  className="w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
+                />
+                <div className="flex items-center justify-between gap-3">
+                  {smsResult && (
+                    <p className={`text-sm font-medium ${smsResult.includes('✓') ? 'text-emerald-700' : 'text-amber-700'}`}>
+                      {smsResult}
+                    </p>
+                  )}
+                  <Button className="ml-auto" onClick={handleSendSms} disabled={!smsText.trim() || smsSending}>
+                    <Send className="h-4 w-4" /> {smsSending ? 'Yuborilmoqda...' : 'SMS yuborish'}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </section>
 
           {/* O'quvchiga aylantirish */}
           <section className="rounded-xl border border-slate-100 p-4">

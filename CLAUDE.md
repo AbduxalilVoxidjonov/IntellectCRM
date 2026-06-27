@@ -114,6 +114,21 @@ docker compose up -d --build    # app + postgres + cloudflared + backup + mediam
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-27: **SMS andozalari (Sozlamalar → SMS) DB-driven + AVTO SMS + LIDGA SMS yuborish.** Foydalanuvchi:
+  SMS matn andozalari Sozlamalar → SMS (Eskiz)da yaratiladi/tahrirlanadi/o'chiriladi; "Avto SMS" deb belgilash;
+  lid kartasida lidga SMS yuborish (shablon tanlab). **Backend:** `SmsTemplate` entity (Name/Text/IsAuto/Order) +
+  migratsiya `AddSmsTemplates` + Program.cs seed (4 standart andoza, jadval bo'sh bo'lsa). Endpointlar
+  (MessagesController): `GET/POST/PUT/DELETE sms/templates`, `POST sms/lead` (lid telefon raqamiga, {fish}/{telefon}
+  moslab, lid tarixiga "SMS yuborildi" yozadi). `LeadSmsService.AutoSendAsync` — yangi lid tushganda IsAuto
+  andozani avtomatik yuboradi; `LeadsController.Create` + `LevelTestService.SubmitAsync` (PublicTest) chaqiradi
+  (EskizService inject). **Frontend:** `messages.ts` template CRUD + sendLeadSms; `EskizSettings`ga "SMS andozalari"
+  kartasi (ro'yxat + yaratish/tahrir/o'chir + o'rinbosar tugmalari + "Avto SMS" checkbox/badge); `SmsComposer` +
+  `SmsModal` endi DB andozalarini yuklaydi (statik messageTemplates emas — push/broadcast eski statikda qoldi);
+  `LeadDetailModal`ga "SMS yuborish" bo'limi (shablon chiplari + matn + yuborish, lid raqamiga). **JONLI E2E**
+  (throwaway PG, .env Eskiz creds): seed 4 andoza; auto template yaratildi → lid yaratilganda AVTO SMS batch
+  ("Avto (lid)", matn "Assalomu alaykum Lid Test!" — {fish} moslandi, 998901234567); manual lid SMS batch
+  ("Lid: ..."), lid timeline "SMS yuborildi"; (soxta creds → sent=0, real creds bilan yetkaziladi). Backend 0,
+  tsc+vite yashil. **DEPLOYDA:** `docker compose up -d --build app` (migratsiya + seed avto).
 - 2026-06-27: **Chegirma AMAL QILISH MUDDATI (oy oralig'i) — chegirma faqat belgilangan oylarda hisoblanadi.**
   Foydalanuvchi: chegirma (foiz/qat'iy summa) ostiga muddat — masalan iyun–avgust (3 oy) belgilansa, chegirma
   faqat shu oylar uchun qo'llanadi. `Student.DiscountStartMonth`/`DiscountEndMonth` ("yyyy-MM") + migratsiya

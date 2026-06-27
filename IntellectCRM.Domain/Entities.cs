@@ -1590,6 +1590,24 @@ public class SmsBatch
 }
 
 /// <summary>
+/// SMS andozasi (shablon) — admin "Sozlamalar → SMS (Eskiz)"da yaratadi/tahrirlaydi. SMS yuborishda
+/// (o'quvchi/ota-ona/lid) tanlanadi. <see cref="IsAuto"/>=true bo'lsa AVTO SMS uchun belgilangan
+/// (masalan yangi lid tushganda avtomatik yuboriladi). Matnda o'rinbosarlar: {fish} {sinf} {telefon}...
+/// </summary>
+public class SmsTemplate
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    /// <summary>Andoza nomi (ko'rsatish uchun).</summary>
+    public string Name { get; set; } = string.Empty;
+    /// <summary>Andoza matni (o'rinbosarlar bilan).</summary>
+    public string Text { get; set; } = string.Empty;
+    /// <summary>AVTO SMS uchun belgilangan — yangi lid tushganda avtomatik yuboriladi.</summary>
+    public bool IsAuto { get; set; }
+    public int Order { get; set; }
+    public string CreatedAt { get; set; } = AppClock.Iso();
+}
+
+/// <summary>
 /// Yuborilgan bitta SMS jurnali (raqam bo'yicha). Eskiz qaytargan <c>RequestId</c> orqali yetkazib
 /// berish holati (callback webhook) yangilanadi.
 /// </summary>

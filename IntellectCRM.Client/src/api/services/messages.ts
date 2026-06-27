@@ -191,6 +191,42 @@ export async function sendSms(req: SendSmsReq): Promise<SmsBatch> {
   return data
 }
 
+/* ---------- SMS andozalari (shablonlar) ---------- */
+export interface SmsTemplate {
+  id: string
+  name: string
+  text: string
+  isAuto: boolean
+  order: number
+}
+export interface SaveSmsTemplateReq {
+  name: string
+  text: string
+  isAuto: boolean
+}
+export async function getSmsTemplates(): Promise<SmsTemplate[]> {
+  if (USE_MOCK) return []
+  const { data } = await api.get<SmsTemplate[]>('/admin/messages/sms/templates')
+  return data
+}
+export async function createSmsTemplate(req: SaveSmsTemplateReq): Promise<SmsTemplate> {
+  const { data } = await api.post<SmsTemplate>('/admin/messages/sms/templates', req)
+  return data
+}
+export async function updateSmsTemplate(id: string, req: SaveSmsTemplateReq): Promise<SmsTemplate> {
+  const { data } = await api.put<SmsTemplate>(`/admin/messages/sms/templates/${id}`, req)
+  return data
+}
+export async function deleteSmsTemplate(id: string): Promise<void> {
+  await api.delete(`/admin/messages/sms/templates/${id}`)
+}
+
+/** Lidga SMS yuborish (lid telefon raqamiga). */
+export async function sendLeadSms(leadId: string, text: string): Promise<SmsBatch> {
+  const { data } = await api.post<SmsBatch>('/admin/messages/sms/lead', { leadId, text })
+  return data
+}
+
 /**
  * Har bir kanal uchun oxirgi xabar vaqti — o'qilmagan xabarlarni aniqlash uchun.
  * Qaytadi: { [channelName]: ISO vaqt yoki null (xabari yo'q kanal) }

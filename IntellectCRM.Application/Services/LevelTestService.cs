@@ -84,7 +84,7 @@ public static class LevelTestService
     /// SaveChanges shu yerda bajariladi.
     /// </summary>
     public static async Task<TestResultDto?> SubmitAsync(
-        IAppDbContext db, string slug, TestSubmitRequest req, TelegramService? telegram = null)
+        IAppDbContext db, string slug, TestSubmitRequest req, TelegramService? telegram = null, EskizService? eskiz = null)
     {
         var test = await db.LevelTests.FirstOrDefaultAsync(t => t.Slug == slug && t.IsActive);
         if (test is null) return null;
@@ -155,6 +155,9 @@ public static class LevelTestService
         // Botda ro'yxatdan o'tgan admin/xodimlarga yangi lid xabarnomasi — test natijasi bilan (batafsil).
         if (telegram is not null)
             await LeadNotifier.NotifyNewLeadAsync(db, telegram, lead, submission, test.Title);
+        // Avto SMS — "Avto" deb belgilangan andoza bo'lsa, lidga avtomatik yuboriladi.
+        if (eskiz is not null)
+            await LeadSmsService.AutoSendAsync(db, eskiz, lead);
 
         var msg = total == 0
             ? "Rahmat! Ma'lumotlaringiz qabul qilindi — tez orada bog'lanamiz."
