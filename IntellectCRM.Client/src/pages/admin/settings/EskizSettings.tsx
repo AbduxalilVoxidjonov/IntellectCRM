@@ -68,7 +68,7 @@ export function EskizSettings() {
   if (loading) return <Loader label="Yuklanmoqda..." />
 
   return (
-    <div className="space-y-4">
+    <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
     <Card
       title={
         <span className="flex flex-wrap items-center gap-2">
