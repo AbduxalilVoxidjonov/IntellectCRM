@@ -443,8 +443,72 @@ using (var scope = app.Services.CreateScope())
 
     // Telegram bot tokeni — restartdan keyin bot avtomatik ishga tushadi; token yo'q bo'lsa
     // admin Sozlamadan kiritguncha kutadi.
-    // TODO: AddTelegramBackupConfig migration kerak
-    // scope.ServiceProvider.GetRequiredService<TelegramService>().Load(db);
+
+    // ---------- Integratsiya sozlamalarini .env (config) dan CenterMeta'ga qo'llash ----------
+    // ENV-WINS: .env'da berilgan integratsiya qiymati DB'dagidan USTUN turadi (har deploy'da qo'llanadi) —
+    // admin .env'da boshqaradi, UI'da "Saqlash" bosish shart emas. .env'da BO'SH qoldirilgan integratsiya
+    // esa UI'dan boshqariladi (DB'da saqlanadi, deploy buzmaydi). Bo'sh qiymatlar e'tiborsiz qoldiriladi.
+    try
+    {
+        var cfg = app.Configuration;
+        var meta = db.CenterMeta.FirstOrDefault();
+        var existed = meta is not null;
+        meta ??= new CenterMeta();
+        var changed = false;
+        void S(string key, Action<string> set)
+        { var v = cfg[key]; if (!string.IsNullOrWhiteSpace(v)) { set(v.Trim()); changed = true; } }
+        void B(string key, Action<bool> set)
+        { var v = cfg[key]; if (!string.IsNullOrWhiteSpace(v) && bool.TryParse(v.Trim(), out var b)) { set(b); changed = true; } }
+        void I(string key, Action<int> set)
+        { var v = cfg[key]; if (!string.IsNullOrWhiteSpace(v) && int.TryParse(v.Trim(), out var n)) { set(n); changed = true; } }
+
+        // Telegram bot
+        S("Telegram:BotToken", v => meta.TelegramBotToken = v);
+        S("Telegram:BotUsername", v => meta.TelegramBotUsername = v.TrimStart('@'));
+        S("Telegram:BotName", v => meta.TelegramBotName = v);
+        S("Telegram:Channel", v => meta.TelegramChannel = v);
+        S("Telegram:AdminChatId", v => meta.TelegramAdminChatId = v);
+        // Firebase (push)
+        S("Fcm:ServiceAccountJson", v => meta.FcmServiceAccountJson = v);
+        // Gemini (AI tahlil) — model alohida GEMINI_MODEL env'dan o'qiladi
+        S("Gemini:ApiKey", v => meta.GeminiApiKey = v);
+        // Azure Speech
+        S("Azure:SpeechKey", v => meta.AzureSpeechKey = v);
+        S("Azure:SpeechRegion", v => meta.AzureSpeechRegion = v);
+        // Eskiz SMS
+        S("Eskiz:Email", v => meta.EskizEmail = v);
+        S("Eskiz:Password", v => meta.EskizPassword = v);
+        S("Eskiz:From", v => meta.EskizFrom = v);
+        // Turniket / FaceID
+        B("Turnstile:Enabled", v => meta.TurnstileEnabled = v);
+        S("Turnstile:Vendor", v => meta.TurnstileVendor = v);
+        S("Turnstile:Host", v => meta.TurnstileHost = v);
+        I("Turnstile:Port", v => meta.TurnstilePort = v);
+        S("Turnstile:Username", v => meta.TurnstileUsername = v);
+        S("Turnstile:Password", v => meta.TurnstilePassword = v);
+        // Kamera
+        B("Camera:Enabled", v => meta.CameraEnabled = v);
+        // Avtomatik to'lov eslatmasi
+        B("PaymentReminders:Enabled", v => meta.PaymentRemindersEnabled = v);
+        // Kunlik AI tahlil
+        B("AiAnalysis:Enabled", v => meta.AiDailyAnalysisEnabled = v);
+        I("AiAnalysis:Hour", v => meta.AiDailyAnalysisHour = v);
+        // Telegram backup
+        B("Backup:TelegramEnabled", v => meta.TelegramBackupEnabled = v);
+        I("Backup:Hour", v => meta.BackupScheduleHour = v);
+        I("Backup:Minute", v => meta.BackupScheduleMinute = v);
+
+        if (changed)
+        {
+            if (!existed) db.CenterMeta.Add(meta);
+            db.SaveChanges();
+            app.Logger.LogInformation("[env] Integratsiya sozlamalari .env dan qo'llandi (env-wins)");
+        }
+    }
+    catch (Exception ex)
+    {
+        app.Logger.LogWarning(ex, "[env] Integratsiya sozlamalarini .env dan qo'llashda xatolik (migratsiya qo'llanmagan bo'lsa normal)");
+    }
 }
 
 // ---------- Pipeline ----------

@@ -37,11 +37,41 @@ services:
       Jwt__Key: "${JWT_KEY}"               # >=32 belgi; prod'da MAJBURIY
       # AI Tahlil (Gemini) modeli — kalit CRM Sozlamalaridan kiritiladi, model esa shu env'dan.
       GEMINI_MODEL: "${GEMINI_MODEL:-gemini-3.1-flash-lite}"
-      # SMS (Eskiz.uz) — login/parol/sender. CRM Sozlamalar -> SMS (Eskiz)dan ham kiritsa bo'ladi
-      # (DB ustun); bu yerda berilsa DB bo'sh bo'lganda zaxira sifatida ishlatiladi.
+      # ====== Integratsiyalar (.env -> CenterMeta, ENV-WINS) ======
+      # Quyidagilarda berilgan qiymat DB'dagidan ustun (har deploy'da qo'llanadi) — UI'da "Saqlash"
+      # bosish shart emas. Bo'sh qoldirilgani UI'dan boshqariladi. Bo'sh qiymatlar e'tiborsiz.
+      # Telegram bot:
+      Telegram__BotToken: "${TELEGRAM_BOT_TOKEN:-}"
+      Telegram__BotUsername: "${TELEGRAM_BOT_USERNAME:-}"
+      Telegram__BotName: "${TELEGRAM_BOT_NAME:-}"
+      Telegram__Channel: "${TELEGRAM_CHANNEL:-}"
+      Telegram__AdminChatId: "${TELEGRAM_ADMIN_CHAT_ID:-}"
+      # Push (Firebase) — service account JSON (bir qatorli):
+      Fcm__ServiceAccountJson: "${FCM_SERVICE_ACCOUNT_JSON:-}"
+      # AI Tahlil (Gemini) kaliti:
+      Gemini__ApiKey: "${GEMINI_API_KEY:-}"
+      # Speaking (Azure):
+      Azure__SpeechKey: "${AZURE_SPEECH_KEY:-}"
+      Azure__SpeechRegion: "${AZURE_SPEECH_REGION:-}"
+      # SMS (Eskiz.uz) — login/parol/sender:
       Eskiz__Email: "${ESKIZ_EMAIL:-}"
       Eskiz__Password: "${ESKIZ_PASSWORD:-}"
       Eskiz__From: "${ESKIZ_FROM:-4546}"
+      # Turniket / FaceID:
+      Turnstile__Enabled: "${TURNSTILE_ENABLED:-}"
+      Turnstile__Vendor: "${TURNSTILE_VENDOR:-}"
+      Turnstile__Host: "${TURNSTILE_HOST:-}"
+      Turnstile__Port: "${TURNSTILE_PORT:-}"
+      Turnstile__Username: "${TURNSTILE_USERNAME:-}"
+      Turnstile__Password: "${TURNSTILE_PASSWORD:-}"
+      # Kamera / to'lov eslatmasi / kunlik AI tahlil / backup (yoqish-o'chirish + vaqt):
+      Camera__Enabled: "${CAMERA_ENABLED:-}"
+      PaymentReminders__Enabled: "${PAYMENT_REMINDERS_ENABLED:-}"
+      AiAnalysis__Enabled: "${AI_ANALYSIS_ENABLED:-}"
+      AiAnalysis__Hour: "${AI_ANALYSIS_HOUR:-}"
+      Backup__TelegramEnabled: "${BACKUP_TELEGRAM_ENABLED:-}"
+      Backup__Hour: "${BACKUP_HOUR:-}"
+      Backup__Minute: "${BACKUP_MINUTE:-}"
       # Birinchi ishga tushishda (baza bo'sh bo'lsa) shu login/parol bilan super admin yaratiladi.
       Seed__OwnerLogin: "${OWNER_LOGIN:-admin}"
       Seed__OwnerPassword: "${OWNER_PASSWORD}"
