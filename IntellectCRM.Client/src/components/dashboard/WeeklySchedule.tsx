@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { CalendarRange } from 'lucide-react'
 import type { Group, Subject, Teacher } from '@/types'
 import { getClasses } from '@/api/services/classes'
@@ -35,88 +35,112 @@ interface Block {
   name: string
   course: string
   teacher: string
-  teacherId?: string
+  teacherKey: string
   room: string
   start: string
   end: string
   color: (typeof PALETTE)[number]
+  days: number[]
 }
+
+const selectClass =
+  'rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-slate-700 outline-none transition-colors focus:border-brand-400 focus:ring-2 focus:ring-brand-100'
 
 /**
  * Bosh sahifa "Dars jadvali" — yaratilgan guruhlarning haftalik jadvali (raspisaniye).
- * Har guruh o'z vaqti (kunlar + HH:mm) bo'yicha kun ustuniga joylashadi; har guruh alohida rangda,
- * legenda esa o'qituvchi bo'yicha guruhlanadi.
+ * Yuqorida o'qituvchi tanlash mumkin: tanlansa FAQAT shu o'qituvchining guruhlari ko'rsatiladi
+ * ("Barcha o'qituvchilar" — hammasi). Har guruh alohida rangda; legenda o'qituvchi bo'yicha.
  */
 export function WeeklySchedule() {
   const { data, loading, error } = useAsync(
     () => Promise.all([getClasses(), getTeachers(), getSubjects()]),
     [],
   )
+  const [teacherFilter, setTeacherFilter] = useState<string>('all')
 
-  const { byDay, byTeacher, hasAny } = useMemo(() => {
+  // Faqat ma'lumotga bog'liq: barcha bloklar (barqaror rang bilan) + o'qituvchi ro'yxati.
+  const { blocks, teacherOptions } = useMemo(() => {
     const [classes, teachers, subjects] = data ?? [[], [], []]
-    const tName = new Map<string, string>(
-      (teachers as Teacher[]).map((t) => [t.id, t.fullName]),
-    )
-    const cName = new Map<string, string>(
-      (subjects as Subject[]).map((s) => [s.id, s.name]),
-    )
+    const tName = new Map<string, string>((teachers as Teacher[]).map((t) => [t.id, t.fullName]))
+    const cName = new Map<string, string>((subjects as Subject[]).map((s) => [s.id, s.name]))
 
-    // Faqat arxivlanmagan, vaqti belgilangan guruhlar; har biriga barqaror rang (indeks bo'yicha).
+    // Faqat arxivlanmagan, vaqti belgilangan guruhlar.
     const active = (classes as Group[]).filter(
       (g) => !g.isArchived && (g.days?.length ?? 0) > 0 && g.startTime,
     )
 
-    const byDay: Block[][] = [[], [], [], [], [], [], []]
-    const byTeacher = new Map<string, { teacher: string; groups: Block[] }>()
-
-    // Birinchi o'qituvchilarga barqaror ko'rsatkich tayinlaymiz
+    // O'qituvchiga barqaror indeks (rang uchun) — barcha guruhlar bo'yicha bir marta.
     const teacherIndices = new Map<string, number>()
     let nextTeacherIdx = 0
 
-    active.forEach((g) => {
-      const teacher = (g.teacherId && tName.get(g.teacherId)) || 'Biriktirilmagan'
-
-      // O'qituvchi uchun barqaror indeks (birinchi marta uchraydi -> yangi indeks, keyingi vaqtlar -> shu indeks ishlatiladi)
+    const blocks: Block[] = active.map((g) => {
       const teacherKey = g.teacherId || 'none'
-      if (!teacherIndices.has(teacherKey)) {
-        teacherIndices.set(teacherKey, nextTeacherIdx++)
-      }
+      const teacher = (g.teacherId && tName.get(g.teacherId)) || 'Biriktirilmagan'
+      if (!teacherIndices.has(teacherKey)) teacherIndices.set(teacherKey, nextTeacherIdx++)
       const teacherIdx = teacherIndices.get(teacherKey)!
-
-      // Bir o'qituvchining guruhlari uchun alohida ranglar (o'qituvchi o'z ranglar ketidan ishlatadi)
       const groupsOfTeacher = active.filter((x) => (x.teacherId || 'none') === teacherKey)
       const groupIdx = groupsOfTeacher.indexOf(g)
-      const colorIdx = (teacherIdx * 4 + groupIdx) % PALETTE.length
-      const color = PALETTE[colorIdx]
-
-      const block: Block = {
+      const color = PALETTE[(teacherIdx * 4 + groupIdx) % PALETTE.length]
+      return {
         groupId: g.id,
         name: g.name,
         course: (g.courseId && cName.get(g.courseId)) || '',
         teacher,
-        teacherId: g.teacherId,
+        teacherKey,
         room: g.room ?? '',
         start: g.startTime ?? '',
         end: g.endTime ?? '',
         color,
+        days: (g.days ?? []).filter((d) => d >= 0 && d <= 6),
       }
-      for (const d of g.days ?? []) if (d >= 0 && d <= 6) byDay[d].push(block)
-
-      if (!byTeacher.has(teacherKey)) byTeacher.set(teacherKey, { teacher, groups: [] })
-      byTeacher.get(teacherKey)!.groups.push(block)
     })
 
-    // Har kun ustunini boshlanish vaqti bo'yicha saralash.
-    for (const col of byDay) col.sort((a, b) => a.start.localeCompare(b.start))
+    // O'qituvchi ro'yxati (jadvali bor bo'lganlar), nom bo'yicha saralangan.
+    const optMap = new Map<string, string>()
+    for (const b of blocks) optMap.set(b.teacherKey, b.teacher)
+    const teacherOptions = [...optMap.entries()]
+      .map(([key, name]) => ({ key, name }))
+      .sort((a, b) => a.name.localeCompare(b.name))
 
-    return { byDay, byTeacher: [...byTeacher.values()], hasAny: active.length > 0 }
+    return { blocks, teacherOptions }
   }, [data])
+
+  // Tanlangan o'qituvchi bo'yicha filtrlangan ko'rinish.
+  const { byDay, byTeacher, hasAny } = useMemo(() => {
+    const shown =
+      teacherFilter === 'all' ? blocks : blocks.filter((b) => b.teacherKey === teacherFilter)
+    const byDay: Block[][] = [[], [], [], [], [], [], []]
+    const byTeacher = new Map<string, { teacher: string; groups: Block[] }>()
+    for (const b of shown) {
+      for (const d of b.days) byDay[d].push(b)
+      if (!byTeacher.has(b.teacherKey)) byTeacher.set(b.teacherKey, { teacher: b.teacher, groups: [] })
+      byTeacher.get(b.teacherKey)!.groups.push(b)
+    }
+    for (const col of byDay) col.sort((a, b) => a.start.localeCompare(b.start))
+    return { byDay, byTeacher: [...byTeacher.values()], hasAny: shown.length > 0 }
+  }, [blocks, teacherFilter])
 
   return (
     <Card
       title="Dars jadvali"
-      sub="Guruhlarning haftalik jadvali — har o'qituvchi guruhlari alohida rangda"
+      sub="Guruhlarning haftalik jadvali — o'qituvchini tanlab, faqat uning jadvalini ko'rish mumkin"
+      actions={
+        teacherOptions.length > 0 ? (
+          <select
+            value={teacherFilter}
+            onChange={(e) => setTeacherFilter(e.target.value)}
+            className={selectClass}
+            aria-label="O'qituvchini tanlang"
+          >
+            <option value="all">Barcha o'qituvchilar</option>
+            {teacherOptions.map((o) => (
+              <option key={o.key} value={o.key}>
+                {o.name}
+              </option>
+            ))}
+          </select>
+        ) : undefined
+      }
     >
       {loading ? (
         <Loader label="Yuklanmoqda..." />
@@ -128,7 +152,11 @@ export function WeeklySchedule() {
             <CalendarRange className="h-6 w-6" />
           </div>
           <h4>Jadval bo'sh</h4>
-          <p>Guruh yaratishda hafta kunlari va vaqtni belgilang — jadval shu yerda chiqadi.</p>
+          <p>
+            {teacherFilter === 'all'
+              ? "Guruh yaratishda hafta kunlari va vaqtni belgilang — jadval shu yerda chiqadi."
+              : "Bu o'qituvchining vaqti belgilangan guruhi yo'q."}
+          </p>
         </div>
       ) : (
         <>
@@ -194,10 +222,7 @@ export function WeeklySchedule() {
                     className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium"
                     style={{ background: g.color.bg, borderColor: g.color.bd, color: g.color.fg }}
                   >
-                    <span
-                      className="h-2 w-2 rounded-full"
-                      style={{ background: g.color.fg }}
-                    />
+                    <span className="h-2 w-2 rounded-full" style={{ background: g.color.fg }} />
                     {g.name}
                   </span>
                 ))}

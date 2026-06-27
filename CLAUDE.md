@@ -114,6 +114,13 @@ docker compose up -d --build    # app + postgres + cloudflared + backup + mediam
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-27: **Bosh sahifa "Dars jadvali"ga o'qituvchi tanlash (filter).** `WeeklySchedule` karta sarlavhasiga
+  o'qituvchi `<select>` qo'shildi ("Barcha o'qituvchilar" default; jadvali bor o'qituvchilar ro'yxati nom bo'yicha).
+  Tanlansa FAQAT shu o'qituvchining guruhlari haftalik gridda + legendada ko'rsatiladi. Ranglar BARQAROR (barcha
+  guruhlar bo'yicha bir marta hisoblanadi, filterga bog'liq emas — guruh "barcha" va filtrlangan ko'rinishda bir xil
+  rangda). Bo'sh holat matni filterga moslashadi ("Bu o'qituvchining vaqti belgilangan guruhi yo'q"). Frontend-only
+  (yangi API yo'q — getClasses/getTeachers/getSubjects). tsc+vite yashil. **DEPLOYDA:** `docker compose up -d --build app`
+  (migratsiya yo'q).
 - 2026-06-27: **LANDING (apex marketing sayti) TO'LIQ OLIB TASHLANDI — backend + CRM sozlama + page/.**
   Foydalanuvchi: apex landing (intellectschool.uz marketing sayti) HAM, undagi CRM Sozlamalar → "Landing page"
   tahrirlovchi HAM kerak emas. **Backend:** `LandingController` o'chirildi; `LandingContent` entity + DbSet
