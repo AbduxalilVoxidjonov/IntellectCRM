@@ -22,7 +22,8 @@ public static class StudentLedger
     {
         var rawFee = (await db.Classes.FirstOrDefaultAsync(c => c.Name == student.ClassName))?.MonthlyFee ?? 0m;
         // Joriy effektiv oylik (yangi oy uchun nima hisoblanadi) — chegirma ayirilgan.
-        var fee = TuitionService.ChargeFor(rawFee, student.DiscountPct, student.DiscountAmount);
+        // Joriy effektiv oylik — chegirma faqat amal qilish davrida (DiscountStartMonth..EndMonth) qo'llanadi.
+        var fee = rawFee - TuitionService.DiscountForMonth(student, rawFee, TuitionService.CurrentMonth());
 
         // Per-guruh hisoblar — bir oyda bir nechta (har guruh) bo'lishi mumkin; oy bo'yicha aggregate qilamiz.
         var chargeRows = await db.MonthlyCharges.Where(c => c.StudentId == student.Id).ToListAsync();

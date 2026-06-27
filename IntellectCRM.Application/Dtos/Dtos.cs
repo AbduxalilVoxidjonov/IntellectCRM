@@ -49,7 +49,8 @@ public record StudentPayload(
     string? ParentPassportUrl = null,
     string? Phone = null,
     string? FatherFullName = null, string? FatherPhone = null,
-    string? MotherFullName = null, string? MotherPhone = null);
+    string? MotherFullName = null, string? MotherPhone = null,
+    string? DiscountStartMonth = null, string? DiscountEndMonth = null);
 public record PaymentRequest(decimal Amount, string? Month, string? GroupId = null, string? Comment = null, string? Method = null);
 
 /* ---------- Telefon dublikatini tekshirish (o'quvchi/ota-ona raqami) ---------- */

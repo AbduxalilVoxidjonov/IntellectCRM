@@ -395,6 +395,8 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
             DiscountPct = Math.Clamp(p.DiscountPct ?? 0, 0, 100),
             DiscountAmount = Math.Max(0m, p.DiscountAmount ?? 0m),
             DiscountNote = (p.DiscountNote ?? "").Trim(),
+            DiscountStartMonth = (p.DiscountStartMonth ?? "").Trim(),
+            DiscountEndMonth = (p.DiscountEndMonth ?? "").Trim(),
         };
         db.Students.Add(student);
 
@@ -464,6 +466,8 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
         var oldPct = student.DiscountPct;
         var oldAmount = student.DiscountAmount;
         var oldNote = student.DiscountNote;
+        var oldStart = student.DiscountStartMonth;
+        var oldEnd = student.DiscountEndMonth;
         var oldClassName = student.ClassName;
 
         // O'quvchi FISH — parts berilsa ulardan FullName yig'iladi.
@@ -507,6 +511,8 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
         if (p.DiscountPct.HasValue) student.DiscountPct = Math.Clamp(p.DiscountPct.Value, 0, 100);
         if (p.DiscountAmount.HasValue) student.DiscountAmount = Math.Max(0m, p.DiscountAmount.Value);
         if (p.DiscountNote is not null) student.DiscountNote = p.DiscountNote.Trim();
+        if (p.DiscountStartMonth is not null) student.DiscountStartMonth = p.DiscountStartMonth.Trim();
+        if (p.DiscountEndMonth is not null) student.DiscountEndMonth = p.DiscountEndMonth.Trim();
 
         // Akkaunt nomini sinxronlaymiz va (ixtiyoriy) yangi parol o'rnatamiz.
         var user = student.UserId is null ? null : await db.Users.FindAsync(student.UserId);
@@ -525,7 +531,9 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
         var classChanged = !string.Equals(oldClassName, student.ClassName, StringComparison.Ordinal);
         var discountChanged = oldPct != student.DiscountPct
                               || oldAmount != student.DiscountAmount
-                              || oldNote != student.DiscountNote;
+                              || oldNote != student.DiscountNote
+                              || oldStart != student.DiscountStartMonth
+                              || oldEnd != student.DiscountEndMonth;
 
         // Joriy sinf narxiga ko'ra hisoblarni TO'G'RILAYMIZ/TO'LDIRAMIZ (ClassName MATNI o'zgarmagan
         // bo'lsa ham — masalan o'quvchi sinf hali yaratilmagan paytda qo'shilib, keyin sinf yaratilgan):
@@ -557,8 +565,6 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
         }
         if (!hasMembership && cls is not null && cls.MonthlyFee > 0)
         {
-            var newDiscount = TuitionService.DiscountFor(cls.MonthlyFee, student.DiscountPct, student.DiscountAmount);
-            var newEffective = cls.MonthlyFee - newDiscount;
             var current = TuitionService.CurrentMonth();
             var startMonth = string.IsNullOrEmpty(student.EnrollmentDate) || student.EnrollmentDate.Length < 7
                 ? current
@@ -571,16 +577,19 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
 
             foreach (var month in TuitionService.MonthRange(startMonth, current))
             {
+                // Chegirma faqat amal qilish davrida (DiscountStartMonth..EndMonth) qo'llanadi — har oy alohida.
+                var monthDiscount = TuitionService.DiscountForMonth(student, cls.MonthlyFee, month);
+                var monthEffective = cls.MonthlyFee - monthDiscount;
                 if (existing.TryGetValue(month, out var charge))
                 {
                     if (charge.Locked) continue; // qo'lda tahrirlangan — tegmaymiz.
                     // Faqat JORIY oyni va faqat sinf/chegirma o'zgarsa qayta hisoblaymiz (o'tgan oylar tarixiy).
                     var recompute = month == current && (classChanged || (discountChanged && applyDiscount));
-                    if (recompute && (charge.Amount != cls.MonthlyFee || charge.Discount != newDiscount))
+                    if (recompute && (charge.Amount != cls.MonthlyFee || charge.Discount != monthDiscount))
                     {
-                        var delta = newEffective - (charge.Amount - charge.Discount);
+                        var delta = monthEffective - (charge.Amount - charge.Discount);
                         charge.Amount = cls.MonthlyFee;
-                        charge.Discount = newDiscount;
+                        charge.Discount = monthDiscount;
                         student.Balance -= delta;   // delta > 0 → ko'proq to'lash → balans kamayadi
                         applied = true;
                     }
@@ -594,10 +603,10 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
                         GroupId = null, // guruhsiz (ClassName-asosli) hisob
                         Month = month,
                         Amount = cls.MonthlyFee,
-                        Discount = newDiscount,
+                        Discount = monthDiscount,
                         Date = $"{month}-01",
                     });
-                    student.Balance -= newEffective;
+                    student.Balance -= monthEffective;
                     applied = true;
                 }
             }

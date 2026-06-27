@@ -157,6 +157,11 @@ public class Student
     public decimal DiscountAmount { get; set; }
     /// <summary>Chegirma sababi/izohi (admin uchun, ko'rsatish uchun saqlanadi).</summary>
     public string DiscountNote { get; set; } = string.Empty;
+    /// <summary>Chegirma amal qilish boshlanish oyi ("yyyy-MM"). Bo'sh — cheklovsiz (boshidan).</summary>
+    public string DiscountStartMonth { get; set; } = string.Empty;
+    /// <summary>Chegirma amal qilish tugash oyi ("yyyy-MM"). Bo'sh — cheklovsiz (oxirigacha).
+    /// Ikkala chegara bo'sh bo'lsa chegirma har doim qo'llanadi (orqaga moslik).</summary>
+    public string DiscountEndMonth { get; set; } = string.Empty;
     /// <summary>
     /// O'quvchi arxivga ko'chirilganmi (boshqa maktabga ketgan, o'qishdan chiqarilgan, ...).
     /// Arxivlangan o'quvchi faol ro'yxatdan yashirinadi, oylik to'lov hisoblanmaydi, login bloklanadi,

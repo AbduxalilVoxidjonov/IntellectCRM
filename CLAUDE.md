@@ -114,6 +114,20 @@ docker compose up -d --build    # app + postgres + cloudflared + backup + mediam
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-27: **Chegirma AMAL QILISH MUDDATI (oy oralig'i) — chegirma faqat belgilangan oylarda hisoblanadi.**
+  Foydalanuvchi: chegirma (foiz/qat'iy summa) ostiga muddat — masalan iyun–avgust (3 oy) belgilansa, chegirma
+  faqat shu oylar uchun qo'llanadi. `Student.DiscountStartMonth`/`DiscountEndMonth` ("yyyy-MM") + migratsiya
+  `AddDiscountValidityPeriod` (2 ustun, default "" → eski chegirmalar HAR DOIM amal qiladi, orqaga moslik).
+  **Backend:** `TuitionService.DiscountActiveForMonth(s, month)` + `DiscountForMonth(s, fee, month)` — davr
+  tashqarisida 0. Barcha billing nuqtalari oy bo'yicha gate qilindi: `AccrueOne`, `ChargeActivationProrate`
+  (+addSegment), `ChargeFreezeProrate`, `ApplyFeeToCharge` (charge.Month), `StudentGroupLedger` (per-oy preview),
+  `StudentLedger` (joriy oy effektiv), `StudentsController.Update` legacy ClassName loop (har oy alohida).
+  `StudentPayload` + Create/Update Month maydonlarini yozadi; discountChanged davrni ham hisobga oladi.
+  **Frontend:** `Student` tipi +discountStartMonth/EndMonth; `StudentFormModal` Chegirma bo'limiga 2 `type=month`
+  input (Amal qilish boshi/oxiri) + izoh; bo'sh = har doim. **JONLI E2E** (throwaway PG): migratsiya 2 ustun;
+  chegirma 50%, kurs 1M — IN range (2026-06..08, joriy 2026-06) → effektiv 500k; FUTURE range (2026-09..10) →
+  1M (chegirma yo'q); bo'sh range → 500k (har doim). Backend 0, tsc+vite yashil. **DEPLOYDA:**
+  `docker compose up -d --build app` (migratsiya avto; postgres-data saqlanadi).
 - 2026-06-27: **To'lov USULI (Naqd/Karta/Bank) — to'lov kiritishda tanlanadi, moliyada ko'rinadi.**
   `FinanceTransaction.Method` (cash|card|bank, null=belgilanmagan) + migratsiya `AddFinanceTransactionMethod`
   (1 nullable ustun). **Backend:** `PaymentRequest`/`FinanceTransactionPayload`/`FinanceTransactionDto`/`PaymentDto`ga

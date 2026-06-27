@@ -319,6 +319,10 @@ export interface Student {
   discountAmount: number
   /** Chegirma izohi/sababi (masalan "Aka-uka chegirmasi"). */
   discountNote: string
+  /** Chegirma amal qilish boshlanish oyi ("YYYY-MM"). Bo'sh — cheklovsiz (boshidan). */
+  discountStartMonth?: string
+  /** Chegirma amal qilish tugash oyi ("YYYY-MM"). Bo'sh — cheklovsiz. Ikkalasi bo'sh — har doim. */
+  discountEndMonth?: string
 }
 
 /* ---------- Xonalar ---------- */

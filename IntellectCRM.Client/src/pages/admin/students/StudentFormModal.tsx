@@ -38,6 +38,8 @@ const empty: StudentPayload = {
   discountPct: 0,
   discountAmount: 0,
   discountNote: '',
+  discountStartMonth: '',
+  discountEndMonth: '',
 }
 
 /** "Familiya Ism Sharifi" stringidan parts. Eski yozuvlarni tahrirda taqsimlaymiz. */
@@ -118,6 +120,8 @@ export function StudentFormModal({ open, onClose, onSubmit, initial }: Props) {
         discountPct: initial.discountPct,
         discountAmount: initial.discountAmount,
         discountNote: initial.discountNote,
+        discountStartMonth: initial.discountStartMonth ?? '',
+        discountEndMonth: initial.discountEndMonth ?? '',
       })
     } else {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- yangi forma boshlash (maqsadli)
@@ -341,6 +345,20 @@ export function StudentFormModal({ open, onClose, onSubmit, initial }: Props) {
               }
             />
           </div>
+          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+            <Input
+              label="Amal qilish boshi (oy)"
+              type="month"
+              value={form.discountStartMonth ?? ''}
+              onChange={(e) => update('discountStartMonth', e.target.value)}
+            />
+            <Input
+              label="Amal qilish oxiri (oy)"
+              type="month"
+              value={form.discountEndMonth ?? ''}
+              onChange={(e) => update('discountEndMonth', e.target.value)}
+            />
+          </div>
           <div className="mt-3">
             <Input
               label="Izoh (sabab)"
@@ -350,7 +368,9 @@ export function StudentFormModal({ open, onClose, onSubmit, initial }: Props) {
             />
           </div>
           <p className="mt-1 text-xs text-slate-400">
-            Avval foiz ayriladi, keyin aniq summa. Oylik 0 dan past bo'lmaydi.
+            Avval foiz ayriladi, keyin aniq summa. Oylik 0 dan past bo'lmaydi. Amal qilish oylari
+            kiritilsa (masalan iyun–avgust), chegirma faqat shu oylar uchun hisoblanadi; bo'sh
+            qoldirilsa — har doim.
           </p>
         </Section>
 

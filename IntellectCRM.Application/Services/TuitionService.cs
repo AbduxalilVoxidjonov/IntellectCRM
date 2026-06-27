@@ -46,6 +46,23 @@ public static class TuitionService
         return decimal.Round(fee - effective, 2);
     }
 
+    /// <summary>Chegirma berilgan OY ("yyyy-MM") uchun amal qiladimi. Davr
+    /// <see cref="Student.DiscountStartMonth"/>..<see cref="Student.DiscountEndMonth"/> (inklyuziv).
+    /// Ikkala chegara bo'sh bo'lsa — har doim (orqaga moslik); bittasi bo'sh — bir tomonlama ochiq.</summary>
+    public static bool DiscountActiveForMonth(Student s, string month)
+    {
+        var start = s.DiscountStartMonth ?? "";
+        var end = s.DiscountEndMonth ?? "";
+        if (start.Length == 0 && end.Length == 0) return true;
+        if (start.Length > 0 && string.CompareOrdinal(month, start) < 0) return false;
+        if (end.Length > 0 && string.CompareOrdinal(month, end) > 0) return false;
+        return true;
+    }
+
+    /// <summary>Berilgan oy uchun chegirma summasi — chegirma davri TASHQARISIDA 0 (chegirma qo'llanmaydi).</summary>
+    public static decimal DiscountForMonth(Student s, decimal fee, string month)
+        => DiscountActiveForMonth(s, month) ? DiscountFor(fee, s.DiscountPct, s.DiscountAmount) : 0m;
+
     /// <summary>
     /// Guruh oylik to'lovi o'zgarganda JORIY oy hisobini qayta hisoblaydi: shu guruhga
     /// (asosiy <c>ClassName</c> bo'yicha) biriktirilgan o'quvchilarning shu oygi
@@ -96,7 +113,7 @@ public static class TuitionService
     private static bool ApplyFeeToCharge(MonthlyCharge charge, Student? s, decimal newFee)
     {
         if (s is null || charge.Locked) return false;
-        var newDiscount = DiscountFor(newFee, s.DiscountPct, s.DiscountAmount);
+        var newDiscount = DiscountForMonth(s, newFee, charge.Month);
         var newEffective = newFee - newDiscount;
         var oldEffective = charge.Amount - charge.Discount;
         var delta = newEffective - oldEffective;
@@ -244,7 +261,7 @@ public static class TuitionService
         if (gross <= 0) return;
 
         var month = dateIso[..7];
-        var discount = DiscountFor(gross, s.DiscountPct, s.DiscountAmount);
+        var discount = DiscountForMonth(s, gross, month);
         var effective = gross - discount;
 
         // Per-guruh billingga o'tdik — shu oyning eski aggregate (GroupId=null) qatorini darhol tozalaymiz.
@@ -269,7 +286,7 @@ public static class TuitionService
                 // segment. Yangi segment (shu sanadan oy oxirigacha) USTIGA QO'SHILADI — gap (muzlatish↔qayta
                 // aktiv) hisoblanmaydi, studied portion yo'qolmaydi. Yig'indi to'liq oylikdan oshmaydi.
                 var newAmount = Math.Min(existing.Amount + gross, cls.MonthlyFee);
-                var newDiscount = DiscountFor(newAmount, s.DiscountPct, s.DiscountAmount);
+                var newDiscount = DiscountForMonth(s, newAmount, month);
                 existing.Amount = newAmount;
                 existing.Discount = newDiscount;
                 existing.Date = dateIso;
@@ -316,7 +333,7 @@ public static class TuitionService
         // qatnashilgan dars × kursning bir dars yaxlit narxi (LessonPrice; yo'q bo'lsa eski pro-rata).
         var lessonFee = await LessonFeeForCourseAsync(db, cls.CourseId);
         var gross = ProratedLessonCharge(cls.MonthlyFee, lessonFee, before, totalInMonth);
-        var discount = gross > 0 ? DiscountFor(gross, s.DiscountPct, s.DiscountAmount) : 0m;
+        var discount = gross > 0 ? DiscountForMonth(s, gross, month) : 0m;
         var effective = gross - discount;
 
         // Per-guruh billingga o'tdik — shu oyning eski aggregate (GroupId=null) qatorini darhol tozalaymiz
@@ -405,7 +422,7 @@ public static class TuitionService
     /// Effektiv 0 (100% chegirma) bo'lsa ham qator qoldiriladi — hisobotda ko'rinsin. SaveChanges — chaqiruvchida.</summary>
     private static decimal AccrueOne(IAppDbContext db, Student s, string? groupId, string month, decimal fee)
     {
-        var discount = DiscountFor(fee, s.DiscountPct, s.DiscountAmount);
+        var discount = DiscountForMonth(s, fee, month);
         var effective = fee - discount;
         db.MonthlyCharges.Add(new MonthlyCharge
         {

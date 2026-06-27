@@ -74,7 +74,7 @@ public static class StudentGroupLedger
                     gross = FreezeGross(group, membership.ActivatedAt, membership.FrozenAt);
                 else
                     gross = group.MonthlyFee;
-                discount = TuitionService.DiscountFor(gross, student.DiscountPct, student.DiscountAmount);
+                discount = TuitionService.DiscountForMonth(student, gross, month);
             }
             var effective = gross - discount;
             if (effective < 0) effective = 0;
