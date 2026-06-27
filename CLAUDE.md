@@ -114,6 +114,22 @@ docker compose up -d --build    # app + postgres + cloudflared + backup + mediam
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-27: **LANDING (apex marketing sayti) TO'LIQ OLIB TASHLANDI — backend + CRM sozlama + page/.**
+  Foydalanuvchi: apex landing (intellectschool.uz marketing sayti) HAM, undagi CRM Sozlamalar → "Landing page"
+  tahrirlovchi HAM kerak emas. **Backend:** `LandingController` o'chirildi; `LandingContent` entity + DbSet
+  (IAppDbContext/AppDbContext) olib tashlandi; `BackupService`dan `landingContents` chiqarildi (o'rniga
+  `centerAiAnalyses` qo'shildi); `Program.cs` host-based landing routing (landingDir/appHost/landingEnabled/
+  IsLandingHost + `MapWhen` page/ branch + `__LANDING_CONTENT__` inject) butunlay olib tashlandi → CSP endi DOIM
+  qat'iy CRM CSP (apex/landing yumshoq CSP yo'q); SPA fallback endi BARCHA hostlarda (apex `intellectschool.uz` ham,
+  `crm.*` ham → CRM SPA). `page/` papkasi (Intellect Kokand.dc.html, landing.default.json, screenshots) + Dockerfile
+  `COPY page/` o'chirildi. Migratsiya `RemoveLandingContent` (DropTable LandingContents — landing kontenti o'chadi,
+  boshqa ma'lumot saqlanadi). **Frontend:** `services/landing.ts` + `LandingSettings.tsx` o'chirildi; navigation.ts
+  "Landing page" bandi, SettingsPage import/label/render olib tashlandi. **JONLI E2E** (throwaway PG): migratsiya
+  zanjiri toza qo'llandi (LandingContents jadval DROP), `RemoveLandingContent` history'da, `GET /api/admin/landing`
+  → 404, health 200, startup xato yo'q. Backend 0, tsc+vite yashil. **DEPLOYDA:** `docker compose up -d --build app`
+  (migratsiya LandingContents jadvalini DROP qiladi; postgres-data SAQLANADI). ESLATMA: apex `intellectschool.uz`
+  endi CRM SPA'ni ko'rsatadi (login). Cloudflare panelida apex Public Hostname endi shart emas (lekin qolsa ham
+  zararsiz — SPA ochiladi).
 - 2026-06-27: **Dashboard: guruh statistikasi qayta dizayn + MARKAZ kunlik AI Tahlil (Gemini) + super-admin
   per-guruh oylik hisob tahrirlash.** **(1) Guruh statistikasi (ClassPerformanceChart) qayta yozildi:** ilgari bitta
   bar-chart (x o'qida o'qituvchi custom tick — "hunuk") edi → endi HAR O'QITUVCHI ALOHIDA panel (responsive grid,

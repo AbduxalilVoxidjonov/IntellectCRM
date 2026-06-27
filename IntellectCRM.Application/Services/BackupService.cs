@@ -100,8 +100,8 @@ public static class BackupService
         await Add("certificateTemplates", db.CertificateTemplates);
         await Add("studentCertificates", db.StudentCertificates);
         await Add("studentAiAnalyses", db.StudentAiAnalyses);
+        await Add("centerAiAnalyses", db.CenterAiAnalyses);
         await Add("rooms", db.Rooms);
-        await Add("landingContents", db.LandingContents);
         await Add("userSettings", db.UserSettings);
         await Add("centerMeta", db.CenterMeta);
 

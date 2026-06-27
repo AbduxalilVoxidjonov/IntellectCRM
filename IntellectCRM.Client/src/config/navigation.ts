@@ -169,7 +169,6 @@ export const navByRole: Record<Role, NavItem[]> = {
         { label: 'Turniket integratsiya', to: '/admin/settings/turnstile' },
         { label: 'Kamera integratsiya', to: '/admin/settings/cameras' },
         { label: "To'lov eslatmasi", to: '/admin/settings/payment-reminders' },
-        { label: 'Landing page', to: '/admin/settings/landing', roles: ['superadmin'] },
       ],
     },
     { label: 'Arxiv', to: '/admin/archive', icon: Archive, perm: 'settings' },

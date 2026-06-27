@@ -440,19 +440,6 @@ if (!app.Environment.IsDevelopment())
     app.UseForwardedHeaders(fwd);
 }
 
-// Landing (apex domen) sozlamasi. CRM SPA FAQAT `App:Host` (= crm.intellectschool.uz) hostida
-// ochiladi; BOSHQA barcha hostlar (apex intellectschool.uz, www, ...) → page/ marketing sayti.
-// App:Host bo'sh bo'lsa (dev) yoki page/ papkasi yo'q bo'lsa — landing O'CHIQ, hamma host SPA'ga
-// tushadi (eski xulq; CRM'ni qulflab qo'ymaslik uchun xavfsiz fallback).
-var landingDir = Path.Combine(app.Environment.ContentRootPath, "page");
-// App:Host'da port bo'lishi mumkin (masalan lokal "localhost:8080"). `Request.Host.Host` esa
-// portsiz hostname qaytaradi — shuning uchun solishtirishdan oldin appHost'dan ham portni olib
-// tashlaymiz (hostname↔hostname, port-agnostik). Aks holda lokalda hamma so'rov landing'ga ketardi.
-var appHost = (app.Configuration["App:Host"] ?? "").Trim().ToLowerInvariant().Split(':')[0];
-var landingEnabled = appHost.Length > 0 && Directory.Exists(landingDir);
-bool IsLandingHost(HttpContext c) =>
-    landingEnabled && !string.Equals(c.Request.Host.Host, appHost, StringComparison.OrdinalIgnoreCase);
-
 // Javoblarni siqish — pipeline boshida (statik fayllar va API javoblari ham siqilsin).
 app.UseResponseCompression();
 
@@ -467,27 +454,18 @@ app.Use(async (context, next) =>
     // CSP faqat prod'da — dev'da SPA Vite serverida alohida beriladi.
     if (!app.Environment.IsDevelopment())
     {
-        headers["Content-Security-Policy"] = IsLandingHost(context)
-            // Landing (page/) — self-contained vanilla HTML (inline style/script, Google Fonts).
-            // Babel/unpkg/eval KERAK EMAS (DC runtime olib tashlandi). Ochiq marketing sahifa.
-            ? "default-src 'self'; " +
-              "img-src 'self' data: blob: https:; " +
-              "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
-              "script-src 'self' 'unsafe-inline'; " +
-              "font-src 'self' data: https://fonts.gstatic.com; " +
-              "connect-src 'self'; " +
-              "frame-ancestors 'none'; object-src 'none'; base-uri 'self'"
-            // CRM SPA — qat'iy. Leaflet xaritasi unpkg/openstreetmap'dan rasm yuklaydi (img https:).
-            : "default-src 'self'; " +
-              "img-src 'self' data: blob: https:; " +
-              "style-src 'self' 'unsafe-inline'; " +
-              // gstatic — FCM web SW (firebase-messaging-sw.js) importScripts qiladi.
-              "script-src 'self' https://www.gstatic.com; " +
-              "worker-src 'self'; " +
-              // googleapis/gstatic — FCM web token olish (getToken) so'rovlari.
-              "connect-src 'self' ws: wss: https://*.googleapis.com https://*.gstatic.com https://fcm.googleapis.com; " +
-              "font-src 'self' data:; " +
-              "frame-ancestors 'none'; object-src 'none'; base-uri 'self'";
+        // CRM SPA — qat'iy CSP. Leaflet xaritasi unpkg/openstreetmap'dan rasm yuklaydi (img https:).
+        headers["Content-Security-Policy"] =
+            "default-src 'self'; " +
+            "img-src 'self' data: blob: https:; " +
+            "style-src 'self' 'unsafe-inline'; " +
+            // gstatic — FCM web SW (firebase-messaging-sw.js) importScripts qiladi.
+            "script-src 'self' https://www.gstatic.com; " +
+            "worker-src 'self'; " +
+            // googleapis/gstatic — FCM web token olish (getToken) so'rovlari.
+            "connect-src 'self' ws: wss: https://*.googleapis.com https://*.gstatic.com https://fcm.googleapis.com; " +
+            "font-src 'self' data:; " +
+            "frame-ancestors 'none'; object-src 'none'; base-uri 'self'";
     }
     await next();
 });
@@ -495,66 +473,8 @@ app.Use(async (context, next) =>
 if (!app.Environment.IsDevelopment())
     app.UseHsts();
 
-// ---------- Landing (apex domen) ----------
-// App:Host BO'LMAGAN hostlar (apex intellectschool.uz, www, ...) → page/ marketing sayti;
-// App:Host (crm.*) → SPA (pastda). /api, /hubs, /uploads — landing hostda ham backendga o'tadi
-// (landing formalari/daraja testi kerak bo'lsa). landingEnabled=false bo'lsa blok ishlamaydi.
-if (landingEnabled)
-{
-    var landingProvider = new PhysicalFileProvider(landingDir);
-    // Index — *.dc.html (DC eksporti) yoki index.html. Nomi o'zgarsa ham topiladi.
-    var landingIndex = Directory.EnumerateFiles(landingDir, "*.html")
-        .FirstOrDefault(f => f.EndsWith(".dc.html", StringComparison.OrdinalIgnoreCase))
-        ?? Path.Combine(landingDir, "index.html");
-    // HTML shabloni bir marta o'qiladi (runtime'da o'zgarmaydi). Kontent esa DB'dan — har so'rovda
-    // `window.__LANDING_CONTENT__` bo'lib inject qilinadi (superadmin Sozlamalar → Landing page'dan
-    // tahrirlaydi). DB bo'sh bo'lsa — inject yo'q, HTML ichidagi hardcoded (zaxira) kontent ishlaydi.
-    string? landingHtmlCache = File.Exists(landingIndex) ? File.ReadAllText(landingIndex) : null;
-    // Vanilla landing — kontentni `</head>` oldidan inject qilamiz (sahifa skripti uni o'qiydi).
-    const string injectAnchor = "</head>";
-
-    app.MapWhen(
-        ctx => IsLandingHost(ctx)
-               && !ctx.Request.Path.StartsWithSegments("/api")
-               && !ctx.Request.Path.StartsWithSegments("/hubs")
-               && !ctx.Request.Path.StartsWithSegments("/uploads"),
-        branch =>
-        {
-            // page/ ichidagi statik fayllar (support.js, image-slot.js, screenshots/...).
-            branch.UseStaticFiles(new StaticFileOptions
-            {
-                FileProvider = landingProvider,
-                OnPrepareResponse = c => c.Context.Response.Headers.CacheControl = "no-cache",
-            });
-            // `/` yoki fayl topilmagan har qanday yo'l → landing index (DB kontenti inject qilinib).
-            branch.Run(async ctx =>
-            {
-                if (landingHtmlCache is null) { ctx.Response.StatusCode = StatusCodes.Status404NotFound; return; }
-                var html = landingHtmlCache;
-                try
-                {
-                    var ldb = ctx.RequestServices.GetRequiredService<AppDbContext>();
-                    var row = await ldb.LandingContents.AsNoTracking().FirstOrDefaultAsync();
-                    if (row is not null && !string.IsNullOrWhiteSpace(row.Json) && html.Contains(injectAnchor))
-                    {
-                        // row.Json — DB'dagi to'g'ri JSON (controller validatsiya qiladi). `</script>` ni
-                        // string ichida bo'lsa ham xavfsiz qilish uchun ajratamiz (XSS/break-out oldini olish).
-                        var safe = row.Json.Replace("</", "<\\/");
-                        var inject = $"<script>window.__LANDING_CONTENT__ = {safe};</script>\n{injectAnchor}";
-                        html = html.Replace(injectAnchor, inject);
-                    }
-                }
-                catch (Exception ex) { app.Logger.LogWarning(ex, "[landing] kontent inject o'tkazib yuborildi"); }
-                ctx.Response.ContentType = "text/html; charset=utf-8";
-                ctx.Response.Headers.CacheControl = "no-cache";
-                await ctx.Response.WriteAsync(html);
-            });
-        });
-}
-
-// DIQQAT: UseDefaultFiles ATAYLAB ishlatilmaydi — `/` ni o'zimiz fallback'da hostga qarab beramiz
-// (apex → landing, subdomen → SPA). Statik fayllar (assets, landing.css/js) quyida xizmat qilinadi.
-// SPA statik fayllari: Vite assetlari kontent-hash bilan (immutable, 1 yil); index.html/landing — no-cache.
+// DIQQAT: UseDefaultFiles ATAYLAB ishlatilmaydi — `/` ni o'zimiz SPA fallback'da beramiz.
+// SPA statik fayllari: Vite assetlari kontent-hash bilan (immutable, 1 yil); index.html — no-cache.
 app.UseStaticFiles(new StaticFileOptions
 {
     OnPrepareResponse = ctx =>
@@ -562,8 +482,8 @@ app.UseStaticFiles(new StaticFileOptions
         var headers = ctx.Context.Response.Headers;
         var path = ctx.Context.Request.Path.Value ?? "";
         // Faqat Vite kontent-hashli assetlar (/assets/...) abadiy keshlanadi (nomi har build'da
-        // o'zgaradi). Qolganlari — html, landing.css/landing.js, favicon (nomi o'zgarmaydi) —
-        // no-cache, aks holda yangilanishlar brauzer/Cloudflare keshida ko'rinmay qoladi.
+        // o'zgaradi). Qolganlari — html, favicon (nomi o'zgarmaydi) — no-cache, aks holda
+        // yangilanishlar brauzer/Cloudflare keshida ko'rinmay qoladi.
         if (path.Contains("/assets/", StringComparison.OrdinalIgnoreCase))
             headers.CacheControl = "public,max-age=31536000,immutable";
         else
@@ -610,9 +530,8 @@ app.MapGet("/api/health", () => Results.Ok(new { status = "healthy" }));
 // Noma'lum /api/* yo'llari — SPA HTML emas, 404 JSON qaytsin (mobil/klient uchun toza).
 app.MapFallback("/api/{**slug}", () => Results.NotFound(new { message = "API endpoint topilmadi" }));
 
-// SPA fallback: apex BO'LMAGAN hostlar (crm.intellectschool.uz va boshqalar) → React SPA (index.html).
-// Apex domen (intellectschool.uz) yuqoridagi landing blokida ushlanadi. SPA'ga kirilganda
-// React `RootRedirect` autentifikatsiyasiz foydalanuvchini `/login`ga yuboradi.
+// SPA fallback: barcha hostlar (intellectschool.uz, crm.intellectschool.uz, ...) → React SPA
+// (index.html). SPA'ga kirilganda React `RootRedirect` autentifikatsiyasiz foydalanuvchini `/login`ga yuboradi.
 var webRoot = app.Environment.WebRootPath
     ?? Path.Combine(app.Environment.ContentRootPath, "wwwroot");
 

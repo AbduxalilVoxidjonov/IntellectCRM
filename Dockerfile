@@ -43,8 +43,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends tzdata \
 COPY --from=build /app/publish ./
 # Qurilgan SPA'ni server statik papkasiga qo'yamiz (API ham, SPA ham bitta originda).
 COPY --from=client /client/dist ./wwwroot
-# Apex domen (intellectschool.uz) marketing sayti — page/ statik fayllari (host-based serving).
-COPY page/ ./page/
 ENV ASPNETCORE_ENVIRONMENT=Production \
     ASPNETCORE_URLS=http://+:8080
 EXPOSE 8080

@@ -100,9 +100,6 @@ public interface IAppDbContext
     // O'quv xonalari
     DbSet<Room> Rooms { get; }
 
-    // Apex landing sahifasi kontenti (singleton)
-    DbSet<LandingContent> LandingContents { get; }
-
     int SaveChanges();
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }
