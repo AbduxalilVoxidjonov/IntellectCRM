@@ -52,12 +52,12 @@ public static class StudentLedger
                     var nm = nameGroup is null ? student.ClassName
                         : string.IsNullOrEmpty(nameGroup.CourseId) ? nameGroup.Name
                         : courseNames.GetValueOrDefault(nameGroup.CourseId, nameGroup.Name);
-                    return new MonthCourseDto(string.IsNullOrEmpty(nm) ? "—" : nm, c.Amount);
+                    return new MonthCourseDto(string.IsNullOrEmpty(nm) ? "—" : nm, c.Amount, null);
                 }
                 if (!groupsById.TryGetValue(c.GroupId, out var g))
-                    return new MonthCourseDto("—", c.Amount);
+                    return new MonthCourseDto("—", c.Amount, c.GroupId);
                 var name = string.IsNullOrEmpty(g.CourseId) ? g.Name : courseNames.GetValueOrDefault(g.CourseId, g.Name);
-                return new MonthCourseDto(name, c.Amount);
+                return new MonthCourseDto(name, c.Amount, c.GroupId);
             }).ToList();
         }
         var payments = await db.FinanceTransactions

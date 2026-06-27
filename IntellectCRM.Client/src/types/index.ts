@@ -104,6 +104,65 @@ export interface AdminDashboard {
   totalGradesCount?: number
 }
 
+/* ---------- Markaz (butun o'quv markazi) kunlik AI tahlili ---------- */
+export interface CenterPoint {
+  label: string
+  value: number
+}
+export interface CenterRevenue {
+  expectedThisMonth: number
+  collectedThisMonth: number
+  outstandingDebt: number
+  yesterdayIncome: number
+  predictedMonthEnd: number
+}
+export interface CenterMetrics {
+  activeStudents: number
+  newLeadsThisMonth: number
+  newLeadsYesterday: number
+  convertedThisMonth: number
+  departedThisMonth: number
+  avgGradeThisMonth: number
+  avgGradePrevMonth: number
+  leadsBySource: CenterPoint[]
+  departureReasons: CenterPoint[]
+  incomeLast14Days: CenterPoint[]
+}
+export interface CenterAiNarrative {
+  umumiy: string
+  tushumTahlili: string
+  baholarTahlili: string
+  lidlar: string
+  ketganlar: string
+  xavflar: string[]
+  tavsiyalar: string[]
+  salomatlik: number
+  trend: string
+}
+export interface CenterAiRecord {
+  id: string
+  date: string
+  createdAt: string
+  model: string
+  health: number
+  ai: CenterAiNarrative
+  revenue: CenterRevenue
+  metrics: CenterMetrics
+}
+export interface CenterAiHistoryItem {
+  id: string
+  date: string
+  createdAt: string
+  health: number
+  summary: string
+}
+export interface CenterAiResponse {
+  ok: boolean
+  alreadyToday: boolean
+  record: CenterAiRecord | null
+  error: string | null
+}
+
 /* ---------- Lidlar (maktabga qiziqqanlar) ---------- */
 
 export type StageColor =
@@ -575,6 +634,8 @@ export interface MonthLedger {
 export interface MonthCourse {
   courseName: string
   fee: number
+  /** Shu kurs ulushi qaysi guruh hisobiga tegishli (null = guruhsiz/ClassName) */
+  groupId?: string | null
 }
 
 export interface LedgerPayment {

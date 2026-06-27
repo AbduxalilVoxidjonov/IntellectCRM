@@ -93,6 +93,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     // O'quvchi AI tahlili (Gemini)
     public DbSet<StudentAiAnalysis> StudentAiAnalyses => Set<StudentAiAnalysis>();
 
+    // Markaz kunlik AI tahlili (Gemini)
+    public DbSet<CenterAiAnalysis> CenterAiAnalyses => Set<CenterAiAnalysis>();
+
     // Xodim roli shablonlari
     public DbSet<StaffRoleTemplate> StaffRoleTemplates => Set<StaffRoleTemplate>();
 
@@ -178,6 +181,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
 
         b.Entity<AuditLog>().HasIndex(a => new { a.EntityType, a.EntityId });
         b.Entity<StudentAiAnalysis>().HasIndex(a => new { a.StudentId, a.Date });
+        b.Entity<CenterAiAnalysis>().HasIndex(a => a.Date);
         b.Entity<AuditLog>().HasIndex(a => a.Timestamp);
         b.Entity<AuditLog>().HasIndex(a => a.StudentId);
         b.Entity<AuditLog>().HasIndex(a => a.TeacherId);

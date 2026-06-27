@@ -624,8 +624,10 @@ public record CourseFinanceReportDto(
 /// <summary>Bitta oyning hisobi.
 /// Charged = to'liq oylik (sinf narxi); Discount = shu oy uchun berilgan chegirma;
 /// Paid = haqiqiy naqd to'lov (tx); Remaining = Charged − Discount − Paid (manfiy bo'lsa 0).</summary>
-/// <summary>Oydagi bitta kurs ulushi (qaysi kursga qancha) — to'lov tarixida breakdown uchun.</summary>
-public record MonthCourseDto(string CourseName, decimal Fee);
+/// <summary>Oydagi bitta kurs ulushi (qaysi kursga qancha) — to'lov tarixida breakdown uchun.
+/// GroupId — shu ulush qaysi guruh hisobiga tegishli (null = guruhsiz/ClassName); super admin
+/// shu guruhning oylik hisobini alohida tahrirlashi uchun (ko'p guruhli o'quvchi).</summary>
+public record MonthCourseDto(string CourseName, decimal Fee, string? GroupId = null);
 public record MonthLedgerDto(
     string Month, decimal Charged, decimal Discount, decimal Paid, decimal Remaining, string Status,
     List<MonthCourseDto> Courses, string? GroupId = null);
@@ -1268,6 +1270,43 @@ public record StudentAiAnalysisRecordDto(
 /// (yangi Gemini chaqirig'i bo'lmadi, mavjud yozuv qaytdi).</summary>
 public record StudentAiAnalysisResponseDto(
     bool Ok, bool AlreadyToday, StudentAiAnalysisRecordDto? Record, string? Error);
+
+/* ---------- Markaz (butun o'quv markazi) kunlik AI tahlili ---------- */
+/// <summary>Diagramma uchun umumiy nuqta (yorliq + qiymat).</summary>
+public record CenterPointDto(string Label, double Value);
+/// <summary>Markaz moliyaviy prognozi (deterministik hisoblangan — AI emas).</summary>
+public record CenterRevenueDto(
+    decimal ExpectedThisMonth,   // shu oy kutilayotgan hisob (MonthlyCharge effektiv yig'indisi)
+    decimal CollectedThisMonth,  // shu oy yig'ilgan tushum (income)
+    decimal OutstandingDebt,     // jami qarzdorlik (manfiy balanslar yig'indisi, musbat)
+    decimal YesterdayIncome,     // kechagi tushum
+    decimal PredictedMonthEnd);  // oy oxirigacha taxminiy yig'iladigan tushum (chiziqli prognoz)
+/// <summary>Markaz ko'rsatkichlari (deterministik hisoblangan raqamlar — diagramma uchun).</summary>
+public record CenterMetricsDto(
+    int ActiveStudents,
+    int NewLeadsThisMonth,
+    int NewLeadsYesterday,
+    int ConvertedThisMonth,
+    int DepartedThisMonth,
+    double AvgGradeThisMonth,
+    double AvgGradePrevMonth,
+    List<CenterPointDto> LeadsBySource,
+    List<CenterPointDto> DepartureReasons,
+    List<CenterPointDto> IncomeLast14Days);
+/// <summary>AI tomonidan yozilgan narrativ (o'zbek tilida) — markaz tahlili matn qismlari.</summary>
+public record CenterAiNarrativeDto(
+    string Umumiy, string TushumTahlili, string BaholarTahlili,
+    string Lidlar, string Ketganlar, List<string> Xavflar,
+    List<string> Tavsiyalar, int Salomatlik, string Trend);
+/// <summary>Saqlangan bitta markaz AI tahlil yozuvi (to'liq: AI narrativ + raqamlar).</summary>
+public record CenterAiRecordDto(
+    string Id, string Date, string CreatedAt, string Model, int Health,
+    CenterAiNarrativeDto Ai, CenterRevenueDto Revenue, CenterMetricsDto Metrics);
+/// <summary>Tarix ro'yxati elementi (qisqa).</summary>
+public record CenterAiHistoryItemDto(string Id, string Date, string CreatedAt, int Health, string Summary);
+/// <summary>Markaz AI tahlil yaratish javobi. AlreadyToday=true bo'lsa bugun allaqachon qilingan.</summary>
+public record CenterAiResponseDto(
+    bool Ok, bool AlreadyToday, CenterAiRecordDto? Record, string? Error);
 
 /* ---------- O'quvchi baholash statistikasi (oylik + har darslik) ---------- */
 /// <summary>Mezon bo'yicha OYLIK xulosa: shu oyda nechta darsda bajargan / jami dars.</summary>

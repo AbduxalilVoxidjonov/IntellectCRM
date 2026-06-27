@@ -22,6 +22,7 @@ import {
   type Metric,
 } from '@/components/charts/ClassPerformanceChart'
 import { WeeklySchedule } from '@/components/dashboard/WeeklySchedule'
+import { CenterAiAnalysisCard } from '@/components/dashboard/CenterAiAnalysisCard'
 import { cn } from '@/lib/utils'
 
 export function AdminDashboard() {
@@ -116,9 +117,14 @@ export function AdminDashboard() {
         />
       </div>
 
+      {/* AI Tahlil — markaz bo'yicha kunlik sun'iy intellekt tahlili (guruh statistikasidan tepada) */}
+      <div className="mb-4">
+        <CenterAiAnalysisCard />
+      </div>
+
       {/* Statistika grafigi + reyting */}
       <div className="grid grid-cols-1 gap-4">
-        {/* Grafik (baho / davomat tanlash) — x o'qida o'qituvchi, guruh nomi hoverda */}
+        {/* Grafik (baho / davomat tanlash) — har o'qituvchi alohida panel; tanlov hamma panelda almashadi */}
         <Card
           title="Guruhlar bo'yicha statistika"
           sub={metric === 'grade' ? "O'rtacha baho bo'yicha" : "Davomat bo'yicha"}

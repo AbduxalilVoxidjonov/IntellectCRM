@@ -843,6 +843,15 @@ public class CenterMeta
     public bool TelegramBackupEnabled { get; set; } = true;
     /// <summary>Oxirgi muvaffaqiyatli Telegram backup yuborish vaqti (tracking uchun).</summary>
     public DateTime? TelegramBackupLastSentAt { get; set; }
+
+    // ---------- Kunlik markaz AI tahlili ----------
+    /// <summary>Kunlik avtomatik markaz AI tahlili yoqilganmi (default true). Yoqilgan va Gemini kaliti
+    /// sozlangan bo'lsa, fon xizmati har kuni <see cref="AiDailyAnalysisHour"/> (Toshkent) da markazning
+    /// bir kun oldingi/joriy oy ma'lumotlari asosida AI tahlil yaratadi (tushum prognozi, baholar
+    /// dinamikasi, lidlar, ketganlar sabablari, tavsiyalar). Bosh sahifada "AI Tahlil" bo'limida.</summary>
+    public bool AiDailyAnalysisEnabled { get; set; } = true;
+    /// <summary>Kunlik AI tahlil soati (0-23, Toshkent). Default 8 (ertalab).</summary>
+    public int AiDailyAnalysisHour { get; set; } = 8;
 }
 
 /// <summary>
@@ -1513,6 +1522,30 @@ public class StudentAiAnalysis
     /// <summary>Umumiy ball (0-100) — tarix grafigi/badge uchun.</summary>
     public int OverallScore { get; set; }
     /// <summary>To'liq strukturali natija (JSON) — diagramma + matn bo'limlari.</summary>
+    public string ResultJson { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Markaz (butun o'quv markazi) AI tahlili (Gemini) — KUNIGA BIR MARTA (ertalab soat ~8da fon
+/// xizmati orqali, yoki admin qo'lda). ResultJson — strukturali natija: AI narrativ (umumiy holat,
+/// tushum tahlili, baholar dinamikasi, lidlar, ketganlar, xavflar, tavsiyalar) + deterministik
+/// hisoblangan raqamlar (moliya prognozi, ko'rsatkichlar, diagramma nuqtalari). Bosh sahifada
+/// "AI Tahlil" bo'limida ko'rsatiladi.
+/// </summary>
+public class CenterAiAnalysis
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    /// <summary>Tahlil sanasi "yyyy-MM-dd" (Toshkent) — kuniga bir marta cheklovi shu bo'yicha.</summary>
+    public string Date { get; set; } = string.Empty;
+    /// <summary>Yaratilgan vaqt ISO (Toshkent).</summary>
+    public string CreatedAt { get; set; } = AppClock.Iso();
+    /// <summary>Ishlatilgan Gemini modeli.</summary>
+    public string Model { get; set; } = string.Empty;
+    /// <summary>Qisqa umumiy xulosa — ro'yxat/badge uchun.</summary>
+    public string Summary { get; set; } = string.Empty;
+    /// <summary>Markaz salomatligi (0-100) — tarix/badge uchun.</summary>
+    public int Health { get; set; }
+    /// <summary>To'liq strukturali natija (JSON): { ai, revenue, metrics }.</summary>
     public string ResultJson { get; set; } = string.Empty;
 }
 

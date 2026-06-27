@@ -114,6 +114,32 @@ docker compose up -d --build    # app + postgres + cloudflared + backup + mediam
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-27: **Dashboard: guruh statistikasi qayta dizayn + MARKAZ kunlik AI Tahlil (Gemini) + super-admin
+  per-guruh oylik hisob tahrirlash.** **(1) Guruh statistikasi (ClassPerformanceChart) qayta yozildi:** ilgari bitta
+  bar-chart (x o'qida o'qituvchi custom tick — "hunuk") edi → endi HAR O'QITUVCHI ALOHIDA panel (responsive grid,
+  yonma-yon kartalar), har panelda o'qituvchi guruhlari gorizontal bar; tepadagi "O'rtacha baho / Davomat" toggle
+  (AdminDashboard'da bor) hamma panelda bir vaqtda almashadi (recharts emas — yengil CSS bar). **(2) AI Tahlil (markaz,
+  bosh sahifa, guruh statistikasidan TEPADA):** kuniga BIR MARTA (ertalab soat 8, `CenterAiSchedulerService` fon xizmati;
+  CenterMeta `AiDailyAnalysisEnabled`=true/`AiDailyAnalysisHour`=8) + admin qo'lda "Yangilash" (superadmin "Qayta" =
+  force). `CenterAiAnalysis` entity (kuniga 1, Date index) + migratsiya `AddCenterAiAnalysis` (1 jadval + 2 CenterMeta
+  ustun, data loss YO'Q). **Raqamlar DETERMINISTIK** (`CenterAiAnalysisService.BuildSnapshotAsync` — moliya: shu oy
+  kutilayotgan hisob/yig'ilgan tushum/qarzdorlik/kechagi tushum/oy oxiri chiziqli prognoz/oxirgi 14 kun; o'quvchilar:
+  aktiv/yangi lidlar oy+kecha/konversiya/ketganlar; baholar shu oy vs o'tgan oy; lidlar manbasi; ketish sabablari
+  arxivdan), **Gemini esa faqat O'ZBEK narrativ** (umumiy/tushum tahlili/baholar/lidlar/ketganlar/xavflar/tavsiyalar/
+  salomatlik 0-100/trend) jsonMode bilan. `GeminiService` (mavjud, `CenterMeta.GeminiApiKey`) — o'quvchi AI tahlili bilan
+  bir xil integratsiya. Endpoint `AiAnalysisController` (`GET center` 204/rekord, `GET center/history`, `POST center/run
+  [?force]`). Frontend: `aiAnalysis.ts` servis + tiplar + `CenterAiAnalysisCard` (tushum kartalari+yig'ilish bari+14 kun
+  bar, baholar delta, lidlar/ketganlar mini-bar, xavflar/tavsiyalar) → AdminDashboard'ga ulandi. **(3) Super-admin
+  per-guruh oylik hisob:** ko'p guruhli o'quvchining oylik to'lovini guruh bo'yicha ALOHIDA tahrirlash bug'i (ilgari
+  ko'p guruhli oyda tahrir tugmasi DISABLE edi). Backend `EditCharge` ALLAQACHON `?groupId=` qo'llab-quvvatlardi —
+  yetishmagani: `MonthCourseDto`ga `GroupId` qo'shildi (`StudentLedger.CoursesForMonth`), `PaymentHistoryModal` endi
+  HAR KURS qatorida (per-guruh) inline qalam → `editStudentCharge(month, amount, groupId)`; "Hisoblangan" katak faqat
+  yig'indi (eski disable tugma olib tashlandi). **JONLI E2E** (throwaway PG): migratsiya qo'llandi (CenterAiAnalyses
+  jadval + CenterMeta AiDaily* ustunlar), superadmin login → GET center 204 → history [] → POST run kalitsiz "kalit
+  sozlanmagan" → kalit saqlab POST run: SNAPSHOT to'liq qurildi (barcha LINQ ishladi) so'ng Gemini 400 "API key not
+  valid" (kutilgan, soxta kalit) → unhandled exception YO'Q; dashboard 200. Backend 0, tsc+vite yashil.
+  **DEPLOYDA:** `docker compose up -d --build app` (migratsiya startupda avto; postgres-data SAQLANADI). AI tahlil
+  ishlashi uchun Sozlamalar → AI Tahlil (Gemini)da kalit bo'lsin (aks holda "kalit sozlanmagan").
 - 2026-06-26: **5 ta ish: lid yoshi rangi · o'quvchi-edit dublikat bug · Marketing permission · dashboard grafik ·
   backup app-side JSON.** **(1) Lid yoshi (LeadCard):** lid o'quvchiga AYLANTIRILGAN bo'lsa YASHIL chap-chiziq;
   aks holda lidlar bo'limida qancha uzoq qolib ketsa shuncha QIZARADI (kulrang<3kun → amber 3-6 → orange 7-13 →

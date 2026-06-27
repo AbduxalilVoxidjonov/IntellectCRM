@@ -25,23 +25,26 @@ export function PaymentHistoryModal({ studentId, onClose }: Props) {
   const isSuper = user?.role === 'superadmin'
   const [ledger, setLedger] = useState<StudentLedger | null>(null)
   const [loading, setLoading] = useState(false)
-  /** Hisoblangan summani qo'lda tahrirlash (faqat super admin). */
-  const [editMonth, setEditMonth] = useState<string | null>(null)
+  /** Hisoblangan summani qo'lda tahrirlash (faqat super admin) — har (oy, guruh) bo'yicha alohida.
+   *  Kalit: `${month}|${groupId ?? ''}` — ko'p guruhli o'quvchida har guruh ulushi alohida tahrirlanadi. */
+  const [editKey, setEditKey] = useState<string | null>(null)
   const [editVal, setEditVal] = useState('')
   const [saving, setSaving] = useState(false)
+
+  const keyOf = (month: string, groupId?: string | null) => `${month}|${groupId ?? ''}`
 
   useEffect(() => {
     if (!studentId) return
     // eslint-disable-next-line react-hooks/set-state-in-effect -- modal ochilganda tarixni yuklash (maqsadli)
     setLoading(true)
     setLedger(null)
-    setEditMonth(null)
+    setEditKey(null)
     getStudentLedger(studentId)
       .then(setLedger)
       .finally(() => setLoading(false))
   }, [studentId])
 
-  const saveEdit = async (month: string, groupId?: string) => {
+  const saveEdit = async (month: string, groupId?: string | null) => {
     if (!studentId) return
     const amount = Number(editVal)
     if (!Number.isFinite(amount) || amount < 0) {
@@ -50,12 +53,12 @@ export function PaymentHistoryModal({ studentId, onClose }: Props) {
     }
     setSaving(true)
     try {
-      // Guruhsiz (ClassName) hisob — groupId=undefined yuboriladi (backend null = ClassName).
-      // Ko'p guruhli oy bu yerga kelmaydi (tahrir tugmasi disable).
-      await editStudentCharge(studentId, month, amount, groupId)
+      // Guruhsiz (ClassName) hisob — groupId=undefined (backend null = ClassName);
+      // guruhli ulush — shu guruh hisobi alohida tahrirlanadi.
+      await editStudentCharge(studentId, month, amount, groupId ?? undefined)
       const fresh = await getStudentLedger(studentId)
       setLedger(fresh)
-      setEditMonth(null)
+      setEditKey(null)
     } catch (err) {
       const message = err instanceof Error
         ? err.message
@@ -118,77 +121,81 @@ export function PaymentHistoryModal({ studentId, onClose }: Props) {
                       <td className="px-4 py-2.5 align-top font-medium text-slate-700">
                         {formatMonth(m.month)}
                         {m.courses.length > 0 && (
-                          <div className="mt-1 space-y-0.5">
-                            {m.courses.map((co, i) => (
-                              <div key={i} className="flex items-center gap-1.5 text-xs font-normal text-slate-400">
-                                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-brand-300" />
-                                {co.courseName} · <span className="font-mono">{formatMoney(co.fee)}</span>
-                              </div>
-                            ))}
+                          <div className="mt-1 space-y-1">
+                            {m.courses.map((co, i) => {
+                              const k = keyOf(m.month, co.groupId)
+                              const editing = isSuper && editKey === k
+                              return (
+                                <div
+                                  key={i}
+                                  className="flex items-center gap-1.5 text-xs font-normal text-slate-400"
+                                >
+                                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-brand-300" />
+                                  <span className="truncate text-slate-500">{co.courseName}</span>
+                                  <span className="text-slate-300">·</span>
+                                  {editing ? (
+                                    <span className="inline-flex items-center gap-1">
+                                      <input
+                                        type="number"
+                                        autoFocus
+                                        value={editVal}
+                                        disabled={saving}
+                                        onChange={(e) => setEditVal(e.target.value)}
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter') saveEdit(m.month, co.groupId)
+                                          if (e.key === 'Escape') setEditKey(null)
+                                        }}
+                                        className="w-24 rounded-md border border-slate-200 px-2 py-0.5 text-right font-mono text-xs outline-none focus:border-brand-400 disabled:opacity-50"
+                                      />
+                                      <button
+                                        type="button"
+                                        title="Saqlash"
+                                        disabled={saving}
+                                        onClick={() => saveEdit(m.month, co.groupId)}
+                                        className="rounded p-0.5 text-emerald-600 hover:bg-emerald-50 disabled:opacity-50"
+                                      >
+                                        <Check className="h-3.5 w-3.5" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        title="Bekor"
+                                        disabled={saving}
+                                        onClick={() => setEditKey(null)}
+                                        className="rounded p-0.5 text-slate-400 hover:bg-slate-100 disabled:opacity-50"
+                                      >
+                                        <X className="h-3.5 w-3.5" />
+                                      </button>
+                                    </span>
+                                  ) : (
+                                    <>
+                                      <span className="font-mono text-slate-500">{formatMoney(co.fee)}</span>
+                                      {isSuper && (
+                                        <button
+                                          type="button"
+                                          title="Bu guruh hisobini tahrirlash"
+                                          onClick={() => {
+                                            setEditKey(k)
+                                            setEditVal(String(co.fee))
+                                          }}
+                                          className="rounded p-0.5 text-slate-300 transition-colors hover:bg-slate-100 hover:text-brand-600"
+                                        >
+                                          <Pencil className="h-3 w-3" />
+                                        </button>
+                                      )}
+                                    </>
+                                  )}
+                                </div>
+                              )
+                            })}
                           </div>
                         )}
                       </td>
-                      <td className="px-4 py-2.5 text-right text-slate-600">
-                        {isSuper && editMonth === m.month ? (
-                          <div className="flex items-center justify-end gap-1">
-                            <input
-                              type="number"
-                              autoFocus
-                              value={editVal}
-                              disabled={saving}
-                              onChange={(e) => setEditVal(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') saveEdit(m.month, m.groupId)
-                                if (e.key === 'Escape') setEditMonth(null)
-                              }}
-                              className="w-28 rounded-md border border-slate-200 px-2 py-1 text-right text-sm outline-none focus:border-brand-400 disabled:opacity-50"
-                            />
-                            <button
-                              type="button"
-                              title="Saqlash"
-                              disabled={saving}
-                              onClick={() => saveEdit(m.month, m.groupId)}
-                              className="rounded p-1 text-emerald-600 hover:bg-emerald-50 disabled:opacity-50"
-                            >
-                              <Check className="h-4 w-4" />
-                            </button>
-                            <button
-                              type="button"
-                              title="Bekor"
-                              disabled={saving}
-                              onClick={() => setEditMonth(null)}
-                              className="rounded p-1 text-slate-400 hover:bg-slate-100 disabled:opacity-50"
-                            >
-                              <X className="h-4 w-4" />
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="flex items-center justify-end gap-1.5">
-                            <span className="font-mono">{formatMoney(m.charged)}</span>
-                            {isSuper &&
-                              (m.courses.length > 1 ? (
-                                <button
-                                  type="button"
-                                  disabled
-                                  title="Ko'p guruhli oy — har guruhni to'lov oynasidan tahrirlang"
-                                  className="cursor-not-allowed rounded p-0.5 text-slate-200"
-                                >
-                                  <Pencil className="h-3.5 w-3.5" />
-                                </button>
-                              ) : (
-                                <button
-                                  type="button"
-                                  title="Tahrirlash"
-                                  onClick={() => {
-                                    setEditMonth(m.month)
-                                    setEditVal(String(m.charged))
-                                  }}
-                                  className="rounded p-0.5 text-slate-300 transition-colors hover:bg-slate-100 hover:text-brand-600"
-                                >
-                                  <Pencil className="h-3.5 w-3.5" />
-                                </button>
-                              ))}
-                          </div>
+                      <td className="px-4 py-2.5 text-right align-top font-mono text-slate-600">
+                        {formatMoney(m.charged)}
+                        {isSuper && m.courses.length > 1 && (
+                          <p className="mt-0.5 text-[10px] font-normal text-slate-300">
+                            har guruh alohida ↙
+                          </p>
                         )}
                       </td>
                       <td

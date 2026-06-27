@@ -1,13 +1,5 @@
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts'
 import type { ClassPerformance } from '@/types'
+import { cn } from '@/lib/utils'
 
 export type Metric = 'grade' | 'attendance'
 
@@ -16,68 +8,115 @@ interface Props {
   metric: Metric
 }
 
+interface TeacherGroup {
+  teacher: string
+  groups: ClassPerformance[]
+}
+
 /**
- * Guruhlar statistikasi — ustunlar GURUH bo'yicha, lekin x o'qida O'QITUVCHI nomi ko'rsatiladi
- * (bir o'qituvchining guruhlari yonma-yon). Guruh nomi faqat ustunga yaqinlashganda (hover) chiqadi.
- * Bir o'qituvchi nomi faqat bir marta (ketma-ket guruhlarining birinchisida) yoziladi — takror emas.
+ * Guruhlar statistikasi — HAR O'QITUVCHI ALOHIDA panel (yonma-yon kartalar). Har panelda
+ * o'qituvchining guruhlari gorizontal ustun (bar) ko'rinishida. Tepadagi "O'rtacha baho / Davomat"
+ * tanlovi (metric) hamma panelda bir vaqtda almashadi.
  */
 export function ClassPerformanceChart({ data, metric }: Props) {
   const isGrade = metric === 'grade'
-  const dataKey = isGrade ? 'averageGrade' : 'attendanceRate'
-  const color = isGrade ? '#1f47f5' : '#16a34a'
-  const domain: [number, number] = isGrade ? [0, 5] : [0, 100]
+  const max = isGrade ? 5 : 100
   const unit = isGrade ? '' : '%'
-  const label = isGrade ? "O'rtacha baho" : 'Davomat'
+  const barColor = isGrade ? 'bg-blue-500' : 'bg-emerald-500'
+  const softColor = isGrade ? 'bg-blue-50' : 'bg-emerald-50'
 
-  // Har bir ustun uchun: o'qituvchi nomi avvalgisidan farq qilsagina ko'rsatiladi (guruhlash effekti).
-  const teacherAt = data.map((d) => d.teacherName || '—')
-  const showTeacherAt = (i: number) => i === 0 || teacherAt[i] !== teacherAt[i - 1]
-
-  // Indeks bo'yicha xususiy x-tick — o'qituvchi nomini faqat guruh boshida chiqaradi.
-  // (recharts tick render-prop tipi keng — `any` qabul qilamiz va son qiymatlarni majburlaymiz.)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const renderTick = (props: any) => {
-    const x = Number(props?.x) || 0
-    const y = Number(props?.y) || 0
-    const index = Number(props?.index) || 0
-    if (!showTeacherAt(index)) return <g />
-    return (
-      <text x={x} y={y + 14} textAnchor="middle" fontSize={12} fill="#94a3b8">
-        {teacherAt[index]}
-      </text>
-    )
+  // O'qituvchi bo'yicha guruhlash (tartib: o'qituvchi nomi, keyin guruh nomi).
+  const order: string[] = []
+  const map = new Map<string, ClassPerformance[]>()
+  for (const d of data) {
+    const t = d.teacherName?.trim() || 'Biriktirilmagan'
+    if (!map.has(t)) {
+      map.set(t, [])
+      order.push(t)
+    }
+    map.get(t)!.push(d)
   }
+  const teachers: TeacherGroup[] = order
+    .sort((a, b) => a.localeCompare(b))
+    .map((teacher) => ({
+      teacher,
+      groups: map
+        .get(teacher)!
+        .slice()
+        .sort((a, b) => a.className.localeCompare(b.className)),
+    }))
+
+  const valueOf = (g: ClassPerformance): number | null =>
+    isGrade ? g.averageGrade : g.attendanceRate
+
+  const fmt = (v: number | null) =>
+    v == null ? '—' : `${isGrade ? v.toFixed(1) : Math.round(v)}${unit}`
+
+  if (teachers.length === 0)
+    return (
+      <div className="state py-10 text-center text-sm text-slate-400">
+        Hozircha ma'lumot yo'q
+      </div>
+    )
 
   return (
-    <ResponsiveContainer width="100%" height={300}>
-      <BarChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eef0f4" />
-        <XAxis
-          dataKey="classId"
-          tickLine={false}
-          axisLine={false}
-          interval={0}
-          tick={renderTick}
-        />
-        <YAxis
-          domain={domain}
-          tickLine={false}
-          axisLine={false}
-          tick={{ fontSize: 12, fill: '#94a3b8' }}
-        />
-        <Tooltip
-          cursor={{ fill: 'rgba(0,0,0,0.03)' }}
-          contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 13 }}
-          // Hoverda guruh nomi (+ o'qituvchi) chiqadi.
-          labelFormatter={(_, payload) => {
-            const p = payload?.[0]?.payload as ClassPerformance | undefined
-            if (!p) return ''
-            return p.teacherName ? `${p.className} · ${p.teacherName}` : p.className
-          }}
-          formatter={(value) => [`${value}${unit}`, label]}
-        />
-        <Bar dataKey={dataKey} fill={color} radius={[6, 6, 0, 0]} maxBarSize={42} />
-      </BarChart>
-    </ResponsiveContainer>
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      {teachers.map((t) => {
+        // O'qituvchining o'rtacha qiymati (panel sarlavhasi uchun).
+        const vals = t.groups.map(valueOf).filter((v): v is number => v != null)
+        const avg = vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : null
+        return (
+          <div
+            key={t.teacher}
+            className="rounded-xl border border-slate-200 bg-white p-3.5"
+          >
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-slate-800">
+                  {t.teacher}
+                </p>
+                <p className="text-[11px] text-slate-400">
+                  {t.groups.length} ta guruh
+                </p>
+              </div>
+              <span
+                className={cn(
+                  'shrink-0 rounded-lg px-2 py-1 font-mono text-xs font-semibold',
+                  softColor,
+                  isGrade ? 'text-blue-700' : 'text-emerald-700',
+                )}
+              >
+                {fmt(avg)}
+              </span>
+            </div>
+
+            <div className="space-y-2.5">
+              {t.groups.map((g) => {
+                const v = valueOf(g)
+                const pct = v == null ? 0 : Math.min(100, (v / max) * 100)
+                return (
+                  <div key={g.classId}>
+                    <div className="mb-1 flex items-center justify-between gap-2">
+                      <span className="truncate text-xs text-slate-600">
+                        {g.className}
+                      </span>
+                      <span className="shrink-0 font-mono text-xs font-medium text-slate-700">
+                        {fmt(v)}
+                      </span>
+                    </div>
+                    <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                      <div
+                        className={cn('h-full rounded-full transition-all', barColor)}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )
+      })}
+    </div>
   )
 }
