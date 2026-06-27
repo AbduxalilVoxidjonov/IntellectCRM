@@ -83,7 +83,7 @@ export function SettingsPage() {
       {loading ? (
         <Loader label="Yuklanmoqda..." />
       ) : (
-        <div className="max-w-3xl space-y-6">
+        <div className={cn('space-y-6', section !== 'eskiz' && 'max-w-3xl')}>
           {/* Davomat sabablari */}
           {section === 'reasons' && (
           <Card

@@ -97,7 +97,7 @@ export function EskizSettings() {
         <span className="font-mono">4546</span>).
       </p>
 
-      <form onSubmit={onSubmit} className="max-w-xl space-y-4">
+      <form onSubmit={onSubmit} className="space-y-4">
         <div>
           <label className="mb-1 block text-sm font-medium text-slate-700">Email (login)</label>
           <Input
