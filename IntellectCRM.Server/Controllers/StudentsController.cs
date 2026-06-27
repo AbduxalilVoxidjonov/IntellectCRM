@@ -1073,6 +1073,7 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
                 + (groupName is null ? "" : $" [{groupName}]")
                 + $" — {student.FullName}",
             Comment = string.IsNullOrWhiteSpace(req.Comment) ? null : req.Comment.Trim(),
+            Method = string.IsNullOrWhiteSpace(req.Method) ? null : req.Method.Trim().ToLowerInvariant(),
         };
         db.FinanceTransactions.Add(tx);
 

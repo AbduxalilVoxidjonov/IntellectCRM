@@ -116,7 +116,7 @@ public static class StudentLedger
             months.Add(new MonthLedgerDto(c.Month, c.Amount, c.Discount, paid, remaining, status, CoursesForMonth(c.Month), c.GroupId));
         }
 
-        var paymentDtos = payments.Select(t => new PaymentDto(t.Date, t.Amount, t.Note, t.Month, t.Comment)).ToList();
+        var paymentDtos = payments.Select(t => new PaymentDto(t.Date, t.Amount, t.Note, t.Month, t.Comment, t.Method)).ToList();
 
         return new StudentLedgerDto(
             Map(student), student.Balance, fee,

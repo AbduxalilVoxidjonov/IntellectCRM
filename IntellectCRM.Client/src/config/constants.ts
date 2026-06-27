@@ -122,6 +122,18 @@ export function financeCategoryLabel(category: string): string {
   return all.find((c) => c.value === category)?.label ?? category
 }
 
+/** To'lov usullari (kirim/to'lov uchun): kod -> yorliq. */
+export const paymentMethods: { value: string; label: string }[] = [
+  { value: 'cash', label: 'Naqd' },
+  { value: 'card', label: 'Karta' },
+  { value: 'bank', label: 'Bank orqali' },
+]
+/** To'lov usuli kodidan yorliq ("cash" -> "Naqd"). Bo'sh/noma'lum -> "—". */
+export function paymentMethodLabel(method?: string | null): string {
+  if (!method) return '—'
+  return paymentMethods.find((m) => m.value === method)?.label ?? method
+}
+
 /** Qisqa o'zbekcha oy nomlari (1-12) */
 export const monthShortNames: string[] = [
   'Yan', 'Fev', 'Mar', 'Apr', 'May', 'Iyn',

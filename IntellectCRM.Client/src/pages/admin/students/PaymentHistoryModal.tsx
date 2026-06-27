@@ -7,7 +7,7 @@ import { Modal } from '@/components/ui/Modal'
 import { Loader } from '@/components/ui/Loader'
 import { AuditHistoryList } from '@/components/audit/AuditHistoryList'
 import { formatDate, formatMoney, cn } from '@/lib/utils'
-import { formatMonth, monthStatusLabels } from '@/config/constants'
+import { formatMonth, monthStatusLabels, paymentMethodLabel } from '@/config/constants'
 
 interface Props {
   studentId: string | null
@@ -265,6 +265,11 @@ export function PaymentHistoryModal({ studentId, onClose }: Props) {
                         {p.month && (
                           <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-500">
                             {formatMonth(p.month)} uchun
+                          </span>
+                        )}
+                        {p.method && (
+                          <span className="rounded-md bg-blue-50 px-1.5 py-0.5 text-xs font-medium text-blue-600">
+                            {paymentMethodLabel(p.method)}
                           </span>
                         )}
                       </span>

@@ -50,7 +50,7 @@ public record StudentPayload(
     string? Phone = null,
     string? FatherFullName = null, string? FatherPhone = null,
     string? MotherFullName = null, string? MotherPhone = null);
-public record PaymentRequest(decimal Amount, string? Month, string? GroupId = null, string? Comment = null);
+public record PaymentRequest(decimal Amount, string? Month, string? GroupId = null, string? Comment = null, string? Method = null);
 
 /* ---------- Telefon dublikatini tekshirish (o'quvchi/ota-ona raqami) ---------- */
 public record CheckPhonesRequest(
@@ -584,10 +584,10 @@ public record SaveTurnstileSettingsRequest(
 public record FinanceTransactionDto(
     string Id, string Date, string Direction, string Category, decimal Amount,
     string? Note, string? StudentId, string? StudentName, string? TeacherId, string? TeacherName,
-    string? Month, string? GroupId = null, string? Comment = null);
+    string? Month, string? GroupId = null, string? Comment = null, string? Method = null);
 public record FinanceTransactionPayload(
     string Date, string Direction, string Category, decimal Amount, string? Note,
-    string? StudentId, string? TeacherId, string? Month = null, string? GroupId = null, string? Comment = null);
+    string? StudentId, string? TeacherId, string? Month = null, string? GroupId = null, string? Comment = null, string? Method = null);
 public record CategoryAmountDto(string Category, decimal Amount);
 public record FinanceSummaryDto(
     decimal TotalIncome, decimal TotalExpense, decimal Net,
@@ -631,7 +631,7 @@ public record MonthCourseDto(string CourseName, decimal Fee, string? GroupId = n
 public record MonthLedgerDto(
     string Month, decimal Charged, decimal Discount, decimal Paid, decimal Remaining, string Status,
     List<MonthCourseDto> Courses, string? GroupId = null);
-public record PaymentDto(string Date, decimal Amount, string? Note, string? Month, string? Comment);
+public record PaymentDto(string Date, decimal Amount, string? Note, string? Month, string? Comment, string? Method = null);
 /// <summary>To'lov oynasi uchun BITTA guruh bo'yicha oylik hisob: shu guruhning oylik to'lovi (chegirma
 /// ayirilgan), shu guruhga teglangan to'langan summa va qoldiq. Aggregate emas — faqat shu guruh.</summary>
 public record GroupMonthDto(string Month, decimal Fee, decimal Paid, decimal Remaining, string Status);

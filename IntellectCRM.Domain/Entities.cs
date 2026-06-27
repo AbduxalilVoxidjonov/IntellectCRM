@@ -665,6 +665,9 @@ public class FinanceTransaction
     public string? TeacherId { get; set; }
     /// <summary>Oylik to'lov bo'lsa — qaysi oy uchun ("YYYY-MM"). Boshqa amallar uchun null.</summary>
     public string? Month { get; set; }
+    /// <summary>To'lov usuli (kirim/to'lov uchun): "cash" (Naqd) | "card" (Karta) | "bank" (Bank orqali).
+    /// null = belgilanmagan (eski yozuvlar yoki chiqim).</summary>
+    public string? Method { get; set; }
     /// <summary>Tranzaksiya yaratilgan vaqti (UTC) — idempotency check uchun (5s ichida dublikat).</summary>
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

@@ -27,7 +27,7 @@ public class FinanceController(AppDbContext db, AuditService audit) : Controller
         new(t.Id, t.Date, t.Direction, t.Category, t.Amount, t.Note,
             t.StudentId, t.StudentId is not null && students.TryGetValue(t.StudentId, out var s) ? s : null,
             t.TeacherId, t.TeacherId is not null && teachers.TryGetValue(t.TeacherId, out var te) ? te : null,
-            t.Month, t.GroupId, t.Comment);
+            t.Month, t.GroupId, t.Comment, t.Method);
 
     [HttpGet("transactions")]
     public async Task<ActionResult<IEnumerable<FinanceTransactionDto>>> GetTransactions(
@@ -89,6 +89,7 @@ public class FinanceController(AppDbContext db, AuditService audit) : Controller
             Month = string.IsNullOrWhiteSpace(p.Month) ? null : p.Month,
             GroupId = string.IsNullOrWhiteSpace(p.GroupId) ? null : p.GroupId,
             Comment = p.Comment,
+            Method = string.IsNullOrWhiteSpace(p.Method) ? null : p.Method.Trim().ToLowerInvariant(),
         };
         db.FinanceTransactions.Add(tx);
         // O'quvchiga bog'langan tuition kirimi balansni oshiradi (izchillik — o'chirishda qaytariladi).
@@ -138,6 +139,7 @@ public class FinanceController(AppDbContext db, AuditService audit) : Controller
         if (!string.IsNullOrWhiteSpace(p.Month)) tx.Month = p.Month;
         if (!string.IsNullOrWhiteSpace(p.GroupId)) tx.GroupId = p.GroupId;
         if (p.Comment is not null) tx.Comment = p.Comment;
+        if (!string.IsNullOrWhiteSpace(p.Method)) tx.Method = p.Method.Trim().ToLowerInvariant();
 
         // Balansni moslaymiz: o'quvchi o'zgarmasa — delta; o'zgarsa — eskidan qaytarib, yangisiga qo'llaymiz.
         var newEffect = StudentBalanceEffect(tx);

@@ -23,7 +23,7 @@ import {
   type CourseFinanceReport,
 } from '@/api/services/finance'
 import { addPayment } from '@/api/services/students'
-import { financeCategoryLabel, financeDirectionLabels } from '@/config/constants'
+import { financeCategoryLabel, financeDirectionLabels, paymentMethodLabel } from '@/config/constants'
 import { formatDate, formatMoney, exportToCsv, cn } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -116,7 +116,7 @@ export function FinancePage() {
     // Yangi o'quvchi to'lovi (kirim → o'quvchi to'lovi) — o'quvchi balansini yangilaydigan to'lov
     // mexanizmi orqali (o'quvchilar bo'limidagi to'lov kabi), oddiy xom yozuv emas.
     if (!editing && values.direction === 'income' && values.category === 'tuition' && values.studentId) {
-      await addPayment(values.studentId, values.amount, values.month)
+      await addPayment(values.studentId, values.amount, values.month, undefined, undefined, values.method)
     } else if (editing) {
       await updateTransaction(editing.id, values)
     } else {
@@ -154,11 +154,12 @@ export function FinancePage() {
   const handleExport = () => {
     exportToCsv(
       'moliya.csv',
-      ['Sana', "Yo'nalish", 'Toifa', 'Izoh', 'Summa'],
+      ['Sana', "Yo'nalish", 'Toifa', "To'lov usuli", 'Izoh', 'Summa'],
       transactions.map((t) => [
         formatDate(t.date),
         financeDirectionLabels[t.direction],
         financeCategoryLabel(t.category),
+        t.direction === 'income' && t.method ? paymentMethodLabel(t.method) : '',
         t.note ?? '',
         String(t.amount),
       ]),
@@ -370,6 +371,7 @@ export function FinancePage() {
                         <th>Sana</th>
                         <th>Yo'nalish</th>
                         <th>Toifa</th>
+                        <th>To'lov usuli</th>
                         <th>Izoh</th>
                         <th className="num">Summa</th>
                         <th className="num">Amallar</th>
@@ -385,6 +387,13 @@ export function FinancePage() {
                             </Badge>
                           </td>
                           <td className="text-slate-600">{financeCategoryLabel(t.category)}</td>
+                          <td>
+                            {t.direction === 'income' && t.method ? (
+                              <Badge tone="blue">{paymentMethodLabel(t.method)}</Badge>
+                            ) : (
+                              <span className="text-slate-300">—</span>
+                            )}
+                          </td>
                           <td className="text-slate-500">{t.note ?? '—'}</td>
                           <td
                             className={cn(

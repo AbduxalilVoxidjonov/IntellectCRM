@@ -34,6 +34,8 @@ export interface FinanceTransactionPayload {
   teacherId?: string
   /** Kirim "tuition" (o'quvchi to'lovi) bo'lsa — qaysi oy uchun ("YYYY-MM") */
   month?: string
+  /** To'lov usuli (kirim uchun): cash | card | bank */
+  method?: string
 }
 
 export interface TransactionFilters {

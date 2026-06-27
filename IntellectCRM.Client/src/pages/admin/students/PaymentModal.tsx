@@ -8,12 +8,18 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Loader } from '@/components/ui/Loader'
 import { formatMoney, cn } from '@/lib/utils'
-import { formatMonth, monthStatusLabels } from '@/config/constants'
+import { formatMonth, monthStatusLabels, paymentMethods } from '@/config/constants'
 
 interface Props {
   student: Student | null
   onClose: () => void
-  onSubmit: (amount: number, month: string, groupId?: string, comment?: string) => void | Promise<void>
+  onSubmit: (
+    amount: number,
+    month: string,
+    groupId?: string,
+    comment?: string,
+    method?: string,
+  ) => void | Promise<void>
 }
 
 /** Oy qatori (guruh yoki aggregate hisobdan normallashtirilgan) */
@@ -36,6 +42,7 @@ export function PaymentModal({ student, onClose, onSubmit }: Props) {
   const [groups, setGroups] = useState<StudentGroupMembership[]>([])
   const [groupId, setGroupId] = useState<string>('')
   const [comment, setComment] = useState("")
+  const [method, setMethod] = useState<string>('cash')
   const [loading, setLoading] = useState(false) // boshlang'ich (guruhlar) yuklash
   const [loadingMonths, setLoadingMonths] = useState(false) // tanlangan guruh oylari
 
@@ -48,6 +55,7 @@ export function PaymentModal({ student, onClose, onSubmit }: Props) {
     setGroups([])
     setGroupId('')
     setComment("")
+    setMethod('cash')
     setAmount(0)
     setMonth(currentMonth())
     getStudentGroups(student.id)
@@ -114,7 +122,7 @@ export function PaymentModal({ student, onClose, onSubmit }: Props) {
     if (submitting || amount <= 0 || !month || (needGroup && !groupId)) return
     setSubmitting(true)
     try {
-      await onSubmit(amount, month, groupId || undefined, comment.trim() || undefined)
+      await onSubmit(amount, month, groupId || undefined, comment.trim() || undefined, method)
     } finally {
       setSubmitting(false)
     }
@@ -253,6 +261,27 @@ export function PaymentModal({ student, onClose, onSubmit }: Props) {
                     </span>
                   </p>
                 )}
+
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-600">To'lov usuli</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {paymentMethods.map((m) => (
+                      <button
+                        key={m.value}
+                        type="button"
+                        onClick={() => setMethod(m.value)}
+                        className={cn(
+                          'rounded-lg border px-3 py-2 text-sm font-medium transition-colors',
+                          method === m.value
+                            ? 'border-brand-400 bg-brand-50 text-brand-700'
+                            : 'border-slate-200 text-slate-600 hover:bg-slate-50',
+                        )}
+                      >
+                        {m.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
                 <div>
                   <label className="mb-1 block text-sm font-medium text-slate-600">Izoh (ixtiyoriy)</label>

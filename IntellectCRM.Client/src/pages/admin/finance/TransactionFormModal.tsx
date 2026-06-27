@@ -16,7 +16,7 @@ import { getStudents, getStudentLedger } from '@/api/services/students'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input, Select, Textarea } from '@/components/ui/Input'
-import { categoriesByDirection, financeDirectionLabels, formatMonth, monthStatusLabels } from '@/config/constants'
+import { categoriesByDirection, financeDirectionLabels, formatMonth, monthStatusLabels, paymentMethods } from '@/config/constants'
 import { formatMoney, cn } from '@/lib/utils'
 
 interface Props {
@@ -34,6 +34,7 @@ const emptyFor = (direction: FinanceDirection): FinanceTransactionPayload => ({
   category: categoriesByDirection[direction][0].value,
   amount: 0,
   note: '',
+  method: direction === 'income' ? 'cash' : undefined,
 })
 
 export function TransactionFormModal({ open, onClose, onSubmit, initial }: Props) {
@@ -91,6 +92,7 @@ export function TransactionFormModal({ open, onClose, onSubmit, initial }: Props
             note: initial.note ?? '',
             studentId: initial.studentId,
             teacherId: initial.teacherId,
+            method: initial.method,
           }
         : emptyFor('income'),
     )
@@ -148,6 +150,7 @@ export function TransactionFormModal({ open, onClose, onSubmit, initial }: Props
       studentId: undefined,
       month: undefined,
       teacherId: undefined,
+      method: direction === 'income' ? (f.method ?? 'cash') : undefined,
     }))
     setClassId('')
     setLedgerMonths([])
@@ -177,6 +180,7 @@ export function TransactionFormModal({ open, onClose, onSubmit, initial }: Props
       teacherId: isSalaryExpense ? form.teacherId : undefined,
       studentId: isTuitionIncome ? form.studentId : undefined,
       month: isTuitionIncome ? form.month : undefined,
+      method: form.direction === 'income' ? (form.method || 'cash') : undefined,
     })
   }
 
@@ -350,6 +354,29 @@ export function TransactionFormModal({ open, onClose, onSubmit, initial }: Props
             onChange={(e) => update('date', e.target.value)}
           />
         </div>
+        {form.direction === 'income' && (
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-600">To'lov usuli</label>
+            <div className="grid grid-cols-3 gap-2">
+              {paymentMethods.map((m) => (
+                <button
+                  key={m.value}
+                  type="button"
+                  onClick={() => update('method', m.value)}
+                  className={cn(
+                    'rounded-lg border px-3 py-2 text-sm font-medium transition-colors',
+                    (form.method ?? 'cash') === m.value
+                      ? 'border-brand-400 bg-brand-50 text-brand-700'
+                      : 'border-slate-200 text-slate-600 hover:bg-slate-50',
+                  )}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         <Textarea
           label="Izoh"
           rows={2}

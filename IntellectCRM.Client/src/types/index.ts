@@ -579,6 +579,8 @@ export interface FinanceTransaction {
   teacherName?: string
   /** Oylik to'lov bo'lsa — qaysi oy uchun ("YYYY-MM") */
   month?: string
+  /** To'lov usuli: cash (Naqd) | card (Karta) | bank (Bank orqali) */
+  method?: string
 }
 
 export interface CategoryAmount {
@@ -646,6 +648,8 @@ export interface LedgerPayment {
   comment?: string
   /** Qaysi oy uchun to'langani ("YYYY-MM"), agar biriktirilgan bo'lsa */
   month?: string
+  /** To'lov usuli: cash (Naqd) | card (Karta) | bank (Bank orqali) */
+  method?: string
 }
 
 export interface StudentLedger {

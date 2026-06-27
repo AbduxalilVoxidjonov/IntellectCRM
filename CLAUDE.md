@@ -114,6 +114,19 @@ docker compose up -d --build    # app + postgres + cloudflared + backup + mediam
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-27: **To'lov USULI (Naqd/Karta/Bank) — to'lov kiritishda tanlanadi, moliyada ko'rinadi.**
+  `FinanceTransaction.Method` (cash|card|bank, null=belgilanmagan) + migratsiya `AddFinanceTransactionMethod`
+  (1 nullable ustun). **Backend:** `PaymentRequest`/`FinanceTransactionPayload`/`FinanceTransactionDto`/`PaymentDto`ga
+  Method; `StudentsController.AddPayment` + `FinanceController.Create` Method yozadi (lowercase), `Update`
+  preserve-if-empty; `ToDto` + `StudentLedger` Method qaytaradi. **Frontend:** `constants.ts` `paymentMethods`
+  (cash=Naqd, card=Karta, bank=Bank orqali) + `paymentMethodLabel`. To'lov kiritish joylarida usul tanlash
+  (default Naqd): (1) `PaymentModal` (o'quvchi to'lovi — 3 tugmali segment), (2) `TransactionFormModal` (Moliya →
+  yangi amal, kirim bo'lsa usul tanlovi). **Moliyada ko'rinish:** FinancePage tranzaksiyalar jadvaliga "To'lov
+  usuli" ustuni (kirim uchun Badge, aks holda —) + CSV eksportga; `PaymentHistoryModal` har to'lovda usul badge.
+  `addPayment(... method)` + FinancePage tuition handleSubmit method uzatadi. **JONLI E2E** (throwaway PG):
+  migratsiya Method ustuni; addPayment method=card → finance transactions method=card, student ledger payment
+  method=card. Backend 0, tsc+vite yashil. **DEPLOYDA:** `docker compose up -d --build app` (migratsiya avto;
+  postgres-data saqlanadi). Eski to'lovlarda Method=null → "—" ko'rinadi.
 - 2026-06-27: **O'quvchilar ro'yxatidan SHABLON bilan SMS yuborish (bitta yoki tanlanganlarga).** Foydalanuvchi:
   bitta raqam yozish o'rniga — o'quvchilar ro'yxatida bosib, shablon tanlab SMS yuborish. (Oldingi "Bitta raqam"
   composer tab REVERT qilindi — commit qilinmagandi.) **Frontend:** mavjud stub `SmsModal` (faqat alert qilardi)
