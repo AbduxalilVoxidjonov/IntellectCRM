@@ -54,4 +54,5 @@ export const messageTokens: { token: string; label: string }[] = [
   { token: '{summa}', label: "To'lov summasi" },
   { token: '{natija}', label: 'Test natijasi' },
   { token: '{daraja}', label: 'Test darajasi' },
+  { token: '{link}', label: 'Daraja testi havolasi' },
 ]

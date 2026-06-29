@@ -130,6 +130,7 @@ export default function App() {
       {/* Ochiq sahifa */}
       <Route path="/login" element={<LoginPage />} />
       {/* Ommaviy daraja testi (autentifikatsiyasiz) — topshirilsa CRM'da lid bo'ladi */}
+      <Route path="/test/invite/:token" element={<PublicTestPage />} />
       <Route path="/test/:slug" element={<PublicTestPage />} />
       {/* Sertifikat tekshiruvi (autentifikatsiyasiz) */}
       <Route path="/verify-certificate/:id" element={<VerifyCertificatePage />} />

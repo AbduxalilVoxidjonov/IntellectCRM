@@ -1441,6 +1441,27 @@ public record TestSubmitRequest(
 /// <summary>Test natijasi (topshirgandan keyin ko'rsatiladi).</summary>
 public record TestResultDto(int Score, int Total, int Percent, string Level, string Message);
 
+/// <summary>Lidga daraja testi havolasini yuborish so'rovi.</summary>
+public record SendLeadTestRequest(string TestId);
+/// <summary>Lidga test havolasi yuborilgandan keyin javob — holat + havola.</summary>
+public record SendLeadTestResultDto(bool Ok, string Status, string Link);
+
+/// <summary>Bir martalik havola (invite) bo'yicha test ko'rinishi: test + lid nomi (oldindan to'ldirilgan).
+/// Used=true bo'lsa havola allaqachon ishlatilgan (qayta kirib bo'lmaydi).</summary>
+public record PublicInviteDto(PublicTestDto? Test, string FullName, string Phone, bool Used);
+
+/// <summary>Daraja testi invite (lidga yuborilgan bir martalik havola) — admin statistikasi uchun.</summary>
+public record LevelTestInviteDto(
+    string Id, string TestId, string LeadId, string LeadName, string Phone,
+    string SmsStatus, string CreatedAt, bool Used, string UsedAt, int Percent, string Level);
+
+/// <summary>Daraja testlari UMUMIY statistikasi (barcha testlar bo'yicha jami).</summary>
+public record LevelTestOverallStatsDto(
+    int TestCount, int Submissions, int Invites, int InvitesUsed, double AvgPercent,
+    List<LevelCountDto> ByLevel, List<TestStatRowDto> ByTest);
+public record LevelCountDto(string Level, int Count);
+public record TestStatRowDto(string TestId, string Title, int Submissions, int Invites, int InvitesUsed, double AvgPercent);
+
 /// <summary>Arxiv yozuvi (o'chirilgan entity surati) — ko'rsatish uchun.</summary>
 public record ArchivedRecordDto(
     string Id, string Type, string EntityId, string Title, string Subtitle,

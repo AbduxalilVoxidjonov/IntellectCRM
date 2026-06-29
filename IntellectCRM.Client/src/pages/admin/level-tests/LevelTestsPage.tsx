@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Plus, Pencil, Trash2, Link2, Copy, Check, Users, ListChecks, ExternalLink, GraduationCap } from 'lucide-react'
+import { Plus, Pencil, Trash2, Link2, Copy, Check, Users, ListChecks, ExternalLink, GraduationCap, BarChart3 } from 'lucide-react'
 import type { LevelTestListItem, Subject } from '@/types'
-import { getLevelTests, createLevelTest, deleteLevelTest } from '@/api/services/levelTests'
+import {
+  getLevelTests, createLevelTest, deleteLevelTest,
+  getLevelTestOverallStats, type LevelTestOverallStats,
+} from '@/api/services/levelTests'
 import { getSubjects } from '@/api/services/subjects'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -28,6 +31,13 @@ export function LevelTestsPage() {
   const [newTitle, setNewTitle] = useState('')
   const [newCourse, setNewCourse] = useState('')
   const [copied, setCopied] = useState<string | null>(null)
+  const [statsOpen, setStatsOpen] = useState(false)
+  const [stats, setStats] = useState<LevelTestOverallStats | null>(null)
+
+  const openStats = () => {
+    setStatsOpen(true)
+    if (!stats) getLevelTestOverallStats().then(setStats).catch(() => {})
+  }
 
   useEffect(() => {
     Promise.all([getLevelTests(), getSubjects()])
@@ -100,9 +110,14 @@ export function LevelTestsPage() {
         title="Daraja testi"
         sub="Kurs uchun test yarating — ommaviy havola orqali topshirilsa, CRM'da yangi lid bo'lib tushadi"
         actions={
-          <Button onClick={() => setCreating(true)}>
-            <Plus className="h-4 w-4" /> Yangi test
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" onClick={openStats}>
+              <BarChart3 className="h-4 w-4" /> Statistika
+            </Button>
+            <Button onClick={() => setCreating(true)}>
+              <Plus className="h-4 w-4" /> Yangi test
+            </Button>
+          </div>
         }
       />
 
@@ -227,6 +242,77 @@ export function LevelTestsPage() {
           </p>
         </div>
       </Modal>
+
+      {/* Umumiy statistika — barcha testlar bo'yicha */}
+      <Modal open={statsOpen} onClose={() => setStatsOpen(false)} title="Daraja testlari — umumiy statistika" size="lg">
+        {!stats ? (
+          <Loader label="Yuklanmoqda..." />
+        ) : (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <StatBox label="Testlar" value={stats.testCount} />
+              <StatBox label="Topshirganlar" value={stats.submissions} />
+              <StatBox label="Havolalar (yuborilgan)" value={stats.invites} />
+              <StatBox label="Havola ishlangan" value={stats.invitesUsed} />
+            </div>
+            <div className="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+              O'rtacha natija: <b className="font-mono">{stats.avgPercent}%</b>
+            </div>
+
+            {stats.byLevel.length > 0 && (
+              <div>
+                <h4 className="mb-2 text-sm font-semibold text-slate-700">Darajalar bo'yicha</h4>
+                <div className="flex flex-wrap gap-2">
+                  {stats.byLevel.map((l) => (
+                    <span key={l.level} className="rounded-full bg-brand-50 px-3 py-1 text-sm text-brand-700">
+                      {l.level}: <b>{l.count}</b>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div>
+              <h4 className="mb-2 text-sm font-semibold text-slate-700">Testlar kesimida</h4>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-200 text-xs text-slate-400">
+                      <th className="px-2 py-2">Test</th>
+                      <th className="px-2 py-2 text-center">Topshirgan</th>
+                      <th className="px-2 py-2 text-center">Havola</th>
+                      <th className="px-2 py-2 text-center">Ishlangan</th>
+                      <th className="px-2 py-2 text-center">O'rtacha %</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {stats.byTest.map((r) => (
+                      <tr key={r.testId} className="border-b border-slate-50">
+                        <td className="px-2 py-2 font-medium text-slate-700">
+                          <Link to={`/admin/level-tests/${r.testId}`} className="text-inherit hover:underline">{r.title}</Link>
+                        </td>
+                        <td className="px-2 py-2 text-center font-mono">{r.submissions}</td>
+                        <td className="px-2 py-2 text-center font-mono">{r.invites}</td>
+                        <td className="px-2 py-2 text-center font-mono">{r.invitesUsed}</td>
+                        <td className="px-2 py-2 text-center font-mono">{r.avgPercent}%</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+      </Modal>
+    </div>
+  )
+}
+
+function StatBox({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-xl border border-slate-100 bg-white px-3 py-3 text-center">
+      <div className="font-mono text-2xl font-bold text-slate-800">{value}</div>
+      <div className="mt-0.5 text-xs text-slate-400">{label}</div>
     </div>
   )
 }

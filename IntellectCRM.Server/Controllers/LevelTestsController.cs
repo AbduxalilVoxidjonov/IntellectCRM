@@ -89,9 +89,59 @@ public class LevelTestsController(AppDbContext db) : ControllerBase
         db.LevelTestQuestions.RemoveRange(db.LevelTestQuestions.Where(q => q.TestId == id));
         db.LevelTestBands.RemoveRange(db.LevelTestBands.Where(b => b.TestId == id));
         db.LevelTestSubmissions.RemoveRange(db.LevelTestSubmissions.Where(s => s.TestId == id));
+        db.LevelTestInvites.RemoveRange(db.LevelTestInvites.Where(i => i.TestId == id));
         db.LevelTests.Remove(test);
         await db.SaveChangesAsync();
         return NoContent();
+    }
+
+    /// <summary>Bu testga yuborilgan bir martalik havolalar (invite) — lid + SMS holati + ishlangani.</summary>
+    [HttpGet("{id}/invites")]
+    public async Task<ActionResult<IEnumerable<LevelTestInviteDto>>> Invites(string id)
+    {
+        var invites = await db.LevelTestInvites.Where(i => i.TestId == id)
+            .OrderByDescending(i => i.CreatedAt).ToListAsync();
+        var leadIds = invites.Select(i => i.LeadId).Distinct().ToList();
+        var leads = (await db.Leads.Where(l => leadIds.Contains(l.Id)).ToListAsync())
+            .ToDictionary(l => l.Id, l => l);
+        return invites.Select(i =>
+        {
+            leads.TryGetValue(i.LeadId, out var l);
+            return new LevelTestInviteDto(
+                i.Id, i.TestId, i.LeadId, l?.FullName ?? "(o'chirilgan lid)", l?.Phone ?? "",
+                i.SmsStatus, i.CreatedAt, !string.IsNullOrEmpty(i.UsedAt), i.UsedAt, i.Percent, i.Level);
+        }).ToList();
+    }
+
+    /// <summary>BARCHA daraja testlari bo'yicha UMUMIY statistika (testga kirmasdan ro'yxatda ko'rish uchun).</summary>
+    [HttpGet("overall-stats")]
+    public async Task<ActionResult<LevelTestOverallStatsDto>> OverallStats()
+    {
+        var tests = await db.LevelTests.ToListAsync();
+        var subs = await db.LevelTestSubmissions.ToListAsync();
+        var invites = await db.LevelTestInvites.ToListAsync();
+
+        var byLevel = subs.GroupBy(s => string.IsNullOrEmpty(s.Level) ? "—" : s.Level)
+            .Select(g => new LevelCountDto(g.Key, g.Count()))
+            .OrderByDescending(x => x.Count).ToList();
+
+        var titleById = tests.ToDictionary(t => t.Id, t => t.Title);
+        var byTest = tests
+            .Select(t =>
+            {
+                var ts = subs.Where(s => s.TestId == t.Id).ToList();
+                var ti = invites.Where(i => i.TestId == t.Id).ToList();
+                return new TestStatRowDto(
+                    t.Id, t.Title, ts.Count, ti.Count, ti.Count(x => !string.IsNullOrEmpty(x.UsedAt)),
+                    ts.Count > 0 ? Math.Round(ts.Average(s => s.Percent), 1) : 0);
+            })
+            .OrderByDescending(r => r.Submissions).ToList();
+
+        return new LevelTestOverallStatsDto(
+            tests.Count, subs.Count, invites.Count,
+            invites.Count(i => !string.IsNullOrEmpty(i.UsedAt)),
+            subs.Count > 0 ? Math.Round(subs.Average(s => s.Percent), 1) : 0,
+            byLevel, byTest);
     }
 
     /// <summary>Natijalar — testni topshirganlar (har biri CRM'da lid).</summary>

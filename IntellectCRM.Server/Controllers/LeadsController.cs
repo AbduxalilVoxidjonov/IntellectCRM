@@ -65,6 +65,34 @@ public class LeadsController(AppDbContext db, AuditService audit, TelegramServic
         return lead;
     }
 
+    /// <summary>Lidga BIR MARTALIK daraja-testi havolasini SMS qilib yuboradi (avto-SMS andoza, {link}).
+    /// Lid testni o'z ma'lumotini qayta kiritmasdan ishlaydi; natija shu lidga bog'lanadi.</summary>
+    [HttpPost("{id}/send-test")]
+    public async Task<ActionResult<SendLeadTestResultDto>> SendTest(string id, SendLeadTestRequest req)
+    {
+        var lead = await db.Leads.FindAsync(id);
+        if (lead is null) return NotFound(new { message = "Lid topilmadi" });
+        var test = await db.LevelTests.FirstOrDefaultAsync(t => t.Id == req.TestId);
+        if (test is null) return NotFound(new { message = "Test topilmadi" });
+
+        var invite = new LevelTestInvite
+        {
+            TestId = test.Id, LeadId = lead.Id, CreatedAt = Now(),
+        };
+        db.LevelTestInvites.Add(invite);
+        await db.SaveChangesAsync();
+
+        var link = $"{Request.Scheme}://{Request.Host}/test/invite/{invite.Token}";
+        var (ok, status, reqId) = await AutoSmsService.SendTestLinkAsync(
+            db, eskiz, lead, link, $"{Request.Scheme}://{Request.Host}/api/sms/callback");
+        invite.SmsStatus = ok ? "sent" : status;
+        invite.SmsRequestId = reqId;
+        AddEvent(lead.Id, "note", ok ? $"Daraja testi havolasi yuborildi: {test.Title}" : $"Test havolasi SMS xato: {status}");
+        await db.SaveChangesAsync();
+
+        return new SendLeadTestResultDto(ok, status, link);
+    }
+
     [HttpPut("{id}")]
     public async Task<IActionResult> Update(string id, LeadUpdateRequest p)
     {

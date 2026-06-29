@@ -81,6 +81,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<LevelTestQuestion> LevelTestQuestions => Set<LevelTestQuestion>();
     public DbSet<LevelTestBand> LevelTestBands => Set<LevelTestBand>();
     public DbSet<LevelTestSubmission> LevelTestSubmissions => Set<LevelTestSubmission>();
+    public DbSet<LevelTestInvite> LevelTestInvites => Set<LevelTestInvite>();
 
     // Support o'qituvchi bo'sh vaqt slotlari + bron
     public DbSet<SupportSlot> SupportSlots => Set<SupportSlot>();
@@ -293,6 +294,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         b.Entity<LevelTestQuestion>().HasIndex(q => new { q.TestId, q.Order });
         b.Entity<LevelTestBand>().HasIndex(x => new { x.TestId, x.Order });
         b.Entity<LevelTestSubmission>().HasIndex(s => new { s.TestId, s.CreatedAt });
+        b.Entity<LevelTestInvite>().HasIndex(i => i.Token).IsUnique();
+        b.Entity<LevelTestInvite>().HasIndex(i => new { i.TestId, i.CreatedAt });
+        b.Entity<LevelTestInvite>().HasIndex(i => i.LeadId);
 
         // Sertifikatlar
         b.Entity<CertificateTemplate>().Property(t => t.CourseId).HasMaxLength(200);

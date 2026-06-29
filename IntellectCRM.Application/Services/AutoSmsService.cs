@@ -21,6 +21,7 @@ public static class AutoSmsService
     public const string TriggerPayment = "payment";
     public const string TriggerBirthday = "birthday";
     public const string TriggerTestResult = "test_result";
+    public const string TriggerTestLink = "test_link";
 
     public static string TriggerLabel(string t) => t switch
     {
@@ -28,8 +29,52 @@ public static class AutoSmsService
         TriggerPayment => "to'lov",
         TriggerBirthday => "tug'ilgan kun",
         TriggerTestResult => "test natijasi",
+        TriggerTestLink => "daraja testi havolasi",
         _ => "avto",
     };
+
+    /// <summary>
+    /// Lidga BIR MARTALIK daraja-test havolasini SMS qilib yuboradi ("test_link" andoza, {link} tokeni).
+    /// Natija (yuborildimi + RequestId) qaytadi — invite holatini saqlash uchun. Andoza/Eskiz/raqam
+    /// yo'q bo'lsa Ok=false.
+    /// </summary>
+    public static async Task<(bool Ok, string Status, string RequestId)> SendTestLinkAsync(
+        IAppDbContext db, EskizService eskiz, Lead lead, string link, string? callbackUrl = null, CancellationToken ct = default)
+    {
+        try
+        {
+            var meta = await db.CenterMeta.FirstOrDefaultAsync(ct);
+            if (!eskiz.IsConfigured(meta)) return (false, "Eskiz sozlanmagan", "");
+            var phone = !string.IsNullOrWhiteSpace(lead.Phone) ? lead.Phone
+                : !string.IsNullOrWhiteSpace(lead.FatherPhone) ? lead.FatherPhone : lead.MotherPhone;
+            if (string.IsNullOrWhiteSpace(phone)) return (false, "Lidda raqam yo'q", "");
+            var tpl = await FindTemplateAsync(db, TriggerTestLink, ct);
+            if (tpl is null || string.IsNullOrWhiteSpace(tpl.Text))
+                return (false, "Andoza yo'q (Sozlamalar → SMS: 'daraja testi havolasi')", "");
+
+            var msg = MessageTokenizer.Lead(tpl.Text, lead, phone, meta?.Name ?? "",
+                new Dictionary<string, string> { ["{link}"] = link });
+            var batchId = Guid.NewGuid().ToString();
+            var r = await eskiz.SendSmsAsync(db, phone, msg, callbackUrl, ct);
+            db.SmsLogs.Add(new SmsLog
+            {
+                BatchId = batchId, PhoneNumber = EskizService.NormalizePhone(phone), RecipientName = lead.FullName,
+                Message = msg, RequestId = r.RequestId, Status = r.Ok ? r.Status : (r.Error ?? "error"),
+            });
+            db.SmsBatches.Add(new SmsBatch
+            {
+                Id = batchId, Audience = $"Daraja testi havolasi: {lead.FullName}", Message = tpl.Text,
+                SenderUserId = "", SenderName = "Avto SMS", CreatedAt = AppClock.Now,
+                RecipientCount = 1, SentCount = r.Ok ? 1 : 0,
+            });
+            await db.SaveChangesAsync(ct);
+            return (r.Ok, r.Ok ? "sent" : (r.Error ?? "failed"), r.RequestId ?? "");
+        }
+        catch (Exception ex)
+        {
+            return (false, ex.Message, "");
+        }
+    }
 
     /// <summary>Hodisa uchun mos avto-andozani topadi (yo'q bo'lsa null).</summary>
     private static Task<SmsTemplate?> FindTemplateAsync(IAppDbContext db, string trigger, CancellationToken ct) =>

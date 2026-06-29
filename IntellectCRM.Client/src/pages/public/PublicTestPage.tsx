@@ -2,13 +2,14 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { GraduationCap, ArrowRight, ArrowLeft, Check, Loader2, PartyPopper, AlertCircle } from 'lucide-react'
 import type { PublicTest, TestResult } from '@/types'
-import { getPublicTest, submitPublicTest } from '@/api/services/publicTest'
+import { getPublicTest, submitPublicTest, getInviteTest, submitInviteTest } from '@/api/services/publicTest'
 import { getPublicBrand, type PublicBrand } from '@/api/services/settings'
 
-type Phase = 'loading' | 'notfound' | 'intro' | 'quiz' | 'done'
+type Phase = 'loading' | 'notfound' | 'used' | 'intro' | 'quiz' | 'done'
 
 export function PublicTestPage() {
-  const { slug = '' } = useParams()
+  const { slug = '', token = '' } = useParams()
+  const invite = !!token
   const [phase, setPhase] = useState<Phase>('loading')
   const [test, setTest] = useState<PublicTest | null>(null)
 
@@ -27,13 +28,28 @@ export function PublicTestPage() {
   const [brand, setBrand] = useState<PublicBrand>({ name: '', logoUrl: '', phone: '' })
 
   useEffect(() => {
+    if (invite) {
+      getInviteTest(token)
+        .then((r) => {
+          if (r.used || !r.test) {
+            setPhase('used')
+            return
+          }
+          setTest(r.test)
+          setFullName(r.fullName)
+          setPhone(r.phone)
+          setPhase('intro')
+        })
+        .catch((e) => setPhase((e as any)?.response?.status === 410 ? 'used' : 'notfound'))
+      return
+    }
     getPublicTest(slug)
       .then((t) => {
         setTest(t)
         setPhase('intro')
       })
       .catch(() => setPhase('notfound'))
-  }, [slug])
+  }, [slug, token, invite])
 
   useEffect(() => {
     getPublicBrand()
@@ -42,8 +58,10 @@ export function PublicTestPage() {
   }, [])
 
   const start = () => {
-    if (!fullName.trim()) return setError('Ism-familiyangizni kiriting')
-    if (!phone.trim()) return setError('Telefon raqamingizni kiriting')
+    if (!invite) {
+      if (!fullName.trim()) return setError('Ism-familiyangizni kiriting')
+      if (!phone.trim()) return setError('Telefon raqamingizni kiriting')
+    }
     setError('')
     setPhase('quiz')
   }
@@ -53,13 +71,15 @@ export function PublicTestPage() {
     setSubmitting(true)
     setError('')
     try {
-      const r = await submitPublicTest(slug, {
-        fullName: fullName.trim(),
-        phone: phone.trim(),
-        age: Number(age) || 0,
-        answers,
-        surveyAnswers,
-      })
+      const r = invite
+        ? await submitInviteTest(token, { answers, surveyAnswers })
+        : await submitPublicTest(slug, {
+            fullName: fullName.trim(),
+            phone: phone.trim(),
+            age: Number(age) || 0,
+            answers,
+            surveyAnswers,
+          })
       setResult(r)
       setPhase('done')
     } catch (err) {
@@ -119,6 +139,18 @@ export function PublicTestPage() {
             </div>
           )}
 
+          {phase === 'used' && (
+            <div className="flex flex-col items-center gap-3 px-6 py-20 text-center">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-50 text-amber-500">
+                <AlertCircle className="h-7 w-7" />
+              </div>
+              <h1 className="text-lg font-bold text-slate-800">Havola ishlatilgan</h1>
+              <p className="text-sm text-slate-500">
+                Bu bir martalik havola allaqachon ishlatilgan — testni qayta topshirib bo'lmaydi.
+              </p>
+            </div>
+          )}
+
           {/* Kirish + kontakt */}
           {phase === 'intro' && test && (
             <div>
@@ -130,37 +162,43 @@ export function PublicTestPage() {
                 {test.intro && <p className="text-sm leading-relaxed text-slate-600">{test.intro}</p>}
                 <div className="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-500">
                   <p className="font-medium text-slate-700">{questions.length} ta savol</p>
-                  <p className="mt-0.5">Avval o'zingiz haqingizda qisqa ma'lumot qoldiring.</p>
+                  <p className="mt-0.5">
+                    {invite
+                      ? `${fullName ? fullName + ', ' : ''}testni boshlash uchun tugmani bosing. Bu havola bir martalik.`
+                      : "Avval o'zingiz haqingizda qisqa ma'lumot qoldiring."}
+                  </p>
                 </div>
 
-                <div className="space-y-3">
-                  <Field label="Ism-familiya *">
-                    <input
-                      value={fullName}
-                      onChange={(e) => setFullName(e.target.value)}
-                      placeholder="Masalan: Aliyev Ali"
-                      className={inputCls}
-                    />
-                  </Field>
-                  <Field label="Telefon raqam *">
-                    <input
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      placeholder="+998 90 123 45 67"
-                      inputMode="tel"
-                      className={inputCls}
-                    />
-                  </Field>
-                  <Field label="Yoshingiz (ixtiyoriy)">
-                    <input
-                      value={age}
-                      onChange={(e) => setAge(e.target.value.replace(/\D/g, ''))}
-                      placeholder="18"
-                      inputMode="numeric"
-                      className={inputCls}
-                    />
-                  </Field>
-                </div>
+                {!invite && (
+                  <div className="space-y-3">
+                    <Field label="Ism-familiya *">
+                      <input
+                        value={fullName}
+                        onChange={(e) => setFullName(e.target.value)}
+                        placeholder="Masalan: Aliyev Ali"
+                        className={inputCls}
+                      />
+                    </Field>
+                    <Field label="Telefon raqam *">
+                      <input
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                        placeholder="+998 90 123 45 67"
+                        inputMode="tel"
+                        className={inputCls}
+                      />
+                    </Field>
+                    <Field label="Yoshingiz (ixtiyoriy)">
+                      <input
+                        value={age}
+                        onChange={(e) => setAge(e.target.value.replace(/\D/g, ''))}
+                        placeholder="18"
+                        inputMode="numeric"
+                        className={inputCls}
+                      />
+                    </Field>
+                  </div>
+                )}
 
                 {error && <p className="text-sm font-medium text-red-600">{error}</p>}
 

@@ -10,6 +10,8 @@ import {
   MessageSquare,
 } from 'lucide-react'
 import { getSmsTemplates, sendLeadSms, type SmsTemplate } from '@/api/services/messages'
+import { getLevelTests, sendLeadTest } from '@/api/services/levelTests'
+import type { LevelTestListItem } from '@/types'
 import type { Lead, LeadEvent, LeadEventType, TrialLesson, Group } from '@/types'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
@@ -102,6 +104,12 @@ export function LeadDetailModal({ lead, onClose, onEdit, onDelete, onConverted }
   const [smsSending, setSmsSending] = useState(false)
   const [smsResult, setSmsResult] = useState<string | null>(null)
 
+  // Lidga daraja testi havolasini yuborish (bir martalik)
+  const [levelTests, setLevelTests] = useState<LevelTestListItem[]>([])
+  const [sendTestId, setSendTestId] = useState('')
+  const [sendingTest, setSendingTest] = useState(false)
+  const [sendTestResult, setSendTestResult] = useState<string | null>(null)
+
   const [trialGroupId, setTrialGroupId] = useState('')
   const [trialAt, setTrialAt] = useState('')
   const [savingTrial, setSavingTrial] = useState(false)
@@ -127,8 +135,11 @@ export function LeadDetailModal({ lead, onClose, onEdit, onDelete, onConverted }
     setConvertedStudentId(lead?.convertedStudentId ?? null)
     setSmsText('')
     setSmsResult(null)
+    setSendTestId('')
+    setSendTestResult(null)
     refreshTimeline(leadId)
     getSmsTemplates().then(setSmsTemplates).catch(() => setSmsTemplates([]))
+    getLevelTests().then((ts) => setLevelTests(ts.filter((t) => t.isActive))).catch(() => setLevelTests([]))
     getClasses()
       .then((gs) => setGroups(gs.filter((g) => !g.isArchived)))
       .catch(() => setGroups([]))
@@ -165,6 +176,24 @@ export function LeadDetailModal({ lead, onClose, onEdit, onDelete, onConverted }
       )
     } finally {
       setSmsSending(false)
+    }
+  }
+
+  const handleSendTest = async () => {
+    if (!leadId || !sendTestId || sendingTest) return
+    setSendingTest(true)
+    setSendTestResult(null)
+    try {
+      const r = await sendLeadTest(leadId, sendTestId)
+      setSendTestResult(r.ok ? 'Test havolasi SMS yuborildi ✓' : `Yuborilmadi: ${r.status}`)
+      refreshTimeline(leadId)
+    } catch (err: unknown) {
+      setSendTestResult(
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+          'Yuborishda xatolik',
+      )
+    } finally {
+      setSendingTest(false)
     }
   }
 
@@ -336,6 +365,41 @@ export function LeadDetailModal({ lead, onClose, onEdit, onDelete, onConverted }
                     <Send className="h-4 w-4" /> {smsSending ? 'Yuborilmoqda...' : 'SMS yuborish'}
                   </Button>
                 </div>
+              </div>
+            )}
+          </section>
+
+          {/* Daraja testi havolasini yuborish (bir martalik) */}
+          <section className="rounded-xl border border-slate-100 p-4">
+            <h4 className="mb-3 flex items-center gap-2 font-semibold text-slate-800">
+              <GraduationCap className="h-4 w-4 text-brand-600" /> Daraja testi yuborish
+            </h4>
+            {!leadPhone ? (
+              <p className="text-sm text-slate-400">Lidda telefon raqami yo'q.</p>
+            ) : levelTests.length === 0 ? (
+              <p className="text-sm text-slate-400">Faol daraja testi yo'q.</p>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-xs text-slate-400">
+                  Tanlangan test uchun <b>bir martalik havola</b> SMS qilib yuboriladi. Lid ma'lumotini qayta
+                  kiritmaydi; natija shu lidga bog'lanadi. (SMS andoza: "daraja testi havolasi" — {'{link}'} tokeni)
+                </p>
+                <div className="flex items-center gap-2">
+                  <Select value={sendTestId} onChange={(e) => setSendTestId(e.target.value)} className="flex-1">
+                    <option value="">— Testni tanlang —</option>
+                    {levelTests.map((t) => (
+                      <option key={t.id} value={t.id}>{t.title}</option>
+                    ))}
+                  </Select>
+                  <Button onClick={handleSendTest} disabled={!sendTestId || sendingTest}>
+                    <Send className="h-4 w-4" /> {sendingTest ? 'Yuborilmoqda...' : 'Yuborish'}
+                  </Button>
+                </div>
+                {sendTestResult && (
+                  <p className={`text-sm font-medium ${sendTestResult.includes('✓') ? 'text-emerald-700' : 'text-amber-700'}`}>
+                    {sendTestResult}
+                  </p>
+                )}
               </div>
             )}
           </section>

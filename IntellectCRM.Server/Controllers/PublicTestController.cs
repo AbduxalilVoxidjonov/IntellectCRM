@@ -33,6 +33,27 @@ public class PublicTestController(AppDbContext db, TelegramService telegram, Esk
         return dto;
     }
 
+    /// <summary>Bir martalik havola (invite) bo'yicha testni oladi — lid ma'lumoti oldindan to'ldirilgan.</summary>
+    [HttpGet("invite/{token}")]
+    public async Task<ActionResult<PublicInviteDto>> GetInvite(string token)
+    {
+        var dto = await LevelTestService.GetByInviteAsync(db, token);
+        if (dto is null) return NotFound(new { message = "Havola topilmadi yoki test faol emas" });
+        if (dto.Used) return StatusCode(410, new { message = "Bu havola allaqachon ishlatilgan." });
+        return dto;
+    }
+
+    /// <summary>Bir martalik havola orqali topshirish — natija lidga bog'lanadi, havola yopiladi.</summary>
+    [HttpPost("invite/{token}/submit")]
+    public async Task<ActionResult<TestResultDto>> SubmitInvite(string token, TestSubmitRequest req)
+    {
+        var safeAge = Math.Clamp(req.Age, 0, 120);
+        if (safeAge != req.Age) req = req with { Age = safeAge };
+        var result = await LevelTestService.SubmitInviteAsync(db, token, req, telegram, eskiz);
+        if (result is null) return StatusCode(410, new { message = "Havola topilmadi yoki allaqachon ishlatilgan." });
+        return result;
+    }
+
     /// <summary>Testni topshiradi — ball/daraja hisoblanadi va lid yaratiladi.</summary>
     [HttpPost("{slug}/submit")]
     public async Task<ActionResult<TestResultDto>> Submit(string slug, TestSubmitRequest req)

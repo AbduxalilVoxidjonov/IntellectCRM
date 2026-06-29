@@ -1429,6 +1429,33 @@ public class ArchivedRecord
     public string ActorName { get; set; } = string.Empty;
 }
 
+/// <summary>
+/// Lidga yuborilgan BIR MARTALIK daraja-testi havolasi. Admin lid uchun "Daraja testi yuborish"
+/// bosganida yaratiladi: noyob <see cref="Token"/> bilan URL (`/test/invite/{token}`) SMS orqali
+/// yuboriladi. Lid o'z ma'lumotini qayta kiritmaydi (lidda bor). Bir marta ishlangach
+/// (<see cref="UsedAt"/> to'ladi) havola yopiladi. Natija o'sha lidga bog'lanadi.
+/// </summary>
+public class LevelTestInvite
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    /// <summary>URL uchun noyob token (`/test/invite/{token}`).</summary>
+    public string Token { get; set; } = Guid.NewGuid().ToString("N");
+    public string TestId { get; set; } = string.Empty;
+    public string LeadId { get; set; } = string.Empty;
+    public string CreatedAt { get; set; } = string.Empty;
+    /// <summary>SMS holati: "sent" | "failed" | "" (hali yuborilmagan).</summary>
+    public string SmsStatus { get; set; } = string.Empty;
+    /// <summary>Eskiz RequestId (yetkazib berish holatini kuzatish uchun).</summary>
+    public string SmsRequestId { get; set; } = string.Empty;
+    /// <summary>Bir marta ishlatilgan vaqt (ISO). Bo'sh = hali ishlanmagan (qayta kirsa bo'ladi).</summary>
+    public string UsedAt { get; set; } = string.Empty;
+    /// <summary>Ishlangach yaratilgan topshiruv id'si.</summary>
+    public string SubmissionId { get; set; } = string.Empty;
+    /// <summary>Natija (stat uchun): ball foizi + daraja.</summary>
+    public int Percent { get; set; }
+    public string Level { get; set; } = string.Empty;
+}
+
 /// <summary>Daraja diapazoni — ball foiziga qarab daraja yorlig'i (masalan ≥75% → "Yuqori").</summary>
 public class LevelTestBand
 {

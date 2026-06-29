@@ -8,6 +8,7 @@ import type { LevelTestDetail, LevelTestSubmission, Subject } from '@/types'
 import {
   getLevelTest, updateLevelTest, getLevelTestSubmissions,
   getLevelTestStats, type LevelTestStats,
+  getLevelTestInvites, type LevelTestInvite,
 } from '@/api/services/levelTests'
 import { getSubjects } from '@/api/services/subjects'
 import { Card } from '@/components/ui/Card'
@@ -53,6 +54,7 @@ export function LevelTestEditorPage() {
 
   // Natijalar
   const [subs, setSubs] = useState<LevelTestSubmission[] | null>(null)
+  const [invites, setInvites] = useState<LevelTestInvite[] | null>(null)
 
   useEffect(() => {
     Promise.all([getLevelTest(id), getSubjects()])
@@ -73,7 +75,8 @@ export function LevelTestEditorPage() {
   useEffect(() => {
     if (tab === 'results' && subs === null) getLevelTestSubmissions(id).then(setSubs)
     if (tab === 'stats' && stats === null) getLevelTestStats(id).then(setStats)
-  }, [tab, subs, stats, id])
+    if (tab === 'stats' && invites === null) getLevelTestInvites(id).then(setInvites).catch(() => setInvites([]))
+  }, [tab, subs, stats, invites, id])
 
   const copy = async () => {
     if (!detail) return
@@ -520,7 +523,7 @@ export function LevelTestEditorPage() {
           )}
         </Card>
       ) : (
-        <StatsPanel stats={stats} />
+        <StatsPanel stats={stats} invites={invites} />
       )}
     </div>
   )
@@ -528,9 +531,9 @@ export function LevelTestEditorPage() {
 
 // ============================ Statistika paneli ============================
 
-function StatsPanel({ stats }: { stats: LevelTestStats | null }) {
+function StatsPanel({ stats, invites }: { stats: LevelTestStats | null; invites: LevelTestInvite[] | null }) {
   if (!stats) return <Card><Loader label="Yuklanmoqda..." /></Card>
-  if (stats.total === 0)
+  if (stats.total === 0 && (invites?.length ?? 0) === 0)
     return <Card><p className="py-8 text-center text-sm text-slate-400">Hali hech kim topshirmagan.</p></Card>
 
   const pct = (n: number) => (stats.total > 0 ? Math.round((n / stats.total) * 100) : 0)
@@ -605,6 +608,48 @@ function StatsPanel({ stats }: { stats: LevelTestStats | null }) {
           </table>
         </div>
       </Card>
+
+      {/* Yuborilgan bir martalik havolalar — SMS holati + ishlangani */}
+      {invites && invites.length > 0 && (
+        <Card title="Yuborilgan havolalar (SMS)" sub="Lidlarga yuborilgan bir martalik daraja-test havolalari">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-slate-100 text-xs uppercase tracking-wide text-slate-400">
+                <tr>
+                  <th className="px-3 py-2">Lid</th>
+                  <th className="px-3 py-2">Telefon</th>
+                  <th className="px-3 py-2 text-center">SMS</th>
+                  <th className="px-3 py-2 text-center">Ishlangan</th>
+                  <th className="px-3 py-2 text-center">Natija</th>
+                  <th className="px-3 py-2">Yuborilgan</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {invites.map((i) => (
+                  <tr key={i.id} className="hover:bg-slate-50/60">
+                    <td className="px-3 py-2 font-medium text-slate-700">{i.leadName}</td>
+                    <td className="px-3 py-2 font-mono text-slate-500">{i.phone}</td>
+                    <td className="px-3 py-2 text-center">
+                      {i.smsStatus === 'sent' ? (
+                        <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">Yuborilgan</span>
+                      ) : (
+                        <span className="rounded-md bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700" title={i.smsStatus}>Xato</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-center">
+                      {i.used ? <Check className="mx-auto h-4 w-4 text-emerald-600" /> : <span className="text-slate-300">—</span>}
+                    </td>
+                    <td className="px-3 py-2 text-center font-mono text-slate-600">
+                      {i.used ? `${i.percent}%${i.level ? ` · ${i.level}` : ''}` : '—'}
+                    </td>
+                    <td className="px-3 py-2 text-slate-500">{formatDate(i.createdAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
     </div>
   )
 }

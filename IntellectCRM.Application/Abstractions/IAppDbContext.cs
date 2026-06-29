@@ -90,6 +90,7 @@ public interface IAppDbContext
     DbSet<LevelTestQuestion> LevelTestQuestions { get; }
     DbSet<LevelTestBand> LevelTestBands { get; }
     DbSet<LevelTestSubmission> LevelTestSubmissions { get; }
+    DbSet<LevelTestInvite> LevelTestInvites { get; }
 
     // Support o'qituvchi bo'sh vaqt slotlari + bron
     DbSet<SupportSlot> SupportSlots { get; }

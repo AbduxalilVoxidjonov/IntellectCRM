@@ -66,3 +66,55 @@ export async function getLevelTestStats(id: string): Promise<LevelTestStats> {
   const { data } = await api.get<LevelTestStats>(`/admin/level-tests/${id}/stats`)
   return data
 }
+
+/** Bu testga yuborilgan bir martalik havolalar (lid + SMS holati + ishlangani). */
+export interface LevelTestInvite {
+  id: string
+  testId: string
+  leadId: string
+  leadName: string
+  phone: string
+  smsStatus: string
+  createdAt: string
+  used: boolean
+  usedAt: string
+  percent: number
+  level: string
+}
+export async function getLevelTestInvites(id: string): Promise<LevelTestInvite[]> {
+  const { data } = await api.get<LevelTestInvite[]>(`/admin/level-tests/${id}/invites`)
+  return data
+}
+
+/** Barcha daraja testlari bo'yicha umumiy statistika. */
+export interface LevelCount { level: string; count: number }
+export interface TestStatRow {
+  testId: string
+  title: string
+  submissions: number
+  invites: number
+  invitesUsed: number
+  avgPercent: number
+}
+export interface LevelTestOverallStats {
+  testCount: number
+  submissions: number
+  invites: number
+  invitesUsed: number
+  avgPercent: number
+  byLevel: LevelCount[]
+  byTest: TestStatRow[]
+}
+export async function getLevelTestOverallStats(): Promise<LevelTestOverallStats> {
+  const { data } = await api.get<LevelTestOverallStats>('/admin/level-tests/overall-stats')
+  return data
+}
+
+/** Lidga daraja testi havolasini SMS qilib yuborish (bir martalik). */
+export async function sendLeadTest(leadId: string, testId: string): Promise<{ ok: boolean; status: string; link: string }> {
+  const { data } = await api.post<{ ok: boolean; status: string; link: string }>(
+    `/admin/leads/${leadId}/send-test`,
+    { testId },
+  )
+  return data
+}

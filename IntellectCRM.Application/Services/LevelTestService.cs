@@ -179,4 +179,101 @@ public static class LevelTestService
               + " Tez orada siz bilan bog'lanamiz.";
         return new TestResultDto(score, total, percent, level, msg);
     }
+
+    // ==================== Bir martalik havola (invite) ====================
+
+    /// <summary>Token bo'yicha testni oladi (lid nomi/telefoni oldindan to'ldirilgan). Token yo'q/test
+    /// faol emas — null. Allaqachon ishlatilgan bo'lsa Used=true (test ko'rsatilmaydi).</summary>
+    public static async Task<PublicInviteDto?> GetByInviteAsync(IAppDbContext db, string token)
+    {
+        var inv = await db.LevelTestInvites.FirstOrDefaultAsync(i => i.Token == token);
+        if (inv is null) return null;
+        if (!string.IsNullOrEmpty(inv.UsedAt)) return new PublicInviteDto(null, "", "", true);
+        var test = await db.LevelTests.FirstOrDefaultAsync(t => t.Id == inv.TestId && t.IsActive);
+        if (test is null) return null;
+        var lead = await db.Leads.FirstOrDefaultAsync(l => l.Id == inv.LeadId);
+        var questions = await db.LevelTestQuestions.Where(q => q.TestId == test.Id).OrderBy(q => q.Order).ToListAsync();
+        var pub = new PublicTestDto(test.Title, test.Intro, await CourseNameAsync(db, test.CourseId),
+            questions.Select(q => new PublicTestQuestionDto(q.Id, q.Text, q.Options, q.Kind, q.Multiple)).ToList());
+        return new PublicInviteDto(pub, lead?.FullName ?? "", lead?.Phone ?? "", false);
+    }
+
+    /// <summary>Bir martalik havola orqali topshirish: baholaydi, natijani MAVJUD lidga bog'laydi,
+    /// havolani yopadi (UsedAt). Token yo'q/test yo'q/allaqachon ishlatilgan — null.</summary>
+    public static async Task<TestResultDto?> SubmitInviteAsync(
+        IAppDbContext db, string token, TestSubmitRequest req, TelegramService? telegram = null, EskizService? eskiz = null)
+    {
+        var inv = await db.LevelTestInvites.FirstOrDefaultAsync(i => i.Token == token);
+        if (inv is null || !string.IsNullOrEmpty(inv.UsedAt)) return null; // yo'q yoki allaqachon ishlatilgan
+        var test = await db.LevelTests.FirstOrDefaultAsync(t => t.Id == inv.TestId);
+        if (test is null) return null;
+        var lead = await db.Leads.FirstOrDefaultAsync(l => l.Id == inv.LeadId);
+
+        var items = await db.LevelTestQuestions.Where(q => q.TestId == test.Id).ToListAsync();
+        var bands = await db.LevelTestBands.Where(x => x.TestId == test.Id).ToListAsync();
+
+        var graded = items.Where(q => q.Kind != "survey").ToList();
+        var total = graded.Count;
+        var score = 0;
+        foreach (var q in graded)
+            if (req.Answers != null && req.Answers.TryGetValue(q.Id, out var picked) && picked == q.CorrectIndex)
+                score++;
+
+        var surveyAnswers = new List<SurveyAnswerDto>();
+        foreach (var s in items.Where(q => q.Kind == "survey").OrderBy(x => x.Order))
+        {
+            var picks = new List<string>();
+            if (req.SurveyAnswers != null && req.SurveyAnswers.TryGetValue(s.Id, out var idxs) && idxs != null)
+                foreach (var i in idxs.Distinct())
+                    if (i >= 0 && i < s.Options.Count) picks.Add(s.Options[i]);
+            surveyAnswers.Add(new SurveyAnswerDto(s.Text, picks));
+        }
+        var surveyJson = surveyAnswers.Count > 0 ? System.Text.Json.JsonSerializer.Serialize(surveyAnswers) : "";
+        var surveyText = surveyAnswers.Count > 0
+            ? "\nSo'rovnoma:\n" + string.Join("\n", surveyAnswers.Select(
+                a => $"• {a.Question}: {(a.Answers.Count > 0 ? string.Join(", ", a.Answers) : "—")}"))
+            : "";
+
+        var percent = total > 0 ? (int)Math.Round(score * 100.0 / total) : 0;
+        var level = ResolveLevel(bands, percent);
+        var levelText = string.IsNullOrEmpty(level) ? "" : $" — {level}";
+        var now = AppClock.Now.ToString("yyyy-MM-ddTHH:mm:ss");
+        var courseName = await CourseNameAsync(db, test.CourseId);
+
+        // Natijani MAVJUD lidga bog'laymiz (yangi lid yaratilmaydi).
+        if (lead is not null)
+        {
+            lead.Note = ((lead.Note ?? "").TrimEnd() + $"\nDaraja testi: {score}/{total} ({percent}%){levelText}" + surveyText).Trim();
+            if (string.IsNullOrWhiteSpace(lead.InterestSubject))
+                lead.InterestSubject = string.IsNullOrEmpty(courseName) ? test.Title : courseName;
+            db.LeadEvents.Add(new LeadEvent
+            {
+                LeadId = lead.Id, Type = "note", ActorName = "Daraja testi", CreatedAt = now,
+                Text = $"Daraja testini ishladi: {score}/{total} ({percent}%){levelText}",
+            });
+        }
+
+        var submission = new LevelTestSubmission
+        {
+            TestId = test.Id, FullName = lead?.FullName ?? "", Phone = lead?.Phone ?? "", Age = req.Age,
+            Score = score, Total = total, Percent = percent, Level = level, CreatedAt = now,
+            LeadId = inv.LeadId, SurveyJson = surveyJson,
+        };
+        db.LevelTestSubmissions.Add(submission);
+
+        inv.UsedAt = now;
+        inv.SubmissionId = submission.Id;
+        inv.Percent = percent;
+        inv.Level = level ?? "";
+        await db.SaveChangesAsync();
+
+        if (telegram is not null && lead is not null)
+            await LeadNotifier.NotifyNewLeadAsync(db, telegram, lead, submission, test.Title);
+
+        var msg = total == 0
+            ? "Rahmat! Javoblaringiz qabul qilindi."
+            : $"Rahmat! Siz {total} ta savoldan {score} tasiga to'g'ri javob berdingiz"
+              + (string.IsNullOrEmpty(level) ? "." : $". Sizning darajangiz: {level}.");
+        return new TestResultDto(score, total, percent, level, msg);
+    }
 }
