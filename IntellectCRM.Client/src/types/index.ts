@@ -713,6 +713,8 @@ export interface FinanceTransaction {
   month?: string
   /** To'lov usuli: cash (Naqd) | card (Karta) | bank (Bank orqali) */
   method?: string
+  /** Backend qaytaradigan guruh nomi (tuition to'lovi bo'lsa) */
+  groupName?: string | null
 }
 
 export interface CategoryAmount {

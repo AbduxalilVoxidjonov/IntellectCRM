@@ -644,7 +644,8 @@ public record SaveTurnstileSettingsRequest(
 public record FinanceTransactionDto(
     string Id, string Date, string Direction, string Category, decimal Amount,
     string? Note, string? StudentId, string? StudentName, string? TeacherId, string? TeacherName,
-    string? Month, string? GroupId = null, string? Comment = null, string? Method = null);
+    string? Month, string? GroupId = null, string? Comment = null, string? Method = null,
+    string? GroupName = null);
 public record FinanceTransactionPayload(
     string Date, string Direction, string Category, decimal Amount, string? Note,
     string? StudentId, string? TeacherId, string? Month = null, string? GroupId = null, string? Comment = null, string? Method = null);

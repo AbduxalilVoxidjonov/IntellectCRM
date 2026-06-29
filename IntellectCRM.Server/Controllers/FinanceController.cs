@@ -20,14 +20,19 @@ public class FinanceController(AppDbContext db, AuditService audit, EskizService
     private async Task<Dictionary<string, string>> TeacherNames() =>
         await db.Teachers.ToDictionaryAsync(t => t.Id, t => t.FullName);
 
+    private async Task<Dictionary<string, string>> GroupNames() =>
+        await db.Classes.ToDictionaryAsync(c => c.Id, c => c.Name);
+
     private static FinanceTransactionDto ToDto(
         FinanceTransaction t,
         IReadOnlyDictionary<string, string> students,
-        IReadOnlyDictionary<string, string> teachers) =>
+        IReadOnlyDictionary<string, string> teachers,
+        IReadOnlyDictionary<string, string>? groups = null) =>
         new(t.Id, t.Date, t.Direction, t.Category, t.Amount, t.Note,
             t.StudentId, t.StudentId is not null && students.TryGetValue(t.StudentId, out var s) ? s : null,
             t.TeacherId, t.TeacherId is not null && teachers.TryGetValue(t.TeacherId, out var te) ? te : null,
-            t.Month, t.GroupId, t.Comment, t.Method);
+            t.Month, t.GroupId, t.Comment, t.Method,
+            t.GroupId is not null && groups is not null && groups.TryGetValue(t.GroupId, out var g) ? g : null);
 
     [HttpGet("transactions")]
     public async Task<ActionResult<IEnumerable<FinanceTransactionDto>>> GetTransactions(
@@ -43,7 +48,8 @@ public class FinanceController(AppDbContext db, AuditService audit, EskizService
         var list = await query.OrderByDescending(t => t.Date).ThenByDescending(t => t.Id).ToListAsync();
         var students = await StudentNames();
         var teachers = await TeacherNames();
-        return list.Select(t => ToDto(t, students, teachers)).ToList();
+        var groups = await GroupNames();
+        return list.Select(t => ToDto(t, students, teachers, groups)).ToList();
     }
 
     [HttpPost("transactions")]

@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Plus, Pencil, Trash2, Download, TrendingUp, TrendingDown, Wallet, AlertCircle, Calculator, History, Inbox, Percent } from 'lucide-react'
+import { Plus, Pencil, Trash2, Download, TrendingUp, TrendingDown, Wallet, AlertCircle, Calculator, History, Inbox, Percent, Search } from 'lucide-react'
 import type {
   FinanceDirection,
   FinanceMonthly,
   FinanceSummary,
   FinanceTransaction,
   SalaryReportRow,
-  StudentFinanceRow,
 } from '@/types'
 import {
   getFinanceSummary,
@@ -17,14 +16,13 @@ import {
   deleteTransaction,
   accrueTuition,
   getSalaryReport,
-  getStudentReport,
   getCourseReport,
   type FinanceTransactionPayload,
   type CourseFinanceReport,
   type GroupFinanceRow,
 } from '@/api/services/finance'
 import { addPayment } from '@/api/services/students'
-import { financeCategoryLabel, financeDirectionLabels, paymentMethodLabel } from '@/config/constants'
+import { financeCategoryLabel, financeDirectionLabels, formatMonth, paymentMethodLabel } from '@/config/constants'
 import { formatDate, formatMoney, exportToCsv, cn } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -47,27 +45,18 @@ const control =
   'rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-mono text-slate-700 outline-none focus:border-brand-400'
 
 type DirFilter = 'all' | FinanceDirection
-type Tab = 'overview' | 'groups' | 'teachers' | 'students'
+type Tab = 'overview' | 'groups' | 'teachers' | 'payments'
 
 const tabs: { value: Tab; label: string }[] = [
   { value: 'overview', label: 'Umumiy' },
   { value: 'groups', label: 'Guruhlar' },
   { value: 'teachers', label: "O'qituvchilar" },
-  { value: 'students', label: "O'quvchilar" },
+  { value: 'payments', label: "To'lovlar" },
 ]
 
 /** Qoldiq/qarz summasini belgisiga qarab ranglash */
 function balanceClass(v: number): string {
   return v > 0 ? 'text-red-600' : v < 0 ? 'text-emerald-600' : 'text-slate-400'
-}
-
-/** Chegirma — foiz + summa qisqacha ko'rinishi (masalan "20% + 50 000" yoki "—"). */
-function formatDiscount(pct: number, amount: number): string {
-  if (pct <= 0 && amount <= 0) return '—'
-  const parts: string[] = []
-  if (pct > 0) parts.push(`${pct}%`)
-  if (amount > 0) parts.push(formatMoney(amount))
-  return parts.join(' + ')
 }
 
 export function FinancePage() {
@@ -80,7 +69,8 @@ export function FinancePage() {
   const [monthly, setMonthly] = useState<FinanceMonthly[]>([])
   const [transactions, setTransactions] = useState<FinanceTransaction[]>([])
   const [salaryReport, setSalaryReport] = useState<SalaryReportRow[]>([])
-  const [studentReport, setStudentReport] = useState<StudentFinanceRow[]>([])
+  const [payments, setPayments] = useState<FinanceTransaction[]>([])
+  const [paySearch, setPaySearch] = useState('')
   const [courseReport, setCourseReport] = useState<CourseFinanceReport | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -98,15 +88,15 @@ export function FinancePage() {
       getFinanceMonthly(yearOf(to)),
       getTransactions({ from, to, direction: dirFilter === 'all' ? undefined : dirFilter }),
       getSalaryReport(from, to),
-      getStudentReport(),
+      getTransactions({ from, to, direction: 'income', category: 'tuition' }),
       getCourseReport(from, to),
     ])
-      .then(([s, m, t, sr, st, cr]) => {
+      .then(([s, m, t, sr, pay, cr]) => {
         setSummary(s)
         setMonthly(m)
         setTransactions(t)
         setSalaryReport(sr)
-        setStudentReport(st)
+        setPayments(pay)
         setCourseReport(cr)
       })
       .finally(() => setLoading(false))
@@ -183,18 +173,29 @@ export function FinancePage() {
     )
   }
 
-  const handleExportStudents = () => {
+  // To'lovlar bo'limi: o'quvchi nomi bo'yicha qidiruv (+ guruh/izoh).
+  const filteredPayments = (() => {
+    const q = paySearch.trim().toLowerCase()
+    if (!q) return payments
+    return payments.filter(
+      (p) =>
+        (p.studentName ?? '').toLowerCase().includes(q) ||
+        (p.groupName ?? '').toLowerCase().includes(q) ||
+        (p.note ?? '').toLowerCase().includes(q),
+    )
+  })()
+
+  const handleExportPayments = () => {
     exportToCsv(
-      'oquvchilar-tolov.csv',
-      ["O'quvchi", 'Guruh', 'Hisoblangan', 'Chegirma', "To'langan", 'Qarz', 'Avans'],
-      studentReport.map((r) => [
-        r.fullName,
-        r.className,
-        String(r.charged),
-        String(r.discount),
-        String(r.paid),
-        String(r.debt),
-        String(r.advance),
+      'tolovlar.csv',
+      ['Sana', "O'quvchi", 'Guruh', 'Oy', "To'lov usuli", 'Summa'],
+      filteredPayments.map((p) => [
+        formatDate(p.date),
+        p.studentName ?? '',
+        p.groupName ?? '',
+        p.month ?? '',
+        p.method ? paymentMethodLabel(p.method) : '',
+        String(p.amount),
       ]),
     )
   }
@@ -231,12 +232,7 @@ export function FinancePage() {
     paid: salaryReport.reduce((a, r) => a + r.totalPaid, 0),
     remaining: salaryReport.reduce((a, r) => a + Math.max(0, r.remaining), 0),
   }
-  const studentTotals = {
-    charged: studentReport.reduce((a, r) => a + r.charged, 0),
-    paid: studentReport.reduce((a, r) => a + r.paid, 0),
-    debt: studentReport.reduce((a, r) => a + r.debt, 0),
-    advance: studentReport.reduce((a, r) => a + r.advance, 0),
-  }
+  const paymentsTotal = filteredPayments.reduce((a, p) => a + p.amount, 0)
 
   return (
     <div>
@@ -279,15 +275,13 @@ export function FinancePage() {
         ))}
       </div>
 
-      {/* Davr tanlash (umumiy va o'qituvchilar bo'limi uchun) */}
-      {tab !== 'students' && (
-        <div className="toolbar">
-          <span className="text-sm font-medium text-slate-600">Davr:</span>
-          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className={control} />
-          <span className="text-slate-400">—</span>
-          <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className={control} />
-        </div>
-      )}
+      {/* Davr tanlash (barcha bo'limlar uchun) */}
+      <div className="toolbar">
+        <span className="text-sm font-medium text-slate-600">Davr:</span>
+        <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className={control} />
+        <span className="text-slate-400">—</span>
+        <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className={control} />
+      </div>
 
       {loading || !summary ? (
         <Loader label="Yuklanmoqda..." />
@@ -566,118 +560,106 @@ export function FinancePage() {
             </div>
           )}
 
-          {/* ============ O'QUVCHILAR ============ */}
-          {tab === 'students' && (
+          {/* ============ TO'LOVLAR (kiritilgan to'lovlar ro'yxati) ============ */}
+          {tab === 'payments' && (
             <div className="space-y-6">
-              {studentReport.length > 0 && (
-                <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-                  <StatCard
-                    label="Jami hisoblangan"
-                    value={formatMoney(studentTotals.charged)}
-                    icon={Calculator}
-                  />
-                  <StatCard
-                    label="Jami to'langan"
-                    value={formatMoney(studentTotals.paid)}
-                    icon={Wallet}
-                    iconBg="bg-emerald-50"
-                    iconColor="text-emerald-600"
-                  />
-                  <StatCard
-                    label="Jami qarz"
-                    value={formatMoney(studentTotals.debt)}
-                    icon={AlertCircle}
-                    iconBg="bg-red-50"
-                    iconColor="text-red-600"
-                  />
-                  <StatCard
-                    label="Jami avans"
-                    value={formatMoney(studentTotals.advance)}
-                    icon={TrendingUp}
-                    iconBg="bg-emerald-50"
-                    iconColor="text-emerald-600"
-                  />
-                </div>
-              )}
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+                <StatCard label="To'lovlar soni" value={String(filteredPayments.length)} icon={Wallet} />
+                <StatCard
+                  label="Jami summa"
+                  value={formatMoney(paymentsTotal)}
+                  icon={TrendingUp}
+                  iconBg="bg-emerald-50"
+                  iconColor="text-emerald-600"
+                />
+              </div>
               <Card
                 tight
-                title="O'quvchilar to'lovi"
-                sub="Joriy holat — eng katta qarzdorlar yuqorida"
+                title="Kiritilgan to'lovlar"
+                sub="O'quvchi to'lovlari (tuition) — xato bo'lsa o'chiring, balans qayta tiklanadi"
                 actions={
-                  <Button variant="secondary" onClick={handleExportStudents} disabled={studentReport.length === 0}>
-                    <Download className="h-4 w-4" /> CSV
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <div className="relative">
+                      <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                      <input
+                        type="text"
+                        placeholder="O'quvchi / guruh qidirish..."
+                        value={paySearch}
+                        onChange={(e) => setPaySearch(e.target.value)}
+                        className="w-56 rounded-lg border border-slate-200 bg-white py-2 pl-8 pr-3 text-sm text-slate-700 outline-none focus:border-brand-400"
+                      />
+                    </div>
+                    <Button variant="secondary" onClick={handleExportPayments} disabled={filteredPayments.length === 0}>
+                      <Download className="h-4 w-4" /> CSV
+                    </Button>
+                  </div>
                 }
               >
                 <div className="table-wrap">
                   <table className="table">
                     <thead>
                       <tr>
+                        <th>Sana</th>
                         <th>O'quvchi</th>
                         <th>Guruh</th>
-                        <th className="num">Hisoblangan</th>
-                        <th className="num">Chegirma</th>
-                        <th className="num">To'langan</th>
-                        <th className="num">Qarz</th>
-                        <th className="num">Avans</th>
-                        <th className="num">Tarix</th>
+                        <th>Oy</th>
+                        <th>To'lov usuli</th>
+                        <th className="num">Summa</th>
+                        <th className="num">Amallar</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {studentReport.map((r) => (
-                        <tr key={r.studentId}>
-                          <td className="font-medium text-slate-800">{r.fullName}</td>
+                      {filteredPayments.map((p) => (
+                        <tr key={p.id}>
+                          <td className="font-mono text-[12.5px] text-slate-500">{formatDate(p.date)}</td>
+                          <td className="font-medium text-slate-800">{p.studentName ?? '—'}</td>
+                          <td>{p.groupName ? <Badge>{p.groupName}</Badge> : <span className="text-slate-300">—</span>}</td>
+                          <td className="text-slate-600">{p.month ? formatMonth(p.month) : '—'}</td>
                           <td>
-                            <Badge>{r.className}</Badge>
-                          </td>
-                          <td className="num text-slate-600">{formatMoney(r.charged)}</td>
-                          <td className="num">
-                            {r.discount > 0 ? (
-                              <div>
-                                <div className="font-semibold text-amber-700">−{formatMoney(r.discount)}</div>
-                                {(r.discountPct > 0 || r.discountAmount > 0) && (
-                                  <div className="text-[11px] text-amber-600/70">
-                                    {formatDiscount(r.discountPct, r.discountAmount)}
-                                  </div>
-                                )}
-                              </div>
+                            {p.method ? (
+                              <Badge tone="blue">{paymentMethodLabel(p.method)}</Badge>
                             ) : (
                               <span className="text-slate-300">—</span>
                             )}
                           </td>
-                          <td className="num font-semibold text-emerald-600">
-                            {formatMoney(r.paid)}
-                          </td>
-                          <td className={cn('num font-semibold', r.debt > 0 ? 'text-red-600' : 'text-slate-400')}>
-                            {formatMoney(r.debt)}
-                          </td>
-                          <td className={cn('num', r.advance > 0 ? 'text-emerald-600' : 'text-slate-400')}>
-                            {r.advance > 0 ? `+${formatMoney(r.advance)}` : formatMoney(0)}
-                          </td>
+                          <td className="num font-semibold text-emerald-600">+{formatMoney(p.amount)}</td>
                           <td className="num">
-                            <button
-                              type="button"
-                              title="O'zgarishlar tarixi"
-                              onClick={() =>
-                                setAudit({ filters: { studentId: r.studentId }, title: `Tarix — ${r.fullName}` })
-                              }
-                              className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
-                            >
-                              <History className="h-4 w-4" />
-                            </button>
+                            <div className="flex items-center justify-end gap-0.5">
+                              <button
+                                type="button"
+                                title="O'zgarishlar tarixi"
+                                onClick={() =>
+                                  setAudit({
+                                    filters: { entityType: 'FinanceTransaction', entityId: p.id },
+                                    title: "To'lov tarixi",
+                                  })
+                                }
+                                className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                              >
+                                <History className="h-4 w-4" />
+                              </button>
+                              <button
+                                type="button"
+                                title="O'chirish (balans tiklanadi)"
+                                onClick={() => handleDelete(p)}
+                                className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
-                {studentReport.length === 0 && (
+                {filteredPayments.length === 0 && (
                   <div className="state">
                     <div className="state-icon">
                       <Inbox className="h-5 w-5" />
                     </div>
-                    <h4>Ma'lumot yo'q</h4>
-                    <p>O'quvchilar to'lov hisoboti topilmadi.</p>
+                    <h4>To'lov yo'q</h4>
+                    <p>{paySearch ? 'Qidiruv bo\'yicha to\'lov topilmadi.' : 'Tanlangan davrda kiritilgan to\'lov yo\'q.'}</p>
                   </div>
                 )}
               </Card>
