@@ -18,16 +18,23 @@ import { messageTemplates as TEMPLATES, messageTokens as TOKENS } from '@/config
 
 type Scope = 'class' | 'all' | 'selected'
 
-/** Preview uchun klient tomonida o'rinbosarlarni to'ldiradi (backend bilan bir xil mantiq). */
+/** Preview uchun klient tomonida o'rinbosarlarni to'ldiradi (backend bilan taxminan bir xil).
+ * Ba'zi tokenlar (ota/ona/manzil/markaz) bu yerda ma'lumot bo'lmagani uchun yuborishda to'ldiriladi. */
 function fill(text: string, p: TelegramParent): string {
   const debt = p.balance < 0 ? formatMoney(-p.balance) : "0 so'm"
+  const now = new Date()
+  const months = ['yanvar', 'fevral', 'mart', 'aprel', 'may', 'iyun', 'iyul', 'avgust', 'sentabr', 'oktabr', 'noyabr', 'dekabr']
   return text
     .replace(/\{fish\}/gi, p.studentName)
     .replace(/\{sinf\}/gi, p.className)
+    .replace(/\{guruh\}/gi, p.className)
     .replace(/\{qarzdorlik\}/gi, debt)
     .replace(/\{balans\}/gi, formatMoney(p.balance))
     .replace(/\{ota[-_]ona\}/gi, p.parentName || 'Ota-ona')
     .replace(/\{telefon\}/gi, p.phone)
+    .replace(/\{sana\}/gi, `${String(now.getDate()).padStart(2, '0')}.${String(now.getMonth() + 1).padStart(2, '0')}.${now.getFullYear()}`)
+    .replace(/\{oy\}/gi, months[now.getMonth()])
+    .replace(/\{yil\}/gi, String(now.getFullYear()))
 }
 
 /** Ota-onalarga Telegram bot orqali e'lon yuborish: qamrov + andoza + o'rinbosarlar + tarix. */

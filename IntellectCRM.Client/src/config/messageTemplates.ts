@@ -21,12 +21,33 @@ export const messageTemplates: { label: string; text: string }[] = [
   },
 ]
 
-/** Matnga qo'yiladigan o'rinbosarlar — har o'quvchiga moslab to'ldiriladi. */
+/**
+ * Matnga qo'yiladigan o'rinbosarlar — yuborishda har o'quvchiga (yoki lid/o'qituvchiga) moslab
+ * to'ldiriladi. Backend: `MessageTokenizer`. O'qituvchi/lidga ba'zi tokenlar bo'sh qoladi.
+ */
 export const messageTokens: { token: string; label: string }[] = [
+  // Ism-sharif
   { token: '{fish}', label: 'F.I.SH' },
-  { token: '{sinf}', label: 'Guruh' },
+  { token: '{ism}', label: 'Ism' },
+  { token: '{familiya}', label: 'Familiya' },
+  { token: '{sharif}', label: 'Otasining ismi' },
+  // Guruh / moliya
+  { token: '{guruh}', label: 'Guruh' },
   { token: '{qarzdorlik}', label: 'Qarzdorlik' },
   { token: '{balans}', label: 'Balans' },
+  // Aloqa
   { token: '{ota-ona}', label: 'Ota-ona' },
-  { token: '{telefon}', label: 'Telefon' },
+  { token: '{telefon}', label: 'Telefon (kontakt)' },
+  { token: '{ota}', label: 'Ota F.I.SH' },
+  { token: '{ota_telefon}', label: 'Ota tel.' },
+  { token: '{ona}', label: 'Ona F.I.SH' },
+  { token: '{ona_telefon}', label: 'Ona tel.' },
+  { token: '{oquvchi_telefon}', label: "O'quvchi tel." },
+  // Boshqa
+  { token: '{manzil}', label: 'Manzil' },
+  { token: '{tugilgan}', label: "Tug'ilgan sana" },
+  { token: '{markaz}', label: 'Markaz nomi' },
+  { token: '{sana}', label: 'Bugungi sana' },
+  { token: '{oy}', label: 'Joriy oy' },
+  { token: '{yil}', label: 'Yil' },
 ]

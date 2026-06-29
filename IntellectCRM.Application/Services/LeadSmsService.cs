@@ -26,7 +26,7 @@ public static class LeadSmsService
             var tpl = await db.SmsTemplates.Where(t => t.IsAuto).OrderBy(t => t.Order).FirstOrDefaultAsync(ct);
             if (tpl is null || string.IsNullOrWhiteSpace(tpl.Text)) return;
 
-            var msg = Personalize(tpl.Text, lead, phone);
+            var msg = MessageTokenizer.Lead(tpl.Text, lead, phone, meta?.Name ?? "");
             var batchId = Guid.NewGuid().ToString();
             var r = await eskiz.SendSmsAsync(db, phone, msg, callbackUrl, ct);
             db.SmsLogs.Add(new SmsLog
@@ -48,17 +48,4 @@ public static class LeadSmsService
         }
     }
 
-    private static string Personalize(string text, Lead l, string phone)
-    {
-        string Rep(string input, string token, string value) =>
-            System.Text.RegularExpressions.Regex.Replace(
-                input, System.Text.RegularExpressions.Regex.Escape(token),
-                (value ?? "").Replace("$", "$$"),
-                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-        var r = Rep(text, "{fish}", l.FullName);
-        r = Rep(r, "{telefon}", phone);
-        foreach (var tok in new[] { "{sinf}", "{qarzdorlik}", "{balans}", "{ota-ona}", "{ota_ona}" })
-            r = Rep(r, tok, "");
-        return r;
-    }
 }

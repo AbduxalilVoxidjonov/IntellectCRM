@@ -140,11 +140,12 @@ public class MessagesController(AppDbContext db, ChatService chat, TelegramServi
             .Where(r => sids.Contains(r.StudentId))
             .ToListAsync();
 
+        var centerName = (await db.CenterMeta.FirstOrDefaultAsync())?.Name ?? "";
         var sent = 0;
         foreach (var r in regs)
         {
             if (!byId.TryGetValue(r.StudentId, out var s)) continue;
-            var message = $"📢 Maktab e'loni\n\n{Personalize(text, s, r)}";
+            var message = $"📢 Maktab e'loni\n\n{Personalize(text, s, r, centerName)}";
             if (await telegram.SendMessageAsync(r.ChatId, message)) sent++;
         }
 
@@ -166,60 +167,19 @@ public class MessagesController(AppDbContext db, ChatService chat, TelegramServi
             bc.CreatedAt.ToString("o"), bc.RecipientCount, bc.SentCount);
     }
 
-    /// <summary>E'lon matnidagi o'rinbosarlarni shu o'quvchi ma'lumotiga moslab almashtiradi.</summary>
-    private static string Personalize(string template, Student s, TelegramRegistration reg)
-    {
-        var debt = s.Balance < 0 ? -s.Balance : 0m;
-        var parent = string.IsNullOrWhiteSpace(reg.ParentName) ? "Ota-ona" : reg.ParentName;
-        var result = template;
-        result = ReplaceToken(result, "{fish}", s.FullName);
-        result = ReplaceToken(result, "{sinf}", s.ClassName);
-        result = ReplaceToken(result, "{qarzdorlik}", Money(debt));
-        result = ReplaceToken(result, "{balans}", Money(s.Balance));
-        result = ReplaceToken(result, "{ota-ona}", parent);
-        result = ReplaceToken(result, "{ota_ona}", parent);
-        result = ReplaceToken(result, "{telefon}", reg.Phone);
-        return result;
-    }
+    // Matn o'rinbosarlari markazlashgan: <see cref="MessageTokenizer"/> (barcha kanal/auditoriyalar shu yerda).
 
-    private static string ReplaceToken(string input, string token, string value) =>
-        System.Text.RegularExpressions.Regex.Replace(
-            input,
-            System.Text.RegularExpressions.Regex.Escape(token),
-            (value ?? "").Replace("$", "$$"),
-            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+    /// <summary>E'lon matnini shu o'quvchi/ota-ona ma'lumotiga moslab almashtiradi.</summary>
+    private static string Personalize(string template, Student s, TelegramRegistration reg, string centerName) =>
+        MessageTokenizer.Student(template, s, reg.ParentName, reg.Phone, centerName);
 
-    /// <summary>So'm formatlash: 1 500 000 so'm (probel bilan ajratilgan).</summary>
-    private static string Money(decimal v)
-    {
-        var nfi = new System.Globalization.NumberFormatInfo { NumberGroupSeparator = " ", NumberDecimalDigits = 0 };
-        return v.ToString("#,0", nfi) + " so'm";
-    }
+    /// <summary>Push/SMS matnini o'quvchi (ota-ona akkaunti) ma'lumotiga moslaydi.</summary>
+    private static string PersonalizePush(string text, Student s, string centerName) =>
+        MessageTokenizer.Student(text, s, s.ParentFullName, s.ParentPhone, centerName);
 
-    /// <summary>Push matnini o'quvchi (ota-ona akkaunti) ma'lumotiga moslaydi.</summary>
-    private static string PersonalizePush(string text, Student s)
-    {
-        var debt = s.Balance < 0 ? -s.Balance : 0m;
-        var parent = string.IsNullOrWhiteSpace(s.ParentFullName) ? "Ota-ona" : s.ParentFullName;
-        var r = text;
-        r = ReplaceToken(r, "{fish}", s.FullName);
-        r = ReplaceToken(r, "{sinf}", s.ClassName);
-        r = ReplaceToken(r, "{qarzdorlik}", Money(debt));
-        r = ReplaceToken(r, "{balans}", Money(s.Balance));
-        r = ReplaceToken(r, "{ota-ona}", parent);
-        r = ReplaceToken(r, "{ota_ona}", parent);
-        r = ReplaceToken(r, "{telefon}", s.ParentPhone);
-        return r;
-    }
-
-    /// <summary>Push matnini o'qituvchiga moslaydi — {fish} ismi, qolgan o'quvchi-o'rinbosarlari bo'sh.</summary>
-    private static string PersonalizeTeacherPush(string text, Teacher t)
-    {
-        var r = ReplaceToken(text, "{fish}", t.FullName);
-        foreach (var tok in new[] { "{sinf}", "{qarzdorlik}", "{balans}", "{ota-ona}", "{ota_ona}", "{telefon}" })
-            r = ReplaceToken(r, tok, "");
-        return r;
-    }
+    /// <summary>Push/SMS matnini o'qituvchiga moslaydi — o'quvchi-spetsifik tokenlar bo'sh.</summary>
+    private static string PersonalizeTeacherPush(string text, Teacher t, string centerName) =>
+        MessageTokenizer.Teacher(text, t, centerName);
 
     // ---------- Telegram ro'yxati (ota-onalar) ----------
 
@@ -382,6 +342,7 @@ public class MessagesController(AppDbContext db, ChatService chat, TelegramServi
 
         var meta = await db.CenterMeta.FirstOrDefaultAsync();
         var json = meta?.FcmServiceAccountJson ?? "";
+        var centerName = meta?.Name ?? "";
         var recipientCount = tokensByUser.Sum(kv => kv.Value.Count);
         var sent = 0;
         // Har bir foydalanuvchiga matn o'rinbosarlari moslab yuboriladi (o'quvchi/ota-ona ma'lumoti bilan).
@@ -391,13 +352,13 @@ public class MessagesController(AppDbContext db, ChatService chat, TelegramServi
             var b = body;
             if (studentByUser.TryGetValue(userId, out var st))
             {
-                t = PersonalizePush(title, st);
-                b = PersonalizePush(body, st);
+                t = PersonalizePush(title, st, centerName);
+                b = PersonalizePush(body, st, centerName);
             }
             else if (teacherByUser.TryGetValue(userId, out var tch))
             {
-                t = PersonalizeTeacherPush(title, tch);
-                b = PersonalizeTeacherPush(body, tch);
+                t = PersonalizeTeacherPush(title, tch, centerName);
+                b = PersonalizeTeacherPush(body, tch, centerName);
             }
             sent += await fcm.SendAsync(json, toks, t, b);
         }
@@ -408,8 +369,8 @@ public class MessagesController(AppDbContext db, ChatService chat, TelegramServi
         {
             var t = title;
             var b = body;
-            if (studentByUser.TryGetValue(userId, out var stn)) { t = PersonalizePush(title, stn); b = PersonalizePush(body, stn); }
-            else if (teacherByUser.TryGetValue(userId, out var tchn)) { t = PersonalizeTeacherPush(title, tchn); b = PersonalizeTeacherPush(body, tchn); }
+            if (studentByUser.TryGetValue(userId, out var stn)) { t = PersonalizePush(title, stn, centerName); b = PersonalizePush(body, stn, centerName); }
+            else if (teacherByUser.TryGetValue(userId, out var tchn)) { t = PersonalizeTeacherPush(title, tchn, centerName); b = PersonalizeTeacherPush(body, tchn, centerName); }
             NotificationStore.Add(db, userId, t, b, "announcement", pushId);
         }
 
@@ -472,6 +433,7 @@ public class MessagesController(AppDbContext db, ChatService chat, TelegramServi
         var text = req.Text?.Trim() ?? "";
         if (text.Length == 0) return BadRequest(new { message = "SMS matni kerak" });
         var audience = (req.Audience ?? "parents").Trim().ToLowerInvariant();
+        var centerName = (await db.CenterMeta.FirstOrDefaultAsync())?.Name ?? "";
 
         // (telefon, nom, moslangan matn) ro'yxatini yig'amiz.
         var targets = new List<(string Phone, string Name, string Message)>();
@@ -483,7 +445,7 @@ public class MessagesController(AppDbContext db, ChatService chat, TelegramServi
             foreach (var t in teachers)
             {
                 if (string.IsNullOrWhiteSpace(t.Phone)) continue;
-                targets.Add((t.Phone, t.FullName, PersonalizeTeacherPush(text, t)));
+                targets.Add((t.Phone, t.FullName, PersonalizeTeacherPush(text, t, centerName)));
             }
             label = "O'qituvchilar";
         }
@@ -516,7 +478,7 @@ public class MessagesController(AppDbContext db, ChatService chat, TelegramServi
                     : (!string.IsNullOrWhiteSpace(s.ParentPhone) ? s.ParentPhone
                         : !string.IsNullOrWhiteSpace(s.FatherPhone) ? s.FatherPhone : s.MotherPhone);
                 if (string.IsNullOrWhiteSpace(phone)) continue;
-                targets.Add((phone, s.FullName, PersonalizePush(ReplaceToken(text, "{telefon}", phone), s)));
+                targets.Add((phone, s.FullName, MessageTokenizer.Student(text, s, s.ParentFullName, phone, centerName)));
             }
             label = toStudentPhone ? $"O'quvchilar — {label}" : $"Ota-onalar — {label}";
         }
@@ -630,7 +592,7 @@ public class MessagesController(AppDbContext db, ChatService chat, TelegramServi
         if (!eskiz.IsConfigured(meta))
             return BadRequest(new { message = "Eskiz SMS sozlanmagan. Sozlamalar → SMS (Eskiz)da login/parol kiriting." });
 
-        var msg = PersonalizeLead(text, lead, phone);
+        var msg = MessageTokenizer.Lead(text, lead, phone, meta?.Name ?? "");
         var callbackUrl = $"{Request.Scheme}://{Request.Host}/api/sms/callback";
         var batchId = Guid.NewGuid().ToString();
         var r = await eskiz.SendSmsAsync(db, phone, msg, callbackUrl);
@@ -658,13 +620,4 @@ public class MessagesController(AppDbContext db, ChatService chat, TelegramServi
             batch.CreatedAt.ToString("o"), batch.RecipientCount, batch.SentCount);
     }
 
-    /// <summary>Lid SMS matnidagi o'rinbosarlarni to'ldiradi ({fish}, {telefon}); qolganlari bo'sh.</summary>
-    private static string PersonalizeLead(string text, Lead l, string phone)
-    {
-        var r = ReplaceToken(text, "{fish}", l.FullName);
-        r = ReplaceToken(r, "{telefon}", phone);
-        foreach (var tok in new[] { "{sinf}", "{qarzdorlik}", "{balans}", "{ota-ona}", "{ota_ona}" })
-            r = ReplaceToken(r, tok, "");
-        return r;
-    }
 }
