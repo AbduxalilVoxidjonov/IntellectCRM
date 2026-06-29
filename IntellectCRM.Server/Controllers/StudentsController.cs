@@ -41,10 +41,19 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
                 .OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList());
         // Kursda aktiv = kamida bitta a'zoligi Status=="active" (sinov/muzlatilgan emas).
         var activeIds = memberships.Where(m => m.Status == "active").Select(m => m.StudentId).ToHashSet();
+
+        // Tuman + maktab nomlarini biriktiramiz (DB'ga yozilmaydi — faqat ko'rsatish uchun).
+        var districtNames = await db.Districts.ToDictionaryAsync(d => d.Id, d => d.Name);
+        var schoolNames = await db.Schools.ToDictionaryAsync(s => s.Id, s => s.Name);
+
         foreach (var s in students)
         {
             s.Groups = byStudent.GetValueOrDefault(s.Id) ?? new List<string>();
             s.Active = activeIds.Contains(s.Id);
+            if (!string.IsNullOrEmpty(s.DistrictId))
+                s.DistrictName = districtNames.GetValueOrDefault(s.DistrictId, "");
+            if (!string.IsNullOrEmpty(s.SchoolId))
+                s.SchoolName = schoolNames.GetValueOrDefault(s.SchoolId, "");
         }
         return students;
     }
@@ -390,6 +399,8 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
             MotherPhone = motherPhone,
             ParentPassportUrl = string.IsNullOrWhiteSpace(p.ParentPassportUrl) ? null : p.ParentPassportUrl,
             ClassName = p.ClassName,
+            DistrictId = (p.DistrictId ?? "").Trim(),
+            SchoolId = (p.SchoolId ?? "").Trim(),
             EnrollmentDate = enrollment,
             Balance = 0,
             DiscountPct = Math.Clamp(p.DiscountPct ?? 0, 0, 100),
@@ -505,6 +516,8 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
         if (p.ParentPassportUrl is not null)
             student.ParentPassportUrl = string.IsNullOrWhiteSpace(p.ParentPassportUrl) ? null : p.ParentPassportUrl;
         student.ClassName = p.ClassName;
+        if (p.DistrictId is not null) student.DistrictId = p.DistrictId.Trim();
+        if (p.SchoolId is not null) student.SchoolId = p.SchoolId.Trim();
         if (!string.IsNullOrWhiteSpace(p.EnrollmentDate)) student.EnrollmentDate = p.EnrollmentDate;
 
         // Chegirma — berilgan maydonlar yangilanadi (null = avvalgi saqlanadi).

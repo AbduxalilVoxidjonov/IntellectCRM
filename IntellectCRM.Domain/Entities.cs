@@ -68,6 +68,29 @@ public class Branch
     public DateTime CreatedAt { get; set; } = AppClock.Now;
 }
 
+/// <summary>Tuman (hudud) — o'quvchi qaysi tumandan ekanini tanlash uchun. Sozlamalardan boshqariladi.
+/// Ichida maktablar (<see cref="School"/>) bo'ladi.</summary>
+public class District
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string Name { get; set; } = string.Empty;
+    /// <summary>Ko'rsatish tartibi.</summary>
+    public int Order { get; set; }
+}
+
+/// <summary>Maktab — tumanga tegishli (raqami yoki nomi). O'quvchi tuman → maktabni tanlaydi.
+/// Sozlamalardan har tuman ichida yaratiladi.</summary>
+public class School
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    /// <summary>Tegishli tuman (<see cref="District"/> id).</summary>
+    public string DistrictId { get; set; } = string.Empty;
+    /// <summary>Maktab raqami yoki nomi (masalan "1", "23-son maktab").</summary>
+    public string Name { get; set; } = string.Empty;
+    /// <summary>Ko'rsatish tartibi (tuman ichida).</summary>
+    public int Order { get; set; }
+}
+
 /// <summary>Ota-ona ilova orqali yuborgan taklif yoki shikoyat.</summary>
 public class Feedback
 {
@@ -134,6 +157,16 @@ public class Student
     /// eski yozuvlar uchun saqlanadi.</summary>
     public string? ParentPassportUrl { get; set; }
     public string ClassName { get; set; } = string.Empty;
+    /// <summary>O'quvchi tegishli tuman (<see cref="District"/> id). Bo'sh = tanlanmagan.</summary>
+    public string DistrictId { get; set; } = string.Empty;
+    /// <summary>O'quvchi tegishli maktab (<see cref="School"/> id). Bo'sh = tanlanmagan.</summary>
+    public string SchoolId { get; set; } = string.Empty;
+    /// <summary>Tuman nomi (DB'ga yozilmaydi — ro'yxat/profil endpointida DistrictId'dan to'ldiriladi).</summary>
+    [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+    public string DistrictName { get; set; } = string.Empty;
+    /// <summary>Maktab nomi/raqami (DB'ga yozilmaydi — SchoolId'dan to'ldiriladi).</summary>
+    [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+    public string SchoolName { get; set; } = string.Empty;
     /// <summary>O'quvchi FAOL a'zo bo'lgan barcha guruh nomlari (ro'yxat ko'rinishi uchun; DB'ga yozilmaydi —
     /// ro'yxat endpointida M2M a'zoliklardan to'ldiriladi).</summary>
     [System.ComponentModel.DataAnnotations.Schema.NotMapped]

@@ -50,8 +50,17 @@ public record StudentPayload(
     string? Phone = null,
     string? FatherFullName = null, string? FatherPhone = null,
     string? MotherFullName = null, string? MotherPhone = null,
-    string? DiscountStartMonth = null, string? DiscountEndMonth = null);
+    string? DiscountStartMonth = null, string? DiscountEndMonth = null,
+    string? DistrictId = null, string? SchoolId = null);
 public record PaymentRequest(decimal Amount, string? Month, string? GroupId = null, string? Comment = null, string? Method = null);
+
+/* ---------- Tuman + maktab (sozlamalar) ---------- */
+public record DistrictDto(string Id, string Name, int Order, List<SchoolDto> Schools);
+public record SchoolDto(string Id, string DistrictId, string Name, int Order);
+public record DistrictCreate(string? Name);
+public record DistrictUpdate(string? Name);
+public record SchoolCreate(string? Name);
+public record SchoolUpdate(string? Name);
 
 /* ---------- Telefon dublikatini tekshirish (o'quvchi/ota-ona raqami) ---------- */
 public record CheckPhonesRequest(

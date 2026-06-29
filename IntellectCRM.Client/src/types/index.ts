@@ -305,6 +305,14 @@ export interface Student {
   archiveReason?: string | null
   /** Biriktirilgan asosiy guruh (ClassName) */
   className: string
+  /** Tegishli tuman (District id). Bo'sh = tanlanmagan. */
+  districtId?: string
+  /** Tegishli maktab (School id). Bo'sh = tanlanmagan. */
+  schoolId?: string
+  /** Tuman nomi (faqat ko'rsatish uchun — backend to'ldiradi). */
+  districtName?: string
+  /** Maktab nomi/raqami (faqat ko'rsatish uchun — backend to'ldiradi). */
+  schoolName?: string
   /** O'quvchi FAOL a'zo bo'lgan barcha guruh nomlari (ro'yxat ko'rinishi uchun) */
   groups?: string[]
   /** Kursda aktiv — kamida bitta a'zoligi "active" (sinov/muzlatilgan/guruhsiz emas) */
@@ -323,6 +331,23 @@ export interface Student {
   discountStartMonth?: string
   /** Chegirma amal qilish tugash oyi ("YYYY-MM"). Bo'sh — cheklovsiz. Ikkalasi bo'sh — har doim. */
   discountEndMonth?: string
+}
+
+/* ---------- Tuman + maktab ---------- */
+
+export interface School {
+  id: string
+  districtId: string
+  /** Maktab raqami yoki nomi */
+  name: string
+  order: number
+}
+
+export interface District {
+  id: string
+  name: string
+  order: number
+  schools: School[]
 }
 
 /* ---------- Xonalar ---------- */

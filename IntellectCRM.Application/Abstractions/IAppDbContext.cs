@@ -56,6 +56,10 @@ public interface IAppDbContext
     DbSet<Branch> Branches { get; }
     DbSet<Feedback> Feedbacks { get; }
 
+    // Tuman + maktab (o'quvchi formasi uchun, sozlamalardan boshqariladi)
+    DbSet<District> Districts { get; }
+    DbSet<School> Schools { get; }
+
     // LMS (Ta'lim)
     DbSet<LmsSubject> LmsSubjects { get; }
     DbSet<LmsModule> LmsModules { get; }

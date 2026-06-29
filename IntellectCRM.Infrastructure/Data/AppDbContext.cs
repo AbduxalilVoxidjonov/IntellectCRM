@@ -107,6 +107,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<SmsLog> SmsLogs => Set<SmsLog>();
     public DbSet<SmsTemplate> SmsTemplates => Set<SmsTemplate>();
 
+    // Tuman + maktab
+    public DbSet<District> Districts => Set<District>();
+    public DbSet<School> Schools => Set<School>();
+
     protected override void OnModelCreating(ModelBuilder b)
     {
         // SQL Server: indeksda qatnashadigan string ustunlar default `nvarchar(max)` bo'lib
@@ -265,6 +269,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         b.Entity<CourseProgress>().HasIndex(p => new { p.StudentId, p.ItemId }).IsUnique();
 
         b.Entity<ActionReason>().HasIndex(r => new { r.Category, r.Order });
+
+        // Tuman + maktab (maktab tuman ichida tartiblanadi/qidiriladi).
+        b.Entity<District>().HasIndex(d => d.Order);
+        b.Entity<School>().Property(s => s.DistrictId).HasMaxLength(200);
+        b.Entity<School>().HasIndex(s => new { s.DistrictId, s.Order });
 
         b.Entity<ArchivedRecord>().HasIndex(r => new { r.Type, r.DeletedAt });
 

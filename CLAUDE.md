@@ -114,6 +114,21 @@ docker compose up -d --build    # app + postgres + cloudflared + backup + mediam
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-29: **YANGI — TUMAN + MAKTAB (Sozlamalar) + o'quvchi formasida tuman→maktab kaskadi.** Foydalanuvchi:
+  o'quvchi ma'lumotini kiritishda (admin forma) tuman tanlab, keyin shu tumanning maktabini tanlash kerak; tuman/maktab
+  Sozlamalardan boshqariladi (tuman yaratib ichiga maktablar qo'shiladi, kengaytirib boriladi). **Backend:** 2 entity
+  `District`(Name/Order) + `School`(DistrictId/Name/Order); `Student`ga `DistrictId`/`SchoolId` (+ `[NotMapped]`
+  `DistrictName`/`SchoolName` — GetAll'da id'dan to'ldiriladi); migratsiya `AddDistrictsSchools` (2 jadval + Students'ga
+  2 ustun, default ""; data loss YO'Q). `DistrictsController` (AdminPerm settings, `/api/admin`): `GET districts`
+  (har tuman ichidagi maktablari bilan), POST/PUT/DELETE `districts` (delete → ichidagi maktablar ExecuteDelete),
+  POST `districts/{id}/schools`, PUT/DELETE `schools/{id}`. `StudentsController` Create/Update DistrictId/SchoolId
+  yozadi; GetAll DistrictName/SchoolName biriktiradi. `StudentPayload`ga 2 ixtiyoriy maydon (trailing, default null —
+  Excel import positional construction buzilmaydi). DTO: `DistrictDto`(+Schools)/`SchoolDto`/Create/Update. **Frontend:**
+  `types` District/School + Student'ga districtId/schoolId/districtName/schoolName; `districts.ts` servis (CRUD); yangi
+  `DistrictsPage` (`/admin/districts`, Sozlamalar nav "Tuman va maktablar") — tuman qo'shish + har tuman kartasi
+  (tahrir/o'chir + ichida maktab qo'shish/tahrir/o'chir); `StudentFormModal` "Boshqa ma'lumotlar" bo'limiga Tuman +
+  Maktab kaskad select (tuman tanlansa maktablar chiqadi, tuman o'zgarsa maktab tozalanadi; tahrirda preselect).
+  Backend 0, tsc+vite yashil. **DEPLOYDA:** `docker compose up -d --build app` (migratsiya avto; postgres-data saqlanadi).
 - 2026-06-27: **SMS andozalari (Sozlamalar → SMS) DB-driven + AVTO SMS + LIDGA SMS yuborish.** Foydalanuvchi:
   SMS matn andozalari Sozlamalar → SMS (Eskiz)da yaratiladi/tahrirlanadi/o'chiriladi; "Avto SMS" deb belgilash;
   lid kartasida lidga SMS yuborish (shablon tanlab). **Backend:** `SmsTemplate` entity (Name/Text/IsAuto/Order) +

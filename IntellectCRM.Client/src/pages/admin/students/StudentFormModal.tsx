@@ -4,6 +4,8 @@ import type { Student } from '@/types'
 import type { StudentPayload, PhoneMatch } from '@/api/services/students'
 import { uploadAdminFile, getStudentCredentials, checkStudentPhones } from '@/api/services/students'
 import { getClasses } from '@/api/services/classes'
+import { getDistricts } from '@/api/services/districts'
+import type { District } from '@/types'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input, Select } from '@/components/ui/Input'
@@ -34,6 +36,8 @@ const empty: StudentPayload = {
   motherFullName: '',
   motherPhone: '',
   className: '',
+  districtId: '',
+  schoolId: '',
   enrollmentDate: new Date().toISOString().slice(0, 10),
   discountPct: 0,
   discountAmount: 0,
@@ -62,6 +66,7 @@ function joinName(last?: string, first?: string, middle?: string): string {
 export function StudentFormModal({ open, onClose, onSubmit, initial }: Props) {
   const [form, setForm] = useState<StudentPayload>(empty)
   const [classNames, setClassNames] = useState<string[]>([])
+  const [districts, setDistricts] = useState<District[]>([])
   /** Fayl yuklash holatlari (har maydon uchun alohida). */
   const [uploading, setUploading] = useState<{ birth?: boolean }>({})
   /** Tahrirlanayotgan o'quvchining login (username)i — backend'dan olinadi, faqat ko'rsatish uchun. */
@@ -75,6 +80,10 @@ export function StudentFormModal({ open, onClose, onSubmit, initial }: Props) {
 
   useEffect(() => {
     if (open) getClasses().then((cs) => setClassNames(cs.map((c) => c.name)))
+  }, [open])
+
+  useEffect(() => {
+    if (open) getDistricts().then(setDistricts).catch(() => { /* tarmoq/mok — tuman ro'yxati bo'sh qoladi */ })
   }, [open])
 
   // Tahrirda o'quvchining login(username)ini yuklab ko'rsatamiz.
@@ -116,6 +125,8 @@ export function StudentFormModal({ open, onClose, onSubmit, initial }: Props) {
         motherFullName: initial.motherFullName ?? '',
         motherPhone: initial.motherPhone ?? '',
         className: initial.className,
+        districtId: initial.districtId ?? '',
+        schoolId: initial.schoolId ?? '',
         enrollmentDate: initial.enrollmentDate,
         discountPct: initial.discountPct,
         discountAmount: initial.discountAmount,
@@ -318,6 +329,38 @@ export function StudentFormModal({ open, onClose, onSubmit, initial }: Props) {
               value={form.enrollmentDate}
               onChange={(e) => update('enrollmentDate', e.target.value)}
             />
+          </div>
+          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+            <Select
+              label="Tuman"
+              value={form.districtId ?? ''}
+              onChange={(e) => {
+                // Tuman o'zgarsa, oldingi maktab tanlovi tozalanadi.
+                setForm((f) => ({ ...f, districtId: e.target.value, schoolId: '' }))
+              }}
+            >
+              <option value="">— tanlanmagan —</option>
+              {districts.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
+              ))}
+            </Select>
+            <Select
+              label="Maktab"
+              value={form.schoolId ?? ''}
+              disabled={!form.districtId}
+              onChange={(e) => update('schoolId', e.target.value)}
+            >
+              <option value="">
+                {form.districtId ? '— tanlanmagan —' : '— avval tumanni tanlang —'}
+              </option>
+              {(districts.find((d) => d.id === form.districtId)?.schools ?? []).map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </Select>
           </div>
         </Section>
 

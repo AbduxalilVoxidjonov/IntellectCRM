@@ -162,6 +162,7 @@ export const navByRole: Record<Role, NavItem[]> = {
       perm: 'settings',
       children: [
         { label: "Markaz ma'lumotlari", to: '/admin/settings/school' },
+        { label: 'Tuman va maktablar', to: '/admin/districts' },
         { label: 'Telegram bot', to: '/admin/settings/telegram' },
         { label: 'Push (Firebase)', to: '/admin/settings/firebase' },
         { label: 'Speaking (Azure)', to: '/admin/settings/azure-speech' },
