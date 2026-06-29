@@ -9,6 +9,7 @@ import {
   submitSpeaking,
 } from '@/api/services/studentAiCheck'
 import { startWavRecording, type WavRecorder } from '@/lib/wavRecorder'
+import { RecWaveform } from '@/pages/student/RecWaveform'
 import { Icon, fmtDate } from '@/pages/student/lib'
 import { AiCheckResultView } from '@/pages/student/AiCheckResultView'
 
@@ -215,9 +216,12 @@ export function StudentAiCheckScreen() {
                   </button>
                 )}
                 {recState === 'recording' && (
-                  <button className="btn btn-danger" onClick={stopRec}>
-                    ⏹ To'xtatish (yozilmoqda...)
-                  </button>
+                  <>
+                    <RecWaveform recorder={recorderRef} active={recState === 'recording'} />
+                    <button className="btn btn-danger" onClick={stopRec}>
+                      ⏹ To'xtatish (yozilmoqda...)
+                    </button>
+                  </>
                 )}
                 {recState === 'recorded' && blob && (
                   <>

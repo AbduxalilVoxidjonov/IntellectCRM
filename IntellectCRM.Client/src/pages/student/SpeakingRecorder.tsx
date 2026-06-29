@@ -6,6 +6,7 @@ import {
   type SpeakingWord,
 } from '@/api/services/studentPortal'
 import { startWavRecording, type WavRecorder } from '@/lib/wavRecorder'
+import { RecWaveform } from '@/pages/student/RecWaveform'
 import { Icon } from '@/pages/student/lib'
 
 /* ============================================================
@@ -203,6 +204,7 @@ export function SpeakingRecorder({ assignmentId, referenceText }: { assignmentId
                 {String(Math.floor(elapsed / 60)).padStart(2, '0')}:{String(elapsed % 60).padStart(2, '0')}
               </span>
             </div>
+            <RecWaveform recorder={recorderRef} active={phase === 'recording'} />
             <button className="btn btn-lg press" style={{ background: RED, color: '#fff' }} onClick={() => void stopRecording()}>
               <Icon name="x" size={18} color="#fff" />
               <span>To'xtatish</span>

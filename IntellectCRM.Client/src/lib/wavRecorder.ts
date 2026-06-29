@@ -9,6 +9,8 @@ export interface WavRecorder {
   stop: () => Promise<Blob>
   /** Bekor qiladi (blob qaytarmaydi), resurslarni tozalaydi. */
   cancel: () => void
+  /** Joriy ovoz balandligi (0..1, RMS) — waveform chizish uchun. */
+  getLevel: () => number
 }
 
 /** Mikrofonni so'rab, yozishni boshlaydi. Ruxsat berilmasa throw qiladi. */
@@ -19,8 +21,21 @@ export async function startWavRecording(): Promise<WavRecorder> {
   const AC: typeof AudioContext =
     window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
   const ctx = new AC()
+  // MUHIM: getUserMedia await'idan keyin yaratilgan AudioContext ko'pincha 'suspended'
+  // holatda bo'ladi (Chrome/WebView autoplay siyosati) — resume qilmasak onaudioprocess
+  // umuman ishlamaydi va WAV bo'sh chiqadi.
+  if (ctx.state === 'suspended') {
+    try {
+      await ctx.resume()
+    } catch {
+      /* resume bo'lmasa ham davom etamiz */
+    }
+  }
   const source = ctx.createMediaStreamSource(stream)
   const processor = ctx.createScriptProcessor(4096, 1, 1)
+  const analyser = ctx.createAnalyser()
+  analyser.fftSize = 1024
+  const levelBuf = new Uint8Array(analyser.fftSize)
   const buffers: Float32Array[] = []
   let length = 0
 
@@ -29,6 +44,7 @@ export async function startWavRecording(): Promise<WavRecorder> {
     buffers.push(new Float32Array(ch))
     length += ch.length
   }
+  source.connect(analyser)
   source.connect(processor)
   processor.connect(ctx.destination)
   const inputRate = ctx.sampleRate
@@ -57,6 +73,15 @@ export async function startWavRecording(): Promise<WavRecorder> {
       return encodeWav(down, 16000)
     },
     cancel: cleanup,
+    getLevel: () => {
+      analyser.getByteTimeDomainData(levelBuf)
+      let sum = 0
+      for (let i = 0; i < levelBuf.length; i++) {
+        const v = (levelBuf[i] - 128) / 128
+        sum += v * v
+      }
+      return Math.sqrt(sum / levelBuf.length) // 0..1 RMS
+    },
   }
 }
 
