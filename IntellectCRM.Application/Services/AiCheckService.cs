@@ -144,14 +144,43 @@ public static class AiCheckService
             t = t.Trim();
         }
         var open = t.IndexOf('{');
+        if (open < 0) return null;
         var close = t.LastIndexOf('}');
-        if (open >= 0 && close > open) t = t[open..(close + 1)];
-        try
-        {
-            var r = JsonSerializer.Deserialize<AiCheckAnalysisDto>(t, Opts);
-            return r is null ? null : Sanitize(r);
-        }
+        // close > open bo'lsa to'liq obyekt; aks holda javob KESILGAN (truncated) — oxirigacha olamiz.
+        var body = close > open ? t[open..(close + 1)] : t[open..];
+        var r = TryDeserialize(body) ?? TryDeserialize(RepairJson(body));
+        return r is null ? null : Sanitize(r);
+    }
+
+    private static AiCheckAnalysisDto? TryDeserialize(string json)
+    {
+        try { return JsonSerializer.Deserialize<AiCheckAnalysisDto>(json, Opts); }
         catch { return null; }
+    }
+
+    /// <summary>Kesilgan (truncated) JSON'ni qutqarishga urinish: ochiq qolgan satr va qavslarni yopadi.
+    /// Uzun band-9 esse limitga tushib qolsa, qisman tahlilni baribir ko'rsata olamiz.</summary>
+    private static string RepairJson(string s)
+    {
+        var sb = new StringBuilder(s.Length + 16);
+        var stack = new Stack<char>();
+        bool inStr = false, esc = false;
+        foreach (var c in s)
+        {
+            if (inStr)
+            {
+                if (esc) esc = false;
+                else if (c == '\\') esc = true;
+                else if (c == '"') inStr = false;
+            }
+            else if (c == '"') inStr = true;
+            else if (c is '{' or '[') stack.Push(c);
+            else if (c is '}' or ']') { if (stack.Count > 0) stack.Pop(); }
+            sb.Append(c);
+        }
+        if (inStr) sb.Append('"');                                   // ochiq satrni yop
+        while (stack.Count > 0) sb.Append(stack.Pop() == '{' ? '}' : ']'); // ochiq qavslarni yop
+        return sb.ToString();
     }
 
     /// <summary>Saqlangan AnalysisJson'ni DTO'ga (xavfsiz) o'qiydi.</summary>

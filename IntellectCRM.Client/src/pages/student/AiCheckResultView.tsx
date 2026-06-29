@@ -121,6 +121,65 @@ function WordStats({ words }: { words: SpeakingWord[] }) {
   )
 }
 
+/** Matnni so'z + bo'shliq bo'laklariga ajratadi (qayta tiklash mumkin bo'lsin). */
+function tokenize(s: string): string[] {
+  return s.match(/\s+|[^\s]+/g) ?? []
+}
+/** Solishtirish uchun normallashtirish: kichik harf + chetdagi tinish belgilarini olib tashlash. */
+function normTok(t: string): string {
+  if (/^\s+$/.test(t)) return ' '
+  return t.toLowerCase().replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '')
+}
+
+/**
+ * Asl matn → yaxshilangan matn farqi: yaxshilangan tomonda QO'SHILGAN/O'ZGARTIRILGAN so'zlarni
+ * sariq rangda ajratib ko'rsatadi (so'z darajasidagi LCS). O'zgarmagan so'zlar oddiy chiqadi.
+ */
+function ImprovedDiff({ original, improved }: { original: string; improved: string }) {
+  const o = tokenize(original)
+  const m = tokenize(improved)
+  const no = o.map(normTok)
+  const nm = m.map(normTok)
+  const n = o.length
+  const k = m.length
+
+  // LCS DP (orqaga) — bo'sh normli (faqat tinish belgisi/bo'shliq) tokenlar mos kelmaydi.
+  const dp: number[][] = Array.from({ length: n + 1 }, () => new Array(k + 1).fill(0))
+  for (let i = n - 1; i >= 0; i--)
+    for (let j = k - 1; j >= 0; j--)
+      dp[i][j] = no[i] === nm[j] && no[i] !== '' && no[i] !== ' '
+        ? dp[i + 1][j + 1] + 1
+        : Math.max(dp[i + 1][j], dp[i][j + 1])
+
+  // Backtrack — yaxshilangan tomonda qaysi tokenlar mos (o'zgarmagan).
+  const matched = new Array(k).fill(false)
+  let i = 0
+  let j = 0
+  while (i < n && j < k) {
+    if (no[i] === nm[j] && no[i] !== '' && no[i] !== ' ') { matched[j] = true; i++; j++ }
+    else if (dp[i + 1][j] >= dp[i][j + 1]) i++
+    else j++
+  }
+
+  return (
+    <div style={{ fontSize: 14, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
+      {m.map((tok, idx) => {
+        const plain = /^\s+$/.test(tok) || normTok(tok) === '' || matched[idx]
+        return plain ? (
+          <span key={idx}>{tok}</span>
+        ) : (
+          <mark
+            key={idx}
+            style={{ background: '#fde68a', color: '#92400e', borderRadius: 4, padding: '0 2px', fontWeight: 600 }}
+          >
+            {tok}
+          </mark>
+        )
+      })}
+    </div>
+  )
+}
+
 function Bar({ label, value }: { label: string; value: number }) {
   return (
     <div style={{ marginBottom: 8 }}>
@@ -143,6 +202,8 @@ export function AiCheckResultView({ rec }: { rec: AiCheck }) {
   const a = rec.analysis
   const sp = rec.speech
   const isSpeaking = rec.type === 'speaking'
+  // Yaxshilangan variantni solishtirish uchun asl manba: writing — o'quvchi matni, speaking — tanilgan nutq.
+  const improvedSource = ((isSpeaking ? rec.recognizedText : rec.inputText) ?? '').trim()
 
   return (
     <div className="col gap12" style={{ padding: '4px 0' }}>
@@ -299,11 +360,23 @@ export function AiCheckResultView({ rec }: { rec: AiCheck }) {
             </div>
           )}
 
-          {/* Yaxshilangan variant */}
+          {/* Yaxshilangan variant — o'zgargan joylar sariq rangda ajratiladi */}
           {a.improved ? (
             <div className="card">
               <div className="sh-title" style={{ marginBottom: 6 }}>Yaxshilangan variant</div>
-              <div style={{ fontSize: 14, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{a.improved}</div>
+              {improvedSource ? (
+                <>
+                  <div className="muted" style={{ fontSize: 12, marginBottom: 8 }}>
+                    <mark style={{ background: '#fde68a', color: '#92400e', borderRadius: 4, padding: '0 4px', fontWeight: 600 }}>
+                      sariq
+                    </mark>{' '}
+                    — o'zgartirilgan yoki qo'shilgan joylar
+                  </div>
+                  <ImprovedDiff original={improvedSource} improved={a.improved} />
+                </>
+              ) : (
+                <div style={{ fontSize: 14, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{a.improved}</div>
+              )}
             </div>
           ) : null}
 

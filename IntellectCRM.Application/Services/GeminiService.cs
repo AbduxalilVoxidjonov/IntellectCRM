@@ -39,8 +39,10 @@ public static class GeminiService
             object payload = jsonMode
                 ? new
                 {
+                    // IELTS Writing tahlili to'liq band-9 namuna esse + o'zbekcha tahlilni qaytaradi —
+                    // 4096 token kam edi (javob kesilib JSON buzilardi). 8192 zaxira beradi.
                     contents = new[] { new { role = "user", parts = new[] { new { text = prompt } } } },
-                    generationConfig = new { temperature = 0.4, maxOutputTokens = 4096, responseMimeType = "application/json" }
+                    generationConfig = new { temperature = 0.4, maxOutputTokens = 8192, responseMimeType = "application/json" }
                 }
                 : new
                 {
@@ -73,6 +75,7 @@ public static class GeminiService
 
             var sb = new StringBuilder();
             var first = cands[0];
+            var finish = first.TryGetProperty("finishReason", out var fr) ? fr.GetString() : null;
             if (first.TryGetProperty("content", out var content) &&
                 content.TryGetProperty("parts", out var parts) && parts.ValueKind == JsonValueKind.Array)
                 foreach (var p in parts.EnumerateArray())
@@ -80,9 +83,21 @@ public static class GeminiService
                         sb.Append(t.GetString());
 
             var text = sb.ToString().Trim();
-            return text.Length == 0
-                ? (false, "", "Javob matni bo'sh.")
-                : (true, text, null);
+            if (text.Length == 0)
+            {
+                // Matn umuman kelmadi — sababini (finishReason) ko'rsatamiz (diagnostika osonlashadi).
+                var why = finish switch
+                {
+                    "MAX_TOKENS" => "javob hajmi limitdan oshib ketdi",
+                    "SAFETY" => "xavfsizlik filtri",
+                    "RECITATION" => "takror (recitation) filtri",
+                    null or "" => "noma'lum sabab",
+                    _ => finish,
+                };
+                return (false, "", $"Javob matni bo'sh ({why}). Qaytadan urinib ko'ring.");
+            }
+            // finishReason=MAX_TOKENS bo'lsa ham (qisman) matnni qaytaramiz — Parse uni qutqarishga urinadi.
+            return (true, text, null);
         }
         catch (TaskCanceledException)
         {
