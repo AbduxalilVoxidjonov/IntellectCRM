@@ -151,6 +151,7 @@ public static class AzureSpeechService
                 };
                 var snippet = string.IsNullOrWhiteSpace(body) ? "" : " — " + body.Trim().Replace("\n", " ");
                 if (snippet.Length > 200) snippet = snippet[..200] + "…";
+                Console.Error.WriteLine($"[AzureSpeech] HTTP {(int)resp.StatusCode} body={body}");
                 return Err($"Azure xato ({(int)resp.StatusCode}). {hint}{snippet}");
             }
 
@@ -191,6 +192,12 @@ public static class AzureSpeechService
                     }
                     words.Add(new SpeakingWordDto(word, acc, errType));
                 }
+
+            // DIAGNOSTIKA (docker compose logs app): Azure aynan nima qaytardi — talaffuz keldimi, ballar, so'z soni.
+            Console.Error.WriteLine(
+                $"[AzureSpeech] scripted={!string.IsNullOrWhiteSpace(referenceText)} status={status} " +
+                $"hasPA={pa.ValueKind == JsonValueKind.Object} pron={G(pa, "PronScore")} acc={G(pa, "AccuracyScore")} " +
+                $"words={words.Count} text=\"{(display.Length > 60 ? display[..60] : display)}\"");
 
             return new SpeakingResultDto(
                 display, G(pa, "PronScore"), G(pa, "AccuracyScore"), G(pa, "FluencyScore"),
