@@ -96,14 +96,33 @@ export interface TestStatRow {
   invitesUsed: number
   avgPercent: number
 }
+/** Umumiy statistikadagi bitta topshiruvchi — qaysi testga tegishli + natija + hozir aktivmi. */
+export interface LevelTestOverallRow {
+  submissionId: string
+  testId: string
+  testTitle: string
+  fullName: string
+  phone: string
+  level: string
+  percent: number
+  createdAt: string
+  leadId: string
+  studentId: string | null
+  active: boolean
+  groupName: string
+  teacherName: string
+  isDeleted: boolean
+}
 export interface LevelTestOverallStats {
   testCount: number
   submissions: number
   invites: number
   invitesUsed: number
   avgPercent: number
+  active: number
   byLevel: LevelCount[]
   byTest: TestStatRow[]
+  rows: LevelTestOverallRow[]
 }
 export async function getLevelTestOverallStats(): Promise<LevelTestOverallStats> {
   const { data } = await api.get<LevelTestOverallStats>('/admin/level-tests/overall-stats')

@@ -14,7 +14,7 @@ import { Modal } from '@/components/ui/Modal'
 import { Input, Select } from '@/components/ui/Input'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Badge } from '@/components/ui/Badge'
-import { cn } from '@/lib/utils'
+import { cn, formatDate } from '@/lib/utils'
 
 /** Test ommaviy URL'i. */
 function testUrl(slug: string) {
@@ -249,14 +249,79 @@ export function LevelTestsPage() {
           <Loader label="Yuklanmoqda..." />
         ) : (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
               <StatBox label="Testlar" value={stats.testCount} />
               <StatBox label="Topshirganlar" value={stats.submissions} />
+              <StatBox label="Aktiv o'quvchi" value={stats.active} highlight />
               <StatBox label="Havolalar (yuborilgan)" value={stats.invites} />
               <StatBox label="Havola ishlangan" value={stats.invitesUsed} />
             </div>
             <div className="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
               O'rtacha natija: <b className="font-mono">{stats.avgPercent}%</b>
+            </div>
+
+            {/* Barcha testlarni topshirgan o'quvchilar — natija + qaysi testga tegishli + hozir aktivmi */}
+            <div>
+              <h4 className="mb-2 text-sm font-semibold text-slate-700">
+                Topshirganlar ({stats.rows.length})
+              </h4>
+              {stats.rows.length === 0 ? (
+                <p className="rounded-xl bg-slate-50 py-6 text-center text-sm text-slate-400">
+                  Hali hech kim topshirmagan.
+                </p>
+              ) : (
+                <div className="max-h-96 overflow-auto rounded-xl border border-slate-100">
+                  <table className="w-full text-left text-sm">
+                    <thead className="sticky top-0 z-10 bg-white text-xs uppercase tracking-wide text-slate-400 shadow-sm">
+                      <tr>
+                        <th className="px-3 py-2">F.I.SH</th>
+                        <th className="px-3 py-2">Test</th>
+                        <th className="px-3 py-2">Daraja</th>
+                        <th className="px-3 py-2 text-center">Foiz</th>
+                        <th className="px-3 py-2 text-center">Aktiv</th>
+                        <th className="px-3 py-2">Guruh</th>
+                        <th className="px-3 py-2">O'qituvchi</th>
+                        <th className="px-3 py-2">Sana</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {stats.rows.map((r) => (
+                        <tr
+                          key={r.submissionId}
+                          className={cn('hover:bg-slate-50/60', r.isDeleted && 'bg-red-50/40 line-through')}
+                        >
+                          <td className={cn('px-3 py-2 font-medium text-slate-700', r.isDeleted && 'text-red-600')}>
+                            {r.fullName}
+                            {r.isDeleted && <span className="ml-1.5 text-[11px] font-normal text-red-500">(o'chirilgan)</span>}
+                            <div className="font-mono text-[11px] font-normal text-slate-400">{r.phone}</div>
+                          </td>
+                          <td className="px-3 py-2 text-slate-500">
+                            <Link to={`/admin/level-tests/${r.testId}`} className="text-inherit hover:underline">
+                              {r.testTitle || '—'}
+                            </Link>
+                          </td>
+                          <td className="px-3 py-2">
+                            {r.level ? (
+                              <span className="rounded-md bg-brand-50 px-2 py-0.5 text-xs font-semibold text-brand-700">{r.level}</span>
+                            ) : '—'}
+                          </td>
+                          <td className="px-3 py-2 text-center font-mono text-slate-600">{r.percent}%</td>
+                          <td className="px-3 py-2 text-center">
+                            {r.active ? (
+                              <Check className="mx-auto h-4 w-4 text-emerald-600" />
+                            ) : (
+                              <span className="text-slate-300">—</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 text-slate-600">{r.groupName || <span className="text-slate-300">—</span>}</td>
+                          <td className="px-3 py-2 text-slate-600">{r.teacherName || <span className="text-slate-300">—</span>}</td>
+                          <td className="px-3 py-2 text-slate-500">{formatDate(r.createdAt)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
 
             {stats.byLevel.length > 0 && (
@@ -308,11 +373,16 @@ export function LevelTestsPage() {
   )
 }
 
-function StatBox({ label, value }: { label: string; value: number }) {
+function StatBox({ label, value, highlight }: { label: string; value: number; highlight?: boolean }) {
   return (
-    <div className="rounded-xl border border-slate-100 bg-white px-3 py-3 text-center">
-      <div className="font-mono text-2xl font-bold text-slate-800">{value}</div>
-      <div className="mt-0.5 text-xs text-slate-400">{label}</div>
+    <div
+      className={cn(
+        'rounded-xl border px-3 py-3 text-center',
+        highlight ? 'border-emerald-100 bg-emerald-50' : 'border-slate-100 bg-white',
+      )}
+    >
+      <div className={cn('font-mono text-2xl font-bold', highlight ? 'text-emerald-700' : 'text-slate-800')}>{value}</div>
+      <div className={cn('mt-0.5 text-xs', highlight ? 'text-emerald-600' : 'text-slate-400')}>{label}</div>
     </div>
   )
 }

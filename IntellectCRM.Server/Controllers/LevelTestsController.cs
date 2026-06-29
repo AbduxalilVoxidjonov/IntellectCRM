@@ -118,7 +118,7 @@ public class LevelTestsController(AppDbContext db) : ControllerBase
     public async Task<ActionResult<LevelTestOverallStatsDto>> OverallStats()
     {
         var tests = await db.LevelTests.ToListAsync();
-        var subs = await db.LevelTestSubmissions.ToListAsync();
+        var subs = await db.LevelTestSubmissions.OrderByDescending(s => s.CreatedAt).ToListAsync();
         var invites = await db.LevelTestInvites.ToListAsync();
 
         var byLevel = subs.GroupBy(s => string.IsNullOrEmpty(s.Level) ? "—" : s.Level)
@@ -137,11 +137,21 @@ public class LevelTestsController(AppDbContext db) : ControllerBase
             })
             .OrderByDescending(r => r.Submissions).ToList();
 
+        // Boyitilgan per-topshiruvchi qatorlar — bitta test statistikasidagi MANTIQ, BARCHA testlarga.
+        // Qaytish tartibi `subs` bilan bir xil — test nomini biriktirish uchun zip qilamiz.
+        var statRows = await LevelTestService.BuildStatRowsAsync(db, subs);
+        var rows = statRows.Zip(subs, (r, s) => new LevelTestOverallRowDto(
+                r.SubmissionId, s.TestId, titleById.GetValueOrDefault(s.TestId, ""),
+                r.FullName, r.Phone, r.Level, r.Percent, r.CreatedAt, r.LeadId,
+                r.StudentId, r.Active, r.GroupName, r.TeacherName, r.IsDeleted))
+            .ToList();
+
         return new LevelTestOverallStatsDto(
             tests.Count, subs.Count, invites.Count,
             invites.Count(i => !string.IsNullOrEmpty(i.UsedAt)),
             subs.Count > 0 ? Math.Round(subs.Average(s => s.Percent), 1) : 0,
-            byLevel, byTest);
+            statRows.Count(r => r.Active),
+            byLevel, byTest, rows);
     }
 
     /// <summary>Natijalar — testni topshirganlar (har biri CRM'da lid).</summary>
@@ -170,68 +180,7 @@ public class LevelTestsController(AppDbContext db) : ControllerBase
     {
         var subs = await db.LevelTestSubmissions.Where(s => s.TestId == id)
             .OrderByDescending(s => s.CreatedAt).ToListAsync();
-
-        var leadIds = subs.Select(s => s.LeadId).Where(x => !string.IsNullOrEmpty(x)).Distinct().ToList();
-        // Lid → o'quvchi (ConvertedStudentId)
-        var leadToStudent = (await db.Leads.Where(l => leadIds.Contains(l.Id) && l.ConvertedStudentId != null)
-                .Select(l => new { l.Id, l.ConvertedStudentId })
-                .ToListAsync())
-            .ToDictionary(l => l.Id, l => l.ConvertedStudentId!);
-        var studentIds = leadToStudent.Values.Distinct().ToList();
-
-        // Hali MAVJUD lidlar (CRM'dan o'chirilmagan) — "o'chirilgan" bayrog'i UCHUN. Lid o'chirilsa
-        // db.Leads'dan o'chadi (ArchiveService snapshot qoladi). Konvertatsiya QILINMAGAN (birinchi bosqichdagi)
-        // lid ham MAVJUD bo'ladi — o'chirilgan emas (ilgari u xato "o'chirilgan" deb ko'rsatilardi).
-        var existingLeadIds = (await db.Leads.Where(l => leadIds.Contains(l.Id))
-            .Select(l => l.Id).ToListAsync()).ToHashSet();
-        // AKTIV guruh a'zoliklari (Status=="active") — guruh + o'qituvchi (FISH) uchun.
-        var activeMemberships = await db.StudentGroups
-            .Where(sg => studentIds.Contains(sg.StudentId) && sg.IsActive && sg.Status == "active")
-            .Select(sg => new { sg.StudentId, sg.GroupId }).ToListAsync();
-        var active = activeMemberships.Select(m => m.StudentId).ToHashSet();
-
-        // Guruh nomi + o'qituvchi (FISH)
-        var groupIds = activeMemberships.Select(m => m.GroupId).Distinct().ToList();
-        var groups = await db.Classes.Where(g => groupIds.Contains(g.Id))
-            .Select(g => new { g.Id, g.Name, g.TeacherId }).ToListAsync();
-        var groupById = groups.ToDictionary(g => g.Id, g => g);
-        var teacherIds = groups.Select(g => g.TeacherId).Where(t => !string.IsNullOrEmpty(t)).Distinct().ToList();
-        var teacherNames = await db.Teachers.Where(t => teacherIds.Contains(t.Id))
-            .ToDictionaryAsync(t => t.Id, t => t.FullName);
-
-        // O'quvchi → aktiv guruh(lar)i nomi va o'qituvchisi (bir nechta bo'lsa vergul bilan)
-        var byStudent = activeMemberships
-            .GroupBy(m => m.StudentId)
-            .ToDictionary(
-                g => g.Key,
-                g =>
-                {
-                    var names = new List<string>();
-                    var teachers = new List<string>();
-                    foreach (var m in g)
-                    {
-                        if (!groupById.TryGetValue(m.GroupId, out var grp)) continue;
-                        if (!string.IsNullOrEmpty(grp.Name)) names.Add(grp.Name);
-                        var tn = teacherNames.GetValueOrDefault(grp.TeacherId ?? "", "");
-                        if (!string.IsNullOrEmpty(tn)) teachers.Add(tn);
-                    }
-                    return (Groups: string.Join(", ", names.Distinct()),
-                            Teachers: string.Join(", ", teachers.Distinct()));
-                });
-
-        var rows = subs.Select(s =>
-        {
-            string? sid = leadToStudent.TryGetValue(s.LeadId, out var v) ? v : null;
-            // IsDeleted: lid yaratilgan edi-yu, hozir CRM'da YO'Q (o'chirilgan). Konvertatsiya holati ta'sir
-            // qilmaydi — birinchi bosqichdagi (hali o'quvchiga aylanmagan) lid "o'chirilgan" emas.
-            bool isDeleted = !string.IsNullOrEmpty(s.LeadId) && !existingLeadIds.Contains(s.LeadId);
-            var isActive = sid != null && active.Contains(sid);
-            var info = sid != null && byStudent.TryGetValue(sid, out var gi) ? gi : ("", "");
-            return new LevelTestStatRowDto(
-                s.Id, s.FullName, s.Phone, s.Level, s.Percent, s.CreatedAt, s.LeadId,
-                sid, isActive, info.Item1, info.Item2, isDeleted);
-        }).ToList();
-
+        var rows = await LevelTestService.BuildStatRowsAsync(db, subs);
         return new LevelTestStatsDto(rows.Count, rows.Count(r => r.Active), rows);
     }
 

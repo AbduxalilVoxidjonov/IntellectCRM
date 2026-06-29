@@ -1455,12 +1455,19 @@ public record LevelTestInviteDto(
     string Id, string TestId, string LeadId, string LeadName, string Phone,
     string SmsStatus, string CreatedAt, bool Used, string UsedAt, int Percent, string Level);
 
-/// <summary>Daraja testlari UMUMIY statistikasi (barcha testlar bo'yicha jami).</summary>
+/// <summary>Daraja testlari UMUMIY statistikasi (barcha testlar bo'yicha jami). Rows — barcha testlarni
+/// topshirgan har bir o'quvchi (qaysi testga tegishli + natija + hozir aktivmi).</summary>
 public record LevelTestOverallStatsDto(
-    int TestCount, int Submissions, int Invites, int InvitesUsed, double AvgPercent,
-    List<LevelCountDto> ByLevel, List<TestStatRowDto> ByTest);
+    int TestCount, int Submissions, int Invites, int InvitesUsed, double AvgPercent, int Active,
+    List<LevelCountDto> ByLevel, List<TestStatRowDto> ByTest, List<LevelTestOverallRowDto> Rows);
 public record LevelCountDto(string Level, int Count);
 public record TestStatRowDto(string TestId, string Title, int Submissions, int Invites, int InvitesUsed, double AvgPercent);
+/// <summary>Umumiy statistikadagi bitta topshiruvchi qatori — qaysi testga tegishli (TestTitle) + natija +
+/// hozirgi holati (aktivmi, guruh, o'qituvchi). Bitta test statistikasi bilan bir xil, faqat test nomi qo'shilgan.</summary>
+public record LevelTestOverallRowDto(
+    string SubmissionId, string TestId, string TestTitle,
+    string FullName, string Phone, string Level, int Percent, string CreatedAt,
+    string LeadId, string? StudentId, bool Active, string GroupName, string TeacherName, bool IsDeleted);
 
 /// <summary>Arxiv yozuvi (o'chirilgan entity surati) — ko'rsatish uchun.</summary>
 public record ArchivedRecordDto(
