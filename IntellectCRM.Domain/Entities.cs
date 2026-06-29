@@ -91,6 +91,58 @@ public class School
     public int Order { get; set; }
 }
 
+/// <summary>
+/// AI tekshiruv yozuvi (Speaking yoki Writing). Bitta yozuv = bitta tekshiruv.
+/// Writing: o'quvchi <see cref="InputText"/> yozadi → Gemini tahlil qiladi.
+/// Speaking: o'quvchi gapiradi (ovoz <see cref="AudioUrl"/> saqlanadi) → Azure talaffuzni baholaydi
+/// (<see cref="AzureJson"/>), tanilgan matn <see cref="RecognizedText"/>, so'ng Gemini tahlil qiladi.
+/// Natija (diagramma/so'z tahlili) <see cref="AnalysisJson"/> da. Tarix saqlanadi.
+/// </summary>
+public class AiCheck
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string StudentId { get; set; } = string.Empty;
+    /// <summary>"speaking" | "writing".</summary>
+    public string Type { get; set; } = "writing";
+    /// <summary>Mavzu/topshiriq (ixtiyoriy — o'quvchi yoki tizim bergan).</summary>
+    public string Prompt { get; set; } = string.Empty;
+    /// <summary>Writing: o'quvchi yozgan matn. Speaking: o'qish uchun berilgan matn (reference, ixtiyoriy).</summary>
+    public string InputText { get; set; } = string.Empty;
+    /// <summary>Speaking: nutqdan tanilgan matn (Azure recognized). Writing: bo'sh.</summary>
+    public string RecognizedText { get; set; } = string.Empty;
+    /// <summary>Speaking: saqlangan ovoz fayli ("/uploads/aicheck-...wav") — qayta eshitish uchun. Writing: bo'sh.</summary>
+    public string AudioUrl { get; set; } = string.Empty;
+    /// <summary>Umumiy ball (0-100).</summary>
+    public double Score { get; set; }
+    /// <summary>Speaking: Azure natijasi JSON (SpeakingResultDto). Writing: bo'sh.</summary>
+    public string AzureJson { get; set; } = string.Empty;
+    /// <summary>Gemini strukturali tahlil JSON (AiCheckAnalysisDto — diagramma/tuzatish/so'z tahlili).</summary>
+    public string AnalysisJson { get; set; } = string.Empty;
+    /// <summary>Ishlatilgan Gemini modeli.</summary>
+    public string Model { get; set; } = string.Empty;
+    /// <summary>Tekshiruv sanasi ("yyyy-MM-dd") — kunlik limit hisobi uchun.</summary>
+    public string Date { get; set; } = string.Empty;
+    /// <summary>Yaratilgan vaqt (ISO "yyyy-MM-ddTHH:mm:ss").</summary>
+    public string CreatedAt { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// O'quvchining AI tekshiruvdan foydalanish ruxsati/cheklovi (per-o'quvchi). Yozuv bo'lmasa —
+/// global standart kunlik limit (<see cref="CenterMeta"/>.AiCheckDailyLimit) ishlatiladi.
+/// </summary>
+public class StudentAiAccess
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string StudentId { get; set; } = string.Empty;
+    /// <summary>Kunlik limit (per-o'quvchi override). 0 = global standart ishlatiladi.</summary>
+    public int DailyLimit { get; set; }
+    /// <summary>Premium — cheksiz foydalanish (limit qo'llanmaydi).</summary>
+    public bool IsPremium { get; set; }
+    /// <summary>Bloklangan — AI tekshiruvdan umuman foydalana olmaydi.</summary>
+    public bool IsBlocked { get; set; }
+    public string UpdatedAt { get; set; } = string.Empty;
+}
+
 /// <summary>Ota-ona ilova orqali yuborgan taklif yoki shikoyat.</summary>
 public class Feedback
 {
@@ -834,6 +886,10 @@ public class CenterMeta
     /// ("AI Tahlil" tugmasi). Bo'sh bo'lsa tahlil ishlamaydi. Admin "Sozlamalar → AI Tahlil (Gemini)"
     /// bo'limidan kiritadi. Model env o'zgaruvchi GEMINI_MODEL dan olinadi (default gemini-3.1-flash-lite).</summary>
     public string GeminiApiKey { get; set; } = string.Empty;
+
+    /// <summary>AI tekshiruv (Speaking/Writing) — o'quvchi uchun standart KUNLIK limit (necha marta).
+    /// Per-o'quvchi <see cref="StudentAiAccess"/> override qiladi (premium = cheksiz). Default 3.</summary>
+    public int AiCheckDailyLimit { get; set; } = 3;
 
     /// <summary>O'qituvchi maoshi hisoblashda toifa bo'yicha BIR SOAT dars narxi (so'm).
     /// Oylik maosh = haftalik darslar soni × 4 × shu narx. Admin "Dars jadvali → Oylik hisoblash"da kiritadi.</summary>

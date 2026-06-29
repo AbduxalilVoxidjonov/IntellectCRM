@@ -122,6 +122,7 @@ export const navByRole: Record<Role, NavItem[]> = {
       children: [
         { label: 'Topshiriqlar', to: '/admin/assignments' },
         { label: 'Topshiriqlar bali', to: '/admin/assignment-scores' },
+        { label: 'AI check', to: '/admin/ai-check' },
         { label: "Ta'lim (LMS)", to: '/admin/lms' },
         { label: 'Support', to: '/admin/support' },
         { label: 'Joylashuv', to: '/admin/locations' },

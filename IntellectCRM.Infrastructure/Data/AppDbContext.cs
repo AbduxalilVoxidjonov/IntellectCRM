@@ -111,6 +111,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<District> Districts => Set<District>();
     public DbSet<School> Schools => Set<School>();
 
+    // AI tekshiruv (Speaking/Writing) + o'quvchi ruxsati
+    public DbSet<AiCheck> AiChecks => Set<AiCheck>();
+    public DbSet<StudentAiAccess> StudentAiAccesses => Set<StudentAiAccess>();
+
     protected override void OnModelCreating(ModelBuilder b)
     {
         // SQL Server: indeksda qatnashadigan string ustunlar default `nvarchar(max)` bo'lib
@@ -274,6 +278,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         b.Entity<District>().HasIndex(d => d.Order);
         b.Entity<School>().Property(s => s.DistrictId).HasMaxLength(200);
         b.Entity<School>().HasIndex(s => new { s.DistrictId, s.Order });
+
+        // AI tekshiruv — o'quvchi + sana bo'yicha (kunlik limit/tarix), ruxsat o'quvchi bo'yicha.
+        b.Entity<AiCheck>().Property(a => a.StudentId).HasMaxLength(200);
+        b.Entity<AiCheck>().HasIndex(a => new { a.StudentId, a.Date });
+        b.Entity<StudentAiAccess>().Property(a => a.StudentId).HasMaxLength(200);
+        b.Entity<StudentAiAccess>().HasIndex(a => a.StudentId).IsUnique();
 
         b.Entity<ArchivedRecord>().HasIndex(r => new { r.Type, r.DeletedAt });
 

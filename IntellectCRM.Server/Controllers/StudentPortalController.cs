@@ -24,7 +24,7 @@ namespace IntellectCRM.Server.Controllers;
 [Route("api/student")]
 public class StudentPortalController(
     AppDbContext db, ChatService chat, IWebHostEnvironment env, ReferenceCache refCache,
-    TelegramService telegram) : ControllerBase
+    TelegramService telegram, IConfiguration config) : ControllerBase
 {
 
     /// <summary>
@@ -736,6 +736,186 @@ public class StudentPortalController(
             return r is null ? NoContent() : r;
         }
         catch { return NoContent(); }
+    }
+
+    // ==================== AI tekshiruv (Speaking / Writing) ====================
+
+    /// <summary>O'quvchining bugungi AI tekshiruv holati (kalitlar tayyorligi + limit/premium/blok).</summary>
+    [HttpGet("ai-check/status")]
+    public async Task<ActionResult<AiCheckStatusDto>> AiCheckStatus([FromQuery] string? studentId)
+    {
+        var s = await TargetAsync(studentId);
+        if (s is null) return NotFound();
+        var meta = await db.CenterMeta.FirstOrDefaultAsync();
+        var geminiReady = GeminiService.IsConfigured(meta?.GeminiApiKey);
+        var azureReady = AzureSpeechService.IsConfigured(meta?.AzureSpeechKey, meta?.AzureSpeechRegion);
+        var (premium, blocked, limit, used) = await AiAccessAsync(s.Id, meta);
+        var remaining = premium ? 999 : Math.Max(0, limit - used);
+        return new AiCheckStatusDto(geminiReady, azureReady, premium, blocked, limit, used, remaining);
+    }
+
+    /// <summary>O'quvchi AI tekshiruv tarixi (eng yangi birinchi).</summary>
+    [HttpGet("ai-check/history")]
+    public async Task<ActionResult<IEnumerable<AiCheckListItemDto>>> AiCheckHistory([FromQuery] string? studentId)
+    {
+        var s = await TargetAsync(studentId);
+        if (s is null) return NotFound();
+        return await db.AiChecks.Where(a => a.StudentId == s.Id)
+            .OrderByDescending(a => a.CreatedAt)
+            .Select(a => new AiCheckListItemDto(a.Id, a.Type, a.Prompt, a.Score, a.Date, a.CreatedAt, a.AudioUrl != ""))
+            .ToListAsync();
+    }
+
+    /// <summary>Bitta AI tekshiruv yozuvi (to'liq — matn/ovoz/tahlil).</summary>
+    [HttpGet("ai-check/history/{id}")]
+    public async Task<ActionResult<AiCheckDto>> AiCheckItem(string id, [FromQuery] string? studentId)
+    {
+        var s = await TargetAsync(studentId);
+        if (s is null) return NotFound();
+        var a = await db.AiChecks.FirstOrDefaultAsync(x => x.Id == id && x.StudentId == s.Id);
+        return a is null ? NotFound() : ToAiCheckDto(a);
+    }
+
+    /// <summary>Writing (yozma) — o'quvchi matn yozadi, Gemini tahlil qiladi va saqlaydi.</summary>
+    [HttpPost("ai-check/writing")]
+    [Authorize(Roles = "student")]
+    public async Task<ActionResult<AiCheckDto>> AiCheckWriting(AiCheckWritingRequest req)
+    {
+        var s = await MeAsync();
+        if (s is null) return NotFound();
+        var text = (req.Text ?? "").Trim();
+        if (text.Length < 10) return BadRequest(new { message = "Matn juda qisqa (kamida 10 belgi)." });
+        if (text.Length > 8000) text = text[..8000];
+
+        var meta = await db.CenterMeta.FirstOrDefaultAsync();
+        if (await GuardLimitAsync(s.Id, meta) is { } limitError) return limitError;
+        if (!GeminiService.IsConfigured(meta?.GeminiApiKey))
+            return BadRequest(new { message = "AI tekshiruv hali sozlanmagan (admin Gemini kalitini kiritishi kerak)." });
+
+        var model = GeminiService.ResolveModel(config);
+        var prompt = AiCheckService.WritingPrompt(req.Prompt, text);
+        var (ok, raw, err) = await GeminiService.GenerateAsync(meta!.GeminiApiKey, model, prompt, jsonMode: true);
+        if (!ok) return BadRequest(new { message = err ?? "AI tahlil qilolmadi." });
+        var analysis = AiCheckService.Parse(raw);
+        if (analysis is null) return BadRequest(new { message = "AI javobini o'qib bo'lmadi. Qaytadan urinib ko'ring." });
+
+        var rec = new AiCheck
+        {
+            StudentId = s.Id,
+            Type = "writing",
+            Prompt = (req.Prompt ?? "").Trim(),
+            InputText = text,
+            Score = analysis.Overall,
+            AnalysisJson = JsonSerializer.Serialize(analysis),
+            Model = model,
+            Date = AppClock.Today.ToString("yyyy-MM-dd"),
+            CreatedAt = AppClock.Now.ToString("yyyy-MM-ddTHH:mm:ss"),
+        };
+        db.AiChecks.Add(rec);
+        await db.SaveChangesAsync();
+        return ToAiCheckDto(rec);
+    }
+
+    /// <summary>Speaking (nutq) — ovoz yuboriladi, Azure talaffuzni baholaydi, Gemini tahlil qiladi, ovoz saqlanadi.</summary>
+    [HttpPost("ai-check/speaking")]
+    [Authorize(Roles = "student")]
+    [RequestSizeLimit(8_000_000)]
+    public async Task<ActionResult<AiCheckDto>> AiCheckSpeaking(
+        IFormFile audio, [FromForm] string? prompt, [FromForm] string? referenceText)
+    {
+        var s = await MeAsync();
+        if (s is null) return NotFound();
+        var meta = await db.CenterMeta.FirstOrDefaultAsync();
+        if (await GuardLimitAsync(s.Id, meta) is { } limitError) return limitError;
+        var key = meta?.AzureSpeechKey ?? "";
+        var region = meta?.AzureSpeechRegion ?? "";
+        if (!AzureSpeechService.IsConfigured(key, region))
+            return BadRequest(new { message = "Speaking baholash hali sozlanmagan (admin Azure kalitini kiritishi kerak)." });
+        if (!GeminiService.IsConfigured(meta?.GeminiApiKey))
+            return BadRequest(new { message = "AI tahlil hali sozlanmagan (admin Gemini kalitini kiritishi kerak)." });
+        if (audio is null || audio.Length == 0) return BadRequest(new { message = "Audio bo'sh" });
+        if (audio.Length > 8_000_000) return BadRequest(new { message = "Audio juda katta (8 MB dan oshmasin)." });
+
+        using var ms = new MemoryStream();
+        await audio.CopyToAsync(ms);
+        var bytes = ms.ToArray();
+        if (!AzureSpeechService.LooksLikeWav(bytes))
+            return BadRequest(new { message = "Audio formati noto'g'ri (WAV kutilgan)." });
+
+        var azure = await AzureSpeechService.AssessAsync(bytes, referenceText ?? "", key, region);
+        if (azure.Error is not null) return BadRequest(new { message = azure.Error });
+
+        // Ovozni saqlaymiz (qayta eshitish uchun).
+        var dir = System.IO.Path.Combine(env.ContentRootPath, "uploads");
+        System.IO.Directory.CreateDirectory(dir);
+        var stored = $"aicheck-{Guid.NewGuid():N}.wav";
+        await System.IO.File.WriteAllBytesAsync(System.IO.Path.Combine(dir, stored), bytes);
+
+        var model = GeminiService.ResolveModel(config);
+        var aiPrompt = AiCheckService.SpeakingPrompt(prompt, azure.RecognizedText, azure);
+        var (ok, raw, err) = await GeminiService.GenerateAsync(meta!.GeminiApiKey, model, aiPrompt, jsonMode: true);
+        var analysis = ok ? AiCheckService.Parse(raw) : null;
+        // Gemini tahlili bo'lmasa ham (xato) — Azure natijasi bilan yozuvni saqlaymiz.
+
+        var rec = new AiCheck
+        {
+            StudentId = s.Id,
+            Type = "speaking",
+            Prompt = (prompt ?? "").Trim(),
+            InputText = (referenceText ?? "").Trim(),
+            RecognizedText = azure.RecognizedText,
+            AudioUrl = $"/uploads/{stored}",
+            Score = analysis?.Overall ?? azure.PronScore,
+            AzureJson = JsonSerializer.Serialize(azure),
+            AnalysisJson = analysis is null ? "" : JsonSerializer.Serialize(analysis),
+            Model = model,
+            Date = AppClock.Today.ToString("yyyy-MM-dd"),
+            CreatedAt = AppClock.Now.ToString("yyyy-MM-ddTHH:mm:ss"),
+        };
+        db.AiChecks.Add(rec);
+        await db.SaveChangesAsync();
+        return ToAiCheckDto(rec);
+    }
+
+    /// <summary>O'quvchi ruxsati: (premium, blocked, effektiv limit, bugun ishlatilgan).</summary>
+    private async Task<(bool Premium, bool Blocked, int Limit, int Used)> AiAccessAsync(string studentId, CenterMeta? meta)
+    {
+        var access = await db.StudentAiAccesses.FirstOrDefaultAsync(a => a.StudentId == studentId);
+        var defaultLimit = meta?.AiCheckDailyLimit > 0 ? meta.AiCheckDailyLimit : 3;
+        var limit = access is { DailyLimit: > 0 } ? access.DailyLimit : defaultLimit;
+        var today = AppClock.Today.ToString("yyyy-MM-dd");
+        var used = await db.AiChecks.CountAsync(a => a.StudentId == studentId && a.Date == today);
+        return (access?.IsPremium ?? false, access?.IsBlocked ?? false, limit, used);
+    }
+
+    /// <summary>Limit/blok tekshiruvi — buzilsa xato javobi, aks holda null (davom etadi).</summary>
+    private async Task<ActionResult?> GuardLimitAsync(string studentId, CenterMeta? meta)
+    {
+        var (premium, blocked, limit, used) = await AiAccessAsync(studentId, meta);
+        if (blocked) return StatusCode(403, new { message = "AI tekshiruv sizga cheklangan. Adminga murojaat qiling." });
+        if (premium) return null;
+        if (used >= limit)
+            return StatusCode(429, new { message = $"Kunlik limit tugadi ({used}/{limit}). Premium uchun adminga murojaat qiling." });
+        return null;
+    }
+
+    private static AiCheckDto ToAiCheckDto(AiCheck a)
+    {
+        var analysis = AiCheckService.ParseStored(a.AnalysisJson);
+        AiCheckSpeechDto? speech = null;
+        if (a.Type == "speaking" && !string.IsNullOrWhiteSpace(a.AzureJson))
+        {
+            try
+            {
+                var r = JsonSerializer.Deserialize<SpeakingResultDto>(a.AzureJson);
+                if (r is not null)
+                    speech = new AiCheckSpeechDto(r.RecognizedText, r.PronScore, r.Accuracy,
+                        r.Fluency, r.Completeness, r.Prosody, r.Words ?? new());
+            }
+            catch { /* azure json buzuq — speech null */ }
+        }
+        return new AiCheckDto(a.Id, a.Type, a.Prompt, a.InputText, a.RecognizedText, a.AudioUrl,
+            a.Score, a.Date, a.CreatedAt, analysis, speech);
     }
 
     /// <summary>

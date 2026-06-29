@@ -31,6 +31,8 @@ import { SubjectsPage } from '@/pages/admin/subjects/SubjectsPage'
 import { CurriculumEditorPage } from '@/pages/admin/subjects/CurriculumEditorPage'
 import { ReasonsPage } from '@/pages/admin/reasons/ReasonsPage'
 import { DistrictsPage } from '@/pages/admin/districts/DistrictsPage'
+import { AiCheckPage } from '@/pages/admin/ai-check/AiCheckPage'
+import { AiCheckStudentPage } from '@/pages/admin/ai-check/AiCheckStudentPage'
 import { ArchivePage } from '@/pages/admin/archive/ArchivePage'
 import { GradingCriteriaPage } from '@/pages/admin/grading/GradingCriteriaPage'
 import { LevelTestsPage } from '@/pages/admin/level-tests/LevelTestsPage'
@@ -98,6 +100,7 @@ import { StudentSettingsScreen } from '@/pages/student/Settings'
 import { StudentLocationScreen } from '@/pages/student/Location'
 import { StudentLessonScreen } from '@/pages/student/Lesson'
 import { StudentGradingScreen } from '@/pages/student/Grading'
+import { StudentAiCheckScreen } from '@/pages/student/AiCheck'
 import { StudentSupportScreen } from '@/pages/student/Support'
 import { StudentAccountScreen } from '@/pages/student/Account'
 import { CertificatesPage } from '@/pages/student/Certificates'
@@ -172,6 +175,8 @@ export default function App() {
           <Route path="support/:id" element={<RequirePerm perm="app"><SupportDetailPage /></RequirePerm>} />
           <Route path="assignments" element={<RequirePerm perm="app"><AssignmentsPage /></RequirePerm>} />
           <Route path="assignment-scores" element={<RequirePerm perm="app"><AssignmentScoresPage /></RequirePerm>} />
+          <Route path="ai-check" element={<RequirePerm perm="app"><AiCheckPage /></RequirePerm>} />
+          <Route path="ai-check/:studentId" element={<RequirePerm perm="app"><AiCheckStudentPage /></RequirePerm>} />
           <Route path="lms" element={<RequirePerm perm="app"><LmsClassesPage /></RequirePerm>} />
           <Route path="lms/:classId" element={<RequirePerm perm="app"><LmsSubjectsPage /></RequirePerm>} />
           <Route path="lms/:classId/:subjectId" element={<RequirePerm perm="app"><LmsModulesPage /></RequirePerm>} />
@@ -245,6 +250,7 @@ export default function App() {
           <Route path="location" element={<StudentLocationScreen />} />
           <Route path="lesson/:id" element={<StudentLessonScreen />} />
           <Route path="grading" element={<StudentGradingScreen />} />
+          <Route path="ai-check" element={<StudentAiCheckScreen />} />
           <Route path="support" element={<StudentSupportScreen />} />
           <Route path="account" element={<StudentAccountScreen />} />
           <Route path="certificates" element={<CertificatesPage />} />

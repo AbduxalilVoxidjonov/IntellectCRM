@@ -350,6 +350,99 @@ export interface District {
   schools: School[]
 }
 
+/* ---------- AI tekshiruv (Speaking / Writing) ---------- */
+
+export interface AiCheckScores {
+  grammar: number
+  vocabulary: number
+  coherence: number
+  task: number
+  mechanics: number
+  pronunciation: number
+  fluency: number
+}
+export interface AiCorrection {
+  original: string
+  suggestion: string
+  explanation: string
+}
+export interface AiVocab {
+  word: string
+  suggestion: string
+  note: string
+}
+export interface AiCheckAnalysis {
+  overall: number
+  level: string
+  scores: AiCheckScores
+  summary: string
+  strengths: string[]
+  weaknesses: string[]
+  corrections: AiCorrection[]
+  vocabulary: AiVocab[]
+  improved: string
+  recommendations: string[]
+}
+export interface SpeakingWord {
+  word: string
+  accuracy: number
+  errorType: string
+}
+export interface AiCheckSpeech {
+  recognizedText: string
+  pronScore: number
+  accuracy: number
+  fluency: number
+  completeness: number
+  prosody: number
+  words: SpeakingWord[]
+}
+/** "speaking" | "writing" */
+export interface AiCheck {
+  id: string
+  type: 'speaking' | 'writing'
+  prompt: string
+  inputText: string
+  recognizedText: string
+  audioUrl: string
+  score: number
+  date: string
+  createdAt: string
+  analysis: AiCheckAnalysis | null
+  speech: AiCheckSpeech | null
+}
+export interface AiCheckListItem {
+  id: string
+  type: 'speaking' | 'writing'
+  prompt: string
+  score: number
+  date: string
+  createdAt: string
+  hasAudio: boolean
+}
+export interface AiCheckStatus {
+  geminiReady: boolean
+  azureReady: boolean
+  premium: boolean
+  blocked: boolean
+  limit: number
+  usedToday: number
+  remaining: number
+}
+/** Admin: foydalanuvchilar bo'yicha umumiy ko'rinish */
+export interface AiCheckOverviewRow {
+  studentId: string
+  fullName: string
+  className: string
+  speakingCount: number
+  writingCount: number
+  total: number
+  todayUsed: number
+  effectiveLimit: number
+  premium: boolean
+  blocked: boolean
+}
+
 /* ---------- Xonalar ---------- */
 
 export interface Room {

@@ -29,6 +29,7 @@ const MENU: MenuEntry[] = [
   { icon: 'chart', label: 'Baholar', color: '#2563EB', to: '/student/grades' },
   { icon: 'checkCircle', label: 'Davomat', color: '#16A34A', to: '/student/attendance' },
   { icon: 'check', label: 'Baholash', color: '#0D9488', to: '/student/grading' },
+  { icon: 'sparkle', label: 'AI tekshiruv', color: '#7C3AED', to: '/student/ai-check' },
   { icon: 'shield', label: 'Intizomiy ball', color: '#0EA5E9', to: '/student/discipline' },
   { icon: 'wallet', label: "To'lovlar", color: '#7C3AED', to: '/student/finance' },
   { icon: 'award', label: 'Sertifikatlar', color: '#D97706', to: '/student/certificates' },

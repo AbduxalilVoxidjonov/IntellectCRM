@@ -60,6 +60,10 @@ public interface IAppDbContext
     DbSet<District> Districts { get; }
     DbSet<School> Schools { get; }
 
+    // AI tekshiruv (Speaking/Writing) + o'quvchi ruxsati
+    DbSet<AiCheck> AiChecks { get; }
+    DbSet<StudentAiAccess> StudentAiAccesses { get; }
+
     // LMS (Ta'lim)
     DbSet<LmsSubject> LmsSubjects { get; }
     DbSet<LmsModule> LmsModules { get; }

@@ -114,6 +114,30 @@ docker compose up -d --build    # app + postgres + cloudflared + backup + mediam
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-29: **YANGI — AI CHECK (Speaking & Writing) — o'quvchi AI tekshiruv + admin boshqaruv (limit/premium/blok).**
+  Foydalanuvchi: o'quvchida "Speaking & Writing" — writing'ni Gemini, speaking'ni Azure tekshiradi, natija chiroyli
+  diagramma/so'z tahlili (Gemini), har tekshiruv TARIXI saqlanadi (speaking ovozi ham — qayta eshitish); Ilova ichida
+  "AI check" — kim necha marta (speaking/writing) ishlatgani, kunlik LIMIT, PREMIUM, BLOK; admin o'quvchi tarixini
+  o'quvchidagidek ko'radi. **Backend:** 2 entity `AiCheck`(Type speaking/writing, Prompt, InputText, RecognizedText,
+  AudioUrl, Score, AzureJson, AnalysisJson, Date) + `StudentAiAccess`(DailyLimit/IsPremium/IsBlocked) + CenterMeta
+  `AiCheckDailyLimit`(default 3); migratsiya `AddAiCheck` (2 jadval + 1 ustun). `AiCheckService` (Gemini prompt
+  tuzish + JSON parse → `AiCheckAnalysisDto`: overall/level/scores{grammar,vocab,coherence,task,mechanics,
+  pronunciation,fluency}/summary/strengths/weaknesses/corrections/vocabulary/improved/recommendations).
+  `GeminiService`/`AzureSpeechService` (mavjud) qayta ishlatildi. **Student endpoints** (`/api/student/ai-check`):
+  status (limit/premium/blok + kalit tayyorligi), history, history/{id}, POST writing (Gemini), POST speaking
+  (multipart audio → Azure assess + ovoz saqlash `/uploads/aicheck-*.wav` + Gemini). Limit GUARD: blok→403,
+  premium→cheksiz, aks holda kunlik limit (per-o'quvchi override yoki global). Guard config'dan OLDIN (blocked
+  user "cheklangan" oladi). **Admin endpoints** (`/api/admin/ai-check`, AdminPerm app): overview (kim necha marta),
+  settings (global limit), access/{studentId} (limit/premium/blok upsert), history/{studentId}, item/{id}.
+  **Frontend:** `studentAiCheck.ts`+`aiCheck.ts` servis; `AiCheckResultView` (`.student-app` scoped — diagramma/
+  bar/ovoz player/tuzatish/so'z tahlili, student VA admin bir xil ko'rinish); student `AiCheck` ekrani (Writing/
+  Speaking tab + wavRecorder ovoz + status banner + tarix) → Profil menyu "AI tekshiruv"; admin `AiCheckPage`
+  (global limit + foydalanuvchi jadvali: limit input/premium/blok toggle) + `AiCheckStudentPage` (tarix + natija
+  `.student-app` o'rab — o'quvchidagidek), Ilova nav "AI check". **JONLI E2E** (throwaway PG): migratsiya qo'llandi;
+  district/school/student CRUD; student status limit=3, writing kalitsiz→400 "sozlanmagan"; admin blok→student
+  writing 403 "cheklangan"; premium→remaining 999; overview/settings/access 200. Backend 0, tsc+vite yashil.
+  **DEPLOYDA:** `docker compose up -d --build app` (migratsiya avto; postgres-data saqlanadi). Ishlashi uchun:
+  Sozlamalar → AI Tahlil (Gemini) kaliti (writing+speaking tahlil), Speaking (Azure) kalit/region (speaking baho).
 - 2026-06-29: **O'quvchi portali — DESKTOP responsiv (chap yon-menyu + markazlashgan kontent).** Foydalanuvchi:
   Chrome'da (keng ekran) o'quvchi profili "hunuk" — cho'zilib ketardi (`.student-app`da `width:100%`, `max-width`
   YO'Q → telefon dizayni butun monitorga yoyilardi). Yechim (o'qituvchi portali kabi — CSS media query, har ekranni

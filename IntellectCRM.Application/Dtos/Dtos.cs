@@ -62,6 +62,47 @@ public record DistrictUpdate(string? Name);
 public record SchoolCreate(string? Name);
 public record SchoolUpdate(string? Name);
 
+/* ---------- AI tekshiruv (Speaking / Writing) ---------- */
+/// <summary>Gemini strukturali tahlil natijasi (diagramma + tuzatish + so'z tahlili).</summary>
+public record AiCheckScoresDto(int Grammar, int Vocabulary, int Coherence, int Task, int Mechanics, int Pronunciation, int Fluency);
+public record AiCorrectionDto(string Original, string Suggestion, string Explanation);
+public record AiVocabDto(string Word, string Suggestion, string Note);
+public record AiCheckAnalysisDto(
+    int Overall, string Level, AiCheckScoresDto Scores, string Summary,
+    List<string> Strengths, List<string> Weaknesses,
+    List<AiCorrectionDto> Corrections, List<AiVocabDto> Vocabulary,
+    string Improved, List<string> Recommendations);
+
+/// <summary>Speaking uchun Azure talaffuz bahosi (frontend diagramma uchun) — ixtiyoriy.</summary>
+public record AiCheckSpeechDto(
+    string RecognizedText, double PronScore, double Accuracy, double Fluency,
+    double Completeness, double Prosody, List<SpeakingWordDto> Words);
+
+/// <summary>To'liq AI tekshiruv yozuvi (o'quvchi/admin ko'rinishi).</summary>
+public record AiCheckDto(
+    string Id, string Type, string Prompt, string InputText, string RecognizedText,
+    string AudioUrl, double Score, string Date, string CreatedAt,
+    AiCheckAnalysisDto? Analysis, AiCheckSpeechDto? Speech);
+
+/// <summary>Tarix elementi (ro'yxat — yengil).</summary>
+public record AiCheckListItemDto(string Id, string Type, string Prompt, double Score, string Date, string CreatedAt, bool HasAudio);
+
+/// <summary>O'quvchi AI tekshiruv holati (limit/premium/blok + bugungi foydalanish).</summary>
+public record AiCheckStatusDto(
+    bool GeminiReady, bool AzureReady, bool Premium, bool Blocked,
+    int Limit, int UsedToday, int Remaining);
+
+public record AiCheckWritingRequest(string? Prompt, string? Text);
+
+/* ---------- AI tekshiruv — admin ---------- */
+public record AiCheckOverviewRowDto(
+    string StudentId, string FullName, string ClassName,
+    int SpeakingCount, int WritingCount, int Total, int TodayUsed,
+    int EffectiveLimit, bool Premium, bool Blocked);
+public record AiCheckSettingsDto(int DefaultDailyLimit);
+public record SaveAiCheckSettingsRequest(int DailyLimit);
+public record SaveAiAccessRequest(int DailyLimit, bool IsPremium, bool IsBlocked);
+
 /* ---------- Telefon dublikatini tekshirish (o'quvchi/ota-ona raqami) ---------- */
 public record CheckPhonesRequest(
     string? Phone, string? FatherPhone, string? MotherPhone, string? ParentPhone, string? ExcludeId);
