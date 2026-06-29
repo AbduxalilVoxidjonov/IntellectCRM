@@ -131,6 +131,14 @@ export function AiCheckResultView({ rec }: { rec: AiCheck }) {
             </>
           ) : null}
 
+          {/* Talaffuz bahosi kelmagan (erkin nutq) — sababini tushuntiramiz */}
+          {!sp ? (
+            <div style={{ fontSize: 12.5, color: '#d97706', marginTop: 4, lineHeight: 1.5 }}>
+              ⚠️ Talaffuz bahosi faqat <b>o'qish uchun matn</b> kiritilganda chiqadi. Matnsiz (erkin
+              gapirilganda) Azure har-so'z talaffuzini qaytarmaydi — quyida faqat tanilgan matn + AI tahlili.
+            </div>
+          ) : null}
+
           {/* Har so'z — yashil (yaxshi) / sarg'ish / qizil (xato) */}
           {sp && sp.words.length > 0 ? (
             <div style={{ marginTop: 10 }}>
