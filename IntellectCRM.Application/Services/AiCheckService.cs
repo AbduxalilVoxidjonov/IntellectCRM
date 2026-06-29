@@ -27,9 +27,12 @@ public static class AiCheckService
         "  \"recommendations\": [\"UZBEK\"]\n" +
         "}";
 
-    /// <summary>Writing (yozma) matn uchun tahlil prompti.</summary>
-    public static string WritingPrompt(string? topic, string text)
+    /// <summary>Writing (yozma) matn uchun tahlil prompti. taskType: "ielts_task1"/"ielts_task2" — IELTS band bahosi.</summary>
+    public static string WritingPrompt(string? topic, string text, string? taskType = null)
     {
+        if (taskType is "ielts_task1" or "ielts_task2")
+            return IeltsWritingPrompt(topic, text, taskType);
+
         var t = string.IsNullOrWhiteSpace(topic) ? "(mavzu berilmagan)" : topic!.Trim();
         var sb = new StringBuilder();
         sb.AppendLine("You are an expert English writing examiner. Analyze the student's writing below.");
@@ -45,6 +48,49 @@ public static class AiCheckService
         sb.AppendLine(Schema);
         return sb.ToString();
     }
+
+    /// <summary>IELTS Writing Task 1/Task 2 — rasmiy band deskriptorlari bo'yicha baholash prompti.</summary>
+    private static string IeltsWritingPrompt(string? topic, string text, string taskType)
+    {
+        var isTask1 = taskType == "ielts_task1";
+        var t = string.IsNullOrWhiteSpace(topic) ? "(question/prompt not provided)" : topic!.Trim();
+        var firstCriterion = isTask1 ? "Task Achievement" : "Task Response";
+        var sb = new StringBuilder();
+        sb.AppendLine($"You are a certified IELTS Writing examiner. Assess the candidate's {(isTask1 ? "Academic Writing TASK 1 (report describing a chart/graph/table/diagram/process or map)" : "Writing TASK 2 (argumentative/discursive essay)")} strictly using the official IELTS band descriptors (band 0-9, half bands allowed).");
+        sb.AppendLine($"Question / prompt: {t}");
+        sb.AppendLine("Candidate's response:");
+        sb.AppendLine("\"\"\"");
+        sb.AppendLine(text);
+        sb.AppendLine("\"\"\"");
+        sb.AppendLine($"Score these FOUR criteria as IELTS bands (0-9, .5 steps): 1) {firstCriterion}, 2) Coherence and Cohesion, 3) Lexical Resource, 4) Grammatical Range and Accuracy.");
+        sb.AppendLine("Overall band = average of the four, rounded to the nearest 0.5.");
+        if (isTask1)
+            sb.AppendLine("Task 1: penalize if under 150 words, if key features/overview are missing, or if data is inaccurate.");
+        else
+            sb.AppendLine("Task 2: penalize if under 250 words, if the position is unclear, or if the question is not fully addressed.");
+        sb.AppendLine("Return STRICT JSON only (no markdown). All explanatory text (summary, explanation, note, strengths,");
+        sb.AppendLine("weaknesses, recommendations) MUST be in UZBEK. \"improved\" is a band-9 model answer in English.");
+        sb.AppendLine("Fill the \"ielts\" object with the band scores. Also fill \"scores\" (0-100) as band/9*100 for the bars,");
+        sb.AppendLine($"\"overall\" (0-100) = ielts.overall/9*100, and \"level\" = \"Band {{ielts.overall}}\". Leave pronunciation/fluency 0.");
+        sb.AppendLine("JSON shape:");
+        sb.AppendLine(IeltsSchema(taskType));
+        return sb.ToString();
+    }
+
+    private static string IeltsSchema(string taskType) =>
+        "{\n" +
+        "  \"overall\": 0,\n" +
+        "  \"level\": \"Band X.X\",\n" +
+        "  \"scores\": { \"grammar\": 0, \"vocabulary\": 0, \"coherence\": 0, \"task\": 0, \"mechanics\": 0, \"pronunciation\": 0, \"fluency\": 0 },\n" +
+        "  \"ielts\": { \"task\": 0.0, \"coherence\": 0.0, \"lexical\": 0.0, \"grammar\": 0.0, \"overall\": 0.0, \"taskType\": \"" + taskType + "\" },\n" +
+        "  \"summary\": \"umumiy xulosa (UZBEK)\",\n" +
+        "  \"strengths\": [\"UZBEK\"],\n" +
+        "  \"weaknesses\": [\"UZBEK\"],\n" +
+        "  \"corrections\": [{ \"original\": \"...\", \"suggestion\": \"...\", \"explanation\": \"UZBEK\" }],\n" +
+        "  \"vocabulary\": [{ \"word\": \"...\", \"suggestion\": \"...\", \"note\": \"UZBEK\" }],\n" +
+        "  \"improved\": \"band-9 model answer in English\",\n" +
+        "  \"recommendations\": [\"UZBEK\"]\n" +
+        "}";
 
     /// <summary>
     /// Speaking (nutq) — Azure tanigan matn + talaffuz ballari + HAR SO'Z aniqligi bo'yicha tahlil prompti.
@@ -121,11 +167,15 @@ public static class AiCheckService
     }
 
     private static int C(int v) => Math.Clamp(v, 0, 100);
+    private static double B(double v) => Math.Clamp(Math.Round(v * 2) / 2, 0, 9); // band 0-9, 0.5 qadam
 
-    /// <summary>Null'larni to'ldiradi, ballarni 0-100 ga qisadi.</summary>
+    /// <summary>Null'larni to'ldiradi, ballarni 0-100 (IELTS bandlarini 0-9) ga qisadi.</summary>
     private static AiCheckAnalysisDto Sanitize(AiCheckAnalysisDto r)
     {
         var s = r.Scores ?? new AiCheckScoresDto(0, 0, 0, 0, 0, 0, 0);
+        var ielts = r.Ielts is null ? null : new AiCheckIeltsDto(
+            B(r.Ielts.Task), B(r.Ielts.Coherence), B(r.Ielts.Lexical), B(r.Ielts.Grammar), B(r.Ielts.Overall),
+            (r.Ielts.TaskType ?? "").Trim());
         return new AiCheckAnalysisDto(
             C(r.Overall),
             (r.Level ?? "").Trim(),
@@ -136,6 +186,7 @@ public static class AiCheckService
             r.Corrections ?? new List<AiCorrectionDto>(),
             r.Vocabulary ?? new List<AiVocabDto>(),
             r.Improved ?? "",
-            r.Recommendations ?? new List<string>());
+            r.Recommendations ?? new List<string>(),
+            ielts);
     }
 }

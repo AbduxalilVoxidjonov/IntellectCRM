@@ -104,6 +104,8 @@ public class AiCheck
     public string StudentId { get; set; } = string.Empty;
     /// <summary>"speaking" | "writing".</summary>
     public string Type { get; set; } = "writing";
+    /// <summary>Writing rejimi: "" (umumiy) | "ielts_task1" | "ielts_task2" — IELTS band bahosi uchun.</summary>
+    public string TaskType { get; set; } = string.Empty;
     /// <summary>Mavzu/topshiriq (ixtiyoriy — o'quvchi yoki tizim bergan).</summary>
     public string Prompt { get; set; } = string.Empty;
     /// <summary>Writing: o'quvchi yozgan matn. Speaking: o'qish uchun berilgan matn (reference, ixtiyoriy).</summary>

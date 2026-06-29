@@ -71,7 +71,15 @@ public record AiCheckAnalysisDto(
     int Overall, string Level, AiCheckScoresDto Scores, string Summary,
     List<string> Strengths, List<string> Weaknesses,
     List<AiCorrectionDto> Corrections, List<AiVocabDto> Vocabulary,
-    string Improved, List<string> Recommendations);
+    string Improved, List<string> Recommendations,
+    AiCheckIeltsDto? Ielts = null);
+
+/// <summary>
+/// IELTS Writing band bahosi (0-9, 0.5 qadam) — 4 mezon + umumiy band. Task1: TaskAchievement,
+/// Task2: TaskResponse (ikkalasi ham <see cref="Task"/> da). Faqat IELTS task tanlansa to'ladi.
+/// </summary>
+public record AiCheckIeltsDto(
+    double Task, double Coherence, double Lexical, double Grammar, double Overall, string TaskType);
 
 /// <summary>Speaking uchun Azure talaffuz bahosi (frontend diagramma uchun) — ixtiyoriy.</summary>
 public record AiCheckSpeechDto(
@@ -82,7 +90,7 @@ public record AiCheckSpeechDto(
 public record AiCheckDto(
     string Id, string Type, string Prompt, string InputText, string RecognizedText,
     string AudioUrl, double Score, string Date, string CreatedAt,
-    AiCheckAnalysisDto? Analysis, AiCheckSpeechDto? Speech);
+    AiCheckAnalysisDto? Analysis, AiCheckSpeechDto? Speech, string TaskType = "");
 
 /// <summary>Tarix elementi (ro'yxat — yengil).</summary>
 public record AiCheckListItemDto(string Id, string Type, string Prompt, double Score, string Date, string CreatedAt, bool HasAudio);
@@ -92,7 +100,8 @@ public record AiCheckStatusDto(
     bool GeminiReady, bool AzureReady, bool Premium, bool Blocked,
     int Limit, int UsedToday, int Remaining);
 
-public record AiCheckWritingRequest(string? Prompt, string? Text);
+/// <summary>TaskType: "" (umumiy) | "ielts_task1" | "ielts_task2".</summary>
+public record AiCheckWritingRequest(string? Prompt, string? Text, string? TaskType = null);
 
 /* ---------- AI tekshiruv — admin ---------- */
 public record AiCheckOverviewRowDto(

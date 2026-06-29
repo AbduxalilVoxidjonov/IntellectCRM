@@ -792,8 +792,11 @@ public class StudentPortalController(
         if (!GeminiService.IsConfigured(meta?.GeminiApiKey))
             return BadRequest(new { message = "AI tekshiruv hali sozlanmagan (admin Gemini kalitini kiritishi kerak)." });
 
+        var taskType = (req.TaskType ?? "").Trim();
+        if (taskType != "ielts_task1" && taskType != "ielts_task2") taskType = "";
+
         var model = GeminiService.ResolveModel(config);
-        var prompt = AiCheckService.WritingPrompt(req.Prompt, text);
+        var prompt = AiCheckService.WritingPrompt(req.Prompt, text, taskType);
         var (ok, raw, err) = await GeminiService.GenerateAsync(meta!.GeminiApiKey, model, prompt, jsonMode: true);
         if (!ok) return BadRequest(new { message = err ?? "AI tahlil qilolmadi." });
         var analysis = AiCheckService.Parse(raw);
@@ -803,9 +806,11 @@ public class StudentPortalController(
         {
             StudentId = s.Id,
             Type = "writing",
+            TaskType = taskType,
             Prompt = (req.Prompt ?? "").Trim(),
             InputText = text,
-            Score = analysis.Overall,
+            // IELTS bo'lsa umumiy band (0-9), aks holda 0-100 ball.
+            Score = taskType.Length > 0 && analysis.Ielts is not null ? analysis.Ielts.Overall : analysis.Overall,
             AnalysisJson = JsonSerializer.Serialize(analysis),
             Model = model,
             Date = AppClock.Today.ToString("yyyy-MM-dd"),
@@ -926,7 +931,7 @@ public class StudentPortalController(
             catch { /* azure json buzuq — speech null */ }
         }
         return new AiCheckDto(a.Id, a.Type, a.Prompt, a.InputText, a.RecognizedText, a.AudioUrl,
-            a.Score, a.Date, a.CreatedAt, analysis, speech);
+            a.Score, a.Date, a.CreatedAt, analysis, speech, a.TaskType);
     }
 
     /// <summary>

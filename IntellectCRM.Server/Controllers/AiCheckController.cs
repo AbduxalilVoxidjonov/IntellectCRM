@@ -123,6 +123,6 @@ public class AiCheckController(AppDbContext db) : ControllerBase
             catch { /* buzuq json — speech null */ }
         }
         return new AiCheckDto(a.Id, a.Type, a.Prompt, a.InputText, a.RecognizedText, a.AudioUrl,
-            a.Score, a.Date, a.CreatedAt, analysis, speech);
+            a.Score, a.Date, a.CreatedAt, analysis, speech, a.TaskType);
     }
 }

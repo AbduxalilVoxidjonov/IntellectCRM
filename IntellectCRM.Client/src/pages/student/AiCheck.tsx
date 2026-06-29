@@ -45,6 +45,7 @@ export function StudentAiCheckScreen() {
   // Writing
   const [wPrompt, setWPrompt] = useState('')
   const [wText, setWText] = useState('')
+  const [wTaskType, setWTaskType] = useState<'' | 'ielts_task1' | 'ielts_task2'>('')
 
   // Speaking
   const [sPrompt, setSPrompt] = useState('')
@@ -72,7 +73,7 @@ export function StudentAiCheckScreen() {
     if (wText.trim().length < 10) { setErr('Matn juda qisqa (kamida 10 belgi).'); return }
     setErr(null); setBusy(true)
     try {
-      const rec = await submitWriting(wText.trim(), wPrompt.trim() || undefined)
+      const rec = await submitWriting(wText.trim(), wPrompt.trim() || undefined, wTaskType || undefined)
       setResult(rec); setWText(''); reload()
     } catch (e) {
       setErr(errMsg(e))
@@ -179,8 +180,25 @@ export function StudentAiCheckScreen() {
           {/* Writing */}
           {tab === 'writing' && (
             <div className="card" style={{ marginBottom: 16 }}>
+              {/* Baholash turi: umumiy yoki IELTS Task 1/2 */}
+              <div className="seg" style={{ marginBottom: 10 }}>
+                <button className={wTaskType === '' ? 'on' : ''} onClick={() => setWTaskType('')}>Umumiy</button>
+                <button className={wTaskType === 'ielts_task1' ? 'on' : ''} onClick={() => setWTaskType('ielts_task1')}>IELTS Task 1</button>
+                <button className={wTaskType === 'ielts_task2' ? 'on' : ''} onClick={() => setWTaskType('ielts_task2')}>IELTS Task 2</button>
+              </div>
+              {wTaskType !== '' && (
+                <div className="muted" style={{ fontSize: 12, marginBottom: 10 }}>
+                  {wTaskType === 'ielts_task1'
+                    ? 'IELTS Academic Task 1 — grafik/jadval/diagramma tavsifi (≥150 so’z). Band 0-9 baholanadi.'
+                    : 'IELTS Task 2 — esse (≥250 so’z). Band 0-9 baholanadi.'}
+                </div>
+              )}
               <div className="field" style={{ marginBottom: 10 }}>
-                <input placeholder="Mavzu (ixtiyoriy)" value={wPrompt} onChange={(e) => setWPrompt(e.target.value)} />
+                <input
+                  placeholder={wTaskType !== '' ? 'Savol / topshiriq matni (ixtiyoriy)' : 'Mavzu (ixtiyoriy)'}
+                  value={wPrompt}
+                  onChange={(e) => setWPrompt(e.target.value)}
+                />
               </div>
               <textarea
                 className="ta"

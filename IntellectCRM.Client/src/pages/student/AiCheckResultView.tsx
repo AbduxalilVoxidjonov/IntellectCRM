@@ -1,6 +1,57 @@
-import type { AiCheck, SpeakingWord } from '@/types'
+import type { AiCheck, AiCheckIelts, SpeakingWord } from '@/types'
 import { Ring, fmtDate } from '@/pages/student/lib'
 import { mediaUrl } from '@/api/services/studentAiCheck'
+
+/** IELTS band rangi (0-9). */
+function bandColor(b: number): string {
+  if (b >= 7) return '#16a34a'
+  if (b >= 5.5) return '#2563eb'
+  if (b >= 4) return '#f59e0b'
+  return '#ef4444'
+}
+
+/** IELTS Writing band kartasi — 4 mezon + umumiy band. */
+function IeltsCard({ ielts }: { ielts: AiCheckIelts }) {
+  const task1 = ielts.taskType === 'ielts_task1'
+  const rows: { label: string; value: number }[] = [
+    { label: task1 ? 'Task Achievement' : 'Task Response', value: ielts.task },
+    { label: 'Coherence & Cohesion', value: ielts.coherence },
+    { label: 'Lexical Resource', value: ielts.lexical },
+    { label: 'Grammatical Range & Accuracy', value: ielts.grammar },
+  ]
+  return (
+    <div className="card" style={{ background: 'var(--accentSoft)' }}>
+      <div className="row sp" style={{ alignItems: 'center', marginBottom: 10 }}>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 800 }}>IELTS {task1 ? 'Task 1' : 'Task 2'} — band</div>
+          <div className="muted" style={{ fontSize: 11.5 }}>Rasmiy band deskriptorlari bo'yicha</div>
+        </div>
+        <div className="col" style={{ alignItems: 'center' }}>
+          <div className="font-mono" style={{ fontSize: 34, fontWeight: 800, lineHeight: 1, color: bandColor(ielts.overall) }}>
+            {ielts.overall.toFixed(1)}
+          </div>
+          <div className="muted" style={{ fontSize: 10 }}>Overall</div>
+        </div>
+      </div>
+      <div className="col gap8">
+        {rows.map((r) => (
+          <div key={r.label} className="row sp" style={{ alignItems: 'center' }}>
+            <span style={{ fontSize: 12.5 }}>{r.label}</span>
+            <span
+              className="font-mono"
+              style={{
+                fontSize: 13, fontWeight: 800, color: bandColor(r.value),
+                background: '#fff', borderRadius: 8, padding: '2px 10px', minWidth: 40, textAlign: 'center',
+              }}
+            >
+              {r.value.toFixed(1)}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
 
 /** Ball rangi (0-100). */
 function scoreColor(v: number): string {
@@ -112,6 +163,9 @@ export function AiCheckResultView({ rec }: { rec: AiCheck }) {
           </div>
         </div>
       </div>
+
+      {/* IELTS Writing band bahosi */}
+      {a?.ielts ? <IeltsCard ielts={a.ielts} /> : null}
 
       {/* Speaking: ovozni qayta eshitish + Azure talaffuz ballari + per-so'z (yashil/qizil) */}
       {isSpeaking && (

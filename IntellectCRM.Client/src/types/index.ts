@@ -371,6 +371,14 @@ export interface AiVocab {
   suggestion: string
   note: string
 }
+export interface AiCheckIelts {
+  task: number
+  coherence: number
+  lexical: number
+  grammar: number
+  overall: number
+  taskType: string
+}
 export interface AiCheckAnalysis {
   overall: number
   level: string
@@ -382,6 +390,7 @@ export interface AiCheckAnalysis {
   vocabulary: AiVocab[]
   improved: string
   recommendations: string[]
+  ielts?: AiCheckIelts | null
 }
 export interface SpeakingWord {
   word: string
@@ -410,6 +419,7 @@ export interface AiCheck {
   createdAt: string
   analysis: AiCheckAnalysis | null
   speech: AiCheckSpeech | null
+  taskType: string
 }
 export interface AiCheckListItem {
   id: string

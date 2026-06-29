@@ -19,9 +19,9 @@ export async function getAiCheckItem(id: string): Promise<AiCheck> {
   return data
 }
 
-/** Writing (yozma) — matn yuboriladi, Gemini tahlil qiladi. */
-export async function submitWriting(text: string, prompt?: string): Promise<AiCheck> {
-  const { data } = await api.post<AiCheck>('/student/ai-check/writing', { text, prompt })
+/** Writing (yozma) — matn yuboriladi, Gemini tahlil qiladi. taskType: ielts_task1/ielts_task2 — IELTS band. */
+export async function submitWriting(text: string, prompt?: string, taskType?: string): Promise<AiCheck> {
+  const { data } = await api.post<AiCheck>('/student/ai-check/writing', { text, prompt, taskType })
   return data
 }
 
