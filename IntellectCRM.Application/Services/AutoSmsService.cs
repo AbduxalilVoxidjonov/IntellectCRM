@@ -95,7 +95,10 @@ public static class AutoSmsService
             if (string.IsNullOrWhiteSpace(phone)) return;
             var tpl = await FindTemplateAsync(db, trigger, ct);
             if (tpl is null || string.IsNullOrWhiteSpace(tpl.Text)) return;
-            var msg = MessageTokenizer.Student(tpl.Text, s, s.ParentFullName, phone, meta?.Name ?? "", extra);
+            // Dars jadvali tokenlari uchun o'quvchining asosiy guruhi (ClassName bo'yicha).
+            var group = string.IsNullOrWhiteSpace(s.ClassName) ? null
+                : await db.Classes.FirstOrDefaultAsync(c => c.Name == s.ClassName, ct);
+            var msg = MessageTokenizer.Student(tpl.Text, s, s.ParentFullName, phone, meta?.Name ?? "", extra, group);
             await SendAndLogAsync(db, eskiz, trigger, phone, s.FullName, tpl.Text, msg, callbackUrl, ct);
         }
         catch { /* avto-SMS asosiy oqimni hech qachon buzmaydi */ }

@@ -141,11 +141,13 @@ public class MessagesController(AppDbContext db, ChatService chat, TelegramServi
             .ToListAsync();
 
         var centerName = (await db.CenterMeta.FirstOrDefaultAsync())?.Name ?? "";
+        var groupByName = await GroupByNameAsync();
         var sent = 0;
         foreach (var r in regs)
         {
             if (!byId.TryGetValue(r.StudentId, out var s)) continue;
-            var message = $"📢 Maktab e'loni\n\n{Personalize(text, s, r, centerName)}";
+            var grp = groupByName.GetValueOrDefault(s.ClassName ?? "");
+            var message = $"📢 Maktab e'loni\n\n{Personalize(text, s, r, centerName, grp)}";
             if (await telegram.SendMessageAsync(r.ChatId, message)) sent++;
         }
 
@@ -169,13 +171,18 @@ public class MessagesController(AppDbContext db, ChatService chat, TelegramServi
 
     // Matn o'rinbosarlari markazlashgan: <see cref="MessageTokenizer"/> (barcha kanal/auditoriyalar shu yerda).
 
+    /// <summary>O'quvchilarning asosiy guruhi (ClassName → Group) — dars jadvali tokenlari uchun.
+    /// Nomi takrorlansa birinchisi olinadi (ToDictionary istisnosiz).</summary>
+    private async Task<Dictionary<string, Group>> GroupByNameAsync() =>
+        (await db.Classes.ToListAsync()).GroupBy(c => c.Name).ToDictionary(g => g.Key, g => g.First());
+
     /// <summary>E'lon matnini shu o'quvchi/ota-ona ma'lumotiga moslab almashtiradi.</summary>
-    private static string Personalize(string template, Student s, TelegramRegistration reg, string centerName) =>
-        MessageTokenizer.Student(template, s, reg.ParentName, reg.Phone, centerName);
+    private static string Personalize(string template, Student s, TelegramRegistration reg, string centerName, Group? group = null) =>
+        MessageTokenizer.Student(template, s, reg.ParentName, reg.Phone, centerName, null, group);
 
     /// <summary>Push/SMS matnini o'quvchi (ota-ona akkaunti) ma'lumotiga moslaydi.</summary>
-    private static string PersonalizePush(string text, Student s, string centerName) =>
-        MessageTokenizer.Student(text, s, s.ParentFullName, s.ParentPhone, centerName);
+    private static string PersonalizePush(string text, Student s, string centerName, Group? group = null) =>
+        MessageTokenizer.Student(text, s, s.ParentFullName, s.ParentPhone, centerName, null, group);
 
     /// <summary>Push/SMS matnini o'qituvchiga moslaydi — o'quvchi-spetsifik tokenlar bo'sh.</summary>
     private static string PersonalizeTeacherPush(string text, Teacher t, string centerName) =>
@@ -343,6 +350,7 @@ public class MessagesController(AppDbContext db, ChatService chat, TelegramServi
         var meta = await db.CenterMeta.FirstOrDefaultAsync();
         var json = meta?.FcmServiceAccountJson ?? "";
         var centerName = meta?.Name ?? "";
+        var groupByName = await GroupByNameAsync();
         var recipientCount = tokensByUser.Sum(kv => kv.Value.Count);
         var sent = 0;
         // Har bir foydalanuvchiga matn o'rinbosarlari moslab yuboriladi (o'quvchi/ota-ona ma'lumoti bilan).
@@ -352,8 +360,9 @@ public class MessagesController(AppDbContext db, ChatService chat, TelegramServi
             var b = body;
             if (studentByUser.TryGetValue(userId, out var st))
             {
-                t = PersonalizePush(title, st, centerName);
-                b = PersonalizePush(body, st, centerName);
+                var grp = groupByName.GetValueOrDefault(st.ClassName ?? "");
+                t = PersonalizePush(title, st, centerName, grp);
+                b = PersonalizePush(body, st, centerName, grp);
             }
             else if (teacherByUser.TryGetValue(userId, out var tch))
             {
@@ -369,7 +378,7 @@ public class MessagesController(AppDbContext db, ChatService chat, TelegramServi
         {
             var t = title;
             var b = body;
-            if (studentByUser.TryGetValue(userId, out var stn)) { t = PersonalizePush(title, stn, centerName); b = PersonalizePush(body, stn, centerName); }
+            if (studentByUser.TryGetValue(userId, out var stn)) { var grp = groupByName.GetValueOrDefault(stn.ClassName ?? ""); t = PersonalizePush(title, stn, centerName, grp); b = PersonalizePush(body, stn, centerName, grp); }
             else if (teacherByUser.TryGetValue(userId, out var tchn)) { t = PersonalizeTeacherPush(title, tchn, centerName); b = PersonalizeTeacherPush(body, tchn, centerName); }
             NotificationStore.Add(db, userId, t, b, "announcement", pushId);
         }
@@ -468,6 +477,7 @@ public class MessagesController(AppDbContext db, ChatService chat, TelegramServi
             }
             var students = await q.ToListAsync();
             if (req.OnlyDebtors) { students = students.Where(s => s.Balance < 0).ToList(); label += " — qarzdorlar"; }
+            var groupByName = await GroupByNameAsync();
 
             // O'quvchining o'z raqami: audience=="students" YOKI "selected" + ToParent=false. Aks holda ota-ona.
             var toStudentPhone = audience == "students" || (audience == "selected" && !req.ToParent);
@@ -478,7 +488,8 @@ public class MessagesController(AppDbContext db, ChatService chat, TelegramServi
                     : (!string.IsNullOrWhiteSpace(s.ParentPhone) ? s.ParentPhone
                         : !string.IsNullOrWhiteSpace(s.FatherPhone) ? s.FatherPhone : s.MotherPhone);
                 if (string.IsNullOrWhiteSpace(phone)) continue;
-                targets.Add((phone, s.FullName, MessageTokenizer.Student(text, s, s.ParentFullName, phone, centerName)));
+                var grp = groupByName.GetValueOrDefault(s.ClassName ?? "");
+                targets.Add((phone, s.FullName, MessageTokenizer.Student(text, s, s.ParentFullName, phone, centerName, null, grp)));
             }
             label = toStudentPhone ? $"O'quvchilar — {label}" : $"Ota-onalar — {label}";
         }

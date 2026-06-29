@@ -33,19 +33,25 @@ export const messageTokens: { token: string; label: string }[] = [
   { token: '{sharif}', label: 'Otasining ismi' },
   // Guruh / moliya
   { token: '{guruh}', label: 'Guruh' },
+  { token: '{sinf}', label: 'Sinf/guruh (= {guruh})' },
   { token: '{qarzdorlik}', label: 'Qarzdorlik' },
   { token: '{balans}', label: 'Balans' },
   // Aloqa
   { token: '{ota-ona}', label: 'Ota-ona' },
   { token: '{telefon}', label: 'Telefon (kontakt)' },
+  { token: '{oquvchi_telefon}', label: "O'quvchi tel." },
   { token: '{ota}', label: 'Ota F.I.SH' },
   { token: '{ota_telefon}', label: 'Ota tel.' },
   { token: '{ona}', label: 'Ona F.I.SH' },
   { token: '{ona_telefon}', label: 'Ona tel.' },
-  { token: '{oquvchi_telefon}', label: "O'quvchi tel." },
-  // Boshqa
+  // O'quvchi ma'lumotlari
   { token: '{manzil}', label: 'Manzil' },
   { token: '{tugilgan}', label: "Tug'ilgan sana" },
+  // Guruh dars jadvali (o'quvchining asosiy guruhidan)
+  { token: '{dars_sana}', label: 'Dars sanasi (masalan 30.06.2026)' },
+  { token: '{dars_vaqti}', label: 'Dars vaqti (masalan 11:20)' },
+  { token: '{dars_kunlari}', label: 'Dars kunlari (masalan Du, Chor, Jum)' },
+  // Markaz / sana
   { token: '{markaz}', label: 'Markaz nomi' },
   { token: '{sana}', label: 'Bugungi sana' },
   { token: '{oy}', label: 'Joriy oy' },
@@ -53,6 +59,8 @@ export const messageTokens: { token: string; label: string }[] = [
   // Avto-SMS hodisasiga xos (faqat mos hodisada to'ladi)
   { token: '{summa}', label: "To'lov summasi" },
   { token: '{natija}', label: 'Test natijasi' },
+  { token: '{ball}', label: 'Test bali (masalan 8/10)' },
+  { token: '{foiz}', label: 'Test foizi (masalan 80%)' },
   { token: '{daraja}', label: 'Test darajasi' },
   { token: '{link}', label: 'Daraja testi havolasi' },
 ]

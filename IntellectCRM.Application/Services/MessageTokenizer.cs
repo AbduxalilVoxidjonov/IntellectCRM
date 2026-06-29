@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
 using IntellectCRM.Domain;
+using DomainGroup = IntellectCRM.Domain.Group; // System.Text.RegularExpressions.Group bilan ziddiyatni oldini olish
 
 namespace IntellectCRM.Application.Services;
 
@@ -19,6 +20,12 @@ public static class MessageTokenizer
         "iyul", "avgust", "sentabr", "oktabr", "noyabr", "dekabr",
     };
 
+    // Hafta kunlari (0=Dushanba ... 6=Yakshanba) — guruh Days bilan mos. SMS uchun qisqa.
+    private static readonly string[] UzWeekdaysShort =
+    {
+        "Du", "Se", "Chor", "Pay", "Jum", "Shan", "Yak",
+    };
+
     /// <summary>So'm formatlash: 1 500 000 so'm (probel bilan ajratilgan).</summary>
     public static string Money(decimal v)
     {
@@ -29,6 +36,38 @@ public static class MessageTokenizer
     private static string Rep(string input, string token, string? value) =>
         Regex.Replace(input, Regex.Escape(token),
             (value ?? "").Replace("$", "$$"), RegexOptions.IgnoreCase);
+
+    /// <summary>
+    /// Guruh dars jadvali tokenlari (SMS andozalarida muhim):
+    ///   {dars_sana}    — guruh boshlanish sanasi "DD.MM.YYYY" (masalan 30.06.2026);
+    ///   {dars_vaqti}   — dars vaqti "HH:mm" yoki "HH:mm–HH:mm" (masalan 11:20 yoki 11:20–12:50);
+    ///   {dars_kunlari} — hafta kunlari (masalan "Du, Chor, Jum").
+    /// group=null bo'lsa (o'qituvchi/lid yoki guruh topilmasa) — tokenlar bo'sh qoladi.
+    /// </summary>
+    private static string Schedule(string text, DomainGroup? g)
+    {
+        var sana = "";
+        // StartDate "YYYY-MM-DD" → "DD.MM.YYYY".
+        if (g?.StartDate is { Length: >= 10 } sd)
+            sana = $"{sd[8..10]}.{sd[5..7]}.{sd[..4]}";
+        var vaqt = "";
+        // Oddiy defis (–/em-dash emas) — GSM-7 kodlash saqlanadi (SMS uzunligi/narxi oshmaydi).
+        if (g is not null && !string.IsNullOrWhiteSpace(g.StartTime))
+            vaqt = string.IsNullOrWhiteSpace(g.EndTime) ? g.StartTime : $"{g.StartTime}-{g.EndTime}";
+        var kunlar = g is null ? "" : FormatDays(g.Days);
+        var r = Rep(text, "{dars_sana}", sana);
+        r = Rep(r, "{dars_vaqti}", vaqt);
+        r = Rep(r, "{dars_kunlari}", kunlar);
+        return r;
+    }
+
+    /// <summary>Guruh dars kunlari (Days, 0=Du..6=Yak) → "Du, Chor, Jum".</summary>
+    private static string FormatDays(List<int> days)
+    {
+        if (days is null || days.Count == 0) return "";
+        return string.Join(", ", days.Where(d => d is >= 0 and <= 6).Distinct().OrderBy(d => d)
+            .Select(d => UzWeekdaysShort[d]));
+    }
 
     /// <summary>Barcha kanal/auditoriyalar uchun umumiy tokenlar: markaz nomi, joriy sana + ad-hoc tokenlar.</summary>
     private static string Common(string text, string? centerName, IReadOnlyDictionary<string, string>? extra)
@@ -45,9 +84,10 @@ public static class MessageTokenizer
         return r;
     }
 
-    /// <summary>O'quvchi/ota-ona xabari — barcha o'quvchi tokenlari.</summary>
+    /// <summary>O'quvchi/ota-ona xabari — barcha o'quvchi tokenlari. group berilsa — dars jadvali tokenlari
+    /// ({dars_sana}/{dars_vaqti}/{dars_kunlari}) to'ladi.</summary>
     public static string Student(string text, Student s, string? parentName, string? contactPhone, string? centerName,
-        IReadOnlyDictionary<string, string>? extra = null)
+        IReadOnlyDictionary<string, string>? extra = null, DomainGroup? group = null)
     {
         var debt = s.Balance < 0 ? -s.Balance : 0m;
         var parent = string.IsNullOrWhiteSpace(parentName) ? "Ota-ona" : parentName!;
@@ -70,6 +110,7 @@ public static class MessageTokenizer
         r = Rep(r, "{oquvchi_telefon}", s.Phone);
         r = Rep(r, "{manzil}", s.Address);
         r = Rep(r, "{tugilgan}", s.BirthDate);
+        r = Schedule(r, group); // guruh dars jadvali (sana/vaqt/kunlar)
         return Common(r, centerName, extra);
     }
 
@@ -88,6 +129,7 @@ public static class MessageTokenizer
                      "{ota-ona}", "{ota_ona}", "{ota}", "{ota_telefon}", "{ona}", "{ona_telefon}",
                  })
             r = Rep(r, tok, "");
+        r = Schedule(r, null); // o'qituvchida dars jadvali tokenlari bo'sh
         return Common(r, centerName, null);
     }
 
@@ -111,6 +153,7 @@ public static class MessageTokenizer
                      "{ota-ona}", "{ota_ona}", "{manzil}",
                  })
             r = Rep(r, tok, "");
+        r = Schedule(r, null); // lidda dars jadvali tokenlari bo'sh
         return Common(r, centerName, extra);
     }
 }
