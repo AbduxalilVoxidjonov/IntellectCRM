@@ -37,6 +37,7 @@ import { ArchivePage } from '@/pages/admin/archive/ArchivePage'
 import { GradingCriteriaPage } from '@/pages/admin/grading/GradingCriteriaPage'
 import { LevelTestsPage } from '@/pages/admin/level-tests/LevelTestsPage'
 import { LevelTestEditorPage } from '@/pages/admin/level-tests/LevelTestEditorPage'
+import { LevelTestStatsPage } from '@/pages/admin/level-tests/LevelTestStatsPage'
 import { SupportPage } from '@/pages/admin/support/SupportPage'
 import { SupportDetailPage } from '@/pages/admin/support/SupportDetailPage'
 import { PublicTestPage } from '@/pages/public/PublicTestPage'
@@ -171,6 +172,7 @@ export default function App() {
           <Route path="archive" element={<RequirePerm perm="settings"><ArchivePage /></RequirePerm>} />
           <Route path="grading" element={<RequirePerm perm="schedule"><GradingCriteriaPage /></RequirePerm>} />
           <Route path="level-tests" element={<RequirePerm perm="schedule"><LevelTestsPage /></RequirePerm>} />
+          <Route path="level-tests/stats" element={<RequirePerm perm="schedule"><LevelTestStatsPage /></RequirePerm>} />
           <Route path="level-tests/:id" element={<RequirePerm perm="schedule"><LevelTestEditorPage /></RequirePerm>} />
           <Route path="support" element={<RequirePerm perm="app"><SupportPage /></RequirePerm>} />
           <Route path="support/:id" element={<RequirePerm perm="app"><SupportDetailPage /></RequirePerm>} />
