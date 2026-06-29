@@ -1,4 +1,4 @@
-import type { AiCheck } from '@/types'
+import type { AiCheck, SpeakingWord } from '@/types'
 import { Ring, fmtDate } from '@/pages/student/lib'
 import { mediaUrl } from '@/api/services/studentAiCheck'
 
@@ -8,6 +8,66 @@ function scoreColor(v: number): string {
   if (v >= 60) return '#2563eb'
   if (v >= 40) return '#f59e0b'
   return '#ef4444'
+}
+
+/** So'z talaffuz rangi: yashil (yaxshi) / sarg'ish / qizil (xato). */
+function wordColor(w: SpeakingWord): string {
+  if (w.errorType && w.errorType !== 'None') return '#ef4444'
+  if (w.accuracy >= 80) return '#16a34a'
+  if (w.accuracy >= 60) return '#f59e0b'
+  return '#ef4444'
+}
+
+/** Bitta so'z — talaffuz aniqligiga qarab rangli chip. */
+function WordChip({ w }: { w: SpeakingWord }) {
+  const omission = w.errorType === 'Omission'
+  const insertion = w.errorType === 'Insertion'
+  const color = wordColor(w)
+  const acc = Math.round(w.accuracy)
+  return (
+    <span
+      title={`${w.word} — ${acc}%${w.errorType && w.errorType !== 'None' ? ` (${w.errorType})` : ''}`}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 4,
+        padding: '3px 8px',
+        borderRadius: 8,
+        background: color + '1a',
+        border: `1px solid ${color}`,
+        color,
+        fontSize: 13.5,
+        fontWeight: 700,
+        opacity: omission ? 0.6 : 1,
+        textDecoration: omission ? 'line-through' : 'none',
+      }}
+    >
+      {w.word}
+      {!omission && !insertion ? <span style={{ fontSize: 10, opacity: 0.8 }}>{acc}</span> : null}
+      {omission ? <span style={{ fontSize: 9, fontWeight: 600 }}>tushib qoldi</span> : null}
+      {insertion ? <span style={{ fontSize: 9, fontWeight: 600 }}>ortiqcha</span> : null}
+    </span>
+  )
+}
+
+/** So'z statistikasi: jami / yaxshi / xato. */
+function WordStats({ words }: { words: SpeakingWord[] }) {
+  const spoken = words.filter((w) => w.errorType !== 'Omission')
+  const good = spoken.filter((w) => (!w.errorType || w.errorType === 'None') && w.accuracy >= 80).length
+  const bad = spoken.length - good
+  const Item = ({ label, value, color }: { label: string; value: number; color: string }) => (
+    <div className="col" style={{ alignItems: 'center', flex: 1 }}>
+      <div className="font-mono" style={{ fontSize: 20, fontWeight: 800, color }}>{value}</div>
+      <div className="muted" style={{ fontSize: 11 }}>{label}</div>
+    </div>
+  )
+  return (
+    <div className="row" style={{ marginTop: 10, gap: 8 }}>
+      <Item label="So'z" value={spoken.length} color="var(--accent)" />
+      <Item label="Yaxshi" value={good} color="#16a34a" />
+      <Item label="Xato/zaif" value={bad} color="#ef4444" />
+    </div>
+  )
 }
 
 function Bar({ label, value }: { label: string; value: number }) {
@@ -53,7 +113,7 @@ export function AiCheckResultView({ rec }: { rec: AiCheck }) {
         </div>
       </div>
 
-      {/* Speaking: ovozni qayta eshitish + Azure talaffuz ballari */}
+      {/* Speaking: ovozni qayta eshitish + Azure talaffuz ballari + per-so'z (yashil/qizil) */}
       {isSpeaking && (
         <div className="card">
           <div className="sh-title" style={{ marginBottom: 8 }}>Talaffuz (Azure)</div>
@@ -67,9 +127,21 @@ export function AiCheckResultView({ rec }: { rec: AiCheck }) {
               <Bar label="Ravonlik" value={Math.round(sp.fluency)} />
               <Bar label="To'liqlik" value={Math.round(sp.completeness)} />
               <Bar label="Ohang (prosody)" value={Math.round(sp.prosody)} />
+              <WordStats words={sp.words} />
             </>
           ) : null}
-          {rec.recognizedText ? (
+
+          {/* Har so'z — yashil (yaxshi) / sarg'ish / qizil (xato) */}
+          {sp && sp.words.length > 0 ? (
+            <div style={{ marginTop: 10 }}>
+              <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>
+                So'zlar bo'yicha talaffuz (rang — aniqlik):
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {sp.words.map((w, i) => <WordChip key={`${w.word}-${i}`} w={w} />)}
+              </div>
+            </div>
+          ) : rec.recognizedText ? (
             <div style={{ marginTop: 8 }}>
               <div className="muted" style={{ fontSize: 12, marginBottom: 3 }}>Tanilgan matn:</div>
               <div style={{ fontSize: 14, lineHeight: 1.5 }}>{rec.recognizedText}</div>

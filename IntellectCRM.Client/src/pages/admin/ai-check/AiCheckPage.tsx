@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Sparkles, Check } from 'lucide-react'
+import { Sparkles, Check, Search } from 'lucide-react'
 import type { AiCheckOverviewRow } from '@/types'
 import {
   getAiCheckOverview,
@@ -21,6 +21,16 @@ export function AiCheckPage() {
   const [rows, setRows] = useState<AiCheckOverviewRow[]>([])
   const [defaultLimit, setDefaultLimit] = useState(3)
   const [savingDefault, setSavingDefault] = useState<'idle' | 'saving' | 'saved'>('idle')
+  const [query, setQuery] = useState('')
+
+  // FISH yoki guruh bo'yicha qidiruv (registrsiz).
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return rows
+    return rows.filter(
+      (r) => r.fullName.toLowerCase().includes(q) || (r.className || '').toLowerCase().includes(q),
+    )
+  }, [rows, query])
 
   useEffect(() => {
     Promise.all([getAiCheckOverview(), getAiCheckSettings()])
@@ -83,18 +93,37 @@ export function AiCheckPage() {
         </p>
       </Card>
 
-      <Card title="Foydalanuvchilar" sub={`${rows.length} ta o'quvchi AI tekshiruvdan foydalangan`} className="mt-4">
+      <Card
+        title="O'quvchilar"
+        sub={`Jami ${rows.length} ta o'quvchi${query ? ` — topildi: ${filtered.length}` : ''}`}
+        className="mt-4"
+        actions={
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="FISH yoki guruh bo'yicha qidirish..."
+              className={control + ' w-64 pl-8'}
+            />
+          </div>
+        }
+      >
         {rows.length === 0 ? (
           <p className="py-6 text-center text-sm text-slate-400">
             <Sparkles className="mx-auto mb-2 h-6 w-6 text-slate-300" />
-            Hali hech kim AI tekshiruvdan foydalanmagan.
+            O'quvchilar yo'q.
+          </p>
+        ) : filtered.length === 0 ? (
+          <p className="py-6 text-center text-sm text-slate-400">
+            "{query}" bo'yicha o'quvchi topilmadi.
           </p>
         ) : (
           <div className="overflow-x-auto">
             <table className="table w-full">
               <thead>
                 <tr>
-                  <th className="text-left">O'quvchi</th>
+                  <th className="text-left">O'quvchi (FISH)</th>
                   <th className="text-left">Guruh</th>
                   <th className="text-center">Writing</th>
                   <th className="text-center">Speaking</th>
@@ -106,7 +135,7 @@ export function AiCheckPage() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r) => (
+                {filtered.map((r) => (
                   <tr key={r.studentId}>
                     <td className="font-medium text-slate-800">{r.fullName}</td>
                     <td className="text-slate-500">{r.className || '—'}</td>

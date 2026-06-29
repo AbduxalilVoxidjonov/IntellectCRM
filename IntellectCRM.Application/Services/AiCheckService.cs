@@ -47,42 +47,41 @@ public static class AiCheckService
     }
 
     /// <summary>
-    /// Speaking (nutq) — Azure SOF transkripsiya (STT) qilgan matn bo'yicha tahlil prompti.
-    /// Talaffuz baholash yo'q: pronunciation/fluency ballarini Gemini matn ravonligidan baholaydi.
+    /// Speaking (nutq) — Azure tanigan matn + talaffuz ballari + HAR SO'Z aniqligi bo'yicha tahlil prompti.
+    /// Gemini past aniqlikdagi so'zlar uchun talaffuz maslahatini "vocabulary" (word + note) ga,
+    /// umumiy talaffuz tavsiyalarini "recommendations" ga yozadi.
     /// </summary>
-    public static string SpeakingPrompt(string? topic, string recognizedText)
-    {
-        var t = string.IsNullOrWhiteSpace(topic) ? "(mavzu berilmagan)" : topic!.Trim();
-        var sb = new StringBuilder();
-        sb.AppendLine("You are an expert English speaking examiner. The student spoke and a speech-to-text engine transcribed it.");
-        sb.AppendLine($"Topic: {t}");
-        sb.AppendLine("Transcribed speech:");
-        sb.AppendLine("\"\"\"");
-        sb.AppendLine(recognizedText);
-        sb.AppendLine("\"\"\"");
-        sb.AppendLine("Analyze the CONTENT: grammar, vocabulary, coherence, task relevance, and estimate \"fluency\"");
-        sb.AppendLine("from the transcript. Set \"pronunciation\" to 0 (not measured without audio analysis).");
-        sb.AppendLine("Return STRICT JSON only (no markdown). All text fields MUST be in UZBEK. Scores are integers 0-100.");
-        sb.AppendLine("\"improved\" is a better spoken version in English. JSON shape:");
-        sb.AppendLine(Schema);
-        return sb.ToString();
-    }
-
-    /// <summary>Speaking (nutq) — Azure tanigan matn + talaffuz ballari bo'yicha tahlil prompti (assignment).</summary>
     public static string SpeakingPrompt(string? topic, string recognizedText, SpeakingResultDto azure)
     {
         var t = string.IsNullOrWhiteSpace(topic) ? "(mavzu berilmagan)" : topic!.Trim();
+        var wordCount = (azure.Words?.Count ?? 0) > 0
+            ? azure.Words!.Count(w => w.ErrorType != "Omission")
+            : recognizedText.Split(new[] { ' ', '\n', '\t' }, StringSplitOptions.RemoveEmptyEntries).Length;
+
         var sb = new StringBuilder();
-        sb.AppendLine("You are an expert English speaking examiner. The student spoke and a speech engine transcribed it.");
+        sb.AppendLine("You are an expert English pronunciation & speaking coach. The student spoke; Azure Speech");
+        sb.AppendLine("assessed pronunciation per word. Your job: explain how to pronounce the weak words and coach the student.");
         sb.AppendLine($"Topic: {t}");
-        sb.AppendLine($"Azure pronunciation scores (0-100): pronunciation={(int)azure.PronScore}, accuracy={(int)azure.Accuracy}, fluency={(int)azure.Fluency}, completeness={(int)azure.Completeness}, prosody={(int)azure.Prosody}.");
+        sb.AppendLine($"Azure scores (0-100): pronunciation={(int)azure.PronScore}, accuracy={(int)azure.Accuracy}, fluency={(int)azure.Fluency}, completeness={(int)azure.Completeness}, prosody={(int)azure.Prosody}.");
+        sb.AppendLine($"Word count spoken: {wordCount}.");
         sb.AppendLine("Transcribed speech:");
         sb.AppendLine("\"\"\"");
         sb.AppendLine(recognizedText);
         sb.AppendLine("\"\"\"");
-        sb.AppendLine("Analyze the CONTENT (grammar, vocabulary, coherence, task relevance). Use the Azure scores for");
-        sb.AppendLine($"\"pronunciation\" ({(int)azure.PronScore}) and \"fluency\" ({(int)azure.Fluency}). Return STRICT JSON only (no markdown).");
-        sb.AppendLine("All text fields MUST be in UZBEK. Scores are integers 0-100. \"improved\" is a better spoken version. JSON shape:");
+
+        // Har so'z talaffuz aniqligi (Azure) — Gemini past so'zlarga e'tibor qaratadi.
+        if (azure.Words is { Count: > 0 })
+        {
+            sb.AppendLine("Per-word pronunciation accuracy (0-100) and error type from Azure:");
+            foreach (var w in azure.Words.Take(80))
+                sb.AppendLine($"- \"{w.Word}\": accuracy={(int)w.Accuracy}, error={w.ErrorType}");
+            sb.AppendLine("Focus your pronunciation tips on words with accuracy below 75 or with an error type.");
+        }
+
+        sb.AppendLine("Return STRICT JSON only (no markdown). All text fields MUST be in UZBEK. Scores are integers 0-100.");
+        sb.AppendLine($"Use Azure values for \"pronunciation\" ({(int)azure.PronScore}) and \"fluency\" ({(int)azure.Fluency}).");
+        sb.AppendLine("In \"vocabulary\", for EACH weak word put {word, suggestion (correct form/word), note (HOW to pronounce it, in UZBEK, e.g. phonetic hint)}.");
+        sb.AppendLine("In \"recommendations\", give general pronunciation/speaking practice tips (UZBEK). \"improved\" is a better spoken version. JSON shape:");
         sb.AppendLine(Schema);
         return sb.ToString();
     }

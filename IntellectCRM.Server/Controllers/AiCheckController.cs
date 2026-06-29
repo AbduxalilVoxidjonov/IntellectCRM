@@ -19,7 +19,11 @@ namespace IntellectCRM.Server.Controllers;
 [Route("api/admin/ai-check")]
 public class AiCheckController(AppDbContext db) : ControllerBase
 {
-    /// <summary>Foydalanuvchilar bo'yicha umumiy ko'rinish — kim necha marta (speaking/writing) ishlatgan + limit holati.</summary>
+    /// <summary>
+    /// BARCHA (arxivlanmagan) o'quvchilar ro'yxati — FISH + guruh + kim necha marta (speaking/writing)
+    /// ishlatgani, bugungi foydalanish va limit/premium/blok holati. Foydalanmaganlar ham chiqadi
+    /// (admin ularga ham limit/premium/blok belgilashi uchun). Qidiruv frontendda (FISH bo'yicha).
+    /// </summary>
     [HttpGet("overview")]
     public async Task<ActionResult<IEnumerable<AiCheckOverviewRowDto>>> Overview()
     {
@@ -27,30 +31,27 @@ public class AiCheckController(AppDbContext db) : ControllerBase
         var defaultLimit = meta?.AiCheckDailyLimit > 0 ? meta.AiCheckDailyLimit : 3;
         var today = AppClock.Today.ToString("yyyy-MM-dd");
 
-        var checks = await db.AiChecks.ToListAsync();
-        var byStudent = checks.GroupBy(c => c.StudentId).ToList();
-        var ids = byStudent.Select(g => g.Key).ToList();
+        var students = await db.Students.Where(s => !s.IsArchived).ToListAsync();
+        var checksByStudent = (await db.AiChecks.ToListAsync())
+            .GroupBy(c => c.StudentId).ToDictionary(g => g.Key, g => g.ToList());
+        var access = (await db.StudentAiAccesses.ToListAsync()).ToDictionary(a => a.StudentId);
 
-        var students = (await db.Students.Where(s => ids.Contains(s.Id)).ToListAsync())
-            .ToDictionary(s => s.Id);
-        var access = (await db.StudentAiAccesses.Where(a => ids.Contains(a.StudentId)).ToListAsync())
-            .ToDictionary(a => a.StudentId);
-
-        var rows = new List<AiCheckOverviewRowDto>();
-        foreach (var g in byStudent)
+        var rows = students.Select(st =>
         {
-            students.TryGetValue(g.Key, out var st);
-            access.TryGetValue(g.Key, out var ac);
-            var speaking = g.Count(c => c.Type == "speaking");
-            var writing = g.Count(c => c.Type == "writing");
-            var todayUsed = g.Count(c => c.Date == today);
+            checksByStudent.TryGetValue(st.Id, out var checks);
+            access.TryGetValue(st.Id, out var ac);
+            var speaking = checks?.Count(c => c.Type == "speaking") ?? 0;
+            var writing = checks?.Count(c => c.Type == "writing") ?? 0;
+            var total = checks?.Count ?? 0;
+            var todayUsed = checks?.Count(c => c.Date == today) ?? 0;
             var limit = ac is { DailyLimit: > 0 } ? ac.DailyLimit : defaultLimit;
-            rows.Add(new AiCheckOverviewRowDto(
-                g.Key, st?.FullName ?? "(noma'lum)", st?.ClassName ?? "",
-                speaking, writing, g.Count(), todayUsed, limit,
-                ac?.IsPremium ?? false, ac?.IsBlocked ?? false));
-        }
-        return rows.OrderByDescending(r => r.Total).ToList();
+            return new AiCheckOverviewRowDto(
+                st.Id, st.FullName, st.ClassName, speaking, writing, total, todayUsed, limit,
+                ac?.IsPremium ?? false, ac?.IsBlocked ?? false);
+        });
+
+        // Faollar (ko'p ishlatganlar) yuqorida, qolganlar alifbo bo'yicha.
+        return rows.OrderByDescending(r => r.Total).ThenBy(r => r.FullName).ToList();
     }
 
     /// <summary>Global standart kunlik limit.</summary>
