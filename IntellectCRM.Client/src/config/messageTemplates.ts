@@ -50,4 +50,8 @@ export const messageTokens: { token: string; label: string }[] = [
   { token: '{sana}', label: 'Bugungi sana' },
   { token: '{oy}', label: 'Joriy oy' },
   { token: '{yil}', label: 'Yil' },
+  // Avto-SMS hodisasiga xos (faqat mos hodisada to'ladi)
+  { token: '{summa}', label: "To'lov summasi" },
+  { token: '{natija}', label: 'Test natijasi' },
+  { token: '{daraja}', label: 'Test darajasi' },
 ]

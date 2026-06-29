@@ -537,7 +537,20 @@ public class MessagesController(AppDbContext db, ChatService chat, TelegramServi
     public async Task<ActionResult<IEnumerable<SmsTemplateDto>>> SmsTemplates()
     {
         var list = await db.SmsTemplates.OrderBy(t => t.Order).ThenBy(t => t.Name).ToListAsync();
-        return list.Select(t => new SmsTemplateDto(t.Id, t.Name, t.Text, t.IsAuto, t.Order)).ToList();
+        return list.Select(t => new SmsTemplateDto(t.Id, t.Name, t.Text, t.IsAuto, t.Trigger, t.Order)).ToList();
+    }
+
+    // Ruxsat etilgan avto-SMS hodisalari (bo'sh = qo'lda).
+    private static readonly HashSet<string> AllowedTriggers = new()
+    {
+        AutoSmsService.TriggerLeadNew, AutoSmsService.TriggerPayment,
+        AutoSmsService.TriggerBirthday, AutoSmsService.TriggerTestResult,
+    };
+
+    private static string NormalizeTrigger(string? t)
+    {
+        var v = (t ?? "").Trim();
+        return AllowedTriggers.Contains(v) ? v : "";
     }
 
     [HttpPost("sms/templates")]
@@ -547,10 +560,11 @@ public class MessagesController(AppDbContext db, ChatService chat, TelegramServi
         var text = (req.Text ?? "").Trim();
         if (name.Length == 0 || text.Length == 0) return BadRequest(new { message = "Nom va matn kerak" });
         var order = (await db.SmsTemplates.MaxAsync(t => (int?)t.Order) ?? 0) + 1;
-        var t = new SmsTemplate { Name = name, Text = text, IsAuto = req.IsAuto, Order = order };
+        var trigger = NormalizeTrigger(req.Trigger);
+        var t = new SmsTemplate { Name = name, Text = text, Trigger = trigger, IsAuto = trigger.Length > 0, Order = order };
         db.SmsTemplates.Add(t);
         await db.SaveChangesAsync();
-        return new SmsTemplateDto(t.Id, t.Name, t.Text, t.IsAuto, t.Order);
+        return new SmsTemplateDto(t.Id, t.Name, t.Text, t.IsAuto, t.Trigger, t.Order);
     }
 
     [HttpPut("sms/templates/{id}")]
@@ -561,9 +575,10 @@ public class MessagesController(AppDbContext db, ChatService chat, TelegramServi
         var name = (req.Name ?? "").Trim();
         var text = (req.Text ?? "").Trim();
         if (name.Length == 0 || text.Length == 0) return BadRequest(new { message = "Nom va matn kerak" });
-        t.Name = name; t.Text = text; t.IsAuto = req.IsAuto;
+        var trigger = NormalizeTrigger(req.Trigger);
+        t.Name = name; t.Text = text; t.Trigger = trigger; t.IsAuto = trigger.Length > 0;
         await db.SaveChangesAsync();
-        return new SmsTemplateDto(t.Id, t.Name, t.Text, t.IsAuto, t.Order);
+        return new SmsTemplateDto(t.Id, t.Name, t.Text, t.IsAuto, t.Trigger, t.Order);
     }
 
     [HttpDelete("sms/templates/{id}")]

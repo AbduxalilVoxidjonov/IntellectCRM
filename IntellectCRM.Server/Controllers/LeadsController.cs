@@ -59,8 +59,9 @@ public class LeadsController(AppDbContext db, AuditService audit, TelegramServic
         await db.SaveChangesAsync();
         // Botda ro'yxatdan o'tgan admin/xodimlarga yangi lid xabarnomasi.
         await LeadNotifier.NotifyNewLeadAsync(db, telegram, lead);
-        // Avto SMS — "Avto" deb belgilangan andoza bo'lsa, lidga avtomatik yuboriladi.
-        await LeadSmsService.AutoSendAsync(db, eskiz, lead, $"{Request.Scheme}://{Request.Host}/api/sms/callback");
+        // Avto SMS — "Yangi lid" hodisasiga belgilangan andoza bo'lsa, lidga avtomatik yuboriladi.
+        await AutoSmsService.SendForLeadAsync(db, eskiz, AutoSmsService.TriggerLeadNew, lead,
+            $"{Request.Scheme}://{Request.Host}/api/sms/callback");
         return lead;
     }
 

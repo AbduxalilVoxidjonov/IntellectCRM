@@ -192,17 +192,33 @@ export async function sendSms(req: SendSmsReq): Promise<SmsBatch> {
 }
 
 /* ---------- SMS andozalari (shablonlar) ---------- */
+/** Avto-SMS hodisasi (trigger). Bo'sh = qo'lda (avto emas). */
+export type SmsTrigger = '' | 'lead_new' | 'payment' | 'birthday' | 'test_result'
+
+/** Hodisa tanlovi uchun yorliqlar (UI). */
+export const smsTriggerOptions: { value: SmsTrigger; label: string }[] = [
+  { value: '', label: 'Avto emas (qo’lda yuboriladi)' },
+  { value: 'lead_new', label: 'Yangi lid qo’shilganda' },
+  { value: 'payment', label: 'To’lov qabul qilinganda' },
+  { value: 'birthday', label: 'Tug’ilgan kunda' },
+  { value: 'test_result', label: 'Test natijasi chiqqanda' },
+]
+export const smsTriggerLabel = (t: string): string =>
+  smsTriggerOptions.find((o) => o.value === t)?.label ?? ''
+
 export interface SmsTemplate {
   id: string
   name: string
   text: string
   isAuto: boolean
+  trigger: SmsTrigger
   order: number
 }
 export interface SaveSmsTemplateReq {
   name: string
   text: string
   isAuto: boolean
+  trigger: SmsTrigger
 }
 export async function getSmsTemplates(): Promise<SmsTemplate[]> {
   if (USE_MOCK) return []

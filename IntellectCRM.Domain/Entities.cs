@@ -1690,8 +1690,14 @@ public class SmsTemplate
     public string Name { get; set; } = string.Empty;
     /// <summary>Andoza matni (o'rinbosarlar bilan).</summary>
     public string Text { get; set; } = string.Empty;
-    /// <summary>AVTO SMS uchun belgilangan — yangi lid tushganda avtomatik yuboriladi.</summary>
+    /// <summary>AVTO SMS uchun belgilangan (<see cref="Trigger"/> bo'sh emas). Eski kod/UI uchun saqlanadi.</summary>
     public bool IsAuto { get; set; }
+    /// <summary>
+    /// Avto-SMS HODISASI (trigger). Bo'sh = qo'lda (avto emas). Qiymatlar:
+    /// "lead_new" (yangi lid), "payment" (to'lov qabul qilindi), "birthday" (tug'ilgan kun),
+    /// "test_result" (daraja testi natijasi). Har hodisada Order bo'yicha BIRINCHI mos andoza yuboriladi.
+    /// </summary>
+    public string Trigger { get; set; } = string.Empty;
     public int Order { get; set; }
     public string CreatedAt { get; set; } = AppClock.Iso();
 }

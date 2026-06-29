@@ -6,7 +6,10 @@ import {
   createSmsTemplate,
   updateSmsTemplate,
   deleteSmsTemplate,
+  smsTriggerOptions,
+  smsTriggerLabel,
   type SmsTemplate,
+  type SmsTrigger,
 } from '@/api/services/messages'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
@@ -162,7 +165,7 @@ function SmsTemplatesCard() {
   const [editing, setEditing] = useState<SmsTemplate | null>(null)
   const [name, setName] = useState('')
   const [text, setText] = useState('')
-  const [isAuto, setIsAuto] = useState(false)
+  const [trigger, setTrigger] = useState<SmsTrigger>('')
   const [saving, setSaving] = useState(false)
   const [adding, setAdding] = useState(false)
 
@@ -179,7 +182,7 @@ function SmsTemplatesCard() {
     setEditing(null)
     setName('')
     setText('')
-    setIsAuto(false)
+    setTrigger('')
     setAdding(false)
   }
 
@@ -191,7 +194,7 @@ function SmsTemplatesCard() {
     setEditing(t)
     setName(t.name)
     setText(t.text)
-    setIsAuto(t.isAuto)
+    setTrigger(t.trigger ?? '')
     setAdding(true)
   }
 
@@ -199,8 +202,9 @@ function SmsTemplatesCard() {
     if (!name.trim() || !text.trim() || saving) return
     setSaving(true)
     try {
-      if (editing) await updateSmsTemplate(editing.id, { name: name.trim(), text: text.trim(), isAuto })
-      else await createSmsTemplate({ name: name.trim(), text: text.trim(), isAuto })
+      const payload = { name: name.trim(), text: text.trim(), trigger, isAuto: trigger !== '' }
+      if (editing) await updateSmsTemplate(editing.id, payload)
+      else await createSmsTemplate(payload)
       await load()
       reset()
     } finally {
@@ -232,8 +236,9 @@ function SmsTemplatesCard() {
       }
     >
       <p className="mb-3 text-sm text-slate-400">
-        Bu andozalar SMS yuborishda (o'quvchi/ota-ona/lid) tanlanadi. <b>Avto SMS</b> deb belgilangan
-        andoza yangi lid tushganda avtomatik yuboriladi. O'rinbosarlar: {'{fish}'}, {'{telefon}'} va h.k.
+        Bu andozalar SMS yuborishda (o'quvchi/ota-ona/lid) tanlanadi. <b>Avto SMS hodisasi</b> belgilangan
+        andoza shu hodisada avtomatik yuboriladi: yangi lid, to'lov qabul qilinganda, tug'ilgan kunda yoki
+        test natijasi chiqqanda. O'rinbosarlar: {'{fish}'}, {'{telefon}'} va h.k.
       </p>
 
       {adding && (
@@ -261,10 +266,24 @@ function SmsTemplatesCard() {
               ))}
             </div>
           </div>
-          <label className="inline-flex items-center gap-2 text-sm text-slate-700">
-            <input type="checkbox" checked={isAuto} onChange={(e) => setIsAuto(e.target.checked)} className="h-4 w-4 rounded border-slate-300" />
-            <Zap className="h-4 w-4 text-amber-500" /> Avto SMS (yangi lid tushganda avtomatik yuboriladi)
-          </label>
+          <div>
+            <label className="mb-1 flex items-center gap-1.5 text-sm font-medium text-slate-600">
+              <Zap className="h-4 w-4 text-amber-500" /> Avto SMS hodisasi
+            </label>
+            <select
+              value={trigger}
+              onChange={(e) => setTrigger(e.target.value as SmsTrigger)}
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
+            >
+              {smsTriggerOptions.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-slate-400">
+              Hodisa tanlansa, shu hodisa yuz berganda andoza avtomatik yuboriladi (har hodisaga birinchi
+              mos andoza). To'lov uchun {'{summa}'}, test uchun {'{natija}'}, {'{daraja}'} tokenlari ham bor.
+            </p>
+          </div>
           <div className="flex items-center gap-2">
             <Button onClick={save} disabled={!name.trim() || !text.trim() || saving}>
               {saving ? 'Saqlanmoqda...' : editing ? 'Saqlash' : "Qo'shish"}
@@ -283,11 +302,11 @@ function SmsTemplatesCard() {
           {items.map((t) => (
             <li key={t.id} className="flex items-start justify-between gap-3 rounded-lg border border-slate-100 px-3 py-2">
               <div className="min-w-0">
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <span className="font-medium text-slate-800">{t.name}</span>
-                  {t.isAuto && (
+                  {t.trigger && (
                     <Badge tone="amber">
-                      <Zap className="h-3 w-3" /> Avto
+                      <Zap className="h-3 w-3" /> {smsTriggerLabel(t.trigger)}
                     </Badge>
                   )}
                 </div>

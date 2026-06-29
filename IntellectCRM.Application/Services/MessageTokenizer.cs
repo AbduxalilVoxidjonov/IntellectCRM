@@ -30,19 +30,24 @@ public static class MessageTokenizer
         Regex.Replace(input, Regex.Escape(token),
             (value ?? "").Replace("$", "$$"), RegexOptions.IgnoreCase);
 
-    /// <summary>Barcha kanal/auditoriyalar uchun umumiy tokenlar: markaz nomi va joriy sana.</summary>
-    private static string Common(string text, string? centerName)
+    /// <summary>Barcha kanal/auditoriyalar uchun umumiy tokenlar: markaz nomi, joriy sana + ad-hoc tokenlar.</summary>
+    private static string Common(string text, string? centerName, IReadOnlyDictionary<string, string>? extra)
     {
         var now = AppClock.Now;
         var r = Rep(text, "{markaz}", centerName);
         r = Rep(r, "{sana}", now.ToString("dd.MM.yyyy"));
         r = Rep(r, "{oy}", now.Month is >= 1 and <= 12 ? UzMonths[now.Month - 1] : "");
         r = Rep(r, "{yil}", now.Year.ToString());
+        // Hodisaga xos qo'shimcha tokenlar (masalan {summa} — to'lov, {natija} — test).
+        if (extra is not null)
+            foreach (var (k, v) in extra)
+                r = Rep(r, k, v);
         return r;
     }
 
     /// <summary>O'quvchi/ota-ona xabari — barcha o'quvchi tokenlari.</summary>
-    public static string Student(string text, Student s, string? parentName, string? contactPhone, string? centerName)
+    public static string Student(string text, Student s, string? parentName, string? contactPhone, string? centerName,
+        IReadOnlyDictionary<string, string>? extra = null)
     {
         var debt = s.Balance < 0 ? -s.Balance : 0m;
         var parent = string.IsNullOrWhiteSpace(parentName) ? "Ota-ona" : parentName!;
@@ -65,7 +70,7 @@ public static class MessageTokenizer
         r = Rep(r, "{oquvchi_telefon}", s.Phone);
         r = Rep(r, "{manzil}", s.Address);
         r = Rep(r, "{tugilgan}", s.BirthDate);
-        return Common(r, centerName);
+        return Common(r, centerName, extra);
     }
 
     /// <summary>O'qituvchi xabari — {fish}/{telefon}/{manzil}/{tugilgan}; o'quvchi tokenlari bo'sh.</summary>
@@ -83,11 +88,12 @@ public static class MessageTokenizer
                      "{ota-ona}", "{ota_ona}", "{ota}", "{ota_telefon}", "{ona}", "{ona_telefon}",
                  })
             r = Rep(r, tok, "");
-        return Common(r, centerName);
+        return Common(r, centerName, null);
     }
 
     /// <summary>Lid xabari — lid ma'lumotlari; o'quvchi-spetsifik tokenlar bo'sh.</summary>
-    public static string Lead(string text, Lead l, string? contactPhone, string? centerName)
+    public static string Lead(string text, Lead l, string? contactPhone, string? centerName,
+        IReadOnlyDictionary<string, string>? extra = null)
     {
         var r = text;
         r = Rep(r, "{fish}", l.FullName);
@@ -105,6 +111,6 @@ public static class MessageTokenizer
                      "{ota-ona}", "{ota_ona}", "{manzil}",
                  })
             r = Rep(r, tok, "");
-        return Common(r, centerName);
+        return Common(r, centerName, extra);
     }
 }

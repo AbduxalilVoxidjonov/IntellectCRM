@@ -890,9 +890,9 @@ public record SmsLogDto(string Id, string PhoneNumber, string RecipientName, str
 /// <summary>SMS (Eskiz) holati — admin UI uchun: sozlangan, sender, balans (bo'lsa).</summary>
 public record SmsStatusDto(bool Configured, string From, decimal? Balance);
 /// <summary>SMS andozasi (shablon). IsAuto — yangi lidga avto yuborish uchun belgilangan.</summary>
-public record SmsTemplateDto(string Id, string Name, string Text, bool IsAuto, int Order);
+public record SmsTemplateDto(string Id, string Name, string Text, bool IsAuto, string Trigger, int Order);
 /// <summary>SMS andozasini saqlash (yaratish/tahrirlash).</summary>
-public record SaveSmsTemplateRequest(string Name, string Text, bool IsAuto = false);
+public record SaveSmsTemplateRequest(string Name, string Text, bool IsAuto = false, string? Trigger = null);
 /// <summary>Lidga SMS yuborish so'rovi (lid telefon raqamiga).</summary>
 public record SendLeadSmsRequest(string LeadId, string Text);
 /// <summary>Eskiz callback (yetkazib berish holati webhook'i) tanasi.</summary>

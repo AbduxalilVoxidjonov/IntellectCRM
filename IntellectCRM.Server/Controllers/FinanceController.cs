@@ -12,7 +12,7 @@ namespace IntellectCRM.Server.Controllers;
 [Authorize]
 [AdminPerm("finance")]
 [Route("api/admin/finance")]
-public class FinanceController(AppDbContext db, AuditService audit) : ControllerBase
+public class FinanceController(AppDbContext db, AuditService audit, EskizService eskiz) : ControllerBase
 {
     private async Task<Dictionary<string, string>> StudentNames() =>
         await db.Students.ToDictionaryAsync(s => s.Id, s => s.FullName);
@@ -103,6 +103,19 @@ public class FinanceController(AppDbContext db, AuditService audit) : Controller
             summary, after: AuditService.Snapshot(tx), studentId: tx.StudentId, teacherId: tx.TeacherId);
 
         await db.SaveChangesAsync();
+
+        // Avto SMS — o'quvchi tuition to'lovi qabul qilinganda ota-onaga ("To'lov" hodisasi).
+        if (tx is { Direction: "income", Category: "tuition", StudentId: not null })
+        {
+            var student = await db.Students.FindAsync(tx.StudentId);
+            if (student is not null)
+                await AutoSmsService.SendForStudentAsync(db, eskiz, AutoSmsService.TriggerPayment, student,
+                    $"{Request.Scheme}://{Request.Host}/api/sms/callback", extra: new Dictionary<string, string>
+                    {
+                        ["{summa}"] = MessageTokenizer.Money(tx.Amount),
+                    });
+        }
+
         return ToDto(tx, await StudentNames(), await TeacherNames());
     }
 

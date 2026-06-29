@@ -155,9 +155,22 @@ public static class LevelTestService
         // Botda ro'yxatdan o'tgan admin/xodimlarga yangi lid xabarnomasi — test natijasi bilan (batafsil).
         if (telegram is not null)
             await LeadNotifier.NotifyNewLeadAsync(db, telegram, lead, submission, test.Title);
-        // Avto SMS — "Avto" deb belgilangan andoza bo'lsa, lidga avtomatik yuboriladi.
+        // Avto SMS — "Test natijasi" hodisasiga belgilangan andoza bo'lsa, abituriyentga yuboriladi.
+        // {natija}/{daraja}/{ball} tokenlari test natijasi bilan to'ldiriladi.
         if (eskiz is not null)
-            await LeadSmsService.AutoSendAsync(db, eskiz, lead);
+        {
+            var natija = total > 0
+                ? $"{score}/{total} ({percent}%)" + (string.IsNullOrEmpty(level) ? "" : $" — {level}")
+                : "";
+            await AutoSmsService.SendForLeadAsync(db, eskiz, AutoSmsService.TriggerTestResult, lead, extra:
+                new Dictionary<string, string>
+                {
+                    ["{natija}"] = natija,
+                    ["{daraja}"] = level ?? "",
+                    ["{ball}"] = total > 0 ? $"{score}/{total}" : "",
+                    ["{foiz}"] = total > 0 ? $"{percent}%" : "",
+                });
+        }
 
         var msg = total == 0
             ? "Rahmat! Ma'lumotlaringiz qabul qilindi — tez orada bog'lanamiz."
