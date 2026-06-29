@@ -50,7 +50,10 @@ public static class AzureSpeechService
             req.Headers.Add("Pronunciation-Assessment", configB64);
             req.Headers.Add("Accept", "application/json");
             var content = new ByteArrayContent(wav);
-            content.Headers.ContentType = MediaTypeHeaderValue.Parse("audio/wav; codecs=audio/pcm; samplerate=16000");
+            // DIQQAT: MediaTypeHeaderValue.Parse "codecs=audio/pcm" dagi '/' ni token sifatida
+            // rad etadi ("format ... is invalid"). Shuning uchun xom header sifatida qo'yamiz.
+            content.Headers.TryAddWithoutValidation(
+                "Content-Type", "audio/wav; codecs=audio/pcm; samplerate=16000");
             req.Content = content;
 
             using var resp = await Http.SendAsync(req);
