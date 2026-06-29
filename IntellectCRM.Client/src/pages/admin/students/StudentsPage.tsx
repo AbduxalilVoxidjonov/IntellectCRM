@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { StudentViewModal } from './StudentViewModal'
-import { Plus, Search, Pencil, Trash2, Send, Download, X, Wallet, History, Archive, RotateCcw, FileDown, Upload } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, Send, Download, X, Wallet, History, Archive, RotateCcw, FileDown, Upload, ChevronLeft, ChevronRight } from 'lucide-react'
 import type { Gender, Student, Teacher } from '@/types'
 import type { StudentPayload, StudentImportResult } from '@/api/services/students'
 import {
@@ -170,6 +170,19 @@ export function StudentsPage() {
       (activeFilter === 'active' ? s.active : !s.active)
     return matchSearch && matchClass && matchTeacher && matchGender && matchBalance && matchActive
   })
+
+  // Pagination — standart 30 talik, pastda sahifa hajmini tanlash mumkin.
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(30)
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
+  const pageClamped = Math.min(page, totalPages)
+  const paged = filtered.slice((pageClamped - 1) * pageSize, pageClamped * pageSize)
+  const rangeFrom = filtered.length === 0 ? 0 : (pageClamped - 1) * pageSize + 1
+  const rangeTo = Math.min(filtered.length, pageClamped * pageSize)
+  // Filtr/qidiruv/tab/hajm o'zgarsa — birinchi sahifaga qaytamiz.
+  useEffect(() => {
+    setPage(1)
+  }, [search, classFilter, teacherFilter, genderFilter, balanceFilter, activeFilter, tab, pageSize])
 
   const selectedStudents = source.filter((s) => selected.has(s.id))
 
@@ -573,7 +586,7 @@ export function StudentsPage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((s, i) => (
+                {paged.map((s, i) => (
                   <tr
                     key={s.id}
                     onClick={() => openNotebook(s)}
@@ -588,7 +601,7 @@ export function StudentsPage() {
                         className="h-4 w-4 accent-brand-600"
                       />
                     </td>
-                    <td className="font-mono text-slate-400">{i + 1}</td>
+                    <td className="font-mono text-slate-400">{(pageClamped - 1) * pageSize + i + 1}</td>
                     <td>
                       <div className="cell-user">
                         <div className="avatar" style={{ background: avatarColor(s.fullName) }}>
@@ -700,6 +713,52 @@ export function StudentsPage() {
                 )}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {/* Pagination — sahifa hajmi + sahifa navigatsiyasi */}
+        {!loading && filtered.length > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-4 py-3 text-sm">
+            <div className="flex items-center gap-2 text-slate-500">
+              <span>Sahifada:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => setPageSize(Number(e.target.value))}
+                className={cn(control, '!py-1')}
+              >
+                {[30, 50, 100, 200].map((n) => (
+                  <option key={n} value={n}>
+                    {n} ta
+                  </option>
+                ))}
+              </select>
+              <span className="text-slate-400">
+                {rangeFrom}–{rangeTo} / {filtered.length}
+              </span>
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                disabled={pageClamped <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                className="rounded-lg border border-slate-200 p-1.5 text-slate-500 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                title="Oldingi sahifa"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <span className="min-w-[72px] text-center font-medium text-slate-600">
+                {pageClamped} / {totalPages}
+              </span>
+              <button
+                type="button"
+                disabled={pageClamped >= totalPages}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                className="rounded-lg border border-slate-200 p-1.5 text-slate-500 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                title="Keyingi sahifa"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
           </div>
         )}
       </Card>

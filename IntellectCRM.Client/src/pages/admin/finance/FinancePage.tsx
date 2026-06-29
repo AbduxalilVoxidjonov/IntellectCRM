@@ -36,6 +36,7 @@ import type { AuditFilters } from '@/api/services/audit'
 import { TransactionFormModal } from './TransactionFormModal'
 import { TeacherSalaryDetailModal } from './TeacherSalaryDetailModal'
 import { GroupPaymentsModal } from './GroupPaymentsModal'
+import { DailyReportCard } from './DailyReportCard'
 import { ReasonPromptModal } from '@/components/ui/ReasonPromptModal'
 
 const todayStr = new Date().toISOString().slice(0, 10)
@@ -290,6 +291,9 @@ export function FinancePage() {
           {/* ============ UMUMIY ============ */}
           {tab === 'overview' && (
             <div className="space-y-6">
+              {/* Kunlik hisobot — oy kalendar qatori, kun bosilsa shu kunlik kirim/chiqim */}
+              <DailyReportCard initialMonth={to.slice(0, 7)} />
+
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 <StatCard
                   label="Umumiy kirim"
