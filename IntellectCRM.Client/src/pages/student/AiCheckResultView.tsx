@@ -131,11 +131,11 @@ export function AiCheckResultView({ rec }: { rec: AiCheck }) {
             </>
           ) : null}
 
-          {/* Talaffuz bahosi kelmagan (erkin nutq) — sababini tushuntiramiz */}
+          {/* Talaffuz bahosi kelmagan — ovoz tiniq bo'lmagani uchun bo'lishi mumkin */}
           {!sp ? (
             <div style={{ fontSize: 12.5, color: '#d97706', marginTop: 4, lineHeight: 1.5 }}>
-              ⚠️ Talaffuz bahosi faqat <b>o'qish uchun matn</b> kiritilganda chiqadi. Matnsiz (erkin
-              gapirilganda) Azure har-so'z talaffuzini qaytarmaydi — quyida faqat tanilgan matn + AI tahlili.
+              ⚠️ Talaffuz bahosi kelmadi — ovoz aniq tanilmadi. Balandroq va tiniqroq gapiring, mikrofon
+              ruxsatini tekshiring. Quyida faqat tanilgan matn + AI tahlili.
             </div>
           ) : null}
 

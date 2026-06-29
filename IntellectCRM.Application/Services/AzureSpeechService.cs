@@ -103,14 +103,25 @@ public static class AzureSpeechService
         try
         {
             // Pronunciation Assessment konfiguratsiyasi (base64 header sifatida uzatiladi).
-            var config = new
-            {
-                ReferenceText = referenceText ?? "",
-                GradingSystem = "HundredMark",
-                Granularity = "Word",
-                Dimension = "Comprehensive",
-                EnableProsodyAssessment = true,
-            };
+            // MUHIM: ERKIN nutq (unscripted) uchun ReferenceText UMUMAN yuborilmasligi kerak — uni bo'sh
+            // string qilib yuborsak Azure talaffuz bahosini qaytarmaydi ("talaffuz bahosi qaytmadi").
+            // Reference matn berilsa — scripted (aniq, shu matnga), bo'lmasa — erkin nutq baholash.
+            object config = string.IsNullOrWhiteSpace(referenceText)
+                ? new
+                {
+                    GradingSystem = "HundredMark",
+                    Granularity = "Word",
+                    Dimension = "Comprehensive",
+                    EnableProsodyAssessment = true,
+                }
+                : new
+                {
+                    ReferenceText = referenceText,
+                    GradingSystem = "HundredMark",
+                    Granularity = "Word",
+                    Dimension = "Comprehensive",
+                    EnableProsodyAssessment = true,
+                };
             var configB64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(config)));
             var url = $"https://{region}.stt.speech.microsoft.com/speech/recognition/conversation/" +
                       $"cognitiveservices/v1?language={language}&format=detailed";

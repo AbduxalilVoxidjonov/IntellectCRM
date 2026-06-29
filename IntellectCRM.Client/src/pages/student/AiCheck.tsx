@@ -100,10 +100,9 @@ export function StudentAiCheckScreen() {
     if (!blob) return
     setErr(null); setBusy(true)
     try {
-      // O'qish uchun matn berilsa — Azure aynan shu matnga qarab har so'z talaffuzini baholaydi
-      // (scripted, aniq per-so'z yashil/qizil). Bo'sh bo'lsa erkin nutq (faqat matn + tahlil).
-      const text = sPrompt.trim() || undefined
-      const rec = await submitSpeaking(blob, text, text)
+      // Erkin nutq: o'quvchi mavzu bo'yicha ingliz tilida gapiradi. Azure nutqni matnga o'girib,
+      // har so'z talaffuzini baholaydi; Gemini esa to'liq tahlil qiladi. Reference matn shart emas.
+      const rec = await submitSpeaking(blob, sPrompt.trim() || undefined)
       setResult(rec); setBlob(null); setRecState('idle'); reload()
     } catch (e) {
       setErr(errMsg(e))
@@ -210,11 +209,11 @@ export function StudentAiCheckScreen() {
                 </div>
               )}
               <div className="field" style={{ marginBottom: 6 }}>
-                <input placeholder="O'qish uchun matn (talaffuz shu matnga baholanadi)" value={sPrompt} onChange={(e) => setSPrompt(e.target.value)} />
+                <input placeholder="Mavzu (ixtiyoriy) — nima haqida gapirasiz" value={sPrompt} onChange={(e) => setSPrompt(e.target.value)} />
               </div>
               <div className="muted" style={{ fontSize: 12, marginBottom: 12 }}>
-                Aniq per-so'z talaffuz bahosi uchun o'qiladigan matnni kiriting va o'shani o'qing. Bo'sh
-                qoldirilsa erkin gapirasiz — bunda faqat matn + AI tahlili chiqadi (talaffuz ballarisiz).
+                Ingliz tilida erkin gapiring. Azure nutqni matnga o'giradi va har so'z talaffuzini baholaydi
+                (yashil/qizil), AI esa to'liq tahlil qiladi. Aniqroq bo'lishi uchun balandroq va tiniq gapiring.
               </div>
               <div className="center" style={{ flexDirection: 'column', gap: 10, padding: '8px 0' }}>
                 {recState === 'idle' && (
