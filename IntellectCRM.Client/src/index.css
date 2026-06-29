@@ -376,6 +376,33 @@ body {
 .student-app .tabbar { display: flex; background: var(--surface); border-top: 1px solid var(--border); padding: 8px 8px calc(8px + env(safe-area-inset-bottom)); flex: none; }
 .student-app .tab { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 4px 0; color: var(--faint); font-size: 10.5px; font-weight: 600; background: none; }
 .student-app .tab.on { color: var(--accent); font-weight: 800; }
+
+/* ---- Desktop yon-menyu (faqat keng ekran; mobil/WebView'da yashirin) ---- */
+.student-app .st-side { display: none; }
+.student-app .st-brand { display: flex; align-items: center; gap: 10px; padding: 6px 12px 18px; font-size: 19px; font-weight: 800; letter-spacing: -0.4px; color: var(--text); }
+.student-app .st-brand > * { color: var(--accent); }
+.student-app .st-nav-item {
+  display: flex; align-items: center; gap: 12px; padding: 11px 14px; border-radius: 13px;
+  color: var(--muted); font-size: 15px; font-weight: 700; text-decoration: none; transition: 0.15s;
+}
+.student-app .st-nav-item:hover { background: var(--surface3); color: var(--text); }
+.student-app .st-nav-item.on { background: var(--accentSoft); color: var(--accent); }
+
+/* Planshet+ : kontentni markazlashtirib cho'zilishdan saqlaymiz (telefon <700px tegilmaydi). */
+@media (min-width: 700px) {
+  .student-app .screen { max-width: 920px; margin-left: auto; margin-right: auto; width: 100%; }
+}
+/* Desktop : chap yon-menyu + keng kontent; pastki tab yashiriladi. */
+@media (min-width: 1024px) {
+  .student-app { flex-direction: row !important; }
+  .student-app .tabbar { display: none; }
+  .student-app .st-side {
+    display: flex; flex-direction: column; width: 248px; flex: none; height: 100%;
+    background: var(--surface); border-right: 1px solid var(--border); padding: 18px 12px; gap: 4px; overflow-y: auto;
+  }
+  .student-app .st-main { border-left: 0; }
+  .student-app .screen { max-width: 980px; }
+}
 /* segmented / pills */
 .student-app .seg { display: flex; height: 46px; padding: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; }
 .student-app .seg > button { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; border-radius: 11px; font-size: 13px; font-weight: 700; color: var(--muted); transition: 0.18s; }

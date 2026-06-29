@@ -114,6 +114,17 @@ docker compose up -d --build    # app + postgres + cloudflared + backup + mediam
 - [ ] `.claude/settings.local.json` ichidagi eski `schoollms.client` yo'llari (lokal, ixtiyoriy).
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-06-29: **O'quvchi portali — DESKTOP responsiv (chap yon-menyu + markazlashgan kontent).** Foydalanuvchi:
+  Chrome'da (keng ekran) o'quvchi profili "hunuk" — cho'zilib ketardi (`.student-app`da `width:100%`, `max-width`
+  YO'Q → telefon dizayni butun monitorga yoyilardi). Yechim (o'qituvchi portali kabi — CSS media query, har ekranni
+  tahrirlamasdan): `StudentMobileLayout`ga desktop `.st-side` yon-menyu (brand + 5 nav, NavLink active) qo'shildi;
+  `index.css` `.student-app` scope ichida — `@media >=700px` `.screen` markazlashadi (max-width 920px), `@media
+  >=1024px` `.student-app` row bo'ladi (chap 248px yon-menyu + keng kontent, `.tabbar` yashiriladi, `.screen`
+  max-width 980px). Telefon/WebView (<700px) BAYT-MA-BAYT o'zgarmaydi (media query trigger bo'lmaydi). Barcha 25
+  routed ekran `.screen` ishlatadi (GradingPanel/SpeakingRecorder — embed sub-komponent, lib.tsx — util). tsc+vite
+  yashil. **PWA ESLATMA:** platforma hozir PWA EMAS (manifest/SW yo'q) — "ilova" = Flutter WebView APK (Telegram bot
+  orqali). Brauzerdan "Install" kerak bo'lsa alohida (manifest+SW) qo'shiladi. **DEPLOYDA:** `docker compose up -d
+  --build app` (frontend-only, migratsiya yo'q).
 - 2026-06-29: **YANGI — TUMAN + MAKTAB (Sozlamalar) + o'quvchi formasida tuman→maktab kaskadi.** Foydalanuvchi:
   o'quvchi ma'lumotini kiritishda (admin forma) tuman tanlab, keyin shu tumanning maktabini tanlash kerak; tuman/maktab
   Sozlamalardan boshqariladi (tuman yaratib ichiga maktablar qo'shiladi, kengaytirib boriladi). **Backend:** 2 entity

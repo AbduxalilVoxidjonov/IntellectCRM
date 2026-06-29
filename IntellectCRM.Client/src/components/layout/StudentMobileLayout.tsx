@@ -45,13 +45,37 @@ export function StudentMobileLayout() {
       data-theme={theme}
       style={{ display: 'flex', flexDirection: 'column', height: '100dvh', overflow: 'hidden', width: '100%' }}
     >
+      {/* Desktop yon-menyu (chap) — faqat keng ekranda ko'rinadi (CSS @media >=1024px).
+          Telefon/WebView'da display:none (dizayn o'zgarmaydi). */}
+      <aside className="st-side">
+        <div className="st-brand">
+          <Icon name="school" size={24} fill />
+          <span>O'quvchi</span>
+        </div>
+        {TABS.map((tab) => (
+          <NavLink
+            key={tab.to}
+            to={tab.to}
+            end={tab.end}
+            className={({ isActive }) => 'st-nav-item' + (isActive ? ' on' : '')}
+          >
+            {({ isActive }) => (
+              <>
+                <Icon name={tab.icon} size={20} fill={isActive} />
+                <span>{tab.label}</span>
+              </>
+            )}
+          </NavLink>
+        ))}
+      </aside>
+
       {/* Content area — flex:1, min-height:0. Har sahifa .screen class bilan flex:1 oladi.
           Tashqi overflow:hidden — sahifalar o'z ichki .scroll orqali scroll qiladi. */}
-      <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      <div className="st-main" style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         <Outlet />
       </div>
 
-      {/* Bottom navigation — always pinned at bottom */}
+      {/* Bottom navigation — telefon/WebView'da pastda; desktop'da yashiriladi (yon-menyu o'rniga). */}
       <nav className="tabbar">
         {TABS.map((tab) => (
           <NavLink
