@@ -264,6 +264,7 @@ export interface GroupFinanceRow {
   groupId: string
   groupName: string
   courseName: string
+  teacherId: string
   teacherName: string
   studentCount: number
   billed: number
@@ -280,6 +281,38 @@ export interface CourseFinanceReport {
   collectionPct: number
   courses: CourseFinanceRow[]
   groups: GroupFinanceRow[]
+}
+
+/* ---------- Bitta guruh ichidagi to'lov holati (kim to'ladi / kim to'lamadi) ---------- */
+export interface GroupPaymentRow {
+  studentId: string
+  fullName: string
+  status: string
+  billed: number
+  collected: number
+  debt: number
+  fullyPaid: boolean
+  hasPaid: boolean
+}
+export interface GroupPaymentsReport {
+  groupId: string
+  groupName: string
+  from: string
+  to: string
+  billed: number
+  collected: number
+  paidCount: number
+  unpaidCount: number
+  studentCount: number
+  rows: GroupPaymentRow[]
+}
+
+/** Bitta guruh ichidagi to'lov holati — kim to'ladi, kim to'lamadi (davr bo'yicha). */
+export async function getGroupPayments(groupId: string, from?: string, to?: string): Promise<GroupPaymentsReport> {
+  const { data } = await api.get<GroupPaymentsReport>(`/admin/finance/group-payments/${groupId}`, {
+    params: { from, to },
+  })
+  return data
 }
 
 /** Kurs/guruh kesimida moliyaviy hisobot (qaysi kurs ko'p daromad, to'lov to'liqligi, faol guruh). */

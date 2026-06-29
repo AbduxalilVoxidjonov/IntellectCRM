@@ -32,7 +32,6 @@ public static class CourseFinanceReport
         // ---- Guruhlar / kurslar / o'qituvchilar ----
         var groups = await db.Classes.ToListAsync();
         var feeByGroup = groups.ToDictionary(g => g.Id, g => g.MonthlyFee);
-        var courseOfGroup = groups.ToDictionary(g => g.Id, g => g.CourseId);
 
         var subjects = await db.Subjects.ToDictionaryAsync(s => s.Id, s => s);
         var teacherNames = await db.Teachers.ToDictionaryAsync(t => t.Id, t => t.FullName);
@@ -138,7 +137,7 @@ public static class CourseFinanceReport
             var pct = billed > 0 ? decimal.Round(collected / billed * 100m, 1) : 0m;
 
             groupRows.Add(new GroupFinanceRowDto(
-                g.Id, g.Name, courseName, teacherName,
+                g.Id, g.Name, courseName, g.TeacherId, teacherName,
                 students, billed, collected, pct, fullyPaid, billable));
         }
 
@@ -190,6 +189,111 @@ public static class CourseFinanceReport
             fromDate, toDate, totalBilled, totalCollected, collectionPct,
             courseRows.OrderByDescending(c => c.Collected).ToList(),
             groupRows.OrderByDescending(g => g.Collected).ToList());
+    }
+
+    /// <summary>
+    /// BITTA guruh ichidagi to'lov holati: har bir o'quvchi uchun davr bo'yicha hisoblangan/yig'ilgan
+    /// va to'liq to'laganmi (kim to'ladi / kim to'lamadi). Yig'ilgan logikasi <see cref="BuildAsync"/>
+    /// bilan bir xil — teglangan to'lov 100% shu guruhga, teglanmagan narx nisbatida shu guruh ulushiga.
+    /// </summary>
+    public static async Task<GroupPaymentsReportDto> BuildGroupPaymentsAsync(
+        IAppDbContext db, string groupId, string? from, string? to)
+    {
+        var fromDate = string.IsNullOrEmpty(from)
+            ? $"{await TuitionService.AcademicYearStartMonthAsync(db)}-01"
+            : from;
+        var toDate = string.IsNullOrEmpty(to) ? $"{AppClock.Today:yyyy-MM-dd}" : to;
+        var fromMonth = fromDate.Length >= 7 ? fromDate[..7] : fromDate;
+        var toMonth = toDate.Length >= 7 ? toDate[..7] : toDate;
+        var monthsSet = TuitionService.MonthRange(fromMonth, toMonth).ToHashSet();
+
+        var group = await db.Classes.FirstOrDefaultAsync(g => g.Id == groupId);
+        if (group is null)
+            return new GroupPaymentsReportDto(groupId, "—", fromDate, toDate, 0, 0, 0, 0, 0, new());
+
+        // Narxlar — teglanmagan to'lovni shu guruh ulushiga taqsimlash uchun.
+        var feeByGroup = await db.Classes.ToDictionaryAsync(g => g.Id, g => g.MonthlyFee);
+        var groupFee = feeByGroup.GetValueOrDefault(groupId, 0m);
+
+        var memberships = await db.StudentGroups.ToListAsync();
+        var membsByStudent = memberships.GroupBy(m => m.StudentId).ToDictionary(g => g.Key, g => g.ToList());
+
+        // HISOBLANGAN (billed) — shu guruh MonthlyCharge'laridan, davr ichida.
+        var charges = await db.MonthlyCharges
+            .Where(c => c.GroupId == groupId)
+            .Select(c => new { c.StudentId, c.Month, c.Amount, c.Discount })
+            .ToListAsync();
+        var billedByStudent = new Dictionary<string, decimal>();
+        foreach (var c in charges)
+        {
+            if (!monthsSet.Contains(c.Month)) continue;
+            var net = c.Amount - c.Discount;
+            if (net <= 0) continue;
+            billedByStudent[c.StudentId] = billedByStudent.GetValueOrDefault(c.StudentId) + net;
+        }
+
+        // YIG'ILGAN (collected) — shu guruhga tegishli ulush.
+        var payments = await db.FinanceTransactions
+            .Where(t => t.Direction == "income" && t.Category == "tuition" && t.StudentId != null
+                        && string.Compare(t.Date, fromDate) >= 0 && string.Compare(t.Date, toDate) <= 0)
+            .Select(t => new { StudentId = t.StudentId!, t.GroupId, t.Date, t.Amount })
+            .ToListAsync();
+        var collectedByStudent = new Dictionary<string, decimal>();
+        foreach (var p in payments)
+        {
+            if (p.Amount <= 0) continue;
+            if (!string.IsNullOrEmpty(p.GroupId))
+            {
+                if (p.GroupId == groupId)
+                    collectedByStudent[p.StudentId] = collectedByStudent.GetValueOrDefault(p.StudentId) + p.Amount;
+                continue;
+            }
+            // Teglanmagan — narx nisbatida shu guruh ulushini olamiz.
+            if (groupFee <= 0 || !membsByStudent.TryGetValue(p.StudentId, out var membs)) continue;
+            var month = p.Date.Length >= 7 ? p.Date[..7] : p.Date;
+            var active = membs.Where(m => BillableInMonth(m, month)).ToList();
+            if (!active.Any(m => m.GroupId == groupId)) continue;
+            var denom = active.Sum(m => feeByGroup.GetValueOrDefault(m.GroupId, 0m));
+            if (denom <= 0) continue;
+            collectedByStudent[p.StudentId] =
+                collectedByStudent.GetValueOrDefault(p.StudentId) + p.Amount * groupFee / denom;
+        }
+
+        // Ko'rsatiladigan o'quvchilar: shu guruh faol a'zolari + hisoblangani/yig'ilgani bor bo'lganlar.
+        var sids = new HashSet<string>(memberships.Where(m => m.GroupId == groupId && m.IsActive).Select(m => m.StudentId));
+        foreach (var k in billedByStudent.Keys) sids.Add(k);
+        foreach (var k in collectedByStudent.Keys) sids.Add(k);
+
+        var nameById = (await db.Students.Where(s => sids.Contains(s.Id))
+            .Select(s => new { s.Id, s.FullName }).ToListAsync())
+            .ToDictionary(s => s.Id, s => s.FullName);
+        var statusByStudent = memberships
+            .Where(m => m.GroupId == groupId)
+            .GroupBy(m => m.StudentId)
+            .ToDictionary(g => g.Key, g => (g.FirstOrDefault(m => m.IsActive) ?? g.First()).Status);
+
+        var rows = sids.Select(sid =>
+        {
+            var billed = decimal.Round(billedByStudent.GetValueOrDefault(sid), 2);
+            var collected = decimal.Round(collectedByStudent.GetValueOrDefault(sid), 2);
+            var debt = decimal.Round(Math.Max(0m, billed - collected), 2);
+            var fullyPaid = billed > 0 && collected + 0.5m >= billed;
+            return new GroupPaymentRowDto(
+                sid, nameById.GetValueOrDefault(sid, "—"), statusByStudent.GetValueOrDefault(sid, ""),
+                billed, collected, debt, fullyPaid, collected > 0);
+        })
+        .OrderByDescending(r => r.Debt)
+        .ThenByDescending(r => r.Billed)
+        .ThenBy(r => r.FullName)
+        .ToList();
+
+        return new GroupPaymentsReportDto(
+            groupId, group.Name, fromDate, toDate,
+            decimal.Round(billedByStudent.Values.Sum(), 2),
+            decimal.Round(collectedByStudent.Values.Sum(), 2),
+            rows.Count(r => r.Billed > 0 && r.FullyPaid),
+            rows.Count(r => r.Billed > 0 && !r.FullyPaid),
+            rows.Count, rows);
     }
 
     /// <summary>A'zolik shu oyda hisob-kitobga kiradimi (trial emas, aktiv-muzlat oralig'ida).</summary>

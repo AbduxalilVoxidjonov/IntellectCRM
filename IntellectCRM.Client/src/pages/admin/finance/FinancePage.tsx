@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Plus, Pencil, Trash2, Download, TrendingUp, TrendingDown, Wallet, AlertCircle, Calculator, History, Inbox, BookOpen, Percent, CheckCircle2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, Download, TrendingUp, TrendingDown, Wallet, AlertCircle, Calculator, History, Inbox, Percent } from 'lucide-react'
 import type {
   FinanceDirection,
   FinanceMonthly,
@@ -21,6 +21,7 @@ import {
   getCourseReport,
   type FinanceTransactionPayload,
   type CourseFinanceReport,
+  type GroupFinanceRow,
 } from '@/api/services/finance'
 import { addPayment } from '@/api/services/students'
 import { financeCategoryLabel, financeDirectionLabels, paymentMethodLabel } from '@/config/constants'
@@ -36,6 +37,7 @@ import { AuditHistoryModal } from '@/components/audit/AuditHistoryModal'
 import type { AuditFilters } from '@/api/services/audit'
 import { TransactionFormModal } from './TransactionFormModal'
 import { TeacherSalaryDetailModal } from './TeacherSalaryDetailModal'
+import { GroupPaymentsModal } from './GroupPaymentsModal'
 import { ReasonPromptModal } from '@/components/ui/ReasonPromptModal'
 
 const todayStr = new Date().toISOString().slice(0, 10)
@@ -45,11 +47,11 @@ const control =
   'rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-mono text-slate-700 outline-none focus:border-brand-400'
 
 type DirFilter = 'all' | FinanceDirection
-type Tab = 'overview' | 'courses' | 'teachers' | 'students'
+type Tab = 'overview' | 'groups' | 'teachers' | 'students'
 
 const tabs: { value: Tab; label: string }[] = [
   { value: 'overview', label: 'Umumiy' },
-  { value: 'courses', label: 'Kurslar' },
+  { value: 'groups', label: 'Guruhlar' },
   { value: 'teachers', label: "O'qituvchilar" },
   { value: 'students', label: "O'quvchilar" },
 ]
@@ -86,6 +88,7 @@ export function FinancePage() {
   const [editing, setEditing] = useState<FinanceTransaction | null>(null)
   const [audit, setAudit] = useState<{ filters: AuditFilters; title: string } | null>(null)
   const [detailTeacher, setDetailTeacher] = useState<SalaryReportRow | null>(null)
+  const [detailGroup, setDetailGroup] = useState<GroupFinanceRow | null>(null)
   const [deleting, setDeleting] = useState<FinanceTransaction | null>(null)
 
   const load = useCallback(() => {
@@ -196,20 +199,21 @@ export function FinancePage() {
     )
   }
 
-  const handleExportCourses = () => {
+  const handleExportGroups = () => {
     if (!courseReport) return
     exportToCsv(
-      'kurslar-daromad.csv',
-      ['Kurs', 'Guruhlar', "O'quvchilar", 'Hisoblangan', "Yig'ilgan", "Yig'ilish %", "To'liq to'lagan", 'Billable'],
-      courseReport.courses.map((c) => [
-        c.courseName,
-        String(c.groupCount),
-        String(c.studentCount),
-        String(c.billed),
-        String(c.collected),
-        String(c.collectionPct),
-        String(c.fullyPaidStudents),
-        String(c.billableStudents),
+      'guruhlar-faollik.csv',
+      ['Guruh', 'Kurs', "O'qituvchi", "O'quvchilar", 'Hisoblangan', "Yig'ilgan", "Yig'ilish %", "To'liq to'lagan", 'Billable'],
+      courseReport.groups.map((g) => [
+        g.groupName,
+        g.courseName,
+        g.teacherName,
+        String(g.studentCount),
+        String(g.billed),
+        String(g.collected),
+        String(g.collectionPct),
+        String(g.fullyPaidStudents),
+        String(g.billableStudents),
       ]),
     )
   }
@@ -458,9 +462,9 @@ export function FinancePage() {
             </div>
           )}
 
-          {/* ============ KURSLAR (daromad hisoboti) ============ */}
-          {tab === 'courses' && courseReport && (
-            <CoursesReport report={courseReport} onExport={handleExportCourses} />
+          {/* ============ GURUHLAR (faollik + to'lov holati) ============ */}
+          {tab === 'groups' && courseReport && (
+            <GroupsReport report={courseReport} onExport={handleExportGroups} onSelect={setDetailGroup} />
           )}
 
           {/* ============ O'QITUVCHILAR ============ */}
@@ -706,6 +710,14 @@ export function FinancePage() {
         onClose={() => setDetailTeacher(null)}
       />
 
+      <GroupPaymentsModal
+        groupId={detailGroup?.groupId ?? null}
+        groupName={detailGroup?.groupName ?? ''}
+        from={from}
+        to={to}
+        onClose={() => setDetailGroup(null)}
+      />
+
       <ReasonPromptModal
         open={!!deleting}
         category="finance_delete"
@@ -728,15 +740,28 @@ function pctBar(p: number): string {
   return p >= 90 ? 'bg-emerald-500' : p >= 60 ? 'bg-amber-500' : 'bg-red-500'
 }
 
-/** Kurs/guruh kesimida moliyaviy hisobot bo'limi. */
-function CoursesReport({
+/** Guruhlar kesimida moliyaviy hisobot: faollik + bosilganda guruh ichidagi to'lov holati. */
+function GroupsReport({
   report,
   onExport,
+  onSelect,
 }: {
   report: CourseFinanceReport
   onExport: () => void
+  onSelect: (g: GroupFinanceRow) => void
 }) {
-  const maxCollected = Math.max(1, ...report.courses.map((c) => c.collected))
+  const [teacherId, setTeacherId] = useState<string>('')
+
+  // O'qituvchi filtri uchun noyob ro'yxat (guruhlardan).
+  const teachers = (() => {
+    const map = new Map<string, string>()
+    report.groups.forEach((g) => {
+      if (g.teacherId) map.set(g.teacherId, g.teacherName)
+    })
+    return [...map.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name))
+  })()
+
+  const groups = teacherId ? report.groups.filter((g) => g.teacherId === teacherId) : report.groups
 
   return (
     <div className="space-y-6">
@@ -765,91 +790,30 @@ function CoursesReport({
         />
       </div>
 
-      {/* Kurslar — daromad reytingi */}
-      <Card
-        tight
-        title="Kurslar bo'yicha daromad"
-        sub="Eng ko'p daromad keltirgan kurs yuqorida"
-        actions={
-          <Button variant="secondary" onClick={onExport} disabled={report.courses.length === 0}>
-            <Download className="h-4 w-4" /> CSV
-          </Button>
-        }
-      >
-        <div className="table-wrap">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Kurs</th>
-                <th className="num">Guruh</th>
-                <th className="num">O'quvchi</th>
-                <th className="num">Hisoblangan</th>
-                <th>Yig'ilgan</th>
-                <th className="num">Yig'ilish</th>
-                <th className="num">To'liq to'lagan</th>
-              </tr>
-            </thead>
-            <tbody>
-              {report.courses.map((c) => (
-                <tr key={c.courseId}>
-                  <td>
-                    <div className="flex items-center gap-2">
-                      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand-50 text-brand-600">
-                        <BookOpen className="h-4 w-4" />
-                      </span>
-                      <div className="min-w-0">
-                        <div className="font-medium text-slate-800">{c.courseName}</div>
-                        <div className="font-mono text-[11px] text-slate-400">{formatMoney(c.price)}/oy</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="num text-slate-600">{c.groupCount}</td>
-                  <td className="num text-slate-600">{c.studentCount}</td>
-                  <td className="num text-slate-600">{formatMoney(c.billed)}</td>
-                  <td>
-                    <div className="min-w-[120px]">
-                      <div className="font-mono text-sm font-semibold text-emerald-600">
-                        {formatMoney(c.collected)}
-                      </div>
-                      <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
-                        <div
-                          className="h-full rounded-full bg-emerald-500"
-                          style={{ width: `${Math.round((c.collected / maxCollected) * 100)}%` }}
-                        />
-                      </div>
-                    </div>
-                  </td>
-                  <td className={cn('num font-semibold', pctClass(c.collectionPct))}>{c.collectionPct}%</td>
-                  <td className="num">
-                    <div className="flex items-center justify-end gap-1.5">
-                      <CheckCircle2 className={cn('h-4 w-4', pctClass(c.paidPct))} />
-                      <span className="font-mono font-semibold text-slate-700">
-                        {c.fullyPaidStudents}/{c.billableStudents}
-                      </span>
-                      <span className={cn('font-mono text-[11px]', pctClass(c.paidPct))}>({c.paidPct}%)</span>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {report.courses.length === 0 && (
-          <div className="state">
-            <div className="state-icon">
-              <Inbox className="h-5 w-5" />
-            </div>
-            <h4>Ma'lumot yo'q</h4>
-            <p>Tanlangan davr bo'yicha kurs daromadi topilmadi.</p>
-          </div>
-        )}
-      </Card>
-
-      {/* Guruhlar — faollik (qaysi o'qituvchi guruhi ko'proq yig'di) */}
+      {/* Guruhlar — faollik (qaysi o'qituvchi guruhi ko'proq yig'di). Guruhni bosing — to'lov holati. */}
       <Card
         tight
         title="Guruhlar bo'yicha faollik"
-        sub="Qaysi guruh (o'qituvchi) to'lovni faolroq yig'di — yig'ilgan bo'yicha"
+        sub="Guruhni bosing — kim to'ladi, kim to'lamadi"
+        actions={
+          <div className="flex items-center gap-2">
+            <select
+              value={teacherId}
+              onChange={(e) => setTeacherId(e.target.value)}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-brand-400"
+            >
+              <option value="">Barcha o'qituvchilar</option>
+              {teachers.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+            <Button variant="secondary" onClick={onExport} disabled={report.groups.length === 0}>
+              <Download className="h-4 w-4" /> CSV
+            </Button>
+          </div>
+        }
       >
         <div className="table-wrap">
           <table className="table">
@@ -866,9 +830,9 @@ function CoursesReport({
               </tr>
             </thead>
             <tbody>
-              {report.groups.map((g) => (
-                <tr key={g.groupId}>
-                  <td className="font-medium text-slate-800">{g.groupName}</td>
+              {groups.map((g) => (
+                <tr key={g.groupId} onClick={() => onSelect(g)} className="cursor-pointer">
+                  <td className="font-medium text-brand-700">{g.groupName}</td>
                   <td>
                     <Badge>{g.courseName}</Badge>
                   </td>
@@ -897,13 +861,13 @@ function CoursesReport({
             </tbody>
           </table>
         </div>
-        {report.groups.length === 0 && (
+        {groups.length === 0 && (
           <div className="state">
             <div className="state-icon">
               <Inbox className="h-5 w-5" />
             </div>
             <h4>Ma'lumot yo'q</h4>
-            <p>Tanlangan davr bo'yicha guruh faolligi topilmadi.</p>
+            <p>Tanlangan davr/o'qituvchi bo'yicha guruh faolligi topilmadi.</p>
           </div>
         )}
       </Card>

@@ -669,9 +669,10 @@ public record CourseFinanceRowDto(
     int GroupCount, int StudentCount,
     decimal Billed, decimal Collected, decimal CollectionPct,
     int FullyPaidStudents, int BillableStudents, decimal PaidPct);
-/// <summary>Bitta guruh bo'yicha davr hisobi (qaysi o'qituvchi guruhi faolroq).</summary>
+/// <summary>Bitta guruh bo'yicha davr hisobi (qaysi o'qituvchi guruhi faolroq). TeacherId — frontend
+/// o'qituvchi filtri uchun.</summary>
 public record GroupFinanceRowDto(
-    string GroupId, string GroupName, string CourseName, string TeacherName,
+    string GroupId, string GroupName, string CourseName, string TeacherId, string TeacherName,
     int StudentCount, decimal Billed, decimal Collected, decimal CollectionPct,
     int FullyPaidStudents, int BillableStudents);
 public record CourseFinanceReportDto(
@@ -679,6 +680,19 @@ public record CourseFinanceReportDto(
     decimal TotalBilled, decimal TotalCollected, decimal CollectionPct,
     List<CourseFinanceRowDto> Courses,
     List<GroupFinanceRowDto> Groups);
+
+/* ---------- Bitta guruh ichidagi to'lov holati (kim to'ladi / kim to'lamadi) ---------- */
+/// <summary>Guruhdagi bitta o'quvchining davr bo'yicha to'lov holati.
+/// Status — a'zolik holati (trial/active/frozen). FullyPaid — hisoblangan to'liq qoplangan.</summary>
+public record GroupPaymentRowDto(
+    string StudentId, string FullName, string Status,
+    decimal Billed, decimal Collected, decimal Debt, bool FullyPaid, bool HasPaid);
+/// <summary>Bitta guruh ichidagi to'lov hisobi: kim to'ladi (FullyPaid), kim to'lamadi.</summary>
+public record GroupPaymentsReportDto(
+    string GroupId, string GroupName, string From, string To,
+    decimal Billed, decimal Collected,
+    int PaidCount, int UnpaidCount, int StudentCount,
+    List<GroupPaymentRowDto> Rows);
 
 /* ---------- O'quvchi to'lov tarixi (ledger) ---------- */
 /// <summary>Bitta oyning hisobi.

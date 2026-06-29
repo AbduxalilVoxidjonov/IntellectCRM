@@ -311,6 +311,12 @@ public class FinanceController(AppDbContext db, AuditService audit, EskizService
         [FromQuery] string? from, [FromQuery] string? to) =>
         await CourseFinanceReport.BuildAsync(db, from, to);
 
+    /// <summary>Bitta guruh ichidagi to'lov holati — kim to'ladi, kim to'lamadi (davr bo'yicha).</summary>
+    [HttpGet("group-payments/{groupId}")]
+    public async Task<ActionResult<GroupPaymentsReportDto>> GroupPayments(
+        string groupId, [FromQuery] string? from, [FromQuery] string? to) =>
+        await CourseFinanceReport.BuildGroupPaymentsAsync(db, groupId, from, to);
+
     /// <summary>Oylik to'lovni qo'lda hisoblash. month berilmasa — hisoblanmagan barcha oylar.</summary>
     [HttpPost("accrue")]
     public async Task<ActionResult<AccrueResultDto>> Accrue([FromQuery] string? month)
