@@ -156,11 +156,15 @@ public static class AzureSpeechService
             if (!root.TryGetProperty("NBest", out var nbestArr) || nbestArr.GetArrayLength() == 0)
                 return Err("Natija bo'sh.");
             var nbest = nbestArr[0];
-            if (!nbest.TryGetProperty("PronunciationAssessment", out var pa))
-                return Err("Talaffuz bahosi qaytmadi.");
+
+            // PronunciationAssessment IXTIYORIY: erkin nutq (reference matnsiz) rejimda kelmasligi
+            // mumkin. Bu holda hard-error qaytarmaymiz — faqat tanilgan matnni (ballarsiz) qaytaramiz,
+            // chaqiruvchi (endpoint) buni aniqlab Gemini tahlilига o'tadi.
+            nbest.TryGetProperty("PronunciationAssessment", out var pa);
 
             static double G(JsonElement e, string p) =>
-                e.TryGetProperty(p, out var v) && v.ValueKind == JsonValueKind.Number ? v.GetDouble() : 0;
+                e.ValueKind == JsonValueKind.Object && e.TryGetProperty(p, out var v) && v.ValueKind == JsonValueKind.Number
+                    ? v.GetDouble() : 0;
 
             var words = new List<SpeakingWordDto>();
             if (nbest.TryGetProperty("Words", out var wordsEl) && wordsEl.ValueKind == JsonValueKind.Array)

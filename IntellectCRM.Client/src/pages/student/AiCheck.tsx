@@ -100,7 +100,10 @@ export function StudentAiCheckScreen() {
     if (!blob) return
     setErr(null); setBusy(true)
     try {
-      const rec = await submitSpeaking(blob, sPrompt.trim() || undefined)
+      // O'qish uchun matn berilsa — Azure aynan shu matnga qarab har so'z talaffuzini baholaydi
+      // (scripted, aniq per-so'z yashil/qizil). Bo'sh bo'lsa erkin nutq (faqat matn + tahlil).
+      const text = sPrompt.trim() || undefined
+      const rec = await submitSpeaking(blob, text, text)
       setResult(rec); setBlob(null); setRecState('idle'); reload()
     } catch (e) {
       setErr(errMsg(e))
@@ -206,8 +209,12 @@ export function StudentAiCheckScreen() {
                   Speaking baholash hali sozlanmagan (admin Azure kalitini kiritishi kerak).
                 </div>
               )}
-              <div className="field" style={{ marginBottom: 12 }}>
-                <input placeholder="Mavzu yoki o'qiladigan matn (ixtiyoriy)" value={sPrompt} onChange={(e) => setSPrompt(e.target.value)} />
+              <div className="field" style={{ marginBottom: 6 }}>
+                <input placeholder="O'qish uchun matn (talaffuz shu matnga baholanadi)" value={sPrompt} onChange={(e) => setSPrompt(e.target.value)} />
+              </div>
+              <div className="muted" style={{ fontSize: 12, marginBottom: 12 }}>
+                Aniq per-so'z talaffuz bahosi uchun o'qiladigan matnni kiriting va o'shani o'qing. Bo'sh
+                qoldirilsa erkin gapirasiz — bunda faqat matn + AI tahlili chiqadi (talaffuz ballarisiz).
               </div>
               <div className="center" style={{ flexDirection: 'column', gap: 10, padding: '8px 0' }}>
                 {recState === 'idle' && (

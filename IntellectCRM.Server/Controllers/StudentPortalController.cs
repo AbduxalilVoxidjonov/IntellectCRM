@@ -847,8 +847,12 @@ public class StudentPortalController(
             return BadRequest(new { message = "Audio formati noto'g'ri (WAV kutilgan)." });
 
         // 1-qadam: Azure talaffuzni baholaydi (matn + har so'z aniqligi + ravonlik/ohang).
+        // Reference matn berilsa — aniq per-so'z baholash (scripted). Bo'lmasa erkin nutq:
+        // talaffuz ballari kelmasligi mumkin — bu holda faqat matn + Gemini tahlili bo'ladi.
         var azure = await AzureSpeechService.AssessAsync(bytes, referenceText ?? "", key, region);
         if (azure.Error is not null) return BadRequest(new { message = azure.Error });
+        // Talaffuz ballari haqiqatan keldimi? (erkin rejimda kelmasligi mumkin)
+        var hasPron = azure.Words.Count > 0 || azure.PronScore > 0 || azure.Accuracy > 0;
 
         // Ovozni saqlaymiz (qayta eshitish uchun).
         var dir = System.IO.Path.Combine(env.ContentRootPath, "uploads");
@@ -872,7 +876,8 @@ public class StudentPortalController(
             RecognizedText = azure.RecognizedText,
             AudioUrl = $"/uploads/{stored}",
             Score = analysis?.Overall ?? azure.PronScore,
-            AzureJson = JsonSerializer.Serialize(azure), // talaffuz ballari + per-so'z (yashil/qizil)
+            // Talaffuz ballari kelgan bo'lsa saqlaymiz (per-so'z yashil/qizil); aks holda bo'sh.
+            AzureJson = hasPron ? JsonSerializer.Serialize(azure) : "",
             AnalysisJson = analysis is null ? "" : JsonSerializer.Serialize(analysis),
             Model = model,
             Date = AppClock.Today.ToString("yyyy-MM-dd"),
