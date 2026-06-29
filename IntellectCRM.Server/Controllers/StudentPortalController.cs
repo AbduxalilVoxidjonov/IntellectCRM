@@ -816,7 +816,10 @@ public class StudentPortalController(
         return ToAiCheckDto(rec);
     }
 
-    /// <summary>Speaking (nutq) — ovoz yuboriladi, Azure talaffuzni baholaydi, Gemini tahlil qiladi, ovoz saqlanadi.</summary>
+    /// <summary>
+    /// Speaking (nutq) — ovoz yuboriladi. Oqim: Azure SOF nutq→matn (STT) → Gemini matnni tahlil qiladi.
+    /// Talaffuz baholash YO'Q (u faqat assignment speaking'da, reference matn bilan). Ovoz saqlanadi.
+    /// </summary>
     [HttpPost("ai-check/speaking")]
     [Authorize(Roles = "student")]
     [RequestSizeLimit(8_000_000)]
@@ -842,8 +845,9 @@ public class StudentPortalController(
         if (!AzureSpeechService.LooksLikeWav(bytes))
             return BadRequest(new { message = "Audio formati noto'g'ri (WAV kutilgan)." });
 
-        var azure = await AzureSpeechService.AssessAsync(bytes, referenceText ?? "", key, region);
-        if (azure.Error is not null) return BadRequest(new { message = azure.Error });
+        // 1-qadam: Azure nutqni matnga o'giradi (sof STT).
+        var (sttOk, recognized, sttErr) = await AzureSpeechService.RecognizeAsync(bytes, key, region);
+        if (!sttOk) return BadRequest(new { message = sttErr ?? "Nutqni matnga o'girib bo'lmadi." });
 
         // Ovozni saqlaymiz (qayta eshitish uchun).
         var dir = System.IO.Path.Combine(env.ContentRootPath, "uploads");
@@ -851,11 +855,13 @@ public class StudentPortalController(
         var stored = $"aicheck-{Guid.NewGuid():N}.wav";
         await System.IO.File.WriteAllBytesAsync(System.IO.Path.Combine(dir, stored), bytes);
 
+        // 2-qadam: Gemini tanilgan matnni tahlil qiladi.
         var model = GeminiService.ResolveModel(config);
-        var aiPrompt = AiCheckService.SpeakingPrompt(prompt, azure.RecognizedText, azure);
+        var aiPrompt = AiCheckService.SpeakingPrompt(prompt, recognized);
         var (ok, raw, err) = await GeminiService.GenerateAsync(meta!.GeminiApiKey, model, aiPrompt, jsonMode: true);
-        var analysis = ok ? AiCheckService.Parse(raw) : null;
-        // Gemini tahlili bo'lmasa ham (xato) — Azure natijasi bilan yozuvni saqlaymiz.
+        if (!ok) return BadRequest(new { message = err ?? "AI tahlil qilolmadi." });
+        var analysis = AiCheckService.Parse(raw);
+        if (analysis is null) return BadRequest(new { message = "AI javobini o'qib bo'lmadi. Qaytadan urinib ko'ring." });
 
         var rec = new AiCheck
         {
@@ -863,11 +869,11 @@ public class StudentPortalController(
             Type = "speaking",
             Prompt = (prompt ?? "").Trim(),
             InputText = (referenceText ?? "").Trim(),
-            RecognizedText = azure.RecognizedText,
+            RecognizedText = recognized,
             AudioUrl = $"/uploads/{stored}",
-            Score = analysis?.Overall ?? azure.PronScore,
-            AzureJson = JsonSerializer.Serialize(azure),
-            AnalysisJson = analysis is null ? "" : JsonSerializer.Serialize(analysis),
+            Score = analysis.Overall,
+            AzureJson = "", // talaffuz baholash yo'q — natijada faqat tanilgan matn + Gemini tahlili
+            AnalysisJson = JsonSerializer.Serialize(analysis),
             Model = model,
             Date = AppClock.Today.ToString("yyyy-MM-dd"),
             CreatedAt = AppClock.Now.ToString("yyyy-MM-ddTHH:mm:ss"),

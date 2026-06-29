@@ -19,6 +19,76 @@ public static class AzureSpeechService
     public static bool IsConfigured(string? key, string? region) =>
         !string.IsNullOrWhiteSpace(key) && !string.IsNullOrWhiteSpace(region);
 
+    /// <summary>
+    /// SOF nutq→matn (Speech-to-Text) — talaffuz baholashsiz. AI tekshiruv (Speaking) shuni ishlatadi:
+    /// Azure audioni matnga o'giradi, keyin matn Gemini'ga tahlil uchun yuboriladi.
+    /// REST (SDK'siz) — qisqa audio (WAV PCM 16kHz mono). Muvaffaqiyatsiz bo'lsa Ok=false, sabab Error'da.
+    /// </summary>
+    public static async Task<(bool Ok, string Text, string? Error)> RecognizeAsync(
+        byte[] wav, string key, string region, string language = "en-US")
+    {
+        try
+        {
+            var url = $"https://{region}.stt.speech.microsoft.com/speech/recognition/conversation/" +
+                      $"cognitiveservices/v1?language={language}&format=detailed";
+
+            using var req = new HttpRequestMessage(HttpMethod.Post, url);
+            req.Headers.Add("Ocp-Apim-Subscription-Key", key);
+            req.Headers.Add("Accept", "application/json");
+            var content = new ByteArrayContent(wav);
+            content.Headers.TryAddWithoutValidation(
+                "Content-Type", "audio/wav; codecs=audio/pcm; samplerate=16000");
+            req.Content = content;
+
+            using var resp = await Http.SendAsync(req);
+            var body = await resp.Content.ReadAsStringAsync();
+            if (!resp.IsSuccessStatusCode)
+            {
+                var hint = (int)resp.StatusCode switch
+                {
+                    401 or 403 => "Kalit yoki region noto'g'ri.",
+                    400 => "Audio formati/so'rov noto'g'ri.",
+                    429 => "Limit (kvota) tugagan.",
+                    _ => "Kalit/region to'g'riligini tekshiring.",
+                };
+                var snippet = string.IsNullOrWhiteSpace(body) ? "" : " — " + body.Trim().Replace("\n", " ");
+                if (snippet.Length > 200) snippet = snippet[..200] + "…";
+                return (false, "", $"Azure xato ({(int)resp.StatusCode}). {hint}{snippet}");
+            }
+            if (string.IsNullOrWhiteSpace(body))
+                return (false, "", "Azure bo'sh javob qaytardi.");
+
+            using var doc = JsonDocument.Parse(body);
+            var root = doc.RootElement;
+            var status = root.TryGetProperty("RecognitionStatus", out var st) ? st.GetString() : "";
+            if (status != "Success")
+                return (false, "", status == "NoMatch"
+                    ? "Nutq aniqlanmadi — balandroq va aniqroq gapiring."
+                    : $"Holat: {status}");
+
+            // DisplayText (yoki NBest[0].Display) — tanilgan matn.
+            var text = root.TryGetProperty("DisplayText", out var dt) ? dt.GetString() ?? "" : "";
+            if (string.IsNullOrWhiteSpace(text) &&
+                root.TryGetProperty("NBest", out var nb) && nb.ValueKind == JsonValueKind.Array && nb.GetArrayLength() > 0)
+            {
+                var n0 = nb[0];
+                text = n0.TryGetProperty("Display", out var d) ? d.GetString() ?? ""
+                     : n0.TryGetProperty("Lexical", out var lx) ? lx.GetString() ?? "" : "";
+            }
+            return string.IsNullOrWhiteSpace(text)
+                ? (false, "", "Nutq aniqlanmadi — balandroq va aniqroq gapiring.")
+                : (true, text.Trim(), null);
+        }
+        catch (TaskCanceledException)
+        {
+            return (false, "", "Vaqt tugadi (timeout) — qaytadan urinib ko'ring.");
+        }
+        catch (Exception ex)
+        {
+            return (false, "", $"Xatolik: {ex.Message}");
+        }
+    }
+
     /// <summary>Baytlar haqiqiy WAV (RIFF/WAVE) ekanini tekshiradi — ixtiyoriy/buzuq yuklamani
     /// pullik Azure chaqirig'iga jo'natmaslik uchun.</summary>
     public static bool LooksLikeWav(byte[] b) =>
@@ -59,7 +129,22 @@ public static class AzureSpeechService
             using var resp = await Http.SendAsync(req);
             var body = await resp.Content.ReadAsStringAsync();
             if (!resp.IsSuccessStatusCode)
-                return Err($"Azure xato ({(int)resp.StatusCode}). Kalit/region to'g'riligini tekshiring.");
+            {
+                // Azure javob matnidan haqiqiy sababni olamiz (401 kalit, 403 region, 400 format...).
+                var hint = (int)resp.StatusCode switch
+                {
+                    401 or 403 => "Kalit yoki region noto'g'ri.",
+                    400 => "Audio formati/so'rov noto'g'ri.",
+                    429 => "Limit (kvota) tugagan.",
+                    _ => "Kalit/region to'g'riligini tekshiring.",
+                };
+                var snippet = string.IsNullOrWhiteSpace(body) ? "" : " — " + body.Trim().Replace("\n", " ");
+                if (snippet.Length > 200) snippet = snippet[..200] + "…";
+                return Err($"Azure xato ({(int)resp.StatusCode}). {hint}{snippet}");
+            }
+
+            if (string.IsNullOrWhiteSpace(body))
+                return Err("Azure bo'sh javob qaytardi.");
 
             using var doc = JsonDocument.Parse(body);
             var root = doc.RootElement;

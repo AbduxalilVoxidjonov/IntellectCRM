@@ -46,7 +46,29 @@ public static class AiCheckService
         return sb.ToString();
     }
 
-    /// <summary>Speaking (nutq) — Azure tanigan matn + talaffuz ballari bo'yicha tahlil prompti.</summary>
+    /// <summary>
+    /// Speaking (nutq) — Azure SOF transkripsiya (STT) qilgan matn bo'yicha tahlil prompti.
+    /// Talaffuz baholash yo'q: pronunciation/fluency ballarini Gemini matn ravonligidan baholaydi.
+    /// </summary>
+    public static string SpeakingPrompt(string? topic, string recognizedText)
+    {
+        var t = string.IsNullOrWhiteSpace(topic) ? "(mavzu berilmagan)" : topic!.Trim();
+        var sb = new StringBuilder();
+        sb.AppendLine("You are an expert English speaking examiner. The student spoke and a speech-to-text engine transcribed it.");
+        sb.AppendLine($"Topic: {t}");
+        sb.AppendLine("Transcribed speech:");
+        sb.AppendLine("\"\"\"");
+        sb.AppendLine(recognizedText);
+        sb.AppendLine("\"\"\"");
+        sb.AppendLine("Analyze the CONTENT: grammar, vocabulary, coherence, task relevance, and estimate \"fluency\"");
+        sb.AppendLine("from the transcript. Set \"pronunciation\" to 0 (not measured without audio analysis).");
+        sb.AppendLine("Return STRICT JSON only (no markdown). All text fields MUST be in UZBEK. Scores are integers 0-100.");
+        sb.AppendLine("\"improved\" is a better spoken version in English. JSON shape:");
+        sb.AppendLine(Schema);
+        return sb.ToString();
+    }
+
+    /// <summary>Speaking (nutq) — Azure tanigan matn + talaffuz ballari bo'yicha tahlil prompti (assignment).</summary>
     public static string SpeakingPrompt(string? topic, string recognizedText, SpeakingResultDto azure)
     {
         var t = string.IsNullOrWhiteSpace(topic) ? "(mavzu berilmagan)" : topic!.Trim();
