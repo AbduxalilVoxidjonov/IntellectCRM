@@ -30,7 +30,7 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
             .OrderByDescending(c => c.ArchivedAt).ThenBy(c => c.Name).ToListAsync();
 
     [HttpPost]
-    public async Task<ActionResult<Group>> Create(ClassPayload p)
+    public async Task<ActionResult<Group>> Create(ClassPayload p, [FromQuery] bool force = false)
     {
         // Guruhga o'qituvchi biriktirish MAJBURIY (foizli maosh va jurnal shunga tayanadi).
         if (string.IsNullOrWhiteSpace(p.TeacherId))
@@ -46,17 +46,20 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
             if (roomEntity is not null) resolvedRoomName = roomEntity.Name;
         }
 
-        // Xona konflikti tekshiruvi (REJECT emas — WARNING; frontend qayta so'rasa saqlaydi).
-        var conflicts = await roomConflict.CheckRoomConflictAsync(
-            p.RoomId, p.Days ?? [], p.StartTime, p.EndTime);
-        if (conflicts.Count > 0)
-            return Ok(new
-            {
-                roomConflict = true,
-                message = "Xonada vaqt konflikti bor",
-                conflicts = conflicts.Select(c => new RoomConflictDto(
-                    c.GroupId, c.GroupName, c.SharedDays, c.ExistingSlot)),
-            });
+        // Xona konflikti tekshiruvi (REJECT emas — WARNING; force=true bo'lsa baribir saqlaydi).
+        if (!force)
+        {
+            var conflicts = await roomConflict.CheckRoomConflictAsync(
+                p.RoomId, p.Days ?? [], p.StartTime, p.EndTime);
+            if (conflicts.Count > 0)
+                return Ok(new
+                {
+                    roomConflict = true,
+                    message = "Xonada vaqt konflikti bor",
+                    conflicts = conflicts.Select(c => new RoomConflictDto(
+                        c.GroupId, c.GroupName, c.SharedDays, c.ExistingSlot)),
+                });
+        }
 
         var cls = new Group
         {
@@ -101,7 +104,7 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
     /// narx keyingi oy hisoblashidan amal qiladi.
     /// </summary>
     [HttpPut("{id}")]
-    public async Task<ActionResult<Group>> Update(string id, ClassPayload p, [FromQuery] bool applyFee = false)
+    public async Task<ActionResult<Group>> Update(string id, ClassPayload p, [FromQuery] bool applyFee = false, [FromQuery] bool force = false)
     {
         var cls = await db.Classes.FindAsync(id);
         if (cls is null) return NotFound();
@@ -120,8 +123,8 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
             if (roomEntity is not null) resolvedRoomName = roomEntity.Name;
         }
 
-        // Xona konflikti tekshiruvi — o'z id'si hisoba olinmaydi (excludeGroupId=id).
-        var conflicts = await roomConflict.CheckRoomConflictAsync(
+        // Xona konflikti tekshiruvi — o'z id'si hisoba olinmaydi (excludeGroupId=id). force=true bo'lsa o'tkazib yuboriladi.
+        var conflicts = force ? new List<RoomConflictService.ConflictInfo>() : await roomConflict.CheckRoomConflictAsync(
             p.RoomId, p.Days ?? [], p.StartTime, p.EndTime, excludeGroupId: id);
         if (conflicts.Count > 0)
             return Ok(new

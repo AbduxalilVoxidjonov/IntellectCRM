@@ -14,12 +14,14 @@ export async function getClasses(): Promise<Group[]> {
   return data
 }
 
-export async function createClass(payload: ClassPayload): Promise<Group> {
+export async function createClass(payload: ClassPayload, force?: boolean): Promise<Group> {
   if (USE_MOCK) {
     await delay(200)
     return { ...payload, id: uid() }
   }
-  const { data } = await api.post<Group>('/admin/classes', payload)
+  const { data } = await api.post<Group>('/admin/classes', payload, {
+    params: force ? { force: true } : undefined,
+  })
   return data
 }
 
@@ -31,13 +33,17 @@ export async function updateClass(
   id: string,
   payload: ClassPayload,
   applyFee?: boolean,
+  force?: boolean,
 ): Promise<Group> {
   if (USE_MOCK) {
     await delay(200)
     return { ...payload, id }
   }
+  const params: Record<string, unknown> = {}
+  if (applyFee !== undefined) params.applyFee = applyFee
+  if (force) params.force = true
   const { data } = await api.put<Group>(`/admin/classes/${id}`, payload, {
-    params: applyFee === undefined ? undefined : { applyFee },
+    params: Object.keys(params).length ? params : undefined,
   })
   return data
 }

@@ -80,6 +80,15 @@ export function ClassesPage() {
     values: ClassPayload
     oldFee: number
   } | null>(null)
+  // Xona band bo'lsa — chiroyli ogohlantirish oynasi (native alert o'rniga). Forma ochiq qoladi,
+  // kiritilgan ma'lumot yo'qolmaydi; "Baribir saqlash" force bilan saqlaydi.
+  const [roomConflict, setRoomConflict] = useState<{
+    values: ClassPayload
+    editId: string | null
+    applyFee?: boolean
+    list: string
+  } | null>(null)
+  const [savingConflict, setSavingConflict] = useState(false)
   /** Arxivlangan sinflar ro'yxati + arxiv ko'rinishi yoqilganmi */
   const [archived, setArchived] = useState<Group[]>([])
   const [showArchived, setShowArchived] = useState(false)
@@ -126,24 +135,47 @@ export function ClassesPage() {
       .finally(() => setLoading(false))
   }, [])
 
-  const applyUpdate = (id: string, values: ClassPayload, applyFee?: boolean) =>
-    updateClass(id, values, applyFee)
-      .then((u) => {
-        // Backend xona konflikti warning qaytarsa (200 + roomConflict=true) — yangilamaymiz
-        const any = u as unknown as Record<string, unknown>
+  /** Konflikt ro'yxatini o'qiladigan satrga aylantiradi. */
+  const conflictList = (raw: unknown): string =>
+    (raw as Array<{ groupName: string; sharedDays: string; existingSlot: string }> | undefined)
+      ?.map((c) => `${c.groupName} (${c.sharedDays}, ${c.existingSlot})`)
+      .join('; ') ?? ''
+
+  /** Guruhni saqlaydi (yaratish yoki yangilash). roomConflict qaytsa — forma yopilmaydi, chiroyli
+   *  oyna chiqadi (ma'lumot saqlanadi). force=true bilan baribir saqlaydi. */
+  const saveClass = (
+    values: ClassPayload,
+    opts: { editId: string | null; applyFee?: boolean; force?: boolean },
+  ) => {
+    const { editId, applyFee, force } = opts
+    const req = editId
+      ? updateClass(editId, values, applyFee, force)
+      : createClass(values, force)
+    return req
+      .then((res) => {
+        const any = res as unknown as Record<string, unknown>
         if (any.roomConflict) {
-          const list = (any.conflicts as Array<{ groupName: string; sharedDays: string; existingSlot: string }> | undefined)
-            ?.map((c) => `${c.groupName} (${c.sharedDays}, ${c.existingSlot})`)
-            .join('; ')
-          alert(`Xonada vaqt konflikti: ${list ?? ''}`)
-          return
+          // Xona band — chiroyli oyna ko'rsatamiz, forma ochiq qoladi.
+          setRoomConflict({ values, editId, applyFee, list: conflictList(any.conflicts) })
+          return false
         }
-        setClasses((prev) => prev.map((c) => (c.id === u.id ? u : c)))
+        if (editId) setClasses((prev) => prev.map((c) => (c.id === res.id ? res : c)))
+        else setClasses((prev) => [...prev, res])
+        // Muvaffaqiyatli — endi formani va konflikt oynasini yopamiz.
+        setFormOpen(false)
+        setEditing(null)
+        setRoomConflict(null)
+        return true
       })
       .catch((e: unknown) => {
         const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
         alert(msg ?? 'Saqlashda xatolik yuz berdi')
+        return false
       })
+  }
+
+  const applyUpdate = (id: string, values: ClassPayload, applyFee?: boolean) =>
+    saveClass(values, { editId: id, applyFee })
 
   const handleSubmit = (values: ClassPayload) => {
     if (editing) {
@@ -154,27 +186,22 @@ export function ClassesPage() {
         setEditing(null)
         return
       }
+      // DIQQAT: formani DARHOL yopmaymiz — konflikt bo'lsa ma'lumot yo'qolmasligi uchun.
       applyUpdate(editing.id, values)
     } else {
-      createClass(values)
-        .then((c) => {
-          const any = c as unknown as Record<string, unknown>
-          if (any.roomConflict) {
-            const list = (any.conflicts as Array<{ groupName: string; sharedDays: string; existingSlot: string }> | undefined)
-              ?.map((x) => `${x.groupName} (${x.sharedDays}, ${x.existingSlot})`)
-              .join('; ')
-            alert(`Xonada vaqt konflikti: ${list ?? ''}`)
-            return
-          }
-          setClasses((prev) => [...prev, c])
-        })
-        .catch((e: unknown) => {
-          const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
-          alert(msg ?? 'Saqlashda xatolik yuz berdi')
-        })
+      saveClass(values, { editId: null })
     }
-    setFormOpen(false)
-    setEditing(null)
+  }
+
+  /** Xona band oynasidagi "Baribir saqlash" — force bilan saqlaydi. */
+  const handleConflictForce = () => {
+    if (!roomConflict) return
+    setSavingConflict(true)
+    saveClass(roomConflict.values, {
+      editId: roomConflict.editId,
+      applyFee: roomConflict.applyFee,
+      force: true,
+    }).finally(() => setSavingConflict(false))
   }
 
   const resolveFeePrompt = (applyFee: boolean) => {
@@ -714,6 +741,37 @@ export function ClassesPage() {
                 keyingi oydan hisoblanadi.
               </p>
             </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Xona band — chiroyli ogohlantirish oynasi (native alert o'rniga). Forma ochiq qoladi. */}
+      <Modal
+        open={!!roomConflict}
+        onClose={() => setRoomConflict(null)}
+        title="Bu xonada dars bor"
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setRoomConflict(null)} disabled={savingConflict}>
+              Orqaga
+            </Button>
+            <Button variant="danger" onClick={handleConflictForce} disabled={savingConflict}>
+              {savingConflict ? 'Saqlanmoqda...' : 'Baribir saqlash'}
+            </Button>
+          </>
+        }
+      >
+        {roomConflict && (
+          <div className="space-y-3 text-sm">
+            <p className="font-medium text-red-700">
+              Tanlangan xonada shu vaqt oralig'ida boshqa guruh darsi bor:
+            </p>
+            <div className="rounded-lg bg-red-50 px-3 py-2 text-slate-700">{roomConflict.list}</div>
+            <p className="text-slate-500">
+              Vaqt yoki xonani o'zgartirish uchun <b>Orqaga</b> bosing (ma'lumotlaringiz saqlanib qoladi),
+              yoki shunday saqlash uchun <b>Baribir saqlash</b>.
+            </p>
           </div>
         )}
       </Modal>
