@@ -437,13 +437,13 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
             if (sg is null)
                 return NotFound(new { message = "Faol a'zolik topilmadi" });
 
-            // GUARD: aktivlashtirish shunas freeze bilan race qiladigan status tekshiri.
-            // Agar allaqachon muzlatilgan bo'lsa — fail.
-            if (sg.Status == "frozen")
-                return BadRequest(new { message = "Bu a'zolik allaqachon muzlatilgan; qayta aktivlashtirish imkonsiz" });
+            // Allaqachon faol bo'lsa — qayta aktivlashtirish kerak emas (ikki marta hisoblamaslik uchun).
+            if (sg.Status == "active")
+                return Ok(new { ok = true, already = true });
 
             // SHU OYDA muzlatilgandan keyin qayta aktivlashtirilyaptimi? Bo'lsa, muzlatishgacha studied segment
             // saqlanib, yangi segment USTIGA QO'SHILADI (aks holda studied portion yo'qolardi).
+            // Muzlatilgan a'zolikni qayta aktivlashtirishga RUXSAT beriladi (avval guard noto'g'ri bloklardi).
             var reactivateFromFreeze = sg.Status == "frozen"
                 && sg.FrozenAt.Length >= 7 && date.Length >= 7 && sg.FrozenAt[..7] == date[..7];
 
@@ -479,8 +479,11 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
         if (sg is null)
             return NotFound(new { message = "Faol a'zolik topilmadi" });
 
-        // GUARD: muzlatish shunas activation bilan race qiladigan status tekshiri.
-        // Agar allaqachon faol bo'lsan (active) va shu paytda activation qilingan bo'lsa, freeze shunas qilmaydi.
+        // Allaqachon muzlatilgan bo'lsa — qayta muzlatish kerak emas (takroriy prorate'ni oldini olamiz).
+        // Idempotent: 400 o'rniga jim qaytamiz (foydalanuvchi tugmani qayta bossa xato chiqmasin).
+        if (sg.Status == "frozen")
+            return Ok(new { ok = true, already = true });
+        // trial yoki active emas — kutilmagan holat (eski/buzilgan yozuv).
         if (sg.Status != "active" && sg.Status != "trial")
             return BadRequest(new { message = $"A'zolik holatini o'zgartirib bo'lmadi (hozirgi holat: {sg.Status})" });
 
