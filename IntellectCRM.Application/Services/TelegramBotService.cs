@@ -13,6 +13,7 @@ namespace IntellectCRM.Application.Services;
 /// o'qituvchi (Phone) bilan solishtiriladi (ro'yxatdan o'tgan); MAJBURIY kanal obunasi tekshiriladi
 /// (sozlangan bo'lsa) → keyin TelegramRegistration yoziladi va mos ILOVA (APK) fayli yuboriladi.
 /// Token sozlanmagan bo'lsa xizmat kutadi (ilova baribir ishlaydi).
+/// Support rejimi: /support → Mode="support" → keyingi matnlar adminga ketadi.
 /// </summary>
 public class TelegramBotService(
     IServiceProvider sp, TelegramService telegram, IHostEnvironment env,
@@ -75,7 +76,7 @@ public class TelegramBotService(
 
     private async Task HandleUpdateAsync(JsonElement upd, CancellationToken ct)
     {
-        // Inline tugma ("✅ Tekshirish") bosilgani — obunani qayta tekshiramiz.
+        // Inline tugma bosilgani — obunani qayta tekshiramiz yoki support rejimi.
         if (upd.TryGetProperty("callback_query", out var cq))
         {
             await HandleCallbackAsync(cq, ct);
@@ -95,14 +96,39 @@ public class TelegramBotService(
         }
 
         var text = msg.TryGetProperty("text", out var t) ? t.GetString() ?? "" : "";
+
         if (text.StartsWith("/start"))
+        {
+            await UpsertBotUserOnStartAsync(chatId, msg, ct);
             await telegram.SendMessageAsync(chatId,
                 "Assalomu alaykum! 📱 Ilovani (o'quvchi yoki o'qituvchi) o'rnatish uchun pastdagi tugma orqali " +
-                "telefon raqamingizni yuboring. Raqamingiz markaz ma'lumotlari bilan solishtiriladi.",
+                "telefon raqamingizni yuboring. Raqamingiz markaz ma'lumotlari bilan solishtiriladi.\n" +
+                "Yoki administratorga murojaat uchun /support buyrug'ini yuboring.",
                 ContactKeyboard, ct);
+        }
+        else if (text == "/support")
+        {
+            await HandleSupportCommandAsync(chatId, ct);
+        }
         else
-            await telegram.SendMessageAsync(chatId,
-                "Iltimos, pastdagi tugma orqali telefon raqamingizni yuboring.", ContactKeyboard, ct);
+        {
+            // Support rejimida bo'lsa — murojaatni adminga yuborish.
+            using var scope = sp.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
+            var botUser = await db.BotUsers.FirstOrDefaultAsync(u => u.ChatId == chatId, ct);
+
+            if (botUser?.Mode == "support")
+            {
+                await HandleSupportMessageAsync(db, botUser, chatId, text, ct);
+            }
+            else
+            {
+                await telegram.SendMessageAsync(chatId,
+                    "Iltimos, pastdagi tugma orqali telefon raqamingizni yuboring.\n" +
+                    "Administratorga murojaat uchun /support buyrug'ini yuboring.",
+                    ContactKeyboard, ct);
+            }
+        }
     }
 
     private async Task HandleCallbackAsync(JsonElement cq, CancellationToken ct)
@@ -112,15 +138,21 @@ public class TelegramBotService(
         var chatId = fromIdEl.GetInt64();
         var data = cq.TryGetProperty("data", out var dEl) ? dEl.GetString() ?? "" : "";
         if (cbId.Length > 0) await telegram.AnswerCallbackAsync(cbId, ct: ct);
-        if (data != "check_sub") return;
 
-        if (!_pendingPhone.TryGetValue(chatId, out var phone))
+        if (data == "check_sub")
         {
-            await telegram.SendMessageAsync(chatId,
-                "Telefon raqamingizni qayta yuboring.", ContactKeyboard, ct);
-            return;
+            if (!_pendingPhone.TryGetValue(chatId, out var phone))
+            {
+                await telegram.SendMessageAsync(chatId,
+                    "Telefon raqamingizni qayta yuboring.", ContactKeyboard, ct);
+                return;
+            }
+            await HandleContactAsync(chatId, phone, "", ct);
         }
-        await HandleContactAsync(chatId, phone, "", ct);
+        else if (data == "support")
+        {
+            await HandleSupportCommandAsync(chatId, ct);
+        }
     }
 
     /// <summary>Telefon kelganda: moslik → MAJBURIY obuna → register + APK.</summary>
@@ -181,7 +213,7 @@ public class TelegramBotService(
         await CompleteAsync(db, meta, chatId, phone!, senderName, matchedStudents, matchedTeachers, matchedAdmins, ct);
     }
 
-    /// <summary>Obuna o'tdi: TelegramRegistration yozadi va mos APK(lar)ni yuboradi.
+    /// <summary>Obuna o'tdi: TelegramRegistration yozadi, login/parol yuboradi, BotUser yangilaydi va mos APK(lar)ni yuboradi.
     /// Admin/xodim moslansa — UserId yozuvi (yangi lid xabarnomalari uchun); APK yuborilmaydi.</summary>
     private async Task CompleteAsync(
         IAppDbContext db, CenterMeta? meta, long chatId, string phone, string senderName,
@@ -232,6 +264,12 @@ public class TelegramBotService(
             await telegram.SendMessageAsync(chatId,
                 "🔔 Yangi lid tushganda shu yerga xabar olasiz.", ct: ct);
 
+        // LOGIN/PAROL — har bir mos AppUser uchun.
+        await SendLoginInfoAsync(db, chatId, students, teachers, admins, ct);
+
+        // BotUser — telefon va moslik yorlig'ini yangilash/yaratish.
+        await UpsertBotUserAfterContactAsync(db, chatId, digits, linked, ct);
+
         // Mos ILOVA (APK) — FAQAT o'quvchi/o'qituvchi uchun (admin web paneldan foydalanadi).
         if (students.Count > 0 || teachers.Count > 0)
         {
@@ -240,6 +278,204 @@ public class TelegramBotService(
                 await telegram.SendMessageAsync(chatId,
                     "ℹ️ Ilova fayli hali yuklanmagan. Iltimos, birozdan so'ng qayta urinib ko'ring yoki ma'muriyatga murojaat qiling.",
                     ct: ct);
+        }
+    }
+
+    /// <summary>Mos AppUser(lar) uchun login va (mavjud bo'lsa) dastlabki parolni yuboradi.</summary>
+    private async Task SendLoginInfoAsync(
+        IAppDbContext db, long chatId,
+        List<Student> students, List<Teacher> teachers, List<AppUser> admins, CancellationToken ct)
+    {
+        try
+        {
+            var seen = new HashSet<string>();
+
+            foreach (var s in students)
+            {
+                if (string.IsNullOrEmpty(s.UserId)) continue;
+                var user = await db.Users.FirstOrDefaultAsync(u => u.Id == s.UserId, ct);
+                if (user is null || !seen.Add(user.Id)) continue;
+                await telegram.SendMessageAsync(chatId, BuildLoginText(user), null, ct);
+            }
+
+            foreach (var tch in teachers)
+            {
+                if (string.IsNullOrEmpty(tch.UserId)) continue;
+                var user = await db.Users.FirstOrDefaultAsync(u => u.Id == tch.UserId, ct);
+                if (user is null || !seen.Add(user.Id)) continue;
+                await telegram.SendMessageAsync(chatId, BuildLoginText(user), null, ct);
+            }
+
+            foreach (var u in admins)
+            {
+                if (!seen.Add(u.Id)) continue;
+                await telegram.SendMessageAsync(chatId, BuildLoginText(u), null, ct);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Login info yuborishda xato: chatId {Id}", chatId);
+        }
+    }
+
+    private static string BuildLoginText(AppUser user)
+    {
+        var login = user.Email;
+        if (!string.IsNullOrEmpty(user.InitialPassword))
+            return $"🔑 Ilovaga kirish:\nLogin: {login}\nParol: {user.InitialPassword}";
+        return $"🔑 Login: {login}\n(Parolingizni avval olgansiz. Esdan chiqargan bo'lsangiz administratorga /support orqali murojaat qiling.)";
+    }
+
+    /// <summary>Kontakt ulashilgandan keyin BotUser yozuvini yangilaydi yoki yaratadi.</summary>
+    private async Task UpsertBotUserAfterContactAsync(
+        IAppDbContext db, long chatId, string digits, List<string> linkedLabels, CancellationToken ct)
+    {
+        try
+        {
+            var linkedStr = string.Join("; ", linkedLabels);
+            var botUser = await db.BotUsers.FirstOrDefaultAsync(u => u.ChatId == chatId, ct);
+            if (botUser is null)
+            {
+                db.BotUsers.Add(new BotUser
+                {
+                    ChatId = chatId,
+                    Phone = digits,
+                    Linked = linkedStr,
+                    StartedAt = AppClock.Iso(),
+                    Mode = ""
+                });
+            }
+            else
+            {
+                botUser.Phone = digits;
+                botUser.Linked = linkedStr;
+            }
+            await db.SaveChangesAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "BotUser upsert xatosi (contact): chatId {Id}", chatId);
+        }
+    }
+
+    /// <summary>/start kelganda BotUser yozuvini yaratadi yoki mavjudini ism/username bilan yangilaydi.</summary>
+    private async Task UpsertBotUserOnStartAsync(long chatId, JsonElement msg, CancellationToken ct)
+    {
+        try
+        {
+            var name = SenderName(msg);
+            var username = "";
+            if (msg.TryGetProperty("from", out var from) && from.TryGetProperty("username", out var un))
+                username = un.GetString() ?? "";
+
+            using var scope = sp.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
+            var botUser = await db.BotUsers.FirstOrDefaultAsync(u => u.ChatId == chatId, ct);
+            if (botUser is null)
+            {
+                db.BotUsers.Add(new BotUser
+                {
+                    ChatId = chatId,
+                    Name = name,
+                    Username = username,
+                    StartedAt = AppClock.Iso(),
+                    Mode = ""
+                });
+            }
+            else
+            {
+                if (name.Length > 0) botUser.Name = name;
+                if (username.Length > 0) botUser.Username = username;
+            }
+            await db.SaveChangesAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "BotUser upsert xatosi (start): chatId {Id}", chatId);
+        }
+    }
+
+    /// <summary>/support buyrug'i yoki "support" callback: BotUser.Mode="support" qilib xabar yuboradi.</summary>
+    private async Task HandleSupportCommandAsync(long chatId, CancellationToken ct)
+    {
+        try
+        {
+            using var scope = sp.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
+            var botUser = await db.BotUsers.FirstOrDefaultAsync(u => u.ChatId == chatId, ct);
+            if (botUser is null)
+            {
+                db.BotUsers.Add(new BotUser
+                {
+                    ChatId = chatId,
+                    StartedAt = AppClock.Iso(),
+                    Mode = "support"
+                });
+            }
+            else
+            {
+                botUser.Mode = "support";
+            }
+            await db.SaveChangesAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "BotUser support mode xatosi: chatId {Id}", chatId);
+        }
+        await telegram.SendMessageAsync(chatId,
+            "✍️ Savol yoki murojaatingizni yozib yuboring — administrator javob beradi.", null, ct);
+    }
+
+    /// <summary>Support rejimidagi matn xabarni saqlaydi, foydalanuvchiga tasdiqlaydi va adminga yuboradi.</summary>
+    private async Task HandleSupportMessageAsync(
+        IAppDbContext db, BotUser botUser, long chatId, string text, CancellationToken ct)
+    {
+        try
+        {
+            db.BotSupportMessages.Add(new BotSupportMessage
+            {
+                ChatId = chatId,
+                FromUser = true,
+                Text = text,
+                AdminName = "",
+                CreatedAt = AppClock.Iso()
+            });
+            botUser.LastMessageAt = AppClock.Iso();
+            botUser.LastText = text.Length > 140 ? text[..140] : text;
+            botUser.AdminUnread = botUser.AdminUnread + 1;
+            await db.SaveChangesAsync(ct);
+
+            await telegram.SendMessageAsync(chatId,
+                "✅ Murojaatingiz qabul qilindi. Administrator tez orada javob beradi.", null, ct);
+
+            // Adminlarga Telegram xabarnoma.
+            var regs = await db.TelegramRegistrations
+                .Where(r => r.UserId != null && r.UserId != "").ToListAsync(ct);
+            if (regs.Count > 0)
+            {
+                var userIds = regs.Select(r => r.UserId!).Distinct().ToList();
+                var adminUsers = await db.Users
+                    .Where(u => userIds.Contains(u.Id) &&
+                                (u.Role == Roles.Admin || u.Role == Roles.SuperAdmin || u.Role == Roles.Staff))
+                    .ToListAsync(ct);
+                var adminUserIds = adminUsers.Select(u => u.Id).ToHashSet();
+
+                var nameTag = botUser.Name.Length > 0 ? botUser.Name : "Noma'lum";
+                var phoneTag = botUser.Phone.Length > 0 ? $" ({botUser.Phone})" : "";
+                var notifyText = $"🆘 Yangi murojaat — {nameTag}{phoneTag}:\n{text}";
+
+                var sentChats = new HashSet<long>();
+                foreach (var r in regs)
+                {
+                    if (r.UserId is null || !adminUserIds.Contains(r.UserId)) continue;
+                    if (!sentChats.Add(r.ChatId)) continue;
+                    await telegram.SendMessageAsync(r.ChatId, notifyText, null, ct);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Support message xatosi: chatId {Id}", chatId);
         }
     }
 

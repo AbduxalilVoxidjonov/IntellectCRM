@@ -1076,6 +1076,49 @@ public class TelegramRegistration
 }
 
 /// <summary>
+/// Telegram botda /start bosgan HAR BIR foydalanuvchi (admin support ro'yxati uchun). ChatId unikal.
+/// "Adminga yozish" rejimida yuborgan matnlar BotSupportMessage sifatida saqlanadi.
+/// </summary>
+public class BotUser
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    /// <summary>Telegram chat (foydalanuvchi) id'si — unikal.</summary>
+    public long ChatId { get; set; }
+    /// <summary>Telegram ismi (first + last).</summary>
+    public string Name { get; set; } = string.Empty;
+    /// <summary>Telegram @username (bo'lsa).</summary>
+    public string Username { get; set; } = string.Empty;
+    /// <summary>Ulashilgan telefon (faqat raqamlar) — bo'lmasa bo'sh.</summary>
+    public string Phone { get; set; } = string.Empty;
+    /// <summary>Tizimdagi moslik yorlig'i (masalan "O'quvchi: Ali (ota-ona)" / "O'qituvchi: Vali" / "Admin").</summary>
+    public string Linked { get; set; } = string.Empty;
+    /// <summary>Rejim: "" (oddiy) | "support" (adminga murojaat — keyingi matnlar adminga ketadi).</summary>
+    public string Mode { get; set; } = string.Empty;
+    /// <summary>Birinchi /start vaqti (ISO).</summary>
+    public string StartedAt { get; set; } = string.Empty;
+    /// <summary>Oxirgi murojaat (foydalanuvchi xabari) vaqti (ISO) — ro'yxat tartiblanishi shunga tayanadi.</summary>
+    public string? LastMessageAt { get; set; }
+    /// <summary>Oxirgi murojaat matni (ro'yxatda ko'rsatish uchun qisqa preview).</summary>
+    public string LastText { get; set; } = string.Empty;
+    /// <summary>Admin o'qimagan murojaatlar soni (ro'yxatdagi qizil belgi).</summary>
+    public int AdminUnread { get; set; }
+}
+
+/// <summary>Telegram bot foydalanuvchisi ↔ admin support yozishmasidagi bitta xabar.</summary>
+public class BotSupportMessage
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    /// <summary>Qaysi bot foydalanuvchisi (BotUser.ChatId).</summary>
+    public long ChatId { get; set; }
+    /// <summary>true = foydalanuvchidan (murojaat), false = admindan (javob).</summary>
+    public bool FromUser { get; set; }
+    public string Text { get; set; } = string.Empty;
+    /// <summary>Admin javobi bo'lsa — javob bergan adminning F.I.Sh.</summary>
+    public string AdminName { get; set; } = string.Empty;
+    public string CreatedAt { get; set; } = string.Empty;
+}
+
+/// <summary>
 /// O'qituvchi yaratadigan topshiriq/test. Format: written | file | test | video. Bir nechta
 /// sinfga beriladi (ClassIds). Materiallar (fayllar) va test savollari bog'liq jadvallarda.
 /// </summary>

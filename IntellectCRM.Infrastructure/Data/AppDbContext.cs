@@ -42,6 +42,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<Broadcast> Broadcasts => Set<Broadcast>();
     public DbSet<PushMessage> PushMessages => Set<PushMessage>();
     public DbSet<TelegramRegistration> TelegramRegistrations => Set<TelegramRegistration>();
+    public DbSet<BotUser> BotUsers => Set<BotUser>();
+    public DbSet<BotSupportMessage> BotSupportMessages => Set<BotSupportMessage>();
     public DbSet<Assignment> Assignments => Set<Assignment>();
     public DbSet<AssignmentType> AssignmentTypes => Set<AssignmentType>();
     public DbSet<AssignmentMaterial> AssignmentMaterials => Set<AssignmentMaterial>();
@@ -204,6 +206,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         b.Entity<Broadcast>().HasIndex(x => new { x.ClassName, x.CreatedAt });
         b.Entity<TelegramRegistration>().HasIndex(r => new { r.StudentId, r.ChatId }).IsUnique();
         b.Entity<TelegramRegistration>().HasIndex(r => r.ChatId);
+        b.Entity<BotUser>().HasIndex(u => u.ChatId).IsUnique();
+        b.Entity<BotSupportMessage>().HasIndex(m => m.ChatId);
 
         // Qo'shimcha topshiriqlar
         b.Entity<Assignment>().HasIndex(a => new { a.ClassId, a.SubjectId, a.Quarter });

@@ -646,6 +646,12 @@ public record FinanceTransactionDto(
     string? Note, string? StudentId, string? StudentName, string? TeacherId, string? TeacherName,
     string? Month, string? GroupId = null, string? Comment = null, string? Method = null,
     string? GroupName = null, string? CreatedAt = null);
+/* ---------- Support Telegram (bot foydalanuvchisi ↔ admin) ---------- */
+public record BotThreadDto(long ChatId, string Name, string Username, string Phone, string Linked,
+    string StartedAt, string? LastMessageAt, string LastText, int Unread);
+public record BotSupportMessageDto(string Id, bool FromUser, string Text, string AdminName, string CreatedAt);
+public record BotSupportReplyRequest(string? Text);
+
 /* ---------- To'lov cheki (termal kvitansiya) ---------- */
 public record CheckSettingsDto(string Json);
 public record ReceiptDto(
