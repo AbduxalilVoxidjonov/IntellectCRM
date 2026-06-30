@@ -33,9 +33,10 @@ public static class MessageTokenizer
         return v.ToString("#,0", nfi) + " so'm";
     }
 
-    /// <summary>So'm — probelsiz (SMS {summa} uchun): 400000 so'm.</summary>
+    /// <summary>Faqat raqam — probelsiz, "so'm"siz (SMS {summa} uchun): 400000.
+    /// "so'm"ni andoza ichida yoziladi (masalan "{summa} so'm") — Eskiz moderatsiyasi uchun ham qulay.</summary>
     public static string MoneyPlain(decimal v) =>
-        v.ToString("0", CultureInfo.InvariantCulture) + " so'm";
+        v.ToString("0", CultureInfo.InvariantCulture);
 
     private static string Rep(string input, string token, string? value) =>
         Regex.Replace(input, Regex.Escape(token),
