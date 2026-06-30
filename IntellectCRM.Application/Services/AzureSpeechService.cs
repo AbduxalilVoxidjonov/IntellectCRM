@@ -30,7 +30,7 @@ public static class AzureSpeechService
         try
         {
             var url = $"https://{region}.stt.speech.microsoft.com/speech/recognition/conversation/" +
-                      $"cognitiveservices/v1?language={language}&format=detailed";
+                      $"cognitiveservices/v1?language={language}&format=detailed&profanity=raw";
 
             using var req = new HttpRequestMessage(HttpMethod.Post, url);
             req.Headers.Add("Ocp-Apim-Subscription-Key", key);
@@ -124,7 +124,7 @@ public static class AzureSpeechService
                 };
             var configB64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(config)));
             var url = $"https://{region}.stt.speech.microsoft.com/speech/recognition/conversation/" +
-                      $"cognitiveservices/v1?language={language}&format=detailed";
+                      $"cognitiveservices/v1?language={language}&format=detailed&profanity=raw";
 
             using var req = new HttpRequestMessage(HttpMethod.Post, url);
             req.Headers.Add("Ocp-Apim-Subscription-Key", key);
@@ -169,6 +169,10 @@ public static class AzureSpeechService
                 return Err("Natija bo'sh.");
             var nbest = nbestArr[0];
 
+            // Xom (lexical) shakl: ITN/bosh harf/tinish normalizatsiyasiz — o'quvchi AYTGAN so'z.
+            var lexical = nbest.TryGetProperty("Lexical", out var lxEl) ? lxEl.GetString() ?? "" : "";
+            var recognized = string.IsNullOrWhiteSpace(lexical) ? display : lexical;
+
             // PronunciationAssessment IXTIYORIY: erkin nutq (reference matnsiz) rejimda kelmasligi
             // mumkin. Bu holda hard-error qaytarmaymiz — faqat tanilgan matnni (ballarsiz) qaytaramiz,
             // chaqiruvchi (endpoint) buni aniqlab Gemini tahlilига o'tadi.
@@ -197,10 +201,10 @@ public static class AzureSpeechService
             Console.Error.WriteLine(
                 $"[AzureSpeech] scripted={!string.IsNullOrWhiteSpace(referenceText)} status={status} " +
                 $"hasPA={pa.ValueKind == JsonValueKind.Object} pron={G(pa, "PronScore")} acc={G(pa, "AccuracyScore")} " +
-                $"words={words.Count} text=\"{(display.Length > 60 ? display[..60] : display)}\"");
+                $"words={words.Count} text=\"{(recognized.Length > 60 ? recognized[..60] : recognized)}\"");
 
             return new SpeakingResultDto(
-                display, G(pa, "PronScore"), G(pa, "AccuracyScore"), G(pa, "FluencyScore"),
+                recognized, G(pa, "PronScore"), G(pa, "AccuracyScore"), G(pa, "FluencyScore"),
                 G(pa, "CompletenessScore"), G(pa, "ProsodyScore"), words, null);
         }
         catch (TaskCanceledException)

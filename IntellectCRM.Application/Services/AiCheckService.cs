@@ -94,19 +94,28 @@ public static class AiCheckService
 
     /// <summary>
     /// Speaking (nutq) — Azure tanigan matn + talaffuz ballari + HAR SO'Z aniqligi bo'yicha tahlil prompti.
-    /// Gemini past aniqlikdagi so'zlar uchun talaffuz maslahatini "vocabulary" (word + note) ga,
-    /// umumiy talaffuz tavsiyalarini "recommendations" ga yozadi.
+    /// Gemini talaffuzdan tashqari grammatika, izchillik, lug'at boyligi va mazmun (task) ni ham baholaydi.
+    /// Pronunciation va fluency ballari Azure qiymatlaridan olinadi; qolganlar Gemini tomonidan baholanadi.
     /// </summary>
     public static string SpeakingPrompt(string? topic, string recognizedText, SpeakingResultDto azure)
     {
         var t = string.IsNullOrWhiteSpace(topic) ? "(mavzu berilmagan)" : topic!.Trim();
+        var hasTopic = t != "(mavzu berilmagan)";
         var wordCount = (azure.Words?.Count ?? 0) > 0
             ? azure.Words!.Count(w => w.ErrorType != "Omission")
             : recognizedText.Split(new[] { ' ', '\n', '\t' }, StringSplitOptions.RemoveEmptyEntries).Length;
 
         var sb = new StringBuilder();
-        sb.AppendLine("You are an expert English pronunciation & speaking coach. The student spoke; Azure Speech");
-        sb.AppendLine("assessed pronunciation per word. Your job: explain how to pronounce the weak words and coach the student.");
+        sb.AppendLine("You are an expert English speaking examiner and pronunciation coach. The student spoke aloud;");
+        sb.AppendLine("Azure Speech SDK transcribed and scored pronunciation per word. Your job: assess BOTH pronunciation");
+        sb.AppendLine("AND the linguistic quality of the speech (grammar, coherence, vocabulary, task relevance).");
+        sb.AppendLine();
+        sb.AppendLine("=== TRANSCRIPTION NOTE ===");
+        sb.AppendLine("The \"Transcribed speech\" below is the RAW LEXICAL output from Azure Speech — exactly what the student");
+        sb.AppendLine("said, with no auto-correction, no punctuation, and no capitalization. Do NOT assume it was auto-corrected.");
+        sb.AppendLine("Grammatical errors, wrong word choices, and incomplete sentences in the transcription are REAL mistakes");
+        sb.AppendLine("made by the student. Evaluate them as such — do not hide or smooth over errors.");
+        sb.AppendLine();
         sb.AppendLine($"Topic: {t}");
         sb.AppendLine($"Azure scores (0-100): pronunciation={(int)azure.PronScore}, accuracy={(int)azure.Accuracy}, fluency={(int)azure.Fluency}, completeness={(int)azure.Completeness}, prosody={(int)azure.Prosody}.");
         sb.AppendLine($"Word count spoken: {wordCount}.");
@@ -121,13 +130,41 @@ public static class AiCheckService
             sb.AppendLine("Per-word pronunciation accuracy (0-100) and error type from Azure:");
             foreach (var w in azure.Words.Take(80))
                 sb.AppendLine($"- \"{w.Word}\": accuracy={(int)w.Accuracy}, error={w.ErrorType}");
-            sb.AppendLine("Focus your pronunciation tips on words with accuracy below 75 or with an error type.");
+            sb.AppendLine("Focus pronunciation tips on words with accuracy below 75 or with a non-None error type.");
         }
 
-        sb.AppendLine("Return STRICT JSON only (no markdown). All text fields MUST be in UZBEK. Scores are integers 0-100.");
-        sb.AppendLine($"Use Azure values for \"pronunciation\" ({(int)azure.PronScore}) and \"fluency\" ({(int)azure.Fluency}).");
-        sb.AppendLine("In \"vocabulary\", for EACH weak word put {word, suggestion (correct form/word), note (HOW to pronounce it, in UZBEK, e.g. phonetic hint)}.");
-        sb.AppendLine("In \"recommendations\", give general pronunciation/speaking practice tips (UZBEK). \"improved\" is a better spoken version. JSON shape:");
+        sb.AppendLine();
+        sb.AppendLine("=== SCORING INSTRUCTIONS ===");
+        sb.AppendLine($"1. \"pronunciation\" = {(int)azure.PronScore}  (use this Azure value exactly, do not recalculate).");
+        sb.AppendLine($"2. \"fluency\"       = {(int)azure.Fluency}  (use this Azure value exactly, do not recalculate).");
+        sb.AppendLine("3. \"grammar\"       — assess sentence structure, verb tenses, articles, prepositions, and any grammatical");
+        sb.AppendLine("   errors visible in the transcription. Score 0-100.");
+        sb.AppendLine("4. \"coherence\"     — assess whether the student speaks in complete, logical sentences with clear progression.");
+        sb.AppendLine("   Penalize fragmented, incomplete, or incoherent speech. Score 0-100.");
+        sb.AppendLine("5. \"vocabulary\"    — assess range and appropriateness of words used (based on the transcription). Score 0-100.");
+        if (hasTopic)
+        {
+            sb.AppendLine("6. \"task\"          — assess how well the speech ADDRESSES THE GIVEN TOPIC/QUESTION. Penalize if the");
+            sb.AppendLine($"   student goes off-topic, ignores the question, or gives a very brief/irrelevant answer. Topic: \"{t}\". Score 0-100.");
+        }
+        else
+        {
+            sb.AppendLine("6. \"task\"          — no topic was given, so assess overall content quality, idea development, and depth");
+            sb.AppendLine("   of expression. Do NOT penalize for topic mismatch. Score 0-100.");
+        }
+        sb.AppendLine("7. \"mechanics\"     — leave as 0 (not applicable for speaking).");
+        sb.AppendLine();
+        sb.AppendLine("=== OUTPUT INSTRUCTIONS ===");
+        sb.AppendLine("Return STRICT JSON only (no markdown). All text fields (summary, strengths, weaknesses,");
+        sb.AppendLine("explanation, note, recommendations) MUST be in UZBEK. Scores are integers 0-100.");
+        sb.AppendLine("In \"vocabulary\" array: for EACH weak word (pronunciation error OR wrong/limited word choice),");
+        sb.AppendLine("put {word, suggestion (correct pronunciation or better word), note (UZBEK — HOW to pronounce");
+        sb.AppendLine("or why this word choice is weak and what to use instead)}.");
+        sb.AppendLine("In \"corrections\", list grammar/coherence mistakes from the transcription with UZBEK explanations.");
+        sb.AppendLine("In \"recommendations\", give actionable speaking practice tips covering both pronunciation and language");
+        sb.AppendLine("skills (grammar, vocabulary, fluency) in UZBEK.");
+        sb.AppendLine("\"improved\" is a corrected, natural spoken version of the student's speech in English.");
+        sb.AppendLine("JSON shape:");
         sb.AppendLine(Schema);
         return sb.ToString();
     }
