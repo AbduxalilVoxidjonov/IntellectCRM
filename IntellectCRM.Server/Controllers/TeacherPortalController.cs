@@ -816,13 +816,16 @@ public class TeacherPortalController(
 
     // ---------- Support (bo'sh vaqt slotlari + bron) ----------
 
-    /// <summary>O'z slotlarim (barcha holatlar): bo'sh / bron qilingan / o'tilgan.</summary>
+    /// <summary>O'z slotlarim (barcha holatlar): bo'sh / bron qilingan / o'tilgan.
+    /// <paramref name="month"/> ("yyyy-MM") berilsa — faqat shu oy (oylar bo'yicha ko'rish/navigatsiya uchun).</summary>
     [HttpGet("support/slots")]
-    public async Task<ActionResult<IEnumerable<SupportSlotDto>>> SupportSlots()
+    public async Task<ActionResult<IEnumerable<SupportSlotDto>>> SupportSlots([FromQuery] string? month = null)
     {
         var me = await Me();
         if (me is null) return NotFound();
-        var slots = await db.SupportSlots.Where(s => s.TeacherId == me.Id)
+        var q = db.SupportSlots.Where(s => s.TeacherId == me.Id);
+        if (!string.IsNullOrWhiteSpace(month)) q = q.Where(s => s.Date.StartsWith(month));
+        var slots = await q
             .OrderByDescending(s => s.Date).ThenBy(s => s.StartTime).ToListAsync();
         var names = await SupportService.StudentNamesAsync(db, slots.Select(s => s.StudentId));
         return slots.Select(s => new SupportSlotDto(
@@ -850,11 +853,27 @@ public class TeacherPortalController(
         if (subs.Count == 0)
             return BadRequest(new { message = "Vaqt oralig'i noto'g'ri (tugash boshlanishdan keyin bo'lsin)" });
 
-        var repeat = Math.Clamp(req.RepeatWeeks, 0, 12);
-        var created = 0;
-        for (var w = 0; w <= repeat; w++)
+        // Qaysi sanalarga qo'shamiz:
+        //  RepeatMode=="daily" → Date..EndDate HAR KUNI (oylik rejani oldindan kiritish; max ~3 oy himoya);
+        //  aks holda — HAFTALIK (RepeatWeeks: shu hafta kuni keyingi N haftaga). Bo'sh → faqat shu kun.
+        var dates = new List<string>();
+        if (req.RepeatMode == "daily" && DateTime.TryParse(req.EndDate, out var endDate))
         {
-            var d = baseDate.AddDays(7 * w).ToString("yyyy-MM-dd");
+            var d0 = baseDate.Date;
+            var d1 = endDate.Date < d0 ? d0 : endDate.Date;
+            if ((d1 - d0).TotalDays > 92) d1 = d0.AddDays(92);
+            for (var d = d0; d <= d1; d = d.AddDays(1))
+                dates.Add(d.ToString("yyyy-MM-dd"));
+        }
+        else
+        {
+            var repeat = Math.Clamp(req.RepeatWeeks, 0, 12);
+            for (var w = 0; w <= repeat; w++)
+                dates.Add(baseDate.AddDays(7 * w).ToString("yyyy-MM-dd"));
+        }
+
+        var created = 0;
+        foreach (var d in dates)
             foreach (var (st, en) in subs)
             {
                 // Dublikat oldini olamiz (shu sana+boshlanish vaqti allaqachon bo'lsa o'tkazib yuboramiz).
@@ -867,7 +886,6 @@ public class TeacherPortalController(
                 });
                 created++;
             }
-        }
         await db.SaveChangesAsync();
         return Ok(new { created });
     }

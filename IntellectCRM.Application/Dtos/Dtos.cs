@@ -759,12 +759,13 @@ public record SupportTeacherDetailDto(
 /// blok HAR ODAMGA shuncha daqiqalik bron-slotlarga bo'linadi (masalan 1 soat + 30 → 2 slot).
 /// SlotMinutes=0 → butun blok bitta slot. RepeatWeeks>0 — shu hafta kuni keyingi N haftaga ham.</summary>
 public record CreateSupportSlotRequest(
-    string Date, string StartTime, string EndTime, int SlotMinutes = 0, int RepeatWeeks = 0);
+    string Date, string StartTime, string EndTime, int SlotMinutes = 0, int RepeatWeeks = 0,
+    string? RepeatMode = null, string? EndDate = null);
 /// <summary>Support dars yopish: mavzu + izoh.</summary>
 public record CompleteSupportRequest(string Topic, string Notes);
 /// <summary>O'quvchi ko'rinishidagi support o'qituvchi — bo'sh slotlari bilan.</summary>
 public record StudentSupportTeacherDto(
-    string TeacherId, string FullName, string? PhotoUrl, List<StudentSupportSlotDto> OpenSlots);
+    string TeacherId, string FullName, string? PhotoUrl, string Subject, List<StudentSupportSlotDto> OpenSlots);
 /// <summary>O'quvchi uchun bo'sh slot (bron qilish mumkin).</summary>
 public record StudentSupportSlotDto(string Id, string Date, string StartTime, string EndTime);
 /// <summary>O'quvchining support broni (o'z bronlari ro'yxati).</summary>

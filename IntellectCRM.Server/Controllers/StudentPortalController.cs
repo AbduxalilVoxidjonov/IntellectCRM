@@ -1382,8 +1382,22 @@ public class StudentPortalController(
             .OrderBy(x => x.Date).ThenBy(x => x.StartTime).ToList();
         var openByTeacher = openSlots.GroupBy(x => x.TeacherId).ToDictionary(g => g.Key, g => g.ToList());
 
+        // Har support o'qituvchi uchun dars beradigan kurslar nomini bitta so'rovda olamiz (N+1 dan qochish).
+        var teacherCourseNames = await (
+            from c in db.Classes
+            join sub in db.Subjects on c.CourseId equals sub.Id
+            where supIds.Contains(c.TeacherId)
+            select new { c.TeacherId, sub.Name }
+        ).ToListAsync();
+        var subjectByTeacher = teacherCourseNames
+            .GroupBy(x => x.TeacherId)
+            .ToDictionary(
+                g => g.Key,
+                g => string.Join(", ", g.Select(x => x.Name).Distinct()));
+
         var supDtos = supports
             .Select(t => new StudentSupportTeacherDto(t.Id, t.FullName, t.PhotoUrl,
+                subjectByTeacher.GetValueOrDefault(t.Id, ""),
                 (openByTeacher.GetValueOrDefault(t.Id) ?? new())
                     .Select(x => new StudentSupportSlotDto(x.Id, x.Date, x.StartTime, x.EndTime)).ToList()))
             .Where(d => d.OpenSlots.Count > 0)

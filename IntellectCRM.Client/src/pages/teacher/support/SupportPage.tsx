@@ -1,6 +1,15 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, CalendarClock, Plus, Trash2, CheckCircle2, X } from 'lucide-react'
+import {
+  ArrowLeft,
+  CalendarClock,
+  Plus,
+  Trash2,
+  CheckCircle2,
+  X,
+  ChevronLeft,
+  ChevronRight,
+} from 'lucide-react'
 import {
   getMySupportSlots,
   addSupportSlot,
@@ -10,6 +19,7 @@ import {
 } from '@/api/services/support'
 import { Loader } from '@/components/ui/Loader'
 import { formatDate } from '@/lib/utils'
+import { formatMonth } from '@/config/constants'
 
 /**
  * O'qituvchi (support) — "Support". O'qituvchi bo'sh vaqt bloklarini qo'shadi
@@ -25,13 +35,35 @@ const SLOT_MINUTE_OPTIONS = [
   { value: 0, label: 'Butun blok' },
 ]
 
-const REPEAT_OPTIONS = [
-  { value: 0, label: 'Faqat shu kun' },
-  { value: 1, label: '1 hafta' },
-  { value: 2, label: '2 hafta' },
-  { value: 3, label: '3 hafta' },
-  { value: 4, label: '4 hafta' },
+type AddMode = 'today' | 'pick' | 'daily'
+
+const MODE_TABS: { value: AddMode; label: string }[] = [
+  { value: 'today', label: 'Bugun' },
+  { value: 'pick', label: 'Kun tanlash' },
+  { value: 'daily', label: 'Har kuni' },
 ]
+
+function todayStr(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+function currentMonthStr(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
+function shiftMonth(ym: string, delta: number): string {
+  const [y, m] = ym.split('-').map(Number)
+  const d = new Date(y, m - 1 + delta, 1)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
+function lastDayOfMonth(ym: string): string {
+  const [y, m] = ym.split('-').map(Number)
+  const last = new Date(y, m, 0)
+  return `${y}-${String(m).padStart(2, '0')}-${String(last.getDate()).padStart(2, '0')}`
+}
 
 function statusChip(status: SupportSlot['status']): { label: string; cls: string } {
   switch (status) {
@@ -46,19 +78,21 @@ function statusChip(status: SupportSlot['status']): { label: string; cls: string
 
 export function TeacherSupportPage() {
   const nav = useNavigate()
+  const today = todayStr()
+
+  // Oy navigatsiyasi
+  const [viewMonth, setViewMonth] = useState(currentMonthStr())
   const [loading, setLoading] = useState(true)
   const [slots, setSlots] = useState<SupportSlot[]>([])
 
-  // Forma holati
-  const today = new Date()
-  const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(
-    today.getDate(),
-  ).padStart(2, '0')}`
-  const [date, setDate] = useState(todayKey)
+  // Qo'shish forma
+  const [addMode, setAddMode] = useState<AddMode>('today')
+  const [pickDate, setPickDate] = useState(today)
+  const [dailyStart, setDailyStart] = useState(today)
+  const [dailyEnd, setDailyEnd] = useState(lastDayOfMonth(currentMonthStr()))
   const [startTime, setStartTime] = useState('')
   const [endTime, setEndTime] = useState('')
   const [slotMinutes, setSlotMinutes] = useState(30)
-  const [repeatWeeks, setRepeatWeeks] = useState(0)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
 
@@ -68,9 +102,10 @@ export function TeacherSupportPage() {
   const [notes, setNotes] = useState('')
   const [closing, setClosing] = useState(false)
 
-  async function load() {
+  async function load(month: string) {
+    setLoading(true)
     try {
-      const data = await getMySupportSlots()
+      const data = await getMySupportSlots(month)
       setSlots(data)
     } catch {
       setSlots([])
@@ -80,26 +115,55 @@ export function TeacherSupportPage() {
   }
 
   useEffect(() => {
-    load()
-  }, [])
+    load(viewMonth)
+  }, [viewMonth])
+
+  // "Har kuni" rejimida oy o'zgarganda tugash sanasini oy oxiriga o'rnat
+  useEffect(() => {
+    if (addMode === 'daily') {
+      setDailyEnd(lastDayOfMonth(viewMonth))
+    }
+  }, [viewMonth, addMode])
 
   async function handleAdd() {
-    if (!date || !startTime || !endTime) {
-      alert("Sana va vaqtni to'ldiring")
+    if (!startTime || !endTime) {
+      alert("Vaqtni to'ldiring")
       return
     }
     if (endTime <= startTime) {
       alert("Tugash vaqti boshlanish vaqtidan keyin bo'lishi kerak")
       return
     }
+
+    const payload: Parameters<typeof addSupportSlot>[0] = {
+      date: today,
+      startTime,
+      endTime,
+      slotMinutes,
+    }
+
+    if (addMode === 'pick') {
+      if (!pickDate) { alert("Sanani tanlang"); return }
+      payload.date = pickDate
+    } else if (addMode === 'daily') {
+      if (!dailyStart || !dailyEnd) { alert("Sanalarni to'ldiring"); return }
+      if (dailyEnd < dailyStart) {
+        alert("Tugash sanasi boshlanish sanasidan keyin bo'lishi kerak")
+        return
+      }
+      payload.date = dailyStart
+      payload.repeatMode = 'daily'
+      payload.endDate = dailyEnd
+    }
+
     setSaving(true)
     setMessage('')
     try {
-      const res = await addSupportSlot({ date, startTime, endTime, slotMinutes, repeatWeeks })
+      const res = await addSupportSlot(payload)
       setMessage(`${res.created} ta slot qo'shildi`)
       setStartTime('')
       setEndTime('')
-      await load()
+      await load(viewMonth)
     } catch {
       alert("Qo'shishda xatolik yuz berdi")
     } finally {
@@ -111,7 +175,7 @@ export function TeacherSupportPage() {
     if (!confirm("Slotni o'chirasizmi?")) return
     try {
       await deleteSupportSlot(id)
-      await load()
+      await load(viewMonth)
     } catch {
       alert("O'chirishda xatolik yuz berdi")
     }
@@ -125,15 +189,12 @@ export function TeacherSupportPage() {
 
   async function handleComplete() {
     if (!closingId) return
-    if (!topic.trim()) {
-      alert("Mavzuni kiriting")
-      return
-    }
+    if (!topic.trim()) { alert("Mavzuni kiriting"); return }
     setClosing(true)
     try {
       await completeSupportSlot(closingId, topic.trim(), notes.trim())
       setClosingId(null)
-      await load()
+      await load(viewMonth)
     } catch {
       alert("Yopishda xatolik yuz berdi")
     } finally {
@@ -153,7 +214,9 @@ export function TeacherSupportPage() {
       .sort((a, b) => (a[0] < b[0] ? 1 : a[0] > b[0] ? -1 : 0))
       .map(([d, list]) => ({
         date: d,
-        list: [...list].sort((a, b) => (a.startTime < b.startTime ? -1 : a.startTime > b.startTime ? 1 : 0)),
+        list: [...list].sort((a, b) =>
+          a.startTime < b.startTime ? -1 : a.startTime > b.startTime ? 1 : 0,
+        ),
       }))
   })()
 
@@ -180,17 +243,69 @@ export function TeacherSupportPage() {
           <p className="text-[14px] font-bold text-ink">Bo'sh vaqt qo'shish</p>
         </div>
 
+        {/* Rejim tanlash (segment) */}
+        <div className="mb-3 flex gap-1 rounded-[14px] border border-line bg-slate-50 p-1">
+          {MODE_TABS.map((tab) => (
+            <button
+              key={tab.value}
+              type="button"
+              onClick={() => setAddMode(tab.value)}
+              className={`flex-1 rounded-[10px] py-1.5 text-[12px] font-bold transition-colors ${
+                addMode === tab.value ? 'bg-teal-600 text-white shadow-sm' : 'text-mute'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
         <div className="space-y-3">
-          {/* Sana */}
-          <div>
-            <label className="mb-1 block text-[12px] font-semibold text-faint">Sana</label>
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="w-full rounded-[14px] border border-line bg-white px-3 py-2.5 text-[14px] text-ink outline-none focus:border-teal-500"
-            />
-          </div>
+          {/* Bugun — sana ko'rsatiladi, o'zgartirilmaydi */}
+          {addMode === 'today' && (
+            <div>
+              <label className="mb-1 block text-[12px] font-semibold text-faint">Sana</label>
+              <div className="w-full rounded-[14px] border border-line bg-slate-50 px-3 py-2.5 text-[14px] text-mute">
+                {formatDate(today)}
+              </div>
+            </div>
+          )}
+
+          {/* Kun tanlash — date input */}
+          {addMode === 'pick' && (
+            <div>
+              <label className="mb-1 block text-[12px] font-semibold text-faint">Sana</label>
+              <input
+                type="date"
+                value={pickDate}
+                onChange={(e) => setPickDate(e.target.value)}
+                className="w-full rounded-[14px] border border-line bg-white px-3 py-2.5 text-[14px] text-ink outline-none focus:border-teal-500"
+              />
+            </div>
+          )}
+
+          {/* Har kuni — boshlanish + tugash sanasi */}
+          {addMode === 'daily' && (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1 block text-[12px] font-semibold text-faint">Boshlanish sanasi</label>
+                <input
+                  type="date"
+                  value={dailyStart}
+                  onChange={(e) => setDailyStart(e.target.value)}
+                  className="w-full rounded-[14px] border border-line bg-white px-3 py-2.5 text-[14px] text-ink outline-none focus:border-teal-500"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-[12px] font-semibold text-faint">Tugash sanasi</label>
+                <input
+                  type="date"
+                  value={dailyEnd}
+                  onChange={(e) => setDailyEnd(e.target.value)}
+                  className="w-full rounded-[14px] border border-line bg-white px-3 py-2.5 text-[14px] text-ink outline-none focus:border-teal-500"
+                />
+              </div>
+            </div>
+          )}
 
           {/* Vaqtlar */}
           <div className="grid grid-cols-2 gap-3">
@@ -214,36 +329,20 @@ export function TeacherSupportPage() {
             </div>
           </div>
 
-          {/* Har odamga + Takrorlash */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="mb-1 block text-[12px] font-semibold text-faint">Har odamga (daqiqa)</label>
-              <select
-                value={slotMinutes}
-                onChange={(e) => setSlotMinutes(Number(e.target.value))}
-                className="w-full rounded-[14px] border border-line bg-white px-3 py-2.5 text-[14px] text-ink outline-none focus:border-teal-500"
-              >
-                {SLOT_MINUTE_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="mb-1 block text-[12px] font-semibold text-faint">Takrorlash</label>
-              <select
-                value={repeatWeeks}
-                onChange={(e) => setRepeatWeeks(Number(e.target.value))}
-                className="w-full rounded-[14px] border border-line bg-white px-3 py-2.5 text-[14px] text-ink outline-none focus:border-teal-500"
-              >
-                {REPEAT_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+          {/* Har odamga */}
+          <div>
+            <label className="mb-1 block text-[12px] font-semibold text-faint">Har odamga (daqiqa)</label>
+            <select
+              value={slotMinutes}
+              onChange={(e) => setSlotMinutes(Number(e.target.value))}
+              className="w-full rounded-[14px] border border-line bg-white px-3 py-2.5 text-[14px] text-ink outline-none focus:border-teal-500"
+            >
+              {SLOT_MINUTE_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
           </div>
 
           {message && (
@@ -264,8 +363,29 @@ export function TeacherSupportPage() {
         </div>
       </div>
 
-      {/* Bo'lim 2 — Mening vaqtlarim */}
-      <p className="px-0.5 pb-2 pt-5 text-[13px] font-bold text-ink">Mening vaqtlarim</p>
+      {/* Bo'lim 2 — Mening vaqtlarim + oy navigatsiyasi */}
+      <div className="mt-5 mb-2 flex items-center justify-between px-0.5">
+        <p className="text-[13px] font-bold text-ink">Mening vaqtlarim</p>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setViewMonth(shiftMonth(viewMonth, -1))}
+            className="tap-scale flex h-7 w-7 items-center justify-center rounded-lg border border-line bg-white text-mute shadow-[var(--shadow-card)]"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <span className="min-w-[104px] text-center text-[12px] font-bold text-ink">
+            {formatMonth(viewMonth)}
+          </span>
+          <button
+            type="button"
+            onClick={() => setViewMonth(shiftMonth(viewMonth, 1))}
+            className="tap-scale flex h-7 w-7 items-center justify-center rounded-lg border border-line bg-white text-mute shadow-[var(--shadow-card)]"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
 
       {loading ? (
         <Loader label="Yuklanmoqda..." />
@@ -289,7 +409,7 @@ export function TeacherSupportPage() {
                     <div key={s.id} className="px-3.5 py-3">
                       <div className="flex items-center gap-3">
                         <div className="min-w-0 flex-1">
-                          <p className="text-[14px] font-bold text-ink font-mono">
+                          <p className="font-mono text-[14px] font-bold text-ink">
                             {s.startTime}–{s.endTime}
                           </p>
                           {s.status === 'booked' && (
@@ -299,9 +419,7 @@ export function TeacherSupportPage() {
                             <p className="mt-0.5 text-[12px] text-mute">{s.studentName}</p>
                           )}
                         </div>
-                        <span
-                          className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold ${chip.cls}`}
-                        >
+                        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold ${chip.cls}`}>
                           {s.status === 'done' && <CheckCircle2 className="mr-0.5 inline h-3 w-3" />}
                           {chip.label}
                         </span>
@@ -310,9 +428,7 @@ export function TeacherSupportPage() {
                       {/* Done — mavzu + izoh (faqat o'qish) */}
                       {s.status === 'done' && (s.topic || s.notes) && (
                         <div className="mt-2 rounded-[12px] bg-slate-50 p-2.5">
-                          {s.topic && (
-                            <p className="text-[13px] font-semibold text-ink">{s.topic}</p>
-                          )}
+                          {s.topic && <p className="text-[13px] font-semibold text-ink">{s.topic}</p>}
                           {s.notes && <p className="mt-0.5 text-[12px] text-mute">{s.notes}</p>}
                         </div>
                       )}
