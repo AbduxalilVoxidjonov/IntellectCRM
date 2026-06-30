@@ -42,6 +42,7 @@ export interface StudentSupportTeacher {
   teacherId: string
   fullName: string
   photoUrl?: string | null
+  subject: string
   openSlots: { id: string; date: string; startTime: string; endTime: string }[]
 }
 /** O'quvchining o'z broni. */
@@ -69,6 +70,10 @@ export interface CreateSupportSlotPayload {
   slotMinutes?: number
   /** Shu hafta kuni keyingi N haftaga ham takrorlash (0 = faqat shu sana). */
   repeatWeeks?: number
+  /** Har kunlik takrorlash rejimi. */
+  repeatMode?: 'daily'
+  /** Kunlik takror tugash sanasi ("yyyy-MM-dd"). */
+  endDate?: string
 }
 
 /* ===== Admin ===== */
@@ -84,8 +89,8 @@ export async function getSupportTeacher(id: string): Promise<SupportTeacherDetai
 
 /* ===== O'qituvchi (support) ===== */
 
-export async function getMySupportSlots(): Promise<SupportSlot[]> {
-  const { data } = await api.get<SupportSlot[]>('/teacher/support/slots')
+export async function getMySupportSlots(month?: string): Promise<SupportSlot[]> {
+  const { data } = await api.get<SupportSlot[]>('/teacher/support/slots', { params: month ? { month } : undefined })
   return data
 }
 export async function addSupportSlot(payload: CreateSupportSlotPayload): Promise<{ created: number }> {
