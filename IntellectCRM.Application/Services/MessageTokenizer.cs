@@ -59,10 +59,25 @@ public static class MessageTokenizer
         if (g is not null && !string.IsNullOrWhiteSpace(g.StartTime))
             vaqt = string.IsNullOrWhiteSpace(g.EndTime) ? g.StartTime : $"{g.StartTime}-{g.EndTime}";
         var kunlar = g is null ? "" : FormatDays(g.Days);
+        return Schedule(text, sana, vaqt, kunlar);
+    }
+
+    /// <summary>Dars jadvali tokenlarini aniq qiymatlar bilan almashtiradi (sinov darsi — TrialLesson.ScheduledAt uchun).</summary>
+    private static string Schedule(string text, string sana, string vaqt, string kunlar)
+    {
         var r = Rep(text, "{dars_sana}", sana);
         r = Rep(r, "{dars_vaqti}", vaqt);
         r = Rep(r, "{dars_kunlari}", kunlar);
         return r;
+    }
+
+    /// <summary>Sinov darsi vaqti ("yyyy-MM-ddTHH:mm") → ({dars_sana}="DD.MM.YYYY", {dars_vaqti}="HH:mm").</summary>
+    private static (string sana, string vaqt) ParseTrial(string? iso)
+    {
+        if (iso is not { Length: >= 10 }) return ("", "");
+        var sana = $"{iso[8..10]}.{iso[5..7]}.{iso[..4]}";
+        var vaqt = iso.Length >= 16 ? iso[11..16] : "";
+        return (sana, vaqt);
     }
 
     /// <summary>Guruh dars kunlari (Days, 0=Du..6=Yak) → "Du, Chor, Jum".</summary>
@@ -137,9 +152,11 @@ public static class MessageTokenizer
         return Common(r, centerName, null);
     }
 
-    /// <summary>Lid xabari — lid ma'lumotlari; o'quvchi-spetsifik tokenlar bo'sh.</summary>
+    /// <summary>Lid xabari — lid ma'lumotlari; o'quvchi-spetsifik tokenlar bo'sh.
+    /// trialAt berilsa (sinov darsi vaqti "yyyy-MM-ddTHH:mm") — {dars_sana}/{dars_vaqti} to'ladi,
+    /// {dars_kunlari} esa group berilса guruh kunlaridan keladi.</summary>
     public static string Lead(string text, Lead l, string? contactPhone, string? centerName,
-        IReadOnlyDictionary<string, string>? extra = null)
+        IReadOnlyDictionary<string, string>? extra = null, DomainGroup? group = null, string? trialAt = null)
     {
         var r = text;
         r = Rep(r, "{fish}", l.FullName);
@@ -157,7 +174,12 @@ public static class MessageTokenizer
                      "{ota-ona}", "{ota_ona}", "{manzil}",
                  })
             r = Rep(r, tok, "");
-        r = Schedule(r, null); // lidda dars jadvali tokenlari bo'sh
+        // Sinov darsi jadvali: sana/vaqt sinov darsidan (trialAt), kunlar guruhdan.
+        // trialAt yo'q bo'lsa — guruh jadvaliga (yoki bo'shga) tushadi.
+        var (tsana, tvaqt) = ParseTrial(trialAt);
+        r = tsana.Length > 0
+            ? Schedule(r, tsana, tvaqt, group is null ? "" : FormatDays(group.Days))
+            : Schedule(r, group);
         return Common(r, centerName, extra);
     }
 }

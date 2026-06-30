@@ -619,7 +619,15 @@ public class MessagesController(AppDbContext db, ChatService chat, TelegramServi
         if (!eskiz.IsConfigured(meta))
             return BadRequest(new { message = "Eskiz SMS sozlanmagan. Sozlamalar → SMS (Eskiz)da login/parol kiriting." });
 
-        var msg = MessageTokenizer.Lead(text, lead, phone, meta?.Name ?? "");
+        // {dars_sana}/{dars_vaqti} uchun — lidning eng so'nggi sinov darsi (avval "pending"ini olamiz).
+        var trial = await db.TrialLessons.Where(t => t.LeadId == lead.Id && t.Result == "pending")
+                        .OrderByDescending(t => t.ScheduledAt).FirstOrDefaultAsync()
+                    ?? await db.TrialLessons.Where(t => t.LeadId == lead.Id)
+                        .OrderByDescending(t => t.ScheduledAt).FirstOrDefaultAsync();
+        var trialGroup = trial is not null && !string.IsNullOrWhiteSpace(trial.GroupId)
+            ? await db.Classes.FindAsync(trial.GroupId) : null;
+        var msg = MessageTokenizer.Lead(text, lead, phone, meta?.Name ?? "",
+            group: trialGroup, trialAt: trial?.ScheduledAt);
         var callbackUrl = $"{Request.Scheme}://{Request.Host}/api/sms/callback";
         var batchId = Guid.NewGuid().ToString();
         var r = await eskiz.SendSmsAsync(db, phone, msg, callbackUrl);
