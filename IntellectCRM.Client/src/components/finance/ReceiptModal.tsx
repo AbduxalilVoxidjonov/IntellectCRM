@@ -6,7 +6,7 @@ import { Loader } from '@/components/ui/Loader'
 import { getReceipt } from '@/api/services/finance'
 import { getTrialReceipt } from '@/api/services/leads'
 import { receiptHtml, receiptCss, printReceipt, type ReceiptData } from '@/lib/receipt'
-import { parseCheckSettings, type CheckSettings } from '@/config/checkSettings'
+import { parseCheckSettings, resolveCheckSettings, type CheckSettings } from '@/config/checkSettings'
 
 interface Props {
   /** To'lov cheki uchun tranzaksiya id'si (moliya) */
@@ -39,7 +39,8 @@ export function ReceiptModal({ txId, trialId, autoPrint, onClose }: Props) {
       .then((r) => {
         const { settingsJson, ...rest } = r
         setData(rest)
-        const s = parseCheckSettings(settingsJson)
+        // Sinov cheki (trialId) bo'lsa — sinov maydonlari/footeri qo'llanadi.
+        const s = resolveCheckSettings(parseCheckSettings(settingsJson), !!trialId)
         setSettings(s)
         if (autoPrint) printReceipt(rest, s)
       })

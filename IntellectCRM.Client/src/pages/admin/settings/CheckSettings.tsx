@@ -13,14 +13,18 @@ import { Loader } from '@/components/ui/Loader'
 import { cn } from '@/lib/utils'
 import {
   parseCheckSettings,
+  resolveCheckSettings,
   checkFieldLabels,
+  checkTrialFieldKeys,
   type CheckSettings as CheckSettingsModel,
   type CheckFieldFlags,
 } from '@/config/checkSettings'
 import { receiptHtml, receiptCss, type ReceiptData } from '@/lib/receipt'
 
-/** Sozlamalar o'zgarganda jonli ko'rsatiladigan namuna chek. */
-const sampleBase = {
+type Tab = 'payment' | 'trial'
+
+/** Namuna — to'lov cheki (sizning misolingiz). */
+const samplePayment = {
   receiptNo: '693096843',
   dateTime: '2026-06-30 15:00',
   studentName: "Azamjon Qo'chqorov",
@@ -32,7 +36,21 @@ const sampleBase = {
   total: 200000,
 }
 
-/** Yoqish/o'chirish qatori (checkbox). */
+/** Namuna — sinov darsi cheki (to'lovsiz). */
+const sampleTrial = {
+  receiptNo: '481209337',
+  dateTime: '2026-07-02 11:20',
+  studentName: "Azamjon Qo'chqorov",
+  teacherName: 'Odilov Azizbek',
+  responsibleName: 'Vohidjonov Abduhalil',
+  groupName: 'A100',
+  method: '',
+  comment: '',
+  total: null as number | null,
+  subtitle: 'Sinov darsiga yozildi',
+}
+
+/** Yoqish/o'chirish qatori. */
 function Toggle({
   checked,
   onChange,
@@ -56,14 +74,16 @@ function Toggle({
 }
 
 /**
- * To'lov cheki (termal kvitansiya) sozlamalari. Qaysi maydonlar ko'rinishi, sarlavha (logotip/nom),
- * pastki izoh, aloqa/QR — o'ng tarafda jonli namuna bilan. Saqlanganda CenterMeta.CheckSettings (JSON).
+ * To'lov cheki (kvitansiya) sozlamalari — IKKI tur: "To'lov cheki" (moliya) va "Sinov darsi cheki" (lid).
+ * Har biriga alohida maydon tanlovi va footer; sarlavha (logotip/nom) + aloqa/QR ikkalasiga umumiy.
+ * O'ng tomonda tanlangan tur uchun jonli namuna. Saqlanadi: CenterMeta.CheckSettings (JSON).
  */
 export function CheckSettings() {
   const [s, setS] = useState<CheckSettingsModel | null>(null)
   const [school, setSchool] = useState<SchoolInfo | null>(null)
   const [loading, setLoading] = useState(true)
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
+  const [tab, setTab] = useState<Tab>('payment')
 
   useEffect(() => {
     Promise.all([getCheckSettings(), getSchoolInfo()])
@@ -88,16 +108,32 @@ export function CheckSettings() {
 
   if (loading || !s) return <Loader label="Yuklanmoqda..." />
 
-  const setField = (key: keyof CheckFieldFlags, v: boolean) =>
-    setS({ ...s, fields: { ...s.fields, [key]: v } })
+  const isTrial = tab === 'trial'
+  // Aktiv tur maydonlari va footeri (to'lov yoki sinov).
+  const activeFields = isTrial ? s.trial.fields : s.fields
+  const activeFooter = isTrial ? s.trial.footerText : s.footerText
+  const fieldList = isTrial
+    ? checkFieldLabels.filter((f) => checkTrialFieldKeys.includes(f.key))
+    : checkFieldLabels
 
-  const preview: ReceiptData = {
-    ...sampleBase,
+  const setField = (key: keyof CheckFieldFlags, v: boolean) => {
+    if (isTrial) setS({ ...s, trial: { ...s.trial, fields: { ...s.trial.fields, [key]: v } } })
+    else setS({ ...s, fields: { ...s.fields, [key]: v } })
+  }
+  const setFooter = (v: string) => {
+    if (isTrial) setS({ ...s, trial: { ...s.trial, footerText: v } })
+    else setS({ ...s, footerText: v })
+  }
+
+  const center = {
     centerName: school?.name || 'Intellect',
     centerPhone: school?.phone || '+998 90 123 45 67',
     centerAddress: school?.address || 'Toshkent sh.',
     logoUrl: school?.logoUrl || '',
   }
+  const preview: ReceiptData = isTrial
+    ? { ...sampleTrial, ...center }
+    : { ...samplePayment, ...center }
 
   return (
     <Card
@@ -108,16 +144,40 @@ export function CheckSettings() {
       }
     >
       <p className="mb-4 text-sm text-slate-400">
-        To'lov kiritilganda chiqadigan <b>termal chek</b> (58/80mm) ko'rinishini sozlang. Maydonlarni
-        yoqib/o'chiring — o'ng tarafda namuna real vaqtda yangilanadi. Chek Moliya bo'limida "Chek" tugmasi
-        bilan yoki to'lov kiritilgach avtomatik bosib chiqariladi.
+        <b>Termal chek</b> (58/80mm) ko'rinishini sozlang. Ikki tur bor:{' '}
+        <b>To'lov cheki</b> (moliyada to'lov kiritilganda) va <b>Sinov darsi cheki</b> (lid sinov darsiga
+        yozilganda — to'lovsiz). O'ngdagi namuna real vaqtda yangilanadi.
       </p>
+
+      {/* Tur tanlash (tab) */}
+      <div className="mb-5 inline-flex rounded-lg border border-slate-200 p-0.5">
+        {(
+          [
+            { k: 'payment', label: "To'lov cheki" },
+            { k: 'trial', label: 'Sinov darsi cheki' },
+          ] as { k: Tab; label: string }[]
+        ).map((t) => (
+          <button
+            key={t.k}
+            type="button"
+            onClick={() => setTab(t.k)}
+            className={cn(
+              'rounded-md px-3.5 py-1.5 text-sm font-medium transition-colors',
+              tab === t.k ? 'bg-brand-600 text-white' : 'text-slate-600 hover:bg-slate-100',
+            )}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         {/* Chap: sozlamalar */}
         <div className="space-y-5">
           <div>
-            <h4 className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400">Sarlavha</h4>
+            <h4 className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400">
+              Sarlavha (ikkala chekka umumiy)
+            </h4>
             <div className="space-y-2">
               <Toggle checked={s.showLogo} onChange={(v) => setS({ ...s, showLogo: v })} label="Markaz logotipi" />
               <Toggle checked={s.showName} onChange={(v) => setS({ ...s, showName: v })} label="Markaz nomi" />
@@ -126,38 +186,51 @@ export function CheckSettings() {
 
           <div>
             <h4 className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400">
-              Maydonlar (qaysi qatorlar ko'rinsin)
+              Maydonlar — {isTrial ? 'Sinov darsi cheki' : "To'lov cheki"}
             </h4>
             <div className="grid gap-2 sm:grid-cols-2">
-              {checkFieldLabels.map((f) => (
+              {fieldList.map((f) => (
                 <Toggle
                   key={f.key}
-                  checked={s.fields[f.key]}
+                  checked={activeFields[f.key]}
                   onChange={(v) => setField(f.key, v)}
                   label={f.label}
                 />
               ))}
             </div>
-            <p className="mt-2 text-xs text-slate-400">"Jami" (to'lov summasi) doim ko'rinadi.</p>
+            {!isTrial && (
+              <p className="mt-2 text-xs text-slate-400">"Jami" (to'lov summasi) doim ko'rinadi.</p>
+            )}
+            {isTrial && (
+              <p className="mt-2 text-xs text-slate-400">
+                Sinov cheki to'lovsiz — "To'lov turi", "Izoh", "Jami" bo'lmaydi.
+              </p>
+            )}
           </div>
 
           <div>
             <h4 className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400">Past qismi</h4>
             <div className="space-y-3">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">
+                  Pastki izoh — {isTrial ? 'Sinov darsi cheki' : "To'lov cheki"}
+                </label>
+                <Input
+                  value={activeFooter}
+                  onChange={(e) => setFooter(e.target.value)}
+                  placeholder={isTrial ? 'Sinov darsiga xush kelibsiz!' : 'Tashrifingiz uchun rahmat!'}
+                />
+              </div>
               <Toggle
                 checked={s.showContact}
                 onChange={(v) => setS({ ...s, showContact: v })}
-                label="Aloqa (markaz telefoni + manzili)"
+                label="Aloqa (markaz telefoni + manzili) — umumiy"
               />
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">Pastki izoh (footer)</label>
-                <Input
-                  value={s.footerText}
-                  onChange={(e) => setS({ ...s, footerText: e.target.value })}
-                  placeholder="Tashrifingiz uchun rahmat!"
-                />
-              </div>
-              <Toggle checked={s.showQr} onChange={(v) => setS({ ...s, showQr: v })} label="QR kod" />
+              <Toggle
+                checked={s.showQr}
+                onChange={(v) => setS({ ...s, showQr: v })}
+                label="QR kod — umumiy"
+              />
               {s.showQr && (
                 <div>
                   <label className="mb-1 block text-sm font-medium text-slate-700">QR matni / havola</label>
@@ -185,12 +258,16 @@ export function CheckSettings() {
 
         {/* O'ng: jonli namuna */}
         <div>
-          <h4 className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400">Namuna</h4>
-          <div className={cn('flex justify-center rounded-xl bg-slate-100 py-5')}>
+          <h4 className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400">
+            Namuna — {isTrial ? 'Sinov darsi cheki' : "To'lov cheki"}
+          </h4>
+          <div className="flex justify-center rounded-xl bg-slate-100 py-5">
             <style>{receiptCss}</style>
             <div
               className="receipt shadow-md"
-              dangerouslySetInnerHTML={{ __html: receiptHtml(preview, s) }}
+              dangerouslySetInnerHTML={{
+                __html: receiptHtml(preview, resolveCheckSettings(s, isTrial)),
+              }}
             />
           </div>
         </div>

@@ -90,6 +90,29 @@ const trialResultColors: Record<TrialLesson['result'], string> = {
   left: 'bg-rose-50 text-rose-600',
 }
 
+/** Hafta kunlari qisqartmasi — 0=Dushanba .. 6=Yakshanba (backend Group.days bilan mos). */
+const WD_SHORT = ['Du', 'Se', 'Chor', 'Pay', 'Jum', 'Shan', 'Yak']
+
+/** JS getDay() (0=Yakshanba) → bizning indeks (0=Dushanba). */
+const toMonFirst = (jsDay: number) => (jsDay + 6) % 7
+
+/** ISO sana "YYYY-MM-DD" (mahalliy, TZ siljishisiz). */
+const isoDate = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+
+/** Bugundan boshlab guruh kunlariga (days, 0=Du..6=Yak) mos keyingi `count` dars sanasi. */
+function nextLessonDates(days: number[], count: number): Date[] {
+  const out: Date[] = []
+  const base = new Date()
+  base.setHours(0, 0, 0, 0)
+  for (let i = 0; i < 90 && out.length < count; i++) {
+    const d = new Date(base)
+    d.setDate(base.getDate() + i)
+    if (days.includes(toMonFirst(d.getDay()))) out.push(d)
+  }
+  return out
+}
+
 export function LeadDetailModal({ lead, onClose, onEdit, onDelete, onConverted }: Props) {
   const leadId = lead?.id ?? null
 
@@ -226,6 +249,11 @@ export function LeadDetailModal({ lead, onClose, onEdit, onDelete, onConverted }
     setReceiptAuto(false)
     setReceiptTrial(trialId)
   }
+
+  // Sinov formasi uchun: tanlangan guruh + uning dars kunlari/vaqti + keyingi dars sanalari.
+  const selectedTrialGroup = groups.find((g) => g.id === trialGroupId) || null
+  const trialHasSchedule = !!(selectedTrialGroup?.days?.length && selectedTrialGroup?.startTime)
+  const trialDates = trialHasSchedule ? nextLessonDates(selectedTrialGroup!.days!, 8) : []
 
   const handleTrialResult = async (trialId: string, result: 'stayed' | 'left') => {
     if (!leadId) return
@@ -518,26 +546,87 @@ export function LeadDetailModal({ lead, onClose, onEdit, onDelete, onConverted }
             )}
 
             <form onSubmit={handleScheduleTrial} className="space-y-3">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <Select
-                  label="Guruh"
-                  value={trialGroupId}
-                  onChange={(e) => setTrialGroupId(e.target.value)}
-                >
-                  <option value="">— guruh tanlang —</option>
-                  {groups.map((g) => (
-                    <option key={g.id} value={g.id}>
-                      {g.name}
-                    </option>
-                  ))}
-                </Select>
+              <Select
+                label="Guruh"
+                value={trialGroupId}
+                onChange={(e) => {
+                  setTrialGroupId(e.target.value)
+                  setTrialAt('') // guruh o'zgardi — tanlangan kun bekor qilinadi
+                }}
+              >
+                <option value="">— guruh tanlang —</option>
+                {groups.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.name}
+                  </option>
+                ))}
+              </Select>
+
+              {/* Guruh jadvali: dars kunlari + vaqti */}
+              {selectedTrialGroup && (
+                <div className="rounded-lg bg-violet-50/60 px-3 py-2 text-sm text-slate-600">
+                  {trialHasSchedule ? (
+                    <>
+                      <span className="font-medium text-slate-700">Dars kunlari:</span>{' '}
+                      {selectedTrialGroup
+                        .days!.slice()
+                        .sort((a, b) => a - b)
+                        .map((d) => WD_SHORT[d])
+                        .join(', ')}
+                      {selectedTrialGroup.startTime && (
+                        <>
+                          {' '}
+                          • {selectedTrialGroup.startTime}
+                          {selectedTrialGroup.endTime ? `–${selectedTrialGroup.endTime}` : ''}
+                        </>
+                      )}
+                    </>
+                  ) : (
+                    <span className="text-amber-600">
+                      Bu guruhda dars kunlari/vaqti belgilanmagan — sanani qo'lda tanlang.
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {/* Keyingi dars uchun kun tanlash (guruh jadvalidan) */}
+              {trialHasSchedule ? (
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-600">
+                    Keyingi dars uchun kun
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {trialDates.map((d) => {
+                      const at = `${isoDate(d)}T${selectedTrialGroup!.startTime}`
+                      const active = trialAt === at
+                      return (
+                        <button
+                          key={at}
+                          type="button"
+                          onClick={() => setTrialAt(at)}
+                          className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+                            active
+                              ? 'border-violet-500 bg-violet-600 text-white'
+                              : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                          }`}
+                        >
+                          {WD_SHORT[toMonFirst(d.getDay())]},{' '}
+                          {String(d.getDate()).padStart(2, '0')}.
+                          {String(d.getMonth() + 1).padStart(2, '0')} • {selectedTrialGroup!.startTime}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              ) : (
                 <Input
                   label="Sana va vaqt"
                   type="datetime-local"
                   value={trialAt}
                   onChange={(e) => setTrialAt(e.target.value)}
                 />
-              </div>
+              )}
+
               <Button type="submit" disabled={savingTrial || !trialGroupId || !trialAt}>
                 <CalendarClock className="h-4 w-4" />
                 {savingTrial ? 'Saqlanmoqda...' : 'Sinov darsi belgilash'}
