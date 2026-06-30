@@ -1,4 +1,5 @@
 import type { Lead, LeadEvent, LeadEventType, TrialLesson, TrialResult, CrmStats } from '@/types'
+import type { ReceiptData } from '@/lib/receipt'
 import { delay, uid } from '@/lib/utils'
 import { api, USE_MOCK } from '../client'
 import { leadsMock } from '../mock/leads'
@@ -80,12 +81,30 @@ export async function getLeadTrials(id: string): Promise<TrialLesson[]> {
   return data
 }
 
-export async function scheduleTrial(id: string, groupId: string, scheduledAt: string): Promise<void> {
+export async function scheduleTrial(
+  id: string,
+  groupId: string,
+  scheduledAt: string,
+): Promise<string | null> {
   if (USE_MOCK) {
     await delay(200)
-    return
+    return null
   }
-  await api.post(`/admin/leads/${id}/trials`, { groupId, scheduledAt })
+  const { data } = await api.post<{ trialId?: string }>(`/admin/leads/${id}/trials`, {
+    groupId,
+    scheduledAt,
+  })
+  return data?.trialId ?? null
+}
+
+/** Lid sinov darsi cheki (to'lovsiz ro'yxat varaqasi) — termal chek chizish/print uchun. */
+export async function getTrialReceipt(
+  trialId: string,
+): Promise<ReceiptData & { settingsJson: string }> {
+  const { data } = await api.get<ReceiptData & { settingsJson: string }>(
+    `/admin/leads/trials/${trialId}/receipt`,
+  )
+  return data
 }
 
 export async function setTrialResult(trialId: string, result: TrialResult): Promise<void> {

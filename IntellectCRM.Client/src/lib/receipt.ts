@@ -18,11 +18,14 @@ export interface ReceiptData {
   groupName: string
   method: string
   comment?: string | null
-  total: number
+  /** To'lov summasi. null/undefined = to'lovsiz chek (lid sinov varaqasi) — "Jami" ko'rsatilmaydi. */
+  total?: number | null
   centerName: string
   centerPhone: string
   centerAddress: string
   logoUrl: string
+  /** Sarlavha ostidagi kichik izoh, masalan "Sinov darsiga yozildi". */
+  subtitle?: string | null
 }
 
 /** Pul: "200,000 so'm" (chekda — minglik ajratkichi vergul, misoldagidek). */
@@ -49,6 +52,7 @@ export function receiptHtml(d: ReceiptData, s: CheckSettings): string {
     <div class="hdr">
       ${s.showLogo && d.logoUrl ? `<img class="logo" src="${esc(d.logoUrl)}" alt="" />` : ''}
       ${s.showName && d.centerName ? `<div class="name">${esc(d.centerName)}</div>` : ''}
+      ${d.subtitle ? `<div class="sub">${esc(d.subtitle)}</div>` : ''}
     </div>`
 
   const rows = [
@@ -70,13 +74,18 @@ export function receiptHtml(d: ReceiptData, s: CheckSettings): string {
     ? `<div class="contact">${[d.centerPhone, d.centerAddress].filter(Boolean).map(esc).join('<br/>')}</div>`
     : ''
 
+  const totalBlock =
+    d.total != null
+      ? `<div class="total"><span>Jami</span><span>${esc(money(d.total))}</span></div>
+         <div class="sep"></div>`
+      : ''
+
   return `
     ${header}
     <div class="sep"></div>
     <div class="rows">${rows}</div>
     <div class="sep"></div>
-    <div class="total"><span>Jami</span><span>${esc(money(d.total))}</span></div>
-    <div class="sep"></div>
+    ${totalBlock}
     ${qrSrc ? `<div class="qr"><img src="${qrSrc}" alt="QR" /></div>` : ''}
     ${contact}
     ${s.footerText ? `<div class="footer">${esc(s.footerText)}</div>` : ''}
@@ -91,6 +100,7 @@ export const receiptCss = `
   .receipt .hdr { text-align: center; }
   .receipt .logo { max-width: 96px; max-height: 96px; object-fit: contain; margin: 0 auto 4px; display: block; }
   .receipt .name { font-size: 16px; font-weight: 700; letter-spacing: .5px; }
+  .receipt .sub { font-size: 11px; font-weight: 600; margin-top: 2px; }
   .receipt .sep { border-top: 1px dashed #000; margin: 7px 0; }
   .receipt .r { display: flex; justify-content: space-between; gap: 8px; margin: 2px 0; }
   .receipt .r .k { color: #000; white-space: nowrap; }

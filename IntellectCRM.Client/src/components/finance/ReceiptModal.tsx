@@ -4,25 +4,29 @@ import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Loader } from '@/components/ui/Loader'
 import { getReceipt } from '@/api/services/finance'
+import { getTrialReceipt } from '@/api/services/leads'
 import { receiptHtml, receiptCss, printReceipt, type ReceiptData } from '@/lib/receipt'
 import { parseCheckSettings, type CheckSettings } from '@/config/checkSettings'
 
 interface Props {
-  /** Chek chiqariladigan to'lov (tranzaksiya) id'si; null = yopiq */
-  txId: string | null
-  /** Ochilganda avtomatik print dialogini ochish (to'lov kiritilgandan keyin) */
+  /** To'lov cheki uchun tranzaksiya id'si (moliya) */
+  txId?: string | null
+  /** Sinov darsi cheki uchun trial id'si (lid bo'limi, to'lovsiz) */
+  trialId?: string | null
+  /** Ochilganda avtomatik print dialogini ochish (to'lov/yozuv kiritilgandan keyin) */
   autoPrint?: boolean
   onClose: () => void
 }
 
-/** To'lov cheki (termal kvitansiya) — ko'rib chiqish + bosib chiqarish. */
-export function ReceiptModal({ txId, autoPrint, onClose }: Props) {
+/** To'lov / sinov darsi cheki (termal kvitansiya) — ko'rib chiqish + bosib chiqarish. */
+export function ReceiptModal({ txId, trialId, autoPrint, onClose }: Props) {
   const [data, setData] = useState<ReceiptData | null>(null)
   const [settings, setSettings] = useState<CheckSettings | null>(null)
   const [loading, setLoading] = useState(false)
+  const open = !!txId || !!trialId
 
   useEffect(() => {
-    if (!txId) {
+    if (!txId && !trialId) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- modal yopilganda tozalash
       setData(null)
       setSettings(null)
@@ -30,7 +34,8 @@ export function ReceiptModal({ txId, autoPrint, onClose }: Props) {
     }
     // eslint-disable-next-line react-hooks/set-state-in-effect -- modal ochilganda yuklash
     setLoading(true)
-    getReceipt(txId)
+    const fetch = txId ? getReceipt(txId) : getTrialReceipt(trialId!)
+    fetch
       .then((r) => {
         const { settingsJson, ...rest } = r
         setData(rest)
@@ -39,7 +44,7 @@ export function ReceiptModal({ txId, autoPrint, onClose }: Props) {
         if (autoPrint) printReceipt(rest, s)
       })
       .finally(() => setLoading(false))
-  }, [txId, autoPrint])
+  }, [txId, trialId, autoPrint])
 
   const print = () => {
     if (data && settings) printReceipt(data, settings)
@@ -47,10 +52,10 @@ export function ReceiptModal({ txId, autoPrint, onClose }: Props) {
 
   return (
     <Modal
-      open={!!txId}
+      open={open}
       onClose={onClose}
       size="sm"
-      title="To'lov cheki"
+      title={trialId ? 'Sinov darsi cheki' : "To'lov cheki"}
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>

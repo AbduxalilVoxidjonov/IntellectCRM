@@ -650,8 +650,9 @@ public record FinanceTransactionDto(
 public record CheckSettingsDto(string Json);
 public record ReceiptDto(
     string ReceiptNo, string DateTime, string StudentName, string TeacherName,
-    string ResponsibleName, string GroupName, string Method, string? Comment, decimal Total,
-    string CenterName, string CenterPhone, string CenterAddress, string LogoUrl, string SettingsJson);
+    string ResponsibleName, string GroupName, string Method, string? Comment, decimal? Total,
+    string CenterName, string CenterPhone, string CenterAddress, string LogoUrl, string SettingsJson,
+    string? Subtitle = null);
 public record FinanceTransactionPayload(
     string Date, string Direction, string Category, decimal Amount, string? Note,
     string? StudentId, string? TeacherId, string? Month = null, string? GroupId = null, string? Comment = null, string? Method = null);

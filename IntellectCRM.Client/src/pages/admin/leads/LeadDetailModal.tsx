@@ -8,7 +8,9 @@ import {
   History,
   GraduationCap,
   MessageSquare,
+  Receipt,
 } from 'lucide-react'
+import { ReceiptModal } from '@/components/finance/ReceiptModal'
 import { getSmsTemplates, sendLeadSms, type SmsTemplate } from '@/api/services/messages'
 import { getLevelTests, sendLeadTest } from '@/api/services/levelTests'
 import type { LevelTestListItem } from '@/types'
@@ -112,6 +114,9 @@ export function LeadDetailModal({ lead, onClose, onEdit, onDelete, onConverted }
 
   const [trialGroupId, setTrialGroupId] = useState('')
   const [trialAt, setTrialAt] = useState('')
+  // Sinov darsi cheki (to'lovsiz ro'yxat varaqasi) — qaysi trial cheki ochiq + avto-print.
+  const [receiptTrial, setReceiptTrial] = useState<string | null>(null)
+  const [receiptAuto, setReceiptAuto] = useState(false)
   const [savingTrial, setSavingTrial] = useState(false)
 
   const [convertGroupId, setConvertGroupId] = useState('')
@@ -202,13 +207,24 @@ export function LeadDetailModal({ lead, onClose, onEdit, onDelete, onConverted }
     if (!leadId || !trialGroupId || !trialAt) return
     setSavingTrial(true)
     try {
-      await scheduleTrial(leadId, trialGroupId, trialAt)
+      const tid = await scheduleTrial(leadId, trialGroupId, trialAt)
       setTrialGroupId('')
       setTrialAt('')
       refreshTimeline(leadId)
+      // Sinov darsiga yozildi — chekni avtomatik ochib, print dialogini chiqaramiz.
+      if (tid) {
+        setReceiptAuto(true)
+        setReceiptTrial(tid)
+      }
     } finally {
       setSavingTrial(false)
     }
+  }
+
+  /** Mavjud sinov darsi uchun chekni qayta ochish (avto-print yo'q). */
+  const openTrialReceipt = (trialId: string) => {
+    setReceiptAuto(false)
+    setReceiptTrial(trialId)
   }
 
   const handleTrialResult = async (trialId: string, result: 'stayed' | 'left') => {
@@ -239,6 +255,7 @@ export function LeadDetailModal({ lead, onClose, onEdit, onDelete, onConverted }
   }
 
   return (
+    <>
     <Modal
       open={!!lead}
       onClose={onClose}
@@ -468,6 +485,14 @@ export function LeadDetailModal({ lead, onClose, onEdit, onDelete, onConverted }
                       >
                         {trialResultLabels[t.result]}
                       </span>
+                      <button
+                        type="button"
+                        title="Chek (sinov darsi varaqasi)"
+                        onClick={() => openTrialReceipt(t.id)}
+                        className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-violet-50 hover:text-violet-600"
+                      >
+                        <Receipt className="h-4 w-4" />
+                      </button>
                       {t.result === 'pending' && (
                         <>
                           <Button
@@ -574,5 +599,15 @@ export function LeadDetailModal({ lead, onClose, onEdit, onDelete, onConverted }
         </div>
       )}
     </Modal>
+
+    <ReceiptModal
+      trialId={receiptTrial}
+      autoPrint={receiptAuto}
+      onClose={() => {
+        setReceiptTrial(null)
+        setReceiptAuto(false)
+      }}
+    />
+    </>
   )
 }

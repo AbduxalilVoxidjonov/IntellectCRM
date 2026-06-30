@@ -182,14 +182,45 @@ public class LeadsController(AppDbContext db, AuditService audit, TelegramServic
     {
         if (await db.Leads.FindAsync(id) is null) return NotFound();
         var group = await db.Classes.FindAsync(req.GroupId);
-        db.TrialLessons.Add(new TrialLesson
+        var trial = new TrialLesson
         {
             LeadId = id, GroupId = req.GroupId, ScheduledAt = req.ScheduledAt,
             Result = "pending", CreatedAt = Now(),
-        });
+        };
+        db.TrialLessons.Add(trial);
         AddEvent(id, "trial", $"Sinov darsi belgilandi: {group?.Name ?? req.GroupId} — {req.ScheduledAt}");
         await db.SaveChangesAsync();
-        return Ok(new { ok = true });
+        return Ok(new { ok = true, trialId = trial.Id });
+    }
+
+    /// <summary>Lid sinov darsiga yozilganda chiqadigan chek (TO'LOVSIZ ro'yxat varaqasi):
+    /// O'quvchi(lid)/Guruh/O'qituvchi/Sana-vaqt. Jami/to'lov turi bo'lmaydi (Total=null → frontend "Jami"ni
+    /// ko'rsatmaydi). Chek sozlamalari (maydon tanlovi, sarlavha, footer) moliya cheki bilan bir xil.</summary>
+    [HttpGet("trials/{trialId}/receipt")]
+    public async Task<ActionResult<ReceiptDto>> TrialReceipt(string trialId)
+    {
+        var trial = await db.TrialLessons.FindAsync(trialId);
+        if (trial is null) return NotFound();
+        var lead = await db.Leads.FindAsync(trial.LeadId);
+        var meta = await db.CenterMeta.FirstOrDefaultAsync();
+
+        var groupName = "";
+        var teacherName = "";
+        if (!string.IsNullOrWhiteSpace(trial.GroupId) && await db.Classes.FindAsync(trial.GroupId) is { } grp)
+        {
+            groupName = grp.Name;
+            if (!string.IsNullOrWhiteSpace(grp.TeacherId))
+                teacherName = (await db.Teachers.FindAsync(grp.TeacherId))?.FullName ?? "";
+        }
+        // Sana/vaqt = sinov darsi vaqti ("yyyy-MM-ddTHH:mm" → "yyyy-MM-dd HH:mm").
+        var dt = trial.ScheduledAt.Length >= 16 ? trial.ScheduledAt[..16].Replace('T', ' ') : trial.ScheduledAt;
+        var responsible = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value ?? "";
+
+        return new ReceiptDto(
+            FinanceController.ReceiptNumber(trial.Id), dt, lead?.FullName ?? "", teacherName,
+            responsible, groupName, "", null, null, // Method/Comment/Total yo'q (to'lovsiz)
+            meta?.Name ?? "", meta?.Phone ?? "", meta?.Address ?? "", meta?.LogoUrl ?? "",
+            meta?.CheckSettings ?? "", Subtitle: "Sinov darsiga yozildi");
     }
 
     /// <summary>Sinov darsi natijasi: stayed (qoldi) | left (ketdi).</summary>

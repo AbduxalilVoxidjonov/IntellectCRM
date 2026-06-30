@@ -81,8 +81,8 @@ public class FinanceController(AppDbContext db, AuditService audit, EskizService
             meta?.CheckSettings ?? "");
     }
 
-    /// <summary>Tranzaksiya GUID'idan barqaror 9 xonali chek raqami.</summary>
-    private static string ReceiptNumber(string guid)
+    /// <summary>GUID'dan barqaror 9 xonali chek raqami (lid sinov cheki ham shu formatdan foydalanadi).</summary>
+    public static string ReceiptNumber(string guid)
     {
         var hash = 0;
         foreach (var c in guid) hash = unchecked(hash * 31 + c);
