@@ -715,6 +715,8 @@ export interface FinanceTransaction {
   method?: string
   /** Backend qaytaradigan guruh nomi (tuition to'lovi bo'lsa) */
   groupName?: string | null
+  /** Kiritilgan vaqt (ISO "yyyy-MM-ddTHH:mm:ss", maktab mintaqasi UTC+5) — ro'yxatda soat ko'rsatish uchun */
+  createdAt?: string
 }
 
 export interface CategoryAmount {

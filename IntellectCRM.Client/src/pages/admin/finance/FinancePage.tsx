@@ -23,7 +23,7 @@ import {
 } from '@/api/services/finance'
 import { addPayment } from '@/api/services/students'
 import { financeCategoryLabel, financeDirectionLabels, formatMonth, paymentMethodLabel } from '@/config/constants'
-import { formatDate, formatMoney, exportToCsv, cn } from '@/lib/utils'
+import { formatDate, formatTime, formatMoney, exportToCsv, cn } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
@@ -382,7 +382,12 @@ export function FinancePage() {
                     <tbody>
                       {transactions.map((t) => (
                         <tr key={t.id}>
-                          <td className="font-mono text-[12.5px] text-slate-500">{formatDate(t.date)}</td>
+                          <td className="font-mono text-[12.5px] text-slate-500">
+                            {formatDate(t.date)}
+                            {t.createdAt && formatTime(t.createdAt) && (
+                              <span className="ml-1 text-slate-400">{formatTime(t.createdAt)}</span>
+                            )}
+                          </td>
                           <td>
                             <Badge tone={t.direction === 'income' ? 'green' : 'red'}>
                               {financeDirectionLabels[t.direction]}
@@ -615,7 +620,12 @@ export function FinancePage() {
                     <tbody>
                       {filteredPayments.map((p) => (
                         <tr key={p.id}>
-                          <td className="font-mono text-[12.5px] text-slate-500">{formatDate(p.date)}</td>
+                          <td className="font-mono text-[12.5px] text-slate-500">
+                            {formatDate(p.date)}
+                            {p.createdAt && formatTime(p.createdAt) && (
+                              <span className="ml-1 text-slate-400">{formatTime(p.createdAt)}</span>
+                            )}
+                          </td>
                           <td className="font-medium text-slate-800">{p.studentName ?? '—'}</td>
                           <td>{p.groupName ? <Badge>{p.groupName}</Badge> : <span className="text-slate-300">—</span>}</td>
                           <td className="text-slate-600">{p.month ? formatMonth(p.month) : '—'}</td>

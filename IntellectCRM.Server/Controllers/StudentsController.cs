@@ -14,7 +14,7 @@ namespace IntellectCRM.Server.Controllers;
 [Authorize]
 [AdminPerm("students")]
 [Route("api/admin/students")]
-public class StudentsController(AppDbContext db, AuditService audit, IConfiguration config) : ControllerBase
+public class StudentsController(AppDbContext db, AuditService audit, IConfiguration config, EskizService eskiz) : ControllerBase
 {
     private const int MinPasswordLength = 8;
     private const string WeakPasswordMessage = "Parol kamida 8 belgidan iborat bo'lsin";
@@ -1104,6 +1104,15 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
             after: AuditService.Snapshot(tx), studentId: student.Id);
 
         await db.SaveChangesAsync();
+
+        // Avto SMS — o'quvchi tuition to'lovi qabul qilinganda ota-onaga ("To'lov" hodisasi).
+        // Moliya bo'limidagi to'lov bilan bir xil xulq (FinanceController). {summa} = faqat raqam.
+        await AutoSmsService.SendForStudentAsync(db, eskiz, AutoSmsService.TriggerPayment, student,
+            $"{Request.Scheme}://{Request.Host}/api/sms/callback", extra: new Dictionary<string, string>
+            {
+                ["{summa}"] = MessageTokenizer.MoneyPlain(req.Amount),
+            });
+
         return NoContent();
     }
 

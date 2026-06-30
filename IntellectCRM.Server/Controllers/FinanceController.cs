@@ -32,7 +32,9 @@ public class FinanceController(AppDbContext db, AuditService audit, EskizService
             t.StudentId, t.StudentId is not null && students.TryGetValue(t.StudentId, out var s) ? s : null,
             t.TeacherId, t.TeacherId is not null && teachers.TryGetValue(t.TeacherId, out var te) ? te : null,
             t.Month, t.GroupId, t.Comment, t.Method,
-            t.GroupId is not null && groups is not null && groups.TryGetValue(t.GroupId, out var g) ? g : null);
+            t.GroupId is not null && groups is not null && groups.TryGetValue(t.GroupId, out var g) ? g : null,
+            // Kiritilgan vaqt — UTC saqlangan CreatedAt'ni maktab mintaqasiga (UTC+5) o'tkazib beramiz.
+            t.CreatedAt == default ? null : AppClock.ToLocal(t.CreatedAt).ToString("yyyy-MM-ddTHH:mm:ss"));
 
     [HttpGet("transactions")]
     public async Task<ActionResult<IEnumerable<FinanceTransactionDto>>> GetTransactions(

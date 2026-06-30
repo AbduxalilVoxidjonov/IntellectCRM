@@ -35,6 +35,12 @@ public static class AppClock
     /// <summary>Maktab mintaqasidagi bugungi sana.</summary>
     public static DateOnly Today => DateOnly.FromDateTime(Now);
 
+    /// <summary>Saqlangan UTC vaqtni (masalan FinanceTransaction.CreatedAt) maktab mintaqasiga
+    /// (UTC+5) o'tkazadi — ro'yxatda "kiritilgan vaqt"ni ko'rsatish uchun. Kind belgisiz qiymat
+    /// ham UTC sifatida talqin qilinadi (legacy timestamp xulqi: timestamp ustun Kind=Unspecified qaytaradi).</summary>
+    public static DateTime ToLocal(DateTime utc) =>
+        TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utc, DateTimeKind.Utc), Tz);
+
     /// <summary>"yyyy-MM-ddTHH:mm:ss" — saqlash/ko'rsatish uchun standart ISO satr (mintaqa: UTC+5).</summary>
     public static string Iso() => Now.ToString("yyyy-MM-ddTHH:mm:ss");
 }
