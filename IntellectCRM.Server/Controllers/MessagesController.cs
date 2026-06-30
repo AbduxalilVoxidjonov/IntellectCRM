@@ -556,7 +556,7 @@ public class MessagesController(AppDbContext db, ChatService chat, TelegramServi
     {
         AutoSmsService.TriggerLeadNew, AutoSmsService.TriggerPayment,
         AutoSmsService.TriggerBirthday, AutoSmsService.TriggerTestResult,
-        AutoSmsService.TriggerTestLink,
+        AutoSmsService.TriggerTestLink, AutoSmsService.TriggerTrialReminder,
     };
 
     private static string NormalizeTrigger(string? t)

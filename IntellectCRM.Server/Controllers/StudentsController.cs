@@ -1111,7 +1111,7 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
             $"{Request.Scheme}://{Request.Host}/api/sms/callback", extra: new Dictionary<string, string>
             {
                 ["{summa}"] = MessageTokenizer.MoneyPlain(req.Amount),
-            });
+            }, preferStudentPhone: true);
 
         return NoContent();
     }

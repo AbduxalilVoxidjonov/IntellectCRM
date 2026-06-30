@@ -22,6 +22,7 @@ public static class AutoSmsService
     public const string TriggerBirthday = "birthday";
     public const string TriggerTestResult = "test_result";
     public const string TriggerTestLink = "test_link";
+    public const string TriggerTrialReminder = "trial_reminder";
 
     public static string TriggerLabel(string t) => t switch
     {
@@ -30,6 +31,7 @@ public static class AutoSmsService
         TriggerBirthday => "tug'ilgan kun",
         TriggerTestResult => "test natijasi",
         TriggerTestLink => "daraja testi havolasi",
+        TriggerTrialReminder => "sinov darsi eslatmasi",
         _ => "avto",
     };
 
@@ -83,15 +85,22 @@ public static class AutoSmsService
     /// <summary>O'quvchiga (ota-ona raqamiga) avto-SMS — to'lov / tug'ilgan kun.</summary>
     public static async Task SendForStudentAsync(
         IAppDbContext db, EskizService eskiz, string trigger, Student s,
-        string? callbackUrl = null, IReadOnlyDictionary<string, string>? extra = null, CancellationToken ct = default)
+        string? callbackUrl = null, IReadOnlyDictionary<string, string>? extra = null,
+        bool preferStudentPhone = false, CancellationToken ct = default)
     {
         try
         {
             var meta = await db.CenterMeta.FirstOrDefaultAsync(ct);
             if (!eskiz.IsConfigured(meta)) return;
-            var phone = !string.IsNullOrWhiteSpace(s.ParentPhone) ? s.ParentPhone
-                : !string.IsNullOrWhiteSpace(s.FatherPhone) ? s.FatherPhone
-                : !string.IsNullOrWhiteSpace(s.MotherPhone) ? s.MotherPhone : s.Phone;
+            // preferStudentPhone (to'lov): o'quvchining o'z raqami birinchi, ota-ona zaxira.
+            // Aks holda (tug'ilgan kun va h.k.): ota-ona birinchi, o'quvchi oxirgi (eski xulq).
+            var phone = preferStudentPhone
+                ? (!string.IsNullOrWhiteSpace(s.Phone) ? s.Phone
+                    : !string.IsNullOrWhiteSpace(s.ParentPhone) ? s.ParentPhone
+                    : !string.IsNullOrWhiteSpace(s.FatherPhone) ? s.FatherPhone : s.MotherPhone)
+                : (!string.IsNullOrWhiteSpace(s.ParentPhone) ? s.ParentPhone
+                    : !string.IsNullOrWhiteSpace(s.FatherPhone) ? s.FatherPhone
+                    : !string.IsNullOrWhiteSpace(s.MotherPhone) ? s.MotherPhone : s.Phone);
             if (string.IsNullOrWhiteSpace(phone)) return;
             var tpl = await FindTemplateAsync(db, trigger, ct);
             if (tpl is null || string.IsNullOrWhiteSpace(tpl.Text)) return;
@@ -107,7 +116,8 @@ public static class AutoSmsService
     /// <summary>Lidga avto-SMS — yangi lid / daraja testi natijasi.</summary>
     public static async Task SendForLeadAsync(
         IAppDbContext db, EskizService eskiz, string trigger, Lead lead,
-        string? callbackUrl = null, IReadOnlyDictionary<string, string>? extra = null, CancellationToken ct = default)
+        string? callbackUrl = null, IReadOnlyDictionary<string, string>? extra = null,
+        Group? group = null, string? trialAt = null, CancellationToken ct = default)
     {
         try
         {
@@ -118,7 +128,8 @@ public static class AutoSmsService
             if (string.IsNullOrWhiteSpace(phone)) return;
             var tpl = await FindTemplateAsync(db, trigger, ct);
             if (tpl is null || string.IsNullOrWhiteSpace(tpl.Text)) return;
-            var msg = MessageTokenizer.Lead(tpl.Text, lead, phone, meta?.Name ?? "", extra);
+            // group/trialAt berilsa (sinov darsi eslatmasi) — {dars_sana}/{dars_vaqti}/{dars_kunlari} to'ladi.
+            var msg = MessageTokenizer.Lead(tpl.Text, lead, phone, meta?.Name ?? "", extra, group, trialAt);
             await SendAndLogAsync(db, eskiz, trigger, phone, lead.FullName, tpl.Text, msg, callbackUrl, ct);
         }
         catch { /* avto-SMS asosiy oqimni hech qachon buzmaydi */ }

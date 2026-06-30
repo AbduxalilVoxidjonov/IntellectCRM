@@ -193,7 +193,7 @@ export async function sendSms(req: SendSmsReq): Promise<SmsBatch> {
 
 /* ---------- SMS andozalari (shablonlar) ---------- */
 /** Avto-SMS hodisasi (trigger). Bo'sh = qo'lda (avto emas). */
-export type SmsTrigger = '' | 'lead_new' | 'payment' | 'birthday' | 'test_result' | 'test_link'
+export type SmsTrigger = '' | 'lead_new' | 'payment' | 'birthday' | 'test_result' | 'test_link' | 'trial_reminder'
 
 /** Hodisa tanlovi uchun yorliqlar (UI). */
 export const smsTriggerOptions: { value: SmsTrigger; label: string }[] = [
@@ -203,6 +203,7 @@ export const smsTriggerOptions: { value: SmsTrigger; label: string }[] = [
   { value: 'birthday', label: 'Tug’ilgan kunda' },
   { value: 'test_result', label: 'Test natijasi chiqqanda' },
   { value: 'test_link', label: 'Daraja testi havolasi ({link})' },
+  { value: 'trial_reminder', label: 'Sinov darsidan bir kun avval ({dars_sana}, {dars_vaqti})' },
 ]
 export const smsTriggerLabel = (t: string): string =>
   smsTriggerOptions.find((o) => o.value === t)?.label ?? ''

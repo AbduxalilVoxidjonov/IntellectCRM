@@ -176,6 +176,8 @@ builder.Services.AddHostedService<IntellectCRM.Application.Services.TurnstileLiv
 builder.Services.AddHostedService<IntellectCRM.Application.Services.PaymentReminderService>();
 // Tug'ilgan kun avto-SMS (09:00 Toshkent; "birthday" hodisasiga andoza bo'lsa).
 builder.Services.AddHostedService<IntellectCRM.Application.Services.BirthdaySmsService>();
+// Sinov darsi eslatmasi (09:00 Toshkent; ertaga bo'ladigan sinovlar; "trial_reminder" andoza bo'lsa).
+builder.Services.AddHostedService<IntellectCRM.Application.Services.TrialReminderService>();
 // Kunlik avtomatik backup — markaz ma'lumotlarini JSON qilib Telegram orqali adminga (jadval CenterMeta'da).
 builder.Services.AddHostedService<IntellectCRM.Application.Services.BackupSchedulerService>();
 // Kunlik markaz AI tahlili (ertalab ~8:00 Toshkent; Gemini kaliti + AiDailyAnalysisEnabled bo'lsa).

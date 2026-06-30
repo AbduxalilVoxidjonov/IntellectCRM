@@ -121,7 +121,7 @@ public class FinanceController(AppDbContext db, AuditService audit, EskizService
                     $"{Request.Scheme}://{Request.Host}/api/sms/callback", extra: new Dictionary<string, string>
                     {
                         ["{summa}"] = MessageTokenizer.MoneyPlain(tx.Amount),
-                    });
+                    }, preferStudentPhone: true);
         }
 
         return ToDto(tx, await StudentNames(), await TeacherNames());
