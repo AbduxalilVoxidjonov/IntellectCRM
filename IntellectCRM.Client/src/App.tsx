@@ -43,6 +43,7 @@ import { SupportDetailPage } from '@/pages/admin/support/SupportDetailPage'
 import { PublicTestPage } from '@/pages/public/PublicTestPage'
 import { VerifyCertificatePage } from '@/pages/public/VerifyCertificate'
 import { MessagesPage } from '@/pages/admin/messages/MessagesPage'
+import { SupportTelegramPage } from '@/pages/admin/messages/SupportTelegramPage'
 import { AssignmentsPage } from '@/pages/admin/assignments/AssignmentsPage'
 import { AssignmentScoresPage } from '@/pages/admin/assignment-scores/AssignmentScoresPage'
 import { LmsClassesPage } from '@/pages/admin/lms/LmsClassesPage'
@@ -185,6 +186,7 @@ export default function App() {
           <Route path="lms/:classId/:subjectId" element={<RequirePerm perm="app"><LmsModulesPage /></RequirePerm>} />
           <Route path="lms/:classId/:subjectId/:moduleId" element={<RequirePerm perm="app"><LmsTopicsPage /></RequirePerm>} />
           <Route path="messages" element={<RequirePerm perm="messages"><MessagesPage /></RequirePerm>} />
+          <Route path="support-telegram" element={<RequirePerm perm="messages"><SupportTelegramPage /></RequirePerm>} />
           <Route path="teacher-reports" element={<RequirePerm perm="teacherReports"><TeacherReportsPage /></RequirePerm>} />
           <Route path="contracts" element={<RequirePerm perm="contracts"><ContractsPage /></RequirePerm>} />
           <Route path="locations" element={<RequirePerm perm="app"><LocationPage /></RequirePerm>} />

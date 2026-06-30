@@ -17,6 +17,7 @@ import {
   Archive,
   DoorOpen,
   Megaphone,
+  Headset,
 } from 'lucide-react'
 import type { Role } from '@/types'
 
@@ -114,6 +115,7 @@ export const navByRole: Record<Role, NavItem[]> = {
       ],
     },
     { label: 'Xabarlar', to: '/admin/messages', icon: MessageSquare, perm: 'messages' },
+    { label: 'Support Telegram', to: '/admin/support-telegram', icon: Headset, perm: 'messages' },
     {
       label: 'Ilova',
       to: '/admin/assignments',

@@ -22,6 +22,10 @@ public class TelegramBotService(
     private const string ApkMime = "application/vnd.android.package-archive";
     private const string ApkCaption =
         "📲 Ilovani o'rnatish: faylni yuklab oling, ochib o'rnating (noma'lum manbalardan o'rnatishga ruxsat bering).";
+    /// <summary>Veb (brauzer) versiyasi — ilova fayli bo'lmasa yoki kompyuterdan kirish uchun.</summary>
+    private const string WebAppUrl = "https://crm.intellectschool.uz/";
+    /// <summary>Telefon klaviaturasidagi "adminga murojaat" tugmasi matni (reply keyboard).</summary>
+    private const string SupportButtonText = "✍️ Adminga murojaat";
 
     /// <summary>Obunadan oldin kontakt yuborgan, lekin hali obuna bo'lmaganlar: chatId → telefon.</summary>
     private readonly ConcurrentDictionary<long, string> _pendingPhone = new();
@@ -101,12 +105,12 @@ public class TelegramBotService(
         {
             await UpsertBotUserOnStartAsync(chatId, msg, ct);
             await telegram.SendMessageAsync(chatId,
-                "Assalomu alaykum! 📱 Ilovani (o'quvchi yoki o'qituvchi) o'rnatish uchun pastdagi tugma orqali " +
-                "telefon raqamingizni yuboring. Raqamingiz markaz ma'lumotlari bilan solishtiriladi.\n" +
-                "Yoki administratorga murojaat uchun /support buyrug'ini yuboring.",
+                "Assalomu alaykum! 📱 Ilovaga kirish uchun pastdagi tugma orqali telefon raqamingizni yuboring " +
+                "— raqamingiz markaz ma'lumotlari bilan solishtirilib, login/parolingiz yuboriladi.\n" +
+                $"Administratorga murojaat uchun «{SupportButtonText}» tugmasini bosing.",
                 ContactKeyboard, ct);
         }
-        else if (text == "/support")
+        else if (text == "/support" || text == SupportButtonText)
         {
             await HandleSupportCommandAsync(chatId, ct);
         }
@@ -125,7 +129,7 @@ public class TelegramBotService(
             {
                 await telegram.SendMessageAsync(chatId,
                     "Iltimos, pastdagi tugma orqali telefon raqamingizni yuboring.\n" +
-                    "Administratorga murojaat uchun /support buyrug'ini yuboring.",
+                    $"Administratorga murojaat uchun «{SupportButtonText}» tugmasini bosing.",
                     ContactKeyboard, ct);
             }
         }
@@ -276,7 +280,7 @@ public class TelegramBotService(
             var sentAny = await SendAppApkAsync(db, meta, chatId, students.Count > 0, teachers.Count > 0, ct);
             if (!sentAny)
                 await telegram.SendMessageAsync(chatId,
-                    "ℹ️ Ilova fayli hali yuklanmagan. Iltimos, birozdan so'ng qayta urinib ko'ring yoki ma'muriyatga murojaat qiling.",
+                    $"🌐 Tizimga veb-versiya orqali kiring:\n{WebAppUrl}",
                     ct: ct);
         }
     }
@@ -322,8 +326,8 @@ public class TelegramBotService(
     {
         var login = user.Email;
         if (!string.IsNullOrEmpty(user.InitialPassword))
-            return $"🔑 Ilovaga kirish:\nLogin: {login}\nParol: {user.InitialPassword}";
-        return $"🔑 Login: {login}\n(Parolingizni avval olgansiz. Esdan chiqargan bo'lsangiz administratorga /support orqali murojaat qiling.)";
+            return $"🔑 Kirish ma'lumotlari:\nLogin: {login}\nParol: {user.InitialPassword}\n🌐 {WebAppUrl}";
+        return $"🔑 Login: {login}\nParolingizni avval olgansiz. 🌐 {WebAppUrl}\n(Esdan chiqsa — «{SupportButtonText}» tugmasi orqali administratorga murojaat qiling.)";
     }
 
     /// <summary>Kontakt ulashilgandan keyin BotUser yozuvini yangilaydi yoki yaratadi.</summary>
@@ -591,12 +595,16 @@ public class TelegramBotService(
         return string.Join(" ", new[] { fn, ln }.Where(x => !string.IsNullOrWhiteSpace(x)));
     }
 
-    /// <summary>Telefon so'rovchi klaviatura (request_contact).</summary>
+    /// <summary>Telefon so'rovchi klaviatura (request_contact) + "Adminga murojaat" tugmasi (doimiy).</summary>
     private static object ContactKeyboard => new
     {
-        keyboard = new[] { new[] { new { text = "📱 Telefon raqamni yuborish", request_contact = true } } },
+        keyboard = new object[][]
+        {
+            new object[] { new { text = "📱 Telefon raqamni yuborish", request_contact = true } },
+            new object[] { new { text = SupportButtonText } },
+        },
         resize_keyboard = true,
-        one_time_keyboard = true,
+        one_time_keyboard = false,
     };
 
     /// <summary>Kanal havolasi + "✅ Tekshirish" inline tugmalari.</summary>
