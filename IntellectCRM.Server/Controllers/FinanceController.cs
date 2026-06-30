@@ -118,7 +118,7 @@ public class FinanceController(AppDbContext db, AuditService audit, EskizService
                 await AutoSmsService.SendForStudentAsync(db, eskiz, AutoSmsService.TriggerPayment, student,
                     $"{Request.Scheme}://{Request.Host}/api/sms/callback", extra: new Dictionary<string, string>
                     {
-                        ["{summa}"] = MessageTokenizer.Money(tx.Amount),
+                        ["{summa}"] = MessageTokenizer.MoneyPlain(tx.Amount),
                     });
         }
 

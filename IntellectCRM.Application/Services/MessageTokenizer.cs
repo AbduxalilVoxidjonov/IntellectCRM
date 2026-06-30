@@ -33,6 +33,10 @@ public static class MessageTokenizer
         return v.ToString("#,0", nfi) + " so'm";
     }
 
+    /// <summary>So'm — probelsiz (SMS {summa} uchun): 400000 so'm.</summary>
+    public static string MoneyPlain(decimal v) =>
+        v.ToString("0", CultureInfo.InvariantCulture) + " so'm";
+
     private static string Rep(string input, string token, string? value) =>
         Regex.Replace(input, Regex.Escape(token),
             (value ?? "").Replace("$", "$$"), RegexOptions.IgnoreCase);
