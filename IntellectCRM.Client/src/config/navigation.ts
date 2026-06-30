@@ -169,6 +169,7 @@ export const navByRole: Record<Role, NavItem[]> = {
         { label: 'Speaking (Azure)', to: '/admin/settings/azure-speech' },
         { label: 'AI Tahlil (Gemini)', to: '/admin/settings/gemini' },
         { label: 'SMS (Eskiz)', to: '/admin/settings/eskiz' },
+        { label: "To'lov cheki", to: '/admin/settings/check' },
         { label: 'Turniket integratsiya', to: '/admin/settings/turnstile' },
         { label: 'Kamera integratsiya', to: '/admin/settings/cameras' },
         { label: "To'lov eslatmasi", to: '/admin/settings/payment-reminders' },

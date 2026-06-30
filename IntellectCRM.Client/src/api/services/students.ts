@@ -296,12 +296,19 @@ export async function addPayment(
   groupId?: string,
   comment?: string,
   method?: string,
-): Promise<void> {
+): Promise<string | null> {
   if (USE_MOCK) {
     await delay(250)
-    return
+    return null
   }
-  await api.post(`/admin/students/${id}/payments`, { amount, month, groupId, comment, method })
+  const { data } = await api.post<{ id: string }>(`/admin/students/${id}/payments`, {
+    amount,
+    month,
+    groupId,
+    comment,
+    method,
+  })
+  return data?.id ?? null
 }
 
 const LEDGER_MONTHS = ['2026-01', '2026-02', '2026-03', '2026-04', '2026-05']

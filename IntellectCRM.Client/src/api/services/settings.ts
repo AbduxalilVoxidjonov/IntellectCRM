@@ -350,6 +350,27 @@ export async function savePaymentReminderSettings(payload: {
   return data
 }
 
+/* ---------- To'lov cheki (kvitansiya) sozlamalari ---------- */
+
+/** Chek sozlamalari JSON satrini qaytaradi (bo'sh = standart shablon). */
+export async function getCheckSettings(): Promise<string> {
+  if (USE_MOCK) {
+    await delay()
+    return ''
+  }
+  const { data } = await api.get<{ json: string }>('/admin/settings/check')
+  return data.json ?? ''
+}
+
+/** Chek sozlamalari JSON satrini saqlaydi. */
+export async function saveCheckSettings(json: string): Promise<void> {
+  if (USE_MOCK) {
+    await delay(250)
+    return
+  }
+  await api.put('/admin/settings/check', { json })
+}
+
 /* ---------- Telegram backup sozlamasi ---------- */
 
 export interface TelegramBackupConfig {

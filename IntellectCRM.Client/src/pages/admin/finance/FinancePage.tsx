@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Plus, Pencil, Trash2, Download, TrendingUp, TrendingDown, Wallet, AlertCircle, Calculator, History, Inbox, Percent, Search } from 'lucide-react'
+import { Plus, Pencil, Trash2, Download, TrendingUp, TrendingDown, Wallet, AlertCircle, Calculator, History, Inbox, Percent, Search, Receipt } from 'lucide-react'
 import type {
   FinanceDirection,
   FinanceMonthly,
@@ -38,6 +38,7 @@ import { TeacherSalaryDetailModal } from './TeacherSalaryDetailModal'
 import { GroupPaymentsModal } from './GroupPaymentsModal'
 import { DailyReportCard } from './DailyReportCard'
 import { ReasonPromptModal } from '@/components/ui/ReasonPromptModal'
+import { ReceiptModal } from '@/components/finance/ReceiptModal'
 
 const todayStr = new Date().toISOString().slice(0, 10)
 const yearOf = (d: string) => Number(d.slice(0, 4))
@@ -81,6 +82,9 @@ export function FinancePage() {
   const [detailTeacher, setDetailTeacher] = useState<SalaryReportRow | null>(null)
   const [detailGroup, setDetailGroup] = useState<GroupFinanceRow | null>(null)
   const [deleting, setDeleting] = useState<FinanceTransaction | null>(null)
+  // Chek (kvitansiya): qaysi to'lovning cheki ochiq + avtomatik print (to'lov kiritilgandan keyin).
+  const [receiptTx, setReceiptTx] = useState<string | null>(null)
+  const [receiptAuto, setReceiptAuto] = useState(false)
 
   const load = useCallback(() => {
     setLoading(true)
@@ -109,16 +113,29 @@ export function FinancePage() {
   const handleSubmit = async (values: FinanceTransactionPayload) => {
     // Yangi o'quvchi to'lovi (kirim → o'quvchi to'lovi) — o'quvchi balansini yangilaydigan to'lov
     // mexanizmi orqali (o'quvchilar bo'limidagi to'lov kabi), oddiy xom yozuv emas.
+    let newTxId: string | null = null
     if (!editing && values.direction === 'income' && values.category === 'tuition' && values.studentId) {
-      await addPayment(values.studentId, values.amount, values.month, undefined, undefined, values.method)
+      newTxId = await addPayment(values.studentId, values.amount, values.month, undefined, undefined, values.method)
     } else if (editing) {
       await updateTransaction(editing.id, values)
     } else {
-      await createTransaction(values)
+      const tx = await createTransaction(values)
+      if (values.direction === 'income') newTxId = tx.id
     }
     setFormOpen(false)
     setEditing(null)
     load()
+    // Yangi kirim (to'lov) bo'lsa — chekni avtomatik ochib, print dialogini chiqaramiz.
+    if (newTxId) {
+      setReceiptAuto(true)
+      setReceiptTx(newTxId)
+    }
+  }
+
+  /** Mavjud to'lov uchun chekni qayta ochish (avtomatik print yo'q). */
+  const openReceipt = (txId: string) => {
+    setReceiptAuto(false)
+    setReceiptTx(txId)
   }
 
   const handleDelete = (t: FinanceTransaction) => setDeleting(t)
@@ -413,6 +430,16 @@ export function FinancePage() {
                           </td>
                           <td className="num">
                             <div className="flex items-center justify-end gap-0.5">
+                              {t.direction === 'income' && (
+                                <button
+                                  type="button"
+                                  title="Chek (kvitansiya)"
+                                  onClick={() => openReceipt(t.id)}
+                                  className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-brand-50 hover:text-brand-600"
+                                >
+                                  <Receipt className="h-4 w-4" />
+                                </button>
+                              )}
                               <button
                                 type="button"
                                 title="O'zgarishlar tarixi"
@@ -641,6 +668,14 @@ export function FinancePage() {
                             <div className="flex items-center justify-end gap-0.5">
                               <button
                                 type="button"
+                                title="Chek (kvitansiya)"
+                                onClick={() => openReceipt(p.id)}
+                                className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-brand-50 hover:text-brand-600"
+                              >
+                                <Receipt className="h-4 w-4" />
+                              </button>
+                              <button
+                                type="button"
                                 title="O'zgarishlar tarixi"
                                 onClick={() =>
                                   setAudit({
@@ -723,6 +758,15 @@ export function FinancePage() {
         tone="red"
         onConfirm={doDelete}
         onClose={() => setDeleting(null)}
+      />
+
+      <ReceiptModal
+        txId={receiptTx}
+        autoPrint={receiptAuto}
+        onClose={() => {
+          setReceiptTx(null)
+          setReceiptAuto(false)
+        }}
       />
     </div>
   )

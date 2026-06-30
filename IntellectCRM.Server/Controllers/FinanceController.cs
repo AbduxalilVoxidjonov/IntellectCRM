@@ -54,6 +54,41 @@ public class FinanceController(AppDbContext db, AuditService audit, EskizService
         return list.Select(t => ToDto(t, students, teachers, groups)).ToList();
     }
 
+    /// <summary>Bitta to'lov uchun chek (termal kvitansiya) ma'lumotlari — barcha maydonlar + markaz sarlavhasi
+    /// + chek sozlamalari (JSON). Frontend shu ma'lumotdan termal chekni chizadi/print qiladi.</summary>
+    [HttpGet("receipt/{id}")]
+    public async Task<ActionResult<ReceiptDto>> Receipt(string id)
+    {
+        var tx = await db.FinanceTransactions.FirstOrDefaultAsync(t => t.Id == id);
+        if (tx is null) return NotFound();
+        var meta = await db.CenterMeta.FirstOrDefaultAsync();
+
+        var studentName = tx.StudentId is null ? "" : (await db.Students.FindAsync(tx.StudentId))?.FullName ?? "";
+        var groupName = "";
+        var teacherName = "";
+        if (tx.GroupId is not null && await db.Classes.FindAsync(tx.GroupId) is { } grp)
+        {
+            groupName = grp.Name;
+            if (!string.IsNullOrWhiteSpace(grp.TeacherId))
+                teacherName = (await db.Teachers.FindAsync(grp.TeacherId))?.FullName ?? "";
+        }
+
+        var dt = (tx.CreatedAt == default ? AppClock.Now : AppClock.ToLocal(tx.CreatedAt)).ToString("yyyy-MM-dd HH:mm");
+        return new ReceiptDto(
+            ReceiptNumber(tx.Id), dt, studentName, teacherName, tx.CreatedBy ?? "", groupName,
+            tx.Method ?? "", string.IsNullOrWhiteSpace(tx.Comment) ? tx.Note : tx.Comment, tx.Amount,
+            meta?.Name ?? "", meta?.Phone ?? "", meta?.Address ?? "", meta?.LogoUrl ?? "",
+            meta?.CheckSettings ?? "");
+    }
+
+    /// <summary>Tranzaksiya GUID'idan barqaror 9 xonali chek raqami.</summary>
+    private static string ReceiptNumber(string guid)
+    {
+        var hash = 0;
+        foreach (var c in guid) hash = unchecked(hash * 31 + c);
+        return ((long)(uint)hash % 1_000_000_000).ToString("D9");
+    }
+
     [HttpPost("transactions")]
     public async Task<ActionResult<FinanceTransactionDto>> Create(FinanceTransactionPayload p)
     {
@@ -98,6 +133,7 @@ public class FinanceController(AppDbContext db, AuditService audit, EskizService
             GroupId = string.IsNullOrWhiteSpace(p.GroupId) ? null : p.GroupId,
             Comment = p.Comment,
             Method = string.IsNullOrWhiteSpace(p.Method) ? null : p.Method.Trim().ToLowerInvariant(),
+            CreatedBy = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value, // mas'ul (chek uchun)
         };
         db.FinanceTransactions.Add(tx);
         // O'quvchiga bog'langan tuition kirimi balansni oshiradi (izchillik — o'chirishda qaytariladi).

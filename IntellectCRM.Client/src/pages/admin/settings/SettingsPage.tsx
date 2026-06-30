@@ -20,6 +20,7 @@ import { TurnstileSettings } from './TurnstileSettings'
 import { CameraSettings } from './CameraSettings'
 import { PaymentReminderSettings } from './PaymentReminderSettings'
 import { EskizSettings } from './EskizSettings'
+import { CheckSettings } from './CheckSettings'
 
 type Status = 'idle' | 'saving' | 'saved'
 
@@ -34,6 +35,7 @@ const sectionTitles: Record<string, string> = {
   'azure-speech': 'Speaking (Azure)',
   gemini: 'AI Tahlil (Gemini)',
   eskiz: 'SMS (Eskiz)',
+  check: "To'lov cheki",
   turnstile: 'Turniket integratsiya',
   cameras: 'Kamera integratsiya',
   'payment-reminders': "Avtomatik to'lov eslatmasi",
@@ -83,7 +85,7 @@ export function SettingsPage() {
       {loading ? (
         <Loader label="Yuklanmoqda..." />
       ) : (
-        <div className={cn('space-y-6', section !== 'eskiz' && 'max-w-3xl')}>
+        <div className={cn('space-y-6', section !== 'eskiz' && section !== 'check' && 'max-w-3xl')}>
           {/* Davomat sabablari */}
           {section === 'reasons' && (
           <Card
@@ -165,6 +167,7 @@ export function SettingsPage() {
           {/* Avtomatik to'lov eslatmasi */}
           {section === 'payment-reminders' && <PaymentReminderSettings />}
           {section === 'eskiz' && <EskizSettings />}
+          {section === 'check' && <CheckSettings />}
         </div>
       )}
     </div>

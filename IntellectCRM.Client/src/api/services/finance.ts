@@ -7,6 +7,7 @@ import type {
   SalaryReportRow,
   StudentFinanceRow,
 } from '@/types'
+import type { ReceiptData } from '@/lib/receipt'
 import { delay, uid } from '@/lib/utils'
 import { api, USE_MOCK } from '../client'
 import { financeMock } from '../mock/finance'
@@ -98,6 +99,14 @@ export async function createTransaction(
     return tx
   }
   const { data } = await api.post<FinanceTransaction>('/admin/finance/transactions', payload)
+  return data
+}
+
+/** Bitta to'lov uchun chek (kvitansiya) ma'lumotlari — termal chek chizish/print uchun. */
+export async function getReceipt(txId: string): Promise<ReceiptData & { settingsJson: string }> {
+  const { data } = await api.get<ReceiptData & { settingsJson: string }>(
+    `/admin/finance/receipt/${txId}`,
+  )
   return data
 }
 

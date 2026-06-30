@@ -230,6 +230,26 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
         return new GeminiSettingsDto(GeminiService.ResolveModel(config), GeminiService.IsConfigured(m.GeminiApiKey));
     }
 
+    // ---------- To'lov cheki (termal kvitansiya) sozlamalari ----------
+
+    /// <summary>Chek sozlamalari (JSON). Bo'sh = standart shablon (frontend default'i ishlaydi).</summary>
+    [HttpGet("check")]
+    public async Task<ActionResult<CheckSettingsDto>> GetCheck()
+    {
+        var m = await db.CenterMeta.FirstOrDefaultAsync();
+        return new CheckSettingsDto(m?.CheckSettings ?? "");
+    }
+
+    [HttpPut("check")]
+    public async Task<ActionResult<CheckSettingsDto>> SaveCheck(CheckSettingsDto req)
+    {
+        var m = await db.CenterMeta.FirstOrDefaultAsync();
+        if (m is null) { m = new CenterMeta(); db.CenterMeta.Add(m); }
+        m.CheckSettings = (req.Json ?? "").Trim();
+        await db.SaveChangesAsync();
+        return new CheckSettingsDto(m.CheckSettings);
+    }
+
     // ---------- SMS (Eskiz.uz) ----------
 
     [HttpGet("eskiz")]

@@ -1096,6 +1096,7 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
                 + $" — {student.FullName}",
             Comment = string.IsNullOrWhiteSpace(req.Comment) ? null : req.Comment.Trim(),
             Method = string.IsNullOrWhiteSpace(req.Method) ? null : req.Method.Trim().ToLowerInvariant(),
+            CreatedBy = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value, // mas'ul (chek uchun)
         };
         db.FinanceTransactions.Add(tx);
 
@@ -1113,7 +1114,8 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
                 ["{summa}"] = MessageTokenizer.MoneyPlain(req.Amount),
             }, preferStudentPhone: true);
 
-        return NoContent();
+        // Chek (kvitansiya) uchun yaratilgan tranzaksiya id'sini qaytaramiz.
+        return Ok(new { id = tx.Id });
     }
 
     /// <summary>O'quvchi to'lov tarixi: oylar bo'yicha hisoblangan/to'langan holat.</summary>

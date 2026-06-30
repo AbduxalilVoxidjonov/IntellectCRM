@@ -646,6 +646,12 @@ public record FinanceTransactionDto(
     string? Note, string? StudentId, string? StudentName, string? TeacherId, string? TeacherName,
     string? Month, string? GroupId = null, string? Comment = null, string? Method = null,
     string? GroupName = null, string? CreatedAt = null);
+/* ---------- To'lov cheki (termal kvitansiya) ---------- */
+public record CheckSettingsDto(string Json);
+public record ReceiptDto(
+    string ReceiptNo, string DateTime, string StudentName, string TeacherName,
+    string ResponsibleName, string GroupName, string Method, string? Comment, decimal Total,
+    string CenterName, string CenterPhone, string CenterAddress, string LogoUrl, string SettingsJson);
 public record FinanceTransactionPayload(
     string Date, string Direction, string Category, decimal Amount, string? Note,
     string? StudentId, string? TeacherId, string? Month = null, string? GroupId = null, string? Comment = null, string? Method = null);

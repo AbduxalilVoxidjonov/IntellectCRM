@@ -762,6 +762,8 @@ public class FinanceTransaction
     public string? Method { get; set; }
     /// <summary>Tranzaksiya yaratilgan vaqti (UTC) — idempotency check uchun (5s ichida dublikat).</summary>
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    /// <summary>Mas'ul — to'lovni kiritgan admin/kassir F.I.Sh (chekda "Mas'ul" qatori uchun).</summary>
+    public string? CreatedBy { get; set; }
 }
 
 /// <summary>Maktab umumiy holati va ma'lumotlari (bitta qator) — joriy o'quv yili + maktab profili.</summary>
@@ -963,6 +965,9 @@ public class CenterMeta
     public string EskizToken { get; set; } = string.Empty;
     /// <summary>Eskiz token muddati (UTC) — shu vaqtdan oldin yangilanadi.</summary>
     public DateTime? EskizTokenExpiresAt { get; set; }
+    /// <summary>To'lov cheki (termal kvitansiya) sozlamalari — JSON. Qaysi maydonlar ko'rinishi,
+    /// sarlavha (logotip/nom), pastki izoh (footer), aloqa/QR. Bo'sh = standart shablon.</summary>
+    public string CheckSettings { get; set; } = string.Empty;
 }
 
 /// <summary>
