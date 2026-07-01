@@ -49,7 +49,9 @@ const selectClass =
 /**
  * Bosh sahifa "Dars jadvali" — yaratilgan guruhlarning haftalik jadvali (raspisaniye).
  * Yuqorida o'qituvchi tanlash mumkin: tanlansa FAQAT shu o'qituvchining guruhlari ko'rsatiladi
- * ("Barcha o'qituvchilar" — hammasi). Har guruh alohida rangda; legenda o'qituvchi bo'yicha.
+ * ("Barcha o'qituvchilar" — hammasi). Yonida kun tanlash mumkin: tanlansa FAQAT shu kungi
+ * jadval (bitta ustunli ro'yxat) ko'rsatiladi ("Barcha kunlar" — haftalik grid). Har guruh
+ * alohida rangda; legenda o'qituvchi bo'yicha.
  */
 export function WeeklySchedule() {
   const { data, loading, error } = useAsync(
@@ -57,6 +59,7 @@ export function WeeklySchedule() {
     [],
   )
   const [teacherFilter, setTeacherFilter] = useState<string>('all')
+  const [dayFilter, setDayFilter] = useState<'all' | number>('all')
 
   // Faqat ma'lumotga bog'liq: barcha bloklar (barqaror rang bilan) + o'qituvchi ro'yxati.
   const { blocks, teacherOptions } = useMemo(() => {
@@ -120,26 +123,44 @@ export function WeeklySchedule() {
     return { byDay, byTeacher: [...byTeacher.values()], hasAny: shown.length > 0 }
   }, [blocks, teacherFilter])
 
+  // Kun tanlangan bo'lsa — shu kunning bloklari (allaqachon boshlanish vaqti bo'yicha saralangan).
+  const dayBlocks = dayFilter === 'all' ? null : byDay[dayFilter]
+
   return (
     <Card
       title="Dars jadvali"
-      sub="Guruhlarning haftalik jadvali — o'qituvchini tanlab, faqat uning jadvalini ko'rish mumkin"
+      sub="Guruhlarning haftalik jadvali — o'qituvchi va kunni tanlab, faqat kerakli jadvalni ko'rish mumkin"
       actions={
-        teacherOptions.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-2">
+          {teacherOptions.length > 0 && (
+            <select
+              value={teacherFilter}
+              onChange={(e) => setTeacherFilter(e.target.value)}
+              className={selectClass}
+              aria-label="O'qituvchini tanlang"
+            >
+              <option value="all">Barcha o'qituvchilar</option>
+              {teacherOptions.map((o) => (
+                <option key={o.key} value={o.key}>
+                  {o.name}
+                </option>
+              ))}
+            </select>
+          )}
           <select
-            value={teacherFilter}
-            onChange={(e) => setTeacherFilter(e.target.value)}
+            value={dayFilter}
+            onChange={(e) => setDayFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
             className={selectClass}
-            aria-label="O'qituvchini tanlang"
+            aria-label="Kunni tanlang"
           >
-            <option value="all">Barcha o'qituvchilar</option>
-            {teacherOptions.map((o) => (
-              <option key={o.key} value={o.key}>
-                {o.name}
+            <option value="all">Barcha kunlar</option>
+            {DAYS.map((day, d) => (
+              <option key={day} value={d}>
+                {day}
               </option>
             ))}
           </select>
-        ) : undefined
+        </div>
       }
     >
       {loading ? (
@@ -158,6 +179,52 @@ export function WeeklySchedule() {
               : "Bu o'qituvchining vaqti belgilangan guruhi yo'q."}
           </p>
         </div>
+      ) : dayFilter !== 'all' && (dayBlocks?.length ?? 0) === 0 ? (
+        <div className="state">
+          <div className="state-icon">
+            <CalendarRange className="h-6 w-6" />
+          </div>
+          <h4>Bu kunda dars yo'q</h4>
+          <p>
+            {teacherFilter === 'all'
+              ? `${DAYS[dayFilter]} kuni uchun rejalashtirilgan guruh yo'q.`
+              : `${DAYS[dayFilter]} kuni bu o'qituvchining darsi yo'q.`}
+          </p>
+        </div>
+      ) : dayFilter !== 'all' ? (
+        <>
+          {/* Bitta kunlik ro'yxat: tanlangan kunning darslari, boshlanish vaqti bo'yicha saralangan */}
+          <div className="space-y-2">
+            <div
+              className={
+                'inline-block rounded-lg px-3 py-1.5 text-sm font-semibold ' +
+                (dayFilter === todayIdx ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600')
+              }
+            >
+              {DAYS[dayFilter]}
+            </div>
+            {(dayBlocks ?? []).map((b) => (
+              <div
+                key={b.groupId}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3"
+                style={{ background: b.color.bg, borderColor: b.color.bd, color: b.color.fg }}
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-bold">{b.name}</p>
+                  <p className="truncate text-xs opacity-80">
+                    {b.teacher}
+                    {b.course ? ` · ${b.course}` : ''}
+                    {b.room ? ` · ${b.room}` : ''}
+                  </p>
+                </div>
+                <p className="whitespace-nowrap font-mono text-sm font-semibold">
+                  {b.start}
+                  {b.end ? `–${b.end}` : ''}
+                </p>
+              </div>
+            ))}
+          </div>
+        </>
       ) : (
         <>
           {/* Haftalik grid: 7 kun ustuni (kichik ekranda gorizontal scroll) */}
