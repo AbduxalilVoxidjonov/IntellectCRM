@@ -19,7 +19,6 @@ import {
 } from '@/api/services/support'
 import { Loader } from '@/components/ui/Loader'
 import { formatDate } from '@/lib/utils'
-import { formatMonth } from '@/config/constants'
 
 /**
  * O'qituvchi (support) — "Support". O'qituvchi bo'sh vaqt bloklarini qo'shadi
@@ -53,16 +52,29 @@ function currentMonthStr(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
 
-function shiftMonth(ym: string, delta: number): string {
-  const [y, m] = ym.split('-').map(Number)
-  const d = new Date(y, m - 1 + delta, 1)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-}
-
 function lastDayOfMonth(ym: string): string {
   const [y, m] = ym.split('-').map(Number)
   const last = new Date(y, m, 0)
   return `${y}-${String(m).padStart(2, '0')}-${String(last.getDate()).padStart(2, '0')}`
+}
+
+/** "yyyy-MM-dd" + delta kun → "yyyy-MM-dd" (oy/yil chegarasidan mustaqil). */
+function addDays(dateStr: string, delta: number): string {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const dt = new Date(y, m - 1, d + delta)
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`
+}
+
+const WEEKDAY_NAMES = ['yakshanba', 'dushanba', 'seshanba', 'chorshanba', 'payshanba', 'juma', 'shanba']
+
+/** Kun sarlavhasi: bugun/ertaga/kecha bo'lsa so'z bilan, aks holda "kun, DD.MM" (hafta kuni bilan). */
+function dayLabel(dateStr: string, today: string): string {
+  if (dateStr === today) return 'Bugun'
+  if (dateStr === addDays(today, 1)) return 'Ertaga'
+  if (dateStr === addDays(today, -1)) return 'Kecha'
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const weekday = WEEKDAY_NAMES[new Date(y, m - 1, d).getDay()]
+  return `${formatDate(dateStr)}, ${weekday}`
 }
 
 function statusChip(status: SupportSlot['status']): { label: string; cls: string } {
@@ -70,7 +82,7 @@ function statusChip(status: SupportSlot['status']): { label: string; cls: string
     case 'done':
       return { label: "O'tildi", cls: 'bg-tealsoft text-teal-700' }
     case 'booked':
-      return { label: 'Bron qilingan', cls: 'bg-amber-100 text-amber-700' }
+      return { label: 'Support bron', cls: 'bg-amber-100 text-amber-700' }
     default:
       return { label: "Bo'sh", cls: 'bg-slate-100 text-mute' }
   }
@@ -80,10 +92,24 @@ export function TeacherSupportPage() {
   const nav = useNavigate()
   const today = todayStr()
 
-  // Oy navigatsiyasi
+  // Oy navigatsiyasi (ma'lumot shu oy bo'yicha yuklanadi — backend faqat oy bo'yicha filtrlaydi)
   const [viewMonth, setViewMonth] = useState(currentMonthStr())
   const [loading, setLoading] = useState(true)
   const [slots, setSlots] = useState<SupportSlot[]>([])
+
+  // Kunlik navigatsiya — "Support bronlari" ro'yxati doim TANLANGAN kun uchun (default: bugun),
+  // keyin-oldingi kun tugmalari bilan almashtiriladi. Oy chegarasidan o'tsa — kerakli oy avtomatik yuklanadi.
+  const [focusDay, setFocusDay] = useState(today)
+  function shiftDay(delta: number) {
+    const next = addDays(focusDay, delta)
+    setFocusDay(next)
+    const nextMonth = next.slice(0, 7)
+    if (nextMonth !== viewMonth) setViewMonth(nextMonth)
+  }
+  function goToday() {
+    setFocusDay(today)
+    if (today.slice(0, 7) !== viewMonth) setViewMonth(today.slice(0, 7))
+  }
 
   // Qo'shish forma
   const [addMode, setAddMode] = useState<AddMode>('today')
@@ -202,23 +228,10 @@ export function TeacherSupportPage() {
     }
   }
 
-  // Sana bo'yicha guruhlash (eng yangi tepada)
-  const grouped = (() => {
-    const map = new Map<string, SupportSlot[]>()
-    for (const s of slots) {
-      const arr = map.get(s.date) ?? []
-      arr.push(s)
-      map.set(s.date, arr)
-    }
-    return [...map.entries()]
-      .sort((a, b) => (a[0] < b[0] ? 1 : a[0] > b[0] ? -1 : 0))
-      .map(([d, list]) => ({
-        date: d,
-        list: [...list].sort((a, b) =>
-          a.startTime < b.startTime ? -1 : a.startTime > b.startTime ? 1 : 0,
-        ),
-      }))
-  })()
+  // Tanlangan kunning vaqtlari (soat bo'yicha) — "Support bronlari" doim shu kun uchun ko'rsatiladi.
+  const daySlots = slots
+    .filter((s) => s.date === focusDay)
+    .sort((a, b) => (a.startTime < b.startTime ? -1 : a.startTime > b.startTime ? 1 : 0))
 
   return (
     <div className="px-4 pt-3 pb-6">
@@ -363,154 +376,158 @@ export function TeacherSupportPage() {
         </div>
       </div>
 
-      {/* Bo'lim 2 — Mening vaqtlarim + oy navigatsiyasi */}
+      {/* Bo'lim 2 — Support bronlari (kunlik navigatsiya: bugun avtomatik, keyin/oldin bilan almashtiriladi) */}
       <div className="mt-5 mb-2 flex items-center justify-between px-0.5">
-        <p className="text-[13px] font-bold text-ink">Mening vaqtlarim</p>
+        <p className="text-[13px] font-bold text-ink">Support bronlari</p>
         <div className="flex items-center gap-1">
           <button
             type="button"
-            onClick={() => setViewMonth(shiftMonth(viewMonth, -1))}
+            onClick={() => shiftDay(-1)}
             className="tap-scale flex h-7 w-7 items-center justify-center rounded-lg border border-line bg-white text-mute shadow-[var(--shadow-card)]"
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
           <span className="min-w-[104px] text-center text-[12px] font-bold text-ink">
-            {formatMonth(viewMonth)}
+            {dayLabel(focusDay, today)}
           </span>
           <button
             type="button"
-            onClick={() => setViewMonth(shiftMonth(viewMonth, 1))}
+            onClick={() => shiftDay(1)}
             className="tap-scale flex h-7 w-7 items-center justify-center rounded-lg border border-line bg-white text-mute shadow-[var(--shadow-card)]"
           >
             <ChevronRight className="h-4 w-4" />
           </button>
         </div>
       </div>
+      {focusDay !== today && (
+        <div className="mb-2 flex justify-end px-0.5">
+          <button
+            type="button"
+            onClick={goToday}
+            className="tap-scale rounded-lg px-2 py-1 text-[12px] font-bold text-teal-700"
+          >
+            Bugunga qaytish
+          </button>
+        </div>
+      )}
 
       {loading ? (
         <Loader label="Yuklanmoqda..." />
-      ) : grouped.length === 0 ? (
+      ) : daySlots.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-3 rounded-[20px] border border-line bg-white p-8 text-center shadow-[var(--shadow-card)]">
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-tealsoft text-teal-700">
             <CalendarClock className="h-6 w-6" />
           </div>
-          <p className="text-[14px] font-semibold text-ink">Vaqt qo'shilmagan</p>
+          <p className="text-[14px] font-semibold text-ink">Bu kunga vaqt qo'shilmagan</p>
           <p className="text-[13px] text-mute">Yuqoridan bo'sh vaqt blokini qo'shing.</p>
         </div>
       ) : (
-        <div className="space-y-4">
-          {grouped.map((g) => (
-            <div key={g.date}>
-              <p className="mb-1.5 px-0.5 text-[12px] font-bold text-mute">{formatDate(g.date)}</p>
-              <div className="divide-y divide-line rounded-[20px] border border-line bg-white shadow-[var(--shadow-card)]">
-                {g.list.map((s) => {
-                  const chip = statusChip(s.status)
-                  return (
-                    <div key={s.id} className="px-3.5 py-3">
-                      <div className="flex items-center gap-3">
-                        <div className="min-w-0 flex-1">
-                          <p className="font-mono text-[14px] font-bold text-ink">
-                            {s.startTime}–{s.endTime}
-                          </p>
-                          {s.status === 'booked' && (
-                            <p className="mt-0.5 text-[12px] text-mute">{s.studentName} bron qildi</p>
-                          )}
-                          {s.status === 'done' && s.studentName && (
-                            <p className="mt-0.5 text-[12px] text-mute">{s.studentName}</p>
-                          )}
-                        </div>
-                        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold ${chip.cls}`}>
-                          {s.status === 'done' && <CheckCircle2 className="mr-0.5 inline h-3 w-3" />}
-                          {chip.label}
-                        </span>
+        <div className="divide-y divide-line rounded-[20px] border border-line bg-white shadow-[var(--shadow-card)]">
+          {daySlots.map((s) => {
+            const chip = statusChip(s.status)
+            return (
+              <div key={s.id} className="px-3.5 py-3">
+                <div className="flex items-center gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-mono text-[14px] font-bold text-ink">
+                      {s.startTime}–{s.endTime}
+                    </p>
+                    {s.status === 'booked' && (
+                      <p className="mt-0.5 text-[12px] text-mute">{s.studentName} bron qildi</p>
+                    )}
+                    {s.status === 'done' && s.studentName && (
+                      <p className="mt-0.5 text-[12px] text-mute">{s.studentName}</p>
+                    )}
+                  </div>
+                  <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold ${chip.cls}`}>
+                    {s.status === 'done' && <CheckCircle2 className="mr-0.5 inline h-3 w-3" />}
+                    {chip.label}
+                  </span>
+                </div>
+
+                {/* Done — mavzu + izoh (faqat o'qish) */}
+                {s.status === 'done' && (s.topic || s.notes) && (
+                  <div className="mt-2 rounded-[12px] bg-slate-50 p-2.5">
+                    {s.topic && <p className="text-[13px] font-semibold text-ink">{s.topic}</p>}
+                    {s.notes && <p className="mt-0.5 text-[12px] text-mute">{s.notes}</p>}
+                  </div>
+                )}
+
+                {/* Open — o'chirish */}
+                {s.status === 'open' && (
+                  <div className="mt-2 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(s.id)}
+                      className="tap-scale flex items-center gap-1 rounded-[12px] border border-line px-3 py-1.5 text-[12px] font-semibold text-rose-600"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      O'chirish
+                    </button>
+                  </div>
+                )}
+
+                {/* Booked — yopish formasi yoki tugmalar */}
+                {s.status === 'booked' &&
+                  (closingId === s.id ? (
+                    <div className="mt-2 space-y-2 rounded-[12px] bg-slate-50 p-2.5">
+                      <div className="flex items-center justify-between">
+                        <p className="text-[12px] font-bold text-ink">Darsni yopish</p>
+                        <button
+                          type="button"
+                          onClick={() => setClosingId(null)}
+                          className="tap-scale flex h-6 w-6 items-center justify-center rounded-lg text-mute"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
                       </div>
-
-                      {/* Done — mavzu + izoh (faqat o'qish) */}
-                      {s.status === 'done' && (s.topic || s.notes) && (
-                        <div className="mt-2 rounded-[12px] bg-slate-50 p-2.5">
-                          {s.topic && <p className="text-[13px] font-semibold text-ink">{s.topic}</p>}
-                          {s.notes && <p className="mt-0.5 text-[12px] text-mute">{s.notes}</p>}
-                        </div>
-                      )}
-
-                      {/* Open — o'chirish */}
-                      {s.status === 'open' && (
-                        <div className="mt-2 flex justify-end">
-                          <button
-                            type="button"
-                            onClick={() => handleDelete(s.id)}
-                            className="tap-scale flex items-center gap-1 rounded-[12px] border border-line px-3 py-1.5 text-[12px] font-semibold text-rose-600"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                            O'chirish
-                          </button>
-                        </div>
-                      )}
-
-                      {/* Booked — yopish formasi yoki tugmalar */}
-                      {s.status === 'booked' &&
-                        (closingId === s.id ? (
-                          <div className="mt-2 space-y-2 rounded-[12px] bg-slate-50 p-2.5">
-                            <div className="flex items-center justify-between">
-                              <p className="text-[12px] font-bold text-ink">Darsni yopish</p>
-                              <button
-                                type="button"
-                                onClick={() => setClosingId(null)}
-                                className="tap-scale flex h-6 w-6 items-center justify-center rounded-lg text-mute"
-                              >
-                                <X className="h-4 w-4" />
-                              </button>
-                            </div>
-                            <input
-                              type="text"
-                              value={topic}
-                              onChange={(e) => setTopic(e.target.value)}
-                              placeholder="Mavzu"
-                              className="w-full rounded-[12px] border border-line bg-white px-3 py-2 text-[13px] text-ink outline-none focus:border-teal-500"
-                            />
-                            <textarea
-                              value={notes}
-                              onChange={(e) => setNotes(e.target.value)}
-                              placeholder="Izoh"
-                              rows={2}
-                              className="w-full resize-none rounded-[12px] border border-line bg-white px-3 py-2 text-[13px] text-ink outline-none focus:border-teal-500"
-                            />
-                            <button
-                              type="button"
-                              onClick={handleComplete}
-                              disabled={closing}
-                              className="tap-scale flex w-full items-center justify-center gap-1.5 rounded-[12px] bg-teal-600 px-4 py-2.5 text-[13px] font-bold text-white disabled:opacity-60"
-                            >
-                              <CheckCircle2 className="h-4 w-4" />
-                              {closing ? 'Saqlanmoqda...' : 'Yopish'}
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="mt-2 flex justify-end gap-2">
-                            <button
-                              type="button"
-                              onClick={() => handleDelete(s.id)}
-                              className="tap-scale flex items-center gap-1 rounded-[12px] border border-line px-3 py-1.5 text-[12px] font-semibold text-rose-600"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                              O'chirish
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => startClose(s.id)}
-                              className="tap-scale flex items-center gap-1 rounded-[12px] bg-teal-600 px-3 py-1.5 text-[12px] font-bold text-white"
-                            >
-                              <CheckCircle2 className="h-3.5 w-3.5" />
-                              Darsni yopish
-                            </button>
-                          </div>
-                        ))}
+                      <input
+                        type="text"
+                        value={topic}
+                        onChange={(e) => setTopic(e.target.value)}
+                        placeholder="Mavzu"
+                        className="w-full rounded-[12px] border border-line bg-white px-3 py-2 text-[13px] text-ink outline-none focus:border-teal-500"
+                      />
+                      <textarea
+                        value={notes}
+                        onChange={(e) => setNotes(e.target.value)}
+                        placeholder="Izoh"
+                        rows={2}
+                        className="w-full resize-none rounded-[12px] border border-line bg-white px-3 py-2 text-[13px] text-ink outline-none focus:border-teal-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleComplete}
+                        disabled={closing}
+                        className="tap-scale flex w-full items-center justify-center gap-1.5 rounded-[12px] bg-teal-600 px-4 py-2.5 text-[13px] font-bold text-white disabled:opacity-60"
+                      >
+                        <CheckCircle2 className="h-4 w-4" />
+                        {closing ? 'Saqlanmoqda...' : 'Yopish'}
+                      </button>
                     </div>
-                  )
-                })}
+                  ) : (
+                    <div className="mt-2 flex justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(s.id)}
+                        className="tap-scale flex items-center gap-1 rounded-[12px] border border-line px-3 py-1.5 text-[12px] font-semibold text-rose-600"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        O'chirish
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => startClose(s.id)}
+                        className="tap-scale flex items-center gap-1 rounded-[12px] bg-teal-600 px-3 py-1.5 text-[12px] font-bold text-white"
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        Darsni yopish
+                      </button>
+                    </div>
+                  ))}
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>

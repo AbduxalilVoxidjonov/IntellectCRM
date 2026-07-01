@@ -3,6 +3,18 @@
 > Bu fayl CLAUDE.md dan ajratildi (kontekstni yengillashtirish uchun). Avtomatik yuklanmaydi.
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-07-01: **O'qituvchi Support sahifasi — oy-guruhlash o'rniga KUNLIK navigatsiya.**
+  `TeacherSupportPage` ("Mening vaqtlarim") ilgari BUTUN OYNI sana bo'yicha guruhlab ko'rsatardi
+  (oy oldinga/orqaga tugmalari). Endi "Support bronlari" bo'limi doim BITTA kun uchun (default —
+  bugun, `todayStr()` dan avtomatik) ko'rsatiladi; ‹ › tugmalari bilan kundan-kunga (keyingi/oldingi)
+  o'tiladi, oy chegarasidan o'tsa kerakli oy avtomatik qayta yuklanadi (`viewMonth` fon
+  ma'lumotlarini boshqaradi, foydalanuvchiga ko'rinmaydi). "Bugun" bo'lmasa "Bugunga qaytish" tezkor
+  tugmasi chiqadi; sarlavha "Bugun"/"Ertaga"/"Kecha" yoki "DD.MM.YYYY, hafta kuni" ko'rinishida
+  (`dayLabel()`). Bron qilingan slot chip yorlig'i "Bron qilingan" → **"Support bron"**ga o'zgardi
+  (foydalanuvchi so'zi bo'yicha, ko'zga yanada tashlanadigan qilish uchun). Shu bilan o'qituvchi har
+  kuni ochganda avtomatik o'sha kunning bronlarini ko'radi, keyin ‹ › bilan ertaga kimga support
+  qilishini oldindan bilib oladi. Frontend tsc+vite ✓. Backend o'zgarmadi (mavjud
+  `GET /teacher/support/slots?month=` yetarli — kunlik filtr frontendda qilinadi).
 - 2026-07-01: **Eslatmalar — 3-chi "Erkin eslatma (jadval bo'yicha)" turi qo'shildi.** Foydalanuvchi
   "eslatma turi nega 2ta xolos, istalgan turini yaratish mumkun edi" deb so'radi; aniqlashtirishda
   — chinakam "istalgan tur" mumkin emas (har turning ORQASIDA aniq mantiq/trigger bor: qarzdorlik →
