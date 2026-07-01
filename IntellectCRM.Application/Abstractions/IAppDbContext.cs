@@ -116,6 +116,9 @@ public interface IAppDbContext
     DbSet<SmsLog> SmsLogs { get; }
     DbSet<SmsTemplate> SmsTemplates { get; }
 
+    // Eslatmalar (avtomatik push-qoidalar) — Sozlamalar → Eslatmalar
+    DbSet<ReminderRule> ReminderRules { get; }
+
     int SaveChanges();
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

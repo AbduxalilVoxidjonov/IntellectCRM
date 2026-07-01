@@ -462,16 +462,6 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
         return await GetCameras();
     }
 
-    // ---------- Avtomatik to'lov eslatmasi ----------
-
-    [HttpGet("payment-reminders")]
-    public async Task<ActionResult<PaymentReminderSettingsDto>> GetPaymentReminders()
-    {
-        var m = await db.CenterMeta.FirstOrDefaultAsync();
-        // Yozuv hali yo'q bo'lsa — default YONIQ.
-        return new PaymentReminderSettingsDto(m?.PaymentRemindersEnabled ?? true);
-    }
-
     [HttpPost("telegram-backup/test")]
     public async Task<ActionResult<object>> TestTelegramBackup()
     {
@@ -497,17 +487,6 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
     {
         var (ok, msg) = await BackupService.SendAsync(db, telegram);
         return Ok(new { success = ok, message = msg });
-    }
-
-    [HttpPut("payment-reminders")]
-    public async Task<ActionResult<PaymentReminderSettingsDto>> SavePaymentReminders(
-        SavePaymentReminderSettingsRequest req)
-    {
-        var m = await db.CenterMeta.FirstOrDefaultAsync();
-        if (m is null) { m = new CenterMeta(); db.CenterMeta.Add(m); }
-        m.PaymentRemindersEnabled = req.Enabled;
-        await db.SaveChangesAsync();
-        return new PaymentReminderSettingsDto(m.PaymentRemindersEnabled);
     }
 
     [HttpPut("absence-reasons")]

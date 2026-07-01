@@ -67,7 +67,8 @@ public class PaymentReminderService(
         var db = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
 
         var meta = await db.CenterMeta.FirstOrDefaultAsync(ct);
-        if (meta is not null && !meta.PaymentRemindersEnabled)
+        var rule = await db.ReminderRules.FirstOrDefaultAsync(r => r.Trigger == ReminderTriggers.PaymentDebt, ct);
+        if (rule is not null && !rule.Enabled)
         {
             logger.LogInformation("To'lov eslatmasi o'chirilgan (sozlama) — yuborilmadi.");
             return;

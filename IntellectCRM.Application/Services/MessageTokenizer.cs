@@ -134,8 +134,12 @@ public static class MessageTokenizer
         return Common(r, centerName, extra);
     }
 
-    /// <summary>O'qituvchi xabari — {fish}/{telefon}/{manzil}/{tugilgan}; o'quvchi tokenlari bo'sh.</summary>
-    public static string Teacher(string text, Teacher t, string? centerName)
+    /// <summary>O'qituvchi xabari — {fish}/{telefon}/{manzil}/{tugilgan}; o'quvchi tokenlari bo'sh.
+    /// <paramref name="group"/> berilsa — {guruh} shu guruh nomidan, dars jadvali tokenlari
+    /// ({dars_sana}/{dars_vaqti}/{dars_kunlari}) shu guruhdan to'ladi (masalan davomat eslatmasi uchun).
+    /// <paramref name="extra"/> — hodisaga xos qo'shimcha tokenlar (masalan {kurs}).</summary>
+    public static string Teacher(string text, Teacher t, string? centerName,
+        IReadOnlyDictionary<string, string>? extra = null, DomainGroup? group = null)
     {
         var r = text;
         r = Rep(r, "{fish}", t.FullName);
@@ -143,14 +147,15 @@ public static class MessageTokenizer
         r = Rep(r, "{oquvchi_telefon}", t.Phone);
         r = Rep(r, "{manzil}", t.Address);
         r = Rep(r, "{tugilgan}", t.BirthDate);
+        r = Rep(r, "{guruh}", group?.Name ?? "");
         foreach (var tok in new[]
                  {
-                     "{ism}", "{familiya}", "{sharif}", "{sinf}", "{guruh}", "{qarzdorlik}", "{balans}",
+                     "{ism}", "{familiya}", "{sharif}", "{sinf}", "{qarzdorlik}", "{balans}",
                      "{ota-ona}", "{ota_ona}", "{ota}", "{ota_telefon}", "{ona}", "{ona_telefon}",
                  })
             r = Rep(r, tok, "");
-        r = Schedule(r, null); // o'qituvchida dars jadvali tokenlari bo'sh
-        return Common(r, centerName, null);
+        r = Schedule(r, group); // guruh berilsa dars jadvali tokenlari shundan, aks holda bo'sh
+        return Common(r, centerName, extra);
     }
 
     /// <summary>Lid xabari — lid ma'lumotlari; o'quvchi-spetsifik tokenlar bo'sh.

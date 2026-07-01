@@ -174,6 +174,8 @@ builder.Services.AddHostedService<IntellectCRM.Application.Services.TuitionAccru
 builder.Services.AddHostedService<IntellectCRM.Application.Services.TurnstileLiveService>();
 // Avtomatik to'lov eslatmasi (qarzdorlarga Telegram + push, 09:00 Toshkent).
 builder.Services.AddHostedService<IntellectCRM.Application.Services.PaymentReminderService>();
+// O'qituvchiga davomat kiritish eslatmasi (dars boshlanishidan N daqiqa keyin, push + Telegram).
+builder.Services.AddHostedService<IntellectCRM.Application.Services.LessonAttendanceReminderService>();
 // Tug'ilgan kun avto-SMS (09:00 Toshkent; "birthday" hodisasiga andoza bo'lsa).
 builder.Services.AddHostedService<IntellectCRM.Application.Services.BirthdaySmsService>();
 // Sinov darsi eslatmasi (09:00 Toshkent; ertaga bo'ladigan sinovlar; "trial_reminder" andoza bo'lsa).
@@ -492,8 +494,6 @@ using (var scope = app.Services.CreateScope())
         S("Turnstile:Password", v => meta.TurnstilePassword = v);
         // Kamera
         B("Camera:Enabled", v => meta.CameraEnabled = v);
-        // Avtomatik to'lov eslatmasi
-        B("PaymentReminders:Enabled", v => meta.PaymentRemindersEnabled = v);
         // Kunlik AI tahlil
         B("AiAnalysis:Enabled", v => meta.AiDailyAnalysisEnabled = v);
         I("AiAnalysis:Hour", v => meta.AiDailyAnalysisHour = v);

@@ -3,6 +3,26 @@
 > Bu fayl CLAUDE.md dan ajratildi (kontekstni yengillashtirish uchun). Avtomatik yuklanmaydi.
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-07-01: **"To'lov eslatmasi" → umumiy "Eslatmalar" (avtomatik push-qoidalar CRUD) tizimiga
+  aylantirildi.** Ilgari Sozlamalarda faqat bitta yoniq/o'chiq (`CenterMeta.PaymentRemindersEnabled`)
+  bo'lgan qarzdorlik eslatmasi bor edi. Endi yangi `ReminderRule` entity (Trigger/Name/Enabled/
+  MessageTemplate/OffsetMinutes) — ko'p qatorli qoidalar ro'yxati, katalogi `ReminderTriggers`
+  (`payment_debt`, `lesson_attendance`) — kelajakda yangi tur qo'shish shu ro'yxatga yozish bilan
+  cheklanadi. **Yangi: o'qituvchiga davomat eslatmasi** — `LessonAttendanceReminderService` (har 1
+  daqiqada uyg'onadi) guruh `StartTime`+`OffsetMinutes` (default 5) vaqtida, agar shu kunga hali
+  davomat (`LessonNote.Conducted`) kiritilmagan bo'lsa, guruh o'qituvchisiga push (FCM) + Telegram
+  (agar botga ulangan bo'lsa) orqali eslatma yuboradi (xotirada kunlik dedup, 10 daqiqalik oyna).
+  Qarzdorlik eslatmasi (`PaymentReminderService`) endi `ReminderRule.Enabled`dan o'qiydi (eski
+  `CenterMeta` bool ustuni migratsiyada shu qoidaga ko'chirildi, keyin ustun o'chirildi).
+  `MessageTokenizer.Teacher(...)`ga `group`/`extra` parametrlari qo'shildi ({guruh}/{dars_vaqti}/
+  {kurs} ishlashi uchun, `Student`/`Lead` bilan bir xil pattern). Yangi `RemindersController`
+  (`/api/admin/reminders` — GET/types, CRUD), frontend `RemindersSettings.tsx` (Sozlamalar →
+  Eslatmalar, `SmsTemplatesCard` bilan bir xil ro'yxat+forma pattern). Migratsiya
+  `AddReminderRules` — `ReminderRules` jadvali + eski `PaymentRemindersEnabled` qiymatini seed SQL
+  bilan ko'chirib (ma'lumot yo'qolmasin), so'ng ustunni o'chiradi; default o'chirilgan davomat-
+  eslatmasi qoidasi ham seed qilinadi. Backend+frontend build 0 xato. **Cheklov:** mahalliy Postgres
+  yo'qligi sabab migratsiya `docker compose up`da birinchi marta ishga tushganda qo'llanadi va
+  push/telegram jo'natilishi haqiqiy dars vaqtida sinovdan o'tkazilishi kerak.
 - 2026-07-01: **PWA o'rnatishda markaz LOGOSI ko'rinadi — dinamik manifest.** Ilgari manifest statik edi va
   `favicon.svg`ni ikonka qilardi (markaz logosi emas). Endi `GET /api/public/manifest.webmanifest` (anonim,
   `PublicTestController`) markaz nomi + `CenterMeta.LogoUrl`ni ikonka qilib qaytaradi (raster uchun sizes

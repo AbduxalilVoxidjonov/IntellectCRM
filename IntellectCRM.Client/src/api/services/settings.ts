@@ -350,31 +350,60 @@ export async function saveCameraSettings(payload: { enabled: boolean }): Promise
   return data
 }
 
-/* ---------- Avtomatik to'lov eslatmasi ---------- */
+/* ---------- Eslatmalar (avtomatik push-qoidalar) ---------- */
 
-export interface PaymentReminderConfig {
-  /** Avtomatik to'lov eslatmasi yoqilganmi (default true) */
-  enabled: boolean
+/** "Eslatmalar" katalogidagi bitta tur — masalan qarzdorlik eslatmasi yoki davomat eslatmasi. */
+export interface ReminderTriggerInfo {
+  key: string
+  label: string
+  description: string
+  supportsTemplate: boolean
+  supportsOffset: boolean
+  tokens: string[]
 }
 
-export async function getPaymentReminderSettings(): Promise<PaymentReminderConfig> {
-  if (USE_MOCK) {
-    await delay()
-    return { enabled: true }
-  }
-  const { data } = await api.get<PaymentReminderConfig>('/admin/settings/payment-reminders')
+export interface ReminderRule {
+  id: string
+  trigger: string
+  name: string
+  enabled: boolean
+  messageTemplate: string
+  offsetMinutes: number
+  createdAt: string
+}
+
+export interface SaveReminderRuleReq {
+  trigger: string
+  name: string
+  enabled: boolean
+  messageTemplate: string
+  offsetMinutes: number
+}
+
+export async function getReminderTypes(): Promise<ReminderTriggerInfo[]> {
+  if (USE_MOCK) return []
+  const { data } = await api.get<ReminderTriggerInfo[]>('/admin/reminders/types')
   return data
 }
 
-export async function savePaymentReminderSettings(payload: {
-  enabled: boolean
-}): Promise<PaymentReminderConfig> {
-  if (USE_MOCK) {
-    await delay(250)
-    return payload
-  }
-  const { data } = await api.put<PaymentReminderConfig>('/admin/settings/payment-reminders', payload)
+export async function getReminderRules(): Promise<ReminderRule[]> {
+  if (USE_MOCK) return []
+  const { data } = await api.get<ReminderRule[]>('/admin/reminders')
   return data
+}
+
+export async function createReminderRule(req: SaveReminderRuleReq): Promise<ReminderRule> {
+  const { data } = await api.post<ReminderRule>('/admin/reminders', req)
+  return data
+}
+
+export async function updateReminderRule(id: string, req: SaveReminderRuleReq): Promise<ReminderRule> {
+  const { data } = await api.put<ReminderRule>(`/admin/reminders/${id}`, req)
+  return data
+}
+
+export async function deleteReminderRule(id: string): Promise<void> {
+  await api.delete(`/admin/reminders/${id}`)
 }
 
 /* ---------- To'lov cheki (kvitansiya) sozlamalari ---------- */

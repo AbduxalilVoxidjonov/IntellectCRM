@@ -18,7 +18,7 @@ import { AzureSpeechSettings } from './AzureSpeechSettings'
 import { GeminiSettings } from './GeminiSettings'
 import { TurnstileSettings } from './TurnstileSettings'
 import { CameraSettings } from './CameraSettings'
-import { PaymentReminderSettings } from './PaymentReminderSettings'
+import { RemindersSettings } from './RemindersSettings'
 import { EskizSettings } from './EskizSettings'
 import { CheckSettings } from './CheckSettings'
 
@@ -38,7 +38,7 @@ const sectionTitles: Record<string, string> = {
   check: "To'lov cheki",
   turnstile: 'Turniket integratsiya',
   cameras: 'Kamera integratsiya',
-  'payment-reminders': "Avtomatik to'lov eslatmasi",
+  reminders: 'Eslatmalar',
 }
 
 export function SettingsPage() {
@@ -164,8 +164,8 @@ export function SettingsPage() {
           {/* Kamera (videokuzatuv) integratsiya */}
           {section === 'cameras' && <CameraSettings />}
 
-          {/* Avtomatik to'lov eslatmasi */}
-          {section === 'payment-reminders' && <PaymentReminderSettings />}
+          {/* Eslatmalar (avtomatik push-qoidalar) */}
+          {section === 'reminders' && <RemindersSettings />}
           {section === 'eskiz' && <EskizSettings />}
           {section === 'check' && <CheckSettings />}
         </div>

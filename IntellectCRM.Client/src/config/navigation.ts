@@ -174,7 +174,7 @@ export const navByRole: Record<Role, NavItem[]> = {
         { label: "To'lov cheki", to: '/admin/settings/check' },
         { label: 'Turniket integratsiya', to: '/admin/settings/turnstile' },
         { label: 'Kamera integratsiya', to: '/admin/settings/cameras' },
-        { label: "To'lov eslatmasi", to: '/admin/settings/payment-reminders' },
+        { label: 'Eslatmalar', to: '/admin/settings/reminders' },
       ],
     },
     { label: 'Arxiv', to: '/admin/archive', icon: Archive, perm: 'settings' },

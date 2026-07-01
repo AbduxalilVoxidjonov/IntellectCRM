@@ -110,6 +110,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<SmsLog> SmsLogs => Set<SmsLog>();
     public DbSet<SmsTemplate> SmsTemplates => Set<SmsTemplate>();
 
+    // Eslatmalar (avtomatik push-qoidalar)
+    public DbSet<ReminderRule> ReminderRules => Set<ReminderRule>();
+
     // Tuman + maktab
     public DbSet<District> Districts => Set<District>();
     public DbSet<School> Schools => Set<School>();

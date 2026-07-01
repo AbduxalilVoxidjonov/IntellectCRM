@@ -926,12 +926,6 @@ public class CenterMeta
     /// <summary>Kamera kuzatuvi yoqilganmi.</summary>
     public bool CameraEnabled { get; set; }
 
-    // ---------- Avtomatik to'lov eslatmasi ----------
-    /// <summary>Avtomatik to'lov eslatmasi yoqilganmi (default true). Yoqilgan bo'lsa fon xizmati
-    /// har oyning 1-sanasida barcha qarzdorlarga, keyin har 2 kunda hali to'lamaganlarga
-    /// Telegram + push orqali eslatma yuboradi (ertalab 09:00, Toshkent vaqti).</summary>
-    public bool PaymentRemindersEnabled { get; set; } = true;
-
     // ---------- Telegram backup ----------
     /// <summary>Telegram admin chat ID — backup faylini yuborish uchun. Faqat raqam (masalan 123456789).
     /// Bo'sh bo'lsa Telegram backup o'chiriladi.</summary>
@@ -1776,6 +1770,26 @@ public class SmsTemplate
     /// </summary>
     public string Trigger { get; set; } = string.Empty;
     public int Order { get; set; }
+    public string CreatedAt { get; set; } = AppClock.Iso();
+}
+
+/// <summary>
+/// Umumiy avtomatik push-eslatma qoidasi (Sozlamalar → Eslatmalar). Har qator — bitta eslatma turi
+/// (<see cref="Trigger"/>, masalan "payment_debt" yoki "lesson_attendance") uchun sozlama: yoqilgan/
+/// o'chirilgan, matn andozasi (turi qo'llasa) va vaqt siljishi (faqat "lesson_attendance" uchun —
+/// dars boshlanishidan necha daqiqa keyin yuborilsin). Tur katalogi <c>ReminderTriggers</c>da.
+/// </summary>
+public class ReminderRule
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    /// <summary>"payment_debt" | "lesson_attendance" — <c>ReminderTriggers</c> katalogidagi kalit.</summary>
+    public string Trigger { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public bool Enabled { get; set; } = true;
+    /// <summary>Andoza matni (o'rinbosarlar bilan) — faqat turi qo'llagan qoidalarda ishlatiladi.</summary>
+    public string MessageTemplate { get; set; } = string.Empty;
+    /// <summary>Faqat "lesson_attendance": dars boshlanishidan necha daqiqa keyin yuborilsin (default 5).</summary>
+    public int OffsetMinutes { get; set; } = 5;
     public string CreatedAt { get; set; } = AppClock.Iso();
 }
 

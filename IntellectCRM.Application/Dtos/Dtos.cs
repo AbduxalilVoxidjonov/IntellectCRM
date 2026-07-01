@@ -204,9 +204,13 @@ public record SaveCameraRequest(
 /// <summary>Kamera integratsiya sozlamasi.</summary>
 public record CameraSettingsDto(bool Enabled, int CameraCount);
 public record SaveCameraSettingsRequest(bool Enabled);
-/// <summary>Avtomatik to'lov eslatmasi sozlamasi (qarzdorlarga Telegram + push, har 2 kunda).</summary>
-public record PaymentReminderSettingsDto(bool Enabled);
-public record SavePaymentReminderSettingsRequest(bool Enabled);
+/// <summary>"Eslatmalar" (Sozlamalar → Eslatmalar) katalogidagi bitta tur (masalan "payment_debt").</summary>
+public record ReminderTriggerInfoDto(
+    string Key, string Label, string Description, bool SupportsTemplate, bool SupportsOffset, string[] Tokens);
+public record ReminderRuleDto(
+    string Id, string Trigger, string Name, bool Enabled, string MessageTemplate, int OffsetMinutes, string CreatedAt);
+/// <summary>Eslatma qoidasini saqlash (yaratish/tahrirlash).</summary>
+public record SaveReminderRuleRequest(string Trigger, string Name, bool Enabled, string MessageTemplate, int OffsetMinutes);
 /// <summary>Moliyada o'quvchi qatori. Charged = jami to'liq oylik (chegirmasiz);
 /// Discount = jami berilgan chegirma; Paid = haqiqiy naqd to'lovlar yig'indisi (turli oylar uchun);
 /// Debt / Advance — joriy holatdan (balans). DiscountPct/Amount — qoidani ko'rsatish uchun.</summary>
