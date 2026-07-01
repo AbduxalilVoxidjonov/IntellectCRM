@@ -2,8 +2,11 @@
  * Web app config query string orqali keladi (webpush.ts uni ro'yxatdan o'tkazganda qo'yadi):
  *   /firebase-messaging-sw.js?config=<encodeURIComponent(JSON)>
  * Konfig OMMAVIY (apiKey/messagingSenderId ochiq kalitlar) — maxfiy emas.
- * `notification` payload'li xabarlar brauzer tomonidan avtomatik ko'rsatiladi; bu yerda faqat
- * data-only xabarlar uchun zaxira handler va bosilganda ilovani ochish qo'shilgan.
+ *
+ * DIQQAT (dubl bildirishnoma): server `notification` payload yuboradi (native uchun). Web'da
+ * `firebase.messaging()` ishga tushirilsa, background'da bunday xabar SDK tomonidan AVTOMATIK
+ * ko'rsatiladi. Shu sabab bu yerda onBackgroundMessage'da showNotification CHAQIRILMAYDI —
+ * aks holda ikkita bir xil bildirishnoma chiqadi.
  */
 /* global importScripts, firebase, self, clients */
 
@@ -18,20 +21,10 @@ try {
 
   if (config && config.apiKey) {
     firebase.initializeApp(config)
-    const messaging = firebase.messaging()
-
-    // Data-only xabarlar uchun zaxira (notification payload'li xabarlar o'zi ko'rinadi).
-    messaging.onBackgroundMessage((payload) => {
-      const n = payload.notification || {}
-      const data = payload.data || {}
-      const title = n.title || data.title || 'Yangi bildirishnoma'
-      self.registration.showNotification(title, {
-        body: n.body || data.body || '',
-        icon: '/favicon.svg',
-        badge: '/favicon.svg',
-        data,
-      })
-    })
+    // messaging()'ni ishga tushirish yetarli — `notification` payload'li xabar background'da
+    // avtomatik ko'rsatiladi. (Data-only xabar bo'lsa handler qo'shish mumkin edi, lekin server
+    // doim notification yuboradi, shuning uchun bu yerda hech narsa ko'rsatmaymiz — dubl bo'lmasin.)
+    firebase.messaging()
   }
 } catch (e) {
   // Konfig noto'g'ri yoki SDK yuklanmadi — SW baribir o'rnatiladi, shunchaki push kelmaydi.
