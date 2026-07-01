@@ -36,6 +36,48 @@ public class PublicTestController(AppDbContext db, TelegramService telegram, Esk
         return new PublicPushConfigDto(web, vapid, configured);
     }
 
+    /// <summary>PWA manifest (DINAMIK) — markaz nomi va LOGOSI bilan. Ilova o'rnatilganda (Android/desktop)
+    /// shu logo ikonka bo'lib ko'rinadi. Logo bo'lmasa favicon'ga qaytadi.</summary>
+    [HttpGet("/api/public/manifest.webmanifest")]
+    public async Task<IActionResult> Manifest()
+    {
+        var m = await db.CenterMeta.FirstOrDefaultAsync();
+        var name = string.IsNullOrWhiteSpace(m?.Name) ? "O'quv markazi" : m!.Name.Trim();
+        var logo = (m?.LogoUrl ?? "").Trim();
+
+        object[] icons;
+        if (logo.Length > 0)
+        {
+            var isSvg = logo.EndsWith(".svg", StringComparison.OrdinalIgnoreCase);
+            var type = isSvg ? "image/svg+xml"
+                : logo.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) || logo.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase) ? "image/jpeg"
+                : logo.EndsWith(".webp", StringComparison.OrdinalIgnoreCase) ? "image/webp"
+                : "image/png";
+            // Raster logoni bir nechta o'lchamga "mos" deb e'lon qilamiz — brauzer ikonkani miqyoslaydi.
+            var sizes = isSvg ? "any" : "96x96 192x192 512x512";
+            icons = [new { src = logo, sizes, type, purpose = "any maskable" }];
+        }
+        else
+        {
+            icons = [new { src = "/favicon.svg", sizes = "any", type = "image/svg+xml", purpose = "any maskable" }];
+        }
+
+        var manifest = new
+        {
+            name,
+            short_name = name.Length > 12 ? name[..12] : name,
+            description = $"{name} — o'quvchi va o'qituvchi portali",
+            start_url = "/",
+            scope = "/",
+            display = "standalone",
+            background_color = "#ffffff",
+            theme_color = "#4f46e5",
+            icons,
+        };
+        var json = System.Text.Json.JsonSerializer.Serialize(manifest);
+        return Content(json, "application/manifest+json");
+    }
+
     /// <summary>Slug bo'yicha faol testni oladi (to'g'ri javobSIZ). Topilmasa 404.</summary>
     [HttpGet("{slug}")]
     public async Task<ActionResult<PublicTestDto>> Get(string slug)

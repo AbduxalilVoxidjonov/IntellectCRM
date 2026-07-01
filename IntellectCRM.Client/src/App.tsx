@@ -122,6 +122,14 @@ export default function App() {
           }
           link.removeAttribute('type') // logo png/jpg bo'lishi mumkin — brauzer o'zi aniqlaydi
           link.href = b.logoUrl
+          // iOS "Bosh ekranga qo'shish" ikonkasi ham markaz logosi bo'lsin (apple-touch-icon).
+          let apple = document.querySelector<HTMLLinkElement>("link[rel='apple-touch-icon']")
+          if (!apple) {
+            apple = document.createElement('link')
+            apple.rel = 'apple-touch-icon'
+            document.head.appendChild(apple)
+          }
+          apple.href = b.logoUrl
         }
       })
       .catch(() => {})

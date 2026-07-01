@@ -3,6 +3,12 @@
 > Bu fayl CLAUDE.md dan ajratildi (kontekstni yengillashtirish uchun). Avtomatik yuklanmaydi.
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-07-01: **PWA o'rnatishda markaz LOGOSI ko'rinadi — dinamik manifest.** Ilgari manifest statik edi va
+  `favicon.svg`ni ikonka qilardi (markaz logosi emas). Endi `GET /api/public/manifest.webmanifest` (anonim,
+  `PublicTestController`) markaz nomi + `CenterMeta.LogoUrl`ni ikonka qilib qaytaradi (raster uchun sizes
+  "96/192/512", `application/manifest+json`); logo bo'lmasa favicon'ga qaytadi. `index.html` manifest linki
+  `/api/public/manifest.webmanifest`ga o'zgardi (dev'da /api proxy orqali), statik `public/manifest.webmanifest`
+  o'chirildi. iOS uchun `App.tsx` brand yuklaganda `apple-touch-icon`ni ham logoga qo'yadi. Build 0 xato.
 - 2026-07-01: **PWA o'rnatiladigan (installable) qilindi — SW startup'da + fetch handler.** Tekshiruvda:
   eski o'chirilgan (20408e9) "web/PWA push" faqat SOZLAMA edi (SW/getToken/manifest yo'q) — hech qachon
   push yetkazmagan; biz uni to'liq (SW+getToken+manifest) tikladik. Qolgan kamchilik: SW faqat login'dan
