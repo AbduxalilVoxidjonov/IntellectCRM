@@ -283,7 +283,15 @@ export function TeacherGroupDetailPage() {
     if (!journal || !bulkDate) return
     setBulkSaving(true)
     try {
-      await bulkTeacherAttendance(journal.group.id, bulkDate, absent, reasonId)
+      await bulkTeacherAttendance(
+        journal.group.id,
+        journal.group.courseId,
+        1,
+        journalStudents.map((s) => s.studentId),
+        bulkDate,
+        absent,
+        reasonId,
+      )
       setBulkDate(null)
       load(journal.month)
     } catch (err) {

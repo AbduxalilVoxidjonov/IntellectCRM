@@ -3,6 +3,15 @@
 > Bu fayl CLAUDE.md dan ajratildi (kontekstni yengillashtirish uchun). Avtomatik yuklanmaydi.
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-07-01: **O'qituvchi ilovasida "hammasi keldi/hammasi kelmadi" (bulk davomat) 400 xatosi
+  tuzatildi.** Sabab: `bulkTeacherAttendance` (`api/services/teacher.ts`) backend
+  `BulkAttendanceRequest`ning MAJBURIY (non-nullable) `subjectId`/`period`/`studentIds`
+  maydonlarini umuman yubormasdi (faqat `classId, date, absent, reasonId`) — ASP.NET Core
+  `[ApiController]` NRT-required model-binding avtomatik `400 Bad Request` qaytarardi (har safar,
+  har o'qituvchi uchun). Admin panelidagi xuddi shu tugma (`ClassDetailPage.tsx`) to'g'ri ishlagan —
+  u barcha maydonni to'g'ri yuborardi; frontend funksiya imzosi endi ikkalasida bir xil
+  (`classId, subjectId, period, studentIds, date, absent, reasonId`). `TeacherGroupDetailPage.tsx`
+  chaqiruvi `journal.group.courseId`/`journalStudents`dan to'ldiradi. Frontend tsc+vite ✓.
 - 2026-07-01: **Xodim ruxsat (permission) kaliti nomuvofiqliklari tuzatildi — "bo'lim berilsa shu
   bo'limdagi BARCHA ishlar ham ishlashi kerak" auditi.** Tekshiruvda ikkita aniq bug topildi: (1)
   `JournalController` (`AdminPerm("journal")`) — admin jurnali (baho/davomat kiritish) FAQAT Guruh

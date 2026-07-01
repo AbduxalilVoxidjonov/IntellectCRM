@@ -257,15 +257,19 @@ export async function clearTeacherJournalEntry(
   })
 }
 
-/** Bitta dars (sana) uchun BARCHA faol o'quvchiga birdan davomat. absent=false → keldi; true → kelmadi. */
+/** Bitta dars (sana) uchun BARCHA faol o'quvchiga birdan davomat. absent=false → keldi; true → kelmadi.
+ * Backend `BulkAttendanceRequest` subjectId/period/studentIds'ni ham talab qiladi (bo'lmasa 400 qaytadi). */
 export async function bulkTeacherAttendance(
   classId: string,
+  subjectId: string,
+  period: number,
+  studentIds: string[],
   date: string,
   absent: boolean,
   reasonId?: string | null,
 ): Promise<void> {
   await api.post('/teacher/journal/bulk-attendance', {
-    classId, date, absent, reasonId: reasonId ?? null,
+    classId, subjectId, period, studentIds, date, absent, reasonId: reasonId ?? null,
   })
 }
 
