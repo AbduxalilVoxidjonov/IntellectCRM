@@ -4,16 +4,21 @@ import { getFirebaseSettings, saveFirebaseSettings, type FirebaseConfig } from '
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
-import { Textarea } from '@/components/ui/Input'
+import { Input, Textarea } from '@/components/ui/Input'
 import { Loader } from '@/components/ui/Loader'
 
 /**
- * Firebase push sozlamasi — faqat NATIVE (Flutter) ilovaga push yuborish uchun Service Account JSON.
- * Web/PWA push olib tashlandi: ilova FCM tokenni native oladi, server shu JSON bilan push yuboradi.
+ * Firebase push sozlamasi — ikki qatlam:
+ *  1) Service Account JSON — server FCM'ga push YUBORISHI uchun (maxfiy).
+ *  2) Web app config + VAPID kaliti — brauzer/PWA token OLISHI uchun (ommaviy).
+ * Native (Flutter) ilova tokenni o'zi oladi; web/PWA esa web config bilan Firebase JS SDK orqali.
  */
 export function FirebaseSettings() {
   const [json, setJson] = useState('')
+  const [webJson, setWebJson] = useState('')
+  const [vapid, setVapid] = useState('')
   const [configured, setConfigured] = useState(false)
+  const [webConfigured, setWebConfigured] = useState(false)
   const [loading, setLoading] = useState(true)
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
   const [error, setError] = useState<string | null>(null)
@@ -22,7 +27,10 @@ export function FirebaseSettings() {
     getFirebaseSettings()
       .then((c: FirebaseConfig) => {
         setJson(c.serviceAccountJson)
+        setWebJson(c.webConfigJson)
+        setVapid(c.vapidKey)
         setConfigured(c.configured)
+        setWebConfigured(c.webConfigured)
       })
       .finally(() => setLoading(false))
   }, [])
@@ -32,16 +40,23 @@ export function FirebaseSettings() {
     setStatus('saving')
     setError(null)
     try {
-      const saved = await saveFirebaseSettings({ serviceAccountJson: (json ?? '').trim() })
+      const saved = await saveFirebaseSettings({
+        serviceAccountJson: (json ?? '').trim(),
+        webConfigJson: (webJson ?? '').trim(),
+        vapidKey: (vapid ?? '').trim(),
+      })
       setJson(saved.serviceAccountJson)
+      setWebJson(saved.webConfigJson)
+      setVapid(saved.vapidKey)
       setConfigured(saved.configured)
+      setWebConfigured(saved.webConfigured)
       setStatus('saved')
       setTimeout(() => setStatus('idle'), 2000)
     } catch (e: unknown) {
       setStatus('idle')
       const msg =
         (e as { response?: { data?: { message?: string } } })?.response?.data?.message ||
-        "Saqlab bo'lmadi — service account JSON noto'g'ri."
+        "Saqlab bo'lmadi — kiritilgan ma'lumotlarni tekshiring."
       setError(msg)
     }
   }
@@ -55,26 +70,38 @@ export function FirebaseSettings() {
           Push (Firebase)
           {configured ? (
             <Badge tone="green">
-              <CheckCircle2 className="h-3.5 w-3.5" /> Sozlangan
+              <CheckCircle2 className="h-3.5 w-3.5" /> Ilova (native)
             </Badge>
           ) : (
             <Badge tone="default">
-              <XCircle className="h-3.5 w-3.5" /> Sozlanmagan
+              <XCircle className="h-3.5 w-3.5" /> Ilova sozlanmagan
+            </Badge>
+          )}
+          {webConfigured ? (
+            <Badge tone="green">
+              <CheckCircle2 className="h-3.5 w-3.5" /> Web/PWA
+            </Badge>
+          ) : (
+            <Badge tone="default">
+              <XCircle className="h-3.5 w-3.5" /> Web/PWA sozlanmagan
             </Badge>
           )}
         </span>
       }
     >
       <p className="mb-4 text-sm text-slate-400">
-        Bildirishnoma (push) Flutter ilovaga yuboriladi. Ilova FCM tokenni o'zi oladi va ro'yxatdan
-        o'tkazadi; server quyidagi <b>Service Account JSON</b> bilan o'sha tokenga push yuboradi.
-        Web/PWA config kerak emas. <b>Muhim:</b> bu JSON ilovadagi <code>google-services.json</code>
-        bilan bitta Firebase loyihadan bo'lishi shart.
+        Bildirishnoma (push) ikki yo'l bilan yetadi: <b>Ilova</b> (Flutter APK — token native olinadi) va{' '}
+        <b>Web/PWA</b> (brauzer/telefon ekraniga o'rnatilgan sayt — token quyidagi web config bilan olinadi).
+        Ikkalasi ham <b>bitta Firebase loyihadan</b> bo'lishi shart. Serverdan push yuborish uchun esa{' '}
+        <b>Service Account JSON</b> zarur (u ikkala yo'lga ham xizmat qiladi).
       </p>
 
-      <form onSubmit={onSubmit} className="max-w-2xl space-y-5">
+      <form onSubmit={onSubmit} className="max-w-2xl space-y-6">
+        {/* 1) Server → push yuboradi */}
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">Service account (JSON)</label>
+          <label className="mb-1 block text-sm font-medium text-slate-700">
+            Service account (JSON) <span className="text-slate-400">— server push yuborishi uchun (maxfiy)</span>
+          </label>
           <p className="mb-2 text-xs text-slate-400">
             Firebase Console → Project Settings → Service accounts → "Generate new private key" →
             yuklab olingan JSON faylni to'liq shu yerga qo'ying.
@@ -84,8 +111,45 @@ export function FirebaseSettings() {
             onChange={(e) => setJson(e.target.value)}
             placeholder='{ "type": "service_account", "project_id": "...", "private_key": "...", "client_email": "..." }'
             spellCheck={false}
-            className="h-44 font-mono text-xs"
+            className="h-40 font-mono text-xs"
           />
+        </div>
+
+        <div className="border-t border-slate-100 pt-5">
+          <p className="mb-3 text-sm font-semibold text-slate-700">Web / PWA push (brauzer tokeni uchun)</p>
+
+          {/* 2) Web app config */}
+          <div className="mb-4">
+            <label className="mb-1 block text-sm font-medium text-slate-700">Web app config (JSON)</label>
+            <p className="mb-2 text-xs text-slate-400">
+              Firebase Console → Project Settings → General → "Your apps" → Web app (<code>&lt;/&gt;</code>) →
+              SDK setup and configuration → <b>Config</b>. <code>firebaseConfig</code> obyektini (apiKey, projectId,
+              messagingSenderId, appId...) JSON ko'rinishida qo'ying. Ommaviy — maxfiy emas.
+            </p>
+            <Textarea
+              value={webJson}
+              onChange={(e) => setWebJson(e.target.value)}
+              placeholder='{ "apiKey": "...", "authDomain": "...", "projectId": "...", "messagingSenderId": "...", "appId": "..." }'
+              spellCheck={false}
+              className="h-36 font-mono text-xs"
+            />
+          </div>
+
+          {/* 3) VAPID key */}
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700">Web Push sertifikati (VAPID key)</label>
+            <p className="mb-2 text-xs text-slate-400">
+              Firebase Console → Project Settings → Cloud Messaging → "Web configuration" → Web Push certificates →
+              Key pair (ochiq kalit). Web/PWA push shu kalitsiz ishlamaydi.
+            </p>
+            <Input
+              value={vapid}
+              onChange={(e) => setVapid(e.target.value)}
+              placeholder="B*** (Web Push certificate ochiq kaliti)"
+              spellCheck={false}
+              className="font-mono text-xs"
+            />
+          </div>
         </div>
 
         {error && <p className="text-sm font-medium text-red-600">{error}</p>}

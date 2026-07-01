@@ -160,15 +160,20 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
             m.TelegramBackupLastSentAt);
     }
 
-    // ---------- Push (Firebase / FCM) — faqat native (Flutter) ilovaga ----------
-    // PWA/web push olib tashlandi: ilova FCM tokenni native oladi, server Service Account
-    // JSON bilan o'sha tokenga push yuboradi (web config / VAPID kerak emas).
+    // ---------- Push (Firebase / FCM) ----------
+    // Ikki qatlam: (1) ServiceAccountJson — server FCM'ga push YUBORISHI uchun (maxfiy);
+    // (2) WebConfigJson + VapidKey — brauzer/PWA token OLISHI uchun (ommaviy). Native (Flutter)
+    // ilova tokenni o'zi oladi; web/PWA esa quyidagi web config bilan Firebase JS SDK orqali oladi.
 
     [HttpGet("firebase")]
     public async Task<ActionResult<FirebaseSettingsDto>> GetFirebase()
     {
-        var json = (await db.CenterMeta.FirstOrDefaultAsync())?.FcmServiceAccountJson ?? "";
-        return new FirebaseSettingsDto(json, FcmService.IsConfigured(json));
+        var m = await db.CenterMeta.FirstOrDefaultAsync();
+        var json = m?.FcmServiceAccountJson ?? "";
+        var web = m?.FcmWebConfigJson ?? "";
+        var vapid = m?.FcmVapidKey ?? "";
+        return new FirebaseSettingsDto(
+            json, FcmService.IsConfigured(json), web, vapid, WebPushConfigured(web, vapid));
     }
 
     [HttpPut("firebase")]
@@ -178,11 +183,34 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
         if (json.Length > 0 && !FcmService.IsConfigured(json))
             return BadRequest(new { message = "Service account JSON noto'g'ri (client_email/private_key/project_id kerak)" });
 
+        var web = (req.WebConfigJson ?? "").Trim();
+        if (web.Length > 0 && !IsValidJsonObject(web))
+            return BadRequest(new { message = "Web app config noto'g'ri — Firebase Console'dagi JSON obyektni to'liq qo'ying." });
+        var vapid = (req.VapidKey ?? "").Trim();
+
         var m = await db.CenterMeta.FirstOrDefaultAsync();
         if (m is null) { m = new CenterMeta(); db.CenterMeta.Add(m); }
         m.FcmServiceAccountJson = json;
+        m.FcmWebConfigJson = web;
+        m.FcmVapidKey = vapid;
         await db.SaveChangesAsync();
-        return new FirebaseSettingsDto(json, FcmService.IsConfigured(json));
+        return new FirebaseSettingsDto(
+            json, FcmService.IsConfigured(json), web, vapid, WebPushConfigured(web, vapid));
+    }
+
+    /// <summary>Web/PWA push tayyor — web config JSON obyekti va VAPID kalit ham kiritilgan.</summary>
+    private static bool WebPushConfigured(string webConfigJson, string vapidKey) =>
+        IsValidJsonObject(webConfigJson) && vapidKey.Trim().Length > 0;
+
+    private static bool IsValidJsonObject(string json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return false;
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            return doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object;
+        }
+        catch { return false; }
     }
 
     // ---------- Speaking (Azure Pronunciation Assessment) ----------

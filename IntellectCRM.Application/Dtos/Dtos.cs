@@ -622,10 +622,16 @@ public record SaveTelegramBackupConfigRequest(
 /// <summary>Ilova (APK) sozlamasi — Telegram bot ro'yxatdan o'tgan o'quvchi/o'qituvchiga yuboradigan fayl(lar).
 /// Nom + hajm (bayt; 0 = yuklanmagan).</summary>
 public record AppApkSettingsDto(string StudentApkName, long StudentApkSize, string TeacherApkName, long TeacherApkSize);
-/// <summary>Firebase (FCM push) sozlamasi — faqat native (Flutter) ilovaga push yuborish uchun
-/// Service Account JSON. Configured = JSON to'g'ri kiritilgan.</summary>
-public record FirebaseSettingsDto(string ServiceAccountJson, bool Configured);
-public record SaveFirebaseSettingsRequest(string? ServiceAccountJson);
+/// <summary>Firebase (FCM push) sozlamasi. <b>ServiceAccountJson</b> — server push yuborishi uchun
+/// (maxfiy). <b>WebConfigJson</b> + <b>VapidKey</b> — brauzer/PWA push token olishi uchun (ommaviy).
+/// Configured = native push tayyor; WebConfigured = web/PWA push tayyor.</summary>
+public record FirebaseSettingsDto(
+    string ServiceAccountJson, bool Configured, string WebConfigJson, string VapidKey, bool WebConfigured);
+public record SaveFirebaseSettingsRequest(string? ServiceAccountJson, string? WebConfigJson, string? VapidKey);
+
+/// <summary>Ommaviy (autentifikatsiyasiz) web/PWA push konfiguratsiyasi — brauzer Firebase JS SDK'ni
+/// ishga tushirib FCM token olishi uchun. Maxfiy emas (apiKey/vapidKey ommaviy kalitlar).</summary>
+public record PublicPushConfigDto(string WebConfigJson, string VapidKey, bool Configured);
 
 /// <summary>Turniket/FaceID integratsiya sozlamasi (o'qituvchilar davomati avtomatik).
 /// Parol javobda BO'SH qaytadi (xavfsizlik); HasPassword saqlanganini bildiradi.</summary>

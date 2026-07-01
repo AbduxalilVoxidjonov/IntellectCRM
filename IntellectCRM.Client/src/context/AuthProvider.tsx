@@ -4,7 +4,8 @@ import type { User } from '@/types'
 import { AuthContext } from './auth-context'
 import { login as loginRequest, fetchMe } from '@/api/services/auth'
 import { USE_MOCK } from '@/api/client'
-import { setFcmToken, getFcmToken, registerDevice, unregisterDevice } from '@/api/services/push'
+import { setFcmToken, getFcmToken, registerDevice, unregisterDevice, pushBase } from '@/api/services/push'
+import { initWebPush, isWebPushSupported } from '@/api/services/webpush'
 
 const TOKEN_KEY = 'token'
 const USER_KEY = 'user'
@@ -62,6 +63,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       })
       .catch(() => logout())
   }, [logout])
+
+  // Web/PWA push: NATIVE token bo'lmasa (oddiy brauzer/PWA), student/teacher kirganda Firebase JS
+  // SDK orqali FCM token olib, joriy foydalanuvchiga bog'laymiz. Native ilovada window.__FCM_TOKEN__
+  // bo'lgani uchun bu blok o'tkazib yuboriladi. initWebPush idempotent (tokenni keshlaydi).
+  useEffect(() => {
+    if (!user) return
+    if (getFcmToken()) return // native token mavjud — web push shart emas
+    if (!pushBase(user.role)) return // faqat student/teacher'da register endpointi bor
+    if (!isWebPushSupported()) return
+    const role = user.role
+    initWebPush()
+      .then((token) => {
+        if (!token) return
+        setFcmToken(token)
+        registerDevice(role, token, 'web').catch(() => {})
+      })
+      .catch(() => {})
+  }, [user])
 
   // Flutter native FCM tokenini eshitamiz: window.postMessage({type:'fcm-token', token})
   // yoki window.__FCM_TOKEN__. Token kelganda — agar kirilgan bo'lsa darhol register qilamiz

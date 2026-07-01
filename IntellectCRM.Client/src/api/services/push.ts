@@ -41,13 +41,18 @@ export function pushBase(role: string | undefined): string | null {
   return null // parent/admin/staff — register endpointi yo'q
 }
 
-/** Qurilma tokenini joriy foydalanuvchiga ro'yxatdan o'tkazadi (JWT axios interceptordan). */
-export async function registerDevice(role: string | undefined, token: string): Promise<void> {
+/** Qurilma tokenini joriy foydalanuvchiga ro'yxatdan o'tkazadi (JWT axios interceptordan).
+ *  platform: 'android' (native Flutter) yoki 'web' (brauzer/PWA). */
+export async function registerDevice(
+  role: string | undefined,
+  token: string,
+  platform: 'android' | 'web' = 'android',
+): Promise<void> {
   const base = pushBase(role)
   if (!base || !token) return
   await api.post(`${base}/notifications/register`, {
     token,
-    platform: 'android',
+    platform,
     deviceName: (navigator.userAgent || '').slice(0, 80),
   })
 }

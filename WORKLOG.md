@@ -3,6 +3,20 @@
 > Bu fayl CLAUDE.md dan ajratildi (kontekstni yengillashtirish uchun). Avtomatik yuklanmaydi.
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-07-01: **Web/PWA push (Firebase FCM) qo'shildi — Service Account yoniga.** Ilgari push faqat NATIVE
+  (Flutter WebView, token native beriladi) ishlar edi. Endi ODDIY BRAUZER/PWA ham FCM token oladi. **Backend:**
+  `CenterMeta.FcmWebConfigJson`/`FcmVapidKey` (entity+DB'da allaqachon bor edi) endi ishlatiladi. `FirebaseSettingsDto`
+  + `SaveFirebaseSettingsRequest`ga `WebConfigJson`/`VapidKey`/`WebConfigured`; `SettingsController` firebase GET/PUT
+  shularni o'qiydi/yozadi (web config JSON obyekt ekanini validatsiya). Yangi ommaviy endpoint
+  `GET /api/public/push-config` (`PublicPushConfigDto`) — brauzer web config+vapid oladi (maxfiy emas). `FcmService`
+  o'zgarmadi (`notification` payload web'da avtomatik ko'rinadi). **Frontend:** `webpush.ts` — `initWebPush()`
+  (config oladi → `firebase-messaging-sw.js` register → `Notification.requestPermission` → Firebase JS SDK
+  gstatic CDN'dan DINAMIK import (npm dep yo'q) → `getToken({vapidKey, swReg})`). `public/firebase-messaging-sw.js`
+  (compat SDK, config query'da, onBackgroundMessage + notificationclick). `push.ts` `registerDevice`ga
+  `platform:'web'`. `AuthProvider` — native token bo'lmasa student/teacher kirganda `initWebPush` → `registerDevice(..,'web')`.
+  `FirebaseSettings.tsx` — Service Account yoniga "Web app config (JSON)" + "VAPID key" maydonlari + 2 status badge.
+  PWA: `public/manifest.webmanifest` + index.html `<link rel=manifest>`/theme-color/apple-touch-icon.
+  Migratsiya SHART EMAS (ustunlar InitialCreate'da). Backend 0 xato, frontend tsc+vite ✓.
 - 2026-06-29: **YANGI — AI CHECK (Speaking & Writing) — o'quvchi AI tekshiruv + admin boshqaruv (limit/premium/blok).**
   Foydalanuvchi: o'quvchida "Speaking & Writing" — writing'ni Gemini, speaking'ni Azure tekshiradi, natija chiroyli
   diagramma/so'z tahlili (Gemini), har tekshiruv TARIXI saqlanadi (speaking ovozi ham — qayta eshitish); Ilova ichida

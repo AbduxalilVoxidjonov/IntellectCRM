@@ -166,20 +166,28 @@ export async function deleteAppApk(role: 'student' | 'teacher'): Promise<AppApkC
 /* ---------- Push (Firebase / FCM) sozlamasi ---------- */
 
 export interface FirebaseConfig {
-  /** Firebase service account (JSON, to'liq) — native (Flutter) ilovaga push YUBORISH uchun */
+  /** Firebase service account (JSON, to'liq) — server push YUBORISH uchun (maxfiy) */
   serviceAccountJson: string
-  /** Service account to'g'ri kiritilgan (push yuborishga tayyor) */
+  /** Service account to'g'ri kiritilgan (native push yuborishga tayyor) */
   configured: boolean
+  /** Firebase web app config (JSON: apiKey, projectId, messagingSenderId, appId...) — brauzer/PWA token uchun */
+  webConfigJson: string
+  /** Web Push (VAPID) ochiq kaliti — brauzer/PWA token uchun */
+  vapidKey: string
+  /** Web/PWA push tayyor (web config + vapid kalit kiritilgan) */
+  webConfigured: boolean
 }
 
 export interface SaveFirebaseInput {
   serviceAccountJson: string
+  webConfigJson: string
+  vapidKey: string
 }
 
 export async function getFirebaseSettings(): Promise<FirebaseConfig> {
   if (USE_MOCK) {
     await delay()
-    return { serviceAccountJson: '', configured: false }
+    return { serviceAccountJson: '', configured: false, webConfigJson: '', vapidKey: '', webConfigured: false }
   }
   const { data } = await api.get<FirebaseConfig>('/admin/settings/firebase')
   return data
@@ -188,9 +196,28 @@ export async function getFirebaseSettings(): Promise<FirebaseConfig> {
 export async function saveFirebaseSettings(input: SaveFirebaseInput): Promise<FirebaseConfig> {
   if (USE_MOCK) {
     await delay(250)
-    return { ...input, configured: !!input.serviceAccountJson.trim() }
+    return {
+      ...input,
+      configured: !!input.serviceAccountJson.trim(),
+      webConfigured: !!input.webConfigJson.trim() && !!input.vapidKey.trim(),
+    }
   }
   const { data } = await api.put<FirebaseConfig>('/admin/settings/firebase', input)
+  return data
+}
+
+/** Ommaviy web/PWA push konfiguratsiyasi (autentifikatsiyasiz) — brauzer FCM token olishi uchun. */
+export interface PublicPushConfig {
+  /** Firebase web app config JSON satri (apiKey, projectId, messagingSenderId, appId...) */
+  webConfigJson: string
+  /** Web Push VAPID ochiq kaliti */
+  vapidKey: string
+  /** Web/PWA push sozlangan (ikkalasi ham mavjud) */
+  configured: boolean
+}
+
+export async function getPublicPushConfig(): Promise<PublicPushConfig> {
+  const { data } = await api.get<PublicPushConfig>('/public/push-config')
   return data
 }
 

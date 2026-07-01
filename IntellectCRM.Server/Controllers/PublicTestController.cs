@@ -24,6 +24,18 @@ public class PublicTestController(AppDbContext db, TelegramService telegram, Esk
         return new PublicBrandDto(m?.Name ?? "", m?.LogoUrl ?? "", m?.Phone ?? "");
     }
 
+    /// <summary>Ommaviy web/PWA push konfiguratsiyasi — brauzer Firebase JS SDK'ni ishga tushirib
+    /// FCM token olishi uchun (web app config + VAPID ochiq kaliti). Maxfiy emas.</summary>
+    [HttpGet("/api/public/push-config")]
+    public async Task<ActionResult<PublicPushConfigDto>> PushConfig()
+    {
+        var m = await db.CenterMeta.FirstOrDefaultAsync();
+        var web = m?.FcmWebConfigJson ?? "";
+        var vapid = m?.FcmVapidKey ?? "";
+        var configured = vapid.Trim().Length > 0 && !string.IsNullOrWhiteSpace(web);
+        return new PublicPushConfigDto(web, vapid, configured);
+    }
+
     /// <summary>Slug bo'yicha faol testni oladi (to'g'ri javobSIZ). Topilmasa 404.</summary>
     [HttpGet("{slug}")]
     public async Task<ActionResult<PublicTestDto>> Get(string slug)
