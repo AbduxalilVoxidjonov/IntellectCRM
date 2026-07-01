@@ -176,6 +176,8 @@ builder.Services.AddHostedService<IntellectCRM.Application.Services.TurnstileLiv
 builder.Services.AddHostedService<IntellectCRM.Application.Services.PaymentReminderService>();
 // O'qituvchiga davomat kiritish eslatmasi (dars boshlanishidan N daqiqa keyin, push + Telegram).
 builder.Services.AddHostedService<IntellectCRM.Application.Services.LessonAttendanceReminderService>();
+// Erkin eslatma (admin belgilagan matn+auditoriya+jadval, push + Telegram).
+builder.Services.AddHostedService<IntellectCRM.Application.Services.CustomReminderService>();
 // Tug'ilgan kun avto-SMS (09:00 Toshkent; "birthday" hodisasiga andoza bo'lsa).
 builder.Services.AddHostedService<IntellectCRM.Application.Services.BirthdaySmsService>();
 // Sinov darsi eslatmasi (09:00 Toshkent; ertaga bo'ladigan sinovlar; "trial_reminder" andoza bo'lsa).

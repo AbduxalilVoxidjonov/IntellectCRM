@@ -9,6 +9,8 @@ import {
   type ReminderTriggerInfo,
   type ReminderRule,
   type SaveReminderRuleReq,
+  type ReminderAudience,
+  type ReminderScheduleType,
 } from '@/api/services/settings'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
@@ -34,6 +36,10 @@ export function RemindersSettings() {
   const [enabled, setEnabled] = useState(true)
   const [messageTemplate, setMessageTemplate] = useState('')
   const [offsetMinutes, setOffsetMinutes] = useState(5)
+  const [audience, setAudience] = useState<ReminderAudience | ''>('')
+  const [scheduleType, setScheduleType] = useState<ReminderScheduleType>('daily')
+  const [scheduleTime, setScheduleTime] = useState('09:00')
+  const [scheduleDayOfMonth, setScheduleDayOfMonth] = useState(1)
   const [saving, setSaving] = useState(false)
 
   const load = () =>
@@ -56,6 +62,10 @@ export function RemindersSettings() {
     setEnabled(true)
     setMessageTemplate('')
     setOffsetMinutes(5)
+    setAudience('')
+    setScheduleType('daily')
+    setScheduleTime('09:00')
+    setScheduleDayOfMonth(1)
   }
 
   const startAdd = () => {
@@ -71,6 +81,10 @@ export function RemindersSettings() {
     setEnabled(r.enabled)
     setMessageTemplate(r.messageTemplate)
     setOffsetMinutes(r.offsetMinutes)
+    setAudience(r.audience)
+    setScheduleType(r.scheduleType)
+    setScheduleTime(r.scheduleTime)
+    setScheduleDayOfMonth(r.scheduleDayOfMonth)
     setAdding(true)
   }
 
@@ -84,6 +98,10 @@ export function RemindersSettings() {
         enabled,
         messageTemplate: messageTemplate.trim(),
         offsetMinutes,
+        audience,
+        scheduleType,
+        scheduleTime,
+        scheduleDayOfMonth,
       }
       if (editing) await updateReminderRule(editing.id, payload)
       else await createReminderRule(payload)
@@ -107,6 +125,10 @@ export function RemindersSettings() {
       enabled: !r.enabled,
       messageTemplate: r.messageTemplate,
       offsetMinutes: r.offsetMinutes,
+      audience: r.audience,
+      scheduleType: r.scheduleType,
+      scheduleTime: r.scheduleTime,
+      scheduleDayOfMonth: r.scheduleDayOfMonth,
     })
     await load()
   }
@@ -182,6 +204,58 @@ export function RemindersSettings() {
             </div>
           )}
 
+          {activeType?.supportsAudience && (
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-600">Auditoriya</label>
+              <select
+                value={audience}
+                onChange={(e) => setAudience(e.target.value as ReminderAudience)}
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
+              >
+                <option value="">— Tanlang —</option>
+                <option value="teachers">O'qituvchilar</option>
+                <option value="students">O'quvchilar (ota-onalar)</option>
+              </select>
+            </div>
+          )}
+
+          {activeType?.supportsSchedule && (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-600">Jadval</label>
+                <select
+                  value={scheduleType}
+                  onChange={(e) => setScheduleType(e.target.value as ReminderScheduleType)}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
+                >
+                  <option value="daily">Har kuni</option>
+                  <option value="monthly">Oyning muayyan kunida</option>
+                </select>
+              </div>
+              {scheduleType === 'monthly' && (
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-600">Oyning kuni</label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={31}
+                    value={scheduleDayOfMonth}
+                    onChange={(e) => setScheduleDayOfMonth(Math.min(31, Math.max(1, Number(e.target.value) || 1)))}
+                  />
+                </div>
+              )}
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-600">Vaqti</label>
+                <Input
+                  type="time"
+                  value={scheduleTime}
+                  onChange={(e) => setScheduleTime(e.target.value)}
+                  className="max-w-[140px]"
+                />
+              </div>
+            </div>
+          )}
+
           {activeType?.supportsTemplate && (
             <div>
               <label className="mb-1 block text-sm font-medium text-slate-600">Xabar matni</label>
@@ -208,7 +282,10 @@ export function RemindersSettings() {
           )}
 
           <div className="flex items-center gap-2">
-            <Button onClick={save} disabled={!name.trim() || !trigger || saving}>
+            <Button
+              onClick={save}
+              disabled={!name.trim() || !trigger || saving || !!(activeType?.supportsAudience && !audience)}
+            >
               {saving ? 'Saqlanmoqda...' : editing ? 'Saqlash' : "Qo'shish"}
             </Button>
             <Button variant="secondary" onClick={reset}>Bekor</Button>
@@ -240,6 +317,13 @@ export function RemindersSettings() {
                     )}
                   </button>
                 </div>
+                {typeInfo(r.trigger)?.supportsSchedule && (
+                  <p className="mt-0.5 text-xs text-slate-400">
+                    {r.audience === 'teachers' ? "O'qituvchilar" : "O'quvchilar (ota-onalar)"} ·{' '}
+                    {r.scheduleType === 'monthly' ? `Har oyning ${r.scheduleDayOfMonth}-kunida` : 'Har kuni'}
+                    {' '}soat {r.scheduleTime}
+                  </p>
+                )}
                 {r.messageTemplate && <p className="mt-0.5 text-xs text-slate-500">{r.messageTemplate}</p>}
               </div>
               <div className="flex shrink-0 items-center gap-1">

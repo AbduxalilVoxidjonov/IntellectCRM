@@ -359,8 +359,15 @@ export interface ReminderTriggerInfo {
   description: string
   supportsTemplate: boolean
   supportsOffset: boolean
+  supportsAudience: boolean
+  supportsSchedule: boolean
   tokens: string[]
 }
+
+/** "custom_schedule" auditoriyasi. */
+export type ReminderAudience = 'teachers' | 'students'
+/** "custom_schedule" jadval turi: har kuni | oyning muayyan kunida. */
+export type ReminderScheduleType = 'daily' | 'monthly'
 
 export interface ReminderRule {
   id: string
@@ -369,6 +376,10 @@ export interface ReminderRule {
   enabled: boolean
   messageTemplate: string
   offsetMinutes: number
+  audience: ReminderAudience | ''
+  scheduleType: ReminderScheduleType
+  scheduleTime: string
+  scheduleDayOfMonth: number
   createdAt: string
 }
 
@@ -378,6 +389,10 @@ export interface SaveReminderRuleReq {
   enabled: boolean
   messageTemplate: string
   offsetMinutes: number
+  audience: ReminderAudience | ''
+  scheduleType: ReminderScheduleType
+  scheduleTime: string
+  scheduleDayOfMonth: number
 }
 
 export async function getReminderTypes(): Promise<ReminderTriggerInfo[]> {

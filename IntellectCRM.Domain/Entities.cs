@@ -1782,7 +1782,7 @@ public class SmsTemplate
 public class ReminderRule
 {
     public string Id { get; set; } = Guid.NewGuid().ToString();
-    /// <summary>"payment_debt" | "lesson_attendance" — <c>ReminderTriggers</c> katalogidagi kalit.</summary>
+    /// <summary>"payment_debt" | "lesson_attendance" | "custom_schedule" — <c>ReminderTriggers</c> katalogidagi kalit.</summary>
     public string Trigger { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public bool Enabled { get; set; } = true;
@@ -1790,6 +1790,14 @@ public class ReminderRule
     public string MessageTemplate { get; set; } = string.Empty;
     /// <summary>Faqat "lesson_attendance": dars boshlanishidan necha daqiqa keyin yuborilsin (default 5).</summary>
     public int OffsetMinutes { get; set; } = 5;
+    /// <summary>Faqat "custom_schedule": kimga yuborilsin — <c>ReminderAudiences.Teachers</c> | <c>Students</c>.</summary>
+    public string Audience { get; set; } = string.Empty;
+    /// <summary>Faqat "custom_schedule": "daily" (har kuni) | "monthly" (oyning muayyan kunida).</summary>
+    public string ScheduleType { get; set; } = "daily";
+    /// <summary>Faqat "custom_schedule": yuborish vaqti "HH:mm" (Toshkent).</summary>
+    public string ScheduleTime { get; set; } = "09:00";
+    /// <summary>Faqat "custom_schedule" + ScheduleType=="monthly": oyning qaysi kunida (1-31).</summary>
+    public int ScheduleDayOfMonth { get; set; } = 1;
     public string CreatedAt { get; set; } = AppClock.Iso();
 }
 

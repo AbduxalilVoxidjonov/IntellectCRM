@@ -23,7 +23,8 @@ public class RemindersController(AppDbContext db) : ControllerBase
     [HttpGet("types")]
     public ActionResult<IEnumerable<ReminderTriggerInfoDto>> Types() =>
         ReminderTriggers.All.Select(t => new ReminderTriggerInfoDto(
-            t.Key, t.Label, t.Description, t.SupportsTemplate, t.SupportsOffset, t.Tokens)).ToList();
+            t.Key, t.Label, t.Description, t.SupportsTemplate, t.SupportsOffset,
+            t.SupportsAudience, t.SupportsSchedule, t.Tokens)).ToList();
 
     [HttpGet]
     public async Task<ActionResult<IEnumerable<ReminderRuleDto>>> List()
@@ -45,6 +46,10 @@ public class RemindersController(AppDbContext db) : ControllerBase
             Enabled = req.Enabled,
             MessageTemplate = req.MessageTemplate.Trim(),
             OffsetMinutes = req.OffsetMinutes,
+            Audience = req.Audience,
+            ScheduleType = req.ScheduleType,
+            ScheduleTime = req.ScheduleTime,
+            ScheduleDayOfMonth = req.ScheduleDayOfMonth,
         };
         db.ReminderRules.Add(rule);
         await db.SaveChangesAsync();
@@ -64,6 +69,10 @@ public class RemindersController(AppDbContext db) : ControllerBase
         rule.Enabled = req.Enabled;
         rule.MessageTemplate = req.MessageTemplate.Trim();
         rule.OffsetMinutes = req.OffsetMinutes;
+        rule.Audience = req.Audience;
+        rule.ScheduleType = req.ScheduleType;
+        rule.ScheduleTime = req.ScheduleTime;
+        rule.ScheduleDayOfMonth = req.ScheduleDayOfMonth;
         await db.SaveChangesAsync();
         return ToDto(rule);
     }
@@ -83,9 +92,23 @@ public class RemindersController(AppDbContext db) : ControllerBase
         if (!ReminderTriggers.IsKnown(req.Trigger)) return "Noma'lum eslatma turi";
         if (string.IsNullOrWhiteSpace(req.Name)) return "Nom kerak";
         if (req.OffsetMinutes < 0) return "Vaqt siljishi manfiy bo'lishi mumkin emas";
+
+        var type = ReminderTriggers.All.First(t => t.Key == req.Trigger);
+        if (type.SupportsAudience && !ReminderAudiences.IsKnown(req.Audience))
+            return "Auditoriya tanlanmagan";
+        if (type.SupportsSchedule)
+        {
+            if (req.ScheduleType != "daily" && req.ScheduleType != "monthly")
+                return "Jadval turi noto'g'ri";
+            if (!System.TimeSpan.TryParse(req.ScheduleTime, out _))
+                return "Vaqt formati noto'g'ri (HH:mm)";
+            if (req.ScheduleType == "monthly" && req.ScheduleDayOfMonth is < 1 or > 31)
+                return "Oyning kuni 1-31 oralig'ida bo'lishi kerak";
+        }
         return null;
     }
 
     private static ReminderRuleDto ToDto(ReminderRule r) =>
-        new(r.Id, r.Trigger, r.Name, r.Enabled, r.MessageTemplate, r.OffsetMinutes, r.CreatedAt);
+        new(r.Id, r.Trigger, r.Name, r.Enabled, r.MessageTemplate, r.OffsetMinutes,
+            r.Audience, r.ScheduleType, r.ScheduleTime, r.ScheduleDayOfMonth, r.CreatedAt);
 }

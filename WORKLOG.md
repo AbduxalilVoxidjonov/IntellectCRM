@@ -3,6 +3,20 @@
 > Bu fayl CLAUDE.md dan ajratildi (kontekstni yengillashtirish uchun). Avtomatik yuklanmaydi.
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-07-01: **Eslatmalar — 3-chi "Erkin eslatma (jadval bo'yicha)" turi qo'shildi.** Foydalanuvchi
+  "eslatma turi nega 2ta xolos, istalgan turini yaratish mumkun edi" deb so'radi; aniqlashtirishda
+  — chinakam "istalgan tur" mumkin emas (har turning ORQASIDA aniq mantiq/trigger bor: qarzdorlik →
+  balans tekshiruvi, davomat → dars vaqti), shuning uchun admin JADVAL (har kuni yoki oyning muayyan
+  kunida, belgilangan soatda) + AUDITORIYA (o'qituvchilar | o'quvchilar/ota-onalar) + erkin matn
+  bilan o'zi eslatma yarata oladigan umumiy 3-tur qo'shildi (`ReminderTriggers.CustomSchedule`).
+  `ReminderRule`ga `Audience/ScheduleType/ScheduleTime/ScheduleDayOfMonth` qo'shildi (migratsiya
+  `AddReminderRuleScheduleFields`). Yangi `CustomReminderService` (BackgroundService, har 1 daqiqada)
+  — jadval mos kelsa barcha faol o'qituvchi/o'quvchiga `MessageTokenizer.Teacher`/`Student` bilan
+  shaxsiylashtirilgan push+Telegram yuboradi (xotirada kunlik dedup). `ReminderTriggers.TriggerInfo`ga
+  `SupportsAudience`/`SupportsSchedule` bayroqlari qo'shildi — frontend (`RemindersSettings.tsx`)
+  shu bayroqlarga qarab auditoriya/jadval maydonlarini shartli ko'rsatadi. Backend+frontend build 0
+  xato. **Cheklov:** haqiqiy vaqt bo'yicha yuborilishi (ayniqsa oylik jadval) keyingi tegishli sanada
+  tekshirilishi kerak.
 - 2026-07-01: **O'qituvchi ilovasida "hammasi keldi/hammasi kelmadi" (bulk davomat) 400 xatosi
   tuzatildi.** Sabab: `bulkTeacherAttendance` (`api/services/teacher.ts`) backend
   `BulkAttendanceRequest`ning MAJBURIY (non-nullable) `subjectId`/`period`/`studentIds`
