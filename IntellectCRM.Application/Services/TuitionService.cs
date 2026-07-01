@@ -313,7 +313,15 @@ public static class TuitionService
     /// <summary>MUZLATILGAN oyning QISMAN to'lovini hisoblaydi: o'quvchi shu oyda muzlatilgunga QADAR qatnashgan
     /// darslar uchun to'lov. Bir dars = oylik narx ÷ shu oydagi jami dars; to'lov = bir dars × (faol boshlanishidan
     /// muzlatish sanasigacha, sanasidan OLDINGI darslar). Faol boshlanishi = shu oyda aktivlashtirilgan bo'lsa o'sha
-    /// sana, aks holda oy boshi. Mavjud yozuvni IDEMPOTENT almashtiradi; <c>Locked</c> bo'lsa tegmaydi.</summary>
+    /// sana, aks holda oy boshi. Mavjud yozuvni IDEMPOTENT almashtiradi; <c>Locked</c> bo'lsa tegmaydi.
+    /// <para>CARRY-FORWARD: SHU OYDA muzlatish→qayta aktivlashtirish→yana muzlatish tsikli bo'lsa (masalan
+    /// 1-yanv aktiv → 10-yanv muzlatish → 15-yanv qayta aktiv → 20-yanv yana muzlatish), oldingi allaqachon
+    /// YAKUNLANGAN segmentlarning to'lovi (1–9 yanv) YO'QOLMASLIGI kerak. Buning uchun <c>existing.Date</c> aynan
+    /// <paramref name="activatedAtIso"/> bo'lsa (ya'ni joriy faol segment aktivlashtirishda yozilgan), o'sha
+    /// aktivlashtirishda qo'shilgan PROYEKSIYON gross'ni qayta hisoblab, uni <c>existing.Amount</c>dan ayiramiz —
+    /// natija "carry" (oldingi segmentlar summasi). Yangi jami = min(carry + joriy segment gross, oylik narx).
+    /// Oy davomida BIRINCHI muzlatishda (existing shu aktivlashtirishga tegishli emas yoki umuman yo'q) carry=0 —
+    /// eski almashtirish xatti-harakati o'zgarmaydi.</para></summary>
     public static async Task ChargeFreezeProrateAsync(IAppDbContext db, Student s, Group cls, string activatedAtIso, string freezeDateIso)
     {
         if (cls.MonthlyFee <= 0 || freezeDateIso.Length < 10 || !DateOnly.TryParse(freezeDateIso, out var fz)) return;
@@ -324,28 +332,46 @@ public static class TuitionService
 
         // Faol boshlanishi: shu oyda aktivlashtirilgan bo'lsa o'sha sanadan, aks holda oy boshidan.
         var activeFrom = monthStart;
+        var activatedThisMonth = false;
+        DateOnly act = default;
         if (!string.IsNullOrEmpty(activatedAtIso) && activatedAtIso.Length >= 10 && activatedAtIso[..7] == month
-            && DateOnly.TryParse(activatedAtIso, out var act) && act > monthStart)
+            && DateOnly.TryParse(activatedAtIso, out act) && act > monthStart)
+        {
             activeFrom = act;
+            activatedThisMonth = true;
+        }
         // Muzlatish sanasidan OLDINGI darslar (shu sananing o'zi hisoblanmaydi — "shu sanadan to'xtaydi").
         var before = fz > activeFrom ? LessonsInRange(cls.Days, activeFrom, fz.AddDays(-1)) : 0;
         // Qatnashilgan darslar uchun (aktivlashtirish bilan bir xil formula): jami/12+ → to'liq, aks holda
         // qatnashilgan dars × kursning bir dars yaxlit narxi (LessonPrice; yo'q bo'lsa eski pro-rata).
         var lessonFee = await LessonFeeForCourseAsync(db, cls.CourseId);
         var gross = ProratedLessonCharge(cls.MonthlyFee, lessonFee, before, totalInMonth);
-        var discount = gross > 0 ? DiscountForMonth(s, gross, month) : 0m;
-        var effective = gross - discount;
 
         // Per-guruh billingga o'tdik — shu oyning eski aggregate (GroupId=null) qatorini darhol tozalaymiz
         // (aks holda muzlatish faqat per-guruh qatorni kamaytirib, aggregate qator to'liq oy bo'lib qolardi).
         await PurgeAggregateRowAsync(db, s, month);
         var existing = await db.MonthlyCharges.FirstOrDefaultAsync(c => c.StudentId == s.Id && c.GroupId == cls.Id && c.Month == month);
+
+        // SHU OYDA muzlatib-qayta aktivlashtirish tsikli bo'lgan bo'lsa (existing aynan shu aktivlashtirish
+        // paytida yozilgan — Date == activatedAtIso), oldingi (allaqachon yakunlangan) segmentlar summasini
+        // "carry" sifatida tiklaymiz — ular ustiga faqat YANGI segment qo'shiladi, umuman ALMASHTIRILMAYDI.
+        var carry = 0m;
+        if (activatedThisMonth && existing is not null && existing.Date == activatedAtIso)
+        {
+            var remainingAtActivation = LessonsInRange(cls.Days, act, monthEnd);
+            var projectedAtActivation = ProratedLessonCharge(cls.MonthlyFee, lessonFee, remainingAtActivation, totalInMonth);
+            carry = Math.Max(0m, existing.Amount - projectedAtActivation);
+        }
+        var totalGross = Math.Min(carry + gross, cls.MonthlyFee);
+        var discount = totalGross > 0 ? DiscountForMonth(s, totalGross, month) : 0m;
+        var effective = totalGross - discount;
+
         if (existing is null)
         {
-            if (gross <= 0) return;
+            if (totalGross <= 0) return;
             db.MonthlyCharges.Add(new MonthlyCharge
             {
-                StudentId = s.Id, GroupId = cls.Id, Month = month, Amount = gross, Discount = discount, Date = freezeDateIso,
+                StudentId = s.Id, GroupId = cls.Id, Month = month, Amount = totalGross, Discount = discount, Date = freezeDateIso,
             });
             s.Balance -= effective;
         }
@@ -353,7 +379,7 @@ public static class TuitionService
         {
             if (existing.Locked) return; // qo'lda tahrirlangan — tegmaymiz.
             var oldEffective = Math.Max(0m, existing.Amount - existing.Discount);
-            existing.Amount = gross;
+            existing.Amount = totalGross;
             existing.Discount = discount;
             existing.Date = freezeDateIso;
             s.Balance += oldEffective - effective;
@@ -384,15 +410,18 @@ public static class TuitionService
         decimal total = 0;
         foreach (var s in students)
         {
-            // O'quvchi shu oydan oldin kelmagan bo'lsa, hisoblamaymiz.
-            if (!string.IsNullOrEmpty(s.EnrollmentDate) && string.CompareOrdinal(s.EnrollmentDate[..7], month) > 0) continue;
+            // O'quvchi shu oydan oldin kelmagan bo'lsa, hisoblamaymiz. (.Length >= 7 — noto'g'ri/qisqa
+            // EnrollmentDate qatorida [..7] crash bo'lmasligi uchun; boshqa call-site'lar bilan bir xil himoya.)
+            if (s.EnrollmentDate.Length >= 7 && string.CompareOrdinal(s.EnrollmentDate[..7], month) > 0) continue;
 
             if (membershipsByStudent.TryGetValue(s.Id, out var mships) && mships.Count > 0)
             {
                 // Har FAOL a'zolik uchun alohida hisob qatori.
                 foreach (var m in mships)
                 {
-                    if (m.Status != "active") continue;
+                    // Guruhdan chiqarilgan (IsActive=false) a'zolik Status="active" bo'lib qolishi mumkin —
+                    // shuning uchun IsActive ham talab qilinadi (aks holda chiqib ketgan o'quvchi har oy hisoblanardi).
+                    if (m.Status != "active" || !m.IsActive) continue;
                     if (!(m.ActivatedAt.Length >= 7 && string.CompareOrdinal(month, m.ActivatedAt[..7]) > 0)) continue;
                     if (!(m.FrozenAt.Length < 7 || string.CompareOrdinal(month, m.FrozenAt[..7]) < 0)) continue;
                     if (already.Contains((s.Id, (string?)m.GroupId))) continue;

@@ -677,30 +677,32 @@ function GroupSalaryEditor({
   const setRow = (gid: string, patch: Partial<SalaryRow>) =>
     setRows((rs) => rs.map((r) => (r.groupId === gid ? { ...r, ...patch } : r)))
 
-  const dirty = useMemo(
-    () =>
-      rows.some((r) => {
-        const o = initial.find((x) => x.groupId === r.groupId)
-        return (
-          !o ||
-          r.mode !== o.mode ||
-          (r.mode === 'percent' && r.percent !== o.percent) ||
-          (r.mode === 'fixed' && r.fixed !== o.fixed)
-        )
-      }),
-    [rows, initial],
-  )
+  const isRowDirty = (r: SalaryRow) => {
+    const o = initial.find((x) => x.groupId === r.groupId)
+    return (
+      !o ||
+      r.mode !== o.mode ||
+      (r.mode === 'percent' && r.percent !== o.percent) ||
+      (r.mode === 'fixed' && r.fixed !== o.fixed)
+    )
+  }
+
+  const dirty = useMemo(() => rows.some(isRowDirty), [rows, initial])
 
   const handleSave = async () => {
     setBusy(true)
     setSaved(false)
     try {
-      const items: GroupSalaryItem[] = rows.map((r) => ({
+      // Faqat admin o'zgartirgan qatorlarni yuboramiz — aks holda sozlanmagan (mode="")
+      // guruhlar ham hozirgi UI qiymati bilan "muzlab" qoladi va endi umumiy sozlamani
+      // kuzatmay qo'yadi.
+      const items: GroupSalaryItem[] = rows.filter(isRowDirty).map((r) => ({
         groupId: r.groupId,
         mode: r.mode,
         percent: r.mode === 'percent' ? r.percent : 0,
         fixed: r.mode === 'fixed' ? r.fixed : 0,
       }))
+      if (items.length === 0) return
       await saveGroupSalaries(teacherId, items)
       setSaved(true)
       onSaved()

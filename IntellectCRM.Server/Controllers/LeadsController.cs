@@ -264,16 +264,41 @@ public class LeadsController(AppDbContext db, AuditService audit, TelegramServic
         };
         db.Students.Add(student);
 
+        // Sig'im tekshiruvi — ClassesController.AddMember bilan bir xil qoida: Capacity>0 va
+        // faol a'zolar soni yetib borgan bo'lsa, guruhga QO'SHILMAYDI (lekin o'quvchi baribir yaratiladi).
+        var groupFull = false;
         if (group is not null)
-            db.StudentGroups.Add(new StudentGroup
+        {
+            if (group.Capacity > 0 &&
+                await db.StudentGroups.CountAsync(sg => sg.GroupId == group.Id && sg.IsActive) >= group.Capacity)
             {
-                StudentId = student.Id, GroupId = group.Id, JoinedAt = enrollment, IsActive = true,
-            });
+                groupFull = true;
+            }
+            else
+            {
+                db.StudentGroups.Add(new StudentGroup
+                {
+                    StudentId = student.Id, GroupId = group.Id, JoinedAt = enrollment, IsActive = true,
+                });
+            }
+        }
+
+        // Poyga holati (race condition) tekshiruvi: shu lid ustida parallel yuborilgan boshqa
+        // /convert so'rovi bizdan oldin saqlagan bo'lishi mumkin — SaveChangesAsync'dan OLDIN qayta
+        // (no-tracking) tekshiramiz va shunday bo'lsa bekor qilamiz (ikkilangan Student yaratmaslik uchun).
+        var alreadyConverted = await db.Leads.AsNoTracking()
+            .Where(l => l.Id == id)
+            .Select(l => l.ConvertedStudentId)
+            .FirstOrDefaultAsync();
+        if (alreadyConverted is not null)
+            return BadRequest(new { message = "Lid allaqachon o'quvchiga aylantirilgan" });
 
         lead.ConvertedStudentId = student.Id;
-        AddEvent(id, "convert", $"O'quvchiga aylantirildi ({lead.FullName})" + (group is not null ? $" — guruh: {group.Name}" : ""));
+        AddEvent(id, "convert", $"O'quvchiga aylantirildi ({lead.FullName})" + (group is not null
+            ? (groupFull ? $" — guruh to'lgan, qo'shilmadi: {group.Name}" : $" — guruh: {group.Name}")
+            : ""));
         await db.SaveChangesAsync();
-        return Ok(new { studentId = student.Id });
+        return Ok(new { studentId = student.Id, groupFull });
     }
 
     // ---------- CRM statistikasi ----------

@@ -348,7 +348,10 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
     /// </summary>
     private Student AddStudent(StudentPayload p, Group? cls, string status = "")
     {
+        // Noto'g'ri/qisqa sana (masalan "2024", "abc") saqlanmasin — oylik billing batch'ini crash qilmasligi
+        // uchun bo'sh/whitespace bilan bir xil muomala: bugungi sanaga tushamiz.
         var enrollment = string.IsNullOrWhiteSpace(p.EnrollmentDate)
+                || p.EnrollmentDate.Length != 10 || !DateOnly.TryParse(p.EnrollmentDate, out _)
             ? AppClock.Today.ToString("yyyy-MM-dd")
             : p.EnrollmentDate;
 
@@ -518,7 +521,13 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
         student.ClassName = p.ClassName;
         if (p.DistrictId is not null) student.DistrictId = p.DistrictId.Trim();
         if (p.SchoolId is not null) student.SchoolId = p.SchoolId.Trim();
-        if (!string.IsNullOrWhiteSpace(p.EnrollmentDate)) student.EnrollmentDate = p.EnrollmentDate;
+        if (!string.IsNullOrWhiteSpace(p.EnrollmentDate))
+        {
+            // Noto'g'ri sana saqlanib, keyin oylik billing batch'ini crash qilmasligi uchun aniq xato qaytaramiz.
+            if (p.EnrollmentDate.Length != 10 || !DateOnly.TryParse(p.EnrollmentDate, out _))
+                return BadRequest(new { message = "Ro'yxatga olingan sana noto'g'ri formatda (kutilgan: YYYY-MM-DD)" });
+            student.EnrollmentDate = p.EnrollmentDate;
+        }
 
         // Chegirma — berilgan maydonlar yangilanadi (null = avvalgi saqlanadi).
         if (p.DiscountPct.HasValue) student.DiscountPct = Math.Clamp(p.DiscountPct.Value, 0, 100);
