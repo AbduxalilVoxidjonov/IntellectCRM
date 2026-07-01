@@ -3,6 +3,12 @@
 > Bu fayl CLAUDE.md dan ajratildi (kontekstni yengillashtirish uchun). Avtomatik yuklanmaydi.
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-07-01: **Push (FCM) ko'rildi — o'lik token tozalash qo'shildi.** Yuborish tomoni to'g'ri (JWT→OAuth
+  keshi, per-token v1 send). Yagona zaiflik: FCM 404/UNREGISTERED qaytarganda token bazada qolar edi (web
+  tokenlar aylanadi/bekor bo'ladi → behuda HTTP so'rovlar). `FcmService.SendAsync` endi `SendResult(Sent,
+  InvalidTokens)` qaytaradi (404 yoki javobda "UNREGISTERED" bo'lsa token o'lik). Chaqiruvchilar
+  `PaymentReminderService` va `Messages.Broadcast` o'lik tokenlarni yig'ib `DeviceTokens.RemoveRange` qiladi
+  (JournalService — detached fire-and-forget, tozalashsiz). Build 0 xato.
 - 2026-07-01: **Web/PWA push (Firebase FCM) qo'shildi — Service Account yoniga.** Ilgari push faqat NATIVE
   (Flutter WebView, token native beriladi) ishlar edi. Endi ODDIY BRAUZER/PWA ham FCM token oladi. **Backend:**
   `CenterMeta.FcmWebConfigJson`/`FcmVapidKey` (entity+DB'da allaqachon bor edi) endi ishlatiladi. `FirebaseSettingsDto`

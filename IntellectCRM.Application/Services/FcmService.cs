@@ -41,20 +41,28 @@ public class FcmService(IHttpClientFactory httpFactory, ILogger<FcmService> logg
         catch { return false; }
     }
 
-    /// <summary>Berilgan tokenlarga push (title/body) yuboradi. Muvaffaqiyatlilar sonini qaytaradi.</summary>
-    public async Task<int> SendAsync(
+    /// <summary>Push yuborish natijasi: yuborilganlar soni + BOSHQA yaroqsiz (o'lik) tokenlar ro'yxati.
+    /// <see cref="InvalidTokens"/> — FCM "ro'yxatda yo'q" (404/UNREGISTERED) deb qaytargan tokenlar; ular
+    /// ilova o'chirilgan yoki web token bekor qilingan qurilmalar — bazadan o'chirib tashlash kerak.</summary>
+    public readonly record struct SendResult(int Sent, IReadOnlyList<string> InvalidTokens);
+
+    /// <summary>Berilgan tokenlarga push (title/body) yuboradi. Yuborilganlar soni va yaroqsiz
+    /// tokenlar ro'yxatini qaytaradi (chaqiruvchi ularni bazadan o'chirishi mumkin).</summary>
+    public async Task<SendResult> SendAsync(
         string serviceAccountJson, IReadOnlyCollection<string> tokens, string title, string body,
         CancellationToken ct = default)
     {
-        if (!TryParse(serviceAccountJson, out var c) || tokens.Count == 0) return 0;
+        if (!TryParse(serviceAccountJson, out var c) || tokens.Count == 0)
+            return new SendResult(0, []);
 
         string accessToken;
         try { accessToken = await GetAccessTokenAsync(c, ct); }
-        catch (Exception ex) { logger.LogWarning(ex, "FCM access token olishda xato"); return 0; }
+        catch (Exception ex) { logger.LogWarning(ex, "FCM access token olishda xato"); return new SendResult(0, []); }
 
         var client = httpFactory.CreateClient();
         var url = $"https://fcm.googleapis.com/v1/projects/{c.ProjectId}/messages:send";
         var sent = 0;
+        var invalid = new List<string>();
         foreach (var token in tokens)
         {
             try
@@ -64,18 +72,26 @@ public class FcmService(IHttpClientFactory httpFactory, ILogger<FcmService> logg
                 req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
                 req.Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
                 var resp = await client.SendAsync(req, ct);
-                if (resp.IsSuccessStatusCode) sent++;
+                if (resp.IsSuccessStatusCode) { sent++; continue; }
+
+                // Xatoni KO'RINADIGAN qilamiz: FCM aniq sababni qaytaradi (token yaroqsiz,
+                // loyiha mos kelmaydi (SenderId mismatch), ruxsat yo'q va h.k.).
+                var err = await resp.Content.ReadAsStringAsync(ct);
+                // 404 (NOT_FOUND) yoki UNREGISTERED — token o'lik (ilova o'chirilgan / web token bekor).
+                if (resp.StatusCode == System.Net.HttpStatusCode.NotFound ||
+                    err.Contains("UNREGISTERED", StringComparison.OrdinalIgnoreCase))
+                {
+                    invalid.Add(token);
+                    logger.LogInformation("FCM: o'lik token o'chirishga belgilandi ({Status})", (int)resp.StatusCode);
+                }
                 else
                 {
-                    // Xatoni KO'RINADIGAN qilamiz: FCM aniq sababni qaytaradi (token yaroqsiz,
-                    // loyiha mos kelmaydi (SenderId mismatch), ruxsat yo'q va h.k.).
-                    var err = await resp.Content.ReadAsStringAsync(ct);
                     logger.LogWarning("FCM push rad etildi ({Status}): {Body}", (int)resp.StatusCode, err);
                 }
             }
             catch (Exception ex) { logger.LogWarning(ex, "FCM push yuborishda xato"); }
         }
-        return sent;
+        return new SendResult(sent, invalid);
     }
 
     private async Task<string> GetAccessTokenAsync(Creds c, CancellationToken ct)

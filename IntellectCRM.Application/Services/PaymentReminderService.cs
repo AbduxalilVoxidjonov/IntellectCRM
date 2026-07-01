@@ -105,6 +105,7 @@ public class PaymentReminderService(
         var pushReady = FcmService.IsConfigured(fcmJson);
 
         int tgSent = 0, pushSent = 0, students = 0;
+        var deadTokens = new List<string>();
         foreach (var s in debtors)
         {
             ct.ThrowIfCancellationRequested();
@@ -127,7 +128,11 @@ public class PaymentReminderService(
 
                 // Push (ota-ona akkauntining qurilmalariga).
                 if (pushReady && s.UserId != null && tokensByUser.TryGetValue(s.UserId, out var toks))
-                    pushSent += await fcm.SendAsync(fcmJson, toks, title, body, ct);
+                {
+                    var res = await fcm.SendAsync(fcmJson, toks, title, body, ct);
+                    pushSent += res.Sent;
+                    deadTokens.AddRange(res.InvalidTokens);
+                }
             }
             catch (Exception ex)
             {
@@ -136,7 +141,11 @@ public class PaymentReminderService(
             }
         }
 
-        if (students > 0) await db.SaveChangesAsync(ct);
+        // O'lik tokenlarni bazadan tozalaymiz (ilova o'chirilgan / web token bekor qilingan).
+        if (deadTokens.Count > 0)
+            db.DeviceTokens.RemoveRange(db.DeviceTokens.Where(d => deadTokens.Contains(d.Token)));
+
+        if (students > 0 || deadTokens.Count > 0) await db.SaveChangesAsync(ct);
 
         logger.LogInformation(
             "To'lov eslatmasi yuborildi: {Students} qarzdor, Telegram {Tg}, push {Push}.",

@@ -353,6 +353,7 @@ public class MessagesController(AppDbContext db, ChatService chat, TelegramServi
         var groupByName = await GroupByNameAsync();
         var recipientCount = tokensByUser.Sum(kv => kv.Value.Count);
         var sent = 0;
+        var deadTokens = new List<string>();
         // Har bir foydalanuvchiga matn o'rinbosarlari moslab yuboriladi (o'quvchi/ota-ona ma'lumoti bilan).
         foreach (var (userId, toks) in tokensByUser)
         {
@@ -369,8 +370,14 @@ public class MessagesController(AppDbContext db, ChatService chat, TelegramServi
                 t = PersonalizeTeacherPush(title, tch, centerName);
                 b = PersonalizeTeacherPush(body, tch, centerName);
             }
-            sent += await fcm.SendAsync(json, toks, t, b);
+            var res = await fcm.SendAsync(json, toks, t, b);
+            sent += res.Sent;
+            deadTokens.AddRange(res.InvalidTokens);
         }
+
+        // O'lik tokenlarni bazadan tozalaymiz (ilova o'chirilgan / web token bekor qilingan).
+        if (deadTokens.Count > 0)
+            db.DeviceTokens.RemoveRange(db.DeviceTokens.Where(d => deadTokens.Contains(d.Token)));
 
         // Ilova tarixiga — AUDIENCE'dagi HAR foydalanuvchi uchun (push yetmasa ham bildirishnoma ro'yxatida ko'rinadi).
         var pushId = Guid.NewGuid().ToString();
