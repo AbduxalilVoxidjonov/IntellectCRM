@@ -3,6 +3,22 @@
 > Bu fayl CLAUDE.md dan ajratildi (kontekstni yengillashtirish uchun). Avtomatik yuklanmaydi.
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-07-01: **Xodim ruxsat (permission) kaliti nomuvofiqliklari tuzatildi — "bo'lim berilsa shu
+  bo'limdagi BARCHA ishlar ham ishlashi kerak" auditi.** Tekshiruvda ikkita aniq bug topildi: (1)
+  `JournalController` (`AdminPerm("journal")`) — admin jurnali (baho/davomat kiritish) FAQAT Guruh
+  detali sahifasidan (`perm="classes"`) ochiladi, "journal" degan alohida bo'lim/ruxsat checkbox'i
+  "Xodimlar va rollar"da UMUMAN yo'q — demak hech qanday xodimga bu yozish huquqini berib
+  bo'lmas edi (har doim 403). (2) `RoomsController` (`AdminPerm("settings")`) — "Xonalar" nav/route
+  frontend'da `perm="classes"` bilan ochiladi (Guruhlar ostida), backend esa "settings" talab qilardi
+  — na "classes", na "settings" beruvchi xodim birortasi bilan ishlay olmasdi. Ikkalasi ham
+  `AdminPerm("classes")`ga o'zgartirildi (frontend allaqachon shunga mos edi). Boshqa aniqlangan,
+  lekin ATAYLAB o'zgartirilmagan holatlar (dizayn qarori kerak): O'quvchilar sahifasidagi "SMS
+  yuborish" tugmasi `messages` ruxsatini talab qiladi-yu frontend buni ko'rsatmaydi (tugma har doim
+  ko'rinadi, faqat submit'da 403); `students` ruxsati orqali to'lov qabul qilish (`FinanceTransaction`
+  yozish) ham ishlaydi (kassir workflow uchun ataylab shunday bo'lishi mumkin); `Export`/`EditCharge`
+  ataylab faqat SuperAdmin'ga qulflangan; "marketing" ruxsati checkbox sifatida bor-u, backend'da hech
+  qanday `MarketingController`/`[AdminPerm("marketing")]` yo'q (funksiya hali qurilmagan). Backend
+  build 0 xato.
 - 2026-07-01: **"To'lov eslatmasi" → umumiy "Eslatmalar" (avtomatik push-qoidalar CRUD) tizimiga
   aylantirildi.** Ilgari Sozlamalarda faqat bitta yoniq/o'chiq (`CenterMeta.PaymentRemindersEnabled`)
   bo'lgan qarzdorlik eslatmasi bor edi. Endi yangi `ReminderRule` entity (Trigger/Name/Enabled/

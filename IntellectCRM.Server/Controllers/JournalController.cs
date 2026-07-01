@@ -7,9 +7,11 @@ using IntellectCRM.Application.Services;
 
 namespace IntellectCRM.Server.Controllers;
 
+// "classes" (Guruhlar) — admin jurnali faqat Guruh detali sahifasidan ochiladi, alohida "Jurnal"
+// bo'limi/ruxsat katalogida yo'q; "journal" kaliti bo'lsa xodimga hech qachon berib bo'lmas edi.
 [ApiController]
 [Authorize]
-[AdminPerm("journal")]
+[AdminPerm("classes")]
 [Route("api/admin/journal")]
 public class JournalController(AppDbContext db, FcmService fcm) : ControllerBase
 {

@@ -11,9 +11,11 @@ namespace IntellectCRM.Server.Controllers;
 /// O'quv xonalari (auditoriyalar) — yaratish, tahrirlash, o'chirish (soft delete).
 /// Guruh Group.RoomId orqali xonaga bog'lanadi; xona o'chirilsa GroupId SET NULL bo'ladi.
 /// </summary>
+// "classes" — nav/route "Xonalar" ham shu perm bilan ochiladi (Guruhlar ostida); "settings" bo'lsa
+// Guruhlarni boshqaradigan xodim xona qo'sha olmas edi (frontend/backend ruxsat kaliti mos kelmasdi).
 [ApiController]
 [Authorize]
-[AdminPerm("settings")]
+[AdminPerm("classes")]
 [Route("api/admin/rooms")]
 public class RoomsController(AppDbContext db, IntellectCRM.Application.Services.RoomUtilizationService utilization) : ControllerBase
 {
