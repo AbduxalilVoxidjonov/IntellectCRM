@@ -38,6 +38,35 @@ async function loadFirebaseModule(name: 'firebase-app' | 'firebase-messaging'): 
   return import(/* @vite-ignore */ url)
 }
 
+/** Service worker'ni ro'yxatdan o'tkazadi. configJson berilsa — query'ga qo'shamiz (SW messaging'ni
+ *  ishga tushiradi); null bo'lsa — configsiz (faqat installability/fetch handler uchun). */
+async function registerSw(configJson: string | null): Promise<ServiceWorkerRegistration | null> {
+  if (!isWebPushSupported()) return null
+  const query = configJson ? `?config=${encodeURIComponent(configJson)}` : ''
+  try {
+    return await navigator.serviceWorker.register(`/firebase-messaging-sw.js${query}`, { scope: '/' })
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Startup'da (login'dan OLDIN) service worker'ni ro'yxatdan o'tkazadi — shunda sayt PWA sifatida
+ * O'RNATILADIGAN bo'ladi (brauzer "Ilovani o'rnatish" taklifini ko'rsatadi). Push config mavjud bo'lsa
+ * u ham SW'ga beriladi (background bildirishnoma tayyor). Ruxsat SO'RAMAYDI — u login'da so'raladi.
+ */
+export async function registerForInstall(): Promise<void> {
+  if (!isWebPushSupported()) return
+  let configJson: string | null = null
+  try {
+    const cfg = await getPublicPushConfig()
+    if (cfg.configured && cfg.webConfigJson) configJson = cfg.webConfigJson
+  } catch {
+    /* config yo'q — baribir configsiz SW o'rnatamiz (installability uchun) */
+  }
+  await registerSw(configJson)
+}
+
 let cachedToken: string | null = null
 
 /**
@@ -69,8 +98,8 @@ export async function initWebPush(): Promise<string | null> {
     if (permission !== 'granted') return null
 
     // 2) Service worker'ni web config bilan ro'yxatdan o'tkazamiz (config query'da — SW static fayl).
-    const swUrl = `/firebase-messaging-sw.js?config=${encodeURIComponent(cfg.webConfigJson)}`
-    const registration = await navigator.serviceWorker.register(swUrl, { scope: '/' })
+    const registration = await registerSw(cfg.webConfigJson)
+    if (!registration) return null
 
     // 3) Firebase SDK'ni yuklab, messaging token olamiz.
     const appMod = await loadFirebaseModule('firebase-app')

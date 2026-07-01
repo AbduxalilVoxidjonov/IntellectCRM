@@ -3,6 +3,13 @@
 > Bu fayl CLAUDE.md dan ajratildi (kontekstni yengillashtirish uchun). Avtomatik yuklanmaydi.
 
 ## 8. Ish jurnali (har o'zgarishdan keyin yangilanadi)
+- 2026-07-01: **PWA o'rnatiladigan (installable) qilindi — SW startup'da + fetch handler.** Tekshiruvda:
+  eski o'chirilgan (20408e9) "web/PWA push" faqat SOZLAMA edi (SW/getToken/manifest yo'q) — hech qachon
+  push yetkazmagan; biz uni to'liq (SW+getToken+manifest) tikladik. Qolgan kamchilik: SW faqat login'dan
+  KEYIN ro'yxatdan o'tardi → login ekranida "o'rnatish" taklifi chiqmasdi. Tuzatildi: `webpush.ts`ga
+  `registerForInstall()` (config bo'lsa bilan, bo'lmasa configsiz SW), `main.tsx` startup'da chaqiradi;
+  `firebase-messaging-sw.js`ga `fetch`/`install`(skipWaiting)/`activate`(clients.claim) handlerlari.
+  Endi login'dan oldin ham o'rnatiladi; push tokeni login'da olinadi. Frontend tsc+vite ✓.
 - 2026-07-01: **Push (FCM) ko'rildi — o'lik token tozalash qo'shildi.** Yuborish tomoni to'g'ri (JWT→OAuth
   keshi, per-token v1 send). Yagona zaiflik: FCM 404/UNREGISTERED qaytarganda token bazada qolar edi (web
   tokenlar aylanadi/bekor bo'ladi → behuda HTTP so'rovlar). `FcmService.SendAsync` endi `SendResult(Sent,

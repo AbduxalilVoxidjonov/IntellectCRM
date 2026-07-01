@@ -30,6 +30,16 @@ try {
   // Konfig noto'g'ri yoki SDK yuklanmadi — SW baribir o'rnatiladi, shunchaki push kelmaydi.
 }
 
+// Darhol faollashsin (kutmasin) — o'rnatilgan PWA tez tayyor bo'ladi.
+self.addEventListener('install', () => self.skipWaiting())
+self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()))
+
+// Minimal fetch handler — PWA "o'rnatiladigan" (installable) bo'lishi mezoni. Keshlash yo'q,
+// so'rovni to'g'ridan-to'g'ri tarmoqqa o'tkazamiz (offline-first kerak bo'lsa keyin qo'shiladi).
+self.addEventListener('fetch', () => {
+  // no-op passthrough: brauzer standart tarmoq javobidan foydalanadi.
+})
+
 // Bildirishnoma bosilganda — ochiq ilova oynasini fokuslash yoki yangisini ochish.
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
