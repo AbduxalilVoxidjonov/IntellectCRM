@@ -163,6 +163,17 @@ builder.Services.AddRateLimiter(options =>
                 Window = TimeSpan.FromMinutes(1),
                 QueueLimit = 0,
             }));
+    // Landing sahifasidagi "Bepul darsga yozilish" formasi — ochiq (auth'siz) endpoint,
+    // spam/bot flood'ni sekinlashtiradi (IP bo'yicha daqiqada 5 ta so'rov).
+    options.AddPolicy("public-lead", httpContext =>
+        System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 5,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+            }));
 });
 
 // Real-time guruh chati (SignalR)
@@ -627,11 +638,36 @@ app.MapFallback("/api/{**slug}", () => Results.NotFound(new { message = "API end
 
 // SPA fallback: barcha hostlar (intellectschool.uz, crm.intellectschool.uz, ...) → React SPA
 // (index.html). SPA'ga kirilganda React `RootRedirect` autentifikatsiyasiz foydalanuvchini `/login`ga yuboradi.
+// ISTISNO: apex domen (Tenancy:RootDomain va www.<RootDomain>) uchun — agar statik `landing.html` mavjud
+// bo'lsa — o'sha qaytariladi (marketing sahifasi, CRM emas). `/landing` yo'li istalgan hostda ham
+// (masalan crm.* ustida ham) preview/tekshirish uchun to'g'ridan-to'g'ri landing.html'ga yo'naltiradi.
 var webRoot = app.Environment.WebRootPath
     ?? Path.Combine(app.Environment.ContentRootPath, "wwwroot");
+var rootDomain = (builder.Configuration["Tenancy:RootDomain"] ?? "").Trim().ToLowerInvariant();
+
+app.MapGet("/landing", async ctx =>
+{
+    var landingFile = Path.Combine(webRoot, "landing.html");
+    if (!File.Exists(landingFile)) { ctx.Response.StatusCode = StatusCodes.Status404NotFound; return; }
+    ctx.Response.ContentType = "text/html; charset=utf-8";
+    ctx.Response.Headers.CacheControl = "public,max-age=300";
+    await ctx.Response.SendFileAsync(landingFile);
+});
 
 app.MapFallback(async ctx =>
 {
+    var host = ctx.Request.Host.Host.ToLowerInvariant(); // portsiz
+    var isApexHost = rootDomain.Length > 0 && (host == rootDomain || host == $"www.{rootDomain}");
+    var landingFile = Path.Combine(webRoot, "landing.html");
+
+    if (isApexHost && File.Exists(landingFile))
+    {
+        ctx.Response.ContentType = "text/html; charset=utf-8";
+        ctx.Response.Headers.CacheControl = "public,max-age=300";
+        await ctx.Response.SendFileAsync(landingFile);
+        return;
+    }
+
     var file = Path.Combine(webRoot, "index.html");
     if (!File.Exists(file)) { ctx.Response.StatusCode = StatusCodes.Status404NotFound; return; }
     ctx.Response.ContentType = "text/html; charset=utf-8";
