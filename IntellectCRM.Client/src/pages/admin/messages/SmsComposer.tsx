@@ -6,10 +6,12 @@ import {
   getSmsBatches,
   getSmsLogs,
   getSmsRecipients,
+  getSmsTeacherRecipients,
   sendSms,
   type SmsBatch,
   type SmsLog,
   type SmsRecipient,
+  type SmsTeacherRecipient,
   type SendSmsReq,
 } from '@/api/services/messages'
 import { Card } from '@/components/ui/Card'
@@ -60,7 +62,9 @@ export function SmsComposer({ classes }: { classes: MessageClass[] }) {
 
   // "Tanlab" rejimi: oluvchilar ro'yxati + tanlov + kimning raqamiga (ota-ona/o'quvchi).
   const [recipients, setRecipients] = useState<SmsRecipient[]>([])
+  const [teacherRecipients, setTeacherRecipients] = useState<SmsTeacherRecipient[]>([])
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [selectedTeacherIds, setSelectedTeacherIds] = useState<Set<string>>(new Set())
   const [search, setSearch] = useState('')
   const [toParent, setToParent] = useState(true)
   const recipientsLoaded = useRef(false)
@@ -87,6 +91,7 @@ export function SmsComposer({ classes }: { classes: MessageClass[] }) {
     if (audience === 'selected' && !recipientsLoaded.current) {
       recipientsLoaded.current = true
       getSmsRecipients().then(setRecipients).catch(() => setRecipients([]))
+      getSmsTeacherRecipients().then(setTeacherRecipients).catch(() => setTeacherRecipients([]))
     }
   }, [audience])
 
@@ -98,8 +103,22 @@ export function SmsComposer({ classes }: { classes: MessageClass[] }) {
     )
   }, [recipients, search])
 
+  const filteredTeacherRecipients = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return teacherRecipients
+    return teacherRecipients.filter((t) => t.fullName.toLowerCase().includes(q))
+  }, [teacherRecipients, search])
+
   const toggleRecipient = (id: string) =>
     setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+
+  const toggleTeacherRecipient = (id: string) =>
+    setSelectedTeacherIds((prev) => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)
       else next.add(id)
@@ -138,7 +157,7 @@ export function SmsComposer({ classes }: { classes: MessageClass[] }) {
   const handleSend = async () => {
     if (!text.trim() || sending) return
     const selected = audience === 'selected'
-    if (selected && selectedIds.size === 0) {
+    if (selected && selectedIds.size === 0 && selectedTeacherIds.size === 0) {
       setResult('Hech kim tanlanmadi.')
       return
     }
@@ -150,6 +169,7 @@ export function SmsComposer({ classes }: { classes: MessageClass[] }) {
         className: (audience === 'parents' || audience === 'students') && className ? className : undefined,
         onlyDebtors: audience !== 'teachers' && !selected && onlyDebtors,
         studentIds: selected ? [...selectedIds] : undefined,
+        teacherIds: selected ? [...selectedTeacherIds] : undefined,
         toParent: selected ? toParent : undefined,
         text: text.trim(),
       }
@@ -187,7 +207,7 @@ export function SmsComposer({ classes }: { classes: MessageClass[] }) {
         actions={
           audience === 'selected' ? (
             <Badge tone="violet">
-              <span className="font-mono">{selectedIds.size}</span> ta tanlandi
+              <span className="font-mono">{selectedIds.size + selectedTeacherIds.size}</span> ta tanlandi
             </Badge>
           ) : undefined
         }
@@ -278,8 +298,8 @@ export function SmsComposer({ classes }: { classes: MessageClass[] }) {
               : audience === 'teachers'
                 ? "Har o'qituvchining raqamiga."
                 : toParent
-                  ? "Tanlangan o'quvchilarning ota-onasi raqamiga."
-                  : "Tanlangan o'quvchilarning o'z raqamiga."}{' '}
+                  ? "Tanlangan o'quvchilarning ota-onasi raqamiga (o'qituvchilar — o'z raqamiga)."
+                  : "Tanlangan o'quvchilarning o'z raqamiga (o'qituvchilar — o'z raqamiga)."}{' '}
           Bir xil raqam bir marta oladi. Jo'natuvchi: <span className="font-mono">{from}</span>
         </p>
       </Card>
@@ -348,13 +368,13 @@ export function SmsComposer({ classes }: { classes: MessageClass[] }) {
                 <input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="O'quvchi yoki guruh..."
+                  placeholder="O'quvchi, o'qituvchi yoki guruh..."
                   className="w-full rounded-lg border border-slate-200 py-2 pl-9 pr-3 text-sm outline-none transition-colors focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
                 />
               </div>
               <div className="max-h-72 space-y-1 overflow-y-auto">
-                {filteredRecipients.length === 0 && (
-                  <p className="py-6 text-center text-sm text-slate-400">O'quvchi topilmadi</p>
+                {filteredRecipients.length === 0 && filteredTeacherRecipients.length === 0 && (
+                  <p className="py-6 text-center text-sm text-slate-400">Oluvchi topilmadi</p>
                 )}
                 {filteredRecipients.map((r) => {
                   const active = selectedIds.has(r.studentId)
@@ -396,14 +416,54 @@ export function SmsComposer({ classes }: { classes: MessageClass[] }) {
                     </button>
                   )
                 })}
+                {filteredTeacherRecipients.map((t) => {
+                  const active = selectedTeacherIds.has(t.teacherId)
+                  const noPhone = !t.phone
+                  return (
+                    <button
+                      key={t.teacherId}
+                      type="button"
+                      disabled={noPhone}
+                      onClick={() => toggleTeacherRecipient(t.teacherId)}
+                      className={cn(
+                        'flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm transition-colors',
+                        noPhone
+                          ? 'cursor-not-allowed border-slate-100 bg-slate-50 opacity-60'
+                          : active
+                            ? 'border-brand-300 bg-brand-50'
+                            : 'border-slate-100 hover:bg-slate-50',
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          'flex h-4 w-4 shrink-0 items-center justify-center rounded border',
+                          active && !noPhone ? 'border-brand-500 bg-brand-500 text-white' : 'border-slate-300',
+                        )}
+                      >
+                        {active && !noPhone && <Check className="h-3 w-3" />}
+                      </span>
+                      <span className="flex-1">
+                        <span className={cn('font-medium', noPhone ? 'text-slate-400' : 'text-slate-700')}>
+                          {t.fullName}
+                        </span>
+                        {t.phone && <span className="ml-1 text-xs font-mono text-slate-400">{t.phone}</span>}
+                      </span>
+                      <Badge tone="blue">O'qituvchi</Badge>
+                      {noPhone && <Badge tone="amber">raqam yo'q</Badge>}
+                    </button>
+                  )
+                })}
               </div>
-              {selectedIds.size > 0 && (
+              {(selectedIds.size > 0 || selectedTeacherIds.size > 0) && (
                 <button
                   type="button"
-                  onClick={() => setSelectedIds(new Set())}
+                  onClick={() => {
+                    setSelectedIds(new Set())
+                    setSelectedTeacherIds(new Set())
+                  }}
                   className="mt-2 text-xs text-slate-500 hover:text-slate-700"
                 >
-                  Tanlovni tozalash ({selectedIds.size})
+                  Tanlovni tozalash ({selectedIds.size + selectedTeacherIds.size})
                 </button>
               )}
             </Card>

@@ -907,16 +907,21 @@ public record BroadcastDto(
 
 /// <summary>
 /// E'lon yuborish so'rovi. <c>Scope</c>: "class" (ClassName sinfi), "all" (barcha sinf),
-/// "selected" (StudentIds tanlangan o'quvchilar). <c>OnlyDebtors</c> — faqat balansi manfiylar.
+/// "selected" (StudentIds/TeacherIds tanlangan o'quvchilar/o'qituvchilar). <c>OnlyDebtors</c> — faqat balansi manfiylar.
 /// <c>Text</c> ichida o'rinbosarlar bo'lishi mumkin: {fish} {sinf} {qarzdorlik} {balans} {ota-ona} {telefon}.
 /// </summary>
 public record SendBroadcastRequest(
-    string? Scope, string? ClassName, bool OnlyDebtors, List<string>? StudentIds, string Text);
+    string? Scope, string? ClassName, bool OnlyDebtors, List<string>? StudentIds, string Text,
+    List<string>? TeacherIds = null);
 
 /// <summary>Telegramda ro'yxatdan o'tgan ota-ona. ChatId string (JS aniqligi uchun). Balance — qarz aniqlash uchun.</summary>
 public record TelegramParentDto(
     string StudentId, string StudentName, string ClassName, decimal Balance,
     string ParentName, string Phone, string ChatId, string CreatedAt);
+
+/// <summary>Telegramda ro'yxatdan o'tgan o'qituvchi (xodim ro'yxati) — "Tanlab" e'lon uchun.</summary>
+public record TelegramTeacherDto(
+    string TeacherId, string TeacherName, string Phone, string ChatId, string CreatedAt);
 
 /// <summary>
 /// Ilovaga push yuborish so'rovi. Audience: "parents" (ClassName ixtiyoriy) | "teachers" |
@@ -935,11 +940,13 @@ public record PushConfirmationDto(string Name, string Group, bool Confirmed, str
 /* ---------- SMS (Eskiz.uz) ---------- */
 /// <summary>
 /// SMS yuborish so'rovi. Audience: "parents" (o'quvchi ota-onasi raqami) | "students" (o'quvchi raqami) |
-/// "teachers" (o'qituvchi raqami) | "selected" (StudentIds — ota-ona raqami). ClassName ixtiyoriy (parents/
-/// students uchun guruh filtri). OnlyDebtors — faqat qarzdorlar. ToParent — "selected"da ota-ona (true)
-/// yoki o'quvchi (false) raqamiga. Text ichida o'rinbosarlar bo'lishi mumkin ({fish} {sinf} {qarzdorlik} {balans} {telefon}).
+/// "teachers" (o'qituvchi raqami) | "selected" (StudentIds — ota-ona/o'quvchi raqami + TeacherIds — o'qituvchi
+/// raqami). ClassName ixtiyoriy (parents/students uchun guruh filtri). OnlyDebtors — faqat qarzdorlar.
+/// ToParent — "selected"da o'quvchilar uchun ota-ona (true) yoki o'quvchi (false) raqamiga (o'qituvchilarga
+/// taalluqli emas — doim o'z raqamiga). Text ichida o'rinbosarlar bo'lishi mumkin ({fish} {sinf} {qarzdorlik} {balans} {telefon}).
 /// </summary>
-public record SendSmsRequest(string Audience, string? ClassName, bool OnlyDebtors, List<string>? StudentIds, string Text, bool ToParent = true);
+public record SendSmsRequest(string Audience, string? ClassName, bool OnlyDebtors, List<string>? StudentIds, string Text,
+    bool ToParent = true, List<string>? TeacherIds = null);
 /// <summary>Yuborilgan SMS partiyasi (tarix). CreatedAt — ISO.</summary>
 public record SmsBatchDto(
     string Id, string Audience, string Message, string SenderName, string CreatedAt,
@@ -965,6 +972,8 @@ public record SaveEskizRequest(string? Email, string? Password, string? From);
 /// bo'sh bo'lmagani; StudentPhone = s.Phone. Ikkalasi ham bo'sh bo'lishi mumkin (raqam yo'q — UIda kulrang).
 /// </summary>
 public record SmsRecipientDto(string StudentId, string FullName, string ClassName, string? ParentPhone, string? StudentPhone);
+/// <summary>"Tanlab" SMS uchun o'qituvchi oluvchi. Phone bo'sh bo'lishi mumkin (raqam yo'q — UIda kulrang).</summary>
+public record SmsTeacherRecipientDto(string TeacherId, string FullName, string? Phone);
 /// <summary>Birlashgan tayyor matn. Source: "sms" (Eskiz andozasi) | "reminder" (eslatma qoidasi matni).</summary>
 public record UnifiedTemplateDto(string Source, string Name, string Text);
 

@@ -1197,6 +1197,15 @@ export interface TelegramParent {
   createdAt: string
 }
 
+/** Telegramda ro'yxatdan o'tgan o'qituvchi (xodim ro'yxati) — "Tanlab" e'lon uchun */
+export interface TelegramTeacher {
+  teacherId: string
+  teacherName: string
+  phone: string
+  chatId: string
+  createdAt: string
+}
+
 /* ---------- O'quvchilarni baholash ---------- */
 
 /** Baholash turi (admin xohlagancha qo'shadi: nom + ixtiyoriy izoh) */

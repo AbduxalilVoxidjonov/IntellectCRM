@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Send, Users, AlertTriangle, Search, Check } from 'lucide-react'
-import type { Broadcast, MessageClass, TelegramParent, TelegramStatus } from '@/types'
+import type { Broadcast, MessageClass, TelegramParent, TelegramTeacher, TelegramStatus } from '@/types'
 import {
   getBroadcasts,
   getTelegramRegistrations,
+  getTelegramTeacherRegistrations,
   getTelegramStatus,
   sendBroadcast,
   type SendBroadcastReq,
@@ -44,10 +45,12 @@ export function BroadcastPanel({ classes }: { classes: MessageClass[] }) {
   const [className, setClassName] = useState<string>(() => classes[0]?.name ?? '')
   const [onlyDebtors, setOnlyDebtors] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [selectedTeacherIds, setSelectedTeacherIds] = useState<Set<string>>(new Set())
   const [text, setText] = useState('')
   const [search, setSearch] = useState('')
 
   const [parents, setParents] = useState<TelegramParent[]>([])
+  const [teachers, setTeachers] = useState<TelegramTeacher[]>([])
   const [broadcasts, setBroadcasts] = useState<Broadcast[]>([])
   const [status, setStatus] = useState<TelegramStatus | null>(null)
   const [loading, setLoading] = useState(true)
@@ -58,10 +61,11 @@ export function BroadcastPanel({ classes }: { classes: MessageClass[] }) {
 
   useEffect(() => {
     getTelegramStatus().then(setStatus)
-    Promise.all([getBroadcasts(), getTelegramRegistrations()])
-      .then(([b, p]) => {
+    Promise.all([getBroadcasts(), getTelegramRegistrations(), getTelegramTeacherRegistrations()])
+      .then(([b, p, t]) => {
         setBroadcasts(b)
         setParents(p)
+        setTeachers(t)
       })
       .finally(() => setLoading(false))
   }, [])
@@ -74,6 +78,14 @@ export function BroadcastPanel({ classes }: { classes: MessageClass[] }) {
     if (onlyDebtors && scope !== 'selected') list = list.filter((p) => p.balance < 0)
     return list
   }, [parents, scope, className, selectedIds, onlyDebtors])
+
+  // "Tanlab" rejimida tanlangan o'qituvchilar (Telegramda ro'yxatdan o'tganlar) — faqat scope === 'selected'da.
+  const teacherRecipients = useMemo(() => {
+    if (scope !== 'selected') return []
+    return teachers.filter((t) => selectedTeacherIds.has(t.teacherId))
+  }, [teachers, scope, selectedTeacherIds])
+
+  const totalRecipientCount = recipients.length + teacherRecipients.length
 
   const insertToken = (token: string) => {
     const el = textRef.current
@@ -101,11 +113,20 @@ export function BroadcastPanel({ classes }: { classes: MessageClass[] }) {
       return next
     })
 
+  const toggleSelectedTeacher = (id: string) =>
+    setSelectedTeacherIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+
   const handleSend = async () => {
     const t = text.trim()
     if (!t || sending) return
     if (scope === 'class' && !className) return setResult('Guruh tanlang.')
-    if (scope === 'selected' && selectedIds.size === 0) return setResult('Hech kim tanlanmadi.')
+    if (scope === 'selected' && selectedIds.size === 0 && selectedTeacherIds.size === 0)
+      return setResult('Hech kim tanlanmadi.')
     setSending(true)
     setResult(null)
     try {
@@ -114,6 +135,7 @@ export function BroadcastPanel({ classes }: { classes: MessageClass[] }) {
         className: scope === 'class' ? className : undefined,
         onlyDebtors: scope !== 'selected' && onlyDebtors,
         studentIds: scope === 'selected' ? [...selectedIds] : undefined,
+        teacherIds: scope === 'selected' ? [...selectedTeacherIds] : undefined,
         text: t,
       }
       const b = await sendBroadcast(req)
@@ -139,6 +161,12 @@ export function BroadcastPanel({ classes }: { classes: MessageClass[] }) {
     )
   }, [parents, search])
 
+  const filteredTeachers = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return teachers
+    return teachers.filter((t) => t.teacherName.toLowerCase().includes(q))
+  }, [teachers, search])
+
   const preview = recipients[0] ? fill(text, recipients[0]) : null
 
   return (
@@ -159,7 +187,7 @@ export function BroadcastPanel({ classes }: { classes: MessageClass[] }) {
         actions={
           <Badge tone="violet">
             <Users className="h-3.5 w-3.5" />
-            <span className="font-mono">{recipients.length}</span> ta oluvchi
+            <span className="font-mono">{totalRecipientCount}</span> ta oluvchi
           </Badge>
         }
       >
@@ -264,7 +292,7 @@ export function BroadcastPanel({ classes }: { classes: MessageClass[] }) {
             <Button
               className="ml-auto"
               onClick={handleSend}
-              disabled={!text.trim() || sending || recipients.length === 0}
+              disabled={!text.trim() || sending || totalRecipientCount === 0}
             >
               <Send className="h-4 w-4" /> {sending ? 'Yuborilmoqda...' : 'Yuborish'}
             </Button>
@@ -280,14 +308,14 @@ export function BroadcastPanel({ classes }: { classes: MessageClass[] }) {
                 <input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="O'quvchi, guruh yoki ota-ona..."
+                  placeholder="O'quvchi, o'qituvchi, guruh yoki ota-ona..."
                   className="w-full rounded-lg border border-slate-200 py-2 pl-9 pr-3 text-sm outline-none transition-colors focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
                 />
               </div>
               <div className="max-h-72 space-y-1 overflow-y-auto">
-                {filteredParents.length === 0 && (
+                {filteredParents.length === 0 && filteredTeachers.length === 0 && (
                   <p className="py-6 text-center text-sm text-slate-400">
-                    Ro'yxatdan o'tgan ota-ona yo'q
+                    Ro'yxatdan o'tgan ota-ona/o'qituvchi yo'q
                   </p>
                 )}
                 {filteredParents.map((p) => {
@@ -325,14 +353,44 @@ export function BroadcastPanel({ classes }: { classes: MessageClass[] }) {
                     </button>
                   )
                 })}
+                {filteredTeachers.map((t) => {
+                  const active = selectedTeacherIds.has(t.teacherId)
+                  return (
+                    <button
+                      key={`teacher-${t.teacherId}-${t.chatId}`}
+                      type="button"
+                      onClick={() => toggleSelectedTeacher(t.teacherId)}
+                      className={cn(
+                        'flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm transition-colors',
+                        active
+                          ? 'border-brand-300 bg-brand-50'
+                          : 'border-slate-100 hover:bg-slate-50',
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          'flex h-4 w-4 shrink-0 items-center justify-center rounded border',
+                          active ? 'border-brand-500 bg-brand-500 text-white' : 'border-slate-300',
+                        )}
+                      >
+                        {active && <Check className="h-3 w-3" />}
+                      </span>
+                      <span className="flex-1 font-medium text-slate-700">{t.teacherName}</span>
+                      <Badge tone="blue">O'qituvchi</Badge>
+                    </button>
+                  )
+                })}
               </div>
-              {selectedIds.size > 0 && (
+              {(selectedIds.size > 0 || selectedTeacherIds.size > 0) && (
                 <button
                   type="button"
-                  onClick={() => setSelectedIds(new Set())}
+                  onClick={() => {
+                    setSelectedIds(new Set())
+                    setSelectedTeacherIds(new Set())
+                  }}
                   className="mt-2 text-xs text-slate-500 hover:text-slate-700"
                 >
-                  Tanlovni tozalash ({selectedIds.size})
+                  Tanlovni tozalash ({selectedIds.size + selectedTeacherIds.size})
                 </button>
               )}
             </Card>

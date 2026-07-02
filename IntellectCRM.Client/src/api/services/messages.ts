@@ -7,6 +7,7 @@ import type {
   PushRecipient,
   TelegramParent,
   TelegramStatus,
+  TelegramTeacher,
 } from '@/types'
 import { api, USE_MOCK } from '../client'
 
@@ -47,7 +48,7 @@ export async function getBroadcasts(className?: string): Promise<Broadcast[]> {
 
 /** E'lon yuborish so'rovi. Matnda o'rinbosarlar: {fish} {sinf} {qarzdorlik} {balans} {ota-ona} {telefon}. */
 export interface SendBroadcastReq {
-  /** Qamrov: tanlangan sinf / barcha sinf / tanlangan o'quvchilar */
+  /** Qamrov: tanlangan sinf / barcha sinf / tanlangan o'quvchilar/o'qituvchilar */
   scope: 'class' | 'all' | 'selected'
   /** scope === 'class' bo'lganda sinf nomi */
   className?: string
@@ -55,6 +56,8 @@ export interface SendBroadcastReq {
   onlyDebtors: boolean
   /** scope === 'selected' bo'lganda tanlangan o'quvchi id'lari */
   studentIds?: string[]
+  /** scope === 'selected' bo'lganda tanlangan o'qituvchi id'lari */
+  teacherIds?: string[]
   text: string
 }
 
@@ -70,6 +73,13 @@ export async function getTelegramRegistrations(className?: string): Promise<Tele
   const { data } = await api.get<TelegramParent[]>('/admin/messages/telegram/registrations', {
     params: className ? { className } : undefined,
   })
+  return data
+}
+
+/** Telegramda ro'yxatdan o'tgan o'qituvchilar — "Tanlab" e'lon ro'yxati uchun */
+export async function getTelegramTeacherRegistrations(): Promise<TelegramTeacher[]> {
+  if (USE_MOCK) return []
+  const { data } = await api.get<TelegramTeacher[]>('/admin/messages/telegram/registrations/teachers')
   return data
 }
 
@@ -152,13 +162,15 @@ export interface SmsLog {
   createdAt: string
 }
 export interface SendSmsReq {
-  /** Kimga: ota-onalar / o'quvchilar / o'qituvchilar / tanlangan (studentIds) */
+  /** Kimga: ota-onalar / o'quvchilar / o'qituvchilar / tanlangan (studentIds/teacherIds) */
   audience: 'parents' | 'students' | 'teachers' | 'selected'
   /** parents/students uchun guruh (bo'sh = barcha) */
   className?: string
   onlyDebtors: boolean
   /** selected uchun tanlangan o'quvchi id'lari */
   studentIds?: string[]
+  /** selected uchun tanlangan o'qituvchi id'lari (doim o'z raqamiga — toParent ularga taalluqli emas) */
+  teacherIds?: string[]
   /** selected uchun: ota-ona (true) yoki o'quvchi (false) raqamiga */
   toParent?: boolean
   text: string
@@ -203,6 +215,19 @@ export interface SmsRecipient {
 export async function getSmsRecipients(): Promise<SmsRecipient[]> {
   if (USE_MOCK) return []
   const { data } = await api.get<SmsRecipient[]>('/admin/messages/sms/recipients')
+  return data
+}
+
+/** "Tanlab" SMS uchun o'qituvchi oluvchi. Phone yo'q bo'lsa null. */
+export interface SmsTeacherRecipient {
+  teacherId: string
+  fullName: string
+  phone: string | null
+}
+/** "Tanlab" SMS uchun barcha arxivlanmagan o'qituvchilar (ism bo'yicha). */
+export async function getSmsTeacherRecipients(): Promise<SmsTeacherRecipient[]> {
+  if (USE_MOCK) return []
+  const { data } = await api.get<SmsTeacherRecipient[]>('/admin/messages/sms/recipients/teachers')
   return data
 }
 

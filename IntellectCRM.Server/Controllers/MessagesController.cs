@@ -106,14 +106,17 @@ public class MessagesController(AppDbContext db, ChatService chat, TelegramServi
 
         // Qamrov bo'yicha maqsadli o'quvchilar to'plami.
         var studentsQ = db.Students.AsQueryable();
+        var teacherIds = scope == "selected"
+            ? (req.TeacherIds ?? new()).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().ToList()
+            : new List<string>();
         string audience;
         switch (scope)
         {
             case "selected":
                 var ids = req.StudentIds ?? new();
-                if (ids.Count == 0) return BadRequest(new { message = "Hech kim tanlanmadi" });
+                if (ids.Count == 0 && teacherIds.Count == 0) return BadRequest(new { message = "Hech kim tanlanmadi" });
                 studentsQ = studentsQ.Where(s => ids.Contains(s.Id));
-                audience = $"Tanlangan ({ids.Count})";
+                audience = $"Tanlangan ({ids.Count + teacherIds.Count})";
                 break;
             case "all":
                 audience = "Barcha sinflar";
@@ -140,6 +143,14 @@ public class MessagesController(AppDbContext db, ChatService chat, TelegramServi
             .Where(r => sids.Contains(r.StudentId))
             .ToListAsync();
 
+        // "Tanlab" rejimida tanlangan o'qituvchilarning Telegram registratsiyalari — alohida yuboriladi.
+        var teacherRegs = teacherIds.Count > 0
+            ? await db.TelegramRegistrations.Where(r => r.TeacherId != null && teacherIds.Contains(r.TeacherId)).ToListAsync()
+            : new List<TelegramRegistration>();
+        var teachersById = teacherRegs.Count > 0
+            ? await db.Teachers.Where(t => teacherIds.Contains(t.Id)).ToDictionaryAsync(t => t.Id)
+            : new Dictionary<string, Teacher>();
+
         var centerName = (await db.CenterMeta.FirstOrDefaultAsync())?.Name ?? "";
         var groupByName = await GroupByNameAsync();
         var sent = 0;
@@ -148,6 +159,12 @@ public class MessagesController(AppDbContext db, ChatService chat, TelegramServi
             if (!byId.TryGetValue(r.StudentId, out var s)) continue;
             var grp = groupByName.GetValueOrDefault(s.ClassName ?? "");
             var message = $"📢 Maktab e'loni\n\n{Personalize(text, s, r, centerName, grp)}";
+            if (await telegram.SendMessageAsync(r.ChatId, message)) sent++;
+        }
+        foreach (var r in teacherRegs)
+        {
+            if (!teachersById.TryGetValue(r.TeacherId!, out var t)) continue;
+            var message = $"📢 Maktab e'loni\n\n{MessageTokenizer.Teacher(text, t, centerName)}";
             if (await telegram.SendMessageAsync(r.ChatId, message)) sent++;
         }
 
@@ -159,7 +176,7 @@ public class MessagesController(AppDbContext db, ChatService chat, TelegramServi
             SenderUserId = Uid,
             SenderName = user?.FullName ?? "Administrator",
             CreatedAt = AppClock.Now,
-            RecipientCount = regs.Count,
+            RecipientCount = regs.Count + teacherRegs.Count,
             SentCount = sent,
         };
         db.Broadcasts.Add(bc);
@@ -210,6 +227,20 @@ public class MessagesController(AppDbContext db, ChatService chat, TelegramServi
                 r.StudentId, s?.FullName ?? "", s?.ClassName ?? "", s?.Balance ?? 0m,
                 r.ParentName, r.Phone, r.ChatId.ToString(), r.CreatedAt.ToString("o"));
         }).ToList();
+    }
+
+    /// <summary>"Tanlab" e'lon uchun Telegramda ro'yxatdan o'tgan o'qituvchilar (xodim ro'yxati).</summary>
+    [HttpGet("telegram/registrations/teachers")]
+    public async Task<ActionResult<IEnumerable<TelegramTeacherDto>>> TeacherRegistrations()
+    {
+        var regs = await db.TelegramRegistrations
+            .Where(r => r.TeacherId != null)
+            .OrderByDescending(r => r.CreatedAt).ToListAsync();
+        var teacherIds = regs.Select(r => r.TeacherId!).Distinct().ToList();
+        var teachers = await db.Teachers.Where(t => teacherIds.Contains(t.Id)).ToDictionaryAsync(t => t.Id);
+        return regs.Select(r => new TelegramTeacherDto(
+            r.TeacherId!, teachers.GetValueOrDefault(r.TeacherId!)?.FullName ?? "",
+            r.Phone, r.ChatId.ToString(), r.CreatedAt.ToString("o"))).ToList();
     }
 
     /// <summary>Telegram bot holati (sozlanganmi, bot foydalanuvchi nomi) — admin UI ko'rsatishi uchun.</summary>
@@ -459,6 +490,19 @@ public class MessagesController(AppDbContext db, ChatService chat, TelegramServi
         }).ToList();
     }
 
+    /// <summary>"Tanlab" SMS uchun o'qituvchi oluvchilar — barcha arxivlanmagan o'qituvchilar (ism bo'yicha).</summary>
+    [HttpGet("sms/recipients/teachers")]
+    public async Task<ActionResult<IEnumerable<SmsTeacherRecipientDto>>> SmsTeacherRecipients()
+    {
+        var teachers = await db.Teachers.AsNoTracking().Where(t => !t.IsArchived)
+            .OrderBy(t => t.FullName)
+            .Select(t => new { t.Id, t.FullName, t.Phone })
+            .ToListAsync();
+        return teachers.Select(t =>
+            new SmsTeacherRecipientDto(t.Id, t.FullName, string.IsNullOrWhiteSpace(t.Phone) ? null : t.Phone))
+            .ToList();
+    }
+
     /// <summary>
     /// SMS yuborish (Eskiz). Audience: parents (o'quvchi ota-onasi raqami) | students (o'quvchi raqami) |
     /// teachers (o'qituvchi raqami) | selected (StudentIds — ota-ona raqami). Bir xil raqam bir marta.
@@ -490,12 +534,14 @@ public class MessagesController(AppDbContext db, ChatService chat, TelegramServi
         {
             // O'quvchilar to'plami (parents/students/selected).
             var q = db.Students.Where(s => !s.IsArchived);
+            var teacherIds = new List<string>();
             if (audience == "selected")
             {
                 var ids = (req.StudentIds ?? new()).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().ToList();
-                if (ids.Count == 0) return BadRequest(new { message = "Hech kim tanlanmadi" });
+                teacherIds = (req.TeacherIds ?? new()).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().ToList();
+                if (ids.Count == 0 && teacherIds.Count == 0) return BadRequest(new { message = "Hech kim tanlanmadi" });
                 q = q.Where(s => ids.Contains(s.Id));
-                label = $"Tanlangan ({ids.Count})";
+                label = $"Tanlangan ({ids.Count + teacherIds.Count})";
             }
             else
             {
@@ -520,6 +566,17 @@ public class MessagesController(AppDbContext db, ChatService chat, TelegramServi
                 targets.Add((phone, s.FullName, MessageTokenizer.Student(text, s, s.ParentFullName, phone, centerName, null, grp)));
             }
             label = toStudentPhone ? $"O'quvchilar — {label}" : $"Ota-onalar — {label}";
+
+            // "Tanlab" rejimida tanlangan o'qituvchilar — doim o'z raqamiga (ToParent ularga taalluqli emas).
+            if (teacherIds.Count > 0)
+            {
+                var selTeachers = await db.Teachers.Where(t => teacherIds.Contains(t.Id)).ToListAsync();
+                foreach (var t in selTeachers)
+                {
+                    if (string.IsNullOrWhiteSpace(t.Phone)) continue;
+                    targets.Add((t.Phone, t.FullName, PersonalizeTeacherPush(text, t, centerName)));
+                }
+            }
         }
 
         // Bir xil raqamni bir marta (normallashtirilgan kalit bo'yicha).
