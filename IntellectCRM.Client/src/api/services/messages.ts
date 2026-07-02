@@ -191,6 +191,35 @@ export async function sendSms(req: SendSmsReq): Promise<SmsBatch> {
   return data
 }
 
+/** "Tanlab" SMS uchun oluvchi (o'quvchi). Telefon yo'q bo'lsa null. */
+export interface SmsRecipient {
+  studentId: string
+  fullName: string
+  className: string
+  parentPhone: string | null
+  studentPhone: string | null
+}
+/** "Tanlab" SMS uchun barcha arxivlanmagan o'quvchilar (ism bo'yicha). */
+export async function getSmsRecipients(): Promise<SmsRecipient[]> {
+  if (USE_MOCK) return []
+  const { data } = await api.get<SmsRecipient[]>('/admin/messages/sms/recipients')
+  return data
+}
+
+/* ---------- Birlashgan tayyor matnlar (SMS andozalari + eslatma qoidalari) ---------- */
+/** Birlashgan tayyor matn. source: "sms" (Eskiz andozasi) | "reminder" (eslatma qoidasi matni). */
+export interface UnifiedTemplate {
+  source: 'sms' | 'reminder'
+  name: string
+  text: string
+}
+/** Barcha tayyor matnlar — uchala yuborish oynasida (e'lon/push/SMS) chip sifatida. */
+export async function getAllMessageTemplates(): Promise<UnifiedTemplate[]> {
+  if (USE_MOCK) return []
+  const { data } = await api.get<UnifiedTemplate[]>('/admin/messages/templates/all')
+  return data
+}
+
 /* ---------- SMS andozalari (shablonlar) ---------- */
 /** Avto-SMS hodisasi (trigger). Bo'sh = qo'lda (avto emas). */
 export type SmsTrigger = '' | 'lead_new' | 'payment' | 'birthday' | 'test_result' | 'test_link' | 'trial_reminder'

@@ -960,6 +960,13 @@ public record EskizCallbackDto(string? request_id, string? message_id, string? p
 public record EskizSettingsDto(string Email, string From, bool Configured, decimal? Balance);
 /// <summary>SMS (Eskiz) login/parol/sender saqlash so'rovi (bo'sh qoldirilsa eski saqlanadi).</summary>
 public record SaveEskizRequest(string? Email, string? Password, string? From);
+/// <summary>
+/// "Tanlab" SMS uchun oluvchi (o'quvchi). ParentPhone = ParentPhone→FatherPhone→MotherPhone birinchi
+/// bo'sh bo'lmagani; StudentPhone = s.Phone. Ikkalasi ham bo'sh bo'lishi mumkin (raqam yo'q — UIda kulrang).
+/// </summary>
+public record SmsRecipientDto(string StudentId, string FullName, string ClassName, string? ParentPhone, string? StudentPhone);
+/// <summary>Birlashgan tayyor matn. Source: "sms" (Eskiz andozasi) | "reminder" (eslatma qoidasi matni).</summary>
+public record UnifiedTemplateDto(string Source, string Name, string Text);
 
 /* ---------- Assignments (qo'shimcha topshiriqlar) ---------- */
 

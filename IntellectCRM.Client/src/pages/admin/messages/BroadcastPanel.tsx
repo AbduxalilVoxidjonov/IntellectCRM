@@ -14,7 +14,8 @@ import { Badge } from '@/components/ui/Badge'
 import { Loader } from '@/components/ui/Loader'
 import { Select } from '@/components/ui/Input'
 import { cn, formatDate, formatMoney } from '@/lib/utils'
-import { messageTemplates as TEMPLATES, messageTokens as TOKENS } from '@/config/messageTemplates'
+import { messageTokens as TOKENS } from '@/config/messageTemplates'
+import { TemplateChips } from './TemplateChips'
 
 type Scope = 'class' | 'all' | 'selected'
 
@@ -205,18 +206,9 @@ export function BroadcastPanel({ classes }: { classes: MessageClass[] }) {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* Matn yozish */}
         <Card title="E'lon matni">
-          {/* Andozalar */}
-          <div className="mb-2 flex flex-wrap gap-1.5">
-            {TEMPLATES.map((t) => (
-              <button
-                key={t.label}
-                type="button"
-                onClick={() => setText(t.text)}
-                className="rounded-full border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 transition-colors hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700"
-              >
-                {t.label}
-              </button>
-            ))}
+          {/* Tayyor matnlar (andozalar + SMS/eslatma matnlari) */}
+          <div className="mb-2 flex flex-wrap items-center gap-1.5">
+            <TemplateChips onPick={(t) => setText(t)} />
             {text && (
               <button
                 type="button"

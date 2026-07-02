@@ -16,7 +16,8 @@ import { Badge } from '@/components/ui/Badge'
 import { Loader } from '@/components/ui/Loader'
 import { Input, Select } from '@/components/ui/Input'
 import { cn, formatDate } from '@/lib/utils'
-import { messageTemplates, messageTokens } from '@/config/messageTemplates'
+import { messageTokens } from '@/config/messageTemplates'
+import { TemplateChips } from './TemplateChips'
 
 type Audience = 'parents' | 'teachers' | 'selected'
 
@@ -270,18 +271,9 @@ export function PushComposer({ classes }: { classes: MessageClass[] }) {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card title="Bildirishnoma" bodyClassName="space-y-3">
-          {/* Tayyor andozalar */}
-          <div className="flex flex-wrap gap-1.5">
-            {messageTemplates.map((t) => (
-              <button
-                key={t.label}
-                type="button"
-                onClick={() => applyTemplate(t.label, t.text)}
-                className="rounded-full border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 transition-colors hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700"
-              >
-                {t.label}
-              </button>
-            ))}
+          {/* Tayyor matnlar (andozalar + SMS/eslatma matnlari) */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <TemplateChips onPick={(text, name) => applyTemplate(name, text)} />
             {(title || body) && (
               <button
                 type="button"

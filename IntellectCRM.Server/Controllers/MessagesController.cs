@@ -439,6 +439,27 @@ public class MessagesController(AppDbContext db, ChatService chat, TelegramServi
     }
 
     /// <summary>
+    /// "Tanlab" SMS uchun oluvchilar ro'yxati — barcha arxivlanmagan o'quvchilar (ism bo'yicha).
+    /// parentPhone = ParentPhone→FatherPhone→MotherPhone (birinchi bo'sh bo'lmagani); studentPhone = s.Phone.
+    /// </summary>
+    [HttpGet("sms/recipients")]
+    public async Task<ActionResult<IEnumerable<SmsRecipientDto>>> SmsRecipients()
+    {
+        var students = await db.Students.AsNoTracking().Where(s => !s.IsArchived)
+            .OrderBy(s => s.FullName)
+            .Select(s => new { s.Id, s.FullName, s.ClassName, s.Phone, s.ParentPhone, s.FatherPhone, s.MotherPhone })
+            .ToListAsync();
+        return students.Select(s =>
+        {
+            var parentPhone = !string.IsNullOrWhiteSpace(s.ParentPhone) ? s.ParentPhone
+                : !string.IsNullOrWhiteSpace(s.FatherPhone) ? s.FatherPhone
+                : !string.IsNullOrWhiteSpace(s.MotherPhone) ? s.MotherPhone : null;
+            var studentPhone = string.IsNullOrWhiteSpace(s.Phone) ? null : s.Phone;
+            return new SmsRecipientDto(s.Id, s.FullName, s.ClassName ?? "", parentPhone, studentPhone);
+        }).ToList();
+    }
+
+    /// <summary>
     /// SMS yuborish (Eskiz). Audience: parents (o'quvchi ota-onasi raqami) | students (o'quvchi raqami) |
     /// teachers (o'qituvchi raqami) | selected (StudentIds — ota-ona raqami). Bir xil raqam bir marta.
     /// Matn har o'quvchiga moslab to'ldiriladi ({fish} {sinf} {qarzdorlik} {balans} {telefon}).
@@ -547,6 +568,22 @@ public class MessagesController(AppDbContext db, ChatService chat, TelegramServi
 
         return new SmsBatchDto(batch.Id, batch.Audience, batch.Message, batch.SenderName,
             batch.CreatedAt.ToString("o"), batch.RecipientCount, batch.SentCount);
+    }
+
+    /// <summary>
+    /// Barcha tayyor matnlar (birlashgan): SMS andozalari (db.SmsTemplates) + matnli eslatma qoidalari
+    /// (db.ReminderRules, MessageTemplate bo'sh bo'lmaganlari). Uchala yuborish oynasida (e'lon/push/SMS) chip.
+    /// </summary>
+    [HttpGet("templates/all")]
+    public async Task<ActionResult<IEnumerable<UnifiedTemplateDto>>> AllTemplates()
+    {
+        var sms = await db.SmsTemplates.AsNoTracking().OrderBy(t => t.Order).ThenBy(t => t.Name)
+            .Select(t => new UnifiedTemplateDto("sms", t.Name, t.Text)).ToListAsync();
+        var reminders = await db.ReminderRules.AsNoTracking()
+            .Where(r => r.MessageTemplate != "")
+            .OrderBy(r => r.Name)
+            .Select(r => new UnifiedTemplateDto("reminder", r.Name, r.MessageTemplate)).ToListAsync();
+        return sms.Concat(reminders).ToList();
     }
 
     // ---------- SMS andozalari (shablonlar) — Sozlamalar → SMS (Eskiz) ----------
