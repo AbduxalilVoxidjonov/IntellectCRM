@@ -15,9 +15,9 @@ public static class StudentProfileBuilder
 {
     public static async Task<StudentNotebookDto> BuildAsync(IAppDbContext db, Student st)
     {
-        var cls = await db.Classes.FirstOrDefaultAsync(c => c.Name == st.ClassName);
+        var cls = await db.Classes.AsNoTracking().FirstOrDefaultAsync(c => c.Name == st.ClassName);
         // O'quvchining FAOL guruh(lar)i (M2M) — yo'q bo'lsa ClassName (StudentReportBuilder bilan bir xil mantiq).
-        var memberGroupIds = await db.StudentGroups
+        var memberGroupIds = await db.StudentGroups.AsNoTracking()
             .Where(sg => sg.StudentId == st.Id && sg.IsActive).Select(sg => sg.GroupId).ToListAsync();
         var classIds = memberGroupIds.Count > 0
             ? memberGroupIds.ToHashSet()
@@ -26,15 +26,19 @@ public static class StudentProfileBuilder
         var classId = cls?.Id ?? classIds.FirstOrDefault();
 
         var report = await StudentReportBuilder.BuildAsync(db, st);
-        var entries = await db.JournalEntries.Where(e => e.StudentId == st.Id).ToListAsync();
-        var reasons = await db.AbsenceReasons.ToListAsync();
+        // Bu builder faqat-o'qish (hisobot generatori) — barcha ro'yxatlar AsNoTracking.
+        // (Lug'atlar — AbsenceReasons/Subjects — har chaqiruvda yuklanadi; ReferenceCache'ni ulash
+        // static builder imzosini KO'P chaqiruv joyida o'zgartirishni talab qiladi, shu sabab hozircha
+        // AsNoTracking bilan cheklanamiz — tracking overhead va identity-map yig'ilishini oldini oladi.)
+        var entries = await db.JournalEntries.AsNoTracking().Where(e => e.StudentId == st.Id).ToListAsync();
+        var reasons = await db.AbsenceReasons.AsNoTracking().ToListAsync();
         var reasonMap = reasons.ToDictionary(r => r.Id);
         var lateSet = reasons.Where(r => r.IsLate).Select(r => r.Id).ToHashSet();
 
         // ---- Qatnashish (o'tilgan / qatnashgan) — o'quvchining faol guruh(lar)i bo'yicha ----
         var studentConducted = classIds.Count == 0
             ? new HashSet<(string SubjectId, string Date, int Period)>()
-            : (await db.LessonNotes.Where(n => n.Conducted && classIds.Contains(n.ClassId))
+            : (await db.LessonNotes.AsNoTracking().Where(n => n.Conducted && classIds.Contains(n.ClassId))
                     .Select(n => new { n.SubjectId, n.Date, n.Period }).ToListAsync())
                 .Select(n => (n.SubjectId, n.Date, n.Period)).ToHashSet();
         var conducted = studentConducted.Count;
@@ -55,7 +59,7 @@ public static class StudentProfileBuilder
             .OrderByDescending(x => x.Count).ToList();
 
         // ---- Intizomiy ball (100 + plus − minus) ----
-        var manual = await db.DisciplinePoints.Where(p => p.StudentId == st.Id).ToListAsync();
+        var manual = await db.DisciplinePoints.AsNoTracking().Where(p => p.StudentId == st.Id).ToListAsync();
         int plus = 0, minus = 0;
         void Apply(int pts) { if (pts > 0) plus += pts; else if (pts < 0) minus += -pts; }
         foreach (var m in manual) Apply(m.Points);
@@ -77,11 +81,11 @@ public static class StudentProfileBuilder
             : await AssignmentService.ScoresForStudentAsync(db, classId, st.Id);
 
         // ---- Oylik baholash (fan kesimida + umumiy fanlar o'rtachasi) ----
-        var evalTypes = await db.EvaluationTypes.OrderBy(t => t.CreatedAt)
+        var evalTypes = await db.EvaluationTypes.AsNoTracking().OrderBy(t => t.CreatedAt)
             .Select(t => new EvaluationTypeDto(t.Id, t.Name, t.Description)).ToListAsync();
         // Faqat fan kesimidagi baholar — "Umumiy" (SubjectId="") ga baho qo'yilmaydi,
         // umumiy statistika butunlay fanlar o'rtachasidan hisoblanadi.
-        var evalGrades = (await db.EvaluationGrades.Where(g => g.StudentId == st.Id).ToListAsync())
+        var evalGrades = (await db.EvaluationGrades.AsNoTracking().Where(g => g.StudentId == st.Id).ToListAsync())
             .Where(g => !string.IsNullOrEmpty(g.Month) && !string.IsNullOrEmpty(g.SubjectId))
             .ToList();
 

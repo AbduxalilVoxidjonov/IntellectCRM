@@ -71,6 +71,12 @@ IntellectCRM.slnx
 - **Guruh endpointlari** `ClassesController`da: `/{id}/members`, `/student/{id}/groups`, `/fill`.
 - **To'lov eslatmasi:** mavjud `MessagesController` broadcast `OnlyDebtors=true` (Telegram + `{qarzdorlik}` tokenlari).
   Avtomatik (hisob yaratilganda) trigger — hali yo'q (kelajak).
+- **Kesh qatlami (perf):** `DataCache` (Application/Services) — versiyali IMemoryCache: kalit = mantiqiy nom +
+  bog'liq entity turlari versiyalari. `CacheInvalidationInterceptor` (Infrastructure/Data) har SaveChanges'da
+  o'zgargan turlar versiyasini oshiradi → kesh AVTO-yangilanadi (TTL 10-15 daq faqat zaxira, to'g'ridan SQL uchun).
+  Keshlangan: Reyting (`rating:school`), Dashboard, `classes/stats`. Yangi og'ir GET'larni ham shu orqali keshlash
+  mumkin: `dataCache.GetOrCreateAsync(key, dependsOn[], ttl, db => ...)`. Lidlar GetAll N+1 → 5 ta so'rovga
+  tushirilgan; parent portal telefon qidiruvi DB-side. Katta read-only so'rovlarga `.AsNoTracking()` odat qilinsin.
 
 ## 5. Buyruqlar
 ```bash

@@ -15,23 +15,25 @@ public static class StudentReportBuilder
     public static async Task<StudentReportDto> BuildAsync(IAppDbContext db, Student st)
     {
         // O'quvchining FAOL guruh(lar)i (M2M) bo'yicha — yo'q bo'lsa ClassName bo'yicha (orqaga moslik).
-        var memberGroupIds = await db.StudentGroups
+        // Faqat-o'qish hisobot generatori — barcha ro'yxatlar AsNoTracking (tracking overhead va
+        // lug'atlarni (Subjects/AbsenceReasons) har chaqiruvda identity-map'ga yig'ishni oldini oladi).
+        var memberGroupIds = await db.StudentGroups.AsNoTracking()
             .Where(sg => sg.StudentId == st.Id && sg.IsActive).Select(sg => sg.GroupId).ToListAsync();
         List<Group> groups;
         if (memberGroupIds.Count > 0)
-            groups = await db.Classes.Where(c => memberGroupIds.Contains(c.Id)).ToListAsync();
+            groups = await db.Classes.AsNoTracking().Where(c => memberGroupIds.Contains(c.Id)).ToListAsync();
         else
         {
-            var byName = await db.Classes.FirstOrDefaultAsync(c => c.Name == st.ClassName);
+            var byName = await db.Classes.AsNoTracking().FirstOrDefaultAsync(c => c.Name == st.ClassName);
             groups = byName is null ? new List<Group>() : new List<Group> { byName };
         }
         var classIds = groups.Select(g => g.Id).ToHashSet();
-        var allSubjects = await db.Subjects.ToListAsync();
+        var allSubjects = await db.Subjects.AsNoTracking().ToListAsync();
         var assignedSubjectIds = groups
             .Where(g => !string.IsNullOrEmpty(g.CourseId)).Select(g => g.CourseId).Distinct().ToList();
-        var entries = (await db.JournalEntries.Where(e => e.StudentId == st.Id).ToListAsync())
+        var entries = (await db.JournalEntries.AsNoTracking().Where(e => e.StudentId == st.Id).ToListAsync())
             .Where(e => classIds.Count == 0 || classIds.Contains(e.ClassId)).ToList();
-        var reasonRows = await db.AbsenceReasons.ToListAsync();
+        var reasonRows = await db.AbsenceReasons.AsNoTracking().ToListAsync();
         var lateIds = reasonRows.Where(r => r.IsLate).Select(r => r.Id).ToHashSet();
         var reasons = reasonRows.ToDictionary(r => r.Id, r => r.Name.ToLowerInvariant());
 
