@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using IntellectCRM.Infrastructure.Data;
+using IntellectCRM.Application.Abstractions;
 using IntellectCRM.Application.Dtos;
 using IntellectCRM.Application.Services;
 using IntellectCRM.Domain;
@@ -16,7 +17,7 @@ namespace IntellectCRM.Server.Controllers;
 [Authorize]
 [AdminPerm("schedule")]
 [Route("api/admin/grading")]
-public class GradingController(AppDbContext db) : ControllerBase
+public class GradingController(AppDbContext db, DataCache dataCache) : ControllerBase
 {
     // ---------- Mezonlar (pul) ----------
 
@@ -369,5 +370,60 @@ public class GradingController(AppDbContext db) : ControllerBase
         }
 
         return new GradingGroupSummaryDto(groupId, group.Name, memberIds.Count, totalGrades, avgScore);
+    }
+
+    /// <summary>BARCHA guruhlar uchun baholash statistikasi — BITTA javobda (N+1 o'rniga). Frontend
+    /// "Guruhlar" sahifasi har guruh uchun alohida <c>group/{id}/summary</c> yubormasligi uchun. Natija
+    /// keshlanadi; CriterionGrade/StudentGroup/Group o'zgarganda avto-yangilanadi.</summary>
+    [HttpGet("groups/summary")]
+    public async Task<ActionResult<IEnumerable<GradingGroupSummaryDto>>> GetAllGroupsSummary([FromQuery] string? month)
+    {
+        var cur = TuitionService.CurrentMonth();
+        var resolved = !string.IsNullOrEmpty(month) && month.Length >= 7 ? month : cur;
+        return await dataCache.GetOrCreateAsync(
+            $"grading:groups-summary:{resolved}",
+            new[] { nameof(CriterionGrade), nameof(StudentGroup), nameof(Group) },
+            TimeSpan.FromMinutes(10),
+            db2 => ComputeAllGroupsSummaryAsync(db2, resolved));
+    }
+
+    /// <summary>Barcha guruhlar baholash statistikasini SET-BASED hisoblaydi: 3 so'rov (guruhlar, faol
+    /// a'zoliklar, shu oy baholari) — so'ng xotirada guruhlab, har guruh uchun <see cref="GetGroupSummary"/>
+    /// bilan bir xil natija (ActiveStudents, TotalGrades, AverageScore) chiqaradi.</summary>
+    private static async Task<List<GradingGroupSummaryDto>> ComputeAllGroupsSummaryAsync(IAppDbContext db2, string resolved)
+    {
+        var groups = await db2.Classes.AsNoTracking()
+            .Select(g => new { g.Id, g.Name }).ToListAsync();
+
+        // Faol a'zolar soni (frozen emas) — guruh bo'yicha.
+        var activeByGroup = (await db2.StudentGroups.AsNoTracking()
+                .Where(sg => sg.IsActive && sg.Status != "frozen")
+                .Select(sg => sg.GroupId).ToListAsync())
+            .GroupBy(gid => gid)
+            .ToDictionary(g => g.Key, g => g.Count());
+
+        // Shu oy baholari (Done=true) — guruh bo'yicha.
+        var gradesByGroup = (await db2.CriterionGrades.AsNoTracking()
+                .Where(g => g.Done && g.Date.StartsWith(resolved))
+                .Select(g => new { g.GroupId, g.StudentId, g.Date }).ToListAsync())
+            .GroupBy(g => g.GroupId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        var result = new List<GradingGroupSummaryDto>(groups.Count);
+        foreach (var g in groups)
+        {
+            var activeStudents = activeByGroup.TryGetValue(g.Id, out var ac) ? ac : 0;
+            var totalGrades = 0;
+            var avgScore = 0.0;
+            if (gradesByGroup.TryGetValue(g.Id, out var grades) && grades.Count > 0)
+            {
+                totalGrades = grades.Count;
+                // Har (o'quvchi, sana) bo'yicha mezon soni → o'rtacha (GetGroupSummary bilan izchil).
+                var scores = grades.GroupBy(x => new { x.StudentId, x.Date }).Select(x => x.Count()).ToList();
+                avgScore = Math.Round(scores.DefaultIfEmpty(0).Average(), 1);
+            }
+            result.Add(new GradingGroupSummaryDto(g.Id, g.Name, activeStudents, totalGrades, avgScore));
+        }
+        return result;
     }
 }

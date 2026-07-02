@@ -1,10 +1,9 @@
-import type { Student, Subject, Group } from '@/types'
+import type { Student, Subject } from '@/types'
 import { delay } from '@/lib/utils'
 import { api, USE_MOCK } from '../client'
 import { studentsMock } from '../mock/students'
 import { subjectsMock } from '../mock/subjects'
 import { classesMock } from '../mock/classes'
-import { getClasses } from './classes'
 
 export interface ClassStudentRow {
   student: Student
@@ -162,28 +161,19 @@ export async function getGroupGradingStats(groupId: string, month?: string): Pro
   return data
 }
 
-/** Barcha guruhlar uchun baholash statistikasi */
+/** Barcha guruhlar uchun baholash statistikasi — BITTA bulk so'rov (ilgari har guruhga alohida
+ *  so'rov ketardi: N+1). Qaytish shakli o'zgarmaydi: groupId -> GradingGroupStats. */
 export async function getAllGroupsGradingStats(month?: string): Promise<Record<string, GradingGroupStats>> {
   if (USE_MOCK) {
     await delay()
     return {}
   }
   try {
-    const allClasses = await getClasses()
+    const { data } = await api.get<GradingGroupStats[]>('/admin/grading/groups/summary', {
+      params: month ? { month } : undefined,
+    })
     const results: Record<string, GradingGroupStats> = {}
-
-    // Parallel fetch
-    const promises = allClasses.map((c: Group) =>
-      getGroupGradingStats(c.id, month)
-        .then((stats) => {
-          results[c.id] = stats
-        })
-        .catch(() => {
-          // Ignore errors for individual groups
-        }),
-    )
-    await Promise.all(promises)
-
+    for (const s of data) results[s.groupId] = s
     return results
   } catch {
     return {}
