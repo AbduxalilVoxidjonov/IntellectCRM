@@ -17,6 +17,7 @@ import {
   downloadStudentImportTemplate,
   importStudents,
   setStudentLoginBlock,
+  setStudentLoginBlockBulk,
 } from '@/api/services/students'
 import { getClasses } from '@/api/services/classes'
 import { getTeachers } from '@/api/services/teachers'
@@ -93,6 +94,8 @@ export function StudentsPage() {
   /** Tanlanganlarni arxivga ko'chirish — sabab kiritish uchun */
   const [archivingSelected, setArchivingSelected] = useState(false)
   const [archiveReasonModal, setArchiveReasonModal] = useState(false)
+  /** Tanlanganlar login'ini ommaviy cheklash/ochish — so'rov jarayonida. */
+  const [bulkLoginBlocking, setBulkLoginBlocking] = useState(false)
 
   // Excel'dan ommaviy import
   const [importing, setImporting] = useState(false)
@@ -183,6 +186,7 @@ export function StudentsPage() {
   // Filtr/qidiruv/tab/hajm o'zgarsa — birinchi sahifaga qaytamiz.
   useEffect(() => {
     setPage(1)
+    setSelected(new Set())
   }, [search, classFilter, teacherFilter, genderFilter, balanceFilter, activeFilter, tab, pageSize])
 
   const selectedStudents = source.filter((s) => selected.has(s.id))
@@ -380,6 +384,26 @@ export function StudentsPage() {
       .catch((e) => alert(e?.response?.data?.message ?? 'Amalni bajarib bo\'lmadi'))
   }
 
+  /** Tanlangan o'quvchilarni ommaviy login cheklash/ochish — tasdiq bilan. */
+  const handleBulkLoginBlock = (blocked: boolean) => {
+    const ids = selectedStudents.map((s) => s.id)
+    if (ids.length === 0) return
+    const msg = blocked
+      ? `${ids.length} ta o'quvchi login'i cheklansinmi? Ular tizimga kira olmaydi.`
+      : `${ids.length} ta o'quvchi uchun login cheklovi olib tashlansinmi?`
+    if (!confirm(msg)) return
+    setBulkLoginBlocking(true)
+    setStudentLoginBlockBulk(ids, blocked)
+      .then(() => {
+        setStudents((prev) =>
+          prev.map((x) => (selected.has(x.id) ? { ...x, loginBlocked: blocked } : x)),
+        )
+        clearSelection()
+      })
+      .catch((e) => alert(e?.response?.data?.message ?? 'Amalni bajarib bo\'lmadi'))
+      .finally(() => setBulkLoginBlocking(false))
+  }
+
   /** Arxivdan qaytarish. */
   const handleRestore = (s: Student) => {
     if (!confirm(`"${s.fullName}" o'quvchini arxivdan qaytarish? Login bloklangicha qoladi — keyin parol generatsiya qiling.`)) return
@@ -553,6 +577,26 @@ export function StudentsPage() {
             <Button variant="secondary" onClick={handleExport}>
               <Download className="h-4 w-4" /> Yuklab olish (CSV)
             </Button>
+            {tab === 'active' && (
+              <>
+                <Button
+                  variant="secondary"
+                  onClick={() => handleBulkLoginBlock(true)}
+                  disabled={bulkLoginBlocking}
+                  className="text-red-600 hover:text-red-700"
+                >
+                  <Lock className="h-4 w-4" /> Bloklash ({selected.size})
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => handleBulkLoginBlock(false)}
+                  disabled={bulkLoginBlocking}
+                  className="text-emerald-600 hover:text-emerald-700"
+                >
+                  <LockOpen className="h-4 w-4" /> Blokdan chiqarish ({selected.size})
+                </Button>
+              </>
+            )}
             <Button
               variant="secondary"
               onClick={() => setArchiveReasonModal(true)}

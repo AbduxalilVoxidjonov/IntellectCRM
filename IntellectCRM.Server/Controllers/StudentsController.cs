@@ -793,6 +793,37 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
         return NoContent();
     }
 
+    /// <summary>
+    /// Bir nechta o'quvchi login'ini birdaniga cheklaydi/qayta ochadi (jadvalda ko'p tanlash).
+    /// Faqat holati o'zgargan o'quvchilar uchun audit yozuvi qo'shiladi, bitta SaveChangesAsync.
+    /// </summary>
+    [HttpPut("login-block-bulk")]
+    public async Task<IActionResult> SetLoginBlockBulk(StudentLoginBlockBulkRequest req)
+    {
+        if (req.StudentIds is null || req.StudentIds.Count == 0)
+            return BadRequest(new { message = "O'quvchilar tanlanmagan" });
+
+        var students = await db.Students.Where(s => req.StudentIds.Contains(s.Id)).ToListAsync();
+
+        var changed = 0;
+        foreach (var student in students)
+        {
+            if (student.LoginBlocked != req.Blocked)
+            {
+                student.LoginBlocked = req.Blocked;
+                audit.Record(AuditService.EntityStudentDiscount, student.Id, "update",
+                    (req.Blocked ? "O'quvchi login'i cheklandi" : "O'quvchi login'i qayta ochildi")
+                        + $" ({student.FullName})",
+                    studentId: student.Id);
+                changed++;
+            }
+        }
+
+        if (changed > 0) await db.SaveChangesAsync();
+
+        return Ok(new { changed });
+    }
+
     /// <summary>O'quvchining tizim akkaunti (login/parol). Akkaunt yo'q bo'lsa — yaratib biriktiradi.</summary>
     [HttpGet("{id}/credentials")]
     public async Task<ActionResult<CredentialsDto>> Credentials(string id)

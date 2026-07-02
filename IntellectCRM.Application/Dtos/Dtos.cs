@@ -393,6 +393,9 @@ public record ArchiveStudentRequest(string? Reason = null, string? ReasonId = nu
 /// <summary>Admin o'quvchi login'ini vaqtincha cheklaydi/qayta ochadi.</summary>
 public record StudentLoginBlockRequest(bool Blocked);
 
+/// <summary>Admin bir nechta o'quvchi login'ini birdaniga cheklaydi/qayta ochadi.</summary>
+public record StudentLoginBlockBulkRequest(List<string> StudentIds, bool Blocked);
+
 /* ---------- Intizomiy ball ---------- */
 /// <summary>
 /// Intizomiy ball sababi (nomi + ball). <c>Kind</c>: "other" — mustaqil intizomiy sabab;

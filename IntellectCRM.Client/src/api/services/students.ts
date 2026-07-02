@@ -283,6 +283,22 @@ export async function setStudentLoginBlock(id: string, blocked: boolean): Promis
   await api.put(`/admin/students/${id}/login-block`, { blocked })
 }
 
+/** Bir nechta o'quvchining login orqali tizimga kirishini birdaniga cheklash/ochish (jadvalda ko'p tanlash). */
+export async function setStudentLoginBlockBulk(
+  ids: string[],
+  blocked: boolean,
+): Promise<{ changed: number }> {
+  if (USE_MOCK) {
+    await delay(150)
+    return { changed: ids.length }
+  }
+  const { data } = await api.put<{ changed: number }>('/admin/students/login-block-bulk', {
+    studentIds: ids,
+    blocked,
+  })
+  return data
+}
+
 /** Bitta guruh bo'yicha o'quvchining oylik hisobi (to'lov oynasi uchun) — aggregate emas. */
 export async function getGroupLedger(
   studentId: string,
