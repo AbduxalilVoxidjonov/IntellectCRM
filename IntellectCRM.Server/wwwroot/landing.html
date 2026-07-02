@@ -25,17 +25,11 @@
   a{text-decoration:none;color:inherit}
   .container{max-width:1200px;margin:0 auto;padding:0 24px}
   section{padding:90px 0}
-  #about,#subjects,#courses,#results,#faq,#contact{scroll-margin-top:84px}
-  h2.section-title{font-size:clamp(28px,4vw,44px);font-weight:800;text-align:center;margin-bottom:12px}
-  p.section-sub{text-align:center;color:var(--muted);max-width:640px;margin:0 auto 50px;font-size:17px}
   header{position:sticky;top:0;z-index:100;background:rgba(13,27,42,.85);backdrop-filter:blur(12px);border-bottom:1px solid rgba(255,255,255,.06)}
   nav{display:flex;align-items:center;justify-content:space-between;height:74px}
   .logo{display:flex;align-items:center;gap:10px;font-weight:800;font-size:20px}
-  .logo .mark{width:40px;height:40px;border-radius:10px;background:var(--grad);display:grid;place-items:center;font-size:20px}
-  .nav-links{display:flex;gap:26px;list-style:none}
-  .nav-links a{color:var(--muted);font-weight:500;transition:.2s}
-  .nav-links a:hover{color:var(--text)}
-  .nav-actions{display:flex;align-items:center;gap:14px}
+  .logo .mark{width:40px;height:40px;border-radius:10px;background:var(--grad);display:grid;place-items:center;font-size:20px;overflow:hidden}
+  .logo .mark img{width:100%;height:100%;object-fit:contain;border-radius:10px;background:#fff}
   .btn{padding:12px 22px;border-radius:12px;font-weight:600;border:none;cursor:pointer;transition:.25s;display:inline-flex;align-items:center;gap:8px}
   .btn:focus-visible{outline:2px solid var(--accent-2);outline-offset:2px}
   .btn-primary{background:var(--grad);color:#fff}
@@ -45,7 +39,6 @@
   .btn-accent:disabled{opacity:.65;cursor:not-allowed;transform:none;box-shadow:none}
   .btn-ghost{background:rgba(255,255,255,.06);color:var(--text)}
   .btn-ghost:hover{background:rgba(255,255,255,.12);transform:translateY(-2px)}
-  .menu-toggle{display:none;background:none;border:none;color:#fff;font-size:26px;cursor:pointer}
   .hero{padding:70px 0 90px}
   .hero-grid{display:grid;grid-template-columns:1.1fr .9fr;gap:40px;align-items:center}
   .hero h1{font-size:clamp(34px,5.5vw,56px);font-weight:800;line-height:1.1;margin-bottom:20px}
@@ -62,49 +55,21 @@
   .float.f2{bottom:36px;right:24px}
   .float.f3{top:44%;left:12px;background:var(--grad-2);color:#1a1200}
   .float.f4{top:20%;right:22px}
-  .stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:22px}
-  .stat{background:var(--card);border-radius:var(--radius);padding:30px;border:1px solid rgba(255,255,255,.06);position:relative;overflow:hidden}
-  .stat .num{font-size:40px;font-weight:800;background:var(--grad-2);-webkit-background-clip:text;background-clip:text;color:transparent}
-  .stat .lbl{color:var(--muted);margin-top:6px}
-  .stat::after{content:'';position:absolute;right:-30px;bottom:-30px;width:90px;height:90px;background:var(--grad-2);opacity:.15;border-radius:50%}
-  .subj-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:20px}
-  .subj{background:var(--card);border-radius:16px;padding:26px;border:1px solid rgba(255,255,255,.06);text-align:center;transition:.3s}
-  .subj:hover{transform:translateY(-6px);border-color:rgba(245,166,35,.5)}
-  .subj .ic{width:56px;height:56px;margin:0 auto 14px;border-radius:14px;background:var(--grad);display:grid;place-items:center;font-size:26px}
-  .subj h3{font-size:18px;margin-bottom:6px}
-  .subj p{color:var(--muted);font-size:14px}
-  .feat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
-  .feat{background:var(--card);border-radius:var(--radius);padding:32px;border:1px solid rgba(255,255,255,.06);transition:.3s}
-  .feat:hover{transform:translateY(-6px);border-color:rgba(59,155,255,.4)}
-  .feat .ic{width:54px;height:54px;border-radius:14px;background:var(--grad-2);display:grid;place-items:center;font-size:26px;margin-bottom:18px}
-  .feat h3{font-size:20px;margin-bottom:10px}
-  .feat p{color:var(--muted);font-size:15px}
-  .course-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
-  .course{background:var(--card);border-radius:var(--radius);padding:34px;border:1px solid rgba(255,255,255,.06);display:flex;flex-direction:column;transition:.3s}
-  .course:hover{transform:translateY(-6px)}
-  .course.pop{border:2px solid var(--accent-2);position:relative}
-  .course.pop::before{content:'Ommabop';position:absolute;top:-14px;right:24px;background:var(--grad-2);color:#1a1200;padding:5px 14px;border-radius:20px;font-size:13px;font-weight:700}
-  .course h3{font-size:24px;margin-bottom:6px}
-  .course .price{font-size:32px;font-weight:800;margin:14px 0}
-  .course .price span{font-size:15px;color:var(--muted);font-weight:400}
-  .course ul{list-style:none;margin:18px 0 24px;flex:1}
-  .course li{padding:8px 0 8px 28px;position:relative;color:var(--muted);font-size:15px}
-  .course li::before{content:'✓';position:absolute;left:0;color:var(--accent-2);font-weight:800}
-  .test-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
-  .test{background:var(--card);border-radius:var(--radius);padding:28px;border:1px solid rgba(255,255,255,.06);transition:.3s}
-  .test:hover{transform:translateY(-6px)}
-  .test .top{display:flex;align-items:center;gap:14px;margin-bottom:16px}
-  .test .av{width:52px;height:52px;border-radius:50%;background:var(--grad);display:grid;place-items:center;font-weight:700;font-size:20px}
-  .test .score{margin-left:auto;background:var(--grad-2);color:#1a1200;padding:4px 12px;border-radius:20px;font-weight:700;font-size:14px}
-  .test p{color:var(--muted);font-size:15px}
-  .contact-grid{display:grid;grid-template-columns:1fr 1fr;gap:40px;align-items:center}
-  .contact-info h3{font-size:26px;margin-bottom:20px}
-  .contact-info .row{display:flex;gap:14px;align-items:center;margin-bottom:18px}
-  .contact-info .row .ic{width:46px;height:46px;border-radius:12px;background:var(--card);display:grid;place-items:center;font-size:20px;flex-shrink:0}
-  .contact-info .row b{display:block}
-  .contact-info .row span{color:var(--muted);font-size:15px}
-  .cta-form{background:var(--card);border-radius:24px;padding:36px;border:1px solid rgba(255,255,255,.06)}
-  .cta-form h3{font-size:24px;margin-bottom:8px}
+
+  .fab{position:fixed;bottom:26px;right:26px;width:60px;height:60px;border-radius:50%;background:var(--grad-2);display:grid;place-items:center;font-size:26px;box-shadow:0 10px 30px rgba(245,130,11,.5);z-index:99;animation:pulse 2s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(245,166,35,.5)}70%{box-shadow:0 0 0 18px rgba(245,166,35,0)}100%{box-shadow:0 0 0 0 rgba(245,166,35,0)}}
+  footer{background:var(--bg-2);padding:40px 0 30px;border-top:1px solid rgba(255,255,255,.06)}
+  .foot-brand{display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;margin-bottom:24px}
+  .foot-phone{color:var(--muted);font-size:15px}
+  .copyright{text-align:center;color:var(--muted);padding-top:20px;border-top:1px solid rgba(255,255,255,.06);font-size:14px}
+
+  .modal-backdrop{position:fixed;inset:0;background:rgba(6,12,20,.72);backdrop-filter:blur(6px);z-index:200;display:none;align-items:center;justify-content:center;padding:20px}
+  .modal-backdrop.show{display:flex}
+  .modal{background:var(--card);border-radius:24px;border:1px solid rgba(255,255,255,.08);max-width:460px;width:100%;padding:32px;position:relative;max-height:90vh;overflow-y:auto;opacity:0;transform:translateY(16px) scale(.98);transition:opacity .25s ease,transform .25s ease}
+  .modal-backdrop.show .modal{opacity:1;transform:translateY(0) scale(1)}
+  .modal-close{position:absolute;top:16px;right:16px;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.06);border:none;color:var(--text);font-size:18px;cursor:pointer;display:grid;place-items:center;transition:.2s}
+  .modal-close:hover{background:rgba(255,255,255,.14)}
+  .cta-form h3{font-size:24px;margin-bottom:8px;padding-right:30px}
   .cta-form p{color:var(--muted);margin-bottom:22px;font-size:15px}
   .cta-form input,.cta-form select{width:100%;padding:14px 16px;border-radius:12px;font-size:16px;margin-bottom:14px;background:#0d1b2a;color:var(--text);border:1px solid rgba(255,255,255,.1);transition:.2s}
   .cta-form input:focus,.cta-form select:focus{outline:none;border-color:var(--accent-2);box-shadow:0 0 0 3px rgba(245,166,35,.15)}
@@ -116,22 +81,6 @@
   .form-success .ic{font-size:48px;margin-bottom:14px}
   .form-success h4{font-size:20px;margin-bottom:8px}
   .form-success p{color:var(--muted);font-size:15px}
-  .faq-wrap{max-width:800px;margin:0 auto}
-  .faq-item{background:var(--card);border-radius:14px;margin-bottom:14px;border:1px solid rgba(255,255,255,.06);overflow:hidden}
-  .faq-q{padding:20px 24px;font-weight:600;cursor:pointer;display:flex;justify-content:space-between;align-items:center}
-  .faq-q .plus{transition:.3s;color:var(--accent-2);font-size:22px;flex-shrink:0}
-  .faq-item.open .plus{transform:rotate(45deg)}
-  .faq-a{max-height:0;overflow:hidden;transition:.3s;color:var(--muted);padding:0 24px}
-  .faq-item.open .faq-a{max-height:220px;padding:0 24px 20px}
-  .fab{position:fixed;bottom:26px;right:26px;width:60px;height:60px;border-radius:50%;background:var(--grad-2);display:grid;place-items:center;font-size:26px;box-shadow:0 10px 30px rgba(245,130,11,.5);z-index:99;animation:pulse 2s infinite}
-  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(245,166,35,.5)}70%{box-shadow:0 0 0 18px rgba(245,166,35,0)}100%{box-shadow:0 0 0 0 rgba(245,166,35,0)}}
-  footer{background:var(--bg-2);padding:60px 0 30px;border-top:1px solid rgba(255,255,255,.06)}
-  .foot-grid{display:grid;grid-template-columns:2fr 1fr 1fr;gap:40px;margin-bottom:40px}
-  .foot-grid p{color:var(--muted);margin-top:14px;max-width:320px}
-  .foot-grid h4{margin-bottom:16px}
-  .foot-grid ul{list-style:none}
-  .foot-grid li{color:var(--muted);padding:6px 0}
-  .copyright{text-align:center;color:var(--muted);padding-top:24px;border-top:1px solid rgba(255,255,255,.06);font-size:14px}
 
   [data-reveal]{opacity:0;transform:translateY(24px);transition:opacity .6s ease,transform .6s ease}
   [data-reveal].in-view{opacity:1;transform:translateY(0)}
@@ -139,16 +88,11 @@
     html{scroll-behavior:auto}
     [data-reveal]{opacity:1;transform:none;transition:none}
     .fab{animation:none}
+    .modal{transition:none}
   }
 
   @media(max-width:900px){
-    .hero-grid,.contact-grid{grid-template-columns:1fr}.hero-visual{height:340px}
-    .stats-grid,.subj-grid{grid-template-columns:repeat(2,1fr)}
-    .feat-grid,.course-grid,.test-grid{grid-template-columns:1fr}
-    .foot-grid{grid-template-columns:1fr}
-    .nav-links{display:none;position:absolute;top:74px;left:0;right:0;background:var(--bg-2);flex-direction:column;padding:20px;gap:16px}
-    .nav-links.show{display:flex}
-    .menu-toggle{display:block}
+    .hero-grid{grid-template-columns:1fr}.hero-visual{height:340px}
   }
   @media(max-width:600px){
     .container{padding:0 16px}
@@ -163,14 +107,8 @@
     .hero-visual .float{padding:8px 12px;font-size:12px;border-radius:10px}
     .float.f3{left:6px}
     .float.f4{right:12px}
-    .stats-grid{grid-template-columns:repeat(2,1fr);gap:14px}
-    .stat{padding:20px}
-    .stat .num{font-size:30px}
-    .subj-grid{grid-template-columns:repeat(2,1fr)}
     .nav-actions .btn-primary{padding:9px 14px;font-size:13px}
-    .cta-form{padding:24px;border-radius:18px}
-    h2.section-title{margin-bottom:10px}
-    p.section-sub{margin-bottom:34px;font-size:15px}
+    .modal{padding:20px;border-radius:18px}
   }
 </style>
 </head>
@@ -179,17 +117,9 @@
 <header>
   <div class="container">
     <nav>
-      <div class="logo"><span class="mark">🎓</span> Intellect Kokand</div>
-      <ul class="nav-links" id="navLinks">
-        <li><a href="#about">Biz haqimizda</a></li>
-        <li><a href="#subjects">Fanlar</a></li>
-        <li><a href="#courses">Narxlar</a></li>
-        <li><a href="#results">Natijalar</a></li>
-        <li><a href="#faq">FAQ</a></li>
-      </ul>
+      <div class="logo"><span class="mark" id="brandMark">🎓</span> <span id="brandName">Intellect Kokand</span></div>
       <div class="nav-actions">
-        <a href="#contact" class="btn btn-primary"><span class="nav-cta-full">Bepul darsga yozilish</span><span class="nav-cta-short" style="display:none">Yozilish</span></a>
-        <button class="menu-toggle" id="menuToggle" aria-label="Menyu" aria-expanded="false">☰</button>
+        <button type="button" class="btn btn-primary" data-open-modal><span class="nav-cta-full">Bepul darsga yozilish</span><span class="nav-cta-short" style="display:none">Yozilish</span></button>
       </div>
     </nav>
   </div>
@@ -200,7 +130,7 @@
     <div>
       <h1>Bilim — kelajakka <span class="hl">eng ishonchli sarmoya!</span></h1>
       <p>Intellect Kokand — Qo'qon shahridagi zamonaviy ko'p yo'nalishli o'quv markazi. Ingliz tili, IELTS, matematika, SAT va boshqa fanlar bo'yicha malakali ustozlardan sifatli ta'lim.</p>
-      <a href="#contact" class="btn btn-accent">✨ Birinchi bepul darsga yoziling</a>
+      <button type="button" class="btn btn-accent" data-open-modal>✨ Birinchi bepul darsga yoziling</button>
       <div class="hero-badges">
         <div class="hero-badge"><b>15+</b><span>Yillik tajriba</span></div>
         <div class="hero-badge"><b>10 000+</b><span>Bitiruvchilar</span></div>
@@ -217,273 +147,102 @@
   </div>
 </section>
 
-<section id="about" style="padding-top:0">
-  <div class="container">
-    <div class="stats-grid">
-      <div class="stat" data-reveal><div class="num" data-target="15" data-suffix="+">0</div><div class="lbl">Yillik tajriba</div></div>
-      <div class="stat" data-reveal><div class="num" data-target="10000" data-suffix="+">0</div><div class="lbl">O'qigan o'quvchilar</div></div>
-      <div class="stat" data-reveal><div class="num" data-target="20" data-suffix="+">0</div><div class="lbl">Malakali ustozlar</div></div>
-      <div class="stat" data-reveal><div class="num" data-target="8" data-suffix="">0</div><div class="lbl">Fan yo'nalishi</div></div>
-    </div>
-  </div>
-</section>
-
-<section id="subjects">
-  <div class="container">
-    <h2 class="section-title">Bizning yo'nalishlarimiz</h2>
-    <p class="section-sub">Bir joyda — barcha muhim fanlar. O'zingizga kerakli yo'nalishni tanlang</p>
-    <div class="subj-grid">
-      <div class="subj" data-reveal><div class="ic">🇬🇧</div><h3>General English</h3><p>Noldan boshlab mustahkam ingliz tili bazasi</p></div>
-      <div class="subj" data-reveal><div class="ic">📘</div><h3>IELTS</h3><p>Yuqori band uchun tizimli tayyorgarlik</p></div>
-      <div class="subj" data-reveal><div class="ic">📊</div><h3>Multilevel</h3><p>Milliy sertifikat imtihoniga tayyorgarlik</p></div>
-      <div class="subj" data-reveal><div class="ic">📐</div><h3>Matematika</h3><p>Maktab va imtihon dasturi bo'yicha</p></div>
-      <div class="subj" data-reveal><div class="ic">🎯</div><h3>SAT</h3><p>Xalqaro universitetlarga kirish uchun</p></div>
-      <div class="subj" data-reveal><div class="ic">📖</div><h3>Ona tili</h3><p>Grammatika va yozma savodxonlik</p></div>
-      <div class="subj" data-reveal><div class="ic">🗣️</div><h3>Rus tili</h3><p>Noldan suhbat darajasigacha</p></div>
-      <div class="subj" data-reveal><div class="ic">⚛️</div><h3>Fizika</h3><p>Nazariya va masala yechish amaliyoti</p></div>
-    </div>
-  </div>
-</section>
-
-<section>
-  <div class="container">
-    <h2 class="section-title">Nega aynan bizni tanlashadi?</h2>
-    <p class="section-sub">15 yillik tajriba va minglab bitiruvchilar bilan isbotlangan sifat</p>
-    <div class="feat-grid">
-      <div class="feat" data-reveal><div class="ic">👨‍🏫</div><h3>Malakali ustozlar</h3><p>20+ tajribali o'qituvchi — har bir fan bo'yicha o'z sohasining mutaxassisi.</p></div>
-      <div class="feat" data-reveal><div class="ic">🎯</div><h3>Individual yondashuv</h3><p>Har bir o'quvchining darajasi va maqsadiga moslashtirilgan dastur.</p></div>
-      <div class="feat" data-reveal><div class="ic">🏆</div><h3>Kafolatlangan natija</h3><p>15 yil davomida minglab o'quvchi maqsadiga erishdi. Endi navbat sizda.</p></div>
-      <div class="feat" data-reveal><div class="ic">📚</div><h3>Zamonaviy dastur</h3><p>Xalqaro standartlar asosidagi o'quv materiallari va metodika.</p></div>
-      <div class="feat" data-reveal><div class="ic">👥</div><h3>Kichik guruhlar</h3><p>Har bir o'quvchiga yetarli e'tibor beriladigan qulay guruhlar.</p></div>
-      <div class="feat" data-reveal><div class="ic">🎉</div><h3>Qulay muhit</h3><p>O'rganishni yoqimli qiladigan zamonaviy va do'stona muhit.</p></div>
-    </div>
-  </div>
-</section>
-
-<section id="courses">
-  <div class="container">
-    <h2 class="section-title">Kurslar va narxlar</h2>
-    <p class="section-sub">Sizga eng mos keluvchi kursni tanlang</p>
-    <div class="course-grid">
-      <div class="course" data-reveal>
-        <h3>General English</h3>
-        <div class="price">400 000 <span>so'm / oy</span></div>
-        <ul>
-          <li>Noldan boshlab barcha darajalar</li>
-          <li>Grammatika + Speaking amaliyoti</li>
-          <li>O'quv kitoblari bilan ta'minlanadi</li>
-          <li>Malakali ustozlar</li>
-          <li>Haftada bir necha marta dars</li>
-        </ul>
-        <a href="#contact" class="btn btn-ghost">Birinchi darsga yoziling</a>
-      </div>
-      <div class="course pop" data-reveal>
-        <h3>IELTS Standard</h3>
-        <div class="price">500 000 <span>so'm / oy</span></div>
-        <ul>
-          <li>To'liq 4 bo'lim: Listening, Reading, Writing, Speaking</li>
-          <li>Muntazam MOCK imtihonlar</li>
-          <li>Individual feedback</li>
-          <li>Band oshirish strategiyalari</li>
-          <li>Progress monitoring</li>
-        </ul>
-        <a href="#contact" class="btn btn-accent">Birinchi darsga yoziling</a>
-      </div>
-      <div class="course" data-reveal>
-        <h3>Boshqa fanlar</h3>
-        <div class="price">400 000 <span>so'm / oy</span></div>
-        <ul>
-          <li>Multilevel, Matematika, SAT</li>
-          <li>Ona tili, Rus tili, Fizika</li>
-          <li>Har bir fan bo'yicha mutaxassis ustoz</li>
-          <li>Imtihonlarga to'liq tayyorgarlik</li>
-          <li>Zamonaviy o'quv metodikasi</li>
-        </ul>
-        <a href="#contact" class="btn btn-ghost">Birinchi darsga yoziling</a>
-      </div>
-    </div>
-  </div>
-</section>
-
-<section id="results">
-  <div class="container">
-    <h2 class="section-title">O'quvchilarimiz natijalari</h2>
-    <p class="section-sub">Ular erishdi — siz ham erishasiz</p>
-    <div class="test-grid">
-      <div class="test" data-reveal>
-        <div class="top"><div class="av">A</div><div><b>Asadbek T.</b><br><small style="color:var(--muted)">IELTS</small></div><div class="score">7.5</div></div>
-        <p>"Intellect Kokandda 4 oy o'qib IELTS 7.5 oldim. Ustozlarning individual yondashuvi natija berdi."</p>
-      </div>
-      <div class="test" data-reveal>
-        <div class="top"><div class="av">M</div><div><b>Madina R.</b><br><small style="color:var(--muted)">SAT</small></div><div class="score">1450</div></div>
-        <p>"SAT tayyorgarligi juda sifatli bo'ldi. Xohlagan universitetimga hujjat topshirdim."</p>
-      </div>
-      <div class="test" data-reveal>
-        <div class="top"><div class="av">J</div><div><b>Jasur K.</b><br><small style="color:var(--muted)">Matematika</small></div><div class="score">A+</div></div>
-        <p>"Matematikadan qiynalardim, endi darslarda birinchilardanman. Rahmat ustozlarga!"</p>
-      </div>
-    </div>
-  </div>
-</section>
-
-<section id="faq">
-  <div class="container">
-    <h2 class="section-title">Ko'p so'raladigan savollar</h2>
-    <p class="section-sub">Savollaringizga javob toping</p>
-    <div class="faq-wrap">
-      <div class="faq-item" data-reveal><div class="faq-q">Birinchi dars bepulmi?<span class="plus">+</span></div><div class="faq-a">Ha, birinchi tanishuv darsi mutlaqo bepul. Formani to'ldiring — biz siz bilan bog'lanamiz.</div></div>
-      <div class="faq-item" data-reveal><div class="faq-q">Qaysi fanlardan dars beryapsiz?<span class="plus">+</span></div><div class="faq-a">General English, IELTS, Multilevel, Matematika, SAT, Ona tili, Rus tili va Fizika.</div></div>
-      <div class="faq-item" data-reveal><div class="faq-q">Darajamni qanday aniqlayman?<span class="plus">+</span></div><div class="faq-a">Bepul darajani aniqlash testi o'tkazamiz va sizga eng mos kursni tavsiya qilamiz.</div></div>
-      <div class="faq-item" data-reveal><div class="faq-q">Kitoblar bilan ta'minlaysizmi?<span class="plus">+</span></div><div class="faq-a">Ha, kerakli o'quv materiallari bilan ta'minlaymiz.</div></div>
-      <div class="faq-item" data-reveal><div class="faq-q">Guruhlar qanchadan iborat?<span class="plus">+</span></div><div class="faq-a">Har bir o'quvchiga yetarli e'tibor berish uchun kichik guruhlar shakllantiramiz.</div></div>
-    </div>
-  </div>
-</section>
-
-<section id="contact">
-  <div class="container">
-    <div class="contact-grid">
-      <div class="contact-info">
-        <h3>Biz bilan bog'laning</h3>
-        <div class="row"><div class="ic">📞</div><div><b>Telefon</b><span>+998 90 344 44 34</span></div></div>
-        <div class="row"><div class="ic">📍</div><div><b>Manzil</b><span>Qo'qon shahri, Asqarali Charxiy ko'chasi, 5</span></div></div>
-        <div class="row"><div class="ic">🕐</div><div><b>Ish vaqti</b><span>Dushanba–Shanba, 8:00–20:00</span></div></div>
-        <div class="row"><div class="ic">📷</div><div><b>Ijtimoiy tarmoqlar</b><span>Instagram · Telegram</span></div></div>
-      </div>
-      <div class="cta-form">
-        <div id="formWrap">
-          <h3>Bepul darsga yoziling</h3>
-          <p>Ma'lumotlaringizni qoldiring — tez orada bog'lanamiz.</p>
-          <form id="leadForm" novalidate>
-            <input type="text" id="leadName" name="name" placeholder="Ismingiz" autocomplete="name" required>
-            <input type="tel" id="leadPhone" name="tel" placeholder="Telefon raqamingiz" inputmode="tel" autocomplete="tel" required>
-            <select id="leadSubject" name="subject" required>
-              <option value="">Yo'nalishni tanlang</option>
-              <option>General English</option>
-              <option>IELTS</option>
-              <option>Multilevel</option>
-              <option>Matematika</option>
-              <option>SAT</option>
-              <option>Ona tili</option>
-              <option>Rus tili</option>
-              <option>Fizika</option>
-            </select>
-            <button type="submit" class="btn btn-accent" id="leadSubmitBtn">Ariza qoldirish</button>
-            <div class="form-msg" id="leadFormMsg"></div>
-          </form>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
-
 <footer>
   <div class="container">
-    <div class="foot-grid">
-      <div>
-        <div class="logo"><span class="mark">🎓</span> Intellect Kokand</div>
-        <p>Qo'qon shahridagi zamonaviy ko'p yo'nalishli o'quv markazi. Sizning muvaffaqiyatingiz — bizning maqsadimiz.</p>
-      </div>
-      <div>
-        <h4>Menyu</h4>
-        <ul><li><a href="#about">Biz haqimizda</a></li><li><a href="#subjects">Fanlar</a></li><li><a href="#courses">Narxlar</a></li><li><a href="#faq">FAQ</a></li></ul>
-      </div>
-      <div>
-        <h4>Aloqa</h4>
-        <ul><li>📞 +998 90 344 44 34</li><li>📍 Qo'qon, Asqarali Charxiy 5</li><li>🕐 Dush–Shan, 8:00–20:00</li></ul>
-      </div>
+    <div class="foot-brand">
+      <div class="logo"><span class="mark" id="brandMarkFoot">🎓</span> <span id="brandNameFoot">Intellect Kokand</span></div>
+      <div class="foot-phone" id="footPhone">📞 +998 90 344 44 34</div>
     </div>
-    <div class="copyright">© 2026 Intellect Kokand. Barcha huquqlar himoyalangan.</div>
+    <div class="copyright">© 2026 <span id="brandNameCopy">Intellect Kokand</span>. Barcha huquqlar himoyalangan.</div>
   </div>
 </footer>
 
-<a href="tel:+998903444434" class="fab" title="Qo'ng'iroq qilish">📞</a>
+<a href="tel:+998903444434" class="fab" id="fabPhone" title="Qo'ng'iroq qilish">📞</a>
+
+<div class="modal-backdrop" id="modalBackdrop">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <button type="button" class="modal-close" id="modalClose" aria-label="Yopish">✕</button>
+    <div id="formWrap">
+      <h3 id="modalTitle">Bepul darsga yoziling</h3>
+      <p>Ma'lumotlaringizni qoldiring — tez orada bog'lanamiz.</p>
+      <form id="leadForm" novalidate>
+        <input type="text" id="leadName" name="name" placeholder="Ismingiz" autocomplete="name" required>
+        <input type="tel" id="leadPhone" name="tel" placeholder="Telefon raqamingiz" inputmode="tel" autocomplete="tel" required>
+        <select id="leadSubject" name="subject" required>
+          <option value="">Yo'nalishni tanlang</option>
+          <option>General English</option>
+          <option>IELTS</option>
+          <option>Multilevel</option>
+          <option>Matematika</option>
+          <option>SAT</option>
+          <option>Ona tili</option>
+          <option>Rus tili</option>
+          <option>Fizika</option>
+        </select>
+        <button type="submit" class="btn btn-accent" id="leadSubmitBtn">Ariza qoldirish</button>
+        <div class="form-msg" id="leadFormMsg"></div>
+      </form>
+    </div>
+  </div>
+</div>
 
 <script>
 (function(){
   'use strict';
 
-  var navLinks = document.getElementById('navLinks');
-  var menuToggle = document.getElementById('menuToggle');
+  var modalBackdrop = document.getElementById('modalBackdrop');
+  var modalClose = document.getElementById('modalClose');
+  var openTriggers = document.querySelectorAll('[data-open-modal]');
 
-  function closeMenu(){
-    navLinks.classList.remove('show');
-    menuToggle.setAttribute('aria-expanded', 'false');
+  function openModal(){
+    modalBackdrop.classList.add('show');
+    document.body.style.overflow = 'hidden';
   }
-  function openMenu(){
-    navLinks.classList.add('show');
-    menuToggle.setAttribute('aria-expanded', 'true');
+  function closeModal(){
+    modalBackdrop.classList.remove('show');
+    document.body.style.overflow = '';
   }
 
-  menuToggle.addEventListener('click', function(e){
-    e.stopPropagation();
-    if (navLinks.classList.contains('show')) closeMenu(); else openMenu();
+  openTriggers.forEach(function(btn){
+    btn.addEventListener('click', openModal);
   });
-
-  navLinks.querySelectorAll('a').forEach(function(a){
-    a.addEventListener('click', closeMenu);
+  modalClose.addEventListener('click', closeModal);
+  modalBackdrop.addEventListener('click', function(e){
+    if (e.target === modalBackdrop) closeModal();
   });
-
-  document.addEventListener('click', function(e){
-    if (!navLinks.classList.contains('show')) return;
-    if (navLinks.contains(e.target) || menuToggle.contains(e.target)) return;
-    closeMenu();
-  });
-
   document.addEventListener('keydown', function(e){
-    if (e.key === 'Escape') closeMenu();
+    if (e.key === 'Escape' && modalBackdrop.classList.contains('show')) closeModal();
   });
 
-  document.querySelectorAll('.faq-item').forEach(function(item){
-    var q = item.querySelector('.faq-q');
-    q.addEventListener('click', function(){
-      var wasOpen = item.classList.contains('open');
-      document.querySelectorAll('.faq-item.open').forEach(function(other){
-        other.classList.remove('open');
+  fetch('/api/public/brand').then(function(res){
+    if (!res.ok) return null;
+    return res.json();
+  }).then(function(brand){
+    if (!brand) return;
+    if (brand.logoUrl) {
+      var imgHtml = '<img src="' + brand.logoUrl + '" alt="logo">';
+      var mark = document.getElementById('brandMark');
+      var markFoot = document.getElementById('brandMarkFoot');
+      if (mark) mark.innerHTML = imgHtml;
+      if (markFoot) markFoot.innerHTML = imgHtml;
+    }
+    if (brand.name) {
+      ['brandName', 'brandNameFoot', 'brandNameCopy'].forEach(function(id){
+        var el = document.getElementById(id);
+        if (el) el.textContent = brand.name;
       });
-      if (!wasOpen) item.classList.add('open');
-    });
-  });
+    }
+    if (brand.phone) {
+      var footPhone = document.getElementById('footPhone');
+      if (footPhone) footPhone.textContent = '📞 ' + brand.phone;
+      var fab = document.getElementById('fabPhone');
+      if (fab) fab.setAttribute('href', 'tel:' + brand.phone.replace(/[^\d+]/g, ''));
+    }
+  }).catch(function(){});
 
   var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  function animateCount(el){
-    var target = parseInt(el.getAttribute('data-target'), 10) || 0;
-    var suffix = el.getAttribute('data-suffix') || '';
-    if (reduceMotion) {
-      el.textContent = target.toLocaleString('ru-RU').replace(/,/g, ' ') + suffix;
-      return;
-    }
-    var duration = 1200;
-    var start = null;
-    function step(ts){
-      if (start === null) start = ts;
-      var progress = Math.min((ts - start) / duration, 1);
-      var eased = 1 - Math.pow(1 - progress, 3);
-      var value = Math.round(target * eased);
-      el.textContent = value.toLocaleString('ru-RU').replace(/,/g, ' ') + suffix;
-      if (progress < 1) {
-        requestAnimationFrame(step);
-      } else {
-        el.textContent = target.toLocaleString('ru-RU').replace(/,/g, ' ') + suffix;
-      }
-    }
-    requestAnimationFrame(step);
-  }
-
-  if ('IntersectionObserver' in window) {
-    var statObserver = new IntersectionObserver(function(entries, observer){
-      entries.forEach(function(entry){
-        if (entry.isIntersecting) {
-          animateCount(entry.target);
-          observer.unobserve(entry.target);
-        }
-      });
-    }, { threshold: 0.4 });
-    document.querySelectorAll('.stat .num').forEach(function(num){
-      statObserver.observe(num);
-    });
-
+  if ('IntersectionObserver' in window && !reduceMotion) {
     var revealObserver = new IntersectionObserver(function(entries, observer){
       entries.forEach(function(entry){
         if (entry.isIntersecting) {
@@ -496,7 +255,6 @@
       revealObserver.observe(el);
     });
   } else {
-    document.querySelectorAll('.stat .num').forEach(animateCount);
     document.querySelectorAll('[data-reveal]').forEach(function(el){
       el.classList.add('in-view');
     });
