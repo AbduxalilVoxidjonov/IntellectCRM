@@ -64,7 +64,6 @@ export function TeacherGroupDetailPage() {
   const [grading, setGrading] = useState<GradingBoard | null>(null)
   const [reasons, setReasons] = useState<AbsenceReason[]>([])
   const [loading, setLoading] = useState(true)
-  const [gradingLoading, setGradingLoading] = useState(false)
   const [cell, setCell] = useState<{ studentId: string; studentName: string; date: string } | null>(null)
   const [saving, setSaving] = useState(false)
   /** Sarlavhadagi sana bosilganda — shu kun uchun hammaga davomat modali. */
@@ -106,11 +105,9 @@ export function TeacherGroupDetailPage() {
   const loadGrading = useCallback(
     (month?: string) => {
       if (!id) return
-      setGradingLoading(true)
       getTeacherGradingBoard(id, month)
         .then(setGrading)
         .catch(() => setGrading(null))
-        .finally(() => setGradingLoading(false))
     },
     [id],
   )
@@ -576,8 +573,8 @@ export function TeacherGroupDetailPage() {
             </Card>
           )}
 
-          {/* Reyting — o'quvchilarning o'rtacha bahosi va baholash statistikasi */}
-          {groupView === "reyting" && <RatingsTab grading={grading} journal={journal} loading={gradingLoading} />}
+          {/* Reyting — o'quvchilarning o'rtacha bahosi va baholash statistikasi (bir yoki bir nechta oy) */}
+          {groupView === "reyting" && <RatingsTab groupId={id} months={journal?.months ?? []} defaultMonth={journal?.month} />}
 
           {/* O'quv dasturi — yig'iladigan (default yopiq) */}
           <CurriculumSection
@@ -691,64 +688,188 @@ function Info({
   )
 }
 
-// ============================ Reyting bo'limi ============================
+// ============================ Reyting bo'limi (bir yoki bir nechta oy) ============================
 
-function RatingsTab({ grading, journal, loading }: { grading: GradingBoard | null; journal: GroupJournal | null; loading: boolean }) {
-  if (loading) {
-    return <Loader label="Reyting yuklanmoqda..." />
+/** Bitta oy uchun jurnal + baholash ma'lumoti — reyting yig'indisini hisoblash uchun. */
+interface RatingMonthData {
+  journal: GroupJournal
+  grading: GradingBoard | null
+}
+
+function RatingsTab({
+  groupId,
+  months,
+  defaultMonth,
+}: {
+  groupId: string
+  months: string[]
+  defaultMonth?: string
+}) {
+  const [selectedMonths, setSelectedMonths] = useState<string[]>(defaultMonth ? [defaultMonth] : [])
+  const [data, setData] = useState<RatingMonthData[]>([])
+  const [loading, setLoading] = useState(true)
+
+  // Oylar ro'yxati kelganda (yoki o'zgarganda) — hozirgi tanlov bekor bo'lsa, oxirgi oyni tanlaymiz.
+  useEffect(() => {
+    if (months.length === 0) return
+    setSelectedMonths((prev) => {
+      const valid = prev.filter((m) => months.includes(m))
+      if (valid.length > 0) return valid
+      return defaultMonth && months.includes(defaultMonth) ? [defaultMonth] : [months[months.length - 1]]
+    })
+    // defaultMonth faqat boshlang'ich tanlovni belgilaydi — keyingi o'zgarishlarda qayta ishlatilmaydi.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [months])
+
+  useEffect(() => {
+    if (!groupId || selectedMonths.length === 0) {
+      setData([])
+      setLoading(false)
+      return
+    }
+    let cancelled = false
+    setLoading(true)
+    Promise.all(
+      selectedMonths.map((m) =>
+        Promise.all([
+          getTeacherGroupJournal(groupId, m).catch(() => null),
+          getTeacherGradingBoard(groupId, m).catch(() => null),
+        ]),
+      ),
+    )
+      .then((results) => {
+        if (cancelled) return
+        const combined: RatingMonthData[] = results
+          .filter((r): r is [GroupJournal, GradingBoard | null] => r[0] != null)
+          .map(([journal, grading]) => ({ journal, grading }))
+        setData(combined)
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [groupId, selectedMonths])
+
+  const toggleMonth = (m: string) => {
+    setSelectedMonths((prev) => {
+      if (prev.includes(m)) {
+        // Kamida 1 oy tanlangan qoladi.
+        if (prev.length === 1) return prev
+        return prev.filter((x) => x !== m)
+      }
+      return [...prev, m].sort()
+    })
   }
 
-  if (!grading || grading.students.length === 0) {
+  const monthChips = months.length > 0 && (
+    <div className="flex flex-wrap gap-1.5">
+      {months.map((m) => (
+        <button
+          key={m}
+          type="button"
+          onClick={() => toggleMonth(m)}
+          title={monthLabel(m)}
+          className={cn(
+            "shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
+            selectedMonths.includes(m)
+              ? "bg-teal-600 text-white"
+              : "bg-panel3 text-mute hover:bg-tealsoft",
+          )}
+        >
+          {monthLabel(m)}
+        </button>
+      ))}
+    </div>
+  )
+
+  if (loading) {
     return (
-      <Card className="rounded-[20px] border border-line bg-white py-12 px-4 text-center text-faint shadow-[var(--shadow-card)]">
-        <TrendingUp className="mx-auto mb-3 h-8 w-8 opacity-40" />
-        <p>Baholash mezonlari topilmadi yoki o'quvchi yo'q.</p>
-      </Card>
+      <div className="space-y-4">
+        {monthChips}
+        <Loader label="Reyting yuklanmoqda..." />
+      </div>
     )
   }
 
-  // Jurnal baholarini hisoblash
-  const journalGradesByStudent = new Map<string, number>()
-  if (journal) {
-    const entryMap = new Map((journal.entries ?? []).map((e) => [`${e.studentId}|${e.date}`, e]))
-    for (const student of grading.students) {
+  // Baholash mezonlari bor bo'lgan birinchi oy — mezonlar ro'yxati doim guruh darajasida bir xil.
+  const criteria = data.find((d) => d.grading)?.grading?.criteria ?? []
+  const hasAnyStudents = data.some((d) => (d.grading?.students.length ?? 0) > 0 || d.journal.students.length > 0)
+
+  if (!hasAnyStudents) {
+    return (
+      <div className="space-y-4">
+        {monthChips}
+        <Card className="rounded-[20px] border border-line bg-white py-12 px-4 text-center text-faint shadow-[var(--shadow-card)]">
+          <TrendingUp className="mx-auto mb-3 h-8 w-8 opacity-40" />
+          <p>Baholash mezonlari topilmadi yoki o'quvchi yo'q.</p>
+        </Card>
+      </div>
+    )
+  }
+
+  // O'quvchilar ro'yxati — tanlangan oylardagi barcha (baholash yoki jurnal) o'quvchilarning birlashmasi.
+  const studentNameById = new Map<string, string>()
+  for (const d of data) {
+    for (const s of d.grading?.students ?? []) studentNameById.set(s.studentId, s.fullName)
+    for (const s of d.journal.students) if (!studentNameById.has(s.studentId)) studentNameById.set(s.studentId, s.fullName)
+  }
+
+  // Tanlangan OYLAR bo'yicha yig'indi: jurnal bahosi, bajarilgan mezonlar (jami va har mezon bo'yicha).
+  const journalTotalByStudent = new Map<string, number>()
+  const doneTotalByStudent = new Map<string, number>()
+  const doneByStudentCriterion = new Map<string, Map<string, number>>()
+  let totalDatesSum = 0
+
+  for (const d of data) {
+    const entryMap = new Map((d.journal.entries ?? []).map((e) => [`${e.studentId}|${e.date}`, e]))
+    for (const studentId of studentNameById.keys()) {
       let total = 0
-      for (const col of journal.columns) {
-        const e = entryMap.get(`${student.studentId}|${col.date}`)
+      for (const col of d.journal.columns) {
+        const e = entryMap.get(`${studentId}|${col.date}`)
         if (e?.grade) total += e.grade
       }
-      journalGradesByStudent.set(student.studentId, total)
+      if (total > 0) journalTotalByStudent.set(studentId, (journalTotalByStudent.get(studentId) ?? 0) + total)
+    }
+    if (d.grading) {
+      totalDatesSum += d.grading.dates.length
+      for (const s of d.grading.students) {
+        const doneKeys = new Set(s.doneKeys)
+        doneTotalByStudent.set(s.studentId, (doneTotalByStudent.get(s.studentId) ?? 0) + doneKeys.size)
+        let critMap = doneByStudentCriterion.get(s.studentId)
+        if (!critMap) {
+          critMap = new Map()
+          doneByStudentCriterion.set(s.studentId, critMap)
+        }
+        for (const key of doneKeys) {
+          const [critId] = key.split("|")
+          critMap.set(critId, (critMap.get(critId) ?? 0) + 1)
+        }
+      }
     }
   }
 
-  // Har o'quvchi uchun baholash statistikasini hisoblash + jurnal bahosi
-  const studentStats = grading.students.map((student) => {
-    const doneKeys = new Set(student.doneKeys)
-    const criteria = grading.criteria.length
-    const totalPossible = grading.dates.length * criteria
-    const done = doneKeys.size
-    const percentage = totalPossible > 0 ? Math.round((done / totalPossible) * 100) : 0
+  const totalPossible = totalDatesSum * criteria.length
 
-    // Har mezon bo'yicha necha darsda bajardi hisoblash
-    const criteriaStats = grading.criteria.map((crit) => {
-      let count = 0
-      for (const key of doneKeys) {
-        const [critId] = key.split("|")
-        if (critId === crit.id) count++
-      }
-      return { criterion: crit, done: count, total: grading.dates.length }
+  // Har o'quvchi uchun kombindan reyting = jurnal bahosi yig'indisi + bajarilgan mezonlar yig'indisi.
+  const studentStats = Array.from(studentNameById.entries())
+    .map(([studentId, fullName]) => {
+      const journalTotal = journalTotalByStudent.get(studentId) ?? 0
+      const done = doneTotalByStudent.get(studentId) ?? 0
+      const percentage = totalPossible > 0 ? Math.round((done / totalPossible) * 100) : 0
+      const criteriaStats = criteria.map((crit) => ({
+        criterion: crit,
+        done: doneByStudentCriterion.get(studentId)?.get(crit.id) ?? 0,
+        total: totalDatesSum,
+      }))
+      const combinedRating = journalTotal + done
+      return { studentId, fullName, journalTotal, done, totalPossible, percentage, criteriaStats, combinedRating }
     })
-
-    // Kombindan reyting = jurnal baho + baholash mezonlari yig'indisi
-    const journalTotal = journalGradesByStudent.get(student.studentId) ?? 0
-    const combinedRating = journalTotal + done
-
-    return { student, done, totalPossible, percentage, criteriaStats, journalTotal, combinedRating }
-  })
-    // Kombindan reyting bo'yicha saralash
+    // Kombindan reyting bo'yicha saralash (katta → kichik)
     .sort((a, b) => b.combinedRating - a.combinedRating)
 
-  // O'rtacha bahoni hisoblash
+  // O'rtacha foizni hisoblash
   const avgPercentage =
     studentStats.length > 0
       ? Math.round(studentStats.reduce((s, st) => s + st.percentage, 0) / studentStats.length)
@@ -756,6 +877,8 @@ function RatingsTab({ grading, journal, loading }: { grading: GradingBoard | nul
 
   return (
     <div className="space-y-4">
+      {monthChips}
+
       {/* KPI kartalar */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <RatingKpi label="O'rtacha" value={`${avgPercentage}%`} icon={TrendingUp} />
@@ -794,7 +917,7 @@ function RatingsTab({ grading, journal, loading }: { grading: GradingBoard | nul
                 <th className="border-b border-line px-3 py-3 text-center text-xs font-semibold uppercase text-mute">
                   Jami
                 </th>
-                {grading.criteria.slice(0, 3).map((crit) => (
+                {criteria.slice(0, 3).map((crit) => (
                   <th
                     key={crit.id}
                     className="border-b border-line px-3 py-3 text-center text-xs font-semibold uppercase text-mute"
@@ -807,9 +930,9 @@ function RatingsTab({ grading, journal, loading }: { grading: GradingBoard | nul
             </thead>
             <tbody>
               {studentStats.map((stat) => (
-                <tr key={stat.student.studentId} className="border-b border-line-soft hover:bg-panel2">
+                <tr key={stat.studentId} className="border-b border-line-soft hover:bg-panel2">
                   <td className="px-4 py-3 text-sm font-medium text-ink">
-                    {stat.student.fullName}
+                    {stat.fullName}
                   </td>
                   <td className="px-3 py-3 text-center text-sm font-semibold text-ink">
                     <span className="font-mono">{stat.journalTotal}</span>
@@ -840,22 +963,15 @@ function RatingsTab({ grading, journal, loading }: { grading: GradingBoard | nul
       </Card>
 
       {/* Mezonlar bo'yicha detallar (agar ko'p bo'lsa) */}
-      {grading.criteria.length > 3 && (
+      {criteria.length > 3 && (
         <Card className="rounded-[20px] border border-line bg-white p-4 shadow-[var(--shadow-card)]">
           <h3 className="mb-4 font-semibold text-ink">Mezonlar bo'yicha tahlil</h3>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            {grading.criteria.map((crit) => {
+            {criteria.map((crit) => {
               let totalDone = 0
-              for (const student of grading.students) {
-                for (const key of student.doneKeys) {
-                  const [critId] = key.split("|")
-                  if (critId === crit.id) totalDone++
-                }
-              }
-              const pct =
-                grading.students.length * grading.dates.length > 0
-                  ? Math.round((totalDone / (grading.students.length * grading.dates.length)) * 100)
-                  : 0
+              for (const critMap of doneByStudentCriterion.values()) totalDone += critMap.get(crit.id) ?? 0
+              const denom = studentStats.length * totalDatesSum
+              const pct = denom > 0 ? Math.round((totalDone / denom) * 100) : 0
               return (
                 <div key={crit.id} className="rounded-lg bg-panel2 p-3">
                   <p className="mb-2 text-sm font-semibold text-ink">{crit.name}</p>
@@ -872,7 +988,7 @@ function RatingsTab({ grading, journal, loading }: { grading: GradingBoard | nul
                   </div>
                   <p className="mt-1 text-xs text-faint">
                     <span className="font-mono font-semibold">{totalDone}</span> /{" "}
-                    {grading.students.length * grading.dates.length}
+                    {denom}
                   </p>
                 </div>
               )
