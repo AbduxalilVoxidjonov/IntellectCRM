@@ -24,7 +24,7 @@ namespace IntellectCRM.Server.Controllers;
 [Route("api/student")]
 public class StudentPortalController(
     AppDbContext db, ChatService chat, IWebHostEnvironment env, ReferenceCache refCache,
-    TelegramService telegram, IConfiguration config) : ControllerBase
+    TelegramService telegram, IConfiguration config, DataCache dataCache) : ControllerBase
 {
 
     /// <summary>
@@ -47,13 +47,17 @@ public class StudentPortalController(
         {
             var user = await db.Users.FindAsync(uid);
             if (user is null) return null;
-            var phone = NormalizePhone(user.Email);
+            // Telefonlar bazaga HAR DOIM PhoneUtil.Normalize orqali yoziladi (StudentsController
+            // Create/Update va CSV import — barcha yozuv yo'llari kanonik "+998-XX-XXX-XX-XX" formatda
+            // saqlaydi; Normalize idempotent). Shu sababli kiruvchi login-telefonni bir marta Normalize
+            // qilib DB TOMONDA taqqoslash mumkin — butun jadvalni xotiraga yuklamaymiz.
+            var norm = PhoneUtil.Normalize(user.Email);
+            if (string.IsNullOrEmpty(norm)) return null;
             // Ota ham, ona ham kira oladi — ASOSIY/ota/ona telefonidan birortasi mos kelsa yetarli.
-            var children = (await db.Students.Where(s => !s.IsArchived).ToListAsync())
-                .Where(s => NormalizePhone(s.ParentPhone) == phone
-                            || NormalizePhone(s.FatherPhone) == phone
-                            || NormalizePhone(s.MotherPhone) == phone)
-                .ToList();
+            var children = await db.Students.AsNoTracking()
+                .Where(s => !s.IsArchived
+                            && (s.ParentPhone == norm || s.FatherPhone == norm || s.MotherPhone == norm))
+                .ToListAsync();
             // studentId berilsa — SHU farzand (FAQAT o'ziniki bo'lsa; egalik tekshiruvi). Aks holda birinchi farzand.
             return string.IsNullOrWhiteSpace(studentId)
                 ? children.FirstOrDefault()
@@ -62,10 +66,6 @@ public class StudentPortalController(
 
         return await db.Students.FirstOrDefaultAsync(s => s.UserId == uid);
     }
-
-    /// <summary>Telefon raqamidan faqat raqamlarni qoldiradi (taqqoslash uchun).</summary>
-    private static string NormalizePhone(string? p) =>
-        new string((p ?? "").Where(char.IsDigit).ToArray());
 
     /// <summary>
     /// Mutatsiya (yozish) amallari uchun — FAQAT student rolida; admin impersonate qila olmaydi.
@@ -297,8 +297,18 @@ public class StudentPortalController(
         var s = await TargetAsync(studentId);
         if (s is null) return NotFound();
 
-        // O'rtacha baho bo'yicha kamayish tartibida — adminnikidek (index = o'rin).
-        var school = (await RatingService.SchoolAsync(db))
+        // O'rtacha baho bo'yicha kamayish tartibida — adminnikidek (index = o'rin). Butun maktab reytingi
+        // admin endpointi bilan BIR xil kesh kalitidan ("rating:school") o'qiladi — bog'liq jadval o'zgarsa
+        // interceptor uni avtomatik yangilaydi.
+        var school = (await dataCache.GetOrCreateAsync(
+                "rating:school",
+                new[]
+                {
+                    nameof(JournalEntry), nameof(LessonNote), nameof(Student),
+                    nameof(StudentGroup), nameof(Group), nameof(AbsenceReason),
+                },
+                TimeSpan.FromMinutes(15),
+                db2 => RatingService.SchoolAsync(db2)))
             .OrderByDescending(r => r.Average)
             .ToList();
 

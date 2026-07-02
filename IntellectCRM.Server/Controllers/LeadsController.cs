@@ -17,22 +17,26 @@ public class LeadsController(AppDbContext db, AuditService audit, TelegramServic
     [HttpGet]
     public async Task<ActionResult<IEnumerable<LeadWithAttendanceDto>>> GetAll()
     {
-        var leads = await db.Leads.ToListAsync();
-        var result = new List<LeadWithAttendanceDto>();
+        var leads = await db.Leads.AsNoTracking().ToListAsync();
 
-        foreach (var lead in leads)
-        {
-            var attendance = await GetFirstLessonAttendanceAsync(lead);
-            result.Add(new LeadWithAttendanceDto(
-                lead.Id, lead.FullName, lead.Gender, lead.BirthDate, lead.Phone,
-                lead.FatherFullName, lead.FatherPhone, lead.MotherFullName,
-                lead.MotherPhone, lead.Note, lead.Stage, lead.Source,
-                lead.InterestSubject, lead.CreatedAt, lead.ConvertedStudentId,
-                attendance
-            ));
-        }
+        // Ilgari HAR lid uchun GetFirstLessonAttendanceAsync 3 tagacha alohida so'rov qilardi
+        // (500 lid = ~1500 so'rov). Endi barcha konvertilgan o'quvchilar uchun davomat holati
+        // bir necha TO'PLAMLI so'rovda hisoblanadi (semantikasi AYNAN saqlangan).
+        var studentIds = leads
+            .Where(l => !string.IsNullOrWhiteSpace(l.ConvertedStudentId))
+            .Select(l => l.ConvertedStudentId!)
+            .Distinct().ToList();
+        var attendanceByStudent = await ComputeFirstLessonAttendanceAsync(studentIds);
 
-        return result;
+        return leads.Select(lead => new LeadWithAttendanceDto(
+            lead.Id, lead.FullName, lead.Gender, lead.BirthDate, lead.Phone,
+            lead.FatherFullName, lead.FatherPhone, lead.MotherFullName,
+            lead.MotherPhone, lead.Note, lead.Stage, lead.Source,
+            lead.InterestSubject, lead.CreatedAt, lead.ConvertedStudentId,
+            string.IsNullOrWhiteSpace(lead.ConvertedStudentId)
+                ? "no-lesson"
+                : attendanceByStudent.GetValueOrDefault(lead.ConvertedStudentId, "no-lesson")
+        )).ToList();
     }
 
     [HttpPost]
@@ -307,8 +311,8 @@ public class LeadsController(AppDbContext db, AuditService audit, TelegramServic
     [HttpGet("stats")]
     public async Task<ActionResult<CrmStatsDto>> Stats()
     {
-        var leads = await db.Leads.ToListAsync();
-        var stages = await db.LeadStages.ToListAsync();
+        var leads = await db.Leads.AsNoTracking().ToListAsync();
+        var stages = await db.LeadStages.AsNoTracking().ToListAsync();
         var stageTitle = stages.ToDictionary(s => s.Id, s => s.Title);
 
         var total = leads.Count;
@@ -333,57 +337,84 @@ public class LeadsController(AppDbContext db, AuditService audit, TelegramServic
     // ---------- Yordamchilar ----------
 
     /// <summary>
-    /// Konvertilgan o'quvchining birinchi dars davomat holatini aniqlash.
-    /// 1. Lid ConvertedStudentId bo'lmasa: "no-lesson" (hali o'quvchi emas)
-    /// 2. O'quvchining faol guruhlari va birinchi o'tilgan darsni topish
-    /// 3. JournalEntry'da shu dars uchun o'quvchining yozuvi bor/yo'qligini tekshirish
-    /// 4. Grade/ReasonId orqali davomat holatini aniqlash: bo'sh = attended, ReasonId = absent
+    /// Konvertilgan o'quvchilarning birinchi dars davomat holatini TO'PLAMLI hisoblaydi
+    /// (avvalgi HAR lid uchun 3 ta so'rov o'rniga jami 4 ta so'rov). Natija: studentId →
+    /// "attended" | "absent". Ro'yxatda BO'LMAGAN o'quvchi = "no-lesson" (default).
+    /// Semantikasi eski har-lidli mantiq bilan AYNAN bir xil:
+    /// 1. O'quvchi mavjud bo'lmasa → "no-lesson"
+    /// 2. FAOL (IsActive && Status=="active") guruh(lar)i bo'lmasa → "no-lesson"
+    /// 3. Shu guruhlarda o'tilgan (Conducted) birinchi dars (Date, keyin Period) bo'lmasa → "no-lesson"
+    /// 4. Shu dars uchun JournalEntry yo'q → "no-lesson"; ReasonId to'la → "absent"; bo'sh → "attended".
     /// </summary>
-    private async Task<string> GetFirstLessonAttendanceAsync(Lead lead)
+    private async Task<Dictionary<string, string>> ComputeFirstLessonAttendanceAsync(List<string> studentIds)
     {
-        if (string.IsNullOrWhiteSpace(lead.ConvertedStudentId))
-            return "no-lesson";
+        var result = new Dictionary<string, string>();
+        if (studentIds.Count == 0) return result;
 
-        var student = await db.Students.FirstOrDefaultAsync(s => s.Id == lead.ConvertedStudentId);
-        if (student is null)
-            return "no-lesson";
+        // 1) Mavjud o'quvchilar (ConvertedStudentId o'chirilgan o'quvchiga ishora qilishi mumkin).
+        var existing = (await db.Students.AsNoTracking()
+            .Where(s => studentIds.Contains(s.Id)).Select(s => s.Id).ToListAsync()).ToHashSet();
 
-        // O'quvchining faol guruhlari
-        var studentGroupIds = await db.StudentGroups
-            .Where(sg => sg.StudentId == student.Id && sg.IsActive && sg.Status == "active")
-            .Select(sg => sg.GroupId)
+        // 2) Har o'quvchining FAOL (active) guruhlari.
+        var sgRows = await db.StudentGroups.AsNoTracking()
+            .Where(sg => studentIds.Contains(sg.StudentId) && sg.IsActive && sg.Status == "active")
+            .Select(sg => new { sg.StudentId, sg.GroupId })
             .ToListAsync();
+        var groupsByStudent = sgRows
+            .GroupBy(x => x.StudentId)
+            .ToDictionary(g => g.Key, g => g.Select(x => x.GroupId).ToHashSet());
 
-        if (studentGroupIds.Count == 0)
-            return "no-lesson";
+        // 3) Shu guruhlardagi o'tilgan (Conducted) darslar.
+        var allGroupIds = sgRows.Select(x => x.GroupId).Distinct().ToList();
+        var notes = allGroupIds.Count == 0
+            ? new List<(string ClassId, string SubjectId, string Date, int Period)>()
+            : (await db.LessonNotes.AsNoTracking()
+                    .Where(n => allGroupIds.Contains(n.ClassId) && n.Conducted)
+                    .Select(n => new { n.ClassId, n.SubjectId, n.Date, n.Period })
+                    .ToListAsync())
+                .Select(n => (n.ClassId, n.SubjectId, n.Date, n.Period)).ToList();
+        var notesByGroup = notes.GroupBy(n => n.ClassId)
+            .ToDictionary(g => g.Key, g => g.ToList());
 
-        // Birinchi o'tilgan darsni topish (LessonNote: Conducted=true)
-        var firstLesson = await db.LessonNotes
-            .Where(ln => studentGroupIds.Contains(ln.ClassId) && ln.Conducted)
-            .OrderBy(ln => ln.Date)
-            .ThenBy(ln => ln.Period)
-            .FirstOrDefaultAsync();
+        // 4) Har o'quvchi uchun BIRINCHI dars (Date, keyin Period bo'yicha) — sanalar "yyyy-MM-dd"
+        //    (ISO) formatda, shu sabab ordinal solishtirish = xronologik tartib (DB OrderBy bilan bir xil).
+        var firstLessons = new Dictionary<string, (string ClassId, string SubjectId, string Date, int Period)>();
+        foreach (var sid in existing)
+        {
+            if (!groupsByStudent.TryGetValue(sid, out var gids) || gids.Count == 0) continue;
+            (string ClassId, string SubjectId, string Date, int Period)? first = null;
+            foreach (var gid in gids)
+            {
+                if (!notesByGroup.TryGetValue(gid, out var list)) continue;
+                foreach (var n in list)
+                {
+                    if (first is null
+                        || string.CompareOrdinal(n.Date, first.Value.Date) < 0
+                        || (n.Date == first.Value.Date && n.Period < first.Value.Period))
+                        first = n;
+                }
+            }
+            if (first is not null) firstLessons[sid] = first.Value;
+        }
+        if (firstLessons.Count == 0) return result;
 
-        if (firstLesson is null)
-            return "no-lesson";
+        // 5) Shu birinchi darslar uchun jurnal yozuvlari (faqat aloqador o'quvchilar bo'yicha).
+        var involved = firstLessons.Keys.ToList();
+        var journalMap = new Dictionary<(string, string, string, string, int), string?>();
+        var jRows = await db.JournalEntries.AsNoTracking()
+            .Where(je => involved.Contains(je.StudentId))
+            .Select(je => new { je.StudentId, je.ClassId, je.SubjectId, je.Date, je.Period, je.ReasonId })
+            .ToListAsync();
+        foreach (var je in jRows)
+            journalMap[(je.StudentId, je.ClassId, je.SubjectId, je.Date, je.Period)] = je.ReasonId;
 
-        // Shu dars uchun o'quvchining JournalEntry yozuvini topish
-        var journalEntry = await db.JournalEntries
-            .FirstOrDefaultAsync(je => je.ClassId == firstLesson.ClassId
-                && je.SubjectId == firstLesson.SubjectId
-                && je.StudentId == student.Id
-                && je.Date == firstLesson.Date
-                && je.Period == firstLesson.Period);
-
-        if (journalEntry is null)
-            return "no-lesson";
-
-        // Agar ReasonId to'ldirilgan bo'lsa — kelmadi (absent)
-        if (!string.IsNullOrWhiteSpace(journalEntry.ReasonId))
-            return "absent";
-
-        // Agar ReasonId bo'sh bo'lsa — keldi (attended)
-        return "attended";
+        foreach (var (sid, fl) in firstLessons)
+        {
+            if (journalMap.TryGetValue((sid, fl.ClassId, fl.SubjectId, fl.Date, fl.Period), out var reasonId))
+                result[sid] = string.IsNullOrWhiteSpace(reasonId) ? "attended" : "absent";
+            // topilmasa result'ga qo'shilmaydi → default "no-lesson".
+        }
+        return result;
     }
 
     private static string Now() => AppClock.Now.ToString("yyyy-MM-ddTHH:mm:ss");

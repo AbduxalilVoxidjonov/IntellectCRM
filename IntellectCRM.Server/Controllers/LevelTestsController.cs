@@ -18,8 +18,9 @@ public class LevelTestsController(AppDbContext db) : ControllerBase
     [HttpGet]
     public async Task<ActionResult<IEnumerable<LevelTestListDto>>> GetAll()
     {
-        var tests = await db.LevelTests.ToListAsync();
-        var subjects = await db.Subjects.ToDictionaryAsync(s => s.Id, s => s.Name);
+        var tests = await db.LevelTests.AsNoTracking().ToListAsync();
+        var subjects = await db.Subjects.AsNoTracking().ToDictionaryAsync(s => s.Id, s => s.Name);
+        // Savol/topshiruv sonlari DB tomonda agregatsiya qilinadi (butun jadval yuklanmaydi).
         var qCounts = (await db.LevelTestQuestions.GroupBy(q => q.TestId)
                 .Select(g => new { g.Key, C = g.Count() }).ToListAsync())
             .ToDictionary(x => x.Key, x => x.C);
@@ -99,10 +100,10 @@ public class LevelTestsController(AppDbContext db) : ControllerBase
     [HttpGet("{id}/invites")]
     public async Task<ActionResult<IEnumerable<LevelTestInviteDto>>> Invites(string id)
     {
-        var invites = await db.LevelTestInvites.Where(i => i.TestId == id)
+        var invites = await db.LevelTestInvites.AsNoTracking().Where(i => i.TestId == id)
             .OrderByDescending(i => i.CreatedAt).ToListAsync();
         var leadIds = invites.Select(i => i.LeadId).Distinct().ToList();
-        var leads = (await db.Leads.Where(l => leadIds.Contains(l.Id)).ToListAsync())
+        var leads = (await db.Leads.AsNoTracking().Where(l => leadIds.Contains(l.Id)).ToListAsync())
             .ToDictionary(l => l.Id, l => l);
         return invites.Select(i =>
         {
@@ -117,9 +118,11 @@ public class LevelTestsController(AppDbContext db) : ControllerBase
     [HttpGet("overall-stats")]
     public async Task<ActionResult<LevelTestOverallStatsDto>> OverallStats()
     {
-        var tests = await db.LevelTests.ToListAsync();
-        var subs = await db.LevelTestSubmissions.OrderByDescending(s => s.CreatedAt).ToListAsync();
-        var invites = await db.LevelTestInvites.ToListAsync();
+        // Bu endpoint har topshiruvchi bo'yicha qator ishlab chiqaradi (statRows), shu sabab
+        // topshiruvlar to'liq yuklanadi — lekin faqat-o'qish (AsNoTracking).
+        var tests = await db.LevelTests.AsNoTracking().ToListAsync();
+        var subs = await db.LevelTestSubmissions.AsNoTracking().OrderByDescending(s => s.CreatedAt).ToListAsync();
+        var invites = await db.LevelTestInvites.AsNoTracking().ToListAsync();
 
         var byLevel = subs.GroupBy(s => string.IsNullOrEmpty(s.Level) ? "—" : s.Level)
             .Select(g => new LevelCountDto(g.Key, g.Count()))
@@ -158,7 +161,7 @@ public class LevelTestsController(AppDbContext db) : ControllerBase
     [HttpGet("{id}/submissions")]
     public async Task<ActionResult<IEnumerable<LevelTestSubmissionDto>>> Submissions(string id)
     {
-        var subs = await db.LevelTestSubmissions.Where(s => s.TestId == id)
+        var subs = await db.LevelTestSubmissions.AsNoTracking().Where(s => s.TestId == id)
             .OrderByDescending(s => s.CreatedAt).ToListAsync();
         return subs.Select(s => new LevelTestSubmissionDto(
             s.Id, s.FullName, s.Phone, s.Age, s.Score, s.Total, s.Percent, s.Level, s.CreatedAt, s.LeadId,
@@ -178,7 +181,7 @@ public class LevelTestsController(AppDbContext db) : ControllerBase
     [HttpGet("{id}/stats")]
     public async Task<ActionResult<LevelTestStatsDto>> Stats(string id)
     {
-        var subs = await db.LevelTestSubmissions.Where(s => s.TestId == id)
+        var subs = await db.LevelTestSubmissions.AsNoTracking().Where(s => s.TestId == id)
             .OrderByDescending(s => s.CreatedAt).ToListAsync();
         var rows = await LevelTestService.BuildStatRowsAsync(db, subs);
         return new LevelTestStatsDto(rows.Count, rows.Count(r => r.Active), rows);

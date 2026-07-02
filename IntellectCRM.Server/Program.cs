@@ -29,7 +29,7 @@ var defaultConn = builder.Configuration.GetConnectionString("Default")
 // ---------- Xizmatlar ----------
 // PostgreSQL (Npgsql). Connection string `ConnectionStrings:Default` orqali beriladi
 // (dev: appsettings.json, prod: muhit o'zgaruvchisi). 1GB RAM serverga ham sig'adi.
-builder.Services.AddDbContext<AppDbContext>(opt =>
+builder.Services.AddDbContext<AppDbContext>((sp, opt) =>
     opt.UseNpgsql(defaultConn,
             npg =>
             {
@@ -40,7 +40,10 @@ builder.Services.AddDbContext<AppDbContext>(opt =>
                     errorCodesToAdd: null);
                 // Ko'p kolleksiyali Include'larni alohida so'rovlarga ajratadi — kartezian portlashning oldini oladi.
                 npg.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery);
-            }));
+            })
+        // Kesh invalidatsiya interceptor'i — har SaveChanges'dan keyin o'zgargan entity turlari
+        // versiyasini oshiradi (DataCache), bog'liq keshni avtomatik eskirtiradi.
+        .AddInterceptors(sp.GetRequiredService<CacheInvalidationInterceptor>()));
 
 // Application qatlamidagi xizmatlar konkret AppDbContext o'rniga IAppDbContext'ga
 // bog'lanadi — uni o'sha scoped AppDbContext instansiyasiga ulaymiz.
@@ -49,6 +52,10 @@ builder.Services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbConte
 // Kam o'zgaradigan ma'lumotlar (meta, fan/o'qituvchi nomlari) uchun qisqa-TTL kesh.
 builder.Services.AddMemoryCache();
 builder.Services.AddSingleton<ReferenceCache>();
+// "Ma'lumot o'zgarganda avtomatik yangilanadigan" versiyali kesh + uni oshiruvchi interceptor.
+// Ikkalasi ham Singleton (versiyalar butun ilova bo'ylab yagona; interceptor holatsiz).
+builder.Services.AddSingleton<DataCache>();
+builder.Services.AddSingleton<CacheInvalidationInterceptor>();
 
 // DataProtection kalitlarini DOIMIY volume'ga saqlaymiz. Aks holda kalitlar konteyner ichida
 // (/root/.aspnet) turadi va HAR deploy'da yo'qoladi — natijada eski tokenlar/shifrlangan
