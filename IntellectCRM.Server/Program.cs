@@ -152,12 +152,25 @@ builder.Services.AddAuthorization();
 
 // Login endpoint uchun rate-limit — parol brute-force / credential-stuffing'ni sekinlashtiradi
 // (IP bo'yicha daqiqada 10 urinish). Oshib ketsa 429 qaytadi.
+// DIQQAT: Cloudflare tunnel ortida RemoteIpAddress BARCHA tashrifchilar uchun bitta (cloudflared
+// konteyneri IP'si) — partitsiya shu bo'yicha bo'lsa limit hammaga UMUMIY bo'lib qoladi (bitta
+// odam limitni tugatsa hamma 429 oladi). Shuning uchun haqiqiy IP CF-Connecting-IP (Cloudflare
+// har doim qo'yadi) yoki X-Forwarded-For'dan olinadi; to'g'ridan ulanishda RemoteIpAddress.
+static string ClientIp(HttpContext ctx)
+{
+    var cf = ctx.Request.Headers["CF-Connecting-IP"].ToString();
+    if (!string.IsNullOrWhiteSpace(cf)) return cf.Trim();
+    var xff = ctx.Request.Headers["X-Forwarded-For"].ToString();
+    if (!string.IsNullOrWhiteSpace(xff)) return xff.Split(',')[0].Trim();
+    return ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+}
+
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
     options.AddPolicy("login", httpContext =>
         System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
-            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            partitionKey: ClientIp(httpContext),
             factory: _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
             {
                 PermitLimit = 10,
@@ -168,7 +181,7 @@ builder.Services.AddRateLimiter(options =>
     // spam/bot flood'ni sekinlashtiradi (IP bo'yicha daqiqada 5 ta so'rov).
     options.AddPolicy("public-lead", httpContext =>
         System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
-            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            partitionKey: ClientIp(httpContext),
             factory: _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
             {
                 PermitLimit = 5,
