@@ -32,6 +32,10 @@ public class AuthController(AppDbContext db, JwtTokenService jwt, ILogger<AuthCo
         if (await IsBlockedAsync(user))
             return Unauthorized(new { message = "Akkaunt arxivlangan yoki to'xtatilgan" });
 
+        // Admin o'quvchi login'ini vaqtincha cheklagan bo'lsa — farqli xabar bilan rad etamiz.
+        if (user.Role == Roles.Student && await db.Students.AnyAsync(s => s.UserId == user.Id && s.LoginBlocked))
+            return Unauthorized(new { message = "Sizning hisobingiz hali aktiv emas. Administratorga murojaat qiling." });
+
         // Login kuzatuvi: birinchi marta kirayotgan bo'lsa FirstLoginAt ham, har safar LastLoginAt yoziladi.
         var now = AppClock.Now.ToString("yyyy-MM-ddTHH:mm:ss");
         if (string.IsNullOrEmpty(user.FirstLoginAt)) user.FirstLoginAt = now;

@@ -255,6 +255,8 @@ public class Student
     /// lekin tarixiy ma'lumotlari (jurnal, davomat, to'lovlar) saqlanadi.
     /// </summary>
     public bool IsArchived { get; set; }
+    /// <summary>Admin o'quvchi login'ini vaqtincha cheklagan — kira olmaydi, 'hali aktiv emas' xabari.</summary>
+    public bool LoginBlocked { get; set; }
     /// <summary>Arxivga ko'chirilgan sana (ISO "YYYY-MM-DD").</summary>
     public string? ArchivedAt { get; set; }
     /// <summary>Arxivga ko'chirish sababi (admin kiritadi: "boshqa maktabga ketdi", ...).</summary>

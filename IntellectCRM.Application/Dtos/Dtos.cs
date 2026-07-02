@@ -384,10 +384,14 @@ public record StudentDto(
     string? BirthCertificateUrl = null,
     string ParentLastName = "", string ParentFirstName = "", string ParentMiddleName = "",
     string? ParentPassportUrl = null,
-    bool IsArchived = false, string? ArchivedAt = null, string? ArchiveReason = null);
+    bool IsArchived = false, string? ArchivedAt = null, string? ArchiveReason = null,
+    bool LoginBlocked = false);
 
 /// <summary>O'quvchini arxivlash so'rovi — sababini saqlaydi (ReasonId yo'ki Reason).</summary>
 public record ArchiveStudentRequest(string? Reason = null, string? ReasonId = null);
+
+/// <summary>Admin o'quvchi login'ini vaqtincha cheklaydi/qayta ochadi.</summary>
+public record StudentLoginBlockRequest(bool Blocked);
 
 /* ---------- Intizomiy ball ---------- */
 /// <summary>

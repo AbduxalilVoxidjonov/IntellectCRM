@@ -75,5 +75,6 @@ public static class RatingService
 
     private static StudentDto Map(Student s) => new(
         s.Id, s.FullName, s.BirthDate, s.Address, s.Gender,
-        s.ParentFullName, s.ParentPhone, s.ClassName, s.EnrollmentDate, s.Balance);
+        s.ParentFullName, s.ParentPhone, s.ClassName, s.EnrollmentDate, s.Balance,
+        LoginBlocked: s.LoginBlocked);
 }

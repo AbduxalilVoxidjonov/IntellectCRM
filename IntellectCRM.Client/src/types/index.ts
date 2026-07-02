@@ -317,6 +317,8 @@ export interface Student {
   groups?: string[]
   /** Kursda aktiv — kamida bitta a'zoligi "active" (sinov/muzlatilgan/guruhsiz emas) */
   active?: boolean
+  /** Login/parol orqali tizimga kirish admin tomonidan cheklanganmi */
+  loginBlocked?: boolean
   /** Maktabga kelgan (qabul) sanasi (ISO) — oylik to'lov shu oydan boshlanadi */
   enrollmentDate: string
   /** Balans (so'm): manfiy = qarzdor, 0 = qarzsiz, musbat = avans */

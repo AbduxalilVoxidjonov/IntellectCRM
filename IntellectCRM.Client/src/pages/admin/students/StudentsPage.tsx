@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { StudentViewModal } from './StudentViewModal'
-import { Plus, Search, Pencil, Trash2, Send, Download, X, Wallet, History, Archive, RotateCcw, FileDown, Upload, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, Send, Download, X, Wallet, History, Archive, RotateCcw, FileDown, Upload, ChevronLeft, ChevronRight, Lock, LockOpen } from 'lucide-react'
 import type { Gender, Student, Teacher } from '@/types'
 import type { StudentPayload, StudentImportResult } from '@/api/services/students'
 import {
@@ -16,6 +16,7 @@ import {
   downloadStudentCredentials,
   downloadStudentImportTemplate,
   importStudents,
+  setStudentLoginBlock,
 } from '@/api/services/students'
 import { getClasses } from '@/api/services/classes'
 import { getTeachers } from '@/api/services/teachers'
@@ -363,6 +364,22 @@ export function StudentsPage() {
       .catch((e) => alert(e?.response?.data?.message ?? "Arxivlashda xatolik"))
       .finally(() => setArchivingSelected(false))
   }
+  /** Login'ni cheklash/ochish — tasdiq bilan. */
+  const handleToggleLoginBlock = (s: Student) => {
+    const nextBlocked = !s.loginBlocked
+    const msg = nextBlocked
+      ? `"${s.fullName}" tizimga kira olmaydi. Login cheklansinmi?`
+      : `"${s.fullName}" uchun login cheklovi olib tashlansinmi?`
+    if (!confirm(msg)) return
+    setStudentLoginBlock(s.id, nextBlocked)
+      .then(() => {
+        setStudents((prev) =>
+          prev.map((x) => (x.id === s.id ? { ...x, loginBlocked: nextBlocked } : x)),
+        )
+      })
+      .catch((e) => alert(e?.response?.data?.message ?? 'Amalni bajarib bo\'lmadi'))
+  }
+
   /** Arxivdan qaytarish. */
   const handleRestore = (s: Student) => {
     if (!confirm(`"${s.fullName}" o'quvchini arxivdan qaytarish? Login bloklangicha qoladi — keyin parol generatsiya qiling.`)) return
@@ -688,6 +705,12 @@ export function StudentsPage() {
                               }}
                             />
                             <IconBtn icon={Archive} title="Arxivga ko'chirish" onClick={() => handleArchive(s)} />
+                            <IconBtn
+                              icon={s.loginBlocked ? Lock : LockOpen}
+                              title={s.loginBlocked ? "Login cheklangan — ochish" : "Login'ni cheklash"}
+                              active={s.loginBlocked}
+                              onClick={() => handleToggleLoginBlock(s)}
+                            />
                           </>
                         ) : (
                           <>
@@ -943,9 +966,11 @@ interface IconBtnProps {
   title: string
   onClick: () => void
   danger?: boolean
+  /** Doimiy "yoqilgan" holat (masalan login cheklangan) — hover kutmasdan qizil ko'rinadi. */
+  active?: boolean
 }
 
-function IconBtn({ icon: Icon, title, onClick, danger }: IconBtnProps) {
+function IconBtn({ icon: Icon, title, onClick, danger, active }: IconBtnProps) {
   return (
     <button
       type="button"
@@ -953,9 +978,11 @@ function IconBtn({ icon: Icon, title, onClick, danger }: IconBtnProps) {
       onClick={onClick}
       className={cn(
         'rounded-lg p-1.5 transition-colors',
-        danger
-          ? 'text-slate-400 hover:bg-red-50 hover:text-red-600'
-          : 'text-slate-400 hover:bg-slate-100 hover:text-slate-700',
+        active
+          ? 'bg-red-50 text-red-600 hover:bg-red-100'
+          : danger
+            ? 'text-slate-400 hover:bg-red-50 hover:text-red-600'
+            : 'text-slate-400 hover:bg-slate-100 hover:text-slate-700',
       )}
     >
       <Icon className="h-4 w-4" />

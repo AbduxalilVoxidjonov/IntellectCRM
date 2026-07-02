@@ -769,6 +769,30 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
         return NoContent();
     }
 
+    /// <summary>
+    /// O'quvchi login'ini vaqtincha cheklaydi/qayta ochadi (arxivlashdan farqli — o'quvchi faol
+    /// ro'yxatda qoladi, faqat tizimga kira olmaydi). Akkauntga (UserId) bog'liq emas — Student.LoginBlocked
+    /// maydoni orqali ishlaydi, shuning uchun akkaunt bo'lmasa ham amal qiladi.
+    /// </summary>
+    [HttpPut("{id}/login-block")]
+    public async Task<IActionResult> SetLoginBlock(string id, StudentLoginBlockRequest req)
+    {
+        var student = await db.Students.FindAsync(id);
+        if (student is null) return NotFound();
+
+        if (student.LoginBlocked != req.Blocked)
+        {
+            student.LoginBlocked = req.Blocked;
+            audit.Record(AuditService.EntityStudentDiscount, student.Id, "update",
+                (req.Blocked ? "O'quvchi login'i cheklandi" : "O'quvchi login'i qayta ochildi")
+                    + $" ({student.FullName})",
+                studentId: student.Id);
+            await db.SaveChangesAsync();
+        }
+
+        return NoContent();
+    }
+
     /// <summary>O'quvchining tizim akkaunti (login/parol). Akkaunt yo'q bo'lsa — yaratib biriktiradi.</summary>
     [HttpGet("{id}/credentials")]
     public async Task<ActionResult<CredentialsDto>> Credentials(string id)

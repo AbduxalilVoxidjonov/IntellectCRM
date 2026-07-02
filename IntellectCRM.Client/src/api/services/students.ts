@@ -274,6 +274,15 @@ export async function resetStudentPassword(id: string): Promise<Credentials> {
   return data
 }
 
+/** O'quvchining login orqali tizimga kirishini cheklash/ochish (admin qo'lda). */
+export async function setStudentLoginBlock(id: string, blocked: boolean): Promise<void> {
+  if (USE_MOCK) {
+    await delay(150)
+    return
+  }
+  await api.put(`/admin/students/${id}/login-block`, { blocked })
+}
+
 /** Bitta guruh bo'yicha o'quvchining oylik hisobi (to'lov oynasi uchun) — aggregate emas. */
 export async function getGroupLedger(
   studentId: string,
