@@ -651,7 +651,8 @@ app.MapGet("/landing", async ctx =>
     var landingFile = Path.Combine(webRoot, "landing.html");
     if (!File.Exists(landingFile)) { ctx.Response.StatusCode = StatusCodes.Status404NotFound; return; }
     ctx.Response.ContentType = "text/html; charset=utf-8";
-    ctx.Response.Headers.CacheControl = "public,max-age=300";
+    // no-cache: telefon brauzerlari yangilangan sahifani darhol olsin (sahifa kichik, kesh shart emas).
+    ctx.Response.Headers.CacheControl = "no-cache";
     await ctx.Response.SendFileAsync(landingFile);
 });
 
@@ -664,7 +665,8 @@ app.MapFallback(async ctx =>
     if (isApexHost && File.Exists(landingFile))
     {
         ctx.Response.ContentType = "text/html; charset=utf-8";
-        ctx.Response.Headers.CacheControl = "public,max-age=300";
+        // no-cache: telefon brauzerlari yangilangan sahifani darhol olsin (sahifa kichik, kesh shart emas).
+        ctx.Response.Headers.CacheControl = "no-cache";
         await ctx.Response.SendFileAsync(landingFile);
         return;
     }
