@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft, Plus, Trash2, ChevronDown, ChevronUp, ListChecks, Check,
-  Video, FileText, Music, BookOpen, ClipboardCheck, Upload, Loader2, GripVertical, Copy, X,
+  Video, FileText, Music, BookOpen, ClipboardCheck, Upload, Loader2, GripVertical, Copy,
+  AlertTriangle, CheckCircle2,
 } from 'lucide-react'
 import type {
   Curriculum, CurriculumLevel, CurriculumTopic, CurriculumItem, LessonType, Subject,
@@ -20,6 +21,7 @@ import { uploadAdminFile } from '@/api/services/students'
 import { getSubjects } from '@/api/services/subjects'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
+import { Modal } from '@/components/ui/Modal'
 import { Loader } from '@/components/ui/Loader'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { cn } from '@/lib/utils'
@@ -44,6 +46,39 @@ function genId() {
   return `q_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
 }
 
+// ---- Modal holatlari (brauzer prompt/confirm/alert o'rniga) ----
+type NamePrompt =
+  | { kind: 'level' }
+  | { kind: 'topic'; levelId: string }
+  | { kind: 'item'; levelId: string; topicId: string }
+
+type DeleteTarget =
+  | { kind: 'level'; level: CurriculumLevel }
+  | { kind: 'topic'; levelId: string; topic: CurriculumTopic }
+  | { kind: 'item'; levelId: string; topicId: string; item: CurriculumItem }
+
+type Notice = { type: 'success' | 'error'; text: string }
+
+const NAME_PROMPT_META: Record<NamePrompt['kind'], { title: string; label: string; placeholder: string; hint?: string }> = {
+  level: {
+    title: 'Yangi modul',
+    label: 'Modul nomi',
+    placeholder: 'Masalan: Beginner, A1, 1-modul...',
+    hint: "Modul — kursning katta bosqichi. Ichiga mavzular va darslar qo'shiladi.",
+  },
+  topic: {
+    title: 'Yangi mavzu',
+    label: 'Mavzu nomi',
+    placeholder: 'Masalan: Present Simple, Kirish...',
+  },
+  item: {
+    title: 'Yangi dars',
+    label: 'Dars nomi',
+    placeholder: 'Masalan: 1-dars. Tanishuv...',
+    hint: "Dars kontentini (video, matn, test...) keyin o'ng paneldan to'ldirasiz.",
+  },
+}
+
 // ============================ Asosiy sahifa ============================
 
 export function CurriculumEditorPage() {
@@ -55,13 +90,25 @@ export function CurriculumEditorPage() {
   const [subjects, setSubjects] = useState<Subject[]>([])
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [addingLevel, setAddingLevel] = useState(false)
 
   // Copy modal state
   const [copyingLevelId, setCopyingLevelId] = useState<string | null>(null)
   const [copyingLevelName, setCopyingLevelName] = useState<string>('')
   const [copyTarget, setCopyTarget] = useState<string>('')
   const [isCopying, setIsCopying] = useState(false)
+
+  // Nom kiritish / o'chirishni tasdiqlash modallari
+  const [namePrompt, setNamePrompt] = useState<NamePrompt | null>(null)
+  const [nameBusy, setNameBusy] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null)
+  const [deleteBusy, setDeleteBusy] = useState(false)
+  const [notice, setNotice] = useState<Notice | null>(null)
+
+  useEffect(() => {
+    if (!notice) return
+    const t = setTimeout(() => setNotice(null), 4000)
+    return () => clearTimeout(t)
+  }, [notice])
 
   useEffect(() => {
     Promise.all([
@@ -90,18 +137,51 @@ export function CurriculumEditorPage() {
     })
 
   // ---- Modul (daraja) ----
-  const addLevel = async () => {
-    if (addingLevel) return
-    const name = prompt("Yangi modul nomi (masalan: Beginner, A1, 1-modul):")?.trim()
-    if (!name) return
-    setAddingLevel(true)
+  const addLevel = () => setNamePrompt({ kind: 'level' })
+  const addTopic = (levelId: string) => setNamePrompt({ kind: 'topic', levelId })
+  const addItem = (levelId: string, topicId: string) => setNamePrompt({ kind: 'item', levelId, topicId })
+
+  const submitName = async (name: string) => {
+    if (!namePrompt || nameBusy) return
+    setNameBusy(true)
     try {
-      const { id: lid } = await createLevel(id, name)
-      const level: CurriculumLevel = { id: lid, name, note: '', order: 0, topics: [] }
-      patchLevels((ls) => [...ls, level])
-      setExpanded((s) => new Set(s).add(lid))
+      if (namePrompt.kind === 'level') {
+        const { id: lid } = await createLevel(id, name)
+        const level: CurriculumLevel = { id: lid, name, note: '', order: 0, topics: [] }
+        patchLevels((ls) => [...ls, level])
+        setExpanded((s) => new Set(s).add(lid))
+      } else if (namePrompt.kind === 'topic') {
+        const { levelId } = namePrompt
+        const { id: tid } = await createTopic(levelId, name)
+        const topic: CurriculumTopic = { id: tid, title: name, note: '', order: 0, items: [] }
+        patchLevels((ls) =>
+          ls.map((l) => (l.id === levelId ? { ...l, topics: [...l.topics, topic] } : l)),
+        )
+      } else {
+        const { levelId, topicId } = namePrompt
+        const { id: iid } = await createItem(topicId, name)
+        const item: CurriculumItem = {
+          id: iid, text: name, note: '', order: 0, type: 'text', meta: '', ready: false,
+        }
+        patchLevels((ls) =>
+          ls.map((l) =>
+            l.id === levelId
+              ? {
+                  ...l,
+                  topics: l.topics.map((tp) =>
+                    tp.id === topicId ? { ...tp, items: [...tp.items, item] } : tp,
+                  ),
+                }
+              : l,
+          ),
+        )
+        setSelectedId(iid)
+      }
+      setNamePrompt(null)
+    } catch (err: any) {
+      setNotice({ type: 'error', text: err.response?.data?.message || err.message || 'Xato yuz berdi' })
     } finally {
-      setAddingLevel(false)
+      setNameBusy(false)
     }
   }
 
@@ -111,10 +191,51 @@ export function CurriculumEditorPage() {
     patchLevels((ls) => ls.map((l) => (l.id === level.id ? { ...l, name: name.trim() } : l)))
   }
 
-  const removeLevel = async (level: CurriculumLevel) => {
-    if (!confirm(`"${level.name}" modulini (barcha mavzu va darslari bilan) o'chirasizmi?`)) return
-    await deleteLevel(level.id)
-    patchLevels((ls) => ls.filter((l) => l.id !== level.id))
+  const removeLevel = (level: CurriculumLevel) => setDeleteTarget({ kind: 'level', level })
+  const removeTopic = (levelId: string, topic: CurriculumTopic) =>
+    setDeleteTarget({ kind: 'topic', levelId, topic })
+  const removeItem = (levelId: string, topicId: string, item: CurriculumItem) =>
+    setDeleteTarget({ kind: 'item', levelId, topicId, item })
+
+  const confirmDelete = async () => {
+    if (!deleteTarget || deleteBusy) return
+    setDeleteBusy(true)
+    try {
+      if (deleteTarget.kind === 'level') {
+        const { level } = deleteTarget
+        await deleteLevel(level.id)
+        patchLevels((ls) => ls.filter((l) => l.id !== level.id))
+      } else if (deleteTarget.kind === 'topic') {
+        const { levelId, topic } = deleteTarget
+        await deleteTopic(topic.id)
+        patchLevels((ls) =>
+          ls.map((l) =>
+            l.id === levelId ? { ...l, topics: l.topics.filter((t) => t.id !== topic.id) } : l,
+          ),
+        )
+      } else {
+        const { levelId, topicId, item } = deleteTarget
+        await deleteItem(item.id)
+        if (selectedId === item.id) setSelectedId(null)
+        patchLevels((ls) =>
+          ls.map((l) =>
+            l.id === levelId
+              ? {
+                  ...l,
+                  topics: l.topics.map((tp) =>
+                    tp.id === topicId ? { ...tp, items: tp.items.filter((it) => it.id !== item.id) } : tp,
+                  ),
+                }
+              : l,
+          ),
+        )
+      }
+      setDeleteTarget(null)
+    } catch (err: any) {
+      setNotice({ type: 'error', text: err.response?.data?.message || err.message || 'Xato yuz berdi' })
+    } finally {
+      setDeleteBusy(false)
+    }
   }
 
   const doCopyLevel = async () => {
@@ -122,26 +243,18 @@ export function CurriculumEditorPage() {
     setIsCopying(true)
     try {
       const result = await copyLevelToSubject(copyingLevelId, copyTarget)
-      alert(`✓ "${copyingLevelName}" → "${subjects.find((s) => s.id === copyTarget)?.name}": ${result.topicCount} mavzu va ${result.itemCount} dars nusxalandi!`)
+      setNotice({
+        type: 'success',
+        text: `"${copyingLevelName}" → "${subjects.find((s) => s.id === copyTarget)?.name}": ${result.topicCount} mavzu va ${result.itemCount} dars nusxalandi`,
+      })
       setCopyingLevelId(null)
       setCopyingLevelName('')
       setCopyTarget('')
     } catch (err: any) {
-      alert(`Xato: ${err.response?.data?.message || err.message}`)
+      setNotice({ type: 'error', text: err.response?.data?.message || err.message || 'Xato yuz berdi' })
     } finally {
       setIsCopying(false)
     }
-  }
-
-  // ---- Mavzu ----
-  const addTopic = async (levelId: string) => {
-    const title = prompt("Yangi mavzu nomi:")?.trim()
-    if (!title) return
-    const { id: tid } = await createTopic(levelId, title)
-    const topic: CurriculumTopic = { id: tid, title, note: '', order: 0, items: [] }
-    patchLevels((ls) =>
-      ls.map((l) => (l.id === levelId ? { ...l, topics: [...l.topics, topic] } : l)),
-    )
   }
 
   const saveTopic = async (levelId: string, topic: CurriculumTopic, title: string) => {
@@ -151,57 +264,6 @@ export function CurriculumEditorPage() {
       ls.map((l) =>
         l.id === levelId
           ? { ...l, topics: l.topics.map((t) => (t.id === topic.id ? { ...t, title: title.trim() } : t)) }
-          : l,
-      ),
-    )
-  }
-
-  const removeTopic = async (levelId: string, topic: CurriculumTopic) => {
-    if (!confirm(`"${topic.title}" mavzusini (barcha darslari bilan) o'chirasizmi?`)) return
-    await deleteTopic(topic.id)
-    patchLevels((ls) =>
-      ls.map((l) =>
-        l.id === levelId ? { ...l, topics: l.topics.filter((t) => t.id !== topic.id) } : l,
-      ),
-    )
-  }
-
-  // ---- Dars (band) ----
-  const addItem = async (levelId: string, topicId: string) => {
-    const text = prompt("Yangi dars nomi:")?.trim()
-    if (!text) return
-    const { id: iid } = await createItem(topicId, text)
-    const item: CurriculumItem = {
-      id: iid, text, note: '', order: 0, type: 'text', meta: '', ready: false,
-    }
-    patchLevels((ls) =>
-      ls.map((l) =>
-        l.id === levelId
-          ? {
-              ...l,
-              topics: l.topics.map((tp) =>
-                tp.id === topicId ? { ...tp, items: [...tp.items, item] } : tp,
-              ),
-            }
-          : l,
-      ),
-    )
-    setSelectedId(iid)
-  }
-
-  const removeItem = async (levelId: string, topicId: string, item: CurriculumItem) => {
-    if (!confirm(`"${item.text}" darsini o'chirasizmi?`)) return
-    await deleteItem(item.id)
-    if (selectedId === item.id) setSelectedId(null)
-    patchLevels((ls) =>
-      ls.map((l) =>
-        l.id === levelId
-          ? {
-              ...l,
-              topics: l.topics.map((tp) =>
-                tp.id === topicId ? { ...tp, items: tp.items.filter((it) => it.id !== item.id) } : tp,
-              ),
-            }
           : l,
       ),
     )
@@ -251,7 +313,7 @@ export function CurriculumEditorPage() {
                     {readyItems} / {totalItems} dars tayyor
                   </p>
                 </div>
-                <Button onClick={addLevel} disabled={addingLevel}>
+                <Button onClick={addLevel}>
                   <Plus className="h-4 w-4" /> Modul
                 </Button>
               </div>
@@ -326,63 +388,202 @@ export function CurriculumEditorPage() {
       </div>
 
       {/* ===== Copy modal ===== */}
-      {copyingLevelId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <Card className="w-full max-w-md">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="font-bold text-slate-800">"{copyingLevelName}" modulini nusxalash</h3>
-                <p className="text-xs text-slate-500">Maqsadli kursni tanlang:</p>
-              </div>
+      <Modal
+        open={!!copyingLevelId}
+        onClose={() => setCopyingLevelId(null)}
+        size="sm"
+        title={`"${copyingLevelName}" modulini nusxalash`}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setCopyingLevelId(null)} disabled={isCopying}>
+              Bekor qilish
+            </Button>
+            <Button onClick={doCopyLevel} disabled={!copyTarget || isCopying}>
+              {isCopying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Copy className="h-4 w-4" />}
+              Nusxalash
+            </Button>
+          </>
+        }
+      >
+        <p className="mb-3 text-xs font-semibold text-slate-500">Maqsadli kursni tanlang:</p>
+        <div className="max-h-64 space-y-2 overflow-y-auto">
+          {subjects.length === 0 ? (
+            <p className="text-xs text-slate-400">Mavjud kurslar yo'q</p>
+          ) : (
+            subjects.map((subj) => (
               <button
-                onClick={() => setCopyingLevelId(null)}
-                className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
+                key={subj.id}
+                onClick={() => setCopyTarget(subj.id)}
+                className={cn(
+                  'w-full rounded-lg border px-3 py-2 text-left text-sm transition-colors',
+                  copyTarget === subj.id
+                    ? 'border-brand-400 bg-brand-50 font-medium text-brand-700'
+                    : 'border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50',
+                )}
               >
-                <X className="h-4 w-4" />
+                {subj.name}
               </button>
-            </div>
+            ))
+          )}
+        </div>
+      </Modal>
 
-            <div className="mt-4 space-y-2 max-h-64 overflow-y-auto">
-              {subjects.length === 0 ? (
-                <p className="text-xs text-slate-400">Mavjud kurslar yo'q</p>
-              ) : (
-                subjects.map((subj) => (
-                  <button
-                    key={subj.id}
-                    onClick={() => setCopyTarget(subj.id)}
-                    className={cn(
-                      'w-full rounded-lg border px-3 py-2 text-left text-sm transition-colors',
-                      copyTarget === subj.id
-                        ? 'border-brand-400 bg-brand-50 font-medium text-brand-700'
-                        : 'border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50',
-                    )}
-                  >
-                    {subj.name}
-                  </button>
-                ))
-              )}
-            </div>
+      {/* ===== Nom kiritish modali (modul/mavzu/dars) ===== */}
+      <NameModal
+        open={!!namePrompt}
+        meta={namePrompt ? NAME_PROMPT_META[namePrompt.kind] : NAME_PROMPT_META.level}
+        busy={nameBusy}
+        onClose={() => setNamePrompt(null)}
+        onSubmit={submitName}
+      />
 
-            <div className="mt-4 flex gap-2">
-              <Button
-                variant="secondary"
-                onClick={() => setCopyingLevelId(null)}
-                disabled={isCopying}
-              >
-                Bekor qilish
-              </Button>
-              <Button
-                onClick={doCopyLevel}
-                disabled={!copyTarget || isCopying}
-              >
-                {isCopying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Copy className="h-4 w-4" />}
-                Nusxalash
-              </Button>
-            </div>
-          </Card>
+      {/* ===== O'chirishni tasdiqlash modali ===== */}
+      <ConfirmDeleteModal
+        open={!!deleteTarget}
+        busy={deleteBusy}
+        title={
+          deleteTarget?.kind === 'level'
+            ? "Modulni o'chirish"
+            : deleteTarget?.kind === 'topic'
+              ? "Mavzuni o'chirish"
+              : "Darsni o'chirish"
+        }
+        message={
+          deleteTarget?.kind === 'level' ? (
+            <>
+              <b>"{deleteTarget.level.name}"</b> moduli barcha mavzu va darslari bilan birga
+              o'chiriladi. Bu amalni qaytarib bo'lmaydi.
+            </>
+          ) : deleteTarget?.kind === 'topic' ? (
+            <>
+              <b>"{deleteTarget.topic.title}"</b> mavzusi barcha darslari bilan birga o'chiriladi.
+              Bu amalni qaytarib bo'lmaydi.
+            </>
+          ) : deleteTarget ? (
+            <>
+              <b>"{deleteTarget.item.text}"</b> darsi o'chiriladi. Bu amalni qaytarib bo'lmaydi.
+            </>
+          ) : null
+        }
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={confirmDelete}
+      />
+
+      {/* ===== Bildirishnoma (toast) ===== */}
+      {notice && (
+        <div
+          className={cn(
+            'fixed bottom-5 right-5 z-[60] flex max-w-sm items-start gap-2.5 rounded-xl border px-4 py-3 text-sm font-medium shadow-lg',
+            notice.type === 'success'
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+              : 'border-red-200 bg-red-50 text-red-800',
+          )}
+        >
+          {notice.type === 'success' ? (
+            <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0" />
+          ) : (
+            <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+          )}
+          <span>{notice.text}</span>
         </div>
       )}
     </div>
+  )
+}
+
+// ============================ Nom kiritish modali ============================
+
+interface NameModalProps {
+  open: boolean
+  meta: { title: string; label: string; placeholder: string; hint?: string }
+  busy: boolean
+  onClose: () => void
+  onSubmit: (name: string) => void
+}
+
+function NameModal({ open, meta, busy, onClose, onSubmit }: NameModalProps) {
+  const [value, setValue] = useState('')
+  useEffect(() => {
+    if (open) setValue('')
+  }, [open])
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault()
+    const v = value.trim()
+    if (!v || busy) return
+    onSubmit(v)
+  }
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      size="sm"
+      title={meta.title}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={busy}>
+            Bekor qilish
+          </Button>
+          <Button type="submit" form="curriculum-name-form" disabled={busy || !value.trim()}>
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+            Qo'shish
+          </Button>
+        </>
+      }
+    >
+      <form id="curriculum-name-form" onSubmit={submit}>
+        <label className="mb-1.5 block text-xs font-semibold text-slate-500">{meta.label}</label>
+        <input
+          autoFocus
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder={meta.placeholder}
+          className={control}
+        />
+        {meta.hint && <p className="mt-2 text-xs leading-relaxed text-slate-400">{meta.hint}</p>}
+      </form>
+    </Modal>
+  )
+}
+
+// ============================ O'chirishni tasdiqlash modali ============================
+
+interface ConfirmDeleteModalProps {
+  open: boolean
+  title: string
+  message: React.ReactNode
+  busy: boolean
+  onClose: () => void
+  onConfirm: () => void
+}
+
+function ConfirmDeleteModal({ open, title, message, busy, onClose, onConfirm }: ConfirmDeleteModalProps) {
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      size="sm"
+      title={title}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={busy}>
+            Bekor qilish
+          </Button>
+          <Button variant="danger" onClick={onConfirm} disabled={busy}>
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+            O'chirish
+          </Button>
+        </>
+      }
+    >
+      <div className="flex items-start gap-3">
+        <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-red-50 text-red-600">
+          <AlertTriangle className="h-5 w-5" />
+        </div>
+        <p className="text-sm leading-relaxed text-slate-600">{message}</p>
+      </div>
+    </Modal>
   )
 }
 

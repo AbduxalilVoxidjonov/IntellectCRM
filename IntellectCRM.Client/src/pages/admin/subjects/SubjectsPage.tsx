@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Plus, Pencil, Trash2, BookOpen, ListChecks } from 'lucide-react'
+import { Plus, Pencil, Trash2, BookOpen, ListChecks, AlertTriangle, Loader2 } from 'lucide-react'
 import type { Subject } from '@/types'
 import type { SubjectPayload } from '@/api/services/subjects'
 import {
@@ -29,6 +29,9 @@ export function SubjectsPage() {
     values: SubjectPayload
     oldPrice: number
   } | null>(null)
+  // Kursni o'chirishni tasdiqlash (brauzer confirm o'rniga)
+  const [deleting, setDeleting] = useState<Subject | null>(null)
+  const [deleteBusy, setDeleteBusy] = useState(false)
 
   useEffect(() => {
     getSubjects()
@@ -64,9 +67,18 @@ export function SubjectsPage() {
     setFeePrompt(null)
   }
 
-  const handleDelete = (s: Subject) => {
-    if (!confirm(`"${s.name}" kursini o'chirasizmi?`)) return
-    deleteSubject(s.id).then(() => setSubjects((prev) => prev.filter((x) => x.id !== s.id)))
+  const handleDelete = (s: Subject) => setDeleting(s)
+
+  const confirmDelete = async () => {
+    if (!deleting || deleteBusy) return
+    setDeleteBusy(true)
+    try {
+      await deleteSubject(deleting.id)
+      setSubjects((prev) => prev.filter((x) => x.id !== deleting.id))
+      setDeleting(null)
+    } finally {
+      setDeleteBusy(false)
+    }
   }
 
   return (
@@ -198,6 +210,35 @@ export function SubjectsPage() {
             </div>
           </div>
         )}
+      </Modal>
+
+      {/* Kursni o'chirishni tasdiqlash */}
+      <Modal
+        open={!!deleting}
+        onClose={() => setDeleting(null)}
+        size="sm"
+        title="Kursni o'chirish"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setDeleting(null)} disabled={deleteBusy}>
+              Bekor qilish
+            </Button>
+            <Button variant="danger" onClick={confirmDelete} disabled={deleteBusy}>
+              {deleteBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              O'chirish
+            </Button>
+          </>
+        }
+      >
+        <div className="flex items-start gap-3">
+          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-red-50 text-red-600">
+            <AlertTriangle className="h-5 w-5" />
+          </div>
+          <p className="text-sm leading-relaxed text-slate-600">
+            <b>"{deleting?.name}"</b> kursi o'quv dasturi (modul, mavzu va darslari) bilan birga
+            o'chiriladi. Bu amalni qaytarib bo'lmaydi.
+          </p>
+        </div>
       </Modal>
     </div>
   )
