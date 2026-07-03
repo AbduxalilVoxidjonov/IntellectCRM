@@ -42,3 +42,9 @@ docker-compose.override.yml
 *AUDIT*.md
 *AUDIT*.txt
 *_AUDIT*.md
+
+# Lokal ish hujjatlari — mashinada qoladi, git'ga tushmaydi
+CLAUDE.md
+WORKLOG.md
+DEPLOY.md
+IntellectCRM_TZ.md
