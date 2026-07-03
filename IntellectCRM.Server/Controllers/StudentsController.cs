@@ -894,6 +894,80 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
             $"oquvchilar_{AppClock.Now:yyyy-MM-dd}.xlsx");
     }
 
+    /// <summary>
+    /// TANLANGAN o'quvchilarning to'liq ma'lumotlarini Excel (.xlsx) ga eksport qiladi
+    /// (profil + faol guruhlar + balans + login). Parol ustuni faqat superadmin uchun
+    /// (va foydalanuvchi hali kirmagan bo'lsagina ko'rinadi).
+    /// </summary>
+    [HttpPost("export-selected")]
+    public async Task<IActionResult> ExportSelected(StudentExportSelectedRequest req)
+    {
+        if (req.StudentIds is null || req.StudentIds.Count == 0)
+            return BadRequest(new { message = "O'quvchilar tanlanmagan" });
+
+        var students = await db.Students
+            .Where(s => req.StudentIds.Contains(s.Id))
+            .OrderBy(s => s.FullName).ToListAsync();
+        if (students.Count == 0) return BadRequest(new { message = "O'quvchilar topilmadi" });
+
+        var ids = students.Select(s => s.Id).ToList();
+        var memberships = await (from sg in db.StudentGroups
+                                 join c in db.Classes on sg.GroupId equals c.Id
+                                 where sg.IsActive && ids.Contains(sg.StudentId)
+                                 select new { sg.StudentId, c.Name, sg.Status }).ToListAsync();
+        var groupsByStudent = memberships
+            .GroupBy(m => m.StudentId)
+            .ToDictionary(
+                g => g.Key,
+                g => string.Join(", ", g
+                    .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
+                    .Select(x => x.Status switch
+                    {
+                        "trial" => $"{x.Name} (sinov)",
+                        "frozen" => $"{x.Name} (muzlatilgan)",
+                        _ => x.Name,
+                    })));
+
+        var userIds = students.Where(s => s.UserId != null).Select(s => s.UserId!).ToList();
+        var usersById = (await db.Users.Where(u => userIds.Contains(u.Id)).ToListAsync())
+            .ToDictionary(u => u.Id);
+        var isSuper = User.IsInRole(Roles.SuperAdmin);
+
+        var headers = new List<string>
+        {
+            "F.I.SH.", "Tug'ilgan sana", "Jinsi", "Telefon", "Manzil", "Guruhlar",
+            "Ota F.I.SH.", "Ota tel", "Ona F.I.SH.", "Ona tel", "Balans", "Login",
+        };
+        if (isSuper) headers.Add("Parol");
+
+        var rows = students.Select(s =>
+        {
+            usersById.TryGetValue(s.UserId ?? "", out var u);
+            var row = new List<string>
+            {
+                s.FullName,
+                s.BirthDate,
+                s.Gender == "female" ? "Qiz" : "O'g'il",
+                s.Phone,
+                s.Address,
+                groupsByStudent.GetValueOrDefault(s.Id, ""),
+                s.FatherFullName,
+                s.FatherPhone,
+                s.MotherFullName,
+                s.MotherPhone,
+                s.Balance.ToString("0.##", CultureInfo.InvariantCulture),
+                u?.Email ?? "",
+            };
+            if (isSuper) row.Add(u?.InitialPassword ?? "");
+            return (IReadOnlyList<string>)row;
+        });
+
+        var bytes = ExcelExport.Build("O'quvchilar", headers, rows);
+        return File(bytes,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            $"oquvchilar_tanlangan_{AppClock.Now:yyyy-MM-dd}.xlsx");
+    }
+
     /* ---------- Excel'dan ommaviy import ---------- */
 
     private const string XlsxMime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";

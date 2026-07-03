@@ -124,6 +124,13 @@ public record PhoneMatchDto(
 public record StudentImportRowErrorDto(int Row, string Message);
 public record StudentImportResultDto(int Created, int Failed, int Skipped, List<StudentImportRowErrorDto> Errors);
 
+/// <summary>Tanlangan o'quvchilarni Excel'ga eksport qilish so'rovi.</summary>
+public record StudentExportSelectedRequest(List<string> StudentIds);
+
+/* ---------- O'quv dasturi Excel importi ---------- */
+public record CurriculumExcelImportResultDto(
+    int Levels, int Topics, int Items, int Skipped, List<StudentImportRowErrorDto> Errors);
+
 /* ---------- Teachers ---------- */
 /// <summary>O'qituvchi yaratish/tahrirlash so'rovi.
 /// <paramref name="Phone"/> — o'qituvchi telefoni (ixtiyoriy, max 32 belgi);

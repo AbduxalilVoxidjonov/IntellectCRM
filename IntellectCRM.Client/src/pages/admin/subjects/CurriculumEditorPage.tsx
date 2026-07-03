@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft, Plus, Trash2, ChevronDown, ChevronUp, ListChecks, Check,
   Video, FileText, Music, BookOpen, ClipboardCheck, Upload, Loader2, GripVertical, Copy,
-  AlertTriangle, CheckCircle2,
+  AlertTriangle, CheckCircle2, FileSpreadsheet, FileDown,
 } from 'lucide-react'
 import type {
   Curriculum, CurriculumLevel, CurriculumTopic, CurriculumItem, LessonType, Subject,
@@ -15,8 +15,11 @@ import {
   createItem, deleteItem,
   getCourseItem, saveItemContent,
   copyLevelToSubject,
+  downloadCurriculumImportTemplate, importCurriculumExcel,
 } from '@/api/services/curriculum'
-import type { CourseItemDetail, VocabEntry, CourseQuestion, SaveItemContent } from '@/api/services/curriculum'
+import type {
+  CourseItemDetail, VocabEntry, CourseQuestion, SaveItemContent, CurriculumExcelImportResult,
+} from '@/api/services/curriculum'
 import { uploadAdminFile } from '@/api/services/students'
 import { getSubjects } from '@/api/services/subjects'
 import { Card } from '@/components/ui/Card'
@@ -103,6 +106,7 @@ export function CurriculumEditorPage() {
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null)
   const [deleteBusy, setDeleteBusy] = useState(false)
   const [notice, setNotice] = useState<Notice | null>(null)
+  const [importOpen, setImportOpen] = useState(false)
 
   useEffect(() => {
     if (!notice) return
@@ -294,9 +298,14 @@ export function CurriculumEditorPage() {
         title={`${courseName} — o'quv dasturi`}
         sub={totalItems > 0 ? `${readyItems} / ${totalItems} dars tayyor` : "Modul → mavzu → dars: o'quvchilar shu ro'yxat bo'yicha o'rganadi"}
         actions={
-          <Button variant="secondary" onClick={() => navigate('/admin/subjects')}>
-            <ArrowLeft className="h-4 w-4" /> Orqaga
-          </Button>
+          <>
+            <Button variant="secondary" onClick={() => setImportOpen(true)}>
+              <FileSpreadsheet className="h-4 w-4" /> Excel'dan yuklash
+            </Button>
+            <Button variant="secondary" onClick={() => navigate('/admin/subjects')}>
+              <ArrowLeft className="h-4 w-4" /> Orqaga
+            </Button>
+          </>
         }
       />
 
@@ -428,6 +437,21 @@ export function CurriculumEditorPage() {
         </div>
       </Modal>
 
+      {/* ===== Excel import modali ===== */}
+      <ImportExcelModal
+        open={importOpen}
+        subjectId={id}
+        onClose={() => setImportOpen(false)}
+        onImported={async (r) => {
+          await reloadCurriculum()
+          if (r.errors.length === 0)
+            setNotice({
+              type: 'success',
+              text: `Import yakunlandi: ${r.levels} modul, ${r.topics} mavzu, ${r.items} dars qo'shildi`,
+            })
+        }}
+      />
+
       {/* ===== Nom kiritish modali (modul/mavzu/dars) ===== */}
       <NameModal
         open={!!namePrompt}
@@ -488,6 +512,184 @@ export function CurriculumEditorPage() {
         </div>
       )}
     </div>
+  )
+}
+
+// ============================ Excel import modali ============================
+
+interface ImportExcelModalProps {
+  open: boolean
+  subjectId: string
+  onClose: () => void
+  onImported: (r: CurriculumExcelImportResult) => void
+}
+
+function ImportExcelModal({ open, subjectId, onClose, onImported }: ImportExcelModalProps) {
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [file, setFile] = useState<File | null>(null)
+  const [replace, setReplace] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [downloading, setDownloading] = useState(false)
+  const [result, setResult] = useState<CurriculumExcelImportResult | null>(null)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (open) {
+      setFile(null)
+      setReplace(false)
+      setResult(null)
+      setError('')
+    }
+  }, [open])
+
+  const downloadTemplate = async () => {
+    if (downloading) return
+    setDownloading(true)
+    try {
+      await downloadCurriculumImportTemplate()
+    } finally {
+      setDownloading(false)
+    }
+  }
+
+  const submit = async () => {
+    if (!file || busy) return
+    setBusy(true)
+    setError('')
+    setResult(null)
+    try {
+      const r = await importCurriculumExcel(subjectId, file, replace)
+      setResult(r)
+      onImported(r)
+    } catch (err: any) {
+      setError(err.response?.data?.message || err.message || 'Xato yuz berdi')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      size="md"
+      title="O'quv dasturini Excel'dan yuklash"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={busy}>
+            {result ? 'Yopish' : 'Bekor qilish'}
+          </Button>
+          <Button onClick={submit} disabled={!file || busy}>
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4" />}
+            Yuklash
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        {/* 1-qadam: shablon */}
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-slate-800">1. Shablonni yuklab oling</p>
+            <p className="mt-0.5 text-xs text-slate-400">
+              Ustunlar: Modul, Mavzu, Dars nomi, Izoh. Yo'riqnoma varag'ida namuna bor.
+            </p>
+          </div>
+          <Button variant="secondary" onClick={downloadTemplate} disabled={downloading} className="flex-shrink-0">
+            {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
+            Shablon
+          </Button>
+        </div>
+
+        {/* 2-qadam: fayl tanlash */}
+        <div>
+          <p className="mb-2 text-sm font-semibold text-slate-800">2. To'ldirilgan faylni tanlang</p>
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".xlsx"
+            onChange={(e) => {
+              setFile(e.target.files?.[0] ?? null)
+              setResult(null)
+              setError('')
+            }}
+            className="hidden"
+          />
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            className={cn(
+              'flex w-full items-center justify-center gap-2.5 rounded-xl border-2 border-dashed px-4 py-6 text-sm font-medium transition-colors',
+              file
+                ? 'border-brand-300 bg-brand-50/50 text-brand-700'
+                : 'border-slate-200 text-slate-500 hover:border-brand-300 hover:bg-brand-50/30 hover:text-brand-600',
+            )}
+          >
+            <FileSpreadsheet className="h-5 w-5" />
+            {file ? file.name : 'Fayl tanlash (.xlsx)'}
+          </button>
+        </div>
+
+        {/* 3-qadam: rejim */}
+        <label className="flex cursor-pointer items-start gap-2.5 rounded-xl border border-slate-200 px-4 py-3 transition-colors hover:bg-slate-50">
+          <input
+            type="checkbox"
+            checked={replace}
+            onChange={(e) => setReplace(e.target.checked)}
+            className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-400"
+          />
+          <span className="text-sm">
+            <span className="font-semibold text-slate-800">Mavjud dasturni almashtirish</span>
+            <span className="mt-0.5 block text-xs leading-relaxed text-slate-400">
+              Belgilansa — eski modul/mavzu/darslar (o'quvchilar progressi bilan) O'CHIRILIB, faqat
+              fayldagi dastur qoladi. Belgilanmasa — fayldagi darslar mavjud dasturga qo'shiladi
+              (bir xil nomli modul/mavzu takrorlanmaydi).
+            </span>
+          </span>
+        </label>
+
+        {/* Xato */}
+        {error && (
+          <div className="flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+            <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
+
+        {/* Natija */}
+        {result && (
+          <div
+            className={cn(
+              'rounded-xl border px-4 py-3',
+              result.errors.length === 0
+                ? 'border-emerald-200 bg-emerald-50'
+                : 'border-amber-200 bg-amber-50',
+            )}
+          >
+            <div className="flex items-center gap-2 text-sm font-semibold">
+              {result.errors.length === 0 ? (
+                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+              ) : (
+                <AlertTriangle className="h-4 w-4 text-amber-600" />
+              )}
+              <span className={result.errors.length === 0 ? 'text-emerald-800' : 'text-amber-800'}>
+                {result.levels} modul, {result.topics} mavzu, {result.items} dars qo'shildi
+                {result.skipped > 0 ? ` (${result.skipped} bo'sh qator o'tkazildi)` : ''}
+              </span>
+            </div>
+            {result.errors.length > 0 && (
+              <ul className="mt-2 max-h-32 space-y-1 overflow-y-auto text-xs text-amber-800">
+                {result.errors.map((e, i) => (
+                  <li key={i}>
+                    {e.row}-qator: {e.message}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+      </div>
+    </Modal>
   )
 }
 

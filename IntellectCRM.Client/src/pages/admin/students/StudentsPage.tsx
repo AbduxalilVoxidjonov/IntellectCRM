@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { StudentViewModal } from './StudentViewModal'
-import { Plus, Search, Pencil, Trash2, Send, Download, X, Wallet, History, Archive, RotateCcw, FileDown, Upload, ChevronLeft, ChevronRight, Lock, LockOpen } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, Send, Download, X, Wallet, History, Archive, RotateCcw, FileDown, Upload, ChevronLeft, ChevronRight, Lock, LockOpen, Loader2 } from 'lucide-react'
 import type { Gender, Student, Teacher } from '@/types'
 import type { StudentPayload, StudentImportResult } from '@/api/services/students'
 import {
@@ -18,6 +18,7 @@ import {
   importStudents,
   setStudentLoginBlock,
   setStudentLoginBlockBulk,
+  downloadSelectedStudents,
 } from '@/api/services/students'
 import { getClasses } from '@/api/services/classes'
 import { getTeachers } from '@/api/services/teachers'
@@ -216,6 +217,18 @@ export function StudentsPage() {
     })
 
   const clearSelection = () => setSelected(new Set())
+
+  // Tanlanganlarni to'liq Excel'ga yuklab olish (server: profil + guruh holati + balans + login)
+  const [exportingSelected, setExportingSelected] = useState(false)
+  const handleExportExcel = async () => {
+    if (exportingSelected || selectedStudents.length === 0) return
+    setExportingSelected(true)
+    try {
+      await downloadSelectedStudents(selectedStudents.map((s) => s.id))
+    } finally {
+      setExportingSelected(false)
+    }
+  }
 
   const handleExport = () => {
     exportToCsv(
@@ -574,8 +587,16 @@ export function StudentsPage() {
             <Button variant="secondary" onClick={() => setSmsRecipients(selectedStudents)}>
               <Send className="h-4 w-4" /> SMS yuborish
             </Button>
+            <Button variant="secondary" onClick={handleExportExcel} disabled={exportingSelected}>
+              {exportingSelected ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <FileDown className="h-4 w-4" />
+              )}
+              Yuklab olish (Excel)
+            </Button>
             <Button variant="secondary" onClick={handleExport}>
-              <Download className="h-4 w-4" /> Yuklab olish (CSV)
+              <Download className="h-4 w-4" /> CSV
             </Button>
             {tab === 'active' && (
               <>

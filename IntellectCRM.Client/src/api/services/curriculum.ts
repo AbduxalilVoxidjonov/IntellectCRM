@@ -173,6 +173,47 @@ export async function getStudentCoverageLog(studentId: string): Promise<Coverage
   return data
 }
 
+// ---- Excel import (shablon + fayl) ----
+
+/** Excel importi natijasi: yaratilgan modul/mavzu/dars soni + xato qatorlar. */
+export interface CurriculumExcelImportResult {
+  levels: number
+  topics: number
+  items: number
+  skipped: number
+  errors: { row: number; message: string }[]
+}
+
+/** O'quv dasturini ommaviy kiritish uchun Excel shablonini yuklab oladi (.xlsx). */
+export async function downloadCurriculumImportTemplate(): Promise<void> {
+  const res = await api.get('/admin/curriculum/import-template', { responseType: 'blob' })
+  const url = URL.createObjectURL(res.data as Blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = 'oquv_dasturi_shablon.xlsx'
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+}
+
+/** To'ldirilgan Excel (.xlsx) shablonidan o'quv dasturini yuklaydi.
+ *  replace=true — mavjud dastur o'chirilib almashtiriladi; aks holda qo'shiladi. */
+export async function importCurriculumExcel(
+  subjectId: string,
+  file: File,
+  replace: boolean,
+): Promise<CurriculumExcelImportResult> {
+  const fd = new FormData()
+  fd.append('file', file)
+  const { data } = await api.post<CurriculumExcelImportResult>(
+    `/admin/curriculum/${subjectId}/import-excel?replace=${replace}`,
+    fd,
+    { headers: { 'Content-Type': 'multipart/form-data' } },
+  )
+  return data
+}
+
 // ---- Daraja nusxalash (boshqa kursga) ----
 
 export interface CopyLevelResult {

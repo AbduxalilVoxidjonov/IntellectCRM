@@ -281,6 +281,214 @@ public class CurriculumController(AppDbContext db) : ControllerBase
         return NoContent();
     }
 
+    // ---- Excel import (shablon + fayl) ----
+
+    private const string XlsxMime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+    // Shablon ustunlari (1-varaq). Tartibi Excel importi o'qishi bilan AYNAN bir xil bo'lishi shart.
+    private static readonly string[] ExcelImportHeaders = { "Modul*", "Mavzu*", "Dars nomi*", "Izoh" };
+
+    /// <summary>
+    /// O'quv dasturini ommaviy kiritish uchun Excel shabloni (.xlsx). 1-varaq "Dastur" —
+    /// to'ldiriladigan sarlavhalar; 2-varaq "Yo'riqnoma" — maydonlar izohi va namuna.
+    /// Import faqat 1-varaqni o'qiydi.
+    /// </summary>
+    [HttpGet("import-template")]
+    public IActionResult ImportTemplate()
+    {
+        var info = new List<IReadOnlyList<string>>
+        {
+            new[] { "Modul*", "Kursning katta bosqichi. Masalan: Beginner, A1, 1-modul" },
+            new[] { "Mavzu*", "Modul ichidagi mavzu. Masalan: Present Simple" },
+            new[] { "Dars nomi*", "Mavzu ichidagi dars. Masalan: 1-dars. Tanishuv" },
+            new[] { "Izoh", "ixtiyoriy — dars izohi" },
+            new[] { "", "" },
+            new[] { "QOIDA:", "Modul va Mavzu ustunlari bo'sh qoldirilsa — YUQORIDAGI qator qiymati olinadi." },
+            new[] { "", "Ya'ni modul/mavzu nomini faqat birinchi darsida yozish kifoya." },
+            new[] { "", "" },
+            new[] { "NAMUNA:", "" },
+            new[] { "Modul", "Mavzu | Dars nomi" },
+            new[] { "Beginner", "Alifbo | 1-dars. Harflar" },
+            new[] { "(bo'sh)", "(bo'sh) | 2-dars. Talaffuz" },
+            new[] { "(bo'sh)", "Salomlashish | 3-dars. Greetings" },
+            new[] { "Elementary", "Present Simple | 4-dars. Fe'llar" },
+        };
+
+        var bytes = ExcelExport.Build(new[]
+        {
+            new ExcelExport.SheetSpec("Dastur", ExcelImportHeaders, Array.Empty<IReadOnlyList<string>>()),
+            new ExcelExport.SheetSpec("Yo'riqnoma", new[] { "Maydon", "Izoh" }, info),
+        });
+        return File(bytes, XlsxMime, "oquv_dasturi_shablon.xlsx");
+    }
+
+    /// <summary>
+    /// To'ldirilgan Excel (.xlsx) shablonidan o'quv dasturini yuklaydi. Har qator = bitta dars;
+    /// Modul/Mavzu bo'sh bo'lsa yuqoridagi qator qiymati olinadi (carry-forward).
+    /// <paramref name="replace"/>=true bo'lsa mavjud dastur (progress bilan) O'CHIRILIB, o'rniga yoziladi;
+    /// aks holda mavjud modul/mavzularga nomi bo'yicha QO'SHILADI (bir xil nom — takrorlanmaydi).
+    /// </summary>
+    [HttpPost("{subjectId}/import-excel")]
+    [RequestSizeLimit(10 * 1024 * 1024)]
+    public async Task<ActionResult<CurriculumExcelImportResultDto>> ImportExcel(
+        string subjectId, IFormFile? file, [FromQuery] bool replace = false)
+    {
+        var subject = await db.Subjects.FindAsync(subjectId);
+        if (subject == null) return NotFound(new { message = "Kurs topilmadi" });
+
+        if (file is null || file.Length == 0)
+            return BadRequest(new { message = "Fayl tanlanmagan" });
+        if (!file.FileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))
+            return BadRequest(new { message = "Faqat .xlsx (Excel) fayl qabul qilinadi" });
+
+        List<string[]> rows;
+        try
+        {
+            await using var stream = file.OpenReadStream();
+            rows = ExcelImport.ReadRows(stream, ExcelImportHeaders.Length);
+        }
+        catch
+        {
+            return BadRequest(new { message = "Faylni o'qib bo'lmadi — buzilmagan .xlsx ekanini tekshiring" });
+        }
+
+        if (replace)
+        {
+            // Eski dastur (progress va test savollari bilan) tozalanadi.
+            var oldItemIds = await db.CourseItems
+                .Where(i => i.SubjectId == subjectId).Select(i => i.Id).ToListAsync();
+            await db.CourseProgresses.Where(p => oldItemIds.Contains(p.ItemId)).ExecuteDeleteAsync();
+            await db.CourseQuestions.Where(q => oldItemIds.Contains(q.ItemId)).ExecuteDeleteAsync();
+            await db.CourseItems.Where(i => i.SubjectId == subjectId).ExecuteDeleteAsync();
+            await db.CourseTopics.Where(t => t.SubjectId == subjectId).ExecuteDeleteAsync();
+            await db.CourseLevels.Where(l => l.SubjectId == subjectId).ExecuteDeleteAsync();
+        }
+
+        // Mavjud modul/mavzular (append rejimida nomi bo'yicha qayta ishlatiladi).
+        var existingLevels = replace
+            ? new List<CourseLevel>()
+            : await db.CourseLevels.Where(l => l.SubjectId == subjectId).ToListAsync();
+        var existingTopics = replace
+            ? new List<CourseTopic>()
+            : await db.CourseTopics.Where(t => t.SubjectId == subjectId).ToListAsync();
+
+        var levelByName = existingLevels
+            .GroupBy(l => l.Name.Trim(), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+        // Mavzu kaliti: levelId + "|" + nom (kichik harfda)
+        var topicByKey = existingTopics
+            .GroupBy(t => $"{t.LevelId}|{t.Title.Trim().ToLowerInvariant()}")
+            .ToDictionary(g => g.Key, g => g.First());
+
+        var nextLevelOrder = existingLevels.Count > 0 ? existingLevels.Max(l => l.Order) + 1 : 0;
+        var nextTopicOrder = new Dictionary<string, int>(); // levelId -> keyingi order
+        var nextItemOrder = new Dictionary<string, int>(); // topicId -> keyingi order
+        foreach (var g in existingTopics.GroupBy(t => t.LevelId))
+            nextTopicOrder[g.Key] = g.Max(t => t.Order) + 1;
+        if (!replace)
+        {
+            var existingItemOrders = await db.CourseItems
+                .Where(i => i.SubjectId == subjectId)
+                .GroupBy(i => i.TopicId)
+                .Select(g => new { TopicId = g.Key, Max = g.Max(i => i.Order) })
+                .ToListAsync();
+            foreach (var e in existingItemOrders) nextItemOrder[e.TopicId] = e.Max + 1;
+        }
+
+        var errors = new List<StudentImportRowErrorDto>();
+        int newLevels = 0, newTopics = 0, newItems = 0, skipped = 0;
+
+        CourseLevel? currentLevel = null;
+        CourseTopic? currentTopic = null;
+
+        // 0-qator — sarlavha; ma'lumot 1-indeksdan (Excel'dagi 2-qator) boshlanadi.
+        for (var i = 1; i < rows.Count; i++)
+        {
+            var r = rows[i];
+            var excelRow = i + 1;
+            if (r.All(string.IsNullOrWhiteSpace)) { skipped++; continue; }
+
+            var levelName = r[0].Trim();
+            var topicTitle = r[1].Trim();
+            var itemText = r[2].Trim();
+            var note = r[3].Trim();
+
+            // Modul: nom berilgan bo'lsa topamiz/yaratamiz, bo'sh bo'lsa oldingi qator moduli.
+            if (levelName.Length > 0)
+            {
+                if (!levelByName.TryGetValue(levelName, out var lvl))
+                {
+                    lvl = new CourseLevel
+                    {
+                        SubjectId = subjectId,
+                        Name = levelName,
+                        Note = "",
+                        Order = nextLevelOrder++,
+                    };
+                    db.CourseLevels.Add(lvl);
+                    levelByName[levelName] = lvl;
+                    newLevels++;
+                }
+                if (!ReferenceEquals(currentLevel, lvl)) currentTopic = null; // modul almashdi
+                currentLevel = lvl;
+            }
+            if (currentLevel == null)
+            {
+                errors.Add(new StudentImportRowErrorDto(excelRow, "Modul ko'rsatilmagan"));
+                continue;
+            }
+
+            // Mavzu: xuddi shunday carry-forward.
+            if (topicTitle.Length > 0)
+            {
+                var key = $"{currentLevel.Id}|{topicTitle.ToLowerInvariant()}";
+                if (!topicByKey.TryGetValue(key, out var tp))
+                {
+                    var order = nextTopicOrder.GetValueOrDefault(currentLevel.Id, 0);
+                    nextTopicOrder[currentLevel.Id] = order + 1;
+                    tp = new CourseTopic
+                    {
+                        SubjectId = subjectId,
+                        LevelId = currentLevel.Id,
+                        Title = topicTitle,
+                        Note = "",
+                        Order = order,
+                    };
+                    db.CourseTopics.Add(tp);
+                    topicByKey[key] = tp;
+                    newTopics++;
+                }
+                currentTopic = tp;
+            }
+
+            // Dars nomi bo'sh qator — faqat modul/mavzu e'lon qilingan bo'lishi mumkin.
+            if (itemText.Length == 0) { skipped++; continue; }
+
+            if (currentTopic == null)
+            {
+                errors.Add(new StudentImportRowErrorDto(excelRow, "Mavzu ko'rsatilmagan"));
+                continue;
+            }
+
+            var itemOrder = nextItemOrder.GetValueOrDefault(currentTopic.Id, 0);
+            nextItemOrder[currentTopic.Id] = itemOrder + 1;
+            db.CourseItems.Add(new CourseItem
+            {
+                SubjectId = subjectId,
+                TopicId = currentTopic.Id,
+                Text = itemText,
+                Note = note,
+                Order = itemOrder,
+            });
+            newItems++;
+        }
+
+        if (newLevels + newTopics + newItems > 0 || replace)
+            await db.SaveChangesAsync();
+
+        return new CurriculumExcelImportResultDto(newLevels, newTopics, newItems, skipped, errors);
+    }
+
     // ---- Import (butun sillabusni almashtirish) ----
 
     // ---- Copy level (daraja) to another course ----

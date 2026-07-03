@@ -35,6 +35,26 @@ export async function downloadStudentCredentials(): Promise<void> {
   URL.revokeObjectURL(url)
 }
 
+/** TANLANGAN o'quvchilarning to'liq ma'lumotlarini Excel (.xlsx) ga yuklab oladi
+ *  (profil + guruhlar + balans + login; parol faqat superadmin uchun). */
+export async function downloadSelectedStudents(studentIds: string[]): Promise<void> {
+  if (USE_MOCK) {
+    alert('Eksport faqat real serverda ishlaydi (VITE_USE_MOCK=false).')
+    return
+  }
+  const res = await api.post('/admin/students/export-selected', { studentIds }, { responseType: 'blob' })
+  const url = URL.createObjectURL(res.data as Blob)
+  const a = document.createElement('a')
+  a.href = url
+  const cd = (res.headers['content-disposition'] as string | undefined) ?? ''
+  const m = cd.match(/filename="?([^"]+)"?/)
+  a.download = m?.[1] ?? `oquvchilar_tanlangan_${new Date().toISOString().slice(0, 10)}.xlsx`
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+}
+
 /** Excel'dan ommaviy import natijasi (bitta xato qator). */
 export interface StudentImportRowError {
   row: number
