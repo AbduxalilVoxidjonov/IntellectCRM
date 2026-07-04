@@ -625,6 +625,9 @@ app.Use(async (context, next) =>
         headers["Content-Security-Policy"] =
             "default-src 'self'; " +
             "img-src 'self' data: blob: https:; " +
+            // blob: — Call Center yozuv pleyeri (audio auth bilan blob qilib ochiladi) va
+            // shunga o'xshash media; busiz prod'da <audio src="blob:..."> JIM bloklanadi.
+            "media-src 'self' blob:; " +
             "style-src 'self' 'unsafe-inline'; " +
             // gstatic — FCM web SW (firebase-messaging-sw.js) importScripts qiladi.
             "script-src 'self' https://www.gstatic.com; " +

@@ -32,6 +32,33 @@ export interface CallList {
   items: CallRow[]
 }
 
+/** Raqam bo'yicha guruhlangan qator — tarixda bitta raqam = bitta qator. */
+export interface CallGroup {
+  phoneNumber: string
+  studentId: string | null
+  studentName: string
+  callsCount: number
+  answeredCount: number
+  totalDurationSeconds: number
+  lastCallAt: string
+  lastStatus: CallStatus | ''
+  lastDirection: 'inbound' | 'outbound' | ''
+}
+
+export interface CallGroupList {
+  total: number
+  items: CallGroup[]
+}
+
+/** Tarix filtrlari: sana oralig'i (yyyy-MM-dd), yo'nalish, holat. */
+export interface CallFilters {
+  search?: string
+  dateFrom?: string
+  dateTo?: string
+  direction?: '' | 'inbound' | 'outbound'
+  status?: '' | 'answered' | 'missed'
+}
+
 /** SignalR "callUpdated" hodisasi payload'i (LiveHub, topic "calls"). */
 export interface CallUpdate {
   id: string
@@ -64,9 +91,34 @@ export async function originateCall(req: {
   return data
 }
 
-/** Barcha qo'ng'iroqlar (eng oxirgisi tepada) — "Yozuvlar tarixi". */
-export async function getCalls(search = '', page = 1, pageSize = 50): Promise<CallList> {
-  const { data } = await api.get<CallList>('/admin/calls', { params: { search: search || undefined, page, pageSize } })
+/** Qo'ng'iroqlar ro'yxati (eng oxirgisi tepada). phone berilsa — faqat shu raqam bilan suhbatlar. */
+export async function getCalls(f: CallFilters & { phone?: string } = {}, page = 1, pageSize = 50): Promise<CallList> {
+  const { data } = await api.get<CallList>('/admin/calls', {
+    params: {
+      search: f.search || undefined,
+      phone: f.phone || undefined,
+      dateFrom: f.dateFrom || undefined,
+      dateTo: f.dateTo || undefined,
+      direction: f.direction || undefined,
+      status: f.status || undefined,
+      page, pageSize,
+    },
+  })
+  return data
+}
+
+/** Raqam bo'yicha guruhlangan tarix (har raqam bitta qator). */
+export async function getCallGroups(f: CallFilters = {}, page = 1, pageSize = 50): Promise<CallGroupList> {
+  const { data } = await api.get<CallGroupList>('/admin/calls/by-number', {
+    params: {
+      search: f.search || undefined,
+      dateFrom: f.dateFrom || undefined,
+      dateTo: f.dateTo || undefined,
+      direction: f.direction || undefined,
+      status: f.status || undefined,
+      page, pageSize,
+    },
+  })
   return data
 }
 

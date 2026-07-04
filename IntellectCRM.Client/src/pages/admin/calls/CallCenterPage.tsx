@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Phone, PhoneCall, PhoneOff, Delete, Search, History, AlertTriangle, Play, Loader2, X, User,
-  RefreshCw,
+  RefreshCw, ChevronDown, ChevronRight, PhoneIncoming, PhoneOutgoing,
 } from 'lucide-react'
 import type { HubConnection } from '@microsoft/signalr'
 import type { Student } from '@/types'
 import { getStudents } from '@/api/services/students'
 import {
-  getCallsConfig, originateCall, getCalls, getStudentCalls, fetchRecordingUrl, syncCallHistory,
-  type CallRow, type CallStatus, type CallUpdate,
+  getCallsConfig, originateCall, getCalls, getCallGroups, getStudentCalls, fetchRecordingUrl,
+  syncCallHistory,
+  type CallRow, type CallStatus, type CallUpdate, type CallGroup, type CallFilters,
 } from '@/api/services/calls'
 import { connectLiveTopic } from '@/api/services/live'
 import { Card } from '@/components/ui/Card'
@@ -431,22 +432,28 @@ function StudentDetail({ student, onClose }: { student: Student; onClose: () => 
 /* ============================ Yozuvlar tarixi (barcha qo'ng'iroqlar) ============================ */
 
 function CallHistory({ canSync }: { canSync: boolean }) {
-  const [search, setSearch] = useState('')
-  const [rows, setRows] = useState<CallRow[] | null>(null)
+  const [filters, setFilters] = useState<CallFilters>({
+    search: '', dateFrom: '', dateTo: '', direction: '', status: '',
+  })
+  const [groups, setGroups] = useState<CallGroup[] | null>(null)
   const [total, setTotal] = useState(0)
   const [reloadKey, setReloadKey] = useState(0)
   const [syncing, setSyncing] = useState(false)
   const [syncMsg, setSyncMsg] = useState('')
+  const [openPhone, setOpenPhone] = useState<string | null>(null)
+
+  const setF = <K extends keyof CallFilters>(k: K, v: CallFilters[K]) =>
+    setFilters((f) => ({ ...f, [k]: v }))
 
   useEffect(() => {
     const t = setTimeout(() => {
-      getCalls(search).then((r) => {
-        setRows(r.items)
+      getCallGroups(filters).then((r) => {
+        setGroups(r.items)
         setTotal(r.total)
-      }).catch(() => setRows([]))
+      }).catch(() => setGroups([]))
     }, 300)
     return () => clearTimeout(t)
-  }, [search, reloadKey])
+  }, [filters, reloadKey])
 
   const doSync = async () => {
     if (syncing) return
@@ -465,34 +472,109 @@ function CallHistory({ canSync }: { canSync: boolean }) {
 
   return (
     <Card tight>
-      <div className="flex items-center justify-between gap-3 border-b border-slate-100 p-3">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Ism yoki raqam bo'yicha qidirish..."
-            className={cn(control, 'pl-9')}
-          />
+      {/* Filtrlar paneli */}
+      <div className="space-y-2 border-b border-slate-100 p-3">
+        <div className="flex items-center gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              value={filters.search}
+              onChange={(e) => setF('search', e.target.value)}
+              placeholder="Ism yoki raqam bo'yicha qidirish..."
+              className={cn(control, 'pl-9')}
+            />
+          </div>
+          {syncMsg && <span className="flex-shrink-0 text-xs font-medium text-slate-400">{syncMsg}</span>}
+          {canSync && (
+            <Button variant="secondary" onClick={doSync} disabled={syncing} className="flex-shrink-0">
+              {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              Yangilash
+            </Button>
+          )}
+          <span className="flex-shrink-0 text-xs font-medium text-slate-400">{total} ta raqam</span>
         </div>
-        {syncMsg && <span className="flex-shrink-0 text-xs font-medium text-slate-400">{syncMsg}</span>}
-        {canSync && (
-          <Button variant="secondary" onClick={doSync} disabled={syncing} className="flex-shrink-0">
-            {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-            Yangilash
-          </Button>
-        )}
-        <span className="flex-shrink-0 text-xs font-medium text-slate-400">{total} ta qo'ng'iroq</span>
+        <div className="flex flex-wrap items-end gap-2">
+          <div>
+            <label className="mb-0.5 block text-[11px] font-semibold text-slate-400">Sanadan</label>
+            <input type="date" value={filters.dateFrom} onChange={(e) => setF('dateFrom', e.target.value)} className={cn(control, 'w-auto py-1.5')} />
+          </div>
+          <div>
+            <label className="mb-0.5 block text-[11px] font-semibold text-slate-400">Sanagacha</label>
+            <input type="date" value={filters.dateTo} onChange={(e) => setF('dateTo', e.target.value)} className={cn(control, 'w-auto py-1.5')} />
+          </div>
+          <div>
+            <label className="mb-0.5 block text-[11px] font-semibold text-slate-400">Yo'nalish</label>
+            <select value={filters.direction} onChange={(e) => setF('direction', e.target.value as CallFilters['direction'])} className={cn(control, 'w-auto py-1.5')}>
+              <option value="">Barchasi</option>
+              <option value="outbound">Chiquvchi</option>
+              <option value="inbound">Kiruvchi</option>
+            </select>
+          </div>
+          <div>
+            <label className="mb-0.5 block text-[11px] font-semibold text-slate-400">Holat</label>
+            <select value={filters.status} onChange={(e) => setF('status', e.target.value as CallFilters['status'])} className={cn(control, 'w-auto py-1.5')}>
+              <option value="">Barchasi</option>
+              <option value="answered">Javob berilgan</option>
+              <option value="missed">Javobsiz</option>
+            </select>
+          </div>
+          {(filters.dateFrom || filters.dateTo || filters.direction || filters.status) && (
+            <button
+              type="button"
+              onClick={() => setFilters((f) => ({ ...f, dateFrom: '', dateTo: '', direction: '', status: '' }))}
+              className="rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
+            >
+              <X className="mr-1 inline h-3.5 w-3.5" />Filtrlarni tozalash
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Raqam bo'yicha guruhlangan ro'yxat */}
       <div className="p-3">
-        {rows === null ? (
+        {groups === null ? (
           <Loader label="Yuklanmoqda..." />
-        ) : rows.length === 0 ? (
+        ) : groups.length === 0 ? (
           <p className="p-6 text-center text-sm text-slate-400">Qo'ng'iroqlar yo'q.</p>
         ) : (
           <div className="space-y-1.5">
-            {rows.map((c) => (
-              <CallRowLine key={c.id} call={c} showStudent />
+            {groups.map((g) => (
+              <div key={g.phoneNumber} className="overflow-hidden rounded-xl border border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setOpenPhone(openPhone === g.phoneNumber ? null : g.phoneNumber)}
+                  className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-slate-50"
+                >
+                  {openPhone === g.phoneNumber
+                    ? <ChevronDown className="h-4 w-4 flex-shrink-0 text-slate-400" />
+                    : <ChevronRight className="h-4 w-4 flex-shrink-0 text-slate-400" />}
+                  {g.lastDirection === 'inbound'
+                    ? <PhoneIncoming className="h-4 w-4 flex-shrink-0 text-sky-500" />
+                    : <PhoneOutgoing className="h-4 w-4 flex-shrink-0 text-emerald-500" />}
+                  <div className="min-w-0 flex-1">
+                    <span className="text-sm font-semibold text-slate-800">{g.phoneNumber}</span>
+                    {g.studentName && (
+                      <span className="ml-2 text-sm text-slate-500">{g.studentName}</span>
+                    )}
+                  </div>
+                  <span className="flex-shrink-0 rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-bold text-brand-600">
+                    {g.callsCount} ta qo'ng'iroq
+                  </span>
+                  <span className="hidden flex-shrink-0 text-xs text-slate-400 sm:inline">
+                    javob: {g.answeredCount}/{g.callsCount}
+                    {g.totalDurationSeconds > 0 ? ` · jami ${fmtDuration(g.totalDurationSeconds)}` : ''}
+                  </span>
+                  <span className="flex-shrink-0 text-xs text-slate-400">{fmtDateTime(g.lastCallAt)}</span>
+                  {g.lastStatus && (
+                    <span className={cn('inline-flex flex-shrink-0 items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold', STATUS_TONE[g.lastStatus as CallStatus] ?? '')}>
+                      {STATUS_LABEL[g.lastStatus as CallStatus] ?? g.lastStatus}
+                    </span>
+                  )}
+                </button>
+                {openPhone === g.phoneNumber && (
+                  <GroupCalls phone={g.phoneNumber} filters={filters} reloadKey={reloadKey} />
+                )}
+              </div>
             ))}
           </div>
         )}
@@ -501,12 +583,39 @@ function CallHistory({ canSync }: { canSync: boolean }) {
   )
 }
 
+/** Bitta raqam bilan BARCHA suhbatlar (guruh qatori ochilganda). */
+function GroupCalls({ phone, filters, reloadKey }: { phone: string; filters: CallFilters; reloadKey: number }) {
+  const [rows, setRows] = useState<CallRow[] | null>(null)
+
+  useEffect(() => {
+    setRows(null)
+    getCalls({ ...filters, search: '', phone }, 1, 200)
+      .then((r) => setRows(r.items))
+      .catch(() => setRows([]))
+  }, [phone, filters, reloadKey])
+
+  return (
+    <div className="space-y-1.5 border-t border-slate-100 bg-slate-50/50 p-2.5">
+      {rows === null ? (
+        <Loader label="Yuklanmoqda..." />
+      ) : rows.length === 0 ? (
+        <p className="p-3 text-center text-xs text-slate-400">Suhbatlar topilmadi.</p>
+      ) : (
+        rows.map((c) => <CallRowLine key={c.id} call={c} showStudent={false} />)
+      )}
+    </div>
+  )
+}
+
 /* ============================ Bitta qo'ng'iroq qatori + pleyer ============================ */
 
 function CallRowLine({ call, showStudent }: { call: CallRow; showStudent: boolean }) {
   return (
-    <div className="rounded-xl border border-slate-100 px-3 py-2">
+    <div className="rounded-xl border border-slate-100 bg-white px-3 py-2">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        {call.direction === 'inbound'
+          ? <PhoneIncoming className="h-3.5 w-3.5 flex-shrink-0 text-sky-500" />
+          : <PhoneOutgoing className="h-3.5 w-3.5 flex-shrink-0 text-emerald-500" />}
         <span
           className={cn(
             'inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold',
@@ -536,38 +645,62 @@ function CallRowLine({ call, showStudent }: { call: CallRow; showStudent: boolea
   )
 }
 
-/** Yozuvni bosilganda (auth bilan) yuklab, audio pleyerda ochadi. */
+/** Yozuvni bosilganda (auth bilan) yuklab, audio pleyerda ochadi.
+ * Xato ikki xil ko'rsatiladi: yuklab bo'lmadi (server xabari) yoki format o'ynamadi. */
 function RecordingPlayer({ callId }: { callId: string }) {
   const [url, setUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-  const [failed, setFailed] = useState(false)
+  const [failMsg, setFailMsg] = useState('')
 
   useEffect(() => () => { if (url) URL.revokeObjectURL(url) }, [url])
 
-  if (url) return <audio src={url} controls autoPlay className="h-8 max-w-[240px]" />
+  if (url)
+    return (
+      <audio
+        src={url}
+        controls
+        autoPlay
+        className="h-8 max-w-[240px]"
+        onError={() => {
+          URL.revokeObjectURL(url)
+          setUrl(null)
+          setFailMsg("O'ynatib bo'lmadi (format)")
+        }}
+      />
+    )
   return (
     <button
       type="button"
-      disabled={loading || failed}
+      disabled={loading || !!failMsg}
       onClick={async () => {
         setLoading(true)
         try {
           setUrl(await fetchRecordingUrl(callId))
-        } catch {
-          setFailed(true)
+        } catch (err: any) {
+          // Blob so'rovda server xabari ham blob bo'lib keladi — matnini o'qiymiz.
+          let msg = 'Yozuv topilmadi'
+          try {
+            const data = err.response?.data
+            if (data instanceof Blob) {
+              const parsed = JSON.parse(await data.text())
+              if (parsed?.message) msg = parsed.message
+            }
+          } catch { /* standart xabar qoladi */ }
+          setFailMsg(msg)
         } finally {
           setLoading(false)
         }
       }}
       className={cn(
         'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors',
-        failed
+        failMsg
           ? 'cursor-default text-slate-300'
           : 'text-brand-600 hover:bg-brand-50 hover:text-brand-700',
       )}
+      title={failMsg || 'Tinglash'}
     >
       {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
-      {failed ? 'Yozuv topilmadi' : 'Tinglash'}
+      {failMsg || 'Tinglash'}
     </button>
   )
 }

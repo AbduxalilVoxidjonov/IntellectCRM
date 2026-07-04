@@ -237,6 +237,13 @@ public record CallDto(
     string OperatorName, bool HasRecording, string Note);
 /// <summary>Sahifalangan qo'ng'iroqlar ro'yxati.</summary>
 public record CallListDto(int Total, List<CallDto> Items);
+/// <summary>Raqam bo'yicha guruhlangan qator — "Yozuvlar tarixi"da bitta raqam = bitta qator,
+/// ichiga kirilganda shu raqam bilan barcha suhbatlar ochiladi.</summary>
+public record CallGroupDto(
+    string PhoneNumber, string? StudentId, string StudentName, int CallsCount, int AnsweredCount,
+    int TotalDurationSeconds, string LastCallAt, string LastStatus, string LastDirection);
+/// <summary>Sahifalangan raqam-guruhlar ro'yxati.</summary>
+public record CallGroupListDto(int Total, List<CallGroupDto> Items);
 /// <summary>Moliyada o'quvchi qatori. Charged = jami to'liq oylik (chegirmasiz);
 /// Discount = jami berilgan chegirma; Paid = haqiqiy naqd to'lovlar yig'indisi (turli oylar uchun);
 /// Debt / Advance — joriy holatdan (balans). DiscountPct/Amount — qoidani ko'rsatish uchun.</summary>

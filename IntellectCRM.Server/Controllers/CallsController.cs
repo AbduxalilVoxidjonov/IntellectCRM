@@ -145,29 +145,117 @@ public class CallsController(
         return Ok(new { added, updated });
     }
 
-    /// <summary>Barcha qo'ng'iroqlar (eng oxirgisi tepada) — "Yozuvlar tarixi" bo'limi uchun.</summary>
+    /// <summary>Umumiy filtrlar: sana oralig'i (yyyy-MM-dd), yo'nalish, holat, aniq raqam.</summary>
+    private static IQueryable<Call> ApplyFilters(
+        IQueryable<Call> q, string? phone, string? dateFrom, string? dateTo, string? direction, string? status)
+    {
+        if (!string.IsNullOrWhiteSpace(phone))
+            q = q.Where(c => c.PhoneNumber == phone);
+        if (!string.IsNullOrWhiteSpace(dateFrom) && DateTime.TryParse(dateFrom, out var df))
+            q = q.Where(c => c.StartedAt >= df);
+        if (!string.IsNullOrWhiteSpace(dateTo) && DateTime.TryParse(dateTo, out var dt))
+            q = q.Where(c => c.StartedAt < dt.AddDays(1)); // kun oxirigacha inklyuziv
+        if (direction is "inbound" or "outbound")
+            q = q.Where(c => c.Direction == direction);
+        if (status == "answered")
+            q = q.Where(c => c.AnsweredAt != null);
+        else if (status == "missed")
+            q = q.Where(c => c.AnsweredAt == null && c.EndedAt != null);
+        return q;
+    }
+
+    /// <summary>Ism/raqam qidiruvi (raqam contains, ism — Students orqali).</summary>
+    private async Task<IQueryable<Call>> ApplySearchAsync(IQueryable<Call> q, string? search)
+    {
+        if (string.IsNullOrWhiteSpace(search)) return q;
+        var s = search.Trim().ToLower();
+        var sids = await db.Students
+            .Where(x => x.FullName.ToLower().Contains(s))
+            .Select(x => x.Id).ToListAsync();
+        return q.Where(c => c.PhoneNumber.Contains(s) || (c.StudentId != null && sids.Contains(c.StudentId)));
+    }
+
+    /// <summary>Barcha qo'ng'iroqlar (eng oxirgisi tepada). <paramref name="phone"/> berilsa —
+    /// faqat shu raqam bilan suhbatlar (guruh qatori ichini ochish uchun).</summary>
     [HttpGet]
     public async Task<ActionResult<CallListDto>> List(
-        [FromQuery] string? search, [FromQuery] int page = 1, [FromQuery] int pageSize = 50)
+        [FromQuery] string? search, [FromQuery] string? phone,
+        [FromQuery] string? dateFrom, [FromQuery] string? dateTo,
+        [FromQuery] string? direction, [FromQuery] string? status,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 50)
     {
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 200);
 
-        var q = db.Calls.AsNoTracking().AsQueryable();
-        if (!string.IsNullOrWhiteSpace(search))
-        {
-            var s = search.Trim().ToLower();
-            var sids = await db.Students
-                .Where(x => x.FullName.ToLower().Contains(s))
-                .Select(x => x.Id).ToListAsync();
-            q = q.Where(c => c.PhoneNumber.Contains(s) || (c.StudentId != null && sids.Contains(c.StudentId)));
-        }
+        var q = ApplyFilters(db.Calls.AsNoTracking(), phone, dateFrom, dateTo, direction, status);
+        q = await ApplySearchAsync(q, search);
 
         var total = await q.CountAsync();
         var items = await q.OrderByDescending(c => c.StartedAt)
             .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
 
         return new CallListDto(total, await ToDtosAsync(items));
+    }
+
+    /// <summary>
+    /// RAQAM BO'YICHA guruhlangan tarix: har raqam bitta qator (nechta qo'ng'iroq, oxirgisi
+    /// qachon/holati, jami gaplashuv). Qator ochilganda <see cref="List"/> phone= bilan chaqiriladi.
+    /// </summary>
+    [HttpGet("by-number")]
+    public async Task<ActionResult<CallGroupListDto>> ByNumber(
+        [FromQuery] string? search,
+        [FromQuery] string? dateFrom, [FromQuery] string? dateTo,
+        [FromQuery] string? direction, [FromQuery] string? status,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 50)
+    {
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 200);
+
+        var q = ApplyFilters(db.Calls.AsNoTracking(), null, dateFrom, dateTo, direction, status);
+        q = await ApplySearchAsync(q, search);
+
+        var grouped = q.GroupBy(c => c.PhoneNumber).Select(g => new
+        {
+            Phone = g.Key,
+            Count = g.Count(),
+            Answered = g.Count(c => c.AnsweredAt != null),
+            TotalDuration = g.Sum(c => c.DurationSeconds),
+            LastAt = g.Max(c => c.StartedAt),
+        });
+
+        var total = await grouped.CountAsync();
+        var pageRows = await grouped.OrderByDescending(x => x.LastAt)
+            .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+        var phones = pageRows.Select(x => x.Phone).ToList();
+
+        // Sahifadagi raqamlarning qo'ng'iroqlari — oxirgi holat + o'quvchi nomi uchun
+        // (bitta so'rov, keyin xotirada eng so'nggisi olinadi).
+        var meta = await db.Calls.AsNoTracking()
+            .Where(c => phones.Contains(c.PhoneNumber))
+            .Select(c => new { c.PhoneNumber, c.StartedAt, c.Status, c.Direction, c.StudentId })
+            .ToListAsync();
+        var lastByPhone = meta.GroupBy(m => m.PhoneNumber)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(m => m.StartedAt).First());
+        var studentByPhone = meta.Where(m => m.StudentId != null)
+            .GroupBy(m => m.PhoneNumber)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(m => m.StartedAt).First(m => m.StudentId != null).StudentId!);
+        var studentIds = studentByPhone.Values.Distinct().ToList();
+        var studentNames = await db.Students.Where(s => studentIds.Contains(s.Id))
+            .ToDictionaryAsync(s => s.Id, s => s.FullName);
+
+        var items = pageRows.Select(x =>
+        {
+            var last = lastByPhone.GetValueOrDefault(x.Phone);
+            var sid = studentByPhone.GetValueOrDefault(x.Phone);
+            return new CallGroupDto(
+                x.Phone, sid,
+                sid != null ? studentNames.GetValueOrDefault(sid, "") : "",
+                x.Count, x.Answered, x.TotalDuration,
+                x.LastAt.ToString("yyyy-MM-ddTHH:mm:ss"),
+                last?.Status ?? "", last?.Direction ?? "");
+        }).ToList();
+
+        return new CallGroupListDto(total, items);
     }
 
     /// <summary>Bitta o'quvchining qo'ng'iroqlar tarixi (detalli oynadagi tab).</summary>
@@ -200,8 +288,12 @@ public class CallsController(
             http.Timeout = TimeSpan.FromSeconds(60);
             var resp = await http.GetAsync(call.RecordingFile, HttpCompletionOption.ResponseHeadersRead);
             if (!resp.IsSuccessStatusCode)
-                return NotFound(new { message = "Yozuvni provayderdan olib bo'lmadi" });
+                return NotFound(new { message = $"Yozuvni provayderdan olib bo'lmadi (HTTP {(int)resp.StatusCode})" });
             var mediaType = resp.Content.Headers.ContentType?.MediaType ?? "audio/mpeg";
+            // Provayder audio o'rniga sahifa/xato qaytarsa (himoyalangan havola) — aniq xabar,
+            // pleyerga HTML berib "jim ishlamaslik" holatiga tushmaymiz.
+            if (mediaType.StartsWith("text/") || mediaType.Contains("html"))
+                return NotFound(new { message = "Provayder yozuv o'rniga sahifa qaytardi — havola himoyalangan bo'lishi mumkin" });
             return File(await resp.Content.ReadAsStreamAsync(), mediaType);
         }
 
