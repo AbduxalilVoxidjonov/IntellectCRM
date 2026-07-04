@@ -94,6 +94,39 @@ public class FcmService(IHttpClientFactory httpFactory, ILogger<FcmService> logg
         return new SendResult(sent, invalid);
     }
 
+    /// <summary>
+    /// Bitta tokenga DATA-message (notification YO'Q) yuboradi — ilovani fonda uyg'otish uchun
+    /// (masalan CTI agent-ilovaga <c>dial</c> buyrug'ini yetkazish). <c>android.priority = "high"</c>
+    /// — Doze rejimida ham darhol yetadi. Muvaffaqiyat/xato — <see cref="SendAsync"/> uslubida loglanadi.
+    /// </summary>
+    public async Task<bool> SendDataAsync(
+        string serviceAccountJson, string token, IReadOnlyDictionary<string, string> data,
+        CancellationToken ct = default)
+    {
+        if (!TryParse(serviceAccountJson, out var c) || string.IsNullOrWhiteSpace(token))
+            return false;
+
+        string accessToken;
+        try { accessToken = await GetAccessTokenAsync(c, ct); }
+        catch (Exception ex) { logger.LogWarning(ex, "FCM access token olishda xato"); return false; }
+
+        var client = httpFactory.CreateClient();
+        var url = $"https://fcm.googleapis.com/v1/projects/{c.ProjectId}/messages:send";
+        try
+        {
+            var payload = new { message = new { token, data, android = new { priority = "high" } } };
+            using var req = new HttpRequestMessage(HttpMethod.Post, url);
+            req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+            req.Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+            var resp = await client.SendAsync(req, ct);
+            if (resp.IsSuccessStatusCode) return true;
+            var err = await resp.Content.ReadAsStringAsync(ct);
+            logger.LogWarning("FCM data-push rad etildi ({Status}): {Body}", (int)resp.StatusCode, err);
+            return false;
+        }
+        catch (Exception ex) { logger.LogWarning(ex, "FCM data-push yuborishda xato"); return false; }
+    }
+
     private async Task<string> GetAccessTokenAsync(Creds c, CancellationToken ct)
     {
         lock (_lock)

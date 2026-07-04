@@ -87,6 +87,9 @@ services:
     volumes:
       - uploads:/app/uploads               # yuklangan fayllar (rasm, hujjat)
       - dpkeys:/app/keys                   # DataProtection kalitlari — deploylar oralig'ida saqlanadi
+      # CTI (Local Call) audio yozuvlari — ATAYIN /uploads (ochiq statik) ostida EMAS,
+      # faqat autentifikatsiyalangan /api/cti/calls/{id}/audio orqali beriladi.
+      - cti-recordings:/app/recordings
     depends_on:
       postgres:
         condition: service_healthy
@@ -174,3 +177,4 @@ volumes:
   uploads:
   dpkeys:
   cam-recordings:
+  cti-recordings:

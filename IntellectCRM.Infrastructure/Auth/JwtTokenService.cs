@@ -32,6 +32,20 @@ public class JwtTokenService(JwtOptions options)
         return Write(claims);
     }
 
+    /// <summary>CTI (Local Call) Android agent-ilovasi uchun token — <see cref="AppUser"/>siz,
+    /// CtiAgent bo'yicha. Rol <see cref="Roles.CtiAgent"/> (faqat mobil API + WebSocket).</summary>
+    public string CreateAgentToken(string agentId, string displayName)
+    {
+        var claims = new List<Claim>
+        {
+            new(JwtRegisteredClaimNames.Sub, agentId),
+            new(ClaimTypes.NameIdentifier, agentId),
+            new(ClaimTypes.Name, displayName),
+            new(ClaimTypes.Role, Roles.CtiAgent),
+        };
+        return Write(claims);
+    }
+
     private string Write(IEnumerable<Claim> claims)
     {
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_o.Key));

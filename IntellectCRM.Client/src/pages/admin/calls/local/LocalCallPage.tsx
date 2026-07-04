@@ -1,0 +1,724 @@
+import { useEffect, useRef, useState } from 'react'
+import {
+  History, Users, Search, X, AlertTriangle, PhoneIncoming, PhoneOutgoing, PhoneMissed,
+  Phone, Loader2, ChevronLeft, ChevronRight, Plus, Pencil, CircleDot,
+} from 'lucide-react'
+import {
+  getCtiAgents, createCtiAgent, updateCtiAgent, dialCtiAgent,
+  getCtiCalls, getCtiCallDetail, fetchCtiCallAudioUrl, updateCtiCallNote,
+  type CtiAgent, type CtiCall, type CtiCallDetail, type CtiCallFilters,
+} from '@/api/services/cti'
+import { Card } from '@/components/ui/Card'
+import { Button } from '@/components/ui/Button'
+import { PageHeader } from '@/components/ui/PageHeader'
+import { Loader } from '@/components/ui/Loader'
+import { Modal } from '@/components/ui/Modal'
+import { Input } from '@/components/ui/Input'
+import { cn, formatDateTime } from '@/lib/utils'
+
+/* ============================================================
+   Local Call — lokal CTI moduli: Android agent-telefonlar qo'ng'iroqlar
+   tarixi/audiosini serverga yuboradi. Bu yerda operator tarixni ko'radi,
+   audioni eshitadi, agentlar holatini kuzatadi va click-to-call qiladi.
+   ============================================================ */
+
+const control =
+  'w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition-colors focus:border-brand-400'
+
+const DIRECTION_LABEL: Record<CtiCall['direction'], string> = {
+  incoming: 'Kiruvchi',
+  outgoing: 'Chiquvchi',
+  missed: "O'tkazib yuborilgan",
+}
+
+const DIRECTION_TONE: Record<CtiCall['direction'], string> = {
+  incoming: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  outgoing: 'bg-sky-50 text-sky-700 border-sky-200',
+  missed: 'bg-red-50 text-red-700 border-red-200',
+}
+
+function fmtDuration(sec: number): string {
+  const m = Math.floor(sec / 60)
+  const s = sec % 60
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+}
+
+function DirectionIcon({ direction, className }: { direction: CtiCall['direction']; className?: string }) {
+  if (direction === 'incoming') return <PhoneIncoming className={cn('text-emerald-500', className)} />
+  if (direction === 'outgoing') return <PhoneOutgoing className={cn('text-sky-500', className)} />
+  return <PhoneMissed className={cn('text-red-500', className)} />
+}
+
+export function LocalCallPage() {
+  const [tab, setTab] = useState<'history' | 'agents'>('history')
+
+  const [agents, setAgents] = useState<CtiAgent[]>([])
+  const [agentsLoaded, setAgentsLoaded] = useState(false)
+  const [error, setError] = useState('')
+
+  const reloadAgents = () => getCtiAgents().then(setAgents).catch(() => setAgents([]))
+
+  useEffect(() => {
+    reloadAgents().finally(() => setAgentsLoaded(true))
+    const t = setInterval(reloadAgents, 10000)
+    return () => clearInterval(t)
+  }, [])
+
+  return (
+    <div>
+      <PageHeader
+        title="Local Call"
+        sub="Lokal agent-telefonlar orqali qo'ng'iroqlar — tarix, audio yozuvlar va click-to-call"
+        actions={
+          <div className="flex gap-2">
+            <Button variant={tab === 'history' ? 'primary' : 'secondary'} onClick={() => setTab('history')}>
+              <History className="h-4 w-4" /> Qo'ng'iroqlar tarixi
+            </Button>
+            <Button variant={tab === 'agents' ? 'primary' : 'secondary'} onClick={() => setTab('agents')}>
+              <Users className="h-4 w-4" /> Agentlar
+            </Button>
+          </div>
+        }
+      />
+
+      {error && (
+        <div className="mb-4 flex items-start justify-between gap-2.5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          <span className="flex items-start gap-2.5">
+            <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" /> {error}
+          </span>
+          <button type="button" onClick={() => setError('')} className="text-red-400 hover:text-red-600">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
+      {!agentsLoaded ? (
+        <Card>
+          <Loader label="Yuklanmoqda..." />
+        </Card>
+      ) : tab === 'history' ? (
+        <HistoryTab agents={agents} onError={setError} />
+      ) : (
+        <AgentsTab agents={agents} onReload={reloadAgents} onError={setError} />
+      )}
+    </div>
+  )
+}
+
+/* ============================ Tab 1: Qo'ng'iroqlar tarixi ============================ */
+
+function HistoryTab({ agents, onError }: { agents: CtiAgent[]; onError: (msg: string) => void }) {
+  const [filters, setFilters] = useState<CtiCallFilters>({
+    agentId: '', direction: '', dateFrom: '', dateTo: '', search: '',
+  })
+  const [rows, setRows] = useState<CtiCall[] | null>(null)
+  const [total, setTotal] = useState(0)
+  const [page, setPage] = useState(1)
+  const pageSize = 20
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [dialFor, setDialFor] = useState<CtiCall | null>(null)
+
+  const setF = <K extends keyof CtiCallFilters>(k: K, v: CtiCallFilters[K]) => {
+    setFilters((f) => ({ ...f, [k]: v }))
+    setPage(1)
+  }
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      getCtiCalls(filters, page, pageSize)
+        .then((r) => { setRows(r.items); setTotal(r.total) })
+        .catch(() => setRows([]))
+    }, 400)
+    return () => clearTimeout(t)
+  }, [filters, page])
+
+  const totalPages = Math.max(1, Math.ceil(total / pageSize))
+
+  return (
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+      <div className="lg:col-span-7">
+        <Card tight>
+          {/* Filtrlar */}
+          <div className="space-y-2 border-b border-slate-100 p-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                value={filters.search}
+                onChange={(e) => setF('search', e.target.value)}
+                placeholder="Ism yoki raqam bo'yicha qidirish..."
+                className={cn(control, 'pl-9')}
+              />
+            </div>
+            <div className="flex flex-wrap items-end gap-2">
+              <div>
+                <label className="mb-0.5 block text-[11px] font-semibold text-slate-400">Agent</label>
+                <select value={filters.agentId} onChange={(e) => setF('agentId', e.target.value)} className={cn(control, 'w-auto py-1.5')}>
+                  <option value="">Barchasi</option>
+                  {agents.map((a) => (
+                    <option key={a.id} value={a.id}>{a.displayName}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="mb-0.5 block text-[11px] font-semibold text-slate-400">Yo'nalish</label>
+                <select value={filters.direction} onChange={(e) => setF('direction', e.target.value as CtiCallFilters['direction'])} className={cn(control, 'w-auto py-1.5')}>
+                  <option value="">Barchasi</option>
+                  <option value="incoming">Kiruvchi</option>
+                  <option value="outgoing">Chiquvchi</option>
+                  <option value="missed">O'tkazib yuborilgan</option>
+                </select>
+              </div>
+              <div>
+                <label className="mb-0.5 block text-[11px] font-semibold text-slate-400">Sanadan</label>
+                <input type="date" value={filters.dateFrom} onChange={(e) => setF('dateFrom', e.target.value)} className={cn(control, 'w-auto py-1.5')} />
+              </div>
+              <div>
+                <label className="mb-0.5 block text-[11px] font-semibold text-slate-400">Sanagacha</label>
+                <input type="date" value={filters.dateTo} onChange={(e) => setF('dateTo', e.target.value)} className={cn(control, 'w-auto py-1.5')} />
+              </div>
+              {(filters.agentId || filters.direction || filters.dateFrom || filters.dateTo) && (
+                <button
+                  type="button"
+                  onClick={() => setFilters((f) => ({ ...f, agentId: '', direction: '', dateFrom: '', dateTo: '' }))}
+                  className="rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
+                >
+                  <X className="mr-1 inline h-3.5 w-3.5" />Filtrlarni tozalash
+                </button>
+              )}
+            </div>
+            <p className="text-xs font-medium text-slate-400">{total} ta qo'ng'iroq</p>
+          </div>
+
+          {/* Ro'yxat */}
+          <div className="max-h-[560px] overflow-y-auto">
+            {rows === null ? (
+              <Loader label="Yuklanmoqda..." />
+            ) : rows.length === 0 ? (
+              <p className="p-6 text-center text-sm text-slate-400">Qo'ng'iroqlar yo'q.</p>
+            ) : (
+              rows.map((c) => (
+                <div
+                  key={c.id}
+                  onClick={() => setSelectedId(c.id)}
+                  className={cn(
+                    'flex cursor-pointer items-start gap-3 border-b border-slate-50 px-4 py-2.5 transition-colors hover:bg-slate-50',
+                    selectedId === c.id && 'bg-brand-50/60',
+                  )}
+                >
+                  <DirectionIcon direction={c.direction} className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-semibold text-slate-800">
+                      {c.remoteNumber}
+                      {(c.studentName || c.contactName) && (
+                        <span className="ml-2 font-normal text-slate-400">{c.studentName || c.contactName}</span>
+                      )}
+                    </div>
+                    <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-400">
+                      <span>{c.agentName}</span>
+                      <span>{formatDateTime(c.startedAt)}</span>
+                      {c.durationSec > 0 && <span className="font-mono">{fmtDuration(c.durationSec)}</span>}
+                      {c.hasAudio && <span className="text-brand-500">audio</span>}
+                      <span className={cn('inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold', DIRECTION_TONE[c.direction])}>
+                        {DIRECTION_LABEL[c.direction]}
+                      </span>
+                    </div>
+                  </div>
+                  <Button
+                    variant="secondary"
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setDialFor(c) }}
+                    className="flex-shrink-0"
+                  >
+                    <Phone className="h-4 w-4" /> Qo'ng'iroq qil
+                  </Button>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Sahifalash */}
+          {total > pageSize && (
+            <div className="flex items-center justify-between border-t border-slate-100 px-4 py-2.5 text-xs">
+              <span className="font-medium text-slate-400">
+                {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)} / {total}
+              </span>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  className="rounded-lg border border-slate-200 p-1.5 text-slate-500 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                  title="Oldingi sahifa"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <span className="min-w-[64px] text-center font-medium text-slate-600">{page} / {totalPages}</span>
+                <button
+                  type="button"
+                  disabled={page >= totalPages}
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  className="rounded-lg border border-slate-200 p-1.5 text-slate-500 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                  title="Keyingi sahifa"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          )}
+        </Card>
+      </div>
+
+      <div className="lg:col-span-5">
+        {selectedId ? (
+          <CallDetailPanel callId={selectedId} />
+        ) : (
+          <Card>
+            <p className="py-10 text-center text-sm text-slate-400">
+              Chapdan qo'ng'iroqni tanlang — audio, hodisalar va izoh shu yerda ochiladi.
+            </p>
+          </Card>
+        )}
+      </div>
+
+      {dialFor && (
+        <DialModal
+          number={dialFor.remoteNumber}
+          agents={agents}
+          onClose={() => setDialFor(null)}
+          onError={onError}
+        />
+      )}
+    </div>
+  )
+}
+
+/* ============================ O'ng panel: qo'ng'iroq detali ============================ */
+
+function CallDetailPanel({ callId }: { callId: string }) {
+  const [detail, setDetail] = useState<CtiCallDetail | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [note, setNote] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    setDetail(null)
+    setLoading(true)
+    setError('')
+    getCtiCallDetail(callId)
+      .then((d) => { setDetail(d); setNote(d.note) })
+      .catch((err: any) => setError(err.response?.data?.message || 'Yuklashda xato'))
+      .finally(() => setLoading(false))
+  }, [callId])
+
+  const saveNote = async () => {
+    if (!detail || saving) return
+    setSaving(true)
+    setError('')
+    try {
+      await updateCtiCallNote(detail.id, note)
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Izohni saqlashda xato')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <Card>
+        <Loader label="Yuklanmoqda..." />
+      </Card>
+    )
+  }
+
+  if (!detail) {
+    return (
+      <Card>
+        <p className="py-10 text-center text-sm text-red-500">{error || 'Qo\'ng\'iroq topilmadi.'}</p>
+      </Card>
+    )
+  }
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="text-lg font-bold text-slate-800">
+              {detail.remoteNumber}
+              {(detail.studentName || detail.contactName) && (
+                <span className="ml-2 text-base font-medium text-slate-400">
+                  {detail.studentName || detail.contactName}
+                </span>
+              )}
+            </div>
+            <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+              <span>{formatDateTime(detail.startedAt)}</span>
+              {detail.durationSec > 0 && <span className="font-mono">{fmtDuration(detail.durationSec)}</span>}
+              <span>Agent: {detail.agentName}</span>
+              <span className="inline-flex items-center gap-1">
+                <DirectionIcon direction={detail.direction} className="h-3.5 w-3.5" />
+                {DIRECTION_LABEL[detail.direction]}
+              </span>
+            </div>
+          </div>
+          <span className={cn('inline-flex flex-shrink-0 items-center rounded-full border px-3 py-1 text-xs font-semibold', DIRECTION_TONE[detail.direction])}>
+            {DIRECTION_LABEL[detail.direction]}
+          </span>
+        </div>
+
+        {detail.hasAudio && (
+          <div className="mt-3">
+            <AudioPlayer callId={detail.id} />
+          </div>
+        )}
+
+        {/* Hodisalar vaqt chizig'i */}
+        <div className="mt-4">
+          <h4 className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400">Hodisalar</h4>
+          {detail.events.length === 0 ? (
+            <p className="text-sm text-slate-400">Hodisalar yo'q.</p>
+          ) : (
+            <div className="space-y-1.5">
+              {detail.events.map((ev, i) => (
+                <div key={i} className="flex items-center gap-2 text-sm">
+                  <CircleDot className="h-3.5 w-3.5 flex-shrink-0 text-brand-400" />
+                  <span className="font-medium text-slate-700">{EVENT_LABEL[ev.type] ?? ev.type}</span>
+                  <span className="text-xs text-slate-400">{formatDateTime(ev.at)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {error && (
+          <div className="mt-3 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" /> {error}
+          </div>
+        )}
+      </Card>
+
+      <Card title="Izoh">
+        <textarea
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          rows={3}
+          placeholder="Qo'ng'iroq bo'yicha izoh..."
+          className={cn(control, 'resize-none')}
+        />
+        <div className="mt-2 flex justify-end">
+          <Button onClick={saveNote} disabled={saving}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            Saqlash
+          </Button>
+        </div>
+      </Card>
+    </div>
+  )
+}
+
+const EVENT_LABEL: Record<string, string> = {
+  ringing: 'Chalinmoqda',
+  answered: 'Javob berildi',
+  ended: 'Tugadi',
+}
+
+/** Yozuvni bosilganda (auth bilan) yuklab, audio pleyerda ochadi. */
+function AudioPlayer({ callId }: { callId: string }) {
+  const [url, setUrl] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [failMsg, setFailMsg] = useState('')
+  const urlRef = useRef<string | null>(null)
+  urlRef.current = url
+
+  useEffect(() => () => { if (urlRef.current) URL.revokeObjectURL(urlRef.current) }, [])
+
+  useEffect(() => {
+    setUrl(null)
+    setFailMsg('')
+    setLoading(true)
+    fetchCtiCallAudioUrl(callId)
+      .then(setUrl)
+      .catch(() => setFailMsg('Yozuv topilmadi'))
+      .finally(() => setLoading(false))
+  }, [callId])
+
+  if (loading) return <Loader label="Yuklanmoqda..." className="py-3" />
+  if (failMsg) return <p className="text-sm text-red-500">{failMsg}</p>
+  if (!url) return null
+  return (
+    <audio
+      src={url}
+      controls
+      className="h-9 w-full"
+      onError={() => setFailMsg("O'ynatib bo'lmadi (format)")}
+    />
+  )
+}
+
+/* ============================ Dial modal (raqamga qo'ng'iroq qilish) ============================ */
+
+function DialModal({
+  number, agents, onClose, onError,
+}: {
+  number: string
+  agents: CtiAgent[]
+  onClose: () => void
+  onError: (msg: string) => void
+}) {
+  const online = agents.filter((a) => a.isOnline && a.isActive)
+  const [agentId, setAgentId] = useState(online[0]?.id ?? '')
+  const [calling, setCalling] = useState(false)
+  const [result, setResult] = useState('')
+
+  const doDial = async () => {
+    if (!agentId || calling) return
+    setCalling(true)
+    setResult('')
+    try {
+      const r = await dialCtiAgent(agentId, number)
+      setResult(r.delivered ? "Buyruq agentga yetkazildi" : 'Agent oflayn — push yuborildi, yetkazilmadi')
+    } catch (err: any) {
+      onError(err.response?.data?.message || 'Qo\'ng\'iroq qilishda xato')
+      onClose()
+    } finally {
+      setCalling(false)
+    }
+  }
+
+  return (
+    <Modal open onClose={onClose} size="sm" title={`Qo'ng'iroq qil: ${number}`}>
+      <div className="space-y-3">
+        {agents.length === 0 ? (
+          <p className="text-sm text-slate-400">Agentlar yo'q.</p>
+        ) : (
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-600">Agent tanlang</label>
+            <select value={agentId} onChange={(e) => setAgentId(e.target.value)} className={control}>
+              <option value="">— tanlang —</option>
+              {agents.map((a) => (
+                <option key={a.id} value={a.id} disabled={!a.isOnline || !a.isActive}>
+                  {a.displayName} {a.isOnline ? '(onlayn)' : '(oflayn)'}
+                </option>
+              ))}
+            </select>
+            {online.length === 0 && (
+              <p className="mt-1 text-xs text-amber-600">Hech qaysi agent onlayn emas — push yuboriladi, lekin yetkazilmasligi mumkin.</p>
+            )}
+          </div>
+        )}
+
+        {result && (
+          <div className={cn('rounded-lg px-3 py-2 text-sm', result.includes('yetkazilmadi') ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700')}>
+            {result}
+          </div>
+        )}
+
+        <div className="flex justify-end gap-2">
+          <Button variant="secondary" onClick={onClose}>Yopish</Button>
+          <Button onClick={doDial} disabled={!agentId || calling}>
+            {calling ? <Loader2 className="h-4 w-4 animate-spin" /> : <Phone className="h-4 w-4" />}
+            Qo'ng'iroq qil
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+/* ============================ Tab 2: Agentlar ============================ */
+
+function AgentsTab({
+  agents, onReload, onError,
+}: {
+  agents: CtiAgent[]
+  onReload: () => void
+  onError: (msg: string) => void
+}) {
+  const [formOpen, setFormOpen] = useState(false)
+  const [editing, setEditing] = useState<CtiAgent | null>(null)
+  const [dialFor, setDialFor] = useState<CtiAgent | null>(null)
+  const [dialNumber, setDialNumber] = useState('')
+
+  return (
+    <div>
+      <div className="mb-3 flex justify-end">
+        <Button onClick={() => { setEditing(null); setFormOpen(true) }}>
+          <Plus className="h-4 w-4" /> Agent qo'shish
+        </Button>
+      </div>
+
+      {agents.length === 0 ? (
+        <Card>
+          <p className="py-10 text-center text-sm text-slate-400">Hali agent qo'shilmagan.</p>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {agents.map((a) => (
+            <Card key={a.id} tight>
+              <div className="p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className={cn('h-2 w-2 flex-shrink-0 rounded-full', a.isOnline ? 'bg-emerald-500' : 'bg-slate-300')} />
+                      <span className="truncate text-sm font-bold text-slate-800">{a.displayName}</span>
+                    </div>
+                    <p className="mt-0.5 truncate text-xs text-slate-400">{a.login}</p>
+                  </div>
+                  <span className={cn(
+                    'flex-shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-semibold',
+                    a.isActive ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-100 text-slate-500',
+                  )}>
+                    {a.isActive ? 'Faol' : 'Nofaol'}
+                  </span>
+                </div>
+
+                <div className="mt-2.5 space-y-1 text-xs text-slate-500">
+                  <p>Oxirgi ko'rinish: {a.lastSeenAt ? formatDateTime(a.lastSeenAt) : '—'}</p>
+                  <p>FCM: {a.hasFcmToken ? 'bor' : "yo'q"}</p>
+                </div>
+
+                <div className="mt-3 flex gap-2">
+                  <Button variant="secondary" onClick={() => { setEditing(a); setFormOpen(true) }} className="flex-1">
+                    <Pencil className="h-3.5 w-3.5" /> Tahrirlash
+                  </Button>
+                  <Button variant="secondary" onClick={() => { setDialFor(a); setDialNumber('') }} className="flex-1">
+                    <Phone className="h-3.5 w-3.5" /> Qo'ng'iroq
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {formOpen && (
+        <AgentFormModal
+          editing={editing}
+          onClose={() => setFormOpen(false)}
+          onSaved={() => { setFormOpen(false); onReload() }}
+          onError={onError}
+        />
+      )}
+
+      {dialFor && (
+        <Modal open onClose={() => setDialFor(null)} size="sm" title={`Qo'ng'iroq qil: ${dialFor.displayName}`}>
+          <div className="space-y-3">
+            <Input
+              label="Telefon raqami"
+              value={dialNumber}
+              onChange={(e) => setDialNumber(e.target.value.replace(/[^\d+]/g, ''))}
+              placeholder="+998 XX XXX XX XX"
+            />
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" onClick={() => setDialFor(null)}>Yopish</Button>
+              <Button
+                disabled={dialNumber.replace(/\D/g, '').length < 7}
+                onClick={async () => {
+                  try {
+                    const r = await dialCtiAgent(dialFor.id, dialNumber)
+                    onError(r.delivered ? '' : 'Agent oflayn — push yuborildi, yetkazilmadi')
+                  } catch (err: any) {
+                    onError(err.response?.data?.message || 'Qo\'ng\'iroq qilishda xato')
+                  } finally {
+                    setDialFor(null)
+                  }
+                }}
+              >
+                <Phone className="h-4 w-4" /> Qo'ng'iroq qil
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </div>
+  )
+}
+
+/* ============================ Agent qo'shish/tahrirlash modal ============================ */
+
+function AgentFormModal({
+  editing, onClose, onSaved, onError,
+}: {
+  editing: CtiAgent | null
+  onClose: () => void
+  onSaved: () => void
+  onError: (msg: string) => void
+}) {
+  const [login, setLogin] = useState(editing?.login ?? '')
+  const [displayName, setDisplayName] = useState(editing?.displayName ?? '')
+  const [password, setPassword] = useState('')
+  const [isActive, setIsActive] = useState(editing?.isActive ?? true)
+  const [saving, setSaving] = useState(false)
+
+  const canSave = displayName.trim() && (editing || (login.trim() && password.trim()))
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!canSave || saving) return
+    setSaving(true)
+    try {
+      if (editing) {
+        await updateCtiAgent(editing.id, { displayName: displayName.trim(), isActive, password })
+      } else {
+        await createCtiAgent({ login: login.trim(), password, displayName: displayName.trim() })
+      }
+      onSaved()
+    } catch (err: any) {
+      onError(err.response?.data?.message || 'Saqlashda xato')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      size="sm"
+      title={editing ? 'Agentni tahrirlash' : "Yangi agent qo'shish"}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>Bekor qilish</Button>
+          <Button type="submit" form="cti-agent-form" disabled={!canSave || saving}>
+            {saving ? 'Saqlanmoqda...' : 'Saqlash'}
+          </Button>
+        </>
+      }
+    >
+      <form id="cti-agent-form" onSubmit={handleSubmit} className="space-y-3">
+        {!editing && (
+          <Input
+            label="Login"
+            required
+            value={login}
+            onChange={(e) => setLogin(e.target.value)}
+            placeholder="agent1"
+          />
+        )}
+        <Input
+          label="Ism (ko'rinadigan)"
+          required
+          value={displayName}
+          onChange={(e) => setDisplayName(e.target.value)}
+          placeholder="Masalan: Dilnoza (call center)"
+        />
+        <Input
+          label={editing ? "Yangi parol (bo'sh — o'zgarmaydi)" : 'Parol'}
+          required={!editing}
+          type="text"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder={editing ? "o'zgartirmaslik uchun bo'sh qoldiring" : ''}
+        />
+        {editing && (
+          <label className="flex items-center gap-2 text-sm font-medium text-slate-600">
+            <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} className="accent-brand-600" />
+            Faol
+          </label>
+        )}
+      </form>
+    </Modal>
+  )
+}

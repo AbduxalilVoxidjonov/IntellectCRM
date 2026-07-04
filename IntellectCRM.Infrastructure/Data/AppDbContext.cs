@@ -116,6 +116,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     // Call Center — qo'ng'iroqlar jurnali
     public DbSet<Call> Calls => Set<Call>();
 
+    // CTI (Local Call) — Android agent-ilovalar (xodim telefonlari) bilan lokal call-center
+    public DbSet<CtiAgent> CtiAgents => Set<CtiAgent>();
+    public DbSet<CtiCallRecord> CtiCallRecords => Set<CtiCallRecord>();
+    public DbSet<CtiCallEvent> CtiCallEvents => Set<CtiCallEvent>();
+    public DbSet<CtiCommandLog> CtiCommandLogs => Set<CtiCommandLog>();
+
     // Tuman + maktab
     public DbSet<District> Districts => Set<District>();
     public DbSet<School> Schools => Set<School>();
@@ -209,6 +215,22 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         b.Entity<Call>().HasIndex(c => c.StartedAt);
         b.Entity<Call>().HasIndex(c => c.AsteriskUniqueId);
         b.Entity<Call>().HasIndex(c => c.ProviderDbId);
+
+        // CTI (Local Call): agent logini unikal, tarix filtri (agent/raqam/vaqt), hodisa kaskad.
+        b.Entity<CtiAgent>().Property(a => a.Login).HasMaxLength(100);
+        b.Entity<CtiAgent>().HasIndex(a => a.Login).IsUnique();
+        b.Entity<CtiCallRecord>().Property(c => c.AgentId).HasMaxLength(200);
+        b.Entity<CtiCallRecord>().Property(c => c.RemoteNumber).HasMaxLength(50);
+        b.Entity<CtiCallRecord>().HasIndex(c => c.AgentId);
+        b.Entity<CtiCallRecord>().HasIndex(c => c.RemoteNumber);
+        b.Entity<CtiCallRecord>().HasIndex(c => c.StartedAt);
+        b.Entity<CtiCallEvent>().Property(e => e.CallId).HasMaxLength(200);
+        b.Entity<CtiCallEvent>().HasIndex(e => e.CallId);
+        b.Entity<CtiCallEvent>()
+            .HasOne<CtiCallRecord>().WithMany()
+            .HasForeignKey(e => e.CallId)
+            .OnDelete(DeleteBehavior.Cascade);
+        b.Entity<CtiCommandLog>().HasIndex(c => c.AgentId);
         b.Entity<AuditLog>().HasIndex(a => a.Timestamp);
         b.Entity<AuditLog>().HasIndex(a => a.StudentId);
         b.Entity<AuditLog>().HasIndex(a => a.TeacherId);

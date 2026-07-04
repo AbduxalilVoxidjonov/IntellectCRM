@@ -122,6 +122,12 @@ public interface IAppDbContext
     // Call Center — qo'ng'iroqlar jurnali
     DbSet<Call> Calls { get; }
 
+    // CTI (Local Call) — Android agent-ilovalar bilan lokal call-center
+    DbSet<CtiAgent> CtiAgents { get; }
+    DbSet<CtiCallRecord> CtiCallRecords { get; }
+    DbSet<CtiCallEvent> CtiCallEvents { get; }
+    DbSet<CtiCommandLog> CtiCommandLogs { get; }
+
     int SaveChanges();
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

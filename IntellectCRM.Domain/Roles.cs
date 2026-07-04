@@ -30,6 +30,11 @@ public static class Roles
     /// (multi-tenant/Control Plane YO'Q).</summary>
     public const string PlatformOwner = "platformowner";
 
+    /// <summary>CTI (Local Call) Android agent-ilovasi — xodim telefonidagi qo'ng'iroq
+    /// yozuvchi ilova. FAQAT mobil API'ga (<c>api/mobile</c>) va WebSocket'ga kiradi; admin
+    /// paneliga kira olmaydi. Token <see cref="AppUser"/>siz — CtiAgent bo'yicha beriladi.</summary>
+    public const string CtiAgent = "ctiagent";
+
     /// <summary>
     /// Admin endpoint'larida ishlatish uchun: ikkala rol ham ruxsat etiladi.
     /// <c>[Authorize(Roles = Roles.AdminOrSuper)]</c> ko'rinishida foydalaniladi.

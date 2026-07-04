@@ -258,6 +258,53 @@ public record StudentFinanceRowDto(
     decimal Charged, decimal Discount, decimal Paid, decimal Debt, decimal Advance,
     int DiscountPct = 0, decimal DiscountAmount = 0);
 
+/* ---------- CTI (Local Call) ---------- */
+
+/// <summary>Mobil (Android agent) login so'rovi.</summary>
+public record CtiLoginRequest(string Login, string Password);
+/// <summary>Login javobi: JWT token, agent id va WebSocket manzili.</summary>
+public record CtiLoginResponse(string Token, string AgentId, string WsUrl);
+/// <summary>Ilova yuborgan qo'ng'iroq metadatasi (sanalar ISO string).</summary>
+public record CtiCallCreateRequest(
+    string Direction, string RemoteNumber, string? ContactName, string StartedAt,
+    string? AnsweredAt, string? EndedAt, int DurationSec);
+/// <summary>Qo'ng'iroq yaratilgach — server tomonidagi id (audio/hodisalar shu bo'yicha yuboriladi).</summary>
+public record CtiCallCreatedResponse(string ServerCallId);
+/// <summary>Ilova yuborgan bitta qo'ng'iroq hodisasi.</summary>
+public record CtiCallEventRequest(string Type, string At);
+/// <summary>Ilova FCM tokenini yangilash.</summary>
+public record CtiFcmTokenRequest(string Token);
+
+/// <summary>Operator paneli — agent qatori (jonli holat konnektsiya menejeridan).</summary>
+public record CtiAgentDto(
+    string Id, string Login, string DisplayName, bool IsActive, bool IsOnline,
+    string? LastSeenAt, bool HasFcmToken);
+/// <summary>Yangi agent yaratish.</summary>
+public record CtiAgentCreateRequest(string Login, string Password, string DisplayName);
+/// <summary>Agentni tahrirlash (Password bo'sh/null bo'lsa parol o'zgarmaydi).</summary>
+public record CtiAgentUpdateRequest(string DisplayName, bool IsActive, string? Password);
+/// <summary>Click-to-call so'rovi.</summary>
+public record CtiDialRequest(string Number);
+/// <summary>Click-to-call natijasi: buyruq id + yetkazildimi (WS yoki FCM+WS orqali).</summary>
+public record CtiDialResponse(string CommandId, bool Delivered);
+/// <summary>Operator tarixidagi qo'ng'iroq qatori (sanalar ISO string).</summary>
+public record CtiCallDto(
+    string Id, string AgentId, string AgentName, string Direction, string RemoteNumber,
+    string ContactName, string? StudentId, string StudentName, string StartedAt,
+    string? AnsweredAt, string? EndedAt, int DurationSec, bool HasAudio, string Note);
+/// <summary>Sahifalangan CTI qo'ng'iroqlar ro'yxati.</summary>
+public record CtiCallListDto(int Total, List<CtiCallDto> Items);
+/// <summary>CTI qo'ng'irog'ining hodisasi (detal).</summary>
+public record CtiCallEventDto(string Type, string At);
+/// <summary>CTI qo'ng'irog'ining to'liq tafsiloti (qator + hodisalar).</summary>
+public record CtiCallDetailDto(
+    string Id, string AgentId, string AgentName, string Direction, string RemoteNumber,
+    string ContactName, string? StudentId, string StudentName, string StartedAt,
+    string? AnsweredAt, string? EndedAt, int DurationSec, bool HasAudio, string Note,
+    List<CtiCallEventDto> Events);
+/// <summary>Operator izohini yangilash.</summary>
+public record CtiNoteRequest(string Note);
+
 /* ---------- Subjects (Kurslar) ---------- */
 public record SubjectPayload(string Name, decimal Price = 0, decimal LessonPrice = 0);
 

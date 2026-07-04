@@ -133,7 +133,13 @@ export const navByRole: Record<Role, NavItem[]> = {
         { label: "O'qituvchilar", to: '/admin/app/teachers' },
       ],
     },
-    { label: 'Call Center', to: '/admin/calls', icon: PhoneCall, perm: 'calls' },
+    {
+      label: 'Call Center', to: '/admin/calls', icon: PhoneCall, perm: 'calls',
+      children: [
+        { label: "Bulut (MoiZvonki)", to: '/admin/calls', end: true },
+        { label: 'Local Call', to: '/admin/calls/local' },
+      ],
+    },
     { label: 'Moliya', to: '/admin/finance', icon: Wallet, perm: 'finance' },
     {
       label: 'Marketing',

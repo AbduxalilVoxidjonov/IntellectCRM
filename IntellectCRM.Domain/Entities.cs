@@ -1913,3 +1913,86 @@ public class Call
     /// <summary>Operator izohi (ixtiyoriy).</summary>
     public string Note { get; set; } = string.Empty;
 }
+
+/* ---------- CTI (Local Call) — Android agent-ilovalar bilan lokal call-center ---------- */
+
+/// <summary>
+/// CTI agent — xodim telefoniga o'rnatilgan Android ilova akkaunti (mavjud <see cref="AppUser"/>dan
+/// alohida; login/parol shu yerda). Ilova qo'ng'iroq metadata+audio yuboradi, WebSocket orqali
+/// serverdan <c>dial</c> buyrug'ini oladi. Oflaynda FCM push (data-message) bilan uyg'otiladi.
+/// </summary>
+public class CtiAgent
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    /// <summary>Ilovaga kirish logini (unikal).</summary>
+    public string Login { get; set; } = string.Empty;
+    public string PasswordHash { get; set; } = string.Empty;
+    /// <summary>Operator paneli va tarixda ko'rinadigan nom (masalan xodim ismi).</summary>
+    public string DisplayName { get; set; } = string.Empty;
+    /// <summary>Faol emas bo'lsa — login qila olmaydi (o'chirish o'rniga).</summary>
+    public bool IsActive { get; set; } = true;
+    /// <summary>Oflaynda uyg'otish uchun FCM qurilma tokeni (bo'sh — hali ro'yxatdan o'tmagan).</summary>
+    public string FcmToken { get; set; } = string.Empty;
+    /// <summary>Hozir WebSocket orqali ulanganmi (heartbeat/ulanish yangilaydi; jonli haqiqat
+    /// konnektsiya menejeridan olinadi).</summary>
+    public bool IsOnline { get; set; }
+    /// <summary>Oxirgi faollik (heartbeat/presence).</summary>
+    public DateTime? LastSeenAt { get; set; }
+}
+
+/// <summary>
+/// CTI qo'ng'iroq yozuvi (Android ilovadan yuboriladi). Id = <c>serverCallId</c> (ilova audio va
+/// hodisalarni shu bo'yicha yuklaydi). O'quvchi telefon bo'yicha topilsa <see cref="StudentId"/> to'ladi.
+/// </summary>
+public class CtiCallRecord
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    /// <summary>Qaysi agent (telefon) qildi/qabul qildi.</summary>
+    public string AgentId { get; set; } = string.Empty;
+    /// <summary>"incoming" (kiruvchi) | "outgoing" (chiquvchi) | "missed" (javobsiz).</summary>
+    public string Direction { get; set; } = "outgoing";
+    /// <summary>Suhbatdosh raqami (agent telefonidagi ikkinchi tomon).</summary>
+    public string RemoteNumber { get; set; } = string.Empty;
+    /// <summary>Ilovadagi kontakt nomi (bo'lsa).</summary>
+    public string ContactName { get; set; } = string.Empty;
+    /// <summary>Raqam o'quvchiga (yoki ota-onaga) tegishli bo'lsa — Students.Id; aks holda null.</summary>
+    public string? StudentId { get; set; }
+    public DateTime StartedAt { get; set; } = AppClock.Now;
+    public DateTime? AnsweredAt { get; set; }
+    public DateTime? EndedAt { get; set; }
+    /// <summary>Gaplashuv davomiyligi soniyada.</summary>
+    public int DurationSec { get; set; }
+    /// <summary>Yozuv fayli — recordings papkasiga NISBIY fayl nomi (bo'sh — hali yuklanmagan).</summary>
+    public string AudioPath { get; set; } = string.Empty;
+    /// <summary>Audio serverga yuklanganmi.</summary>
+    public bool AudioUploaded { get; set; }
+    /// <summary>Operator izohi (admin paneldan).</summary>
+    public string Note { get; set; } = string.Empty;
+    public DateTime CreatedAt { get; set; } = AppClock.Now;
+}
+
+/// <summary>CTI qo'ng'irog'ining oraliq hodisasi (jonli holat tarixi). Qo'ng'iroq o'chsa — kaskad o'chadi.</summary>
+public class CtiCallEvent
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    /// <summary>Qaysi qo'ng'iroqqa tegishli (CtiCallRecord.Id).</summary>
+    public string CallId { get; set; } = string.Empty;
+    /// <summary>"ringing" | "answered" | "ended".</summary>
+    public string Type { get; set; } = string.Empty;
+    public DateTime At { get; set; } = AppClock.Now;
+}
+
+/// <summary>Server→ilova yuborilgan buyruq jurnali (masalan click-to-call <c>dial</c>) va yetkazish holati.</summary>
+public class CtiCommandLog
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    /// <summary>Qaysi agentga yuborildi.</summary>
+    public string AgentId { get; set; } = string.Empty;
+    /// <summary>Buyruq turi, masalan "dial".</summary>
+    public string Action { get; set; } = string.Empty;
+    /// <summary>Buyruq yuki (masalan teriladigan raqam).</summary>
+    public string Payload { get; set; } = string.Empty;
+    /// <summary>"pending" | "sent" | "acked" | "failed".</summary>
+    public string Status { get; set; } = "pending";
+    public DateTime CreatedAt { get; set; } = AppClock.Now;
+}

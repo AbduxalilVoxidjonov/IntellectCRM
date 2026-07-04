@@ -14,6 +14,8 @@ using IntellectCRM.Application.Services;
 using IntellectCRM.Infrastructure.Auth;
 using IntellectCRM.Infrastructure.Data;
 using IntellectCRM.Server.Controllers;
+using IntellectCRM.Server.Cti;
+using System.IdentityModel.Tokens.Jwt;
 using System.Text;
 
 // PostgreSQL (Npgsql): DateTime (Kind=Unspecified, AppClock — Toshkent local) ni `timestamp`
@@ -236,6 +238,9 @@ builder.Services.AddHostedService<MoiZvonkiSetupService>();
 // sifatida ham ro'yxatda (controller qo'lda "Yangilash"da SyncOnceAsync'ni chaqiradi).
 builder.Services.AddSingleton<MoiZvonkiCallSyncService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<MoiZvonkiCallSyncService>());
+
+// CTI (Local Call) — Android agent WebSocket ulanishlarini boshqaruvchi (jonli onlayn + dial buyruq).
+builder.Services.AddSingleton<CtiConnectionManager>();
 
 // O'zgarishlar tarixi (audit) — joriy foydalanuvchini aniqlash uchun HttpContext kerak
 builder.Services.AddHttpContextAccessor();
@@ -668,6 +673,60 @@ app.UseStaticFiles(new StaticFileOptions
 
 // Swagger ATAYLAB o'chirilgan (global) — butun API yuzasini ochib qo'ymaslik uchun
 // `/api/swagger` UI/JSON endpointlari berilmaydi.
+
+// CTI (Local Call) — Android agent WebSocket. UseWebSockets HTTPS-redirect'dan OLDIN: upgrade so'rovi
+// redirect qilinmasin. /ws terminal branch — SPA fallback'ga tushmaydi. Auth QO'LDA (query ?token=)
+// tekshiriladi (SignalR access_token uslubiga o'xshash), chunki brauzer/ilova WS'da header yubora olmaydi.
+app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSeconds(30) });
+app.Map("/ws", wsApp => wsApp.Run(async ctx =>
+{
+    if (!ctx.WebSockets.IsWebSocketRequest)
+    {
+        ctx.Response.StatusCode = StatusCodes.Status400BadRequest;
+        return;
+    }
+
+    var token = ctx.Request.Query["token"].ToString();
+    var (valid, agentId) = ValidateAgentToken(token, jwtOptions);
+    if (!valid)
+    {
+        ctx.Response.StatusCode = StatusCodes.Status401Unauthorized;
+        return;
+    }
+
+    var manager = ctx.RequestServices.GetRequiredService<CtiConnectionManager>();
+    var scopeFactory = ctx.RequestServices.GetRequiredService<IServiceScopeFactory>();
+    var logger = ctx.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("CtiWebSocket");
+    var lifetime = ctx.RequestServices.GetRequiredService<IHostApplicationLifetime>();
+
+    using var socket = await ctx.WebSockets.AcceptWebSocketAsync();
+    await CtiWebSocketHandler.HandleAsync(socket, agentId!, manager, scopeFactory, logger, lifetime.ApplicationStopping);
+}));
+
+// CTI WS token tekshiruvi: imzo/muddat/issuer/audience + rol == ctiagent. (agentId, valid) qaytaradi.
+static (bool Valid, string? AgentId) ValidateAgentToken(string token, JwtOptions o)
+{
+    if (string.IsNullOrWhiteSpace(token)) return (false, null);
+    try
+    {
+        var handler = new JwtSecurityTokenHandler();
+        var principal = handler.ValidateToken(token, new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = o.Issuer,
+            ValidAudience = o.Audience,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(o.Key)),
+        }, out _);
+        if (!principal.IsInRole(Roles.CtiAgent)) return (false, null);
+        var agentId = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                      ?? principal.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+        return string.IsNullOrEmpty(agentId) ? (false, null) : (true, agentId);
+    }
+    catch { return (false, null); }
+}
 
 app.UseHttpsRedirection();
 
