@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   History, Users, Search, X, AlertTriangle, PhoneIncoming, PhoneOutgoing, PhoneMissed,
-  Phone, Loader2, ChevronLeft, ChevronRight, Plus, Pencil, CircleDot,
+  Phone, PhoneCall, Delete, User, Loader2, ChevronLeft, ChevronRight, Plus, Pencil, CircleDot,
 } from 'lucide-react'
+import type { Student } from '@/types'
+import { getStudents } from '@/api/services/students'
 import {
   getCtiAgents, createCtiAgent, updateCtiAgent, dialCtiAgent,
   getCtiCalls, getCtiCallDetail, fetchCtiCallAudioUrl, updateCtiCallNote,
@@ -50,7 +52,7 @@ function DirectionIcon({ direction, className }: { direction: CtiCall['direction
 }
 
 export function LocalCallPage() {
-  const [tab, setTab] = useState<'history' | 'agents'>('history')
+  const [tab, setTab] = useState<'dial' | 'history' | 'agents'>('dial')
 
   const [agents, setAgents] = useState<CtiAgent[]>([])
   const [agentsLoaded, setAgentsLoaded] = useState(false)
@@ -68,11 +70,14 @@ export function LocalCallPage() {
     <div>
       <PageHeader
         title="Local Call"
-        sub="Lokal agent-telefonlar orqali qo'ng'iroqlar — tarix, audio yozuvlar va click-to-call"
+        sub="O'quvchilarga lokal agent-telefonlar orqali qo'ng'iroq qilish va suhbat yozuvlarini tinglash"
         actions={
           <div className="flex gap-2">
+            <Button variant={tab === 'dial' ? 'primary' : 'secondary'} onClick={() => setTab('dial')}>
+              <PhoneCall className="h-4 w-4" /> Qo'ng'iroq qilish
+            </Button>
             <Button variant={tab === 'history' ? 'primary' : 'secondary'} onClick={() => setTab('history')}>
-              <History className="h-4 w-4" /> Qo'ng'iroqlar tarixi
+              <History className="h-4 w-4" /> Yozuvlar tarixi
             </Button>
             <Button variant={tab === 'agents' ? 'primary' : 'secondary'} onClick={() => setTab('agents')}>
               <Users className="h-4 w-4" /> Agentlar
@@ -96,11 +101,227 @@ export function LocalCallPage() {
         <Card>
           <Loader label="Yuklanmoqda..." />
         </Card>
+      ) : tab === 'dial' ? (
+        <DialTab agents={agents} onError={setError} />
       ) : tab === 'history' ? (
         <HistoryTab agents={agents} onError={setError} />
       ) : (
         <AgentsTab agents={agents} onReload={reloadAgents} onError={setError} />
       )}
+    </div>
+  )
+}
+
+/* ============================ Tab: Qo'ng'iroq qilish (dial) ============================ */
+
+function DialTab({ agents, onError }: { agents: CtiAgent[]; onError: (msg: string) => void }) {
+  const [students, setStudents] = useState<Student[]>([])
+  const [loadingStudents, setLoadingStudents] = useState(true)
+  const [search, setSearch] = useState('')
+
+  const [agentId, setAgentId] = useState('')
+  const [dial, setDial] = useState('')
+  const [calling, setCalling] = useState(false)
+  const [result, setResult] = useState<{ delivered: boolean } | null>(null)
+  const resultTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    getStudents().then(setStudents).catch(() => setStudents([])).finally(() => setLoadingStudents(false))
+  }, [])
+
+  // Agentlar birinchi yuklanganda (yoki tanlangan agent ro'yxatdan tushib qolganda) — onlayn birinchisini tanlaymiz.
+  useEffect(() => {
+    if (agentId && agents.some((a) => a.id === agentId)) return
+    const firstOnline = agents.find((a) => a.isOnline && a.isActive)
+    setAgentId(firstOnline?.id ?? agents[0]?.id ?? '')
+  }, [agents, agentId])
+
+  const sortedAgents = useMemo(
+    () => [...agents].sort((a, b) => Number(b.isOnline) - Number(a.isOnline)),
+    [agents],
+  )
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    const digits = search.replace(/\D/g, '')
+    let list = students
+    if (q) {
+      list = students.filter((s) => {
+        if (s.fullName.toLowerCase().includes(q)) return true
+        if (digits.length >= 3) {
+          return [s.phone, s.parentPhone, s.fatherPhone, s.motherPhone]
+            .some((p) => (p ?? '').replace(/\D/g, '').includes(digits))
+        }
+        return false
+      })
+    }
+    return list.slice(0, 100)
+  }, [students, search])
+
+  useEffect(() => () => { if (resultTimer.current) clearTimeout(resultTimer.current) }, [])
+
+  const showResult = (delivered: boolean) => {
+    setResult({ delivered })
+    if (resultTimer.current) clearTimeout(resultTimer.current)
+    resultTimer.current = setTimeout(() => setResult(null), 6000)
+  }
+
+  const startCall = async (number: string) => {
+    if (calling || !number) return
+    if (!agentId) {
+      onError('Avval telefon (agent) tanlang')
+      return
+    }
+    setCalling(true)
+    setResult(null)
+    try {
+      const r = await dialCtiAgent(agentId, number)
+      showResult(r.delivered)
+    } catch (err: any) {
+      onError(err.response?.data?.message || err.message || 'Xato yuz berdi')
+    } finally {
+      setCalling(false)
+    }
+  }
+
+  if (loadingStudents) {
+    return (
+      <Card>
+        <Loader label="Yuklanmoqda..." />
+      </Card>
+    )
+  }
+
+  return (
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+      {/* ===== CHAP: o'quvchilar ro'yxati ===== */}
+      <div className="space-y-4 lg:col-span-7">
+        <Card tight>
+          <div className="border-b border-slate-100 p-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Ism yoki telefon raqami bo'yicha qidirish..."
+                className={cn(control, 'pl-9')}
+              />
+            </div>
+          </div>
+          <div className="max-h-[480px] overflow-y-auto">
+            {filtered.length === 0 ? (
+              <p className="p-6 text-center text-sm text-slate-400">O'quvchi topilmadi.</p>
+            ) : (
+              filtered.map((s) => {
+                const phone = s.phone || s.parentPhone || s.fatherPhone || s.motherPhone || ''
+                return (
+                  <div
+                    key={s.id}
+                    className="flex items-center gap-3 border-b border-slate-50 px-4 py-2.5 transition-colors hover:bg-slate-50"
+                  >
+                    <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500">
+                      <User className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-medium text-slate-800">{s.fullName}</div>
+                      <div className="truncate text-xs text-slate-400">
+                        {phone || 'Telefon kiritilmagan'}
+                        {s.className ? ` · ${s.className}` : ''}
+                      </div>
+                    </div>
+                    <Button
+                      variant="secondary"
+                      type="button"
+                      disabled={!phone || calling}
+                      onClick={() => startCall(phone)}
+                      className="flex-shrink-0"
+                    >
+                      <Phone className="h-4 w-4" /> Qo'ng'iroq
+                    </Button>
+                  </div>
+                )
+              })
+            )}
+          </div>
+        </Card>
+      </div>
+
+      {/* ===== O'NG: agent tanlash + dialpad ===== */}
+      <div className="space-y-4 lg:col-span-5">
+        <Card title="Raqam terish">
+          <div className="mb-3">
+            <label className="mb-1 block text-sm font-medium text-slate-600">Qaysi telefon orqali</label>
+            <select value={agentId} onChange={(e) => setAgentId(e.target.value)} className={control}>
+              {sortedAgents.length === 0 && <option value="">Agentlar yo'q</option>}
+              {sortedAgents.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.isOnline ? '● ' : ''}{a.displayName} {a.isOnline ? '(onlayn)' : '(oflayn)'}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <input
+              value={dial}
+              onChange={(e) => setDial(e.target.value.replace(/[^\d+*#]/g, ''))}
+              placeholder="+998 XX XXX XX XX"
+              className={cn(control, 'text-center text-lg font-semibold tracking-wider')}
+            />
+            <button
+              type="button"
+              onClick={() => setDial((d) => d.slice(0, -1))}
+              className="flex-shrink-0 rounded-lg p-2.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+              title="O'chirish"
+            >
+              <Delete className="h-5 w-5" />
+            </button>
+          </div>
+
+          <div className="mx-auto mt-4 grid max-w-[240px] grid-cols-3 gap-2">
+            {['1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '0', '#'].map((k) => (
+              <button
+                key={k}
+                type="button"
+                onClick={() => setDial((d) => d + k)}
+                className="h-14 rounded-xl border border-slate-200 bg-white text-lg font-semibold text-slate-700 transition-colors hover:border-brand-300 hover:bg-brand-50 active:bg-brand-100"
+              >
+                {k}
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-4 flex gap-2">
+            <Button
+              onClick={() => startCall(dial)}
+              disabled={dial.replace(/\D/g, '').length < 7 || calling || !agentId}
+              className="flex-1"
+            >
+              {calling ? <Loader2 className="h-4 w-4 animate-spin" /> : <PhoneCall className="h-4 w-4" />}
+              Qo'ng'iroq
+            </Button>
+            <Button variant="secondary" onClick={() => setDial('')} disabled={!dial}>
+              Tozalash
+            </Button>
+          </div>
+        </Card>
+
+        {/* Qo'ng'iroq natijasi (SignalR yo'q — faqat dial buyrug'i yetkazilgan/yetkazilmagani) */}
+        {result && (
+          <Card tight>
+            <div
+              className={cn(
+                'flex items-start gap-2.5 p-4 text-sm font-medium',
+                result.delivered ? 'text-emerald-700' : 'text-amber-700',
+              )}
+            >
+              {result.delivered
+                ? "Buyruq agent telefoniga yuborildi — telefon terilmoqda"
+                : 'Agent oflayn — push yuborildi, telefon uyg\'onganda yetkazilmaydi/qayta urining'}
+            </div>
+          </Card>
+        )}
+      </div>
     </div>
   )
 }
