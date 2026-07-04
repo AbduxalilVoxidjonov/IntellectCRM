@@ -1,15 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Phone, PhoneCall, PhoneOff, Delete, Search, History, AlertTriangle, Play, Loader2, X, User,
-  RefreshCw, ChevronDown, ChevronRight, PhoneIncoming, PhoneOutgoing,
+  RefreshCw, PhoneIncoming, PhoneOutgoing, Captions, Sparkles,
 } from 'lucide-react'
 import type { HubConnection } from '@microsoft/signalr'
 import type { Student } from '@/types'
 import { getStudents } from '@/api/services/students'
 import {
-  getCallsConfig, originateCall, getCalls, getCallGroups, getStudentCalls, fetchRecordingUrl,
-  syncCallHistory,
-  type CallRow, type CallStatus, type CallUpdate, type CallGroup, type CallFilters,
+  getCallsConfig, originateCall, getCalls, getStudentCalls, fetchRecordingUrl,
+  syncCallHistory, getCallDetail, transcribeCall, analyzeCall,
+  type CallRow, type CallStatus, type CallUpdate, type CallFilters, type CallDetail,
 } from '@/api/services/calls'
 import { connectLiveTopic } from '@/api/services/live'
 import { Card } from '@/components/ui/Card'
@@ -429,28 +429,28 @@ function StudentDetail({ student, onClose }: { student: Student; onClose: () => 
   )
 }
 
-/* ============================ Yozuvlar tarixi (barcha qo'ng'iroqlar) ============================ */
+/* ============================ Yozuvlar tarixi (ikki ustunli: ro'yxat + detal) ============================ */
 
 function CallHistory({ canSync }: { canSync: boolean }) {
   const [filters, setFilters] = useState<CallFilters>({
     search: '', dateFrom: '', dateTo: '', direction: '', status: '',
   })
-  const [groups, setGroups] = useState<CallGroup[] | null>(null)
+  const [rows, setRows] = useState<CallRow[] | null>(null)
   const [total, setTotal] = useState(0)
   const [reloadKey, setReloadKey] = useState(0)
   const [syncing, setSyncing] = useState(false)
   const [syncMsg, setSyncMsg] = useState('')
-  const [openPhone, setOpenPhone] = useState<string | null>(null)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
 
   const setF = <K extends keyof CallFilters>(k: K, v: CallFilters[K]) =>
     setFilters((f) => ({ ...f, [k]: v }))
 
   useEffect(() => {
     const t = setTimeout(() => {
-      getCallGroups(filters).then((r) => {
-        setGroups(r.items)
+      getCalls(filters, 1, 100).then((r) => {
+        setRows(r.items)
         setTotal(r.total)
-      }).catch(() => setGroups([]))
+      }).catch(() => setRows([]))
     }, 300)
     return () => clearTimeout(t)
   }, [filters, reloadKey])
@@ -471,143 +471,269 @@ function CallHistory({ canSync }: { canSync: boolean }) {
   }
 
   return (
-    <Card tight>
-      {/* Filtrlar paneli */}
-      <div className="space-y-2 border-b border-slate-100 p-3">
-        <div className="flex items-center gap-3">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <input
-              value={filters.search}
-              onChange={(e) => setF('search', e.target.value)}
-              placeholder="Ism yoki raqam bo'yicha qidirish..."
-              className={cn(control, 'pl-9')}
-            />
-          </div>
-          {syncMsg && <span className="flex-shrink-0 text-xs font-medium text-slate-400">{syncMsg}</span>}
-          {canSync && (
-            <Button variant="secondary" onClick={doSync} disabled={syncing} className="flex-shrink-0">
-              {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-              Yangilash
-            </Button>
-          )}
-          <span className="flex-shrink-0 text-xs font-medium text-slate-400">{total} ta raqam</span>
-        </div>
-        <div className="flex flex-wrap items-end gap-2">
-          <div>
-            <label className="mb-0.5 block text-[11px] font-semibold text-slate-400">Sanadan</label>
-            <input type="date" value={filters.dateFrom} onChange={(e) => setF('dateFrom', e.target.value)} className={cn(control, 'w-auto py-1.5')} />
-          </div>
-          <div>
-            <label className="mb-0.5 block text-[11px] font-semibold text-slate-400">Sanagacha</label>
-            <input type="date" value={filters.dateTo} onChange={(e) => setF('dateTo', e.target.value)} className={cn(control, 'w-auto py-1.5')} />
-          </div>
-          <div>
-            <label className="mb-0.5 block text-[11px] font-semibold text-slate-400">Yo'nalish</label>
-            <select value={filters.direction} onChange={(e) => setF('direction', e.target.value as CallFilters['direction'])} className={cn(control, 'w-auto py-1.5')}>
-              <option value="">Barchasi</option>
-              <option value="outbound">Chiquvchi</option>
-              <option value="inbound">Kiruvchi</option>
-            </select>
-          </div>
-          <div>
-            <label className="mb-0.5 block text-[11px] font-semibold text-slate-400">Holat</label>
-            <select value={filters.status} onChange={(e) => setF('status', e.target.value as CallFilters['status'])} className={cn(control, 'w-auto py-1.5')}>
-              <option value="">Barchasi</option>
-              <option value="answered">Javob berilgan</option>
-              <option value="missed">Javobsiz</option>
-            </select>
-          </div>
-          {(filters.dateFrom || filters.dateTo || filters.direction || filters.status) && (
-            <button
-              type="button"
-              onClick={() => setFilters((f) => ({ ...f, dateFrom: '', dateTo: '', direction: '', status: '' }))}
-              className="rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
-            >
-              <X className="mr-1 inline h-3.5 w-3.5" />Filtrlarni tozalash
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Raqam bo'yicha guruhlangan ro'yxat */}
-      <div className="p-3">
-        {groups === null ? (
-          <Loader label="Yuklanmoqda..." />
-        ) : groups.length === 0 ? (
-          <p className="p-6 text-center text-sm text-slate-400">Qo'ng'iroqlar yo'q.</p>
-        ) : (
-          <div className="space-y-1.5">
-            {groups.map((g) => (
-              <div key={g.phoneNumber} className="overflow-hidden rounded-xl border border-slate-100">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+      {/* ===== CHAP: filtr + qo'ng'iroqlar ro'yxati ===== */}
+      <div className="lg:col-span-5">
+        <Card tight>
+          {/* Filtrlar paneli */}
+          <div className="space-y-2 border-b border-slate-100 p-3">
+            <div className="flex items-center gap-3">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  value={filters.search}
+                  onChange={(e) => setF('search', e.target.value)}
+                  placeholder="Ism yoki raqam bo'yicha qidirish..."
+                  className={cn(control, 'pl-9')}
+                />
+              </div>
+              {canSync && (
+                <Button variant="secondary" onClick={doSync} disabled={syncing} className="flex-shrink-0">
+                  {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                  Yangilash
+                </Button>
+              )}
+            </div>
+            {syncMsg && <p className="text-xs font-medium text-slate-400">{syncMsg}</p>}
+            <div className="flex flex-wrap items-end gap-2">
+              <div>
+                <label className="mb-0.5 block text-[11px] font-semibold text-slate-400">Sanadan</label>
+                <input type="date" value={filters.dateFrom} onChange={(e) => setF('dateFrom', e.target.value)} className={cn(control, 'w-auto py-1.5')} />
+              </div>
+              <div>
+                <label className="mb-0.5 block text-[11px] font-semibold text-slate-400">Sanagacha</label>
+                <input type="date" value={filters.dateTo} onChange={(e) => setF('dateTo', e.target.value)} className={cn(control, 'w-auto py-1.5')} />
+              </div>
+              <div>
+                <label className="mb-0.5 block text-[11px] font-semibold text-slate-400">Yo'nalish</label>
+                <select value={filters.direction} onChange={(e) => setF('direction', e.target.value as CallFilters['direction'])} className={cn(control, 'w-auto py-1.5')}>
+                  <option value="">Barchasi</option>
+                  <option value="outbound">Chiquvchi</option>
+                  <option value="inbound">Kiruvchi</option>
+                </select>
+              </div>
+              <div>
+                <label className="mb-0.5 block text-[11px] font-semibold text-slate-400">Holat</label>
+                <select value={filters.status} onChange={(e) => setF('status', e.target.value as CallFilters['status'])} className={cn(control, 'w-auto py-1.5')}>
+                  <option value="">Barchasi</option>
+                  <option value="answered">Javob berilgan</option>
+                  <option value="missed">Javobsiz</option>
+                </select>
+              </div>
+              {(filters.dateFrom || filters.dateTo || filters.direction || filters.status) && (
                 <button
                   type="button"
-                  onClick={() => setOpenPhone(openPhone === g.phoneNumber ? null : g.phoneNumber)}
-                  className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-slate-50"
+                  onClick={() => setFilters((f) => ({ ...f, dateFrom: '', dateTo: '', direction: '', status: '' }))}
+                  className="rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
                 >
-                  {openPhone === g.phoneNumber
-                    ? <ChevronDown className="h-4 w-4 flex-shrink-0 text-slate-400" />
-                    : <ChevronRight className="h-4 w-4 flex-shrink-0 text-slate-400" />}
-                  {g.lastDirection === 'inbound'
-                    ? <PhoneIncoming className="h-4 w-4 flex-shrink-0 text-sky-500" />
-                    : <PhoneOutgoing className="h-4 w-4 flex-shrink-0 text-emerald-500" />}
-                  <div className="min-w-0 flex-1">
-                    <span className="text-sm font-semibold text-slate-800">{g.phoneNumber}</span>
-                    {g.studentName && (
-                      <span className="ml-2 text-sm text-slate-500">{g.studentName}</span>
-                    )}
-                  </div>
-                  <span className="flex-shrink-0 rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-bold text-brand-600">
-                    {g.callsCount} ta qo'ng'iroq
-                  </span>
-                  <span className="hidden flex-shrink-0 text-xs text-slate-400 sm:inline">
-                    javob: {g.answeredCount}/{g.callsCount}
-                    {g.totalDurationSeconds > 0 ? ` · jami ${fmtDuration(g.totalDurationSeconds)}` : ''}
-                  </span>
-                  <span className="flex-shrink-0 text-xs text-slate-400">{fmtDateTime(g.lastCallAt)}</span>
-                  {g.lastStatus && (
-                    <span className={cn('inline-flex flex-shrink-0 items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold', STATUS_TONE[g.lastStatus as CallStatus] ?? '')}>
-                      {STATUS_LABEL[g.lastStatus as CallStatus] ?? g.lastStatus}
-                    </span>
-                  )}
+                  <X className="mr-1 inline h-3.5 w-3.5" />Filtrlarni tozalash
                 </button>
-                {openPhone === g.phoneNumber && (
-                  <GroupCalls phone={g.phoneNumber} filters={filters} reloadKey={reloadKey} />
-                )}
-              </div>
-            ))}
+              )}
+            </div>
+            <p className="text-xs font-medium text-slate-400">{total} ta qo'ng'iroq</p>
           </div>
+
+          {/* Tekis ro'yxat */}
+          <div className="max-h-[560px] overflow-y-auto">
+            {rows === null ? (
+              <Loader label="Yuklanmoqda..." />
+            ) : rows.length === 0 ? (
+              <p className="p-6 text-center text-sm text-slate-400">Qo'ng'iroqlar yo'q.</p>
+            ) : (
+              rows.map((c) => (
+                <div
+                  key={c.id}
+                  onClick={() => setSelectedId(c.id)}
+                  className={cn(
+                    'flex cursor-pointer items-start gap-3 border-b border-slate-50 px-4 py-2.5 transition-colors hover:bg-slate-50',
+                    selectedId === c.id && 'border-brand-300 bg-brand-50/60',
+                  )}
+                >
+                  {c.direction === 'inbound'
+                    ? <PhoneIncoming className="mt-0.5 h-4 w-4 flex-shrink-0 text-sky-500" />
+                    : <PhoneOutgoing className="mt-0.5 h-4 w-4 flex-shrink-0 text-emerald-500" />}
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-semibold text-slate-800">
+                      {c.phoneNumber}
+                      {c.studentName && <span className="ml-2 font-normal text-slate-400">{c.studentName}</span>}
+                    </div>
+                    <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-400">
+                      <span>{fmtDateTime(c.startedAt)}</span>
+                      {c.durationSeconds > 0 && <span className="font-mono">{fmtDuration(c.durationSeconds)}</span>}
+                      <span className={cn('inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold', STATUS_TONE[c.status])}>
+                        {STATUS_LABEL[c.status]}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </Card>
+      </div>
+
+      {/* ===== O'NG: tanlangan qo'ng'iroq detali ===== */}
+      <div className="lg:col-span-7">
+        {selectedId ? (
+          <CallDetailPanel callId={selectedId} />
+        ) : (
+          <Card>
+            <p className="py-10 text-center text-sm text-slate-400">
+              Chapdan qo'ng'iroqni tanlang — audio, transkript va AI tahlil shu yerda ochiladi.
+            </p>
+          </Card>
         )}
       </div>
-    </Card>
-  )
-}
-
-/** Bitta raqam bilan BARCHA suhbatlar (guruh qatori ochilganda). */
-function GroupCalls({ phone, filters, reloadKey }: { phone: string; filters: CallFilters; reloadKey: number }) {
-  const [rows, setRows] = useState<CallRow[] | null>(null)
-
-  useEffect(() => {
-    setRows(null)
-    getCalls({ ...filters, search: '', phone }, 1, 200)
-      .then((r) => setRows(r.items))
-      .catch(() => setRows([]))
-  }, [phone, filters, reloadKey])
-
-  return (
-    <div className="space-y-1.5 border-t border-slate-100 bg-slate-50/50 p-2.5">
-      {rows === null ? (
-        <Loader label="Yuklanmoqda..." />
-      ) : rows.length === 0 ? (
-        <p className="p-3 text-center text-xs text-slate-400">Suhbatlar topilmadi.</p>
-      ) : (
-        rows.map((c) => <CallRowLine key={c.id} call={c} showStudent={false} />)
-      )}
     </div>
   )
 }
 
-/* ============================ Bitta qo'ng'iroq qatori + pleyer ============================ */
+/* ============================ O'ng panel: tanlangan qo'ng'iroq detali ============================ */
+
+const DIRECTION_LABEL: Record<'inbound' | 'outbound', string> = {
+  inbound: 'Kiruvchi',
+  outbound: 'Chiquvchi',
+}
+
+function CallDetailPanel({ callId }: { callId: string }) {
+  const [detail, setDetail] = useState<CallDetail | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [transcribing, setTranscribing] = useState(false)
+  const [analyzing, setAnalyzing] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    setDetail(null)
+    setLoading(true)
+    setError('')
+    getCallDetail(callId)
+      .then(setDetail)
+      .catch((err: any) => setError(err.response?.data?.message || 'Yuklashda xato'))
+      .finally(() => setLoading(false))
+  }, [callId])
+
+  const doTranscribe = async () => {
+    if (transcribing || !detail) return
+    setTranscribing(true)
+    setError('')
+    try {
+      const r = await transcribeCall(detail.id)
+      setDetail({ ...detail, transcript: r.transcript })
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Transkript qilishda xato')
+    } finally {
+      setTranscribing(false)
+    }
+  }
+
+  const doAnalyze = async () => {
+    if (analyzing || !detail) return
+    setAnalyzing(true)
+    setError('')
+    try {
+      const r = await analyzeCall(detail.id)
+      setDetail({ ...detail, aiAnalysis: r.analysis })
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'AI tahlilda xato')
+    } finally {
+      setAnalyzing(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <Card>
+        <Loader label="Yuklanmoqda..." />
+      </Card>
+    )
+  }
+
+  if (!detail) {
+    return (
+      <Card>
+        <p className="py-10 text-center text-sm text-red-500">{error || 'Qo\'ng\'iroq topilmadi.'}</p>
+      </Card>
+    )
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Sarlavha */}
+      <Card>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="text-lg font-bold text-slate-800">
+              {detail.phoneNumber}
+              {detail.studentName && <span className="ml-2 text-base font-medium text-slate-400">{detail.studentName}</span>}
+            </div>
+            <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+              <span>{fmtDateTime(detail.startedAt)}</span>
+              {detail.durationSeconds > 0 && <span className="font-mono">{fmtDuration(detail.durationSeconds)}</span>}
+              {detail.operatorName && <span>Operator: {detail.operatorName}</span>}
+              <span className="inline-flex items-center gap-1">
+                {detail.direction === 'inbound'
+                  ? <PhoneIncoming className="h-3.5 w-3.5 text-sky-500" />
+                  : <PhoneOutgoing className="h-3.5 w-3.5 text-emerald-500" />}
+                {DIRECTION_LABEL[detail.direction]}
+              </span>
+            </div>
+          </div>
+          <span className={cn('inline-flex flex-shrink-0 items-center rounded-full border px-3 py-1 text-xs font-semibold', STATUS_TONE[detail.status])}>
+            {STATUS_LABEL[detail.status]}
+          </span>
+        </div>
+
+        {detail.hasRecording && (
+          <div className="mt-3">
+            <RecordingPlayer callId={detail.id} />
+          </div>
+        )}
+
+        {error && (
+          <div className="mt-3 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" /> {error}
+          </div>
+        )}
+
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Button variant="secondary" onClick={doTranscribe} disabled={transcribing}>
+            {transcribing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Captions className="h-4 w-4" />}
+            {transcribing ? 'Transkript qilinmoqda...' : 'Transkriptga o\'girish'}
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={doAnalyze}
+            disabled={analyzing || !detail.transcript}
+            title={!detail.transcript ? 'Avval transkript qiling' : undefined}
+          >
+            {analyzing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+            {analyzing ? 'Tahlil qilinmoqda...' : 'AI tahlil'}
+          </Button>
+        </div>
+      </Card>
+
+      {/* Transkript */}
+      <Card title="Transkript (so'zma-so'z)">
+        {detail.transcript ? (
+          <p className="whitespace-pre-wrap text-sm text-slate-700">{detail.transcript}</p>
+        ) : (
+          <p className="text-sm text-slate-400">Hali transkript qilinmagan — yuqoridagi tugmani bosing.</p>
+        )}
+      </Card>
+
+      {/* AI tahlil */}
+      <Card title="AI tahlil">
+        {detail.aiAnalysis ? (
+          <p className="whitespace-pre-wrap text-sm text-slate-700">{detail.aiAnalysis}</p>
+        ) : (
+          <p className="text-sm text-slate-400">Hali AI tahlil qilinmagan.</p>
+        )}
+      </Card>
+    </div>
+  )
+}
+
+/* ============================ Bitta qo'ng'iroq qatori + pleyer (o'quvchi detali tabida) ============================ */
 
 function CallRowLine({ call, showStudent }: { call: CallRow; showStudent: boolean }) {
   return (

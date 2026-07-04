@@ -244,6 +244,12 @@ public record CallGroupDto(
     int TotalDurationSeconds, string LastCallAt, string LastStatus, string LastDirection);
 /// <summary>Sahifalangan raqam-guruhlar ro'yxati.</summary>
 public record CallGroupListDto(int Total, List<CallGroupDto> Items);
+/// <summary>Bitta qo'ng'iroqning TO'LIQ tafsiloti (detal oynasi) — jurnal maydonlari +
+/// so'zma-so'z transkript + AI tahlil.</summary>
+public record CallDetailDto(
+    string Id, string? StudentId, string StudentName, string PhoneNumber, string Direction,
+    string Status, string StartedAt, string? AnsweredAt, string? EndedAt, int DurationSeconds,
+    string OperatorName, bool HasRecording, string Note, string Transcript, string AiAnalysis);
 /// <summary>Moliyada o'quvchi qatori. Charged = jami to'liq oylik (chegirmasiz);
 /// Discount = jami berilgan chegirma; Paid = haqiqiy naqd to'lovlar yig'indisi (turli oylar uchun);
 /// Debt / Advance — joriy holatdan (balans). DiscountPct/Amount — qoidani ko'rsatish uchun.</summary>

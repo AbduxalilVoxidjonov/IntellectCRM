@@ -258,6 +258,129 @@ public class CallsController(
         return new CallGroupListDto(total, items);
     }
 
+    /// <summary>Bitta qo'ng'iroqning TO'LIQ tafsiloti — detal oynasi (transkript + AI tahlil bilan).</summary>
+    [HttpGet("{id}/detail")]
+    public async Task<ActionResult<CallDetailDto>> Detail(string id)
+    {
+        var c = await db.Calls.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
+        if (c is null) return NotFound();
+        var studentName = c.StudentId != null
+            ? await db.Students.Where(s => s.Id == c.StudentId).Select(s => s.FullName).FirstOrDefaultAsync() ?? ""
+            : "";
+        var operatorName = c.OperatorUserId != null
+            ? await db.Users.Where(u => u.Id == c.OperatorUserId).Select(u => u.FullName).FirstOrDefaultAsync() ?? ""
+            : "";
+        static string Iso(DateTime d) => d.ToString("yyyy-MM-ddTHH:mm:ss");
+        return new CallDetailDto(
+            c.Id, c.StudentId, studentName, c.PhoneNumber, c.Direction, c.Status,
+            Iso(c.StartedAt), c.AnsweredAt is { } a ? Iso(a) : null, c.EndedAt is { } e ? Iso(e) : null,
+            c.DurationSeconds, operatorName, c.RecordingFile.Length > 0, c.Note,
+            c.Transcript, c.AiAnalysis);
+    }
+
+    /// <summary>
+    /// Suhbat yozuvini Azure (Fast Transcription) orqali SO'ZMA-SO'Z matnga o'girish —
+    /// hech qanday moslashtirish/senzurasiz. Natija Call.Transcript'da saqlanadi (qayta
+    /// bosilsa qayta transkript qilinadi). Kalit/region — Sozlamalar (CenterMeta, Speaking bilan bir xil).
+    /// </summary>
+    [HttpPost("{id}/transcribe")]
+    public async Task<ActionResult> Transcribe(string id)
+    {
+        var call = await db.Calls.FindAsync(id);
+        if (call is null) return NotFound();
+        if (call.RecordingFile.Length == 0)
+            return BadRequest(new { message = "Bu qo'ng'iroqda yozuv yo'q" });
+
+        var meta = await db.CenterMeta.FirstOrDefaultAsync();
+        if (!AzureTranscribeService.IsConfigured(meta?.AzureSpeechKey, meta?.AzureSpeechRegion))
+            return StatusCode(503, new { message = "Azure Speech sozlanmagan (Sozlamalar → AI Check: kalit va region)" });
+
+        var (audio, fileName, error) = await GetRecordingBytesAsync(call);
+        if (audio is null)
+            return BadRequest(new { message = error ?? "Yozuv faylini olib bo'lmadi" });
+
+        var (ok, text, err) = await AzureTranscribeService.TranscribeAsync(
+            audio, fileName, meta!.AzureSpeechKey, meta.AzureSpeechRegion,
+            config["Azure:TranscribeLocales"], HttpContext.RequestAborted);
+        if (!ok) return StatusCode(502, new { message = err });
+
+        call.Transcript = text;
+        await db.SaveChangesAsync();
+        return Ok(new { transcript = text });
+    }
+
+    /// <summary>
+    /// Transkriptni Gemini AI bilan tahlil qilish: suhbat mazmuni, operator qaysi vaziyatda
+    /// NIMA DEYISHI MUMKIN EDI (aniq tavsiya iboralar bilan), umumiy baho. Natija
+    /// Call.AiAnalysis'da saqlanadi. Avval transkript bo'lishi shart.
+    /// </summary>
+    [HttpPost("{id}/analyze")]
+    public async Task<ActionResult> Analyze(string id)
+    {
+        var call = await db.Calls.FindAsync(id);
+        if (call is null) return NotFound();
+        if (call.Transcript.Length == 0)
+            return BadRequest(new { message = "Avval transkript qiling — tahlil transkript asosida ishlaydi" });
+
+        var meta = await db.CenterMeta.FirstOrDefaultAsync();
+        if (!GeminiService.IsConfigured(meta?.GeminiApiKey))
+            return StatusCode(503, new { message = "Gemini sozlanmagan (Sozlamalar → AI Tahlil: API kalit)" });
+
+        var direction = call.Direction == "inbound" ? "KIRUVCHI (mijoz qo'ng'iroq qildi)" : "CHIQUVCHI (operator qo'ng'iroq qildi)";
+        var prompt =
+            "Siz o'quv markazi call-markazining sifat nazoratchisisiz. Quyida operator va mijoz " +
+            $"o'rtasidagi telefon suhbatining so'zma-so'z transkripti berilgan ({direction}, " +
+            $"davomiyligi {call.DurationSeconds} soniya). Tahlilni O'ZBEK tilida, aniq va amaliy yozing:\n\n" +
+            "1. SUHBAT MAZMUNI — 2-3 jumlada nima haqida gaplashildi.\n" +
+            "2. YAXSHI JIHATLAR — operator to'g'ri qilgan narsalar.\n" +
+            "3. NIMA DEYISH MUMKIN EDI — qaysi vaziyatda (transkriptdan aynan joyini keltirib) " +
+            "operator boshqacha/yaxshiroq nima deyishi mumkin edi; har biriga TAYYOR tavsiya ibora yozing.\n" +
+            "4. UMUMIY BAHO — 10 ballik baho va bitta asosiy xulosa/tavsiya.\n\n" +
+            "TRANSKRIPT:\n" + call.Transcript;
+
+        var model = GeminiService.ResolveModel(config);
+        var (ok, text, err) = await GeminiService.GenerateAsync(meta!.GeminiApiKey, model, prompt);
+        if (!ok) return StatusCode(502, new { message = err ?? "Gemini javob bermadi" });
+
+        call.AiAnalysis = text.Trim();
+        await db.SaveChangesAsync();
+        return Ok(new { analysis = call.AiAnalysis });
+    }
+
+    /// <summary>Yozuv faylining to'liq baytlari: provayder URL'idan yoki lokal papkadan
+    /// (Recording streaming endpointi bilan bir xil manbalar).</summary>
+    private async Task<(byte[]? Audio, string FileName, string? Error)> GetRecordingBytesAsync(Call call)
+    {
+        if (call.RecordingFile.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                var http = httpFactory.CreateClient();
+                http.Timeout = TimeSpan.FromSeconds(120);
+                var resp = await http.GetAsync(call.RecordingFile);
+                if (!resp.IsSuccessStatusCode)
+                    return (null, "", $"Provayderdan yozuvni olib bo'lmadi (HTTP {(int)resp.StatusCode})");
+                var ctType = resp.Content.Headers.ContentType?.MediaType ?? "";
+                if (ctType.StartsWith("text/") || ctType.Contains("html"))
+                    return (null, "", "Provayder yozuv o'rniga sahifa qaytardi");
+                var name = Path.GetFileName(new Uri(call.RecordingFile).AbsolutePath);
+                if (string.IsNullOrWhiteSpace(name) || !name.Contains('.')) name = "recording.mp3";
+                return (await resp.Content.ReadAsByteArrayAsync(), name, null);
+            }
+            catch (Exception ex)
+            {
+                return (null, "", $"Yozuvni yuklab bo'lmadi: {ex.Message}");
+            }
+        }
+
+        var dir = config["Asterisk:RecordingsPath"] ?? "";
+        if (dir.Length == 0) return (null, "", "Yozuvlar papkasi sozlanmagan");
+        var full = Path.GetFullPath(Path.Combine(dir, call.RecordingFile));
+        if (!full.StartsWith(Path.GetFullPath(dir), StringComparison.OrdinalIgnoreCase) || !System.IO.File.Exists(full))
+            return (null, "", "Yozuv fayli topilmadi");
+        return (await System.IO.File.ReadAllBytesAsync(full), Path.GetFileName(full), null);
+    }
+
     /// <summary>Bitta o'quvchining qo'ng'iroqlar tarixi (detalli oynadagi tab).</summary>
     [HttpGet("student/{studentId}")]
     public async Task<ActionResult<List<CallDto>>> ByStudent(string studentId)

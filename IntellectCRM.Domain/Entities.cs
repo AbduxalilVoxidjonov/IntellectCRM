@@ -1903,6 +1903,11 @@ public class Call
     /// <summary>MoiZvonki db_call_id — calls.list sinxronizatsiyasida takrorlanmaslik kaliti
     /// (webhook call.finish ham to'ldiradi). Bo'sh — sinxron qilinmagan/boshqa provayder.</summary>
     public string ProviderDbId { get; set; } = string.Empty;
+    /// <summary>Suhbatning SO'ZMA-SO'Z transkripti (Azure Speech, hech qanday moslashtirishsiz).
+    /// Bo'sh — hali transkript qilinmagan ("Transkriptga o'girish" tugmasi bilan yaratiladi).</summary>
+    public string Transcript { get; set; } = string.Empty;
+    /// <summary>Transkript bo'yicha Gemini AI tahlili (operator nima deyishi mumkin edi, tavsiyalar).</summary>
+    public string AiAnalysis { get; set; } = string.Empty;
     /// <summary>Suhbat yozuvi fayl nomi (Asterisk recordings papkasiga nisbatan). Bo'sh — yozuv yo'q.</summary>
     public string RecordingFile { get; set; } = string.Empty;
     /// <summary>Operator izohi (ixtiyoriy).</summary>

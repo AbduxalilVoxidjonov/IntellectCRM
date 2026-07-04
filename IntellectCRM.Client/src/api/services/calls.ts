@@ -32,6 +32,12 @@ export interface CallList {
   items: CallRow[]
 }
 
+/** To'liq qo'ng'iroq detali — transkript va AI tahlil bilan ("Yozuvlar tarixi" o'ng paneli). */
+export interface CallDetail extends CallRow {
+  transcript: string
+  aiAnalysis: string
+}
+
 /** Raqam bo'yicha guruhlangan qator — tarixda bitta raqam = bitta qator. */
 export interface CallGroup {
   phoneNumber: string
@@ -138,4 +144,22 @@ export async function syncCallHistory(): Promise<{ added: number; updated: numbe
 export async function fetchRecordingUrl(callId: string): Promise<string> {
   const res = await api.get(`/admin/calls/${callId}/recording`, { responseType: 'blob' })
   return URL.createObjectURL(res.data as Blob)
+}
+
+/** Bitta qo'ng'iroqning to'liq detali (transkript, AI tahlil) — "Yozuvlar tarixi" o'ng paneli uchun. */
+export async function getCallDetail(id: string): Promise<CallDetail> {
+  const { data } = await api.get<CallDetail>(`/admin/calls/${id}/detail`)
+  return data
+}
+
+/** Yozuvni transkriptga o'girish (AI, 1-2 daqiqa cho'zilishi mumkin). */
+export async function transcribeCall(id: string): Promise<{ transcript: string }> {
+  const { data } = await api.post(`/admin/calls/${id}/transcribe`, {})
+  return data
+}
+
+/** Transkript asosida AI tahlil (natija, e'tiroz, keyingi qadam va h.k.). */
+export async function analyzeCall(id: string): Promise<{ analysis: string }> {
+  const { data } = await api.post(`/admin/calls/${id}/analyze`, {})
+  return data
 }
