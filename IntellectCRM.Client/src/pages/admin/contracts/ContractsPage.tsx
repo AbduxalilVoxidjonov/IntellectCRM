@@ -8,20 +8,22 @@ import {
   Plus,
   X,
   Send,
+  Download,
   CheckCircle2,
   XCircle,
   AlertTriangle,
 } from 'lucide-react'
-import type { ContractTemplate, ContractField, ParentRecipient, StaffRecipient, SendResult } from '@/types'
+import type { ContractTemplate, ContractField, StudentRecipient, StaffRecipient, SendResult } from '@/types'
 import {
   getTemplates,
   createTemplate,
   createCustomTemplate,
   updateCustomTemplate,
   deleteTemplate,
-  getParentRecipients,
+  getStudentRecipients,
   getStaffRecipients,
   sendContracts,
+  downloadContract,
 } from '@/api/services/contracts'
 import { uploadAdminFile } from '@/api/services/students'
 import { Card } from '@/components/ui/Card'
@@ -35,21 +37,80 @@ import { cn } from '@/lib/utils'
 type Target = 'parent' | 'staff'
 
 const TOKENS: Record<Target, string[]> = {
-  parent: ['@ota_ona', '@telefon', '@farzandlar', '@sana', '@raqam'],
-  staff: ['@fish', '@telefon', '@lavozim', '@fanlar', '@tugilgan_kun', '@manzil', '@oylik', '@sana', '@raqam'],
+  parent: [
+    '@oquvchi',
+    '@tugilgan_kun',
+    '@manzil',
+    '@oquvchi_telefon',
+    '@guruh',
+    '@guruhlar',
+    '@kurs',
+    '@oqituvchi',
+    '@oylik_tolov',
+    '@chegirma',
+    '@qabul_sana',
+    '@ota_ona',
+    '@telefon',
+    '@otasi',
+    '@otasi_telefon',
+    '@onasi',
+    '@onasi_telefon',
+    '@markaz',
+    '@direktor',
+    '@markaz_telefon',
+    '@markaz_manzil',
+    '@sana',
+    '@raqam',
+  ],
+  staff: [
+    '@fish',
+    '@telefon',
+    '@lavozim',
+    '@fanlar',
+    '@guruhlar',
+    '@tugilgan_kun',
+    '@manzil',
+    '@oylik',
+    '@oylik_foiz',
+    '@ish_boshlagan',
+    '@markaz',
+    '@direktor',
+    '@markaz_telefon',
+    '@markaz_manzil',
+    '@sana',
+    '@raqam',
+  ],
 }
 
 const TOKEN_LABELS: Record<string, string> = {
-  '@ota_ona': 'Ota-ona F.I.SH',
-  '@fish': 'Xodim F.I.SH',
-  '@telefon': 'Telefon',
-  '@farzandlar': 'Farzandlar',
-  '@lavozim': 'Lavozim',
-  '@fanlar': 'Fanlar',
+  '@oquvchi': "O'quvchi F.I.SH",
+  '@oquvchi_telefon': "O'quvchi telefoni",
   '@tugilgan_kun': "Tug'ilgan kun",
   '@manzil': 'Manzil',
-  '@oylik': 'Oylik',
-  '@sana': 'Sana',
+  '@guruh': 'Asosiy guruh',
+  '@guruhlar': 'Barcha faol guruhlar',
+  '@kurs': 'Kurs(lar)',
+  '@oqituvchi': "O'qituvchi(lar)",
+  '@oylik_tolov': "Oylik to'lov (chegirma bilan)",
+  '@chegirma': 'Chegirma',
+  '@qabul_sana': 'Qabul qilingan sana',
+  '@ota_ona': 'Ota-ona F.I.SH',
+  '@telefon': 'Telefon (ota-ona/xodim)',
+  '@otasi': 'Otasi F.I.SH',
+  '@otasi_telefon': 'Otasi telefoni',
+  '@onasi': 'Onasi F.I.SH',
+  '@onasi_telefon': 'Onasi telefoni',
+  '@fish': 'Xodim F.I.SH',
+  '@lavozim': 'Lavozim',
+  '@fanlar': 'Fanlar/kurslar',
+  '@oylik': 'Oylik maosh',
+  '@oylik_foiz': 'Maosh foizi (%)',
+  '@ish_boshlagan': 'Ishga kirgan sana',
+  '@markaz': 'Markaz nomi',
+  '@direktor': 'Direktor F.I.SH',
+  '@markaz_telefon': 'Markaz telefoni',
+  '@markaz_manzil': 'Markaz manzili',
+  '@sana': 'Bugungi sana',
   '@raqam': 'Shartnoma raqami',
 }
 
@@ -59,12 +120,13 @@ export function ContractsPage() {
   const [target, setTarget] = useState<Target>('staff')
   const [templates, setTemplates] = useState<ContractTemplate[]>([])
   const [selectedTpl, setSelectedTpl] = useState('')
-  const [parents, setParents] = useState<ParentRecipient[]>([])
+  const [students, setStudents] = useState<StudentRecipient[]>([])
   const [staff, setStaff] = useState<StaffRecipient[]>([])
   const [checked, setChecked] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [sending, setSending] = useState(false)
+  const [downloadingKey, setDownloadingKey] = useState<string | null>(null)
   const [results, setResults] = useState<SendResult[] | null>(null)
   const [editor, setEditor] = useState<ContractTemplate | 'new' | null>(null)
 
@@ -74,16 +136,21 @@ export function ContractsPage() {
     setChecked(new Set())
     setResults(null)
     setSelectedTpl('')
-    const recipients = target === 'staff' ? getStaffRecipients() : getParentRecipients()
+    const recipients = target === 'staff' ? getStaffRecipients() : getStudentRecipients()
     Promise.all([getTemplates(target), recipients])
       .then(([tpls, recs]) => {
         setTemplates(tpls)
         setSelectedTpl(tpls[0]?.id ?? '')
         if (target === 'staff') setStaff(recs as StaffRecipient[])
-        else setParents(recs as ParentRecipient[])
+        else setStudents(recs as StudentRecipient[])
       })
       .finally(() => setLoading(false))
   }, [target])
+
+  const refreshRecipients = async () => {
+    if (target === 'staff') setStaff(await getStaffRecipients())
+    else setStudents(await getStudentRecipients())
+  }
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]
@@ -122,12 +189,12 @@ export function ContractsPage() {
         registered: s.registered,
         lastNumber: s.lastNumber,
       }))
-    : parents.map((p) => ({
-        key: p.key,
-        name: p.parentName || '(nomsiz)',
-        sub: `${p.phone || '—'} · ${p.children.join(', ')}`,
-        registered: p.registered,
-        lastNumber: p.lastNumber,
+    : students.map((s) => ({
+        key: s.studentId,
+        name: s.fullName || '(nomsiz)',
+        sub: [s.parentName || '—', s.phone || '—', s.groups].filter(Boolean).join(' · '),
+        registered: s.registered,
+        lastNumber: s.lastNumber,
       }))
 
   const selectableKeys = rows.filter((r) => r.registered).map((r) => r.key)
@@ -152,10 +219,23 @@ export function ContractsPage() {
       const res = await sendContracts(target, selectedTpl, [...checked])
       setResults(res)
       setChecked(new Set())
-      if (target === 'staff') setStaff(await getStaffRecipients())
-      else setParents(await getParentRecipients())
+      await refreshRecipients()
     } finally {
       setSending(false)
+    }
+  }
+
+  /** "Shartnoma tuzish" — tanlangan andozadan to'ldirilgan Word faylni yuklab olish. */
+  const handleDownload = async (key: string) => {
+    if (!selectedTpl || downloadingKey) return
+    setDownloadingKey(key)
+    try {
+      await downloadContract(target, selectedTpl, key)
+      await refreshRecipients()
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Yuklab olishda xatolik')
+    } finally {
+      setDownloadingKey(null)
     }
   }
 
@@ -166,7 +246,7 @@ export function ContractsPage() {
     <div>
       <PageHeader
         title="Shartnomalar"
-        sub="Word andoza yuklang, oluvchilarni tanlang — @-o'rinbosarlar to'ldirilib Telegram orqali yuboriladi"
+        sub="Andoza tanlang, o'quvchi yoki xodimni tanlab shartnomani Word (.docx) qilib yuklab oling — @-o'rinbosarlar haqiqiy ma'lumot bilan to'ldiriladi"
         actions={
           <div className="tabs" role="tablist">
             <button
@@ -181,7 +261,7 @@ export function ContractsPage() {
               className={cn('tab', target === 'parent' && 'active')}
               onClick={() => setTarget('parent')}
             >
-              Ota-onalar
+              O'quvchilar
             </button>
           </div>
         }
@@ -284,19 +364,19 @@ export function ContractsPage() {
               )}
             </div>
 
-            {/* Token yordami */}
+            {/* Token yordami — barcha o'rinbosarlar izohi bilan */}
             <div className="mt-3 rounded-lg bg-slate-50 p-3">
-              <p className="mb-1 text-xs font-medium text-slate-500">
-                Andozada quyidagi o'rinbosarlardan foydalaning (yuborishda haqiqiy ma'lumotga almashtiriladi):
+              <p className="mb-2 text-xs font-medium text-slate-500">
+                Andozada quyidagi o'rinbosarlardan foydalaning — shartnoma tuzilganda haqiqiy ma'lumotga almashtiriladi:
               </p>
-              <div className="flex flex-wrap gap-1.5">
+              <div className="grid grid-cols-1 gap-x-4 gap-y-1 sm:grid-cols-2 lg:grid-cols-3">
                 {TOKENS[target].map((tok) => (
-                  <code
-                    key={tok}
-                    className="rounded bg-white px-1.5 py-0.5 font-mono text-xs font-medium text-brand-700 ring-1 ring-slate-200"
-                  >
-                    {tok}
-                  </code>
+                  <div key={tok} className="flex items-center gap-2 text-xs">
+                    <code className="shrink-0 rounded bg-white px-1.5 py-0.5 font-mono font-medium text-brand-700 ring-1 ring-slate-200">
+                      {tok}
+                    </code>
+                    <span className="truncate text-slate-500">{TOKEN_LABELS[tok]}</span>
+                  </div>
                 ))}
               </div>
             </div>
@@ -330,11 +410,11 @@ export function ContractsPage() {
           {/* Oluvchilar */}
           <Card
             tight
-            title={`Oluvchilar ${target === 'staff' ? '(xodimlar)' : '(ota-onalar)'}`}
+            title={`Oluvchilar ${target === 'staff' ? '(xodimlar)' : "(o'quvchilar)"}`}
             actions={
               <Button onClick={handleSend} disabled={!selectedTpl || checked.size === 0 || sending}>
                 <Send className="h-4 w-4" />
-                {sending ? 'Yuborilmoqda...' : `Tanlanganlarni yuborish (${checked.size})`}
+                {sending ? 'Yuborilmoqda...' : `Telegram orqali yuborish (${checked.size})`}
               </Button>
             }
           >
@@ -351,10 +431,11 @@ export function ContractsPage() {
                         className="h-4 w-4 accent-brand-600"
                       />
                     </th>
-                    <th>{target === 'staff' ? 'F.I.SH' : 'Ota-ona'}</th>
-                    <th>{target === 'staff' ? 'Telefon' : 'Telefon · farzandlar'}</th>
+                    <th>{target === 'staff' ? 'F.I.SH' : "O'quvchi"}</th>
+                    <th>{target === 'staff' ? 'Telefon' : 'Ota-ona · telefon · guruh'}</th>
                     <th>Telegram</th>
                     <th className="num">Oxirgi raqam</th>
+                    <th className="w-40">Shartnoma</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -385,11 +466,27 @@ export function ContractsPage() {
                       <td className="num text-slate-600">
                         {r.lastNumber != null ? `№ ${r.lastNumber}` : '—'}
                       </td>
+                      <td>
+                        <button
+                          type="button"
+                          onClick={() => handleDownload(r.key)}
+                          disabled={!selectedTpl || downloadingKey !== null}
+                          title={
+                            selectedTpl
+                              ? "Shartnomani to'ldirib Word (.docx) yuklab olish"
+                              : 'Avval andoza tanlang'
+                          }
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-brand-200 bg-brand-50 px-2.5 py-1.5 text-xs font-medium text-brand-700 transition-colors hover:bg-brand-100 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          <Download className="h-3.5 w-3.5" />
+                          {downloadingKey === r.key ? 'Tayyorlanmoqda...' : 'Shartnoma tuzish'}
+                        </button>
+                      </td>
                     </tr>
                   ))}
                   {rows.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="px-4 py-12 text-center text-slate-400">
+                      <td colSpan={6} className="px-4 py-12 text-center text-slate-400">
                         Oluvchi yo'q
                       </td>
                     </tr>
@@ -398,8 +495,9 @@ export function ContractsPage() {
               </table>
             </div>
             <p className="border-t border-slate-100 px-4 py-3 text-xs text-slate-400">
-              Faqat Telegramda ro'yxatdan o'tganlarga yuborish mumkin. Ro'yxatdan o'tish: bot orqali
-              telefon raqamini ulashish ({target === 'staff' ? 'xodim telefoni' : 'ota-ona telefoni'} bilan moslashadi).
+              "Shartnoma tuzish" — tanlangan andozadan to'ldirilgan Word (.docx) faylni yuklab beradi
+              (Telegram shart emas). Telegram orqali yuborish esa faqat botda ro'yxatdan o'tganlarga ishlaydi
+              ({target === 'staff' ? 'xodim telefoni' : 'ota-ona telefoni'} bilan moslashadi).
             </p>
           </Card>
         </div>
@@ -514,7 +612,7 @@ function CustomTemplateModal({
 
         <div>
           <p className="mb-1.5 text-xs font-medium text-slate-500">
-            O'rinbosar qo'shish uchun bosing (yuborishda almashtiriladi):
+            O'rinbosar qo'shish uchun bosing (shartnoma tuzilganda haqiqiy ma'lumotga almashtiriladi):
           </p>
           <div className="flex flex-wrap gap-1.5">
             {TOKENS[target].map((tok) => (
@@ -606,12 +704,14 @@ function CustomTemplateModal({
             onChange={(e) => setBody(e.target.value)}
             rows={14}
             placeholder={
-              "SHARTNOMA № @raqam\n\nSana: @sana\n\nUshbu shartnoma bir tomondan o'quv markazi va ikkinchi tomondan\n@ota_ona (tel: @telefon) o'rtasida tuzildi.\n\nFarzand(lar): @farzandlar"
+              target === 'staff'
+                ? "SHARTNOMA № @raqam\n\nSana: @sana\n\nUshbu shartnoma bir tomondan @markaz (direktor: @direktor) va ikkinchi tomondan\n@fish (tel: @telefon) o'rtasida tuzildi.\n\nLavozim: @lavozim. Oylik maosh: @oylik so'm."
+                : "SHARTNOMA № @raqam\n\nSana: @sana\n\nUshbu shartnoma bir tomondan @markaz (direktor: @direktor) va ikkinchi tomondan\n@ota_ona (tel: @telefon) o'rtasida tuzildi.\n\nO'quvchi: @oquvchi. Kurs: @kurs (@guruh guruhi).\nOylik to'lov: @oylik_tolov so'm."
             }
             className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono text-sm leading-relaxed outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
           />
           <p className="mt-1 text-xs text-slate-400">
-            Har bir qator alohida paragrafga aylanadi. Yuborishda matndan .docx hosil qilinadi.
+            Har bir qator alohida paragrafga aylanadi. Shartnoma tuzilganda matndan .docx hosil qilinadi.
           </p>
         </div>
       </div>

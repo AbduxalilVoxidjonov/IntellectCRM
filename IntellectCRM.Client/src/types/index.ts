@@ -979,15 +979,17 @@ export interface ContractTemplate {
   uploadedAt: string
 }
 
-/** Ota-ona oluvchi (telefon bo'yicha guruhlangan) */
-export interface ParentRecipient {
-  key: string
+/** O'quvchi oluvchi (shartnoma o'quvchi bo'yicha tuziladi) */
+export interface StudentRecipient {
+  studentId: string
+  fullName: string
   parentName: string
   phone: string
-  children: string[]
+  /** Faol guruh nomlari (vergul bilan) */
+  groups: string
   /** Telegramda ro'yxatdan o'tganmi */
   registered: boolean
-  /** Oxirgi yuborilgan shartnoma raqami */
+  /** Oxirgi shartnoma raqami */
   lastNumber: number | null
 }
 

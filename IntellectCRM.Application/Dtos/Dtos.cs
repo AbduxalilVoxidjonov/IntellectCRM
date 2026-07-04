@@ -1055,9 +1055,10 @@ public record ContractTemplateDto(string Id, string Target, string Name, string 
 /// <summary>Shartnoma andozasini yaratish/tahrirlash so'rovi. Word fayl (FileUrl, avval /api/admin/uploads orqali)
 /// YOKI custom matn (Body) — kamida bittasi bo'lishi shart. Fields — qo'shimcha doimiy o'rinbosarlar.</summary>
 public record CreateContractTemplateRequest(string Target, string Name, string? FileUrl, string? FileName, string? Body, List<ContractFieldDto>? Fields);
-/// <summary>Ota-ona oluvchi qatori (telefon bo'yicha guruhlangan).</summary>
-public record ParentRecipientDto(
-    string Key, string ParentName, string Phone, List<string> Children, bool Registered, int? LastNumber);
+/// <summary>O'quvchi oluvchi qatori (shartnoma o'quvchi bo'yicha tuziladi; Telegram — ota-ona ro'yxati orqali).</summary>
+public record StudentRecipientDto(
+    string StudentId, string FullName, string ParentName, string Phone, string Groups,
+    bool Registered, int? LastNumber);
 /// <summary>Xodim oluvchi qatori.</summary>
 public record StaffRecipientDto(
     string TeacherId, string FullName, string Phone, bool Registered, int? LastNumber);
@@ -1065,6 +1066,8 @@ public record StaffRecipientDto(
 public record SendContractsRequest(string Target, string TemplateId, List<string> RecipientKeys);
 /// <summary>Bitta oluvchi uchun yuborish natijasi.</summary>
 public record SendResultDto(string RecipientKey, bool Ok, int? Number, string Message);
+/// <summary>Bitta oluvchi uchun shartnomani to'ldirib .docx YUKLAB OLISH so'rovi (Telegram shart emas).</summary>
+public record BuildContractRequest(string Target, string TemplateId, string RecipientKey);
 
 /* ---------- O'quv xonalari ---------- */
 

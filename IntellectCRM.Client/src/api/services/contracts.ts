@@ -1,7 +1,7 @@
 import type {
   ContractTemplate,
   ContractField,
-  ParentRecipient,
+  StudentRecipient,
   StaffRecipient,
   SendResult,
 } from '@/types'
@@ -71,10 +71,10 @@ export async function deleteTemplate(id: string): Promise<void> {
   await api.delete(`/admin/contracts/templates/${id}`)
 }
 
-/** Ota-ona oluvchilari (telefon bo'yicha guruhlangan) */
-export async function getParentRecipients(): Promise<ParentRecipient[]> {
+/** O'quvchi oluvchilari (har o'quvchi alohida qator) */
+export async function getStudentRecipients(): Promise<StudentRecipient[]> {
   if (USE_MOCK) return []
-  const { data } = await api.get<ParentRecipient[]>('/admin/contracts/recipients/parents')
+  const { data } = await api.get<StudentRecipient[]>('/admin/contracts/recipients/students')
   return data
 }
 
@@ -83,6 +83,29 @@ export async function getStaffRecipients(): Promise<StaffRecipient[]> {
   if (USE_MOCK) return []
   const { data } = await api.get<StaffRecipient[]>('/admin/contracts/recipients/staff')
   return data
+}
+
+/**
+ * Bitta oluvchi uchun shartnomani to'ldirib .docx faylini YUKLAB OLISH (Telegram shart emas).
+ * Server shartnoma raqamini beradi va tarixga yozadi; brauzer faylni saqlaydi.
+ */
+export async function downloadContract(
+  target: Target,
+  templateId: string,
+  recipientKey: string,
+): Promise<void> {
+  const res = await api.post('/admin/contracts/build', { target, templateId, recipientKey }, {
+    responseType: 'blob',
+  })
+  const cd: string = res.headers['content-disposition'] ?? ''
+  const m = /filename\*?=(?:UTF-8'')?"?([^";]+)/i.exec(cd)
+  const name = m ? decodeURIComponent(m[1]) : 'shartnoma.docx'
+  const url = URL.createObjectURL(res.data as Blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = name
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
 /** Tanlangan oluvchilarga shartnoma yuborish (Telegram bot orqali) */
