@@ -373,7 +373,7 @@ export async function getStudentGrading(month?: string, studentId?: string) {
 }
 
 // ---------- Dars kontenti (Duolingo node bosilganda) ----------
-export type LessonType = 'text' | 'video' | 'audio' | 'vocab' | 'test'
+export type LessonType = 'text' | 'video' | 'audio' | 'vocab' | 'test' | 'pdf'
 export interface LessonVocab { term: string; meaning: string }
 export interface LessonQuestion { id: string; text: string; options: string[]; correctIndex: number }
 export interface LessonContent {
@@ -386,6 +386,8 @@ export interface LessonContent {
   videoUrl: string
   audioUrl: string
   textContent: string
+  pdfUrl: string
+  pdfName: string
   meta: string
   vocab: LessonVocab[]
   questions: LessonQuestion[]

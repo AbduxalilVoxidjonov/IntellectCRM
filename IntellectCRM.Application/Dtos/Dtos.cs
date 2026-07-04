@@ -1559,11 +1559,13 @@ public record CourseQuestionDto(string Id, string Text, List<string> Options, in
 /// <summary>Bitta darsning TO'LIQ kontenti (tahrirlovchi + ko'rish ekrani uchun).</summary>
 public record CourseItemDetailDto(
     string Id, string TopicId, string Text, string Note, int Order,
-    string Type, string VideoUrl, string AudioUrl, string TextContent, string Meta,
+    string Type, string VideoUrl, string AudioUrl, string TextContent,
+    string PdfUrl, string PdfName, string Meta,
     List<VocabEntryDto> Vocab, List<CourseQuestionDto> Questions);
 /// <summary>Dars kontentini saqlash payload'i (nom + tur + kontent + lug'at + test savollari).</summary>
 public record SaveItemContentRequest(
-    string Text, string Type, string? VideoUrl, string? AudioUrl, string? TextContent, string? Meta,
+    string Text, string Type, string? VideoUrl, string? AudioUrl, string? TextContent,
+    string? PdfUrl, string? PdfName, string? Meta,
     List<VocabEntryDto>? Vocab, List<CourseQuestionDto>? Questions);
 
 /// <summary>Sillabus mavzusi (2-bosqich) + uning bandlari.</summary>

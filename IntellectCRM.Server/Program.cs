@@ -575,11 +575,18 @@ app.UseResponseCompression();
 app.Use(async (context, next) =>
 {
     var headers = context.Response.Headers;
+    // /uploads fayllari (dars PDF va h.k.) SPA ichida iframe'da ko'rsatiladi —
+    // faqat O'Z domenimizdan frame'lashga ruxsat, boshqa hamma javob DENY.
+    var isUpload = context.Request.Path.StartsWithSegments("/uploads");
     headers["X-Content-Type-Options"] = "nosniff";
-    headers["X-Frame-Options"] = "DENY";
+    headers["X-Frame-Options"] = isUpload ? "SAMEORIGIN" : "DENY";
     headers["Referrer-Policy"] = "no-referrer";
     // CSP faqat prod'da — dev'da SPA Vite serverida alohida beriladi.
-    if (!app.Environment.IsDevelopment())
+    if (!app.Environment.IsDevelopment() && isUpload)
+    {
+        headers["Content-Security-Policy"] = "frame-ancestors 'self'";
+    }
+    else if (!app.Environment.IsDevelopment())
     {
         // CRM SPA — qat'iy CSP. Leaflet xaritasi unpkg/openstreetmap'dan rasm yuklaydi (img https:).
         headers["Content-Security-Policy"] =

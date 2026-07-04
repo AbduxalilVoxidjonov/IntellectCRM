@@ -24,6 +24,8 @@ export interface CourseItemDetail {
   videoUrl: string
   audioUrl: string
   textContent: string
+  pdfUrl: string
+  pdfName: string
   meta: string
   vocab: VocabEntry[]
   questions: CourseQuestion[]
@@ -34,6 +36,8 @@ export interface SaveItemContent {
   videoUrl?: string
   audioUrl?: string
   textContent?: string
+  pdfUrl?: string
+  pdfName?: string
   meta?: string
   vocab?: VocabEntry[]
   questions?: CourseQuestion[]

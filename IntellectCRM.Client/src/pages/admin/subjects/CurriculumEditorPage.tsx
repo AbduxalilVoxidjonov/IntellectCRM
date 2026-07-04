@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft, Plus, Trash2, ChevronDown, ChevronUp, ListChecks, Check,
   Video, FileText, Music, BookOpen, ClipboardCheck, Upload, Loader2, GripVertical, Copy,
-  AlertTriangle, CheckCircle2, FileSpreadsheet, FileDown,
+  AlertTriangle, CheckCircle2, FileSpreadsheet, FileDown, FileType, ExternalLink, X,
 } from 'lucide-react'
 import type {
   Curriculum, CurriculumLevel, CurriculumTopic, CurriculumItem, LessonType, Subject,
@@ -37,6 +37,7 @@ const LESSON_TYPES: { type: LessonType; label: string; icon: typeof Video }[] = 
   { type: 'video', label: 'Video', icon: Video },
   { type: 'text', label: 'Matn', icon: FileText },
   { type: 'audio', label: 'Audio', icon: Music },
+  { type: 'pdf', label: 'PDF', icon: FileType },
   { type: 'vocab', label: "Lug'at", icon: BookOpen },
   { type: 'test', label: 'Test', icon: ClipboardCheck },
 ]
@@ -1040,6 +1041,8 @@ function LessonEditor({ itemId, onSaved }: LessonEditorProps) {
   const [videoUrl, setVideoUrl] = useState('')
   const [audioUrl, setAudioUrl] = useState('')
   const [textContent, setTextContent] = useState('')
+  const [pdfUrl, setPdfUrl] = useState('')
+  const [pdfName, setPdfName] = useState('')
   const [meta, setMeta] = useState('')
   const [vocab, setVocab] = useState<VocabEntry[]>([])
   const [questions, setQuestions] = useState<CourseQuestion[]>([])
@@ -1054,6 +1057,8 @@ function LessonEditor({ itemId, onSaved }: LessonEditorProps) {
         setVideoUrl(d.videoUrl)
         setAudioUrl(d.audioUrl)
         setTextContent(d.textContent)
+        setPdfUrl(d.pdfUrl)
+        setPdfName(d.pdfName)
         setMeta(d.meta)
         setVocab(d.vocab ?? [])
         setQuestions(d.questions ?? [])
@@ -1073,6 +1078,8 @@ function LessonEditor({ itemId, onSaved }: LessonEditorProps) {
         videoUrl,
         audioUrl,
         textContent,
+        pdfUrl,
+        pdfName,
         meta,
         vocab: vocab.filter((v) => v.term.trim() || v.meaning.trim()),
         questions: questions
@@ -1139,6 +1146,7 @@ function LessonEditor({ itemId, onSaved }: LessonEditorProps) {
               t.type === 'video' ? !!videoUrl
               : t.type === 'audio' ? !!audioUrl
               : t.type === 'text' ? !!textContent.trim()
+              : t.type === 'pdf' ? !!pdfUrl
               : t.type === 'vocab' ? vocab.some((v) => v.term.trim() || v.meaning.trim())
               : t.type === 'test' ? questions.some((q) => q.text.trim()) : false
             return (
@@ -1183,6 +1191,17 @@ function LessonEditor({ itemId, onSaved }: LessonEditorProps) {
                 className={cn(control, 'resize-y leading-relaxed')}
               />
             </div>
+          )}
+
+          {type === 'pdf' && (
+            <PdfEditor
+              url={pdfUrl}
+              name={pdfName}
+              onChange={(u, n) => {
+                setPdfUrl(u)
+                setPdfName(n)
+              }}
+            />
           )}
 
           {type === 'vocab' && (
@@ -1285,6 +1304,114 @@ function MediaEditor({ kind, url, onUrl, meta, onMeta }: MediaEditorProps) {
           className={cn(control, 'max-w-[200px]')}
         />
       </div>
+    </div>
+  )
+}
+
+// ============================ PDF tahrirlovchi ============================
+
+interface PdfEditorProps {
+  url: string
+  name: string
+  onChange: (url: string, name: string) => void
+}
+
+function PdfEditor({ url, name, onChange }: PdfEditorProps) {
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [uploading, setUploading] = useState(false)
+  const [error, setError] = useState('')
+
+  const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setError('')
+    if (!file.name.toLowerCase().endsWith('.pdf')) {
+      setError('Faqat PDF fayl yuklash mumkin')
+      return
+    }
+    if (file.size > 20_000_000) {
+      setError('Fayl 20 MB dan katta')
+      return
+    }
+    setUploading(true)
+    try {
+      const res = await uploadAdminFile(file)
+      onChange(res.url, file.name)
+    } catch (err: any) {
+      setError(err.response?.data?.message || err.message || 'Yuklashda xato yuz berdi')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  return (
+    <div>
+      <label className="mb-1.5 block text-xs font-semibold text-slate-500">PDF fayl</label>
+      <input
+        ref={fileRef}
+        type="file"
+        accept=".pdf,application/pdf"
+        onChange={onFile}
+        className="hidden"
+      />
+
+      {url ? (
+        <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3">
+          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-red-50 text-red-600">
+            <FileType className="h-5 w-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold text-slate-800">{name || 'Fayl.pdf'}</p>
+            <a
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-0.5 inline-flex items-center gap-1 text-xs font-medium text-brand-600 hover:text-brand-700"
+            >
+              <ExternalLink className="h-3 w-3" /> Ochib ko'rish
+            </a>
+          </div>
+          <Button
+            variant="secondary"
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            disabled={uploading}
+            className="flex-shrink-0"
+          >
+            {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+            Almashtirish
+          </Button>
+          <button
+            type="button"
+            onClick={() => onChange('', '')}
+            className="flex-shrink-0 rounded-lg p-2 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
+            title="PDF'ni olib tashlash"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          disabled={uploading}
+          className="flex w-full items-center justify-center gap-2.5 rounded-xl border-2 border-dashed border-slate-200 px-4 py-6 text-sm font-medium text-slate-500 transition-colors hover:border-brand-300 hover:bg-brand-50/30 hover:text-brand-600"
+        >
+          {uploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Upload className="h-5 w-5" />}
+          {uploading ? 'Yuklanmoqda...' : 'PDF fayl tanlash (maks. 20 MB)'}
+        </button>
+      )}
+
+      {error && (
+        <p className="mt-2 flex items-center gap-1.5 text-xs font-medium text-red-600">
+          <AlertTriangle className="h-3.5 w-3.5" /> {error}
+        </p>
+      )}
+      <p className="mt-2 text-xs leading-relaxed text-slate-400">
+        O'quvchi darsda PDF'ni ichida ko'radi va yuklab olishi mumkin (masalan: qo'llanma,
+        mashqlar to'plami, tarqatma material).
+      </p>
     </div>
   )
 }

@@ -1570,7 +1570,7 @@ public class CourseItem
     public string Text { get; set; } = string.Empty;
     public string Note { get; set; } = string.Empty;
     public int Order { get; set; }
-    /// <summary>Dars turi: text | video | audio | vocab | test. Default "text" (eski bandlar).</summary>
+    /// <summary>Dars turi: text | video | audio | vocab | test | pdf. Default "text" (eski bandlar).</summary>
     public string Type { get; set; } = "text";
     /// <summary>Video havolasi (YouTube/mp4) yoki yuklangan fayl URL — "video" dars.</summary>
     public string VideoUrl { get; set; } = string.Empty;
@@ -1578,6 +1578,10 @@ public class CourseItem
     public string AudioUrl { get; set; } = string.Empty;
     /// <summary>Matnli dars mazmuni (o'qish) yoki video/audio tavsifi.</summary>
     public string TextContent { get; set; } = string.Empty;
+    /// <summary>Yuklangan PDF fayl URL (/uploads/...) — "pdf" bo'lim.</summary>
+    public string PdfUrl { get; set; } = string.Empty;
+    /// <summary>PDF faylning asl nomi (o'quvchiga ko'rsatiladi).</summary>
+    public string PdfName { get; set; } = string.Empty;
     /// <summary>Lug'at ("vocab") — JSON: [{"term":"hello","meaning":"salom"}].</summary>
     public string VocabJson { get; set; } = string.Empty;
     /// <summary>Qisqa meta yorlig'i (masalan "12 daq"). Test/lug'atda avtomatik sanaladi.</summary>

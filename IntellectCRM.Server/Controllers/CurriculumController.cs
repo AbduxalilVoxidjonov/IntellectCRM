@@ -65,6 +65,7 @@ public class CurriculumController(AppDbContext db) : ControllerBase
         if (!string.IsNullOrWhiteSpace(i.VideoUrl)) sections.Add("Video");
         if (!string.IsNullOrWhiteSpace(i.TextContent)) sections.Add("Matn");
         if (!string.IsNullOrWhiteSpace(i.AudioUrl)) sections.Add("Audio");
+        if (!string.IsNullOrWhiteSpace(i.PdfUrl)) sections.Add("PDF");
         if (vocabCount > 0) sections.Add("Lug'at");
         if (qc > 0) sections.Add("Test");
         var meta = !string.IsNullOrWhiteSpace(i.Meta) ? i.Meta : string.Join(" · ", sections);
@@ -72,7 +73,7 @@ public class CurriculumController(AppDbContext db) : ControllerBase
         return new CurriculumItemDto(i.Id, i.Text, i.Note, i.Order, i.Type, meta, ready);
     }
 
-    private static readonly string[] AllowedTypes = { "text", "video", "audio", "vocab", "test" };
+    private static readonly string[] AllowedTypes = { "text", "video", "audio", "vocab", "test", "pdf" };
     private static string NormalizeType(string? t) => t is not null && AllowedTypes.Contains(t) ? t : "text";
     private static List<VocabEntryDto> ParseVocab(string? json)
     {
@@ -240,7 +241,8 @@ public class CurriculumController(AppDbContext db) : ControllerBase
             .Select(q => new CourseQuestionDto(q.Id, q.Text, q.Options, q.CorrectIndex)).ToListAsync();
         return new CourseItemDetailDto(
             i.Id, i.TopicId, i.Text, i.Note, i.Order, i.Type,
-            i.VideoUrl, i.AudioUrl, i.TextContent, i.Meta, ParseVocab(i.VocabJson), qs);
+            i.VideoUrl, i.AudioUrl, i.TextContent, i.PdfUrl, i.PdfName,
+            i.Meta, ParseVocab(i.VocabJson), qs);
     }
 
     /// <summary>Dars kontentini saqlash: nom + tur + (video/matn/audio/lug'at) + test savollari (almashtiriladi).</summary>
@@ -255,6 +257,9 @@ public class CurriculumController(AppDbContext db) : ControllerBase
         item.VideoUrl = (req.VideoUrl ?? "").Trim();
         item.AudioUrl = (req.AudioUrl ?? "").Trim();
         item.TextContent = req.TextContent ?? "";
+        item.PdfUrl = (req.PdfUrl ?? "").Trim();
+        // PDF olib tashlansa nomi ham tozalanadi.
+        item.PdfName = item.PdfUrl.Length > 0 ? (req.PdfName ?? "").Trim() : "";
 
         var vocab = (req.Vocab ?? new()).Where(v => !string.IsNullOrWhiteSpace(v.Term)).ToList();
         item.VocabJson = vocab.Count > 0 ? JsonSerializer.Serialize(vocab) : "";

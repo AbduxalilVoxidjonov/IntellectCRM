@@ -1583,8 +1583,8 @@ export interface LmsProgressReport {
 
 // ===================== Kurs o'quv dasturi (curriculum / syllabus) =====================
 
-/** Dars turi: matnli / video / audio / lug'at / test */
-export type LessonType = 'text' | 'video' | 'audio' | 'vocab' | 'test'
+/** Dars turi: matnli / video / audio / lug'at / test / pdf */
+export type LessonType = 'text' | 'video' | 'audio' | 'vocab' | 'test' | 'pdf'
 
 export interface CurriculumItem {
   id: string

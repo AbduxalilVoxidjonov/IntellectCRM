@@ -10,12 +10,13 @@ import { Icon } from '@/pages/student/lib'
    Ko'p kurs bo'lsa, tepada kurs selector ko'rinadi.
    ============================================================ */
 
-type SectionKind = 'video' | 'text' | 'audio' | 'vocab' | 'test'
+type SectionKind = 'video' | 'text' | 'audio' | 'pdf' | 'vocab' | 'test'
 
 const SECTION_LABEL: Record<SectionKind, string> = {
   video: 'Video',
   text: 'Matn',
   audio: 'Audio',
+  pdf: 'PDF',
   vocab: "Lug'at",
   test: 'Test',
 }
@@ -23,6 +24,7 @@ const SECTION_ICON: Record<SectionKind, string> = {
   video: 'video',
   text: 'file',
   audio: 'clock',
+  pdf: 'file',
   vocab: 'book',
   test: 'checkCircle',
 }
@@ -89,6 +91,7 @@ export function StudentLessonScreen() {
     if (lesson.videoUrl) s.push('video')
     if (lesson.textContent) s.push('text')
     if (lesson.audioUrl) s.push('audio')
+    if (lesson.pdfUrl) s.push('pdf')
     if (lesson.vocab.length) s.push('vocab')
     if (lesson.questions.length) s.push('test')
     return s
@@ -195,6 +198,7 @@ export function StudentLessonScreen() {
                 {cur === 'video' && <VideoBlock lesson={lesson} />}
                 {cur === 'audio' && <AudioBlock lesson={lesson} />}
                 {cur === 'text' && <TextBlock text={lesson.textContent} />}
+                {cur === 'pdf' && <PdfBlock lesson={lesson} />}
                 {cur === 'vocab' && <VocabBlock lesson={lesson} />}
                 {cur === 'test' && <TestRunner questions={lesson.questions} />}
               </div>
@@ -277,6 +281,62 @@ function AudioBlock({ lesson }: { lesson: LessonContent }) {
     <div className="card">
       <audio src={lesson.audioUrl} controls style={{ width: '100%' }} />
     </div>
+  )
+}
+
+/** PDF material — sahifa ichida ko'rish (web) + yuklab olish/tashqi ochish (telefon WebView'da
+ * iframe PDF render qilmasligi mumkin, shuning uchun tugmalar doim ko'rinadi). */
+function PdfBlock({ lesson }: { lesson: LessonContent }) {
+  return (
+    <>
+      <div className="card row gap10" style={{ alignItems: 'center', marginBottom: 10 }}>
+        <div
+          style={{
+            width: 42, height: 42, borderRadius: 12, flexShrink: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'var(--redSoft,#fee2e2)',
+          }}
+        >
+          <Icon name="file" size={22} color="var(--red,#dc2626)" />
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 14.5, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {lesson.pdfName || 'Dars materiali (PDF)'}
+          </div>
+          <div className="muted" style={{ fontSize: 12, fontWeight: 600 }}>PDF hujjat</div>
+        </div>
+        <a
+          href={lesson.pdfUrl}
+          download={lesson.pdfName || 'material.pdf'}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="iconbtn press"
+          title="Yuklab olish"
+        >
+          <Icon name="download" size={20} />
+        </a>
+      </div>
+
+      {/* Ichki ko'rish — brauzer PDF viewer'i (web). */}
+      <div style={{ borderRadius: 16, overflow: 'hidden', border: '1.5px solid var(--border)', background: 'var(--surface)' }}>
+        <iframe
+          src={lesson.pdfUrl}
+          title={lesson.pdfName || 'PDF'}
+          style={{ width: '100%', height: '65vh', border: 0, display: 'block' }}
+        />
+      </div>
+
+      <a
+        href={lesson.pdfUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="row gap10 press"
+        style={{ marginTop: 10, justifyContent: 'center', fontSize: 13.5, fontWeight: 700, color: 'var(--accent)' }}
+      >
+        <Icon name="arrowR" size={16} color="var(--accent)" />
+        PDF ko'rinmasa — alohida oynada ochish
+      </a>
+    </>
   )
 }
 

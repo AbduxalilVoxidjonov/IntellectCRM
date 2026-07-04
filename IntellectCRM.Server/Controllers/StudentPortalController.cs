@@ -1098,7 +1098,8 @@ public class StudentPortalController(
             : (TryDeserialize(i.VocabJson) ?? new());
         return new CourseItemDetailDto(
             i.Id, i.TopicId, i.Text, i.Note, i.Order, i.Type,
-            i.VideoUrl, i.AudioUrl, i.TextContent, i.Meta, vocab, qs);
+            i.VideoUrl, i.AudioUrl, i.TextContent, i.PdfUrl, i.PdfName,
+            i.Meta, vocab, qs);
     }
 
     private static List<VocabEntryDto>? TryDeserialize(string json)
