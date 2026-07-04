@@ -1,4 +1,4 @@
-import type { LucideIcon } from 'lucide-react'
+﻿import type { LucideIcon } from 'lucide-react'
 import {
   LayoutDashboard,
   UserPlus,
@@ -18,6 +18,7 @@ import {
   DoorOpen,
   Megaphone,
   Headset,
+  PhoneCall,
 } from 'lucide-react'
 import type { Role } from '@/types'
 
@@ -132,6 +133,7 @@ export const navByRole: Record<Role, NavItem[]> = {
         { label: "O'qituvchilar", to: '/admin/app/teachers' },
       ],
     },
+    { label: 'Call Center', to: '/admin/calls', icon: PhoneCall, perm: 'calls' },
     { label: 'Moliya', to: '/admin/finance', icon: Wallet, perm: 'finance' },
     {
       label: 'Marketing',

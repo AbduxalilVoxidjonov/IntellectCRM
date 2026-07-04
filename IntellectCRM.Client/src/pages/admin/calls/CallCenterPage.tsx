@@ -1,0 +1,543 @@
+import { useEffect, useMemo, useRef, useState } from 'react'
+import {
+  Phone, PhoneCall, PhoneOff, Delete, Search, History, AlertTriangle, Play, Loader2, X, User,
+} from 'lucide-react'
+import type { HubConnection } from '@microsoft/signalr'
+import type { Student } from '@/types'
+import { getStudents } from '@/api/services/students'
+import {
+  getCallsConfig, originateCall, getCalls, getStudentCalls, fetchRecordingUrl,
+  type CallRow, type CallStatus, type CallUpdate,
+} from '@/api/services/calls'
+import { connectLiveTopic } from '@/api/services/live'
+import { Card } from '@/components/ui/Card'
+import { Button } from '@/components/ui/Button'
+import { PageHeader } from '@/components/ui/PageHeader'
+import { Loader } from '@/components/ui/Loader'
+import { cn } from '@/lib/utils'
+
+/* ============================================================
+   Call Center — chapda o'quvchilar ro'yxati ("Qo'ng'iroq" tugmasi bilan),
+   o'ngda dialpad (qo'lda raqam terish) + jonli qo'ng'iroq holati (SignalR).
+   Ikkinchi tab — "Yozuvlar tarixi": barcha qo'ng'iroqlar + audio pleyer.
+   ============================================================ */
+
+const control =
+  'w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition-colors focus:border-brand-400'
+
+const STATUS_LABEL: Record<CallStatus, string> = {
+  originating: 'Ulanmoqda...',
+  ringing: 'Chalinyapti...',
+  answered: 'Gaplashilyapti',
+  completed: 'Yakunlandi',
+  no_answer: 'Javob berilmadi',
+  busy: 'Band',
+  failed: 'Xato',
+}
+
+const STATUS_TONE: Record<CallStatus, string> = {
+  originating: 'bg-amber-50 text-amber-700 border-amber-200',
+  ringing: 'bg-amber-50 text-amber-700 border-amber-200',
+  answered: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  completed: 'bg-slate-100 text-slate-600 border-slate-200',
+  no_answer: 'bg-red-50 text-red-700 border-red-200',
+  busy: 'bg-red-50 text-red-700 border-red-200',
+  failed: 'bg-red-50 text-red-700 border-red-200',
+}
+
+function fmtDuration(sec: number): string {
+  const m = Math.floor(sec / 60)
+  const s = sec % 60
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+}
+
+function fmtDateTime(iso: string): string {
+  if (!iso || iso.length < 16) return iso
+  return `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)} ${iso.slice(11, 16)}`
+}
+
+/** Faol (tugamagan) qo'ng'iroq holati — dialpad ostidagi jonli karta. */
+interface ActiveCall {
+  id: string
+  phoneNumber: string
+  studentName: string
+  status: CallStatus
+  startedAtMs: number
+  answeredAtMs: number | null
+  durationSeconds: number
+}
+
+const TERMINAL: CallStatus[] = ['completed', 'no_answer', 'busy', 'failed']
+
+export function CallCenterPage() {
+  const [tab, setTab] = useState<'dial' | 'history'>('dial')
+  const [configured, setConfigured] = useState<boolean | null>(null)
+
+  const [students, setStudents] = useState<Student[]>([])
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
+  const [selected, setSelected] = useState<Student | null>(null)
+
+  const [dial, setDial] = useState('')
+  const [calling, setCalling] = useState(false)
+  const [error, setError] = useState('')
+  const [active, setActive] = useState<ActiveCall | null>(null)
+  const [, setTick] = useState(0) // taymer re-render
+
+  useEffect(() => {
+    Promise.all([
+      getCallsConfig().then((c) => setConfigured(c.configured)).catch(() => setConfigured(false)),
+      getStudents().then(setStudents).catch(() => setStudents([])),
+    ]).finally(() => setLoading(false))
+  }, [])
+
+  // Jonli holat — LiveHub "calls" mavzusi (callUpdated hodisasi).
+  const activeRef = useRef<ActiveCall | null>(null)
+  activeRef.current = active
+  useEffect(() => {
+    let conn: HubConnection | null = null
+    let alive = true
+    connectLiveTopic('calls', {
+      callUpdated: (...args: unknown[]) => {
+        const u = args[0] as CallUpdate
+        if (!alive) return
+        const cur = activeRef.current
+        if (cur && u.id === cur.id) {
+          setActive({
+            ...cur,
+            status: u.status,
+            answeredAtMs: u.answeredAt ? Date.now() - u.durationSeconds * 1000 : cur.answeredAtMs,
+            durationSeconds: u.durationSeconds,
+          })
+        }
+      },
+    })
+      .then((c) => { if (alive) conn = c; else c.stop() })
+      .catch(() => { /* hub bo'lmasa ham sahifa ishlayveradi (holat faqat jonli yangilanmaydi) */ })
+    return () => {
+      alive = false
+      conn?.stop()
+    }
+  }, [])
+
+  // Taymer (chalinish/gaplashuv vaqti) — sekundiga bir marta.
+  useEffect(() => {
+    if (!active || TERMINAL.includes(active.status)) return
+    const t = setInterval(() => setTick((x) => x + 1), 1000)
+    return () => clearInterval(t)
+  }, [active])
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    const digits = search.replace(/\D/g, '')
+    let list = students
+    if (q) {
+      list = students.filter((s) => {
+        if (s.fullName.toLowerCase().includes(q)) return true
+        if (digits.length >= 3) {
+          return [s.phone, s.parentPhone, s.fatherPhone, s.motherPhone]
+            .some((p) => (p ?? '').replace(/\D/g, '').includes(digits))
+        }
+        return false
+      })
+    }
+    return list.slice(0, 100)
+  }, [students, search])
+
+  const startCall = async (opts: { studentId?: string; phoneNumber?: string; name?: string }) => {
+    if (calling) return
+    setCalling(true)
+    setError('')
+    try {
+      const r = await originateCall({ studentId: opts.studentId, phoneNumber: opts.phoneNumber })
+      setActive({
+        id: r.callId,
+        phoneNumber: r.phoneNumber,
+        studentName: opts.name ?? '',
+        status: r.status,
+        startedAtMs: Date.now(),
+        answeredAtMs: null,
+        durationSeconds: 0,
+      })
+    } catch (err: any) {
+      setError(err.response?.data?.message || err.message || 'Xato yuz berdi')
+    } finally {
+      setCalling(false)
+    }
+  }
+
+  const elapsed = active
+    ? active.status === 'answered'
+      ? Math.floor((Date.now() - (active.answeredAtMs ?? Date.now())) / 1000)
+      : TERMINAL.includes(active.status)
+        ? active.durationSeconds
+        : Math.floor((Date.now() - active.startedAtMs) / 1000)
+    : 0
+
+  if (loading) {
+    return (
+      <Card>
+        <Loader label="Yuklanmoqda..." />
+      </Card>
+    )
+  }
+
+  return (
+    <div>
+      <PageHeader
+        title="Call Center"
+        sub="O'quvchilarga qo'ng'iroq qilish va suhbat yozuvlarini tinglash"
+        actions={
+          <div className="flex gap-2">
+            <Button variant={tab === 'dial' ? 'primary' : 'secondary'} onClick={() => setTab('dial')}>
+              <PhoneCall className="h-4 w-4" /> Qo'ng'iroq
+            </Button>
+            <Button variant={tab === 'history' ? 'primary' : 'secondary'} onClick={() => setTab('history')}>
+              <History className="h-4 w-4" /> Yozuvlar tarixi
+            </Button>
+          </div>
+        }
+      />
+
+      {configured === false && (
+        <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+          <span>
+            Asterisk hali ulanmagan — qo'ng'iroqlar ishlamaydi. Server sozlamalarida{' '}
+            <code className="rounded bg-amber-100 px-1">Asterisk__Enabled/Host/Username/Password</code>{' '}
+            muhit o'zgaruvchilarini bering.
+          </span>
+        </div>
+      )}
+
+      {error && (
+        <div className="mb-4 flex items-start justify-between gap-2.5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          <span className="flex items-start gap-2.5">
+            <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" /> {error}
+          </span>
+          <button type="button" onClick={() => setError('')} className="text-red-400 hover:text-red-600">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
+      {tab === 'dial' ? (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+          {/* ===== CHAP: o'quvchilar ro'yxati ===== */}
+          <div className="space-y-4 lg:col-span-7">
+            <Card tight>
+              <div className="border-b border-slate-100 p-3">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <input
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Ism yoki telefon raqami bo'yicha qidirish..."
+                    className={cn(control, 'pl-9')}
+                  />
+                </div>
+              </div>
+              <div className="max-h-[480px] overflow-y-auto">
+                {filtered.length === 0 ? (
+                  <p className="p-6 text-center text-sm text-slate-400">O'quvchi topilmadi.</p>
+                ) : (
+                  filtered.map((s) => {
+                    const phone = s.phone || s.parentPhone || s.fatherPhone || s.motherPhone || ''
+                    return (
+                      <div
+                        key={s.id}
+                        onClick={() => setSelected(selected?.id === s.id ? null : s)}
+                        className={cn(
+                          'flex cursor-pointer items-center gap-3 border-b border-slate-50 px-4 py-2.5 transition-colors hover:bg-slate-50',
+                          selected?.id === s.id && 'bg-brand-50/60',
+                        )}
+                      >
+                        <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500">
+                          <User className="h-4 w-4" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-sm font-medium text-slate-800">{s.fullName}</div>
+                          <div className="truncate text-xs text-slate-400">
+                            {phone || 'Telefon kiritilmagan'}
+                            {s.className ? ` · ${s.className}` : ''}
+                          </div>
+                        </div>
+                        <Button
+                          variant="secondary"
+                          type="button"
+                          disabled={!phone || calling}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            startCall({ studentId: s.id, name: s.fullName })
+                          }}
+                          className="flex-shrink-0"
+                        >
+                          <Phone className="h-4 w-4" /> Qo'ng'iroq
+                        </Button>
+                      </div>
+                    )
+                  })
+                )}
+              </div>
+            </Card>
+
+            {/* O'quvchi detalli oynasi (qatorga bosilganda) */}
+            {selected && (
+              <StudentDetail student={selected} onClose={() => setSelected(null)} />
+            )}
+          </div>
+
+          {/* ===== O'NG: dialpad + jonli holat ===== */}
+          <div className="space-y-4 lg:col-span-5">
+            <Card title="Raqam terish">
+              <div className="flex items-center gap-2">
+                <input
+                  value={dial}
+                  onChange={(e) => setDial(e.target.value.replace(/[^\d+*#]/g, ''))}
+                  placeholder="+998 XX XXX XX XX"
+                  className={cn(control, 'text-center text-lg font-semibold tracking-wider')}
+                />
+                <button
+                  type="button"
+                  onClick={() => setDial((d) => d.slice(0, -1))}
+                  className="flex-shrink-0 rounded-lg p-2.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                  title="O'chirish"
+                >
+                  <Delete className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="mx-auto mt-4 grid max-w-[240px] grid-cols-3 gap-2">
+                {['1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '0', '#'].map((k) => (
+                  <button
+                    key={k}
+                    type="button"
+                    onClick={() => setDial((d) => d + k)}
+                    className="h-14 rounded-xl border border-slate-200 bg-white text-lg font-semibold text-slate-700 transition-colors hover:border-brand-300 hover:bg-brand-50 active:bg-brand-100"
+                  >
+                    {k}
+                  </button>
+                ))}
+              </div>
+
+              <div className="mt-4 flex gap-2">
+                <Button
+                  onClick={() => startCall({ phoneNumber: dial })}
+                  disabled={dial.replace(/\D/g, '').length < 7 || calling}
+                  className="flex-1"
+                >
+                  {calling ? <Loader2 className="h-4 w-4 animate-spin" /> : <PhoneCall className="h-4 w-4" />}
+                  Qo'ng'iroq
+                </Button>
+                <Button variant="secondary" onClick={() => setDial('')} disabled={!dial}>
+                  Tozalash
+                </Button>
+              </div>
+            </Card>
+
+            {/* Jonli qo'ng'iroq kartasi */}
+            {active && (
+              <Card tight>
+                <div className="p-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <span
+                      className={cn(
+                        'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold',
+                        STATUS_TONE[active.status],
+                      )}
+                    >
+                      {!TERMINAL.includes(active.status) && (
+                        <span className="h-2 w-2 animate-pulse rounded-full bg-current" />
+                      )}
+                      {STATUS_LABEL[active.status]}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setActive(null)}
+                      className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                      title="Yopish"
+                    >
+                      <PhoneOff className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <div className="mt-3 text-center">
+                    <div className="text-xl font-bold tracking-wide text-slate-800">{active.phoneNumber}</div>
+                    {active.studentName && (
+                      <div className="mt-0.5 text-sm text-slate-500">{active.studentName}</div>
+                    )}
+                    <div className="mt-2 font-mono text-2xl font-semibold text-brand-600">
+                      {fmtDuration(elapsed)}
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            )}
+          </div>
+        </div>
+      ) : (
+        <CallHistory />
+      )}
+    </div>
+  )
+}
+
+/* ============================ O'quvchi detali + qo'ng'iroqlar tarixi ============================ */
+
+function StudentDetail({ student, onClose }: { student: Student; onClose: () => void }) {
+  const [calls, setCalls] = useState<CallRow[] | null>(null)
+
+  useEffect(() => {
+    setCalls(null)
+    getStudentCalls(student.id).then(setCalls).catch(() => setCalls([]))
+  }, [student.id])
+
+  return (
+    <Card
+      title={student.fullName}
+      actions={
+        <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+          <X className="h-4 w-4" />
+        </button>
+      }
+    >
+      <div className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+        <p><span className="text-slate-400">Telefon:</span> <span className="font-medium">{student.phone || '—'}</span></p>
+        <p><span className="text-slate-400">Ota-ona:</span> <span className="font-medium">{student.parentPhone || '—'}</span></p>
+        <p><span className="text-slate-400">Guruh:</span> <span className="font-medium">{student.className || '—'}</span></p>
+        <p><span className="text-slate-400">Balans:</span> <span className={cn('font-medium', (student.balance ?? 0) < 0 ? 'text-red-600' : 'text-emerald-600')}>{(student.balance ?? 0).toLocaleString()} so'm</span></p>
+      </div>
+
+      <h4 className="mb-2 mt-4 text-xs font-bold uppercase tracking-wide text-slate-400">Qo'ng'iroqlar tarixi</h4>
+      {calls === null ? (
+        <Loader label="Yuklanmoqda..." />
+      ) : calls.length === 0 ? (
+        <p className="text-sm text-slate-400">Hali qo'ng'iroq qilinmagan.</p>
+      ) : (
+        <div className="space-y-1.5">
+          {calls.map((c) => (
+            <CallRowLine key={c.id} call={c} showStudent={false} />
+          ))}
+        </div>
+      )}
+    </Card>
+  )
+}
+
+/* ============================ Yozuvlar tarixi (barcha qo'ng'iroqlar) ============================ */
+
+function CallHistory() {
+  const [search, setSearch] = useState('')
+  const [rows, setRows] = useState<CallRow[] | null>(null)
+  const [total, setTotal] = useState(0)
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      getCalls(search).then((r) => {
+        setRows(r.items)
+        setTotal(r.total)
+      }).catch(() => setRows([]))
+    }, 300)
+    return () => clearTimeout(t)
+  }, [search])
+
+  return (
+    <Card tight>
+      <div className="flex items-center justify-between gap-3 border-b border-slate-100 p-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Ism yoki raqam bo'yicha qidirish..."
+            className={cn(control, 'pl-9')}
+          />
+        </div>
+        <span className="flex-shrink-0 text-xs font-medium text-slate-400">{total} ta qo'ng'iroq</span>
+      </div>
+      <div className="p-3">
+        {rows === null ? (
+          <Loader label="Yuklanmoqda..." />
+        ) : rows.length === 0 ? (
+          <p className="p-6 text-center text-sm text-slate-400">Qo'ng'iroqlar yo'q.</p>
+        ) : (
+          <div className="space-y-1.5">
+            {rows.map((c) => (
+              <CallRowLine key={c.id} call={c} showStudent />
+            ))}
+          </div>
+        )}
+      </div>
+    </Card>
+  )
+}
+
+/* ============================ Bitta qo'ng'iroq qatori + pleyer ============================ */
+
+function CallRowLine({ call, showStudent }: { call: CallRow; showStudent: boolean }) {
+  return (
+    <div className="rounded-xl border border-slate-100 px-3 py-2">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span
+          className={cn(
+            'inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold',
+            STATUS_TONE[call.status],
+          )}
+        >
+          {STATUS_LABEL[call.status]}
+        </span>
+        {showStudent && (
+          <span className="text-sm font-medium text-slate-800">
+            {call.studentName || 'Nomaʼlum raqam'}
+          </span>
+        )}
+        <span className="text-sm text-slate-600">{call.phoneNumber}</span>
+        <span className="text-xs text-slate-400">{fmtDateTime(call.startedAt)}</span>
+        {call.durationSeconds > 0 && (
+          <span className="font-mono text-xs text-slate-500">{fmtDuration(call.durationSeconds)}</span>
+        )}
+        {call.operatorName && (
+          <span className="text-xs text-slate-400">op: {call.operatorName}</span>
+        )}
+        <span className="ml-auto">
+          {call.hasRecording && <RecordingPlayer callId={call.id} />}
+        </span>
+      </div>
+    </div>
+  )
+}
+
+/** Yozuvni bosilganda (auth bilan) yuklab, audio pleyerda ochadi. */
+function RecordingPlayer({ callId }: { callId: string }) {
+  const [url, setUrl] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [failed, setFailed] = useState(false)
+
+  useEffect(() => () => { if (url) URL.revokeObjectURL(url) }, [url])
+
+  if (url) return <audio src={url} controls autoPlay className="h-8 max-w-[240px]" />
+  return (
+    <button
+      type="button"
+      disabled={loading || failed}
+      onClick={async () => {
+        setLoading(true)
+        try {
+          setUrl(await fetchRecordingUrl(callId))
+        } catch {
+          setFailed(true)
+        } finally {
+          setLoading(false)
+        }
+      }}
+      className={cn(
+        'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors',
+        failed
+          ? 'cursor-default text-slate-300'
+          : 'text-brand-600 hover:bg-brand-50 hover:text-brand-700',
+      )}
+    >
+      {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
+      {failed ? 'Yozuv topilmadi' : 'Tinglash'}
+    </button>
+  )
+}

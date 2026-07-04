@@ -19,7 +19,7 @@ namespace IntellectCRM.Server.Controllers;
 [Authorize]
 [AdminPerm("calls")]
 [Route("api/admin/calls")]
-public class CallsController(AppDbContext db, AsteriskService asterisk) : ControllerBase
+public class CallsController(AppDbContext db, AsteriskService asterisk, IConfiguration config) : ControllerBase
 {
     private string Uid => User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "";
 
@@ -132,6 +132,50 @@ public class CallsController(AppDbContext db, AsteriskService asterisk) : Contro
             .OrderByDescending(c => c.StartedAt)
             .Take(200).ToListAsync();
         return await ToDtosAsync(items);
+    }
+
+    /// <summary>
+    /// Suhbat yozuvini eshittirish. DIQQAT: yozuvlar ATAYIN /uploads (ochiq statik) ostida EMAS —
+    /// faqat shu autentifikatsiyalangan endpoint orqali beriladi. Fayl Asterisk:RecordingsPath
+    /// papkasidan olinadi (dialplan MixMonitor {callId}.wav nomlashi kutiladi).
+    /// </summary>
+    [HttpGet("{id}/recording")]
+    public async Task<IActionResult> Recording(string id)
+    {
+        var call = await db.Calls.FindAsync(id);
+        if (call is null) return NotFound();
+
+        var dir = config["Asterisk:RecordingsPath"] ?? "";
+        if (dir.Length == 0)
+            return NotFound(new { message = "Yozuvlar papkasi sozlanmagan (Asterisk:RecordingsPath)" });
+
+        // Fayl nomi DBdan; bo'sh bo'lsa konvensiya bo'yicha izlanadi ({callId}.wav ...).
+        var candidates = call.RecordingFile.Length > 0
+            ? new[] { call.RecordingFile }
+            : new[] { $"{call.Id}.wav", $"{call.Id}.mp3", $"{call.Id}.ogg", $"{call.Id}.gsm" };
+
+        foreach (var name in candidates)
+        {
+            var full = Path.GetFullPath(Path.Combine(dir, name));
+            // Path traversal himoyasi — fayl faqat recordings papkasi ichidan.
+            if (!full.StartsWith(Path.GetFullPath(dir), StringComparison.OrdinalIgnoreCase)) continue;
+            if (!System.IO.File.Exists(full)) continue;
+
+            if (call.RecordingFile.Length == 0)
+            {
+                call.RecordingFile = name;
+                await db.SaveChangesAsync();
+            }
+            var ct = Path.GetExtension(full).ToLowerInvariant() switch
+            {
+                ".mp3" => "audio/mpeg",
+                ".ogg" => "audio/ogg",
+                _ => "audio/wav",
+            };
+            return PhysicalFile(full, ct, enableRangeProcessing: true);
+        }
+
+        return NotFound(new { message = "Yozuv fayli topilmadi" });
     }
 
     private async Task<List<CallDto>> ToDtosAsync(List<Call> items)

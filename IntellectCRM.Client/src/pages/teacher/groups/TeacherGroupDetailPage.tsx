@@ -488,7 +488,9 @@ export function TeacherGroupDetailPage() {
                             <span className="text-xs font-medium text-mute">{idx + 1}</span>
                           </td>
                           <td className="sticky left-0 z-10 border-b border-r-2 border-line bg-inherit px-3 py-2">
-                            <span className="block max-w-[8rem] truncate text-sm font-medium text-ink">
+                            {/* FISH to'liq ko'rinishi shart (telefonda o'qish uchun) — kesilmaydi,
+                                bir necha qatorga o'raladi; kenglik sticky ustun barqarorligi uchun qat'iy. */}
+                            <span className="block w-32 whitespace-normal break-words text-sm font-medium leading-snug text-ink">
                               {st.fullName}
                             </span>
                           </td>

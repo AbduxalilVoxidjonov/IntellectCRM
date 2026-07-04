@@ -25,6 +25,15 @@ public class AsteriskService(IConfiguration config, ILogger<AsteriskService> log
     private ManagerConnection? _mc;
     private readonly SemaphoreSlim _lock = new(1, 1);
 
+    /// <summary>AMI'dan kelgan, Call Center'ga tegishli hodisa.
+    /// Kind: "var" (CRM_CALL_ID o'rnatildi, Value=callId) | "state" (Value=ChannelStateDesc:
+    /// Ringing/Up/...) | "hangup" (Value=cause kodi).</summary>
+    public record AmiCallEvent(string Kind, string UniqueId, string Value);
+
+    /// <summary>Qo'ng'iroq hodisalari oqimi — <see cref="AsteriskCallMonitorService"/> tinglaydi.
+    /// DIQQAT: AsterNET socket thread'ida chaqiriladi — handler tez bo'lishi shart (queue'ga yozish).</summary>
+    public event Action<AmiCallEvent>? CallEvent;
+
     public bool Enabled => config.GetValue<bool>("Asterisk:Enabled");
     public string DefaultOperatorExtension => config["Asterisk:DefaultOperatorExtension"] ?? "";
 
@@ -80,6 +89,26 @@ public class AsteriskService(IConfiguration config, ILogger<AsteriskService> log
         }
     }
 
+    /// <summary>
+    /// Ulanishni oldindan o'rnatish/tiklash — event monitor har 30s chaqiradi.
+    /// Muvaffaqiyat = true; sozlanmagan yoki ulanib bo'lmasa false (exception yutiladi, log'lanadi).
+    /// </summary>
+    public bool TryEnsureConnected()
+    {
+        if (!IsConfigured) return false;
+        try
+        {
+            GetConnection();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning("Asterisk AMI ulanib bo'lmadi ({Host}:{Port}): {Msg}", Host, Port, ex.Message);
+            DropConnection();
+            return false;
+        }
+    }
+
     /// <summary>Ulangan ManagerConnection (kerak bo'lsa login qiladi). Chaqiruvchi exception'ni ushlaydi.</summary>
     private ManagerConnection GetConnection()
     {
@@ -90,6 +119,7 @@ public class AsteriskService(IConfiguration config, ILogger<AsteriskService> log
 
             _mc?.Logoff();
             var mc = new ManagerConnection(Host, Port, Username, Password);
+            WireEvents(mc);
             mc.Login(10_000);
             logger.LogInformation("Asterisk AMI ulanish o'rnatildi ({Host}:{Port})", Host, Port);
             _mc = mc;
@@ -99,6 +129,25 @@ public class AsteriskService(IConfiguration config, ILogger<AsteriskService> log
         {
             _lock.Release();
         }
+    }
+
+    /// <summary>
+    /// AMI hodisalarini <see cref="CallEvent"/>ga uzatish. Har yangi ulanishda qayta bog'lanadi.
+    /// VarSet juda seryog' — faqat CRM_CALL_ID filtrlangan holda o'tkaziladi (AMI user'ida
+    /// read=call,dialplan bo'lishi kerak, aks holda VarSet kelmaydi).
+    /// </summary>
+    private void WireEvents(ManagerConnection mc)
+    {
+        mc.VarSet += (_, e) =>
+        {
+            if (string.Equals(e.Variable, "CRM_CALL_ID", StringComparison.OrdinalIgnoreCase)
+                && !string.IsNullOrEmpty(e.Value))
+                CallEvent?.Invoke(new AmiCallEvent("var", e.UniqueId ?? "", e.Value));
+        };
+        mc.NewState += (_, e) =>
+            CallEvent?.Invoke(new AmiCallEvent("state", e.UniqueId ?? "", e.ChannelStateDesc ?? ""));
+        mc.Hangup += (_, e) =>
+            CallEvent?.Invoke(new AmiCallEvent("hangup", e.UniqueId ?? "", e.Cause.ToString()));
     }
 
     private void DropConnection()

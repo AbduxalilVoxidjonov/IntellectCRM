@@ -231,6 +231,8 @@ builder.Services.AddSingleton<EskizService>();
 // Asterisk AMI (Call Center) — ulanishni ushlab turadi, shuning uchun singleton.
 // Sozlash: appsettings "Asterisk" yoki env (Asterisk__Host ...). Enabled=false — modul o'chiq.
 builder.Services.AddSingleton<AsteriskService>();
+// AMI hodisalarini (Ringing/Up/Hangup) Calls jadvaliga yozib, LiveHub "calls" mavzusiga push qiladi.
+builder.Services.AddHostedService<AsteriskCallMonitorService>();
 
 // O'zgarishlar tarixi (audit) — joriy foydalanuvchini aniqlash uchun HttpContext kerak
 builder.Services.AddHttpContextAccessor();
