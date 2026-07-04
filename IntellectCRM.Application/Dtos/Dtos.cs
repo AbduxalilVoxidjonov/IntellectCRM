@@ -260,20 +260,30 @@ public record StudentFinanceRowDto(
 
 /* ---------- CTI (Local Call) ---------- */
 
-/// <summary>Mobil (Android agent) login so'rovi.</summary>
-public record CtiLoginRequest(string Login, string Password);
+/// <summary>Mobil (Android agent) login so'rovi. DIQQAT: maydonlar ATAYIN nullable va muqobil
+/// nomli (username/user, pass) — ilova versiyalari turlicha nom yuborishi mumkin; nullable
+/// bo'lmasa [ApiController] avtomatik 400 qaytaradi va ilova sababsiz "HTTP 400"da qoladi.</summary>
+public record CtiLoginRequest(
+    string? Login, string? Username, string? User, string? Password, string? Pass)
+{
+    /// <summary>Qaysi nom bilan kelgan bo'lsa ham login qiymati.</summary>
+    public string LoginValue => (Login ?? Username ?? User ?? "").Trim();
+    /// <summary>Qaysi nom bilan kelgan bo'lsa ham parol qiymati.</summary>
+    public string PasswordValue => Password ?? Pass ?? "";
+}
 /// <summary>Login javobi: JWT token, agent id va WebSocket manzili.</summary>
 public record CtiLoginResponse(string Token, string AgentId, string WsUrl);
-/// <summary>Ilova yuborgan qo'ng'iroq metadatasi (sanalar ISO string).</summary>
+/// <summary>Ilova yuborgan qo'ng'iroq metadatasi (sanalar ISO string). Maydonlar nullable —
+/// avtomatik 400 o'rniga controller o'zi oqilona default qo'llaydi.</summary>
 public record CtiCallCreateRequest(
-    string Direction, string RemoteNumber, string? ContactName, string StartedAt,
+    string? Direction, string? RemoteNumber, string? ContactName, string? StartedAt,
     string? AnsweredAt, string? EndedAt, int DurationSec);
 /// <summary>Qo'ng'iroq yaratilgach — server tomonidagi id (audio/hodisalar shu bo'yicha yuboriladi).</summary>
 public record CtiCallCreatedResponse(string ServerCallId);
-/// <summary>Ilova yuborgan bitta qo'ng'iroq hodisasi.</summary>
-public record CtiCallEventRequest(string Type, string At);
+/// <summary>Ilova yuborgan bitta qo'ng'iroq hodisasi (nullable — 400 o'rniga aniq xabar).</summary>
+public record CtiCallEventRequest(string? Type, string? At);
 /// <summary>Ilova FCM tokenini yangilash.</summary>
-public record CtiFcmTokenRequest(string Token);
+public record CtiFcmTokenRequest(string? Token);
 
 /// <summary>Operator paneli — agent qatori (jonli holat konnektsiya menejeridan).</summary>
 public record CtiAgentDto(

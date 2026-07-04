@@ -47,12 +47,13 @@ public class CtiMobileController(
     [AllowAnonymous]
     public async Task<ActionResult<CtiLoginResponse>> Login(CtiLoginRequest req)
     {
-        if (string.IsNullOrWhiteSpace(req.Login) || string.IsNullOrWhiteSpace(req.Password))
+        var login = req.LoginValue;
+        var password = req.PasswordValue;
+        if (login.Length == 0 || password.Length == 0)
             return Unauthorized(new { message = "Login yoki parol bo'sh" });
 
-        var login = req.Login.Trim();
         var agent = await db.CtiAgents.FirstOrDefaultAsync(a => a.Login == login);
-        if (agent is null || !agent.IsActive || !PasswordHasher.Verify(req.Password, agent.PasswordHash))
+        if (agent is null || !agent.IsActive || !PasswordHasher.Verify(password, agent.PasswordHash))
             return Unauthorized(new { message = "Login yoki parol noto'g'ri" });
 
         var token = jwt.CreateAgentToken(agent.Id, agent.DisplayName);
