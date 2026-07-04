@@ -24,7 +24,7 @@ public class RemindersController(AppDbContext db) : ControllerBase
     public ActionResult<IEnumerable<ReminderTriggerInfoDto>> Types() =>
         ReminderTriggers.All.Select(t => new ReminderTriggerInfoDto(
             t.Key, t.Label, t.Description, t.SupportsTemplate, t.SupportsOffset,
-            t.SupportsAudience, t.SupportsSchedule, t.Tokens)).ToList();
+            t.SupportsAudience, t.SupportsSchedule, t.SupportsSendScope, t.Tokens)).ToList();
 
     [HttpGet]
     public async Task<ActionResult<IEnumerable<ReminderRuleDto>>> List()
@@ -46,6 +46,7 @@ public class RemindersController(AppDbContext db) : ControllerBase
             Enabled = req.Enabled,
             MessageTemplate = req.MessageTemplate.Trim(),
             OffsetMinutes = req.OffsetMinutes,
+            SendScope = NormalizeScope(req),
             Audience = req.Audience,
             ScheduleType = req.ScheduleType,
             ScheduleTime = req.ScheduleTime,
@@ -69,6 +70,7 @@ public class RemindersController(AppDbContext db) : ControllerBase
         rule.Enabled = req.Enabled;
         rule.MessageTemplate = req.MessageTemplate.Trim();
         rule.OffsetMinutes = req.OffsetMinutes;
+        rule.SendScope = NormalizeScope(req);
         rule.Audience = req.Audience;
         rule.ScheduleType = req.ScheduleType;
         rule.ScheduleTime = req.ScheduleTime;
@@ -87,6 +89,12 @@ public class RemindersController(AppDbContext db) : ControllerBase
         return NoContent();
     }
 
+    /// <summary>Yuborish rejimi faqat davomat eslatmasiga tegishli; bo'sh kelsa (eski klient) — default.</summary>
+    private static string NormalizeScope(SaveReminderRuleRequest req) =>
+        req.Trigger == ReminderTriggers.LessonAttendance
+            ? (string.IsNullOrWhiteSpace(req.SendScope) ? ReminderSendScopes.LessonStart : req.SendScope)
+            : "";
+
     private static string? Validate(SaveReminderRuleRequest req)
     {
         if (!ReminderTriggers.IsKnown(req.Trigger)) return "Noma'lum eslatma turi";
@@ -96,6 +104,14 @@ public class RemindersController(AppDbContext db) : ControllerBase
         var type = ReminderTriggers.All.First(t => t.Key == req.Trigger);
         if (type.SupportsAudience && !ReminderAudiences.IsKnown(req.Audience))
             return "Auditoriya tanlanmagan";
+        if (type.SupportsSendScope)
+        {
+            var scope = string.IsNullOrWhiteSpace(req.SendScope) ? ReminderSendScopes.LessonStart : req.SendScope;
+            if (!ReminderSendScopes.IsKnown(scope)) return "Yuborish rejimi noto'g'ri";
+            // Kunlik rejimlar yuborish vaqtini talab qiladi.
+            if (scope != ReminderSendScopes.LessonStart && !System.TimeSpan.TryParse(req.ScheduleTime, out _))
+                return "Yuborish vaqti formati noto'g'ri (HH:mm)";
+        }
         if (type.SupportsSchedule)
         {
             if (req.ScheduleType != "daily" && req.ScheduleType != "monthly")
@@ -110,5 +126,5 @@ public class RemindersController(AppDbContext db) : ControllerBase
 
     private static ReminderRuleDto ToDto(ReminderRule r) =>
         new(r.Id, r.Trigger, r.Name, r.Enabled, r.MessageTemplate, r.OffsetMinutes,
-            r.Audience, r.ScheduleType, r.ScheduleTime, r.ScheduleDayOfMonth, r.CreatedAt);
+            r.SendScope, r.Audience, r.ScheduleType, r.ScheduleTime, r.ScheduleDayOfMonth, r.CreatedAt);
 }

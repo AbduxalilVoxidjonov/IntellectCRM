@@ -1796,6 +1796,10 @@ public class ReminderRule
     public string MessageTemplate { get; set; } = string.Empty;
     /// <summary>Faqat "lesson_attendance": dars boshlanishidan necha daqiqa keyin yuborilsin (default 5).</summary>
     public int OffsetMinutes { get; set; } = 5;
+    /// <summary>Faqat "lesson_attendance": kimga/qachon yuborilsin — "lesson_start" (dars boshlangach,
+    /// to'ldirmaganga — default) | "not_filled" (kunlik ScheduleTime'da, bugun darsi bo'lib to'ldirmaganlarga)
+    /// | "all" (kunlik ScheduleTime'da BARCHA o'qituvchilarga, to'ldirganlarga ham).</summary>
+    public string SendScope { get; set; } = "lesson_start";
     /// <summary>Faqat "custom_schedule": kimga yuborilsin — <c>ReminderAudiences.Teachers</c> | <c>Students</c>.</summary>
     public string Audience { get; set; } = string.Empty;
     /// <summary>Faqat "custom_schedule": "daily" (har kuni) | "monthly" (oyning muayyan kunida).</summary>

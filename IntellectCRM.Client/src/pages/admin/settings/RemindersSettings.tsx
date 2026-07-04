@@ -11,6 +11,7 @@ import {
   type SaveReminderRuleReq,
   type ReminderAudience,
   type ReminderScheduleType,
+  type ReminderSendScope,
 } from '@/api/services/settings'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
@@ -36,6 +37,7 @@ export function RemindersSettings() {
   const [enabled, setEnabled] = useState(true)
   const [messageTemplate, setMessageTemplate] = useState('')
   const [offsetMinutes, setOffsetMinutes] = useState(5)
+  const [sendScope, setSendScope] = useState<ReminderSendScope>('lesson_start')
   const [audience, setAudience] = useState<ReminderAudience | ''>('')
   const [scheduleType, setScheduleType] = useState<ReminderScheduleType>('daily')
   const [scheduleTime, setScheduleTime] = useState('09:00')
@@ -62,6 +64,7 @@ export function RemindersSettings() {
     setEnabled(true)
     setMessageTemplate('')
     setOffsetMinutes(5)
+    setSendScope('lesson_start')
     setAudience('')
     setScheduleType('daily')
     setScheduleTime('09:00')
@@ -81,6 +84,7 @@ export function RemindersSettings() {
     setEnabled(r.enabled)
     setMessageTemplate(r.messageTemplate)
     setOffsetMinutes(r.offsetMinutes)
+    setSendScope(r.sendScope || 'lesson_start')
     setAudience(r.audience)
     setScheduleType(r.scheduleType)
     setScheduleTime(r.scheduleTime)
@@ -98,6 +102,7 @@ export function RemindersSettings() {
         enabled,
         messageTemplate: messageTemplate.trim(),
         offsetMinutes,
+        sendScope,
         audience,
         scheduleType,
         scheduleTime,
@@ -125,6 +130,7 @@ export function RemindersSettings() {
       enabled: !r.enabled,
       messageTemplate: r.messageTemplate,
       offsetMinutes: r.offsetMinutes,
+      sendScope: r.sendScope,
       audience: r.audience,
       scheduleType: r.scheduleType,
       scheduleTime: r.scheduleTime,
@@ -189,7 +195,29 @@ export function RemindersSettings() {
             Yoqilgan
           </label>
 
-          {activeType?.supportsOffset && (
+          {activeType?.supportsSendScope && (
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-600">Kimga yuborish</label>
+              <select
+                value={sendScope}
+                onChange={(e) => setSendScope(e.target.value as ReminderSendScope)}
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
+              >
+                <option value="lesson_start">Darsi boshlanganda to'ldirmaganga (har dars, +N daqiqa)</option>
+                <option value="not_filled">To'ldirmaganlarga — kunlik vaqtda, bugun darsi bo'lib to'ldirmaganlarga</option>
+                <option value="all">Hammaga — kunlik vaqtda BARCHA o'qituvchilarga (to'ldirganlarga ham)</option>
+              </select>
+              <p className="mt-1 text-xs text-slate-400">
+                {sendScope === 'lesson_start'
+                  ? "Har guruh darsi boshlangach, davomat hali kiritilmagan bo'lsa o'sha guruh o'qituvchisiga yuboriladi."
+                  : sendScope === 'not_filled'
+                    ? "Belgilangan vaqtda — bugun darsi bo'lib (boshlangan) davomatini hali kiritmagan o'qituvchilarga, har guruh uchun alohida."
+                    : "Belgilangan vaqtda — barcha faol o'qituvchilarga, davomatni to'ldirgan bo'lsa ham."}
+              </p>
+            </div>
+          )}
+
+          {activeType?.supportsOffset && (!activeType?.supportsSendScope || sendScope === 'lesson_start') && (
             <div>
               <label className="mb-1 block text-sm font-medium text-slate-600">
                 Dars boshlanishidan necha daqiqa keyin yuborilsin
@@ -199,6 +227,18 @@ export function RemindersSettings() {
                 min={0}
                 value={offsetMinutes}
                 onChange={(e) => setOffsetMinutes(Math.max(0, Number(e.target.value) || 0))}
+                className="max-w-[140px]"
+              />
+            </div>
+          )}
+
+          {activeType?.supportsSendScope && sendScope !== 'lesson_start' && (
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-600">Yuborish vaqti (har kuni)</label>
+              <Input
+                type="time"
+                value={scheduleTime}
+                onChange={(e) => setScheduleTime(e.target.value)}
                 className="max-w-[140px]"
               />
             </div>
@@ -322,6 +362,15 @@ export function RemindersSettings() {
                     {r.audience === 'teachers' ? "O'qituvchilar" : "O'quvchilar (ota-onalar)"} ·{' '}
                     {r.scheduleType === 'monthly' ? `Har oyning ${r.scheduleDayOfMonth}-kunida` : 'Har kuni'}
                     {' '}soat {r.scheduleTime}
+                  </p>
+                )}
+                {typeInfo(r.trigger)?.supportsSendScope && (
+                  <p className="mt-0.5 text-xs text-slate-400">
+                    {(r.sendScope || 'lesson_start') === 'lesson_start'
+                      ? `Darsi boshlanganda to'ldirmaganga (+${r.offsetMinutes} daq)`
+                      : r.sendScope === 'not_filled'
+                        ? `To'ldirmaganlarga · har kuni soat ${r.scheduleTime}`
+                        : `Hammaga (to'ldirganlarga ham) · har kuni soat ${r.scheduleTime}`}
                   </p>
                 )}
                 {r.messageTemplate && <p className="mt-0.5 text-xs text-slate-500">{r.messageTemplate}</p>}

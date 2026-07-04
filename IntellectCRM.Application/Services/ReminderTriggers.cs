@@ -26,6 +26,7 @@ public static class ReminderTriggers
         bool SupportsOffset,
         bool SupportsAudience,
         bool SupportsSchedule,
+        bool SupportsSendScope,
         string[] Tokens);
 
     public static readonly TriggerInfo[] All =
@@ -38,15 +39,18 @@ public static class ReminderTriggers
             SupportsOffset: false,
             SupportsAudience: false,
             SupportsSchedule: false,
+            SupportsSendScope: false,
             Tokens: System.Array.Empty<string>()),
         new(
             LessonAttendance,
             "Davomat eslatmasi (o'qituvchi)",
-            "Guruh darsi boshlangandan N daqiqa keyin, agar davomat hali kiritilmagan bo'lsa, guruh o'qituvchisiga push + Telegram orqali eslatma.",
+            "O'qituvchilarga davomat (jurnal) eslatmasi. Rejimlar: dars boshlangach to'ldirmaganga; " +
+            "kunlik belgilangan vaqtda bugun darsi bo'lib to'ldirmaganlarga; yoki hammaga (to'ldirganlarga ham).",
             SupportsTemplate: true,
             SupportsOffset: true,
             SupportsAudience: false,
             SupportsSchedule: false,
+            SupportsSendScope: true,
             Tokens: new[] { "{fish}", "{guruh}", "{kurs}", "{dars_vaqti}", "{telefon}", "{markaz}" }),
         new(
             CustomSchedule,
@@ -56,10 +60,24 @@ public static class ReminderTriggers
             SupportsOffset: false,
             SupportsAudience: true,
             SupportsSchedule: true,
+            SupportsSendScope: false,
             Tokens: new[] { "{fish}", "{telefon}", "{markaz}", "{sana}", "{oy}", "{yil}" }),
     };
 
     public static bool IsKnown(string? key) => !string.IsNullOrWhiteSpace(key) && All.Any(t => t.Key == key);
+}
+
+/// <summary>"Davomat eslatmasi" yuborish rejimi — <see cref="ReminderRule.SendScope"/> qiymatlari.</summary>
+public static class ReminderSendScopes
+{
+    /// <summary>Dars boshlangach +N daqiqada, davomat kiritilmagan bo'lsa (default — eski xatti-harakat).</summary>
+    public const string LessonStart = "lesson_start";
+    /// <summary>Kunlik ScheduleTime'da — bugun darsi bo'lib (boshlangan) hali to'ldirmaganlarga.</summary>
+    public const string NotFilled = "not_filled";
+    /// <summary>Kunlik ScheduleTime'da — BARCHA faol o'qituvchilarga (to'ldirganlarga ham).</summary>
+    public const string All = "all";
+
+    public static bool IsKnown(string? key) => key is LessonStart or NotFilled or All;
 }
 
 /// <summary>"Erkin eslatma" auditoriyasi — <see cref="ReminderRule.Audience"/> qiymatlari.</summary>

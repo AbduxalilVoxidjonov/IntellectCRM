@@ -361,6 +361,7 @@ export interface ReminderTriggerInfo {
   supportsOffset: boolean
   supportsAudience: boolean
   supportsSchedule: boolean
+  supportsSendScope: boolean
   tokens: string[]
 }
 
@@ -368,6 +369,9 @@ export interface ReminderTriggerInfo {
 export type ReminderAudience = 'teachers' | 'students'
 /** "custom_schedule" jadval turi: har kuni | oyning muayyan kunida. */
 export type ReminderScheduleType = 'daily' | 'monthly'
+/** "lesson_attendance" yuborish rejimi: dars boshlangach to'ldirmaganga | kunlik vaqtda
+ *  bugun darsi bo'lib to'ldirmaganlarga | kunlik vaqtda HAMMAGA (to'ldirganlarga ham). */
+export type ReminderSendScope = 'lesson_start' | 'not_filled' | 'all'
 
 export interface ReminderRule {
   id: string
@@ -376,6 +380,7 @@ export interface ReminderRule {
   enabled: boolean
   messageTemplate: string
   offsetMinutes: number
+  sendScope: ReminderSendScope | ''
   audience: ReminderAudience | ''
   scheduleType: ReminderScheduleType
   scheduleTime: string
@@ -389,6 +394,7 @@ export interface SaveReminderRuleReq {
   enabled: boolean
   messageTemplate: string
   offsetMinutes: number
+  sendScope: ReminderSendScope | ''
   audience: ReminderAudience | ''
   scheduleType: ReminderScheduleType
   scheduleTime: string

@@ -8,16 +8,20 @@ using IntellectCRM.Domain;
 namespace IntellectCRM.Application.Services;
 
 /// <summary>
-/// O'qituvchiga "davomat kiriting" eslatmasi (fon xizmati). Har faol guruh uchun, dars boshlanish
-/// vaqtidan (<see cref="Group.StartTime"/>) qoida bo'yicha belgilangan daqiqa (odatda 5) o'tgach,
-/// agar shu kunga hali davomat kiritilmagan bo'lsa (<see cref="LessonNote.Conducted"/>), guruh
-/// o'qituvchisiga push (FCM) + Telegram orqali eslatma yuboradi. Andoza/soniya siljishi
-/// "Sozlamalar → Eslatmalar"da <see cref="ReminderRule"/> (Trigger==<see cref="ReminderTriggers.LessonAttendance"/>)
-/// orqali boshqariladi — bir nechta qoida bo'lishi mumkin (masalan turli siljish bilan).
-///
-/// Dars vaqti aniq daqiqa talab qilgani uchun (kunlik eslatmalardan farqli) sikl HAR 1 DAQIQADA
-/// uyg'onadi. Bitta darsga bir marta yuborilishi uchun xotirada (ruleId, groupId, sana) kaliti
-/// bilan "yuborildi" belgisi saqlanadi — kun almashganda tozalanadi.
+/// O'qituvchiga "davomat kiriting" eslatmasi (fon xizmati). Qoida <see cref="ReminderRule.SendScope"/>
+/// bo'yicha 3 rejimda ishlaydi:
+/// <list type="bullet">
+/// <item>"lesson_start" (default) — har faol guruh uchun, dars boshlanish vaqtidan (<see cref="Group.StartTime"/>)
+/// qoida bo'yicha belgilangan daqiqa (odatda 5) o'tgach, agar shu kunga hali davomat kiritilmagan bo'lsa
+/// (<see cref="LessonNote.Conducted"/>), guruh o'qituvchisiga yuboriladi.</item>
+/// <item>"not_filled" — kunlik <see cref="ReminderRule.ScheduleTime"/>da: bugun darsi bo'lib (boshlangan)
+/// davomatini HALI kiritmagan o'qituvchilarga, har to'ldirilmagan guruh uchun alohida.</item>
+/// <item>"all" — kunlik <see cref="ReminderRule.ScheduleTime"/>da: BARCHA faol o'qituvchilarga
+/// (davomatni to'ldirganlarga ham).</item>
+/// </list>
+/// Kanal: push (FCM) + Telegram + ichki bildirishnoma. Andoza/vaqt "Sozlamalar → Eslatmalar"da boshqariladi;
+/// bir nechta qoida bo'lishi mumkin. Dars vaqti aniq daqiqa talab qilgani uchun sikl HAR 1 DAQIQADA uyg'onadi.
+/// Bir marta yuborilishi uchun xotirada (ruleId, groupId/daily, sana) kaliti saqlanadi — kun almashganda tozalanadi.
 /// </summary>
 public class LessonAttendanceReminderService(
     IServiceProvider services,
@@ -64,11 +68,12 @@ public class LessonAttendanceReminderService(
         if (rules.Count == 0) return;
 
         var weekday = ((int)today.DayOfWeek + 6) % 7;
+        // Kunlik rejimlar uchun StartTime bo'sh guruhlar ham kiradi (vaqtini bilib bo'lmasa ham eslatiladi);
+        // "lesson_start" rejimi baribir StartTime'siz guruhni o'tkazib yuboradi.
         var groups = await db.Classes
-            .Where(g => !g.IsArchived && g.TeacherId != "" && g.StartTime != "")
+            .Where(g => !g.IsArchived && g.TeacherId != "")
             .ToListAsync(ct);
         groups = groups.Where(g => g.Days.Contains(weekday)).ToList();
-        if (groups.Count == 0) return;
 
         var meta = await db.CenterMeta.FirstOrDefaultAsync(ct);
         var fcmJson = meta?.FcmServiceAccountJson ?? "";
@@ -78,24 +83,48 @@ public class LessonAttendanceReminderService(
         var deadTokens = new List<string>();
 
         foreach (var rule in rules)
-        foreach (var g in groups)
         {
-            if (!TimeSpan.TryParse(g.StartTime, out var start)) continue;
-            var target = start.Add(TimeSpan.FromMinutes(rule.OffsetMinutes));
-            var elapsed = now.TimeOfDay - target;
-            // 10 daqiqalik oyna — servis biroz kechiksa ham eslatma o'tkazib yuborilmasin.
-            if (elapsed < TimeSpan.Zero || elapsed > TimeSpan.FromMinutes(10)) continue;
-
-            var key = $"{rule.Id}:{g.Id}:{todayStr}";
-            if (!_processed.Add(key)) continue;
-
-            try
+            if (rule.SendScope is ReminderSendScopes.All or ReminderSendScopes.NotFilled)
             {
-                await SendAsync(db, rule, g, todayStr, meta?.Name ?? "", telegram, fcmJson, pushReady, deadTokens, ct);
+                // Kunlik rejim: belgilangan vaqtda bir marta.
+                if (!TimeSpan.TryParse(rule.ScheduleTime, out var at)) continue;
+                var passed = now.TimeOfDay - at;
+                // 10 daqiqalik oyna — servis biroz kechiksa ham eslatma o'tkazib yuborilmasin.
+                if (passed < TimeSpan.Zero || passed > TimeSpan.FromMinutes(10)) continue;
+                if (!_processed.Add($"{rule.Id}:daily:{todayStr}")) continue;
+
+                try
+                {
+                    await SendDailyAsync(db, rule, groups, todayStr, now, meta?.Name ?? "",
+                        fcmJson, pushReady, deadTokens, ct);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "Davomat eslatmasi (kunlik): qoida {Id} uchun xatolik", rule.Id);
+                }
+                continue;
             }
-            catch (Exception ex)
+
+            // "lesson_start" (default): har guruh darsi boshlangach +N daqiqada.
+            foreach (var g in groups)
             {
-                logger.LogWarning(ex, "Davomat eslatmasi: guruh {Id} uchun xatolik", g.Id);
+                if (!TimeSpan.TryParse(g.StartTime, out var start)) continue;
+                var target = start.Add(TimeSpan.FromMinutes(rule.OffsetMinutes));
+                var elapsed = now.TimeOfDay - target;
+                // 10 daqiqalik oyna — servis biroz kechiksa ham eslatma o'tkazib yuborilmasin.
+                if (elapsed < TimeSpan.Zero || elapsed > TimeSpan.FromMinutes(10)) continue;
+
+                var key = $"{rule.Id}:{g.Id}:{todayStr}";
+                if (!_processed.Add(key)) continue;
+
+                try
+                {
+                    await SendAsync(db, rule, g, todayStr, meta?.Name ?? "", fcmJson, pushReady, deadTokens, ct);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "Davomat eslatmasi: guruh {Id} uchun xatolik", g.Id);
+                }
             }
         }
 
@@ -104,9 +133,41 @@ public class LessonAttendanceReminderService(
         await db.SaveChangesAsync(ct);
     }
 
+    /// <summary>
+    /// Kunlik rejim: "all" — bugun darsi bor-yo'qligidan va to'ldirganidan qat'i nazar BARCHA faol
+    /// o'qituvchilarga bittadan; "not_filled" — bugun darsi bo'lib (boshlangan) davomati hali
+    /// kiritilmagan har bir guruh uchun o'z o'qituvchisiga.
+    /// </summary>
+    private async Task SendDailyAsync(
+        IAppDbContext db, ReminderRule rule, List<Group> todayGroups, string todayStr, DateTime now,
+        string centerName, string fcmJson, bool pushReady, List<string> deadTokens, CancellationToken ct)
+    {
+        if (rule.SendScope == ReminderSendScopes.All)
+        {
+            var teachers = await db.Teachers.Where(t => !t.IsArchived).ToListAsync(ct);
+            var template = string.IsNullOrWhiteSpace(rule.MessageTemplate)
+                ? "Assalomu alaykum, {fish}! Iltimos, bugungi darslaringiz davomatini jurnalga kiritishni unutmang."
+                : rule.MessageTemplate;
+            var title = string.IsNullOrWhiteSpace(rule.Name) ? "Davomat eslatmasi" : rule.Name;
+            foreach (var teacher in teachers)
+            {
+                var body = MessageTokenizer.Teacher(template, teacher, centerName);
+                await DeliverAsync(db, teacher, title, body, fcmJson, pushReady, deadTokens, ct);
+            }
+            return;
+        }
+
+        // "not_filled": faqat boshlangan (yoki vaqti kiritilmagan) darslar — hali bo'lmagan darsni so'ramaymiz.
+        foreach (var g in todayGroups)
+        {
+            if (TimeSpan.TryParse(g.StartTime, out var start) && start > now.TimeOfDay) continue;
+            await SendAsync(db, rule, g, todayStr, centerName, fcmJson, pushReady, deadTokens, ct);
+        }
+    }
+
     private async Task SendAsync(
         IAppDbContext db, ReminderRule rule, Group g, string todayStr, string centerName,
-        TelegramService telegramSvc, string fcmJson, bool pushReady, List<string> deadTokens, CancellationToken ct)
+        string fcmJson, bool pushReady, List<string> deadTokens, CancellationToken ct)
     {
         // Davomat allaqachon kiritilgan bo'lsa — jim o'tkaziladi.
         var conducted = await db.LessonNotes.AnyAsync(n =>
@@ -125,6 +186,14 @@ public class LessonAttendanceReminderService(
             extra: new Dictionary<string, string> { ["{kurs}"] = courseName }, group: g);
         var title = string.IsNullOrWhiteSpace(rule.Name) ? "Davomat eslatmasi" : rule.Name;
 
+        await DeliverAsync(db, teacher, title, body, fcmJson, pushReady, deadTokens, ct);
+    }
+
+    /// <summary>Bitta o'qituvchiga barcha kanallar orqali yetkazish: ichki bildirishnoma + push (FCM) + Telegram.</summary>
+    private async Task DeliverAsync(
+        IAppDbContext db, Teacher teacher, string title, string body,
+        string fcmJson, bool pushReady, List<string> deadTokens, CancellationToken ct)
+    {
         if (teacher.UserId is not null)
             NotificationStore.Add(db, teacher.UserId, title, body, "attendance_reminder");
 
@@ -139,13 +208,13 @@ public class LessonAttendanceReminderService(
             }
         }
 
-        if (telegramSvc.IsConfigured)
+        if (telegram.IsConfigured)
         {
             var chatIds = await db.TelegramRegistrations
                 .Where(r => r.TeacherId == teacher.Id)
                 .Select(r => r.ChatId).Distinct().ToListAsync(ct);
             foreach (var chatId in chatIds)
-                await telegramSvc.SendMessageAsync(chatId, $"🔔 {title}\n\n{body}", ct: ct);
+                await telegram.SendMessageAsync(chatId, $"🔔 {title}\n\n{body}", ct: ct);
         }
     }
 }

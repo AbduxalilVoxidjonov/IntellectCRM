@@ -214,14 +214,16 @@ public record SaveCameraSettingsRequest(bool Enabled);
 /// <summary>"Eslatmalar" (Sozlamalar → Eslatmalar) katalogidagi bitta tur (masalan "payment_debt").</summary>
 public record ReminderTriggerInfoDto(
     string Key, string Label, string Description, bool SupportsTemplate, bool SupportsOffset,
-    bool SupportsAudience, bool SupportsSchedule, string[] Tokens);
+    bool SupportsAudience, bool SupportsSchedule, bool SupportsSendScope, string[] Tokens);
 public record ReminderRuleDto(
     string Id, string Trigger, string Name, bool Enabled, string MessageTemplate, int OffsetMinutes,
-    string Audience, string ScheduleType, string ScheduleTime, int ScheduleDayOfMonth, string CreatedAt);
+    string SendScope, string Audience, string ScheduleType, string ScheduleTime, int ScheduleDayOfMonth,
+    string CreatedAt);
 /// <summary>Eslatma qoidasini saqlash (yaratish/tahrirlash).</summary>
 public record SaveReminderRuleRequest(
     string Trigger, string Name, bool Enabled, string MessageTemplate, int OffsetMinutes,
-    string Audience, string ScheduleType, string ScheduleTime, int ScheduleDayOfMonth);
+    string Audience, string ScheduleType, string ScheduleTime, int ScheduleDayOfMonth,
+    string SendScope = "");
 /// <summary>Moliyada o'quvchi qatori. Charged = jami to'liq oylik (chegirmasiz);
 /// Discount = jami berilgan chegirma; Paid = haqiqiy naqd to'lovlar yig'indisi (turli oylar uchun);
 /// Debt / Advance — joriy holatdan (balans). DiscountPct/Amount — qoidani ko'rsatish uchun.</summary>
