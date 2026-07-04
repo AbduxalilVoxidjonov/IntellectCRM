@@ -1508,7 +1508,7 @@ function TestBuilder({ questions, onChange }: TestBuilderProps) {
   return (
     <Card
       title="Test tuzuvchi"
-      sub="Interaktiv savol-javob"
+      sub="Savollar va variantlar o'quvchiga TASODIFIY tartibda chiqadi. Audio bo'limi ham to'ldirilgan bo'lsa — test o'quvchiga audio bilan birga ('Audio test' — tinglab ishlash) ko'rinadi."
       actions={
         <Button variant="secondary" type="button" onClick={addQuestion}>
           <Plus className="h-4 w-4" /> Savol

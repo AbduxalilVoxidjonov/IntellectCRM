@@ -10,7 +10,7 @@ import { Icon } from '@/pages/student/lib'
    Ko'p kurs bo'lsa, tepada kurs selector ko'rinadi.
    ============================================================ */
 
-type SectionKind = 'video' | 'text' | 'audio' | 'pdf' | 'vocab' | 'test'
+type SectionKind = 'video' | 'text' | 'audio' | 'pdf' | 'vocab' | 'test' | 'audiotest'
 
 const SECTION_LABEL: Record<SectionKind, string> = {
   video: 'Video',
@@ -19,6 +19,7 @@ const SECTION_LABEL: Record<SectionKind, string> = {
   pdf: 'PDF',
   vocab: "Lug'at",
   test: 'Test',
+  audiotest: 'Audio test',
 }
 const SECTION_ICON: Record<SectionKind, string> = {
   video: 'video',
@@ -27,6 +28,17 @@ const SECTION_ICON: Record<SectionKind, string> = {
   pdf: 'file',
   vocab: 'book',
   test: 'checkCircle',
+  audiotest: 'checkCircle',
+}
+
+/** Fisher–Yates aralashtirish (nusxada) — savol/variant tartibi har ochilishda har xil. */
+function shuffled<T>(arr: T[]): T[] {
+  const a = [...arr]
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[a[i], a[j]] = [a[j], a[i]]
+  }
+  return a
 }
 
 /** YouTube/oddiy URL'dan embed havolasini quradi (YouTube bo'lsa iframe).
@@ -85,15 +97,19 @@ export function StudentLessonScreen() {
   }
 
   // Mavjud bo'limlar (faqat to'ldirilganlari) — qat'iy tartibda.
+  // Audio + test IKKALASI bo'lsa — bitta "Audio test" bo'limi (tinglab ishlanadi);
+  // faqat bittasi bo'lsa — o'zi alohida chiqadi.
   const sections = useMemo<SectionKind[]>(() => {
     if (!lesson) return []
+    const hasAudio = !!lesson.audioUrl
+    const hasTest = lesson.questions.length > 0
     const s: SectionKind[] = []
     if (lesson.videoUrl) s.push('video')
     if (lesson.textContent) s.push('text')
-    if (lesson.audioUrl) s.push('audio')
+    if (hasAudio && !hasTest) s.push('audio')
     if (lesson.pdfUrl) s.push('pdf')
     if (lesson.vocab.length) s.push('vocab')
-    if (lesson.questions.length) s.push('test')
+    if (hasTest) s.push(hasAudio ? 'audiotest' : 'test')
     return s
   }, [lesson])
 
@@ -201,6 +217,7 @@ export function StudentLessonScreen() {
                 {cur === 'pdf' && <PdfBlock lesson={lesson} />}
                 {cur === 'vocab' && <VocabBlock lesson={lesson} />}
                 {cur === 'test' && <TestRunner questions={lesson.questions} />}
+                {cur === 'audiotest' && <AudioTestBlock lesson={lesson} />}
               </div>
 
               {/* Navigatsiya: oldingi / keyingi-tugatdim */}
@@ -450,19 +467,52 @@ function VocabBlock({ lesson }: { lesson: LessonContent }) {
   )
 }
 
-/** Interaktiv test — variant tanlanadi, darhol to'g'ri/xato ko'rinadi (Duolingo uslubi). */
+/** AUDIO TEST — audio va test birga: o'quvchi tinglab, savollarga javob beradi.
+ * (Audio yuklanmagan darsda test o'zi alohida chiqadi — TestRunner.) */
+function AudioTestBlock({ lesson }: { lesson: LessonContent }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div className="card">
+        <p className="muted" style={{ fontSize: 13, fontWeight: 700, marginBottom: 8, textAlign: 'center' }}>
+          Avval audioni tinglang, so'ng savollarga javob bering
+        </p>
+        <audio src={lesson.audioUrl} controls style={{ width: '100%' }} />
+      </div>
+      <TestRunner questions={lesson.questions} />
+    </div>
+  )
+}
+
+/** Interaktiv test — variant tanlanadi, darhol to'g'ri/xato ko'rinadi (Duolingo uslubi).
+ * Savollar TARTIBI ham, har savol VARIANTLARI ham har ochilishda tasodifiy — turli
+ * o'quvchilarda (va qayta urinishlarda) bir xil chiqmaydi, yonidagidan ko'chirish qiyinlashadi. */
 function TestRunner({ questions }: { questions: LessonQuestion[] }) {
+  // Bir ochilishda barqaror (useMemo), ochilishlar orasida tasodifiy.
+  const randomized = useMemo(
+    () =>
+      shuffled(questions).map((q) => {
+        const order = shuffled(q.options.map((_, i) => i))
+        return {
+          id: q.id,
+          text: q.text,
+          options: order.map((i) => q.options[i]),
+          correctIndex: order.indexOf(q.correctIndex),
+        }
+      }),
+    [questions],
+  )
+
   const [answers, setAnswers] = useState<Record<string, number>>({})
-  const correct = questions.filter((q) => answers[q.id] === q.correctIndex).length
+  const correct = randomized.filter((q) => answers[q.id] === q.correctIndex).length
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div className="card row" style={{ justifyContent: 'space-between', alignItems: 'center', background: 'var(--accentSoft)', borderColor: 'transparent' }}>
         <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--accent)' }}>Natija</span>
-        <span style={{ fontSize: 16, fontWeight: 800, color: 'var(--accent)' }}>{correct} / {questions.length}</span>
+        <span style={{ fontSize: 16, fontWeight: 800, color: 'var(--accent)' }}>{correct} / {randomized.length}</span>
       </div>
 
-      {questions.map((q, qi) => {
+      {randomized.map((q, qi) => {
         const picked = answers[q.id]
         const isAnswered = picked !== undefined
         return (
