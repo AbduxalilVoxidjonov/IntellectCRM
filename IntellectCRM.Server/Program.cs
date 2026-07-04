@@ -233,6 +233,10 @@ builder.Services.AddSingleton<EskizService>();
 builder.Services.AddSingleton<AsteriskService>();
 // AMI hodisalarini (Ringing/Up/Hangup) Calls jadvaliga yozib, LiveHub "calls" mavzusiga push qiladi.
 builder.Services.AddHostedService<AsteriskCallMonitorService>();
+// MoiZvonki (bulutli telefoniya — operator telefoni orqali) — REST mijoz + webhook avto-obuna.
+// Sozlangan bo'lsa Asterisk'dan USTUN provayder sifatida ishlatiladi (CallsController.Provider).
+builder.Services.AddSingleton<MoiZvonkiService>();
+builder.Services.AddHostedService<MoiZvonkiSetupService>();
 
 // O'zgarishlar tarixi (audit) — joriy foydalanuvchini aniqlash uchun HttpContext kerak
 builder.Services.AddHttpContextAccessor();

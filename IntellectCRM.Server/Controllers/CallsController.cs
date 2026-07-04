@@ -19,17 +19,43 @@ namespace IntellectCRM.Server.Controllers;
 [Authorize]
 [AdminPerm("calls")]
 [Route("api/admin/calls")]
-public class CallsController(AppDbContext db, AsteriskService asterisk, IConfiguration config) : ControllerBase
+public class CallsController(
+    AppDbContext db, AsteriskService asterisk, MoiZvonkiService moizvonki,
+    IConfiguration config, IHttpClientFactory httpFactory) : ControllerBase
 {
     private string Uid => User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "";
 
-    /// <summary>Frontend uchun modul holati: Asterisk sozlanganmi (banner ko'rsatish uchun).</summary>
+    /// <summary>Faol telefoniya provayderi: MoiZvonki birinchi (sozlangan bo'lsa), keyin Asterisk.</summary>
+    private string Provider =>
+        moizvonki.IsConfigured ? "moizvonki" : asterisk.IsConfigured ? "asterisk" : "";
+
+    /// <summary>Frontend uchun modul holati: telefoniya sozlanganmi + qaysi provayder.</summary>
     [HttpGet("config")]
     public ActionResult<object> Config() => Ok(new
     {
-        configured = asterisk.IsConfigured,
+        configured = Provider.Length > 0,
+        provider = Provider,
         defaultOperatorExtension = asterisk.DefaultOperatorExtension,
     });
+
+    /// <summary>
+    /// MoiZvonki webhook obunasini qo'lda ishga tushirish (superadmin diagnostikasi):
+    /// bizning webhook URL provayderga ro'yxatdan o'tkaziladi, provayderning XOM javobi
+    /// qaytariladi (sxema mos kelmasa shu yerda ko'rinadi). URL App:Host'dan quriladi.
+    /// </summary>
+    [HttpPost("telephony/subscribe")]
+    [Authorize(Roles = "superadmin")]
+    public async Task<ActionResult> SubscribeTelephonyWebhooks()
+    {
+        if (!moizvonki.IsConfigured)
+            return StatusCode(503, new { message = "MoiZvonki sozlanmagan (MoiZvonki__Enabled/Domain/UserName/ApiKey)" });
+        var host = config["App:Host"] ?? "";
+        if (host.Length == 0)
+            return BadRequest(new { message = "App:Host (APP_HOST env) sozlanmagan — webhook URL qurib bo'lmaydi" });
+        var url = $"https://{host}/api/telephony/moizvonki/{moizvonki.WebhookSecret}";
+        var (ok, body) = await moizvonki.SubscribeWebhooksAsync(url);
+        return Ok(new { ok, url, providerResponse = body });
+    }
 
     /// <summary>
     /// Chiquvchi qo'ng'iroq. Body: studentId YOKI phoneNumber (dialpad). OperatorExtension
@@ -39,8 +65,8 @@ public class CallsController(AppDbContext db, AsteriskService asterisk, IConfigu
     [HttpPost("originate")]
     public async Task<ActionResult> Originate(OriginateCallRequest req)
     {
-        if (!asterisk.IsConfigured)
-            return StatusCode(503, new { message = "Asterisk sozlanmagan — Asterisk:Enabled/Host/Username (env: Asterisk__Host ...) bering" });
+        if (Provider.Length == 0)
+            return StatusCode(503, new { message = "Telefoniya sozlanmagan — MoiZvonki (MoiZvonki__Enabled/Domain/UserName/ApiKey) yoki Asterisk (Asterisk__Enabled/Host/Username) bering" });
 
         // 1) Raqam va (iloji bo'lsa) o'quvchini aniqlash.
         string phone;
@@ -66,14 +92,19 @@ public class CallsController(AppDbContext db, AsteriskService asterisk, IConfigu
                 s.Phone == phone || s.ParentPhone == phone || s.FatherPhone == phone || s.MotherPhone == phone);
         }
 
-        // 2) Operator ichki (SIP) raqami.
-        var ext = string.IsNullOrWhiteSpace(req.OperatorExtension)
-            ? asterisk.DefaultOperatorExtension
-            : req.OperatorExtension.Trim();
-        if (string.IsNullOrWhiteSpace(ext))
-            return BadRequest(new { message = "Operator ichki (SIP) raqami berilmagan — operatorExtension yoki Asterisk:DefaultOperatorExtension" });
+        // 2) Provayderga xos talab: Asterisk'da operator ichki (SIP) raqami majburiy
+        //    (MoiZvonki'da qo'ng'iroq konfiguratsiyadagi akkaunt telefonidan chiqadi).
+        var ext = "";
+        if (Provider == "asterisk")
+        {
+            ext = string.IsNullOrWhiteSpace(req.OperatorExtension)
+                ? asterisk.DefaultOperatorExtension
+                : req.OperatorExtension.Trim();
+            if (string.IsNullOrWhiteSpace(ext))
+                return BadRequest(new { message = "Operator ichki (SIP) raqami berilmagan — operatorExtension yoki Asterisk:DefaultOperatorExtension" });
+        }
 
-        // 3) Jurnal yozuvi + Originate.
+        // 3) Jurnal yozuvi + qo'ng'iroq buyrug'i.
         var call = new Call
         {
             StudentId = student?.Id,
@@ -85,7 +116,9 @@ public class CallsController(AppDbContext db, AsteriskService asterisk, IConfigu
         db.Calls.Add(call);
         await db.SaveChangesAsync();
 
-        var (ok, message) = await asterisk.OriginateAsync(phone, ext, call.Id);
+        var (ok, message) = Provider == "moizvonki"
+            ? await moizvonki.MakeCallAsync(new string(phone.Where(char.IsDigit).ToArray()))
+            : await asterisk.OriginateAsync(phone, ext, call.Id);
         if (!ok)
         {
             call.Status = "failed";
@@ -144,6 +177,19 @@ public class CallsController(AppDbContext db, AsteriskService asterisk, IConfigu
     {
         var call = await db.Calls.FindAsync(id);
         if (call is null) return NotFound();
+
+        // MoiZvonki: yozuv to'liq URL bo'lib keladi — provayderdan oqim qilib uzatamiz
+        // (proxy: havola brauzerga oshkor bo'lmaydi, auth bizning tomonda qoladi).
+        if (call.RecordingFile.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+        {
+            var http = httpFactory.CreateClient();
+            http.Timeout = TimeSpan.FromSeconds(60);
+            var resp = await http.GetAsync(call.RecordingFile, HttpCompletionOption.ResponseHeadersRead);
+            if (!resp.IsSuccessStatusCode)
+                return NotFound(new { message = "Yozuvni provayderdan olib bo'lmadi" });
+            var mediaType = resp.Content.Headers.ContentType?.MediaType ?? "audio/mpeg";
+            return File(await resp.Content.ReadAsStreamAsync(), mediaType);
+        }
 
         var dir = config["Asterisk:RecordingsPath"] ?? "";
         if (dir.Length == 0)

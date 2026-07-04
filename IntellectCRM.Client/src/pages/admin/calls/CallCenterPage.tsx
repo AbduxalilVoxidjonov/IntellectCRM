@@ -203,9 +203,9 @@ export function CallCenterPage() {
         <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
           <span>
-            Asterisk hali ulanmagan — qo'ng'iroqlar ishlamaydi. Server sozlamalarida{' '}
-            <code className="rounded bg-amber-100 px-1">Asterisk__Enabled/Host/Username/Password</code>{' '}
-            muhit o'zgaruvchilarini bering.
+            Telefoniya hali ulanmagan — qo'ng'iroqlar ishlamaydi. Server sozlamalarida{' '}
+            <code className="rounded bg-amber-100 px-1">MOIZVONKI_ENABLED/DOMAIN/USERNAME/API_KEY</code>{' '}
+            (MoiZvonki — tavsiya) yoki Asterisk muhit o'zgaruvchilarini bering.
           </span>
         </div>
       )}

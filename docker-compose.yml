@@ -64,6 +64,13 @@ services:
       Turnstile__Port: "${TURNSTILE_PORT:-}"
       Turnstile__Username: "${TURNSTILE_USERNAME:-}"
       Turnstile__Password: "${TURNSTILE_PASSWORD:-}"
+      # Call Center — MoiZvonki (bulutli telefoniya: operator telefonidagi ilova + SIM).
+      # Sozlangan bo'lsa Asterisk'dan USTUN ishlatiladi. Webhook avto-obuna APP_HOST orqali.
+      MoiZvonki__Enabled: "${MOIZVONKI_ENABLED:-false}"
+      MoiZvonki__Domain: "${MOIZVONKI_DOMAIN:-}"
+      MoiZvonki__UserName: "${MOIZVONKI_USERNAME:-}"
+      MoiZvonki__ApiKey: "${MOIZVONKI_API_KEY:-}"
+      MoiZvonki__WebhookSecret: "${MOIZVONKI_WEBHOOK_SECRET:-}"
       # Call Center — Asterisk AMI (GSM gateway orqali qo'ng'iroq). Server Asterisk'ka
       # tarmoqdan yeta olishi shart (bir LAN yoki VPN — WireGuard/Tailscale; AMI portini
       # internetga OCHMANG). RecordingsPath — yozuvlar papkasi konteyner ICHIDAGI yo'l

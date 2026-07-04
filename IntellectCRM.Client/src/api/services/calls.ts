@@ -44,8 +44,12 @@ export interface CallUpdate {
   hasRecording: boolean
 }
 
-/** Modul sozlanganmi (banner uchun) + standart operator ichki raqami. */
-export async function getCallsConfig(): Promise<{ configured: boolean; defaultOperatorExtension: string }> {
+/** Modul sozlanganmi (banner uchun) + faol provayder ("moizvonki" | "asterisk" | ""). */
+export async function getCallsConfig(): Promise<{
+  configured: boolean
+  provider: string
+  defaultOperatorExtension: string
+}> {
   const { data } = await api.get('/admin/calls/config')
   return data
 }
