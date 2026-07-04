@@ -12,6 +12,15 @@ Bu papka ofisdagi kompyuterda (Ubuntu/Debian + Docker) Asterisk'ni konteynerda k
 [CRM app (DigitalOcean)] <----- Tailscale/WireGuard VPN ----->
 ```
 
+## Versiya tanlovi
+
+- `Dockerfile.asterisk22` (compose default) — **Asterisk 22.10.1 LTS**, shu papkadagi
+  `asterisk-22-current.tar.gz` manbasidan quriladi (tekshirilgan: quriladi va ishlaydi;
+  pjsip/mixmonitor/manager modullari bor). Tarball yo'q bo'lsa:
+  `curl -O https://downloads.asterisk.org/pub/telephony/asterisk/asterisk-22-current.tar.gz`
+- `Dockerfile` — Ubuntu 24.04 paketidagi Asterisk 20.6 (tez quriladi, soddaroq).
+  CRM integratsiyasi uchun IKKALASI ham to'liq yetarli.
+
 ## O'rnatish (ofis mashinasida)
 
 1. Docker + Tailscale o'rnating (`curl -fsSL https://tailscale.com/install.sh | sh; tailscale up`).

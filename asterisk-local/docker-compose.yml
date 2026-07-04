@@ -8,7 +8,12 @@
 # network_mode: host — SIP/RTP (UDP 5060 + media portlari) NAT'siz ishlashi uchun SHART.
 services:
   asterisk:
-    build: .
+    build:
+      context: .
+      # Asterisk 22 LTS — shu papkadagi asterisk-22-current.tar.gz manbasidan quriladi
+      # (qurilish ~15-30 daq). Tezroq/soddaroq kerak bo'lsa: dockerfile: Dockerfile
+      # (Ubuntu paketidagi Asterisk 20 — bizning integratsiya uchun ikkalasi ham yetarli).
+      dockerfile: Dockerfile.asterisk22
     container_name: asterisk
     network_mode: host
     volumes:
