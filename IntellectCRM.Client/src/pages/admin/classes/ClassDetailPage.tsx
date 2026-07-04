@@ -5,6 +5,7 @@ import {
   ArrowLeft, Users, BookOpen, User,
   CalendarDays, Clock, MapPin, Wallet, Snowflake, CheckCircle2,
   ListChecks, ChevronRight, ChevronDown, Plus, Minus, Repeat, CalendarClock, Flag, TrendingUp, Trophy,
+  UserRound,
 } from 'lucide-react'
 import type { AbsenceReason, MasteryLevel } from '@/types'
 import {
@@ -929,6 +930,13 @@ export function ClassDetailPage() {
                 {statusBadge(memberModal.status).label}
               </span>
             </div>
+            {/* O'quvchi shaxsiy profiliga o'tish */}
+            <Link
+              to={'/admin/students/' + memberModal.studentId}
+              className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            >
+              <UserRound className="h-4 w-4" /> Profilga o'tish
+            </Link>
             <div>
               <span className="mb-1 block text-sm font-medium text-slate-600">Sana</span>
               <input

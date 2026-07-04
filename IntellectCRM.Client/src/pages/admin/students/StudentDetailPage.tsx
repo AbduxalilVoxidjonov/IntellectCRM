@@ -4,7 +4,7 @@ import {
   ArrowLeft, GraduationCap, CalendarCheck, ShieldAlert, ClipboardCheck,
   User, Phone, Wallet, BookOpen, MapPin, Cake, CalendarPlus, Percent, IdCard,
   School, Clock, CalendarDays, ChevronRight, History, ListChecks, ChevronDown, Check,
-  CalendarClock, Award, Download, LifeBuoy, Sparkles,
+  CalendarClock, Award, Download, LifeBuoy, Sparkles, Pencil,
 } from 'lucide-react'
 import { genderLabels } from '@/config/constants'
 import {
@@ -19,22 +19,28 @@ import {
   generateStudentCertificate,
   getStudentSupportFeedback,
   getStudentAiAnalyses,
+  getStudent,
+  updateStudent,
   type StudentCompletedCourse,
   type StudentSupportFeedback,
   type StudentAiAnalysisRecord,
 } from '@/api/services/students'
+import type { StudentPayload } from '@/api/services/students'
 import { getStudentGroups, getClasses } from '@/api/services/classes'
 import { getCurriculum, getProgress, setProgress, getStudentCoverageLog, type CoverageLogEntry } from '@/api/services/curriculum'
 import { getStudentGradingSummary, type MonthGradingSummary } from '@/api/services/grading'
-import type { StudentGroupMembership, Curriculum } from '@/types'
+import type { Student, StudentGroupMembership, Curriculum } from '@/types'
 import { cn, formatDate, formatMoney } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
 import { Badge, type BadgeTone } from '@/components/ui/Badge'
 import { StatCard } from '@/components/ui/StatCard'
 import { Loader } from '@/components/ui/Loader'
+import { Modal } from '@/components/ui/Modal'
+import { Button } from '@/components/ui/Button'
 import { PaymentHistoryModal } from './PaymentHistoryModal'
 import { AiAnalysisModal } from './AiAnalysisModal'
 import { AiAnalysisView } from './AiAnalysisView'
+import { StudentFormModal } from './StudentFormModal'
 
 const uzMonths = [
   'Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'Iyun',
@@ -93,6 +99,18 @@ export function StudentDetailPage() {
   const [certificates, setCertificates] = useState<StudentCompletedCourse[]>([])
   const [certGenerating, setCertGenerating] = useState<string | null>(null)
   const [supportFeedback, setSupportFeedback] = useState<StudentSupportFeedback[]>([])
+  /** "Tahrirlash" tugmasi bosilganda — to'liq o'quvchi obyekti (StudentFormModal uchun). */
+  const [editing, setEditing] = useState<Student | null>(null)
+  /** Chegirma o'zgarganda — yangi chegirmani joriy oyga qo'llashni so'rash (StudentsPage'dagi kabi). */
+  const [discountPrompt, setDiscountPrompt] = useState<{
+    values: StudentPayload
+    oldPct: number
+    oldAmount: number
+    newPct: number
+    newAmount: number
+  } | null>(null)
+  /** Saqlangandan keyin sahifa ma'lumotini qayta yuklash uchun (o'zgarsa — pastdagi useEffect qayta ishga tushadi). */
+  const [reloadKey, setReloadKey] = useState(0)
 
   useEffect(() => {
     if (!id) return
@@ -119,7 +137,45 @@ export function StudentDetailPage() {
     getStudentAiAnalyses(id)
       .then(setAiRecords)
       .catch(() => {})
-  }, [id])
+  }, [id, reloadKey])
+
+  /** "Tahrirlash" bosilganda — StudentFormModal uchun TO'LIQ Student kerak (data — StudentNotebook, formaga yaramaydi). */
+  const openEdit = () => {
+    if (!id) return
+    getStudent(id)
+      .then(setEditing)
+      .catch(() => alert("O'quvchi ma'lumotini yuklab bo'lmadi"))
+  }
+
+  const applyEdit = (values: StudentPayload, applyDiscount: boolean) => {
+    if (!id) return
+    updateStudent(id, values, applyDiscount)
+      .then(() => setReloadKey((k) => k + 1))
+      .catch((e) => alert(e?.response?.data?.message ?? 'Saqlab bo\'lmadi'))
+  }
+
+  const resolveDiscountPrompt = (applyDiscount: boolean) => {
+    if (!discountPrompt) return
+    applyEdit(discountPrompt.values, applyDiscount)
+    setDiscountPrompt(null)
+  }
+
+  const handleEditSubmit = (values: StudentPayload) => {
+    if (!editing) return
+    const newPct = values.discountPct ?? 0
+    const newAmount = values.discountAmount ?? 0
+    const oldPct = editing.discountPct
+    const oldAmount = editing.discountAmount
+    const newGroup = values.discountGroupId ?? ''
+    const oldGroup = editing.discountGroupId ?? ''
+    const discountChanged = newPct !== oldPct || newAmount !== oldAmount || newGroup !== oldGroup
+    if (discountChanged) {
+      setDiscountPrompt({ values, oldPct, oldAmount, newPct, newAmount })
+    } else {
+      applyEdit(values, false)
+    }
+    setEditing(null)
+  }
 
   // O'quv dasturi uchun guruh→kurs id xaritasi. A'zolikda faqat courseName bor (courseId yo'q),
   // shuning uchun guruhlar ro'yxatidan (Group.courseId) groupId orqali kurs id'sini topamiz.
@@ -334,6 +390,13 @@ export function StudentDetailPage() {
             className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:border-brand-300 hover:text-brand-700"
           >
             <History className="h-4 w-4" /> To'lov tarixi
+          </button>
+          <button
+            type="button"
+            onClick={openEdit}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:border-brand-300 hover:text-brand-700"
+          >
+            <Pencil className="h-4 w-4" /> Tahrirlash
           </button>
         </div>
       </Card>
@@ -1048,6 +1111,54 @@ export function StudentDetailPage() {
           setAiRecords((prev) => [rec, ...prev.filter((r) => r.id !== rec.id && r.date !== rec.date)])
         }
       />
+
+      <StudentFormModal
+        open={!!editing}
+        onClose={() => setEditing(null)}
+        onSubmit={handleEditSubmit}
+        initial={editing}
+      />
+
+      <Modal
+        open={!!discountPrompt}
+        onClose={() => setDiscountPrompt(null)}
+        title="Chegirmani joriy oyga qo'llash"
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => resolveDiscountPrompt(false)}>
+              Yo'q — keyingi oydan
+            </Button>
+            <Button onClick={() => resolveDiscountPrompt(true)}>Ha — joriy oydan</Button>
+          </>
+        }
+      >
+        {discountPrompt && (
+          <div className="space-y-3 text-sm text-slate-600">
+            <p>
+              Chegirma{' '}
+              <span className="font-medium">
+                {discountPrompt.oldPct}% / {formatMoney(discountPrompt.oldAmount)}
+              </span>{' '}
+              →{' '}
+              <span className="font-medium">
+                {discountPrompt.newPct}% / {formatMoney(discountPrompt.newAmount)}
+              </span>{' '}
+              ga o'zgardi. Yangi chegirma qachondan qo'llansin?
+            </p>
+            <div className="rounded-lg bg-slate-50 px-3 py-2 text-slate-500">
+              <p>
+                <b className="text-slate-700">Ha</b> — joriy oy hisobi yangi chegirma bilan qayta
+                hisoblanadi (balans farqqa moslab to'g'rilanadi).
+              </p>
+              <p className="mt-1">
+                <b className="text-slate-700">Yo'q</b> — joriy oy eski hisobda qoladi, yangi
+                chegirma keyingi oydan amal qiladi.
+              </p>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   )
 }

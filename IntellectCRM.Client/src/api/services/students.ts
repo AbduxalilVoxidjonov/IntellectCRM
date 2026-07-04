@@ -132,6 +132,18 @@ export async function getStudents(): Promise<Student[]> {
   return data
 }
 
+/** Bitta o'quvchi (profil sahifasida tahrirlash uchun to'liq obyekt). */
+export async function getStudent(id: string): Promise<Student> {
+  if (USE_MOCK) {
+    await delay()
+    const found = studentsMock.find((s) => s.id === id)
+    if (!found) throw new Error("O'quvchi topilmadi")
+    return found
+  }
+  const { data } = await api.get<Student>(`/admin/students/${id}`)
+  return data
+}
+
 /**
  * Global qidiruv (Ctrl+K) uchun o'quvchilarni FISH yoki telefon (o'z/ota/ona/ota-ona) bo'yicha
  * qidiradi — ARXIVLANGANLAR ham qaytadi (natijada `isArchived` bilan belgilanadi). Mavjud

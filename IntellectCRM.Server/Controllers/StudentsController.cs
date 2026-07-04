@@ -265,6 +265,14 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
         await db.Students.Where(s => s.IsArchived)
             .OrderByDescending(s => s.ArchivedAt).ThenBy(s => s.FullName).ToListAsync();
 
+    /// <summary>Bitta o'quvchi (profil sahifasidan tahrirlash formasi uchun to'liq obyekt).</summary>
+    [HttpGet("{id}")]
+    public async Task<ActionResult<Student>> GetOne(string id)
+    {
+        var s = await db.Students.FindAsync(id);
+        return s is null ? NotFound() : s;
+    }
+
     /// <summary>
     /// Kiritilgan raqamlar (o'quvchi o'zi / ota / ona / ota-ona) allaqachon biror o'quvchida (ARXIVDAGILAR
     /// ham) ishlatilganmi — tekshiradi. Raqamlar <see cref="PhoneUtil.Key"/> bo'yicha (oxirgi 9 raqam)
