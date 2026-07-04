@@ -13,8 +13,10 @@ export async function getAdminDashboard(): Promise<AdminDashboard> {
   return data
 }
 
-/** Bugungi darslar monitoringi — har guruh bo'yicha davomat/baho holati */
-export async function getTodayLessons(): Promise<TodayLessons> {
-  const { data } = await api.get<TodayLessons>('/admin/dashboard/today-lessons')
+/** Darslar monitoringi — tanlangan sanada (default bugun) har guruh bo'yicha davomat/baho holati */
+export async function getTodayLessons(date?: string): Promise<TodayLessons> {
+  const { data } = await api.get<TodayLessons>('/admin/dashboard/today-lessons', {
+    params: date ? { date } : undefined,
+  })
   return data
 }

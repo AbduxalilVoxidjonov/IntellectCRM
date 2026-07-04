@@ -30,25 +30,29 @@ public class DashboardController(DataCache dataCache) : ControllerBase
             TimeSpan.FromMinutes(10),
             ComputeAsync);
 
-    /// <summary>Bugungi darslar monitoringi: bugun (guruh Days bo'yicha) dars kuni bo'lgan guruhlar,
-    /// har biri uchun davomat qilinganmi va baho qo'yilganmi.</summary>
+    /// <summary>Darslar monitoringi: tanlangan sanada (default — bugun) guruh Days bo'yicha dars
+    /// kuni bo'lgan guruhlar, har biri uchun davomat qilinganmi va baho qo'yilganmi.</summary>
     [HttpGet("today-lessons")]
-    public async Task<ActionResult<TodayLessonsDto>> TodayLessons() =>
-        await dataCache.GetOrCreateAsync(
-            $"dashboard:today-lessons:{AppClock.Now:yyyy-MM-dd}",
+    public async Task<ActionResult<TodayLessonsDto>> TodayLessons([FromQuery] string? date = null)
+    {
+        // Sana berilmasa yoki format noto'g'ri bo'lsa — bugun.
+        var day = DateOnly.TryParseExact(date, "yyyy-MM-dd", out var parsed) ? parsed : AppClock.Today;
+        return await dataCache.GetOrCreateAsync(
+            $"dashboard:today-lessons:{day:yyyy-MM-dd}",
             new[]
             {
                 nameof(Group), nameof(Teacher), nameof(Subject), nameof(Room), nameof(StudentGroup),
                 nameof(LessonNote), nameof(JournalEntry), nameof(CriterionGrade),
             },
             TimeSpan.FromMinutes(5),
-            ComputeTodayLessonsAsync);
+            db => ComputeTodayLessonsAsync(db, day));
+    }
 
-    private static async Task<TodayLessonsDto> ComputeTodayLessonsAsync(IAppDbContext db)
+    private static async Task<TodayLessonsDto> ComputeTodayLessonsAsync(IAppDbContext db, DateOnly day)
     {
-        var today = AppClock.Today.ToString("yyyy-MM-dd");
+        var today = day.ToString("yyyy-MM-dd");
         // JS bilan bir xil indeks: 0=Dushanba ... 6=Yakshanba.
-        var dayIdx = ((int)AppClock.Today.DayOfWeek + 6) % 7;
+        var dayIdx = ((int)day.DayOfWeek + 6) % 7;
 
         // Days (List<int>) EF tarjimasiga ishonmaymiz — guruhlar soni kichik, xotirada filtrlaymiz.
         var groups = (await db.Classes.AsNoTracking().Where(g => !g.IsArchived).ToListAsync())
