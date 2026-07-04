@@ -48,3 +48,7 @@ CLAUDE.md
 WORKLOG.md
 DEPLOY.md
 IntellectCRM_TZ.md
+
+# Asterisk manba arxivi va lokal yozuvlar (asterisk-local) - git'da saqlanmaydi
+asterisk-local/*.tar.gz
+asterisk-local/recordings/
