@@ -447,18 +447,18 @@ using (var scope = app.Services.CreateScope())
         }
     }
 
-    // Xodim roli shablonlari — yangi xodim qo'shishda tanlash uchun standart rolle/ruxsatlar.
-    // IDEMPOTENT: jadval BO'SH bo'lsa seed qilinadi (admin keyin tahrir qila oladi).
+    // Xodim roli shablonlari — yangi xodim qo'shishda tanlash uchun standart rol/ruxsatlar.
+    // PER-KOD IDEMPOTENT: yo'q shablon YARATILADI; mavjudiga seed'dagi YETISHMAGAN ruxsatlar
+    // QO'SHILADI (union — shablonlar UI'dan tahrirlanmaydi, ular tizim-boshqaruvidagi ro'yxat;
+    // yangi bo'lim ruxsati (masalan "calls") chiqsa, mavjud bazada ham avtomatik yangilanadi).
     // TRY-CATCH: jadval yo'q bo'lsa (migration qo'llanmagan) logga yozib o'tadi.
     try
-    {
-        if (!db.StaffRoleTemplates.Any())
     {
         var templates = new (string Code, string Name, string Desc, string[] Perms)[]
         {
             ("call_operator", "Qo'ng'iroq operatori",
-                "Qo'ng'iroq qabul qiladi, lidlarni yaratadi va boshqaradi",
-                new[] { "leads", "messages" }),
+                "Qo'ng'iroq qabul qiladi (Call Center), lidlarni yaratadi va boshqaradi",
+                new[] { "calls", "leads", "messages" }),
             ("cashier", "Kassir",
                 "To'lovlarni kiritadi va boshqaradi, o'quvchi ma'lumotlarini ko'radi",
                 new[] { "students", "finance", "messages" }),
@@ -466,18 +466,38 @@ using (var scope = app.Services.CreateScope())
                 "Asosiy boshqaruv — guruhlar, o'quvchilar, o'qituvchilar, o'quv bo'limi",
                 new[] { "leads", "students", "teachers", "classes", "schedule", "messages", "app" }),
         };
+        var existingTemplates = db.StaffRoleTemplates.ToList();
+        var created = 0;
+        var patched = 0;
         foreach (var (code, name, desc, perms) in templates)
         {
-            db.StaffRoleTemplates.Add(new StaffRoleTemplate
+            var tpl = existingTemplates.FirstOrDefault(t => t.Code == code);
+            if (tpl is null)
             {
-                Code = code,
-                Name = name,
-                Description = desc,
-                DefaultPermissions = new List<string>(perms),
-            });
+                db.StaffRoleTemplates.Add(new StaffRoleTemplate
+                {
+                    Code = code,
+                    Name = name,
+                    Description = desc,
+                    DefaultPermissions = new List<string>(perms),
+                });
+                created++;
+                continue;
+            }
+            // Mavjud shablonga faqat YANGI ruxsatlar qo'shiladi (nom/izoh tegilmaydi).
+            var missing = perms.Where(p => !tpl.DefaultPermissions.Contains(p)).ToList();
+            if (missing.Count > 0)
+            {
+                tpl.DefaultPermissions.AddRange(missing);
+                patched++;
+            }
         }
-        db.SaveChanges();
-        app.Logger.LogInformation("[seed] Standart xodim roli shablonlari (3 ta) yaratildi");
+        if (created + patched > 0)
+        {
+            db.SaveChanges();
+            app.Logger.LogInformation(
+                "[seed] Xodim roli shablonlari sinxronlandi: {Created} yangi, {Patched} ruxsati to'ldirilgan",
+                created, patched);
         }
     }
     catch (Exception ex)
