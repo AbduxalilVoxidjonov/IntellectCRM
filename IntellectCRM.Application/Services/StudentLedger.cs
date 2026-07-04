@@ -20,10 +20,12 @@ public static class StudentLedger
 
     public static async Task<StudentLedgerDto> BuildAsync(IAppDbContext db, Student student)
     {
-        var rawFee = (await db.Classes.FirstOrDefaultAsync(c => c.Name == student.ClassName))?.MonthlyFee ?? 0m;
+        var classNameGroup = await db.Classes.FirstOrDefaultAsync(c => c.Name == student.ClassName);
+        var rawFee = classNameGroup?.MonthlyFee ?? 0m;
         // Joriy effektiv oylik (yangi oy uchun nima hisoblanadi) — chegirma ayirilgan.
         // Joriy effektiv oylik — chegirma faqat amal qilish davrida (DiscountStartMonth..EndMonth) qo'llanadi.
-        var fee = rawFee - TuitionService.DiscountForMonth(student, rawFee, TuitionService.CurrentMonth());
+        // Guruh konteksti — asosiy (ClassName) guruh: chegirma boshqa guruhga biriktirilgan bo'lsa 0.
+        var fee = rawFee - TuitionService.DiscountForMonth(student, rawFee, TuitionService.CurrentMonth(), classNameGroup?.Id);
 
         // Per-guruh hisoblar — bir oyda bir nechta (har guruh) bo'lishi mumkin; oy bo'yicha aggregate qilamiz.
         var chargeRows = await db.MonthlyCharges.Where(c => c.StudentId == student.Id).ToListAsync();

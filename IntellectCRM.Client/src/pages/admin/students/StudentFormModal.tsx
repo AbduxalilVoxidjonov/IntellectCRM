@@ -3,7 +3,8 @@ import { Upload, X, FileText, Loader2, AlertTriangle } from 'lucide-react'
 import type { Student } from '@/types'
 import type { StudentPayload, PhoneMatch } from '@/api/services/students'
 import { uploadAdminFile, getStudentCredentials, checkStudentPhones } from '@/api/services/students'
-import { getClasses } from '@/api/services/classes'
+import { getClasses, getStudentGroups } from '@/api/services/classes'
+import type { StudentGroupMembership } from '@/types'
 import { getDistricts } from '@/api/services/districts'
 import type { District } from '@/types'
 import { Modal } from '@/components/ui/Modal'
@@ -44,6 +45,7 @@ const empty: StudentPayload = {
   discountNote: '',
   discountStartMonth: '',
   discountEndMonth: '',
+  discountGroupId: '',
 }
 
 /** "Familiya Ism Sharifi" stringidan parts. Eski yozuvlarni tahrirda taqsimlaymiz. */
@@ -71,6 +73,8 @@ export function StudentFormModal({ open, onClose, onSubmit, initial }: Props) {
   const [uploading, setUploading] = useState<{ birth?: boolean }>({})
   /** Tahrirlanayotgan o'quvchining login (username)i — backend'dan olinadi, faqat ko'rsatish uchun. */
   const [login, setLogin] = useState('')
+  /** O'quvchining faol guruh a'zoliklari — chegirmani muayyan guruhga biriktirish tanlovi uchun. */
+  const [memberships, setMemberships] = useState<StudentGroupMembership[]>([])
   /** Telefon dublikati tekshiruvi holati. */
   const [checking, setChecking] = useState(false)
   /** Topilgan dublikatlar (bo'lsa — tasdiq modali ochiladi). */
@@ -133,10 +137,19 @@ export function StudentFormModal({ open, onClose, onSubmit, initial }: Props) {
         discountNote: initial.discountNote,
         discountStartMonth: initial.discountStartMonth ?? '',
         discountEndMonth: initial.discountEndMonth ?? '',
+        discountGroupId: initial.discountGroupId ?? '',
       })
     } else {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- yangi forma boshlash (maqsadli)
       setForm(empty)
+    }
+    // Faol a'zoliklar — bir nechta guruh bo'lsa chegirmani guruhga biriktirish tanlovi chiqadi.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- modal ochilishida ro'yxatni tozalash (maqsadli)
+    setMemberships([])
+    if (initial?.id) {
+      getStudentGroups(initial.id)
+        .then((gs) => setMemberships(gs.filter((g) => g.isActive)))
+        .catch(() => setMemberships([]))
     }
   }, [open, initial])
 
@@ -402,6 +415,30 @@ export function StudentFormModal({ open, onClose, onSubmit, initial }: Props) {
               onChange={(e) => update('discountEndMonth', e.target.value)}
             />
           </div>
+          {/* Bir nechta faol guruh — chegirma QAYSI guruhga tegishliligini tanlash
+              (yoki avval biriktirilgan bo'lsa, ko'rsatish/tozalash uchun). */}
+          {(memberships.length > 1 || !!form.discountGroupId) && (
+            <div className="mt-3">
+              <Select
+                label="Chegirma qaysi guruhga"
+                value={form.discountGroupId ?? ''}
+                onChange={(e) => update('discountGroupId', e.target.value)}
+              >
+                <option value="">Barcha guruhlarga</option>
+                {memberships.map((m) => (
+                  <option key={m.groupId} value={m.groupId}>
+                    {m.groupName}
+                    {m.courseName ? ` — ${m.courseName}` : ''}
+                    {` (${m.monthlyFee.toLocaleString()} so'm)`}
+                  </option>
+                ))}
+              </Select>
+              <p className="mt-1 text-xs text-slate-400">
+                Guruh tanlansa chegirma FAQAT o'sha guruh oyligiga qo'llanadi; qolgan guruhlar
+                to'liq hisoblanadi. "Barcha guruhlarga" — har bir guruh oyligiga alohida qo'llanadi.
+              </p>
+            </div>
+          )}
           <div className="mt-3">
             <Input
               label="Izoh (sabab)"

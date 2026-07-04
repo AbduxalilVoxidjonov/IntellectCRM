@@ -249,6 +249,10 @@ public class Student
     /// <summary>Chegirma amal qilish tugash oyi ("yyyy-MM"). Bo'sh — cheklovsiz (oxirigacha).
     /// Ikkala chegara bo'sh bo'lsa chegirma har doim qo'llanadi (orqaga moslik).</summary>
     public string DiscountEndMonth { get; set; } = string.Empty;
+    /// <summary>Chegirma qaysi GURUHGA tegishli (Classes.Id). Null/bo'sh — BARCHA guruh hisoblariga
+    /// (eski xatti-harakat). To'ldirilgan bo'lsa — faqat o'sha guruh hisobiga qo'llanadi
+    /// (ko'p guruhli o'quvchida qaysi guruhga berilgani aniq bo'lishi uchun).</summary>
+    public string? DiscountGroupId { get; set; }
     /// <summary>
     /// O'quvchi arxivga ko'chirilganmi (boshqa maktabga ketgan, o'qishdan chiqarilgan, ...).
     /// Arxivlangan o'quvchi faol ro'yxatdan yashirinadi, oylik to'lov hisoblanmaydi, login bloklanadi,

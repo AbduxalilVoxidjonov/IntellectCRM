@@ -411,6 +411,7 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
             DiscountNote = (p.DiscountNote ?? "").Trim(),
             DiscountStartMonth = (p.DiscountStartMonth ?? "").Trim(),
             DiscountEndMonth = (p.DiscountEndMonth ?? "").Trim(),
+            DiscountGroupId = string.IsNullOrWhiteSpace(p.DiscountGroupId) ? null : p.DiscountGroupId.Trim(),
         };
         db.Students.Add(student);
 
@@ -482,6 +483,7 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
         var oldNote = student.DiscountNote;
         var oldStart = student.DiscountStartMonth;
         var oldEnd = student.DiscountEndMonth;
+        var oldDiscountGroup = student.DiscountGroupId;
         var oldClassName = student.ClassName;
 
         // O'quvchi FISH — parts berilsa ulardan FullName yig'iladi.
@@ -535,6 +537,9 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
         if (p.DiscountNote is not null) student.DiscountNote = p.DiscountNote.Trim();
         if (p.DiscountStartMonth is not null) student.DiscountStartMonth = p.DiscountStartMonth.Trim();
         if (p.DiscountEndMonth is not null) student.DiscountEndMonth = p.DiscountEndMonth.Trim();
+        // Chegirma guruhi: null = tegilmaydi, "" = tozalanadi (barcha guruhlarga), id = shu guruhga.
+        if (p.DiscountGroupId is not null)
+            student.DiscountGroupId = string.IsNullOrWhiteSpace(p.DiscountGroupId) ? null : p.DiscountGroupId.Trim();
 
         // Akkaunt nomini sinxronlaymiz va (ixtiyoriy) yangi parol o'rnatamiz.
         var user = student.UserId is null ? null : await db.Users.FindAsync(student.UserId);
@@ -555,7 +560,8 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
                               || oldAmount != student.DiscountAmount
                               || oldNote != student.DiscountNote
                               || oldStart != student.DiscountStartMonth
-                              || oldEnd != student.DiscountEndMonth;
+                              || oldEnd != student.DiscountEndMonth
+                              || oldDiscountGroup != student.DiscountGroupId;
 
         // Joriy sinf narxiga ko'ra hisoblarni TO'G'RILAYMIZ/TO'LDIRAMIZ (ClassName MATNI o'zgarmagan
         // bo'lsa ham — masalan o'quvchi sinf hali yaratilmagan paytda qo'shilib, keyin sinf yaratilgan):
@@ -600,7 +606,8 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
             foreach (var month in TuitionService.MonthRange(startMonth, current))
             {
                 // Chegirma faqat amal qilish davrida (DiscountStartMonth..EndMonth) qo'llanadi — har oy alohida.
-                var monthDiscount = TuitionService.DiscountForMonth(student, cls.MonthlyFee, month);
+                // Guruhsiz (GroupId=null) hisob — guruhga biriktirilgan chegirma bunga tushmaydi.
+                var monthDiscount = TuitionService.DiscountForMonth(student, cls.MonthlyFee, month, null);
                 var monthEffective = cls.MonthlyFee - monthDiscount;
                 if (existing.TryGetValue(month, out var charge))
                 {
@@ -631,6 +638,27 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
                     student.Balance -= monthEffective;
                     applied = true;
                 }
+            }
+        }
+
+        // M2M a'zolikli o'quvchi: chegirma o'zgarib "joriy oyga qo'llash" so'ralsa, shu oyning
+        // PER-GURUH hisoblarida chegirmani qayta hisoblaymiz (Amount — narx/prorate — tegilmaydi,
+        // faqat Discount yangilanadi; Locked qatorlar tegilmaydi). Guruhga biriktirilgan chegirmada
+        // DiscountForMonth o'zi faqat mos guruhga beradi, qolganlarida 0 ga tushiradi.
+        if (hasMembership && discountChanged && applyDiscount)
+        {
+            var current = TuitionService.CurrentMonth();
+            var monthCharges = await db.MonthlyCharges
+                .Where(c => c.StudentId == student.Id && c.Month == current && !c.Locked)
+                .ToListAsync();
+            foreach (var charge in monthCharges)
+            {
+                var newDiscount = TuitionService.DiscountForMonth(student, charge.Amount, current, charge.GroupId);
+                if (newDiscount == charge.Discount) continue;
+                // Effektiv farq: (Amount − yangiD) − (Amount − eskiD) = eskiD − yangiD.
+                student.Balance -= charge.Discount - newDiscount;
+                charge.Discount = newDiscount;
+                applied = true;
             }
         }
 

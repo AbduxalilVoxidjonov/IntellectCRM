@@ -275,7 +275,11 @@ export function StudentsPage() {
       const newAmount = values.discountAmount ?? 0
       const oldPct = editing.discountPct
       const oldAmount = editing.discountAmount
-      const discountChanged = newPct !== oldPct || newAmount !== oldAmount
+      // Guruh biriktirilishi o'zgarsa ham "joriy oyga qo'llash?" so'raladi — chegirma
+      // boshqa guruhga ko'chsa joriy oy hisoblari qayta taqsimlanishi kerak bo'lishi mumkin.
+      const newGroup = values.discountGroupId ?? ''
+      const oldGroup = editing.discountGroupId ?? ''
+      const discountChanged = newPct !== oldPct || newAmount !== oldAmount || newGroup !== oldGroup
       if (discountChanged) {
         // "Ha/Yo'q" tasdiq dialog'i — joriy oyga qo'llash yoki keyingi oydan?
         setDiscountPrompt({ id, values, oldPct, oldAmount, newPct, newAmount })

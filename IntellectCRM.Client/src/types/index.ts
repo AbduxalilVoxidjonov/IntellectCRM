@@ -333,6 +333,8 @@ export interface Student {
   discountStartMonth?: string
   /** Chegirma amal qilish tugash oyi ("YYYY-MM"). Bo'sh — cheklovsiz. Ikkalasi bo'sh — har doim. */
   discountEndMonth?: string
+  /** Chegirma qaysi GURUHGA tegishli (guruh id). Bo'sh/null — barcha guruh hisoblariga. */
+  discountGroupId?: string | null
 }
 
 /* ---------- Tuman + maktab ---------- */

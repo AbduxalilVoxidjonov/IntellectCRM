@@ -59,9 +59,17 @@ public static class TuitionService
         return true;
     }
 
-    /// <summary>Berilgan oy uchun chegirma summasi — chegirma davri TASHQARISIDA 0 (chegirma qo'llanmaydi).</summary>
-    public static decimal DiscountForMonth(Student s, decimal fee, string month)
-        => DiscountActiveForMonth(s, month) ? DiscountFor(fee, s.DiscountPct, s.DiscountAmount) : 0m;
+    /// <summary>Berilgan oy va GURUH hisobi uchun chegirma summasi. 0 qaytaradi agar:
+    /// chegirma davri tashqarisida BO'LSA, yoki chegirma muayyan guruhga biriktirilgan
+    /// (<see cref="Student.DiscountGroupId"/>) bo'lib bu BOSHQA guruh hisobi bo'lsa.
+    /// <paramref name="groupId"/> — hisob qatorining guruhi (MonthlyCharge.GroupId; guruhsiz hisobda null).</summary>
+    public static decimal DiscountForMonth(Student s, decimal fee, string month, string? groupId)
+    {
+        if (!DiscountActiveForMonth(s, month)) return 0m;
+        // Guruhga biriktirilgan chegirma — faqat o'sha guruh hisobiga (boshqa guruhlar to'liq to'laydi).
+        if (!string.IsNullOrEmpty(s.DiscountGroupId) && s.DiscountGroupId != groupId) return 0m;
+        return DiscountFor(fee, s.DiscountPct, s.DiscountAmount);
+    }
 
     /// <summary>
     /// Guruh oylik to'lovi o'zgarganda JORIY oy hisobini qayta hisoblaydi: shu guruhga
@@ -113,7 +121,7 @@ public static class TuitionService
     private static bool ApplyFeeToCharge(MonthlyCharge charge, Student? s, decimal newFee)
     {
         if (s is null || charge.Locked) return false;
-        var newDiscount = DiscountForMonth(s, newFee, charge.Month);
+        var newDiscount = DiscountForMonth(s, newFee, charge.Month, charge.GroupId);
         var newEffective = newFee - newDiscount;
         var oldEffective = charge.Amount - charge.Discount;
         var delta = newEffective - oldEffective;
@@ -261,7 +269,7 @@ public static class TuitionService
         if (gross <= 0) return;
 
         var month = dateIso[..7];
-        var discount = DiscountForMonth(s, gross, month);
+        var discount = DiscountForMonth(s, gross, month, cls.Id);
         var effective = gross - discount;
 
         // Per-guruh billingga o'tdik — shu oyning eski aggregate (GroupId=null) qatorini darhol tozalaymiz.
@@ -286,7 +294,7 @@ public static class TuitionService
                 // segment. Yangi segment (shu sanadan oy oxirigacha) USTIGA QO'SHILADI — gap (muzlatish↔qayta
                 // aktiv) hisoblanmaydi, studied portion yo'qolmaydi. Yig'indi to'liq oylikdan oshmaydi.
                 var newAmount = Math.Min(existing.Amount + gross, cls.MonthlyFee);
-                var newDiscount = DiscountForMonth(s, newAmount, month);
+                var newDiscount = DiscountForMonth(s, newAmount, month, cls.Id);
                 existing.Amount = newAmount;
                 existing.Discount = newDiscount;
                 existing.Date = dateIso;
@@ -363,7 +371,7 @@ public static class TuitionService
             carry = Math.Max(0m, existing.Amount - projectedAtActivation);
         }
         var totalGross = Math.Min(carry + gross, cls.MonthlyFee);
-        var discount = totalGross > 0 ? DiscountForMonth(s, totalGross, month) : 0m;
+        var discount = totalGross > 0 ? DiscountForMonth(s, totalGross, month, cls.Id) : 0m;
         var effective = totalGross - discount;
 
         if (existing is null)
@@ -451,7 +459,7 @@ public static class TuitionService
     /// Effektiv 0 (100% chegirma) bo'lsa ham qator qoldiriladi — hisobotda ko'rinsin. SaveChanges — chaqiruvchida.</summary>
     private static decimal AccrueOne(IAppDbContext db, Student s, string? groupId, string month, decimal fee)
     {
-        var discount = DiscountForMonth(s, fee, month);
+        var discount = DiscountForMonth(s, fee, month, groupId);
         var effective = fee - discount;
         db.MonthlyCharges.Add(new MonthlyCharge
         {

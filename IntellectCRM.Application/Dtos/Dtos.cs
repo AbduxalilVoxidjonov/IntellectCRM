@@ -51,7 +51,8 @@ public record StudentPayload(
     string? FatherFullName = null, string? FatherPhone = null,
     string? MotherFullName = null, string? MotherPhone = null,
     string? DiscountStartMonth = null, string? DiscountEndMonth = null,
-    string? DistrictId = null, string? SchoolId = null);
+    string? DistrictId = null, string? SchoolId = null,
+    string? DiscountGroupId = null);
 public record PaymentRequest(decimal Amount, string? Month, string? GroupId = null, string? Comment = null, string? Method = null);
 
 /* ---------- Tuman + maktab (sozlamalar) ---------- */
