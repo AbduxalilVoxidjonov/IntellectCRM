@@ -1897,8 +1897,12 @@ public class Call
     public DateTime? EndedAt { get; set; }
     /// <summary>Gaplashuv davomiyligi soniyada (javobdan tugashgacha; javobsiz — 0).</summary>
     public int DurationSeconds { get; set; }
-    /// <summary>Asterisk kanal UniqueId — AMI event korrelyatsiyasi uchun.</summary>
+    /// <summary>Provayder qo'ng'iroq id'si: Asterisk kanal UniqueId yoki MoiZvonki
+    /// event_pbx_call_id — jonli hodisalarni shu yozuvga bog'lash kaliti.</summary>
     public string AsteriskUniqueId { get; set; } = string.Empty;
+    /// <summary>MoiZvonki db_call_id — calls.list sinxronizatsiyasida takrorlanmaslik kaliti
+    /// (webhook call.finish ham to'ldiradi). Bo'sh — sinxron qilinmagan/boshqa provayder.</summary>
+    public string ProviderDbId { get; set; } = string.Empty;
     /// <summary>Suhbat yozuvi fayl nomi (Asterisk recordings papkasiga nisbatan). Bo'sh — yozuv yo'q.</summary>
     public string RecordingFile { get; set; } = string.Empty;
     /// <summary>Operator izohi (ixtiyoriy).</summary>

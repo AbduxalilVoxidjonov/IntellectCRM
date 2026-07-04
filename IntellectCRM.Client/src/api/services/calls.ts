@@ -76,6 +76,12 @@ export async function getStudentCalls(studentId: string): Promise<CallRow[]> {
   return data
 }
 
+/** Tarixni provayderdan QO'LDA sinxronlash (MoiZvonki calls.list) — eski qo'ng'iroqlar ham tortiladi. */
+export async function syncCallHistory(): Promise<{ added: number; updated: number }> {
+  const { data } = await api.post('/admin/calls/telephony/sync', {})
+  return data
+}
+
 /** Yozuvni autentifikatsiya bilan yuklab, pleyer uchun blob URL qaytaradi (bo'shatish chaqiruvchida). */
 export async function fetchRecordingUrl(callId: string): Promise<string> {
   const res = await api.get(`/admin/calls/${callId}/recording`, { responseType: 'blob' })

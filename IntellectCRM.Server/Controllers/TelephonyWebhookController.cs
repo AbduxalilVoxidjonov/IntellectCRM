@@ -82,6 +82,9 @@ public class TelephonyWebhookController(
                 var rec = GetStr(ev, "recording");
                 if (rec.StartsWith("http", StringComparison.OrdinalIgnoreCase))
                     call.RecordingFile = rec; // to'liq URL — CallsController.Recording proxy qiladi
+                // db_call_id — calls.list sinxronizatsiyasi bilan takrorlanmaslik uchun.
+                var dbId = GetStr(ev, "db_call_id");
+                if (dbId.Length > 0 && call.ProviderDbId.Length == 0) call.ProviderDbId = dbId;
                 break;
         }
 

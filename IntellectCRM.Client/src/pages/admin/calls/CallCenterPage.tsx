@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Phone, PhoneCall, PhoneOff, Delete, Search, History, AlertTriangle, Play, Loader2, X, User,
+  RefreshCw,
 } from 'lucide-react'
 import type { HubConnection } from '@microsoft/signalr'
 import type { Student } from '@/types'
 import { getStudents } from '@/api/services/students'
 import {
-  getCallsConfig, originateCall, getCalls, getStudentCalls, fetchRecordingUrl,
+  getCallsConfig, originateCall, getCalls, getStudentCalls, fetchRecordingUrl, syncCallHistory,
   type CallRow, type CallStatus, type CallUpdate,
 } from '@/api/services/calls'
 import { connectLiveTopic } from '@/api/services/live'
@@ -72,6 +73,7 @@ const TERMINAL: CallStatus[] = ['completed', 'no_answer', 'busy', 'failed']
 export function CallCenterPage() {
   const [tab, setTab] = useState<'dial' | 'history'>('dial')
   const [configured, setConfigured] = useState<boolean | null>(null)
+  const [provider, setProvider] = useState('')
 
   const [students, setStudents] = useState<Student[]>([])
   const [loading, setLoading] = useState(true)
@@ -86,7 +88,10 @@ export function CallCenterPage() {
 
   useEffect(() => {
     Promise.all([
-      getCallsConfig().then((c) => setConfigured(c.configured)).catch(() => setConfigured(false)),
+      getCallsConfig().then((c) => {
+        setConfigured(c.configured)
+        setProvider(c.provider ?? '')
+      }).catch(() => setConfigured(false)),
       getStudents().then(setStudents).catch(() => setStudents([])),
     ]).finally(() => setLoading(false))
   }, [])
@@ -375,7 +380,7 @@ export function CallCenterPage() {
           </div>
         </div>
       ) : (
-        <CallHistory />
+        <CallHistory canSync={provider === 'moizvonki'} />
       )}
     </div>
   )
@@ -425,10 +430,13 @@ function StudentDetail({ student, onClose }: { student: Student; onClose: () => 
 
 /* ============================ Yozuvlar tarixi (barcha qo'ng'iroqlar) ============================ */
 
-function CallHistory() {
+function CallHistory({ canSync }: { canSync: boolean }) {
   const [search, setSearch] = useState('')
   const [rows, setRows] = useState<CallRow[] | null>(null)
   const [total, setTotal] = useState(0)
+  const [reloadKey, setReloadKey] = useState(0)
+  const [syncing, setSyncing] = useState(false)
+  const [syncMsg, setSyncMsg] = useState('')
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -438,7 +446,22 @@ function CallHistory() {
       }).catch(() => setRows([]))
     }, 300)
     return () => clearTimeout(t)
-  }, [search])
+  }, [search, reloadKey])
+
+  const doSync = async () => {
+    if (syncing) return
+    setSyncing(true)
+    setSyncMsg('')
+    try {
+      const r = await syncCallHistory()
+      setSyncMsg(`${r.added} yangi, ${r.updated} yangilandi`)
+      setReloadKey((k) => k + 1)
+    } catch (err: any) {
+      setSyncMsg(err.response?.data?.message || 'Sinxronlashda xato')
+    } finally {
+      setSyncing(false)
+    }
+  }
 
   return (
     <Card tight>
@@ -452,6 +475,13 @@ function CallHistory() {
             className={cn(control, 'pl-9')}
           />
         </div>
+        {syncMsg && <span className="flex-shrink-0 text-xs font-medium text-slate-400">{syncMsg}</span>}
+        {canSync && (
+          <Button variant="secondary" onClick={doSync} disabled={syncing} className="flex-shrink-0">
+            {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            Yangilash
+          </Button>
+        )}
         <span className="flex-shrink-0 text-xs font-medium text-slate-400">{total} ta qo'ng'iroq</span>
       </div>
       <div className="p-3">

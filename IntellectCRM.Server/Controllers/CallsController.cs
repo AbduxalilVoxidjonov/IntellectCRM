@@ -21,6 +21,7 @@ namespace IntellectCRM.Server.Controllers;
 [Route("api/admin/calls")]
 public class CallsController(
     AppDbContext db, AsteriskService asterisk, MoiZvonkiService moizvonki,
+    MoiZvonkiCallSyncService callSync,
     IConfiguration config, IHttpClientFactory httpFactory) : ControllerBase
 {
     private string Uid => User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "";
@@ -129,6 +130,19 @@ public class CallsController(
         }
 
         return Ok(new { callId = call.Id, status = call.Status, phoneNumber = phone, studentId = student?.Id });
+    }
+
+    /// <summary>
+    /// Qo'ng'iroqlar tarixini provayderdan QO'LDA sinxronlash (calls.list) — "Yozuvlar tarixi"
+    /// tabidagi "Yangilash" tugmasi. Davriy avto-sinxron baribir 5 daqiqada yuradi; bu darhol ko'rish uchun.
+    /// </summary>
+    [HttpPost("telephony/sync")]
+    public async Task<ActionResult> SyncTelephonyHistory()
+    {
+        if (!moizvonki.IsConfigured)
+            return StatusCode(503, new { message = "MoiZvonki sozlanmagan" });
+        var (added, updated) = await callSync.SyncOnceAsync(HttpContext.RequestAborted);
+        return Ok(new { added, updated });
     }
 
     /// <summary>Barcha qo'ng'iroqlar (eng oxirgisi tepada) — "Yozuvlar tarixi" bo'limi uchun.</summary>

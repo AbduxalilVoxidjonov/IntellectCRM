@@ -237,6 +237,10 @@ builder.Services.AddHostedService<AsteriskCallMonitorService>();
 // Sozlangan bo'lsa Asterisk'dan USTUN provayder sifatida ishlatiladi (CallsController.Provider).
 builder.Services.AddSingleton<MoiZvonkiService>();
 builder.Services.AddHostedService<MoiZvonkiSetupService>();
+// Qo'ng'iroqlar TARIXI sinxroni (calls.list) — webhook'siz ham tarix to'ladi; singleton
+// sifatida ham ro'yxatda (controller qo'lda "Yangilash"da SyncOnceAsync'ni chaqiradi).
+builder.Services.AddSingleton<MoiZvonkiCallSyncService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<MoiZvonkiCallSyncService>());
 
 // O'zgarishlar tarixi (audit) — joriy foydalanuvchini aniqlash uchun HttpContext kerak
 builder.Services.AddHttpContextAccessor();

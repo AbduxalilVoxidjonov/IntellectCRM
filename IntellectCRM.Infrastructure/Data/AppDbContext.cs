@@ -208,6 +208,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         b.Entity<Call>().HasIndex(c => c.PhoneNumber);
         b.Entity<Call>().HasIndex(c => c.StartedAt);
         b.Entity<Call>().HasIndex(c => c.AsteriskUniqueId);
+        b.Entity<Call>().HasIndex(c => c.ProviderDbId);
         b.Entity<AuditLog>().HasIndex(a => a.Timestamp);
         b.Entity<AuditLog>().HasIndex(a => a.StudentId);
         b.Entity<AuditLog>().HasIndex(a => a.TeacherId);
