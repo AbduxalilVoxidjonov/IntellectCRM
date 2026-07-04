@@ -113,7 +113,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     // Eslatmalar (avtomatik push-qoidalar)
     public DbSet<ReminderRule> ReminderRules => Set<ReminderRule>();
 
-    // Call Center — Asterisk qo'ng'iroqlari jurnali
+    // Call Center — qo'ng'iroqlar jurnali
     public DbSet<Call> Calls => Set<Call>();
 
     // Tuman + maktab

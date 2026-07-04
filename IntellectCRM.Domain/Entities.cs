@@ -1875,9 +1875,9 @@ public class StaffRoleTemplate
 
 
 /// <summary>
-/// Call Center qo'ng'irog'i (Asterisk + GSM gateway orqali). O'quvchi topilsa StudentId to'ladi
+/// Call Center qo'ng'irog'i (provayder telefoniya orqali). O'quvchi topilsa StudentId to'ladi
 /// (qo'lda terilgan/notanish raqamda null). Operator = CRM foydalanuvchisi (Users).
-/// AsteriskUniqueId — AMI eventlarini (Ringing/Answer/Hangup) shu yozuvga bog'lash kaliti.
+/// AsteriskUniqueId — provayder hodisalarini (ringing/answer/finish) shu yozuvga bog'lash kaliti.
 /// </summary>
 public class Call
 {
@@ -1897,8 +1897,8 @@ public class Call
     public DateTime? EndedAt { get; set; }
     /// <summary>Gaplashuv davomiyligi soniyada (javobdan tugashgacha; javobsiz — 0).</summary>
     public int DurationSeconds { get; set; }
-    /// <summary>Provayder qo'ng'iroq id'si: Asterisk kanal UniqueId yoki MoiZvonki
-    /// event_pbx_call_id — jonli hodisalarni shu yozuvga bog'lash kaliti.</summary>
+    /// <summary>Provayder qo'ng'iroq id'si: MoiZvonki event_pbx_call_id —
+    /// jonli hodisalarni shu yozuvga bog'lash kaliti. (Maydon nomi tarixiy sabab bilan qoldi.)</summary>
     public string AsteriskUniqueId { get; set; } = string.Empty;
     /// <summary>MoiZvonki db_call_id — calls.list sinxronizatsiyasida takrorlanmaslik kaliti
     /// (webhook call.finish ham to'ldiradi). Bo'sh — sinxron qilinmagan/boshqa provayder.</summary>
@@ -1908,7 +1908,7 @@ public class Call
     public string Transcript { get; set; } = string.Empty;
     /// <summary>Transkript bo'yicha Gemini AI tahlili (operator nima deyishi mumkin edi, tavsiyalar).</summary>
     public string AiAnalysis { get; set; } = string.Empty;
-    /// <summary>Suhbat yozuvi fayl nomi (Asterisk recordings papkasiga nisbatan). Bo'sh — yozuv yo'q.</summary>
+    /// <summary>Suhbat yozuvi: provayder yozuv URL'i (MoiZvonki) yoki lokal fayl nomi. Bo'sh — yozuv yo'q.</summary>
     public string RecordingFile { get; set; } = string.Empty;
     /// <summary>Operator izohi (ixtiyoriy).</summary>
     public string Note { get; set; } = string.Empty;

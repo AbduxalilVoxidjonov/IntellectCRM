@@ -226,7 +226,7 @@ public record SaveReminderRuleRequest(
     string Audience, string ScheduleType, string ScheduleTime, int ScheduleDayOfMonth,
     string SendScope = "");
 
-/* ---------- Call Center (Asterisk) ---------- */
+/* ---------- Call Center (MoiZvonki) ---------- */
 
 /// <summary>Chiquvchi qo'ng'iroq so'rovi: studentId YOKI phoneNumber (dialpad'dan qo'lda) beriladi.</summary>
 public record OriginateCallRequest(string? StudentId, string? PhoneNumber, string? OperatorExtension);

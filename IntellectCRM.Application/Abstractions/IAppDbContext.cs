@@ -119,7 +119,7 @@ public interface IAppDbContext
     // Eslatmalar (avtomatik push-qoidalar) — Sozlamalar → Eslatmalar
     DbSet<ReminderRule> ReminderRules { get; }
 
-    // Call Center — Asterisk qo'ng'iroqlari jurnali
+    // Call Center — qo'ng'iroqlar jurnali
     DbSet<Call> Calls { get; }
 
     int SaveChanges();

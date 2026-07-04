@@ -65,26 +65,12 @@ services:
       Turnstile__Username: "${TURNSTILE_USERNAME:-}"
       Turnstile__Password: "${TURNSTILE_PASSWORD:-}"
       # Call Center — MoiZvonki (bulutli telefoniya: operator telefonidagi ilova + SIM).
-      # Sozlangan bo'lsa Asterisk'dan USTUN ishlatiladi. Webhook avto-obuna APP_HOST orqali.
+      # Webhook avto-obuna APP_HOST orqali.
       MoiZvonki__Enabled: "${MOIZVONKI_ENABLED:-false}"
       MoiZvonki__Domain: "${MOIZVONKI_DOMAIN:-}"
       MoiZvonki__UserName: "${MOIZVONKI_USERNAME:-}"
       MoiZvonki__ApiKey: "${MOIZVONKI_API_KEY:-}"
       MoiZvonki__WebhookSecret: "${MOIZVONKI_WEBHOOK_SECRET:-}"
-      # Call Center — Asterisk AMI (GSM gateway orqali qo'ng'iroq). Server Asterisk'ka
-      # tarmoqdan yeta olishi shart (bir LAN yoki VPN — WireGuard/Tailscale; AMI portini
-      # internetga OCHMANG). RecordingsPath — yozuvlar papkasi konteyner ICHIDAGI yo'l
-      # (pastdagi `volumes`da mount qilinadi, bo'sh qoldirilsa tinglash o'chiq).
-      Asterisk__Enabled: "${ASTERISK_ENABLED:-false}"
-      Asterisk__Host: "${ASTERISK_HOST:-}"
-      Asterisk__Port: "${ASTERISK_PORT:-5038}"
-      Asterisk__Username: "${ASTERISK_USERNAME:-}"
-      Asterisk__Password: "${ASTERISK_PASSWORD:-}"
-      Asterisk__OperatorChannel: "${ASTERISK_OPERATOR_CHANNEL:-PJSIP/{ext}}"
-      Asterisk__OutboundContext: "${ASTERISK_OUTBOUND_CONTEXT:-from-internal}"
-      Asterisk__DefaultOperatorExtension: "${ASTERISK_DEFAULT_OPERATOR_EXT:-}"
-      Asterisk__CallerId: "${ASTERISK_CALLER_ID:-}"
-      Asterisk__RecordingsPath: "${ASTERISK_RECORDINGS_PATH:-}"
       # Kamera / to'lov eslatmasi / kunlik AI tahlil / backup (yoqish-o'chirish + vaqt):
       Camera__Enabled: "${CAMERA_ENABLED:-}"
       PaymentReminders__Enabled: "${PAYMENT_REMINDERS_ENABLED:-}"
@@ -101,9 +87,6 @@ services:
     volumes:
       - uploads:/app/uploads               # yuklangan fayllar (rasm, hujjat)
       - dpkeys:/app/keys                   # DataProtection kalitlari — deploylar oralig'ida saqlanadi
-      # Call Center yozuvlari: Asterisk'dan sync qilingan papkani konteynerga ulang va
-      # .env'da ASTERISK_RECORDINGS_PATH=/recordings/calls deb bering. Masalan:
-      # - /srv/asterisk-recordings:/recordings/calls:ro
     depends_on:
       postgres:
         condition: service_healthy

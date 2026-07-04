@@ -1,6 +1,6 @@
 import { api } from '../client'
 
-/** Call Center — Asterisk qo'ng'iroqlari: originate, jurnal, yozuvni tinglash. */
+/** Call Center — telefoniya qo'ng'iroqlari (MoiZvonki): originate, jurnal, yozuvni tinglash. */
 
 export type CallStatus =
   | 'originating'
@@ -77,11 +77,10 @@ export interface CallUpdate {
   hasRecording: boolean
 }
 
-/** Modul sozlanganmi (banner uchun) + faol provayder ("moizvonki" | "asterisk" | ""). */
+/** Modul sozlanganmi (banner uchun) + faol provayder ("moizvonki" | ""). */
 export async function getCallsConfig(): Promise<{
   configured: boolean
   provider: string
-  defaultOperatorExtension: string
 }> {
   const { data } = await api.get('/admin/calls/config')
   return data
@@ -91,7 +90,6 @@ export async function getCallsConfig(): Promise<{
 export async function originateCall(req: {
   studentId?: string
   phoneNumber?: string
-  operatorExtension?: string
 }): Promise<{ callId: string; status: CallStatus; phoneNumber: string; studentId: string | null }> {
   const { data } = await api.post('/admin/calls/originate', req)
   return data

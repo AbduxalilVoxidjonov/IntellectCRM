@@ -211,7 +211,7 @@ export function CallCenterPage() {
           <span>
             Telefoniya hali ulanmagan — qo'ng'iroqlar ishlamaydi. Server sozlamalarida{' '}
             <code className="rounded bg-amber-100 px-1">MOIZVONKI_ENABLED/DOMAIN/USERNAME/API_KEY</code>{' '}
-            (MoiZvonki — tavsiya) yoki Asterisk muhit o'zgaruvchilarini bering.
+            muhit o'zgaruvchilarini bering.
           </span>
         </div>
       )}

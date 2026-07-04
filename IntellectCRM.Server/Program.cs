@@ -228,13 +228,8 @@ builder.Services.AddHostedService<TelegramBotService>();
 builder.Services.AddSingleton<FcmService>();
 // Eskiz.uz SMS — login/parol CenterMeta'da; token keshi uchun singleton.
 builder.Services.AddSingleton<EskizService>();
-// Asterisk AMI (Call Center) — ulanishni ushlab turadi, shuning uchun singleton.
-// Sozlash: appsettings "Asterisk" yoki env (Asterisk__Host ...). Enabled=false — modul o'chiq.
-builder.Services.AddSingleton<AsteriskService>();
-// AMI hodisalarini (Ringing/Up/Hangup) Calls jadvaliga yozib, LiveHub "calls" mavzusiga push qiladi.
-builder.Services.AddHostedService<AsteriskCallMonitorService>();
-// MoiZvonki (bulutli telefoniya — operator telefoni orqali) — REST mijoz + webhook avto-obuna.
-// Sozlangan bo'lsa Asterisk'dan USTUN provayder sifatida ishlatiladi (CallsController.Provider).
+// MoiZvonki (bulutli telefoniya — operator telefoni orqali) — YAGONA telefoniya provayderi.
+// REST mijoz + webhook avto-obuna. Sozlanmagan bo'lsa Call Center moduli o'chiq (CallsController.Provider).
 builder.Services.AddSingleton<MoiZvonkiService>();
 builder.Services.AddHostedService<MoiZvonkiSetupService>();
 // Qo'ng'iroqlar TARIXI sinxroni (calls.list) — webhook'siz ham tarix to'ladi; singleton

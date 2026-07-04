@@ -10,25 +10,24 @@ using IntellectCRM.Domain;
 namespace IntellectCRM.Server.Controllers;
 
 /// <summary>
-/// Call Center — Asterisk (AMI) orqali chiquvchi qo'ng'iroq va qo'ng'iroqlar jurnali.
-/// Oqim: POST originate → AsteriskService (AMI Originate: avval operator kanali, keyin dialplan
-/// GSM gateway orqali raqamga teradi) → Call yozuvi "originating". Holat yangilanishi (ringing/
-/// answered/completed) — keyingi bosqichda AMI eventlari + SignalR bilan.
+/// Call Center — MoiZvonki (bulutli telefoniya) orqali chiquvchi qo'ng'iroq va qo'ng'iroqlar jurnali.
+/// Oqim: POST originate → MoiZvonkiService (qo'ng'iroq operator telefonidan chiqadi) → Call yozuvi
+/// "originating". Holat yangilanishi (ringing/answered/completed) — provayder webhook'i
+/// (TelephonyWebhookController) + SignalR orqali keladi.
 /// </summary>
 [ApiController]
 [Authorize]
 [AdminPerm("calls")]
 [Route("api/admin/calls")]
 public class CallsController(
-    AppDbContext db, AsteriskService asterisk, MoiZvonkiService moizvonki,
+    AppDbContext db, MoiZvonkiService moizvonki,
     MoiZvonkiCallSyncService callSync,
     IConfiguration config, IHttpClientFactory httpFactory) : ControllerBase
 {
     private string Uid => User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "";
 
-    /// <summary>Faol telefoniya provayderi: MoiZvonki birinchi (sozlangan bo'lsa), keyin Asterisk.</summary>
-    private string Provider =>
-        moizvonki.IsConfigured ? "moizvonki" : asterisk.IsConfigured ? "asterisk" : "";
+    /// <summary>Faol telefoniya provayderi: MoiZvonki (sozlangan bo'lsa), aks holda modul o'chiq.</summary>
+    private string Provider => moizvonki.IsConfigured ? "moizvonki" : "";
 
     /// <summary>Frontend uchun modul holati: telefoniya sozlanganmi + qaysi provayder.</summary>
     [HttpGet("config")]
@@ -36,7 +35,6 @@ public class CallsController(
     {
         configured = Provider.Length > 0,
         provider = Provider,
-        defaultOperatorExtension = asterisk.DefaultOperatorExtension,
     });
 
     /// <summary>
@@ -59,15 +57,15 @@ public class CallsController(
     }
 
     /// <summary>
-    /// Chiquvchi qo'ng'iroq. Body: studentId YOKI phoneNumber (dialpad). OperatorExtension
-    /// berilmasa Asterisk:DefaultOperatorExtension ishlatiladi. Qo'lda terilgan raqam o'quvchiga
-    /// tegishli bo'lsa (telefonlari bo'yicha moslash) — tarix o'sha o'quvchiga bog'lanadi.
+    /// Chiquvchi qo'ng'iroq. Body: studentId YOKI phoneNumber (dialpad). Qo'ng'iroq operator
+    /// telefonidan chiqadi (MoiZvonki). Qo'lda terilgan raqam o'quvchiga tegishli bo'lsa
+    /// (telefonlari bo'yicha moslash) — tarix o'sha o'quvchiga bog'lanadi.
     /// </summary>
     [HttpPost("originate")]
     public async Task<ActionResult> Originate(OriginateCallRequest req)
     {
         if (Provider.Length == 0)
-            return StatusCode(503, new { message = "Telefoniya sozlanmagan — MoiZvonki (MoiZvonki__Enabled/Domain/UserName/ApiKey) yoki Asterisk (Asterisk__Enabled/Host/Username) bering" });
+            return StatusCode(503, new { message = "Telefoniya sozlanmagan — MoiZvonki (MoiZvonki__Enabled/Domain/UserName/ApiKey) bering" });
 
         // 1) Raqam va (iloji bo'lsa) o'quvchini aniqlash.
         string phone;
@@ -93,19 +91,7 @@ public class CallsController(
                 s.Phone == phone || s.ParentPhone == phone || s.FatherPhone == phone || s.MotherPhone == phone);
         }
 
-        // 2) Provayderga xos talab: Asterisk'da operator ichki (SIP) raqami majburiy
-        //    (MoiZvonki'da qo'ng'iroq konfiguratsiyadagi akkaunt telefonidan chiqadi).
-        var ext = "";
-        if (Provider == "asterisk")
-        {
-            ext = string.IsNullOrWhiteSpace(req.OperatorExtension)
-                ? asterisk.DefaultOperatorExtension
-                : req.OperatorExtension.Trim();
-            if (string.IsNullOrWhiteSpace(ext))
-                return BadRequest(new { message = "Operator ichki (SIP) raqami berilmagan — operatorExtension yoki Asterisk:DefaultOperatorExtension" });
-        }
-
-        // 3) Jurnal yozuvi + qo'ng'iroq buyrug'i.
+        // 2) Jurnal yozuvi + qo'ng'iroq buyrug'i (qo'ng'iroq akkaunt telefonidan chiqadi).
         var call = new Call
         {
             StudentId = student?.Id,
@@ -117,9 +103,7 @@ public class CallsController(
         db.Calls.Add(call);
         await db.SaveChangesAsync();
 
-        var (ok, message) = Provider == "moizvonki"
-            ? await moizvonki.MakeCallAsync(new string(phone.Where(char.IsDigit).ToArray()))
-            : await asterisk.OriginateAsync(phone, ext, call.Id);
+        var (ok, message) = await moizvonki.MakeCallAsync(new string(phone.Where(char.IsDigit).ToArray()));
         if (!ok)
         {
             call.Status = "failed";
@@ -347,38 +331,30 @@ public class CallsController(
         return Ok(new { analysis = call.AiAnalysis });
     }
 
-    /// <summary>Yozuv faylining to'liq baytlari: provayder URL'idan yoki lokal papkadan
-    /// (Recording streaming endpointi bilan bir xil manbalar).</summary>
+    /// <summary>Yozuv faylining to'liq baytlari: provayder (MoiZvonki) URL'idan oqim qilib olinadi.</summary>
     private async Task<(byte[]? Audio, string FileName, string? Error)> GetRecordingBytesAsync(Call call)
     {
-        if (call.RecordingFile.StartsWith("http", StringComparison.OrdinalIgnoreCase))
-        {
-            try
-            {
-                var http = httpFactory.CreateClient();
-                http.Timeout = TimeSpan.FromSeconds(120);
-                var resp = await http.GetAsync(call.RecordingFile);
-                if (!resp.IsSuccessStatusCode)
-                    return (null, "", $"Provayderdan yozuvni olib bo'lmadi (HTTP {(int)resp.StatusCode})");
-                var ctType = resp.Content.Headers.ContentType?.MediaType ?? "";
-                if (ctType.StartsWith("text/") || ctType.Contains("html"))
-                    return (null, "", "Provayder yozuv o'rniga sahifa qaytardi");
-                var name = Path.GetFileName(new Uri(call.RecordingFile).AbsolutePath);
-                if (string.IsNullOrWhiteSpace(name) || !name.Contains('.')) name = "recording.mp3";
-                return (await resp.Content.ReadAsByteArrayAsync(), name, null);
-            }
-            catch (Exception ex)
-            {
-                return (null, "", $"Yozuvni yuklab bo'lmadi: {ex.Message}");
-            }
-        }
+        if (!call.RecordingFile.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+            return (null, "", "Yozuv mavjud emas");
 
-        var dir = config["Asterisk:RecordingsPath"] ?? "";
-        if (dir.Length == 0) return (null, "", "Yozuvlar papkasi sozlanmagan");
-        var full = Path.GetFullPath(Path.Combine(dir, call.RecordingFile));
-        if (!full.StartsWith(Path.GetFullPath(dir), StringComparison.OrdinalIgnoreCase) || !System.IO.File.Exists(full))
-            return (null, "", "Yozuv fayli topilmadi");
-        return (await System.IO.File.ReadAllBytesAsync(full), Path.GetFileName(full), null);
+        try
+        {
+            var http = httpFactory.CreateClient();
+            http.Timeout = TimeSpan.FromSeconds(120);
+            var resp = await http.GetAsync(call.RecordingFile);
+            if (!resp.IsSuccessStatusCode)
+                return (null, "", $"Provayderdan yozuvni olib bo'lmadi (HTTP {(int)resp.StatusCode})");
+            var ctType = resp.Content.Headers.ContentType?.MediaType ?? "";
+            if (ctType.StartsWith("text/") || ctType.Contains("html"))
+                return (null, "", "Provayder yozuv o'rniga sahifa qaytardi");
+            var name = Path.GetFileName(new Uri(call.RecordingFile).AbsolutePath);
+            if (string.IsNullOrWhiteSpace(name) || !name.Contains('.')) name = "recording.mp3";
+            return (await resp.Content.ReadAsByteArrayAsync(), name, null);
+        }
+        catch (Exception ex)
+        {
+            return (null, "", $"Yozuvni yuklab bo'lmadi: {ex.Message}");
+        }
     }
 
     /// <summary>Bitta o'quvchining qo'ng'iroqlar tarixi (detalli oynadagi tab).</summary>
@@ -394,8 +370,8 @@ public class CallsController(
 
     /// <summary>
     /// Suhbat yozuvini eshittirish. DIQQAT: yozuvlar ATAYIN /uploads (ochiq statik) ostida EMAS —
-    /// faqat shu autentifikatsiyalangan endpoint orqali beriladi. Fayl Asterisk:RecordingsPath
-    /// papkasidan olinadi (dialplan MixMonitor {callId}.wav nomlashi kutiladi).
+    /// faqat shu autentifikatsiyalangan endpoint orqali beriladi. Yozuv provayder (MoiZvonki)
+    /// URL'idan proxy qilinadi (havola brauzerga oshkor bo'lmaydi).
     /// </summary>
     [HttpGet("{id}/recording")]
     public async Task<IActionResult> Recording(string id)
@@ -420,37 +396,7 @@ public class CallsController(
             return File(await resp.Content.ReadAsStreamAsync(), mediaType);
         }
 
-        var dir = config["Asterisk:RecordingsPath"] ?? "";
-        if (dir.Length == 0)
-            return NotFound(new { message = "Yozuvlar papkasi sozlanmagan (Asterisk:RecordingsPath)" });
-
-        // Fayl nomi DBdan; bo'sh bo'lsa konvensiya bo'yicha izlanadi ({callId}.wav ...).
-        var candidates = call.RecordingFile.Length > 0
-            ? new[] { call.RecordingFile }
-            : new[] { $"{call.Id}.wav", $"{call.Id}.mp3", $"{call.Id}.ogg", $"{call.Id}.gsm" };
-
-        foreach (var name in candidates)
-        {
-            var full = Path.GetFullPath(Path.Combine(dir, name));
-            // Path traversal himoyasi — fayl faqat recordings papkasi ichidan.
-            if (!full.StartsWith(Path.GetFullPath(dir), StringComparison.OrdinalIgnoreCase)) continue;
-            if (!System.IO.File.Exists(full)) continue;
-
-            if (call.RecordingFile.Length == 0)
-            {
-                call.RecordingFile = name;
-                await db.SaveChangesAsync();
-            }
-            var ct = Path.GetExtension(full).ToLowerInvariant() switch
-            {
-                ".mp3" => "audio/mpeg",
-                ".ogg" => "audio/ogg",
-                _ => "audio/wav",
-            };
-            return PhysicalFile(full, ct, enableRangeProcessing: true);
-        }
-
-        return NotFound(new { message = "Yozuv fayli topilmadi" });
+        return NotFound(new { message = "Yozuv mavjud emas" });
     }
 
     private async Task<List<CallDto>> ToDtosAsync(List<Call> items)
