@@ -30,6 +30,79 @@ public class DashboardController(DataCache dataCache) : ControllerBase
             TimeSpan.FromMinutes(10),
             ComputeAsync);
 
+    /// <summary>Bugungi darslar monitoringi: bugun (guruh Days bo'yicha) dars kuni bo'lgan guruhlar,
+    /// har biri uchun davomat qilinganmi va baho qo'yilganmi.</summary>
+    [HttpGet("today-lessons")]
+    public async Task<ActionResult<TodayLessonsDto>> TodayLessons() =>
+        await dataCache.GetOrCreateAsync(
+            $"dashboard:today-lessons:{AppClock.Now:yyyy-MM-dd}",
+            new[]
+            {
+                nameof(Group), nameof(Teacher), nameof(Subject), nameof(Room), nameof(StudentGroup),
+                nameof(LessonNote), nameof(JournalEntry), nameof(CriterionGrade),
+            },
+            TimeSpan.FromMinutes(5),
+            ComputeTodayLessonsAsync);
+
+    private static async Task<TodayLessonsDto> ComputeTodayLessonsAsync(IAppDbContext db)
+    {
+        var today = AppClock.Today.ToString("yyyy-MM-dd");
+        // JS bilan bir xil indeks: 0=Dushanba ... 6=Yakshanba.
+        var dayIdx = ((int)AppClock.Today.DayOfWeek + 6) % 7;
+
+        // Days (List<int>) EF tarjimasiga ishonmaymiz — guruhlar soni kichik, xotirada filtrlaymiz.
+        var groups = (await db.Classes.AsNoTracking().Where(g => !g.IsArchived).ToListAsync())
+            .Where(g => g.Days is { Count: > 0 } && g.Days.Contains(dayIdx))
+            .OrderBy(g => g.StartTime).ThenBy(g => g.Name)
+            .ToList();
+        if (groups.Count == 0) return new TodayLessonsDto(today, dayIdx, []);
+
+        var groupIds = groups.Select(g => g.Id).ToHashSet();
+
+        var teacherNames = (await db.Teachers.AsNoTracking()
+                .Select(t => new { t.Id, t.FullName }).ToListAsync())
+            .ToDictionary(t => t.Id, t => t.FullName);
+        var courseNames = (await db.Subjects.AsNoTracking()
+                .Select(s => new { s.Id, s.Name }).ToListAsync())
+            .ToDictionary(s => s.Id, s => s.Name);
+        var roomNames = (await db.Rooms.AsNoTracking()
+                .Select(r => new { r.Id, r.Name }).ToListAsync())
+            .ToDictionary(r => r.Id, r => r.Name);
+
+        // Faol a'zolar soni (guruh bo'yicha).
+        var membersByGroup = (await db.StudentGroups.AsNoTracking()
+                .Where(sg => sg.IsActive && groupIds.Contains(sg.GroupId))
+                .GroupBy(sg => sg.GroupId)
+                .Select(g => new { g.Key, N = g.Count() }).ToListAsync())
+            .ToDictionary(x => x.Key, x => x.N);
+
+        // Davomat qilingan = bugun shu guruhda "o'tildi" (Conducted) dars belgilangan.
+        var attendanceDone = (await db.LessonNotes.AsNoTracking()
+                .Where(n => n.Date == today && n.Conducted && groupIds.Contains(n.ClassId))
+                .Select(n => n.ClassId).ToListAsync()).ToHashSet();
+
+        // Baho qo'yilgan = bugun jurnalga baho kiritilgan YOKI baholash (mezon) belgisi qo'yilgan.
+        var journalGraded = (await db.JournalEntries.AsNoTracking()
+                .Where(e => e.Date == today && e.Grade != null && groupIds.Contains(e.ClassId))
+                .Select(e => e.ClassId).ToListAsync()).ToHashSet();
+        var criterionGraded = (await db.CriterionGrades.AsNoTracking()
+                .Where(g => g.Date == today && groupIds.Contains(g.GroupId))
+                .Select(g => g.GroupId).ToListAsync()).ToHashSet();
+
+        var lessons = groups.Select(g => new TodayLessonMonitorDto(
+            g.Id, g.Name,
+            courseNames.GetValueOrDefault(g.CourseId, ""),
+            g.TeacherId,
+            teacherNames.GetValueOrDefault(g.TeacherId, "Biriktirilmagan"),
+            !string.IsNullOrEmpty(g.RoomId) ? roomNames.GetValueOrDefault(g.RoomId, g.Room ?? "") : g.Room ?? "",
+            g.StartTime, g.EndTime,
+            membersByGroup.GetValueOrDefault(g.Id, 0),
+            attendanceDone.Contains(g.Id),
+            journalGraded.Contains(g.Id) || criterionGraded.Contains(g.Id))).ToList();
+
+        return new TodayLessonsDto(today, dayIdx, lessons);
+    }
+
     /// <summary>Dashboard ko'rsatkichlarini hisoblaydi (ajratilgan kesh scope'idagi DbContext bilan).
     /// Barcha so'rovlar faqat-o'qish — AsNoTracking.</summary>
     private static async Task<AdminDashboardDto> ComputeAsync(IAppDbContext db)

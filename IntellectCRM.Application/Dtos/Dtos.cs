@@ -409,6 +409,15 @@ public record AdminDashboardDto(
     AdminStatsDto Stats, List<ClassPerformanceItemDto> ClassPerformance, List<TopClassDto> TopClasses,
     StudentBreakdownDto StudentBreakdown, int TotalGradesCount = 0);
 
+/// <summary>Bosh sahifa "Bugungi darslar" monitoringi: bugun dars kuni bo'lgan har bir guruh uchun
+/// o'qituvchi davomat qildimi (bugungi Conducted LessonNote) va baho qo'ydimi (bugungi jurnal
+/// bahosi yoki mezon belgisi).</summary>
+public record TodayLessonMonitorDto(
+    string GroupId, string GroupName, string CourseName, string TeacherId, string TeacherName,
+    string Room, string StartTime, string EndTime, int StudentsCount,
+    bool AttendanceDone, bool GradesDone);
+public record TodayLessonsDto(string Date, int DayIndex, List<TodayLessonMonitorDto> Lessons);
+
 /* ---------- Class performance / rating ---------- */
 public record SubjectDto(string Id, string Name, decimal Price = 0);
 public record StudentDto(

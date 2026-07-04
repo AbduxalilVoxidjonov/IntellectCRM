@@ -104,6 +104,28 @@ export interface AdminDashboard {
   totalGradesCount?: number
 }
 
+/* ---------- Bugungi darslar monitoringi (bosh sahifa) ---------- */
+export interface TodayLessonMonitor {
+  groupId: string
+  groupName: string
+  courseName: string
+  teacherId: string
+  teacherName: string
+  room: string
+  startTime: string
+  endTime: string
+  studentsCount: number
+  /** Bugun davomat qilinganmi (Conducted dars belgilangan) */
+  attendanceDone: boolean
+  /** Bugun baho qo'yilganmi (jurnal bahosi yoki mezon belgisi) */
+  gradesDone: boolean
+}
+export interface TodayLessons {
+  date: string
+  dayIndex: number
+  lessons: TodayLessonMonitor[]
+}
+
 /* ---------- Markaz (butun o'quv markazi) kunlik AI tahlili ---------- */
 export interface CenterPoint {
   label: string

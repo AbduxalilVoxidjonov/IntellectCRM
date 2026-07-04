@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import {
   Users,
   GraduationCap,
@@ -13,27 +12,20 @@ import {
 } from 'lucide-react'
 import { getAdminDashboard } from '@/api/services/dashboard'
 import { useAsync } from '@/hooks/useAsync'
-import { Card } from '@/components/ui/Card'
 import { StatCard } from '@/components/ui/StatCard'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Loader } from '@/components/ui/Loader'
-import {
-  ClassPerformanceChart,
-  type Metric,
-} from '@/components/charts/ClassPerformanceChart'
-import { WeeklySchedule } from '@/components/dashboard/WeeklySchedule'
+import { TodayLessonsMonitor } from '@/components/dashboard/TodayLessonsMonitor'
 import { CenterAiAnalysisCard } from '@/components/dashboard/CenterAiAnalysisCard'
-import { cn } from '@/lib/utils'
 
 export function AdminDashboard() {
   const { data, loading, error } = useAsync(getAdminDashboard, [])
-  const [metric, setMetric] = useState<Metric>('grade')
 
   if (loading) return <Loader label="Yuklanmoqda..." />
   if (error) return <p className="text-red-600">Xatolik: {error}</p>
   if (!data) return null
 
-  const { stats, classPerformance, studentBreakdown } = data
+  const { stats, studentBreakdown } = data
 
   return (
     <div>
@@ -122,41 +114,8 @@ export function AdminDashboard() {
         <CenterAiAnalysisCard />
       </div>
 
-      {/* Statistika grafigi + reyting */}
-      <div className="grid grid-cols-1 gap-4">
-        {/* Grafik (baho / davomat tanlash) — har o'qituvchi alohida panel; tanlov hamma panelda almashadi */}
-        <Card
-          title="Guruhlar bo'yicha statistika"
-          sub={metric === 'grade' ? "O'rtacha baho bo'yicha" : "Davomat bo'yicha"}
-          actions={
-            <div className="tabs" role="tablist">
-              <button
-                type="button"
-                role="tab"
-                onClick={() => setMetric('grade')}
-                className={cn('tab', metric === 'grade' && 'active')}
-              >
-                O'rtacha baho
-              </button>
-              <button
-                type="button"
-                role="tab"
-                onClick={() => setMetric('attendance')}
-                className={cn('tab', metric === 'attendance' && 'active')}
-              >
-                Davomat
-              </button>
-            </div>
-          }
-        >
-          <ClassPerformanceChart data={classPerformance} metric={metric} />
-        </Card>
-      </div>
-
-      {/* Dars jadvali (raspisaniye) — yaratilgan guruhlarning haftalik jadvali */}
-      <div className="mt-4">
-        <WeeklySchedule />
-      </div>
+      {/* Bugungi darslar monitoringi — o'qituvchilar davomat qildimi va baho qo'ydimi */}
+      <TodayLessonsMonitor />
     </div>
   )
 }

@@ -1,4 +1,4 @@
-import type { AdminDashboard } from '@/types'
+import type { AdminDashboard, TodayLessons } from '@/types'
 import { delay } from '@/lib/utils'
 import { api, USE_MOCK } from '../client'
 import { adminDashboardMock } from '../mock/dashboard'
@@ -10,5 +10,11 @@ export async function getAdminDashboard(): Promise<AdminDashboard> {
     return adminDashboardMock
   }
   const { data } = await api.get<AdminDashboard>('/admin/dashboard')
+  return data
+}
+
+/** Bugungi darslar monitoringi — har guruh bo'yicha davomat/baho holati */
+export async function getTodayLessons(): Promise<TodayLessons> {
+  const { data } = await api.get<TodayLessons>('/admin/dashboard/today-lessons')
   return data
 }
