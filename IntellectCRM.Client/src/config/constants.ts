@@ -79,6 +79,7 @@ export const adminPermissions: { key: string; label: string }[] = [
   { key: 'feedback', label: 'Taklif va shikoyatlar' },
   { key: 'cameras', label: 'Kameralar' },
   { key: 'discipline', label: 'Intizomiy ball' },
+  { key: 'calls', label: 'Call Center' },
 ]
 
 /* ---------- Moliya ---------- */

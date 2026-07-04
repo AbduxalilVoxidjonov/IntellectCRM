@@ -224,6 +224,18 @@ public record SaveReminderRuleRequest(
     string Trigger, string Name, bool Enabled, string MessageTemplate, int OffsetMinutes,
     string Audience, string ScheduleType, string ScheduleTime, int ScheduleDayOfMonth,
     string SendScope = "");
+
+/* ---------- Call Center (Asterisk) ---------- */
+
+/// <summary>Chiquvchi qo'ng'iroq so'rovi: studentId YOKI phoneNumber (dialpad'dan qo'lda) beriladi.</summary>
+public record OriginateCallRequest(string? StudentId, string? PhoneNumber, string? OperatorExtension);
+/// <summary>Qo'ng'iroq qatori (ro'yxat/tarix uchun) — sanalar ISO string.</summary>
+public record CallDto(
+    string Id, string? StudentId, string StudentName, string PhoneNumber, string Direction,
+    string Status, string StartedAt, string? AnsweredAt, string? EndedAt, int DurationSeconds,
+    string OperatorName, bool HasRecording, string Note);
+/// <summary>Sahifalangan qo'ng'iroqlar ro'yxati.</summary>
+public record CallListDto(int Total, List<CallDto> Items);
 /// <summary>Moliyada o'quvchi qatori. Charged = jami to'liq oylik (chegirmasiz);
 /// Discount = jami berilgan chegirma; Paid = haqiqiy naqd to'lovlar yig'indisi (turli oylar uchun);
 /// Debt / Advance — joriy holatdan (balans). DiscountPct/Amount — qoidani ko'rsatish uchun.</summary>

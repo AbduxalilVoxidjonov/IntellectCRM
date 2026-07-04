@@ -113,6 +113,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     // Eslatmalar (avtomatik push-qoidalar)
     public DbSet<ReminderRule> ReminderRules => Set<ReminderRule>();
 
+    // Call Center — Asterisk qo'ng'iroqlari jurnali
+    public DbSet<Call> Calls => Set<Call>();
+
     // Tuman + maktab
     public DbSet<District> Districts => Set<District>();
     public DbSet<School> Schools => Set<School>();
@@ -200,6 +203,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         b.Entity<CenterAiAnalysis>().HasIndex(a => a.Date);
         b.Entity<SmsLog>().HasIndex(s => s.RequestId);
         b.Entity<SmsLog>().HasIndex(s => s.BatchId);
+        // Call Center: o'quvchi tarixi, raqam bo'yicha moslash, "eng oxirgisi tepada" ro'yxat.
+        b.Entity<Call>().HasIndex(c => c.StudentId);
+        b.Entity<Call>().HasIndex(c => c.PhoneNumber);
+        b.Entity<Call>().HasIndex(c => c.StartedAt);
+        b.Entity<Call>().HasIndex(c => c.AsteriskUniqueId);
         b.Entity<AuditLog>().HasIndex(a => a.Timestamp);
         b.Entity<AuditLog>().HasIndex(a => a.StudentId);
         b.Entity<AuditLog>().HasIndex(a => a.TeacherId);

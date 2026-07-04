@@ -228,6 +228,9 @@ builder.Services.AddHostedService<TelegramBotService>();
 builder.Services.AddSingleton<FcmService>();
 // Eskiz.uz SMS — login/parol CenterMeta'da; token keshi uchun singleton.
 builder.Services.AddSingleton<EskizService>();
+// Asterisk AMI (Call Center) — ulanishni ushlab turadi, shuning uchun singleton.
+// Sozlash: appsettings "Asterisk" yoki env (Asterisk__Host ...). Enabled=false — modul o'chiq.
+builder.Services.AddSingleton<AsteriskService>();
 
 // O'zgarishlar tarixi (audit) — joriy foydalanuvchini aniqlash uchun HttpContext kerak
 builder.Services.AddHttpContextAccessor();

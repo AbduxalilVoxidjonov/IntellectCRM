@@ -1869,3 +1869,34 @@ public class StaffRoleTemplate
     public DateTime CreatedAt { get; set; } = AppClock.Now;
 }
 
+
+/// <summary>
+/// Call Center qo'ng'irog'i (Asterisk + GSM gateway orqali). O'quvchi topilsa StudentId to'ladi
+/// (qo'lda terilgan/notanish raqamda null). Operator = CRM foydalanuvchisi (Users).
+/// AsteriskUniqueId — AMI eventlarini (Ringing/Answer/Hangup) shu yozuvga bog'lash kaliti.
+/// </summary>
+public class Call
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    /// <summary>Raqam o'quvchiga tegishli bo'lsa — Students.Id, aks holda null.</summary>
+    public string? StudentId { get; set; }
+    /// <summary>Qo'ng'iroqni boshlagan/qabul qilgan operator (Users.Id).</summary>
+    public string? OperatorUserId { get; set; }
+    /// <summary>Normallashtirilgan telefon raqam (+998...).</summary>
+    public string PhoneNumber { get; set; } = string.Empty;
+    /// <summary>"outbound" (chiquvchi) | "inbound" (kiruvchi).</summary>
+    public string Direction { get; set; } = "outbound";
+    /// <summary>originating | ringing | answered | completed | no_answer | busy | failed.</summary>
+    public string Status { get; set; } = "originating";
+    public DateTime StartedAt { get; set; } = AppClock.Now;
+    public DateTime? AnsweredAt { get; set; }
+    public DateTime? EndedAt { get; set; }
+    /// <summary>Gaplashuv davomiyligi soniyada (javobdan tugashgacha; javobsiz — 0).</summary>
+    public int DurationSeconds { get; set; }
+    /// <summary>Asterisk kanal UniqueId — AMI event korrelyatsiyasi uchun.</summary>
+    public string AsteriskUniqueId { get; set; } = string.Empty;
+    /// <summary>Suhbat yozuvi fayl nomi (Asterisk recordings papkasiga nisbatan). Bo'sh — yozuv yo'q.</summary>
+    public string RecordingFile { get; set; } = string.Empty;
+    /// <summary>Operator izohi (ixtiyoriy).</summary>
+    public string Note { get; set; } = string.Empty;
+}
