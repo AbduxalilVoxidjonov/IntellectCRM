@@ -1,0 +1,21 @@
+# Asterisk — OFISDAGI mashinada ishga tushiriladi (GSM gateway bilan bir lokal tarmoqda).
+# DigitalOcean'dagi CRM bunga Tailscale/VPN orqali AMI (5038) bilan ulanadi.
+#
+# Ishga tushirish (ofis mashinasida):
+#   docker compose up -d --build
+#   docker exec -it asterisk asterisk -rx "pjsip show endpoints"   # tekshirish
+#
+# network_mode: host — SIP/RTP (UDP 5060 + media portlari) NAT'siz ishlashi uchun SHART.
+services:
+  asterisk:
+    build: .
+    container_name: asterisk
+    network_mode: host
+    volumes:
+      # Faqat 3 ta konfiguratsiya fayli almashtiriladi — qolgan standart konf'lar образ ichida qoladi.
+      - ./conf/manager.conf:/etc/asterisk/manager.conf:ro
+      - ./conf/pjsip.conf:/etc/asterisk/pjsip.conf:ro
+      - ./conf/extensions.conf:/etc/asterisk/extensions.conf:ro
+      # Suhbat yozuvlari — hostdagi papkaga (rsync bilan serverga yuboriladi).
+      - ./recordings:/var/spool/asterisk/monitor
+    restart: unless-stopped

@@ -58,6 +58,11 @@ public class AsteriskService(IConfiguration config, ILogger<AsteriskService> log
     {
         if (!IsConfigured) return (false, "Asterisk sozlanmagan (Asterisk:Enabled/Host/Username)");
 
+        // Dialplan/GSM gateway faqat raqamlarni qabul qiladi — formatlangan (+998-90-...)
+        // ko'rinishdan chiziqcha/+ olib tashlanadi: 998901234567.
+        var dialable = new string(phoneNumber.Where(char.IsDigit).ToArray());
+        if (dialable.Length == 0) return (false, "Raqam bo'sh");
+
         try
         {
             // AsterNET API sinxron (socket) — thread pool'da bajaramiz.
@@ -68,9 +73,9 @@ public class AsteriskService(IConfiguration config, ILogger<AsteriskService> log
                 {
                     Channel = OperatorChannelTemplate.Replace("{ext}", operatorExtension),
                     Context = OutboundContext,
-                    Exten = phoneNumber,
+                    Exten = dialable,
                     Priority = "1",
-                    CallerId = string.IsNullOrWhiteSpace(CallerId) ? phoneNumber : CallerId,
+                    CallerId = string.IsNullOrWhiteSpace(CallerId) ? dialable : CallerId,
                     Async = true,
                     Timeout = 30_000,
                 };
