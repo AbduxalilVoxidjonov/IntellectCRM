@@ -26,7 +26,8 @@ public class AutoMessagesController(AppDbContext db) : ControllerBase
         AutoMessageTriggers.All.Select(t => new AutoMessageTriggerInfoDto(
             t.Key, t.Label, t.Description, t.Tokens,
             new AutoMessageChannelsDto(t.Sms, t.Push, t.Telegram),
-            t.SupportsSchedule, t.SupportsSendScope, t.Audiences, t.DefaultAudience)).ToList();
+            t.SupportsSchedule, t.SupportsSendScope, t.Audiences, t.DefaultAudience,
+            t.DefaultTemplate)).ToList();
 
     [HttpGet]
     public async Task<ActionResult<IEnumerable<AutoMessageRuleDto>>> List()

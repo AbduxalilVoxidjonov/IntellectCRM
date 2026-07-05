@@ -31,6 +31,8 @@ export interface AutoMessageTrigger {
   audiences: string[]
   /** Standart auditoriya (yangi qoida yaratishda) */
   defaultAudience: string
+  /** Standart xabar shabloni (yangi qoida yaratishda — bo'sh shablon backend tomonidan rad etiladi) */
+  defaultTemplate: string
 }
 
 /** Bitta avto xabar qoidasi. */

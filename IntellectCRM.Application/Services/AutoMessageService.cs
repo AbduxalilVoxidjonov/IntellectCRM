@@ -45,7 +45,20 @@ public class AutoMessageService(
                 try
                 {
                     var audienceStudent = rule.Audience == "students";
-                    // Telefon tanlash: o'quvchi auditoriyasi — o'z raqami birinchi; aks holda ota-ona birinchi.
+                    var audienceTeachers = rule.Audience == "teachers";
+
+                    // O'qituvchi auditoriyasi: MATN o'quvchi haqida (Student tokenizer — o'zgarmaydi), lekin
+                    // YETKAZISH guruh o'qituvchisiga bo'ladi. Guruh/o'qituvchi bo'lmasa — bu qoidani o'tkazib yubor.
+                    Teacher? teacher = null;
+                    if (audienceTeachers)
+                    {
+                        if (group?.TeacherId is null) continue;
+                        teacher = await db.Teachers.FindAsync(new object?[] { group.TeacherId }, ct);
+                        if (teacher is null) continue;
+                    }
+
+                    // Telefon: render ({telefon} tokeni) + o'quvchi/ota-ona auditoriyasi SMS manzili.
+                    // O'quvchi auditoriyasi — o'z raqami birinchi; aks holda ota-ona birinchi.
                     var phone = audienceStudent
                         ? Coalesce(s.Phone, s.ParentPhone, s.FatherPhone, s.MotherPhone)
                         : Coalesce(s.ParentPhone, s.FatherPhone, s.MotherPhone, s.Phone);
@@ -55,18 +68,23 @@ public class AutoMessageService(
                     var title = Title(rule, trigger);
                     if (string.IsNullOrWhiteSpace(msg)) continue;
 
+                    // Yetkazish manzili auditoriya bo'yicha (matn bir xil — faqat manzil o'zgaradi).
+                    var smsPhone     = audienceTeachers ? teacher!.Phone    : phone;
+                    var smsRecipient = audienceTeachers ? teacher!.FullName : s.FullName;
+                    var pushUserId   = audienceTeachers ? teacher!.UserId   : s.UserId;
+
                     // SMS.
-                    if (rule.SendSms && !string.IsNullOrWhiteSpace(phone) && eskiz.IsConfigured(meta))
-                        dirty |= await SendSmsAsync(db, trigger, phone!, s.FullName, rule.Template, msg, ct);
+                    if (rule.SendSms && !string.IsNullOrWhiteSpace(smsPhone) && eskiz.IsConfigured(meta))
+                        dirty |= await SendSmsAsync(db, trigger, smsPhone!, smsRecipient, rule.Template, msg, ct);
 
                     // Push (ilova akkaunti) + ichki bildirishnoma tarixi.
-                    if (rule.SendPush && !string.IsNullOrWhiteSpace(s.UserId))
+                    if (rule.SendPush && !string.IsNullOrWhiteSpace(pushUserId))
                     {
-                        NotificationStore.Add(db, s.UserId, title, msg, trigger);
+                        NotificationStore.Add(db, pushUserId!, title, msg, trigger);
                         dirty = true;
                         if (FcmService.IsConfigured(fcmJson))
                         {
-                            var tokens = await db.DeviceTokens.Where(d => d.UserId == s.UserId)
+                            var tokens = await db.DeviceTokens.Where(d => d.UserId == pushUserId)
                                 .Select(d => d.Token).Distinct().ToListAsync(ct);
                             if (tokens.Count > 0)
                             {
@@ -76,11 +94,15 @@ public class AutoMessageService(
                         }
                     }
 
-                    // Telegram (o'quvchiga bog'langan chatlar).
+                    // Telegram (o'qituvchi auditoriyasida — o'qituvchi chatlari; aks holda o'quvchi chatlari).
                     if (rule.SendTelegram && telegram.IsConfigured)
                     {
-                        var chats = await db.TelegramRegistrations.Where(r => r.StudentId == s.Id)
-                            .Select(r => r.ChatId).Distinct().ToListAsync(ct);
+                        var teacherId = teacher?.Id;
+                        var chats = audienceTeachers
+                            ? await db.TelegramRegistrations.Where(r => r.TeacherId == teacherId)
+                                .Select(r => r.ChatId).Distinct().ToListAsync(ct)
+                            : await db.TelegramRegistrations.Where(r => r.StudentId == s.Id)
+                                .Select(r => r.ChatId).Distinct().ToListAsync(ct);
                         foreach (var chatId in chats)
                             await telegram.SendMessageAsync(chatId, $"🔔 {title}\n\n{msg}", ct: ct);
                     }

@@ -33,6 +33,7 @@ export function AutoMessagesTab() {
   const [rules, setRules] = useState<AutoMessageRule[]>([])
   const [loading, setLoading] = useState(true)
   const [failed, setFailed] = useState(false)
+  const [err, setErr] = useState('')
 
   const reloadRules = () => getAutoMessageRules().then(setRules).catch(() => setRules([]))
 
@@ -65,7 +66,7 @@ export function AutoMessagesTab() {
     sendPush: !t.channels.sms && t.channels.push,
     sendTelegram: !t.channels.sms && !t.channels.push && t.channels.telegram,
     audience: t.defaultAudience,
-    template: '',
+    template: t.defaultTemplate ?? '',
     offsetMinutes: 0,
     sendScope: t.supportsSendScope ? (sendScopeOptions[0]?.value ?? '') : '',
     scheduleType: t.supportsSchedule ? 'daily' : '',
@@ -74,8 +75,13 @@ export function AutoMessagesTab() {
   })
 
   const addRule = async (t: AutoMessageTrigger) => {
-    await createAutoMessageRule(buildDefaultRule(t))
-    await reloadRules()
+    try {
+      await createAutoMessageRule(buildDefaultRule(t))
+      await reloadRules()
+      setErr('')
+    } catch (e: any) {
+      setErr(e?.response?.data?.message || "Qoida qo'shib bo'lmadi")
+    }
   }
 
   if (loading) return <Loader label="Yuklanmoqda..." />
@@ -95,9 +101,24 @@ export function AutoMessagesTab() {
   }
 
   return (
-    // 2 ustun (katta ekranda) — sahifa juda uzun bo'lib ketmasligi uchun; items-start —
-    // yonma-yon kartalar bir-biriga qarab cho'zilmaydi.
-    <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-2">
+    <div className="space-y-4">
+      {err && (
+        <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <p className="flex-1">{err}</p>
+          <button
+            type="button"
+            onClick={() => setErr('')}
+            className="text-red-400 transition-colors hover:text-red-700"
+            aria-label="Yopish"
+          >
+            ×
+          </button>
+        </div>
+      )}
+      {/* 2 ustun (katta ekranda) — sahifa juda uzun bo'lib ketmasligi uchun; items-start —
+          yonma-yon kartalar bir-biriga qarab cho'zilmaydi. */}
+      <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-2">
       {triggers.map((t) => {
         const trRules = rulesByTrigger.get(t.key) ?? []
         return (
@@ -148,6 +169,7 @@ export function AutoMessagesTab() {
           </Card>
         )
       })}
+      </div>
     </div>
   )
 }
@@ -167,6 +189,7 @@ function RuleCard({
   const [draft, setDraft] = useState<AutoMessageRule>(rule)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [error, setError] = useState('')
   const textRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => setDraft(rule), [rule])
@@ -183,6 +206,10 @@ function RuleCard({
     try {
       await updateAutoMessageRule(rule.id, toInput(next))
       await onSaved()
+      setError('')
+    } catch (e: any) {
+      setDraft(draft)
+      setError(e?.response?.data?.message || "O'zgartirib bo'lmadi")
     } finally {
       setSaving(false)
     }
@@ -211,7 +238,10 @@ function RuleCard({
     try {
       await updateAutoMessageRule(rule.id, toInput(draft))
       setSaved(true)
+      setError('')
       await onSaved()
+    } catch (e: any) {
+      setError(e?.response?.data?.message || "Saqlab bo'lmadi")
     } finally {
       setSaving(false)
     }
@@ -270,7 +300,8 @@ function RuleCard({
           {draft.enabled ? 'Faol' : "O'chirilgan"}
         </button>
         <div className="ml-auto flex items-center gap-2">
-          {saved && <span className="text-xs font-medium text-emerald-600">Saqlandi</span>}
+          {error && <span className="text-xs font-medium text-red-600">{error}</span>}
+          {!error && saved && <span className="text-xs font-medium text-emerald-600">Saqlandi</span>}
           <button
             type="button"
             onClick={remove}
@@ -421,7 +452,10 @@ function RuleCard({
               ))}
             </div>
           )}
-          <div className="mt-3 flex justify-end">
+          <div className="mt-3 flex items-center justify-end gap-3">
+            {trigger.tokens.length > 0 && !draft.template.trim() && (
+              <span className="text-xs text-amber-600">Xabar matni bo'sh bo'lmasligi kerak</span>
+            )}
             <Button onClick={save} disabled={saving}>
               {saving ? 'Saqlanmoqda...' : 'Saqlash'}
             </Button>

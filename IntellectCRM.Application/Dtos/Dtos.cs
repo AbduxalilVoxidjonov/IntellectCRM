@@ -233,7 +233,8 @@ public record AutoMessageChannelsDto(bool Sms, bool Push, bool Telegram);
 /// <summary>Avto-xabar hodisasi katalogidagi bitta yozuv (frontend forma shundan quriladi).</summary>
 public record AutoMessageTriggerInfoDto(
     string Key, string Label, string Description, string[] Tokens, AutoMessageChannelsDto Channels,
-    bool SupportsSchedule, bool SupportsSendScope, string[] Audiences, string DefaultAudience);
+    bool SupportsSchedule, bool SupportsSendScope, string[] Audiences, string DefaultAudience,
+    string DefaultTemplate);
 /// <summary>Avto-xabar qoidasi (o'qish uchun).</summary>
 public record AutoMessageRuleDto(
     string Id, string Trigger, string Name, bool Enabled,

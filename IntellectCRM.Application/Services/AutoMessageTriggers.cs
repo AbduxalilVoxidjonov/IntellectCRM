@@ -43,7 +43,8 @@ public static class AutoMessageTriggers
         bool SupportsSchedule,
         bool SupportsSendScope,
         string[] Audiences,
-        string DefaultAudience);
+        string DefaultAudience,
+        string DefaultTemplate);
 
     // Umumiy token to'plamlari (takrorni kamaytirish uchun).
     private static readonly string[] ParentsAll = { "{ism}", "{fish}", "{guruh}", "{qarzdorlik}", "{markaz}", "{telefon}" };
@@ -56,7 +57,8 @@ public static class AutoMessageTriggers
             new[] { "{ism}", "{fish}", "{summa}", "{qarzdorlik}", "{guruh}", "{telefon}", "{markaz}" },
             Sms: true, Push: true, Telegram: true,
             SupportsSchedule: false, SupportsSendScope: false,
-            Audiences: new[] { "parents", "students" }, DefaultAudience: "parents"),
+            Audiences: new[] { "parents", "students", "teachers" }, DefaultAudience: "parents",
+            DefaultTemplate: "Hurmatli ota-ona! {ism}ning to'lovi qabul qilindi. Summa: {summa}. Qarzdorlik: {qarzdorlik}. {markaz}"),
 
         new(MonthlyCharge,
             "Oylik hisob yaratilganda",
@@ -64,7 +66,8 @@ public static class AutoMessageTriggers
             new[] { "{ism}", "{fish}", "{oy}", "{summa}", "{qarzdorlik}", "{markaz}" },
             Sms: true, Push: true, Telegram: true,
             SupportsSchedule: false, SupportsSendScope: false,
-            Audiences: new[] { "parents", "students" }, DefaultAudience: "parents"),
+            Audiences: new[] { "parents", "students", "teachers" }, DefaultAudience: "parents",
+            DefaultTemplate: "Hurmatli ota-ona! {ism} uchun {oy} oyi to'lovi hisoblandi: {summa}. Umumiy qarzdorlik: {qarzdorlik}. {markaz}"),
 
         new(PaymentDebt,
             "Qarzdorlik eslatmasi",
@@ -72,7 +75,8 @@ public static class AutoMessageTriggers
             System.Array.Empty<string>(),
             Sms: true, Push: true, Telegram: true,
             SupportsSchedule: false, SupportsSendScope: false,
-            Audiences: new[] { "parents" }, DefaultAudience: "parents"),
+            Audiences: new[] { "parents", "students", "teachers" }, DefaultAudience: "parents",
+            DefaultTemplate: ""),
 
         new(AttendanceAbsent,
             "O'quvchi darsga kelmaganda",
@@ -80,7 +84,8 @@ public static class AutoMessageTriggers
             new[] { "{ism}", "{fish}", "{sana}", "{guruh}", "{sabab}", "{markaz}" },
             Sms: true, Push: true, Telegram: true,
             SupportsSchedule: false, SupportsSendScope: false,
-            Audiences: new[] { "parents", "students" }, DefaultAudience: "parents"),
+            Audiences: new[] { "parents", "students", "teachers" }, DefaultAudience: "parents",
+            DefaultTemplate: "Hurmatli ota-ona! Farzandingiz {ism} {sana} kuni {guruh} guruhida darsga kelmadi. Sabab: {sabab}. {markaz}"),
 
         new(Birthday,
             "Tug'ilgan kun",
@@ -88,7 +93,8 @@ public static class AutoMessageTriggers
             new[] { "{ism}", "{fish}", "{markaz}" },
             Sms: true, Push: true, Telegram: true,
             SupportsSchedule: false, SupportsSendScope: false,
-            Audiences: new[] { "parents", "students" }, DefaultAudience: "parents"),
+            Audiences: new[] { "parents", "students", "teachers" }, DefaultAudience: "parents",
+            DefaultTemplate: "Hurmatli {ism}! Tug'ilgan kuningiz muborak bo'lsin! {markaz}"),
 
         new(StudentAdded,
             "O'quvchi guruhga qo'shilganda",
@@ -96,7 +102,8 @@ public static class AutoMessageTriggers
             new[] { "{ism}", "{fish}", "{guruh}", "{markaz}" },
             Sms: true, Push: true, Telegram: true,
             SupportsSchedule: false, SupportsSendScope: false,
-            Audiences: new[] { "parents", "students" }, DefaultAudience: "parents"),
+            Audiences: new[] { "parents", "students", "teachers" }, DefaultAudience: "parents",
+            DefaultTemplate: "Hurmatli ota-ona! {ism} {guruh} guruhiga qabul qilindi. Xush kelibsiz! {markaz}"),
 
         new(LeadNew,
             "Yangi lid kelganda",
@@ -104,7 +111,8 @@ public static class AutoMessageTriggers
             new[] { "{fish}", "{telefon}", "{fan}", "{markaz}" },
             Sms: true, Push: false, Telegram: false,
             SupportsSchedule: false, SupportsSendScope: false,
-            Audiences: new[] { "parents" }, DefaultAudience: "parents"),
+            Audiences: System.Array.Empty<string>(), DefaultAudience: "parents",
+            DefaultTemplate: "Assalomu alaykum {fish}! {markaz}ga qiziqishingiz uchun rahmat. Tez orada siz bilan bog'lanamiz."),
 
         new(TrialReminder,
             "Sinov darsi eslatmasi (ertaga)",
@@ -112,7 +120,8 @@ public static class AutoMessageTriggers
             new[] { "{fish}", "{dars_sana}", "{dars_vaqti}", "{dars_kunlari}", "{markaz}" },
             Sms: true, Push: false, Telegram: false,
             SupportsSchedule: false, SupportsSendScope: false,
-            Audiences: new[] { "parents" }, DefaultAudience: "parents"),
+            Audiences: System.Array.Empty<string>(), DefaultAudience: "parents",
+            DefaultTemplate: "Assalomu alaykum {fish}! Ertaga {dars_sana} kuni {dars_vaqti}da sinov darsingiz bor. {markaz}"),
 
         new(TestLink,
             "Daraja-test havolasi",
@@ -120,7 +129,8 @@ public static class AutoMessageTriggers
             new[] { "{fish}", "{link}", "{markaz}" },
             Sms: true, Push: false, Telegram: false,
             SupportsSchedule: false, SupportsSendScope: false,
-            Audiences: new[] { "parents" }, DefaultAudience: "parents"),
+            Audiences: System.Array.Empty<string>(), DefaultAudience: "parents",
+            DefaultTemplate: "Assalomu alaykum {fish}! Daraja testini shu havola orqali topshiring: {link}"),
 
         new(TestResult,
             "Test natijasi tayyor",
@@ -128,7 +138,8 @@ public static class AutoMessageTriggers
             new[] { "{fish}", "{natija}", "{daraja}", "{ball}", "{foiz}", "{markaz}" },
             Sms: true, Push: false, Telegram: false,
             SupportsSchedule: false, SupportsSendScope: false,
-            Audiences: new[] { "parents" }, DefaultAudience: "parents"),
+            Audiences: System.Array.Empty<string>(), DefaultAudience: "parents",
+            DefaultTemplate: "Assalomu alaykum {fish}! Test natijangiz: {natija}, daraja: {daraja}, ball: {ball} ({foiz}). {markaz}"),
 
         new(LessonAttendance,
             "Davomat eslatmasi (o'qituvchi)",
@@ -136,7 +147,8 @@ public static class AutoMessageTriggers
             new[] { "{fish}", "{guruh}", "{kurs}", "{dars_vaqti}", "{telefon}", "{markaz}" },
             Sms: true, Push: true, Telegram: true,
             SupportsSchedule: false, SupportsSendScope: true,
-            Audiences: new[] { "teachers" }, DefaultAudience: "teachers"),
+            Audiences: new[] { "teachers" }, DefaultAudience: "teachers",
+            DefaultTemplate: "Hurmatli {fish}! {guruh} ({kurs}) guruhida davomat jurnalini to'ldirishni unutmang. {markaz}"),
 
         new(CustomSchedule,
             "Jadval bo'yicha erkin eslatma",
@@ -144,7 +156,8 @@ public static class AutoMessageTriggers
             new[] { "{fish}", "{telefon}", "{markaz}", "{sana}", "{oy}", "{yil}" },
             Sms: true, Push: true, Telegram: true,
             SupportsSchedule: true, SupportsSendScope: false,
-            Audiences: new[] { "students", "teachers" }, DefaultAudience: "students"),
+            Audiences: new[] { "parents", "students", "teachers" }, DefaultAudience: "students",
+            DefaultTemplate: "Hurmatli {fish}! Eslatma. {markaz}"),
     };
 
     public static bool IsKnown(string? key) => !string.IsNullOrWhiteSpace(key) && All.Any(t => t.Key == key);
