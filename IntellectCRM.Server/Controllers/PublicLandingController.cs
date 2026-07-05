@@ -14,7 +14,7 @@ namespace IntellectCRM.Server.Controllers;
 [ApiController]
 [AllowAnonymous]
 [Route("api/public/landing-lead")]
-public class PublicLandingController(AppDbContext db, TelegramService telegram, EskizService eskiz) : ControllerBase
+public class PublicLandingController(AppDbContext db, TelegramService telegram, AutoMessageService autoMsg) : ControllerBase
 {
     public record LandingLeadRequest(string FullName, string Phone, string? Subject);
 
@@ -56,8 +56,7 @@ public class PublicLandingController(AppDbContext db, TelegramService telegram, 
         await db.SaveChangesAsync();
 
         await LeadNotifier.NotifyNewLeadAsync(db, telegram, lead);
-        await AutoSmsService.SendForLeadAsync(db, eskiz, AutoSmsService.TriggerLeadNew, lead,
-            $"{Request.Scheme}://{Request.Host}/api/sms/callback");
+        await autoMsg.DispatchLeadAsync(db, AutoMessageTriggers.LeadNew, lead);
 
         return Ok(new { ok = true });
     }

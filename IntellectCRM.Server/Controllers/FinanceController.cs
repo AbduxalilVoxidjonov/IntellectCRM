@@ -12,7 +12,7 @@ namespace IntellectCRM.Server.Controllers;
 [Authorize]
 [AdminPerm("finance")]
 [Route("api/admin/finance")]
-public class FinanceController(AppDbContext db, AuditService audit, EskizService eskiz) : ControllerBase
+public class FinanceController(AppDbContext db, AuditService audit, AutoMessageService autoMsg) : ControllerBase
 {
     private async Task<Dictionary<string, string>> StudentNames() =>
         await db.Students.ToDictionaryAsync(s => s.Id, s => s.FullName);
@@ -148,16 +148,14 @@ public class FinanceController(AppDbContext db, AuditService audit, EskizService
 
         await db.SaveChangesAsync();
 
-        // Avto SMS — o'quvchi tuition to'lovi qabul qilinganda ota-onaga ("To'lov" hodisasi).
+        // Avto xabar — o'quvchi tuition to'lovi qabul qilinganda ("To'lov qabul qilinganda" hodisasi):
+        // yoqilgan qoidalar bo'yicha SMS + push + telegram.
         if (tx is { Direction: "income", Category: "tuition", StudentId: not null })
         {
             var student = await db.Students.FindAsync(tx.StudentId);
             if (student is not null)
-                await AutoSmsService.SendForStudentAsync(db, eskiz, AutoSmsService.TriggerPayment, student,
-                    $"{Request.Scheme}://{Request.Host}/api/sms/callback", extra: new Dictionary<string, string>
-                    {
-                        ["{summa}"] = MessageTokenizer.MoneyPlain(tx.Amount),
-                    }, preferStudentPhone: true);
+                await autoMsg.DispatchStudentAsync(db, AutoMessageTriggers.PaymentReceived, student,
+                    new Dictionary<string, string> { ["{summa}"] = MessageTokenizer.MoneyPlain(tx.Amount) });
         }
 
         return ToDto(tx, await StudentNames(), await TeacherNames());
@@ -367,11 +365,15 @@ public class FinanceController(AppDbContext db, AuditService audit, EskizService
     {
         if (!string.IsNullOrEmpty(month))
         {
-            var (count, total) = await TuitionService.AccrueMonth(db, month);
+            var (count, total, created) = await TuitionService.AccrueMonth(db, month);
+            // Avto xabar — har YANGI hisob uchun ota-onaga ("Oylik hisob yaratilganda" hodisasi).
+            await autoMsg.DispatchMonthlyChargesAsync(db,
+                created.Select(c => (c.StudentId, month, c.Amount)).ToList());
             return new AccrueResultDto([month], count, total);
         }
 
-        var accrued = await TuitionService.AccrueDue(db);
+        var (accrued, createdDue) = await TuitionService.AccrueDue(db);
+        await autoMsg.DispatchMonthlyChargesAsync(db, createdDue);
         var sum = accrued.Count == 0
             ? 0m
             : await db.MonthlyCharges.Where(c => accrued.Contains(c.Month)).SumAsync(c => c.Amount);

@@ -1,0 +1,153 @@
+using System.Linq;
+
+namespace IntellectCRM.Application.Services;
+
+/// <summary>
+/// YAGONA avto-xabar hodisalari katalogi. Har bir <see cref="IntellectCRM.Domain.AutoMessageRule"/>
+/// shu ro'yxatdagi bitta kalitga (Trigger) bog'lanadi. Yangi hodisa qo'shilsa — shu yerga yozib qo'yish
+/// kifoya: frontend forma va backend validatsiya shu katalogdan avtomatik ishlaydi.
+///
+/// Bu eski <c>AutoSmsService</c> (faqat SMS) + <c>ReminderTriggers</c> (faqat push/telegram) ro'yxatlarini
+/// birlashtiradi va yangi hodisalarni (monthly_charge, attendance_absent, student_added) qo'shadi.
+///
+/// DIQQAT: <see cref="TriggerInfo.Tokens"/> — <c>MessageTokenizer</c>/dispatcher haqiqatan qo'llab-quvvatlaydigan
+/// ANIQ token nomlari (o'ylab topilmagan). Kanallar (<see cref="TriggerInfo.Sms"/>/Push/Telegram) — shu hodisada
+/// mavjud kanallar (frontend faqat shularni toggle qiladi). Lid hodisalarida faqat SMS ishlaydi (lidda push/telegram yo'q).
+/// </summary>
+public static class AutoMessageTriggers
+{
+    public const string PaymentReceived = "payment_received";
+    public const string MonthlyCharge = "monthly_charge";
+    public const string PaymentDebt = "payment_debt";
+    public const string AttendanceAbsent = "attendance_absent";
+    public const string Birthday = "birthday";
+    public const string StudentAdded = "student_added";
+    public const string LeadNew = "lead_new";
+    public const string TrialReminder = "trial_reminder";
+    public const string TestLink = "test_link";
+    public const string TestResult = "test_result";
+    public const string LessonAttendance = "lesson_attendance";
+    public const string CustomSchedule = "custom_schedule";
+
+    /// <param name="Sms">SMS kanali mavjudmi (frontend toggle ko'rsatadimi).</param>
+    /// <param name="Push">Push kanali mavjudmi.</param>
+    /// <param name="Telegram">Telegram kanali mavjudmi.</param>
+    public record TriggerInfo(
+        string Key,
+        string Label,
+        string Description,
+        string[] Tokens,
+        bool Sms,
+        bool Push,
+        bool Telegram,
+        bool SupportsSchedule,
+        bool SupportsSendScope,
+        string[] Audiences,
+        string DefaultAudience);
+
+    // Umumiy token to'plamlari (takrorni kamaytirish uchun).
+    private static readonly string[] ParentsAll = { "{ism}", "{fish}", "{guruh}", "{qarzdorlik}", "{markaz}", "{telefon}" };
+
+    public static readonly TriggerInfo[] All =
+    {
+        new(PaymentReceived,
+            "To'lov qabul qilinganda",
+            "O'quvchining oylik (tuition) to'lovi qabul qilinganda ota-onaga (yoki o'quvchiga) tasdiq xabari.",
+            new[] { "{ism}", "{fish}", "{summa}", "{qarzdorlik}", "{guruh}", "{telefon}", "{markaz}" },
+            Sms: true, Push: true, Telegram: true,
+            SupportsSchedule: false, SupportsSendScope: false,
+            Audiences: new[] { "parents", "students" }, DefaultAudience: "parents"),
+
+        new(MonthlyCharge,
+            "Oylik hisob yaratilganda",
+            "Har oy avtomatik oylik to'lov hisobi yaratilganda ota-onaga qancha hisoblangani va umumiy qarzdorlik haqida xabar.",
+            new[] { "{ism}", "{fish}", "{oy}", "{summa}", "{qarzdorlik}", "{markaz}" },
+            Sms: true, Push: true, Telegram: true,
+            SupportsSchedule: false, SupportsSendScope: false,
+            Audiences: new[] { "parents", "students" }, DefaultAudience: "parents"),
+
+        new(PaymentDebt,
+            "Qarzdorlik eslatmasi",
+            "Balansi manfiy o'quvchilarga har oyning 1-sanasida, keyin har 2 kunda batafsil (har kurs bo'yicha qarz) eslatma. Matn tizim tomonidan tuziladi (shablon shart emas).",
+            System.Array.Empty<string>(),
+            Sms: true, Push: true, Telegram: true,
+            SupportsSchedule: false, SupportsSendScope: false,
+            Audiences: new[] { "parents" }, DefaultAudience: "parents"),
+
+        new(AttendanceAbsent,
+            "O'quvchi darsga kelmaganda",
+            "Jurnalda o'quvchiga davomat sababi (kelmadi) belgilanganda ota-onaga xabar.",
+            new[] { "{ism}", "{fish}", "{sana}", "{guruh}", "{sabab}", "{markaz}" },
+            Sms: true, Push: true, Telegram: true,
+            SupportsSchedule: false, SupportsSendScope: false,
+            Audiences: new[] { "parents", "students" }, DefaultAudience: "parents"),
+
+        new(Birthday,
+            "Tug'ilgan kun",
+            "O'quvchining tug'ilgan kunida (kunlik 09:00, Toshkent) tabrik xabari.",
+            new[] { "{ism}", "{fish}", "{markaz}" },
+            Sms: true, Push: true, Telegram: true,
+            SupportsSchedule: false, SupportsSendScope: false,
+            Audiences: new[] { "parents", "students" }, DefaultAudience: "parents"),
+
+        new(StudentAdded,
+            "O'quvchi guruhga qo'shilganda",
+            "O'quvchi guruhga qo'shilganda (yangi o'quvchi yoki mavjud o'quvchini guruhga biriktirish) ota-onaga xush kelibsiz xabari.",
+            new[] { "{ism}", "{fish}", "{guruh}", "{markaz}" },
+            Sms: true, Push: true, Telegram: true,
+            SupportsSchedule: false, SupportsSendScope: false,
+            Audiences: new[] { "parents", "students" }, DefaultAudience: "parents"),
+
+        new(LeadNew,
+            "Yangi lid kelganda",
+            "Yangi lid (potentsial mijoz) qo'shilganda lidning telefoniga avtomatik SMS. Faqat SMS kanali (lidda ilova/telegram yo'q).",
+            new[] { "{fish}", "{telefon}", "{fan}", "{markaz}" },
+            Sms: true, Push: false, Telegram: false,
+            SupportsSchedule: false, SupportsSendScope: false,
+            Audiences: new[] { "parents" }, DefaultAudience: "parents"),
+
+        new(TrialReminder,
+            "Sinov darsi eslatmasi (ertaga)",
+            "Ertaga sinov darsi bo'ladigan lidlarga (kunlik 09:00, Toshkent) eslatma SMS. Faqat SMS kanali.",
+            new[] { "{fish}", "{dars_sana}", "{dars_vaqti}", "{dars_kunlari}", "{markaz}" },
+            Sms: true, Push: false, Telegram: false,
+            SupportsSchedule: false, SupportsSendScope: false,
+            Audiences: new[] { "parents" }, DefaultAudience: "parents"),
+
+        new(TestLink,
+            "Daraja-test havolasi",
+            "Lidga bir martalik daraja-test havolasini SMS qilib yuborish (Lidlar → Test yuborish). Faqat SMS kanali.",
+            new[] { "{fish}", "{link}", "{markaz}" },
+            Sms: true, Push: false, Telegram: false,
+            SupportsSchedule: false, SupportsSendScope: false,
+            Audiences: new[] { "parents" }, DefaultAudience: "parents"),
+
+        new(TestResult,
+            "Test natijasi tayyor",
+            "Daraja testi topshirilib natija chiqqanda abituriyentga (lidga) SMS. Faqat SMS kanali.",
+            new[] { "{fish}", "{natija}", "{daraja}", "{ball}", "{foiz}", "{markaz}" },
+            Sms: true, Push: false, Telegram: false,
+            SupportsSchedule: false, SupportsSendScope: false,
+            Audiences: new[] { "parents" }, DefaultAudience: "parents"),
+
+        new(LessonAttendance,
+            "Davomat eslatmasi (o'qituvchi)",
+            "O'qituvchilarga davomat (jurnal) eslatmasi. Rejimlar: dars boshlangach to'ldirmaganga; kunlik belgilangan vaqtda bugun darsi bo'lib to'ldirmaganlarga; yoki hammaga.",
+            new[] { "{fish}", "{guruh}", "{kurs}", "{dars_vaqti}", "{telefon}", "{markaz}" },
+            Sms: true, Push: true, Telegram: true,
+            SupportsSchedule: false, SupportsSendScope: true,
+            Audiences: new[] { "teachers" }, DefaultAudience: "teachers"),
+
+        new(CustomSchedule,
+            "Jadval bo'yicha erkin eslatma",
+            "O'zingiz belgilagan matn — tanlangan auditoriyaga (o'qituvchilar yoki o'quvchilar/ota-onalar) belgilangan jadval bo'yicha (har kuni yoki oyning muayyan kunida, belgilangan soatda) avtomatik xabar.",
+            new[] { "{fish}", "{telefon}", "{markaz}", "{sana}", "{oy}", "{yil}" },
+            Sms: true, Push: true, Telegram: true,
+            SupportsSchedule: true, SupportsSendScope: false,
+            Audiences: new[] { "students", "teachers" }, DefaultAudience: "students"),
+    };
+
+    public static bool IsKnown(string? key) => !string.IsNullOrWhiteSpace(key) && All.Any(t => t.Key == key);
+
+    public static TriggerInfo? Get(string? key) => All.FirstOrDefault(t => t.Key == key);
+}

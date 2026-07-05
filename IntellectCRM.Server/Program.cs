@@ -230,6 +230,8 @@ builder.Services.AddHostedService<TelegramBotService>();
 builder.Services.AddSingleton<FcmService>();
 // Eskiz.uz SMS — login/parol CenterMeta'da; token keshi uchun singleton.
 builder.Services.AddSingleton<EskizService>();
+// YAGONA avto-xabar dispatcheri (SMS+Push+Telegram) — Eskiz/Fcm/Telegram singletonlariga tayanadi.
+builder.Services.AddSingleton<AutoMessageService>();
 // MoiZvonki (bulutli telefoniya — operator telefoni orqali) — YAGONA telefoniya provayderi.
 // REST mijoz + webhook avto-obuna. Sozlanmagan bo'lsa Call Center moduli o'chiq (CallsController.Provider).
 builder.Services.AddSingleton<MoiZvonkiService>();
@@ -434,6 +436,66 @@ using (var scope = app.Services.CreateScope())
     catch (Exception ex)
     {
         app.Logger.LogWarning(ex, "[seed] SmsTemplates seed failed (migratsiya qo'llanmagan bo'lsa normal)");
+    }
+
+    // BIR MARTALIK KO'CHIRISH: eski avto-xabar modellarini (ReminderRule = push/telegram,
+    // SmsTemplate.IsAuto = SMS) yagona AutoMessageRule modeliga birlashtiramiz. Faqat jadval BO'SH
+    // bo'lsa ishlaydi (idempotent). Ko'chirilgan SMS andozalari oddiy (qo'lda) andozaga aylanadi.
+    try
+    {
+        if (!db.AutoMessageRules.Any())
+        {
+            var migrated = 0;
+
+            // (a) ReminderRule → AutoMessageRule (push + telegram yoqilgan, SMS o'chiq).
+            foreach (var r in db.ReminderRules.ToList())
+            {
+                if (!AutoMessageTriggers.IsKnown(r.Trigger)) continue;
+                var audience = string.IsNullOrWhiteSpace(r.Audience)
+                    ? (AutoMessageTriggers.Get(r.Trigger)?.DefaultAudience ?? "parents")
+                    : r.Audience;
+                db.AutoMessageRules.Add(new AutoMessageRule
+                {
+                    Trigger = r.Trigger, Name = r.Name, Enabled = r.Enabled,
+                    SendSms = false, SendPush = true, SendTelegram = true,
+                    Audience = audience, Template = r.MessageTemplate,
+                    OffsetMinutes = r.OffsetMinutes, SendScope = r.SendScope,
+                    ScheduleType = r.ScheduleType, ScheduleTime = r.ScheduleTime,
+                    ScheduleDayOfMonth = r.ScheduleDayOfMonth,
+                });
+                migrated++;
+            }
+
+            // (b) Avto SmsTemplate (Trigger != "") → AutoMessageRule (SMS yoqilgan). Trigger nomi
+            // "payment" → "payment_received", qolganlari bir xil. So'ng andoza oddiyga aylanadi.
+            foreach (var t in db.SmsTemplates.Where(x => x.Trigger != "").ToList())
+            {
+                var trigger = t.Trigger == "payment" ? AutoMessageTriggers.PaymentReceived : t.Trigger;
+                if (AutoMessageTriggers.IsKnown(trigger))
+                {
+                    db.AutoMessageRules.Add(new AutoMessageRule
+                    {
+                        Trigger = trigger, Name = t.Name, Enabled = t.IsAuto,
+                        SendSms = true, SendPush = false, SendTelegram = false,
+                        Audience = "parents", Template = t.Text,
+                    });
+                    migrated++;
+                }
+                // Andoza endi oddiy (qo'lda) — avto-hodisa AutoMessageRule'ga ko'chdi.
+                t.Trigger = "";
+                t.IsAuto = false;
+            }
+
+            if (migrated > 0 || db.SmsTemplates.Any())
+            {
+                db.SaveChanges();
+                app.Logger.LogInformation("[seed] Avto-xabarlar ko'chirildi: {N} qoida (ReminderRule + SmsTemplate)", migrated);
+            }
+        }
+    }
+    catch (Exception ex)
+    {
+        app.Logger.LogWarning(ex, "[seed] AutoMessageRules ko'chirish o'tkazib yuborildi (migratsiya qo'llanmagan bo'lsa normal)");
     }
 
     // YETIM LIDLARNI TUZATISH: bosqichi mavjud bo'lmagan (eski bo'sh "" yoki o'chirilgan ustunga

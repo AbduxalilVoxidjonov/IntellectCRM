@@ -16,7 +16,7 @@ namespace IntellectCRM.Application.Services;
 /// </summary>
 public class TrialReminderService(
     IServiceProvider services,
-    EskizService eskiz,
+    AutoMessageService autoMsg,
     ILogger<TrialReminderService> logger) : BackgroundService
 {
     private const int SendHour = 9;
@@ -51,12 +51,10 @@ public class TrialReminderService(
         using var scope = services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
 
-        var meta = await db.CenterMeta.FirstOrDefaultAsync(ct);
-        if (!eskiz.IsConfigured(meta)) return;
-
-        // "Sinov darsi eslatmasi" hodisasiga andoza yo'q bo'lsa — umuman ishlamaymiz (so'rovni tejaymiz).
-        var hasTemplate = await db.SmsTemplates.AnyAsync(t => t.Trigger == AutoSmsService.TriggerTrialReminder, ct);
-        if (!hasTemplate) return;
+        // "Sinov darsi eslatmasi" hodisasiga yoqilgan qoida yo'q bo'lsa — umuman ishlamaymiz (so'rovni tejaymiz).
+        var hasRule = await db.AutoMessageRules.AnyAsync(
+            r => r.Enabled && r.Trigger == AutoMessageTriggers.TrialReminder, ct);
+        if (!hasRule) return;
 
         // ERTAGA bo'ladigan (pending) sinov darslari — ScheduledAt "yyyy-MM-ddTHH:mm" ertangi sana bilan boshlansa.
         var tomorrow = today.AddDays(1).ToString("yyyy-MM-dd");
@@ -74,7 +72,7 @@ public class TrialReminderService(
             if (lead.ConvertedStudentId is not null) continue;
             var group = string.IsNullOrWhiteSpace(trial.GroupId) ? null
                 : await db.Classes.FirstOrDefaultAsync(c => c.Id == trial.GroupId, ct);
-            await AutoSmsService.SendForLeadAsync(db, eskiz, AutoSmsService.TriggerTrialReminder, lead,
+            await autoMsg.DispatchLeadAsync(db, AutoMessageTriggers.TrialReminder, lead,
                 group: group, trialAt: trial.ScheduledAt, ct: ct);
             sent++;
         }

@@ -12,7 +12,7 @@ namespace IntellectCRM.Server.Controllers;
 [Authorize]
 [AdminPerm("classes")]
 [Route("api/admin/classes")]
-public class ClassesController(AppDbContext db, AuditService audit, ILogger<ClassesController> logger, CertificateService certSvc, RoomConflictService roomConflict) : ControllerBase
+public class ClassesController(AppDbContext db, AuditService audit, ILogger<ClassesController> logger, CertificateService certSvc, RoomConflictService roomConflict, AutoMessageService autoMsg) : ControllerBase
 {
     /// <summary>Faol (arxivlanmagan) sinflar. <paramref name="includeArchived"/>=true bo'lsa hammasi.</summary>
     [HttpGet]
@@ -369,6 +369,10 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
         if (string.IsNullOrWhiteSpace(s.ClassName)) s.ClassName = cls.Name;
 
         await db.SaveChangesAsync();
+
+        // Avto xabar — o'quvchi guruhga qo'shilganda ota-onaga ("O'quvchi guruhga qo'shilganda" hodisasi).
+        await autoMsg.DispatchStudentAsync(db, AutoMessageTriggers.StudentAdded, s,
+            new Dictionary<string, string> { ["{guruh}"] = cls.Name });
         return Ok(new { ok = true });
     }
 

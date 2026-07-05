@@ -14,7 +14,7 @@ namespace IntellectCRM.Server.Controllers;
 [Authorize]
 [AdminPerm("students")]
 [Route("api/admin/students")]
-public class StudentsController(AppDbContext db, AuditService audit, IConfiguration config, EskizService eskiz) : ControllerBase
+public class StudentsController(AppDbContext db, AuditService audit, IConfiguration config, AutoMessageService autoMsg) : ControllerBase
 {
     private const int MinPasswordLength = 8;
     private const string WeakPasswordMessage = "Parol kamida 8 belgidan iborat bo'lsin";
@@ -344,6 +344,11 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
         var cls = await db.Classes.FirstOrDefaultAsync(c => c.Name == p.ClassName);
         var student = AddStudent(p, cls);
         await db.SaveChangesAsync();
+
+        // Avto xabar — o'quvchi guruhga qo'shilganda ota-onaga ("O'quvchi guruhga qo'shilganda" hodisasi).
+        if (cls is not null)
+            await autoMsg.DispatchStudentAsync(db, AutoMessageTriggers.StudentAdded, student,
+                new Dictionary<string, string> { ["{guruh}"] = cls.Name });
         return student;
     }
 
@@ -1280,13 +1285,10 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
 
         await db.SaveChangesAsync();
 
-        // Avto SMS — o'quvchi tuition to'lovi qabul qilinganda ota-onaga ("To'lov" hodisasi).
+        // Avto xabar — o'quvchi tuition to'lovi qabul qilinganda ("To'lov qabul qilinganda" hodisasi).
         // Moliya bo'limidagi to'lov bilan bir xil xulq (FinanceController). {summa} = faqat raqam.
-        await AutoSmsService.SendForStudentAsync(db, eskiz, AutoSmsService.TriggerPayment, student,
-            $"{Request.Scheme}://{Request.Host}/api/sms/callback", extra: new Dictionary<string, string>
-            {
-                ["{summa}"] = MessageTokenizer.MoneyPlain(req.Amount),
-            }, preferStudentPhone: true);
+        await autoMsg.DispatchStudentAsync(db, AutoMessageTriggers.PaymentReceived, student,
+            new Dictionary<string, string> { ["{summa}"] = MessageTokenizer.MoneyPlain(req.Amount) });
 
         // Chek (kvitansiya) uchun yaratilgan tranzaksiya id'sini qaytaramiz.
         return Ok(new { id = tx.Id });

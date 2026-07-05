@@ -13,8 +13,23 @@ namespace IntellectCRM.Server.Controllers;
 [Authorize]
 [AdminPerm("classes")]
 [Route("api/admin/journal")]
-public class JournalController(AppDbContext db, FcmService fcm) : ControllerBase
+public class JournalController(AppDbContext db, FcmService fcm, AutoMessageService autoMsg) : ControllerBase
 {
+    /// <summary>"Darsga kelmadi" avto-xabari (attendance_absent) — berilgan o'quvchi(lar)ga guruh+sabab bilan.
+    /// Exception yutiladi (jurnal javobini bloklamaydi). Ketma-ket await — bulk'da ham xavfsiz.</summary>
+    private async Task DispatchAbsencesAsync(string classId, string date, string? reasonId, IEnumerable<string> studentIds)
+    {
+        if (string.IsNullOrWhiteSpace(reasonId)) return;
+        var groupName = (await db.Classes.FindAsync(classId))?.Name ?? "";
+        var reasonName = (await db.AbsenceReasons.FindAsync(reasonId))?.Name ?? "Sababsiz";
+        foreach (var sid in studentIds.Distinct())
+        {
+            var s = await db.Students.FindAsync(sid);
+            if (s is not null)
+                await autoMsg.DispatchAttendanceAbsentAsync(db, s, groupName, reasonName, date);
+        }
+    }
+
     /// <summary>Fanning chorakdagi darslari (sana + dars raqami). Bir kunda bir fan bir necha marta bo'lishi mumkin.</summary>
     [HttpGet("columns")]
     public async Task<ActionResult<IEnumerable<JournalColumnDto>>> GetColumns(
@@ -58,7 +73,9 @@ public class JournalController(AppDbContext db, FcmService fcm) : ControllerBase
         // Jurnal siyosati (sana oynasi / faqat o'tilgan dars) — "Adminlarga ham qo'llash" yoqiq bo'lsa cheklaydi.
         var deny = await JournalPolicy.CheckAsync(db, req.ClassId, req.SubjectId, req.Date, req.Period, isAdmin: true);
         if (deny is not null) return BadRequest(new { message = deny });
-        await JournalService.SetEntryAsync(db, req, fcm);
+        var newAbsence = await JournalService.SetEntryAsync(db, req, fcm);
+        if (newAbsence)
+            await DispatchAbsencesAsync(req.ClassId, req.Date, req.ReasonId, new[] { req.StudentId });
         return NoContent();
     }
 
@@ -70,7 +87,9 @@ public class JournalController(AppDbContext db, FcmService fcm) : ControllerBase
         var deny = await JournalPolicy.CheckAsync(db, req.ClassId, req.SubjectId, req.Date, req.Period,
             isAdmin: true, skipConducted: true);
         if (deny is not null) return BadRequest(new { message = deny });
-        await JournalService.BulkAttendanceAsync(db, req);
+        var absentReasonId = await JournalService.BulkAttendanceAsync(db, req);
+        if (absentReasonId is not null)
+            await DispatchAbsencesAsync(req.ClassId, req.Date, absentReasonId, req.StudentIds);
         return NoContent();
     }
 

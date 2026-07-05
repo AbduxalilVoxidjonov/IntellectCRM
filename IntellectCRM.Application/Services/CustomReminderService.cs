@@ -20,6 +20,7 @@ public class CustomReminderService(
     IServiceProvider services,
     TelegramService telegram,
     FcmService fcm,
+    EskizService eskiz,
     ILogger<CustomReminderService> logger) : BackgroundService
 {
     private readonly HashSet<string> _sent = new();
@@ -55,8 +56,8 @@ public class CustomReminderService(
         using var scope = services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
 
-        var rules = await db.ReminderRules
-            .Where(r => r.Enabled && r.Trigger == ReminderTriggers.CustomSchedule)
+        var rules = await db.AutoMessageRules
+            .Where(r => r.Enabled && r.Trigger == AutoMessageTriggers.CustomSchedule)
             .ToListAsync(ct);
         if (rules.Count == 0) return;
 
@@ -64,6 +65,7 @@ public class CustomReminderService(
         var meta = await db.CenterMeta.FirstOrDefaultAsync(ct);
         var fcmJson = meta?.FcmServiceAccountJson ?? "";
         var pushReady = FcmService.IsConfigured(fcmJson);
+        var eskizReady = eskiz.IsConfigured(meta);
         var centerName = meta?.Name ?? "";
 
         foreach (var rule in rules)
@@ -80,7 +82,7 @@ public class CustomReminderService(
 
             try
             {
-                await SendAsync(db, rule, centerName, fcmJson, pushReady, ct);
+                await SendAsync(db, rule, centerName, fcmJson, pushReady, eskizReady, ct);
             }
             catch (Exception ex)
             {
@@ -90,18 +92,21 @@ public class CustomReminderService(
     }
 
     private async Task SendAsync(
-        IAppDbContext db, ReminderRule rule, string centerName, string fcmJson, bool pushReady, CancellationToken ct)
+        IAppDbContext db, AutoMessageRule rule, string centerName, string fcmJson, bool pushReady,
+        bool eskizReady, CancellationToken ct)
     {
         var title = string.IsNullOrWhiteSpace(rule.Name) ? "Eslatma" : rule.Name;
         var deadTokens = new List<string>();
 
-        if (rule.Audience == ReminderAudiences.Teachers)
+        if (rule.Audience == "teachers")
         {
-            var teachers = await db.Teachers.Where(t => !t.IsArchived && t.UserId != null).ToListAsync(ct);
+            // SMS ham yoqilgan bo'lsa UserId'siz o'qituvchilar ham raqam orqali oladi.
+            var teachers = await db.Teachers.Where(t => !t.IsArchived && (t.UserId != null || rule.SendSms)).ToListAsync(ct);
             foreach (var t in teachers)
             {
-                var body = MessageTokenizer.Teacher(rule.MessageTemplate, t, centerName);
-                await DeliverAsync(db, t.UserId, t.Id, isTeacher: true, title, body, fcmJson, pushReady, deadTokens, ct);
+                var body = MessageTokenizer.Teacher(rule.Template, t, centerName);
+                await DeliverAsync(db, rule, t.UserId, t.Id, isTeacher: true, t.Phone, t.FullName, title, body,
+                    fcmJson, pushReady, eskizReady, deadTokens, ct);
             }
         }
         else
@@ -109,8 +114,12 @@ public class CustomReminderService(
             var students = await db.Students.Where(s => !s.IsArchived).ToListAsync(ct);
             foreach (var s in students)
             {
-                var body = MessageTokenizer.Student(rule.MessageTemplate, s, null, s.Phone, centerName);
-                await DeliverAsync(db, s.UserId, s.Id, isTeacher: false, title, body, fcmJson, pushReady, deadTokens, ct);
+                var phone = !string.IsNullOrWhiteSpace(s.ParentPhone) ? s.ParentPhone
+                    : !string.IsNullOrWhiteSpace(s.FatherPhone) ? s.FatherPhone
+                    : !string.IsNullOrWhiteSpace(s.MotherPhone) ? s.MotherPhone : s.Phone;
+                var body = MessageTokenizer.Student(rule.Template, s, s.ParentFullName, phone, centerName);
+                await DeliverAsync(db, rule, s.UserId, s.Id, isTeacher: false, phone, s.FullName, title, body,
+                    fcmJson, pushReady, eskizReady, deadTokens, ct);
             }
         }
 
@@ -120,30 +129,50 @@ public class CustomReminderService(
     }
 
     private async Task DeliverAsync(
-        IAppDbContext db, string? userId, string entityId, bool isTeacher, string title, string body,
-        string fcmJson, bool pushReady, List<string> deadTokens, CancellationToken ct)
+        IAppDbContext db, AutoMessageRule rule, string? userId, string entityId, bool isTeacher,
+        string? smsPhone, string recipientName, string title, string body,
+        string fcmJson, bool pushReady, bool eskizReady, List<string> deadTokens, CancellationToken ct)
     {
-        if (userId is not null)
-            NotificationStore.Add(db, userId, title, body, "custom_reminder");
-
-        if (pushReady && userId is not null)
+        if (rule.SendPush && userId is not null)
         {
-            var tokens = await db.DeviceTokens.Where(d => d.UserId == userId)
-                .Select(d => d.Token).Distinct().ToListAsync(ct);
-            if (tokens.Count > 0)
+            NotificationStore.Add(db, userId, title, body, "custom_schedule");
+            if (pushReady)
             {
-                var res = await fcm.SendAsync(fcmJson, tokens, title, body, ct);
-                deadTokens.AddRange(res.InvalidTokens);
+                var tokens = await db.DeviceTokens.Where(d => d.UserId == userId)
+                    .Select(d => d.Token).Distinct().ToListAsync(ct);
+                if (tokens.Count > 0)
+                {
+                    var res = await fcm.SendAsync(fcmJson, tokens, title, body, ct);
+                    deadTokens.AddRange(res.InvalidTokens);
+                }
             }
         }
 
-        if (telegram.IsConfigured)
+        if (rule.SendTelegram && telegram.IsConfigured)
         {
             var chatIds = isTeacher
                 ? await db.TelegramRegistrations.Where(r => r.TeacherId == entityId).Select(r => r.ChatId).Distinct().ToListAsync(ct)
                 : await db.TelegramRegistrations.Where(r => r.StudentId == entityId).Select(r => r.ChatId).Distinct().ToListAsync(ct);
             foreach (var chatId in chatIds)
                 await telegram.SendMessageAsync(chatId, $"🔔 {title}\n\n{body}", ct: ct);
+        }
+
+        if (rule.SendSms && eskizReady && !string.IsNullOrWhiteSpace(smsPhone))
+        {
+            var batchId = Guid.NewGuid().ToString();
+            var r = await eskiz.SendSmsAsync(db, smsPhone, body, callbackUrl: null, ct);
+            db.SmsLogs.Add(new SmsLog
+            {
+                BatchId = batchId, PhoneNumber = EskizService.NormalizePhone(smsPhone),
+                RecipientName = recipientName, Message = body,
+                RequestId = r.RequestId, Status = r.Ok ? r.Status : (r.Error ?? "error"),
+            });
+            db.SmsBatches.Add(new SmsBatch
+            {
+                Id = batchId, Audience = $"Avto (Erkin eslatma): {recipientName}", Message = body,
+                SenderUserId = "", SenderName = "Avto xabar", CreatedAt = AppClock.Now,
+                RecipientCount = 1, SentCount = r.Ok ? 1 : 0,
+            });
         }
     }
 }

@@ -14,7 +14,7 @@ namespace IntellectCRM.Server.Controllers;
 [ApiController]
 [AllowAnonymous]
 [Route("api/public/test")]
-public class PublicTestController(AppDbContext db, TelegramService telegram, EskizService eskiz) : ControllerBase
+public class PublicTestController(AppDbContext db, TelegramService telegram, AutoMessageService autoMsg) : ControllerBase
 {
     /// <summary>Ommaviy brending — markaz nomi/logo/telefon (login, daraja testi kabi sahifalar uchun).</summary>
     [HttpGet("/api/public/brand")]
@@ -103,7 +103,7 @@ public class PublicTestController(AppDbContext db, TelegramService telegram, Esk
     {
         var safeAge = Math.Clamp(req.Age, 0, 120);
         if (safeAge != req.Age) req = req with { Age = safeAge };
-        var result = await LevelTestService.SubmitInviteAsync(db, token, req, telegram, eskiz);
+        var result = await LevelTestService.SubmitInviteAsync(db, token, req, telegram, autoMsg);
         if (result is null) return StatusCode(410, new { message = "Havola topilmadi yoki allaqachon ishlatilgan." });
         return result;
     }
@@ -125,7 +125,7 @@ public class PublicTestController(AppDbContext db, TelegramService telegram, Esk
         var safeAge = Math.Clamp(req.Age, 0, 120);
         if (safeAge != req.Age) req = req with { Age = safeAge };
 
-        var result = await LevelTestService.SubmitAsync(db, slug, req, telegram, eskiz);
+        var result = await LevelTestService.SubmitAsync(db, slug, req, telegram, autoMsg);
         if (result is null) return NotFound(new { message = "Test topilmadi yoki faol emas" });
         return result;
     }

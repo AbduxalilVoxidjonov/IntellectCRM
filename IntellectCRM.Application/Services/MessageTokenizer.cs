@@ -42,6 +42,23 @@ public static class MessageTokenizer
         Regex.Replace(input, Regex.Escape(token),
             (value ?? "").Replace("$", "$$"), RegexOptions.IgnoreCase);
 
+    /// <summary>Hodisaga xos qo'shimcha tokenlarni matnga BIRINCHI bo'lib qo'llaydi (masalan {summa},
+    /// {sabab} — yoki {guruh}/{sana}/{oy} kabi standart tokenlarni USTIDAN yozish uchun). Dispatcher shuni
+    /// entity tokenizeridan (Student/Teacher/Lead) OLDIN chaqiradi: shu bilan qo'shimcha qiymat standart
+    /// qiymatdan ustun turadi (birinchi almashtirilgan token keyingi passda qayta almashmaydi).</summary>
+    public static string ApplyExtra(string text, IReadOnlyDictionary<string, string>? extra)
+    {
+        if (extra is null) return text;
+        var r = text;
+        foreach (var (k, v) in extra)
+            r = Rep(r, k, v);
+        return r;
+    }
+
+    /// <summary>Oy raqami (1-12) → o'zbekcha nom (masalan 7 → "iyul"). Diapazondan tashqari bo'lsa "".</summary>
+    public static string MonthNameUz(int month) =>
+        month is >= 1 and <= 12 ? UzMonths[month - 1] : "";
+
     /// <summary>
     /// Guruh dars jadvali tokenlari (SMS andozalarida muhim):
     ///   {dars_sana}    — guruh boshlanish sanasi "DD.MM.YYYY" (masalan 30.06.2026);

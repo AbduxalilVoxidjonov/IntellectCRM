@@ -153,7 +153,7 @@ public static class LevelTestService
     /// SaveChanges shu yerda bajariladi.
     /// </summary>
     public static async Task<TestResultDto?> SubmitAsync(
-        IAppDbContext db, string slug, TestSubmitRequest req, TelegramService? telegram = null, EskizService? eskiz = null)
+        IAppDbContext db, string slug, TestSubmitRequest req, TelegramService? telegram = null, AutoMessageService? autoMsg = null)
     {
         var test = await db.LevelTests.FirstOrDefaultAsync(t => t.Slug == slug && t.IsActive);
         if (test is null) return null;
@@ -224,14 +224,14 @@ public static class LevelTestService
         // Botda ro'yxatdan o'tgan admin/xodimlarga yangi lid xabarnomasi — test natijasi bilan (batafsil).
         if (telegram is not null)
             await LeadNotifier.NotifyNewLeadAsync(db, telegram, lead, submission, test.Title);
-        // Avto SMS — "Test natijasi" hodisasiga belgilangan andoza bo'lsa, abituriyentga yuboriladi.
-        // {natija}/{daraja}/{ball} tokenlari test natijasi bilan to'ldiriladi.
-        if (eskiz is not null)
+        // Avto xabar — "Test natijasi" hodisasiga yoqilgan qoidalar bo'yicha abituriyentga (lidga) SMS.
+        // {natija}/{daraja}/{ball}/{foiz} tokenlari test natijasi bilan to'ldiriladi.
+        if (autoMsg is not null)
         {
             var natija = total > 0
                 ? $"{score}/{total} ({percent}%)" + (string.IsNullOrEmpty(level) ? "" : $" — {level}")
                 : "";
-            await AutoSmsService.SendForLeadAsync(db, eskiz, AutoSmsService.TriggerTestResult, lead, extra:
+            await autoMsg.DispatchLeadAsync(db, AutoMessageTriggers.TestResult, lead, extraTokens:
                 new Dictionary<string, string>
                 {
                     ["{natija}"] = natija,
@@ -270,7 +270,7 @@ public static class LevelTestService
     /// <summary>Bir martalik havola orqali topshirish: baholaydi, natijani MAVJUD lidga bog'laydi,
     /// havolani yopadi (UsedAt). Token yo'q/test yo'q/allaqachon ishlatilgan — null.</summary>
     public static async Task<TestResultDto?> SubmitInviteAsync(
-        IAppDbContext db, string token, TestSubmitRequest req, TelegramService? telegram = null, EskizService? eskiz = null)
+        IAppDbContext db, string token, TestSubmitRequest req, TelegramService? telegram = null, AutoMessageService? autoMsg = null)
     {
         var inv = await db.LevelTestInvites.FirstOrDefaultAsync(i => i.Token == token);
         if (inv is null || !string.IsNullOrEmpty(inv.UsedAt)) return null; // yo'q yoki allaqachon ishlatilgan

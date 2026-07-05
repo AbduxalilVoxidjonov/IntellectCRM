@@ -17,9 +17,12 @@ public class TuitionAccrualService(IServiceProvider services, ILogger<TuitionAcc
             {
                 using var scope = services.CreateScope();
                 var db = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
-                var accrued = await TuitionService.AccrueDue(db);
+                var (accrued, created) = await TuitionService.AccrueDue(db);
                 if (accrued.Count > 0)
                     logger.LogInformation("Oylik to'lov hisoblandi: {Months}", string.Join(", ", accrued));
+                // Avto xabar — har YANGI hisob uchun ota-onaga ("Oylik hisob yaratilganda" hodisasi).
+                var autoMsg = scope.ServiceProvider.GetRequiredService<AutoMessageService>();
+                await autoMsg.DispatchMonthlyChargesAsync(db, created);
             }
             catch (Exception ex)
             {

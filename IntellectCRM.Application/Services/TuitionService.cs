@@ -397,8 +397,10 @@ public static class TuitionService
     /// <summary>Bitta oy uchun hisoblash (PER-GURUH). Har FAOL a'zolik uchun alohida hisob qatori
     /// (StudentId, GroupId, Month); guruhsiz (eski ClassName) o'quvchiga GroupId=null. Allaqachon hisoblangan
     /// (o'quvchi, guruh) juftliklari o'tkazib yuboriladi — idempotent.</summary>
-    public static async Task<(int Count, decimal Total)> AccrueMonth(IAppDbContext db, string month)
+    public static async Task<(int Count, decimal Total, List<(string StudentId, decimal Amount)> Created)> AccrueMonth(
+        IAppDbContext db, string month)
     {
+        var created = new List<(string StudentId, decimal Amount)>();
         var classList = await db.Classes.ToListAsync();
         var feesById = classList.ToDictionary(c => c.Id, c => c.MonthlyFee);
         var feesByName = classList.GroupBy(c => c.Name).ToDictionary(g => g.Key, g => g.First().MonthlyFee);
@@ -435,8 +437,10 @@ public static class TuitionService
                     if (already.Contains((s.Id, (string?)m.GroupId))) continue;
                     var gfee = feesById.TryGetValue(m.GroupId, out var f) ? f : 0m;
                     if (gfee <= 0) continue;
-                    total += AccrueOne(db, s, m.GroupId, month, gfee);
+                    var eff = AccrueOne(db, s, m.GroupId, month, gfee);
+                    total += eff;
                     count++;
+                    created.Add((s.Id, eff));
                 }
             }
             else
@@ -445,13 +449,15 @@ public static class TuitionService
                 if (already.Contains((s.Id, (string?)null))) continue;
                 var nfee = feesByName.TryGetValue(s.ClassName, out var nf) ? nf : 0m;
                 if (nfee <= 0) continue;
-                total += AccrueOne(db, s, null, month, nfee);
+                var eff = AccrueOne(db, s, null, month, nfee);
+                total += eff;
                 count++;
+                created.Add((s.Id, eff));
             }
         }
 
         if (count > 0) await db.SaveChangesAsync();
-        return (count, total);
+        return (count, total, created);
     }
 
     /// <summary>Bitta (o'quvchi, guruh, oy) hisob qatorini yozadi va balansni effektiv miqdorda kamaytiradi.
@@ -500,7 +506,8 @@ public static class TuitionService
     /// va oraliqdagi "tushib qolgan" oylar to'ldiriladi (avvalgi xulq faqat oxirgi oydan
     /// keyingi oylarni qo'shardi — yangi/eski o'quvchilar 0 bo'lib qolardi).
     /// </summary>
-    public static async Task<List<string>> AccrueDue(IAppDbContext db)
+    public static async Task<(List<string> Months, List<(string StudentId, string Month, decimal Amount)> Created)> AccrueDue(
+        IAppDbContext db)
     {
         // Avval eski aggregate (GroupId=null) + per-guruh dublikat hisoblarni tozalaymiz (o'z-o'zini tuzatish).
         await PurgeDuplicateAggregateChargesAsync(db);
@@ -522,12 +529,15 @@ public static class TuitionService
         if (string.CompareOrdinal(start, cur) > 0) start = cur; // o'quv yili hali boshlanmagan bo'lsa
 
         var accrued = new List<string>();
+        var created = new List<(string StudentId, string Month, decimal Amount)>();
         foreach (var month in MonthRange(start, cur))
         {
-            var (count, _) = await AccrueMonth(db, month);
+            var (count, _, monthCreated) = await AccrueMonth(db, month);
             if (count > 0) accrued.Add(month);
+            foreach (var (sid, amount) in monthCreated)
+                created.Add((sid, month, amount));
         }
-        return accrued;
+        return (accrued, created);
     }
 
     /// <summary>DUBLIKAT TUZATISH: o'quvchi guruhga qo'shilib per-guruh billingiga o'tganda, u guruhsiz paytda

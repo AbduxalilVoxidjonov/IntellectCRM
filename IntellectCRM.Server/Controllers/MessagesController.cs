@@ -636,11 +636,11 @@ public class MessagesController(AppDbContext db, ChatService chat, TelegramServi
     {
         var sms = await db.SmsTemplates.AsNoTracking().OrderBy(t => t.Order).ThenBy(t => t.Name)
             .Select(t => new UnifiedTemplateDto("sms", t.Name, t.Text)).ToListAsync();
-        var reminders = await db.ReminderRules.AsNoTracking()
-            .Where(r => r.MessageTemplate != "")
+        var autos = await db.AutoMessageRules.AsNoTracking()
+            .Where(r => r.Template != "")
             .OrderBy(r => r.Name)
-            .Select(r => new UnifiedTemplateDto("reminder", r.Name, r.MessageTemplate)).ToListAsync();
-        return sms.Concat(reminders).ToList();
+            .Select(r => new UnifiedTemplateDto("auto", r.Name, r.Template)).ToListAsync();
+        return sms.Concat(autos).ToList();
     }
 
     // ---------- SMS andozalari (shablonlar) — Sozlamalar → SMS (Eskiz) ----------
@@ -652,19 +652,9 @@ public class MessagesController(AppDbContext db, ChatService chat, TelegramServi
         return list.Select(t => new SmsTemplateDto(t.Id, t.Name, t.Text, t.IsAuto, t.Trigger, t.Order)).ToList();
     }
 
-    // Ruxsat etilgan avto-SMS hodisalari (bo'sh = qo'lda).
-    private static readonly HashSet<string> AllowedTriggers = new()
-    {
-        AutoSmsService.TriggerLeadNew, AutoSmsService.TriggerPayment,
-        AutoSmsService.TriggerBirthday, AutoSmsService.TriggerTestResult,
-        AutoSmsService.TriggerTestLink, AutoSmsService.TriggerTrialReminder,
-    };
-
-    private static string NormalizeTrigger(string? t)
-    {
-        var v = (t ?? "").Trim();
-        return AllowedTriggers.Contains(v) ? v : "";
-    }
+    // Avto-hodisalar YAGONA "Avto xabarlar" (AutoMessageRule) moduliga ko'chdi — SMS andozalari endi
+    // faqat QO'LDA yuborish uchun (trigger yo'q). Shuning uchun andoza doim oddiy (Trigger="").
+    private static string NormalizeTrigger(string? t) => "";
 
     [HttpPost("sms/templates")]
     public async Task<ActionResult<SmsTemplateDto>> CreateSmsTemplate(SaveSmsTemplateRequest req)

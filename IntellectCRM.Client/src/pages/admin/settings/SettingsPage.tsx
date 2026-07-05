@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { Navigate, useParams, useSearchParams } from 'react-router-dom'
 import { Check, Plus, Trash2 } from 'lucide-react'
 import type { AbsenceReason } from '@/types'
 import {
@@ -12,14 +12,11 @@ import { Button } from '@/components/ui/Button'
 import { Loader } from '@/components/ui/Loader'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { SchoolSettings } from './SchoolSettings'
-import { TelegramSettings } from './TelegramSettings'
-import { FirebaseSettings } from './FirebaseSettings'
+import { ChannelsSettings } from './ChannelsSettings'
 import { AzureSpeechSettings } from './AzureSpeechSettings'
 import { GeminiSettings } from './GeminiSettings'
 import { TurnstileSettings } from './TurnstileSettings'
 import { CameraSettings } from './CameraSettings'
-import { RemindersSettings } from './RemindersSettings'
-import { EskizSettings } from './EskizSettings'
 import { CheckSettings } from './CheckSettings'
 
 type Status = 'idle' | 'saving' | 'saved'
@@ -30,19 +27,28 @@ const control =
 const sectionTitles: Record<string, string> = {
   reasons: 'Davomat sabablari',
   school: "Markaz ma'lumotlari",
-  telegram: 'Telegram bot',
-  firebase: 'Push (Firebase)',
+  channels: 'Xabar kanallari',
   'azure-speech': 'Speaking (Azure)',
   gemini: 'AI Tahlil (Gemini)',
-  eskiz: 'SMS (Eskiz)',
   check: "To'lov cheki",
   turnstile: 'Turniket integratsiya',
   cameras: 'Kamera integratsiya',
-  reminders: 'Eslatmalar',
+}
+
+/** Eski alohida sozlama sahifalari — endi "Xabar kanallari" ichidagi tab. */
+const legacyChannelTab: Record<string, 'sms' | 'telegram' | 'firebase'> = {
+  eskiz: 'sms',
+  telegram: 'telegram',
+  firebase: 'firebase',
+}
+
+function channelTabFromQuery(tab: string | null): 'sms' | 'telegram' | 'firebase' {
+  return tab === 'telegram' || tab === 'firebase' ? tab : 'sms'
 }
 
 export function SettingsPage() {
   const { section = 'school' } = useParams()
+  const [searchParams] = useSearchParams()
   const [reasons, setReasons] = useState<AbsenceReason[]>([])
   const [loading, setLoading] = useState(true)
   const [rStatus, setRStatus] = useState<Status>('idle')
@@ -78,6 +84,11 @@ export function SettingsPage() {
     }
   }
 
+  if (section === 'reminders') return <Navigate to="/admin/messages" replace />
+  if (section in legacyChannelTab) {
+    return <Navigate to={`/admin/settings/channels?tab=${legacyChannelTab[section]}`} replace />
+  }
+
   return (
     <div>
       <PageHeader title="Sozlamalar" sub={sectionTitles[section] ?? 'Sozlamalar'} />
@@ -85,7 +96,7 @@ export function SettingsPage() {
       {loading ? (
         <Loader label="Yuklanmoqda..." />
       ) : (
-        <div className={cn('space-y-6', section !== 'eskiz' && section !== 'check' && 'max-w-3xl')}>
+        <div className={cn('space-y-6', section !== 'check' && 'max-w-3xl')}>
           {/* Davomat sabablari */}
           {section === 'reasons' && (
           <Card
@@ -145,11 +156,10 @@ export function SettingsPage() {
           {/* Markaz ma'lumotlari */}
           {section === 'school' && <SchoolSettings />}
 
-          {/* Telegram bot */}
-          {section === 'telegram' && <TelegramSettings />}
-
-          {/* Push (Firebase) */}
-          {section === 'firebase' && <FirebaseSettings />}
+          {/* Xabar kanallari: SMS (Eskiz) / Telegram bot / Push (Firebase) */}
+          {section === 'channels' && (
+            <ChannelsSettings initialTab={channelTabFromQuery(searchParams.get('tab'))} />
+          )}
 
           {/* Speaking (Azure) */}
           {section === 'azure-speech' && <AzureSpeechSettings />}
@@ -160,13 +170,9 @@ export function SettingsPage() {
           {/* Turniket / FaceID integratsiya */}
           {section === 'turnstile' && <TurnstileSettings />}
 
-
           {/* Kamera (videokuzatuv) integratsiya */}
           {section === 'cameras' && <CameraSettings />}
 
-          {/* Eslatmalar (avtomatik push-qoidalar) */}
-          {section === 'reminders' && <RemindersSettings />}
-          {section === 'eskiz' && <EskizSettings />}
           {section === 'check' && <CheckSettings />}
         </div>
       )}

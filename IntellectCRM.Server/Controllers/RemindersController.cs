@@ -14,6 +14,8 @@ namespace IntellectCRM.Server.Controllers;
 /// yoki o'qituvchiga davomat eslatmasi); haqiqiy yuborish mantig'i tegishli fon xizmatida
 /// (<see cref="PaymentReminderService"/> / <see cref="LessonAttendanceReminderService"/>).
 /// </summary>
+[Obsolete("Avto xabarlar api/admin/auto-messages ga ko'chdi — frontend endi ishlatmaydi. Eski " +
+    "ReminderRule ma'lumotlari startupda AutoMessageRule'ga bir marta ko'chiriladi.")]
 [ApiController]
 [Authorize]
 [AdminPerm("settings")]

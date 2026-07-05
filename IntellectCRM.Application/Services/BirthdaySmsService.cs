@@ -15,7 +15,7 @@ namespace IntellectCRM.Application.Services;
 /// </summary>
 public class BirthdaySmsService(
     IServiceProvider services,
-    EskizService eskiz,
+    AutoMessageService autoMsg,
     ILogger<BirthdaySmsService> logger) : BackgroundService
 {
     private const int SendHour = 9;
@@ -50,19 +50,17 @@ public class BirthdaySmsService(
         using var scope = services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
 
-        var meta = await db.CenterMeta.FirstOrDefaultAsync(ct);
-        if (!eskiz.IsConfigured(meta)) return;
-
-        // "Tug'ilgan kun" hodisasiga andoza yo'q bo'lsa — umuman ishlamaymiz (so'rovni tejaymiz).
-        var hasTemplate = await db.SmsTemplates.AnyAsync(t => t.Trigger == AutoSmsService.TriggerBirthday, ct);
-        if (!hasTemplate) return;
+        // "Tug'ilgan kun" hodisasiga yoqilgan qoida yo'q bo'lsa — umuman ishlamaymiz (so'rovni tejaymiz).
+        var hasRule = await db.AutoMessageRules.AnyAsync(
+            r => r.Enabled && r.Trigger == AutoMessageTriggers.Birthday, ct);
+        if (!hasRule) return;
 
         var students = await db.Students.Where(s => !s.IsArchived).ToListAsync(ct);
         var sent = 0;
         foreach (var s in students)
         {
             if (!IsBirthdayToday(s.BirthDate, today)) continue;
-            await AutoSmsService.SendForStudentAsync(db, eskiz, AutoSmsService.TriggerBirthday, s, ct: ct);
+            await autoMsg.DispatchStudentAsync(db, AutoMessageTriggers.Birthday, s, ct: ct);
             sent++;
         }
         if (sent > 0) logger.LogInformation("Tug'ilgan kun SMS: {Count} o'quvchiga yuborildi.", sent);

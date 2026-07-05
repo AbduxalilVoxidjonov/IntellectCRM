@@ -110,8 +110,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<SmsLog> SmsLogs => Set<SmsLog>();
     public DbSet<SmsTemplate> SmsTemplates => Set<SmsTemplate>();
 
-    // Eslatmalar (avtomatik push-qoidalar)
+    // Eslatmalar (avtomatik push-qoidalar) — eski model ([Obsolete], AutoMessageRules'ga ko'chdi)
     public DbSet<ReminderRule> ReminderRules => Set<ReminderRule>();
+
+    // Avto-xabarlar (yagona model: SMS+Push+Telegram)
+    public DbSet<AutoMessageRule> AutoMessageRules => Set<AutoMessageRule>();
 
     // Call Center — qo'ng'iroqlar jurnali
     public DbSet<Call> Calls => Set<Call>();

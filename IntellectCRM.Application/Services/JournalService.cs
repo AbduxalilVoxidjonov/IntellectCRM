@@ -114,7 +114,10 @@ public static class JournalService
     /// <summary>
     /// Bitta katakni belgilash — baho yoki davomat sababi (mavjud bo'lsa ustiga yoziladi).
     /// </summary>
-    public static async Task SetEntryAsync(IAppDbContext db, SetJournalEntryRequest req, FcmService? fcm = null)
+    /// <summary>Bitta katakni belgilaydi (baho/davomat). Qaytaradi: davomat SABABI YANGI belgilandimi
+    /// (req.ReasonId != null va eski qiymatdan o'zgardi) — chaqiruvchi shunga qarab "darsga kelmadi"
+    /// avto-xabarini (attendance_absent) yuboradi.</summary>
+    public static async Task<bool> SetEntryAsync(IAppDbContext db, SetJournalEntryRequest req, FcmService? fcm = null)
     {
         // Guruhning StartDate'i tekshirish — undan oldin dars bo'lmaydi.
         var cls = await db.Classes.FindAsync(req.ClassId);
@@ -180,6 +183,9 @@ public static class JournalService
 
         // Avtomatik push: farzandi baho olsa yoki davomatda belgilansa, oila ilovasiga xabar.
         await NotifyEntryAsync(db, fcm, req, student, oldGrade, oldReason);
+
+        // Davomat sababi YANGI belgilandimi (kelmadi) — chaqiruvchi avto-xabar yuborishi uchun.
+        return req.ReasonId is not null && req.ReasonId != oldReason;
     }
 
     /// <summary>Baho/davomat yozuvi o'zgarganda oila ilovasiga push yuboradi (fire-and-forget).</summary>
@@ -227,10 +233,12 @@ public static class JournalService
     /// "hammasi keldi": mavjud davomat sabablari tozalanadi (baho saqlanadi). <c>ReasonId != null</c> →
     /// "hammasi kelmadi": har bir o'quvchiga shu sabab yoziladi. Ikkala holatda ham dars "o'tildi" (Conducted) bo'ladi.
     /// </summary>
-    public static async Task BulkAttendanceAsync(IAppDbContext db, BulkAttendanceRequest req)
+    /// <summary>Qaytaradi: haqiqatan ishlatilgan davomat sababi id'si (Absent=true bo'lganda) — chaqiruvchi
+    /// shu bo'yicha "darsga kelmadi" avto-xabarini yuboradi. Absent=false (hammasi keldi) ⇒ null.</summary>
+    public static async Task<string?> BulkAttendanceAsync(IAppDbContext db, BulkAttendanceRequest req)
     {
         const int quarter = 1;
-        if (req.StudentIds.Count == 0) return;
+        if (req.StudentIds.Count == 0) return null;
 
         // Guruhning StartDate'i tekshirish — undan oldin dars bo'lmaydi.
         var cls = await db.Classes.FindAsync(req.ClassId);
@@ -305,6 +313,7 @@ public static class JournalService
         }
 
         await db.SaveChangesAsync();
+        return req.Absent ? absentReasonId : null;
     }
 
     public static async Task ClearEntryAsync(

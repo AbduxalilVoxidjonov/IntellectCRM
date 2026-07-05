@@ -21,8 +21,23 @@ namespace IntellectCRM.Server.Controllers;
 [Route("api/teacher")]
 public class TeacherPortalController(
     AppDbContext db, ChatService chat, IWebHostEnvironment env, ReferenceCache refCache,
-    FcmService fcm) : ControllerBase
+    FcmService fcm, AutoMessageService autoMsg) : ControllerBase
 {
+    /// <summary>"Darsga kelmadi" avto-xabari (attendance_absent) — o'quvchi(lar)ga guruh+sabab bilan.
+    /// Exception yutiladi (jurnal javobini bloklamaydi).</summary>
+    private async Task DispatchAbsencesAsync(string classId, string date, string? reasonId, IEnumerable<string> studentIds)
+    {
+        if (string.IsNullOrWhiteSpace(reasonId)) return;
+        var groupName = (await db.Classes.FindAsync(classId))?.Name ?? "";
+        var reasonName = (await db.AbsenceReasons.FindAsync(reasonId))?.Name ?? "Sababsiz";
+        foreach (var sid in studentIds.Distinct())
+        {
+            var s = await db.Students.FindAsync(sid);
+            if (s is not null)
+                await autoMsg.DispatchAttendanceAbsentAsync(db, s, groupName, reasonName, date);
+        }
+    }
+
     /// <summary>Tokendagi foydalanuvchi id'si bo'yicha joriy o'qituvchini topadi.</summary>
     private async Task<Teacher?> Me()
     {
@@ -215,7 +230,9 @@ public class TeacherPortalController(
         // Jurnal siyosati (admin "Guruhlar → Jurnal boshqaruvi"): sana oynasi / faqat o'tilgan dars.
         var deny = await JournalPolicy.CheckAsync(db, req.ClassId, req.SubjectId, req.Date, req.Period, isAdmin: false);
         if (deny is not null) return BadRequest(new { message = deny });
-        await JournalService.SetEntryAsync(db, req, fcm);
+        var newAbsence = await JournalService.SetEntryAsync(db, req, fcm);
+        if (newAbsence)
+            await DispatchAbsencesAsync(req.ClassId, req.Date, req.ReasonId, new[] { req.StudentId });
         return NoContent();
     }
 
@@ -393,7 +410,9 @@ public class TeacherPortalController(
         var deny = await JournalPolicy.CheckAsync(db, req.ClassId, req.SubjectId, req.Date, req.Period,
             isAdmin: false, skipConducted: true);
         if (deny is not null) return BadRequest(new { message = deny });
-        await JournalService.BulkAttendanceAsync(db, req);
+        var absentReasonId = await JournalService.BulkAttendanceAsync(db, req);
+        if (absentReasonId is not null)
+            await DispatchAbsencesAsync(req.ClassId, req.Date, absentReasonId, req.StudentIds);
         return NoContent();
     }
 

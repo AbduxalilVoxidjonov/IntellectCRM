@@ -12,7 +12,7 @@ namespace IntellectCRM.Server.Controllers;
 [Authorize]
 [AdminPerm("leads")]
 [Route("api/admin/leads")]
-public class LeadsController(AppDbContext db, AuditService audit, TelegramService telegram, EskizService eskiz) : ControllerBase
+public class LeadsController(AppDbContext db, AuditService audit, TelegramService telegram, AutoMessageService autoMsg) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<IEnumerable<LeadWithAttendanceDto>>> GetAll()
@@ -63,9 +63,8 @@ public class LeadsController(AppDbContext db, AuditService audit, TelegramServic
         await db.SaveChangesAsync();
         // Botda ro'yxatdan o'tgan admin/xodimlarga yangi lid xabarnomasi.
         await LeadNotifier.NotifyNewLeadAsync(db, telegram, lead);
-        // Avto SMS — "Yangi lid" hodisasiga belgilangan andoza bo'lsa, lidga avtomatik yuboriladi.
-        await AutoSmsService.SendForLeadAsync(db, eskiz, AutoSmsService.TriggerLeadNew, lead,
-            $"{Request.Scheme}://{Request.Host}/api/sms/callback");
+        // Avto xabar — "Yangi lid kelganda" hodisasiga yoqilgan qoida bo'lsa, lidga avtomatik SMS.
+        await autoMsg.DispatchLeadAsync(db, AutoMessageTriggers.LeadNew, lead);
         return lead;
     }
 
@@ -87,8 +86,7 @@ public class LeadsController(AppDbContext db, AuditService audit, TelegramServic
         await db.SaveChangesAsync();
 
         var link = $"{Request.Scheme}://{Request.Host}/test/invite/{invite.Token}";
-        var (ok, status, reqId) = await AutoSmsService.SendTestLinkAsync(
-            db, eskiz, lead, link, $"{Request.Scheme}://{Request.Host}/api/sms/callback");
+        var (ok, status, reqId) = await autoMsg.SendLeadTestLinkAsync(db, lead, link);
         invite.SmsStatus = ok ? "sent" : status;
         invite.SmsRequestId = reqId;
         AddEvent(lead.Id, "note", ok ? $"Daraja testi havolasi yuborildi: {test.Title}" : $"Test havolasi SMS xato: {status}");

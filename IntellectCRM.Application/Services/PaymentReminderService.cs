@@ -23,6 +23,7 @@ public class PaymentReminderService(
     IServiceProvider services,
     TelegramService telegram,
     FcmService fcm,
+    EskizService eskiz,
     ILogger<PaymentReminderService> logger) : BackgroundService
 {
     /// <summary>Eslatma yuboriladigan soat (Toshkent vaqti).</summary>
@@ -67,12 +68,16 @@ public class PaymentReminderService(
         var db = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
 
         var meta = await db.CenterMeta.FirstOrDefaultAsync(ct);
-        var rule = await db.ReminderRules.FirstOrDefaultAsync(r => r.Trigger == ReminderTriggers.PaymentDebt, ct);
+        var rule = await db.AutoMessageRules.FirstOrDefaultAsync(r => r.Trigger == AutoMessageTriggers.PaymentDebt, ct);
         if (rule is not null && !rule.Enabled)
         {
             logger.LogInformation("To'lov eslatmasi o'chirilgan (sozlama) — yuborilmadi.");
             return;
         }
+        // Kanallar: qoida bo'lsa uning bayroqlaridan; qoida yo'q bo'lsa eski xulq (push + telegram).
+        var sendSms = rule?.SendSms ?? false;
+        var sendPush = rule?.SendPush ?? true;
+        var sendTelegram = rule?.SendTelegram ?? true;
 
         // Qarzdorlar: balansi manfiy, arxivlanmagan o'quvchilar.
         var debtors = await db.Students
@@ -102,10 +107,11 @@ public class PaymentReminderService(
             .ToDictionary(g => g.Key, g => g.Select(x => x.Token).Distinct().ToList());
 
         var fcmJson = meta?.FcmServiceAccountJson ?? "";
-        var telegramReady = telegram.IsConfigured;
-        var pushReady = FcmService.IsConfigured(fcmJson);
+        var telegramReady = sendTelegram && telegram.IsConfigured;
+        var pushReady = sendPush && FcmService.IsConfigured(fcmJson);
+        var smsReady = sendSms && eskiz.IsConfigured(meta);
 
-        int tgSent = 0, pushSent = 0, students = 0;
+        int tgSent = 0, pushSent = 0, smsSent = 0, students = 0;
         var deadTokens = new List<string>();
         foreach (var s in debtors)
         {
@@ -116,8 +122,8 @@ public class PaymentReminderService(
                 if (body.Length == 0) continue;
                 students++;
 
-                // Ilova tarixiga (push/telegram bo'lmasa ham ilovada ko'rinadi).
-                NotificationStore.Add(db, s.UserId, title, body, "payment");
+                // Ilova tarixiga (push/telegram bo'lmasa ham ilovada ko'rinadi). Push kanali yoqilganda.
+                if (sendPush) NotificationStore.Add(db, s.UserId, title, body, "payment_debt");
 
                 // Telegram.
                 if (telegramReady && regsByStudent.TryGetValue(s.Id, out var chats))
@@ -134,6 +140,32 @@ public class PaymentReminderService(
                     pushSent += res.Sent;
                     deadTokens.AddRange(res.InvalidTokens);
                 }
+
+                // SMS (ota-ona telefoniga) — SendSms yoqilgan bo'lsa.
+                if (smsReady)
+                {
+                    var phone = !string.IsNullOrWhiteSpace(s.ParentPhone) ? s.ParentPhone
+                        : !string.IsNullOrWhiteSpace(s.FatherPhone) ? s.FatherPhone
+                        : !string.IsNullOrWhiteSpace(s.MotherPhone) ? s.MotherPhone : s.Phone;
+                    if (!string.IsNullOrWhiteSpace(phone))
+                    {
+                        var batchId = Guid.NewGuid().ToString();
+                        var r = await eskiz.SendSmsAsync(db, phone, body, callbackUrl: null, ct);
+                        db.SmsLogs.Add(new SmsLog
+                        {
+                            BatchId = batchId, PhoneNumber = EskizService.NormalizePhone(phone),
+                            RecipientName = s.FullName, Message = body,
+                            RequestId = r.RequestId, Status = r.Ok ? r.Status : (r.Error ?? "error"),
+                        });
+                        db.SmsBatches.Add(new SmsBatch
+                        {
+                            Id = batchId, Audience = $"Avto (Qarzdorlik eslatmasi): {s.FullName}", Message = body,
+                            SenderUserId = "", SenderName = "Avto xabar", CreatedAt = AppClock.Now,
+                            RecipientCount = 1, SentCount = r.Ok ? 1 : 0,
+                        });
+                        if (r.Ok) smsSent++;
+                    }
+                }
             }
             catch (Exception ex)
             {
@@ -149,8 +181,8 @@ public class PaymentReminderService(
         if (students > 0 || deadTokens.Count > 0) await db.SaveChangesAsync(ct);
 
         logger.LogInformation(
-            "To'lov eslatmasi yuborildi: {Students} qarzdor, Telegram {Tg}, push {Push}.",
-            students, tgSent, pushSent);
+            "To'lov eslatmasi yuborildi: {Students} qarzdor, Telegram {Tg}, push {Push}, SMS {Sms}.",
+            students, tgSent, pushSent, smsSent);
     }
 
     /// <summary>

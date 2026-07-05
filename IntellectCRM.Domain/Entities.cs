@@ -985,6 +985,29 @@ public class CenterMeta
     public string CheckSettings { get; set; } = string.Empty;
 }
 
+/// <summary>Avto-xabar qoidasi — hodisa (Trigger) yuz berganda tanlangan kanallar orqali
+/// shablon asosida xabar yuboriladi. Admin "Xabarlar → Avto xabarlar"da boshqaradi.
+/// Eski <see cref="SmsTemplate"/>+IsAuto (faqat SMS) va <see cref="ReminderRule"/> (faqat push+telegram)
+/// modellarini BIRLASHTIRADI — har qoida 3 kanalni (SMS/Push/Telegram) mustaqil yoqadi.</summary>
+public class AutoMessageRule
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string Trigger { get; set; } = string.Empty;   // AutoMessageTriggers katalogidan
+    public string Name { get; set; } = string.Empty;
+    public bool Enabled { get; set; } = true;
+    public bool SendSms { get; set; }
+    public bool SendPush { get; set; }
+    public bool SendTelegram { get; set; }
+    public string Audience { get; set; } = "parents";     // parents|students|teachers
+    public string Template { get; set; } = string.Empty;  // {ism} {fish} kabi tokenlar bilan
+    public int OffsetMinutes { get; set; } = 5;           // lesson_attendance uchun
+    public string SendScope { get; set; } = "lesson_start"; // lesson_start|not_filled|all
+    public string ScheduleType { get; set; } = "daily";   // daily|monthly (custom_schedule)
+    public string ScheduleTime { get; set; } = "09:00";
+    public int ScheduleDayOfMonth { get; set; } = 1;
+    public DateTime CreatedAt { get; set; } = AppClock.Now;
+}
+
 /// <summary>
 /// O'zgarishlar tarixi (audit) yozuvi. Moliyaga oid ma'lumot yaratilganda/tahrirlanganda/
 /// o'chirilganda eski va yangi holat shu yerda saqlanadi — keyin "tarix" sifatida ko'riladi.

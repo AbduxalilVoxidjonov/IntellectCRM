@@ -226,6 +226,27 @@ public record SaveReminderRuleRequest(
     string Audience, string ScheduleType, string ScheduleTime, int ScheduleDayOfMonth,
     string SendScope = "");
 
+/* ---------- Avto xabarlar (yagona SMS+Push+Telegram model) — Xabarlar → Avto xabarlar ---------- */
+
+/// <summary>Qaysi kanallar shu hodisada mavjud (frontend faqat shu toggle'larni ko'rsatadi).</summary>
+public record AutoMessageChannelsDto(bool Sms, bool Push, bool Telegram);
+/// <summary>Avto-xabar hodisasi katalogidagi bitta yozuv (frontend forma shundan quriladi).</summary>
+public record AutoMessageTriggerInfoDto(
+    string Key, string Label, string Description, string[] Tokens, AutoMessageChannelsDto Channels,
+    bool SupportsSchedule, bool SupportsSendScope, string[] Audiences, string DefaultAudience);
+/// <summary>Avto-xabar qoidasi (o'qish uchun).</summary>
+public record AutoMessageRuleDto(
+    string Id, string Trigger, string Name, bool Enabled,
+    bool SendSms, bool SendPush, bool SendTelegram, string Audience, string Template,
+    int OffsetMinutes, string SendScope, string ScheduleType, string ScheduleTime, int ScheduleDayOfMonth,
+    string CreatedAt);
+/// <summary>Avto-xabar qoidasini saqlash (yaratish/tahrirlash).</summary>
+public record SaveAutoMessageRuleRequest(
+    string Trigger, string Name, bool Enabled,
+    bool SendSms, bool SendPush, bool SendTelegram, string Audience, string Template,
+    int OffsetMinutes = 5, string SendScope = "lesson_start",
+    string ScheduleType = "daily", string ScheduleTime = "09:00", int ScheduleDayOfMonth = 1);
+
 /* ---------- Call Center (MoiZvonki) ---------- */
 
 /// <summary>Chiquvchi qo'ng'iroq so'rovi: studentId YOKI phoneNumber (dialpad'dan qo'lda) beriladi.</summary>

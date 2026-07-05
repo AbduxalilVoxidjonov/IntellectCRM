@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { MessageSquare, Megaphone, Users, Briefcase, Bell, Smartphone } from 'lucide-react'
+import { MessageSquare, Users, Briefcase, Send, Zap, History } from 'lucide-react'
 import type { MessageClass } from '@/types'
 import { getMessageClasses, getChat, sendChat } from '@/api/services/messages'
 import { STAFF_CHANNEL, STAFF_CHANNEL_LABEL } from '@/config/constants'
@@ -9,10 +9,10 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { Loader } from '@/components/ui/Loader'
 import { cn } from '@/lib/utils'
 import { ChatPanel } from '@/components/chat/ChatPanel'
-import { BroadcastPanel } from './BroadcastPanel'
-import { PushComposer } from './PushComposer'
-import { SmsComposer } from './SmsComposer'
-type Tab = 'chat' | 'broadcast' | 'push' | 'sms'
+import { UnifiedComposer } from './UnifiedComposer'
+import { AutoMessagesTab } from './AutoMessagesTab'
+import { HistoryTab } from './HistoryTab'
+type Tab = 'chat' | 'send' | 'auto' | 'history'
 
 export function MessagesPage() {
   const { unreadChannels } = useUnread()
@@ -34,24 +34,20 @@ export function MessagesPage() {
     <div>
       <PageHeader
         title="Xabarlar"
-        sub="Guruh va xodimlar guruh chati hamda ota-onalarga e'lon"
+        sub="Yagona xabar markazi: chat, xabar yuborish, avto xabarlar va tarix"
         actions={
           <div className="tabs">
             <TabButton active={tab === 'chat'} onClick={() => setTab('chat')} icon={MessageSquare}>
               Guruh chati
             </TabButton>
-            <TabButton
-              active={tab === 'broadcast'}
-              onClick={() => setTab('broadcast')}
-              icon={Megaphone}
-            >
-              E'lon yuborish
+            <TabButton active={tab === 'send'} onClick={() => setTab('send')} icon={Send}>
+              Xabar yuborish
             </TabButton>
-            <TabButton active={tab === 'push'} onClick={() => setTab('push')} icon={Bell}>
-              Push yuborish
+            <TabButton active={tab === 'auto'} onClick={() => setTab('auto')} icon={Zap}>
+              Avto xabarlar
             </TabButton>
-            <TabButton active={tab === 'sms'} onClick={() => setTab('sms')} icon={Smartphone}>
-              SMS yuborish
+            <TabButton active={tab === 'history'} onClick={() => setTab('history')} icon={History}>
+              Tarix
             </TabButton>
           </div>
         }
@@ -59,12 +55,12 @@ export function MessagesPage() {
 
       {loading ? (
         <Loader label="Yuklanmoqda..." />
-      ) : tab === 'broadcast' ? (
-        <BroadcastPanel classes={classes} />
-      ) : tab === 'push' ? (
-        <PushComposer classes={classes} />
-      ) : tab === 'sms' ? (
-        <SmsComposer classes={classes} />
+      ) : tab === 'send' ? (
+        <UnifiedComposer classes={classes} />
+      ) : tab === 'auto' ? (
+        <AutoMessagesTab />
+      ) : tab === 'history' ? (
+        <HistoryTab />
       ) : (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-[280px_1fr]">
           <Card tight>
