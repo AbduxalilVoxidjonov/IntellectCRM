@@ -13,6 +13,7 @@ import {
   CalendarDays,
   Clock,
   User,
+  BookOpenCheck,
 } from 'lucide-react'
 import type { Group, GroupFillRow, Teacher } from '@/types'
 import type { ClassPayload } from '@/api/services/classes'
@@ -39,6 +40,7 @@ import { Modal } from '@/components/ui/Modal'
 import { ReasonPromptModal } from '@/components/ui/ReasonPromptModal'
 import { ClassFormModal } from './ClassFormModal'
 import { ClassMembersModal } from './ClassMembersModal'
+import { JournalPolicyModal } from './JournalPolicyModal'
 
 // Avatar uchun ism harflari va barqaror rang (faqat ko'rinish uchun)
 const initialsOf = (name: string) =>
@@ -104,6 +106,8 @@ export function ClassesPage() {
   const [view, setView] = useState<'card' | 'table'>('card')
   /** O'qituvchi filteri — faqat shu o'qituvchining guruhlari ko'rsatiladi */
   const [teacherFilter, setTeacherFilter] = useState('all')
+  /** "Jurnal boshqaruvi" oynasi — jurnal tahrirlash siyosati (barcha guruhlar uchun) */
+  const [policyOpen, setPolicyOpen] = useState(false)
 
   const filteredClasses = useMemo(() => {
     if (teacherFilter === 'all') return classes
@@ -284,6 +288,11 @@ export function ClassesPage() {
                 </>
               )}
             </Button>
+            {!showArchived && (
+              <Button variant="secondary" onClick={() => setPolicyOpen(true)}>
+                <BookOpenCheck className="h-4 w-4" /> Jurnal boshqaruvi
+              </Button>
+            )}
             {!showArchived && (
               <Button
                 onClick={() => {
@@ -696,6 +705,8 @@ export function ClassesPage() {
       />
 
       <ClassMembersModal group={membersOf} onClose={() => setMembersOf(null)} />
+
+      <JournalPolicyModal open={policyOpen} onClose={() => setPolicyOpen(false)} />
 
       <ReasonPromptModal
         open={!!deletingGroup}

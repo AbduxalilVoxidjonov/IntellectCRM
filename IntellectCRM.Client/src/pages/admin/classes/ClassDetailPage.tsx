@@ -295,9 +295,9 @@ export function ClassDetailPage() {
       setCell(null)
       load(journal.month)
     } catch (err) {
-      const message = err instanceof Error
-        ? err.message
-        : (err as any)?.response?.data?.message ?? 'Saqlab bo\'lmadi'
+      // Avval server xabari (masalan jurnal siyosati taqiqi) — u foydalanuvchiga tushunarli.
+      const message = (err as any)?.response?.data?.message
+        ?? (err instanceof Error ? err.message : 'Saqlab bo\'lmadi')
       alert(message)
     } finally {
       setSaving(false)
@@ -312,9 +312,8 @@ export function ClassDetailPage() {
       setCell(null)
       load(journal.month)
     } catch (err) {
-      const message = err instanceof Error
-        ? err.message
-        : (err as any)?.response?.data?.message ?? 'Tozalab bo\'lmadi'
+      const message = (err as any)?.response?.data?.message
+        ?? (err instanceof Error ? err.message : 'Tozalab bo\'lmadi')
       alert(message)
     } finally {
       setSaving(false)
@@ -419,9 +418,8 @@ export function ClassDetailPage() {
       setBulkDate(null)
       load(journal.month)
     } catch (err) {
-      const message = err instanceof Error
-        ? err.message
-        : (err as any)?.response?.data?.message ?? 'Saqlab bo\'lmadi'
+      const message = (err as any)?.response?.data?.message
+        ?? (err instanceof Error ? err.message : 'Saqlab bo\'lmadi')
       alert(message)
     } finally {
       setBulkSaving(false)

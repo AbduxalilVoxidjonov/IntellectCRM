@@ -55,6 +55,9 @@ public class JournalController(AppDbContext db, FcmService fcm) : ControllerBase
     [HttpPut]
     public async Task<IActionResult> SetEntry(SetJournalEntryRequest req)
     {
+        // Jurnal siyosati (sana oynasi / faqat o'tilgan dars) — "Adminlarga ham qo'llash" yoqiq bo'lsa cheklaydi.
+        var deny = await JournalPolicy.CheckAsync(db, req.ClassId, req.SubjectId, req.Date, req.Period, isAdmin: true);
+        if (deny is not null) return BadRequest(new { message = deny });
         await JournalService.SetEntryAsync(db, req, fcm);
         return NoContent();
     }
@@ -63,6 +66,10 @@ public class JournalController(AppDbContext db, FcmService fcm) : ControllerBase
     [HttpPost("bulk-attendance")]
     public async Task<IActionResult> BulkAttendance(BulkAttendanceRequest req)
     {
+        // skipConducted: ommaviy davomat darsni o'zi "o'tildi" qiladi — conducted talabi unga qo'llanmaydi.
+        var deny = await JournalPolicy.CheckAsync(db, req.ClassId, req.SubjectId, req.Date, req.Period,
+            isAdmin: true, skipConducted: true);
+        if (deny is not null) return BadRequest(new { message = deny });
         await JournalService.BulkAttendanceAsync(db, req);
         return NoContent();
     }
@@ -72,9 +79,24 @@ public class JournalController(AppDbContext db, FcmService fcm) : ControllerBase
         [FromQuery] string classId, [FromQuery] string subjectId, [FromQuery] int quarter,
         [FromQuery] string studentId, [FromQuery] string date, [FromQuery] int period)
     {
+        // Tozalash ham sana oynasiga bo'ysunadi (yopiq davr yozuvini o'chirib ham bo'lmaydi).
+        var deny = await JournalPolicy.CheckAsync(db, classId, subjectId, date, period,
+            isAdmin: true, skipConducted: true);
+        if (deny is not null) return BadRequest(new { message = deny });
         await JournalService.ClearEntryAsync(db, classId, subjectId, quarter, studentId, date, period);
         return NoContent();
     }
+
+    /* ---------- Jurnal boshqaruvi (tahrirlash siyosati) — "Guruhlar → Jurnal boshqaruvi" oynasi ---------- */
+
+    /// <summary>Joriy jurnal siyosati (sana oynasi, faqat o'tilgan dars, adminlarga qo'llash).</summary>
+    [HttpGet("policy")]
+    public async Task<ActionResult<JournalPolicyDto>> GetPolicy() => await JournalPolicy.GetAsync(db);
+
+    /// <summary>Jurnal siyosatini saqlaydi (noto'g'ri qiymatlar xavfsiz defaultga tushiriladi).</summary>
+    [HttpPut("policy")]
+    public async Task<ActionResult<JournalPolicyDto>> SavePolicy(JournalPolicyDto req) =>
+        await JournalPolicy.SaveAsync(db, req);
 
     /* ---------- Mavzu va uyga vazifa ---------- */
 

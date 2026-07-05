@@ -838,6 +838,21 @@ public class CenterMeta
     /// <summary>Ko'p-guruh to'lov rejimi: aggregate (barcha faol guruhlar yig'indisi — bitta oylik hisob) |
     /// perGroup (kelajakda — har guruh uchun alohida). Default: aggregate.</summary>
     public string BillingMode { get; set; } = "aggregate";
+
+    /* ---------- Jurnal boshqaruvi (tahrirlash siyosati) — admin "Guruhlar → Jurnal boshqaruvi" ---------- */
+
+    /// <summary>Jurnalga kiritish oynasi: "free" — istalgan o'tgan sanaga (default) |
+    /// "today" — faqat bugungi kun | "window" — faqat oxirgi <see cref="JournalRetroDays"/> kun.
+    /// Kelajak sanalar HAR DOIM taqiqlangan (bu sozlamaga bog'liq emas).</summary>
+    public string JournalEditMode { get; set; } = "free";
+    /// <summary>"window" rejimida orqaga necha kungacha kiritish mumkin (1-90).</summary>
+    public int JournalRetroDays { get; set; } = 3;
+    /// <summary>true — baho/davomat faqat "o'tildi" (Conducted) deb belgilangan darsga qo'yiladi
+    /// (avval davomat qilinadi, keyin baho). Ommaviy davomat bunga kirmaydi — u darsni o'zi "o'tildi" qiladi.</summary>
+    public bool JournalConductedOnly { get; set; }
+    /// <summary>true — yuqoridagi cheklovlar ADMIN jurnaliga ham qo'llanadi (default: faqat o'qituvchiga).</summary>
+    public bool JournalApplyToAdmins { get; set; }
+
     /// <summary>Maktab nomi.</summary>
     public string Name { get; set; } = string.Empty;
     /// <summary>Markaz logotipi (`/uploads/...`) — barcha foydalanuvchi ko'radigan joylarda (login,

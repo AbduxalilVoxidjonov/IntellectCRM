@@ -212,6 +212,9 @@ public class TeacherPortalController(
         // Hali o'tilmagan (sanasi kelmagan) darsga baho/jurnal kiritib bo'lmaydi.
         if (string.CompareOrdinal(req.Date, AppClock.Now.ToString("yyyy-MM-dd")) > 0)
             return BadRequest(new { message = "Dars hali o'tilmagan — kelajakdagi sanaga baho qo'yib bo'lmaydi" });
+        // Jurnal siyosati (admin "Guruhlar → Jurnal boshqaruvi"): sana oynasi / faqat o'tilgan dars.
+        var deny = await JournalPolicy.CheckAsync(db, req.ClassId, req.SubjectId, req.Date, req.Period, isAdmin: false);
+        if (deny is not null) return BadRequest(new { message = deny });
         await JournalService.SetEntryAsync(db, req, fcm);
         return NoContent();
     }
@@ -222,6 +225,10 @@ public class TeacherPortalController(
         [FromQuery] string studentId, [FromQuery] string date, [FromQuery] int period)
     {
         if (!await Authorized(classId, subjectId)) return Forbid();
+        // Tozalash ham sana oynasiga bo'ysunadi (yopiq davr yozuvini o'chirib ham bo'lmaydi).
+        var deny = await JournalPolicy.CheckAsync(db, classId, subjectId, date, period,
+            isAdmin: false, skipConducted: true);
+        if (deny is not null) return BadRequest(new { message = deny });
         await JournalService.ClearEntryAsync(db, classId, subjectId, quarter, studentId, date, period);
         return NoContent();
     }
@@ -382,6 +389,10 @@ public class TeacherPortalController(
         if (!t.Permissions.Contains(TeacherPermissions.Journal)) return Forbid();
         if (g is null) return NotFound(new { message = "Guruh topilmadi" });
         if (!owns) return Forbid();
+        // Jurnal siyosati: sana oynasi (skipConducted — davomat darsni o'zi "o'tildi" qiladi).
+        var deny = await JournalPolicy.CheckAsync(db, req.ClassId, req.SubjectId, req.Date, req.Period,
+            isAdmin: false, skipConducted: true);
+        if (deny is not null) return BadRequest(new { message = deny });
         await JournalService.BulkAttendanceAsync(db, req);
         return NoContent();
     }

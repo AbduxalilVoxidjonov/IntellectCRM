@@ -445,6 +445,10 @@ public record BulkAttendanceRequest(
     string? ReasonId, bool Absent = false);
 public record SetLessonNoteRequest(
     string ClassId, string SubjectId, int Quarter, string Date, int Period, string Topic, string? Homework, bool Conducted);
+/// <summary>Jurnal tahrirlash siyosati (admin "Guruhlar → Jurnal boshqaruvi"). EditMode:
+/// "free" (istalgan o'tgan sana) | "today" (faqat bugun) | "window" (oxirgi RetroDays kun).
+/// ConductedOnly — baho/davomat faqat "o'tildi" darsga. ApplyToAdmins — admin jurnaliga ham qo'llash.</summary>
+public record JournalPolicyDto(string EditMode, int RetroDays, bool ConductedOnly, bool ApplyToAdmins);
 
 /* ---------- Settings ---------- */
 public record LessonTimeDto(int Period, string StartTime, string EndTime);

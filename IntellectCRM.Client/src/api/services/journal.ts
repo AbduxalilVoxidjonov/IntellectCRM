@@ -188,6 +188,42 @@ export async function clearJournalEntry(
   })
 }
 
+/* ---------- Jurnal boshqaruvi (tahrirlash siyosati) ---------- */
+
+/** Jurnal tahrirlash siyosati — admin "Guruhlar → Jurnal boshqaruvi" oynasida belgilanadi. */
+export interface JournalPolicy {
+  /** free — istalgan o'tgan sanaga; today — faqat bugungi kun; window — oxirgi retroDays kun */
+  editMode: 'free' | 'today' | 'window'
+  /** window rejimida orqaga necha kungacha ruxsat (1-90) */
+  retroDays: number
+  /** true — baho/davomat faqat "o'tildi" deb belgilangan darsga (avval davomat, keyin baho) */
+  conductedOnly: boolean
+  /** true — cheklovlar admin jurnaliga ham qo'llanadi */
+  applyToAdmins: boolean
+}
+
+const DEFAULT_POLICY: JournalPolicy = {
+  editMode: 'free', retroDays: 3, conductedOnly: false, applyToAdmins: false,
+}
+
+export async function getJournalPolicy(): Promise<JournalPolicy> {
+  if (USE_MOCK) {
+    await delay()
+    return { ...DEFAULT_POLICY }
+  }
+  const { data } = await api.get<JournalPolicy>('/admin/journal/policy')
+  return data
+}
+
+export async function saveJournalPolicy(p: JournalPolicy): Promise<JournalPolicy> {
+  if (USE_MOCK) {
+    await delay(100)
+    return { ...p }
+  }
+  const { data } = await api.put<JournalPolicy>('/admin/journal/policy', p)
+  return data
+}
+
 /* ---------- Mavzu va uyga vazifa ---------- */
 
 export async function getLessonNotes(
