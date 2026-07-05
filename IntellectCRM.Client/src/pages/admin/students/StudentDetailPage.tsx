@@ -5,6 +5,7 @@ import {
   User, Phone, Wallet, BookOpen, MapPin, Cake, CalendarPlus, Percent, IdCard,
   School, Clock, CalendarDays, ChevronRight, History, ListChecks, ChevronDown, Check,
   CalendarClock, Award, Download, LifeBuoy, Sparkles, Pencil,
+  PhoneIncoming, PhoneOutgoing, PhoneMissed, PhoneCall,
 } from 'lucide-react'
 import { genderLabels } from '@/config/constants'
 import {
@@ -19,18 +20,20 @@ import {
   generateStudentCertificate,
   getStudentSupportFeedback,
   getStudentAiAnalyses,
+  getStudentCalls,
   getStudent,
   updateStudent,
   type StudentCompletedCourse,
   type StudentSupportFeedback,
   type StudentAiAnalysisRecord,
+  type StudentCall,
 } from '@/api/services/students'
 import type { StudentPayload } from '@/api/services/students'
 import { getStudentGroups, getClasses } from '@/api/services/classes'
 import { getCurriculum, getProgress, setProgress, getStudentCoverageLog, type CoverageLogEntry } from '@/api/services/curriculum'
 import { getStudentGradingSummary, type MonthGradingSummary } from '@/api/services/grading'
 import type { Student, StudentGroupMembership, Curriculum } from '@/types'
-import { cn, formatDate, formatMoney } from '@/lib/utils'
+import { cn, formatDate, formatDateTime, formatMoney } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
 import { Badge, type BadgeTone } from '@/components/ui/Badge'
 import { StatCard } from '@/components/ui/StatCard'
@@ -100,6 +103,9 @@ export function StudentDetailPage() {
   const [certificates, setCertificates] = useState<StudentCompletedCourse[]>([])
   const [certGenerating, setCertGenerating] = useState<string | null>(null)
   const [supportFeedback, setSupportFeedback] = useState<StudentSupportFeedback[]>([])
+  /** Qo'ng'iroqlar tarixi (Local Call). */
+  const [calls, setCalls] = useState<StudentCall[]>([])
+  const [callsLoading, setCallsLoading] = useState(true)
   /** "Tahrirlash" tugmasi bosilganda — to'liq o'quvchi obyekti (StudentFormModal uchun). */
   const [editing, setEditing] = useState<Student | null>(null)
   /** "Qo'ng'iroq qilish" bosilganda — to'liq o'quvchi obyekti (barcha telefon raqamlari uchun). */
@@ -141,6 +147,11 @@ export function StudentDetailPage() {
     getStudentAiAnalyses(id)
       .then(setAiRecords)
       .catch(() => {})
+    setCallsLoading(true)
+    getStudentCalls(id)
+      .then(setCalls)
+      .catch(() => setCalls([]))
+      .finally(() => setCallsLoading(false))
   }, [id, reloadKey])
 
   /** "Tahrirlash" bosilganda — StudentFormModal uchun TO'LIQ Student kerak (data — StudentNotebook, formaga yaramaydi). */
@@ -520,6 +531,21 @@ export function StudentDetailPage() {
           </div>
         </Section>
       )}
+
+      {/* Qo'ng'iroqlar tarixi (Local Call — agent-telefonlar orqali) */}
+      <Section title="Qo'ng'iroqlar tarixi" icon={PhoneCall}>
+        {callsLoading ? (
+          <Empty>Yuklanmoqda...</Empty>
+        ) : calls.length === 0 ? (
+          <Empty>Bu o'quvchiga hali qo'ng'iroq qilinmagan.</Empty>
+        ) : (
+          <div className="divide-y divide-slate-100">
+            {calls.map((c) => (
+              <StudentCallRow key={c.id} call={c} />
+            ))}
+          </div>
+        )}
+      </Section>
 
       {/* Tugatgan kurslar va sertifikatlar */}
       <Section
@@ -1437,6 +1463,45 @@ function BackLink() {
     >
       <ArrowLeft className="h-4 w-4" /> O'quvchilar ro'yxati
     </Link>
+  )
+}
+
+/** Soniyani mm:ss ko'rinishига aylantiradi. */
+function fmtDur(sec: number): string {
+  const m = Math.floor(sec / 60)
+  const s = sec % 60
+  return `${m}:${String(s).padStart(2, '0')}`
+}
+
+/** Qo'ng'iroqlar tarixidagi bitta qator — yo'nalish ikonasi, vaqt, davomiylik, agent, audio belgisi. */
+function StudentCallRow({ call }: { call: StudentCall }) {
+  // Yo'nalish + javob holati bo'yicha ikonka/rang: javobsiz kiruvchi — qizil (PhoneMissed),
+  // javob berilgan kiruvchi — yashil, chiquvchi — ko'k.
+  const missed = call.direction === 'incoming' && !call.answered
+  const Icon = missed ? PhoneMissed : call.direction === 'incoming' ? PhoneIncoming : PhoneOutgoing
+  const iconColor = missed ? 'text-red-500' : call.direction === 'incoming' ? 'text-emerald-500' : 'text-sky-500'
+
+  return (
+    <div className="flex items-center gap-3 py-2.5">
+      <Icon className={cn('h-4 w-4 flex-shrink-0', iconColor)} />
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm">
+          <span className="font-medium text-slate-700">{formatDateTime(call.startedAt)}</span>
+          {call.answered && call.durationSec > 0 ? (
+            <span className="font-mono text-xs text-slate-500">{fmtDur(call.durationSec)}</span>
+          ) : (
+            <span className="text-xs font-medium text-red-500">javobsiz</span>
+          )}
+          {call.hasAudio && (
+            <span className="rounded bg-brand-50 px-1.5 py-0.5 text-[11px] font-medium text-brand-600">audio</span>
+          )}
+        </div>
+        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-slate-400">
+          <span className="font-mono">{call.phoneNumber}</span>
+          {call.handler && <span>· {call.handler}</span>}
+        </div>
+      </div>
+    </div>
   )
 }
 

@@ -351,6 +351,12 @@ public record CtiCallDetailDto(
 /// <summary>Operator izohini yangilash.</summary>
 public record CtiNoteRequest(string Note);
 
+/// <summary>O'quvchi profilidagi qo'ng'iroq (MoiZvonki + Local birlashgan). Source: "cloud"|"local".
+/// Direction: "incoming"|"outgoing" (javobsiz = Answered=false). Handler: operator yoki agent nomi.</summary>
+public record StudentCallDto(
+    string Id, string Source, string Direction, string PhoneNumber,
+    string StartedAt, int DurationSec, bool Answered, bool HasAudio, string Handler);
+
 /* ---------- Subjects (Kurslar) ---------- */
 public record SubjectPayload(string Name, decimal Price = 0, decimal LessonPrice = 0);
 

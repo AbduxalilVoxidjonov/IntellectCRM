@@ -1336,4 +1336,40 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
         await db.SaveChangesAsync();
         return Ok(new { ok = true });
     }
+
+    /// <summary>
+    /// O'quvchining Local Call (CTI) qo'ng'iroqlari tarixi — StartedAt bo'yicha kamayish, max 100 ta.
+    /// Faqat metadata (audio playback yo'q — u "calls" ruxsati bilan Local Call modulida). MoiZvonki
+    /// bulut qo'ng'iroqlari bu ro'yxatga KIRMAYDI (foydalanuvchi talabi bo'yicha faqat Local).
+    /// </summary>
+    [HttpGet("{id}/calls")]
+    public async Task<ActionResult<List<StudentCallDto>>> GetCalls(string id)
+    {
+        // Local/CTI qo'ng'iroqlari — agent nomlarini oldindan lug'atga yig'ib N+1'dan qochamiz.
+        var records = await db.CtiCallRecords.AsNoTracking()
+            .Where(c => c.StudentId == id)
+            .OrderByDescending(c => c.StartedAt)
+            .Take(100)
+            .ToListAsync();
+
+        var agentIds = records.Select(c => c.AgentId).Where(a => !string.IsNullOrEmpty(a)).Distinct().ToList();
+        var agentNames = await db.CtiAgents.AsNoTracking()
+            .Where(a => agentIds.Contains(a.Id))
+            .ToDictionaryAsync(a => a.Id, a => a.DisplayName);
+
+        var calls = records.Select(c => new StudentCallDto(
+            Id: c.Id,
+            Source: "local",
+            // "missed" — javobsiz kiruvchi; qolgani entitydagi incoming/outgoing.
+            Direction: c.Direction == "missed" ? "incoming" : c.Direction,
+            PhoneNumber: c.RemoteNumber,
+            StartedAt: c.StartedAt.ToString("yyyy-MM-ddTHH:mm:ss", CultureInfo.InvariantCulture),
+            DurationSec: c.DurationSec,
+            Answered: c.Direction != "missed" && (c.AnsweredAt != null || c.DurationSec > 0),
+            HasAudio: c.AudioUploaded && c.AudioPath.Length > 0,
+            Handler: agentNames.GetValueOrDefault(c.AgentId, "")))
+            .ToList();
+
+        return calls;
+    }
 }
