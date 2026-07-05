@@ -64,22 +64,40 @@ public class CtiMobileController(
 
     // ---------- Qo'ng'iroqlar ----------
 
-    /// <summary>Qo'ng'iroq metadatasini qabul qilib yozuv yaratadi (raqam bo'yicha o'quvchini moslaydi).</summary>
+    /// <summary>Qo'ng'iroq metadatasini qabul qilib yozuv yaratadi (raqam bo'yicha o'quvchini moslaydi).
+    /// IDEMPOTENT: ilova javobni o'qiy olmay/tarmoq uzilib QAYTA yuborsa — o'sha qo'ng'iroq
+    /// (agent + raqam + yo'nalish + boshlanish vaqti) dublikat YARATILMAYDI, mavjud id qaytadi.</summary>
     [HttpPost("calls")]
     public async Task<ActionResult<CtiCallCreatedResponse>> CreateCall(CtiCallCreateRequest req)
     {
         var direction = req.Direction is "incoming" or "outgoing" or "missed" ? req.Direction : "outgoing";
         var remote = PhoneUtil.Normalize(req.RemoteNumber);
-        var studentId = await MatchStudentIdAsync(req.RemoteNumber);
+        var remoteNumber = remote.Length > 0 ? remote : (req.RemoteNumber ?? "").Trim();
+        var startedAt = ParseDate(req.StartedAt) ?? AppClock.Now;
 
+        // Qayta yuborilgan (retry) qo'ng'iroqni tanib olamiz — kalit: agent+raqam+yo'nalish+boshlanish.
+        var existing = await db.CtiCallRecords.FirstOrDefaultAsync(c =>
+            c.AgentId == AgentId && c.RemoteNumber == remoteNumber &&
+            c.Direction == direction && c.StartedAt == startedAt);
+        if (existing is not null)
+        {
+            // Retry'da to'ldirilgan maydonlarni yangilab qo'yamiz (masalan duration keyin aniqlangan).
+            if (req.DurationSec > 0 && existing.DurationSec == 0) existing.DurationSec = req.DurationSec;
+            existing.AnsweredAt ??= ParseDate(req.AnsweredAt);
+            existing.EndedAt ??= ParseDate(req.EndedAt);
+            await db.SaveChangesAsync();
+            return new CtiCallCreatedResponse(existing.Id);
+        }
+
+        var studentId = await MatchStudentIdAsync(req.RemoteNumber);
         var call = new CtiCallRecord
         {
             AgentId = AgentId,
             Direction = direction,
-            RemoteNumber = remote.Length > 0 ? remote : (req.RemoteNumber ?? "").Trim(),
+            RemoteNumber = remoteNumber,
             ContactName = (req.ContactName ?? "").Trim(),
             StudentId = studentId,
-            StartedAt = ParseDate(req.StartedAt) ?? AppClock.Now,
+            StartedAt = startedAt,
             AnsweredAt = ParseDate(req.AnsweredAt),
             EndedAt = ParseDate(req.EndedAt),
             DurationSec = Math.Max(0, req.DurationSec),

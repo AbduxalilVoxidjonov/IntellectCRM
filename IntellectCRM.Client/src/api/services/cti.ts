@@ -53,6 +53,27 @@ export interface CtiCallList {
   items: CtiCall[]
 }
 
+/** Raqam bo'yicha GURUHLANGAN qator — bitta raqam: nechta qo'ng'iroq + oxirgisi haqida ma'lumot. */
+export interface CtiNumberGroup {
+  remoteNumber: string
+  contactName: string
+  studentId: string | null
+  studentName: string
+  callCount: number
+  missedCount: number
+  hasAudio: boolean
+  lastCallAt: string
+  lastDirection: CtiCallDirection
+  lastDurationSec: number
+  lastAgentName: string
+}
+
+export interface CtiNumberGroupList {
+  /** Jami NECHTA RAQAM (qo'ng'iroq emas) */
+  total: number
+  items: CtiNumberGroup[]
+}
+
 /** Agentlar ro'yxati (onlayn holat, FCM bor-yo'qligi bilan). */
 export async function getCtiAgents(): Promise<CtiAgent[]> {
   const { data } = await api.get<CtiAgent[]>('/cti/agents')
@@ -86,13 +107,35 @@ export async function dialCtiAgent(
   return data
 }
 
-/** Qo'ng'iroqlar tarixi — sahifalab, filtrlar bilan. */
+/** Qo'ng'iroqlar tarixi — sahifalab, filtrlar bilan. `number` — aniq raqamning qo'ng'iroqlari. */
 export async function getCtiCalls(
   f: CtiCallFilters = {},
   page = 1,
   pageSize = 50,
+  number?: string,
 ): Promise<CtiCallList> {
   const { data } = await api.get<CtiCallList>('/cti/calls', {
+    params: {
+      agentId: f.agentId || undefined,
+      direction: f.direction || undefined,
+      dateFrom: f.dateFrom || undefined,
+      dateTo: f.dateTo || undefined,
+      search: f.search || undefined,
+      number: number || undefined,
+      page,
+      pageSize,
+    },
+  })
+  return data
+}
+
+/** Qo'ng'iroqlar RAQAM bo'yicha guruhlangan tarixi — har raqam bitta qator (soni + oxirgisi). */
+export async function getCtiCallsGrouped(
+  f: CtiCallFilters = {},
+  page = 1,
+  pageSize = 50,
+): Promise<CtiNumberGroupList> {
+  const { data } = await api.get<CtiNumberGroupList>('/cti/calls/grouped', {
     params: {
       agentId: f.agentId || undefined,
       direction: f.direction || undefined,

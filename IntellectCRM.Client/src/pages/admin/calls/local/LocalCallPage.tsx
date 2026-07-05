@@ -7,8 +7,8 @@ import type { Student } from '@/types'
 import { getStudents } from '@/api/services/students'
 import {
   getCtiAgents, createCtiAgent, updateCtiAgent, dialCtiAgent,
-  getCtiCalls, getCtiCallDetail, fetchCtiCallAudioUrl, updateCtiCallNote,
-  type CtiAgent, type CtiCall, type CtiCallDetail, type CtiCallFilters,
+  getCtiCalls, getCtiCallsGrouped, getCtiCallDetail, fetchCtiCallAudioUrl, updateCtiCallNote,
+  type CtiAgent, type CtiCall, type CtiCallDetail, type CtiCallFilters, type CtiNumberGroup,
 } from '@/api/services/cti'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -332,12 +332,14 @@ function HistoryTab({ agents, onError }: { agents: CtiAgent[]; onError: (msg: st
   const [filters, setFilters] = useState<CtiCallFilters>({
     agentId: '', direction: '', dateFrom: '', dateTo: '', search: '',
   })
-  const [rows, setRows] = useState<CtiCall[] | null>(null)
+  // Raqam bo'yicha GURUHLANGAN qatorlar — bir raqamga 10 marta qo'ng'iroq = BITTA qator (soni bilan).
+  const [rows, setRows] = useState<CtiNumberGroup[] | null>(null)
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
   const pageSize = 20
-  const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [dialFor, setDialFor] = useState<CtiCall | null>(null)
+  /** Tanlangan raqam — o'ng panelda shu raqamning BARCHA qo'ng'iroqlari ochiladi */
+  const [selectedNumber, setSelectedNumber] = useState<string | null>(null)
+  const [dialFor, setDialFor] = useState<string | null>(null)
 
   const setF = <K extends keyof CtiCallFilters>(k: K, v: CtiCallFilters[K]) => {
     setFilters((f) => ({ ...f, [k]: v }))
@@ -346,7 +348,7 @@ function HistoryTab({ agents, onError }: { agents: CtiAgent[]; onError: (msg: st
 
   useEffect(() => {
     const t = setTimeout(() => {
-      getCtiCalls(filters, page, pageSize)
+      getCtiCallsGrouped(filters, page, pageSize)
         .then((r) => { setRows(r.items); setTotal(r.total) })
         .catch(() => setRows([]))
     }, 400)
@@ -407,47 +409,55 @@ function HistoryTab({ agents, onError }: { agents: CtiAgent[]; onError: (msg: st
                 </button>
               )}
             </div>
-            <p className="text-xs font-medium text-slate-400">{total} ta qo'ng'iroq</p>
+            <p className="text-xs font-medium text-slate-400">{total} ta raqam</p>
           </div>
 
-          {/* Ro'yxat */}
+          {/* Ro'yxat — har RAQAM bitta qator (nechta qo'ng'iroq bo'lgani soni bilan) */}
           <div className="max-h-[560px] overflow-y-auto">
             {rows === null ? (
               <Loader label="Yuklanmoqda..." />
             ) : rows.length === 0 ? (
               <p className="p-6 text-center text-sm text-slate-400">Qo'ng'iroqlar yo'q.</p>
             ) : (
-              rows.map((c) => (
+              rows.map((g) => (
                 <div
-                  key={c.id}
-                  onClick={() => setSelectedId(c.id)}
+                  key={g.remoteNumber}
+                  onClick={() => setSelectedNumber(g.remoteNumber)}
                   className={cn(
                     'flex cursor-pointer items-start gap-3 border-b border-slate-50 px-4 py-2.5 transition-colors hover:bg-slate-50',
-                    selectedId === c.id && 'bg-brand-50/60',
+                    selectedNumber === g.remoteNumber && 'bg-brand-50/60',
                   )}
                 >
-                  <DirectionIcon direction={c.direction} className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                  <DirectionIcon direction={g.lastDirection} className="mt-0.5 h-4 w-4 flex-shrink-0" />
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-semibold text-slate-800">
-                      {c.remoteNumber}
-                      {(c.studentName || c.contactName) && (
-                        <span className="ml-2 font-normal text-slate-400">{c.studentName || c.contactName}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="truncate text-sm font-semibold text-slate-800">{g.remoteNumber}</span>
+                      {(g.studentName || g.contactName) && (
+                        <span className="truncate text-sm text-slate-400">{g.studentName || g.contactName}</span>
+                      )}
+                      <span className="inline-flex flex-shrink-0 items-center rounded-full bg-brand-100 px-2 py-0.5 text-[11px] font-bold text-brand-700">
+                        {g.callCount} ta
+                      </span>
+                      {g.missedCount > 0 && (
+                        <span className="inline-flex flex-shrink-0 items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-semibold text-red-600">
+                          <PhoneMissed className="h-3 w-3" /> {g.missedCount}
+                        </span>
                       )}
                     </div>
                     <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-400">
-                      <span>{c.agentName}</span>
-                      <span>{formatDateTime(c.startedAt)}</span>
-                      {c.durationSec > 0 && <span className="font-mono">{fmtDuration(c.durationSec)}</span>}
-                      {c.hasAudio && <span className="text-brand-500">audio</span>}
-                      <span className={cn('inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold', DIRECTION_TONE[c.direction])}>
-                        {DIRECTION_LABEL[c.direction]}
+                      <span>Oxirgisi: {formatDateTime(g.lastCallAt)}</span>
+                      {g.lastAgentName && <span>{g.lastAgentName}</span>}
+                      {g.lastDurationSec > 0 && <span className="font-mono">{fmtDuration(g.lastDurationSec)}</span>}
+                      {g.hasAudio && <span className="text-brand-500">audio</span>}
+                      <span className={cn('inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold', DIRECTION_TONE[g.lastDirection])}>
+                        {DIRECTION_LABEL[g.lastDirection]}
                       </span>
                     </div>
                   </div>
                   <Button
                     variant="secondary"
                     type="button"
-                    onClick={(e) => { e.stopPropagation(); setDialFor(c) }}
+                    onClick={(e) => { e.stopPropagation(); setDialFor(g.remoteNumber) }}
                     className="flex-shrink-0"
                   >
                     <Phone className="h-4 w-4" /> Qo'ng'iroq qil
@@ -490,12 +500,12 @@ function HistoryTab({ agents, onError }: { agents: CtiAgent[]; onError: (msg: st
       </div>
 
       <div className="lg:col-span-5">
-        {selectedId ? (
-          <CallDetailPanel callId={selectedId} />
+        {selectedNumber ? (
+          <NumberHistoryPanel number={selectedNumber} />
         ) : (
           <Card>
             <p className="py-10 text-center text-sm text-slate-400">
-              Chapdan qo'ng'iroqni tanlang — audio, hodisalar va izoh shu yerda ochiladi.
+              Chapdan raqamni tanlang — shu raqamning barcha qo'ng'iroqlari shu yerda ochiladi.
             </p>
           </Card>
         )}
@@ -503,13 +513,93 @@ function HistoryTab({ agents, onError }: { agents: CtiAgent[]; onError: (msg: st
 
       {dialFor && (
         <DialModal
-          number={dialFor.remoteNumber}
+          number={dialFor}
           agents={agents}
           onClose={() => setDialFor(null)}
           onError={onError}
         />
       )}
     </div>
+  )
+}
+
+/* ============================ O'ng panel: raqamning qo'ng'iroqlar tarixi ============================ */
+
+/** Tanlangan raqamning BARCHA qo'ng'iroqlari (filtrsiz, to'liq tarix). Bitta qo'ng'iroq
+ *  bosilganda uning to'liq detali (audio, hodisalar, izoh) ochiladi; "Orqaga" — ro'yxatga qaytadi. */
+function NumberHistoryPanel({ number }: { number: string }) {
+  const [calls, setCalls] = useState<CtiCall[] | null>(null)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+
+  useEffect(() => {
+    setCalls(null)
+    setSelectedId(null)
+    getCtiCalls({}, 1, 200, number)
+      .then((r) => setCalls(r.items))
+      .catch(() => setCalls([]))
+  }, [number])
+
+  if (selectedId) {
+    return (
+      <div className="space-y-3">
+        <button
+          type="button"
+          onClick={() => setSelectedId(null)}
+          className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-sm font-semibold text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
+        >
+          <ChevronLeft className="h-4 w-4" /> {number} — barcha qo'ng'iroqlar
+        </button>
+        <CallDetailPanel callId={selectedId} />
+      </div>
+    )
+  }
+
+  return (
+    <Card tight>
+      <div className="border-b border-slate-100 px-4 py-3">
+        <div className="text-base font-bold text-slate-800">{number}</div>
+        <div className="mt-0.5 text-xs text-slate-400">
+          {calls === null ? 'Yuklanmoqda...' : `${calls.length} ta qo'ng'iroq${calls.length >= 200 ? ' (oxirgi 200 tasi)' : ''}`}
+          {calls?.[0] && (calls[0].studentName || calls[0].contactName) && (
+            <span className="ml-2 font-medium text-slate-500">{calls[0].studentName || calls[0].contactName}</span>
+          )}
+        </div>
+      </div>
+      <div className="max-h-[560px] overflow-y-auto">
+        {calls === null ? (
+          <Loader label="Yuklanmoqda..." />
+        ) : calls.length === 0 ? (
+          <p className="p-6 text-center text-sm text-slate-400">Qo'ng'iroqlar yo'q.</p>
+        ) : (
+          calls.map((c) => (
+            <div
+              key={c.id}
+              onClick={() => setSelectedId(c.id)}
+              className="flex cursor-pointer items-center gap-3 border-b border-slate-50 px-4 py-2.5 transition-colors hover:bg-slate-50"
+            >
+              <DirectionIcon direction={c.direction} className="h-4 w-4 flex-shrink-0" />
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-medium text-slate-700">{formatDateTime(c.startedAt)}</div>
+                <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-slate-400">
+                  <span>{c.agentName}</span>
+                  {c.durationSec > 0 ? (
+                    <span className="font-mono">{fmtDuration(c.durationSec)}</span>
+                  ) : (
+                    <span>javobsiz</span>
+                  )}
+                  {c.hasAudio && <span className="text-brand-500">audio</span>}
+                  {c.note && <span className="italic">izoh bor</span>}
+                </div>
+              </div>
+              <span className={cn('inline-flex flex-shrink-0 items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold', DIRECTION_TONE[c.direction])}>
+                {DIRECTION_LABEL[c.direction]}
+              </span>
+              <ChevronRight className="h-4 w-4 flex-shrink-0 text-slate-300" />
+            </div>
+          ))
+        )}
+      </div>
+    </Card>
   )
 }
 

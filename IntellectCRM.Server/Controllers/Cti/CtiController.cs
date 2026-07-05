@@ -132,28 +132,18 @@ public class CtiController(
 
     // ---------- Qo'ng'iroqlar tarixi ----------
 
-    /// <summary>CTI qo'ng'iroqlar tarixi — filtr (agent/yo'nalish/sana/qidiruv), sahifalash.</summary>
+    /// <summary>CTI qo'ng'iroqlar tarixi — filtr (agent/yo'nalish/sana/qidiruv/aniq raqam), sahifalash.</summary>
     [HttpGet("calls")]
     public async Task<ActionResult<CtiCallListDto>> Calls(
         [FromQuery] string? agentId, [FromQuery] string? direction,
         [FromQuery] string? dateFrom, [FromQuery] string? dateTo,
-        [FromQuery] string? search, [FromQuery] int page = 1, [FromQuery] int pageSize = 50)
+        [FromQuery] string? search, [FromQuery] string? number,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 50)
     {
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 200);
 
-        var q = db.CtiCallRecords.AsNoTracking();
-        if (!string.IsNullOrWhiteSpace(agentId)) q = q.Where(c => c.AgentId == agentId);
-        if (direction is "incoming" or "outgoing" or "missed") q = q.Where(c => c.Direction == direction);
-        if (!string.IsNullOrWhiteSpace(dateFrom) && DateTime.TryParse(dateFrom, out var df))
-            q = q.Where(c => c.StartedAt >= df);
-        if (!string.IsNullOrWhiteSpace(dateTo) && DateTime.TryParse(dateTo, out var dt))
-            q = q.Where(c => c.StartedAt < dt.AddDays(1));
-        if (!string.IsNullOrWhiteSpace(search))
-        {
-            var s = search.Trim();
-            q = q.Where(c => c.RemoteNumber.Contains(s) || c.ContactName.Contains(s));
-        }
+        var q = FilteredCalls(agentId, direction, dateFrom, dateTo, search, number);
 
         var total = await q.CountAsync();
         var items = await q.OrderByDescending(c => c.StartedAt)
@@ -169,6 +159,65 @@ public class CtiController(
             c.DurationSec, c.AudioUploaded && c.AudioPath.Length > 0, c.Note)).ToList();
 
         return new CtiCallListDto(total, dtos);
+    }
+
+    /// <summary>
+    /// Qo'ng'iroqlar RAQAM bo'yicha guruhlangan tarixi — har raqam BITTA qator: jami/o'tkazib
+    /// yuborilgan soni + oxirgi qo'ng'iroq ma'lumotlari. Filtrlar oddiy tarix bilan bir xil.
+    /// Raqam bosilganda uning barcha qo'ng'iroqlari <c>GET calls?number=...</c> bilan olinadi.
+    /// </summary>
+    [HttpGet("calls/grouped")]
+    public async Task<ActionResult<CtiNumberGroupListDto>> CallsGrouped(
+        [FromQuery] string? agentId, [FromQuery] string? direction,
+        [FromQuery] string? dateFrom, [FromQuery] string? dateTo,
+        [FromQuery] string? search, [FromQuery] int page = 1, [FromQuery] int pageSize = 50)
+    {
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 200);
+
+        var q = FilteredCalls(agentId, direction, dateFrom, dateTo, search, number: null);
+
+        // 1) Raqam bo'yicha agregatlar (oxirgi qo'ng'iroq vaqti bo'yicha kamayish tartibida sahifalanadi).
+        var total = await q.Select(c => c.RemoteNumber).Distinct().CountAsync();
+        var groups = await q.GroupBy(c => c.RemoteNumber)
+            .Select(g => new
+            {
+                Number = g.Key,
+                Count = g.Count(),
+                Missed = g.Count(c => c.Direction == "missed"),
+                HasAudio = g.Any(c => c.AudioUploaded && c.AudioPath.Length > 0),
+                LastAt = g.Max(c => c.StartedAt),
+            })
+            .OrderByDescending(x => x.LastAt)
+            .Skip((page - 1) * pageSize).Take(pageSize)
+            .ToListAsync();
+
+        // 2) Sahifadagi raqamlarning OXIRGI qo'ng'iroq satri (yo'nalish/agent/o'quvchi nomi uchun).
+        var numbers = groups.Select(x => x.Number).ToList();
+        var lastCalls = await q.Where(c => numbers.Contains(c.RemoteNumber))
+            .GroupBy(c => c.RemoteNumber)
+            .Select(g => g.OrderByDescending(c => c.StartedAt).First())
+            .ToListAsync();
+        var lastByNumber = lastCalls.ToDictionary(c => c.RemoteNumber);
+        var (agentNames, studentNames) = await LookupNamesAsync(lastCalls);
+
+        static string Iso(DateTime d) => d.ToString("yyyy-MM-ddTHH:mm:ss");
+        var items = groups.Select(x =>
+        {
+            var last = lastByNumber.GetValueOrDefault(x.Number);
+            return new CtiNumberGroupDto(
+                x.Number,
+                last?.ContactName ?? "",
+                last?.StudentId,
+                last?.StudentId != null ? studentNames.GetValueOrDefault(last.StudentId, "") : "",
+                x.Count, x.Missed, x.HasAudio,
+                Iso(x.LastAt),
+                last?.Direction ?? "outgoing",
+                last?.DurationSec ?? 0,
+                last != null ? agentNames.GetValueOrDefault(last.AgentId, "") : "");
+        }).ToList();
+
+        return new CtiNumberGroupListDto(total, items);
     }
 
     /// <summary>Bitta CTI qo'ng'irog'ining to'liq tafsiloti (hodisalar bilan).</summary>
@@ -225,6 +274,31 @@ public class CtiController(
     }
 
     // ---------- Yordamchi ----------
+
+    /// <summary>Tarix so'rovlarining UMUMIY filtri (oddiy va guruhlangan ro'yxat bir xil ishlaydi).
+    /// <paramref name="number"/> — aniq raqam (guruh ichini ochish uchun).</summary>
+    private IQueryable<CtiCallRecord> FilteredCalls(
+        string? agentId, string? direction, string? dateFrom, string? dateTo, string? search, string? number)
+    {
+        var q = db.CtiCallRecords.AsNoTracking();
+        if (!string.IsNullOrWhiteSpace(agentId)) q = q.Where(c => c.AgentId == agentId);
+        if (direction is "incoming" or "outgoing" or "missed") q = q.Where(c => c.Direction == direction);
+        if (!string.IsNullOrWhiteSpace(dateFrom) && DateTime.TryParse(dateFrom, out var df))
+            q = q.Where(c => c.StartedAt >= df);
+        if (!string.IsNullOrWhiteSpace(dateTo) && DateTime.TryParse(dateTo, out var dt))
+            q = q.Where(c => c.StartedAt < dt.AddDays(1));
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var s = search.Trim();
+            q = q.Where(c => c.RemoteNumber.Contains(s) || c.ContactName.Contains(s));
+        }
+        if (!string.IsNullOrWhiteSpace(number))
+        {
+            var n = number.Trim();
+            q = q.Where(c => c.RemoteNumber == n);
+        }
+        return q;
+    }
 
     private string RecordingsDir()
     {

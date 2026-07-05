@@ -278,8 +278,14 @@ public record CtiLoginResponse(string Token, string AgentId, string WsUrl);
 public record CtiCallCreateRequest(
     string? Direction, string? RemoteNumber, string? ContactName, string? StartedAt,
     string? AnsweredAt, string? EndedAt, int DurationSec);
-/// <summary>Qo'ng'iroq yaratilgach — server tomonidagi id (audio/hodisalar shu bo'yicha yuboriladi).</summary>
-public record CtiCallCreatedResponse(string ServerCallId);
+/// <summary>Qo'ng'iroq yaratilgach — server tomonidagi id (audio/hodisalar shu bo'yicha yuboriladi).
+/// DIQQAT: javobda id ATAYIN 3 nom bilan ({serverCallId, id, callId}) — ilova versiyasi qaysi
+/// maydonni kutishidan qat'i nazar o'qiy oladi (aks holda "sinxronlanmagan" bo'lib qolib qayta yuboradi).</summary>
+public record CtiCallCreatedResponse(string ServerCallId)
+{
+    public string Id => ServerCallId;
+    public string CallId => ServerCallId;
+}
 /// <summary>Ilova yuborgan bitta qo'ng'iroq hodisasi (nullable — 400 o'rniga aniq xabar).</summary>
 public record CtiCallEventRequest(string? Type, string? At);
 /// <summary>Ilova FCM tokenini yangilash.</summary>
@@ -304,6 +310,14 @@ public record CtiCallDto(
     string? AnsweredAt, string? EndedAt, int DurationSec, bool HasAudio, string Note);
 /// <summary>Sahifalangan CTI qo'ng'iroqlar ro'yxati.</summary>
 public record CtiCallListDto(int Total, List<CtiCallDto> Items);
+/// <summary>Raqam bo'yicha GURUHLANGAN qator — bitta raqam: jami/o'tkazib yuborilgan soni va
+/// OXIRGI qo'ng'iroq ma'lumotlari (tarix ro'yxati raqam-per-qator ko'rinishi uchun).</summary>
+public record CtiNumberGroupDto(
+    string RemoteNumber, string ContactName, string? StudentId, string StudentName,
+    int CallCount, int MissedCount, bool HasAudio,
+    string LastCallAt, string LastDirection, int LastDurationSec, string LastAgentName);
+/// <summary>Sahifalangan raqam-guruhlar ro'yxati (Total = jami NECHTA RAQAM).</summary>
+public record CtiNumberGroupListDto(int Total, List<CtiNumberGroupDto> Items);
 /// <summary>CTI qo'ng'irog'ining hodisasi (detal).</summary>
 public record CtiCallEventDto(string Type, string At);
 /// <summary>CTI qo'ng'irog'ining to'liq tafsiloti (qator + hodisalar).</summary>
