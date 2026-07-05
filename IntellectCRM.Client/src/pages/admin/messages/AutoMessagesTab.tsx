@@ -28,12 +28,13 @@ const CHANNEL_META: { key: Ch; label: string; icon: typeof Smartphone }[] = [
 ]
 
 /** Avto xabarlar tab: hodisalar katalogi + har hodisaning qoidalari. */
-export function AutoMessagesTab() {
+export function AutoMessagesTab({ highlightRuleId }: { highlightRuleId?: string | null } = {}) {
   const [triggers, setTriggers] = useState<AutoMessageTrigger[]>([])
   const [rules, setRules] = useState<AutoMessageRule[]>([])
   const [loading, setLoading] = useState(true)
   const [failed, setFailed] = useState(false)
   const [err, setErr] = useState('')
+  const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map())
 
   const reloadRules = () => getAutoMessageRules().then(setRules).catch(() => setRules([]))
 
@@ -46,6 +47,13 @@ export function AutoMessagesTab() {
       .catch(() => setFailed(true))
       .finally(() => setLoading(false))
   }, [])
+
+  // "Xabar yuborish" tabidan "Sozlash" bosilганda shu qoidaga scroll qilish.
+  useEffect(() => {
+    if (!highlightRuleId) return
+    const el = cardRefs.current.get(highlightRuleId)
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [rules, highlightRuleId])
 
   const rulesByTrigger = useMemo(() => {
     const m = new Map<string, AutoMessageRule[]>()
@@ -162,6 +170,11 @@ export function AutoMessagesTab() {
                     trigger={t}
                     onSaved={reloadRules}
                     onDeleted={reloadRules}
+                    highlight={highlightRuleId === r.id}
+                    registerRef={(el) => {
+                      if (el) cardRefs.current.set(r.id, el)
+                      else cardRefs.current.delete(r.id)
+                    }}
                   />
                 ))}
               </div>
@@ -180,19 +193,32 @@ function RuleCard({
   trigger,
   onSaved,
   onDeleted,
+  highlight,
+  registerRef,
 }: {
   rule: AutoMessageRule
   trigger: AutoMessageTrigger
   onSaved: () => Promise<void> | void
   onDeleted: () => Promise<void> | void
+  highlight?: boolean
+  registerRef?: (el: HTMLDivElement | null) => void
 }) {
   const [draft, setDraft] = useState<AutoMessageRule>(rule)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
+  const [showRing, setShowRing] = useState(false)
   const textRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => setDraft(rule), [rule])
+
+  // Vaqtincha ring-highlight: "Xabar yuborish"dan "Sozlash" bosilganda 2.5s yonib so'nadi.
+  useEffect(() => {
+    if (!highlight) return
+    setShowRing(true)
+    const t = setTimeout(() => setShowRing(false), 2500)
+    return () => clearTimeout(t)
+  }, [highlight])
 
   const set = <K extends keyof AutoMessageRule>(k: K, v: AutoMessageRule[K]) => {
     setDraft((d) => ({ ...d, [k]: v }))
@@ -266,39 +292,41 @@ function RuleCard({
 
   return (
     <div
+      ref={registerRef}
       className={cn(
-        'rounded-xl border p-4',
+        'rounded-xl border p-4 transition-shadow',
         draft.enabled ? 'border-slate-200 bg-white' : 'border-slate-100 bg-slate-50',
+        showRing && 'ring-2 ring-brand-400 ring-offset-2',
       )}
     >
-      {/* Sarlavha: faol toggle (birlashgan pill — switch + holat matni) + o'chirish */}
+      {/* Sarlavha: nozik switch + holat matni (kam bezakli — matn kartaning asosiy fokusi qolishi uchun) + o'chirish */}
       <div className="mb-3 flex items-center gap-2">
         <button
           type="button"
+          role="switch"
+          aria-checked={draft.enabled}
           onClick={toggleEnabled}
           disabled={saving}
           className={cn(
-            'inline-flex items-center gap-2 rounded-full border py-1 pl-1.5 pr-3 text-xs font-semibold transition-all',
-            draft.enabled
-              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-              : 'border-slate-200 bg-white text-slate-400 hover:border-slate-300 hover:text-slate-600',
+            'relative h-5 w-9 shrink-0 rounded-full transition-colors disabled:opacity-60',
+            draft.enabled ? 'bg-emerald-500' : 'bg-slate-300',
           )}
         >
           <span
             className={cn(
-              'relative h-4 w-7 shrink-0 rounded-full transition-colors',
-              draft.enabled ? 'bg-emerald-500' : 'bg-slate-300',
+              'absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform',
+              draft.enabled ? 'translate-x-4' : 'translate-x-0.5',
             )}
-          >
-            <span
-              className={cn(
-                'absolute top-0.5 h-3 w-3 rounded-full bg-white shadow transition-transform',
-                draft.enabled ? 'translate-x-3.5' : 'translate-x-0.5',
-              )}
-            />
-          </span>
-          {draft.enabled ? 'Faol' : "O'chirilgan"}
+          />
         </button>
+        <span
+          className={cn(
+            'text-xs font-medium',
+            draft.enabled ? 'text-emerald-600' : 'text-slate-400',
+          )}
+        >
+          {draft.enabled ? 'Yoqilgan' : "O'chirilgan"}
+        </span>
         <div className="ml-auto flex items-center gap-2">
           {error && <span className="text-xs font-medium text-red-600">{error}</span>}
           {!error && saved && <span className="text-xs font-medium text-emerald-600">Saqlandi</span>}

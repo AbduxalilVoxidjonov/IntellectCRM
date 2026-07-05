@@ -1,18 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import {
-  Send,
-  AlertTriangle,
-  Search,
-  Check,
-  Smartphone,
-  Bell,
-  MessageCircle,
-  Settings2,
-  Plus,
-  Pencil,
-  Trash2,
-  X,
-} from 'lucide-react'
+import { Send, AlertTriangle, Search, Check, Smartphone, Bell, MessageCircle } from 'lucide-react'
 import type { MessageClass } from '@/types'
 import {
   getSmsStatus,
@@ -25,23 +12,17 @@ import {
   sendSms,
   sendPush,
   sendBroadcast,
-  getSmsTemplates,
-  createSmsTemplate,
-  updateSmsTemplate,
-  deleteSmsTemplate,
   type SmsRecipient,
   type SmsTeacherRecipient,
-  type SmsTemplate,
 } from '@/api/services/messages'
 import type { PushRecipient, TelegramTeacher } from '@/types'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
-import { Modal } from '@/components/ui/Modal'
 import { Input, Select } from '@/components/ui/Input'
 import { cn } from '@/lib/utils'
 import { messageTokens } from '@/config/messageTemplates'
-import { TemplateChips } from './TemplateChips'
+import { MessageTemplateLibrary } from './MessageTemplateLibrary'
 
 /** Kanal — bir vaqtda bir nechtasi tanlanadi. */
 type Channel = 'sms' | 'push' | 'telegram'
@@ -78,7 +59,13 @@ function channelAllowed(ch: Channel, audience: Audience): boolean {
 }
 
 /** Yagona xabar yuborish oynasi: SMS + Push + Telegram kanallarini birlashtirgan. */
-export function UnifiedComposer({ classes }: { classes: MessageClass[] }) {
+export function UnifiedComposer({
+  classes,
+  onConfigureAuto,
+}: {
+  classes: MessageClass[]
+  onConfigureAuto: (ruleId: string) => void
+}) {
   // Kanallar holati (sozlangan/yo'q)
   const [smsCfg, setSmsCfg] = useState(false)
   const [smsFrom, setSmsFrom] = useState('4546')
@@ -118,9 +105,6 @@ export function UnifiedComposer({ classes }: { classes: MessageClass[] }) {
   // Yuborish
   const [sending, setSending] = useState(false)
   const [results, setResults] = useState<{ channel: string; ok: boolean; text: string }[]>([])
-
-  // Andozalarni boshqarish modali
-  const [tplOpen, setTplOpen] = useState(false)
 
   useEffect(() => {
     Promise.all([getSmsStatus(), getPushStatus(), getTelegramStatus()])
@@ -519,19 +503,15 @@ export function UnifiedComposer({ classes }: { classes: MessageClass[] }) {
         )}
       </Card>
 
+      <MessageTemplateLibrary onPick={applyTemplate} onConfigureAuto={onConfigureAuto} currentText={text} />
+
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* 3. Matn */}
-        <Card title="Xabar matni" bodyClassName="space-y-3">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <TemplateChips onPick={applyTemplate} />
-            <button
-              type="button"
-              onClick={() => setTplOpen(true)}
-              className="inline-flex items-center gap-1 rounded-full border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-500 transition-colors hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700"
-            >
-              <Settings2 className="h-3 w-3" /> Boshqarish
-            </button>
-            {(text || title) && (
+        <Card
+          title="Xabar matni"
+          bodyClassName="space-y-3"
+          actions={
+            text || title ? (
               <button
                 type="button"
                 onClick={() => {
@@ -542,9 +522,9 @@ export function UnifiedComposer({ classes }: { classes: MessageClass[] }) {
               >
                 Tozalash
               </button>
-            )}
-          </div>
-
+            ) : undefined
+          }
+        >
           {channels.push && (
             <Input
               label="Sarlavha (Push)"
@@ -712,7 +692,6 @@ export function UnifiedComposer({ classes }: { classes: MessageClass[] }) {
         )}
       </div>
 
-      {tplOpen && <TemplateManagerModal onClose={() => setTplOpen(false)} />}
     </div>
   )
 }
@@ -787,156 +766,5 @@ function PickRow({
       </span>
       {badge}
     </button>
-  )
-}
-
-/* ---------- Andozalarni boshqarish modali (nom + matn CRUD) ---------- */
-
-function TemplateManagerModal({ onClose }: { onClose: () => void }) {
-  const [items, setItems] = useState<SmsTemplate[]>([])
-  const [loading, setLoading] = useState(true)
-  const [editing, setEditing] = useState<SmsTemplate | null>(null)
-  const [name, setName] = useState('')
-  const [text, setText] = useState('')
-  const [saving, setSaving] = useState(false)
-
-  const load = () => {
-    setLoading(true)
-    getSmsTemplates()
-      .then(setItems)
-      .catch(() => setItems([]))
-      .finally(() => setLoading(false))
-  }
-  useEffect(load, [])
-
-  const startNew = () => {
-    setEditing(null)
-    setName('')
-    setText('')
-  }
-  const startEdit = (t: SmsTemplate) => {
-    setEditing(t)
-    setName(t.name)
-    setText(t.text)
-  }
-
-  const save = async () => {
-    if (!name.trim() || !text.trim() || saving) return
-    setSaving(true)
-    try {
-      if (editing) {
-        // Mavjud avto-sozlamalarni saqlab qolamiz (bu yerda faqat nom+matn tahrirlanadi).
-        await updateSmsTemplate(editing.id, {
-          name: name.trim(),
-          text: text.trim(),
-          isAuto: editing.isAuto,
-          trigger: editing.trigger,
-        })
-      } else {
-        await createSmsTemplate({ name: name.trim(), text: text.trim(), isAuto: false, trigger: '' })
-      }
-      startNew()
-      load()
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const remove = async (t: SmsTemplate) => {
-    if (!window.confirm(`"${t.name}" andozasini o'chirasizmi?`)) return
-    await deleteSmsTemplate(t.id)
-    if (editing?.id === t.id) startNew()
-    load()
-  }
-
-  return (
-    <Modal open onClose={onClose} title="Tayyor matnlar" size="lg">
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        {/* Ro'yxat */}
-        <div className="space-y-1.5">
-          <div className="mb-1 flex items-center justify-between">
-            <span className="text-sm font-semibold text-slate-700">Andozalar</span>
-            <button
-              type="button"
-              onClick={startNew}
-              className="inline-flex items-center gap-1 text-xs font-medium text-brand-600 hover:text-brand-700"
-            >
-              <Plus className="h-3.5 w-3.5" /> Yangi
-            </button>
-          </div>
-          {loading ? (
-            <p className="py-6 text-center text-sm text-slate-400">Yuklanmoqda...</p>
-          ) : items.length === 0 ? (
-            <p className="py-6 text-center text-sm text-slate-400">Andoza yo'q</p>
-          ) : (
-            <div className="max-h-80 space-y-1.5 overflow-y-auto pr-1">
-              {items.map((t) => (
-                <div
-                  key={t.id}
-                  className={cn(
-                    'rounded-lg border p-2.5',
-                    editing?.id === t.id ? 'border-brand-300 bg-brand-50' : 'border-slate-100',
-                  )}
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-700">
-                      {t.name}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => startEdit(t)}
-                      className="text-slate-400 hover:text-brand-600"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => remove(t)}
-                      className="text-slate-400 hover:text-red-600"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                  <p className="mt-0.5 line-clamp-2 text-xs text-slate-400">{t.text}</p>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Tahrir */}
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold text-slate-700">
-              {editing ? 'Tahrirlash' : 'Yangi andoza'}
-            </span>
-            {editing && (
-              <button
-                type="button"
-                onClick={startNew}
-                className="inline-flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600"
-              >
-                <X className="h-3 w-3" /> bekor
-              </button>
-            )}
-          </div>
-          <Input label="Nom" value={name} onChange={(e) => setName(e.target.value)} placeholder="masalan: Qarzdorlik eslatmasi" />
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-600">Matn</label>
-            <textarea
-              className="h-40 w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 outline-none transition-colors focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              placeholder="Andoza matni (o'rinbosarlar bilan, masalan {fish}, {qarzdorlik})"
-            />
-          </div>
-          <div className="flex justify-end">
-            <Button onClick={save} disabled={!name.trim() || !text.trim() || saving}>
-              {saving ? 'Saqlanmoqda...' : editing ? 'Saqlash' : "Qo'shish"}
-            </Button>
-          </div>
-        </div>
-      </div>
-    </Modal>
   )
 }

@@ -20,6 +20,7 @@ export function MessagesPage() {
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<Tab>('chat')
   const [selected, setSelected] = useState<string | null>(null)
+  const [highlightRule, setHighlightRule] = useState<string | null>(null)
 
   useEffect(() => {
     getMessageClasses()
@@ -56,9 +57,15 @@ export function MessagesPage() {
       {loading ? (
         <Loader label="Yuklanmoqda..." />
       ) : tab === 'send' ? (
-        <UnifiedComposer classes={classes} />
+        <UnifiedComposer
+          classes={classes}
+          onConfigureAuto={(id: string) => {
+            setHighlightRule(id)
+            setTab('auto')
+          }}
+        />
       ) : tab === 'auto' ? (
-        <AutoMessagesTab />
+        <AutoMessagesTab highlightRuleId={highlightRule} />
       ) : tab === 'history' ? (
         <HistoryTab />
       ) : (
