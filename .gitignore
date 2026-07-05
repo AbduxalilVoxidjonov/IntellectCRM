@@ -52,3 +52,7 @@ IntellectCRM_TZ.md
 # Asterisk manba arxivi va lokal yozuvlar (asterisk-local) - git'da saqlanmaydi
 asterisk-local/*.tar.gz
 asterisk-local/recordings/
+
+# Lokal PWA hujjatlari (gitga kirmaydi)
+student_pwa.md
+teacher_pwa.md
