@@ -57,9 +57,17 @@ function StatusChip({ done, label }: { done: boolean; label: string }) {
  * guruh bo'yicha o'qituvchi davomat qilganmi va baho qo'yganmi ko'rsatadi. O'qituvchi bo'yicha
  * guruhlangan, keng ekranda ikki ustun. Tepada kun/oy tanlash — eski sanalarni ham ko'rish mumkin.
  */
+type AttFilter = 'all' | 'done' | 'undone'
+const ATT_FILTERS: { value: AttFilter; label: string }[] = [
+  { value: 'all', label: 'Hammasi' },
+  { value: 'undone', label: 'Davomat qilmagan' },
+  { value: 'done', label: 'Davomat qilgan' },
+]
+
 export function TodayLessonsMonitor() {
   const todayStr = fmtDate(new Date())
   const [date, setDate] = useState(todayStr)
+  const [attFilter, setAttFilter] = useState<AttFilter>('all')
   const isToday = date === todayStr
 
   const { data, loading, error } = useAsync(() => getTodayLessons(date), [date])
@@ -94,10 +102,18 @@ export function TodayLessonsMonitor() {
     setDate(value === todayStr.slice(0, 7) ? todayStr : `${value}-01`)
   }
 
-  const { byTeacher, doneAtt, doneGrade, total } = useMemo(() => {
+  const { byTeacher, doneAtt, doneGrade, total, shownTotal } = useMemo(() => {
     const lessons = data?.lessons ?? []
+    // Filtr faqat ko'rsatiladigan ro'yxatga ta'sir qiladi; yig'indi hisoblari (yuqorida)
+    // to'liq kun bo'yicha qoladi.
+    const filtered =
+      attFilter === 'done'
+        ? lessons.filter((l) => l.attendanceDone)
+        : attFilter === 'undone'
+          ? lessons.filter((l) => !l.attendanceDone)
+          : lessons
     const map = new Map<string, { teacher: string; lessons: TodayLessonMonitor[] }>()
-    for (const l of lessons) {
+    for (const l of filtered) {
       const key = l.teacherId || 'none'
       if (!map.has(key)) map.set(key, { teacher: l.teacherName, lessons: [] })
       map.get(key)!.lessons.push(l)
@@ -108,8 +124,9 @@ export function TodayLessonsMonitor() {
       doneAtt: lessons.filter((l) => l.attendanceDone).length,
       doneGrade: lessons.filter((l) => l.gradesDone).length,
       total: lessons.length,
+      shownTotal: filtered.length,
     }
-  }, [data])
+  }, [data, attFilter])
 
   return (
     <Card
@@ -197,8 +214,41 @@ export function TodayLessonsMonitor() {
               <Star className="h-3.5 w-3.5" />
               Baho: {doneGrade}/{total}
             </span>
+            {/* Davomat holati bo'yicha filtr — faqat pastdagi ro'yxatni toraytiradi. */}
+            <div className="ml-auto inline-flex rounded-lg border border-slate-200 p-0.5">
+              {ATT_FILTERS.map((f) => (
+                <button
+                  key={f.value}
+                  type="button"
+                  onClick={() => setAttFilter(f.value)}
+                  className={cn(
+                    'rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors',
+                    attFilter === f.value
+                      ? 'bg-blue-600 text-white'
+                      : 'text-slate-600 hover:bg-slate-100',
+                  )}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
           </div>
-          {/* Keng ekranda 2 ustun — bitta o'qituvchi bloki bo'linmasdan (break-inside-avoid) joylashadi. */}
+          {shownTotal === 0 ? (
+            <div className="state">
+              <div className="state-icon">
+                <ClipboardList className="h-6 w-6" />
+              </div>
+              <h4>Ro'yxat bo'sh</h4>
+              <p>
+                {attFilter === 'undone'
+                  ? 'Barcha darslarga davomat qilingan.'
+                  : attFilter === 'done'
+                    ? 'Hali hech bir darsga davomat qilinmagan.'
+                    : "Dars yo'q."}
+              </p>
+            </div>
+          ) : (
+          /* Keng ekranda 2 ustun — bitta o'qituvchi bloki bo'linmasdan (break-inside-avoid) joylashadi. */
           <div className="gap-x-6 md:columns-2">
             {byTeacher.map((t) => (
               <div key={t.teacher} className="mb-4 break-inside-avoid">
@@ -240,6 +290,7 @@ export function TodayLessonsMonitor() {
               </div>
             ))}
           </div>
+          )}
         </>
       )}
     </Card>
