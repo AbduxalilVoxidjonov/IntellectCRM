@@ -15,7 +15,8 @@ public static class LeadNotifier
 {
     public static async Task NotifyNewLeadAsync(
         IAppDbContext db, TelegramService telegram, Lead lead,
-        LevelTestSubmission? submission = null, string? testTitle = null, CancellationToken ct = default)
+        LevelTestSubmission? submission = null, string? testTitle = null,
+        bool isNewLead = true, CancellationToken ct = default)
     {
         try
         {
@@ -29,7 +30,7 @@ public static class LeadNotifier
             var users = (await db.Users.Where(u => userIds.Contains(u.Id)).ToListAsync(ct))
                 .ToDictionary(u => u.Id);
 
-            var text = BuildText(lead, submission, testTitle);
+            var text = BuildText(lead, submission, testTitle, isNewLead);
             var sentChats = new HashSet<long>();
             foreach (var r in regs)
             {
@@ -48,9 +49,12 @@ public static class LeadNotifier
         u.Role is Roles.Admin or Roles.SuperAdmin
         || (u.Role == Roles.Staff && u.Permissions.Contains("leads"));
 
-    private static string BuildText(Lead l, LevelTestSubmission? sub, string? testTitle)
+    private static string BuildText(Lead l, LevelTestSubmission? sub, string? testTitle, bool isNewLead = true)
     {
-        var lines = new List<string> { "🆕 Yangi lid!" };
+        var header = isNewLead ? "🆕 Yangi lid!"
+            : sub is not null ? "🔁 Mavjud lid — yangi test natijasi"
+            : "🔁 Mavjud lid yangilandi";
+        var lines = new List<string> { header };
         if (!string.IsNullOrWhiteSpace(l.FullName)) lines.Add($"👤 {l.FullName}");
         if (!string.IsNullOrWhiteSpace(l.Phone)) lines.Add($"📞 {l.Phone}");
         if (!string.IsNullOrWhiteSpace(l.Source)) lines.Add($"🔖 Manba: {l.Source}");

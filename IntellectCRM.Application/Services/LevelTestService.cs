@@ -192,26 +192,70 @@ public static class LevelTestService
         var now = AppClock.Now.ToString("yyyy-MM-ddTHH:mm:ss");
         var courseName = await CourseNameAsync(db, test.CourseId);
 
-        // CRM LID — birinchi (Order) bosqichga tushadi.
-        var firstStage = await db.LeadStages.OrderBy(s => s.Order).Select(s => s.Id).FirstOrDefaultAsync() ?? "";
         var levelText = string.IsNullOrEmpty(level) ? "" : $" — {level}";
-        var lead = new Lead
+        var noteLine = $"Daraja testi: {score}/{total} ({percent}%){levelText}"
+                       + (req.Age > 0 ? $". Yoshi: {req.Age}" : "") + surveyText;
+
+        // CRM LID — bir xil telefon (oxirgi 9 raqam) bo'yicha MAVJUD lid bo'lsa, DUBLIKAT
+        // yaratmasdan natijani o'shaning tagiga qo'shamiz; aks holda yangi lid ochamiz.
+        var phone = PhoneUtil.Normalize(req.Phone);
+        var phoneKey = PhoneUtil.Key(req.Phone);
+
+        Lead? existing = null;
+        if (phoneKey.Length >= 7)
         {
-            FullName = string.IsNullOrWhiteSpace(req.FullName) ? "Noma'lum (daraja testi)" : req.FullName.Trim(),
-            Phone = (req.Phone ?? "").Trim(),
-            Source = "Daraja testi",
-            InterestSubject = string.IsNullOrEmpty(courseName) ? test.Title : courseName,
-            Note = $"Daraja testi: {score}/{total} ({percent}%){levelText}"
-                   + (req.Age > 0 ? $". Yoshi: {req.Age}" : "") + surveyText,
-            Stage = firstStage,
-            CreatedAt = now,
-        };
-        db.Leads.Add(lead);
-        db.LeadEvents.Add(new LeadEvent
+            // Telefon xilma-xil formatda (+998-.., bo'sh joyli, xom) saqlangani uchun solishtirish
+            // oxirgi 9 raqam bo'yicha xotirada bajariladi; bir nechta mos lid bo'lsa ENG BIRINCHI
+            // yaratilgani (birinchi lid) olinadi — natija shuning tagiga tushadi.
+            var matchId = (await db.Leads.Select(l => new { l.Id, l.Phone, l.CreatedAt }).ToListAsync())
+                .Where(l => PhoneUtil.Key(l.Phone) == phoneKey)
+                .OrderBy(l => l.CreatedAt)
+                .Select(l => l.Id)
+                .FirstOrDefault();
+            if (matchId is not null)
+                existing = await db.Leads.FirstOrDefaultAsync(l => l.Id == matchId);
+        }
+
+        Lead lead;
+        var isNewLead = existing is null;
+        if (existing is not null)
         {
-            LeadId = lead.Id, Type = "created", ActorName = "Daraja testi", CreatedAt = now,
-            Text = $"Daraja testi orqali keldi: {score}/{total} ({percent}%){levelText}",
-        });
+            // Mavjud lidga biriktiramiz (yangi lid YARATILMAYDI).
+            existing.Note = ((existing.Note ?? "").TrimEnd() + "\n" + noteLine).Trim();
+            if (string.IsNullOrWhiteSpace(existing.InterestSubject))
+                existing.InterestSubject = string.IsNullOrEmpty(courseName) ? test.Title : courseName;
+            // Ism oldin bo'sh/"Noma'lum" bo'lib, endi kiritilgan bo'lsa — to'ldiramiz.
+            if (!string.IsNullOrWhiteSpace(req.FullName)
+                && (string.IsNullOrWhiteSpace(existing.FullName) || existing.FullName.StartsWith("Noma'lum")))
+                existing.FullName = req.FullName.Trim();
+            db.LeadEvents.Add(new LeadEvent
+            {
+                LeadId = existing.Id, Type = "note", ActorName = "Daraja testi", CreatedAt = now,
+                Text = $"Yana daraja testini ishladi: {score}/{total} ({percent}%){levelText}",
+            });
+            lead = existing;
+        }
+        else
+        {
+            // Yangi lid — birinchi (Order) bosqichga tushadi.
+            var firstStage = await db.LeadStages.OrderBy(s => s.Order).Select(s => s.Id).FirstOrDefaultAsync() ?? "";
+            lead = new Lead
+            {
+                FullName = string.IsNullOrWhiteSpace(req.FullName) ? "Noma'lum (daraja testi)" : req.FullName.Trim(),
+                Phone = phone,
+                Source = "Daraja testi",
+                InterestSubject = string.IsNullOrEmpty(courseName) ? test.Title : courseName,
+                Note = noteLine,
+                Stage = firstStage,
+                CreatedAt = now,
+            };
+            db.Leads.Add(lead);
+            db.LeadEvents.Add(new LeadEvent
+            {
+                LeadId = lead.Id, Type = "created", ActorName = "Daraja testi", CreatedAt = now,
+                Text = $"Daraja testi orqali keldi: {score}/{total} ({percent}%){levelText}",
+            });
+        }
         var submission = new LevelTestSubmission
         {
             TestId = test.Id, FullName = lead.FullName, Phone = lead.Phone, Age = req.Age,
@@ -222,8 +266,9 @@ public static class LevelTestService
         await db.SaveChangesAsync();
 
         // Botda ro'yxatdan o'tgan admin/xodimlarga yangi lid xabarnomasi — test natijasi bilan (batafsil).
+        // isNewLead=false bo'lsa (mavjud lidga biriktirildi) — sarlavha "yangi lid" emas.
         if (telegram is not null)
-            await LeadNotifier.NotifyNewLeadAsync(db, telegram, lead, submission, test.Title);
+            await LeadNotifier.NotifyNewLeadAsync(db, telegram, lead, submission, test.Title, isNewLead);
         // Avto xabar — "Test natijasi" hodisasiga yoqilgan qoidalar bo'yicha abituriyentga (lidga) SMS.
         // {natija}/{daraja}/{ball}/{foiz} tokenlari test natijasi bilan to'ldiriladi.
         if (autoMsg is not null)
@@ -336,8 +381,9 @@ public static class LevelTestService
         inv.Level = level ?? "";
         await db.SaveChangesAsync();
 
+        // Bir martalik havola — natija MAVJUD lidga bog'landi, shuning uchun "yangi lid" emas.
         if (telegram is not null && lead is not null)
-            await LeadNotifier.NotifyNewLeadAsync(db, telegram, lead, submission, test.Title);
+            await LeadNotifier.NotifyNewLeadAsync(db, telegram, lead, submission, test.Title, isNewLead: false);
 
         var msg = total == 0
             ? "Rahmat! Javoblaringiz qabul qilindi."
