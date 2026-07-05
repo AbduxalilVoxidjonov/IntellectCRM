@@ -9,7 +9,7 @@ namespace IntellectCRM.Server.Controllers;
 
 /// <summary>
 /// LMS (Ta'lim) — admin tomoni.
-/// Ierarxiya: Sinflar → Fanlar (har sinf uchun alohida) → Mavzular (video/matn/material).
+/// Ierarxiya: Guruhlar → Fanlar (har guruh uchun alohida) → Mavzular (video/matn/material).
 /// Ochilish tartibi: all / sequential / batch — har fanda alohida sozlanadi.
 /// </summary>
 [ApiController]
@@ -20,7 +20,7 @@ public class LmsController(AppDbContext db, IWebHostEnvironment env) : Controlle
 {
     /* ─── Fanlar (Subjects) ─────────────────────────────────── */
 
-    /// <summary>Barcha fanlar yoki sinfga tegishli fanlar.</summary>
+    /// <summary>Barcha fanlar yoki guruhga tegishli fanlar.</summary>
     [HttpGet("subjects")]
     public async Task<ActionResult<IEnumerable<LmsSubjectDto>>> Subjects([FromQuery] string? classId)
     {
@@ -28,7 +28,7 @@ public class LmsController(AppDbContext db, IWebHostEnvironment env) : Controlle
         if (!string.IsNullOrEmpty(classId)) q = q.Where(s => s.ClassId == classId);
         var list = await q.OrderBy(s => s.CreatedAt).ToListAsync();
 
-        // Sinf nomlarini topamiz (bir so'rovda)
+        // Guruh nomlarini topamiz (bir so'rovda)
         var classIds = list.Select(s => s.ClassId).Distinct().ToList();
         var classNames = await db.Classes
             .Where(c => classIds.Contains(c.Id))
@@ -43,10 +43,10 @@ public class LmsController(AppDbContext db, IWebHostEnvironment env) : Controlle
         if (string.IsNullOrWhiteSpace(req.Title))
             return BadRequest(new { message = "Fan nomi kerak" });
         if (string.IsNullOrWhiteSpace(req.ClassId))
-            return BadRequest(new { message = "Sinf kerak" });
+            return BadRequest(new { message = "Guruh kerak" });
 
         var cls = await db.Classes.FindAsync(req.ClassId);
-        if (cls is null) return NotFound(new { message = "Sinf topilmadi" });
+        if (cls is null) return NotFound(new { message = "Guruh topilmadi" });
 
         var s = new LmsSubject
         {
@@ -73,7 +73,7 @@ public class LmsController(AppDbContext db, IWebHostEnvironment env) : Controlle
         s.Description = req.Description?.Trim() ?? "";
         s.UnlockMode = ValidMode(req.UnlockMode);
         s.BatchSize = Math.Max(1, req.BatchSize);
-        // ClassId o'zgarmaydi (sinf tanlash faqat yaratishda)
+        // ClassId o'zgarmaydi (guruh tanlash faqat yaratishda)
         await db.SaveChangesAsync();
         return NoContent();
     }
@@ -203,7 +203,7 @@ public class LmsController(AppDbContext db, IWebHostEnvironment env) : Controlle
     }
 
     /// <summary>
-    /// Fan bo'yicha o'quvchilar progress matritsasi (admin): sinfdagi har o'quvchi qaysi mavzularni
+    /// Fan bo'yicha o'quvchilar progress matritsasi (admin): guruhdagi har o'quvchi qaysi mavzularni
     /// tugatgan. O'qituvchi tomonidagi hisobotning aynan o'zi, lekin egalik tekshiruvisiz.
     /// </summary>
     [HttpGet("subjects/{subjectId}/progress")]
@@ -225,21 +225,21 @@ public class LmsController(AppDbContext db, IWebHostEnvironment env) : Controlle
             .ToList();
         var topicIds = topics.Select(x => x.Id).ToList();
 
-        // Asosiy ro'yxat — fan biriktirilgan sinf o'quvchilari (sinf o'chirilgan bo'lsa bo'sh).
+        // Asosiy ro'yxat — fan biriktirilgan guruh o'quvchilari (guruh o'chirilgan bo'lsa bo'sh).
         var cls = await db.Classes.FindAsync(subject.ClassId);
         var roster = cls is null
             ? new List<Student>()
             : await db.Students.Where(s => s.ClassName == cls.Name && !s.IsArchived).ToListAsync();
 
-        // Mavzularni tugatgan o'quvchilarning progressi (sinfga qarab cheklamaymiz).
+        // Mavzularni tugatgan o'quvchilarning progressi (guruhga qarab cheklamaymiz).
         var byStudent = (await db.LmsProgresses
                 .Where(p => topicIds.Contains(p.TopicId))
                 .ToListAsync())
             .GroupBy(p => p.StudentId)
             .ToDictionary(g => g.Key, g => g.Select(x => x.TopicId).ToList());
 
-        // Sinf ro'yxatiga, sinfda bo'lmagan lekin tugatgan o'quvchilarni ham qo'shamiz — aks holda
-        // ularning bajargani ko'rinmay qoladi (boshqa sinfga ko'chgan/arxivlangan bo'lishi mumkin).
+        // Guruh ro'yxatiga, guruhda bo'lmagan lekin tugatgan o'quvchilarni ham qo'shamiz — aks holda
+        // ularning bajargani ko'rinmay qoladi (boshqa guruhga ko'chgan/arxivlangan bo'lishi mumkin).
         var rosterIds = roster.Select(s => s.Id).ToHashSet();
         var extraIds = byStudent.Keys.Where(id => !rosterIds.Contains(id)).ToList();
         var extras = extraIds.Count == 0

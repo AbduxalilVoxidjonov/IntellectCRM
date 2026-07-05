@@ -10,8 +10,8 @@ using System.Security.Claims;
 namespace IntellectCRM.Server.Controllers;
 
 /// <summary>
-/// Admin "Xabarlar" bo'limi: (1) sinf ota-onalariga Telegram bot orqali e'lon yuborish;
-/// (2) sinf guruh chati (o'quvchilar + dars beruvchi o'qituvchilar + admin). Faqat "admin" roli.
+/// Admin "Xabarlar" bo'limi: (1) guruh ota-onalariga Telegram bot orqali e'lon yuborish;
+/// (2) guruh chati (o'quvchilar + dars beruvchi o'qituvchilar + admin). Faqat "admin" roli.
 /// </summary>
 [ApiController]
 [Authorize]
@@ -21,7 +21,7 @@ public class MessagesController(AppDbContext db, ChatService chat, TelegramServi
 {
     private string Uid => User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "";
 
-    // ---------- Sinflar ro'yxati (chat/e'lon tanlash uchun) ----------
+    // ---------- Guruhlar ro'yxati (chat/e'lon tanlash uchun) ----------
 
     [HttpGet("classes")]
     public async Task<ActionResult<IEnumerable<ChatClassDto>>> Classes()
@@ -41,7 +41,7 @@ public class MessagesController(AppDbContext db, ChatService chat, TelegramServi
         var studentCountByClass = students
             .Where(s => !string.IsNullOrEmpty(s.ClassName))
             .GroupBy(s => s.ClassName).ToDictionary(g => g.Key, g => g.Count());
-        // Har sinf bo'yicha alohida (distinct) Telegram chatlar soni — e'lon oluvchilar.
+        // Har guruh bo'yicha alohida (distinct) Telegram chatlar soni — e'lon oluvchilar.
         var parentChatsByClass = regs
             .Where(r => studentClass.Contains(r.StudentId))
             .GroupBy(r => studentClass[r.StudentId].First())
@@ -56,7 +56,7 @@ public class MessagesController(AppDbContext db, ChatService chat, TelegramServi
 
     /// <summary>
     /// Har bir kanal uchun oxirgi xabar vaqti (ISO) — frontend o'qilmagan xabarlarni aniqlaydi.
-    /// Admin uchun barcha sinflar + xodimlar kanali qaytadi. Xabari yo'q kanal uchun null.
+    /// Admin uchun barcha guruhlar + xodimlar kanali qaytadi. Xabari yo'q kanal uchun null.
     /// </summary>
     [HttpGet("last-messages")]
     public async Task<ActionResult<Dictionary<string, string?>>> LastMessages()
@@ -119,11 +119,11 @@ public class MessagesController(AppDbContext db, ChatService chat, TelegramServi
                 audience = $"Tanlangan ({ids.Count + teacherIds.Count})";
                 break;
             case "all":
-                audience = "Barcha sinflar";
+                audience = "Barcha guruhlar";
                 break;
             default: // class
                 var cn = req.ClassName?.Trim() ?? "";
-                if (cn.Length == 0) return BadRequest(new { message = "Sinf kerak" });
+                if (cn.Length == 0) return BadRequest(new { message = "Guruh kerak" });
                 studentsQ = studentsQ.Where(s => s.ClassName == cn);
                 audience = cn;
                 break;
@@ -158,13 +158,13 @@ public class MessagesController(AppDbContext db, ChatService chat, TelegramServi
         {
             if (!byId.TryGetValue(r.StudentId, out var s)) continue;
             var grp = groupByName.GetValueOrDefault(s.ClassName ?? "");
-            var message = $"📢 Maktab e'loni\n\n{Personalize(text, s, r, centerName, grp)}";
+            var message = $"📢 Markaz e'loni\n\n{Personalize(text, s, r, centerName, grp)}";
             if (await telegram.SendMessageAsync(r.ChatId, message)) sent++;
         }
         foreach (var r in teacherRegs)
         {
             if (!teachersById.TryGetValue(r.TeacherId!, out var t)) continue;
-            var message = $"📢 Maktab e'loni\n\n{MessageTokenizer.Teacher(text, t, centerName)}";
+            var message = $"📢 Markaz e'loni\n\n{MessageTokenizer.Teacher(text, t, centerName)}";
             if (await telegram.SendMessageAsync(r.ChatId, message)) sent++;
         }
 

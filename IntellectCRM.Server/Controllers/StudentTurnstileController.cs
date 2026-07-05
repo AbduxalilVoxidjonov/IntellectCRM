@@ -21,7 +21,7 @@ namespace IntellectCRM.Server.Controllers;
 public class StudentTurnstileController(
     AppDbContext db, TurnstileService turnstile, IHubContext<LiveHub> live) : ControllerBase
 {
-    /// <summary>Tanlangan kun (yyyy-MM-dd) uchun o'quvchilar turniketi: FISH, sinf, kirgan/chiqqan vaqt.</summary>
+    /// <summary>Tanlangan kun (yyyy-MM-dd) uchun o'quvchilar turniketi: FISH, guruh, kirgan/chiqqan vaqt.</summary>
     [HttpGet("dashboard")]
     public async Task<ActionResult<StudentTurnstileDashboardDto>> Dashboard([FromQuery] string? date)
     {

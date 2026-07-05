@@ -8,18 +8,18 @@ using IntellectCRM.Domain;
 namespace IntellectCRM.Application.Services;
 
 /// <summary>
-/// Sinf guruh chatining umumiy mantig'i (a'zolik, xabar olish/yuborish). Admin web va
+/// Guruh chatining umumiy mantig'i (a'zolik, xabar olish/yuborish). Admin web va
 /// o'qituvchi/o'quvchi portal controllerlari shu xizmatdan foydalanadi. Xabar saqlangach
-/// SignalR orqali shu sinf guruhiga (real-time) push qilinadi.
+/// SignalR orqali shu guruhga (real-time) push qilinadi.
 /// </summary>
 public class ChatService(IAppDbContext db, IHubContext<ChatHub> hub)
 {
-    /// <summary>Sinf nomidan SignalR guruh nomi.</summary>
+    /// <summary>Guruh nomidan SignalR guruh nomi.</summary>
     public static string Group(string className) => $"class:{className}";
 
     /// <summary>
     /// Barcha xodimlar (o'qituvchilar + adminlar) uchun umumiy guruh chati kanali kaliti.
-    /// Sinf nomi bo'la olmaydigan zahiraviy qiymat — ChatMessage.ClassName ustunida saqlanadi.
+    /// Guruh nomi bo'la olmaydigan zahiraviy qiymat — ChatMessage.ClassName ustunida saqlanadi.
     /// </summary>
     public const string StaffChannel = "__xodimlar__";
 
@@ -29,8 +29,8 @@ public class ChatService(IAppDbContext db, IHubContext<ChatHub> hub)
             System.Globalization.DateTimeStyles.RoundtripKind, out var dt) ? dt : null;
 
     /// <summary>
-    /// Foydalanuvchi a'zo bo'lgan chat kanallari (nomlari). admin/superadmin = barcha sinflar + xodimlar;
-    /// o'qituvchi = sinf rahbarligi + dars beradigan sinflar + xodimlar; o'quvchi = faqat o'z sinfi.
+    /// Foydalanuvchi a'zo bo'lgan chat kanallari (nomlari). admin/superadmin = barcha guruhlar + xodimlar;
+    /// o'qituvchi = guruh rahbarligi + dars beradigan guruhlar + xodimlar; o'quvchi = faqat o'z guruhi.
     /// "Xodimlar" (<see cref="StaffChannel"/>) — barcha o'qituvchi va adminlar uchun umumiy kanal.
     /// </summary>
     public async Task<List<string>> ClassNamesForUserAsync(string userId, string role)
@@ -76,7 +76,7 @@ public class ChatService(IAppDbContext db, IHubContext<ChatHub> hub)
         }
     }
 
-    /// <summary>Foydalanuvchi shu sinf chatiga kira oladimi.</summary>
+    /// <summary>Foydalanuvchi shu guruh chatiga kira oladimi.</summary>
     public async Task<bool> CanAccessAsync(string userId, string role, string className)
     {
         if (role == "admin") return true;
@@ -85,7 +85,7 @@ public class ChatService(IAppDbContext db, IHubContext<ChatHub> hub)
     }
 
     /// <summary>
-    /// Sinf chatidagi xabarlar. since=null bo'lsa — eng so'nggi 200 ta (vaqt bo'yicha o'sish
+    /// Guruh chatidagi xabarlar. since=null bo'lsa — eng so'nggi 200 ta (vaqt bo'yicha o'sish
     /// tartibida); since berilsa — shu vaqtdan keyingilar (yangilanish uchun).
     /// </summary>
     public async Task<List<ChatMessageDto>> GetMessagesAsync(string className, DateTime? since)
@@ -106,8 +106,8 @@ public class ChatService(IAppDbContext db, IHubContext<ChatHub> hub)
     }
 
     /// <summary>
-    /// Sinf chatiga xabar yozadi (jo'natuvchi nomi/roli akkauntdan olinadi), saqlaydi va
-    /// SignalR orqali shu sinf guruhiga push qiladi. Bo'sh matn yuborilmaydi.
+    /// Guruh chatiga xabar yozadi (jo'natuvchi nomi/roli akkauntdan olinadi), saqlaydi va
+    /// SignalR orqali shu guruhga push qiladi. Bo'sh matn yuborilmaydi.
     /// </summary>
     public async Task<ChatMessageDto?> PostAsync(string className, string userId, string text)
     {

@@ -63,7 +63,7 @@ export function AssignmentsPage() {
       .finally(() => setLoading(false))
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- sinf filtri o'zgarganda qayta yuklash (maqsadli)
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- guruh filtri o'zgarganda qayta yuklash (maqsadli)
     setLoading(true)
     reload()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- faqat classId o'zgarganda

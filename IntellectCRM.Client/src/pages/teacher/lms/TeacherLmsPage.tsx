@@ -31,7 +31,7 @@ export function TeacherLmsPage() {
       .finally(() => setLoading(false))
   }, [])
 
-  // Sinf bo'yicha guruhlash
+  // Guruh bo'yicha guruhlash
   const byClass = subjects.reduce<Record<string, { className: string; items: LmsSubject[] }>>(
     (acc, s) => {
       if (!acc[s.classId]) acc[s.classId] = { className: s.className, items: [] }

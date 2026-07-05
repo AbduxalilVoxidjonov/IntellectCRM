@@ -33,7 +33,7 @@ export async function getTeacherProfile(): Promise<TeacherProfile | null> {
   return data
 }
 
-/** O'qituvchi dars beradigan sinflar (har biri o'qitadigan fanlari bilan) */
+/** O'qituvchi dars beradigan guruhlar (har biri o'qitadigan fanlari bilan) */
 export async function getMyClasses(): Promise<TeacherClass[]> {
   if (USE_MOCK) return []
   const { data } = await api.get<TeacherClass[]>('/teacher/classes')
@@ -48,7 +48,7 @@ export async function getTeacherEvalTypes(): Promise<EvaluationType[]> {
   return data
 }
 
-/** O'qituvchining shu sinf+fan bo'yicha baholash jadvali (tanlangan oy). */
+/** O'qituvchining shu guruh+fan bo'yicha baholash jadvali (tanlangan oy). */
 export async function getTeacherEvalBoard(
   classId: string,
   subjectId: string,
@@ -323,7 +323,7 @@ export async function getTeacherLastMessages(): Promise<Record<string, string | 
 
 import type { LmsSubject, LmsTopic, LmsProgressReport } from '@/types'
 
-/** O'qituvchi barcha sinflari yoki bitta sinf LMS fanlari */
+/** O'qituvchi barcha guruhlari yoki bitta guruh LMS fanlari */
 export async function getTeacherLmsSubjects(classId?: string): Promise<LmsSubject[]> {
   if (USE_MOCK) return []
   const { data } = await api.get<LmsSubject[]>('/teacher/lms/subjects', {

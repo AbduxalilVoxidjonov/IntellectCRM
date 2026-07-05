@@ -265,7 +265,7 @@ export function TeacherDetailPage() {
                   ? `${formatDate(teacher.salaryStartDate)} dan`
                   : teacher.salaryStartMonth
                     ? `${formatMonth(teacher.salaryStartMonth)} dan`
-                    : "o'quv yili boshidan"
+                    : "eng birinchi to'lov oyidan"
               }
             />
           </Card>

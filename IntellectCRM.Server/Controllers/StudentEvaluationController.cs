@@ -159,7 +159,7 @@ public class StudentEvaluationController(AppDbContext db) : ControllerBase
         var reasonMap = reasons.ToDictionary(r => r.Id);
         var lateSet = reasons.Where(r => r.IsLate).Select(r => r.Id).ToHashSet();
 
-        // O'tilgan darslar sinf bo'yicha: (SubjectId, Date, Period)
+        // O'tilgan darslar guruh bo'yicha: (SubjectId, Date, Period)
         var conductedByClass = conducted
             .GroupBy(c => c.ClassId)
             .ToDictionary(g => g.Key, g => g.Select(c => (c.SubjectId, c.Date, c.Period)).ToList());

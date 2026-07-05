@@ -9,7 +9,7 @@ namespace IntellectCRM.Server.Controllers;
 
 /// <summary>
 /// Admin "Topshiriqlar" bo'limi. Admin o'qituvchilar kabi topshiriq YARATADI/tahrirlaydi/o'chiradi
-/// (istalgan sinf+fan uchun) va BARCHA topshiriqlarni — o'qituvchilar yaratganini ham — boshqaradi.
+/// (istalgan guruh+fan uchun) va BARCHA topshiriqlarni — o'qituvchilar yaratganini ham — boshqaradi.
 /// Egalik (CreatedByUserId) yangilashda saqlanadi (o'qituvchi baribir o'zinikini ko'rib turadi).
 /// Yaratish/tahrirlash o'qituvchida ham bor (`/api/teacher/assignments`).
 /// </summary>
@@ -21,7 +21,7 @@ public class AssignmentsController(AppDbContext db, IWebHostEnvironment env) : C
 {
     private string Uid => User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "";
 
-    /// <summary>Barcha topshiriqlar (yoki sinf bo'yicha).</summary>
+    /// <summary>Barcha topshiriqlar (yoki guruh bo'yicha).</summary>
     [HttpGet]
     public async Task<ActionResult<IEnumerable<AssignmentDto>>> List([FromQuery] string? classId)
         => string.IsNullOrEmpty(classId)
@@ -36,7 +36,7 @@ public class AssignmentsController(AppDbContext db, IWebHostEnvironment env) : C
         return res is null ? NotFound() : res;
     }
 
-    /// <summary>"Topshiriqlar bali" — sinf bo'yicha ball jadvali (o'quvchilar × topshiriqlar).</summary>
+    /// <summary>"Topshiriqlar bali" — guruh bo'yicha ball jadvali (o'quvchilar × topshiriqlar).</summary>
     [HttpGet("scoreboard")]
     public async Task<ActionResult<AssignmentScoreboardDto>> Scoreboard([FromQuery] string classId)
     {
@@ -52,7 +52,7 @@ public class AssignmentsController(AppDbContext db, IWebHostEnvironment env) : C
     {
         if (string.IsNullOrWhiteSpace(req.Title)) return BadRequest(new { message = "Topshiriq nomi kerak" });
         if (req.ClassIds is null || req.ClassIds.Count == 0)
-            return BadRequest(new { message = "Kamida bitta sinf tanlang" });
+            return BadRequest(new { message = "Kamida bitta guruh tanlang" });
         return await AssignmentService.CreateAsync(db, Uid, req);
     }
 

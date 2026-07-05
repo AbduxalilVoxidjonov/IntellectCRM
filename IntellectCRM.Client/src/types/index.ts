@@ -36,7 +36,7 @@ export interface Credentials {
 export interface AdminStats {
   studentsCount: number
   teachersCount: number
-  /** Maktab o'rtacha bahosi (5 ballik tizim) */
+  /** Markaz o'rtacha bahosi (5 ballik tizim) */
   averageGrade: number
   /** Umumiy davomat foizi (0-100); o'tilgan dars bo'lmasa null */
   attendanceRate: number | null
@@ -96,7 +96,7 @@ export interface TeacherPerformance {
 export interface AdminDashboard {
   stats: AdminStats
   classPerformance: ClassPerformance[]
-  /** O'rtacha baho bo'yicha eng yuqori sinflar */
+  /** O'rtacha baho bo'yicha eng yuqori guruhlar */
   topClasses: TopClass[]
   /** O'quvchilar bo'yicha taqsimot */
   studentBreakdown: StudentBreakdown
@@ -185,7 +185,7 @@ export interface CenterAiResponse {
   error: string | null
 }
 
-/* ---------- Lidlar (maktabga qiziqqanlar) ---------- */
+/* ---------- Lidlar (markazga qiziqqanlar) ---------- */
 
 export type StageColor =
   | 'slate'
@@ -319,7 +319,7 @@ export interface Student {
   locationAddress?: string | null
   /** Joylashuv oxirgi yangilangan vaqti (ISO) */
   locationUpdatedAt?: string | null
-  /** Arxivlanganmi (o'quvchi maktabdan ketgan/chiqarilgan) */
+  /** Arxivlanganmi (o'quvchi markazdan ketgan/chiqarilgan) */
   isArchived?: boolean
   /** Arxivga olingan sana (ISO) */
   archivedAt?: string | null
@@ -341,7 +341,7 @@ export interface Student {
   active?: boolean
   /** Login/parol orqali tizimga kirish admin tomonidan cheklanganmi */
   loginBlocked?: boolean
-  /** Maktabga kelgan (qabul) sanasi (ISO) — oylik to'lov shu oydan boshlanadi */
+  /** Markazga kelgan (qabul) sanasi (ISO) — oylik to'lov shu oydan boshlanadi */
   enrollmentDate: string
   /** Balans (so'm): manfiy = qarzdor, 0 = qarzsiz, musbat = avans */
   balance: number
@@ -522,17 +522,17 @@ export interface Subject {
   lessonPrice?: number
 }
 
-/* ---------- Sinflar ---------- */
+/* ---------- Guruhlar ---------- */
 
 export type ClassLanguage = 'uz' | 'ru'
 
 export interface Group {
   id: string
-  /** Sinf nomi, masalan "3-A" */
+  /** Guruh nomi, masalan "3-A" */
   name: string
-  /** Sinf darajasi (1-11), masalan 3 */
+  /** Guruh darajasi (1-11), masalan 3 */
   grade: number
-  /** O'zbek yoki rus sinfligi */
+  /** O'zbek yoki rus tilidagi guruh */
   language: ClassLanguage
   /** Oylik to'lov (so'm) */
   monthlyFee: number
@@ -540,7 +540,7 @@ export interface Group {
   room?: string
   /** Xona FK (Room.Id). Yangi guruhlarda shu ishlatiladi. */
   roomId?: string
-  /** Sinf arxivlangan (arxivlanganda o'quvchilari ham arxivlanadi) */
+  /** Guruh arxivlangan (arxivlanganda o'quvchilari ham arxivlanadi) */
   isArchived?: boolean
   /** Arxivga olingan sana (ISO) */
   archivedAt?: string | null
@@ -741,7 +741,7 @@ export interface FinanceTransaction {
   method?: string
   /** Backend qaytaradigan guruh nomi (tuition to'lovi bo'lsa) */
   groupName?: string | null
-  /** Kiritilgan vaqt (ISO "yyyy-MM-ddTHH:mm:ss", maktab mintaqasi UTC+5) — ro'yxatda soat ko'rsatish uchun */
+  /** Kiritilgan vaqt (ISO "yyyy-MM-ddTHH:mm:ss", markaz mintaqasi UTC+5) — ro'yxatda soat ko'rsatish uchun */
   createdAt?: string
 }
 
@@ -780,7 +780,7 @@ export type MonthStatus = 'paid' | 'partial' | 'unpaid'
 export interface MonthLedger {
   /** "YYYY-MM" */
   month: string
-  /** Shu oyga hisoblangan TO'LIQ summa (sinf oylik narxi — chegirmasiz) */
+  /** Shu oyga hisoblangan TO'LIQ summa (guruh oylik narxi — chegirmasiz) */
   charged: number
   /** Shu oy uchun berilgan chegirma summasi */
   discount: number
@@ -817,7 +817,7 @@ export interface LedgerPayment {
 export interface StudentLedger {
   student: Student
   balance: number
-  /** Hozirgi effektiv oylik to'lov (sinf narxi − chegirma) */
+  /** Hozirgi effektiv oylik to'lov (guruh narxi − chegirma) */
   monthlyFee: number
   /** Jami hisoblangan (to'liq narx — chegirmasiz) */
   totalCharged: number
@@ -866,7 +866,7 @@ export interface Teacher {
   phone?: string
   /** O'qituvchining rasmi (profil surati) URL'i */
   photoUrl?: string | null
-  /** Sinf rahbari bo'lsa — biriktirilgan sinf nomi; aks holda bo'sh */
+  /** Guruh rahbari bo'lsa — biriktirilgan guruh nomi; aks holda bo'sh */
   homeroomClass: string
   /** Dars beradigan fanlar (Subject id'lari) */
   subjectIds: string[]
@@ -930,7 +930,7 @@ export interface TeacherReportRow {
   conversionPct: number | null
 }
 
-/** Sinf/fan kesimida bitta qator (batafsil hisobot) */
+/** Guruh/fan kesimida bitta qator (batafsil hisobot) */
 export interface TeacherReportBreakdown {
   className: string
   subjectName: string
@@ -1171,10 +1171,10 @@ export interface StudentFinanceRow {
 
 /* ---------- Xabarlar (chat + e'lon + telegram) ---------- */
 
-/** Sinf guruh chatidagi bitta xabar */
+/** Guruh chatidagi bitta xabar */
 export interface ChatMessage {
   id: string
-  /** Qaysi sinf chati (sinf nomi) */
+  /** Qaysi guruh chati (guruh nomi) */
   className: string
   senderUserId: string
   senderName: string
@@ -1185,7 +1185,7 @@ export interface ChatMessage {
   createdAt: string
 }
 
-/** Admin "Xabarlar" bo'limidagi sinf kartasi */
+/** Admin "Xabarlar" bo'limidagi guruh kartasi */
 export interface MessageClass {
   name: string
   grade: number
@@ -1213,7 +1213,7 @@ export interface Broadcast {
 export interface TelegramParent {
   studentId: string
   studentName: string
-  /** O'quvchi sinfi */
+  /** O'quvchi guruhi */
   className: string
   /** O'quvchi balansi (manfiy = qarz) — qarzdorlar filtri uchun */
   balance: number
@@ -1298,7 +1298,7 @@ export interface DisciplineReason {
   kind: 'other' | 'attendance'
 }
 
-/** Ballar nazorati qatori: o'quvchi, sinf, plus, minus, qoldi (100 + plus − minus) */
+/** Ballar nazorati qatori: o'quvchi, guruh, plus, minus, qoldi (100 + plus − minus) */
 export interface DisciplineScoreRow {
   studentId: string
   fullName: string
@@ -1334,7 +1334,7 @@ export interface PushRecipient {
   name: string
   /** "Ota-ona" yoki "O'qituvchi" */
   group: string
-  /** Qo'shimcha (ota-ona uchun sinf) */
+  /** Qo'shimcha (ota-ona uchun guruh) */
   detail: string
   /** Qurilma ulanganmi (push haqiqatan yetadimi) */
   hasDevice: boolean
@@ -1432,7 +1432,7 @@ export interface AssignmentScoreRow {
   totalMax: number
   gradedCount: number
 }
-/** Sinf bo'yicha topshiriqlar ball jadvali */
+/** Guruh bo'yicha topshiriqlar ball jadvali */
 export interface AssignmentScoreboard {
   classId: string
   className: string
@@ -1449,9 +1449,9 @@ export interface Assignment {
   title: string
   description: string
   format: AssignmentFormat
-  /** Beriladigan sinflar (id'lar) */
+  /** Beriladigan guruhlar (id'lar) */
   classIds: string[]
-  /** Sinf nomlari (ko'rsatish uchun) */
+  /** Guruh nomlari (ko'rsatish uchun) */
   classNames: string[]
   /** Boshlash vaqti (ISO) yoki null */
   startDate: string | null

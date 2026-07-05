@@ -76,7 +76,7 @@ public class StudentPortalController(
         return uid is null ? null : await db.Students.FirstOrDefaultAsync(s => s.UserId == uid);
     }
 
-    /// <summary>O'quvchining sinf id'sini (nomidan) topadi.</summary>
+    /// <summary>O'quvchining guruh id'sini (nomidan) topadi.</summary>
     private async Task<string?> ClassIdOf(Student s) =>
         (await db.Classes.FirstOrDefaultAsync(c => c.Name == s.ClassName))?.Id;
 
@@ -183,12 +183,12 @@ public class StudentPortalController(
         return await StudentProfileBuilder.BuildAsync(db, s);
     }
 
-    /// <summary>Maktab meta'si (chorak/dars vaqtlari/sabablar + joriy chorak/hafta) —
+    /// <summary>Markaz meta'si (chorak/dars vaqtlari/sabablar + joriy chorak/hafta) —
     /// hammaga bir xil, `studentId` shart emas.</summary>
     [HttpGet("meta")]
     public async Task<ActionResult<PortalMetaDto>> Meta() => await refCache.MetaAsync();
 
-    /// <summary>Joriy maktab nomi — ilova brendingi/sarlavhasi uchun.</summary>
+    /// <summary>Joriy markaz nomi — ilova brendingi/sarlavhasi uchun.</summary>
     [HttpGet("school")]
     public async Task<ActionResult<SchoolNameDto>> School()
     {
@@ -286,8 +286,8 @@ public class StudentPortalController(
 
     /// <summary>
     /// O'quvchi reytingi (admin "Reyting"i bilan bir xil hisob — o'rtacha baho bo'yicha):
-    /// <b>o'z sinfini to'liq</b>, <b>maktab bo'yicha esa faqat TOP 15</b> ko'radi.
-    /// O'z qatori `MeStudentId` bilan, maktab o'rni (top 15 dan tashqarida bo'lsa ham) `MeSchoolRank` bilan beriladi.
+    /// <b>o'z guruhini to'liq</b>, <b>markaz bo'yicha esa faqat TOP 15</b> ko'radi.
+    /// O'z qatori `MeStudentId` bilan, markaz o'rni (top 15 dan tashqarida bo'lsa ham) `MeSchoolRank` bilan beriladi.
     /// Parent farzandi nomidan; admin uchun `?studentId=` shart.
     /// </summary>
     [HttpGet("rating")]
@@ -297,7 +297,7 @@ public class StudentPortalController(
         var s = await TargetAsync(studentId);
         if (s is null) return NotFound();
 
-        // O'rtacha baho bo'yicha kamayish tartibida — adminnikidek (index = o'rin). Butun maktab reytingi
+        // O'rtacha baho bo'yicha kamayish tartibida — adminnikidek (index = o'rin). Butun markaz reytingi
         // admin endpointi bilan BIR xil kesh kalitidan ("rating:school") o'qiladi — bog'liq jadval o'zgarsa
         // interceptor uni avtomatik yangilaydi.
         var school = (await dataCache.GetOrCreateAsync(
@@ -317,8 +317,8 @@ public class StudentPortalController(
 
         var classRows = school
             .Where(r => r.ClassName == s.ClassName)
-            .Select(Map).ToList();                       // o'z sinfi — to'liq
-        var schoolRows = school.Take(15).Select(Map).ToList(); // maktab — top 15
+            .Select(Map).ToList();                       // o'z guruhi — to'liq
+        var schoolRows = school.Take(15).Select(Map).ToList(); // markaz — top 15
 
         var meIdx = school.FindIndex(r => r.Student.Id == s.Id);
         int? meSchoolRank = meIdx >= 0 ? meIdx + 1 : null;
@@ -633,7 +633,7 @@ public class StudentPortalController(
         return await StudentLedger.BuildAsync(db, s);
     }
 
-    // ---------- Guruh chati (o'z sinfi) ----------
+    // ---------- Guruh chati (o'z guruhi) ----------
 
     [HttpGet("chat")]
     public async Task<ActionResult<IEnumerable<ChatMessageDto>>> Chat(
@@ -654,15 +654,15 @@ public class StudentPortalController(
     {
         var s = await MeAsync();
         if (s is null) return NotFound();
-        if (string.IsNullOrEmpty(s.ClassName)) return BadRequest(new { message = "Sinf biriktirilmagan" });
+        if (string.IsNullOrEmpty(s.ClassName)) return BadRequest(new { message = "Guruh biriktirilmagan" });
         var uid = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "";
         var dto = await chat.PostAsync(s.ClassName, uid, req.Text);
         return dto is null ? BadRequest(new { message = "Xabar bo'sh" }) : dto;
     }
 
-    // ---------- Topshiriqlar / testlar (o'z sinfi) ----------
+    // ---------- Topshiriqlar / testlar (o'z guruhi) ----------
 
-    /// <summary>O'z sinfiga berilgan topshiriqlar — har birida o'z holati (bajardi/ball).</summary>
+    /// <summary>O'z guruhiga berilgan topshiriqlar — har birida o'z holati (bajardi/ball).</summary>
     [HttpGet("assignments")]
     public async Task<ActionResult<IEnumerable<StudentAssignmentDto>>> Assignments(
         [FromQuery] string? studentId)
@@ -1167,14 +1167,14 @@ public class StudentPortalController(
 
     /* ─── LMS (Ta'lim) ──────────────────────────────────────── */
 
-    /// <summary>O'quvchining sinfi uchun LMS fanlar ro'yxati (progress bilan).</summary>
+    /// <summary>O'quvchining guruhi uchun LMS fanlar ro'yxati (progress bilan).</summary>
     [HttpGet("lms/subjects")]
     public async Task<ActionResult<IEnumerable<StudentLmsSubjectDto>>> LmsSubjects([FromQuery] string? studentId)
     {
         var s = await TargetAsync(studentId);
         if (s is null) return User.IsInRole("admin") ? NeedStudentId() : NotFound();
 
-        // O'quvchining sinf id'sini topamiz
+        // O'quvchining guruh id'sini topamiz
         var cls = await db.Classes.FirstOrDefaultAsync(c => c.Name == s.ClassName);
         if (cls is null) return Ok(Array.Empty<StudentLmsSubjectDto>());
 
@@ -1248,7 +1248,7 @@ public class StudentPortalController(
             .FirstOrDefaultAsync(x => x.Id == subjectId);
         if (subject is null) return NotFound();
 
-        // Sinfga tegishli ekanini tekshiramiz
+        // Guruhga tegishli ekanini tekshiramiz
         var cls = await db.Classes.FirstOrDefaultAsync(c => c.Name == s.ClassName);
         if (cls is null || subject.ClassId != cls.Id) return Forbid();
 
@@ -1288,7 +1288,7 @@ public class StudentPortalController(
             .FirstOrDefaultAsync(x => x.Id == subjectId);
         if (subject is null) return NotFound();
 
-        // Sinfga tegishli ekanini tekshiramiz
+        // Guruhga tegishli ekanini tekshiramiz
         var cls = await db.Classes.FirstOrDefaultAsync(c => c.Name == s.ClassName);
         if (cls is null || subject.ClassId != cls.Id) return Forbid();
 
@@ -1325,7 +1325,7 @@ public class StudentPortalController(
             .FirstOrDefaultAsync(t => t.Id == topicId);
         if (topic is null) return NotFound();
 
-        // Sinfga tegishli ekanini tekshiramiz
+        // Guruhga tegishli ekanini tekshiramiz
         var cls = await db.Classes.FirstOrDefaultAsync(c => c.Name == s.ClassName);
         if (cls is null || topic.Module.Subject.ClassId != cls.Id) return Forbid();
 

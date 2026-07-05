@@ -6,7 +6,7 @@ using IntellectCRM.Domain;
 namespace IntellectCRM.Application.Services;
 
 /// <summary>
-/// Oylik to'lovlarni hisoblash (accrual). Har oy har bir o'quvchiga sinf oylik
+/// Oylik to'lovlarni hisoblash (accrual). Har oy har bir o'quvchiga guruh oylik
 /// to'lovi miqdorida qarz yoziladi: balans kamayadi va MonthlyCharge yozuvi yaratiladi.
 /// To'lanmagan oylar balansda jamlanib boradi.
 /// </summary>
@@ -15,7 +15,7 @@ public static class TuitionService
     public static string CurrentMonth() => AppClock.Now.ToString("yyyy-MM");
 
     /// <summary>
-    /// Sinf oylik to'lovidan o'quvchining chegirmasini ayirib, hisoblanishi kerak bo'lgan
+    /// Guruh oylik to'lovidan o'quvchining chegirmasini ayirib, hisoblanishi kerak bo'lgan
     /// summa. Avval foiz olib tashlanadi (<paramref name="discountPct"/>, 0..100), keyin aniq
     /// summa (<paramref name="discountAmount"/>) ayriladi. Manfiy chiqsa — 0 qaytadi.
     /// </summary>
@@ -30,8 +30,8 @@ public static class TuitionService
         return decimal.Round(charge, 2);
     }
 
-    /// <summary>O'quvchining shu paytdagi haqiqiy oylik to'lovi (sinf narxi minus chegirma).
-    /// Sinf topilmasa yoki narx 0 bo'lsa — 0 qaytadi.</summary>
+    /// <summary>O'quvchining shu paytdagi haqiqiy oylik to'lovi (guruh narxi minus chegirma).
+    /// Guruh topilmasa yoki narx 0 bo'lsa — 0 qaytadi.</summary>
     public static decimal ChargeFor(Student s, IDictionary<string, decimal> feeByClassName) =>
         feeByClassName.TryGetValue(s.ClassName, out var fee)
             ? ChargeFor(fee, s.DiscountPct, s.DiscountAmount)

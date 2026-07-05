@@ -7,7 +7,7 @@ import { journalTopicsMock } from '../mock/journalTopics'
 const gkey = (classId: string, subjectId: string, quarter: number) =>
   `${classId}-${subjectId}-${quarter}`
 
-/** Berilgan sanada o'tilgan darslar (sinf+fan+dars raqami) — bosh sahifada yashil/qizil ko'rsatish uchun */
+/** Berilgan sanada o'tilgan darslar (guruh+fan+dars raqami) — bosh sahifada yashil/qizil ko'rsatish uchun */
 export interface ConductedLesson {
   classId: string
   subjectId: string
@@ -290,7 +290,7 @@ export interface TopicImportResult {
   rowErrors: TopicImportRowError[]
 }
 
-/** Tanlangan sinf+fan+chorak uchun mavzular shabloni (.xlsx) — jadval kunlari oldindan to'ldirilgan. */
+/** Tanlangan guruh+fan+chorak uchun mavzular shabloni (.xlsx) — jadval kunlari oldindan to'ldirilgan. */
 export async function downloadTopicsTemplate(
   classId: string,
   subjectId: string,

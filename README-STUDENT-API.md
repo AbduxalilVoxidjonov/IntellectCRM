@@ -181,7 +181,7 @@ Bu bo'lim o'quvchi ilovasi uchun asosiy endpointlar (profil, darslar, baholar, d
 **Parametrlar:** 
 - `?studentId=...` — faqat admin uchun; student o'z profilini ko'radi
 
-**Vaziifasi:** O'quvchining profil ma'lumotlarini qaytaradi (FISH, sinf, ota-ona, sana, hujjatlar).
+**Vaziifasi:** O'quvchining profil ma'lumotlarini qaytaradi (FISH, guruhi, ota-ona, sana, hujjatlar).
 
 **Javob: 200 OK**
 
@@ -202,13 +202,13 @@ Bu bo'lim o'quvchi ilovasi uchun asosiy endpointlar (profil, darslar, baholar, d
 
 ---
 
-#### 3.1.2 School (Maktab nomi)
+#### 3.1.2 Center (Markaz nomi)
 
 **Endpoint:** `GET /api/student/school`
 
 **Auth:** Kerak
 
-**Vaziifasi:** Maktab nomini, logo va Telegram kanalini qaytaradi (ilova brendingi uchun).
+**Vaziifasi:** O'quv markazi nomini, logo va Telegram kanalini qaytaradi (ilova brendingi uchun).
 
 **Javob: 200 OK**
 
@@ -228,7 +228,7 @@ Bu bo'lim o'quvchi ilovasi uchun asosiy endpointlar (profil, darslar, baholar, d
 
 **Auth:** Kerak
 
-**Vaziifasi:** Maktab meta: dars vaqtlari, davomatsizlik sabablari, chorak oralig'i, boshqa sozlamalar.
+**Vaziifasi:** O'quv markazi meta: dars vaqtlari, davomatsizlik sabablari, chorak oralig'i, boshqa sozlamalar.
 
 **Javob: 200 OK**
 
@@ -493,7 +493,7 @@ Bu bo'lim o'quvchi ilovasi uchun asosiy endpointlar (profil, darslar, baholar, d
 **Parametrlar:**
 - `?studentId=...` — faqat admin uchun
 
-**Vaziifasi:** O'quvchi reyting (o'z sinfda to'liq, maktab bo'yicha TOP 15). O'z o'rni alohida `MeStudentId` bilan, maktab o'rni `MeSchoolRank` bilan.
+**Vaziifasi:** O'quvchi reyting (o'z guruhda to'liq, o'quv markazi bo'yicha TOP 15). O'z o'rni alohida `MeStudentId` bilan, markaz o'rni `MeSchoolRank` bilan.
 
 **Javob: 200 OK**
 
@@ -624,7 +624,7 @@ Bu bo'lim o'quvchi ilovasi uchun asosiy endpointlar (profil, darslar, baholar, d
 
 ---
 
-### 3.6 Chatlar (Sinf chati)
+### 3.6 Chatlar (Guruh chati)
 
 **Endpoint:** `GET /api/student/chat`
 
@@ -634,7 +634,7 @@ Bu bo'lim o'quvchi ilovasi uchun asosiy endpointlar (profil, darslar, baholar, d
 - `?since=2026-07-05T10:00:00` — bu vaqtdan keyingi xabarlar (ixtiyoriy)
 - `?studentId=...` — faqat admin uchun
 
-**Vaziifasi:** O'quvchining sinfi chati — faqat o'z sinfi uchun xabarlar.
+**Vaziifasi:** O'quvchining guruhi chati — faqat o'z guruhi uchun xabarlar.
 
 **Javob: 200 OK**
 
@@ -691,7 +691,7 @@ Bu bo'lim o'quvchi ilovasi uchun asosiy endpointlar (profil, darslar, baholar, d
 **Xatolar:**
 
 - **400 Bad Request:** "Xabar bo'sh"
-- **400 Bad Request:** "Sinf biriktirilmagan"
+- **400 Bad Request:** "Guruh biriktirilmagan"
 
 ---
 
@@ -706,7 +706,7 @@ Bu bo'lim o'quvchi ilovasi uchun asosiy endpointlar (profil, darslar, baholar, d
 **Parametrlar:**
 - `?studentId=...` — faqat admin uchun
 
-**Vaziifasi:** O'quvchi o'z sinfiga berilgan topshiriqlar — har birida o'z holati (bajardi/ball).
+**Vaziifasi:** O'quvchi o'z guruhiga berilgan topshiriqlar — har birida o'z holati (bajardi/ball).
 
 **Javob: 200 OK**
 
@@ -1232,7 +1232,7 @@ Bu bo'lim o'quvchi ilovasi uchun asosiy endpointlar (profil, darslar, baholar, d
 **Parametrlar:**
 - `?studentId=...` — faqat admin uchun
 
-**Vaziifasi:** O'quvchining sinfi uchun LMS fanlar (progress bilan — o'tilgan mavzular soni / jami).
+**Vaziifasi:** O'quvchining guruhi uchun LMS fanlar (progress bilan — o'tilgan mavzular soni / jami).
 
 **Javob: 200 OK**
 

@@ -374,7 +374,7 @@ public static class JournalService
     public static readonly string[] TopicHeaders =
         { "Dars raqami", "Mavzu", "Uy vazifa" };
 
-    /// <summary>Tanlangan sinf+fan+chorak uchun mavzular shabloni (.xlsx): "Dars raqami" jadval tartibida
+    /// <summary>Tanlangan guruh+fan+chorak uchun mavzular shabloni (.xlsx): "Dars raqami" jadval tartibida
     /// (1, 2, 3, ...) oldindan to'ldirilgan — sana va guruh shu raqamdan avtomatik aniqlanadi;
     /// "Mavzu"/"Uy vazifa" ustunlari foydalanuvchi to'ldirishi uchun (mavjudi ham ko'rsatiladi).</summary>
     public static async Task<byte[]> TopicTemplateXlsxAsync(IAppDbContext db, string classId, string subjectId, int quarter)

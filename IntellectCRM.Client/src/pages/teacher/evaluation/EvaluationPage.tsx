@@ -40,10 +40,10 @@ export function TeacherEvaluationPage() {
   const selectedClass = classes.find((c) => c.classId === classId) ?? null
   const subjects = useMemo(() => selectedClass?.subjects ?? [], [selectedClass])
 
-  // Sinf o'zgarganda — fanни shu sinf fanlariga moslaymiz.
+  // Guruh o'zgarganda — fanni shu guruh fanlariga moslaymiz.
   useEffect(() => {
     const ids = subjects.map((s) => s.id)
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- sinf fanlariga moslash (maqsadli)
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- guruh fanlariga moslash (maqsadli)
     setSubjectId((prev) => (ids.includes(prev) ? prev : (ids[0] ?? '')))
   }, [subjects])
 
@@ -61,7 +61,7 @@ export function TeacherEvaluationPage() {
       .finally(() => setDataLoading(false))
   }, [])
 
-  // Sinf yoki fan o'zgarsa — eng so'nggi oy bilan yuklaymiz.
+  // Guruh yoki fan o'zgarsa — eng so'nggi oy bilan yuklaymiz.
   useEffect(() => {
     load(undefined, classId, subjectId)
   }, [classId, subjectId, load])

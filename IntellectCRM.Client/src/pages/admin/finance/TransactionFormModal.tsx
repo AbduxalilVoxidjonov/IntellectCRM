@@ -41,7 +41,7 @@ export function TransactionFormModal({ open, onClose, onSubmit, initial }: Props
   const [form, setForm] = useState<FinanceTransactionPayload>(emptyFor('income'))
   const [teachers, setTeachers] = useState<Teacher[]>([])
   const [monthInfo, setMonthInfo] = useState<MonthSalary | null>(null)
-  // O'quvchi to'lovi uchun: sinf/o'quvchi tanlash + tanlangan o'quvchining oylar holati
+  // O'quvchi to'lovi uchun: guruh/o'quvchi tanlash + tanlangan o'quvchining oylar holati
   const [classes, setClasses] = useState<Group[]>([])
   const [students, setStudents] = useState<Student[]>([])
   const [classId, setClassId] = useState('')
@@ -98,13 +98,13 @@ export function TransactionFormModal({ open, onClose, onSubmit, initial }: Props
     )
   }, [open, initial])
 
-  // O'qituvchilar (maosh) + sinf/o'quvchilar (o'quvchi to'lovi) ro'yxatlarini API'dan olamiz
+  // O'qituvchilar (maosh) + guruh/o'quvchilar (o'quvchi to'lovi) ro'yxatlarini API'dan olamiz
   useEffect(() => {
     if (!open) return
     getTeachers().then(setTeachers)
     getClasses().then(setClasses)
     getStudents().then(setStudents)
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- modal ochilganda sinf/oylar tanlovini tozalash
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- modal ochilganda guruh/oylar tanlovini tozalash
     setClassId('')
     setLedgerMonths([])
   }, [open])

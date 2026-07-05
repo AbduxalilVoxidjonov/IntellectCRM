@@ -66,7 +66,7 @@ export function TeacherAssignmentsPage() {
       .finally(() => setLoading(false))
   }, [])
 
-  // Fanlar — dars beradigan sinflardagi fanlar birlashmasi (takrorsiz).
+  // Fanlar — dars beradigan guruhlardagi fanlar birlashmasi (takrorsiz).
   const subjects = useMemo<Subject[]>(() => {
     const map = new Map<string, Subject>()
     classes.forEach((c) => c.subjects.forEach((s) => map.set(s.id, s)))
@@ -219,7 +219,7 @@ export function TeacherAssignmentsPage() {
                     </div>
                   </div>
 
-                  {/* Sinf chiplari */}
+                  {/* Guruh chiplari */}
                   {a.classNames.length > 0 && (
                     <div className="mt-3 flex flex-wrap gap-1.5">
                       {a.classNames.map((n) => (

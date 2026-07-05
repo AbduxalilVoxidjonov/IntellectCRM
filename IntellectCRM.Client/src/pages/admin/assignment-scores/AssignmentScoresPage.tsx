@@ -35,7 +35,7 @@ function scoreColor(score: number, max: number): string {
 }
 
 /**
- * Admin "Topshiriqlar bali" — asosiy jadval qisqa (№ / F.I.Sh. / Sinf / Jami ball).
+ * Admin "Topshiriqlar bali" — asosiy jadval qisqa (№ / F.I.Sh. / Guruh / Jami ball).
  * O'quvchi bosilganda uning barcha topshiriqlari vertikal ro'yxat (modal) bo'lib ochiladi —
  * shuning uchun topshiriq ko'paysa ham jadval enga kengaymaydi.
  */

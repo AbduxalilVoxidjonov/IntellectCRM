@@ -26,7 +26,7 @@ export async function createClass(payload: ClassPayload, force?: boolean): Promi
 }
 
 /**
- * Sinfni yangilash. Oylik to'lov o'zgargan bo'lsa, `applyFee` orqali yangi narx joriy oy
+ * Guruhni yangilash. Oylik to'lov o'zgargan bo'lsa, `applyFee` orqali yangi narx joriy oy
  * o'quvchilariga qo'llanishini boshqaramiz: true = joriy oydan, false = keyingi oydan.
  */
 export async function updateClass(
@@ -56,7 +56,7 @@ export async function deleteClass(id: string, reasonId?: string): Promise<void> 
   await api.delete(`/admin/classes/${id}`, { params: reasonId ? { reasonId } : undefined })
 }
 
-/** Arxivlangan sinflar ro'yxati. */
+/** Arxivlangan guruhlar ro'yxati. */
 export async function getArchivedClasses(): Promise<Group[]> {
   if (USE_MOCK) {
     await delay()
@@ -66,13 +66,13 @@ export async function getArchivedClasses(): Promise<Group[]> {
   return data
 }
 
-/** Sinfni arxivlash — o'quvchilari ham arxivlanadi. */
+/** Guruhni arxivlash — o'quvchilari ham arxivlanadi. */
 export async function archiveClass(id: string): Promise<{ archivedStudents: number }> {
   const { data } = await api.post<{ archivedStudents: number }>(`/admin/classes/${id}/archive`)
   return data
 }
 
-/** Sinfni arxivdan chiqarish — sinf bilan arxivlangan o'quvchilar ham qaytariladi. */
+/** Guruhni arxivdan chiqarish — guruh bilan arxivlangan o'quvchilar ham qaytariladi. */
 export async function unarchiveClass(id: string): Promise<{ restoredStudents: number }> {
   const { data } = await api.post<{ restoredStudents: number }>(`/admin/classes/${id}/unarchive`)
   return data

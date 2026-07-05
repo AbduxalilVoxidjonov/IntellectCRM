@@ -169,7 +169,7 @@ export function StudentProfileScreen() {
               {fullName}
             </div>
             <div className="muted" style={{ fontSize: 13.5 }}>
-              {className} sinf
+              {className} guruhi
             </div>
             {schoolName && (
               <div

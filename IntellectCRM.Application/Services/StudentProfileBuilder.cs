@@ -22,7 +22,7 @@ public static class StudentProfileBuilder
         var classIds = memberGroupIds.Count > 0
             ? memberGroupIds.ToHashSet()
             : (cls is null ? new HashSet<string>() : new HashSet<string> { cls.Id });
-        // Topshiriqlar bitta sinfga tegishli — asosiy (ClassName) sinf, bo'lmasa birinchi guruh.
+        // Topshiriqlar bitta guruhga tegishli — asosiy (ClassName) guruh, bo'lmasa birinchi guruh.
         var classId = cls?.Id ?? classIds.FirstOrDefault();
 
         var report = await StudentReportBuilder.BuildAsync(db, st);

@@ -9,7 +9,7 @@ export async function getTeacherReport(month?: string): Promise<TeacherReportOve
   return data
 }
 
-/** Bitta o'qituvchining batafsil hisoboti (sinf/fan yoyilmasi). month bo'sh = Umumiy. */
+/** Bitta o'qituvchining batafsil hisoboti (guruh/fan yoyilmasi). month bo'sh = Umumiy. */
 export async function getTeacherReportDetail(
   id: string,
   month?: string,

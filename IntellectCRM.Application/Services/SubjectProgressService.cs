@@ -30,7 +30,7 @@ public static class SubjectProgressService
 
     private static int Pct(int a, int b) => b <= 0 ? 0 : (int)Math.Round(a * 100.0 / b);
 
-    /// <summary>Sinfning BARCHA darslari (qo'lda qo'shilgan LessonNote nusxalari).</summary>
+    /// <summary>Guruhning BARCHA darslari (qo'lda qo'shilgan LessonNote nusxalari).</summary>
     public static async Task<List<LessonSlot>> ClassSlotsAsync(
         IAppDbContext db, string classId, int quarter)
     {

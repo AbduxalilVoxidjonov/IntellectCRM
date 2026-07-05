@@ -24,7 +24,7 @@ const empty: SchoolInfo = {
   logoUrl: '',
 }
 
-/** Maktabga oid umumiy ma'lumotlar (nomi, direktor, manzil va h.k.) kiritiladigan sozlama. */
+/** Markazga oid umumiy ma'lumotlar (nomi, direktor, manzil va h.k.) kiritiladigan sozlama. */
 export function SchoolSettings() {
   const [form, setForm] = useState<SchoolInfo>(empty)
   const [loading, setLoading] = useState(true)
@@ -46,7 +46,7 @@ export function SchoolSettings() {
     setStatus('saving')
     try {
       await saveSchoolInfo({ ...form, name: (form.name ?? '').trim() })
-      // Yon menyudagi maktab nomini darrov yangilash uchun.
+      // Yon menyudagi markaz nomini darrov yangilash uchun.
       window.dispatchEvent(new Event('school:updated'))
       setStatus('saved')
       setTimeout(() => setStatus('idle'), 2000)

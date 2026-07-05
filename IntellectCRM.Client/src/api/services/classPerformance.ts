@@ -16,7 +16,7 @@ export interface ClassStudentRow {
 }
 
 export interface ClassPerformanceData {
-  /** Sinfda o'qitiladigan fanlar (ustunlar) */
+  /** Guruhda o'qitiladigan fanlar (ustunlar) */
   subjects: Subject[]
   rows: ClassStudentRow[]
 }
@@ -46,7 +46,7 @@ function buildMock(classId: string): ClassPerformanceData {
 
   const students = studentsMock.filter((s) => s.className === cls.name)
 
-  // Sinf fanlari — mock rejimda barcha fanlar (jadval entity yo'q).
+  // Guruh fanlari — mock rejimda barcha fanlar (jadval entity yo'q).
   const subjects = subjectsMock.slice()
 
   const rows: ClassStudentRow[] = students.map((student) => {
@@ -84,14 +84,14 @@ export interface ClassStats {
 export interface StudentRatingRow {
   student: Student
   className: string
-  /** Sinf darajasi */
+  /** Guruh darajasi */
   grade: number
   average: number
   /** Davomat foizi; o'tilgan dars bo'lmasa null */
   attendance: number | null
 }
 
-/** Butun maktab o'quvchilari reytingi */
+/** Butun markaz o'quvchilari reytingi */
 export async function getStudentsRating(): Promise<StudentRatingRow[]> {
   if (USE_MOCK) {
     await delay()
@@ -113,7 +113,7 @@ export async function getStudentsRating(): Promise<StudentRatingRow[]> {
   return data
 }
 
-/** Barcha sinflar bo'yicha umumiy ko'rsatkichlar (classId -> stats) */
+/** Barcha guruhlar bo'yicha umumiy ko'rsatkichlar (classId -> stats) */
 export async function getClassesStats(): Promise<Record<string, ClassStats>> {
   if (USE_MOCK) {
     await delay()

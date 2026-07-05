@@ -9,7 +9,7 @@ using IntellectCRM.Infrastructure.Data;
 namespace IntellectCRM.Server.Controllers;
 
 /// <summary>
-/// Maktab kameralari (videokuzatuv) — Boshqaruv → Kameralar. CRUD + jonli oqim (HLS, media-shlyuz
+/// Markaz kameralari (videokuzatuv) — Boshqaruv → Kameralar. CRUD + jonli oqim (HLS, media-shlyuz
 /// orqali proksilanadi) + playback/qirqib yuklab olish (yozuvdan MP4). Shlyuz (MediaMTX) ichki
 /// tarmoqda; brauzer faqat shu autentifikatsiyalangan endpointlar orqali ko'radi.
 /// </summary>

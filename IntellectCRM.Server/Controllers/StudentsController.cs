@@ -355,7 +355,7 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
     /// <summary>
     /// <see cref="StudentPayload"/>'dan Student yaratib (tizim akkaunti + oylik hisoblar + audit bilan)
     /// db kontekstiga qo'shadi. SaveChanges QILMAYDI — chaqiruvchi (bitta yaratish yoki ommaviy import)
-    /// hammasini qo'shib bo'lgach bir marta saqlaydi. <paramref name="cls"/> — oldindan topilgan sinf
+    /// hammasini qo'shib bo'lgach bir marta saqlaydi. <paramref name="cls"/> — oldindan topilgan guruh
     /// (narx/hisob uchun; null bo'lsa oylik hisob yozilmaydi).
     /// `status` — a'zolik holati (trial/active/frozen); bo'sh bo'lsa default "trial".
     /// </summary>
@@ -567,7 +567,7 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
         }
         if (user is not null) user.FullName = student.FullName;
 
-        // Sinf yoki chegirma o'zgardimi?
+        // Guruh yoki chegirma o'zgardimi?
         var classChanged = !string.Equals(oldClassName, student.ClassName, StringComparison.Ordinal);
         var discountChanged = oldPct != student.DiscountPct
                               || oldAmount != student.DiscountAmount
@@ -576,10 +576,10 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
                               || oldEnd != student.DiscountEndMonth
                               || oldDiscountGroup != student.DiscountGroupId;
 
-        // Joriy sinf narxiga ko'ra hisoblarni TO'G'RILAYMIZ/TO'LDIRAMIZ (ClassName MATNI o'zgarmagan
-        // bo'lsa ham — masalan o'quvchi sinf hali yaratilmagan paytda qo'shilib, keyin sinf yaratilgan):
+        // Joriy guruh narxiga ko'ra hisoblarni TO'G'RILAYMIZ/TO'LDIRAMIZ (ClassName MATNI o'zgarmagan
+        // bo'lsa ham — masalan o'quvchi guruh hali yaratilmagan paytda qo'shilib, keyin guruh yaratilgan):
         //  • yetishmagan oylar (kelgan oyidan joriy oygacha) — yangi narxda yaratiladi, balans kamayadi;
-        //  • mavjud JORIY oy — sinf yoki (so'ralganda) chegirma o'zgarsa, yangi narxga moslanadi;
+        //  • mavjud JORIY oy — guruh yoki (so'ralganda) chegirma o'zgarsa, yangi narxga moslanadi;
         //  • o'tgan oylardagi mavjud hisoblar — tarixiy, tegilmaydi.
         var applied = false;
         // M2M a'zolik bo'lsa billing AccrueMonth/aktivlashtirish (a'zolik narxi) orqali yuritiladi —
@@ -625,7 +625,7 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
                 if (existing.TryGetValue(month, out var charge))
                 {
                     if (charge.Locked) continue; // qo'lda tahrirlangan — tegmaymiz.
-                    // Faqat JORIY oyni va faqat sinf/chegirma o'zgarsa qayta hisoblaymiz (o'tgan oylar tarixiy).
+                    // Faqat JORIY oyni va faqat guruh/chegirma o'zgarsa qayta hisoblaymiz (o'tgan oylar tarixiy).
                     var recompute = month == current && (classChanged || (discountChanged && applyDiscount));
                     if (recompute && (charge.Amount != cls.MonthlyFee || charge.Discount != monthDiscount))
                     {
@@ -638,7 +638,7 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
                 }
                 else
                 {
-                    // Hisob yo'q edi — yangi sinf narxida yaratamiz (sinfsiz qo'shilgan o'quvchi holati).
+                    // Hisob yo'q edi — yangi guruh narxida yaratamiz (guruhsiz qo'shilgan o'quvchi holati).
                     db.MonthlyCharges.Add(new MonthlyCharge
                     {
                         StudentId = student.Id,
@@ -675,11 +675,11 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
             }
         }
 
-        // Audit — sinf va/yoki chegirma o'zgarishi.
+        // Audit — guruh va/yoki chegirma o'zgarishi.
         if (classChanged || discountChanged)
         {
             var parts = new List<string>();
-            if (classChanged) parts.Add($"sinf: {oldClassName} → {student.ClassName}");
+            if (classChanged) parts.Add($"guruh: {oldClassName} → {student.ClassName}");
             if (discountChanged)
                 parts.Add($"chegirma: {oldPct}%/{AuditService.Money(oldAmount)} → "
                           + $"{student.DiscountPct}%/{AuditService.Money(student.DiscountAmount)} so'm");
@@ -906,7 +906,7 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
     /// <summary>
     /// Barcha (faol) o'quvchilarni login/parol bilan Excel (.xlsx) ga eksport qiladi.
     /// Parol FAQAT foydalanuvchi hali kirmagan bo'lsa ko'rinadi (kirgach bo'sh). Faqat superadmin.
-    /// Ustunlar: F.I.SH., Sinf, Ota-ona, Telefon, Login, Parol.
+    /// Ustunlar: F.I.SH., Guruh, Ota-ona, Telefon, Login, Parol.
     /// </summary>
     [HttpGet("export")]
     [Authorize(Roles = Roles.SuperAdmin)]
@@ -918,7 +918,7 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
         var byId = (await db.Users.Where(u => userIds.Contains(u.Id)).ToListAsync())
             .ToDictionary(u => u.Id);
 
-        var headers = new[] { "F.I.SH.", "Sinf", "Ota-ona", "Telefon", "Login", "Parol" };
+        var headers = new[] { "F.I.SH.", "Guruh", "Ota-ona", "Telefon", "Login", "Parol" };
         var rows = students.Select(s =>
         {
             byId.TryGetValue(s.UserId ?? "", out var u);
@@ -1030,7 +1030,7 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
 
     /// <summary>
     /// O'quvchilarni ommaviy kiritish uchun bo'sh Excel shabloni (.xlsx). 1-varaq "O'quvchilar" —
-    /// to'ldiriladigan sarlavhalar; 2-varaq "Yo'riqnoma" — maydonlar izohi va MAVJUD sinflar ro'yxati.
+    /// to'ldiriladigan sarlavhalar; 2-varaq "Yo'riqnoma" — maydonlar izohi va MAVJUD guruhlar ro'yxati.
     /// Import faqat 1-varaqni o'qiydi, shu sababli yo'riqnoma import'ga ta'sir qilmaydi.
     /// </summary>
     [HttpGet("import-template")]
@@ -1069,7 +1069,7 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
 
     /// <summary>
     /// To'ldirilgan Excel (.xlsx) shablonidan o'quvchilarni ommaviy yaratadi. Har qator alohida
-    /// tekshiriladi: F.I.SH va Sinf majburiy, Sinf mavjud bo'lishi shart. To'g'ri qatorlar yaratiladi
+    /// tekshiriladi: F.I.SH va Guruh majburiy, Guruh mavjud bo'lishi shart. To'g'ri qatorlar yaratiladi
     /// (akkaunt + oylik hisob bilan), xato qatorlar raqami/sababi bilan qaytariladi (qisman import).
     /// </summary>
     [HttpPost("import")]
@@ -1092,7 +1092,7 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
             return BadRequest(new { message = "Faylni o'qib bo'lmadi — buzilmagan .xlsx ekanini tekshiring" });
         }
 
-        // Sinflar oldindan yuklab olinadi (har qatorda DB so'rovi bo'lmasligi uchun).
+        // Guruhlar oldindan yuklab olinadi (har qatorda DB so'rovi bo'lmasligi uchun).
         var classByName = (await db.Classes.ToListAsync())
             .GroupBy(c => c.Name, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);

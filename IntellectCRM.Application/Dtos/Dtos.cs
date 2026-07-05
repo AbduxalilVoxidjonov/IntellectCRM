@@ -192,7 +192,7 @@ public record TeacherAttendanceDashboardDto(
 public record TurnstileSyncResultDto(bool Ok, string Message, int EventsFetched, int Updated, string LastSync);
 
 // ---------- Turniket: o'quvchilar kirgan/chiqqan vaqti ----------
-/// <summary>O'quvchi turniket qatori: FISH, sinf, qurilma ID, kirgan/chiqqan vaqt (tanlangan kun).</summary>
+/// <summary>O'quvchi turniket qatori: FISH, guruh, qurilma ID, kirgan/chiqqan vaqt (tanlangan kun).</summary>
 public record StudentTurnstileRowDto(
     string StudentId, string FullName, string ClassName, string DeviceUserId,
     string CheckIn, string CheckOut, int Passes);
@@ -463,7 +463,7 @@ public record SetJournalEntryRequest(
     string ClassId, string SubjectId, int Quarter, string StudentId, string Date, int Period,
     int? Grade, string? ReasonId, int Homework = 0, int Behavior = 0, MasteryLevel? Mastery = null);
 public record JournalTopicDto(string Date, int Period, string Topic, string? Homework, bool Conducted);
-/// <summary>Berilgan sanada o'tilgan (conducted) darslar — sinf+fan+dars raqami.</summary>
+/// <summary>Berilgan sanada o'tilgan (conducted) darslar — guruh+fan+dars raqami.</summary>
 public record ConductedLessonDto(string ClassId, string SubjectId, int Period);
 
 /* ---------- Guruh OYLIK jurnali (guruh sahifasidan) ---------- */
@@ -601,7 +601,7 @@ public record SetEvaluationGradeRequest(
 
 /// <summary>O'quvchining bitta fan bo'yicha oylik baholashlari (shaxsiy daftarda "fan kesimida").</summary>
 public record SubjectEvaluationDto(string SubjectId, string SubjectName, double Avg, List<MonthlyEvaluationDto> Evaluations);
-/// <summary>Ballar nazorati qatori: o'quvchi, sinf, plus (rag'bat), minus (jazo), qoldi (100+plus−minus).</summary>
+/// <summary>Ballar nazorati qatori: o'quvchi, guruh, plus (rag'bat), minus (jazo), qoldi (100+plus−minus).</summary>
 public record DisciplineScoreRowDto(
     string StudentId, string FullName, string ClassName, int Plus, int Minus, int Remaining);
 /// <summary>O'quvchiga ball kiritish so'rovi (sabab bo'yicha).</summary>
@@ -641,13 +641,13 @@ public record TeacherReportRowDto(
 public record TeacherReportOverviewDto(
     List<string> Months, string Month, List<TeacherReportRowDto> Rows);
 
-/// <summary>O'qituvchi hisoboti — sinf/fan kesimida bitta qator (batafsil ko'rinish).</summary>
+/// <summary>O'qituvchi hisoboti — guruh/fan kesimida bitta qator (batafsil ko'rinish).</summary>
 public record TeacherReportBreakdownDto(
     string ClassName, string SubjectName,
     int Expected, int Conducted, int? DonePct,
     int Grades, int? TopicPct, int? HomeworkPct);
 
-/// <summary>Bitta o'qituvchining batafsil hisoboti: umumiy ko'rsatkichlar + sinf/fan yoyilmasi.</summary>
+/// <summary>Bitta o'qituvchining batafsil hisoboti: umumiy ko'rsatkichlar + guruh/fan yoyilmasi.</summary>
 public record TeacherReportDetailDto(
     string TeacherId, string FullName, bool IsArchived,
     int Expected, int Conducted, int? DonePct,
@@ -687,7 +687,7 @@ public record TeacherAppRowDto(
     string TeacherId, string FullName, string Phone,
     bool IsActivated, string? ActivatedAt, string? LastSeenAt,
     string DeviceName, string Platform, string AppId);
-/// <summary>Sinf hisobotidagi bitta o'quvchi qatori.</summary>
+/// <summary>Guruh hisobotidagi bitta o'quvchi qatori.</summary>
 public record ClassStudentRowDto(StudentDto Student, Dictionary<string, double> Grades, double Average, double? Attendance);
 public record ClassPerformanceDataDto(List<SubjectDto> Subjects, List<ClassStudentRowDto> Rows);
 public record ClassStatsDto(int StudentsCount, double AverageGrade, double? Attendance);
@@ -745,9 +745,9 @@ public record PortalRatingRowDto(
     int Rank, string StudentId, string FullName, string ClassName, double Average, double? Attendance);
 
 /// <summary>
-/// O'quvchi/parent reytingi (adminniki bilan bir xil hisob, o'rtacha baho bo'yicha): o'z sinfi TO'LIQ
-/// ranglangan, maktab bo'yicha esa faqat TOP 15. `MeStudentId` — o'z qatorini ajratish uchun;
-/// `MeSchoolRank` top 15 dan tashqarida bo'lsa ham o'quvchining maktab o'rnini beradi (`SchoolSize` — jami).
+/// O'quvchi/parent reytingi (adminniki bilan bir xil hisob, o'rtacha baho bo'yicha): o'z guruhi TO'LIQ
+/// ranglangan, markaz bo'yicha esa faqat TOP 15. `MeStudentId` — o'z qatorini ajratish uchun;
+/// `MeSchoolRank` top 15 dan tashqarida bo'lsa ham o'quvchining markaz o'rnini beradi (`SchoolSize` — jami).
 /// </summary>
 public record PortalRatingDto(
     string MeStudentId,
@@ -756,11 +756,11 @@ public record PortalRatingDto(
     int? MeSchoolRank, int SchoolSize);
 
 
-/// <summary>Maktab ma'lumotlari (profil sozlamasi).</summary>
+/// <summary>Markaz ma'lumotlari (profil sozlamasi).</summary>
 public record SchoolInfoDto(
     string Name, string Director, string Phone, string Email,
     string Address, string Region, string District, string LogoUrl = "");
-/// <summary>Maktab nomi + logo (brending — barcha foydalanuvchilar uchun).</summary>
+/// <summary>Markaz nomi + logo (brending — barcha foydalanuvchilar uchun).</summary>
 public record SchoolNameDto(string Name, string TelegramChannel = "", string LogoUrl = "");
 /// <summary>Ommaviy brending (login/daraja testi kabi autentifikatsiyasiz sahifalar uchun).</summary>
 public record PublicBrandDto(string Name, string LogoUrl, string Phone);
@@ -878,7 +878,7 @@ public record GroupPaymentsReportDto(
 
 /* ---------- O'quvchi to'lov tarixi (ledger) ---------- */
 /// <summary>Bitta oyning hisobi.
-/// Charged = to'liq oylik (sinf narxi); Discount = shu oy uchun berilgan chegirma;
+/// Charged = to'liq oylik (guruh narxi); Discount = shu oy uchun berilgan chegirma;
 /// Paid = haqiqiy naqd to'lov (tx); Remaining = Charged − Discount − Paid (manfiy bo'lsa 0).</summary>
 /// <summary>Oydagi bitta kurs ulushi (qaysi kursga qancha) — to'lov tarixida breakdown uchun.
 /// GroupId — shu ulush qaysi guruh hisobiga tegishli (null = guruhsiz/ClassName); super admin
@@ -1035,15 +1035,15 @@ public record SubmitResultDto(bool Completed, int? Score, int? CorrectCount, int
 
 /* ---------- Messaging (chat + e'lon + telegram) ---------- */
 
-/// <summary>Sinf guruh chatidagi bitta xabar. CreatedAt — ISO 8601 ("o" formati).</summary>
+/// <summary>Guruh chatidagi bitta xabar. CreatedAt — ISO 8601 ("o" formati).</summary>
 public record ChatMessageDto(
     string Id, string ClassName, string SenderUserId, string SenderName,
     string SenderRole, string Text, string CreatedAt);
 
-/// <summary>Chatga xabar yuborish so'rovi (sinf URL'dan keladi).</summary>
+/// <summary>Chatga xabar yuborish so'rovi (guruh URL'dan keladi).</summary>
 public record SendChatRequest(string Text);
 
-/// <summary>Admin uchun sinf chat/e'lon ro'yxati elementi.</summary>
+/// <summary>Admin uchun guruh chat/e'lon ro'yxati elementi.</summary>
 public record ChatClassDto(
     string Name, int Grade, int StudentCount, int ParentCount, string? LastMessageAt);
 
@@ -1053,7 +1053,7 @@ public record BroadcastDto(
     int RecipientCount, int SentCount);
 
 /// <summary>
-/// E'lon yuborish so'rovi. <c>Scope</c>: "class" (ClassName sinfi), "all" (barcha sinf),
+/// E'lon yuborish so'rovi. <c>Scope</c>: "class" (ClassName guruhi), "all" (barcha guruh),
 /// "selected" (StudentIds/TeacherIds tanlangan o'quvchilar/o'qituvchilar). <c>OnlyDebtors</c> — faqat balansi manfiylar.
 /// <c>Text</c> ichida o'rinbosarlar bo'lishi mumkin: {fish} {sinf} {qarzdorlik} {balans} {ota-ona} {telefon}.
 /// </summary>
@@ -1318,7 +1318,7 @@ public record SetSubmissionRequest(bool Completed, int? Score);
 public record AssignmentTypeDto(string Id, string Name);
 public record SaveAssignmentTypesRequest(List<AssignmentTypeDto> Types);
 
-/* ---------- Topshiriqlar bali (admin: sinf bo'yicha ball jadvali) ---------- */
+/* ---------- Topshiriqlar bali (admin: guruh bo'yicha ball jadvali) ---------- */
 
 /// <summary>Ball jadvalidagi ustun — bitta topshiriq.</summary>
 public record AssignmentScoreColumnDto(
@@ -1329,7 +1329,7 @@ public record AssignmentScoreCellDto(string AssignmentId, bool Completed, int? S
 public record AssignmentScoreRowDto(
     string StudentId, string FullName, string ClassName,
     List<AssignmentScoreCellDto> Cells, int TotalScore, int TotalMax, int GradedCount);
-/// <summary>Sinf bo'yicha topshiriqlar ball jadvali (ustunlar = topshiriqlar, qatorlar = o'quvchilar).</summary>
+/// <summary>Guruh bo'yicha topshiriqlar ball jadvali (ustunlar = topshiriqlar, qatorlar = o'quvchilar).</summary>
 public record AssignmentScoreboardDto(
     string ClassId, string ClassName,
     List<AssignmentScoreColumnDto> Assignments, List<AssignmentScoreRowDto> Students);
@@ -1407,7 +1407,7 @@ public record StudentLmsSubjectDto(
     string UnlockMode, int BatchSize, int TopicsCount, int CompletedCount);
 
 /* ---------- Fan progresi (dars o'tilishiga qarab — LMS'siz) ----------
-   Reja (Planned) = chorakdagi sinf jadvalidagi shu fan dars kataklari soni.
+   Reja (Planned) = chorakdagi guruh jadvalidagi shu fan dars kataklari soni.
    O'tilgan (Conducted) = o'qituvchi "dars o'tildi" deb belgilagan (LessonNote.Conducted) darslar.
    Progress = Conducted / Planned. */
 
@@ -1439,7 +1439,7 @@ public record SubjectProgressDetailDto(
     int Planned, int Conducted, int Remaining, int Percent,
     List<SubjectLessonDto> Lessons);
 
-/// <summary>O'qituvchi progresi — bitta (sinf, fan) kesimi.</summary>
+/// <summary>O'qituvchi progresi — bitta (guruh, fan) kesimi.</summary>
 public record TeacherSubjectProgressDto(
     string ClassId, string ClassName, string SubjectId, string SubjectName,
     int Planned, int Conducted, int Remaining, int Percent, int ExpectedByToday);

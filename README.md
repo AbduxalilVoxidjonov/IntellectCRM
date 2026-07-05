@@ -9,7 +9,7 @@ Lidlar (CRM) · O'quvchilar · Guruhlar · Moliya · Jurnal · O'quv dasturi · 
 ![.NET](https://img.shields.io/badge/.NET-8.0-512BD4?logo=dotnet&logoColor=white)
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
-![SQL Server](https://img.shields.io/badge/SQL%20Server-2022-CC2927?logo=microsoftsqlserver&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791?logo=postgresql&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
 
 </div>
@@ -36,7 +36,7 @@ xizmat qiladi:
 
 **Backend**
 - ASP.NET Core 8 (C#) — **Clean Architecture**
-- Entity Framework Core 8 + **SQL Server** (inkremental migratsiyalar)
+- Entity Framework Core 8 + **PostgreSQL** (inkremental migratsiyalar)
 - **SignalR** (real-time chat / turniket) · **JWT** auth
 - **FCM** (push) · **Telegram bot** · **OpenXML** (shartnoma/hisobot)
 

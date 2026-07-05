@@ -71,7 +71,7 @@ export function LmsModuleModal({ open, module, subjectId, onClose, onSaved }: Pr
           required
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder="Masalan: 1-chorak, Algebra asoslari..."
+          placeholder="Masalan: 1-modul, Ingliz tili asoslari..."
         />
 
         <Textarea

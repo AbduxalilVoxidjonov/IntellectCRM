@@ -14,7 +14,7 @@ namespace IntellectCRM.Server.Controllers;
 /// O'qituvchi ilovasi uchun API — faqat "teacher" roli (web admin'ga tegishli emas).
 /// Har amal tokendagi foydalanuvchidan o'qituvchini aniqlaydi va faqat o'ziga tegishli
 /// ma'lumotni ko'rsatadi/o'zgartiradi. Jurnalga yozish faqat o'qituvchining o'zi dars
-/// beradigan sinf+fan uchun ruxsat etiladi (boshqasiga 403).
+/// beradigan guruh+fan uchun ruxsat etiladi (boshqasiga 403).
 /// </summary>
 [ApiController]
 [Authorize(Roles = "teacher")]
@@ -71,7 +71,7 @@ public class TeacherPortalController(
     [HttpGet("meta")]
     public async Task<ActionResult<PortalMetaDto>> Meta() => await refCache.MetaAsync();
 
-    /// <summary>Joriy maktab nomi — ilova brendingi/sarlavhasi uchun.</summary>
+    /// <summary>Joriy markaz nomi — ilova brendingi/sarlavhasi uchun.</summary>
     [HttpGet("school")]
     public async Task<ActionResult<SchoolNameDto>> School()
     {
@@ -171,7 +171,7 @@ public class TeacherPortalController(
         return Ok(new { ok = true });
     }
 
-    // ---------- Dars beradigan sinflar ----------
+    // ---------- Dars beradigan guruhlar ----------
 
     [HttpGet("classes")]
     public async Task<ActionResult<IEnumerable<TeacherClassDto>>> Classes()
@@ -194,7 +194,7 @@ public class TeacherPortalController(
         var result = new List<TeacherClassDto>();
         foreach (var cls in classes)
         {
-            // Faqat o'qituvchi DARS BERADIGAN guruhlar (Group.TeacherId == me). Sinf rahbarligi tushunchasi olib tashlandi.
+            // Faqat o'qituvchi DARS BERADIGAN guruhlar (Group.TeacherId == me). Guruh rahbarligi tushunchasi olib tashlandi.
             taught.TryGetValue(cls.Id, out var subjIds);
             if (subjIds is null || subjIds.Count == 0) continue;
             var subjects = subjIds
@@ -259,8 +259,8 @@ public class TeacherPortalController(
             .Select(t => new EvaluationTypeDto(t.Id, t.Name, t.Description)).ToListAsync();
 
     /// <summary>
-    /// O'qituvchining shu sinf+fan bo'yicha baholash jadvali (tanlangan oy): o'quvchilar × baholash
-    /// turlari bo'yicha 1-5 baho. Faqat o'qituvchi shu sinfda shu fanni o'qitsa (aks holda 403).
+    /// O'qituvchining shu guruh+fan bo'yicha baholash jadvali (tanlangan oy): o'quvchilar × baholash
+    /// turlari bo'yicha 1-5 baho. Faqat o'qituvchi shu guruhda shu fanni o'qitsa (aks holda 403).
     /// </summary>
     [HttpGet("evaluation/board")]
     public async Task<ActionResult<EvaluationBoardDto>> EvalBoard(
@@ -304,7 +304,7 @@ public class TeacherPortalController(
     /// <summary>
     /// O'qituvchi o'z fanidan bitta o'quvchiga bitta tur bo'yicha bir oyda baho qo'yadi (1-5).
     /// Score bo'sh/1-5 dan tashqari = o'sha bahoni tozalash. So'rovda <c>ClassId</c> va <c>SubjectId</c>
-    /// majburiy (egalik tekshiruvi); o'quvchi shu sinfga tegishli bo'lishi shart.
+    /// majburiy (egalik tekshiruvi); o'quvchi shu guruhga tegishli bo'lishi shart.
     /// </summary>
     [HttpPost("evaluation/grade")]
     public async Task<IActionResult> EvalGrade(SetEvaluationGradeRequest req)
@@ -312,7 +312,7 @@ public class TeacherPortalController(
         var t = await Me();
         if (t is null) return NotFound();
         if (string.IsNullOrWhiteSpace(req.ClassId) || string.IsNullOrWhiteSpace(req.SubjectId))
-            return BadRequest(new { message = "Sinf va fan ko'rsatilishi shart" });
+            return BadRequest(new { message = "Guruh va fan ko'rsatilishi shart" });
         if (string.IsNullOrEmpty(req.Month) || req.Month.Length < 7)
             return BadRequest(new { message = "Oy tanlanmagan" });
         if (!await Teaches(t.Id, req.ClassId!, req.SubjectId!)) return Forbid();
@@ -320,7 +320,7 @@ public class TeacherPortalController(
         var cls = await db.Classes.FindAsync(req.ClassId);
         var student = await db.Students.FindAsync(req.StudentId);
         if (cls is null || student is null || student.ClassName != cls.Name)
-            return BadRequest(new { message = "O'quvchi bu sinfga tegishli emas" });
+            return BadRequest(new { message = "O'quvchi bu guruhga tegishli emas" });
 
         var subj = req.SubjectId!;
         var existing = await db.EvaluationGrades.FirstOrDefaultAsync(g =>
@@ -361,7 +361,7 @@ public class TeacherPortalController(
         return t is not null && t.Permissions.Contains(perm);
     }
 
-    /// <summary>Jurnal ruxsati + shu sinf+fanga dars beradimi.</summary>
+    /// <summary>Jurnal ruxsati + shu guruh+fanga dars beradimi.</summary>
     private async Task<bool> Authorized(string classId, string subjectId)
     {
         var t = await Me();
@@ -539,11 +539,11 @@ public class TeacherPortalController(
         return Ok(new { ok = true, revisionLessons });
     }
 
-    // ---------- Guruh chati (dars beradigan sinflar + sinf rahbarligi) ----------
+    // ---------- Guruh chati (dars beradigan guruhlar + guruh rahbarligi) ----------
 
     /// <summary>
     /// Har bir kanal uchun oxirgi xabar vaqti (ISO) — frontend o'qilmagan xabarlarni aniqlaydi.
-    /// O'qituvchining barcha kanallari (sinflar + xodimlar) qaytadi. Xabari yo'q kanal uchun null.
+    /// O'qituvchining barcha kanallari (guruhlar + xodimlar) qaytadi. Xabari yo'q kanal uchun null.
     /// </summary>
     [HttpGet("chat/last-messages")]
     public async Task<ActionResult<Dictionary<string, string?>>> ChatLastMessages()
@@ -604,7 +604,7 @@ public class TeacherPortalController(
         if (!await HasPerm(TeacherPermissions.Assignments)) return Forbid();
         if (string.IsNullOrWhiteSpace(req.Title)) return BadRequest(new { message = "Topshiriq nomi kerak" });
         if (req.ClassIds is null || req.ClassIds.Count == 0)
-            return BadRequest(new { message = "Kamida bitta sinf tanlang" });
+            return BadRequest(new { message = "Kamida bitta guruh tanlang" });
         var uid = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "";
         return await AssignmentService.CreateAsync(db, uid, req);
     }
@@ -735,9 +735,9 @@ public class TeacherPortalController(
 
     // ---------- LMS (Ta'lim) — FAQAT KO'RISH + progress ----------
     // O'qituvchi LMS kontentini yaratmaydi (uni admin qiladi); faqat o'zi dars beradigan
-    // (yoki rahbarlik qiladigan) sinflarning materialini va o'quvchilar tugatishini ko'radi.
+    // (yoki rahbarlik qiladigan) guruhlarning materialini va o'quvchilar tugatishini ko'radi.
 
-    /// <summary>O'qituvchi dars beradigan/rahbarlik qiladigan sinflar id'lari (jadval + rahbarlik).</summary>
+    /// <summary>O'qituvchi dars beradigan/rahbarlik qiladigan guruhlar id'lari (jadval + rahbarlik).</summary>
     private async Task<HashSet<string>> TaughtClassIdsAsync(Teacher t)
     {
         var ids = new HashSet<string>(StringComparer.Ordinal);
@@ -752,7 +752,7 @@ public class TeacherPortalController(
         return ids;
     }
 
-    /// <summary>O'qituvchi sinflaridagi LMS fanlar. ?classId= bilan bitta sinfga filtrlash mumkin.</summary>
+    /// <summary>O'qituvchi guruhlaridagi LMS fanlar. ?classId= bilan bitta guruhga filtrlash mumkin.</summary>
     [HttpGet("lms/subjects")]
     public async Task<ActionResult<IEnumerable<LmsSubjectDto>>> LmsSubjects([FromQuery] string? classId)
     {

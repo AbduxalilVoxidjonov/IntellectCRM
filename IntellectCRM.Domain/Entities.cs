@@ -1,6 +1,6 @@
 namespace IntellectCRM.Domain;
 
-// Frontend (schoollms.client/src/types/index.ts) dagi tiplarga mos keluvchi
+// Frontend (IntellectCRM.Client/src/types/index.ts) dagi tiplarga mos keluvchi
 // EF Core entity'lari. ID'lar string (frontend uid() — UUID ishlatadi),
 // sanalar esa ISO ("YYYY-MM-DD") ko'rinishida string sifatida saqlanadi.
 
@@ -55,7 +55,7 @@ public class AppUser
     public List<string> Permissions { get; set; } = new();
 }
 
-/// <summary>Maktab filiali — nomi, manzil, GPS joylashuv va radius (mobil geo-yo'qlama uchun).</summary>
+/// <summary>O'quv markazi filiali — nomi, manzil, GPS joylashuv va radius (mobil geo-yo'qlama uchun).</summary>
 public class Branch
 {
     public string Id { get; set; } = Guid.NewGuid().ToString();
@@ -229,7 +229,7 @@ public class Student
     /// DB'ga yozilmaydi; ro'yxat endpointida M2M a'zoliklardan hisoblanadi.</summary>
     [System.ComponentModel.DataAnnotations.Schema.NotMapped]
     public bool Active { get; set; }
-    /// <summary>Maktabga kelgan (qabul) sanasi (ISO "YYYY-MM-DD"). Oylik to'lov shu oydan boshlanadi.</summary>
+    /// <summary>Markazga kelgan (qabul) sanasi (ISO "YYYY-MM-DD"). Oylik to'lov shu oydan boshlanadi.</summary>
     public string EnrollmentDate { get; set; } = string.Empty;
     /// <summary>Balans (so'm): manfiy = qarzdor, 0 = qarzsiz, musbat = avans.</summary>
     public decimal Balance { get; set; }
@@ -265,7 +265,7 @@ public class Student
     public string? ArchivedAt { get; set; }
     /// <summary>Arxivga ko'chirish sababi (admin kiritadi: "boshqa maktabga ketdi", ...).</summary>
     public string? ArchiveReason { get; set; }
-    /// <summary>Sinf arxivlanishi tufayli arxivlangan bo'lsa true — sinf arxivdan chiqarilganda
+    /// <summary>Guruh arxivlanishi tufayli arxivlangan bo'lsa true — guruh arxivdan chiqarilganda
     /// faqat shu o'quvchilar avtomatik qaytariladi (alohida arxivlanganlar tegilmaydi).</summary>
     public bool ArchivedWithClass { get; set; }
     /// <summary>O'quvchi uy joylashuvi — kenglik (latitude). Mobil ilovadan GPS orqali keladi.</summary>
@@ -296,7 +296,7 @@ public class Teacher
     /// <summary>Turniket/FaceID qurilmasidagi xodim ID'si (personId/employeeNo). Davomat hodisalari shu
     /// ID orqali o'qituvchiga bog'lanadi. Bo'sh = qurilmada moslashtirilmagan.</summary>
     public string DeviceUserId { get; set; } = string.Empty;
-    /// <summary>Sinf rahbari bo'lsa biriktirilgan sinf nomi; aks holda bo'sh.</summary>
+    /// <summary>Guruh rahbari bo'lsa biriktirilgan guruh nomi; aks holda bo'sh.</summary>
     public string HomeroomClass { get; set; } = string.Empty;
     /// <summary>Dars beradigan fanlar (Subject id'lari). EF Core 8 primitive collection.</summary>
     public List<string> SubjectIds { get; set; } = new();
@@ -402,7 +402,7 @@ public class Room
     public DateTime CreatedAt { get; set; } = AppClock.Now;
 }
 
-/// <summary>Sinf.</summary>
+/// <summary>Guruh.</summary>
 public class Group
 {
     public string Id { get; set; } = Guid.NewGuid().ToString();
@@ -484,7 +484,7 @@ public class StudentGroup
     public string FrozenAt { get; set; } = string.Empty;
 }
 
-/// <summary>Lid (maktabga qiziqqan).</summary>
+/// <summary>Lid (markazga qiziqqan).</summary>
 public class Lead
 {
     public string Id { get; set; } = Guid.NewGuid().ToString();
@@ -728,7 +728,7 @@ public class MonthlyCharge
     public string? GroupId { get; set; }
     /// <summary>Oy ("YYYY-MM").</summary>
     public string Month { get; set; } = string.Empty;
-    /// <summary>Hisoblangan TO'LIQ summa (o'sha paytdagi sinf oylik to'lovi). Chegirma ALOHIDA.</summary>
+    /// <summary>Hisoblangan TO'LIQ summa (o'sha paytdagi guruh oylik to'lovi). Chegirma ALOHIDA.</summary>
     public decimal Amount { get; set; }
     /// <summary>Shu oy uchun berilgan chegirma summasi (so'm). Haqiqiy to'lash kerak bo'lgan summa = Amount - Discount.</summary>
     public decimal Discount { get; set; }
@@ -772,7 +772,6 @@ public class FinanceTransaction
     public string? CreatedBy { get; set; }
 }
 
-/// <summary>Maktab umumiy holati va ma'lumotlari (bitta qator) — joriy o'quv yili + maktab profili.</summary>
 /// <summary>O'qituvchining bir kunlik ish davomati.</summary>
 public class TeacherAttendance
 {
@@ -793,7 +792,7 @@ public class TeacherAttendance
     public string Source { get; set; } = "manual";
 }
 
-/// <summary>Maktab kamerasi (IP/RTSP). Media-shlyuz (MediaMTX) orqali brauzerda jonli + playback.</summary>
+/// <summary>Markaz kamerasi (IP/RTSP). Media-shlyuz (MediaMTX) orqali brauzerda jonli + playback.</summary>
 public class Camera
 {
     public string Id { get; set; } = Guid.NewGuid().ToString();
@@ -829,6 +828,7 @@ public class TurnstileEvent
     public string CreatedAt { get; set; } = string.Empty;
 }
 
+/// <summary>Markaz umumiy holati va ma'lumotlari (bitta qator) — joriy o'quv yili + markaz profili.</summary>
 public class CenterMeta
 {
     // Bitta markaz — bitta CenterMeta qatori. Id unikal (Guid).
@@ -853,7 +853,7 @@ public class CenterMeta
     /// <summary>true — yuqoridagi cheklovlar ADMIN jurnaliga ham qo'llanadi (default: faqat o'qituvchiga).</summary>
     public bool JournalApplyToAdmins { get; set; }
 
-    /// <summary>Maktab nomi.</summary>
+    /// <summary>Markaz nomi.</summary>
     public string Name { get; set; } = string.Empty;
     /// <summary>Markaz logotipi (`/uploads/...`) — barcha foydalanuvchi ko'radigan joylarda (login,
     /// daraja testi, portal sarlavhalari) nom yonida ko'rsatiladi. Bo'sh bo'lsa standart ikona.</summary>
@@ -869,7 +869,7 @@ public class CenterMeta
     public string TelegramBotToken { get; set; } = string.Empty;
     /// <summary>Telegram bot foydalanuvchi nomi (@siz) — t.me havolasi va ro'yxat taklifi uchun.</summary>
     public string TelegramBotUsername { get; set; } = string.Empty;
-    /// <summary>Telegram bot ko'rsatiladigan nomi (masalan "Maktab LMS Bot") — UI/ilovada ko'rsatish uchun.</summary>
+    /// <summary>Telegram bot ko'rsatiladigan nomi (masalan "IntellectCRM Bot") — UI/ilovada ko'rsatish uchun.</summary>
     public string TelegramBotName { get; set; } = string.Empty;
     /// <summary>Markaz Telegram kanali (havola yoki @username) — o'quvchi/o'qituvchi ilovasida "kanalga o'tish".</summary>
     public string TelegramChannel { get; set; } = string.Empty;
@@ -1017,7 +1017,7 @@ public class AuditLog
     public string Id { get; set; } = Guid.NewGuid().ToString();
     /// <summary>Ob'ekt turi: FinanceTransaction | TeacherSalary | ClassFee.</summary>
     public string EntityType { get; set; } = string.Empty;
-    /// <summary>Tegishli yozuv id'si (amal/ o'qituvchi/ sinf id'si).</summary>
+    /// <summary>Tegishli yozuv id'si (amal/ o'qituvchi/ guruh id'si).</summary>
     public string EntityId { get; set; } = string.Empty;
     /// <summary>Amal: create | update | delete.</summary>
     public string Action { get; set; } = string.Empty;
@@ -1040,13 +1040,13 @@ public class AuditLog
 }
 
 /// <summary>
-/// Sinf guruh chati xabari. A'zolar: shu sinf o'quvchilari, shu sinfga dars beradigan
-/// o'qituvchilar va admin. Chat sinf nomi (ClassName) bo'yicha guruhlanadi.
+/// Guruh chati xabari. A'zolar: shu guruh o'quvchilari, shu guruhga dars beradigan
+/// o'qituvchilar va admin. Chat guruh nomi (ClassName) bo'yicha guruhlanadi.
 /// </summary>
 public class ChatMessage
 {
     public string Id { get; set; } = Guid.NewGuid().ToString();
-    /// <summary>Qaysi sinf chati (sinf nomi, masalan "3-A").</summary>
+    /// <summary>Qaysi guruh chati (guruh nomi, masalan "3-A").</summary>
     public string ClassName { get; set; } = string.Empty;
     public string SenderUserId { get; set; } = string.Empty;
     public string SenderName { get; set; } = string.Empty;
@@ -1056,7 +1056,7 @@ public class ChatMessage
     public DateTime CreatedAt { get; set; } = AppClock.Now;
 }
 
-/// <summary>Sinf ota-onalariga Telegram bot orqali yuborilgan e'lon (bir tomonlama xabar).</summary>
+/// <summary>Guruh ota-onalariga Telegram bot orqali yuborilgan e'lon (bir tomonlama xabar).</summary>
 public class Broadcast
 {
     public string Id { get; set; } = Guid.NewGuid().ToString();
@@ -1065,7 +1065,7 @@ public class Broadcast
     public string SenderUserId { get; set; } = string.Empty;
     public string SenderName { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; } = AppClock.Now;
-    /// <summary>Yuborish vaqtida shu sinfda Telegramda ro'yxatdan o'tgan ota-onalar soni.</summary>
+    /// <summary>Yuborish vaqtida shu guruhda Telegramda ro'yxatdan o'tgan ota-onalar soni.</summary>
     public int RecipientCount { get; set; }
     /// <summary>Telegram orqali muvaffaqiyatli yetkazilganlar soni.</summary>
     public int SentCount { get; set; }
@@ -1090,7 +1090,7 @@ public class PushMessage
 
 
 /// <summary>
-/// Ota-onaning Telegram ro'yxati — Telegram chatId o'quvchiga bog'lanadi (sinf o'quvchidan
+/// Ota-onaning Telegram ro'yxati — Telegram chatId o'quvchiga bog'lanadi (guruh o'quvchidan
 /// kelib chiqadi). Ota-ona botga kontaktini ulashganda raqami o'quvchining ParentPhone'i
 /// bilan solishtirilib yoziladi. Bitta ota-onaning bir nechta farzandi bo'lishi mumkin.
 /// </summary>
@@ -1158,7 +1158,7 @@ public class BotSupportMessage
 
 /// <summary>
 /// O'qituvchi yaratadigan topshiriq/test. Format: written | file | test | video. Bir nechta
-/// sinfga beriladi (ClassIds). Materiallar (fayllar) va test savollari bog'liq jadvallarda.
+/// guruhga beriladi (ClassIds). Materiallar (fayllar) va test savollari bog'liq jadvallarda.
 /// </summary>
 public class Assignment
 {
@@ -1170,7 +1170,7 @@ public class Assignment
     public string Description { get; set; } = string.Empty;
     /// <summary>Topshiriq turi (formati): written | file | test | video.</summary>
     public string Format { get; set; } = "written";
-    /// <summary>Beriladigan sinflar (Class id'lari).</summary>
+    /// <summary>Beriladigan guruhlar (Class id'lari).</summary>
     public List<string> ClassIds { get; set; } = new();
     /// <summary>Boshlash vaqti (ISO "yyyy-MM-ddTHH:mm"), ixtiyoriy.</summary>
     public string? StartDate { get; set; }
@@ -1344,11 +1344,11 @@ public class ContractTemplate
    LMS — Ta'lim bo'limi (kurslar, dars, materiallar, progress)
    ========================================================= */
 
-/// <summary>LMS fani (kurs) — bitta sinfga tegishli.</summary>
+/// <summary>LMS fani (kurs) — bitta guruhga tegishli.</summary>
 public class LmsSubject
 {
     public string Id { get; set; } = Guid.NewGuid().ToString();
-    /// <summary>Tegishli sinf (Group.Id). Sinfga kiruvchi o'quvchilar ko'radi.</summary>
+    /// <summary>Tegishli guruh (Group.Id). Guruhga kiruvchi o'quvchilar ko'radi.</summary>
     public string ClassId { get; set; } = string.Empty;
     public string Title { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
@@ -1357,11 +1357,11 @@ public class LmsSubject
     /// <summary>UnlockMode="batch" bo'lganda bir vaqtda ochiq mavzular soni.</summary>
     public int BatchSize { get; set; } = 3;
     public DateTime CreatedAt { get; set; } = AppClock.Now;
-    /// <summary>Fan ichidagi modullar (Sinf → Fan → Modul → Mavzu).</summary>
+    /// <summary>Fan ichidagi modullar (Guruh → Fan → Modul → Mavzu).</summary>
     public ICollection<LmsModule> Modules { get; set; } = new List<LmsModule>();
 }
 
-/// <summary>LMS moduli — fan ichidagi mavzular guruhi (Sinf → Fan → Modul → Mavzu).</summary>
+/// <summary>LMS moduli — fan ichidagi mavzular guruhi (Guruh → Fan → Modul → Mavzu).</summary>
 public class LmsModule
 {
     public string Id { get; set; } = Guid.NewGuid().ToString();

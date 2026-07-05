@@ -73,7 +73,7 @@ export function StudentAssignmentsScreen() {
           <div />
         </div>
         <div className="hd-sub" style={{ marginTop: 8 }}>
-          {mode === 0 ? 'Sinf topshiriqlari va testlar' : "Video darslar va o'quv materiallari"}
+          {mode === 0 ? 'Guruh topshiriqlari va testlar' : "Video darslar va o'quv materiallari"}
         </div>
         <div className="hd-big">Topshiriqlar</div>
       </div>

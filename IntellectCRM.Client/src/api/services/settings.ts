@@ -20,7 +20,7 @@ export async function saveAbsenceReasons(absenceReasons: AbsenceReason[]): Promi
   await api.put('/admin/settings/absence-reasons', { absenceReasons })
 }
 
-/* ---------- Maktab ma'lumotlari ---------- */
+/* ---------- Markaz ma'lumotlari ---------- */
 
 export interface SchoolInfo {
   name: string
@@ -100,7 +100,7 @@ export async function getPublicBrand(): Promise<PublicBrand> {
 export interface TelegramConfig {
   botToken: string
   botUsername: string
-  /** Bot ko'rsatiladigan nomi (masalan "Maktab LMS Bot") */
+  /** Bot ko'rsatiladigan nomi (masalan "IntellectCRM Bot") */
   botName: string
   /** Token bo'sh emasligini bildiradi (bot ishlashga tayyor) */
   configured: boolean
@@ -497,7 +497,7 @@ export async function runTelegramBackup(): Promise<{ success: boolean; message: 
   return data
 }
 
-/** Maktab nomi + logo (brending — barcha rollar uchun) */
+/** Markaz nomi + logo (brending — barcha rollar uchun) */
 export interface SchoolName {
   name: string
   telegramChannel: string

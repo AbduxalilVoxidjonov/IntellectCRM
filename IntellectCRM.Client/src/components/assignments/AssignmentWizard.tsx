@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { Input, Select, Textarea } from '@/components/ui/Input'
 import { cn } from '@/lib/utils'
 
-/** Wizard sinf tanlovi — admin (barcha sinf) va o'qituvchi (dars beradigan sinflar) ikkalasi uchun. */
+/** Wizard guruh tanlovi — admin (barcha guruh) va o'qituvchi (dars beradigan guruhlar) ikkalasi uchun. */
 export interface WizardClass {
   id: string
   name: string

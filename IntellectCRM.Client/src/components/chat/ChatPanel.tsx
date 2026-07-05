@@ -25,7 +25,7 @@ interface Props {
 }
 
 /**
- * Bitta sinfning guruh chati: real-time (SignalR) xabarlar + yozish maydoni.
+ * Bitta guruhning chati: real-time (SignalR) xabarlar + yozish maydoni.
  * SignalR ulanishi UnreadProvider orqali global tarzda boshqariladi — alohida ulanish ochilmaydi.
  */
 export function ChatPanel({ className, fetchMessages, sendMessage, title, subtitle, fullHeight, onBack }: Props) {
@@ -45,9 +45,9 @@ export function ChatPanel({ className, fetchMessages, sendMessage, title, subtit
     classRef.current = className
   }, [className])
 
-  // Sinf o'zgarsa — xabarlarni qayta yuklaymiz.
+  // Guruh o'zgarsa — xabarlarni qayta yuklaymiz.
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- sinf almashganda chatni qayta yuklash (maqsadli)
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- guruh almashganda chatni qayta yuklash (maqsadli)
     setLoading(true)
     fetchMessages(className)
       .then(setMessages)

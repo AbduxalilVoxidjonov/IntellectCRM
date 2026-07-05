@@ -142,7 +142,7 @@ public class DashboardController(DataCache dataCache) : ControllerBase
             return grades.Count > 0 ? Math.Round(grades.Average(), 1) : 0;
         }
 
-        // Sinf davomati: o'tilgan darslar × o'quvchilar = imkoniyatlar; davomatsizliklar ayriladi.
+        // Guruh davomati: o'tilgan darslar × o'quvchilar = imkoniyatlar; davomatsizliklar ayriladi.
         // O'tilgan dars bo'lmasa — ma'lumot yo'q (null), o'rtachaga qo'shilmaydi.
         (long Opp, int Abs) ClassAttParts(Group c)
         {

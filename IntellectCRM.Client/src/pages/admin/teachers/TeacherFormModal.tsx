@@ -162,7 +162,7 @@ export function TeacherFormModal({ open, onClose, onSubmit, initial, subjects }:
           <p className="mt-1 text-xs text-slate-400">
             Oylik maosh — o'qituvchini ochib <b>"Maosh"</b> tabida HAR GURUH uchun alohida belgilanadi
             (foiz yoki qat'iy summa); o'qituvchi oyligi guruhlar yig'indisi. O'qituvchi <b>oy o'rtasida</b> kelsa —
-            shu kunni belgilang (qat'iy summa birinchi oy o'sha kundan oy oxirigacha qisman). Bo'sh = o'quv yili boshidan.
+            shu kunni belgilang (qat'iy summa birinchi oy o'sha kundan oy oxirigacha qisman). Bo'sh = eng birinchi to'lov oyidan.
           </p>
         </div>
 

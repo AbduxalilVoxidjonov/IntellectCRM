@@ -9,7 +9,7 @@ namespace IntellectCRM.Application.Services;
 /// O'quvchi to'lov tarixi (ledger): oylar bo'yicha hisoblangan/chegirma/to'langan holat va to'lovlar ro'yxati.
 /// Admin moliya bo'limi ham, o'quvchi (oila) ilovasi ham shu yagona mantiqdan foydalanadi.
 ///
-/// MODEL: MonthlyCharge.Amount — to'liq oylik (sinf narxi), MonthlyCharge.Discount — chegirma.
+/// MODEL: MonthlyCharge.Amount — to'liq oylik (guruh narxi), MonthlyCharge.Discount — chegirma.
 /// Haqiqiy to'lash kerak bo'lgan summa har oy uchun: effective = Amount − Discount.
 /// "Paid" — sof naqd to'lovlar (FinanceTransaction[income, tuition]), chegirma ta'sir qilmaydi.
 /// </summary>

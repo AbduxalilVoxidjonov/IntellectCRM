@@ -273,7 +273,7 @@ public class TeachersController(AppDbContext db, AuditService audit) : Controlle
     /// <summary>
     /// Barcha (faol) o'qituvchilarni login/parol bilan Excel (.xlsx) ga eksport qiladi.
     /// Parol FAQAT o'qituvchi hali kirmagan bo'lsa ko'rinadi (kirgach bo'sh). Faqat superadmin.
-    /// Ustunlar: F.I.SH., Telefon, Sinf rahbarligi, Login, Parol.
+    /// Ustunlar: F.I.SH., Telefon, Guruh rahbarligi, Login, Parol.
     /// </summary>
     [HttpGet("export")]
     [Authorize(Roles = Roles.SuperAdmin)]
@@ -285,7 +285,7 @@ public class TeachersController(AppDbContext db, AuditService audit) : Controlle
         var byId = (await db.Users.Where(u => userIds.Contains(u.Id)).ToListAsync())
             .ToDictionary(u => u.Id);
 
-        var headers = new[] { "F.I.SH.", "Telefon", "Sinf rahbarligi", "Login", "Parol" };
+        var headers = new[] { "F.I.SH.", "Telefon", "Guruh rahbarligi", "Login", "Parol" };
         var rows = teachers.Select(t =>
         {
             byId.TryGetValue(t.UserId ?? "", out var u);

@@ -6,8 +6,8 @@ using System.Security.Claims;
 namespace IntellectCRM.Application.Hubs;
 
 /// <summary>
-/// Sinf guruh chati uchun real-time SignalR hub'i (/hubs/chat). Ulanishda foydalanuvchi
-/// a'zo bo'lgan sinf guruhlariga qo'shiladi; yangi xabarlar ChatService orqali shu guruhlarga
+/// Guruh chati uchun real-time SignalR hub'i (/hubs/chat). Ulanishda foydalanuvchi
+/// a'zo bo'lgan guruhlariga qo'shiladi; yangi xabarlar ChatService orqali shu guruhlarga
 /// "message" hodisasi bilan push qilinadi. Xabar YOZISH REST orqali (ruxsat tekshiriladi),
 /// bu hub faqat tarqatish (push) uchun.
 /// </summary>

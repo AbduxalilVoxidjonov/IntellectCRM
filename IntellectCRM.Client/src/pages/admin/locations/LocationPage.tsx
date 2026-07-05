@@ -26,7 +26,7 @@ const defaultIcon = new L.Icon({
 
 /**
  * Admin "Joylashuv" sahifasi — o'quvchilar mobil ilova orqali yuborgan uy joylashuvi xaritada.
- * Pin'lar bosilsa: F.I.SH, sinf, manzil, yangilangan vaqt. Sinfga ko'ra filtr.
+ * Pin'lar bosilsa: F.I.SH, guruh, manzil, yangilangan vaqt. Guruhga ko'ra filtr.
  */
 export function LocationPage() {
   const [rows, setRows] = useState<StudentLocationRow[]>([])
@@ -54,7 +54,7 @@ export function LocationPage() {
     ? [filtered[0].latitude, filtered[0].longitude]
     : [41.2995, 69.2401] // Toshkent
 
-  // Sinflar bo'yicha hisob — pastdagi statistika uchun.
+  // Guruhlar bo'yicha hisob — pastdagi statistika uchun.
   const byClass = useMemo(() => {
     const map = new Map<string, number>()
     rows.forEach((r) => map.set(r.className, (map.get(r.className) ?? 0) + 1))

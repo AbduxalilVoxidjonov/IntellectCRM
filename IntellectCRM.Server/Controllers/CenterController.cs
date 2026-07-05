@@ -6,7 +6,7 @@ using IntellectCRM.Application.Dtos;
 
 namespace IntellectCRM.Server.Controllers;
 
-/// <summary>Maktab nomi — brending uchun (barcha kirgan foydalanuvchilarga ochiq).</summary>
+/// <summary>Markaz nomi — brending uchun (barcha kirgan foydalanuvchilarga ochiq).</summary>
 [ApiController]
 [Authorize]
 [Route("api/school")]

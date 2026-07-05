@@ -14,7 +14,7 @@ namespace IntellectCRM.Server.Controllers;
 [Route("api/admin/classes")]
 public class ClassesController(AppDbContext db, AuditService audit, ILogger<ClassesController> logger, CertificateService certSvc, RoomConflictService roomConflict, AutoMessageService autoMsg) : ControllerBase
 {
-    /// <summary>Faol (arxivlanmagan) sinflar. <paramref name="includeArchived"/>=true bo'lsa hammasi.</summary>
+    /// <summary>Faol (arxivlanmagan) guruhlar. <paramref name="includeArchived"/>=true bo'lsa hammasi.</summary>
     [HttpGet]
     public async Task<ActionResult<IEnumerable<Group>>> GetAll([FromQuery] bool includeArchived = false)
     {
@@ -23,7 +23,7 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
         return await q.OrderBy(c => c.Grade).ThenBy(c => c.Name).ToListAsync();
     }
 
-    /// <summary>Arxivlangan sinflar ro'yxati.</summary>
+    /// <summary>Arxivlangan guruhlar ro'yxati.</summary>
     [HttpGet("archived")]
     public async Task<ActionResult<IEnumerable<Group>>> GetArchived() =>
         await db.Classes.Where(c => c.IsArchived)
@@ -98,8 +98,8 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
     }
 
     /// <summary>
-    /// Sinfni tahrirlash. Oylik to'lov o'zgarsa va <paramref name="applyFee"/> = true bo'lsa
-    /// ("Ha"), yangi narx shu sinf o'quvchilarining JORIY oy to'loviga ham qo'llanadi (balans
+    /// Guruhni tahrirlash. Oylik to'lov o'zgarsa va <paramref name="applyFee"/> = true bo'lsa
+    /// ("Ha"), yangi narx shu guruh o'quvchilarining JORIY oy to'loviga ham qo'llanadi (balans
     /// farqqa moslab to'g'rilanadi). false bo'lsa ("Yo'q") — joriy oy eski narxda qoladi, yangi
     /// narx keyingi oy hisoblashidan amal qiladi.
     /// </summary>
@@ -247,7 +247,7 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
     }
 
     /// <summary>
-    /// Sinfni arxivlash — <c>IsArchived=true</c>. Unga bog'langan FAOL o'quvchilar ham arxivlanadi
+    /// Guruhni arxivlash — <c>IsArchived=true</c>. Unga bog'langan FAOL o'quvchilar ham arxivlanadi
     /// (login bloklanadi, lekin parol saqlanadi — chiqarganda tiklanadi) va <c>ArchivedWithClass=true</c>
     /// bilan belgilanadi. Avval alohida arxivlangan o'quvchilar tegilmaydi.
     /// </summary>
@@ -256,7 +256,7 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
     {
         var cls = await db.Classes.FindAsync(id);
         if (cls is null) return NotFound();
-        if (cls.IsArchived) return BadRequest(new { message = "Sinf allaqachon arxivda" });
+        if (cls.IsArchived) return BadRequest(new { message = "Guruh allaqachon arxivda" });
 
         var today = AppClock.Today.ToString("yyyy-MM-dd");
         cls.IsArchived = true;
@@ -267,18 +267,18 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
         {
             s.IsArchived = true;
             s.ArchivedAt = today;
-            s.ArchiveReason = $"Sinf arxivlandi ({cls.Name})";
+            s.ArchiveReason = $"Guruh arxivlandi ({cls.Name})";
             s.ArchivedWithClass = true;
         }
 
         audit.Record(AuditService.EntityClassFee, cls.Id, "update",
-            $"Sinf arxivlandi ({cls.Name}) — {students.Count} ta o'quvchi bilan");
+            $"Guruh arxivlandi ({cls.Name}) — {students.Count} ta o'quvchi bilan");
         await db.SaveChangesAsync();
         return Ok(new { archivedStudents = students.Count });
     }
 
     /// <summary>
-    /// Sinfni arxivdan chiqarish — <c>IsArchived=false</c>. Faqat shu sinf bilan arxivlangan
+    /// Guruhni arxivdan chiqarish — <c>IsArchived=false</c>. Faqat shu guruh bilan arxivlangan
     /// (<c>ArchivedWithClass=true</c>) o'quvchilar qaytariladi; alohida arxivlanganlar arxivda qoladi.
     /// </summary>
     [HttpPost("{id}/unarchive")]
@@ -286,7 +286,7 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
     {
         var cls = await db.Classes.FindAsync(id);
         if (cls is null) return NotFound();
-        if (!cls.IsArchived) return BadRequest(new { message = "Sinf arxivda emas" });
+        if (!cls.IsArchived) return BadRequest(new { message = "Guruh arxivda emas" });
 
         cls.IsArchived = false;
         cls.ArchivedAt = null;
@@ -302,7 +302,7 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
         }
 
         audit.Record(AuditService.EntityClassFee, cls.Id, "update",
-            $"Sinf arxivdan chiqarildi ({cls.Name}) — {students.Count} ta o'quvchi bilan");
+            $"Guruh arxivdan chiqarildi ({cls.Name}) — {students.Count} ta o'quvchi bilan");
         await db.SaveChangesAsync();
         return Ok(new { restoredStudents = students.Count });
     }

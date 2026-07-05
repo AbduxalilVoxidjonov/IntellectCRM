@@ -8,7 +8,7 @@ import { useAuth } from '@/context/auth-context'
 import { Icon, initials, fmtTime } from '@/pages/student/lib'
 
 /* ============================================================
-   O'quvchi portali — Sinf guruhi chati.
+   O'quvchi portali — Guruh chati.
    O'z xabarlari o'ngda (accent), boshqalar chapda (avatar + nom + rol).
    Har 4 sekundda yangi xabarlarni so'raydi (since=oxirgi createdAt).
    ============================================================ */
@@ -118,7 +118,7 @@ export function StudentChatScreen() {
         <Icon name="chat" size={24} color="var(--accent)" />
       </div>
       <div>
-        <div style={{ fontSize: 16.5, fontWeight: 800 }}>Sinf guruhi</div>
+        <div style={{ fontSize: 16.5, fontWeight: 800 }}>Guruh chati</div>
         <div className="muted" style={{ fontSize: 12.5 }}>
           O‘qituvchilar va ma’muriyat
         </div>

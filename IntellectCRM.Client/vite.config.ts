@@ -65,7 +65,7 @@ export default defineConfig(({ command }): UserConfig => {
         }
     }
 
-    // Backend (SchoolLms.Server) manzili — proxy uchun.
+    // Backend (IntellectCRM.Server) manzili — proxy uchun.
     const target = env.ASPNETCORE_HTTPS_PORT
         ? `https://localhost:${env.ASPNETCORE_HTTPS_PORT}`
         : env.ASPNETCORE_URLS

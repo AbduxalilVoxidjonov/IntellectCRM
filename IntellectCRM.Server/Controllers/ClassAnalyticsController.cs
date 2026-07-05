@@ -57,9 +57,9 @@ public class ClassAnalyticsController(AppDbContext db, DataCache dataCache) : Co
             TimeSpan.FromMinutes(15),
             ComputeStatsAsync);
 
-    /// <summary>Har sinf statistikasini hisoblaydi. N+1 ni yo'qotish uchun jurnal yozuvlari va dars
-    /// izohlari SINFLAR ro'yxati bo'yicha BIR so'rovda olinib, Dictionary'ga guruhlanadi (ilgari har
-    /// sinf uchun 3 alohida so'rov ketardi). Semantika o'zgarmaydi.</summary>
+    /// <summary>Har guruh statistikasini hisoblaydi. N+1 ni yo'qotish uchun jurnal yozuvlari va dars
+    /// izohlari GURUHLAR ro'yxati bo'yicha BIR so'rovda olinib, Dictionary'ga guruhlanadi (ilgari har
+    /// guruh uchun 3 alohida so'rov ketardi). Semantika o'zgarmaydi.</summary>
     private static async Task<Dictionary<string, ClassStatsDto>> ComputeStatsAsync(IAppDbContext db2)
     {
         var students = await db2.Students.AsNoTracking().ToListAsync();
@@ -101,7 +101,7 @@ public class ClassAnalyticsController(AppDbContext db, DataCache dataCache) : Co
 
     [HttpGet("api/admin/students/rating")]
     public async Task<ActionResult<IEnumerable<StudentRatingRowDto>>> Rating() =>
-        // Reyting butun maktab bo'yicha og'ir hisob — keshlaymiz; bog'liq jadval o'zgarsa avto-yangilanadi.
+        // Reyting butun markaz bo'yicha og'ir hisob — keshlaymiz; bog'liq jadval o'zgarsa avto-yangilanadi.
         await dataCache.GetOrCreateAsync(
             "rating:school",
             new[]

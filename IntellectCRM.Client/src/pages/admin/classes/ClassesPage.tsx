@@ -92,7 +92,7 @@ export function ClassesPage() {
     list: string
   } | null>(null)
   const [savingConflict, setSavingConflict] = useState(false)
-  /** Arxivlangan sinflar ro'yxati + arxiv ko'rinishi yoqilganmi */
+  /** Arxivlangan guruhlar ro'yxati + arxiv ko'rinishi yoqilganmi */
   const [archived, setArchived] = useState<Group[]>([])
   const [showArchived, setShowArchived] = useState(false)
   /** A'zolarni boshqarish modali uchun tanlangan guruh */

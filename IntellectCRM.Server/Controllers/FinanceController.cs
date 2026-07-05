@@ -33,7 +33,7 @@ public class FinanceController(AppDbContext db, AuditService audit, AutoMessageS
             t.TeacherId, t.TeacherId is not null && teachers.TryGetValue(t.TeacherId, out var te) ? te : null,
             t.Month, t.GroupId, t.Comment, t.Method,
             t.GroupId is not null && groups is not null && groups.TryGetValue(t.GroupId, out var g) ? g : null,
-            // Kiritilgan vaqt — UTC saqlangan CreatedAt'ni maktab mintaqasiga (UTC+5) o'tkazib beramiz.
+            // Kiritilgan vaqt — UTC saqlangan CreatedAt'ni markaz mintaqasiga (UTC+5) o'tkazib beramiz.
             t.CreatedAt == default ? null : AppClock.ToLocal(t.CreatedAt).ToString("yyyy-MM-ddTHH:mm:ss"));
 
     [HttpGet("transactions")]
@@ -243,7 +243,7 @@ public class FinanceController(AppDbContext db, AuditService audit, AutoMessageS
     }
 
     /// <summary>O'quvchilar bo'yicha to'lov hisoboti (joriy holat):
-    /// Hisoblangan (to'liq sinf narxi yig'indi), Chegirma (berilgan), To'langan (HAQIQIY naqd to'lov),
+    /// Hisoblangan (to'liq guruh narxi yig'indi), Chegirma (berilgan), To'langan (HAQIQIY naqd to'lov),
     /// Qarz va Avans. Eng katta qarzdorlar yuqorida.</summary>
     [HttpGet("student-report")]
     public async Task<ActionResult<IEnumerable<StudentFinanceRowDto>>> StudentReport()

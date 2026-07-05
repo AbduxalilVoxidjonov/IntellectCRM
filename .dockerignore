@@ -7,7 +7,6 @@
 **/.git
 **/.github
 .git
-schoollms.client/multitanent
 **/*.user
 **/appsettings.*.local.json
 DEPLOY.md

@@ -2,7 +2,7 @@ namespace IntellectCRM.Domain;
 
 /// <summary>
 /// Butun platforma uchun yagona "soat". Server qayerda (Windows, Linux, Docker/UTC)
-/// turishidan qat'i nazar vaqtni doim maktab mintaqasida — Asia/Tashkent (UTC+5,
+/// turishidan qat'i nazar vaqtni doim markaz mintaqasida — Asia/Tashkent (UTC+5,
 /// yozgi vaqt yo'q) — qaytaradi.
 ///
 /// Nega kerak: ilgari kodda <c>DateTime.Now</c> (server lokal vaqti) va
@@ -29,13 +29,13 @@ public static class AppClock
         return TimeZoneInfo.CreateCustomTimeZone("UZT+5", TimeSpan.FromHours(5), "UZT", "UZT");
     }
 
-    /// <summary>Maktab mintaqasidagi hozirgi vaqt (UTC+5).</summary>
+    /// <summary>Markaz mintaqasidagi hozirgi vaqt (UTC+5).</summary>
     public static DateTime Now => TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, Tz);
 
-    /// <summary>Maktab mintaqasidagi bugungi sana.</summary>
+    /// <summary>Markaz mintaqasidagi bugungi sana.</summary>
     public static DateOnly Today => DateOnly.FromDateTime(Now);
 
-    /// <summary>Saqlangan UTC vaqtni (masalan FinanceTransaction.CreatedAt) maktab mintaqasiga
+    /// <summary>Saqlangan UTC vaqtni (masalan FinanceTransaction.CreatedAt) markaz mintaqasiga
     /// (UTC+5) o'tkazadi — ro'yxatda "kiritilgan vaqt"ni ko'rsatish uchun. Kind belgisiz qiymat
     /// ham UTC sifatida talqin qilinadi (legacy timestamp xulqi: timestamp ustun Kind=Unspecified qaytaradi).</summary>
     public static DateTime ToLocal(DateTime utc) =>

@@ -16,7 +16,7 @@ namespace IntellectCRM.Application.Services;
 /// </summary>
 public static class TeacherActivityReport
 {
-    /// <summary>Bir (o'qituvchi, sinf, fan) kesimi bo'yicha yig'ma sonlar.</summary>
+    /// <summary>Bir (o'qituvchi, guruh, fan) kesimi bo'yicha yig'ma sonlar.</summary>
     private sealed class Agg
     {
         public int Expected, Conducted, Topic, Homework, Grades;
@@ -40,7 +40,7 @@ public static class TeacherActivityReport
         return new TeacherReportOverviewDto(months, month ?? "", rows);
     }
 
-    /// <summary>Bitta o'qituvchining batafsil hisoboti (sinf/fan yoyilmasi bilan).</summary>
+    /// <summary>Bitta o'qituvchining batafsil hisoboti (guruh/fan yoyilmasi bilan).</summary>
     public static async Task<TeacherReportDetailDto?> BuildDetailAsync(IAppDbContext db, string teacherId, string? month = null)
     {
         var (c, teachers, classNames, subjectNames, lifecycle, _) = await ComputeAsync(db, month);

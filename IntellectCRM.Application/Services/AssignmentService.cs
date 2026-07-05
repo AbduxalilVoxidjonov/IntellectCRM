@@ -6,7 +6,7 @@ using IntellectCRM.Domain;
 namespace IntellectCRM.Application.Services;
 
 /// <summary>
-/// Topshiriq/test (boy model) o'qish/yozish mantig'i. O'qituvchi yaratadi (format, ko'p sinf,
+/// Topshiriq/test (boy model) o'qish/yozish mantig'i. O'qituvchi yaratadi (format, ko'p guruh,
 /// materiallar, muddat, baholash, test savollari); admin va o'quvchi ko'radi.
 /// </summary>
 public static class AssignmentService
@@ -29,7 +29,7 @@ public static class AssignmentService
         return await ToDtosAsync(db, list);
     }
 
-    /// <summary>Berilgan sinfga tegishli topshiriqlar (o'quvchi ko'radi).</summary>
+    /// <summary>Berilgan guruhga tegishli topshiriqlar (o'quvchi ko'radi).</summary>
     public static async Task<List<AssignmentDto>> ListForClassAsync(IAppDbContext db, string classId)
     {
         var all = await Query(db).ToListAsync();
@@ -106,7 +106,7 @@ public static class AssignmentService
         return true;
     }
 
-    /// <summary>Topshiriq natijalari: maqsadli sinflar o'quvchilari + har birining holati (bajardi/yo'q).</summary>
+    /// <summary>Topshiriq natijalari: maqsadli guruhlar o'quvchilari + har birining holati (bajardi/yo'q).</summary>
     public static async Task<AssignmentResultDto?> GetResultsAsync(IAppDbContext db, string assignmentId)
     {
         var a = await db.Assignments.FindAsync(assignmentId);
@@ -132,8 +132,8 @@ public static class AssignmentService
     }
 
     /// <summary>
-    /// Admin "Topshiriqlar bali" — bitta sinf bo'yicha ball jadvali: ustunlar = shu sinfga berilgan
-    /// topshiriqlar, qatorlar = sinf o'quvchilari, kataklar = har bir o'quvchining bali/holati.
+    /// Admin "Topshiriqlar bali" — bitta guruh bo'yicha ball jadvali: ustunlar = shu guruhga berilgan
+    /// topshiriqlar, qatorlar = guruh o'quvchilari, kataklar = har bir o'quvchining bali/holati.
     /// </summary>
     public static async Task<AssignmentScoreboardDto?> GetScoreboardAsync(IAppDbContext db, string classId)
     {

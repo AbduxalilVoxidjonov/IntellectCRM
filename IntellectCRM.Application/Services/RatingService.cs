@@ -6,7 +6,7 @@ using IntellectCRM.Domain;
 namespace IntellectCRM.Application.Services;
 
 /// <summary>
-/// Maktab bo'yicha o'quvchilar reytingi (o'rtacha baho + davomat) — admin "Reyting" sahifasi va
+/// Markaz bo'yicha o'quvchilar reytingi (o'rtacha baho + davomat) — admin "Reyting" sahifasi va
 /// o'quvchi/parent portali uchun umumiy manba. HAR O'QUVCHI BITTA QATOR: bir nechta guruhda bo'lsa
 /// ham, baho/davomat barcha FAOL guruhlari bo'yicha YIG'ILADI (ilgari har guruh uchun alohida qator
 /// chiqib, ko'p guruhli o'quvchi reytingda DUBLIKAT bo'lardi — o'rin/jami soni xato edi).
@@ -63,7 +63,7 @@ public static class RatingService
             var average = grades.Count > 0 ? Math.Round(grades.Average(), 1) : 0;
             double? attendance = conducted > 0 ? Math.Round((double)(conducted - absent) / conducted * 100) : null;
 
-            // Vakil sinf: o'quvchi ClassName yorlig'i (bor bo'lsa), aks holda birinchi guruh nomi.
+            // Vakil guruh: o'quvchi ClassName yorlig'i (bor bo'lsa), aks holda birinchi guruh nomi.
             var firstCls = classById.TryGetValue(groupIds[0], out var c0) ? c0 : null;
             var className = !string.IsNullOrEmpty(st.ClassName) ? st.ClassName : (firstCls?.Name ?? "");
             var gradeLevel = firstCls?.Grade ?? 0;

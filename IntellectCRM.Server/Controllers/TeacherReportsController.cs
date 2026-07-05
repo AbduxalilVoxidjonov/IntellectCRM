@@ -21,7 +21,7 @@ public class TeacherReportsController(AppDbContext db) : ControllerBase
     public async Task<ActionResult<TeacherReportOverviewDto>> Overview([FromQuery] string? month = null)
         => await TeacherActivityReport.BuildOverviewAsync(db, month);
 
-    /// <summary>Bitta o'qituvchining batafsil hisoboti (sinf/fan yoyilmasi). month bo'sh/null = Umumiy.</summary>
+    /// <summary>Bitta o'qituvchining batafsil hisoboti (guruh/fan yoyilmasi). month bo'sh/null = Umumiy.</summary>
     [HttpGet("{id}")]
     public async Task<ActionResult<TeacherReportDetailDto>> Detail(string id, [FromQuery] string? month = null)
     {

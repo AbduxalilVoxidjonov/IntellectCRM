@@ -9,21 +9,21 @@ export interface LoginResult {
 
 /** USE_MOCK rejimida ishlatiladigan demo foydalanuvchilar (backend seed bilan bir xil). */
 const mockAccounts: Record<string, { password: string; user: User }> = {
-  'admin@maktab.uz': {
+  'admin@markaz.uz': {
     password: 'admin123',
-    user: { id: 'a1', fullName: 'Aziz Karimov', role: 'admin', email: 'admin@maktab.uz' },
+    user: { id: 'a1', fullName: 'Aziz Karimov', role: 'admin', email: 'admin@markaz.uz' },
   },
-  'teacher@maktab.uz': {
+  'teacher@markaz.uz': {
     password: 'teacher123',
-    user: { id: 't1u', fullName: 'Dilnoza Saidova', role: 'teacher', email: 'teacher@maktab.uz' },
+    user: { id: 't1u', fullName: 'Dilnoza Saidova', role: 'teacher', email: 'teacher@markaz.uz' },
   },
-  'student@maktab.uz': {
+  'student@markaz.uz': {
     password: 'student123',
-    user: { id: 's1u', fullName: 'Jasur Tohirov', role: 'student', email: 'student@maktab.uz' },
+    user: { id: 's1u', fullName: 'Jasur Tohirov', role: 'student', email: 'student@markaz.uz' },
   },
-  'parent@maktab.uz': {
+  'parent@markaz.uz': {
     password: 'parent123',
-    user: { id: 'p1u', fullName: 'Nodira Yusupova', role: 'parent', email: 'parent@maktab.uz' },
+    user: { id: 'p1u', fullName: 'Nodira Yusupova', role: 'parent', email: 'parent@markaz.uz' },
   },
 }
 
@@ -65,7 +65,7 @@ export async function updateAccount(payload: UpdateAccountPayload): Promise<User
       id: 'a1',
       fullName: 'Administrator',
       role: 'admin',
-      email: payload.email ?? 'admin@maktab.uz',
+      email: payload.email ?? 'admin@markaz.uz',
     }
   }
   const { data } = await api.put<User>('/auth/account', payload)

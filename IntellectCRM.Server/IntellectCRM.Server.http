@@ -6,7 +6,7 @@ POST {{host}}/api/auth/login
 Content-Type: application/json
 
 {
-  "email": "admin@maktab.uz",
+  "email": "admin@markaz.uz",
   "password": "admin123"
 }
 
@@ -25,11 +25,11 @@ Authorization: Bearer {{token}}
 GET {{host}}/api/admin/students
 Authorization: Bearer {{token}}
 
-### Sinflar
+### Guruhlar
 GET {{host}}/api/admin/classes
 Authorization: Bearer {{token}}
 
-### Sozlamalar (choraklar, dars vaqtlari, davomat sabablari)
+### Sozlamalar (davomat sabablari, sintetik davrlar)
 GET {{host}}/api/admin/settings
 Authorization: Bearer {{token}}
 
@@ -37,6 +37,6 @@ Authorization: Bearer {{token}}
 GET {{host}}/api/admin/journal/columns?classId=c1&subjectId=sb1&quarter=4
 Authorization: Bearer {{token}}
 
-### Sinf ko'rsatkichlari
+### Guruh ko'rsatkichlari
 GET {{host}}/api/admin/classes/c1/performance
 Authorization: Bearer {{token}}

@@ -151,9 +151,9 @@ O'qituvchining o'z profilini ko'rish (ism, email, fanlari, ruxsatlar, foto, supp
 
 ---
 
-### 2.2 Maktab/Markaz ma'lumotlari
+### 2.2 O'quv markazi ma'lumotlari
 
-O'qituvchi ilovasi uchun markaz/maktab umumiy ma'lumotlari (nom, logo, telegram kanal).
+O'qituvchi ilovasi uchun o'quv markazi umumiy ma'lumotlari (nom, logo, telegram kanal).
 
 | Parametr | Qiymat |
 |----------|--------|
@@ -164,7 +164,7 @@ O'qituvchi ilovasi uchun markaz/maktab umumiy ma'lumotlari (nom, logo, telegram 
 **Javob (Response):** HTTP 200
 ```json
 {
-  "name": "Intellect Maktab Markazi",
+  "name": "Intellect O'quv Markazi",
   "telegramChannel": "https://t.me/intellectschool",
   "logoUrl": "/logos/school.png"
 }
@@ -186,7 +186,7 @@ Markaz sozlamalari, davomat sabablari, baholash turlari va boshqa uum ma'lumotla
 ```json
 {
   "center": {
-    "name": "Intellect Maktab Markazi",
+    "name": "Intellect O'quv Markazi",
     "logoUrl": "/logos/school.png"
   },
   "absenceReasons": [
@@ -548,7 +548,7 @@ Admin tomonidan belgilangan baholash turlari (qo'shimcha, oraliq, test, ...).
 
 ### 6.2 Baholash jadvali (Board)
 
-Tanlangan oy uchun sinf × baholash turlar bo'yicha jadvali.
+Tanlangan oy uchun guruh × baholash turlar bo'yicha jadvali.
 
 | Parametr | Qiymat |
 |----------|--------|
@@ -855,7 +855,7 @@ Olib tashlash:
 
 ## 9. Chat
 
-O'qituvchi o'z dars beradigan sinflar + sinf rahbarligi kanallari bilan xabar almashadi (SignalR EMAS, REST API).
+O'qituvchi o'z dars beradigan guruhlar + guruh rahbarligi kanallari bilan xabar almashadi (SignalR EMAS, REST API).
 
 ### 9.1 Barcha kanallardagi oxirgi xabar vaqti
 
@@ -880,7 +880,7 @@ O'qilmagan xabarlarni aniqlash uchun oxirgi xabar vaqtlari (kanal nomiga tegishl
 
 ### 9.2 O'z kanallarni ko'rish
 
-O'qituvchi qaysi kanallarda bo'lganini ko'rish (sinf nomlari).
+O'qituvchi qaysi kanallarda bo'lganini ko'rish (guruh nomlari).
 
 | Parametr | Qiyval |
 |----------|--------|
@@ -904,7 +904,7 @@ Tanlangan kanaldagi xabarlarni o'qish (to'liq tarix yoki belgilangan vaqtdan key
 | **Method** | `GET` |
 | **URL** | `/api/teacher/chat/{className}` |
 | **Auth** | Kerak (messages ruxsati) |
-| **Path Param** | `className` — sinf nomi (EXACT, masalan "1-A") |
+| **Path Param** | `className` — guruh nomi (EXACT, masalan "1-A") |
 | **Query Param** | `since` (ISO datetime, optional — belgilangan vaqtdan keyin) |
 
 **So'rov misoli:**
@@ -936,14 +936,14 @@ GET /api/teacher/chat/1-A?since=2026-01-15T14:00:00Z
 
 ### 9.4 Xabar yuborish
 
-Kanal'ga xabar yuborish.
+Kanalga xabar yuborish.
 
 | Parametr | Qiymal |
 |----------|--------|
 | **Method** | `POST` |
 | **URL** | `/api/teacher/chat/{className}` |
 | **Auth** | Kerak (messages ruxsati) |
-| **Path Param** | `className` — sinf nomi |
+| **Path Param** | `className` — guruh nomi |
 
 **So'rov (Request):**
 ```json
@@ -1217,18 +1217,18 @@ image: <optional binary file>
 
 ## 12. LMS (O'quv kontenti)
 
-O'qituvchi o'z dars beradigan sinflarning LMS materiallari va o'quvchilar progressini ko'radi (yaratmaydi).
+O'qituvchi o'z dars beradigan guruhlarning LMS materiallari va o'quvchilar progressini ko'radi (yaratmaydi).
 
 ### 12.1 LMS fanlar
 
-O'qituvchining dars beradigan sinflarining LMS fanlar.
+O'qituvchining dars beradigan guruhlarining LMS fanlar.
 
 | Parametr | Qiymal |
 |----------|--------|
 | **Method** | `GET` |
 | **URL** | `/api/teacher/lms/subjects` |
 | **Auth** | Kerak (teacher) |
-| **Query Param** | `classId` (optional — bitta sinfga filtrlash) |
+| **Query Param** | `classId` (optional — bitta guruhga filtrlash) |
 
 **Javob (Response):** HTTP 200
 ```json

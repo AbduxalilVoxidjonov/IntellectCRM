@@ -205,7 +205,7 @@ public class MoiZvonkiCallSyncService(
         return default;
     }
 
-    /// <summary>Unix soniya → maktab mintaqasi (UTC+5) vaqti. 0/manfiy — null.</summary>
+    /// <summary>Unix soniya → markaz mintaqasi (UTC+5) vaqti. 0/manfiy — null.</summary>
     private static DateTime? FromUnix(long seconds) =>
         seconds > 0 ? AppClock.ToLocal(DateTimeOffset.FromUnixTimeSeconds(seconds).UtcDateTime) : null;
 

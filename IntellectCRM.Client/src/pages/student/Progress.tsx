@@ -11,7 +11,7 @@ import {
 import { Icon, Ring, gradeColor, subjectColor, initials, fmtDate } from '@/pages/student/lib'
 
 /* ============================================================
-   O'quvchi portali — Progress ekrani (Dastur / Sinf / Maktab).
+   O'quvchi portali — Progress ekrani (Dastur / Guruh / Markaz).
    "Dastur" = Duolingo uslubidagi o'quv dasturi yo'l-xaritasi.
    ============================================================ */
 
@@ -19,13 +19,13 @@ type Mode = 0 | 1 | 2
 
 const SUBS = [
   "O'quv dasturi — o'tilgan / qolgan",
-  'Sinf reytingi — barcha o‘quvchilar',
-  'Maktab reytingi — TOP 15',
+  'Guruh reytingi — barcha o‘quvchilar',
+  'Markaz reytingi — TOP 15',
 ]
 const TABS: Array<[string, string]> = [
   ['book', 'Dastur'],
-  ['award', 'Sinf'],
-  ['school', 'Maktab'],
+  ['award', 'Guruh'],
+  ['school', 'Markaz'],
 ]
 
 /** Birinchi o'tilmagan band (kurs tartibida) — "hozir o'rganiladigan". */
@@ -446,7 +446,7 @@ function RatingView({ scope }: { scope: 'class' | 'school' }) {
       )}
 
       <div className="sh">
-        <div className="sh-title">{isSchool ? 'Maktab reytingi · TOP 15' : 'Sinf reytingi'}</div>
+        <div className="sh-title">{isSchool ? 'Markaz reytingi · TOP 15' : 'Guruh reytingi'}</div>
       </div>
 
       {rows.length ? (

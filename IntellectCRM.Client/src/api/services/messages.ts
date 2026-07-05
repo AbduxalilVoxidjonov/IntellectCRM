@@ -11,14 +11,14 @@ import type {
 } from '@/types'
 import { api, USE_MOCK } from '../client'
 
-/** Xabarlar bo'limi uchun sinflar ro'yxati (o'quvchi soni, ro'yxatdagi ota-onalar, oxirgi xabar) */
+/** Xabarlar bo'limi uchun guruhlar ro'yxati (o'quvchi soni, ro'yxatdagi ota-onalar, oxirgi xabar) */
 export async function getMessageClasses(): Promise<MessageClass[]> {
   if (USE_MOCK) return []
   const { data } = await api.get<MessageClass[]>('/admin/messages/classes')
   return data
 }
 
-/** Sinf guruh chati xabarlari. since berilsa — shu vaqtdan keyingilar. */
+/** Guruh chati xabarlari. since berilsa — shu vaqtdan keyingilar. */
 export async function getChat(className: string, since?: string): Promise<ChatMessage[]> {
   if (USE_MOCK) return []
   const { data } = await api.get<ChatMessage[]>(
@@ -28,7 +28,7 @@ export async function getChat(className: string, since?: string): Promise<ChatMe
   return data
 }
 
-/** Sinf guruh chatiga xabar yuborish (admin sifatida) */
+/** Guruh chatiga xabar yuborish (admin sifatida) */
 export async function sendChat(className: string, text: string): Promise<ChatMessage> {
   const { data } = await api.post<ChatMessage>(
     `/admin/messages/chat/${encodeURIComponent(className)}`,
@@ -37,7 +37,7 @@ export async function sendChat(className: string, text: string): Promise<ChatMes
   return data
 }
 
-/** Yuborilgan e'lonlar tarixi (ixtiyoriy sinf bo'yicha) */
+/** Yuborilgan e'lonlar tarixi (ixtiyoriy guruh bo'yicha) */
 export async function getBroadcasts(className?: string): Promise<Broadcast[]> {
   if (USE_MOCK) return []
   const { data } = await api.get<Broadcast[]>('/admin/messages/broadcasts', {
@@ -48,9 +48,9 @@ export async function getBroadcasts(className?: string): Promise<Broadcast[]> {
 
 /** E'lon yuborish so'rovi. Matnda o'rinbosarlar: {fish} {sinf} {qarzdorlik} {balans} {ota-ona} {telefon}. */
 export interface SendBroadcastReq {
-  /** Qamrov: tanlangan sinf / barcha sinf / tanlangan o'quvchilar/o'qituvchilar */
+  /** Qamrov: tanlangan guruh / barcha guruh / tanlangan o'quvchilar/o'qituvchilar */
   scope: 'class' | 'all' | 'selected'
-  /** scope === 'class' bo'lganda sinf nomi */
+  /** scope === 'class' bo'lganda guruh nomi */
   className?: string
   /** Faqat balansi manfiy (qarzdor) o'quvchilar */
   onlyDebtors: boolean
@@ -67,7 +67,7 @@ export async function sendBroadcast(req: SendBroadcastReq): Promise<Broadcast> {
   return data
 }
 
-/** Sinf bo'yicha Telegramda ro'yxatdan o'tgan ota-onalar */
+/** Guruh bo'yicha Telegramda ro'yxatdan o'tgan ota-onalar */
 export async function getTelegramRegistrations(className?: string): Promise<TelegramParent[]> {
   if (USE_MOCK) return []
   const { data } = await api.get<TelegramParent[]>('/admin/messages/telegram/registrations', {
@@ -95,7 +95,7 @@ export async function getTelegramStatus(): Promise<TelegramStatus> {
 export interface SendPushReq {
   /** Kimga: ota-onalar / o'qituvchilar / tanlangan (custom) */
   audience: 'parents' | 'teachers' | 'selected'
-  /** parents uchun sinf (bo'sh = barcha sinf) */
+  /** parents uchun guruh (bo'sh = barcha guruh) */
   className?: string
   /** selected uchun tanlangan akkaunt id'lari */
   userIds?: string[]
@@ -311,7 +311,7 @@ export async function getAdminLastMessages(): Promise<Record<string, string | nu
 
 /**
  * Guruh chati uchun real-time SignalR ulanishi. Yangi xabar kelganda onMessage chaqiriladi
- * (foydalanuvchi a'zo bo'lgan BARCHA sinflar bo'yicha — komponent kerakli sinfni filtrlaydi).
+ * (foydalanuvchi a'zo bo'lgan BARCHA guruhlar bo'yicha — komponent kerakli guruhni filtrlaydi).
  * Mock rejimida null qaytaradi.
  */
 export function connectChat(onMessage: (m: ChatMessage) => void): signalR.HubConnection | null {

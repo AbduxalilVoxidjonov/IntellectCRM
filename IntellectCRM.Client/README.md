@@ -1,7 +1,7 @@
-# Maktab LMS — Client (schoollms.client)
+# IntellectCRM — Client
 
-Maktab boshqaruv tizimi (LMS) frontendi. React 19 + TypeScript + Vite + Tailwind CSS v4.
-Bu loyiha `SchoolLms.Server` (ASP.NET Core) bilan **SPA proxy** orqali integratsiyalangan.
+O'quv markazi CRM tizimi frontendi. React 19 + TypeScript + Vite + Tailwind CSS v4.
+Bu loyiha `IntellectCRM.Server` (ASP.NET Core) bilan **SPA proxy** orqali integratsiyalangan.
 
 ## Texnologiyalar
 
@@ -27,7 +27,7 @@ src/
 
 ## Ishga tushirish
 
-Odatda butun yechim Visual Studio'da `SchoolLms.Server` startup loyiha sifatida
+Odatda butun yechim Visual Studio'da `IntellectCRM.Server` startup loyiha sifatida
 ishga tushiriladi — ASP.NET SPA proxy avtomatik ravishda `npm run dev` ni ishga
 tushiradi va `https://localhost:57472` ga proxy qiladi.
 

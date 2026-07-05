@@ -30,7 +30,7 @@ export function Sidebar({ open, onNavigate }: SidebarProps) {
   const [schoolName, setSchoolName] = useState('')
   const [logoUrl, setLogoUrl] = useState('')
 
-  // Maktab nomi va logosini yuklaymiz; sozlamada saqlangach 'school:updated' hodisasi bilan yangilanadi.
+  // Markaz nomi va logosini yuklaymiz; sozlamada saqlangach 'school:updated' hodisasi bilan yangilanadi.
   useEffect(() => {
     const load = () => {
       getSchoolName()

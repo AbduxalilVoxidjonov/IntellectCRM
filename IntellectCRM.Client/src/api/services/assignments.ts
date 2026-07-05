@@ -35,7 +35,7 @@ export interface SaveAssignmentInput {
   referenceText?: string
 }
 
-/** Admin: barcha topshiriqlar (yoki sinf bo'yicha) — FAQAT KO'RISH */
+/** Admin: barcha topshiriqlar (yoki guruh bo'yicha) — FAQAT KO'RISH */
 export async function getAssignments(classId?: string): Promise<Assignment[]> {
   if (USE_MOCK) return []
   const { data } = await api.get<Assignment[]>('/admin/assignments', {
@@ -50,7 +50,7 @@ export async function getAssignmentResults(id: string): Promise<AssignmentResult
   return data
 }
 
-/** Admin: "Topshiriqlar bali" — sinf bo'yicha ball jadvali (o'quvchilar × topshiriqlar) */
+/** Admin: "Topshiriqlar bali" — guruh bo'yicha ball jadvali (o'quvchilar × topshiriqlar) */
 export async function getAssignmentScoreboard(classId: string): Promise<AssignmentScoreboard> {
   const { data } = await api.get<AssignmentScoreboard>('/admin/assignments/scoreboard', {
     params: { classId },
@@ -58,7 +58,7 @@ export async function getAssignmentScoreboard(classId: string): Promise<Assignme
   return data
 }
 
-/** Admin: yangi topshiriq yaratish (o'qituvchidek — istalgan sinf+fan uchun) */
+/** Admin: yangi topshiriq yaratish (o'qituvchidek — istalgan guruh+fan uchun) */
 export async function createAssignment(input: SaveAssignmentInput): Promise<Assignment> {
   const { data } = await api.post<Assignment>('/admin/assignments', input)
   return data

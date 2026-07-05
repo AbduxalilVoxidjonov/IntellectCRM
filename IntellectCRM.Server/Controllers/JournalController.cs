@@ -36,7 +36,7 @@ public class JournalController(AppDbContext db, FcmService fcm, AutoMessageServi
         [FromQuery] string classId, [FromQuery] string subjectId, [FromQuery] int quarter)
         => await JournalService.ComputeColumnsAsync(db, classId, subjectId, quarter);
 
-    /// <summary>Berilgan sanada o'tilgan darslar (sinf+fan+dars raqami): ptichka yoki baho/davomat bo'lganlar.</summary>
+    /// <summary>Berilgan sanada o'tilgan darslar (guruh+fan+dars raqami): ptichka yoki baho/davomat bo'lganlar.</summary>
     [HttpGet("conducted")]
     public async Task<ActionResult<IEnumerable<ConductedLessonDto>>> Conducted([FromQuery] string date)
     {
@@ -135,7 +135,7 @@ public class JournalController(AppDbContext db, FcmService fcm, AutoMessageServi
 
     private const string XlsxMime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
-    /// <summary>Tanlangan sinf+fan+chorak uchun mavzular shabloni (.xlsx) — jadval kunlari oldindan to'ldirilgan.</summary>
+    /// <summary>Tanlangan guruh+fan+chorak uchun mavzular shabloni (.xlsx) — jadval kunlari oldindan to'ldirilgan.</summary>
     [HttpGet("topics-template")]
     public async Task<IActionResult> TopicsTemplate(
         [FromQuery] string classId, [FromQuery] string subjectId, [FromQuery] int quarter)
@@ -151,7 +151,7 @@ public class JournalController(AppDbContext db, FcmService fcm, AutoMessageServi
         [FromForm] string classId, [FromForm] string subjectId, [FromForm] int quarter, IFormFile? file)
     {
         if (string.IsNullOrWhiteSpace(classId) || string.IsNullOrWhiteSpace(subjectId))
-            return BadRequest(new { message = "Sinf va fan ko'rsatilishi shart" });
+            return BadRequest(new { message = "Guruh va fan ko'rsatilishi shart" });
         if (file is null || file.Length == 0)
             return BadRequest(new { message = "Fayl tanlanmagan" });
         if (!file.FileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))

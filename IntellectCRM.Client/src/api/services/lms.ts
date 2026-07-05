@@ -3,7 +3,7 @@ import { api } from '../client'
 
 /* ─── Fanlar ─────────────────────────────────────────────── */
 
-/** Barcha fanlar yoki bitta sinf fanlari */
+/** Barcha fanlar yoki bitta guruh fanlari */
 export async function getLmsSubjects(classId?: string): Promise<LmsSubject[]> {
   const { data } = await api.get<LmsSubject[]>('/admin/lms/subjects', {
     params: classId ? { classId } : undefined,
@@ -74,7 +74,7 @@ export async function reorderLmsTopics(moduleId: string, topicIds: string[]): Pr
 
 /* ─── O'quvchilar progressi ──────────────────────────────── */
 
-/** Sinf o'quvchilari × mavzular progress matritsasi (kim qaysi mavzuni tugatgan). */
+/** Guruh o'quvchilari × mavzular progress matritsasi (kim qaysi mavzuni tugatgan). */
 export async function getLmsProgress(subjectId: string): Promise<LmsProgressReport> {
   const { data } = await api.get<LmsProgressReport>(`/admin/lms/subjects/${subjectId}/progress`)
   return data

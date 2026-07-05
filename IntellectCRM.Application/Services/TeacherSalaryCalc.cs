@@ -8,7 +8,7 @@ namespace IntellectCRM.Application.Services;
 /// O'qituvchi oylik maoshini DARS JADVALI + DAVOMATdan hisoblaydi.
 /// Reja (nominal) oylik = haftalik darslar × <see cref="WeeksPerMonth"/> × toifaning bir soat narxi.
 /// Davomatga moslangan oylik = shu oyda o'qituvchi KELMAGAN (absent) kunlardagi darslar chegirilgan.
-/// Haftalik darslar — har sinfning asosiy jadval shabloni (faqat mavjud, arxivlanmagan sinflar).
+/// Haftalik darslar — har guruhning asosiy jadval shabloni (faqat mavjud, arxivlanmagan guruhlar).
 /// </summary>
 public static class TeacherSalaryCalc
 {
@@ -18,7 +18,7 @@ public static class TeacherSalaryCalc
     /// <summary>
     /// Har o'qituvchining hafta kuni kesimida darslar soni: teacherId → int[6]
     /// (indeks 0=Dushanba ... 5=Shanba; <see cref="ScheduleLesson.Day"/> bilan bir xil).
-    /// Har sinf uchun faqat bitta asosiy (eng ko'p darsli) shablon, faqat mavjud sinflar.
+    /// Har guruh uchun faqat bitta asosiy (eng ko'p darsli) shablon, faqat mavjud guruhlar.
     /// </summary>
     public static Task<Dictionary<string, int[]>> LessonsByWeekdayAsync(IAppDbContext db) =>
         // Dars jadvali olib tashlandi — maosh QO'LDA kiritiladi (Teacher.Salary). Avtomatik "haftalik
