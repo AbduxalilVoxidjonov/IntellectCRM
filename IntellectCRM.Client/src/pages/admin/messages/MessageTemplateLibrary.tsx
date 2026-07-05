@@ -160,7 +160,7 @@ export function MessageTemplateLibrary({
       ) : items.length === 0 ? (
         <p className="py-6 text-center text-sm text-slate-400">Hali tayyor matn yo'q</p>
       ) : (
-        <div className="max-h-72 space-y-1.5 overflow-y-auto pr-1">
+        <div className="grid max-h-72 grid-cols-1 items-start gap-1.5 overflow-y-auto pr-1 md:grid-cols-2">
           {items.map((item, i) => (
             <div
               key={item.kind === 'builtin' ? `builtin-${i}` : `${item.kind}-${item.id}`}
