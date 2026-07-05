@@ -95,7 +95,9 @@ export function AutoMessagesTab() {
   }
 
   return (
-    <div className="space-y-4">
+    // 2 ustun (katta ekranda) — sahifa juda uzun bo'lib ketmasligi uchun; items-start —
+    // yonma-yon kartalar bir-biriga qarab cho'zilmaydi.
+    <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-2">
       {triggers.map((t) => {
         const trRules = rulesByTrigger.get(t.key) ?? []
         return (
@@ -239,43 +241,50 @@ function RuleCard({
         draft.enabled ? 'border-slate-200 bg-white' : 'border-slate-100 bg-slate-50',
       )}
     >
-      {/* Sarlavha: faol toggle + o'chirish */}
+      {/* Sarlavha: faol toggle (birlashgan pill — switch + holat matni) + o'chirish */}
       <div className="mb-3 flex items-center gap-2">
         <button
           type="button"
           onClick={toggleEnabled}
           disabled={saving}
           className={cn(
-            'relative h-5 w-9 shrink-0 rounded-full transition-colors',
-            draft.enabled ? 'bg-brand-600' : 'bg-slate-300',
+            'inline-flex items-center gap-2 rounded-full border py-1 pl-1.5 pr-3 text-xs font-semibold transition-all',
+            draft.enabled
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+              : 'border-slate-200 bg-white text-slate-400 hover:border-slate-300 hover:text-slate-600',
           )}
-          aria-label="Faol"
         >
           <span
             className={cn(
-              'absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform',
-              draft.enabled ? 'translate-x-4' : 'translate-x-0.5',
+              'relative h-4 w-7 shrink-0 rounded-full transition-colors',
+              draft.enabled ? 'bg-emerald-500' : 'bg-slate-300',
             )}
-          />
-        </button>
-        <span className="text-sm font-semibold text-slate-700">
+          >
+            <span
+              className={cn(
+                'absolute top-0.5 h-3 w-3 rounded-full bg-white shadow transition-transform',
+                draft.enabled ? 'translate-x-3.5' : 'translate-x-0.5',
+              )}
+            />
+          </span>
           {draft.enabled ? 'Faol' : "O'chirilgan"}
-        </span>
+        </button>
         <div className="ml-auto flex items-center gap-2">
           {saved && <span className="text-xs font-medium text-emerald-600">Saqlandi</span>}
           <button
             type="button"
             onClick={remove}
             disabled={saving}
-            className="text-slate-400 transition-colors hover:text-red-600"
+            className="rounded-lg p-1 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
+            title="Qoidani o'chirish"
           >
             <Trash2 className="h-4 w-4" />
           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_1.4fr]">
-        {/* Chap: kanallar + auditoriya + reja/scope */}
+      <div className="space-y-3">
+        {/* Kanallar + auditoriya + reja/scope */}
         <div className="space-y-3">
           {/* Kanal chiplari (faqat mavjudlari) */}
           <div>
