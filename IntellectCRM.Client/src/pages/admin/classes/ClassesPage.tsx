@@ -15,8 +15,9 @@ import {
   User,
   BookOpenCheck,
 } from 'lucide-react'
-import type { Group, GroupFillRow, Teacher } from '@/types'
+import type { Group, GroupFillRow, Teacher, Subject } from '@/types'
 import type { ClassPayload } from '@/api/services/classes'
+import { getSubjects } from '@/api/services/subjects'
 import {
   getClasses,
   createClass,
@@ -106,13 +107,23 @@ export function ClassesPage() {
   const [view, setView] = useState<'card' | 'table'>('card')
   /** O'qituvchi filteri — faqat shu o'qituvchining guruhlari ko'rsatiladi */
   const [teacherFilter, setTeacherFilter] = useState('all')
+  /** Kurs filteri — faqat shu kursga biriktirilgan guruhlar */
+  const [courseFilter, setCourseFilter] = useState('all')
+  /** Kun filteri: barcha | toq kunlar (Du/Cho/Ju) | juft kunlar (Se/Pay/Sha) */
+  const [dayFilter, setDayFilter] = useState<'all' | 'odd' | 'even'>('all')
+  /** Kurslar ro'yxati (filtr uchun) */
+  const [subjects, setSubjects] = useState<Subject[]>([])
   /** "Jurnal boshqaruvi" oynasi — jurnal tahrirlash siyosati (barcha guruhlar uchun) */
   const [policyOpen, setPolicyOpen] = useState(false)
 
   const filteredClasses = useMemo(() => {
-    if (teacherFilter === 'all') return classes
-    return classes.filter((c) => c.teacherId === teacherFilter)
-  }, [classes, teacherFilter])
+    return classes.filter((c) => {
+      if (teacherFilter !== 'all' && c.teacherId !== teacherFilter) return false
+      if (courseFilter !== 'all' && c.courseId !== courseFilter) return false
+      if (dayFilter !== 'all' && dayGroup(c.days) !== dayFilter) return false
+      return true
+    })
+  }, [classes, teacherFilter, courseFilter, dayFilter])
 
   const sortedClasses = useMemo(() => {
     if (sort === 'order') return filteredClasses
@@ -128,13 +139,14 @@ export function ClassesPage() {
     id ? (teachers.find((t) => t.id === id)?.fullName ?? '—') : '—'
 
   useEffect(() => {
-    Promise.all([getClasses(), getClassesStats(), getArchivedClasses(), getTeachers(), getAllGroupsGradingStats()])
-      .then(([cl, st, ar, te, gs]) => {
+    Promise.all([getClasses(), getClassesStats(), getArchivedClasses(), getTeachers(), getAllGroupsGradingStats(), getSubjects()])
+      .then(([cl, st, ar, te, gs, su]) => {
         setClasses(cl)
         setStats(st)
         setArchived(ar)
         setTeachers(te)
         setGradingStats(gs)
+        setSubjects(su)
       })
       .finally(() => setLoading(false))
   }, [])
@@ -325,6 +337,34 @@ export function ClassesPage() {
                     {t.fullName}
                   </option>
                 ))}
+            </select>
+
+            {/* Kurs filtri */}
+            <select
+              value={courseFilter}
+              onChange={(e) => setCourseFilter(e.target.value)}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 outline-none transition-colors focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
+            >
+              <option value="all">Barcha kurslar</option>
+              {subjects
+                .filter((s) => classes.some((c) => c.courseId === s.id))
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+            </select>
+
+            {/* Kun filtri: toq / juft */}
+            <select
+              value={dayFilter}
+              onChange={(e) => setDayFilter(e.target.value as 'all' | 'odd' | 'even')}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 outline-none transition-colors focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
+            >
+              <option value="all">Barcha kunlar</option>
+              <option value="odd">Toq kunlar (Du/Cho/Ju)</option>
+              <option value="even">Juft kunlar (Se/Pay/Sha)</option>
             </select>
 
             <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
@@ -801,6 +841,17 @@ function attColor(a: number): string {
   if (a >= 95) return 'text-emerald-600'
   if (a >= 90) return 'text-amber-600'
   return 'text-red-600'
+}
+
+// Toq kunlar = Dushanba(0)/Chorshanba(2)/Juma(4); juft kunlar = Seshanba(1)/Payshanba(3)/Shanba(5).
+// Guruh KUNLARI shu naqshga to'liq mos kelsa "odd"/"even", aralash/har kuni bo'lsa "other".
+const ODD_DAYS = [0, 2, 4]
+const EVEN_DAYS = [1, 3, 5]
+function dayGroup(days?: number[]): 'odd' | 'even' | 'other' {
+  if (!days || days.length === 0) return 'other'
+  if (days.every((d) => ODD_DAYS.includes(d))) return 'odd'
+  if (days.every((d) => EVEN_DAYS.includes(d))) return 'even'
+  return 'other'
 }
 
 const DAY_SHORT = ['Du', 'Se', 'Cho', 'Pay', 'Ju', 'Sha', 'Yak']
