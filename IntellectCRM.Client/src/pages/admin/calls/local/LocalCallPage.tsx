@@ -347,12 +347,16 @@ function HistoryTab({ agents, onError }: { agents: CtiAgent[]; onError: (msg: st
   }
 
   useEffect(() => {
-    const t = setTimeout(() => {
+    const load = () =>
       getCtiCallsGrouped(filters, page, pageSize)
         .then((r) => { setRows(r.items); setTotal(r.total) })
-        .catch(() => setRows([]))
-    }, 400)
-    return () => clearTimeout(t)
+        .catch(() => setRows((prev) => prev ?? []))
+    // Filtr yozilayotganda ortiqcha so'rov bo'lmasin — 400ms debounce.
+    const t = setTimeout(load, 400)
+    // Ro'yxat JONLI: har 15 soniyada jimgina yangilanadi — oxirgi qo'ng'iroq qilgan
+    // raqam avtomatik TEPAGA chiqadi (server LastAt bo'yicha kamayish tartibida beradi).
+    const live = setInterval(load, 15000)
+    return () => { clearTimeout(t); clearInterval(live) }
   }, [filters, page])
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
@@ -534,9 +538,14 @@ function NumberHistoryPanel({ number }: { number: string }) {
   useEffect(() => {
     setCalls(null)
     setSelectedId(null)
-    getCtiCalls({}, 1, 200, number)
-      .then((r) => setCalls(r.items))
-      .catch(() => setCalls([]))
+    const load = () =>
+      getCtiCalls({}, 1, 200, number)
+        .then((r) => setCalls(r.items))
+        .catch(() => setCalls((prev) => prev ?? []))
+    load()
+    // Jonli: ochiq raqamga yangi qo'ng'iroq kelsa ro'yxat 15 soniyada o'zi yangilanadi.
+    const live = setInterval(load, 15000)
+    return () => clearInterval(live)
   }, [number])
 
   if (selectedId) {
