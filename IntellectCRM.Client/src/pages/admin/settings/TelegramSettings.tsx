@@ -99,7 +99,7 @@ export function TelegramSettings() {
         />
         <Input
           label="Bot nomi (ko'rsatish uchun)"
-          placeholder="Markaz LMS Bot"
+          placeholder="IntellectCRM Bot"
           value={name}
           onChange={(e) => setName(e.target.value)}
           autoComplete="off"

@@ -74,7 +74,7 @@ IntellectCRM.slnx
 - **Moliya** — kirim/chiqim, oylik hisoblash, **kurs/guruh bo'yicha daromad hisoboti**
 - **Maosh** — qat'iy yoki guruhdan yig'ilgan to'lovning foizi
 - **Daraja testi** — ommaviy test → avtomatik lid
-- **LMS · Topshiriqlar · Xabarlar · Intizomiy ball · Shartnomalar · Arxiv**
+- **Topshiriqlar · Xabarlar · Intizomiy ball · Shartnomalar · Arxiv**
 
 ### 🟢 O'qituvchi ilovasi (mobil)
 - Guruhga kirib **oylik jurnal** (baho/davomat) yuritish
@@ -84,7 +84,7 @@ IntellectCRM.slnx
 ### 🔵 O'quvchi ilovasi (mobil)
 - **Duolingo uslubidagi o'quv dasturi yo'l-xaritasi** (o'tilgan/qolgan + prognoz)
 - **Umumiy statistika** — diagrammalarda (baholar trendi, davomat, intizom, feedback, topshiriqlar)
-- Baholar · Davomat · Intizom · To'lovlar · Reyting · LMS · Chat
+- Baholar · Davomat · Intizom · To'lovlar · Reyting · Chat
 - Telegram kanalga o'tish · Push bildirishnomalar
 
 ---

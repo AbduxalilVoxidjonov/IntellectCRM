@@ -3,16 +3,14 @@ import { useNavigate } from 'react-router-dom'
 import {
   getStudentAssignments,
   getStudentAssignmentScores,
-  getStudentLmsSubjects,
   type StudentAssignment,
   type StudentAssignmentScores,
-  type LmsSubject,
 } from '@/api/services/studentPortal'
 import { Icon, Ring, gradeColor, subjectColor, subjInitial, fmtDate } from '@/pages/student/lib'
 
 /* ============================================================
-   O'quvchi portali — Topshiriqlar + Darslik (LMS kurslar).
-   student.html: Assignments() / tasksTab() / lmsTab().
+   O'quvchi portali — Topshiriqlar (guruh topshiriqlari va testlar).
+   student.html: Assignments() / tasksTab().
    ============================================================ */
 
 export type FormatKey = 'test' | 'written' | 'file' | 'video'
@@ -64,8 +62,6 @@ function Chip({ label, ic, color, fontSize = 12 }: { label: string; ic?: string;
 type Filter = 'pending' | 'done' | 'all'
 
 export function StudentAssignmentsScreen() {
-  const [mode, setMode] = useState<0 | 1>(0)
-
   return (
     <div className="screen">
       <div className="hd lg">
@@ -73,26 +69,13 @@ export function StudentAssignmentsScreen() {
           <div />
         </div>
         <div className="hd-sub" style={{ marginTop: 8 }}>
-          {mode === 0 ? 'Guruh topshiriqlari va testlar' : "Video darslar va o'quv materiallari"}
+          Guruh topshiriqlari va testlar
         </div>
         <div className="hd-big">Topshiriqlar</div>
       </div>
 
-      <div className="pad" style={{ paddingBottom: 12 }}>
-        <div className="seg">
-          <button className={(mode === 0 ? 'on ' : '') + 'press'} onClick={() => setMode(0)}>
-            <Icon name="clipboard" size={17} color={mode === 0 ? '#fff' : 'var(--muted)'} />
-            Topshiriqlar
-          </button>
-          <button className={(mode === 1 ? 'on ' : '') + 'press'} onClick={() => setMode(1)}>
-            <Icon name="book" size={17} color={mode === 1 ? '#fff' : 'var(--muted)'} />
-            Darslik
-          </button>
-        </div>
-      </div>
-
       <div className="scroll" style={{ flex: 1 }}>
-        {mode === 0 ? <TasksTab /> : <LmsTab />}
+        <TasksTab />
       </div>
     </div>
   )
@@ -296,79 +279,6 @@ function TasksTab() {
           <Empty title="Bo'sh" sub="Bu bo'limda topshiriq yo'q." ic="checkCircle" />
         )}
       </div>
-    </div>
-  )
-}
-
-function LmsTab() {
-  const navigate = useNavigate()
-  const [courses, setCourses] = useState<LmsSubject[] | null>(null)
-  const [err, setErr] = useState<string | null>(null)
-
-  useEffect(() => {
-    let on = true
-    getStudentLmsSubjects()
-      .then((d) => on && setCourses(d))
-      .catch((e) => on && setErr(e?.message || String(e)))
-    return () => {
-      on = false
-    }
-  }, [])
-
-  if (err) return <Empty title="Yuklab bo'lmadi" sub={err} ic="alert" />
-  if (!courses)
-    return (
-      <div className="center">
-        <div className="spin" />
-      </div>
-    )
-  if (!courses.length)
-    return (
-      <div className="pad" style={{ paddingTop: 40 }}>
-        <Empty title="Darslik yo'q" sub="Sizning guruhingizga hali o'quv kursi biriktirilmagan." ic="book" />
-      </div>
-    )
-
-  return (
-    <div className="pad" style={{ paddingBottom: 24 }}>
-      {courses.map((co) => {
-        const col = subjectColor(co.title)
-        const pct = co.topicsCount > 0 ? Math.round((co.completedCount / co.topicsCount) * 100) : 0
-        const done = co.topicsCount > 0 && co.completedCount >= co.topicsCount
-        return (
-          <button
-            key={co.id}
-            className="card press"
-            onClick={() => navigate(`/student/lms/${co.id}`)}
-            style={{ width: '100%', textAlign: 'left', borderRadius: 18, marginBottom: 11 }}
-          >
-            <div className="row gap12" style={{ alignItems: 'flex-start' }}>
-              <div
-                className="subj"
-                style={{ width: 46, height: 46, borderRadius: 13, flex: 'none', background: col + '22', color: col, fontSize: 19 }}
-              >
-                {subjInitial(co.title)}
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 15.5, fontWeight: 800, lineHeight: 1.2 }}>{co.title}</div>
-                <div className="muted" style={{ fontSize: 12.5, marginTop: 3 }}>
-                  {co.completedCount} / {co.topicsCount} mavzu
-                  {co.unlockMode === 'sequential' ? ' · ketma-ket' : ''}
-                </div>
-              </div>
-              {done ? (
-                <Chip label="Tugatildi" ic="check" color="var(--green)" fontSize={11} />
-              ) : (
-                <div style={{ fontSize: 16, fontWeight: 800, color: col }}>{pct}%</div>
-              )}
-            </div>
-            <div style={{ height: 12 }} />
-            <div className="progress">
-              <div style={{ width: `${pct}%`, background: col }} />
-            </div>
-          </button>
-        )
-      })}
     </div>
   )
 }

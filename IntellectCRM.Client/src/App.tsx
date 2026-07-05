@@ -48,10 +48,6 @@ import { MessagesPage } from '@/pages/admin/messages/MessagesPage'
 import { SupportTelegramPage } from '@/pages/admin/messages/SupportTelegramPage'
 import { AssignmentsPage } from '@/pages/admin/assignments/AssignmentsPage'
 import { AssignmentScoresPage } from '@/pages/admin/assignment-scores/AssignmentScoresPage'
-import { LmsClassesPage } from '@/pages/admin/lms/LmsClassesPage'
-import { LmsSubjectsPage } from '@/pages/admin/lms/LmsSubjectsPage'
-import { LmsModulesPage } from '@/pages/admin/lms/LmsModulesPage'
-import { LmsTopicsPage } from '@/pages/admin/lms/LmsTopicsPage'
 import { LocationPage } from '@/pages/admin/locations/LocationPage'
 import { CamerasPage } from '@/pages/admin/cameras/CamerasPage'
 import { ParentsPage } from '@/pages/admin/parents/ParentsPage'
@@ -72,8 +68,6 @@ import { TeacherGroupsPage } from '@/pages/teacher/groups/TeacherGroupsPage'
 import { TeacherGroupDetailPage } from '@/pages/teacher/groups/TeacherGroupDetailPage'
 import { TeacherEvaluationPage } from '@/pages/teacher/evaluation/EvaluationPage'
 import { TeacherAssignmentsPage } from '@/pages/teacher/assignments/AssignmentsPage'
-import { TeacherLmsPage } from '@/pages/teacher/lms/TeacherLmsPage'
-import { TeacherLmsSubjectPage } from '@/pages/teacher/lms/TeacherLmsSubjectPage'
 import { TeacherMessagesPage } from '@/pages/teacher/messages/MessagesPage'
 import { TeacherProfilePage } from '@/pages/teacher/TeacherProfilePage'
 import { TeacherSupportPage } from '@/pages/teacher/support/SupportPage'
@@ -94,8 +88,6 @@ import { StudentDisciplineScreen } from '@/pages/student/Discipline'
 import { StudentStatisticsScreen } from '@/pages/student/Statistics'
 import { StudentAssignmentsScreen } from '@/pages/student/Assignments'
 import { StudentAssignmentDetailScreen } from '@/pages/student/AssignmentDetail'
-import { StudentLmsTopicsScreen } from '@/pages/student/LmsTopics'
-import { StudentLmsTopicDetailScreen } from '@/pages/student/LmsTopicDetail'
 import { StudentChatScreen } from '@/pages/student/Chat'
 import { StudentFinanceScreen } from '@/pages/student/Finance'
 import { StudentFeedbackScreen } from '@/pages/student/Feedback'
@@ -193,10 +185,6 @@ export default function App() {
           <Route path="assignment-scores" element={<RequirePerm perm="app"><AssignmentScoresPage /></RequirePerm>} />
           <Route path="ai-check" element={<RequirePerm perm="app"><AiCheckPage /></RequirePerm>} />
           <Route path="ai-check/:studentId" element={<RequirePerm perm="app"><AiCheckStudentPage /></RequirePerm>} />
-          <Route path="lms" element={<RequirePerm perm="app"><LmsClassesPage /></RequirePerm>} />
-          <Route path="lms/:classId" element={<RequirePerm perm="app"><LmsSubjectsPage /></RequirePerm>} />
-          <Route path="lms/:classId/:subjectId" element={<RequirePerm perm="app"><LmsModulesPage /></RequirePerm>} />
-          <Route path="lms/:classId/:subjectId/:moduleId" element={<RequirePerm perm="app"><LmsTopicsPage /></RequirePerm>} />
           <Route path="messages" element={<RequirePerm perm="messages"><MessagesPage /></RequirePerm>} />
           <Route path="support-telegram" element={<RequirePerm perm="messages"><SupportTelegramPage /></RequirePerm>} />
           <Route path="teacher-reports" element={<RequirePerm perm="teacherReports"><TeacherReportsPage /></RequirePerm>} />
@@ -230,8 +218,6 @@ export default function App() {
           <Route path="groups/:id" element={<RequirePerm perm="journal"><TeacherGroupDetailPage /></RequirePerm>} />
           <Route path="evaluation" element={<TeacherEvaluationPage />} />
           <Route path="assignments" element={<RequirePerm perm="assignments"><TeacherAssignmentsPage /></RequirePerm>} />
-          <Route path="lms" element={<TeacherLmsPage />} />
-          <Route path="lms/:subjectId" element={<TeacherLmsSubjectPage />} />
           <Route path="messages" element={<RequirePerm perm="messages"><TeacherMessagesPage /></RequirePerm>} />
           <Route path="feedback" element={<TeacherFeedbackPage />} />
           <Route path="support" element={<TeacherSupportPage />} />
@@ -257,8 +243,6 @@ export default function App() {
           <Route path="statistics" element={<StudentStatisticsScreen />} />
           <Route path="assignments" element={<StudentAssignmentsScreen />} />
           <Route path="assignments/:id" element={<StudentAssignmentDetailScreen />} />
-          <Route path="lms/:subjectId" element={<StudentLmsTopicsScreen />} />
-          <Route path="lms/:subjectId/topic/:topicId" element={<StudentLmsTopicDetailScreen />} />
           <Route path="chat" element={<StudentChatScreen />} />
           <Route path="finance" element={<StudentFinanceScreen />} />
           <Route path="feedback" element={<StudentFeedbackScreen />} />

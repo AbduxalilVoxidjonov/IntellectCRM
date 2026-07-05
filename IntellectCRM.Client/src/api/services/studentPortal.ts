@@ -227,22 +227,6 @@ export interface TestAnswer { questionId: string; selectedIndex: number }
 export interface SubmitResult { completed: boolean; score?: number | null; correctCount?: number | null; total?: number | null }
 export interface UploadedFile { name: string; url: string; size: number; contentType: string }
 
-export interface LmsSubject { id: string; title: string; description: string; unlockMode: string; batchSize: number; topicsCount: number; completedCount: number }
-export interface LmsMaterial { id?: string; name: string; url: string; size: number; contentType: string }
-export interface LmsTopic {
-  id: string
-  moduleId: string
-  title: string
-  description: string
-  videoUrl?: string | null
-  textContent?: string | null
-  order: number
-  materials: LmsMaterial[]
-  isUnlocked: boolean
-  isCompleted: boolean
-}
-export interface LmsModule { id: string; title: string; description: string; order: number; topicsCount: number; completedCount: number; topics: LmsTopic[] }
-
 export interface MonthCourse { courseName: string; fee: number }
 export interface MonthLedger { month: string; charged: number; discount: number; paid: number; remaining: number; status: string; courses: MonthCourse[] }
 export interface StudentPayment { date: string; amount: number; note?: string | null; month?: string | null; comment?: string | null }
@@ -518,23 +502,6 @@ export async function uploadStudentFile(file: File, onProgress?: (pct: number) =
     },
   })
   return data
-}
-
-// ---------- LMS ----------
-export async function getStudentLmsSubjects(studentId?: string) {
-  const { data } = await api.get<LmsSubject[]>('/student/lms/subjects', { params: sid(studentId) })
-  return data
-}
-export async function getStudentLmsModules(subjectId: string, studentId?: string) {
-  const { data } = await api.get<LmsModule[]>(`/student/lms/subjects/${subjectId}/modules`, { params: sid(studentId) })
-  return data
-}
-export async function getStudentLmsTopic(topicId: string, studentId?: string) {
-  const { data } = await api.get<LmsTopic>(`/student/lms/topics/${topicId}`, { params: sid(studentId) })
-  return data
-}
-export async function completeStudentLmsTopic(topicId: string) {
-  await api.post(`/student/lms/topics/${topicId}/complete`)
 }
 
 // ---------- Finance ----------

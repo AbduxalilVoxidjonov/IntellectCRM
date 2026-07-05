@@ -67,11 +67,6 @@ public interface IAppDbContext
     DbSet<StudentAiAccess> StudentAiAccesses { get; }
 
     // LMS (Ta'lim)
-    DbSet<LmsSubject> LmsSubjects { get; }
-    DbSet<LmsModule> LmsModules { get; }
-    DbSet<LmsTopic> LmsTopics { get; }
-    DbSet<LmsMaterial> LmsMaterials { get; }
-    DbSet<LmsProgress> LmsProgresses { get; }
 
     // Kurs sillabusi (Daraja → Mavzu → Band) + o'quvchi progressi
     DbSet<CourseLevel> CourseLevels { get; }

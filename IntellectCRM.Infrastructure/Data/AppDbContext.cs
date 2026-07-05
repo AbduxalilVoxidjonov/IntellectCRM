@@ -58,11 +58,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<Feedback> Feedbacks => Set<Feedback>();
 
     // LMS (Ta'lim)
-    public DbSet<LmsSubject> LmsSubjects => Set<LmsSubject>();
-    public DbSet<LmsModule> LmsModules => Set<LmsModule>();
-    public DbSet<LmsTopic> LmsTopics => Set<LmsTopic>();
-    public DbSet<LmsMaterial> LmsMaterials => Set<LmsMaterial>();
-    public DbSet<LmsProgress> LmsProgresses => Set<LmsProgress>();
 
     // Kurs sillabusi (Daraja → Mavzu → Band) + o'quvchi progressi
     public DbSet<CourseLevel> CourseLevels => Set<CourseLevel>();
@@ -159,10 +154,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
             (typeof(ContractTemplate), "Target"),
             (typeof(Contract), "Target"), (typeof(Contract), "RecipientKey"),
             (typeof(Feedback), "Status"),
-            (typeof(LmsSubject), "ClassId"),
-            (typeof(LmsProgress), "StudentId"), (typeof(LmsProgress), "TopicId"),
-            (typeof(LmsModule), "SubjectId"),
-            (typeof(LmsTopic), "ModuleId"),
         })
             b.Entity(type).Property(prop).HasMaxLength(200);
 
@@ -269,36 +260,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
 
         // Boshqaruv: filiallar va taklif/shikoyatlar
         b.Entity<Feedback>().HasIndex(f => new { f.Status, f.CreatedAt });
-
-        // LMS (Ta'lim)
-        // SQL Server: FK ustun (SubjectId/ModuleId/TopicId, loop'da nvarchar(200)) o'zi ishora qilgan
-        // asosiy kalit bilan AYNAN bir xil uzunlikda bo'lishi shart. String PK default nvarchar(450)
-        // bo'lgani uchun bu kalitlarni ham 200 ga tushiramiz — GUID id'lar (36 belgi) bemalol sig'adi,
-        // qo'shimcha bonus: (SubjectId,Order)/(ModuleId,Order) kompozit indekslari 900 bayt limitiga sig'adi.
-        b.Entity<LmsSubject>().Property(s => s.Id).HasMaxLength(200);
-        b.Entity<LmsModule>().Property(m => m.Id).HasMaxLength(200);
-        b.Entity<LmsTopic>().Property(t => t.Id).HasMaxLength(200);
-        b.Entity<LmsSubject>().HasIndex(s => s.ClassId);
-        b.Entity<LmsSubject>()
-            .HasMany(s => s.Modules).WithOne(m => m.Subject)
-            .HasForeignKey(m => m.SubjectId).OnDelete(DeleteBehavior.Cascade);
-        b.Entity<LmsModule>()
-            .HasMany(m => m.Topics).WithOne(t => t.Module)
-            .HasForeignKey(t => t.ModuleId).OnDelete(DeleteBehavior.Cascade);
-        b.Entity<LmsTopic>()
-            .HasMany(t => t.Materials).WithOne(m => m.Topic)
-            .HasForeignKey(m => m.TopicId).OnDelete(DeleteBehavior.Cascade);
-        b.Entity<LmsTopic>()
-            .HasMany(t => t.Progresses).WithOne(p => p.Topic)
-            .HasForeignKey(p => p.TopicId).OnDelete(DeleteBehavior.Cascade);
-        b.Entity<LmsProgress>()
-            .HasIndex(p => new { p.StudentId, p.TopicId }).IsUnique();
-        b.Entity<LmsProgress>()
-            .HasIndex(p => p.StudentId);
-        b.Entity<LmsModule>()
-            .HasIndex(m => new { m.SubjectId, m.Order });
-        b.Entity<LmsTopic>()
-            .HasIndex(t => new { t.ModuleId, t.Order });
 
         // Kurs sillabusi — indekslarda qatnashadigan string ustunlarga aniq uzunlik beriladi.
         foreach (var (type, prop) in new (Type, string)[]

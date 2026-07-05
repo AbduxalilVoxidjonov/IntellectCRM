@@ -1345,67 +1345,6 @@ public record StudentAssignmentScoresDto(
     int Count, int GradedCount, int TotalScore, int TotalMax,
     List<StudentAssignmentScoreDto> Items);
 
-/* ---------- LMS (Ta'lim) ---------- */
-
-/// <summary>LMS fani (admin ro'yxati va batafsil ko'rinish).</summary>
-public record LmsSubjectDto(
-    string Id, string ClassId, string ClassName,
-    string Title, string Description,
-    string UnlockMode, int BatchSize,
-    int TopicsCount, string CreatedAt);
-
-/// <summary>LMS moduli (admin) — fan ichidagi mavzular guruhi.</summary>
-public record LmsModuleDto(
-    string Id, string SubjectId, string Title, string Description, int Order, int TopicsCount);
-
-/// <summary>LMS moduli yaratish/tahrirlash so'rovi.</summary>
-public record SaveLmsModuleRequest(string Title, string? Description);
-
-/// <summary>LMS modullar tartibini qayta belgilash.</summary>
-public record ReorderLmsModulesRequest(List<string> ModuleIds);
-
-/// <summary>LMS mavzusi (admin). Endi modulga tegishli (ModuleId).</summary>
-public record LmsTopicDto(
-    string Id, string ModuleId, string Title, string Description,
-    string? VideoUrl, string? TextContent, int Order,
-    List<LmsMaterialRowDto> Materials,
-    int CompletedCount);
-
-/// <summary>LMS material satri. Id so'rovda kelmasligi mumkin (yangi yuklangan fayl) —
-/// server saqlashda o'zi yangi Id beradi, shu sabab nullable.</summary>
-public record LmsMaterialRowDto(string? Id, string Name, string Url, long Size, string ContentType);
-
-/// <summary>LMS fani yaratish/tahrirlash so'rovi.</summary>
-public record SaveLmsSubjectRequest(
-    string? ClassId, string Title, string? Description,
-    string UnlockMode, int BatchSize);
-
-/// <summary>LMS mavzusi yaratish/tahrirlash so'rovi.</summary>
-public record SaveLmsTopicRequest(
-    string Title, string? Description, string? VideoUrl, string? TextContent,
-    List<LmsMaterialRowDto>? Materials);
-
-/// <summary>LMS mavzular tartibini qayta belgilash.</summary>
-public record ReorderLmsTopicsRequest(List<string> TopicIds);
-
-
-/// <summary>O'quvchi uchun LMS mavzu (ochilganmi, tugallanganmi). Endi modulga tegishli (ModuleId).</summary>
-public record StudentLmsTopicDto(
-    string Id, string ModuleId, string Title, string Description,
-    string? VideoUrl, string? TextContent, int Order,
-    List<LmsMaterialRowDto> Materials,
-    bool IsUnlocked, bool IsCompleted);
-
-/// <summary>O'quvchi uchun LMS moduli — ichidagi mavzular (ochilish/progress bilan).</summary>
-public record StudentLmsModuleDto(
-    string Id, string Title, string Description, int Order,
-    int TopicsCount, int CompletedCount, List<StudentLmsTopicDto> Topics);
-
-/// <summary>O'quvchi uchun LMS fani ro'yxatdagi element.</summary>
-public record StudentLmsSubjectDto(
-    string Id, string Title, string Description,
-    string UnlockMode, int BatchSize, int TopicsCount, int CompletedCount);
-
 /* ---------- Fan progresi (dars o'tilishiga qarab — LMS'siz) ----------
    Reja (Planned) = chorakdagi guruh jadvalidagi shu fan dars kataklari soni.
    O'tilgan (Conducted) = o'qituvchi "dars o'tildi" deb belgilagan (LessonNote.Conducted) darslar.
@@ -1449,18 +1388,6 @@ public record TeacherProgressDto(
     int Quarter,
     int TotalPlanned, int TotalConducted, int TotalPercent,
     List<TeacherSubjectProgressDto> Items);
-
-/* ---------- LMS o'qituvchi progress hisoboti (faqat ko'rish) ---------- */
-
-/// <summary>Progress jadvalidagi ustun — mavzu (qisqacha).</summary>
-public record LmsTopicBriefDto(string Id, string Title, int Order);
-/// <summary>Progress jadvalidagi qator — o'quvchi va u tugatgan mavzular.</summary>
-public record LmsStudentProgressDto(
-    string StudentId, string FullName, List<string> CompletedTopicIds,
-    int CompletedCount, int TotalCount);
-/// <summary>O'qituvchi LMS progress hisoboti: mavzular (ustun) × o'quvchilar (qator) matritsasi.</summary>
-public record LmsProgressReportDto(
-    List<LmsTopicBriefDto> Topics, List<LmsStudentProgressDto> Students);
 
 // ============================ AMAL SABABLARI (action reasons) ============================
 

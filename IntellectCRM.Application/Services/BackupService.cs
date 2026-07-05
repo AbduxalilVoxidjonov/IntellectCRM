@@ -71,17 +71,12 @@ public static class BackupService
         await Add("userNotifications", db.UserNotifications);
         await Add("deviceTokens", db.DeviceTokens);
         await Add("feedbacks", db.Feedbacks);
-        // ---- Topshiriqlar / LMS ----
+        // ---- Topshiriqlar ----
         await Add("assignments", db.Assignments);
         await Add("assignmentTypes", db.AssignmentTypes);
         await Add("assignmentMaterials", db.AssignmentMaterials);
         await Add("testQuestions", db.TestQuestions);
         await Add("assignmentSubmissions", db.AssignmentSubmissions);
-        await Add("lmsSubjects", db.LmsSubjects);
-        await Add("lmsModules", db.LmsModules);
-        await Add("lmsTopics", db.LmsTopics);
-        await Add("lmsMaterials", db.LmsMaterials);
-        await Add("lmsProgresses", db.LmsProgresses);
         // ---- Kurs dasturi (curriculum) ----
         await Add("courseLevels", db.CourseLevels);
         await Add("courseTopics", db.CourseTopics);

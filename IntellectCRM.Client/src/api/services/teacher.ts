@@ -319,29 +319,3 @@ export async function getTeacherLastMessages(): Promise<Record<string, string | 
   return data
 }
 
-/* ---------- LMS (Ta'lim) — faqat ko'rish + progress ---------- */
-
-import type { LmsSubject, LmsTopic, LmsProgressReport } from '@/types'
-
-/** O'qituvchi barcha guruhlari yoki bitta guruh LMS fanlari */
-export async function getTeacherLmsSubjects(classId?: string): Promise<LmsSubject[]> {
-  if (USE_MOCK) return []
-  const { data } = await api.get<LmsSubject[]>('/teacher/lms/subjects', {
-    params: classId ? { classId } : undefined,
-  })
-  return data
-}
-
-/** Fan mavzulari (to'liq kontent + har mavzuda completedCount) */
-export async function getTeacherLmsTopics(subjectId: string): Promise<LmsTopic[]> {
-  if (USE_MOCK) return []
-  const { data } = await api.get<LmsTopic[]>(`/teacher/lms/subjects/${subjectId}/topics`)
-  return data
-}
-
-/** O'quvchilar × mavzular progress matritsasi */
-export async function getTeacherLmsProgress(subjectId: string): Promise<LmsProgressReport> {
-  if (USE_MOCK) return { topics: [], students: [] }
-  const { data } = await api.get<LmsProgressReport>(`/teacher/lms/subjects/${subjectId}/progress`)
-  return data
-}
