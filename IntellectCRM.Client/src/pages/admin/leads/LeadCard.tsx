@@ -69,7 +69,16 @@ function avatarColor(name: string): string {
 }
 
 /** Faqat ko'rinish (drag overlay uchun ham ishlatiladi) */
-export function LeadCardContent({ lead, dragging }: { lead: Lead; dragging?: boolean }) {
+export function LeadCardContent({
+  lead,
+  dragging,
+  onCall,
+}: {
+  lead: Lead
+  dragging?: boolean
+  /** Berilsa telefon raqami bosiladigan bo'ladi (drag overlay'da berilmaydi) */
+  onCall?: (lead: Lead) => void
+}) {
   const phone = lead.phone || lead.fatherPhone || lead.motherPhone || ''
   const meta = lead.interestSubject || genderLabels[lead.gender]
 
@@ -161,10 +170,26 @@ export function LeadCardContent({ lead, dragging }: { lead: Lead; dragging?: boo
       </div>
 
       <div className="lead-foot">
-        <span className="flex min-w-0 items-center gap-1.5">
-          <Phone className="h-3 w-3 shrink-0" />
-          <span className="truncate font-mono">{phone || '—'}</span>
-        </span>
+        {onCall && phone ? (
+          <button
+            type="button"
+            title="Qo'ng'iroq qilish"
+            onClick={(e) => {
+              e.stopPropagation()
+              onCall(lead)
+            }}
+            onPointerDown={(e) => e.stopPropagation()}
+            className="flex min-w-0 items-center gap-1.5 rounded-md px-1 -mx-1 text-emerald-600 transition-colors hover:bg-emerald-50"
+          >
+            <Phone className="h-3 w-3 shrink-0" />
+            <span className="truncate font-mono">{phone}</span>
+          </button>
+        ) : (
+          <span className="flex min-w-0 items-center gap-1.5">
+            <Phone className="h-3 w-3 shrink-0" />
+            <span className="truncate font-mono">{phone || '—'}</span>
+          </span>
+        )}
         {lead.birthDate && (
           <span className="lead-value">{formatDate(lead.birthDate)}</span>
         )}
@@ -174,7 +199,16 @@ export function LeadCardContent({ lead, dragging }: { lead: Lead; dragging?: boo
 }
 
 /** Sudraladigan (draggable) kartochka */
-export function LeadCard({ lead, onClick }: { lead: Lead; onClick?: () => void }) {
+export function LeadCard({
+  lead,
+  onClick,
+  onCall,
+}: {
+  lead: Lead
+  onClick?: () => void
+  /** Telefon raqami bosilganda qo'ng'iroq oynasini ochish */
+  onCall?: (lead: Lead) => void
+}) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: lead.id,
   })
@@ -190,7 +224,7 @@ export function LeadCard({ lead, onClick }: { lead: Lead; onClick?: () => void }
       onClick={onClick}
       className={cn('touch-none', isDragging && 'opacity-40')}
     >
-      <LeadCardContent lead={lead} />
+      <LeadCardContent lead={lead} onCall={onCall} />
     </div>
   )
 }

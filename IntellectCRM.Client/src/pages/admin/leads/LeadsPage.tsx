@@ -22,6 +22,7 @@ import {
 import { Button } from '@/components/ui/Button'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Loader } from '@/components/ui/Loader'
+import { CallPickerModal, type CallOption } from '@/components/CallPickerModal'
 import { LeadColumn } from './LeadColumn'
 import { LeadCardContent } from './LeadCard'
 import { ReasonPromptModal } from '@/components/ui/ReasonPromptModal'
@@ -42,6 +43,8 @@ export function LeadsPage() {
   const [editingLead, setEditingLead] = useState<Lead | null>(null)
   const [stageFormOpen, setStageFormOpen] = useState(false)
   const [editingStage, setEditingStage] = useState<Stage | null>(null)
+  // Lid raqamiga qo'ng'iroq qilish oynasi
+  const [callLead, setCallLead] = useState<Lead | null>(null)
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
 
@@ -197,6 +200,7 @@ export function LeadsPage() {
                 }}
                 onDelete={handleStageDelete}
                 onMove={handleStageMove}
+                onCall={setCallLead}
               />
             ))}
 
@@ -260,6 +264,22 @@ export function LeadsPage() {
         }}
         onSubmit={handleStageSubmit}
         initial={editingStage}
+      />
+      <CallPickerModal
+        open={!!callLead}
+        onClose={() => setCallLead(null)}
+        title={callLead?.fullName}
+        numbers={
+          callLead
+            ? (
+                [
+                  { label: "O'z raqami", number: callLead.phone },
+                  { label: 'Otasi', number: callLead.fatherPhone },
+                  { label: 'Onasi', number: callLead.motherPhone },
+                ].filter((n) => n.number) as CallOption[]
+              )
+            : []
+        }
       />
     </div>
   )

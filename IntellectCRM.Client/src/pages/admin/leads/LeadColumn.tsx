@@ -15,6 +15,8 @@ interface Props {
   onEdit: (stage: Stage) => void
   onDelete: (stage: Stage) => void
   onMove: (id: string, dir: -1 | 1) => void
+  /** Telefon raqami bosilganda qo'ng'iroq oynasini ochish */
+  onCall?: (lead: Lead) => void
 }
 
 export function LeadColumn({
@@ -26,6 +28,7 @@ export function LeadColumn({
   onEdit,
   onDelete,
   onMove,
+  onCall,
 }: Props) {
   const c = stageColors[stage.color]
   const { setNodeRef, isOver } = useDroppable({ id: stage.id })
@@ -52,7 +55,7 @@ export function LeadColumn({
         className={cn('kanban-col-body', isOver && 'drag-over')}
       >
         {leads.map((lead) => (
-          <LeadCard key={lead.id} lead={lead} onClick={() => onCardClick(lead)} />
+          <LeadCard key={lead.id} lead={lead} onClick={() => onCardClick(lead)} onCall={onCall} />
         ))}
         {leads.length === 0 && (
           <p className="px-2 py-6 text-center text-xs text-slate-400">Bo'sh</p>

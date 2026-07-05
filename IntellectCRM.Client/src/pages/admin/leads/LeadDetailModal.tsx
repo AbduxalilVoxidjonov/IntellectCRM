@@ -9,8 +9,10 @@ import {
   GraduationCap,
   MessageSquare,
   Receipt,
+  Phone,
 } from 'lucide-react'
 import { ReceiptModal } from '@/components/finance/ReceiptModal'
+import { CallPickerModal, type CallOption } from '@/components/CallPickerModal'
 import { getSmsTemplates, sendLeadSms, type SmsTemplate } from '@/api/services/messages'
 import { getLevelTests, sendLeadTest } from '@/api/services/levelTests'
 import type { LevelTestListItem } from '@/types'
@@ -148,6 +150,9 @@ export function LeadDetailModal({ lead, onClose, onEdit, onDelete, onConverted }
   // Modalni yopmasdan aylantirish holatini kuzatish uchun lokal nusxa
   const [convertedStudentId, setConvertedStudentId] = useState<string | null>(null)
 
+  // Qo'ng'iroq qilish oynasi
+  const [callOpen, setCallOpen] = useState(false)
+
   const refreshTimeline = (id: string) => {
     getLeadEvents(id).then(setEvents).catch(() => setEvents([]))
     getLeadTrials(id).then(setTrials).catch(() => setTrials([]))
@@ -188,6 +193,13 @@ export function LeadDetailModal({ lead, onClose, onEdit, onDelete, onConverted }
   }
 
   const leadPhone = lead?.phone || lead?.fatherPhone || lead?.motherPhone || ''
+  const callNumbers: CallOption[] = lead
+    ? ([
+        { label: "O'z raqami", number: lead.phone },
+        { label: 'Otasi', number: lead.fatherPhone },
+        { label: 'Onasi', number: lead.motherPhone },
+      ].filter((n) => n.number) as CallOption[])
+    : []
   const handleSendSms = async () => {
     if (!leadId || !smsText.trim() || smsSending) return
     setSmsSending(true)
@@ -332,6 +344,13 @@ export function LeadDetailModal({ lead, onClose, onEdit, onDelete, onConverted }
             <Row label="Otasi raqami" value={lead.fatherPhone || '—'} mono />
             <Row label="Onasi" value={lead.motherFullName || '—'} />
             <Row label="Onasi raqami" value={lead.motherPhone || '—'} mono />
+            {callNumbers.length > 0 && (
+              <div className="flex justify-end border-b border-slate-100 py-2.5 last:border-0">
+                <Button variant="secondary" className="px-3 py-1.5 text-sm" onClick={() => setCallOpen(true)}>
+                  <Phone className="h-4 w-4" /> Qo'ng'iroq qilish
+                </Button>
+              </div>
+            )}
             <Row label="Manba" value={lead.source || '—'} />
             <Row label="Qiziqqan fani" value={lead.interestSubject || '—'} />
             {lead.createdAt && <Row label="Yaratilgan" value={formatDate(lead.createdAt)} mono />}
@@ -696,6 +715,13 @@ export function LeadDetailModal({ lead, onClose, onEdit, onDelete, onConverted }
         setReceiptTrial(null)
         setReceiptAuto(false)
       }}
+    />
+
+    <CallPickerModal
+      open={callOpen}
+      onClose={() => setCallOpen(false)}
+      title={lead?.fullName}
+      numbers={callNumbers}
     />
     </>
   )

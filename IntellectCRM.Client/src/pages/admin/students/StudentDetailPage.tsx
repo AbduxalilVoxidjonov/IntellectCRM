@@ -41,6 +41,7 @@ import { PaymentHistoryModal } from './PaymentHistoryModal'
 import { AiAnalysisModal } from './AiAnalysisModal'
 import { AiAnalysisView } from './AiAnalysisView'
 import { StudentFormModal } from './StudentFormModal'
+import { CallPickerModal, type CallOption } from '@/components/CallPickerModal'
 
 const uzMonths = [
   'Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'Iyun',
@@ -101,6 +102,9 @@ export function StudentDetailPage() {
   const [supportFeedback, setSupportFeedback] = useState<StudentSupportFeedback[]>([])
   /** "Tahrirlash" tugmasi bosilganda — to'liq o'quvchi obyekti (StudentFormModal uchun). */
   const [editing, setEditing] = useState<Student | null>(null)
+  /** "Qo'ng'iroq qilish" bosilganda — to'liq o'quvchi obyekti (barcha telefon raqamlari uchun). */
+  const [callTarget, setCallTarget] = useState<Student | null>(null)
+  const [callOpen, setCallOpen] = useState(false)
   /** Chegirma o'zgarganda — yangi chegirmani joriy oyga qo'llashni so'rash (StudentsPage'dagi kabi). */
   const [discountPrompt, setDiscountPrompt] = useState<{
     values: StudentPayload
@@ -144,6 +148,16 @@ export function StudentDetailPage() {
     if (!id) return
     getStudent(id)
       .then(setEditing)
+      .catch(() => alert("O'quvchi ma'lumotini yuklab bo'lmadi"))
+  }
+
+  /** "Qo'ng'iroq qilish" bosilganda — barcha telefon raqamlari uchun TO'LIQ Student kerak. */
+  const openCall = () => {
+    if (!id) return
+    setCallOpen(true)
+    if (callTarget) return
+    getStudent(id)
+      .then(setCallTarget)
       .catch(() => alert("O'quvchi ma'lumotini yuklab bo'lmadi"))
   }
 
@@ -390,6 +404,13 @@ export function StudentDetailPage() {
             className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:border-brand-300 hover:text-brand-700"
           >
             <History className="h-4 w-4" /> To'lov tarixi
+          </button>
+          <button
+            type="button"
+            onClick={openCall}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:border-brand-300 hover:text-brand-700"
+          >
+            <Phone className="h-4 w-4" /> Qo'ng'iroq qilish
           </button>
           <button
             type="button"
@@ -1101,6 +1122,25 @@ export function StudentDetailPage() {
         onClose={() => setShowHistory(false)}
       />
 
+      <CallPickerModal
+        open={callOpen}
+        onClose={() => setCallOpen(false)}
+        title={data.fullName}
+        studentId={data.id}
+        numbers={
+          callTarget
+            ? dedupeCallOptions([
+                { label: "O'z raqami", number: callTarget.phone ?? '' },
+                { label: 'Ota-ona', number: callTarget.parentPhone },
+                { label: 'Otasi', number: callTarget.fatherPhone ?? '' },
+                { label: 'Onasi', number: callTarget.motherPhone ?? '' },
+              ])
+            : data.parentPhone
+              ? [{ label: 'Ota-ona', number: data.parentPhone }]
+              : []
+        }
+      />
+
       <AiAnalysisModal
         open={showAi}
         onClose={() => setShowAi(false)}
@@ -1526,6 +1566,16 @@ function monthRangeList(from: string, to: string): string[] {
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/)
   return ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase() || '?'
+}
+
+/** Bo'sh raqamlarni tashlab, bir xil raqamni faqat birinchi label bilan qoldiradi (CallPickerModal uchun). */
+function dedupeCallOptions(options: CallOption[]): CallOption[] {
+  const seen = new Set<string>()
+  return options.filter((o) => {
+    if (!o.number || seen.has(o.number)) return false
+    seen.add(o.number)
+    return true
+  })
 }
 
 function gradeCls(g: number): string {

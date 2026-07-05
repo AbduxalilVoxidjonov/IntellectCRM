@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { StudentViewModal } from './StudentViewModal'
-import { Plus, Search, Pencil, Trash2, Send, Download, X, Wallet, History, Archive, RotateCcw, FileDown, Upload, ChevronLeft, ChevronRight, Lock, LockOpen, Loader2 } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, Send, Download, X, Wallet, History, Archive, RotateCcw, FileDown, Upload, ChevronLeft, ChevronRight, Lock, LockOpen, Loader2, Phone } from 'lucide-react'
 import type { Gender, Student, Teacher } from '@/types'
 import type { StudentPayload, StudentImportResult } from '@/api/services/students'
 import {
@@ -36,6 +36,7 @@ import { SmsModal } from './SmsModal'
 import { PaymentModal } from './PaymentModal'
 import { PaymentHistoryModal } from './PaymentHistoryModal'
 import { ReasonPromptModal } from '@/components/ui/ReasonPromptModal'
+import { CallPickerModal, type CallOption } from '@/components/CallPickerModal'
 
 type BalanceFilter = 'all' | 'debt' | 'paid'
 type Tab = 'active' | 'archived'
@@ -56,6 +57,16 @@ function avatarColor(name: string): string {
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/)
   return ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase() || '?'
+}
+
+/** Bo'sh raqamlarni tashlab, bir xil raqamni faqat birinchi label bilan qoldiradi (CallPickerModal uchun). */
+function dedupeCallOptions(options: CallOption[]): CallOption[] {
+  const seen = new Set<string>()
+  return options.filter((o) => {
+    if (!o.number || seen.has(o.number)) return false
+    seen.add(o.number)
+    return true
+  })
 }
 
 export function StudentsPage() {
@@ -91,6 +102,8 @@ export function StudentsPage() {
   const [smsRecipients, setSmsRecipients] = useState<Student[]>([])
   const [paying, setPaying] = useState<Student | null>(null)
   const [historyOf, setHistoryOf] = useState<Student | null>(null)
+  /** Qo'ng'iroq qilish — CallPickerModal uchun tanlangan o'quvchi */
+  const [callStudent, setCallStudent] = useState<Student | null>(null)
   const [deleting, setDeleting] = useState<Student | null>(null)
   /** Tanlanganlarni arxivga ko'chirish — sabab kiritish uchun */
   const [archivingSelected, setArchivingSelected] = useState(false)
@@ -765,6 +778,7 @@ export function StudentsPage() {
                           <>
                             <IconBtn icon={Wallet} title="To'lov kiritish" onClick={() => setPaying(s)} />
                             <IconBtn icon={History} title="To'lov tarixi" onClick={() => setHistoryOf(s)} />
+                            <IconBtn icon={Phone} title="Qo'ng'iroq qilish" onClick={() => setCallStudent(s)} />
                             <IconBtn
                               icon={Pencil}
                               title="Tahrirlash"
@@ -873,6 +887,22 @@ export function StudentsPage() {
       />
       <PaymentModal student={paying} onClose={() => setPaying(null)} onSubmit={handlePayment} />
       <PaymentHistoryModal studentId={historyOf?.id ?? null} onClose={() => setHistoryOf(null)} />
+      <CallPickerModal
+        open={!!callStudent}
+        onClose={() => setCallStudent(null)}
+        title={callStudent?.fullName}
+        studentId={callStudent?.id}
+        numbers={
+          callStudent
+            ? dedupeCallOptions([
+                { label: "O'z raqami", number: callStudent.phone ?? '' },
+                { label: 'Ota-ona', number: callStudent.parentPhone },
+                { label: 'Otasi', number: callStudent.fatherPhone ?? '' },
+                { label: 'Onasi', number: callStudent.motherPhone ?? '' },
+              ])
+            : []
+        }
+      />
 
       <ReasonPromptModal
         open={!!deleting}
