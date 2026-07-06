@@ -107,6 +107,16 @@ export async function dialCtiAgent(
   return data
 }
 
+/** Agent telefonining SIM-kartasidan ixtiyoriy matnli SMS yuborish (agent oflayn bo'lsa delivered=false). */
+export async function sendCtiSms(
+  agentId: string,
+  number: string,
+  text: string,
+): Promise<{ commandId: string; delivered: boolean }> {
+  const { data } = await api.post(`/cti/agents/${agentId}/sms`, { number, text })
+  return data
+}
+
 /** Qo'ng'iroqlar tarixi — sahifalab, filtrlar bilan. `number` — aniq raqamning qo'ng'iroqlari. */
 export async function getCtiCalls(
   f: CtiCallFilters = {},

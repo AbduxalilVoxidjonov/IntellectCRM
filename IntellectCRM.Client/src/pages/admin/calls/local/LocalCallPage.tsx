@@ -2,11 +2,12 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   History, Users, Search, X, AlertTriangle, PhoneIncoming, PhoneOutgoing, PhoneMissed,
   Phone, PhoneCall, Delete, User, Loader2, ChevronLeft, ChevronRight, Plus, Pencil, CircleDot,
+  MessageSquare,
 } from 'lucide-react'
 import type { Student } from '@/types'
 import { getStudents } from '@/api/services/students'
 import {
-  getCtiAgents, createCtiAgent, updateCtiAgent, dialCtiAgent,
+  getCtiAgents, createCtiAgent, updateCtiAgent, dialCtiAgent, sendCtiSms,
   getCtiCalls, getCtiCallsGrouped, getCtiCallDetail, fetchCtiCallAudioUrl, updateCtiCallNote,
   type CtiAgent, type CtiCall, type CtiCallDetail, type CtiCallFilters, type CtiNumberGroup,
 } from '@/api/services/cti'
@@ -15,7 +16,7 @@ import { Button } from '@/components/ui/Button'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Loader } from '@/components/ui/Loader'
 import { Modal } from '@/components/ui/Modal'
-import { Input } from '@/components/ui/Input'
+import { Input, Textarea } from '@/components/ui/Input'
 import { cn, formatDateTime } from '@/lib/utils'
 
 /* ============================================================
@@ -124,6 +125,8 @@ function DialTab({ agents, onError }: { agents: CtiAgent[]; onError: (msg: strin
   const [calling, setCalling] = useState(false)
   const [result, setResult] = useState<{ delivered: boolean } | null>(null)
   const resultTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // SMS yuborish oynasi — bosilgan raqam shu yerda saqlanadi (student qatori yoki dialpad'dan).
+  const [smsFor, setSmsFor] = useState<string | null>(null)
 
   useEffect(() => {
     getStudents().then(setStudents).catch(() => setStudents([])).finally(() => setLoadingStudents(false))
@@ -238,6 +241,16 @@ function DialTab({ agents, onError }: { agents: CtiAgent[]; onError: (msg: strin
                     >
                       <Phone className="h-4 w-4" /> Qo'ng'iroq
                     </Button>
+                    <Button
+                      variant="secondary"
+                      type="button"
+                      disabled={!phone}
+                      onClick={() => setSmsFor(phone)}
+                      className="flex-shrink-0"
+                      title="SMS yuborish"
+                    >
+                      <MessageSquare className="h-4 w-4" />
+                    </Button>
                   </div>
                 )
               })
@@ -300,6 +313,13 @@ function DialTab({ agents, onError }: { agents: CtiAgent[]; onError: (msg: strin
               {calling ? <Loader2 className="h-4 w-4 animate-spin" /> : <PhoneCall className="h-4 w-4" />}
               Qo'ng'iroq
             </Button>
+            <Button
+              variant="secondary"
+              onClick={() => setSmsFor(dial)}
+              disabled={dial.replace(/\D/g, '').length < 7}
+            >
+              <MessageSquare className="h-4 w-4" /> SMS
+            </Button>
             <Button variant="secondary" onClick={() => setDial('')} disabled={!dial}>
               Tozalash
             </Button>
@@ -322,6 +342,15 @@ function DialTab({ agents, onError }: { agents: CtiAgent[]; onError: (msg: strin
           </Card>
         )}
       </div>
+
+      {smsFor && (
+        <SmsModal
+          number={smsFor}
+          agents={agents}
+          onClose={() => setSmsFor(null)}
+          onError={onError}
+        />
+      )}
     </div>
   )
 }
@@ -340,6 +369,7 @@ function HistoryTab({ agents, onError }: { agents: CtiAgent[]; onError: (msg: st
   /** Tanlangan raqam — o'ng panelda shu raqamning BARCHA qo'ng'iroqlari ochiladi */
   const [selectedNumber, setSelectedNumber] = useState<string | null>(null)
   const [dialFor, setDialFor] = useState<string | null>(null)
+  const [smsFor, setSmsFor] = useState<string | null>(null)
 
   const setF = <K extends keyof CtiCallFilters>(k: K, v: CtiCallFilters[K]) => {
     setFilters((f) => ({ ...f, [k]: v }))
@@ -466,6 +496,15 @@ function HistoryTab({ agents, onError }: { agents: CtiAgent[]; onError: (msg: st
                   >
                     <Phone className="h-4 w-4" /> Qo'ng'iroq qil
                   </Button>
+                  <Button
+                    variant="secondary"
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setSmsFor(g.remoteNumber) }}
+                    className="flex-shrink-0"
+                    title="SMS yuborish"
+                  >
+                    <MessageSquare className="h-4 w-4" />
+                  </Button>
                 </div>
               ))
             )}
@@ -520,6 +559,15 @@ function HistoryTab({ agents, onError }: { agents: CtiAgent[]; onError: (msg: st
           number={dialFor}
           agents={agents}
           onClose={() => setDialFor(null)}
+          onError={onError}
+        />
+      )}
+
+      {smsFor && (
+        <SmsModal
+          number={smsFor}
+          agents={agents}
+          onClose={() => setSmsFor(null)}
           onError={onError}
         />
       )}
@@ -840,6 +888,89 @@ function DialModal({
           <Button onClick={doDial} disabled={!agentId || calling}>
             {calling ? <Loader2 className="h-4 w-4 animate-spin" /> : <Phone className="h-4 w-4" />}
             Qo'ng'iroq qil
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+/* ============================ SMS modal (raqamga ixtiyoriy matn yuborish) ============================ */
+
+function SmsModal({
+  number, agents, onClose, onError,
+}: {
+  number: string
+  agents: CtiAgent[]
+  onClose: () => void
+  onError: (msg: string) => void
+}) {
+  const online = agents.filter((a) => a.isOnline && a.isActive)
+  const [agentId, setAgentId] = useState(online[0]?.id ?? '')
+  const [text, setText] = useState('')
+  const [sending, setSending] = useState(false)
+  const [result, setResult] = useState('')
+
+  const doSend = async () => {
+    if (!agentId || !text.trim() || sending) return
+    setSending(true)
+    setResult('')
+    try {
+      const r = await sendCtiSms(agentId, number, text.trim())
+      setResult(r.delivered ? 'SMS agentga yetkazildi — telefon yubormoqda' : 'Agent oflayn — push yuborildi, yetkazilmadi')
+    } catch (err: any) {
+      onError(err.response?.data?.message || 'SMS yuborishda xato')
+      onClose()
+    } finally {
+      setSending(false)
+    }
+  }
+
+  return (
+    <Modal open onClose={onClose} size="sm" title={`SMS yuborish: ${number}`}>
+      <div className="space-y-3">
+        {agents.length === 0 ? (
+          <p className="text-sm text-slate-400">Agentlar yo'q.</p>
+        ) : (
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-600">Qaysi telefondan</label>
+            <select value={agentId} onChange={(e) => setAgentId(e.target.value)} className={control}>
+              <option value="">— tanlang —</option>
+              {agents.map((a) => (
+                <option key={a.id} value={a.id} disabled={!a.isOnline || !a.isActive}>
+                  {a.displayName} {a.isOnline ? '(onlayn)' : '(oflayn)'}
+                </option>
+              ))}
+            </select>
+            {online.length === 0 && (
+              <p className="mt-1 text-xs text-amber-600">Hech qaysi agent onlayn emas — push yuboriladi, lekin yetkazilmasligi mumkin.</p>
+            )}
+          </div>
+        )}
+
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-600">Matn</label>
+          <Textarea
+            rows={4}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="SMS matnini yozing..."
+            maxLength={1000}
+          />
+          <p className="mt-1 text-right text-xs text-slate-400">{text.length}/1000</p>
+        </div>
+
+        {result && (
+          <div className={cn('rounded-lg px-3 py-2 text-sm', result.includes('yetkazilmadi') ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700')}>
+            {result}
+          </div>
+        )}
+
+        <div className="flex justify-end gap-2">
+          <Button variant="secondary" onClick={onClose}>Yopish</Button>
+          <Button onClick={doSend} disabled={!agentId || !text.trim() || sending}>
+            {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageSquare className="h-4 w-4" />}
+            Yuborish
           </Button>
         </div>
       </div>

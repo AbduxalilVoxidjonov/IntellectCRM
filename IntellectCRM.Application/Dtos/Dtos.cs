@@ -315,6 +315,10 @@ public record CtiAgentUpdateRequest(string DisplayName, bool IsActive, string? P
 public record CtiDialRequest(string Number);
 /// <summary>Click-to-call natijasi: buyruq id + yetkazildimi (WS yoki FCM+WS orqali).</summary>
 public record CtiDialResponse(string CommandId, bool Delivered);
+/// <summary>Agent telefonining SIM-kartasidan SMS yuborish so'rovi (ixtiyoriy matn).</summary>
+public record CtiSmsRequest(string Number, string Text);
+/// <summary>SMS yuborish natijasi: buyruq id + yetkazildimi (WS yoki FCM+WS orqali).</summary>
+public record CtiSmsResponse(string CommandId, bool Delivered);
 /// <summary>Operator tarixidagi qo'ng'iroq qatori (sanalar ISO string).</summary>
 public record CtiCallDto(
     string Id, string AgentId, string AgentName, string Direction, string RemoteNumber,
