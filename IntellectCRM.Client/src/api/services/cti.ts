@@ -175,3 +175,17 @@ export async function fetchCtiCallAudioUrl(id: string): Promise<string> {
 export async function updateCtiCallNote(id: string, note: string): Promise<void> {
   await api.put(`/cti/calls/${id}/note`, { note })
 }
+
+/** Berilgan raqamga yuborilgan SMS (Eskiz+Local) — raqam tarixida qo'ng'iroqlar bilan birga ko'rsatish uchun. */
+export interface CtiSmsHistoryItem {
+  id: string
+  message: string
+  status: string
+  /** Yuborish manbai: "eskiz" | "local". */
+  provider: string
+  createdAt: string
+}
+export async function getCtiSmsForNumber(number: string): Promise<CtiSmsHistoryItem[]> {
+  const { data } = await api.get<CtiSmsHistoryItem[]>('/cti/sms', { params: { number } })
+  return data
+}

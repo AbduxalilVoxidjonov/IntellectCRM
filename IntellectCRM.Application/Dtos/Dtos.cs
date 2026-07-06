@@ -345,6 +345,9 @@ public record CtiCallDetailDto(
     List<CtiCallEventDto> Events);
 /// <summary>Operator izohini yangilash.</summary>
 public record CtiNoteRequest(string Note);
+/// <summary>Berilgan raqamga yuborilgan SMS — Local Call raqam tarixida qo'ng'iroqlar bilan birga
+/// ko'rsatish uchun (SmsLog'dan, Eskiz+Local ikkalasi ham). Provider: eskiz|local.</summary>
+public record CtiSmsHistoryDto(string Id, string Message, string Status, string Provider, string CreatedAt);
 
 /// <summary>O'quvchi profilidagi qo'ng'iroq (MoiZvonki + Local birlashgan). Source: "cloud"|"local".
 /// Direction: "incoming"|"outgoing" (javobsiz = Answered=false). Handler: operator yoki agent nomi.</summary>

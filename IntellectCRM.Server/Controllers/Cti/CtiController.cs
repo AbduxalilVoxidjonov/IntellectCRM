@@ -292,6 +292,27 @@ public class CtiController(
         return affected > 0 ? Ok() : NotFound();
     }
 
+    /// <summary>
+    /// Berilgan raqamga yuborilgan SMS'lar (Eskiz + Local, ikkalasi ham) — Local Call raqam tarixida
+    /// qo'ng'iroqlar bilan BIRGA (bitta vaqt chizig'ida) ko'rsatish uchun. Raqamlar turli formatda
+    /// saqlanishi mumkinligi uchun OXIRGI 9 RAQAM bo'yicha moslashtiriladi (<see cref="PhoneUtil.Key"/>).
+    /// </summary>
+    [HttpGet("sms")]
+    public async Task<ActionResult<List<CtiSmsHistoryDto>>> SmsForNumber([FromQuery] string number)
+    {
+        var key = PhoneUtil.Key(number);
+        if (key.Length == 0) return new List<CtiSmsHistoryDto>();
+
+        var logs = await db.SmsLogs.AsNoTracking()
+            .Where(l => l.PhoneNumber.EndsWith(key))
+            .OrderByDescending(l => l.CreatedAt)
+            .Take(200)
+            .ToListAsync();
+
+        return logs.Select(l => new CtiSmsHistoryDto(
+            l.Id, l.Message, l.Status, l.Provider, l.CreatedAt.ToString("yyyy-MM-ddTHH:mm:ss"))).ToList();
+    }
+
     // ---------- Yordamchi ----------
 
     /// <summary>Terilayotgan raqamni xalqaro formatga keltiradi: O'zbekiston uchun <c>+998</c> kodi bilan

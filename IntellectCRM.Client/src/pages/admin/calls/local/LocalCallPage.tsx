@@ -9,7 +9,9 @@ import { getStudents } from '@/api/services/students'
 import {
   getCtiAgents, createCtiAgent, updateCtiAgent, dialCtiAgent, sendCtiSms,
   getCtiCalls, getCtiCallsGrouped, getCtiCallDetail, fetchCtiCallAudioUrl, updateCtiCallNote,
+  getCtiSmsForNumber,
   type CtiAgent, type CtiCall, type CtiCallDetail, type CtiCallFilters, type CtiNumberGroup,
+  type CtiSmsHistoryItem,
 } from '@/api/services/cti'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -579,22 +581,53 @@ function HistoryTab({ agents, onError }: { agents: CtiAgent[]; onError: (msg: st
 
 /** Tanlangan raqamning BARCHA qo'ng'iroqlari (filtrsiz, to'liq tarix). Bitta qo'ng'iroq
  *  bosilganda uning to'liq detali (audio, hodisalar, izoh) ochiladi; "Orqaga" — ro'yxatga qaytadi. */
+/** SMS holatini rangga aylantiradi (Eskiz granular holatlari + Local "yuborildi"/"yetkazilmadi"). */
+function smsStatusTone(status: string): { label: string; className: string } {
+  const s = (status || '').toUpperCase()
+  if (s === 'DELIVRD' || s === 'DELIVERED' || s === 'YUBORILDI')
+    return { label: 'Yetkazildi', className: 'border-emerald-200 bg-emerald-50 text-emerald-700' }
+  if (s === 'WAITING' || s === 'NEW' || s === 'ACCEPTED' || s === 'STORED')
+    return { label: 'Kutilmoqda', className: 'border-amber-200 bg-amber-50 text-amber-700' }
+  return { label: 'Yetkazilmadi', className: 'border-red-200 bg-red-50 text-red-700' }
+}
+
+/** Bitta raqamning BIRLASHGAN vaqt chizig'i — qo'ng'iroqlar + SMS'lar (vaqt bo'yicha kamayish tartibida). */
+type TimelineEntry =
+  | { kind: 'call'; at: string; call: CtiCall }
+  | { kind: 'sms'; at: string; sms: CtiSmsHistoryItem }
+
 function NumberHistoryPanel({ number }: { number: string }) {
   const [calls, setCalls] = useState<CtiCall[] | null>(null)
+  const [smsList, setSmsList] = useState<CtiSmsHistoryItem[] | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
   useEffect(() => {
     setCalls(null)
+    setSmsList(null)
     setSelectedId(null)
-    const load = () =>
+    const load = () => {
       getCtiCalls({}, 1, 200, number)
         .then((r) => setCalls(r.items))
         .catch(() => setCalls((prev) => prev ?? []))
+      getCtiSmsForNumber(number)
+        .then(setSmsList)
+        .catch(() => setSmsList((prev) => prev ?? []))
+    }
     load()
-    // Jonli: ochiq raqamga yangi qo'ng'iroq kelsa ro'yxat 15 soniyada o'zi yangilanadi.
+    // Jonli: ochiq raqamga yangi qo'ng'iroq/SMS kelsa ro'yxat 15 soniyada o'zi yangilanadi.
     const live = setInterval(load, 15000)
     return () => clearInterval(live)
   }, [number])
+
+  const timeline = useMemo<TimelineEntry[]>(() => {
+    const items: TimelineEntry[] = [
+      ...(calls ?? []).map((c): TimelineEntry => ({ kind: 'call', at: c.startedAt, call: c })),
+      ...(smsList ?? []).map((s): TimelineEntry => ({ kind: 'sms', at: s.createdAt, sms: s })),
+    ]
+    return items.sort((a, b) => (a.at < b.at ? 1 : -1))
+  }, [calls, smsList])
+
+  const loading = calls === null || smsList === null
 
   if (selectedId) {
     return (
@@ -604,7 +637,7 @@ function NumberHistoryPanel({ number }: { number: string }) {
           onClick={() => setSelectedId(null)}
           className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-sm font-semibold text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
         >
-          <ChevronLeft className="h-4 w-4" /> {number} — barcha qo'ng'iroqlar
+          <ChevronLeft className="h-4 w-4" /> {number} — barcha tarix
         </button>
         <CallDetailPanel callId={selectedId} />
       </div>
@@ -616,44 +649,64 @@ function NumberHistoryPanel({ number }: { number: string }) {
       <div className="border-b border-slate-100 px-4 py-3">
         <div className="text-base font-bold text-slate-800">{number}</div>
         <div className="mt-0.5 text-xs text-slate-400">
-          {calls === null ? 'Yuklanmoqda...' : `${calls.length} ta qo'ng'iroq${calls.length >= 200 ? ' (oxirgi 200 tasi)' : ''}`}
+          {loading
+            ? 'Yuklanmoqda...'
+            : `${calls!.length} ta qo'ng'iroq${calls!.length >= 200 ? ' (oxirgi 200 tasi)' : ''} · ${smsList!.length} ta SMS`}
           {calls?.[0] && (calls[0].studentName || calls[0].contactName) && (
             <span className="ml-2 font-medium text-slate-500">{calls[0].studentName || calls[0].contactName}</span>
           )}
         </div>
       </div>
       <div className="max-h-[560px] overflow-y-auto">
-        {calls === null ? (
+        {loading ? (
           <Loader label="Yuklanmoqda..." />
-        ) : calls.length === 0 ? (
-          <p className="p-6 text-center text-sm text-slate-400">Qo'ng'iroqlar yo'q.</p>
+        ) : timeline.length === 0 ? (
+          <p className="p-6 text-center text-sm text-slate-400">Tarix yo'q.</p>
         ) : (
-          calls.map((c) => (
-            <div
-              key={c.id}
-              onClick={() => setSelectedId(c.id)}
-              className="flex cursor-pointer items-center gap-3 border-b border-slate-50 px-4 py-2.5 transition-colors hover:bg-slate-50"
-            >
-              <DirectionIcon direction={c.direction} className="h-4 w-4 flex-shrink-0" />
-              <div className="min-w-0 flex-1">
-                <div className="text-sm font-medium text-slate-700">{formatDateTime(c.startedAt)}</div>
-                <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-slate-400">
-                  <span>{c.agentName}</span>
-                  {c.durationSec > 0 ? (
-                    <span className="font-mono">{fmtDuration(c.durationSec)}</span>
-                  ) : (
-                    <span>javobsiz</span>
-                  )}
-                  {c.hasAudio && <span className="text-brand-500">audio</span>}
-                  {c.note && <span className="italic">izoh bor</span>}
+          timeline.map((it) =>
+            it.kind === 'call' ? (
+              <div
+                key={`call-${it.call.id}`}
+                onClick={() => setSelectedId(it.call.id)}
+                className="flex cursor-pointer items-center gap-3 border-b border-slate-50 px-4 py-2.5 transition-colors hover:bg-slate-50"
+              >
+                <DirectionIcon direction={it.call.direction} className="h-4 w-4 flex-shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium text-slate-700">{formatDateTime(it.call.startedAt)}</div>
+                  <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-slate-400">
+                    <span>{it.call.agentName}</span>
+                    {it.call.durationSec > 0 ? (
+                      <span className="font-mono">{fmtDuration(it.call.durationSec)}</span>
+                    ) : (
+                      <span>javobsiz</span>
+                    )}
+                    {it.call.hasAudio && <span className="text-brand-500">audio</span>}
+                    {it.call.note && <span className="italic">izoh bor</span>}
+                  </div>
+                </div>
+                <span className={cn('inline-flex flex-shrink-0 items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold', DIRECTION_TONE[it.call.direction])}>
+                  {DIRECTION_LABEL[it.call.direction]}
+                </span>
+                <ChevronRight className="h-4 w-4 flex-shrink-0 text-slate-300" />
+              </div>
+            ) : (
+              <div key={`sms-${it.sms.id}`} className="flex items-start gap-3 border-b border-slate-50 px-4 py-2.5">
+                <MessageSquare className="mt-0.5 h-4 w-4 flex-shrink-0 text-sky-500" />
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium text-slate-700">{formatDateTime(it.sms.createdAt)}</div>
+                  <p className="mt-0.5 whitespace-pre-wrap break-words text-xs text-slate-500">{it.sms.message}</p>
+                </div>
+                <div className="flex flex-shrink-0 flex-col items-end gap-1">
+                  <span className={cn('inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold', smsStatusTone(it.sms.status).className)}>
+                    {smsStatusTone(it.sms.status).label}
+                  </span>
+                  <span className="text-[11px] font-medium text-slate-400">
+                    {it.sms.provider === 'local' ? 'Local' : 'Eskiz'}
+                  </span>
                 </div>
               </div>
-              <span className={cn('inline-flex flex-shrink-0 items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold', DIRECTION_TONE[c.direction])}>
-                {DIRECTION_LABEL[c.direction]}
-              </span>
-              <ChevronRight className="h-4 w-4 flex-shrink-0 text-slate-300" />
-            </div>
-          ))
+            ),
+          )
         )}
       </div>
     </Card>
