@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import {
   Plus,
   Search,
@@ -72,6 +72,7 @@ const avatarColor = (name: string) => {
 
 export function TeachersPage() {
   const { user } = useAuth()
+  const navigate = useNavigate()
   const [teachers, setTeachers] = useState<Teacher[]>([])
   const [archived, setArchived] = useState<Teacher[]>([])
   const [subjects, setSubjects] = useState<Subject[]>([])
@@ -291,7 +292,19 @@ export function TeachersPage() {
           {filtered.map((t) => {
             const groups = teacherGroups(t.id)
             return (
-              <div key={t.id} className="entity-card">
+              <div
+                key={t.id}
+                className="entity-card cursor-pointer"
+                role="button"
+                tabIndex={0}
+                onClick={() => navigate(`/admin/teachers/${t.id}`)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    navigate(`/admin/teachers/${t.id}`)
+                  }
+                }}
+              >
                 <div className="ec-head">
                   {t.photoUrl ? (
                     <img
@@ -362,7 +375,7 @@ export function TeachersPage() {
                   </div>
                 )}
 
-                <div className="ec-foot">
+                <div className="ec-foot" onClick={(e) => e.stopPropagation()}>
                   <Link
                     to={`/admin/teachers/${t.id}`}
                     className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition-colors hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700"

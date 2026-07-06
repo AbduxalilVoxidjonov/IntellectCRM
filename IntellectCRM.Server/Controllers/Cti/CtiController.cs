@@ -82,7 +82,7 @@ public class CtiController(
     {
         var agent = await db.CtiAgents.FirstOrDefaultAsync(a => a.Id == id);
         if (agent is null) return NotFound();
-        var number = (req.Number ?? "").Trim();
+        var number = NormalizePhone(req.Number ?? "");
         if (number.Length == 0) return BadRequest(new { message = "Raqam bo'sh" });
 
         var commandId = Guid.NewGuid().ToString();
@@ -274,6 +274,19 @@ public class CtiController(
     }
 
     // ---------- Yordamchi ----------
+
+    /// <summary>Terilayotgan raqamni xalqaro formatga keltiradi: O'zbekiston uchun <c>+998</c> kodi bilan
+    /// (ilova qo'ng'iroq qilishi uchun oldida <c>+</c> shart). 9-xonali lokal raqam → <c>+998XXXXXXXXX</c>;
+    /// <c>998</c> bilan boshlansa yoki boshqa formatda — shunchaki <c>+</c> qo'shiladi.</summary>
+    private static string NormalizePhone(string raw)
+    {
+        var digits = new string((raw ?? "").Where(char.IsDigit).ToArray());
+        if (digits.Length == 0) return "";
+        if (digits.StartsWith("998")) return "+" + digits;
+        if (digits.Length == 10 && digits.StartsWith("0")) digits = digits[1..];
+        if (digits.Length == 9) return "+998" + digits;
+        return "+" + digits;
+    }
 
     /// <summary>Tarix so'rovlarining UMUMIY filtri (oddiy va guruhlangan ro'yxat bir xil ishlaydi).
     /// <paramref name="number"/> — aniq raqam (guruh ichini ochish uchun).</summary>
