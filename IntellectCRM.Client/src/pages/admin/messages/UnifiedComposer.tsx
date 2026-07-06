@@ -12,6 +12,7 @@ import {
   sendSms,
   sendPush,
   sendBroadcast,
+  type SmsProvider,
   type SmsRecipient,
   type SmsTeacherRecipient,
 } from '@/api/services/messages'
@@ -23,6 +24,7 @@ import { Input, Select } from '@/components/ui/Input'
 import { cn } from '@/lib/utils'
 import { CHANNELS, CHANNEL_ORDER, type ChannelKey } from '@/config/channels'
 import { MessageEditor, type TokenDef } from '@/components/messaging/MessageEditor'
+import { SmsProviderPicker } from '@/components/messaging/SmsProviderPicker'
 import { getMessageTokens } from '@/api/services/autoMessages'
 import { MessageTemplateLibrary } from './MessageTemplateLibrary'
 
@@ -56,6 +58,7 @@ export function UnifiedComposer({
 }) {
   // Kanallar holati (sozlangan/yo'q)
   const [smsCfg, setSmsCfg] = useState(false)
+  const [localSmsEnabled, setLocalSmsEnabled] = useState(false)
   const [smsFrom, setSmsFrom] = useState('4546')
   const [pushCfg, setPushCfg] = useState(false)
   const [tgCfg, setTgCfg] = useState(false)
@@ -73,6 +76,8 @@ export function UnifiedComposer({
   const [groupName, setGroupName] = useState('')
   const [onlyDebtors, setOnlyDebtors] = useState(false)
   const [toParent, setToParent] = useState(true) // "Tanlab" — ota-ona yoki o'quvchi raqamiga (SMS)
+  const [smsProvider, setSmsProvider] = useState<SmsProvider>('eskiz')
+  const [smsAgentId, setSmsAgentId] = useState('')
 
   // Matn
   const [title, setTitle] = useState('') // faqat Push uchun
@@ -99,11 +104,14 @@ export function UnifiedComposer({
     Promise.all([getSmsStatus(), getPushStatus(), getTelegramStatus()])
       .then(([s, p, t]) => {
         setSmsCfg(s.configured)
+        setLocalSmsEnabled(s.localEnabled)
         setSmsFrom(s.from)
         setPushCfg(p.configured)
         setTgCfg(t.configured)
         // Standart: birinchi sozlangan kanalni yoqamiz
-        setChannels({ sms: s.configured, push: false, telegram: false })
+        setChannels({ sms: s.configured || s.localEnabled, push: false, telegram: false })
+        // Eskiz sozlanmagan, lekin Local SMS yoqilgan bo'lsa — standart provayder Local.
+        if (!s.configured && s.localEnabled) setSmsProvider('local')
       })
       .finally(() => setStatusLoaded(true))
   }, [])
@@ -117,7 +125,10 @@ export function UnifiedComposer({
 
   // Kanal kartalari — yagona tartibda (config/channels.ts)
   const channelHints: Record<Channel, { configured: boolean; hint: string }> = {
-    sms: { configured: smsCfg, hint: `Jo'natuvchi: ${smsFrom}` },
+    sms: {
+      configured: smsCfg || localSmsEnabled,
+      hint: smsCfg ? `Jo'natuvchi: ${smsFrom}` : 'Local Call agent telefonidan',
+    },
     telegram: { configured: tgCfg, hint: 'Bot orqali ota-onalarga' },
     push: { configured: pushCfg, hint: 'Ilovaga bildirishnoma' },
   }
@@ -251,6 +262,8 @@ export function UnifiedComposer({
           teacherIds: audience === 'selected' ? [...selTeachers] : undefined,
           toParent: audience === 'selected' ? toParent : undefined,
           text: text.trim(),
+          provider: smsProvider,
+          agentId: smsAgentId || undefined,
         })
         out.push({ channel: 'SMS', ok: true, text: `yuborildi ${b.sentCount}/${b.recipientCount}` })
       } catch (e) {
@@ -328,7 +341,7 @@ export function UnifiedComposer({
 
   if (!statusLoaded) return null
 
-  const noneConfigured = !smsCfg && !pushCfg && !tgCfg
+  const noneConfigured = !smsCfg && !localSmsEnabled && !pushCfg && !tgCfg
   const showDebtors = audience === 'parents' || audience === 'group' || audience === 'students'
 
   return (
@@ -475,6 +488,16 @@ export function UnifiedComposer({
           <p className="mt-2 text-xs text-slate-400">
             Push "Tanlab" rejimida SMS/Telegram bilan birga ishlamaydi (oluvchilar boshqacha aniqlanadi).
           </p>
+        )}
+
+        {channels.sms && (
+          <SmsProviderPicker
+            provider={smsProvider}
+            onProviderChange={setSmsProvider}
+            agentId={smsAgentId}
+            onAgentChange={setSmsAgentId}
+            className="mt-3"
+          />
         )}
       </Card>
 

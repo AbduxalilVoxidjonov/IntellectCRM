@@ -6,7 +6,6 @@ using IntellectCRM.Application.Services;
 using IntellectCRM.Domain;
 using IntellectCRM.Infrastructure.Auth;
 using IntellectCRM.Infrastructure.Data;
-using IntellectCRM.Server.Cti;
 
 namespace IntellectCRM.Server.Controllers.Cti;
 
@@ -21,7 +20,7 @@ namespace IntellectCRM.Server.Controllers.Cti;
 [AdminPerm("calls")]
 [Route("api/cti")]
 public class CtiController(
-    AppDbContext db, CtiConnectionManager conn, FcmService fcm,
+    AppDbContext db, CtiConnectionManager conn, FcmService fcm, CtiSmsService ctiSms,
     IConfiguration config, IWebHostEnvironment env) : ControllerBase
 {
     // ---------- Agentlar ----------
@@ -133,62 +132,21 @@ public class CtiController(
 
     /// <summary>
     /// Agent telefonining SIM-kartasidan ixtiyoriy matnli SMS yuborish: <c>send_sms</c> buyrug'i.
-    /// Yetkazish oqimi <see cref="Dial"/> bilan bir xil — WS ulangan bo'lsa darhol, aks holda
-    /// FCM data-push bilan uyg'otib ~6 soniya WS ulanishini kutadi.
+    /// Yetkazish oqimi <see cref="Dial"/> bilan bir xil (WS ulangan bo'lsa darhol, aks holda FCM
+    /// data-push bilan uyg'otib ~6 soniya kutadi) — <see cref="CtiSmsService"/>ga delegatsiya qilinadi,
+    /// shu bilan bu yerdan yuborilgan SMS ham umumiy SMS Tarix (SmsLog, Provider=local)da ko'rinadi.
     /// </summary>
     [HttpPost("agents/{id}/sms")]
     public async Task<ActionResult<CtiSmsResponse>> SendSms(string id, CtiSmsRequest req)
     {
-        var agent = await db.CtiAgents.FirstOrDefaultAsync(a => a.Id == id);
-        if (agent is null) return NotFound();
-        var number = NormalizePhone(req.Number ?? "");
-        if (number.Length == 0) return BadRequest(new { message = "Raqam bo'sh" });
+        if (await db.CtiAgents.FindAsync(id) is null) return NotFound();
+        if (string.IsNullOrWhiteSpace(req.Number)) return BadRequest(new { message = "Raqam bo'sh" });
         var text = (req.Text ?? "").Trim();
         if (text.Length == 0) return BadRequest(new { message = "SMS matni bo'sh" });
         if (text.Length > 1000) return BadRequest(new { message = "SMS matni juda uzun (max 1000 belgi)" });
 
-        var commandId = Guid.NewGuid().ToString();
-        var cmd = new CtiCommandLog { AgentId = id, Action = "send_sms", Payload = $"{number}: {text}", Status = "pending" };
-        db.CtiCommandLogs.Add(cmd);
-        await db.SaveChangesAsync();
-
-        object SmsMsg() => new { action = "send_sms", to = number, text, commandId };
-
-        // 1) WS ulangan — darhol yuboramiz.
-        if (conn.IsConnected(id) && await conn.SendAsync(id, SmsMsg()))
-        {
-            cmd.Status = "sent";
-            await db.SaveChangesAsync();
-            return new CtiSmsResponse(commandId, true);
-        }
-
-        // 2) Oflayn — FCM bilan uyg'otamiz, so'ng WS ulanishini poll qilamiz.
-        if (agent.FcmToken.Length > 0)
-        {
-            var meta = await db.CenterMeta.FirstOrDefaultAsync();
-            var json = meta?.FcmServiceAccountJson ?? "";
-            await fcm.SendDataAsync(json, agent.FcmToken, new Dictionary<string, string>
-            {
-                ["action"] = "send_sms",
-                ["commandId"] = commandId,
-            }, HttpContext.RequestAborted);
-
-            // ~6 soniya: ilova uyg'onib WS ulansa sms yuboramiz.
-            for (var i = 0; i < 12; i++)
-            {
-                await Task.Delay(500, HttpContext.RequestAborted);
-                if (conn.IsConnected(id) && await conn.SendAsync(id, SmsMsg()))
-                {
-                    cmd.Status = "sent";
-                    await db.SaveChangesAsync();
-                    return new CtiSmsResponse(commandId, true);
-                }
-            }
-        }
-
-        cmd.Status = "failed";
-        await db.SaveChangesAsync();
-        return new CtiSmsResponse(commandId, false);
+        var r = await ctiSms.SendSmsAsync(db, id, req.Number, text, ct: HttpContext.RequestAborted);
+        return new CtiSmsResponse(r.CommandId, r.Ok);
     }
 
     // ---------- Qo'ng'iroqlar tarixi ----------

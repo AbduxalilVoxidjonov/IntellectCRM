@@ -63,6 +63,8 @@ export interface AutoMessageRule {
   /** Oylik rejada — oyning nechanchi kuni (1-28) */
   scheduleDayOfMonth: number
   createdAt: string
+  /** SMS qaysi orqali yuborilsin: "eskiz" (standart) | "local" (CTI agent telefonidan). */
+  smsProvider: string
 }
 
 /** Yangi qoida yaratish / tahrirlash uchun (id va createdAt yo'q). */

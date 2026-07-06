@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { CHANNEL_LIST, type ChannelKey } from '@/config/channels'
 import { EskizSettings } from './EskizSettings'
+import { LocalSmsSettings } from './LocalSmsSettings'
 import { TelegramSettings } from './TelegramSettings'
 import { FirebaseSettings } from './FirebaseSettings'
 
@@ -40,7 +41,12 @@ export function ChannelsSettings({ initialTab = 'sms' }: { initialTab?: ChannelT
         })}
       </div>
 
-      {tab === 'sms' && <EskizSettings />}
+      {tab === 'sms' && (
+        <div className="space-y-4">
+          <EskizSettings />
+          <LocalSmsSettings />
+        </div>
+      )}
       {tab === 'telegram' && <TelegramSettings />}
       {tab === 'firebase' && <FirebaseSettings />}
     </div>

@@ -21,6 +21,7 @@ public class CustomReminderService(
     TelegramService telegram,
     FcmService fcm,
     EskizService eskiz,
+    CtiSmsService ctiSms,
     ILogger<CustomReminderService> logger) : BackgroundService
 {
     private readonly HashSet<string> _sent = new();
@@ -65,7 +66,6 @@ public class CustomReminderService(
         var meta = await db.CenterMeta.FirstOrDefaultAsync(ct);
         var fcmJson = meta?.FcmServiceAccountJson ?? "";
         var pushReady = FcmService.IsConfigured(fcmJson);
-        var eskizReady = eskiz.IsConfigured(meta);
         var centerName = meta?.Name ?? "";
 
         foreach (var rule in rules)
@@ -82,7 +82,7 @@ public class CustomReminderService(
 
             try
             {
-                await SendAsync(db, rule, centerName, fcmJson, pushReady, eskizReady, ct);
+                await SendAsync(db, rule, centerName, fcmJson, pushReady, meta, ct);
             }
             catch (Exception ex)
             {
@@ -93,7 +93,7 @@ public class CustomReminderService(
 
     private async Task SendAsync(
         IAppDbContext db, AutoMessageRule rule, string centerName, string fcmJson, bool pushReady,
-        bool eskizReady, CancellationToken ct)
+        CenterMeta? meta, CancellationToken ct)
     {
         var title = string.IsNullOrWhiteSpace(rule.Name) ? "Eslatma" : rule.Name;
         var deadTokens = new List<string>();
@@ -106,7 +106,7 @@ public class CustomReminderService(
             {
                 var body = MessageTokenizer.Teacher(rule.Template, t, centerName);
                 await DeliverAsync(db, rule, t.UserId, t.Id, isTeacher: true, t.Phone, t.FullName, title, body,
-                    fcmJson, pushReady, eskizReady, deadTokens, ct);
+                    fcmJson, pushReady, meta, deadTokens, ct);
             }
         }
         else
@@ -119,7 +119,7 @@ public class CustomReminderService(
                     : !string.IsNullOrWhiteSpace(s.MotherPhone) ? s.MotherPhone : s.Phone;
                 var body = MessageTokenizer.Student(rule.Template, s, s.ParentFullName, phone, centerName);
                 await DeliverAsync(db, rule, s.UserId, s.Id, isTeacher: false, phone, s.FullName, title, body,
-                    fcmJson, pushReady, eskizReady, deadTokens, ct);
+                    fcmJson, pushReady, meta, deadTokens, ct);
             }
         }
 
@@ -131,7 +131,7 @@ public class CustomReminderService(
     private async Task DeliverAsync(
         IAppDbContext db, AutoMessageRule rule, string? userId, string entityId, bool isTeacher,
         string? smsPhone, string recipientName, string title, string body,
-        string fcmJson, bool pushReady, bool eskizReady, List<string> deadTokens, CancellationToken ct)
+        string fcmJson, bool pushReady, CenterMeta? meta, List<string> deadTokens, CancellationToken ct)
     {
         if (rule.SendPush && userId is not null)
         {
@@ -157,22 +157,10 @@ public class CustomReminderService(
                 await telegram.SendMessageAsync(chatId, $"🔔 {title}\n\n{body}", ct: ct);
         }
 
-        if (rule.SendSms && eskizReady && !string.IsNullOrWhiteSpace(smsPhone))
+        if (rule.SendSms && !string.IsNullOrWhiteSpace(smsPhone) && AutoMessageSmsSender.IsReady(rule.SmsProvider, meta, eskiz))
         {
-            var batchId = Guid.NewGuid().ToString();
-            var r = await eskiz.SendSmsAsync(db, smsPhone, body, callbackUrl: null, ct);
-            db.SmsLogs.Add(new SmsLog
-            {
-                BatchId = batchId, PhoneNumber = EskizService.NormalizePhone(smsPhone),
-                RecipientName = recipientName, Message = body,
-                RequestId = r.RequestId, Status = r.Ok ? r.Status : (r.Error ?? "error"),
-            });
-            db.SmsBatches.Add(new SmsBatch
-            {
-                Id = batchId, Audience = $"Avto (Erkin eslatma): {recipientName}", Message = body,
-                SenderUserId = "", SenderName = "Avto xabar", CreatedAt = AppClock.Now,
-                RecipientCount = 1, SentCount = r.Ok ? 1 : 0,
-            });
+            await AutoMessageSmsSender.SendAsync(
+                db, eskiz, ctiSms, rule.SmsProvider, smsPhone, recipientName, body, "Erkin eslatma", ct);
         }
     }
 }

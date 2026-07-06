@@ -24,6 +24,7 @@ public class PaymentReminderService(
     TelegramService telegram,
     FcmService fcm,
     EskizService eskiz,
+    CtiSmsService ctiSms,
     ILogger<PaymentReminderService> logger) : BackgroundService
 {
     /// <summary>Eslatma yuboriladigan soat (Toshkent vaqti).</summary>
@@ -109,7 +110,8 @@ public class PaymentReminderService(
         var fcmJson = meta?.FcmServiceAccountJson ?? "";
         var telegramReady = sendTelegram && telegram.IsConfigured;
         var pushReady = sendPush && FcmService.IsConfigured(fcmJson);
-        var smsReady = sendSms && eskiz.IsConfigured(meta);
+        var smsProvider = rule?.SmsProvider ?? "eskiz";
+        var smsReady = sendSms && AutoMessageSmsSender.IsReady(smsProvider, meta, eskiz);
 
         int tgSent = 0, pushSent = 0, smsSent = 0, students = 0;
         var deadTokens = new List<string>();
@@ -149,21 +151,9 @@ public class PaymentReminderService(
                         : !string.IsNullOrWhiteSpace(s.MotherPhone) ? s.MotherPhone : s.Phone;
                     if (!string.IsNullOrWhiteSpace(phone))
                     {
-                        var batchId = Guid.NewGuid().ToString();
-                        var r = await eskiz.SendSmsAsync(db, phone, body, callbackUrl: null, ct);
-                        db.SmsLogs.Add(new SmsLog
-                        {
-                            BatchId = batchId, PhoneNumber = EskizService.NormalizePhone(phone),
-                            RecipientName = s.FullName, Message = body,
-                            RequestId = r.RequestId, Status = r.Ok ? r.Status : (r.Error ?? "error"),
-                        });
-                        db.SmsBatches.Add(new SmsBatch
-                        {
-                            Id = batchId, Audience = $"Avto (Qarzdorlik eslatmasi): {s.FullName}", Message = body,
-                            SenderUserId = "", SenderName = "Avto xabar", CreatedAt = AppClock.Now,
-                            RecipientCount = 1, SentCount = r.Ok ? 1 : 0,
-                        });
-                        if (r.Ok) smsSent++;
+                        var result = await AutoMessageSmsSender.SendAsync(
+                            db, eskiz, ctiSms, smsProvider, phone, s.FullName, body, "Qarzdorlik eslatmasi", ct);
+                        if (result.Ok) smsSent++;
                     }
                 }
             }

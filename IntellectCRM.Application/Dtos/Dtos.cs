@@ -225,18 +225,19 @@ public record AutoMessageTriggerInfoDto(
     string DefaultTemplate, string Category);
 /// <summary>Xabar {token}i katalogdagi bitta yozuv. Group: "student" | "lead" | "common" | "event".</summary>
 public record MessageTokenDto(string Token, string Label, string Group);
-/// <summary>Avto-xabar qoidasi (o'qish uchun).</summary>
+/// <summary>Avto-xabar qoidasi (o'qish uchun). SmsProvider: "eskiz" | "local".</summary>
 public record AutoMessageRuleDto(
     string Id, string Trigger, string Name, bool Enabled,
     bool SendSms, bool SendPush, bool SendTelegram, string Audience, string Template,
     int OffsetMinutes, string SendScope, string ScheduleType, string ScheduleTime, int ScheduleDayOfMonth,
-    string CreatedAt);
+    string CreatedAt, string SmsProvider);
 /// <summary>Avto-xabar qoidasini saqlash (yaratish/tahrirlash).</summary>
 public record SaveAutoMessageRuleRequest(
     string Trigger, string Name, bool Enabled,
     bool SendSms, bool SendPush, bool SendTelegram, string Audience, string Template,
     int OffsetMinutes = 5, string SendScope = "lesson_start",
-    string ScheduleType = "daily", string ScheduleTime = "09:00", int ScheduleDayOfMonth = 1);
+    string ScheduleType = "daily", string ScheduleTime = "09:00", int ScheduleDayOfMonth = 1,
+    string SmsProvider = "eskiz");
 
 /* ---------- Call Center (MoiZvonki) ---------- */
 
@@ -1087,23 +1088,23 @@ public record PushConfirmationDto(string Name, string Group, bool Confirmed, str
 /// taalluqli emas — doim o'z raqamiga). Text ichida o'rinbosarlar bo'lishi mumkin ({fish} {sinf} {qarzdorlik} {balans} {telefon}).
 /// </summary>
 public record SendSmsRequest(string Audience, string? ClassName, bool OnlyDebtors, List<string>? StudentIds, string Text,
-    bool ToParent = true, List<string>? TeacherIds = null);
-/// <summary>Yuborilgan SMS partiyasi (tarix). CreatedAt — ISO.</summary>
+    bool ToParent = true, List<string>? TeacherIds = null, string? Provider = null, string? AgentId = null);
+/// <summary>Yuborilgan SMS partiyasi (tarix). CreatedAt — ISO. Provider: eskiz|local.</summary>
 public record SmsBatchDto(
     string Id, string Audience, string Message, string SenderName, string CreatedAt,
-    int RecipientCount, int SentCount);
-/// <summary>Bitta SMS jurnali (raqam bo'yicha) — partiya tafsilotida ko'rsatiladi.</summary>
-public record SmsLogDto(string Id, string PhoneNumber, string RecipientName, string Status, string CreatedAt);
-/// <summary>SMS (Eskiz) holati — admin UI uchun: sozlangan, sender, balans (bo'lsa).</summary>
-public record SmsStatusDto(bool Configured, string From, decimal? Balance);
+    int RecipientCount, int SentCount, string Provider);
+/// <summary>Bitta SMS jurnali (raqam bo'yicha) — partiya tafsilotida ko'rsatiladi. Provider: eskiz|local.</summary>
+public record SmsLogDto(string Id, string PhoneNumber, string RecipientName, string Status, string CreatedAt, string Provider);
+/// <summary>SMS holati — admin UI uchun: Eskiz sozlangan/sender/balans + Local SMS yoqilganmi/standart agent.</summary>
+public record SmsStatusDto(bool Configured, string From, decimal? Balance, bool LocalEnabled, string? LocalDefaultAgentId);
 /// <summary>SMS andozasi (shablon) — faqat QO'LDA yuborish uchun (avto-hodisalar AutoMessageRule'da).</summary>
 public record SmsTemplateDto(string Id, string Name, string Text, int Order);
 /// <summary>SMS andozasini saqlash (yaratish/tahrirlash).</summary>
 public record SaveSmsTemplateRequest(string Name, string Text);
 /// <summary>Lidga SMS yuborish so'rovi (lid telefon raqamiga).</summary>
-public record SendLeadSmsRequest(string LeadId, string Text);
+public record SendLeadSmsRequest(string LeadId, string Text, string? Provider = null, string? AgentId = null);
 /// <summary>Bir nechta lidga birdan SMS yuborish so'rovi.</summary>
-public record SendLeadBulkSmsRequest(List<string> LeadIds, string Text);
+public record SendLeadBulkSmsRequest(List<string> LeadIds, string Text, string? Provider = null, string? AgentId = null);
 /// <summary>Ommaviy lid SMS natijasi: yuborildi / xato / raqamsiz lidlar soni.</summary>
 public record LeadBulkSmsResultDto(int Sent, int Failed, int NoPhone);
 /// <summary>Eskiz callback (yetkazib berish holati webhook'i) tanasi.</summary>
@@ -1112,6 +1113,10 @@ public record EskizCallbackDto(string? request_id, string? message_id, string? p
 public record EskizSettingsDto(string Email, string From, bool Configured, decimal? Balance);
 /// <summary>SMS (Eskiz) login/parol/sender saqlash so'rovi (bo'sh qoldirilsa eski saqlanadi).</summary>
 public record SaveEskizRequest(string? Email, string? Password, string? From);
+/// <summary>Local SMS (CTI agent telefonidan) sozlamasi holati.</summary>
+public record LocalSmsSettingsDto(bool Enabled, string? DefaultAgentId);
+/// <summary>Local SMS sozlamasini saqlash — DefaultAgentId bo'sh/null bo'lsa standart agent tozalanadi.</summary>
+public record SaveLocalSmsRequest(bool Enabled, string? DefaultAgentId);
 /// <summary>
 /// "Tanlab" SMS uchun oluvchi (o'quvchi). ParentPhone = ParentPhone→FatherPhone→MotherPhone birinchi
 /// bo'sh bo'lmagani; StudentPhone = s.Phone. Ikkalasi ham bo'sh bo'lishi mumkin (raqam yo'q — UIda kulrang).

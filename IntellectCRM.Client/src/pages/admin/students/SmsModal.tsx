@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Send, AlertTriangle, Check } from 'lucide-react'
 import type { Student } from '@/types'
-import { getSmsStatus, getSmsTemplates, sendSms, type SmsTemplate } from '@/api/services/messages'
+import { getSmsStatus, getSmsTemplates, sendSms, type SmsProvider, type SmsTemplate } from '@/api/services/messages'
 import { getMessageTokens } from '@/api/services/autoMessages'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { MessageEditor, type TokenDef } from '@/components/messaging/MessageEditor'
+import { SmsProviderPicker } from '@/components/messaging/SmsProviderPicker'
 import { cn } from '@/lib/utils'
 
 interface Props {
@@ -22,6 +23,8 @@ interface Props {
 export function SmsModal({ open, onClose, recipients }: Props) {
   const [toParent, setToParent] = useState(true)
   const [message, setMessage] = useState('')
+  const [provider, setProvider] = useState<SmsProvider>('eskiz')
+  const [agentId, setAgentId] = useState('')
   const [configured, setConfigured] = useState(true)
   const [templates, setTemplates] = useState<SmsTemplate[]>([])
   const [tokens, setTokens] = useState<TokenDef[]>([])
@@ -34,6 +37,8 @@ export function SmsModal({ open, onClose, recipients }: Props) {
     setMessage('')
     setResult(null)
     setToParent(true)
+    setProvider('eskiz')
+    setAgentId('')
     setSending(false)
     getSmsStatus().then((s) => setConfigured(s.configured))
     getSmsTemplates().then(setTemplates).catch(() => setTemplates([]))
@@ -61,6 +66,8 @@ export function SmsModal({ open, onClose, recipients }: Props) {
         onlyDebtors: false,
         toParent,
         text: message.trim(),
+        provider,
+        agentId: agentId || undefined,
       })
       setResult(
         b.recipientCount === 0
@@ -94,7 +101,7 @@ export function SmsModal({ open, onClose, recipients }: Props) {
       }
     >
       <div className="space-y-4">
-        {!configured && (
+        {!configured && provider === 'eskiz' && (
           <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
             <p>SMS (Eskiz) sozlanmagan. "Sozlamalar → Xabar kanallari"da login/parol kiriting.</p>
@@ -139,6 +146,13 @@ export function SmsModal({ open, onClose, recipients }: Props) {
             )}
           </p>
         </div>
+
+        <SmsProviderPicker
+          provider={provider}
+          onProviderChange={setProvider}
+          agentId={agentId}
+          onAgentChange={setAgentId}
+        />
 
         {/* Matn (shablon chiplari + tokenlar + SMS hisoblagich — yagona MessageEditor) */}
         <MessageEditor

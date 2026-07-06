@@ -243,6 +243,9 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<MoiZvonkiCallSyncS
 
 // CTI (Local Call) — Android agent WebSocket ulanishlarini boshqaruvchi (jonli onlayn + dial buyruq).
 builder.Services.AddSingleton<CtiConnectionManager>();
+// Local SMS — agent telefonining SIM-kartasidan (send_sms) — Eskiz'ga muqobil provider sifatida
+// MessagesController/AutoMessageService/CtiController tomonidan ishlatiladi.
+builder.Services.AddSingleton<CtiSmsService>();
 
 // O'zgarishlar tarixi (audit) — joriy foydalanuvchini aniqlash uchun HttpContext kerak
 builder.Services.AddHttpContextAccessor();

@@ -18,6 +18,7 @@ public class AutoMessageService(
     EskizService eskiz,
     FcmService fcm,
     TelegramService telegram,
+    CtiSmsService ctiSms,
     ILogger<AutoMessageService> logger)
 {
     /// <summary>O'quvchi (ota-ona) uchun avto-xabar — SMS + Push + Telegram (qoidada yoqilganiga qarab).</summary>
@@ -74,8 +75,8 @@ public class AutoMessageService(
                     var pushUserId   = audienceTeachers ? teacher!.UserId   : s.UserId;
 
                     // SMS.
-                    if (rule.SendSms && !string.IsNullOrWhiteSpace(smsPhone) && eskiz.IsConfigured(meta))
-                        dirty |= await SendSmsAsync(db, trigger, smsPhone!, smsRecipient, rule.Template, msg, ct);
+                    if (rule.SendSms && !string.IsNullOrWhiteSpace(smsPhone) && AutoMessageSmsSender.IsReady(rule.SmsProvider, meta, eskiz))
+                        dirty |= await SendSmsAsync(db, trigger, rule.SmsProvider, smsPhone!, smsRecipient, rule.Template, msg, ct);
 
                     // Push (ilova akkaunti) + ichki bildirishnoma tarixi.
                     if (rule.SendPush && !string.IsNullOrWhiteSpace(pushUserId))
@@ -138,7 +139,6 @@ public class AutoMessageService(
             if (rules.Count == 0) return;
 
             var meta = await db.CenterMeta.FirstOrDefaultAsync(ct);
-            if (!eskiz.IsConfigured(meta)) return;
             var centerName = meta?.Name ?? "";
             var phone = Coalesce(lead.Phone, lead.FatherPhone, lead.MotherPhone);
             if (string.IsNullOrWhiteSpace(phone)) return;
@@ -147,12 +147,13 @@ public class AutoMessageService(
             foreach (var rule in rules)
             {
                 if (!rule.SendSms) continue;
+                if (!AutoMessageSmsSender.IsReady(rule.SmsProvider, meta, eskiz)) continue;
                 try
                 {
                     var withExtra = MessageTokenizer.ApplyExtra(rule.Template, extraTokens);
                     var msg = MessageTokenizer.Lead(withExtra, lead, phone, centerName, extra: null, group: group, trialAt: trialAt);
                     if (string.IsNullOrWhiteSpace(msg)) continue;
-                    dirty |= await SendSmsAsync(db, trigger, phone!, lead.FullName, rule.Template, msg, ct);
+                    dirty |= await SendSmsAsync(db, trigger, rule.SmsProvider, phone!, lead.FullName, rule.Template, msg, ct);
                 }
                 catch (Exception ex)
                 {
@@ -230,27 +231,18 @@ public class AutoMessageService(
             var rule = (await RulesAsync(db, AutoMessageTriggers.TestLink, ct)).FirstOrDefault(r => r.SendSms);
             if (rule is null) return (false, "Avto-xabar qoidasi yo'q (test_link, SMS)", "");
             var meta = await db.CenterMeta.FirstOrDefaultAsync(ct);
-            if (!eskiz.IsConfigured(meta)) return (false, "Eskiz sozlanmagan", "");
+            if (!AutoMessageSmsSender.IsReady(rule.SmsProvider, meta, eskiz))
+                return (false, rule.SmsProvider == "local" ? "Local SMS yoqilmagan" : "Eskiz sozlanmagan", "");
             var phone = Coalesce(lead.Phone, lead.FatherPhone, lead.MotherPhone);
             if (string.IsNullOrWhiteSpace(phone)) return (false, "Lidda raqam yo'q", "");
 
             var withExtra = MessageTokenizer.ApplyExtra(rule.Template, new Dictionary<string, string> { ["{link}"] = link });
             var msg = MessageTokenizer.Lead(withExtra, lead, phone, meta?.Name ?? "");
-            var batchId = Guid.NewGuid().ToString();
-            var r = await eskiz.SendSmsAsync(db, phone!, msg, callbackUrl: null, ct);
-            db.SmsLogs.Add(new SmsLog
-            {
-                BatchId = batchId, PhoneNumber = EskizService.NormalizePhone(phone!), RecipientName = lead.FullName,
-                Message = msg, RequestId = r.RequestId, Status = r.Ok ? r.Status : (r.Error ?? "error"),
-            });
-            db.SmsBatches.Add(new SmsBatch
-            {
-                Id = batchId, Audience = $"Daraja testi havolasi: {lead.FullName}", Message = rule.Template,
-                SenderUserId = "", SenderName = "Avto xabar", CreatedAt = AppClock.Now,
-                RecipientCount = 1, SentCount = r.Ok ? 1 : 0,
-            });
+            var result = await AutoMessageSmsSender.SendAsync(
+                db, eskiz, ctiSms, rule.SmsProvider, phone!, lead.FullName, msg,
+                "Daraja testi havolasi", ct, batchMessage: rule.Template);
             await db.SaveChangesAsync(ct);
-            return (r.Ok, r.Ok ? "sent" : (r.Error ?? "failed"), r.RequestId ?? "");
+            return (result.Ok, result.Status, result.RequestId);
         }
         catch (Exception ex)
         {
@@ -270,26 +262,16 @@ public class AutoMessageService(
     private static string? Coalesce(params string?[] values) =>
         values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
 
-    /// <summary>Bitta raqamga SMS yuboradi va jurnalga (SmsLog + SmsBatch) yozadi — mavjud AutoSmsService
-    /// uslubi. SaveChanges CHAQIRUVCHIDA (dirty flag orqali). Qaytaradi: log yozildimi.</summary>
+    /// <summary>Bitta raqamga SMS yuboradi (provider bo'yicha — eskiz|local) va jurnalga (SmsLog + SmsBatch)
+    /// yozadi. SaveChanges CHAQIRUVCHIDA (dirty flag orqali). Har doim true qaytaradi — yozuv muvaffaqiyat/
+    /// muvaffaqiyatsizlikdan qat'i nazar amalga oshadi (natija SmsLog.Status'da ko'rinadi).</summary>
     private async Task<bool> SendSmsAsync(
-        IAppDbContext db, string trigger, string phone, string recipientName,
+        IAppDbContext db, string trigger, string provider, string phone, string recipientName,
         string templateText, string message, CancellationToken ct)
     {
-        var batchId = Guid.NewGuid().ToString();
-        var r = await eskiz.SendSmsAsync(db, phone, message, callbackUrl: null, ct);
         var label = AutoMessageTriggers.Get(trigger)?.Label ?? "Avto";
-        db.SmsLogs.Add(new SmsLog
-        {
-            BatchId = batchId, PhoneNumber = EskizService.NormalizePhone(phone), RecipientName = recipientName,
-            Message = message, RequestId = r.RequestId, Status = r.Ok ? r.Status : (r.Error ?? "error"),
-        });
-        db.SmsBatches.Add(new SmsBatch
-        {
-            Id = batchId, Audience = $"Avto ({label}): {recipientName}", Message = templateText,
-            SenderUserId = "", SenderName = "Avto xabar", CreatedAt = AppClock.Now,
-            RecipientCount = 1, SentCount = r.Ok ? 1 : 0,
-        });
+        await AutoMessageSmsSender.SendAsync(
+            db, eskiz, ctiSms, provider, phone, recipientName, message, label, ct, batchMessage: templateText);
         return true;
     }
 }

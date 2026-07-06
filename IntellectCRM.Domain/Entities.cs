@@ -983,6 +983,14 @@ public class CenterMeta
     /// <summary>To'lov cheki (termal kvitansiya) sozlamalari — JSON. Qaysi maydonlar ko'rinishi,
     /// sarlavha (logotip/nom), pastki izoh (footer), aloqa/QR. Bo'sh = standart shablon.</summary>
     public string CheckSettings { get; set; } = string.Empty;
+
+    // ---------- Local SMS (CTI agent telefonining SIM-kartasidan) ----------
+    /// <summary>Local SMS (Eskiz o'rniga agent telefonidan) yoqilganmi. Yoqilmagan bo'lsa provider
+    /// tanlovi qanday bo'lishidan qat'i nazar Eskiz'ga tushadi.</summary>
+    public bool LocalSmsEnabled { get; set; }
+    /// <summary>Standart Local SMS agenti (CtiAgent.Id) — provider=local tanlanganda aniq agent
+    /// ko'rsatilmasa (yoki avtomatik/fon xabarlarda) shu ishlatiladi.</summary>
+    public string? LocalSmsDefaultAgentId { get; set; }
 }
 
 /// <summary>Avto-xabar qoidasi — hodisa (Trigger) yuz berganda tanlangan kanallar orqali
@@ -998,6 +1006,10 @@ public class AutoMessageRule
     public bool SendSms { get; set; }
     public bool SendPush { get; set; }
     public bool SendTelegram { get; set; }
+    /// <summary>SMS qaysi orqali yuborilsin: "eskiz" (default) | "local" (CTI agent telefonidan,
+    /// CenterMeta.LocalSmsDefaultAgentId orqali — qoida avtomatik ishga tushgani uchun agent
+    /// tanlanmaydi, doim standart agent ishlatiladi).</summary>
+    public string SmsProvider { get; set; } = "eskiz";
     public string Audience { get; set; } = "parents";     // parents|students|teachers
     public string Template { get; set; } = string.Empty;  // {ism} {fish} kabi tokenlar bilan
     public int OffsetMinutes { get; set; } = 5;           // lesson_attendance uchun
@@ -1736,6 +1748,9 @@ public class SmsBatch
     public int RecipientCount { get; set; }
     /// <summary>Eskiz qabul qilgan (yuborishga ketgan) soni.</summary>
     public int SentCount { get; set; }
+    /// <summary>Yuborish manbai: "eskiz" (default) | "local" (CTI agent telefonidan). Butun partiya
+    /// bitta provider orqali yuboriladi (provider tanlovi bitta yuborish amalida bir marta qilinadi).</summary>
+    public string Provider { get; set; } = "eskiz";
 }
 
 /// <summary>
@@ -1769,8 +1784,13 @@ public class SmsLog
     public string Message { get; set; } = string.Empty;
     /// <summary>Eskiz qaytargan so'rov identifikatori (UUID) — callback shu bo'yicha topadi.</summary>
     public string RequestId { get; set; } = string.Empty;
-    /// <summary>Holat: waiting | NEW | ACCEPTED | DELIVRD | UNDELIV | REJECTD | EXPIRED | error | ...</summary>
+    /// <summary>Holat: waiting | NEW | ACCEPTED | DELIVRD | UNDELIV | REJECTD | EXPIRED | error | ...
+    /// (provider=local uchun granular yetkazish holati yo'q — "yuborildi"/"yetkazilmadi").</summary>
     public string Status { get; set; } = string.Empty;
+    /// <summary>Yuborish manbai: "eskiz" (default) | "local" (CTI agent telefonidan).</summary>
+    public string Provider { get; set; } = "eskiz";
+    /// <summary>Provider=local bo'lsa — qaysi agent (CtiAgent.Id) orqali yuborilgani.</summary>
+    public string? AgentId { get; set; }
     public DateTime CreatedAt { get; set; } = AppClock.Now;
     public DateTime UpdatedAt { get; set; } = AppClock.Now;
 }

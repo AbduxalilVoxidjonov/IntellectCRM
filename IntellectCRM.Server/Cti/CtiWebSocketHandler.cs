@@ -2,6 +2,7 @@ using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using IntellectCRM.Application.Services;
 using IntellectCRM.Domain;
 using IntellectCRM.Infrastructure.Data;
 

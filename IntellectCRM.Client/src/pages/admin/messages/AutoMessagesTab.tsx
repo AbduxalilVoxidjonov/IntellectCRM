@@ -21,6 +21,7 @@ import { Select } from '@/components/ui/Input'
 import { cn } from '@/lib/utils'
 import { CHANNEL_LIST, type ChannelKey } from '@/config/channels'
 import { MessageEditor } from '@/components/messaging/MessageEditor'
+import { SmsProviderPicker } from '@/components/messaging/SmsProviderPicker'
 
 type Ch = ChannelKey
 
@@ -114,6 +115,7 @@ export function AutoMessagesTab({ highlightRuleId }: { highlightRuleId?: string 
     scheduleType: t.supportsSchedule ? 'daily' : '',
     scheduleTime: t.supportsSchedule ? '09:00' : '',
     scheduleDayOfMonth: 1,
+    smsProvider: 'eskiz',
   })
 
   const addRule = async (t: AutoMessageTrigger) => {
@@ -395,6 +397,16 @@ function RuleCard({
               })}
             </div>
           </div>
+
+          {draft.sendSms && (
+            <SmsProviderPicker
+              provider={draft.smsProvider === 'local' ? 'local' : 'eskiz'}
+              onProviderChange={(p) => set('smsProvider', p)}
+              agentId=""
+              onAgentChange={() => {}}
+              allowAgentOverride={false}
+            />
+          )}
 
           {/* Auditoriya */}
           {trigger.audiences.length > 0 && (

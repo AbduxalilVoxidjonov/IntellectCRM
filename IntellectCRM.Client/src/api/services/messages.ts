@@ -153,6 +153,8 @@ export interface SmsBatch {
   createdAt: string
   recipientCount: number
   sentCount: number
+  /** Yuborish manbai: "eskiz" (default) | "local" (CTI agent telefonidan). */
+  provider: string
 }
 export interface SmsLog {
   id: string
@@ -160,7 +162,11 @@ export interface SmsLog {
   recipientName: string
   status: string
   createdAt: string
+  /** Yuborish manbai: "eskiz" (default) | "local" (CTI agent telefonidan). */
+  provider: string
 }
+/** SMS qaysi orqali yuborilsin — Eskiz (standart) yoki Local Call agent telefonidan (SIM). */
+export type SmsProvider = 'eskiz' | 'local'
 export interface SendSmsReq {
   /** Kimga: ota-onalar / o'quvchilar / o'qituvchilar / tanlangan (studentIds/teacherIds) */
   audience: 'parents' | 'students' | 'teachers' | 'selected'
@@ -174,12 +180,22 @@ export interface SendSmsReq {
   /** selected uchun: ota-ona (true) yoki o'quvchi (false) raqamiga */
   toParent?: boolean
   text: string
+  /** Yuborish manbai — bo'sh bo'lsa "eskiz". */
+  provider?: SmsProvider
+  /** provider="local" bo'lsa — aniq agent (bo'sh — Sozlamalardagi standart agent). */
+  agentId?: string
 }
 
-/** SMS (Eskiz) sozlanganmi + sender */
-export async function getSmsStatus(): Promise<{ configured: boolean; from: string }> {
-  if (USE_MOCK) return { configured: false, from: '4546' }
-  const { data } = await api.get<{ configured: boolean; from: string }>('/admin/messages/sms/status')
+/** SMS holati: Eskiz sozlanganmi + sender, Local SMS yoqilganmi + standart agent. */
+export interface SmsStatus {
+  configured: boolean
+  from: string
+  localEnabled: boolean
+  localDefaultAgentId: string | null
+}
+export async function getSmsStatus(): Promise<SmsStatus> {
+  if (USE_MOCK) return { configured: false, from: '4546', localEnabled: false, localDefaultAgentId: null }
+  const { data } = await api.get<SmsStatus>('/admin/messages/sms/status')
   return data
 }
 
@@ -274,9 +290,17 @@ export async function deleteSmsTemplate(id: string): Promise<void> {
   await api.delete(`/admin/messages/sms/templates/${id}`)
 }
 
+/** provider="local" bo'lganda qaysi agent orqali yuborilsin (bo'sh — Sozlamalardagi standart agent). */
+export interface SmsProviderOpts {
+  provider?: SmsProvider
+  agentId?: string
+}
+
 /** Lidga SMS yuborish (lid telefon raqamiga). */
-export async function sendLeadSms(leadId: string, text: string): Promise<SmsBatch> {
-  const { data } = await api.post<SmsBatch>('/admin/messages/sms/lead', { leadId, text })
+export async function sendLeadSms(leadId: string, text: string, opts: SmsProviderOpts = {}): Promise<SmsBatch> {
+  const { data } = await api.post<SmsBatch>('/admin/messages/sms/lead', {
+    leadId, text, provider: opts.provider, agentId: opts.agentId,
+  })
   return data
 }
 
@@ -287,10 +311,14 @@ export interface LeadBulkSmsResult {
   noPhone: number
 }
 /** Bir nechta lidga SMS yuborish (har biriga o'z raqamiga, tokenlar lidga moslab to'ldiriladi). */
-export async function sendLeadSmsBulk(leadIds: string[], text: string): Promise<LeadBulkSmsResult> {
+export async function sendLeadSmsBulk(
+  leadIds: string[], text: string, opts: SmsProviderOpts = {},
+): Promise<LeadBulkSmsResult> {
   const { data } = await api.post<LeadBulkSmsResult>('/admin/messages/sms/lead-bulk', {
     leadIds,
     text,
+    provider: opts.provider,
+    agentId: opts.agentId,
   })
   return data
 }

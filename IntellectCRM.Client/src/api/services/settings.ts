@@ -285,6 +285,27 @@ export async function saveEskizSettings(input: {
   return data
 }
 
+/* ---------- Local SMS (CTI agent telefonining SIM-kartasidan) ---------- */
+export interface LocalSmsConfig {
+  enabled: boolean
+  defaultAgentId: string | null
+}
+export async function getLocalSmsSettings(): Promise<LocalSmsConfig> {
+  if (USE_MOCK) {
+    await delay()
+    return { enabled: false, defaultAgentId: null }
+  }
+  const { data } = await api.get<LocalSmsConfig>('/admin/settings/local-sms')
+  return data
+}
+export async function saveLocalSmsSettings(input: {
+  enabled: boolean
+  defaultAgentId?: string | null
+}): Promise<LocalSmsConfig> {
+  const { data } = await api.put<LocalSmsConfig>('/admin/settings/local-sms', input)
+  return data
+}
+
 /* ---------- Turniket / FaceID integratsiyasi ---------- */
 
 export interface TeacherDeviceMap {

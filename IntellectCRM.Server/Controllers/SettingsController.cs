@@ -306,6 +306,30 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
         return new EskizSettingsDto(eskiz.DisplayEmail(m), eskiz.SenderOf(m), eskiz.IsConfigured(m), balance);
     }
 
+    // ---------- Local SMS (CTI agent telefonining SIM-kartasidan) ----------
+
+    [HttpGet("local-sms")]
+    public async Task<ActionResult<LocalSmsSettingsDto>> GetLocalSms()
+    {
+        var m = await db.CenterMeta.FirstOrDefaultAsync();
+        return new LocalSmsSettingsDto(m?.LocalSmsEnabled ?? false, m?.LocalSmsDefaultAgentId);
+    }
+
+    [HttpPut("local-sms")]
+    public async Task<ActionResult<LocalSmsSettingsDto>> SaveLocalSms(SaveLocalSmsRequest req)
+    {
+        if (!string.IsNullOrWhiteSpace(req.DefaultAgentId)
+            && await db.CtiAgents.FindAsync(req.DefaultAgentId) is null)
+            return BadRequest(new { message = "Tanlangan agent topilmadi" });
+
+        var m = await db.CenterMeta.FirstOrDefaultAsync();
+        if (m is null) { m = new CenterMeta(); db.CenterMeta.Add(m); }
+        m.LocalSmsEnabled = req.Enabled;
+        m.LocalSmsDefaultAgentId = string.IsNullOrWhiteSpace(req.DefaultAgentId) ? null : req.DefaultAgentId;
+        await db.SaveChangesAsync();
+        return new LocalSmsSettingsDto(m.LocalSmsEnabled, m.LocalSmsDefaultAgentId);
+    }
+
     // ---------- Ilova (APK) — Telegram bot ro'yxatdan o'tganga yuboradi ----------
 
     private const long MaxApkBytes = 50_000_000; // Telegram bot sendDocument chegarasi ~50 MB

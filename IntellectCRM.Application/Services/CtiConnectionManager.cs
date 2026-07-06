@@ -3,12 +3,13 @@ using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
 
-namespace IntellectCRM.Server.Cti;
+namespace IntellectCRM.Application.Services;
 
 /// <summary>
 /// CTI (Local Call) agent WebSocket ulanishlarini boshqaruvchi (singleton). Har agent (telefon)
 /// bittadan jonli ulanishga ega — eski ulanish bo'lsa yopib almashtiriladi. Server→ilova buyruqlari
-/// (masalan click-to-call <c>dial</c>) shu yerdan yuboriladi.
+/// (masalan click-to-call <c>dial</c>, <c>send_sms</c>) shu yerdan yuboriladi. Application qatlamida
+/// (Server emas) — chunki AutoMessageService kabi Application xizmatlari ham Local SMS yuborishi kerak.
 /// </summary>
 public class CtiConnectionManager
 {

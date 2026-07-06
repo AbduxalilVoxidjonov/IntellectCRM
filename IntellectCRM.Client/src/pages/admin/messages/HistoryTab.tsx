@@ -31,12 +31,14 @@ interface HistItem {
   /** Push: tasdiqlash uchun */
   targetCount?: number
   confirmedCount?: number
+  /** SMS uchun: yuborish manbai ("eskiz" | "local"). */
+  provider?: string
 }
 
 /** SMS holatini guruhlaydi. */
 function statusInfo(status: string): { label: string; tone: 'green' | 'amber' | 'red' } {
   const s = (status || '').toUpperCase()
-  if (s === 'DELIVRD' || s === 'DELIVERED') return { label: 'Yetkazildi', tone: 'green' }
+  if (s === 'DELIVRD' || s === 'DELIVERED' || s === 'YUBORILDI') return { label: 'Yetkazildi', tone: 'green' }
   if (s === 'WAITING' || s === 'NEW' || s === 'ACCEPTED' || s === 'STORED')
     return { label: 'Kutilmoqda', tone: 'amber' }
   return { label: 'Yetkazilmadi', tone: 'red' }
@@ -49,6 +51,8 @@ export function HistoryTab() {
   const [openKey, setOpenKey] = useState<string | null>(null)
   /** Kanal filtri: null = Hammasi. */
   const [chFilter, setChFilter] = useState<Ch | null>(null)
+  /** SMS tanlanganda — manba bo'yicha filtr (Eskiz/Local). */
+  const [providerFilter, setProviderFilter] = useState<'all' | 'eskiz' | 'local'>('all')
 
   useEffect(() => {
     Promise.all([
@@ -90,6 +94,7 @@ export function HistoryTab() {
             createdAt: s.createdAt,
             sentCount: s.sentCount,
             recipientCount: s.recipientCount,
+            provider: s.provider,
           })),
         ]
         list.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
@@ -100,7 +105,9 @@ export function HistoryTab() {
 
   if (loading) return <Loader label="Yuklanmoqda..." />
 
-  const visible = chFilter ? items.filter((it) => it.channel === chFilter) : items
+  const visible = (chFilter ? items.filter((it) => it.channel === chFilter) : items).filter(
+    (it) => it.channel !== 'sms' || providerFilter === 'all' || (it.provider ?? 'eskiz') === providerFilter,
+  )
 
   return (
     <Card title="Yuborilgan xabarlar" sub="SMS, Telegram va Push — birlashgan tarix">
@@ -124,6 +131,32 @@ export function HistoryTab() {
           </button>
         ))}
       </div>
+
+      {chFilter === 'sms' && (
+        <div className="tabs mb-3 inline-flex">
+          <button
+            type="button"
+            onClick={() => setProviderFilter('all')}
+            className={cn('tab', providerFilter === 'all' && 'active')}
+          >
+            Manba: hammasi
+          </button>
+          <button
+            type="button"
+            onClick={() => setProviderFilter('eskiz')}
+            className={cn('tab', providerFilter === 'eskiz' && 'active')}
+          >
+            Eskiz
+          </button>
+          <button
+            type="button"
+            onClick={() => setProviderFilter('local')}
+            className={cn('tab', providerFilter === 'local' && 'active')}
+          >
+            Local
+          </button>
+        </div>
+      )}
 
       {visible.length === 0 ? (
         <div className="py-10 text-center">
@@ -168,6 +201,11 @@ function HistoryRow({
         <Badge tone={meta.tone}>
           <Icon className="h-3 w-3" /> {meta.label}
         </Badge>
+        {item.channel === 'sms' && (
+          <Badge tone={item.provider === 'local' ? 'blue' : 'default'}>
+            {item.provider === 'local' ? 'Local' : 'Eskiz'}
+          </Badge>
+        )}
         {item.audience && <Badge>{item.audience}</Badge>}
         <span className="ml-auto font-mono text-xs text-slate-400">{formatDate(item.createdAt)}</span>
       </div>

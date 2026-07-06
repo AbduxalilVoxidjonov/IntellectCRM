@@ -100,6 +100,7 @@ public class AutoMessagesController(AppDbContext db) : ControllerBase
         rule.ScheduleType = req.ScheduleType == "monthly" ? "monthly" : "daily";
         rule.ScheduleTime = req.ScheduleTime;
         rule.ScheduleDayOfMonth = req.ScheduleDayOfMonth is >= 1 and <= 31 ? req.ScheduleDayOfMonth : 1;
+        rule.SmsProvider = req.SmsProvider == "local" ? "local" : "eskiz";
     }
 
     private static string? Validate(SaveAutoMessageRuleRequest req, AutoMessageTriggers.TriggerInfo? info)
@@ -137,5 +138,5 @@ public class AutoMessagesController(AppDbContext db) : ControllerBase
     private static AutoMessageRuleDto ToDto(AutoMessageRule r) =>
         new(r.Id, r.Trigger, r.Name, r.Enabled, r.SendSms, r.SendPush, r.SendTelegram, r.Audience, r.Template,
             r.OffsetMinutes, r.SendScope, r.ScheduleType, r.ScheduleTime, r.ScheduleDayOfMonth,
-            r.CreatedAt.ToString("o"));
+            r.CreatedAt.ToString("o"), r.SmsProvider);
 }

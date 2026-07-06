@@ -5,6 +5,7 @@ import {
   getSmsStatus,
   getSmsTemplates,
   sendLeadSmsBulk,
+  type SmsProvider,
   type SmsTemplate,
   type LeadBulkSmsResult,
 } from '@/api/services/messages'
@@ -12,6 +13,7 @@ import { getMessageTokens } from '@/api/services/autoMessages'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { MessageEditor, type TokenDef } from '@/components/messaging/MessageEditor'
+import { SmsProviderPicker } from '@/components/messaging/SmsProviderPicker'
 import { cn } from '@/lib/utils'
 
 interface Props {
@@ -29,6 +31,8 @@ export function LeadBulkSmsModal({ open, onClose, leads, stages }: Props) {
   const [selStages, setSelStages] = useState<Set<string>>(new Set())
   const [allStages, setAllStages] = useState(true)
   const [text, setText] = useState('')
+  const [provider, setProvider] = useState<SmsProvider>('eskiz')
+  const [agentId, setAgentId] = useState('')
   const [configured, setConfigured] = useState(true)
   const [templates, setTemplates] = useState<SmsTemplate[]>([])
   const [tokens, setTokens] = useState<TokenDef[]>([])
@@ -42,6 +46,8 @@ export function LeadBulkSmsModal({ open, onClose, leads, stages }: Props) {
     setSelStages(new Set())
     setAllStages(true)
     setText('')
+    setProvider('eskiz')
+    setAgentId('')
     setResult(null)
     setError('')
     setSending(false)
@@ -92,7 +98,7 @@ export function LeadBulkSmsModal({ open, onClose, leads, stages }: Props) {
     setResult(null)
     setError('')
     try {
-      const r = await sendLeadSmsBulk(targets.map((l) => l.id), text.trim())
+      const r = await sendLeadSmsBulk(targets.map((l) => l.id), text.trim(), { provider, agentId: agentId || undefined })
       setResult(r)
     } catch (e) {
       setError(
@@ -123,7 +129,7 @@ export function LeadBulkSmsModal({ open, onClose, leads, stages }: Props) {
       }
     >
       <div className="space-y-4">
-        {!configured && (
+        {!configured && provider === 'eskiz' && (
           <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
             <p>SMS (Eskiz) sozlanmagan. "Sozlamalar → Xabar kanallari"da login/parol kiriting.</p>
@@ -170,6 +176,13 @@ export function LeadBulkSmsModal({ open, onClose, leads, stages }: Props) {
             <b className={withPhone === 0 ? 'text-red-500' : 'text-emerald-600'}>{withPhone}</b>
           </p>
         </div>
+
+        <SmsProviderPicker
+          provider={provider}
+          onProviderChange={setProvider}
+          agentId={agentId}
+          onAgentChange={setAgentId}
+        />
 
         {/* Matn */}
         <MessageEditor
