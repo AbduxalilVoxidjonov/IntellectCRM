@@ -44,6 +44,7 @@ public interface IAppDbContext
     DbSet<PushMessage> PushMessages { get; }
     DbSet<TelegramRegistration> TelegramRegistrations { get; }
     DbSet<BotUser> BotUsers { get; }
+    DbSet<TelegramGroup> TelegramGroups { get; }
     DbSet<BotSupportMessage> BotSupportMessages { get; }
     DbSet<Assignment> Assignments { get; }
     DbSet<AssignmentType> AssignmentTypes { get; }

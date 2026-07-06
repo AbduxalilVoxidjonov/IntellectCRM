@@ -222,7 +222,7 @@ public class TelegramService(
     public async Task<JsonElement?> GetUpdatesAsync(long offset, int timeoutSec, CancellationToken ct = default)
     {
         if (!IsConfigured) return null;
-        var url = $"{ApiBase}/getUpdates?offset={offset}&timeout={timeoutSec}&allowed_updates=%5B%22message%22%2C%22callback_query%22%5D";
+        var url = $"{ApiBase}/getUpdates?offset={offset}&timeout={timeoutSec}&allowed_updates=%5B%22message%22%2C%22callback_query%22%2C%22my_chat_member%22%5D";
         var resp = await Client().GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
         if (!resp.IsSuccessStatusCode) return null;
         await using var stream = await resp.Content.ReadAsStreamAsync(ct);

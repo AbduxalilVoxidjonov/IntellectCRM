@@ -68,6 +68,7 @@ public static class BackupService
         await Add("broadcasts", db.Broadcasts);
         await Add("pushMessages", db.PushMessages);
         await Add("telegramRegistrations", db.TelegramRegistrations);
+        await Add("telegramGroups", db.TelegramGroups);
         await Add("userNotifications", db.UserNotifications);
         await Add("deviceTokens", db.DeviceTokens);
         await Add("feedbacks", db.Feedbacks);

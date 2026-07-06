@@ -87,6 +87,13 @@ public class TelegramBotService(
             return;
         }
 
+        // Botning guruh a'zoligi o'zgargani — lid avtomatik yuboriladigan guruhlar ro'yxatini yangilaymiz.
+        if (upd.TryGetProperty("my_chat_member", out var mcm))
+        {
+            await HandleMyChatMemberAsync(mcm, ct);
+            return;
+        }
+
         if (!upd.TryGetProperty("message", out var msg)) return;
         if (!msg.TryGetProperty("chat", out var chat) || !chat.TryGetProperty("id", out var chatIdEl)) return;
         var chatId = chatIdEl.GetInt64();
@@ -132,6 +139,58 @@ public class TelegramBotService(
                     $"Administratorga murojaat uchun «{SupportButtonText}» tugmasini bosing.",
                     ContactKeyboard, ct);
             }
+        }
+    }
+
+    /// <summary>Botning guruh a'zoligi o'zgargani (<c>my_chat_member</c>): guruhga qo'shilsa lid-xabar
+    /// ro'yxatiga yozadi (va bir marta tasdiq yuboradi), chiqarilsa IsActive=false. Shaxsiy chatlar e'tiborsiz.</summary>
+    private async Task HandleMyChatMemberAsync(JsonElement mcm, CancellationToken ct)
+    {
+        try
+        {
+            if (!mcm.TryGetProperty("chat", out var chat) || !chat.TryGetProperty("id", out var chatIdEl)) return;
+            var chatType = chat.TryGetProperty("type", out var typeEl) ? typeEl.GetString() ?? "" : "";
+            if (chatType is not ("group" or "supergroup")) return; // faqat guruhlar (shaxsiy/kanal emas)
+            var chatId = chatIdEl.GetInt64();
+            var title = chat.TryGetProperty("title", out var tEl) ? tEl.GetString() ?? "" : "";
+
+            var status = mcm.TryGetProperty("new_chat_member", out var ncm) && ncm.TryGetProperty("status", out var stEl)
+                ? stEl.GetString() ?? "" : "";
+            var joined = status is "member" or "administrator" or "creator";
+
+            using var scope = sp.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
+            var group = await db.TelegramGroups.FirstOrDefaultAsync(g => g.ChatId == chatId, ct);
+
+            if (joined)
+            {
+                if (group is null)
+                {
+                    db.TelegramGroups.Add(new TelegramGroup { ChatId = chatId, Title = title, IsActive = true });
+                    await db.SaveChangesAsync(ct);
+                    await telegram.SendMessageAsync(chatId,
+                        "✅ Bot ulandi. Endi yangi lidlar avtomatik shu guruhga yuboriladi.", null, ct);
+                }
+                else
+                {
+                    var wasInactive = !group.IsActive;
+                    group.IsActive = true;
+                    if (title.Length > 0) group.Title = title;
+                    await db.SaveChangesAsync(ct);
+                    if (wasInactive)
+                        await telegram.SendMessageAsync(chatId,
+                            "✅ Bot qayta ulandi. Yangi lidlar shu guruhga yuboriladi.", null, ct);
+                }
+            }
+            else if (group is not null && group.IsActive) // left / kicked / restricted
+            {
+                group.IsActive = false;
+                await db.SaveChangesAsync(ct);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "my_chat_member ishlovida xato");
         }
     }
 

@@ -24,7 +24,10 @@ public static class LeadNotifier
 
             var regs = await db.TelegramRegistrations
                 .Where(r => r.UserId != null && r.UserId != "").ToListAsync(ct);
-            if (regs.Count == 0) return;
+            // Bot qo'shilgan (faol) guruhlar — yangi lid avtomatik shu yerga ham yuboriladi.
+            var groupChatIds = await db.TelegramGroups
+                .Where(g => g.IsActive).Select(g => g.ChatId).ToListAsync(ct);
+            if (regs.Count == 0 && groupChatIds.Count == 0) return;
 
             var userIds = regs.Select(r => r.UserId!).Distinct().ToList();
             var users = (await db.Users.Where(u => userIds.Contains(u.Id)).ToListAsync(ct))
@@ -37,6 +40,12 @@ public static class LeadNotifier
                 if (!users.TryGetValue(r.UserId!, out var u) || !ShouldNotify(u)) continue;
                 if (!sentChats.Add(r.ChatId)) continue; // bir chatga bir marta
                 await telegram.SendMessageAsync(r.ChatId, text, ct: ct);
+            }
+            // Guruhlarga yuborish.
+            foreach (var gid in groupChatIds)
+            {
+                if (!sentChats.Add(gid)) continue; // bir chatga bir marta
+                await telegram.SendMessageAsync(gid, text, ct: ct);
             }
         }
         catch

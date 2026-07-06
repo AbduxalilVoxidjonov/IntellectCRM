@@ -1142,6 +1142,22 @@ public class BotUser
     public int AdminUnread { get; set; }
 }
 
+/// <summary>
+/// Bot QO'SHILGAN Telegram guruh(super-guruh)i — yangi lidlar shu yerga avtomatik yuboriladi.
+/// Bot guruhga qo'shilganda (<c>my_chat_member</c> yangilanishi) yoziladi, chiqarilganda IsActive=false.
+/// </summary>
+public class TelegramGroup
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    /// <summary>Guruh chat id'si (guruhlar uchun manfiy) — unikal.</summary>
+    public long ChatId { get; set; }
+    /// <summary>Guruh nomi (ko'rsatish uchun).</summary>
+    public string Title { get; set; } = string.Empty;
+    /// <summary>Bot hozir shu guruh a'zosimi — chiqarilsa false (xabar yuborilmaydi).</summary>
+    public bool IsActive { get; set; } = true;
+    public DateTime AddedAt { get; set; } = AppClock.Now;
+}
+
 /// <summary>Telegram bot foydalanuvchisi ↔ admin support yozishmasidagi bitta xabar.</summary>
 public class BotSupportMessage
 {
