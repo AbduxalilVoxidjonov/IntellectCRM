@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ChevronDown, Smartphone, Bell, MessageCircle, History, Check } from 'lucide-react'
+import { ChevronDown, History, Check } from 'lucide-react'
 import {
   getBroadcasts,
   getPushMessages,
@@ -13,8 +13,9 @@ import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Loader } from '@/components/ui/Loader'
 import { cn, formatDate } from '@/lib/utils'
+import { CHANNELS, CHANNEL_ORDER, type ChannelKey } from '@/config/channels'
 
-type Ch = 'telegram' | 'push' | 'sms'
+type Ch = ChannelKey
 
 /** Birlashgan tarix yozuvi (uchala kanaldan). */
 interface HistItem {
@@ -32,12 +33,6 @@ interface HistItem {
   confirmedCount?: number
 }
 
-const CH_META: Record<Ch, { label: string; icon: typeof Smartphone; tone: 'blue' | 'green' | 'violet' }> = {
-  telegram: { label: 'Telegram', icon: MessageCircle, tone: 'blue' },
-  push: { label: 'Push', icon: Bell, tone: 'violet' },
-  sms: { label: 'SMS', icon: Smartphone, tone: 'green' },
-}
-
 /** SMS holatini guruhlaydi. */
 function statusInfo(status: string): { label: string; tone: 'green' | 'amber' | 'red' } {
   const s = (status || '').toUpperCase()
@@ -52,6 +47,8 @@ export function HistoryTab() {
   const [items, setItems] = useState<HistItem[]>([])
   const [loading, setLoading] = useState(true)
   const [openKey, setOpenKey] = useState<string | null>(null)
+  /** Kanal filtri: null = Hammasi. */
+  const [chFilter, setChFilter] = useState<Ch | null>(null)
 
   useEffect(() => {
     Promise.all([
@@ -103,16 +100,41 @@ export function HistoryTab() {
 
   if (loading) return <Loader label="Yuklanmoqda..." />
 
+  const visible = chFilter ? items.filter((it) => it.channel === chFilter) : items
+
   return (
-    <Card title="Yuborilgan xabarlar" sub="Telegram, Push va SMS — birlashgan tarix">
-      {items.length === 0 ? (
+    <Card title="Yuborilgan xabarlar" sub="SMS, Telegram va Push — birlashgan tarix">
+      {/* Kanal filtri */}
+      <div className="tabs mb-3 inline-flex">
+        <button
+          type="button"
+          onClick={() => setChFilter(null)}
+          className={cn('tab', chFilter === null && 'active')}
+        >
+          Hammasi
+        </button>
+        {CHANNEL_ORDER.map((k) => (
+          <button
+            key={k}
+            type="button"
+            onClick={() => setChFilter(k)}
+            className={cn('tab', chFilter === k && 'active')}
+          >
+            {CHANNELS[k].label}
+          </button>
+        ))}
+      </div>
+
+      {visible.length === 0 ? (
         <div className="py-10 text-center">
           <History className="mx-auto mb-2 h-6 w-6 text-slate-300" />
-          <p className="text-sm text-slate-400">Hali xabar yuborilmagan</p>
+          <p className="text-sm text-slate-400">
+            {chFilter ? `${CHANNELS[chFilter].label} bo'yicha xabar topilmadi` : 'Hali xabar yuborilmagan'}
+          </p>
         </div>
       ) : (
         <div className="space-y-2.5">
-          {items.map((it) => (
+          {visible.map((it) => (
             <HistoryRow
               key={it.key}
               item={it}
@@ -135,7 +157,7 @@ function HistoryRow({
   open: boolean
   onToggle: () => void
 }) {
-  const meta = CH_META[item.channel]
+  const meta = CHANNELS[item.channel]
   const Icon = meta.icon
   // Kengaytiriladigan detali bormi (SMS loglari yoki Push tasdiqlari)
   const expandable = item.channel === 'sms' || (item.channel === 'push' && (item.targetCount ?? 0) > 0)

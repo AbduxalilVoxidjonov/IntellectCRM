@@ -11,7 +11,7 @@ namespace IntellectCRM.Application.Services;
 /// "Erkin eslatma" (fon xizmati) — admin Sozlamalar → Eslatmalarda o'zi yozgan matn, tanlagan
 /// auditoriya (o'qituvchilar yoki o'quvchilar/ota-onalar) va jadval (har kuni yoki oyning muayyan
 /// kunida, belgilangan soatda) bo'yicha push (FCM) + Telegram orqali avtomatik yuboriladigan qoida
-/// (<see cref="ReminderRule"/>, Trigger==<see cref="ReminderTriggers.CustomSchedule"/>).
+/// (<see cref="IntellectCRM.Domain.AutoMessageRule"/>, Trigger==<see cref="AutoMessageTriggers.CustomSchedule"/>).
 ///
 /// Jadval aniq daqiqa talab qilgani uchun sikl HAR 1 DAQIQADA uyg'onadi; bitta qoida bitta kunga bir
 /// marta yuborilishi uchun xotirada (ruleId, sana) kaliti bilan "yuborildi" belgisi saqlanadi.

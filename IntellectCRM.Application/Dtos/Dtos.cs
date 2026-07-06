@@ -212,29 +212,19 @@ public record SaveCameraRequest(
 /// <summary>Kamera integratsiya sozlamasi.</summary>
 public record CameraSettingsDto(bool Enabled, int CameraCount);
 public record SaveCameraSettingsRequest(bool Enabled);
-/// <summary>"Eslatmalar" (Sozlamalar → Eslatmalar) katalogidagi bitta tur (masalan "payment_debt").</summary>
-public record ReminderTriggerInfoDto(
-    string Key, string Label, string Description, bool SupportsTemplate, bool SupportsOffset,
-    bool SupportsAudience, bool SupportsSchedule, bool SupportsSendScope, string[] Tokens);
-public record ReminderRuleDto(
-    string Id, string Trigger, string Name, bool Enabled, string MessageTemplate, int OffsetMinutes,
-    string SendScope, string Audience, string ScheduleType, string ScheduleTime, int ScheduleDayOfMonth,
-    string CreatedAt);
-/// <summary>Eslatma qoidasini saqlash (yaratish/tahrirlash).</summary>
-public record SaveReminderRuleRequest(
-    string Trigger, string Name, bool Enabled, string MessageTemplate, int OffsetMinutes,
-    string Audience, string ScheduleType, string ScheduleTime, int ScheduleDayOfMonth,
-    string SendScope = "");
 
 /* ---------- Avto xabarlar (yagona SMS+Push+Telegram model) — Xabarlar → Avto xabarlar ---------- */
 
 /// <summary>Qaysi kanallar shu hodisada mavjud (frontend faqat shu toggle'larni ko'rsatadi).</summary>
 public record AutoMessageChannelsDto(bool Sms, bool Push, bool Telegram);
-/// <summary>Avto-xabar hodisasi katalogidagi bitta yozuv (frontend forma shundan quriladi).</summary>
+/// <summary>Avto-xabar hodisasi katalogidagi bitta yozuv (frontend forma shundan quriladi).
+/// Category — guruhlash toifasi ("Lidlar" | "O'quv jarayoni" | "Moliya" | "Boshqa").</summary>
 public record AutoMessageTriggerInfoDto(
     string Key, string Label, string Description, string[] Tokens, AutoMessageChannelsDto Channels,
     bool SupportsSchedule, bool SupportsSendScope, string[] Audiences, string DefaultAudience,
-    string DefaultTemplate);
+    string DefaultTemplate, string Category);
+/// <summary>Xabar {token}i katalogdagi bitta yozuv. Group: "student" | "lead" | "common" | "event".</summary>
+public record MessageTokenDto(string Token, string Label, string Group);
 /// <summary>Avto-xabar qoidasi (o'qish uchun).</summary>
 public record AutoMessageRuleDto(
     string Id, string Trigger, string Name, bool Enabled,
@@ -1102,12 +1092,16 @@ public record SmsBatchDto(
 public record SmsLogDto(string Id, string PhoneNumber, string RecipientName, string Status, string CreatedAt);
 /// <summary>SMS (Eskiz) holati — admin UI uchun: sozlangan, sender, balans (bo'lsa).</summary>
 public record SmsStatusDto(bool Configured, string From, decimal? Balance);
-/// <summary>SMS andozasi (shablon). IsAuto — yangi lidga avto yuborish uchun belgilangan.</summary>
-public record SmsTemplateDto(string Id, string Name, string Text, bool IsAuto, string Trigger, int Order);
+/// <summary>SMS andozasi (shablon) — faqat QO'LDA yuborish uchun (avto-hodisalar AutoMessageRule'da).</summary>
+public record SmsTemplateDto(string Id, string Name, string Text, int Order);
 /// <summary>SMS andozasini saqlash (yaratish/tahrirlash).</summary>
-public record SaveSmsTemplateRequest(string Name, string Text, bool IsAuto = false, string? Trigger = null);
+public record SaveSmsTemplateRequest(string Name, string Text);
 /// <summary>Lidga SMS yuborish so'rovi (lid telefon raqamiga).</summary>
 public record SendLeadSmsRequest(string LeadId, string Text);
+/// <summary>Bir nechta lidga birdan SMS yuborish so'rovi.</summary>
+public record SendLeadBulkSmsRequest(List<string> LeadIds, string Text);
+/// <summary>Ommaviy lid SMS natijasi: yuborildi / xato / raqamsiz lidlar soni.</summary>
+public record LeadBulkSmsResultDto(int Sent, int Failed, int NoPhone);
 /// <summary>Eskiz callback (yetkazib berish holati webhook'i) tanasi.</summary>
 public record EskizCallbackDto(string? request_id, string? message_id, string? phone_number, string? status, string? status_date);
 /// <summary>SMS (Eskiz) sozlamasi holati — parol qaytarilmaydi.</summary>
@@ -1121,7 +1115,7 @@ public record SaveEskizRequest(string? Email, string? Password, string? From);
 public record SmsRecipientDto(string StudentId, string FullName, string ClassName, string? ParentPhone, string? StudentPhone);
 /// <summary>"Tanlab" SMS uchun o'qituvchi oluvchi. Phone bo'sh bo'lishi mumkin (raqam yo'q — UIda kulrang).</summary>
 public record SmsTeacherRecipientDto(string TeacherId, string FullName, string? Phone);
-/// <summary>Birlashgan tayyor matn. Source: "sms" (Eskiz andozasi) | "reminder" (eslatma qoidasi matni).</summary>
+/// <summary>Birlashgan tayyor matn. Source: "sms" (Eskiz andozasi) | "auto" (avto-xabar qoidasi shabloni).</summary>
 public record UnifiedTemplateDto(string Source, string Name, string Text);
 
 /* ---------- Assignments (qo'shimcha topshiriqlar) ---------- */

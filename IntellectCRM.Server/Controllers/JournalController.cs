@@ -73,7 +73,7 @@ public class JournalController(AppDbContext db, FcmService fcm, AutoMessageServi
         // Jurnal siyosati (sana oynasi / faqat o'tilgan dars) — "Adminlarga ham qo'llash" yoqiq bo'lsa cheklaydi.
         var deny = await JournalPolicy.CheckAsync(db, req.ClassId, req.SubjectId, req.Date, req.Period, isAdmin: true);
         if (deny is not null) return BadRequest(new { message = deny });
-        var newAbsence = await JournalService.SetEntryAsync(db, req, fcm);
+        var newAbsence = await JournalService.SetEntryAsync(db, req, fcm, autoMsg);
         if (newAbsence)
             await DispatchAbsencesAsync(req.ClassId, req.Date, req.ReasonId, new[] { req.StudentId });
         return NoContent();

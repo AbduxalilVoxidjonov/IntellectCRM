@@ -628,8 +628,8 @@ public class MessagesController(AppDbContext db, ChatService chat, TelegramServi
     }
 
     /// <summary>
-    /// Barcha tayyor matnlar (birlashgan): SMS andozalari (db.SmsTemplates) + matnli eslatma qoidalari
-    /// (db.ReminderRules, MessageTemplate bo'sh bo'lmaganlari). Uchala yuborish oynasida (e'lon/push/SMS) chip.
+    /// Barcha tayyor matnlar (birlashgan): SMS andozalari (db.SmsTemplates) + avto-xabar qoidalari
+    /// shablonlari (db.AutoMessageRules, Template bo'sh bo'lmaganlari). Uchala yuborish oynasida (e'lon/push/SMS) chip.
     /// </summary>
     [HttpGet("templates/all")]
     public async Task<ActionResult<IEnumerable<UnifiedTemplateDto>>> AllTemplates()
@@ -649,12 +649,11 @@ public class MessagesController(AppDbContext db, ChatService chat, TelegramServi
     public async Task<ActionResult<IEnumerable<SmsTemplateDto>>> SmsTemplates()
     {
         var list = await db.SmsTemplates.OrderBy(t => t.Order).ThenBy(t => t.Name).ToListAsync();
-        return list.Select(t => new SmsTemplateDto(t.Id, t.Name, t.Text, t.IsAuto, t.Trigger, t.Order)).ToList();
+        return list.Select(t => new SmsTemplateDto(t.Id, t.Name, t.Text, t.Order)).ToList();
     }
 
     // Avto-hodisalar YAGONA "Avto xabarlar" (AutoMessageRule) moduliga ko'chdi — SMS andozalari endi
-    // faqat QO'LDA yuborish uchun (trigger yo'q). Shuning uchun andoza doim oddiy (Trigger="").
-    private static string NormalizeTrigger(string? t) => "";
+    // faqat QO'LDA yuborish uchun.
 
     [HttpPost("sms/templates")]
     public async Task<ActionResult<SmsTemplateDto>> CreateSmsTemplate(SaveSmsTemplateRequest req)
@@ -663,11 +662,10 @@ public class MessagesController(AppDbContext db, ChatService chat, TelegramServi
         var text = (req.Text ?? "").Trim();
         if (name.Length == 0 || text.Length == 0) return BadRequest(new { message = "Nom va matn kerak" });
         var order = (await db.SmsTemplates.MaxAsync(t => (int?)t.Order) ?? 0) + 1;
-        var trigger = NormalizeTrigger(req.Trigger);
-        var t = new SmsTemplate { Name = name, Text = text, Trigger = trigger, IsAuto = trigger.Length > 0, Order = order };
+        var t = new SmsTemplate { Name = name, Text = text, Order = order };
         db.SmsTemplates.Add(t);
         await db.SaveChangesAsync();
-        return new SmsTemplateDto(t.Id, t.Name, t.Text, t.IsAuto, t.Trigger, t.Order);
+        return new SmsTemplateDto(t.Id, t.Name, t.Text, t.Order);
     }
 
     [HttpPut("sms/templates/{id}")]
@@ -678,10 +676,9 @@ public class MessagesController(AppDbContext db, ChatService chat, TelegramServi
         var name = (req.Name ?? "").Trim();
         var text = (req.Text ?? "").Trim();
         if (name.Length == 0 || text.Length == 0) return BadRequest(new { message = "Nom va matn kerak" });
-        var trigger = NormalizeTrigger(req.Trigger);
-        t.Name = name; t.Text = text; t.Trigger = trigger; t.IsAuto = trigger.Length > 0;
+        t.Name = name; t.Text = text;
         await db.SaveChangesAsync();
-        return new SmsTemplateDto(t.Id, t.Name, t.Text, t.IsAuto, t.Trigger, t.Order);
+        return new SmsTemplateDto(t.Id, t.Name, t.Text, t.Order);
     }
 
     [HttpDelete("sms/templates/{id}")]
@@ -696,19 +693,16 @@ public class MessagesController(AppDbContext db, ChatService chat, TelegramServi
 
     // ---------- Lidga SMS yuborish ----------
 
-    [HttpPost("sms/lead")]
-    public async Task<ActionResult<SmsBatchDto>> SendLeadSms(SendLeadSmsRequest req)
+    private enum LeadSmsOutcome { Sent, Failed, NoPhone }
+
+    /// <summary>Bitta lidga SMS: token render (sinov darsi jadvali bilan), Eskiz orqali yuborish,
+    /// SmsLog + LeadEvent (timeline) yozish. SaveChanges CHAQIRUVCHIDA. Telefon: Phone→Father→Mother.</summary>
+    private async Task<LeadSmsOutcome> SendOneLeadSmsAsync(
+        Lead lead, string text, string batchId, string centerName, string actorName)
     {
-        var text = (req.Text ?? "").Trim();
-        if (text.Length == 0) return BadRequest(new { message = "SMS matni kerak" });
-        var lead = await db.Leads.FirstOrDefaultAsync(l => l.Id == req.LeadId);
-        if (lead is null) return NotFound();
         var phone = !string.IsNullOrWhiteSpace(lead.Phone) ? lead.Phone
             : !string.IsNullOrWhiteSpace(lead.FatherPhone) ? lead.FatherPhone : lead.MotherPhone;
-        if (string.IsNullOrWhiteSpace(phone)) return BadRequest(new { message = "Lidda telefon raqami yo'q" });
-        var meta = await db.CenterMeta.FirstOrDefaultAsync();
-        if (!eskiz.IsConfigured(meta))
-            return BadRequest(new { message = "Eskiz SMS sozlanmagan. Sozlamalar → SMS (Eskiz)da login/parol kiriting." });
+        if (string.IsNullOrWhiteSpace(phone)) return LeadSmsOutcome.NoPhone;
 
         // {dars_sana}/{dars_vaqti} uchun — lidning eng so'nggi sinov darsi (avval "pending"ini olamiz).
         var trial = await db.TrialLessons.Where(t => t.LeadId == lead.Id && t.Result == "pending")
@@ -717,33 +711,92 @@ public class MessagesController(AppDbContext db, ChatService chat, TelegramServi
                         .OrderByDescending(t => t.ScheduledAt).FirstOrDefaultAsync();
         var trialGroup = trial is not null && !string.IsNullOrWhiteSpace(trial.GroupId)
             ? await db.Classes.FindAsync(trial.GroupId) : null;
-        var msg = MessageTokenizer.Lead(text, lead, phone, meta?.Name ?? "",
+        var msg = MessageTokenizer.Lead(text, lead, phone, centerName,
             group: trialGroup, trialAt: trial?.ScheduledAt);
         var callbackUrl = $"{Request.Scheme}://{Request.Host}/api/sms/callback";
-        var batchId = Guid.NewGuid().ToString();
         var r = await eskiz.SendSmsAsync(db, phone, msg, callbackUrl);
         db.SmsLogs.Add(new SmsLog
         {
             BatchId = batchId, PhoneNumber = EskizService.NormalizePhone(phone), RecipientName = lead.FullName,
             Message = msg, RequestId = r.RequestId, Status = r.Ok ? r.Status : (r.Error ?? "error"),
         });
+        // Lid tarixiga yozamiz (timeline).
+        db.LeadEvents.Add(new LeadEvent
+        {
+            LeadId = lead.Id, Type = "note", ActorName = actorName, CreatedAt = AppClock.Iso(),
+            Text = "SMS yuborildi: " + (text.Length > 140 ? text[..140] + "…" : text),
+        });
+        return r.Ok ? LeadSmsOutcome.Sent : LeadSmsOutcome.Failed;
+    }
+
+    [HttpPost("sms/lead")]
+    public async Task<ActionResult<SmsBatchDto>> SendLeadSms(SendLeadSmsRequest req)
+    {
+        var text = (req.Text ?? "").Trim();
+        if (text.Length == 0) return BadRequest(new { message = "SMS matni kerak" });
+        var lead = await db.Leads.FirstOrDefaultAsync(l => l.Id == req.LeadId);
+        if (lead is null) return NotFound();
+        var meta = await db.CenterMeta.FirstOrDefaultAsync();
+        if (!eskiz.IsConfigured(meta))
+            return BadRequest(new { message = "Eskiz SMS sozlanmagan. Sozlamalar → SMS (Eskiz)da login/parol kiriting." });
+
         var user = await db.Users.FindAsync(Uid);
+        var batchId = Guid.NewGuid().ToString();
+        var outcome = await SendOneLeadSmsAsync(lead, text, batchId, meta?.Name ?? "", user?.FullName ?? "Admin");
+        if (outcome == LeadSmsOutcome.NoPhone) return BadRequest(new { message = "Lidda telefon raqami yo'q" });
+
         var batch = new SmsBatch
         {
             Id = batchId, Audience = $"Lid: {lead.FullName}", Message = text, SenderUserId = Uid,
             SenderName = user?.FullName ?? "Administrator", CreatedAt = AppClock.Now,
-            RecipientCount = 1, SentCount = r.Ok ? 1 : 0,
+            RecipientCount = 1, SentCount = outcome == LeadSmsOutcome.Sent ? 1 : 0,
         };
         db.SmsBatches.Add(batch);
-        // Lid tarixiga yozamiz (timeline).
-        db.LeadEvents.Add(new LeadEvent
-        {
-            LeadId = lead.Id, Type = "note", ActorName = user?.FullName ?? "Admin", CreatedAt = AppClock.Iso(),
-            Text = "SMS yuborildi: " + (text.Length > 140 ? text[..140] + "…" : text),
-        });
         await db.SaveChangesAsync();
         return new SmsBatchDto(batch.Id, batch.Audience, batch.Message, batch.SenderName,
             batch.CreatedAt.ToString("o"), batch.RecipientCount, batch.SentCount);
+    }
+
+    /// <summary>Bir nechta lidga birdan SMS — har lidga sms/lead bilan bir xil mantiq
+    /// (tokenlar, telefon tanlash, LeadEvent), hammasi BITTA SmsBatch ostida.</summary>
+    [HttpPost("sms/lead-bulk")]
+    public async Task<ActionResult<LeadBulkSmsResultDto>> SendLeadBulkSms(SendLeadBulkSmsRequest req)
+    {
+        var text = (req.Text ?? "").Trim();
+        if (text.Length == 0) return BadRequest(new { message = "SMS matni kerak" });
+        var ids = (req.LeadIds ?? new List<string>())
+            .Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().ToList();
+        if (ids.Count == 0) return BadRequest(new { message = "Kamida bitta lid tanlang" });
+        var meta = await db.CenterMeta.FirstOrDefaultAsync();
+        if (!eskiz.IsConfigured(meta))
+            return BadRequest(new { message = "Eskiz SMS sozlanmagan. Sozlamalar → SMS (Eskiz)da login/parol kiriting." });
+
+        var leads = await db.Leads.Where(l => ids.Contains(l.Id)).ToListAsync();
+        var user = await db.Users.FindAsync(Uid);
+        var actorName = user?.FullName ?? "Admin";
+        var centerName = meta?.Name ?? "";
+        var batchId = Guid.NewGuid().ToString();
+
+        int sent = 0, failed = 0, noPhone = 0;
+        foreach (var lead in leads)
+        {
+            switch (await SendOneLeadSmsAsync(lead, text, batchId, centerName, actorName))
+            {
+                case LeadSmsOutcome.Sent: sent++; break;
+                case LeadSmsOutcome.NoPhone: noPhone++; break;
+                default: failed++; break;
+            }
+        }
+        failed += ids.Count - leads.Count; // topilmagan id'lar
+
+        db.SmsBatches.Add(new SmsBatch
+        {
+            Id = batchId, Audience = $"Lidlar (ommaviy): {leads.Count} ta", Message = text,
+            SenderUserId = Uid, SenderName = user?.FullName ?? "Administrator", CreatedAt = AppClock.Now,
+            RecipientCount = leads.Count, SentCount = sent,
+        });
+        await db.SaveChangesAsync();
+        return new LeadBulkSmsResultDto(sent, failed, noPhone);
     }
 
 }

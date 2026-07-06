@@ -4,7 +4,7 @@ import {
   ArrowLeft, GraduationCap, CalendarCheck, ShieldAlert, ClipboardCheck,
   User, Phone, Wallet, BookOpen, MapPin, Cake, CalendarPlus, Percent, IdCard,
   School, Clock, CalendarDays, ChevronRight, History, ListChecks, ChevronDown, Check,
-  CalendarClock, Award, Download, LifeBuoy, Sparkles, Pencil,
+  CalendarClock, Award, Download, LifeBuoy, Sparkles, Pencil, MessageSquare,
   PhoneIncoming, PhoneOutgoing, PhoneMissed, PhoneCall,
 } from 'lucide-react'
 import { genderLabels } from '@/config/constants'
@@ -44,6 +44,7 @@ import { PaymentHistoryModal } from './PaymentHistoryModal'
 import { AiAnalysisModal } from './AiAnalysisModal'
 import { AiAnalysisView } from './AiAnalysisView'
 import { StudentFormModal } from './StudentFormModal'
+import { SmsModal } from './SmsModal'
 import { CallPickerModal, type CallOption } from '@/components/CallPickerModal'
 
 const uzMonths = [
@@ -111,6 +112,8 @@ export function StudentDetailPage() {
   /** "Qo'ng'iroq qilish" bosilganda — to'liq o'quvchi obyekti (barcha telefon raqamlari uchun). */
   const [callTarget, setCallTarget] = useState<Student | null>(null)
   const [callOpen, setCallOpen] = useState(false)
+  /** "SMS yuborish" bosilganda — SmsModal bitta o'quvchi bilan ochiladi. */
+  const [smsTarget, setSmsTarget] = useState<Student | null>(null)
   /** Chegirma o'zgarganda — yangi chegirmani joriy oyga qo'llashni so'rash (StudentsPage'dagi kabi). */
   const [discountPrompt, setDiscountPrompt] = useState<{
     values: StudentPayload
@@ -159,6 +162,21 @@ export function StudentDetailPage() {
     if (!id) return
     getStudent(id)
       .then(setEditing)
+      .catch(() => alert("O'quvchi ma'lumotini yuklab bo'lmadi"))
+  }
+
+  /** "SMS yuborish" bosilganda — SmsModal uchun TO'LIQ Student kerak (raqamlar/tokenlar). */
+  const openSms = () => {
+    if (!id) return
+    if (callTarget) {
+      setSmsTarget(callTarget)
+      return
+    }
+    getStudent(id)
+      .then((s) => {
+        setCallTarget(s)
+        setSmsTarget(s)
+      })
       .catch(() => alert("O'quvchi ma'lumotini yuklab bo'lmadi"))
   }
 
@@ -422,6 +440,13 @@ export function StudentDetailPage() {
             className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:border-brand-300 hover:text-brand-700"
           >
             <Phone className="h-4 w-4" /> Qo'ng'iroq qilish
+          </button>
+          <button
+            type="button"
+            onClick={openSms}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:border-brand-300 hover:text-brand-700"
+          >
+            <MessageSquare className="h-4 w-4" /> SMS yuborish
           </button>
           <button
             type="button"
@@ -1183,6 +1208,12 @@ export function StudentDetailPage() {
         onClose={() => setEditing(null)}
         onSubmit={handleEditSubmit}
         initial={editing}
+      />
+
+      <SmsModal
+        open={!!smsTarget}
+        onClose={() => setSmsTarget(null)}
+        recipients={smsTarget ? [smsTarget] : []}
       />
 
       <Modal

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Plus, Pencil, Trash2, Settings2 } from 'lucide-react'
 import {
   getSmsTemplates,
@@ -7,8 +7,13 @@ import {
   deleteSmsTemplate,
   type SmsTemplate,
 } from '@/api/services/messages'
-import { getAutoMessageRules, type AutoMessageRule } from '@/api/services/autoMessages'
-import { messageTemplates as builtinTemplates, messageTokens } from '@/config/messageTemplates'
+import {
+  getAutoMessageRules,
+  getMessageTokens,
+  type AutoMessageRule,
+} from '@/api/services/autoMessages'
+import { messageTemplates as builtinTemplates } from '@/config/messageTemplates'
+import { MessageEditor, type TokenDef } from '@/components/messaging/MessageEditor'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
@@ -47,7 +52,13 @@ export function MessageTemplateLibrary({
   const [text, setText] = useState('')
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
-  const textRef = useRef<HTMLTextAreaElement>(null)
+  const [tokens, setTokens] = useState<TokenDef[]>([])
+
+  useEffect(() => {
+    getMessageTokens()
+      .then((ts) => setTokens(ts.filter((t) => t.group !== 'lead')))
+      .catch(() => setTokens([]))
+  }, [])
 
   const reload = () => {
     setLoading(true)
@@ -99,35 +110,14 @@ export function MessageTemplateLibrary({
     setModalOpen(true)
   }
 
-  const insertToken = (token: string) => {
-    const el = textRef.current
-    if (!el) {
-      setText((b) => b + token)
-      return
-    }
-    const start = el.selectionStart ?? text.length
-    const end = el.selectionEnd ?? text.length
-    setText(text.slice(0, start) + token + text.slice(end))
-    requestAnimationFrame(() => {
-      el.focus()
-      const pos = start + token.length
-      el.setSelectionRange(pos, pos)
-    })
-  }
-
   const save = async () => {
     if (!name.trim() || !text.trim() || saving) return
     setSaving(true)
     try {
       if (editing) {
-        await updateSmsTemplate(editing.id, {
-          name: name.trim(),
-          text: text.trim(),
-          isAuto: false,
-          trigger: '',
-        })
+        await updateSmsTemplate(editing.id, { name: name.trim(), text: text.trim() })
       } else {
-        await createSmsTemplate({ name: name.trim(), text: text.trim(), isAuto: false, trigger: '' })
+        await createSmsTemplate({ name: name.trim(), text: text.trim() })
       }
       setModalOpen(false)
       reload()
@@ -249,29 +239,14 @@ export function MessageTemplateLibrary({
             onChange={(e) => setName(e.target.value)}
             placeholder="masalan: Qarzdorlik eslatmasi"
           />
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-600">Matn</label>
-            <textarea
-              ref={textRef}
-              className="h-32 w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 outline-none transition-colors focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              placeholder="Matn (o'rinbosarlar bilan, masalan {fish}, {qarzdorlik})"
-            />
-            <div className="mt-1.5 flex flex-wrap gap-1.5">
-              {messageTokens.map((t) => (
-                <button
-                  key={t.token}
-                  type="button"
-                  onClick={() => insertToken(t.token)}
-                  className="rounded-md bg-slate-100 px-2 py-1 font-mono text-xs font-medium text-slate-600 transition-colors hover:bg-brand-50 hover:text-brand-700"
-                  title={t.token}
-                >
-                  {t.label}
-                </button>
-              ))}
-            </div>
-          </div>
+          <MessageEditor
+            label="Matn"
+            value={text}
+            onChange={setText}
+            tokens={tokens}
+            rows={5}
+            placeholder="Matn (o'rinbosarlar bilan, masalan {fish}, {qarzdorlik})"
+          />
         </div>
       </Modal>
     </Card>

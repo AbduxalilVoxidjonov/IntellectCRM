@@ -20,6 +20,7 @@ public static class AutoMessageTriggers
     public const string MonthlyCharge = "monthly_charge";
     public const string PaymentDebt = "payment_debt";
     public const string AttendanceAbsent = "attendance_absent";
+    public const string GradeEntered = "grade_entered";
     public const string Birthday = "birthday";
     public const string StudentAdded = "student_added";
     public const string LeadNew = "lead_new";
@@ -29,9 +30,16 @@ public static class AutoMessageTriggers
     public const string LessonAttendance = "lesson_attendance";
     public const string CustomSchedule = "custom_schedule";
 
+    // Hodisa toifalari (frontend guruhlab ko'rsatadi).
+    public const string CategoryLeads = "Lidlar";
+    public const string CategoryEducation = "O'quv jarayoni";
+    public const string CategoryFinance = "Moliya";
+    public const string CategoryOther = "Boshqa";
+
     /// <param name="Sms">SMS kanali mavjudmi (frontend toggle ko'rsatadimi).</param>
     /// <param name="Push">Push kanali mavjudmi.</param>
     /// <param name="Telegram">Telegram kanali mavjudmi.</param>
+    /// <param name="Category">Toifa (frontend guruhlash uchun): "Lidlar" | "O'quv jarayoni" | "Moliya" | "Boshqa".</param>
     public record TriggerInfo(
         string Key,
         string Label,
@@ -44,7 +52,8 @@ public static class AutoMessageTriggers
         bool SupportsSendScope,
         string[] Audiences,
         string DefaultAudience,
-        string DefaultTemplate);
+        string DefaultTemplate,
+        string Category);
 
     // Umumiy token to'plamlari (takrorni kamaytirish uchun).
     private static readonly string[] ParentsAll = { "{ism}", "{fish}", "{guruh}", "{qarzdorlik}", "{markaz}", "{telefon}" };
@@ -58,7 +67,8 @@ public static class AutoMessageTriggers
             Sms: true, Push: true, Telegram: true,
             SupportsSchedule: false, SupportsSendScope: false,
             Audiences: new[] { "parents", "students", "teachers" }, DefaultAudience: "parents",
-            DefaultTemplate: "Hurmatli ota-ona! {ism}ning to'lovi qabul qilindi. Summa: {summa}. Qarzdorlik: {qarzdorlik}. {markaz}"),
+            DefaultTemplate: "Hurmatli ota-ona! {ism}ning to'lovi qabul qilindi. Summa: {summa}. Qarzdorlik: {qarzdorlik}. {markaz}",
+            Category: CategoryFinance),
 
         new(MonthlyCharge,
             "Oylik hisob yaratilganda",
@@ -67,7 +77,8 @@ public static class AutoMessageTriggers
             Sms: true, Push: true, Telegram: true,
             SupportsSchedule: false, SupportsSendScope: false,
             Audiences: new[] { "parents", "students", "teachers" }, DefaultAudience: "parents",
-            DefaultTemplate: "Hurmatli ota-ona! {ism} uchun {oy} oyi to'lovi hisoblandi: {summa}. Umumiy qarzdorlik: {qarzdorlik}. {markaz}"),
+            DefaultTemplate: "Hurmatli ota-ona! {ism} uchun {oy} oyi to'lovi hisoblandi: {summa}. Umumiy qarzdorlik: {qarzdorlik}. {markaz}",
+            Category: CategoryFinance),
 
         new(PaymentDebt,
             "Qarzdorlik eslatmasi",
@@ -76,7 +87,8 @@ public static class AutoMessageTriggers
             Sms: true, Push: true, Telegram: true,
             SupportsSchedule: false, SupportsSendScope: false,
             Audiences: new[] { "parents", "students", "teachers" }, DefaultAudience: "parents",
-            DefaultTemplate: ""),
+            DefaultTemplate: "",
+            Category: CategoryFinance),
 
         new(AttendanceAbsent,
             "O'quvchi darsga kelmaganda",
@@ -85,7 +97,18 @@ public static class AutoMessageTriggers
             Sms: true, Push: true, Telegram: true,
             SupportsSchedule: false, SupportsSendScope: false,
             Audiences: new[] { "parents", "students", "teachers" }, DefaultAudience: "parents",
-            DefaultTemplate: "Hurmatli ota-ona! Farzandingiz {ism} {sana} kuni {guruh} guruhida darsga kelmadi. Sabab: {sabab}. {markaz}"),
+            DefaultTemplate: "Hurmatli ota-ona! Farzandingiz {ism} {sana} kuni {guruh} guruhida darsga kelmadi. Sabab: {sabab}. {markaz}",
+            Category: CategoryEducation),
+
+        new(GradeEntered,
+            "Baho qo'yilganda",
+            "Jurnalda o'quvchiga baho qo'yilganda ota-onaga (yoki o'quvchiga) xabar. Qoida mavjud bo'lmasa — eski standart push saqlanadi.",
+            new[] { "{ism}", "{fish}", "{guruh}", "{baho}", "{sana}", "{markaz}" },
+            Sms: true, Push: true, Telegram: true,
+            SupportsSchedule: false, SupportsSendScope: false,
+            Audiences: new[] { "parents", "students" }, DefaultAudience: "parents",
+            DefaultTemplate: "Hurmatli ota-ona! {ism} {sana} kuni {guruh} guruhida {baho} baho oldi. {markaz}",
+            Category: CategoryEducation),
 
         new(Birthday,
             "Tug'ilgan kun",
@@ -94,7 +117,8 @@ public static class AutoMessageTriggers
             Sms: true, Push: true, Telegram: true,
             SupportsSchedule: false, SupportsSendScope: false,
             Audiences: new[] { "parents", "students", "teachers" }, DefaultAudience: "parents",
-            DefaultTemplate: "Hurmatli {ism}! Tug'ilgan kuningiz muborak bo'lsin! {markaz}"),
+            DefaultTemplate: "Hurmatli {ism}! Tug'ilgan kuningiz muborak bo'lsin! {markaz}",
+            Category: CategoryEducation),
 
         new(StudentAdded,
             "O'quvchi guruhga qo'shilganda",
@@ -103,7 +127,8 @@ public static class AutoMessageTriggers
             Sms: true, Push: true, Telegram: true,
             SupportsSchedule: false, SupportsSendScope: false,
             Audiences: new[] { "parents", "students", "teachers" }, DefaultAudience: "parents",
-            DefaultTemplate: "Hurmatli ota-ona! {ism} {guruh} guruhiga qabul qilindi. Xush kelibsiz! {markaz}"),
+            DefaultTemplate: "Hurmatli ota-ona! {ism} {guruh} guruhiga qabul qilindi. Xush kelibsiz! {markaz}",
+            Category: CategoryEducation),
 
         new(LeadNew,
             "Yangi lid kelganda",
@@ -112,7 +137,8 @@ public static class AutoMessageTriggers
             Sms: true, Push: false, Telegram: false,
             SupportsSchedule: false, SupportsSendScope: false,
             Audiences: System.Array.Empty<string>(), DefaultAudience: "parents",
-            DefaultTemplate: "Assalomu alaykum {fish}! {markaz}ga qiziqishingiz uchun rahmat. Tez orada siz bilan bog'lanamiz."),
+            DefaultTemplate: "Assalomu alaykum {fish}! {markaz}ga qiziqishingiz uchun rahmat. Tez orada siz bilan bog'lanamiz.",
+            Category: CategoryLeads),
 
         new(TrialReminder,
             "Sinov darsi eslatmasi (ertaga)",
@@ -121,7 +147,8 @@ public static class AutoMessageTriggers
             Sms: true, Push: false, Telegram: false,
             SupportsSchedule: false, SupportsSendScope: false,
             Audiences: System.Array.Empty<string>(), DefaultAudience: "parents",
-            DefaultTemplate: "Assalomu alaykum {fish}! Ertaga {dars_sana} kuni {dars_vaqti}da sinov darsingiz bor. {markaz}"),
+            DefaultTemplate: "Assalomu alaykum {fish}! Ertaga {dars_sana} kuni {dars_vaqti}da sinov darsingiz bor. {markaz}",
+            Category: CategoryLeads),
 
         new(TestLink,
             "Daraja-test havolasi",
@@ -130,7 +157,8 @@ public static class AutoMessageTriggers
             Sms: true, Push: false, Telegram: false,
             SupportsSchedule: false, SupportsSendScope: false,
             Audiences: System.Array.Empty<string>(), DefaultAudience: "parents",
-            DefaultTemplate: "Assalomu alaykum {fish}! Daraja testini shu havola orqali topshiring: {link}"),
+            DefaultTemplate: "Assalomu alaykum {fish}! Daraja testini shu havola orqali topshiring: {link}",
+            Category: CategoryLeads),
 
         new(TestResult,
             "Test natijasi tayyor",
@@ -139,7 +167,8 @@ public static class AutoMessageTriggers
             Sms: true, Push: false, Telegram: false,
             SupportsSchedule: false, SupportsSendScope: false,
             Audiences: System.Array.Empty<string>(), DefaultAudience: "parents",
-            DefaultTemplate: "Assalomu alaykum {fish}! Test natijangiz: {natija}, daraja: {daraja}, ball: {ball} ({foiz}). {markaz}"),
+            DefaultTemplate: "Assalomu alaykum {fish}! Test natijangiz: {natija}, daraja: {daraja}, ball: {ball} ({foiz}). {markaz}",
+            Category: CategoryLeads),
 
         new(LessonAttendance,
             "Davomat eslatmasi (o'qituvchi)",
@@ -148,7 +177,8 @@ public static class AutoMessageTriggers
             Sms: true, Push: true, Telegram: true,
             SupportsSchedule: false, SupportsSendScope: true,
             Audiences: new[] { "teachers" }, DefaultAudience: "teachers",
-            DefaultTemplate: "Hurmatli {fish}! {guruh} ({kurs}) guruhida davomat jurnalini to'ldirishni unutmang. {markaz}"),
+            DefaultTemplate: "Hurmatli {fish}! {guruh} ({kurs}) guruhida davomat jurnalini to'ldirishni unutmang. {markaz}",
+            Category: CategoryEducation),
 
         new(CustomSchedule,
             "Jadval bo'yicha erkin eslatma",
@@ -157,10 +187,24 @@ public static class AutoMessageTriggers
             Sms: true, Push: true, Telegram: true,
             SupportsSchedule: true, SupportsSendScope: false,
             Audiences: new[] { "parents", "students", "teachers" }, DefaultAudience: "students",
-            DefaultTemplate: "Hurmatli {fish}! Eslatma. {markaz}"),
+            DefaultTemplate: "Hurmatli {fish}! Eslatma. {markaz}",
+            Category: CategoryOther),
     };
 
     public static bool IsKnown(string? key) => !string.IsNullOrWhiteSpace(key) && All.Any(t => t.Key == key);
 
     public static TriggerInfo? Get(string? key) => All.FirstOrDefault(t => t.Key == key);
+}
+
+/// <summary>"Davomat eslatmasi" (lesson_attendance) yuborish rejimi — <see cref="IntellectCRM.Domain.AutoMessageRule.SendScope"/> qiymatlari.</summary>
+public static class ReminderSendScopes
+{
+    /// <summary>Dars boshlangach +N daqiqada, davomat kiritilmagan bo'lsa (default — eski xatti-harakat).</summary>
+    public const string LessonStart = "lesson_start";
+    /// <summary>Kunlik ScheduleTime'da — bugun darsi bo'lib (boshlangan) hali to'ldirmaganlarga.</summary>
+    public const string NotFilled = "not_filled";
+    /// <summary>Kunlik ScheduleTime'da — BARCHA faol o'qituvchilarga (to'ldirganlarga ham).</summary>
+    public const string All = "all";
+
+    public static bool IsKnown(string? key) => key is LessonStart or NotFilled or All;
 }

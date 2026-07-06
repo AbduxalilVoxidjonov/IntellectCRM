@@ -1,4 +1,5 @@
 import { api, USE_MOCK } from '../client'
+import { messageTokens as fallbackTokens } from '@/config/messageTemplates'
 
 /**
  * Avto xabarlar (avtomatik xabar qoidalari) servisi.
@@ -19,6 +20,8 @@ export interface AutoMessageTrigger {
   label: string
   /** Qisqa izoh (qachon ishga tushadi) */
   description: string
+  /** Bo'lim: "Lidlar" | "O'quv jarayoni" | "Moliya" | "Boshqa" (eski backendda kelmasligi mumkin) */
+  category?: string
   /** Shu hodisada ishlaydigan o'rinbosarlar (masalan "{fish}", "{summa}") */
   tokens: string[]
   /** Qaysi kanallar shu hodisa uchun mavjud */
@@ -97,6 +100,34 @@ export async function updateAutoMessageRule(
 /** Qoidani o'chirish. */
 export async function deleteAutoMessageRule(id: string): Promise<void> {
   await api.delete(`/admin/auto-messages/${id}`)
+}
+
+/* ---------- Tokenlar (o'rinbosarlar) katalogi ---------- */
+
+/** Server tomonidan e'lon qilingan o'rinbosar (token). */
+export interface MessageToken {
+  /** Masalan "{ism}" */
+  token: string
+  /** Ko'rsatiladigan yorliq (masalan "O'quvchi ismi") */
+  label: string
+  /** Guruh: "student" | "lead" | "common" | "event" */
+  group: string
+}
+
+/**
+ * Tokenlar katalogi — serverdan. Server javob bermasa (eski backend),
+ * `config/messageTemplates.ts` dagi lokal ro'yxat FAQAT fallback sifatida ishlatiladi.
+ */
+export async function getMessageTokens(): Promise<MessageToken[]> {
+  if (!USE_MOCK) {
+    try {
+      const { data } = await api.get<MessageToken[]>('/admin/auto-messages/tokens')
+      if (Array.isArray(data) && data.length > 0) return data
+    } catch {
+      // fallbackka o'tamiz
+    }
+  }
+  return fallbackTokens.map((t) => ({ token: t.token, label: t.label, group: 'common' }))
 }
 
 /* ---------- UI yorliqlari ---------- */

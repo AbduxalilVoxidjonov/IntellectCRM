@@ -167,78 +167,8 @@ public class AutoMessageService(
         }
     }
 
-    /// <summary>O'qituvchi uchun avto-xabar — SMS + Push + Telegram (qoidada yoqilganiga qarab).</summary>
-    public async Task DispatchTeacherAsync(
-        IAppDbContext db, string trigger, Teacher t,
-        Dictionary<string, string>? extraTokens = null,
-        Group? group = null, CancellationToken ct = default)
-    {
-        try
-        {
-            var rules = await RulesAsync(db, trigger, ct);
-            if (rules.Count == 0) return;
-
-            var meta = await db.CenterMeta.FirstOrDefaultAsync(ct);
-            var centerName = meta?.Name ?? "";
-            var fcmJson = meta?.FcmServiceAccountJson ?? "";
-
-            var deadTokens = new List<string>();
-            var dirty = false;
-
-            foreach (var rule in rules)
-            {
-                try
-                {
-                    var withExtra = MessageTokenizer.ApplyExtra(rule.Template, extraTokens);
-                    var msg = MessageTokenizer.Teacher(withExtra, t, centerName, extra: null, group: group);
-                    var title = Title(rule, trigger);
-                    if (string.IsNullOrWhiteSpace(msg)) continue;
-
-                    if (rule.SendSms && !string.IsNullOrWhiteSpace(t.Phone) && eskiz.IsConfigured(meta))
-                        dirty |= await SendSmsAsync(db, trigger, t.Phone, t.FullName, rule.Template, msg, ct);
-
-                    if (rule.SendPush && !string.IsNullOrWhiteSpace(t.UserId))
-                    {
-                        NotificationStore.Add(db, t.UserId, title, msg, trigger);
-                        dirty = true;
-                        if (FcmService.IsConfigured(fcmJson))
-                        {
-                            var tokens = await db.DeviceTokens.Where(d => d.UserId == t.UserId)
-                                .Select(d => d.Token).Distinct().ToListAsync(ct);
-                            if (tokens.Count > 0)
-                            {
-                                var res = await fcm.SendAsync(fcmJson, tokens, title, msg, ct);
-                                deadTokens.AddRange(res.InvalidTokens);
-                            }
-                        }
-                    }
-
-                    if (rule.SendTelegram && telegram.IsConfigured)
-                    {
-                        var chats = await db.TelegramRegistrations.Where(r => r.TeacherId == t.Id)
-                            .Select(r => r.ChatId).Distinct().ToListAsync(ct);
-                        foreach (var chatId in chats)
-                            await telegram.SendMessageAsync(chatId, $"🔔 {title}\n\n{msg}", ct: ct);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    logger.LogWarning(ex, "Avto-xabar ({Trigger}) o'qituvchi {Id} qoida {Rule} — xatolik", trigger, t.Id, rule.Id);
-                }
-            }
-
-            if (deadTokens.Count > 0)
-            {
-                db.DeviceTokens.RemoveRange(db.DeviceTokens.Where(d => deadTokens.Contains(d.Token)));
-                dirty = true;
-            }
-            if (dirty) await db.SaveChangesAsync(ct);
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Avto-xabar ({Trigger}) o'qituvchi {Id} — umumiy xatolik", trigger, t.Id);
-        }
-    }
+    // (DispatchTeacherAsync olib tashlandi — hech qayerda chaqirilmasdi. O'qituvchi auditoriyasiga
+    // yetkazish DispatchStudentAsync ichida (Audience=="teachers") allaqachon qo'llab-quvvatlanadi.)
 
     /// <summary>O'quvchi darsga kelmaganda (attendance_absent) ota-onaga xabar. {sana}=dars sanasi (dd.MM.yyyy),
     /// {guruh}=guruh nomi, {sabab}=davomat sababi. Jurnal (SetEntry) yoki ommaviy davomat muvaffaqiyatidan keyin chaqiriladi.</summary>

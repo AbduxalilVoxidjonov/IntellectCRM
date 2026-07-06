@@ -117,7 +117,8 @@ public static class JournalService
     /// <summary>Bitta katakni belgilaydi (baho/davomat). Qaytaradi: davomat SABABI YANGI belgilandimi
     /// (req.ReasonId != null va eski qiymatdan o'zgardi) — chaqiruvchi shunga qarab "darsga kelmadi"
     /// avto-xabarini (attendance_absent) yuboradi.</summary>
-    public static async Task<bool> SetEntryAsync(IAppDbContext db, SetJournalEntryRequest req, FcmService? fcm = null)
+    public static async Task<bool> SetEntryAsync(
+        IAppDbContext db, SetJournalEntryRequest req, FcmService? fcm = null, AutoMessageService? autoMsg = null)
     {
         // Guruhning StartDate'i tekshirish — undan oldin dars bo'lmaydi.
         var cls = await db.Classes.FindAsync(req.ClassId);
@@ -182,21 +183,43 @@ public static class JournalService
         await db.SaveChangesAsync();
 
         // Avtomatik push: farzandi baho olsa yoki davomatda belgilansa, oila ilovasiga xabar.
-        await NotifyEntryAsync(db, fcm, req, student, oldGrade, oldReason);
+        await NotifyEntryAsync(db, fcm, autoMsg, req, student, cls.Name, oldGrade, oldReason);
 
         // Davomat sababi YANGI belgilandimi (kelmadi) — chaqiruvchi avto-xabar yuborishi uchun.
         return req.ReasonId is not null && req.ReasonId != oldReason;
     }
 
-    /// <summary>Baho/davomat yozuvi o'zgarganda oila ilovasiga push yuboradi (fire-and-forget).</summary>
+    /// <summary>Baho/davomat yozuvi o'zgarganda oila ilovasiga push yuboradi (fire-and-forget).
+    /// BAHO: agar "grade_entered" avto-xabar qoidasi MAVJUD bo'lsa (yoqilgan-o'chirilganidan qat'i nazar) —
+    /// yuborish to'liq <see cref="AutoMessageService"/>ga o'tadi (qoida o'chiq bo'lsa hech narsa yuborilmaydi);
+    /// qoida UMUMAN yo'q bo'lsa — eski to'g'ridan-to'g'ri push saqlanadi (default-on, PaymentReminderService
+    /// patterni). Davomat (type "attendance") push'i o'zgarmagan.</summary>
     private static async Task NotifyEntryAsync(
-        IAppDbContext db, FcmService? fcm, SetJournalEntryRequest req, Student? student,
-        int? oldGrade, string? oldReason)
+        IAppDbContext db, FcmService? fcm, AutoMessageService? autoMsg, SetJournalEntryRequest req,
+        Student? student, string groupName, int? oldGrade, string? oldReason)
     {
-        if (student?.UserId is null) return;
+        if (student is null) return;
         var notifyGrade = req.Grade.HasValue && req.Grade != oldGrade;
         var notifyAbsence = !notifyGrade && req.ReasonId is not null && req.ReasonId != oldReason;
         if (!notifyGrade && !notifyAbsence) return;
+
+        // Baho — yangi yagona avto-xabar tizimi orqali (qoida mavjud bo'lsa).
+        if (notifyGrade && autoMsg is not null &&
+            await db.AutoMessageRules.AnyAsync(r => r.Trigger == AutoMessageTriggers.GradeEntered))
+        {
+            var d = req.Date;
+            var sana = d.Length >= 10 ? $"{d[8..10]}.{d[5..7]}.{d[..4]}" : d;
+            await autoMsg.DispatchStudentAsync(db, AutoMessageTriggers.GradeEntered, student,
+                new Dictionary<string, string>
+                {
+                    ["{baho}"] = req.Grade!.Value.ToString(),
+                    ["{sana}"] = sana,
+                    ["{guruh}"] = groupName,
+                });
+            return;
+        }
+
+        if (student.UserId is null) return;
 
         var subject = (await db.Subjects.FindAsync(req.SubjectId))?.Name ?? "";
         string title, body, type;

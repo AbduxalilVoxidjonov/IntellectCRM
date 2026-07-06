@@ -1,27 +1,18 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Send, AlertTriangle, Check } from 'lucide-react'
 import type { Student } from '@/types'
 import { getSmsStatus, getSmsTemplates, sendSms, type SmsTemplate } from '@/api/services/messages'
+import { getMessageTokens } from '@/api/services/autoMessages'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
-import { messageTokens } from '@/config/messageTemplates'
+import { MessageEditor, type TokenDef } from '@/components/messaging/MessageEditor'
 import { cn } from '@/lib/utils'
 
 interface Props {
   open: boolean
   onClose: () => void
+  /** Bitta o'quvchi ham bo'lishi mumkin (masalan o'quvchi sahifasidan) — UI mos ko'rinadi. */
   recipients: Student[]
-}
-
-/** SMS uzunligi → bo'laklar soni (GSM-7: 160/153, Unicode: 70/67). */
-function smsParts(text: string): { len: number; parts: number } {
-  const len = text.length
-  // eslint-disable-next-line no-control-regex
-  const unicode = /[^ -]/.test(text)
-  if (len === 0) return { len: 0, parts: 0 }
-  const single = unicode ? 70 : 160
-  const multi = unicode ? 67 : 153
-  return { len, parts: len <= single ? 1 : Math.ceil(len / multi) }
 }
 
 /**
@@ -33,9 +24,9 @@ export function SmsModal({ open, onClose, recipients }: Props) {
   const [message, setMessage] = useState('')
   const [configured, setConfigured] = useState(true)
   const [templates, setTemplates] = useState<SmsTemplate[]>([])
+  const [tokens, setTokens] = useState<TokenDef[]>([])
   const [sending, setSending] = useState(false)
   const [result, setResult] = useState<string | null>(null)
-  const taRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
     if (!open) return
@@ -46,6 +37,9 @@ export function SmsModal({ open, onClose, recipients }: Props) {
     setSending(false)
     getSmsStatus().then((s) => setConfigured(s.configured))
     getSmsTemplates().then(setTemplates).catch(() => setTemplates([]))
+    getMessageTokens()
+      .then((ts) => setTokens(ts.filter((t) => t.group !== 'lead')))
+      .catch(() => setTokens([]))
   }, [open])
 
   const phoneCount = useMemo(
@@ -55,22 +49,6 @@ export function SmsModal({ open, onClose, recipients }: Props) {
       ).length,
     [recipients, toParent],
   )
-
-  const insertToken = (token: string) => {
-    const el = taRef.current
-    if (!el) {
-      setMessage((m) => m + token)
-      return
-    }
-    const start = el.selectionStart ?? message.length
-    const end = el.selectionEnd ?? message.length
-    setMessage(message.slice(0, start) + token + message.slice(end))
-    requestAnimationFrame(() => {
-      el.focus()
-      const pos = start + token.length
-      el.setSelectionRange(pos, pos)
-    })
-  }
 
   const handleSend = async () => {
     if (!message.trim() || sending || recipients.length === 0) return
@@ -99,8 +77,6 @@ export function SmsModal({ open, onClose, recipients }: Props) {
     }
   }
 
-  const { len, parts } = smsParts(message)
-
   return (
     <Modal
       open={open}
@@ -121,7 +97,7 @@ export function SmsModal({ open, onClose, recipients }: Props) {
         {!configured && (
           <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-            <p>SMS (Eskiz) sozlanmagan. "Sozlamalar → SMS (Eskiz)"da login/parol kiriting.</p>
+            <p>SMS (Eskiz) sozlanmagan. "Sozlamalar → Xabar kanallari"da login/parol kiriting.</p>
           </div>
         )}
 
@@ -164,61 +140,18 @@ export function SmsModal({ open, onClose, recipients }: Props) {
           </p>
         </div>
 
-        {/* Tayyor shablonlar */}
-        <div>
-          <div className="mb-1.5 text-sm font-medium text-slate-600">Shablon tanlang</div>
-          <div className="flex flex-wrap gap-1.5">
-            {templates.length === 0 && (
-              <span className="text-xs text-slate-400">
-                Andoza yo'q — Sozlamalar → SMS (Eskiz)da yarating.
-              </span>
-            )}
-            {templates.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => setMessage(t.text)}
-                className="rounded-full border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 transition-colors hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700"
-              >
-                {t.name}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Matn */}
-        <div>
-          <label className="mb-1 block text-sm font-medium text-slate-600">Xabar matni</label>
-          <textarea
-            ref={taRef}
-            rows={5}
-            className="w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 outline-none transition-colors focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
-            placeholder="Hurmatli ota-ona, ..."
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-          />
-          <div className="mt-1 flex items-center justify-between">
-            <div className="flex flex-wrap gap-1.5">
-              {messageTokens.map((t) => (
-                <button
-                  key={t.token}
-                  type="button"
-                  onClick={() => insertToken(t.token)}
-                  className="rounded-md bg-slate-100 px-2 py-1 font-mono text-xs font-medium text-slate-600 transition-colors hover:bg-brand-50 hover:text-brand-700"
-                  title={t.token}
-                >
-                  {t.label}
-                </button>
-              ))}
-            </div>
-            <span className="shrink-0 font-mono text-xs text-slate-400">
-              {len} belgi · {parts} SMS
-            </span>
-          </div>
-          <p className="mt-1 text-xs text-slate-400">
-            O'rinbosarlar har o'quvchiga moslab to'ldiriladi.
-          </p>
-        </div>
+        {/* Matn (shablon chiplari + tokenlar + SMS hisoblagich — yagona MessageEditor) */}
+        <MessageEditor
+          label="Xabar matni"
+          value={message}
+          onChange={setMessage}
+          tokens={tokens}
+          templates={templates.map((t) => ({ name: t.name, text: t.text }))}
+          showSmsCounter
+          rows={5}
+          placeholder="Hurmatli ota-ona, ..."
+          hint="O'rinbosarlar har o'quvchiga moslab to'ldiriladi."
+        />
 
         {result && (
           <p

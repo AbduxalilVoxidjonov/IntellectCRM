@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Send, AlertTriangle, Search, Check, Smartphone, Bell, MessageCircle } from 'lucide-react'
+import { Send, AlertTriangle, Search, Check } from 'lucide-react'
 import type { MessageClass } from '@/types'
 import {
   getSmsStatus,
@@ -21,31 +21,19 @@ import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { Input, Select } from '@/components/ui/Input'
 import { cn } from '@/lib/utils'
-import { messageTokens } from '@/config/messageTemplates'
+import { CHANNELS, CHANNEL_ORDER, type ChannelKey } from '@/config/channels'
+import { MessageEditor, type TokenDef } from '@/components/messaging/MessageEditor'
+import { getMessageTokens } from '@/api/services/autoMessages'
 import { MessageTemplateLibrary } from './MessageTemplateLibrary'
 
 /** Kanal — bir vaqtda bir nechtasi tanlanadi. */
-type Channel = 'sms' | 'push' | 'telegram'
+type Channel = ChannelKey
 /** Auditoriya — bitta tanlanadi. */
 type Audience = 'parents' | 'group' | 'students' | 'teachers' | 'selected'
-
-/** SMS uzunligi → bo'laklar soni (GSM-7: 160/153, Unicode: 70/67). */
-function smsParts(text: string): { len: number; parts: number } {
-  const len = text.length
-  // eslint-disable-next-line no-control-regex
-  const unicode = /[^\x00-\x7F]/.test(text)
-  if (len === 0) return { len: 0, parts: 0 }
-  const single = unicode ? 70 : 160
-  const multi = unicode ? 67 : 153
-  const parts = len <= single ? 1 : Math.ceil(len / multi)
-  return { len, parts }
-}
 
 /** Bitta kanalning holati (sozlanganmi). */
 interface ChannelState {
   key: Channel
-  label: string
-  icon: typeof Smartphone
   configured: boolean
   hint: string
 }
@@ -89,7 +77,8 @@ export function UnifiedComposer({
   // Matn
   const [title, setTitle] = useState('') // faqat Push uchun
   const [text, setText] = useState('')
-  const textRef = useRef<HTMLTextAreaElement>(null)
+  // Tokenlar (serverdan; xato bo'lsa lokal fallback — servisda hal qilinadi)
+  const [tokens, setTokens] = useState<TokenDef[]>([])
 
   // "Tanlab" — oluvchilar
   const [smsRecipients, setSmsRecipients] = useState<SmsRecipient[]>([])
@@ -119,23 +108,24 @@ export function UnifiedComposer({
       .finally(() => setStatusLoaded(true))
   }, [])
 
-  const channelStates: ChannelState[] = [
-    {
-      key: 'sms',
-      label: 'SMS (Eskiz)',
-      icon: Smartphone,
-      configured: smsCfg,
-      hint: `Jo'natuvchi: ${smsFrom}`,
-    },
-    { key: 'push', label: 'Push (ilova)', icon: Bell, configured: pushCfg, hint: 'Ilovaga bildirishnoma' },
-    {
-      key: 'telegram',
-      label: 'Telegram (e\'lon)',
-      icon: MessageCircle,
-      configured: tgCfg,
-      hint: 'Bot orqali ota-onalarga',
-    },
-  ]
+  // Token katalogi (lid tokenlari bu oynaga taalluqli emas)
+  useEffect(() => {
+    getMessageTokens()
+      .then((ts) => setTokens(ts.filter((t) => t.group !== 'lead')))
+      .catch(() => setTokens([]))
+  }, [])
+
+  // Kanal kartalari — yagona tartibda (config/channels.ts)
+  const channelHints: Record<Channel, { configured: boolean; hint: string }> = {
+    sms: { configured: smsCfg, hint: `Jo'natuvchi: ${smsFrom}` },
+    telegram: { configured: tgCfg, hint: 'Bot orqali ota-onalarga' },
+    push: { configured: pushCfg, hint: 'Ilovaga bildirishnoma' },
+  }
+  const channelStates: ChannelState[] = CHANNEL_ORDER.map((k) => ({
+    key: k,
+    configured: channelHints[k].configured,
+    hint: channelHints[k].hint,
+  }))
 
   // "Tanlab" rejimida picker turi: faqat Push yoqilgan bo'lsa akkaunt-picker, aks holda o'quvchi/o'qituvchi.
   const pushOnlySelected = channels.push && !channels.sms && !channels.telegram
@@ -190,23 +180,6 @@ export function UnifiedComposer({
   }, [audience, pickerMode])
 
   const anyChannel = channels.sms || channels.push || channels.telegram
-  const { len, parts } = smsParts(text)
-
-  const insertToken = (token: string) => {
-    const el = textRef.current
-    if (!el) {
-      setText((b) => b + token)
-      return
-    }
-    const start = el.selectionStart ?? text.length
-    const end = el.selectionEnd ?? text.length
-    setText(text.slice(0, start) + token + text.slice(end))
-    requestAnimationFrame(() => {
-      el.focus()
-      const pos = start + token.length
-      el.setSelectionRange(pos, pos)
-    })
-  }
 
   const applyTemplate = (tpl: string, name: string) => {
     setText(tpl)
@@ -374,10 +347,11 @@ export function UnifiedComposer({
       <Card title="Kanallar" sub="Bir yoki bir nechta kanal tanlang">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           {channelStates.map((c) => {
+            const meta = CHANNELS[c.key]
             const active = channels[c.key]
             const allowed = channelAllowed(c.key, audience)
             const disabled = !c.configured || !allowed
-            const Icon = c.icon
+            const Icon = meta.icon
             return (
               <button
                 key={c.key}
@@ -403,7 +377,8 @@ export function UnifiedComposer({
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="flex items-center gap-1.5">
-                    <span className="text-sm font-semibold text-slate-800">{c.label}</span>
+                    <span className="text-sm font-semibold text-slate-800">{meta.label}</span>
+                    <span className="text-xs font-normal text-slate-400">· {meta.sub}</span>
                     {active && <Check className="h-3.5 w-3.5 text-brand-600" />}
                   </span>
                   <span className="mt-0.5 block truncate text-xs text-slate-400">
@@ -534,38 +509,15 @@ export function UnifiedComposer({
             />
           )}
 
-          <div>
-            <textarea
-              ref={textRef}
-              className="h-32 w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 outline-none transition-colors focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
-              placeholder="Xabar matni — o'rinbosarlar har o'quvchiga moslab to'ldiriladi"
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-            />
-            <div className="mt-1 flex items-center justify-between gap-2">
-              <div className="flex flex-wrap gap-1.5">
-                {messageTokens.map((t) => (
-                  <button
-                    key={t.token}
-                    type="button"
-                    onClick={() => insertToken(t.token)}
-                    className="rounded-md bg-slate-100 px-2 py-1 font-mono text-xs font-medium text-slate-600 transition-colors hover:bg-brand-50 hover:text-brand-700"
-                    title={t.token}
-                  >
-                    {t.label}
-                  </button>
-                ))}
-              </div>
-              {channels.sms && (
-                <span className="shrink-0 font-mono text-xs text-slate-400">
-                  {len} belgi · {parts} SMS
-                </span>
-              )}
-            </div>
-            <p className="mt-1 text-xs text-slate-400">
-              O'rinbosarlar har o'quvchiga moslab to'ldiriladi. O'qituvchilarga faqat {'{fish}'} ishlaydi.
-            </p>
-          </div>
+          <MessageEditor
+            value={text}
+            onChange={setText}
+            tokens={tokens}
+            showSmsCounter={channels.sms}
+            rows={5}
+            placeholder="Xabar matni — o'rinbosarlar har o'quvchiga moslab to'ldiriladi"
+            hint="O'rinbosarlar har o'quvchiga moslab to'ldiriladi. O'qituvchilarga faqat {fish} ishlaydi."
+          />
 
           {results.length > 0 && (
             <div className="space-y-1 rounded-lg border border-slate-100 bg-slate-50 p-2.5">

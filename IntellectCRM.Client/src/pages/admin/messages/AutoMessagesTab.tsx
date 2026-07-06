@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Zap, Plus, Trash2, Smartphone, Bell, MessageCircle, AlertTriangle } from 'lucide-react'
+import { Zap, Plus, Trash2, AlertTriangle } from 'lucide-react'
 import {
   getAutoMessageTriggers,
   getAutoMessageRules,
@@ -19,13 +19,35 @@ import { Badge } from '@/components/ui/Badge'
 import { Loader } from '@/components/ui/Loader'
 import { Select } from '@/components/ui/Input'
 import { cn } from '@/lib/utils'
+import { CHANNEL_LIST, type ChannelKey } from '@/config/channels'
+import { MessageEditor } from '@/components/messaging/MessageEditor'
 
-type Ch = 'sms' | 'push' | 'telegram'
-const CHANNEL_META: { key: Ch; label: string; icon: typeof Smartphone }[] = [
-  { key: 'sms', label: 'SMS', icon: Smartphone },
-  { key: 'push', label: 'Push', icon: Bell },
-  { key: 'telegram', label: 'Telegram', icon: MessageCircle },
-]
+type Ch = ChannelKey
+
+/** Bo'limlar tartibi (trigger.category bo'yicha guruhlash). */
+const CATEGORY_ORDER = ['Lidlar', "O'quv jarayoni", 'Moliya', 'Boshqa'] as const
+
+/** Backend `category` bermasa — client-side fallback xarita. */
+const CATEGORY_FALLBACK: Record<string, string> = {
+  lead_new: 'Lidlar',
+  trial_reminder: 'Lidlar',
+  test_link: 'Lidlar',
+  test_result: 'Lidlar',
+  student_added: "O'quv jarayoni",
+  attendance_absent: "O'quv jarayoni",
+  lesson_attendance: "O'quv jarayoni",
+  birthday: "O'quv jarayoni",
+  grade_entered: "O'quv jarayoni",
+  payment_received: 'Moliya',
+  monthly_charge: 'Moliya',
+  payment_debt: 'Moliya',
+}
+
+/** Trigger qaysi bo'limga tegishli (server category → fallback → "Boshqa"). */
+function triggerCategory(t: AutoMessageTrigger): string {
+  const c = t.category || CATEGORY_FALLBACK[t.key] || 'Boshqa'
+  return (CATEGORY_ORDER as readonly string[]).includes(c) ? c : 'Boshqa'
+}
 
 /** Avto xabarlar tab: hodisalar katalogi + har hodisaning qoidalari. */
 export function AutoMessagesTab({ highlightRuleId }: { highlightRuleId?: string | null } = {}) {
@@ -64,6 +86,18 @@ export function AutoMessagesTab({ highlightRuleId }: { highlightRuleId?: string 
     }
     return m
   }, [rules])
+
+  // Trigger kartalarini bo'limlarga ajratamiz (Lidlar / O'quv jarayoni / Moliya / Boshqa)
+  const triggersByCategory = useMemo(() => {
+    const m = new Map<string, AutoMessageTrigger[]>()
+    for (const t of triggers) {
+      const cat = triggerCategory(t)
+      const arr = m.get(cat) ?? []
+      arr.push(t)
+      m.set(cat, arr)
+    }
+    return m
+  }, [triggers])
 
   // Hodisa uchun standart yangi qoida (birinchi mavjud kanal yoqiq — SMS ustuvor).
   const buildDefaultRule = (t: AutoMessageTrigger): AutoMessageRuleInput => ({
@@ -124,10 +158,16 @@ export function AutoMessagesTab({ highlightRuleId }: { highlightRuleId?: string 
           </button>
         </div>
       )}
-      {/* 2 ustun (katta ekranda) — sahifa juda uzun bo'lib ketmasligi uchun; items-start —
-          yonma-yon kartalar bir-biriga qarab cho'zilmaydi. */}
-      <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-2">
-      {triggers.map((t) => {
+      {/* Bo'limlar: Lidlar / O'quv jarayoni / Moliya / Boshqa */}
+      {CATEGORY_ORDER.filter((cat) => (triggersByCategory.get(cat) ?? []).length > 0).map((cat) => (
+        <section key={cat}>
+          <h3 className="mb-2 mt-2 text-sm font-bold uppercase tracking-wide text-slate-500">
+            {cat}
+          </h3>
+          {/* 2 ustun (katta ekranda) — sahifa juda uzun bo'lib ketmasligi uchun; items-start —
+              yonma-yon kartalar bir-biriga qarab cho'zilmaydi. */}
+          <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-2">
+      {(triggersByCategory.get(cat) ?? []).map((t) => {
         const trRules = rulesByTrigger.get(t.key) ?? []
         return (
           <Card
@@ -182,7 +222,9 @@ export function AutoMessagesTab({ highlightRuleId }: { highlightRuleId?: string 
           </Card>
         )
       })}
-      </div>
+          </div>
+        </section>
+      ))}
     </div>
   )
 }
@@ -208,7 +250,6 @@ function RuleCard({
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
   const [showRing, setShowRing] = useState(false)
-  const textRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => setDraft(rule), [rule])
 
@@ -239,23 +280,6 @@ function RuleCard({
     } finally {
       setSaving(false)
     }
-  }
-
-  const insertToken = (token: string) => {
-    const el = textRef.current
-    if (!el) {
-      set('template', draft.template + token)
-      return
-    }
-    const start = el.selectionStart ?? draft.template.length
-    const end = el.selectionEnd ?? draft.template.length
-    const next = draft.template.slice(0, start) + token + draft.template.slice(end)
-    set('template', next)
-    requestAnimationFrame(() => {
-      el.focus()
-      const pos = start + token.length
-      el.setSelectionRange(pos, pos)
-    })
   }
 
   const save = async () => {
@@ -349,7 +373,7 @@ function RuleCard({
           <div>
             <p className="mb-1.5 text-xs font-medium text-slate-500">Kanallar</p>
             <div className="flex flex-wrap gap-1.5">
-              {CHANNEL_META.filter((c) => trigger.channels[c.key]).map((c) => {
+              {CHANNEL_LIST.filter((c) => trigger.channels[c.key]).map((c) => {
                 const flag = channelFlag[c.key]
                 const on = draft[flag] as boolean
                 const Icon = c.icon
@@ -456,30 +480,17 @@ function RuleCard({
           )}
         </div>
 
-        {/* O'ng: shablon matn + tokenlar */}
+        {/* O'ng: shablon matn + tokenlar (server-driven — trigger.tokens) */}
         <div>
           <p className="mb-1.5 text-xs font-medium text-slate-500">Xabar matni</p>
-          <textarea
-            ref={textRef}
-            className="h-28 w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 outline-none transition-colors focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
+          <MessageEditor
             value={draft.template}
-            onChange={(e) => set('template', e.target.value)}
+            onChange={(v) => set('template', v)}
+            tokens={trigger.tokens.map((tk) => ({ token: tk, label: tk }))}
+            showSmsCounter={draft.sendSms}
+            rows={4}
             placeholder="Xabar matni — o'rinbosarlar bilan"
           />
-          {trigger.tokens.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {trigger.tokens.map((tk) => (
-                <button
-                  key={tk}
-                  type="button"
-                  onClick={() => insertToken(tk)}
-                  className="rounded-md bg-slate-100 px-2 py-1 font-mono text-xs font-medium text-slate-600 transition-colors hover:bg-brand-50 hover:text-brand-700"
-                >
-                  {tk}
-                </button>
-              ))}
-            </div>
-          )}
           <div className="mt-3 flex items-center justify-end gap-3">
             {trigger.tokens.length > 0 && !draft.template.trim() && (
               <span className="text-xs text-amber-600">Xabar matni bo'sh bo'lmasligi kerak</span>

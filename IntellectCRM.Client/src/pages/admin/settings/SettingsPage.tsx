@@ -13,6 +13,8 @@ import { Loader } from '@/components/ui/Loader'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { SchoolSettings } from './SchoolSettings'
 import { ChannelsSettings } from './ChannelsSettings'
+import { BackupSettings } from './BackupSettings'
+import { ApkSettings } from './ApkSettings'
 import { AzureSpeechSettings } from './AzureSpeechSettings'
 import { GeminiSettings } from './GeminiSettings'
 import { TurnstileSettings } from './TurnstileSettings'
@@ -28,6 +30,8 @@ const sectionTitles: Record<string, string> = {
   reasons: 'Davomat sabablari',
   school: "Markaz ma'lumotlari",
   channels: 'Xabar kanallari',
+  backup: 'Zaxira nusxa',
+  apk: 'Mobil ilova (APK)',
   'azure-speech': 'Speaking (Azure)',
   gemini: 'AI Tahlil (Gemini)',
   check: "To'lov cheki",
@@ -160,6 +164,12 @@ export function SettingsPage() {
           {section === 'channels' && (
             <ChannelsSettings initialTab={channelTabFromQuery(searchParams.get('tab'))} />
           )}
+
+          {/* Zaxira nusxa (Telegram backup) */}
+          {section === 'backup' && <BackupSettings />}
+
+          {/* Mobil ilova (APK) */}
+          {section === 'apk' && <ApkSettings />}
 
           {/* Speaking (Azure) */}
           {section === 'azure-speech' && <AzureSpeechSettings />}

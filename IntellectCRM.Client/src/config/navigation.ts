@@ -174,6 +174,8 @@ export const navByRole: Record<Role, NavItem[]> = {
         { label: "Markaz ma'lumotlari", to: '/admin/settings/school' },
         { label: 'Tuman va maktablar', to: '/admin/districts' },
         { label: 'Xabar kanallari', to: '/admin/settings/channels' },
+        { label: 'Zaxira nusxa', to: '/admin/settings/backup' },
+        { label: 'Mobil ilova (APK)', to: '/admin/settings/apk' },
         { label: 'Speaking (Azure)', to: '/admin/settings/azure-speech' },
         { label: 'AI Tahlil (Gemini)', to: '/admin/settings/gemini' },
         { label: "To'lov cheki", to: '/admin/settings/check' },

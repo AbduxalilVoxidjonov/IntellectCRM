@@ -8,7 +8,7 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from '@dnd-kit/core'
-import { Plus } from 'lucide-react'
+import { Plus, MessageSquare } from 'lucide-react'
 import type { Lead, Stage } from '@/types'
 import { getLeads, createLead, updateLead, updateLeadStage, deleteLead } from '@/api/services/leads'
 import {
@@ -28,6 +28,7 @@ import { LeadCardContent } from './LeadCard'
 import { ReasonPromptModal } from '@/components/ui/ReasonPromptModal'
 import { LeadFormModal, type LeadFormValues } from './LeadFormModal'
 import { LeadDetailModal } from './LeadDetailModal'
+import { LeadBulkSmsModal } from './LeadBulkSmsModal'
 import { StageFormModal } from './StageFormModal'
 
 export function LeadsPage() {
@@ -45,6 +46,8 @@ export function LeadsPage() {
   const [editingStage, setEditingStage] = useState<Stage | null>(null)
   // Lid raqamiga qo'ng'iroq qilish oynasi
   const [callLead, setCallLead] = useState<Lead | null>(null)
+  // Lidlarga ommaviy SMS oynasi
+  const [bulkSmsOpen, setBulkSmsOpen] = useState(false)
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
 
@@ -163,14 +166,19 @@ export function LeadsPage() {
           </>
         }
         actions={
-          <Button
-            onClick={() => {
-              setEditingLead(null)
-              setLeadFormOpen(true)
-            }}
-          >
-            <Plus className="h-4 w-4" /> Yangi lid
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" onClick={() => setBulkSmsOpen(true)}>
+              <MessageSquare className="h-4 w-4" /> SMS yuborish
+            </Button>
+            <Button
+              onClick={() => {
+                setEditingLead(null)
+                setLeadFormOpen(true)
+              }}
+            >
+              <Plus className="h-4 w-4" /> Yangi lid
+            </Button>
+          </div>
         }
       />
 
@@ -264,6 +272,12 @@ export function LeadsPage() {
         }}
         onSubmit={handleStageSubmit}
         initial={editingStage}
+      />
+      <LeadBulkSmsModal
+        open={bulkSmsOpen}
+        onClose={() => setBulkSmsOpen(false)}
+        leads={leads.filter((l) => !l.convertedStudentId)}
+        stages={stages}
       />
       <CallPickerModal
         open={!!callLead}

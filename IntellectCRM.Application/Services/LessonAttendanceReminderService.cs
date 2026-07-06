@@ -8,15 +8,15 @@ using IntellectCRM.Domain;
 namespace IntellectCRM.Application.Services;
 
 /// <summary>
-/// O'qituvchiga "davomat kiriting" eslatmasi (fon xizmati). Qoida <see cref="ReminderRule.SendScope"/>
+/// O'qituvchiga "davomat kiriting" eslatmasi (fon xizmati). Qoida <see cref="IntellectCRM.Domain.AutoMessageRule.SendScope"/>
 /// bo'yicha 3 rejimda ishlaydi:
 /// <list type="bullet">
 /// <item>"lesson_start" (default) — har faol guruh uchun, dars boshlanish vaqtidan (<see cref="Group.StartTime"/>)
 /// qoida bo'yicha belgilangan daqiqa (odatda 5) o'tgach, agar shu kunga hali davomat kiritilmagan bo'lsa
 /// (<see cref="LessonNote.Conducted"/>), guruh o'qituvchisiga yuboriladi.</item>
-/// <item>"not_filled" — kunlik <see cref="ReminderRule.ScheduleTime"/>da: bugun darsi bo'lib (boshlangan)
+/// <item>"not_filled" — kunlik <see cref="IntellectCRM.Domain.AutoMessageRule.ScheduleTime"/>da: bugun darsi bo'lib (boshlangan)
 /// davomatini HALI kiritmagan o'qituvchilarga, har to'ldirilmagan guruh uchun alohida.</item>
-/// <item>"all" — kunlik <see cref="ReminderRule.ScheduleTime"/>da: BARCHA faol o'qituvchilarga
+/// <item>"all" — kunlik <see cref="IntellectCRM.Domain.AutoMessageRule.ScheduleTime"/>da: BARCHA faol o'qituvchilarga
 /// (davomatni to'ldirganlarga ham).</item>
 /// </list>
 /// Kanal: push (FCM) + Telegram + ichki bildirishnoma. Andoza/vaqt "Sozlamalar → Eslatmalar"da boshqariladi;

@@ -14,6 +14,8 @@ import {
 import { ReceiptModal } from '@/components/finance/ReceiptModal'
 import { CallPickerModal, type CallOption } from '@/components/CallPickerModal'
 import { getSmsTemplates, sendLeadSms, type SmsTemplate } from '@/api/services/messages'
+import { getMessageTokens } from '@/api/services/autoMessages'
+import { MessageEditor, type TokenDef } from '@/components/messaging/MessageEditor'
 import { getLevelTests, sendLeadTest } from '@/api/services/levelTests'
 import type { LevelTestListItem } from '@/types'
 import type { Lead, LeadEvent, LeadEventType, TrialLesson, Group } from '@/types'
@@ -127,6 +129,7 @@ export function LeadDetailModal({ lead, onClose, onEdit, onDelete, onConverted }
 
   // Lidga SMS yuborish
   const [smsTemplates, setSmsTemplates] = useState<SmsTemplate[]>([])
+  const [smsTokens, setSmsTokens] = useState<TokenDef[]>([])
   const [smsText, setSmsText] = useState('')
   const [smsSending, setSmsSending] = useState(false)
   const [smsResult, setSmsResult] = useState<string | null>(null)
@@ -172,6 +175,10 @@ export function LeadDetailModal({ lead, onClose, onEdit, onDelete, onConverted }
     setSendTestResult(null)
     refreshTimeline(leadId)
     getSmsTemplates().then(setSmsTemplates).catch(() => setSmsTemplates([]))
+    // Lid uchun faqat lid + umumiy guruh tokenlari mos keladi
+    getMessageTokens()
+      .then((ts) => setSmsTokens(ts.filter((t) => t.group === 'lead' || t.group === 'common')))
+      .catch(() => setSmsTokens([]))
     getLevelTests().then((ts) => setLevelTests(ts.filter((t) => t.isActive))).catch(() => setLevelTests([]))
     getClasses()
       .then((gs) => setGroups(gs.filter((g) => !g.isArchived)))
@@ -398,26 +405,14 @@ export function LeadDetailModal({ lead, onClose, onEdit, onDelete, onConverted }
                 <p className="text-xs text-slate-400">
                   Raqam: <span className="font-mono text-slate-600">{leadPhone}</span>
                 </p>
-                {smsTemplates.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5">
-                    {smsTemplates.map((t) => (
-                      <button
-                        key={t.id}
-                        type="button"
-                        onClick={() => setSmsText(t.text)}
-                        className="rounded-full border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 transition-colors hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700"
-                      >
-                        {t.name}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                <textarea
-                  rows={3}
+                <MessageEditor
                   value={smsText}
-                  onChange={(e) => setSmsText(e.target.value)}
+                  onChange={setSmsText}
+                  tokens={smsTokens}
+                  templates={smsTemplates.map((t) => ({ name: t.name, text: t.text }))}
+                  showSmsCounter
+                  rows={3}
                   placeholder="SMS matni (shablon tanlang yoki yozing)..."
-                  className="w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
                 />
                 <div className="flex items-center justify-between gap-3">
                   {smsResult && (

@@ -112,9 +112,6 @@ public interface IAppDbContext
     DbSet<SmsLog> SmsLogs { get; }
     DbSet<SmsTemplate> SmsTemplates { get; }
 
-    // Eslatmalar (avtomatik push-qoidalar) — Sozlamalar → Eslatmalar (eski model — [Obsolete])
-    DbSet<ReminderRule> ReminderRules { get; }
-
     // Avto-xabarlar (yagona model: SMS+Push+Telegram) — Xabarlar → Avto xabarlar
     DbSet<AutoMessageRule> AutoMessageRules { get; }
 

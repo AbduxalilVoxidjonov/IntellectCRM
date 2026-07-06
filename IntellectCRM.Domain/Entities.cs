@@ -987,8 +987,8 @@ public class CenterMeta
 
 /// <summary>Avto-xabar qoidasi — hodisa (Trigger) yuz berganda tanlangan kanallar orqali
 /// shablon asosida xabar yuboriladi. Admin "Xabarlar → Avto xabarlar"da boshqaradi.
-/// Eski <see cref="SmsTemplate"/>+IsAuto (faqat SMS) va <see cref="ReminderRule"/> (faqat push+telegram)
-/// modellarini BIRLASHTIRADI — har qoida 3 kanalni (SMS/Push/Telegram) mustaqil yoqadi.</summary>
+/// Eski SmsTemplate+IsAuto (faqat SMS) va ReminderRule (faqat push+telegram) modellarini
+/// BIRLASHTIRGAN yagona model — har qoida 3 kanalni (SMS/Push/Telegram) mustaqil yoqadi.</summary>
 public class AutoMessageRule
 {
     public string Id { get; set; } = Guid.NewGuid().ToString();
@@ -1740,8 +1740,8 @@ public class SmsBatch
 
 /// <summary>
 /// SMS andozasi (shablon) — admin "Sozlamalar → SMS (Eskiz)"da yaratadi/tahrirlaydi. SMS yuborishda
-/// (o'quvchi/ota-ona/lid) tanlanadi. <see cref="IsAuto"/>=true bo'lsa AVTO SMS uchun belgilangan
-/// (masalan yangi lid tushganda avtomatik yuboriladi). Matnda o'rinbosarlar: {fish} {sinf} {telefon}...
+/// (o'quvchi/ota-ona/lid) tanlanadi. Faqat QO'LDA yuborish uchun — avto-hodisalar
+/// <see cref="AutoMessageRule"/>da. Matnda o'rinbosarlar: {fish} {sinf} {telefon}...
 /// </summary>
 public class SmsTemplate
 {
@@ -1750,47 +1750,7 @@ public class SmsTemplate
     public string Name { get; set; } = string.Empty;
     /// <summary>Andoza matni (o'rinbosarlar bilan).</summary>
     public string Text { get; set; } = string.Empty;
-    /// <summary>AVTO SMS uchun belgilangan (<see cref="Trigger"/> bo'sh emas). Eski kod/UI uchun saqlanadi.</summary>
-    public bool IsAuto { get; set; }
-    /// <summary>
-    /// Avto-SMS HODISASI (trigger). Bo'sh = qo'lda (avto emas). Qiymatlar:
-    /// "lead_new" (yangi lid), "payment" (to'lov qabul qilindi), "birthday" (tug'ilgan kun),
-    /// "test_result" (daraja testi natijasi). Har hodisada Order bo'yicha BIRINCHI mos andoza yuboriladi.
-    /// </summary>
-    public string Trigger { get; set; } = string.Empty;
     public int Order { get; set; }
-    public string CreatedAt { get; set; } = AppClock.Iso();
-}
-
-/// <summary>
-/// Umumiy avtomatik push-eslatma qoidasi (Sozlamalar → Eslatmalar). Har qator — bitta eslatma turi
-/// (<see cref="Trigger"/>, masalan "payment_debt" yoki "lesson_attendance") uchun sozlama: yoqilgan/
-/// o'chirilgan, matn andozasi (turi qo'llasa) va vaqt siljishi (faqat "lesson_attendance" uchun —
-/// dars boshlanishidan necha daqiqa keyin yuborilsin). Tur katalogi <c>ReminderTriggers</c>da.
-/// </summary>
-public class ReminderRule
-{
-    public string Id { get; set; } = Guid.NewGuid().ToString();
-    /// <summary>"payment_debt" | "lesson_attendance" | "custom_schedule" — <c>ReminderTriggers</c> katalogidagi kalit.</summary>
-    public string Trigger { get; set; } = string.Empty;
-    public string Name { get; set; } = string.Empty;
-    public bool Enabled { get; set; } = true;
-    /// <summary>Andoza matni (o'rinbosarlar bilan) — faqat turi qo'llagan qoidalarda ishlatiladi.</summary>
-    public string MessageTemplate { get; set; } = string.Empty;
-    /// <summary>Faqat "lesson_attendance": dars boshlanishidan necha daqiqa keyin yuborilsin (default 5).</summary>
-    public int OffsetMinutes { get; set; } = 5;
-    /// <summary>Faqat "lesson_attendance": kimga/qachon yuborilsin — "lesson_start" (dars boshlangach,
-    /// to'ldirmaganga — default) | "not_filled" (kunlik ScheduleTime'da, bugun darsi bo'lib to'ldirmaganlarga)
-    /// | "all" (kunlik ScheduleTime'da BARCHA o'qituvchilarga, to'ldirganlarga ham).</summary>
-    public string SendScope { get; set; } = "lesson_start";
-    /// <summary>Faqat "custom_schedule": kimga yuborilsin — <c>ReminderAudiences.Teachers</c> | <c>Students</c>.</summary>
-    public string Audience { get; set; } = string.Empty;
-    /// <summary>Faqat "custom_schedule": "daily" (har kuni) | "monthly" (oyning muayyan kunida).</summary>
-    public string ScheduleType { get; set; } = "daily";
-    /// <summary>Faqat "custom_schedule": yuborish vaqti "HH:mm" (Toshkent).</summary>
-    public string ScheduleTime { get; set; } = "09:00";
-    /// <summary>Faqat "custom_schedule" + ScheduleType=="monthly": oyning qaysi kunida (1-31).</summary>
-    public int ScheduleDayOfMonth { get; set; } = 1;
     public string CreatedAt { get; set; } = AppClock.Iso();
 }
 

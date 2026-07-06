@@ -246,35 +246,16 @@ export async function getAllMessageTemplates(): Promise<UnifiedTemplate[]> {
 }
 
 /* ---------- SMS andozalari (shablonlar) ---------- */
-/** Avto-SMS hodisasi (trigger). Bo'sh = qo'lda (avto emas). */
-export type SmsTrigger = '' | 'lead_new' | 'payment' | 'birthday' | 'test_result' | 'test_link' | 'trial_reminder'
-
-/** Hodisa tanlovi uchun yorliqlar (UI). */
-export const smsTriggerOptions: { value: SmsTrigger; label: string }[] = [
-  { value: '', label: 'Avto emas (qo’lda yuboriladi)' },
-  { value: 'lead_new', label: 'Yangi lid qo’shilganda' },
-  { value: 'payment', label: 'To’lov qabul qilinganda' },
-  { value: 'birthday', label: 'Tug’ilgan kunda' },
-  { value: 'test_result', label: 'Test natijasi chiqqanda' },
-  { value: 'test_link', label: 'Daraja testi havolasi ({link})' },
-  { value: 'trial_reminder', label: 'Sinov darsidan bir kun avval ({dars_sana}, {dars_vaqti})' },
-]
-export const smsTriggerLabel = (t: string): string =>
-  smsTriggerOptions.find((o) => o.value === t)?.label ?? ''
-
+/** Qo'lda yuboriladigan SMS andozasi. (Avto xabarlar endi AutoMessageRule'da — trigger/isAuto YO'Q.) */
 export interface SmsTemplate {
   id: string
   name: string
   text: string
-  isAuto: boolean
-  trigger: SmsTrigger
   order: number
 }
 export interface SaveSmsTemplateReq {
   name: string
   text: string
-  isAuto: boolean
-  trigger: SmsTrigger
 }
 export async function getSmsTemplates(): Promise<SmsTemplate[]> {
   if (USE_MOCK) return []
@@ -296,6 +277,21 @@ export async function deleteSmsTemplate(id: string): Promise<void> {
 /** Lidga SMS yuborish (lid telefon raqamiga). */
 export async function sendLeadSms(leadId: string, text: string): Promise<SmsBatch> {
   const { data } = await api.post<SmsBatch>('/admin/messages/sms/lead', { leadId, text })
+  return data
+}
+
+/** Lidlarga OMMAVIY SMS natijasi. */
+export interface LeadBulkSmsResult {
+  sent: number
+  failed: number
+  noPhone: number
+}
+/** Bir nechta lidga SMS yuborish (har biriga o'z raqamiga, tokenlar lidga moslab to'ldiriladi). */
+export async function sendLeadSmsBulk(leadIds: string[], text: string): Promise<LeadBulkSmsResult> {
+  const { data } = await api.post<LeadBulkSmsResult>('/admin/messages/sms/lead-bulk', {
+    leadIds,
+    text,
+  })
   return data
 }
 

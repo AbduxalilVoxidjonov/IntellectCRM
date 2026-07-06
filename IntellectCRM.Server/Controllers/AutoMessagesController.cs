@@ -20,14 +20,20 @@ namespace IntellectCRM.Server.Controllers;
 [Route("api/admin/auto-messages")]
 public class AutoMessagesController(AppDbContext db) : ControllerBase
 {
-    /// <summary>Hodisa katalogi (frontend forma shundan quriladi).</summary>
+    /// <summary>Hodisa katalogi (frontend forma shundan quriladi). category — guruhlash toifasi.</summary>
     [HttpGet("triggers")]
     public ActionResult<IEnumerable<AutoMessageTriggerInfoDto>> Triggers() =>
         AutoMessageTriggers.All.Select(t => new AutoMessageTriggerInfoDto(
             t.Key, t.Label, t.Description, t.Tokens,
             new AutoMessageChannelsDto(t.Sms, t.Push, t.Telegram),
             t.SupportsSchedule, t.SupportsSendScope, t.Audiences, t.DefaultAudience,
-            t.DefaultTemplate)).ToList();
+            t.DefaultTemplate, t.Category)).ToList();
+
+    /// <summary>Xabar {token}lari katalogi — shablon tahrirlagichda "token qo'shish" ro'yxati.
+    /// group: "student" | "lead" | "common" | "event".</summary>
+    [HttpGet("tokens")]
+    public ActionResult<IEnumerable<MessageTokenDto>> Tokens() =>
+        MessageTokenCatalog.All.Select(t => new MessageTokenDto(t.Token, t.Label, t.Group)).ToList();
 
     [HttpGet]
     public async Task<ActionResult<IEnumerable<AutoMessageRuleDto>>> List()

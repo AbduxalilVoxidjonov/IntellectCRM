@@ -12,13 +12,13 @@ import { ChatPanel } from '@/components/chat/ChatPanel'
 import { UnifiedComposer } from './UnifiedComposer'
 import { AutoMessagesTab } from './AutoMessagesTab'
 import { HistoryTab } from './HistoryTab'
-type Tab = 'chat' | 'send' | 'auto' | 'history'
+type Tab = 'send' | 'auto' | 'history' | 'chat'
 
 export function MessagesPage() {
   const { unreadChannels } = useUnread()
   const [classes, setClasses] = useState<MessageClass[]>([])
   const [loading, setLoading] = useState(true)
-  const [tab, setTab] = useState<Tab>('chat')
+  const [tab, setTab] = useState<Tab>('send')
   const [selected, setSelected] = useState<string | null>(null)
   const [highlightRule, setHighlightRule] = useState<string | null>(null)
 
@@ -38,9 +38,6 @@ export function MessagesPage() {
         sub="Yagona xabar markazi: chat, xabar yuborish, avto xabarlar va tarix"
         actions={
           <div className="tabs">
-            <TabButton active={tab === 'chat'} onClick={() => setTab('chat')} icon={MessageSquare}>
-              Guruh chati
-            </TabButton>
             <TabButton active={tab === 'send'} onClick={() => setTab('send')} icon={Send}>
               Xabar yuborish
             </TabButton>
@@ -49,6 +46,14 @@ export function MessagesPage() {
             </TabButton>
             <TabButton active={tab === 'history'} onClick={() => setTab('history')} icon={History}>
               Tarix
+            </TabButton>
+            <TabButton active={tab === 'chat'} onClick={() => setTab('chat')} icon={MessageSquare}>
+              <span className="inline-flex items-center gap-1.5">
+                Guruh chati
+                {unreadChannels.size > 0 && (
+                  <span className="h-2 w-2 shrink-0 rounded-full bg-red-500" />
+                )}
+              </span>
             </TabButton>
           </div>
         }
