@@ -351,9 +351,9 @@ public record StudentCallDto(
 public record SubjectPayload(string Name, decimal Price = 0, decimal LessonPrice = 0);
 
 /* ---------- Guruhlar (Groups) ---------- */
-/// <summary>Xona konflikti: mavjud guruh bir xil xona, kun va vaqtda ishlaydi.</summary>
+/// <summary>Jadval konflikti: mavjud guruh bir xil xona yoki o'qituvchi, kun va vaqtda ishlaydi.</summary>
 public record RoomConflictDto(
-    string GroupId, string GroupName, string SharedDays, string ExistingSlot);
+    string GroupId, string GroupName, string SharedDays, string ExistingSlot, string Reason);
 
 public record ClassPayload(
     string Name, int Grade, string Language, decimal MonthlyFee, string? Room,

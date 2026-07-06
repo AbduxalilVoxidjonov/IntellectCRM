@@ -4,9 +4,10 @@ using Microsoft.EntityFrameworkCore;
 namespace IntellectCRM.Application.Services;
 
 /// <summary>
-/// Xona konfliktini aniqlash servisi.
-/// Guruh yaratish/tahrirlashda bir xil xona, kunlar va vaqt to'qnashuvini WARNING sifatida qaytaradi.
-/// REJECT QILINMAYDI — admin "baribir saqlash" qila oladi.
+/// Xona/o'qituvchi konfliktini aniqlash servisi.
+/// Guruh yaratish/tahrirlashda bir xil xona YOKI bir xil o'qituvchi, kunlar va vaqt
+/// to'qnashuvini WARNING sifatida qaytaradi (o'qituvchi bir vaqtda 2 guruhda bo'la olmaydi,
+/// xona tanlanmagan yoki har xil bo'lsa ham). REJECT QILINMAYDI — admin "baribir saqlash" qila oladi.
 /// </summary>
 public class RoomConflictService(IAppDbContext db)
 {
@@ -18,25 +19,30 @@ public class RoomConflictService(IAppDbContext db)
         public string SharedDays { get; set; } = string.Empty;
         /// <summary>"09:00–10:00" kabi mavjud guruh vaqt oralig'i.</summary>
         public string ExistingSlot { get; set; } = string.Empty;
+        /// <summary>"room" | "teacher" — nima to'qnashganini bildiradi.</summary>
+        public string Reason { get; set; } = string.Empty;
     }
 
     /// <summary>
-    /// Berilgan xona (FK RoomId), kunlar va vaqt oralig'i uchun konfliktli guruhlarni qaytaradi.
-    /// Bo'sh roomId/days/time berilsa — bo'sh ro'yxat (tekshirish o'tkazilmaydi).
+    /// Berilgan xona (FK RoomId) va/yoki o'qituvchi, kunlar va vaqt oralig'i uchun konfliktli
+    /// guruhlarni qaytaradi (xona bir xil BO'LSA yoki o'qituvchi bir xil BO'LSA — biri kifoya).
+    /// roomId/teacherId ikkalasi ham bo'sh yoki days/time bo'sh berilsa — bo'sh ro'yxat.
     /// <paramref name="excludeGroupId"/> — tahrirlash paytida o'z id'sini chiqarib tashlash uchun.
     /// </summary>
     public async Task<List<ConflictInfo>> CheckRoomConflictAsync(
-        string? roomId, List<int> days, string? startTime, string? endTime,
+        string? roomId, string? teacherId, List<int> days, string? startTime, string? endTime,
         string? excludeGroupId = null)
     {
-        if (string.IsNullOrWhiteSpace(roomId)
+        var hasRoom = !string.IsNullOrWhiteSpace(roomId);
+        var hasTeacher = !string.IsNullOrWhiteSpace(teacherId);
+        if ((!hasRoom && !hasTeacher)
             || days.Count == 0
             || string.IsNullOrWhiteSpace(startTime)
             || string.IsNullOrWhiteSpace(endTime))
             return [];
 
         var existing = await db.Classes
-            .Where(g => g.RoomId == roomId
+            .Where(g => ((hasRoom && g.RoomId == roomId) || (hasTeacher && g.TeacherId == teacherId))
                      && !g.IsArchived
                      && g.Id != excludeGroupId
                      && g.Days != null
@@ -50,12 +56,14 @@ public class RoomConflictService(IAppDbContext db)
             var sharedDays = (g.Days ?? []).Intersect(days).ToList();
             if (sharedDays.Count > 0 && TimeOverlap(g.StartTime, g.EndTime, startTime, endTime))
             {
+                var reason = hasRoom && g.RoomId == roomId ? "room" : "teacher";
                 conflicts.Add(new ConflictInfo
                 {
                     GroupId = g.Id,
                     GroupName = g.Name,
                     SharedDays = FormatDays(sharedDays),
                     ExistingSlot = $"{g.StartTime}–{g.EndTime}",
+                    Reason = reason,
                 });
             }
         }

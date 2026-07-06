@@ -153,8 +153,15 @@ export function ClassesPage() {
 
   /** Konflikt ro'yxatini o'qiladigan satrga aylantiradi. */
   const conflictList = (raw: unknown): string =>
-    (raw as Array<{ groupName: string; sharedDays: string; existingSlot: string }> | undefined)
-      ?.map((c) => `${c.groupName} (${c.sharedDays}, ${c.existingSlot})`)
+    (
+      raw as
+        | Array<{ groupName: string; sharedDays: string; existingSlot: string; reason?: string }>
+        | undefined
+    )
+      ?.map((c) => {
+        const tag = c.reason === 'teacher' ? "O'qituvchi band" : 'Xona band'
+        return `${tag}: ${c.groupName} (${c.sharedDays}, ${c.existingSlot})`
+      })
       .join('; ') ?? ''
 
   /** Guruhni saqlaydi (yaratish yoki yangilash). roomConflict qaytsa — forma yopilmaydi, chiroyli
@@ -796,11 +803,11 @@ export function ClassesPage() {
         )}
       </Modal>
 
-      {/* Xona band — chiroyli ogohlantirish oynasi (native alert o'rniga). Forma ochiq qoladi. */}
+      {/* Xona/o'qituvchi band — chiroyli ogohlantirish oynasi (native alert o'rniga). Forma ochiq qoladi. */}
       <Modal
         open={!!roomConflict}
         onClose={() => setRoomConflict(null)}
-        title="Bu xonada dars bor"
+        title="Jadvalda to'qnashuv bor"
         size="sm"
         footer={
           <>
@@ -816,11 +823,11 @@ export function ClassesPage() {
         {roomConflict && (
           <div className="space-y-3 text-sm">
             <p className="font-medium text-red-700">
-              Tanlangan xonada shu vaqt oralig'ida boshqa guruh darsi bor:
+              Shu vaqt oralig'ida xona yoki o'qituvchi band bo'lgan boshqa guruh bor:
             </p>
             <div className="rounded-lg bg-red-50 px-3 py-2 text-slate-700">{roomConflict.list}</div>
             <p className="text-slate-500">
-              Vaqt yoki xonani o'zgartirish uchun <b>Orqaga</b> bosing (ma'lumotlaringiz saqlanib qoladi),
+              Vaqt, xona yoki o'qituvchini o'zgartirish uchun <b>Orqaga</b> bosing (ma'lumotlaringiz saqlanib qoladi),
               yoki shunday saqlash uchun <b>Baribir saqlash</b>.
             </p>
           </div>
