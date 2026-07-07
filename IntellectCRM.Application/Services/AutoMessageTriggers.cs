@@ -63,7 +63,7 @@ public static class AutoMessageTriggers
         new(PaymentReceived,
             "To'lov qabul qilinganda",
             "O'quvchining oylik (tuition) to'lovi qabul qilinganda ota-onaga (yoki o'quvchiga) tasdiq xabari.",
-            new[] { "{ism}", "{fish}", "{summa}", "{qarzdorlik}", "{guruh}", "{telefon}", "{markaz}" },
+            new[] { "{ism}", "{fish}", "{summa}", "{sana}", "{qarzdorlik}", "{guruh}", "{telefon}", "{markaz}" },
             Sms: true, Push: true, Telegram: true,
             SupportsSchedule: false, SupportsSendScope: false,
             Audiences: new[] { "parents", "students", "teachers" }, DefaultAudience: "parents",

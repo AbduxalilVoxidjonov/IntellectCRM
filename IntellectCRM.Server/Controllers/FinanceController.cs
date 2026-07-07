@@ -149,13 +149,18 @@ public class FinanceController(AppDbContext db, AuditService audit, AutoMessageS
         await db.SaveChangesAsync();
 
         // Avto xabar — o'quvchi tuition to'lovi qabul qilinganda ("To'lov qabul qilinganda" hodisasi):
-        // yoqilgan qoidalar bo'yicha SMS + push + telegram.
+        // yoqilgan qoidalar bo'yicha SMS + push + telegram. {sana} = to'lovning HAQIQIY sanasi
+        // (tx.Date — orqaga sanalgan bo'lishi mumkin, bugun emas).
         if (tx is { Direction: "income", Category: "tuition", StudentId: not null })
         {
             var student = await db.Students.FindAsync(tx.StudentId);
             if (student is not null)
                 await autoMsg.DispatchStudentAsync(db, AutoMessageTriggers.PaymentReceived, student,
-                    new Dictionary<string, string> { ["{summa}"] = MessageTokenizer.MoneyPlain(tx.Amount) });
+                    new Dictionary<string, string>
+                    {
+                        ["{summa}"] = MessageTokenizer.MoneyPlain(tx.Amount),
+                        ["{sana}"] = tx.Date.Length >= 10 ? $"{tx.Date[8..10]}.{tx.Date[5..7]}.{tx.Date[..4]}" : tx.Date,
+                    });
         }
 
         return ToDto(tx, await StudentNames(), await TeacherNames());
