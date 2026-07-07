@@ -487,7 +487,19 @@ export function ClassesPage() {
                           {languageLabels[c.language]}
                         </Badge>
                       </td>
-                      <td className="text-slate-600">{teacherName(c.teacherId)}</td>
+                      <td className="text-slate-600">
+                        {c.teacherId ? (
+                          <Link
+                            to={`/admin/teachers/${c.teacherId}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-inherit hover:text-brand-600 hover:underline"
+                          >
+                            {teacherName(c.teacherId)}
+                          </Link>
+                        ) : (
+                          teacherName(c.teacherId)
+                        )}
+                      </td>
                       <td className="text-slate-600">{formatDays(c.days)}</td>
                       <td className="num text-slate-600">{formatTime(c.startTime, c.endTime)}</td>
                       <td className="num">{st ? st.studentsCount : '—'}</td>
@@ -581,7 +593,17 @@ export function ClassesPage() {
                       <User className="h-3.5 w-3.5" /> O'qituvchi
                     </span>
                     <span className="truncate font-medium text-slate-700">
-                      {teacherName(c.teacherId)}
+                      {c.teacherId ? (
+                        <Link
+                          to={`/admin/teachers/${c.teacherId}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-inherit hover:text-brand-600 hover:underline"
+                        >
+                          {teacherName(c.teacherId)}
+                        </Link>
+                      ) : (
+                        teacherName(c.teacherId)
+                      )}
                     </span>
                   </div>
                   <div className="flex items-center justify-between gap-2">

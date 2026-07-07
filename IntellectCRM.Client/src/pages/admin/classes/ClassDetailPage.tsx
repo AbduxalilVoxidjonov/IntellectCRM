@@ -5,7 +5,7 @@ import {
   ArrowLeft, Users, BookOpen, User,
   CalendarDays, Clock, MapPin, Wallet, Snowflake, CheckCircle2,
   ListChecks, ChevronRight, ChevronDown, Plus, Minus, Repeat, CalendarClock, Flag, TrendingUp, Trophy,
-  UserRound, ArrowLeftRight,
+  UserRound, ArrowLeftRight, RotateCcw,
 } from 'lucide-react'
 import type { AbsenceReason, MasteryLevel } from '@/types'
 import {
@@ -16,7 +16,7 @@ import {
   getGroupCurriculum, setGroupCover, changeGroupRevision,
   type GroupCurriculum,
 } from '@/api/services/curriculum'
-import { activateMember, freezeMember } from '@/api/services/classes'
+import { activateMember, freezeMember, returnMemberToTrial, getClasses } from '@/api/services/classes'
 import { getSettings } from '@/api/services/settings'
 import { cn, formatMoney, formatDate } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
@@ -101,6 +101,8 @@ export function ClassDetailPage() {
   const [memberDate, setMemberDate] = useState('')
   const [memberSaving, setMemberSaving] = useState(false)
   const [transferOpen, setTransferOpen] = useState(false)
+  /** Guruh o'qituvchisi id'si — profilga link uchun (jurnal DTO'sida faqat teacherName bor). */
+  const [teacherId, setTeacherId] = useState('')
 
   // ---- Guruh o'quv dasturi (darsda o'tilgan) ----
   const [groupView, setGroupView] = useState<'jurnal' | 'baholash' | 'reyting'>('jurnal')
@@ -160,6 +162,14 @@ export function ClassDetailPage() {
       .then((s) => setReasons(s.absenceReasons))
       .catch(() => {})
   }, [load])
+
+  // Guruh o'qituvchisi id'si — "O'qituvchi" nomini profilga link qilish uchun.
+  useEffect(() => {
+    if (!id) return
+    getClasses()
+      .then((cs) => setTeacherId(cs.find((c) => c.id === id)?.teacherId ?? ''))
+      .catch(() => setTeacherId(''))
+  }, [id])
 
   useEffect(() => {
     if (groupView === 'reyting' && journal?.month) {
@@ -344,6 +354,22 @@ export function ClassDetailPage() {
       setMemberSaving(false)
     }
   }
+  const doReturnTrial = async () => {
+    if (!journal || !memberModal) return
+    setMemberSaving(true)
+    try {
+      await returnMemberToTrial(journal.group.id, memberModal.studentId)
+      setMemberModal(null)
+      load(journal.month)
+    } catch (err) {
+      const message = err instanceof Error
+        ? err.message
+        : (err as any)?.response?.data?.message ?? 'Amal bajarilmadi'
+      alert(message)
+    } finally {
+      setMemberSaving(false)
+    }
+  }
 
   const absentReasons = useMemo(() => reasons.filter((r) => !r.isLate), [reasons])
 
@@ -445,7 +471,18 @@ export function ClassDetailPage() {
             {g && (
               <p className="mt-0.5 text-sm text-slate-400">
                 {g.courseName || 'Kurs biriktirilmagan'}
-                {g.teacherName ? ` · ${g.teacherName}` : ''}
+                {g.teacherName && (
+                  <>
+                    {' · '}
+                    {teacherId ? (
+                      <Link to={`/admin/teachers/${teacherId}`} className="text-slate-500 hover:text-brand-600 hover:underline">
+                        {g.teacherName}
+                      </Link>
+                    ) : (
+                      g.teacherName
+                    )}
+                  </>
+                )}
               </p>
             )}
           </div>
@@ -472,7 +509,19 @@ export function ClassDetailPage() {
           <Card>
             <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
               <Info icon={BookOpen} label="Kurs" value={g.courseName || '—'} />
-              <Info icon={User} label="O'qituvchi" value={g.teacherName || '—'} />
+              <Info
+                icon={User}
+                label="O'qituvchi"
+                value={
+                  g.teacherName && teacherId ? (
+                    <Link to={`/admin/teachers/${teacherId}`} className="hover:text-brand-600 hover:underline">
+                      {g.teacherName}
+                    </Link>
+                  ) : (
+                    g.teacherName || '—'
+                  )
+                }
+              />
               <Info icon={Wallet} label="Oylik to'lov" value={formatMoney(g.monthlyFee)} mono />
               <Info
                 icon={CalendarDays}
@@ -944,6 +993,14 @@ export function ClassDetailPage() {
             >
               <ArrowLeftRight className="h-4 w-4" /> Boshqa guruhga o'tkazish
             </button>
+            <button
+              type="button"
+              disabled={memberSaving || memberModal.status === 'trial'}
+              onClick={doReturnTrial}
+              className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+            >
+              <RotateCcw className="h-4 w-4" /> Sinovga qaytarish
+            </button>
             <div>
               <span className="mb-1 block text-sm font-medium text-slate-600">Sana</span>
               <input
@@ -1022,7 +1079,7 @@ function Info({
 }: {
   icon: typeof BookOpen
   label: string
-  value: string
+  value: ReactNode
   /** Raqam/pul/vaqt qiymatlari uchun mono shrift */
   mono?: boolean
 }) {
