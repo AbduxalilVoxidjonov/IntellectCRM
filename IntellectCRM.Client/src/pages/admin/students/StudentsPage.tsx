@@ -316,10 +316,11 @@ export function StudentsPage() {
     groupId?: string,
     comment?: string,
     method?: string,
+    date?: string,
   ) => {
     if (!paying) return
     const id = paying.id
-    addPayment(id, amount, month, groupId, comment, method)
+    addPayment(id, amount, month, groupId, comment, method, date)
     setStudents((prev) =>
       prev.map((s) => (s.id === id ? { ...s, balance: s.balance + amount } : s)),
     )

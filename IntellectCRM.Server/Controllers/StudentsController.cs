@@ -1228,6 +1228,15 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
         if (req.Amount <= 0)
             return BadRequest(new { message = "To'lov summasi musbat bo'lishi kerak" });
 
+        // To'lov sanasi — kiritilmasa bugungi, kiritilsa (masalan kechroq tizimga yozilgan
+        // to'lov uchun) o'sha eski sana ishlatiladi. Kelajakdagi sanaga ruxsat berilmaydi.
+        var paidDate = (req.Date ?? "").Trim();
+        if (paidDate.Length == 0) paidDate = AppClock.Today.ToString("yyyy-MM-dd");
+        else if (!DateOnly.TryParse(paidDate, out var parsedDate))
+            return BadRequest(new { message = "To'lov sanasi noto'g'ri" });
+        else if (parsedDate > AppClock.Today)
+            return BadRequest(new { message = "To'lov sanasi kelajakda bo'lishi mumkin emas" });
+
         // OY MAJBURIY — to'lov har doim aniq oyga bog'lanadi (per-guruh billing).
         var month = (req.Month ?? "").Trim();
         if (month.Length < 7)
@@ -1263,7 +1272,7 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
         // To'lovni moliyaviy kirim (o'quvchi to'lovi) sifatida qayd etamiz.
         var tx = new FinanceTransaction
         {
-            Date = AppClock.Today.ToString("yyyy-MM-dd"),
+            Date = paidDate,
             Direction = "income",
             Category = "tuition",
             Amount = req.Amount,

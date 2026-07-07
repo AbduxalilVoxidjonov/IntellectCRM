@@ -53,7 +53,10 @@ public record StudentPayload(
     string? DiscountStartMonth = null, string? DiscountEndMonth = null,
     string? DistrictId = null, string? SchoolId = null,
     string? DiscountGroupId = null);
-public record PaymentRequest(decimal Amount, string? Month, string? GroupId = null, string? Comment = null, string? Method = null);
+/// <summary>O'quvchi to'lovi kiritish so'rovi. <paramref name="Date"/> — to'lov haqiqatan sodir bo'lgan
+/// sana (ISO "YYYY-MM-DD"), ixtiyoriy — bo'sh bo'lsa bugungi sana ishlatiladi (masalan bugun to'lagan,
+/// lekin tizimga ertaga kiritilayotgan to'lov uchun eski sanani tanlash imkoni).</summary>
+public record PaymentRequest(decimal Amount, string? Month, string? GroupId = null, string? Comment = null, string? Method = null, string? Date = null);
 
 /* ---------- Tuman + maktab (sozlamalar) ---------- */
 public record DistrictDto(string Id, string Name, int Order, List<SchoolDto> Schools);

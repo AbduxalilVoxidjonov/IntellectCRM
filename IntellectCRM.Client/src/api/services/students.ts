@@ -345,7 +345,9 @@ export async function getGroupLedger(
 
 /** O'quvchiga to'lov kiritish — balansga qo'shiladi.
  *  `month` ("YYYY-MM") berilsa, to'lov shu oy uchun hisoblanadi.
- *  `groupId` berilsa, to'lov shu guruh uchun hisoblanadi (o'qituvchi foizli maoshi shunga tayanadi). */
+ *  `groupId` berilsa, to'lov shu guruh uchun hisoblanadi (o'qituvchi foizli maoshi shunga tayanadi).
+ *  `date` ("YYYY-MM-DD") — to'lov haqiqatan sodir bo'lgan sana (ixtiyoriy, bo'sh bo'lsa bugun —
+ *  masalan bugun to'lagan, lekin tizimga ertaga kiritilayotgan to'lov uchun eski sana tanlanadi). */
 export async function addPayment(
   id: string,
   amount: number,
@@ -353,6 +355,7 @@ export async function addPayment(
   groupId?: string,
   comment?: string,
   method?: string,
+  date?: string,
 ): Promise<string | null> {
   if (USE_MOCK) {
     await delay(250)
@@ -364,6 +367,7 @@ export async function addPayment(
     groupId,
     comment,
     method,
+    date,
   })
   return data?.id ?? null
 }

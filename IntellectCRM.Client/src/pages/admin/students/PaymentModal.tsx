@@ -19,6 +19,7 @@ interface Props {
     groupId?: string,
     comment?: string,
     method?: string,
+    date?: string,
   ) => void | Promise<void>
 }
 
@@ -27,6 +28,8 @@ type Row = { month: string; remaining: number; status: MonthStatus }
 
 /** "YYYY-MM" joriy oy */
 const currentMonth = () => new Date().toISOString().slice(0, 7)
+/** "YYYY-MM-DD" bugungi sana */
+const today = () => new Date().toISOString().slice(0, 10)
 
 /** Oylar ro'yxatidan standart tanlov: eng eski qoldiqli oy; bo'lmasa oxirgi oy. */
 const pickDefault = (rows: Row[]): { month: string; amount: number } => {
@@ -43,6 +46,9 @@ export function PaymentModal({ student, onClose, onSubmit }: Props) {
   const [groupId, setGroupId] = useState<string>('')
   const [comment, setComment] = useState("")
   const [method, setMethod] = useState<string>('cash')
+  /** To'lov haqiqatan sodir bo'lgan sana — bugun to'lagan, lekin tizimga keyinroq kiritilayotgan
+   * to'lov uchun eski sana tanlash imkoni. */
+  const [paidDate, setPaidDate] = useState<string>(today())
   const [loading, setLoading] = useState(false) // boshlang'ich (guruhlar) yuklash
   const [loadingMonths, setLoadingMonths] = useState(false) // tanlangan guruh oylari
 
@@ -58,6 +64,7 @@ export function PaymentModal({ student, onClose, onSubmit }: Props) {
     setMethod('cash')
     setAmount(0)
     setMonth(currentMonth())
+    setPaidDate(today())
     getStudentGroups(student.id)
       .then(async (allGroups) => {
         const billable = allGroups.filter((g) => g.isActive && g.status !== 'trial')
@@ -122,7 +129,7 @@ export function PaymentModal({ student, onClose, onSubmit }: Props) {
     if (submitting || amount <= 0 || !month || (needGroup && !groupId)) return
     setSubmitting(true)
     try {
-      await onSubmit(amount, month, groupId || undefined, comment.trim() || undefined, method)
+      await onSubmit(amount, month, groupId || undefined, comment.trim() || undefined, method, paidDate || undefined)
     } finally {
       setSubmitting(false)
     }
@@ -253,6 +260,20 @@ export function PaymentModal({ student, onClose, onSubmit }: Props) {
                   value={amount}
                   onChange={(e) => setAmount(Number(e.target.value))}
                 />
+
+                <div>
+                  <Input
+                    label="To'lov sanasi"
+                    type="date"
+                    max={today()}
+                    value={paidDate}
+                    onChange={(e) => setPaidDate(e.target.value)}
+                  />
+                  <p className="mt-1 text-xs text-slate-400">
+                    Masalan mijoz bugun to'lagan, lekin tizimga ertaga kiritilayotgan bo'lsa — shu
+                    yerda haqiqiy to'lov sanasini tanlang.
+                  </p>
+                </div>
                 {amount > 0 && (
                   <p className="text-sm text-slate-500">
                     To'lovdan keyingi balans:{' '}
