@@ -300,7 +300,7 @@ public static class AssignmentService
     }
 
     private static AssignmentMaterialDto Mat(AssignmentMaterial m) =>
-        new(m.Id, m.Name, m.Url, m.Size, m.ContentType);
+        new(m.Id, m.Name, m.Url, m.Size, m.ContentType, m.AudioUrl);
 
     private static string? Empty(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
 
@@ -315,6 +315,7 @@ public static class AssignmentService
                 Url = m.Url,
                 Size = m.Size,
                 ContentType = m.ContentType,
+                AudioUrl = string.IsNullOrWhiteSpace(m.AudioUrl) ? null : m.AudioUrl,
             });
 
         if (a.Format == "test")
@@ -356,7 +357,7 @@ public static class AssignmentService
         a.ClassIds.Select(id => classes.GetValueOrDefault(id, "")).Where(n => n.Length > 0).ToList(),
         a.StartDate, a.DueDate, a.LateAccept, a.LatePenaltyPct, a.MaxScore, a.AutoGrade,
         a.CreatedAt.ToString("o"),
-        a.Materials.Select(m => new AssignmentMaterialDto(m.Id, m.Name, m.Url, m.Size, m.ContentType)).ToList(),
+        a.Materials.Select(m => new AssignmentMaterialDto(m.Id, m.Name, m.Url, m.Size, m.ContentType, m.AudioUrl)).ToList(),
         a.Questions.OrderBy(q => q.Order)
             .Select(q => new TestQuestionDto(q.Id, q.Text, q.Options, q.CorrectIndex, q.Order)).ToList(),
         a.ReferenceText);

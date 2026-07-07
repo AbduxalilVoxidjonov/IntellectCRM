@@ -152,7 +152,7 @@ export interface SubjectProgressDetail {
   lessons: SubjectLesson[]
 }
 
-export interface AssignmentMaterial { id?: string; name: string; url: string; size: number; contentType: string }
+export interface AssignmentMaterial { id?: string; name: string; url: string; size: number; contentType: string; audioUrl?: string | null }
 export interface StudentAssignment {
   id: string
   subjectName: string

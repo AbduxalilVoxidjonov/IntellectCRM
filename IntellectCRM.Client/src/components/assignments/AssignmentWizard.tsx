@@ -79,6 +79,7 @@ export function AssignmentWizard({
   const [uploading, setUploading] = useState(false)
   const [saving, setSaving] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+  const audioFileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (!open) return
@@ -121,6 +122,29 @@ export function AssignmentWizard({
       if (fileRef.current) fileRef.current.value = ''
     }
   }
+
+  // Materialga hamrohlik audio biriktirish (masalan o'qituvchi shu materialni o'qigan yozuvi).
+  const [audioTargetIdx, setAudioTargetIdx] = useState<number | null>(null)
+  const [audioUploading, setAudioUploading] = useState(false)
+  const pickAudioFor = (idx: number) => {
+    setAudioTargetIdx(idx)
+    audioFileRef.current?.click()
+  }
+  const onPickAudio = async (files: FileList | null) => {
+    if (!files || files.length === 0 || audioTargetIdx === null) return
+    setAudioUploading(true)
+    try {
+      const m = await onUpload(files[0])
+      const idx = audioTargetIdx
+      setMaterials((prev) => prev.map((mat, i) => (i === idx ? { ...mat, audioUrl: m.url } : mat)))
+    } finally {
+      setAudioUploading(false)
+      setAudioTargetIdx(null)
+      if (audioFileRef.current) audioFileRef.current.value = ''
+    }
+  }
+  const removeAudio = (idx: number) =>
+    setMaterials((prev) => prev.map((mat, i) => (i === idx ? { ...mat, audioUrl: null } : mat)))
 
   // Savollar
   const addQuestion = () =>
@@ -320,6 +344,13 @@ export function AssignmentWizard({
                 className="hidden"
                 onChange={(e) => onPickFiles(e.target.files)}
               />
+              <input
+                ref={audioFileRef}
+                type="file"
+                accept="audio/*"
+                className="hidden"
+                onChange={(e) => onPickAudio(e.target.files)}
+              />
             </div>
             <div className="space-y-2">
               {materials.length === 0 && (
@@ -328,21 +359,48 @@ export function AssignmentWizard({
               {materials.map((m, i) => (
                 <div
                   key={i}
-                  className="flex items-center justify-between gap-2 rounded-lg border border-slate-100 px-3 py-2 text-sm"
+                  className="flex flex-col gap-1.5 rounded-lg border border-slate-100 px-3 py-2 text-sm"
                 >
-                  <a href={m.url} target="_blank" rel="noreferrer" className="truncate text-brand-700 hover:underline">
-                    {m.name}
-                  </a>
-                  <div className="flex shrink-0 items-center gap-2">
-                    <span className="text-xs text-slate-400">{formatSize(m.size)}</span>
-                    <button
-                      type="button"
-                      onClick={() => setMaterials((prev) => prev.filter((_, idx) => idx !== i))}
-                      className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600"
-                    >
+                  <div className="flex items-center justify-between gap-2">
+                    <a href={m.url} target="_blank" rel="noreferrer" className="truncate text-brand-700 hover:underline">
+                      {m.name}
+                    </a>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <span className="text-xs text-slate-400">{formatSize(m.size)}</span>
+                      <button
+                        type="button"
+                        onClick={() => pickAudioFor(i)}
+                        disabled={audioUploading && audioTargetIdx === i}
+                        title={m.audioUrl ? 'Audioni almashtirish' : "Audio biriktirish (masalan o'qib bergan yozuv)"}
+                        className={cn(
+                          'rounded p-1',
+                          m.audioUrl ? 'text-brand-600 hover:bg-brand-50' : 'text-slate-400 hover:bg-slate-100',
+                        )}
+                      >
+                        <Mic className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setMaterials((prev) => prev.filter((_, idx) => idx !== i))}
+                        className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                      >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
                   </div>
+                  </div>
+                  {m.audioUrl && (
+                    <div className="flex items-center gap-2">
+                      <audio controls src={m.audioUrl} className="h-8 flex-1" />
+                      <button
+                        type="button"
+                        onClick={() => removeAudio(i)}
+                        title="Audioni olib tashlash"
+                        className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

@@ -1368,6 +1368,8 @@ export interface AssignmentMaterial {
   url: string
   size: number
   contentType: string
+  /** Ixtiyoriy hamrohlik audio (masalan shu materialni ovoz chiqarib o'qigan yozuv) */
+  audioUrl?: string | null
 }
 
 /** Test savoli (format=test) */

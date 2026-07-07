@@ -230,37 +230,50 @@ export function StudentAssignmentDetailScreen() {
             <div style={{ height: 16 }} />
             <div style={{ fontSize: 14, fontWeight: 800, padding: '0 2px 8px' }}>Materiallar</div>
             {a.materials.map((m, i) => (
-              <a
-                key={i}
-                className="card press row gap12"
-                href={absUrl(m.url)}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ borderRadius: 15, padding: 12, marginBottom: 8, textDecoration: 'none', color: 'inherit' }}
-              >
-                <div
-                  style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: 11,
-                    background: 'var(--redSoft)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
+              <div key={i} style={{ marginBottom: 8 }}>
+                <a
+                  className="card press row gap12"
+                  href={absUrl(m.url)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ borderRadius: 15, padding: 12, textDecoration: 'none', color: 'inherit' }}
                 >
-                  <Icon name="file" size={20} color="var(--red)" />
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {m.name}
+                  <div
+                    style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 11,
+                      background: 'var(--redSoft)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <Icon name="file" size={20} color="var(--red)" />
                   </div>
-                  <div className="muted" style={{ fontSize: 12 }}>
-                    {(m.size / 1e6).toFixed(1)} MB
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {m.name}
+                    </div>
+                    <div className="muted" style={{ fontSize: 12 }}>
+                      {(m.size / 1e6).toFixed(1)} MB
+                    </div>
                   </div>
-                </div>
-                <Icon name="download" size={20} color="var(--accent)" />
-              </a>
+                  <Icon name="download" size={20} color="var(--accent)" />
+                </a>
+                {m.audioUrl && (
+                  <div
+                    className="card row gap12"
+                    style={{ borderRadius: 15, padding: '8px 12px', marginTop: 6, alignItems: 'center' }}
+                  >
+                    <Icon name="volume" size={18} color="var(--accent)" />
+                    <span className="muted" style={{ fontSize: 12, fontWeight: 700, flexShrink: 0 }}>
+                      Tinglash
+                    </span>
+                    <audio controls src={absUrl(m.audioUrl)} style={{ flex: 1, height: 32, minWidth: 0 }} />
+                  </div>
+                )}
+              </div>
             ))}
           </>
         )}

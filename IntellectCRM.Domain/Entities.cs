@@ -1242,6 +1242,9 @@ public class AssignmentMaterial
     /// <summary>Fayl hajmi (bayt).</summary>
     public long Size { get; set; }
     public string ContentType { get; set; } = string.Empty;
+    /// <summary>Ixtiyoriy hamrohlik audio (masalan o'qituvchi shu materialni ovoz chiqarib o'qigan
+    /// yozuvi) — bo'lsa o'quvchi ekranida "Tinglash" pleyer chiqadi.</summary>
+    public string? AudioUrl { get; set; }
 }
 
 /// <summary>Test (format=test) savoli — matn + variantlar + to'g'ri javob indeksi.</summary>

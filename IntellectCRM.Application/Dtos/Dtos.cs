@@ -1142,8 +1142,9 @@ public record UnifiedTemplateDto(string Source, string Name, string Text);
 
 /* ---------- Assignments (qo'shimcha topshiriqlar) ---------- */
 
-/// <summary>Topshiriqqa biriktirilgan material (yuklangan fayl yoki havola).</summary>
-public record AssignmentMaterialDto(string Id, string Name, string Url, long Size, string ContentType);
+/// <summary>Topshiriqqa biriktirilgan material (yuklangan fayl yoki havola). AudioUrl — ixtiyoriy
+/// hamrohlik audio (masalan shu materialni ovoz chiqarib o'qigan yozuv).</summary>
+public record AssignmentMaterialDto(string Id, string Name, string Url, long Size, string ContentType, string? AudioUrl = null);
 /// <summary>Test savoli (format=test).</summary>
 public record TestQuestionDto(string Id, string Text, List<string> Options, int CorrectIndex, int Order);
 /// <summary>Topshiriq/test (to'liq). Format: written|file|test|video. CreatedAt/Start/Due — ISO.</summary>
@@ -1153,7 +1154,7 @@ public record AssignmentDto(
     string? StartDate, string? DueDate, bool LateAccept, int LatePenaltyPct, int MaxScore,
     bool AutoGrade, string CreatedAt,
     List<AssignmentMaterialDto> Materials, List<TestQuestionDto> Questions, string ReferenceText = "");
-public record MaterialInput(string Name, string Url, long Size, string ContentType);
+public record MaterialInput(string Name, string Url, long Size, string ContentType, string? AudioUrl = null);
 public record QuestionInput(string Text, List<string> Options, int CorrectIndex);
 /// <summary>Topshiriq yaratish/tahrirlash so'rovi (ham create, ham update).</summary>
 public record SaveAssignmentRequest(
