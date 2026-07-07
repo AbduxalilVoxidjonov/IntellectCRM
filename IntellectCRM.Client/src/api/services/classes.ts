@@ -136,6 +136,29 @@ export async function freezeMember(id: string, studentId: string, date: string, 
   await api.post(`/admin/classes/${id}/members/${studentId}/freeze`, { date, reasonId })
 }
 
+/**
+ * O'quvchini boshqa guruhga o'tkazish: joriy guruh a'zoligi `freezeDate`dan muzlatiladi,
+ * maqsad guruh (`toGroupId`) `activateDate`dan aktivlashtiriladi (ikkalasi ham qisman oy
+ * to'lovi bilan — oddiy muzlatish/aktivlashtirish bilan bir xil hisob-kitob).
+ */
+export async function transferMember(
+  fromGroupId: string,
+  studentId: string,
+  toGroupId: string,
+  freezeDate: string,
+  activateDate: string,
+): Promise<void> {
+  if (USE_MOCK) {
+    await delay(150)
+    return
+  }
+  await api.post(`/admin/classes/${fromGroupId}/members/${studentId}/transfer`, {
+    toGroupId,
+    freezeDate,
+    activateDate,
+  })
+}
+
 /** A'zolikni SINOVGA qaytarish (active/frozen → trial). Sabab (ixtiyoriy). */
 export async function returnMemberToTrial(id: string, studentId: string, reasonId?: string): Promise<void> {
   if (USE_MOCK) {

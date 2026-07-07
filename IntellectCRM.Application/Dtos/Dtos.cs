@@ -383,6 +383,12 @@ public record GroupMemberDto(
 public record AddStudentToGroupRequest(string StudentId, string? JoinedAt);
 /// <summary>A'zolikni aktivlashtirish/muzlatish so'rovi (sana ISO "YYYY-MM-DD"; bo'sh = bugun).</summary>
 public record MembershipStatusRequest(string? Date, string? ReasonId = null);
+/// <summary>
+/// O'quvchini boshqa guruhga o'tkazish so'rovi: joriy guruh <paramref name="FreezeDate"/>dan
+/// muzlatiladi, maqsad guruh (<paramref name="ToGroupId"/>) <paramref name="ActivateDate"/>dan
+/// aktivlashtiriladi (ikkalasi bo'sh bo'lsa — bugun; ActivateDate bo'sh, FreezeDate berilgan bo'lsa — FreezeDate).
+/// </summary>
+public record TransferMemberRequest(string ToGroupId, string? FreezeDate, string? ActivateDate, string? ReasonId = null);
 /// <summary>Guruh to'ldirish hisoboti qatori: sig'im vs ro'yxatdagilar.</summary>
 public record GroupFillRowDto(
     string GroupId, string Name, int Grade, int Capacity, int Enrolled, int FreeSeats, string Status);
@@ -1142,15 +1148,16 @@ public record AssignmentDto(
     string Description, string Format, List<string> ClassIds, List<string> ClassNames,
     string? StartDate, string? DueDate, bool LateAccept, int LatePenaltyPct, int MaxScore,
     bool AutoGrade, string CreatedAt,
-    List<AssignmentMaterialDto> Materials, List<TestQuestionDto> Questions, string ReferenceText = "");
+    List<AssignmentMaterialDto> Materials, List<TestQuestionDto> Questions, string ReferenceText = "",
+    string? TypeId = null, string? TypeName = null);
 public record MaterialInput(string Name, string Url, long Size, string ContentType);
 public record QuestionInput(string Text, List<string> Options, int CorrectIndex);
-/// <summary>Topshiriq yaratish/tahrirlash so'rovi (ham create, ham update).</summary>
+/// <summary>Topshiriq yaratish/tahrirlash so'rovi (ham create, ham update). TypeId — AssignmentType (ixtiyoriy).</summary>
 public record SaveAssignmentRequest(
     string SubjectId, string Title, string? Description, string Format, List<string> ClassIds,
     string? StartDate, string? DueDate, bool LateAccept, int LatePenaltyPct, int MaxScore,
     bool AutoGrade, List<MaterialInput>? Materials, List<QuestionInput>? Questions,
-    string? ReferenceText = null);
+    string? ReferenceText = null, string? TypeId = null);
 /// <summary>Yuklangan fayl haqida ma'lumot (upload javobida).</summary>
 public record UploadedFileDto(string Name, string Url, long Size, string ContentType);
 
@@ -1320,9 +1327,12 @@ public record AssignmentResultDto(
     int Total, int CompletedCount, List<SubmissionRowDto> Rows);
 /// <summary>O'quvchi holatini belgilash (o'qituvchi).</summary>
 public record SetSubmissionRequest(bool Completed, int? Score);
-/// <summary>Topshiriq turi (Sozlamalarda boshqariladi — kategoriya; yangi forma ishlatmaydi).</summary>
+/// <summary>Topshiriq turi (masalan: Uy vazifasi, Nazorat ishi) — admin Sozlamalarda yoki o'qituvchi
+/// topshiriq formasidan ("Yangi tur qo'shish") boshqaradi.</summary>
 public record AssignmentTypeDto(string Id, string Name);
 public record SaveAssignmentTypesRequest(List<AssignmentTypeDto> Types);
+/// <summary>Bitta yangi topshiriq turi qo'shish so'rovi.</summary>
+public record CreateAssignmentTypeRequest(string Name);
 
 /* ---------- Topshiriqlar bali (admin: guruh bo'yicha ball jadvali) ---------- */
 

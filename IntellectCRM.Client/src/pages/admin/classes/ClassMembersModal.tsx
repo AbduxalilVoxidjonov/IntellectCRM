@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Trash2, UserPlus, Search, CheckCircle2, Snowflake, Plus, RotateCcw } from 'lucide-react'
+import { Trash2, UserPlus, Search, CheckCircle2, Snowflake, Plus, RotateCcw, ArrowLeftRight } from 'lucide-react'
 import type { Group, GroupMember, Student } from '@/types'
 import {
   getGroupMembers,
@@ -17,6 +17,7 @@ import { Loader } from '@/components/ui/Loader'
 import { ReasonPromptModal } from '@/components/ui/ReasonPromptModal'
 import { formatDate, formatMoney, cn } from '@/lib/utils'
 import { StudentFormModal } from '../students/StudentFormModal'
+import { TransferGroupModal } from './TransferGroupModal'
 
 /** O'quvchi holatiga qarab "o'chirish" sabab kategoriyasi. */
 function removeCategory(status: string): string {
@@ -41,6 +42,8 @@ export function ClassMembersModal({ group, onClose }: Props) {
   const [reasonAction, setReasonAction] = useState<{ kind: 'freeze' | 'remove' | 'return'; m: GroupMember } | null>(null)
   /** "Yangi o'quvchi" yaratish formasi ochiqmi — yaratilgach shu guruhga qo'shiladi. */
   const [newStudentOpen, setNewStudentOpen] = useState(false)
+  /** Guruhni almashtirish modali — tanlangan a'zo. */
+  const [transferMemberTarget, setTransferMemberTarget] = useState<GroupMember | null>(null)
 
   useEffect(() => {
     if (!group) {
@@ -318,6 +321,15 @@ export function ClassMembersModal({ group, onClose }: Props) {
                           )}
                           <button
                             type="button"
+                            disabled={busy}
+                            title="Guruhni almashtirish"
+                            onClick={() => setTransferMemberTarget(m)}
+                            className="inline-flex items-center gap-1 rounded-lg bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-700 transition-colors hover:bg-violet-100 disabled:opacity-50"
+                          >
+                            <ArrowLeftRight className="h-3.5 w-3.5" /> Almashtirish
+                          </button>
+                          <button
+                            type="button"
                             title="Chiqarish"
                             disabled={busy}
                             onClick={() => handleRemove(m)}
@@ -468,6 +480,22 @@ export function ClassMembersModal({ group, onClose }: Props) {
         onSubmit={handleCreateAndAdd}
         initial={null}
       />
+
+      {/* Guruhni almashtirish — eski guruh muzlaydi, yangisi aktivlashadi. */}
+      {group && (
+        <TransferGroupModal
+          open={!!transferMemberTarget}
+          onClose={() => setTransferMemberTarget(null)}
+          studentId={transferMemberTarget?.studentId ?? ''}
+          studentName={transferMemberTarget?.fullName ?? ''}
+          fromGroupId={group.id}
+          fromGroupName={group.name}
+          onDone={async () => {
+            const fresh = await getGroupMembers(group.id)
+            setMembers(fresh)
+          }}
+        />
+      )}
     </>
   )
 }

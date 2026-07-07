@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Plus, Trash2, Upload, Check, FileText, PenLine, ListChecks, Video, Mic } from 'lucide-react'
-import type { Assignment, AssignmentFormat, Subject } from '@/types'
+import type { Assignment, AssignmentFormat, AssignmentType, Subject } from '@/types'
 import type { MaterialInput, SaveAssignmentInput } from '@/api/services/assignments'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
@@ -30,6 +30,10 @@ interface Props {
   onSubmit: (input: SaveAssignmentInput, id: string | null) => Promise<void>
   /** Material faylini yuklash — admin/o'qituvchi o'z upload endpointini beradi. */
   onUpload: (file: File) => Promise<MaterialInput>
+  /** Mavjud topshiriq turlari (ixtiyoriy — berilmasa, turi tanlash bo'limi ko'rsatilmaydi). */
+  assignmentTypes?: AssignmentType[]
+  /** Yangi topshiriq turi qo'shish (ixtiyoriy — berilmasa, "+ Yangi tur" tugmasi ko'rsatilmaydi). */
+  onCreateType?: (name: string) => Promise<AssignmentType>
 }
 
 const formats: { key: AssignmentFormat; label: string; desc: string; icon: typeof FileText }[] = [
@@ -60,11 +64,18 @@ export function AssignmentWizard({
   initial,
   onSubmit,
   onUpload,
+  assignmentTypes = [],
+  onCreateType,
 }: Props) {
   const [step, setStep] = useState(0)
   const [title, setTitle] = useState('')
   const [subjectId, setSubjectId] = useState('')
   const [format, setFormat] = useState<AssignmentFormat>('written')
+  const [typeId, setTypeId] = useState('')
+  const [types, setTypes] = useState<AssignmentType[]>(assignmentTypes)
+  const [newTypeName, setNewTypeName] = useState('')
+  const [addingType, setAddingType] = useState(false)
+  const [savingType, setSavingType] = useState(false)
   const [description, setDescription] = useState('')
   const [referenceText, setReferenceText] = useState('')
   const [materials, setMaterials] = useState<MaterialInput[]>([])
@@ -81,12 +92,20 @@ export function AssignmentWizard({
   const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
+    /* eslint-disable-next-line react-hooks/set-state-in-effect -- tashqi ro'yxat yangilansa (masalan yangi tur qo'shilsa), sinxronlash */
+    setTypes(assignmentTypes)
+  }, [assignmentTypes])
+
+  useEffect(() => {
     if (!open) return
     /* eslint-disable react-hooks/set-state-in-effect -- modal ochilganda formani initial bilan to'ldirish (maqsadli) */
     setStep(0)
     setTitle(initial?.title ?? '')
     setSubjectId(initial?.subjectId ?? subjects[0]?.id ?? '')
     setFormat(initial?.format ?? 'written')
+    setTypeId(initial?.typeId ?? '')
+    setNewTypeName('')
+    setAddingType(false)
     setDescription(initial?.description ?? '')
     setReferenceText(initial?.referenceText ?? '')
     setMaterials(initial ? initial.materials.map((m) => ({ name: m.name, url: m.url, size: m.size, contentType: m.contentType })) : [])
@@ -149,6 +168,21 @@ export function AssignmentWizard({
   const setCorrect = (i: number, j: number) =>
     setQuestions((prev) => prev.map((q, idx) => (idx === i ? { ...q, correctIndex: j } : q)))
 
+  const handleAddType = async () => {
+    const name = newTypeName.trim()
+    if (!name || !onCreateType || savingType) return
+    setSavingType(true)
+    try {
+      const created = await onCreateType(name)
+      setTypes((prev) => (prev.some((t) => t.id === created.id) ? prev : [...prev, created]))
+      setTypeId(created.id)
+      setNewTypeName('')
+      setAddingType(false)
+    } finally {
+      setSavingType(false)
+    }
+  }
+
   const step0Valid = title.trim() && subjectId && format
   const canSave = step0Valid && classIds.length > 0
 
@@ -167,6 +201,7 @@ export function AssignmentWizard({
       latePenaltyPct,
       maxScore,
       autoGrade,
+      typeId: typeId || null,
       materials,
       questions:
         format === 'test'
@@ -278,6 +313,56 @@ export function AssignmentWizard({
               })}
             </div>
           </div>
+
+          {(types.length > 0 || onCreateType) && (
+            <div>
+              <span className="mb-2 block text-sm font-medium text-slate-600">Topshiriq kategoriyasi (ixtiyoriy)</span>
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={typeId}
+                  onChange={(e) => setTypeId(e.target.value)}
+                  className={`${control}`}
+                >
+                  <option value="">Tanlanmagan</option>
+                  {types.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+                {onCreateType && !addingType && (
+                  <Button type="button" variant="secondary" onClick={() => setAddingType(true)}>
+                    <Plus className="h-4 w-4" /> Yangi tur
+                  </Button>
+                )}
+              </div>
+              {onCreateType && addingType && (
+                <div className="mt-2 flex items-center gap-2">
+                  <input
+                    autoFocus
+                    value={newTypeName}
+                    onChange={(e) => setNewTypeName(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleAddType()}
+                    placeholder="Masalan: Uy vazifasi"
+                    className={`${control} flex-1`}
+                  />
+                  <Button type="button" onClick={handleAddType} disabled={!newTypeName.trim() || savingType}>
+                    {savingType ? '...' : "Qo'shish"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => {
+                      setAddingType(false)
+                      setNewTypeName('')
+                    }}
+                  >
+                    Bekor
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 

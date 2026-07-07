@@ -5,7 +5,7 @@ import {
   ArrowLeft, Users, BookOpen, User,
   CalendarDays, Clock, MapPin, Wallet, Snowflake, CheckCircle2,
   ListChecks, ChevronRight, ChevronDown, Plus, Minus, Repeat, CalendarClock, Flag, TrendingUp, Trophy,
-  UserRound,
+  UserRound, ArrowLeftRight,
 } from 'lucide-react'
 import type { AbsenceReason, MasteryLevel } from '@/types'
 import {
@@ -30,6 +30,7 @@ import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { JournalCellModal } from '../journal/JournalCellModal'
 import { CompleteAndTransferModal } from './CompleteAndTransferModal'
+import { TransferGroupModal } from './TransferGroupModal'
 
 const weekdayShort = ['Du', 'Se', 'Cho', 'Pa', 'Ju', 'Sha', 'Ya']
 const uzMonths = [
@@ -99,6 +100,7 @@ export function ClassDetailPage() {
   const [memberModal, setMemberModal] = useState<{ studentId: string; fullName: string; status: string } | null>(null)
   const [memberDate, setMemberDate] = useState('')
   const [memberSaving, setMemberSaving] = useState(false)
+  const [transferOpen, setTransferOpen] = useState(false)
 
   // ---- Guruh o'quv dasturi (darsda o'tilgan) ----
   const [groupView, setGroupView] = useState<'jurnal' | 'baholash' | 'reyting'>('jurnal')
@@ -935,6 +937,13 @@ export function ClassDetailPage() {
             >
               <UserRound className="h-4 w-4" /> Profilga o'tish
             </Link>
+            <button
+              type="button"
+              onClick={() => setTransferOpen(true)}
+              className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            >
+              <ArrowLeftRight className="h-4 w-4" /> Boshqa guruhga o'tkazish
+            </button>
             <div>
               <span className="mb-1 block text-sm font-medium text-slate-600">Sana</span>
               <input
@@ -968,6 +977,23 @@ export function ClassDetailPage() {
           </div>
         )}
       </Modal>
+
+      {/* Guruhni almashtirish — eski guruh muzlaydi, yangisi aktivlashadi. */}
+      {journal && memberModal && (
+        <TransferGroupModal
+          open={transferOpen}
+          onClose={() => setTransferOpen(false)}
+          studentId={memberModal.studentId}
+          studentName={memberModal.fullName}
+          fromGroupId={journal.group.id}
+          fromGroupName={journal.group.name}
+          onDone={() => {
+            setTransferOpen(false)
+            setMemberModal(null)
+            load(journal.month)
+          }}
+        />
+      )}
 
       {/* Guruhni yakunlash modali (Hybrid: arxivlash + maqsad kursga yangi guruh) */}
       <CompleteAndTransferModal

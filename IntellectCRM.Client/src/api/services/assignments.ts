@@ -33,6 +33,8 @@ export interface SaveAssignmentInput {
   questions: QuestionInput[]
   /** Speaking (format=speaking) uchun o'qiladigan matn */
   referenceText?: string
+  /** Topshiriq turi (AssignmentType id) — ixtiyoriy */
+  typeId?: string | null
 }
 
 /** Admin: barcha topshiriqlar (yoki guruh bo'yicha) — FAQAT KO'RISH */

@@ -513,6 +513,98 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
         return Ok(new { ok = true });
     }
 
+    /// <summary>
+    /// O'quvchini BOSHQA GURUHGA O'TKAZISH: joriy guruh (<paramref name="id"/>) a'zoligi
+    /// <c>FreezeDate</c>dan MUZLATILADI (shu sanagacha qatnashgan darslar uchun qisman to'lov —
+    /// oddiy "Muzlatish" bilan bir xil <see cref="TuitionService.ChargeFreezeProrateAsync"/> mantig'i),
+    /// maqsad guruhda (<c>ToGroupId</c>) a'zolik yaratiladi/tiklanadi va <c>ActivateDate</c>dan DARHOL
+    /// AKTIVLASHTIRILADI (oddiy "Aktivlashtirish" bilan bir xil <see cref="TuitionService.ChargeActivationProrateAsync"/>
+    /// mantig'i — qisman oy to'lovi hisoblanadi). Yangi billing hisob-kitob YO'Q — ikkala tomon ham
+    /// mavjud freeze/activate primitivlaridan foydalanadi. <see cref="Student.ClassName"/> eski guruh
+    /// nomiga teng bo'lsa — yangi guruh nomiga ko'chiriladi (eski ko'rinishlar: chat, xabar tokenlari,
+    /// hisobotlar shu bilan yangi guruhga ergashadi).
+    /// </summary>
+    [HttpPost("{id}/members/{studentId}/transfer")]
+    public async Task<IActionResult> TransferMember(string id, string studentId, TransferMemberRequest req)
+    {
+        if (string.IsNullOrWhiteSpace(req.ToGroupId))
+            return BadRequest(new { message = "Maqsad guruh tanlanmagan" });
+        if (req.ToGroupId == id)
+            return BadRequest(new { message = "Maqsad guruh joriy guruh bilan bir xil bo'lishi mumkin emas" });
+
+        var fromGroup = await db.Classes.FindAsync(id);
+        if (fromGroup is null) return NotFound(new { message = "Joriy guruh topilmadi" });
+        var toGroup = await db.Classes.FindAsync(req.ToGroupId);
+        if (toGroup is null) return NotFound(new { message = "Maqsad guruh topilmadi" });
+
+        var fromSg = await db.StudentGroups
+            .FirstOrDefaultAsync(x => x.GroupId == id && x.StudentId == studentId && x.IsActive);
+        if (fromSg is null) return NotFound(new { message = "Faol a'zolik topilmadi" });
+
+        var s = await db.Students.FindAsync(studentId);
+        if (s is null) return NotFound(new { message = "O'quvchi topilmadi" });
+
+        if (toGroup.Capacity > 0)
+        {
+            var enrolled = await db.StudentGroups.CountAsync(x => x.GroupId == req.ToGroupId && x.IsActive);
+            if (enrolled >= toGroup.Capacity)
+                return BadRequest(new { message = $"Maqsad guruh to'lgan ({toGroup.Capacity} o'rin)" });
+        }
+
+        var toSg = await db.StudentGroups
+            .FirstOrDefaultAsync(x => x.GroupId == req.ToGroupId && x.StudentId == studentId);
+        if (toSg is { IsActive: true })
+            return BadRequest(new { message = "O'quvchi allaqachon maqsad guruhda" });
+
+        var freezeDate = string.IsNullOrWhiteSpace(req.FreezeDate)
+            ? AppClock.Today.ToString("yyyy-MM-dd") : req.FreezeDate!.Trim();
+        var activateDate = string.IsNullOrWhiteSpace(req.ActivateDate) ? freezeDate : req.ActivateDate!.Trim();
+
+        // 1) Eski guruh — MUZLATISH (allaqachon muzlatilgan bo'lsa qisman to'lovni qayta hisoblamaymiz).
+        if (fromSg.Status != "frozen")
+        {
+            var activatedAt = fromSg.ActivatedAt;
+            fromSg.Status = "frozen";
+            fromSg.FrozenAt = freezeDate;
+            await TuitionService.ChargeFreezeProrateAsync(db, s, fromGroup, activatedAt, freezeDate);
+        }
+
+        // 2) Maqsad guruh — a'zolik yaratish yoki tiklash (AddMember bilan bir xil mantiq).
+        if (toSg is not null)
+        {
+            toSg.IsActive = true;
+            toSg.LeftAt = null;
+            toSg.JoinedAt = activateDate;
+        }
+        else
+        {
+            toSg = new StudentGroup
+            {
+                StudentId = studentId, GroupId = req.ToGroupId, JoinedAt = activateDate, IsActive = true,
+                Status = "trial",
+            };
+            db.StudentGroups.Add(toSg);
+        }
+
+        // 3) Maqsad guruh — DARHOL AKTIVLASHTIRISH.
+        toSg.Status = "active";
+        toSg.ActivatedAt = activateDate;
+        toSg.FrozenAt = string.Empty;
+        await TuitionService.ChargeActivationProrateAsync(db, s, toGroup, activateDate);
+
+        // Eski (single-class) ko'rinishlar uchun asosiy guruh nomini ko'chiramiz.
+        if (s.ClassName == fromGroup.Name) s.ClassName = toGroup.Name;
+
+        var reason = await ReasonLabelAsync(req.ReasonId);
+        audit.Record("Membership", $"{id}:{studentId}", "update",
+            $"Guruh almashtirildi: {fromGroup.Name} → {toGroup.Name} (muzlatish {freezeDate}, aktivlashtirish {activateDate})"
+                + (reason.Length > 0 ? $" — sabab: {reason}" : ""),
+            studentId: studentId);
+
+        await db.SaveChangesAsync();
+        return Ok(new { ok = true });
+    }
+
     /// <summary>O'quvchining barcha guruh a'zoliklari (faol + o'tgan) — kurs/o'qituvchi/holat/narx/jadval bilan (kartalar uchun).</summary>
     [HttpGet("student/{studentId}/groups")]
     public async Task<ActionResult<IEnumerable<StudentGroupDto>>> StudentGroups(string studentId)
