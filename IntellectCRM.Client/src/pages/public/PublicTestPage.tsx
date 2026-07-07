@@ -60,7 +60,9 @@ export function PublicTestPage() {
   const start = () => {
     if (!invite) {
       if (!fullName.trim()) return setError('Ism-familiyangizni kiriting')
-      if (!phone.trim()) return setError('Telefon raqamingizni kiriting')
+      const digits = phone.replace(/\D/g, '')
+      if (digits.length < 9)
+        return setError("Telefon raqamini to'liq kiriting (kamida 9 ta raqam)")
     }
     setError('')
     setPhase('quiz')
