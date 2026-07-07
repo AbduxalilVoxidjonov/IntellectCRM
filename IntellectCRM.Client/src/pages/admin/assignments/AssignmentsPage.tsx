@@ -8,9 +8,8 @@ import {
   Plus,
   Pencil,
   Trash2,
-  Tag,
 } from 'lucide-react'
-import type { Assignment, AssignmentFormat, AssignmentType, Group, Subject } from '@/types'
+import type { Assignment, AssignmentFormat, Group, Subject } from '@/types'
 import { getClasses } from '@/api/services/classes'
 import { getSubjects } from '@/api/services/subjects'
 import {
@@ -21,8 +20,6 @@ import {
   deleteAssignment,
   uploadAdminFile,
   setAdminSubmission,
-  getAssignmentTypes,
-  saveAssignmentTypes,
 } from '@/api/services/assignments'
 import { formatDate } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
@@ -33,7 +30,6 @@ import { Loader } from '@/components/ui/Loader'
 import { Select } from '@/components/ui/Input'
 import { SubmissionsModal } from '@/components/assignments/SubmissionsModal'
 import { AssignmentWizard } from '@/components/assignments/AssignmentWizard'
-import { AssignmentTypesModal } from '@/components/assignments/AssignmentTypesModal'
 
 const formatLabel: Record<AssignmentFormat, string> = {
   written: 'Yozma',
@@ -53,32 +49,13 @@ export function AssignmentsPage() {
   const [resultsFor, setResultsFor] = useState<Assignment | null>(null)
   const [wizardOpen, setWizardOpen] = useState(false)
   const [editing, setEditing] = useState<Assignment | null>(null)
-  const [assignmentTypes, setAssignmentTypes] = useState<AssignmentType[]>([])
-  const [typesModalOpen, setTypesModalOpen] = useState(false)
 
   useEffect(() => {
-    Promise.all([getClasses(), getSubjects(), getAssignmentTypes()]).then(([cl, sb, types]) => {
+    Promise.all([getClasses(), getSubjects()]).then(([cl, sb]) => {
       setClasses(cl)
       setSubjects(sb)
-      setAssignmentTypes(types)
     })
   }, [])
-
-  /**
-   * Yangi topshiriq turi qo'shish — admin uchun alohida "create" endpoint yo'q, faqat bulk
-   * PUT (butun ro'yxatni almashtiradi). Shu sababli: mavjud ro'yxatga yangisini qo'shib, hammasini
-   * qayta saqlaymiz (mavjud id'lar o'zgarmasdan qoladi — backend buni kafolatlaydi), so'ng yangi
-   * yaratilgan turni ID bilan olish uchun ro'yxatni qayta o'qiymiz.
-   */
-  const handleCreateType = async (name: string): Promise<AssignmentType> => {
-    const trimmed = name.trim()
-    const existing = assignmentTypes.find((t) => t.name.toLowerCase() === trimmed.toLowerCase())
-    if (existing) return existing
-    await saveAssignmentTypes([...assignmentTypes, { id: '', name: trimmed }])
-    const fresh = await getAssignmentTypes()
-    setAssignmentTypes(fresh)
-    return fresh.find((t) => t.name === trimmed) ?? fresh[fresh.length - 1]
-  }
 
   const reload = () =>
     getAssignments(classId || undefined)
@@ -114,14 +91,9 @@ export function AssignmentsPage() {
         title="Topshiriqlar"
         sub="Topshiriq va testlar — yaratish va barchasini boshqarish"
         actions={
-          <>
-            <Button variant="secondary" onClick={() => setTypesModalOpen(true)}>
-              <Tag className="h-4 w-4" /> Turlar
-            </Button>
-            <Button onClick={openNew} disabled={classes.length === 0}>
-              <Plus className="h-4 w-4" /> Yangi topshiriq
-            </Button>
-          </>
+          <Button onClick={openNew} disabled={classes.length === 0}>
+            <Plus className="h-4 w-4" /> Yangi topshiriq
+          </Button>
         }
       />
 
@@ -248,18 +220,6 @@ export function AssignmentsPage() {
           else await createAssignment(input)
         }}
         onUpload={uploadAdminFile}
-        assignmentTypes={assignmentTypes}
-        onCreateType={handleCreateType}
-      />
-
-      <AssignmentTypesModal
-        open={typesModalOpen}
-        onClose={() => setTypesModalOpen(false)}
-        types={assignmentTypes}
-        onCreate={handleCreateType}
-        onCreated={(created) =>
-          setAssignmentTypes((prev) => (prev.some((t) => t.id === created.id) ? prev : [...prev, created]))
-        }
       />
 
       <SubmissionsModal

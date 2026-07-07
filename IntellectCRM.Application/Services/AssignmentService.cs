@@ -58,7 +58,6 @@ public static class AssignmentService
             MaxScore = req.MaxScore > 0 ? req.MaxScore : 100,
             AutoGrade = req.AutoGrade,
             ReferenceText = (req.ReferenceText ?? "").Trim(),
-            TypeId = Empty(req.TypeId),
             CreatedAt = AppClock.Now,
         };
         Apply(a, req);
@@ -84,7 +83,6 @@ public static class AssignmentService
         a.MaxScore = req.MaxScore > 0 ? req.MaxScore : 100;
         a.AutoGrade = req.AutoGrade;
         a.ReferenceText = (req.ReferenceText ?? "").Trim();
-        a.TypeId = Empty(req.TypeId);
 
         // Materiallar va savollarni qaytadan yozamiz (eskini o'chirib, yangisini qo'shamiz).
         db.AssignmentMaterials.RemoveRange(a.Materials);
@@ -341,21 +339,18 @@ public static class AssignmentService
     {
         var subjects = await db.Subjects.ToDictionaryAsync(s => s.Id, s => s.Name);
         var classes = await db.Classes.ToDictionaryAsync(c => c.Id, c => c.Name);
-        var types = await db.AssignmentTypes.ToDictionaryAsync(t => t.Id, t => t.Name);
-        return list.Select(a => ToDto(a, subjects, classes, types)).ToList();
+        return list.Select(a => ToDto(a, subjects, classes)).ToList();
     }
 
     private static async Task<AssignmentDto> ToDtoAsync(IAppDbContext db, Assignment a)
     {
         var subjects = await db.Subjects.ToDictionaryAsync(s => s.Id, s => s.Name);
         var classes = await db.Classes.ToDictionaryAsync(c => c.Id, c => c.Name);
-        var types = await db.AssignmentTypes.ToDictionaryAsync(t => t.Id, t => t.Name);
-        return ToDto(a, subjects, classes, types);
+        return ToDto(a, subjects, classes);
     }
 
     private static AssignmentDto ToDto(
-        Assignment a, Dictionary<string, string> subjects, Dictionary<string, string> classes,
-        Dictionary<string, string> types) => new(
+        Assignment a, Dictionary<string, string> subjects, Dictionary<string, string> classes) => new(
         a.Id, a.CreatedByUserId, a.SubjectId, subjects.GetValueOrDefault(a.SubjectId, ""), a.Title,
         a.Description, a.Format, a.ClassIds,
         a.ClassIds.Select(id => classes.GetValueOrDefault(id, "")).Where(n => n.Length > 0).ToList(),
@@ -364,6 +359,5 @@ public static class AssignmentService
         a.Materials.Select(m => new AssignmentMaterialDto(m.Id, m.Name, m.Url, m.Size, m.ContentType)).ToList(),
         a.Questions.OrderBy(q => q.Order)
             .Select(q => new TestQuestionDto(q.Id, q.Text, q.Options, q.CorrectIndex, q.Order)).ToList(),
-        a.ReferenceText, a.TypeId,
-        a.TypeId is null ? null : types.GetValueOrDefault(a.TypeId));
+        a.ReferenceText);
 }

@@ -1466,9 +1466,6 @@ export interface Assignment {
   questions: TestQuestion[]
   /** Speaking (format=speaking) uchun o'qiladigan matn */
   referenceText?: string
-  /** Topshiriq turi (AssignmentType) — ixtiyoriy */
-  typeId?: string | null
-  typeName?: string | null
 }
 
 /** Topshiriq turi (Sozlamalarda boshqariladi) */

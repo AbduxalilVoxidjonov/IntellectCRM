@@ -11,9 +11,8 @@ import {
   Clock,
   FileText,
   Video,
-  Tag,
 } from 'lucide-react'
-import type { Assignment, AssignmentFormat, AssignmentType, Subject, TeacherClass } from '@/types'
+import type { Assignment, AssignmentFormat, Subject, TeacherClass } from '@/types'
 import {
   getMyClasses,
   getTeacherAssignments,
@@ -23,14 +22,11 @@ import {
   deleteTeacherAssignment,
   getTeacherAssignmentResults,
   setTeacherSubmission,
-  getTeacherAssignmentTypes,
-  createTeacherAssignmentType,
 } from '@/api/services/teacher'
 import { formatDateTime } from '@/lib/utils'
 import { Loader } from '@/components/ui/Loader'
 import { SubmissionsModal } from '@/components/assignments/SubmissionsModal'
 import { AssignmentWizard } from '@/components/assignments/AssignmentWizard'
-import { AssignmentTypesModal } from '@/components/assignments/AssignmentTypesModal'
 
 const formatLabel: Record<AssignmentFormat, string> = {
   written: 'Yozma',
@@ -52,10 +48,8 @@ const formatMeta: Record<AssignmentFormat, { icon: typeof ClipboardCheck; color:
 export function TeacherAssignmentsPage() {
   const [classes, setClasses] = useState<TeacherClass[]>([])
   const [assignments, setAssignments] = useState<Assignment[]>([])
-  const [assignmentTypes, setAssignmentTypes] = useState<AssignmentType[]>([])
   const [loading, setLoading] = useState(true)
   const [wizardOpen, setWizardOpen] = useState(false)
-  const [typesModalOpen, setTypesModalOpen] = useState(false)
   const [editing, setEditing] = useState<Assignment | null>(null)
   const [resultsFor, setResultsFor] = useState<Assignment | null>(null)
   // Format filtri (faqat ko'rinishni filtrlaydi — API/logikaga tegmaydi)
@@ -64,11 +58,10 @@ export function TeacherAssignmentsPage() {
   const load = () => getTeacherAssignments().then(setAssignments)
 
   useEffect(() => {
-    Promise.all([getMyClasses(), getTeacherAssignments(), getTeacherAssignmentTypes()])
-      .then(([cl, asg, types]) => {
+    Promise.all([getMyClasses(), getTeacherAssignments()])
+      .then(([cl, asg]) => {
         setClasses(cl)
         setAssignments(asg)
-        setAssignmentTypes(types)
       })
       .finally(() => setLoading(false))
   }, [])
@@ -119,20 +112,11 @@ export function TeacherAssignmentsPage() {
   return (
     <div className="relative min-h-full bg-paper">
       {/* Ekran sarlavhasi (shell global headeri olib tashlangan) */}
-      <div className="flex items-start justify-between px-4 pt-3">
-        <div>
-          <p className="text-[22px] font-extrabold tracking-tight text-ink">Topshiriqlar</p>
-          <p className="text-[12px] text-mute">
-            <span className="font-mono">{assignments.length}</span> ta faol
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => setTypesModalOpen(true)}
-          className="tap-scale mt-1 inline-flex shrink-0 items-center gap-1.5 rounded-full border border-line bg-white px-3 py-1.5 text-[12px] font-semibold text-ink"
-        >
-          <Tag className="h-3.5 w-3.5" /> Turlar
-        </button>
+      <div className="px-4 pt-3">
+        <p className="text-[22px] font-extrabold tracking-tight text-ink">Topshiriqlar</p>
+        <p className="text-[12px] text-mute">
+          <span className="font-mono">{assignments.length}</span> ta faol
+        </p>
       </div>
 
       {/* Format chiplari */}
@@ -210,12 +194,6 @@ export function TeacherAssignmentsPage() {
                           <>
                             <span className="text-faint">·</span>
                             <span className="text-[11px] font-semibold text-mute">{a.subjectName}</span>
-                          </>
-                        )}
-                        {a.typeName && (
-                          <>
-                            <span className="text-faint">·</span>
-                            <span className="text-[11px] font-semibold text-mute">{a.typeName}</span>
                           </>
                         )}
                       </div>
@@ -338,22 +316,6 @@ export function TeacherAssignmentsPage() {
           else await createTeacherAssignment(input)
         }}
         onUpload={uploadTeacherFile}
-        assignmentTypes={assignmentTypes}
-        onCreateType={async (name) => {
-          const created = await createTeacherAssignmentType(name)
-          setAssignmentTypes((prev) => (prev.some((t) => t.id === created.id) ? prev : [...prev, created]))
-          return created
-        }}
-      />
-
-      <AssignmentTypesModal
-        open={typesModalOpen}
-        onClose={() => setTypesModalOpen(false)}
-        types={assignmentTypes}
-        onCreate={createTeacherAssignmentType}
-        onCreated={(created) =>
-          setAssignmentTypes((prev) => (prev.some((t) => t.id === created.id) ? prev : [...prev, created]))
-        }
       />
 
       <SubmissionsModal

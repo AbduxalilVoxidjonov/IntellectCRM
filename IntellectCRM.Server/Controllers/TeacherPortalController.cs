@@ -678,32 +678,12 @@ public class TeacherPortalController(
         return NoContent();
     }
 
-    /// <summary>Topshiriq turlari — topshiriq formasidagi dropdown uchun (admin ham shu ro'yxatni ko'radi).</summary>
+    /// <summary>Topshiriq turlari (faqat o'qish) — topshiriq formasidagi dropdown uchun.</summary>
     [HttpGet("assignment-types")]
     public async Task<ActionResult<IEnumerable<AssignmentTypeDto>>> AssignmentTypes()
     {
         if (!await HasPerm(TeacherPermissions.Assignments)) return Forbid();
         return await db.AssignmentTypes.Select(t => new AssignmentTypeDto(t.Id, t.Name)).ToListAsync();
-    }
-
-    /// <summary>
-    /// O'qituvchi yangi topshiriq turi qo'shadi (masalan "Uy vazifasi", "Nazorat ishi"). Bir xil nom
-    /// mavjud bo'lsa — mavjudini qaytaradi (dublikat yaratmaydi).
-    /// </summary>
-    [HttpPost("assignment-types")]
-    public async Task<ActionResult<AssignmentTypeDto>> CreateAssignmentType(CreateAssignmentTypeRequest req)
-    {
-        if (!await HasPerm(TeacherPermissions.Assignments)) return Forbid();
-        var name = (req.Name ?? "").Trim();
-        if (string.IsNullOrWhiteSpace(name)) return BadRequest(new { message = "Tur nomi kerak" });
-
-        var existing = await db.AssignmentTypes.FirstOrDefaultAsync(t => t.Name == name);
-        if (existing is not null) return new AssignmentTypeDto(existing.Id, existing.Name);
-
-        var type = new AssignmentType { Name = name };
-        db.AssignmentTypes.Add(type);
-        await db.SaveChangesAsync();
-        return new AssignmentTypeDto(type.Id, type.Name);
     }
 
 

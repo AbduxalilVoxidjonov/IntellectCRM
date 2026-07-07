@@ -131,12 +131,6 @@ export async function getTeacherAssignmentTypes(): Promise<AssignmentType[]> {
   return data
 }
 
-/** Yangi topshiriq turi qo'shish (masalan "Uy vazifasi", "Nazorat ishi"). Bir xil nom bo'lsa — mavjudini qaytaradi. */
-export async function createTeacherAssignmentType(name: string): Promise<AssignmentType> {
-  const { data } = await api.post<AssignmentType>('/teacher/assignment-types', { name })
-  return data
-}
-
 /* ---------- Meta (choraklar, dars vaqtlari, davomat sabablari) ---------- */
 
 export async function getTeacherMeta(): Promise<PortalMeta | null> {
