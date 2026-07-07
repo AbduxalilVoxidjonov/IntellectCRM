@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ArrowLeftRight } from 'lucide-react'
-import type { Group } from '@/types'
+import type { Group, Teacher } from '@/types'
 import { getClasses, transferMember } from '@/api/services/classes'
+import { getTeachers } from '@/api/services/teachers'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Select } from '@/components/ui/Input'
@@ -25,6 +26,8 @@ interface Props {
  */
 export function TransferGroupModal({ open, onClose, studentId, studentName, fromGroupId, fromGroupName, onDone }: Props) {
   const [groups, setGroups] = useState<Group[]>([])
+  const [teachers, setTeachers] = useState<Teacher[]>([])
+  const [teacherId, setTeacherId] = useState('')
   const [toGroupId, setToGroupId] = useState('')
   const [freezeDate, setFreezeDate] = useState(today())
   const [activateDate, setActivateDate] = useState(today())
@@ -33,14 +36,34 @@ export function TransferGroupModal({ open, onClose, studentId, studentName, from
 
   useEffect(() => {
     if (!open) return
+    setTeacherId('')
     setToGroupId('')
     setFreezeDate(today())
     setActivateDate(today())
     setError('')
-    getClasses()
-      .then((gs) => setGroups(gs.filter((g) => !g.isArchived && g.id !== fromGroupId)))
-      .catch(() => setGroups([]))
+    Promise.all([getClasses(), getTeachers()])
+      .then(([gs, ts]) => {
+        setGroups(gs.filter((g) => !g.isArchived && g.id !== fromGroupId))
+        setTeachers(ts.filter((t) => !t.isArchived))
+      })
+      .catch(() => {
+        setGroups([])
+        setTeachers([])
+      })
   }, [open, fromGroupId])
+
+  // Faqat guruhi bor o'qituvchilar tanlov ro'yxatida ko'rinadi.
+  const teacherOptions = useMemo(
+    () =>
+      teachers
+        .filter((t) => groups.some((g) => g.teacherId === t.id))
+        .sort((a, b) => a.fullName.localeCompare(b.fullName)),
+    [teachers, groups],
+  )
+  const groupsForTeacher = useMemo(
+    () => groups.filter((g) => g.teacherId === teacherId),
+    [groups, teacherId],
+  )
 
   const handleSave = async () => {
     if (!toGroupId || saving) return
@@ -90,9 +113,31 @@ export function TransferGroupModal({ open, onClose, studentId, studentName, from
           </div>
         </div>
 
-        <Select label="Yangi guruh" value={toGroupId} onChange={(e) => setToGroupId(e.target.value)}>
-          <option value="">— guruh tanlang —</option>
-          {groups.map((g) => (
+        <Select
+          label="O'qituvchi"
+          value={teacherId}
+          onChange={(e) => {
+            // O'qituvchi o'zgarsa, oldingi guruh tanlovi tozalanadi (boshqa o'qituvchiga tegishli edi).
+            setTeacherId(e.target.value)
+            setToGroupId('')
+          }}
+        >
+          <option value="">— tanlanmagan —</option>
+          {teacherOptions.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.fullName}
+            </option>
+          ))}
+        </Select>
+
+        <Select
+          label="Yangi guruh"
+          value={toGroupId}
+          disabled={!teacherId}
+          onChange={(e) => setToGroupId(e.target.value)}
+        >
+          <option value="">{teacherId ? '— guruh tanlang —' : '— avval o\'qituvchini tanlang —'}</option>
+          {groupsForTeacher.map((g) => (
             <option key={g.id} value={g.id}>
               {g.name}
             </option>

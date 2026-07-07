@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Upload, X, FileText, Loader2, AlertTriangle } from 'lucide-react'
 import type { Student } from '@/types'
 import type { StudentPayload, PhoneMatch } from '@/api/services/students'
 import { uploadAdminFile, getStudentCredentials, checkStudentPhones } from '@/api/services/students'
 import { getClasses, getStudentGroups } from '@/api/services/classes'
-import type { StudentGroupMembership } from '@/types'
+import { getTeachers } from '@/api/services/teachers'
+import type { StudentGroupMembership, Group, Teacher } from '@/types'
 import { getDistricts } from '@/api/services/districts'
 import type { District } from '@/types'
 import { Modal } from '@/components/ui/Modal'
@@ -67,7 +68,10 @@ function joinName(last?: string, first?: string, middle?: string): string {
 
 export function StudentFormModal({ open, onClose, onSubmit, initial }: Props) {
   const [form, setForm] = useState<StudentPayload>(empty)
-  const [classNames, setClassNames] = useState<string[]>([])
+  const [groups, setGroups] = useState<Group[]>([])
+  const [teachers, setTeachers] = useState<Teacher[]>([])
+  /** "Guruhga biriktirish" bosqichi: avval o'qituvchi, keyin o'sha o'qituvchining guruhi. */
+  const [teacherId, setTeacherId] = useState('')
   const [districts, setDistricts] = useState<District[]>([])
   /** Fayl yuklash holatlari (har maydon uchun alohida). */
   const [uploading, setUploading] = useState<{ birth?: boolean }>({})
@@ -83,8 +87,41 @@ export function StudentFormModal({ open, onClose, onSubmit, initial }: Props) {
   const [pending, setPending] = useState<StudentPayload | null>(null)
 
   useEffect(() => {
-    if (open) getClasses().then((cs) => setClassNames(cs.map((c) => c.name)))
+    if (!open) return
+    Promise.all([getClasses(), getTeachers()])
+      .then(([gs, ts]) => {
+        setGroups(gs.filter((g) => !g.isArchived))
+        setTeachers(ts.filter((t) => !t.isArchived))
+      })
+      .catch(() => {
+        setGroups([])
+        setTeachers([])
+      })
   }, [open])
+
+  // Tahrirda: joriy guruh nomiga mos o'qituvchini avtomatik tanlab qo'yamiz (kaskad ochilsin).
+  useEffect(() => {
+    if (!open) return
+    if (!initial?.className) {
+      setTeacherId('')
+      return
+    }
+    const g = groups.find((x) => x.name === initial.className)
+    setTeacherId(g?.teacherId ?? '')
+  }, [open, initial, groups])
+
+  // Faqat guruhi bor o'qituvchilar tanlov ro'yxatida ko'rinadi.
+  const teacherOptions = useMemo(
+    () =>
+      teachers
+        .filter((t) => groups.some((g) => g.teacherId === t.id))
+        .sort((a, b) => a.fullName.localeCompare(b.fullName)),
+    [teachers, groups],
+  )
+  const groupsForTeacher = useMemo(
+    () => groups.filter((g) => g.teacherId === teacherId),
+    [groups, teacherId],
+  )
 
   useEffect(() => {
     if (open) getDistricts().then(setDistricts).catch(() => { /* tarmoq/mok — tuman ro'yxati bo'sh qoladi */ })
@@ -325,17 +362,36 @@ export function StudentFormModal({ open, onClose, onSubmit, initial }: Props) {
           />
           <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
             <Select
-              label="Guruhga biriktirish"
-              value={form.className}
-              onChange={(e) => update('className', e.target.value)}
+              label="O'qituvchi"
+              value={teacherId}
+              onChange={(e) => {
+                // O'qituvchi o'zgarsa, oldingi guruh tanlovi tozalanadi (boshqa o'qituvchiga tegishli edi).
+                setTeacherId(e.target.value)
+                update('className', '')
+              }}
             >
               <option value="">— guruhsiz —</option>
-              {classNames.map((c) => (
-                <option key={c} value={c}>
-                  {c}
+              {teacherOptions.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.fullName}
                 </option>
               ))}
             </Select>
+            <Select
+              label="Guruhga biriktirish"
+              value={form.className}
+              disabled={!teacherId}
+              onChange={(e) => update('className', e.target.value)}
+            >
+              <option value="">{teacherId ? '— guruh tanlang —' : '— avval o\'qituvchini tanlang —'}</option>
+              {groupsForTeacher.map((g) => (
+                <option key={g.id} value={g.name}>
+                  {g.name}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div className="mt-3">
             <Input
               label="Markazga kelgan sana"
               type="date"
