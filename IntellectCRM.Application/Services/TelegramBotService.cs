@@ -9,10 +9,12 @@ namespace IntellectCRM.Application.Services;
 
 /// <summary>
 /// Telegram botni long polling (getUpdates) orqali yurituvchi fon xizmati.
-/// Oqim: foydalanuvchi /start bosadi → telefon raqamini ulashadi → raqam o'quvchi (ParentPhone) yoki
-/// o'qituvchi (Phone) bilan solishtiriladi (ro'yxatdan o'tgan); MAJBURIY kanal obunasi tekshiriladi
-/// (sozlangan bo'lsa) → keyin TelegramRegistration yoziladi va mos ILOVA (APK) fayli yuboriladi.
-/// Token sozlanmagan bo'lsa xizmat kutadi (ilova baribir ishlaydi).
+/// Oqim: foydalanuvchi /start bosadi → MAJBURIY kanal obunasi darhol tekshiriladi (sozlangan
+/// bo'lsa — bo'lmasa shu yerda to'xtaydi, "✅ Tekshirish" tugmasi bilan) → telefon raqamini
+/// ulashadi → raqam o'quvchi (ParentPhone) yoki o'qituvchi (Phone) bilan solishtiriladi
+/// (ro'yxatdan o'tgan); obuna YANA tekshiriladi (ehtiyot chorasi — /start bilan kontakt orasida
+/// kanaldan chiqib ketgan bo'lishi mumkin) → keyin TelegramRegistration yoziladi va mos ILOVA
+/// (APK) fayli yuboriladi. Token sozlanmagan bo'lsa xizmat kutadi (ilova baribir ishlaydi).
 /// Support rejimi: /support → Mode="support" → keyingi matnlar adminga ketadi.
 /// </summary>
 public class TelegramBotService(
@@ -110,12 +112,8 @@ public class TelegramBotService(
 
         if (text.StartsWith("/start"))
         {
-            await UpsertBotUserOnStartAsync(chatId, msg, ct);
-            await telegram.SendMessageAsync(chatId,
-                "Assalomu alaykum! 📱 Ilovaga kirish uchun pastdagi tugma orqali telefon raqamingizni yuboring " +
-                "— raqamingiz markaz ma'lumotlari bilan solishtirilib, login/parolingiz yuboriladi.\n" +
-                $"Administratorga murojaat uchun «{SupportButtonText}» tugmasini bosing.",
-                ContactKeyboard, ct);
+            if (!await CheckSubscriptionForStartAsync(chatId, ct)) return;
+            await SendStartWelcomeAsync(chatId, msg, ct);
         }
         else if (text == "/support" || text == SupportButtonText)
         {
@@ -212,10 +210,58 @@ public class TelegramBotService(
             }
             await HandleContactAsync(chatId, phone, "", ct);
         }
+        else if (data == "check_sub_start")
+        {
+            if (!await CheckSubscriptionForStartAsync(chatId, ct)) return;
+            await SendStartWelcomeAsync(chatId, cq, ct);
+        }
         else if (data == "support")
         {
             await HandleSupportCommandAsync(chatId, ct);
         }
+    }
+
+    /// <summary>
+    /// /start (yoki "✅ Tekshirish" tugmasi) bosilganda MAJBURIY kanal obunasini tekshiradi (kanal
+    /// sozlangan va ommaviy @username bo'lib tekshirish mumkin bo'lsa). Obuna bo'lmasa kanal havolasi
+    /// + "✅ Tekshirish" tugmali xabar yuborib false qaytaradi (chaqiruvchi shu yerda to'xtashi kerak);
+    /// kanal sozlanmagan/tekshirib bo'lmaydigan (masalan xususiy kanal) bo'lsa — bloklamaymiz, true.
+    /// </summary>
+    private async Task<bool> CheckSubscriptionForStartAsync(long chatId, CancellationToken ct)
+    {
+        using var scope = sp.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
+        var meta = await db.CenterMeta.FirstOrDefaultAsync(ct);
+        var channel = meta?.TelegramChannel ?? "";
+
+        var channelUser = TelegramService.ChannelUsername(channel);
+        if (channelUser is null) return true;
+
+        var status = await telegram.GetChatMemberStatusAsync(channelUser, chatId, ct);
+        if (status is "left" or "kicked")
+        {
+            await telegram.SendMessageAsync(chatId,
+                "📢 Botdan foydalanish uchun avval markaz kanaliga obuna bo'ling, so'ng \"✅ Tekshirish\" tugmasini bosing.",
+                SubscribeKeyboard(ChannelUrl(channel), "check_sub_start"), ct);
+            return false;
+        }
+        // status null (bot kanal admini emas / tekshirib bo'lmadi) → bloklamaymiz (fail-open), ogohlantiramiz.
+        if (status is null)
+            logger.LogWarning("Telegram obuna tekshirib bo'lmadi (/start, bot kanal admini bo'lishi kerak): {Ch}", channelUser);
+        return true;
+    }
+
+    /// <summary>/start (obunadan o'tgach) — BotUser yozadi/yangilaydi va telefon so'rovchi xabarni yuboradi.
+    /// <paramref name="fromHolder"/> — "from" maydonli JSON element (message YOKI callback_query, ikkalasida
+    /// ham shakli bir xil).</summary>
+    private async Task SendStartWelcomeAsync(long chatId, JsonElement fromHolder, CancellationToken ct)
+    {
+        await UpsertBotUserOnStartAsync(chatId, fromHolder, ct);
+        await telegram.SendMessageAsync(chatId,
+            "Assalomu alaykum! 📱 Ilovaga kirish uchun pastdagi tugma orqali telefon raqamingizni yuboring " +
+            "— raqamingiz markaz ma'lumotlari bilan solishtirilib, login/parolingiz yuboriladi.\n" +
+            $"Administratorga murojaat uchun «{SupportButtonText}» tugmasini bosing.",
+            ContactKeyboard, ct);
     }
 
     /// <summary>Telefon kelganda: moslik → MAJBURIY obuna → register + APK.</summary>
@@ -666,13 +712,15 @@ public class TelegramBotService(
         one_time_keyboard = false,
     };
 
-    /// <summary>Kanal havolasi + "✅ Tekshirish" inline tugmalari.</summary>
-    private static object SubscribeKeyboard(string channelUrl) => new
+    /// <summary>Kanal havolasi + "✅ Tekshirish" inline tugmalari. <paramref name="callbackData"/> —
+    /// tugma bosilganda qaysi oqim davom etishini bildiradi ("check_sub" — kontakt oqimi,
+    /// "check_sub_start" — /start oqimi).</summary>
+    private static object SubscribeKeyboard(string channelUrl, string callbackData = "check_sub") => new
     {
         inline_keyboard = new object[][]
         {
             new object[] { new { text = "📢 Kanalga obuna bo'lish", url = channelUrl } },
-            new object[] { new { text = "✅ Tekshirish", callback_data = "check_sub" } },
+            new object[] { new { text = "✅ Tekshirish", callback_data = callbackData } },
         },
     };
 }
