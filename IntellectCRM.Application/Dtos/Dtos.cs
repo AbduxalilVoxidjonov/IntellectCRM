@@ -1122,10 +1122,11 @@ public record EskizCallbackDto(string? request_id, string? message_id, string? p
 public record EskizSettingsDto(string Email, string From, bool Configured, decimal? Balance);
 /// <summary>SMS (Eskiz) login/parol/sender saqlash so'rovi (bo'sh qoldirilsa eski saqlanadi).</summary>
 public record SaveEskizRequest(string? Email, string? Password, string? From);
-/// <summary>Local SMS (CTI agent telefonidan) sozlamasi holati.</summary>
-public record LocalSmsSettingsDto(bool Enabled, string? DefaultAgentId);
+/// <summary>Local SMS (CTI agent telefonidan) sozlamasi holati. DelaySeconds — massaviy yuborishda
+/// ikkita SMS orasidagi kutish (soniya).</summary>
+public record LocalSmsSettingsDto(bool Enabled, string? DefaultAgentId, int DelaySeconds);
 /// <summary>Local SMS sozlamasini saqlash — DefaultAgentId bo'sh/null bo'lsa standart agent tozalanadi.</summary>
-public record SaveLocalSmsRequest(bool Enabled, string? DefaultAgentId);
+public record SaveLocalSmsRequest(bool Enabled, string? DefaultAgentId, int DelaySeconds);
 /// <summary>
 /// "Tanlab" SMS uchun oluvchi (o'quvchi). ParentPhone = ParentPhone→FatherPhone→MotherPhone birinchi
 /// bo'sh bo'lmagani; StudentPhone = s.Phone. Ikkalasi ham bo'sh bo'lishi mumkin (raqam yo'q — UIda kulrang).

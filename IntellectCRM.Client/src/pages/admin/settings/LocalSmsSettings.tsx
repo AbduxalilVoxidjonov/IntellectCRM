@@ -16,6 +16,7 @@ import { Loader } from '@/components/ui/Loader'
 export function LocalSmsSettings() {
   const [enabled, setEnabled] = useState(false)
   const [defaultAgentId, setDefaultAgentId] = useState('')
+  const [delaySeconds, setDelaySeconds] = useState(0)
   const [agents, setAgents] = useState<CtiAgent[]>([])
   const [loading, setLoading] = useState(true)
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
@@ -26,6 +27,7 @@ export function LocalSmsSettings() {
       .then(([cfg, ag]) => {
         setEnabled(cfg.enabled)
         setDefaultAgentId(cfg.defaultAgentId ?? '')
+        setDelaySeconds(cfg.delaySeconds)
         setAgents(ag)
       })
       .finally(() => setLoading(false))
@@ -36,9 +38,10 @@ export function LocalSmsSettings() {
     setStatus('saving')
     setError(null)
     try {
-      const saved = await saveLocalSmsSettings({ enabled, defaultAgentId: defaultAgentId || null })
+      const saved = await saveLocalSmsSettings({ enabled, defaultAgentId: defaultAgentId || null, delaySeconds })
       setEnabled(saved.enabled)
       setDefaultAgentId(saved.defaultAgentId ?? '')
+      setDelaySeconds(saved.delaySeconds)
       setStatus('saved')
       setTimeout(() => setStatus('idle'), 2000)
     } catch (e: unknown) {
@@ -103,6 +106,25 @@ export function LocalSmsSettings() {
               ))}
             </Select>
           )}
+        </div>
+
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-700">
+            Ikkita SMS orasidagi kutish (soniya)
+          </label>
+          <input
+            type="number"
+            min={0}
+            max={300}
+            value={delaySeconds}
+            onChange={(e) => setDelaySeconds(Math.max(0, Math.min(300, Number(e.target.value) || 0)))}
+            className="max-w-[140px] rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 outline-none focus:border-brand-400"
+          />
+          <p className="mt-1 text-xs text-slate-400">
+            Massaviy Local SMS yuborilganda (Xabar yuborish, Lidlarga ommaviy SMS, avto-xabarlar)
+            har bir SMS orasida shuncha soniya kutiladi — agent telefoni/operator haddan tashqari
+            yuklanmasligi uchun. 0 = kutishsiz.
+          </p>
         </div>
 
         {error && <p className="text-sm font-medium text-red-600">{error}</p>}

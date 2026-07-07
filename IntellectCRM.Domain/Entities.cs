@@ -991,6 +991,9 @@ public class CenterMeta
     /// <summary>Standart Local SMS agenti (CtiAgent.Id) — provider=local tanlanganda aniq agent
     /// ko'rsatilmasa (yoki avtomatik/fon xabarlarda) shu ishlatiladi.</summary>
     public string? LocalSmsDefaultAgentId { get; set; }
+    /// <summary>Massaviy Local SMS yuborishda ikkita SMS orasidagi minimal kutish (soniya) — agent
+    /// telefonini/operatorni haddan tashqari yuklamaslik uchun. 0 = kutishsiz (default).</summary>
+    public int LocalSmsDelaySeconds { get; set; }
 }
 
 /// <summary>Avto-xabar qoidasi — hodisa (Trigger) yuz berganda tanlangan kanallar orqali

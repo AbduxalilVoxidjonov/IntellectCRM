@@ -312,7 +312,7 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
     public async Task<ActionResult<LocalSmsSettingsDto>> GetLocalSms()
     {
         var m = await db.CenterMeta.FirstOrDefaultAsync();
-        return new LocalSmsSettingsDto(m?.LocalSmsEnabled ?? false, m?.LocalSmsDefaultAgentId);
+        return new LocalSmsSettingsDto(m?.LocalSmsEnabled ?? false, m?.LocalSmsDefaultAgentId, m?.LocalSmsDelaySeconds ?? 0);
     }
 
     [HttpPut("local-sms")]
@@ -321,13 +321,16 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
         if (!string.IsNullOrWhiteSpace(req.DefaultAgentId)
             && await db.CtiAgents.FindAsync(req.DefaultAgentId) is null)
             return BadRequest(new { message = "Tanlangan agent topilmadi" });
+        if (req.DelaySeconds < 0 || req.DelaySeconds > 300)
+            return BadRequest(new { message = "Kutish vaqti 0-300 soniya oralig'ida bo'lishi kerak" });
 
         var m = await db.CenterMeta.FirstOrDefaultAsync();
         if (m is null) { m = new CenterMeta(); db.CenterMeta.Add(m); }
         m.LocalSmsEnabled = req.Enabled;
         m.LocalSmsDefaultAgentId = string.IsNullOrWhiteSpace(req.DefaultAgentId) ? null : req.DefaultAgentId;
+        m.LocalSmsDelaySeconds = req.DelaySeconds;
         await db.SaveChangesAsync();
-        return new LocalSmsSettingsDto(m.LocalSmsEnabled, m.LocalSmsDefaultAgentId);
+        return new LocalSmsSettingsDto(m.LocalSmsEnabled, m.LocalSmsDefaultAgentId, m.LocalSmsDelaySeconds);
     }
 
     // ---------- Ilova (APK) — Telegram bot ro'yxatdan o'tganga yuboradi ----------

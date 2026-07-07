@@ -289,11 +289,13 @@ export async function saveEskizSettings(input: {
 export interface LocalSmsConfig {
   enabled: boolean
   defaultAgentId: string | null
+  /** Massaviy yuborishda ikkita SMS orasidagi kutish (soniya). 0 = kutishsiz. */
+  delaySeconds: number
 }
 export async function getLocalSmsSettings(): Promise<LocalSmsConfig> {
   if (USE_MOCK) {
     await delay()
-    return { enabled: false, defaultAgentId: null }
+    return { enabled: false, defaultAgentId: null, delaySeconds: 0 }
   }
   const { data } = await api.get<LocalSmsConfig>('/admin/settings/local-sms')
   return data
@@ -301,6 +303,7 @@ export async function getLocalSmsSettings(): Promise<LocalSmsConfig> {
 export async function saveLocalSmsSettings(input: {
   enabled: boolean
   defaultAgentId?: string | null
+  delaySeconds: number
 }): Promise<LocalSmsConfig> {
   const { data } = await api.put<LocalSmsConfig>('/admin/settings/local-sms', input)
   return data

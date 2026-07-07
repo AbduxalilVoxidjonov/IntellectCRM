@@ -15,6 +15,32 @@ public class CtiSmsService(CtiConnectionManager conn, FcmService fcm)
     public record LocalSmsResult(bool Ok, string CommandId, string Status, string? Error);
 
     /// <summary>
+    /// Ketma-ket yuborishlar orasidagi minimal masofani ta'minlaydi (CenterMeta.LocalSmsDelaySeconds
+    /// sozlangan bo'lsa) — barcha chaqiruvchilar (broadcast, lidlarga ommaviy SMS, avto-xabar
+    /// trigger'lari, eslatma HostedService'lari) shu YAGONA joydan o'tgani uchun alohida-alohida
+    /// har bir bulk-loop'da bloklamaslikning hojati yo'q. Statik (instance DI lifetime'idan qat'i
+    /// nazar to'g'ri ishlashi uchun) — jarayon darajasida bitta hisoblagich.
+    /// </summary>
+    private static readonly SemaphoreSlim PaceLock = new(1, 1);
+    private static DateTime _lastSentUtc = DateTime.MinValue;
+
+    private static async Task PaceAsync(int delaySeconds, CancellationToken ct)
+    {
+        if (delaySeconds <= 0) return;
+        await PaceLock.WaitAsync(ct);
+        try
+        {
+            var wait = TimeSpan.FromSeconds(delaySeconds) - (DateTime.UtcNow - _lastSentUtc);
+            if (wait > TimeSpan.Zero) await Task.Delay(wait, ct);
+            _lastSentUtc = DateTime.UtcNow;
+        }
+        finally
+        {
+            PaceLock.Release();
+        }
+    }
+
+    /// <summary>
     /// SMS yuboradi va natijani <see cref="SmsLog"/>ga yozadi (Provider="local"). <paramref name="agentId"/>
     /// berilmasa — CenterMeta.LocalSmsDefaultAgentId ishlatiladi (avtomatik/fon xabarlar shu yo'l bilan).
     /// <paramref name="batchId"/> chaqiruvchining O'ZI bir SmsBatch yaratadigan hollarda beriladi
@@ -44,6 +70,10 @@ public class CtiSmsService(CtiConnectionManager conn, FcmService fcm)
         if (number.Length == 0)
             return await FinishAsync(db, phone, message, recipientName, batchId, ownsBatch, false,
                 "", "yetkazilmadi", "Telefon raqami noto'g'ri.", null, ct);
+
+        // Massaviy yuborishda ikkita SMS orasida kutish (sozlangan bo'lsa) — haqiqiy dispatch'dan
+        // oldin, shunda noto'g'ri so'rovlar (yuqoridagi validatsiya) kutish vaqtini yemaydi.
+        await PaceAsync(meta?.LocalSmsDelaySeconds ?? 0, ct);
 
         var commandId = Guid.NewGuid().ToString();
         var cmd = new CtiCommandLog
