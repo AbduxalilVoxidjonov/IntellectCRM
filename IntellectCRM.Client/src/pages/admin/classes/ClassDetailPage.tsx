@@ -16,8 +16,10 @@ import {
   getGroupCurriculum, setGroupCover, changeGroupRevision,
   type GroupCurriculum,
 } from '@/api/services/curriculum'
-import { activateMember, freezeMember, returnMemberToTrial, getClasses } from '@/api/services/classes'
+import { activateMember, freezeMember, returnMemberToTrial, getClasses, addGroupMember } from '@/api/services/classes'
 import { getSettings } from '@/api/services/settings'
+import { createStudent } from '@/api/services/students'
+import type { StudentPayload } from '@/api/services/students'
 import { cn, formatMoney, formatDate } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
 import { GradingSection } from '@/components/grading/GradingSection'
@@ -31,6 +33,7 @@ import { Button } from '@/components/ui/Button'
 import { JournalCellModal } from '../journal/JournalCellModal'
 import { CompleteAndTransferModal } from './CompleteAndTransferModal'
 import { TransferGroupModal } from './TransferGroupModal'
+import { StudentFormModal } from '../students/StudentFormModal'
 
 const weekdayShort = ['Du', 'Se', 'Cho', 'Pa', 'Ju', 'Sha', 'Ya']
 const uzMonths = [
@@ -103,6 +106,11 @@ export function ClassDetailPage() {
   const [transferOpen, setTransferOpen] = useState(false)
   /** Guruh o'qituvchisi id'si — profilga link uchun (jurnal DTO'sida faqat teacherName bor). */
   const [teacherId, setTeacherId] = useState('')
+  /** Guruh sig'imi — jurnal DTO'sida yo'q, "Yangi o'quvchi" to'lganlik ogohlantirishi uchun. */
+  const [capacity, setCapacity] = useState(0)
+  /** "Yangi o'quvchi" yaratish formasi ochiqmi — yaratilgach shu guruhga qo'shiladi. */
+  const [newStudentOpen, setNewStudentOpen] = useState(false)
+  const [addingStudent, setAddingStudent] = useState(false)
 
   // ---- Guruh o'quv dasturi (darsda o'tilgan) ----
   const [groupView, setGroupView] = useState<'jurnal' | 'baholash' | 'reyting'>('jurnal')
@@ -163,12 +171,20 @@ export function ClassDetailPage() {
       .catch(() => {})
   }, [load])
 
-  // Guruh o'qituvchisi id'si — "O'qituvchi" nomini profilga link qilish uchun.
+  // Guruh o'qituvchisi id'si va sig'imi — "O'qituvchi" nomini profilga link qilish, "Yangi
+  // o'quvchi" to'lganlik ogohlantirishi uchun (jurnal DTO'sida ikkalasi ham yo'q).
   useEffect(() => {
     if (!id) return
     getClasses()
-      .then((cs) => setTeacherId(cs.find((c) => c.id === id)?.teacherId ?? ''))
-      .catch(() => setTeacherId(''))
+      .then((cs) => {
+        const cls = cs.find((c) => c.id === id)
+        setTeacherId(cls?.teacherId ?? '')
+        setCapacity(cls?.capacity ?? 0)
+      })
+      .catch(() => {
+        setTeacherId('')
+        setCapacity(0)
+      })
   }, [id])
 
   useEffect(() => {
@@ -368,6 +384,25 @@ export function ClassDetailPage() {
       alert(message)
     } finally {
       setMemberSaving(false)
+    }
+  }
+
+  /** Yangi o'quvchi yaratiladi va darhol shu guruhga (M2M) qo'shiladi. */
+  const handleCreateAndAdd = async (values: StudentPayload) => {
+    if (!id || addingStudent) return
+    setAddingStudent(true)
+    try {
+      const created = await createStudent(values)
+      await addGroupMember(id, created.id)
+      setNewStudentOpen(false)
+      load(journal?.month)
+    } catch (err) {
+      const message = err instanceof Error
+        ? err.message
+        : (err as any)?.response?.data?.message ?? "Yangi o'quvchini qo'shib bo'lmadi"
+      alert(message)
+    } finally {
+      setAddingStudent(false)
     }
   }
 
@@ -600,6 +635,19 @@ export function ClassDetailPage() {
                     {monthLabel(m)}
                   </button>
                 ))}
+                <button
+                  type="button"
+                  disabled={capacity > 0 && journalStudents.length >= capacity}
+                  onClick={() => setNewStudentOpen(true)}
+                  title={
+                    capacity > 0 && journalStudents.length >= capacity
+                      ? `Guruh to'lgan (${capacity} o'rin)`
+                      : "Yangi o'quvchi yaratib, shu guruhga qo'shish"
+                  }
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-brand-700 disabled:opacity-50"
+                >
+                  <Plus className="h-4 w-4" /> Yangi o'quvchi
+                </button>
               </div>
             </div>
 
@@ -1051,6 +1099,14 @@ export function ClassDetailPage() {
           }}
         />
       )}
+
+      {/* Yangi o'quvchi yaratish — saqlangach avtomatik shu guruhga qo'shiladi. */}
+      <StudentFormModal
+        open={newStudentOpen}
+        onClose={() => setNewStudentOpen(false)}
+        onSubmit={handleCreateAndAdd}
+        initial={null}
+      />
 
       {/* Guruhni yakunlash modali (Hybrid: arxivlash + maqsad kursga yangi guruh) */}
       <CompleteAndTransferModal
