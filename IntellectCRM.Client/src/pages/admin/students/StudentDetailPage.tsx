@@ -37,7 +37,8 @@ import {
 } from '@/api/services/classes'
 import { getCurriculum, getProgress, setProgress, getStudentCoverageLog, type CoverageLogEntry } from '@/api/services/curriculum'
 import { getStudentGradingSummary, type MonthGradingSummary } from '@/api/services/grading'
-import type { Student, StudentGroupMembership, Curriculum, Group } from '@/types'
+import { getTeachers } from '@/api/services/teachers'
+import type { Student, StudentGroupMembership, Curriculum, Group, Teacher } from '@/types'
 import { cn, formatDate, formatDateTime, formatMoney, apiErrorMessage } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
 import { Badge, type BadgeTone } from '@/components/ui/Badge'
@@ -123,9 +124,11 @@ export function StudentDetailPage() {
   const [groupReasonAction, setGroupReasonAction] = useState<'freeze' | 'return' | null>(null)
   const [groupTransferOpen, setGroupTransferOpen] = useState(false)
   const [groupBusy, setGroupBusy] = useState(false)
-  /** "Guruhga qo'shish" — barcha (arxivlanmagan) guruhlar ro'yxati + tanlash modali. */
+  /** "Guruhga qo'shish" — barcha (arxivlanmagan) guruhlar ro'yxati + o'qituvchi→guruh tanlash modali. */
   const [allGroups, setAllGroups] = useState<Group[]>([])
+  const [allTeachers, setAllTeachers] = useState<Teacher[]>([])
   const [addGroupOpen, setAddGroupOpen] = useState(false)
+  const [addGroupTeacherId, setAddGroupTeacherId] = useState('')
   const [addGroupId, setAddGroupId] = useState('')
   const [addGroupDate, setAddGroupDate] = useState('')
   const [addGroupBusy, setAddGroupBusy] = useState(false)
@@ -265,10 +268,29 @@ export function StudentDetailPage() {
 
   /** "Guruhga qo'shish" tugmasi — tanlash modalini ochadi (bugungi sana bilan). */
   const openAddGroup = () => {
+    setAddGroupTeacherId('')
     setAddGroupId('')
     setAddGroupDate(new Date().toISOString().slice(0, 10))
     setAddGroupOpen(true)
   }
+
+  // Guruhga qo'shish — faqat FAOL a'zolik yo'q guruhlar (studentga hali qo'shilmagan yoki chiqib ketgan).
+  const addableGroups = useMemo(
+    () => allGroups.filter((g) => !groups.some((gr) => gr.groupId === g.id && gr.isActive)),
+    [allGroups, groups],
+  )
+  // Faqat qo'shish mumkin bo'lgan guruhi bor o'qituvchilar tanlov ro'yxatida ko'rinadi.
+  const addGroupTeacherOptions = useMemo(
+    () =>
+      allTeachers
+        .filter((t) => addableGroups.some((g) => g.teacherId === t.id))
+        .sort((a, b) => a.fullName.localeCompare(b.fullName)),
+    [allTeachers, addableGroups],
+  )
+  const addGroupOptionsForTeacher = useMemo(
+    () => addableGroups.filter((g) => g.teacherId === addGroupTeacherId),
+    [addableGroups, addGroupTeacherId],
+  )
 
   const confirmAddGroup = async () => {
     if (!id || !addGroupId || addGroupBusy) return
@@ -327,6 +349,9 @@ export function StudentDetailPage() {
         setGroupCourse(map)
         setAllGroups(list.filter((g) => !g.isArchived))
       })
+      .catch(() => {})
+    getTeachers()
+      .then((list) => setAllTeachers(list.filter((t) => !t.isArchived)))
       .catch(() => {})
   }, [])
 
@@ -1526,23 +1551,42 @@ export function StudentDetailPage() {
         }
       >
         <div className="space-y-4">
-          <div>
-            <span className="mb-1 block text-sm font-medium text-slate-600">Guruh</span>
-            <select
-              value={addGroupId}
-              onChange={(e) => setAddGroupId(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 outline-none focus:border-brand-400"
-            >
-              <option value="">— guruh tanlang —</option>
-              {allGroups
-                .filter((g) => !groups.some((gr) => gr.groupId === g.id && gr.isActive))
-                .sort((a, b) => a.name.localeCompare(b.name))
-                .map((g) => (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <span className="mb-1 block text-sm font-medium text-slate-600">O'qituvchi</span>
+              <select
+                value={addGroupTeacherId}
+                onChange={(e) => {
+                  // O'qituvchi o'zgarsa, oldingi guruh tanlovi tozalanadi (boshqa o'qituvchiga tegishli edi).
+                  setAddGroupTeacherId(e.target.value)
+                  setAddGroupId('')
+                }}
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 outline-none focus:border-brand-400"
+              >
+                <option value="">— tanlanmagan —</option>
+                {addGroupTeacherOptions.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.fullName}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <span className="mb-1 block text-sm font-medium text-slate-600">Guruh</span>
+              <select
+                value={addGroupId}
+                disabled={!addGroupTeacherId}
+                onChange={(e) => setAddGroupId(e.target.value)}
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 outline-none focus:border-brand-400 disabled:bg-slate-50 disabled:text-slate-400"
+              >
+                <option value="">{addGroupTeacherId ? '— guruh tanlang —' : "— avval o'qituvchini tanlang —"}</option>
+                {addGroupOptionsForTeacher.map((g) => (
                   <option key={g.id} value={g.id}>
                     {g.name}
                   </option>
                 ))}
-            </select>
+              </select>
+            </div>
           </div>
           <div>
             <span className="mb-1 block text-sm font-medium text-slate-600">Qo'shilgan sana</span>

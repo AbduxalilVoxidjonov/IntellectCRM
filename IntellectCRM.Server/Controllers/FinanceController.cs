@@ -150,17 +150,23 @@ public class FinanceController(AppDbContext db, AuditService audit, AutoMessageS
 
         // Avto xabar — o'quvchi tuition to'lovi qabul qilinganda ("To'lov qabul qilinganda" hodisasi):
         // yoqilgan qoidalar bo'yicha SMS + push + telegram. {sana} = to'lovning HAQIQIY sanasi
-        // (tx.Date — orqaga sanalgan bo'lishi mumkin, bugun emas).
+        // (tx.Date — orqaga sanalgan bo'lishi mumkin, bugun emas). {oy} = to'lov QAYSI OY uchun
+        // (tx.Month — "yyyy-MM"), bugungi oy EMAS (masalan avgustda iyun oyi uchun to'lansa ham "iyun").
         if (tx is { Direction: "income", Category: "tuition", StudentId: not null })
         {
             var student = await db.Students.FindAsync(tx.StudentId);
             if (student is not null)
+            {
+                var monthName = tx.Month is { Length: >= 7 } tm && int.TryParse(tm.Substring(5, 2), out var mm)
+                    ? MessageTokenizer.MonthNameUz(mm) : "";
                 await autoMsg.DispatchStudentAsync(db, AutoMessageTriggers.PaymentReceived, student,
                     new Dictionary<string, string>
                     {
                         ["{summa}"] = MessageTokenizer.MoneyPlain(tx.Amount),
                         ["{sana}"] = tx.Date.Length >= 10 ? $"{tx.Date[8..10]}.{tx.Date[5..7]}.{tx.Date[..4]}" : tx.Date,
+                        ["{oy}"] = monthName,
                     });
+            }
         }
 
         return ToDto(tx, await StudentNames(), await TeacherNames());

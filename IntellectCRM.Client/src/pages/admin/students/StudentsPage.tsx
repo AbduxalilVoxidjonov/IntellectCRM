@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { StudentViewModal } from './StudentViewModal'
 import { Plus, Search, Pencil, Trash2, Send, Download, X, Wallet, History, Archive, RotateCcw, FileDown, Upload, ChevronLeft, ChevronRight, Lock, LockOpen, Loader2, Phone, Cake } from 'lucide-react'
-import type { Gender, Student, Teacher } from '@/types'
+import type { Gender, Student, Teacher, District } from '@/types'
 import { getDistricts } from '@/api/services/districts'
 import type { StudentPayload, StudentImportResult } from '@/api/services/students'
 import {
@@ -90,10 +90,11 @@ export function StudentsPage() {
   const [genderFilter, setGenderFilter] = useState<'all' | Gender>('all')
   const [balanceFilter, setBalanceFilter] = useState<BalanceFilter>('all')
   const [activeFilter, setActiveFilter] = useState<'all' | 'active' | 'inactive'>('all')
+  const [districtFilter, setDistrictFilter] = useState('all')
   const [schoolFilter, setSchoolFilter] = useState('all')
   /** "Bugun tug'ilgan kun" filtri — yil hisobga olinmasdan oy/kun bo'yicha solishtiriladi. */
   const [birthdayToday, setBirthdayToday] = useState(false)
-  const [schools, setSchools] = useState<{ id: string; name: string }[]>([])
+  const [districts, setDistricts] = useState<District[]>([])
 
   // tanlash
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -166,9 +167,7 @@ export function StudentsPage() {
       })
       setGroupTeachers(mapping)
     })
-    getDistricts().then((ds) => {
-      setSchools(ds.flatMap((d) => d.schools.map((s) => ({ id: s.id, name: s.name }))))
-    })
+    getDistricts().then(setDistricts)
   }, [])
 
   // Joriy tab manbai.
@@ -196,9 +195,10 @@ export function StudentsPage() {
     const matchActive =
       activeFilter === 'all' ||
       (activeFilter === 'active' ? s.active : !s.active)
+    const matchDistrict = districtFilter === 'all' || s.districtId === districtFilter
     const matchSchool = schoolFilter === 'all' || s.schoolId === schoolFilter
     const matchBirthday = !birthdayToday || (s.birthDate && s.birthDate.slice(5, 10) === todayMonthDay)
-    return matchSearch && matchClass && matchTeacher && matchGender && matchBalance && matchActive && matchSchool && matchBirthday
+    return matchSearch && matchClass && matchTeacher && matchGender && matchBalance && matchActive && matchDistrict && matchSchool && matchBirthday
   })
 
   // Pagination — standart 30 talik, pastda sahifa hajmini tanlash mumkin.
@@ -213,7 +213,7 @@ export function StudentsPage() {
   useEffect(() => {
     setPage(1)
     setSelected(new Set())
-  }, [search, classFilter, teacherFilter, genderFilter, balanceFilter, activeFilter, schoolFilter, birthdayToday, tab, pageSize])
+  }, [search, classFilter, teacherFilter, genderFilter, balanceFilter, activeFilter, districtFilter, schoolFilter, birthdayToday, tab, pageSize])
 
   const selectedStudents = source.filter((s) => selected.has(s.id))
 
@@ -602,12 +602,31 @@ export function StudentsPage() {
             <option value="inactive">● Aktiv emas</option>
           </select>
           <select
-            value={schoolFilter}
-            onChange={(e) => setSchoolFilter(e.target.value)}
+            value={districtFilter}
+            onChange={(e) => {
+              // Tuman o'zgarsa, oldingi maktab tanlovi tozalanadi (boshqa tumanga tegishli edi).
+              setDistrictFilter(e.target.value)
+              setSchoolFilter('all')
+            }}
             className={control}
           >
-            <option value="all">Barcha maktablar</option>
-            {schools.map((sc) => (
+            <option value="all">Barcha tumanlar</option>
+            {districts.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.name}
+              </option>
+            ))}
+          </select>
+          <select
+            value={schoolFilter}
+            onChange={(e) => setSchoolFilter(e.target.value)}
+            disabled={districtFilter === 'all'}
+            className={cn(control, districtFilter === 'all' && 'opacity-50')}
+          >
+            <option value="all">
+              {districtFilter === 'all' ? 'Barcha maktablar' : '— tanlanmagan —'}
+            </option>
+            {(districts.find((d) => d.id === districtFilter)?.schools ?? []).map((sc) => (
               <option key={sc.id} value={sc.id}>
                 {sc.name}
               </option>

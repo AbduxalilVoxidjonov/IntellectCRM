@@ -62,12 +62,12 @@ public static class AutoMessageTriggers
     {
         new(PaymentReceived,
             "To'lov qabul qilinganda",
-            "O'quvchining oylik (tuition) to'lovi qabul qilinganda ota-onaga (yoki o'quvchiga) tasdiq xabari.",
-            new[] { "{ism}", "{fish}", "{summa}", "{sana}", "{qarzdorlik}", "{guruh}", "{telefon}", "{markaz}" },
+            "O'quvchining oylik (tuition) to'lovi qabul qilinganda ota-onaga (yoki o'quvchiga) tasdiq xabari. {oy} — to'lov QAYSI OY uchun ekani (kiritilgan sanadan emas, tanlangan oydan).",
+            new[] { "{ism}", "{fish}", "{summa}", "{oy}", "{sana}", "{qarzdorlik}", "{guruh}", "{telefon}", "{markaz}" },
             Sms: true, Push: true, Telegram: true,
             SupportsSchedule: false, SupportsSendScope: false,
             Audiences: new[] { "parents", "students", "teachers" }, DefaultAudience: "parents",
-            DefaultTemplate: "Hurmatli ota-ona! {ism}ning to'lovi qabul qilindi. Summa: {summa}. Qarzdorlik: {qarzdorlik}. {markaz}",
+            DefaultTemplate: "Hurmatli ota-ona! {ism}ning {oy} oyi uchun to'lovi qabul qilindi. Summa: {summa}. Qarzdorlik: {qarzdorlik}. {markaz}",
             Category: CategoryFinance),
 
         new(MonthlyCharge,

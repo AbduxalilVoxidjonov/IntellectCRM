@@ -1297,11 +1297,13 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
         // Avto xabar — o'quvchi tuition to'lovi qabul qilinganda ("To'lov qabul qilinganda" hodisasi).
         // Moliya bo'limidagi to'lov bilan bir xil xulq (FinanceController). {summa} = faqat raqam,
         // {sana} = to'lovning HAQIQIY sanasi (paidDate — orqaga sanalgan bo'lishi mumkin, bugun emas).
+        // {oy} = to'lov QAYSI OY uchun (tanlangan `month`), bugungi oy EMAS.
         await autoMsg.DispatchStudentAsync(db, AutoMessageTriggers.PaymentReceived, student,
             new Dictionary<string, string>
             {
                 ["{summa}"] = MessageTokenizer.MoneyPlain(req.Amount),
                 ["{sana}"] = $"{paidDate[8..10]}.{paidDate[5..7]}.{paidDate[..4]}",
+                ["{oy}"] = int.TryParse(month.Substring(5, 2), out var payMm) ? MessageTokenizer.MonthNameUz(payMm) : "",
             });
 
         // Chek (kvitansiya) uchun yaratilgan tranzaksiya id'sini qaytaramiz.
