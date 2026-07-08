@@ -775,10 +775,14 @@ public record SchoolInfoDto(
 public record SchoolNameDto(string Name, string TelegramChannel = "", string LogoUrl = "");
 /// <summary>Ommaviy brending (login/daraja testi kabi autentifikatsiyasiz sahifalar uchun).</summary>
 public record PublicBrandDto(string Name, string LogoUrl, string Phone);
-/// <summary>Telegram bot sozlamasi (admin). Configured = token bo'sh emasligini bildiradi.</summary>
-public record TelegramSettingsDto(string BotToken, string BotUsername, string BotName, bool Configured, string Channel = "");
+/// <summary>Telegram bot sozlamasi (admin). Configured = token bo'sh emasligini bildiradi.
+/// PhoneMatchField: "parent" (default) | "student" — kontakt ulashilganda qaysi raqam bo'yicha qidirish.</summary>
+public record TelegramSettingsDto(
+    string BotToken, string BotUsername, string BotName, bool Configured,
+    string Channel = "", string PhoneMatchField = "parent");
 /// <summary>Telegram bot sozlamasini saqlash so'rovi.</summary>
-public record SaveTelegramSettingsRequest(string? BotToken, string? BotUsername, string? BotName, string? Channel);
+public record SaveTelegramSettingsRequest(
+    string? BotToken, string? BotUsername, string? BotName, string? Channel, string? PhoneMatchField);
 /// <summary>Telegram backup konfiguratsiyasi — DB'dan o'qilgan holat.</summary>
 public record TelegramBackupConfigDto(
     string? AdminChatId,

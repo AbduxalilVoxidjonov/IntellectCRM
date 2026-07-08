@@ -873,6 +873,9 @@ public class CenterMeta
     public string TelegramBotName { get; set; } = string.Empty;
     /// <summary>Markaz Telegram kanali (havola yoki @username) — o'quvchi/o'qituvchi ilovasida "kanalga o'tish".</summary>
     public string TelegramChannel { get; set; } = string.Empty;
+    /// <summary>Bot orqali telefon ulashilganda o'quvchini QAYSI raqami bo'yicha qidirish: "parent" (default —
+    /// Student.ParentPhone) yoki "student" (Student.Phone, o'quvchining o'zi raqami).</summary>
+    public string TelegramPhoneMatchField { get; set; } = "parent";
     /// <summary>O'quvchi ilovasi APK fayli — Telegram bot ro'yxatdan o'tgan o'quvchiga yuboradi.
     /// Name = ko'rsatiladigan nom; Path = serverdagi nisbiy yo'l (uploads/...); FileId = Telegram
     /// keshlangan file_id (bir marta yuklangach qayta yuklamasdan yuboriladi, yangi APK yuklanganda bo'shatiladi).</summary>

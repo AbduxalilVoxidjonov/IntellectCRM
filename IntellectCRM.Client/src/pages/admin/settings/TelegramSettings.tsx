@@ -9,7 +9,7 @@ import {
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
-import { Input } from '@/components/ui/Input'
+import { Input, Select } from '@/components/ui/Input'
 import { Loader } from '@/components/ui/Loader'
 
 /**
@@ -22,6 +22,7 @@ export function TelegramSettings() {
   const [username, setUsername] = useState('')
   const [name, setName] = useState('')
   const [channel, setChannel] = useState('')
+  const [phoneMatchField, setPhoneMatchField] = useState<'parent' | 'student'>('parent')
   const [configured, setConfigured] = useState(false)
   const [loading, setLoading] = useState(true)
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
@@ -33,6 +34,7 @@ export function TelegramSettings() {
         setUsername(c.botUsername ?? '')
         setName(c.botName ?? '')
         setChannel(c.channel ?? '')
+        setPhoneMatchField(c.phoneMatchField === 'student' ? 'student' : 'parent')
         setConfigured(c.configured)
       })
       .catch(() => setLoading(false))
@@ -48,6 +50,7 @@ export function TelegramSettings() {
         botUsername: (username ?? '').trim(),
         botName: (name ?? '').trim(),
         channel: (channel ?? '').trim(),
+        phoneMatchField,
       })
       setConfigured(saved.configured)
       setStatus('saved')
@@ -107,10 +110,23 @@ export function TelegramSettings() {
         />
 
         <div className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
-          Ota-ona botni ochib (masalan {username ? `@${username}` : '@BotUsername'}) "Start" bossin va
-          telefon raqamini ulashsin — raqami o'quvchining ota-ona raqami bilan solishtirilib, e'lon
-          oluvchilar ro'yxatiga qo'shiladi.
+          Ota-ona (yoki o'quvchi) botni ochib (masalan {username ? `@${username}` : '@BotUsername'}) "Start"
+          bossin va telefon raqamini ulashsin — raqami pastdagi sozlamaga qarab solishtiriladi.
         </div>
+
+        <Select
+          label="Kontakt ulashilganda qaysi raqam bo'yicha tekshirilsin"
+          value={phoneMatchField}
+          onChange={(e) => setPhoneMatchField(e.target.value as 'parent' | 'student')}
+        >
+          <option value="parent">Ota-ona raqami</option>
+          <option value="student">O'quvchining o'zi raqami</option>
+        </Select>
+        <p className="-mt-2 text-xs text-slate-400">
+          "Ota-ona raqami" — botga ota-ona o'z raqamini yuborsa moslashadi (standart). "O'quvchining
+          o'zi raqami" — bot orqali o'quvchi o'zi ro'yxatdan o'tsa, uning shaxsiy telefon raqami
+          bilan solishtiriladi.
+        </p>
 
         <div className="border-t border-slate-100 pt-4">
           <Input

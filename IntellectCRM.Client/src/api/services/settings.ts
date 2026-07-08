@@ -106,12 +106,14 @@ export interface TelegramConfig {
   configured: boolean
   /** Markaz Telegram kanali (havola yoki @username) — o'quvchi/o'qituvchi ilovasida ko'rinadi */
   channel: string
+  /** Kontakt ulashilganda o'quvchini qaysi raqami bo'yicha qidirish: "parent" (ota-ona) | "student" (o'zi). */
+  phoneMatchField: 'parent' | 'student'
 }
 
 export async function getTelegramSettings(): Promise<TelegramConfig> {
   if (USE_MOCK) {
     await delay()
-    return { botToken: '', botUsername: '', botName: '', configured: false, channel: '' }
+    return { botToken: '', botUsername: '', botName: '', configured: false, channel: '', phoneMatchField: 'parent' }
   }
   const { data } = await api.get<TelegramConfig>('/admin/settings/telegram')
   return data
@@ -122,6 +124,7 @@ export async function saveTelegramSettings(cfg: {
   botUsername: string
   botName: string
   channel: string
+  phoneMatchField: 'parent' | 'student'
 }): Promise<TelegramConfig> {
   if (USE_MOCK) {
     await delay(250)

@@ -343,8 +343,13 @@ public class TelegramBotService(
         using var scope = sp.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
 
+        var meta = await db.CenterMeta.FirstOrDefaultAsync(ct);
+        // Qaysi raqam bo'yicha tekshirilsin (Sozlamalar → Telegram bot): "student" — o'quvchining O'ZI
+        // raqami (Student.Phone), aks holda (default) ota-ona raqami (Student.ParentPhone).
+        var matchStudentOwnPhone = string.Equals(meta?.TelegramPhoneMatchField, "student", StringComparison.OrdinalIgnoreCase);
+
         var matchedStudents = (await db.Students.ToListAsync(ct))
-            .Where(s => PhoneUtil.Key(s.ParentPhone) == key).ToList();
+            .Where(s => PhoneUtil.Key(matchStudentOwnPhone ? s.Phone : s.ParentPhone) == key).ToList();
         var matchedTeachers = (await db.Teachers.Where(t => !t.IsArchived).ToListAsync(ct))
             .Where(t => PhoneUtil.Key(t.Phone) == key).ToList();
         // Admin/xodim — telefon AppUser.Phone bilan moslashsa (yangi lid xabarnomalarini olish uchun).
@@ -363,7 +368,6 @@ public class TelegramBotService(
             return;
         }
 
-        var meta = await db.CenterMeta.FirstOrDefaultAsync(ct);
         var channel = meta?.TelegramChannel ?? "";
 
         // MAJBURIY obuna (ommaviy @kanal sozlangan bo'lsa).
@@ -397,6 +401,25 @@ public class TelegramBotService(
         var digits = PhoneUtil.DigitsOnly(phone);
         var linked = new List<string>();
 
+        // O'quvchi(lar)ning HOZIR o'qiyotgan barcha guruhlari (M2M, faol a'zolik — trial/active/frozen)
+        // + har guruhning o'qituvchisi F.I.SH. Eski (bitta) Student.ClassName EMAS — u ko'p guruhli
+        // o'quvchida yoki guruh almashtirilganda eskirgan bo'lishi mumkin.
+        var studentIds = students.Select(s => s.Id).ToList();
+        var memberships = studentIds.Count == 0 ? new List<StudentGroup>()
+            : await db.StudentGroups.Where(sg => studentIds.Contains(sg.StudentId) && sg.IsActive).ToListAsync(ct);
+        var memberGroupIds = memberships.Select(m => m.GroupId).Distinct().ToList();
+        var memberClasses = memberGroupIds.Count == 0 ? new List<Group>()
+            : await db.Classes.Where(c => memberGroupIds.Contains(c.Id)).ToListAsync(ct);
+        var memberTeacherIds = memberClasses.Select(c => c.TeacherId)
+            .Where(tid => !string.IsNullOrEmpty(tid)).Distinct().ToList();
+        var memberTeacherNames = memberTeacherIds.Count == 0 ? new Dictionary<string, string>()
+            : await db.Teachers.Where(t => memberTeacherIds.Contains(t.Id)).ToDictionaryAsync(t => t.Id, t => t.FullName, ct);
+        var classesByStudent = memberships
+            .GroupBy(m => m.StudentId)
+            .ToDictionary(g => g.Key, g => g
+                .Select(m => memberClasses.FirstOrDefault(c => c.Id == m.GroupId))
+                .Where(c => c is not null).Cast<Group>().ToList());
+
         foreach (var s in students)
         {
             var exists = await db.TelegramRegistrations.AnyAsync(r => r.StudentId == s.Id && r.ChatId == chatId, ct);
@@ -405,7 +428,22 @@ public class TelegramBotService(
                 {
                     StudentId = s.Id, ChatId = chatId, ParentName = senderName, Phone = digits, CreatedAt = AppClock.Now,
                 });
-            linked.Add($"{s.FullName} ({s.ClassName})");
+
+            var studentClasses = classesByStudent.GetValueOrDefault(s.Id, new List<Group>());
+            if (studentClasses.Count > 0)
+            {
+                var groupLabels = studentClasses.Select(c =>
+                {
+                    var teacherName = !string.IsNullOrEmpty(c.TeacherId) && memberTeacherNames.TryGetValue(c.TeacherId, out var tn)
+                        ? tn : "";
+                    return teacherName.Length > 0 ? $"{c.Name} (o'qituvchi: {teacherName})" : c.Name;
+                });
+                linked.Add($"{s.FullName} — {string.Join(", ", groupLabels)}");
+            }
+            else
+            {
+                linked.Add($"{s.FullName} ({s.ClassName})");
+            }
         }
         foreach (var tch in teachers)
         {

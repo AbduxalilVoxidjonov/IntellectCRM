@@ -90,7 +90,8 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
         var m = await db.CenterMeta.FirstOrDefaultAsync();
         return new TelegramSettingsDto(
             m?.TelegramBotToken ?? "", m?.TelegramBotUsername ?? "", m?.TelegramBotName ?? "",
-            telegram.IsConfigured, m?.TelegramChannel ?? "");
+            telegram.IsConfigured, m?.TelegramChannel ?? "",
+            m?.TelegramPhoneMatchField is "student" ? "student" : "parent");
     }
 
     [HttpPut("telegram")]
@@ -106,12 +107,15 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
         m.TelegramBotUsername = (req.BotUsername ?? "").Trim().TrimStart('@');
         m.TelegramBotName = (req.BotName ?? "").Trim();
         m.TelegramChannel = (req.Channel ?? "").Trim();
+        m.TelegramPhoneMatchField = req.PhoneMatchField is "student" ? "student" : "parent";
         await db.SaveChangesAsync();
 
         // Ishlab turgan xizmat (va bot) darrov yangi tokenni ishlatishi uchun keshni yangilaymiz.
         telegram.Set(m.TelegramBotToken, m.TelegramBotUsername, m.TelegramBotName);
 
-        return new TelegramSettingsDto(m.TelegramBotToken, m.TelegramBotUsername, m.TelegramBotName, telegram.IsConfigured, m.TelegramChannel);
+        return new TelegramSettingsDto(
+            m.TelegramBotToken, m.TelegramBotUsername, m.TelegramBotName, telegram.IsConfigured,
+            m.TelegramChannel, m.TelegramPhoneMatchField);
     }
 
     // ---------- Telegram backup ----------
