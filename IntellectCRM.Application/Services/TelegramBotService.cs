@@ -439,25 +439,29 @@ public class TelegramBotService(
             await SendAsync(chatId,
                 "🔔 Yangi lid tushganda shu yerga xabar olasiz.", ct: ct);
 
-        // LOGIN/PAROL — har bir mos AppUser uchun.
-        await SendLoginInfoAsync(db, chatId, students, teachers, admins, ct);
+        // LOGIN/PAROL — har bir mos AppUser uchun (matn o'zida veb-versiya havolasini ham o'z ichiga oladi).
+        var sentLogin = await SendLoginInfoAsync(db, chatId, students, teachers, admins, ct);
 
         // BotUser — telefon va moslik yorlig'ini yangilash/yaratish.
         await UpsertBotUserAfterContactAsync(db, chatId, digits, linked, ct);
 
-        // Mos ILOVA (APK) — FAQAT o'quvchi/o'qituvchi uchun (admin web paneldan foydalanadi).
+        // Mos ILOVA (APK) — FAQAT o'quvchi/o'qituvchi uchun (admin web paneldan foydalanadi). Veb-versiya
+        // havolasi FAQAT hech kimga login xabari (u allaqachon havolani o'z ichiga oladi) yuborilmagan
+        // bo'lsa qo'shimcha yuboriladi — aks holda bir xil link ikki marta takrorlanib qolardi.
         if (students.Count > 0 || teachers.Count > 0)
         {
             var sentAny = await SendAppApkAsync(db, meta, chatId, students.Count > 0, teachers.Count > 0, ct);
-            if (!sentAny)
+            if (!sentAny && !sentLogin)
                 await SendAsync(chatId,
                     $"🌐 Tizimga veb-versiya orqali kiring:\n{WebAppUrl}",
                     ct: ct);
         }
     }
 
-    /// <summary>Mos AppUser(lar) uchun login va (mavjud bo'lsa) dastlabki parolni yuboradi.</summary>
-    private async Task SendLoginInfoAsync(
+    /// <summary>Mos AppUser(lar) uchun login va (mavjud bo'lsa) dastlabki parolni yuboradi.
+    /// Kamida bitta xabar yuborilsa true (matn o'zida veb-versiya havolasini ham qo'shadi — chaqiruvchi
+    /// shu holatda alohida "veb-versiya" xabarini qayta yubormasligi kerak).</summary>
+    private async Task<bool> SendLoginInfoAsync(
         IAppDbContext db, long chatId,
         List<Student> students, List<Teacher> teachers, List<AppUser> admins, CancellationToken ct)
     {
@@ -486,10 +490,13 @@ public class TelegramBotService(
                 if (!seen.Add(u.Id)) continue;
                 await SendAsync(chatId, BuildLoginText(u), null, ct);
             }
+
+            return seen.Count > 0;
         }
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Login info yuborishda xato: chatId {Id}", chatId);
+            return false;
         }
     }
 
@@ -497,8 +504,8 @@ public class TelegramBotService(
     {
         var login = user.Email;
         if (!string.IsNullOrEmpty(user.InitialPassword))
-            return $"🔑 Kirish ma'lumotlari:\nLogin: {login}\nParol: {user.InitialPassword}\n🌐 {WebAppUrl}";
-        return $"🔑 Login: {login}\nParolingizni avval olgansiz. 🌐 {WebAppUrl}\n(Esdan chiqsa — «{SupportButtonText}» tugmasi orqali administratorga murojaat qiling.)";
+            return $"🔑 Kirish ma'lumotlari:\nLogin: {login}\nParol: {user.InitialPassword}\nTizimga kirish uchun web-versiya\n🌐 {WebAppUrl}";
+        return $"🔑 Login: {login}\nParolingizni avval olgansiz.\nTizimga kirish uchun web-versiya\n🌐 {WebAppUrl}\n(Esdan chiqsa — «{SupportButtonText}» tugmasi orqali administratorga murojaat qiling.)";
     }
 
     /// <summary>Kontakt ulashilgandan keyin BotUser yozuvini yangilaydi yoki yaratadi.</summary>
