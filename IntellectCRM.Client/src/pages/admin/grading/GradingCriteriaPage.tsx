@@ -17,7 +17,7 @@ import { Loader } from '@/components/ui/Loader'
 import { Modal } from '@/components/ui/Modal'
 import { Input, Select, Textarea } from '@/components/ui/Input'
 import { PageHeader } from '@/components/ui/PageHeader'
-import { cn } from '@/lib/utils'
+import { cn, apiErrorMessage } from '@/lib/utils'
 
 export function GradingCriteriaPage() {
   const [criteria, setCriteria] = useState<GradingCriterion[]>([])
@@ -90,10 +90,7 @@ export function GradingCriteriaPage() {
       setFormOpen(false)
       setEditing(null)
     } catch (err) {
-      const message = err instanceof Error
-        ? err.message
-        : (err as any)?.response?.data?.message ?? "Saqlab bo'lmadi"
-      alert(message)
+      alert(apiErrorMessage(err, "Saqlab bo'lmadi"))
     } finally {
       setSaving(false)
     }
@@ -106,10 +103,7 @@ export function GradingCriteriaPage() {
       setCriteria((prev) => prev.filter((x) => x.id !== c.id))
       setAssigned((prev) => prev.filter((id) => id !== c.id))
     } catch (err) {
-      const message = err instanceof Error
-        ? err.message
-        : (err as any)?.response?.data?.message ?? "O'chirib bo'lmadi"
-      alert(message)
+      alert(apiErrorMessage(err, "O'chirib bo'lmadi"))
     }
   }
 
@@ -127,10 +121,7 @@ export function GradingCriteriaPage() {
       setTimeout(() => setAssignSaved(false), 1600)
     } catch (err) {
       // Xato bo'lsa — eski holatga qaytaramiz
-      const message = err instanceof Error
-        ? err.message
-        : (err as any)?.response?.data?.message ?? "Saqlab bo'lmadi"
-      alert(message)
+      alert(apiErrorMessage(err, "Saqlab bo'lmadi"))
       try {
         const ids = await getGroupCriteria(groupId)
         setAssigned(ids)

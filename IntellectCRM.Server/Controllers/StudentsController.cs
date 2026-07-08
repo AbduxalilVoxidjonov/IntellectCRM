@@ -1386,4 +1386,34 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
 
         return calls;
     }
+
+    /// <summary>
+    /// O'quvchiga (yoki ota-onasiga) yuborilgan SMS'lar tarixi — CreatedAt bo'yicha kamayish, max 200 ta.
+    /// SmsLog'da StudentId yo'q, shu sabab o'quvchining barcha telefon raqamlari (Phone/ParentPhone/
+    /// FatherPhone/MotherPhone) oxirgi 9 raqami bo'yicha moslashtiriladi (turli format: +998/998/local).
+    /// </summary>
+    [HttpGet("{id}/sms")]
+    public async Task<ActionResult<List<StudentSmsDto>>> GetSms(string id)
+    {
+        var student = await db.Students.AsNoTracking().Where(s => s.Id == id)
+            .Select(s => new { s.Phone, s.ParentPhone, s.FatherPhone, s.MotherPhone })
+            .FirstOrDefaultAsync();
+        if (student is null) return NotFound();
+
+        var keys = new[] { student.Phone, student.ParentPhone, student.FatherPhone, student.MotherPhone }
+            .Select(PhoneUtil.Key)
+            .Where(k => k.Length >= 7)
+            .Distinct()
+            .ToList();
+        if (keys.Count == 0) return new List<StudentSmsDto>();
+
+        var logs = await db.SmsLogs.AsNoTracking()
+            .Where(l => keys.Any(k => l.PhoneNumber.EndsWith(k)))
+            .OrderByDescending(l => l.CreatedAt)
+            .Take(200)
+            .ToListAsync();
+
+        return logs.Select(l => new StudentSmsDto(
+            l.Id, l.PhoneNumber, l.Message, l.Status, l.Provider, l.CreatedAt.ToString("o"))).ToList();
+    }
 }

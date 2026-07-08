@@ -14,7 +14,7 @@ import {
 } from '@/api/services/teacher'
 import type { GroupJournal } from '@/api/services/journal'
 import type { GroupCurriculum } from '@/api/services/curriculum'
-import { cn, formatDate } from '@/lib/utils'
+import { cn, formatDate, apiErrorMessage } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
 import { GradingSection } from '@/components/grading/GradingSection'
 import type { GradingBoard } from "@/api/services/grading"
@@ -194,10 +194,7 @@ export function TeacherGroupDetailPage() {
       setCell(null)
       load(journal.month)
     } catch (err) {
-      const message = err instanceof Error
-        ? err.message
-        : (err as any)?.response?.data?.message ?? "Saqlab bo'lmadi"
-      alert(message)
+      alert(apiErrorMessage(err, "Saqlab bo'lmadi"))
     } finally {
       setSaving(false)
     }
@@ -211,10 +208,7 @@ export function TeacherGroupDetailPage() {
       setCell(null)
       load(journal.month)
     } catch (err) {
-      const message = err instanceof Error
-        ? err.message
-        : (err as any)?.response?.data?.message ?? "Tozalab bo'lmadi"
-      alert(message)
+      alert(apiErrorMessage(err, "Tozalab bo'lmadi"))
     } finally {
       setSaving(false)
     }
@@ -292,10 +286,7 @@ export function TeacherGroupDetailPage() {
       setBulkDate(null)
       load(journal.month)
     } catch (err) {
-      const message = err instanceof Error
-        ? err.message
-        : (err as any)?.response?.data?.message ?? "Saqlab bo'lmadi"
-      alert(message)
+      alert(apiErrorMessage(err, "Saqlab bo'lmadi"))
     } finally {
       setBulkSaving(false)
     }

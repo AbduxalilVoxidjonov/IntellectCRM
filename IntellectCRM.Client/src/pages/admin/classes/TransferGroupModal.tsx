@@ -6,6 +6,7 @@ import { getTeachers } from '@/api/services/teachers'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Select } from '@/components/ui/Input'
+import { apiErrorMessage } from '@/lib/utils'
 
 const today = () => new Date().toISOString().slice(0, 10)
 
@@ -74,11 +75,7 @@ export function TransferGroupModal({ open, onClose, studentId, studentName, from
       onDone()
       onClose()
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : ((err as any)?.response?.data?.message ?? "Guruhni almashtirib bo'lmadi"),
-      )
+      setError(apiErrorMessage(err, "Guruhni almashtirib bo'lmadi"))
     } finally {
       setSaving(false)
     }

@@ -11,7 +11,7 @@ import { Modal } from '@/components/ui/Modal'
 import { Input, Select } from '@/components/ui/Input'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Badge } from '@/components/ui/Badge'
-import { cn } from '@/lib/utils'
+import { cn, apiErrorMessage } from '@/lib/utils'
 
 /** Test ommaviy URL'i. */
 function testUrl(slug: string) {
@@ -70,10 +70,7 @@ export function LevelTestsPage() {
       setNewCourse('')
       navigate(`/admin/level-tests/${created.id}`)
     } catch (err) {
-      const message = err instanceof Error
-        ? err.message
-        : (err as any)?.response?.data?.message ?? 'Test yaratib bo\'lmadi'
-      alert(message)
+      alert(apiErrorMessage(err, "Test yaratib bo'lmadi"))
     } finally {
       setBusy(false)
     }
@@ -85,10 +82,7 @@ export function LevelTestsPage() {
       await deleteLevelTest(t.id)
       setTests((prev) => prev.filter((x) => x.id !== t.id))
     } catch (err) {
-      const message = err instanceof Error
-        ? err.message
-        : (err as any)?.response?.data?.message ?? 'O\'chirib bo\'lmadi'
-      alert(message)
+      alert(apiErrorMessage(err, "O'chirib bo'lmadi"))
     }
   }
 

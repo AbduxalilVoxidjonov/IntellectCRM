@@ -14,6 +14,11 @@
       rel="stylesheet"
     />
     <title>O'quv markazi</title>
+    <!-- Telegram bot Menu Button orqali Web App sifatida ochilganda ishlatiladi (mavjud bo'lmasa
+         no-op — oddiy brauzerda hech narsaga ta'sir qilmaydi). SDK yuklanmasa React Router
+         (pushState) navigatsiyasini Telegram WebView noto'g'ri boshqarib, sahifa o'tishda
+         "Oops" xatosini ko'rsatishi mumkin. -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
   </head>
   <body>
     <div id="root"></div>

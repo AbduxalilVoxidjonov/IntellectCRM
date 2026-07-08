@@ -20,7 +20,7 @@ import { activateMember, freezeMember, returnMemberToTrial, getClasses, addGroup
 import { getSettings } from '@/api/services/settings'
 import { createStudent } from '@/api/services/students'
 import type { StudentPayload } from '@/api/services/students'
-import { cn, formatMoney, formatDate } from '@/lib/utils'
+import { cn, formatMoney, formatDate, apiErrorMessage } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
 import { GradingSection } from '@/components/grading/GradingSection'
 import {
@@ -30,6 +30,7 @@ import {
 import { Loader } from '@/components/ui/Loader'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
+import { ReasonPromptModal } from '@/components/ui/ReasonPromptModal'
 import { JournalCellModal } from '../journal/JournalCellModal'
 import { CompleteAndTransferModal } from './CompleteAndTransferModal'
 import { TransferGroupModal } from './TransferGroupModal'
@@ -104,6 +105,8 @@ export function ClassDetailPage() {
   const [memberDate, setMemberDate] = useState('')
   const [memberSaving, setMemberSaving] = useState(false)
   const [transferOpen, setTransferOpen] = useState(false)
+  /** Muzlatish/sinovga qaytarish — sabab tanlash modali (memberModal ustida). */
+  const [reasonAction, setReasonAction] = useState<'freeze' | 'return' | null>(null)
   /** Guruh o'qituvchisi id'si — profilga link uchun (jurnal DTO'sida faqat teacherName bor). */
   const [teacherId, setTeacherId] = useState('')
   /** Guruh sig'imi — jurnal DTO'sida yo'q, "Yangi o'quvchi" to'lganlik ogohlantirishi uchun. */
@@ -323,10 +326,7 @@ export function ClassDetailPage() {
       setCell(null)
       load(journal.month)
     } catch (err) {
-      // Avval server xabari (masalan jurnal siyosati taqiqi) — u foydalanuvchiga tushunarli.
-      const message = (err as any)?.response?.data?.message
-        ?? (err instanceof Error ? err.message : 'Saqlab bo\'lmadi')
-      alert(message)
+      alert(apiErrorMessage(err, "Saqlab bo'lmadi"))
     } finally {
       setSaving(false)
     }
@@ -340,9 +340,7 @@ export function ClassDetailPage() {
       setCell(null)
       load(journal.month)
     } catch (err) {
-      const message = (err as any)?.response?.data?.message
-        ?? (err instanceof Error ? err.message : 'Tozalab bo\'lmadi')
-      alert(message)
+      alert(apiErrorMessage(err, "Tozalab bo'lmadi"))
     } finally {
       setSaving(false)
     }
@@ -353,35 +351,31 @@ export function ClassDetailPage() {
     setMemberDate(today)
     setMemberModal({ studentId: st.studentId, fullName: st.fullName, status: st.status })
   }
-  const doMember = async (kind: 'activate' | 'freeze') => {
+  const doActivate = async () => {
     if (!journal || !memberModal) return
     setMemberSaving(true)
     try {
-      if (kind === 'activate') await activateMember(journal.group.id, memberModal.studentId, memberDate)
-      else await freezeMember(journal.group.id, memberModal.studentId, memberDate)
+      await activateMember(journal.group.id, memberModal.studentId, memberDate)
       setMemberModal(null)
       load(journal.month)
     } catch (err) {
-      const message = err instanceof Error
-        ? err.message
-        : (err as any)?.response?.data?.message ?? 'Amal bajarilmadi'
-      alert(message)
+      alert(apiErrorMessage(err, 'Amal bajarilmadi'))
     } finally {
       setMemberSaving(false)
     }
   }
-  const doReturnTrial = async () => {
-    if (!journal || !memberModal) return
+  /** Muzlatish/sinovga qaytarish — sabab modali tasdiqlangach. */
+  const confirmReasonAction = async (reasonId: string | undefined, date?: string) => {
+    if (!journal || !memberModal || !reasonAction) return
     setMemberSaving(true)
     try {
-      await returnMemberToTrial(journal.group.id, memberModal.studentId)
+      if (reasonAction === 'freeze') await freezeMember(journal.group.id, memberModal.studentId, date ?? memberDate, reasonId)
+      else await returnMemberToTrial(journal.group.id, memberModal.studentId, reasonId)
+      setReasonAction(null)
       setMemberModal(null)
       load(journal.month)
     } catch (err) {
-      const message = err instanceof Error
-        ? err.message
-        : (err as any)?.response?.data?.message ?? 'Amal bajarilmadi'
-      alert(message)
+      alert(apiErrorMessage(err, 'Amal bajarilmadi'))
     } finally {
       setMemberSaving(false)
     }
@@ -397,10 +391,7 @@ export function ClassDetailPage() {
       setNewStudentOpen(false)
       load(journal?.month)
     } catch (err) {
-      const message = err instanceof Error
-        ? err.message
-        : (err as any)?.response?.data?.message ?? "Yangi o'quvchini qo'shib bo'lmadi"
-      alert(message)
+      alert(apiErrorMessage(err, "Yangi o'quvchini qo'shib bo'lmadi"))
     } finally {
       setAddingStudent(false)
     }
@@ -481,9 +472,7 @@ export function ClassDetailPage() {
       setBulkDate(null)
       load(journal.month)
     } catch (err) {
-      const message = (err as any)?.response?.data?.message
-        ?? (err instanceof Error ? err.message : 'Saqlab bo\'lmadi')
-      alert(message)
+      alert(apiErrorMessage(err, "Saqlab bo'lmadi"))
     } finally {
       setBulkSaving(false)
     }
@@ -1044,7 +1033,7 @@ export function ClassDetailPage() {
             <button
               type="button"
               disabled={memberSaving || memberModal.status === 'trial'}
-              onClick={doReturnTrial}
+              onClick={() => setReasonAction('return')}
               className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40"
             >
               <RotateCcw className="h-4 w-4" /> Sinovga qaytarish
@@ -1062,7 +1051,7 @@ export function ClassDetailPage() {
               <button
                 type="button"
                 disabled={memberSaving || memberModal.status === 'active'}
-                onClick={() => doMember('activate')}
+                onClick={doActivate}
                 className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:opacity-40"
               >
                 <CheckCircle2 className="h-4 w-4" /> Aktivlashtirish
@@ -1070,7 +1059,7 @@ export function ClassDetailPage() {
               <button
                 type="button"
                 disabled={memberSaving || memberModal.status !== 'active'}
-                onClick={() => doMember('freeze')}
+                onClick={() => setReasonAction('freeze')}
                 className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-sky-700 disabled:opacity-40"
               >
                 <Snowflake className="h-4 w-4" /> Muzlatish
@@ -1082,6 +1071,26 @@ export function ClassDetailPage() {
           </div>
         )}
       </Modal>
+
+      {/* Muzlatish / sinovga qaytarish — sabab tanlash modali */}
+      <ReasonPromptModal
+        open={!!reasonAction}
+        category={reasonAction === 'freeze' ? 'freeze' : 'return_trial'}
+        title={reasonAction === 'freeze' ? 'Muzlatish' : 'Sinovga qaytarish'}
+        message={
+          memberModal
+            ? reasonAction === 'freeze'
+              ? `${memberModal.fullName} — shu sanadan boshlab oylik to'lov hisoblanmaydi.`
+              : `${memberModal.fullName} — sinov holatiga qaytariladi (oylik to'lov hisoblanmaydi).`
+            : undefined
+        }
+        confirmLabel={reasonAction === 'freeze' ? 'Muzlatish' : 'Sinovga qaytarish'}
+        tone={reasonAction === 'freeze' ? 'sky' : 'brand'}
+        showDate={reasonAction === 'freeze'}
+        defaultDate={memberDate}
+        onConfirm={confirmReasonAction}
+        onClose={() => setReasonAction(null)}
+      />
 
       {/* Guruhni almashtirish — eski guruh muzlaydi, yangisi aktivlashadi. */}
       {journal && memberModal && (

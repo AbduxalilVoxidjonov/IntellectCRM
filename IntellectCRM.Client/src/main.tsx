@@ -20,3 +20,10 @@ createRoot(document.getElementById('root')!).render(
 // PWA: startup'da service worker'ni ro'yxatdan o'tkazamiz (login'dan oldin) — sayt "o'rnatiladigan"
 // bo'ladi. Push tokeni esa login'da (student/teacher) olinadi. Best-effort — xatoni yutamiz.
 registerForInstall().catch(() => {})
+
+// Telegram bot Menu Button orqali Web App sifatida ochilganda — SDK'ga tayyor ekanini bildiramiz.
+// Buni chaqirmasak, Telegram WebView React Router (pushState) sahifa o'tishlarini to'g'ri
+// boshqara olmay, ichki navigatsiyada "Oops" xatosini ko'rsatishi mumkin. Oddiy brauzerda
+// `window.Telegram` yo'q — no-op.
+window.Telegram?.WebApp?.ready()
+window.Telegram?.WebApp?.expand()

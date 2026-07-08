@@ -6,7 +6,7 @@ import { useUnread } from '@/context/unread-context'
 import { Card } from '@/components/ui/Card'
 import { Loader } from '@/components/ui/Loader'
 import { roleLabels } from '@/config/navigation'
-import { cn, formatTime } from '@/lib/utils'
+import { cn, formatTime, apiErrorMessage } from '@/lib/utils'
 
 interface Props {
   className: string
@@ -83,8 +83,7 @@ export function ChatPanel({ className, fetchMessages, sendMessage, title, subtit
         fetchMessages(classRef.current)
           .then(setMessages)
           .catch((err) => {
-            const msg = err instanceof Error ? err.message : 'Xabarlar yuklab boʻlmadi (error)'
-            setConnectionError(msg)
+            setConnectionError(apiErrorMessage(err, 'Xabarlar yuklab boʻlmadi (error)'))
           })
       }
     }

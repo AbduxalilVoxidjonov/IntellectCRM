@@ -4,6 +4,7 @@ import { GraduationCap, ArrowRight, ArrowLeft, Check, Loader2, PartyPopper, Aler
 import type { PublicTest, TestResult } from '@/types'
 import { getPublicTest, submitPublicTest, getInviteTest, submitInviteTest } from '@/api/services/publicTest'
 import { getPublicBrand, type PublicBrand } from '@/api/services/settings'
+import { apiErrorMessage } from '@/lib/utils'
 
 type Phase = 'loading' | 'notfound' | 'used' | 'intro' | 'quiz' | 'done'
 
@@ -85,10 +86,7 @@ export function PublicTestPage() {
       setResult(r)
       setPhase('done')
     } catch (err) {
-      const message = err instanceof Error
-        ? err.message
-        : (err as any)?.response?.data?.message ?? 'Xatolik yuz berdi. Qayta urinib ko\'ring.'
-      setError(message)
+      setError(apiErrorMessage(err, 'Xatolik yuz berdi. Qayta urinib ko\'ring.'))
     } finally {
       setSubmitting(false)
     }

@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/Button'
 import { Input, Select } from '@/components/ui/Input'
 import { PhoneInput } from '@/components/ui/PhoneInput'
 import { genderOptions } from '@/config/constants'
-import { randomPassword, cn } from '@/lib/utils'
+import { randomPassword, cn, apiErrorMessage } from '@/lib/utils'
 
 interface Props {
   open: boolean
@@ -201,8 +201,7 @@ export function StudentFormModal({ open, onClose, onSubmit, initial }: Props) {
       update(key, res.url)
       // Muvaffaqiyat feedback (ixtiyoriy, silent o'tish mumkin — UI indikatori bor)
     } catch (err) {
-      const errMsg = err instanceof Error ? err.message : 'Fayl yuklab boʻlmadi (error)'
-      alert(`❌ ${errMsg}`)
+      alert(`❌ ${apiErrorMessage(err, 'Fayl yuklab boʻlmadi (error)')}`)
     } finally {
       setUploading((u) => ({ ...u, birth: false }))
     }

@@ -358,6 +358,10 @@ public record StudentCallDto(
     string Id, string Source, string Direction, string PhoneNumber,
     string StartedAt, int DurationSec, bool Answered, bool HasAudio, string Handler);
 
+/// <summary>O'quvchiga (yoki ota-onasiga) yuborilgan SMS — profil "SMS tarixi" bo'limi uchun. Provider: eskiz|local.</summary>
+public record StudentSmsDto(
+    string Id, string PhoneNumber, string Message, string Status, string Provider, string CreatedAt);
+
 /* ---------- Subjects (Kurslar) ---------- */
 public record SubjectPayload(string Name, decimal Price = 0, decimal LessonPrice = 0);
 

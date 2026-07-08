@@ -80,6 +80,64 @@ public class TelegramBotService(
         catch (OperationCanceledException) { return false; }
     }
 
+    /// <summary>Foydalanuvchidan kelgan xabarni (matn/kontakt/tugma) umumiy suhbat tarixiga yozadi —
+    /// admin panelidagi "Qo'llab-quvvatlash" bo'limi shu orqali BUTUN yozishmani ko'rsatadi, faqat
+    /// support-rejimni emas. AdminUnread OSHIRILMAYDI (buni faqat <see cref="HandleSupportMessageAsync"/>
+    /// qiladi) — aks holda har /start bosilganda admin panelida yolg'on "yangi murojaat" ko'rinardi.</summary>
+    private async Task LogInAsync(long chatId, string text, CancellationToken ct)
+    {
+        try
+        {
+            using var scope = sp.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
+            db.BotSupportMessages.Add(new BotSupportMessage
+            {
+                ChatId = chatId, FromUser = true, Text = text, AdminName = "", CreatedAt = AppClock.Iso(),
+            });
+            var botUser = await db.BotUsers.FirstOrDefaultAsync(u => u.ChatId == chatId, ct);
+            if (botUser is not null)
+            {
+                botUser.LastMessageAt = AppClock.Iso();
+                botUser.LastText = text.Length > 140 ? text[..140] : text;
+            }
+            await db.SaveChangesAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Bot xabar logi (kiruvchi) yozilmadi: chatId {Id}", chatId);
+        }
+    }
+
+    /// <summary>telegram.SendMessageAsync + botning avtomatik javobini umumiy suhbat tarixiga yozadi
+    /// (AdminName="Bot" — admin qo'lda yozgan javobdan frontendda ajratish uchun). Barcha ichki
+    /// SendMessageAsync chaqiruvlari shu orqali o'tadi — shunda "Qo'llab-quvvatlash" panelida
+    /// /start'dan boshlab BUTUN suhbat (savol ham, avtomatik javob ham) ko'rinadi.</summary>
+    private async Task<bool> SendAsync(long chatId, string text, object? keyboard = null, CancellationToken ct = default)
+    {
+        var ok = await telegram.SendMessageAsync(chatId, text, keyboard, ct);
+        try
+        {
+            using var scope = sp.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
+            db.BotSupportMessages.Add(new BotSupportMessage
+            {
+                ChatId = chatId, FromUser = false, Text = text, AdminName = "Bot", CreatedAt = AppClock.Iso(),
+            });
+            var botUser = await db.BotUsers.FirstOrDefaultAsync(u => u.ChatId == chatId, ct);
+            if (botUser is not null)
+            {
+                botUser.LastMessageAt = AppClock.Iso();
+                botUser.LastText = text.Length > 140 ? text[..140] : text;
+            }
+            await db.SaveChangesAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Bot xabar logi (chiquvchi) yozilmadi: chatId {Id}", chatId);
+        }
+        return ok;
+    }
+
     private async Task HandleUpdateAsync(JsonElement upd, CancellationToken ct)
     {
         // Inline tugma bosilgani — obunani qayta tekshiramiz yoki support rejimi.
@@ -104,6 +162,7 @@ public class TelegramBotService(
         if (msg.TryGetProperty("contact", out var contact))
         {
             var phone = contact.TryGetProperty("phone_number", out var p) ? p.GetString() : null;
+            await LogInAsync(chatId, $"[telefon raqami ulashildi: {phone}]", ct);
             await HandleContactAsync(chatId, phone, SenderName(msg), ct);
             return;
         }
@@ -112,11 +171,13 @@ public class TelegramBotService(
 
         if (text.StartsWith("/start"))
         {
+            await LogInAsync(chatId, text, ct);
             if (!await CheckSubscriptionForStartAsync(chatId, ct)) return;
             await SendStartWelcomeAsync(chatId, msg, ct);
         }
         else if (text == "/support" || text == SupportButtonText)
         {
+            await LogInAsync(chatId, text, ct);
             await HandleSupportCommandAsync(chatId, ct);
         }
         else
@@ -128,11 +189,13 @@ public class TelegramBotService(
 
             if (botUser?.Mode == "support")
             {
+                // HandleSupportMessageAsync o'zi to'liq loglaydi (AdminUnread bilan) — LogInAsync shart emas.
                 await HandleSupportMessageAsync(db, botUser, chatId, text, ct);
             }
             else
             {
-                await telegram.SendMessageAsync(chatId,
+                await LogInAsync(chatId, text, ct);
+                await SendAsync(chatId,
                     "Iltimos, pastdagi tugma orqali telefon raqamingizni yuboring.\n" +
                     $"Administratorga murojaat uchun «{SupportButtonText}» tugmasini bosing.",
                     ContactKeyboard, ct);
@@ -179,6 +242,8 @@ public class TelegramBotService(
                         await telegram.SendMessageAsync(chatId,
                             "✅ Bot qayta ulandi. Yangi lidlar shu guruhga yuboriladi.", null, ct);
                 }
+                // DIQQAT: guruh xabarlari shaxsiy suhbat emas — LogInAsync/SendAsync (BotUser/BotSupportMessage)
+                // ATAYLAB ishlatilmaydi, chunki ular ChatId=shaxsiy foydalanuvchi deb hisoblaydi.
             }
             else if (group is not null && group.IsActive) // left / kicked / restricted
             {
@@ -199,12 +264,13 @@ public class TelegramBotService(
         var chatId = fromIdEl.GetInt64();
         var data = cq.TryGetProperty("data", out var dEl) ? dEl.GetString() ?? "" : "";
         if (cbId.Length > 0) await telegram.AnswerCallbackAsync(cbId, ct: ct);
+        await LogInAsync(chatId, $"[tugma bosildi: {data}]", ct);
 
         if (data == "check_sub")
         {
             if (!_pendingPhone.TryGetValue(chatId, out var phone))
             {
-                await telegram.SendMessageAsync(chatId,
+                await SendAsync(chatId,
                     "Telefon raqamingizni qayta yuboring.", ContactKeyboard, ct);
                 return;
             }
@@ -240,7 +306,7 @@ public class TelegramBotService(
         var status = await telegram.GetChatMemberStatusAsync(channelUser, chatId, ct);
         if (status is "left" or "kicked")
         {
-            await telegram.SendMessageAsync(chatId,
+            await SendAsync(chatId,
                 "📢 Botdan foydalanish uchun avval markaz kanaliga obuna bo'ling, so'ng \"✅ Tekshirish\" tugmasini bosing.",
                 SubscribeKeyboard(ChannelUrl(channel), "check_sub_start"), ct);
             return false;
@@ -257,7 +323,7 @@ public class TelegramBotService(
     private async Task SendStartWelcomeAsync(long chatId, JsonElement fromHolder, CancellationToken ct)
     {
         await UpsertBotUserOnStartAsync(chatId, fromHolder, ct);
-        await telegram.SendMessageAsync(chatId,
+        await SendAsync(chatId,
             "Assalomu alaykum! 📱 Ilovaga kirish uchun pastdagi tugma orqali telefon raqamingizni yuboring " +
             "— raqamingiz markaz ma'lumotlari bilan solishtirilib, login/parolingiz yuboriladi.\n" +
             $"Administratorga murojaat uchun «{SupportButtonText}» tugmasini bosing.",
@@ -270,7 +336,7 @@ public class TelegramBotService(
         var key = PhoneUtil.Key(phone);
         if (key.Length < 7)
         {
-            await telegram.SendMessageAsync(chatId, "Telefon raqami noto'g'ri. Qaytadan urinib ko'ring.", ct: ct);
+            await SendAsync(chatId, "Telefon raqami noto'g'ri. Qaytadan urinib ko'ring.", ct: ct);
             return;
         }
 
@@ -291,7 +357,7 @@ public class TelegramBotService(
         if (matchedStudents.Count == 0 && matchedTeachers.Count == 0 && matchedAdmins.Count == 0)
         {
             _pendingPhone.TryRemove(chatId, out _);
-            await telegram.SendMessageAsync(chatId,
+            await SendAsync(chatId,
                 $"Bu raqam ({phone}) markaz ro'yxatida topilmadi. Iltimos, markaz ma'muriyatiga murojaat qiling.",
                 ct: ct);
             return;
@@ -308,7 +374,7 @@ public class TelegramBotService(
             if (status is "left" or "kicked")
             {
                 _pendingPhone[chatId] = phone!;
-                await telegram.SendMessageAsync(chatId,
+                await SendAsync(chatId,
                     "📢 Davom etish uchun avval markaz kanaliga obuna bo'ling, so'ng \"✅ Tekshirish\" tugmasini bosing.",
                     SubscribeKeyboard(ChannelUrl(channel)), ct);
                 return;
@@ -365,12 +431,12 @@ public class TelegramBotService(
         }
         await db.SaveChangesAsync(ct);
 
-        await telegram.SendMessageAsync(chatId,
+        await SendAsync(chatId,
             "✅ Ro'yxatdan o'tdingiz:\n• " + string.Join("\n• ", linked), ct: ct);
 
         // Admin/xodim — yangi lid xabarnomalari haqida ma'lumot.
         if (admins.Count > 0)
-            await telegram.SendMessageAsync(chatId,
+            await SendAsync(chatId,
                 "🔔 Yangi lid tushganda shu yerga xabar olasiz.", ct: ct);
 
         // LOGIN/PAROL — har bir mos AppUser uchun.
@@ -384,7 +450,7 @@ public class TelegramBotService(
         {
             var sentAny = await SendAppApkAsync(db, meta, chatId, students.Count > 0, teachers.Count > 0, ct);
             if (!sentAny)
-                await telegram.SendMessageAsync(chatId,
+                await SendAsync(chatId,
                     $"🌐 Tizimga veb-versiya orqali kiring:\n{WebAppUrl}",
                     ct: ct);
         }
@@ -404,7 +470,7 @@ public class TelegramBotService(
                 if (string.IsNullOrEmpty(s.UserId)) continue;
                 var user = await db.Users.FirstOrDefaultAsync(u => u.Id == s.UserId, ct);
                 if (user is null || !seen.Add(user.Id)) continue;
-                await telegram.SendMessageAsync(chatId, BuildLoginText(user), null, ct);
+                await SendAsync(chatId, BuildLoginText(user), null, ct);
             }
 
             foreach (var tch in teachers)
@@ -412,13 +478,13 @@ public class TelegramBotService(
                 if (string.IsNullOrEmpty(tch.UserId)) continue;
                 var user = await db.Users.FirstOrDefaultAsync(u => u.Id == tch.UserId, ct);
                 if (user is null || !seen.Add(user.Id)) continue;
-                await telegram.SendMessageAsync(chatId, BuildLoginText(user), null, ct);
+                await SendAsync(chatId, BuildLoginText(user), null, ct);
             }
 
             foreach (var u in admins)
             {
                 if (!seen.Add(u.Id)) continue;
-                await telegram.SendMessageAsync(chatId, BuildLoginText(u), null, ct);
+                await SendAsync(chatId, BuildLoginText(u), null, ct);
             }
         }
         catch (Exception ex)
@@ -531,7 +597,7 @@ public class TelegramBotService(
         {
             logger.LogWarning(ex, "BotUser support mode xatosi: chatId {Id}", chatId);
         }
-        await telegram.SendMessageAsync(chatId,
+        await SendAsync(chatId,
             "✍️ Savol yoki murojaatingizni yozib yuboring — administrator javob beradi.", null, ct);
     }
 
@@ -554,7 +620,7 @@ public class TelegramBotService(
             botUser.AdminUnread = botUser.AdminUnread + 1;
             await db.SaveChangesAsync(ct);
 
-            await telegram.SendMessageAsync(chatId,
+            await SendAsync(chatId,
                 "✅ Murojaatingiz qabul qilindi. Administrator tez orada javob beradi.", null, ct);
 
             // Adminlarga Telegram xabarnoma.

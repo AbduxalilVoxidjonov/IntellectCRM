@@ -16,7 +16,7 @@ import { Button } from '@/components/ui/Button'
 import { Loader } from '@/components/ui/Loader'
 import { Input, Select, Textarea } from '@/components/ui/Input'
 import { PageHeader } from '@/components/ui/PageHeader'
-import { cn, formatDate } from '@/lib/utils'
+import { cn, formatDate, apiErrorMessage } from '@/lib/utils'
 
 interface QState {
   id?: string
@@ -149,10 +149,7 @@ export function LevelTestEditorPage() {
       setQuestions(updated.questions.map((q) => ({ id: q.id, text: q.text, options: q.options, correctIndex: q.correctIndex, kind: q.kind, multiple: q.multiple })))
       setBands(updated.bands.map((b) => ({ id: b.id, label: b.label, minPercent: b.minPercent })))
     } catch (err) {
-      const message = err instanceof Error
-        ? err.message
-        : (err as any)?.response?.data?.message ?? 'Saqlab bo\'lmadi'
-      alert(message)
+      alert(apiErrorMessage(err, "Saqlab bo'lmadi"))
     } finally {
       setSaving(false)
     }

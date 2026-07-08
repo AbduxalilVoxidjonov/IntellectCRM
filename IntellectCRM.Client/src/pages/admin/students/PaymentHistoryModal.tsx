@@ -6,7 +6,7 @@ import { useAuth } from '@/context/auth-context'
 import { Modal } from '@/components/ui/Modal'
 import { Loader } from '@/components/ui/Loader'
 import { AuditHistoryList } from '@/components/audit/AuditHistoryList'
-import { formatDate, formatMoney, cn } from '@/lib/utils'
+import { formatDate, formatMoney, cn, apiErrorMessage } from '@/lib/utils'
 import { formatMonth, monthStatusLabels, paymentMethodLabel } from '@/config/constants'
 
 interface Props {
@@ -60,10 +60,7 @@ export function PaymentHistoryModal({ studentId, onClose }: Props) {
       setLedger(fresh)
       setEditKey(null)
     } catch (err) {
-      const message = err instanceof Error
-        ? err.message
-        : (err as any)?.response?.data?.message ?? "Tahrirlab bo'lmadi"
-      alert(message)
+      alert(apiErrorMessage(err, "Tahrirlab bo'lmadi"))
     } finally {
       setSaving(false)
     }

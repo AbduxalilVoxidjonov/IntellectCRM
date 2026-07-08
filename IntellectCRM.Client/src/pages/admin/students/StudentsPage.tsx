@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { StudentViewModal } from './StudentViewModal'
-import { Plus, Search, Pencil, Trash2, Send, Download, X, Wallet, History, Archive, RotateCcw, FileDown, Upload, ChevronLeft, ChevronRight, Lock, LockOpen, Loader2, Phone } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, Send, Download, X, Wallet, History, Archive, RotateCcw, FileDown, Upload, ChevronLeft, ChevronRight, Lock, LockOpen, Loader2, Phone, Cake } from 'lucide-react'
 import type { Gender, Student, Teacher } from '@/types'
+import { getDistricts } from '@/api/services/districts'
 import type { StudentPayload, StudentImportResult } from '@/api/services/students'
 import {
   getStudents,
@@ -89,6 +90,10 @@ export function StudentsPage() {
   const [genderFilter, setGenderFilter] = useState<'all' | Gender>('all')
   const [balanceFilter, setBalanceFilter] = useState<BalanceFilter>('all')
   const [activeFilter, setActiveFilter] = useState<'all' | 'active' | 'inactive'>('all')
+  const [schoolFilter, setSchoolFilter] = useState('all')
+  /** "Bugun tug'ilgan kun" filtri — yil hisobga olinmasdan oy/kun bo'yicha solishtiriladi. */
+  const [birthdayToday, setBirthdayToday] = useState(false)
+  const [schools, setSchools] = useState<{ id: string; name: string }[]>([])
 
   // tanlash
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -161,10 +166,15 @@ export function StudentsPage() {
       })
       setGroupTeachers(mapping)
     })
+    getDistricts().then((ds) => {
+      setSchools(ds.flatMap((d) => d.schools.map((s) => ({ id: s.id, name: s.name }))))
+    })
   }, [])
 
   // Joriy tab manbai.
   const source = tab === 'active' ? students : archived
+  // "Bugun tug'ilgan kun" filtri uchun — yilsiz "MM-DD" solishtirish.
+  const todayMonthDay = new Date().toISOString().slice(5, 10)
 
   const filtered = source.filter((s) => {
     const q = search.trim().toLowerCase()
@@ -186,7 +196,9 @@ export function StudentsPage() {
     const matchActive =
       activeFilter === 'all' ||
       (activeFilter === 'active' ? s.active : !s.active)
-    return matchSearch && matchClass && matchTeacher && matchGender && matchBalance && matchActive
+    const matchSchool = schoolFilter === 'all' || s.schoolId === schoolFilter
+    const matchBirthday = !birthdayToday || (s.birthDate && s.birthDate.slice(5, 10) === todayMonthDay)
+    return matchSearch && matchClass && matchTeacher && matchGender && matchBalance && matchActive && matchSchool && matchBirthday
   })
 
   // Pagination — standart 30 talik, pastda sahifa hajmini tanlash mumkin.
@@ -201,7 +213,7 @@ export function StudentsPage() {
   useEffect(() => {
     setPage(1)
     setSelected(new Set())
-  }, [search, classFilter, teacherFilter, genderFilter, balanceFilter, activeFilter, tab, pageSize])
+  }, [search, classFilter, teacherFilter, genderFilter, balanceFilter, activeFilter, schoolFilter, birthdayToday, tab, pageSize])
 
   const selectedStudents = source.filter((s) => selected.has(s.id))
 
@@ -589,6 +601,31 @@ export function StudentsPage() {
             <option value="active">● Aktiv</option>
             <option value="inactive">● Aktiv emas</option>
           </select>
+          <select
+            value={schoolFilter}
+            onChange={(e) => setSchoolFilter(e.target.value)}
+            className={control}
+          >
+            <option value="all">Barcha maktablar</option>
+            {schools.map((sc) => (
+              <option key={sc.id} value={sc.id}>
+                {sc.name}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={() => setBirthdayToday((v) => !v)}
+            className={cn(
+              'inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition-colors',
+              birthdayToday
+                ? 'border-brand-400 bg-brand-50 text-brand-700'
+                : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
+            )}
+            title="Bugun tug'ilgan kuni bor o'quvchilar"
+          >
+            <Cake className="h-4 w-4" /> Bugun tug'ilgan kun
+          </button>
         </div>
         <div className="right">
           <span className="text-sm text-slate-400">{filtered.length} ta</span>

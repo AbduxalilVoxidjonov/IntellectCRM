@@ -584,6 +584,26 @@ export async function getStudentCalls(studentId: string): Promise<StudentCall[]>
   return data
 }
 
+/** O'quvchiga (yoki ota-onasiga) yuborilgan SMS — eng oxirgisi birinchi. Provider: eskiz|local. */
+export interface StudentSms {
+  id: string
+  phoneNumber: string
+  message: string
+  status: string
+  provider: string
+  createdAt: string
+}
+
+/** O'quvchiga yuborilgan barcha SMS'lar tarixi (Phone/ParentPhone/FatherPhone/MotherPhone bo'yicha). */
+export async function getStudentSms(studentId: string): Promise<StudentSms[]> {
+  if (USE_MOCK) {
+    await delay()
+    return []
+  }
+  const { data } = await api.get<StudentSms[]>(`/admin/students/${studentId}/sms`)
+  return data
+}
+
 /** Sertifikat faylini yuklab olish (admin). Auth header avtomatik qo'shiladi. */
 export async function downloadStudentCertificate(
   studentId: string,

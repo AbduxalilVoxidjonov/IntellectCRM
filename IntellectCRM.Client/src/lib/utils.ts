@@ -3,6 +3,20 @@ export function cn(...classes: Array<string | false | null | undefined>): string
   return classes.filter(Boolean).join(' ')
 }
 
+/**
+ * API xatosidan foydalanuvchiga ko'rsatiladigan xabarni chiqaradi.
+ * MUHIM: avval backend `{message: "..."}` javobini tekshiradi, keyin `Error.message`ga qaytadi —
+ * aksincha emas. Axios'ning `AxiosError` klassi `Error`dan meros oladi, shuning uchun
+ * `err instanceof Error` HAR DOIM true qaytaradi va agar shu tekshiruv birinchi bo'lsa, backend'dan
+ * kelgan aniq xabar (masalan JournalPolicy taqig'i) o'rniga umumiy "Request failed with status code
+ * 400" ko'rsatiladi.
+ */
+export function apiErrorMessage(err: unknown, fallback: string): string {
+  const backendMessage = (err as any)?.response?.data?.message
+  if (typeof backendMessage === 'string' && backendMessage.length > 0) return backendMessage
+  return err instanceof Error ? err.message : fallback
+}
+
 /** Mock API kechikishini simulyatsiya qilish */
 export function delay(ms = 500): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))

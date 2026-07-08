@@ -15,7 +15,7 @@ import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Loader } from '@/components/ui/Loader'
 import { ReasonPromptModal } from '@/components/ui/ReasonPromptModal'
-import { formatDate, formatMoney, cn } from '@/lib/utils'
+import { formatDate, formatMoney, cn, apiErrorMessage } from '@/lib/utils'
 import { StudentFormModal } from '../students/StudentFormModal'
 import { TransferGroupModal } from './TransferGroupModal'
 
@@ -91,10 +91,7 @@ export function ClassMembersModal({ group, onClose }: Props) {
       setMembers(fresh)
       setQuery('')
     } catch (err) {
-      const message = err instanceof Error
-        ? err.message
-        : (err as any)?.response?.data?.message ?? `"${fullName}" ni qo'shib bo'lmadi`
-      alert(message)
+      alert(apiErrorMessage(err, `"${fullName}" ni qo'shib bo'lmadi`))
     } finally {
       setBusy(false)
     }
@@ -111,10 +108,7 @@ export function ClassMembersModal({ group, onClose }: Props) {
       setMembers(fresh)
       setNewStudentOpen(false)
     } catch (err) {
-      const message = err instanceof Error
-        ? err.message
-        : (err as any)?.response?.data?.message ?? "Yangi o'quvchini qo'shib bo'lmadi"
-      alert(message)
+      alert(apiErrorMessage(err, "Yangi o'quvchini qo'shib bo'lmadi"))
     } finally {
       setBusy(false)
     }
@@ -134,10 +128,7 @@ export function ClassMembersModal({ group, onClose }: Props) {
       setMembers(fresh)
       setDateAction(null)
     } catch (err) {
-      const message = err instanceof Error
-        ? err.message
-        : (err as any)?.response?.data?.message ?? 'Amal bajarilmadi'
-      alert(message)
+      alert(apiErrorMessage(err, 'Amal bajarilmadi'))
     } finally {
       setBusy(false)
     }
@@ -156,10 +147,7 @@ export function ClassMembersModal({ group, onClose }: Props) {
       setMembers(fresh)
       setReasonAction(null)
     } catch (err) {
-      const message = err instanceof Error
-        ? err.message
-        : (err as any)?.response?.data?.message ?? 'Amal bajarilmadi'
-      alert(message)
+      alert(apiErrorMessage(err, 'Amal bajarilmadi'))
     } finally {
       setBusy(false)
     }

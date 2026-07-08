@@ -638,7 +638,8 @@ app.Use(async (context, next) =>
             "media-src 'self' blob:; " +
             "style-src 'self' 'unsafe-inline'; " +
             // gstatic — FCM web SW (firebase-messaging-sw.js) importScripts qiladi.
-            "script-src 'self' https://www.gstatic.com; " +
+            // telegram.org — bot Menu Button orqali Web App sifatida ochilganda kerak bo'ladigan SDK.
+            "script-src 'self' https://www.gstatic.com https://telegram.org; " +
             "worker-src 'self'; " +
             // googleapis/gstatic — FCM web token olish (getToken) so'rovlari.
             "connect-src 'self' ws: wss: https://*.googleapis.com https://*.gstatic.com https://fcm.googleapis.com; " +
