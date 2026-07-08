@@ -943,7 +943,11 @@ export function StudentsPage() {
         recipients={smsRecipients}
       />
       <PaymentModal student={paying} onClose={() => setPaying(null)} onSubmit={handlePayment} />
-      <PaymentHistoryModal studentId={historyOf?.id ?? null} onClose={() => setHistoryOf(null)} />
+      <PaymentHistoryModal
+        studentId={historyOf?.id ?? null}
+        onClose={() => setHistoryOf(null)}
+        onPaid={() => getStudents().then(setStudents).catch(() => {})}
+      />
       <CallPickerModal
         open={!!callStudent}
         onClose={() => setCallStudent(null)}

@@ -25,6 +25,7 @@ import {
   getStudentSms,
   getStudent,
   updateStudent,
+  addPayment,
   type StudentCompletedCourse,
   type StudentSupportFeedback,
   type StudentAiAnalysisRecord,
@@ -47,6 +48,7 @@ import { Loader } from '@/components/ui/Loader'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { PaymentHistoryModal } from './PaymentHistoryModal'
+import { PaymentModal } from './PaymentModal'
 import { AiAnalysisModal } from './AiAnalysisModal'
 import { AiAnalysisView } from './AiAnalysisView'
 import { StudentFormModal } from './StudentFormModal'
@@ -139,6 +141,8 @@ export function StudentDetailPage() {
   const [callOpen, setCallOpen] = useState(false)
   /** "SMS yuborish" bosilganda — SmsModal bitta o'quvchi bilan ochiladi. */
   const [smsTarget, setSmsTarget] = useState<Student | null>(null)
+  /** "To'lov qilish" bosilganda — PaymentModal uchun to'liq o'quvchi obyekti. */
+  const [paymentTarget, setPaymentTarget] = useState<Student | null>(null)
   /** Chegirma o'zgarganda — yangi chegirmani joriy oyga qo'llashni so'rash (StudentsPage'dagi kabi). */
   const [discountPrompt, setDiscountPrompt] = useState<{
     values: StudentPayload
@@ -218,6 +222,39 @@ export function StudentDetailPage() {
     getStudent(id)
       .then(setCallTarget)
       .catch(() => alert("O'quvchi ma'lumotini yuklab bo'lmadi"))
+  }
+
+  /** "To'lov qilish" bosilganda — PaymentModal uchun TO'LIQ Student kerak (balans/guruhlar). */
+  const openPayment = () => {
+    if (!id) return
+    if (callTarget) {
+      setPaymentTarget(callTarget)
+      return
+    }
+    getStudent(id)
+      .then((s) => {
+        setCallTarget(s)
+        setPaymentTarget(s)
+      })
+      .catch(() => alert("O'quvchi ma'lumotini yuklab bo'lmadi"))
+  }
+
+  const handlePayment = async (
+    amount: number,
+    month: string,
+    groupId?: string,
+    comment?: string,
+    method?: string,
+    date?: string,
+  ) => {
+    if (!id) return
+    try {
+      await addPayment(id, amount, month, groupId, comment, method, date)
+      setPaymentTarget(null)
+      setReloadKey((k) => k + 1)
+    } catch (err) {
+      alert(apiErrorMessage(err, "To'lovni saqlab bo'lmadi"))
+    }
   }
 
   /** Guruh a'zoligi ro'yxatini qayta yuklaydi (amal bajarilgach). */
@@ -354,6 +391,13 @@ export function StudentDetailPage() {
       .then((list) => setAllTeachers(list.filter((t) => !t.isArchived)))
       .catch(() => {})
   }, [])
+
+  // Sarlavhadagi guruh/o'qituvchi — data.className/data.homeroomTeacher (Student.ClassName) o'quvchi
+  // guruhdan chiqarilganda yoki boshqasiga o'tkazilganda YANGILANMAYDI (legacy maydon, faqat jurnal/
+  // chat/hisobot uchun saqlanadi — CLAUDE.md). Shu sabab sarlavhani FAOL M2M a'zoliklardan hisoblaymiz.
+  const activeGroups = useMemo(() => groups.filter((g) => g.isActive), [groups])
+  const headerGroupNames = activeGroups.map((g) => g.groupName).join(', ')
+  const headerTeacherNames = [...new Set(activeGroups.map((g) => g.teacherName).filter(Boolean))].join(', ')
 
   // O'quvchi o'qiydigan ALOHIDA kurslar — faqat FAOL a'zolikdagi guruhlardan, groupId→courseId orqali.
   const studentCourses = useMemo(() => {
@@ -508,11 +552,11 @@ export function StudentDetailPage() {
           <h1 className="text-2xl font-semibold text-slate-800">{data.fullName}</h1>
           <div className="mt-1 flex flex-wrap gap-x-5 gap-y-1 text-sm text-slate-500">
             <span className="inline-flex items-center gap-1.5">
-              <GraduationCap className="h-4 w-4 text-slate-400" /> {data.className || '—'}
+              <GraduationCap className="h-4 w-4 text-slate-400" /> {headerGroupNames || data.className || '—'}
             </span>
-            {data.homeroomTeacher && (
+            {(headerTeacherNames || data.homeroomTeacher) && (
               <span className="inline-flex items-center gap-1.5">
-                <User className="h-4 w-4 text-slate-400" /> {data.homeroomTeacher}
+                <User className="h-4 w-4 text-slate-400" /> {headerTeacherNames || data.homeroomTeacher}
               </span>
             )}
             {data.parentFullName && (
@@ -547,6 +591,13 @@ export function StudentDetailPage() {
             className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-brand-600 to-violet-500 px-4 py-2 text-sm font-semibold text-white shadow-[0_2px_8px_oklch(0.5_0.18_282_/_0.3)] transition-all hover:opacity-90 active:translate-y-px"
           >
             <Sparkles className="h-4 w-4" /> AI Tahlil
+          </button>
+          <button
+            type="button"
+            onClick={openPayment}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:border-brand-300 hover:text-brand-700"
+          >
+            <Wallet className="h-4 w-4" /> To'lov qilish
           </button>
           <button
             type="button"
@@ -1326,7 +1377,10 @@ export function StudentDetailPage() {
       <PaymentHistoryModal
         studentId={showHistory ? (data?.id ?? null) : null}
         onClose={() => setShowHistory(false)}
+        onPaid={() => setReloadKey((k) => k + 1)}
       />
+
+      <PaymentModal student={paymentTarget} onClose={() => setPaymentTarget(null)} onSubmit={handlePayment} />
 
       <CallPickerModal
         open={callOpen}

@@ -1,17 +1,21 @@
 import { useEffect, useState } from 'react'
-import { Check, Pencil, X } from 'lucide-react'
-import type { MonthStatus, StudentLedger } from '@/types'
-import { getStudentLedger, editStudentCharge } from '@/api/services/students'
+import { Check, Pencil, Wallet, X } from 'lucide-react'
+import type { MonthStatus, Student, StudentLedger } from '@/types'
+import { getStudentLedger, editStudentCharge, getStudent, addPayment } from '@/api/services/students'
 import { useAuth } from '@/context/auth-context'
 import { Modal } from '@/components/ui/Modal'
+import { Button } from '@/components/ui/Button'
 import { Loader } from '@/components/ui/Loader'
 import { AuditHistoryList } from '@/components/audit/AuditHistoryList'
+import { PaymentModal } from './PaymentModal'
 import { formatDate, formatMoney, cn, apiErrorMessage } from '@/lib/utils'
 import { formatMonth, monthStatusLabels, paymentMethodLabel } from '@/config/constants'
 
 interface Props {
   studentId: string | null
   onClose: () => void
+  /** To'lov shu modal ichidan kiritilgach — chaqiruvchi o'z holatini (balans/ro'yxat) yangilashi uchun. */
+  onPaid?: () => void
 }
 
 const statusStyles: Record<MonthStatus, string> = {
@@ -20,7 +24,7 @@ const statusStyles: Record<MonthStatus, string> = {
   unpaid: 'bg-red-50 text-red-700',
 }
 
-export function PaymentHistoryModal({ studentId, onClose }: Props) {
+export function PaymentHistoryModal({ studentId, onClose, onPaid }: Props) {
   const { user } = useAuth()
   const isSuper = user?.role === 'superadmin'
   const [ledger, setLedger] = useState<StudentLedger | null>(null)
@@ -30,6 +34,8 @@ export function PaymentHistoryModal({ studentId, onClose }: Props) {
   const [editKey, setEditKey] = useState<string | null>(null)
   const [editVal, setEditVal] = useState('')
   const [saving, setSaving] = useState(false)
+  /** "To'lov qilish" bosilganda — PaymentModal uchun to'liq Student kerak. */
+  const [payTarget, setPayTarget] = useState<Student | null>(null)
 
   const keyOf = (month: string, groupId?: string | null) => `${month}|${groupId ?? ''}`
 
@@ -66,7 +72,35 @@ export function PaymentHistoryModal({ studentId, onClose }: Props) {
     }
   }
 
+  const openPay = () => {
+    if (!studentId) return
+    getStudent(studentId)
+      .then(setPayTarget)
+      .catch(() => alert("O'quvchi ma'lumotini yuklab bo'lmadi"))
+  }
+
+  const handlePayment = async (
+    amount: number,
+    month: string,
+    groupId?: string,
+    comment?: string,
+    method?: string,
+    date?: string,
+  ) => {
+    if (!studentId) return
+    try {
+      await addPayment(studentId, amount, month, groupId, comment, method, date)
+      const fresh = await getStudentLedger(studentId)
+      setLedger(fresh)
+      setPayTarget(null)
+      onPaid?.()
+    } catch (err) {
+      alert(apiErrorMessage(err, "To'lovni saqlab bo'lmadi"))
+    }
+  }
+
   return (
+    <>
     <Modal open={!!studentId} onClose={onClose} size="lg" title="To'lov tarixi">
       {loading || !ledger ? (
         <Loader label="Yuklanmoqda..." />
@@ -80,20 +114,25 @@ export function PaymentHistoryModal({ studentId, onClose }: Props) {
                 {ledger.student.className} · oylik <span className="font-mono">{formatMoney(ledger.monthlyFee)}</span>
               </p>
             </div>
-            <div className="text-right">
-              <p className="text-xs text-slate-400">Joriy balans</p>
-              <p
-                className={cn(
-                  'font-mono text-lg font-semibold',
-                  ledger.balance < 0
-                    ? 'text-red-600'
-                    : ledger.balance > 0
-                      ? 'text-emerald-600'
-                      : 'text-slate-600',
-                )}
-              >
-                {ledger.balance > 0 ? `+${formatMoney(ledger.balance)}` : formatMoney(ledger.balance)}
-              </p>
+            <div className="flex items-center gap-4">
+              <div className="text-right">
+                <p className="text-xs text-slate-400">Joriy balans</p>
+                <p
+                  className={cn(
+                    'font-mono text-lg font-semibold',
+                    ledger.balance < 0
+                      ? 'text-red-600'
+                      : ledger.balance > 0
+                        ? 'text-emerald-600'
+                        : 'text-slate-600',
+                  )}
+                >
+                  {ledger.balance > 0 ? `+${formatMoney(ledger.balance)}` : formatMoney(ledger.balance)}
+                </p>
+              </div>
+              <Button onClick={openPay}>
+                <Wallet className="h-4 w-4" /> To'lov qilish
+              </Button>
             </div>
           </div>
 
@@ -290,5 +329,8 @@ export function PaymentHistoryModal({ studentId, onClose }: Props) {
         </div>
       )}
     </Modal>
+
+    <PaymentModal student={payTarget} onClose={() => setPayTarget(null)} onSubmit={handlePayment} />
+    </>
   )
 }
