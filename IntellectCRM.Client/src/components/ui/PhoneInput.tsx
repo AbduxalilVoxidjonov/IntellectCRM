@@ -45,6 +45,20 @@ export function PhoneInput({ label, required, className, value, onChange, ...res
     const raw = e.target.value
     const unmasked = raw.replace(/\D/g, '')
 
+    // Butunlay bo'shatilsa — "998" majburan qaytarilmaydi, maydon TOZALANADI (placeholder ko'rinadi).
+    // Yozilganda 998 prefiksi qayta paydo bo'ladi.
+    if (unmasked === '') {
+      onChange('')
+      return
+    }
+    // Backspace bilan faqat "998" prefiksi qolganda yana o'chirishga urinilsa — to'liq tozalanadi
+    // (aks holda "998" o'chmay qolib ketardi).
+    const deleting = raw.length < displayValue.length
+    if (deleting && unmasked === '998') {
+      onChange('')
+      return
+    }
+
     // +998 boshlanmasa uni qo'sh
     let normalized = unmasked.startsWith('998') ? unmasked : '998' + unmasked
 
