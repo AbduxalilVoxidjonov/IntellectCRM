@@ -691,14 +691,16 @@ app.UseStaticFiles(new StaticFileOptions
     },
 });
 
-// Yuklangan materiallar (/uploads) — alohida papkadan, 1 kunlik kesh bilan.
+// Yuklangan materiallar (/uploads) — alohida papkadan. Kesh PRIVATE: maxfiy hujjatlar (passport/tug'ilganlik
+// guvohnomasi/shartnoma skanlari) Cloudflare/proxy/umumiy keshda SAQLANMASIN — faqat brauzerning o'z keshi
+// (URL tasodifiy GUID + no-referrer bilan birga). (Auth-gating katta frontend refactor talab qiladi — kelajak.)
 var uploadsDir = Path.Combine(app.Environment.ContentRootPath, "uploads");
 Directory.CreateDirectory(uploadsDir);
 app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = new PhysicalFileProvider(uploadsDir),
     RequestPath = "/uploads",
-    OnPrepareResponse = ctx => ctx.Context.Response.Headers.CacheControl = "public,max-age=86400",
+    OnPrepareResponse = ctx => ctx.Context.Response.Headers.CacheControl = "private,max-age=3600",
 });
 
 // Swagger ATAYLAB o'chirilgan (global) — butun API yuzasini ochib qo'ymaslik uchun
