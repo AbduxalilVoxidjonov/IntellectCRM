@@ -31,11 +31,19 @@ const currentMonth = () => new Date().toISOString().slice(0, 7)
 /** "YYYY-MM-DD" bugungi sana */
 const today = () => new Date().toISOString().slice(0, 10)
 
-/** Oylar ro'yxatidan standart tanlov: eng eski qoldiqli oy; bo'lmasa oxirgi oy. */
+/** Oylar ro'yxatidan standart tanlov. Avval JORIY OYGACHA (o'tgan/joriy) eng eski QARZDOR oy tanlanadi —
+ *  ya'ni qarz bo'lsa u to'lanadi. KELAJAK (avans) oy HECH QACHON avtomatik tanlanmaydi (foydalanuvchi o'zi
+ *  tanlashi mumkin) — aks holda qarz bo'lsa ham to'lov kelasi oyga yozilib qolardi. Qarz bo'lmasa — joriy oy. */
 const pickDefault = (rows: Row[]): { month: string; amount: number } => {
-  const due = rows.find((r) => r.remaining > 0)
-  const target = due ?? rows[rows.length - 1]
-  return { month: target?.month ?? currentMonth(), amount: due ? due.remaining : 0 }
+  const cur = currentMonth()
+  // Joriy oygacha bo'lgan eng eski qarzdor oy (o'tgan qarzni birinchi to'laymiz).
+  const due = rows.find((r) => r.remaining > 0 && r.month <= cur)
+  if (due) return { month: due.month, amount: due.remaining }
+  // Qarz yo'q — joriy oyni tanlaymiz (ro'yxatda bo'lsa), aks holda oxirgi mavjud oy. Kelajak oy summasi
+  // avtomatik to'ldirilmaydi (0) — cheksiz avans yozilib qolmasligi uchun.
+  const curRow = rows.find((r) => r.month === cur)
+  const target = curRow ?? rows[rows.length - 1]
+  return { month: target?.month ?? cur, amount: curRow ? curRow.remaining : 0 }
 }
 
 export function PaymentModal({ student, onClose, onSubmit }: Props) {
