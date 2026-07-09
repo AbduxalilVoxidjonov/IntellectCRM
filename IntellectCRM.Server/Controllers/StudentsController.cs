@@ -1260,6 +1260,19 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
         else
             groupId = null; // guruhsiz (eski ClassName) o'quvchi
 
+        // IDEMPOTENTLIK: oxirgi ~6 soniyada AYNAN shu to'lov (o'quvchi, guruh, oy, summa) yozilgan bo'lsa —
+        // dublikat qo'shmaymiz (admin double-click / tarmoq retry). Balansni ikki marta oshirmaslik uchun
+        // EnsureCharge/balans o'zgarishidan OLDIN tekshiramiz (FinanceController.Create bilan bir xil mantiq).
+        var dupCutoff = DateTime.UtcNow.AddSeconds(-6);
+        var recentDup = await db.FinanceTransactions
+            .Where(t => t.StudentId == student.Id && t.Direction == "income" && t.Category == "tuition"
+                && t.Amount == req.Amount && t.Month == month && t.GroupId == groupId
+                && t.CreatedAt >= dupCutoff)
+            .OrderByDescending(t => t.CreatedAt)
+            .FirstOrDefaultAsync();
+        if (recentDup is not null)
+            return Ok(new { id = recentDup.Id, idempotent = true });
+
         // AVANS: to'lov tushadigan (guruh, oy) hisobi hali yo'q bo'lsa — shu zahoti ochamiz
         // (kelajak oyga oldindan to'lov; balans hisob miqdorida kamayadi, to'lov esa oshiradi).
         await TuitionService.EnsureChargeAsync(db, student, groupId, month);
