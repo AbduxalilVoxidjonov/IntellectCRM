@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { usePersistentState } from '@/hooks/usePersistentState'
 import { StudentViewModal } from './StudentViewModal'
 import { Plus, Search, Pencil, Trash2, Send, Download, X, Wallet, History, Archive, RotateCcw, FileDown, Upload, ChevronLeft, ChevronRight, Lock, LockOpen, Loader2, Phone, Cake } from 'lucide-react'
 import type { Gender, Student, Teacher, District } from '@/types'
@@ -73,7 +74,7 @@ function dedupeCallOptions(options: CallOption[]): CallOption[] {
 export function StudentsPage() {
   const { user } = useAuth()
   const navigate = useNavigate()
-  const [tab, setTab] = useState<Tab>('active')
+  const [tab, setTab] = usePersistentState<Tab>('students.tab', 'active')
   const [students, setStudents] = useState<Student[]>([])
   const [archived, setArchived] = useState<Student[]>([])
   const [classNames, setClassNames] = useState<string[]>([])
@@ -83,17 +84,17 @@ export function StudentsPage() {
   /** Arxivga ko'chirish — ReasonPromptModal uchun. */
   const [archiveTarget, setArchiveTarget] = useState<Student | null>(null)
 
-  // filtrlar
-  const [search, setSearch] = useState('')
-  const [classFilter, setClassFilter] = useState('all')
-  const [teacherFilter, setTeacherFilter] = useState('all')
-  const [genderFilter, setGenderFilter] = useState<'all' | Gender>('all')
-  const [balanceFilter, setBalanceFilter] = useState<BalanceFilter>('all')
-  const [activeFilter, setActiveFilter] = useState<'all' | 'active' | 'inactive'>('all')
-  const [districtFilter, setDistrictFilter] = useState('all')
-  const [schoolFilter, setSchoolFilter] = useState('all')
+  // filtrlar — sahifadan chiqib qaytilganda saqlanadi (usePersistentState)
+  const [search, setSearch] = usePersistentState('students.search', '')
+  const [classFilter, setClassFilter] = usePersistentState('students.classFilter', 'all')
+  const [teacherFilter, setTeacherFilter] = usePersistentState('students.teacherFilter', 'all')
+  const [genderFilter, setGenderFilter] = usePersistentState<'all' | Gender>('students.genderFilter', 'all')
+  const [balanceFilter, setBalanceFilter] = usePersistentState<BalanceFilter>('students.balanceFilter', 'all')
+  const [activeFilter, setActiveFilter] = usePersistentState<'all' | 'active' | 'inactive'>('students.activeFilter', 'all')
+  const [districtFilter, setDistrictFilter] = usePersistentState('students.districtFilter', 'all')
+  const [schoolFilter, setSchoolFilter] = usePersistentState('students.schoolFilter', 'all')
   /** "Bugun tug'ilgan kun" filtri — yil hisobga olinmasdan oy/kun bo'yicha solishtiriladi. */
-  const [birthdayToday, setBirthdayToday] = useState(false)
+  const [birthdayToday, setBirthdayToday] = usePersistentState('students.birthdayToday', false)
   const [districts, setDistricts] = useState<District[]>([])
 
   // tanlash
@@ -209,11 +210,15 @@ export function StudentsPage() {
   const paged = filtered.slice((pageClamped - 1) * pageSize, pageClamped * pageSize)
   const rangeFrom = filtered.length === 0 ? 0 : (pageClamped - 1) * pageSize + 1
   const rangeTo = Math.min(filtered.length, pageClamped * pageSize)
-  // Filtr/qidiruv/tab/hajm o'zgarsa — birinchi sahifaga qaytamiz.
+  // Filtr/qidiruv/hajm o'zgarsa — birinchi sahifaga qaytamiz. Tanlov SAQLANADI — foydalanuvchi
+  // qidirib bir o'quvchini belgilab, keyin boshqasini qidirib belgilay olishi uchun.
   useEffect(() => {
     setPage(1)
-    setSelected(new Set())
   }, [search, classFilter, teacherFilter, genderFilter, balanceFilter, activeFilter, districtFilter, schoolFilter, birthdayToday, tab, pageSize])
+  // Faqat tab (faol/arxiv/hammasi) almashganda tanlovni tozalaymiz — bu boshqa ro'yxat.
+  useEffect(() => {
+    setSelected(new Set())
+  }, [tab])
 
   const selectedStudents = source.filter((s) => selected.has(s.id))
 

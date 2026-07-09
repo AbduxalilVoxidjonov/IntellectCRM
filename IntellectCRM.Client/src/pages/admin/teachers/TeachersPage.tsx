@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { usePersistentState } from '@/hooks/usePersistentState'
 import {
   Plus,
   Search,
@@ -79,9 +80,9 @@ export function TeachersPage() {
   const [classes, setClasses] = useState<Group[]>([])
   const [loading, setLoading] = useState(true)
 
-  const [tab, setTab] = useState<Tab>('active')
-  const [search, setSearch] = useState('')
-  const [genderFilter, setGenderFilter] = useState<'all' | Gender>('all')
+  const [tab, setTab] = usePersistentState<Tab>('teachers.tab', 'active')
+  const [search, setSearch] = usePersistentState('teachers.search', '')
+  const [genderFilter, setGenderFilter] = usePersistentState<'all' | Gender>('teachers.genderFilter', 'all')
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<Teacher | null>(null)
   const [viewing, setViewing] = useState<Teacher | null>(null)

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { usePersistentState } from '@/hooks/usePersistentState'
 import {
   Plus,
   Pencil,
@@ -94,7 +95,7 @@ export function ClassesPage() {
   const [savingConflict, setSavingConflict] = useState(false)
   /** Arxivlangan guruhlar ro'yxati + arxiv ko'rinishi yoqilganmi */
   const [archived, setArchived] = useState<Group[]>([])
-  const [showArchived, setShowArchived] = useState(false)
+  const [showArchived, setShowArchived] = usePersistentState('classes.showArchived', false)
   /** A'zolarni boshqarish modali uchun tanlangan guruh */
   const [membersOf, setMembersOf] = useState<Group | null>(null)
   const [deletingGroup, setDeletingGroup] = useState<Group | null>(null)
@@ -102,15 +103,15 @@ export function ClassesPage() {
   const [fill, setFill] = useState<GroupFillRow[]>([])
   const [showFill, setShowFill] = useState(false)
   /** Saralash (reyting): tartib bo'yicha | o'rtacha baho | davomat. Baho/davomat — yuqoridan pastga. */
-  const [sort, setSort] = useState<'order' | 'grade' | 'attendance'>('order')
+  const [sort, setSort] = usePersistentState<'order' | 'grade' | 'attendance'>('classes.sort', 'order')
   /** Ko'rinish: kartalar yoki jadval */
-  const [view, setView] = useState<'card' | 'table'>('card')
+  const [view, setView] = usePersistentState<'card' | 'table'>('classes.view', 'card')
   /** O'qituvchi filteri — faqat shu o'qituvchining guruhlari ko'rsatiladi */
-  const [teacherFilter, setTeacherFilter] = useState('all')
+  const [teacherFilter, setTeacherFilter] = usePersistentState('classes.teacherFilter', 'all')
   /** Kurs filteri — faqat shu kursga biriktirilgan guruhlar */
-  const [courseFilter, setCourseFilter] = useState('all')
+  const [courseFilter, setCourseFilter] = usePersistentState('classes.courseFilter', 'all')
   /** Kun filteri: barcha | toq kunlar (Du/Cho/Ju) | juft kunlar (Se/Pay/Sha) */
-  const [dayFilter, setDayFilter] = useState<'all' | 'odd' | 'even'>('all')
+  const [dayFilter, setDayFilter] = usePersistentState<'all' | 'odd' | 'even'>('classes.dayFilter', 'all')
   /** Kurslar ro'yxati (filtr uchun) */
   const [subjects, setSubjects] = useState<Subject[]>([])
   /** "Jurnal boshqaruvi" oynasi — jurnal tahrirlash siyosati (barcha guruhlar uchun) */
