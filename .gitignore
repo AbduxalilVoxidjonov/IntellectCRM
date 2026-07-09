@@ -56,3 +56,6 @@ asterisk-local/recordings/
 # Lokal PWA hujjatlari (gitga kirmaydi)
 student_pwa.md
 teacher_pwa.md
+
+# Backup off-site sozlamasi (rclone.conf — bulut kalitlari, hech qachon commit qilinmaydi)
+backup-config/
