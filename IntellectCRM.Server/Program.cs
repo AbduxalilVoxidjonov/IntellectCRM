@@ -197,6 +197,26 @@ builder.Services.AddRateLimiter(options =>
                 Window = TimeSpan.FromMinutes(1),
                 QueueLimit = 0,
             }));
+
+    // GLOBAL (fallback) limiter — flood'ga qarshi himoya darvozasi (admission control). MUHIM: bir IP
+    // ortida bir nechta xodim bo'lishi mumkin (markaz ofisi), shuning uchun AUTENTIFIKATSIYALANGAN
+    // so'rov FOYDALANUVCHI bo'yicha (o'z bucketi — bir-birini bloklamaydi), anonim so'rov IP bo'yicha
+    // partitsiyalanadi. Limit ATAYIN saxiy (daqiqada 600 ≈ 10/sek) — normal foydalanuvchi yetmaydi,
+    // faqat qo'pol avtomatlashtirilgan flood 429 oladi. Endpoint-specific siyosatlar (login/public-lead)
+    // buning ustiga qo'shimcha ishlaydi.
+    options.GlobalLimiter = System.Threading.RateLimiting.PartitionedRateLimiter.Create<HttpContext, string>(ctx =>
+    {
+        var userId = ctx.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        var key = !string.IsNullOrEmpty(userId) ? "u:" + userId : "ip:" + ClientIp(ctx);
+        return System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+            key,
+            _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 600,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+            });
+    });
 });
 
 // Real-time guruh chati (SignalR)

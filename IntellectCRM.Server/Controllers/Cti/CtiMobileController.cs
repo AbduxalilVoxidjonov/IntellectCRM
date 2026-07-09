@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using IntellectCRM.Application.Dtos;
 using IntellectCRM.Application.Services;
@@ -45,6 +46,7 @@ public class CtiMobileController(
     /// <summary>Ilova login: login+parol → JWT token, agentId va WebSocket manzili.</summary>
     [HttpPost("auth/login")]
     [AllowAnonymous]
+    [EnableRateLimiting("login")]
     public async Task<ActionResult<CtiLoginResponse>> Login(CtiLoginRequest req)
     {
         var login = req.LoginValue;

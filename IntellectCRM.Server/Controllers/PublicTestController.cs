@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using IntellectCRM.Infrastructure.Data;
 using IntellectCRM.Application.Dtos;
@@ -99,6 +100,7 @@ public class PublicTestController(AppDbContext db, TelegramService telegram, Aut
 
     /// <summary>Bir martalik havola orqali topshirish — natija lidga bog'lanadi, havola yopiladi.</summary>
     [HttpPost("invite/{token}/submit")]
+    [EnableRateLimiting("public-lead")]
     public async Task<ActionResult<TestResultDto>> SubmitInvite(string token, TestSubmitRequest req)
     {
         var safeAge = Math.Clamp(req.Age, 0, 120);
@@ -110,6 +112,7 @@ public class PublicTestController(AppDbContext db, TelegramService telegram, Aut
 
     /// <summary>Testni topshiradi — ball/daraja hisoblanadi va lid yaratiladi.</summary>
     [HttpPost("{slug}/submit")]
+    [EnableRateLimiting("public-lead")]
     public async Task<ActionResult<TestResultDto>> Submit(string slug, TestSubmitRequest req)
     {
         if (string.IsNullOrWhiteSpace(req.FullName))
