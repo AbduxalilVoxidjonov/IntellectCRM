@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
-import { Search, Smartphone, CheckCircle2, Circle, ChevronDown } from 'lucide-react'
+import { Search, Smartphone, CheckCircle2, Circle, ChevronDown, X } from 'lucide-react'
 import type { ParentRow } from '@/types'
 import { getParents } from '@/api/services/parents'
 import { Card } from '@/components/ui/Card'
@@ -76,6 +76,13 @@ export function ParentsPage() {
       return next
     })
 
+  // Filtrlar standart holatdan farq qiladimi — "Tozalash" tugmasi shunda ko'rinadi.
+  const filtersActive = search !== '' || filter !== 'all'
+  const clearFilters = () => {
+    setSearch('')
+    setFilter('all')
+  }
+
   return (
     <div>
       <PageHeader
@@ -131,6 +138,16 @@ export function ParentsPage() {
               </button>
             ))}
           </div>
+          {filtersActive && (
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-700"
+              title="Barcha filtrlarni tozalash"
+            >
+              <X className="h-4 w-4" /> Filtrni tozalash
+            </button>
+          )}
         </div>
 
         {/* Jadval */}

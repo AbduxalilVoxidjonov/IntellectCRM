@@ -250,6 +250,29 @@ export function StudentsPage() {
 
   const clearSelection = () => setSelected(new Set())
 
+  // Filtrlar standart holatdan farq qiladimi — "Tozalash" tugmasi shunda ko'rinadi.
+  const filtersActive =
+    search !== '' ||
+    classFilter !== 'all' ||
+    teacherFilter !== 'all' ||
+    genderFilter !== 'all' ||
+    balanceFilter !== 'all' ||
+    activeFilter !== 'all' ||
+    districtFilter !== 'all' ||
+    schoolFilter !== 'all' ||
+    birthdayToday
+  const clearFilters = () => {
+    setSearch('')
+    setClassFilter('all')
+    setTeacherFilter('all')
+    setGenderFilter('all')
+    setBalanceFilter('all')
+    setActiveFilter('all')
+    setDistrictFilter('all')
+    setSchoolFilter('all')
+    setBirthdayToday(false)
+  }
+
   // Tanlanganlarni to'liq Excel'ga yuklab olish (server: profil + guruh holati + balans + login)
   const [exportingSelected, setExportingSelected] = useState(false)
   const handleExportExcel = async () => {
@@ -652,6 +675,16 @@ export function StudentsPage() {
           >
             <Cake className="h-4 w-4" /> Bugun tug'ilgan kun
           </button>
+          {filtersActive && (
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-700"
+              title="Barcha filtrlarni tozalash"
+            >
+              <X className="h-4 w-4" /> Filtrni tozalash
+            </button>
+          )}
         </div>
         <div className="right">
           <span className="text-sm text-slate-400">{filtered.length} ta</span>

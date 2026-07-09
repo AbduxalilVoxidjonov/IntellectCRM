@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Plus, History, Trash2, Search } from 'lucide-react'
+import { Plus, History, Trash2, Search, X } from 'lucide-react'
 import type { DisciplineReason, DisciplineScoreRow, DisciplinePoint } from '@/types'
 import {
   getDisciplineScores,
@@ -127,6 +127,13 @@ export function BallarNazoratiPage() {
     applyDelta(p.studentId, -p.points)
   }
 
+  // Filtrlar standart holatdan farq qiladimi — "Tozalash" tugmasi shunda ko'rinadi.
+  const filtersActive = search !== '' || classFilter !== 'all'
+  const clearFilters = () => {
+    setSearch('')
+    setClassFilter('all')
+  }
+
   const reasonLabel = (r: DisciplineReason) =>
     `${r.name} (${r.points > 0 ? '+' : ''}${r.points})`
   const attendanceReasons = useMemo(() => reasons.filter((r) => r.kind === 'attendance'), [reasons])
@@ -167,6 +174,16 @@ export function BallarNazoratiPage() {
               </option>
             ))}
           </Select>
+          {filtersActive && (
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-700"
+              title="Barcha filtrlarni tozalash"
+            >
+              <X className="h-4 w-4" /> Filtrni tozalash
+            </button>
+          )}
         </div>
       </div>
 

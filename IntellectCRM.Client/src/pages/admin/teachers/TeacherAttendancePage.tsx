@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import type { HubConnection } from '@microsoft/signalr'
-import { RefreshCw, Wifi, WifiOff, CheckCircle2, Search } from 'lucide-react'
+import { RefreshCw, Wifi, WifiOff, CheckCircle2, Search, X } from 'lucide-react'
 import {
   getTeacherAttendance,
   setTeacherAttendance,
@@ -126,6 +126,13 @@ function DashboardSection() {
     { label: 'Kelmagan', value: s?.notArrived ?? 0, cls: 'text-slate-400', filter: '' },
   ]
 
+  // Filtrlar standart holatdan farq qiladimi — "Tozalash" tugmasi shunda ko'rinadi.
+  const filtersActive = search !== '' || statusFilter !== 'all'
+  const clearFilters = () => {
+    setSearch('')
+    setStatusFilter('all')
+  }
+
   const q = search.trim().toLowerCase()
   const visibleRows = (dash?.rows ?? []).filter((r) => {
     if (q && !r.fullName.toLowerCase().includes(q)) return false
@@ -173,6 +180,16 @@ function DashboardSection() {
             <RefreshCw className={cn('h-4 w-4', syncing && 'animate-spin')} />
             {syncing ? 'Sinxron...' : 'Sinxronlash'}
           </Button>
+          {filtersActive && (
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-700"
+              title="Barcha filtrlarni tozalash"
+            >
+              <X className="h-4 w-4" /> Filtrni tozalash
+            </button>
+          )}
         </div>
       </div>
 

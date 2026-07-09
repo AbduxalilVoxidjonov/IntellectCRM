@@ -15,6 +15,7 @@ import {
   Clock,
   User,
   BookOpenCheck,
+  X,
 } from 'lucide-react'
 import type { Group, GroupFillRow, Teacher, Subject } from '@/types'
 import type { ClassPayload } from '@/api/services/classes'
@@ -116,6 +117,14 @@ export function ClassesPage() {
   const [subjects, setSubjects] = useState<Subject[]>([])
   /** "Jurnal boshqaruvi" oynasi — jurnal tahrirlash siyosati (barcha guruhlar uchun) */
   const [policyOpen, setPolicyOpen] = useState(false)
+
+  // Filtrlar standart holatdan farq qiladimi — "Tozalash" tugmasi shunda ko'rinadi.
+  const filtersActive = teacherFilter !== 'all' || courseFilter !== 'all' || dayFilter !== 'all'
+  const clearFilters = () => {
+    setTeacherFilter('all')
+    setCourseFilter('all')
+    setDayFilter('all')
+  }
 
   const filteredClasses = useMemo(() => {
     return classes.filter((c) => {
@@ -374,6 +383,17 @@ export function ClassesPage() {
               <option value="odd">Toq kunlar (Du/Cho/Ju)</option>
               <option value="even">Juft kunlar (Se/Pay/Sha)</option>
             </select>
+
+            {filtersActive && (
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-700"
+                title="Barcha filtrlarni tozalash"
+              >
+                <X className="h-4 w-4" /> Filtrni tozalash
+              </button>
+            )}
 
             <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
               Saralash:

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Search, ClipboardList, CalendarRange } from 'lucide-react'
+import { Search, ClipboardList, CalendarRange, X } from 'lucide-react'
 import type { EvaluationBoard, EvaluationRow } from '@/types'
 import { getEvaluationBoard, setEvaluationGrade } from '@/api/services/studentEvaluation'
 import { cn } from '@/lib/utils'
@@ -113,6 +113,14 @@ export function StudentEvaluationPage() {
     return arr
   }, [board.rows, search, sort])
 
+  // Filtrlar standart holatdan farq qiladimi — "Tozalash" tugmasi shunda ko'rinadi.
+  const filtersActive = search !== '' || groupId !== 'all' || sort !== 'class'
+  const clearFilters = () => {
+    setSearch('')
+    setSort('class')
+    onGroup('all')
+  }
+
   const onGrade = (studentId: string, typeId: string, score: number | null) => {
     if (!editable) return // "Hammasi (o'rtacha)" — faqat ko'rish
     setBoard((prev) => ({
@@ -190,6 +198,16 @@ export function StudentEvaluationPage() {
           <option value="grade-desc">Baho yuqoridan</option>
           <option value="grade-asc">Baho pastdan</option>
         </select>
+        {filtersActive && (
+          <button
+            type="button"
+            onClick={clearFilters}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-700"
+            title="Barcha filtrlarni tozalash"
+          >
+            <X className="h-4 w-4" /> Filtrni tozalash
+          </button>
+        )}
         <span className="ml-auto text-sm text-slate-400">{rows.length} o'quvchi</span>
       </div>
 
