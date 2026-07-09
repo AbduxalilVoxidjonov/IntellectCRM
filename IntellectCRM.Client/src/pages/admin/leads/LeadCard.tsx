@@ -4,7 +4,7 @@ import { Phone, Clock } from 'lucide-react'
 import type { Lead } from '@/types'
 import { genderLabels } from '@/config/constants'
 import { Badge } from '@/components/ui/Badge'
-import { formatDate, cn } from '@/lib/utils'
+import { formatDate, formatDateTime, cn } from '@/lib/utils'
 
 /** Lid yaratilganidan beri o'tgan kun (createdAt "yyyy-MM-ddTHH:mm:ss"). */
 function leadAgeDays(createdAt?: string): number | null {
@@ -190,8 +190,10 @@ export function LeadCardContent({
             <span className="truncate font-mono">{phone || '—'}</span>
           </span>
         )}
-        {lead.birthDate && (
-          <span className="lead-value">{formatDate(lead.birthDate)}</span>
+        {lead.createdAt && (
+          <span className="lead-value" title="Lid qo'shilgan sana">
+            {formatDateTime(lead.createdAt)}
+          </span>
         )}
       </div>
     </div>
