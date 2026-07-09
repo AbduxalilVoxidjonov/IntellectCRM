@@ -8,6 +8,10 @@ export interface GradingCriterion {
   description: string
   maxScore: number
   order: number
+  /** Mezon egasi (Teacher.Id). Bo'sh — umumiy mezon. */
+  teacherId?: string | null
+  /** Mezon egasining ismi (backend qaytaradi). */
+  teacherName?: string | null
 }
 export interface GradingBoardCriterion {
   id: string
@@ -51,12 +55,26 @@ export async function getCriteria(): Promise<GradingCriterion[]> {
   const { data } = await api.get<GradingCriterion[]>('/admin/grading/criteria')
   return data
 }
-export async function createCriterion(name: string, description: string): Promise<GradingCriterion> {
-  const { data } = await api.post<GradingCriterion>('/admin/grading/criteria', { name, description, maxScore: 1 })
+export async function createCriterion(
+  name: string,
+  description: string,
+  teacherId?: string,
+): Promise<GradingCriterion> {
+  const { data } = await api.post<GradingCriterion>('/admin/grading/criteria', {
+    name,
+    description,
+    maxScore: 1,
+    teacherId: teacherId || null,
+  })
   return data
 }
-export async function updateCriterion(id: string, name: string, description: string): Promise<void> {
-  await api.put(`/admin/grading/criteria/${id}`, { name, description, maxScore: 1 })
+export async function updateCriterion(
+  id: string,
+  name: string,
+  description: string,
+  teacherId?: string,
+): Promise<void> {
+  await api.put(`/admin/grading/criteria/${id}`, { name, description, maxScore: 1, teacherId: teacherId || null })
 }
 export async function deleteCriterion(id: string): Promise<void> {
   await api.delete(`/admin/grading/criteria/${id}`)

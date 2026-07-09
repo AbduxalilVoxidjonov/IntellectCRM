@@ -1475,10 +1475,12 @@ public record LevelTestStatsDto(
     int Total, int Active, List<LevelTestStatRowDto> Rows);
 
 /* ---------- Baholash mezonlari (grading criteria) ---------- */
-/// <summary>Baholash mezoni (kriteriya).</summary>
-public record GradingCriterionDto(string Id, string Name, string Description, int MaxScore, int Order);
-/// <summary>Mezon yaratish/yangilash payload'i.</summary>
-public record CriterionInput(string Name, string? Description, int MaxScore);
+/// <summary>Baholash mezoni (kriteriya). TeacherId/TeacherName bo'sh — umumiy mezon.</summary>
+public record GradingCriterionDto(
+    string Id, string Name, string Description, int MaxScore, int Order,
+    string? TeacherId, string? TeacherName);
+/// <summary>Mezon yaratish/yangilash payload'i. TeacherId — mezon egasi (ixtiyoriy).</summary>
+public record CriterionInput(string Name, string? Description, int MaxScore, string? TeacherId);
 /// <summary>Guruhga biriktirilgan mezonlar ro'yxatini saqlash (to'liq almashtiriladi).</summary>
 public record GroupCriteriaInput(List<string> CriterionIds);
 /// <summary>Baholash grid'idagi ustun (mezon).</summary>

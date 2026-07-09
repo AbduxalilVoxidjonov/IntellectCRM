@@ -691,6 +691,9 @@ public class GradingCriterion
     /// <summary>Baho shkalasi yuqori chegarasi (masalan 5 yoki 100).</summary>
     public int MaxScore { get; set; } = 5;
     public int Order { get; set; }
+    /// <summary>Mezon egasi (Teacher.Id). Bo'sh (null) — eski/umumiy mezon. Bo'lsa — mezon FAQAT shu
+    /// o'qituvchiga tegishli: uning guruhlariga biriktiriladi va ro'yxatda shu o'qituvchi ostida ko'rinadi.</summary>
+    public string? TeacherId { get; set; }
     public string CreatedAt { get; set; } = string.Empty;
 }
 

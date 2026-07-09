@@ -24,13 +24,17 @@ public class GradingController(AppDbContext db, DataCache dataCache) : Controlle
     [HttpGet("criteria")]
     public async Task<ActionResult<IEnumerable<GradingCriterionDto>>> Criteria() =>
         await db.GradingCriteria.OrderBy(c => c.Order).ThenBy(c => c.CreatedAt)
-            .Select(c => new GradingCriterionDto(c.Id, c.Name, c.Description, c.MaxScore, c.Order))
+            .Select(c => new GradingCriterionDto(
+                c.Id, c.Name, c.Description, c.MaxScore, c.Order,
+                c.TeacherId,
+                db.Teachers.Where(t => t.Id == c.TeacherId).Select(t => t.FullName).FirstOrDefault()))
             .ToListAsync();
 
     [HttpPost("criteria")]
     public async Task<ActionResult<GradingCriterionDto>> CreateCriterion(CriterionInput input)
     {
         if (string.IsNullOrWhiteSpace(input.Name)) return BadRequest(new { message = "Nom bo'sh" });
+        var teacherId = string.IsNullOrWhiteSpace(input.TeacherId) ? null : input.TeacherId;
         var maxOrder = await db.GradingCriteria.Select(c => (int?)c.Order).MaxAsync() ?? -1;
         var c = new GradingCriterion
         {
@@ -38,11 +42,14 @@ public class GradingController(AppDbContext db, DataCache dataCache) : Controlle
             Description = (input.Description ?? "").Trim(),
             MaxScore = input.MaxScore is > 0 and <= 1000 ? input.MaxScore : 5,
             Order = maxOrder + 1,
+            TeacherId = teacherId,
             CreatedAt = AppClock.Now.ToString("yyyy-MM-ddTHH:mm:ss"),
         };
         db.GradingCriteria.Add(c);
         await db.SaveChangesAsync();
-        return new GradingCriterionDto(c.Id, c.Name, c.Description, c.MaxScore, c.Order);
+        var teacherName = teacherId is null ? null
+            : await db.Teachers.Where(t => t.Id == teacherId).Select(t => t.FullName).FirstOrDefaultAsync();
+        return new GradingCriterionDto(c.Id, c.Name, c.Description, c.MaxScore, c.Order, c.TeacherId, teacherName);
     }
 
     [HttpPut("criteria/{id}")]
@@ -53,6 +60,7 @@ public class GradingController(AppDbContext db, DataCache dataCache) : Controlle
         c.Name = (input.Name ?? "").Trim();
         c.Description = (input.Description ?? "").Trim();
         c.MaxScore = input.MaxScore is > 0 and <= 1000 ? input.MaxScore : c.MaxScore;
+        c.TeacherId = string.IsNullOrWhiteSpace(input.TeacherId) ? null : input.TeacherId;
         await db.SaveChangesAsync();
         return NoContent();
     }

@@ -20,6 +20,14 @@ import { Input, Select, Textarea } from '@/components/ui/Input'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { cn, apiErrorMessage } from '@/lib/utils'
 
+/** Ism-sharifdan bosh harflar (avatar uchun). */
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return '?'
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return (parts[0][0] + parts[1][0]).toUpperCase()
+}
+
 export function GradingCriteriaPage() {
   const [criteria, setCriteria] = useState<GradingCriterion[]>([])
   const [groups, setGroups] = useState<Group[]>([])
@@ -31,6 +39,7 @@ export function GradingCriteriaPage() {
   const [editing, setEditing] = useState<GradingCriterion | null>(null)
   const [fName, setFName] = useState('')
   const [fDesc, setFDesc] = useState('')
+  const [fTeacherId, setFTeacherId] = useState('')
   const [saving, setSaving] = useState(false)
 
   // Guruhga biriktirish — avval o'qituvchi, keyin uning guruhi tanlanadi (kaskad)
@@ -70,6 +79,38 @@ export function GradingCriteriaPage() {
     [groups, teacherId],
   )
 
+  // Modal uchun — barcha o'qituvchilar (mezon egasi ixtiyoriy tanlanadi), alifbo tartibida.
+  const allTeacherOptions = useMemo(
+    () => [...teachers].sort((a, b) => a.fullName.localeCompare(b.fullName)),
+    [teachers],
+  )
+
+  // "Mezonlar" ro'yxati o'qituvchi bo'yicha guruhlanadi (chiroyli ko'rinish): har o'qituvchi
+  // ostida o'ziga tegishli mezonlar; egasiz mezonlar — "Umumiy".
+  const groupedCriteria = useMemo(() => {
+    const byTeacher = new Map<string, GradingCriterion[]>()
+    for (const c of criteria) {
+      const key = c.teacherId || ''
+      if (!byTeacher.has(key)) byTeacher.set(key, [])
+      byTeacher.get(key)!.push(c)
+    }
+    const nameOf = (id: string) => teachers.find((t) => t.id === id)?.fullName || "Noma'lum o'qituvchi"
+    const out: { key: string; label: string; items: GradingCriterion[] }[] = []
+    ;[...byTeacher.keys()]
+      .filter((k) => k !== '')
+      .sort((a, b) => nameOf(a).localeCompare(nameOf(b)))
+      .forEach((k) => out.push({ key: k, label: nameOf(k), items: byTeacher.get(k)! }))
+    if (byTeacher.has('')) out.push({ key: '', label: 'Umumiy', items: byTeacher.get('')! })
+    return out
+  }, [criteria, teachers])
+
+  // Biriktirish ro'yxatida — tanlangan guruh o'qituvchisining mezonlari + umumiy (egasiz) mezonlar.
+  // Allaqachon biriktirilgan mezon boshqa o'qituvchiniki bo'lsa ham ko'rinadi (belgini olib tashlash mumkin).
+  const assignableCriteria = useMemo(
+    () => criteria.filter((c) => !c.teacherId || c.teacherId === teacherId || assigned.includes(c.id)),
+    [criteria, teacherId, assigned],
+  )
+
   // Tanlangan guruh o'zgarganda — biriktirilgan mezonlarni yuklash
   useEffect(() => {
     if (!groupId) {
@@ -89,6 +130,8 @@ export function GradingCriteriaPage() {
     setEditing(null)
     setFName('')
     setFDesc('')
+    // Biriktirish tomonida tanlangan o'qituvchini standart qilib qo'yamiz (qulaylik uchun).
+    setFTeacherId(teacherId || '')
     setFormOpen(true)
   }
 
@@ -96,17 +139,18 @@ export function GradingCriteriaPage() {
     setEditing(c)
     setFName(c.name)
     setFDesc(c.description)
+    setFTeacherId(c.teacherId || '')
     setFormOpen(true)
   }
 
   const handleSave = async () => {
-    if (!fName.trim() || saving) return
+    if (!fName.trim() || !fTeacherId || saving) return
     setSaving(true)
     try {
       if (editing) {
-        await updateCriterion(editing.id, fName.trim(), fDesc.trim())
+        await updateCriterion(editing.id, fName.trim(), fDesc.trim(), fTeacherId)
       } else {
-        await createCriterion(fName.trim(), fDesc.trim())
+        await createCriterion(fName.trim(), fDesc.trim(), fTeacherId)
       }
       const fresh = await getCriteria()
       setCriteria(fresh)
@@ -185,32 +229,57 @@ export function GradingCriteriaPage() {
               </p>
             </div>
           ) : (
-            <div className="divide-y divide-slate-100">
-              {criteria.map((c) => (
-                <div key={c.id} className="flex items-start gap-3 py-3 first:pt-0 last:pb-0">
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-bold text-slate-800">{c.name}</p>
-                    {c.description && (
-                      <p className="mt-0.5 text-xs text-slate-400">{c.description}</p>
-                    )}
+            <div className="space-y-5">
+              {groupedCriteria.map((grp) => (
+                <div key={grp.key || '__umumiy'}>
+                  {/* O'qituvchi sarlavhasi (avatar + ism + mezonlar soni) */}
+                  <div className="mb-2 flex items-center gap-2">
+                    <div
+                      className={cn(
+                        'flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold',
+                        grp.key
+                          ? 'bg-brand-100 text-brand-700'
+                          : 'bg-slate-100 text-slate-500',
+                      )}
+                    >
+                      {grp.key ? initials(grp.label) : '•'}
+                    </div>
+                    <p className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-700">
+                      {grp.label}
+                    </p>
+                    <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
+                      {grp.items.length}
+                    </span>
                   </div>
-                  <div className="flex shrink-0 items-center gap-1">
-                    <button
-                      type="button"
-                      title="Tahrirlash"
-                      onClick={() => openEdit(c)}
-                      className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </button>
-                    <button
-                      type="button"
-                      title="O'chirish"
-                      onClick={() => handleDelete(c)}
-                      className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                  <div className="divide-y divide-slate-100 rounded-xl border border-slate-100">
+                    {grp.items.map((c) => (
+                      <div key={c.id} className="flex items-start gap-3 px-3 py-2.5">
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate font-semibold text-slate-800">{c.name}</p>
+                          {c.description && (
+                            <p className="mt-0.5 text-xs text-slate-400">{c.description}</p>
+                          )}
+                        </div>
+                        <div className="flex shrink-0 items-center gap-1">
+                          <button
+                            type="button"
+                            title="Tahrirlash"
+                            onClick={() => openEdit(c)}
+                            className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            title="O'chirish"
+                            onClick={() => handleDelete(c)}
+                            className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               ))}
@@ -266,9 +335,13 @@ export function GradingCriteriaPage() {
                 <p className="rounded-lg bg-slate-50 px-3 py-3 text-center text-sm text-slate-400">
                   Avval mezon yarating
                 </p>
+              ) : assignableCriteria.length === 0 ? (
+                <p className="rounded-lg bg-slate-50 px-3 py-3 text-center text-sm text-slate-400">
+                  Bu o'qituvchi uchun mezon yo'q — yuqoridagi "Mezon" tugmasi orqali qo'shing.
+                </p>
               ) : (
                 <div className="divide-y divide-slate-100">
-                  {criteria.map((c) => {
+                  {assignableCriteria.map((c) => {
                     const checked = assigned.includes(c.id)
                     return (
                       <label
@@ -325,13 +398,29 @@ export function GradingCriteriaPage() {
             >
               Bekor
             </Button>
-            <Button onClick={handleSave} disabled={saving || !fName.trim()}>
+            <Button onClick={handleSave} disabled={saving || !fName.trim() || !fTeacherId}>
               {editing ? 'Saqlash' : 'Qo\'shish'}
             </Button>
           </>
         }
       >
         <div className="space-y-3">
+          <Select
+            label="O'qituvchi"
+            required
+            value={fTeacherId}
+            onChange={(e) => setFTeacherId(e.target.value)}
+          >
+            <option value="">— o'qituvchini tanlang —</option>
+            {allTeacherOptions.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.fullName}
+              </option>
+            ))}
+          </Select>
+          <p className="-mt-1 text-xs text-slate-400">
+            Bu mezon faqat shu o'qituvchiga tegishli bo'ladi — uning guruhlariga biriktiriladi.
+          </p>
           <Input
             label="Nom"
             required
