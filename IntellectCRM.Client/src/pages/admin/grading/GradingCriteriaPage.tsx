@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ClipboardCheck, Plus, Pencil, Trash2 } from 'lucide-react'
-import type { Group } from '@/types'
+import type { Group, Teacher } from '@/types'
 import {
   getCriteria,
   createCriterion,
@@ -11,6 +11,7 @@ import {
   type GradingCriterion,
 } from '@/api/services/grading'
 import { getClasses } from '@/api/services/classes'
+import { getTeachers } from '@/api/services/teachers'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Loader } from '@/components/ui/Loader'
@@ -22,6 +23,7 @@ import { cn, apiErrorMessage } from '@/lib/utils'
 export function GradingCriteriaPage() {
   const [criteria, setCriteria] = useState<GradingCriterion[]>([])
   const [groups, setGroups] = useState<Group[]>([])
+  const [teachers, setTeachers] = useState<Teacher[]>([])
   const [loading, setLoading] = useState(true)
 
   // Mezon yaratish/tahrirlash modali
@@ -31,21 +33,42 @@ export function GradingCriteriaPage() {
   const [fDesc, setFDesc] = useState('')
   const [saving, setSaving] = useState(false)
 
-  // Guruhga biriktirish
+  // Guruhga biriktirish — avval o'qituvchi, keyin uning guruhi tanlanadi (kaskad)
+  const [teacherId, setTeacherId] = useState('')
   const [groupId, setGroupId] = useState('')
   const [assigned, setAssigned] = useState<string[]>([])
   const [assignBusy, setAssignBusy] = useState(false)
   const [assignSaved, setAssignSaved] = useState(false)
 
   useEffect(() => {
-    Promise.all([getCriteria(), getClasses()])
-      .then(([c, g]) => {
+    Promise.all([getCriteria(), getClasses(), getTeachers()])
+      .then(([c, g, t]) => {
         setCriteria(c)
         setGroups(g)
-        if (g.length > 0) setGroupId(g[0].id)
+        setTeachers(t)
+        // Birinchi guruhi bor o'qituvchini va uning birinchi guruhini tanlab qo'yamiz.
+        const firstTeacher = t.find((tt) => g.some((gg) => gg.teacherId === tt.id))
+        if (firstTeacher) {
+          setTeacherId(firstTeacher.id)
+          const fg = g.find((gg) => gg.teacherId === firstTeacher.id)
+          if (fg) setGroupId(fg.id)
+        }
       })
       .finally(() => setLoading(false))
   }, [])
+
+  // Faqat guruhi bor o'qituvchilar ro'yxatda ko'rinadi.
+  const teacherOptions = useMemo(
+    () =>
+      teachers
+        .filter((t) => groups.some((g) => g.teacherId === t.id))
+        .sort((a, b) => a.fullName.localeCompare(b.fullName)),
+    [teachers, groups],
+  )
+  const groupsForTeacher = useMemo(
+    () => groups.filter((g) => g.teacherId === teacherId),
+    [groups, teacherId],
+  )
 
   // Tanlangan guruh o'zgarganda — biriktirilgan mezonlarni yuklash
   useEffect(() => {
@@ -200,16 +223,39 @@ export function GradingCriteriaPage() {
           title="Guruhga biriktirish"
           sub={assignBusy ? 'Saqlanmoqda...' : assignSaved ? 'Saqlandi' : undefined}
         >
-          {groups.length === 0 ? (
-            <p className="py-6 text-center text-sm text-slate-400">Guruh yo'q.</p>
+          {teacherOptions.length === 0 ? (
+            <p className="py-6 text-center text-sm text-slate-400">
+              Guruhi bor o'qituvchi yo'q.
+            </p>
           ) : (
             <div className="space-y-4">
               <Select
+                label="O'qituvchi"
+                value={teacherId}
+                onChange={(e) => {
+                  // O'qituvchi o'zgarsa — uning birinchi guruhiga o'tamiz.
+                  const tid = e.target.value
+                  setTeacherId(tid)
+                  const fg = groups.find((g) => g.teacherId === tid)
+                  setGroupId(fg ? fg.id : '')
+                }}
+              >
+                {teacherOptions.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.fullName}
+                  </option>
+                ))}
+              </Select>
+              <Select
                 label="Guruh"
                 value={groupId}
+                disabled={!teacherId}
                 onChange={(e) => setGroupId(e.target.value)}
               >
-                {groups.map((g) => (
+                {groupsForTeacher.length === 0 && (
+                  <option value="">— guruh yo'q —</option>
+                )}
+                {groupsForTeacher.map((g) => (
                   <option key={g.id} value={g.id}>
                     {g.name}
                   </option>

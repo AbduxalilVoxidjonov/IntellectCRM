@@ -45,6 +45,8 @@ export function TransactionFormModal({ open, onClose, onSubmit, initial }: Props
   const [classes, setClasses] = useState<Group[]>([])
   const [students, setStudents] = useState<Student[]>([])
   const [classId, setClassId] = useState('')
+  // Tuition to'lovi: avval o'qituvchi, keyin uning guruhi (kaskad)
+  const [tuitionTeacherId, setTuitionTeacherId] = useState('')
   const [ledgerMonths, setLedgerMonths] = useState<MonthLedger[]>([])
 
   const isSalaryExpense = form.direction === 'expense' && form.category === 'salary'
@@ -55,6 +57,18 @@ export function TransactionFormModal({ open, onClose, onSubmit, initial }: Props
   const studentsInClass = useMemo(
     () => (classId ? students.filter((s) => s.className === classId && !s.isArchived) : []),
     [students, classId],
+  )
+  // Faqat guruhi bor o'qituvchilar tanlov ro'yxatida; guruhlar tanlangan o'qituvchiniki.
+  const tuitionTeacherOptions = useMemo(
+    () =>
+      teachers
+        .filter((t) => classes.some((c) => c.teacherId === t.id))
+        .sort((a, b) => a.fullName.localeCompare(b.fullName)),
+    [teachers, classes],
+  )
+  const tuitionGroups = useMemo(
+    () => classes.filter((c) => c.teacherId === tuitionTeacherId),
+    [classes, tuitionTeacherId],
   )
 
   // O'quvchi tanlanganda — uning oylar holatini yuklab, eng eski qarzdor oyni standart qilamiz.
@@ -105,6 +119,7 @@ export function TransactionFormModal({ open, onClose, onSubmit, initial }: Props
     getClasses().then(setClasses)
     getStudents().then(setStudents)
     // eslint-disable-next-line react-hooks/set-state-in-effect -- modal ochilganda guruh/oylar tanlovini tozalash
+    setTuitionTeacherId('')
     setClassId('')
     setLedgerMonths([])
   }, [open])
@@ -152,6 +167,7 @@ export function TransactionFormModal({ open, onClose, onSubmit, initial }: Props
       teacherId: undefined,
       method: direction === 'income' ? (f.method ?? 'cash') : undefined,
     }))
+    setTuitionTeacherId('')
     setClassId('')
     setLedgerMonths([])
   }
@@ -163,6 +179,7 @@ export function TransactionFormModal({ open, onClose, onSubmit, initial }: Props
       ...(category !== 'tuition' ? { studentId: undefined, month: undefined } : {}),
     }))
     if (category !== 'tuition') {
+      setTuitionTeacherId('')
       setClassId('')
       setLedgerMonths([])
     }
@@ -275,17 +292,35 @@ export function TransactionFormModal({ open, onClose, onSubmit, initial }: Props
         {/* O'quvchi to'lovi: guruh → o'quvchi → qaysi oy (o'quvchilar bo'limidagi to'lovdek) */}
         {showTuition && (
           <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50/60 p-3">
+            <Select
+              label="O'qituvchi"
+              value={tuitionTeacherId}
+              onChange={(e) => {
+                // O'qituvchi o'zgarsa — guruh va o'quvchi tanlovi tozalanadi.
+                setTuitionTeacherId(e.target.value)
+                setClassId('')
+                onStudentChange('')
+              }}
+            >
+              <option value="">— o'qituvchi —</option>
+              {tuitionTeacherOptions.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.fullName}
+                </option>
+              ))}
+            </Select>
             <div className="grid grid-cols-2 gap-3">
               <Select
                 label="Guruh"
                 value={classId}
+                disabled={!tuitionTeacherId}
                 onChange={(e) => {
                   setClassId(e.target.value)
                   onStudentChange('')
                 }}
               >
-                <option value="">— guruh —</option>
-                {classes.map((c) => (
+                <option value="">{tuitionTeacherId ? '— guruh —' : "— avval o'qituvchi —"}</option>
+                {tuitionGroups.map((c) => (
                   <option key={c.id} value={c.name}>
                     {c.name}
                   </option>

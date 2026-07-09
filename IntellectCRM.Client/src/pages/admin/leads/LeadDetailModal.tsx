@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   Pencil,
   Trash2,
@@ -19,7 +19,7 @@ import { MessageEditor, type TokenDef } from '@/components/messaging/MessageEdit
 import { SmsProviderPicker } from '@/components/messaging/SmsProviderPicker'
 import { getLevelTests, sendLeadTest } from '@/api/services/levelTests'
 import type { LevelTestListItem } from '@/types'
-import type { Lead, LeadEvent, LeadEventType, TrialLesson, Group } from '@/types'
+import type { Lead, LeadEvent, LeadEventType, TrialLesson, Group, Teacher } from '@/types'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input, Select } from '@/components/ui/Input'
@@ -34,6 +34,7 @@ import {
   convertLead,
 } from '@/api/services/leads'
 import { getClasses } from '@/api/services/classes'
+import { getTeachers } from '@/api/services/teachers'
 
 interface Props {
   lead: Lead | null
@@ -124,6 +125,7 @@ export function LeadDetailModal({ lead, onClose, onEdit, onDelete, onConverted }
   const [events, setEvents] = useState<LeadEvent[]>([])
   const [trials, setTrials] = useState<TrialLesson[]>([])
   const [groups, setGroups] = useState<Group[]>([])
+  const [teachers, setTeachers] = useState<Teacher[]>([])
 
   const [noteText, setNoteText] = useState('')
   const [savingNote, setSavingNote] = useState(false)
@@ -143,6 +145,7 @@ export function LeadDetailModal({ lead, onClose, onEdit, onDelete, onConverted }
   const [sendingTest, setSendingTest] = useState(false)
   const [sendTestResult, setSendTestResult] = useState<string | null>(null)
 
+  const [trialTeacherId, setTrialTeacherId] = useState('')
   const [trialGroupId, setTrialGroupId] = useState('')
   const [trialAt, setTrialAt] = useState('')
   // Sinov darsi cheki (to'lovsiz ro'yxat varaqasi) — qaysi trial cheki ochiq + avto-print.
@@ -150,6 +153,7 @@ export function LeadDetailModal({ lead, onClose, onEdit, onDelete, onConverted }
   const [receiptAuto, setReceiptAuto] = useState(false)
   const [savingTrial, setSavingTrial] = useState(false)
 
+  const [convertTeacherId, setConvertTeacherId] = useState('')
   const [convertGroupId, setConvertGroupId] = useState('')
   const [convertDate, setConvertDate] = useState('')
   const [converting, setConverting] = useState(false)
@@ -167,8 +171,10 @@ export function LeadDetailModal({ lead, onClose, onEdit, onDelete, onConverted }
   useEffect(() => {
     if (!leadId) return
     setNoteText('')
+    setTrialTeacherId('')
     setTrialGroupId('')
     setTrialAt('')
+    setConvertTeacherId('')
     setConvertGroupId('')
     setConvertDate('')
     setConvertedStudentId(lead?.convertedStudentId ?? null)
@@ -186,8 +192,26 @@ export function LeadDetailModal({ lead, onClose, onEdit, onDelete, onConverted }
     getClasses()
       .then((gs) => setGroups(gs.filter((g) => !g.isArchived)))
       .catch(() => setGroups([]))
+    getTeachers().then(setTeachers).catch(() => setTeachers([]))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [leadId])
+
+  // Guruh biriktirish — avval o'qituvchi, keyin uning guruhi (kaskad). Faqat guruhi bor o'qituvchilar.
+  const teacherOptions = useMemo(
+    () =>
+      teachers
+        .filter((t) => groups.some((g) => g.teacherId === t.id))
+        .sort((a, b) => a.fullName.localeCompare(b.fullName)),
+    [teachers, groups],
+  )
+  const convertGroups = useMemo(
+    () => groups.filter((g) => g.teacherId === convertTeacherId),
+    [groups, convertTeacherId],
+  )
+  const trialGroups = useMemo(
+    () => groups.filter((g) => g.teacherId === trialTeacherId),
+    [groups, trialTeacherId],
+  )
 
   const handleAddNote = async () => {
     if (!leadId || !noteText.trim()) return
@@ -483,14 +507,30 @@ export function LeadDetailModal({ lead, onClose, onEdit, onDelete, onConverted }
               </div>
             ) : (
               <div className="space-y-3">
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                   <Select
-                    label="Guruh (ixtiyoriy)"
-                    value={convertGroupId}
-                    onChange={(e) => setConvertGroupId(e.target.value)}
+                    label="O'qituvchi (ixtiyoriy)"
+                    value={convertTeacherId}
+                    onChange={(e) => {
+                      setConvertTeacherId(e.target.value)
+                      setConvertGroupId('')
+                    }}
                   >
                     <option value="">— biriktirmaslik —</option>
-                    {groups.map((g) => (
+                    {teacherOptions.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.fullName}
+                      </option>
+                    ))}
+                  </Select>
+                  <Select
+                    label="Guruh"
+                    value={convertGroupId}
+                    disabled={!convertTeacherId}
+                    onChange={(e) => setConvertGroupId(e.target.value)}
+                  >
+                    <option value="">{convertTeacherId ? '— guruh —' : "— avval o'qituvchi —"}</option>
+                    {convertGroups.map((g) => (
                       <option key={g.id} value={g.id}>
                         {g.name}
                       </option>
@@ -569,21 +609,41 @@ export function LeadDetailModal({ lead, onClose, onEdit, onDelete, onConverted }
             )}
 
             <form onSubmit={handleScheduleTrial} className="space-y-3">
-              <Select
-                label="Guruh"
-                value={trialGroupId}
-                onChange={(e) => {
-                  setTrialGroupId(e.target.value)
-                  setTrialAt('') // guruh o'zgardi — tanlangan kun bekor qilinadi
-                }}
-              >
-                <option value="">— guruh tanlang —</option>
-                {groups.map((g) => (
-                  <option key={g.id} value={g.id}>
-                    {g.name}
-                  </option>
-                ))}
-              </Select>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Select
+                  label="O'qituvchi"
+                  value={trialTeacherId}
+                  onChange={(e) => {
+                    // O'qituvchi o'zgardi — guruh va tanlangan kun bekor qilinadi.
+                    setTrialTeacherId(e.target.value)
+                    setTrialGroupId('')
+                    setTrialAt('')
+                  }}
+                >
+                  <option value="">— o'qituvchi tanlang —</option>
+                  {teacherOptions.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.fullName}
+                    </option>
+                  ))}
+                </Select>
+                <Select
+                  label="Guruh"
+                  value={trialGroupId}
+                  disabled={!trialTeacherId}
+                  onChange={(e) => {
+                    setTrialGroupId(e.target.value)
+                    setTrialAt('') // guruh o'zgardi — tanlangan kun bekor qilinadi
+                  }}
+                >
+                  <option value="">{trialTeacherId ? '— guruh tanlang —' : "— avval o'qituvchi —"}</option>
+                  {trialGroups.map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.name}
+                    </option>
+                  ))}
+                </Select>
+              </div>
 
               {/* Guruh jadvali: dars kunlari + vaqti */}
               {selectedTrialGroup && (
