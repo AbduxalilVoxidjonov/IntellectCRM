@@ -418,6 +418,7 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
             DistrictId = (p.DistrictId ?? "").Trim(),
             SchoolId = (p.SchoolId ?? "").Trim(),
             EnrollmentDate = enrollment,
+            CreatedAt = AppClock.Iso(),
             Balance = 0,
             DiscountPct = Math.Clamp(p.DiscountPct ?? 0, 0, 100),
             DiscountAmount = Math.Max(0m, p.DiscountAmount ?? 0m),

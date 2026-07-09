@@ -343,6 +343,8 @@ export interface Student {
   loginBlocked?: boolean
   /** Markazga kelgan (qabul) sanasi (ISO) — oylik to'lov shu oydan boshlanadi */
   enrollmentDate: string
+  /** Tizimga kiritilgan vaqt (ISO). "Yangi kiritilgani tepada" tartiblash uchun (eski yozuvda bo'sh). */
+  createdAt?: string
   /** Balans (so'm): manfiy = qarzdor, 0 = qarzsiz, musbat = avans */
   balance: number
   /** Chegirma — foiz (0..100). Avval olib tashlanadi, keyin discountAmount ayriladi. */

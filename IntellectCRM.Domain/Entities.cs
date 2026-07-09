@@ -231,6 +231,9 @@ public class Student
     public bool Active { get; set; }
     /// <summary>Markazga kelgan (qabul) sanasi (ISO "YYYY-MM-DD"). Oylik to'lov shu oydan boshlanadi.</summary>
     public string EnrollmentDate { get; set; } = string.Empty;
+    /// <summary>Tizimga kiritilgan vaqt (ISO). Ro'yxatni "yangi kiritilgani tepada" tartiblash uchun.
+    /// Eski yozuvlarda bo'sh — tartiblashda EnrollmentDate'ga tushiladi.</summary>
+    public string CreatedAt { get; set; } = string.Empty;
     /// <summary>Balans (so'm): manfiy = qarzdor, 0 = qarzsiz, musbat = avans.</summary>
     public decimal Balance { get; set; }
     /// <summary>Shu o'quvchiga biriktirilgan tizim akkaunti (AppUser) id'si.</summary>

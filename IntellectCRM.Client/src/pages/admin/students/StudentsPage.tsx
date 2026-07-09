@@ -201,6 +201,8 @@ export function StudentsPage() {
     const matchBirthday = !birthdayToday || (s.birthDate && s.birthDate.slice(5, 10) === todayMonthDay)
     return matchSearch && matchClass && matchTeacher && matchGender && matchBalance && matchActive && matchDistrict && matchSchool && matchBirthday
   })
+    // "Yangi kiritilgani tepada": tizimga kiritilgan vaqt (bo'lmasa qabul sanasi) bo'yicha kamayish.
+    .sort((a, b) => (b.createdAt || b.enrollmentDate || '').localeCompare(a.createdAt || a.enrollmentDate || ''))
 
   // Pagination — standart 30 talik, pastda sahifa hajmini tanlash mumkin.
   const [page, setPage] = useState(1)

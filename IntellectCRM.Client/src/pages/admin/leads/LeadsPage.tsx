@@ -48,6 +48,9 @@ export function LeadsPage() {
   const [callLead, setCallLead] = useState<Lead | null>(null)
   // Lidlarga ommaviy SMS oynasi
   const [bulkSmsOpen, setBulkSmsOpen] = useState(false)
+  // Sana bo'yicha filtr (kiritilgan sana): bitta kun (dan=gacha) yoki oraliq
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
 
@@ -151,6 +154,17 @@ export function LeadsPage() {
 
   const activeLead = activeId ? leads.find((l) => l.id === activeId) : null
   const convertedCount = leads.filter((l) => l.convertedStudentId).length
+  // Sana filtri: lid kiritilgan sana (createdAt) tanlangan oraliqqa kirsa ko'rinadi.
+  const dateActive = !!(dateFrom || dateTo)
+  const inDateRange = (l: Lead) => {
+    if (!dateActive) return true
+    const d = (l.createdAt || '').slice(0, 10)
+    if (!d) return false
+    if (dateFrom && d < dateFrom) return false
+    if (dateTo && d > dateTo) return false
+    return true
+  }
+  const visibleLeads = leads.filter(inDateRange)
   // Xavfsizlik tarmog'i: bosqichi mavjud ustunlardan biriga MOS KELMAYDIGAN lid (eski bo'sh "" yoki
   // o'chirilgan ustun — masalan daraja testidan bosqich yo'q paytda tushgan) ko'rinmay qolmasin —
   // birinchi ustunda ko'rsatamiz (sudrab to'g'ri ustunga o'tkazish mumkin).
@@ -182,6 +196,52 @@ export function LeadsPage() {
         }
       />
 
+      {/* Sana bo'yicha filtr — bitta kun (Bugun) yoki "dan ... gacha" oraliq */}
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <span className="text-sm font-medium text-slate-500">Kiritilgan sana:</span>
+        <input
+          type="date"
+          value={dateFrom}
+          max={dateTo || undefined}
+          onChange={(e) => setDateFrom(e.target.value)}
+          className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 outline-none focus:border-brand-400"
+        />
+        <span className="text-slate-400">—</span>
+        <input
+          type="date"
+          value={dateTo}
+          min={dateFrom || undefined}
+          onChange={(e) => setDateTo(e.target.value)}
+          className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 outline-none focus:border-brand-400"
+        />
+        <button
+          type="button"
+          onClick={() => {
+            const t = new Date().toISOString().slice(0, 10)
+            setDateFrom(t)
+            setDateTo(t)
+          }}
+          className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
+        >
+          Bugun
+        </button>
+        {dateActive && (
+          <>
+            <button
+              type="button"
+              onClick={() => {
+                setDateFrom('')
+                setDateTo('')
+              }}
+              className="rounded-lg px-3 py-1.5 text-sm font-medium text-slate-400 transition-colors hover:bg-slate-50 hover:text-slate-600"
+            >
+              Tozalash
+            </button>
+            <span className="text-sm text-slate-400">{visibleLeads.length} ta topildi</span>
+          </>
+        )}
+      </div>
+
       {loading ? (
         <Loader label="Yuklanmoqda..." />
       ) : (
@@ -191,13 +251,13 @@ export function LeadsPage() {
               <LeadColumn
                 key={stage.id}
                 stage={stage}
-                leads={leads
+                leads={visibleLeads
                   .filter((l) => l.stage === stage.id || (i === 0 && !stageIds.has(l.stage)))
-                  // Eng ko'p kun qolib ketgan (eng eski) lid tepada — qancha eski bo'lsa shuncha yuqori.
+                  // Yangi kelgan (eng so'nggi kiritilgan) lid tepada.
                   .sort((a, b) => {
-                    const ta = a.createdAt ? new Date(a.createdAt).getTime() : Number.POSITIVE_INFINITY
-                    const tb = b.createdAt ? new Date(b.createdAt).getTime() : Number.POSITIVE_INFINITY
-                    return ta - tb
+                    const ta = a.createdAt ? new Date(a.createdAt).getTime() : 0
+                    const tb = b.createdAt ? new Date(b.createdAt).getTime() : 0
+                    return tb - ta
                   })}
                 isFirst={i === 0}
                 isLast={i === stages.length - 1}
