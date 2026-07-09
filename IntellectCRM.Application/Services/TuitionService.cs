@@ -318,10 +318,11 @@ public static class TuitionService
         }
     }
 
-    /// <summary>MUZLATILGAN oyning QISMAN to'lovini hisoblaydi: o'quvchi shu oyda muzlatilgunga QADAR qatnashgan
-    /// darslar uchun to'lov. Bir dars = oylik narx ÷ shu oydagi jami dars; to'lov = bir dars × (faol boshlanishidan
-    /// muzlatish sanasigacha, sanasidan OLDINGI darslar). Faol boshlanishi = shu oyda aktivlashtirilgan bo'lsa o'sha
-    /// sana, aks holda oy boshi. Mavjud yozuvni IDEMPOTENT almashtiradi; <c>Locked</c> bo'lsa tegmaydi.
+    /// <summary>MUZLATILGAN oyning QISMAN to'lovini hisoblaydi: o'quvchi shu oyda muzlatilgan SANAGACHA (shu sana
+    /// ham kiradi) qatnashgan darslar uchun to'lov. Bir dars = oylik narx ÷ shu oydagi jami dars; to'lov = bir dars ×
+    /// (faol boshlanishidan muzlatish sanasigacha, MUZLATISH SANASI HAM hisobga olinadi — o'sha kuni dars bo'lsa
+    /// qo'shiladi). Faol boshlanishi = shu oyda aktivlashtirilgan bo'lsa o'sha sana, aks holda oy boshi. Mavjud
+    /// yozuvni IDEMPOTENT almashtiradi; <c>Locked</c> bo'lsa tegmaydi.
     /// <para>CARRY-FORWARD: SHU OYDA muzlatish→qayta aktivlashtirish→yana muzlatish tsikli bo'lsa (masalan
     /// 1-yanv aktiv → 10-yanv muzlatish → 15-yanv qayta aktiv → 20-yanv yana muzlatish), oldingi allaqachon
     /// YAKUNLANGAN segmentlarning to'lovi (1–9 yanv) YO'QOLMASLIGI kerak. Buning uchun <c>existing.Date</c> aynan
@@ -348,12 +349,13 @@ public static class TuitionService
             activeFrom = act;
             activatedThisMonth = true;
         }
-        // Muzlatish sanasidan OLDINGI darslar (shu sananing o'zi hisoblanmaydi — "shu sanadan to'xtaydi").
-        var before = fz > activeFrom ? LessonsInRange(cls.Days, activeFrom, fz.AddDays(-1)) : 0;
+        // Muzlatish SANASIGACHA qatnashilgan darslar — shu sananing O'ZI HAM kiradi (o'sha kuni dars bo'lsa
+        // hisoblanadi): bugungi sanadan muzlatilsa bugungi dars ham to'lovga qo'shiladi.
+        var studied = fz >= activeFrom ? LessonsInRange(cls.Days, activeFrom, fz) : 0;
         // Qatnashilgan darslar uchun (aktivlashtirish bilan bir xil formula): jami/12+ → to'liq, aks holda
         // qatnashilgan dars × kursning bir dars yaxlit narxi (LessonPrice; yo'q bo'lsa eski pro-rata).
         var lessonFee = await LessonFeeForCourseAsync(db, cls.CourseId);
-        var gross = ProratedLessonCharge(cls.MonthlyFee, lessonFee, before, totalInMonth);
+        var gross = ProratedLessonCharge(cls.MonthlyFee, lessonFee, studied, totalInMonth);
 
         // Per-guruh billingga o'tdik — shu oyning eski aggregate (GroupId=null) qatorini darhol tozalaymiz
         // (aks holda muzlatish faqat per-guruh qatorni kamaytirib, aggregate qator to'liq oy bo'lib qolardi).
