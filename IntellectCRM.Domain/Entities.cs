@@ -978,6 +978,16 @@ public class CenterMeta
     /// <summary>Kunlik AI tahlil soati (0-23, Toshkent). Default 8 (ertalab).</summary>
     public int AiDailyAnalysisHour { get; set; } = 8;
 
+    // ---------- Xodimga topshiriq (checklist) kunlik jo'natish ----------
+    /// <summary>"Adminga topshiriq" kunlik jo'natilishi yoqilganmi (default true). Yoqilgan bo'lsa fon
+    /// xizmati har kuni <see cref="StaffTaskHour"/>:<see cref="StaffTaskMinute"/> (Toshkent) da har bir
+    /// topshiriqli xodimga Telegram bot orqali shu kungi checklistni yuboradi.</summary>
+    public bool StaffTaskEnabled { get; set; } = true;
+    /// <summary>Xodim checklisti ertalab jo'natiladigan soat (0-23, Toshkent). Default 9.</summary>
+    public int StaffTaskHour { get; set; } = 9;
+    /// <summary>Xodim checklisti jo'natiladigan daqiqa (0-59). Default 0.</summary>
+    public int StaffTaskMinute { get; set; }
+
     // ---------- Eskiz.uz SMS shlyuzi ----------
     /// <summary>Eskiz kabinet email (login). Admin "Sozlamalar → SMS (Eskiz)"da kiritadi.</summary>
     public string EskizEmail { get; set; } = string.Empty;
@@ -1969,4 +1979,39 @@ public class CtiCommandLog
     /// <summary>"pending" | "sent" | "acked" | "failed".</summary>
     public string Status { get; set; } = "pending";
     public DateTime CreatedAt { get; set; } = AppClock.Now;
+}
+
+/// <summary>Xodimga (admin/staff) biriktirilgan CUSTOM topshiriq (checklist bandi). "Adminga topshiriq"
+/// bo'limida superadmin har xodim uchun alohida topshiriqlar ro'yxatini tuzadi. Har kuni ertalab
+/// shu topshiriqlar Telegram bot orqali xodimga "bajarildi" tugmasi bilan yuboriladi.</summary>
+public class StaffTask
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    /// <summary>Egasi (AppUser.Id) — admin yoki staff.</summary>
+    public string StaffUserId { get; set; } = string.Empty;
+    public string Title { get; set; } = string.Empty;
+    public int Order { get; set; }
+    public string CreatedAt { get; set; } = string.Empty;
+}
+
+/// <summary>Xodim topshirig'ining KUNLIK yozuvi (tarix): har (xodim, sana) uchun shu kungi checklist
+/// bandlari va bajarildi/bajarilmadi holati. Kunlik jo'natishda snapshot sifatida yaratiladi (Title
+/// nusxasi bilan — topshiriq keyin o'chirilsa ham tarix saqlanadi). Xodim botda "bajarildi" bosganda
+/// <see cref="Done"/> yangilanadi.</summary>
+public class StaffTaskLog
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    /// <summary>Manba topshiriq (StaffTask.Id). Topshiriq o'chirilsa ham yozuv (Title bilan) qoladi.</summary>
+    public string TaskId { get; set; } = string.Empty;
+    public string StaffUserId { get; set; } = string.Empty;
+    /// <summary>Kun ("yyyy-MM-dd").</summary>
+    public string Date { get; set; } = string.Empty;
+    /// <summary>Topshiriq nomi nusxasi (o'sha kundagi holat).</summary>
+    public string Title { get; set; } = string.Empty;
+    /// <summary>Checklistdagi tartib (topshiriq Order'idan nusxa).</summary>
+    public int Order { get; set; }
+    public bool Done { get; set; }
+    /// <summary>Bajarildi deb belgilangan vaqt (ISO). Bo'sh — bajarilmagan.</summary>
+    public string? DoneAt { get; set; }
+    public string CreatedAt { get; set; } = string.Empty;
 }

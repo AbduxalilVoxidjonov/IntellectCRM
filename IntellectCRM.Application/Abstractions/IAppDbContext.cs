@@ -45,6 +45,8 @@ public interface IAppDbContext
     DbSet<TelegramRegistration> TelegramRegistrations { get; }
     DbSet<BotUser> BotUsers { get; }
     DbSet<TelegramGroup> TelegramGroups { get; }
+    DbSet<StaffTask> StaffTasks { get; }
+    DbSet<StaffTaskLog> StaffTaskLogs { get; }
     DbSet<BotSupportMessage> BotSupportMessages { get; }
     DbSet<Assignment> Assignments { get; }
     DbSet<AssignmentType> AssignmentTypes { get; }

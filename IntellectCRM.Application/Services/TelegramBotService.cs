@@ -297,6 +297,40 @@ public class TelegramBotService(
         {
             await HandleSupportCommandAsync(chatId, ct);
         }
+        else if (data.StartsWith(StaffTaskChecklist.CallbackPrefix, StringComparison.Ordinal))
+        {
+            var logId = data[StaffTaskChecklist.CallbackPrefix.Length..];
+            long messageId = 0;
+            if (cq.TryGetProperty("message", out var m) && m.TryGetProperty("message_id", out var midEl))
+                messageId = midEl.GetInt64();
+            await HandleStaffTaskDoneAsync(chatId, messageId, logId, ct);
+        }
+    }
+
+    /// <summary>Xodim checklistdagi bandni "bajarildi/bekor" qiladi (toggle) va o'sha xabar tugmalarini
+    /// joyida yangilaydi. Faqat shu band EGASI (chatId → shu xodim TelegramRegistration) o'zgartira oladi.</summary>
+    private async Task HandleStaffTaskDoneAsync(long chatId, long messageId, string logId, CancellationToken ct)
+    {
+        using var scope = sp.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
+
+        var log = await db.StaffTaskLogs.FirstOrDefaultAsync(l => l.Id == logId, ct);
+        if (log is null) return;
+
+        // Xavfsizlik: faqat shu topshiriq egasi (o'z chati) belgilay oladi.
+        var owns = await db.TelegramRegistrations.AnyAsync(
+            r => r.ChatId == chatId && r.UserId == log.StaffUserId, ct);
+        if (!owns) return;
+
+        log.Done = !log.Done;
+        log.DoneAt = log.Done ? AppClock.Now.ToString("yyyy-MM-ddTHH:mm:ss") : null;
+        await db.SaveChangesAsync(ct);
+
+        // O'sha xabar tugmalarini yangilaymiz (☐ ↔ ✅).
+        var logs = await db.StaffTaskLogs
+            .Where(l => l.StaffUserId == log.StaffUserId && l.Date == log.Date).ToListAsync(ct);
+        if (messageId != 0)
+            await telegram.EditMessageReplyMarkupAsync(chatId, messageId, StaffTaskChecklist.Keyboard(logs), ct);
     }
 
     /// <summary>

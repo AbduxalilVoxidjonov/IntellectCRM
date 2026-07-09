@@ -86,6 +86,28 @@ public class TelegramService(
         }
     }
 
+    /// <summary>Mavjud xabarning inline-klaviaturasini (reply_markup) yangilaydi (editMessageReplyMarkup).
+    /// Checklist tugmalari holatini (☐ → ✅) o'sha xabarning O'ZIDA yangilash uchun.</summary>
+    public async Task<bool> EditMessageReplyMarkupAsync(
+        long chatId, long messageId, object? replyMarkup, CancellationToken ct = default)
+    {
+        if (!IsConfigured) return false;
+        try
+        {
+            var payload = new Dictionary<string, object?> { ["chat_id"] = chatId, ["message_id"] = messageId };
+            if (replyMarkup is not null) payload["reply_markup"] = replyMarkup;
+            using var content = new StringContent(
+                JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+            var resp = await Client().PostAsync($"{ApiBase}/editMessageReplyMarkup", content, ct);
+            return resp.IsSuccessStatusCode;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Telegram editMessageReplyMarkup xatosi");
+            return false;
+        }
+    }
+
     /// <summary>
     /// Berilgan chatga hujjat (fayl) yuboradi (sendDocument, multipart/form-data). Shartnoma
     /// .docx faylini yetkazish uchun. Muvaffaqiyat — true. Token yo'q bo'lsa — false (yubormaydi).

@@ -44,6 +44,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<TelegramRegistration> TelegramRegistrations => Set<TelegramRegistration>();
     public DbSet<BotUser> BotUsers => Set<BotUser>();
     public DbSet<TelegramGroup> TelegramGroups => Set<TelegramGroup>();
+    public DbSet<StaffTask> StaffTasks => Set<StaffTask>();
+    public DbSet<StaffTaskLog> StaffTaskLogs => Set<StaffTaskLog>();
     public DbSet<BotSupportMessage> BotSupportMessages => Set<BotSupportMessage>();
     public DbSet<Assignment> Assignments => Set<Assignment>();
     public DbSet<AssignmentType> AssignmentTypes => Set<AssignmentType>();

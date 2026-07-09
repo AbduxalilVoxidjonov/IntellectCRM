@@ -27,6 +27,7 @@ import { BallSabablarPage } from '@/pages/admin/discipline/BallSabablarPage'
 import { TeacherReportsPage } from '@/pages/admin/teacher-reports/TeacherReportsPage'
 import { ContractsPage } from '@/pages/admin/contracts/ContractsPage'
 import { BranchesPage } from '@/pages/admin/branches/BranchesPage'
+import { StaffTasksPage } from '@/pages/admin/staff-tasks/StaffTasksPage'
 import { StaffPage } from '@/pages/admin/staff/StaffPage'
 import { FeedbackPage } from '@/pages/admin/feedback/FeedbackPage'
 import { SubjectsPage } from '@/pages/admin/subjects/SubjectsPage'
@@ -205,6 +206,7 @@ export default function App() {
           <Route path="boshqaruv/roles" element={<Navigate to="/admin/boshqaruv/staff" replace />} />
           <Route element={<ProtectedRoute role="superadmin" />}>
             <Route path="boshqaruv/branches" element={<BranchesPage />} />
+            <Route path="boshqaruv/staff-tasks" element={<StaffTasksPage />} />
           </Route>
         </Route>
       </Route>

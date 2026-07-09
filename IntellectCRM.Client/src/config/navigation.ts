@@ -161,6 +161,7 @@ export const navByRole: Record<Role, NavItem[]> = {
       children: [
         { label: 'Kameralar', to: '/admin/boshqaruv/cameras', perm: 'cameras' },
         { label: 'Filiallar', to: '/admin/boshqaruv/branches', roles: ['superadmin'] },
+        { label: 'Adminga topshiriq', to: '/admin/boshqaruv/staff-tasks', roles: ['superadmin'] },
         { label: 'Xodimlar va rollar', to: '/admin/boshqaruv/staff', perm: 'staff' },
         { label: 'Taklif va shikoyatlar', to: '/admin/boshqaruv/feedback', perm: 'feedback' },
       ],
