@@ -47,6 +47,9 @@ export interface GroupJournalStudent {
   activatedAt: string
   /** O'quvchi balansi (manfiy = qarz). */
   balance: number
+  /** O'quvchi guruhda boshlangan sana ("yyyy-MM-dd"). Undan oldingi darslarga davomat/baho kiritilmaydi
+   *  (bu sanadan oldingi kataklar bloklanadi). Aktivlashtirilgan bo'lsa ActivatedAt, aks holda JoinedAt. */
+  memberStart: string
 }
 export interface GroupJournal {
   group: GroupJournalInfo

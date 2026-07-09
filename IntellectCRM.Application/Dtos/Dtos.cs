@@ -482,8 +482,10 @@ public record ConductedLessonDto(string ClassId, string SubjectId, int Period);
 public record GroupJournalInfoDto(
     string Id, string Name, string CourseId, string CourseName, string TeacherName,
     List<int> Days, string StartTime, string EndTime, string Room, string StartDate, decimal MonthlyFee);
-/// <summary>Guruh jurnalidagi o'quvchi qatori (faqat faol a'zolar).</summary>
-public record GroupJournalStudentDto(string StudentId, string FullName, string Status, string ActivatedAt, decimal Balance);
+/// <summary>Guruh jurnalidagi o'quvchi qatori (faqat faol a'zolar). MemberStart — o'quvchi guruhda
+/// boshlangan sana ("yyyy-MM-dd", aktivlashtirilgan bo'lsa ActivatedAt, aks holda JoinedAt); undan
+/// oldingi darslarga davomat/baho KIRITILMAYDI (frontend shu sanadan oldingi kataklarni bloklaydi).</summary>
+public record GroupJournalStudentDto(string StudentId, string FullName, string Status, string ActivatedAt, decimal Balance, string MemberStart);
 /// <summary>Guruhning bitta oylik jurnali: ustunlar guruh dars kunlari bo'yicha avtomatik, qatorlar — faol o'quvchilar.
 /// <see cref="ConductedDates"/> — "o'tildi" deb belgilangan dars sanalari (sababsiz o'quvchi shu kunda KELDI = yashil).</summary>
 public record GroupJournalDto(

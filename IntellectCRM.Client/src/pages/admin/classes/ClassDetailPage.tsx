@@ -738,7 +738,10 @@ export function ClassDetailPage() {
                             const e = entryMap.get(`${st.studentId}|${c.date}`)
                             const reason = e?.reasonId ? reasonById.get(e.reasonId) : undefined
                             const isToday = c.date === today
-                            const isBeforeStart = !!g.startDate && c.date < g.startDate
+                            // O'quvchi guruhda boshlagan sanadan (memberStart) yoki guruh yaratilishidan
+                            // OLDINGI darslarga davomat/baho qo'yib bo'lmaydi — katak bloklanadi.
+                            const beforeMember = !!st.memberStart && c.date < st.memberStart
+                            const isBeforeStart = (!!g.startDate && c.date < g.startDate) || beforeMember
                             // Keldi (yashil): dars o'tildi + baho yo'q + sabab yo'q.
                             const present = e?.grade == null && !reason && conductedSet.has(c.date)
                             const masteryInfo = e?.mastery != null ? masteryDisplay(e.mastery) : { label: '', cls: '' }
@@ -772,7 +775,7 @@ export function ClassDetailPage() {
                                               ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
                                               : 'text-slate-300 hover:bg-brand-50',
                                   )}
-                                  title={isBeforeStart ? 'Sana guruh yaratilishidan oldin' : `${st.fullName} — ${formatDate(c.date)}`}
+                                  title={isBeforeStart ? (beforeMember ? "O'quvchi guruhga qo'shilishidan oldingi dars" : 'Sana guruh yaratilishidan oldin') : `${st.fullName} — ${formatDate(c.date)}`}
                                 >
                                   {e?.grade != null
                                     ? e.grade

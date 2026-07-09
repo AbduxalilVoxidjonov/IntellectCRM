@@ -48,7 +48,7 @@ public static class JournalService
             .Select(m =>
             {
                 var st = studentById[m.StudentId];
-                return new GroupJournalStudentDto(m.StudentId, st.FullName, m.Status ?? "trial", m.ActivatedAt ?? "", st.Balance);
+                return new GroupJournalStudentDto(m.StudentId, st.FullName, m.Status ?? "trial", m.ActivatedAt ?? "", st.Balance, MemberStart(m) ?? "");
             })
             .OrderBy(s => s.FullName, StringComparer.OrdinalIgnoreCase)
             .ToList();
@@ -88,6 +88,17 @@ public static class JournalService
             cls.Id, cls.Name, subjectId, courseName, teacherName,
             cls.Days, cls.StartTime, cls.EndTime, cls.Room ?? "", cls.StartDate ?? "", cls.MonthlyFee);
         return new GroupJournalDto(info, months, resolved, columns, students, entries, conductedDates);
+    }
+
+    /// <summary>O'quvchining guruhdagi a'zoligi boshlangan sana ("yyyy-MM-dd"): aktivlashtirilgan bo'lsa
+    /// ActivatedAt, aks holda JoinedAt. Noma'lum/formatsiz bo'lsa null (cheklov qo'llanmaydi). Undan
+    /// oldingi darslarga davomat/baho kiritib bo'lmaydi.</summary>
+    private static string? MemberStart(StudentGroup? m)
+    {
+        if (m is null) return null;
+        if (!string.IsNullOrEmpty(m.ActivatedAt) && m.ActivatedAt.Length >= 10) return m.ActivatedAt[..10];
+        if (!string.IsNullOrEmpty(m.JoinedAt) && m.JoinedAt.Length >= 10) return m.JoinedAt[..10];
+        return null;
     }
 
     /// <summary>"yyyy-MM" oyidagi, berilgan hafta kunlariga (0=Du..6=Yak) to'g'ri keladigan sanalar ("yyyy-MM-dd").</summary>
@@ -131,6 +142,14 @@ public static class JournalService
         var today = AppClock.Today.ToString("yyyy-MM-dd");
         if (string.Compare(req.Date, today) > 0)
             throw new InvalidOperationException("Kelasi kunlarga o'quvchi ma'lumoti kirita olmassin");
+
+        // O'quvchining shu guruhdagi a'zoligi boshlanishidan (aktivlashtirilgan bo'lsa ActivatedAt, aks holda
+        // JoinedAt) OLDINGI darslarga ma'lumot kiritilmaydi — yangi qo'shilgan o'quvchi orqadagi darslarga tushmasin.
+        var membership = await db.StudentGroups.FirstOrDefaultAsync(sg =>
+            sg.GroupId == req.ClassId && sg.StudentId == req.StudentId && sg.IsActive);
+        var memberStart = MemberStart(membership);
+        if (memberStart is not null && string.Compare(req.Date, memberStart) < 0)
+            throw new InvalidOperationException("O'quvchi guruhga qo'shilgan/aktivlashtirilgan sanadan oldingi darsga ma'lumot kiritib bo'lmaydi");
 
         var entry = await db.JournalEntries.FirstOrDefaultAsync(e =>
             e.ClassId == req.ClassId && e.SubjectId == req.SubjectId && e.Quarter == req.Quarter &&
@@ -275,6 +294,17 @@ public static class JournalService
         if (string.Compare(req.Date, today) > 0)
             throw new InvalidOperationException("Kelasi kunlarga o'quvchi ma'lumoti kirita olmassin");
 
+        // A'zoligi shu sanadan KEYIN boshlangan o'quvchilarni chetlab o'tamiz (yangi qo'shilgan/aktivlashtirilgan
+        // o'quvchi orqadagi darsga belgilanmasin). Qolganlari odatdagidek belgilanadi.
+        var startById = (await db.StudentGroups
+                .Where(sg => sg.GroupId == req.ClassId && sg.IsActive && req.StudentIds.Contains(sg.StudentId))
+                .ToListAsync())
+            .ToDictionary(sg => sg.StudentId, MemberStart);
+        var studentIds = req.StudentIds
+            .Where(sid => !startById.TryGetValue(sid, out var st) || st is null || string.Compare(req.Date, st) >= 0)
+            .ToList();
+        if (studentIds.Count == 0) return null;
+
         // Darsni "o'tildi" deb belgilash (LessonNote).
         var note = await db.LessonNotes.FirstOrDefaultAsync(n =>
             n.ClassId == req.ClassId && n.SubjectId == req.SubjectId &&
@@ -308,10 +338,10 @@ public static class JournalService
 
         var existing = await db.JournalEntries.Where(e =>
             e.ClassId == req.ClassId && e.SubjectId == req.SubjectId && e.Quarter == quarter &&
-            e.Date == req.Date && e.Period == req.Period && req.StudentIds.Contains(e.StudentId)).ToListAsync();
+            e.Date == req.Date && e.Period == req.Period && studentIds.Contains(e.StudentId)).ToListAsync();
         var byStudent = existing.ToDictionary(e => e.StudentId);
 
-        foreach (var sid in req.StudentIds)
+        foreach (var sid in studentIds)
         {
             byStudent.TryGetValue(sid, out var entry);
             if (req.Absent)

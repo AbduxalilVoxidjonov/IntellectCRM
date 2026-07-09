@@ -489,6 +489,11 @@ export function TeacherGroupDetailPage() {
                             const e = entryMap.get(`${st.studentId}|${c.date}`)
                             const reason = e?.reasonId ? reasonById.get(e.reasonId) : undefined
                             const isToday = c.date === today
+                            // O'quvchi guruhda boshlagan (memberStart) yoki guruh yaratilishidan OLDINGI
+                            // darslarga davomat/baho qo'yib bo'lmaydi — katak bloklanadi.
+                            const beforeMember = !!st.memberStart && c.date < st.memberStart
+                            const groupStart = journal!.group.startDate
+                            const isBeforeStart = (!!groupStart && c.date < groupStart) || beforeMember
                             // Keldi (yashil): dars o'tildi + baho yo'q + sabab yo'q.
                             const present = e?.grade == null && !reason && conductedSet.has(c.date)
                             const masteryInfo = e?.mastery != null ? masteryDisplay(e.mastery) : { label: '', cls: '' }
@@ -497,11 +502,12 @@ export function TeacherGroupDetailPage() {
                                 key={c.date}
                                 className={cn(
                                   "border-b border-r border-line-soft p-1 text-center",
-                                  isToday && "bg-tealsoft",
+                                  isBeforeStart ? "bg-slate-50" : isToday && "bg-tealsoft",
                                 )}
                               >
                                 <button
                                   type="button"
+                                  disabled={isBeforeStart}
                                   onClick={() =>
                                     setCell({
                                       studentId: st.studentId,
@@ -511,7 +517,9 @@ export function TeacherGroupDetailPage() {
                                   }
                                   className={cn(
                                     "flex h-9 w-full min-w-9 items-center justify-center rounded-md text-sm font-semibold transition-colors",
-                                    e?.grade != null
+                                    isBeforeStart
+                                      ? "cursor-not-allowed text-slate-200"
+                                      : e?.grade != null
                                       ? gradeFill(e.grade)
                                       : e?.mastery != null
                                         ? masteryInfo.cls
@@ -523,7 +531,7 @@ export function TeacherGroupDetailPage() {
                                             ? "bg-emerald-50 text-emerald-600"
                                             : "text-faint",
                                   )}
-                                  title={`${st.fullName} — ${formatDate(c.date)}`}
+                                  title={isBeforeStart ? (beforeMember ? "O'quvchi guruhga qo'shilishidan oldingi dars" : 'Sana guruh yaratilishidan oldin') : `${st.fullName} — ${formatDate(c.date)}`}
                                 >
                                   {e?.grade != null
                                     ? e.grade
