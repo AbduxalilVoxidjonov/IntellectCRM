@@ -29,6 +29,16 @@ public class TelegramBotService(
     /// <summary>Telefon klaviaturasidagi "adminga murojaat" tugmasi matni (reply keyboard).</summary>
     private const string SupportButtonText = "✍️ Adminga murojaat";
 
+    /// <summary>Telefon so'rovchi yagona yo'riqnoma: tugma orqali YOKI raqamni yozib yuborish (namuna bilan).
+    /// Har ikkala usulda ham raqam markaz profili bilan solishtirilib bog'lanadi.</summary>
+    private const string PhonePrompt =
+        "📱 Telefon raqamingizni yuboring — 2 usuldan biri bilan:\n\n" +
+        "1️⃣ Pastdagi «📱 Telefon raqamni yuborish» tugmasini bosing;\n" +
+        "2️⃣ yoki raqamingizni shu ko'rinishda yozib yuboring:  901234567\n" +
+        "     (+998 90 123 45 67  yoki  998901234567  ham bo'ladi).\n\n" +
+        "Raqamingiz markaz ma'lumotlari bilan solishtirilib, profilingizga bog'lanadi.\n" +
+        "Administratorga murojaat uchun «" + SupportButtonText + "» tugmasini bosing.";
+
     /// <summary>Obunadan oldin kontakt yuborgan, lekin hali obuna bo'lmaganlar: chatId → telefon.</summary>
     private readonly ConcurrentDictionary<long, string> _pendingPhone = new();
 
@@ -195,10 +205,12 @@ public class TelegramBotService(
             else
             {
                 await LogInAsync(chatId, text, ct);
-                await SendAsync(chatId,
-                    "Iltimos, pastdagi tugma orqali telefon raqamingizni yuboring.\n" +
-                    $"Administratorga murojaat uchun «{SupportButtonText}» tugmasini bosing.",
-                    ContactKeyboard, ct);
+                // Foydalanuvchi raqamni MATN sifatida yozgan bo'lsa — kontakt ulashgandek qabul qilamiz
+                // (moslik → profilni bog'lash), tugma bosishi shart emas. Aks holda — yo'riqnoma (namuna bilan).
+                if (LooksLikePhone(text))
+                    await HandleContactAsync(chatId, text, SenderName(msg), ct);
+                else
+                    await SendAsync(chatId, PhonePrompt, ContactKeyboard, ct);
             }
         }
     }
@@ -323,11 +335,7 @@ public class TelegramBotService(
     private async Task SendStartWelcomeAsync(long chatId, JsonElement fromHolder, CancellationToken ct)
     {
         await UpsertBotUserOnStartAsync(chatId, fromHolder, ct);
-        await SendAsync(chatId,
-            "Assalomu alaykum! 📱 Ilovaga kirish uchun pastdagi tugma orqali telefon raqamingizni yuboring " +
-            "— raqamingiz markaz ma'lumotlari bilan solishtirilib, login/parolingiz yuboriladi.\n" +
-            $"Administratorga murojaat uchun «{SupportButtonText}» tugmasini bosing.",
-            ContactKeyboard, ct);
+        await SendAsync(chatId, "Assalomu alaykum! 👋\n\n" + PhonePrompt, ContactKeyboard, ct);
     }
 
     /// <summary>Telefon kelganda: moslik → MAJBURIY obuna → register + APK.</summary>
@@ -801,6 +809,18 @@ public class TelegramBotService(
         ch = (ch ?? "").Trim();
         if (ch.StartsWith("http", StringComparison.OrdinalIgnoreCase)) return ch;
         return "https://t.me/" + ch.TrimStart('@');
+    }
+
+    /// <summary>Matn telefon raqamiga o'xshaydimi — foydalanuvchi tugmasiz, raqamni YOZIB yuborgan bo'lsa
+    /// uni kontakt ulashgandek qabul qilamiz. Faqat raqam va telefon belgilari (+ - ( ) bo'sh joy) bo'lib,
+    /// 7–12 ta raqam bo'lsa "ha" (oddiy matn/murojaatni telefon deb yanglishmaslik uchun).</summary>
+    private static bool LooksLikePhone(string text)
+    {
+        var t = text.Trim();
+        if (t.Length == 0) return false;
+        var digits = PhoneUtil.DigitsOnly(t);
+        if (digits.Length is < 7 or > 12) return false;
+        return t.All(c => char.IsDigit(c) || c is '+' or '-' or '(' or ')' or ' ');
     }
 
     private static string SenderName(JsonElement msg)
