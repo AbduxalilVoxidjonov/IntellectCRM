@@ -6,16 +6,21 @@ using IntellectCRM.Domain;
 namespace IntellectCRM.Application.Services;
 
 /// <summary>
-/// Markaz bo'yicha o'quvchilar reytingi (o'rtacha baho + davomat) — admin "Reyting" sahifasi va
-/// o'quvchi/parent portali uchun umumiy manba. HAR O'QUVCHI BITTA QATOR: bir nechta guruhda bo'lsa
-/// ham, baho/davomat barcha FAOL guruhlari bo'yicha YIG'ILADI (ilgari har guruh uchun alohida qator
-/// chiqib, ko'p guruhli o'quvchi reytingda DUBLIKAT bo'lardi — o'rin/jami soni xato edi).
+/// Markaz bo'yicha o'quvchilar reytingi — admin "Reyting" sahifasi va o'quvchi/parent portali uchun
+/// umumiy manba. O'RIN <b>YIG'ILGAN BALL</b> bo'yicha belgilanadi (o'rtacha baho EMAS):
+/// <c>Ball = Σ(jurnal baholari) + Σ(bajarilgan baholash mezonlari)</c> — <see cref="StudentBallService"/>.
+/// O'rtacha baho va davomat qo'shimcha ko'rsatkich sifatida qaytadi.
+/// HAR O'QUVCHI BITTA QATOR: bir nechta guruhda bo'lsa ham, baho/davomat barcha FAOL guruhlari bo'yicha
+/// YIG'ILADI (ilgari har guruh uchun alohida qator chiqib, ko'p guruhli o'quvchi reytingda DUBLIKAT
+/// bo'lardi — o'rin/jami soni xato edi).
 /// </summary>
 public static class RatingService
 {
-    /// <summary>Barcha o'quvchilarning reyting qatori (har biri bir marta, o'rtacha baho + davomat).</summary>
+    /// <summary>Barcha o'quvchilarning reyting qatori (har biri bir marta: ball + o'rtacha baho + davomat).</summary>
     public static async Task<List<StudentRatingRowDto>> SchoolAsync(IAppDbContext db)
     {
+        // Yig'ilgan ball (jurnal baholari + bajarilgan mezonlar) — reyting shu bo'yicha saralanadi.
+        var balls = await StudentBallService.ComputeAsync(db);
         // Arxivlanganlar reytingda qatnashmaydi.
         var students = await db.Students.Where(s => !s.IsArchived).ToListAsync();
         var classes = await db.Classes.ToListAsync();
@@ -68,7 +73,8 @@ public static class RatingService
             var className = !string.IsNullOrEmpty(st.ClassName) ? st.ClassName : (firstCls?.Name ?? "");
             var gradeLevel = firstCls?.Grade ?? 0;
 
-            result.Add(new StudentRatingRowDto(Map(st), className, gradeLevel, average, attendance));
+            var ball = balls.GetValueOrDefault(st.Id)?.Ball ?? 0;
+            result.Add(new StudentRatingRowDto(Map(st), className, gradeLevel, average, attendance, ball));
         }
         return result;
     }

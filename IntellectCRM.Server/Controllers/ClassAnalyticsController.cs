@@ -107,7 +107,7 @@ public class ClassAnalyticsController(AppDbContext db, DataCache dataCache) : Co
             new[]
             {
                 nameof(JournalEntry), nameof(LessonNote), nameof(Student),
-                nameof(StudentGroup), nameof(Group), nameof(AbsenceReason),
+                nameof(StudentGroup), nameof(Group), nameof(AbsenceReason), nameof(CriterionGrade),
             },
             TimeSpan.FromMinutes(15),
             db2 => RatingService.SchoolAsync(db2));

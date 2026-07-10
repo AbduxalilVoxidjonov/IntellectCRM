@@ -297,23 +297,24 @@ public class StudentPortalController(
         var s = await TargetAsync(studentId);
         if (s is null) return NotFound();
 
-        // O'rtacha baho bo'yicha kamayish tartibida — adminnikidek (index = o'rin). Butun markaz reytingi
-        // admin endpointi bilan BIR xil kesh kalitidan ("rating:school") o'qiladi — bog'liq jadval o'zgarsa
-        // interceptor uni avtomatik yangilaydi.
+        // YIG'ILGAN BALL bo'yicha kamayish tartibida (o'rtacha baho emas; teng bo'lsa o'rtacha baho hal qiladi).
+        // Butun markaz reytingi admin endpointi bilan BIR xil kesh kalitidan ("rating:school") o'qiladi —
+        // bog'liq jadval o'zgarsa interceptor uni avtomatik yangilaydi.
         var school = (await dataCache.GetOrCreateAsync(
                 "rating:school",
                 new[]
                 {
                     nameof(JournalEntry), nameof(LessonNote), nameof(Student),
-                    nameof(StudentGroup), nameof(Group), nameof(AbsenceReason),
+                    nameof(StudentGroup), nameof(Group), nameof(AbsenceReason), nameof(CriterionGrade),
                 },
                 TimeSpan.FromMinutes(15),
                 db2 => RatingService.SchoolAsync(db2)))
-            .OrderByDescending(r => r.Average)
+            .OrderByDescending(r => r.Ball)
+            .ThenByDescending(r => r.Average)
             .ToList();
 
         static PortalRatingRowDto Map(StudentRatingRowDto r, int i) =>
-            new(i + 1, r.Student.Id, r.Student.FullName, r.ClassName, r.Average, r.Attendance);
+            new(i + 1, r.Student.Id, r.Student.FullName, r.ClassName, r.Average, r.Attendance, r.Ball);
 
         var classRows = school
             .Where(r => r.ClassName == s.ClassName)

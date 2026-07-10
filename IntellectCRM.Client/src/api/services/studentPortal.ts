@@ -113,6 +113,8 @@ export interface RatingRow {
   className: string
   average: number
   attendance?: number | null
+  /** Yig'ilgan ball (jurnal baholari + bajarilgan mezonlar) — reyting shu bo'yicha */
+  ball?: number
 }
 export interface StudentRating {
   meStudentId: string

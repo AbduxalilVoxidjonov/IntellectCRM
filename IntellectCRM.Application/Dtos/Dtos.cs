@@ -729,7 +729,10 @@ public record TeacherAppRowDto(
 public record ClassStudentRowDto(StudentDto Student, Dictionary<string, double> Grades, double Average, double? Attendance);
 public record ClassPerformanceDataDto(List<SubjectDto> Subjects, List<ClassStudentRowDto> Rows);
 public record ClassStatsDto(int StudentsCount, double AverageGrade, double? Attendance);
-public record StudentRatingRowDto(StudentDto Student, string ClassName, int Grade, double Average, double? Attendance);
+/// <summary>Reyting qatori. <paramref name="Ball"/> — yig'ilgan ball (jurnal baholari + bajarilgan
+/// baholash mezonlari); reyting SHU bo'yicha saralanadi. Average/Attendance — qo'shimcha ko'rsatkich.</summary>
+public record StudentRatingRowDto(
+    StudentDto Student, string ClassName, int Grade, double Average, double? Attendance, int Ball = 0);
 
 /* ---------- BALL (reyting bali) — jurnal baholari + bajarilgan baholash mezonlari ---------- */
 
@@ -793,12 +796,14 @@ public record StudentNotebookDto(
     // Uy vazifa + xulq (oyma-oy)
     int HomeworkDone, int HomeworkMissed, int BehaviorGood, int BehaviorBad, List<MonthMarksDto> MarksTrend);
 
-/// <summary>Portal reytingidagi bitta qator (o'quvchi/parent ko'rinishi — shaxsiy ma'lumotsiz: telefon/balans/manzil yo'q).</summary>
+/// <summary>Portal reytingidagi bitta qator (o'quvchi/parent ko'rinishi — shaxsiy ma'lumotsiz: telefon/balans/manzil yo'q).
+/// <paramref name="Ball"/> — YIG'ILGAN ball (reyting shu bo'yicha); Average — qo'shimcha ko'rsatkich.</summary>
 public record PortalRatingRowDto(
-    int Rank, string StudentId, string FullName, string ClassName, double Average, double? Attendance);
+    int Rank, string StudentId, string FullName, string ClassName, double Average, double? Attendance,
+    int Ball = 0);
 
 /// <summary>
-/// O'quvchi/parent reytingi (adminniki bilan bir xil hisob, o'rtacha baho bo'yicha): o'z guruhi TO'LIQ
+/// O'quvchi/parent reytingi (adminniki bilan bir xil hisob, YIG'ILGAN ball bo'yicha): o'z guruhi TO'LIQ
 /// ranglangan, markaz bo'yicha esa faqat TOP 15. `MeStudentId` — o'z qatorini ajratish uchun;
 /// `MeSchoolRank` top 15 dan tashqarida bo'lsa ham o'quvchining markaz o'rnini beradi (`SchoolSize` — jami).
 /// </summary>

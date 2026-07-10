@@ -8,7 +8,7 @@ import {
   type StudentRating,
   type RatingRow,
 } from '@/api/services/studentPortal'
-import { Icon, Ring, gradeColor, subjectColor, initials, fmtDate } from '@/pages/student/lib'
+import { Icon, Ring, subjectColor, initials, fmtDate } from '@/pages/student/lib'
 
 /* ============================================================
    O'quvchi portali — Progress ekrani (Dastur / Guruh / Markaz).
@@ -433,11 +433,11 @@ function RatingView({ scope }: { scope: 'class' | 'school' }) {
               )}
             </div>
             <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 24, fontWeight: 800, lineHeight: 1, color: gradeColor(me.average) }}>
-                {me.average.toFixed(1)}
+              <div style={{ fontSize: 24, fontWeight: 800, lineHeight: 1, color: 'var(--accent)' }}>
+                {me.ball ?? 0}
               </div>
               <div className="muted" style={{ fontSize: 11, fontWeight: 700 }}>
-                o'rtacha
+                ball
               </div>
             </div>
           </div>
@@ -520,18 +520,17 @@ function RatingView({ scope }: { scope: 'class' | 'school' }) {
                     </div>
                   )}
                 </div>
-                <div
-                  className="badge"
-                  style={{
-                    width: 34,
-                    height: 34,
-                    borderRadius: 11,
-                    background: `color-mix(in srgb,${gradeColor(e.average)} 16%,var(--surface))`,
-                    color: gradeColor(e.average),
-                    fontSize: 17,
-                  }}
-                >
-                  {e.average === Math.round(e.average) ? Math.round(e.average) : e.average.toFixed(1)}
+                {/* Yig'ilgan ball (reyting shu bo'yicha) — o'rtacha baho kichik yozuvda */}
+                <div style={{ textAlign: 'right', flex: 'none' }}>
+                  <div
+                    className="font-mono"
+                    style={{ fontSize: 17, fontWeight: 800, lineHeight: 1.1, color: m || 'var(--accent)' }}
+                  >
+                    {e.ball ?? 0}
+                  </div>
+                  <div className="muted" style={{ fontSize: 10, fontWeight: 700 }}>
+                    ball
+                  </div>
                 </div>
               </div>
             )
