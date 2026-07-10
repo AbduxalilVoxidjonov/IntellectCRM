@@ -485,6 +485,41 @@ public record ReorderRequest(List<string> Ids);
 
 /* ---------- Journal ---------- */
 /// <summary>Jurnal ustuni — bir dars (sana + dars raqami).</summary>
+/* ---------- O'quvchilar davomati (kunlik) + o'quvchining shaxsiy jurnali ---------- */
+
+/// <summary>Berilgan kunda darsga KELMAGAN (yoki kechikkan) o'quvchi — qo'ng'iroq qilish uchun telefonlari bilan.</summary>
+public record AbsentStudentDto(
+    string StudentId, string FullName, string Phone,
+    string ParentFullName, string ParentPhone, string FatherPhone, string MotherPhone,
+    string GroupId, string GroupName, string CourseName, string TeacherName,
+    string StartTime, string EndTime, string Room,
+    string ReasonId, string ReasonName, string ReasonShort, bool IsLate);
+
+/// <summary>Bir kunlik davomat xulosasi: o'tilgan darslar, davomat olingan o'quvchilar, kelmaganlar/kechikkanlar.</summary>
+public record DailyAbsenceDto(
+    string Date, int ConductedGroups, int MarkedStudents, int AbsentCount, int LateCount,
+    List<AbsentStudentDto> Rows);
+
+/// <summary>O'quvchi jurnalidagi bitta dars (faqat o'qish uchun).</summary>
+public record StudentJournalCellDto(
+    string Date, bool Conducted, bool Blocked, bool Present,
+    int? Grade, string? ReasonName, string? ReasonShort, bool IsLate,
+    int Homework, int Behavior, MasteryLevel? Mastery);
+
+/// <summary>O'quvchi jurnal oynasidagi guruh tanlovi.</summary>
+public record StudentJournalGroupDto(string GroupId, string GroupName, string CourseName, string TeacherName);
+
+/// <summary>
+/// O'quvchining BITTA guruhdagi oylik jurnali — faqat SHU o'quvchi qatori (read-only).
+/// Guruh jurnalidagi kabi kataklar: baho / davomat sababi / kelgan (✓) / dars bo'lmagan.
+/// </summary>
+public record StudentJournalDto(
+    string StudentId, string FullName,
+    List<StudentJournalGroupDto> Groups, string GroupId,
+    List<string> Months, string Month,
+    List<StudentJournalCellDto> Cells,
+    int Conducted, int Attended, int Absent, int Late, double AvgGrade);
+
 public record JournalColumnDto(string Date, int Period);
 /// <summary>Mavzular Excel importidagi xato qator (Excel qator raqami + sabab).</summary>
 public record TopicImportRowErrorDto(int Row, string Reason);

@@ -67,6 +67,7 @@ export const navByRole: Record<Role, NavItem[]> = {
       perm: 'students',
       children: [
         { label: "O'quvchilar ro'yxati", to: '/admin/students', end: true },
+        { label: "O'quvchilar davomati", to: '/admin/students/davomat' },
         { label: 'Turniket', to: '/admin/students/turniket' },
         { label: "O'quvchilarga feedback", to: '/admin/students/baholash' },
         { label: 'Feedback nomi', to: '/admin/students/baholash-turlari' },

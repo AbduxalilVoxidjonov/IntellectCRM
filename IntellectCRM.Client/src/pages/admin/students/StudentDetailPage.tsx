@@ -6,7 +6,7 @@ import {
   School, Clock, CalendarDays, ChevronRight, History, ListChecks, ChevronDown, Check,
   CalendarClock, Award, Download, LifeBuoy, Sparkles, Pencil, MessageSquare,
   PhoneIncoming, PhoneOutgoing, PhoneMissed, PhoneCall,
-  Snowflake, CheckCircle2, RotateCcw, ArrowLeftRight, Plus,
+  Snowflake, CheckCircle2, RotateCcw, ArrowLeftRight, Plus, NotebookText,
 } from 'lucide-react'
 import { genderLabels } from '@/config/constants'
 import {
@@ -56,6 +56,7 @@ import { SmsModal } from './SmsModal'
 import { CallPickerModal, type CallOption } from '@/components/CallPickerModal'
 import { ReasonPromptModal } from '@/components/ui/ReasonPromptModal'
 import { TransferGroupModal } from '../classes/TransferGroupModal'
+import { StudentJournalModal } from './StudentJournalModal'
 
 const uzMonths = [
   'Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'Iyun',
@@ -97,6 +98,8 @@ export function StudentDetailPage() {
   /** groupId → courseId (Group.courseId) — o'quv dasturini olish uchun kurs id'sini topish. */
   const [groupCourse, setGroupCourse] = useState<Record<string, string>>({})
   const [showHistory, setShowHistory] = useState(false)
+  /** "Jurnalni ko'rish" tugmasi bosilganda — faqat o'qish uchun jurnal modali. */
+  const [journalOpen, setJournalOpen] = useState(false)
   const [showAi, setShowAi] = useState(false)
   /** Saqlangan AI tahlillari (eng yangisi birinchi). */
   const [aiRecords, setAiRecords] = useState<StudentAiAnalysisRecord[]>([])
@@ -685,13 +688,22 @@ export function StudentDetailPage() {
         title="Guruhlar"
         icon={School}
         action={
-          <button
-            type="button"
-            onClick={openAddGroup}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-brand-700"
-          >
-            <Plus className="h-4 w-4" /> Guruhga qo'shish
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setJournalOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:border-brand-300 hover:text-brand-700"
+            >
+              <NotebookText className="h-4 w-4" /> Jurnalni ko'rish
+            </button>
+            <button
+              type="button"
+              onClick={openAddGroup}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-brand-700"
+            >
+              <Plus className="h-4 w-4" /> Guruhga qo'shish
+            </button>
+          </div>
         }
       >
         {groups.length === 0 ? (
@@ -1391,6 +1403,11 @@ export function StudentDetailPage() {
         studentId={showHistory ? (data?.id ?? null) : null}
         onClose={() => setShowHistory(false)}
         onPaid={() => setReloadKey((k) => k + 1)}
+      />
+
+      <StudentJournalModal
+        studentId={journalOpen ? data.id : null}
+        onClose={() => setJournalOpen(false)}
       />
 
       <PaymentModal student={paymentTarget} onClose={() => setPaymentTarget(null)} onSubmit={handlePayment} />
