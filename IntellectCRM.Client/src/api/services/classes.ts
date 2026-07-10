@@ -90,17 +90,20 @@ export async function getGroupMembers(id: string): Promise<GroupMember[]> {
   return data
 }
 
-/** Guruhga o'quvchi qo'shish. To'lgan/allaqachon a'zo bo'lsa server 409/400 qaytaradi. */
+/**
+ * Guruhga o'quvchi qo'shish. To'lgan/allaqachon a'zo bo'lsa server 409/400 qaytaradi.
+ * Arxivdagi o'quvchi qo'shilsa — server uni ARXIVDAN CHIQARADI va `restored: true` qaytaradi.
+ */
 export async function addGroupMember(
   id: string,
   studentId: string,
   joinedAt?: string,
-): Promise<{ ok: boolean }> {
+): Promise<{ ok: boolean; restored?: boolean }> {
   if (USE_MOCK) {
     await delay(150)
     return { ok: true }
   }
-  const { data } = await api.post<{ ok: boolean }>(`/admin/classes/${id}/members`, {
+  const { data } = await api.post<{ ok: boolean; restored?: boolean }>(`/admin/classes/${id}/members`, {
     studentId,
     joinedAt,
   })

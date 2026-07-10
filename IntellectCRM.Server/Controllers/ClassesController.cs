@@ -324,7 +324,10 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
     }
 
     /// <summary>O'quvchini guruhga qo'shish (M2M). Sig'im to'lgan bo'lsa rad etadi. Avval guruhsiz
-    /// o'quvchining asosiy ClassName'i shu guruh nomiga o'rnatiladi (eski ko'rinishlar uchun).</summary>
+    /// o'quvchining asosiy ClassName'i shu guruh nomiga o'rnatiladi (eski ko'rinishlar uchun).
+    /// ARXIVDAGI o'quvchi qo'shilsa — avtomatik ARXIVDAN CHIQARILADI (o'qishga qaytdi degani);
+    /// javobda <c>restored=true</c> qaytadi. Login paroli bloklangicha qoladi (arxivlashda tozalangan) —
+    /// kerak bo'lsa admin "Parolni tiklash" orqali beradi, bu arxivdan qaytarish endpointi bilan bir xil.</summary>
     [HttpPost("{id}/members")]
     public async Task<IActionResult> AddMember(string id, AddStudentToGroupRequest req)
     {
@@ -368,12 +371,26 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
         // Eski (single-class) ko'rinishlar uchun asosiy guruh nomini to'ldiramiz.
         if (string.IsNullOrWhiteSpace(s.ClassName)) s.ClassName = cls.Name;
 
+        // ARXIVDAN CHIQARISH: arxivdagi o'quvchi guruhga qo'shilyapti — demak o'qishga qaytdi.
+        // Maydonlar `POST students/{id}/restore` bilan bir xil tozalanadi (parol bloki tegilmaydi).
+        var restored = s.IsArchived;
+        if (restored)
+        {
+            s.IsArchived = false;
+            s.ArchivedAt = null;
+            s.ArchiveReason = null;
+            s.ArchivedWithClass = false;
+            audit.Record(AuditService.EntityStudentDiscount, s.Id, "update",
+                $"O'quvchi arxivdan chiqarildi — \"{cls.Name}\" guruhiga qo'shildi ({s.FullName})",
+                studentId: s.Id);
+        }
+
         await db.SaveChangesAsync();
 
         // Avto xabar — o'quvchi guruhga qo'shilganda ota-onaga ("O'quvchi guruhga qo'shilganda" hodisasi).
         await autoMsg.DispatchStudentAsync(db, AutoMessageTriggers.StudentAdded, s,
             new Dictionary<string, string> { ["{guruh}"] = cls.Name });
-        return Ok(new { ok = true });
+        return Ok(new { ok = true, restored });
     }
 
     /// <summary>Amal sababini (ActionReason) id bo'yicha matnga aylantiradi — yo'q/bo'sh bo'lsa "".</summary>

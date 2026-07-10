@@ -9,7 +9,7 @@ import {
   freezeMember,
   returnMemberToTrial,
 } from '@/api/services/classes'
-import { getStudents, createStudent } from '@/api/services/students'
+import { getStudents, getArchivedStudents, createStudent } from '@/api/services/students'
 import type { StudentPayload } from '@/api/services/students'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
@@ -53,11 +53,13 @@ export function ClassMembersModal({ group, onClose }: Props) {
     }
     let active = true
     setLoading(true)
-    Promise.all([getGroupMembers(group.id), getStudents()])
-      .then(([m, s]) => {
+    // Qidiruvga ARXIVDAGI o'quvchilar ham kiradi — ular ro'yxatda "Arxiv" belgisi bilan ko'rinadi
+    // (qo'shilsa server ularni arxivdan chiqaradi). Arxivni ko'rsatmasak, admin dublikat yaratardi.
+    Promise.all([getGroupMembers(group.id), getStudents(), getArchivedStudents().catch(() => [])])
+      .then(([m, s, arch]) => {
         if (!active) return
         setMembers(m)
-        setStudents(s)
+        setStudents([...s, ...arch])
       })
       .finally(() => active && setLoading(false))
     return () => {
@@ -79,17 +81,32 @@ export function ClassMembersModal({ group, onClose }: Props) {
     if (!q) return []
     return students
       .filter((s) => !memberIds.has(s.id) && s.fullName.toLowerCase().includes(q))
+      // Faol o'quvchilar tepada, arxivdagilar pastda.
+      .sort((a, b) => Number(a.isArchived ?? false) - Number(b.isArchived ?? false))
       .slice(0, 8)
   }, [query, students, memberIds])
 
-  const handleAdd = async (studentId: string, fullName: string) => {
+  const handleAdd = async (studentId: string, fullName: string, archived = false) => {
     if (!group || busy) return
+    // Arxivdagi o'quvchi — qo'shilsa arxivdan chiqariladi; adminni ogohlantiramiz.
+    if (archived && !confirm(
+      `"${fullName}" ARXIVDA.
+
+Guruhga qo'shilsa arxivdan chiqariladi (o'quvchilar ro'yxatiga qaytadi).
+Davom etamizmi?`,
+    )) return
     setBusy(true)
     try {
-      await addGroupMember(group.id, studentId)
+      const res = await addGroupMember(group.id, studentId)
       const fresh = await getGroupMembers(group.id)
       setMembers(fresh)
       setQuery('')
+      if (res.restored) {
+        // Arxivdan chiqarilgan o'quvchi endi faol ro'yxatda — lokal nusxani ham yangilaymiz.
+        setStudents((list) => list.map((s) => (s.id === studentId ? { ...s, isArchived: false } : s)))
+        alert(`"${fullName}" arxivdan chiqarildi va guruhga qo'shildi.
+Kerak bo'lsa "Parolni tiklash" orqali yangi parol bering.`)
+      }
     } catch (err) {
       alert(apiErrorMessage(err, `"${fullName}" ni qo'shib bo'lmadi`))
     } finally {
@@ -208,11 +225,21 @@ export function ClassMembersModal({ group, onClose }: Props) {
                     key={s.id}
                     type="button"
                     disabled={busy}
-                    onClick={() => handleAdd(s.id, s.fullName)}
-                    className="flex w-full items-center justify-between px-3 py-2 text-left text-sm text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
+                    onClick={() => handleAdd(s.id, s.fullName, s.isArchived)}
+                    className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
                   >
-                    <span>{s.fullName}</span>
-                    <UserPlus className="h-4 w-4 text-brand-600" />
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className="truncate">{s.fullName}</span>
+                      {s.isArchived && (
+                        <span
+                          className="shrink-0 rounded-md bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold text-amber-700"
+                          title="Arxivda — qo'shilsa arxivdan chiqariladi"
+                        >
+                          Arxiv
+                        </span>
+                      )}
+                    </span>
+                    <UserPlus className="h-4 w-4 shrink-0 text-brand-600" />
                   </button>
                 ))}
               </div>
