@@ -39,6 +39,8 @@ import { GroupPaymentsModal } from './GroupPaymentsModal'
 import { DailyReportCard } from './DailyReportCard'
 import { ReasonPromptModal } from '@/components/ui/ReasonPromptModal'
 import { ReceiptModal } from '@/components/finance/ReceiptModal'
+import { PaymentEditModal } from './PaymentEditModal'
+import { useAuth } from '@/context/auth-context'
 
 const todayStr = new Date().toISOString().slice(0, 10)
 const yearOf = (d: string) => Number(d.slice(0, 4))
@@ -62,6 +64,9 @@ function balanceClass(v: number): string {
 }
 
 export function FinancePage() {
+  // To'lovni tahrirlash — faqat tizim egasi (superadmin); backend ham shuni talab qiladi.
+  const { user } = useAuth()
+  const isSuper = user?.role === 'superadmin'
   const [tab, setTab] = useState<Tab>('overview')
   const [from, setFrom] = useState(`${yearOf(todayStr)}-01-01`)
   const [to, setTo] = useState(todayStr)
@@ -85,6 +90,8 @@ export function FinancePage() {
   // Chek (kvitansiya): qaysi to'lovning cheki ochiq + avtomatik print (to'lov kiritilgandan keyin).
   const [receiptTx, setReceiptTx] = useState<string | null>(null)
   const [receiptAuto, setReceiptAuto] = useState(false)
+  /** "To'lovlar" bo'limida tahrirlanayotgan o'quvchi to'lovi (superadmin). */
+  const [editPayment, setEditPayment] = useState<FinanceTransaction | null>(null)
 
   const load = useCallback(() => {
     setLoading(true)
@@ -706,6 +713,16 @@ export function FinancePage() {
                               >
                                 <History className="h-4 w-4" />
                               </button>
+                              {isSuper && (
+                                <button
+                                  type="button"
+                                  title="Tahrirlash (balans va oylik hisob moslanadi)"
+                                  onClick={() => setEditPayment(p)}
+                                  className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-brand-50 hover:text-brand-600"
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </button>
+                              )}
                               <button
                                 type="button"
                                 title="O'chirish (balans tiklanadi)"
@@ -778,6 +795,8 @@ export function FinancePage() {
         onConfirm={doDelete}
         onClose={() => setDeleting(null)}
       />
+
+      <PaymentEditModal payment={editPayment} onClose={() => setEditPayment(null)} onSaved={load} />
 
       <ReceiptModal
         txId={receiptTx}

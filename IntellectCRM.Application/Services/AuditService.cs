@@ -57,5 +57,8 @@ public class AuditService(IAppDbContext db, IHttpContextAccessor http)
         t.Month,
         t.StudentId,
         t.TeacherId,
+        t.GroupId,
+        t.Method,
+        t.Comment,
     };
 }

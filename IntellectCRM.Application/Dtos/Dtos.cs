@@ -889,6 +889,14 @@ public record ReceiptDto(
     string ResponsibleName, string GroupName, string Method, string? Comment, decimal? Total,
     string CenterName, string CenterPhone, string CenterAddress, string LogoUrl, string SettingsJson,
     string? Subtitle = null);
+/// <summary>
+/// O'quvchi to'lovini (income+tuition) tahrirlash — FAQAT superadmin. Sana/summa/oy/guruh/usul/izoh.
+/// O'quvchi o'zgartirilmaydi (boshqa o'quvchiga o'tkazish uchun o'chirib, qaytadan kiritiladi).
+/// </summary>
+public record PaymentEditPayload(
+    string Date, decimal Amount, string Month,
+    string? GroupId = null, string? Method = null, string? Comment = null);
+
 public record FinanceTransactionPayload(
     string Date, string Direction, string Category, decimal Amount, string? Note,
     string? StudentId, string? TeacherId, string? Month = null, string? GroupId = null, string? Comment = null, string? Method = null);

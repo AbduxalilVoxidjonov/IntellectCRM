@@ -298,6 +298,103 @@ public class FinanceController(AppDbContext db, AuditService audit, AutoMessageS
         if (st is not null) st.Balance += delta;
     }
 
+    /// <summary>
+    /// O'QUVCHI TO'LOVINI tahrirlash — FAQAT superadmin ("To'lovlar" bo'limidagi qalam tugmasi).
+    /// Sana, summa, qaysi oy uchun, qaysi guruh, to'lov usuli va kassir izohi o'zgartiriladi.
+    ///
+    /// Tahrir HAMMA bog'liq joyni moslaydi:
+    ///   • <b>Balans</b> — summa farqi (yangi − eski) o'quvchi balansiga qo'llanadi;
+    ///   • <b>Oylik hisob</b> — yangi (guruh, oy) uchun hisob yo'q bo'lsa ochiladi
+    ///     (<see cref="TuitionService.EnsureChargeAsync"/>, to'lov qabul qilishdagi kabi avans mantiqi);
+    ///   • <b>Izoh</b> — avtomatik izoh (oy/guruh yozilgan) yangi qiymatlar bilan qayta yoziladi;
+    ///   • <b>Hisobotlar</b> (o'quvchi qarzi, guruh/kurs tushumi, o'qituvchining FOIZLI maoshi, chek)
+    ///     to'lovdan agregat qilinadi — saqlanmaydi, shuning uchun avtomatik yangilanadi;
+    ///   • <b>Audit</b> — "update" yozuvi o'zgarishlar ro'yxati + before/after surati bilan.
+    ///
+    /// O'quvchini almashtirish bu yerda MUMKIN EMAS (o'chirib qaytadan kiritiladi).
+    /// Eski oyning hisobi (agar to'lov boshqa oyga ko'chirilsa) AVTOMATIK o'chirilmaydi — u
+    /// o'quvchining haqiqiy o'quv oyi bo'lishi mumkin; kerak bo'lsa qo'lda tahrirlanadi.
+    /// </summary>
+    [HttpPut("payments/{id}")]
+    [Authorize(Roles = Roles.SuperAdmin)]
+    public async Task<ActionResult<FinanceTransactionDto>> UpdatePayment(string id, PaymentEditPayload p)
+    {
+        var tx = await db.FinanceTransactions.FindAsync(id);
+        if (tx is null) return NotFound();
+        if (tx.Direction != "income" || tx.Category != "tuition" || string.IsNullOrEmpty(tx.StudentId))
+            return BadRequest(new { message = "Bu yozuv o'quvchi to'lovi emas — uni bu yerda tahrirlab bo'lmaydi" });
+
+        var student = await db.Students.FindAsync(tx.StudentId);
+        if (student is null) return BadRequest(new { message = "O'quvchi topilmadi" });
+
+        if (p.Amount <= 0) return BadRequest(new { message = "Summa musbat bo'lishi kerak" });
+
+        var date = (p.Date ?? "").Trim();
+        if (!DateOnly.TryParse(date, out var parsed))
+            return BadRequest(new { message = "Sana noto'g'ri" });
+        date = parsed.ToString("yyyy-MM-dd");
+        if (string.CompareOrdinal(date, AppClock.Today.ToString("yyyy-MM-dd")) > 0)
+            return BadRequest(new { message = "Kelajak sanaga to'lov kiritib bo'lmaydi" });
+
+        var month = (p.Month ?? "").Trim();
+        if (month.Length < 7) return BadRequest(new { message = "To'lov qaysi oy uchun ekanini tanlang" });
+        month = month[..7];
+
+        // Guruh: bo'sh = guruhsiz. Aks holda o'quvchining a'zoligi bo'lishi (yoki eski tegi) shart.
+        var groupId = string.IsNullOrWhiteSpace(p.GroupId) ? null : p.GroupId.Trim();
+        if (groupId is not null && groupId != tx.GroupId)
+        {
+            var isMember = await db.StudentGroups.AnyAsync(sg => sg.StudentId == student.Id && sg.GroupId == groupId);
+            if (!isMember) return BadRequest(new { message = "Tanlangan guruh o'quvchiga tegishli emas" });
+        }
+
+        var before = AuditService.Snapshot(tx);
+        var groupNames = await db.Classes.ToDictionaryAsync(c => c.Id, c => c.Name);
+        string GName(string? gid) => gid is null ? "guruhsiz" : groupNames.GetValueOrDefault(gid, gid);
+
+        var changes = new List<string>();
+        if (tx.Amount != p.Amount) changes.Add($"summa {AuditService.Money(tx.Amount)} → {AuditService.Money(p.Amount)} so'm");
+        if (tx.Date != date) changes.Add($"sana {tx.Date} → {date}");
+        if (tx.Month != month) changes.Add($"oy {tx.Month ?? "—"} → {month}");
+        if (tx.GroupId != groupId) changes.Add($"guruh {GName(tx.GroupId)} → {GName(groupId)}");
+        var method = string.IsNullOrWhiteSpace(p.Method) ? null : p.Method.Trim().ToLowerInvariant();
+        if (tx.Method != method) changes.Add($"usul {tx.Method ?? "—"} → {method ?? "—"}");
+        var comment = string.IsNullOrWhiteSpace(p.Comment) ? null : p.Comment.Trim();
+        if (tx.Comment != comment) changes.Add("izoh o'zgartirildi");
+
+        // 1) BALANS — faqat summa farqi (o'quvchi va toifa o'zgarmaydi).
+        student.Balance += p.Amount - tx.Amount;
+
+        // 2) Yozuvning o'zi.
+        var oldAutoNote = $"O'quvchi to'lovi ({tx.Month})"
+            + (tx.GroupId is null ? "" : $" [{GName(tx.GroupId)}]")
+            + $" — {student.FullName}";
+        var wasAutoNote = string.IsNullOrWhiteSpace(tx.Note) || tx.Note == oldAutoNote;
+
+        tx.Date = date;
+        tx.Amount = p.Amount;
+        tx.Month = month;
+        tx.GroupId = groupId;
+        tx.Method = method;
+        tx.Comment = comment;
+        if (wasAutoNote)
+            tx.Note = $"O'quvchi to'lovi ({month})"
+                + (groupId is null ? "" : $" [{GName(groupId)}]")
+                + $" — {student.FullName}";
+
+        // 3) OYLIK HISOB — yangi (guruh, oy) hisobi yo'q bo'lsa ochamiz (to'lov qabul qilishdagi avans mantiqi).
+        await TuitionService.EnsureChargeAsync(db, student, groupId, month);
+
+        audit.Record(AuditService.EntityFinanceTransaction, tx.Id, "update",
+            changes.Count > 0
+                ? $"To'lov tahrirlandi ({student.FullName}): " + string.Join(", ", changes)
+                : $"To'lov tahrirlandi ({student.FullName})",
+            before: before, after: AuditService.Snapshot(tx), studentId: tx.StudentId);
+
+        await db.SaveChangesAsync();
+        return ToDto(tx, await StudentNames(), await TeacherNames());
+    }
+
     [HttpDelete("transactions/{id}")]
     public async Task<IActionResult> Delete(string id, [FromQuery] string? reasonId = null)
     {

@@ -39,6 +39,23 @@ export interface FinanceTransactionPayload {
   method?: string
 }
 
+/**
+ * O'quvchi to'lovini tahrirlash (FAQAT superadmin) — sana/summa/oy/guruh/usul/izoh.
+ * Server balansni summa farqiga moslaydi va yangi (guruh, oy) hisobini kerak bo'lsa ochadi.
+ */
+export interface PaymentEditPayload {
+  date: string
+  amount: number
+  /** Qaysi oy uchun ("YYYY-MM") */
+  month: string
+  /** Qaysi guruh uchun (bo'sh = guruhsiz) */
+  groupId?: string
+  /** cash | card | bank */
+  method?: string
+  /** Kassir izohi */
+  comment?: string
+}
+
 export interface TransactionFilters {
   from?: string
   to?: string
@@ -125,6 +142,21 @@ export async function updateTransaction(
     return tx
   }
   const { data } = await api.put<FinanceTransaction>(`/admin/finance/transactions/${id}`, payload)
+  return data
+}
+
+/**
+ * O'quvchi to'lovini tahrirlash (superadmin). Server: balans = summa farqiga moslanadi,
+ * yangi (guruh, oy) uchun oylik hisob yo'q bo'lsa ochiladi, audit yoziladi.
+ */
+export async function updatePayment(id: string, payload: PaymentEditPayload): Promise<FinanceTransaction> {
+  if (USE_MOCK) {
+    await delay(250)
+    const i = financeMock.findIndex((t) => t.id === id)
+    if (i >= 0) financeMock[i] = { ...financeMock[i], ...payload }
+    return financeMock[i]
+  }
+  const { data } = await api.put<FinanceTransaction>(`/admin/finance/payments/${id}`, payload)
   return data
 }
 

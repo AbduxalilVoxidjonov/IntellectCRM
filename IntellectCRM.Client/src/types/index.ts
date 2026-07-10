@@ -743,6 +743,8 @@ export interface FinanceTransaction {
   method?: string
   /** Backend qaytaradigan guruh nomi (tuition to'lovi bo'lsa) */
   groupName?: string | null
+  /** Kassir qo'lda yozgan izoh (chekda ko'rinadi) */
+  comment?: string | null
   /** Kiritilgan vaqt (ISO "yyyy-MM-ddTHH:mm:ss", markaz mintaqasi UTC+5) — ro'yxatda soat ko'rsatish uchun */
   createdAt?: string
 }
