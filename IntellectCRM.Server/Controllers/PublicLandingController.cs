@@ -55,7 +55,7 @@ public class PublicLandingController(AppDbContext db, TelegramService telegram, 
         });
         await db.SaveChangesAsync();
 
-        await LeadNotifier.NotifyNewLeadAsync(db, telegram, lead);
+        await LeadNotifier.NotifyNewLeadAsync(db, telegram, lead, createdBy: "Sayt (ochiq forma)");
         await autoMsg.DispatchLeadAsync(db, AutoMessageTriggers.LeadNew, lead);
 
         return Ok(new { ok = true });

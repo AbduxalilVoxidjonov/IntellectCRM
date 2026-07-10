@@ -268,7 +268,8 @@ public static class LevelTestService
         // Botda ro'yxatdan o'tgan admin/xodimlarga yangi lid xabarnomasi — test natijasi bilan (batafsil).
         // isNewLead=false bo'lsa (mavjud lidga biriktirildi) — sarlavha "yangi lid" emas.
         if (telegram is not null)
-            await LeadNotifier.NotifyNewLeadAsync(db, telegram, lead, submission, test.Title, isNewLead);
+            await LeadNotifier.NotifyNewLeadAsync(db, telegram, lead, submission, test.Title, isNewLead,
+                createdBy: "Daraja testi (o'quvchi o'zi topshirdi)");
         // Avto xabar — "Test natijasi" hodisasiga yoqilgan qoidalar bo'yicha abituriyentga (lidga) SMS.
         // {natija}/{daraja}/{ball}/{foiz} tokenlari test natijasi bilan to'ldiriladi.
         if (autoMsg is not null)
@@ -383,7 +384,8 @@ public static class LevelTestService
 
         // Bir martalik havola — natija MAVJUD lidga bog'landi, shuning uchun "yangi lid" emas.
         if (telegram is not null && lead is not null)
-            await LeadNotifier.NotifyNewLeadAsync(db, telegram, lead, submission, test.Title, isNewLead: false);
+            await LeadNotifier.NotifyNewLeadAsync(db, telegram, lead, submission, test.Title, isNewLead: false,
+                createdBy: "Daraja testi (taklif havolasi)");
 
         var msg = total == 0
             ? "Rahmat! Javoblaringiz qabul qilindi."

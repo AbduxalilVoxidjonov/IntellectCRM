@@ -61,8 +61,8 @@ public class LeadsController(AppDbContext db, AuditService audit, TelegramServic
         db.Leads.Add(lead);
         AddEvent(lead.Id, "created", $"Lid yaratildi ({lead.FullName})");
         await db.SaveChangesAsync();
-        // Botda ro'yxatdan o'tgan admin/xodimlarga yangi lid xabarnomasi.
-        await LeadNotifier.NotifyNewLeadAsync(db, telegram, lead);
+        // Botda ro'yxatdan o'tgan admin/xodimlarga yangi lid xabarnomasi (kim kiritgani bilan).
+        await LeadNotifier.NotifyNewLeadAsync(db, telegram, lead, createdBy: Actor());
         // Avto xabar — "Yangi lid kelganda" hodisasiga yoqilgan qoida bo'lsa, lidga avtomatik SMS.
         await autoMsg.DispatchLeadAsync(db, AutoMessageTriggers.LeadNew, lead);
         return lead;

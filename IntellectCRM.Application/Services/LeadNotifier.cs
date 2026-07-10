@@ -13,10 +13,12 @@ namespace IntellectCRM.Application.Services;
 /// </summary>
 public static class LeadNotifier
 {
+    /// <param name="createdBy">Lidni KIM kiritgani (xabar tagida ko'rsatiladi): admin/xodim ismi,
+    /// "Sayt" (ochiq forma) yoki "Daraja testi" (o'quvchi o'zi topshirgan). Bo'sh bo'lsa qator chiqmaydi.</param>
     public static async Task NotifyNewLeadAsync(
         IAppDbContext db, TelegramService telegram, Lead lead,
         LevelTestSubmission? submission = null, string? testTitle = null,
-        bool isNewLead = true, CancellationToken ct = default)
+        bool isNewLead = true, string? createdBy = null, CancellationToken ct = default)
     {
         try
         {
@@ -33,7 +35,7 @@ public static class LeadNotifier
             var users = (await db.Users.Where(u => userIds.Contains(u.Id)).ToListAsync(ct))
                 .ToDictionary(u => u.Id);
 
-            var text = BuildText(lead, submission, testTitle, isNewLead);
+            var text = BuildText(lead, submission, testTitle, isNewLead, createdBy);
             var sentChats = new HashSet<long>();
             foreach (var r in regs)
             {
@@ -58,7 +60,8 @@ public static class LeadNotifier
         u.Role is Roles.Admin or Roles.SuperAdmin
         || (u.Role == Roles.Staff && u.Permissions.Contains("leads"));
 
-    private static string BuildText(Lead l, LevelTestSubmission? sub, string? testTitle, bool isNewLead = true)
+    private static string BuildText(
+        Lead l, LevelTestSubmission? sub, string? testTitle, bool isNewLead = true, string? createdBy = null)
     {
         var header = isNewLead ? "🆕 Yangi lid!"
             : sub is not null ? "🔁 Mavjud lid — yangi test natijasi"
@@ -100,6 +103,13 @@ public static class LeadNotifier
         {
             lines.Add("");
             lines.Add($"📝 {l.Note}");
+        }
+
+        // Eng tagida — lidni kim kiritgani.
+        if (!string.IsNullOrWhiteSpace(createdBy))
+        {
+            lines.Add("");
+            lines.Add($"🧑‍💼 Kiritdi: {createdBy}");
         }
 
         return string.Join("\n", lines);
