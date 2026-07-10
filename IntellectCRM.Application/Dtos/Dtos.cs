@@ -1632,9 +1632,14 @@ public record StudentGradingCriterionDto(string Id, string Name, int Done, int T
 /// <summary>Bitta dars (sana) — shu darsda bajarilgan mezon id'lari.</summary>
 public record StudentGradingDateDto(string Date, List<string> DoneCriterionIds);
 /// <summary>O'quvchining bitta guruhdagi baholash statistikasi (oylik xulosa + har darslik).</summary>
+/// <summary>
+/// O'quvchining bitta guruhdagi baholash xulosasi. <paramref name="MonthBall"/> — SHU OYDA yig'ilgan ball
+/// (bajarilgan mezonlar soni), <paramref name="TotalBall"/> — shu guruhda BARCHA vaqt bo'yicha yig'ilgan ball.
+/// </summary>
 public record StudentGradingGroupDto(
     string GroupId, string GroupName, List<string> Months, string Month, List<string> Dates,
-    List<StudentGradingCriterionDto> Criteria, List<StudentGradingDateDto> Lessons);
+    List<StudentGradingCriterionDto> Criteria, List<StudentGradingDateDto> Lessons,
+    int MonthBall = 0, int TotalBall = 0);
 
 /* ---------- Baholash aggregatsiya (o'quvchi-level totals) ---------- */
 /// <summary>Guruh baholash jadvali ichida o'quvchi qatori: nechta mezon biriktirilgan,

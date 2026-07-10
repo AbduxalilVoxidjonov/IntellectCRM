@@ -102,8 +102,17 @@ export function GradingPanel({
       {/* Oy navigatsiyasi */}
       <MonthNav group={g} onPick={(m) => load(m)} />
 
-      {/* OYLIK xulosa */}
+      {/* Yig'ilgan ball: shu oy + guruh bo'yicha jami (o'rtacha emas) */}
       <div className="sh" style={{ marginTop: 6 }}>
+        <div className="sh-title">Yig'ilgan ball</div>
+      </div>
+      <div className="card" style={{ display: 'flex', gap: 10 }}>
+        <BallTile label="Bu oyda" value={g.monthBall ?? 0} accent />
+        <BallTile label="Jami yig'ilgan" value={g.totalBall ?? 0} />
+      </div>
+
+      {/* OYLIK xulosa */}
+      <div className="sh" style={{ marginTop: 16 }}>
         <div className="sh-title">Oylik xulosa</div>
       </div>
       <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -178,6 +187,28 @@ export function GradingPanel({
         </div>
       )}
     </>
+  )
+}
+
+/** Ball kartachasi — "Bu oyda" / "Jami yig'ilgan". */
+function BallTile({ label, value, accent = false }: { label: string; value: number; accent?: boolean }) {
+  return (
+    <div
+      style={{
+        flex: 1, textAlign: 'center', padding: '10px 8px', borderRadius: 14,
+        background: accent ? 'var(--accentSoft, #ccfbf1)' : 'var(--surface3)',
+        border: `1px solid ${accent ? 'var(--accent)' : 'var(--border)'}`,
+      }}
+    >
+      <div className="muted" style={{ fontSize: 11.5, fontWeight: 700 }}>{label}</div>
+      <div
+        className="font-mono"
+        style={{ fontSize: 22, fontWeight: 800, marginTop: 2, color: accent ? 'var(--accent)' : undefined }}
+      >
+        {value}
+      </div>
+      <div className="muted" style={{ fontSize: 10.5 }}>ball</div>
+    </div>
   )
 }
 

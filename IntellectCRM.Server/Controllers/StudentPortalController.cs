@@ -1160,7 +1160,13 @@ public class StudentPortalController(
             var lessons = dates.Select(d => new StudentGradingDateDto(
                 d, byDate.TryGetValue(d, out var cids) ? cids : new List<string>())).ToList();
 
-            result.Add(new StudentGradingGroupDto(g.Id, g.Name, months, resolved, dates, criteria, lessons));
+            // Yig'ilgan ball: shu oyda (dars sanalari bo'yicha) va shu guruhda BARCHA vaqt bo'yicha.
+            var monthBall = criteria.Sum(c => c.Done);
+            var totalBall = await db.CriterionGrades.CountAsync(x =>
+                x.GroupId == g.Id && x.StudentId == s.Id && x.Done && critIds.Contains(x.CriterionId));
+
+            result.Add(new StudentGradingGroupDto(
+                g.Id, g.Name, months, resolved, dates, criteria, lessons, monthBall, totalBall));
         }
         return result;
     }

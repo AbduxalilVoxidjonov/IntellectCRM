@@ -348,6 +348,10 @@ export interface StudentGradingGroup {
   dates: string[]
   criteria: StudentGradingCriterion[]
   lessons: StudentGradingDate[]
+  /** Shu oyda yig'ilgan ball (bajarilgan mezonlar soni) */
+  monthBall?: number
+  /** Shu guruhda barcha vaqt bo'yicha yig'ilgan jami ball */
+  totalBall?: number
 }
 export async function getStudentGrading(month?: string, studentId?: string) {
   const { data } = await api.get<StudentGradingGroup[]>('/student/grading', {
