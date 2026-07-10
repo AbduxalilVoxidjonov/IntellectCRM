@@ -432,6 +432,12 @@ export function StudentDetailPage() {
     return monthRangeList(from, to)
   }, [data])
 
+  /** Barcha oylarda yig'ilgan JAMI ball (bajarilgan baholash mezonlari soni) — o'rtacha emas. */
+  const gradingTotalBall = useMemo(
+    () => gradingSummary.reduce((sum, m) => sum + m.totalScore, 0),
+    [gradingSummary],
+  )
+
   const attendanceChart = useMemo(() => {
     if (!data) return []
     return allMonths.map((m) => ({
@@ -1320,9 +1326,16 @@ export function StudentDetailPage() {
         )}
       </Section>
 
-      {/* Baholash xulosa (oylik o'rtacha + jami) */}
+      {/* Yig'ilgan ballar — har oyda nechta baholash mezoni bajarilgani (o'rtacha EMAS, JAMI ball) */}
       {gradingSummary.length > 0 && (
-        <Section title="Baholash xulosa" icon={ClipboardCheck}>
+        <Section title="Yig'ilgan ballar" icon={ClipboardCheck}>
+          <div className="mb-3 flex items-baseline gap-2 rounded-lg bg-gradient-to-r from-brand-50 to-slate-50 px-4 py-3">
+            <span className="text-sm font-medium text-slate-600">Jami yig'ilgan ball:</span>
+            <span className="font-mono text-2xl font-bold text-brand-700">{gradingTotalBall}</span>
+            <span className="text-xs text-slate-400">
+              {gradingSummary.length} oy · bajarilgan baholash mezonlari
+            </span>
+          </div>
           <div className="flex flex-wrap gap-2">
             {gradingSummary.map((month) => (
               <div
@@ -1334,12 +1347,12 @@ export function StudentDetailPage() {
                 </p>
                 <div className="flex items-baseline gap-2">
                   <span className="font-mono text-lg font-semibold text-slate-800">
-                    {month.averageScore.toFixed(2)}
+                    {month.totalScore}
                   </span>
-                  <span className="text-xs text-slate-400">o'rtacha</span>
+                  <span className="text-xs text-slate-400">ball</span>
                 </div>
                 <p className="text-xs text-slate-600">
-                  Jami: <span className="font-mono font-semibold">{month.totalScore}/{month.criteriaCount}</span>
+                  <span className="font-mono font-semibold">{month.criteriaCount}</span> ta mezon
                 </p>
               </div>
             ))}
