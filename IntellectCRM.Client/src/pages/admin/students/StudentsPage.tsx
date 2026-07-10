@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { usePersistentState } from '@/hooks/usePersistentState'
 import { StudentViewModal } from './StudentViewModal'
-import { Plus, Search, Pencil, Trash2, Send, Download, X, Wallet, History, Archive, RotateCcw, FileDown, Upload, ChevronLeft, ChevronRight, Lock, LockOpen, Loader2, Phone, Cake } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, Send, Download, X, Wallet, History, Archive, RotateCcw, FileDown, Upload, ChevronLeft, ChevronRight, Lock, LockOpen, Loader2, Phone, Cake, Medal } from 'lucide-react'
 import type { Gender, Student, Teacher, District } from '@/types'
 import { getDistricts } from '@/api/services/districts'
 import type { StudentPayload, StudentImportResult } from '@/api/services/students'
@@ -21,6 +21,7 @@ import {
   setStudentLoginBlock,
   setStudentLoginBlockBulk,
   downloadSelectedStudents,
+  getStudentBalls,
 } from '@/api/services/students'
 import { getClasses } from '@/api/services/classes'
 import { getTeachers } from '@/api/services/teachers'
@@ -42,6 +43,7 @@ import { CallPickerModal, type CallOption } from '@/components/CallPickerModal'
 
 type BalanceFilter = 'all' | 'debt' | 'paid'
 type Tab = 'active' | 'archived'
+type SortOption = 'default' | 'ball-desc' | 'ball-asc'
 
 /** Filtr select'lari uchun yagona ko'rinish (toolbar ichida). */
 const control =
@@ -80,6 +82,8 @@ export function StudentsPage() {
   const [classNames, setClassNames] = useState<string[]>([])
   const [teachers, setTeachers] = useState<Teacher[]>([])
   const [groupTeachers, setGroupTeachers] = useState<Record<string, string>>({})
+  /** O'quvchi ID -> ball (jurnal baholari + bajarilgan baholash mezonlari soni). */
+  const [ballMap, setBallMap] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
   /** Arxivga ko'chirish — ReasonPromptModal uchun. */
   const [archiveTarget, setArchiveTarget] = useState<Student | null>(null)
@@ -95,6 +99,7 @@ export function StudentsPage() {
   const [schoolFilter, setSchoolFilter] = usePersistentState('students.schoolFilter', 'all')
   /** "Bugun tug'ilgan kun" filtri — yil hisobga olinmasdan oy/kun bo'yicha solishtiriladi. */
   const [birthdayToday, setBirthdayToday] = usePersistentState('students.birthdayToday', false)
+  const [sort, setSort] = usePersistentState<SortOption>('students.sort', 'default')
   const [districts, setDistricts] = useState<District[]>([])
 
   // tanlash
@@ -169,6 +174,15 @@ export function StudentsPage() {
       setGroupTeachers(mapping)
     })
     getDistricts().then(setDistricts)
+    getStudentBalls()
+      .then((balls) => {
+        const map: Record<string, number> = {}
+        balls.forEach((b) => {
+          map[b.studentId] = b.ball
+        })
+        setBallMap(map)
+      })
+      .catch(() => setBallMap({}))
   }, [])
 
   // Joriy tab manbai.
@@ -201,8 +215,16 @@ export function StudentsPage() {
     const matchBirthday = !birthdayToday || (s.birthDate && s.birthDate.slice(5, 10) === todayMonthDay)
     return matchSearch && matchClass && matchTeacher && matchGender && matchBalance && matchActive && matchDistrict && matchSchool && matchBirthday
   })
-    // "Yangi kiritilgani tepada": tizimga kiritilgan vaqt (bo'lmasa qabul sanasi) bo'yicha kamayish.
-    .sort((a, b) => (b.createdAt || b.enrollmentDate || '').localeCompare(a.createdAt || a.enrollmentDate || ''))
+    .sort((a, b) => {
+      if (sort === 'ball-desc' || sort === 'ball-asc') {
+        const ballA = ballMap[a.id] ?? 0
+        const ballB = ballMap[b.id] ?? 0
+        if (ballA !== ballB) return sort === 'ball-desc' ? ballB - ballA : ballA - ballB
+        return a.fullName.localeCompare(b.fullName)
+      }
+      // "Yangi kiritilgani tepada": tizimga kiritilgan vaqt (bo'lmasa qabul sanasi) bo'yicha kamayish.
+      return (b.createdAt || b.enrollmentDate || '').localeCompare(a.createdAt || a.enrollmentDate || '')
+    })
 
   // Pagination — standart 30 talik, pastda sahifa hajmini tanlash mumkin.
   const [page, setPage] = useState(1)
@@ -216,13 +238,20 @@ export function StudentsPage() {
   // qidirib bir o'quvchini belgilab, keyin boshqasini qidirib belgilay olishi uchun.
   useEffect(() => {
     setPage(1)
-  }, [search, classFilter, teacherFilter, genderFilter, balanceFilter, activeFilter, districtFilter, schoolFilter, birthdayToday, tab, pageSize])
+  }, [search, classFilter, teacherFilter, genderFilter, balanceFilter, activeFilter, districtFilter, schoolFilter, birthdayToday, sort, tab, pageSize])
   // Faqat tab (faol/arxiv/hammasi) almashganda tanlovni tozalaymiz — bu boshqa ro'yxat.
   useEffect(() => {
     setSelected(new Set())
   }, [tab])
 
   const selectedStudents = source.filter((s) => selected.has(s.id))
+
+  // Umumiy ball bo'yicha TOP-3 o'quvchi (filtrdan qat'i nazar) — medal ikonkasi uchun.
+  const top3StudentIds = Object.entries(ballMap)
+    .filter(([, ball]) => ball > 0)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([id]) => id)
 
   // hammasini tanlash holati
   const allSelected = filtered.length > 0 && filtered.every((s) => selected.has(s.id))
@@ -260,7 +289,8 @@ export function StudentsPage() {
     activeFilter !== 'all' ||
     districtFilter !== 'all' ||
     schoolFilter !== 'all' ||
-    birthdayToday
+    birthdayToday ||
+    sort !== 'default'
   const clearFilters = () => {
     setSearch('')
     setClassFilter('all')
@@ -271,6 +301,7 @@ export function StudentsPage() {
     setDistrictFilter('all')
     setSchoolFilter('all')
     setBirthdayToday(false)
+    setSort('default')
   }
 
   // Tanlanganlarni to'liq Excel'ga yuklab olish (server: profil + guruh holati + balans + login)
@@ -675,6 +706,16 @@ export function StudentsPage() {
           >
             <Cake className="h-4 w-4" /> Bugun tug'ilgan kun
           </button>
+          <select
+            value={sort}
+            onChange={(e) => setSort(e.target.value as SortOption)}
+            className={control}
+            title="Saralash"
+          >
+            <option value="default">Saralash: standart</option>
+            <option value="ball-desc">Ball: yuqoridan</option>
+            <option value="ball-asc">Ball: pastdan</option>
+          </select>
           {filtersActive && (
             <button
               type="button"
@@ -775,6 +816,9 @@ export function StudentsPage() {
                   <th>Tug'ilgan kun</th>
                   <th>Ota-ona</th>
                   <th>Telefon</th>
+                  <th className="num" title="Jurnal baholari + bajarilgan baholash mezonlari">
+                    Ball
+                  </th>
                   <th className="num">Balans</th>
                   {tab === 'archived' && <th>Arxiv sanasi</th>}
                   {tab === 'archived' && <th>Sabab</th>}
@@ -849,6 +893,18 @@ export function StudentsPage() {
                     <td className="font-mono text-slate-600">{formatDate(s.birthDate)}</td>
                     <td className="text-slate-600">{s.parentFullName}</td>
                     <td className="font-mono text-slate-600">{s.parentPhone}</td>
+                    <td className="num">
+                      {(ballMap[s.id] ?? 0) > 0 ? (
+                        <span className="inline-flex items-center justify-end gap-1 font-mono font-semibold text-brand-700">
+                          {top3StudentIds[0] === s.id && <Medal className="h-4 w-4 text-amber-500" />}
+                          {top3StudentIds[1] === s.id && <Medal className="h-4 w-4 text-slate-400" />}
+                          {top3StudentIds[2] === s.id && <Medal className="h-4 w-4 text-orange-500" />}
+                          {ballMap[s.id]}
+                        </span>
+                      ) : (
+                        <span className="text-slate-300">—</span>
+                      )}
+                    </td>
                     <td
                       className={cn(
                         'num font-semibold',
@@ -909,7 +965,7 @@ export function StudentsPage() {
                 ))}
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan={tab === 'archived' ? 13 : 11} className="px-4 py-12 text-center text-slate-400">
+                    <td colSpan={tab === 'archived' ? 14 : 12} className="px-4 py-12 text-center text-slate-400">
                       {tab === 'archived' ? 'Arxivda o\'quvchi yo\'q' : 'Hech narsa topilmadi'}
                     </td>
                   </tr>

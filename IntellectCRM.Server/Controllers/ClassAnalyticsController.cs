@@ -111,4 +111,16 @@ public class ClassAnalyticsController(AppDbContext db, DataCache dataCache) : Co
             },
             TimeSpan.FromMinutes(15),
             db2 => RatingService.SchoolAsync(db2));
+
+    /// <summary>
+    /// Markaz bo'yicha o'quvchilar BALLI (jurnal baholari + bajarilgan baholash mezonlari) —
+    /// admin "O'quvchilar" ro'yxatidagi "Ball" ustuni va saralash uchun. Keshlangan.
+    /// </summary>
+    [HttpGet("api/admin/students/balls")]
+    public async Task<ActionResult<IEnumerable<StudentBallDto>>> Balls() =>
+        await dataCache.GetOrCreateAsync(
+            "ball:students",
+            new[] { nameof(JournalEntry), nameof(CriterionGrade), nameof(Student) },
+            TimeSpan.FromMinutes(10),
+            db2 => StudentBallService.SchoolAsync(db2));
 }

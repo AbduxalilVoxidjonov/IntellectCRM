@@ -77,6 +77,7 @@ import { TeacherSalaryPage as TeacherOwnSalaryPage } from '@/pages/teacher/salar
 import { TeacherCoveragePage } from '@/pages/teacher/coverage/CoveragePage'
 import { TeacherLearningPage } from '@/pages/teacher/learning/LearningPage'
 import { TeacherAccountPage } from '@/pages/teacher/account/AccountPage'
+import { TeacherRatingPage } from '@/pages/teacher/rating/TeacherRatingPage'
 import { TeacherMobileLayout } from '@/components/layout/TeacherMobileLayout'
 // O'quvchi portali (SPA ichida, /student/*)
 import { StudentMobileLayout } from '@/components/layout/StudentMobileLayout'
@@ -224,6 +225,7 @@ export default function App() {
           <Route path="feedback" element={<TeacherFeedbackPage />} />
           <Route path="support" element={<TeacherSupportPage />} />
           <Route path="salary" element={<TeacherOwnSalaryPage />} />
+          <Route path="rating" element={<TeacherRatingPage />} />
           <Route path="coverage" element={<TeacherCoveragePage />} />
           <Route path="learning" element={<TeacherLearningPage />} />
           <Route path="account" element={<TeacherAccountPage />} />

@@ -1,4 +1,4 @@
-import type { Credentials, MonthStatus, Student, StudentLedger } from '@/types'
+import type { Credentials, MonthStatus, Student, StudentBall, StudentLedger } from '@/types'
 import { delay, uid } from '@/lib/utils'
 import { api, USE_MOCK } from '../client'
 import { studentsMock } from '../mock/students'
@@ -626,4 +626,19 @@ export async function downloadStudentCertificate(
   a.click()
   a.remove()
   URL.revokeObjectURL(url)
+}
+
+/* ---------- Ball (reyting bali) ---------- */
+
+/**
+ * Markaz bo'yicha o'quvchilar bali: jurnal baholari yig'indisi + bajarilgan baholash mezonlari.
+ * "O'quvchilar" ro'yxatidagi "Ball" ustuni va ball bo'yicha saralash uchun (serverda keshlangan).
+ */
+export async function getStudentBalls(): Promise<StudentBall[]> {
+  if (USE_MOCK) {
+    await delay()
+    return []
+  }
+  const { data } = await api.get<StudentBall[]>('/admin/students/balls')
+  return data
 }

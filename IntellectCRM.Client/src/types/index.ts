@@ -1755,3 +1755,51 @@ export interface StudentCertificateDto {
   downloadCount: number
   metadata?: Record<string, string> | null
 }
+
+/* ---------- BALL / REYTING (jurnal baholari + bajarilgan baholash mezonlari) ---------- */
+
+/** Bitta o'quvchining markaz bo'yicha bali (admin "O'quvchilar" ro'yxatidagi "Ball" ustuni) */
+export interface StudentBall {
+  studentId: string
+  /** Jurnal baholari yig'indisi */
+  journalTotal: number
+  /** Bajarilgan baholash mezonlari soni */
+  criteriaDone: number
+  /** Ball = journalTotal + criteriaDone */
+  ball: number
+  /** O'rtacha baho (baho qo'yilgan darslar bo'yicha) */
+  average: number
+}
+
+/** O'qituvchi reytingidagi bitta qator */
+export interface TeacherRatingRow {
+  /** O'rin (1 = eng yuqori ball) */
+  rank: number
+  studentId: string
+  fullName: string
+  /** Shu o'qituvchining qaysi guruhlarida o'qiydi (vergul bilan) */
+  groups: string
+  journalTotal: number
+  criteriaDone: number
+  ball: number
+  average: number
+  /** Davomat % (o'tilgan dars yo'q bo'lsa null) */
+  attendance: number | null
+}
+
+/** O'qituvchi guruhlaridagi o'quvchilar reytingi */
+export interface TeacherRating {
+  teacherId: string
+  fullName: string
+  groupsCount: number
+  studentsCount: number
+  averageBall: number
+  rows: TeacherRatingRow[]
+}
+
+/** Lid manbasi (ma'lumotnoma) */
+export interface LeadSource {
+  id: string
+  name: string
+  order: number
+}

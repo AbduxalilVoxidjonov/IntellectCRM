@@ -1474,6 +1474,18 @@ public class ActionReason
 }
 
 /// <summary>
+/// Lid manbasi ma'lumotnomasi ("Instagram", "Sayt", "Tanish orqali" ...). Admin "O'quv bo'limi →
+/// Sabablar" sahifasida boshqaradi; lid yaratish formasi va Lidlar filtri shu ro'yxatdan tanlaydi.
+/// <see cref="Lead.Source"/> — shu manbaning NOMI (erkin matn sifatida saqlanadi, eski lidlar buzilmasin).
+/// </summary>
+public class LeadSource
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string Name { get; set; } = string.Empty;
+    public int Order { get; set; }
+}
+
+/// <summary>
 /// Arxiv yozuvi — o'chirilgan entity'ning JSON suratini (snapshot) saqlaydi. O'chirish
 /// endpointlari entity'ni hard-delete qilishdan OLDIN bu yerga surat oladi, shu sababli
 /// o'chirilgan Lid/O'quvchi/O'qituvchi/Xodim/Guruh/Moliya yozuvini keyinchalik ko'rish va

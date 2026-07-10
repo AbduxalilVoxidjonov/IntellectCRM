@@ -403,6 +403,18 @@ public class TeachersController(AppDbContext db, AuditService audit) : Controlle
     }
 
     /// <summary>
+    /// O'qituvchi o'quvchilarining REYTINGI — faqat shu o'qituvchi guruhlaridagi ball bo'yicha
+    /// (ball = jurnal baholari yig'indisi + bajarilgan baholash mezonlari).
+    /// </summary>
+    [HttpGet("{id}/rating")]
+    public async Task<ActionResult<TeacherRatingDto>> Rating(string id)
+    {
+        var teacher = await db.Teachers.FindAsync(id);
+        if (teacher is null) return NotFound();
+        return await StudentBallService.TeacherAsync(db, teacher);
+    }
+
+    /// <summary>
     /// O'qituvchi maoshi bo'yicha batafsil hisob (davr bo'yicha): jami berilgan, qoldiq va
     /// har oyda qancha oylik berilgani. Oylar davr (from..to) bo'yicha, oy = to'lov sanasi oyi.
     /// </summary>

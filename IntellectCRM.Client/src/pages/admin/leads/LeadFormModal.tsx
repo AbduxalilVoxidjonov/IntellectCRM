@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button'
 import { Input, Select, Textarea } from '@/components/ui/Input'
 import { PhoneInput } from '@/components/ui/PhoneInput'
 import { genderOptions, leadSourceOptions } from '@/config/constants'
+import { getLeadSources } from '@/api/services/leadSources'
 
 export type LeadFormValues = Omit<Lead, 'id' | 'stage'>
 
@@ -32,6 +33,18 @@ const empty: LeadFormValues = {
 
 export function LeadFormModal({ open, onClose, onSubmit, initial }: Props) {
   const [form, setForm] = useState<LeadFormValues>(empty)
+  // Manba ro'yxati serverdan ("O'quv bo'limi → Sabablar" → "Lid manbalari"); xato/bo'sh bo'lsa fallback.
+  const [sourceOptions, setSourceOptions] = useState<string[]>(leadSourceOptions)
+
+  useEffect(() => {
+    if (!open) return
+    getLeadSources()
+      .then((list) => {
+        const names = list.map((s) => s.name)
+        setSourceOptions(names.length > 0 ? names : leadSourceOptions)
+      })
+      .catch(() => setSourceOptions(leadSourceOptions))
+  }, [open])
 
   useEffect(() => {
     if (!open) return
@@ -142,7 +155,12 @@ export function LeadFormModal({ open, onClose, onSubmit, initial }: Props) {
             onChange={(e) => update('source', e.target.value)}
           >
             <option value="">— tanlanmagan —</option>
-            {leadSourceOptions.map((s) => (
+            {form.source && !sourceOptions.includes(form.source) && (
+              <option key={form.source} value={form.source}>
+                {form.source}
+              </option>
+            )}
+            {sourceOptions.map((s) => (
               <option key={s} value={s}>
                 {s}
               </option>

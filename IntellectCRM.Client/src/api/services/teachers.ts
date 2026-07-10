@@ -5,6 +5,7 @@ import type {
   SalaryLedger,
   Teacher,
   TeacherPerformance,
+  TeacherRating,
 } from '@/types'
 import { delay, uid } from '@/lib/utils'
 import { api, USE_MOCK } from '../client'
@@ -227,4 +228,19 @@ export async function getTeacherPerformanceSingle(id: string): Promise<TeacherPe
 export async function getSalaryMonth(id: string, month: string): Promise<MonthSalary | null> {
   const ledger = await getSalaryLedger(id, `${month}-01`, `${month}-31`)
   return ledger.months[0] ?? null
+}
+
+/* ---------- O'quvchilar reytingi (ball bo'yicha) ---------- */
+
+/**
+ * O'qituvchi guruhlaridagi o'quvchilar reytingi: ball = jurnal baholari yig'indisi +
+ * bajarilgan baholash mezonlari. Faqat SHU o'qituvchi guruhlaridagi ball hisoblanadi.
+ */
+export async function getTeacherRating(id: string): Promise<TeacherRating> {
+  if (USE_MOCK) {
+    await delay()
+    return { teacherId: id, fullName: '', groupsCount: 0, studentsCount: 0, averageBall: 0, rows: [] }
+  }
+  const { data } = await api.get<TeacherRating>(`/admin/teachers/${id}/rating`)
+  return data
 }

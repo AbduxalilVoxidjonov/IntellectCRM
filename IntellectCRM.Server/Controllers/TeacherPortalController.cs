@@ -205,6 +205,17 @@ public class TeacherPortalController(
         return result.OrderBy(c => c.Grade).ThenBy(c => c.ClassName).ToList();
     }
 
+    // ---------- O'quvchilar reytingi (faqat o'z guruhlari) ----------
+
+    /// <summary>O'qituvchi guruhlaridagi o'quvchilar ball bo'yicha reytingi.</summary>
+    [HttpGet("rating")]
+    public async Task<ActionResult<TeacherRatingDto>> Rating()
+    {
+        var t = await Me();
+        if (t is null) return NotFound();
+        return await StudentBallService.TeacherAsync(db, t);
+    }
+
     // ---------- Maosh (faqat o'ziniki) ----------
 
     [HttpGet("salary")]

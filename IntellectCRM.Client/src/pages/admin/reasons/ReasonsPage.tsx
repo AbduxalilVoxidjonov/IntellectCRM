@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Plus, Trash2, Check, UserX, Snowflake, RotateCcw, UserMinus, Users, Layers, GraduationCap, Briefcase, Wallet } from 'lucide-react'
+import { Plus, Trash2, Check, UserX, Snowflake, RotateCcw, UserMinus, Users, Layers, GraduationCap, Briefcase, Wallet, Megaphone } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import type { AbsenceReason, ActionReason } from '@/types'
+import type { AbsenceReason, ActionReason, LeadSource } from '@/types'
 import { getSettings, saveAbsenceReasons } from '@/api/services/settings'
 import {
   getActionReasons,
@@ -9,11 +9,17 @@ import {
   updateActionReason,
   deleteActionReason,
 } from '@/api/services/actionReasons'
+import {
+  getLeadSources,
+  createLeadSource,
+  updateLeadSource,
+  deleteLeadSource,
+} from '@/api/services/leadSources'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Loader } from '@/components/ui/Loader'
 import { PageHeader } from '@/components/ui/PageHeader'
-import { cn } from '@/lib/utils'
+import { cn, apiErrorMessage } from '@/lib/utils'
 
 /** Amal kategoriyalari — har biri o'z sabablar ro'yxatiga ega. */
 const CATEGORIES: { key: string; title: string; sub: string; icon: LucideIcon }[] = [
@@ -38,12 +44,14 @@ export function ReasonsPage() {
   const [absence, setAbsence] = useState<AbsenceReason[]>([])
   const [absStatus, setAbsStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
   const [reasons, setReasons] = useState<ActionReason[]>([])
+  const [sources, setSources] = useState<LeadSource[]>([])
 
   useEffect(() => {
-    Promise.all([getSettings(), getActionReasons()])
-      .then(([s, r]) => {
+    Promise.all([getSettings(), getActionReasons(), getLeadSources()])
+      .then(([s, r, src]) => {
         setAbsence(s.absenceReasons)
         setReasons(r)
+        setSources(src)
       })
       .finally(() => setLoading(false))
   }, [])
@@ -125,6 +133,9 @@ export function ReasonsPage() {
           </div>
         </Card>
 
+        {/* Lid manbalari (CRM) */}
+        <LeadSourcesCard sources={sources} onChange={setSources} />
+
         {/* Amal sabablari — kategoriyalar */}
         {CATEGORIES.map((cat) => (
           <CategoryCard
@@ -136,6 +147,100 @@ export function ReasonsPage() {
         ))}
       </div>
     </div>
+  )
+}
+
+function LeadSourcesCard({
+  sources,
+  onChange,
+}: {
+  sources: LeadSource[]
+  onChange: React.Dispatch<React.SetStateAction<LeadSource[]>>
+}) {
+  const [adding, setAdding] = useState('')
+  const [busy, setBusy] = useState(false)
+  const sorted = useMemo(() => [...sources].sort((a, b) => a.order - b.order), [sources])
+
+  const add = async () => {
+    const name = adding.trim()
+    if (!name || busy) return
+    setBusy(true)
+    try {
+      const created = await createLeadSource(name)
+      onChange((prev) => [...prev, created])
+      setAdding('')
+    } catch (err) {
+      alert(apiErrorMessage(err, "Saqlab bo'lmadi"))
+    } finally {
+      setBusy(false)
+    }
+  }
+  const rename = async (source: LeadSource, name: string) => {
+    const trimmed = name.trim()
+    if (!trimmed || trimmed === source.name) return
+    try {
+      await updateLeadSource(source.id, trimmed)
+      onChange((prev) => prev.map((s) => (s.id === source.id ? { ...s, name: trimmed } : s)))
+    } catch (err) {
+      alert(apiErrorMessage(err, "Saqlab bo'lmadi"))
+    }
+  }
+  const remove = async (source: LeadSource) => {
+    if (!confirm(`"${source.name}" manbasini o'chirasizmi?`)) return
+    try {
+      await deleteLeadSource(source.id)
+      onChange((prev) => prev.filter((s) => s.id !== source.id))
+    } catch (err) {
+      alert(apiErrorMessage(err, "O'chirib bo'lmadi"))
+    }
+  }
+
+  return (
+    <Card
+      title={
+        <span className="flex items-center gap-2">
+          <Megaphone className="h-4 w-4 text-brand-500" />
+          Lid manbalari
+        </span>
+      }
+      sub="Lidlar qayerdan kelganini belgilash uchun (Instagram, Sayt, Tashrif va h.k.)"
+    >
+      <div className="space-y-2">
+        {sorted.map((s) => (
+          <div key={s.id} className="flex items-center gap-2">
+            <input
+              defaultValue={s.name}
+              onBlur={(e) => rename(s, e.target.value)}
+              className={cn(control, 'flex-1')}
+            />
+            <button
+              type="button"
+              onClick={() => remove(s)}
+              className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </div>
+        ))}
+        {sorted.length === 0 && <p className="text-xs text-slate-400">Manba yo'q — quyida qo'shing.</p>}
+
+        <div className="flex items-center gap-2 pt-1">
+          <input
+            value={adding}
+            onChange={(e) => setAdding(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && add()}
+            placeholder="Yangi manba..."
+            className={cn(control, 'flex-1')}
+          />
+          <Button variant="secondary" onClick={add} disabled={busy || !adding.trim()}>
+            <Plus className="h-4 w-4" /> Qo'shish
+          </Button>
+        </div>
+        <p className="text-xs text-slate-400">
+          Nomni o'zgartirsangiz shu manbadagi lidlar ham yangi nomga ko'chadi.
+        </p>
+      </div>
+    </Card>
   )
 }
 

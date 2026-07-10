@@ -9,6 +9,7 @@ import type {
   TeacherClass,
   EvaluationBoard,
   EvaluationType,
+  TeacherRating,
 } from '@/types'
 import { api, USE_MOCK } from '../client'
 import type { MaterialInput, SaveAssignmentInput } from './assignments'
@@ -319,3 +320,12 @@ export async function getTeacherLastMessages(): Promise<Record<string, string | 
   return data
 }
 
+
+/* ---------- O'quvchilar reytingi (o'z guruhlari, ball bo'yicha) ---------- */
+
+/** Ball = jurnal baholari yig'indisi + bajarilgan baholash mezonlari (faqat o'z guruhlarida). */
+export async function getMyStudentRating(): Promise<TeacherRating | null> {
+  if (USE_MOCK) return null
+  const { data } = await api.get<TeacherRating>('/teacher/rating')
+  return data
+}

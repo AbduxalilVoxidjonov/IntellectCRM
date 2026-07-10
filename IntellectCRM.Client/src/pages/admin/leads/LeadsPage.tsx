@@ -9,8 +9,9 @@ import {
   type DragStartEvent,
 } from '@dnd-kit/core'
 import { Plus, MessageSquare } from 'lucide-react'
-import type { Lead, Stage } from '@/types'
+import type { Lead, Stage, LeadSource } from '@/types'
 import { getLeads, createLead, updateLead, updateLeadStage, deleteLead } from '@/api/services/leads'
+import { getLeadSources } from '@/api/services/leadSources'
 import {
   getStages,
   createStage,
@@ -51,6 +52,9 @@ export function LeadsPage() {
   // Sana bo'yicha filtr (kiritilgan sana): bitta kun (dan=gacha) yoki oraliq
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
+  // Manba bo'yicha filtr: 'all' | '__none__' (manbasiz) | manba nomi
+  const [sourceFilter, setSourceFilter] = useState('all')
+  const [sources, setSources] = useState<LeadSource[]>([])
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
 
@@ -61,6 +65,9 @@ export function LeadsPage() {
         setStages(s)
       })
       .finally(() => setLoading(false))
+    getLeadSources()
+      .then(setSources)
+      .catch(() => setSources([]))
   }, [])
 
   /* ---------- Karta drag-and-drop ---------- */
@@ -164,7 +171,12 @@ export function LeadsPage() {
     if (dateTo && d > dateTo) return false
     return true
   }
-  const visibleLeads = leads.filter(inDateRange)
+  const inSourceFilter = (l: Lead) => {
+    if (sourceFilter === 'all') return true
+    if (sourceFilter === '__none__') return !l.source
+    return l.source === sourceFilter
+  }
+  const visibleLeads = leads.filter((l) => inDateRange(l) && inSourceFilter(l))
   // Xavfsizlik tarmog'i: bosqichi mavjud ustunlardan biriga MOS KELMAYDIGAN lid (eski bo'sh "" yoki
   // o'chirilgan ustun — masalan daraja testidan bosqich yo'q paytda tushgan) ko'rinmay qolmasin —
   // birinchi ustunda ko'rsatamiz (sudrab to'g'ri ustunga o'tkazish mumkin).
@@ -225,13 +237,34 @@ export function LeadsPage() {
         >
           Bugun
         </button>
-        {dateActive && (
+
+        {sources.length > 0 && (
+          <>
+            <span className="ml-2 text-sm font-medium text-slate-500">Manba:</span>
+            <select
+              value={sourceFilter}
+              onChange={(e) => setSourceFilter(e.target.value)}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 outline-none focus:border-brand-400"
+            >
+              <option value="all">Barcha manbalar</option>
+              {sources.map((s) => (
+                <option key={s.id} value={s.name}>
+                  {s.name}
+                </option>
+              ))}
+              <option value="__none__">Noma'lum</option>
+            </select>
+          </>
+        )}
+
+        {(dateActive || sourceFilter !== 'all') && (
           <>
             <button
               type="button"
               onClick={() => {
                 setDateFrom('')
                 setDateTo('')
+                setSourceFilter('all')
               }}
               className="rounded-lg px-3 py-1.5 text-sm font-medium text-slate-400 transition-colors hover:bg-slate-50 hover:text-slate-600"
             >

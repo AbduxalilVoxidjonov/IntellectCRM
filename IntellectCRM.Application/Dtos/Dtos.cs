@@ -467,6 +467,10 @@ public record LeadWithAttendanceDto(
     string? Note, string Stage, string Source, string InterestSubject, string? CreatedAt,
     string? ConvertedStudentId, string? FirstLessonAttendance);
 
+/// <summary>Lid manbasi (ma'lumotnoma) — "O'quv bo'limi → Sabablar" sahifasida boshqariladi.</summary>
+public record LeadSourceDto(string Id, string Name, int Order);
+public record LeadSourceInput(string Name);
+
 /// <summary>CRM statistikasi: jami, bosqich/manba bo'yicha, konversiya %, oylik dinamika.</summary>
 public record CrmStatChartItemDto(string Label, int Count);
 public record CrmMonthlyDto(string Month, int Created, int Converted);
@@ -726,6 +730,21 @@ public record ClassStudentRowDto(StudentDto Student, Dictionary<string, double> 
 public record ClassPerformanceDataDto(List<SubjectDto> Subjects, List<ClassStudentRowDto> Rows);
 public record ClassStatsDto(int StudentsCount, double AverageGrade, double? Attendance);
 public record StudentRatingRowDto(StudentDto Student, string ClassName, int Grade, double Average, double? Attendance);
+
+/* ---------- BALL (reyting bali) — jurnal baholari + bajarilgan baholash mezonlari ---------- */
+
+/// <summary>Bitta o'quvchining markaz bo'yicha bali (admin "O'quvchilar" ro'yxatidagi "Ball" ustuni).</summary>
+public record StudentBallDto(string StudentId, int JournalTotal, int CriteriaDone, int Ball, double Average);
+
+/// <summary>O'qituvchi reytingidagi bitta qator: o'rin, o'quvchi, ball tarkibi va davomat.</summary>
+public record TeacherRatingRowDto(
+    int Rank, string StudentId, string FullName, string Groups,
+    int JournalTotal, int CriteriaDone, int Ball, double Average, double? Attendance);
+
+/// <summary>O'qituvchi guruhlaridagi o'quvchilar reytingi (ball bo'yicha, o'rin bilan).</summary>
+public record TeacherRatingDto(
+    string TeacherId, string FullName, int GroupsCount, int StudentsCount, double AverageBall,
+    List<TeacherRatingRowDto> Rows);
 /// <summary>O'quvchi davomati — har metrika chorak (1-4) → son ko'rinishida.</summary>
 public record StudentAttendanceDto(
     Dictionary<int, int> MissedDays, Dictionary<int, int> IllnessDays,

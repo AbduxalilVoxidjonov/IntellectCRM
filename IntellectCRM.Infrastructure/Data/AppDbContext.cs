@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using IntellectCRM.Application.Abstractions;
 using IntellectCRM.Domain;
 
@@ -72,6 +72,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
 
     // Amal sabablari (muzlatish/o'chirish/sinovga qaytarish/lid/guruh)
     public DbSet<ActionReason> ActionReasons => Set<ActionReason>();
+    public DbSet<LeadSource> LeadSources => Set<LeadSource>();
 
     // Arxiv — o'chirilgan entity'larning JSON suratlari (ko'rish/tiklash uchun)
     public DbSet<ArchivedRecord> ArchivedRecords => Set<ArchivedRecord>();

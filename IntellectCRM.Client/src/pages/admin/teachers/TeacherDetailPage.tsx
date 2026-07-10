@@ -7,6 +7,9 @@ import {
   TrendingUp,
   Wallet,
   Info,
+  Trophy,
+  Medal,
+  Award,
 } from 'lucide-react'
 import type {
   Credentials,
@@ -16,11 +19,14 @@ import type {
   Subject,
   Teacher,
   TeacherPerformance,
+  TeacherRating,
+  TeacherRatingRow,
 } from '@/types'
 import {
   getTeachers,
   getTeacherCredentials,
   getTeacherPerformanceSingle,
+  getTeacherRating,
   getSalaryLedger,
   resetTeacherPassword,
   saveGroupSalaries,
@@ -29,7 +35,7 @@ import {
 import { getClasses } from '@/api/services/classes'
 import { getSubjects } from '@/api/services/subjects'
 import { genderLabels, formatMonth } from '@/config/constants'
-import { formatDate, formatMoney, cn } from '@/lib/utils'
+import { formatDate, formatMoney, cn, apiErrorMessage } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { StatCard } from '@/components/ui/StatCard'
@@ -37,7 +43,7 @@ import { Loader } from '@/components/ui/Loader'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { CredentialsBox } from '@/components/ui/CredentialsBox'
 
-type Tab = 'info' | 'groups' | 'salary' | 'performance'
+type Tab = 'info' | 'groups' | 'rating' | 'salary' | 'performance'
 
 const weekdayShort = ['Du', 'Se', 'Cho', 'Pa', 'Ju', 'Sha', 'Ya']
 
@@ -78,6 +84,11 @@ export function TeacherDetailPage() {
   // Performance
   const [perf, setPerf] = useState<TeacherPerformance | null>(null)
   const [perfLoading, setPerfLoading] = useState(false)
+
+  // Reyting
+  const [rating, setRating] = useState<TeacherRating | null>(null)
+  const [ratingLoading, setRatingLoading] = useState(false)
+  const [ratingError, setRatingError] = useState<string | null>(null)
 
   // Salary
   const [salaryLoading, setSalaryLoading] = useState(false)
@@ -126,6 +137,17 @@ export function TeacherDetailPage() {
       .then(setPerf)
       .finally(() => setPerfLoading(false))
   }, [tab, id, perf])
+
+  useEffect(() => {
+    if (tab !== 'rating' || !id || rating) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- tab ochilganda bir marta yuklash (maqsadli)
+    setRatingLoading(true)
+    setRatingError(null)
+    getTeacherRating(id)
+      .then(setRating)
+      .catch((e) => setRatingError(apiErrorMessage(e, "Reytingni yuklab bo'lmadi")))
+      .finally(() => setRatingLoading(false))
+  }, [tab, id, rating])
 
   useEffect(() => {
     if (tab !== 'salary' || !id || salaryLedger) return
@@ -194,6 +216,14 @@ export function TeacherDetailPage() {
         >
           <Users className="mr-1 inline h-3.5 w-3.5" />
           Guruhlar ({groups.length})
+        </button>
+        <button
+          type="button"
+          className={cn('tab', tab === 'rating' && 'active')}
+          onClick={() => setTab('rating')}
+        >
+          <Trophy className="mr-1 inline h-3.5 w-3.5" />
+          Reyting
         </button>
         <button
           type="button"
@@ -352,6 +382,150 @@ export function TeacherDetailPage() {
                 </table>
               </div>
             </Card>
+          )}
+        </div>
+      )}
+
+      {/* RATING TAB */}
+      {tab === 'rating' && (
+        <div className="space-y-4">
+          {ratingLoading || !rating ? (
+            ratingError ? (
+              <Card>
+                <div className="state">
+                  <h4>Xatolik</h4>
+                  <p>{ratingError}</p>
+                </div>
+              </Card>
+            ) : (
+              <Card>
+                <Loader label="Yuklanmoqda..." />
+              </Card>
+            )
+          ) : rating.rows.length === 0 ? (
+            <Card>
+              <div className="state">
+                <h4>Reyting uchun ma'lumot yo'q</h4>
+                <p>Bu o'qituvchi guruhlarida hali baho/mezon kiritilmagan.</p>
+              </div>
+            </Card>
+          ) : (
+            <>
+              {/* KPI cards */}
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <StatCard label="Guruhlar" value={rating.groupsCount} icon={Users} />
+                <StatCard
+                  label="O'quvchilar"
+                  value={rating.studentsCount}
+                  icon={Users}
+                  iconBg="bg-sky-50"
+                  iconColor="text-sky-600"
+                />
+                <StatCard
+                  label="O'rtacha ball"
+                  value={rating.averageBall}
+                  icon={Trophy}
+                  iconBg="bg-amber-50"
+                  iconColor="text-amber-600"
+                />
+              </div>
+
+              {/* TOP-3 podium */}
+              {rating.rows.length > 0 && (
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  {rating.rows.slice(0, 3).map((row) => (
+                    <PodiumCard key={row.studentId} row={row} />
+                  ))}
+                </div>
+              )}
+
+              {/* To'liq jadval */}
+              <Card tight title="To'liq reyting">
+                <p className="px-4 pt-3 text-xs text-slate-400">
+                  Ball = jurnal baholari yig'indisi + bajarilgan baholash mezonlari
+                </p>
+                <div className="table-wrap">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>O'rin</th>
+                        <th>O'quvchi</th>
+                        <th>Guruh</th>
+                        <th className="num">Jurnal</th>
+                        <th className="num">Mezon</th>
+                        <th className="num">Ball</th>
+                        <th className="num">O'rtacha</th>
+                        <th className="num">Davomat</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rating.rows.map((row) => (
+                        <tr key={row.studentId}>
+                          <td>
+                            <RankBadge rank={row.rank} />
+                          </td>
+                          <td>
+                            <Link
+                              to={`/admin/students/${row.studentId}`}
+                              className="font-medium text-slate-800 hover:text-brand-600 hover:underline"
+                            >
+                              {row.fullName}
+                            </Link>
+                          </td>
+                          <td>
+                            <div className="flex flex-wrap gap-1">
+                              {row.groups
+                                .split(',')
+                                .map((g) => g.trim())
+                                .filter(Boolean)
+                                .map((g, i) => (
+                                  <Badge key={i} tone="violet">
+                                    {g}
+                                  </Badge>
+                                ))}
+                            </div>
+                          </td>
+                          <td className="num">{row.journalTotal}</td>
+                          <td className="num">{row.criteriaDone}</td>
+                          <td className="num">
+                            <div className="font-mono text-sm font-bold text-slate-800">{row.ball}</div>
+                            <div className="mt-1 h-1 w-16 overflow-hidden rounded-full bg-slate-100">
+                              <div
+                                className="h-full rounded-full bg-brand-500"
+                                style={{
+                                  width: `${
+                                    rating.rows[0].ball > 0
+                                      ? Math.max(4, Math.round((row.ball / rating.rows[0].ball) * 100))
+                                      : 0
+                                  }%`,
+                                }}
+                              />
+                            </div>
+                          </td>
+                          <td className="num">{row.average}</td>
+                          <td className="num">
+                            <span
+                              className={cn(
+                                'font-mono text-sm font-medium',
+                                row.attendance == null
+                                  ? 'text-slate-400'
+                                  : row.attendance >= 90
+                                    ? 'text-emerald-600'
+                                    : row.attendance >= 75
+                                      ? 'text-amber-600'
+                                      : 'text-red-600',
+                              )}
+                            >
+                              {row.attendance == null ? '—' : `${row.attendance}%`}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
+            </>
           )}
         </div>
       )}
@@ -822,6 +996,73 @@ function GroupSalaryEditor({
         </div>
       </div>
     </Card>
+  )
+}
+
+/** O'rin nishoni — 1/2/3 rangli dumaloq, qolganlari oddiy raqam. */
+function RankBadge({ rank }: { rank: number }) {
+  if (rank > 3) {
+    return <span className="inline-flex h-7 w-7 items-center justify-center text-sm font-semibold text-slate-400">{rank}</span>
+  }
+  const tone =
+    rank === 1
+      ? 'bg-amber-100 text-amber-700'
+      : rank === 2
+        ? 'bg-slate-200 text-slate-700'
+        : 'bg-orange-100 text-orange-700'
+  return (
+    <span className={cn('inline-flex h-7 w-7 items-center justify-center rounded-full text-sm font-bold', tone)}>
+      {rank}
+    </span>
+  )
+}
+
+const podiumStyle: Record<number, { wrap: string; icon: typeof Trophy; iconColor: string; label: string }> = {
+  1: {
+    wrap: 'border-amber-200 bg-amber-50',
+    icon: Trophy,
+    iconColor: 'text-amber-500',
+    label: '1-o\'rin',
+  },
+  2: {
+    wrap: 'border-slate-200 bg-slate-50',
+    icon: Medal,
+    iconColor: 'text-slate-400',
+    label: '2-o\'rin',
+  },
+  3: {
+    wrap: 'border-orange-200 bg-orange-50',
+    icon: Award,
+    iconColor: 'text-orange-500',
+    label: '3-o\'rin',
+  },
+}
+
+/** TOP-3 reyting kartasi (oltin/kumush/bronza). */
+function PodiumCard({ row }: { row: TeacherRatingRow }) {
+  const style = podiumStyle[row.rank] ?? podiumStyle[3]
+  const Icon = style.icon
+  return (
+    <div className={cn('rounded-2xl border p-4', style.wrap)}>
+      <div className="mb-2 flex items-center justify-between">
+        <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">{style.label}</span>
+        <Icon className={cn('h-6 w-6', style.iconColor)} />
+      </div>
+      <div className="truncate text-base font-semibold text-slate-800">{row.fullName}</div>
+      <div className="mb-3 flex flex-wrap gap-1">
+        {row.groups
+          .split(',')
+          .map((g) => g.trim())
+          .filter(Boolean)
+          .map((g, i) => (
+            <Badge key={i} tone="violet">
+              {g}
+            </Badge>
+          ))}
+      </div>
+      <div className="font-mono text-3xl font-bold text-slate-800">{row.ball}</div>
+      <div className="text-xs text-slate-400">ball</div>
+    </div>
   )
 }
 

@@ -20,7 +20,11 @@ export const teacherCategories: { value: string; label: string }[] = [
 export const teacherCategoryLabel = (c?: string): string =>
   teacherCategories.find((x) => x.value === c)?.label ?? '—'
 
-/** Lid manbalari (CRM) */
+/**
+ * Lid manbalari (CRM) — FALLBACK: manbalar endi serverdan (`/admin/lead-sources`,
+ * Sozlamalar → Sabablar → "Lid manbalari") keladi; bu ro'yxat faqat server bo'sh/xato
+ * bo'lganda ishlatiladi (LeadFormModal, LeadsPage filtri).
+ */
 export const leadSourceOptions: string[] = [
   'Instagram',
   'Referral',
