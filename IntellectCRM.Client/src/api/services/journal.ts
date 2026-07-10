@@ -203,10 +203,15 @@ export interface JournalPolicy {
   conductedOnly: boolean
   /** true — cheklovlar admin jurnaliga ham qo'llanadi */
   applyToAdmins: boolean
+  /** true — o'qituvchi maoshi jurnalga bog'lanadi: belgilanmagan dars = o'tilmagan, maoshdan ushlanadi */
+  salaryRequireJournal: boolean
+  /** Jurnalni to'ldirish muhlati (kun) — shu kun ichidagi darslar hali ushlanmaydi (0-30) */
+  salaryGraceDays: number
 }
 
 const DEFAULT_POLICY: JournalPolicy = {
   editMode: 'free', retroDays: 3, conductedOnly: false, applyToAdmins: false,
+  salaryRequireJournal: false, salaryGraceDays: 0,
 }
 
 export async function getJournalPolicy(): Promise<JournalPolicy> {

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { CalendarCheck, CalendarClock, CalendarRange, Info, ShieldCheck } from 'lucide-react'
+import { CalendarCheck, CalendarClock, CalendarRange, Info, ShieldCheck, Wallet } from 'lucide-react'
 import { getJournalPolicy, saveJournalPolicy, type JournalPolicy } from '@/api/services/journal'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
@@ -140,6 +140,54 @@ export function JournalPolicyModal({ open, onClose }: { open: boolean; onClose: 
               checked={policy.applyToAdmins}
               onChange={(v) => set({ applyToAdmins: v })}
             />
+          </div>
+
+          {/* ---- Maoshni jurnalga bog'lash ---- */}
+          <div>
+            <h3 className="mb-2 text-sm font-semibold text-slate-700">Maosh va jurnal</h3>
+
+            <ToggleRow
+              icon={Wallet}
+              title="Maosh jurnal bo'yicha hisoblansin"
+              desc="Oy davomida jurnalda “o'tildi” deb belgilanmagan dars — o'tilmagan hisoblanadi va uning haqi o'qituvchi oyligidan ushlanadi. Qat'iy oylikka ham, foizli oylikka ham qo'llanadi."
+              checked={policy.salaryRequireJournal}
+              onChange={(v) => set({ salaryRequireJournal: v })}
+            />
+
+            {policy.salaryRequireJournal && (
+              <>
+                <div className="mt-3 flex flex-wrap items-center gap-3 rounded-lg bg-slate-50 px-3 py-2.5">
+                  <span className="text-sm text-slate-600">Jurnalni to'ldirish muhlati:</span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={30}
+                    value={policy.salaryGraceDays}
+                    onChange={(e) =>
+                      set({ salaryGraceDays: Math.max(0, Math.min(30, Number(e.target.value) || 0)) })
+                    }
+                    className="w-20 rounded-lg border border-slate-200 px-2.5 py-1.5 text-center text-sm font-semibold outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
+                  />
+                  <span className="text-sm text-slate-600">kun</span>
+                  <span className="ml-auto text-xs text-slate-400">
+                    Oxirgi shuncha kundagi darslar hali ushlanmaydi
+                  </span>
+                </div>
+                <div className="mt-2 flex items-start gap-2.5 rounded-lg bg-amber-50 px-3 py-2.5 text-xs text-amber-800">
+                  <Info className="mt-0.5 h-4 w-4 shrink-0" />
+                  <div>
+                    <p>
+                      Rejadagi darslar guruh <b>dars kunlari</b>dan olinadi. Oylik = hisoblangan summa ×
+                      (belgilangan darslar ÷ rejadagi darslar).
+                    </p>
+                    <p className="mt-1">
+                      Ushlanma sababi (qaysi guruh, qaysi sanalar) <b>Moliya → O'qituvchilar</b> bo'limida
+                      va o'qituvchining o'z "Maosh" sahifasida ko'rinadi.
+                    </p>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
 
           {/* ---- Eslatma ---- */}

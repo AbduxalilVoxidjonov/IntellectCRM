@@ -1078,17 +1078,42 @@ export interface SalaryHistory {
   payments: LedgerPayment[]
 }
 
+/** Bitta oyda bitta guruhning jurnal holati — maosh ushlanmasining sababi */
+export interface SalaryLessonStat {
+  groupId: string
+  groupName: string
+  /** Rejadagi darslar (guruh kunlari bo'yicha, muhlati o'tganlari) */
+  planned: number
+  /** Jurnalda "o'tildi" deb belgilangani */
+  conducted: number
+  /** Belgilanmagani (o'tilmagan hisoblanadi) */
+  missed: number
+  /** Shu guruh uchun ushlangan summa */
+  deduction: number
+  /** Belgilanmagan dars sanalari ("YYYY-MM-DD") */
+  missedDates: string[]
+}
+
 /** Oy bo'yicha maosh holati */
 export interface MonthSalary {
   /** "YYYY-MM" */
   month: string
-  /** Shu oy uchun belgilangan oylik */
+  /** Shu oy uchun YAKUNIY (ushlanmadan keyingi) oylik */
   expected: number
   /** Shu oyda berilgan */
   paid: number
   /** Qoldiq (belgilangan − berilgan) */
   remaining: number
   status: MonthStatus
+  /** Ushlanmagacha hisoblangan summa */
+  baseExpected?: number
+  /** Jurnalda belgilanmagan darslar uchun ushlanma */
+  deduction?: number
+  plannedLessons?: number
+  conductedLessons?: number
+  missedLessons?: number
+  /** Ushlanma tafsiloti (guruhlar bo'yicha) — maosh jurnalga bog'langanda */
+  lessons?: SalaryLessonStat[]
 }
 
 /** Maosh hisobida bitta guruhning ulushi (davr bo'yicha) */
@@ -1128,6 +1153,10 @@ export interface SalaryLedger {
   salaryPercent?: number
   /** Per-guruh maosh taqsimoti (har guruh alohida rejim/qiymat + ulush) */
   groups?: GroupSalaryLine[]
+  /** Davr bo'yicha jami ushlanma (jurnalda belgilanmagan darslar uchun) */
+  totalDeduction?: number
+  /** true — maosh jurnalga bog'langan (Guruhlar → Jurnal boshqaruvi) */
+  journalLinked?: boolean
 }
 
 export interface SalaryReportRow {
@@ -1148,6 +1177,10 @@ export interface SalaryReportRow {
   salaryMode?: string
   /** Foizli ulush (%) — salaryMode='percent' bo'lsa */
   salaryPercent?: number
+  /** Jurnalda belgilanmagan darslar uchun ushlangan jami summa */
+  deduction?: number
+  /** Belgilanmagan darslar soni (davr bo'yicha) */
+  missedLessons?: number
 }
 
 /** O'quvchilar bo'yicha moliya hisoboti qatori (joriy holat) */

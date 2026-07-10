@@ -147,7 +147,24 @@ public record TeacherPayload(
     string? NewPassword = null, List<string>? Permissions = null, string? Phone = null,
     string? PhotoUrl = null, string? Category = null, string? SalaryStartDate = null,
     string? SalaryMode = null, decimal SalaryPercent = 0, bool IsSupport = false);
-public record MonthSalaryDto(string Month, decimal Expected, decimal Paid, decimal Remaining, string Status);
+/// <summary>
+/// Bitta oyda bitta guruhning jurnal holati (maosh ushlanmasini tushuntirish uchun):
+/// rejadagi darslar (guruh kunlari bo'yicha), "o'tildi" belgilangani, belgilanmagani va shu sababli
+/// ushlangan summa. <paramref name="MissedDates"/> — belgilanmagan dars sanalari ("yyyy-MM-dd").
+/// </summary>
+public record SalaryLessonStatDto(
+    string GroupId, string GroupName, int Planned, int Conducted, int Missed,
+    decimal Deduction, List<string> MissedDates);
+/// <summary>
+/// Oy bo'yicha maosh. <paramref name="Expected"/> — YAKUNIY (ushlanmadan keyingi) summa.
+/// <paramref name="BaseExpected"/> — ushlanmagacha bo'lgan summa; <paramref name="Deduction"/> — jurnalda
+/// belgilanmagan darslar uchun ushlanma (CenterMeta.SalaryRequireJournal yoqilgan bo'lsa).
+/// </summary>
+public record MonthSalaryDto(
+    string Month, decimal Expected, decimal Paid, decimal Remaining, string Status,
+    decimal BaseExpected = 0, decimal Deduction = 0,
+    int PlannedLessons = 0, int ConductedLessons = 0, int MissedLessons = 0,
+    List<SalaryLessonStatDto>? Lessons = null);
 /// <summary>
 /// Maosh hisobida bitta guruhning ulushi (davr bo'yicha): qaysi rejim (foiz/qat'iy), qiymati,
 /// shu davrda guruhdan yig'ilgan to'lov bazasi va shu guruh keltirgan hisoblangan maosh.
@@ -161,7 +178,8 @@ public record SalaryLedgerDto(
     decimal TotalExpected, decimal TotalPaid, decimal Remaining,
     List<MonthSalaryDto> Months, List<PaymentDto> Payments,
     string SalaryMode = "fixed", decimal SalaryPercent = 0,
-    List<GroupSalaryLineDto>? Groups = null);
+    List<GroupSalaryLineDto>? Groups = null,
+    decimal TotalDeduction = 0, bool JournalLinked = false);
 
 /// <summary>O'qituvchi guruhlari maosh sozlamasini yangilash (per-guruh foiz/qat'iy summa).</summary>
 public record GroupSalaryItemDto(string GroupId, string Mode, decimal Percent, decimal Fixed);
@@ -169,7 +187,8 @@ public record GroupSalaryUpdateRequest(List<GroupSalaryItemDto> Items);
 public record SalaryReportRowDto(
     string TeacherId, string TeacherName, decimal Salary, decimal TotalPaid, int PaymentsCount,
     int Months, decimal Expected, decimal Remaining,
-    string SalaryMode = "fixed", decimal SalaryPercent = 0);
+    string SalaryMode = "fixed", decimal SalaryPercent = 0,
+    decimal Deduction = 0, int MissedLessons = 0);
 
 /// <summary>O'qituvchilar davomati — oylik board (o'qituvchilar + belgilangan kunlar).</summary>
 public record TeacherNameDto(string Id, string FullName, string StartDate = "");
@@ -503,7 +522,9 @@ public record SetLessonNoteRequest(
 /// <summary>Jurnal tahrirlash siyosati (admin "Guruhlar → Jurnal boshqaruvi"). EditMode:
 /// "free" (istalgan o'tgan sana) | "today" (faqat bugun) | "window" (oxirgi RetroDays kun).
 /// ConductedOnly — baho/davomat faqat "o'tildi" darsga. ApplyToAdmins — admin jurnaliga ham qo'llash.</summary>
-public record JournalPolicyDto(string EditMode, int RetroDays, bool ConductedOnly, bool ApplyToAdmins);
+public record JournalPolicyDto(
+    string EditMode, int RetroDays, bool ConductedOnly, bool ApplyToAdmins,
+    bool SalaryRequireJournal = false, int SalaryGraceDays = 0);
 
 /* ---------- Settings ---------- */
 public record LessonTimeDto(int Period, string StartTime, string EndTime);

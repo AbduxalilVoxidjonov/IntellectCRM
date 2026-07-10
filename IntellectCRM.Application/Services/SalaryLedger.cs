@@ -18,6 +18,11 @@ namespace IntellectCRM.Application.Services;
 ///   • LEGACY (hech bir guruh sozlanmagan bo'lsa) — o'qituvchi darajasidagi eski sozlama:
 ///       "fixed" qat'iy <see cref="Teacher.Salary"/> | "percent" barcha guruhlardan yig'ilganning
 ///       <see cref="Teacher.SalaryPercent"/> foizi.
+///
+/// JURNALGA BOG'LASH (<see cref="CenterMeta.SalaryRequireJournal"/>): yoqilgan bo'lsa har oyda jurnalda
+/// "o'tildi" belgilanmagan dars o'tilmagan hisoblanadi va uning haqi maoshdan ushlanadi
+/// (<see cref="SalaryJournalStats"/>). Ushlanma sababi <see cref="MonthSalaryDto.Lessons"/>da
+/// guruh + o'tkazib yuborilgan sanalar bilan qaytadi — moliya bo'limi shuni ko'rsatadi.
 /// </summary>
 public static class SalaryLedger
 {
@@ -58,8 +63,19 @@ public static class SalaryLedger
             {
                 c.Id, c.Name, c.CourseId, c.MonthlyFee,
                 c.TeacherSalaryMode, c.TeacherSalaryPercent, c.TeacherSalaryFixed,
+                c.Days, c.StartDate, c.EndDate,
             })
             .ToListAsync();
+
+        // Maosh jurnalga bog'langanmi? (Guruhlar → "Jurnal boshqaruvi"). Yoqilgan bo'lsa — belgilanmagan
+        // darslar o'tilmagan hisoblanadi va shu oy maoshidan ushlanadi.
+        var policy = await JournalPolicy.GetAsync(db);
+        var journalLinked = policy.SalaryRequireJournal;
+        var lessonStats = journalLinked && groups.Count > 0
+            ? await SalaryJournalStats.BuildAsync(db,
+                groups.Select(g => new SalaryJournalStats.GroupInfo(g.Id, g.Name, g.Days, g.StartDate, g.EndDate)).ToList(),
+                startMonth, toMonth, policy.SalaryGraceDays, startDate)
+            : new Dictionary<(string Month, string GroupId), SalaryJournalStats.Stat>();
 
         // Kamida bitta guruh per-guruh sozlangan bo'lsa — YIG'INDI (per-guruh) hisob; aks holda LEGACY.
         var anyConfigured = groups.Any(g => g.TeacherSalaryMode is "percent" or "fixed");
@@ -96,7 +112,11 @@ public static class SalaryLedger
             }
 
             // Har guruhning shu oydagi ulushi (breakdown + per-guruh yig'indisi uchun doim hisoblanadi).
-            decimal perGroupSum = 0m;
+            // Jurnalga bog'langan bo'lsa — shu yerda ushlanma ham ayriladi (guruh o'z darslariga javob beradi).
+            decimal grossSum = 0m, groupDeduction = 0m;
+            var lessonLines = new List<SalaryLessonStatDto>();
+            int plannedTotal = 0, conductedTotal = 0;
+
             foreach (var g in groups)
             {
                 var mode = EffMode(g.TeacherSalaryMode, teacher.SalaryMode);
@@ -114,28 +134,71 @@ public static class SalaryLedger
                     var amt = g.TeacherSalaryMode == "fixed" ? g.TeacherSalaryFixed : 0m;
                     contribution = decimal.Round(amt * factor, 2);
                 }
-                groupPeriodExpected[g.Id] += contribution;
-                perGroupSum += contribution;
+
+                var stat = lessonStats.GetValueOrDefault((month, g.Id));
+                decimal ded = 0m;
+                if (journalLinked && stat is not null)
+                {
+                    plannedTotal += stat.Planned;
+                    conductedTotal += stat.Conducted;
+                    if (contribution > 0 && stat.Missed > 0)
+                        ded = decimal.Round(contribution * stat.Missed / stat.Planned, 2);
+                }
+
+                grossSum += contribution;
+                groupDeduction += ded;
+                groupPeriodExpected[g.Id] += contribution - ded;
+                if (journalLinked && stat is not null)
+                    lessonLines.Add(new SalaryLessonStatDto(
+                        g.Id, g.Name, stat.Planned, stat.Conducted, stat.Missed, ded, stat.MissedDates));
             }
 
-            decimal expected;
+            decimal baseExpected;
             if (anyConfigured)
             {
-                expected = decimal.Round(perGroupSum, 2);
+                baseExpected = decimal.Round(grossSum, 2);
             }
             else if (teacher.SalaryMode == "percent")
             {
-                expected = decimal.Round(TotalCollected(month) * teacher.SalaryPercent / 100m, 2);
+                baseExpected = decimal.Round(TotalCollected(month) * teacher.SalaryPercent / 100m, 2);
             }
             else
             {
-                expected = decimal.Round(teacher.Salary * factor, 2);
+                baseExpected = decimal.Round(teacher.Salary * factor, 2);
             }
 
+            // Ushlanma: per-guruh ulushi bor bo'lsa (per-guruh yoki legacy foiz) — guruhlar bo'yicha yig'indi;
+            // legacy QAT'IY oylikda guruh ulushi yo'q, shuning uchun bitta dars narxi = oylik ÷ rejadagi darslar.
+            decimal deduction = 0m;
+            if (journalLinked && plannedTotal > 0)
+            {
+                if (anyConfigured || teacher.SalaryMode == "percent")
+                {
+                    deduction = decimal.Round(groupDeduction, 2);
+                }
+                else if (baseExpected > 0)
+                {
+                    var perLesson = baseExpected / plannedTotal;
+                    for (var i = 0; i < lessonLines.Count; i++)
+                    {
+                        var line = lessonLines[i];
+                        var ded = decimal.Round(perLesson * line.Missed, 2);
+                        lessonLines[i] = line with { Deduction = ded };
+                        deduction += ded;
+                    }
+                    if (deduction > baseExpected) deduction = baseExpected;  // yaxlitlash himoyasi
+                }
+            }
+
+            var expected = baseExpected - deduction;
             var paid = paidByMonth.GetValueOrDefault(month, 0m);
             var remaining = expected - paid;
             var status = remaining <= 0 ? (expected <= 0 ? "unpaid" : "paid") : paid > 0 ? "partial" : "unpaid";
-            months.Add(new MonthSalaryDto(month, expected, paid, remaining, status));
+            months.Add(new MonthSalaryDto(
+                month, expected, paid, remaining, status,
+                baseExpected, deduction,
+                plannedTotal, conductedTotal, plannedTotal - conductedTotal,
+                journalLinked ? lessonLines : null));
         }
 
         var totalExpected = months.Sum(m => m.Expected);
@@ -157,7 +220,8 @@ public static class SalaryLedger
         return new SalaryLedgerDto(
             teacher.Id, teacher.FullName, plannedMonthly,
             totalExpected, totalPaid, totalExpected - totalPaid,
-            months, paymentDtos, teacher.SalaryMode, teacher.SalaryPercent, groupLines);
+            months, paymentDtos, teacher.SalaryMode, teacher.SalaryPercent, groupLines,
+            months.Sum(m => m.Deduction), journalLinked);
     }
 
     /// <summary>

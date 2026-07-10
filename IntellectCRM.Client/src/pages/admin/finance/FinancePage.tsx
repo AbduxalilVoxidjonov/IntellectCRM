@@ -180,10 +180,12 @@ export function FinancePage() {
   const handleExportTeachers = () => {
     exportToCsv(
       'oqituvchilar-maoshi.csv',
-      ["O'qituvchi", 'Oylik', 'Hisoblangan', 'Berilgan', 'Qoldiq'],
+      ["O'qituvchi", 'Oylik', 'Jurnal ushlanmasi', "O'tkazib yuborilgan dars", 'Hisoblangan', 'Berilgan', 'Qoldiq'],
       salaryReport.map((r) => [
         r.teacherName,
         String(r.salary),
+        String(r.deduction ?? 0),
+        String(r.missedLessons ?? 0),
         String(r.expected),
         String(r.totalPaid),
         String(r.remaining),
@@ -250,6 +252,8 @@ export function FinancePage() {
     paid: salaryReport.reduce((a, r) => a + r.totalPaid, 0),
     remaining: salaryReport.reduce((a, r) => a + Math.max(0, r.remaining), 0),
   }
+  // Maosh jurnalga bog'langan bo'lsa (Guruhlar → Jurnal boshqaruvi) — "Ushlanma" ustuni ko'rsatiladi.
+  const anyDeduction = salaryReport.some((r) => (r.deduction ?? 0) > 0)
   const paymentsTotal = filteredPayments.reduce((a, p) => a + p.amount, 0)
 
   return (
@@ -539,6 +543,7 @@ export function FinancePage() {
                       <tr>
                         <th>O'qituvchi</th>
                         <th className="num">Oylik</th>
+                        {anyDeduction && <th className="num">Ushlanma</th>}
                         <th className="num">Hisoblangan</th>
                         <th className="num">Berilgan</th>
                         <th className="num">Qoldiq</th>
@@ -558,6 +563,20 @@ export function FinancePage() {
                               ? `${r.salaryPercent ?? 0}% (guruh to'lovidan)`
                               : formatMoney(r.salary)}
                           </td>
+                          {anyDeduction && (
+                            <td className="num" title="Jurnalda belgilanmagan darslar uchun ushlanma">
+                              {(r.deduction ?? 0) > 0 ? (
+                                <span className="text-red-600">
+                                  −{formatMoney(r.deduction ?? 0)}
+                                  <span className="ml-1 text-xs text-slate-400">
+                                    ({r.missedLessons ?? 0} dars)
+                                  </span>
+                                </span>
+                              ) : (
+                                <span className="text-slate-300">—</span>
+                              )}
+                            </td>
+                          )}
                           <td className="num text-slate-600">{formatMoney(r.expected)}</td>
                           <td className="num font-semibold text-emerald-600">
                             {formatMoney(r.totalPaid)}

@@ -859,6 +859,13 @@ public class CenterMeta
     /// <summary>true — yuqoridagi cheklovlar ADMIN jurnaliga ham qo'llanadi (default: faqat o'qituvchiga).</summary>
     public bool JournalApplyToAdmins { get; set; }
 
+    /// <summary>true — o'qituvchi maoshi (qat'iy ham, foizli ham) SHU OYDA jurnalda "o'tildi" deb
+    /// belgilangan darslar nisbatiga ko'paytiriladi: belgilanmagan dars = o'tilmagan dars, maoshdan ushlanadi.</summary>
+    public bool SalaryRequireJournal { get; set; }
+    /// <summary>Jurnalni to'ldirishga beriladigan muhlat (kun). Dars sanasi shu kundan yosh bo'lsa hali
+    /// "o'tkazib yuborilgan" hisoblanmaydi (o'qituvchi keyinroq belgilashi mumkin). 0-30.</summary>
+    public int SalaryGraceDays { get; set; }
+
     /// <summary>Markaz nomi.</summary>
     public string Name { get; set; } = string.Empty;
     /// <summary>Markaz logotipi (`/uploads/...`) — barcha foydalanuvchi ko'radigan joylarda (login,

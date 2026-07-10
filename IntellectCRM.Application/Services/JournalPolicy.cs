@@ -23,7 +23,8 @@ public static class JournalPolicy
         var m = await db.CenterMeta.AsNoTracking().FirstOrDefaultAsync();
         var mode = m?.JournalEditMode is ModeToday or ModeWindow ? m.JournalEditMode : ModeFree;
         return new JournalPolicyDto(mode, m?.JournalRetroDays ?? 3,
-            m?.JournalConductedOnly ?? false, m?.JournalApplyToAdmins ?? false);
+            m?.JournalConductedOnly ?? false, m?.JournalApplyToAdmins ?? false,
+            m?.SalaryRequireJournal ?? false, m?.SalaryGraceDays ?? 0);
     }
 
     /// <summary>Siyosatni saqlaydi (noto'g'ri qiymatlar xavfsiz defaultga tushiriladi) va yangisini qaytaradi.</summary>
@@ -39,6 +40,8 @@ public static class JournalPolicy
         m.JournalRetroDays = Math.Clamp(req.RetroDays, 1, 90);
         m.JournalConductedOnly = req.ConductedOnly;
         m.JournalApplyToAdmins = req.ApplyToAdmins;
+        m.SalaryRequireJournal = req.SalaryRequireJournal;
+        m.SalaryGraceDays = Math.Clamp(req.SalaryGraceDays, 0, 30);
         await db.SaveChangesAsync();
         return await GetAsync(db);
     }

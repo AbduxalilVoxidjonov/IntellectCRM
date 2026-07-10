@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Wallet } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, ChevronDown, Wallet } from 'lucide-react'
 import { getTeacherSalary } from '@/api/services/teacher'
 import type { SalaryLedger } from '@/types'
 import { formatMoney } from '@/lib/utils'
@@ -39,6 +39,8 @@ export function TeacherSalaryPage() {
   const nav = useNavigate()
   const [ledger, setLedger] = useState<SalaryLedger | null>(null)
   const [loading, setLoading] = useState(true)
+  /** Ushlanma sababi ochilgan oy ("YYYY-MM") */
+  const [expanded, setExpanded] = useState<string | null>(null)
 
   useEffect(() => {
     let alive = true
@@ -145,32 +147,104 @@ export function TeacherSalaryPage() {
             )
           })()}
 
+          {/* Jurnal ushlanmasi haqida eslatma */}
+          {ledger.journalLinked && (
+            <div className="mt-3 flex items-start gap-2.5 rounded-[16px] border border-amber-200 bg-amber-50 px-3.5 py-2.5">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+              <p className="text-[12px] leading-relaxed text-amber-800">
+                Maosh jurnal bo'yicha hisoblanadi: jurnalda "o'tildi" deb belgilanmagan dars
+                o'tilmagan hisoblanib, oylikdan ushlanadi. Tafsiloti uchun oyni bosing.
+              </p>
+            </div>
+          )}
+
           {/* Oylar ro'yxati */}
           <p className="px-0.5 pb-2 pt-5 text-[13px] font-bold text-ink">Oylar</p>
           <div className="divide-y divide-line rounded-[20px] border border-line bg-white shadow-[var(--shadow-card)]">
             {[...ledger.months].reverse().map((m) => {
               const chip = statusChip(m.status)
+              const missed = m.missedLessons ?? 0
+              const deduction = m.deduction ?? 0
+              const open = expanded === m.month
+              const canOpen = deduction > 0
               return (
-                <div key={m.month} className="flex items-center gap-3 px-3.5 py-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[14px] font-bold text-ink">{monthLabel(m.month)}</p>
-                    <p className="text-[12px] text-mute">
-                      Hisoblandi:{' '}
-                      <span className="font-mono text-ink">{formatMoney(m.expected)}</span>
-                      {' · '}Berildi:{' '}
-                      <span className="font-mono text-teal-700">{formatMoney(m.paid)}</span>
-                    </p>
+                <div key={m.month}>
+                  <div
+                    className="flex items-center gap-3 px-3.5 py-3"
+                    onClick={() => canOpen && setExpanded(open ? null : m.month)}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="flex items-center gap-1 text-[14px] font-bold text-ink">
+                        {monthLabel(m.month)}
+                        {canOpen && (
+                          <ChevronDown
+                            className={`h-3.5 w-3.5 text-faint transition-transform ${open ? 'rotate-180' : ''}`}
+                          />
+                        )}
+                      </p>
+                      <p className="text-[12px] text-mute">
+                        Hisoblandi:{' '}
+                        <span className="font-mono text-ink">{formatMoney(m.expected)}</span>
+                        {' · '}Berildi:{' '}
+                        <span className="font-mono text-teal-700">{formatMoney(m.paid)}</span>
+                      </p>
+                      {deduction > 0 && (
+                        <p className="mt-0.5 text-[12px] font-semibold text-rose-600">
+                          Ushlandi: <span className="font-mono">−{formatMoney(deduction)}</span>
+                          <span className="ml-1 font-normal text-faint">
+                            ({missed} ta dars belgilanmagan)
+                          </span>
+                        </p>
+                      )}
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <span
+                        className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-bold ${chip.cls}`}
+                      >
+                        {chip.label}
+                      </span>
+                      <p className="mt-1 text-[12px] font-semibold text-faint">
+                        Qoldi: <span className="font-mono text-ink">{formatMoney(m.remaining)}</span>
+                      </p>
+                    </div>
                   </div>
-                  <div className="shrink-0 text-right">
-                    <span
-                      className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-bold ${chip.cls}`}
-                    >
-                      {chip.label}
-                    </span>
-                    <p className="mt-1 text-[12px] font-semibold text-faint">
-                      Qoldi: <span className="font-mono text-ink">{formatMoney(m.remaining)}</span>
-                    </p>
-                  </div>
+
+                  {/* Ushlanma sababi: qaysi guruhda qaysi darslar belgilanmagan */}
+                  {open && (
+                    <div className="space-y-2 border-t border-line bg-slate-50/70 px-3.5 py-3">
+                      <p className="text-[11px] font-bold text-faint">
+                        Belgilanmagan darslar — hisoblangan: {formatMoney(m.baseExpected ?? 0)}
+                      </p>
+                      {(m.lessons ?? [])
+                        .filter((l) => l.missed > 0)
+                        .map((l) => (
+                          <div
+                            key={l.groupId}
+                            className="rounded-[14px] border border-line bg-white px-3 py-2"
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-[13px] font-bold text-ink">{l.groupName}</span>
+                              <span className="font-mono text-[12px] font-bold text-rose-600">
+                                −{formatMoney(l.deduction)}
+                              </span>
+                            </div>
+                            <p className="mt-0.5 text-[11px] text-mute">
+                              {l.conducted}/{l.planned} dars belgilangan
+                            </p>
+                            <div className="mt-1.5 flex flex-wrap gap-1">
+                              {l.missedDates.map((d) => (
+                                <span
+                                  key={d}
+                                  className="rounded-md bg-rose-50 px-1.5 py-0.5 font-mono text-[11px] text-rose-700"
+                                >
+                                  {d.slice(5)}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  )}
                 </div>
               )
             })}
