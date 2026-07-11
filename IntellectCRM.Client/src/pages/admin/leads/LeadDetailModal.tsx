@@ -13,7 +13,7 @@ import {
 } from 'lucide-react'
 import { ReceiptModal } from '@/components/finance/ReceiptModal'
 import { CallPickerModal, type CallOption } from '@/components/CallPickerModal'
-import { getSmsTemplates, sendLeadSms, type SmsProvider, type SmsTemplate } from '@/api/services/messages'
+import { getPickableTemplates, sendLeadSms, type SmsProvider, type PickableTemplate } from '@/api/services/messages'
 import { getMessageTokens } from '@/api/services/autoMessages'
 import { MessageEditor, type TokenDef } from '@/components/messaging/MessageEditor'
 import { SmsProviderPicker } from '@/components/messaging/SmsProviderPicker'
@@ -131,7 +131,7 @@ export function LeadDetailModal({ lead, onClose, onEdit, onDelete, onConverted }
   const [savingNote, setSavingNote] = useState(false)
 
   // Lidga SMS yuborish
-  const [smsTemplates, setSmsTemplates] = useState<SmsTemplate[]>([])
+  const [smsTemplates, setSmsTemplates] = useState<PickableTemplate[]>([])
   const [smsTokens, setSmsTokens] = useState<TokenDef[]>([])
   const [smsText, setSmsText] = useState('')
   const [smsProvider, setSmsProvider] = useState<SmsProvider>('eskiz')
@@ -183,7 +183,7 @@ export function LeadDetailModal({ lead, onClose, onEdit, onDelete, onConverted }
     setSendTestId('')
     setSendTestResult(null)
     refreshTimeline(leadId)
-    getSmsTemplates().then(setSmsTemplates).catch(() => setSmsTemplates([]))
+    getPickableTemplates('lead').then(setSmsTemplates).catch(() => setSmsTemplates([]))
     // Lid uchun faqat lid + umumiy guruh tokenlari mos keladi
     getMessageTokens()
       .then((ts) => setSmsTokens(ts.filter((t) => t.group === 'lead' || t.group === 'common')))

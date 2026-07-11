@@ -290,6 +290,39 @@ export async function deleteSmsTemplate(id: string): Promise<void> {
   await api.delete(`/admin/messages/sms/templates/${id}`)
 }
 
+/** Lidga oid avto-xabar hodisalari (qolganlari o'quvchi/ota-ona konteksti). */
+const LEAD_TRIGGERS = new Set(['lead_new', 'trial_reminder', 'test_link', 'test_result'])
+
+/** Tanlash uchun tayyor matn (qo'lda shablon yoki "Xabar yaratish" avto qoidasi matni). */
+export interface PickableTemplate {
+  name: string
+  text: string
+}
+
+/**
+ * SMS yuborish oynalarida ko'rsatiladigan TAYYOR matnlar — faqat FOYDALANUVCHI yaratganlari:
+ *   • qo'lda SmsTemplate andozalari (barcha kontekstda) +
+ *   • "Xabar yaratish" avto qoidalari matnlari (kontekstga qarab: lid oynasida lid hodisalari,
+ *     aks holda o'quvchi/ota-ona hodisalari).
+ * Oldindan tayyor (hardcode/seed) matnlar YO'Q — hech narsa yaratilmasa ro'yxat bo'sh bo'ladi.
+ */
+export async function getPickableTemplates(context: 'student' | 'lead'): Promise<PickableTemplate[]> {
+  const { getAutoMessageRules } = await import('./autoMessages')
+  const [manual, rules] = await Promise.all([
+    getSmsTemplates().catch(() => []),
+    getAutoMessageRules().catch(() => []),
+  ])
+  const manualItems: PickableTemplate[] = manual.map((t) => ({ name: t.name, text: t.text }))
+  const autoItems: PickableTemplate[] = rules
+    .filter(
+      (r) =>
+        r.template.trim() !== '' &&
+        (context === 'lead' ? LEAD_TRIGGERS.has(r.trigger) : !LEAD_TRIGGERS.has(r.trigger)),
+    )
+    .map((r) => ({ name: r.name, text: r.template }))
+  return [...manualItems, ...autoItems]
+}
+
 /** provider="local" bo'lganda qaysi agent orqali yuborilsin (bo'sh — Sozlamalardagi standart agent). */
 export interface SmsProviderOpts {
   provider?: SmsProvider

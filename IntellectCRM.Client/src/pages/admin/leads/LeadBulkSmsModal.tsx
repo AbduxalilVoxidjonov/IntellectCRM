@@ -3,10 +3,10 @@ import { Send, AlertTriangle, Check } from 'lucide-react'
 import type { Lead, Stage } from '@/types'
 import {
   getSmsStatus,
-  getSmsTemplates,
+  getPickableTemplates,
   sendLeadSmsBulk,
   type SmsProvider,
-  type SmsTemplate,
+  type PickableTemplate,
   type LeadBulkSmsResult,
 } from '@/api/services/messages'
 import { getMessageTokens } from '@/api/services/autoMessages'
@@ -34,7 +34,7 @@ export function LeadBulkSmsModal({ open, onClose, leads, stages }: Props) {
   const [provider, setProvider] = useState<SmsProvider>('eskiz')
   const [agentId, setAgentId] = useState('')
   const [configured, setConfigured] = useState(true)
-  const [templates, setTemplates] = useState<SmsTemplate[]>([])
+  const [templates, setTemplates] = useState<PickableTemplate[]>([])
   const [tokens, setTokens] = useState<TokenDef[]>([])
   const [sending, setSending] = useState(false)
   const [result, setResult] = useState<LeadBulkSmsResult | null>(null)
@@ -52,7 +52,7 @@ export function LeadBulkSmsModal({ open, onClose, leads, stages }: Props) {
     setError('')
     setSending(false)
     getSmsStatus().then((s) => setConfigured(s.configured)).catch(() => setConfigured(false))
-    getSmsTemplates().then(setTemplates).catch(() => setTemplates([]))
+    getPickableTemplates('lead').then(setTemplates).catch(() => setTemplates([]))
     getMessageTokens()
       .then((ts) => setTokens(ts.filter((t) => t.group === 'lead' || t.group === 'common')))
       .catch(() => setTokens([]))

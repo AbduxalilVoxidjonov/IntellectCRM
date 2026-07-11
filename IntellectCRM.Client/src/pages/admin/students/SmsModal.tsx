@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Send, AlertTriangle, Check } from 'lucide-react'
 import type { Student } from '@/types'
-import { getSmsStatus, getSmsTemplates, sendSms, type SmsProvider, type SmsTemplate } from '@/api/services/messages'
+import { getSmsStatus, getPickableTemplates, sendSms, type SmsProvider, type PickableTemplate } from '@/api/services/messages'
 import { getMessageTokens } from '@/api/services/autoMessages'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
@@ -26,7 +26,7 @@ export function SmsModal({ open, onClose, recipients }: Props) {
   const [provider, setProvider] = useState<SmsProvider>('eskiz')
   const [agentId, setAgentId] = useState('')
   const [configured, setConfigured] = useState(true)
-  const [templates, setTemplates] = useState<SmsTemplate[]>([])
+  const [templates, setTemplates] = useState<PickableTemplate[]>([])
   const [tokens, setTokens] = useState<TokenDef[]>([])
   const [sending, setSending] = useState(false)
   const [result, setResult] = useState<string | null>(null)
@@ -41,7 +41,7 @@ export function SmsModal({ open, onClose, recipients }: Props) {
     setAgentId('')
     setSending(false)
     getSmsStatus().then((s) => setConfigured(s.configured))
-    getSmsTemplates().then(setTemplates).catch(() => setTemplates([]))
+    getPickableTemplates('student').then(setTemplates).catch(() => setTemplates([]))
     getMessageTokens()
       .then((ts) => setTokens(ts.filter((t) => t.group !== 'lead')))
       .catch(() => setTokens([]))
