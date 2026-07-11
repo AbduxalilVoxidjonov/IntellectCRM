@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Send, AlertTriangle, Check } from 'lucide-react'
-import type { Student } from '@/types'
 import { getSmsStatus, getPickableTemplates, sendSms, type SmsProvider, type PickableTemplate } from '@/api/services/messages'
 import { getMessageTokens } from '@/api/services/autoMessages'
 import { Modal } from '@/components/ui/Modal'
@@ -9,11 +8,21 @@ import { MessageEditor, type TokenDef } from '@/components/messaging/MessageEdit
 import { SmsProviderPicker } from '@/components/messaging/SmsProviderPicker'
 import { cn } from '@/lib/utils'
 
+/** SMS oluvchi — SmsModal faqat shu maydonlarni ishlatadi (Student ham mos keladi). */
+export interface SmsRecipient {
+  id: string
+  fullName: string
+  phone?: string | null
+  parentPhone?: string | null
+  fatherPhone?: string | null
+  motherPhone?: string | null
+}
+
 interface Props {
   open: boolean
   onClose: () => void
   /** Bitta o'quvchi ham bo'lishi mumkin (masalan o'quvchi sahifasidan) — UI mos ko'rinadi. */
-  recipients: Student[]
+  recipients: SmsRecipient[]
 }
 
 /**

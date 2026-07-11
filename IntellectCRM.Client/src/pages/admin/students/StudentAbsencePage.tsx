@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ChevronLeft, ChevronRight, Download, Phone, Search, UserX, Clock3, CheckCircle2, BookOpen } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Download, Phone, Search, UserX, Clock3, CheckCircle2, BookOpen, MessageSquare } from 'lucide-react'
 import { getDailyAbsence, type AbsentStudent, type DailyAbsence } from '@/api/services/studentAttendance'
 import { apiErrorMessage, cn, exportToCsv } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
@@ -10,6 +10,7 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { Button } from '@/components/ui/Button'
 import { Loader } from '@/components/ui/Loader'
 import { CallPickerModal, type CallOption } from '@/components/CallPickerModal'
+import { SmsModal, type SmsRecipient } from './SmsModal'
 
 type ChipFilter = 'absent' | 'late' | 'all'
 
@@ -50,11 +51,15 @@ export function StudentAbsencePage() {
 
   /** Qo'ng'iroq qilish — CallPickerModal uchun tanlangan o'quvchi */
   const [callStudent, setCallStudent] = useState<AbsentStudent | null>(null)
+  /** Ommaviy SMS uchun tanlangan o'quvchilar (studentId) + modal holati. */
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [smsOpen, setSmsOpen] = useState(false)
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- sana o'zgarganda ma'lumotni qayta yuklash (maqsadli)
     setLoading(true)
     setError('')
+    setSelected(new Set())
     getDailyAbsence(date)
       .then(setData)
       .catch((err) => setError(apiErrorMessage(err, "Davomatni yuklab bo'lmadi")))
@@ -78,6 +83,48 @@ export function StudentAbsencePage() {
     return true
   })
 
+  // Tanlash (ommaviy SMS) — o'quvchi bir nechta guruhda bo'lsa ham bitta studentId.
+  const filteredStudentIds = useMemo(() => {
+    const seen = new Set<string>()
+    for (const r of filtered) seen.add(r.studentId)
+    return seen
+  }, [filtered])
+  const allSelected = filteredStudentIds.size > 0 && [...filteredStudentIds].every((id) => selected.has(id))
+
+  const toggleOne = (studentId: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(studentId)) next.delete(studentId)
+      else next.add(studentId)
+      return next
+    })
+  const toggleAll = () =>
+    setSelected((prev) => {
+      if (allSelected) {
+        const next = new Set(prev)
+        filteredStudentIds.forEach((id) => next.delete(id))
+        return next
+      }
+      return new Set([...prev, ...filteredStudentIds])
+    })
+
+  // Tanlangan o'quvchilar (studentId bo'yicha takrorlanmas) — SmsModal uchun.
+  const smsRecipients: SmsRecipient[] = useMemo(() => {
+    const byId = new Map<string, SmsRecipient>()
+    for (const r of filtered) {
+      if (!selected.has(r.studentId) || byId.has(r.studentId)) continue
+      byId.set(r.studentId, {
+        id: r.studentId,
+        fullName: r.fullName,
+        phone: r.phone,
+        parentPhone: r.parentPhone,
+        fatherPhone: r.fatherPhone,
+        motherPhone: r.motherPhone,
+      })
+    }
+    return [...byId.values()]
+  }, [filtered, selected])
+
   const handleExport = () => {
     exportToCsv(
       `davomat_${date}.csv`,
@@ -92,9 +139,14 @@ export function StudentAbsencePage() {
         title="O'quvchilar davomati"
         sub="Shu kunda darsga kelmagan/kechikkan o'quvchilar — ota-onaga darrov qo'ng'iroq qilish uchun."
         actions={
-          <Button variant="secondary" onClick={handleExport} disabled={filtered.length === 0}>
-            <Download className="h-4 w-4" /> CSV
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button onClick={() => setSmsOpen(true)} disabled={selected.size === 0}>
+              <MessageSquare className="h-4 w-4" /> SMS yuborish{selected.size > 0 ? ` (${selected.size})` : ''}
+            </Button>
+            <Button variant="secondary" onClick={handleExport} disabled={filtered.length === 0}>
+              <Download className="h-4 w-4" /> CSV
+            </Button>
+          </div>
         }
       />
 
@@ -212,6 +264,15 @@ export function StudentAbsencePage() {
                 <table className="table">
                   <thead>
                     <tr>
+                      <th className="w-8">
+                        <input
+                          type="checkbox"
+                          checked={allSelected}
+                          onChange={toggleAll}
+                          title="Hammasini tanlash"
+                          className="h-4 w-4 cursor-pointer accent-brand-500"
+                        />
+                      </th>
                       <th>O'quvchi</th>
                       <th>Guruh</th>
                       <th>Dars vaqti</th>
@@ -223,6 +284,14 @@ export function StudentAbsencePage() {
                   <tbody>
                     {filtered.map((r) => (
                       <tr key={`${r.studentId}-${r.groupId}`}>
+                        <td>
+                          <input
+                            type="checkbox"
+                            checked={selected.has(r.studentId)}
+                            onChange={() => toggleOne(r.studentId)}
+                            className="h-4 w-4 cursor-pointer accent-brand-500"
+                          />
+                        </td>
                         <td>
                           <div>
                             <Link
@@ -260,7 +329,7 @@ export function StudentAbsencePage() {
                     ))}
                     {filtered.length === 0 && (
                       <tr>
-                        <td colSpan={6} className="px-4 py-12 text-center text-slate-400">
+                        <td colSpan={7} className="px-4 py-12 text-center text-slate-400">
                           Filtrga mos o'quvchi topilmadi
                         </td>
                       </tr>
@@ -272,6 +341,8 @@ export function StudentAbsencePage() {
           )}
         </>
       )}
+
+      <SmsModal open={smsOpen} onClose={() => setSmsOpen(false)} recipients={smsRecipients} />
 
       <CallPickerModal
         open={!!callStudent}
