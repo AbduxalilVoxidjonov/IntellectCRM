@@ -80,6 +80,51 @@ public class AutoMessagesController(AppDbContext db) : ControllerBase
         return NoContent();
     }
 
+    /// <summary>Keng tarqalgan hodisalar uchun TAYYOR SMS habarlar to'plamini yaratadi (har biri bitta kanal — SMS).
+    /// Trigger uchun allaqachon SMS qoidasi bo'lsa — o'tkazib yuboriladi (dublikat qilmaydi). Yaratilgan sonini qaytaradi.</summary>
+    [HttpPost("seed-sms")]
+    public async Task<ActionResult<object>> SeedStandardSms()
+    {
+        // Standart SMS to'plami — katalog matnlari (DefaultTemplate) va auditoriyasi bilan.
+        string[] standard =
+        {
+            AutoMessageTriggers.PaymentReceived,
+            AutoMessageTriggers.MonthlyCharge,
+            AutoMessageTriggers.PaymentDebt,
+            AutoMessageTriggers.AttendanceAbsent,
+            AutoMessageTriggers.Birthday,
+            AutoMessageTriggers.LeadNew,
+            AutoMessageTriggers.TrialReminder,
+        };
+
+        // Shu triggerlar uchun ALLAQACHON SMS qoidasi bor bo'lsa — takrorlamaymiz.
+        var existingSmsTriggers = (await db.AutoMessageRules
+                .Where(r => r.SendSms && standard.Contains(r.Trigger))
+                .Select(r => r.Trigger).ToListAsync())
+            .ToHashSet();
+
+        var created = 0;
+        foreach (var key in standard)
+        {
+            if (existingSmsTriggers.Contains(key)) continue;
+            var info = AutoMessageTriggers.Get(key);
+            if (info is null) continue;
+            db.AutoMessageRules.Add(new AutoMessageRule
+            {
+                Trigger = key,
+                Name = info.Label,
+                Enabled = true,
+                SendSms = true, SendPush = false, SendTelegram = false,
+                SmsProvider = "eskiz",
+                Audience = info.DefaultAudience,
+                Template = info.DefaultTemplate,
+            });
+            created++;
+        }
+        if (created > 0) await db.SaveChangesAsync();
+        return new { created };
+    }
+
     /// <summary>Qoidani so'rovdan to'ldiradi — kanallar hodisada MAVJUD bo'lganlari bilan cheklanadi,
     /// audience/scope/schedule maydonlari faqat tegishli hodisada ma'noli.</summary>
     private static void Apply(AutoMessageRule rule, SaveAutoMessageRuleRequest req, AutoMessageTriggers.TriggerInfo info)

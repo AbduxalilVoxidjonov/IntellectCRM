@@ -42,7 +42,7 @@ export function MessagesPage() {
               Xabar yuborish
             </TabButton>
             <TabButton active={tab === 'auto'} onClick={() => setTab('auto')} icon={Zap}>
-              Avto xabarlar
+              Xabar yaratish
             </TabButton>
             <TabButton active={tab === 'history'} onClick={() => setTab('history')} icon={History}>
               Tarix

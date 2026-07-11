@@ -69,16 +69,19 @@ public class PaymentReminderService(
         var db = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
 
         var meta = await db.CenterMeta.FirstOrDefaultAsync(ct);
-        var rule = await db.AutoMessageRules.FirstOrDefaultAsync(r => r.Trigger == AutoMessageTriggers.PaymentDebt, ct);
-        if (rule is not null && !rule.Enabled)
+        // Kanallar FAQAT admin aniq YOQGAN qarzdorlik qoidalaridan olinadi. DIQQAT: ilgari qoida yo'q bo'lsa
+        // push+telegram DEFAULT-ON edi — bu "auto Telegramdan xato bilan yuborish" sababi edi. ENDI: yoqilgan
+        // qoida bo'lmasa HECH NARSA yuborilmaydi. Har qoida bitta kanal — bayroqlar birlashtiriladi (union).
+        var debtRules = await db.AutoMessageRules
+            .Where(r => r.Trigger == AutoMessageTriggers.PaymentDebt && r.Enabled).ToListAsync(ct);
+        if (debtRules.Count == 0)
         {
-            logger.LogInformation("To'lov eslatmasi o'chirilgan (sozlama) — yuborilmadi.");
+            logger.LogInformation("To'lov eslatmasi: yoqilgan qoida yo'q — yuborilmadi.");
             return;
         }
-        // Kanallar: qoida bo'lsa uning bayroqlaridan; qoida yo'q bo'lsa eski xulq (push + telegram).
-        var sendSms = rule?.SendSms ?? false;
-        var sendPush = rule?.SendPush ?? true;
-        var sendTelegram = rule?.SendTelegram ?? true;
+        var sendSms = debtRules.Any(r => r.SendSms);
+        var sendPush = debtRules.Any(r => r.SendPush);
+        var sendTelegram = debtRules.Any(r => r.SendTelegram);
 
         // Qarzdorlar: balansi manfiy, arxivlanmagan o'quvchilar.
         var debtors = await db.Students
@@ -110,7 +113,7 @@ public class PaymentReminderService(
         var fcmJson = meta?.FcmServiceAccountJson ?? "";
         var telegramReady = sendTelegram && telegram.IsConfigured;
         var pushReady = sendPush && FcmService.IsConfigured(fcmJson);
-        var smsProvider = rule?.SmsProvider ?? "eskiz";
+        var smsProvider = debtRules.FirstOrDefault(r => r.SendSms)?.SmsProvider ?? "eskiz";
         var smsReady = sendSms && AutoMessageSmsSender.IsReady(smsProvider, meta, eskiz);
 
         int tgSent = 0, pushSent = 0, smsSent = 0, students = 0;

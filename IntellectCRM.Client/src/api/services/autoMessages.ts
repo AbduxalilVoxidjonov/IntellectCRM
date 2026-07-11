@@ -104,6 +104,12 @@ export async function deleteAutoMessageRule(id: string): Promise<void> {
   await api.delete(`/admin/auto-messages/${id}`)
 }
 
+/** Keng tarqalgan hodisalar uchun tayyor SMS habarlar to'plamini yaratadi (mavjud SMS qoidalari o'tkazib yuboriladi). */
+export async function seedStandardSms(): Promise<{ created: number }> {
+  const { data } = await api.post<{ created: number }>('/admin/auto-messages/seed-sms')
+  return data
+}
+
 /* ---------- Tokenlar (o'rinbosarlar) katalogi ---------- */
 
 /** Server tomonidan e'lon qilingan o'rinbosar (token). */
