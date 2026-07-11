@@ -501,7 +501,8 @@ function MessageFormModal({
           offsetMinutes,
           sendScope: trigger.supportsSendScope ? sendScope : '',
           scheduleType: trigger.supportsSchedule ? scheduleType : '',
-          scheduleTime: trigger.supportsSchedule ? scheduleTime : '',
+          // Vaqt kerak: reja (custom_schedule) YOKI qamrov "not_filled"/"all" (davomat eslatmasi kunlik vaqti).
+          scheduleTime: trigger.supportsSchedule || trigger.supportsSendScope ? scheduleTime : '',
           scheduleDayOfMonth,
           smsProvider,
         }
@@ -670,12 +671,21 @@ function MessageFormModal({
                 </option>
               ))}
             </Select>
-            <Input
-              label="Surilish (daq)"
-              type="number"
-              value={offsetMinutes}
-              onChange={(e) => setOffsetMinutes(Number(e.target.value) || 0)}
-            />
+            {sendScope === 'lesson_start' ? (
+              <Input
+                label="Surilish (daq)"
+                type="number"
+                value={offsetMinutes}
+                onChange={(e) => setOffsetMinutes(Number(e.target.value) || 0)}
+              />
+            ) : (
+              <Input
+                label="Yuborish vaqti"
+                type="time"
+                value={scheduleTime}
+                onChange={(e) => setScheduleTime(e.target.value)}
+              />
+            )}
           </div>
         )}
 
