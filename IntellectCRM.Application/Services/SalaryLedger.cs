@@ -258,17 +258,23 @@ public static class SalaryLedger
         var feeByGroup = (await db.Classes.Where(c => allGroupIds.Contains(c.Id)).ToListAsync())
             .ToDictionary(c => c.Id, c => c.MonthlyFee);
 
-        // Tuition to'lovlari (kirim, o'quvchi) — GroupId tegi bilan.
+        // Tuition to'lovlari (kirim, o'quvchi) — GroupId tegi bilan. VOZVRAT (expense+refund) MANFIY qo'shiladi:
+        // o'qituvchining foizli maoshi net (to'langan − vozvrat) dan hisoblanadi — qaytarilgan pul bazadan chiqadi.
         var fromDate = $"{startMonth}-01";
         var toDate = $"{toMonth}-31";
-        var payments = await db.FinanceTransactions
-            .Where(t => t.Direction == "income" && t.Category == "tuition" && t.StudentId != null
-                        && studentIds.Contains(t.StudentId)
+        var movements = await db.FinanceTransactions
+            .Where(t => t.StudentId != null && studentIds.Contains(t.StudentId)
+                        && ((t.Direction == "income" && t.Category == "tuition")
+                            || (t.Direction == "expense" && t.Category == "refund"))
                         && string.Compare(t.Date, fromDate) >= 0 && string.Compare(t.Date, toDate) <= 0)
-            .Select(t => new { StudentId = t.StudentId!, t.GroupId, t.Date, t.Amount }).ToListAsync();
+            .Select(t => new { StudentId = t.StudentId!, t.GroupId, t.Date, t.Amount, t.Direction }).ToListAsync();
+        // Vozvrat manfiy belgi bilan: yig'ilgan bazani kamaytiradi.
+        var payments = movements
+            .Select(t => new { t.StudentId, t.GroupId, t.Date, Amount = t.Direction == "expense" ? -t.Amount : t.Amount })
+            .ToList();
 
         // TEGLANGAN to'lovlar (GroupId bor) — 100% o'sha guruhga; faqat o'qituvchi guruhi hisobga olinadi.
-        // O'quvchi → oy → TEGLANMAGAN to'lov summasi (narx nisbatida taqsimlanadi).
+        // O'quvchi → oy → TEGLANMAGAN net summasi (narx nisbatida taqsimlanadi; vozvratdan keyin manfiy ham bo'lishi mumkin).
         var untaggedByStudentMonth = new Dictionary<(string, string), decimal>();
 
         var membsByStudent = memberships.GroupBy(m => m.StudentId)
@@ -284,7 +290,7 @@ public static class SalaryLedger
 
         foreach (var p in payments)
         {
-            if (p.Amount <= 0) continue;
+            if (p.Amount == 0m) continue;   // vozvrat manfiy — o'tkazib yubormaymiz
             var month = p.Date[..7];
             if (!string.IsNullOrEmpty(p.GroupId))
             {
@@ -302,7 +308,7 @@ public static class SalaryLedger
         // Teglanmagan to'lovlarni narx (MonthlyFee) nisbatida o'qituvchi guruh(lar)iga taqsimlaymiz.
         foreach (var ((sid, month), collected) in untaggedByStudentMonth)
         {
-            if (collected <= 0 || !membsByStudent.TryGetValue(sid, out var membs)) continue;
+            if (collected == 0m || !membsByStudent.TryGetValue(sid, out var membs)) continue;
             var active = membs.Where(m => BillableInMonth(m, month)).ToList();
             var denom = active.Sum(m => feeByGroup.GetValueOrDefault(m.GroupId, 0m));
             if (denom <= 0) continue; // shu oyda billable guruh yo'q — taqsimlab bo'lmaydi.

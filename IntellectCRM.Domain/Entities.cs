@@ -595,6 +595,29 @@ public class LessonNote
     public bool Conducted { get; set; }
 }
 
+/// <summary>
+/// Bitta darsni BIR MARTALIK boshqa kunga ko'chirish. Guruh darslari <see cref="Group.Days"/> (hafta kunlari)
+/// bo'yicha avtomatik quriladi; bu yozuv shu qoidadan bitta chetlanish: <see cref="FromDate"/>dagi dars
+/// <see cref="ToDate"/>ga ko'chadi (yangi kun guruh kuni bo'lmasa ham ustun sifatida paydo bo'ladi).
+/// Jurnal ustunlari (<see cref="JournalService.EffectiveLessonDatesInMonth"/>) va maosh rejasi
+/// (<see cref="SalaryJournalStats"/>) shu ko'chirishni hisobga oladi — ko'chirilgan dars o'tkazib
+/// yuborilgan (missed) hisoblanmaydi.
+/// </summary>
+public class LessonReschedule
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string ClassId { get; set; } = string.Empty;
+    /// <summary>Asl dars sanasi ("yyyy-MM-dd") — bu kunda dars endi bo'lmaydi (ustun olib tashlanadi).</summary>
+    public string FromDate { get; set; } = string.Empty;
+    /// <summary>Yangi dars sanasi ("yyyy-MM-dd") — dars shu kunga ko'chadi (ustun paydo bo'ladi).</summary>
+    public string ToDate { get; set; } = string.Empty;
+    /// <summary>Yangi dars boshlanish vaqti ("HH:mm", ixtiyoriy) — faqat ma'lumot uchun ko'rsatiladi.</summary>
+    public string? Time { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    /// <summary>Ko'chirishni amalga oshirgan admin/o'qituvchi F.I.Sh.</summary>
+    public string? CreatedBy { get; set; }
+}
+
 /// <summary>Davomat sababi (kelmaganlik turi).</summary>
 public class AbsenceReason
 {
@@ -776,6 +799,11 @@ public class FinanceTransaction
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     /// <summary>Mas'ul — to'lovni kiritgan admin/kassir F.I.Sh (chekda "Mas'ul" qatori uchun).</summary>
     public string? CreatedBy { get; set; }
+    /// <summary>Bu yozuv VOZVRAT (pul qaytarish) bo'lsa — qaysi ASL to'lov (income+tuition) uchun qaytarilgani.
+    /// Vozvrat: Direction="expense", Category="refund", StudentId/GroupId/Month asl to'lovdan ko'chiriladi.
+    /// O'qituvchining foizli maoshi va "yig'ilgan" hisobotlari vozvratni AYIRADI (net = to'langan − vozvrat).
+    /// null = oddiy tranzaksiya (vozvrat emas).</summary>
+    public string? RefundOfId { get; set; }
 }
 
 /// <summary>O'qituvchining bir kunlik ish davomati.</summary>

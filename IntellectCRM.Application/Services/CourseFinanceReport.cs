@@ -63,12 +63,17 @@ public static class CourseFinanceReport
             billedBySg[key] = billedBySg.GetValueOrDefault(key) + net;
         }
 
-        // ---- YIG'ILGAN (collected): tuition to'lovlarini guruhga tegishli qilish ----
-        var payments = await db.FinanceTransactions
-            .Where(t => t.Direction == "income" && t.Category == "tuition" && t.StudentId != null
+        // ---- YIG'ILGAN (collected): tuition to'lovlarini guruhga tegishli qilish. VOZVRAT (expense+refund)
+        // MANFIY qo'shiladi — "yig'ilgan" net (to'langan − vozvrat) bo'ladi (o'qituvchi maoshi bilan izchil). ----
+        var payments = (await db.FinanceTransactions
+            .Where(t => t.StudentId != null
+                        && ((t.Direction == "income" && t.Category == "tuition")
+                            || (t.Direction == "expense" && t.Category == "refund"))
                         && string.Compare(t.Date, fromDate) >= 0 && string.Compare(t.Date, toDate) <= 0)
-            .Select(t => new { StudentId = t.StudentId!, t.GroupId, t.Date, t.Amount })
-            .ToListAsync();
+            .Select(t => new { StudentId = t.StudentId!, t.GroupId, t.Date, t.Amount, t.Direction })
+            .ToListAsync())
+            .Select(t => new { t.StudentId, t.GroupId, t.Date, Amount = t.Direction == "expense" ? -t.Amount : t.Amount })
+            .ToList();
 
         var collectedByGroup = new Dictionary<string, decimal>();
         var collectedBySg = new Dictionary<(string, string), decimal>();
@@ -83,7 +88,7 @@ public static class CourseFinanceReport
 
         foreach (var p in payments)
         {
-            if (p.Amount <= 0) continue;
+            if (p.Amount == 0m) continue;   // vozvrat manfiy — o'tkazib yubormaymiz
             var month = p.Date.Length >= 7 ? p.Date[..7] : p.Date;
             if (!string.IsNullOrEmpty(p.GroupId))
                 AddCollected(p.GroupId, p.StudentId, p.Amount);
@@ -94,10 +99,10 @@ public static class CourseFinanceReport
             }
         }
 
-        // Teglanmagan to'lovni narx nisbatida billable guruhlarga taqsimlash.
+        // Teglanmagan to'lovni narx nisbatida billable guruhlarga taqsimlash (vozvratdan keyin manfiy ham bo'lishi mumkin).
         foreach (var ((sid, month), amount) in untaggedByStudentMonth)
         {
-            if (amount <= 0 || !membsByStudent.TryGetValue(sid, out var membs)) continue;
+            if (amount == 0m || !membsByStudent.TryGetValue(sid, out var membs)) continue;
             var active = membs.Where(m => BillableInMonth(m, month)).ToList();
             var denom = active.Sum(m => feeByGroup.GetValueOrDefault(m.GroupId, 0m));
             if (denom <= 0) continue;
@@ -232,16 +237,20 @@ public static class CourseFinanceReport
             billedByStudent[c.StudentId] = billedByStudent.GetValueOrDefault(c.StudentId) + net;
         }
 
-        // YIG'ILGAN (collected) — shu guruhga tegishli ulush.
-        var payments = await db.FinanceTransactions
-            .Where(t => t.Direction == "income" && t.Category == "tuition" && t.StudentId != null
+        // YIG'ILGAN (collected) — shu guruhga tegishli ulush. VOZVRAT (expense+refund) manfiy (net).
+        var payments = (await db.FinanceTransactions
+            .Where(t => t.StudentId != null
+                        && ((t.Direction == "income" && t.Category == "tuition")
+                            || (t.Direction == "expense" && t.Category == "refund"))
                         && string.Compare(t.Date, fromDate) >= 0 && string.Compare(t.Date, toDate) <= 0)
-            .Select(t => new { StudentId = t.StudentId!, t.GroupId, t.Date, t.Amount })
-            .ToListAsync();
+            .Select(t => new { StudentId = t.StudentId!, t.GroupId, t.Date, t.Amount, t.Direction })
+            .ToListAsync())
+            .Select(t => new { t.StudentId, t.GroupId, t.Date, Amount = t.Direction == "expense" ? -t.Amount : t.Amount })
+            .ToList();
         var collectedByStudent = new Dictionary<string, decimal>();
         foreach (var p in payments)
         {
-            if (p.Amount <= 0) continue;
+            if (p.Amount == 0m) continue;   // vozvrat manfiy
             if (!string.IsNullOrEmpty(p.GroupId))
             {
                 if (p.GroupId == groupId)

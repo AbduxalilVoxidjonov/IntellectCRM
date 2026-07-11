@@ -65,9 +65,18 @@ public static class JournalService
         if (months.Count == 0) months.Add(cur);
         var resolved = !string.IsNullOrEmpty(month) && months.Contains(month) ? month! : months[^1];
 
-        // Ustunlar: shu oyda guruh kunlariga to'g'ri keladigan sanalar (Period=1).
-        var columns = LessonDatesInMonth(cls.Days, resolved)
+        // Bir martalik ko'chirishlar (dars boshqa kunga): asl kun olib tashlanadi, yangi kun qo'shiladi.
+        var moves = await db.LessonReschedules.Where(r => r.ClassId == classId).ToListAsync();
+        // Ustunlar: shu oyda guruh kunlariga to'g'ri keladigan sanalar (+ ko'chirishlar), Period=1.
+        var columns = EffectiveLessonDatesInMonth(
+                cls.Days, resolved, moves.Select(m => new LessonMove(m.FromDate, m.ToDate)))
             .Select(d => new JournalColumnDto(d, 1)).ToList();
+        // Shu oyga tegishli ko'chirishlar (yangi yoki asl sana shu oyda) — frontend belgi + bekor qilish uchun.
+        var reschedules = moves
+            .Where(m => (m.ToDate.Length >= 7 && m.ToDate[..7] == resolved)
+                        || (m.FromDate.Length >= 7 && m.FromDate[..7] == resolved))
+            .Select(m => new LessonRescheduleDto(m.Id, m.FromDate, m.ToDate, m.Time))
+            .ToList();
 
         // Yozuvlar: shu guruh + kurs + oy (sana prefiksi bo'yicha).
         var entries = string.IsNullOrEmpty(subjectId)
@@ -87,7 +96,7 @@ public static class JournalService
         var info = new GroupJournalInfoDto(
             cls.Id, cls.Name, subjectId, courseName, teacherName,
             cls.Days, cls.StartTime, cls.EndTime, cls.Room ?? "", cls.StartDate ?? "", cls.MonthlyFee);
-        return new GroupJournalDto(info, months, resolved, columns, students, entries, conductedDates);
+        return new GroupJournalDto(info, months, resolved, columns, students, entries, conductedDates, reschedules);
     }
 
     /// <summary>O'quvchining guruhdagi a'zoligi boshlangan sana ("yyyy-MM-dd"): aktivlashtirilgan bo'lsa
@@ -113,6 +122,104 @@ public static class JournalService
             var d = new DateOnly(y, m, day);
             if (set.Contains(((int)d.DayOfWeek + 6) % 7)) yield return d.ToString("yyyy-MM-dd");
         }
+    }
+
+    /// <summary>Bitta darsning bir martalik ko'chirilishi (asl sana → yangi sana).</summary>
+    public sealed record LessonMove(string FromDate, string ToDate);
+
+    /// <summary>
+    /// Shu oyning AMALDAGI dars sanalari: guruh kunlaridan (<see cref="LessonDatesInMonth"/>) chiqarilgan
+    /// sanalar + bir martalik ko'chirishlar qo'llanadi — ko'chirilgan darsning ASL sanasi (shu oyda bo'lsa)
+    /// olib tashlanadi, YANGI sanasi (shu oyda bo'lsa) qo'shiladi (guruh kuni bo'lmasa ham). Tartiblangan.
+    /// </summary>
+    public static List<string> EffectiveLessonDatesInMonth(
+        IReadOnlyCollection<int> days, string month, IEnumerable<LessonMove> moves)
+    {
+        var set = LessonDatesInMonth(days, month).ToHashSet();
+        foreach (var mv in moves)
+        {
+            if (mv.FromDate.Length >= 7 && mv.FromDate[..7] == month) set.Remove(mv.FromDate);
+            if (mv.ToDate.Length >= 7 && mv.ToDate[..7] == month) set.Add(mv.ToDate);
+        }
+        return set.OrderBy(d => d, StringComparer.Ordinal).ToList();
+    }
+
+    /// <summary>
+    /// Bitta darsni BIR MARTALIK boshqa kunga ko'chiradi (<paramref name="fromDate"/> → <paramref name="toDate"/>).
+    /// Asl kundagi jurnal ma'lumotlari (baho/davomat/mavzu) yangi kunga KO'CHIRILADI. Avval ko'chirilgan
+    /// dars yana ko'chirilsa — zanjir yig'iladi (asl kun → yangi kun). Xatolarni InvalidOperationException bilan qaytaradi.
+    /// </summary>
+    public static async Task<LessonReschedule> RescheduleLessonAsync(
+        IAppDbContext db, string classId, string fromDate, string toDate, string? time, string? actor)
+    {
+        var cls = await db.Classes.FindAsync(classId)
+            ?? throw new InvalidOperationException("Guruh topilmadi");
+        if (!DateOnly.TryParse(fromDate, out var fd) || !DateOnly.TryParse(toDate, out var td))
+            throw new InvalidOperationException("Sana noto'g'ri");
+        fromDate = fd.ToString("yyyy-MM-dd");
+        toDate = td.ToString("yyyy-MM-dd");
+        if (fromDate == toDate)
+            throw new InvalidOperationException("Yangi sana asl sanadan farq qilishi kerak");
+        if (!string.IsNullOrEmpty(cls.StartDate) && string.CompareOrdinal(toDate, cls.StartDate[..Math.Min(10, cls.StartDate.Length)]) < 0)
+            throw new InvalidOperationException("Yangi sana guruh boshlanishidan oldin bo'lishi mumkin emas");
+
+        var moves = await db.LessonReschedules.Where(r => r.ClassId == classId).ToListAsync();
+        var moveRecords = moves.Select(m => new LessonMove(m.FromDate, m.ToDate)).ToList();
+
+        // Asl kunda haqiqatan dars bo'lishi kerak (guruh kuni yoki oldin ko'chirilgan kun).
+        var fromEffective = EffectiveLessonDatesInMonth(cls.Days, fromDate[..7], moveRecords);
+        if (!fromEffective.Contains(fromDate))
+            throw new InvalidOperationException("Bu kunda dars yo'q");
+        // Yangi kunda allaqachon dars bo'lmasin (ikki dars bir kunga tushmasin).
+        var toEffective = EffectiveLessonDatesInMonth(cls.Days, toDate[..7], moveRecords);
+        if (toEffective.Contains(toDate))
+            throw new InvalidOperationException("Bu kunda allaqachon dars bor");
+
+        // Zanjirni yig'ish: agar shu darsning o'zi allaqachon ko'chirilgan bo'lsa (ToDate == fromDate) — o'sha
+        // yozuvni yangilaymiz (asl kun saqlanadi). Aks holda yangi yozuv.
+        var existing = moves.FirstOrDefault(m => m.ToDate == fromDate)
+                       ?? moves.FirstOrDefault(m => m.FromDate == fromDate);
+        LessonReschedule rec;
+        if (existing is not null)
+        {
+            existing.ToDate = toDate;
+            existing.Time = time;
+            existing.CreatedBy = actor;
+            existing.CreatedAt = DateTime.UtcNow;
+            rec = existing;
+        }
+        else
+        {
+            rec = new LessonReschedule
+            {
+                ClassId = classId, FromDate = fromDate, ToDate = toDate, Time = time, CreatedBy = actor,
+            };
+            db.LessonReschedules.Add(rec);
+        }
+
+        // Mavjud jurnal ma'lumotlarini asl kundan yangi kunga ko'chiramiz (yo'qolmasin).
+        await MoveJournalDataAsync(db, classId, fromDate, toDate);
+        await db.SaveChangesAsync();
+        return rec;
+    }
+
+    /// <summary>Ko'chirishni bekor qiladi — dars asl kuniga qaytadi (ma'lumotlar ham qaytariladi).</summary>
+    public static async Task CancelRescheduleAsync(IAppDbContext db, string id)
+    {
+        var rec = await db.LessonReschedules.FirstOrDefaultAsync(r => r.Id == id);
+        if (rec is null) return;
+        await MoveJournalDataAsync(db, rec.ClassId, rec.ToDate, rec.FromDate);
+        db.LessonReschedules.Remove(rec);
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>Guruhning bir kundagi jurnal yozuvlarini (JournalEntry + LessonNote) boshqa kunga ko'chiradi.</summary>
+    private static async Task MoveJournalDataAsync(IAppDbContext db, string classId, string fromDate, string toDate)
+    {
+        var entries = await db.JournalEntries.Where(e => e.ClassId == classId && e.Date == fromDate).ToListAsync();
+        foreach (var e in entries) e.Date = toDate;
+        var notes = await db.LessonNotes.Where(n => n.ClassId == classId && n.Date == fromDate).ToListAsync();
+        foreach (var n in notes) n.Date = toDate;
     }
 
     public static async Task<List<JournalEntryDto>> GetEntriesAsync(

@@ -159,8 +159,10 @@ public class StudentAttendanceController(AppDbContext db) : ControllerBase
 
         var reasons = await db.AbsenceReasons.AsNoTracking().ToDictionaryAsync(r => r.Id);
 
+        var moves = (await db.LessonReschedules.Where(r => r.ClassId == gid).ToListAsync())
+            .Select(m => new JournalService.LessonMove(m.FromDate, m.ToDate)).ToList();
         var cells = new List<StudentJournalCellDto>();
-        foreach (var date in JournalService.LessonDatesInMonth(group.Days, resolved))
+        foreach (var date in JournalService.EffectiveLessonDatesInMonth(group.Days, resolved, moves))
         {
             var blocked = (group.StartDate is { Length: >= 10 } && string.CompareOrdinal(date, group.StartDate[..10]) < 0)
                 || (memberStart is not null && string.CompareOrdinal(date, memberStart) < 0);

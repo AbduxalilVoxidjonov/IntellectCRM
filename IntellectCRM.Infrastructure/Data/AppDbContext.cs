@@ -26,6 +26,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<TrialLesson> TrialLessons => Set<TrialLesson>();
     public DbSet<JournalEntry> JournalEntries => Set<JournalEntry>();
     public DbSet<LessonNote> LessonNotes => Set<LessonNote>();
+    public DbSet<LessonReschedule> LessonReschedules => Set<LessonReschedule>();
     public DbSet<AbsenceReason> AbsenceReasons => Set<AbsenceReason>();
     public DbSet<DisciplineReason> DisciplineReasons => Set<DisciplineReason>();
     public DbSet<DisciplinePoint> DisciplinePoints => Set<DisciplinePoint>();
@@ -183,6 +184,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         // Tez-tez ishlatiladigan filtrlar uchun indekslar
         b.Entity<JournalEntry>().HasIndex(e => new { e.ClassId, e.SubjectId, e.Quarter });
         b.Entity<LessonNote>().HasIndex(e => new { e.ClassId, e.SubjectId, e.Quarter });
+        b.Entity<LessonReschedule>().Property(e => e.ClassId).HasMaxLength(200);
+        b.Entity<LessonReschedule>().HasIndex(e => e.ClassId);
         b.Entity<Group>().HasIndex(c => c.TeacherId);
         b.Entity<StudentGroup>().HasIndex(sg => new { sg.StudentId, sg.GroupId }).IsUnique();
         b.Entity<StudentGroup>().HasIndex(sg => sg.GroupId);

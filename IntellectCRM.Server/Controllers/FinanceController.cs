@@ -27,14 +27,17 @@ public class FinanceController(AppDbContext db, AuditService audit, AutoMessageS
         FinanceTransaction t,
         IReadOnlyDictionary<string, string> students,
         IReadOnlyDictionary<string, string> teachers,
-        IReadOnlyDictionary<string, string>? groups = null) =>
+        IReadOnlyDictionary<string, string>? groups = null,
+        IReadOnlyDictionary<string, decimal>? refunded = null) =>
         new(t.Id, t.Date, t.Direction, t.Category, t.Amount, t.Note,
             t.StudentId, t.StudentId is not null && students.TryGetValue(t.StudentId, out var s) ? s : null,
             t.TeacherId, t.TeacherId is not null && teachers.TryGetValue(t.TeacherId, out var te) ? te : null,
             t.Month, t.GroupId, t.Comment, t.Method,
             t.GroupId is not null && groups is not null && groups.TryGetValue(t.GroupId, out var g) ? g : null,
             // Kiritilgan vaqt — UTC saqlangan CreatedAt'ni markaz mintaqasiga (UTC+5) o'tkazib beramiz.
-            t.CreatedAt == default ? null : AppClock.ToLocal(t.CreatedAt).ToString("yyyy-MM-ddTHH:mm:ss"));
+            t.CreatedAt == default ? null : AppClock.ToLocal(t.CreatedAt).ToString("yyyy-MM-ddTHH:mm:ss"),
+            refunded is not null && refunded.TryGetValue(t.Id, out var rf) ? rf : 0m,
+            t.RefundOfId);
 
     [HttpGet("transactions")]
     public async Task<ActionResult<IEnumerable<FinanceTransactionDto>>> GetTransactions(
@@ -51,8 +54,17 @@ public class FinanceController(AppDbContext db, AuditService audit, AutoMessageS
         var students = await StudentNames();
         var teachers = await TeacherNames();
         var groups = await GroupNames();
-        return list.Select(t => ToDto(t, students, teachers, groups)).ToList();
+        var refunded = await RefundedByPaymentAsync();
+        return list.Select(t => ToDto(t, students, teachers, groups, refunded)).ToList();
     }
+
+    /// <summary>Har asl to'lov (paymentId) uchun jami qaytarilgan summa (vozvrat yozuvlaridan).</summary>
+    private async Task<Dictionary<string, decimal>> RefundedByPaymentAsync() =>
+        (await db.FinanceTransactions
+            .Where(t => t.Direction == "expense" && t.Category == "refund" && t.RefundOfId != null)
+            .Select(t => new { t.RefundOfId, t.Amount }).ToListAsync())
+        .GroupBy(t => t.RefundOfId!)
+        .ToDictionary(g => g.Key, g => g.Sum(x => x.Amount));
 
     /// <summary>Bitta to'lov uchun chek (termal kvitansiya) ma'lumotlari — barcha maydonlar + markaz sarlavhasi
     /// + chek sozlamalari (JSON). Frontend shu ma'lumotdan termal chekni chizadi/print qiladi.</summary>
@@ -266,12 +278,16 @@ public class FinanceController(AppDbContext db, AuditService audit, AutoMessageS
             .ToDictionary(g => g.Key, g => g.Sum(x => x.Amount));
         var discountByStudent = charges.GroupBy(c => c.StudentId)
             .ToDictionary(g => g.Key, g => g.Sum(x => x.Discount));
-        // Haqiqiy naqd to'lov — chegirma TA'SIR QILMAYDI, har doim turg'un.
+        // Haqiqiy naqd to'lov (NET) — chegirma TA'SIR QILMAYDI. VOZVRAT (expense+refund) ayriladi:
+        // qaytarilgan pul "to'langan"dan chiqadi (to'langan = kirim tuition − vozvrat).
         var paidByStudent = (await db.FinanceTransactions
-                .Where(t => t.Direction == "income" && t.Category == "tuition" && t.StudentId != null)
+                .Where(t => t.StudentId != null
+                            && ((t.Direction == "income" && t.Category == "tuition")
+                                || (t.Direction == "expense" && t.Category == "refund")))
+                .Select(t => new { t.StudentId, t.Amount, t.Direction })
                 .ToListAsync())
             .GroupBy(t => t.StudentId!)
-            .ToDictionary(g => g.Key, g => g.Sum(x => x.Amount));
+            .ToDictionary(g => g.Key, g => g.Sum(x => x.Direction == "expense" ? -x.Amount : x.Amount));
 
         return students.Select(s =>
         {
@@ -287,9 +303,15 @@ public class FinanceController(AppDbContext db, AuditService audit, AutoMessageS
     }
 
     /// <summary>Tranzaksiyaning o'quvchi BALANSIGA ta'siri: o'quvchiga bog'langan tuition KIRIMI balansni
-    /// shu summaga oshiradi (qarzni kamaytiradi). Boshqa turdagilar (chiqim/maosh/guruhsiz) — 0.</summary>
-    private static decimal StudentBalanceEffect(FinanceTransaction tx) =>
-        tx.Direction == "income" && tx.Category == "tuition" && !string.IsNullOrEmpty(tx.StudentId) ? tx.Amount : 0m;
+    /// shu summaga oshiradi (qarzni kamaytiradi); VOZVRAT (expense+refund) esa shu summaga KAMAYTIRADI
+    /// (avansni qaytaradi) — o'chirilganda teskarisi qo'llanadi. Boshqa turdagilar (maosh/guruhsiz) — 0.</summary>
+    private static decimal StudentBalanceEffect(FinanceTransaction tx)
+    {
+        if (string.IsNullOrEmpty(tx.StudentId)) return 0m;
+        if (tx.Direction == "income" && tx.Category == "tuition") return tx.Amount;
+        if (tx.Direction == "expense" && tx.Category == "refund") return -tx.Amount;
+        return 0m;
+    }
 
     private async Task ApplyBalanceAsync(string? studentId, decimal delta)
     {
@@ -393,6 +415,115 @@ public class FinanceController(AppDbContext db, AuditService audit, AutoMessageS
 
         await db.SaveChangesAsync();
         return ToDto(tx, await StudentNames(), await TeacherNames());
+    }
+
+    /// <summary>
+    /// O'quvchi to'lovini (income+tuition) qisman/to'liq VOZVRAT (pul qaytarish) — FAQAT superadmin.
+    ///
+    /// Muzlatish bilan bog'liqlik: o'quvchi oy o'rtasida MUZLATILGANDA shu oy hisobi qatnashilgan darslarga
+    /// qayta hisoblanadi (<see cref="TuitionService.ChargeFreezeProrateAsync"/>) va o'quvchida AVANS (ortiqcha
+    /// to'lov) paydo bo'ladi. Shu avans aynan qaytariladigan summa — vozvrat balansni SHU miqdorda kamaytiradi,
+    /// natijada balans 0 ga tushadi. O'qituvchining foizli maoshi net (to'langan − vozvrat) dan hisoblanadi
+    /// (<see cref="SalaryLedger"/>, <see cref="CourseFinanceReport"/> vozvratni ayiradi — avtomatik).
+    ///
+    /// Vozvrat alohida yozuv sifatida saqlanadi (Direction="expense", Category="refund", RefundOfId=asl to'lov),
+    /// shuning uchun kassa chiqimi (Summary/Monthly) va "Vozvratlar tarixi"da ko'rinadi. Bir to'lovni bir necha
+    /// marta (qisman) qaytarish mumkin — jami asl to'lov summasidan oshmaydi.
+    /// </summary>
+    [HttpPost("payments/{id}/refund")]
+    [Authorize(Roles = Roles.SuperAdmin)]
+    public async Task<ActionResult<FinanceTransactionDto>> Refund(string id, RefundPayload p)
+    {
+        var tx = await db.FinanceTransactions.FindAsync(id);
+        if (tx is null) return NotFound();
+        if (tx.Direction != "income" || tx.Category != "tuition" || string.IsNullOrEmpty(tx.StudentId))
+            return BadRequest(new { message = "Vozvrat faqat o'quvchi to'lovi (tuition) uchun qilinadi" });
+        if (tx.RefundOfId != null)
+            return BadRequest(new { message = "Bu yozuvning o'zi vozvrat — undan vozvrat qilib bo'lmaydi" });
+
+        var student = await db.Students.FindAsync(tx.StudentId);
+        if (student is null) return BadRequest(new { message = "O'quvchi topilmadi" });
+
+        if (p.Amount <= 0) return BadRequest(new { message = "Vozvrat summasi musbat bo'lishi kerak" });
+
+        // Shu to'lovdan avval qancha qaytarilgan — jami asl summadan oshmasin.
+        var already = await db.FinanceTransactions
+            .Where(r => r.Direction == "expense" && r.Category == "refund" && r.RefundOfId == id)
+            .SumAsync(r => (decimal?)r.Amount) ?? 0m;
+        var refundable = tx.Amount - already;
+        if (refundable <= 0)
+            return BadRequest(new { message = "Bu to'lov to'liq qaytarilgan" });
+        if (p.Amount > refundable)
+            return BadRequest(new { message = $"Ko'pi bilan {AuditService.Money(refundable)} so'm qaytarish mumkin" });
+
+        var date = string.IsNullOrWhiteSpace(p.Date) ? AppClock.Today.ToString("yyyy-MM-dd") : p.Date.Trim();
+        if (!DateOnly.TryParse(date, out var parsed)) return BadRequest(new { message = "Sana noto'g'ri" });
+        date = parsed.ToString("yyyy-MM-dd");
+        if (string.CompareOrdinal(date, AppClock.Today.ToString("yyyy-MM-dd")) > 0)
+            return BadRequest(new { message = "Kelajak sanaga vozvrat kiritib bo'lmaydi" });
+
+        var reason = string.IsNullOrWhiteSpace(p.Reason) ? null : p.Reason.Trim();
+        var refund = new FinanceTransaction
+        {
+            Date = date,
+            Direction = "expense",
+            Category = "refund",
+            Amount = p.Amount,
+            StudentId = tx.StudentId,
+            GroupId = tx.GroupId,     // o'qituvchi foizini to'g'ri guruhdan ayirish uchun asl tegni ko'chiramiz
+            Month = tx.Month,
+            RefundOfId = tx.Id,
+            Note = $"Vozvrat ({student.FullName})" + (reason is null ? "" : $" — {reason}"),
+            Comment = reason,
+            CreatedBy = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value,
+        };
+        db.FinanceTransactions.Add(refund);
+
+        // Balans: vozvrat to'lovga TESKARI — muzlatishdan hosil bo'lgan avansni qaytaradi (balans kamayadi).
+        student.Balance -= p.Amount;
+
+        audit.Record(AuditService.EntityFinanceTransaction, refund.Id, "create",
+            $"Vozvrat qaytarildi ({student.FullName}): {AuditService.Money(p.Amount)} so'm"
+                + (reason is null ? "" : $" — sabab: {reason}"),
+            after: AuditService.Snapshot(refund), studentId: tx.StudentId);
+
+        await db.SaveChangesAsync();
+
+        var students = await StudentNames();
+        var teachers = await TeacherNames();
+        var groups = await GroupNames();
+        return ToDto(refund, students, teachers, groups);
+    }
+
+    /// <summary>VOZVRATLAR TARIXI — qaytarilgan pullar (Direction=expense, Category=refund), asl to'lov ma'lumoti bilan.</summary>
+    [HttpGet("refunds")]
+    public async Task<ActionResult<IEnumerable<RefundDto>>> Refunds(
+        [FromQuery] string? from, [FromQuery] string? to)
+    {
+        var query = db.FinanceTransactions
+            .Where(t => t.Direction == "expense" && t.Category == "refund");
+        if (!string.IsNullOrEmpty(from)) query = query.Where(t => string.Compare(t.Date, from) >= 0);
+        if (!string.IsNullOrEmpty(to)) query = query.Where(t => string.Compare(t.Date, to) <= 0);
+        var list = await query.OrderByDescending(t => t.Date).ThenByDescending(t => t.Id).ToListAsync();
+
+        var students = await StudentNames();
+        var groups = await GroupNames();
+        // Asl to'lovlar (RefundOfId) — summa/sana ko'rsatish uchun.
+        var paymentIds = list.Where(t => t.RefundOfId != null).Select(t => t.RefundOfId!).Distinct().ToList();
+        var payments = (await db.FinanceTransactions.Where(t => paymentIds.Contains(t.Id)).ToListAsync())
+            .ToDictionary(t => t.Id);
+
+        return list.Select(t =>
+        {
+            payments.TryGetValue(t.RefundOfId ?? "", out var pay);
+            return new RefundDto(
+                t.Id, t.Date, t.Amount, t.StudentId,
+                t.StudentId is not null && students.TryGetValue(t.StudentId, out var s) ? s : null,
+                t.GroupId, t.GroupId is not null && groups.TryGetValue(t.GroupId, out var g) ? g : null,
+                t.Month, t.Comment,
+                t.RefundOfId, pay?.Amount, pay?.Date, t.CreatedBy,
+                t.CreatedAt == default ? null : AppClock.ToLocal(t.CreatedAt).ToString("yyyy-MM-ddTHH:mm:ss"));
+        }).ToList();
     }
 
     [HttpDelete("transactions/{id}")]

@@ -549,7 +549,12 @@ public record GroupJournalStudentDto(string StudentId, string FullName, string S
 public record GroupJournalDto(
     GroupJournalInfoDto Group, List<string> Months, string Month,
     List<JournalColumnDto> Columns, List<GroupJournalStudentDto> Students, List<JournalEntryDto> Entries,
-    List<string> ConductedDates);
+    List<string> ConductedDates, List<LessonRescheduleDto> Reschedules);
+/// <summary>Bitta darsning BIR MARTALIK boshqa kunga ko'chirilishi (shu oyga tegishli). ToDate — jurnalda
+/// ko'rinadigan yangi ustun; FromDate — asl (endi yo'q) kun; Time — yangi vaqt (ixtiyoriy, "HH:mm").</summary>
+public record LessonRescheduleDto(string Id, string FromDate, string ToDate, string? Time);
+/// <summary>Darsni boshqa kunga ko'chirish so'rovi (bir martalik).</summary>
+public record RescheduleLessonRequest(string ClassId, string FromDate, string ToDate, string? Time);
 /// <summary>Bitta dars (sana) uchun BARCHA o'quvchiga birdan davomat. <see cref="Absent"/>=false → hammasi KELDI
 /// (sabablar tozalanadi). =true → hammasi KELMADI: <see cref="ReasonId"/> berilsa shu sabab, aks holda standart
 /// "Sababsiz" (yo'q bo'lsa avtomatik yaratiladi). Ikkala holatda ham dars "o'tildi" (Conducted) bo'ladi.</summary>
@@ -910,7 +915,21 @@ public record FinanceTransactionDto(
     string Id, string Date, string Direction, string Category, decimal Amount,
     string? Note, string? StudentId, string? StudentName, string? TeacherId, string? TeacherName,
     string? Month, string? GroupId = null, string? Comment = null, string? Method = null,
-    string? GroupName = null, string? CreatedAt = null);
+    string? GroupName = null, string? CreatedAt = null,
+    // Bu to'lovdan (income+tuition) jami qancha VOZVRAT qilingani (>0 bo'lsa qisman/to'liq qaytarilgan).
+    decimal Refunded = 0m,
+    // Bu yozuvning O'ZI vozvrat bo'lsa — qaysi asl to'lov uchun.
+    string? RefundOfId = null);
+
+/// <summary>O'quvchi to'lovini (income+tuition) qisman/to'liq VOZVRAT qilish — FAQAT superadmin.
+/// Muzlatishdan hosil bo'lgan avans shu orqali qaytariladi (balans 0 ga tushadi), o'qituvchi foizi net'dan.</summary>
+public record RefundPayload(decimal Amount, string? Date = null, string? Reason = null);
+
+/// <summary>Bitta vozvrat yozuvi (tarix uchun) — asl to'lov ma'lumoti bilan.</summary>
+public record RefundDto(
+    string Id, string Date, decimal Amount, string? StudentId, string? StudentName,
+    string? GroupId, string? GroupName, string? Month, string? Reason,
+    string? PaymentId, decimal? PaymentAmount, string? PaymentDate, string? CreatedBy, string? CreatedAt);
 /* ---------- Support Telegram (bot foydalanuvchisi ↔ admin) ---------- */
 public record BotThreadDto(long ChatId, string Name, string Username, string Phone, string Linked,
     string StartedAt, string? LastMessageAt, string LastText, int Unread);

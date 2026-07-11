@@ -106,6 +106,33 @@ public class JournalController(AppDbContext db, FcmService fcm, AutoMessageServi
         return NoContent();
     }
 
+    /* ---------- Darsni boshqa kunga ko'chirish (bir martalik) ---------- */
+
+    /// <summary>Bitta darsni bir martalik boshqa kunga ko'chiradi (sana + ixtiyoriy vaqt). Asl kundagi
+    /// baho/davomat/mavzu ham yangi kunga ko'chadi. Xato bo'lsa 400 + xabar.</summary>
+    [HttpPost("reschedule")]
+    public async Task<ActionResult<LessonRescheduleDto>> Reschedule(RescheduleLessonRequest req)
+    {
+        try
+        {
+            var actor = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value;
+            var rec = await JournalService.RescheduleLessonAsync(db, req.ClassId, req.FromDate, req.ToDate, req.Time, actor);
+            return new LessonRescheduleDto(rec.Id, rec.FromDate, rec.ToDate, rec.Time);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>Ko'chirishni bekor qiladi — dars asl kuniga qaytadi (ma'lumotlar ham).</summary>
+    [HttpDelete("reschedule/{id}")]
+    public async Task<IActionResult> CancelReschedule(string id)
+    {
+        await JournalService.CancelRescheduleAsync(db, id);
+        return NoContent();
+    }
+
     /* ---------- Jurnal boshqaruvi (tahrirlash siyosati) — "Guruhlar → Jurnal boshqaruvi" oynasi ---------- */
 
     /// <summary>Joriy jurnal siyosati (sana oynasi, faqat o'tilgan dars, adminlarga qo'llash).</summary>

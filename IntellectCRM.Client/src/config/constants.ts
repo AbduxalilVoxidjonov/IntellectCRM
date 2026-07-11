@@ -123,6 +123,8 @@ export const categoriesByDirection: Record<FinanceDirection, CategoryOption[]> =
 
 /** Toifa kodini o'qiladigan nomga aylantirish */
 export function financeCategoryLabel(category: string): string {
+  // Vozvrat — qo'lda kiritilmaydi (faqat to'lovdan qaytariladi), shuning uchun kategoriya ro'yxatida yo'q.
+  if (category === 'refund') return 'Vozvrat'
   const all = [...incomeCategories, ...expenseCategories]
   return all.find((c) => c.value === category)?.label ?? category
 }

@@ -56,6 +56,13 @@ public static class SalaryJournalStats
             .ToListAsync();
         var conductedSet = conducted.Select(c => (c.ClassId, c.Date)).ToHashSet();
 
+        // Bir martalik ko'chirishlar — rejadagi darslar ham shuni hisobga oladi (ko'chirilgan dars o'tkazib
+        // yuborilgan hisoblanmaydi: asl kun rejadan chiqadi, yangi kun kiradi).
+        var movesByGroup = (await db.LessonReschedules.Where(r => groupIds.Contains(r.ClassId)).ToListAsync())
+            .GroupBy(r => r.ClassId)
+            .ToDictionary(g => g.Key, g => g.Select(m => new JournalService.LessonMove(m.FromDate, m.ToDate)).ToList());
+        var noMoves = new List<JournalService.LessonMove>();
+
         // Muhlat chegarasi: shu sanagacha (shu sana ham) bo'lgan darslar allaqachon belgilangan bo'lishi kerak.
         var cutoff = AppClock.Today.AddDays(-Math.Max(0, graceDays)).ToString("yyyy-MM-dd");
 
@@ -66,7 +73,7 @@ public static class SalaryJournalStats
                 var planned = 0;
                 var done = 0;
                 var missed = new List<string>();
-                foreach (var date in JournalService.LessonDatesInMonth(g.Days, month))
+                foreach (var date in JournalService.EffectiveLessonDatesInMonth(g.Days, month, movesByGroup.GetValueOrDefault(g.Id, noMoves)))
                 {
                     if (string.CompareOrdinal(date, cutoff) > 0) continue;             // hali muhlati kelmagan
                     if (notBefore is { Length: >= 10 } && string.CompareOrdinal(date, notBefore) < 0) continue;

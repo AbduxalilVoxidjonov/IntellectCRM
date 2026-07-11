@@ -51,6 +51,16 @@ export interface GroupJournalStudent {
    *  (bu sanadan oldingi kataklar bloklanadi). Aktivlashtirilgan bo'lsa ActivatedAt, aks holda JoinedAt. */
   memberStart: string
 }
+/** Bitta darsning bir martalik boshqa kunga ko'chirilishi (shu oyga tegishli). */
+export interface LessonReschedule {
+  id: string
+  /** Asl (endi yo'q) kun */
+  fromDate: string
+  /** Yangi kun (jurnalda ko'rinadigan ustun) */
+  toDate: string
+  /** Yangi vaqt ("HH:mm", ixtiyoriy) */
+  time?: string | null
+}
 export interface GroupJournal {
   group: GroupJournalInfo
   months: string[]
@@ -60,6 +70,8 @@ export interface GroupJournal {
   entries: JournalEntry[]
   /** "O'tildi" deb belgilangan dars sanalari — sababsiz o'quvchi shu kunda keldi (yashil). */
   conductedDates: string[]
+  /** Shu oyga tegishli dars ko'chirishlari (bir martalik). */
+  reschedules: LessonReschedule[]
 }
 
 /** Guruhning bitta oylik jurnali — ustunlar guruh dars kunlari bo'yicha avtomatik, qatorlar faqat faol o'quvchilar. */
@@ -68,11 +80,37 @@ export async function getGroupJournal(classId: string, month?: string): Promise<
     await delay()
     return {
       group: { id: classId, name: '', courseId: '', courseName: '', teacherName: '', days: [], startTime: '', endTime: '', room: '', startDate: '', monthlyFee: 0 },
-      months: [], month: month ?? '', columns: [], students: [], entries: [], conductedDates: [],
+      months: [], month: month ?? '', columns: [], students: [], entries: [], conductedDates: [], reschedules: [],
     }
   }
   const { data } = await api.get<GroupJournal>('/admin/journal/group', { params: { classId, month } })
   return data
+}
+
+/** Bitta darsni bir martalik boshqa kunga ko'chirish (asl kun → yangi kun + ixtiyoriy vaqt). */
+export async function rescheduleLesson(
+  classId: string,
+  fromDate: string,
+  toDate: string,
+  time?: string,
+): Promise<LessonReschedule> {
+  if (USE_MOCK) {
+    await delay(120)
+    return { id: 'mock', fromDate, toDate, time }
+  }
+  const { data } = await api.post<LessonReschedule>('/admin/journal/reschedule', {
+    classId, fromDate, toDate, time: time || null,
+  })
+  return data
+}
+
+/** Dars ko'chirishni bekor qilish — dars asl kuniga qaytadi. */
+export async function cancelReschedule(id: string): Promise<void> {
+  if (USE_MOCK) {
+    await delay(100)
+    return
+  }
+  await api.delete(`/admin/journal/reschedule/${id}`)
 }
 
 export async function getJournalColumns(

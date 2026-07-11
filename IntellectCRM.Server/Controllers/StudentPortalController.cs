@@ -1142,7 +1142,9 @@ public class StudentPortalController(
             var months = TuitionService.MonthRange(startMonth, cur).ToList();
             if (months.Count == 0) months.Add(cur);
             var resolved = !string.IsNullOrEmpty(month) && months.Contains(month) ? month! : months[^1];
-            var dates = JournalService.LessonDatesInMonth(g.Days, resolved).ToList();
+            var gMoves = (await db.LessonReschedules.Where(r => r.ClassId == g.Id).ToListAsync())
+                .Select(m => new JournalService.LessonMove(m.FromDate, m.ToDate)).ToList();
+            var dates = JournalService.EffectiveLessonDatesInMonth(g.Days, resolved, gMoves);
             var dateSet = dates.ToHashSet();
 
             var marks = await db.CriterionGrades

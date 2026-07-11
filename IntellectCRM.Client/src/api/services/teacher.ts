@@ -226,7 +226,7 @@ export async function getTeacherGroupJournal(classId: string, month?: string): P
   if (USE_MOCK) {
     return {
       group: { id: classId, name: '', courseId: '', courseName: '', teacherName: '', days: [], startTime: '', endTime: '', room: '', startDate: '', monthlyFee: 0 },
-      months: [], month: month ?? '', columns: [], students: [], entries: [], conductedDates: [],
+      months: [], month: month ?? '', columns: [], students: [], entries: [], conductedDates: [], reschedules: [],
     }
   }
   const { data } = await api.get<GroupJournal>('/teacher/journal/group', { params: { classId, month } })

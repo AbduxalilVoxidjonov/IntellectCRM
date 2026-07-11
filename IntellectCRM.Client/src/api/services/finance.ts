@@ -4,6 +4,7 @@ import type {
   FinanceMonthly,
   FinanceSummary,
   FinanceTransaction,
+  Refund,
   SalaryReportRow,
   StudentFinanceRow,
 } from '@/types'
@@ -157,6 +158,37 @@ export async function updatePayment(id: string, payload: PaymentEditPayload): Pr
     return financeMock[i]
   }
   const { data } = await api.put<FinanceTransaction>(`/admin/finance/payments/${id}`, payload)
+  return data
+}
+
+/** Vozvrat (pul qaytarish) so'rovi — summa (majburiy), sana (ixtiyoriy, default bugun), sabab (ixtiyoriy). */
+export interface RefundPayload {
+  amount: number
+  date?: string
+  reason?: string
+}
+
+/**
+ * O'quvchi to'lovini qisman/to'liq VOZVRAT qilish (FAQAT superadmin). Server: alohida vozvrat yozuvi yaratadi,
+ * o'quvchi balansini shu summaga kamaytiradi (muzlatishdan hosil bo'lgan avans qaytariladi), o'qituvchining
+ * foizli maoshi va "yig'ilgan" hisobotlari net (to'langan − vozvrat) dan qayta hisoblanadi.
+ */
+export async function refundPayment(id: string, payload: RefundPayload): Promise<FinanceTransaction> {
+  if (USE_MOCK) {
+    await delay(200)
+    return { id, date: payload.date ?? '', direction: 'expense', category: 'refund', amount: payload.amount }
+  }
+  const { data } = await api.post<FinanceTransaction>(`/admin/finance/payments/${id}/refund`, payload)
+  return data
+}
+
+/** Vozvratlar tarixi (qaytarilgan pullar) — davr bo'yicha, asl to'lov ma'lumoti bilan. */
+export async function getRefunds(from?: string, to?: string): Promise<Refund[]> {
+  if (USE_MOCK) {
+    await delay()
+    return []
+  }
+  const { data } = await api.get<Refund[]>('/admin/finance/refunds', { params: { from, to } })
   return data
 }
 

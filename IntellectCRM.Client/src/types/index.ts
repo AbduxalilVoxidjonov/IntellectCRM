@@ -747,6 +747,28 @@ export interface FinanceTransaction {
   comment?: string | null
   /** Kiritilgan vaqt (ISO "yyyy-MM-ddTHH:mm:ss", markaz mintaqasi UTC+5) — ro'yxatda soat ko'rsatish uchun */
   createdAt?: string
+  /** Bu to'lovdan jami qancha VOZVRAT (pul qaytarish) qilingani (>0 = qisman/to'liq qaytarilgan) */
+  refunded?: number
+  /** Bu yozuvning O'ZI vozvrat bo'lsa — qaysi asl to'lov uchun (id) */
+  refundOfId?: string | null
+}
+
+/** Vozvrat (pul qaytarish) yozuvi — "Vozvratlar tarixi" uchun, asl to'lov ma'lumoti bilan. */
+export interface Refund {
+  id: string
+  date: string
+  amount: number
+  studentId?: string | null
+  studentName?: string | null
+  groupId?: string | null
+  groupName?: string | null
+  month?: string | null
+  reason?: string | null
+  paymentId?: string | null
+  paymentAmount?: number | null
+  paymentDate?: string | null
+  createdBy?: string | null
+  createdAt?: string | null
 }
 
 export interface CategoryAmount {

@@ -27,6 +27,7 @@ public interface IAppDbContext
     DbSet<TrialLesson> TrialLessons { get; }
     DbSet<JournalEntry> JournalEntries { get; }
     DbSet<LessonNote> LessonNotes { get; }
+    DbSet<LessonReschedule> LessonReschedules { get; }
     DbSet<AbsenceReason> AbsenceReasons { get; }
     DbSet<DisciplineReason> DisciplineReasons { get; }
     DbSet<DisciplinePoint> DisciplinePoints { get; }

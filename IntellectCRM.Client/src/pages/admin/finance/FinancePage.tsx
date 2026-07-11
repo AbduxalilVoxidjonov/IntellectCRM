@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Plus, Pencil, Trash2, Download, TrendingUp, TrendingDown, Wallet, AlertCircle, Calculator, History, Inbox, Percent, Search, Receipt } from 'lucide-react'
+import { Plus, Pencil, Trash2, Download, TrendingUp, TrendingDown, Wallet, AlertCircle, Calculator, History, Inbox, Percent, Search, Receipt, Undo2 } from 'lucide-react'
 import type {
   FinanceDirection,
   FinanceMonthly,
   FinanceSummary,
   FinanceTransaction,
+  Refund,
   SalaryReportRow,
 } from '@/types'
 import {
@@ -17,6 +18,7 @@ import {
   accrueTuition,
   getSalaryReport,
   getCourseReport,
+  getRefunds,
   type FinanceTransactionPayload,
   type CourseFinanceReport,
   type GroupFinanceRow,
@@ -40,6 +42,7 @@ import { DailyReportCard } from './DailyReportCard'
 import { ReasonPromptModal } from '@/components/ui/ReasonPromptModal'
 import { ReceiptModal } from '@/components/finance/ReceiptModal'
 import { PaymentEditModal } from './PaymentEditModal'
+import { RefundModal } from './RefundModal'
 import { useAuth } from '@/context/auth-context'
 
 const todayStr = new Date().toISOString().slice(0, 10)
@@ -49,13 +52,14 @@ const control =
   'rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-mono text-slate-700 outline-none focus:border-brand-400'
 
 type DirFilter = 'all' | FinanceDirection
-type Tab = 'overview' | 'groups' | 'teachers' | 'payments'
+type Tab = 'overview' | 'groups' | 'teachers' | 'payments' | 'refunds'
 
 const tabs: { value: Tab; label: string }[] = [
   { value: 'overview', label: 'Umumiy' },
   { value: 'groups', label: 'Guruhlar' },
   { value: 'teachers', label: "O'qituvchilar" },
   { value: 'payments', label: "To'lovlar" },
+  { value: 'refunds', label: 'Vozvratlar' },
 ]
 
 /** Qoldiq/qarz summasini belgisiga qarab ranglash */
@@ -92,6 +96,9 @@ export function FinancePage() {
   const [receiptAuto, setReceiptAuto] = useState(false)
   /** "To'lovlar" bo'limida tahrirlanayotgan o'quvchi to'lovi (superadmin). */
   const [editPayment, setEditPayment] = useState<FinanceTransaction | null>(null)
+  /** Vozvrat (pul qaytarish) qilinayotgan to'lov (superadmin). */
+  const [refundTarget, setRefundTarget] = useState<FinanceTransaction | null>(null)
+  const [refunds, setRefunds] = useState<Refund[]>([])
 
   const load = useCallback(() => {
     setLoading(true)
@@ -102,14 +109,16 @@ export function FinancePage() {
       getSalaryReport(from, to),
       getTransactions({ from, to, direction: 'income', category: 'tuition' }),
       getCourseReport(from, to),
+      getRefunds(from, to),
     ])
-      .then(([s, m, t, sr, pay, cr]) => {
+      .then(([s, m, t, sr, pay, cr, rf]) => {
         setSummary(s)
         setMonthly(m)
         setTransactions(t)
         setSalaryReport(sr)
         setPayments(pay)
         setCourseReport(cr)
+        setRefunds(rf)
       })
       .finally(() => setLoading(false))
   }, [from, to, dirFilter])
@@ -689,7 +698,14 @@ export function FinancePage() {
                               <span className="text-slate-300">—</span>
                             )}
                           </td>
-                          <td className="num font-semibold text-emerald-600">+{formatMoney(p.amount)}</td>
+                          <td className="num font-semibold text-emerald-600">
+                            +{formatMoney(p.amount)}
+                            {(p.refunded ?? 0) > 0 && (
+                              <div className="text-[11px] font-medium text-amber-600" title="Qaytarilgan summa">
+                                −{formatMoney(p.refunded ?? 0)} vozvrat
+                              </div>
+                            )}
+                          </td>
                           <td className="num">
                             <div className="flex items-center justify-end gap-0.5">
                               <button
@@ -723,6 +739,16 @@ export function FinancePage() {
                                   <Pencil className="h-4 w-4" />
                                 </button>
                               )}
+                              {isSuper && (p.refunded ?? 0) < p.amount && (
+                                <button
+                                  type="button"
+                                  title="Pul qaytarish (vozvrat)"
+                                  onClick={() => setRefundTarget(p)}
+                                  className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-amber-50 hover:text-amber-600"
+                                >
+                                  <Undo2 className="h-4 w-4" />
+                                </button>
+                              )}
                               <button
                                 type="button"
                                 title="O'chirish (balans tiklanadi)"
@@ -745,6 +771,73 @@ export function FinancePage() {
                     </div>
                     <h4>To'lov yo'q</h4>
                     <p>{paySearch ? 'Qidiruv bo\'yicha to\'lov topilmadi.' : 'Tanlangan davrda kiritilgan to\'lov yo\'q.'}</p>
+                  </div>
+                )}
+              </Card>
+            </div>
+          )}
+
+          {tab === 'refunds' && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+                <StatCard label="Vozvratlar soni" value={String(refunds.length)} icon={Undo2} />
+                <StatCard
+                  label="Jami qaytarilgan"
+                  value={formatMoney(refunds.reduce((a, r) => a + r.amount, 0))}
+                  icon={TrendingDown}
+                  iconBg="bg-amber-50"
+                  iconColor="text-amber-600"
+                />
+              </div>
+              <Card
+                tight
+                title="Vozvratlar tarixi"
+                sub="Qaytarilgan pullar — o'quvchi balansi kamaygan, o'qituvchi foizi net summadan hisoblangan"
+              >
+                <div className="table-wrap">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Sana</th>
+                        <th>O'quvchi</th>
+                        <th>Guruh</th>
+                        <th>Oy</th>
+                        <th>Sabab</th>
+                        <th>Mas'ul</th>
+                        <th className="num">Asl to'lov</th>
+                        <th className="num">Qaytarilgan</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {refunds.map((r) => (
+                        <tr key={r.id}>
+                          <td className="font-mono text-[12.5px] text-slate-500">
+                            {formatDate(r.date)}
+                            {r.createdAt && formatTime(r.createdAt) && (
+                              <span className="ml-1 text-slate-400">{formatTime(r.createdAt)}</span>
+                            )}
+                          </td>
+                          <td className="font-medium text-slate-800">{r.studentName ?? '—'}</td>
+                          <td>{r.groupName ? <Badge>{r.groupName}</Badge> : <span className="text-slate-300">—</span>}</td>
+                          <td className="text-slate-600">{r.month ? formatMonth(r.month) : '—'}</td>
+                          <td className="text-slate-600">{r.reason || <span className="text-slate-300">—</span>}</td>
+                          <td className="text-slate-500">{r.createdBy ?? '—'}</td>
+                          <td className="num text-slate-500">
+                            {r.paymentAmount != null ? formatMoney(r.paymentAmount) : '—'}
+                          </td>
+                          <td className="num font-semibold text-amber-600">−{formatMoney(r.amount)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {refunds.length === 0 && (
+                  <div className="state">
+                    <div className="state-icon">
+                      <Undo2 className="h-5 w-5" />
+                    </div>
+                    <h4>Vozvrat yo'q</h4>
+                    <p>Tanlangan davrda pul qaytarilmagan. To'lov yonidagi ↩ tugmasi orqali qaytarish mumkin.</p>
                   </div>
                 )}
               </Card>
@@ -797,6 +890,8 @@ export function FinancePage() {
       />
 
       <PaymentEditModal payment={editPayment} onClose={() => setEditPayment(null)} onSaved={load} />
+
+      <RefundModal payment={refundTarget} onClose={() => setRefundTarget(null)} onSaved={load} />
 
       <ReceiptModal
         txId={receiptTx}

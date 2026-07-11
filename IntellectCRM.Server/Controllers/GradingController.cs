@@ -188,7 +188,9 @@ public class GradingController(AppDbContext db, DataCache dataCache) : Controlle
         if (months.Count == 0) months.Add(cur);
         var resolved = !string.IsNullOrEmpty(month) && months.Contains(month) ? month! : months[^1];
 
-        var dates = JournalService.LessonDatesInMonth(group.Days, resolved).ToList();
+        var moves = (await db.LessonReschedules.Where(r => r.ClassId == group.Id).ToListAsync())
+            .Select(m => new JournalService.LessonMove(m.FromDate, m.ToDate)).ToList();
+        var dates = JournalService.EffectiveLessonDatesInMonth(group.Days, resolved, moves);
 
         var assigns = await db.GroupGradingCriteria.Where(g => g.GroupId == group.Id)
             .OrderBy(g => g.Order).ToListAsync();
