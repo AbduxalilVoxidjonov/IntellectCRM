@@ -7,12 +7,14 @@ import {
   updateAutoMessageRule,
   deleteAutoMessageRule,
   seedStandardSms,
+  getMessageTokens,
   audienceLabel,
   sendScopeOptions,
   scheduleTypeOptions,
   type AutoMessageTrigger,
   type AutoMessageRule,
   type AutoMessageRuleInput,
+  type MessageToken,
 } from '@/api/services/autoMessages'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -71,6 +73,7 @@ function availableChannels(t: AutoMessageTrigger | undefined): ChannelKey[] {
 export function AutoMessagesTab({ highlightRuleId }: { highlightRuleId?: string | null } = {}) {
   const [triggers, setTriggers] = useState<AutoMessageTrigger[]>([])
   const [rules, setRules] = useState<AutoMessageRule[]>([])
+  const [allTokens, setAllTokens] = useState<MessageToken[]>([])
   const [loading, setLoading] = useState(true)
   const [failed, setFailed] = useState(false)
   const [err, setErr] = useState('')
@@ -82,10 +85,11 @@ export function AutoMessagesTab({ highlightRuleId }: { highlightRuleId?: string 
   const reloadRules = () => getAutoMessageRules().then(setRules).catch(() => setRules([]))
 
   useEffect(() => {
-    Promise.all([getAutoMessageTriggers(), getAutoMessageRules()])
-      .then(([t, r]) => {
+    Promise.all([getAutoMessageTriggers(), getAutoMessageRules(), getMessageTokens()])
+      .then(([t, r, tk]) => {
         setTriggers(t)
         setRules(r)
+        setAllTokens(tk)
       })
       .catch(() => setFailed(true))
       .finally(() => setLoading(false))
@@ -313,6 +317,7 @@ export function AutoMessagesTab({ highlightRuleId }: { highlightRuleId?: string 
       {modal && (
         <MessageFormModal
           triggers={triggers}
+          allTokens={allTokens}
           rule={modal === 'new' ? null : modal}
           onClose={() => setModal(null)}
           onSaved={async () => {
@@ -328,11 +333,13 @@ export function AutoMessagesTab({ highlightRuleId }: { highlightRuleId?: string 
 /** Yaratish/tahrirlash modali — bo'lim → hodisa → kimga → kanal → matn. */
 function MessageFormModal({
   triggers,
+  allTokens,
   rule,
   onClose,
   onSaved,
 }: {
   triggers: AutoMessageTrigger[]
+  allTokens: MessageToken[]
   rule: AutoMessageRule | null
   onClose: () => void
   onSaved: () => Promise<void> | void
@@ -369,6 +376,19 @@ function MessageFormModal({
 
   const trigger = triggers.find((t) => t.key === triggerKey)
   const chans = availableChannels(trigger)
+
+  // Matn ostidagi o'zgaruvchilar: butun katalog (lid hodisasi → lid+umumiy+hodisa; aks holda o'quvchi+umumiy+hodisa).
+  // Katalog bo'sh bo'lsa (server bermasa) — hodisaning o'z tokenlariga qaytamiz.
+  const editorTokens = useMemo(() => {
+    const isLead = !!trigger && trigger.audiences.length === 0
+    const groups = isLead ? ['lead', 'common', 'event'] : ['student', 'common', 'event']
+    const seen = new Set<string>()
+    const list = allTokens
+      .filter((t) => groups.includes(t.group) && !seen.has(t.token) && seen.add(t.token))
+      .map((t) => ({ token: t.token, label: t.label }))
+    if (list.length > 0) return list
+    return (trigger?.tokens ?? []).map((tk) => ({ token: tk, label: tk }))
+  }, [allTokens, trigger])
 
   // Bo'lim o'zgarsa — birinchi hodisaga o'tamiz va shu hodisa standartlarini qo'llaymiz.
   const applyTriggerDefaults = (t: AutoMessageTrigger | undefined) => {
@@ -584,7 +604,7 @@ function MessageFormModal({
             <MessageEditor
               value={template}
               onChange={setTemplate}
-              tokens={(trigger?.tokens ?? []).map((tk) => ({ token: tk, label: tk }))}
+              tokens={editorTokens}
               showSmsCounter={effChannel === 'sms'}
               rows={4}
               placeholder="Xabar matni — o'zgaruvchilar bilan"

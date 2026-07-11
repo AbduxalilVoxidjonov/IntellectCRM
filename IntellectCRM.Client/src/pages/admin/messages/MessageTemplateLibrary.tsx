@@ -12,7 +12,6 @@ import {
   getMessageTokens,
   type AutoMessageRule,
 } from '@/api/services/autoMessages'
-import { messageTemplates as builtinTemplates } from '@/config/messageTemplates'
 import { MessageEditor, type TokenDef } from '@/components/messaging/MessageEditor'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -24,11 +23,11 @@ import { cn } from '@/lib/utils'
 type LibraryItem =
   | { kind: 'manual'; id: string; name: string; text: string; raw: SmsTemplate }
   | { kind: 'auto'; id: string; name: string; text: string; enabled: boolean }
-  | { kind: 'builtin'; name: string; text: string }
 
 /**
- * "Xabar matnlari" kutubxonasi — barcha tayyor matnlarni (qo'lda yaratilgan andozalar,
- * avto-xabar qoidalari matnlari, va ichki hardcode andozalar) bitta ro'yxatda ko'rsatadi.
+ * "Xabar matnlari" kutubxonasi — FAQAT foydalanuvchi yaratgan matnlarni (qo'lda "Yangi matn"
+ * andozalari + "Xabar yaratish" avto-xabar qoidalari matnlari) ko'rsatadi. Oldindan tayyor
+ * (hardcode) andozalar KO'RSATILMAYDI — ro'yxat foydalanuvchi yaratmaguncha bo'sh bo'ladi.
  * Bosilganda matn composerga (`onPick`) yuklanadi. Qo'lda yaratilgan matnlarni shu yerda
  * qo'shish/tahrirlash/o'chirish mumkin; avto matnlarda "Sozlash" tugmasi Avto xabarlar
  * tabiga o'tkazadi (`onConfigureAuto`).
@@ -86,12 +85,7 @@ export function MessageTemplateLibrary({
     const autoItems: LibraryItem[] = autoRules
       .filter((r) => r.template.trim() !== '')
       .map((r) => ({ kind: 'auto', id: r.id, name: r.name, text: r.template, enabled: r.enabled }))
-    const builtinItems: LibraryItem[] = builtinTemplates.map((t) => ({
-      kind: 'builtin',
-      name: t.label,
-      text: t.text,
-    }))
-    return [...manualItems, ...autoItems, ...builtinItems]
+    return [...manualItems, ...autoItems]
   }, [manual, autoRules])
 
   const openNew = () => {
@@ -151,9 +145,9 @@ export function MessageTemplateLibrary({
         <p className="py-6 text-center text-sm text-slate-400">Hali tayyor matn yo'q</p>
       ) : (
         <div className="grid max-h-72 grid-cols-1 items-start gap-1.5 overflow-y-auto pr-1 md:grid-cols-2">
-          {items.map((item, i) => (
+          {items.map((item) => (
             <div
-              key={item.kind === 'builtin' ? `builtin-${i}` : `${item.kind}-${item.id}`}
+              key={`${item.kind}-${item.id}`}
               className={cn(
                 'flex items-center gap-2 rounded-lg border border-slate-100 px-3 py-2 transition-colors hover:border-slate-200',
                 item.kind === 'auto' && !item.enabled && 'opacity-60',

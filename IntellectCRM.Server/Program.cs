@@ -439,31 +439,9 @@ using (var scope = app.Services.CreateScope())
         app.Logger.LogInformation("[seed] Standart lid bosqichlari yaratildi");
     }
 
-    // Standart SMS andozalari (Sozlamalar → SMS (Eskiz)da tahrirlanadi). Jadval bo'sh bo'lsa seed.
-    try
-    {
-        if (!db.SmsTemplates.Any())
-        {
-            var tpls = new (string Name, string Text)[]
-            {
-                ("Ota-onalar yig'ilishi", "Hurmatli ota-ona! {fish} guruhida ota-onalar yig'ilishi ___ kuni soat ___ da bo'lib o'tadi. Iltimos, keling."),
-                ("Darsga kelmayapti", "Hurmatli ota-ona! Farzandingiz {fish} so'nggi kunlarda darslarga qatnashmayapti. Iltimos, sababini markazga ma'lum qiling."),
-                ("Qarzdorlik eslatmasi", "Hurmatli ota-ona! Farzandingiz {fish} bo'yicha to'lov qarzi: {qarzdorlik}. Iltimos, to'lovni amalga oshiring."),
-                ("Lidga taklif", "Assalomu alaykum! Bizning o'quv markazimizga qiziqqaningiz uchun rahmat. Tez orada siz bilan bog'lanamiz."),
-            };
-            for (var i = 0; i < tpls.Length; i++)
-                db.SmsTemplates.Add(new SmsTemplate { Name = tpls[i].Name, Text = tpls[i].Text, Order = i });
-            db.SaveChanges();
-            app.Logger.LogInformation("[seed] Standart SMS andozalari yaratildi");
-        }
-    }
-    catch (Exception ex)
-    {
-        app.Logger.LogWarning(ex, "[seed] SmsTemplates seed failed (migratsiya qo'llanmagan bo'lsa normal)");
-    }
-
-    // (Eski ReminderRule/SmsTemplate.IsAuto → AutoMessageRule bir martalik ko'chirish seed'i olib
-    // tashlandi — eski modellar butunlay o'chirildi, MessagingCleanup migratsiyasi jadval/ustunlarni DROP qiladi.)
+    // SMS andozalari SEED QILINMAYDI — "Xabar matnlari" kutubxonasi faqat FOYDALANUVCHI yaratgan
+    // matnlarni (qo'lda "Yangi matn" + "Xabar yaratish" avto qoidalari) ko'rsatadi. Bo'sh boshlanadi.
+    // (Eski ReminderRule/SmsTemplate.IsAuto ko'chirish seed'i ham olib tashlangan.)
 
     // YETIM LIDLARNI TUZATISH: bosqichi mavjud bo'lmagan (eski bo'sh "" yoki o'chirilgan ustunga
     // tegishli) lidlar kanbanda ko'rinmaydi — ularni birinchi (Order) bosqichga ko'chiramiz.
