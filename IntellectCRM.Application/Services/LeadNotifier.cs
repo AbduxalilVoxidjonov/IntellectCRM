@@ -6,10 +6,10 @@ using IntellectCRM.Domain;
 namespace IntellectCRM.Application.Services;
 
 /// <summary>
-/// Yangi lid tushganda Telegram botda ro'yxatdan o'tgan ADMIN/xodimlarga xabarnoma yuboradi.
-/// Oluvchilar: TelegramRegistration.UserId bog'langan, roli admin/superadmin (har doim) yoki
-/// staff bo'lib "leads" ruxsatiga ega bo'lganlar. Bot sozlanmagan / oluvchi yo'q bo'lsa — jim o'tadi.
-/// Daraja testi orqali kelgan lid uchun test natijasi (ball, foiz, daraja, baho, so'rovnoma) ham yuboriladi.
+/// Yangi lid tushganda Telegram botda xabarnoma yuboradi — SHAXSIY xabar FAQAT SUPERADMIN(lar)ga
+/// + bot qo'shilgan faol GURUH(lar)ga. (Ilgari barcha admin/xodimga ham ketardi — endi shaxsiy oluvchi
+/// faqat <see cref="Roles.SuperAdmin"/>; guruhga yuborish saqlanadi.) Bot sozlanmagan / oluvchi yo'q
+/// bo'lsa — jim o'tadi. Daraja testi orqali kelgan lid uchun test natijasi ham yuboriladi.
 /// </summary>
 public static class LeadNotifier
 {
@@ -56,9 +56,8 @@ public static class LeadNotifier
         }
     }
 
-    private static bool ShouldNotify(AppUser u) =>
-        u.Role is Roles.Admin or Roles.SuperAdmin
-        || (u.Role == Roles.Staff && u.Permissions.Contains("leads"));
+    // Shaxsiy xabar FAQAT superadminga (ilgari admin/xodimga ham ketardi). Guruhga yuborish alohida — saqlanadi.
+    private static bool ShouldNotify(AppUser u) => u.Role == Roles.SuperAdmin;
 
     private static string BuildText(
         Lead l, LevelTestSubmission? sub, string? testTitle, bool isNewLead = true, string? createdBy = null)
