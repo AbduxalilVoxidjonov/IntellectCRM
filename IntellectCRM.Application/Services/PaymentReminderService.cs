@@ -111,10 +111,17 @@ public class PaymentReminderService(
             .ToDictionary(g => g.Key, g => g.Select(x => x.Token).Distinct().ToList());
 
         var fcmJson = meta?.FcmServiceAccountJson ?? "";
+        var centerName = meta?.Name ?? "";
         var telegramReady = sendTelegram && telegram.IsConfigured;
         var pushReady = sendPush && FcmService.IsConfigured(fcmJson);
         var smsProvider = debtRules.FirstOrDefault(r => r.SendSms)?.SmsProvider ?? "eskiz";
         var smsReady = sendSms && AutoMessageSmsSender.IsReady(smsProvider, meta, eskiz);
+
+        // Har kanal uchun mos qoida (bitta kanal modeli — har qoida bitta kanal). Qoidada MATN bo'lsa — o'sha
+        // matn ({qarzdorlik} = jami qarz bilan) yuboriladi; bo'sh bo'lsa — tizim batafsil qarz ro'yxatini tuzadi.
+        var smsRule = debtRules.FirstOrDefault(r => r.SendSms);
+        var pushRule = debtRules.FirstOrDefault(r => r.SendPush);
+        var tgRule = debtRules.FirstOrDefault(r => r.SendTelegram);
 
         int tgSent = 0, pushSent = 0, smsSent = 0, students = 0;
         var deadTokens = new List<string>();
@@ -123,17 +130,30 @@ public class PaymentReminderService(
             ct.ThrowIfCancellationRequested();
             try
             {
-                var (title, body) = await BuildMessageAsync(db, s, ct);
-                if (body.Length == 0) continue;
+                var (title, systemBody, total) = await BuildMessageAsync(db, s, ct);
+                if (systemBody.Length == 0) continue;
                 students++;
 
+                var phone = !string.IsNullOrWhiteSpace(s.ParentPhone) ? s.ParentPhone
+                    : !string.IsNullOrWhiteSpace(s.FatherPhone) ? s.FatherPhone
+                    : !string.IsNullOrWhiteSpace(s.MotherPhone) ? s.MotherPhone : s.Phone;
+
+                // Qoidaning matni bo'lsa — tokenlar bilan render (qarzdorlik = aniq jami), aks holda tizim matni.
+                string BodyFor(AutoMessageRule? r)
+                {
+                    if (r is null || string.IsNullOrWhiteSpace(r.Template)) return systemBody;
+                    var withExtra = MessageTokenizer.ApplyExtra(r.Template,
+                        new Dictionary<string, string> { ["{qarzdorlik}"] = Money(total) });
+                    return MessageTokenizer.Student(withExtra, s, s.ParentFullName, phone, centerName);
+                }
+
                 // Ilova tarixiga (push/telegram bo'lmasa ham ilovada ko'rinadi). Push kanali yoqilganda.
-                if (sendPush) NotificationStore.Add(db, s.UserId, title, body, "payment_debt");
+                if (sendPush) NotificationStore.Add(db, s.UserId, title, BodyFor(pushRule), "payment_debt");
 
                 // Telegram.
                 if (telegramReady && regsByStudent.TryGetValue(s.Id, out var chats))
                 {
-                    var tgText = $"💰 To'lov eslatmasi\n\n{body}";
+                    var tgText = $"💰 To'lov eslatmasi\n\n{BodyFor(tgRule)}";
                     foreach (var chatId in chats)
                         if (await telegram.SendMessageAsync(chatId, tgText, ct: ct)) tgSent++;
                 }
@@ -141,23 +161,17 @@ public class PaymentReminderService(
                 // Push (ota-ona akkauntining qurilmalariga).
                 if (pushReady && s.UserId != null && tokensByUser.TryGetValue(s.UserId, out var toks))
                 {
-                    var res = await fcm.SendAsync(fcmJson, toks, title, body, ct);
+                    var res = await fcm.SendAsync(fcmJson, toks, title, BodyFor(pushRule), ct);
                     pushSent += res.Sent;
                     deadTokens.AddRange(res.InvalidTokens);
                 }
 
                 // SMS (ota-ona telefoniga) — SendSms yoqilgan bo'lsa.
-                if (smsReady)
+                if (smsReady && !string.IsNullOrWhiteSpace(phone))
                 {
-                    var phone = !string.IsNullOrWhiteSpace(s.ParentPhone) ? s.ParentPhone
-                        : !string.IsNullOrWhiteSpace(s.FatherPhone) ? s.FatherPhone
-                        : !string.IsNullOrWhiteSpace(s.MotherPhone) ? s.MotherPhone : s.Phone;
-                    if (!string.IsNullOrWhiteSpace(phone))
-                    {
-                        var result = await AutoMessageSmsSender.SendAsync(
-                            db, eskiz, ctiSms, smsProvider, phone, s.FullName, body, "Qarzdorlik eslatmasi", ct);
-                        if (result.Ok) smsSent++;
-                    }
+                    var result = await AutoMessageSmsSender.SendAsync(
+                        db, eskiz, ctiSms, smsProvider, phone, s.FullName, BodyFor(smsRule), "Qarzdorlik eslatmasi", ct);
+                    if (result.Ok) smsSent++;
                 }
             }
             catch (Exception ex)
@@ -184,7 +198,7 @@ public class PaymentReminderService(
     /// Faol/muzlatilgan a'zoliklar hisobga olinadi (trial — to'lov yo'q). A'zoligi yo'q o'quvchida (eski
     /// ClassName modeli) qarz <see cref="StudentLedger"/> umumiy qoldig'idan olinadi.
     /// </summary>
-    private static async Task<(string Title, string Body)> BuildMessageAsync(
+    private static async Task<(string Title, string Body, decimal Total)> BuildMessageAsync(
         IAppDbContext db, Student s, CancellationToken ct)
     {
         var lines = new List<string>();
@@ -214,19 +228,19 @@ public class PaymentReminderService(
         if (!hasGroupDebt)
         {
             total = s.Balance < 0 ? -s.Balance : 0m;
-            if (total <= 0) return ("", "");
+            if (total <= 0) return ("", "", 0m);
             var label = string.IsNullOrEmpty(s.ClassName) ? "Oylik to'lov" : s.ClassName;
             lines.Add($"• {label}: {Money(total)}");
         }
 
-        if (total <= 0) return ("", "");
+        if (total <= 0) return ("", "", 0m);
 
         var title = "To'lov eslatmasi";
         var body =
             $"{s.FullName} bo'yicha qarzdorlik:\n" +
             string.Join("\n", lines) +
             $"\n\nJami: {Money(total)}\nIltimos, to'lovni amalga oshiring.";
-        return (title, body);
+        return (title, body, total);
     }
 
     /// <summary>So'm formatlash: 1 700 000 so'm (probel bilan ajratilgan).</summary>

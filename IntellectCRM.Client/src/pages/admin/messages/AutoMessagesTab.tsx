@@ -426,8 +426,9 @@ function MessageFormModal({
       setError('Nom kerak')
       return
     }
-    // Token ishlatadigan hodisalarda matn bo'sh bo'lmasin (qarzdorlik matni tizim tomonidan tuziladi — shart emas).
-    if (trigger.tokens.length > 0 && !template.trim()) {
+    // Token ishlatadigan hodisalarda matn bo'sh bo'lmasin — LEKIN matn ixtiyoriy hodisalarda
+    // (qarzdorlik eslatmasi — bo'sh qoldirilsa tizim matnni o'zi tuzadi) bo'sh bo'lishi mumkin.
+    if (trigger.tokens.length > 0 && !trigger.templateOptional && !template.trim()) {
       setError('Xabar matni kerak')
       return
     }
@@ -601,14 +602,26 @@ function MessageFormModal({
               Bu hodisa matni tizim tomonidan avtomatik tuziladi — alohida matn shart emas.
             </p>
           ) : (
-            <MessageEditor
-              value={template}
-              onChange={setTemplate}
-              tokens={editorTokens}
-              showSmsCounter={effChannel === 'sms'}
-              rows={4}
-              placeholder="Xabar matni — o'zgaruvchilar bilan"
-            />
+            <>
+              <MessageEditor
+                value={template}
+                onChange={setTemplate}
+                tokens={editorTokens}
+                showSmsCounter={effChannel === 'sms'}
+                rows={4}
+                placeholder={
+                  trigger?.templateOptional
+                    ? "Matn (ixtiyoriy) — o'zgaruvchilar bilan"
+                    : "Xabar matni — o'zgaruvchilar bilan"
+                }
+              />
+              {trigger?.templateOptional && (
+                <p className="mt-1.5 text-xs text-slate-400">
+                  Matn <b>ixtiyoriy</b>: bo'sh qoldirsangiz — tizim har kurs bo'yicha batafsil qarz ro'yxatini
+                  o'zi tuzadi. Yozsangiz — o'sha matn ({'{qarzdorlik}'} = jami qarz) yuboriladi.
+                </p>
+              )}
+            </>
           )}
         </div>
 

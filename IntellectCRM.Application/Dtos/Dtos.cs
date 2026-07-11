@@ -244,7 +244,7 @@ public record AutoMessageChannelsDto(bool Sms, bool Push, bool Telegram);
 public record AutoMessageTriggerInfoDto(
     string Key, string Label, string Description, string[] Tokens, AutoMessageChannelsDto Channels,
     bool SupportsSchedule, bool SupportsSendScope, string[] Audiences, string DefaultAudience,
-    string DefaultTemplate, string Category);
+    string DefaultTemplate, string Category, bool TemplateOptional = false);
 /// <summary>Xabar {token}i katalogdagi bitta yozuv. Group: "student" | "lead" | "common" | "event".</summary>
 public record MessageTokenDto(string Token, string Label, string Group);
 /// <summary>Avto-xabar qoidasi (o'qish uchun). SmsProvider: "eskiz" | "local".</summary>

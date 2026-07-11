@@ -53,7 +53,9 @@ public static class AutoMessageTriggers
         string[] Audiences,
         string DefaultAudience,
         string DefaultTemplate,
-        string Category);
+        string Category,
+        /// <summary>Matn IXTIYORIY — bo'sh qoldirilsa tizim matnni o'zi tuzadi (qarzdorlik eslatmasi kabi).</summary>
+        bool TemplateOptional = false);
 
     // Umumiy token to'plamlari (takrorni kamaytirish uchun).
     private static readonly string[] ParentsAll = { "{ism}", "{fish}", "{guruh}", "{qarzdorlik}", "{markaz}", "{telefon}" };
@@ -82,13 +84,14 @@ public static class AutoMessageTriggers
 
         new(PaymentDebt,
             "Qarzdorlik eslatmasi",
-            "Balansi manfiy o'quvchilarga har oyning 1-sanasida, keyin har 2 kunda batafsil (har kurs bo'yicha qarz) eslatma. Matn tizim tomonidan tuziladi (shablon shart emas).",
-            System.Array.Empty<string>(),
+            "Balansi manfiy o'quvchilarga har oyning 1-sanasida, keyin har 2 kunda eslatma. Matn IXTIYORIY: yozsangiz — o'sha matn ({qarzdorlik} = jami qarz) yuboriladi; BO'SH qoldirsangiz — tizim har kurs bo'yicha batafsil qarz ro'yxatini o'zi tuzadi.",
+            new[] { "{ism}", "{fish}", "{qarzdorlik}", "{guruh}", "{telefon}", "{markaz}" },
             Sms: true, Push: true, Telegram: true,
             SupportsSchedule: false, SupportsSendScope: false,
             Audiences: new[] { "parents", "students", "teachers" }, DefaultAudience: "parents",
             DefaultTemplate: "",
-            Category: CategoryFinance),
+            Category: CategoryFinance,
+            TemplateOptional: true),
 
         new(AttendanceAbsent,
             "O'quvchi darsga kelmaganda",

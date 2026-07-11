@@ -27,7 +27,7 @@ public class AutoMessagesController(AppDbContext db) : ControllerBase
             t.Key, t.Label, t.Description, t.Tokens,
             new AutoMessageChannelsDto(t.Sms, t.Push, t.Telegram),
             t.SupportsSchedule, t.SupportsSendScope, t.Audiences, t.DefaultAudience,
-            t.DefaultTemplate, t.Category)).ToList();
+            t.DefaultTemplate, t.Category, t.TemplateOptional)).ToList();
 
     /// <summary>Xabar {token}lari katalogi — shablon tahrirlagichda "token qo'shish" ro'yxati.
     /// group: "student" | "lead" | "common" | "event".</summary>
@@ -157,8 +157,9 @@ public class AutoMessagesController(AppDbContext db) : ControllerBase
         var anyChannel = (req.SendSms && info.Sms) || (req.SendPush && info.Push) || (req.SendTelegram && info.Telegram);
         if (!anyChannel) return "Kamida bitta kanal (SMS/Push/Telegram) yoqilishi kerak";
 
-        // Shablon: hodisa tokenlar ishlatadigan bo'lsa (payment_debt matni tizim tomonidan tuziladi — shart emas).
-        if (info.Tokens.Length > 0 && string.IsNullOrWhiteSpace(req.Template))
+        // Shablon: hodisa tokenlar ishlatadigan bo'lsa kerak — LEKIN matn ixtiyoriy hodisalarda (masalan
+        // qarzdorlik eslatmasi — bo'sh qoldirilsa tizim matnni o'zi tuzadi) bo'sh bo'lishi mumkin.
+        if (info.Tokens.Length > 0 && !info.TemplateOptional && string.IsNullOrWhiteSpace(req.Template))
             return "Xabar matni (shablon) kerak";
 
         if (info.SupportsSendScope)

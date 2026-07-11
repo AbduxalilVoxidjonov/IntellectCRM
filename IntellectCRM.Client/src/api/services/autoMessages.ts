@@ -36,6 +36,8 @@ export interface AutoMessageTrigger {
   defaultAudience: string
   /** Standart xabar shabloni (yangi qoida yaratishda — bo'sh shablon backend tomonidan rad etiladi) */
   defaultTemplate: string
+  /** Matn IXTIYORIY — bo'sh qoldirilsa tizim matnni o'zi tuzadi (qarzdorlik eslatmasi kabi). */
+  templateOptional?: boolean
 }
 
 /** Bitta avto xabar qoidasi. */
