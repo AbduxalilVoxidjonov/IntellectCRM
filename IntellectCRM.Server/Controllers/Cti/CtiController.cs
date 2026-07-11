@@ -260,7 +260,8 @@ public class CtiController(
             c.StudentId, studentName,
             Iso(c.StartedAt), c.AnsweredAt is { } a ? Iso(a) : null, c.EndedAt is { } e ? Iso(e) : null,
             c.DurationSec, c.AudioUploaded && c.AudioPath.Length > 0, c.Note,
-            events.Select(ev => new CtiCallEventDto(ev.Type, Iso(ev.At))).ToList());
+            events.Select(ev => new CtiCallEventDto(ev.Type, Iso(ev.At))).ToList(),
+            c.Transcript, c.AiAnalysis);
     }
 
     /// <summary>Qo'ng'iroq audio yozuvini eshittiradi (recordings papkasidan, range qo'llab-quvvatlanadi).
@@ -290,6 +291,93 @@ public class CtiController(
         var affected = await db.CtiCallRecords.Where(c => c.Id == id)
             .ExecuteUpdateAsync(up => up.SetProperty(c => c.Note, (req.Note ?? "").Trim()));
         return affected > 0 ? Ok() : NotFound();
+    }
+
+    /// <summary>
+    /// Local Call yozuvini Azure Speech (diarizatsiya) orqali so'zma-so'z matnga o'giradi — so'zlovchilar
+    /// AJRATILGAN ("1-suhbatdosh: ...", "2-suhbatdosh: ..."). Natija Transcript'da saqlanadi (qayta bosilsa
+    /// qayta transkript qilinadi). Kalit/region — Sozlamalar (CenterMeta, Speaking bilan bir xil).
+    /// </summary>
+    [HttpPost("calls/{id}/transcribe")]
+    public async Task<ActionResult> Transcribe(string id)
+    {
+        var call = await db.CtiCallRecords.FindAsync(id);
+        if (call is null) return NotFound();
+        if (!call.AudioUploaded || call.AudioPath.Length == 0)
+            return BadRequest(new { message = "Bu qo'ng'iroqda yozuv yo'q" });
+
+        var meta = await db.CenterMeta.FirstOrDefaultAsync();
+        if (!AzureTranscribeService.IsConfigured(meta?.AzureSpeechKey, meta?.AzureSpeechRegion))
+            return StatusCode(503, new { message = "Azure Speech sozlanmagan (Sozlamalar → AI Check: kalit va region)" });
+
+        var (audio, fileName, error) = ReadLocalAudio(call);
+        if (audio is null) return BadRequest(new { message = error ?? "Yozuv faylini olib bo'lmadi" });
+
+        var (ok, text, err) = await AzureTranscribeService.TranscribeAsync(
+            audio, fileName, meta!.AzureSpeechKey, meta.AzureSpeechRegion,
+            config["Azure:TranscribeLocales"], HttpContext.RequestAborted);
+        if (!ok) return StatusCode(502, new { message = err });
+
+        call.Transcript = text;
+        await db.SaveChangesAsync();
+        return Ok(new { transcript = text });
+    }
+
+    /// <summary>
+    /// Transkriptni Gemini AI bilan tahlil qilish: suhbat mazmuni, operator qaysi vaziyatda NIMA DEYISHI
+    /// MUMKIN EDI (tavsiya iboralar bilan), umumiy baho. Natija AiAnalysis'da saqlanadi. Avval transkript shart.
+    /// </summary>
+    [HttpPost("calls/{id}/analyze")]
+    public async Task<ActionResult> Analyze(string id)
+    {
+        var call = await db.CtiCallRecords.FindAsync(id);
+        if (call is null) return NotFound();
+        if (call.Transcript.Length == 0)
+            return BadRequest(new { message = "Avval transkript qiling — tahlil transkript asosida ishlaydi" });
+
+        var meta = await db.CenterMeta.FirstOrDefaultAsync();
+        if (!GeminiService.IsConfigured(meta?.GeminiApiKey))
+            return StatusCode(503, new { message = "Gemini sozlanmagan (Sozlamalar → AI Tahlil: API kalit)" });
+
+        var direction = call.Direction == "incoming" ? "KIRUVCHI (mijoz qo'ng'iroq qildi)" : "CHIQUVCHI (operator qo'ng'iroq qildi)";
+        var prompt =
+            "Siz o'quv markazi call-markazining sifat nazoratchisisiz. Quyida operator va mijoz " +
+            $"o'rtasidagi telefon suhbatining so'zma-so'z transkripti berilgan ({direction}, " +
+            $"davomiyligi {call.DurationSec} soniya; so'zlovchilar 1-suhbatdosh/2-suhbatdosh deb ajratilgan). " +
+            "Tahlilni O'ZBEK tilida, aniq va amaliy yozing:\n\n" +
+            "1. SUHBAT MAZMUNI — 2-3 jumlada nima haqida gaplashildi.\n" +
+            "2. YAXSHI JIHATLAR — operator to'g'ri qilgan narsalar.\n" +
+            "3. NIMA DEYISH MUMKIN EDI — qaysi vaziyatda (transkriptdan aynan joyini keltirib) " +
+            "operator boshqacha/yaxshiroq nima deyishi mumkin edi; har biriga TAYYOR tavsiya ibora yozing.\n" +
+            "4. UMUMIY BAHO — 10 ballik baho va bitta asosiy xulosa/tavsiya.\n\n" +
+            "TRANSKRIPT:\n" + call.Transcript;
+
+        var model = GeminiService.ResolveModel(config);
+        var (ok, text, err) = await GeminiService.GenerateAsync(meta!.GeminiApiKey, model, prompt);
+        if (!ok) return StatusCode(502, new { message = err ?? "Gemini javob bermadi" });
+
+        call.AiAnalysis = text.Trim();
+        await db.SaveChangesAsync();
+        return Ok(new { analysis = call.AiAnalysis });
+    }
+
+    /// <summary>Yozuv faylining baytlari (recordings/cti papkasidan; path-traversal himoyasi bilan).</summary>
+    private (byte[]? Audio, string FileName, string? Error) ReadLocalAudio(CtiCallRecord call)
+    {
+        try
+        {
+            var dir = RecordingsDir();
+            var fileName = Path.GetFileName(call.AudioPath); // faqat nom — path-traversal yo'q
+            var full = Path.GetFullPath(Path.Combine(dir, fileName));
+            if (!full.StartsWith(Path.GetFullPath(dir) + Path.DirectorySeparatorChar, StringComparison.Ordinal)
+                || !System.IO.File.Exists(full))
+                return (null, "", "Yozuv fayli topilmadi");
+            return (System.IO.File.ReadAllBytes(full), fileName, null);
+        }
+        catch (Exception ex)
+        {
+            return (null, "", $"Yozuvni o'qib bo'lmadi: {ex.Message}");
+        }
     }
 
     /// <summary>

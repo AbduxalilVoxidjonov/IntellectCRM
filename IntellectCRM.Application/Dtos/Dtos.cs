@@ -364,7 +364,7 @@ public record CtiCallDetailDto(
     string Id, string AgentId, string AgentName, string Direction, string RemoteNumber,
     string ContactName, string? StudentId, string StudentName, string StartedAt,
     string? AnsweredAt, string? EndedAt, int DurationSec, bool HasAudio, string Note,
-    List<CtiCallEventDto> Events);
+    List<CtiCallEventDto> Events, string Transcript, string AiAnalysis);
 /// <summary>Operator izohini yangilash.</summary>
 public record CtiNoteRequest(string Note);
 /// <summary>Berilgan raqamga yuborilgan SMS — Local Call raqam tarixida qo'ng'iroqlar bilan birga

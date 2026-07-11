@@ -41,10 +41,13 @@ public static class AzureTranscribeService
         var url = $"https://{region}.api.cognitive.microsoft.com/speechtotext/transcriptions:transcribe?api-version=2024-11-15";
 
         // profanityFilterMode=None — so'zma-so'z (maskalash/olib tashlash YO'Q).
+        // diarization — so'zlovchilarni AJRATISH (2 tomonli suhbat: operator + mijoz). Har phrase'da
+        // "speaker" (1/2) qaytadi; natijada matn "1-suhbatdosh: ..." / "2-suhbatdosh: ..." ko'rinishida quriladi.
         var definition = JsonSerializer.Serialize(new
         {
             locales,
             profanityFilterMode = "None",
+            diarization = new { maxSpeakers = 2, enabled = true },
         });
 
         using var form = new MultipartFormDataContent();
@@ -76,7 +79,36 @@ public static class AzureTranscribeService
         try
         {
             var root = JsonDocument.Parse(body).RootElement;
-            // combinedPhrases — tayyor birlashtirilgan matn (kanal bo'yicha).
+
+            // 1) DIARIZATSIYA: phrases[] har birida "speaker" (1/2) bo'lsa — so'zlovchilar bo'yicha ajratamiz.
+            //    Ketma-ket bir so'zlovchi phrase'lari bitta qatorda birlashtiriladi: "N-suhbatdosh: matn".
+            if (root.TryGetProperty("phrases", out var phrases) && phrases.ValueKind == JsonValueKind.Array
+                && phrases.GetArrayLength() > 0)
+            {
+                var sb = new StringBuilder();
+                int? current = null;
+                var anySpeaker = false;
+                foreach (var p in phrases.EnumerateArray())
+                {
+                    var txt = (p.TryGetProperty("text", out var t) ? t.GetString() ?? "" : "").Trim();
+                    if (txt.Length == 0) continue;
+                    int? sp = p.TryGetProperty("speaker", out var s) && s.ValueKind == JsonValueKind.Number
+                        ? s.GetInt32() : null;
+                    if (sp.HasValue) anySpeaker = true;
+                    if (sp != current)
+                    {
+                        if (sb.Length > 0) sb.Append('\n');
+                        if (sp.HasValue) sb.Append($"{sp}-suhbatdosh: ");
+                        current = sp;
+                    }
+                    else sb.Append(' ');
+                    sb.Append(txt);
+                }
+                var diar = sb.ToString().Trim();
+                if (diar.Length > 0 && anySpeaker) return (true, diar, null);
+            }
+
+            // 2) Zaxira: combinedPhrases — tayyor birlashtirilgan matn (speaker'siz).
             if (root.TryGetProperty("combinedPhrases", out var combined) && combined.ValueKind == JsonValueKind.Array)
             {
                 var parts = combined.EnumerateArray()
@@ -85,10 +117,11 @@ public static class AzureTranscribeService
                 var text = string.Join("\n", parts).Trim();
                 if (text.Length > 0) return (true, text, null);
             }
-            // Zaxira: phrases[] dan yig'ish.
-            if (root.TryGetProperty("phrases", out var phrases) && phrases.ValueKind == JsonValueKind.Array)
+
+            // 3) Zaxira: phrases[] dan oddiy yig'ish (speaker'siz).
+            if (root.TryGetProperty("phrases", out var ph2) && ph2.ValueKind == JsonValueKind.Array)
             {
-                var text = string.Join(" ", phrases.EnumerateArray()
+                var text = string.Join(" ", ph2.EnumerateArray()
                     .Select(p => p.TryGetProperty("text", out var t) ? t.GetString() ?? "" : "")
                     .Where(t => t.Length > 0)).Trim();
                 if (text.Length > 0) return (true, text, null);

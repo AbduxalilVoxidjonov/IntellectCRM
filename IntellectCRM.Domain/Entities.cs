@@ -1999,6 +1999,11 @@ public class CtiCallRecord
     public bool AudioUploaded { get; set; }
     /// <summary>Operator izohi (admin paneldan).</summary>
     public string Note { get; set; } = string.Empty;
+    /// <summary>Azure Speech (diarizatsiya) orqali so'zma-so'z transkript — so'zlovchilar ajratilgan
+    /// ("1-suhbatdosh: ..."). Bo'sh — hali transkript qilinmagan.</summary>
+    public string Transcript { get; set; } = string.Empty;
+    /// <summary>Transkript asosida Gemini AI tahlili (suhbat mazmuni, tavsiyalar, baho). Bo'sh — hali tahlil qilinmagan.</summary>
+    public string AiAnalysis { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; } = AppClock.Now;
 }
 

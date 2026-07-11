@@ -2,14 +2,14 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   History, Users, Search, X, AlertTriangle, PhoneIncoming, PhoneOutgoing, PhoneMissed,
   Phone, PhoneCall, Delete, User, Loader2, ChevronLeft, ChevronRight, Plus, Pencil, CircleDot,
-  MessageSquare,
+  MessageSquare, Captions, Sparkles,
 } from 'lucide-react'
 import type { Student } from '@/types'
 import { getStudents } from '@/api/services/students'
 import {
   getCtiAgents, createCtiAgent, updateCtiAgent, dialCtiAgent, sendCtiSms,
   getCtiCalls, getCtiCallsGrouped, getCtiCallDetail, fetchCtiCallAudioUrl, updateCtiCallNote,
-  getCtiSmsForNumber,
+  transcribeCtiCall, analyzeCtiCall, getCtiSmsForNumber,
   type CtiAgent, type CtiCall, type CtiCallDetail, type CtiCallFilters, type CtiNumberGroup,
   type CtiSmsHistoryItem,
 } from '@/api/services/cti'
@@ -721,6 +721,8 @@ function CallDetailPanel({ callId }: { callId: string }) {
   const [error, setError] = useState('')
   const [note, setNote] = useState('')
   const [saving, setSaving] = useState(false)
+  const [transcribing, setTranscribing] = useState(false)
+  const [analyzing, setAnalyzing] = useState(false)
 
   useEffect(() => {
     setDetail(null)
@@ -742,6 +744,34 @@ function CallDetailPanel({ callId }: { callId: string }) {
       setError(err.response?.data?.message || 'Izohni saqlashda xato')
     } finally {
       setSaving(false)
+    }
+  }
+
+  const doTranscribe = async () => {
+    if (transcribing || !detail) return
+    setTranscribing(true)
+    setError('')
+    try {
+      const r = await transcribeCtiCall(detail.id)
+      setDetail({ ...detail, transcript: r.transcript })
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Transkript qilishda xato')
+    } finally {
+      setTranscribing(false)
+    }
+  }
+
+  const doAnalyze = async () => {
+    if (analyzing || !detail) return
+    setAnalyzing(true)
+    setError('')
+    try {
+      const r = await analyzeCtiCall(detail.id)
+      setDetail({ ...detail, aiAnalysis: r.analysis })
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'AI tahlilda xato')
+    } finally {
+      setAnalyzing(false)
     }
   }
 
@@ -818,7 +848,48 @@ function CallDetailPanel({ callId }: { callId: string }) {
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" /> {error}
           </div>
         )}
+
+        {/* Transkript + AI tahlil tugmalari (audio bo'lsa) */}
+        {detail.hasAudio && (
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button variant="secondary" onClick={doTranscribe} disabled={transcribing}>
+              {transcribing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Captions className="h-4 w-4" />}
+              {transcribing ? 'Transkript qilinmoqda...' : 'Transkriptga o\'girish'}
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={doAnalyze}
+              disabled={analyzing || !detail.transcript}
+              title={!detail.transcript ? 'Avval transkript qiling' : undefined}
+            >
+              {analyzing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              {analyzing ? 'Tahlil qilinmoqda...' : 'AI tahlil'}
+            </Button>
+          </div>
+        )}
       </Card>
+
+      {/* Transkript (so'zlovchilar ajratilgan) */}
+      {detail.hasAudio && (
+        <Card title="Transkript (so'zlovchilar ajratilgan)">
+          {detail.transcript ? (
+            <p className="whitespace-pre-wrap text-sm text-slate-700">{detail.transcript}</p>
+          ) : (
+            <p className="text-sm text-slate-400">Hali transkript qilinmagan — yuqoridagi tugmani bosing.</p>
+          )}
+        </Card>
+      )}
+
+      {/* AI tahlil */}
+      {detail.hasAudio && (
+        <Card title="AI tahlil (Gemini)">
+          {detail.aiAnalysis ? (
+            <p className="whitespace-pre-wrap text-sm text-slate-700">{detail.aiAnalysis}</p>
+          ) : (
+            <p className="text-sm text-slate-400">Hali AI tahlil qilinmagan.</p>
+          )}
+        </Card>
+      )}
 
       <Card title="Izoh">
         <textarea

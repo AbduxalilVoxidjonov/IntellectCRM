@@ -38,6 +38,10 @@ export interface CtiCallEvent {
 
 export interface CtiCallDetail extends CtiCall {
   events: CtiCallEvent[]
+  /** Azure diarizatsiya transkripti ("1-suhbatdosh: ..."). Bo'sh — hali qilinmagan. */
+  transcript: string
+  /** Gemini AI tahlili. Bo'sh — hali qilinmagan. */
+  aiAnalysis: string
 }
 
 export interface CtiCallFilters {
@@ -174,6 +178,18 @@ export async function fetchCtiCallAudioUrl(id: string): Promise<string> {
 /** Qo'ng'iroqqa izoh saqlash. */
 export async function updateCtiCallNote(id: string, note: string): Promise<void> {
   await api.put(`/cti/calls/${id}/note`, { note })
+}
+
+/** Audio yozuvni Azure Speech (diarizatsiya) orqali so'zlovchilar ajratilgan transkriptga o'giradi. */
+export async function transcribeCtiCall(id: string): Promise<{ transcript: string }> {
+  const { data } = await api.post(`/cti/calls/${id}/transcribe`, {})
+  return data
+}
+
+/** Transkriptni Gemini AI bilan tahlil qiladi (avval transkript bo'lishi shart). */
+export async function analyzeCtiCall(id: string): Promise<{ analysis: string }> {
+  const { data } = await api.post(`/cti/calls/${id}/analyze`, {})
+  return data
 }
 
 /** Berilgan raqamga yuborilgan SMS (Eskiz+Local) — raqam tarixida qo'ng'iroqlar bilan birga ko'rsatish uchun. */
