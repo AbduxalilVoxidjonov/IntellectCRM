@@ -196,6 +196,18 @@ export function StudentDetailPage() {
       .finally(() => setSmsLoading(false))
   }, [id, reloadKey])
 
+  // O'quvchi ALMASHGANDA (tepadagi qidiruv orqali bir profildan boshqasiga o'tilganda — bir xil route,
+  // faqat `id` o'zgaradi) keshlangan TO'LIQ Student obyektlari (callTarget/paymentTarget/smsTarget/editing)
+  // eski o'quvchiniki bo'lib qolmasin — aks holda "To'lov qilish"/"SMS"/"Qo'ng'iroq" ESKI o'quvchi ustidan
+  // bajariladi (bug: yangi o'quvchini emas, eski o'quvchini chiqarib to'langan deb ko'rsatardi).
+  useEffect(() => {
+    setCallTarget(null)
+    setPaymentTarget(null)
+    setSmsTarget(null)
+    setEditing(null)
+    setCallOpen(false)
+  }, [id])
+
   /** "Tahrirlash" bosilganda — StudentFormModal uchun TO'LIQ Student kerak (data — StudentNotebook, formaga yaramaydi). */
   const openEdit = () => {
     if (!id) return
