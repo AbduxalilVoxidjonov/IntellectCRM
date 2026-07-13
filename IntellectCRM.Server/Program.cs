@@ -789,7 +789,12 @@ app.MapFallback(async ctx =>
     var isApexHost = rootDomain.Length > 0 && (host == rootDomain || host == $"www.{rootDomain}");
     var landingFile = Path.Combine(webRoot, "landing.html");
 
-    if (isApexHost && File.Exists(landingFile))
+    // Maxfiylik siyosati (/privacy) — apex domenda ham landing.html EMAS, React SPA sahifasi
+    // ko'rsatilsin (Google Play talab qiladigan ochiq sahifa istalgan hostda ishlashi uchun).
+    var path = ctx.Request.Path.Value?.ToLowerInvariant() ?? "";
+    var isPrivacy = path.StartsWith("/privacy");
+
+    if (isApexHost && !isPrivacy && File.Exists(landingFile))
     {
         ctx.Response.ContentType = "text/html; charset=utf-8";
         // no-cache: telefon brauzerlari yangilangan sahifani darhol olsin (sahifa kichik, kesh shart emas).
