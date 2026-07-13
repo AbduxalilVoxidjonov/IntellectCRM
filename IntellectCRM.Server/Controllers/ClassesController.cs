@@ -93,6 +93,10 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
                 $"Oylik to'lov belgilandi: {AuditService.Money(cls.MonthlyFee)} so'm ({cls.Name})",
                 after: new { cls.MonthlyFee, cls.Name });
 
+        audit.Record(AuditService.EntityGroup, cls.Id, "create",
+            $"Guruh yaratildi ({cls.Name})",
+            after: AuditService.GroupSnapshot(cls));
+
         await db.SaveChangesAsync();
         return cls;
     }
@@ -108,6 +112,8 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
     {
         var cls = await db.Classes.FindAsync(id);
         if (cls is null) return NotFound();
+
+        var beforeGroup = AuditService.GroupSnapshot(cls);
 
         // O'qituvchi biriktirish majburiy (eski, o'qituvchisiz guruhlar ham tahrirlanganda biriktirilsin).
         if (string.IsNullOrWhiteSpace(p.TeacherId))
@@ -191,6 +197,13 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
             audit.Record(AuditService.EntityClassFee, cls.Id, "update", summary,
                 before: new { MonthlyFee = oldFee, cls.Name }, after: new { cls.MonthlyFee, cls.Name });
         }
+
+        // Guruh maydonlari o'zgarganda — "kim o'zgartirdi" audit izi (oylik to'lov moliyaviy audit'dan alohida).
+        var afterGroup = AuditService.GroupSnapshot(cls);
+        if (System.Text.Json.JsonSerializer.Serialize(beforeGroup) != System.Text.Json.JsonSerializer.Serialize(afterGroup))
+            audit.Record(AuditService.EntityGroup, cls.Id, "update",
+                $"Guruh tahrirlandi ({cls.Name})",
+                before: beforeGroup, after: afterGroup);
 
         await db.SaveChangesAsync();
         return cls;

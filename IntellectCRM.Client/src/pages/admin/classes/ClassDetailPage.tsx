@@ -23,6 +23,7 @@ import { createStudent } from '@/api/services/students'
 import type { StudentPayload } from '@/api/services/students'
 import { cn, formatMoney, formatDate, apiErrorMessage } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
+import { AuditHistoryList } from '@/components/audit/AuditHistoryList'
 import { GradingSection } from '@/components/grading/GradingSection'
 import {
   getGradingBoard, setGrade, bulkGrade,
@@ -608,6 +609,11 @@ export function ClassDetailPage() {
               />
               <Info icon={MapPin} label="Xona" value={g.room || '—'} />
             </div>
+          </Card>
+
+          {/* O'zgarishlar tarixi — guruh kim tomonidan yaratilgan/tahrirlangan */}
+          <Card title="O'zgarishlar tarixi" sub="Kim yaratdi / kim o'zgartirdi">
+            <AuditHistoryList filters={{ entityId: id }} emptyLabel="O'zgarishlar tarixi yo'q" />
           </Card>
 
           {/* Jurnal / Baholash toggle */}

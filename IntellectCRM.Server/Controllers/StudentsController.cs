@@ -455,6 +455,11 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
                 DiscountSummary("O'quvchi yaratildi", student.FullName, 0, 0, student.DiscountPct, student.DiscountAmount, student.DiscountNote),
                 after: DiscountSnapshot(student), studentId: student.Id);
 
+        // O'quvchi yaratildi — "kim yaratdi" audit izi (profil snapshot bilan).
+        audit.Record(AuditService.EntityStudent, student.Id, "create",
+            $"O'quvchi qo'shildi ({student.FullName})",
+            after: AuditService.StudentProfileSnapshot(student), studentId: student.Id);
+
         return student;
     }
 
@@ -491,6 +496,8 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
     {
         var student = await db.Students.FindAsync(id);
         if (student is null) return NotFound();
+
+        var beforeProfile = AuditService.StudentProfileSnapshot(student);
 
         var oldPct = student.DiscountPct;
         var oldAmount = student.DiscountAmount;
@@ -691,6 +698,13 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
                 after: new { Class = student.ClassName, student.DiscountPct, student.DiscountAmount, student.DiscountNote },
                 studentId: student.Id);
         }
+
+        // Profil maydonlari o'zgarganda — "kim o'zgartirdi" audit izi (guruh/chegirma moliyaviy audit'dan alohida).
+        var afterProfile = AuditService.StudentProfileSnapshot(student);
+        if (System.Text.Json.JsonSerializer.Serialize(beforeProfile) != System.Text.Json.JsonSerializer.Serialize(afterProfile))
+            audit.Record(AuditService.EntityStudent, student.Id, "update",
+                $"O'quvchi ma'lumoti tahrirlandi ({student.FullName})",
+                before: beforeProfile, after: afterProfile, studentId: student.Id);
 
         await db.SaveChangesAsync();
         return NoContent();

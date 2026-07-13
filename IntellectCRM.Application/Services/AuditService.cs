@@ -21,6 +21,10 @@ public class AuditService(IAppDbContext db, IHttpContextAccessor http)
     public const string EntityClassFee = "ClassFee";
     public const string EntityStudentDiscount = "StudentDiscount";
     public const string EntityTemplate = "CertificateTemplate";
+    /// <summary>O'quvchi yozuvining o'zi (yaratildi/tahrirlandi/o'chirildi) — "kim yaratdi/o'zgartirdi".</summary>
+    public const string EntityStudent = "Student";
+    /// <summary>Guruh yozuvining o'zi (yaratildi/tahrirlandi/o'chirildi) — "kim yaratdi/o'zgartirdi".</summary>
+    public const string EntityGroup = "Group";
 
     /// <summary>Audit yozuvini joriy DbContext'ga qo'shadi (hali SaveChanges qilinmaydi).</summary>
     public void Record(
@@ -60,5 +64,45 @@ public class AuditService(IAppDbContext db, IHttpContextAccessor http)
         t.GroupId,
         t.Method,
         t.Comment,
+    };
+
+    /// <summary>
+    /// O'quvchi profili snapshot'i (audit Before/After uchun) — asosiy shaxsiy maydonlar.
+    /// Chegirma/balans BU YERGA kirmaydi — ular alohida moliyaviy audit'da yuritiladi.
+    /// </summary>
+    public static object StudentProfileSnapshot(Student s) => new
+    {
+        s.FullName,
+        s.Phone,
+        s.BirthDate,
+        s.Gender,
+        s.Address,
+        s.ParentFullName,
+        s.ParentPhone,
+        s.FatherFullName,
+        s.FatherPhone,
+        s.MotherFullName,
+        s.MotherPhone,
+        s.ClassName,
+        s.EnrollmentDate,
+    };
+
+    /// <summary>
+    /// Guruh snapshot'i (audit Before/After uchun). TeacherId/CourseId o'zgarish ANIQLASH uchun
+    /// kiritilgan (GUID sifatida ko'rsatilmaydi — frontend faqat yorliqli maydonlarni chizadi).
+    /// </summary>
+    public static object GroupSnapshot(Group g) => new
+    {
+        g.Name,
+        g.Grade,
+        g.Language,
+        g.MonthlyFee,
+        g.Room,
+        g.Status,
+        g.StartTime,
+        g.EndTime,
+        g.Note,
+        g.TeacherId,
+        g.CourseId,
     };
 }

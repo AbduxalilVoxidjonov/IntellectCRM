@@ -31,6 +31,25 @@ const fieldLabels: Record<string, string> = {
   discountPct: 'Chegirma foizi',
   discountAmount: 'Chegirma summasi',
   discountNote: 'Chegirma izohi',
+  fullName: 'F.I.SH',
+  phone: 'Telefon',
+  birthDate: "Tug'ilgan sana",
+  gender: 'Jins',
+  address: 'Manzil',
+  parentFullName: "Ota-ona F.I.SH",
+  parentPhone: "Ota-ona telefoni",
+  fatherFullName: "Otasi F.I.SH",
+  fatherPhone: "Otasi telefoni",
+  motherFullName: "Onasi F.I.SH",
+  motherPhone: "Onasi telefoni",
+  className: 'Guruh',
+  enrollmentDate: 'Qabul sanasi',
+  grade: 'Daraja',
+  language: 'Til',
+  room: 'Xona',
+  status: 'Holat',
+  startTime: 'Boshlanish vaqti',
+  endTime: 'Tugash vaqti',
 }
 /** Foiz qiymatlari uchun (raqamga "%" qo'shadi). */
 const pctKeys = new Set(['discountPct'])
@@ -50,6 +69,12 @@ function fmtValue(key: string, value: unknown): string {
   if (moneyKeys.has(key) && typeof value === 'number') return formatMoney(value)
   if (pctKeys.has(key) && typeof value === 'number') return `${value}%`
   if (key === 'direction') return value === 'income' ? 'Kirim' : 'Chiqim'
+  if (key === 'gender') return value === 'female' ? 'Ayol' : 'Erkak'
+  if (key === 'language') return value === 'ru' ? 'Rus' : "O'zbek"
+  if (key === 'status') {
+    const map: Record<string, string> = { active: 'Aktiv', frozen: 'Muzlatilgan', full: "To'lgan", archived: 'Arxiv', trial: 'Sinov' }
+    return map[String(value)] ?? String(value)
+  }
   return String(value)
 }
 
