@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Plus, Eye, Pencil, Trash2, Check, Users } from 'lucide-react'
+import { Plus, Eye, Pencil, Trash2, Users } from 'lucide-react'
 import type { Staff, Credentials, StaffRoleTemplate } from '@/types'
 import {
   getStaff,
@@ -14,6 +14,8 @@ import {
 } from '@/api/services/staff'
 import { adminPermissions } from '@/config/constants'
 import { useAuth } from '@/context/auth-context'
+import { toggleSectionAction, sectionActions, type PermAction } from '@/lib/permissions'
+import { PermMatrix } from '@/components/staff/PermMatrix'
 import { cn, randomPassword } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -55,9 +57,9 @@ export function StaffPage() {
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<Staff | null>(null)
   const [form, setForm] = useState<CreateStaffWithTemplatePayload>({ fullName: '', position: '' })
-  // Template selection va qo'shimcha ruxsatlari
+  // Rol shabloni (ixtiyoriy — matritsani oldindan to'ldiradi) + yangi xodim ruxsat matritsasi.
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null)
-  const [extraPerms, setExtraPerms] = useState<Set<string>>(new Set())
+  const [createPerms, setCreatePerms] = useState<Set<string>>(new Set())
   const [saving, setSaving] = useState(false)
 
   // Har bir xodim uchun tahrirlanayotgan ruxsatlar (id → kalitlar to'plami)
@@ -90,8 +92,17 @@ export function StaffPage() {
     setEditing(null)
     setForm({ fullName: '', position: '', phone: '' })
     setSelectedTemplate(null)
-    setExtraPerms(new Set())
+    setCreatePerms(new Set())
     setFormOpen(true)
+  }
+
+  // Rol shabloni tanlanganda — matritsani shablonning default ruxsatlaridan to'ldiramiz (keyin qo'lda o'zgartirish mumkin).
+  const applyTemplate = (code: string | null) => {
+    setSelectedTemplate(code)
+    if (code) {
+      const t = templates.find((x) => x.code === code)
+      if (t) setCreatePerms(new Set(t.defaultPermissions))
+    }
   }
   const openEdit = (s: Staff) => {
     setEditing(s)
@@ -118,11 +129,10 @@ export function StaffPage() {
         setStaff((p) => p.map((x) => (x.id === u.id ? u : x)))
         setFormOpen(false)
       } else {
-        // Template + extra ruxsatlari bilan xodim yaratish
+        // Ruxsatlar to'g'ridan-to'g'ri matritsadan (shablon faqat oldindan to'ldirish uchun edi).
         const payload: CreateStaffWithTemplatePayload = {
           ...form,
-          templateCode: selectedTemplate ?? undefined,
-          extraPermissions: extraPerms.size > 0 ? [...extraPerms] : undefined,
+          extraPermissions: createPerms.size > 0 ? [...createPerms] : undefined,
         }
         const created = await createStaff(payload)
         setStaff((p) => [created, ...p])
@@ -154,13 +164,11 @@ export function StaffPage() {
       .catch((e) => alert(e?.response?.data?.message ?? "O'chirib bo'lmadi"))
   }
 
-  const toggle = (staffId: string, key: string) =>
-    setDraft((d) => {
-      const next = new Set(d[staffId] ?? [])
-      if (next.has(key)) next.delete(key)
-      else next.add(key)
-      return { ...d, [staffId]: next }
-    })
+  const toggleAction = (staffId: string, section: string, action: PermAction) =>
+    setDraft((d) => ({
+      ...d,
+      [staffId]: toggleSectionAction(d[staffId] ?? new Set<string>(), section, action),
+    }))
 
   const dirty = (s: Staff) => {
     const cur = draft[s.id] ?? new Set()
@@ -236,27 +244,11 @@ export function StaffPage() {
 
                 {canManageRoles ? (
                   <>
-                    <div className="flex flex-wrap gap-2">
-                      {adminPermissions.map((p) => {
-                        const active = cur.has(p.key)
-                        return (
-                          <button
-                            key={p.key}
-                            type="button"
-                            onClick={() => toggle(s.id, p.key)}
-                            className={cn(
-                              'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm transition-colors',
-                              active
-                                ? 'border-brand-500 bg-brand-50 text-brand-700'
-                                : 'border-slate-200 text-slate-600 hover:bg-slate-50',
-                            )}
-                          >
-                            {active && <Check className="h-3.5 w-3.5" />}
-                            {p.label}
-                          </button>
-                        )
-                      })}
-                    </div>
+                    <p className="mb-2 text-xs text-slate-400">
+                      Har bo'lim uchun ruxsat: <b>Ko'rish</b> (ochadi), <b>Qo'shish</b>, <b>Tahrir</b>,
+                      <b> O'chirish</b>. Ko'rishsiz bo'lim yashiriladi; yozish uchun ko'rish avtomatik yoqiladi.
+                    </p>
+                    <PermMatrix perms={cur} onToggle={(section, action) => toggleAction(s.id, section, action)} />
                     <div className="mt-3 flex justify-end">
                       <Button
                         onClick={() => savePerms(s)}
@@ -271,14 +263,22 @@ export function StaffPage() {
                     {s.permissions.length === 0 ? (
                       <span className="text-xs text-slate-400">Ruxsatlar belgilanmagan</span>
                     ) : (
-                      s.permissions.map((key) => {
-                        const label = adminPermissions.find((p) => p.key === key)?.label ?? key
-                        return (
-                          <Badge key={key} tone="violet">
-                            {label}
-                          </Badge>
-                        )
-                      })
+                      adminPermissions
+                        .filter((p) => sectionActions(new Set(s.permissions), p.key).size > 0)
+                        .map((p) => {
+                          const acts = sectionActions(new Set(s.permissions), p.key)
+                          const full = acts.size === 4
+                          return (
+                            <Badge key={p.key} tone="violet">
+                              {p.label}
+                              {!full && (
+                                <span className="ml-1 opacity-70">
+                                  ({[...acts].length} amal)
+                                </span>
+                              )}
+                            </Badge>
+                          )
+                        })
                     )}
                   </div>
                 )}
@@ -355,16 +355,16 @@ export function StaffPage() {
           )}
           {!editing && canManageRoles && (
             <div className="space-y-4">
-              {/* Rolle shabloni tanlash */}
+              {/* Rol shabloni — tanlansa matritsani oldindan to'ldiradi (keyin qo'lda o'zgartirish mumkin). */}
               {templates.length > 0 && (
                 <div>
                   <label className="mb-1 block text-sm font-medium text-slate-600">
-                    Rolle shabloni (ixtiyoriy)
+                    Rol shabloni (ixtiyoriy)
                   </label>
                   <div className="space-y-2">
                     <select
                       value={selectedTemplate ?? ''}
-                      onChange={(e) => setSelectedTemplate(e.target.value || null)}
+                      onChange={(e) => applyTemplate(e.target.value || null)}
                       className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
                     >
                       <option value="">— Tanlang yoki qo'lda belgilang —</option>
@@ -383,54 +383,17 @@ export function StaffPage() {
                 </div>
               )}
 
-              {/* Default + qo'shimcha ruxsatlari */}
+              {/* Ruxsatlar matritsasi — har bo'lim uchun amallar */}
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-600">
-                  Ruxsatlar (rollar)
+                  Ruxsatlar (har bo'lim uchun amallar)
                 </label>
-                {selectedTemplate && (
-                  <p className="mb-2 text-xs text-slate-500">
-                    ✓ {templates.find((t) => t.code === selectedTemplate)?.defaultPermissions?.length ?? 0} default ruxsat
-                    {extraPerms.size > 0 && ` + ${extraPerms.size} qo'shimcha`}
-                  </p>
-                )}
-                <div className="flex flex-wrap gap-2">
-                  {adminPermissions.map((p) => {
-                    const isDefault = selectedTemplate
-                      ? templates.find((t) => t.code === selectedTemplate)?.defaultPermissions?.includes(p.key) ?? false
-                      : false
-                    const isExtra = extraPerms.has(p.key)
-                    const active = isDefault || isExtra
-                    return (
-                      <button
-                        key={p.key}
-                        type="button"
-                        onClick={() => {
-                          if (isDefault) return // default'ni qayta tanlash mumkin emas
-                          setExtraPerms((s) => {
-                            const next = new Set(s)
-                            if (next.has(p.key)) next.delete(p.key)
-                            else next.add(p.key)
-                            return next
-                          })
-                        }}
-                        disabled={isDefault}
-                        className={cn(
-                          'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm transition-colors',
-                          isDefault
-                            ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                            : active
-                              ? 'border-brand-500 bg-brand-50 text-brand-700'
-                              : 'border-slate-200 text-slate-600 hover:bg-slate-50',
-                        )}
-                      >
-                        {active && <Check className="h-3.5 w-3.5" />}
-                        {p.label}
-                        {isDefault && <span className="text-xs opacity-60">(default)</span>}
-                      </button>
-                    )
-                  })}
-                </div>
+                <PermMatrix
+                  perms={createPerms}
+                  onToggle={(section, action) =>
+                    setCreatePerms((s) => toggleSectionAction(s, section, action))
+                  }
+                />
               </div>
             </div>
           )}

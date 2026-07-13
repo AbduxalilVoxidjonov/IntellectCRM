@@ -1,14 +1,16 @@
 import type { ReactNode } from 'react'
 import { useAuth } from '@/context/auth-context'
+import { can } from '@/lib/permissions'
 import { Card } from '@/components/ui/Card'
 
 /**
- * O'qituvchi bo'limlari uchun ruxsat darvozasi. Foydalanuvchi permissions ro'yxatida shu bo'lim
- * bo'lmasa — "ruxsat yo'q" ko'rsatadi. permissions umuman bo'lmasa (admin) — har doim ochiq.
+ * Bo'lim sahifasi uchun ruxsat darvozasi. Foydalanuvchida shu bo'limni KO'RISH ruxsati bo'lmasa —
+ * "ruxsat yo'q" ko'rsatadi. permissions umuman bo'lmasa (admin) — har doim ochiq. "Ko'rish" — bare
+ * "section" yoki biror "section:action" (create/edit/delete ruxsati ham ko'rishga yetadi).
  */
 export function RequirePerm({ perm, children }: { perm: string; children: ReactNode }) {
   const { user } = useAuth()
-  const ok = !user?.permissions || user.permissions.includes(perm)
+  const ok = can(user?.permissions, perm, 'view')
   if (!ok) {
     return (
       <Card>

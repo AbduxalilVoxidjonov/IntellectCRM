@@ -10,8 +10,11 @@ namespace IntellectCRM.Server.Controllers;
 ///   <item><b>admin / superadmin</b> — to'liq kirish (ruxsat tekshirilmaydi).</item>
 ///   <item><b>staff</b> — <b>O'QISH</b> (GET/HEAD) har doim ochiq: bir bo'lim sahifasi boshqa
 ///     bo'lim ma'lumotini o'qishi (masalan Moliya → o'quvchilar ro'yxati) buzilmasligi uchun.
-///     <b>YOZISH</b> (POST/PUT/DELETE/PATCH) esa FAQAT shu bo'lim ruxsati (<see cref="ClaimType"/>
-///     claim'i) bo'lganda ruxsat etiladi.</item>
+///     "Ko'rish" (bo'lim ko'rinishi) FRONTEND'da (nav + RequirePerm) boshqariladi.
+///     <b>YOZISH</b> esa AMAL bo'yicha ajratiladi: POST→<c>create</c> (qo'shish), PUT/PATCH→<c>edit</c>
+///     (tahrir), DELETE→<c>delete</c> (o'chirish). Ruxsat tokeni ikki xil bo'ladi: yalang
+///     <c>"section"</c> = TO'LIQ (barcha amallar, eski/backward-compat) yoki <c>"section:action"</c>
+///     = faqat shu amal.</item>
 ///   <item>Boshqa rollar (teacher/student/parent) — taqiqlanadi.</item>
 /// </list>
 /// Ruxsat claim'lari tokenga yozilmaydi — ular HAR so'rovda DB'dan (Program.cs OnTokenValidated)
@@ -37,11 +40,17 @@ public sealed class AdminPermAttribute(string perm) : Attribute, IAuthorizationF
         // Faqat xodim (staff) shu darvozadan o'tishi mumkin; qolganlari — rad.
         if (!user.IsInRole(Roles.Staff)) { context.Result = new ForbidResult(); return; }
 
-        // O'qish har doim ochiq (bo'limlararo bog'liqliklar uchun); yozish — ruxsatga bog'liq.
+        // O'qish har doim ochiq (bo'limlararo bog'liqliklar uchun); "ko'rish" frontend'da boshqariladi.
         var method = context.HttpContext.Request.Method;
         if (HttpMethods.IsGet(method) || HttpMethods.IsHead(method) || HttpMethods.IsOptions(method)) return;
 
-        var has = user.Claims.Any(c => c.Type == ClaimType && c.Value == _perm);
-        if (!has) context.Result = new ForbidResult();
+        // Yozish amali → kerakli ruxsat harakati.
+        var action = HttpMethods.IsPost(method) ? "create"
+                   : HttpMethods.IsDelete(method) ? "delete"
+                   : "edit"; // PUT / PATCH va boshqalar
+
+        // Ruxsat: yalang "section" (TO'LIQ) YOKI aniq "section:action".
+        bool Has(string value) => user.Claims.Any(c => c.Type == ClaimType && c.Value == value);
+        if (!Has(_perm) && !Has(_perm + ":" + action)) context.Result = new ForbidResult();
     }
 }

@@ -6,6 +6,7 @@ import { useAuth } from '@/context/auth-context'
 import { useUnread } from '@/context/unread-context'
 import { getSchoolName } from '@/api/services/settings'
 import { navByRole, roleLabels, homeByRole, type NavItem, type NavChild } from '@/config/navigation'
+import { can } from '@/lib/permissions'
 import { cn } from '@/lib/utils'
 
 interface SidebarProps {
@@ -47,10 +48,11 @@ export function Sidebar({ open, onNavigate }: SidebarProps) {
 
   if (!user) return null
   const role = user.role
-  // Element ko'rinadi: roli mos (yoki roles yo'q) VA xodim ruxsati bor (yoki perm yo'q / permissions yo'q).
+  // Element ko'rinadi: roli mos (yoki roles yo'q) VA xodim shu bo'limni KO'RISH ruxsatiga ega
+  // (yoki perm yo'q / permissions yo'q — admin). "Ko'rish" — bare "section" yoki biror "section:action".
   const canSee = (x: { roles?: Role[]; perm?: string }) =>
     (!x.roles || x.roles.includes(role)) &&
-    (!x.perm || !user.permissions || user.permissions.includes(x.perm))
+    (!x.perm || can(user.permissions, x.perm, 'view'))
 
   // Guruh bolalarini (3-darajagacha) rekursiv filtrlaymiz; barcha bolalari yashirilgan guruh ko'rinmaydi.
   function filterNav<T extends { roles?: Role[]; perm?: string; children?: NavChild[] }>(list: T[]): T[] {
