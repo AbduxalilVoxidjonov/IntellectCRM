@@ -8,11 +8,13 @@ import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Loader } from '@/components/ui/Loader'
+import { usePerm } from '@/lib/permissions'
 
 type TypeFilter = '' | 'suggestion' | 'complaint'
 type StatusFilter = '' | 'new' | 'resolved'
 
 export function FeedbackPage() {
+  const { can } = usePerm()
   const [items, setItems] = useState<Feedback[]>([])
   const [loading, setLoading] = useState(true)
   const [type, setType] = useState<TypeFilter>('')
@@ -134,7 +136,7 @@ export function FeedbackPage() {
                     <Badge tone="default">Yangi</Badge>
                   )}
                 </div>
-                {f.status === 'new' && (
+                {f.status === 'new' && can('feedback', 'edit') && (
                   <Button variant="secondary" onClick={() => resolve(f.id)}>
                     <CheckCircle2 className="h-4 w-4" /> Hal qilindi
                   </Button>

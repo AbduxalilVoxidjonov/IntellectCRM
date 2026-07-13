@@ -43,6 +43,10 @@ interface Props {
   onDelete: (lead: Lead) => void
   /** Lid aylantirilgandan keyin ro'yxatni yangilash uchun */
   onConverted?: (leadId: string, studentId: string) => void
+  /** Ruxsat: tahrirlash tugmasi ko'rinsinmi (default true) */
+  canEdit?: boolean
+  /** Ruxsat: o'chirish tugmasi ko'rinsinmi (default true) */
+  canDelete?: boolean
 }
 
 function Row({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
@@ -119,7 +123,15 @@ function nextLessonDates(days: number[], count: number): Date[] {
   return out
 }
 
-export function LeadDetailModal({ lead, onClose, onEdit, onDelete, onConverted }: Props) {
+export function LeadDetailModal({
+  lead,
+  onClose,
+  onEdit,
+  onDelete,
+  onConverted,
+  canEdit = true,
+  canDelete = true,
+}: Props) {
   const leadId = lead?.id ?? null
 
   const [events, setEvents] = useState<LeadEvent[]>([])
@@ -338,15 +350,19 @@ export function LeadDetailModal({ lead, onClose, onEdit, onDelete, onConverted }
       footer={
         lead && (
           <>
-            <Button variant="danger" onClick={() => onDelete(lead)} className="mr-auto">
-              <Trash2 className="h-4 w-4" /> O'chirish
-            </Button>
+            {canDelete && (
+              <Button variant="danger" onClick={() => onDelete(lead)} className="mr-auto">
+                <Trash2 className="h-4 w-4" /> O'chirish
+              </Button>
+            )}
             <Button variant="secondary" onClick={onClose}>
               Yopish
             </Button>
-            <Button onClick={() => onEdit(lead)}>
-              <Pencil className="h-4 w-4" /> Tahrirlash
-            </Button>
+            {canEdit && (
+              <Button onClick={() => onEdit(lead)}>
+                <Pencil className="h-4 w-4" /> Tahrirlash
+              </Button>
+            )}
           </>
         )
       }

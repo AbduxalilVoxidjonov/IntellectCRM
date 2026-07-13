@@ -12,10 +12,12 @@ import { ChatPanel } from '@/components/chat/ChatPanel'
 import { UnifiedComposer } from './UnifiedComposer'
 import { AutoMessagesTab } from './AutoMessagesTab'
 import { HistoryTab } from './HistoryTab'
+import { usePerm } from '@/lib/permissions'
 type Tab = 'send' | 'auto' | 'history' | 'chat'
 
 export function MessagesPage() {
   const { unreadChannels } = useUnread()
+  const { can } = usePerm()
   const [classes, setClasses] = useState<MessageClass[]>([])
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<Tab>('send')
@@ -64,13 +66,19 @@ export function MessagesPage() {
       ) : tab === 'send' ? (
         <UnifiedComposer
           classes={classes}
+          canSend={can('messages', 'create')}
           onConfigureAuto={(id: string) => {
             setHighlightRule(id)
             setTab('auto')
           }}
         />
       ) : tab === 'auto' ? (
-        <AutoMessagesTab highlightRuleId={highlightRule} />
+        <AutoMessagesTab
+          highlightRuleId={highlightRule}
+          canCreate={can('messages', 'create')}
+          canEdit={can('messages', 'edit')}
+          canDelete={can('messages', 'delete')}
+        />
       ) : tab === 'history' ? (
         <HistoryTab />
       ) : (

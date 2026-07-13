@@ -41,6 +41,7 @@ import { getStudentGradingSummary, type MonthGradingSummary } from '@/api/servic
 import { getTeachers } from '@/api/services/teachers'
 import type { Student, StudentGroupMembership, Curriculum, Group, Teacher } from '@/types'
 import { cn, formatDate, formatDateTime, formatMoney, apiErrorMessage } from '@/lib/utils'
+import { usePerm } from '@/lib/permissions'
 import { Card } from '@/components/ui/Card'
 import { Badge, type BadgeTone } from '@/components/ui/Badge'
 import { StatCard } from '@/components/ui/StatCard'
@@ -93,6 +94,7 @@ const tooltipStyle = { borderRadius: 12, border: '1px solid #e2e8f0' }
 
 export function StudentDetailPage() {
   const { id } = useParams<{ id: string }>()
+  const { can } = usePerm()
   const [data, setData] = useState<StudentNotebook | null>(null)
   const [groups, setGroups] = useState<StudentGroupMembership[]>([])
   /** groupId → courseId (Group.courseId) — o'quv dasturini olish uchun kurs id'sini topish. */
@@ -629,13 +631,15 @@ export function StudentDetailPage() {
           >
             <MessageSquare className="h-4 w-4" /> SMS yuborish
           </button>
-          <button
-            type="button"
-            onClick={openEdit}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:border-brand-300 hover:text-brand-700"
-          >
-            <Pencil className="h-4 w-4" /> Tahrirlash
-          </button>
+          {can('students', 'edit') && (
+            <button
+              type="button"
+              onClick={openEdit}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:border-brand-300 hover:text-brand-700"
+            >
+              <Pencil className="h-4 w-4" /> Tahrirlash
+            </button>
+          )}
         </div>
       </Card>
 

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useAuth } from '@/context/auth-context'
+import { usePerm } from '@/lib/permissions'
 import {
   ArrowLeft, Users, BookOpen, User,
   CalendarDays, Clock, MapPin, Wallet, Snowflake, CheckCircle2,
@@ -94,6 +95,7 @@ function masteryDisplay(m: MasteryLevel | undefined): { label: string; cls: stri
 export function ClassDetailPage() {
   const { id = '' } = useParams()
   const { user } = useAuth()
+  const { can } = usePerm()
   const [journal, setJournal] = useState<GroupJournal | null>(null)
   const [reasons, setReasons] = useState<AbsenceReason[]>([])
   const [loading, setLoading] = useState(true)
@@ -560,7 +562,7 @@ export function ClassDetailPage() {
             )}
           </div>
         </div>
-        {g && user?.role === 'superadmin' && (
+        {g && user?.role === 'superadmin' && can('classes', 'delete') && (
           <button
             onClick={openCompleteModal}
             className="flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-amber-700 transition-colors hover:bg-amber-100"
@@ -678,19 +680,21 @@ export function ClassDetailPage() {
                     {monthLabel(m)}
                   </button>
                 ))}
-                <button
-                  type="button"
-                  disabled={capacity > 0 && journalStudents.length >= capacity}
-                  onClick={() => setNewStudentOpen(true)}
-                  title={
-                    capacity > 0 && journalStudents.length >= capacity
-                      ? `Guruh to'lgan (${capacity} o'rin)`
-                      : "Yangi o'quvchi yaratib, shu guruhga qo'shish"
-                  }
-                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-brand-700 disabled:opacity-50"
-                >
-                  <Plus className="h-4 w-4" /> Yangi o'quvchi
-                </button>
+                {can('classes', 'create') && (
+                  <button
+                    type="button"
+                    disabled={capacity > 0 && journalStudents.length >= capacity}
+                    onClick={() => setNewStudentOpen(true)}
+                    title={
+                      capacity > 0 && journalStudents.length >= capacity
+                        ? `Guruh to'lgan (${capacity} o'rin)`
+                        : "Yangi o'quvchi yaratib, shu guruhga qo'shish"
+                    }
+                    className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-brand-700 disabled:opacity-50"
+                  >
+                    <Plus className="h-4 w-4" /> Yangi o'quvchi
+                  </button>
+                )}
               </div>
             </div>
 

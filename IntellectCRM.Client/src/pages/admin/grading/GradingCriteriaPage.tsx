@@ -19,6 +19,7 @@ import { Modal } from '@/components/ui/Modal'
 import { Input, Select, Textarea } from '@/components/ui/Input'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { cn, apiErrorMessage } from '@/lib/utils'
+import { usePerm } from '@/lib/permissions'
 
 /** Ism-sharifdan bosh harflar (avatar uchun). */
 function initials(name: string): string {
@@ -29,6 +30,7 @@ function initials(name: string): string {
 }
 
 export function GradingCriteriaPage() {
+  const { can } = usePerm()
   const [criteria, setCriteria] = useState<GradingCriterion[]>([])
   const [groups, setGroups] = useState<Group[]>([])
   const [teachers, setTeachers] = useState<Teacher[]>([])
@@ -214,9 +216,11 @@ export function GradingCriteriaPage() {
         <Card
           title="Mezonlar"
           actions={
-            <Button onClick={openCreate}>
-              <Plus className="h-4 w-4" /> Mezon
-            </Button>
+            can('schedule', 'create') ? (
+              <Button onClick={openCreate}>
+                <Plus className="h-4 w-4" /> Mezon
+              </Button>
+            ) : undefined
           }
         >
           {criteria.length === 0 ? (
@@ -261,22 +265,26 @@ export function GradingCriteriaPage() {
                           )}
                         </div>
                         <div className="flex shrink-0 items-center gap-1">
-                          <button
-                            type="button"
-                            title="Tahrirlash"
-                            onClick={() => openEdit(c)}
-                            className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </button>
-                          <button
-                            type="button"
-                            title="O'chirish"
-                            onClick={() => handleDelete(c)}
-                            className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
+                          {can('schedule', 'edit') && (
+                            <button
+                              type="button"
+                              title="Tahrirlash"
+                              onClick={() => openEdit(c)}
+                              className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </button>
+                          )}
+                          {can('schedule', 'delete') && (
+                            <button
+                              type="button"
+                              title="O'chirish"
+                              onClick={() => handleDelete(c)}
+                              className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          )}
                         </div>
                       </div>
                     ))}

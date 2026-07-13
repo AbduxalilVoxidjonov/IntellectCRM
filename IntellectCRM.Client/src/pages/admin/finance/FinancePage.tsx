@@ -44,6 +44,7 @@ import { ReceiptModal } from '@/components/finance/ReceiptModal'
 import { PaymentEditModal } from './PaymentEditModal'
 import { RefundModal } from './RefundModal'
 import { useAuth } from '@/context/auth-context'
+import { usePerm } from '@/lib/permissions'
 
 const todayStr = new Date().toISOString().slice(0, 10)
 const yearOf = (d: string) => Number(d.slice(0, 4))
@@ -71,6 +72,7 @@ export function FinancePage() {
   // To'lovni tahrirlash — faqat tizim egasi (superadmin); backend ham shuni talab qiladi.
   const { user } = useAuth()
   const isSuper = user?.role === 'superadmin'
+  const { can } = usePerm()
   const [tab, setTab] = useState<Tab>('overview')
   const [from, setFrom] = useState(`${yearOf(todayStr)}-01-01`)
   const [to, setTo] = useState(todayStr)
@@ -288,14 +290,16 @@ export function FinancePage() {
             <Button variant="secondary" onClick={handleAccrue}>
               <Calculator className="h-4 w-4" /> Oylik to'lovni hisoblash
             </Button>
-            <Button
-              onClick={() => {
-                setEditing(null)
-                setFormOpen(true)
-              }}
-            >
-              <Plus className="h-4 w-4" /> Yangi amal
-            </Button>
+            {can('finance', 'create') && (
+              <Button
+                onClick={() => {
+                  setEditing(null)
+                  setFormOpen(true)
+                }}
+              >
+                <Plus className="h-4 w-4" /> Yangi amal
+              </Button>
+            )}
           </>
         }
       />
@@ -473,25 +477,29 @@ export function FinancePage() {
                               >
                                 <History className="h-4 w-4" />
                               </button>
-                              <button
-                                type="button"
-                                title="Tahrirlash"
-                                onClick={() => {
-                                  setEditing(t)
-                                  setFormOpen(true)
-                                }}
-                                className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
-                              >
-                                <Pencil className="h-4 w-4" />
-                              </button>
-                              <button
-                                type="button"
-                                title="O'chirish"
-                                onClick={() => handleDelete(t)}
-                                className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
+                              {can('finance', 'edit') && (
+                                <button
+                                  type="button"
+                                  title="Tahrirlash"
+                                  onClick={() => {
+                                    setEditing(t)
+                                    setFormOpen(true)
+                                  }}
+                                  className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </button>
+                              )}
+                              {can('finance', 'delete') && (
+                                <button
+                                  type="button"
+                                  title="O'chirish"
+                                  onClick={() => handleDelete(t)}
+                                  className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -729,7 +737,7 @@ export function FinancePage() {
                               >
                                 <History className="h-4 w-4" />
                               </button>
-                              {isSuper && (
+                              {isSuper && can('finance', 'edit') && (
                                 <button
                                   type="button"
                                   title="Tahrirlash (balans va oylik hisob moslanadi)"
@@ -739,7 +747,7 @@ export function FinancePage() {
                                   <Pencil className="h-4 w-4" />
                                 </button>
                               )}
-                              {isSuper && (p.refunded ?? 0) < p.amount && (
+                              {isSuper && can('finance', 'delete') && (p.refunded ?? 0) < p.amount && (
                                 <button
                                   type="button"
                                   title="Pul qaytarish (vozvrat)"
@@ -749,14 +757,16 @@ export function FinancePage() {
                                   <Undo2 className="h-4 w-4" />
                                 </button>
                               )}
-                              <button
-                                type="button"
-                                title="O'chirish (balans tiklanadi)"
-                                onClick={() => handleDelete(p)}
-                                className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
+                              {can('finance', 'delete') && (
+                                <button
+                                  type="button"
+                                  title="O'chirish (balans tiklanadi)"
+                                  onClick={() => handleDelete(p)}
+                                  className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>

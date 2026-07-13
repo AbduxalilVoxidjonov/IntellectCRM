@@ -28,6 +28,7 @@ import { getTeachers } from '@/api/services/teachers'
 import { genderLabels } from '@/config/constants'
 import { formatDate, formatMoney, exportToCsv, cn } from '@/lib/utils'
 import { useAuth } from '@/context/auth-context'
+import { usePerm } from '@/lib/permissions'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { PageHeader } from '@/components/ui/PageHeader'
@@ -75,6 +76,7 @@ function dedupeCallOptions(options: CallOption[]): CallOption[] {
 
 export function StudentsPage() {
   const { user } = useAuth()
+  const { can } = usePerm()
   const navigate = useNavigate()
   const [tab, setTab] = usePersistentState<Tab>('students.tab', 'active')
   const [students, setStudents] = useState<Student[]>([])
@@ -583,14 +585,16 @@ export function StudentsPage() {
                   className="hidden"
                   onChange={handleImportFile}
                 />
-                <Button
-                  onClick={() => {
-                    setEditing(null)
-                    setFormOpen(true)
-                  }}
-                >
-                  <Plus className="h-4 w-4" /> Yangi qo'shish
-                </Button>
+                {can('students', 'create') && (
+                  <Button
+                    onClick={() => {
+                      setEditing(null)
+                      setFormOpen(true)
+                    }}
+                  >
+                    <Plus className="h-4 w-4" /> Yangi qo'shish
+                  </Button>
+                )}
               </>
             )}
           </>
@@ -773,15 +777,17 @@ export function StudentsPage() {
                 </Button>
               </>
             )}
-            <Button
-              variant="secondary"
-              onClick={() => setArchiveReasonModal(true)}
-              disabled={archivingSelected}
-              className="text-red-600 hover:text-red-700"
-            >
-              <Archive className="h-4 w-4" />
-              {archivingSelected ? "Arxivga ko'chirilyapti…" : "Arxivga ko'chirish"}
-            </Button>
+            {can('students', 'delete') && (
+              <Button
+                variant="secondary"
+                onClick={() => setArchiveReasonModal(true)}
+                disabled={archivingSelected}
+                className="text-red-600 hover:text-red-700"
+              >
+                <Archive className="h-4 w-4" />
+                {archivingSelected ? "Arxivga ko'chirilyapti…" : "Arxivga ko'chirish"}
+              </Button>
+            )}
             <button
               onClick={clearSelection}
               className="ml-auto inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700"
@@ -932,15 +938,19 @@ export function StudentsPage() {
                             <IconBtn icon={Wallet} title="To'lov kiritish" onClick={() => setPaying(s)} />
                             <IconBtn icon={History} title="To'lov tarixi" onClick={() => setHistoryOf(s)} />
                             <IconBtn icon={Phone} title="Qo'ng'iroq qilish" onClick={() => setCallStudent(s)} />
-                            <IconBtn
-                              icon={Pencil}
-                              title="Tahrirlash"
-                              onClick={() => {
-                                setEditing(s)
-                                setFormOpen(true)
-                              }}
-                            />
-                            <IconBtn icon={Archive} title="Arxivga ko'chirish" onClick={() => handleArchive(s)} />
+                            {can('students', 'edit') && (
+                              <IconBtn
+                                icon={Pencil}
+                                title="Tahrirlash"
+                                onClick={() => {
+                                  setEditing(s)
+                                  setFormOpen(true)
+                                }}
+                              />
+                            )}
+                            {can('students', 'delete') && (
+                              <IconBtn icon={Archive} title="Arxivga ko'chirish" onClick={() => handleArchive(s)} />
+                            )}
                             <IconBtn
                               icon={s.loginBlocked ? Lock : LockOpen}
                               title={s.loginBlocked ? "Login cheklangan — ochish" : "Login'ni cheklash"}
@@ -950,13 +960,17 @@ export function StudentsPage() {
                           </>
                         ) : (
                           <>
-                            <IconBtn icon={RotateCcw} title="Arxivdan qaytarish" onClick={() => handleRestore(s)} />
-                            <IconBtn
-                              icon={Trash2}
-                              title="Butunlay o'chirish"
-                              danger
-                              onClick={() => handleDelete(s)}
-                            />
+                            {can('students', 'edit') && (
+                              <IconBtn icon={RotateCcw} title="Arxivdan qaytarish" onClick={() => handleRestore(s)} />
+                            )}
+                            {can('students', 'delete') && (
+                              <IconBtn
+                                icon={Trash2}
+                                title="Butunlay o'chirish"
+                                danger
+                                onClick={() => handleDelete(s)}
+                              />
+                            )}
                           </>
                         )}
                       </div>

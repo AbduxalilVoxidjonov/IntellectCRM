@@ -16,6 +16,7 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { Loader } from '@/components/ui/Loader'
 import { Modal } from '@/components/ui/Modal'
 import { Input, Select } from '@/components/ui/Input'
+import { usePerm } from '@/lib/permissions'
 
 type Sort = 'class' | 'remaining_desc' | 'remaining_asc' | 'plus_desc' | 'minus_desc'
 
@@ -28,6 +29,7 @@ const SORTS: { value: Sort; label: string }[] = [
 ]
 
 export function BallarNazoratiPage() {
+  const { can } = usePerm()
   const [scores, setScores] = useState<DisciplineScoreRow[]>([])
   const [reasons, setReasons] = useState<DisciplineReason[]>([])
   const [loading, setLoading] = useState(true)
@@ -247,14 +249,16 @@ export function BallarNazoratiPage() {
                     </td>
                     <td>
                       <div className="flex items-center justify-end gap-0.5">
-                        <button
-                          type="button"
-                          title="Ball kiritish"
-                          onClick={() => openEntry(r)}
-                          className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-brand-50 hover:text-brand-700"
-                        >
-                          <Plus className="h-4 w-4" />
-                        </button>
+                        {can('discipline', 'create') && (
+                          <button
+                            type="button"
+                            title="Ball kiritish"
+                            onClick={() => openEntry(r)}
+                            className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-brand-50 hover:text-brand-700"
+                          >
+                            <Plus className="h-4 w-4" />
+                          </button>
+                        )}
                         <button
                           type="button"
                           title="Tarix"
@@ -370,7 +374,7 @@ export function BallarNazoratiPage() {
                 </div>
                 {p.source === 'attendance' ? (
                   <Badge tone="default">jurnal</Badge>
-                ) : (
+                ) : can('discipline', 'delete') ? (
                   <button
                     type="button"
                     title="O'chirish"
@@ -379,7 +383,7 @@ export function BallarNazoratiPage() {
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
-                )}
+                ) : null}
               </div>
             ))}
           </div>

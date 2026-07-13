@@ -15,10 +15,12 @@ import { Loader } from '@/components/ui/Loader'
 import { Modal } from '@/components/ui/Modal'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { cn, formatMoney } from '@/lib/utils'
+import { usePerm } from '@/lib/permissions'
 import { SubjectFormModal } from './SubjectFormModal'
 
 export function SubjectsPage() {
   const navigate = useNavigate()
+  const { can } = usePerm()
   const [subjects, setSubjects] = useState<Subject[]>([])
   const [loading, setLoading] = useState(true)
   const [formOpen, setFormOpen] = useState(false)
@@ -87,14 +89,16 @@ export function SubjectsPage() {
         title="Kurslar"
         sub={`Jami ${subjects.length} ta kurs`}
         actions={
-          <Button
-            onClick={() => {
-              setEditing(null)
-              setFormOpen(true)
-            }}
-          >
-            <Plus className="h-4 w-4" /> Yangi kurs
-          </Button>
+          can('schedule', 'create') ? (
+            <Button
+              onClick={() => {
+                setEditing(null)
+                setFormOpen(true)
+              }}
+            >
+              <Plus className="h-4 w-4" /> Yangi kurs
+            </Button>
+          ) : undefined
         }
       />
 
@@ -149,15 +153,19 @@ export function SubjectsPage() {
                 >
                   <ListChecks className="h-4 w-4" /> O'quv dasturi
                 </button>
-                <IconBtn
-                  icon={Pencil}
-                  title="Tahrirlash"
-                  onClick={() => {
-                    setEditing(s)
-                    setFormOpen(true)
-                  }}
-                />
-                <IconBtn icon={Trash2} title="O'chirish" danger onClick={() => handleDelete(s)} />
+                {can('schedule', 'edit') && (
+                  <IconBtn
+                    icon={Pencil}
+                    title="Tahrirlash"
+                    onClick={() => {
+                      setEditing(s)
+                      setFormOpen(true)
+                    }}
+                  />
+                )}
+                {can('schedule', 'delete') && (
+                  <IconBtn icon={Trash2} title="O'chirish" danger onClick={() => handleDelete(s)} />
+                )}
               </div>
             </div>
           ))}

@@ -84,7 +84,20 @@ type Item = { kind: 'manual'; tpl: SmsTemplate } | { kind: 'auto'; rule: AutoMes
  * kanal (SMS/Telegram/Push) tanlash mumkin — tanlanganlarning hammasidan ketadi. Element ustiga bosilsa
  * tahrirlash ochiladi.
  */
-export function AutoMessagesTab({ highlightRuleId }: { highlightRuleId?: string | null } = {}) {
+export function AutoMessagesTab({
+  highlightRuleId,
+  canCreate = true,
+  canEdit = true,
+  canDelete = true,
+}: {
+  highlightRuleId?: string | null
+  /** Ruxsat: "Yangi xabar" yaratish ko'rinsinmi (default true) */
+  canCreate?: boolean
+  /** Ruxsat: elementni bosib tahrirlash mumkinmi (default true) */
+  canEdit?: boolean
+  /** Ruxsat: o'chirish tugmasi ko'rinsinmi (default true) */
+  canDelete?: boolean
+} = {}) {
   const [triggers, setTriggers] = useState<AutoMessageTrigger[]>([])
   const [autoRules, setAutoRules] = useState<AutoMessageRule[]>([])
   const [manualTpls, setManualTpls] = useState<SmsTemplate[]>([])
@@ -223,12 +236,16 @@ export function AutoMessagesTab({ highlightRuleId }: { highlightRuleId?: string 
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="secondary" onClick={doSeed} disabled={seeding}>
-            <Sparkles className="h-4 w-4" /> {seeding ? 'Qo\'shilmoqda...' : 'Namunaviy SMS'}
-          </Button>
-          <Button onClick={() => setModal('new')}>
-            <Plus className="h-4 w-4" /> Yangi xabar
-          </Button>
+          {canCreate && (
+            <Button variant="secondary" onClick={doSeed} disabled={seeding}>
+              <Sparkles className="h-4 w-4" /> {seeding ? 'Qo\'shilmoqda...' : 'Namunaviy SMS'}
+            </Button>
+          )}
+          {canCreate && (
+            <Button onClick={() => setModal('new')}>
+              <Plus className="h-4 w-4" /> Yangi xabar
+            </Button>
+          )}
         </div>
       </div>
 
@@ -245,12 +262,16 @@ export function AutoMessagesTab({ highlightRuleId }: { highlightRuleId?: string 
               </p>
             </div>
             <div className="flex gap-2">
-              <Button variant="secondary" onClick={doSeed} disabled={seeding}>
-                <Sparkles className="h-4 w-4" /> Namunaviy SMS qo'shish
-              </Button>
-              <Button onClick={() => setModal('new')}>
-                <Plus className="h-4 w-4" /> Yangi xabar
-              </Button>
+              {canCreate && (
+                <Button variant="secondary" onClick={doSeed} disabled={seeding}>
+                  <Sparkles className="h-4 w-4" /> Namunaviy SMS qo'shish
+                </Button>
+              )}
+              {canCreate && (
+                <Button onClick={() => setModal('new')}>
+                  <Plus className="h-4 w-4" /> Yangi xabar
+                </Button>
+              )}
             </div>
           </div>
         </Card>
@@ -265,9 +286,12 @@ export function AutoMessagesTab({ highlightRuleId }: { highlightRuleId?: string 
               <button
                 key={key}
                 type="button"
-                onClick={() => setModal(item)}
+                disabled={!canEdit}
+                onClick={() => canEdit && setModal(item)}
                 className={cn(
-                  'flex w-full items-center gap-3 rounded-xl border p-3 text-left transition-colors hover:border-brand-300 hover:bg-brand-50/40',
+                  'flex w-full items-center gap-3 rounded-xl border p-3 text-left transition-colors',
+                  canEdit && 'hover:border-brand-300 hover:bg-brand-50/40',
+                  !canEdit && 'cursor-default',
                   enabled ? 'border-slate-200 bg-white' : 'border-slate-100 bg-slate-50',
                 )}
               >
@@ -277,10 +301,11 @@ export function AutoMessagesTab({ highlightRuleId }: { highlightRuleId?: string 
                     aria-checked={item.rule.enabled}
                     onClick={(e) => {
                       e.stopPropagation()
-                      toggleEnabled(item.rule)
+                      if (canEdit) toggleEnabled(item.rule)
                     }}
                     className={cn(
-                      'relative h-5 w-9 shrink-0 cursor-pointer rounded-full transition-colors',
+                      'relative h-5 w-9 shrink-0 rounded-full transition-colors',
+                      canEdit ? 'cursor-pointer' : 'cursor-default opacity-60',
                       item.rule.enabled ? 'bg-emerald-500' : 'bg-slate-300',
                     )}
                     title={item.rule.enabled ? 'Yoqilgan' : "O'chirilgan"}
@@ -337,13 +362,15 @@ export function AutoMessagesTab({ highlightRuleId }: { highlightRuleId?: string 
                   </p>
                 </div>
 
-                <span
-                  onClick={(e) => removeItem(item, e)}
-                  className="shrink-0 rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
-                  title="O'chirish"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </span>
+                {canDelete && (
+                  <span
+                    onClick={(e) => removeItem(item, e)}
+                    className="shrink-0 rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                    title="O'chirish"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </span>
+                )}
               </button>
             )
           })}

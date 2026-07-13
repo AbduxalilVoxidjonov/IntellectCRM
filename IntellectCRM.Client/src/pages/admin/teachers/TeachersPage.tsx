@@ -29,6 +29,7 @@ import {
   downloadTeacherCredentials,
 } from '@/api/services/teachers'
 import { useAuth } from '@/context/auth-context'
+import { usePerm } from '@/lib/permissions'
 import { getSubjects } from '@/api/services/subjects'
 import { getClasses } from '@/api/services/classes'
 import { genderLabels } from '@/config/constants'
@@ -74,6 +75,7 @@ const avatarColor = (name: string) => {
 
 export function TeachersPage() {
   const { user } = useAuth()
+  const { can } = usePerm()
   const navigate = useNavigate()
   const [teachers, setTeachers] = useState<Teacher[]>([])
   const [archived, setArchived] = useState<Teacher[]>([])
@@ -196,7 +198,7 @@ export function TeachersPage() {
                 <Download className="h-4 w-4" /> Login/parollar
               </Button>
             )}
-            {tab === 'active' && (
+            {tab === 'active' && can('teachers', 'create') && (
               <Button
                 onClick={() => {
                   setEditing(null)
@@ -407,26 +409,30 @@ export function TeachersPage() {
                   >
                     <Eye className="h-4 w-4" />
                   </Button>
-                  <Button
-                    variant="secondary"
-                    onClick={() => {
-                      setEditing(t)
-                      setFormOpen(true)
-                    }}
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    onClick={() => {
-                      setReason('')
-                      setArchiveTarget(t)
-                    }}
-                    title="Arxivga ko'chirish"
-                    aria-label="Arxivga ko'chirish"
-                  >
-                    <Archive className="h-4 w-4" />
-                  </Button>
+                  {can('teachers', 'edit') && (
+                    <Button
+                      variant="secondary"
+                      onClick={() => {
+                        setEditing(t)
+                        setFormOpen(true)
+                      }}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                  )}
+                  {can('teachers', 'delete') && (
+                    <Button
+                      variant="secondary"
+                      onClick={() => {
+                        setReason('')
+                        setArchiveTarget(t)
+                      }}
+                      title="Arxivga ko'chirish"
+                      aria-label="Arxivga ko'chirish"
+                    >
+                      <Archive className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
               </div>
             )
@@ -482,17 +488,21 @@ export function TeachersPage() {
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-0.5">
                         <IconBtn icon={Eye} title="Ko'rish" onClick={() => setViewing(t)} />
-                        <IconBtn
-                          icon={RotateCcw}
-                          title="Arxivdan qaytarish"
-                          onClick={() => handleRestore(t)}
-                        />
-                        <IconBtn
-                          icon={Trash2}
-                          title="Butunlay o'chirish"
-                          danger
-                          onClick={() => handleDelete(t)}
-                        />
+                        {can('teachers', 'edit') && (
+                          <IconBtn
+                            icon={RotateCcw}
+                            title="Arxivdan qaytarish"
+                            onClick={() => handleRestore(t)}
+                          />
+                        )}
+                        {can('teachers', 'delete') && (
+                          <IconBtn
+                            icon={Trash2}
+                            title="Butunlay o'chirish"
+                            danger
+                            onClick={() => handleDelete(t)}
+                          />
+                        )}
                       </div>
                     </td>
                   </tr>

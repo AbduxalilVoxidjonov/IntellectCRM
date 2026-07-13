@@ -33,6 +33,7 @@ import { Modal } from '@/components/ui/Modal'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Loader } from '@/components/ui/Loader'
 import { cn } from '@/lib/utils'
+import { usePerm } from '@/lib/permissions'
 
 type Target = 'parent' | 'staff'
 
@@ -117,6 +118,7 @@ const TOKEN_LABELS: Record<string, string> = {
 const DOCX = '.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 
 export function ContractsPage() {
+  const { can } = usePerm()
   const [target, setTarget] = useState<Target>('staff')
   const [templates, setTemplates] = useState<ContractTemplate[]>([])
   const [selectedTpl, setSelectedTpl] = useState('')
@@ -278,24 +280,28 @@ export function ContractsPage() {
             title="Andozalar"
             actions={
               <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setEditor('new')}
-                  className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-brand-200 bg-brand-50 px-4 py-2 text-sm font-medium text-brand-700 transition-colors hover:bg-brand-100"
-                >
-                  <FilePlus2 className="h-4 w-4" />
-                  Matnli andoza yaratish
-                </button>
-                <label
-                  className={cn(
-                    'inline-flex cursor-pointer items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-700',
-                    uploading && 'pointer-events-none opacity-60',
-                  )}
-                >
-                  <Upload className="h-4 w-4" />
-                  {uploading ? 'Yuklanmoqda...' : 'Word yuklash (.docx)'}
-                  <input type="file" accept={DOCX} hidden onChange={handleUpload} />
-                </label>
+                {can('contracts', 'create') && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setEditor('new')}
+                      className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-brand-200 bg-brand-50 px-4 py-2 text-sm font-medium text-brand-700 transition-colors hover:bg-brand-100"
+                    >
+                      <FilePlus2 className="h-4 w-4" />
+                      Matnli andoza yaratish
+                    </button>
+                    <label
+                      className={cn(
+                        'inline-flex cursor-pointer items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-700',
+                        uploading && 'pointer-events-none opacity-60',
+                      )}
+                    >
+                      <Upload className="h-4 w-4" />
+                      {uploading ? 'Yuklanmoqda...' : 'Word yuklash (.docx)'}
+                      <input type="file" accept={DOCX} hidden onChange={handleUpload} />
+                    </label>
+                  </>
+                )}
               </div>
             }
           >
@@ -331,7 +337,7 @@ export function ContractsPage() {
                       {t.body ? t.body.slice(0, 80) || 'Matnli andoza' : t.fileName}
                     </p>
                   </div>
-                  {t.body && (
+                  {t.body && can('contracts', 'edit') && (
                     <button
                       type="button"
                       title="Tahrirlash"
@@ -344,17 +350,19 @@ export function ContractsPage() {
                       <Pencil className="h-4 w-4" />
                     </button>
                   )}
-                  <button
-                    type="button"
-                    title="O'chirish"
-                    onClick={(e) => {
-                      e.preventDefault()
-                      handleDeleteTpl(t.id)
-                    }}
-                    className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                  {can('contracts', 'delete') && (
+                    <button
+                      type="button"
+                      title="O'chirish"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        handleDeleteTpl(t.id)
+                      }}
+                      className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )}
                 </label>
               ))}
               {templates.length === 0 && (

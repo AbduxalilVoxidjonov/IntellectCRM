@@ -52,9 +52,12 @@ function channelAllowed(ch: Channel, audience: Audience): boolean {
 export function UnifiedComposer({
   classes,
   onConfigureAuto,
+  canSend = true,
 }: {
   classes: MessageClass[]
   onConfigureAuto: (ruleId: string) => void
+  /** Ruxsat: "Yuborish" tugmasi ko'rinsinmi (default true) */
+  canSend?: boolean
 }) {
   // Kanallar holati (sozlangan/yo'q)
   const [smsCfg, setSmsCfg] = useState(false)
@@ -557,11 +560,13 @@ export function UnifiedComposer({
             </div>
           )}
 
-          <div className="flex items-center justify-end">
-            <Button onClick={handleSend} disabled={!anyChannel || !text.trim() || sending}>
-              <Send className="h-4 w-4" /> {sending ? 'Yuborilmoqda...' : 'Yuborish'}
-            </Button>
-          </div>
+          {canSend && (
+            <div className="flex items-center justify-end">
+              <Button onClick={handleSend} disabled={!anyChannel || !text.trim() || sending}>
+                <Send className="h-4 w-4" /> {sending ? 'Yuborilmoqda...' : 'Yuborish'}
+              </Button>
+            </div>
+          )}
         </Card>
 
         {/* 4. "Tanlab" — oluvchilar */}

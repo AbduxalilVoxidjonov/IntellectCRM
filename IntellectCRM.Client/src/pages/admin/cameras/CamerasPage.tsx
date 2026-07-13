@@ -13,6 +13,7 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { Input } from '@/components/ui/Input'
 import { Loader } from '@/components/ui/Loader'
 import { Modal } from '@/components/ui/Modal'
+import { usePerm } from '@/lib/permissions'
 
 /** Jonli HLS pleyer — hls.js orqali (har so'rovga auth sarlavhasi qo'shiladi). */
 function LivePlayer({ id, className }: { id: string; className?: string }) {
@@ -50,6 +51,7 @@ function LivePlayer({ id, className }: { id: string; className?: string }) {
 }
 
 export function CamerasPage() {
+  const { can } = usePerm()
   const [cameras, setCameras] = useState<Camera[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -75,7 +77,7 @@ export function CamerasPage() {
         title="Kameralar"
         sub="Markaz kameralarini real vaqtda kuzatish, yozuvni orqaga qaytarish va qirqib yuklab olish."
         actions={
-          !selected && (
+          !selected && can('cameras', 'create') && (
             <Button onClick={() => { setEditing(null); setModalOpen(true) }}>
               <Plus className="h-4 w-4" /> Kamera qo'shish
             </Button>
@@ -93,6 +95,8 @@ export function CamerasPage() {
           onBack={() => setSelectedId(null)}
           onEdit={() => { setEditing(selected); setModalOpen(true) }}
           onDelete={() => onDelete(selected)}
+          canEdit={can('cameras', 'edit')}
+          canDelete={can('cameras', 'delete')}
         />
       ) : cameras.length === 0 ? (
         <Card>
@@ -128,14 +132,18 @@ export function CamerasPage() {
                   {c.location && <div className="truncate text-xs text-slate-400">{c.location}</div>}
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
-                  <button type="button" onClick={() => { setEditing(c); setModalOpen(true) }}
-                    className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600" title="Tahrirlash">
-                    <Pencil className="h-4 w-4" />
-                  </button>
-                  <button type="button" onClick={() => onDelete(c)}
-                    className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600" title="O'chirish">
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                  {can('cameras', 'edit') && (
+                    <button type="button" onClick={() => { setEditing(c); setModalOpen(true) }}
+                      className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600" title="Tahrirlash">
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                  )}
+                  {can('cameras', 'delete') && (
+                    <button type="button" onClick={() => onDelete(c)}
+                      className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600" title="O'chirish">
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )}
                 </div>
               </div>
             </Card>
@@ -155,8 +163,15 @@ export function CamerasPage() {
 
 /** Bitta kamera: katta jonli ko'rinish + playback (orqaga qaytarish / qirqib yuklab olish). */
 function SingleCamera({
-  camera, onBack, onEdit, onDelete,
-}: { camera: Camera; onBack: () => void; onEdit: () => void; onDelete: () => void }) {
+  camera, onBack, onEdit, onDelete, canEdit, canDelete,
+}: {
+  camera: Camera
+  onBack: () => void
+  onEdit: () => void
+  onDelete: () => void
+  canEdit: boolean
+  canDelete: boolean
+}) {
   const [start, setStart] = useState('')
   const [durationMin, setDurationMin] = useState(1)
   const [clipUrl, setClipUrl] = useState<string | null>(null)
@@ -202,8 +217,8 @@ function SingleCamera({
           <ArrowLeft className="h-4 w-4" /> Orqaga
         </button>
         <div className="flex items-center gap-2">
-          <Button variant="secondary" onClick={onEdit}><Pencil className="h-4 w-4" /> Tahrirlash</Button>
-          <Button variant="danger" onClick={onDelete}><Trash2 className="h-4 w-4" /> O'chirish</Button>
+          {canEdit && <Button variant="secondary" onClick={onEdit}><Pencil className="h-4 w-4" /> Tahrirlash</Button>}
+          {canDelete && <Button variant="danger" onClick={onDelete}><Trash2 className="h-4 w-4" /> O'chirish</Button>}
         </div>
       </div>
 

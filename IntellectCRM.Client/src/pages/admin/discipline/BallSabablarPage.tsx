@@ -15,8 +15,10 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { Loader } from '@/components/ui/Loader'
 import { Modal } from '@/components/ui/Modal'
 import { Input } from '@/components/ui/Input'
+import { usePerm } from '@/lib/permissions'
 
 export function BallSabablarPage() {
+  const { can } = usePerm()
   const [reasons, setReasons] = useState<DisciplineReason[]>([])
   const [loading, setLoading] = useState(true)
   const [open, setOpen] = useState(false)
@@ -89,9 +91,11 @@ export function BallSabablarPage() {
         title="Ball sabablar"
         sub="Intizomiy ball sabablari — har biriga ball (manfiy = jazo, musbat = rag'bat)"
         actions={
-          <Button onClick={openCreate}>
-            <Plus className="h-4 w-4" /> Yangi sabab
-          </Button>
+          can('discipline', 'create') && (
+            <Button onClick={openCreate}>
+              <Plus className="h-4 w-4" /> Yangi sabab
+            </Button>
+          )
         }
       />
 
@@ -131,14 +135,16 @@ export function BallSabablarPage() {
                       </td>
                       <td>
                         <div className="flex items-center justify-end">
-                          <button
-                            type="button"
-                            title="Ballni o'zgartirish"
-                            onClick={() => openEdit(r)}
-                            className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </button>
+                          {can('discipline', 'edit') && (
+                            <button
+                              type="button"
+                              title="Ballni o'zgartirish"
+                              onClick={() => openEdit(r)}
+                              className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -181,22 +187,26 @@ export function BallSabablarPage() {
                       </td>
                       <td>
                         <div className="flex items-center justify-end gap-0.5">
-                          <button
-                            type="button"
-                            title="Tahrirlash"
-                            onClick={() => openEdit(r)}
-                            className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </button>
-                          <button
-                            type="button"
-                            title="O'chirish"
-                            onClick={() => remove(r)}
-                            className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
+                          {can('discipline', 'edit') && (
+                            <button
+                              type="button"
+                              title="Tahrirlash"
+                              onClick={() => openEdit(r)}
+                              className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </button>
+                          )}
+                          {can('discipline', 'delete') && (
+                            <button
+                              type="button"
+                              title="O'chirish"
+                              onClick={() => remove(r)}
+                              className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

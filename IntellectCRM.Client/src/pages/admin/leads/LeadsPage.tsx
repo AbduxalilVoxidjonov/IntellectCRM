@@ -31,8 +31,10 @@ import { LeadFormModal, type LeadFormValues } from './LeadFormModal'
 import { LeadDetailModal } from './LeadDetailModal'
 import { LeadBulkSmsModal } from './LeadBulkSmsModal'
 import { StageFormModal } from './StageFormModal'
+import { usePerm } from '@/lib/permissions'
 
 export function LeadsPage() {
+  const { can } = usePerm()
   const [leads, setLeads] = useState<Lead[]>([])
   const [stages, setStages] = useState<Stage[]>([])
   const [loading, setLoading] = useState(true)
@@ -196,14 +198,16 @@ export function LeadsPage() {
             <Button variant="secondary" onClick={() => setBulkSmsOpen(true)}>
               <MessageSquare className="h-4 w-4" /> SMS yuborish
             </Button>
-            <Button
-              onClick={() => {
-                setEditingLead(null)
-                setLeadFormOpen(true)
-              }}
-            >
-              <Plus className="h-4 w-4" /> Yangi lid
-            </Button>
+            {can('leads', 'create') && (
+              <Button
+                onClick={() => {
+                  setEditingLead(null)
+                  setLeadFormOpen(true)
+                }}
+              >
+                <Plus className="h-4 w-4" /> Yangi lid
+              </Button>
+            )}
           </div>
         }
       />
@@ -325,6 +329,8 @@ export function LeadsPage() {
       {/* Modallar */}
       <LeadDetailModal
         lead={detailLead}
+        canEdit={can('leads', 'edit')}
+        canDelete={can('leads', 'delete')}
         onClose={() => setDetailLead(null)}
         onEdit={handleLeadEdit}
         onDelete={handleLeadDelete}

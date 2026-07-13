@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/Button'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Loader } from '@/components/ui/Loader'
 import { cn } from '@/lib/utils'
+import { usePerm } from '@/lib/permissions'
 
 /* ============================================================
    Call Center — chapda o'quvchilar ro'yxati ("Qo'ng'iroq" tugmasi bilan),
@@ -72,6 +73,8 @@ interface ActiveCall {
 const TERMINAL: CallStatus[] = ['completed', 'no_answer', 'busy', 'failed']
 
 export function CallCenterPage() {
+  const { can } = usePerm()
+  const canCall = can('calls', 'create')
   const [tab, setTab] = useState<'dial' | 'history'>('dial')
   const [configured, setConfigured] = useState<boolean | null>(null)
   const [provider, setProvider] = useState('')
@@ -268,18 +271,20 @@ export function CallCenterPage() {
                             {s.className ? ` · ${s.className}` : ''}
                           </div>
                         </div>
-                        <Button
-                          variant="secondary"
-                          type="button"
-                          disabled={!phone || calling}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            startCall({ studentId: s.id, name: s.fullName })
-                          }}
-                          className="flex-shrink-0"
-                        >
-                          <Phone className="h-4 w-4" /> Qo'ng'iroq
-                        </Button>
+                        {canCall && (
+                          <Button
+                            variant="secondary"
+                            type="button"
+                            disabled={!phone || calling}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              startCall({ studentId: s.id, name: s.fullName })
+                            }}
+                            className="flex-shrink-0"
+                          >
+                            <Phone className="h-4 w-4" /> Qo'ng'iroq
+                          </Button>
+                        )}
                       </div>
                     )
                   })
@@ -327,14 +332,16 @@ export function CallCenterPage() {
               </div>
 
               <div className="mt-4 flex gap-2">
-                <Button
-                  onClick={() => startCall({ phoneNumber: dial })}
-                  disabled={dial.replace(/\D/g, '').length < 7 || calling}
-                  className="flex-1"
-                >
-                  {calling ? <Loader2 className="h-4 w-4 animate-spin" /> : <PhoneCall className="h-4 w-4" />}
-                  Qo'ng'iroq
-                </Button>
+                {canCall && (
+                  <Button
+                    onClick={() => startCall({ phoneNumber: dial })}
+                    disabled={dial.replace(/\D/g, '').length < 7 || calling}
+                    className="flex-1"
+                  >
+                    {calling ? <Loader2 className="h-4 w-4 animate-spin" /> : <PhoneCall className="h-4 w-4" />}
+                    Qo'ng'iroq
+                  </Button>
+                )}
                 <Button variant="secondary" onClick={() => setDial('')} disabled={!dial}>
                   Tozalash
                 </Button>
