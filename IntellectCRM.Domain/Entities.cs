@@ -46,6 +46,12 @@ public class AppUser
     public string? FirstLoginAt { get; set; }
     /// <summary>Oxirgi muvaffaqiyatli login vaqti — har kirilganda yangilanadi.</summary>
     public string? LastLoginAt { get; set; }
+    /// <summary>Ketma-ket noto'g'ri parol urinishlari soni (brute-force himoyasi). Muvaffaqiyatli
+    /// login yoki bloklashda 0 ga tushadi.</summary>
+    public int FailedLoginCount { get; set; }
+    /// <summary>Akkaunt vaqtincha bloklangan bo'lsa — blok tugash vaqti (ISO "yyyy-MM-ddTHH:mm:ss").
+    /// null yoki o'tmishda = bloklanmagan. 5 ketma-ket noto'g'ri urinishdan keyin 3 daqiqaga o'rnatiladi.</summary>
+    public string? LockoutUntil { get; set; }
     /// <summary>Xodim (role="staff") lavozimi — Kassir/Administrator/... (faqat ko'rsatish uchun yorliq).</summary>
     public string Position { get; set; } = string.Empty;
     /// <summary>
