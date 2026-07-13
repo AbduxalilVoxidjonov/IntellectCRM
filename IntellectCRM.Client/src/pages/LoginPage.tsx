@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
-import { Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -112,6 +112,12 @@ export function LoginPage() {
             {loading ? 'Kirilmoqda…' : 'Kirish'}
           </Button>
         </form>
+
+        <p className="mt-6 text-center text-xs text-slate-400">
+          <Link to="/privacy" className="hover:text-brand-600 hover:underline">
+            Maxfiylik siyosati
+          </Link>
+        </p>
       </div>
     </div>
   )

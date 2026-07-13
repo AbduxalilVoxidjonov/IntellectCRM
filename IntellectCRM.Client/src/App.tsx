@@ -46,6 +46,7 @@ import { SupportPage } from '@/pages/admin/support/SupportPage'
 import { SupportDetailPage } from '@/pages/admin/support/SupportDetailPage'
 import { PublicTestPage } from '@/pages/public/PublicTestPage'
 import { VerifyCertificatePage } from '@/pages/public/VerifyCertificate'
+import { PrivacyPolicyPage } from '@/pages/public/PrivacyPolicyPage'
 import { MessagesPage } from '@/pages/admin/messages/MessagesPage'
 import { SupportTelegramPage } from '@/pages/admin/messages/SupportTelegramPage'
 import { AssignmentsPage } from '@/pages/admin/assignments/AssignmentsPage'
@@ -141,6 +142,9 @@ export default function App() {
       <Route path="/test/:slug" element={<PublicTestPage />} />
       {/* Sertifikat tekshiruvi (autentifikatsiyasiz) */}
       <Route path="/verify-certificate/:id" element={<VerifyCertificatePage />} />
+      {/* Maxfiylik siyosati (autentifikatsiyasiz) — Google Play / App Store uchun */}
+      <Route path="/privacy" element={<PrivacyPolicyPage />} />
+      <Route path="/privacy-policy" element={<Navigate to="/privacy" replace />} />
 
       <Route path="/" element={<RootRedirect />} />
 
