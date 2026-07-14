@@ -166,6 +166,18 @@ public class StudentPortalController(
             s.BirthCertificateUrl, s.ParentPassportUrl);
     }
 
+    /// <summary>O'quvchining barcha test natijalari (O'quv bo'limi → Testlar natijalari'dan; o'qituvchi
+    /// kiritadi) — sana desc, har testda o'quvchining o'rni (Rank) va jami baholanganlar (Total).
+    /// student — o'ziniki; parent — farzandiniki; admin — <c>?studentId=...</c>.</summary>
+    [HttpGet("test-results")]
+    public async Task<ActionResult<List<StudentGroupTestDto>>> TestResults([FromQuery] string? studentId)
+    {
+        if (User.IsInRole("admin") && string.IsNullOrWhiteSpace(studentId)) return NeedStudentId();
+        var s = await TargetAsync(studentId);
+        if (s is null) return NotFound();
+        return await TestResultService.StudentResultsAsync(db, s.Id);
+    }
+
     /// <summary>
     /// O'quvchining TO'LIQ "shaxsiy daftari" — admin ko'radigan detal sahifasi bilan AYNAN bir xil
     /// (<see cref="StudentProfileBuilder"/>): profil + shaxsiy ma'lumot (manzil, chegirma, guruh,
