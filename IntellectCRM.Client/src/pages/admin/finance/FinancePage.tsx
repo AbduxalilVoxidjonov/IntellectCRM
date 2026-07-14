@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { Plus, Pencil, Trash2, Download, TrendingUp, TrendingDown, Wallet, AlertCircle, Calculator, History, Inbox, Percent, Search, Receipt, Undo2 } from 'lucide-react'
 import type {
   FinanceDirection,
@@ -628,7 +629,19 @@ export function FinancePage() {
                           onClick={() => setDetailTeacher(r)}
                           className="cursor-pointer"
                         >
-                          <td className="font-medium text-brand-700">{r.teacherName}</td>
+                          <td className="font-medium text-brand-700">
+                            {r.teacherId ? (
+                              <Link
+                                to={`/admin/teachers/${r.teacherId}`}
+                                onClick={(e) => e.stopPropagation()}
+                                className="text-inherit hover:underline"
+                              >
+                                {r.teacherName}
+                              </Link>
+                            ) : (
+                              r.teacherName
+                            )}
+                          </td>
                           <td className="num text-slate-600">
                             {r.salaryMode === 'percent'
                               ? `${r.salaryPercent ?? 0}% (guruh to'lovidan)`
@@ -1062,11 +1075,31 @@ function GroupsReport({
             <tbody>
               {groups.map((g) => (
                 <tr key={g.groupId} onClick={() => onSelect(g)} className="cursor-pointer">
-                  <td className="font-medium text-brand-700">{g.groupName}</td>
+                  <td className="font-medium text-brand-700">
+                    <Link
+                      to={`/admin/classes/${g.groupId}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="text-inherit hover:underline"
+                    >
+                      {g.groupName}
+                    </Link>
+                  </td>
                   <td>
                     <Badge>{g.courseName}</Badge>
                   </td>
-                  <td className="text-slate-600">{g.teacherName}</td>
+                  <td className="text-slate-600">
+                    {g.teacherId ? (
+                      <Link
+                        to={`/admin/teachers/${g.teacherId}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-inherit hover:text-brand-600 hover:underline"
+                      >
+                        {g.teacherName}
+                      </Link>
+                    ) : (
+                      g.teacherName
+                    )}
+                  </td>
                   <td className="num text-slate-600">{g.studentCount}</td>
                   <td className="num text-slate-600">{formatMoney(g.billed)}</td>
                   <td className="num font-semibold text-emerald-600">{formatMoney(g.collected)}</td>

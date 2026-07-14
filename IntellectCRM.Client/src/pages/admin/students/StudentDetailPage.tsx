@@ -736,6 +736,8 @@ export function StudentDetailPage() {
               const sb = groupStatusBadge(
                 gr.status === 'completed' ? 'completed' : gr.isActive ? gr.status : 'left',
               )
+              // O'qituvchi id'si a'zolikda yo'q — guruhlar ro'yxatidan (allGroups) groupId orqali topamiz (profilga link uchun).
+              const grTeacherId = allGroups.find((x) => x.id === gr.groupId)?.teacherId
               return (
                 <button
                   key={gr.id}
@@ -744,7 +746,13 @@ export function StudentDetailPage() {
                   className="group flex w-full flex-col gap-2 rounded-xl border border-slate-200 p-4 text-left transition-colors hover:border-brand-300 hover:bg-brand-50/30"
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <span className="font-semibold text-slate-800">{gr.groupName}</span>
+                    <Link
+                      to={`/admin/classes/${gr.groupId}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="font-semibold text-slate-800 hover:text-brand-600 hover:underline"
+                    >
+                      {gr.groupName}
+                    </Link>
                     <Badge tone={sb.tone}>{sb.label}</Badge>
                   </div>
                   <p className="flex items-center gap-1.5 text-xs text-slate-400">
@@ -758,7 +766,18 @@ export function StudentDetailPage() {
                   )}
                   {gr.teacherName && (
                     <p className="flex items-center gap-1.5 text-sm text-slate-500">
-                      <User className="h-3.5 w-3.5 text-slate-400" /> {gr.teacherName}
+                      <User className="h-3.5 w-3.5 text-slate-400" />{' '}
+                      {grTeacherId ? (
+                        <Link
+                          to={`/admin/teachers/${grTeacherId}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="hover:text-brand-600 hover:underline"
+                        >
+                          {gr.teacherName}
+                        </Link>
+                      ) : (
+                        gr.teacherName
+                      )}
                     </p>
                   )}
                   {(gr.days.length > 0 || gr.startTime) && (

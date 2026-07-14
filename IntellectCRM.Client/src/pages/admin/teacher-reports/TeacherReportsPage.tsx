@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Archive, Activity, TrendingDown, HelpCircle, Users, UserCheck, UserMinus } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { Archive, Activity, TrendingDown, HelpCircle, Users, UserCheck, UserMinus, ArrowUpRight } from 'lucide-react'
 import type { TeacherReportRow, TeacherReportDetail } from '@/types'
 import { getTeacherReport, getTeacherReportDetail } from '@/api/services/teacherReports'
 import { formatDate, cn } from '@/lib/utils'
@@ -250,6 +251,13 @@ export function TeacherReportsPage() {
           <Loader label="Yuklanmoqda..." />
         ) : (
           <div className="space-y-4">
+            <Link
+              to={`/admin/teachers/${detail.teacherId}`}
+              className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:underline"
+            >
+              To'liq profil
+              <ArrowUpRight className="h-3.5 w-3.5" />
+            </Link>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <Metric label="Reja" value={String(detail.expected)} />
               <Metric label="O'tildi" value={`${detail.conducted}`} />

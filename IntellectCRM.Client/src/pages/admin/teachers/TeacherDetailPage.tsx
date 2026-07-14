@@ -340,7 +340,14 @@ export function TeacherDetailPage() {
                   <tbody className="divide-y divide-slate-100">
                     {groups.map((g) => (
                       <tr key={g.id} className="hover:bg-slate-50/60">
-                        <td className="px-4 py-3 font-medium text-slate-800">{g.name}</td>
+                        <td className="px-4 py-3 font-medium text-slate-800">
+                          <Link
+                            to={`/admin/classes/${g.id}`}
+                            className="text-inherit hover:text-brand-600 hover:underline"
+                          >
+                            {g.name}
+                          </Link>
+                        </td>
                         <td className="px-4 py-3 text-slate-600">
                           {subjects.find((s) => s.id === g.courseId)?.name ?? '—'}
                         </td>
