@@ -726,10 +726,11 @@ public record RestoreTeacherRequest(string? NewPassword);
 /// O'qituvchi faollik hisoboti — bitta qator (umumiy ko'rinish). Expected = jadvaldan kelib
 /// chiqib bugungacha bo'lishi kerak bo'lgan darslar; Conducted = jurnal "o'tildi" belgilari;
 /// foizlar bajarilgan/mavzu yozilgan/uy vazifa berilgan ulushini bildiradi. Status: active|low|none.
-/// Came/Active/Trial/Frozen/Left/Remaining — o'quvchi JORIY holat sanoqlari (shu o'qituvchi guruhlari
-/// bo'yicha, o'qituvchi profilidagi sanoq bilan bir xil: Active = Status=="active" && IsActive).
-/// Came = jami kelgan a'zoliklar; Left = ketganlar; Remaining (Qolgan) = hozir a'zo = Active+Trial+Frozen.
-/// ConversionPct = Active / Came * 100 (kelganlardan faol bo'lib qolganlar foizi).
+/// Came/Active/Trial/Frozen/Left — TANLANGAN OYDAGI oqim (Umumiy = barcha oylar): kelgan (JoinedAt oyi),
+/// aktivlashgan (ActivatedAt oyi), sinov, muzlatilgan (FrozenAt oyi), ketgan (LeftAt oyi).
+/// Remaining (Qolgan) — HOZIRGI aktiv o'quvchilar soni (barcha guruhlarida, oyga bog'liq emas); o'qituvchi
+/// profili/performance dagi "Faol" (Status=="active" && IsActive) bilan AYNAN bir xil.
+/// ConversionPct = Active / Came * 100 (shu oyda kelganlardan aktivlashganlar foizi).
 /// </summary>
 public record TeacherReportRowDto(
     string TeacherId, string FullName, bool IsArchived,

@@ -141,7 +141,7 @@ export function TeacherReportsPage() {
           iconColor="text-emerald-600"
         />
         <StatCard
-          label="Qolgan (hozir a'zo)"
+          label="Qolgan (hozir faol)"
           value={totals.remaining}
           icon={Users}
           iconBg="bg-brand-50"
