@@ -726,15 +726,17 @@ public record RestoreTeacherRequest(string? NewPassword);
 /// O'qituvchi faollik hisoboti — bitta qator (umumiy ko'rinish). Expected = jadvaldan kelib
 /// chiqib bugungacha bo'lishi kerak bo'lgan darslar; Conducted = jurnal "o'tildi" belgilari;
 /// foizlar bajarilgan/mavzu yozilgan/uy vazifa berilgan ulushini bildiradi. Status: active|low|none.
-/// Came/Active/Trial/Frozen/Left — o'quvchi lifecycle sanoqlari (shu o'qituvchi guruhlari bo'yicha).
-/// ConversionPct = Active / Came * 100 (sinovdan faolga aylanganlar foizi).
+/// Came/Active/Trial/Frozen/Left/Remaining — o'quvchi JORIY holat sanoqlari (shu o'qituvchi guruhlari
+/// bo'yicha, o'qituvchi profilidagi sanoq bilan bir xil: Active = Status=="active" && IsActive).
+/// Came = jami kelgan a'zoliklar; Left = ketganlar; Remaining (Qolgan) = hozir a'zo = Active+Trial+Frozen.
+/// ConversionPct = Active / Came * 100 (kelganlardan faol bo'lib qolganlar foizi).
 /// </summary>
 public record TeacherReportRowDto(
     string TeacherId, string FullName, bool IsArchived,
     int Expected, int Conducted, int? DonePct,
     int Grades, int? TopicPct, int? HomeworkPct,
     string? LastActivity, string Status,
-    int Came, int Active, int Trial, int Frozen, int Left, int? ConversionPct);
+    int Came, int Active, int Trial, int Frozen, int Left, int Remaining, int? ConversionPct);
 
 /// <summary>
 /// O'qituvchilar hisoboti — umumiy ko'rinish javobi: mavjud oylar ro'yxati + tanlangan oy + qatorlar.
@@ -755,7 +757,7 @@ public record TeacherReportDetailDto(
     int Expected, int Conducted, int? DonePct,
     int Grades, int? TopicPct, int? HomeworkPct,
     string? LastActivity, string Status,
-    int Came, int Active, int Trial, int Frozen, int Left, int? ConversionPct,
+    int Came, int Active, int Trial, int Frozen, int Left, int Remaining, int? ConversionPct,
     List<TeacherReportBreakdownDto> Rows);
 
 /// <summary>O'quvchi (mobil ilova) o'z joylashuvini yangilash so'rovi — GPS dan keladi.</summary>

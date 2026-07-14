@@ -60,6 +60,7 @@ export function TeacherReportsPage() {
     came: rows.reduce((s, r) => s + r.came, 0),
     active: rows.reduce((s, r) => s + r.active, 0),
     left: rows.reduce((s, r) => s + r.left, 0),
+    remaining: rows.reduce((s, r) => s + r.remaining, 0),
   }
 
   return (
@@ -123,7 +124,7 @@ export function TeacherReportsPage() {
         />
       </div>
 
-      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
         <StatCard
           label="Jami kelgan o'quvchilar"
           value={totals.came}
@@ -137,6 +138,13 @@ export function TeacherReportsPage() {
           icon={UserCheck}
           iconBg="bg-emerald-50"
           iconColor="text-emerald-600"
+        />
+        <StatCard
+          label="Qolgan (hozir a'zo)"
+          value={totals.remaining}
+          icon={Users}
+          iconBg="bg-brand-50"
+          iconColor="text-brand-600"
         />
         <StatCard
           label="Ketgan o'quvchilar"
@@ -168,6 +176,7 @@ export function TeacherReportsPage() {
                   <th className="num">Sinov</th>
                   <th className="num">Muzl.</th>
                   <th className="num">Ketgan</th>
+                  <th className="num">Qolgan</th>
                   <th className="num">Konv.%</th>
                   <th>Holat</th>
                 </tr>
@@ -209,6 +218,7 @@ export function TeacherReportsPage() {
                     <td className="num font-mono text-blue-500">{r.trial}</td>
                     <td className="num font-mono text-amber-500">{r.frozen}</td>
                     <td className="num font-mono text-red-400">{r.left}</td>
+                    <td className="num font-mono font-semibold text-brand-600">{r.remaining}</td>
                     <td className="num">
                       <PctCell v={r.conversionPct} />
                     </td>
@@ -251,12 +261,13 @@ export function TeacherReportsPage() {
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
                 O'quvchilar lifecycle
               </p>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
                 <LifecycleMetric label="Kelgan" value={detail.came} color="text-slate-700" />
                 <LifecycleMetric label="Faol" value={detail.active} color="text-emerald-600" />
                 <LifecycleMetric label="Sinov" value={detail.trial} color="text-blue-500" />
                 <LifecycleMetric label="Muzlatilgan" value={detail.frozen} color="text-amber-500" />
                 <LifecycleMetric label="Ketgan" value={detail.left} color="text-red-500" />
+                <LifecycleMetric label="Qolgan" value={detail.remaining} color="text-brand-600" />
                 <LifecycleMetric
                   label="Konversiya"
                   value={detail.conversionPct == null ? '—' : `${detail.conversionPct}%`}

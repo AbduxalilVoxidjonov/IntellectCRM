@@ -316,6 +316,11 @@ export function ClassDetailPage() {
     () => (journal?.students ?? []).filter((s) => s.status === 'frozen'),
     [journal],
   )
+  /** Shu guruhdagi FAOL o'quvchilar soni (status === 'active') — o'qituvchi hisoboti "Faol" bilan bir xil ta'rif. */
+  const activeCount = useMemo(
+    () => (journal?.students ?? []).filter((s) => s.status === 'active').length,
+    [journal],
+  )
 
   const g = journal?.group
   const today = new Date().toISOString().slice(0, 10)
@@ -661,6 +666,9 @@ export function ClassDetailPage() {
                 <h2 className="font-semibold text-slate-800">Jurnal (oylik)</h2>
                 <span className="inline-flex items-center gap-1 text-sm text-slate-400">
                   <Users className="h-4 w-4" /> {journalStudents.length} o'quvchi
+                </span>
+                <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-sm font-semibold text-emerald-600">
+                  {activeCount} faol
                 </span>
               </div>
               <div className="flex flex-wrap items-center gap-1.5">

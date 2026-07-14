@@ -321,18 +321,14 @@ public class TeachersController(AppDbContext db, AuditService audit) : Controlle
             .Select(sg => new { sg.Status, sg.IsActive, sg.LeftAt })
             .ToListAsync();
 
-        int total    = memberships.Count;
-        int active   = memberships.Count(s => s.Status == "active" && s.IsActive);
-        int frozen   = memberships.Count(s => s.Status == "frozen");
-        int left     = memberships.Count(s => !s.IsActive || s.LeftAt != null);
-        double retention = total > 0 ? Math.Round((double)active / total * 100, 1) : 0;
-        double loss      = total > 0 ? Math.Round((double)(frozen + left) / total * 100, 1) : 0;
+        // YAGONA hisoblagich — o'qituvchilar hisoboti (TeacherActivityReport) bilan raqamlar aynan bir xil.
+        var tally = MembershipLifecycle.Tally(memberships.Select(s => (s.Status, s.IsActive, s.LeftAt)));
 
         return new TeacherPerformanceDto(
             teacher.Id, teacher.FullName, teacher.Phone ?? "",
-            total, active, frozen, left,
-            retention, loss,
-            (int)Math.Round(retention),
+            tally.Came, tally.Active, tally.Frozen, tally.Left,
+            tally.Retention, tally.Loss,
+            (int)Math.Round(tally.Retention),
             groups.Count
         );
     }
@@ -380,18 +376,13 @@ public class TeachersController(AppDbContext db, AuditService audit) : Controlle
         var result = teachers.Select(t =>
         {
             var slots = byTeacher.GetValueOrDefault(t.Id, new());
-            int total    = slots.Count;
-            int active   = slots.Count(s => s.Status == "active" && s.IsActive);
-            int frozen   = slots.Count(s => s.Status == "frozen");
-            int left     = slots.Count(s => !s.IsActive || s.LeftAt != null);
-            double retention = total > 0 ? Math.Round((double)active / total * 100, 1) : 0;
-            double loss      = total > 0 ? Math.Round((double)(frozen + left) / total * 100, 1) : 0;
+            var tally = MembershipLifecycle.Tally(slots.Select(s => (s.Status, s.IsActive, s.LeftAt)));
 
             return new TeacherPerformanceDto(
                 t.Id, t.FullName, t.Phone ?? "",
-                total, active, frozen, left,
-                retention, loss,
-                (int)Math.Round(retention),
+                tally.Came, tally.Active, tally.Frozen, tally.Left,
+                tally.Retention, tally.Loss,
+                (int)Math.Round(tally.Retention),
                 groupCount.GetValueOrDefault(t.Id, 0)
             );
         })

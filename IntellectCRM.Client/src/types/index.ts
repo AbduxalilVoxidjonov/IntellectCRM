@@ -952,6 +952,8 @@ export interface TeacherReportRow {
   frozen: number
   /** Ketgan (IsActive=false) o'quvchilar soni */
   left: number
+  /** Qolgan (hozir a'zo) = faol + sinov + muzlatilgan = kelgan − ketgan */
+  remaining: number
   /** Sotuv konversiyasi foizi: active/came*100; came=0 bo'lsa null */
   conversionPct: number | null
 }

@@ -34,7 +34,7 @@ public static class TeacherActivityReport
         var (c, teachers, _, _, lifecycle, months) = await ComputeAsync(db, month);
         var rows = teachers
             .Select(t => Row(t.Id, t.FullName, t.IsArchived, KeysFor(c, t.Id), c.LastActivity.GetValueOrDefault(t.Id),
-                lifecycle.GetValueOrDefault(t.Id, new LifecycleCounts())))
+                lifecycle.GetValueOrDefault(t.Id, default(LifecycleTally))))
             .OrderBy(r => r.IsArchived).ThenBy(r => r.FullName, StringComparer.OrdinalIgnoreCase)
             .ToList();
         return new TeacherReportOverviewDto(months, month ?? "", rows);
@@ -48,7 +48,7 @@ public static class TeacherActivityReport
         if (teacher is null) return null;
 
         var keys = KeysFor(c, teacherId);
-        var lc = lifecycle.GetValueOrDefault(teacherId, new LifecycleCounts());
+        var lc = lifecycle.GetValueOrDefault(teacherId, default(LifecycleTally));
         var total = Row(teacher.Id, teacher.FullName, teacher.IsArchived, keys, c.LastActivity.GetValueOrDefault(teacherId), lc);
 
         var breakdown = keys
@@ -66,18 +66,11 @@ public static class TeacherActivityReport
             total.Expected, total.Conducted, total.DonePct,
             total.Grades, total.TopicPct, total.HomeworkPct,
             total.LastActivity, total.Status,
-            total.Came, total.Active, total.Trial, total.Frozen, total.Left, total.ConversionPct,
+            total.Came, total.Active, total.Trial, total.Frozen, total.Left, total.Remaining, total.ConversionPct,
             breakdown);
     }
 
     // ---------- Ichki hisoblash ----------
-
-    /// <summary>Bir o'qituvchi guruhlari bo'yicha o'quvchi lifecycle sanoqlari.</summary>
-    private sealed class LifecycleCounts
-    {
-        public int Came, Active, Trial, Frozen, Left;
-        public int? ConversionPct => Came > 0 ? (int)Math.Round(Active * 100.0 / Came) : null;
-    }
 
     private static List<KeyValuePair<(string Teacher, string Class, string Subject), Agg>>
         KeysFor(Computed c, string teacherId) =>
@@ -87,7 +80,7 @@ public static class TeacherActivityReport
         string teacherId, string fullName, bool isArchived,
         List<KeyValuePair<(string Teacher, string Class, string Subject), Agg>> keys,
         string? lastActivity,
-        LifecycleCounts lc)
+        LifecycleTally lc)
     {
         var exp = keys.Sum(k => k.Value.Expected);
         var cond = keys.Sum(k => k.Value.Conducted);
@@ -106,7 +99,7 @@ public static class TeacherActivityReport
             teacherId, fullName, isArchived,
             exp, cond, donePct, grades,
             Pct(topic, cond), Pct(hw, cond), lastActivity, status,
-            lc.Came, lc.Active, lc.Trial, lc.Frozen, lc.Left, lc.ConversionPct);
+            lc.Came, lc.Active, lc.Trial, lc.Frozen, lc.Left, lc.Remaining, lc.ConversionPct);
     }
 
     /// <summary>a/b foizi (butun son). b=0 → null. cap=true bo'lsa 100 dan oshmaydi.</summary>
@@ -126,7 +119,7 @@ public static class TeacherActivityReport
         List<Teacher> Teachers,
         Dictionary<string, string> ClassNames,
         Dictionary<string, string> SubjectNames,
-        Dictionary<string, LifecycleCounts> Lifecycle,
+        Dictionary<string, LifecycleTally> Lifecycle,
         List<string> Months)> ComputeAsync(IAppDbContext db, string? month = null)
     {
         // null/bo'sh = Umumiy (filtr yo'q)
@@ -223,49 +216,24 @@ public static class TeacherActivityReport
             .Where(sg => nonArchivedGroupIds.Contains(sg.GroupId))
             .ToListAsync();
 
-        // --- Lifecycle OQIM (event sanasi bo'yicha): oylar yig'indisi = umumiy ---
-        // Came   = JoinedAt oyi (Umumiy: JoinedAt bo'sh bo'lsa ham sanaladi — eski a'zoliklar)
-        // Active = ActivatedAt oyi; Frozen = FrozenAt oyi; Left = LeftAt oyi
-        // Trial  = max(0, Came - Active) (shu oyda qo'shilib hali aktivlashmaganlar)
-        var lifecycle = new Dictionary<string, LifecycleCounts>();
-        LifecycleCounts Lc(string tId)
-        {
-            if (!lifecycle.TryGetValue(tId, out var lc)) lifecycle[tId] = lc = new LifecycleCounts();
-            return lc;
-        }
+        // --- Lifecycle JORIY HOLAT (oy filtriga bog'liq EMAS — joriy suratkash) ---
+        // O'qituvchi profilidagi sanoq bilan AYNAN bir xil (TeachersController):
+        //   Ketgan (Left)   = !IsActive || LeftAt bor
+        //   Faol   (Active) = Status=="active" && a'zo (ketmagan)   ← "faol o'quvchilar"
+        //   Sinov  (Trial)  = Status=="trial"  && a'zo
+        //   Muzlat (Frozen) = Status=="frozen" && a'zo
+        //   Kelgan (Came)   = jami a'zolik;  Qolgan (Remaining) = Faol+Sinov+Muzlatilgan = Came−Left
+        // Shu tariqa hisobotdagi "Faol" o'qituvchi profilidagi faol o'quvchilar soni bilan mos keladi.
+        // Har o'qituvchi guruhlari bo'yicha a'zoliklarni yig'ib, YAGONA hisoblagichni (MembershipLifecycle)
+        // ishlatamiz — o'qituvchi "performance" (TeachersController) bilan raqamlar aynan bir xil bo'ladi.
+        var byTeacher = new Dictionary<string, List<(string Status, bool IsActive, string? LeftAt)>>();
         foreach (var sg in memberships)
         {
             if (!groupTeacher.TryGetValue(sg.GroupId, out var tId)) continue;
-
-            // Kelgan (Came): JoinedAt oyi. Umumiy'da JoinedAt bo'sh bo'lsa ham sanaladi.
-            var joinedMonth = MonthOf(sg.JoinedAt);
-            if (filterMonth == null)
-            {
-                Lc(tId).Came++;
-            }
-            else if (joinedMonth == filterMonth)
-            {
-                Lc(tId).Came++;
-            }
-
-            // Faol (Active): ActivatedAt oyi (bo'sh = hali aktivlashmagan — sanalmaydi)
-            var activatedMonth = MonthOf(sg.ActivatedAt);
-            if (activatedMonth != "" && (filterMonth == null || activatedMonth == filterMonth))
-                Lc(tId).Active++;
-
-            // Muzlatilgan (Frozen): FrozenAt oyi
-            var frozenMonth = MonthOf(sg.FrozenAt);
-            if (frozenMonth != "" && (filterMonth == null || frozenMonth == filterMonth))
-                Lc(tId).Frozen++;
-
-            // Ketgan (Left): LeftAt oyi (null/bo'sh = hozir ham a'zo)
-            var leftMonth = MonthOf(sg.LeftAt);
-            if (leftMonth != "" && (filterMonth == null || leftMonth == filterMonth))
-                Lc(tId).Left++;
+            if (!byTeacher.TryGetValue(tId, out var list)) byTeacher[tId] = list = new();
+            list.Add((sg.Status, sg.IsActive, sg.LeftAt));
         }
-        // Sinov (Trial) = max(0, Came - Active)
-        foreach (var lc in lifecycle.Values)
-            lc.Trial = Math.Max(0, lc.Came - lc.Active);
+        var lifecycle = byTeacher.ToDictionary(kv => kv.Key, kv => MembershipLifecycle.Tally(kv.Value));
 
         // --- Mavjud oylar ro'yxati (uzluksiz, yillar bo'ylab) ---
         var monthCandidates = new List<string>();
