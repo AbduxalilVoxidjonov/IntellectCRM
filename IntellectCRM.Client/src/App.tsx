@@ -34,6 +34,9 @@ import { FeedbackPage } from '@/pages/admin/feedback/FeedbackPage'
 import { SubjectsPage } from '@/pages/admin/subjects/SubjectsPage'
 import { CurriculumEditorPage } from '@/pages/admin/subjects/CurriculumEditorPage'
 import { ReasonsPage } from '@/pages/admin/reasons/ReasonsPage'
+import { TestResultsPage } from '@/pages/admin/tests/TestResultsPage'
+import { TestGroupPage } from '@/pages/admin/tests/TestGroupPage'
+import { TestDetailPage } from '@/pages/admin/tests/TestDetailPage'
 import { DistrictsPage } from '@/pages/admin/districts/DistrictsPage'
 import { AiCheckPage } from '@/pages/admin/ai-check/AiCheckPage'
 import { AiCheckStudentPage } from '@/pages/admin/ai-check/AiCheckStudentPage'
@@ -80,6 +83,7 @@ import { TeacherCoveragePage } from '@/pages/teacher/coverage/CoveragePage'
 import { TeacherLearningPage } from '@/pages/teacher/learning/LearningPage'
 import { TeacherAccountPage } from '@/pages/teacher/account/AccountPage'
 import { TeacherRatingPage } from '@/pages/teacher/rating/TeacherRatingPage'
+import { TeacherTestsPage } from '@/pages/teacher/tests/TeacherTestsPage'
 import { TeacherMobileLayout } from '@/components/layout/TeacherMobileLayout'
 // O'quvchi portali (SPA ichida, /student/*)
 import { StudentMobileLayout } from '@/components/layout/StudentMobileLayout'
@@ -181,6 +185,9 @@ export default function App() {
           <Route path="subjects" element={<RequirePerm perm="schedule"><SubjectsPage /></RequirePerm>} />
           <Route path="subjects/:id/curriculum" element={<RequirePerm perm="schedule"><CurriculumEditorPage /></RequirePerm>} />
           <Route path="reasons" element={<RequirePerm perm="settings"><ReasonsPage /></RequirePerm>} />
+          <Route path="test-results" element={<RequirePerm perm="classes"><TestResultsPage /></RequirePerm>} />
+          <Route path="test-results/:groupId" element={<RequirePerm perm="classes"><TestGroupPage /></RequirePerm>} />
+          <Route path="test-results/:groupId/tests/:testId" element={<RequirePerm perm="classes"><TestDetailPage /></RequirePerm>} />
           <Route path="districts" element={<RequirePerm perm="settings"><DistrictsPage /></RequirePerm>} />
           <Route path="archive" element={<RequirePerm perm="settings"><ArchivePage /></RequirePerm>} />
           <Route path="grading" element={<RequirePerm perm="schedule"><GradingCriteriaPage /></RequirePerm>} />
@@ -232,6 +239,7 @@ export default function App() {
           <Route path="support" element={<TeacherSupportPage />} />
           <Route path="salary" element={<TeacherOwnSalaryPage />} />
           <Route path="rating" element={<TeacherRatingPage />} />
+          <Route path="tests" element={<RequirePerm perm="journal"><TeacherTestsPage /></RequirePerm>} />
           <Route path="coverage" element={<TeacherCoveragePage />} />
           <Route path="learning" element={<TeacherLearningPage />} />
           <Route path="account" element={<TeacherAccountPage />} />

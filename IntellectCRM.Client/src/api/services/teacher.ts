@@ -3,10 +3,12 @@ import type {
   AssignmentResult,
   AssignmentType,
   ChatMessage,
+  GroupTest,
   PortalMeta,
   SalaryLedger,
   Subject,
   TeacherClass,
+  TestResultDetail,
   EvaluationBoard,
   EvaluationType,
   TeacherRating,
@@ -327,5 +329,54 @@ export async function getTeacherLastMessages(): Promise<Record<string, string | 
 export async function getMyStudentRating(): Promise<TeacherRating | null> {
   if (USE_MOCK) return null
   const { data } = await api.get<TeacherRating>('/teacher/rating')
+  return data
+}
+
+/* ---------- Test natijalari (o'z guruhlari) ---------- */
+
+/** Bitta guruhning testlar ro'yxati. */
+export async function getTeacherGroupTests(classId: string): Promise<GroupTest[]> {
+  if (USE_MOCK) return []
+  const { data } = await api.get<GroupTest[]>('/teacher/test-results', { params: { classId } })
+  return data
+}
+
+/** Test tafsiloti — o'quvchilar + ballari (ball desc). */
+export async function getTeacherTestDetail(id: string): Promise<TestResultDetail> {
+  const { data } = await api.get<TestResultDetail>(`/teacher/test-results/${id}`)
+  return data
+}
+
+export async function createTeacherTest(payload: {
+  groupId: string
+  name: string
+  date: string
+  maxScore: number
+}): Promise<GroupTest> {
+  const { data } = await api.post<GroupTest>('/teacher/test-results', payload)
+  return data
+}
+
+export async function updateTeacherTest(
+  id: string,
+  payload: { name: string; date: string; maxScore: number },
+): Promise<void> {
+  await api.put(`/teacher/test-results/${id}`, payload)
+}
+
+export async function deleteTeacherTest(id: string): Promise<void> {
+  await api.delete(`/teacher/test-results/${id}`)
+}
+
+/** Bitta o'quvchiga ball qo'yish/tozalash (score=null). Qaytadi: qayta saralangan tafsilot. */
+export async function setTeacherTestScore(
+  id: string,
+  studentId: string,
+  score: number | null,
+): Promise<TestResultDetail> {
+  const { data } = await api.put<TestResultDetail>(`/teacher/test-results/${id}/scores`, {
+    studentId,
+    score,
+  })
   return data
 }

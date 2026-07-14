@@ -419,6 +419,30 @@ public record TransferMemberRequest(string ToGroupId, string? FreezeDate, string
 public record GroupFillRowDto(
     string GroupId, string Name, int Grade, int Capacity, int Enrolled, int FreeSeats, string Status);
 
+/* ---------- Test natijalari ---------- */
+/// <summary>Guruh kartasi (Testlar natijalari bosh sahifasi) — guruh + yaratilgan testlar soni.</summary>
+public record TestGroupOverviewDto(
+    string GroupId, string Name, string CourseName, string TeacherName,
+    int StudentCount, int TestCount);
+/// <summary>Bitta test qatori (guruh testlar ro'yxatida) — soni/o'rtacha bilan.</summary>
+public record GroupTestDto(
+    string Id, string GroupId, string Name, string Date, decimal MaxScore,
+    string CreatedAt, string CreatedBy, int StudentCount, int ScoredCount, decimal? AvgScore);
+public record CreateTestResultRequest(string GroupId, string Name, string Date, decimal MaxScore);
+public record UpdateTestResultRequest(string Name, string Date, decimal MaxScore);
+/// <summary>Test natijasi qatori — bitta o'quvchining bali (ball bo'yicha saralanadi). Rank = 0 → ball kiritilmagan.</summary>
+public record TestScoreRowDto(string StudentId, string FullName, decimal? Score, int Rank);
+/// <summary>Test tafsiloti — test ma'lumoti + faol o'quvchilar ballari (ball desc bo'yicha saralangan).</summary>
+public record TestResultDetailDto(
+    string Id, string GroupId, string GroupName, string Name, string Date, decimal MaxScore,
+    string CreatedAt, string CreatedBy, List<TestScoreRowDto> Rows);
+/// <summary>Bitta o'quvchiga ball qo'yish/tozalash (Score=null → tozalash).</summary>
+public record SetTestScoreRequest(string StudentId, decimal? Score);
+/// <summary>O'quvchi profilidagi test natijasi qatori (barcha guruhlaridan, sana desc).</summary>
+public record StudentGroupTestDto(
+    string TestId, string GroupId, string GroupName, string Name, string Date,
+    decimal MaxScore, decimal? Score, int Rank, int Total);
+
 /* ---------- Leads (CRM) ---------- */
 /// <summary>Lid (bo'lajak o'quvchi) yaratish so'rovi.
 /// TELEFON VALIDATSIYA (PhoneUtil.Normalize orqali standartlashtirilib saqlanadi):

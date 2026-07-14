@@ -39,7 +39,8 @@ import {
 import { getCurriculum, getProgress, setProgress, getStudentCoverageLog, type CoverageLogEntry } from '@/api/services/curriculum'
 import { getStudentGradingSummary, type MonthGradingSummary } from '@/api/services/grading'
 import { getTeachers } from '@/api/services/teachers'
-import type { Student, StudentGroupMembership, Curriculum, Group, Teacher } from '@/types'
+import { getStudentTestResults } from '@/api/services/testResults'
+import type { Student, StudentGroupMembership, Curriculum, Group, Teacher, StudentTestResult } from '@/types'
 import { cn, formatDate, formatDateTime, formatMoney, apiErrorMessage } from '@/lib/utils'
 import { usePerm } from '@/lib/permissions'
 import { Card } from '@/components/ui/Card'
@@ -115,6 +116,8 @@ export function StudentDetailPage() {
   const [coverageLog, setCoverageLog] = useState<CoverageLogEntry[]>([])
   /** Baholash xulosa (oylik o'rtacha + jami mezonlar). */
   const [gradingSummary, setGradingSummary] = useState<MonthGradingSummary[]>([])
+  /** Test natijalari — barcha guruhlaridan (ball desc kelmaydi, testCol'lar alohida). */
+  const [testResults, setTestResults] = useState<StudentTestResult[]>([])
   /** Tugatgan kurslar + sertifikatlar. */
   const [certificates, setCertificates] = useState<StudentCompletedCourse[]>([])
   const [certGenerating, setCertGenerating] = useState<string | null>(null)
@@ -174,6 +177,9 @@ export function StudentDetailPage() {
       .catch(() => {})
     getStudentGradingSummary(id)
       .then(setGradingSummary)
+      .catch(() => {})
+    getStudentTestResults(id)
+      .then(setTestResults)
       .catch(() => {})
     getStudentCertificates(id)
       .then(setCertificates)
@@ -1387,6 +1393,42 @@ export function StudentDetailPage() {
           </div>
         </Section>
       )}
+
+      {/* Testlar natijalari — barcha guruhlaridan */}
+      <Section title="Testlar natijalari" icon={ClipboardCheck}>
+        {testResults.length === 0 ? (
+          <Empty>Test natijalari yo'q</Empty>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-400">
+                <tr>
+                  <th className="px-3 py-2">Test nomi</th>
+                  <th className="px-3 py-2">Guruh</th>
+                  <th className="px-3 py-2">Sana</th>
+                  <th className="px-3 py-2 text-center">Ball</th>
+                  <th className="px-3 py-2 text-center">O'rin</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {testResults.map((t) => (
+                  <tr key={t.testId} className="hover:bg-slate-50/60">
+                    <td className="px-3 py-2 font-medium text-slate-700">{t.name}</td>
+                    <td className="px-3 py-2 text-slate-500">{t.groupName}</td>
+                    <td className="px-3 py-2 text-slate-500">{formatDate(t.date)}</td>
+                    <td className="px-3 py-2 text-center font-mono font-semibold text-slate-800">
+                      {t.score != null ? `${t.score}/${t.maxScore}` : <span className="text-slate-300">—</span>}
+                    </td>
+                    <td className="px-3 py-2 text-center font-mono font-semibold text-slate-800">
+                      {t.rank > 0 ? `${t.rank}/${t.total}` : <span className="text-slate-300">—</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Section>
 
       {/* Intizomiy ball tarixi */}
       <Section title="Intizomiy ball tarixi" icon={ShieldAlert}>

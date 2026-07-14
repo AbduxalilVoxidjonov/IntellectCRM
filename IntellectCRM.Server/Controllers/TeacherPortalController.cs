@@ -893,4 +893,78 @@ public class TeacherPortalController(
         await db.SaveChangesAsync();
         return NoContent();
     }
+
+    // ---------- Test natijalari (o'qituvchi — faqat o'z guruhlari) ----------
+    // Mantiq admin bilan umumiy (TestResultService); bu yerda faqat guruh EGASI (Group.TeacherId == me)
+    // ekani tekshiriladi. Test id orqali kelgan amallarda testning guruhi egalik uchun tekshiriladi.
+
+    /// <summary>Test amali uchun ruxsat: o'qituvchi topilsa va guruh EGASI bo'lsa true.</summary>
+    private async Task<bool> OwnsGroup(string classId)
+    {
+        var (_, _, owns) = await ResolveOwnedGroup(classId);
+        return owns;
+    }
+
+    /// <summary>O'qituvchining bitta guruhi testlari ro'yxati (?classId=).</summary>
+    [HttpGet("test-results")]
+    public async Task<ActionResult<List<GroupTestDto>>> TeacherTestList([FromQuery] string classId)
+    {
+        if (!await OwnsGroup(classId)) return Forbid();
+        return await TestResultService.ListForGroupAsync(db, classId);
+    }
+
+    /// <summary>Test tafsiloti — o'quvchilar + ballari (ball desc).</summary>
+    [HttpGet("test-results/{id}")]
+    public async Task<ActionResult<TestResultDetailDto>> TeacherTestDetail(string id)
+    {
+        var groupId = await TestResultService.GroupIdOfAsync(db, id);
+        if (groupId is null) return NotFound();
+        if (!await OwnsGroup(groupId)) return Forbid();
+        var d = await TestResultService.DetailAsync(db, id);
+        return d is null ? NotFound() : d;
+    }
+
+    /// <summary>Yangi test yaratish (o'z guruhiga).</summary>
+    [HttpPost("test-results")]
+    public async Task<ActionResult<GroupTestDto>> TeacherTestCreate(CreateTestResultRequest req)
+    {
+        var me = await Me();
+        if (me is null) return NotFound();
+        if (!await OwnsGroup(req.GroupId)) return Forbid();
+        var (dto, err) = await TestResultService.CreateAsync(
+            db, req.GroupId, req.Name, req.Date, req.MaxScore, me.FullName);
+        return err != null ? BadRequest(new { message = err }) : dto!;
+    }
+
+    /// <summary>Testni tahrirlash.</summary>
+    [HttpPut("test-results/{id}")]
+    public async Task<IActionResult> TeacherTestUpdate(string id, UpdateTestResultRequest req)
+    {
+        var groupId = await TestResultService.GroupIdOfAsync(db, id);
+        if (groupId is null) return NotFound();
+        if (!await OwnsGroup(groupId)) return Forbid();
+        var (ok, err) = await TestResultService.UpdateAsync(db, id, req.Name, req.Date, req.MaxScore);
+        return ok ? NoContent() : BadRequest(new { message = err });
+    }
+
+    /// <summary>Testni o'chirish.</summary>
+    [HttpDelete("test-results/{id}")]
+    public async Task<IActionResult> TeacherTestDelete(string id)
+    {
+        var groupId = await TestResultService.GroupIdOfAsync(db, id);
+        if (groupId is null) return NotFound();
+        if (!await OwnsGroup(groupId)) return Forbid();
+        return await TestResultService.DeleteAsync(db, id) ? NoContent() : NotFound();
+    }
+
+    /// <summary>Bitta o'quvchiga ball qo'yish/tozalash. Qaytadi: qayta saralangan tafsilot.</summary>
+    [HttpPut("test-results/{id}/scores")]
+    public async Task<ActionResult<TestResultDetailDto>> TeacherTestSetScore(string id, SetTestScoreRequest req)
+    {
+        var groupId = await TestResultService.GroupIdOfAsync(db, id);
+        if (groupId is null) return NotFound();
+        if (!await OwnsGroup(groupId)) return Forbid();
+        var (detail, err) = await TestResultService.SetScoreAsync(db, id, req.StudentId, req.Score);
+        return err != null ? BadRequest(new { message = err }) : detail!;
+    }
 }

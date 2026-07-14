@@ -24,6 +24,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<LeadStage> LeadStages => Set<LeadStage>();
     public DbSet<LeadEvent> LeadEvents => Set<LeadEvent>();
     public DbSet<TrialLesson> TrialLessons => Set<TrialLesson>();
+    public DbSet<TestResult> TestResults => Set<TestResult>();
+    public DbSet<TestScore> TestScores => Set<TestScore>();
     public DbSet<JournalEntry> JournalEntries => Set<JournalEntry>();
     public DbSet<LessonNote> LessonNotes => Set<LessonNote>();
     public DbSet<LessonReschedule> LessonReschedules => Set<LessonReschedule>();
@@ -335,6 +337,21 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         // O'quv xonalari — tez-tez ishlatiladigan filtrlar
         b.Entity<Room>().HasIndex(r => r.IsActive);
         b.Entity<Room>().HasIndex(r => new { r.Name, r.IsActive });
+
+        // Test natijalari — guruh bo'yicha ro'yxat, har (test, o'quvchi) uchun bitta ball,
+        // test o'chirilsa ballari ham kaskad o'chadi.
+        b.Entity<TestResult>().Property(t => t.MaxScore).HasPrecision(18, 2);
+        b.Entity<TestResult>().Property(t => t.GroupId).HasMaxLength(200);
+        b.Entity<TestResult>().HasIndex(t => t.GroupId);
+        b.Entity<TestScore>().Property(t => t.Score).HasPrecision(18, 2);
+        b.Entity<TestScore>().Property(t => t.TestResultId).HasMaxLength(200);
+        b.Entity<TestScore>().Property(t => t.StudentId).HasMaxLength(200);
+        b.Entity<TestScore>().HasIndex(t => new { t.TestResultId, t.StudentId }).IsUnique();
+        b.Entity<TestScore>().HasIndex(t => t.StudentId);
+        b.Entity<TestScore>()
+            .HasOne<TestResult>().WithMany()
+            .HasForeignKey(t => t.TestResultId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         // Group.RoomId → Room (SET NULL on delete)
         b.Entity<Group>().HasIndex(c => c.RoomId);

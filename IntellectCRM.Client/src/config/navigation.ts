@@ -102,6 +102,7 @@ export const navByRole: Record<Role, NavItem[]> = {
       children: [
         { label: 'Kurslar', to: '/admin/subjects', perm: 'schedule' },
         { label: 'Baholash mezonlari', to: '/admin/grading', perm: 'schedule' },
+        { label: 'Testlar natijalari', to: '/admin/test-results', perm: 'classes' },
         { label: 'Daraja testi', to: '/admin/level-tests', perm: 'schedule' },
         { label: 'Sabablar', to: '/admin/reasons', perm: 'settings' },
         {

@@ -1827,3 +1827,63 @@ export interface LeadSource {
   name: string
   order: number
 }
+
+// ===================== Test natijalari (O'quv bo'limi → Testlar natijalari) =====================
+
+/** Testlar natijalari bosh sahifasi — guruh kartasi (yaratilgan testlar soni bilan). */
+export interface TestGroupOverview {
+  groupId: string
+  name: string
+  courseName: string
+  teacherName: string
+  studentCount: number
+  testCount: number
+}
+
+/** Bitta test qatori (guruh testlar ro'yxatida). */
+export interface GroupTest {
+  id: string
+  groupId: string
+  name: string
+  date: string
+  maxScore: number
+  createdAt: string
+  createdBy: string
+  studentCount: number
+  scoredCount: number
+  avgScore: number | null
+}
+
+/** Test natijasi qatori — bitta o'quvchi bali (rank=0 → ball kiritilmagan). */
+export interface TestScoreRow {
+  studentId: string
+  fullName: string
+  score: number | null
+  rank: number
+}
+
+/** Test tafsiloti — test + o'quvchilar ballari (ball desc bo'yicha saralangan). */
+export interface TestResultDetail {
+  id: string
+  groupId: string
+  groupName: string
+  name: string
+  date: string
+  maxScore: number
+  createdAt: string
+  createdBy: string
+  rows: TestScoreRow[]
+}
+
+/** O'quvchi profilidagi test natijasi qatori (barcha guruhlaridan). */
+export interface StudentTestResult {
+  testId: string
+  groupId: string
+  groupName: string
+  name: string
+  date: string
+  maxScore: number
+  score: number | null
+  rank: number
+  total: number
+}

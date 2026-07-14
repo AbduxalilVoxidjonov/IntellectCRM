@@ -493,6 +493,40 @@ public class StudentGroup
     public string FrozenAt { get; set; } = string.Empty;
 }
 
+/// <summary>
+/// Test natijasi — guruh uchun o'tkazilgan bitta test (nomi, sanasi, olish mumkin bo'lgan maksimal ball).
+/// O'quv bo'limi → "Testlar natijalari" bo'limida boshqariladi; o'qituvchi o'z guruhlari uchun ham
+/// yarata oladi. Ichida har o'quvchi uchun olgan bali (<see cref="TestScore"/>) bo'ladi.
+/// </summary>
+public class TestResult
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    /// <summary>Guruh (Group.Id) — test shu guruh o'quvchilariga tegishli.</summary>
+    public string GroupId { get; set; } = string.Empty;
+    /// <summary>Test nomi (masalan "Unit 3 test", "Oraliq nazorat").</summary>
+    public string Name { get; set; } = string.Empty;
+    /// <summary>Test o'tkazilgan sana (ISO "YYYY-MM-DD").</summary>
+    public string Date { get; set; } = string.Empty;
+    /// <summary>Testdan olish mumkin bo'lgan maksimal ball.</summary>
+    public decimal MaxScore { get; set; }
+    /// <summary>Yaratilgan vaqt (ISO "yyyy-MM-ddTHH:mm:ss").</summary>
+    public string CreatedAt { get; set; } = string.Empty;
+    /// <summary>Yaratgan foydalanuvchi ismi (admin yoki o'qituvchi) — faqat ko'rsatish uchun.</summary>
+    public string CreatedBy { get; set; } = string.Empty;
+}
+
+/// <summary>O'quvchining bitta testdan olgan bali (<see cref="TestResult"/> ↔ o'quvchi).</summary>
+public class TestScore
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    /// <summary>Test (TestResult.Id).</summary>
+    public string TestResultId { get; set; } = string.Empty;
+    /// <summary>O'quvchi (Student.Id).</summary>
+    public string StudentId { get; set; } = string.Empty;
+    /// <summary>O'quvchi olgan ball (0 .. MaxScore).</summary>
+    public decimal Score { get; set; }
+}
+
 /// <summary>Lid (markazga qiziqqan).</summary>
 public class Lead
 {

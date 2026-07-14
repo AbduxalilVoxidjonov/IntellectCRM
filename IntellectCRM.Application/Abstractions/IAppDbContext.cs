@@ -25,6 +25,8 @@ public interface IAppDbContext
     DbSet<LeadStage> LeadStages { get; }
     DbSet<LeadEvent> LeadEvents { get; }
     DbSet<TrialLesson> TrialLessons { get; }
+    DbSet<TestResult> TestResults { get; }
+    DbSet<TestScore> TestScores { get; }
     DbSet<JournalEntry> JournalEntries { get; }
     DbSet<LessonNote> LessonNotes { get; }
     DbSet<LessonReschedule> LessonReschedules { get; }
