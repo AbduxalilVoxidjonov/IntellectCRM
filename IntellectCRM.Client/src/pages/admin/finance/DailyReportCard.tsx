@@ -76,6 +76,18 @@ export function DailyReportCard({ initialMonth }: { initialMonth: string }) {
   const shown = sel ?? monthTotals
   const net = shown.income - shown.expense
 
+  // Kirim usuli bo'yicha (naqt/karta/bank) — tanlangan kun bo'lsa shu kun, aks holda butun oy.
+  const methodTotals = useMemo(() => {
+    const src = day ? tx.filter((t) => t.date.slice(0, 10) === day) : tx
+    const acc = { cash: 0, card: 0, bank: 0 }
+    for (const t of src) {
+      if (t.direction === 'income' && (t.method === 'cash' || t.method === 'card' || t.method === 'bank')) {
+        acc[t.method] += t.amount
+      }
+    }
+    return acc
+  }, [tx, day])
+
   return (
     <Card
       tight
@@ -145,6 +157,16 @@ export function DailyReportCard({ initialMonth }: { initialMonth: string }) {
             <Mini label="Sof" value={net} icon={Wallet} tone={net >= 0 ? 'green' : 'red'} signed />
           </div>
 
+          {/* Kirim usuli bo'yicha (naqt / karta / bank) — tanlangan kun yoki oy */}
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-medium text-slate-400">
+              {day ? 'Kunlik kirim usuli:' : 'Oylik kirim usuli:'}
+            </span>
+            <MethodPill label="Naqd" value={methodTotals.cash} color="emerald" />
+            <MethodPill label="Karta" value={methodTotals.card} color="blue" />
+            <MethodPill label="Bank" value={methodTotals.bank} color="violet" />
+          </div>
+
           {/* Tanlangan kun tranzaksiyalari */}
           {day && (
             dayTx.length === 0 ? (
@@ -195,6 +217,21 @@ export function DailyReportCard({ initialMonth }: { initialMonth: string }) {
         </div>
       )}
     </Card>
+  )
+}
+
+/** Kirim usuli chipi — nom + summa (rangli). */
+function MethodPill({ label, value, color }: { label: string; value: number; color: 'emerald' | 'blue' | 'violet' }) {
+  const cls = {
+    emerald: 'border-emerald-100 bg-emerald-50 text-emerald-700',
+    blue: 'border-blue-100 bg-blue-50 text-blue-700',
+    violet: 'border-violet-100 bg-violet-50 text-violet-700',
+  }[color]
+  return (
+    <span className={cn('inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs', cls)}>
+      <span className="font-medium opacity-80">{label}:</span>
+      <span className="font-mono font-bold">{formatMoney(value)}</span>
+    </span>
   )
 }
 
