@@ -53,6 +53,8 @@ const control =
   'rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-mono text-slate-700 outline-none focus:border-brand-400'
 
 type DirFilter = 'all' | FinanceDirection
+/** To'lov usuli filtri — "Amallar" jadvalida kirimlarni naqt/karta/bank bo'yicha ajratish. */
+type MethodFilter = 'all' | 'cash' | 'card' | 'bank'
 type Tab = 'overview' | 'groups' | 'teachers' | 'payments' | 'refunds'
 
 const tabs: { value: Tab; label: string }[] = [
@@ -77,6 +79,7 @@ export function FinancePage() {
   const [from, setFrom] = useState(`${yearOf(todayStr)}-01-01`)
   const [to, setTo] = useState(todayStr)
   const [dirFilter, setDirFilter] = useState<DirFilter>('all')
+  const [methodFilter, setMethodFilter] = useState<MethodFilter>('all')
 
   const [summary, setSummary] = useState<FinanceSummary | null>(null)
   const [monthly, setMonthly] = useState<FinanceMonthly[]>([])
@@ -184,7 +187,7 @@ export function FinancePage() {
     exportToCsv(
       'moliya.csv',
       ['Sana', "Yo'nalish", 'Toifa', "To'lov usuli", 'Izoh', 'Summa'],
-      transactions.map((t) => [
+      visibleTx.map((t) => [
         formatDate(t.date),
         financeDirectionLabels[t.direction],
         financeCategoryLabel(t.category),
@@ -273,6 +276,21 @@ export function FinancePage() {
   // Maosh jurnalga bog'langan bo'lsa (Guruhlar → Jurnal boshqaruvi) — "Ushlanma" ustuni ko'rsatiladi.
   const anyDeduction = salaryReport.some((r) => (r.deduction ?? 0) > 0)
   const paymentsTotal = filteredPayments.reduce((a, p) => a + p.amount, 0)
+
+  // To'lov usuli (naqt/karta/bank) bo'yicha KIRIM summalari — "Amallar" jadvalidagi filtr uchun.
+  // Usul faqat kirimga (income) taalluqli; chiqim/eski (method yo'q) yozuvlar hisoblanmaydi.
+  const incomeByMethod: Record<'cash' | 'card' | 'bank', number> = { cash: 0, card: 0, bank: 0 }
+  for (const t of transactions) {
+    if (t.direction === 'income' && (t.method === 'cash' || t.method === 'card' || t.method === 'bank')) {
+      incomeByMethod[t.method] += t.amount
+    }
+  }
+  const incomeMethodTotal = incomeByMethod.cash + incomeByMethod.card + incomeByMethod.bank
+  // Tanlangan usul bo'yicha ko'rinadigan amallar (usul tanlansa — faqat o'sha usuldagi kirimlar).
+  const visibleTx =
+    methodFilter === 'all'
+      ? transactions
+      : transactions.filter((t) => t.direction === 'income' && t.method === methodFilter)
 
   return (
     <div>
@@ -401,7 +419,21 @@ export function FinancePage() {
                         </button>
                       ))}
                     </div>
-                    <Button variant="secondary" onClick={handleExport} disabled={transactions.length === 0}>
+                    {/* To'lov usuli (naqt/karta/bank) — tanlanganda o'sha usuldagi kirimlar + summasi */}
+                    <div className="toolbar !mb-0">
+                      {(['all', 'cash', 'card', 'bank'] as MethodFilter[]).map((m) => (
+                        <button
+                          key={m}
+                          onClick={() => setMethodFilter(m)}
+                          className={cn('filter-chip', methodFilter === m && 'active')}
+                        >
+                          {m === 'all'
+                            ? "Usul: barchasi"
+                            : `${paymentMethodLabel(m)} · ${formatMoney(incomeByMethod[m])}`}
+                        </button>
+                      ))}
+                    </div>
+                    <Button variant="secondary" onClick={handleExport} disabled={visibleTx.length === 0}>
                       <Download className="h-4 w-4" /> CSV
                     </Button>
                   </>
@@ -421,7 +453,7 @@ export function FinancePage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {transactions.map((t) => (
+                      {visibleTx.map((t) => (
                         <tr key={t.id}>
                           <td className="font-mono text-[12.5px] text-slate-500">
                             {formatDate(t.date)}
@@ -505,9 +537,24 @@ export function FinancePage() {
                         </tr>
                       ))}
                     </tbody>
+                    {visibleTx.length > 0 && (
+                      <tfoot>
+                        <tr className="border-t-2 border-slate-200 bg-slate-50/60">
+                          <td colSpan={5} className="py-2.5 pl-3 text-[13px] font-semibold text-slate-600">
+                            {methodFilter === 'all'
+                              ? "Kirim (usul bo'yicha jami)"
+                              : `${paymentMethodLabel(methodFilter)} — jami kirim`}
+                          </td>
+                          <td className="num py-2.5 font-bold text-emerald-600">
+                            +{formatMoney(methodFilter === 'all' ? incomeMethodTotal : incomeByMethod[methodFilter])}
+                          </td>
+                          <td />
+                        </tr>
+                      </tfoot>
+                    )}
                   </table>
                 </div>
-                {transactions.length === 0 && (
+                {visibleTx.length === 0 && (
                   <div className="state">
                     <div className="state-icon">
                       <Inbox className="h-5 w-5" />
