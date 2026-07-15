@@ -610,9 +610,11 @@ public record AdminStatsDto(int StudentsCount, int TeachersCount, double Average
 public record ClassPerformanceItemDto(string ClassId, string ClassName, double AverageGrade, double? AttendanceRate, string TeacherName = "");
 public record TopClassDto(string Id, string Name, int StudentsCount, int ActiveCount, double AverageGrade);
 public record StudentBreakdownDto(int Active, int Inactive, int Debtors, int Paid, int WithGroup, int WithoutGroup);
+/// <summary>Bosh sahifa tepasidagi 5 ta asosiy ko'rsatkich.</summary>
+public record DashboardHeaderStatsDto(int Leads, int TrialStudents, int PaidThisMonth, int Frozen, int Debtors);
 public record AdminDashboardDto(
     AdminStatsDto Stats, List<ClassPerformanceItemDto> ClassPerformance, List<TopClassDto> TopClasses,
-    StudentBreakdownDto StudentBreakdown, int TotalGradesCount = 0);
+    StudentBreakdownDto StudentBreakdown, int TotalGradesCount, DashboardHeaderStatsDto Header);
 
 /// <summary>Bosh sahifa "Bugungi darslar" monitoringi: bugun dars kuni bo'lgan har bir guruh uchun
 /// o'qituvchi davomat qildimi (bugungi Conducted LessonNote) va baho qo'ydimi (bugungi jurnal

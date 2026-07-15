@@ -93,6 +93,20 @@ export interface TeacherPerformance {
   groupCount: number
 }
 
+/** Bosh sahifa tepasidagi 5 ta asosiy ko'rsatkich */
+export interface DashboardHeaderStats {
+  /** Jami lidlar soni */
+  leads: number
+  /** Sinov holatidagi (StudentGroup.Status=="trial") o'quvchilar soni */
+  trialStudents: number
+  /** Shu oyda tuition to'lovi qilgan (betakror) o'quvchilar soni */
+  paidThisMonth: number
+  /** Muzlatilgan (StudentGroup.Status=="frozen") o'quvchilar soni */
+  frozen: number
+  /** Qarzdorlar (Balance < 0) */
+  debtors: number
+}
+
 export interface AdminDashboard {
   stats: AdminStats
   classPerformance: ClassPerformance[]
@@ -102,6 +116,8 @@ export interface AdminDashboard {
   studentBreakdown: StudentBreakdown
   /** Shu oyda nechta ba'ho kiritilgan */
   totalGradesCount?: number
+  /** Bosh sahifa tepasidagi 5 ta asosiy ko'rsatkich */
+  header: DashboardHeaderStats
 }
 
 /* ---------- Bugungi darslar monitoringi (bosh sahifa) ---------- */

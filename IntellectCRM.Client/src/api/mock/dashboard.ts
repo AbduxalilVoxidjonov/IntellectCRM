@@ -34,4 +34,11 @@ export const adminDashboardMock: AdminDashboard = {
     withGroup: 1090,
     withoutGroup: 158,
   },
+  header: {
+    leads: 64,
+    trialStudents: 23,
+    paidThisMonth: 812,
+    frozen: 37,
+    debtors: 142,
+  },
 }

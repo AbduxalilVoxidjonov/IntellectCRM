@@ -26,6 +26,7 @@ public class DashboardController(DataCache dataCache) : ControllerBase
             {
                 nameof(Student), nameof(Teacher), nameof(Group), nameof(JournalEntry),
                 nameof(StudentGroup), nameof(LessonNote), nameof(AbsenceReason), nameof(CriterionGrade),
+                nameof(Lead), nameof(FinanceTransaction),
             },
             TimeSpan.FromMinutes(10),
             ComputeAsync);
@@ -205,6 +206,24 @@ public class DashboardController(DataCache dataCache) : ControllerBase
         var cur = TuitionService.CurrentMonth();
         var grades = await db.CriterionGrades.AsNoTracking().Where(g => g.Done && g.Date.StartsWith(cur)).ToListAsync();
 
+        // Bosh sahifa tepasidagi 5 ta ko'rsatkich.
+        var leadsCount = await db.Leads.CountAsync();
+        var trialStudentsCount = memberships
+            .Where(m => m.Status == "trial" && nonArchivedIds.Contains(m.StudentId))
+            .Select(m => m.StudentId).Distinct().Count();
+        var frozenStudentsCount = memberships
+            .Where(m => m.Status == "frozen" && nonArchivedIds.Contains(m.StudentId))
+            .Select(m => m.StudentId).Distinct().Count();
+        // Shu oyda haqiqiy tuition to'lovi qilgan (betakror) o'quvchilar soni.
+        var paidThisMonthCount = await db.FinanceTransactions.AsNoTracking()
+            .Where(t => t.Direction == "income" && t.Category == "tuition"
+                && t.StudentId != null && t.Date.StartsWith(cur))
+            .Select(t => t.StudentId!)
+            .Distinct()
+            .CountAsync();
+        var header = new DashboardHeaderStatsDto(
+            leadsCount, trialStudentsCount, paidThisMonthCount, frozenStudentsCount, debtors);
+
         var topClasses = classes
             .Select(c => new TopClassDto(
                 c.Id, c.Name,
@@ -218,6 +237,6 @@ public class DashboardController(DataCache dataCache) : ControllerBase
         // Baholash faollik — barcha guruhlarda shu oyda nechta ba'ho kiritilgan
         var totalGradesCount = grades.Count;
 
-        return new AdminDashboardDto(stats, classPerformance, topClasses, studentBreakdown, totalGradesCount);
+        return new AdminDashboardDto(stats, classPerformance, topClasses, studentBreakdown, totalGradesCount, header);
     }
 }
