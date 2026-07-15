@@ -100,7 +100,6 @@ type Tab =
   | 'tolov'
   | 'dastur'
   | 'baholar'
-  | 'davomat'
   | 'fikr'
   | 'testlar'
   | 'sertifikatlar'
@@ -578,7 +577,7 @@ export function StudentDetailPage() {
     <div className="space-y-6">
       <BackLink />
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[2fr_3fr]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[35%_65%]">
         {/* CHAP USTUN — o'quvchi profili + shaxsiy ma'lumotlar (bitta karta), 40% */}
         <div className="lg:sticky lg:top-4 lg:self-start">
           <Card className="relative space-y-5">
@@ -706,10 +705,7 @@ export function StudentDetailPage() {
               <ListChecks className="mr-1 inline h-3.5 w-3.5" /> O'quv dasturi
             </button>
             <button type="button" className={cn('tab', tab === 'baholar' && 'active')} onClick={() => setTab('baholar')}>
-              <GraduationCap className="mr-1 inline h-3.5 w-3.5" /> Baholar
-            </button>
-            <button type="button" className={cn('tab', tab === 'davomat' && 'active')} onClick={() => setTab('davomat')}>
-              <CalendarCheck className="mr-1 inline h-3.5 w-3.5" /> Davomat va intizom
+              <GraduationCap className="mr-1 inline h-3.5 w-3.5" /> Baholar, davomat va intizom
             </button>
             <button type="button" className={cn('tab', tab === 'fikr' && 'active')} onClick={() => setTab('fikr')}>
               <LifeBuoy className="mr-1 inline h-3.5 w-3.5" /> Fikr-mulohaza
@@ -760,7 +756,7 @@ export function StudentDetailPage() {
         {groups.length === 0 ? (
           <Empty>Bu o'quvchi hali birorta guruhga qo'shilmagan.</Empty>
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2">
             {groups.map((gr) => {
               const sb = groupStatusBadge(
                 gr.status === 'completed' ? 'completed' : gr.isActive ? gr.status : 'left',
@@ -774,7 +770,7 @@ export function StudentDetailPage() {
                   tabIndex={0}
                   onClick={() => navigate(`/admin/classes/${gr.groupId}`)}
                   onKeyDown={(e) => e.key === 'Enter' && navigate(`/admin/classes/${gr.groupId}`)}
-                  className="group relative flex w-full cursor-pointer flex-col gap-2 rounded-xl border border-slate-200 p-4 text-left transition-colors hover:border-brand-300 hover:bg-brand-50/30"
+                  className="group relative flex w-full cursor-pointer flex-col gap-2.5 rounded-xl border border-slate-200 p-5 text-left transition-colors hover:border-brand-300 hover:bg-brand-50/30"
                 >
                   {gr.isActive && (
                     <div className="absolute right-3 top-3 z-10" onClick={(e) => e.stopPropagation()}>
@@ -809,7 +805,7 @@ export function StudentDetailPage() {
                   )}
                   <div className="flex flex-col gap-2 pr-8">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-semibold text-slate-800 group-hover:text-brand-600 group-hover:underline">
+                      <span className="text-base font-semibold text-slate-800 group-hover:text-brand-600 group-hover:underline">
                         {gr.groupName}
                       </span>
                       <Badge tone={sb.tone}>{sb.label}</Badge>
@@ -1138,7 +1134,7 @@ export function StudentDetailPage() {
       )}
 
       {/* Stat kartalar — Davomat va intizom */}
-      {tab === 'davomat' && (
+      {tab === 'baholar' && (
       <div className="grid gap-4 sm:grid-cols-2">
         <StatCard
           label="Davomat"
@@ -1160,7 +1156,7 @@ export function StudentDetailPage() {
       )}
 
       {/* Diagrammalar */}
-      {tab === 'davomat' && (
+      {tab === 'baholar' && (
       <div className="grid gap-6 lg:grid-cols-2">
         <Section title="Davomat (oy bo'yicha)" icon={CalendarCheck}>
           <ResponsiveContainer width="100%" height={280}>
@@ -1288,7 +1284,7 @@ export function StudentDetailPage() {
       )}
 
       {/* Davomat sabablari */}
-      {tab === 'davomat' && (
+      {tab === 'baholar' && (
       <Section title="Davomat sabablari" icon={CalendarCheck}>
         {data.reasons.length === 0 ? (
           <Empty>Davomat belgilari yo'q</Empty>
@@ -1590,7 +1586,7 @@ export function StudentDetailPage() {
       )}
 
       {/* Intizomiy ball tarixi */}
-      {tab === 'davomat' && (
+      {tab === 'baholar' && (
       <Section title="Intizomiy ball tarixi" icon={ShieldAlert}>
         {data.disciplinePoints.length === 0 ? (
           <Empty>Yozuv yo'q</Empty>

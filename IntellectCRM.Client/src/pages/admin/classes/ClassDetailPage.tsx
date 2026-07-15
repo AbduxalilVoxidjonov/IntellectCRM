@@ -617,8 +617,8 @@ export function ClassDetailPage() {
         <Card className="py-16 text-center text-slate-400">Guruh topilmadi</Card>
       ) : (
         <>
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[2fr_3fr]">
-            {/* CHAP USTUN — guruh ma'lumoti + a'zolar ro'yxati (bitta karta), 40% */}
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[35%_65%]">
+            {/* CHAP USTUN — guruh ma'lumoti + a'zolar ro'yxati (bitta karta), 35% */}
             <div className="lg:sticky lg:top-4 lg:self-start">
               <Card className="space-y-5">
                 {/* Sarlavha */}
@@ -708,7 +708,7 @@ export function ClassDetailPage() {
                   {members.length === 0 ? (
                     <p className="py-6 text-center text-sm text-slate-400">Bu guruhda a'zo yo'q.</p>
                   ) : (
-                    <ul className="-mx-2 divide-y divide-slate-100">
+                    <ul className="-mx-2 max-h-[55vh] divide-y divide-slate-100 overflow-y-auto">
                       {members.map((m) => (
                         <MemberRow
                           key={m.studentId}
