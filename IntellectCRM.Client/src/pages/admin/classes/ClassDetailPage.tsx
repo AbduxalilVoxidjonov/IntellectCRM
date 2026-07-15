@@ -626,8 +626,8 @@ export function ClassDetailPage() {
         <Card className="py-16 text-center text-slate-400">Guruh topilmadi</Card>
       ) : (
         <>
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[35%_65%]">
-            {/* CHAP USTUN — guruh ma'lumoti + a'zolar ro'yxati (bitta karta), 35% */}
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[25%_75%]">
+            {/* CHAP USTUN — guruh ma'lumoti + a'zolar ro'yxati (bitta karta), 25% */}
             <div className="lg:sticky lg:top-4 lg:self-start">
               <Card className="space-y-5">
                 {/* Sarlavha */}
