@@ -93,6 +93,17 @@ const gridStroke = '#eef0f4'
 const axisTick = { fontSize: 12, fill: '#94a3b8' }
 const tooltipStyle = { borderRadius: 12, border: '1px solid #e2e8f0' }
 
+type Tab =
+  | 'guruhlar'
+  | 'dastur'
+  | 'baholar'
+  | 'davomat'
+  | 'fikr'
+  | 'testlar'
+  | 'sertifikatlar'
+  | 'aloqa'
+  | 'ai'
+
 export function StudentDetailPage() {
   const { id } = useParams<{ id: string }>()
   const { can } = usePerm()
@@ -108,6 +119,8 @@ export function StudentDetailPage() {
   const [aiRecords, setAiRecords] = useState<StudentAiAnalysisRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
+  /** O'ng ustundagi faol bo'lim (tab). */
+  const [tab, setTab] = useState<Tab>('guruhlar')
   /** Oylik baholash jadvalida tanlangan oy ("YYYY-MM"). */
   const [evalMonth, setEvalMonth] = useState('')
   /** Fan baholari dinamikasida tanlangan oy ("YYYY-MM"). */
@@ -568,144 +581,193 @@ export function StudentDetailPage() {
     <div className="space-y-6">
       <BackLink />
 
-      {/* Profil sarlavhasi */}
-      <Card className="flex flex-wrap items-center gap-5">
-        <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-brand-50 text-2xl font-semibold text-brand-600">
-          {data.photoUrl ? (
-            <img src={data.photoUrl} alt={data.fullName} className="h-full w-full object-cover" />
-          ) : (
-            initials(data.fullName)
-          )}
-        </div>
-        <div className="min-w-0 flex-1">
-          <h1 className="text-2xl font-semibold text-slate-800">{data.fullName}</h1>
-          <div className="mt-1 flex flex-wrap gap-x-5 gap-y-1 text-sm text-slate-500">
-            <span className="inline-flex items-center gap-1.5">
-              <GraduationCap className="h-4 w-4 text-slate-400" /> {headerGroupNames || data.className || '—'}
-            </span>
-            {(headerTeacherNames || data.homeroomTeacher) && (
-              <span className="inline-flex items-center gap-1.5">
-                <User className="h-4 w-4 text-slate-400" /> {headerTeacherNames || data.homeroomTeacher}
-              </span>
-            )}
-            {data.parentFullName && (
-              <span className="inline-flex items-center gap-1.5">
-                <User className="h-4 w-4 text-slate-400" /> Ota-ona: {data.parentFullName}
-              </span>
-            )}
-            {data.parentPhone && (
-              <span className="inline-flex items-center gap-1.5">
-                <Phone className="h-4 w-4 text-slate-400" /> {data.parentPhone}
-              </span>
-            )}
-          </div>
-        </div>
-        <div
-          className={cn(
-            'rounded-xl px-4 py-2 text-right',
-            data.balance < 0 ? 'bg-red-50' : 'bg-emerald-50',
-          )}
-        >
-          <p className="flex items-center justify-end gap-1 text-xs text-slate-500">
-            <Wallet className="h-3.5 w-3.5" /> Balans
-          </p>
-          <p className={cn('font-mono text-lg font-semibold', data.balance < 0 ? 'text-red-600' : 'text-emerald-700')}>
-            {formatMoney(data.balance)}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setShowAi(true)}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-brand-600 to-violet-500 px-4 py-2 text-sm font-semibold text-white shadow-[0_2px_8px_oklch(0.5_0.18_282_/_0.3)] transition-all hover:opacity-90 active:translate-y-px"
-          >
-            <Sparkles className="h-4 w-4" /> AI Tahlil
-          </button>
-          <button
-            type="button"
-            onClick={openPayment}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:border-brand-300 hover:text-brand-700"
-          >
-            <Wallet className="h-4 w-4" /> To'lov qilish
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowHistory(true)}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:border-brand-300 hover:text-brand-700"
-          >
-            <History className="h-4 w-4" /> To'lov tarixi
-          </button>
-          <button
-            type="button"
-            onClick={openCall}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:border-brand-300 hover:text-brand-700"
-          >
-            <Phone className="h-4 w-4" /> Qo'ng'iroq qilish
-          </button>
-          <button
-            type="button"
-            onClick={openSms}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:border-brand-300 hover:text-brand-700"
-          >
-            <MessageSquare className="h-4 w-4" /> SMS yuborish
-          </button>
-          {can('students', 'edit') && (
-            <button
-              type="button"
-              onClick={openEdit}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:border-brand-300 hover:text-brand-700"
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[320px_1fr]">
+        {/* CHAP USTUN — o'quvchi profili + shaxsiy ma'lumotlar (bitta karta) */}
+        <div className="lg:sticky lg:top-4 lg:self-start">
+          <Card className="space-y-5">
+            {/* Profil sarlavhasi */}
+            <div className="flex flex-col items-center gap-3 text-center">
+              <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-brand-50 text-3xl font-semibold text-brand-600">
+                {data.photoUrl ? (
+                  <img src={data.photoUrl} alt={data.fullName} className="h-full w-full object-cover" />
+                ) : (
+                  initials(data.fullName)
+                )}
+              </div>
+              <div className="min-w-0">
+                <h1 className="text-xl font-semibold text-slate-800">{data.fullName}</h1>
+                <div className="mt-1.5 flex flex-col items-center gap-1 text-sm text-slate-500">
+                  <span className="inline-flex items-center gap-1.5">
+                    <GraduationCap className="h-4 w-4 text-slate-400" /> {headerGroupNames || data.className || '—'}
+                  </span>
+                  {(headerTeacherNames || data.homeroomTeacher) && (
+                    <span className="inline-flex items-center gap-1.5">
+                      <User className="h-4 w-4 text-slate-400" /> {headerTeacherNames || data.homeroomTeacher}
+                    </span>
+                  )}
+                  {data.parentFullName && (
+                    <span className="inline-flex items-center gap-1.5">
+                      <User className="h-4 w-4 text-slate-400" /> Ota-ona: {data.parentFullName}
+                    </span>
+                  )}
+                  {data.parentPhone && (
+                    <span className="inline-flex items-center gap-1.5">
+                      <Phone className="h-4 w-4 text-slate-400" /> {data.parentPhone}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Balans */}
+            <div
+              className={cn(
+                'rounded-xl px-4 py-3 text-center',
+                data.balance < 0 ? 'bg-red-50' : 'bg-emerald-50',
+              )}
             >
-              <Pencil className="h-4 w-4" /> Tahrirlash
+              <p className="flex items-center justify-center gap-1 text-xs text-slate-500">
+                <Wallet className="h-3.5 w-3.5" /> Balans
+              </p>
+              <p className={cn('font-mono text-xl font-semibold', data.balance < 0 ? 'text-red-600' : 'text-emerald-700')}>
+                {formatMoney(data.balance)}
+              </p>
+            </div>
+
+            {/* Amallar */}
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setShowAi(true)}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-brand-600 to-violet-500 px-4 py-2 text-sm font-semibold text-white shadow-[0_2px_8px_oklch(0.5_0.18_282_/_0.3)] transition-all hover:opacity-90 active:translate-y-px"
+              >
+                <Sparkles className="h-4 w-4" /> AI Tahlil
+              </button>
+              <button
+                type="button"
+                onClick={openPayment}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:border-brand-300 hover:text-brand-700"
+              >
+                <Wallet className="h-4 w-4" /> To'lov qilish
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowHistory(true)}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:border-brand-300 hover:text-brand-700"
+              >
+                <History className="h-4 w-4" /> To'lov tarixi
+              </button>
+              <button
+                type="button"
+                onClick={openCall}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:border-brand-300 hover:text-brand-700"
+              >
+                <Phone className="h-4 w-4" /> Qo'ng'iroq qilish
+              </button>
+              <button
+                type="button"
+                onClick={openSms}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:border-brand-300 hover:text-brand-700"
+              >
+                <MessageSquare className="h-4 w-4" /> SMS yuborish
+              </button>
+              {can('students', 'edit') && (
+                <button
+                  type="button"
+                  onClick={openEdit}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:border-brand-300 hover:text-brand-700"
+                >
+                  <Pencil className="h-4 w-4" /> Tahrirlash
+                </button>
+              )}
+            </div>
+
+            {/* Shaxsiy ma'lumotlar */}
+            <div className="border-t border-slate-100 pt-4">
+              <div className="mb-3 flex items-center gap-2">
+                <User className="h-5 w-5 text-brand-600" />
+                <h2 className="font-semibold text-slate-800">Shaxsiy ma'lumotlar</h2>
+              </div>
+              <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-1">
+                <InfoRow icon={User} label="Jinsi" value={genderLabels[data.gender as 'male' | 'female'] ?? data.gender} />
+                <InfoRow icon={Cake} label="Tug'ilgan kun" value={data.birthDate ? formatDate(data.birthDate) : '—'} />
+                <InfoRow icon={CalendarPlus} label="Qabul sanasi" value={data.enrollmentDate ? formatDate(data.enrollmentDate) : '—'} />
+                <InfoRow icon={MapPin} label="Manzil" value={data.address || '—'} />
+                <InfoRow icon={GraduationCap} label="Guruh rahbari" value={data.homeroomTeacher || '—'} />
+                <InfoRow icon={User} label="Ota-ona" value={data.parentFullName || '—'} />
+                <InfoRow icon={Phone} label="Ota-ona telefoni" value={data.parentPhone || '—'} />
+                <InfoRow
+                  icon={Percent}
+                  label="Chegirma"
+                  value={
+                    data.discountPct > 0 || data.discountAmount > 0
+                      ? [
+                          data.discountPct > 0 ? `${data.discountPct}%` : null,
+                          data.discountAmount > 0 ? formatMoney(data.discountAmount) : null,
+                        ]
+                          .filter(Boolean)
+                          .join(' + ') + (data.discountNote ? ` — ${data.discountNote}` : '')
+                      : 'Yo\'q'
+                  }
+                />
+              </div>
+              {(data.photoUrl || data.parentPassportUrl) && (
+                <div className="mt-4 flex flex-wrap gap-4 border-t border-slate-100 pt-4">
+                  {data.photoUrl && (
+                    <a href={data.photoUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:underline">
+                      <IdCard className="h-4 w-4" /> O'quvchi hujjati / surati
+                    </a>
+                  )}
+                  {data.parentPassportUrl && (
+                    <a href={data.parentPassportUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:underline">
+                      <IdCard className="h-4 w-4" /> Ota-ona passporti
+                    </a>
+                  )}
+                </div>
+              )}
+            </div>
+          </Card>
+        </div>
+
+        {/* O'NG USTUN — bo'limlar (tab) */}
+        <div className="min-w-0 space-y-6">
+          <div className="tabs flex-wrap" role="tablist">
+            <button type="button" className={cn('tab', tab === 'guruhlar' && 'active')} onClick={() => setTab('guruhlar')}>
+              <School className="mr-1 inline h-3.5 w-3.5" /> Guruhlar
             </button>
-          )}
-        </div>
-      </Card>
-
-      {/* AI Tahlil — saqlangan tahlillar tarixi (kuniga bir marta) */}
-      <AiSection records={aiRecords} onOpen={() => setShowAi(true)} />
-
-      {/* Shaxsiy ma'lumotlar */}
-      <Section title="Shaxsiy ma'lumotlar" icon={User}>
-        <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
-          <InfoRow icon={User} label="Jinsi" value={genderLabels[data.gender as 'male' | 'female'] ?? data.gender} />
-          <InfoRow icon={Cake} label="Tug'ilgan kun" value={data.birthDate ? formatDate(data.birthDate) : '—'} />
-          <InfoRow icon={CalendarPlus} label="Qabul sanasi" value={data.enrollmentDate ? formatDate(data.enrollmentDate) : '—'} />
-          <InfoRow icon={MapPin} label="Manzil" value={data.address || '—'} />
-          <InfoRow icon={GraduationCap} label="Guruh rahbari" value={data.homeroomTeacher || '—'} />
-          <InfoRow icon={User} label="Ota-ona" value={data.parentFullName || '—'} />
-          <InfoRow icon={Phone} label="Ota-ona telefoni" value={data.parentPhone || '—'} />
-          <InfoRow
-            icon={Percent}
-            label="Chegirma"
-            value={
-              data.discountPct > 0 || data.discountAmount > 0
-                ? [
-                    data.discountPct > 0 ? `${data.discountPct}%` : null,
-                    data.discountAmount > 0 ? formatMoney(data.discountAmount) : null,
-                  ]
-                    .filter(Boolean)
-                    .join(' + ') + (data.discountNote ? ` — ${data.discountNote}` : '')
-                : 'Yo\'q'
-            }
-          />
-        </div>
-        {(data.photoUrl || data.parentPassportUrl) && (
-          <div className="mt-4 flex flex-wrap gap-4 border-t border-slate-100 pt-4">
-            {data.photoUrl && (
-              <a href={data.photoUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:underline">
-                <IdCard className="h-4 w-4" /> O'quvchi hujjati / surati
-              </a>
-            )}
-            {data.parentPassportUrl && (
-              <a href={data.parentPassportUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:underline">
-                <IdCard className="h-4 w-4" /> Ota-ona passporti
-              </a>
-            )}
+            <button type="button" className={cn('tab', tab === 'dastur' && 'active')} onClick={() => setTab('dastur')}>
+              <ListChecks className="mr-1 inline h-3.5 w-3.5" /> O'quv dasturi
+            </button>
+            <button type="button" className={cn('tab', tab === 'baholar' && 'active')} onClick={() => setTab('baholar')}>
+              <GraduationCap className="mr-1 inline h-3.5 w-3.5" /> Baholar
+            </button>
+            <button type="button" className={cn('tab', tab === 'davomat' && 'active')} onClick={() => setTab('davomat')}>
+              <CalendarCheck className="mr-1 inline h-3.5 w-3.5" /> Davomat va intizom
+            </button>
+            <button type="button" className={cn('tab', tab === 'fikr' && 'active')} onClick={() => setTab('fikr')}>
+              <LifeBuoy className="mr-1 inline h-3.5 w-3.5" /> Fikr-mulohaza
+            </button>
+            <button type="button" className={cn('tab', tab === 'testlar' && 'active')} onClick={() => setTab('testlar')}>
+              <ClipboardCheck className="mr-1 inline h-3.5 w-3.5" /> Testlar
+            </button>
+            <button type="button" className={cn('tab', tab === 'sertifikatlar' && 'active')} onClick={() => setTab('sertifikatlar')}>
+              <Award className="mr-1 inline h-3.5 w-3.5" /> Sertifikatlar
+            </button>
+            <button type="button" className={cn('tab', tab === 'aloqa' && 'active')} onClick={() => setTab('aloqa')}>
+              <PhoneCall className="mr-1 inline h-3.5 w-3.5" /> Aloqa
+            </button>
+            <button type="button" className={cn('tab', tab === 'ai' && 'active')} onClick={() => setTab('ai')}>
+              <Sparkles className="mr-1 inline h-3.5 w-3.5" /> AI Tahlil
+            </button>
           </div>
-        )}
-      </Section>
+
+          {/* AI Tahlil — saqlangan tahlillar tarixi (kuniga bir marta) */}
+          {tab === 'ai' && (
+            <AiSection records={aiRecords} onOpen={() => setShowAi(true)} />
+          )}
 
       {/* Guruhlar — o'quvchi bir nechta guruhda bo'lishi mumkin (har biri karta) */}
+      {tab === 'guruhlar' && (
       <Section
         title="Guruhlar"
         icon={School}
@@ -806,8 +868,10 @@ export function StudentDetailPage() {
           </div>
         )}
       </Section>
+      )}
 
       {/* Qo'ng'iroqlar tarixi (Local Call — agent-telefonlar orqali) */}
+      {tab === 'aloqa' && (
       <Section title="Qo'ng'iroqlar tarixi" icon={PhoneCall}>
         {callsLoading ? (
           <Empty>Yuklanmoqda...</Empty>
@@ -821,8 +885,10 @@ export function StudentDetailPage() {
           </div>
         )}
       </Section>
+      )}
 
       {/* SMS tarixi (Eskiz + Local — o'quvchi/ota-ona raqamlariga yuborilgan) */}
+      {tab === 'aloqa' && (
       <Section title="SMS tarixi" icon={MessageSquare}>
         {smsLoading ? (
           <Empty>Yuklanmoqda...</Empty>
@@ -836,8 +902,10 @@ export function StudentDetailPage() {
           </div>
         )}
       </Section>
+      )}
 
       {/* Tugatgan kurslar va sertifikatlar */}
+      {tab === 'sertifikatlar' && (
       <Section
         title="Tugatgan kurslar va sertifikatlar"
         icon={Award}
@@ -933,7 +1001,10 @@ export function StudentDetailPage() {
         )}
       </Section>
 
+      )}
+
       {/* O'quv dasturi (checklist) — har kurs uchun daraja → mavzu → band, bajarilganini belgilash */}
+      {tab === 'dastur' && (
       <Section title="O'quv dasturi (checklist)" icon={ListChecks}>
         {studentCourses.length === 0 ? (
           <Empty>O'quvchi hech qaysi kursga biriktirilmagan</Empty>
@@ -951,7 +1022,10 @@ export function StudentDetailPage() {
         )}
       </Section>
 
+      )}
+
       {/* Darslar tarixi — guruh jurnalida belgilangan o'tilgan mavzular, eng yangisi birinchi */}
+      {tab === 'dastur' && (
       <Section title="Darslar tarixi (o'tilgan mavzular)" icon={CalendarClock}>
         {coverageLog.length === 0 ? (
           <Empty>Hali dars o'tilmagan</Empty>
@@ -994,8 +1068,11 @@ export function StudentDetailPage() {
         )}
       </Section>
 
-      {/* Stat kartalar */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      )}
+
+      {/* Stat kartalar — Baholar */}
+      {tab === 'baholar' && (
+      <div className="grid gap-4 sm:grid-cols-2">
         <StatCard
           label="O'rtacha baho"
           value={data.avgGrade || '—'}
@@ -1003,6 +1080,20 @@ export function StudentDetailPage() {
           iconBg="bg-brand-50"
           iconColor="text-brand-600"
         />
+        <StatCard
+          label="Topshiriqlar"
+          value={`${data.assignments.gradedCount}/${data.assignments.count}`}
+          hint={data.assignments.totalMax > 0 ? `${data.assignments.totalScore}/${data.assignments.totalMax} ball` : undefined}
+          icon={ClipboardCheck}
+          iconBg="bg-indigo-50"
+          iconColor="text-indigo-600"
+        />
+      </div>
+      )}
+
+      {/* Stat kartalar — Davomat va intizom */}
+      {tab === 'davomat' && (
+      <div className="grid gap-4 sm:grid-cols-2">
         <StatCard
           label="Davomat"
           value={data.conducted > 0 ? `${data.attendancePct}%` : '—'}
@@ -1019,17 +1110,11 @@ export function StudentDetailPage() {
           iconBg="bg-amber-50"
           iconColor="text-amber-600"
         />
-        <StatCard
-          label="Topshiriqlar"
-          value={`${data.assignments.gradedCount}/${data.assignments.count}`}
-          hint={data.assignments.totalMax > 0 ? `${data.assignments.totalScore}/${data.assignments.totalMax} ball` : undefined}
-          icon={ClipboardCheck}
-          iconBg="bg-indigo-50"
-          iconColor="text-indigo-600"
-        />
       </div>
+      )}
 
       {/* Diagrammalar */}
+      {tab === 'davomat' && (
       <div className="grid gap-6 lg:grid-cols-2">
         <Section title="Davomat (oy bo'yicha)" icon={CalendarCheck}>
           <ResponsiveContainer width="100%" height={280}>
@@ -1063,9 +1148,10 @@ export function StudentDetailPage() {
           </Section>
         )}
       </div>
+      )}
 
       {/* Fan baholari dinamikasi — oy tanlanadi, har fan o'rtacha bahosi bar chartda */}
-      {data.subjects.length > 0 && (
+      {tab === 'baholar' && data.subjects.length > 0 && (
         <Section title="Fan baholari dinamikasi (oy bo'yicha)" icon={GraduationCap}>
           <div className="mb-4 flex flex-wrap gap-1.5">
             {allMonths.map((m) => (
@@ -1115,6 +1201,7 @@ export function StudentDetailPage() {
       )}
 
       {/* Baholar matritsasi (fan × oy) */}
+      {tab === 'baholar' && (
       <Section title="Baholar (fan × oy)" icon={GraduationCap}>
         {data.subjects.length === 0 ? (
           <Empty>Fan yo'q</Empty>
@@ -1152,8 +1239,10 @@ export function StudentDetailPage() {
           </div>
         )}
       </Section>
+      )}
 
       {/* Davomat sabablari */}
+      {tab === 'davomat' && (
       <Section title="Davomat sabablari" icon={CalendarCheck}>
         {data.reasons.length === 0 ? (
           <Empty>Davomat belgilari yo'q</Empty>
@@ -1173,9 +1262,10 @@ export function StudentDetailPage() {
           </div>
         )}
       </Section>
+      )}
 
       {/* Support feedback — support o'qituvchining o'tilgan darslari (guruhsiz) */}
-      {supportFeedback.length > 0 && (
+      {tab === 'fikr' && supportFeedback.length > 0 && (
         <Section title="Support feedback" icon={LifeBuoy}>
           <div className="space-y-2.5">
             {supportFeedback.map((f, i) => (
@@ -1204,7 +1294,7 @@ export function StudentDetailPage() {
       )}
 
       {/* Oylik baholash */}
-      {data.evaluationTypes.length > 0 && (
+      {tab === 'fikr' && data.evaluationTypes.length > 0 && (
         <Section title="Oylik feedback" icon={ClipboardCheck}>
           {data.evaluationsBySubject.length === 0 ? (
             <Empty>Hali baholanmagan</Empty>
@@ -1342,6 +1432,7 @@ export function StudentDetailPage() {
       )}
 
       {/* Topshiriqlar */}
+      {tab === 'baholar' && (
       <Section title="Topshiriqlar ballari" icon={ClipboardCheck}>
         {data.assignments.items.length === 0 ? (
           <Empty>Topshiriq yo'q</Empty>
@@ -1378,9 +1469,10 @@ export function StudentDetailPage() {
           </div>
         )}
       </Section>
+      )}
 
       {/* Yig'ilgan ballar — har oyda nechta baholash mezoni bajarilgani (o'rtacha EMAS, JAMI ball) */}
-      {gradingSummary.length > 0 && (
+      {tab === 'baholar' && gradingSummary.length > 0 && (
         <Section title="Yig'ilgan ballar" icon={ClipboardCheck}>
           <div className="mb-3 flex items-baseline gap-2 rounded-lg bg-gradient-to-r from-brand-50 to-slate-50 px-4 py-3">
             <span className="text-sm font-medium text-slate-600">Jami yig'ilgan ball:</span>
@@ -1414,6 +1506,7 @@ export function StudentDetailPage() {
       )}
 
       {/* Testlar natijalari — barcha guruhlaridan */}
+      {tab === 'testlar' && (
       <Section title="Testlar natijalari" icon={ClipboardCheck}>
         {testResults.length === 0 ? (
           <Empty>Test natijalari yo'q</Empty>
@@ -1448,8 +1541,10 @@ export function StudentDetailPage() {
           </div>
         )}
       </Section>
+      )}
 
       {/* Intizomiy ball tarixi */}
+      {tab === 'davomat' && (
       <Section title="Intizomiy ball tarixi" icon={ShieldAlert}>
         {data.disciplinePoints.length === 0 ? (
           <Empty>Yozuv yo'q</Empty>
@@ -1475,6 +1570,9 @@ export function StudentDetailPage() {
           </div>
         )}
       </Section>
+      )}
+        </div>
+      </div>
 
       <PaymentHistoryModal
         studentId={showHistory ? (data?.id ?? null) : null}
