@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import {
   ArrowLeft,
   ArrowUpRight,
+  ChevronRight,
   Users,
   TrendingUp,
   Wallet,
@@ -10,11 +11,13 @@ import {
   Trophy,
   Medal,
   Award,
+  Plus,
 } from 'lucide-react'
 import type {
   Credentials,
   Group,
   GroupSalaryLine,
+  MonthSalary,
   SalaryLedger,
   Subject,
   Teacher,
@@ -28,10 +31,12 @@ import {
   getTeacherPerformanceSingle,
   getTeacherRating,
   getSalaryLedger,
+  getSalaryMonth,
   resetTeacherPassword,
   saveGroupSalaries,
   type GroupSalaryItem,
 } from '@/api/services/teachers'
+import { createTransaction } from '@/api/services/finance'
 import { getClasses } from '@/api/services/classes'
 import { getSubjects } from '@/api/services/subjects'
 import { genderLabels, formatMonth } from '@/config/constants'
@@ -42,6 +47,7 @@ import { StatCard } from '@/components/ui/StatCard'
 import { Loader } from '@/components/ui/Loader'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { CredentialsBox } from '@/components/ui/CredentialsBox'
+import { AuditHistoryList } from '@/components/audit/AuditHistoryList'
 
 type Tab = 'info' | 'groups' | 'rating' | 'salary' | 'performance'
 
@@ -90,11 +96,89 @@ export function TeacherDetailPage() {
   const [ratingLoading, setRatingLoading] = useState(false)
   const [ratingError, setRatingError] = useState<string | null>(null)
 
+  // Joriy oy kaliti ("YYYY-MM") — stat karta va oy tanlagichi uchun bir manba.
+  const currentMonthKey = useMemo(() => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+  }, [])
+
   // Salary
   const [salaryLoading, setSalaryLoading] = useState(false)
   const [salaryLedger, setSalaryLedger] = useState<SalaryLedger | null>(null)
   // Per-guruh editor mount kaliti — saqlangach yangi qiymatlar bilan qayta tiklash uchun.
   const [salaryVersion, setSalaryVersion] = useState(0)
+
+  // Tanlangan oy tafsiloti + to'lov qilish formasi
+  const [selMonth, setSelMonth] = useState(currentMonthKey)
+  const [selMonthData, setSelMonthData] = useState<MonthSalary | null>(null)
+  const [selMonthLoading, setSelMonthLoading] = useState(false)
+  const [dedOpen, setDedOpen] = useState(false)
+  const [payOpen, setPayOpen] = useState(false)
+  const [payAmount, setPayAmount] = useState(0)
+  const [payDate, setPayDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [payNote, setPayNote] = useState('')
+  const [payBusy, setPayBusy] = useState(false)
+  const [payError, setPayError] = useState<string | null>(null)
+
+  // Oxirgi 12 oy (joriy oydan orqaga) — tanlagich uchun, alohida so'rovsiz.
+  const monthOptions = useMemo(() => {
+    const arr: string[] = []
+    let [y, m] = currentMonthKey.split('-').map(Number)
+    for (let i = 0; i < 12; i++) {
+      arr.push(`${y}-${String(m).padStart(2, '0')}`)
+      m -= 1
+      if (m === 0) {
+        m = 12
+        y -= 1
+      }
+    }
+    return arr
+  }, [currentMonthKey])
+
+  const loadSelMonth = (month: string) => {
+    if (!id) return
+    setSelMonthLoading(true)
+    setDedOpen(false)
+    getSalaryMonth(id, month)
+      .then(setSelMonthData)
+      .catch(() => setSelMonthData(null))
+      .finally(() => setSelMonthLoading(false))
+  }
+
+  const openPayForm = () => {
+    setPayAmount(Math.max(0, selMonthData?.remaining ?? 0))
+    setPayDate(new Date().toISOString().slice(0, 10))
+    setPayNote(
+      teacher ? `Oylik maosh — ${teacher.fullName} (${formatMonth(selMonth)})` : '',
+    )
+    setPayError(null)
+    setPayOpen(true)
+  }
+
+  const submitPay = async () => {
+    if (!id) return
+    setPayBusy(true)
+    setPayError(null)
+    try {
+      await createTransaction({
+        date: payDate,
+        direction: 'expense',
+        category: 'salary',
+        amount: payAmount,
+        teacherId: id,
+        month: selMonth,
+        note: payNote.trim() || undefined,
+      })
+      const m = await getSalaryMonth(id, selMonth)
+      setSelMonthData(m)
+      reloadSalary()
+      setPayOpen(false)
+    } catch (err) {
+      setPayError(apiErrorMessage(err, "To'lov qilib bo'lmadi"))
+    } finally {
+      setPayBusy(false)
+    }
+  }
 
   const reloadSalary = () => {
     if (!id) return
@@ -155,6 +239,12 @@ export function TeacherDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, id, salaryLedger])
 
+  useEffect(() => {
+    if (tab !== 'salary' || !id) return
+    loadSelMonth(selMonth)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, id, selMonth])
+
   if (loading)
     return (
       <div className="flex min-h-[300px] items-center justify-center">
@@ -180,9 +270,6 @@ export function TeacherDetailPage() {
     .map((sid) => subjects.find((s) => s.id === sid)?.name)
     .filter(Boolean)
     .join(', ')
-
-  const now = new Date()
-  const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
 
   return (
     <div>
@@ -567,6 +654,246 @@ export function TeacherDetailPage() {
             />
           </div>
 
+          {/* OY TANLASH + TANLANGAN OY TAFSILOTI + TO'LOV QILISH */}
+          <Card>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-slate-600">Oy:</span>
+                <select
+                  value={selMonth}
+                  onChange={(e) => setSelMonth(e.target.value)}
+                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm focus:border-brand-400 focus:outline-none"
+                >
+                  {monthOptions.map((m) => (
+                    <option key={m} value={m}>
+                      {formatMonth(m)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <button
+                type="button"
+                onClick={openPayForm}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-700"
+              >
+                <Plus className="h-4 w-4" />
+                To'lov qilish
+              </button>
+            </div>
+
+            {selMonthLoading ? (
+              <div className="mt-4">
+                <Loader label="Yuklanmoqda..." />
+              </div>
+            ) : !selMonthData ? (
+              <p className="mt-4 text-sm text-slate-400">
+                Bu oy uchun maosh ma'lumoti yo'q.
+              </p>
+            ) : (
+              <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <div className="rounded-xl border border-slate-100 px-3 py-2.5 text-center">
+                  <p className="text-xs text-slate-400">Hisoblangan</p>
+                  <p className="mt-0.5 font-mono font-semibold text-slate-700">
+                    {formatMoney(selMonthData.expected)}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-slate-100 px-3 py-2.5 text-center">
+                  <p className="text-xs text-slate-400">Berilgan</p>
+                  <p className="mt-0.5 font-mono font-semibold text-emerald-600">
+                    {formatMoney(selMonthData.paid)}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-slate-100 px-3 py-2.5 text-center">
+                  <p className="text-xs text-slate-400">Qoldiq</p>
+                  <p
+                    className={cn(
+                      'mt-0.5 font-mono font-semibold',
+                      selMonthData.remaining > 0 ? 'text-red-600' : 'text-slate-600',
+                    )}
+                  >
+                    {selMonthData.remaining < 0
+                      ? `+${formatMoney(-selMonthData.remaining)}`
+                      : formatMoney(selMonthData.remaining)}
+                  </p>
+                </div>
+                <div className="flex flex-col items-center justify-center rounded-xl border border-slate-100 px-3 py-2.5 text-center">
+                  <p className="text-xs text-slate-400">Holat</p>
+                  <div className="mt-1">
+                    <Badge
+                      tone={
+                        selMonthData.status === 'paid'
+                          ? 'green'
+                          : selMonthData.status === 'partial'
+                            ? 'amber'
+                            : 'default'
+                      }
+                      dot
+                    >
+                      {selMonthData.status === 'paid'
+                        ? "To'liq"
+                        : selMonthData.status === 'partial'
+                          ? 'Qisman'
+                          : "To'lanmadi"}
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Jurnal ushlanmasi tafsiloti (bo'lsa) */}
+            {selMonthData && (selMonthData.deduction ?? 0) > 0 && (
+              <div className="mt-3">
+                <button
+                  type="button"
+                  onClick={() => setDedOpen((v) => !v)}
+                  className="flex w-full items-center justify-between rounded-lg bg-amber-50 px-3 py-2.5 text-left text-xs text-amber-800"
+                >
+                  <span className="flex items-center gap-1.5">
+                    <ChevronRight
+                      className={cn('h-3.5 w-3.5 transition-transform', dedOpen && 'rotate-90')}
+                    />
+                    Jurnal ushlanmasi: −{formatMoney(selMonthData.deduction ?? 0)} (
+                    {selMonthData.missedLessons ?? 0} dars)
+                  </span>
+                  <span className="text-amber-600">sababi</span>
+                </button>
+                {dedOpen && (
+                  <div className="mt-2 space-y-2">
+                    {(selMonthData.lessons ?? [])
+                      .filter((l) => l.missed > 0)
+                      .map((l) => (
+                        <div
+                          key={l.groupId}
+                          className="rounded-lg border border-slate-200 bg-white px-3 py-2"
+                        >
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <span className="text-sm font-semibold text-slate-700">
+                              {l.groupName}
+                            </span>
+                            <span className="text-xs text-slate-500">
+                              {l.conducted}/{l.planned} dars belgilangan ·{' '}
+                              <span className="font-mono font-semibold text-red-600">
+                                −{formatMoney(l.deduction)}
+                              </span>
+                            </span>
+                          </div>
+                          <div className="mt-1.5 flex flex-wrap gap-1">
+                            {l.missedDates.map((d) => (
+                              <span
+                                key={d}
+                                className="rounded-md bg-red-50 px-1.5 py-0.5 font-mono text-[11px] text-red-700"
+                              >
+                                {formatDate(d)}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* To'lov qilish formasi (inline) */}
+            {payOpen && (
+              <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <p className="mb-3 text-sm font-semibold text-slate-700">
+                  {formatMonth(selMonth)} uchun maosh berish
+                </p>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <label className="block">
+                    <span className="text-xs text-slate-500">Summa (so'm)</span>
+                    <input
+                      type="number"
+                      min={0}
+                      step="any"
+                      value={payAmount}
+                      onChange={(e) => setPayAmount(Number(e.target.value))}
+                      className="mt-1 w-full rounded-lg border border-slate-200 px-2.5 py-1.5 font-mono text-sm focus:border-brand-400 focus:outline-none"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs text-slate-500">Sana</span>
+                    <input
+                      type="date"
+                      value={payDate}
+                      onChange={(e) => setPayDate(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm focus:border-brand-400 focus:outline-none"
+                    />
+                  </label>
+                  <label className="block sm:col-span-1">
+                    <span className="text-xs text-slate-500">Izoh</span>
+                    <input
+                      type="text"
+                      value={payNote}
+                      onChange={(e) => setPayNote(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm focus:border-brand-400 focus:outline-none"
+                    />
+                  </label>
+                </div>
+                {payError && (
+                  <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                    {payError}
+                  </div>
+                )}
+                <div className="mt-3 flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPayOpen(false)}
+                    disabled={payBusy}
+                    className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
+                  >
+                    Bekor qilish
+                  </button>
+                  <button
+                    type="button"
+                    onClick={submitPay}
+                    disabled={payBusy || payAmount <= 0}
+                    className={cn(
+                      'rounded-lg px-4 py-2 text-sm font-semibold text-white transition-colors',
+                      payBusy || payAmount <= 0
+                        ? 'cursor-not-allowed bg-slate-300'
+                        : 'bg-brand-600 hover:bg-brand-700',
+                    )}
+                  >
+                    {payBusy ? 'Saqlanmoqda...' : 'To\'lash'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </Card>
+
+          {/* BERILGAN MAOSHLAR TARIXI */}
+          <Card title="Berilgan maoshlar">
+            {!salaryLedger || salaryLedger.payments.length === 0 ? (
+              <p className="text-sm text-slate-400">Bu davrda maosh berilmagan.</p>
+            ) : (
+              <ul className="space-y-1.5">
+                {[...salaryLedger.payments]
+                  .sort((a, b) => (a.date < b.date ? 1 : -1))
+                  .map((p, i) => (
+                    <li
+                      key={i}
+                      className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-100 px-3 py-2 text-sm"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="font-mono text-slate-500">{formatDate(p.date)}</span>
+                        {p.month && (
+                          <Badge tone="violet">{formatMonth(p.month)}</Badge>
+                        )}
+                        {(p.comment || p.note) && (
+                          <span className="text-slate-500">{p.comment || p.note}</span>
+                        )}
+                      </div>
+                      <span className="font-mono font-semibold text-slate-700">
+                        {formatMoney(p.amount)}
+                      </span>
+                    </li>
+                  ))}
+              </ul>
+            )}
+          </Card>
+
           {/* PER-GURUH maosh sozlamasi */}
           {groups.length === 0 ? (
             <Card>
@@ -654,6 +981,14 @@ export function TeacherDetailPage() {
               </div>
             </Card>
           )}
+
+          {/* O'zgarishlar tarixi */}
+          <Card title="O'zgarishlar tarixi">
+            <AuditHistoryList
+              filters={{ teacherId: teacher.id }}
+              emptyLabel="Maosh bo'yicha o'zgarishlar yo'q"
+            />
+          </Card>
         </div>
       )}
 

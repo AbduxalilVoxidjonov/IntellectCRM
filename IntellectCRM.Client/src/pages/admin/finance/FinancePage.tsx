@@ -756,8 +756,28 @@ export function FinancePage() {
                               <span className="ml-1 text-slate-400">{formatTime(p.createdAt)}</span>
                             )}
                           </td>
-                          <td className="font-medium text-slate-800">{p.studentName ?? '—'}</td>
-                          <td>{p.groupName ? <Badge>{p.groupName}</Badge> : <span className="text-slate-300">—</span>}</td>
+                          <td className="font-medium text-slate-800">
+                            {p.studentId ? (
+                              <Link to={`/admin/students/${p.studentId}`} className="hover:text-brand-600 hover:underline">
+                                {p.studentName ?? '—'}
+                              </Link>
+                            ) : (
+                              p.studentName ?? '—'
+                            )}
+                          </td>
+                          <td>
+                            {p.groupName ? (
+                              p.groupId ? (
+                                <Link to={`/admin/classes/${p.groupId}`}>
+                                  <Badge>{p.groupName}</Badge>
+                                </Link>
+                              ) : (
+                                <Badge>{p.groupName}</Badge>
+                              )
+                            ) : (
+                              <span className="text-slate-300">—</span>
+                            )}
+                          </td>
                           <td className="text-slate-600">{p.month ? formatMonth(p.month) : '—'}</td>
                           <td>
                             {p.method ? (
@@ -887,8 +907,28 @@ export function FinancePage() {
                               <span className="ml-1 text-slate-400">{formatTime(r.createdAt)}</span>
                             )}
                           </td>
-                          <td className="font-medium text-slate-800">{r.studentName ?? '—'}</td>
-                          <td>{r.groupName ? <Badge>{r.groupName}</Badge> : <span className="text-slate-300">—</span>}</td>
+                          <td className="font-medium text-slate-800">
+                            {r.studentId ? (
+                              <Link to={`/admin/students/${r.studentId}`} className="hover:text-brand-600 hover:underline">
+                                {r.studentName ?? '—'}
+                              </Link>
+                            ) : (
+                              r.studentName ?? '—'
+                            )}
+                          </td>
+                          <td>
+                            {r.groupName ? (
+                              r.groupId ? (
+                                <Link to={`/admin/classes/${r.groupId}`}>
+                                  <Badge>{r.groupName}</Badge>
+                                </Link>
+                              ) : (
+                                <Badge>{r.groupName}</Badge>
+                              )
+                            ) : (
+                              <span className="text-slate-300">—</span>
+                            )}
+                          </td>
                           <td className="text-slate-600">{r.month ? formatMonth(r.month) : '—'}</td>
                           <td className="text-slate-600">{r.reason || <span className="text-slate-300">—</span>}</td>
                           <td className="text-slate-500">{r.createdBy ?? '—'}</td>
