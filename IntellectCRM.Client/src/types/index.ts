@@ -99,8 +99,8 @@ export interface DashboardHeaderStats {
   leads: number
   /** Sinov holatidagi (StudentGroup.Status=="trial") o'quvchilar soni */
   trialStudents: number
-  /** Shu oyda tuition to'lovi qilgan (betakror) o'quvchilar soni */
-  paidThisMonth: number
+  /** Markazdagi barcha aktiv (StudentGroup.Status=="active") o'quvchilar soni */
+  active: number
   /** Muzlatilgan (StudentGroup.Status=="frozen") o'quvchilar soni */
   frozen: number
   /** Qarzdorlar (Balance < 0) */

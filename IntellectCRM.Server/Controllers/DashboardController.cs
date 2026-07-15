@@ -214,15 +214,10 @@ public class DashboardController(DataCache dataCache) : ControllerBase
         var frozenStudentsCount = memberships
             .Where(m => m.Status == "frozen" && nonArchivedIds.Contains(m.StudentId))
             .Select(m => m.StudentId).Distinct().Count();
-        // Shu oyda haqiqiy tuition to'lovi qilgan (betakror) o'quvchilar soni.
-        var paidThisMonthCount = await db.FinanceTransactions.AsNoTracking()
-            .Where(t => t.Direction == "income" && t.Category == "tuition"
-                && t.StudentId != null && t.Date.StartsWith(cur))
-            .Select(t => t.StudentId!)
-            .Distinct()
-            .CountAsync();
+        // "Faol o'quvchilar" = markazdagi BARCHA aktiv (Status=="active") a'zolik statusidagi
+        // o'quvchilar soni (activeCount — yuqorida studentBreakdown uchun hisoblangan bilan bir xil).
         var header = new DashboardHeaderStatsDto(
-            leadsCount, trialStudentsCount, paidThisMonthCount, frozenStudentsCount, debtors);
+            leadsCount, trialStudentsCount, activeCount, frozenStudentsCount, debtors);
 
         var topClasses = classes
             .Select(c => new TopClassDto(

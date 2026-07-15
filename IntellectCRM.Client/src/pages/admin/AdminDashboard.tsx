@@ -38,11 +38,10 @@ export function AdminDashboard() {
         />
         <StatCard
           label="Faol o'quvchilar"
-          value={header.paidThisMonth.toLocaleString()}
+          value={header.active.toLocaleString()}
           icon={UserCheck}
           iconBg="bg-emerald-50"
           iconColor="text-emerald-600"
-          hint="shu oy to'lov qilgan"
         />
         <StatCard
           label="Muzlatilganlar"

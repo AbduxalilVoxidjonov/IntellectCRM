@@ -617,7 +617,7 @@ public record ClassPerformanceItemDto(string ClassId, string ClassName, double A
 public record TopClassDto(string Id, string Name, int StudentsCount, int ActiveCount, double AverageGrade);
 public record StudentBreakdownDto(int Active, int Inactive, int Debtors, int Paid, int WithGroup, int WithoutGroup);
 /// <summary>Bosh sahifa tepasidagi 5 ta asosiy ko'rsatkich.</summary>
-public record DashboardHeaderStatsDto(int Leads, int TrialStudents, int PaidThisMonth, int Frozen, int Debtors);
+public record DashboardHeaderStatsDto(int Leads, int TrialStudents, int Active, int Frozen, int Debtors);
 public record AdminDashboardDto(
     AdminStatsDto Stats, List<ClassPerformanceItemDto> ClassPerformance, List<TopClassDto> TopClasses,
     StudentBreakdownDto StudentBreakdown, int TotalGradesCount, DashboardHeaderStatsDto Header);

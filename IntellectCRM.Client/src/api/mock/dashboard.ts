@@ -37,7 +37,7 @@ export const adminDashboardMock: AdminDashboard = {
   header: {
     leads: 64,
     trialStudents: 23,
-    paidThisMonth: 812,
+    active: 812,
     frozen: 37,
     debtors: 142,
   },
