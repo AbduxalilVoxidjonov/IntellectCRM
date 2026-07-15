@@ -13,13 +13,13 @@ namespace IntellectCRM.Server.Controllers;
 public class AuditController(AppDbContext db) : ControllerBase
 {
     /// <summary>
-    /// O'zgarishlar tarixi. Filtrlar: entityType+entityId (bitta yozuv), studentId, teacherId,
+    /// O'zgarishlar tarixi. Filtrlar: entityType+entityId (bitta yozuv), studentId, teacherId, groupId,
     /// entityType, action, davr (from/to). Hammasi ixtiyoriy — vaqt bo'yicha kamayish tartibida.
     /// </summary>
     [HttpGet]
     public async Task<ActionResult<IEnumerable<AuditLogDto>>> Get(
         [FromQuery] string? entityType, [FromQuery] string? entityId,
-        [FromQuery] string? studentId, [FromQuery] string? teacherId,
+        [FromQuery] string? studentId, [FromQuery] string? teacherId, [FromQuery] string? groupId,
         [FromQuery] string? action, [FromQuery] string? from, [FromQuery] string? to,
         [FromQuery] int? limit)
     {
@@ -29,6 +29,10 @@ public class AuditController(AppDbContext db) : ControllerBase
         if (!string.IsNullOrEmpty(entityId)) q = q.Where(a => a.EntityId == entityId);
         if (!string.IsNullOrEmpty(studentId)) q = q.Where(a => a.StudentId == studentId);
         if (!string.IsNullOrEmpty(teacherId)) q = q.Where(a => a.TeacherId == teacherId);
+        // Guruhga oid: guruh yozuvining o'zi (EntityId == groupId) YOKI a'zolik hodisalari
+        // (Membership entityId = "{groupId}:{studentId}" — ClassesController.audit.Record shu formatda yozadi).
+        if (!string.IsNullOrEmpty(groupId))
+            q = q.Where(a => a.EntityId == groupId || a.EntityId.StartsWith(groupId + ":"));
         if (!string.IsNullOrEmpty(action)) q = q.Where(a => a.Action == action);
         if (!string.IsNullOrEmpty(from)) q = q.Where(a => string.Compare(a.Timestamp, from) >= 0);
         if (!string.IsNullOrEmpty(to)) q = q.Where(a => string.Compare(a.Timestamp, to) <= 0);

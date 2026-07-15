@@ -11,6 +11,8 @@ export interface AuditFilters {
   studentId?: string
   /** O'qituvchiga oid o'zgarishlar */
   teacherId?: string
+  /** Guruhga oid o'zgarishlar (guruh yozuvining o'zi + a'zolik hodisalari — faollashtirish/muzlatish/ko'chirish/chiqarish) */
+  groupId?: string
   action?: string
   from?: string
   to?: string

@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft, GraduationCap, CalendarCheck, ShieldAlert, ClipboardCheck,
   User, Phone, Wallet, BookOpen, MapPin, Cake, CalendarPlus, Percent, IdCard,
   School, Clock, CalendarDays, ChevronRight, History, ListChecks, ChevronDown, Check,
   CalendarClock, Award, Download, LifeBuoy, Sparkles, Pencil, MessageSquare,
   PhoneIncoming, PhoneOutgoing, PhoneMissed, PhoneCall,
-  Snowflake, CheckCircle2, RotateCcw, ArrowLeftRight, Plus, NotebookText,
+  Snowflake, CheckCircle2, RotateCcw, ArrowLeftRight, Plus, NotebookText, X,
 } from 'lucide-react'
 import { genderLabels } from '@/config/constants'
 import {
@@ -35,6 +35,7 @@ import {
 import type { StudentPayload } from '@/api/services/students'
 import {
   getStudentGroups, getClasses, freezeMember, activateMember, returnMemberToTrial, addGroupMember,
+  removeGroupMember,
 } from '@/api/services/classes'
 import { getCurriculum, getProgress, setProgress, getStudentCoverageLog, type CoverageLogEntry } from '@/api/services/curriculum'
 import { getStudentGradingSummary, type MonthGradingSummary } from '@/api/services/grading'
@@ -108,6 +109,7 @@ type Tab =
 
 export function StudentDetailPage() {
   const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
   const { can } = usePerm()
   const [data, setData] = useState<StudentNotebook | null>(null)
   const [groups, setGroups] = useState<StudentGroupMembership[]>([])
@@ -145,7 +147,7 @@ export function StudentDetailPage() {
   /** "Guruhlar" kartasi bosilganda — a'zolik boshqaruvi modali (muzlatish/aktivlashtirish/sinovga/almashtirish). */
   const [groupModal, setGroupModal] = useState<StudentGroupMembership | null>(null)
   const [groupActionDate, setGroupActionDate] = useState('')
-  const [groupReasonAction, setGroupReasonAction] = useState<'freeze' | 'return' | null>(null)
+  const [groupReasonAction, setGroupReasonAction] = useState<'freeze' | 'return' | 'remove' | 'activate' | null>(null)
   const [groupTransferOpen, setGroupTransferOpen] = useState(false)
   const [groupBusy, setGroupBusy] = useState(false)
   /** "Guruhga qo'shish" — barcha (arxivlanmagan) guruhlar ro'yxati + o'qituvchi→guruh tanlash modali. */
@@ -300,33 +302,27 @@ export function StudentDetailPage() {
     getStudentGroups(id).then(setGroups).catch(() => {})
   }
 
-  /** "Guruhlar" kartasi bosilganda — boshqaruv modalini ochadi (faqat FAOL a'zolikda amal mavjud). */
+  /** Guruh kartasidagi "⋮" menyu — amal boshlanishidan oldin qaysi a'zolikka tegishli ekanini belgilaydi. */
   const openGroupModal = (gr: StudentGroupMembership) => {
     setGroupActionDate(new Date().toISOString().slice(0, 10))
     setGroupModal(gr)
   }
 
-  const doActivateGroup = async () => {
-    if (!id || !groupModal || groupBusy) return
-    setGroupBusy(true)
-    try {
-      await activateMember(groupModal.groupId, id, groupActionDate)
-      reloadGroups()
-      setGroupModal(null)
-    } catch (err) {
-      alert(apiErrorMessage(err, 'Amal bajarilmadi'))
-    } finally {
-      setGroupBusy(false)
-    }
-  }
+  /** Guruhga oid "chiqarish" sabab kategoriyasi — hozirgi holatga qarab (ClassMembersModal bilan bir xil). */
+  const removeGroupCategory = (status: string) =>
+    status === 'active' ? 'remove_active' : status === 'frozen' ? 'remove_frozen' : 'remove_trial'
 
-  /** Muzlatish/sinovga qaytarish — sabab modali tasdiqlangach. */
+  /** Muzlatish/sinovga qaytarish/chiqarish/aktivlashtirish (sanali) — sabab modali tasdiqlangach. */
   const confirmGroupReason = async (reasonId: string | undefined, date?: string) => {
     if (!id || !groupModal || !groupReasonAction || groupBusy) return
     setGroupBusy(true)
     try {
       if (groupReasonAction === 'freeze') {
         await freezeMember(groupModal.groupId, id, date ?? groupActionDate, reasonId)
+      } else if (groupReasonAction === 'activate') {
+        await activateMember(groupModal.groupId, id, date ?? groupActionDate)
+      } else if (groupReasonAction === 'remove') {
+        await removeGroupMember(groupModal.groupId, id, reasonId)
       } else {
         await returnMemberToTrial(groupModal.groupId, id, reasonId)
       }
@@ -772,22 +768,52 @@ export function StudentDetailPage() {
               // O'qituvchi id'si a'zolikda yo'q — guruhlar ro'yxatidan (allGroups) groupId orqali topamiz (profilga link uchun).
               const grTeacherId = allGroups.find((x) => x.id === gr.groupId)?.teacherId
               return (
-                <button
+                <div
                   key={gr.id}
-                  type="button"
-                  onClick={() => openGroupModal(gr)}
-                  className="group flex w-full flex-col gap-2 rounded-xl border border-slate-200 p-4 text-left transition-colors hover:border-brand-300 hover:bg-brand-50/30"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => navigate(`/admin/classes/${gr.groupId}`)}
+                  onKeyDown={(e) => e.key === 'Enter' && navigate(`/admin/classes/${gr.groupId}`)}
+                  className="group relative flex w-full cursor-pointer flex-col gap-2 rounded-xl border border-slate-200 p-4 text-left transition-colors hover:border-brand-300 hover:bg-brand-50/30"
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <Link
-                      to={`/admin/classes/${gr.groupId}`}
-                      onClick={(e) => e.stopPropagation()}
-                      className="font-semibold text-slate-800 hover:text-brand-600 hover:underline"
-                    >
-                      {gr.groupName}
-                    </Link>
-                    <Badge tone={sb.tone}>{sb.label}</Badge>
-                  </div>
+                  {gr.isActive && (
+                    <div className="absolute right-3 top-3 z-10" onClick={(e) => e.stopPropagation()}>
+                      <DropdownMenu
+                        items={[
+                          ...(gr.status !== 'active'
+                            ? [{
+                                label: 'Faollashtirish', icon: CheckCircle2,
+                                onClick: () => { openGroupModal(gr); setGroupReasonAction('activate') },
+                              }]
+                            : [{
+                                label: 'Muzlatish', icon: Snowflake,
+                                onClick: () => { openGroupModal(gr); setGroupReasonAction('freeze') },
+                              }]),
+                          ...(gr.status !== 'trial'
+                            ? [{
+                                label: 'Sinov darsiga qaytarish', icon: RotateCcw,
+                                onClick: () => { openGroupModal(gr); setGroupReasonAction('return') },
+                              }]
+                            : []),
+                          {
+                            label: "Boshqa guruhga o'tkazish", icon: ArrowLeftRight,
+                            onClick: () => { openGroupModal(gr); setGroupTransferOpen(true) },
+                          },
+                          {
+                            label: 'Guruhdan chiqarish', icon: X, danger: true,
+                            onClick: () => { openGroupModal(gr); setGroupReasonAction('remove') },
+                          },
+                        ]}
+                      />
+                    </div>
+                  )}
+                  <div className="flex flex-col gap-2 pr-8">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-semibold text-slate-800 group-hover:text-brand-600 group-hover:underline">
+                        {gr.groupName}
+                      </span>
+                      <Badge tone={sb.tone}>{sb.label}</Badge>
+                    </div>
                   <p className="flex items-center gap-1.5 text-xs text-slate-400">
                     <CalendarPlus className="h-3.5 w-3.5" /> {formatDate(gr.joinedAt)}
                     {gr.leftAt ? ` – ${formatDate(gr.leftAt)}` : ''}
@@ -833,7 +859,8 @@ export function StudentDetailPage() {
                     </span>
                     <ChevronRight className="h-4 w-4 text-slate-300 transition-transform group-hover:translate-x-0.5 group-hover:text-brand-500" />
                   </div>
-                </button>
+                  </div>
+                </div>
               )
             })}
           </div>
@@ -1684,105 +1711,40 @@ export function StudentDetailPage() {
         )}
       </Modal>
 
-      {/* Guruh kartasi bosilganda — a'zolik boshqaruvi (muzlatish/aktivlashtirish/sinovga/almashtirish) */}
-      <Modal
-        open={!!groupModal}
-        onClose={() => !groupBusy && setGroupModal(null)}
-        size="sm"
-        title={groupModal?.groupName ?? 'Guruh'}
-        footer={
-          <Button variant="secondary" onClick={() => setGroupModal(null)} disabled={groupBusy}>
-            Yopish
-          </Button>
-        }
-      >
-        {groupModal && (
-          <div className="space-y-4">
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-slate-500">Holat:</span>
-              {(() => {
-                const sb = groupStatusBadge(
-                  groupModal.status === 'completed' ? 'completed' : groupModal.isActive ? groupModal.status : 'left',
-                )
-                return <Badge tone={sb.tone}>{sb.label}</Badge>
-              })()}
-            </div>
-            <p className="flex items-center gap-1.5 text-sm text-slate-500">
-              <CalendarPlus className="h-3.5 w-3.5 text-slate-400" /> Qo'shilgan: {formatDate(groupModal.joinedAt)}
-              {groupModal.leftAt && <> · Chiqqan: {formatDate(groupModal.leftAt)}</>}
-            </p>
-            <Link
-              to={`/admin/classes/${groupModal.groupId}`}
-              className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-            >
-              <School className="h-4 w-4" /> Guruh sahifasiga o'tish
-            </Link>
-
-            {groupModal.isActive && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => setGroupTransferOpen(true)}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                >
-                  <ArrowLeftRight className="h-4 w-4" /> Boshqa guruhga o'tkazish
-                </button>
-                <button
-                  type="button"
-                  disabled={groupBusy || groupModal.status === 'trial'}
-                  onClick={() => setGroupReasonAction('return')}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40"
-                >
-                  <RotateCcw className="h-4 w-4" /> Sinovga qaytarish
-                </button>
-                <div>
-                  <span className="mb-1 block text-sm font-medium text-slate-600">Sana</span>
-                  <input
-                    type="date"
-                    value={groupActionDate}
-                    onChange={(e) => setGroupActionDate(e.target.value)}
-                    className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 outline-none focus:border-brand-400"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    disabled={groupBusy || groupModal.status === 'active'}
-                    onClick={doActivateGroup}
-                    className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:opacity-40"
-                  >
-                    <CheckCircle2 className="h-4 w-4" /> Aktivlashtirish
-                  </button>
-                  <button
-                    type="button"
-                    disabled={groupBusy || groupModal.status !== 'active'}
-                    onClick={() => setGroupReasonAction('freeze')}
-                    className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-sky-700 disabled:opacity-40"
-                  >
-                    <Snowflake className="h-4 w-4" /> Muzlatish
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        )}
-      </Modal>
-
-      {/* Muzlatish / sinovga qaytarish — sabab tanlash modali */}
+      {/* Muzlatish / aktivlashtirish / sinovga qaytarish / chiqarish — sabab (va sana) tanlash modali */}
       <ReasonPromptModal
         open={!!groupReasonAction}
-        category={groupReasonAction === 'freeze' ? 'freeze' : 'return_trial'}
-        title={groupReasonAction === 'freeze' ? 'Muzlatish' : 'Sinovga qaytarish'}
+        category={
+          groupReasonAction === 'freeze' ? 'freeze'
+          : groupReasonAction === 'activate' ? 'activate'
+          : groupReasonAction === 'remove' ? removeGroupCategory(groupModal?.status ?? 'trial')
+          : 'return_trial'
+        }
+        title={
+          groupReasonAction === 'freeze' ? 'Muzlatish'
+          : groupReasonAction === 'activate' ? 'Aktivlashtirish'
+          : groupReasonAction === 'remove' ? "Guruhdan chiqarish"
+          : 'Sinovga qaytarish'
+        }
         message={
           groupModal
             ? groupReasonAction === 'freeze'
               ? `${groupModal.groupName} — shu sanadan boshlab oylik to'lov hisoblanmaydi.`
-              : `${groupModal.groupName} — sinov holatiga qaytariladi (oylik to'lov hisoblanmaydi).`
+              : groupReasonAction === 'activate'
+                ? `${groupModal.groupName} — shu sanadan boshlab oylik to'lov hisoblanadi.`
+                : groupReasonAction === 'remove'
+                  ? `${groupModal.groupName} guruhidan chiqarilsinmi?`
+                  : `${groupModal.groupName} — sinov holatiga qaytariladi (oylik to'lov hisoblanmaydi).`
             : undefined
         }
-        confirmLabel={groupReasonAction === 'freeze' ? 'Muzlatish' : 'Sinovga qaytarish'}
-        tone={groupReasonAction === 'freeze' ? 'sky' : 'brand'}
-        showDate={groupReasonAction === 'freeze'}
+        confirmLabel={
+          groupReasonAction === 'freeze' ? 'Muzlatish'
+          : groupReasonAction === 'activate' ? 'Aktivlashtirish'
+          : groupReasonAction === 'remove' ? 'Chiqarish'
+          : 'Sinovga qaytarish'
+        }
+        tone={groupReasonAction === 'freeze' ? 'sky' : groupReasonAction === 'remove' ? 'red' : 'brand'}
+        showDate={groupReasonAction === 'freeze' || groupReasonAction === 'activate'}
         defaultDate={groupActionDate}
         onConfirm={confirmGroupReason}
         onClose={() => setGroupReasonAction(null)}
