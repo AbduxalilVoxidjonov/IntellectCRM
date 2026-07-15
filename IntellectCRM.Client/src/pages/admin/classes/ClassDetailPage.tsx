@@ -6,8 +6,8 @@ import {
   ArrowLeft, Users, BookOpen, User,
   CalendarDays, Clock, MapPin, Wallet, Snowflake, CheckCircle2,
   ListChecks, ChevronRight, ChevronDown, Plus, Minus, Repeat, CalendarClock, Flag, TrendingUp, Trophy,
-  UserRound, ArrowLeftRight, RotateCcw, Trash2, X, Pencil, ClipboardList, CalendarCheck, History,
-  Loader2, AlertTriangle, UserPlus,
+  ArrowLeftRight, RotateCcw, Trash2, X, Pencil, ClipboardList, CalendarCheck, History,
+  Loader2, AlertTriangle, UserPlus, MessageSquare,
 } from 'lucide-react'
 import type { AbsenceReason, MasteryLevel, Group, GroupMember, GroupTest } from '@/types'
 import {
@@ -20,9 +20,10 @@ import {
   type GroupCurriculum,
 } from '@/api/services/curriculum'
 import {
-  activateMember, freezeMember, returnMemberToTrial, getClasses,
-  getGroupMembers, removeGroupMember,
+  activateMember, freezeMember, returnMemberToTrial, getClasses, updateClass,
+  getGroupMembers, removeGroupMember, type ClassPayload,
 } from '@/api/services/classes'
+import { getStudents } from '@/api/services/students'
 import { getGroupTests, createTest, updateTest, deleteTest } from '@/api/services/testResults'
 import { getSettings } from '@/api/services/settings'
 import { cn, formatMoney, formatDate, apiErrorMessage } from '@/lib/utils'
@@ -42,6 +43,8 @@ import { JournalCellModal } from '../journal/JournalCellModal'
 import { CompleteAndTransferModal } from './CompleteAndTransferModal'
 import { TransferGroupModal } from './TransferGroupModal'
 import { ClassMembersModal } from './ClassMembersModal'
+import { ClassFormModal } from './ClassFormModal'
+import { SmsModal, type SmsRecipient } from '../students/SmsModal'
 
 const weekdayShort = ['Du', 'Se', 'Cho', 'Pa', 'Ju', 'Sha', 'Ya']
 const uzMonths = [
@@ -117,16 +120,9 @@ export function ClassDetailPage() {
   const [rTime, setRTime] = useState('')
   const [rSaving, setRSaving] = useState(false)
   const [rError, setRError] = useState<string | null>(null)
-  /** O'quvchi nomi bosilganda — aktivlashtirish/muzlatish modali. */
-  const [memberModal, setMemberModal] = useState<{ studentId: string; fullName: string; status: string } | null>(null)
-  const [memberDate, setMemberDate] = useState('')
-  const [memberSaving, setMemberSaving] = useState(false)
-  const [transferOpen, setTransferOpen] = useState(false)
-  /** Muzlatish/sinovga qaytarish — sabab tanlash modali (memberModal ustida — jurnal gridi uchun). */
-  const [reasonAction, setReasonAction] = useState<'freeze' | 'return' | null>(null)
   /** CHAP ustundagi a'zolar ro'yxati (TO'LIQ tarix — chiqqan/muzlatilgan/sinov/aktiv). */
   const [members, setMembers] = useState<GroupMember[]>([])
-  /** Ro'yxatdagi "⋮" menyudan tanlangan a'zo + amal (memberModal info-popupdan MUSTAQIL). */
+  /** Ro'yxatdagi "⋮" menyudan tanlangan a'zo + amal. */
   const [rosterTarget, setRosterTarget] = useState<GroupMember | null>(null)
   const [rosterReason, setRosterReason] = useState<'freeze' | 'return' | 'remove' | 'activate' | null>(null)
   const [rosterTransferOpen, setRosterTransferOpen] = useState(false)
@@ -141,6 +137,12 @@ export function ClassDetailPage() {
   const [membersOpen, setMembersOpen] = useState(false)
   /** Guruh obyekti (ClassMembersModal uchun) — getClasses'dan. */
   const [group, setGroup] = useState<Group | null>(null)
+  /** "Guruhni tahrirlash" — sarlavha "⋮" menyusidan. */
+  const [editOpen, setEditOpen] = useState(false)
+  /** "SMS jo'natish" (guruhga) — sarlavha "⋮" menyusidan; faol a'zolarning to'liq ma'lumoti. */
+  const [smsOpen, setSmsOpen] = useState(false)
+  const [smsRecipients, setSmsRecipients] = useState<SmsRecipient[]>([])
+  const [smsLoading, setSmsLoading] = useState(false)
 
   // ---- O'ng ustundagi faol bo'lim (tab) ----
   const [tab, setTab] = useState<Tab>('jurnal')
@@ -159,6 +161,48 @@ export function ClassDetailPage() {
   const [showCompleteModal, setShowCompleteModal] = useState(false)
 
   const openCompleteModal = () => setShowCompleteModal(true)
+
+  /** "Guruhni tahrirlash" tasdiqlangach — oddiy saqlash (fee-prompt/xona-konflikt kengaytirilgan
+   *  oynasisiz; kerak bo'lsa to'liq tahrirlash Guruhlar ro'yxati sahifasidan qilinadi). */
+  const handleEditSubmit = async (values: ClassPayload) => {
+    if (!id) return
+    try {
+      const res = await updateClass(id, values)
+      const any = res as unknown as Record<string, unknown>
+      if (any.roomConflict) {
+        alert("Bu xona shu vaqtda band — boshqa xona yoki vaqt tanlang.")
+        return
+      }
+      setGroup(res)
+      setEditOpen(false)
+      load(journal?.month)
+    } catch (err) {
+      alert(apiErrorMessage(err, "Saqlab bo'lmadi"))
+    }
+  }
+
+  /** "SMS jo'natish" (guruhga) — faol a'zolarning to'liq (telefon raqamli) ma'lumotini yuklaydi. */
+  const openGroupSms = async () => {
+    if (smsLoading) return
+    setSmsLoading(true)
+    try {
+      const activeIds = new Set(members.filter((m) => m.isActive).map((m) => m.studentId))
+      const all = await getStudents()
+      setSmsRecipients(
+        all
+          .filter((s) => activeIds.has(s.id))
+          .map((s) => ({
+            id: s.id, fullName: s.fullName, phone: s.phone,
+            parentPhone: s.parentPhone, fatherPhone: s.fatherPhone, motherPhone: s.motherPhone,
+          })),
+      )
+      setSmsOpen(true)
+    } catch {
+      alert("O'quvchilar ma'lumotini yuklab bo'lmadi")
+    } finally {
+      setSmsLoading(false)
+    }
+  }
 
   const loadCurr = useCallback(() => {
     if (!id) return
@@ -412,41 +456,6 @@ export function ClassDetailPage() {
     }
   }
 
-  // O'quvchi nomi bosilganda — aktivlashtirish/muzlatish (sana bilan).
-  const openMember = (st: { studentId: string; fullName: string; status: string }) => {
-    setMemberDate(today)
-    setMemberModal({ studentId: st.studentId, fullName: st.fullName, status: st.status })
-  }
-  const doActivate = async () => {
-    if (!journal || !memberModal) return
-    setMemberSaving(true)
-    try {
-      await activateMember(journal.group.id, memberModal.studentId, memberDate)
-      setMemberModal(null)
-      load(journal.month)
-    } catch (err) {
-      alert(apiErrorMessage(err, 'Amal bajarilmadi'))
-    } finally {
-      setMemberSaving(false)
-    }
-  }
-  /** Muzlatish/sinovga qaytarish — sabab modali tasdiqlangach. */
-  const confirmReasonAction = async (reasonId: string | undefined, date?: string) => {
-    if (!journal || !memberModal || !reasonAction) return
-    setMemberSaving(true)
-    try {
-      if (reasonAction === 'freeze') await freezeMember(journal.group.id, memberModal.studentId, date ?? memberDate, reasonId)
-      else await returnMemberToTrial(journal.group.id, memberModal.studentId, reasonId)
-      setReasonAction(null)
-      setMemberModal(null)
-      load(journal.month)
-    } catch (err) {
-      alert(apiErrorMessage(err, 'Amal bajarilmadi'))
-    } finally {
-      setMemberSaving(false)
-    }
-  }
-
   // ---- CHAP ustundagi a'zolar ro'yxati amallari ("⋮" menyudan; StudentDetailPage bilan bir xil oqim) ----
   /** "⋮" menyu — amal boshlanishidan oldin qaysi a'zolikka tegishli ekanini belgilaydi. */
   const openRoster = (m: GroupMember) => {
@@ -641,13 +650,26 @@ export function ClassDetailPage() {
                       )}
                     </p>
                   </div>
-                  {user?.role === 'superadmin' && can('classes', 'delete') && (
-                    <DropdownMenu
-                      items={[
-                        { label: 'Tugatish', icon: Trophy, onClick: openCompleteModal },
-                      ]}
-                    />
-                  )}
+                  <DropdownMenu
+                    items={[
+                      ...(can('classes', 'create')
+                        ? [{
+                            label: 'Yangi talaba qo\'shish', icon: UserPlus,
+                            onClick: () => setMembersOpen(true),
+                          }]
+                        : []),
+                      {
+                        label: smsLoading ? 'Yuklanmoqda...' : 'SMS jo\'natish', icon: MessageSquare,
+                        onClick: openGroupSms,
+                      },
+                      ...(can('classes', 'edit')
+                        ? [{ label: 'Guruhni tahrirlash', icon: Pencil, onClick: () => setEditOpen(true) }]
+                        : []),
+                      ...(user?.role === 'superadmin' && can('classes', 'delete')
+                        ? [{ label: 'Tugatish', icon: Trophy, onClick: openCompleteModal }]
+                        : []),
+                    ]}
+                  />
                 </div>
 
                 {/* Ma'lumot bloki — bir ustunli stack */}
@@ -876,12 +898,7 @@ export function ClassDetailPage() {
                             <span className="text-xs font-medium text-slate-500">{idx + 1}</span>
                           </td>
                           <td className="sticky left-0 z-10 border-b border-r-2 border-slate-200 bg-inherit px-2 py-1">
-                            <button
-                              type="button"
-                              onClick={() => openMember(st)}
-                              title="Aktivlashtirish / Muzlatish"
-                              className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left transition-colors hover:bg-slate-100"
-                            >
+                            <div className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left">
                               <span
                                 className={cn(
                                   'h-2 w-2 shrink-0 rounded-full',
@@ -895,7 +912,7 @@ export function ClassDetailPage() {
                               <span className={cn('rounded px-1.5 py-0.5 text-[10px] font-medium', sb.cls)}>
                                 {sb.label}
                               </span>
-                            </button>
+                            </div>
                           </td>
                           {journal!.columns.map((c) => {
                             const e = entryMap.get(`${st.studentId}|${c.date}`)
@@ -986,17 +1003,12 @@ export function ClassDetailPage() {
                           return (
                             <tr key={st.studentId} className="bg-slate-50 text-slate-400">
                               <td className="sticky left-0 z-10 border-b border-r-2 border-slate-200 bg-inherit px-2 py-1">
-                                <button
-                                  type="button"
-                                  onClick={() => openMember(st)}
-                                  title="Aktivlashtirish"
-                                  className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left transition-colors hover:bg-slate-100"
-                                >
+                                <div className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left">
                                   <Snowflake className="h-3.5 w-3.5 shrink-0 text-sky-500" />
                                   <span className={cn('font-medium', st.balance < 0 ? 'text-red-600' : 'text-slate-500')}>
                                     {st.fullName}
                                   </span>
-                                </button>
+                                </div>
                               </td>
                               {journal!.columns.map((c) => {
                                 const e = entryMap.get(`${st.studentId}|${c.date}`)
@@ -1355,119 +1367,6 @@ export function ClassDetailPage() {
         </div>
       </Modal>
 
-      {/* O'quvchi nomi bosilganda — aktivlashtirish / muzlatish */}
-      <Modal
-        open={!!memberModal}
-        onClose={() => !memberSaving && setMemberModal(null)}
-        size="sm"
-        title={memberModal?.fullName ?? "A'zolik"}
-        footer={
-          <Button variant="secondary" onClick={() => setMemberModal(null)} disabled={memberSaving}>
-            Yopish
-          </Button>
-        }
-      >
-        {memberModal && (
-          <div className="space-y-4">
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-slate-500">Holat:</span>
-              <span className={cn('rounded-md px-2 py-0.5 text-xs font-medium', statusBadge(memberModal.status).cls)}>
-                {statusBadge(memberModal.status).label}
-              </span>
-            </div>
-            {/* O'quvchi shaxsiy profiliga o'tish */}
-            <Link
-              to={'/admin/students/' + memberModal.studentId}
-              className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-            >
-              <UserRound className="h-4 w-4" /> Profilga o'tish
-            </Link>
-            <button
-              type="button"
-              onClick={() => setTransferOpen(true)}
-              className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-            >
-              <ArrowLeftRight className="h-4 w-4" /> Boshqa guruhga o'tkazish
-            </button>
-            <button
-              type="button"
-              disabled={memberSaving || memberModal.status === 'trial'}
-              onClick={() => setReasonAction('return')}
-              className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40"
-            >
-              <RotateCcw className="h-4 w-4" /> Sinovga qaytarish
-            </button>
-            <div>
-              <span className="mb-1 block text-sm font-medium text-slate-600">Sana</span>
-              <input
-                type="date"
-                value={memberDate}
-                onChange={(e) => setMemberDate(e.target.value)}
-                className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 outline-none focus:border-brand-400"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                disabled={memberSaving || memberModal.status === 'active'}
-                onClick={doActivate}
-                className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:opacity-40"
-              >
-                <CheckCircle2 className="h-4 w-4" /> Aktivlashtirish
-              </button>
-              <button
-                type="button"
-                disabled={memberSaving || memberModal.status !== 'active'}
-                onClick={() => setReasonAction('freeze')}
-                className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-sky-700 disabled:opacity-40"
-              >
-                <Snowflake className="h-4 w-4" /> Muzlatish
-              </button>
-            </div>
-            <p className="text-xs text-slate-400">
-              Aktivlashtirilganda shu sanadan qisman oylik hisoblanadi; muzlatilganda shu sanadan to'lov to'xtaydi.
-            </p>
-          </div>
-        )}
-      </Modal>
-
-      {/* Muzlatish / sinovga qaytarish — sabab tanlash modali */}
-      <ReasonPromptModal
-        open={!!reasonAction}
-        category={reasonAction === 'freeze' ? 'freeze' : 'return_trial'}
-        title={reasonAction === 'freeze' ? 'Muzlatish' : 'Sinovga qaytarish'}
-        message={
-          memberModal
-            ? reasonAction === 'freeze'
-              ? `${memberModal.fullName} — shu sanadan boshlab oylik to'lov hisoblanmaydi.`
-              : `${memberModal.fullName} — sinov holatiga qaytariladi (oylik to'lov hisoblanmaydi).`
-            : undefined
-        }
-        confirmLabel={reasonAction === 'freeze' ? 'Muzlatish' : 'Sinovga qaytarish'}
-        tone={reasonAction === 'freeze' ? 'sky' : 'brand'}
-        showDate={reasonAction === 'freeze'}
-        defaultDate={memberDate}
-        onConfirm={confirmReasonAction}
-        onClose={() => setReasonAction(null)}
-      />
-
-      {/* Guruhni almashtirish — eski guruh muzlaydi, yangisi aktivlashadi. */}
-      {journal && memberModal && (
-        <TransferGroupModal
-          open={transferOpen}
-          onClose={() => setTransferOpen(false)}
-          studentId={memberModal.studentId}
-          studentName={memberModal.fullName}
-          fromGroupId={journal.group.id}
-          fromGroupName={journal.group.name}
-          onDone={() => {
-            setTransferOpen(false)
-            setMemberModal(null)
-            load(journal.month)
-          }}
-        />
-      )}
-
       {/* A'zolar ro'yxati "⋮" — muzlatish/aktivlashtirish/sinovga qaytarish/chiqarish (sabab + sana modali) */}
       <ReasonPromptModal
         open={!!rosterReason}
@@ -1535,6 +1434,17 @@ export function ClassDetailPage() {
           load(journal?.month)
         }}
       />
+
+      {/* Guruhni tahrirlash — sarlavha "⋮" menyusidan. */}
+      <ClassFormModal
+        open={editOpen}
+        onClose={() => setEditOpen(false)}
+        onSubmit={handleEditSubmit}
+        initial={group}
+      />
+
+      {/* Guruhga SMS jo'natish — sarlavha "⋮" menyusidan, faol a'zolarning barchasiga. */}
+      <SmsModal open={smsOpen} onClose={() => setSmsOpen(false)} recipients={smsRecipients} />
 
       {/* Guruhni yakunlash modali (Hybrid: arxivlash + maqsad kursga yangi guruh) */}
       <CompleteAndTransferModal
