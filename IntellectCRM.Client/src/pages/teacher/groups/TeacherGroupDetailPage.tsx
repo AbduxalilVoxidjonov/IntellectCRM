@@ -4,14 +4,16 @@ import {
   ArrowLeft, Users, BookOpen, User,
   CalendarDays, Clock, MapPin, CheckCircle2,
   ListChecks, ChevronRight, ChevronDown, Plus, Minus, Repeat, CalendarClock, Flag,
-  TrendingUp, RotateCcw,
+  TrendingUp, RotateCcw, ClipboardCheck, ClipboardList, Pencil, Trash2,
 } from 'lucide-react'
-import type { AbsenceReason } from '@/types'
+import type { AbsenceReason, GroupTest, TestResultDetail } from '@/types'
 import {
   getTeacherGroupJournal, setTeacherJournalEntry, clearTeacherJournalEntry, bulkTeacherAttendance,
   rescheduleTeacherLesson, cancelTeacherReschedule,
   getTeacherGroupCurriculum, setTeacherGroupCover, changeTeacherGroupRevision,
   getTeacherMeta, getTeacherGradingBoard, setTeacherGrade, bulkTeacherGrade,
+  getTeacherGroupTests, getTeacherTestDetail, createTeacherTest, updateTeacherTest,
+  deleteTeacherTest, setTeacherTestScore,
 } from '@/api/services/teacher'
 import type { GroupJournal } from '@/api/services/journal'
 import type { GroupCurriculum } from '@/api/services/curriculum'
@@ -78,7 +80,7 @@ export function TeacherGroupDetailPage() {
   const [rError, setRError] = useState<string | null>(null)
 
   // ---- Guruh o'quv dasturi (darsda o'tilgan) ----
-  const [groupView, setGroupView] = useState<'jurnal' | 'baholash' | 'reyting'>('jurnal')
+  const [groupView, setGroupView] = useState<'jurnal' | 'davomat' | 'baholash' | 'reyting' | 'imtihonlar'>('jurnal')
   const [curr, setCurr] = useState<GroupCurriculum | null>(null)
   const [currLoading, setCurrLoading] = useState(true)
   const [currOpen, setCurrOpen] = useState(false)
@@ -184,6 +186,30 @@ export function TeacherGroupDetailPage() {
   const g = journal?.group
   const today = new Date().toISOString().slice(0, 10)
   const absentReasons = useMemo(() => reasons.filter((r) => !r.isLate), [reasons])
+  // "Kech qoldi" sabablari davomat foiziga hisoblanmaydi (JournalCellModal/DashboardController bilan bir xil).
+  const lateReasonIds = useMemo(
+    () => new Set(reasons.filter((r) => r.isLate).map((r) => r.id)),
+    [reasons],
+  )
+
+  // Davomat tabi: shu oy jurnalidan har o'quvchi bo'yicha davomat foizi (yangi so'rovsiz).
+  const attendanceRows = useMemo(() => {
+    const conducted = journal?.conductedDates ?? []
+    return journalStudents.map((st) => {
+      // O'quvchi guruhga qo'shilgandan (memberStart) keyingi o'tilgan darslar.
+      const myConducted = conducted.filter((d) => !st.memberStart || d >= st.memberStart)
+      const total = myConducted.length
+      // Sababli kelmagan darslar (kech qolgan mustasno).
+      let absences = 0
+      for (const d of myConducted) {
+        const e = entryMap.get(`${st.studentId}|${d}`)
+        if (e?.reasonId && !lateReasonIds.has(e.reasonId)) absences += 1
+      }
+      const present = total - absences
+      const percent = total > 0 ? Math.round((present / total) * 100) : 0
+      return { studentId: st.studentId, fullName: st.fullName, total, present, absences, percent }
+    })
+  }, [journalStudents, journal, entryMap, lateReasonIds])
 
   const handleSave = async (
     grade: number | null,
@@ -393,38 +419,30 @@ export function TeacherGroupDetailPage() {
             </div>
           </Card>
 
-          {/* Jurnal / Baholash / Reyting toggle */}
-          <div className="inline-flex rounded-xl border border-line bg-paper2 p-1">
-            <button
-              type="button"
-              onClick={() => { setGroupView("jurnal"); load(journal?.month) }}
-              className={cn(
-                "rounded-lg px-4 py-1.5 text-sm font-semibold transition-colors",
-                groupView === "jurnal" ? "bg-white text-ink shadow-sm" : "text-mute",
-              )}
-            >
-              Jurnal
-            </button>
-            <button
-              type="button"
-              onClick={() => setGroupView("baholash")}
-              className={cn(
-                "rounded-lg px-4 py-1.5 text-sm font-semibold transition-colors",
-                groupView === "baholash" ? "bg-white text-ink shadow-sm" : "text-mute",
-              )}
-            >
-              Baholash
-            </button>
-            <button
-              type="button"
-              onClick={() => setGroupView("reyting")}
-              className={cn(
-                "rounded-lg px-4 py-1.5 text-sm font-semibold transition-colors",
-                groupView === "reyting" ? "bg-white text-ink shadow-sm" : "text-mute",
-              )}
-            >
-              Reyting
-            </button>
+          {/* Jurnal / Davomat / Baholash / Reyting / Imtihonlar tab almashtirgich */}
+          <div className="flex flex-wrap gap-1 rounded-xl border border-line bg-paper2 p-1">
+            {([
+              { key: "jurnal", label: "Jurnal" },
+              { key: "davomat", label: "Davomat" },
+              { key: "baholash", label: "Baholash" },
+              { key: "reyting", label: "Reyting" },
+              { key: "imtihonlar", label: "Imtihonlar" },
+            ] as const).map((t) => (
+              <button
+                key={t.key}
+                type="button"
+                onClick={() => {
+                  setGroupView(t.key)
+                  if (t.key === "jurnal") load(journal?.month)
+                }}
+                className={cn(
+                  "rounded-lg px-4 py-1.5 text-sm font-semibold transition-colors",
+                  groupView === t.key ? "bg-white text-ink shadow-sm" : "text-mute",
+                )}
+              >
+                {t.label}
+              </button>
+            ))}
           </div>
 
           {/* Oylik jurnal */}
@@ -614,6 +632,68 @@ export function TeacherGroupDetailPage() {
             </Card>
           )}
 
+          {/* Davomat — shu oy jurnalidan har o'quvchi bo'yicha davomat foizi */}
+          {groupView === "davomat" && (
+            <Card className="rounded-[20px] border border-line bg-white p-0 shadow-[var(--shadow-card)]">
+              <div className="flex items-center gap-2 border-b border-line-soft px-4 py-3">
+                <ClipboardCheck className="h-5 w-5 text-teal-600" />
+                <h2 className="font-semibold text-ink">Davomat</h2>
+                <span className="text-sm text-faint">{monthLabel(journal?.month ?? "")}</span>
+              </div>
+              {journalStudents.length === 0 ? (
+                <p className="px-4 py-12 text-center text-sm text-faint">Bu guruhda faol o'quvchi yo'q.</p>
+              ) : (journal?.conductedDates?.length ?? 0) === 0 ? (
+                <p className="px-4 py-12 text-center text-sm text-faint">
+                  {monthLabel(journal?.month ?? "")} oyida o'tilgan dars yo'q.
+                </p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full border-collapse text-sm">
+                    <thead>
+                      <tr className="bg-panel3 text-xs uppercase text-mute">
+                        <th className="border-b border-line px-4 py-3 text-left font-semibold">O'quvchi</th>
+                        <th className="border-b border-line px-3 py-3 text-center font-semibold">Darslar</th>
+                        <th className="border-b border-line px-3 py-3 text-center font-semibold">Keldi</th>
+                        <th className="border-b border-line px-3 py-3 text-center font-semibold">Kelmadi</th>
+                        <th className="border-b border-line px-3 py-3 text-center font-semibold">Davomat</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {attendanceRows.map((r) => (
+                        <tr key={r.studentId} className="border-b border-line-soft hover:bg-panel2">
+                          <td className="px-4 py-3 text-sm font-medium text-ink">{r.fullName}</td>
+                          <td className="px-3 py-3 text-center font-mono text-sm text-mute">{r.total}</td>
+                          <td className="px-3 py-3 text-center font-mono text-sm font-semibold text-emerald-600">
+                            {r.present}
+                          </td>
+                          <td className="px-3 py-3 text-center font-mono text-sm font-semibold text-red-500">
+                            {r.absences || "—"}
+                          </td>
+                          <td className="px-3 py-3 text-center">
+                            <span
+                              className={cn(
+                                "inline-flex min-w-[52px] items-center justify-center rounded-md px-2 py-1 text-sm font-bold",
+                                r.total === 0
+                                  ? "text-faint"
+                                  : r.percent >= 90
+                                    ? "bg-emerald-50 text-emerald-700"
+                                    : r.percent >= 70
+                                      ? "bg-amber-50 text-amber-700"
+                                      : "bg-red-50 text-red-600",
+                              )}
+                            >
+                              {r.total === 0 ? "—" : `${r.percent}%`}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </Card>
+          )}
+
           {/* Baholash — har darsga mezonlar bo'yicha bajardi/bajarmadi (faqat o'z guruhi) */}
           {groupView === "baholash" && (
             <Card className="rounded-[20px] border border-line bg-white shadow-[var(--shadow-card)]">
@@ -629,6 +709,9 @@ export function TeacherGroupDetailPage() {
 
           {/* Reyting — o'quvchilarning o'rtacha bahosi va baholash statistikasi (bir yoki bir nechta oy) */}
           {groupView === "reyting" && <RatingsTab groupId={id} months={journal?.months ?? []} defaultMonth={journal?.month} />}
+
+          {/* Imtihonlar — shu guruh testlari (yaratish/tahrirlash/ball qo'yish) */}
+          {groupView === "imtihonlar" && <ExamsTab groupId={id} />}
 
           {/* O'quv dasturi — yig'iladigan (default yopiq) */}
           <CurriculumSection
@@ -1422,6 +1505,424 @@ function ForecastTile({
         {label}
       </div>
       <div className="text-sm font-semibold text-ink">{children}</div>
+    </div>
+  )
+}
+
+// ============================ Imtihonlar (testlar) bo'limi ============================
+
+interface ExamForm {
+  name: string
+  date: string
+  maxScore: string
+}
+
+/** Shu guruh testlari — ro'yxat + tafsilot (ball qo'yish) + yaratish/tahrirlash/o'chirish. */
+function ExamsTab({ groupId }: { groupId: string }) {
+  const todayIso = () => new Date().toISOString().slice(0, 10)
+  const emptyForm: ExamForm = { name: '', date: todayIso(), maxScore: '100' }
+
+  const [tests, setTests] = useState<GroupTest[]>([])
+  const [testsLoading, setTestsLoading] = useState(true)
+  const [testsError, setTestsError] = useState<string | null>(null)
+
+  const [detail, setDetail] = useState<TestResultDetail | null>(null)
+  const [detailLoading, setDetailLoading] = useState(false)
+  const [detailError, setDetailError] = useState<string | null>(null)
+
+  const [formOpen, setFormOpen] = useState(false)
+  const [editingTest, setEditingTest] = useState<GroupTest | null>(null)
+  const [form, setForm] = useState<ExamForm>(emptyForm)
+  const [formError, setFormError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+
+  const [deleteTarget, setDeleteTarget] = useState<GroupTest | null>(null)
+  const [deleting, setDeleting] = useState(false)
+
+  const [savingRow, setSavingRow] = useState<string | null>(null)
+  const [scoreDrafts, setScoreDrafts] = useState<Record<string, string>>({})
+
+  const loadTests = useCallback(() => {
+    setTestsLoading(true)
+    setTestsError(null)
+    getTeacherGroupTests(groupId)
+      .then(setTests)
+      .catch((err) => setTestsError(apiErrorMessage(err, "Testlarni yuklab bo'lmadi")))
+      .finally(() => setTestsLoading(false))
+  }, [groupId])
+
+  useEffect(() => {
+    loadTests()
+  }, [loadTests])
+
+  const openDetail = (t: GroupTest) => {
+    setDetailLoading(true)
+    setDetailError(null)
+    setDetail(null)
+    getTeacherTestDetail(t.id)
+      .then((d) => {
+        setDetail(d)
+        setScoreDrafts(
+          Object.fromEntries(d.rows.map((r) => [r.studentId, r.score == null ? '' : String(r.score)])),
+        )
+      })
+      .catch((err) => setDetailError(apiErrorMessage(err, "Test tafsilotini yuklab bo'lmadi")))
+      .finally(() => setDetailLoading(false))
+  }
+
+  const backToTests = () => {
+    setDetail(null)
+    setDetailError(null)
+    loadTests()
+  }
+
+  const openCreate = () => {
+    setEditingTest(null)
+    setForm(emptyForm)
+    setFormError(null)
+    setFormOpen(true)
+  }
+
+  const openEdit = (t: GroupTest) => {
+    setEditingTest(t)
+    setForm({ name: t.name, date: t.date.slice(0, 10), maxScore: String(t.maxScore) })
+    setFormError(null)
+    setFormOpen(true)
+  }
+
+  const closeForm = () => {
+    if (saving) return
+    setFormOpen(false)
+    setEditingTest(null)
+  }
+
+  const submitForm = async () => {
+    const name = form.name.trim()
+    const maxScore = Number(form.maxScore)
+    if (!name) {
+      setFormError('Test nomini kiriting')
+      return
+    }
+    if (!form.date) {
+      setFormError('Sanani tanlang')
+      return
+    }
+    if (!Number.isFinite(maxScore) || maxScore <= 0) {
+      setFormError("Maksimal ball 0 dan katta bo'lishi kerak")
+      return
+    }
+    setSaving(true)
+    setFormError(null)
+    try {
+      if (editingTest) {
+        await updateTeacherTest(editingTest.id, { name, date: form.date, maxScore })
+      } else {
+        await createTeacherTest({ groupId, name, date: form.date, maxScore })
+      }
+      setFormOpen(false)
+      setEditingTest(null)
+      loadTests()
+    } catch (err) {
+      setFormError(apiErrorMessage(err, "Saqlab bo'lmadi"))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return
+    setDeleting(true)
+    try {
+      await deleteTeacherTest(deleteTarget.id)
+      setDeleteTarget(null)
+      loadTests()
+    } catch (err) {
+      alert(apiErrorMessage(err, "O'chirib bo'lmadi"))
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  const saveScore = async (studentId: string) => {
+    if (!detail) return
+    const raw = scoreDrafts[studentId] ?? ''
+    const score = raw.trim() === '' ? null : Number(raw)
+    if (score != null && (!Number.isFinite(score) || score < 0 || score > detail.maxScore)) {
+      alert(`Ball 0 dan ${detail.maxScore} gacha bo'lishi kerak`)
+      return
+    }
+    setSavingRow(studentId)
+    try {
+      const updated = await setTeacherTestScore(detail.id, studentId, score)
+      setDetail(updated)
+      setScoreDrafts(
+        Object.fromEntries(updated.rows.map((r) => [r.studentId, r.score == null ? '' : String(r.score)])),
+      )
+    } catch (err) {
+      alert(apiErrorMessage(err, "Ballni saqlab bo'lmadi"))
+    } finally {
+      setSavingRow(null)
+    }
+  }
+
+  // ---- Test tafsiloti (ball qo'yish) ----
+  if (detail || detailLoading || detailError) {
+    return (
+      <Card className="rounded-[20px] border border-line bg-white p-0 shadow-[var(--shadow-card)]">
+        <div className="flex items-center gap-2.5 border-b border-line-soft px-4 py-3">
+          <button
+            type="button"
+            onClick={backToTests}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-line bg-white text-mute"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </button>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[15px] font-bold text-ink">{detail?.name ?? 'Test'}</p>
+            {detail && (
+              <p className="text-[12px] text-mute">
+                {formatDate(detail.date)} · Maks: <span className="font-mono">{detail.maxScore}</span> ball
+              </p>
+            )}
+          </div>
+        </div>
+
+        {detailLoading ? (
+          <div className="p-6">
+            <Loader label="Yuklanmoqda..." />
+          </div>
+        ) : detailError ? (
+          <div className="p-6 text-center text-[13px] font-semibold text-rose-600">{detailError}</div>
+        ) : detail && detail.rows.length === 0 ? (
+          <div className="px-5 py-8 text-center text-[13px] text-faint">Bu guruhda faol o'quvchi yo'q.</div>
+        ) : (
+          detail && (
+            <div>
+              {detail.rows.map((r, i) => {
+                const medal = r.rank === 1 ? '🥇' : r.rank === 2 ? '🥈' : r.rank === 3 ? '🥉' : null
+                return (
+                  <div
+                    key={r.studentId}
+                    className={cn(
+                      'flex items-center gap-3 px-4 py-3',
+                      i < detail.rows.length - 1 && 'border-b border-line-soft',
+                    )}
+                  >
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center text-[14px] font-bold text-mute">
+                      {r.rank === 0 ? '' : medal ?? r.rank}
+                    </div>
+                    <p className="min-w-0 flex-1 truncate text-[14px] font-semibold text-ink">{r.fullName}</p>
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      <input
+                        type="number"
+                        min={0}
+                        max={detail.maxScore}
+                        placeholder="—"
+                        value={scoreDrafts[r.studentId] ?? ''}
+                        onChange={(e) =>
+                          setScoreDrafts((prev) => ({ ...prev, [r.studentId]: e.target.value }))
+                        }
+                        onBlur={() => saveScore(r.studentId)}
+                        disabled={savingRow === r.studentId}
+                        className="h-9 w-16 rounded-lg border border-line bg-panel2 text-center font-mono text-[14px] font-bold text-ink focus:border-teal-500 focus:outline-none disabled:opacity-50"
+                      />
+                      <span className="text-[12px] text-faint">/{detail.maxScore}</span>
+                    </div>
+                  </div>
+                )
+              })}
+              {savingRow && <p className="px-4 py-2 text-center text-[12px] text-mute">Saqlanmoqda...</p>}
+            </div>
+          )
+        )}
+      </Card>
+    )
+  }
+
+  // ---- Guruh testlari ro'yxati ----
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h2 className="font-semibold text-ink">Imtihonlar (testlar)</h2>
+        <button
+          type="button"
+          onClick={openCreate}
+          className="flex shrink-0 items-center gap-1 rounded-xl bg-teal-600 px-3 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-teal-700"
+        >
+          <Plus className="h-4 w-4" /> Yangi test
+        </button>
+      </div>
+
+      {testsLoading ? (
+        <Card className="rounded-[20px] border border-line bg-white p-6 shadow-[var(--shadow-card)]">
+          <Loader label="Yuklanmoqda..." />
+        </Card>
+      ) : testsError ? (
+        <Card className="rounded-[20px] border border-line bg-white p-6 text-center text-[13px] font-semibold text-rose-600 shadow-[var(--shadow-card)]">
+          {testsError}
+        </Card>
+      ) : tests.length === 0 ? (
+        <Card className="rounded-[20px] border border-line bg-white px-5 py-8 text-center shadow-[var(--shadow-card)]">
+          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-tealsoft text-teal-600">
+            <ClipboardList className="h-6 w-6" />
+          </div>
+          <h4 className="text-[15px] font-bold text-ink">Hali test yo'q</h4>
+          <p className="mt-1 text-[13px] text-mute">"Yangi test" tugmasi orqali yarating.</p>
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {tests.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => openDetail(t)}
+              className="block w-full rounded-[20px] border border-line bg-white p-4 text-left shadow-[var(--shadow-card)] transition-colors hover:bg-panel2"
+            >
+              <div className="flex items-start gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-tealsoft text-teal-600">
+                  <ClipboardList className="h-5 w-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[15px] font-bold text-ink">{t.name}</p>
+                  <p className="text-[12px] text-mute">{formatDate(t.date)}</p>
+                </div>
+                <div className="flex shrink-0 items-center gap-0.5">
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      openEdit(t)
+                    }}
+                    className="rounded-lg p-1.5 text-faint transition-colors hover:bg-panel3 hover:text-ink"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </span>
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setDeleteTarget(t)
+                    }}
+                    className="rounded-lg p-1.5 text-faint transition-colors hover:bg-red-50 hover:text-red-500"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </span>
+                </div>
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border border-line bg-panel2 px-3 py-2 text-[12px] text-mute">
+                <span>
+                  <span className="font-mono font-bold text-ink">{t.scoredCount}</span>/
+                  <span className="font-mono">{t.studentCount}</span> baholangan
+                </span>
+                {t.avgScore != null && (
+                  <span>
+                    O'rtacha: <span className="font-mono font-bold text-ink">{t.avgScore.toFixed(1)}</span>
+                  </span>
+                )}
+                <span>
+                  Maks: <span className="font-mono font-bold text-ink">{t.maxScore}</span>
+                </span>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+
+      <Modal
+        open={formOpen}
+        onClose={closeForm}
+        size="sm"
+        title={editingTest ? 'Testni tahrirlash' : 'Yangi test'}
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={closeForm}
+              disabled={saving}
+              className="rounded-lg border border-line bg-white px-3.5 py-2 text-[13px] font-semibold text-mute disabled:opacity-50"
+            >
+              Bekor qilish
+            </button>
+            <button
+              type="button"
+              onClick={submitForm}
+              disabled={saving}
+              className="rounded-lg bg-teal-600 px-3.5 py-2 text-[13px] font-semibold text-white disabled:opacity-50"
+            >
+              {saving ? 'Saqlanmoqda...' : 'Saqlash'}
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          {formError && (
+            <p className="rounded-lg bg-rose-50 px-3 py-2 text-[13px] font-semibold text-rose-600">{formError}</p>
+          )}
+          <label className="block">
+            <span className="mb-1 block text-[12px] font-semibold text-mute">Nom</span>
+            <input
+              type="text"
+              value={form.name}
+              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+              placeholder="Masalan: 1-chorak test"
+              className="h-10 w-full rounded-lg border border-line bg-white px-3 text-[14px] text-ink focus:border-teal-500 focus:outline-none"
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-[12px] font-semibold text-mute">Sana</span>
+            <input
+              type="date"
+              value={form.date}
+              onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
+              className="h-10 w-full rounded-lg border border-line bg-white px-3 text-[14px] text-ink focus:border-teal-500 focus:outline-none"
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-[12px] font-semibold text-mute">Maksimal ball</span>
+            <input
+              type="number"
+              min={1}
+              value={form.maxScore}
+              onChange={(e) => setForm((f) => ({ ...f, maxScore: e.target.value }))}
+              className="h-10 w-full rounded-lg border border-line bg-white px-3 text-[14px] text-ink focus:border-teal-500 focus:outline-none"
+            />
+          </label>
+        </div>
+      </Modal>
+
+      <Modal
+        open={!!deleteTarget}
+        onClose={() => !deleting && setDeleteTarget(null)}
+        size="sm"
+        title="Testni o'chirish"
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={() => setDeleteTarget(null)}
+              disabled={deleting}
+              className="rounded-lg border border-line bg-white px-3.5 py-2 text-[13px] font-semibold text-mute disabled:opacity-50"
+            >
+              Bekor qilish
+            </button>
+            <button
+              type="button"
+              onClick={confirmDelete}
+              disabled={deleting}
+              className="rounded-lg bg-red-600 px-3.5 py-2 text-[13px] font-semibold text-white disabled:opacity-50"
+            >
+              {deleting ? "O'chirilmoqda..." : "O'chirish"}
+            </button>
+          </>
+        }
+      >
+        <p className="text-[13px] text-mute">
+          <span className="font-semibold text-ink">{deleteTarget?.name}</span> testini va uning barcha
+          ballarini o'chirasizmi? Bu amalni qaytarib bo'lmaydi.
+        </p>
+      </Modal>
     </div>
   )
 }
