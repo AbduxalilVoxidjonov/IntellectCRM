@@ -577,7 +577,7 @@ export function StudentDetailPage() {
     <div className="space-y-6">
       <BackLink />
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[35%_65%]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[25%_75%]">
         {/* CHAP USTUN — o'quvchi profili + shaxsiy ma'lumotlar (bitta karta), 40% */}
         <div className="lg:sticky lg:top-4 lg:self-start">
           <Card className="relative space-y-5">
@@ -651,7 +651,7 @@ export function StudentDetailPage() {
                 <User className="h-5 w-5 text-brand-600" />
                 <h2 className="font-semibold text-slate-800">Shaxsiy ma'lumotlar</h2>
               </div>
-              <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-1">
+              <div className="grid grid-cols-2 gap-x-4 gap-y-4">
                 <InfoRow icon={User} label="Jinsi" value={genderLabels[data.gender as 'male' | 'female'] ?? data.gender} />
                 <InfoRow icon={Cake} label="Tug'ilgan kun" value={data.birthDate ? formatDate(data.birthDate) : '—'} />
                 <InfoRow icon={CalendarPlus} label="Qabul sanasi" value={data.enrollmentDate ? formatDate(data.enrollmentDate) : '—'} />
