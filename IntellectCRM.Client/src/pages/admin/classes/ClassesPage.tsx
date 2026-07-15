@@ -108,7 +108,7 @@ export function ClassesPage() {
   /** Saralash (reyting): tartib bo'yicha | o'rtacha baho | davomat. Baho/davomat — yuqoridan pastga. */
   const [sort, setSort] = usePersistentState<'order' | 'grade' | 'attendance'>('classes.sort', 'order')
   /** Ko'rinish: kartalar yoki jadval */
-  const [view, setView] = usePersistentState<'card' | 'table'>('classes.view', 'card')
+  const [view, setView] = usePersistentState<'card' | 'table'>('classes.view', 'table')
   /** O'qituvchi filteri — faqat shu o'qituvchining guruhlari ko'rsatiladi */
   const [teacherFilter, setTeacherFilter] = usePersistentState('classes.teacherFilter', 'all')
   /** Kurs filteri — faqat shu kursga biriktirilgan guruhlar */
