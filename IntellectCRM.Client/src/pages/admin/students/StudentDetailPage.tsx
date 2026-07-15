@@ -44,12 +44,13 @@ import type { Student, StudentGroupMembership, Curriculum, Group, Teacher, Stude
 import { cn, formatDate, formatDateTime, formatMoney, apiErrorMessage } from '@/lib/utils'
 import { usePerm } from '@/lib/permissions'
 import { Card } from '@/components/ui/Card'
+import { DropdownMenu } from '@/components/ui/DropdownMenu'
 import { Badge, type BadgeTone } from '@/components/ui/Badge'
 import { StatCard } from '@/components/ui/StatCard'
 import { Loader } from '@/components/ui/Loader'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
-import { PaymentHistoryModal } from './PaymentHistoryModal'
+import { PaymentHistoryPanel } from './PaymentHistoryPanel'
 import { PaymentModal } from './PaymentModal'
 import { AiAnalysisModal } from './AiAnalysisModal'
 import { AiAnalysisView } from './AiAnalysisView'
@@ -95,6 +96,7 @@ const tooltipStyle = { borderRadius: 12, border: '1px solid #e2e8f0' }
 
 type Tab =
   | 'guruhlar'
+  | 'tolov'
   | 'dastur'
   | 'baholar'
   | 'davomat'
@@ -111,7 +113,6 @@ export function StudentDetailPage() {
   const [groups, setGroups] = useState<StudentGroupMembership[]>([])
   /** groupId → courseId (Group.courseId) — o'quv dasturini olish uchun kurs id'sini topish. */
   const [groupCourse, setGroupCourse] = useState<Record<string, string>>({})
-  const [showHistory, setShowHistory] = useState(false)
   /** "Jurnalni ko'rish" tugmasi bosilganda — faqat o'qish uchun jurnal modali. */
   const [journalOpen, setJournalOpen] = useState(false)
   const [showAi, setShowAi] = useState(false)
@@ -581,10 +582,25 @@ export function StudentDetailPage() {
     <div className="space-y-6">
       <BackLink />
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[320px_1fr]">
-        {/* CHAP USTUN — o'quvchi profili + shaxsiy ma'lumotlar (bitta karta) */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[2fr_3fr]">
+        {/* CHAP USTUN — o'quvchi profili + shaxsiy ma'lumotlar (bitta karta), 40% */}
         <div className="lg:sticky lg:top-4 lg:self-start">
-          <Card className="space-y-5">
+          <Card className="relative space-y-5">
+            {/* Amallar — bitta "⋮" menyu (AI Tahlil, To'lov qilish, Qo'ng'iroq, SMS, Tahrirlash) */}
+            <div className="absolute right-4 top-4">
+              <DropdownMenu
+                items={[
+                  { label: 'AI Tahlil', icon: Sparkles, onClick: () => setShowAi(true) },
+                  { label: "To'lov qilish", icon: Wallet, onClick: openPayment },
+                  { label: "Qo'ng'iroq qilish", icon: Phone, onClick: openCall },
+                  { label: 'SMS yuborish', icon: MessageSquare, onClick: openSms },
+                  ...(can('students', 'edit')
+                    ? [{ label: 'Tahrirlash', icon: Pencil, onClick: openEdit }]
+                    : []),
+                ]}
+              />
+            </div>
+
             {/* Profil sarlavhasi */}
             <div className="flex flex-col items-center gap-3 text-center">
               <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-brand-50 text-3xl font-semibold text-brand-600">
@@ -632,54 +648,6 @@ export function StudentDetailPage() {
               <p className={cn('font-mono text-xl font-semibold', data.balance < 0 ? 'text-red-600' : 'text-emerald-700')}>
                 {formatMoney(data.balance)}
               </p>
-            </div>
-
-            {/* Amallar */}
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => setShowAi(true)}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-brand-600 to-violet-500 px-4 py-2 text-sm font-semibold text-white shadow-[0_2px_8px_oklch(0.5_0.18_282_/_0.3)] transition-all hover:opacity-90 active:translate-y-px"
-              >
-                <Sparkles className="h-4 w-4" /> AI Tahlil
-              </button>
-              <button
-                type="button"
-                onClick={openPayment}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:border-brand-300 hover:text-brand-700"
-              >
-                <Wallet className="h-4 w-4" /> To'lov qilish
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowHistory(true)}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:border-brand-300 hover:text-brand-700"
-              >
-                <History className="h-4 w-4" /> To'lov tarixi
-              </button>
-              <button
-                type="button"
-                onClick={openCall}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:border-brand-300 hover:text-brand-700"
-              >
-                <Phone className="h-4 w-4" /> Qo'ng'iroq qilish
-              </button>
-              <button
-                type="button"
-                onClick={openSms}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:border-brand-300 hover:text-brand-700"
-              >
-                <MessageSquare className="h-4 w-4" /> SMS yuborish
-              </button>
-              {can('students', 'edit') && (
-                <button
-                  type="button"
-                  onClick={openEdit}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:border-brand-300 hover:text-brand-700"
-                >
-                  <Pencil className="h-4 w-4" /> Tahrirlash
-                </button>
-              )}
             </div>
 
             {/* Shaxsiy ma'lumotlar */}
@@ -734,6 +702,9 @@ export function StudentDetailPage() {
           <div className="tabs flex-wrap" role="tablist">
             <button type="button" className={cn('tab', tab === 'guruhlar' && 'active')} onClick={() => setTab('guruhlar')}>
               <School className="mr-1 inline h-3.5 w-3.5" /> Guruhlar
+            </button>
+            <button type="button" className={cn('tab', tab === 'tolov' && 'active')} onClick={() => setTab('tolov')}>
+              <History className="mr-1 inline h-3.5 w-3.5" /> To'lov tarixi
             </button>
             <button type="button" className={cn('tab', tab === 'dastur' && 'active')} onClick={() => setTab('dastur')}>
               <ListChecks className="mr-1 inline h-3.5 w-3.5" /> O'quv dasturi
@@ -868,6 +839,54 @@ export function StudentDetailPage() {
           </div>
         )}
       </Section>
+      )}
+
+      {/* To'lov tarixi — a'zolik sanalari (qo'shilgan/aktivlashtirilgan/muzlatilgan) + to'lovlar */}
+      {tab === 'tolov' && (
+      <>
+        {groups.length > 0 && (
+          <Section title="A'zolik sanalari" icon={CalendarPlus}>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {groups.map((gr) => {
+                const sb = groupStatusBadge(
+                  gr.status === 'completed' ? 'completed' : gr.isActive ? gr.status : 'left',
+                )
+                return (
+                  <div key={gr.id} className="rounded-xl border border-slate-200 p-3 text-sm">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium text-slate-700">{gr.groupName}</span>
+                      <Badge tone={sb.tone}>{sb.label}</Badge>
+                    </div>
+                    <div className="mt-2 space-y-1 text-xs text-slate-500">
+                      <p>
+                        Qo'shilgan: <span className="font-mono text-slate-600">{formatDate(gr.joinedAt)}</span>
+                      </p>
+                      {gr.activatedAt && (
+                        <p>
+                          Aktivlashtirilgan: <span className="font-mono text-slate-600">{formatDate(gr.activatedAt)}</span>
+                        </p>
+                      )}
+                      {gr.frozenAt && (
+                        <p>
+                          Muzlatilgan: <span className="font-mono text-slate-600">{formatDate(gr.frozenAt)}</span>
+                        </p>
+                      )}
+                      {gr.leftAt && (
+                        <p>
+                          Chiqqan: <span className="font-mono text-slate-600">{formatDate(gr.leftAt)}</span>
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </Section>
+        )}
+        <Card>
+          <PaymentHistoryPanel studentId={data.id} onPaid={() => setReloadKey((k) => k + 1)} />
+        </Card>
+      </>
       )}
 
       {/* Qo'ng'iroqlar tarixi (Local Call — agent-telefonlar orqali) */}
@@ -1573,12 +1592,6 @@ export function StudentDetailPage() {
       )}
         </div>
       </div>
-
-      <PaymentHistoryModal
-        studentId={showHistory ? (data?.id ?? null) : null}
-        onClose={() => setShowHistory(false)}
-        onPaid={() => setReloadKey((k) => k + 1)}
-      />
 
       <StudentJournalModal
         studentId={journalOpen ? data.id : null}

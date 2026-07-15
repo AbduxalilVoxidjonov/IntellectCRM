@@ -623,6 +623,10 @@ export interface StudentGroupMembership {
   startTime: string
   endTime: string
   room: string
+  /** Aktivlashtirilgan sana ("yyyy-MM-dd"). Bo'sh = hali aktivlashtirilmagan (sinov). */
+  activatedAt: string
+  /** Muzlatilgan sana ("yyyy-MM-dd"). Bo'sh = muzlatilmagan. */
+  frozenAt: string
 }
 
 /** Guruh to'ldirish qatori */

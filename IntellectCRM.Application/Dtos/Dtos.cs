@@ -400,7 +400,8 @@ public record ClassPayload(
 public record StudentGroupDto(
     string Id, string GroupId, string GroupName, string JoinedAt, string? LeftAt, bool IsActive,
     string Status, string CourseName, string TeacherName, decimal MonthlyFee,
-    List<int> Days, string StartTime, string EndTime, string Room);
+    List<int> Days, string StartTime, string EndTime, string Room,
+    string ActivatedAt, string FrozenAt);
 /// <summary>Guruhdagi bitta o'quvchi (a'zolar ro'yxati).</summary>
 public record GroupMemberDto(
     string StudentId, string FullName, string JoinedAt, string? LeftAt, bool IsActive,

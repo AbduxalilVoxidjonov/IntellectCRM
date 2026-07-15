@@ -669,7 +669,8 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
                     m.Status ?? "trial",
                     string.IsNullOrEmpty(c.CourseId) ? "" : courseNames.GetValueOrDefault(c.CourseId, ""),
                     string.IsNullOrEmpty(c.TeacherId) ? "" : teacherNames.GetValueOrDefault(c.TeacherId, ""),
-                    c.MonthlyFee, c.Days, c.StartTime, c.EndTime, c.Room ?? "");
+                    c.MonthlyFee, c.Days, c.StartTime, c.EndTime, c.Room ?? "",
+                    m.ActivatedAt ?? "", m.FrozenAt ?? "");
             })
             .OrderByDescending(r => r.IsActive).ThenBy(r => r.GroupName, StringComparer.OrdinalIgnoreCase)
             .ToList();
