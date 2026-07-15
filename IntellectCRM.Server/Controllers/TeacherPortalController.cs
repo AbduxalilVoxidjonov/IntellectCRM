@@ -427,6 +427,42 @@ public class TeacherPortalController(
         return NoContent();
     }
 
+    /// <summary>Bitta darsni bir martalik boshqa kunga ko'chiradi (admin bilan bir xil), faqat o'z guruhi uchun.</summary>
+    [HttpPost("journal/reschedule")]
+    public async Task<ActionResult<LessonRescheduleDto>> JournalReschedule(RescheduleLessonRequest req)
+    {
+        var (t, g, owns) = await ResolveOwnedGroup(req.ClassId);
+        if (t is null) return NotFound();
+        if (!t.Permissions.Contains(TeacherPermissions.Journal)) return Forbid();
+        if (g is null) return NotFound(new { message = "Guruh topilmadi" });
+        if (!owns) return Forbid();
+        try
+        {
+            var actor = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value;
+            var rec = await JournalService.RescheduleLessonAsync(db, req.ClassId, req.FromDate, req.ToDate, req.Time, actor);
+            return new LessonRescheduleDto(rec.Id, rec.FromDate, rec.ToDate, rec.Time);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>Ko'chirishni bekor qiladi (admin bilan bir xil) — FAQAT shu ko'chirish o'z guruhiga tegishli bo'lsa.</summary>
+    [HttpDelete("journal/reschedule/{id}")]
+    public async Task<IActionResult> JournalCancelReschedule(string id)
+    {
+        var rec = await db.LessonReschedules.FindAsync(id);
+        if (rec is null) return NoContent();
+        var (t, g, owns) = await ResolveOwnedGroup(rec.ClassId);
+        if (t is null) return NotFound();
+        if (!t.Permissions.Contains(TeacherPermissions.Journal)) return Forbid();
+        if (g is null) return NotFound(new { message = "Guruh topilmadi" });
+        if (!owns) return Forbid();
+        await JournalService.CancelRescheduleAsync(db, id);
+        return NoContent();
+    }
+
     /// <summary>Guruh BAHOLASH grid'i (mezonlar × o'quvchilar) — FAQAT o'z guruhi uchun.
     /// Mezonlarni admin biriktiradi; o'qituvchi o'z guruhi o'quvchilarini shu mezonlar bo'yicha baholaydi.</summary>
     [HttpGet("grading/group/{groupId}/board")]

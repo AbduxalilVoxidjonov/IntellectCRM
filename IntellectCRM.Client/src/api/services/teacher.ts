@@ -14,8 +14,9 @@ import type {
   TeacherRating,
 } from '@/types'
 import { api, USE_MOCK } from '../client'
+import { delay } from '@/lib/utils'
 import type { MaterialInput, SaveAssignmentInput } from './assignments'
-import type { GroupJournal } from './journal'
+import type { GroupJournal, LessonReschedule } from './journal'
 import type { GroupCurriculum } from './curriculum'
 import type { GradingBoard, SetGrade, BulkGrade } from './grading'
 
@@ -274,6 +275,32 @@ export async function bulkTeacherAttendance(
   await api.post('/teacher/journal/bulk-attendance', {
     classId, subjectId, period, studentIds, date, absent, reasonId: reasonId ?? null,
   })
+}
+
+/** Bitta darsni bir martalik boshqa kunga ko'chiradi (admin bilan bir xil), faqat o'z guruhi uchun. */
+export async function rescheduleTeacherLesson(
+  classId: string,
+  fromDate: string,
+  toDate: string,
+  time?: string,
+): Promise<LessonReschedule> {
+  if (USE_MOCK) {
+    await delay(120)
+    return { id: 'mock', fromDate, toDate, time }
+  }
+  const { data } = await api.post<LessonReschedule>('/teacher/journal/reschedule', {
+    classId, fromDate, toDate, time: time || null,
+  })
+  return data
+}
+
+/** Ko'chirishni bekor qiladi — dars asl kuniga qaytadi. */
+export async function cancelTeacherReschedule(id: string): Promise<void> {
+  if (USE_MOCK) {
+    await delay(100)
+    return
+  }
+  await api.delete(`/teacher/journal/reschedule/${id}`)
 }
 
 /* ---------- Guruh o'quv dasturi (darsda o'tilgan bandlar + tugatish prognozi) ---------- */

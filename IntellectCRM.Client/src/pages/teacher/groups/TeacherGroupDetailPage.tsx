@@ -4,11 +4,12 @@ import {
   ArrowLeft, Users, BookOpen, User,
   CalendarDays, Clock, MapPin, CheckCircle2,
   ListChecks, ChevronRight, ChevronDown, Plus, Minus, Repeat, CalendarClock, Flag,
-  TrendingUp,
+  TrendingUp, RotateCcw,
 } from 'lucide-react'
 import type { AbsenceReason } from '@/types'
 import {
   getTeacherGroupJournal, setTeacherJournalEntry, clearTeacherJournalEntry, bulkTeacherAttendance,
+  rescheduleTeacherLesson, cancelTeacherReschedule,
   getTeacherGroupCurriculum, setTeacherGroupCover, changeTeacherGroupRevision,
   getTeacherMeta, getTeacherGradingBoard, setTeacherGrade, bulkTeacherGrade,
 } from '@/api/services/teacher'
@@ -69,6 +70,12 @@ export function TeacherGroupDetailPage() {
   /** Sarlavhadagi sana bosilganda — shu kun uchun hammaga davomat modali. */
   const [bulkDate, setBulkDate] = useState<string | null>(null)
   const [bulkSaving, setBulkSaving] = useState(false)
+  /** Darsni boshqa kunga ko'chirish (bulk modal ichida): forma ochiqmi + yangi sana/vaqt. */
+  const [rescheduleOpen, setRescheduleOpen] = useState(false)
+  const [rToDate, setRToDate] = useState('')
+  const [rTime, setRTime] = useState('')
+  const [rSaving, setRSaving] = useState(false)
+  const [rError, setRError] = useState<string | null>(null)
 
   // ---- Guruh o'quv dasturi (darsda o'tilgan) ----
   const [groupView, setGroupView] = useState<'jurnal' | 'baholash' | 'reyting'>('jurnal')
@@ -289,6 +296,47 @@ export function TeacherGroupDetailPage() {
       alert(apiErrorMessage(err, "Saqlab bo'lmadi"))
     } finally {
       setBulkSaving(false)
+    }
+  }
+
+  // Shu oyga ko'chirilgan darslar: yangi kun (toDate) → ko'chirish yozuvi (ustun belgisi + bekor qilish uchun).
+  const rescheduledByDate = useMemo(() => {
+    const m = new Map<string, { id: string; fromDate: string; time?: string | null }>()
+    for (const r of journal?.reschedules ?? []) m.set(r.toDate, { id: r.id, fromDate: r.fromDate, time: r.time })
+    return m
+  }, [journal])
+
+  // Darsni boshqa kunga ko'chirish (bulk modaldan): asl kun = bulkDate, yangi kun = rToDate.
+  const doReschedule = async () => {
+    if (!journal || !bulkDate || !rToDate) return
+    setRSaving(true)
+    setRError(null)
+    try {
+      await rescheduleTeacherLesson(journal.group.id, bulkDate, rToDate, rTime || undefined)
+      setBulkDate(null)
+      setRescheduleOpen(false)
+      load(journal.month)
+    } catch (err) {
+      setRError(apiErrorMessage(err, "Ko'chirib bo'lmadi"))
+    } finally {
+      setRSaving(false)
+    }
+  }
+
+  // Ko'chirishni bekor qilish — dars asl kuniga qaytadi.
+  const doCancelReschedule = async (rescheduleId: string) => {
+    if (!journal) return
+    setRSaving(true)
+    setRError(null)
+    try {
+      await cancelTeacherReschedule(rescheduleId)
+      setBulkDate(null)
+      setRescheduleOpen(false)
+      load(journal.month)
+    } catch (err) {
+      setRError(apiErrorMessage(err, "Bekor qilib bo'lmadi"))
+    } finally {
+      setRSaving(false)
     }
   }
 
@@ -612,11 +660,24 @@ export function TeacherGroupDetailPage() {
       {/* Sarlavha sanasi bosilganda — shu kun uchun hammaga birdan davomat */}
       <Modal
         open={!!bulkDate}
-        onClose={() => !bulkSaving && setBulkDate(null)}
+        onClose={() => {
+          if (bulkSaving || rSaving) return
+          setBulkDate(null)
+          setRescheduleOpen(false)
+          setRError(null)
+        }}
         size="sm"
         title={bulkDate ? `${formatDate(bulkDate)} — davomat` : "Davomat"}
         footer={
-          <Button variant="secondary" onClick={() => setBulkDate(null)} disabled={bulkSaving}>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setBulkDate(null)
+              setRescheduleOpen(false)
+              setRError(null)
+            }}
+            disabled={bulkSaving || rSaving}
+          >
             Yopish
           </Button>
         }
@@ -662,6 +723,91 @@ export function TeacherGroupDetailPage() {
               </div>
             </div>
           )}
+
+          {/* Darsni boshqa kunga ko'chirish (bir martalik) */}
+          <div className="border-t border-slate-100 pt-4">
+            {bulkDate && rescheduledByDate.has(bulkDate) ? (
+              // Bu ustunning o'zi ko'chirilgan dars — asl kuniga qaytarish mumkin.
+              <div className="space-y-2">
+                <p className="flex items-center gap-2 text-sm text-sky-700">
+                  <CalendarClock className="h-4 w-4 shrink-0" />
+                  Bu dars{' '}
+                  <b>{formatDate(rescheduledByDate.get(bulkDate)!.fromDate)}</b> dan ko'chirilgan
+                  {rescheduledByDate.get(bulkDate)!.time ? ` (${rescheduledByDate.get(bulkDate)!.time})` : ''}.
+                </p>
+                <button
+                  type="button"
+                  disabled={rSaving}
+                  onClick={() => doCancelReschedule(rescheduledByDate.get(bulkDate)!.id)}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50"
+                >
+                  <RotateCcw className="h-4 w-4" /> Asl kuniga qaytarish
+                </button>
+              </div>
+            ) : !rescheduleOpen ? (
+              <button
+                type="button"
+                disabled={bulkSaving}
+                onClick={() => {
+                  setRescheduleOpen(true)
+                  setRToDate('')
+                  setRTime(journal?.group.startTime ?? '')
+                  setRError(null)
+                }}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-medium text-sky-700 transition-colors hover:bg-sky-100 disabled:opacity-50"
+              >
+                <CalendarClock className="h-4 w-4" /> Darsni boshqa kunga ko'chirish
+              </button>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-sm font-medium text-mute">
+                  Darsni boshqa kunga ko'chirish (bir martalik)
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="mb-1 block text-xs text-mute">Yangi sana</label>
+                    <input
+                      type="date"
+                      value={rToDate}
+                      onChange={(e) => setRToDate(e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-ink outline-none focus:border-brand-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs text-mute">Vaqt (ixtiyoriy)</label>
+                    <input
+                      type="time"
+                      value={rTime}
+                      onChange={(e) => setRTime(e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-ink outline-none focus:border-brand-400"
+                    />
+                  </div>
+                </div>
+                {rError && <p className="text-sm font-medium text-red-600">{rError}</p>}
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    disabled={rSaving || !rToDate}
+                    onClick={doReschedule}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-sky-700 disabled:opacity-50"
+                  >
+                    <CalendarClock className="h-4 w-4" /> {rSaving ? "Ko'chirilmoqda..." : "Ko'chirish"}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={rSaving}
+                    onClick={() => {
+                      setRescheduleOpen(false)
+                      setRError(null)
+                    }}
+                    className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-50"
+                  >
+                    Bekor
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </Modal>
     </div>
