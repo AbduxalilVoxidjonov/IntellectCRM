@@ -1,4 +1,4 @@
-@host = http://localhost:5211
+@host = http://localhost:5288
 
 ### Login (token oling). Javobdagi "token" ni quyidagi @token ga qo'ying.
 # @name login

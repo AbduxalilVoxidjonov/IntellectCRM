@@ -29,13 +29,13 @@ src/
 
 Odatda butun yechim Visual Studio'da `IntellectCRM.Server` startup loyiha sifatida
 ishga tushiriladi — ASP.NET SPA proxy avtomatik ravishda `npm run dev` ni ishga
-tushiradi va `https://localhost:57472` ga proxy qiladi.
+tushiradi va `https://localhost:58472` ga proxy qiladi.
 
 Faqat frontendni alohida ishga tushirish uchun:
 
 ```bash
 npm install
-npm run dev      # https://localhost:57472
+npm run dev      # https://localhost:58472
 npm run build    # tsc -b && vite build  ->  dist/
 npm run lint
 ```
@@ -43,7 +43,7 @@ npm run lint
 ## Backend bilan bog'lanish
 
 - `vite.config.ts` `/api` va `/weatherforecast` so'rovlarini ASP.NET backendiga
-  (`https://localhost:7013`) proxy qiladi.
+  (`https://localhost:7288`) proxy qiladi.
 - API manzili va mock rejim `.env` orqali boshqariladi:
   - `VITE_API_BASE_URL=/api`
   - `VITE_USE_MOCK=true` — backend API tayyor bo'lganda `false` qiling.

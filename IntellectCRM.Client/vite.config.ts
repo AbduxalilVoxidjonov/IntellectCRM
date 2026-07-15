@@ -70,7 +70,7 @@ export default defineConfig(({ command }): UserConfig => {
         ? `https://localhost:${env.ASPNETCORE_HTTPS_PORT}`
         : env.ASPNETCORE_URLS
             ? env.ASPNETCORE_URLS.split(';')[0]
-            : 'https://localhost:7013'
+            : 'https://localhost:7288'
 
     return {
         ...config,
@@ -103,7 +103,7 @@ export default defineConfig(({ command }): UserConfig => {
                     secure: false,
                 },
             },
-            port: parseInt(env.DEV_SERVER_PORT || '57472'),
+            port: parseInt(env.DEV_SERVER_PORT || '58472'),
             https: {
                 key: fs.readFileSync(keyFilePath),
                 cert: fs.readFileSync(certFilePath),

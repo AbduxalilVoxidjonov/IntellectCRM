@@ -6,7 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <SpaRoot>..\IntellectCRM.Client</SpaRoot>
     <SpaProxyLaunchCommand>npm run dev</SpaProxyLaunchCommand>
-    <SpaProxyServerUrl>https://localhost:57472</SpaProxyServerUrl>
+    <SpaProxyServerUrl>https://localhost:58472</SpaProxyServerUrl>
   </PropertyGroup>
 
   <ItemGroup>
