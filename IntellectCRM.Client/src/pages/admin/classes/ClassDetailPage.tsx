@@ -7,7 +7,7 @@ import {
   CalendarDays, Clock, MapPin, Wallet, Snowflake, CheckCircle2,
   ListChecks, ChevronRight, ChevronDown, Plus, Minus, Repeat, CalendarClock, Flag, TrendingUp, Trophy,
   ArrowLeftRight, RotateCcw, Trash2, X, Pencil, ClipboardList, CalendarCheck, History,
-  Loader2, AlertTriangle, UserPlus, MessageSquare,
+  Loader2, AlertTriangle, UserPlus, MessageSquare, ArrowUpDown,
 } from 'lucide-react'
 import type { AbsenceReason, MasteryLevel, Group, GroupMember, GroupTest } from '@/types'
 import {
@@ -122,6 +122,8 @@ export function ClassDetailPage() {
   const [rError, setRError] = useState<string | null>(null)
   /** CHAP ustundagi a'zolar ro'yxati (TO'LIQ tarix — chiqqan/muzlatilgan/sinov/aktiv). */
   const [members, setMembers] = useState<GroupMember[]>([])
+  /** A'zolar ro'yxatini ism bo'yicha alfavit tartibida saralash (A-Z / Z-A). */
+  const [membersSortAsc, setMembersSortAsc] = useState(true)
   /** Ro'yxatdagi "⋮" menyudan tanlangan a'zo + amal. */
   const [rosterTarget, setRosterTarget] = useState<GroupMember | null>(null)
   const [rosterReason, setRosterReason] = useState<'freeze' | 'return' | 'remove' | 'activate' | null>(null)
@@ -561,6 +563,12 @@ export function ClassDetailPage() {
     }
   }
 
+  // Chap ustundagi a'zolar ro'yxati — ism bo'yicha alfavit tartibida (A-Z yoki Z-A).
+  const sortedMembers = useMemo(() => {
+    const list = [...members].sort((a, b) => a.fullName.localeCompare(b.fullName, 'uz'))
+    return membersSortAsc ? list : list.reverse()
+  }, [members, membersSortAsc])
+
   // Shu oyga ko'chirilgan darslar: yangi kun (toDate) → ko'chirish yozuvi (ustun belgisi + bekor qilish uchun).
   const rescheduledByDate = useMemo(() => {
     const m = new Map<string, { id: string; fromDate: string; time?: string | null }>()
@@ -704,6 +712,16 @@ export function ClassDetailPage() {
                     <Users className="h-5 w-5 text-brand-600" />
                     <h2 className="font-semibold text-slate-800">A'zolar</h2>
                     <span className="text-sm text-slate-400">{members.filter((m) => m.isActive).length}</span>
+                    {members.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => setMembersSortAsc((v) => !v)}
+                        title="Ism bo'yicha alfavit tartibida saralash"
+                        className="ml-auto inline-flex shrink-0 items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-xs font-medium text-slate-500 transition-colors hover:border-brand-300 hover:text-brand-700"
+                      >
+                        <ArrowUpDown className="h-3.5 w-3.5" /> {membersSortAsc ? 'A-Z' : 'Z-A'}
+                      </button>
+                    )}
                   </div>
                   {members.length === 0 ? (
                     <p className="py-6 text-center text-sm text-slate-400">Bu guruhda a'zo yo'q.</p>
@@ -730,7 +748,7 @@ export function ClassDetailPage() {
 
                       <div className="max-h-[55vh] overflow-y-auto">
                         <ul className="-mx-2 divide-y divide-slate-100">
-                          {members.filter((m) => m.isActive).map((m) => (
+                          {sortedMembers.filter((m) => m.isActive).map((m) => (
                             <MemberRow
                               key={m.studentId}
                               m={m}
@@ -749,7 +767,7 @@ export function ClassDetailPage() {
                               Guruhdan chiqarilganlar
                             </p>
                             <ul className="-mx-2 divide-y divide-slate-100">
-                              {members.filter((m) => !m.isActive).map((m) => (
+                              {sortedMembers.filter((m) => !m.isActive).map((m) => (
                                 <MemberRow
                                   key={m.studentId}
                                   m={m}
