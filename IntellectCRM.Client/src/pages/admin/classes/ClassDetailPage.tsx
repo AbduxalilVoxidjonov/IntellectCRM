@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '@/context/auth-context'
 import { usePerm } from '@/lib/permissions'
 import {
   ArrowLeft, Users, BookOpen, User,
   CalendarDays, Clock, MapPin, Wallet, Snowflake, CheckCircle2,
   ListChecks, ChevronRight, ChevronDown, Plus, Minus, Repeat, CalendarClock, Flag, TrendingUp, Trophy,
-  UserRound, ArrowLeftRight, RotateCcw,
+  UserRound, ArrowLeftRight, RotateCcw, Trash2, X, Pencil, ClipboardList, CalendarCheck, History,
+  Loader2, AlertTriangle, UserPlus,
 } from 'lucide-react'
-import type { AbsenceReason, MasteryLevel, Group } from '@/types'
+import type { AbsenceReason, MasteryLevel, Group, GroupMember, GroupTest } from '@/types'
 import {
   getGroupJournal, setJournalEntry, clearJournalEntry, bulkAttendance,
   rescheduleLesson, cancelReschedule,
@@ -18,10 +19,15 @@ import {
   getGroupCurriculum, setGroupCover, changeGroupRevision,
   type GroupCurriculum,
 } from '@/api/services/curriculum'
-import { activateMember, freezeMember, returnMemberToTrial, getClasses } from '@/api/services/classes'
+import {
+  activateMember, freezeMember, returnMemberToTrial, getClasses,
+  getGroupMembers, removeGroupMember,
+} from '@/api/services/classes'
+import { getGroupTests, createTest, updateTest, deleteTest } from '@/api/services/testResults'
 import { getSettings } from '@/api/services/settings'
 import { cn, formatMoney, formatDate, apiErrorMessage } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
+import { DropdownMenu } from '@/components/ui/DropdownMenu'
 import { AuditHistoryList } from '@/components/audit/AuditHistoryList'
 import { GradingSection } from '@/components/grading/GradingSection'
 import {
@@ -90,8 +96,11 @@ function masteryDisplay(m: MasteryLevel | undefined): { label: string; cls: stri
   }
 }
 
+type Tab = 'jurnal' | 'davomat' | 'baholash' | 'reyting' | 'imtihonlar' | 'tarix'
+
 export function ClassDetailPage() {
   const { id = '' } = useParams()
+  const navigate = useNavigate()
   const { user } = useAuth()
   const { can } = usePerm()
   const [journal, setJournal] = useState<GroupJournal | null>(null)
@@ -113,8 +122,16 @@ export function ClassDetailPage() {
   const [memberDate, setMemberDate] = useState('')
   const [memberSaving, setMemberSaving] = useState(false)
   const [transferOpen, setTransferOpen] = useState(false)
-  /** Muzlatish/sinovga qaytarish — sabab tanlash modali (memberModal ustida). */
+  /** Muzlatish/sinovga qaytarish — sabab tanlash modali (memberModal ustida — jurnal gridi uchun). */
   const [reasonAction, setReasonAction] = useState<'freeze' | 'return' | null>(null)
+  /** CHAP ustundagi a'zolar ro'yxati (TO'LIQ tarix — chiqqan/muzlatilgan/sinov/aktiv). */
+  const [members, setMembers] = useState<GroupMember[]>([])
+  /** Ro'yxatdagi "⋮" menyudan tanlangan a'zo + amal (memberModal info-popupdan MUSTAQIL). */
+  const [rosterTarget, setRosterTarget] = useState<GroupMember | null>(null)
+  const [rosterReason, setRosterReason] = useState<'freeze' | 'return' | 'remove' | 'activate' | null>(null)
+  const [rosterTransferOpen, setRosterTransferOpen] = useState(false)
+  const [rosterDate, setRosterDate] = useState('')
+  const [rosterBusy, setRosterBusy] = useState(false)
   /** Guruh o'qituvchisi id'si — profilga link uchun (jurnal DTO'sida faqat teacherName bor). */
   const [teacherId, setTeacherId] = useState('')
   /** Guruh sig'imi — jurnal DTO'sida yo'q, "Yangi o'quvchi" to'lganlik ogohlantirishi uchun. */
@@ -125,8 +142,8 @@ export function ClassDetailPage() {
   /** Guruh obyekti (ClassMembersModal uchun) — getClasses'dan. */
   const [group, setGroup] = useState<Group | null>(null)
 
-  // ---- Guruh o'quv dasturi (darsda o'tilgan) ----
-  const [groupView, setGroupView] = useState<'jurnal' | 'baholash' | 'reyting'>('jurnal')
+  // ---- O'ng ustundagi faol bo'lim (tab) ----
+  const [tab, setTab] = useState<Tab>('jurnal')
   const [grading, setGrading] = useState<GradingBoard | null>(null)
   const [curr, setCurr] = useState<GroupCurriculum | null>(null)
   // ---- Reyting — ko'p-oylik filtr ----
@@ -177,6 +194,16 @@ export function ClassDetailPage() {
     [id],
   )
 
+  /** Chap ustundagi a'zolar ro'yxatini qayta yuklaydi (TO'LIQ tarix — barcha a'zoliklar). */
+  const reloadMembers = useCallback(() => {
+    if (!id) return
+    getGroupMembers(id).then(setMembers).catch(() => setMembers([]))
+  }, [id])
+
+  useEffect(() => {
+    reloadMembers()
+  }, [reloadMembers])
+
   useEffect(() => {
     load()
     getSettings()
@@ -203,10 +230,10 @@ export function ClassDetailPage() {
   }, [id])
 
   useEffect(() => {
-    if (groupView === 'reyting' && journal?.month) {
+    if (tab === 'reyting' && journal?.month) {
       loadGrading(journal.month)
     }
-  }, [groupView, journal?.month, loadGrading])
+  }, [tab, journal?.month, loadGrading])
 
   // Guruh o'zgarsa — reyting keshi va tanlovi tozalanadi.
   useEffect(() => {
@@ -217,14 +244,14 @@ export function ClassDetailPage() {
 
   // Reyting tab birinchi ochilganda default — joriy jurnal oyi.
   useEffect(() => {
-    if (groupView === 'reyting' && ratingMonths.length === 0 && journal?.month) {
+    if (tab === 'reyting' && ratingMonths.length === 0 && journal?.month) {
       setRatingMonths([journal.month])
     }
-  }, [groupView, journal?.month, ratingMonths.length])
+  }, [tab, journal?.month, ratingMonths.length])
 
   // Tanlangan oylar bo'yicha jurnal+baholash — keshlangan holda yuklanadi.
   useEffect(() => {
-    if (groupView !== 'reyting' || !id || ratingMonths.length === 0) return
+    if (tab !== 'reyting' || !id || ratingMonths.length === 0) return
     let cancelled = false
     setRatingLoading(true)
     Promise.all(
@@ -250,7 +277,7 @@ export function ClassDetailPage() {
     return () => {
       cancelled = true
     }
-  }, [groupView, ratingMonths, id])
+  }, [tab, ratingMonths, id])
 
   // Reyting oy chipini bosish — toggle, lekin kamida 1 oy tanlangan qoladi.
   const toggleRatingMonth = (m: string) => {
@@ -323,6 +350,28 @@ export function ClassDetailPage() {
     () => (journal?.students ?? []).filter((s) => s.status === 'active').length,
     [journal],
   )
+
+  /** Davomat tabidagi jadval — tanlangan oy uchun har o'quvchi davomat foizi (jurnal ma'lumotidan).
+   *  O'tilgan darslar = conductedDates ∩ (sana ≥ memberStart); qoldirgan = sababli (kech kelish MUSTASNO). */
+  const attendanceRows = useMemo(() => {
+    if (!journal) return []
+    const conducted = journal.conductedDates ?? []
+    return (journal.students ?? []).map((s) => {
+      const start = s.memberStart || ''
+      const held = conducted.filter((d) => !start || d >= start)
+      let absent = 0
+      for (const d of held) {
+        const e = entryMap.get(`${s.studentId}|${d}`)
+        if (e?.reasonId) {
+          const r = reasonById.get(e.reasonId)
+          if (r && !r.isLate) absent++
+        }
+      }
+      const heldCount = held.length
+      const pct = heldCount > 0 ? Math.round(((heldCount - absent) / heldCount) * 100) : null
+      return { studentId: s.studentId, fullName: s.fullName, status: s.status, held: heldCount, absent, pct }
+    })
+  }, [journal, entryMap, reasonById])
 
   const g = journal?.group
   const today = new Date().toISOString().slice(0, 10)
@@ -398,6 +447,34 @@ export function ClassDetailPage() {
     }
   }
 
+  // ---- CHAP ustundagi a'zolar ro'yxati amallari ("⋮" menyudan; StudentDetailPage bilan bir xil oqim) ----
+  /** "⋮" menyu — amal boshlanishidan oldin qaysi a'zolikka tegishli ekanini belgilaydi. */
+  const openRoster = (m: GroupMember) => {
+    setRosterDate(today)
+    setRosterTarget(m)
+  }
+  /** O'quvchi holatiga qarab "chiqarish" sabab kategoriyasi (ClassMembersModal bilan bir xil). */
+  const rosterRemoveCategory = (status: string) =>
+    status === 'active' ? 'remove_active' : status === 'frozen' ? 'remove_frozen' : 'remove_trial'
+  /** Muzlatish/sinovga qaytarish/chiqarish/aktivlashtirish (sanali) — sabab modali tasdiqlangach. */
+  const confirmRosterReason = async (reasonId: string | undefined, date?: string) => {
+    if (!rosterTarget || !rosterReason || rosterBusy) return
+    setRosterBusy(true)
+    try {
+      if (rosterReason === 'freeze') await freezeMember(id, rosterTarget.studentId, date ?? rosterDate, reasonId)
+      else if (rosterReason === 'activate') await activateMember(id, rosterTarget.studentId, date ?? rosterDate)
+      else if (rosterReason === 'remove') await removeGroupMember(id, rosterTarget.studentId, reasonId)
+      else await returnMemberToTrial(id, rosterTarget.studentId, reasonId)
+      setRosterReason(null)
+      setRosterTarget(null)
+      reloadMembers()
+      load(journal?.month)
+    } catch (err) {
+      alert(apiErrorMessage(err, 'Amal bajarilmadi'))
+    } finally {
+      setRosterBusy(false)
+    }
+  }
 
   const absentReasons = useMemo(() => reasons.filter((r) => !r.isLate), [reasons])
 
@@ -525,45 +602,13 @@ export function ClassDetailPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <Link
-            to="/admin/classes"
-            className="rounded-lg border border-slate-200 bg-white p-2 text-slate-500 transition-colors hover:border-slate-300 hover:bg-slate-50"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Link>
-          <div className="min-w-0">
-            <h1 className="text-2xl font-bold tracking-tight text-slate-800">{g ? g.name : 'Guruh'}</h1>
-            {g && (
-              <p className="mt-0.5 text-sm text-slate-400">
-                {g.courseName || 'Kurs biriktirilmagan'}
-                {g.teacherName && (
-                  <>
-                    {' · '}
-                    {teacherId ? (
-                      <Link to={`/admin/teachers/${teacherId}`} className="text-slate-500 hover:text-brand-600 hover:underline">
-                        {g.teacherName}
-                      </Link>
-                    ) : (
-                      g.teacherName
-                    )}
-                  </>
-                )}
-              </p>
-            )}
-          </div>
-        </div>
-        {g && user?.role === 'superadmin' && can('classes', 'delete') && (
-          <button
-            onClick={openCompleteModal}
-            className="flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-amber-700 transition-colors hover:bg-amber-100"
-            title="Guruhni tugatish va sertifikat berish (SuperAdmin faqat)"
-          >
-            <Trophy className="h-4 w-4" />
-            <span className="text-sm font-medium">Tugatish</span>
-          </button>
-        )}
+      <div>
+        <Link
+          to="/admin/classes"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 transition-colors hover:text-slate-700"
+        >
+          <ArrowLeft className="h-4 w-4" /> Barcha guruhlar
+        </Link>
       </div>
 
       {loading && !journal ? (
@@ -572,80 +617,141 @@ export function ClassDetailPage() {
         <Card className="py-16 text-center text-slate-400">Guruh topilmadi</Card>
       ) : (
         <>
-          {/* Guruh ma'lumotlari */}
-          <Card>
-            <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
-              <Info icon={BookOpen} label="Kurs" value={g.courseName || '—'} />
-              <Info
-                icon={User}
-                label="O'qituvchi"
-                value={
-                  g.teacherName && teacherId ? (
-                    <Link to={`/admin/teachers/${teacherId}`} className="hover:text-brand-600 hover:underline">
-                      {g.teacherName}
-                    </Link>
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[2fr_3fr]">
+            {/* CHAP USTUN — guruh ma'lumoti + a'zolar ro'yxati (bitta karta), 40% */}
+            <div className="lg:sticky lg:top-4 lg:self-start">
+              <Card className="space-y-5">
+                {/* Sarlavha */}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h1 className="text-xl font-semibold text-slate-800">{g.name}</h1>
+                    <p className="mt-0.5 break-words text-sm text-slate-400">
+                      {g.courseName || 'Kurs biriktirilmagan'}
+                      {g.teacherName && (
+                        <>
+                          {' · '}
+                          {teacherId ? (
+                            <Link to={`/admin/teachers/${teacherId}`} className="text-slate-500 hover:text-brand-600 hover:underline">
+                              {g.teacherName}
+                            </Link>
+                          ) : (
+                            g.teacherName
+                          )}
+                        </>
+                      )}
+                    </p>
+                  </div>
+                  {user?.role === 'superadmin' && can('classes', 'delete') && (
+                    <DropdownMenu
+                      items={[
+                        { label: 'Tugatish', icon: Trophy, onClick: openCompleteModal },
+                      ]}
+                    />
+                  )}
+                </div>
+
+                {/* Ma'lumot bloki — bir ustunli stack */}
+                <div className="grid grid-cols-1 gap-4 border-t border-slate-100 pt-4">
+                  <Info icon={BookOpen} label="Kurs" value={g.courseName || '—'} />
+                  <Info
+                    icon={User}
+                    label="O'qituvchi"
+                    value={
+                      g.teacherName && teacherId ? (
+                        <Link to={`/admin/teachers/${teacherId}`} className="hover:text-brand-600 hover:underline">
+                          {g.teacherName}
+                        </Link>
+                      ) : (
+                        g.teacherName || '—'
+                      )
+                    }
+                  />
+                  <Info icon={Wallet} label="Oylik to'lov" value={formatMoney(g.monthlyFee)} mono />
+                  <Info
+                    icon={CalendarDays}
+                    label="Dars kunlari"
+                    value={g.days.length ? g.days.map((d) => weekdayShort[d] ?? d).join(', ') : '—'}
+                  />
+                  <Info
+                    icon={Clock}
+                    label="Dars vaqti"
+                    value={g.startTime || g.endTime ? `${g.startTime || '—'}${g.endTime ? ` – ${g.endTime}` : ''}` : '—'}
+                    mono
+                  />
+                  <Info icon={MapPin} label="Xona" value={g.room || '—'} />
+                </div>
+
+                {/* A'zolar ro'yxati — TO'LIQ tarix (chiqqan/muzlatilgan/sinov/aktiv) */}
+                <div className="border-t border-slate-100 pt-4">
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <Users className="h-5 w-5 text-brand-600" />
+                      <h2 className="font-semibold text-slate-800">A'zolar</h2>
+                      <span className="text-sm text-slate-400">{members.filter((m) => m.isActive).length}</span>
+                    </div>
+                    {can('classes', 'create') && (
+                      <button
+                        type="button"
+                        disabled={capacity > 0 && members.filter((m) => m.isActive).length >= capacity}
+                        onClick={() => setMembersOpen(true)}
+                        title={
+                          capacity > 0 && members.filter((m) => m.isActive).length >= capacity
+                            ? `Guruh to'lgan (${capacity} o'rin)`
+                            : "Mavjud o'quvchini qidirib qo'shish yoki yangi yaratish"
+                        }
+                        className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-brand-600 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-brand-700 disabled:opacity-50"
+                      >
+                        <UserPlus className="h-3.5 w-3.5" /> Qo'shish
+                      </button>
+                    )}
+                  </div>
+                  {members.length === 0 ? (
+                    <p className="py-6 text-center text-sm text-slate-400">Bu guruhda a'zo yo'q.</p>
                   ) : (
-                    g.teacherName || '—'
-                  )
-                }
-              />
-              <Info icon={Wallet} label="Oylik to'lov" value={formatMoney(g.monthlyFee)} mono />
-              <Info
-                icon={CalendarDays}
-                label="Dars kunlari"
-                value={g.days.length ? g.days.map((d) => weekdayShort[d] ?? d).join(', ') : '—'}
-              />
-              <Info
-                icon={Clock}
-                label="Dars vaqti"
-                value={g.startTime || g.endTime ? `${g.startTime || '—'}${g.endTime ? ` – ${g.endTime}` : ''}` : '—'}
-                mono
-              />
-              <Info icon={MapPin} label="Xona" value={g.room || '—'} />
+                    <ul className="-mx-2 divide-y divide-slate-100">
+                      {members.map((m) => (
+                        <MemberRow
+                          key={m.studentId}
+                          m={m}
+                          canManage={can('classes', 'create')}
+                          onActivate={() => { openRoster(m); setRosterReason('activate') }}
+                          onFreeze={() => { openRoster(m); setRosterReason('freeze') }}
+                          onReturn={() => { openRoster(m); setRosterReason('return') }}
+                          onTransfer={() => { openRoster(m); setRosterTransferOpen(true) }}
+                          onRemove={() => { openRoster(m); setRosterReason('remove') }}
+                        />
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </Card>
             </div>
-          </Card>
 
-          {/* O'zgarishlar tarixi — guruh kim tomonidan yaratilgan/tahrirlangan */}
-          <Card title="O'zgarishlar tarixi" sub="Kim yaratdi / kim o'zgartirdi">
-            <AuditHistoryList filters={{ entityId: id }} emptyLabel="O'zgarishlar tarixi yo'q" />
-          </Card>
-
-          {/* Jurnal / Baholash toggle */}
-          <div className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1">
-            <button
-              type="button"
-              onClick={() => { setGroupView('jurnal'); load(journal?.month) }}
-              className={
-                'rounded-lg px-4 py-1.5 text-sm font-semibold transition-colors ' +
-                (groupView === 'jurnal' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700')
-              }
-            >
-              Jurnal
-            </button>
-            <button
-              type="button"
-              onClick={() => setGroupView('baholash')}
-              className={
-                'rounded-lg px-4 py-1.5 text-sm font-semibold transition-colors ' +
-                (groupView === 'baholash' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700')
-              }
-            >
-              Baholash
-            </button>
-            <button
-              type="button"
-              onClick={() => setGroupView('reyting')}
-              className={
-                'rounded-lg px-4 py-1.5 text-sm font-semibold transition-colors ' +
-                (groupView === 'reyting' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700')
-              }
-            >
-              Reyting
-            </button>
-          </div>
+            {/* O'NG USTUN — bo'limlar (tab) */}
+            <div className="min-w-0 space-y-6">
+              <div className="tabs flex-wrap" role="tablist">
+                <button type="button" className={cn('tab', tab === 'jurnal' && 'active')} onClick={() => { setTab('jurnal'); load(journal?.month) }}>
+                  <BookOpen className="mr-1 inline h-3.5 w-3.5" /> Jurnal
+                </button>
+                <button type="button" className={cn('tab', tab === 'davomat' && 'active')} onClick={() => setTab('davomat')}>
+                  <CalendarCheck className="mr-1 inline h-3.5 w-3.5" /> Davomat
+                </button>
+                <button type="button" className={cn('tab', tab === 'baholash' && 'active')} onClick={() => setTab('baholash')}>
+                  <CheckCircle2 className="mr-1 inline h-3.5 w-3.5" /> Baholash
+                </button>
+                <button type="button" className={cn('tab', tab === 'reyting' && 'active')} onClick={() => setTab('reyting')}>
+                  <TrendingUp className="mr-1 inline h-3.5 w-3.5" /> Reyting
+                </button>
+                <button type="button" className={cn('tab', tab === 'imtihonlar' && 'active')} onClick={() => setTab('imtihonlar')}>
+                  <ClipboardList className="mr-1 inline h-3.5 w-3.5" /> Imtihonlar
+                </button>
+                <button type="button" className={cn('tab', tab === 'tarix' && 'active')} onClick={() => setTab('tarix')}>
+                  <History className="mr-1 inline h-3.5 w-3.5" /> Tarix
+                </button>
+              </div>
 
           {/* Oylik jurnal */}
-          {groupView === 'jurnal' && (
+          {tab === 'jurnal' && (
           <Card className="p-0">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
               <div className="flex items-center gap-2">
@@ -935,15 +1041,93 @@ export function ClassDetailPage() {
           </Card>
           )}
 
+          {/* Davomat — tanlangan oy uchun har o'quvchi davomat foizi (jurnal ma'lumotidan) */}
+          {tab === 'davomat' && (
+            <Card className="p-0">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <CalendarCheck className="h-5 w-5 text-brand-600" />
+                  <h2 className="font-semibold text-slate-800">Davomat</h2>
+                  <span className="text-sm text-slate-400">{monthLabel(journal?.month ?? '')}</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {journal?.months.map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => load(m)}
+                      title={monthLabel(m)}
+                      className={cn(
+                        'rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
+                        journal.month === m ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200',
+                      )}
+                    >
+                      {monthLabel(m)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {attendanceRows.length === 0 ? (
+                <p className="px-4 py-12 text-center text-sm text-slate-400">O'quvchi yo'q.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full border-collapse text-sm">
+                    <thead>
+                      <tr className="bg-slate-100 text-xs uppercase tracking-wide text-slate-500">
+                        <th className="border-b border-slate-200 px-4 py-2.5 text-left font-semibold">O'quvchi</th>
+                        <th className="border-b border-slate-200 px-3 py-2.5 text-center font-semibold">O'tilgan dars</th>
+                        <th className="border-b border-slate-200 px-3 py-2.5 text-center font-semibold">Qoldirgan</th>
+                        <th className="border-b border-slate-200 px-3 py-2.5 text-center font-semibold">Davomat %</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {attendanceRows.map((r) => {
+                        const sb = statusBadge(r.status)
+                        return (
+                          <tr key={r.studentId} className="border-b border-slate-100 hover:bg-slate-50">
+                            <td className="px-4 py-2.5">
+                              <span className="inline-flex items-center gap-2">
+                                <span className="font-medium text-slate-800">{r.fullName}</span>
+                                <span className={cn('rounded px-1.5 py-0.5 text-[10px] font-medium', sb.cls)}>{sb.label}</span>
+                              </span>
+                            </td>
+                            <td className="px-3 py-2.5 text-center font-mono text-slate-600">{r.held}</td>
+                            <td className="px-3 py-2.5 text-center font-mono text-slate-600">{r.absent || '—'}</td>
+                            <td className="px-3 py-2.5 text-center">
+                              {r.pct == null ? (
+                                <span className="text-slate-400">—</span>
+                              ) : (
+                                <span
+                                  className={cn(
+                                    'inline-flex min-w-11 items-center justify-center rounded-md px-2 py-0.5 text-sm font-semibold',
+                                    r.pct >= 90 ? 'bg-emerald-50 text-emerald-700'
+                                      : r.pct >= 75 ? 'bg-amber-50 text-amber-700'
+                                        : 'bg-red-50 text-red-600',
+                                  )}
+                                >
+                                  {r.pct}%
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </Card>
+          )}
+
           {/* Baholash — har darsga mezonlar bo'yicha bajardi/bajarmadi */}
-          {groupView === 'baholash' && (
+          {tab === 'baholash' && (
             <Card title="Baholash" sub="Har darsga mezonlar bo'yicha o'quvchini belgilang (bajardi / bajarmadi)">
               <GradingSection groupId={id} fetchBoard={getGradingBoard} saveGrade={setGrade} bulkGrade={bulkGrade} />
             </Card>
           )}
 
           {/* Reyting — o'quvchilarning o'rtacha bahosi va baholash statistikasi (bir yoki bir nechta oy yig'indisi) */}
-          {groupView === 'reyting' && (
+          {tab === 'reyting' && (
             <div className="space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-[var(--shadow-1)]">
                 <div className="flex items-center gap-2">
@@ -978,7 +1162,19 @@ export function ClassDetailPage() {
             </div>
           )}
 
-          {/* O'quv dasturi — darsda o'tilgan bandlar + tugatish prognozi */}
+          {/* Imtihonlar — guruh testlari (yaratish/tahrirlash/o'chirish + ball kiritishga o'tish) */}
+          {tab === 'imtihonlar' && <GroupTestsTab groupId={id} onOpenTest={(testId) => navigate(`/admin/test-results/${id}/tests/${testId}`)} />}
+
+          {/* Tarix — guruhga oid barcha o'zgarishlar (to'g'ridan-to'g'ri tahrir + a'zolik amallari) */}
+          {tab === 'tarix' && (
+            <Card title="O'zgarishlar tarixi" sub="Guruh va a'zolik amallari (muzlatish/aktivlashtirish/o'tkazish/chiqarish)">
+              <AuditHistoryList filters={{ groupId: id }} emptyLabel="O'zgarishlar tarixi yo'q" />
+            </Card>
+          )}
+            </div>
+          </div>
+
+          {/* O'quv dasturi — darsda o'tilgan bandlar + tugatish prognozi (to'liq kenglik) */}
           <CurriculumSection
             curr={curr}
             loading={currLoading}
@@ -1272,12 +1468,70 @@ export function ClassDetailPage() {
         />
       )}
 
+      {/* A'zolar ro'yxati "⋮" — muzlatish/aktivlashtirish/sinovga qaytarish/chiqarish (sabab + sana modali) */}
+      <ReasonPromptModal
+        open={!!rosterReason}
+        category={
+          rosterReason === 'freeze' ? 'freeze'
+          : rosterReason === 'activate' ? 'activate'
+          : rosterReason === 'remove' ? rosterRemoveCategory(rosterTarget?.status ?? 'trial')
+          : 'return_trial'
+        }
+        title={
+          rosterReason === 'freeze' ? 'Muzlatish'
+          : rosterReason === 'activate' ? 'Aktivlashtirish'
+          : rosterReason === 'remove' ? "Guruhdan chiqarish"
+          : 'Sinov darsiga qaytarish'
+        }
+        message={
+          rosterTarget
+            ? rosterReason === 'freeze'
+              ? `${rosterTarget.fullName} — shu sanadan boshlab oylik to'lov hisoblanmaydi.`
+              : rosterReason === 'activate'
+                ? `${rosterTarget.fullName} — shu sanadan boshlab qisman oylik hisoblanadi.`
+                : rosterReason === 'remove'
+                  ? `${rosterTarget.fullName} ni guruhdan chiqarasizmi?`
+                  : `${rosterTarget.fullName} — sinov holatiga qaytariladi (oylik to'lov hisoblanmaydi).`
+            : undefined
+        }
+        confirmLabel={
+          rosterReason === 'freeze' ? 'Muzlatish'
+          : rosterReason === 'activate' ? 'Aktivlashtirish'
+          : rosterReason === 'remove' ? 'Chiqarish'
+          : 'Sinovga qaytarish'
+        }
+        tone={rosterReason === 'freeze' ? 'sky' : rosterReason === 'remove' ? 'red' : 'brand'}
+        showDate={rosterReason === 'freeze' || rosterReason === 'activate'}
+        defaultDate={rosterDate}
+        onConfirm={confirmRosterReason}
+        onClose={() => setRosterReason(null)}
+      />
+
+      {/* A'zolar ro'yxati "⋮" — boshqa guruhga o'tkazish */}
+      {rosterTarget && (
+        <TransferGroupModal
+          open={rosterTransferOpen}
+          onClose={() => setRosterTransferOpen(false)}
+          studentId={rosterTarget.studentId}
+          studentName={rosterTarget.fullName}
+          fromGroupId={id}
+          fromGroupName={g?.name ?? ''}
+          onDone={() => {
+            setRosterTransferOpen(false)
+            setRosterTarget(null)
+            reloadMembers()
+            load(journal?.month)
+          }}
+        />
+      )}
+
       {/* A'zo qo'shish: avval mavjud o'quvchilardan qidiriladi, topilmasa "Yangi o'quvchi" yaratiladi
           (ClassMembersModal — a'zolarni to'liq boshqarish: qo'shish/qidirish/yaratish/holat). */}
       <ClassMembersModal
         group={membersOpen ? group : null}
         onClose={() => {
           setMembersOpen(false)
+          reloadMembers()
           load(journal?.month)
         }}
       />
@@ -1325,6 +1579,332 @@ function Info({
         </p>
       </div>
     </div>
+  )
+}
+
+// ============================ A'zolar ro'yxati qatori ============================
+
+/** Chap ustundagi bitta a'zolik qatori — bosilsa profilga o'tadi, "⋮" menyu faqat FAOL a'zolarda. */
+function MemberRow({
+  m, canManage, onActivate, onFreeze, onReturn, onTransfer, onRemove,
+}: {
+  m: GroupMember
+  canManage: boolean
+  onActivate: () => void
+  onFreeze: () => void
+  onReturn: () => void
+  onTransfer: () => void
+  onRemove: () => void
+}) {
+  // Rang ustuvorligi: chiqqan (line-through) → qarzdor (qizil) → muzlatilgan (ko'k) → sinov (sariq) → aktiv (neytral).
+  const removed = !m.isActive
+  const nameCls = removed
+    ? 'text-slate-400 line-through'
+    : m.balance < 0
+      ? 'text-red-600'
+      : m.status === 'frozen'
+        ? 'text-sky-600'
+        : m.status === 'trial'
+          ? 'text-amber-600'
+          : 'text-slate-700'
+  const sb = statusBadge(m.status)
+
+  return (
+    <li className="relative">
+      <Link
+        to={`/admin/students/${m.studentId}`}
+        className="flex items-center gap-2 rounded-lg px-2 py-2 pr-9 transition-colors hover:bg-slate-50"
+      >
+        {removed ? (
+          <X className="h-3.5 w-3.5 shrink-0 text-slate-300" />
+        ) : (
+          <span
+            className={cn('h-2 w-2 shrink-0 rounded-full', m.balance < 0 ? 'bg-red-500' : m.status === 'frozen' ? 'bg-sky-500' : m.status === 'trial' ? 'bg-amber-500' : 'bg-emerald-500')}
+            title={m.balance < 0 ? `Qarz: ${formatMoney(m.balance)}` : 'Qarzi yo\'q'}
+          />
+        )}
+        <span className={cn('min-w-0 flex-1 truncate text-sm font-medium', nameCls)}>{m.fullName}</span>
+        {removed ? (
+          <span className="shrink-0 text-[11px] text-slate-400">
+            {m.leftAt ? formatDate(m.leftAt) : 'Chiqgan'}
+          </span>
+        ) : (
+          <span className={cn('shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium', sb.cls)}>{sb.label}</span>
+        )}
+      </Link>
+      {canManage && !removed && (
+        <div className="absolute right-1 top-1/2 -translate-y-1/2" onClick={(e) => e.preventDefault()}>
+          <DropdownMenu
+            triggerClassName="h-7 w-7 rounded-lg border-transparent"
+            items={[
+              ...(m.status !== 'active'
+                ? [{ label: 'Faollashtirish', icon: CheckCircle2, onClick: onActivate }]
+                : [{ label: 'Muzlatish', icon: Snowflake, onClick: onFreeze }]),
+              ...(m.status !== 'trial'
+                ? [{ label: 'Sinov darsiga qaytarish', icon: RotateCcw, onClick: onReturn }]
+                : []),
+              { label: "Boshqa guruhga o'tkazish", icon: ArrowLeftRight, onClick: onTransfer },
+              { label: 'Guruhdan chiqarish', icon: X, danger: true, onClick: onRemove },
+            ]}
+          />
+        </div>
+      )}
+    </li>
+  )
+}
+
+// ============================ Imtihonlar (guruh testlari) bo'limi ============================
+
+/** Guruh testlari ro'yxati + yaratish/tahrirlash/o'chirish (TestGroupPage'dan; sarlavhasiz, ClassDetailPage ichida). */
+function GroupTestsTab({ groupId, onOpenTest }: { groupId: string; onOpenTest: (testId: string) => void }) {
+  const { can } = usePerm()
+  const [tests, setTests] = useState<GroupTest[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [formOpen, setFormOpen] = useState(false)
+  const [editing, setEditing] = useState<GroupTest | null>(null)
+  const [deleting, setDeleting] = useState<GroupTest | null>(null)
+  const [deleteBusy, setDeleteBusy] = useState(false)
+
+  useEffect(() => {
+    let active = true
+    setLoading(true)
+    getGroupTests(groupId)
+      .then((t) => active && setTests(t))
+      .catch((e) => active && setError(apiErrorMessage(e, "Yuklab bo'lmadi")))
+      .finally(() => active && setLoading(false))
+    return () => {
+      active = false
+    }
+  }, [groupId])
+
+  const handleSaved = (t: GroupTest) => {
+    setTests((prev) => {
+      const exists = prev.some((x) => x.id === t.id)
+      const next = exists ? prev.map((x) => (x.id === t.id ? { ...x, ...t } : x)) : [t, ...prev]
+      return next.sort((a, b) => b.date.localeCompare(a.date))
+    })
+    setFormOpen(false)
+  }
+
+  const confirmDelete = async () => {
+    if (!deleting) return
+    setDeleteBusy(true)
+    try {
+      await deleteTest(deleting.id)
+      setTests((prev) => prev.filter((x) => x.id !== deleting.id))
+      setDeleting(null)
+    } catch (e) {
+      setError(apiErrorMessage(e, "O'chirib bo'lmadi"))
+    } finally {
+      setDeleteBusy(false)
+    }
+  }
+
+  if (loading) return <Loader label="Yuklanmoqda..." />
+
+  return (
+    <div className="space-y-3">
+      {can('classes', 'create') && (
+        <div className="flex justify-end">
+          <Button onClick={() => { setEditing(null); setFormOpen(true) }}>
+            <Plus className="h-4 w-4" /> Yangi test
+          </Button>
+        </div>
+      )}
+      {error && <Card className="py-3 text-center text-sm text-red-500">{error}</Card>}
+      {tests.length === 0 ? (
+        <Card className="py-12 text-center text-slate-400">
+          Hali test yaratilmagan. "Yangi test" tugmasini bosing.
+        </Card>
+      ) : (
+        <div className="space-y-2.5">
+          {tests.map((t) => (
+            <div
+              key={t.id}
+              className="group flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 transition-all hover:border-brand-300"
+            >
+              <button
+                type="button"
+                onClick={() => onOpenTest(t.id)}
+                className="flex min-w-0 flex-1 items-center gap-3 text-left"
+              >
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-600">
+                  <ClipboardList className="h-5 w-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-semibold text-slate-800">{t.name}</p>
+                  <p className="text-xs text-slate-400">
+                    {formatDate(t.date)} · Maks: {t.maxScore} ball
+                  </p>
+                  <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-slate-500">
+                    <span>
+                      Baholangan:{' '}
+                      <span className="font-medium text-slate-700">
+                        {t.scoredCount}/{t.studentCount}
+                      </span>
+                    </span>
+                    {t.avgScore != null && (
+                      <span>
+                        O'rtacha: <span className="font-medium text-slate-700">{t.avgScore}</span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </button>
+              <div className="flex shrink-0 items-center gap-1">
+                {can('classes', 'edit') && (
+                  <button
+                    type="button"
+                    onClick={() => { setEditing(t); setFormOpen(true) }}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-50 hover:text-slate-600"
+                    title="Tahrirlash"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                )}
+                {can('classes', 'delete') && (
+                  <button
+                    type="button"
+                    onClick={() => setDeleting(t)}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-500"
+                    title="O'chirish"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                )}
+                <ChevronRight className="h-5 w-5 text-slate-300" />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {formOpen && (
+        <GroupTestFormModal
+          groupId={groupId}
+          editing={editing}
+          onClose={() => setFormOpen(false)}
+          onSaved={handleSaved}
+        />
+      )}
+
+      <Modal
+        open={!!deleting}
+        onClose={() => !deleteBusy && setDeleting(null)}
+        title="Testni o'chirish"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setDeleting(null)} disabled={deleteBusy}>
+              Bekor
+            </Button>
+            <Button variant="danger" onClick={confirmDelete} disabled={deleteBusy}>
+              {deleteBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : "O'chirish"}
+            </Button>
+          </>
+        }
+      >
+        <div className="flex items-start gap-3">
+          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
+          <p className="text-sm text-slate-600">
+            <b>{deleting?.name}</b> testi va unga kiritilgan barcha ballar o'chiriladi. Bu amalni
+            qaytarib bo'lmaydi.
+          </p>
+        </div>
+      </Modal>
+    </div>
+  )
+}
+
+/** Test yaratish/tahrirlash modali (TestGroupPage'dan). */
+function GroupTestFormModal({
+  groupId, editing, onClose, onSaved,
+}: {
+  groupId: string
+  editing: GroupTest | null
+  onClose: () => void
+  onSaved: (t: GroupTest) => void
+}) {
+  const control =
+    'w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 outline-none transition-colors focus:border-brand-400'
+  const [name, setName] = useState(editing?.name ?? '')
+  const [date, setDate] = useState(editing?.date ?? new Date().toISOString().slice(0, 10))
+  const [maxScore, setMaxScore] = useState<string>(editing ? String(editing.maxScore) : '')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+
+  const max = useMemo(() => Number(maxScore), [maxScore])
+  const valid = name.trim().length > 0 && !!date && Number.isFinite(max) && max > 0
+
+  const submit = async () => {
+    if (!valid) {
+      setErr('Nom, sana va 0 dan katta maksimal ball kiriting')
+      return
+    }
+    setBusy(true)
+    setErr('')
+    try {
+      if (editing) {
+        await updateTest(editing.id, { name: name.trim(), date, maxScore: max })
+        onSaved({ ...editing, name: name.trim(), date, maxScore: max })
+      } else {
+        const created = await createTest({ groupId, name: name.trim(), date, maxScore: max })
+        onSaved(created)
+      }
+    } catch (e) {
+      setErr(apiErrorMessage(e, "Saqlab bo'lmadi"))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={editing ? 'Testni tahrirlash' : 'Yangi test'}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={busy}>
+            Bekor
+          </Button>
+          <Button onClick={submit} disabled={busy || !valid}>
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Saqlash'}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-3.5">
+        <div>
+          <label className="mb-1 block text-xs font-medium text-slate-500">Test nomi</label>
+          <input
+            className={control}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Masalan: Unit 3 test"
+            autoFocus
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-500">Sana</label>
+            <input type="date" className={control} value={date} onChange={(e) => setDate(e.target.value)} />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-500">Maksimal ball</label>
+            <input
+              type="number"
+              min={1}
+              className={control}
+              value={maxScore}
+              onChange={(e) => setMaxScore(e.target.value)}
+              placeholder="100"
+            />
+          </div>
+        </div>
+        {err && <p className="text-sm text-red-500">{err}</p>}
+      </div>
+    </Modal>
   )
 }
 
