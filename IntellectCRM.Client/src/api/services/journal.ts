@@ -50,6 +50,10 @@ export interface GroupJournalStudent {
   /** O'quvchi guruhda boshlangan sana ("yyyy-MM-dd"). Undan oldingi darslarga davomat/baho kiritilmaydi
    *  (bu sanadan oldingi kataklar bloklanadi). Aktivlashtirilgan bo'lsa ActivatedAt, aks holda JoinedAt. */
   memberStart: string
+  /** Shu sanadan OLDINGI (memberStart bilan bu orasidagi, orqaga sanalgan) o'tilgan darslarda yozuv
+   *  bo'lmasa ham katak avtomatik "keldi" (yashil ✓) bo'lib ko'rsatilmaydi — bo'sh qoladi, o'qituvchi
+   *  qo'lda belgilashi kerak (bloklanmaydi, faqat default holat farq qiladi). Bo'sh = cheklovsiz. */
+  presentDefaultFrom: string
 }
 /** Bitta darsning bir martalik boshqa kunga ko'chirilishi (shu oyga tegishli). */
 export interface LessonReschedule {

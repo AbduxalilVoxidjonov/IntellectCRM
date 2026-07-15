@@ -48,7 +48,9 @@ public static class JournalService
             .Select(m =>
             {
                 var st = studentById[m.StudentId];
-                return new GroupJournalStudentDto(m.StudentId, st.FullName, m.Status ?? "trial", m.ActivatedAt ?? "", st.Balance, MemberStart(m) ?? "");
+                return new GroupJournalStudentDto(
+                    m.StudentId, st.FullName, m.Status ?? "trial", m.ActivatedAt ?? "", st.Balance,
+                    MemberStart(m) ?? "", m.RecordedAt ?? "");
             })
             .OrderBy(s => s.FullName, StringComparer.OrdinalIgnoreCase)
             .ToList();

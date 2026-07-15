@@ -363,6 +363,10 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
 
         var joinedAt = string.IsNullOrWhiteSpace(req.JoinedAt)
             ? AppClock.Today.ToString("yyyy-MM-dd") : req.JoinedAt!;
+        // RecordedAt — HAQIQIY bugungi sana (JoinedAt orqaga sanalgan bo'lishi mumkin). Jurnalda
+        // "dars o'tildi + yozuv yo'q = keldi" konventsiyasi shu sanadan oldingi (orqaga sanalgan) darslarga
+        // qo'llanmasin deb — JournalService.GroupMonthAsync shu maydonni PresentDefaultFrom sifatida ishlatadi.
+        var recordedAt = AppClock.Today.ToString("yyyy-MM-dd");
         if (existing is not null)
         {
             existing.IsActive = true;
@@ -372,13 +376,14 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
             existing.Status = "trial";
             existing.ActivatedAt = string.Empty;
             existing.FrozenAt = string.Empty;
+            existing.RecordedAt = recordedAt;
         }
         else
         {
             db.StudentGroups.Add(new StudentGroup
             {
                 StudentId = req.StudentId, GroupId = id, JoinedAt = joinedAt, IsActive = true,
-                Status = "trial",
+                Status = "trial", RecordedAt = recordedAt,
             });
         }
         // Eski (single-class) ko'rinishlar uchun asosiy guruh nomini to'ldiramiz.
@@ -487,6 +492,10 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
             sg.Status = "active";
             sg.ActivatedAt = date;
             sg.FrozenAt = string.Empty;
+            // RecordedAt — HAQIQIY bugungi sana (date orqaga sanalgan bo'lishi mumkin, masalan o'tgan
+            // oydan aktivlashtirilsa). Jurnalda MemberStart (=date) bilan RecordedAt orasidagi allaqachon
+            // o'tilgan darslar avtomatik "keldi" bo'lib ko'rinmasin — o'qituvchi ularni qo'lda belgilaydi.
+            sg.RecordedAt = AppClock.Today.ToString("yyyy-MM-dd");
 
             var s = await db.Students.FindAsync(studentId);
             if (s is not null)

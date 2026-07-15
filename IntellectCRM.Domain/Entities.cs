@@ -491,6 +491,13 @@ public class StudentGroup
     public string ActivatedAt { get; set; } = string.Empty;
     /// <summary>Muzlatilgan sana (ISO). Shu oydan boshlab oylik to'lov hisoblanmaydi. Bo'sh = muzlatilmagan.</summary>
     public string FrozenAt { get; set; } = string.Empty;
+    /// <summary>Joriy holat (JoinedAt/ActivatedAt) HAQIQATDA tizimga kiritilgan sana (ISO, ORQAGA SANALMAYDI —
+    /// har doim shu amal bajarilgan kundagi AppClock.Today). JoinedAt/ActivatedAt orqaga sanalgan bo'lishi mumkin
+    /// (masalan o'quvchi o'tgan oydan aktivlashtirilsa) — jurnaldagi "dars o'tildi + yozuv yo'q = keldi"
+    /// konventsiyasi FAQAT shu sanadan (RecordedAt) keyingi darslarga qo'llanadi. MemberStart bilan RecordedAt
+    /// orasidagi (orqaga sanalgan, hali ko'rib chiqilmagan) darslar bo'sh qoladi — o'qituvchi ularni qo'lda
+    /// belgilashi kerak (bloklanmaydi, faqat avtomatik "keldi" bo'lib ko'rinmaydi).</summary>
+    public string RecordedAt { get; set; } = string.Empty;
 }
 
 /// <summary>

@@ -567,7 +567,12 @@ public record GroupJournalInfoDto(
 /// <summary>Guruh jurnalidagi o'quvchi qatori (faqat faol a'zolar). MemberStart — o'quvchi guruhda
 /// boshlangan sana ("yyyy-MM-dd", aktivlashtirilgan bo'lsa ActivatedAt, aks holda JoinedAt); undan
 /// oldingi darslarga davomat/baho KIRITILMAYDI (frontend shu sanadan oldingi kataklarni bloklaydi).</summary>
-public record GroupJournalStudentDto(string StudentId, string FullName, string Status, string ActivatedAt, decimal Balance, string MemberStart);
+/// <summary><c>PresentDefaultFrom</c>: shu sanadan OLDINGI (MemberStart bilan bu orasidagi) o'tilgan darslarda
+/// yozuv bo'lmasa ham avtomatik "keldi" deb ko'rsatilmaydi — bo'sh qoladi, o'qituvchi qo'lda belgilashi kerak
+/// (bloklanmaydi). Bo'sh qiymat = cheklovsiz (eski xatti-harakat).</summary>
+public record GroupJournalStudentDto(
+    string StudentId, string FullName, string Status, string ActivatedAt, decimal Balance, string MemberStart,
+    string PresentDefaultFrom);
 /// <summary>Guruhning bitta oylik jurnali: ustunlar guruh dars kunlari bo'yicha avtomatik, qatorlar — faol o'quvchilar.
 /// <see cref="ConductedDates"/> — "o'tildi" deb belgilangan dars sanalari (sababsiz o'quvchi shu kunda KELDI = yashil).</summary>
 public record GroupJournalDto(

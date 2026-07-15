@@ -799,8 +799,13 @@ export function ClassDetailPage() {
                             // OLDINGI darslarga davomat/baho qo'yib bo'lmaydi — katak bloklanadi.
                             const beforeMember = !!st.memberStart && c.date < st.memberStart
                             const isBeforeStart = (!!g.startDate && c.date < g.startDate) || beforeMember
-                            // Keldi (yashil): dars o'tildi + baho yo'q + sabab yo'q.
-                            const present = e?.grade == null && !reason && conductedSet.has(c.date)
+                            // Keldi (yashil): dars o'tildi + baho yo'q + sabab yo'q + shu sana o'quvchi
+                            // tizimga HAQIQATDA kiritilganidan (presentDefaultFrom) keyin — orqaga sanalgan
+                            // aktivlashtirish/qo'shishda hali ko'rib chiqilmagan eski darslar avtomatik
+                            // "keldi" bo'lib ko'rinmasin (bo'sh qoladi, o'qituvchi qo'lda belgilaydi).
+                            const present =
+                              e?.grade == null && !reason && conductedSet.has(c.date) &&
+                              (!st.presentDefaultFrom || c.date >= st.presentDefaultFrom)
                             const masteryInfo = e?.mastery != null ? masteryDisplay(e.mastery) : { label: '', cls: '' }
                             return (
                               <td
