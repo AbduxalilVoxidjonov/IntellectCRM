@@ -12,6 +12,9 @@ interface Props {
   startDate?: string
   entry: JournalEntry | null
   reasons: AbsenceReason[]
+  /** Saqlash/tozalash muvaffaqiyatsiz bo'lsa (masalan Jurnal boshqaruvi siyosati taqig'i) — shu yerda
+   *  chiroyli banner sifatida ko'rsatiladi (brauzerning standart alert() o'rniga). */
+  error?: string | null
   onClose: () => void
   /** Baho, davomat, uyga vazifa (0/1/2), xulq (0/1/2) va o'zlashtirish darajasini birga saqlaydi. */
   onSave: (
@@ -41,6 +44,7 @@ export function JournalCellModal({
   startDate,
   entry,
   reasons,
+  error,
   onClose,
   onSave,
   onClear,
@@ -97,6 +101,11 @@ export function JournalCellModal({
       {isBeforeStart && (
         <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">
           <strong>Ogohlantirish:</strong> Sana guruh yaratilishidan oldin. Saqlab bo'lmaydi.
+        </div>
+      )}
+      {error && (
+        <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">
+          <strong>Xatolik:</strong> {error}
         </div>
       )}
 

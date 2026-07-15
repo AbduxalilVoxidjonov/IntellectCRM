@@ -71,7 +71,11 @@ public class JournalController(AppDbContext db, FcmService fcm, AutoMessageServi
     public async Task<IActionResult> SetEntry(SetJournalEntryRequest req)
     {
         // Jurnal siyosati (sana oynasi / faqat o'tilgan dars) — "Adminlarga ham qo'llash" yoqiq bo'lsa cheklaydi.
-        var deny = await JournalPolicy.CheckAsync(db, req.ClassId, req.SubjectId, req.Date, req.Period, isAdmin: true);
+        // skipConducted: bitta katakka baho/davomat kiritish DARSNI O'ZI "o'tildi" qiladi (SetEntryAsync
+        // ichida) — bulk-attendance bilan bir xil, shuning uchun "hali o'tilmagan" taqig'i bunga qo'llanmaydi
+        // (aks holda birinchi bahoni qo'yish uchun avval "hammaga davomat" qilish SHART bo'lib qolardi).
+        var deny = await JournalPolicy.CheckAsync(db, req.ClassId, req.SubjectId, req.Date, req.Period,
+            isAdmin: true, skipConducted: true);
         if (deny is not null) return BadRequest(new { message = deny });
         var newAbsence = await JournalService.SetEntryAsync(db, req, fcm, autoMsg);
         if (newAbsence)

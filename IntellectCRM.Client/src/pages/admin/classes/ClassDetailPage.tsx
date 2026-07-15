@@ -99,6 +99,8 @@ export function ClassDetailPage() {
   const [reasons, setReasons] = useState<AbsenceReason[]>([])
   const [loading, setLoading] = useState(true)
   const [cell, setCell] = useState<{ studentId: string; studentName: string; date: string } | null>(null)
+  /** JournalCellModal saqlash/tozalash xatoligi — banner sifatida modal ichida ko'rsatiladi. */
+  const [cellError, setCellError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   /** Sarlavhadagi sana bosilganda — shu kun uchun hammaga davomat modali. */
   const [bulkDate, setBulkDate] = useState<string | null>(null)
@@ -418,6 +420,7 @@ export function ClassDetailPage() {
   ) => {
     if (!journal || !cell) return
     setSaving(true)
+    setCellError(null)
     try {
       await setJournalEntry(journal.group.id, journal.group.courseId, 1, cell.studentId, cell.date, 1, {
         grade, reasonId, homework, behavior, mastery,
@@ -425,7 +428,7 @@ export function ClassDetailPage() {
       setCell(null)
       load(journal.month)
     } catch (err) {
-      alert(apiErrorMessage(err, "Saqlab bo'lmadi"))
+      setCellError(apiErrorMessage(err, "Saqlab bo'lmadi"))
     } finally {
       setSaving(false)
     }
@@ -434,12 +437,13 @@ export function ClassDetailPage() {
   const handleClear = async () => {
     if (!journal || !cell) return
     setSaving(true)
+    setCellError(null)
     try {
       await clearJournalEntry(journal.group.id, journal.group.courseId, 1, cell.studentId, cell.date, 1)
       setCell(null)
       load(journal.month)
     } catch (err) {
-      alert(apiErrorMessage(err, "Tozalab bo'lmadi"))
+      setCellError(apiErrorMessage(err, "Tozalab bo'lmadi"))
     } finally {
       setSaving(false)
     }
@@ -969,9 +973,10 @@ export function ClassDetailPage() {
                                 <button
                                   type="button"
                                   disabled={isBeforeStart}
-                                  onClick={() =>
+                                  onClick={() => {
+                                    setCellError(null)
                                     setCell({ studentId: st.studentId, studentName: st.fullName, date: c.date })
-                                  }
+                                  }}
                                   className={cn(
                                     'flex h-9 w-full min-w-9 items-center justify-center rounded-md text-sm font-semibold transition-colors',
                                     isBeforeStart
@@ -1236,7 +1241,12 @@ export function ClassDetailPage() {
         startDate={g?.startDate}
         entry={cellEntry}
         reasons={reasons}
-        onClose={() => !saving && setCell(null)}
+        error={cellError}
+        onClose={() => {
+          if (saving) return
+          setCell(null)
+          setCellError(null)
+        }}
         onSave={handleSave}
         onClear={handleClear}
       />

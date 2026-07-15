@@ -239,7 +239,10 @@ public class TeacherPortalController(
         if (string.CompareOrdinal(req.Date, AppClock.Now.ToString("yyyy-MM-dd")) > 0)
             return BadRequest(new { message = "Dars hali o'tilmagan — kelajakdagi sanaga baho qo'yib bo'lmaydi" });
         // Jurnal siyosati (admin "Guruhlar → Jurnal boshqaruvi"): sana oynasi / faqat o'tilgan dars.
-        var deny = await JournalPolicy.CheckAsync(db, req.ClassId, req.SubjectId, req.Date, req.Period, isAdmin: false);
+        // skipConducted: bitta katakka baho/davomat kiritish DARSNI O'ZI "o'tildi" qiladi (SetEntryAsync
+        // ichida) — bulk-attendance bilan bir xil, shuning uchun "hali o'tilmagan" taqig'i bunga qo'llanmaydi.
+        var deny = await JournalPolicy.CheckAsync(db, req.ClassId, req.SubjectId, req.Date, req.Period,
+            isAdmin: false, skipConducted: true);
         if (deny is not null) return BadRequest(new { message = deny });
         var newAbsence = await JournalService.SetEntryAsync(db, req, fcm, autoMsg);
         if (newAbsence)
