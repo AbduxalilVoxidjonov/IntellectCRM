@@ -18,8 +18,18 @@ export function SupportPanel() {
   const [sending, setSending] = useState(false)
 
   const bottomRef = useRef<HTMLDivElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
   const selectedRef = useRef<BotThread | null>(null)
   selectedRef.current = selected
+  /** Foydalanuvchi pastki qismga yaqinmi (4s polling YANGI xabar bo'lmasa ham qayta chizadi —
+   *  shuning uchun faqat shu holatda avto-scroll qilinadi, aks holda tepaga o'qish uchun chiqilgan
+   *  bo'lsa har 4s'da pastga tashlab yuboradi). */
+  const nearBottomRef = useRef(true)
+  const handleScroll = () => {
+    const el = containerRef.current
+    if (!el) return
+    nearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80
+  }
 
   // Dastlabki thread yuklash
   useEffect(() => {
@@ -39,6 +49,8 @@ export function SupportPanel() {
   // Tanlangan thread xabarlarini yuklash (tanlanganda va har 4s)
   useEffect(() => {
     if (!selected) return
+    // Thread yangi tanlanganda har doim pastga (suhbat oxiriga) tushiladi.
+    nearBottomRef.current = true
     setLoadingMsgs(true)
     getBotMessages(selected.chatId)
       .then(setMsgs)
@@ -53,9 +65,11 @@ export function SupportPanel() {
     return () => clearInterval(id)
   }, [selected?.chatId])
 
-  // Yangi xabar kelganda pastga aylantirish
+  // Yangi xabar kelganda pastga aylantirish — FAQAT foydalanuvchi allaqachon pastda bo'lsa (yoki
+  // thread endi tanlangan bo'lsa). 4s polling har safar yangi msgs massivi qaytaradi (yangi xabar
+  // bo'lmasa ham) — shu tekshiruv bo'lmasa tepaga o'qish uchun chiqilganda doim pastga tashlab yuborardi.
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (nearBottomRef.current) bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [msgs])
 
   const handleSend = async (e: React.FormEvent) => {
@@ -67,6 +81,8 @@ export function SupportPanel() {
     try {
       await replyBotThread(selected.chatId, t)
       setText('')
+      // O'zi yozgan javobini har doim ko'rsin — pastga tushiriladi.
+      nearBottomRef.current = true
       const fresh = await getBotMessages(selected.chatId)
       setMsgs(fresh)
     } finally {
@@ -166,7 +182,7 @@ export function SupportPanel() {
           </div>
 
           {/* Xabarlar */}
-          <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
+          <div ref={containerRef} onScroll={handleScroll} className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
             {loadingMsgs ? (
               <Loader label="Yuklanmoqda..." />
             ) : msgs.length === 0 ? (

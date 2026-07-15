@@ -708,20 +708,64 @@ export function ClassDetailPage() {
                   {members.length === 0 ? (
                     <p className="py-6 text-center text-sm text-slate-400">Bu guruhda a'zo yo'q.</p>
                   ) : (
-                    <ul className="-mx-2 max-h-[55vh] divide-y divide-slate-100 overflow-y-auto">
-                      {members.map((m) => (
-                        <MemberRow
-                          key={m.studentId}
-                          m={m}
-                          canManage={can('classes', 'create')}
-                          onActivate={() => { openRoster(m); setRosterReason('activate') }}
-                          onFreeze={() => { openRoster(m); setRosterReason('freeze') }}
-                          onReturn={() => { openRoster(m); setRosterReason('return') }}
-                          onTransfer={() => { openRoster(m); setRosterTransferOpen(true) }}
-                          onRemove={() => { openRoster(m); setRosterReason('remove') }}
-                        />
-                      ))}
-                    </ul>
+                    <>
+                      {/* Rang izohi */}
+                      <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-400">
+                        <span className="inline-flex items-center gap-1">
+                          <span className="h-2 w-2 rounded-full bg-emerald-500" /> Faol
+                        </span>
+                        <span className="inline-flex items-center gap-1">
+                          <span className="h-2 w-2 rounded-full bg-red-500" /> Qarzdor
+                        </span>
+                        <span className="inline-flex items-center gap-1">
+                          <span className="h-2 w-2 rounded-full bg-sky-500" /> Muzlatilgan
+                        </span>
+                        <span className="inline-flex items-center gap-1">
+                          <span className="h-2 w-2 rounded-full bg-amber-500" /> Sinovda
+                        </span>
+                        <span className="inline-flex items-center gap-1">
+                          <X className="h-3 w-3 text-slate-300" /> Chiqarilgan
+                        </span>
+                      </div>
+
+                      <div className="max-h-[55vh] overflow-y-auto">
+                        <ul className="-mx-2 divide-y divide-slate-100">
+                          {members.filter((m) => m.isActive).map((m) => (
+                            <MemberRow
+                              key={m.studentId}
+                              m={m}
+                              canManage={can('classes', 'create')}
+                              onActivate={() => { openRoster(m); setRosterReason('activate') }}
+                              onFreeze={() => { openRoster(m); setRosterReason('freeze') }}
+                              onReturn={() => { openRoster(m); setRosterReason('return') }}
+                              onTransfer={() => { openRoster(m); setRosterTransferOpen(true) }}
+                              onRemove={() => { openRoster(m); setRosterReason('remove') }}
+                            />
+                          ))}
+                        </ul>
+                        {members.some((m) => !m.isActive) && (
+                          <>
+                            <p className="mt-2 border-t border-slate-200 pt-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                              Guruhdan chiqarilganlar
+                            </p>
+                            <ul className="-mx-2 divide-y divide-slate-100">
+                              {members.filter((m) => !m.isActive).map((m) => (
+                                <MemberRow
+                                  key={m.studentId}
+                                  m={m}
+                                  canManage={can('classes', 'create')}
+                                  onActivate={() => { openRoster(m); setRosterReason('activate') }}
+                                  onFreeze={() => { openRoster(m); setRosterReason('freeze') }}
+                                  onReturn={() => { openRoster(m); setRosterReason('return') }}
+                                  onTransfer={() => { openRoster(m); setRosterTransferOpen(true) }}
+                                  onRemove={() => { openRoster(m); setRosterReason('remove') }}
+                                />
+                              ))}
+                            </ul>
+                          </>
+                        )}
+                      </div>
+                    </>
                   )}
                 </div>
               </Card>
