@@ -130,8 +130,6 @@ export function ClassDetailPage() {
   const [rosterBusy, setRosterBusy] = useState(false)
   /** Guruh o'qituvchisi id'si — profilga link uchun (jurnal DTO'sida faqat teacherName bor). */
   const [teacherId, setTeacherId] = useState('')
-  /** Guruh sig'imi — jurnal DTO'sida yo'q, "Yangi o'quvchi" to'lganlik ogohlantirishi uchun. */
-  const [capacity, setCapacity] = useState(0)
   /** "Yangi o'quvchi" yaratish formasi ochiqmi — yaratilgach shu guruhga qo'shiladi. */
   /** A'zo qo'shish modali (mavjud o'quvchini qidirish yoki yangi yaratish) ochiqmi. */
   const [membersOpen, setMembersOpen] = useState(false)
@@ -255,8 +253,7 @@ export function ClassDetailPage() {
       .catch(() => {})
   }, [load])
 
-  // Guruh o'qituvchisi id'si va sig'imi — "O'qituvchi" nomini profilga link qilish, "Yangi
-  // o'quvchi" to'lganlik ogohlantirishi uchun (jurnal DTO'sida ikkalasi ham yo'q).
+  // Guruh o'qituvchisi id'si — "O'qituvchi" nomini profilga link qilish uchun (jurnal DTO'sida yo'q).
   useEffect(() => {
     if (!id) return
     getClasses()
@@ -264,12 +261,10 @@ export function ClassDetailPage() {
         const cls = cs.find((c) => c.id === id)
         setGroup(cls ?? null)
         setTeacherId(cls?.teacherId ?? '')
-        setCapacity(cls?.capacity ?? 0)
       })
       .catch(() => {
         setGroup(null)
         setTeacherId('')
-        setCapacity(0)
       })
   }, [id])
 
@@ -705,27 +700,10 @@ export function ClassDetailPage() {
 
                 {/* A'zolar ro'yxati — TO'LIQ tarix (chiqqan/muzlatilgan/sinov/aktiv) */}
                 <div className="border-t border-slate-100 pt-4">
-                  <div className="mb-3 flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <Users className="h-5 w-5 text-brand-600" />
-                      <h2 className="font-semibold text-slate-800">A'zolar</h2>
-                      <span className="text-sm text-slate-400">{members.filter((m) => m.isActive).length}</span>
-                    </div>
-                    {can('classes', 'create') && (
-                      <button
-                        type="button"
-                        disabled={capacity > 0 && members.filter((m) => m.isActive).length >= capacity}
-                        onClick={() => setMembersOpen(true)}
-                        title={
-                          capacity > 0 && members.filter((m) => m.isActive).length >= capacity
-                            ? `Guruh to'lgan (${capacity} o'rin)`
-                            : "Mavjud o'quvchini qidirib qo'shish yoki yangi yaratish"
-                        }
-                        className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-brand-600 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-brand-700 disabled:opacity-50"
-                      >
-                        <UserPlus className="h-3.5 w-3.5" /> Qo'shish
-                      </button>
-                    )}
+                  <div className="mb-3 flex items-center gap-2">
+                    <Users className="h-5 w-5 text-brand-600" />
+                    <h2 className="font-semibold text-slate-800">A'zolar</h2>
+                    <span className="text-sm text-slate-400">{members.filter((m) => m.isActive).length}</span>
                   </div>
                   {members.length === 0 ? (
                     <p className="py-6 text-center text-sm text-slate-400">Bu guruhda a'zo yo'q.</p>
@@ -803,21 +781,6 @@ export function ClassDetailPage() {
                     {monthLabel(m)}
                   </button>
                 ))}
-                {can('classes', 'create') && (
-                  <button
-                    type="button"
-                    disabled={capacity > 0 && journalStudents.length >= capacity}
-                    onClick={() => setMembersOpen(true)}
-                    title={
-                      capacity > 0 && journalStudents.length >= capacity
-                        ? `Guruh to'lgan (${capacity} o'rin)`
-                        : "Mavjud o'quvchini qidirib qo'shish yoki yangi yaratish"
-                    }
-                    className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-brand-700 disabled:opacity-50"
-                  >
-                    <Plus className="h-4 w-4" /> O'quvchi qo'shish
-                  </button>
-                )}
               </div>
             </div>
 
