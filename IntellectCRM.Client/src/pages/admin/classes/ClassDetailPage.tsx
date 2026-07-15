@@ -26,7 +26,7 @@ import {
 import { getStudents } from '@/api/services/students'
 import { getGroupTests, createTest, updateTest, deleteTest } from '@/api/services/testResults'
 import { getSettings } from '@/api/services/settings'
-import { cn, formatMoney, formatDate, apiErrorMessage } from '@/lib/utils'
+import { cn, formatMoney, formatDate, apiErrorMessage, gradeBadgeCls } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
 import { DropdownMenu } from '@/components/ui/DropdownMenu'
 import { AuditHistoryList } from '@/components/audit/AuditHistoryList'
@@ -70,17 +70,6 @@ function statusBadge(status: string): { label: string; cls: string } {
     default:
       return { label: 'Sinov', cls: 'bg-amber-50 text-amber-700' }
   }
-}
-
-/** Baho katakchasi to'liq rangi — bahoga qarab (5=yashil, 4=ko'k, 3=sariq, past=qizil). */
-function gradeFill(g: number): string {
-  return g >= 5
-    ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-    : g >= 4
-      ? 'bg-brand-50 text-brand-700 hover:bg-brand-100'
-      : g >= 3
-        ? 'bg-amber-50 text-amber-700 hover:bg-amber-100'
-        : 'bg-red-50 text-red-600 hover:bg-red-100'
 }
 
 /** Mastery darajasi — rangi va yorlig'i */
@@ -378,10 +367,13 @@ export function ClassDetailPage() {
       .sort((a, b) => b.combinedTotal - a.combinedTotal || a.originalIndex - b.originalIndex)
   }, [journal, grading, entryMap])
 
-  const journalStudents = useMemo(
-    () => sortedAndScoredStudents,
-    [sortedAndScoredStudents],
-  )
+  /** Jurnal jadvali qatorlari tartibi: 'score' — ball bo'yicha (standart), 'name' — A-Z/Z-A. */
+  const [journalSort, setJournalSort] = useState<'score' | 'nameAsc' | 'nameDesc'>('score')
+  const journalStudents = useMemo(() => {
+    if (journalSort === 'score') return sortedAndScoredStudents
+    const list = [...sortedAndScoredStudents].sort((a, b) => a.fullName.localeCompare(b.fullName, 'uz'))
+    return journalSort === 'nameAsc' ? list : list.reverse()
+  }, [sortedAndScoredStudents, journalSort])
   const frozenStudents = useMemo(
     () => (journal?.students ?? []).filter((s) => s.status === 'frozen'),
     [journal],
@@ -825,6 +817,17 @@ export function ClassDetailPage() {
                 <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-sm font-semibold text-emerald-600">
                   {activeCount} faol
                 </span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setJournalSort((v) => (v === 'nameAsc' ? 'nameDesc' : v === 'nameDesc' ? 'score' : 'nameAsc'))
+                  }
+                  title="Tartib: ball / A-Z / Z-A"
+                  className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-xs font-medium text-slate-500 transition-colors hover:border-brand-300 hover:text-brand-700"
+                >
+                  <ArrowUpDown className="h-3.5 w-3.5" />
+                  {journalSort === 'score' ? 'Ball' : journalSort === 'nameAsc' ? 'A-Z' : 'Z-A'}
+                </button>
               </div>
               <div className="flex flex-wrap items-center gap-1.5">
                 {journal?.months.map((m) => (
@@ -974,7 +977,7 @@ export function ClassDetailPage() {
                                     isBeforeStart
                                       ? 'cursor-not-allowed text-slate-200'
                                       : e?.grade != null
-                                        ? gradeFill(e.grade)
+                                        ? gradeBadgeCls(e.grade)
                                         : e?.mastery != null
                                           ? masteryInfo.cls
                                           : reason
@@ -1044,7 +1047,7 @@ export function ClassDetailPage() {
                                       className={cn(
                                         'inline-flex h-7 min-w-7 items-center justify-center rounded px-1 text-sm font-semibold',
                                         e?.grade != null
-                                          ? gradeFill(e.grade)
+                                          ? gradeBadgeCls(e.grade)
                                           : reason
                                             ? reason.isLate
                                               ? 'bg-amber-50 text-amber-700'

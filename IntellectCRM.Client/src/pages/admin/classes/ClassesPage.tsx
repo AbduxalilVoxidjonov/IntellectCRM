@@ -34,7 +34,7 @@ import {
 import { getClassesStats, type ClassStats, getAllGroupsGradingStats, type GradingGroupStats } from '@/api/services/classPerformance'
 import { getTeachers } from '@/api/services/teachers'
 import { languageLabels } from '@/config/constants'
-import { formatMoney, formatDate, cn } from '@/lib/utils'
+import { formatMoney, formatDate, cn, gradeTextCls } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
@@ -531,7 +531,7 @@ export function ClassesPage() {
                       <td className="text-slate-600">{formatDays(c.days)}</td>
                       <td className="num text-slate-600">{formatTime(c.startTime, c.endTime)}</td>
                       <td className="num">{st ? st.studentsCount : '—'}</td>
-                      <td className={cn('num font-semibold', st && gradeColor(st.averageGrade))}>
+                      <td className={cn('num font-semibold', st && gradeTextCls(st.averageGrade))}>
                         {st ? st.averageGrade.toFixed(1) : '—'}
                       </td>
                       <td
@@ -666,7 +666,7 @@ export function ClassesPage() {
                   </div>
                   <div>
                     <div className="ec-stat-label">O'rtacha</div>
-                    <div className={cn('ec-stat-value', st && gradeColor(st.averageGrade))}>
+                    <div className={cn('ec-stat-value', st && gradeTextCls(st.averageGrade))}>
                       {st ? st.averageGrade.toFixed(1) : '—'}
                     </div>
                   </div>
@@ -897,13 +897,6 @@ export function ClassesPage() {
       </Modal>
     </div>
   )
-}
-
-function gradeColor(g: number): string {
-  if (g >= 4.5) return 'text-emerald-600'
-  if (g >= 4) return 'text-brand-600'
-  if (g >= 3.5) return 'text-amber-600'
-  return 'text-red-600'
 }
 
 function attColor(a: number): string {

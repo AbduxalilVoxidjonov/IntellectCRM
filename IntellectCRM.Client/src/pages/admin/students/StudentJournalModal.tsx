@@ -3,24 +3,13 @@ import { ChevronLeft, ChevronRight, CalendarCheck, CheckCircle2, XCircle, Clock,
 import { getStudentJournal, type StudentJournal, type StudentJournalCell } from '@/api/services/studentAttendance'
 import type { MasteryLevel } from '@/types'
 import { formatMonth } from '@/config/constants'
-import { cn, apiErrorMessage } from '@/lib/utils'
+import { cn, apiErrorMessage, gradeBadgeCls } from '@/lib/utils'
 import { Modal } from '@/components/ui/Modal'
 import { Loader } from '@/components/ui/Loader'
 
 interface StudentJournalModalProps {
   studentId: string | null
   onClose: () => void
-}
-
-/** Baho katakchasi to'liq rangi — bahoga qarab (5=yashil, 4=ko'k, 3=sariq, past=qizil). Nusxa: ClassDetailPage. */
-function gradeFill(g: number): string {
-  return g >= 5
-    ? 'border-emerald-100 bg-emerald-50 text-emerald-700'
-    : g >= 4
-      ? 'border-brand-100 bg-brand-50 text-brand-700'
-      : g >= 3
-        ? 'border-amber-100 bg-amber-50 text-amber-700'
-        : 'border-red-100 bg-red-50 text-red-600'
 }
 
 /** Mastery darajasi — rangi va yorlig'i. Nusxa: ClassDetailPage. */
@@ -42,7 +31,7 @@ function masteryDisplay(m: MasteryLevel | undefined): { label: string; cls: stri
 /** Bitta kunlik katakning ko'rinishi (rang + belgi) — guruh jurnali bilan bir xil ustuvorlik. */
 function cellDisplay(c: StudentJournalCell): { cls: string; label: string } {
   if (c.blocked) return { cls: 'border-slate-100 bg-slate-50 text-slate-300', label: '' }
-  if (c.grade != null) return { cls: gradeFill(c.grade), label: String(c.grade) }
+  if (c.grade != null) return { cls: gradeBadgeCls(c.grade), label: String(c.grade) }
   if (c.mastery != null) {
     const m = masteryDisplay(c.mastery)
     return { cls: m.cls, label: m.label }

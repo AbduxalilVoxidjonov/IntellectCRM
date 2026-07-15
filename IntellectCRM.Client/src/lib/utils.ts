@@ -123,6 +123,40 @@ export function formatMoney(n: number): string {
   return `${new Intl.NumberFormat('ru-RU').format(n)} so'm`
 }
 
+/**
+ * 1-5 ball uchun BUTUN TIZIMDA yagona rang shkalasi — faqat YASHIL (emerald), 1 uchun eng OCH,
+ * 5 uchun eng TO'Q. Avval har bir sahifa o'zicha qizil/sariq/ko'k/yashil ("svetofor") mustaqil
+ * nusxasini ishlatardi (masalan 1-2 baho qizil edi) — endi hammasi shu ikkita funksiyaga tayanadi.
+ * Kasr qiymatlar (o'rtacha baho, masalan 4.3) eng yaqin butun ballga yaxlitlanadi.
+ */
+function gradeStep(grade: number): number {
+  return Math.min(4, Math.max(0, Math.round(grade) - 1)) // 0..4 indeks (1-ball..5-ball)
+}
+
+/** Baho katakcha/belgisi uchun fon+matn klassi (masalan jurnal kataklari, baho chiplar). */
+export function gradeBadgeCls(grade: number): string {
+  const steps = [
+    'bg-emerald-50 text-emerald-600',
+    'bg-emerald-100 text-emerald-700',
+    'bg-emerald-200 text-emerald-800',
+    'bg-emerald-400 text-white',
+    'bg-emerald-600 text-white',
+  ]
+  return steps[gradeStep(grade)]
+}
+
+/** Faqat matn rangi kerak bo'lgan joylar uchun (masalan jadvaldagi o'rtacha baho ustuni). */
+export function gradeTextCls(grade: number): string {
+  const steps = ['text-emerald-500', 'text-emerald-600', 'text-emerald-700', 'text-emerald-800', 'text-emerald-900']
+  return steps[gradeStep(grade)]
+}
+
+/** `gradeTextCls` bilan bir xil shkala, lekin hex qiymat (o'quvchi portali — style/SVG uchun). */
+export function gradeHex(grade: number): string {
+  const steps = ['#10b981', '#059669', '#047857', '#065f46', '#064e3b']
+  return steps[gradeStep(grade)]
+}
+
 export interface TelegramTargets {
   /** Native ilova deep-link (tg://) — Telegram ilovasini to'g'ridan-to'g'ri ochadi. */
   app: string

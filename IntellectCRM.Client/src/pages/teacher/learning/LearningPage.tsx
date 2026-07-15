@@ -4,6 +4,7 @@ import { ArrowLeft, BarChart3, GraduationCap } from 'lucide-react'
 import { getMyClasses, getTeacherGroupJournal } from '@/api/services/teacher'
 import type { GroupJournal } from '@/api/services/journal'
 import type { JournalEntry } from '@/types'
+import { gradeTextCls } from '@/lib/utils'
 
 /**
  * O'qituvchi — Ta'lim progresi. Har bir guruh uchun shu oydagi o'quvchilar natijasi:
@@ -16,13 +17,6 @@ interface GroupStat {
   gradesCount: number
   avgGrade: number
   absencesCount: number
-}
-
-function gradeColor(v: number): string {
-  if (v >= 4.5) return 'text-emerald-600'
-  if (v >= 3.5) return 'text-teal-600'
-  if (v >= 2.5) return 'text-amber-600'
-  return 'text-red-500'
 }
 
 export function TeacherLearningPage() {
@@ -124,7 +118,7 @@ export function TeacherLearningPage() {
                 </div>
               ) : (
                 <div className="flex items-end justify-center gap-2 rounded-[14px] bg-tealsoft px-4 py-3">
-                  <span className={`font-mono text-[40px] font-extrabold leading-none ${gradeColor(g.avgGrade)}`}>
+                  <span className={`font-mono text-[40px] font-extrabold leading-none ${gradeTextCls(g.avgGrade)}`}>
                     {g.avgGrade.toFixed(1)}
                   </span>
                   <span className="pb-1.5 text-[12px] font-semibold text-mute">o'rtacha baho</span>

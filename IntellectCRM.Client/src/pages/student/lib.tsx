@@ -7,6 +7,7 @@ import {
   Sparkles, RefreshCw, LayoutGrid, List, ArrowRight, Upload, MessageSquare, Image,
   Images, Trash2, GraduationCap, ShieldCheck, MapPin, LocateFixed, Archive, Volume2, type LucideIcon,
 } from 'lucide-react'
+import { gradeHex } from '@/lib/utils'
 
 /* ============================================================
    O'quvchi portali — umumiy yordamchilar (student.html'dan).
@@ -93,11 +94,7 @@ export function Ring({
 }
 
 export function gradeColor(g: number): string {
-  g = Number(g) || 0
-  if (g >= 4.5) return '#16A34A'
-  if (g >= 3.5) return '#2563EB'
-  if (g >= 2.5) return '#F59E0B'
-  return '#EF4444'
+  return gradeHex(Number(g) || 0)
 }
 
 const SUBJ_PALETTE = ['#2563EB', '#7C3AED', '#0D9488', '#DB2777', '#EA580C', '#B45309', '#16A34A', '#0891B2', '#4F46E5', '#65A30D']

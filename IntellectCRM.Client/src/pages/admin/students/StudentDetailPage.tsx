@@ -42,7 +42,7 @@ import { getStudentGradingSummary, type MonthGradingSummary } from '@/api/servic
 import { getTeachers } from '@/api/services/teachers'
 import { getStudentTestResults } from '@/api/services/testResults'
 import type { Student, StudentGroupMembership, Curriculum, Group, Teacher, StudentTestResult } from '@/types'
-import { cn, formatDate, formatDateTime, formatMoney, apiErrorMessage } from '@/lib/utils'
+import { cn, formatDate, formatDateTime, formatMoney, apiErrorMessage, gradeBadgeCls } from '@/lib/utils'
 import { usePerm } from '@/lib/permissions'
 import { Card } from '@/components/ui/Card'
 import { DropdownMenu } from '@/components/ui/DropdownMenu'
@@ -2284,9 +2284,6 @@ function dedupeCallOptions(options: CallOption[]): CallOption[] {
 }
 
 function gradeCls(g: number): string {
-  return cn(
-    'inline-flex h-6 min-w-6 items-center justify-center rounded px-1 text-sm font-semibold',
-    g >= 5 ? 'bg-emerald-50 text-emerald-700' : g >= 4 ? 'bg-brand-50 text-brand-700' : g >= 3 ? 'bg-amber-50 text-amber-700' : 'bg-red-50 text-red-600',
-  )
+  return cn('inline-flex h-6 min-w-6 items-center justify-center rounded px-1 text-sm font-semibold', gradeBadgeCls(g))
 }
 

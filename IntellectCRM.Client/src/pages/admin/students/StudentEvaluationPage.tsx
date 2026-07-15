@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { Search, ClipboardList, CalendarRange, X } from 'lucide-react'
 import type { EvaluationBoard, EvaluationRow } from '@/types'
 import { getEvaluationBoard, setEvaluationGrade } from '@/api/services/studentEvaluation'
-import { cn } from '@/lib/utils'
+import { cn, gradeBadgeCls } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { PageHeader } from '@/components/ui/PageHeader'
@@ -333,14 +333,6 @@ function EvalRow({
   )
 }
 
-const gradeColor: Record<number, string> = {
-  5: 'text-emerald-700 border-emerald-200 bg-emerald-50',
-  4: 'text-brand-700 border-brand-200 bg-brand-50',
-  3: 'text-amber-700 border-amber-200 bg-amber-50',
-  2: 'text-red-600 border-red-200 bg-red-50',
-  1: 'text-red-700 border-red-300 bg-red-50',
-}
-
 function GradeSelect({
   value,
   onChange,
@@ -357,7 +349,7 @@ function GradeSelect({
       onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)}
       className={cn(
         'w-14 rounded-md border px-2 py-1 text-center text-sm font-semibold outline-none focus:border-brand-400',
-        value ? gradeColor[value] : 'border-slate-200 bg-white text-slate-400',
+        value ? gradeBadgeCls(value) : 'border-slate-200 bg-white text-slate-400',
         disabled && 'cursor-default opacity-90',
       )}
     >

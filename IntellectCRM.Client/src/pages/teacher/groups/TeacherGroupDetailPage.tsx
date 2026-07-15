@@ -17,7 +17,7 @@ import {
 } from '@/api/services/teacher'
 import type { GroupJournal } from '@/api/services/journal'
 import type { GroupCurriculum } from '@/api/services/curriculum'
-import { cn, formatDate, apiErrorMessage } from '@/lib/utils'
+import { cn, formatDate, apiErrorMessage, gradeBadgeCls } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
 import { GradingSection } from '@/components/grading/GradingSection'
 import type { GradingBoard } from "@/api/services/grading"
@@ -34,16 +34,6 @@ const uzMonths = [
 const monthLabel = (m: string) =>
   m && m.length >= 7 ? `${uzMonths[Number(m.slice(5, 7)) - 1] ?? m} ${m.slice(0, 4)}` : m
 
-/** Baho katakchasi to'liq rangi — bahoga qarab (5=yashil, 4=ko'k, 3=sariq, past=qizil). */
-function gradeFill(g: number): string {
-  return g >= 5
-    ? 'bg-emerald-50 text-emerald-700'
-    : g >= 4
-      ? 'bg-tealsoft text-teal-700'
-      : g >= 3
-        ? 'bg-amber-50 text-amber-700'
-        : 'bg-red-50 text-red-600'
-}
 
 /** Mastery darajasi — rangi va yorlig'i */
 function masteryDisplay(m: number | undefined): { label: string; cls: string } {
@@ -591,7 +581,7 @@ export function TeacherGroupDetailPage() {
                                     isBeforeStart
                                       ? "cursor-not-allowed text-slate-200"
                                       : e?.grade != null
-                                      ? gradeFill(e.grade)
+                                      ? gradeBadgeCls(e.grade)
                                       : e?.mastery != null
                                         ? masteryInfo.cls
                                         : reason
