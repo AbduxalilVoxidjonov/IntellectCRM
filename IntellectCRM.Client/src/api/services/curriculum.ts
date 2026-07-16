@@ -83,8 +83,11 @@ export async function deleteTopic(id: string): Promise<void> {
 }
 
 // ---- Band ----
-export async function createItem(topicId: string, text: string, note = ''): Promise<{ id: string }> {
-  const { data } = await api.post<{ id: string }>(`/admin/curriculum/topics/${topicId}/items`, { text, note })
+/** Yangi band (dars) yaratish — `type` FAQAT shu yerda beriladi, keyin o'zgarmaydi (bitta band = bitta tur). */
+export async function createItem(
+  topicId: string, text: string, note = '', type?: LessonType,
+): Promise<{ id: string }> {
+  const { data } = await api.post<{ id: string }>(`/admin/curriculum/topics/${topicId}/items`, { text, note, type })
   return data
 }
 export async function updateItem(id: string, text: string, note = ''): Promise<void> {

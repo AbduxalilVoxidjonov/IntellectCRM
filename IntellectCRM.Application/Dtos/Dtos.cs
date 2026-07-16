@@ -1866,8 +1866,10 @@ public record RevisionRequest(int Delta);
 public record LevelInput(string Name, string? Note);
 /// <summary>Mavzu yaratish/yangilash payload'i.</summary>
 public record TopicInput(string Title, string? Note);
-/// <summary>Band yaratish/yangilash payload'i.</summary>
-public record ItemInput(string Text, string? Note);
+/// <summary>Band yaratish/yangilash payload'i. <paramref name="Type"/> — FAQAT yaratishda ishlatiladi
+/// (text|video|audio|vocab|test|pdf; bo'sh — "text"). Yangilashda (UpdateItem) e'tiborsiz qoladi —
+/// tur yaratilgandan keyin o'zgarmaydi (har band FAQAT bitta turga tegishli).</summary>
+public record ItemInput(string Text, string? Note, string? Type = null);
 
 /// <summary>Import: band.</summary>
 public record ImportItemDto(string Text, string? Note);

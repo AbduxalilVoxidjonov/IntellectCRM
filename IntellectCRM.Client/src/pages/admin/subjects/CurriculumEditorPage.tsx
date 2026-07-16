@@ -54,7 +54,7 @@ function genId() {
 type NamePrompt =
   | { kind: 'level' }
   | { kind: 'topic'; levelId: string }
-  | { kind: 'item'; levelId: string; topicId: string }
+  | { kind: 'item'; levelId: string; topicId: string; itemType: LessonType }
 
 type DeleteTarget =
   | { kind: 'level'; level: CurriculumLevel }
@@ -81,6 +81,19 @@ const NAME_PROMPT_META: Record<NamePrompt['kind'], { title: string; label: strin
     placeholder: 'Masalan: 1-dars. Tanishuv...',
     hint: "Dars kontentini (video, matn, test...) keyin o'ng paneldan to'ldirasiz.",
   },
+}
+
+/** "item" prompt uchun sarlavha/label tanlangan turga (video/matn/audio/pdf/lug'at/test) qarab
+ *  moslashadi — chunki tur endi YARATISHDA tanlanadi va keyin o'zgarmaydi. */
+function namePromptMeta(p: NamePrompt): typeof NAME_PROMPT_META['level'] {
+  if (p.kind !== 'item') return NAME_PROMPT_META[p.kind]
+  const m = typeMeta(p.itemType)
+  return {
+    title: `Yangi ${m.label.toLowerCase()}`,
+    label: `${m.label} nomi`,
+    placeholder: `Masalan: 1-dars — ${m.label.toLowerCase()}...`,
+    hint: `Bu band FAQAT "${m.label}" turida bo'ladi — kontentni keyin o'ng paneldan to'ldirasiz.`,
+  }
 }
 
 // ============================ Asosiy sahifa ============================
@@ -144,7 +157,8 @@ export function CurriculumEditorPage() {
   // ---- Modul (daraja) ----
   const addLevel = () => setNamePrompt({ kind: 'level' })
   const addTopic = (levelId: string) => setNamePrompt({ kind: 'topic', levelId })
-  const addItem = (levelId: string, topicId: string) => setNamePrompt({ kind: 'item', levelId, topicId })
+  const addItem = (levelId: string, topicId: string, itemType: LessonType) =>
+    setNamePrompt({ kind: 'item', levelId, topicId, itemType })
 
   const submitName = async (name: string) => {
     if (!namePrompt || nameBusy) return
@@ -163,10 +177,10 @@ export function CurriculumEditorPage() {
           ls.map((l) => (l.id === levelId ? { ...l, topics: [...l.topics, topic] } : l)),
         )
       } else {
-        const { levelId, topicId } = namePrompt
-        const { id: iid } = await createItem(topicId, name)
+        const { levelId, topicId, itemType } = namePrompt
+        const { id: iid } = await createItem(topicId, name, '', itemType)
         const item: CurriculumItem = {
-          id: iid, text: name, note: '', order: 0, type: 'text', meta: '', ready: false,
+          id: iid, text: name, note: '', order: 0, type: itemType, meta: '', ready: false,
         }
         patchLevels((ls) =>
           ls.map((l) =>
@@ -365,7 +379,7 @@ export function CurriculumEditorPage() {
                     onAddTopic={() => addTopic(level.id)}
                     onSaveTopic={(topic, title) => saveTopic(level.id, topic, title)}
                     onDeleteTopic={(topic) => removeTopic(level.id, topic)}
-                    onAddItem={(topicId) => addItem(level.id, topicId)}
+                    onAddItem={(topicId, itemType) => addItem(level.id, topicId, itemType)}
                     onSelectItem={(itemId) => setSelectedId(itemId)}
                     onDeleteItem={(topicId, item) => removeItem(level.id, topicId, item)}
                   />
@@ -456,7 +470,7 @@ export function CurriculumEditorPage() {
       {/* ===== Nom kiritish modali (modul/mavzu/dars) ===== */}
       <NameModal
         open={!!namePrompt}
-        meta={namePrompt ? NAME_PROMPT_META[namePrompt.kind] : NAME_PROMPT_META.level}
+        meta={namePrompt ? namePromptMeta(namePrompt) : NAME_PROMPT_META.level}
         busy={nameBusy}
         onClose={() => setNamePrompt(null)}
         onSubmit={submitName}
@@ -804,7 +818,7 @@ interface ModuleBlockProps {
   onAddTopic: () => void
   onSaveTopic: (topic: CurriculumTopic, title: string) => void
   onDeleteTopic: (topic: CurriculumTopic) => void
-  onAddItem: (topicId: string) => void
+  onAddItem: (topicId: string, itemType: LessonType) => void
   onSelectItem: (itemId: string) => void
   onDeleteItem: (topicId: string, item: CurriculumItem) => void
 }
@@ -877,7 +891,7 @@ function ModuleBlock({
                 selectedId={selectedId}
                 onSaveTitle={(title) => onSaveTopic(topic, title)}
                 onDelete={() => onDeleteTopic(topic)}
-                onAddItem={() => onAddItem(topic.id)}
+                onAddItem={(itemType) => onAddItem(topic.id, itemType)}
                 onSelectItem={onSelectItem}
                 onDeleteItem={(item) => onDeleteItem(topic.id, item)}
               />
@@ -904,7 +918,7 @@ interface TopicBlockProps {
   selectedId: string | null
   onSaveTitle: (title: string) => void
   onDelete: () => void
-  onAddItem: () => void
+  onAddItem: (itemType: LessonType) => void
   onSelectItem: (itemId: string) => void
   onDeleteItem: (item: CurriculumItem) => void
 }
@@ -950,13 +964,23 @@ function TopicBlock({
         ))}
       </div>
 
-      <button
-        type="button"
-        onClick={onAddItem}
-        className="mt-1 inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-xs font-semibold text-brand-600 transition-colors hover:text-brand-700"
-      >
-        <Plus className="h-3.5 w-3.5" /> Dars qo'shish
-      </button>
+      {/* Dars turi tanlab qo'shish — qaysi tur bosilsa, band SHU turda yaratiladi (keyin o'zgarmaydi). */}
+      <div className="mt-1.5 flex flex-wrap gap-1">
+        {LESSON_TYPES.map((t) => {
+          const TIcon = t.icon
+          return (
+            <button
+              key={t.type}
+              type="button"
+              onClick={() => onAddItem(t.type)}
+              title={`"${t.label}" turida dars qo'shish`}
+              className="inline-flex items-center gap-1 rounded-md border border-dashed border-slate-200 px-1.5 py-1 text-[11px] font-medium text-slate-500 transition-colors hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700"
+            >
+              <TIcon className="h-3 w-3" /> {t.label}
+            </button>
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -1134,41 +1158,7 @@ function LessonEditor({ itemId, onSaved }: LessonEditorProps) {
           className={control}
         />
 
-        {/* Bo'limlar — bir nechtasini to'ldirsa bo'ladi (o'quvchi ketma-ket ko'radi) */}
-        <label className="mb-1.5 mt-4 block text-xs font-semibold text-slate-500">
-          Dars bo'limlari <span className="font-normal text-slate-400">— bir nechtasini to'ldiring (yashil = to'ldirilgan)</span>
-        </label>
-        <div className="flex flex-wrap gap-2">
-          {LESSON_TYPES.map((t) => {
-            const TIcon = t.icon
-            const on = type === t.type
-            const filled =
-              t.type === 'video' ? !!videoUrl
-              : t.type === 'audio' ? !!audioUrl
-              : t.type === 'text' ? !!textContent.trim()
-              : t.type === 'pdf' ? !!pdfUrl
-              : t.type === 'vocab' ? vocab.some((v) => v.term.trim() || v.meaning.trim())
-              : t.type === 'test' ? questions.some((q) => q.text.trim()) : false
-            return (
-              <button
-                key={t.type}
-                type="button"
-                onClick={() => setType(t.type)}
-                className={cn(
-                  'relative inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-[13px] font-semibold transition-colors',
-                  on
-                    ? 'border-brand-400 bg-brand-50 text-brand-700'
-                    : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50',
-                )}
-              >
-                <TIcon className="h-4 w-4" /> {t.label}
-                {filled && <span className="ml-0.5 h-2 w-2 rounded-full bg-emerald-500" title="To'ldirilgan" />}
-              </button>
-            )
-          })}
-        </div>
-
-        {/* Turga xos tahrirlovchi */}
+        {/* Turga xos tahrirlovchi — tur YARATISHDA belgilangan (yuqoridagi belgi), bu yerda o'zgarmaydi. */}
         <div className="mt-4">
           {(type === 'video' || type === 'audio') && (
             <MediaEditor

@@ -193,6 +193,8 @@ public class CurriculumController(AppDbContext db) : ControllerBase
         var maxOrder = await db.CourseItems
             .Where(i => i.TopicId == topicId)
             .Select(i => (int?)i.Order).MaxAsync() ?? -1;
+        var validTypes = new[] { "text", "video", "audio", "vocab", "test", "pdf" };
+        var type = validTypes.Contains(input.Type) ? input.Type! : "text";
         var item = new CourseItem
         {
             SubjectId = topic.SubjectId,
@@ -200,6 +202,7 @@ public class CurriculumController(AppDbContext db) : ControllerBase
             Text = input.Text,
             Note = input.Note ?? "",
             Order = maxOrder + 1,
+            Type = type,
         };
         db.CourseItems.Add(item);
         await db.SaveChangesAsync();
