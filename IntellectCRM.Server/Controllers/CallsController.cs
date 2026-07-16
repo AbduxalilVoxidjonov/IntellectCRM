@@ -38,12 +38,12 @@ public class CallsController(
     });
 
     /// <summary>
-    /// MoiZvonki webhook obunasini qo'lda ishga tushirish (superadmin diagnostikasi):
-    /// bizning webhook URL provayderga ro'yxatdan o'tkaziladi, provayderning XOM javobi
-    /// qaytariladi (sxema mos kelmasa shu yerda ko'rinadi). URL App:Host'dan quriladi.
+    /// MoiZvonki webhook obunasini qo'lda ishga tushirish (diagnostika): bizning webhook URL
+    /// provayderga ro'yxatdan o'tkaziladi, provayderning XOM javobi qaytariladi (sxema mos
+    /// kelmasa shu yerda ko'rinadi). URL App:Host'dan quriladi. "Call Center" ruxsati (qo'shish
+    /// amali) kerak; superadmin/admin har doim, xodim faqat shu ruxsat berilgan bo'lsa.
     /// </summary>
     [HttpPost("telephony/subscribe")]
-    [Authorize(Roles = "superadmin")]
     public async Task<ActionResult> SubscribeTelephonyWebhooks()
     {
         if (!moizvonki.IsConfigured)

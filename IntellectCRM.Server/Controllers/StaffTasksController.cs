@@ -8,12 +8,14 @@ using IntellectCRM.Domain;
 namespace IntellectCRM.Server.Controllers;
 
 /// <summary>
-/// "Adminga topshiriq" — xodim (admin/staff) uchun kunlik CHECKLIST topshiriqlari. FAQAT superadmin
-/// boshqaradi. Har xodimga alohida custom topshiriqlar tuziladi; har kuni ertalab (sozlanadigan soat)
-/// Telegram bot orqali xodimga "bajarildi" tugmasi bilan yuboriladi; bajarilishi tarixga yoziladi.
+/// "Adminga topshiriq" — xodim (admin/staff) uchun kunlik CHECKLIST topshiriqlari. "Xodimlar"
+/// ruxsati kerak (superadmin/admin har doim). Har xodimga alohida custom topshiriqlar tuziladi;
+/// har kuni ertalab (sozlanadigan soat) Telegram bot orqali xodimga "bajarildi" tugmasi bilan
+/// yuboriladi; bajarilishi tarixga yoziladi.
 /// </summary>
 [ApiController]
-[Authorize(Roles = Roles.SuperAdmin)]
+[Authorize]
+[AdminPerm("staff")]
 [Route("api/admin/staff-tasks")]
 public class StaffTasksController(AppDbContext db) : ControllerBase
 {

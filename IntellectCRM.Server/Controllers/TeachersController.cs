@@ -272,13 +272,15 @@ public class TeachersController(AppDbContext db, AuditService audit) : Controlle
 
     /// <summary>
     /// Barcha (faol) o'qituvchilarni login/parol bilan Excel (.xlsx) ga eksport qiladi.
-    /// Parol FAQAT o'qituvchi hali kirmagan bo'lsa ko'rinadi (kirgach bo'sh). Faqat superadmin.
+    /// Parol FAQAT o'qituvchi hali kirmagan bo'lsa ko'rinadi (kirgach bo'sh). GET odatda xodim uchun
+    /// ham ochiq bo'lsa-da, bu amal ommaviy parol dumpi bo'lgani uchun MAXSUS tekshiriladi — faqat
+    /// superadmin/admin yoki "O'qituvchilar" bo'limiga TO'LIQ (barcha 4 amal) ruxsati bor xodim.
     /// Ustunlar: F.I.SH., Telefon, Guruh rahbarligi, Login, Parol.
     /// </summary>
     [HttpGet("export")]
-    [Authorize(Roles = Roles.SuperAdmin)]
     public async Task<IActionResult> Export()
     {
+        if (!AdminPermAttribute.HasFullAccess(User, "teachers")) return Forbid();
         var teachers = await db.Teachers.Where(t => !t.IsArchived)
             .OrderBy(t => t.FullName).ToListAsync();
         var userIds = teachers.Where(t => t.UserId != null).Select(t => t.UserId!).ToList();

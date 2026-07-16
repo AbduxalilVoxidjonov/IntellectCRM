@@ -321,7 +321,8 @@ public class FinanceController(AppDbContext db, AuditService audit, AutoMessageS
     }
 
     /// <summary>
-    /// O'QUVCHI TO'LOVINI tahrirlash — FAQAT superadmin ("To'lovlar" bo'limidagi qalam tugmasi).
+    /// O'QUVCHI TO'LOVINI tahrirlash ("To'lovlar" bo'limidagi qalam tugmasi) — "Moliya" ruxsati
+    /// (tahrir amali) kerak; superadmin/admin har doim, xodim faqat shu ruxsat berilgan bo'lsa.
     /// Sana, summa, qaysi oy uchun, qaysi guruh, to'lov usuli va kassir izohi o'zgartiriladi.
     ///
     /// Tahrir HAMMA bog'liq joyni moslaydi:
@@ -338,7 +339,6 @@ public class FinanceController(AppDbContext db, AuditService audit, AutoMessageS
     /// o'quvchining haqiqiy o'quv oyi bo'lishi mumkin; kerak bo'lsa qo'lda tahrirlanadi.
     /// </summary>
     [HttpPut("payments/{id}")]
-    [Authorize(Roles = Roles.SuperAdmin)]
     public async Task<ActionResult<FinanceTransactionDto>> UpdatePayment(string id, PaymentEditPayload p)
     {
         var tx = await db.FinanceTransactions.FindAsync(id);
@@ -418,7 +418,8 @@ public class FinanceController(AppDbContext db, AuditService audit, AutoMessageS
     }
 
     /// <summary>
-    /// O'quvchi to'lovini (income+tuition) qisman/to'liq VOZVRAT (pul qaytarish) — FAQAT superadmin.
+    /// O'quvchi to'lovini (income+tuition) qisman/to'liq VOZVRAT (pul qaytarish) — "Moliya" ruxsati
+    /// (qo'shish amali) kerak; superadmin/admin har doim, xodim faqat shu ruxsat berilgan bo'lsa.
     ///
     /// Muzlatish bilan bog'liqlik: o'quvchi oy o'rtasida MUZLATILGANDA shu oy hisobi qatnashilgan darslarga
     /// qayta hisoblanadi (<see cref="TuitionService.ChargeFreezeProrateAsync"/>) va o'quvchida AVANS (ortiqcha
@@ -431,7 +432,6 @@ public class FinanceController(AppDbContext db, AuditService audit, AutoMessageS
     /// marta (qisman) qaytarish mumkin — jami asl to'lov summasidan oshmaydi.
     /// </summary>
     [HttpPost("payments/{id}/refund")]
-    [Authorize(Roles = Roles.SuperAdmin)]
     public async Task<ActionResult<FinanceTransactionDto>> Refund(string id, RefundPayload p)
     {
         var tx = await db.FinanceTransactions.FindAsync(id);

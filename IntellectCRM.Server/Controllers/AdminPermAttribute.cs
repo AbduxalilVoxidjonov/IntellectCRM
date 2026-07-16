@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using IntellectCRM.Domain;
@@ -53,4 +54,14 @@ public sealed class AdminPermAttribute(string perm) : Attribute, IAuthorizationF
         bool Has(string value) => user.Claims.Any(c => c.Type == ClaimType && c.Value == value);
         if (!Has(_perm) && !Has(_perm + ":" + action)) context.Result = new ForbidResult();
     }
+
+    /// <summary>
+    /// Bo'lim bo'yicha TO'LIQ (barcha 4 amal) ruxsati bormi — GET bo'lgani uchun odatdagi
+    /// <see cref="OnAuthorization"/> yo'li bilan tekshirilmaydigan, lekin nozik (parol eksporti
+    /// kabi) amallar uchun ishlatiladi: admin/superadmin — har doim; xodim (staff) — faqat
+    /// yalang <c>section</c> (barcha amal) claim'i berilgan bo'lsa.
+    /// </summary>
+    public static bool HasFullAccess(ClaimsPrincipal user, string section) =>
+        user.IsInRole(Roles.Admin) || user.IsInRole(Roles.SuperAdmin) ||
+        user.Claims.Any(c => c.Type == ClaimType && c.Value == section);
 }

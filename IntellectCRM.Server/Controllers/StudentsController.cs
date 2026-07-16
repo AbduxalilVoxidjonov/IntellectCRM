@@ -920,13 +920,15 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
 
     /// <summary>
     /// Barcha (faol) o'quvchilarni login/parol bilan Excel (.xlsx) ga eksport qiladi.
-    /// Parol FAQAT foydalanuvchi hali kirmagan bo'lsa ko'rinadi (kirgach bo'sh). Faqat superadmin.
+    /// Parol FAQAT foydalanuvchi hali kirmagan bo'lsa ko'rinadi (kirgach bo'sh). GET odatda xodim uchun
+    /// ham ochiq bo'lsa-da, bu amal ommaviy parol dumpi bo'lgani uchun MAXSUS tekshiriladi — faqat
+    /// superadmin/admin yoki "O'quvchilar" bo'limiga TO'LIQ (barcha 4 amal) ruxsati bor xodim.
     /// Ustunlar: F.I.SH., Guruh, Ota-ona, Telefon, Login, Parol.
     /// </summary>
     [HttpGet("export")]
-    [Authorize(Roles = Roles.SuperAdmin)]
     public async Task<IActionResult> Export()
     {
+        if (!AdminPermAttribute.HasFullAccess(User, "students")) return Forbid();
         var students = await db.Students.Where(s => !s.IsArchived)
             .OrderBy(s => s.ClassName).ThenBy(s => s.FullName).ToListAsync();
         var userIds = students.Where(s => s.UserId != null).Select(s => s.UserId!).ToList();
@@ -1347,10 +1349,9 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
         return await StudentLedger.BuildAsync(db, student);
     }
 
-    /// <summary>FAQAT super admin: shu oyning HISOBLANGAN summasini qo'lda tahrirlaydi.
-    /// Balans effektiv (summa − chegirma) farqiga moslanadi; o'zgarish auditga yoziladi.</summary>
+    /// <summary>Shu oyning HISOBLANGAN summasini qo'lda tahrirlaydi ("O'quvchilar" ruxsati, tahrir
+    /// amali). Balans effektiv (summa − chegirma) farqiga moslanadi; o'zgarish auditga yoziladi.</summary>
     [HttpPut("{id}/charges/{month}")]
-    [Authorize(Roles = Roles.SuperAdmin)]
     public async Task<IActionResult> EditCharge(string id, string month, EditChargeRequest req, [FromQuery] string? groupId = null)
     {
         var student = await db.Students.FindAsync(id);

@@ -12,8 +12,11 @@ namespace IntellectCRM.Server.Controllers;
 /// <summary>
 /// Xodimlar — o'qituvchi BO'LMAGAN ishchilar (kassir, administrator, ...). Har biriga admin
 /// paneliga kiruvchi tizim akkaunti (role="staff") generatsiya qilinadi. Qaysi bo'limlarni
-/// ko'rishi <see cref="AppUser.Permissions"/> bilan boshqariladi — uni FAQAT superadmin
-/// ("Xodimlar va rollar" bo'limi / <see cref="SetPermissions"/>) o'zgartiradi.
+/// ko'rishi <see cref="AppUser.Permissions"/> bilan boshqariladi — uni superadmin/admin yoki
+/// "Xodimlar" bo'limiga TO'LIQ ruxsati bor xodim o'zgartiradi ("Xodimlar va rollar" bo'limi /
+/// <see cref="SetPermissions"/>). Bu bo'limga to'liq ruxsat berilgan xodim amalda superadmin
+/// bilan bir xil darajada boshqa xodimlarni boshqara oladi — ATAYLAB shunday (ikkinchi
+/// "superadmin darajali" boshqaruvchi kerak bo'lganda shu orqali beriladi).
 /// </summary>
 [ApiController]
 [Authorize]
@@ -45,12 +48,13 @@ public class StaffController(AppDbContext db) : ControllerBase
         user.Position = (req.Position ?? "").Trim();
         user.Phone = PhoneUtil.Normalize(req.Phone ?? "");
 
-        // Ruxsatlar (rollar) — FAQAT superadmin belgilay oladi (SetPermissions kabi). Oddiy "staff"
-        // ruxsati bilan kirgan xodim boshqa xodim yaratib, unga o'zboshimcha (finance/settings/staff)
-        // ruxsat berib darajasini oshira olmasligi uchun. Superadmin emas bo'lsa — ruxsatsiz yaratiladi
-        // (superadmin keyin "Rollar" orqali beradi).
+        // Ruxsatlar (rollar) — faqat "Xodimlar" bo'limiga TO'LIQ ruxsati bor kishi belgilay oladi
+        // (SetPermissions kabi, HasFullAccess). Faqat QISMAN (masalan faqat "view") ruxsati bilan
+        // kirgan xodim boshqa xodim yaratib, unga o'zboshimcha (finance/settings/staff) ruxsat
+        // berib darajasini oshira olmasligi uchun. To'liq ruxsati bo'lmasa — ruxsatsiz yaratiladi
+        // (keyin "Rollar" orqali beriladi).
         var permissions = new List<string>();
-        if (User.IsInRole(Roles.SuperAdmin))
+        if (AdminPermAttribute.HasFullAccess(User, "staff"))
         {
             // Role template tanlansa — default ruxsatlari qo'shiladi
             if (!string.IsNullOrWhiteSpace(req.TemplateCode))
@@ -137,9 +141,9 @@ public class StaffController(AppDbContext db) : ControllerBase
         return new CredentialsDto(user.Email, pwd, user.Role);
     }
 
-    /// <summary>Xodimning admin bo'lim ruxsatlari (Rollar) — FAQAT superadmin.</summary>
+    /// <summary>Xodimning admin bo'lim ruxsatlari (Rollar) — "Xodimlar" ruxsati (tahrir amali)
+    /// kerak; superadmin/admin har doim, xodim faqat shu ruxsat berilgan bo'lsa.</summary>
     [HttpPut("{id}/permissions")]
-    [Authorize(Roles = "superadmin")]
     public async Task<ActionResult<StaffDto>> SetPermissions(string id, SetStaffPermissionsRequest req)
     {
         var user = await db.Users.FindAsync(id);
