@@ -380,6 +380,8 @@ export function ClassDetailPage() {
     () => (journal?.students ?? []).filter((s) => s.status === 'frozen'),
     [journal],
   )
+  /** Muzlatilganlar bo'limi — sarlavha tugmasi bilan ochiladi/yopiladi (standart: yopiq). */
+  const [frozenOpen, setFrozenOpen] = useState(false)
   /** Shu guruhdagi FAOL o'quvchilar soni (status === 'active') — o'qituvchi hisoboti "Faol" bilan bir xil ta'rif. */
   const activeCount = useMemo(
     () => (journal?.students ?? []).filter((s) => s.status === 'active').length,
@@ -1017,18 +1019,22 @@ export function ClassDetailPage() {
                       )
                     })}
 
-                    {/* Muzlatilganlar — jurnalga qo'shilmaydi, lekin baho/davomati SAQLANADI va ko'rinadi (faqat o'qish) */}
+                    {/* Muzlatilganlar — jurnalga qo'shilmaydi, lekin baho/davomati SAQLANADI; tugma bilan ochiladi/yopiladi */}
                     {frozenStudents.length > 0 && (
                       <>
                         <tr>
-                          <td
-                            colSpan={2 + journal!.columns.length}
-                            className="border-b border-t-2 border-slate-200 bg-slate-50 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400"
-                          >
-                            Muzlatilgan (faqat ko'rish — baho/davomat saqlanadi)
+                          <td colSpan={2 + journal!.columns.length} className="border-b border-t-2 border-slate-200 bg-slate-50 p-0">
+                            <button
+                              type="button"
+                              onClick={() => setFrozenOpen((v) => !v)}
+                              className="flex w-full items-center gap-1.5 px-4 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
+                            >
+                              {frozenOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                              Muzlatilgan ({frozenStudents.length}) — faqat ko'rish, baho/davomat saqlanadi
+                            </button>
                           </td>
                         </tr>
-                        {frozenStudents.map((st) => {
+                        {frozenOpen && frozenStudents.map((st) => {
                           const totalGrade = journal!.columns.reduce((sum, c) => {
                             const e = entryMap.get(`${st.studentId}|${c.date}`)
                             return sum + (e?.grade ?? 0)
