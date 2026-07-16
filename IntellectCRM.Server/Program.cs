@@ -619,16 +619,21 @@ app.Use(async (context, next) =>
     // faqat O'Z domenimizdan frame'lashga ruxsat, boshqa hamma javob DENY.
     var isUpload = context.Request.Path.StartsWithSegments("/uploads");
     headers["X-Content-Type-Options"] = "nosniff";
-    headers["X-Frame-Options"] = isUpload ? "SAMEORIGIN" : "DENY";
     headers["Referrer-Policy"] = "no-referrer";
     // CSP faqat prod'da — dev'da SPA Vite serverida alohida beriladi.
     if (!app.Environment.IsDevelopment() && isUpload)
     {
+        headers["X-Frame-Options"] = "SAMEORIGIN";
         headers["Content-Security-Policy"] = "frame-ancestors 'self'";
     }
     else if (!app.Environment.IsDevelopment())
     {
-        // CRM SPA — qat'iy CSP. Leaflet xaritasi unpkg/openstreetmap'dan rasm yuklaydi (img https:).
+        // CRM SPA — Telegram Mini App sifatida ham ochiladi: Telegram Web (web.telegram.org)
+        // uni <iframe> ichida yuklaydi — avvalgi "frame-ancestors 'none'" buni bloklab, mijozda
+        // "Oops, failed to load ..." xatosini chiqargan. Shu sabab Telegram domenlariga ham
+        // frame'lashga ruxsat berilgan. X-Frame-Options ATAYLAB QO'YILMAYDI — u bir nechta domenni
+        // qo'llamaydi (faqat DENY/SAMEORIGIN), zamonaviy brauzerlar baribir CSP frame-ancestors'ni
+        // ustun qo'yadi; XFO: DENY qoldirilsa ba'zi mijozlarda CSP'ga qaramay bloklashi mumkin edi.
         headers["Content-Security-Policy"] =
             "default-src 'self'; " +
             "img-src 'self' data: blob: https:; " +
@@ -643,7 +648,11 @@ app.Use(async (context, next) =>
             // googleapis/gstatic — FCM web token olish (getToken) so'rovlari.
             "connect-src 'self' ws: wss: https://*.googleapis.com https://*.gstatic.com https://fcm.googleapis.com; " +
             "font-src 'self' data:; " +
-            "frame-ancestors 'none'; object-src 'none'; base-uri 'self'";
+            "frame-ancestors 'self' https://web.telegram.org https://*.web.telegram.org; object-src 'none'; base-uri 'self'";
+    }
+    else
+    {
+        headers["X-Frame-Options"] = "DENY";
     }
     await next();
 });

@@ -65,15 +65,18 @@ public class TelegramService(
     private HttpClient Client() => httpFactory.CreateClient("telegram");
     private string ApiBase => $"https://api.telegram.org/bot{_token}";
 
-    /// <summary>Berilgan chatga matn yuboradi (ixtiyoriy reply_markup bilan). Muvaffaqiyat — true.</summary>
+    /// <summary>Berilgan chatga matn yuboradi (ixtiyoriy reply_markup va parseMode bilan). Muvaffaqiyat — true.
+    /// parseMode="HTML" bersa — masalan &lt;code&gt; bilan o'ralgan qism Telegram mijozlarida
+    /// bosilganda avtomatik nusxa olinadigan (tap-to-copy) monospace bo'lib ko'rinadi.</summary>
     public async Task<bool> SendMessageAsync(
-        long chatId, string text, object? replyMarkup = null, CancellationToken ct = default)
+        long chatId, string text, object? replyMarkup = null, CancellationToken ct = default, string? parseMode = null)
     {
         if (!IsConfigured) return false;
         try
         {
             var payload = new Dictionary<string, object?> { ["chat_id"] = chatId, ["text"] = text };
             if (replyMarkup is not null) payload["reply_markup"] = replyMarkup;
+            if (parseMode is not null) payload["parse_mode"] = parseMode;
             using var content = new StringContent(
                 JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
             var resp = await Client().PostAsync($"{ApiBase}/sendMessage", content, ct);

@@ -3,6 +3,7 @@ using Microsoft.Extensions.Hosting;
 using IntellectCRM.Application.Abstractions;
 using IntellectCRM.Domain;
 using System.Collections.Concurrent;
+using System.Net;
 using System.Text.Json;
 
 namespace IntellectCRM.Application.Services;
@@ -122,9 +123,10 @@ public class TelegramBotService(
     /// (AdminName="Bot" — admin qo'lda yozgan javobdan frontendda ajratish uchun). Barcha ichki
     /// SendMessageAsync chaqiruvlari shu orqali o'tadi — shunda "Qo'llab-quvvatlash" panelida
     /// /start'dan boshlab BUTUN suhbat (savol ham, avtomatik javob ham) ko'rinadi.</summary>
-    private async Task<bool> SendAsync(long chatId, string text, object? keyboard = null, CancellationToken ct = default)
+    private async Task<bool> SendAsync(
+        long chatId, string text, object? keyboard = null, CancellationToken ct = default, string? parseMode = null)
     {
-        var ok = await telegram.SendMessageAsync(chatId, text, keyboard, ct);
+        var ok = await telegram.SendMessageAsync(chatId, text, keyboard, ct, parseMode);
         try
         {
             using var scope = sp.CreateScope();
@@ -554,7 +556,7 @@ public class TelegramBotService(
                 if (string.IsNullOrEmpty(s.UserId)) continue;
                 var user = await db.Users.FirstOrDefaultAsync(u => u.Id == s.UserId, ct);
                 if (user is null || !seen.Add(user.Id)) continue;
-                await SendAsync(chatId, BuildLoginText(user), null, ct);
+                await SendAsync(chatId, BuildLoginText(user), null, ct, parseMode: "HTML");
             }
 
             foreach (var tch in teachers)
@@ -562,13 +564,13 @@ public class TelegramBotService(
                 if (string.IsNullOrEmpty(tch.UserId)) continue;
                 var user = await db.Users.FirstOrDefaultAsync(u => u.Id == tch.UserId, ct);
                 if (user is null || !seen.Add(user.Id)) continue;
-                await SendAsync(chatId, BuildLoginText(user), null, ct);
+                await SendAsync(chatId, BuildLoginText(user), null, ct, parseMode: "HTML");
             }
 
             foreach (var u in admins)
             {
                 if (!seen.Add(u.Id)) continue;
-                await SendAsync(chatId, BuildLoginText(u), null, ct);
+                await SendAsync(chatId, BuildLoginText(u), null, ct, parseMode: "HTML");
             }
 
             return seen.Count > 0;
@@ -580,12 +582,17 @@ public class TelegramBotService(
         }
     }
 
+    /// <summary>HTML parse_mode bilan yuboriladi — &lt;code&gt; ichidagi login/parol Telegram mijozida
+    /// bosilganda avtomatik nusxa olinadi (tap-to-copy).</summary>
     private static string BuildLoginText(AppUser user)
     {
-        var login = user.Email;
+        var login = WebUtility.HtmlEncode(user.Email);
         if (!string.IsNullOrEmpty(user.InitialPassword))
-            return $"🔑 Kirish ma'lumotlari:\nLogin: {login}\nParol: {user.InitialPassword}\nTizimga kirish uchun web-versiya\n🌐 {WebAppUrl}";
-        return $"🔑 Login: {login}\nParolingizni avval olgansiz.\nTizimga kirish uchun web-versiya\n🌐 {WebAppUrl}\n(Esdan chiqsa — «{SupportButtonText}» tugmasi orqali administratorga murojaat qiling.)";
+        {
+            var parol = WebUtility.HtmlEncode(user.InitialPassword);
+            return $"🔑 Kirish ma'lumotlari:\nLogin: <code>{login}</code>\nParol: <code>{parol}</code>\nTizimga kirish uchun web-versiya\n🌐 {WebAppUrl}";
+        }
+        return $"🔑 Login: <code>{login}</code>\nParolingizni avval olgansiz.\nTizimga kirish uchun web-versiya\n🌐 {WebAppUrl}\n(Esdan chiqsa — «{SupportButtonText}» tugmasi orqali administratorga murojaat qiling.)";
     }
 
     /// <summary>Kontakt ulashilgandan keyin BotUser yozuvini yangilaydi yoki yaratadi.</summary>
