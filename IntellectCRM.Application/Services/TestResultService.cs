@@ -18,7 +18,7 @@ namespace IntellectCRM.Application.Services;
 public static class TestResultService
 {
     /// <summary>Testlar natijalari bosh sahifasi — barcha guruhlar + har biriga yaratilgan testlar soni.
-    /// Faol a'zolar soni ham qaytadi. Arxivlanmagan guruhlar, nomi bo'yicha tartiblangan.</summary>
+    /// Faol (muzlatilmagan) a'zolar soni ham qaytadi. Arxivlanmagan guruhlar, nomi bo'yicha tartiblangan.</summary>
     public static async Task<List<TestGroupOverviewDto>> GroupsOverviewAsync(IAppDbContext db)
     {
         var groups = await db.Classes.AsNoTracking()
@@ -34,8 +34,10 @@ public static class TestResultService
             .Select(g => new { GroupId = g.Key, Count = g.Count() })
             .ToDictionaryAsync(x => x.GroupId, x => x.Count);
 
+        // Chiqarib yuborilganlar (IsActive=false) va muzlatilganlar (Status="frozen") hisobga olinmaydi
+        // (GradingService bilan bir xil qoida — baholash/test faqat haqiqiy faol a'zolarga tegishli).
         var memberCounts = await db.StudentGroups.AsNoTracking()
-            .Where(sg => sg.IsActive)
+            .Where(sg => sg.IsActive && sg.Status != "frozen")
             .GroupBy(sg => sg.GroupId)
             .Select(g => new { GroupId = g.Key, Count = g.Count() })
             .ToDictionaryAsync(x => x.GroupId, x => x.Count);
@@ -59,7 +61,7 @@ public static class TestResultService
         if (tests.Count == 0) return new List<GroupTestDto>();
 
         var studentCount = await db.StudentGroups.AsNoTracking()
-            .CountAsync(sg => sg.GroupId == groupId && sg.IsActive);
+            .CountAsync(sg => sg.GroupId == groupId && sg.IsActive && sg.Status != "frozen");
 
         var testIds = tests.Select(t => t.Id).ToList();
         var scores = await db.TestScores.AsNoTracking()
@@ -138,8 +140,9 @@ public static class TestResultService
     public static async Task<string?> GroupIdOfAsync(IAppDbContext db, string testId) =>
         (await db.TestResults.AsNoTracking().FirstOrDefaultAsync(t => t.Id == testId))?.GroupId;
 
-    /// <summary>Test tafsiloti — guruhning FAOL o'quvchilari + ballari, ball desc bo'yicha saralangan.
-    /// Ball kiritilmagan o'quvchilar oxirida (Rank=0). null = test topilmadi.</summary>
+    /// <summary>Test tafsiloti — guruhning FAOL (chiqarib yuborilmagan, muzlatilmagan) o'quvchilari
+    /// + ballari, ball desc bo'yicha saralangan. Ball kiritilmagan o'quvchilar oxirida (Rank=0).
+    /// null = test topilmadi.</summary>
     public static async Task<TestResultDetailDto?> DetailAsync(IAppDbContext db, string id)
     {
         var t = await db.TestResults.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
@@ -148,7 +151,7 @@ public static class TestResultService
 
         var members = await (from sg in db.StudentGroups.AsNoTracking()
                              join s in db.Students.AsNoTracking() on sg.StudentId equals s.Id
-                             where sg.GroupId == t.GroupId && sg.IsActive
+                             where sg.GroupId == t.GroupId && sg.IsActive && sg.Status != "frozen"
                              select new { s.Id, s.FullName }).ToListAsync();
 
         var scores = await db.TestScores.AsNoTracking()
