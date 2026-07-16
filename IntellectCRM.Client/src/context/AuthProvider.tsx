@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { User } from '@/types'
 import { AuthContext } from './auth-context'
-import { login as loginRequest, fetchMe } from '@/api/services/auth'
+import { login as loginRequest, otpLogin, fetchMe } from '@/api/services/auth'
 import { USE_MOCK } from '@/api/client'
 import { setFcmToken, getFcmToken, registerDevice, unregisterDevice, pushBase } from '@/api/services/push'
 import { initWebPush, isWebPushSupported } from '@/api/services/webpush'
@@ -37,8 +37,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null)
   }, [])
 
-  const login = useCallback(async (email: string, password: string) => {
-    const { token, user: u } = await loginRequest(email, password)
+  // Login/OTP ikkalasi ham bir xil "token + user" natija shakli qaytaradi — sessiyani o'rnatish umumiy.
+  const applySession = useCallback((token: string, u: User) => {
     localStorage.setItem(TOKEN_KEY, token)
     localStorage.setItem(USER_KEY, JSON.stringify(u))
     setUser(u)
@@ -47,6 +47,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (fcm) registerDevice(u.role, fcm).catch(() => {})
     return u
   }, [])
+
+  const login = useCallback(
+    async (email: string, password: string) => {
+      const { token, user: u } = await loginRequest(email, password)
+      return applySession(token, u)
+    },
+    [applySession],
+  )
+
+  const loginWithCode = useCallback(
+    async (code: string) => {
+      const { token, user: u } = await otpLogin(code)
+      return applySession(token, u)
+    },
+    [applySession],
+  )
 
   const updateUser = useCallback((u: User) => {
     localStorage.setItem(USER_KEY, JSON.stringify(u))
@@ -111,8 +127,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const value = useMemo(
-    () => ({ user, isAuthenticated: !!user, login, logout, updateUser }),
-    [user, login, logout, updateUser],
+    () => ({ user, isAuthenticated: !!user, login, loginWithCode, logout, updateUser }),
+    [user, login, loginWithCode, logout, updateUser],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

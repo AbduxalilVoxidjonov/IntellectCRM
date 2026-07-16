@@ -1230,6 +1230,27 @@ public class TelegramRegistration
 }
 
 /// <summary>
+/// Bot orqali so'ralgan bir martalik kirish kodi (parol o'rniga tezkor login). Bot "🔑 Yangi kod
+/// olish" tugmasi bosilganda shu chatga bog'langan har AppUser uchun yaratiladi (8 belgi, 60 soniya
+/// amal qiladi, bir marta ishlatiladi). CodeHash — kodning o'zi EMAS, SHA256 xeshi saqlanadi.
+/// </summary>
+public class LoginOtpCode
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    /// <summary>Kod tegishli bo'lgan tizim foydalanuvchisi (AppUser.Id).</summary>
+    public string UserId { get; set; } = string.Empty;
+    /// <summary>Kodni so'ragan Telegram chat — cooldown (5 daqiqada bir marta) shu bo'yicha hisoblanadi.</summary>
+    public long ChatId { get; set; }
+    /// <summary>Kodning SHA256 xeshi (hex) — plaintext saqlanmaydi.</summary>
+    public string CodeHash { get; set; } = string.Empty;
+    public DateTime CreatedAt { get; set; } = AppClock.Now;
+    public DateTime ExpiresAt { get; set; }
+    /// <summary>Ishlatilgan (yoki yangisi so'ralgani uchun bekor qilingan) bo'lsa true — qayta ishlatilmaydi.</summary>
+    public bool Used { get; set; }
+    public DateTime? ConsumedAt { get; set; }
+}
+
+/// <summary>
 /// Telegram botda /start bosgan HAR BIR foydalanuvchi (admin support ro'yxati uchun). ChatId unikal.
 /// "Adminga yozish" rejimida yuborgan matnlar BotSupportMessage sifatida saqlanadi.
 /// </summary>

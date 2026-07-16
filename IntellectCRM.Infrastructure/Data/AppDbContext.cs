@@ -45,6 +45,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<Broadcast> Broadcasts => Set<Broadcast>();
     public DbSet<PushMessage> PushMessages => Set<PushMessage>();
     public DbSet<TelegramRegistration> TelegramRegistrations => Set<TelegramRegistration>();
+    public DbSet<LoginOtpCode> LoginOtpCodes => Set<LoginOtpCode>();
     public DbSet<BotUser> BotUsers => Set<BotUser>();
     public DbSet<TelegramGroup> TelegramGroups => Set<TelegramGroup>();
     public DbSet<StaffTask> StaffTasks => Set<StaffTask>();
@@ -240,6 +241,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         b.Entity<Broadcast>().HasIndex(x => new { x.ClassName, x.CreatedAt });
         b.Entity<TelegramRegistration>().HasIndex(r => new { r.StudentId, r.ChatId }).IsUnique();
         b.Entity<TelegramRegistration>().HasIndex(r => r.ChatId);
+        // Kod bo'yicha qidiruv (login) va cooldown/eskilarini bekor qilish (chat/user) tez ishlashi uchun.
+        b.Entity<LoginOtpCode>().HasIndex(c => c.CodeHash).IsUnique();
+        b.Entity<LoginOtpCode>().HasIndex(c => c.ChatId);
+        b.Entity<LoginOtpCode>().HasIndex(c => new { c.UserId, c.Used });
         b.Entity<BotUser>().HasIndex(u => u.ChatId).IsUnique();
         b.Entity<TelegramGroup>().HasIndex(g => g.ChatId).IsUnique();
         b.Entity<BotSupportMessage>().HasIndex(m => m.ChatId);

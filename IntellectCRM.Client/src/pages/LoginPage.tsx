@@ -1,32 +1,29 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
-import axios from 'axios'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { useAuth } from '@/context/auth-context'
 import { homeByRole } from '@/config/navigation'
 import { getPublicBrand, type PublicBrand } from '@/api/services/settings'
+import { apiErrorMessage, cn } from '@/lib/utils'
+import type { User } from '@/types'
 
 interface LocationState {
   from?: string
 }
 
-function errorMessage(err: unknown): string {
-  if (axios.isAxiosError(err)) {
-    return (err.response?.data as { message?: string })?.message ?? "Kirishda xatolik yuz berdi"
-  }
-  if (err instanceof Error) return err.message
-  return "Kirishda xatolik yuz berdi"
-}
+type LoginMode = 'password' | 'code'
 
 export function LoginPage() {
-  const { isAuthenticated, user, login } = useAuth()
+  const { isAuthenticated, user, login, loginWithCode } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
 
+  const [mode, setMode] = useState<LoginMode>('password')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [code, setCode] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [brand, setBrand] = useState<PublicBrand>({ name: '', logoUrl: '', phone: '' })
@@ -42,16 +39,34 @@ export function LoginPage() {
     return <Navigate to={homeByRole[user.role]} replace />
   }
 
+  const afterLogin = (u: User) => {
+    const from = (location.state as LocationState | null)?.from
+    navigate(from ?? homeByRole[u.role], { replace: true })
+  }
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setError('')
     setLoading(true)
     try {
       const u = await login(email, password)
-      const from = (location.state as LocationState | null)?.from
-      navigate(from ?? homeByRole[u.role], { replace: true })
+      afterLogin(u)
     } catch (err) {
-      setError(errorMessage(err))
+      setError(apiErrorMessage(err, "Kirishda xatolik yuz berdi"))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleCodeSubmit = async (e: FormEvent) => {
+    e.preventDefault()
+    setError('')
+    setLoading(true)
+    try {
+      const u = await loginWithCode(code.trim())
+      afterLogin(u)
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Kod noto\'g\'ri yoki muddati o\'tgan'))
     } finally {
       setLoading(false)
     }
@@ -84,34 +99,85 @@ export function LoginPage() {
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <Input
-            label="Login"
-            type="text"
-            autoComplete="username"
-            placeholder="Login"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
-          <Input
-            label="Parol"
-            type="password"
-            autoComplete="current-password"
-            placeholder="parol"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
+        <div className="mb-5 grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1 text-sm font-medium">
+          {(
+            [
+              ['password', 'Parol bilan'],
+              ['code', 'Kod bilan'],
+            ] as const
+          ).map(([m, label]) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => {
+                setMode(m)
+                setError('')
+              }}
+              className={cn(
+                'rounded-lg py-1.5 transition-colors',
+                mode === m ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-500 hover:text-slate-700',
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
 
-          {error && (
-            <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>
-          )}
+        {mode === 'password' ? (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <Input
+              label="Login"
+              type="text"
+              autoComplete="username"
+              placeholder="Login"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+            <Input
+              label="Parol"
+              type="password"
+              autoComplete="current-password"
+              placeholder="parol"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
 
-          <Button type="submit" disabled={loading} className="w-full">
-            {loading ? 'Kirilmoqda…' : 'Kirish'}
-          </Button>
-        </form>
+            {error && (
+              <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>
+            )}
+
+            <Button type="submit" disabled={loading} className="w-full">
+              {loading ? 'Kirilmoqda…' : 'Kirish'}
+            </Button>
+          </form>
+        ) : (
+          <form onSubmit={handleCodeSubmit} className="space-y-4">
+            <p className="text-sm text-slate-400">
+              Telegram botda «🔑 Yangi kod olish» tugmasini bosing va olingan 8 belgili kodni kiriting.
+            </p>
+            <Input
+              label="Kod"
+              type="text"
+              autoComplete="one-time-code"
+              placeholder="masalan: 7K9M2XQ4"
+              value={code}
+              onChange={(e) => setCode(e.target.value.toUpperCase())}
+              maxLength={8}
+              autoFocus
+              required
+            />
+
+            {error && (
+              <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>
+            )}
+
+            <Button type="submit" disabled={loading} className="w-full">
+              {loading ? 'Kirilmoqda…' : 'Kirish'}
+            </Button>
+          </form>
+        )}
 
         <p className="mt-6 text-center text-xs text-slate-400">
           <Link to="/privacy" className="hover:text-brand-600 hover:underline">

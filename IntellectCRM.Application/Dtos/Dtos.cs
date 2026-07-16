@@ -8,6 +8,8 @@ using IntellectCRM.Domain;
 
 /* ---------- Auth ---------- */
 public record LoginRequest(string Email, string Password);
+/// <summary>Bot orqali olingan bir martalik kirish kodi bilan login (parol o'rniga).</summary>
+public record OtpLoginRequest(string Code);
 public record UserDto(
     string Id, string FullName, string Role, string Email, string? AvatarUrl,
     List<string>? Permissions = null, string Phone = "");

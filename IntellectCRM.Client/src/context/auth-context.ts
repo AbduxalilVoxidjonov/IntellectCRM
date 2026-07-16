@@ -7,6 +7,8 @@ export interface AuthContextValue {
   isAuthenticated: boolean
   /** Email/parol orqali kirish — muvaffaqiyatda foydalanuvchini qaytaradi */
   login: (email: string, password: string) => Promise<User>
+  /** Bot orqali olingan bir martalik kod bilan kirish (parol o'rniga) */
+  loginWithCode: (code: string) => Promise<User>
   logout: () => void
   /** Joriy foydalanuvchi ma'lumotini yangilash (masalan, akkaunt sozlamalaridan keyin) */
   updateUser: (user: User) => void

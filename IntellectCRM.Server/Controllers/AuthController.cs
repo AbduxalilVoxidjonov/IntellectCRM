@@ -85,6 +85,42 @@ public class AuthController(AppDbContext db, JwtTokenService jwt, ILogger<AuthCo
             user.Id, user.FullName, user.Role, user.Email, user.AvatarUrl, await PermsFor(user)));
     }
 
+    /// <summary>Bot orqali olingan bir martalik kod bilan login (parol o'rniga) — xuddi shu JWT/UserDto
+    /// javobi, LastLoginAt/FirstLoginAt kuzatuvi va arxiv/blok tekshiruvi bilan (parol yo'li bilan bir xil).
+    /// Kod xato/eskirgan/ishlatilgan bo'lsa — qaysi sabab ekanini OSHKOR QILMAYMIZ (bir xil 401 xabar),
+    /// aks holda tashqi hujumchiga kod hovuzi haqida signal berardi.</summary>
+    [HttpPost("otp-login")]
+    [AllowAnonymous]
+    [EnableRateLimiting("otp-verify")]
+    public async Task<ActionResult<LoginResponse>> OtpLogin(OtpLoginRequest req)
+    {
+        var ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "?";
+        var userId = await LoginOtpService.VerifyAndConsumeAsync(db, req.Code ?? "", HttpContext.RequestAborted);
+        if (userId is null)
+        {
+            logger.LogWarning("Muvaffaqiyatsiz OTP-login urinishi: IP={IP}", ip);
+            return Unauthorized(new { message = "Kod noto'g'ri yoki muddati o'tgan" });
+        }
+
+        var user = await db.Users.FirstOrDefaultAsync(u => u.Id == userId);
+        if (user is null) return Unauthorized(new { message = "Kod noto'g'ri yoki muddati o'tgan" });
+
+        if (await IsBlockedAsync(user))
+            return Unauthorized(new { message = "Akkaunt arxivlangan yoki to'xtatilgan" });
+        if (user.Role == Roles.Student && await db.Students.AnyAsync(s => s.UserId == user.Id && s.LoginBlocked))
+            return Unauthorized(new { message = "Sizning hisobingiz hali aktiv emas. Administratorga murojaat qiling." });
+
+        var now = AppClock.Now.ToString("yyyy-MM-ddTHH:mm:ss");
+        if (string.IsNullOrEmpty(user.FirstLoginAt)) user.FirstLoginAt = now;
+        user.LastLoginAt = now;
+        await db.SaveChangesAsync();
+
+        logger.LogInformation("OTP orqali login: userId={UserId}, IP={IP}", user.Id, ip);
+        var token = jwt.CreateToken(user);
+        return new LoginResponse(token, new UserDto(
+            user.Id, user.FullName, user.Role, user.Email, user.AvatarUrl, await PermsFor(user)));
+    }
+
     /// <summary>
     /// Akkaunt hozir vaqtincha bloklanganmi (ketma-ket noto'g'ri urinishlar tufayli)?
     /// <paramref name="remainingSeconds"/> — blok tugashiga qolgan soniyalar.

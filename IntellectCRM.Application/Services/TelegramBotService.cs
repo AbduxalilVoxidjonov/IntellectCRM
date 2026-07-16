@@ -29,6 +29,8 @@ public class TelegramBotService(
     private const string WebAppUrl = "https://crm.intellectschool.uz/";
     /// <summary>Telefon klaviaturasidagi "adminga murojaat" tugmasi matni (reply keyboard).</summary>
     private const string SupportButtonText = "✍️ Adminga murojaat";
+    /// <summary>Ro'yxatdan o'tgan foydalanuvchi klaviaturasidagi "bir martalik kod olish" tugmasi matni.</summary>
+    private const string OtpButtonText = "🔑 Yangi kod olish";
 
     /// <summary>Telefon so'rovchi yagona yo'riqnoma: tugma orqali YOKI raqamni yozib yuborish (namuna bilan).
     /// Har ikkala usulda ham raqam markaz profili bilan solishtirilib bog'lanadi.</summary>
@@ -191,6 +193,11 @@ public class TelegramBotService(
         {
             await LogInAsync(chatId, text, ct);
             await HandleSupportCommandAsync(chatId, ct);
+        }
+        else if (text == "/kod" || text == OtpButtonText)
+        {
+            await LogInAsync(chatId, text, ct);
+            await HandleOtpRequestAsync(chatId, ct);
         }
         else
         {
@@ -514,7 +521,7 @@ public class TelegramBotService(
         await db.SaveChangesAsync(ct);
 
         await SendAsync(chatId,
-            "✅ Ro'yxatdan o'tdingiz:\n• " + string.Join("\n• ", linked), ct: ct);
+            "✅ Ro'yxatdan o'tdingiz:\n• " + string.Join("\n• ", linked), RegisteredKeyboard, ct);
 
         // Admin/xodim — yangi lid xabarnomalari haqida ma'lumot.
         if (admins.Count > 0)
@@ -661,6 +668,74 @@ public class TelegramBotService(
         catch (Exception ex)
         {
             logger.LogWarning(ex, "BotUser upsert xatosi (start): chatId {Id}", chatId);
+        }
+    }
+
+    /// <summary>/kod buyrug'i yoki "🔑 Yangi kod olish" tugmasi: shu chatga bog'langan HAR bir AppUser
+    /// uchun bir martalik kirish kodi (8 belgi, 60 soniya, bir martalik) yaratadi va yuboradi — parol
+    /// o'rniga login sahifasida ishlatiladi. Cooldown: chat bo'yicha 5 daqiqada bir marta (bitta chatda
+    /// bir nechta farzand bo'lsa ham — bittasi so'ralganda barchasiga birga yangi kod chiqadi).</summary>
+    private async Task HandleOtpRequestAsync(long chatId, CancellationToken ct)
+    {
+        using var scope = sp.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
+
+        var regs = await db.TelegramRegistrations.Where(r => r.ChatId == chatId).ToListAsync(ct);
+        if (regs.Count == 0)
+        {
+            await SendAsync(chatId, "Avval ro'yxatdan o'tishingiz kerak — telefon raqamingizni yuboring.", ContactKeyboard, ct);
+            return;
+        }
+
+        var lastAt = await LoginOtpService.LastRequestAtAsync(db, chatId, ct);
+        if (lastAt is not null)
+        {
+            var wait = LoginOtpService.RequestCooldown - (AppClock.Now - lastAt.Value);
+            if (wait > TimeSpan.Zero)
+            {
+                var mins = Math.Max(1, (int)Math.Ceiling(wait.TotalMinutes));
+                await SendAsync(chatId, $"⏳ Yangi kodni {mins} daqiqadan so'ng so'rashingiz mumkin.", ct: ct);
+                return;
+            }
+        }
+
+        // Shu chatga bog'langan har bir AppUser (o'quvchi/o'qituvchi/xodim) — bir nechta farzandi bo'lgan
+        // ota-onaga har biriga alohida kod (SendLoginInfoAsync bilan bir xil "chatId → user(lar)" mantiq).
+        var users = new List<(string UserId, string Label)>();
+        foreach (var r in regs)
+        {
+            if (!string.IsNullOrEmpty(r.UserId))
+            {
+                var u = await db.Users.FirstOrDefaultAsync(x => x.Id == r.UserId, ct);
+                if (u is not null) users.Add((u.Id, u.FullName));
+            }
+            else if (!string.IsNullOrEmpty(r.TeacherId))
+            {
+                var tch = await db.Teachers.FirstOrDefaultAsync(x => x.Id == r.TeacherId, ct);
+                if (tch is not null && !string.IsNullOrEmpty(tch.UserId)) users.Add((tch.UserId, tch.FullName));
+            }
+            else if (!string.IsNullOrEmpty(r.StudentId))
+            {
+                var st = await db.Students.FirstOrDefaultAsync(x => x.Id == r.StudentId, ct);
+                if (st is not null && !string.IsNullOrEmpty(st.UserId)) users.Add((st.UserId, st.FullName));
+            }
+        }
+
+        var distinct = users.GroupBy(x => x.UserId).Select(g => g.First()).ToList();
+        if (distinct.Count == 0)
+        {
+            await SendAsync(chatId, "Bog'langan tizim hisobi topilmadi. Administratorga murojaat qiling.", ct: ct);
+            return;
+        }
+
+        foreach (var (userId, label) in distinct)
+        {
+            var code = await LoginOtpService.IssueAsync(db, userId, chatId, ct);
+            await SendAsync(chatId,
+                $"🔑 {WebUtility.HtmlEncode(label)} uchun bir martalik kirish kodi:\n<code>{code}</code>\n" +
+                "⏱ 1 daqiqa amal qiladi, faqat bir marta ishlatiladi.\n" +
+                "Login sahifasida «Kod bilan kirish»ni tanlang va shu kodni kiriting.",
+                null, ct, parseMode: "HTML");
         }
     }
 
@@ -878,6 +953,19 @@ public class TelegramBotService(
         keyboard = new object[][]
         {
             new object[] { new { text = "📱 Telefon raqamni yuborish", request_contact = true } },
+            new object[] { new { text = SupportButtonText } },
+        },
+        resize_keyboard = true,
+        one_time_keyboard = false,
+    };
+
+    /// <summary>Ro'yxatdan o'tgan (telefoni tasdiqlangan) foydalanuvchi klaviaturasi — bir martalik
+    /// kirish kodi so'rash tugmasi qo'shilgan. Ro'yxatdan o'tish tugagach shu klaviatura o'rnatiladi.</summary>
+    private static object RegisteredKeyboard => new
+    {
+        keyboard = new object[][]
+        {
+            new object[] { new { text = OtpButtonText } },
             new object[] { new { text = SupportButtonText } },
         },
         resize_keyboard = true,

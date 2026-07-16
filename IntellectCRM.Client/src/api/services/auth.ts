@@ -40,6 +40,16 @@ export async function login(email: string, password: string): Promise<LoginResul
   return data
 }
 
+/** Botdan olingan bir martalik kod bilan login (parol o'rniga) — natija shakli oddiy login bilan bir xil. */
+export async function otpLogin(code: string): Promise<LoginResult> {
+  if (USE_MOCK) {
+    await delay(400)
+    throw new Error("Kod bilan kirish demo rejimida mavjud emas")
+  }
+  const { data } = await api.post<LoginResult>('/auth/otp-login', { code })
+  return data
+}
+
 /** Joriy tokenga mos foydalanuvchini olish (sessiyani tekshirish uchun). */
 export async function fetchMe(): Promise<User> {
   const { data } = await api.get<User>('/auth/me')

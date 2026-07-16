@@ -186,6 +186,18 @@ builder.Services.AddRateLimiter(options =>
                 Window = TimeSpan.FromMinutes(1),
                 QueueLimit = 0,
             }));
+    // Bir martalik kod bilan login — parol brute-force bilan bir xil tahdid (endi kod, login'dan ko'ra
+    // yuqori entropiyali, lekin baribir IP bo'yicha cheklanadi; kod hovuzi haqida signal bermaslik uchun
+    // "login" bilan bir xil limit).
+    options.AddPolicy("otp-verify", httpContext =>
+        System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: ClientIp(httpContext),
+            factory: _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 10,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+            }));
     // Landing sahifasidagi "Bepul darsga yozilish" formasi — ochiq (auth'siz) endpoint,
     // spam/bot flood'ni sekinlashtiradi (IP bo'yicha daqiqada 5 ta so'rov).
     options.AddPolicy("public-lead", httpContext =>
