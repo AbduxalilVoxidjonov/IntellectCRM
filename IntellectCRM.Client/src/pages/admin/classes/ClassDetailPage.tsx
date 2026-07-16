@@ -1023,7 +1023,7 @@ export function ClassDetailPage() {
                     {frozenStudents.length > 0 && (
                       <>
                         <tr>
-                          <td colSpan={2 + journal!.columns.length} className="border-b border-t-2 border-slate-200 bg-slate-50 p-0">
+                          <td colSpan={3 + journal!.columns.length} className="border-b border-t-2 border-slate-200 bg-slate-50 p-0">
                             <button
                               type="button"
                               onClick={() => setFrozenOpen((v) => !v)}
@@ -1041,6 +1041,7 @@ export function ClassDetailPage() {
                           }, 0)
                           return (
                             <tr key={st.studentId} className="bg-slate-50 text-slate-400">
+                              <td className="border-b border-r border-slate-200 bg-inherit px-2 py-1 text-center" />
                               <td className="sticky left-0 z-10 border-b border-r-2 border-slate-200 bg-inherit px-2 py-1">
                                 <div className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left">
                                   <Snowflake className="h-3.5 w-3.5 shrink-0 text-sky-500" />
