@@ -43,6 +43,7 @@ public static class TestResultService
         return groups.Select(g => new TestGroupOverviewDto(
             g.Id, g.Name,
             courseNames.GetValueOrDefault(g.CourseId, ""),
+            g.TeacherId,
             teacherNames.GetValueOrDefault(g.TeacherId, ""),
             memberCounts.GetValueOrDefault(g.Id, 0),
             testCounts.GetValueOrDefault(g.Id, 0))).ToList();

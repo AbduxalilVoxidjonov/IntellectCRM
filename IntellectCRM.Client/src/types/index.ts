@@ -1858,6 +1858,7 @@ export interface TestGroupOverview {
   groupId: string
   name: string
   courseName: string
+  teacherId: string
   teacherName: string
   studentCount: number
   testCount: number

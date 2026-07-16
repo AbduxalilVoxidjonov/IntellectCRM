@@ -423,7 +423,7 @@ public record GroupFillRowDto(
 /* ---------- Test natijalari ---------- */
 /// <summary>Guruh kartasi (Testlar natijalari bosh sahifasi) — guruh + yaratilgan testlar soni.</summary>
 public record TestGroupOverviewDto(
-    string GroupId, string Name, string CourseName, string TeacherName,
+    string GroupId, string Name, string CourseName, string TeacherId, string TeacherName,
     int StudentCount, int TestCount);
 /// <summary>Bitta test qatori (guruh testlar ro'yxatida) — soni/o'rtacha bilan.</summary>
 public record GroupTestDto(
