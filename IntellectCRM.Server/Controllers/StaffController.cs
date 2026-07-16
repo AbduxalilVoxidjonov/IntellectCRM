@@ -30,6 +30,13 @@ public class StaffController(AppDbContext db) : ControllerBase
         (await db.Users.Where(u => u.Role == Roles.Staff).OrderBy(u => u.FullName).ToListAsync())
             .Select(ToDto).ToList();
 
+    /// <summary>Admin (role="admin") akkauntlari — ruxsatlarini cheklash/kengaytirish uchun
+    /// ("Xodimlar va rollar → Adminlar"). Bo'sh ruxsat ro'yxati = cheklovsiz (to'liq kirish).</summary>
+    [HttpGet("admins")]
+    public async Task<ActionResult<IEnumerable<StaffDto>>> GetAdmins() =>
+        (await db.Users.Where(u => u.Role == Roles.Admin).OrderBy(u => u.FullName).ToListAsync())
+            .Select(ToDto).ToList();
+
     /// <summary>Barcha xodim roli shablonlari — yangi xodim qo'shishda tanlash uchun.</summary>
     [HttpGet("role-templates")]
     public async Task<ActionResult<IEnumerable<StaffRoleTemplateDto>>> GetRoleTemplates() =>
@@ -137,13 +144,15 @@ public class StaffController(AppDbContext db) : ControllerBase
         return new CredentialsDto(user.Email, pwd, user.Role);
     }
 
-    /// <summary>Xodimning admin bo'lim ruxsatlari (Rollar) — FAQAT superadmin.</summary>
+    /// <summary>Xodim yoki admin bo'lim ruxsatlari (Rollar) — FAQAT superadmin. Admin uchun bo'sh
+    /// ro'yxat = cheklovsiz (to'liq kirish); kamida bitta ruxsat berilsa — shu ro'yxat bilan
+    /// cheklanadi (staff bilan bir xil qoida, <see cref="AdminPermAttribute"/>).</summary>
     [HttpPut("{id}/permissions")]
     [Authorize(Roles = "superadmin")]
     public async Task<ActionResult<StaffDto>> SetPermissions(string id, SetStaffPermissionsRequest req)
     {
         var user = await db.Users.FindAsync(id);
-        if (user is null || user.Role != Roles.Staff) return NotFound();
+        if (user is null || (user.Role != Roles.Staff && user.Role != Roles.Admin)) return NotFound();
         // null/bo'sh/dublikat kalitlarni tozalaymiz — aks holda token validation'da
         // null claim qiymati 500 (ArgumentNullException) keltirib chiqarishi mumkin.
         user.Permissions = (req.Permissions ?? new())

@@ -3,6 +3,7 @@ import { Plus, Eye, Pencil, Trash2, Users } from 'lucide-react'
 import type { Staff, Credentials, StaffRoleTemplate } from '@/types'
 import {
   getStaff,
+  getAdmins,
   getStaffRoleTemplates,
   createStaff,
   updateStaff,
@@ -72,8 +73,17 @@ export function StaffPage() {
   const [credLoading, setCredLoading] = useState(false)
   const [deleting, setDeleting] = useState<Staff | null>(null)
 
+  // Adminlar (role="admin") — faqat superadmin ko'radi/tahrirlaydi. Bo'sh ruxsat = cheklovsiz.
+  const [admins, setAdmins] = useState<Staff[]>([])
+  const [adminsLoading, setAdminsLoading] = useState(false)
+  const [adminDraft, setAdminDraft] = useState<Record<string, Set<string>>>({})
+  const [savingAdminPermsId, setSavingAdminPermsId] = useState<string | null>(null)
+
   const syncDraft = (list: Staff[]) =>
     setDraft(Object.fromEntries(list.map((s) => [s.id, new Set(s.permissions)])))
+
+  const syncAdminDraft = (list: Staff[]) =>
+    setAdminDraft(Object.fromEntries(list.map((s) => [s.id, new Set(s.permissions)])))
 
   useEffect(() => {
     getStaff()
@@ -87,6 +97,39 @@ export function StaffPage() {
       .then(setTemplates)
       .catch(() => setTemplates([]))
   }, [])
+
+  useEffect(() => {
+    if (!canManageRoles) return
+    setAdminsLoading(true)
+    getAdmins()
+      .then((list) => {
+        setAdmins(list)
+        syncAdminDraft(list)
+      })
+      .catch(() => setAdmins([]))
+      .finally(() => setAdminsLoading(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canManageRoles])
+
+  const toggleAdminAction = (adminId: string, section: string, action: PermAction) =>
+    setAdminDraft((d) => ({
+      ...d,
+      [adminId]: toggleSectionAction(d[adminId] ?? new Set<string>(), section, action),
+    }))
+
+  const adminDirty = (a: Staff) => {
+    const cur = adminDraft[a.id] ?? new Set()
+    return cur.size !== a.permissions.length || a.permissions.some((p) => !cur.has(p))
+  }
+
+  const saveAdminPerms = (a: Staff) => {
+    const perms = [...(adminDraft[a.id] ?? new Set())]
+    setSavingAdminPermsId(a.id)
+    setStaffPermissions(a.id, perms)
+      .then((u) => setAdmins((p) => p.map((x) => (x.id === u.id ? u : x))))
+      .catch((e) => alert(e?.response?.data?.message ?? "Ruxsatlarni saqlab bo'lmadi"))
+      .finally(() => setSavingAdminPermsId(null))
+  }
 
   const openCreate = () => {
     setEditing(null)
@@ -203,6 +246,64 @@ export function StaffPage() {
         }
       />
 
+      {canManageRoles && (
+        <div className="mb-6">
+          <h3 className="mb-1 text-sm font-semibold text-slate-700">Adminlar</h3>
+          <p className="mb-3 text-xs text-slate-400">
+            Adminlar standart holatda <b>cheklovsiz</b> (barcha bo'limlarga to'liq kirish). Bu yerda
+            aynan qaysi bo'lim(lar)ga ruxsat berilishini belgilasangiz — o'sha admin ENDI FAQAT
+            belgilangan bo'lim(lar)ga kira oladi. Barcha katakchalarni bo'shatib saqlasangiz —
+            yana cheklovsiz holatga qaytadi.
+          </p>
+          {adminsLoading ? (
+            <Card>
+              <Loader label="Yuklanmoqda..." />
+            </Card>
+          ) : admins.length === 0 ? (
+            <Card>
+              <p className="text-sm text-slate-400">Admin akkauntlari topilmadi.</p>
+            </Card>
+          ) : (
+            <div className="space-y-4">
+              {admins.map((a) => {
+                const cur = adminDraft[a.id] ?? new Set<string>()
+                const restricted = a.permissions.length > 0
+                return (
+                  <Card key={a.id}>
+                    <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+                      <div className="cell-user">
+                        <div className="avatar h-10 w-10 text-sm" style={{ background: avatarColor(a.fullName) }}>
+                          {initialsOf(a.fullName)}
+                        </div>
+                        <div className="meta">
+                          <strong className="text-slate-800">{a.fullName}</strong>
+                          <span className="text-slate-400">
+                            {a.position || 'Admin'} · <code className="font-mono">{a.login}</code>
+                          </span>
+                        </div>
+                      </div>
+                      <Badge tone={restricted ? 'violet' : 'green'}>
+                        {restricted ? 'Cheklangan' : "To'liq kirish"}
+                      </Badge>
+                    </div>
+                    <PermMatrix perms={cur} onToggle={(section, action) => toggleAdminAction(a.id, section, action)} />
+                    <div className="mt-3 flex justify-end">
+                      <Button
+                        onClick={() => saveAdminPerms(a)}
+                        disabled={!adminDirty(a) || savingAdminPermsId === a.id}
+                      >
+                        {savingAdminPermsId === a.id ? 'Saqlanmoqda...' : 'Ruxsatlarni saqlash'}
+                      </Button>
+                    </div>
+                  </Card>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      <h3 className="mb-3 text-sm font-semibold text-slate-700">Xodimlar</h3>
       {loading ? (
         <Card>
           <Loader label="Yuklanmoqda..." />

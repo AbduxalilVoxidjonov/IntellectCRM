@@ -142,10 +142,14 @@ builder.Services
                 {
                     var u = await db.Users.FirstOrDefaultAsync(x => x.Id == userId);
                     blocked = u is null;
-                    // Xodim (staff) ruxsatlarini HAR so'rovda DB'dan claim sifatida qo'shamiz — tokenga
-                    // yozilmaydi, shuning uchun superadmin ruxsatni o'zgartirsa darrov amal qiladi
-                    // (qayta login shart emas). AdminPerm atributi shu claim'larni tekshiradi.
-                    if (!blocked && p.IsInRole(Roles.Staff) && u!.Permissions is { Count: > 0 } perms
+                    // Xodim (staff) yoki cheklangan admin ruxsatlarini HAR so'rovda DB'dan claim
+                    // sifatida qo'shamiz — tokenga yozilmaydi, shuning uchun superadmin ruxsatni
+                    // o'zgartirsa darrov amal qiladi (qayta login shart emas). Admin uchun bu claim'lar
+                    // FAQAT superadmin unga aniq ruxsat ro'yxati bergan bo'lsa qo'shiladi (bo'sh bo'lsa —
+                    // admin cheklovsiz qoladi, AdminPerm atributida tekshiriladi). AdminPerm atributi
+                    // shu claim'larni tekshiradi.
+                    if (!blocked && (p.IsInRole(Roles.Staff) || p.IsInRole(Roles.Admin))
+                        && u!.Permissions is { Count: > 0 } perms
                         && p.Identity is ClaimsIdentity ident)
                         foreach (var perm in perms)
                             ident.AddClaim(new Claim(AdminPermAttribute.ClaimType, perm));
