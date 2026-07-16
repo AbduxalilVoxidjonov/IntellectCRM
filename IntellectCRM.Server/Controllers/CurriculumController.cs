@@ -10,8 +10,9 @@ using System.Text.Json;
 namespace IntellectCRM.Server.Controllers;
 
 /// <summary>
-/// Kurs sillabusi (Daraja → Mavzu → Band) va o'quvchi per-band progressi.
-/// Sillabus kurs (Subject) ga bog'lanadi: <c>CourseLevel</c> → <c>CourseTopic</c> → <c>CourseItem</c>.
+/// Kurs sillabusi (Bo'lim → Mavzu → Sub-mavzu → Band) va o'quvchi per-band progressi.
+/// Sillabus kurs (Subject) ga bog'lanadi: <c>CourseLevel</c> → <c>CourseTopic</c> →
+/// <c>CourseSubTopic</c> (BITTA turga qulflangan) → <c>CourseItem</c>.
 /// </summary>
 [ApiController]
 [Authorize]
@@ -33,6 +34,9 @@ public class CurriculumController(AppDbContext db) : ControllerBase
         var topics = await db.CourseTopics
             .Where(t => t.SubjectId == subjectId)
             .OrderBy(t => t.Order).ToListAsync();
+        var subTopics = await db.CourseSubTopics
+            .Where(s => s.SubjectId == subjectId)
+            .OrderBy(s => s.Order).ToListAsync();
         var items = await db.CourseItems
             .Where(i => i.SubjectId == subjectId)
             .OrderBy(i => i.Order).ToListAsync();
@@ -47,20 +51,22 @@ public class CurriculumController(AppDbContext db) : ControllerBase
             l.Id, l.Name, l.Note, l.Order,
             topics.Where(t => t.LevelId == l.Id).Select(t => new CurriculumTopicDto(
                 t.Id, t.Title, t.Note, t.Order,
-                items.Where(i => i.TopicId == t.Id).Select(i => ToItemDto(i, qCounts)).ToList()
+                subTopics.Where(s => s.TopicId == t.Id).Select(s => new CurriculumSubTopicDto(
+                    s.Id, s.Title, s.Note, s.Order, s.Type,
+                    items.Where(i => i.SubTopicId == s.Id).Select(i => ToItemDto(i, qCounts)).ToList()
+                )).ToList()
             )).ToList()
         )).ToList();
 
         return new CurriculumDto(subjectId, courseName, levelDtos);
     }
 
-    /// <summary>Dars (CourseItem) → daraxt DTO: tur, meta (test savoli/lug'at so'zi soni), tayyorlik.</summary>
+    /// <summary>Dars (CourseItem) → daraxt DTO: tur (ota sub-mavzudan meros), meta (test savoli/
+    /// lug'at so'zi soni), tayyorlik (o'z turiga mos maydon to'ldirilganmi).</summary>
     private static CurriculumItemDto ToItemDto(CourseItem i, IReadOnlyDictionary<string, int> qCounts)
     {
         var qc = qCounts.GetValueOrDefault(i.Id, 0);
         var vocabCount = ParseVocab(i.VocabJson).Count;
-        // Dars BIR NECHTA bo'limdan iborat bo'lishi mumkin (video+matn+audio+lug'at+test) —
-        // mavjud bo'limlar ro'yxati + tayyorlik (kamida bitta bo'lim to'ldirilgan).
         var sections = new List<string>();
         if (!string.IsNullOrWhiteSpace(i.VideoUrl)) sections.Add("Video");
         if (!string.IsNullOrWhiteSpace(i.TextContent)) sections.Add("Matn");
@@ -121,12 +127,15 @@ public class CurriculumController(AppDbContext db) : ControllerBase
 
         var topicIds = await db.CourseTopics
             .Where(t => t.LevelId == id).Select(t => t.Id).ToListAsync();
+        var subTopicIds = await db.CourseSubTopics
+            .Where(s => topicIds.Contains(s.TopicId)).Select(s => s.Id).ToListAsync();
         var itemIds = await db.CourseItems
-            .Where(i => topicIds.Contains(i.TopicId)).Select(i => i.Id).ToListAsync();
+            .Where(i => subTopicIds.Contains(i.SubTopicId)).Select(i => i.Id).ToListAsync();
 
         await db.CourseProgresses.Where(p => itemIds.Contains(p.ItemId)).ExecuteDeleteAsync();
         await db.CourseQuestions.Where(q => itemIds.Contains(q.ItemId)).ExecuteDeleteAsync();
         await db.CourseItems.Where(i => itemIds.Contains(i.Id)).ExecuteDeleteAsync();
+        await db.CourseSubTopics.Where(s => subTopicIds.Contains(s.Id)).ExecuteDeleteAsync();
         await db.CourseTopics.Where(t => t.LevelId == id).ExecuteDeleteAsync();
         db.CourseLevels.Remove(level);
         await db.SaveChangesAsync();
@@ -173,36 +182,88 @@ public class CurriculumController(AppDbContext db) : ControllerBase
         var topic = await db.CourseTopics.FindAsync(id);
         if (topic == null) return NotFound();
 
+        var subTopicIds = await db.CourseSubTopics
+            .Where(s => s.TopicId == id).Select(s => s.Id).ToListAsync();
         var itemIds = await db.CourseItems
-            .Where(i => i.TopicId == id).Select(i => i.Id).ToListAsync();
+            .Where(i => subTopicIds.Contains(i.SubTopicId)).Select(i => i.Id).ToListAsync();
         await db.CourseProgresses.Where(p => itemIds.Contains(p.ItemId)).ExecuteDeleteAsync();
         await db.CourseQuestions.Where(q => itemIds.Contains(q.ItemId)).ExecuteDeleteAsync();
-        await db.CourseItems.Where(i => i.TopicId == id).ExecuteDeleteAsync();
+        await db.CourseItems.Where(i => itemIds.Contains(i.Id)).ExecuteDeleteAsync();
+        await db.CourseSubTopics.Where(s => s.TopicId == id).ExecuteDeleteAsync();
         db.CourseTopics.Remove(topic);
         await db.SaveChangesAsync();
         return NoContent();
     }
 
-    // ---- Band ----
+    // ---- Sub-mavzu (BITTA turga qulflanadi — yaratishda tanlanadi) ----
 
-    [HttpPost("topics/{topicId}/items")]
-    public async Task<ActionResult> CreateItem(string topicId, ItemInput input)
+    [HttpPost("topics/{topicId}/subtopics")]
+    public async Task<ActionResult> CreateSubTopic(string topicId, SubTopicInput input)
     {
         var topic = await db.CourseTopics.FindAsync(topicId);
         if (topic == null) return NotFound();
-        var maxOrder = await db.CourseItems
-            .Where(i => i.TopicId == topicId)
-            .Select(i => (int?)i.Order).MaxAsync() ?? -1;
-        var validTypes = new[] { "text", "video", "audio", "vocab", "test", "pdf" };
-        var type = validTypes.Contains(input.Type) ? input.Type! : "text";
-        var item = new CourseItem
+        var maxOrder = await db.CourseSubTopics
+            .Where(s => s.TopicId == topicId)
+            .Select(s => (int?)s.Order).MaxAsync() ?? -1;
+        var subTopic = new CourseSubTopic
         {
             SubjectId = topic.SubjectId,
             TopicId = topicId,
+            Title = input.Title,
+            Note = input.Note ?? "",
+            Order = maxOrder + 1,
+            Type = NormalizeType(input.Type),
+        };
+        db.CourseSubTopics.Add(subTopic);
+        await db.SaveChangesAsync();
+        return Ok(new { id = subTopic.Id });
+    }
+
+    /// <summary>Sub-mavzu nomi/izohini yangilaydi — turi (Type) O'ZGARTIRILMAYDI (qulflangan).</summary>
+    [HttpPut("subtopics/{id}")]
+    public async Task<ActionResult> UpdateSubTopic(string id, TopicInput input)
+    {
+        var subTopic = await db.CourseSubTopics.FindAsync(id);
+        if (subTopic == null) return NotFound();
+        subTopic.Title = input.Title;
+        subTopic.Note = input.Note ?? "";
+        await db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    [HttpDelete("subtopics/{id}")]
+    public async Task<ActionResult> DeleteSubTopic(string id)
+    {
+        var subTopic = await db.CourseSubTopics.FindAsync(id);
+        if (subTopic == null) return NotFound();
+        var itemIds = await db.CourseItems
+            .Where(i => i.SubTopicId == id).Select(i => i.Id).ToListAsync();
+        await db.CourseProgresses.Where(p => itemIds.Contains(p.ItemId)).ExecuteDeleteAsync();
+        await db.CourseQuestions.Where(q => itemIds.Contains(q.ItemId)).ExecuteDeleteAsync();
+        await db.CourseItems.Where(i => itemIds.Contains(i.Id)).ExecuteDeleteAsync();
+        db.CourseSubTopics.Remove(subTopic);
+        await db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    // ---- Band (sub-mavzuning qulflangan turida) ----
+
+    [HttpPost("subtopics/{subTopicId}/items")]
+    public async Task<ActionResult> CreateItem(string subTopicId, ItemInput input)
+    {
+        var subTopic = await db.CourseSubTopics.FindAsync(subTopicId);
+        if (subTopic == null) return NotFound();
+        var maxOrder = await db.CourseItems
+            .Where(i => i.SubTopicId == subTopicId)
+            .Select(i => (int?)i.Order).MaxAsync() ?? -1;
+        var item = new CourseItem
+        {
+            SubjectId = subTopic.SubjectId,
+            SubTopicId = subTopicId,
             Text = input.Text,
             Note = input.Note ?? "",
             Order = maxOrder + 1,
-            Type = type,
+            Type = subTopic.Type, // ota sub-mavzudan meros — bu yerda tanlanmaydi
         };
         db.CourseItems.Add(item);
         await db.SaveChangesAsync();
@@ -243,12 +304,13 @@ public class CurriculumController(AppDbContext db) : ControllerBase
         var qs = await db.CourseQuestions.Where(q => q.ItemId == id).OrderBy(q => q.Order)
             .Select(q => new CourseQuestionDto(q.Id, q.Text, q.Options, q.CorrectIndex)).ToListAsync();
         return new CourseItemDetailDto(
-            i.Id, i.TopicId, i.Text, i.Note, i.Order, i.Type,
+            i.Id, i.SubTopicId, i.Text, i.Note, i.Order, i.Type,
             i.VideoUrl, i.AudioUrl, i.TextContent, i.PdfUrl, i.PdfName,
             i.Meta, ParseVocab(i.VocabJson), qs);
     }
 
-    /// <summary>Dars kontentini saqlash: nom + tur + (video/matn/audio/lug'at) + test savollari (almashtiriladi).</summary>
+    /// <summary>Dars kontentini saqlash: nom + (video/matn/audio/lug'at) + test savollari (almashtiriladi).
+    /// Type BU YERDA O'ZGARTIRILMAYDI — ota sub-mavzudan qulflangan.</summary>
     [HttpPut("items/{id}/content")]
     public async Task<ActionResult> SaveItemContent(string id, SaveItemContentRequest req)
     {
@@ -256,7 +318,6 @@ public class CurriculumController(AppDbContext db) : ControllerBase
         if (item == null) return NotFound();
 
         item.Text = (req.Text ?? "").Trim();
-        item.Type = NormalizeType(req.Type);
         item.VideoUrl = (req.VideoUrl ?? "").Trim();
         item.AudioUrl = (req.AudioUrl ?? "").Trim();
         item.TextContent = req.TextContent ?? "";
@@ -294,7 +355,7 @@ public class CurriculumController(AppDbContext db) : ControllerBase
     private const string XlsxMime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
     // Shablon ustunlari (1-varaq). Tartibi Excel importi o'qishi bilan AYNAN bir xil bo'lishi shart.
-    private static readonly string[] ExcelImportHeaders = { "Modul*", "Mavzu*", "Dars nomi*", "Izoh" };
+    private static readonly string[] ExcelImportHeaders = { "Bo'lim*", "Mavzu*", "Dars nomi*", "Izoh" };
 
     /// <summary>
     /// O'quv dasturini ommaviy kiritish uchun Excel shabloni (.xlsx). 1-varaq "Dastur" —
@@ -306,16 +367,16 @@ public class CurriculumController(AppDbContext db) : ControllerBase
     {
         var info = new List<IReadOnlyList<string>>
         {
-            new[] { "Modul*", "Kursning katta bosqichi. Masalan: Beginner, A1, 1-modul" },
-            new[] { "Mavzu*", "Modul ichidagi mavzu. Masalan: Present Simple" },
+            new[] { "Bo'lim*", "Kursning katta bosqichi. Masalan: Beginner, A1, 1-bo'lim" },
+            new[] { "Mavzu*", "Bo'lim ichidagi mavzu. Masalan: Present Simple" },
             new[] { "Dars nomi*", "Mavzu ichidagi dars. Masalan: 1-dars. Tanishuv" },
             new[] { "Izoh", "ixtiyoriy — dars izohi" },
             new[] { "", "" },
-            new[] { "QOIDA:", "Modul va Mavzu ustunlari bo'sh qoldirilsa — YUQORIDAGI qator qiymati olinadi." },
-            new[] { "", "Ya'ni modul/mavzu nomini faqat birinchi darsida yozish kifoya." },
+            new[] { "QOIDA:", "Bo'lim va Mavzu ustunlari bo'sh qoldirilsa — YUQORIDAGI qator qiymati olinadi." },
+            new[] { "", "Ya'ni bo'lim/mavzu nomini faqat birinchi darsida yozish kifoya." },
             new[] { "", "" },
             new[] { "NAMUNA:", "" },
-            new[] { "Modul", "Mavzu | Dars nomi" },
+            new[] { "Bo'lim", "Mavzu | Dars nomi" },
             new[] { "Beginner", "Alifbo | 1-dars. Harflar" },
             new[] { "(bo'sh)", "(bo'sh) | 2-dars. Talaffuz" },
             new[] { "(bo'sh)", "Salomlashish | 3-dars. Greetings" },
@@ -332,9 +393,10 @@ public class CurriculumController(AppDbContext db) : ControllerBase
 
     /// <summary>
     /// To'ldirilgan Excel (.xlsx) shablonidan o'quv dasturini yuklaydi. Har qator = bitta dars;
-    /// Modul/Mavzu bo'sh bo'lsa yuqoridagi qator qiymati olinadi (carry-forward).
+    /// Bo'lim/Mavzu bo'sh bo'lsa yuqoridagi qator qiymati olinadi (carry-forward). Har mavzu darslari
+    /// standart "Matn" sub-mavzusi ostiga qo'shiladi (Excel'da tur ustuni yo'q).
     /// <paramref name="replace"/>=true bo'lsa mavjud dastur (progress bilan) O'CHIRILIB, o'rniga yoziladi;
-    /// aks holda mavjud modul/mavzularga nomi bo'yicha QO'SHILADI (bir xil nom — takrorlanmaydi).
+    /// aks holda mavjud bo'lim/mavzularga nomi bo'yicha QO'SHILADI (bir xil nom — takrorlanmaydi).
     /// </summary>
     [HttpPost("{subjectId}/import-excel")]
     [RequestSizeLimit(10 * 1024 * 1024)]
@@ -368,17 +430,23 @@ public class CurriculumController(AppDbContext db) : ControllerBase
             await db.CourseProgresses.Where(p => oldItemIds.Contains(p.ItemId)).ExecuteDeleteAsync();
             await db.CourseQuestions.Where(q => oldItemIds.Contains(q.ItemId)).ExecuteDeleteAsync();
             await db.CourseItems.Where(i => i.SubjectId == subjectId).ExecuteDeleteAsync();
+            await db.CourseSubTopics.Where(s => s.SubjectId == subjectId).ExecuteDeleteAsync();
             await db.CourseTopics.Where(t => t.SubjectId == subjectId).ExecuteDeleteAsync();
             await db.CourseLevels.Where(l => l.SubjectId == subjectId).ExecuteDeleteAsync();
         }
 
-        // Mavjud modul/mavzular (append rejimida nomi bo'yicha qayta ishlatiladi).
+        // Mavjud bo'lim/mavzular (append rejimida nomi bo'yicha qayta ishlatiladi).
         var existingLevels = replace
             ? new List<CourseLevel>()
             : await db.CourseLevels.Where(l => l.SubjectId == subjectId).ToListAsync();
         var existingTopics = replace
             ? new List<CourseTopic>()
             : await db.CourseTopics.Where(t => t.SubjectId == subjectId).ToListAsync();
+        // Excel'da "tur" ustuni yo'q — har mavzu uchun bitta "Matn" (text) sub-mavzu ostiga qo'shiladi
+        // (kerak bo'lsa admin keyin kontentni video/audio/pdf'ga alohida sub-mavzuda joylashtiradi).
+        var existingSubTopics = replace
+            ? new List<CourseSubTopic>()
+            : await db.CourseSubTopics.Where(s => s.SubjectId == subjectId).ToListAsync();
 
         var levelByName = existingLevels
             .GroupBy(l => l.Name.Trim(), StringComparer.OrdinalIgnoreCase)
@@ -387,20 +455,43 @@ public class CurriculumController(AppDbContext db) : ControllerBase
         var topicByKey = existingTopics
             .GroupBy(t => $"{t.LevelId}|{t.Title.Trim().ToLowerInvariant()}")
             .ToDictionary(g => g.Key, g => g.First());
+        // Har mavzuning standart ("Matn") sub-mavzusi — lazy: birinchi darsi import qilinganda yaratiladi.
+        var defaultSubTopicByTopic = existingSubTopics
+            .Where(s => s.Type == "text")
+            .GroupBy(s => s.TopicId)
+            .ToDictionary(g => g.Key, g => g.First());
 
         var nextLevelOrder = existingLevels.Count > 0 ? existingLevels.Max(l => l.Order) + 1 : 0;
         var nextTopicOrder = new Dictionary<string, int>(); // levelId -> keyingi order
-        var nextItemOrder = new Dictionary<string, int>(); // topicId -> keyingi order
+        var nextSubTopicOrder = new Dictionary<string, int>(); // topicId -> keyingi order
+        var nextItemOrder = new Dictionary<string, int>(); // subTopicId -> keyingi order
         foreach (var g in existingTopics.GroupBy(t => t.LevelId))
             nextTopicOrder[g.Key] = g.Max(t => t.Order) + 1;
+        foreach (var g in existingSubTopics.GroupBy(s => s.TopicId))
+            nextSubTopicOrder[g.Key] = g.Max(s => s.Order) + 1;
         if (!replace)
         {
             var existingItemOrders = await db.CourseItems
                 .Where(i => i.SubjectId == subjectId)
-                .GroupBy(i => i.TopicId)
-                .Select(g => new { TopicId = g.Key, Max = g.Max(i => i.Order) })
+                .GroupBy(i => i.SubTopicId)
+                .Select(g => new { SubTopicId = g.Key, Max = g.Max(i => i.Order) })
                 .ToListAsync();
-            foreach (var e in existingItemOrders) nextItemOrder[e.TopicId] = e.Max + 1;
+            foreach (var e in existingItemOrders) nextItemOrder[e.SubTopicId] = e.Max + 1;
+        }
+
+        // Berilgan mavzuning standart "Matn" sub-mavzusini qaytaradi — bo'lmasa yaratadi.
+        CourseSubTopic GetOrCreateDefaultSubTopic(CourseTopic topic)
+        {
+            if (defaultSubTopicByTopic.TryGetValue(topic.Id, out var existing)) return existing;
+            var order = nextSubTopicOrder.GetValueOrDefault(topic.Id, 0);
+            nextSubTopicOrder[topic.Id] = order + 1;
+            var st = new CourseSubTopic
+            {
+                SubjectId = subjectId, TopicId = topic.Id, Title = "Matn", Note = "", Order = order, Type = "text",
+            };
+            db.CourseSubTopics.Add(st);
+            defaultSubTopicByTopic[topic.Id] = st;
+            return st;
         }
 
         var errors = new List<StudentImportRowErrorDto>();
@@ -421,7 +512,7 @@ public class CurriculumController(AppDbContext db) : ControllerBase
             var itemText = r[2].Trim();
             var note = r[3].Trim();
 
-            // Modul: nom berilgan bo'lsa topamiz/yaratamiz, bo'sh bo'lsa oldingi qator moduli.
+            // Bo'lim: nom berilgan bo'lsa topamiz/yaratamiz, bo'sh bo'lsa oldingi qator bo'limi.
             if (levelName.Length > 0)
             {
                 if (!levelByName.TryGetValue(levelName, out var lvl))
@@ -442,7 +533,7 @@ public class CurriculumController(AppDbContext db) : ControllerBase
             }
             if (currentLevel == null)
             {
-                errors.Add(new StudentImportRowErrorDto(excelRow, "Modul ko'rsatilmagan"));
+                errors.Add(new StudentImportRowErrorDto(excelRow, "Bo'lim ko'rsatilmagan"));
                 continue;
             }
 
@@ -478,15 +569,17 @@ public class CurriculumController(AppDbContext db) : ControllerBase
                 continue;
             }
 
-            var itemOrder = nextItemOrder.GetValueOrDefault(currentTopic.Id, 0);
-            nextItemOrder[currentTopic.Id] = itemOrder + 1;
+            var subTopic = GetOrCreateDefaultSubTopic(currentTopic);
+            var itemOrder = nextItemOrder.GetValueOrDefault(subTopic.Id, 0);
+            nextItemOrder[subTopic.Id] = itemOrder + 1;
             db.CourseItems.Add(new CourseItem
             {
                 SubjectId = subjectId,
-                TopicId = currentTopic.Id,
+                SubTopicId = subTopic.Id,
                 Text = itemText,
                 Note = note,
                 Order = itemOrder,
+                Type = "text",
             });
             newItems++;
         }
@@ -514,15 +607,20 @@ public class CurriculumController(AppDbContext db) : ControllerBase
         var targetSubject = await db.Subjects.FindAsync(targetSubjectId);
         if (targetSubject == null) return NotFound("Maqsadli kurs topilmadi");
 
-        // Source daraja mavzulari va bandlari
+        // Source daraja mavzulari, sub-mavzulari va bandlari
         var sourceTopics = await db.CourseTopics
             .Where(t => t.LevelId == levelId)
             .OrderBy(t => t.Order)
             .ToListAsync();
 
         var sourceTopicIds = sourceTopics.Select(t => t.Id).ToList();
+        var sourceSubTopics = await db.CourseSubTopics
+            .Where(s => sourceTopicIds.Contains(s.TopicId))
+            .OrderBy(s => s.Order)
+            .ToListAsync();
+        var sourceSubTopicIds = sourceSubTopics.Select(s => s.Id).ToList();
         var sourceItems = await db.CourseItems
-            .Where(i => sourceTopicIds.Contains(i.TopicId))
+            .Where(i => sourceSubTopicIds.Contains(i.SubTopicId))
             .OrderBy(i => i.Order)
             .ToListAsync();
 
@@ -548,8 +646,9 @@ public class CurriculumController(AppDbContext db) : ControllerBase
         };
         db.CourseLevels.Add(newLevel);
 
-        // Old→New mapping (mavzu va bandlar)
+        // Old→New mapping (mavzu, sub-mavzu va bandlar)
         var topicMapping = new Dictionary<string, string>(); // Old → New
+        var subTopicMapping = new Dictionary<string, string>(); // Old → New
         var itemMapping = new Dictionary<string, string>(); // Old → New
 
         // Mavzularni nusxalash
@@ -570,16 +669,37 @@ public class CurriculumController(AppDbContext db) : ControllerBase
         // EF in-memory ID'lari yaratishi uchun SaveChanges chaqirish
         await db.SaveChangesAsync();
 
+        // Sub-mavzularni nusxalash (tur saqlanadi — u har sub-mavzuda qulflangan).
+        foreach (var sourceSubTopic in sourceSubTopics)
+        {
+            if (!topicMapping.TryGetValue(sourceSubTopic.TopicId, out var newTopicId))
+                continue;
+
+            var newSubTopic = new CourseSubTopic
+            {
+                SubjectId = targetSubjectId,
+                TopicId = newTopicId,
+                Title = sourceSubTopic.Title,
+                Note = sourceSubTopic.Note,
+                Order = sourceSubTopic.Order,
+                Type = sourceSubTopic.Type,
+            };
+            db.CourseSubTopics.Add(newSubTopic);
+            subTopicMapping[sourceSubTopic.Id] = newSubTopic.Id;
+        }
+
+        await db.SaveChangesAsync();
+
         // Bandlarni nusxalash (kontent yo'q, faqat nom va izoh)
         foreach (var sourceItem in sourceItems)
         {
-            if (!topicMapping.TryGetValue(sourceItem.TopicId, out var newTopicId))
+            if (!subTopicMapping.TryGetValue(sourceItem.SubTopicId, out var newSubTopicId))
                 continue;
 
             var newItem = new CourseItem
             {
                 SubjectId = targetSubjectId,
-                TopicId = newTopicId,
+                SubTopicId = newSubTopicId,
                 Text = sourceItem.Text,
                 Note = sourceItem.Note,
                 Type = sourceItem.Type,
@@ -609,6 +729,7 @@ public class CurriculumController(AppDbContext db) : ControllerBase
             .Where(i => i.SubjectId == subjectId).Select(i => i.Id).ToListAsync();
         await db.CourseProgresses.Where(p => oldItemIds.Contains(p.ItemId)).ExecuteDeleteAsync();
         await db.CourseItems.Where(i => i.SubjectId == subjectId).ExecuteDeleteAsync();
+        await db.CourseSubTopics.Where(s => s.SubjectId == subjectId).ExecuteDeleteAsync();
         await db.CourseTopics.Where(t => t.SubjectId == subjectId).ExecuteDeleteAsync();
         await db.CourseLevels.Where(l => l.SubjectId == subjectId).ExecuteDeleteAsync();
 
@@ -642,17 +763,26 @@ public class CurriculumController(AppDbContext db) : ControllerBase
                 db.CourseTopics.Add(topic);
                 topicCount++;
 
+                // "Tur" import formatida yo'q — bitta standart "Matn" (text) sub-mavzu ostiga qo'shiladi.
                 var items = tp.Items ?? new List<ImportItemDto>();
+                if (items.Count == 0) continue;
+                var subTopic = new CourseSubTopic
+                {
+                    SubjectId = subjectId, TopicId = topic.Id, Title = "Matn", Note = "", Order = 0, Type = "text",
+                };
+                db.CourseSubTopics.Add(subTopic);
+
                 for (int ii = 0; ii < items.Count; ii++)
                 {
                     var it = items[ii];
                     db.CourseItems.Add(new CourseItem
                     {
                         SubjectId = subjectId,
-                        TopicId = topic.Id,
+                        SubTopicId = subTopic.Id,
                         Text = it.Text,
                         Note = it.Note ?? "",
                         Order = ii,
+                        Type = "text",
                     });
                     itemCount++;
                 }
@@ -793,9 +923,12 @@ public class CurriculumController(AppDbContext db) : ControllerBase
             .ToListAsync();
         var courseNameById = subjects.ToDictionary(s => s.Id, s => s.Name);
 
-        // Tegishli kurslarning band/mavzu/daraja lug'atlari (per-log so'rovsiz).
+        // Tegishli kurslarning band/sub-mavzu/mavzu/daraja lug'atlari (per-log so'rovsiz).
         var items = await db.CourseItems
             .Where(i => courseIds.Contains(i.SubjectId))
+            .ToListAsync();
+        var subTopics = await db.CourseSubTopics
+            .Where(s => courseIds.Contains(s.SubjectId))
             .ToListAsync();
         var topics = await db.CourseTopics
             .Where(t => courseIds.Contains(t.SubjectId))
@@ -805,6 +938,7 @@ public class CurriculumController(AppDbContext db) : ControllerBase
             .ToListAsync();
 
         var itemById = items.ToDictionary(i => i.Id);
+        var subTopicById = subTopics.ToDictionary(s => s.Id);
         var topicById = topics.ToDictionary(t => t.Id);
         var levelById = levels.ToDictionary(l => l.Id);
 
@@ -829,8 +963,9 @@ public class CurriculumController(AppDbContext db) : ControllerBase
             else
             {
                 if (!itemById.TryGetValue(log.ItemId, out var item)) continue; // band o'chirilgan
-                var topicTitle = topicById.TryGetValue(item.TopicId, out var topic) ? topic.Title : "";
-                var levelName = topicById.TryGetValue(item.TopicId, out var tp)
+                var hasSubTopic = subTopicById.TryGetValue(item.SubTopicId, out var subTopic);
+                var topicTitle = hasSubTopic && topicById.TryGetValue(subTopic!.TopicId, out var topic) ? topic.Title : "";
+                var levelName = hasSubTopic && topicById.TryGetValue(subTopic!.TopicId, out var tp)
                     && levelById.TryGetValue(tp.LevelId, out var level) ? level.Name : "";
                 entries.Add((log.Date, log.CreatedAt, new CoverageLogEntryDto(
                     log.Date, courseName, groupName, levelName, topicTitle, item.Text, false)));

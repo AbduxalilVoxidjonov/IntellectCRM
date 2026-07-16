@@ -1683,7 +1683,7 @@ public class CourseLevel
     public int Order { get; set; }
 }
 
-/// <summary>Kurs mavzusi (sillabus 2-bosqich): daraja ichidagi mavzu.</summary>
+/// <summary>Kurs mavzusi (sillabus 2-bosqich): bo'lim (CourseLevel) ichidagi mavzu.</summary>
 public class CourseTopic
 {
     public string Id { get; set; } = Guid.NewGuid().ToString();
@@ -1694,18 +1694,34 @@ public class CourseTopic
     public int Order { get; set; }
 }
 
-/// <summary>Kurs bandi / DARS (sillabus 3-bosqich): mavzu ichidagi alohida o'rganiladigan dars.
-/// Endi kontent ham olib yuradi: video/matn/audio/lug'at/test (rasm: Modul→Mavzu→Dars).</summary>
-public class CourseItem
+/// <summary>Kurs sub-mavzusi (sillabus 3-bosqich): mavzu ichidagi kichik bo'lim — BITTA turga
+/// (text|video|audio|vocab|test|pdf) qulflangan: yaratishda tanlanadi, keyin o'zgarmaydi. Ichida
+/// shu turdan bir nechta band (CourseItem) bo'lishi mumkin (masalan bir nechta video).</summary>
+public class CourseSubTopic
 {
     public string Id { get; set; } = Guid.NewGuid().ToString();
     public string SubjectId { get; set; } = string.Empty;
     public string TopicId { get; set; } = string.Empty;
+    public string Title { get; set; } = string.Empty;
+    public string Note { get; set; } = string.Empty;
+    public int Order { get; set; }
+    /// <summary>Qulflangan tur: text | video | audio | vocab | test | pdf.</summary>
+    public string Type { get; set; } = "text";
+}
+
+/// <summary>Kurs bandi / DARS (sillabus 4-bosqich): sub-mavzu ichidagi alohida o'rganiladigan dars.
+/// Kontent olib yuradi: video/matn/audio/lug'at/test (rasm: Bo'lim→Mavzu→Sub-mavzu→Dars). Tur
+/// (<see cref="Type"/>) ota sub-mavzudan meros — bandda o'zgartirilmaydi (qulflangan).</summary>
+public class CourseItem
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string SubjectId { get; set; } = string.Empty;
+    public string SubTopicId { get; set; } = string.Empty;
     /// <summary>Dars nomi (sarlavha).</summary>
     public string Text { get; set; } = string.Empty;
     public string Note { get; set; } = string.Empty;
     public int Order { get; set; }
-    /// <summary>Dars turi: text | video | audio | vocab | test | pdf. Default "text" (eski bandlar).</summary>
+    /// <summary>Dars turi: text | video | audio | vocab | test | pdf. Ota sub-mavzudan meros.</summary>
     public string Type { get; set; } = "text";
     /// <summary>Video havolasi (YouTube/mp4) yoki yuklangan fayl URL — "video" dars.</summary>
     public string VideoUrl { get; set; } = string.Empty;

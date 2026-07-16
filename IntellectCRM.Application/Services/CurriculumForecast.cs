@@ -25,9 +25,14 @@ public static class CurriculumForecast
             .Where(l => l.SubjectId == courseId).OrderBy(l => l.Order).ToListAsync();
         var topics = await db.CourseTopics
             .Where(t => t.SubjectId == courseId).OrderBy(t => t.Order).ToListAsync();
+        var subTopics = await db.CourseSubTopics
+            .Where(s => s.SubjectId == courseId).ToListAsync();
         var items = await db.CourseItems
             .Where(i => i.SubjectId == courseId).OrderBy(i => i.Order).ToListAsync();
         var existingItemIds = items.Select(i => i.Id).ToHashSet();
+        // Item → uning to'g'ridan-to'g'ri ota TOPICI (sub-mavzu qatlamini "shaffof" qilib o'tkazib
+        // yuboradi — bu DTO Bo'lim→Mavzu→Band tekis ko'rinishida qoladi, frontend o'zgarmaydi).
+        var topicIdBySubTopic = subTopics.ToDictionary(s => s.Id, s => s.TopicId);
 
         var logs = await db.GroupCurriculumLogs.Where(g => g.GroupId == group.Id).ToListAsync();
 
@@ -81,7 +86,7 @@ public static class CurriculumForecast
             l.Id, l.Name, l.Note, l.Order,
             topics.Where(t => t.LevelId == l.Id).Select(t => new GroupCurriculumTopicDto(
                 t.Id, t.Title, t.Note, t.Order,
-                items.Where(i => i.TopicId == t.Id).Select(i => new GroupCurriculumItemDto(
+                items.Where(i => topicIdBySubTopic.GetValueOrDefault(i.SubTopicId) == t.Id).Select(i => new GroupCurriculumItemDto(
                     i.Id, i.Text, i.Note, i.Order, coveredItemIds.Contains(i.Id),
                     coveredItemIds.Contains(i.Id) && coverDateByItem.TryGetValue(i.Id, out var cd) ? cd : "")).ToList()
             )).ToList()

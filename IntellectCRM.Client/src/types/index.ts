@@ -1644,12 +1644,22 @@ export interface CurriculumItem {
   /** Dars kontenti to'liq kiritilganmi (tayyor) */
   ready: boolean
 }
+/** Sub-mavzu — BITTA turga (video|matn|audio|pdf|lug'at|test) qulflangan: yaratishda tanlanadi,
+ *  keyin o'zgarmaydi. Ichida shu turdan bir nechta band (dars) bo'lishi mumkin. */
+export interface CurriculumSubTopic {
+  id: string
+  title: string
+  note: string
+  order: number
+  type: LessonType
+  items: CurriculumItem[]
+}
 export interface CurriculumTopic {
   id: string
   title: string
   note: string
   order: number
-  items: CurriculumItem[]
+  subTopics: CurriculumSubTopic[]
 }
 export interface CurriculumLevel {
   id: string

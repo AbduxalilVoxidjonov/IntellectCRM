@@ -1110,7 +1110,7 @@ public class StudentPortalController(
             ? new List<VocabEntryDto>()
             : (TryDeserialize(i.VocabJson) ?? new());
         return new CourseItemDetailDto(
-            i.Id, i.TopicId, i.Text, i.Note, i.Order, i.Type,
+            i.Id, i.SubTopicId, i.Text, i.Note, i.Order, i.Type,
             i.VideoUrl, i.AudioUrl, i.TextContent, i.PdfUrl, i.PdfName,
             i.Meta, vocab, qs);
     }

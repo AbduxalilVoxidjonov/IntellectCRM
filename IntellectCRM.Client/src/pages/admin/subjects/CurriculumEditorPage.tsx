@@ -6,12 +6,13 @@ import {
   AlertTriangle, CheckCircle2, FileSpreadsheet, FileDown, FileType, ExternalLink, X,
 } from 'lucide-react'
 import type {
-  Curriculum, CurriculumLevel, CurriculumTopic, CurriculumItem, LessonType, Subject,
+  Curriculum, CurriculumLevel, CurriculumTopic, CurriculumSubTopic, CurriculumItem, LessonType, Subject,
 } from '@/types'
 import {
   getCurriculum,
   createLevel, updateLevel, deleteLevel,
   createTopic, updateTopic, deleteTopic,
+  createSubTopic, updateSubTopic, deleteSubTopic,
   createItem, deleteItem,
   getCourseItem, saveItemContent,
   copyLevelToSubject,
@@ -51,48 +52,52 @@ function genId() {
 }
 
 // ---- Modal holatlari (brauzer prompt/confirm/alert o'rniga) ----
+// Tuzilma: Bo'lim → Mavzu → Sub-mavzu (tur SHU YERDA tanlanadi va qulflanadi) → Dars(lar) (shu turdan).
 type NamePrompt =
   | { kind: 'level' }
   | { kind: 'topic'; levelId: string }
-  | { kind: 'item'; levelId: string; topicId: string; itemType: LessonType }
+  | { kind: 'item'; levelId: string; topicId: string; subTopicId: string; itemTypeLabel: string }
+
+/** Sub-mavzu yaratish — nom VA tur birga so'raladi (tur shu yerda qulflanadi). */
+type SubTopicPrompt = { levelId: string; topicId: string }
 
 type DeleteTarget =
   | { kind: 'level'; level: CurriculumLevel }
   | { kind: 'topic'; levelId: string; topic: CurriculumTopic }
-  | { kind: 'item'; levelId: string; topicId: string; item: CurriculumItem }
+  | { kind: 'subtopic'; levelId: string; topicId: string; subTopic: CurriculumSubTopic }
+  | { kind: 'item'; levelId: string; topicId: string; subTopicId: string; item: CurriculumItem }
 
 type Notice = { type: 'success' | 'error'; text: string }
 
 const NAME_PROMPT_META: Record<NamePrompt['kind'], { title: string; label: string; placeholder: string; hint?: string }> = {
   level: {
-    title: 'Yangi modul',
-    label: 'Modul nomi',
-    placeholder: 'Masalan: Beginner, A1, 1-modul...',
-    hint: "Modul — kursning katta bosqichi. Ichiga mavzular va darslar qo'shiladi.",
+    title: 'Yangi bo\'lim',
+    label: 'Bo\'lim nomi',
+    placeholder: 'Masalan: Beginner, A1, 1-bo\'lim...',
+    hint: "Bo'lim — kursning katta bosqichi. Ichiga mavzular qo'shiladi.",
   },
   topic: {
     title: 'Yangi mavzu',
     label: 'Mavzu nomi',
     placeholder: 'Masalan: Present Simple, Kirish...',
+    hint: "Mavzu ichiga sub-mavzular (video/matn/audio/pdf/lug'at/test) qo'shiladi.",
   },
   item: {
     title: 'Yangi dars',
     label: 'Dars nomi',
     placeholder: 'Masalan: 1-dars. Tanishuv...',
-    hint: "Dars kontentini (video, matn, test...) keyin o'ng paneldan to'ldirasiz.",
+    hint: "Kontentni keyin o'ng paneldan to'ldirasiz.",
   },
 }
 
-/** "item" prompt uchun sarlavha/label tanlangan turga (video/matn/audio/pdf/lug'at/test) qarab
- *  moslashadi — chunki tur endi YARATISHDA tanlanadi va keyin o'zgarmaydi. */
+/** "item" prompt uchun sarlavha/label sub-mavzuning qulflangan turiga qarab moslashadi. */
 function namePromptMeta(p: NamePrompt): typeof NAME_PROMPT_META['level'] {
   if (p.kind !== 'item') return NAME_PROMPT_META[p.kind]
-  const m = typeMeta(p.itemType)
   return {
-    title: `Yangi ${m.label.toLowerCase()}`,
-    label: `${m.label} nomi`,
-    placeholder: `Masalan: 1-dars — ${m.label.toLowerCase()}...`,
-    hint: `Bu band FAQAT "${m.label}" turida bo'ladi — kontentni keyin o'ng paneldan to'ldirasiz.`,
+    title: `Yangi ${p.itemTypeLabel.toLowerCase()}`,
+    label: `${p.itemTypeLabel} nomi`,
+    placeholder: `Masalan: 1-${p.itemTypeLabel.toLowerCase()}...`,
+    hint: `Bu sub-mavzu "${p.itemTypeLabel}" turiga qulflangan — kontentni keyin o'ng paneldan to'ldirasiz.`,
   }
 }
 
@@ -114,9 +119,11 @@ export function CurriculumEditorPage() {
   const [copyTarget, setCopyTarget] = useState<string>('')
   const [isCopying, setIsCopying] = useState(false)
 
-  // Nom kiritish / o'chirishni tasdiqlash modallari
+  // Nom kiritish / sub-mavzu (nom+tur) / o'chirishni tasdiqlash modallari
   const [namePrompt, setNamePrompt] = useState<NamePrompt | null>(null)
   const [nameBusy, setNameBusy] = useState(false)
+  const [subTopicPrompt, setSubTopicPrompt] = useState<SubTopicPrompt | null>(null)
+  const [subTopicBusy, setSubTopicBusy] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null)
   const [deleteBusy, setDeleteBusy] = useState(false)
   const [notice, setNotice] = useState<Notice | null>(null)
@@ -154,11 +161,30 @@ export function CurriculumEditorPage() {
       return next
     })
 
-  // ---- Modul (daraja) ----
+  /** Mavzu daraxtida bitta topicni (ichidagi sub-mavzular bilan) yangilaydi. */
+  const patchTopic = (levelId: string, topicId: string, fn: (t: CurriculumTopic) => CurriculumTopic) =>
+    patchLevels((ls) =>
+      ls.map((l) =>
+        l.id === levelId
+          ? { ...l, topics: l.topics.map((t) => (t.id === topicId ? fn(t) : t)) }
+          : l,
+      ),
+    )
+
+  /** Sub-mavzu ichidagi bandlar (items) ro'yxatini yangilaydi. */
+  const patchSubTopic = (
+    levelId: string, topicId: string, subTopicId: string, fn: (st: CurriculumSubTopic) => CurriculumSubTopic,
+  ) =>
+    patchTopic(levelId, topicId, (t) => ({
+      ...t, subTopics: t.subTopics.map((st) => (st.id === subTopicId ? fn(st) : st)),
+    }))
+
+  // ---- Bo'lim ----
   const addLevel = () => setNamePrompt({ kind: 'level' })
   const addTopic = (levelId: string) => setNamePrompt({ kind: 'topic', levelId })
-  const addItem = (levelId: string, topicId: string, itemType: LessonType) =>
-    setNamePrompt({ kind: 'item', levelId, topicId, itemType })
+  const addSubTopic = (levelId: string, topicId: string) => setSubTopicPrompt({ levelId, topicId })
+  const addItem = (levelId: string, topicId: string, subTopicId: string, itemTypeLabel: string) =>
+    setNamePrompt({ kind: 'item', levelId, topicId, subTopicId, itemTypeLabel })
 
   const submitName = async (name: string) => {
     if (!namePrompt || nameBusy) return
@@ -172,28 +198,20 @@ export function CurriculumEditorPage() {
       } else if (namePrompt.kind === 'topic') {
         const { levelId } = namePrompt
         const { id: tid } = await createTopic(levelId, name)
-        const topic: CurriculumTopic = { id: tid, title: name, note: '', order: 0, items: [] }
+        const topic: CurriculumTopic = { id: tid, title: name, note: '', order: 0, subTopics: [] }
         patchLevels((ls) =>
           ls.map((l) => (l.id === levelId ? { ...l, topics: [...l.topics, topic] } : l)),
         )
       } else {
-        const { levelId, topicId, itemType } = namePrompt
-        const { id: iid } = await createItem(topicId, name, '', itemType)
+        const { levelId, topicId, subTopicId } = namePrompt
+        const { id: iid } = await createItem(subTopicId, name)
+        // Ota sub-mavzuning qulflangan turi — yangi bandga meros qilib beriladi.
+        const parentTopic = data?.levels.find((l) => l.id === levelId)?.topics.find((t) => t.id === topicId)
+        const itemType = parentTopic?.subTopics.find((st) => st.id === subTopicId)?.type ?? 'text'
         const item: CurriculumItem = {
           id: iid, text: name, note: '', order: 0, type: itemType, meta: '', ready: false,
         }
-        patchLevels((ls) =>
-          ls.map((l) =>
-            l.id === levelId
-              ? {
-                  ...l,
-                  topics: l.topics.map((tp) =>
-                    tp.id === topicId ? { ...tp, items: [...tp.items, item] } : tp,
-                  ),
-                }
-              : l,
-          ),
-        )
+        patchSubTopic(levelId, topicId, subTopicId, (st) => ({ ...st, items: [...st.items, item] }))
         setSelectedId(iid)
       }
       setNamePrompt(null)
@@ -201,6 +219,22 @@ export function CurriculumEditorPage() {
       setNotice({ type: 'error', text: err.response?.data?.message || err.message || 'Xato yuz berdi' })
     } finally {
       setNameBusy(false)
+    }
+  }
+
+  const submitSubTopic = async (title: string, type: LessonType) => {
+    if (!subTopicPrompt || subTopicBusy) return
+    setSubTopicBusy(true)
+    try {
+      const { levelId, topicId } = subTopicPrompt
+      const { id: sid } = await createSubTopic(topicId, title, type)
+      const subTopic: CurriculumSubTopic = { id: sid, title, note: '', order: 0, type, items: [] }
+      patchTopic(levelId, topicId, (t) => ({ ...t, subTopics: [...t.subTopics, subTopic] }))
+      setSubTopicPrompt(null)
+    } catch (err: any) {
+      setNotice({ type: 'error', text: err.response?.data?.message || err.message || 'Xato yuz berdi' })
+    } finally {
+      setSubTopicBusy(false)
     }
   }
 
@@ -213,8 +247,10 @@ export function CurriculumEditorPage() {
   const removeLevel = (level: CurriculumLevel) => setDeleteTarget({ kind: 'level', level })
   const removeTopic = (levelId: string, topic: CurriculumTopic) =>
     setDeleteTarget({ kind: 'topic', levelId, topic })
-  const removeItem = (levelId: string, topicId: string, item: CurriculumItem) =>
-    setDeleteTarget({ kind: 'item', levelId, topicId, item })
+  const removeSubTopic = (levelId: string, topicId: string, subTopic: CurriculumSubTopic) =>
+    setDeleteTarget({ kind: 'subtopic', levelId, topicId, subTopic })
+  const removeItem = (levelId: string, topicId: string, subTopicId: string, item: CurriculumItem) =>
+    setDeleteTarget({ kind: 'item', levelId, topicId, subTopicId, item })
 
   const confirmDelete = async () => {
     if (!deleteTarget || deleteBusy) return
@@ -232,22 +268,20 @@ export function CurriculumEditorPage() {
             l.id === levelId ? { ...l, topics: l.topics.filter((t) => t.id !== topic.id) } : l,
           ),
         )
+      } else if (deleteTarget.kind === 'subtopic') {
+        const { levelId, topicId, subTopic } = deleteTarget
+        await deleteSubTopic(subTopic.id)
+        if (subTopic.items.some((it) => it.id === selectedId)) setSelectedId(null)
+        patchTopic(levelId, topicId, (t) => ({
+          ...t, subTopics: t.subTopics.filter((st) => st.id !== subTopic.id),
+        }))
       } else {
-        const { levelId, topicId, item } = deleteTarget
+        const { levelId, topicId, subTopicId, item } = deleteTarget
         await deleteItem(item.id)
         if (selectedId === item.id) setSelectedId(null)
-        patchLevels((ls) =>
-          ls.map((l) =>
-            l.id === levelId
-              ? {
-                  ...l,
-                  topics: l.topics.map((tp) =>
-                    tp.id === topicId ? { ...tp, items: tp.items.filter((it) => it.id !== item.id) } : tp,
-                  ),
-                }
-              : l,
-          ),
-        )
+        patchSubTopic(levelId, topicId, subTopicId, (st) => ({
+          ...st, items: st.items.filter((it) => it.id !== item.id),
+        }))
       }
       setDeleteTarget(null)
     } catch (err: any) {
@@ -279,13 +313,13 @@ export function CurriculumEditorPage() {
   const saveTopic = async (levelId: string, topic: CurriculumTopic, title: string) => {
     if (title.trim() === topic.title || !title.trim()) return
     await updateTopic(topic.id, title.trim(), topic.note)
-    patchLevels((ls) =>
-      ls.map((l) =>
-        l.id === levelId
-          ? { ...l, topics: l.topics.map((t) => (t.id === topic.id ? { ...t, title: title.trim() } : t)) }
-          : l,
-      ),
-    )
+    patchTopic(levelId, topic.id, (t) => ({ ...t, title: title.trim() }))
+  }
+
+  const saveSubTopic = async (levelId: string, topicId: string, subTopic: CurriculumSubTopic, title: string) => {
+    if (title.trim() === subTopic.title || !title.trim()) return
+    await updateSubTopic(subTopic.id, title.trim(), subTopic.note)
+    patchSubTopic(levelId, topicId, subTopic.id, (st) => ({ ...st, title: title.trim() }))
   }
 
   // Kontent saqlangach: butun dasturni qayta yuklab tree'ni yangilaymiz (type/meta/ready)
@@ -303,7 +337,9 @@ export function CurriculumEditorPage() {
   }
 
   const courseName = data?.courseName ?? 'Kurs'
-  const allItems = (data?.levels ?? []).flatMap((l) => l.topics.flatMap((t) => t.items))
+  const allItems = (data?.levels ?? []).flatMap((l) =>
+    l.topics.flatMap((t) => t.subTopics.flatMap((st) => st.items)),
+  )
   const totalItems = allItems.length
   const readyItems = allItems.filter((it) => it.ready).length
 
@@ -311,7 +347,7 @@ export function CurriculumEditorPage() {
     <div>
       <PageHeader
         title={`${courseName} — o'quv dasturi`}
-        sub={totalItems > 0 ? `${readyItems} / ${totalItems} dars tayyor` : "Modul → mavzu → dars: o'quvchilar shu ro'yxat bo'yicha o'rganadi"}
+        sub={totalItems > 0 ? `${readyItems} / ${totalItems} dars tayyor` : "Bo'lim → mavzu → sub-mavzu → dars: o'quvchilar shu ro'yxat bo'yicha o'rganadi"}
         actions={
           <>
             <Button variant="secondary" onClick={() => setImportOpen(true)}>
@@ -338,7 +374,7 @@ export function CurriculumEditorPage() {
                   </p>
                 </div>
                 <Button onClick={addLevel}>
-                  <Plus className="h-4 w-4" /> Modul
+                  <Plus className="h-4 w-4" /> Bo'lim
                 </Button>
               </div>
               {/* Progress bar */}
@@ -350,14 +386,14 @@ export function CurriculumEditorPage() {
               </div>
             </div>
 
-            {/* Modullar */}
+            {/* Bo'limlar */}
             {!data || data.levels.length === 0 ? (
               <div className="state">
                 <div className="state-icon">
                   <ListChecks className="h-5 w-5" />
                 </div>
-                <h4>Hali modul kiritilmagan</h4>
-                <p>Yuqoridagi "+ Modul" tugmasi bilan boshlang.</p>
+                <h4>Hali bo'lim kiritilmagan</h4>
+                <p>Yuqoridagi "+ Bo'lim" tugmasi bilan boshlang.</p>
               </div>
             ) : (
               <div className="space-y-2 p-3">
@@ -379,9 +415,13 @@ export function CurriculumEditorPage() {
                     onAddTopic={() => addTopic(level.id)}
                     onSaveTopic={(topic, title) => saveTopic(level.id, topic, title)}
                     onDeleteTopic={(topic) => removeTopic(level.id, topic)}
-                    onAddItem={(topicId, itemType) => addItem(level.id, topicId, itemType)}
+                    onAddSubTopic={(topicId) => addSubTopic(level.id, topicId)}
+                    onSaveSubTopic={(topicId, subTopic, title) => saveSubTopic(level.id, topicId, subTopic, title)}
+                    onDeleteSubTopic={(topicId, subTopic) => removeSubTopic(level.id, topicId, subTopic)}
+                    onAddItem={(topicId, subTopicId, itemTypeLabel) =>
+                      addItem(level.id, topicId, subTopicId, itemTypeLabel)}
                     onSelectItem={(itemId) => setSelectedId(itemId)}
-                    onDeleteItem={(topicId, item) => removeItem(level.id, topicId, item)}
+                    onDeleteItem={(topicId, subTopicId, item) => removeItem(level.id, topicId, subTopicId, item)}
                   />
                 ))}
               </div>
@@ -416,7 +456,7 @@ export function CurriculumEditorPage() {
         open={!!copyingLevelId}
         onClose={() => setCopyingLevelId(null)}
         size="sm"
-        title={`"${copyingLevelName}" modulini nusxalash`}
+        title={`"${copyingLevelName}" bo'limini nusxalash`}
         footer={
           <>
             <Button variant="secondary" onClick={() => setCopyingLevelId(null)} disabled={isCopying}>
@@ -462,12 +502,12 @@ export function CurriculumEditorPage() {
           if (r.errors.length === 0)
             setNotice({
               type: 'success',
-              text: `Import yakunlandi: ${r.levels} modul, ${r.topics} mavzu, ${r.items} dars qo'shildi`,
+              text: `Import yakunlandi: ${r.levels} bo'lim, ${r.topics} mavzu, ${r.items} dars qo'shildi`,
             })
         }}
       />
 
-      {/* ===== Nom kiritish modali (modul/mavzu/dars) ===== */}
+      {/* ===== Nom kiritish modali (bo'lim/mavzu/dars) ===== */}
       <NameModal
         open={!!namePrompt}
         meta={namePrompt ? namePromptMeta(namePrompt) : NAME_PROMPT_META.level}
@@ -476,27 +516,42 @@ export function CurriculumEditorPage() {
         onSubmit={submitName}
       />
 
+      {/* ===== Sub-mavzu yaratish modali (nom + tur birga — tur shu yerda qulflanadi) ===== */}
+      <SubTopicModal
+        open={!!subTopicPrompt}
+        busy={subTopicBusy}
+        onClose={() => setSubTopicPrompt(null)}
+        onSubmit={submitSubTopic}
+      />
+
       {/* ===== O'chirishni tasdiqlash modali ===== */}
       <ConfirmDeleteModal
         open={!!deleteTarget}
         busy={deleteBusy}
         title={
           deleteTarget?.kind === 'level'
-            ? "Modulni o'chirish"
+            ? "Bo'limni o'chirish"
             : deleteTarget?.kind === 'topic'
               ? "Mavzuni o'chirish"
-              : "Darsni o'chirish"
+              : deleteTarget?.kind === 'subtopic'
+                ? "Sub-mavzuni o'chirish"
+                : "Darsni o'chirish"
         }
         message={
           deleteTarget?.kind === 'level' ? (
             <>
-              <b>"{deleteTarget.level.name}"</b> moduli barcha mavzu va darslari bilan birga
+              <b>"{deleteTarget.level.name}"</b> bo'limi barcha mavzu va darslari bilan birga
               o'chiriladi. Bu amalni qaytarib bo'lmaydi.
             </>
           ) : deleteTarget?.kind === 'topic' ? (
             <>
-              <b>"{deleteTarget.topic.title}"</b> mavzusi barcha darslari bilan birga o'chiriladi.
-              Bu amalni qaytarib bo'lmaydi.
+              <b>"{deleteTarget.topic.title}"</b> mavzusi barcha sub-mavzu va darslari bilan birga
+              o'chiriladi. Bu amalni qaytarib bo'lmaydi.
+            </>
+          ) : deleteTarget?.kind === 'subtopic' ? (
+            <>
+              <b>"{deleteTarget.subTopic.title}"</b> sub-mavzusi barcha darslari bilan birga
+              o'chiriladi. Bu amalni qaytarib bo'lmaydi.
             </>
           ) : deleteTarget ? (
             <>
@@ -607,7 +662,7 @@ function ImportExcelModal({ open, subjectId, onClose, onImported }: ImportExcelM
           <div className="min-w-0">
             <p className="text-sm font-semibold text-slate-800">1. Shablonni yuklab oling</p>
             <p className="mt-0.5 text-xs text-slate-400">
-              Ustunlar: Modul, Mavzu, Dars nomi, Izoh. Yo'riqnoma varag'ida namuna bor.
+              Ustunlar: Bo'lim, Mavzu, Dars nomi, Izoh. Yo'riqnoma varag'ida namuna bor.
             </p>
           </div>
           <Button variant="secondary" onClick={downloadTemplate} disabled={downloading} className="flex-shrink-0">
@@ -656,9 +711,9 @@ function ImportExcelModal({ open, subjectId, onClose, onImported }: ImportExcelM
           <span className="text-sm">
             <span className="font-semibold text-slate-800">Mavjud dasturni almashtirish</span>
             <span className="mt-0.5 block text-xs leading-relaxed text-slate-400">
-              Belgilansa — eski modul/mavzu/darslar (o'quvchilar progressi bilan) O'CHIRILIB, faqat
+              Belgilansa — eski bo'lim/mavzu/darslar (o'quvchilar progressi bilan) O'CHIRILIB, faqat
               fayldagi dastur qoladi. Belgilanmasa — fayldagi darslar mavjud dasturga qo'shiladi
-              (bir xil nomli modul/mavzu takrorlanmaydi).
+              (bir xil nomli bo'lim/mavzu takrorlanmaydi).
             </span>
           </span>
         </label>
@@ -688,7 +743,7 @@ function ImportExcelModal({ open, subjectId, onClose, onImported }: ImportExcelM
                 <AlertTriangle className="h-4 w-4 text-amber-600" />
               )}
               <span className={result.errors.length === 0 ? 'text-emerald-800' : 'text-amber-800'}>
-                {result.levels} modul, {result.topics} mavzu, {result.items} dars qo'shildi
+                {result.levels} bo'lim, {result.topics} mavzu, {result.items} dars qo'shildi
                 {result.skipped > 0 ? ` (${result.skipped} bo'sh qator o'tkazildi)` : ''}
               </span>
             </div>
@@ -764,6 +819,97 @@ function NameModal({ open, meta, busy, onClose, onSubmit }: NameModalProps) {
   )
 }
 
+// ============================ Sub-mavzu yaratish modali (nom + tur) ============================
+
+interface SubTopicModalProps {
+  open: boolean
+  busy: boolean
+  onClose: () => void
+  onSubmit: (title: string, type: LessonType) => void
+}
+
+/** Sub-mavzu — nom VA tur birga tanlanadi. Tur bu yerda QULFLANADI: shu sub-mavzu ichida
+ *  keyinchalik faqat SHU turdan (masalan bir nechta video) dars qo'shiladi. */
+function SubTopicModal({ open, busy, onClose, onSubmit }: SubTopicModalProps) {
+  const [title, setTitle] = useState('')
+  const [type, setType] = useState<LessonType>('video')
+  useEffect(() => {
+    if (open) {
+      setTitle('')
+      setType('video')
+    }
+  }, [open])
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault()
+    const v = title.trim()
+    if (!v || busy) return
+    onSubmit(v, type)
+  }
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      size="sm"
+      title="Yangi sub-mavzu"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={busy}>
+            Bekor qilish
+          </Button>
+          <Button type="submit" form="curriculum-subtopic-form" disabled={busy || !title.trim()}>
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+            Qo'shish
+          </Button>
+        </>
+      }
+    >
+      <form id="curriculum-subtopic-form" onSubmit={submit} className="space-y-4">
+        <div>
+          <label className="mb-1.5 block text-xs font-semibold text-slate-500">Sub-mavzu nomi</label>
+          <input
+            autoFocus
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Masalan: Qoidalar, Mustahkamlash..."
+            className={control}
+          />
+        </div>
+        <div>
+          <label className="mb-1.5 block text-xs font-semibold text-slate-500">
+            Turi <span className="font-normal text-slate-400">— yaratilgach o'zgarmaydi</span>
+          </label>
+          <div className="flex flex-wrap gap-2">
+            {LESSON_TYPES.map((t) => {
+              const TIcon = t.icon
+              const on = type === t.type
+              return (
+                <button
+                  key={t.type}
+                  type="button"
+                  onClick={() => setType(t.type)}
+                  className={cn(
+                    'inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-[13px] font-semibold transition-colors',
+                    on
+                      ? 'border-brand-400 bg-brand-50 text-brand-700'
+                      : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50',
+                  )}
+                >
+                  <TIcon className="h-4 w-4" /> {t.label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+        <p className="text-xs leading-relaxed text-slate-400">
+          Ushbu sub-mavzu ichida FAQAT shu turdagi darslar (bir nechtasi bo'lishi mumkin) yaratiladi.
+        </p>
+      </form>
+    </Modal>
+  )
+}
+
 // ============================ O'chirishni tasdiqlash modali ============================
 
 interface ConfirmDeleteModalProps {
@@ -804,7 +950,7 @@ function ConfirmDeleteModal({ open, title, message, busy, onClose, onConfirm }: 
   )
 }
 
-// ============================ Modul bloki ============================
+// ============================ Bo'lim bloki ============================
 
 interface ModuleBlockProps {
   index: number
@@ -818,25 +964,29 @@ interface ModuleBlockProps {
   onAddTopic: () => void
   onSaveTopic: (topic: CurriculumTopic, title: string) => void
   onDeleteTopic: (topic: CurriculumTopic) => void
-  onAddItem: (topicId: string, itemType: LessonType) => void
+  onAddSubTopic: (topicId: string) => void
+  onSaveSubTopic: (topicId: string, subTopic: CurriculumSubTopic, title: string) => void
+  onDeleteSubTopic: (topicId: string, subTopic: CurriculumSubTopic) => void
+  onAddItem: (topicId: string, subTopicId: string, itemTypeLabel: string) => void
   onSelectItem: (itemId: string) => void
-  onDeleteItem: (topicId: string, item: CurriculumItem) => void
+  onDeleteItem: (topicId: string, subTopicId: string, item: CurriculumItem) => void
 }
 
 function ModuleBlock({
   index, level, open, selectedId, onToggle, onSaveName, onDelete, onCopy,
-  onAddTopic, onSaveTopic, onDeleteTopic, onAddItem, onSelectItem, onDeleteItem,
+  onAddTopic, onSaveTopic, onDeleteTopic,
+  onAddSubTopic, onSaveSubTopic, onDeleteSubTopic, onAddItem, onSelectItem, onDeleteItem,
 }: ModuleBlockProps) {
   const [name, setName] = useState(level.name)
   useEffect(() => setName(level.name), [level.name])
 
-  const allItems = level.topics.flatMap((t) => t.items)
+  const allItems = level.topics.flatMap((t) => t.subTopics.flatMap((st) => st.items))
   const total = allItems.length
   const ready = allItems.filter((it) => it.ready).length
 
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-      {/* Modul sarlavhasi */}
+      {/* Bo'lim sarlavhasi */}
       <div className="flex items-center gap-2 bg-slate-50/70 px-3 py-2.5">
         <GripVertical className="h-4 w-4 flex-shrink-0 text-slate-300" />
         <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md bg-brand-50 text-xs font-bold text-brand-600">
@@ -847,7 +997,7 @@ function ModuleBlock({
           onChange={(e) => setName(e.target.value)}
           onBlur={() => onSaveName(name)}
           onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
-          placeholder="Modul nomi"
+          placeholder="Bo'lim nomi"
           className="min-w-0 flex-1 rounded-lg border border-transparent bg-transparent px-2 py-1 text-sm font-semibold text-slate-800 outline-none transition-colors hover:border-slate-200 focus:border-brand-400 focus:bg-white"
         />
         <span className="flex-shrink-0 text-xs font-medium text-slate-400">
@@ -857,7 +1007,7 @@ function ModuleBlock({
           type="button"
           onClick={() => onCopy(level.id, level.name)}
           className="flex-shrink-0 rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-brand-50 hover:text-brand-600"
-          title="Modulni nusxalash"
+          title="Bo'limni nusxalash"
         >
           <Copy className="h-4 w-4" />
         </button>
@@ -865,7 +1015,7 @@ function ModuleBlock({
           type="button"
           onClick={onDelete}
           className="flex-shrink-0 rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
-          title="Modulni o'chirish"
+          title="Bo'limni o'chirish"
         >
           <Trash2 className="h-4 w-4" />
         </button>
@@ -891,9 +1041,12 @@ function ModuleBlock({
                 selectedId={selectedId}
                 onSaveTitle={(title) => onSaveTopic(topic, title)}
                 onDelete={() => onDeleteTopic(topic)}
-                onAddItem={(itemType) => onAddItem(topic.id, itemType)}
+                onAddSubTopic={() => onAddSubTopic(topic.id)}
+                onSaveSubTopic={(subTopic, title) => onSaveSubTopic(topic.id, subTopic, title)}
+                onDeleteSubTopic={(subTopic) => onDeleteSubTopic(topic.id, subTopic)}
+                onAddItem={(subTopicId, itemTypeLabel) => onAddItem(topic.id, subTopicId, itemTypeLabel)}
                 onSelectItem={onSelectItem}
-                onDeleteItem={(item) => onDeleteItem(topic.id, item)}
+                onDeleteItem={(subTopicId, item) => onDeleteItem(topic.id, subTopicId, item)}
               />
             ))
           )}
@@ -918,13 +1071,17 @@ interface TopicBlockProps {
   selectedId: string | null
   onSaveTitle: (title: string) => void
   onDelete: () => void
-  onAddItem: (itemType: LessonType) => void
+  onAddSubTopic: () => void
+  onSaveSubTopic: (subTopic: CurriculumSubTopic, title: string) => void
+  onDeleteSubTopic: (subTopic: CurriculumSubTopic) => void
+  onAddItem: (subTopicId: string, itemTypeLabel: string) => void
   onSelectItem: (itemId: string) => void
-  onDeleteItem: (item: CurriculumItem) => void
+  onDeleteItem: (subTopicId: string, item: CurriculumItem) => void
 }
 
 function TopicBlock({
-  topic, selectedId, onSaveTitle, onDelete, onAddItem, onSelectItem, onDeleteItem,
+  topic, selectedId, onSaveTitle, onDelete,
+  onAddSubTopic, onSaveSubTopic, onDeleteSubTopic, onAddItem, onSelectItem, onDeleteItem,
 }: TopicBlockProps) {
   const [title, setTitle] = useState(topic.title)
   useEffect(() => setTitle(topic.title), [topic.title])
@@ -951,9 +1108,84 @@ function TopicBlock({
         </button>
       </div>
 
-      {/* Darslar */}
+      {/* Sub-mavzular */}
+      <div className="mt-1.5 space-y-2 border-l border-slate-100 pl-2.5">
+        {topic.subTopics.map((subTopic) => (
+          <SubTopicBlock
+            key={subTopic.id}
+            subTopic={subTopic}
+            selectedId={selectedId}
+            onSaveTitle={(title) => onSaveSubTopic(subTopic, title)}
+            onDelete={() => onDeleteSubTopic(subTopic)}
+            onAddItem={(label) => onAddItem(subTopic.id, label)}
+            onSelectItem={onSelectItem}
+            onDeleteItem={(item) => onDeleteItem(subTopic.id, item)}
+          />
+        ))}
+
+        <button
+          type="button"
+          onClick={onAddSubTopic}
+          className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-xs font-semibold text-brand-600 transition-colors hover:text-brand-700"
+        >
+          <Plus className="h-3.5 w-3.5" /> Sub-mavzu
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ============================ Sub-mavzu bloki ============================
+
+interface SubTopicBlockProps {
+  subTopic: CurriculumSubTopic
+  selectedId: string | null
+  onSaveTitle: (title: string) => void
+  onDelete: () => void
+  onAddItem: (itemTypeLabel: string) => void
+  onSelectItem: (itemId: string) => void
+  onDeleteItem: (item: CurriculumItem) => void
+}
+
+function SubTopicBlock({
+  subTopic, selectedId, onSaveTitle, onDelete, onAddItem, onSelectItem, onDeleteItem,
+}: SubTopicBlockProps) {
+  const [title, setTitle] = useState(subTopic.title)
+  useEffect(() => setTitle(subTopic.title), [subTopic.title])
+  const meta = typeMeta(subTopic.type)
+  const TypeIcon = meta.icon
+
+  return (
+    <div className="rounded-lg bg-slate-50/60 p-1.5">
+      {/* Sub-mavzu sarlavhasi — qulflangan turi belgi bilan ko'rsatiladi */}
+      <div className="flex items-center gap-1.5">
+        <span
+          className="inline-flex flex-shrink-0 items-center gap-1 rounded-md bg-brand-50 px-1.5 py-0.5 text-[10px] font-semibold text-brand-600"
+          title={`Qulflangan tur: ${meta.label}`}
+        >
+          <TypeIcon className="h-3 w-3" /> {meta.label}
+        </span>
+        <input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          onBlur={() => onSaveTitle(title)}
+          onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+          placeholder="Sub-mavzu nomi"
+          className="min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-1.5 py-1 text-xs font-medium text-slate-600 outline-none transition-colors hover:border-slate-200 focus:border-brand-400 focus:bg-white"
+        />
+        <button
+          type="button"
+          onClick={onDelete}
+          className="flex-shrink-0 rounded-md p-1 text-slate-300 transition-colors hover:bg-red-50 hover:text-red-600"
+          title="Sub-mavzuni o'chirish"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      </div>
+
+      {/* Darslar — hammasi sub-mavzuning qulflangan turida */}
       <div className="mt-1 space-y-1">
-        {topic.items.map((item) => (
+        {subTopic.items.map((item) => (
           <LessonRow
             key={item.id}
             item={item}
@@ -964,23 +1196,14 @@ function TopicBlock({
         ))}
       </div>
 
-      {/* Dars turi tanlab qo'shish — qaysi tur bosilsa, band SHU turda yaratiladi (keyin o'zgarmaydi). */}
-      <div className="mt-1.5 flex flex-wrap gap-1">
-        {LESSON_TYPES.map((t) => {
-          const TIcon = t.icon
-          return (
-            <button
-              key={t.type}
-              type="button"
-              onClick={() => onAddItem(t.type)}
-              title={`"${t.label}" turida dars qo'shish`}
-              className="inline-flex items-center gap-1 rounded-md border border-dashed border-slate-200 px-1.5 py-1 text-[11px] font-medium text-slate-500 transition-colors hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700"
-            >
-              <TIcon className="h-3 w-3" /> {t.label}
-            </button>
-          )
-        })}
-      </div>
+      <button
+        type="button"
+        onClick={() => onAddItem(meta.label)}
+        title={`Yana "${meta.label}" turida dars qo'shish`}
+        className="mt-1 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] font-semibold text-brand-600 transition-colors hover:text-brand-700"
+      >
+        <Plus className="h-3 w-3" /> {meta.label} qo'shish
+      </button>
     </div>
   )
 }
@@ -1098,7 +1321,6 @@ function LessonEditor({ itemId, onSaved }: LessonEditorProps) {
     try {
       const payload: SaveItemContent = {
         text: text.trim() || 'Dars',
-        type,
         videoUrl,
         audioUrl,
         textContent,

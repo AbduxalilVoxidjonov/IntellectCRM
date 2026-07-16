@@ -1812,34 +1812,40 @@ public record ArchivedRecordDto(
     string Id, string Type, string EntityId, string Title, string Subtitle,
     string? Reason, string DeletedAt, string ActorName);
 
-/* ---------- Kurs sillabusi (Daraja → Mavzu → Band) ---------- */
+/* ---------- Kurs sillabusi (Bo'lim → Mavzu → Sub-mavzu → Band) ---------- */
 
-/// <summary>Sillabus bandi / DARS (3-bosqich) — daraxtda ko'rsatish uchun (tur + meta + tayyorlik).</summary>
+/// <summary>Sillabus bandi / DARS (4-bosqich) — daraxtda ko'rsatish uchun (tur + meta + tayyorlik).</summary>
 public record CurriculumItemDto(string Id, string Text, string Note, int Order, string Type, string Meta, bool Ready);
 
 /// <summary>Lug'at (vocab) yozuvi: so'z + tarjima.</summary>
 public record VocabEntryDto(string Term, string Meaning);
 /// <summary>Test savoli: matn + variantlar + to'g'ri javob indeksi.</summary>
 public record CourseQuestionDto(string Id, string Text, List<string> Options, int CorrectIndex);
-/// <summary>Bitta darsning TO'LIQ kontenti (tahrirlovchi + ko'rish ekrani uchun).</summary>
+/// <summary>Bitta darsning TO'LIQ kontenti (tahrirlovchi + ko'rish ekrani uchun). Type — ota
+/// sub-mavzudan meros, faqat ko'rsatish uchun (bu yerda o'zgartirilmaydi).</summary>
 public record CourseItemDetailDto(
-    string Id, string TopicId, string Text, string Note, int Order,
+    string Id, string SubTopicId, string Text, string Note, int Order,
     string Type, string VideoUrl, string AudioUrl, string TextContent,
     string PdfUrl, string PdfName, string Meta,
     List<VocabEntryDto> Vocab, List<CourseQuestionDto> Questions);
-/// <summary>Dars kontentini saqlash payload'i (nom + tur + kontent + lug'at + test savollari).</summary>
+/// <summary>Dars kontentini saqlash payload'i (nom + kontent + lug'at + test savollari). MUHIM:
+/// Type YO'Q — u sub-mavzu yaratilganda qulflanadi, bu yerda o'zgartirilmaydi.</summary>
 public record SaveItemContentRequest(
-    string Text, string Type, string? VideoUrl, string? AudioUrl, string? TextContent,
+    string Text, string? VideoUrl, string? AudioUrl, string? TextContent,
     string? PdfUrl, string? PdfName, string? Meta,
     List<VocabEntryDto>? Vocab, List<CourseQuestionDto>? Questions);
 
-/// <summary>Sillabus mavzusi (2-bosqich) + uning bandlari.</summary>
-public record CurriculumTopicDto(string Id, string Title, string Note, int Order, List<CurriculumItemDto> Items);
+/// <summary>Sillabus sub-mavzusi (3-bosqich) — BITTA turga qulflangan — + uning bandlari (shu turdan).</summary>
+public record CurriculumSubTopicDto(
+    string Id, string Title, string Note, int Order, string Type, List<CurriculumItemDto> Items);
 
-/// <summary>Sillabus darajasi (1-bosqich) + uning mavzulari.</summary>
+/// <summary>Sillabus mavzusi (2-bosqich) + uning sub-mavzulari.</summary>
+public record CurriculumTopicDto(string Id, string Title, string Note, int Order, List<CurriculumSubTopicDto> SubTopics);
+
+/// <summary>Sillabus bo'limi (1-bosqich) + uning mavzulari.</summary>
 public record CurriculumLevelDto(string Id, string Name, string Note, int Order, List<CurriculumTopicDto> Topics);
 
-/// <summary>Kursning to'liq sillabusi (Daraja → Mavzu → Band).</summary>
+/// <summary>Kursning to'liq sillabusi (Bo'lim → Mavzu → Sub-mavzu → Band).</summary>
 public record CurriculumDto(string SubjectId, string CourseName, List<CurriculumLevelDto> Levels);
 
 // ---- Guruh sillabus o'tilishi + tugash prognozi ----
@@ -1862,14 +1868,16 @@ public record CoverRequest(string ItemId, bool Covered);
 /// <summary>Takrorlash darsi qo'shish/olib tashlash payload'i (Delta &gt; 0 qo'shadi, &lt; 0 olib tashlaydi).</summary>
 public record RevisionRequest(int Delta);
 
-/// <summary>Daraja yaratish/yangilash payload'i.</summary>
+/// <summary>Bo'lim (CourseLevel) yaratish/yangilash payload'i.</summary>
 public record LevelInput(string Name, string? Note);
 /// <summary>Mavzu yaratish/yangilash payload'i.</summary>
 public record TopicInput(string Title, string? Note);
-/// <summary>Band yaratish/yangilash payload'i. <paramref name="Type"/> — FAQAT yaratishda ishlatiladi
-/// (text|video|audio|vocab|test|pdf; bo'sh — "text"). Yangilashda (UpdateItem) e'tiborsiz qoladi —
-/// tur yaratilgandan keyin o'zgarmaydi (har band FAQAT bitta turga tegishli).</summary>
-public record ItemInput(string Text, string? Note, string? Type = null);
+/// <summary>Sub-mavzu yaratish payload'i. <paramref name="Type"/> MAJBURIY (text|video|audio|vocab|
+/// test|pdf) — shu yerda qulflanadi, keyin o'zgarmaydi. Yangilashda (UpdateSubTopic, oddiy
+/// <see cref="TopicInput"/> bilan) faqat nom/izoh o'zgaradi.</summary>
+public record SubTopicInput(string Title, string? Note, string Type);
+/// <summary>Band yaratish/yangilash payload'i — tur YO'Q, ota sub-mavzudan avtomatik meros bo'ladi.</summary>
+public record ItemInput(string Text, string? Note);
 
 /// <summary>Import: band.</summary>
 public record ImportItemDto(string Text, string? Note);

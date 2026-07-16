@@ -69,6 +69,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     // Kurs sillabusi (Daraja → Mavzu → Band) + o'quvchi progressi
     public DbSet<CourseLevel> CourseLevels => Set<CourseLevel>();
     public DbSet<CourseTopic> CourseTopics => Set<CourseTopic>();
+    public DbSet<CourseSubTopic> CourseSubTopics => Set<CourseSubTopic>();
     public DbSet<CourseItem> CourseItems => Set<CourseItem>();
     public DbSet<CourseQuestion> CourseQuestions => Set<CourseQuestion>();
     public DbSet<CourseProgress> CourseProgresses => Set<CourseProgress>();
@@ -278,13 +279,15 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         {
             (typeof(CourseLevel), "SubjectId"),
             (typeof(CourseTopic), "LevelId"),
-            (typeof(CourseItem), "TopicId"),
+            (typeof(CourseSubTopic), "TopicId"),
+            (typeof(CourseItem), "SubTopicId"),
             (typeof(CourseProgress), "StudentId"), (typeof(CourseProgress), "ItemId"),
         })
             b.Entity(type).Property(prop).HasMaxLength(200);
         b.Entity<CourseLevel>().HasIndex(l => new { l.SubjectId, l.Order });
         b.Entity<CourseTopic>().HasIndex(t => new { t.LevelId, t.Order });
-        b.Entity<CourseItem>().HasIndex(i => new { i.TopicId, i.Order });
+        b.Entity<CourseSubTopic>().HasIndex(s => new { s.TopicId, s.Order });
+        b.Entity<CourseItem>().HasIndex(i => new { i.SubTopicId, i.Order });
         b.Entity<CourseProgress>().HasIndex(p => new { p.StudentId, p.ItemId }).IsUnique();
 
         b.Entity<ActionReason>().HasIndex(r => new { r.Category, r.Order });

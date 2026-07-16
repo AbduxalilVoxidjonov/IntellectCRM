@@ -1915,7 +1915,9 @@ function CourseCurriculum({
     )
   }
 
-  const allItems = (curriculum?.levels ?? []).flatMap((lv) => lv.topics.flatMap((t) => t.items))
+  const allItems = (curriculum?.levels ?? []).flatMap((lv) =>
+    lv.topics.flatMap((t) => t.subTopics.flatMap((st) => st.items)),
+  )
   if (allItems.length === 0) {
     return (
       <div className="rounded-2xl border border-slate-100 bg-slate-50/40 p-4">
@@ -1965,7 +1967,7 @@ function LevelBlock({
   onToggle: (itemId: string, next: boolean) => void
 }) {
   const [open, setOpen] = useState(false)
-  const items = level.topics.flatMap((t) => t.items)
+  const items = level.topics.flatMap((t) => t.subTopics.flatMap((st) => st.items))
   const lvDone = items.filter((it) => done.has(it.id)).length
   const lvTotal = items.length
   const complete = lvTotal > 0 && lvDone === lvTotal
@@ -1997,7 +1999,8 @@ function LevelBlock({
           ) : (
             <div className="grid grid-cols-2 gap-4">
               {level.topics.map((topic) => {
-                const tDone = topic.items.filter((it) => done.has(it.id)).length
+                const topicItems = topic.subTopics.flatMap((st) => st.items)
+                const tDone = topicItems.filter((it) => done.has(it.id)).length
                 return (
                   <div
                     key={topic.id}
@@ -2007,17 +2010,17 @@ function LevelBlock({
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
                       {topic.title}
                     </p>
-                    {topic.items.length > 0 && (
+                    {topicItems.length > 0 && (
                       <span className="shrink-0 font-mono text-[11px] text-slate-400">
-                        {tDone}/{topic.items.length}
+                        {tDone}/{topicItems.length}
                       </span>
                     )}
                   </div>
-                  {topic.items.length === 0 ? (
+                  {topicItems.length === 0 ? (
                     <p className="text-xs text-slate-300">Band yo'q</p>
                   ) : (
                     <div className="grid grid-cols-2 gap-x-3 gap-y-1">
-                      {topic.items.map((item) => {
+                      {topicItems.map((item) => {
                         const checked = done.has(item.id)
                         return (
                           <button

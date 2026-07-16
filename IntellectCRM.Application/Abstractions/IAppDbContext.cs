@@ -78,6 +78,7 @@ public interface IAppDbContext
     // Kurs sillabusi (Daraja → Mavzu → Band) + o'quvchi progressi
     DbSet<CourseLevel> CourseLevels { get; }
     DbSet<CourseTopic> CourseTopics { get; }
+    DbSet<CourseSubTopic> CourseSubTopics { get; }
     DbSet<CourseItem> CourseItems { get; }
     DbSet<CourseQuestion> CourseQuestions { get; }
     DbSet<CourseProgress> CourseProgresses { get; }

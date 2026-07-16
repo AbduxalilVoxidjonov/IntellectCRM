@@ -16,10 +16,11 @@ export interface CourseQuestion {
 }
 export interface CourseItemDetail {
   id: string
-  topicId: string
+  subTopicId: string
   text: string
   note: string
   order: number
+  /** Sub-mavzudan meros — bu yerda o'zgarmaydi (faqat ko'rsatish uchun). */
   type: LessonType
   videoUrl: string
   audioUrl: string
@@ -30,9 +31,9 @@ export interface CourseItemDetail {
   vocab: VocabEntry[]
   questions: CourseQuestion[]
 }
+/** MUHIM: `type` yo'q — u sub-mavzu yaratilganda qulflanadi, bu yerda o'zgartirilmaydi. */
 export interface SaveItemContent {
   text: string
-  type: LessonType
   videoUrl?: string
   audioUrl?: string
   textContent?: string
@@ -82,12 +83,25 @@ export async function deleteTopic(id: string): Promise<void> {
   await api.delete(`/admin/curriculum/topics/${id}`)
 }
 
-// ---- Band ----
-/** Yangi band (dars) yaratish — `type` FAQAT shu yerda beriladi, keyin o'zgarmaydi (bitta band = bitta tur). */
-export async function createItem(
-  topicId: string, text: string, note = '', type?: LessonType,
+// ---- Sub-mavzu (tur SHU YERDA tanlanadi va qulflanadi — keyin o'zgarmaydi) ----
+export async function createSubTopic(
+  topicId: string, title: string, type: LessonType, note = '',
 ): Promise<{ id: string }> {
-  const { data } = await api.post<{ id: string }>(`/admin/curriculum/topics/${topicId}/items`, { text, note, type })
+  const { data } = await api.post<{ id: string }>(
+    `/admin/curriculum/topics/${topicId}/subtopics`, { title, note, type },
+  )
+  return data
+}
+export async function updateSubTopic(id: string, title: string, note = ''): Promise<void> {
+  await api.put(`/admin/curriculum/subtopics/${id}`, { title, note })
+}
+export async function deleteSubTopic(id: string): Promise<void> {
+  await api.delete(`/admin/curriculum/subtopics/${id}`)
+}
+
+// ---- Band (dars) — sub-mavzuning qulflangan turida ----
+export async function createItem(subTopicId: string, text: string, note = ''): Promise<{ id: string }> {
+  const { data } = await api.post<{ id: string }>(`/admin/curriculum/subtopics/${subTopicId}/items`, { text, note })
   return data
 }
 export async function updateItem(id: string, text: string, note = ''): Promise<void> {
