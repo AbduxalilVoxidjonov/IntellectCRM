@@ -1551,7 +1551,9 @@ function MemberRow({
   onTransfer: () => void
   onRemove: () => void
 }) {
-  // Rang ustuvorligi: chiqqan (line-through) → qarzdor (qizil) → muzlatilgan (ko'k) → sinov (sariq) → aktiv (neytral).
+  // Rang ustuvorligi: chiqqan (line-through) → qarzdor (qizil) → muzlatilgan (ko'k) → sinov (sariq) → aktiv (yashil).
+  // MUHIM: "aktiv" holat xira kulrang (slate) EMAS, yashil (emerald) — aks holda chiqarilgan (kulrang+
+  // chizilgan) bilan vizual chalkashib, aktiv/to'lov qilgan a'zo ham "qora"day ko'rinardi.
   const removed = !m.isActive
   const nameCls = removed
     ? 'text-slate-400 line-through'
@@ -1561,7 +1563,7 @@ function MemberRow({
         ? 'text-sky-600'
         : m.status === 'trial'
           ? 'text-amber-600'
-          : 'text-slate-700'
+          : 'text-emerald-700'
   const sb = statusBadge(m.status)
 
   return (
