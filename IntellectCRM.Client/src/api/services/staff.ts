@@ -32,13 +32,6 @@ export async function getStaff(): Promise<Staff[]> {
   return data
 }
 
-/** Admin (role="admin") akkauntlari — faqat superadmin ruxsatlarini boshqarishi uchun. */
-export async function getAdmins(): Promise<Staff[]> {
-  if (USE_MOCK) return []
-  const { data } = await api.get<Staff[]>('/admin/staff/admins')
-  return data
-}
-
 export async function createStaff(payload: CreateStaffWithTemplatePayload): Promise<Staff> {
   const { data } = await api.post<Staff>('/admin/staff', payload)
   return data
