@@ -673,8 +673,8 @@ export function ClassDetailPage() {
                   />
                 </div>
 
-                {/* Ma'lumot bloki — bir ustunli stack */}
-                <div className="grid grid-cols-1 gap-4 border-t border-slate-100 pt-4">
+                {/* Ma'lumot bloki — 2 ustunli grid */}
+                <div className="grid grid-cols-2 gap-x-3 gap-y-4 border-t border-slate-100 pt-4">
                   <Info icon={BookOpen} label="Kurs" value={g.courseName || '—'} />
                   <Info
                     icon={User}
