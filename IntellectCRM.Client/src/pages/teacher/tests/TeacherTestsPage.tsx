@@ -321,46 +321,46 @@ export function TeacherTestsPage() {
         ) : (
           <div className="space-y-3">
             {tests.map((t) => (
-              <button
+              <div
                 key={t.id}
-                type="button"
-                onClick={() => openDetail(t)}
-                className="tap-scale block w-full rounded-[20px] border border-line bg-white p-4 text-left shadow-[var(--shadow-card)]"
+                className="tap-scale rounded-[20px] border border-line bg-white p-4 shadow-[var(--shadow-card)]"
               >
                 <div className="flex items-start gap-3">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-tealsoft text-teal-600">
-                    <ClipboardList className="h-5 w-5" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-[15px] font-bold text-ink">{t.name}</p>
-                    <p className="text-[12px] text-mute">{formatDate(t.date)}</p>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => openDetail(t)}
+                    className="flex min-w-0 flex-1 items-start gap-3 text-left"
+                  >
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-tealsoft text-teal-600">
+                      <ClipboardList className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[15px] font-bold text-ink">{t.name}</p>
+                      <p className="text-[12px] text-mute">{formatDate(t.date)}</p>
+                    </div>
+                  </button>
                   <div className="flex shrink-0 items-center gap-0.5">
-                    <span
-                      role="button"
-                      tabIndex={0}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        openEdit(t)
-                      }}
+                    <button
+                      type="button"
+                      onClick={() => openEdit(t)}
                       className="rounded-lg p-1.5 text-faint transition-colors hover:bg-panel3 hover:text-ink"
                     >
                       <Pencil className="h-4 w-4" />
-                    </span>
-                    <span
-                      role="button"
-                      tabIndex={0}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setDeleteTarget(t)
-                      }}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDeleteTarget(t)}
                       className="rounded-lg p-1.5 text-faint transition-colors hover:bg-red-50 hover:text-red-500"
                     >
                       <Trash2 className="h-4 w-4" />
-                    </span>
+                    </button>
                   </div>
                 </div>
-                <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border border-line bg-panel2 px-3 py-2 text-[12px] text-mute">
+                <button
+                  type="button"
+                  onClick={() => openDetail(t)}
+                  className="mt-3 flex w-full flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border border-line bg-panel2 px-3 py-2 text-left text-[12px] text-mute"
+                >
                   <span>
                     <span className="font-mono font-bold text-ink">{t.scoredCount}</span>/
                     <span className="font-mono">{t.studentCount}</span> baholangan
@@ -373,8 +373,8 @@ export function TeacherTestsPage() {
                   <span>
                     Maks: <span className="font-mono font-bold text-ink">{t.maxScore}</span>
                   </span>
-                </div>
-              </button>
+                </button>
+              </div>
             ))}
           </div>
         )}
