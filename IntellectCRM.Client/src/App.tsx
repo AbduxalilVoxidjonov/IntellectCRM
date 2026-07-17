@@ -32,7 +32,12 @@ import { StaffTasksPage } from '@/pages/admin/staff-tasks/StaffTasksPage'
 import { StaffPage } from '@/pages/admin/staff/StaffPage'
 import { FeedbackPage } from '@/pages/admin/feedback/FeedbackPage'
 import { SubjectsPage } from '@/pages/admin/subjects/SubjectsPage'
-import { CurriculumEditorPage } from '@/pages/admin/subjects/CurriculumEditorPage'
+import { CurriculaListPage } from '@/pages/admin/curricula/CurriculaListPage'
+import { CurriculumModulesPage } from '@/pages/admin/curricula/CurriculumModulesPage'
+import { CurriculumTopicsPage } from '@/pages/admin/curricula/CurriculumTopicsPage'
+import { CurriculumLessonsPage } from '@/pages/admin/curricula/CurriculumLessonsPage'
+import { CurriculumItemsPage } from '@/pages/admin/curricula/CurriculumItemsPage'
+import { CurriculumItemEditorPage } from '@/pages/admin/curricula/CurriculumItemEditorPage'
 import { ReasonsPage } from '@/pages/admin/reasons/ReasonsPage'
 import { TestResultsPage } from '@/pages/admin/tests/TestResultsPage'
 import { TestGroupPage } from '@/pages/admin/tests/TestGroupPage'
@@ -183,7 +188,12 @@ export default function App() {
           <Route path="discipline" element={<RequirePerm perm="discipline"><BallarNazoratiPage /></RequirePerm>} />
           <Route path="discipline/reasons" element={<RequirePerm perm="discipline"><BallSabablarPage /></RequirePerm>} />
           <Route path="subjects" element={<RequirePerm perm="schedule"><SubjectsPage /></RequirePerm>} />
-          <Route path="subjects/:id/curriculum" element={<RequirePerm perm="schedule"><CurriculumEditorPage /></RequirePerm>} />
+          <Route path="curricula" element={<RequirePerm perm="schedule"><CurriculaListPage /></RequirePerm>} />
+          <Route path="curricula/:curriculumId" element={<RequirePerm perm="schedule"><CurriculumModulesPage /></RequirePerm>} />
+          <Route path="curricula/:curriculumId/:moduleId" element={<RequirePerm perm="schedule"><CurriculumTopicsPage /></RequirePerm>} />
+          <Route path="curricula/:curriculumId/:moduleId/:topicId" element={<RequirePerm perm="schedule"><CurriculumLessonsPage /></RequirePerm>} />
+          <Route path="curricula/:curriculumId/:moduleId/:topicId/:lessonId" element={<RequirePerm perm="schedule"><CurriculumItemsPage /></RequirePerm>} />
+          <Route path="curricula/:curriculumId/:moduleId/:topicId/:lessonId/:itemId" element={<RequirePerm perm="schedule"><CurriculumItemEditorPage /></RequirePerm>} />
           <Route path="reasons" element={<RequirePerm perm="settings"><ReasonsPage /></RequirePerm>} />
           <Route path="test-results" element={<RequirePerm perm="classes"><TestResultsPage /></RequirePerm>} />
           <Route path="test-results/:groupId" element={<RequirePerm perm="classes"><TestGroupPage /></RequirePerm>} />

@@ -1,30 +1,35 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { Plus, Pencil, Trash2, BookOpen, ListChecks, AlertTriangle, Loader2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, BookOpen, ListChecks, AlertTriangle, Loader2, Check } from 'lucide-react'
 import type { Subject } from '@/types'
-import type { SubjectPayload } from '@/api/services/subjects'
+import type { SubjectPayload, SubjectCurriculumLink } from '@/api/services/subjects'
 import {
   getSubjects,
   createSubject,
   updateSubject,
   deleteSubject,
+  getSubjectCurricula,
+  attachCurriculumToSubject,
+  detachCurriculumFromSubject,
 } from '@/api/services/subjects'
+import { listCurricula } from '@/api/services/curriculum'
+import type { CurriculumSummary } from '@/api/services/curriculum'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Loader } from '@/components/ui/Loader'
 import { Modal } from '@/components/ui/Modal'
 import { PageHeader } from '@/components/ui/PageHeader'
-import { cn, formatMoney } from '@/lib/utils'
+import { apiErrorMessage, cn, formatMoney } from '@/lib/utils'
 import { usePerm } from '@/lib/permissions'
 import { SubjectFormModal } from './SubjectFormModal'
 
 export function SubjectsPage() {
-  const navigate = useNavigate()
   const { can } = usePerm()
   const [subjects, setSubjects] = useState<Subject[]>([])
   const [loading, setLoading] = useState(true)
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<Subject | null>(null)
+  // Kursga biriktirilgan o'quv dasturlarini boshqarish modali
+  const [curriculaFor, setCurriculaFor] = useState<Subject | null>(null)
   // Narx o'zgarganda — yangi narxni bog'langan guruh o'quvchilariga qachondan qo'llashni so'rash uchun
   const [feePrompt, setFeePrompt] = useState<{
     id: string
@@ -123,13 +128,13 @@ export function SubjectsPage() {
               key={s.id}
               className="group flex flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-[var(--shadow-1)] transition-shadow hover:shadow-[var(--shadow-pop)]"
             >
-              {/* Kurs nomi (bosilsa o'quv dasturi) */}
-              <Link to={`/admin/subjects/${s.id}/curriculum`} className="flex items-start gap-3">
-                <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-600 transition-colors group-hover:bg-brand-100">
+              {/* Kurs nomi */}
+              <div className="flex items-start gap-3">
+                <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-600">
                   <BookOpen className="h-[22px] w-[22px]" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-base font-bold tracking-tight text-slate-800 transition-colors group-hover:text-brand-600">
+                  <p className="truncate text-base font-bold tracking-tight text-slate-800">
                     {s.name}
                   </p>
                   <p className="mt-0.5 text-sm text-slate-500">
@@ -142,16 +147,16 @@ export function SubjectsPage() {
                     </p>
                   )}
                 </div>
-              </Link>
+              </div>
 
               {/* Amallar */}
               <div className="mt-4 flex items-center gap-2 border-t border-slate-100 pt-3">
                 <button
                   type="button"
-                  onClick={() => navigate(`/admin/subjects/${s.id}/curriculum`)}
+                  onClick={() => setCurriculaFor(s)}
                   className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-brand-50 px-3 py-2 text-sm font-medium text-brand-700 transition-colors hover:bg-brand-100"
                 >
-                  <ListChecks className="h-4 w-4" /> O'quv dasturi
+                  <ListChecks className="h-4 w-4" /> O'quv dasturlari
                 </button>
                 {can('schedule', 'edit') && (
                   <IconBtn
@@ -243,12 +248,135 @@ export function SubjectsPage() {
             <AlertTriangle className="h-5 w-5" />
           </div>
           <p className="text-sm leading-relaxed text-slate-600">
-            <b>"{deleting?.name}"</b> kursi o'quv dasturi (modul, mavzu va darslari) bilan birga
-            o'chiriladi. Bu amalni qaytarib bo'lmaydi.
+            <b>"{deleting?.name}"</b> kursi o'chiriladi. Unga biriktirilgan o'quv dasturlari
+            (mustaqil bo'lgani uchun) o'chirilmaydi — faqat bog'lanish uziladi. Bu amalni qaytarib
+            bo'lmaydi.
           </p>
         </div>
       </Modal>
+
+      {/* Kursga biriktirilgan o'quv dasturlarini boshqarish */}
+      <SubjectCurriculaModal subject={curriculaFor} onClose={() => setCurriculaFor(null)} />
     </div>
+  )
+}
+
+// ============================ Kursga o'quv dasturlarini biriktirish modali ============================
+
+interface SubjectCurriculaModalProps {
+  subject: Subject | null
+  onClose: () => void
+}
+
+/** Bitta kursga bir nechta o'quv dasturi biriktirilishi mumkin (ko'p-ko'pga — bitta dastur ham
+ *  bir nechta kursga biriktirilgan bo'lishi mumkin). Ro'yxatdagi har bir dastur bosilganda
+ *  biriktiriladi/uziladi (optimistic). */
+function SubjectCurriculaModal({ subject, onClose }: SubjectCurriculaModalProps) {
+  const [loading, setLoading] = useState(true)
+  const [all, setAll] = useState<CurriculumSummary[]>([])
+  const [attached, setAttached] = useState<SubjectCurriculumLink[]>([])
+  const [busyId, setBusyId] = useState<string | null>(null)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (!subject) return
+    setLoading(true)
+    setError('')
+    Promise.all([listCurricula(), getSubjectCurricula(subject.id)])
+      .then(([allC, att]) => {
+        setAll(allC)
+        setAttached(att)
+      })
+      .catch((err) => setError(apiErrorMessage(err, 'Yuklab bo\'lmadi')))
+      .finally(() => setLoading(false))
+  }, [subject])
+
+  const toggle = async (curriculumId: string, isAttached: boolean) => {
+    if (!subject || busyId) return
+    setBusyId(curriculumId)
+    setError('')
+    try {
+      if (isAttached) {
+        await detachCurriculumFromSubject(subject.id, curriculumId)
+        setAttached((prev) => prev.filter((a) => a.curriculumId !== curriculumId))
+      } else {
+        await attachCurriculumToSubject(subject.id, curriculumId)
+        const c = all.find((x) => x.id === curriculumId)
+        setAttached((prev) => [...prev, { curriculumId, name: c?.name ?? '', order: prev.length }])
+      }
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Xato yuz berdi'))
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const attachedIds = new Set(attached.map((a) => a.curriculumId))
+
+  return (
+    <Modal
+      open={!!subject}
+      onClose={onClose}
+      size="sm"
+      title={`"${subject?.name}" — o'quv dasturlari`}
+      footer={
+        <Button variant="secondary" onClick={onClose}>
+          Yopish
+        </Button>
+      }
+    >
+      {loading ? (
+        <Loader label="Yuklanmoqda..." />
+      ) : (
+        <div className="space-y-3">
+          <p className="text-xs leading-relaxed text-slate-400">
+            Belgilangan dasturlardagi barcha topshiriqlar shu kursga biriktirilgan guruhlarda
+            ko'rinadi (bir nechtasi belgilansa — hammasi ketma-ket birlashtiriladi).
+          </p>
+          {error && <p className="text-sm text-red-500">{error}</p>}
+          {all.length === 0 ? (
+            <p className="text-sm text-slate-400">
+              Hali o'quv dasturi yo'q — avval "O'quv bo'limi → O'quv dasturi" sahifasidan yarating.
+            </p>
+          ) : (
+            <div className="max-h-72 space-y-1.5 overflow-y-auto">
+              {all.map((c) => {
+                const isAttached = attachedIds.has(c.id)
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    disabled={busyId === c.id}
+                    onClick={() => toggle(c.id, isAttached)}
+                    className={cn(
+                      'flex w-full items-center gap-3 rounded-lg border px-3 py-2 text-left text-sm transition-colors disabled:opacity-60',
+                      isAttached
+                        ? 'border-brand-400 bg-brand-50 text-brand-700'
+                        : 'border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50',
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        'flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md border-2 transition-colors',
+                        isAttached ? 'border-brand-500 bg-brand-500 text-white' : 'border-slate-300',
+                      )}
+                    >
+                      {busyId === c.id ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        isAttached && <Check className="h-3 w-3" />
+                      )}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate font-medium">{c.name}</span>
+                    <span className="flex-shrink-0 text-xs text-slate-400">{c.itemCount} topshiriq</span>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+    </Modal>
   )
 }
 

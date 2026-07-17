@@ -1673,55 +1673,78 @@ public class LevelTestSubmission
 }
 
 
-/// <summary>Kurs darajasi (sillabus 1-bosqich): kurs (Subject) ichidagi daraja, masalan "A1", "Boshlang'ich".</summary>
-public class CourseLevel
+/// <summary>O'QUV DASTURI — standalone sillabus (Kurs/Subject'dan MUSTAQIL). Bir dastur bir nechta
+/// kursga (<see cref="SubjectCurriculum"/> orqali) biriktirilishi mumkin, va bir kursga bir nechta
+/// dastur biriktirilishi mumkin (ko'p-ko'pga). Ichida Modul→Mavzu→Dars→Topshiriq daraxti bor.</summary>
+public class Curriculum
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string Name { get; set; } = string.Empty;
+    public string Note { get; set; } = string.Empty;
+    public int Order { get; set; }
+    public string CreatedAt { get; set; } = string.Empty;
+}
+
+/// <summary>Kurs (Subject) ↔ O'quv dasturi (Curriculum) ko'p-ko'pga bog'lanishi. <see cref="Order"/> —
+/// shu kursga biriktirilgan dasturlar orasidagi tartib (guruh ko'rinishida darslar shu tartibda
+/// ketma-ket birlashtiriladi — <see cref="Services.CurriculumForecast"/>).</summary>
+public class SubjectCurriculum
 {
     public string Id { get; set; } = Guid.NewGuid().ToString();
     public string SubjectId { get; set; } = string.Empty;
+    public string CurriculumId { get; set; } = string.Empty;
+    public int Order { get; set; }
+}
+
+/// <summary>Dastur moduli (sillabus 1-bosqich): o'quv dasturi (<see cref="Curriculum"/>) ichidagi
+/// katta bo'lim, masalan "Beginner", "A1".</summary>
+public class CourseModule
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string CurriculumId { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string Note { get; set; } = string.Empty;
     public int Order { get; set; }
 }
 
-/// <summary>Kurs mavzusi (sillabus 2-bosqich): bo'lim (CourseLevel) ichidagi mavzu.</summary>
+/// <summary>Dastur mavzusi (sillabus 2-bosqich): modul (<see cref="CourseModule"/>) ichidagi mavzu,
+/// masalan "Present Simple".</summary>
 public class CourseTopic
 {
     public string Id { get; set; } = Guid.NewGuid().ToString();
-    public string SubjectId { get; set; } = string.Empty;
-    public string LevelId { get; set; } = string.Empty;
+    public string CurriculumId { get; set; } = string.Empty;
+    public string ModuleId { get; set; } = string.Empty;
     public string Title { get; set; } = string.Empty;
     public string Note { get; set; } = string.Empty;
     public int Order { get; set; }
 }
 
-/// <summary>Kurs sub-mavzusi (sillabus 3-bosqich): mavzu ichidagi kichik bo'lim — BITTA turga
-/// (text|video|audio|vocab|test|pdf) qulflangan: yaratishda tanlanadi, keyin o'zgarmaydi. Ichida
-/// shu turdan bir nechta band (CourseItem) bo'lishi mumkin (masalan bir nechta video).</summary>
-public class CourseSubTopic
+/// <summary>Dastur darsi (sillabus 3-bosqich): mavzu ichidagi bitta dars (nomi bilan). Ichiga
+/// kirilganda topshiriqlar (<see cref="CourseItem"/>) ro'yxati ko'rsatiladi — har biri o'z turini
+/// tanlaydi (video/matn/audio/lug'at/test/pdf), bitta dars ichida bir nechtasi bo'lishi mumkin.</summary>
+public class CourseLesson
 {
     public string Id { get; set; } = Guid.NewGuid().ToString();
-    public string SubjectId { get; set; } = string.Empty;
+    public string CurriculumId { get; set; } = string.Empty;
     public string TopicId { get; set; } = string.Empty;
     public string Title { get; set; } = string.Empty;
     public string Note { get; set; } = string.Empty;
     public int Order { get; set; }
-    /// <summary>Qulflangan tur: text | video | audio | vocab | test | pdf.</summary>
-    public string Type { get; set; } = "text";
 }
 
-/// <summary>Kurs bandi / DARS (sillabus 4-bosqich): sub-mavzu ichidagi alohida o'rganiladigan dars.
-/// Kontent olib yuradi: video/matn/audio/lug'at/test (rasm: Bo'lim→Mavzu→Sub-mavzu→Dars). Tur
-/// (<see cref="Type"/>) ota sub-mavzudan meros — bandda o'zgartirilmaydi (qulflangan).</summary>
+/// <summary>Dastur bandi / TOPSHIRIQ (sillabus 4-bosqich): dars ichidagi alohida topshiriq
+/// (rasm: Dastur→Modul→Mavzu→Dars→Topshiriq). Kontent olib yuradi: video/matn/audio/lug'at/test/pdf.</summary>
 public class CourseItem
 {
     public string Id { get; set; } = Guid.NewGuid().ToString();
-    public string SubjectId { get; set; } = string.Empty;
-    public string SubTopicId { get; set; } = string.Empty;
-    /// <summary>Dars nomi (sarlavha).</summary>
+    public string CurriculumId { get; set; } = string.Empty;
+    public string LessonId { get; set; } = string.Empty;
+    /// <summary>Topshiriq nomi (sarlavha).</summary>
     public string Text { get; set; } = string.Empty;
     public string Note { get; set; } = string.Empty;
     public int Order { get; set; }
-    /// <summary>Dars turi: text | video | audio | vocab | test | pdf. Ota sub-mavzudan meros.</summary>
+    /// <summary>Topshiriq turi: text | video | audio | vocab | test | pdf — yaratishda tanlanadi,
+    /// keyinchalik ham o'zgartirilishi mumkin.</summary>
     public string Type { get; set; } = "text";
     /// <summary>Video havolasi (YouTube/mp4) yoki yuklangan fayl URL — "video" dars.</summary>
     public string VideoUrl { get; set; } = string.Empty;
@@ -1737,6 +1760,9 @@ public class CourseItem
     public string VocabJson { get; set; } = string.Empty;
     /// <summary>Qisqa meta yorlig'i (masalan "12 daq"). Test/lug'atda avtomatik sanaladi.</summary>
     public string Meta { get; set; } = string.Empty;
+    /// <summary>Yaratilgan sana-vaqt (ISO) — jadval ko'rinishida "Yaratilgan sana" ustuni uchun.
+    /// Eski (bu maydon qo'shilishidan oldingi) bandlar uchun bo'sh.</summary>
+    public string CreatedAt { get; set; } = string.Empty;
 }
 
 /// <summary>Kurs darsidagi (CourseItem) test savoli: matn + variantlar + to'g'ri javob indeksi.</summary>
@@ -1753,15 +1779,16 @@ public class CourseQuestion
 }
 
 /// <summary>O'quvchining bir sillabus bandi bo'yicha bajarilganlik holati (per-item progress).
-/// CourseId — tracking qaysi kurs uchun (optional, for filtering progress by course).</summary>
+/// Progress KONTENTGA (dasturga) tegishli — kurs (Subject)ga emas, shuning uchun bitta dastur
+/// bir nechta kursga biriktirilgan bo'lsa ham progress saqlanib qoladi.</summary>
 public class CourseProgress
 {
     public string Id { get; set; } = Guid.NewGuid().ToString();
     public string StudentId { get; set; } = string.Empty;
     public string ItemId { get; set; } = string.Empty;
-    /// <summary>Qaysi kurs uchun band bajarilgani (Subject id). Optional — tracking uchun.
-    /// Ixtiyoriy, bo'sh bo'lsa null; null qiymatga UNIQUE indeks qo'llanmaydi.</summary>
-    public string? CourseId { get; set; }
+    /// <summary>Qaysi dastur uchun band bajarilgani (Curriculum id, band'dan meros — denormalized).
+    /// Optional — tracking/filtrlash uchun; haqiqiy kalit (StudentId, ItemId).</summary>
+    public string? CurriculumId { get; set; }
     public bool Done { get; set; }
     public string UpdatedAt { get; set; } = string.Empty;
 }

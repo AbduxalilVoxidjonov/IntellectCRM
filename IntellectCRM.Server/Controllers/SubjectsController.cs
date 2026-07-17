@@ -74,8 +74,56 @@ public class SubjectsController(AppDbContext db, AuditService audit) : Controlle
     {
         var subject = await db.Subjects.FindAsync(id);
         if (subject is null) return NotFound();
+        // O'quv dasturlari mustaqil (Curriculum) — o'chirilmaydi, faqat biriktirilgan holat tozalanadi.
+        await db.SubjectCurricula.Where(sc => sc.SubjectId == id).ExecuteDeleteAsync();
         db.Subjects.Remove(subject);
         await db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    // ---- Kursga biriktirilgan o'quv dasturlari (ko'p-ko'pga) ----
+
+    /// <summary>Shu kursga biriktirilgan o'quv dasturlari ro'yxati (biriktirish tartibi bilan).</summary>
+    [HttpGet("{id}/curricula")]
+    public async Task<ActionResult<List<SubjectCurriculumDto>>> GetCurricula(string id)
+    {
+        var links = await db.SubjectCurricula
+            .Where(sc => sc.SubjectId == id).OrderBy(sc => sc.Order).ToListAsync();
+        var curriculumIds = links.Select(l => l.CurriculumId).ToList();
+        var names = await db.Curricula.Where(c => curriculumIds.Contains(c.Id))
+            .ToDictionaryAsync(c => c.Id, c => c.Name);
+        return links.Select(l => new SubjectCurriculumDto(
+            l.CurriculumId, names.GetValueOrDefault(l.CurriculumId, "?"), l.Order)).ToList();
+    }
+
+    /// <summary>Bitta o'quv dasturini shu kursga biriktiradi (bitta dastur bir nechta kursga,
+    /// bitta kurs bir nechta dasturga biriktirilishi mumkin — ko'p-ko'pga). Allaqachon biriktirilgan
+    /// bo'lsa — o'zgarishsiz muvaffaqiyatli qaytadi.</summary>
+    [HttpPost("{id}/curricula/{curriculumId}")]
+    public async Task<ActionResult> AttachCurriculum(string id, string curriculumId)
+    {
+        var subject = await db.Subjects.FindAsync(id);
+        if (subject is null) return NotFound(new { message = "Kurs topilmadi" });
+        var curriculum = await db.Curricula.FindAsync(curriculumId);
+        if (curriculum is null) return NotFound(new { message = "Dastur topilmadi" });
+
+        var exists = await db.SubjectCurricula.AnyAsync(sc => sc.SubjectId == id && sc.CurriculumId == curriculumId);
+        if (!exists)
+        {
+            var maxOrder = await db.SubjectCurricula
+                .Where(sc => sc.SubjectId == id).Select(sc => (int?)sc.Order).MaxAsync() ?? -1;
+            db.SubjectCurricula.Add(new SubjectCurriculum { SubjectId = id, CurriculumId = curriculumId, Order = maxOrder + 1 });
+            await db.SaveChangesAsync();
+        }
+        return Ok(new { ok = true });
+    }
+
+    /// <summary>Dasturni shu kursdan uzadi (progress/kontentga tegilmaydi — faqat bog'lanish o'chadi).</summary>
+    [HttpDelete("{id}/curricula/{curriculumId}")]
+    public async Task<ActionResult> DetachCurriculum(string id, string curriculumId)
+    {
+        await db.SubjectCurricula
+            .Where(sc => sc.SubjectId == id && sc.CurriculumId == curriculumId).ExecuteDeleteAsync();
         return NoContent();
     }
 }

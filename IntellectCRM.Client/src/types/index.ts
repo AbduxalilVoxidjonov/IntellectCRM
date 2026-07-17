@@ -1627,9 +1627,9 @@ export interface PortalMeta {
   currentWeek: number
 }
 
-// ===================== Kurs o'quv dasturi (curriculum / syllabus) =====================
+// ===================== O'quv dasturi (curriculum / syllabus) — Kurs(Subject)dan mustaqil =====================
 
-/** Dars turi: matnli / video / audio / lug'at / test / pdf */
+/** Topshiriq turi: matnli / video / audio / lug'at / test / pdf */
 export type LessonType = 'text' | 'video' | 'audio' | 'vocab' | 'test' | 'pdf'
 
 export interface CurriculumItem {
@@ -1637,21 +1637,23 @@ export interface CurriculumItem {
   text: string
   note: string
   order: number
-  /** Dars turi (kontent) */
+  /** Topshiriq turi (kontent) — yaratishda tanlanadi, keyin ham o'zgartirilishi mumkin */
   type: LessonType
   /** Qisqa meta yorlig'i ("12 daq" / "15 so'z" / "10 savol") */
   meta: string
-  /** Dars kontenti to'liq kiritilganmi (tayyor) */
+  /** Topshiriq kontenti to'liq kiritilganmi (tayyor) */
   ready: boolean
+  /** Yaratilgan sana-vaqt (ISO) — eski (maydon qo'shilishidan oldingi) topshiriqlar uchun bo'sh */
+  createdAt: string
 }
-/** Sub-mavzu — BITTA turga (video|matn|audio|pdf|lug'at|test) qulflangan: yaratishda tanlanadi,
- *  keyin o'zgarmaydi. Ichida shu turdan bir nechta band (dars) bo'lishi mumkin. */
-export interface CurriculumSubTopic {
+/** Dars — ichiga kirilganda topshiriqlar (CurriculumItem) ro'yxati ko'rsatiladi, har biri o'z
+ *  turini (video|matn|audio|pdf|lug'at|test) yaratishda tanlaydi; bitta dars ichida bir nechtasi
+ *  bo'lishi mumkin. */
+export interface CurriculumLesson {
   id: string
   title: string
   note: string
   order: number
-  type: LessonType
   items: CurriculumItem[]
 }
 export interface CurriculumTopic {
@@ -1659,9 +1661,9 @@ export interface CurriculumTopic {
   title: string
   note: string
   order: number
-  subTopics: CurriculumSubTopic[]
+  lessons: CurriculumLesson[]
 }
-export interface CurriculumLevel {
+export interface CurriculumModule {
   id: string
   name: string
   note: string
@@ -1669,9 +1671,9 @@ export interface CurriculumLevel {
   topics: CurriculumTopic[]
 }
 export interface Curriculum {
-  subjectId: string
-  courseName: string
-  levels: CurriculumLevel[]
+  id: string
+  name: string
+  modules: CurriculumModule[]
 }
 
 // ===================== Amal sabablari (action reasons) =====================

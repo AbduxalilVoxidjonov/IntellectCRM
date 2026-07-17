@@ -56,3 +56,22 @@ export async function deleteSubject(id: string): Promise<void> {
   }
   await api.delete(`/admin/subjects/${id}`)
 }
+
+// ---- Kursga biriktirilgan o'quv dasturlari (ko'p-ko'pga) ----
+
+export interface SubjectCurriculumLink {
+  curriculumId: string
+  name: string
+  order: number
+}
+
+export async function getSubjectCurricula(subjectId: string): Promise<SubjectCurriculumLink[]> {
+  const { data } = await api.get<SubjectCurriculumLink[]>(`/admin/subjects/${subjectId}/curricula`)
+  return data
+}
+export async function attachCurriculumToSubject(subjectId: string, curriculumId: string): Promise<void> {
+  await api.post(`/admin/subjects/${subjectId}/curricula/${curriculumId}`)
+}
+export async function detachCurriculumFromSubject(subjectId: string, curriculumId: string): Promise<void> {
+  await api.delete(`/admin/subjects/${subjectId}/curricula/${curriculumId}`)
+}

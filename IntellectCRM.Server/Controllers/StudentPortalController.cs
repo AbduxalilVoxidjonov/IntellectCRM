@@ -1089,13 +1089,16 @@ public class StudentPortalController(
         var i = await db.CourseItems.FindAsync(id);
         if (i is null) return NotFound();
 
-        // O'quvchining faol guruhlari + ularning kurslari.
+        // O'quvchining faol guruhlari + ularning kurslariga biriktirilgan dasturlar (M2M).
         var myGroups = await (from sg in db.StudentGroups
                               join c in db.Classes on sg.GroupId equals c.Id
                               where sg.StudentId == s.Id && sg.IsActive
                               select new { sg.GroupId, c.CourseId }).ToListAsync();
-        // Faqat o'quvchining kursidagi darsni ko'rsatamiz.
-        if (!myGroups.Any(g => g.CourseId == i.SubjectId)) return NotFound();
+        var myCourseIds = myGroups.Select(g => g.CourseId).Distinct().ToList();
+        var myCurriculumIds = await db.SubjectCurricula
+            .Where(sc => myCourseIds.Contains(sc.SubjectId)).Select(sc => sc.CurriculumId).ToListAsync();
+        // Faqat o'quvchining kurslariga biriktirilgan dasturlardagi darsni ko'rsatamiz.
+        if (!myCurriculumIds.Contains(i.CurriculumId)) return NotFound();
 
         // NAZORAT: dars FAQAT o'qituvchi shu guruhda "o'tildi" qilgach (GroupCurriculumLog) ochiladi.
         var myGroupIds = myGroups.Select(g => g.GroupId).ToList();
@@ -1110,7 +1113,7 @@ public class StudentPortalController(
             ? new List<VocabEntryDto>()
             : (TryDeserialize(i.VocabJson) ?? new());
         return new CourseItemDetailDto(
-            i.Id, i.SubTopicId, i.Text, i.Note, i.Order, i.Type,
+            i.Id, i.LessonId, i.Text, i.Note, i.Order, i.Type,
             i.VideoUrl, i.AudioUrl, i.TextContent, i.PdfUrl, i.PdfName,
             i.Meta, vocab, qs);
     }
@@ -1296,9 +1299,13 @@ public class StudentPortalController(
 
         if (!hasAccess) return Forbid();
 
+        // Progress kontentga (dastur) tegishli — kursga biriktirilgan dasturlar orqali resolve qilinadi.
+        var curriculumIds = await db.SubjectCurricula
+            .Where(sc => sc.SubjectId == courseId).Select(sc => sc.CurriculumId).ToListAsync();
         var done = await db.CourseProgresses
-            .Where(p => p.StudentId == userId && p.CourseId == courseId && p.Done)
-            .Select(p => p.ItemId)
+            .Where(p => p.StudentId == userId && p.Done)
+            .Join(db.CourseItems.Where(i => curriculumIds.Contains(i.CurriculumId)),
+                p => p.ItemId, i => i.Id, (p, i) => p.ItemId)
             .ToListAsync();
 
         return done.ToArray();
@@ -1312,25 +1319,23 @@ public class StudentPortalController(
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId is null) return Unauthorized();
 
-        // ItemId → CourseId topish
+        // ItemId → CurriculumId topish
         var item = await db.CourseItems.FirstOrDefaultAsync(i => i.Id == req.ItemId);
         if (item is null) return NotFound(new { message = "Dars topilmadi" });
 
-        var courseId = item.SubjectId;
-
-        // Access control — o'quvchi shu kursda faol guruhda bo'lish kerak
+        // Access control — o'quvchi shu topshiriq dasturi biriktirilgan biror kursda faol guruhda
+        // bo'lishi kerak (dastur bir nechta kursga biriktirilgan bo'lishi mumkin — biri yetarli).
         var hasAccess = await db.StudentGroups
             .AnyAsync(sg => sg.StudentId == userId
                          && sg.IsActive
-                         && db.Classes.Any(c => c.Id == sg.GroupId && c.CourseId == courseId));
+                         && db.Classes.Any(c => c.Id == sg.GroupId
+                             && db.SubjectCurricula.Any(sc => sc.SubjectId == c.CourseId && sc.CurriculumId == item.CurriculumId)));
 
         if (!hasAccess) return Forbid();
 
-        // Upsert
+        // Upsert — haqiqiy kalit (StudentId, ItemId); CurriculumId faqat filtrlash uchun denormalized.
         var existing = await db.CourseProgresses
-            .FirstOrDefaultAsync(p => p.StudentId == userId
-                                   && p.ItemId == req.ItemId
-                                   && p.CourseId == courseId);
+            .FirstOrDefaultAsync(p => p.StudentId == userId && p.ItemId == req.ItemId);
 
         if (existing is not null)
         {
@@ -1342,7 +1347,7 @@ public class StudentPortalController(
             {
                 StudentId = userId,
                 ItemId = req.ItemId,
-                CourseId = courseId,
+                CurriculumId = item.CurriculumId,
                 Done = req.Done,
                 UpdatedAt = AppClock.Now.ToString("yyyy-MM-ddTHH:mm:ss"),
             });

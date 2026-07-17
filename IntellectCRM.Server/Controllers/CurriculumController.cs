@@ -10,9 +10,11 @@ using System.Text.Json;
 namespace IntellectCRM.Server.Controllers;
 
 /// <summary>
-/// Kurs sillabusi (Bo'lim → Mavzu → Sub-mavzu → Band) va o'quvchi per-band progressi.
-/// Sillabus kurs (Subject) ga bog'lanadi: <c>CourseLevel</c> → <c>CourseTopic</c> →
-/// <c>CourseSubTopic</c> (BITTA turga qulflangan) → <c>CourseItem</c>.
+/// O'quv dasturi (Modul → Mavzu → Dars → Topshiriq) — Kurs (Subject) dan MUSTAQIL, standalone
+/// <c>Curriculum</c> sifatida yaratiladi. Bir dastur bir nechta kursga, bir kurs bir nechta dasturga
+/// biriktirilishi mumkin (<c>SubjectCurriculum</c> — ko'p-ko'pga, boshqaruvi <c>SubjectsController</c>da).
+/// Guruh ko'rinishida (<see cref="CurriculumForecast"/>) guruh kursiga biriktirilgan BARCHA dasturlar
+/// bitta ketma-ket ro'yxatga birlashtiriladi.
 /// </summary>
 [ApiController]
 [Authorize]
@@ -20,25 +22,104 @@ namespace IntellectCRM.Server.Controllers;
 [Route("api/admin/curriculum")]
 public class CurriculumController(AppDbContext db) : ControllerBase
 {
+    // ---- O'quv dasturlari ro'yxati (top-level) ----
+
+    [HttpGet]
+    public async Task<ActionResult<List<CurriculumSummaryDto>>> ListCurricula()
+    {
+        var curricula = await db.Curricula.OrderBy(c => c.Order).ToListAsync();
+        var curriculumIds = curricula.Select(c => c.Id).ToList();
+
+        var modules = await db.CourseModules.Where(m => curriculumIds.Contains(m.CurriculumId)).ToListAsync();
+        var topics = await db.CourseTopics.Where(t => curriculumIds.Contains(t.CurriculumId)).ToListAsync();
+        var items = await db.CourseItems.Where(i => curriculumIds.Contains(i.CurriculumId)).ToListAsync();
+        var subjectCounts = (await db.SubjectCurricula.Where(sc => curriculumIds.Contains(sc.CurriculumId))
+                .Select(sc => sc.CurriculumId).ToListAsync())
+            .GroupBy(x => x).ToDictionary(g => g.Key, g => g.Count());
+
+        var itemIds = items.Select(i => i.Id).ToList();
+        var qCounts = (await db.CourseQuestions.Where(q => itemIds.Contains(q.ItemId))
+                .Select(q => q.ItemId).ToListAsync())
+            .GroupBy(x => x).ToDictionary(g => g.Key, g => g.Count());
+
+        return curricula.Select(c => new CurriculumSummaryDto(
+            c.Id, c.Name, c.Note, c.Order, c.CreatedAt,
+            modules.Count(m => m.CurriculumId == c.Id),
+            topics.Count(t => t.CurriculumId == c.Id),
+            items.Count(i => i.CurriculumId == c.Id),
+            items.Where(i => i.CurriculumId == c.Id).Count(i => IsReady(i, qCounts)),
+            subjectCounts.GetValueOrDefault(c.Id, 0)
+        )).ToList();
+    }
+
+    [HttpPost]
+    public async Task<ActionResult> CreateCurriculum(CurriculumInput input)
+    {
+        var maxOrder = await db.Curricula.Select(c => (int?)c.Order).MaxAsync() ?? -1;
+        var curriculum = new Curriculum
+        {
+            Name = input.Name,
+            Note = input.Note ?? "",
+            Order = maxOrder + 1,
+            CreatedAt = AppClock.Now.ToString("yyyy-MM-ddTHH:mm:ss"),
+        };
+        db.Curricula.Add(curriculum);
+        await db.SaveChangesAsync();
+        return Ok(new { id = curriculum.Id });
+    }
+
+    [HttpPut("{id}")]
+    public async Task<ActionResult> UpdateCurriculum(string id, CurriculumInput input)
+    {
+        var curriculum = await db.Curricula.FindAsync(id);
+        if (curriculum == null) return NotFound();
+        curriculum.Name = input.Name;
+        curriculum.Note = input.Note ?? "";
+        await db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    /// <summary>Dasturni butunlay o'chiradi: barcha modul/mavzu/dars/topshiriqlari, ularga bog'liq
+    /// progress/test savollari VA barcha kurslarga biriktirilgan holatlar (SubjectCurriculum) bilan
+    /// birga. Bu amalni qaytarib bo'lmaydi.</summary>
+    [HttpDelete("{id}")]
+    public async Task<ActionResult> DeleteCurriculum(string id)
+    {
+        var curriculum = await db.Curricula.FindAsync(id);
+        if (curriculum == null) return NotFound();
+
+        var itemIds = await db.CourseItems.Where(i => i.CurriculumId == id).Select(i => i.Id).ToListAsync();
+        await db.CourseProgresses.Where(p => itemIds.Contains(p.ItemId)).ExecuteDeleteAsync();
+        await db.CourseQuestions.Where(q => itemIds.Contains(q.ItemId)).ExecuteDeleteAsync();
+        await db.CourseItems.Where(i => i.CurriculumId == id).ExecuteDeleteAsync();
+        await db.CourseLessons.Where(s => s.CurriculumId == id).ExecuteDeleteAsync();
+        await db.CourseTopics.Where(t => t.CurriculumId == id).ExecuteDeleteAsync();
+        await db.CourseModules.Where(m => m.CurriculumId == id).ExecuteDeleteAsync();
+        await db.SubjectCurricula.Where(sc => sc.CurriculumId == id).ExecuteDeleteAsync();
+        db.Curricula.Remove(curriculum);
+        await db.SaveChangesAsync();
+        return NoContent();
+    }
+
     // ---- To'liq sillabusni o'qish ----
 
-    [HttpGet("{subjectId}")]
-    public async Task<ActionResult<CurriculumDto>> Get(string subjectId)
+    [HttpGet("{curriculumId}")]
+    public async Task<ActionResult<CurriculumDto>> Get(string curriculumId)
     {
-        var subject = await db.Subjects.FindAsync(subjectId);
-        var courseName = subject?.Name ?? "";
+        var curriculum = await db.Curricula.FindAsync(curriculumId);
+        if (curriculum == null) return NotFound();
 
-        var levels = await db.CourseLevels
-            .Where(l => l.SubjectId == subjectId)
-            .OrderBy(l => l.Order).ToListAsync();
+        var modules = await db.CourseModules
+            .Where(m => m.CurriculumId == curriculumId)
+            .OrderBy(m => m.Order).ToListAsync();
         var topics = await db.CourseTopics
-            .Where(t => t.SubjectId == subjectId)
+            .Where(t => t.CurriculumId == curriculumId)
             .OrderBy(t => t.Order).ToListAsync();
-        var subTopics = await db.CourseSubTopics
-            .Where(s => s.SubjectId == subjectId)
+        var lessons = await db.CourseLessons
+            .Where(s => s.CurriculumId == curriculumId)
             .OrderBy(s => s.Order).ToListAsync();
         var items = await db.CourseItems
-            .Where(i => i.SubjectId == subjectId)
+            .Where(i => i.CurriculumId == curriculumId)
             .OrderBy(i => i.Order).ToListAsync();
 
         // Test darslarining savol sonini olamiz (meta + tayyorlik uchun).
@@ -47,24 +128,37 @@ public class CurriculumController(AppDbContext db) : ControllerBase
                 .Select(q => q.ItemId).ToListAsync())
             .GroupBy(x => x).ToDictionary(g => g.Key, g => g.Count());
 
-        var levelDtos = levels.Select(l => new CurriculumLevelDto(
-            l.Id, l.Name, l.Note, l.Order,
-            topics.Where(t => t.LevelId == l.Id).Select(t => new CurriculumTopicDto(
+        var moduleDtos = BuildModuleDtos(modules, topics, lessons, items, qCounts);
+        return new CurriculumDto(curriculumId, curriculum.Name, moduleDtos);
+    }
+
+    private static List<CurriculumModuleDto> BuildModuleDtos(
+        List<CourseModule> modules, List<CourseTopic> topics, List<CourseLesson> lessons, List<CourseItem> items,
+        IReadOnlyDictionary<string, int> qCounts) =>
+        modules.Select(m => new CurriculumModuleDto(
+            m.Id, m.Name, m.Note, m.Order,
+            topics.Where(t => t.ModuleId == m.Id).Select(t => new CurriculumTopicDto(
                 t.Id, t.Title, t.Note, t.Order,
-                subTopics.Where(s => s.TopicId == t.Id).Select(s => new CurriculumSubTopicDto(
-                    s.Id, s.Title, s.Note, s.Order, s.Type,
-                    items.Where(i => i.SubTopicId == s.Id).Select(i => ToItemDto(i, qCounts)).ToList()
+                lessons.Where(s => s.TopicId == t.Id).Select(s => new CurriculumLessonDto(
+                    s.Id, s.Title, s.Note, s.Order,
+                    items.Where(i => i.LessonId == s.Id).Select(i => ToItemDto(i, qCounts)).ToList()
                 )).ToList()
             )).ToList()
         )).ToList();
 
-        return new CurriculumDto(subjectId, courseName, levelDtos);
-    }
+    /// <summary>Topshiriq (CourseItem) → daraxt DTO: tur, meta (test savoli/lug'at so'zi soni),
+    /// tayyorlik (o'z turiga mos maydon to'ldirilganmi), yaratilgan sana.</summary>
+    private static CurriculumItemDto ToItemDto(CourseItem i, IReadOnlyDictionary<string, int> qCounts) =>
+        new(i.Id, i.Text, i.Note, i.Order, i.Type, MetaFor(i, qCounts), IsReady(i, qCounts), i.CreatedAt);
 
-    /// <summary>Dars (CourseItem) → daraxt DTO: tur (ota sub-mavzudan meros), meta (test savoli/
-    /// lug'at so'zi soni), tayyorlik (o'z turiga mos maydon to'ldirilganmi).</summary>
-    private static CurriculumItemDto ToItemDto(CourseItem i, IReadOnlyDictionary<string, int> qCounts)
+    private static bool IsReady(CourseItem i, IReadOnlyDictionary<string, int> qCounts) =>
+        !string.IsNullOrWhiteSpace(i.VideoUrl) || !string.IsNullOrWhiteSpace(i.TextContent)
+        || !string.IsNullOrWhiteSpace(i.AudioUrl) || !string.IsNullOrWhiteSpace(i.PdfUrl)
+        || ParseVocab(i.VocabJson).Count > 0 || qCounts.GetValueOrDefault(i.Id, 0) > 0;
+
+    private static string MetaFor(CourseItem i, IReadOnlyDictionary<string, int> qCounts)
     {
+        if (!string.IsNullOrWhiteSpace(i.Meta)) return i.Meta;
         var qc = qCounts.GetValueOrDefault(i.Id, 0);
         var vocabCount = ParseVocab(i.VocabJson).Count;
         var sections = new List<string>();
@@ -74,9 +168,7 @@ public class CurriculumController(AppDbContext db) : ControllerBase
         if (!string.IsNullOrWhiteSpace(i.PdfUrl)) sections.Add("PDF");
         if (vocabCount > 0) sections.Add("Lug'at");
         if (qc > 0) sections.Add("Test");
-        var meta = !string.IsNullOrWhiteSpace(i.Meta) ? i.Meta : string.Join(" · ", sections);
-        var ready = sections.Count > 0;
-        return new CurriculumItemDto(i.Id, i.Text, i.Note, i.Order, i.Type, meta, ready);
+        return string.Join(" · ", sections);
     }
 
     private static readonly string[] AllowedTypes = { "text", "video", "audio", "vocab", "test", "pdf" };
@@ -88,74 +180,76 @@ public class CurriculumController(AppDbContext db) : ControllerBase
         catch { return new(); }
     }
 
-    // ---- Daraja ----
+    // ---- Modul (dastur ichidagi 1-bosqich) ----
 
-    [HttpPost("{subjectId}/levels")]
-    public async Task<ActionResult> CreateLevel(string subjectId, LevelInput input)
+    [HttpPost("{curriculumId}/modules")]
+    public async Task<ActionResult> CreateModule(string curriculumId, ModuleInput input)
     {
-        var maxOrder = await db.CourseLevels
-            .Where(l => l.SubjectId == subjectId)
-            .Select(l => (int?)l.Order).MaxAsync() ?? -1;
-        var level = new CourseLevel
+        var curriculum = await db.Curricula.FindAsync(curriculumId);
+        if (curriculum == null) return NotFound();
+        var maxOrder = await db.CourseModules
+            .Where(m => m.CurriculumId == curriculumId)
+            .Select(m => (int?)m.Order).MaxAsync() ?? -1;
+        var module = new CourseModule
         {
-            SubjectId = subjectId,
+            CurriculumId = curriculumId,
             Name = input.Name,
             Note = input.Note ?? "",
             Order = maxOrder + 1,
         };
-        db.CourseLevels.Add(level);
+        db.CourseModules.Add(module);
         await db.SaveChangesAsync();
-        return Ok(new { id = level.Id });
+        return Ok(new { id = module.Id });
     }
 
-    [HttpPut("levels/{id}")]
-    public async Task<ActionResult> UpdateLevel(string id, LevelInput input)
+    [HttpPut("modules/{id}")]
+    public async Task<ActionResult> UpdateModule(string id, ModuleInput input)
     {
-        var level = await db.CourseLevels.FindAsync(id);
-        if (level == null) return NotFound();
-        level.Name = input.Name;
-        level.Note = input.Note ?? "";
+        var module = await db.CourseModules.FindAsync(id);
+        if (module == null) return NotFound();
+        module.Name = input.Name;
+        module.Note = input.Note ?? "";
         await db.SaveChangesAsync();
         return NoContent();
     }
 
-    [HttpDelete("levels/{id}")]
-    public async Task<ActionResult> DeleteLevel(string id)
+    [HttpDelete("modules/{id}")]
+    public async Task<ActionResult> DeleteModule(string id)
     {
-        var level = await db.CourseLevels.FindAsync(id);
-        if (level == null) return NotFound();
+        var module = await db.CourseModules.FindAsync(id);
+        if (module == null) return NotFound();
 
         var topicIds = await db.CourseTopics
-            .Where(t => t.LevelId == id).Select(t => t.Id).ToListAsync();
-        var subTopicIds = await db.CourseSubTopics
+            .Where(t => t.ModuleId == id).Select(t => t.Id).ToListAsync();
+        var lessonIds = await db.CourseLessons
             .Where(s => topicIds.Contains(s.TopicId)).Select(s => s.Id).ToListAsync();
         var itemIds = await db.CourseItems
-            .Where(i => subTopicIds.Contains(i.SubTopicId)).Select(i => i.Id).ToListAsync();
+            .Where(i => lessonIds.Contains(i.LessonId)).Select(i => i.Id).ToListAsync();
 
         await db.CourseProgresses.Where(p => itemIds.Contains(p.ItemId)).ExecuteDeleteAsync();
         await db.CourseQuestions.Where(q => itemIds.Contains(q.ItemId)).ExecuteDeleteAsync();
         await db.CourseItems.Where(i => itemIds.Contains(i.Id)).ExecuteDeleteAsync();
-        await db.CourseSubTopics.Where(s => subTopicIds.Contains(s.Id)).ExecuteDeleteAsync();
-        await db.CourseTopics.Where(t => t.LevelId == id).ExecuteDeleteAsync();
-        db.CourseLevels.Remove(level);
+        await db.CourseLessons.Where(s => lessonIds.Contains(s.Id)).ExecuteDeleteAsync();
+        await db.CourseTopics.Where(t => t.ModuleId == id).ExecuteDeleteAsync();
+        db.CourseModules.Remove(module);
         await db.SaveChangesAsync();
         return NoContent();
     }
 
     // ---- Mavzu ----
 
-    [HttpPost("levels/{levelId}/topics")]
-    public async Task<ActionResult> CreateTopic(string levelId, TopicInput input)
+    [HttpPost("modules/{moduleId}/topics")]
+    public async Task<ActionResult> CreateTopic(string moduleId, TopicInput input)
     {
-        var level = await db.CourseLevels.FindAsync(levelId);
-        if (level == null) return NotFound();
+        var module = await db.CourseModules.FindAsync(moduleId);
+        if (module == null) return NotFound();
         var maxOrder = await db.CourseTopics
-            .Where(t => t.LevelId == levelId)
+            .Where(t => t.ModuleId == moduleId)
             .Select(t => (int?)t.Order).MaxAsync() ?? -1;
         var topic = new CourseTopic
         {
-            SubjectId = level.SubjectId,
-            LevelId = levelId,
+            CurriculumId = module.CurriculumId,
+            ModuleId = moduleId,
             Title = input.Title,
             Note = input.Note ?? "",
             Order = maxOrder + 1,
@@ -182,94 +276,136 @@ public class CurriculumController(AppDbContext db) : ControllerBase
         var topic = await db.CourseTopics.FindAsync(id);
         if (topic == null) return NotFound();
 
-        var subTopicIds = await db.CourseSubTopics
+        var lessonIds = await db.CourseLessons
             .Where(s => s.TopicId == id).Select(s => s.Id).ToListAsync();
         var itemIds = await db.CourseItems
-            .Where(i => subTopicIds.Contains(i.SubTopicId)).Select(i => i.Id).ToListAsync();
+            .Where(i => lessonIds.Contains(i.LessonId)).Select(i => i.Id).ToListAsync();
         await db.CourseProgresses.Where(p => itemIds.Contains(p.ItemId)).ExecuteDeleteAsync();
         await db.CourseQuestions.Where(q => itemIds.Contains(q.ItemId)).ExecuteDeleteAsync();
         await db.CourseItems.Where(i => itemIds.Contains(i.Id)).ExecuteDeleteAsync();
-        await db.CourseSubTopics.Where(s => s.TopicId == id).ExecuteDeleteAsync();
+        await db.CourseLessons.Where(s => s.TopicId == id).ExecuteDeleteAsync();
         db.CourseTopics.Remove(topic);
         await db.SaveChangesAsync();
         return NoContent();
     }
 
-    // ---- Sub-mavzu (BITTA turga qulflanadi — yaratishda tanlanadi) ----
+    // ---- Dars ----
 
-    [HttpPost("topics/{topicId}/subtopics")]
-    public async Task<ActionResult> CreateSubTopic(string topicId, SubTopicInput input)
+    [HttpPost("topics/{topicId}/lessons")]
+    public async Task<ActionResult> CreateLesson(string topicId, LessonInput input)
     {
         var topic = await db.CourseTopics.FindAsync(topicId);
         if (topic == null) return NotFound();
-        var maxOrder = await db.CourseSubTopics
+        var maxOrder = await db.CourseLessons
             .Where(s => s.TopicId == topicId)
             .Select(s => (int?)s.Order).MaxAsync() ?? -1;
-        var subTopic = new CourseSubTopic
+        var lesson = new CourseLesson
         {
-            SubjectId = topic.SubjectId,
+            CurriculumId = topic.CurriculumId,
             TopicId = topicId,
             Title = input.Title,
             Note = input.Note ?? "",
             Order = maxOrder + 1,
-            Type = NormalizeType(input.Type),
         };
-        db.CourseSubTopics.Add(subTopic);
+        db.CourseLessons.Add(lesson);
         await db.SaveChangesAsync();
-        return Ok(new { id = subTopic.Id });
+        return Ok(new { id = lesson.Id });
     }
 
-    /// <summary>Sub-mavzu nomi/izohini yangilaydi — turi (Type) O'ZGARTIRILMAYDI (qulflangan).</summary>
-    [HttpPut("subtopics/{id}")]
-    public async Task<ActionResult> UpdateSubTopic(string id, TopicInput input)
+    /// <summary>Dars nomi/izohini yangilaydi.</summary>
+    [HttpPut("lessons/{id}")]
+    public async Task<ActionResult> UpdateLesson(string id, LessonInput input)
     {
-        var subTopic = await db.CourseSubTopics.FindAsync(id);
-        if (subTopic == null) return NotFound();
-        subTopic.Title = input.Title;
-        subTopic.Note = input.Note ?? "";
+        var lesson = await db.CourseLessons.FindAsync(id);
+        if (lesson == null) return NotFound();
+        lesson.Title = input.Title;
+        lesson.Note = input.Note ?? "";
         await db.SaveChangesAsync();
         return NoContent();
     }
 
-    [HttpDelete("subtopics/{id}")]
-    public async Task<ActionResult> DeleteSubTopic(string id)
+    [HttpDelete("lessons/{id}")]
+    public async Task<ActionResult> DeleteLesson(string id)
     {
-        var subTopic = await db.CourseSubTopics.FindAsync(id);
-        if (subTopic == null) return NotFound();
+        var lesson = await db.CourseLessons.FindAsync(id);
+        if (lesson == null) return NotFound();
         var itemIds = await db.CourseItems
-            .Where(i => i.SubTopicId == id).Select(i => i.Id).ToListAsync();
+            .Where(i => i.LessonId == id).Select(i => i.Id).ToListAsync();
         await db.CourseProgresses.Where(p => itemIds.Contains(p.ItemId)).ExecuteDeleteAsync();
         await db.CourseQuestions.Where(q => itemIds.Contains(q.ItemId)).ExecuteDeleteAsync();
         await db.CourseItems.Where(i => itemIds.Contains(i.Id)).ExecuteDeleteAsync();
-        db.CourseSubTopics.Remove(subTopic);
+        db.CourseLessons.Remove(lesson);
         await db.SaveChangesAsync();
         return NoContent();
     }
 
-    // ---- Band (sub-mavzuning qulflangan turida) ----
+    // ---- Topshiriq (o'z turini tanlaydi: text|video|audio|vocab|test|pdf, keyin ham o'zgartirilishi mumkin) ----
 
-    [HttpPost("subtopics/{subTopicId}/items")]
-    public async Task<ActionResult> CreateItem(string subTopicId, ItemInput input)
+    [HttpPost("lessons/{lessonId}/items")]
+    public async Task<ActionResult> CreateItem(string lessonId, ItemInput input)
     {
-        var subTopic = await db.CourseSubTopics.FindAsync(subTopicId);
-        if (subTopic == null) return NotFound();
+        var lesson = await db.CourseLessons.FindAsync(lessonId);
+        if (lesson == null) return NotFound();
         var maxOrder = await db.CourseItems
-            .Where(i => i.SubTopicId == subTopicId)
+            .Where(i => i.LessonId == lessonId)
             .Select(i => (int?)i.Order).MaxAsync() ?? -1;
         var item = new CourseItem
         {
-            SubjectId = subTopic.SubjectId,
-            SubTopicId = subTopicId,
+            CurriculumId = lesson.CurriculumId,
+            LessonId = lessonId,
             Text = input.Text,
             Note = input.Note ?? "",
             Order = maxOrder + 1,
-            Type = subTopic.Type, // ota sub-mavzudan meros — bu yerda tanlanmaydi
+            Type = NormalizeType(input.Type),
+            CreatedAt = AppClock.Now.ToString("yyyy-MM-ddTHH:mm:ss"),
         };
         db.CourseItems.Add(item);
         await db.SaveChangesAsync();
         return Ok(new { id = item.Id });
     }
 
+    /// <summary>Bir nechta TOPSHIRIQNI BIR ZUMDA yaratadi — barchasi BITTA turda (masalan 10ta video
+    /// topshiriq nomi kiritilsa, 10tasi ham "video" turida yaratiladi). Dars ichida bir xil turdagi
+    /// ko'p topshiriqni tez kiritish uchun (har biri uchun alohida "+ Topshiriq" bosish shart emas).</summary>
+    [HttpPost("lessons/{lessonId}/items/bulk")]
+    public async Task<ActionResult<List<CurriculumItemDto>>> CreateItemsBulk(string lessonId, BulkItemInput input)
+    {
+        var lesson = await db.CourseLessons.FindAsync(lessonId);
+        if (lesson == null) return NotFound();
+
+        var texts = (input.Texts ?? new()).Select(t => (t ?? "").Trim()).Where(t => t.Length > 0).ToList();
+        if (texts.Count == 0) return BadRequest(new { message = "Kamida bitta topshiriq nomi kerak" });
+
+        var type = NormalizeType(input.Type);
+        var maxOrder = await db.CourseItems
+            .Where(i => i.LessonId == lessonId)
+            .Select(i => (int?)i.Order).MaxAsync() ?? -1;
+        var now = AppClock.Now.ToString("yyyy-MM-ddTHH:mm:ss");
+
+        var created = new List<CourseItem>();
+        foreach (var text in texts)
+        {
+            var item = new CourseItem
+            {
+                CurriculumId = lesson.CurriculumId,
+                LessonId = lessonId,
+                Text = text,
+                Note = "",
+                Order = ++maxOrder,
+                Type = type,
+                CreatedAt = now,
+            };
+            db.CourseItems.Add(item);
+            created.Add(item);
+        }
+        await db.SaveChangesAsync();
+
+        return created.Select(i => ToItemDto(i, new Dictionary<string, int>())).ToList();
+    }
+
+    /// <summary>Topshiriq nomi/izohini yangilaydi. <see cref="ItemInput.Type"/> berilsa — turi ham
+    /// shu yerda o'zgartiriladi (masalan Excel'dan "matn" bo'lib kirgan topshiriqni "video"ga
+    /// almashtirish uchun).</summary>
     [HttpPut("items/{id}")]
     public async Task<ActionResult> UpdateItem(string id, ItemInput input)
     {
@@ -277,6 +413,7 @@ public class CurriculumController(AppDbContext db) : ControllerBase
         if (item == null) return NotFound();
         item.Text = input.Text;
         item.Note = input.Note ?? "";
+        if (input.Type != null) item.Type = NormalizeType(input.Type);
         await db.SaveChangesAsync();
         return NoContent();
     }
@@ -293,9 +430,9 @@ public class CurriculumController(AppDbContext db) : ControllerBase
         return NoContent();
     }
 
-    // ---- Dars KONTENTI (video/matn/audio/lug'at/test) ----
+    // ---- Topshiriq KONTENTI (video/matn/audio/lug'at/test) ----
 
-    /// <summary>Bitta darsning to'liq kontenti — tahrirlovchi va ko'rish ekranlari uchun.</summary>
+    /// <summary>Bitta topshiriqning to'liq kontenti — tahrirlovchi va ko'rish ekranlari uchun.</summary>
     [HttpGet("item/{id}")]
     public async Task<ActionResult<CourseItemDetailDto>> GetItem(string id)
     {
@@ -304,13 +441,13 @@ public class CurriculumController(AppDbContext db) : ControllerBase
         var qs = await db.CourseQuestions.Where(q => q.ItemId == id).OrderBy(q => q.Order)
             .Select(q => new CourseQuestionDto(q.Id, q.Text, q.Options, q.CorrectIndex)).ToListAsync();
         return new CourseItemDetailDto(
-            i.Id, i.SubTopicId, i.Text, i.Note, i.Order, i.Type,
+            i.Id, i.LessonId, i.Text, i.Note, i.Order, i.Type,
             i.VideoUrl, i.AudioUrl, i.TextContent, i.PdfUrl, i.PdfName,
             i.Meta, ParseVocab(i.VocabJson), qs);
     }
 
-    /// <summary>Dars kontentini saqlash: nom + (video/matn/audio/lug'at) + test savollari (almashtiriladi).
-    /// Type BU YERDA O'ZGARTIRILMAYDI — ota sub-mavzudan qulflangan.</summary>
+    /// <summary>Topshiriq kontentini saqlash: nom + (video/matn/audio/lug'at) + test savollari
+    /// (almashtiriladi). Type BU YERDA O'ZGARTIRILMAYDI — buning uchun <c>PUT items/{id}</c> bor.</summary>
     [HttpPut("items/{id}/content")]
     public async Task<ActionResult> SaveItemContent(string id, SaveItemContentRequest req)
     {
@@ -343,7 +480,7 @@ public class CurriculumController(AppDbContext db) : ControllerBase
             });
 
         // Meta — foydalanuvchi erkin yorlig'i (masalan "12 daq"); bo'sh bo'lsa daraxtda
-        // bo'limlar ro'yxati avtomatik ko'rsatiladi (ToItemDto).
+        // bo'limlar ro'yxati avtomatik ko'rsatiladi (MetaFor).
         item.Meta = (req.Meta ?? "").Trim();
 
         await db.SaveChangesAsync();
@@ -355,7 +492,7 @@ public class CurriculumController(AppDbContext db) : ControllerBase
     private const string XlsxMime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
     // Shablon ustunlari (1-varaq). Tartibi Excel importi o'qishi bilan AYNAN bir xil bo'lishi shart.
-    private static readonly string[] ExcelImportHeaders = { "Bo'lim*", "Mavzu*", "Dars nomi*", "Izoh" };
+    private static readonly string[] ExcelImportHeaders = { "Modul*", "Mavzu*", "Dars nomi*", "Izoh" };
 
     /// <summary>
     /// O'quv dasturini ommaviy kiritish uchun Excel shabloni (.xlsx). 1-varaq "Dastur" —
@@ -367,16 +504,20 @@ public class CurriculumController(AppDbContext db) : ControllerBase
     {
         var info = new List<IReadOnlyList<string>>
         {
-            new[] { "Bo'lim*", "Kursning katta bosqichi. Masalan: Beginner, A1, 1-bo'lim" },
-            new[] { "Mavzu*", "Bo'lim ichidagi mavzu. Masalan: Present Simple" },
+            new[] { "Modul*", "Dasturning katta bosqichi. Masalan: Beginner, A1, 1-modul" },
+            new[] { "Mavzu*", "Modul ichidagi mavzu. Masalan: Present Simple" },
             new[] { "Dars nomi*", "Mavzu ichidagi dars. Masalan: 1-dars. Tanishuv" },
             new[] { "Izoh", "ixtiyoriy — dars izohi" },
             new[] { "", "" },
-            new[] { "QOIDA:", "Bo'lim va Mavzu ustunlari bo'sh qoldirilsa — YUQORIDAGI qator qiymati olinadi." },
-            new[] { "", "Ya'ni bo'lim/mavzu nomini faqat birinchi darsida yozish kifoya." },
+            new[] { "QOIDA:", "Modul va Mavzu ustunlari bo'sh qoldirilsa — YUQORIDAGI qator qiymati olinadi." },
+            new[] { "", "Ya'ni modul/mavzu nomini faqat birinchi darsida yozish kifoya." },
+            new[] { "", "" },
+            new[] { "DIQQAT:", "Excel faqat Modul→Mavzu→Dars skeletini yaratadi. Har darsning ICHIGA" },
+            new[] { "", "topshiriqlar (video/matn/audio/pdf/lug'at/test) import'dan KEYIN, dastur" },
+            new[] { "", "sahifasida qo'lda (bir nechtasini birdan) qo'shiladi." },
             new[] { "", "" },
             new[] { "NAMUNA:", "" },
-            new[] { "Bo'lim", "Mavzu | Dars nomi" },
+            new[] { "Modul", "Mavzu | Dars nomi" },
             new[] { "Beginner", "Alifbo | 1-dars. Harflar" },
             new[] { "(bo'sh)", "(bo'sh) | 2-dars. Talaffuz" },
             new[] { "(bo'sh)", "Salomlashish | 3-dars. Greetings" },
@@ -392,19 +533,20 @@ public class CurriculumController(AppDbContext db) : ControllerBase
     }
 
     /// <summary>
-    /// To'ldirilgan Excel (.xlsx) shablonidan o'quv dasturini yuklaydi. Har qator = bitta dars;
-    /// Bo'lim/Mavzu bo'sh bo'lsa yuqoridagi qator qiymati olinadi (carry-forward). Har mavzu darslari
-    /// standart "Matn" sub-mavzusi ostiga qo'shiladi (Excel'da tur ustuni yo'q).
+    /// To'ldirilgan Excel (.xlsx) shablonidan o'quv dasturi SKELETINI (Modul→Mavzu→Dars) yuklaydi.
+    /// Har qator = bitta dars; Modul/Mavzu bo'sh bo'lsa yuqoridagi qator qiymati olinadi
+    /// (carry-forward). TOPSHIRIQLAR Excel orqali yaratilmaydi — ular import'dan keyin har darsning
+    /// ichida qo'lda (bir nechtasini birdan, tezkor panel bilan) qo'shiladi.
     /// <paramref name="replace"/>=true bo'lsa mavjud dastur (progress bilan) O'CHIRILIB, o'rniga yoziladi;
-    /// aks holda mavjud bo'lim/mavzularga nomi bo'yicha QO'SHILADI (bir xil nom — takrorlanmaydi).
+    /// aks holda mavjud modul/mavzularga nomi bo'yicha QO'SHILADI (bir xil nom — takrorlanmaydi).
     /// </summary>
-    [HttpPost("{subjectId}/import-excel")]
+    [HttpPost("{curriculumId}/import-excel")]
     [RequestSizeLimit(10 * 1024 * 1024)]
     public async Task<ActionResult<CurriculumExcelImportResultDto>> ImportExcel(
-        string subjectId, IFormFile? file, [FromQuery] bool replace = false)
+        string curriculumId, IFormFile? file, [FromQuery] bool replace = false)
     {
-        var subject = await db.Subjects.FindAsync(subjectId);
-        if (subject == null) return NotFound(new { message = "Kurs topilmadi" });
+        var curriculum = await db.Curricula.FindAsync(curriculumId);
+        if (curriculum == null) return NotFound(new { message = "Dastur topilmadi" });
 
         if (file is null || file.Length == 0)
             return BadRequest(new { message = "Fayl tanlanmagan" });
@@ -426,78 +568,50 @@ public class CurriculumController(AppDbContext db) : ControllerBase
         {
             // Eski dastur (progress va test savollari bilan) tozalanadi.
             var oldItemIds = await db.CourseItems
-                .Where(i => i.SubjectId == subjectId).Select(i => i.Id).ToListAsync();
+                .Where(i => i.CurriculumId == curriculumId).Select(i => i.Id).ToListAsync();
             await db.CourseProgresses.Where(p => oldItemIds.Contains(p.ItemId)).ExecuteDeleteAsync();
             await db.CourseQuestions.Where(q => oldItemIds.Contains(q.ItemId)).ExecuteDeleteAsync();
-            await db.CourseItems.Where(i => i.SubjectId == subjectId).ExecuteDeleteAsync();
-            await db.CourseSubTopics.Where(s => s.SubjectId == subjectId).ExecuteDeleteAsync();
-            await db.CourseTopics.Where(t => t.SubjectId == subjectId).ExecuteDeleteAsync();
-            await db.CourseLevels.Where(l => l.SubjectId == subjectId).ExecuteDeleteAsync();
+            await db.CourseItems.Where(i => i.CurriculumId == curriculumId).ExecuteDeleteAsync();
+            await db.CourseLessons.Where(s => s.CurriculumId == curriculumId).ExecuteDeleteAsync();
+            await db.CourseTopics.Where(t => t.CurriculumId == curriculumId).ExecuteDeleteAsync();
+            await db.CourseModules.Where(m => m.CurriculumId == curriculumId).ExecuteDeleteAsync();
         }
 
-        // Mavjud bo'lim/mavzular (append rejimida nomi bo'yicha qayta ishlatiladi).
-        var existingLevels = replace
-            ? new List<CourseLevel>()
-            : await db.CourseLevels.Where(l => l.SubjectId == subjectId).ToListAsync();
+        // Mavjud modul/mavzular (append rejimida nomi bo'yicha qayta ishlatiladi).
+        var existingModules = replace
+            ? new List<CourseModule>()
+            : await db.CourseModules.Where(m => m.CurriculumId == curriculumId).ToListAsync();
         var existingTopics = replace
             ? new List<CourseTopic>()
-            : await db.CourseTopics.Where(t => t.SubjectId == subjectId).ToListAsync();
-        // Excel'da "tur" ustuni yo'q — har mavzu uchun bitta "Matn" (text) sub-mavzu ostiga qo'shiladi
-        // (kerak bo'lsa admin keyin kontentni video/audio/pdf'ga alohida sub-mavzuda joylashtiradi).
-        var existingSubTopics = replace
-            ? new List<CourseSubTopic>()
-            : await db.CourseSubTopics.Where(s => s.SubjectId == subjectId).ToListAsync();
+            : await db.CourseTopics.Where(t => t.CurriculumId == curriculumId).ToListAsync();
 
-        var levelByName = existingLevels
-            .GroupBy(l => l.Name.Trim(), StringComparer.OrdinalIgnoreCase)
+        var moduleByName = existingModules
+            .GroupBy(m => m.Name.Trim(), StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
-        // Mavzu kaliti: levelId + "|" + nom (kichik harfda)
+        // Mavzu kaliti: moduleId + "|" + nom (kichik harfda)
         var topicByKey = existingTopics
-            .GroupBy(t => $"{t.LevelId}|{t.Title.Trim().ToLowerInvariant()}")
-            .ToDictionary(g => g.Key, g => g.First());
-        // Har mavzuning standart ("Matn") sub-mavzusi — lazy: birinchi darsi import qilinganda yaratiladi.
-        var defaultSubTopicByTopic = existingSubTopics
-            .Where(s => s.Type == "text")
-            .GroupBy(s => s.TopicId)
+            .GroupBy(t => $"{t.ModuleId}|{t.Title.Trim().ToLowerInvariant()}")
             .ToDictionary(g => g.Key, g => g.First());
 
-        var nextLevelOrder = existingLevels.Count > 0 ? existingLevels.Max(l => l.Order) + 1 : 0;
-        var nextTopicOrder = new Dictionary<string, int>(); // levelId -> keyingi order
-        var nextSubTopicOrder = new Dictionary<string, int>(); // topicId -> keyingi order
-        var nextItemOrder = new Dictionary<string, int>(); // subTopicId -> keyingi order
-        foreach (var g in existingTopics.GroupBy(t => t.LevelId))
+        var nextModuleOrder = existingModules.Count > 0 ? existingModules.Max(m => m.Order) + 1 : 0;
+        var nextTopicOrder = new Dictionary<string, int>(); // moduleId -> keyingi order
+        var nextLessonOrder = new Dictionary<string, int>(); // topicId -> keyingi order
+        foreach (var g in existingTopics.GroupBy(t => t.ModuleId))
             nextTopicOrder[g.Key] = g.Max(t => t.Order) + 1;
-        foreach (var g in existingSubTopics.GroupBy(s => s.TopicId))
-            nextSubTopicOrder[g.Key] = g.Max(s => s.Order) + 1;
         if (!replace)
         {
-            var existingItemOrders = await db.CourseItems
-                .Where(i => i.SubjectId == subjectId)
-                .GroupBy(i => i.SubTopicId)
-                .Select(g => new { SubTopicId = g.Key, Max = g.Max(i => i.Order) })
+            var existingLessonOrders = await db.CourseLessons
+                .Where(s => s.CurriculumId == curriculumId)
+                .GroupBy(s => s.TopicId)
+                .Select(g => new { TopicId = g.Key, Max = g.Max(s => s.Order) })
                 .ToListAsync();
-            foreach (var e in existingItemOrders) nextItemOrder[e.SubTopicId] = e.Max + 1;
-        }
-
-        // Berilgan mavzuning standart "Matn" sub-mavzusini qaytaradi — bo'lmasa yaratadi.
-        CourseSubTopic GetOrCreateDefaultSubTopic(CourseTopic topic)
-        {
-            if (defaultSubTopicByTopic.TryGetValue(topic.Id, out var existing)) return existing;
-            var order = nextSubTopicOrder.GetValueOrDefault(topic.Id, 0);
-            nextSubTopicOrder[topic.Id] = order + 1;
-            var st = new CourseSubTopic
-            {
-                SubjectId = subjectId, TopicId = topic.Id, Title = "Matn", Note = "", Order = order, Type = "text",
-            };
-            db.CourseSubTopics.Add(st);
-            defaultSubTopicByTopic[topic.Id] = st;
-            return st;
+            foreach (var e in existingLessonOrders) nextLessonOrder[e.TopicId] = e.Max + 1;
         }
 
         var errors = new List<StudentImportRowErrorDto>();
-        int newLevels = 0, newTopics = 0, newItems = 0, skipped = 0;
+        int newModules = 0, newTopics = 0, newLessons = 0, skipped = 0;
 
-        CourseLevel? currentLevel = null;
+        CourseModule? currentModule = null;
         CourseTopic? currentTopic = null;
 
         // 0-qator — sarlavha; ma'lumot 1-indeksdan (Excel'dagi 2-qator) boshlanadi.
@@ -507,48 +621,48 @@ public class CurriculumController(AppDbContext db) : ControllerBase
             var excelRow = i + 1;
             if (r.All(string.IsNullOrWhiteSpace)) { skipped++; continue; }
 
-            var levelName = r[0].Trim();
+            var moduleName = r[0].Trim();
             var topicTitle = r[1].Trim();
-            var itemText = r[2].Trim();
+            var lessonTitle = r[2].Trim();
             var note = r[3].Trim();
 
-            // Bo'lim: nom berilgan bo'lsa topamiz/yaratamiz, bo'sh bo'lsa oldingi qator bo'limi.
-            if (levelName.Length > 0)
+            // Modul: nom berilgan bo'lsa topamiz/yaratamiz, bo'sh bo'lsa oldingi qator moduli.
+            if (moduleName.Length > 0)
             {
-                if (!levelByName.TryGetValue(levelName, out var lvl))
+                if (!moduleByName.TryGetValue(moduleName, out var md))
                 {
-                    lvl = new CourseLevel
+                    md = new CourseModule
                     {
-                        SubjectId = subjectId,
-                        Name = levelName,
+                        CurriculumId = curriculumId,
+                        Name = moduleName,
                         Note = "",
-                        Order = nextLevelOrder++,
+                        Order = nextModuleOrder++,
                     };
-                    db.CourseLevels.Add(lvl);
-                    levelByName[levelName] = lvl;
-                    newLevels++;
+                    db.CourseModules.Add(md);
+                    moduleByName[moduleName] = md;
+                    newModules++;
                 }
-                if (!ReferenceEquals(currentLevel, lvl)) currentTopic = null; // modul almashdi
-                currentLevel = lvl;
+                if (!ReferenceEquals(currentModule, md)) currentTopic = null; // modul almashdi
+                currentModule = md;
             }
-            if (currentLevel == null)
+            if (currentModule == null)
             {
-                errors.Add(new StudentImportRowErrorDto(excelRow, "Bo'lim ko'rsatilmagan"));
+                errors.Add(new StudentImportRowErrorDto(excelRow, "Modul ko'rsatilmagan"));
                 continue;
             }
 
             // Mavzu: xuddi shunday carry-forward.
             if (topicTitle.Length > 0)
             {
-                var key = $"{currentLevel.Id}|{topicTitle.ToLowerInvariant()}";
+                var key = $"{currentModule.Id}|{topicTitle.ToLowerInvariant()}";
                 if (!topicByKey.TryGetValue(key, out var tp))
                 {
-                    var order = nextTopicOrder.GetValueOrDefault(currentLevel.Id, 0);
-                    nextTopicOrder[currentLevel.Id] = order + 1;
+                    var order = nextTopicOrder.GetValueOrDefault(currentModule.Id, 0);
+                    nextTopicOrder[currentModule.Id] = order + 1;
                     tp = new CourseTopic
                     {
-                        SubjectId = subjectId,
-                        LevelId = currentLevel.Id,
+                        CurriculumId = curriculumId,
+                        ModuleId = currentModule.Id,
                         Title = topicTitle,
                         Note = "",
                         Order = order,
@@ -561,7 +675,7 @@ public class CurriculumController(AppDbContext db) : ControllerBase
             }
 
             // Dars nomi bo'sh qator — faqat modul/mavzu e'lon qilingan bo'lishi mumkin.
-            if (itemText.Length == 0) { skipped++; continue; }
+            if (lessonTitle.Length == 0) { skipped++; continue; }
 
             if (currentTopic == null)
             {
@@ -569,95 +683,79 @@ public class CurriculumController(AppDbContext db) : ControllerBase
                 continue;
             }
 
-            var subTopic = GetOrCreateDefaultSubTopic(currentTopic);
-            var itemOrder = nextItemOrder.GetValueOrDefault(subTopic.Id, 0);
-            nextItemOrder[subTopic.Id] = itemOrder + 1;
-            db.CourseItems.Add(new CourseItem
+            var lessonOrder = nextLessonOrder.GetValueOrDefault(currentTopic.Id, 0);
+            nextLessonOrder[currentTopic.Id] = lessonOrder + 1;
+            db.CourseLessons.Add(new CourseLesson
             {
-                SubjectId = subjectId,
-                SubTopicId = subTopic.Id,
-                Text = itemText,
+                CurriculumId = curriculumId,
+                TopicId = currentTopic.Id,
+                Title = lessonTitle,
                 Note = note,
-                Order = itemOrder,
-                Type = "text",
+                Order = lessonOrder,
             });
-            newItems++;
+            newLessons++;
         }
 
-        if (newLevels + newTopics + newItems > 0 || replace)
+        if (newModules + newTopics + newLessons > 0 || replace)
             await db.SaveChangesAsync();
 
-        return new CurriculumExcelImportResultDto(newLevels, newTopics, newItems, skipped, errors);
+        return new CurriculumExcelImportResultDto(newModules, newTopics, newLessons, skipped, errors);
     }
 
-    // ---- Import (butun sillabusni almashtirish) ----
-
-    // ---- Copy level (daraja) to another course ----
+    // ---- Modulni boshqa dasturga nusxalash ----
 
     /// <summary>
-    /// Daraja bilan barcha mavzular va darslari (kontent siz) boshqa kursga nusxalanadi.
-    /// ID'lar yangi yaratiladi, content bo'lim nomi va izoh qoladi.
+    /// Modul bilan barcha mavzu/dars/topshiriqlari (kontentsiz) boshqa O'QUV DASTURIGA nusxalanadi —
+    /// mavjud dasturni o'zgartirmasdan uni "shablon" sifatida ishlatish uchun (bitta dasturni bir
+    /// nechta kursga biriktirish uchun NUSXALASH SHART EMAS — shuning uchun bor, faqat
+    /// SubjectsController orqali biriktiring). ID'lar yangi yaratiladi, kontent bo'sh qoladi.
     /// </summary>
-    [HttpPost("levels/{levelId}/copy-to/{targetSubjectId}")]
-    public async Task<ActionResult> CopyLevelToSubject(string levelId, string targetSubjectId)
+    [HttpPost("modules/{moduleId}/copy-to/{targetCurriculumId}")]
+    public async Task<ActionResult> CopyModuleToCurriculum(string moduleId, string targetCurriculumId)
     {
-        var sourceLevel = await db.CourseLevels.FindAsync(levelId);
-        if (sourceLevel == null) return NotFound("Daraja topilmadi");
+        var sourceModule = await db.CourseModules.FindAsync(moduleId);
+        if (sourceModule == null) return NotFound("Modul topilmadi");
 
-        var targetSubject = await db.Subjects.FindAsync(targetSubjectId);
-        if (targetSubject == null) return NotFound("Maqsadli kurs topilmadi");
+        var targetCurriculum = await db.Curricula.FindAsync(targetCurriculumId);
+        if (targetCurriculum == null) return NotFound("Maqsadli dastur topilmadi");
 
-        // Source daraja mavzulari, sub-mavzulari va bandlari
         var sourceTopics = await db.CourseTopics
-            .Where(t => t.LevelId == levelId)
-            .OrderBy(t => t.Order)
-            .ToListAsync();
-
+            .Where(t => t.ModuleId == moduleId).OrderBy(t => t.Order).ToListAsync();
         var sourceTopicIds = sourceTopics.Select(t => t.Id).ToList();
-        var sourceSubTopics = await db.CourseSubTopics
-            .Where(s => sourceTopicIds.Contains(s.TopicId))
-            .OrderBy(s => s.Order)
-            .ToListAsync();
-        var sourceSubTopicIds = sourceSubTopics.Select(s => s.Id).ToList();
+        var sourceLessons = await db.CourseLessons
+            .Where(s => sourceTopicIds.Contains(s.TopicId)).OrderBy(s => s.Order).ToListAsync();
+        var sourceLessonIds = sourceLessons.Select(s => s.Id).ToList();
         var sourceItems = await db.CourseItems
-            .Where(i => sourceSubTopicIds.Contains(i.SubTopicId))
-            .OrderBy(i => i.Order)
-            .ToListAsync();
+            .Where(i => sourceLessonIds.Contains(i.LessonId)).OrderBy(i => i.Order).ToListAsync();
 
-        // Target subject dagi ushbu nomi bo'lgan daraja mavjudmi?
-        var existingLevel = await db.CourseLevels
-            .FirstOrDefaultAsync(l => l.SubjectId == targetSubjectId && l.Name == sourceLevel.Name);
+        // Target dasturda ushbu nomi bo'lgan modul mavjudmi?
+        var existingModule = await db.CourseModules
+            .FirstOrDefaultAsync(m => m.CurriculumId == targetCurriculumId && m.Name == sourceModule.Name);
+        if (existingModule != null)
+            return BadRequest($"\"{sourceModule.Name}\" nomi bilan modul allaqachon mavjud");
 
-        if (existingLevel != null)
-            return BadRequest($"\"{sourceLevel.Name}\" nomi bilan daraja allaqachon mavjud");
+        var maxOrder = await db.CourseModules
+            .Where(m => m.CurriculumId == targetCurriculumId)
+            .Select(m => (int?)m.Order).MaxAsync() ?? -1;
 
-        // Yangi daraja yaratish
-        var maxOrder = await db.CourseLevels
-            .Where(l => l.SubjectId == targetSubjectId)
-            .Select(l => (int?)l.Order)
-            .MaxAsync() ?? -1;
-
-        var newLevel = new CourseLevel
+        var newModule = new CourseModule
         {
-            SubjectId = targetSubjectId,
-            Name = sourceLevel.Name,
-            Note = sourceLevel.Note,
+            CurriculumId = targetCurriculumId,
+            Name = sourceModule.Name,
+            Note = sourceModule.Note,
             Order = maxOrder + 1,
         };
-        db.CourseLevels.Add(newLevel);
+        db.CourseModules.Add(newModule);
 
-        // Old→New mapping (mavzu, sub-mavzu va bandlar)
-        var topicMapping = new Dictionary<string, string>(); // Old → New
-        var subTopicMapping = new Dictionary<string, string>(); // Old → New
-        var itemMapping = new Dictionary<string, string>(); // Old → New
+        var topicMapping = new Dictionary<string, string>();
+        var lessonMapping = new Dictionary<string, string>();
 
-        // Mavzularni nusxalash
         foreach (var sourceTopic in sourceTopics)
         {
             var newTopic = new CourseTopic
             {
-                SubjectId = targetSubjectId,
-                LevelId = newLevel.Id,
+                CurriculumId = targetCurriculumId,
+                ModuleId = newModule.Id,
                 Title = sourceTopic.Title,
                 Note = sourceTopic.Note,
                 Order = sourceTopic.Order,
@@ -666,149 +764,103 @@ public class CurriculumController(AppDbContext db) : ControllerBase
             topicMapping[sourceTopic.Id] = newTopic.Id;
         }
 
-        // EF in-memory ID'lari yaratishi uchun SaveChanges chaqirish
         await db.SaveChangesAsync();
 
-        // Sub-mavzularni nusxalash (tur saqlanadi — u har sub-mavzuda qulflangan).
-        foreach (var sourceSubTopic in sourceSubTopics)
+        foreach (var sourceLesson in sourceLessons)
         {
-            if (!topicMapping.TryGetValue(sourceSubTopic.TopicId, out var newTopicId))
+            if (!topicMapping.TryGetValue(sourceLesson.TopicId, out var newTopicId))
                 continue;
 
-            var newSubTopic = new CourseSubTopic
+            var newLesson = new CourseLesson
             {
-                SubjectId = targetSubjectId,
+                CurriculumId = targetCurriculumId,
                 TopicId = newTopicId,
-                Title = sourceSubTopic.Title,
-                Note = sourceSubTopic.Note,
-                Order = sourceSubTopic.Order,
-                Type = sourceSubTopic.Type,
+                Title = sourceLesson.Title,
+                Note = sourceLesson.Note,
+                Order = sourceLesson.Order,
             };
-            db.CourseSubTopics.Add(newSubTopic);
-            subTopicMapping[sourceSubTopic.Id] = newSubTopic.Id;
+            db.CourseLessons.Add(newLesson);
+            lessonMapping[sourceLesson.Id] = newLesson.Id;
         }
 
         await db.SaveChangesAsync();
 
-        // Bandlarni nusxalash (kontent yo'q, faqat nom va izoh)
+        var now = AppClock.Now.ToString("yyyy-MM-ddTHH:mm:ss");
         foreach (var sourceItem in sourceItems)
         {
-            if (!subTopicMapping.TryGetValue(sourceItem.SubTopicId, out var newSubTopicId))
+            if (!lessonMapping.TryGetValue(sourceItem.LessonId, out var newLessonId))
                 continue;
 
-            var newItem = new CourseItem
+            db.CourseItems.Add(new CourseItem
             {
-                SubjectId = targetSubjectId,
-                SubTopicId = newSubTopicId,
+                CurriculumId = targetCurriculumId,
+                LessonId = newLessonId,
                 Text = sourceItem.Text,
                 Note = sourceItem.Note,
                 Type = sourceItem.Type,
                 Order = sourceItem.Order,
+                CreatedAt = now,
                 // Kontent maydonlari BO'SH qoladi (video, audio, matn, lug'at, test)
-            };
-            db.CourseItems.Add(newItem);
-            itemMapping[sourceItem.Id] = newItem.Id;
+            });
         }
 
         await db.SaveChangesAsync();
 
         return Ok(new
         {
-            levelId = newLevel.Id,
-            levelName = newLevel.Name,
+            moduleId = newModule.Id,
+            moduleName = newModule.Name,
             topicCount = sourceTopics.Count,
+            lessonCount = sourceLessons.Count,
             itemCount = sourceItems.Count,
         });
     }
 
-    [HttpPost("{subjectId}/import")]
-    public async Task<ActionResult> Import(string subjectId, CurriculumImportDto payload)
-    {
-        // Eski sillabusni (va unga tegishli progressni) tozalash.
-        var oldItemIds = await db.CourseItems
-            .Where(i => i.SubjectId == subjectId).Select(i => i.Id).ToListAsync();
-        await db.CourseProgresses.Where(p => oldItemIds.Contains(p.ItemId)).ExecuteDeleteAsync();
-        await db.CourseItems.Where(i => i.SubjectId == subjectId).ExecuteDeleteAsync();
-        await db.CourseSubTopics.Where(s => s.SubjectId == subjectId).ExecuteDeleteAsync();
-        await db.CourseTopics.Where(t => t.SubjectId == subjectId).ExecuteDeleteAsync();
-        await db.CourseLevels.Where(l => l.SubjectId == subjectId).ExecuteDeleteAsync();
+    // ---- Progress (kurs/Subject bo'yicha — kirish nazorati uchun; kontent M2M orqali resolve qilinadi) ----
 
-        int levelCount = 0, topicCount = 0, itemCount = 0;
-        var levels = payload.Levels ?? new List<ImportLevelDto>();
-        for (int li = 0; li < levels.Count; li++)
-        {
-            var lvl = levels[li];
-            var level = new CourseLevel
-            {
-                SubjectId = subjectId,
-                Name = lvl.Name,
-                Note = lvl.Note ?? "",
-                Order = li,
-            };
-            db.CourseLevels.Add(level);
-            levelCount++;
-
-            var topics = lvl.Topics ?? new List<ImportTopicDto>();
-            for (int ti = 0; ti < topics.Count; ti++)
-            {
-                var tp = topics[ti];
-                var topic = new CourseTopic
-                {
-                    SubjectId = subjectId,
-                    LevelId = level.Id,
-                    Title = tp.Title,
-                    Note = tp.Note ?? "",
-                    Order = ti,
-                };
-                db.CourseTopics.Add(topic);
-                topicCount++;
-
-                // "Tur" import formatida yo'q — bitta standart "Matn" (text) sub-mavzu ostiga qo'shiladi.
-                var items = tp.Items ?? new List<ImportItemDto>();
-                if (items.Count == 0) continue;
-                var subTopic = new CourseSubTopic
-                {
-                    SubjectId = subjectId, TopicId = topic.Id, Title = "Matn", Note = "", Order = 0, Type = "text",
-                };
-                db.CourseSubTopics.Add(subTopic);
-
-                for (int ii = 0; ii < items.Count; ii++)
-                {
-                    var it = items[ii];
-                    db.CourseItems.Add(new CourseItem
-                    {
-                        SubjectId = subjectId,
-                        SubTopicId = subTopic.Id,
-                        Text = it.Text,
-                        Note = it.Note ?? "",
-                        Order = ii,
-                        Type = "text",
-                    });
-                    itemCount++;
-                }
-            }
-        }
-
-        await db.SaveChangesAsync();
-        return Ok(new { levels = levelCount, topics = topicCount, items = itemCount });
-    }
-
-    // ---- Progress ----
-
-    [HttpGet("{subjectId}/progress/{studentId}")]
+    [HttpGet("subject/{subjectId}/progress/{studentId}")]
     public async Task<ActionResult<string[]>> GetProgress(string subjectId, string studentId)
     {
+        var curriculumIds = await db.SubjectCurricula
+            .Where(sc => sc.SubjectId == subjectId).Select(sc => sc.CurriculumId).ToListAsync();
         var ids = await db.CourseProgresses
             .Where(p => p.StudentId == studentId && p.Done)
-            .Join(db.CourseItems.Where(i => i.SubjectId == subjectId),
+            .Join(db.CourseItems.Where(i => curriculumIds.Contains(i.CurriculumId)),
                 p => p.ItemId, i => i.Id, (p, i) => p.ItemId)
             .ToListAsync();
         return ids.ToArray();
     }
 
+    /// <summary>Bitta kursga (Subject) biriktirilgan BARCHA dasturlarni BITTA birlashtirilgan
+    /// daraxtga jamlab qaytaradi (StudentDetailPage'dagi "O'quv dasturi" ko'rinishi uchun).</summary>
+    [HttpGet("subject/{subjectId}/tree")]
+    public async Task<ActionResult<CurriculumDto>> GetSubjectTree(string subjectId)
+    {
+        var subject = await db.Subjects.FindAsync(subjectId);
+        var links = await db.SubjectCurricula
+            .Where(sc => sc.SubjectId == subjectId).OrderBy(sc => sc.Order).ToListAsync();
+        var curriculumIds = links.Select(l => l.CurriculumId).ToList();
+        var attachOrder = links.Select((l, idx) => (l.CurriculumId, idx)).ToDictionary(x => x.CurriculumId, x => x.idx);
+
+        var modules = (await db.CourseModules.Where(m => curriculumIds.Contains(m.CurriculumId)).ToListAsync())
+            .OrderBy(m => attachOrder.GetValueOrDefault(m.CurriculumId, 0)).ThenBy(m => m.Order).ToList();
+        var topics = await db.CourseTopics.Where(t => curriculumIds.Contains(t.CurriculumId)).OrderBy(t => t.Order).ToListAsync();
+        var lessons = await db.CourseLessons.Where(s => curriculumIds.Contains(s.CurriculumId)).OrderBy(s => s.Order).ToListAsync();
+        var items = await db.CourseItems.Where(i => curriculumIds.Contains(i.CurriculumId)).OrderBy(i => i.Order).ToListAsync();
+
+        var itemIds = items.Select(i => i.Id).ToList();
+        var qCounts = (await db.CourseQuestions.Where(q => itemIds.Contains(q.ItemId))
+                .Select(q => q.ItemId).ToListAsync())
+            .GroupBy(x => x).ToDictionary(g => g.Key, g => g.Count());
+
+        var moduleDtos = BuildModuleDtos(modules, topics, lessons, items, qCounts);
+        return new CurriculumDto(subjectId, subject?.Name ?? "", moduleDtos);
+    }
+
     [HttpPost("progress")]
     public async Task<ActionResult> SetProgress(SetProgressRequest req)
     {
+        var item = await db.CourseItems.FindAsync(req.ItemId);
         var existing = await db.CourseProgresses
             .FirstOrDefaultAsync(p => p.StudentId == req.StudentId && p.ItemId == req.ItemId);
         var now = AppClock.Now.ToString("yyyy-MM-ddTHH:mm:ss");
@@ -823,6 +875,7 @@ public class CurriculumController(AppDbContext db) : ControllerBase
             {
                 StudentId = req.StudentId,
                 ItemId = req.ItemId,
+                CurriculumId = item?.CurriculumId,
                 Done = req.Done,
                 UpdatedAt = now,
             });
@@ -923,24 +976,29 @@ public class CurriculumController(AppDbContext db) : ControllerBase
             .ToListAsync();
         var courseNameById = subjects.ToDictionary(s => s.Id, s => s.Name);
 
-        // Tegishli kurslarning band/sub-mavzu/mavzu/daraja lug'atlari (per-log so'rovsiz).
+        // Kurslarga biriktirilgan dasturlar (M2M) — shu dasturlarning band/dars/mavzu/modul
+        // lug'atlari (per-log so'rovsiz).
+        var curriculumIds = await db.SubjectCurricula
+            .Where(sc => courseIds.Contains(sc.SubjectId))
+            .Select(sc => sc.CurriculumId).Distinct().ToListAsync();
+
         var items = await db.CourseItems
-            .Where(i => courseIds.Contains(i.SubjectId))
+            .Where(i => curriculumIds.Contains(i.CurriculumId))
             .ToListAsync();
-        var subTopics = await db.CourseSubTopics
-            .Where(s => courseIds.Contains(s.SubjectId))
+        var lessons = await db.CourseLessons
+            .Where(s => curriculumIds.Contains(s.CurriculumId))
             .ToListAsync();
         var topics = await db.CourseTopics
-            .Where(t => courseIds.Contains(t.SubjectId))
+            .Where(t => curriculumIds.Contains(t.CurriculumId))
             .ToListAsync();
-        var levels = await db.CourseLevels
-            .Where(l => courseIds.Contains(l.SubjectId))
+        var modules = await db.CourseModules
+            .Where(m => curriculumIds.Contains(m.CurriculumId))
             .ToListAsync();
 
         var itemById = items.ToDictionary(i => i.Id);
-        var subTopicById = subTopics.ToDictionary(s => s.Id);
+        var lessonById = lessons.ToDictionary(s => s.Id);
         var topicById = topics.ToDictionary(t => t.Id);
-        var levelById = levels.ToDictionary(l => l.Id);
+        var moduleById = modules.ToDictionary(m => m.Id);
 
         var logs = await db.GroupCurriculumLogs
             .Where(g => groupIds.Contains(g.GroupId))
@@ -963,12 +1021,12 @@ public class CurriculumController(AppDbContext db) : ControllerBase
             else
             {
                 if (!itemById.TryGetValue(log.ItemId, out var item)) continue; // band o'chirilgan
-                var hasSubTopic = subTopicById.TryGetValue(item.SubTopicId, out var subTopic);
-                var topicTitle = hasSubTopic && topicById.TryGetValue(subTopic!.TopicId, out var topic) ? topic.Title : "";
-                var levelName = hasSubTopic && topicById.TryGetValue(subTopic!.TopicId, out var tp)
-                    && levelById.TryGetValue(tp.LevelId, out var level) ? level.Name : "";
+                var hasLesson = lessonById.TryGetValue(item.LessonId, out var lesson);
+                var topicTitle = hasLesson && topicById.TryGetValue(lesson!.TopicId, out var topic) ? topic.Title : "";
+                var moduleName = hasLesson && topicById.TryGetValue(lesson!.TopicId, out var tp)
+                    && moduleById.TryGetValue(tp.ModuleId, out var module) ? module.Name : "";
                 entries.Add((log.Date, log.CreatedAt, new CoverageLogEntryDto(
-                    log.Date, courseName, groupName, levelName, topicTitle, item.Text, false)));
+                    log.Date, courseName, groupName, moduleName, topicTitle, item.Text, false)));
             }
         }
 

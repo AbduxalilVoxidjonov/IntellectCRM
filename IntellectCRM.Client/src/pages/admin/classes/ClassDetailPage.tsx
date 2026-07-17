@@ -482,20 +482,20 @@ export function ClassDetailPage() {
 
   const absentReasons = useMemo(() => reasons.filter((r) => !r.isLate), [reasons])
 
-  // Daraja yoyish/yig'ish (default — yopiq)
-  const toggleLevel = (levelId: string) =>
+  // Mavzu yoyish/yig'ish (default — yopiq)
+  const toggleTopic = (topicId: string) =>
     setCurrExpanded((s) => {
       const next = new Set(s)
-      if (next.has(levelId)) next.delete(levelId)
-      else next.add(levelId)
+      if (next.has(topicId)) next.delete(topicId)
+      else next.add(topicId)
       return next
     })
 
   // Birinchi o'tilmagan band — "keyingi" maslahati uchun
   const nextItemId = useMemo(() => {
     if (!curr) return null
-    for (const lv of curr.levels)
-      for (const tp of lv.topics)
+    for (const md of curr.modules)
+      for (const tp of md.topics)
         for (const it of tp.items) if (!it.covered) return it.id
     return null
   }, [curr])
@@ -507,9 +507,9 @@ export function ClassDetailPage() {
     setCurr({
       ...curr,
       coveredCount: curr.coveredCount + (covered ? 1 : -1),
-      levels: curr.levels.map((lv) => ({
-        ...lv,
-        topics: lv.topics.map((tp) => ({
+      modules: curr.modules.map((md) => ({
+        ...md,
+        topics: md.topics.map((tp) => ({
           ...tp,
           items: tp.items.map((it) => (it.id === itemId ? { ...it, covered } : it)),
         })),
@@ -1231,7 +1231,7 @@ export function ClassDetailPage() {
             curr={curr}
             loading={currLoading}
             expanded={currExpanded}
-            onToggleLevel={toggleLevel}
+            onToggleTopic={toggleTopic}
             onToggleCover={toggleCover}
             onChangeRevision={changeRevision}
             revSaving={revSaving}
@@ -1868,12 +1868,12 @@ function GroupTestFormModal({
 // ============================ O'quv dasturi bo'limi ============================
 
 function CurriculumSection({
-  curr, loading, expanded, onToggleLevel, onToggleCover, onChangeRevision, revSaving, nextItemId,
+  curr, loading, expanded, onToggleTopic, onToggleCover, onChangeRevision, revSaving, nextItemId,
 }: {
   curr: GroupCurriculum | null
   loading: boolean
   expanded: Set<string>
-  onToggleLevel: (levelId: string) => void
+  onToggleTopic: (topicId: string) => void
   onToggleCover: (itemId: string, covered: boolean) => void
   onChangeRevision: (delta: number) => void
   revSaving: boolean
@@ -1886,7 +1886,7 @@ function CurriculumSection({
       </Card>
     )
   }
-  if (!curr || curr.totalItems === 0 || curr.levels.length === 0) {
+  if (!curr || curr.totalItems === 0 || curr.modules.length === 0) {
     return (
       <Card className="py-10 text-center text-sm text-slate-400">
         Bu guruh kursida o'quv dasturi yo'q.
@@ -1974,26 +1974,50 @@ function CurriculumSection({
         </div>
       </div>
 
-      {/* DASTUR DARAXTI — darajalar (default yopiq) */}
-      <div className="space-y-3 p-4">
-        {curr.levels.map((level) => {
-          const levelTotal = level.topics.reduce((s, t) => s + t.items.length, 0)
-          const levelCovered = level.topics.reduce(
-            (s, t) => s + t.items.filter((it) => it.covered).length,
-            0,
-          )
-          const open = expanded.has(level.id)
+      {/* DASTUR DARAXTI — modullar → mavzular (default yopiq) */}
+      <div className="space-y-4 p-4">
+        {curr.modules.map((module) => {
+          const mItems = module.topics.flatMap((tp) => tp.items)
+          const mCovered = mItems.filter((it) => it.covered).length
+          const moduleOpen = expanded.has(module.id)
           return (
-            <div
-              key={level.id}
-              className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[var(--shadow-1)]"
-            >
-              {/* Daraja sarlavhasi */}
+            <div key={module.id} className="overflow-hidden rounded-xl border border-slate-300 bg-slate-50/40">
               <button
                 type="button"
-                onClick={() => onToggleLevel(level.id)}
-                className="flex w-full items-center gap-2 border-b border-slate-100 bg-slate-50/60 px-3 py-2.5 text-left transition-colors hover:bg-slate-100/60"
+                onClick={() => onToggleTopic(module.id)}
+                className="flex w-full items-center gap-2 bg-slate-100/70 px-3 py-2.5 text-left transition-colors hover:bg-slate-200/60"
               >
+                <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-slate-500">
+                  {moduleOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                </span>
+                <span className="min-w-0 flex-1 truncate text-sm font-bold text-slate-800">{module.name}</span>
+                <span
+                  className={cn(
+                    'flex-shrink-0 rounded-full px-2.5 py-1 text-xs font-medium',
+                    mItems.length > 0 && mCovered === mItems.length
+                      ? 'bg-emerald-50 text-emerald-700'
+                      : 'bg-slate-200 text-slate-600',
+                  )}
+                >
+                  <span className="font-mono">{mCovered}/{mItems.length}</span>
+                </span>
+              </button>
+              {moduleOpen && (
+                <div className="space-y-3 p-3">
+                  {module.topics.map((topic) => {
+                    const tCovered = topic.items.filter((it) => it.covered).length
+                    const open = expanded.has(topic.id)
+                    return (
+                      <div
+                        key={topic.id}
+                        className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[var(--shadow-1)]"
+                      >
+                        {/* Mavzu sarlavhasi */}
+                        <button
+                          type="button"
+                          onClick={() => onToggleTopic(topic.id)}
+                          className="flex w-full items-center gap-2 border-b border-slate-100 bg-slate-50/60 px-3 py-2.5 text-left transition-colors hover:bg-slate-100/60"
+                        >
                 <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-slate-400">
                   {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                 </span>
@@ -2001,97 +2025,77 @@ function CurriculumSection({
                   <BookOpen className="h-4 w-4" />
                 </span>
                 <span className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-800">
-                  {level.name}
+                  {topic.title}
                 </span>
                 <span
                   className={cn(
                     'flex-shrink-0 rounded-full px-2.5 py-1 text-xs font-medium',
-                    levelTotal > 0 && levelCovered === levelTotal
+                    topic.items.length > 0 && tCovered === topic.items.length
                       ? 'bg-emerald-50 text-emerald-700'
                       : 'bg-slate-100 text-slate-500',
                   )}
                 >
-                  <span className="font-mono">{levelCovered}/{levelTotal}</span>
+                  <span className="font-mono">{tCovered}/{topic.items.length}</span>
                 </span>
               </button>
 
               {open && (
                 <div className="p-3">
-                  {level.note && <p className="mb-2 px-1 text-xs text-slate-400">{level.note}</p>}
-                  {level.topics.length === 0 ? (
-                    <p className="px-1 text-xs text-slate-400">Mavzu yo'q.</p>
+                  {topic.note && <p className="mb-2 px-1 text-xs text-slate-400">{topic.note}</p>}
+                  {topic.items.length === 0 ? (
+                    <p className="px-1 text-xs text-slate-400">Topshiriq yo'q.</p>
                   ) : (
-                    <div className="grid grid-cols-2 items-start gap-4">
-                      {level.topics.map((topic) => {
-                        const tCovered = topic.items.filter((it) => it.covered).length
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                      {topic.items.map((item) => {
+                        const isNext = item.id === nextItemId
                         return (
-                          <div
-                            key={topic.id}
-                            className="h-full rounded-xl border border-slate-200 bg-white p-3 shadow-[var(--shadow-1)]"
+                          <label
+                            key={item.id}
+                            className={cn(
+                              'flex cursor-pointer items-start gap-2 rounded-md px-2 py-1.5 transition-colors',
+                              item.covered
+                                ? 'bg-emerald-50/50'
+                                : isNext
+                                  ? 'bg-brand-50/60 ring-1 ring-brand-200'
+                                  : 'hover:bg-slate-50',
+                            )}
                           >
-                            <div className="flex items-center gap-2">
-                              <h4 className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-800">
-                                {topic.title}
-                              </h4>
-                              <span className="flex-shrink-0 text-xs text-slate-400">
-                                <span className="font-mono">{tCovered}/{topic.items.length}</span> band
+                            <input
+                              type="checkbox"
+                              checked={item.covered}
+                              onChange={() => onToggleCover(item.id, !item.covered)}
+                              className="mt-0.5 h-4 w-4 flex-shrink-0 cursor-pointer rounded border-slate-300 text-brand-600 focus:ring-brand-400"
+                            />
+                            <span
+                              className={cn(
+                                'min-w-0 flex-1 text-sm',
+                                item.covered
+                                  ? 'text-slate-400 line-through'
+                                  : 'text-slate-700',
+                              )}
+                            >
+                              {item.text}
+                              {isNext && (
+                                <span className="ml-2 rounded bg-brand-100 px-1.5 py-0.5 text-[10px] font-medium text-brand-700 no-underline">
+                                  keyingi
+                                </span>
+                              )}
+                            </span>
+                            {item.covered && item.coveredDate && (
+                              <span className="ml-auto flex-shrink-0 self-center whitespace-nowrap rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-mono text-slate-400 no-underline">
+                                {formatDate(item.coveredDate)}
                               </span>
-                            </div>
-                            {topic.note && (
-                              <p className="mt-1 text-xs text-slate-400">{topic.note}</p>
                             )}
-                            {topic.items.length > 0 && (
-                              <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1">
-                                {topic.items.map((item) => {
-                                  const isNext = item.id === nextItemId
-                                  return (
-                                    <label
-                                      key={item.id}
-                                      className={cn(
-                                        'flex cursor-pointer items-start gap-2 rounded-md px-2 py-1.5 transition-colors',
-                                        item.covered
-                                          ? 'bg-emerald-50/50'
-                                          : isNext
-                                            ? 'bg-brand-50/60 ring-1 ring-brand-200'
-                                            : 'hover:bg-slate-50',
-                                      )}
-                                    >
-                                      <input
-                                        type="checkbox"
-                                        checked={item.covered}
-                                        onChange={() => onToggleCover(item.id, !item.covered)}
-                                        className="mt-0.5 h-4 w-4 flex-shrink-0 cursor-pointer rounded border-slate-300 text-brand-600 focus:ring-brand-400"
-                                      />
-                                      <span
-                                        className={cn(
-                                          'min-w-0 flex-1 text-sm',
-                                          item.covered
-                                            ? 'text-slate-400 line-through'
-                                            : 'text-slate-700',
-                                        )}
-                                      >
-                                        {item.text}
-                                        {isNext && (
-                                          <span className="ml-2 rounded bg-brand-100 px-1.5 py-0.5 text-[10px] font-medium text-brand-700 no-underline">
-                                            keyingi
-                                          </span>
-                                        )}
-                                      </span>
-                                      {item.covered && item.coveredDate && (
-                                        <span className="ml-auto flex-shrink-0 self-center whitespace-nowrap rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-mono text-slate-400 no-underline">
-                                          {formatDate(item.coveredDate)}
-                                        </span>
-                                      )}
-                                    </label>
-                                  )
-                                })}
-                              </div>
-                            )}
-                          </div>
+                          </label>
                         )
                       })}
                     </div>
                   )}
+                </div>
+              )}
+            </div>
+                    )
+                  })}
                 </div>
               )}
             </div>

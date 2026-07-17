@@ -75,10 +75,14 @@ public interface IAppDbContext
 
     // LMS (Ta'lim)
 
-    // Kurs sillabusi (Daraja → Mavzu → Band) + o'quvchi progressi
-    DbSet<CourseLevel> CourseLevels { get; }
+    // O'quv dasturi (standalone, Kurs/Subject'dan mustaqil) + Kurs↔Dastur ko'p-ko'pga bog'lanishi
+    DbSet<Curriculum> Curricula { get; }
+    DbSet<SubjectCurriculum> SubjectCurricula { get; }
+
+    // Dastur sillabusi (Modul → Mavzu → Dars → Topshiriq) + o'quvchi progressi
+    DbSet<CourseModule> CourseModules { get; }
     DbSet<CourseTopic> CourseTopics { get; }
-    DbSet<CourseSubTopic> CourseSubTopics { get; }
+    DbSet<CourseLesson> CourseLessons { get; }
     DbSet<CourseItem> CourseItems { get; }
     DbSet<CourseQuestion> CourseQuestions { get; }
     DbSet<CourseProgress> CourseProgresses { get; }

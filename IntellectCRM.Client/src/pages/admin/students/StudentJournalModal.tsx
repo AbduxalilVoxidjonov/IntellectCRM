@@ -46,7 +46,7 @@ function cellDisplay(c: StudentJournalCell): { cls: string; label: string } {
 }
 
 function cellTitle(c: StudentJournalCell): string {
-  if (c.blocked) return `${c.date} · Guruhga qo'shilishidan oldin`
+  if (c.blocked) return `${c.date} · A'zolik davridan tashqarida`
   if (c.grade != null) return `${c.date} · Baho: ${c.grade}`
   if (c.reasonShort) return `${c.date} · Sababi: ${c.reasonName || c.reasonShort}`
   if (c.present) return `${c.date} · Keldi`
@@ -205,7 +205,7 @@ export function StudentJournalModal({ studentId, onClose }: StudentJournalModalP
               <span className="h-2.5 w-2.5 rounded bg-amber-50 ring-1 ring-amber-200" /> Kechikdi
             </span>
             <span className="inline-flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded bg-slate-100 ring-1 ring-slate-200" /> A'zolikdan oldin
+              <span className="h-2.5 w-2.5 rounded bg-slate-100 ring-1 ring-slate-200" /> A'zolik davridan tashqarida
             </span>
           </div>
         </div>

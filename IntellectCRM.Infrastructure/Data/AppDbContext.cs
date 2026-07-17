@@ -66,10 +66,14 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
 
     // LMS (Ta'lim)
 
-    // Kurs sillabusi (Daraja → Mavzu → Band) + o'quvchi progressi
-    public DbSet<CourseLevel> CourseLevels => Set<CourseLevel>();
+    // O'quv dasturi (standalone) + Kurs↔Dastur ko'p-ko'pga bog'lanishi
+    public DbSet<Curriculum> Curricula => Set<Curriculum>();
+    public DbSet<SubjectCurriculum> SubjectCurricula => Set<SubjectCurriculum>();
+
+    // Dastur sillabusi (Modul → Mavzu → Dars → Topshiriq) + o'quvchi progressi
+    public DbSet<CourseModule> CourseModules => Set<CourseModule>();
     public DbSet<CourseTopic> CourseTopics => Set<CourseTopic>();
-    public DbSet<CourseSubTopic> CourseSubTopics => Set<CourseSubTopic>();
+    public DbSet<CourseLesson> CourseLessons => Set<CourseLesson>();
     public DbSet<CourseItem> CourseItems => Set<CourseItem>();
     public DbSet<CourseQuestion> CourseQuestions => Set<CourseQuestion>();
     public DbSet<CourseProgress> CourseProgresses => Set<CourseProgress>();
@@ -274,21 +278,25 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         // Boshqaruv: filiallar va taklif/shikoyatlar
         b.Entity<Feedback>().HasIndex(f => new { f.Status, f.CreatedAt });
 
-        // Kurs sillabusi — indekslarda qatnashadigan string ustunlarga aniq uzunlik beriladi.
+        // O'quv dasturi — indekslarda qatnashadigan string ustunlarga aniq uzunlik beriladi.
         foreach (var (type, prop) in new (Type, string)[]
         {
-            (typeof(CourseLevel), "SubjectId"),
-            (typeof(CourseTopic), "LevelId"),
-            (typeof(CourseSubTopic), "TopicId"),
-            (typeof(CourseItem), "SubTopicId"),
+            (typeof(CourseModule), "CurriculumId"),
+            (typeof(CourseTopic), "ModuleId"),
+            (typeof(CourseLesson), "TopicId"),
+            (typeof(CourseItem), "LessonId"),
             (typeof(CourseProgress), "StudentId"), (typeof(CourseProgress), "ItemId"),
+            (typeof(SubjectCurriculum), "SubjectId"), (typeof(SubjectCurriculum), "CurriculumId"),
         })
             b.Entity(type).Property(prop).HasMaxLength(200);
-        b.Entity<CourseLevel>().HasIndex(l => new { l.SubjectId, l.Order });
-        b.Entity<CourseTopic>().HasIndex(t => new { t.LevelId, t.Order });
-        b.Entity<CourseSubTopic>().HasIndex(s => new { s.TopicId, s.Order });
-        b.Entity<CourseItem>().HasIndex(i => new { i.SubTopicId, i.Order });
+        b.Entity<CourseModule>().HasIndex(m => new { m.CurriculumId, m.Order });
+        b.Entity<CourseTopic>().HasIndex(t => new { t.ModuleId, t.Order });
+        b.Entity<CourseLesson>().HasIndex(s => new { s.TopicId, s.Order });
+        b.Entity<CourseItem>().HasIndex(i => new { i.LessonId, i.Order });
         b.Entity<CourseProgress>().HasIndex(p => new { p.StudentId, p.ItemId }).IsUnique();
+        // Kurs↔Dastur: bitta kursga bitta dastur faqat bir marta biriktiriladi.
+        b.Entity<SubjectCurriculum>().HasIndex(sc => new { sc.SubjectId, sc.CurriculumId }).IsUnique();
+        b.Entity<SubjectCurriculum>().HasIndex(sc => sc.CurriculumId);
 
         b.Entity<ActionReason>().HasIndex(r => new { r.Category, r.Order });
 

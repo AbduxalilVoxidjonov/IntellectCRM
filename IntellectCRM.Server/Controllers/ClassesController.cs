@@ -167,7 +167,9 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
             if (course is not null) cls.MonthlyFee = course.Price;
         }
 
-        // Kurs o'zgarsa — o'quvchi progresi tozalanadi (o'tilgan bandlar = yangi kurs uchun irrelevant).
+        // Kurs o'zgarsa — faqat ESKI kursga biriktirilgan-u YANGI kursda ENDI YO'Q dasturlar progressi
+        // tozalanadi (bir dastur ikkala kursga ham biriktirilgan bo'lsa — progress saqlanib qoladi,
+        // chunki u kontentga tegishli, kursga emas).
         if (!string.Equals(oldCourseId, cls.CourseId, StringComparison.Ordinal) && !string.IsNullOrEmpty(oldCourseId))
         {
             var memberIds = await db.StudentGroups
@@ -175,12 +177,24 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
                 .Select(sg => sg.StudentId)
                 .ToListAsync();
 
-            // Eski kurs progress'ni o'chirish (yangi kurs progress = 0 dan start).
             if (memberIds.Count > 0)
             {
-                await db.CourseProgresses
-                    .Where(p => p.StudentId != null && memberIds.Contains(p.StudentId) && p.CourseId == oldCourseId)
-                    .ExecuteDeleteAsync();
+                var oldCurriculumIds = await db.SubjectCurricula
+                    .Where(sc => sc.SubjectId == oldCourseId).Select(sc => sc.CurriculumId).ToListAsync();
+                var newCurriculumIds = string.IsNullOrEmpty(cls.CourseId)
+                    ? new List<string>()
+                    : await db.SubjectCurricula.Where(sc => sc.SubjectId == cls.CourseId)
+                        .Select(sc => sc.CurriculumId).ToListAsync();
+                var curriculumIdsToReset = oldCurriculumIds.Except(newCurriculumIds).ToList();
+
+                if (curriculumIdsToReset.Count > 0)
+                {
+                    var itemIdsToReset = await db.CourseItems
+                        .Where(i => curriculumIdsToReset.Contains(i.CurriculumId)).Select(i => i.Id).ToListAsync();
+                    await db.CourseProgresses
+                        .Where(p => memberIds.Contains(p.StudentId) && itemIdsToReset.Contains(p.ItemId))
+                        .ExecuteDeleteAsync();
+                }
             }
         }
 

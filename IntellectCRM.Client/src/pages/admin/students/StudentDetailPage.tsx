@@ -37,7 +37,7 @@ import {
   getStudentGroups, getClasses, freezeMember, activateMember, returnMemberToTrial, addGroupMember,
   removeGroupMember,
 } from '@/api/services/classes'
-import { getCurriculum, getProgress, setProgress, getStudentCoverageLog, type CoverageLogEntry } from '@/api/services/curriculum'
+import { getSubjectCurriculumTree, getProgress, setProgress, getStudentCoverageLog, type CoverageLogEntry } from '@/api/services/curriculum'
 import { getStudentGradingSummary, type MonthGradingSummary } from '@/api/services/grading'
 import { getTeachers } from '@/api/services/teachers'
 import { getStudentTestResults } from '@/api/services/testResults'
@@ -1099,7 +1099,6 @@ export function StudentDetailPage() {
                       <p className="mt-1 text-xs text-slate-400">
                         {e.courseName}
                         {e.groupName ? ` · ${e.groupName}` : ''}
-                        {e.levelName ? ` · ${e.levelName}` : ''}
                       </p>
                     </>
                   )}
@@ -1857,7 +1856,7 @@ function CourseCurriculum({
     let alive = true
     setLoading(true)
     setError(false)
-    Promise.all([getCurriculum(courseId), getProgress(courseId, studentId)])
+    Promise.all([getSubjectCurriculumTree(courseId), getProgress(courseId, studentId)])
       .then(([c, ids]) => {
         if (!alive) return
         setCurriculum(c)
@@ -1892,7 +1891,7 @@ function CourseCurriculum({
     })
   }
 
-  const name = curriculum?.courseName || fallbackName
+  const name = curriculum?.name || fallbackName
 
   if (loading) {
     return (
@@ -1915,8 +1914,8 @@ function CourseCurriculum({
     )
   }
 
-  const allItems = (curriculum?.levels ?? []).flatMap((lv) =>
-    lv.topics.flatMap((t) => t.subTopics.flatMap((st) => st.items)),
+  const allItems = (curriculum?.modules ?? []).flatMap((m) =>
+    m.topics.flatMap((t) => t.lessons.flatMap((l) => l.items)),
   )
   if (allItems.length === 0) {
     return (
@@ -1948,29 +1947,29 @@ function CourseCurriculum({
         />
       </div>
       <div className="mt-3 space-y-2">
-        {curriculum!.levels.map((lv) => (
-          <LevelBlock key={lv.id} level={lv} done={done} onToggle={toggle} />
+        {curriculum!.modules.map((module) => (
+          <ModuleBlock key={module.id} module={module} done={done} onToggle={toggle} />
         ))}
       </div>
     </div>
   )
 }
 
-/** Yopiladigan daraja: o'z x/y hisobi bilan; ochilganda mavzular va band checklisti. */
-function LevelBlock({
-  level,
+/** Yopiladigan modul: ichida mavzular (har biri o'z x/y hisobi bilan). */
+function ModuleBlock({
+  module,
   done,
   onToggle,
 }: {
-  level: Curriculum['levels'][number]
+  module: Curriculum['modules'][number]
   done: Set<string>
   onToggle: (itemId: string, next: boolean) => void
 }) {
   const [open, setOpen] = useState(false)
-  const items = level.topics.flatMap((t) => t.subTopics.flatMap((st) => st.items))
-  const lvDone = items.filter((it) => done.has(it.id)).length
-  const lvTotal = items.length
-  const complete = lvTotal > 0 && lvDone === lvTotal
+  const items = module.topics.flatMap((t) => t.lessons.flatMap((l) => l.items))
+  const mDone = items.filter((it) => done.has(it.id)).length
+  const mTotal = items.length
+  const complete = mTotal > 0 && mDone === mTotal
 
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
@@ -1982,80 +1981,104 @@ function LevelBlock({
         <ChevronDown
           className={cn('h-4 w-4 shrink-0 text-slate-400 transition-transform', open && 'rotate-180')}
         />
-        <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-700">{level.name}</span>
+        <span className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-800">{module.name}</span>
         <span
           className={cn(
             'shrink-0 rounded-md px-2 py-0.5 font-mono text-xs font-semibold',
             complete ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500',
           )}
         >
-          {lvDone}/{lvTotal}
+          {mDone}/{mTotal}
+        </span>
+      </button>
+      {open && (
+        <div className="space-y-2 border-t border-slate-100 bg-slate-50/40 px-2 py-2">
+          {module.topics.length === 0 ? (
+            <p className="px-1 text-xs text-slate-400">Mavzu yo'q</p>
+          ) : (
+            module.topics.map((topic) => (
+              <TopicBlock key={topic.id} topic={topic} done={done} onToggle={onToggle} />
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** Yopiladigan mavzu: o'z x/y hisobi bilan; ochilganda band checklisti. */
+function TopicBlock({
+  topic,
+  done,
+  onToggle,
+}: {
+  topic: Curriculum['modules'][number]['topics'][number]
+  done: Set<string>
+  onToggle: (itemId: string, next: boolean) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const items = topic.lessons.flatMap((l) => l.items)
+  const tDone = items.filter((it) => done.has(it.id)).length
+  const tTotal = items.length
+  const complete = tTotal > 0 && tDone === tTotal
+
+  return (
+    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center gap-2 px-3 py-2.5 text-left transition-colors hover:bg-slate-50"
+      >
+        <ChevronDown
+          className={cn('h-4 w-4 shrink-0 text-slate-400 transition-transform', open && 'rotate-180')}
+        />
+        <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-700">{topic.title}</span>
+        <span
+          className={cn(
+            'shrink-0 rounded-md px-2 py-0.5 font-mono text-xs font-semibold',
+            complete ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500',
+          )}
+        >
+          {tDone}/{tTotal}
         </span>
       </button>
       {open && (
         <div className="border-t border-slate-100 px-3 py-3">
-          {level.topics.length === 0 ? (
-            <p className="text-xs text-slate-400">Mavzu yo'q</p>
+          {items.length === 0 ? (
+            <p className="text-xs text-slate-400">Topshiriq yo'q</p>
           ) : (
-            <div className="grid grid-cols-2 gap-4">
-              {level.topics.map((topic) => {
-                const topicItems = topic.subTopics.flatMap((st) => st.items)
-                const tDone = topicItems.filter((it) => done.has(it.id)).length
+            <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+              {items.map((item) => {
+                const checked = done.has(item.id)
                 return (
-                  <div
-                    key={topic.id}
-                    className="rounded-xl border border-slate-200 bg-slate-50/40 p-3"
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => onToggle(item.id, !checked)}
+                    className="flex w-full items-start gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-slate-50"
                   >
-                    <div className="mb-1.5 flex items-center justify-between gap-2">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                      {topic.title}
-                    </p>
-                    {topicItems.length > 0 && (
-                      <span className="shrink-0 font-mono text-[11px] text-slate-400">
-                        {tDone}/{topicItems.length}
-                      </span>
-                    )}
-                  </div>
-                  {topicItems.length === 0 ? (
-                    <p className="text-xs text-slate-300">Band yo'q</p>
-                  ) : (
-                    <div className="grid grid-cols-2 gap-x-3 gap-y-1">
-                      {topicItems.map((item) => {
-                        const checked = done.has(item.id)
-                        return (
-                          <button
-                            key={item.id}
-                            type="button"
-                            onClick={() => onToggle(item.id, !checked)}
-                            className="flex w-full items-start gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-slate-50"
-                          >
-                            <span
-                              className={cn(
-                                'mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors',
-                                checked
-                                  ? 'border-brand-500 bg-brand-500 text-white'
-                                  : 'border-slate-300 bg-white text-transparent',
-                              )}
-                            >
-                              <Check className="h-3 w-3" strokeWidth={3} />
-                            </span>
-                            <span
-                              className={cn(
-                                'min-w-0 flex-1 text-sm',
-                                checked ? 'text-slate-400 line-through' : 'text-slate-700',
-                              )}
-                            >
-                              {item.text}
-                              {item.note && (
-                                <span className="ml-1 text-xs text-slate-400">— {item.note}</span>
-                              )}
-                            </span>
-                          </button>
-                        )
-                      })}
-                    </div>
-                  )}
-                  </div>
+                    <span
+                      className={cn(
+                        'mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors',
+                        checked
+                          ? 'border-brand-500 bg-brand-500 text-white'
+                          : 'border-slate-300 bg-white text-transparent',
+                      )}
+                    >
+                      <Check className="h-3 w-3" strokeWidth={3} />
+                    </span>
+                    <span
+                      className={cn(
+                        'min-w-0 flex-1 text-sm',
+                        checked ? 'text-slate-400 line-through' : 'text-slate-700',
+                      )}
+                    >
+                      {item.text}
+                      {item.note && (
+                        <span className="ml-1 text-xs text-slate-400">— {item.note}</span>
+                      )}
+                    </span>
+                  </button>
                 )
               })}
             </div>

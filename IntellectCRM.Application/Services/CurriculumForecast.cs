@@ -9,6 +9,11 @@ namespace IntellectCRM.Application.Services;
 /// Guruh sillabus (o'quv dasturi) o'tilishi + tugash prognozi. Admin, o'qituvchi va o'quvchi
 /// portallari shu yagona mantiqdan foydalanadi (uch joyda farq qilmasligi uchun).
 ///
+/// Guruh kursiga (Subject) BIR NECHTA o'quv dasturi biriktirilgan bo'lishi mumkin
+/// (<see cref="SubjectCurriculum"/>) — bu funksiya ularning HAMMASINI (biriktirish tartibi bo'yicha,
+/// har biri ichida o'z Mavzu tartibi bo'yicha) BITTA ketma-ket ro'yxatga birlashtirib qaytaradi —
+/// guruh/o'qituvchi/o'quvchi ko'rinishi shu bitta birlashtirilgan ro'yxatni ko'radi.
+///
 /// "O'tilgan" = <see cref="GroupCurriculumLog"/> (revision bo'lmagan, mavjud band) yozuvlari.
 /// "Tugash prognozi" = pace (o'tilgan / jami dars) bo'yicha qolgan bandlar uchun kerakli darslar,
 /// guruh dars kunlari (Days) bo'yicha oldinga yurib sana hisoblanadi.
@@ -21,18 +26,27 @@ public static class CurriculumForecast
         var subject = await db.Subjects.FindAsync(courseId);
         var courseName = subject?.Name ?? "";
 
-        var levels = await db.CourseLevels
-            .Where(l => l.SubjectId == courseId).OrderBy(l => l.Order).ToListAsync();
+        var links = string.IsNullOrEmpty(courseId)
+            ? new List<SubjectCurriculum>()
+            : await db.SubjectCurricula.Where(sc => sc.SubjectId == courseId).OrderBy(sc => sc.Order).ToListAsync();
+        var curriculumIds = links.Select(l => l.CurriculumId).ToList();
+        // Biriktirish tartibi — birlashtirilgan ro'yxatda qaysi dastur oldin kelishini belgilaydi.
+        var attachOrder = links.Select((l, idx) => (l.CurriculumId, idx))
+            .ToDictionary(x => x.CurriculumId, x => x.idx);
+
+        var modules = (await db.CourseModules
+                .Where(m => curriculumIds.Contains(m.CurriculumId)).ToListAsync())
+            .OrderBy(m => attachOrder.GetValueOrDefault(m.CurriculumId, 0)).ThenBy(m => m.Order).ToList();
         var topics = await db.CourseTopics
-            .Where(t => t.SubjectId == courseId).OrderBy(t => t.Order).ToListAsync();
-        var subTopics = await db.CourseSubTopics
-            .Where(s => s.SubjectId == courseId).ToListAsync();
+            .Where(t => curriculumIds.Contains(t.CurriculumId)).OrderBy(t => t.Order).ToListAsync();
+        var lessons = await db.CourseLessons
+            .Where(s => curriculumIds.Contains(s.CurriculumId)).ToListAsync();
         var items = await db.CourseItems
-            .Where(i => i.SubjectId == courseId).OrderBy(i => i.Order).ToListAsync();
+            .Where(i => curriculumIds.Contains(i.CurriculumId)).OrderBy(i => i.Order).ToListAsync();
         var existingItemIds = items.Select(i => i.Id).ToHashSet();
-        // Item → uning to'g'ridan-to'g'ri ota TOPICI (sub-mavzu qatlamini "shaffof" qilib o'tkazib
-        // yuboradi — bu DTO Bo'lim→Mavzu→Band tekis ko'rinishida qoladi, frontend o'zgarmaydi).
-        var topicIdBySubTopic = subTopics.ToDictionary(s => s.Id, s => s.TopicId);
+        // Item → uning to'g'ridan-to'g'ri ota TOPICI (dars qatlamini "shaffof" qilib o'tkazib
+        // yuboradi — bu DTO Modul→Mavzu→Band tekis ko'rinishida qoladi, frontend o'zgarmaydi).
+        var topicIdByLesson = lessons.ToDictionary(s => s.Id, s => s.TopicId);
 
         var logs = await db.GroupCurriculumLogs.Where(g => g.GroupId == group.Id).ToListAsync();
 
@@ -82,11 +96,11 @@ public static class CurriculumForecast
             }
         }
 
-        var levelDtos = levels.Select(l => new GroupCurriculumLevelDto(
-            l.Id, l.Name, l.Note, l.Order,
-            topics.Where(t => t.LevelId == l.Id).Select(t => new GroupCurriculumTopicDto(
+        var moduleDtos = modules.Select(m => new GroupCurriculumModuleDto(
+            m.Id, m.Name, m.Note, m.Order,
+            topics.Where(t => t.ModuleId == m.Id).Select(t => new GroupCurriculumTopicDto(
                 t.Id, t.Title, t.Note, t.Order,
-                items.Where(i => topicIdBySubTopic.GetValueOrDefault(i.SubTopicId) == t.Id).Select(i => new GroupCurriculumItemDto(
+                items.Where(i => topicIdByLesson.GetValueOrDefault(i.LessonId) == t.Id).Select(i => new GroupCurriculumItemDto(
                     i.Id, i.Text, i.Note, i.Order, coveredItemIds.Contains(i.Id),
                     coveredItemIds.Contains(i.Id) && coverDateByItem.TryGetValue(i.Id, out var cd) ? cd : "")).ToList()
             )).ToList()
@@ -96,6 +110,6 @@ public static class CurriculumForecast
             group.Id, courseId, courseName,
             totalItems, coveredCount, revisionLessons, totalLessons,
             remainingItems, estLessonsLeft, lessonsPerWeek, estFinishDate,
-            levelDtos);
+            moduleDtos);
     }
 }

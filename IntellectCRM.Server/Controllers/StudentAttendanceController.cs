@@ -142,6 +142,11 @@ public class StudentAttendanceController(AppDbContext db) : ControllerBase
         // A'zolik boshlangan sana — undan oldingi darslar o'quvchiga tegishli emas (blocked).
         var memberStart = membership?.ActivatedAt is { Length: >= 10 } ? membership.ActivatedAt[..10]
             : membership?.JoinedAt is { Length: >= 10 } ? membership.JoinedAt[..10] : null;
+        // A'zolik tugagan/muzlatilgan sana — undan KEYINGI darslar ham tegishli emas (blocked).
+        // Muzlatilgan bo'lsa FrozenAt sanasi o'zi hali hisoblanadi (shu kungacha qatnashgan), undan keyingisi emas.
+        var memberEnd = membership?.Status == "frozen" && membership.FrozenAt is { Length: >= 10 } ? membership.FrozenAt[..10]
+            : !string.Equals(membership?.Status, "frozen", StringComparison.Ordinal) && membership?.LeftAt is { Length: >= 10 } ? membership.LeftAt[..10]
+            : null;
 
         var entries = string.IsNullOrEmpty(subjectId)
             ? new List<JournalEntry>()
@@ -165,7 +170,8 @@ public class StudentAttendanceController(AppDbContext db) : ControllerBase
         foreach (var date in JournalService.EffectiveLessonDatesInMonth(group.Days, resolved, moves))
         {
             var blocked = (group.StartDate is { Length: >= 10 } && string.CompareOrdinal(date, group.StartDate[..10]) < 0)
-                || (memberStart is not null && string.CompareOrdinal(date, memberStart) < 0);
+                || (memberStart is not null && string.CompareOrdinal(date, memberStart) < 0)
+                || (memberEnd is not null && string.CompareOrdinal(date, memberEnd) > 0);
             entryByDate.TryGetValue(date, out var e);
             AbsenceReason? reason = e?.ReasonId is not null ? reasons.GetValueOrDefault(e.ReasonId) : null;
             var isConducted = conducted.Contains(date);

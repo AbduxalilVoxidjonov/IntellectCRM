@@ -30,7 +30,8 @@ const TABS: Array<[string, string]> = [
 
 /** Birinchi o'tilmagan band (kurs tartibida) — "hozir o'rganiladigan". */
 function findNext(cur: StudentCurriculum): string | null {
-  for (const lv of cur.levels) for (const tp of lv.topics) for (const it of tp.items) if (!it.covered) return it.id
+  for (const md of cur.modules)
+    for (const tp of md.topics) for (const it of tp.items) if (!it.covered) return it.id
   return null
 }
 
@@ -206,14 +207,35 @@ function Roadmap({ cur }: { cur: StudentCurriculum }) {
 
   return (
     <div style={{ marginTop: 18 }}>
-      {cur.levels.map((lv) => {
-        const items = lv.topics.flatMap((t) => t.items)
+      {cur.modules.map((md) => {
+        const mItems = md.topics.flatMap((tp) => tp.items)
+        if (!mItems.length) return null
+        const mCov = mItems.filter((i) => i.covered).length
+        return (
+          <div key={md.id} style={{ marginBottom: 8 }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '4px 2px 8px',
+              }}
+            >
+              <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 0.4, textTransform: 'uppercase', color: 'var(--muted)' }}>
+                {md.name}
+              </div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)' }}>
+                {mCov}/{mItems.length}
+              </div>
+            </div>
+            {md.topics.map((tp) => {
+        const items = tp.items
         if (!items.length) return null
         const cov = items.filter((i) => i.covered).length
-        const lvDone = cov === items.length
+        const tpDone = cov === items.length
         const coveredFrac = items.length > 0 ? cov / items.length : 0
         return (
-          <div key={lv.id} style={{ marginBottom: 14 }}>
+          <div key={tp.id} style={{ marginBottom: 14 }}>
             <div
               style={{
                 display: 'flex',
@@ -239,13 +261,13 @@ function Roadmap({ cur }: { cur: StudentCurriculum }) {
                   flex: 'none',
                 }}
               >
-                <Icon name={lvDone ? 'award' : 'book'} size={19} color="#fff" fill />
+                <Icon name={tpDone ? 'award' : 'book'} size={19} color="#fff" fill />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 10.5, fontWeight: 700, opacity: 0.85, textTransform: 'uppercase', letterSpacing: 0.4 }}>
-                  Bo'lim
+                  Mavzu
                 </div>
-                <div style={{ fontSize: 16, fontWeight: 800 }}>{lv.name}</div>
+                <div style={{ fontSize: 16, fontWeight: 800 }}>{tp.title}</div>
               </div>
               <div style={{ fontSize: 13, fontWeight: 800 }}>
                 {cov}/{items.length}
@@ -289,6 +311,9 @@ function Roadmap({ cur }: { cur: StudentCurriculum }) {
                 ))}
               </div>
             </div>
+          </div>
+        )
+            })}
           </div>
         )
       })}

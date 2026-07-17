@@ -78,9 +78,12 @@ public static class BackupService
         await Add("assignmentMaterials", db.AssignmentMaterials);
         await Add("testQuestions", db.TestQuestions);
         await Add("assignmentSubmissions", db.AssignmentSubmissions);
-        // ---- Kurs dasturi (curriculum) ----
-        await Add("courseLevels", db.CourseLevels);
+        // ---- O'quv dasturi (curriculum) ----
+        await Add("curricula", db.Curricula);
+        await Add("subjectCurricula", db.SubjectCurricula);
+        await Add("courseModules", db.CourseModules);
         await Add("courseTopics", db.CourseTopics);
+        await Add("courseLessons", db.CourseLessons);
         await Add("courseItems", db.CourseItems);
         await Add("courseQuestions", db.CourseQuestions);
         await Add("courseProgresses", db.CourseProgresses);

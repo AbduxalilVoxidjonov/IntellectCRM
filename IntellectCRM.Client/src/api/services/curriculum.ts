@@ -1,9 +1,42 @@
 import { api } from '../client'
-import type { Curriculum, LessonType } from '@/types'
+import type { Curriculum, CurriculumItem, LessonType } from '@/types'
 
-/** Kurs o'quv dasturi (modul → mavzu → dars) + dars kontenti + o'quvchi progressi. */
+/** O'quv dasturi (modul → mavzu → dars → topshiriq) — Kurs (Subject)dan MUSTAQIL, standalone.
+ *  Bir dastur bir nechta kursga, bir kurs bir nechta dasturga biriktirilishi mumkin (ko'p-ko'pga —
+ *  biriktirish `api/services/subjects.ts`da, chunki bu Kurs resursining bir qismi). */
 
-// ---- Dars kontenti (video/matn/audio/lug'at/test) ----
+// ---- O'quv dasturlari ro'yxati (top-level) ----
+
+export interface CurriculumSummary {
+  id: string
+  name: string
+  note: string
+  order: number
+  createdAt: string
+  moduleCount: number
+  topicCount: number
+  itemCount: number
+  readyItemCount: number
+  /** Nechta kursga biriktirilgan */
+  subjectCount: number
+}
+
+export async function listCurricula(): Promise<CurriculumSummary[]> {
+  const { data } = await api.get<CurriculumSummary[]>('/admin/curriculum')
+  return data
+}
+export async function createCurriculum(name: string, note = ''): Promise<{ id: string }> {
+  const { data } = await api.post<{ id: string }>('/admin/curriculum', { name, note })
+  return data
+}
+export async function updateCurriculum(id: string, name: string, note = ''): Promise<void> {
+  await api.put(`/admin/curriculum/${id}`, { name, note })
+}
+export async function deleteCurriculum(id: string): Promise<void> {
+  await api.delete(`/admin/curriculum/${id}`)
+}
+
+// ---- Topshiriq kontenti (video/matn/audio/lug'at/test) ----
 export interface VocabEntry {
   term: string
   meaning: string
@@ -16,11 +49,11 @@ export interface CourseQuestion {
 }
 export interface CourseItemDetail {
   id: string
-  subTopicId: string
+  lessonId: string
   text: string
   note: string
   order: number
-  /** Sub-mavzudan meros — bu yerda o'zgarmaydi (faqat ko'rsatish uchun). */
+  /** Topshiriq turi — bu yerda o'zgarmaydi (faqat ko'rsatish uchun; o'zgartirish uchun updateItem). */
   type: LessonType
   videoUrl: string
   audioUrl: string
@@ -31,7 +64,7 @@ export interface CourseItemDetail {
   vocab: VocabEntry[]
   questions: CourseQuestion[]
 }
-/** MUHIM: `type` yo'q — u sub-mavzu yaratilganda qulflanadi, bu yerda o'zgartirilmaydi. */
+/** MUHIM: `type` yo'q — bu yerda o'zgartirilmaydi (buning uchun `updateItem`). */
 export interface SaveItemContent {
   text: string
   videoUrl?: string
@@ -44,36 +77,44 @@ export interface SaveItemContent {
   questions?: CourseQuestion[]
 }
 
-/** Bitta darsning to'liq kontentini o'qish (tahrirlovchi/ko'rish uchun). */
+/** Bitta topshiriqning to'liq kontentini o'qish (tahrirlovchi/ko'rish uchun). */
 export async function getCourseItem(id: string): Promise<CourseItemDetail> {
   const { data } = await api.get<CourseItemDetail>(`/admin/curriculum/item/${id}`)
   return data
 }
-/** Dars kontentini saqlash (nom + tur + kontent + lug'at + test savollari). */
+/** Topshiriq kontentini saqlash (nom + kontent + lug'at + test savollari). */
 export async function saveItemContent(id: string, payload: SaveItemContent): Promise<void> {
   await api.put(`/admin/curriculum/items/${id}/content`, payload)
 }
 
-export async function getCurriculum(subjectId: string): Promise<Curriculum> {
-  const { data } = await api.get<Curriculum>(`/admin/curriculum/${subjectId}`)
+/** Bitta o'quv dasturining to'liq daraxti. */
+export async function getCurriculum(curriculumId: string): Promise<Curriculum> {
+  const { data } = await api.get<Curriculum>(`/admin/curriculum/${curriculumId}`)
   return data
 }
 
-// ---- Daraja ----
-export async function createLevel(subjectId: string, name: string, note = ''): Promise<{ id: string }> {
-  const { data } = await api.post<{ id: string }>(`/admin/curriculum/${subjectId}/levels`, { name, note })
+/** Bitta KURSGA (Subject) biriktirilgan BARCHA dasturlar birlashtirilgan daraxt sifatida
+ *  (StudentDetailPage "O'quv dasturi" ko'rinishi uchun — `curriculumId` emas, `subjectId` beriladi). */
+export async function getSubjectCurriculumTree(subjectId: string): Promise<Curriculum> {
+  const { data } = await api.get<Curriculum>(`/admin/curriculum/subject/${subjectId}/tree`)
   return data
 }
-export async function updateLevel(id: string, name: string, note = ''): Promise<void> {
-  await api.put(`/admin/curriculum/levels/${id}`, { name, note })
+
+// ---- Modul (dastur ichidagi 1-bosqich) ----
+export async function createModule(curriculumId: string, name: string, note = ''): Promise<{ id: string }> {
+  const { data } = await api.post<{ id: string }>(`/admin/curriculum/${curriculumId}/modules`, { name, note })
+  return data
 }
-export async function deleteLevel(id: string): Promise<void> {
-  await api.delete(`/admin/curriculum/levels/${id}`)
+export async function updateModule(id: string, name: string, note = ''): Promise<void> {
+  await api.put(`/admin/curriculum/modules/${id}`, { name, note })
+}
+export async function deleteModule(id: string): Promise<void> {
+  await api.delete(`/admin/curriculum/modules/${id}`)
 }
 
 // ---- Mavzu ----
-export async function createTopic(levelId: string, title: string, note = ''): Promise<{ id: string }> {
-  const { data } = await api.post<{ id: string }>(`/admin/curriculum/levels/${levelId}/topics`, { title, note })
+export async function createTopic(moduleId: string, title: string, note = ''): Promise<{ id: string }> {
+  const { data } = await api.post<{ id: string }>(`/admin/curriculum/modules/${moduleId}/topics`, { title, note })
   return data
 }
 export async function updateTopic(id: string, title: string, note = ''): Promise<void> {
@@ -83,29 +124,43 @@ export async function deleteTopic(id: string): Promise<void> {
   await api.delete(`/admin/curriculum/topics/${id}`)
 }
 
-// ---- Sub-mavzu (tur SHU YERDA tanlanadi va qulflanadi — keyin o'zgarmaydi) ----
-export async function createSubTopic(
-  topicId: string, title: string, type: LessonType, note = '',
+// ---- Dars ----
+export async function createLesson(
+  topicId: string, title: string, note = '',
 ): Promise<{ id: string }> {
   const { data } = await api.post<{ id: string }>(
-    `/admin/curriculum/topics/${topicId}/subtopics`, { title, note, type },
+    `/admin/curriculum/topics/${topicId}/lessons`, { title, note },
   )
   return data
 }
-export async function updateSubTopic(id: string, title: string, note = ''): Promise<void> {
-  await api.put(`/admin/curriculum/subtopics/${id}`, { title, note })
+export async function updateLesson(id: string, title: string, note = ''): Promise<void> {
+  await api.put(`/admin/curriculum/lessons/${id}`, { title, note })
 }
-export async function deleteSubTopic(id: string): Promise<void> {
-  await api.delete(`/admin/curriculum/subtopics/${id}`)
+export async function deleteLesson(id: string): Promise<void> {
+  await api.delete(`/admin/curriculum/lessons/${id}`)
 }
 
-// ---- Band (dars) — sub-mavzuning qulflangan turida ----
-export async function createItem(subTopicId: string, text: string, note = ''): Promise<{ id: string }> {
-  const { data } = await api.post<{ id: string }>(`/admin/curriculum/subtopics/${subTopicId}/items`, { text, note })
+// ---- Topshiriq — o'z turini tanlaydi (video|matn|audio|pdf|lug'at|test), keyin ham o'zgartiriladi ----
+export async function createItem(
+  lessonId: string, text: string, type: LessonType, note = '',
+): Promise<{ id: string }> {
+  const { data } = await api.post<{ id: string }>(
+    `/admin/curriculum/lessons/${lessonId}/items`, { text, note, type },
+  )
   return data
 }
-export async function updateItem(id: string, text: string, note = ''): Promise<void> {
-  await api.put(`/admin/curriculum/items/${id}`, { text, note })
+/** Bir nechta topshiriqni bir zumda yaratadi — barchasi BITTA turda (har bir nom alohida band bo'ladi). */
+export async function createItemsBulk(
+  lessonId: string, texts: string[], type: LessonType,
+): Promise<CurriculumItem[]> {
+  const { data } = await api.post<CurriculumItem[]>(
+    `/admin/curriculum/lessons/${lessonId}/items/bulk`, { texts, type },
+  )
+  return data
+}
+/** Nom/izoh (va ixtiyoriy ravishda — `type` berilsa — turini ham) yangilaydi. */
+export async function updateItem(id: string, text: string, note = '', type?: LessonType): Promise<void> {
+  await api.put(`/admin/curriculum/items/${id}`, { text, note, type })
 }
 export async function deleteItem(id: string): Promise<void> {
   await api.delete(`/admin/curriculum/items/${id}`)
@@ -113,7 +168,7 @@ export async function deleteItem(id: string): Promise<void> {
 
 // ---- O'quvchi progressi (bajarilgan band id'lari) ----
 export async function getProgress(subjectId: string, studentId: string): Promise<string[]> {
-  const { data } = await api.get<string[]>(`/admin/curriculum/${subjectId}/progress/${studentId}`)
+  const { data } = await api.get<string[]>(`/admin/curriculum/subject/${subjectId}/progress/${studentId}`)
   return data
 }
 export async function setProgress(studentId: string, itemId: string, done: boolean): Promise<void> {
@@ -121,6 +176,7 @@ export async function setProgress(studentId: string, itemId: string, done: boole
 }
 
 // ---- Guruh o'quv dasturi (darsda o'tilgan bandlar + tugatish prognozi) ----
+// Guruh kursiga BIR NECHTA dastur biriktirilgan bo'lsa — hammasi shu bitta ro'yxatga birlashtiriladi.
 
 export interface GroupCurriculumItem {
   id: string
@@ -137,7 +193,7 @@ export interface GroupCurriculumTopic {
   order: number
   items: GroupCurriculumItem[]
 }
-export interface GroupCurriculumLevel {
+export interface GroupCurriculumModule {
   id: string
   name: string
   note: string
@@ -157,7 +213,7 @@ export interface GroupCurriculum {
   lessonsPerWeek: number
   /** ISO sana yoki null — taxminiy tugash sanasi */
   estFinishDate: string | null
-  levels: GroupCurriculumLevel[]
+  modules: GroupCurriculumModule[]
 }
 
 export async function getGroupCurriculum(groupId: string): Promise<GroupCurriculum> {
@@ -183,7 +239,7 @@ export interface CoverageLogEntry {
   date: string
   courseName: string
   groupName: string
-  levelName: string
+  moduleName: string
   topicTitle: string
   itemText: string
   isRevision: boolean
@@ -196,11 +252,12 @@ export async function getStudentCoverageLog(studentId: string): Promise<Coverage
 
 // ---- Excel import (shablon + fayl) ----
 
-/** Excel importi natijasi: yaratilgan modul/mavzu/dars soni + xato qatorlar. */
+/** Excel importi natijasi: yaratilgan modul/mavzu/dars soni + xato qatorlar. Topshiriqlar Excel
+ *  orqali yaratilmaydi — ular import'dan keyin qo'lda (bir nechtasini birdan) qo'shiladi. */
 export interface CurriculumExcelImportResult {
-  levels: number
+  modules: number
   topics: number
-  items: number
+  lessons: number
   skipped: number
   errors: { row: number; message: string }[]
 }
@@ -218,35 +275,36 @@ export async function downloadCurriculumImportTemplate(): Promise<void> {
   URL.revokeObjectURL(url)
 }
 
-/** To'ldirilgan Excel (.xlsx) shablonidan o'quv dasturini yuklaydi.
+/** To'ldirilgan Excel (.xlsx) shablonidan o'quv dasturi skeletini (Modul→Mavzu→Dars) yuklaydi.
  *  replace=true — mavjud dastur o'chirilib almashtiriladi; aks holda qo'shiladi. */
 export async function importCurriculumExcel(
-  subjectId: string,
+  curriculumId: string,
   file: File,
   replace: boolean,
 ): Promise<CurriculumExcelImportResult> {
   const fd = new FormData()
   fd.append('file', file)
   const { data } = await api.post<CurriculumExcelImportResult>(
-    `/admin/curriculum/${subjectId}/import-excel?replace=${replace}`,
+    `/admin/curriculum/${curriculumId}/import-excel?replace=${replace}`,
     fd,
     { headers: { 'Content-Type': 'multipart/form-data' } },
   )
   return data
 }
 
-// ---- Daraja nusxalash (boshqa kursga) ----
+// ---- Modulni nusxalash (boshqa o'quv dasturiga) ----
 
-export interface CopyLevelResult {
-  levelId: string
-  levelName: string
+export interface CopyModuleResult {
+  moduleId: string
+  moduleName: string
   topicCount: number
+  lessonCount: number
   itemCount: number
 }
 
-export async function copyLevelToSubject(levelId: string, targetSubjectId: string): Promise<CopyLevelResult> {
-  const { data } = await api.post<CopyLevelResult>(
-    `/admin/curriculum/levels/${levelId}/copy-to/${targetSubjectId}`,
+export async function copyModuleToCurriculum(moduleId: string, targetCurriculumId: string): Promise<CopyModuleResult> {
+  const { data } = await api.post<CopyModuleResult>(
+    `/admin/curriculum/modules/${moduleId}/copy-to/${targetCurriculumId}`,
     {},
   )
   return data

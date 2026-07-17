@@ -166,9 +166,20 @@ public static class TestResultService
             .ThenBy(x => x.FullName)
             .ToList();
 
-        int rank = 0;
-        var result = rows.Select(x => new TestScoreRowDto(
-            x.Id, x.FullName, x.Score, x.Score.HasValue ? ++rank : 0)).ToList();
+        // Standart musobaqa reytingi: ball TENG bo'lsa BIR XIL o'rin beriladi, keyingi (kichikroq)
+        // ball esa nechta o'quvchi tepasida bo'lsa shuncha o'rinni "sakrab" o'tadi (masalan 1,1,3,4).
+        var result = new List<TestScoreRowDto>();
+        decimal? prevScore = null;
+        var rank = 0;
+        var position = 0;
+        foreach (var x in rows)
+        {
+            if (!x.Score.HasValue) { result.Add(new TestScoreRowDto(x.Id, x.FullName, x.Score, 0)); continue; }
+            position++;
+            if (prevScore is null || x.Score.Value != prevScore.Value) rank = position;
+            prevScore = x.Score.Value;
+            result.Add(new TestScoreRowDto(x.Id, x.FullName, x.Score, rank));
+        }
 
         return new TestResultDetailDto(t.Id, t.GroupId, group?.Name ?? "", t.Name, t.Date,
             t.MaxScore, t.CreatedAt, t.CreatedBy, result);
@@ -235,7 +246,9 @@ public static class TestResultService
             {
                 var ordered = byTest.GetValueOrDefault(t.Id) ?? new List<TestScore>();
                 var myScore = myByTest.GetValueOrDefault(t.Id);
-                int rank = ordered.FindIndex(x => x.StudentId == studentId) + 1;
+                // Standart musobaqa reytingi: mendan KATTA ball olganlar soni + 1 — ball teng bo'lganlar
+                // bir xil o'rinda turadi (DetailAsync bilan bir xil mantiq).
+                int rank = ordered.Count(x => x.Score > myScore) + 1;
                 return new StudentGroupTestDto(t.Id, t.GroupId,
                     groupNames.GetValueOrDefault(t.GroupId, ""), t.Name, t.Date,
                     t.MaxScore, myScore, rank, ordered.Count);

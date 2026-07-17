@@ -133,9 +133,10 @@ public record StudentImportResultDto(int Created, int Failed, int Skipped, List<
 /// <summary>Tanlangan o'quvchilarni Excel'ga eksport qilish so'rovi.</summary>
 public record StudentExportSelectedRequest(List<string> StudentIds);
 
-/* ---------- O'quv dasturi Excel importi ---------- */
+/* ---------- O'quv dasturi Excel importi (Modul→Mavzu→Dars skeletini yaratadi, Topshiriq YO'Q —
+   ular keyin qo'lda, tezkor ko'p-yaratish paneli orqali qo'shiladi) ---------- */
 public record CurriculumExcelImportResultDto(
-    int Levels, int Topics, int Items, int Skipped, List<StudentImportRowErrorDto> Errors);
+    int Modules, int Topics, int Lessons, int Skipped, List<StudentImportRowErrorDto> Errors);
 
 /* ---------- Teachers ---------- */
 /// <summary>O'qituvchi yaratish/tahrirlash so'rovi.
@@ -1812,81 +1813,89 @@ public record ArchivedRecordDto(
     string Id, string Type, string EntityId, string Title, string Subtitle,
     string? Reason, string DeletedAt, string ActorName);
 
-/* ---------- Kurs sillabusi (Bo'lim → Mavzu → Sub-mavzu → Band) ---------- */
+/* ---------- O'quv dasturi (Modul → Mavzu → Dars → Topshiriq) — Kurs(Subject)dan MUSTAQIL,
+   ko'p-ko'pga (SubjectCurriculum orqali) biriktiriladi ---------- */
 
-/// <summary>Sillabus bandi / DARS (4-bosqich) — daraxtda ko'rsatish uchun (tur + meta + tayyorlik).</summary>
-public record CurriculumItemDto(string Id, string Text, string Note, int Order, string Type, string Meta, bool Ready);
+/// <summary>Sillabus bandi / TOPSHIRIQ (4-bosqich) — daraxt/jadvalda ko'rsatish uchun (tur + meta +
+/// tayyorlik + yaratilgan sana).</summary>
+public record CurriculumItemDto(
+    string Id, string Text, string Note, int Order, string Type, string Meta, bool Ready, string CreatedAt);
 
 /// <summary>Lug'at (vocab) yozuvi: so'z + tarjima.</summary>
 public record VocabEntryDto(string Term, string Meaning);
 /// <summary>Test savoli: matn + variantlar + to'g'ri javob indeksi.</summary>
 public record CourseQuestionDto(string Id, string Text, List<string> Options, int CorrectIndex);
-/// <summary>Bitta darsning TO'LIQ kontenti (tahrirlovchi + ko'rish ekrani uchun). Type — ota
-/// sub-mavzudan meros, faqat ko'rsatish uchun (bu yerda o'zgartirilmaydi).</summary>
+/// <summary>Bitta topshiriqning TO'LIQ kontenti (tahrirlovchi + ko'rish ekrani uchun).</summary>
 public record CourseItemDetailDto(
-    string Id, string SubTopicId, string Text, string Note, int Order,
+    string Id, string LessonId, string Text, string Note, int Order,
     string Type, string VideoUrl, string AudioUrl, string TextContent,
     string PdfUrl, string PdfName, string Meta,
     List<VocabEntryDto> Vocab, List<CourseQuestionDto> Questions);
-/// <summary>Dars kontentini saqlash payload'i (nom + kontent + lug'at + test savollari). MUHIM:
-/// Type YO'Q — u sub-mavzu yaratilganda qulflanadi, bu yerda o'zgartirilmaydi.</summary>
+/// <summary>Topshiriq kontentini saqlash payload'i (nom + kontent + lug'at + test savollari). Type
+/// YO'Q — u topshiriq yaratilganda tanlanadi, bu yerda o'zgartirilmaydi.</summary>
 public record SaveItemContentRequest(
     string Text, string? VideoUrl, string? AudioUrl, string? TextContent,
     string? PdfUrl, string? PdfName, string? Meta,
     List<VocabEntryDto>? Vocab, List<CourseQuestionDto>? Questions);
 
-/// <summary>Sillabus sub-mavzusi (3-bosqich) — BITTA turga qulflangan — + uning bandlari (shu turdan).</summary>
-public record CurriculumSubTopicDto(
-    string Id, string Title, string Note, int Order, string Type, List<CurriculumItemDto> Items);
+/// <summary>Sillabus darsi (3-bosqich) + uning topshiriqlari (har biri o'z turida).</summary>
+public record CurriculumLessonDto(
+    string Id, string Title, string Note, int Order, List<CurriculumItemDto> Items);
 
-/// <summary>Sillabus mavzusi (2-bosqich) + uning sub-mavzulari.</summary>
-public record CurriculumTopicDto(string Id, string Title, string Note, int Order, List<CurriculumSubTopicDto> SubTopics);
+/// <summary>Sillabus mavzusi (2-bosqich) + uning darslari.</summary>
+public record CurriculumTopicDto(string Id, string Title, string Note, int Order, List<CurriculumLessonDto> Lessons);
 
-/// <summary>Sillabus bo'limi (1-bosqich) + uning mavzulari.</summary>
-public record CurriculumLevelDto(string Id, string Name, string Note, int Order, List<CurriculumTopicDto> Topics);
+/// <summary>Sillabus moduli (1-bosqich) + uning mavzulari.</summary>
+public record CurriculumModuleDto(string Id, string Name, string Note, int Order, List<CurriculumTopicDto> Topics);
 
-/// <summary>Kursning to'liq sillabusi (Bo'lim → Mavzu → Sub-mavzu → Band).</summary>
-public record CurriculumDto(string SubjectId, string CourseName, List<CurriculumLevelDto> Levels);
+/// <summary>Bitta o'quv dasturining to'liq sillabusi (Modul → Mavzu → Dars → Topshiriq).</summary>
+public record CurriculumDto(string Id, string Name, List<CurriculumModuleDto> Modules);
+
+/// <summary>O'quv dasturlari ro'yxati uchun qisqacha kartochka (top-level "O'quv dasturi" sahifasi).</summary>
+public record CurriculumSummaryDto(
+    string Id, string Name, string Note, int Order, string CreatedAt,
+    int ModuleCount, int TopicCount, int ItemCount, int ReadyItemCount, int SubjectCount);
+
+/// <summary>O'quv dasturi yaratish/yangilash payload'i.</summary>
+public record CurriculumInput(string Name, string? Note);
+
+/// <summary>Bitta kursga biriktirilgan o'quv dasturi (tartib bilan — guruh ko'rinishida shu tartibda
+/// ketma-ket birlashtiriladi).</summary>
+public record SubjectCurriculumDto(string CurriculumId, string Name, int Order);
 
 // ---- Guruh sillabus o'tilishi + tugash prognozi ----
 /// <summary>Guruh sillabus bandi: o'tilgan (Covered) bayrog'i + o'tilgan sana (CoveredDate) bilan.</summary>
 public record GroupCurriculumItemDto(string Id, string Text, string Note, int Order, bool Covered, string CoveredDate);
 /// <summary>O'quvchining bir guruhda o'tilgan sillabus bandi (yoki takrorlash darsi) — vaqt jadvali yozuvi.</summary>
-public record CoverageLogEntryDto(string Date, string CourseName, string GroupName, string LevelName, string TopicTitle, string ItemText, bool IsRevision);
+public record CoverageLogEntryDto(string Date, string CourseName, string GroupName, string ModuleName, string TopicTitle, string ItemText, bool IsRevision);
 /// <summary>Guruh sillabus mavzusi.</summary>
 public record GroupCurriculumTopicDto(string Id, string Title, string Note, int Order, List<GroupCurriculumItemDto> Items);
-/// <summary>Guruh sillabus darajasi.</summary>
-public record GroupCurriculumLevelDto(string Id, string Name, string Note, int Order, List<GroupCurriculumTopicDto> Topics);
+/// <summary>Guruh sillabus moduli.</summary>
+public record GroupCurriculumModuleDto(string Id, string Name, string Note, int Order, List<GroupCurriculumTopicDto> Topics);
 /// <summary>Guruhning sillabus o'tilishi + tugash prognozi.</summary>
 public record GroupCurriculumDto(
     string GroupId, string CourseId, string CourseName,
     int TotalItems, int CoveredCount, int RevisionLessons, int TotalLessons,
     int RemainingItems, int EstLessonsLeft, int LessonsPerWeek, string EstFinishDate,
-    List<GroupCurriculumLevelDto> Levels);
+    List<GroupCurriculumModuleDto> Modules);
 /// <summary>Bandni o'tilgan/o'tilmagan deb belgilash payload'i.</summary>
 public record CoverRequest(string ItemId, bool Covered);
 /// <summary>Takrorlash darsi qo'shish/olib tashlash payload'i (Delta &gt; 0 qo'shadi, &lt; 0 olib tashlaydi).</summary>
 public record RevisionRequest(int Delta);
 
-/// <summary>Bo'lim (CourseLevel) yaratish/yangilash payload'i.</summary>
-public record LevelInput(string Name, string? Note);
+/// <summary>Modul yaratish/yangilash payload'i.</summary>
+public record ModuleInput(string Name, string? Note);
 /// <summary>Mavzu yaratish/yangilash payload'i.</summary>
 public record TopicInput(string Title, string? Note);
-/// <summary>Sub-mavzu yaratish payload'i. <paramref name="Type"/> MAJBURIY (text|video|audio|vocab|
-/// test|pdf) — shu yerda qulflanadi, keyin o'zgarmaydi. Yangilashda (UpdateSubTopic, oddiy
-/// <see cref="TopicInput"/> bilan) faqat nom/izoh o'zgaradi.</summary>
-public record SubTopicInput(string Title, string? Note, string Type);
-/// <summary>Band yaratish/yangilash payload'i — tur YO'Q, ota sub-mavzudan avtomatik meros bo'ladi.</summary>
-public record ItemInput(string Text, string? Note);
-
-/// <summary>Import: band.</summary>
-public record ImportItemDto(string Text, string? Note);
-/// <summary>Import: mavzu + bandlari.</summary>
-public record ImportTopicDto(string Title, string? Note, List<ImportItemDto> Items);
-/// <summary>Import: daraja + mavzulari.</summary>
-public record ImportLevelDto(string Name, string? Note, List<ImportTopicDto> Topics);
-/// <summary>Butun sillabusni almashtirish (import) payload'i.</summary>
-public record CurriculumImportDto(List<ImportLevelDto> Levels);
+/// <summary>Dars yaratish/yangilash payload'i (nom/izoh) — tur yo'q, u topshiriq darajasida tanlanadi.</summary>
+public record LessonInput(string Title, string? Note);
+/// <summary>Topshiriq (CourseItem) yaratish payload'i. <paramref name="Type"/> MAJBURIY (text|video|
+/// audio|vocab|test|pdf) — shu yerda tanlanadi. Yangilashda (UpdateItem) faqat nom/izoh o'zgaradi —
+/// Type qayta yuborilmaydi.</summary>
+public record ItemInput(string Text, string? Note, string? Type = null);
+/// <summary>Bir nechta topshiriqni bir zumda yaratish payload'i — barchasi BITTA turda
+/// (<paramref name="Type"/> MAJBURIY), har bir nom alohida band bo'ladi.</summary>
+public record BulkItemInput(List<string>? Texts, string? Type);
 
 // ============================ SERTIFIKAT ============================
 

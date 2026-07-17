@@ -311,7 +311,7 @@ export interface CurriculumTopic {
   order: number
   items: CurriculumItem[]
 }
-export interface CurriculumLevel {
+export interface CurriculumModule {
   id: string
   name: string
   note: string
@@ -330,7 +330,7 @@ export interface StudentCurriculum {
   estLessonsLeft: number
   lessonsPerWeek: number
   estFinishDate: string
-  levels: CurriculumLevel[]
+  modules: CurriculumModule[]
 }
 
 /** O'quvchining har faol guruh kursi bo'yicha o'quv dasturi (o'tilgan/qolgan + prognoz). */

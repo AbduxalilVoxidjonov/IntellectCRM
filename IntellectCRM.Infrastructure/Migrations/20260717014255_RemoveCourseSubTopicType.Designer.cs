@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using IntellectCRM.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace IntellectCRM.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260717014255_RemoveCourseSubTopicType")]
+    partial class RemoveCourseSubTopicType
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1270,19 +1273,6 @@ namespace IntellectCRM.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<string>("CreatedAt")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("CurriculumId")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("LessonId")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
                     b.Property<string>("Meta")
                         .IsRequired()
                         .HasColumnType("text");
@@ -1299,6 +1289,15 @@ namespace IntellectCRM.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<string>("PdfUrl")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("SubTopicId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("SubjectId")
                         .IsRequired()
                         .HasColumnType("text");
 
@@ -1324,52 +1323,15 @@ namespace IntellectCRM.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("LessonId", "Order");
+                    b.HasIndex("SubTopicId", "Order");
 
                     b.ToTable("CourseItems");
                 });
 
-            modelBuilder.Entity("IntellectCRM.Domain.CourseLesson", b =>
+            modelBuilder.Entity("IntellectCRM.Domain.CourseLevel", b =>
                 {
                     b.Property<string>("Id")
                         .HasColumnType("text");
-
-                    b.Property<string>("CurriculumId")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Note")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<int>("Order")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("TopicId")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TopicId", "Order");
-
-                    b.ToTable("CourseLessons");
-                });
-
-            modelBuilder.Entity("IntellectCRM.Domain.CourseModule", b =>
-                {
-                    b.Property<string>("Id")
-                        .HasColumnType("text");
-
-                    b.Property<string>("CurriculumId")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -1382,11 +1344,16 @@ namespace IntellectCRM.Infrastructure.Migrations
                     b.Property<int>("Order")
                         .HasColumnType("integer");
 
+                    b.Property<string>("SubjectId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
                     b.HasKey("Id");
 
-                    b.HasIndex("CurriculumId", "Order");
+                    b.HasIndex("SubjectId", "Order");
 
-                    b.ToTable("CourseModules");
+                    b.ToTable("CourseLevels");
                 });
 
             modelBuilder.Entity("IntellectCRM.Domain.CourseProgress", b =>
@@ -1394,7 +1361,7 @@ namespace IntellectCRM.Infrastructure.Migrations
                     b.Property<string>("Id")
                         .HasColumnType("text");
 
-                    b.Property<string>("CurriculumId")
+                    b.Property<string>("CourseId")
                         .HasColumnType("text");
 
                     b.Property<bool>("Done")
@@ -1452,16 +1419,44 @@ namespace IntellectCRM.Infrastructure.Migrations
                     b.ToTable("CourseQuestions");
                 });
 
+            modelBuilder.Entity("IntellectCRM.Domain.CourseSubTopic", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Note")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("Order")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("SubjectId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("TopicId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TopicId", "Order");
+
+                    b.ToTable("CourseSubTopics");
+                });
+
             modelBuilder.Entity("IntellectCRM.Domain.CourseTopic", b =>
                 {
                     b.Property<string>("Id")
                         .HasColumnType("text");
 
-                    b.Property<string>("CurriculumId")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("ModuleId")
+                    b.Property<string>("LevelId")
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
@@ -1473,13 +1468,17 @@ namespace IntellectCRM.Infrastructure.Migrations
                     b.Property<int>("Order")
                         .HasColumnType("integer");
 
+                    b.Property<string>("SubjectId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasColumnType("text");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ModuleId", "Order");
+                    b.HasIndex("LevelId", "Order");
 
                     b.ToTable("CourseTopics");
                 });
@@ -1685,31 +1684,6 @@ namespace IntellectCRM.Infrastructure.Migrations
                     b.HasIndex("AgentId");
 
                     b.ToTable("CtiCommandLogs");
-                });
-
-            modelBuilder.Entity("IntellectCRM.Domain.Curriculum", b =>
-                {
-                    b.Property<string>("Id")
-                        .HasColumnType("text");
-
-                    b.Property<string>("CreatedAt")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Note")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<int>("Order")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("Curricula");
                 });
 
             modelBuilder.Entity("IntellectCRM.Domain.DeviceToken", b =>
@@ -3406,34 +3380,6 @@ namespace IntellectCRM.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Subjects");
-                });
-
-            modelBuilder.Entity("IntellectCRM.Domain.SubjectCurriculum", b =>
-                {
-                    b.Property<string>("Id")
-                        .HasColumnType("text");
-
-                    b.Property<string>("CurriculumId")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<int>("Order")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("SubjectId")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CurriculumId");
-
-                    b.HasIndex("SubjectId", "CurriculumId")
-                        .IsUnique();
-
-                    b.ToTable("SubjectCurricula");
                 });
 
             modelBuilder.Entity("IntellectCRM.Domain.SupportSlot", b =>
