@@ -414,7 +414,8 @@ public static class JournalService
             .ToList();
         if (studentIds.Count == 0) return null;
 
-        // Darsni "o'tildi" deb belgilash (LessonNote).
+        // Darsni "o'tildi" deb belgilash (LessonNote) + RASSMIY davomat olindi deb belgilash
+        // (o'quvchi shaxsiy jurnalida standart "keldi" taxmini shu bayroqqa bog'liq).
         var note = await db.LessonNotes.FirstOrDefaultAsync(n =>
             n.ClassId == req.ClassId && n.SubjectId == req.SubjectId &&
             n.Quarter == quarter && n.Date == req.Date && n.Period == req.Period);
@@ -422,10 +423,13 @@ public static class JournalService
             db.LessonNotes.Add(new LessonNote
             {
                 ClassId = req.ClassId, SubjectId = req.SubjectId, Quarter = quarter,
-                Date = req.Date, Period = req.Period, Conducted = true,
+                Date = req.Date, Period = req.Period, Conducted = true, AttendanceTaken = true,
             });
         else
+        {
             note.Conducted = true;
+            note.AttendanceTaken = true;
+        }
 
         // Hammasi KELMADI bo'lsa — sabab: berilgani, yo'q bo'lsa birinchi (kech bo'lmagan) sabab,
         // umuman sabab bo'lmasa standart "Sababsiz" avtomatik yaratiladi (yo'q tugmasi har doim ishlasin).

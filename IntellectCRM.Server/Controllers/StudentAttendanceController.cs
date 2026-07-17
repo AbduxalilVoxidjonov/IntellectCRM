@@ -156,11 +156,25 @@ public class StudentAttendanceController(AppDbContext db) : ControllerBase
                 .ToListAsync();
         var entryByDate = entries.GroupBy(e => e.Date).ToDictionary(g => g.Key, g => g.First());
 
-        var conducted = string.IsNullOrEmpty(subjectId)
-            ? new HashSet<string>()
-            : (await db.LessonNotes.AsNoTracking()
+        // "Conducted" — dars o'tildi (ustun bor). "AttendanceTaken" — RASSMIY davomat olindi (guruh
+        // sahifasida "hammasi keldi"/"hammasi kelmadi" tugmasi bosilgan) — faqat shunda, alohida
+        // ma'lumoti (baho/sabab) yo'q o'quvchi standart "keldi" deb hisoblanadi. Bitta boshqa o'quvchiga
+        // baho qo'yilishi bilan dars "o'tildi" bo'lib qolsa ham, DAVOMAT olinmagan bo'lsa bu o'quvchi
+        // "keldi" deb ko'rsatilmaydi (belgilanmagan holatda qoladi).
+        var conducted = new HashSet<string>();
+        var attendanceTaken = new HashSet<string>();
+        if (!string.IsNullOrEmpty(subjectId))
+        {
+            var notes = await db.LessonNotes.AsNoTracking()
                 .Where(n => n.ClassId == gid && n.SubjectId == subjectId && n.Conducted && n.Date.StartsWith(resolved))
-                .Select(n => n.Date).Distinct().ToListAsync()).ToHashSet();
+                .Select(n => new { n.Date, n.AttendanceTaken })
+                .ToListAsync();
+            foreach (var n in notes)
+            {
+                conducted.Add(n.Date);
+                if (n.AttendanceTaken) attendanceTaken.Add(n.Date);
+            }
+        }
 
         var reasons = await db.AbsenceReasons.AsNoTracking().ToDictionaryAsync(r => r.Id);
 
@@ -175,7 +189,8 @@ public class StudentAttendanceController(AppDbContext db) : ControllerBase
             entryByDate.TryGetValue(date, out var e);
             AbsenceReason? reason = e?.ReasonId is not null ? reasons.GetValueOrDefault(e.ReasonId) : null;
             var isConducted = conducted.Contains(date);
-            var present = !blocked && isConducted && e?.Grade is null && reason is null;
+            var isAttendanceTaken = attendanceTaken.Contains(date);
+            var present = !blocked && isAttendanceTaken && e?.Grade is null && reason is null;
 
             cells.Add(new StudentJournalCellDto(
                 date, isConducted, blocked, present,
@@ -186,11 +201,14 @@ public class StudentAttendanceController(AppDbContext db) : ControllerBase
         var live = cells.Where(c => !c.Blocked && c.Conducted).ToList();
         var absent = live.Count(c => c.ReasonName is not null && !c.IsLate);
         var late = live.Count(c => c.ReasonName is not null && c.IsLate);
+        // "Keldi" — faqat rassmiy tasdiqlangan (present) yoki baho olingan kunlar; davomat olinmagan
+        // (belgilanmagan) kunlar "keldi" hisoblanmaydi.
+        var attended = live.Count(c => c.Present || c.Grade.HasValue);
         var grades = cells.Where(c => c.Grade.HasValue).Select(c => (double)c.Grade!.Value).ToList();
 
         return new StudentJournalDto(
             student.Id, student.FullName, options, gid, months, resolved, cells,
-            live.Count, live.Count - absent, absent, late,
+            live.Count, attended, absent, late,
             grades.Count > 0 ? Math.Round(grades.Average(), 1) : 0);
     }
 }

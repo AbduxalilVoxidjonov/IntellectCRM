@@ -640,6 +640,11 @@ public class LessonNote
     public string? Homework { get; set; }
     /// <summary>Dars o'tildimi (ptichka). false = dars o'tilmadi.</summary>
     public bool Conducted { get; set; }
+    /// <summary>RASSMIY davomat olindimi (guruh sahifasida "hammasi keldi"/"hammasi kelmadi" tugmasi
+    /// orqali) — bitta o'quvchiga baho/eslatma kiritilganda avtomatik true bo'lmaydi (faqat shu
+    /// o'quvchiga tegishli, boshqalarga emas). O'quvchi shaxsiy sahifasidagi jurnalda: bu false bo'lsa,
+    /// alohida ma'lumoti (baho/sabab) yo'q o'quvchi standart bo'yicha "keldi" deb HISOBLANMAYDI.</summary>
+    public bool AttendanceTaken { get; set; }
 }
 
 /// <summary>
