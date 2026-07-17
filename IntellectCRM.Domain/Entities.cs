@@ -2085,6 +2085,10 @@ public class CtiAgent
     public bool IsOnline { get; set; }
     /// <summary>Oxirgi faollik (heartbeat/presence).</summary>
     public DateTime? LastSeenAt { get; set; }
+    /// <summary>Biriktirilgan xodim (<see cref="AppUser.Id"/>), ixtiyoriy. Berilgan bo'lsa — shu
+    /// agentning qo'ng'iroqlari/audiolari FAQAT shu xodimga (va SuperAdmin'ga) ko'rinadi. Bo'sh —
+    /// hech kimga biriktirilmagan (faqat SuperAdmin ko'radi).</summary>
+    public string? StaffUserId { get; set; }
 }
 
 /// <summary>

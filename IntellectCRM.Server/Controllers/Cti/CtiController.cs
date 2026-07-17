@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -23,21 +24,53 @@ public class CtiController(
     AppDbContext db, CtiConnectionManager conn, FcmService fcm, CtiSmsService ctiSms,
     IConfiguration config, IWebHostEnvironment env) : ControllerBase
 {
+    // ---------- Ruxsat: har xodim FAQAT O'ZIGA biriktirilgan agent(lar)ni ko'radi/eshitadi;
+    // faqat SuperAdmin (va tarixiy sabab bilan Admin) hammasini ko'radi. ----------
+
+    private string Uid => User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "";
+    /// <summary>Faqat SuperAdmin BARCHA agentlarni ko'radi — foydalanuvchi talabi bo'yicha ATAYIN
+    /// faqat shu rol (Admin roli amalda ishlatilmaydi, lekin xavfsizlik uchun bu yerga qo'shilmagan).</summary>
+    private bool SeesAll => User.IsInRole(Roles.SuperAdmin);
+
+    /// <summary>Joriy xodimga biriktirilgan agent id'lari (SuperAdmin uchun chaqirilmaydi).</summary>
+    private Task<List<string>> MyAgentIdsAsync() =>
+        db.CtiAgents.Where(a => a.StaffUserId == Uid).Select(a => a.Id).ToListAsync();
+
+    /// <summary>Berilgan agent joriy xodimga tegishlimi (yoki SuperAdmin)? Ownership tekshiruvi
+    /// uchun umumiy yordamchi — Dial/SMS/tahrirlash kabi YOZISH amallarida ishlatiladi.</summary>
+    private async Task<bool> OwnsAgentAsync(string agentId)
+    {
+        if (SeesAll) return true;
+        var owner = await db.CtiAgents.Where(a => a.Id == agentId).Select(a => a.StaffUserId).FirstOrDefaultAsync();
+        return owner is not null && owner == Uid;
+    }
+
     // ---------- Agentlar ----------
 
-    /// <summary>Barcha agentlar — <c>isOnline</c> JONLI (konnektsiya menejeridan, DB emas).</summary>
+    /// <summary>Agentlar ro'yxati — SuperAdmin BARCHASINI, oddiy xodim FAQAT o'ziga biriktirilganlarini
+    /// ko'radi (<c>isOnline</c> JONLI, konnektsiya menejeridan, DB emas).</summary>
     [HttpGet("agents")]
     public async Task<ActionResult<List<CtiAgentDto>>> Agents()
     {
-        var agents = await db.CtiAgents.AsNoTracking().OrderBy(a => a.DisplayName).ToListAsync();
+        var q = db.CtiAgents.AsNoTracking();
+        if (!SeesAll) q = q.Where(a => a.StaffUserId == Uid);
+        var agents = await q.OrderBy(a => a.DisplayName).ToListAsync();
+
+        var staffIds = agents.Where(a => a.StaffUserId != null).Select(a => a.StaffUserId!).Distinct().ToList();
+        var staffNames = staffIds.Count == 0 ? new Dictionary<string, string>()
+            : await db.Users.Where(u => staffIds.Contains(u.Id)).ToDictionaryAsync(u => u.Id, u => u.FullName);
+
         return agents.Select(a => new CtiAgentDto(
             a.Id, a.Login, a.DisplayName, a.IsActive,
             conn.IsConnected(a.Id),
             a.LastSeenAt is { } t ? t.ToString("yyyy-MM-ddTHH:mm:ss") : null,
-            a.FcmToken.Length > 0)).ToList();
+            a.FcmToken.Length > 0,
+            a.StaffUserId, a.StaffUserId != null ? staffNames.GetValueOrDefault(a.StaffUserId, "") : "")).ToList();
     }
 
-    /// <summary>Yangi agent yaratadi (login band bo'lmasligi tekshiriladi).</summary>
+    /// <summary>Yangi agent yaratadi (login band bo'lmasligi tekshiriladi). SuperAdmin xohlagan xodimga
+    /// biriktirishi mumkin (yoki bo'sh qoldirishi — hech kimga ko'rinmaydi, faqat SuperAdmin'ga); oddiy
+    /// xodim yaratsa — har doim O'ZIGA biriktiriladi (boshqa xodimga berolmaydi).</summary>
     [HttpPost("agents")]
     public async Task<ActionResult> CreateAgent(CtiAgentCreateRequest req)
     {
@@ -52,23 +85,28 @@ public class CtiController(
             Login = login,
             PasswordHash = PasswordHasher.Hash(req.Password),
             DisplayName = (req.DisplayName ?? "").Trim(),
+            StaffUserId = SeesAll ? (string.IsNullOrWhiteSpace(req.StaffUserId) ? null : req.StaffUserId) : Uid,
         };
         db.CtiAgents.Add(agent);
         await db.SaveChangesAsync();
         return Ok(new { id = agent.Id });
     }
 
-    /// <summary>Agentni tahrirlaydi (parol bo'sh/null bo'lsa o'zgarmaydi).</summary>
+    /// <summary>Agentni tahrirlaydi (parol bo'sh/null bo'lsa o'zgarmaydi) — faqat SuperAdmin yoki shu
+    /// agentning egasi. Xodimga biriktirishni faqat SuperAdmin o'zgartira oladi.</summary>
     [HttpPut("agents/{id}")]
     public async Task<ActionResult> UpdateAgent(string id, CtiAgentUpdateRequest req)
     {
         var agent = await db.CtiAgents.FirstOrDefaultAsync(a => a.Id == id);
         if (agent is null) return NotFound();
+        if (!SeesAll && agent.StaffUserId != Uid) return Forbid();
 
         agent.DisplayName = (req.DisplayName ?? "").Trim();
         agent.IsActive = req.IsActive;
         if (!string.IsNullOrWhiteSpace(req.Password))
             agent.PasswordHash = PasswordHasher.Hash(req.Password);
+        if (SeesAll)
+            agent.StaffUserId = string.IsNullOrWhiteSpace(req.StaffUserId) ? null : req.StaffUserId;
         await db.SaveChangesAsync();
         return Ok();
     }
@@ -82,6 +120,7 @@ public class CtiController(
     {
         var agent = await db.CtiAgents.FirstOrDefaultAsync(a => a.Id == id);
         if (agent is null) return NotFound();
+        if (!SeesAll && agent.StaffUserId != Uid) return Forbid();
         var number = NormalizePhone(req.Number ?? "");
         if (number.Length == 0) return BadRequest(new { message = "Raqam bo'sh" });
 
@@ -139,7 +178,9 @@ public class CtiController(
     [HttpPost("agents/{id}/sms")]
     public async Task<ActionResult<CtiSmsResponse>> SendSms(string id, CtiSmsRequest req)
     {
-        if (await db.CtiAgents.FindAsync(id) is null) return NotFound();
+        var agent = await db.CtiAgents.FindAsync(id);
+        if (agent is null) return NotFound();
+        if (!SeesAll && agent.StaffUserId != Uid) return Forbid();
         if (string.IsNullOrWhiteSpace(req.Number)) return BadRequest(new { message = "Raqam bo'sh" });
         var text = (req.Text ?? "").Trim();
         if (text.Length == 0) return BadRequest(new { message = "SMS matni bo'sh" });
@@ -162,7 +203,7 @@ public class CtiController(
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 200);
 
-        var q = FilteredCalls(agentId, direction, dateFrom, dateTo, search, number);
+        var q = await FilteredCallsAsync(agentId, direction, dateFrom, dateTo, search, number);
 
         var total = await q.CountAsync();
         var items = await q.OrderByDescending(c => c.StartedAt)
@@ -194,7 +235,7 @@ public class CtiController(
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 200);
 
-        var q = FilteredCalls(agentId, direction, dateFrom, dateTo, search, number: null);
+        var q = await FilteredCallsAsync(agentId, direction, dateFrom, dateTo, search, number: null);
 
         // 1) Raqam bo'yicha agregatlar (oxirgi qo'ng'iroq vaqti bo'yicha kamayish tartibida sahifalanadi).
         var total = await q.Select(c => c.RemoteNumber).Distinct().CountAsync();
@@ -245,6 +286,7 @@ public class CtiController(
     {
         var c = await db.CtiCallRecords.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
         if (c is null) return NotFound();
+        if (!await OwnsAgentAsync(c.AgentId)) return Forbid();
 
         var agentName = await db.CtiAgents.Where(a => a.Id == c.AgentId)
             .Select(a => a.DisplayName).FirstOrDefaultAsync() ?? "";
@@ -272,6 +314,7 @@ public class CtiController(
         var c = await db.CtiCallRecords.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
         if (c is null || !c.AudioUploaded || c.AudioPath.Length == 0)
             return NotFound(new { message = "Yozuv mavjud emas" });
+        if (!await OwnsAgentAsync(c.AgentId)) return Forbid();
 
         var dir = RecordingsDir();
         var fileName = Path.GetFileName(c.AudioPath); // faqat nom — path-traversal yo'q
@@ -288,6 +331,10 @@ public class CtiController(
     [HttpPut("calls/{id}/note")]
     public async Task<IActionResult> UpdateNote(string id, CtiNoteRequest req)
     {
+        var agentId = await db.CtiCallRecords.Where(c => c.Id == id).Select(c => c.AgentId).FirstOrDefaultAsync();
+        if (agentId is null) return NotFound();
+        if (!await OwnsAgentAsync(agentId)) return Forbid();
+
         var affected = await db.CtiCallRecords.Where(c => c.Id == id)
             .ExecuteUpdateAsync(up => up.SetProperty(c => c.Note, (req.Note ?? "").Trim()));
         return affected > 0 ? Ok() : NotFound();
@@ -303,6 +350,7 @@ public class CtiController(
     {
         var call = await db.CtiCallRecords.FindAsync(id);
         if (call is null) return NotFound();
+        if (!await OwnsAgentAsync(call.AgentId)) return Forbid();
         if (!call.AudioUploaded || call.AudioPath.Length == 0)
             return BadRequest(new { message = "Bu qo'ng'iroqda yozuv yo'q" });
 
@@ -332,6 +380,7 @@ public class CtiController(
     {
         var call = await db.CtiCallRecords.FindAsync(id);
         if (call is null) return NotFound();
+        if (!await OwnsAgentAsync(call.AgentId)) return Forbid();
         if (call.Transcript.Length == 0)
             return BadRequest(new { message = "Avval transkript qiling — tahlil transkript asosida ishlaydi" });
 
@@ -417,11 +466,17 @@ public class CtiController(
     }
 
     /// <summary>Tarix so'rovlarining UMUMIY filtri (oddiy va guruhlangan ro'yxat bir xil ishlaydi).
-    /// <paramref name="number"/> — aniq raqam (guruh ichini ochish uchun).</summary>
-    private IQueryable<CtiCallRecord> FilteredCalls(
+    /// <paramref name="number"/> — aniq raqam (guruh ichini ochish uchun). SuperAdmin bo'lmasa —
+    /// FAQAT joriy xodimga biriktirilgan agent(lar)ning qo'ng'iroqlari qaytariladi.</summary>
+    private async Task<IQueryable<CtiCallRecord>> FilteredCallsAsync(
         string? agentId, string? direction, string? dateFrom, string? dateTo, string? search, string? number)
     {
         var q = db.CtiCallRecords.AsNoTracking();
+        if (!SeesAll)
+        {
+            var myAgentIds = await MyAgentIdsAsync();
+            q = q.Where(c => myAgentIds.Contains(c.AgentId));
+        }
         if (!string.IsNullOrWhiteSpace(agentId)) q = q.Where(c => c.AgentId == agentId);
         if (direction is "incoming" or "outgoing" or "missed") q = q.Where(c => c.Direction == direction);
         if (!string.IsNullOrWhiteSpace(dateFrom) && DateTime.TryParse(dateFrom, out var df))

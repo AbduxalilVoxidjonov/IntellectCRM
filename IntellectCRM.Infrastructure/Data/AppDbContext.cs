@@ -225,6 +225,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         // CTI (Local Call): agent logini unikal, tarix filtri (agent/raqam/vaqt), hodisa kaskad.
         b.Entity<CtiAgent>().Property(a => a.Login).HasMaxLength(100);
         b.Entity<CtiAgent>().HasIndex(a => a.Login).IsUnique();
+        b.Entity<CtiAgent>().Property(a => a.StaffUserId).HasMaxLength(200);
+        b.Entity<CtiAgent>().HasIndex(a => a.StaffUserId);
         b.Entity<CtiCallRecord>().Property(c => c.AgentId).HasMaxLength(200);
         b.Entity<CtiCallRecord>().Property(c => c.RemoteNumber).HasMaxLength(50);
         b.Entity<CtiCallRecord>().HasIndex(c => c.AgentId);

@@ -332,11 +332,13 @@ public record CtiFcmTokenRequest(string? Token);
 /// <summary>Operator paneli — agent qatori (jonli holat konnektsiya menejeridan).</summary>
 public record CtiAgentDto(
     string Id, string Login, string DisplayName, bool IsActive, bool IsOnline,
-    string? LastSeenAt, bool HasFcmToken);
-/// <summary>Yangi agent yaratish.</summary>
-public record CtiAgentCreateRequest(string Login, string Password, string DisplayName);
-/// <summary>Agentni tahrirlash (Password bo'sh/null bo'lsa parol o'zgarmaydi).</summary>
-public record CtiAgentUpdateRequest(string DisplayName, bool IsActive, string? Password);
+    string? LastSeenAt, bool HasFcmToken, string? StaffUserId, string StaffUserName);
+/// <summary>Yangi agent yaratish. StaffUserId — SuperAdmin biriktirmoqchi bo'lsa (ixtiyoriy);
+/// oddiy xodim (SuperAdmin bo'lmagan) yaratsa har doim o'ziga biriktiriladi (server tomonda).</summary>
+public record CtiAgentCreateRequest(string Login, string Password, string DisplayName, string? StaffUserId);
+/// <summary>Agentni tahrirlash (Password bo'sh/null bo'lsa parol o'zgarmaydi). StaffUserId faqat
+/// SuperAdmin uchun qayta biriktirish imkoni beradi (boshqalar uchun e'tiborga olinmaydi).</summary>
+public record CtiAgentUpdateRequest(string DisplayName, bool IsActive, string? Password, string? StaffUserId);
 /// <summary>Click-to-call so'rovi.</summary>
 public record CtiDialRequest(string Number);
 /// <summary>Click-to-call natijasi: buyruq id + yetkazildimi (WS yoki FCM+WS orqali).</summary>

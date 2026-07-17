@@ -4,8 +4,10 @@ import {
   Phone, PhoneCall, Delete, User, Loader2, ChevronLeft, ChevronRight, Plus, Pencil, CircleDot,
   MessageSquare, Captions, Sparkles,
 } from 'lucide-react'
-import type { Student } from '@/types'
+import type { Student, Staff } from '@/types'
 import { getStudents } from '@/api/services/students'
+import { getStaff } from '@/api/services/staff'
+import { useAuth } from '@/context/auth-context'
 import {
   getCtiAgents, createCtiAgent, updateCtiAgent, dialCtiAgent, sendCtiSms,
   getCtiCalls, getCtiCallsGrouped, getCtiCallDetail, fetchCtiCallAudioUrl, updateCtiCallNote,
@@ -18,7 +20,7 @@ import { Button } from '@/components/ui/Button'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Loader } from '@/components/ui/Loader'
 import { Modal } from '@/components/ui/Modal'
-import { Input, Textarea } from '@/components/ui/Input'
+import { Input, Textarea, Select } from '@/components/ui/Input'
 import { cn, formatDateTime } from '@/lib/utils'
 
 /* ============================================================
@@ -55,6 +57,8 @@ function DirectionIcon({ direction, className }: { direction: CtiCall['direction
 }
 
 export function LocalCallPage() {
+  const { user } = useAuth()
+  const isSuperAdmin = user?.role === 'superadmin'
   const [tab, setTab] = useState<'dial' | 'history' | 'agents'>('dial')
 
   const [agents, setAgents] = useState<CtiAgent[]>([])
@@ -109,7 +113,7 @@ export function LocalCallPage() {
       ) : tab === 'history' ? (
         <HistoryTab agents={agents} onError={setError} />
       ) : (
-        <AgentsTab agents={agents} onReload={reloadAgents} onError={setError} />
+        <AgentsTab agents={agents} onReload={reloadAgents} onError={setError} isSuperAdmin={isSuperAdmin} />
       )}
     </div>
   )
@@ -1105,11 +1109,12 @@ function SmsModal({
 /* ============================ Tab 2: Agentlar ============================ */
 
 function AgentsTab({
-  agents, onReload, onError,
+  agents, onReload, onError, isSuperAdmin,
 }: {
   agents: CtiAgent[]
   onReload: () => void
   onError: (msg: string) => void
+  isSuperAdmin: boolean
 }) {
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<CtiAgent | null>(null)
@@ -1152,6 +1157,9 @@ function AgentsTab({
                 <div className="mt-2.5 space-y-1 text-xs text-slate-500">
                   <p>Oxirgi ko'rinish: {a.lastSeenAt ? formatDateTime(a.lastSeenAt) : '—'}</p>
                   <p>FCM: {a.hasFcmToken ? 'bor' : "yo'q"}</p>
+                  {isSuperAdmin && (
+                    <p>Xodim: {a.staffUserName || <span className="text-amber-600">biriktirilmagan</span>}</p>
+                  )}
                 </div>
 
                 <div className="mt-3 flex gap-2">
@@ -1174,6 +1182,7 @@ function AgentsTab({
           onClose={() => setFormOpen(false)}
           onSaved={() => { setFormOpen(false); onReload() }}
           onError={onError}
+          isSuperAdmin={isSuperAdmin}
         />
       )}
 
@@ -1214,18 +1223,27 @@ function AgentsTab({
 /* ============================ Agent qo'shish/tahrirlash modal ============================ */
 
 function AgentFormModal({
-  editing, onClose, onSaved, onError,
+  editing, onClose, onSaved, onError, isSuperAdmin,
 }: {
   editing: CtiAgent | null
   onClose: () => void
   onSaved: () => void
   onError: (msg: string) => void
+  isSuperAdmin: boolean
 }) {
   const [login, setLogin] = useState(editing?.login ?? '')
   const [displayName, setDisplayName] = useState(editing?.displayName ?? '')
   const [password, setPassword] = useState('')
   const [isActive, setIsActive] = useState(editing?.isActive ?? true)
+  const [staffUserId, setStaffUserId] = useState(editing?.staffUserId ?? '')
+  const [staffList, setStaffList] = useState<Staff[]>([])
   const [saving, setSaving] = useState(false)
+
+  // Xodimga biriktirish dropdown'i faqat SuperAdmin uchun (boshqalar o'ziga avtomatik biriktiriladi).
+  useEffect(() => {
+    if (!isSuperAdmin) return
+    getStaff().then(setStaffList).catch(() => setStaffList([]))
+  }, [isSuperAdmin])
 
   const canSave = displayName.trim() && (editing || (login.trim() && password.trim()))
 
@@ -1235,9 +1253,15 @@ function AgentFormModal({
     setSaving(true)
     try {
       if (editing) {
-        await updateCtiAgent(editing.id, { displayName: displayName.trim(), isActive, password })
+        await updateCtiAgent(editing.id, {
+          displayName: displayName.trim(), isActive, password,
+          staffUserId: isSuperAdmin ? (staffUserId || null) : undefined,
+        })
       } else {
-        await createCtiAgent({ login: login.trim(), password, displayName: displayName.trim() })
+        await createCtiAgent({
+          login: login.trim(), password, displayName: displayName.trim(),
+          staffUserId: isSuperAdmin ? (staffUserId || null) : undefined,
+        })
       }
       onSaved()
     } catch (err: any) {
@@ -1293,6 +1317,22 @@ function AgentFormModal({
             Faol
           </label>
         )}
+        {isSuperAdmin ? (
+          <Select
+            label="Xodimga biriktirish"
+            value={staffUserId}
+            onChange={(e) => setStaffUserId(e.target.value)}
+          >
+            <option value="">Biriktirilmagan (faqat SuperAdmin ko'radi)</option>
+            {staffList.map((s) => (
+              <option key={s.id} value={s.id}>{s.fullName}</option>
+            ))}
+          </Select>
+        ) : !editing ? (
+          <p className="text-xs text-slate-400">
+            Bu agent avtomatik ravishda sizga biriktiriladi — qo'ng'iroqlari faqat sizga (va SuperAdmin'ga) ko'rinadi.
+          </p>
+        ) : null}
       </form>
     </Modal>
   )

@@ -10,6 +10,9 @@ export interface CtiAgent {
   isOnline: boolean
   lastSeenAt: string | null
   hasFcmToken: boolean
+  /** Biriktirilgan xodim id'si — bo'lsa faqat shu xodim (+ SuperAdmin) ko'radi. */
+  staffUserId: string | null
+  staffUserName: string
 }
 
 export type CtiCallDirection = 'incoming' | 'outgoing' | 'missed'
@@ -84,20 +87,22 @@ export async function getCtiAgents(): Promise<CtiAgent[]> {
   return data
 }
 
-/** Yangi agent-telefon qo'shish (login/parol Android ilovaga kiritiladi). */
+/** Yangi agent-telefon qo'shish (login/parol Android ilovaga kiritiladi). staffUserId — SuperAdmin
+ * xohlagan xodimga biriktirishi mumkin (boshqalar yaratsa har doim o'ziga biriktiriladi, server tomonda). */
 export async function createCtiAgent(req: {
   login: string
   password: string
   displayName: string
+  staffUserId?: string | null
 }): Promise<{ id: string }> {
   const { data } = await api.post('/cti/agents', req)
   return data
 }
 
-/** Agentni tahrirlash — parol bo'sh qoldirilsa o'zgarmaydi. */
+/** Agentni tahrirlash — parol bo'sh qoldirilsa o'zgarmaydi. staffUserId faqat SuperAdmin uchun ishlaydi. */
 export async function updateCtiAgent(
   id: string,
-  req: { displayName: string; isActive: boolean; password: string },
+  req: { displayName: string; isActive: boolean; password: string; staffUserId?: string | null },
 ): Promise<void> {
   await api.put(`/cti/agents/${id}`, req)
 }
