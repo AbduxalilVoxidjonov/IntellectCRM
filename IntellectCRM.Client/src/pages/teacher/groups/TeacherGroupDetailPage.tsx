@@ -17,7 +17,7 @@ import {
 } from '@/api/services/teacher'
 import type { GroupJournal } from '@/api/services/journal'
 import type { GroupCurriculum } from '@/api/services/curriculum'
-import { cn, formatDate, apiErrorMessage, gradeBadgeCls } from '@/lib/utils'
+import { cn, formatDate, formatMoney, apiErrorMessage, gradeBadgeCls } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
 import { GradingSection } from '@/components/grading/GradingSection'
 import type { GradingBoard } from "@/api/services/grading"
@@ -199,7 +199,7 @@ export function TeacherGroupDetailPage() {
       }
       const present = total - absences
       const percent = total > 0 ? Math.round((present / total) * 100) : 0
-      return { studentId: st.studentId, fullName: st.fullName, total, present, absences, percent }
+      return { studentId: st.studentId, fullName: st.fullName, balance: st.balance, total, present, absences, percent }
     })
   }, [journalStudents, journal, entryMap, lateReasonIds])
 
@@ -540,8 +540,15 @@ export function TeacherGroupDetailPage() {
                           </td>
                           <td className="sticky left-0 z-10 border-b border-r-2 border-line bg-inherit px-3 py-2">
                             {/* FISH to'liq ko'rinishi shart (telefonda o'qish uchun) — kesilmaydi,
-                                bir necha qatorga o'raladi; kenglik sticky ustun barqarorligi uchun qat'iy. */}
-                            <span className="block w-32 whitespace-normal break-words text-sm font-medium leading-snug text-ink">
+                                bir necha qatorga o'raladi; kenglik sticky ustun barqarorligi uchun qat'iy.
+                                Rang: qarzdor (balance<0) qizil, qarzi yo'q yashil — admin ro'yxati bilan bir xil. */}
+                            <span
+                              className={cn(
+                                'block w-32 whitespace-normal break-words text-sm font-medium leading-snug',
+                                st.balance < 0 ? 'text-red-600' : 'text-emerald-700',
+                              )}
+                              title={st.balance < 0 ? `Qarz: ${formatMoney(st.balance)}` : "Qarzi yo'q"}
+                            >
                               {st.fullName}
                             </span>
                           </td>
@@ -656,7 +663,15 @@ export function TeacherGroupDetailPage() {
                     <tbody>
                       {attendanceRows.map((r) => (
                         <tr key={r.studentId} className="border-b border-line-soft hover:bg-panel2">
-                          <td className="px-4 py-3 text-sm font-medium text-ink">{r.fullName}</td>
+                          <td
+                            className={cn(
+                              'px-4 py-3 text-sm font-medium',
+                              r.balance < 0 ? 'text-red-600' : 'text-emerald-700',
+                            )}
+                            title={r.balance < 0 ? `Qarz: ${formatMoney(r.balance)}` : "Qarzi yo'q"}
+                          >
+                            {r.fullName}
+                          </td>
                           <td className="px-3 py-3 text-center font-mono text-sm text-mute">{r.total}</td>
                           <td className="px-3 py-3 text-center font-mono text-sm font-semibold text-emerald-600">
                             {r.present}
