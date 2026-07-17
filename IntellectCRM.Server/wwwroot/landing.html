@@ -74,6 +74,11 @@
   .cta-form select{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%239fb3cc' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:40px;cursor:pointer}
   .cta-form select option{background:#0d1b2a;color:var(--text)}
   .cta-form button{width:100%;justify-content:center;padding:14px 22px;font-size:16px;margin-top:4px}
+  .subject-chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+  .subject-chip{padding:9px 15px;border-radius:10px;font-size:14px;font-weight:600;background:#0d1b2a;color:var(--muted);border:1px solid rgba(255,255,255,.12);cursor:pointer;transition:.2s;user-select:none}
+  .subject-chip:hover{border-color:rgba(255,255,255,.28);color:var(--text)}
+  .subject-chip.active{background:var(--grad);border-color:transparent;color:#fff}
+  .subject-hint{font-size:12px;color:var(--muted);margin:-10px 0 16px 2px}
   .form-msg{display:none;margin-top:14px;padding:12px 16px;border-radius:12px;font-size:14px;line-height:1.5}
   .form-msg.error{display:block;background:rgba(220,53,69,.12);border:1px solid rgba(220,53,69,.4);color:#ff8b96}
   .form-success{text-align:center;padding:30px 10px}
@@ -146,18 +151,18 @@
         <input type="text" id="leadName" name="name" placeholder="Masalan: Aziz Karimov" autocomplete="name" required>
         <label for="leadPhone">Telefon raqamingiz</label>
         <input type="tel" id="leadPhone" name="tel" placeholder="+998 90 123 45 67" inputmode="tel" autocomplete="tel" required>
-        <label for="leadSubject">Yo'nalish</label>
-        <select id="leadSubject" name="subject" required>
-          <option value="">Yo'nalishni tanlang</option>
-          <option>General English</option>
-          <option>IELTS</option>
-          <option>Multilevel</option>
-          <option>Matematika</option>
-          <option>SAT</option>
-          <option>Ona tili</option>
-          <option>Rus tili</option>
-          <option>Fizika</option>
-        </select>
+        <label id="leadSubjectLabel">Yo'nalish(lar)</label>
+        <p class="subject-hint">Bir nechtasini yoki bittasini tanlashingiz mumkin</p>
+        <div class="subject-chips" id="leadSubjectChips" role="group" aria-labelledby="leadSubjectLabel">
+          <button type="button" class="subject-chip" data-subject="General English">General English</button>
+          <button type="button" class="subject-chip" data-subject="IELTS">IELTS</button>
+          <button type="button" class="subject-chip" data-subject="Multilevel">Multilevel</button>
+          <button type="button" class="subject-chip" data-subject="Matematika">Matematika</button>
+          <button type="button" class="subject-chip" data-subject="SAT">SAT</button>
+          <button type="button" class="subject-chip" data-subject="Ona tili">Ona tili</button>
+          <button type="button" class="subject-chip" data-subject="Rus tili">Rus tili</button>
+          <button type="button" class="subject-chip" data-subject="Fizika">Fizika</button>
+        </div>
         <button type="submit" class="btn btn-accent" id="leadSubmitBtn">Ariza qoldirish</button>
         <div class="form-msg" id="leadFormMsg"></div>
       </form>

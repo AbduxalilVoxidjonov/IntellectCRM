@@ -54,7 +54,9 @@
   var submitBtn = document.getElementById('leadSubmitBtn');
   var nameInput = document.getElementById('leadName');
   var phoneInput = document.getElementById('leadPhone');
-  var subjectInput = document.getElementById('leadSubject');
+  var subjectChipsWrap = document.getElementById('leadSubjectChips');
+  var subjectChips = subjectChipsWrap ? subjectChipsWrap.querySelectorAll('.subject-chip') : [];
+  var selectedSubjects = [];
 
   function showError(text){
     msgEl.textContent = text;
@@ -73,7 +75,22 @@
     clearError();
   });
   nameInput.addEventListener('input', clearError);
-  subjectInput.addEventListener('change', clearError);
+
+  // Yo'nalish chiplari — bir nechtasi yoki bittasi tanlanishi mumkin (toggle).
+  subjectChips.forEach(function(chip){
+    chip.addEventListener('click', function(){
+      var val = chip.getAttribute('data-subject');
+      var idx = selectedSubjects.indexOf(val);
+      if (idx === -1) {
+        selectedSubjects.push(val);
+        chip.classList.add('active');
+      } else {
+        selectedSubjects.splice(idx, 1);
+        chip.classList.remove('active');
+      }
+      clearError();
+    });
+  });
 
   form.addEventListener('submit', function(event){
     event.preventDefault();
@@ -81,7 +98,7 @@
 
     var fullName = nameInput.value.trim();
     var phone = phoneInput.value.trim();
-    var subject = subjectInput.value;
+    var subject = selectedSubjects.join(', ');
 
     if (!fullName) {
       showError('Iltimos, ismingizni kiriting.');
@@ -93,9 +110,8 @@
       phoneInput.focus();
       return;
     }
-    if (!subject) {
-      showError('Iltimos, yo\'nalishni tanlang.');
-      subjectInput.focus();
+    if (selectedSubjects.length === 0) {
+      showError('Iltimos, kamida bitta yo\'nalishni tanlang.');
       return;
     }
 
