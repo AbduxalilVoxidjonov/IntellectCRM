@@ -110,9 +110,16 @@ public class GradingController(AppDbContext db, DataCache dataCache) : Controlle
     [HttpPost("grade")]
     public async Task<ActionResult> Grade(SetCriterionGradeRequest req)
     {
-        await UpsertGradeAsync(db, req);
-        await db.SaveChangesAsync();
-        return Ok(new { ok = true });
+        try
+        {
+            await UpsertGradeAsync(db, req);
+            await db.SaveChangesAsync();
+            return Ok(new { ok = true });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     /// <summary>Shu sanada bitta mezon bo'yicha BARCHA faol o'quvchini ommaviy belgilash/belgilamaslik.</summary>
@@ -202,9 +209,12 @@ public class GradingController(AppDbContext db, DataCache dataCache) : Controlle
             .ToList();
 
         // Muzlatilgan (frozen) o'quvchi baholanmaydi — jurnal gridi kabi faqat faol/sinov.
-        var memberIds = await db.StudentGroups
+        var memberships = await db.StudentGroups
             .Where(sg => sg.GroupId == group.Id && sg.IsActive && sg.Status != "frozen")
-            .Select(sg => sg.StudentId).ToListAsync();
+            .ToListAsync();
+        var memberIds = memberships.Select(sg => sg.StudentId).ToList();
+        // A'zolik boshlanishi (ActivatedAt/JoinedAt) — frontend shu sanadan oldingi kataklarni bloklaydi.
+        var startById = memberships.ToDictionary(sg => sg.StudentId, sg => JournalService.MemberStart(sg) ?? "");
         var students = await db.Students.Where(s => memberIds.Contains(s.Id) && !s.IsArchived)
             .OrderBy(s => s.FullName).ToListAsync();
 
@@ -216,7 +226,8 @@ public class GradingController(AppDbContext db, DataCache dataCache) : Controlle
             .ToDictionary(g => g.Key, g => g.Select(x => $"{x.CriterionId}|{x.Date}").ToList());
 
         var rows = students.Select(s => new GradingBoardStudentDto(
-            s.Id, s.FullName, byStudent.TryGetValue(s.Id, out var d) ? d : new List<string>())).ToList();
+            s.Id, s.FullName, byStudent.TryGetValue(s.Id, out var d) ? d : new List<string>(),
+            startById.TryGetValue(s.Id, out var ms) ? ms : "")).ToList();
 
         return new GradingBoardDto(group.Id, group.Name, months, resolved, dates, criteria, rows);
     }
@@ -225,6 +236,15 @@ public class GradingController(AppDbContext db, DataCache dataCache) : Controlle
     /// So'ng shu (o'quvchi, sana) uchun jurnal bahosini mezon checklari soniga sinxronlaydi.</summary>
     public static async Task UpsertGradeAsync(AppDbContext db, SetCriterionGradeRequest req)
     {
+        // Jurnal bilan bir xil qoida: a'zolik boshlanishidan (aktivlashtirilgan bo'lsa ActivatedAt,
+        // aks holda JoinedAt) OLDINGI sanaga mezon belgilab bo'lmaydi (jurnal bahosi ham yaralib qolardi).
+        var membership = await db.StudentGroups.FirstOrDefaultAsync(sg =>
+            sg.GroupId == req.GroupId && sg.StudentId == req.StudentId && sg.IsActive);
+        var memberStart = JournalService.MemberStart(membership);
+        if (memberStart is not null && string.CompareOrdinal(req.Date, memberStart) < 0)
+            throw new InvalidOperationException(
+                "O'quvchi guruhga qo'shilgan/aktivlashtirilgan sanadan oldingi darsga mezon belgilab bo'lmaydi");
+
         var existing = await db.CriterionGrades.FirstOrDefaultAsync(
             g => g.GroupId == req.GroupId && g.StudentId == req.StudentId
                  && g.CriterionId == req.CriterionId && g.Date == req.Date);
@@ -257,9 +277,17 @@ public class GradingController(AppDbContext db, DataCache dataCache) : Controlle
     /// <summary>Shu sanada bitta mezon bo'yicha guruhning BARCHA faol (frozen emas) o'quvchisini belgilaydi/olib tashlaydi.</summary>
     public static async Task BulkGradeAsync(AppDbContext db, Group group, string criterionId, string date, bool done)
     {
-        var memberIds = await db.StudentGroups
-            .Where(sg => sg.GroupId == group.Id && sg.IsActive && sg.Status != "frozen")
-            .Select(sg => sg.StudentId).ToListAsync();
+        // A'zoligi shu sanadan KEYIN boshlangan o'quvchilar chetlab o'tiladi (jurnal bulk-attendance bilan
+        // bir xil) — yangi qo'shilgan/aktivlashtirilgan o'quvchiga orqadagi darsga mezon belgilanmasin.
+        var memberIds = (await db.StudentGroups
+                .Where(sg => sg.GroupId == group.Id && sg.IsActive && sg.Status != "frozen")
+                .ToListAsync())
+            .Where(sg =>
+            {
+                var start = JournalService.MemberStart(sg);
+                return start is null || string.CompareOrdinal(date, start) >= 0;
+            })
+            .Select(sg => sg.StudentId).ToList();
         var existing = await db.CriterionGrades
             .Where(g => g.GroupId == group.Id && g.CriterionId == criterionId && g.Date == date).ToListAsync();
         var byStudent = existing.ToDictionary(g => g.StudentId);

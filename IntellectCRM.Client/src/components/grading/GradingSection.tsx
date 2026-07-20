@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Check, ClipboardCheck, ChevronLeft, ChevronRight, ChevronDown, X } from 'lucide-react'
 import type { GradingBoard, SetGrade, BulkGrade } from '@/api/services/grading'
 import { Loader } from '@/components/ui/Loader'
-import { cn } from '@/lib/utils'
+import { cn, apiErrorMessage } from '@/lib/utils'
 
 interface Props {
   groupId: string
@@ -74,6 +74,15 @@ export function GradingSection({ groupId, fetchBoard, saveGrade, bulkGrade }: Pr
     setSavingKey(key)
     try {
       await saveGrade({ groupId, studentId: sid, criterionId: cid, date, done: next })
+    } catch (err) {
+      // Saqlanmadi (masalan, a'zolik boshlanishidan oldingi sana) — optimistik belgini qaytaramiz.
+      setDone((s) => {
+        const n = new Set(s)
+        if (next) n.delete(key)
+        else n.add(key)
+        return n
+      })
+      alert(apiErrorMessage(err, 'Belgilab bo\'lmadi'))
     } finally {
       setSavingKey(null)
     }
@@ -85,6 +94,8 @@ export function GradingSection({ groupId, fetchBoard, saveGrade, bulkGrade }: Pr
     setDone((s) => {
       const n = new Set(s)
       board.students.forEach((st) => {
+        // A'zoligi shu sanadan keyin boshlangan o'quvchi bulk'da ham belgilanmaydi (backend ham o'tkazib yuboradi).
+        if (st.memberStart && date < st.memberStart) return
         const key = `${st.studentId}|${cid}|${date}`
         if (value) n.add(key)
         else n.delete(key)
@@ -227,17 +238,29 @@ export function GradingSection({ groupId, fetchBoard, saveGrade, bulkGrade }: Pr
                         {board.criteria.map((c) => {
                           const key = `${s.studentId}|${c.id}|${date}`
                           const isDone = done.has(key)
+                          // Jurnaldagi kabi: a'zolik boshlanishidan (aktivlashtirilgan bo'lsa ActivatedAt,
+                          // aks holda JoinedAt) OLDINGI sanaga mezon belgilab bo'lmaydi.
+                          const beforeMember = !!s.memberStart && date < s.memberStart
                           return (
                             <td key={c.id} className="border-b border-slate-100 px-2 py-1.5 text-center">
                               <button
                                 type="button"
+                                disabled={beforeMember}
                                 onClick={() => toggle(s.studentId, c.id)}
-                                title={isDone ? 'Bajardi' : 'Belgilash'}
+                                title={
+                                  beforeMember
+                                    ? "O'quvchi guruhga qo'shilishidan oldingi dars"
+                                    : isDone
+                                      ? 'Bajardi'
+                                      : 'Belgilash'
+                                }
                                 className={cn(
                                   'mx-auto flex h-7 w-7 items-center justify-center rounded-lg border transition-colors',
-                                  isDone
-                                    ? 'border-emerald-500 bg-emerald-500 text-white'
-                                    : 'border-slate-300 bg-white text-transparent hover:border-emerald-400',
+                                  beforeMember
+                                    ? 'cursor-not-allowed border-slate-200 bg-slate-50 text-transparent'
+                                    : isDone
+                                      ? 'border-emerald-500 bg-emerald-500 text-white'
+                                      : 'border-slate-300 bg-white text-transparent hover:border-emerald-400',
                                   savingKey === key && 'ring-2 ring-emerald-200',
                                 )}
                               >

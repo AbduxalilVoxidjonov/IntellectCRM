@@ -23,6 +23,9 @@ export interface GradingBoardStudent {
   fullName: string
   /** "criterionId|date" — "bajardi" belgilangan kataklar */
   doneKeys: string[]
+  /** A'zolik boshlanishi (aktivlashtirilgan bo'lsa ActivatedAt, aks holda JoinedAt, "YYYY-MM-DD").
+   *  Undan oldingi sanaga mezon belgilab bo'lmaydi — katak bloklanadi. */
+  memberStart: string
 }
 export interface GradingBoard {
   groupId: string

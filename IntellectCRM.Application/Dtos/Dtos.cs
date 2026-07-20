@@ -1652,7 +1652,9 @@ public record GroupCriteriaInput(List<string> CriterionIds);
 /// <summary>Baholash grid'idagi ustun (mezon).</summary>
 public record GradingBoardCriterionDto(string Id, string Name, int Order);
 /// <summary>Baholash grid'idagi qator (o'quvchi). DoneKeys — "criterionId|date" bo'yicha "bajardi" belgilangan kataklar.</summary>
-public record GradingBoardStudentDto(string StudentId, string FullName, List<string> DoneKeys);
+/// <summary>MemberStart — a'zolik boshlanishi (aktivlashtirilgan bo'lsa ActivatedAt, aks holda JoinedAt,
+/// "yyyy-MM-dd"); undan oldingi sanaga mezon belgilab bo'lmaydi (frontend katakni bloklaydi).</summary>
+public record GradingBoardStudentDto(string StudentId, string FullName, List<string> DoneKeys, string MemberStart);
 /// <summary>Guruh baholash grid'i: oy(lar) + dars sanalari + mezonlar (ustun) + faol o'quvchilar + bajardi belgilar.</summary>
 public record GradingBoardDto(
     string GroupId, string GroupName,

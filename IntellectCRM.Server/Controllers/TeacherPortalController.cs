@@ -486,9 +486,16 @@ public class TeacherPortalController(
         if (t is null) return NotFound();
         if (g is null) return NotFound();
         if (!owns) return Forbid();
-        await GradingController.UpsertGradeAsync(db, req);
-        await db.SaveChangesAsync();
-        return Ok(new { ok = true });
+        try
+        {
+            await GradingController.UpsertGradeAsync(db, req);
+            await db.SaveChangesAsync();
+            return Ok(new { ok = true });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     /// <summary>Shu sanada bitta mezon bo'yicha BARCHA o'quvchini ommaviy belgilash — FAQAT o'z guruhi.</summary>

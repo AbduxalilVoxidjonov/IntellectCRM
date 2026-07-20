@@ -103,8 +103,8 @@ public static class JournalService
 
     /// <summary>O'quvchining guruhdagi a'zoligi boshlangan sana ("yyyy-MM-dd"): aktivlashtirilgan bo'lsa
     /// ActivatedAt, aks holda JoinedAt. Noma'lum/formatsiz bo'lsa null (cheklov qo'llanmaydi). Undan
-    /// oldingi darslarga davomat/baho kiritib bo'lmaydi.</summary>
-    private static string? MemberStart(StudentGroup? m)
+    /// oldingi darslarga davomat/baho (jurnal ham, baholash mezonlari ham) kiritib bo'lmaydi.</summary>
+    public static string? MemberStart(StudentGroup? m)
     {
         if (m is null) return null;
         if (!string.IsNullOrEmpty(m.ActivatedAt) && m.ActivatedAt.Length >= 10) return m.ActivatedAt[..10];
