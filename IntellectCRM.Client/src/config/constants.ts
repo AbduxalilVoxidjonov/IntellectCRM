@@ -84,6 +84,9 @@ export const adminPermissions: { key: string; label: string }[] = [
   { key: 'cameras', label: 'Kameralar' },
   { key: 'discipline', label: 'Intizomiy ball' },
   { key: 'calls', label: 'Call Center' },
+  // Bosh sahifadagi markaz AI tahlili — DEFAULT faqat superadmin ko'radi; xodimga shu yerdan
+  // ruxsat beriladi ("Ko'rish" = karta ko'rinadi, "Qo'shish" = qo'lda tahlil yaratish tugmasi).
+  { key: 'ai', label: 'AI tahlil (bosh sahifa)' },
 ]
 
 /* ---------- Moliya ---------- */

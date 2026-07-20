@@ -6,9 +6,18 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { Loader } from '@/components/ui/Loader'
 import { TodayLessonsMonitor } from '@/components/dashboard/TodayLessonsMonitor'
 import { CenterAiAnalysisCard } from '@/components/dashboard/CenterAiAnalysisCard'
+import { useAuth } from '@/context/auth-context'
+import { can } from '@/lib/permissions'
 
 export function AdminDashboard() {
   const { data, loading, error } = useAsync(getAdminDashboard, [])
+  const { user } = useAuth()
+  // AI tahlil DEFAULT faqat superadmin'ga; xodimga "Xodimlar va rollar"da "ai" bo'limi
+  // (Ko'rish) berilsa ko'rinadi. Oddiy admin roli ko'rmaydi (permissions=null uchun
+  // can() true qaytarardi — shuning uchun rol aniq tekshiriladi).
+  const showAi =
+    user?.role === 'superadmin' ||
+    (user?.role === 'staff' && can(user.permissions ?? [], 'ai', 'view'))
 
   if (loading) return <Loader label="Yuklanmoqda..." />
   if (error) return <p className="text-red-600">Xatolik: {error}</p>
@@ -59,10 +68,13 @@ export function AdminDashboard() {
         />
       </div>
 
-      {/* AI Tahlil — markaz bo'yicha kunlik sun'iy intellekt tahlili */}
-      <div className="mb-4">
-        <CenterAiAnalysisCard />
-      </div>
+      {/* AI Tahlil — markaz bo'yicha kunlik sun'iy intellekt tahlili (faqat superadmin
+          yoki "ai" ruxsati berilgan xodim) */}
+      {showAi && (
+        <div className="mb-4">
+          <CenterAiAnalysisCard />
+        </div>
+      )}
 
       {/* Bugungi darslar monitoringi — o'qituvchilar davomat qildimi va baho qo'ydimi */}
       <TodayLessonsMonitor />
