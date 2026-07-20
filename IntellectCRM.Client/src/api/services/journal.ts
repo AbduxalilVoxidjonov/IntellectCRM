@@ -152,12 +152,14 @@ interface EntryPayload {
   grade?: number | null
   /** null — davomat sababini o'chiradi */
   reasonId?: string | null
-  /** Uyga vazifa: 0 = belgilanmagan, 1 = qildi, 2 = qilmadi */
+  /** Uyga vazifa: 0 = belgilanmagan, 1 = qildi, 2 = qilmadi, 3 = chala qildi */
   homework?: number
   /** Xulq: 0 = belgilanmagan, 1 = yaxshi, 2 = yomon */
   behavior?: number
   /** O'zlashtirish darajasi (MasteryLevel); null = tozalash */
   mastery?: MasteryLevel | null
+  /** ANIQ "keldi (bor)" belgisi — presentDefaultFrom cheklovidan qat'i nazar yashil ✓ */
+  present?: boolean
 }
 
 /** Bitta katakni belgilash — baho yoki davomat sababi (sana + dars raqami bo'yicha) */

@@ -219,9 +219,12 @@ export async function getTeacherSalary(from?: string, to?: string): Promise<Sala
 interface TeacherEntryPayload {
   grade?: number | null
   reasonId?: string | null
+  /** 0 = belgilanmagan, 1 = qildi, 2 = qilmadi, 3 = chala qildi */
   homework?: number
   behavior?: number
   mastery?: number | null
+  /** ANIQ "keldi (bor)" belgisi — presentDefaultFrom cheklovidan qat'i nazar yashil ✓ */
+  present?: boolean
 }
 
 /** Guruhning bitta oylik jurnali (ustunlar guruh dars kunlaridan, qatorlar faqat faol o'quvchilar). */

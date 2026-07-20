@@ -689,12 +689,15 @@ export interface JournalEntry {
   grade?: number
   /** Davomat sababi id'si, agar kelmagan bo'lsa */
   reasonId?: string
-  /** Uyga vazifa: 0 = belgilanmagan, 1 = qildi, 2 = qilmadi */
+  /** Uyga vazifa: 0 = belgilanmagan, 1 = qildi, 2 = qilmadi, 3 = chala qildi */
   homework?: number
   /** Xulq: 0 = belgilanmagan, 1 = yaxshi, 2 = yomon */
   behavior?: number
   /** Shu darsni o'zlashtirish darajasi (MasteryLevel: 0-3); null/undefined = belgilanmagan */
   mastery?: MasteryLevel | null
+  /** ANIQ "keldi (bor)" belgisi — "Keldi" tugmasi yoki "hammasi keldi" bosilganda.
+   *  presentDefaultFrom cheklovidan qat'i nazar katak yashil ✓ ko'rsatiladi. */
+  present?: boolean
 }
 
 /** Dars ma'lumoti (sana + dars raqami bo'yicha): mavzu, uyga vazifa, o'tildi */

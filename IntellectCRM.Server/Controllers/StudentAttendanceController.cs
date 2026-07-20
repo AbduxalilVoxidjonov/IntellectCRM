@@ -190,7 +190,9 @@ public class StudentAttendanceController(AppDbContext db) : ControllerBase
             AbsenceReason? reason = e?.ReasonId is not null ? reasons.GetValueOrDefault(e.ReasonId) : null;
             var isConducted = conducted.Contains(date);
             var isAttendanceTaken = attendanceTaken.Contains(date);
-            var present = !blocked && isAttendanceTaken && e?.Grade is null && reason is null;
+            // ANIQ Present belgisi (katakdagi "Keldi" tugmasi / "hammasi keldi") davomat olinmagan
+            // kunda ham "keldi" hisoblanadi.
+            var present = !blocked && e?.Grade is null && reason is null && (isAttendanceTaken || e?.Present == true);
 
             cells.Add(new StudentJournalCellDto(
                 date, isConducted, blocked, present,

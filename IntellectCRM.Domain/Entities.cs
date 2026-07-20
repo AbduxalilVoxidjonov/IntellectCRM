@@ -617,7 +617,11 @@ public class JournalEntry
     public int Period { get; set; }
     public int? Grade { get; set; }
     public string? ReasonId { get; set; }
-    /// <summary>Uyga vazifa bajarilishi: 0 = belgilanmagan, 1 = qildi, 2 = qilmadi.</summary>
+    /// <summary>ANIQ "keldi (bor)" belgisi — o'qituvchi katakda "Keldi" tugmasini bossa yoki "hammasi keldi"
+    /// ommaviy davomatida. "Dars o'tildi + yozuv yo'q = keldi" konventsiyasidan farqli, bu RecordedAt
+    /// (PresentDefaultFrom) cheklovidan qat'i nazar yashil ✓ ko'rsatiladi (orqaga sanalgan a'zolikda ham).</summary>
+    public bool Present { get; set; }
+    /// <summary>Uyga vazifa bajarilishi: 0 = belgilanmagan, 1 = qildi, 2 = qilmadi, 3 = chala qildi.</summary>
     public int Homework { get; set; }
     /// <summary>Xulq: 0 = belgilanmagan, 1 = yaxshi, 2 = yomon.</summary>
     public int Behavior { get; set; }

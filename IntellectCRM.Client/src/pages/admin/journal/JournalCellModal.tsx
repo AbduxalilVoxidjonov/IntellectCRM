@@ -16,13 +16,15 @@ interface Props {
    *  chiroyli banner sifatida ko'rsatiladi (brauzerning standart alert() o'rniga). */
   error?: string | null
   onClose: () => void
-  /** Baho, davomat, uyga vazifa (0/1/2), xulq (0/1/2) va o'zlashtirish darajasini birga saqlaydi. */
+  /** Baho, davomat (keldi/sabab), uyga vazifa (0/1/2/3), xulq (0/1/2) va o'zlashtirishni birga saqlaydi.
+   *  present — ANIQ "keldi (bor)": orqaga sanalgan a'zolikda ham katak yashil ✓ bo'ladi. */
   onSave: (
     grade: number | null,
     reasonId: string | null,
     homework: number,
     behavior: number,
     mastery: MasteryLevel | null,
+    present: boolean,
   ) => void
   onClear: () => void
 }
@@ -51,6 +53,7 @@ export function JournalCellModal({
 }: Props) {
   const [grade, setGrade] = useState<number | null>(null)
   const [reasonId, setReasonId] = useState<string | null>(null)
+  const [present, setPresent] = useState(false)
   const [homework, setHomework] = useState(0)
   const [behavior, setBehavior] = useState(0)
   const [mastery, setMastery] = useState<MasteryLevel | ''>('')
@@ -60,6 +63,7 @@ export function JournalCellModal({
     // eslint-disable-next-line react-hooks/set-state-in-effect -- modal ochilganda joriy katak qiymatini yuklash (maqsadli)
     setGrade(entry?.grade ?? null)
     setReasonId(entry?.reasonId ?? null)
+    setPresent(entry?.present ?? false)
     setHomework(entry?.homework ?? 0)
     setBehavior(entry?.behavior ?? 0)
     setMastery(entry?.mastery ?? '')
@@ -73,7 +77,18 @@ export function JournalCellModal({
   const selectedLate = reasonId != null && lateReasons.some((r) => r.id === reasonId)
   const isBeforeStart = !!(startDate && date && date < startDate)
 
-  const toggleReason = (id: string) => setReasonId((cur) => (cur === id ? null : id))
+  // "Keldi" va "kelmadi (sabab)" bir vaqtda bo'lmaydi — biri tanlansa ikkinchisi o'chadi.
+  const toggleReason = (id: string) =>
+    setReasonId((cur) => {
+      const next = cur === id ? null : id
+      if (next) setPresent(false)
+      return next
+    })
+  const togglePresent = () =>
+    setPresent((cur) => {
+      if (!cur) setReasonId(null)
+      return !cur
+    })
 
   return (
     <Modal
@@ -91,7 +106,7 @@ export function JournalCellModal({
           <Button variant="secondary" onClick={onClose}>
             Bekor qilish
           </Button>
-          <Button disabled={isBeforeStart} onClick={() => onSave(grade, reasonId, homework, behavior, mastery === '' ? null : mastery)}>
+          <Button disabled={isBeforeStart} onClick={() => onSave(grade, reasonId, homework, behavior, mastery === '' ? null : mastery, present)}>
             Saqlash
           </Button>
         </>
@@ -160,9 +175,23 @@ export function JournalCellModal({
         )}
 
         <div>
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Davomat (kelmadi)</p>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Davomat</p>
+          <div className="mb-2">
+            <button
+              type="button"
+              onClick={togglePresent}
+              className={cn(
+                'rounded-lg border px-3 py-2 text-sm font-semibold transition-colors',
+                present
+                  ? 'border-emerald-400 bg-emerald-50 text-emerald-700'
+                  : 'border-slate-200 text-slate-700 hover:bg-slate-50',
+              )}
+            >
+              ✓ Keldi (bor)
+            </button>
+          </div>
           {absentReasons.length === 0 ? (
-            <p className="text-xs text-slate-400">Sabablar yo'q - Sozlamalarda qo'shing</p>
+            <p className="text-xs text-slate-400">Sabablar yo'q — O'quv bo'limi → Sabablar bo'limida qo'shing</p>
           ) : (
             <div className="flex flex-wrap gap-2">
               {absentReasons.map((r) => (
@@ -198,6 +227,18 @@ export function JournalCellModal({
               )}
             >
               Qildi
+            </button>
+            <button
+              type="button"
+              onClick={() => toggle(homework, setHomework, 3)}
+              className={cn(
+                'rounded-lg border px-3 py-2 text-sm font-semibold transition-colors',
+                homework === 3
+                  ? 'border-amber-400 bg-amber-50 text-amber-700'
+                  : 'border-slate-200 text-slate-700 hover:bg-slate-50',
+              )}
+            >
+              Chala qildi
             </button>
             <button
               type="button"

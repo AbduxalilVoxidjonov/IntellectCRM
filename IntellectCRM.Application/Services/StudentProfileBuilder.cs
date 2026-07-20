@@ -147,7 +147,9 @@ public static class StudentProfileBuilder
             PerM(e => !IsLateE(e)), PerM(IsIllE), PerM(IsLateE));
 
         // ---- Uy vazifa + xulq (jami + OYMA-OY trend) ----
-        var hwDone = entries.Count(e => e.Homework == 1);
+        // Homework: 1=qildi, 2=qilmadi, 3=chala qildi (statistikada "qildi" hisobiga kiradi —
+        // bajarishga urinilgan; alohida sanoq DTO'larni og'irlashtirardi).
+        var hwDone = entries.Count(e => e.Homework is 1 or 3);
         var hwMissed = entries.Count(e => e.Homework == 2);
         var bGood = entries.Count(e => e.Behavior == 1);
         var bBad = entries.Count(e => e.Behavior == 2);
@@ -157,7 +159,7 @@ public static class StudentProfileBuilder
         {
             var list = markByMonth[m];
             return new MonthMarksDto(m,
-                list.Count(e => e.Homework == 1), list.Count(e => e.Homework == 2),
+                list.Count(e => e.Homework is 1 or 3), list.Count(e => e.Homework == 2),
                 list.Count(e => e.Behavior == 1), list.Count(e => e.Behavior == 2));
         }).ToList();
 

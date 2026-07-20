@@ -85,7 +85,7 @@ public static class JournalService
             ? new List<JournalEntryDto>()
             : await db.JournalEntries
                 .Where(e => e.ClassId == classId && e.SubjectId == subjectId && e.Date.StartsWith(resolved))
-                .Select(e => new JournalEntryDto(e.StudentId, e.Date, e.Period, e.Grade, e.ReasonId, e.Homework, e.Behavior, e.Mastery))
+                .Select(e => new JournalEntryDto(e.StudentId, e.Date, e.Period, e.Grade, e.ReasonId, e.Homework, e.Behavior, e.Mastery, e.Present))
                 .ToListAsync();
 
         // "O'tildi" deb belgilangan dars sanalari — sababsiz o'quvchi shu kunda KELDI (yashil) deb ko'rsatiladi.
@@ -228,7 +228,7 @@ public static class JournalService
         IAppDbContext db, string classId, string subjectId, int quarter) =>
         await db.JournalEntries
             .Where(e => e.ClassId == classId && e.SubjectId == subjectId && e.Quarter == quarter)
-            .Select(e => new JournalEntryDto(e.StudentId, e.Date, e.Period, e.Grade, e.ReasonId, e.Homework, e.Behavior, e.Mastery))
+            .Select(e => new JournalEntryDto(e.StudentId, e.Date, e.Period, e.Grade, e.ReasonId, e.Homework, e.Behavior, e.Mastery, e.Present))
             .ToListAsync();
 
     /// <summary>
@@ -284,12 +284,14 @@ public static class JournalService
         }
         entry.Grade = req.Grade;
         entry.ReasonId = req.ReasonId;
+        // "Keldi" va "kelmadi (sabab)" bir vaqtda bo'lmaydi — sabab tanlangan bo'lsa Present o'chadi.
+        entry.Present = req.Present && req.ReasonId is null;
         entry.Homework = req.Homework;
         entry.Behavior = req.Behavior;
         entry.Mastery = req.Mastery;
 
         // Baho/davomat/uyga vazifa/xulq/o'zlashtirish kiritilsa — shu darsni "o'tildi" deb avtomatik belgilaymiz.
-        if (req.Grade.HasValue || req.ReasonId is not null || req.Homework != 0 || req.Behavior != 0 || req.Mastery.HasValue)
+        if (req.Grade.HasValue || req.ReasonId is not null || entry.Present || req.Homework != 0 || req.Behavior != 0 || req.Mastery.HasValue)
         {
             var note = await db.LessonNotes.FirstOrDefaultAsync(n =>
                 n.ClassId == req.ClassId && n.SubjectId == req.SubjectId &&
@@ -470,11 +472,25 @@ public static class JournalService
                     db.JournalEntries.Add(entry);
                 }
                 entry.ReasonId = absentReasonId;
+                entry.Present = false;
             }
-            else if (entry is not null)
+            else
             {
-                // Hammasi keldi — davomat sababi tozalanadi (baho/uy vazifa/xulq tegilmaydi).
+                // Hammasi keldi — har bir o'quvchiga ANIQ Present=true yoziladi (sabab tozalanadi,
+                // baho/uy vazifa/xulq tegilmaydi). Yozuvsiz o'quvchiga ham yozuv yaratiladi — shunda
+                // orqaga sanalgan a'zolikda (PresentDefaultFrom dan oldingi darslarda) ham yashil ✓
+                // ko'rinadi (aks holda "dars o'tildi + yozuv yo'q = keldi" konventsiyasi bosilib qolardi).
+                if (entry is null)
+                {
+                    entry = new JournalEntry
+                    {
+                        ClassId = req.ClassId, SubjectId = req.SubjectId, Quarter = quarter,
+                        StudentId = sid, Date = req.Date, Period = req.Period,
+                    };
+                    db.JournalEntries.Add(entry);
+                }
                 entry.ReasonId = null;
+                entry.Present = true;
             }
         }
 

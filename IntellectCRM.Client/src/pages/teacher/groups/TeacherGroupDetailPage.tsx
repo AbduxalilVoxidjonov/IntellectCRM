@@ -209,13 +209,14 @@ export function TeacherGroupDetailPage() {
     homework: number,
     behavior: number,
     mastery: number | null,
+    present: boolean,
   ) => {
     if (!journal || !cell) return
     setSaving(true)
     setCellError(null)
     try {
       await setTeacherJournalEntry(journal.group.id, journal.group.courseId, cell.studentId, cell.date, {
-        grade, reasonId, homework, behavior, mastery,
+        grade, reasonId, homework, behavior, mastery, present,
       })
       setCell(null)
       load(journal.month)
@@ -561,13 +562,13 @@ export function TeacherGroupDetailPage() {
                             const beforeMember = !!st.memberStart && c.date < st.memberStart
                             const groupStart = journal!.group.startDate
                             const isBeforeStart = (!!groupStart && c.date < groupStart) || beforeMember
-                            // Keldi (yashil): dars o'tildi + baho yo'q + sabab yo'q + shu sana o'quvchi
-                            // tizimga HAQIQATDA kiritilganidan (presentDefaultFrom) keyin — orqaga sanalgan
-                            // aktivlashtirish/qo'shishda hali ko'rib chiqilmagan eski darslar avtomatik
-                            // "keldi" bo'lib ko'rinmasin (bo'sh qoladi, o'qituvchi qo'lda belgilaydi).
+                            // Keldi (yashil): dars o'tildi + baho yo'q + sabab yo'q + (ANIQ "keldi" belgisi
+                            // BOR yoki sana o'quvchi tizimga kiritilganidan (presentDefaultFrom) keyin) —
+                            // orqaga sanalgan a'zolikda ko'rib chiqilmagan darslar avto-"keldi" bo'lmaydi,
+                            // lekin o'qituvchi "Keldi"/"hammasi keldi" bosgan (e.present) katak yashil bo'ladi.
                             const present =
                               e?.grade == null && !reason && conductedSet.has(c.date) &&
-                              (!st.presentDefaultFrom || c.date >= st.presentDefaultFrom)
+                              (e?.present || !st.presentDefaultFrom || c.date >= st.presentDefaultFrom)
                             const masteryInfo = e?.mastery != null ? masteryDisplay(e.mastery) : { label: '', cls: '' }
                             return (
                               <td

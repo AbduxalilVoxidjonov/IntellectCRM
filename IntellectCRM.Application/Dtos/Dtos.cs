@@ -555,12 +555,15 @@ public record JournalColumnDto(string Date, int Period);
 public record TopicImportRowErrorDto(int Row, string Reason);
 /// <summary>Mavzular Excel import natijasi: to'ldirilgan / o'tkazib yuborilgan (bo'sh) / xato qatorlar.</summary>
 public record TopicImportResultDto(int Imported, int Skipped, int Errors, List<TopicImportRowErrorDto> RowErrors);
+/// <summary>Present — ANIQ "keldi (bor)" belgisi (RecordedAt/PresentDefaultFrom cheklovidan qat'i nazar
+/// yashil ✓); Homework: 0=belgilanmagan, 1=qildi, 2=qilmadi, 3=chala qildi.</summary>
 public record JournalEntryDto(
     string StudentId, string Date, int Period, int? Grade, string? ReasonId,
-    int Homework, int Behavior, MasteryLevel? Mastery);
+    int Homework, int Behavior, MasteryLevel? Mastery, bool Present);
 public record SetJournalEntryRequest(
     string ClassId, string SubjectId, int Quarter, string StudentId, string Date, int Period,
-    int? Grade, string? ReasonId, int Homework = 0, int Behavior = 0, MasteryLevel? Mastery = null);
+    int? Grade, string? ReasonId, int Homework = 0, int Behavior = 0, MasteryLevel? Mastery = null,
+    bool Present = false);
 public record JournalTopicDto(string Date, int Period, string Topic, string? Homework, bool Conducted);
 /// <summary>Berilgan sanada o'tilgan (conducted) darslar — guruh+fan+dars raqami.</summary>
 public record ConductedLessonDto(string ClassId, string SubjectId, int Period);
