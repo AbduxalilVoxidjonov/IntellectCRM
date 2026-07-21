@@ -710,6 +710,59 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
         return NoContent();
     }
 
+    // ---------- IZOHLAR (o'quvchi profilidagi erkin eslatmalar) ----------
+
+    /// <summary>O'quvchining izohlari — yangisi tepada. CanDelete: o'z izohi yoki superadmin.</summary>
+    [HttpGet("{id}/notes")]
+    public async Task<ActionResult<IEnumerable<StudentNoteDto>>> Notes(string id)
+    {
+        var uid = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "";
+        var isSuper = User.IsInRole(Roles.SuperAdmin);
+        return await db.StudentNotes.AsNoTracking()
+            .Where(n => n.StudentId == id)
+            .OrderByDescending(n => n.CreatedAt)
+            .Select(n => new StudentNoteDto(
+                n.Id, n.Text, n.AuthorName, n.CreatedAt,
+                isSuper || (n.AuthorId != "" && n.AuthorId == uid)))
+            .ToListAsync();
+    }
+
+    /// <summary>O'quvchiga yangi izoh qo'shish (yozgan xodim va vaqti bilan saqlanadi).</summary>
+    [HttpPost("{id}/notes")]
+    public async Task<ActionResult<StudentNoteDto>> AddNote(string id, AddStudentNoteRequest req)
+    {
+        var text = (req.Text ?? "").Trim();
+        if (text.Length == 0) return BadRequest(new { message = "Izoh bo'sh bo'lmasin" });
+        if (await db.Students.FindAsync(id) is null) return NotFound();
+
+        var note = new StudentNote
+        {
+            StudentId = id,
+            Text = text,
+            AuthorName = User.Identity?.Name
+                ?? User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value ?? "Admin",
+            AuthorId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "",
+            CreatedAt = AppClock.Now.ToString("yyyy-MM-ddTHH:mm:ss"),
+        };
+        db.StudentNotes.Add(note);
+        await db.SaveChangesAsync();
+        return new StudentNoteDto(note.Id, note.Text, note.AuthorName, note.CreatedAt, true);
+    }
+
+    /// <summary>Izohni o'chirish — faqat muallifi yoki superadmin (tarix o'zgarmasligi uchun).</summary>
+    [HttpDelete("notes/{noteId}")]
+    public async Task<IActionResult> DeleteNote(string noteId)
+    {
+        var note = await db.StudentNotes.FindAsync(noteId);
+        if (note is null) return NotFound();
+        var uid = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "";
+        if (!User.IsInRole(Roles.SuperAdmin) && (note.AuthorId.Length == 0 || note.AuthorId != uid))
+            return Forbid();
+        db.StudentNotes.Remove(note);
+        await db.SaveChangesAsync();
+        return NoContent();
+    }
+
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(string id, [FromQuery] string? reasonId = null)
     {
@@ -720,6 +773,7 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
         // jurnal yozuvlari, oylik baholar, intizomiy ballar. (Moliya yozuvlari audit uchun saqlanadi.)
         db.MonthlyCharges.RemoveRange(db.MonthlyCharges.Where(c => c.StudentId == id));
         db.StudentGroups.RemoveRange(db.StudentGroups.Where(sg => sg.StudentId == id));
+        db.StudentNotes.RemoveRange(db.StudentNotes.Where(n => n.StudentId == id));
         db.JournalEntries.RemoveRange(db.JournalEntries.Where(e => e.StudentId == id));
         db.EvaluationGrades.RemoveRange(db.EvaluationGrades.Where(g => g.StudentId == id));
         db.DisciplinePoints.RemoveRange(db.DisciplinePoints.Where(p => p.StudentId == id));

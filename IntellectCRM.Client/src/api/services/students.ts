@@ -642,3 +642,36 @@ export async function getStudentBalls(): Promise<StudentBall[]> {
   const { data } = await api.get<StudentBall[]>('/admin/students/balls')
   return data
 }
+
+/* ---------- Izohlar (o'quvchi profilidagi erkin eslatmalar) ---------- */
+
+/** O'quvchi profilidagi izoh — kim va qachon yozgani bilan (tarix, ustiga yozilmaydi). */
+export interface StudentNote {
+  id: string
+  text: string
+  authorName: string
+  createdAt: string
+  /** Joriy foydalanuvchi o'chira oladimi (o'z izohi yoki superadmin) */
+  canDelete: boolean
+}
+
+/** O'quvchining izohlari — yangisi tepada. */
+export async function getStudentNotes(studentId: string): Promise<StudentNote[]> {
+  if (USE_MOCK) {
+    await delay()
+    return []
+  }
+  const { data } = await api.get<StudentNote[]>(`/admin/students/${studentId}/notes`)
+  return data
+}
+
+/** Yangi izoh qo'shish — javobda yaratilgan izoh qaytadi (ro'yxat boshiga qo'shish uchun). */
+export async function addStudentNote(studentId: string, text: string): Promise<StudentNote> {
+  const { data } = await api.post<StudentNote>(`/admin/students/${studentId}/notes`, { text })
+  return data
+}
+
+/** Izohni o'chirish — faqat muallifi yoki superadmin (server ham tekshiradi). */
+export async function deleteStudentNote(noteId: string): Promise<void> {
+  await api.delete(`/admin/students/notes/${noteId}`)
+}

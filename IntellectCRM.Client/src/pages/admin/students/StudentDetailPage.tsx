@@ -7,6 +7,7 @@ import {
   CalendarClock, Award, Download, LifeBuoy, Sparkles, Pencil, MessageSquare,
   PhoneIncoming, PhoneOutgoing, PhoneMissed, PhoneCall,
   Snowflake, CheckCircle2, RotateCcw, ArrowLeftRight, Plus, NotebookText, X,
+  StickyNote, Trash2,
 } from 'lucide-react'
 import { genderLabels } from '@/config/constants'
 import {
@@ -26,6 +27,10 @@ import {
   getStudent,
   updateStudent,
   addPayment,
+  getStudentNotes,
+  addStudentNote,
+  deleteStudentNote,
+  type StudentNote,
   type StudentCompletedCourse,
   type StudentSupportFeedback,
   type StudentAiAnalysisRecord,
@@ -104,6 +109,7 @@ type Tab =
   | 'testlar'
   | 'sertifikatlar'
   | 'aloqa'
+  | 'izohlar'
   | 'ai'
 
 export function StudentDetailPage() {
@@ -719,10 +725,16 @@ export function StudentDetailPage() {
             <button type="button" className={cn('tab', tab === 'aloqa' && 'active')} onClick={() => setTab('aloqa')}>
               <PhoneCall className="mr-1 inline h-3.5 w-3.5" /> Aloqa
             </button>
+            <button type="button" className={cn('tab', tab === 'izohlar' && 'active')} onClick={() => setTab('izohlar')}>
+              <StickyNote className="mr-1 inline h-3.5 w-3.5" /> Izohlar
+            </button>
             <button type="button" className={cn('tab', tab === 'ai' && 'active')} onClick={() => setTab('ai')}>
               <Sparkles className="mr-1 inline h-3.5 w-3.5" /> AI Tahlil
             </button>
           </div>
+
+          {/* Izohlar — xodim yozadigan erkin eslatmalar (tarix: kim, qachon) */}
+          {tab === 'izohlar' && <NotesSection studentId={data.id} />}
 
           {/* AI Tahlil — saqlangan tahlillar tarixi (kuniga bir marta) */}
           {tab === 'ai' && (
@@ -2197,6 +2209,106 @@ function Section({
 const Empty = ({ children }: { children: React.ReactNode }) => (
   <p className="py-8 text-center text-sm text-slate-400">{children}</p>
 )
+
+/**
+ * O'quvchi izohlari — xodim yozadigan erkin eslatmalar (ota-ona bilan suhbat, to'lov kelishuvi, ...).
+ * TARIX: har izoh o'z muallifi va vaqti bilan qoladi, ustiga yozilmaydi. O'chirishni faqat muallifi
+ * yoki superadmin qila oladi (server ham tekshiradi — `canDelete` shundan keladi).
+ */
+function NotesSection({ studentId }: { studentId: string }) {
+  const [notes, setNotes] = useState<StudentNote[]>([])
+  const [loading, setLoading] = useState(true)
+  const [text, setText] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    let alive = true
+    setLoading(true)
+    getStudentNotes(studentId)
+      .then((n) => alive && setNotes(n))
+      .catch(() => alive && setNotes([]))
+      .finally(() => alive && setLoading(false))
+    return () => {
+      alive = false
+    }
+  }, [studentId])
+
+  const handleAdd = () => {
+    const value = text.trim()
+    if (!value || saving) return
+    setSaving(true)
+    addStudentNote(studentId, value)
+      .then((note) => {
+        setNotes((prev) => [note, ...prev])
+        setText('')
+      })
+      .catch((e) => alert(apiErrorMessage(e, "Izohni saqlab bo'lmadi")))
+      .finally(() => setSaving(false))
+  }
+
+  const handleDelete = (note: StudentNote) => {
+    if (!confirm("Bu izoh o'chirilsinmi?")) return
+    deleteStudentNote(note.id)
+      .then(() => setNotes((prev) => prev.filter((n) => n.id !== note.id)))
+      .catch((e) => alert(apiErrorMessage(e, "Izohni o'chirib bo'lmadi")))
+  }
+
+  return (
+    <Section title="Izohlar" icon={StickyNote}>
+      <div className="mb-5">
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          // Ctrl/Cmd+Enter — tez saqlash (matnda oddiy Enter yangi qator bo'lib qolsin).
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+              e.preventDefault()
+              handleAdd()
+            }
+          }}
+          rows={3}
+          placeholder="Izoh yozing — masalan: onasi qo'ng'iroq qildi, dushanba kelolmaydi..."
+          className="w-full resize-y rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-brand-400"
+        />
+        <div className="mt-2 flex items-center justify-between gap-3">
+          <span className="text-xs text-slate-400">Saqlash: Ctrl + Enter</span>
+          <Button onClick={handleAdd} disabled={!text.trim() || saving}>
+            <Plus className="h-4 w-4" /> {saving ? 'Saqlanmoqda...' : "Qo'shish"}
+          </Button>
+        </div>
+      </div>
+
+      {loading ? (
+        <Empty>Yuklanmoqda...</Empty>
+      ) : notes.length === 0 ? (
+        <Empty>Bu o'quvchi haqida hali izoh yozilmagan.</Empty>
+      ) : (
+        <div className="divide-y divide-slate-100">
+          {notes.map((n) => (
+            <div key={n.id} className="group flex items-start gap-3 py-3">
+              <div className="min-w-0 flex-1">
+                <p className="whitespace-pre-wrap break-words text-sm text-slate-700">{n.text}</p>
+                <p className="mt-1 text-xs text-slate-400">
+                  {n.authorName || 'Admin'} · {formatDateTime(n.createdAt)}
+                </p>
+              </div>
+              {n.canDelete && (
+                <button
+                  type="button"
+                  title="Izohni o'chirish"
+                  onClick={() => handleDelete(n)}
+                  className="rounded-lg p-1.5 text-slate-300 transition-colors hover:bg-red-50 hover:text-red-600"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </Section>
+  )
+}
 
 /** O'quvchi sahifasidagi "AI Tahlil" bo'limi — saqlangan tahlillar (tarix) + tanlangani diagrammalar bilan. */
 function AiSection({

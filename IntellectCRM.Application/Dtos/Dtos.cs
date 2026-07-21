@@ -476,6 +476,13 @@ public record LeadUpdateRequest(
     string? Source = null, string? InterestSubject = null);
 public record LeadStageRequest(string Stage);
 
+/// <summary>O'quvchi profilidagi izoh (tarix). CanDelete — joriy foydalanuvchi o'chira oladimi
+/// (o'z izohi yoki superadmin) — frontend "×" tugmasini shunga qarab ko'rsatadi.</summary>
+public record StudentNoteDto(
+    string Id, string Text, string AuthorName, string CreatedAt, bool CanDelete);
+/// <summary>O'quvchiga izoh qo'shish.</summary>
+public record AddStudentNoteRequest(string Text);
+
 /// <summary>Lid hodisasi (tarix).</summary>
 public record LeadEventDto(string Id, string Type, string Text, string ActorName, string CreatedAt);
 /// <summary>Lidga hodisa/izoh qo'shish.</summary>

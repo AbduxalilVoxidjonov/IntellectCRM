@@ -20,6 +20,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<Subject> Subjects => Set<Subject>();
     public DbSet<Group> Classes => Set<Group>();
     public DbSet<StudentGroup> StudentGroups => Set<StudentGroup>();
+    public DbSet<StudentNote> StudentNotes => Set<StudentNote>();
     public DbSet<Lead> Leads => Set<Lead>();
     public DbSet<LeadStage> LeadStages => Set<LeadStage>();
     public DbSet<LeadEvent> LeadEvents => Set<LeadEvent>();
@@ -199,6 +200,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         b.Entity<StudentGroup>().HasIndex(sg => sg.GroupId);
         b.Entity<StudentGroup>().HasIndex(sg => new { sg.StudentId, sg.IsActive });
         b.Entity<LeadEvent>().HasIndex(e => e.LeadId);
+        b.Entity<StudentNote>().HasIndex(n => n.StudentId);
         b.Entity<TrialLesson>().HasIndex(t => t.LeadId);
         b.Entity<FinanceTransaction>().HasIndex(t => t.Date);
         // Per-guruh billing: har (o'quvchi, guruh, oy) uchun bitta hisob.

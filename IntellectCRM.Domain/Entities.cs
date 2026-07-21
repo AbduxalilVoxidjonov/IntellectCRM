@@ -290,6 +290,26 @@ public class Student
     public string DeviceUserId { get; set; } = string.Empty;
 }
 
+/// <summary>
+/// O'quvchi profilidagi ERKIN IZOH (xodim yozadigan eslatma: ota-ona bilan suhbat, to'lov kelishuvi,
+/// sog'lig'i va h.k.). Lid izohlari (<see cref="LeadEvent"/>) kabi TARIX: har yozuv o'z muallifi va
+/// vaqti bilan saqlanadi, ustiga yozilmaydi. O'quvchi o'chirilsa izohlari ham o'chadi.
+/// </summary>
+public class StudentNote
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    /// <summary>Qaysi o'quvchiga (Student.Id).</summary>
+    public string StudentId { get; set; } = string.Empty;
+    /// <summary>Izoh matni.</summary>
+    public string Text { get; set; } = string.Empty;
+    /// <summary>Yozgan xodim F.I.Sh (faqat ko'rsatish uchun — xodim o'chsa ham izoh muallifi qoladi).</summary>
+    public string AuthorName { get; set; } = string.Empty;
+    /// <summary>Yozgan xodim (AppUser.Id) — "faqat o'zi o'chira oladi" qoidasi uchun.</summary>
+    public string AuthorId { get; set; } = string.Empty;
+    /// <summary>Yozilgan vaqt (ISO "yyyy-MM-ddTHH:mm:ss").</summary>
+    public string CreatedAt { get; set; } = string.Empty;
+}
+
 /// <summary>O'qituvchi.</summary>
 public class Teacher
 {
