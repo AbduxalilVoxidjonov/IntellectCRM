@@ -471,6 +471,7 @@ public class FinanceController(AppDbContext db, AuditService audit, AutoMessageS
             Amount = p.Amount,
             StudentId = tx.StudentId,
             GroupId = tx.GroupId,     // o'qituvchi foizini to'g'ri guruhdan ayirish uchun asl tegni ko'chiramiz
+            Method = tx.Method,       // pul qaysi shaklda kelgan bo'lsa shunday qaytadi ("Naqd jami" to'g'ri hisoblansin)
             Month = tx.Month,
             RefundOfId = tx.Id,
             Note = $"Vozvrat ({student.FullName})" + (reason is null ? "" : $" — {reason}"),
@@ -598,6 +599,13 @@ public class FinanceController(AppDbContext db, AuditService audit, AutoMessageS
     public async Task<ActionResult<GroupPaymentsReportDto>> GroupPayments(
         string groupId, [FromQuery] string? from, [FromQuery] string? to) =>
         await CourseFinanceReport.BuildGroupPaymentsAsync(db, groupId, from, to);
+
+    /// <summary>O'qituvchining BARCHA guruhlari bo'yicha to'lov holati — bitta guruhnikidek ko'rinish,
+    /// lekin o'quvchilar hamma guruhlaridan yig'ilgan holda ("Barchasini ko'rish").</summary>
+    [HttpGet("teacher-payments/{teacherId}")]
+    public async Task<ActionResult<GroupPaymentsReportDto>> TeacherPayments(
+        string teacherId, [FromQuery] string? from, [FromQuery] string? to) =>
+        await CourseFinanceReport.BuildTeacherPaymentsAsync(db, teacherId, from, to);
 
     /// <summary>Oylik to'lovni qo'lda hisoblash. month berilmasa — hisoblanmagan barcha oylar.</summary>
     [HttpPost("accrue")]

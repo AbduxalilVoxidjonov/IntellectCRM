@@ -1019,14 +1019,15 @@ public record CourseFinanceRowDto(
     decimal Billed, decimal Collected, decimal CollectionPct,
     int FullyPaidStudents, int BillableStudents, decimal PaidPct);
 /// <summary>Bitta guruh bo'yicha davr hisobi (qaysi o'qituvchi guruhi faolroq). TeacherId — frontend
-/// o'qituvchi filtri uchun.</summary>
+/// o'qituvchi filtri uchun. CollectedCash — yig'ilganning NAQD (Method=="cash") ulushi
+/// (frontend "Naqd jami" kartasi; o'qituvchi tanlanganda uning guruhlari bo'yicha yig'iladi).</summary>
 public record GroupFinanceRowDto(
     string GroupId, string GroupName, string CourseName, string TeacherId, string TeacherName,
-    int StudentCount, decimal Billed, decimal Collected, decimal CollectionPct,
+    int StudentCount, decimal Billed, decimal Collected, decimal CollectedCash, decimal CollectionPct,
     int FullyPaidStudents, int BillableStudents);
 public record CourseFinanceReportDto(
     string From, string To,
-    decimal TotalBilled, decimal TotalCollected, decimal CollectionPct,
+    decimal TotalBilled, decimal TotalCollected, decimal TotalCollectedCash, decimal CollectionPct,
     List<CourseFinanceRowDto> Courses,
     List<GroupFinanceRowDto> Groups);
 

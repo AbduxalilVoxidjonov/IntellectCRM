@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { CheckCircle2, XCircle, MinusCircle } from 'lucide-react'
-import { getGroupPayments, type GroupPaymentsReport } from '@/api/services/finance'
+import { getGroupPayments, getTeacherPayments, type GroupPaymentsReport } from '@/api/services/finance'
 import { Modal } from '@/components/ui/Modal'
 import { Loader } from '@/components/ui/Loader'
 import { Badge } from '@/components/ui/Badge'
@@ -14,38 +14,48 @@ function statusLabel(s: string): { label: string; tone: 'green' | 'amber' | 'blu
   return { label: '—', tone: 'default' }
 }
 
+/** Modal nimani ko'rsatadi: bitta guruhni ('group') yoki o'qituvchining BARCHA guruhlarini ('teacher'). */
+export type PaymentsTarget = { kind: 'group' | 'teacher'; id: string; name: string }
+
 /**
- * Bitta guruh ichidagi to'lov holati — kim to'ladi, kim to'lamadi (davr bo'yicha).
- * Guruh nomi bosilganda ochiladi.
+ * To'lov holati — kim to'ladi, kim to'lamadi (davr bo'yicha). Bitta guruh (guruh qatori bosilganda)
+ * yoki o'qituvchining barcha guruhlari ("Barchasini ko'rish") uchun — jadval ko'rinishi bir xil,
+ * o'qituvchi rejimida ko'p guruhli o'quvchi bitta qatorda jamlanadi.
  */
 export function GroupPaymentsModal({
-  groupId,
-  groupName,
+  target,
   from,
   to,
   onClose,
 }: {
-  groupId: string | null
-  groupName: string
+  target: PaymentsTarget | null
   from: string
   to: string
   onClose: () => void
 }) {
   const [report, setReport] = useState<GroupPaymentsReport | null>(null)
   const [loading, setLoading] = useState(false)
+  const kind = target?.kind
+  const id = target?.id
 
   useEffect(() => {
-    if (!groupId) return
+    if (!id || !kind) return
     setReport(null)
     setLoading(true)
-    getGroupPayments(groupId, from, to)
+    ;(kind === 'teacher' ? getTeacherPayments(id, from, to) : getGroupPayments(id, from, to))
       .then(setReport)
       .catch(() => setReport(null))
       .finally(() => setLoading(false))
-  }, [groupId, from, to])
+  }, [id, kind, from, to])
+
+  const title = target
+    ? target.kind === 'teacher'
+      ? `${target.name} — barcha guruhlar to'lov holati`
+      : `${target.name} — to'lov holati`
+    : ''
 
   return (
-    <Modal open={!!groupId} onClose={onClose} title={`${groupName} — to'lov holati`} size="lg">
+    <Modal open={!!target} onClose={onClose} title={title} size="lg">
       {loading || !report ? (
         <Loader label="Yuklanmoqda..." />
       ) : (
@@ -60,7 +70,9 @@ export function GroupPaymentsModal({
 
           {report.rows.length === 0 ? (
             <p className="py-8 text-center text-sm text-slate-400">
-              Bu davrda guruhda hisob-kitob yoki o'quvchi yo'q.
+              {target?.kind === 'teacher'
+                ? "Bu davrda o'qituvchi guruhlarida hisob-kitob yoki o'quvchi yo'q."
+                : "Bu davrda guruhda hisob-kitob yoki o'quvchi yo'q."}
             </p>
           ) : (
             <div className="overflow-x-auto">

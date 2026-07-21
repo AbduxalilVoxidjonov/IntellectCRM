@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Plus, Pencil, Trash2, Download, TrendingUp, TrendingDown, Wallet, AlertCircle, Calculator, History, Inbox, Percent, Search, Receipt, Undo2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, Download, TrendingUp, TrendingDown, Wallet, AlertCircle, Calculator, History, Inbox, Percent, Search, Receipt, Undo2, Banknote, Users } from 'lucide-react'
 import type {
   FinanceDirection,
   FinanceMonthly,
@@ -38,7 +38,7 @@ import { AuditHistoryModal } from '@/components/audit/AuditHistoryModal'
 import type { AuditFilters } from '@/api/services/audit'
 import { TransactionFormModal } from './TransactionFormModal'
 import { TeacherSalaryDetailModal } from './TeacherSalaryDetailModal'
-import { GroupPaymentsModal } from './GroupPaymentsModal'
+import { GroupPaymentsModal, type PaymentsTarget } from './GroupPaymentsModal'
 import { DailyReportCard } from './DailyReportCard'
 import { ReasonPromptModal } from '@/components/ui/ReasonPromptModal'
 import { ReceiptModal } from '@/components/finance/ReceiptModal'
@@ -88,6 +88,8 @@ export function FinancePage() {
   const [salaryReport, setSalaryReport] = useState<SalaryReportRow[]>([])
   const [payments, setPayments] = useState<FinanceTransaction[]>([])
   const [paySearch, setPaySearch] = useState('')
+  /** "To'lovlar" tabidagi o'qituvchi filtri (bo'sh = hammasi) — to'lov guruhi orqali aniqlanadi. */
+  const [payTeacher, setPayTeacher] = useState('')
   const [courseReport, setCourseReport] = useState<CourseFinanceReport | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -95,7 +97,8 @@ export function FinancePage() {
   const [editing, setEditing] = useState<FinanceTransaction | null>(null)
   const [audit, setAudit] = useState<{ filters: AuditFilters; title: string } | null>(null)
   const [detailTeacher, setDetailTeacher] = useState<SalaryReportRow | null>(null)
-  const [detailGroup, setDetailGroup] = useState<GroupFinanceRow | null>(null)
+  /** "Kim to'ladi / kim to'lamadi" modali — bitta guruh yoki o'qituvchining barcha guruhlari. */
+  const [paymentsTarget, setPaymentsTarget] = useState<PaymentsTarget | null>(null)
   const [deleting, setDeleting] = useState<FinanceTransaction | null>(null)
   // Chek (kvitansiya): qaysi to'lovning cheki ochiq + avtomatik print (to'lov kiritilgandan keyin).
   const [receiptTx, setReceiptTx] = useState<string | null>(null)
@@ -215,16 +218,25 @@ export function FinancePage() {
     )
   }
 
-  // To'lovlar bo'limi: o'quvchi nomi bo'yicha qidiruv (+ guruh/izoh).
+  // To'lovlar bo'limi: o'qituvchi filtri (to'lov guruhi → o'qituvchi) + o'quvchi nomi bo'yicha qidiruv.
+  // Guruhga TEGLANMAGAN to'lovni bir o'qituvchiga bog'lab bo'lmaydi (u o'quvchining barcha guruhlari
+  // orasida taqsimlanadi) — shuning uchun o'qituvchi tanlanganda ular ro'yxatga tushmaydi.
+  const teacherByGroup = (() => {
+    const map = new Map<string, string>()
+    courseReport?.groups.forEach((g) => map.set(g.groupId, g.teacherId))
+    return map
+  })()
   const filteredPayments = (() => {
     const q = paySearch.trim().toLowerCase()
-    if (!q) return payments
-    return payments.filter(
-      (p) =>
+    return payments.filter((p) => {
+      if (payTeacher && (!p.groupId || teacherByGroup.get(p.groupId) !== payTeacher)) return false
+      if (!q) return true
+      return (
         (p.studentName ?? '').toLowerCase().includes(q) ||
         (p.groupName ?? '').toLowerCase().includes(q) ||
-        (p.note ?? '').toLowerCase().includes(q),
-    )
+        (p.note ?? '').toLowerCase().includes(q)
+      )
+    })
   })()
 
   const handleExportPayments = () => {
@@ -277,6 +289,7 @@ export function FinancePage() {
   // Maosh jurnalga bog'langan bo'lsa (Guruhlar → Jurnal boshqaruvi) — "Ushlanma" ustuni ko'rsatiladi.
   const anyDeduction = salaryReport.some((r) => (r.deduction ?? 0) > 0)
   const paymentsTotal = filteredPayments.reduce((a, p) => a + p.amount, 0)
+  const paymentsCashTotal = filteredPayments.reduce((a, p) => a + (p.method === 'cash' ? p.amount : 0), 0)
 
   // To'lov usuli (naqt/karta/bank) bo'yicha KIRIM summalari — "Amallar" jadvalidagi filtr uchun.
   // Usul faqat kirimga (income) taalluqli; chiqim/eski (method yo'q) yozuvlar hisoblanmaydi.
@@ -570,7 +583,12 @@ export function FinancePage() {
 
           {/* ============ GURUHLAR (faollik + to'lov holati) ============ */}
           {tab === 'groups' && courseReport && (
-            <GroupsReport report={courseReport} onExport={handleExportGroups} onSelect={setDetailGroup} />
+            <GroupsReport
+              report={courseReport}
+              onExport={handleExportGroups}
+              onSelect={(g) => setPaymentsTarget({ kind: 'group', id: g.groupId, name: g.groupName })}
+              onSelectTeacher={(t) => setPaymentsTarget({ kind: 'teacher', id: t.id, name: t.name })}
+            />
           )}
 
           {/* ============ O'QITUVCHILAR ============ */}
@@ -711,13 +729,36 @@ export function FinancePage() {
                   iconBg="bg-emerald-50"
                   iconColor="text-emerald-600"
                 />
+                <StatCard
+                  label="Naqd jami"
+                  value={formatMoney(paymentsCashTotal)}
+                  icon={Banknote}
+                  iconBg="bg-teal-50"
+                  iconColor="text-teal-600"
+                />
               </div>
               <Card
                 tight
                 title="Kiritilgan to'lovlar"
-                sub="O'quvchi to'lovlari (tuition) — xato bo'lsa o'chiring, balans qayta tiklanadi"
+                sub={
+                  payTeacher
+                    ? "O'qituvchi guruhlariga teglangan to'lovlar (teglanmagan to'lov bitta o'qituvchiga tegishli emas)"
+                    : "O'quvchi to'lovlari (tuition) — xato bo'lsa o'chiring, balans qayta tiklanadi"
+                }
                 actions={
                   <div className="flex items-center gap-2">
+                    <select
+                      value={payTeacher}
+                      onChange={(e) => setPayTeacher(e.target.value)}
+                      className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-brand-400"
+                    >
+                      <option value="">Barcha o'qituvchilar</option>
+                      {teacherOptions(courseReport).map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name}
+                        </option>
+                      ))}
+                    </select>
                     <div className="relative">
                       <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                       <input
@@ -981,11 +1022,10 @@ export function FinancePage() {
       />
 
       <GroupPaymentsModal
-        groupId={detailGroup?.groupId ?? null}
-        groupName={detailGroup?.groupName ?? ''}
+        target={paymentsTarget}
         from={from}
         to={to}
-        onClose={() => setDetailGroup(null)}
+        onClose={() => setPaymentsTarget(null)}
       />
 
       <ReasonPromptModal
@@ -1015,6 +1055,16 @@ export function FinancePage() {
   )
 }
 
+/** O'qituvchi filtri uchun noyob ro'yxat (hisobot guruhlaridan) — Guruhlar va To'lovlar tablari uchun bir xil. */
+function teacherOptions(report: CourseFinanceReport | null): { id: string; name: string }[] {
+  if (!report) return []
+  const map = new Map<string, string>()
+  report.groups.forEach((g) => {
+    if (g.teacherId) map.set(g.teacherId, g.teacherName)
+  })
+  return [...map.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name))
+}
+
 /** Yig'ilish foizini ranglash (90%+ yashil, 60%+ sariq, past qizil). */
 function pctClass(p: number): string {
   return p >= 90 ? 'text-emerald-600' : p >= 60 ? 'text-amber-600' : 'text-red-600'
@@ -1023,52 +1073,64 @@ function pctBar(p: number): string {
   return p >= 90 ? 'bg-emerald-500' : p >= 60 ? 'bg-amber-500' : 'bg-red-500'
 }
 
-/** Guruhlar kesimida moliyaviy hisobot: faollik + bosilganda guruh ichidagi to'lov holati. */
+/** Guruhlar kesimida moliyaviy hisobot: faollik + bosilganda guruh ichidagi to'lov holati.
+ *  O'qituvchi tanlansa — tepadagi kartalar HAM shu o'qituvchi guruhlari bo'yicha qayta hisoblanadi
+ *  va "Barchasini ko'rish" bilan uning barcha o'quvchilari bitta ro'yxatda ochiladi. */
 function GroupsReport({
   report,
   onExport,
   onSelect,
+  onSelectTeacher,
 }: {
   report: CourseFinanceReport
   onExport: () => void
   onSelect: (g: GroupFinanceRow) => void
+  onSelectTeacher: (t: { id: string; name: string }) => void
 }) {
   const [teacherId, setTeacherId] = useState<string>('')
 
-  // O'qituvchi filtri uchun noyob ro'yxat (guruhlardan).
-  const teachers = (() => {
-    const map = new Map<string, string>()
-    report.groups.forEach((g) => {
-      if (g.teacherId) map.set(g.teacherId, g.teacherName)
-    })
-    return [...map.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name))
-  })()
-
+  const teachers = teacherOptions(report)
   const groups = teacherId ? report.groups.filter((g) => g.teacherId === teacherId) : report.groups
+  const teacherName = teachers.find((t) => t.id === teacherId)?.name ?? ''
+
+  // Kartalar ko'rinib turgan guruhlardan hisoblanadi — o'qituvchi tanlansa faqat uning guruhlari.
+  const collected = groups.reduce((a, g) => a + g.collected, 0)
+  const cash = groups.reduce((a, g) => a + g.collectedCash, 0)
+  const billed = groups.reduce((a, g) => a + g.billed, 0)
+  const pct = billed > 0 ? Math.round((collected / billed) * 1000) / 10 : 0
+  const scope = teacherId ? teacherName : 'Markaz bo\'yicha'
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           label="Jami yig'ilgan (davr)"
-          value={formatMoney(report.totalCollected)}
+          value={formatMoney(collected)}
           icon={Wallet}
           iconBg="bg-emerald-50"
           iconColor="text-emerald-600"
-          hint="Tanlangan davrdagi tuition to'lovlari"
+          hint={`${scope} — davr oylari uchun to'langan (avans o'z oyida hisoblanadi)`}
+        />
+        <StatCard
+          label="Naqd jami"
+          value={formatMoney(cash)}
+          icon={Banknote}
+          iconBg="bg-teal-50"
+          iconColor="text-teal-600"
+          hint={`${scope} — yig'ilganning naqd qismi`}
         />
         <StatCard
           label="Jami hisoblangan"
-          value={formatMoney(report.totalBilled)}
+          value={formatMoney(billed)}
           icon={Calculator}
-          hint="Davr uchun hisoblangan oyliklar"
+          hint={`${scope} — davr uchun hisoblangan oyliklar`}
         />
         <StatCard
           label="Yig'ilish foizi"
-          value={`${report.collectionPct}%`}
+          value={`${pct}%`}
           icon={Percent}
-          iconBg={report.collectionPct >= 90 ? 'bg-emerald-50' : 'bg-amber-50'}
-          iconColor={report.collectionPct >= 90 ? 'text-emerald-600' : 'text-amber-600'}
+          iconBg={pct >= 90 ? 'bg-emerald-50' : 'bg-amber-50'}
+          iconColor={pct >= 90 ? 'text-emerald-600' : 'text-amber-600'}
           hint="Yig'ilgan ÷ hisoblangan"
         />
       </div>
@@ -1077,7 +1139,11 @@ function GroupsReport({
       <Card
         tight
         title="Guruhlar bo'yicha faollik"
-        sub="Guruhni bosing — kim to'ladi, kim to'lamadi"
+        sub={
+          teacherId
+            ? "Guruhni bosing — kim to'ladi, kim to'lamadi · «Barchasini ko'rish» — hamma guruh o'quvchilari birga"
+            : "Guruhni bosing — kim to'ladi, kim to'lamadi"
+        }
         actions={
           <div className="flex items-center gap-2">
             <select
@@ -1092,6 +1158,11 @@ function GroupsReport({
                 </option>
               ))}
             </select>
+            {teacherId && (
+              <Button variant="secondary" onClick={() => onSelectTeacher({ id: teacherId, name: teacherName })}>
+                <Users className="h-4 w-4" /> Barchasini ko'rish
+              </Button>
+            )}
             <Button variant="secondary" onClick={onExport} disabled={report.groups.length === 0}>
               <Download className="h-4 w-4" /> CSV
             </Button>

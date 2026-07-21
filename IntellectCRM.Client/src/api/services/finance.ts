@@ -342,6 +342,8 @@ export interface GroupFinanceRow {
   studentCount: number
   billed: number
   collected: number
+  /** Yig'ilganning NAQD (usuli "cash") ulushi — "Naqd jami" kartasi uchun */
+  collectedCash: number
   collectionPct: number
   fullyPaidStudents: number
   billableStudents: number
@@ -351,6 +353,8 @@ export interface CourseFinanceReport {
   to: string
   totalBilled: number
   totalCollected: number
+  /** Markaz bo'yicha naqd yig'ilgan (guruh qatorlaridagi collectedCash yig'indisi) */
+  totalCollectedCash: number
   collectionPct: number
   courses: CourseFinanceRow[]
   groups: GroupFinanceRow[]
@@ -388,6 +392,15 @@ export async function getGroupPayments(groupId: string, from?: string, to?: stri
   return data
 }
 
+/** O'qituvchining BARCHA guruhlari bo'yicha to'lov holati — javob shakli guruhnikidek
+ *  (ko'p guruhli o'quvchi bitta qatorda jamlanadi). */
+export async function getTeacherPayments(teacherId: string, from?: string, to?: string): Promise<GroupPaymentsReport> {
+  const { data } = await api.get<GroupPaymentsReport>(`/admin/finance/teacher-payments/${teacherId}`, {
+    params: { from, to },
+  })
+  return data
+}
+
 /** Kurs/guruh kesimida moliyaviy hisobot (qaysi kurs ko'p daromad, to'lov to'liqligi, faol guruh). */
 export async function getCourseReport(from?: string, to?: string): Promise<CourseFinanceReport> {
   if (USE_MOCK) {
@@ -397,6 +410,7 @@ export async function getCourseReport(from?: string, to?: string): Promise<Cours
       to: to ?? '',
       totalBilled: 0,
       totalCollected: 0,
+      totalCollectedCash: 0,
       collectionPct: 0,
       courses: [],
       groups: [],
