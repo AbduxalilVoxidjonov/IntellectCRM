@@ -4,6 +4,7 @@ import { Search, User, X } from 'lucide-react'
 import type { Student } from '@/types'
 import { useAuth } from '@/context/auth-context'
 import { searchStudents } from '@/api/services/students'
+import { studentStateBadge } from '@/config/constants'
 import { cn } from '@/lib/utils'
 
 /** Qidiruv natijasidagi o'quvchi (arxivdagilar ham). */
@@ -13,13 +14,15 @@ interface Hit {
   phone?: string
   className?: string
   archived: boolean
+  /** A'zolik holati: 'active' | 'trial' | 'frozen' | '' — badge uchun */
+  memberState?: string
 }
 
 /**
  * Topbar'da DOIM ko'rinib turadigan inline o'quvchi qidiruvi (barcha sahifalarda).
  * FISH yoki telefon (o'z/ota/ona) bo'yicha qidiradi, natijalar dropdown'da chiqadi,
- * tanlansa o'quvchi detal sahifasiga (`/admin/students/:id`) o'tadi. Arxivdagilar ham
- * chiqadi ("arxiv" badge). Faqat `students` ruxsati borlar uchun ko'rinadi.
+ * tanlansa o'quvchi detal sahifasiga (`/admin/students/:id`) o'tadi. Har natija yonida holat
+ * belgisi: "arxiv" | "muzlatilgan" | "sinov" (aktiv — belgisiz). Faqat `students` ruxsati borlarga.
  */
 export function TopbarStudentSearch() {
   const { user } = useAuth()
@@ -65,6 +68,7 @@ export function TopbarStudentSearch() {
             phone: s.phone || s.parentPhone || s.fatherPhone || s.motherPhone || undefined,
             className: s.groups?.[0] || s.className || undefined,
             archived: !!s.isArchived,
+            memberState: s.memberState,
           })),
         )
         setActive(0)
@@ -147,7 +151,9 @@ export function TopbarStudentSearch() {
               {searching ? 'Qidirilmoqda...' : 'Hech narsa topilmadi'}
             </p>
           ) : (
-            hits.map((s, i) => (
+            hits.map((s, i) => {
+              const badge = studentStateBadge(s.memberState, s.archived)
+              return (
               <button
                 key={s.id}
                 type="button"
@@ -162,9 +168,14 @@ export function TopbarStudentSearch() {
                 <span className="flex min-w-0 flex-1 flex-col">
                   <span className="flex items-center gap-2">
                     <span className="truncate">{s.fullName}</span>
-                    {s.archived && (
-                      <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
-                        arxiv
+                    {badge && (
+                      <span
+                        className={cn(
+                          'shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
+                          badge.className,
+                        )}
+                      >
+                        {badge.label}
                       </span>
                     )}
                   </span>
@@ -177,7 +188,8 @@ export function TopbarStudentSearch() {
                   )}
                 </span>
               </button>
-            ))
+              )
+            })
           )}
         </div>
       )}

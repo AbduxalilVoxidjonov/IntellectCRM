@@ -6,6 +6,7 @@ import type { Role, Student } from '@/types'
 import { useAuth } from '@/context/auth-context'
 import { navByRole } from '@/config/navigation'
 import { searchStudents } from '@/api/services/students'
+import { studentStateBadge } from '@/config/constants'
 import { cn } from '@/lib/utils'
 
 interface Cmd {
@@ -24,12 +25,15 @@ interface StudentHit {
   phone?: string
   className?: string
   archived: boolean
+  /** A'zolik holati: 'active' | 'trial' | 'frozen' | '' — badge uchun */
+  memberState?: string
 }
 
 /**
  * Ctrl/⌘+K buyruq paneli — bo'limlar bo'ylab tez o'tish + o'quvchini FISH yoki TELEFON
- * (o'z/ota/ona/ota-ona) bo'yicha global qidirish. Arxivlangan o'quvchilar ham chiqadi
- * (ularga "arxiv" badge); tanlansa o'quvchi detal sahifasiga (`/admin/students/:id`) o'tadi.
+ * (o'z/ota/ona/ota-ona) bo'yicha global qidirish. Arxivlanganlar ham chiqadi; har natija yonida
+ * holat belgisi: "arxiv" | "muzlatilgan" | "sinov" (aktiv — belgisiz). Tanlansa
+ * o'quvchi detal sahifasiga (`/admin/students/:id`) o'tadi.
  * Bo'lim ro'yxati Sidebar bilan bir xil mantiqda (rol + ruxsat) filtrlanadi.
  * Boshqa joydan ochish uchun: `window.dispatchEvent(new Event('cmdk:open'))`.
  */
@@ -128,6 +132,7 @@ export function CommandPalette() {
             phone: s.phone || s.parentPhone || s.fatherPhone || s.motherPhone || undefined,
             className: s.groups?.[0] || s.className || undefined,
             archived: !!s.isArchived,
+            memberState: s.memberState,
           })),
         )
       } catch {
@@ -264,6 +269,7 @@ export function CommandPalette() {
                   ) : (
                     students.map((s, j) => {
                       const idx = sectionResults.length + j
+                      const badge = studentStateBadge(s.memberState, s.archived)
                       return (
                         <button
                           key={s.id}
@@ -280,9 +286,14 @@ export function CommandPalette() {
                           <span className="flex min-w-0 flex-1 flex-col">
                             <span className="flex items-center gap-2">
                               <span className="truncate">{s.fullName}</span>
-                              {s.archived && (
-                                <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
-                                  arxiv
+                              {badge && (
+                                <span
+                                  className={cn(
+                                    'shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
+                                    badge.className,
+                                  )}
+                                >
+                                  {badge.label}
                                 </span>
                               )}
                             </span>

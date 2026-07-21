@@ -41,6 +41,10 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
                 .OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList());
         // Kursda aktiv = kamida bitta a'zoligi Status=="active" (sinov/muzlatilgan emas).
         var activeIds = memberships.Where(m => m.Status == "active").Select(m => m.StudentId).ToHashSet();
+        // A'zolik holati yorlig'i: active > trial > frozen (guruhsiz — bo'sh). Muzlatilgan o'quvchi
+        // ro'yxat/qidiruvda "Aktiv emas" emas, aynan "Muzlatilgan" deb ko'rinishi uchun.
+        var trialIds = memberships.Where(m => m.Status == "trial").Select(m => m.StudentId).ToHashSet();
+        var frozenIds = memberships.Where(m => m.Status == "frozen").Select(m => m.StudentId).ToHashSet();
 
         // Tuman + maktab nomlarini biriktiramiz (DB'ga yozilmaydi — faqat ko'rsatish uchun).
         var districtNames = await db.Districts.ToDictionaryAsync(d => d.Id, d => d.Name);
@@ -50,6 +54,9 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
         {
             s.Groups = byStudent.GetValueOrDefault(s.Id) ?? new List<string>();
             s.Active = activeIds.Contains(s.Id);
+            s.MemberState = activeIds.Contains(s.Id) ? "active"
+                : trialIds.Contains(s.Id) ? "trial"
+                : frozenIds.Contains(s.Id) ? "frozen" : "";
             if (!string.IsNullOrEmpty(s.DistrictId))
                 s.DistrictName = districtNames.GetValueOrDefault(s.DistrictId, "");
             if (!string.IsNullOrEmpty(s.SchoolId))
@@ -1349,9 +1356,13 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
 
         student.Balance += req.Amount;
 
-        // Guruh nomi (audit/izoh uchun).
-        var groupName = groupId is null ? null
-            : (await db.Classes.Where(c => c.Id == groupId).Select(c => c.Name).FirstOrDefaultAsync());
+        // To'lov qaysi guruh (kurs) uchun ekani — audit izohi va avto-xabar ({guruh}/{kurs}) uchun.
+        var payGroup = groupId is null ? null : await db.Classes.FindAsync(groupId);
+        var groupName = payGroup?.Name;
+        var teacherName = string.IsNullOrEmpty(payGroup?.TeacherId) ? null
+            : await db.Teachers.Where(t => t.Id == payGroup!.TeacherId).Select(t => t.FullName).FirstOrDefaultAsync();
+        var courseName = string.IsNullOrEmpty(payGroup?.CourseId) ? null
+            : await db.Subjects.Where(su => su.Id == payGroup!.CourseId).Select(su => su.Name).FirstOrDefaultAsync();
 
         // To'lovni moliyaviy kirim (o'quvchi to'lovi) sifatida qayd etamiz.
         var tx = new FinanceTransaction
@@ -1373,7 +1384,9 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
         db.FinanceTransactions.Add(tx);
 
         audit.Record(AuditService.EntityFinanceTransaction, tx.Id, "create",
-            $"To'lov qabul qilindi: +{AuditService.Money(req.Amount)} so'm ({month} uchun)",
+            $"To'lov qabul qilindi: +{AuditService.Money(req.Amount)} so'm ({month} uchun)"
+                + (groupName is null ? "" : $" — {groupName}")
+                + (teacherName is null ? "" : $" · {teacherName}"),
             after: AuditService.Snapshot(tx), studentId: student.Id);
 
         await db.SaveChangesAsync();
@@ -1382,13 +1395,18 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
         // Moliya bo'limidagi to'lov bilan bir xil xulq (FinanceController). {summa} = faqat raqam,
         // {sana} = to'lovning HAQIQIY sanasi (paidDate — orqaga sanalgan bo'lishi mumkin, bugun emas).
         // {oy} = to'lov QAYSI OY uchun (tanlangan `month`), bugungi oy EMAS.
+        // {kurs}/{guruh} = to'lov QAYSI guruh (kurs) uchun ekani — o'quvchi bir necha guruhda o'qisa
+        // har to'lov alohida yoziladi, demak har biriga o'z kursi nomi bilan alohida xabar ketadi.
         await autoMsg.DispatchStudentAsync(db, AutoMessageTriggers.PaymentReceived, student,
             new Dictionary<string, string>
             {
                 ["{summa}"] = MessageTokenizer.MoneyPlain(req.Amount),
                 ["{sana}"] = $"{paidDate[8..10]}.{paidDate[5..7]}.{paidDate[..4]}",
                 ["{oy}"] = int.TryParse(month.Substring(5, 2), out var payMm) ? MessageTokenizer.MonthNameUz(payMm) : "",
-            });
+                ["{kurs}"] = courseName ?? groupName ?? "",
+                ["{guruh}"] = groupName ?? student.ClassName,
+            },
+            group: payGroup);
 
         // Chek (kvitansiya) uchun yaratilgan tranzaksiya id'sini qaytaramiz.
         return Ok(new { id = tx.Id });

@@ -64,12 +64,12 @@ public static class AutoMessageTriggers
     {
         new(PaymentReceived,
             "To'lov qabul qilinganda",
-            "O'quvchining oylik (tuition) to'lovi qabul qilinganda ota-onaga (yoki o'quvchiga) tasdiq xabari. {oy} — to'lov QAYSI OY uchun ekani (kiritilgan sanadan emas, tanlangan oydan).",
-            new[] { "{ism}", "{fish}", "{summa}", "{oy}", "{sana}", "{qarzdorlik}", "{guruh}", "{telefon}", "{markaz}" },
+            "O'quvchining oylik (tuition) to'lovi qabul qilinganda ota-onaga (yoki o'quvchiga) tasdiq xabari. {oy} — to'lov QAYSI OY uchun ekani (kiritilgan sanadan emas, tanlangan oydan). {kurs}/{guruh} — to'lov QAYSI guruh (kurs) uchun ekani: o'quvchi bir necha guruhda o'qisa har to'lov alohida yoziladi, demak har biriga o'z kursi nomi bilan alohida xabar boradi.",
+            new[] { "{ism}", "{fish}", "{summa}", "{oy}", "{sana}", "{qarzdorlik}", "{kurs}", "{guruh}", "{telefon}", "{markaz}" },
             Sms: true, Push: true, Telegram: true,
             SupportsSchedule: false, SupportsSendScope: false,
             Audiences: new[] { "parents", "students", "teachers" }, DefaultAudience: "parents",
-            DefaultTemplate: "Hurmatli ota-ona! {ism}ning {oy} oyi uchun to'lovi qabul qilindi. Summa: {summa}. Qarzdorlik: {qarzdorlik}. {markaz}",
+            DefaultTemplate: "Hurmatli ota-ona! {ism}ning {kurs} kursi ({guruh}) uchun {oy} oyi to'lovi qabul qilindi. Summa: {summa}. Qarzdorlik: {qarzdorlik}. {markaz}",
             Category: CategoryFinance),
 
         new(MonthlyCharge,

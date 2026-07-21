@@ -355,6 +355,9 @@ export interface Student {
   groups?: string[]
   /** Kursda aktiv — kamida bitta a'zoligi "active" (sinov/muzlatilgan/guruhsiz emas) */
   active?: boolean
+  /** A'zolik holati yorlig'i: 'active' | 'trial' | 'frozen' | '' (guruhsiz).
+   *  Bir nechta guruhda turlicha bo'lsa ustunlik: active > trial > frozen. */
+  memberState?: 'active' | 'trial' | 'frozen' | ''
   /** Login/parol orqali tizimga kirish admin tomonidan cheklanganmi */
   loginBlocked?: boolean
   /** Markazga kelgan (qabul) sanasi (ISO) — oylik to'lov shu oydan boshlanadi */
@@ -861,6 +864,10 @@ export interface LedgerPayment {
   month?: string
   /** To'lov usuli: cash (Naqd) | card (Karta) | bank (Bank orqali) */
   method?: string
+  /** To'lov QAYSI guruh uchun qilingani (guruhga teglanmagan bo'lsa yo'q) */
+  groupName?: string
+  /** O'sha guruhning o'qituvchisi */
+  teacherName?: string
 }
 
 export interface StudentLedger {

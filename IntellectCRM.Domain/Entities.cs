@@ -235,6 +235,11 @@ public class Student
     /// DB'ga yozilmaydi; ro'yxat endpointida M2M a'zoliklardan hisoblanadi.</summary>
     [System.ComponentModel.DataAnnotations.Schema.NotMapped]
     public bool Active { get; set; }
+    /// <summary>A'zolik holati yorlig'i (ro'yxat/qidiruvda "Aktiv / Sinovda / Muzlatilgan" belgisi uchun):
+    /// "active" | "trial" | "frozen" | "" (guruhsiz). Bir nechta guruhda turlicha bo'lsa ustunlik tartibi:
+    /// active &gt; trial &gt; frozen. DB'ga yozilmaydi — ro'yxat endpointida M2M a'zoliklardan hisoblanadi.</summary>
+    [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+    public string MemberState { get; set; } = string.Empty;
     /// <summary>Markazga kelgan (qabul) sanasi (ISO "YYYY-MM-DD"). Oylik to'lov shu oydan boshlanadi.</summary>
     public string EnrollmentDate { get; set; } = string.Empty;
     /// <summary>Tizimga kiritilgan vaqt (ISO). Ro'yxatni "yangi kiritilgani tepada" tartiblash uchun.

@@ -1062,7 +1062,10 @@ public record MonthCourseDto(string CourseName, decimal Fee, string? GroupId = n
 public record MonthLedgerDto(
     string Month, decimal Charged, decimal Discount, decimal Paid, decimal Remaining, string Status,
     List<MonthCourseDto> Courses, string? GroupId = null);
-public record PaymentDto(string Date, decimal Amount, string? Note, string? Month, string? Comment, string? Method = null);
+/// <summary>Bitta to'lov yozuvi (kassa). GroupName/TeacherName — to'lov QAYSI guruh uchun qilingani
+/// va o'sha guruh o'qituvchisi (to'lov guruhga teglanmagan bo'lsa null).</summary>
+public record PaymentDto(string Date, decimal Amount, string? Note, string? Month, string? Comment, string? Method = null,
+    string? GroupName = null, string? TeacherName = null);
 /// <summary>To'lov oynasi uchun BITTA guruh bo'yicha oylik hisob: shu guruhning oylik to'lovi (chegirma
 /// ayirilgan), shu guruhga teglangan to'langan summa va qoldiq. Aggregate emas — faqat shu guruh.</summary>
 public record GroupMonthDto(string Month, decimal Fee, decimal Paid, decimal Remaining, string Status);

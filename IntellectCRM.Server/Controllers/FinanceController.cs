@@ -151,10 +151,19 @@ public class FinanceController(AppDbContext db, AuditService audit, AutoMessageS
         // O'quvchiga bog'langan tuition kirimi balansni oshiradi (izchillik — o'chirishda qaytariladi).
         await ApplyBalanceAsync(tx.StudentId, StudentBalanceEffect(tx));
 
+        // To'lov qaysi guruh (kurs) uchun ekani — audit izohi va avto-xabar ({guruh}/{kurs}) uchun.
+        var payGroup = tx.GroupId is null ? null : await db.Classes.FindAsync(tx.GroupId);
+        var payTeacherName = string.IsNullOrEmpty(payGroup?.TeacherId) ? null
+            : await db.Teachers.Where(t => t.Id == payGroup!.TeacherId).Select(t => t.FullName).FirstOrDefaultAsync();
+        var payCourseName = string.IsNullOrEmpty(payGroup?.CourseId) ? null
+            : await db.Subjects.Where(su => su.Id == payGroup!.CourseId).Select(su => su.Name).FirstOrDefaultAsync();
+
         var dir = tx.Direction == "income" ? "Kirim" : "Chiqim";
         var summary = tx is { Category: "salary", TeacherId: not null }
             ? $"Maosh berildi: {AuditService.Money(tx.Amount)} so'm"
-            : $"{dir} qo'shildi: {tx.Category} — {AuditService.Money(tx.Amount)} so'm";
+            : $"{dir} qo'shildi: {tx.Category} — {AuditService.Money(tx.Amount)} so'm"
+                + (payGroup is null ? "" : $" — {payGroup.Name}")
+                + (payTeacherName is null ? "" : $" · {payTeacherName}");
         audit.Record(AuditService.EntityFinanceTransaction, tx.Id, "create",
             summary, after: AuditService.Snapshot(tx), studentId: tx.StudentId, teacherId: tx.TeacherId);
 
@@ -177,7 +186,11 @@ public class FinanceController(AppDbContext db, AuditService audit, AutoMessageS
                         ["{summa}"] = MessageTokenizer.MoneyPlain(tx.Amount),
                         ["{sana}"] = tx.Date.Length >= 10 ? $"{tx.Date[8..10]}.{tx.Date[5..7]}.{tx.Date[..4]}" : tx.Date,
                         ["{oy}"] = monthName,
-                    });
+                        // {kurs}/{guruh} — to'lov qaysi guruh (kurs) uchun; har guruh to'lovi alohida xabar.
+                        ["{kurs}"] = payCourseName ?? payGroup?.Name ?? "",
+                        ["{guruh}"] = payGroup?.Name ?? student.ClassName,
+                    },
+                    group: payGroup);
             }
         }
 

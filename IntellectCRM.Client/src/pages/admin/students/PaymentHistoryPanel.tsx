@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Check, Pencil, Wallet, X } from 'lucide-react'
+import { Check, GraduationCap, Pencil, Users, Wallet, X } from 'lucide-react'
 import type { MonthStatus, Student, StudentLedger } from '@/types'
 import { getStudentLedger, editStudentCharge, getStudent, addPayment } from '@/api/services/students'
 import { useAuth } from '@/context/auth-context'
@@ -309,6 +309,21 @@ export function PaymentHistoryPanel({ studentId, onPaid }: Props) {
                     </span>
                     <span className="font-mono font-medium text-emerald-600">+{formatMoney(p.amount)}</span>
                   </div>
+                  {/* To'lov qaysi guruhga tushgani + o'sha guruh o'qituvchisi */}
+                  {(p.groupName || p.teacherName) && (
+                    <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-500">
+                      {p.groupName && (
+                        <span className="inline-flex items-center gap-1 rounded-md bg-brand-50 px-1.5 py-0.5 font-medium text-brand-700">
+                          <Users className="h-3 w-3" /> {p.groupName}
+                        </span>
+                      )}
+                      {p.teacherName && (
+                        <span className="inline-flex items-center gap-1 text-slate-500">
+                          <GraduationCap className="h-3 w-3 text-slate-400" /> {p.teacherName}
+                        </span>
+                      )}
+                    </p>
+                  )}
                   {p.comment && <p className="mt-0.5 text-xs text-slate-500">{p.comment}</p>}
                 </li>
               ))}

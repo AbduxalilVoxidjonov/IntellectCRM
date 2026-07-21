@@ -21,10 +21,13 @@ public class AutoMessageService(
     CtiSmsService ctiSms,
     ILogger<AutoMessageService> logger)
 {
-    /// <summary>O'quvchi (ota-ona) uchun avto-xabar — SMS + Push + Telegram (qoidada yoqilganiga qarab).</summary>
+    /// <summary>O'quvchi (ota-ona) uchun avto-xabar — SMS + Push + Telegram (qoidada yoqilganiga qarab).
+    /// <paramref name="group"/> — hodisa QAYSI guruhga tegishli (masalan to'lov shu guruh uchun qilindi).
+    /// Berilmasa o'quvchining asosiy (ClassName) guruhi olinadi. Guruh dars jadvali tokenlariga
+    /// ({dars_kunlari}...) va "o'qituvchiga yuborish" auditoriyasiga ta'sir qiladi.</summary>
     public async Task DispatchStudentAsync(
         IAppDbContext db, string trigger, Student s,
-        Dictionary<string, string>? extraTokens = null, CancellationToken ct = default)
+        Dictionary<string, string>? extraTokens = null, Group? group = null, CancellationToken ct = default)
     {
         try
         {
@@ -34,9 +37,10 @@ public class AutoMessageService(
             var meta = await db.CenterMeta.FirstOrDefaultAsync(ct);
             var centerName = meta?.Name ?? "";
             var fcmJson = meta?.FcmServiceAccountJson ?? "";
-            // O'quvchining asosiy guruhi (ClassName bo'yicha) — dars jadvali tokenlari uchun.
-            var group = string.IsNullOrWhiteSpace(s.ClassName) ? null
-                : await db.Classes.FirstOrDefaultAsync(c => c.Name == s.ClassName, ct);
+            // Hodisa guruhi: chaqiruvchi bergan bo'lsa (to'lov qaysi guruhga tushgani) — o'sha;
+            // aks holda o'quvchining asosiy guruhi (ClassName bo'yicha) — dars jadvali tokenlari uchun.
+            var ctxGroup = group ?? (string.IsNullOrWhiteSpace(s.ClassName) ? null
+                : await db.Classes.FirstOrDefaultAsync(c => c.Name == s.ClassName, ct));
 
             var deadTokens = new List<string>();
             var dirty = false;
@@ -53,8 +57,8 @@ public class AutoMessageService(
                     Teacher? teacher = null;
                     if (audienceTeachers)
                     {
-                        if (group?.TeacherId is null) continue;
-                        teacher = await db.Teachers.FindAsync(new object?[] { group.TeacherId }, ct);
+                        if (string.IsNullOrEmpty(ctxGroup?.TeacherId)) continue;
+                        teacher = await db.Teachers.FindAsync(new object?[] { ctxGroup.TeacherId }, ct);
                         if (teacher is null) continue;
                     }
 
@@ -65,7 +69,7 @@ public class AutoMessageService(
                         : Coalesce(s.ParentPhone, s.FatherPhone, s.MotherPhone, s.Phone);
 
                     var withExtra = MessageTokenizer.ApplyExtra(rule.Template, extraTokens);
-                    var msg = MessageTokenizer.Student(withExtra, s, s.ParentFullName, phone, centerName, extra: null, group: group);
+                    var msg = MessageTokenizer.Student(withExtra, s, s.ParentFullName, phone, centerName, extra: null, group: ctxGroup);
                     var title = Title(rule, trigger);
                     if (string.IsNullOrWhiteSpace(msg)) continue;
 
@@ -182,7 +186,7 @@ public class AutoMessageService(
             ["{sana}"] = sana,
             ["{guruh}"] = groupName,
             ["{sabab}"] = reasonName,
-        }, ct);
+        }, ct: ct);
     }
 
     /// <summary>Yangi yaratilgan oylik hisoblar (monthly_charge) uchun ota-onaga xabar. (o'quvchi, oy)
@@ -211,7 +215,7 @@ public class AutoMessageService(
                 {
                     ["{summa}"] = MessageTokenizer.MoneyPlain(summa),
                     ["{oy}"] = monthName,
-                }, ct);
+                }, ct: ct);
             }
         }
         catch (Exception ex)

@@ -50,6 +50,20 @@ type SortOption = 'default' | 'ball-desc' | 'ball-asc'
 const control =
   'rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 outline-none transition-colors focus:border-brand-400 focus:ring-2 focus:ring-brand-100'
 
+/**
+ * "Holat" ustuni (va CSV eksporti) uchun a'zolik holati. `memberState` — backend hisoblagan
+ * yorliq (active > trial > frozen); eski javoblarda bo'lmasa `active` bayrog'iga tushamiz.
+ */
+function memberStateInfo(s: Student): { label: string; chip: string; dot: string } {
+  if (s.memberState === 'frozen')
+    return { label: 'Muzlatilgan', chip: 'bg-sky-50 text-sky-700', dot: 'bg-sky-500' }
+  if (s.memberState === 'trial')
+    return { label: 'Sinovda', chip: 'bg-violet-50 text-violet-700', dot: 'bg-violet-500' }
+  if (s.active || s.memberState === 'active')
+    return { label: 'Aktiv', chip: 'bg-emerald-50 text-emerald-700', dot: 'bg-emerald-500' }
+  return { label: 'Aktiv emas', chip: 'bg-slate-100 text-slate-500', dot: 'bg-slate-400' }
+}
+
 /** Ism bo'yicha barqaror avatar rangi (crm/ namunasidagi kabi). */
 const AVATAR_COLORS = [
   '#7c3aed', '#2563eb', '#0891b2', '#16a34a', '#ca8a04', '#dc2626', '#db2777', '#9333ea',
@@ -325,7 +339,7 @@ export function StudentsPage() {
       selectedStudents.map((s) => [
         s.fullName,
         s.groups && s.groups.length > 0 ? s.groups.join(', ') : s.className,
-        s.active ? 'Aktiv' : 'Aktiv emas',
+        memberStateInfo(s).label,
         genderLabels[s.gender],
         formatDate(s.birthDate),
         s.address,
@@ -885,15 +899,14 @@ export function StudentsPage() {
                       </div>
                     </td>
                     <td>
-                      {s.active ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
-                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Aktiv
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
-                          <span className="h-1.5 w-1.5 rounded-full bg-slate-400" /> Aktiv emas
-                        </span>
-                      )}
+                      {(() => {
+                        const st = memberStateInfo(s)
+                        return (
+                          <span className={cn('inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium', st.chip)}>
+                            <span className={cn('h-1.5 w-1.5 rounded-full', st.dot)} /> {st.label}
+                          </span>
+                        )
+                      })()}
                     </td>
                     <td className="text-slate-600">{genderLabels[s.gender]}</td>
                     <td className="font-mono text-slate-600">{formatDate(s.birthDate)}</td>
