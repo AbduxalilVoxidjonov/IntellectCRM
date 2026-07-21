@@ -444,7 +444,10 @@ public class TelegramBotService(
     }
 
     /// <summary>Obuna o'tdi: TelegramRegistration yozadi, login/parol yuboradi, BotUser yangilaydi va mos APK(lar)ni yuboradi.
-    /// Admin/xodim moslansa — UserId yozuvi (yangi lid xabarnomalari uchun); APK yuborilmaydi.</summary>
+    /// Admin/xodim moslansa — UserId yozuvi (yangi lid xabarnomalari uchun); APK yuborilmaydi.
+    /// DIQQAT: ro'yxatdan o'tish (TelegramRegistration — xabar/e'lon olish uchun) HAMMA mos o'quvchida
+    /// bajariladi, lekin login/parol va APK faqat AKTIV o'quvchiga yuboriladi
+    /// (<see cref="ActiveStudentIdsAsync"/>).</summary>
     private async Task CompleteAsync(
         IAppDbContext db, CenterMeta? meta, long chatId, string phone, string senderName,
         List<Student> students, List<Teacher> teachers, List<AppUser> admins, CancellationToken ct)
@@ -528,23 +531,53 @@ public class TelegramBotService(
             await SendAsync(chatId,
                 "🔔 Yangi lid tushganda shu yerga xabar olasiz.", ct: ct);
 
-        // LOGIN/PAROL — har bir mos AppUser uchun (matn o'zida veb-versiya havolasini ham o'z ichiga oladi).
-        var sentLogin = await SendLoginInfoAsync(db, chatId, students, teachers, admins, ct);
+        // LOGIN/PAROL — FAQAT "aktiv" o'quvchiga (arxivlangan va aktiv bo'lmaganlar chetlab o'tiladi;
+        // o'qituvchi/admin uchun bu cheklov yo'q). Matn o'zida veb-versiya havolasini ham o'z ichiga oladi.
+        var activeStudentIds = await ActiveStudentIdsAsync(db, students, ct);
+        var loginStudents = students.Where(s => activeStudentIds.Contains(s.Id)).ToList();
+        var sentLogin = await SendLoginInfoAsync(db, chatId, loginStudents, teachers, admins, ct);
+
+        // Chetlab o'tilganlarga sababini aytamiz — aks holda "hech narsa kelmadi" bo'lib qoladi.
+        var skippedNames = students.Where(s => !activeStudentIds.Contains(s.Id)).Select(s => s.FullName).ToList();
+        if (skippedNames.Count > 0)
+            await SendAsync(chatId,
+                "ℹ️ Kirish ma'lumotlari yuborilmadi — hisob hozircha faol emas:\n• "
+                + string.Join("\n• ", skippedNames)
+                + "\nMarkaz ma'muriyatiga murojaat qiling.", ct: ct);
 
         // BotUser — telefon va moslik yorlig'ini yangilash/yaratish.
         await UpsertBotUserAfterContactAsync(db, chatId, digits, linked, ct);
 
-        // Mos ILOVA (APK) — FAQAT o'quvchi/o'qituvchi uchun (admin web paneldan foydalanadi). Veb-versiya
-        // havolasi FAQAT hech kimga login xabari (u allaqachon havolani o'z ichiga oladi) yuborilmagan
-        // bo'lsa qo'shimcha yuboriladi — aks holda bir xil link ikki marta takrorlanib qolardi.
-        if (students.Count > 0 || teachers.Count > 0)
+        // Mos ILOVA (APK) — FAQAT kirish ma'lumoti berilgan o'quvchi/o'qituvchi uchun (admin web paneldan
+        // foydalanadi; faol bo'lmagan o'quvchiga ilova ham yuborilmaydi — login/parolsiz foydasi yo'q).
+        // Veb-versiya havolasi FAQAT hech kimga login xabari (u allaqachon havolani o'z ichiga oladi)
+        // yuborilmagan bo'lsa qo'shimcha yuboriladi — aks holda bir xil link ikki marta takrorlanib qolardi.
+        if (loginStudents.Count > 0 || teachers.Count > 0)
         {
-            var sentAny = await SendAppApkAsync(db, meta, chatId, students.Count > 0, teachers.Count > 0, ct);
+            var sentAny = await SendAppApkAsync(db, meta, chatId, loginStudents.Count > 0, teachers.Count > 0, ct);
             if (!sentAny && !sentLogin)
                 await SendAsync(chatId,
                     $"🌐 Tizimga veb-versiya orqali kiring:\n{WebAppUrl}",
                     ct: ct);
         }
+    }
+
+    /// <summary>Berilgan o'quvchilardan bot orqali KIRISH MA'LUMOTI olishga haqli bo'lganlarining id'lari.
+    /// Aktiv = arxivlanmagan + admin login'ini cheklamagan + kamida bitta guruh a'zoligi Status=="active"
+    /// (admin "O'quvchilar" ro'yxatidagi «Aktiv / Aktiv emas» belgisi bilan bir xil mantiq). Ya'ni
+    /// arxivdagi, sinov (trial), muzlatilgan (frozen) yoki umuman guruhsiz o'quvchiga login/parol ham,
+    /// bir martalik kod ham yuborilmaydi.</summary>
+    private static async Task<HashSet<string>> ActiveStudentIdsAsync(
+        IAppDbContext db, IReadOnlyCollection<Student> students, CancellationToken ct)
+    {
+        var ids = students.Where(s => !s.IsArchived && !s.LoginBlocked).Select(s => s.Id).ToList();
+        if (ids.Count == 0) return new HashSet<string>();
+        var active = await db.StudentGroups
+            .Where(sg => ids.Contains(sg.StudentId) && sg.IsActive && sg.Status == "active")
+            .Select(sg => sg.StudentId)
+            .Distinct()
+            .ToListAsync(ct);
+        return active.ToHashSet();
     }
 
     /// <summary>Mos AppUser(lar) uchun login va (mavjud bo'lsa) dastlabki parolni yuboradi.
@@ -701,6 +734,14 @@ public class TelegramBotService(
 
         // Shu chatga bog'langan har bir AppUser (o'quvchi/o'qituvchi/xodim) — bir nechta farzandi bo'lgan
         // ota-onaga har biriga alohida kod (SendLoginInfoAsync bilan bir xil "chatId → user(lar)" mantiq).
+        // O'quvchilar bir marta o'qiladi (N+1 emas) va login/parol bilan BIR XIL siyosat qo'llanadi:
+        // faqat AKTIV o'quvchi kod oladi (arxiv/sinov/muzlatilgan/login cheklangan — olmaydi).
+        var regStudentIds = regs.Where(r => !string.IsNullOrEmpty(r.StudentId))
+            .Select(r => r.StudentId).Distinct().ToList();
+        var regStudents = regStudentIds.Count == 0 ? new List<Student>()
+            : await db.Students.Where(s => regStudentIds.Contains(s.Id)).ToListAsync(ct);
+        var activeStudentIds = await ActiveStudentIdsAsync(db, regStudents, ct);
+
         var users = new List<(string UserId, string Label)>();
         foreach (var r in regs)
         {
@@ -716,15 +757,18 @@ public class TelegramBotService(
             }
             else if (!string.IsNullOrEmpty(r.StudentId))
             {
-                var st = await db.Students.FirstOrDefaultAsync(x => x.Id == r.StudentId, ct);
-                if (st is not null && !string.IsNullOrEmpty(st.UserId)) users.Add((st.UserId, st.FullName));
+                var st = regStudents.FirstOrDefault(x => x.Id == r.StudentId);
+                if (st is not null && !string.IsNullOrEmpty(st.UserId) && activeStudentIds.Contains(st.Id))
+                    users.Add((st.UserId, st.FullName));
             }
         }
 
         var distinct = users.GroupBy(x => x.UserId).Select(g => g.First()).ToList();
         if (distinct.Count == 0)
         {
-            await SendAsync(chatId, "Bog'langan tizim hisobi topilmadi. Administratorga murojaat qiling.", ct: ct);
+            await SendAsync(chatId,
+                "Bog'langan faol tizim hisobi topilmadi — hisobingiz hali faollashtirilmagan bo'lishi mumkin. "
+                + "Markaz ma'muriyatiga murojaat qiling.", ct: ct);
             return;
         }
 
