@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
-import type { Lead } from '@/types'
+import type { District, Lead } from '@/types'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input, Select, Textarea } from '@/components/ui/Input'
 import { PhoneInput } from '@/components/ui/PhoneInput'
 import { genderOptions, leadSourceOptions } from '@/config/constants'
 import { getLeadSources } from '@/api/services/leadSources'
+import { getDistricts } from '@/api/services/districts'
 
 export type LeadFormValues = Omit<Lead, 'id' | 'stage'>
 
@@ -29,15 +30,22 @@ const empty: LeadFormValues = {
   note: '',
   source: '',
   interestSubject: '',
+  districtId: '',
+  schoolId: '',
 }
 
 export function LeadFormModal({ open, onClose, onSubmit, initial }: Props) {
   const [form, setForm] = useState<LeadFormValues>(empty)
   // Manba ro'yxati serverdan ("O'quv bo'limi → Sabablar" → "Lid manbalari"); xato/bo'sh bo'lsa fallback.
   const [sourceOptions, setSourceOptions] = useState<string[]>(leadSourceOptions)
+  // Tashqi maktab ma'lumotnomasi (tuman → maktablar) — o'quvchi formasidagi bilan bir xil.
+  const [districts, setDistricts] = useState<District[]>([])
 
   useEffect(() => {
     if (!open) return
+    getDistricts()
+      .then(setDistricts)
+      .catch(() => setDistricts([]))
     getLeadSources()
       .then((list) => {
         const names = list.map((s) => s.name)
@@ -63,6 +71,8 @@ export function LeadFormModal({ open, onClose, onSubmit, initial }: Props) {
             note: initial.note ?? '',
             source: initial.source ?? '',
             interestSubject: initial.interestSubject ?? '',
+            districtId: initial.districtId ?? '',
+            schoolId: initial.schoolId ?? '',
           }
         : empty,
     )
@@ -172,6 +182,39 @@ export function LeadFormModal({ open, onClose, onSubmit, initial }: Props) {
             value={form.interestSubject ?? ''}
             onChange={(e) => update('interestSubject', e.target.value)}
           />
+        </div>
+        {/* Tashqi maktab (lid qayerda o'qiydi) — o'quvchiga aylantirilganda ko'chadi */}
+        <div className="grid grid-cols-2 gap-4">
+          <Select
+            label="Tuman"
+            value={form.districtId ?? ''}
+            onChange={(e) => {
+              // Tuman o'zgarsa, oldingi maktab tanlovi tozalanadi.
+              setForm((f) => ({ ...f, districtId: e.target.value, schoolId: '' }))
+            }}
+          >
+            <option value="">— tanlanmagan —</option>
+            {districts.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.name}
+              </option>
+            ))}
+          </Select>
+          <Select
+            label="Maktab"
+            value={form.schoolId ?? ''}
+            disabled={!form.districtId}
+            onChange={(e) => update('schoolId', e.target.value)}
+          >
+            <option value="">
+              {form.districtId ? '— tanlanmagan —' : '— avval tumanni tanlang —'}
+            </option>
+            {(districts.find((d) => d.id === form.districtId)?.schools ?? []).map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </Select>
         </div>
         <Textarea
           label="Izoh"

@@ -8,10 +8,11 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from '@dnd-kit/core'
-import { Plus, MessageSquare } from 'lucide-react'
-import type { Lead, Stage, LeadSource } from '@/types'
+import { Plus, MessageSquare, Search, X } from 'lucide-react'
+import type { Lead, Stage, LeadSource, District } from '@/types'
 import { getLeads, createLead, updateLead, updateLeadStage, deleteLead } from '@/api/services/leads'
 import { getLeadSources } from '@/api/services/leadSources'
+import { getDistricts } from '@/api/services/districts'
 import {
   getStages,
   createStage,
@@ -57,6 +58,12 @@ export function LeadsPage() {
   // Manba bo'yicha filtr: 'all' | '__none__' (manbasiz) | manba nomi
   const [sourceFilter, setSourceFilter] = useState('all')
   const [sources, setSources] = useState<LeadSource[]>([])
+  // Qidiruv — FAQAT lidlar ichida (ism, telefon, ota-ona, manba, fan, maktab, izoh)
+  const [search, setSearch] = useState('')
+  // Tashqi maktab bo'yicha filtr (o'quvchilar sahifasidagi bilan bir xil: tuman → maktab)
+  const [districtFilter, setDistrictFilter] = useState('all')
+  const [schoolFilter, setSchoolFilter] = useState('all')
+  const [districts, setDistricts] = useState<District[]>([])
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
 
@@ -70,6 +77,9 @@ export function LeadsPage() {
     getLeadSources()
       .then(setSources)
       .catch(() => setSources([]))
+    getDistricts()
+      .then(setDistricts)
+      .catch(() => setDistricts([]))
   }, [])
 
   /* ---------- Karta drag-and-drop ---------- */
@@ -178,7 +188,46 @@ export function LeadsPage() {
     if (sourceFilter === '__none__') return !l.source
     return l.source === sourceFilter
   }
-  const visibleLeads = leads.filter((l) => inDateRange(l) && inSourceFilter(l))
+  // Maktab id → nomi (qidiruv va ko'rsatish uchun) — tumanlar ma'lumotnomasidan.
+  const schoolNames = new Map<string, string>()
+  for (const d of districts) for (const s of d.schools) schoolNames.set(s.id, s.name)
+  const inSchoolFilter = (l: Lead) => {
+    if (districtFilter !== 'all' && l.districtId !== districtFilter) return false
+    if (schoolFilter !== 'all' && l.schoolId !== schoolFilter) return false
+    return true
+  }
+  // Qidiruv FAQAT lidlar ro'yxati ichida ishlaydi (serverga so'rov yubormaydi).
+  // Matnli maydonlar oddiy "ichida bor" bo'yicha; telefonlar esa faqat RAQAMLAR bo'yicha
+  // solishtiriladi — shu sabab "901234567" ham "+998 90 123 45 67" ni topadi.
+  const q = search.trim().toLowerCase()
+  const qDigits = q.replace(/\D/g, '')
+  const matchesSearch = (l: Lead) => {
+    if (!q) return true
+    const text = [
+      l.fullName,
+      l.fatherFullName,
+      l.motherFullName,
+      l.source,
+      l.interestSubject,
+      l.note,
+      l.schoolId ? schoolNames.get(l.schoolId) : '',
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
+    if (text.includes(q)) return true
+    return (
+      qDigits.length >= 3 &&
+      [l.phone, l.fatherPhone, l.motherPhone].some((p) =>
+        (p || '').replace(/\D/g, '').includes(qDigits),
+      )
+    )
+  }
+  const visibleLeads = leads.filter(
+    (l) => inDateRange(l) && inSourceFilter(l) && inSchoolFilter(l) && matchesSearch(l),
+  )
+  const filtersActive =
+    dateActive || sourceFilter !== 'all' || districtFilter !== 'all' || schoolFilter !== 'all' || !!q
   // Xavfsizlik tarmog'i: bosqichi mavjud ustunlardan biriga MOS KELMAYDIGAN lid (eski bo'sh "" yoki
   // o'chirilgan ustun — masalan daraja testidan bosqich yo'q paytda tushgan) ko'rinmay qolmasin —
   // birinchi ustunda ko'rsatamiz (sudrab to'g'ri ustunga o'tkazish mumkin).
@@ -211,6 +260,66 @@ export function LeadsPage() {
           </div>
         }
       />
+
+      {/* Qidiruv — faqat lidlar ichida (ism, telefon, ota-ona, manba, maktab, izoh) */}
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 focus-within:border-brand-400">
+          <Search className="h-4 w-4 shrink-0 text-slate-400" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Lidlar ichidan qidirish: ism, telefon, maktab..."
+            className="w-64 border-0 bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch('')}
+              title="Tozalash"
+              className="text-slate-400 transition-colors hover:text-slate-600"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+
+        {/* Tuman → maktab (ma'lumotnoma bo'sh bo'lsa ko'rsatilmaydi) */}
+        {districts.length > 0 && (
+          <>
+            <select
+              value={districtFilter}
+              onChange={(e) => {
+                // Tuman o'zgarsa, oldingi maktab tanlovi tozalanadi (boshqa tumanga tegishli edi).
+                setDistrictFilter(e.target.value)
+                setSchoolFilter('all')
+              }}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 outline-none focus:border-brand-400"
+            >
+              <option value="all">Barcha tumanlar</option>
+              {districts.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
+              ))}
+            </select>
+            <select
+              value={schoolFilter}
+              onChange={(e) => setSchoolFilter(e.target.value)}
+              disabled={districtFilter === 'all'}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 outline-none focus:border-brand-400 disabled:opacity-50"
+            >
+              <option value="all">
+                {districtFilter === 'all' ? 'Barcha maktablar' : '— barcha maktablar —'}
+              </option>
+              {(districts.find((d) => d.id === districtFilter)?.schools ?? []).map((sc) => (
+                <option key={sc.id} value={sc.id}>
+                  {sc.name}
+                </option>
+              ))}
+            </select>
+          </>
+        )}
+      </div>
 
       {/* Sana bo'yicha filtr — bitta kun (Bugun) yoki "dan ... gacha" oraliq */}
       <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -261,7 +370,7 @@ export function LeadsPage() {
           </>
         )}
 
-        {(dateActive || sourceFilter !== 'all') && (
+        {filtersActive && (
           <>
             <button
               type="button"
@@ -269,6 +378,9 @@ export function LeadsPage() {
                 setDateFrom('')
                 setDateTo('')
                 setSourceFilter('all')
+                setSearch('')
+                setDistrictFilter('all')
+                setSchoolFilter('all')
               }}
               className="rounded-lg px-3 py-1.5 text-sm font-medium text-slate-400 transition-colors hover:bg-slate-50 hover:text-slate-600"
             >
@@ -329,6 +441,7 @@ export function LeadsPage() {
       {/* Modallar */}
       <LeadDetailModal
         lead={detailLead}
+        schoolName={detailLead?.schoolId ? schoolNames.get(detailLead.schoolId) : undefined}
         canEdit={can('leads', 'edit')}
         canDelete={can('leads', 'delete')}
         onClose={() => setDetailLead(null)}

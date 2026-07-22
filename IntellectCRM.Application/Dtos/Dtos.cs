@@ -461,7 +461,8 @@ public record LeadCreateRequest(
     string FullName, string Gender, string BirthDate,
     string? Phone, string? FatherFullName, string? FatherPhone,
     string? MotherFullName, string? MotherPhone, string? Note, string Stage,
-    string? Source = null, string? InterestSubject = null);
+    string? Source = null, string? InterestSubject = null,
+    string? DistrictId = null, string? SchoolId = null);
 /// <summary>Lid (bo'lajak o'quvchi) tahrirlash so'rovi.
 /// TELEFON VALIDATSIYA (PhoneUtil.Normalize orqali standartlashtirilib saqlanadi):
 /// - <paramref name="Phone"/> — lidning o'z raqami (ixtiyoriy, max 32 belgi); format: +998-XX-XXX-XX-XX
@@ -473,7 +474,8 @@ public record LeadUpdateRequest(
     string FullName, string Gender, string BirthDate,
     string? Phone, string? FatherFullName, string? FatherPhone,
     string? MotherFullName, string? MotherPhone, string? Note,
-    string? Source = null, string? InterestSubject = null);
+    string? Source = null, string? InterestSubject = null,
+    string? DistrictId = null, string? SchoolId = null);
 public record LeadStageRequest(string Stage);
 
 /// <summary>O'quvchi profilidagi izoh (tarix). CanDelete — joriy foydalanuvchi o'chira oladimi
@@ -497,12 +499,15 @@ public record ScheduleTrialRequest(string GroupId, string ScheduledAt);
 /// <summary>Sinov darsi natijasi: stayed (qoldi) | left (ketdi).</summary>
 public record TrialResultRequest(string Result);
 
-/// <summary>Lid + birinchi dars davomat holati: "attended" | "absent" | "no-lesson".</summary>
+/// <summary>Lid + birinchi dars davomat holati: "attended" | "absent" | "no-lesson".
+/// DistrictId/SchoolId — lid o'qiydigan TASHQI maktab (filtr uchun; nomlarini frontend
+/// tumanlar ma'lumotnomasidan (GET /admin/districts) yechadi).</summary>
 public record LeadWithAttendanceDto(
     string Id, string FullName, string Gender, string BirthDate, string Phone,
     string FatherFullName, string FatherPhone, string MotherFullName, string MotherPhone,
     string? Note, string Stage, string Source, string InterestSubject, string? CreatedAt,
-    string? ConvertedStudentId, string? FirstLessonAttendance);
+    string? ConvertedStudentId, string? FirstLessonAttendance,
+    string DistrictId, string SchoolId);
 
 /// <summary>Lid manbasi (ma'lumotnoma) — "O'quv bo'limi → Sabablar" sahifasida boshqariladi.</summary>
 public record LeadSourceDto(string Id, string Name, int Order);

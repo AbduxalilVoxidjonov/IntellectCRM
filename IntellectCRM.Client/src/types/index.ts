@@ -243,6 +243,10 @@ export interface Lead {
   source?: string
   /** Qiziqqan fani / yo'nalishi */
   interestSubject?: string
+  /** O'qiydigan TASHQI maktab tumani (District id) */
+  districtId?: string
+  /** O'qiydigan TASHQI maktab (School id) */
+  schoolId?: string
   /** Yaratilgan vaqti (ISO) */
   createdAt?: string
   /** Aylantirilgan o'quvchi id'si (null = hali aylantirilmagan) */

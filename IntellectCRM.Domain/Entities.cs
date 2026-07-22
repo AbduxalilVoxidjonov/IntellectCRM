@@ -581,6 +581,11 @@ public class Lead
     public string Source { get; set; } = string.Empty;
     /// <summary>Qiziqqan fani/yo'nalishi (matn yoki Subject id).</summary>
     public string InterestSubject { get; set; } = string.Empty;
+    /// <summary>Lid o'qiydigan TASHQI maktab tumani (<see cref="District"/> id). Bo'sh = tanlanmagan.</summary>
+    public string DistrictId { get; set; } = string.Empty;
+    /// <summary>Lid o'qiydigan TASHQI maktab (<see cref="School"/> id). Bo'sh = tanlanmagan.
+    /// O'quvchiga aylantirilganda <see cref="Student.SchoolId"/> ga ko'chiriladi.</summary>
+    public string SchoolId { get; set; } = string.Empty;
     /// <summary>Yaratilgan vaqt (ISO "yyyy-MM-ddTHH:mm:ss").</summary>
     public string CreatedAt { get; set; } = string.Empty;
     /// <summary>O'quvchiga aylantirilgan bo'lsa — yaratilgan Student id'si (null = hali emas).</summary>

@@ -38,6 +38,8 @@ import { getTeachers } from '@/api/services/teachers'
 
 interface Props {
   lead: Lead | null
+  /** Lid o'qiydigan tashqi maktab NOMI (id → nom LeadsPage'da yechiladi) */
+  schoolName?: string
   onClose: () => void
   onEdit: (lead: Lead) => void
   onDelete: (lead: Lead) => void
@@ -125,6 +127,7 @@ function nextLessonDates(days: number[], count: number): Date[] {
 
 export function LeadDetailModal({
   lead,
+  schoolName,
   onClose,
   onEdit,
   onDelete,
@@ -403,6 +406,7 @@ export function LeadDetailModal({
             )}
             <Row label="Manba" value={lead.source || '—'} />
             <Row label="Qiziqqan fani" value={lead.interestSubject || '—'} />
+            <Row label="Maktab" value={schoolName || '—'} />
             {lead.createdAt && <Row label="Yaratilgan" value={formatDate(lead.createdAt)} mono />}
             {lead.convertedStudentId && lead.firstLessonAttendance && (
               <div className="border-b border-slate-100 py-2.5">

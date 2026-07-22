@@ -35,7 +35,8 @@ public class LeadsController(AppDbContext db, AuditService audit, TelegramServic
             lead.InterestSubject, lead.CreatedAt, lead.ConvertedStudentId,
             string.IsNullOrWhiteSpace(lead.ConvertedStudentId)
                 ? "no-lesson"
-                : attendanceByStudent.GetValueOrDefault(lead.ConvertedStudentId, "no-lesson")
+                : attendanceByStudent.GetValueOrDefault(lead.ConvertedStudentId, "no-lesson"),
+            lead.DistrictId, lead.SchoolId
         )).ToList();
     }
 
@@ -56,6 +57,8 @@ public class LeadsController(AppDbContext db, AuditService audit, TelegramServic
             Stage = p.Stage,
             Source = p.Source ?? "",
             InterestSubject = p.InterestSubject ?? "",
+            DistrictId = p.DistrictId ?? "",
+            SchoolId = p.SchoolId ?? "",
             CreatedAt = Now(),
         };
         db.Leads.Add(lead);
@@ -111,6 +114,8 @@ public class LeadsController(AppDbContext db, AuditService audit, TelegramServic
         lead.Note = p.Note;
         if (p.Source is not null) lead.Source = p.Source;
         if (p.InterestSubject is not null) lead.InterestSubject = p.InterestSubject;
+        if (p.DistrictId is not null) lead.DistrictId = p.DistrictId;
+        if (p.SchoolId is not null) lead.SchoolId = p.SchoolId;
         await db.SaveChangesAsync();
         return NoContent();
     }
@@ -263,6 +268,9 @@ public class LeadsController(AppDbContext db, AuditService audit, TelegramServic
             ParentPhone = !string.IsNullOrWhiteSpace(lead.FatherPhone) ? lead.FatherPhone : lead.MotherPhone,
             EnrollmentDate = enrollment,
             ClassName = group?.Name ?? "",
+            // Lidda tanlangan tashqi maktab (tuman + maktab) o'quvchiga ko'chadi.
+            DistrictId = lead.DistrictId,
+            SchoolId = lead.SchoolId,
         };
         db.Students.Add(student);
 
