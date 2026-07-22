@@ -43,13 +43,17 @@ public static class JournalService
         var ids = memberships.Select(m => m.StudentId).ToList();
         var studentById = (await db.Students.Where(s => ids.Contains(s.Id)).ToListAsync())
             .ToDictionary(s => s.Id);
+        // Balans — SHU GURUH bo'yicha (umumiy Student.Balance emas): o'quvchi bir nechta guruhda o'qib
+        // faqat bittasiga to'lasa, to'lagan guruhida "qarzi yo'q", to'lamaganida qarzdor ko'rinadi.
+        var balanceByStudent = await GroupBalanceService.ForGroupAsync(db, classId, ids);
         var students = memberships
             .Where(m => studentById.ContainsKey(m.StudentId))
             .Select(m =>
             {
                 var st = studentById[m.StudentId];
                 return new GroupJournalStudentDto(
-                    m.StudentId, st.FullName, m.Status ?? "trial", m.ActivatedAt ?? "", st.Balance,
+                    m.StudentId, st.FullName, m.Status ?? "trial", m.ActivatedAt ?? "",
+                    balanceByStudent.GetValueOrDefault(m.StudentId, 0m),
                     MemberStart(m) ?? "", m.RecordedAt ?? "");
             })
             .OrderBy(s => s.FullName, StringComparer.OrdinalIgnoreCase)

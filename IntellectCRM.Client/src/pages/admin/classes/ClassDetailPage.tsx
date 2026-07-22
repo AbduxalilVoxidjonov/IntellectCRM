@@ -939,7 +939,7 @@ export function ClassDetailPage() {
                                   'h-2 w-2 shrink-0 rounded-full',
                                   st.balance < 0 ? 'bg-red-500' : 'bg-emerald-500',
                                 )}
-                                title={st.balance < 0 ? `Qarz: ${formatMoney(st.balance)}` : 'Qarzi yo\'q'}
+                                title={st.balance < 0 ? `Qarz (shu guruh): ${formatMoney(st.balance)}` : 'Shu guruh uchun to\'langan'}
                               />
                               <span className={cn('font-medium', st.balance < 0 ? 'text-red-600' : 'text-emerald-700')}>
                                 {st.fullName}
@@ -1578,7 +1578,7 @@ function MemberRow({
         ) : (
           <span
             className={cn('h-2 w-2 shrink-0 rounded-full', m.balance < 0 ? 'bg-red-500' : m.status === 'frozen' ? 'bg-sky-500' : m.status === 'trial' ? 'bg-amber-500' : 'bg-emerald-500')}
-            title={m.balance < 0 ? `Qarz: ${formatMoney(m.balance)}` : 'Qarzi yo\'q'}
+            title={m.balance < 0 ? `Qarz (shu guruh): ${formatMoney(m.balance)}` : 'Shu guruh uchun to\'langan'}
           />
         )}
         <span className={cn('min-w-0 flex-1 truncate text-sm font-medium', nameCls)}>{m.fullName}</span>

@@ -610,7 +610,8 @@ export interface GroupMember {
   activatedAt: string
   /** Muzlatilgan sana (ISO) */
   frozenAt: string
-  /** O'quvchi balansi (manfiy = qarz). */
+  /** SHU GURUH bo'yicha balans (manfiy = qarz) — o'quvchining umumiy balansi EMAS
+   *  (boshqa guruhdagi qarz bu ro'yxatni qizil qilmaydi; server: GroupBalanceService). */
   balance: number
 }
 

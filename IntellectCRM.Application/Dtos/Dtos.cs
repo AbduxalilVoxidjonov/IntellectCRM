@@ -407,7 +407,8 @@ public record StudentGroupDto(
     string Status, string CourseName, string TeacherName, decimal MonthlyFee,
     List<int> Days, string StartTime, string EndTime, string Room,
     string ActivatedAt, string FrozenAt);
-/// <summary>Guruhdagi bitta o'quvchi (a'zolar ro'yxati).</summary>
+/// <summary>Guruhdagi bitta o'quvchi (a'zolar ro'yxati). <c>Balance</c> — SHU GURUH bo'yicha balans
+/// (manfiy = qarz), umumiy <see cref="Student.Balance"/> EMAS (qarang: GroupBalanceService).</summary>
 public record GroupMemberDto(
     string StudentId, string FullName, string JoinedAt, string? LeftAt, bool IsActive,
     string Status, string ActivatedAt, string FrozenAt, decimal Balance);
@@ -591,6 +592,9 @@ public record GroupJournalInfoDto(
 /// <summary><c>PresentDefaultFrom</c>: shu sanadan OLDINGI (MemberStart bilan bu orasidagi) o'tilgan darslarda
 /// yozuv bo'lmasa ham avtomatik "keldi" deb ko'rsatilmaydi — bo'sh qoladi, o'qituvchi qo'lda belgilashi kerak
 /// (bloklanmaydi). Bo'sh qiymat = cheklovsiz (eski xatti-harakat).</summary>
+/// <summary><c>Balance</c>: SHU GURUH bo'yicha balans (manfiy = qarz) — o'quvchining umumiy balansi EMAS.
+/// <see cref="IntellectCRM.Application.Services.GroupBalanceService"/> hisoblaydi: bir nechta guruhda o'qiydigan
+/// o'quvchi to'lagan guruhida "qarzi yo'q", to'lamaganida qarzdor ko'rinadi (har o'qituvchi o'z guruhini ko'radi).</summary>
 public record GroupJournalStudentDto(
     string StudentId, string FullName, string Status, string ActivatedAt, decimal Balance, string MemberStart,
     string PresentDefaultFrom);

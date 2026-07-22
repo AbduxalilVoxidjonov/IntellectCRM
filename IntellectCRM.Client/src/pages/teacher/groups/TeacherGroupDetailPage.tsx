@@ -542,13 +542,14 @@ export function TeacherGroupDetailPage() {
                           <td className="sticky left-0 z-10 border-b border-r-2 border-line bg-inherit px-3 py-2">
                             {/* FISH to'liq ko'rinishi shart (telefonda o'qish uchun) — kesilmaydi,
                                 bir necha qatorga o'raladi; kenglik sticky ustun barqarorligi uchun qat'iy.
-                                Rang: qarzdor (balance<0) qizil, qarzi yo'q yashil — admin ro'yxati bilan bir xil. */}
+                                Rang: qarzdor (balance<0) qizil, to'lagan yashil — admin ro'yxati bilan bir xil.
+                                MUHIM: balance — SHU GURUH bo'yicha (boshqa guruhdagi qarz bu yerni qizil qilmaydi). */}
                             <span
                               className={cn(
                                 'block w-32 whitespace-normal break-words text-sm font-medium leading-snug',
                                 st.balance < 0 ? 'text-red-600' : 'text-emerald-700',
                               )}
-                              title={st.balance < 0 ? `Qarz: ${formatMoney(st.balance)}` : "Qarzi yo'q"}
+                              title={st.balance < 0 ? `Qarz (shu guruh): ${formatMoney(st.balance)}` : "Shu guruh uchun to'langan"}
                             >
                               {st.fullName}
                             </span>
@@ -669,7 +670,7 @@ export function TeacherGroupDetailPage() {
                               'px-4 py-3 text-sm font-medium',
                               r.balance < 0 ? 'text-red-600' : 'text-emerald-700',
                             )}
-                            title={r.balance < 0 ? `Qarz: ${formatMoney(r.balance)}` : "Qarzi yo'q"}
+                            title={r.balance < 0 ? `Qarz (shu guruh): ${formatMoney(r.balance)}` : "Shu guruh uchun to'langan"}
                           >
                             {r.fullName}
                           </td>

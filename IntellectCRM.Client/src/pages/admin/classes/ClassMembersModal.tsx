@@ -285,7 +285,7 @@ Kerak bo'lsa "Parolni tiklash" orqali yangi parol bering.`)
                               'h-2 w-2 shrink-0 rounded-full',
                               m.balance < 0 ? 'bg-red-500' : 'bg-emerald-500',
                             )}
-                            title={m.balance < 0 ? `Qarz: ${formatMoney(m.balance)}` : 'Qarzi yo\'q'}
+                            title={m.balance < 0 ? `Qarz (shu guruh): ${formatMoney(m.balance)}` : 'Shu guruh uchun to\'langan'}
                           />
                           <span className={cn('font-medium', m.balance < 0 ? 'text-red-600' : 'text-emerald-700')}>
                             {m.fullName}
@@ -388,7 +388,7 @@ Kerak bo'lsa "Parolni tiklash" orqali yangi parol bering.`)
                               'h-2 w-2 shrink-0 rounded-full',
                               m.balance < 0 ? 'bg-red-500' : 'bg-slate-300',
                             )}
-                            title={m.balance < 0 ? `Qarz: ${formatMoney(m.balance)}` : 'Qarzi yo\'q'}
+                            title={m.balance < 0 ? `Qarz (shu guruh): ${formatMoney(m.balance)}` : 'Shu guruh uchun to\'langan'}
                           />
                           <span className={cn('font-medium', m.balance < 0 ? 'text-red-600' : 'text-slate-500')}>
                             {m.fullName}

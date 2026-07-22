@@ -347,7 +347,12 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
                           select new GroupMemberDto(s.Id, s.FullName, sg.JoinedAt, sg.LeftAt, sg.IsActive,
                               sg.Status, sg.ActivatedAt, sg.FrozenAt, s.Balance))
                          .ToListAsync();
-        return rows;
+        // Balans — SHU GURUH bo'yicha (umumiy Student.Balance emas): boshqa guruhdagi qarz bu ro'yxatni
+        // qizil qilib qo'ymasin (jurnal ro'yxati bilan bir xil mantiq).
+        var balances = await GroupBalanceService.ForGroupAsync(db, id, rows.Select(r => r.StudentId));
+        return rows
+            .Select(r => r with { Balance = balances.GetValueOrDefault(r.StudentId, 0m) })
+            .ToList();
     }
 
     /// <summary>O'quvchini guruhga qo'shish (M2M). Sig'im to'lgan bo'lsa rad etadi. Avval guruhsiz

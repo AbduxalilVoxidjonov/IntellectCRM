@@ -45,7 +45,8 @@ export interface GroupJournalStudent {
   fullName: string
   status: string
   activatedAt: string
-  /** O'quvchi balansi (manfiy = qarz). */
+  /** SHU GURUH bo'yicha balans (manfiy = qarz) — o'quvchining umumiy balansi EMAS. Ko'p guruhda
+   *  o'qiydigan o'quvchi to'lagan guruhida yashil, to'lamaganida qizil ko'rinadi (server: GroupBalanceService). */
   balance: number
   /** O'quvchi guruhda boshlangan sana ("yyyy-MM-dd"). Undan oldingi darslarga davomat/baho kiritilmaydi
    *  (bu sanadan oldingi kataklar bloklanadi). Aktivlashtirilgan bo'lsa ActivatedAt, aks holda JoinedAt. */
