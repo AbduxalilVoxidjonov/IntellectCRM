@@ -978,7 +978,7 @@ public class TeacherPortalController(
         if (me is null) return NotFound();
         if (!await OwnsGroup(req.GroupId)) return Forbid();
         var (dto, err) = await TestResultService.CreateAsync(
-            db, req.GroupId, req.Name, req.Date, req.MaxScore, me.FullName);
+            db, req.GroupId, req.Name, req.Date, req.MaxScore, me.FullName, req.Online);
         return err != null ? BadRequest(new { message = err }) : dto!;
     }
 
@@ -989,7 +989,7 @@ public class TeacherPortalController(
         var groupId = await TestResultService.GroupIdOfAsync(db, id);
         if (groupId is null) return NotFound();
         if (!await OwnsGroup(groupId)) return Forbid();
-        var (ok, err) = await TestResultService.UpdateAsync(db, id, req.Name, req.Date, req.MaxScore);
+        var (ok, err) = await TestResultService.UpdateAsync(db, id, req.Name, req.Date, req.MaxScore, req.Online);
         return ok ? NoContent() : BadRequest(new { message = err });
     }
 

@@ -47,7 +47,7 @@ public class TestResultsController(AppDbContext db) : ControllerBase
     public async Task<ActionResult<GroupTestDto>> Create(CreateTestResultRequest req)
     {
         var (dto, err) = await TestResultService.CreateAsync(
-            db, req.GroupId, req.Name, req.Date, req.MaxScore, Actor());
+            db, req.GroupId, req.Name, req.Date, req.MaxScore, Actor(), req.Online);
         return err != null ? BadRequest(new { message = err }) : dto!;
     }
 
@@ -55,7 +55,7 @@ public class TestResultsController(AppDbContext db) : ControllerBase
     [HttpPut("{id}")]
     public async Task<IActionResult> Update(string id, UpdateTestResultRequest req)
     {
-        var (ok, err) = await TestResultService.UpdateAsync(db, id, req.Name, req.Date, req.MaxScore);
+        var (ok, err) = await TestResultService.UpdateAsync(db, id, req.Name, req.Date, req.MaxScore, req.Online);
         return ok ? NoContent() : BadRequest(new { message = err });
     }
 

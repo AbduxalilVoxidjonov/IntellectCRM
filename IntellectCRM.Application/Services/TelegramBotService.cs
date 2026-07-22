@@ -20,7 +20,7 @@ namespace IntellectCRM.Application.Services;
 /// </summary>
 public class TelegramBotService(
     IServiceProvider sp, TelegramService telegram, IHostEnvironment env,
-    ILogger<TelegramBotService> logger) : BackgroundService
+    OnlineTestBotService onlineTest, ILogger<TelegramBotService> logger) : BackgroundService
 {
     private const string ApkMime = "application/vnd.android.package-archive";
     private const string ApkCaption =
@@ -199,12 +199,28 @@ public class TelegramBotService(
             await LogInAsync(chatId, text, ct);
             await HandleOtpRequestAsync(chatId, ct);
         }
+        else if (text == "/test" || text == OnlineTestBotService.TestButtonText)
+        {
+            await LogInAsync(chatId, text, ct);
+            using var scope = sp.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
+            await onlineTest.ShowListAsync(db, chatId, ct);
+        }
         else
         {
             // Support rejimida bo'lsa — murojaatni adminga yuborish.
             using var scope = sp.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
             var botUser = await db.BotUsers.FirstOrDefaultAsync(u => u.ChatId == chatId, ct);
+
+            // ONLAYN TEST: matn rejimida javoblar kutilyapti (faol sessiya bor) — avval shuni sinaymiz.
+            // Javobga o'xshamasa (ParseAnswers bo'sh qaytarsa) — pastdagi oddiy oqim davom etadi.
+            if (botUser?.Mode != "support" && await onlineTest.HasSessionAsync(db, chatId, ct)
+                && await onlineTest.HandleTextAsync(db, chatId, text, ct))
+            {
+                await LogInAsync(chatId, "[test javoblari yuborildi]", ct);
+                return;
+            }
 
             if (botUser?.Mode == "support")
             {
@@ -306,6 +322,31 @@ public class TelegramBotService(
         {
             await HandleSupportCommandAsync(chatId, ct);
         }
+        else if (OnlineTestBotService.Handles(data))
+        {
+            using var scope = sp.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
+            if (data.StartsWith(OnlineTestBotService.CbOpen, StringComparison.Ordinal))
+                await onlineTest.OpenTestAsync(db, chatId, data, ct);
+            else if (data.StartsWith(OnlineTestBotService.CbAnswer, StringComparison.Ordinal))
+                await onlineTest.AnswerAsync(db, chatId, data, ct);
+            else if (data.StartsWith(OnlineTestBotService.CbGoto, StringComparison.Ordinal))
+                await onlineTest.GotoAsync(db, chatId, data, ct);
+            else if (data == OnlineTestBotService.CbModeButtons)
+                await onlineTest.SetModeAsync(db, chatId, buttons: true, ct);
+            else if (data == OnlineTestBotService.CbModeText)
+                await onlineTest.SetModeAsync(db, chatId, buttons: false, ct);
+            else if (data == OnlineTestBotService.CbFinish)
+                await onlineTest.FinishAsync(db, chatId, ct);
+            else if (data == OnlineTestBotService.CbConfirm)
+                await onlineTest.SubmitAsync(db, chatId, ct);
+            else if (data == OnlineTestBotService.CbEdit)
+                await onlineTest.EditAsync(db, chatId, ct);
+            else if (data == OnlineTestBotService.CbCancel)
+                await onlineTest.CancelAsync(db, chatId, ct);
+            else if (data == OnlineTestBotService.CbList)
+                await onlineTest.ShowListAsync(db, chatId, ct);
+        }
         else if (data.StartsWith(StaffTaskChecklist.CallbackPrefix, StringComparison.Ordinal))
         {
             var logId = data[StaffTaskChecklist.CallbackPrefix.Length..];
@@ -378,6 +419,24 @@ public class TelegramBotService(
     private async Task SendStartWelcomeAsync(long chatId, JsonElement fromHolder, CancellationToken ct)
     {
         await UpsertBotUserOnStartAsync(chatId, fromHolder, ct);
+
+        // Allaqachon ro'yxatdan o'tgan bo'lsa — telefonni qayta so'ramasdan MENYUNI ko'rsatamiz
+        // (shu bilan yangi «Testni ishlash» tugmasi eski foydalanuvchilarda ham paydo bo'ladi).
+        using (var scope = sp.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
+            if (await db.TelegramRegistrations.AnyAsync(r => r.ChatId == chatId, ct))
+            {
+                await SendAsync(chatId,
+                    "Assalomu alaykum! 👋\n\nPastdagi tugmalardan foydalaning:\n"
+                    + $"• {OtpButtonText} — tizimga kirish uchun bir martalik kod\n"
+                    + $"• {OnlineTestBotService.TestButtonText} — sizga ochilgan onlayn testlar\n"
+                    + $"• {SupportButtonText} — administratorga savol",
+                    RegisteredKeyboard, ct);
+                return;
+            }
+        }
+
         await SendAsync(chatId, "Assalomu alaykum! 👋\n\n" + PhonePrompt, ContactKeyboard, ct);
     }
 
@@ -1003,13 +1062,15 @@ public class TelegramBotService(
         one_time_keyboard = false,
     };
 
-    /// <summary>Ro'yxatdan o'tgan (telefoni tasdiqlangan) foydalanuvchi klaviaturasi — bir martalik
-    /// kirish kodi so'rash tugmasi qo'shilgan. Ro'yxatdan o'tish tugagach shu klaviatura o'rnatiladi.</summary>
+    /// <summary>Ro'yxatdan o'tgan (telefoni tasdiqlangan) foydalanuvchi klaviaturasi: bir martalik
+    /// kirish kodi → ONLAYN TESTNI ISHLASH → adminga murojaat. Ro'yxatdan o'tish tugagach (va
+    /// ro'yxatdan o'tgan foydalanuvchi /start bosganda) shu klaviatura o'rnatiladi.</summary>
     private static object RegisteredKeyboard => new
     {
         keyboard = new object[][]
         {
             new object[] { new { text = OtpButtonText } },
+            new object[] { new { text = OnlineTestBotService.TestButtonText } },
             new object[] { new { text = SupportButtonText } },
         },
         resize_keyboard = true,

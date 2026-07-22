@@ -1891,6 +1891,24 @@ export interface TestGroupOverview {
   testCount: number
 }
 
+/** Onlayn test sozlamalari (bot orqali ishlanadigan test). mode="offline" — eski tizim. */
+export interface OnlineTest {
+  /** "offline" (ballni o'qituvchi qo'lda kiritadi) | "online" (o'quvchi botdan ishlaydi) */
+  mode: 'offline' | 'online' | string
+  /** Savollar PDF fayli ("/uploads/xxx.pdf") — botga shu yuboriladi */
+  pdfUrl: string
+  pdfName: string
+  /** Savollar soni (onlayn testda maxScore shunga teng — har savol 1 ball) */
+  questionCount: number
+  /** Variantlar soni: 4 → A–D, 5 → A–E */
+  optionCount: number
+  /** To'g'ri javoblar ("ABCDA...", uzunligi = questionCount) */
+  answerKey: string
+  /** Javob qabul qilish oynasi (ISO "yyyy-MM-ddTHH:mm") */
+  startAt: string
+  endAt: string
+}
+
 /** Bitta test qatori (guruh testlar ro'yxatida). */
 export interface GroupTest {
   id: string
@@ -1903,6 +1921,9 @@ export interface GroupTest {
   studentCount: number
   scoredCount: number
   avgScore: number | null
+  online: OnlineTest
+  /** Botdan javob yuborgan o'quvchilar soni (onlayn test) */
+  submittedCount: number
 }
 
 /** Test natijasi qatori — bitta o'quvchi bali (rank=0 → ball kiritilmagan). */
@@ -1911,6 +1932,12 @@ export interface TestScoreRow {
   fullName: string
   score: number | null
   rank: number
+  /** Onlayn: botdan yuborilgan javoblar ("ABDCA...") */
+  answers: string
+  /** Onlayn: yuborilgan vaqt (ISO) */
+  submittedAt: string
+  /** "bot" — o'quvchi botdan yubordi; "" — qo'lda kiritilgan */
+  source: string
 }
 
 /** Test tafsiloti — test + o'quvchilar ballari (ball desc bo'yicha saralangan). */
@@ -1924,6 +1951,7 @@ export interface TestResultDetail {
   createdAt: string
   createdBy: string
   rows: TestScoreRow[]
+  online: OnlineTest
 }
 
 /** O'quvchi profilidagi test natijasi qatori (barcha guruhlaridan). */

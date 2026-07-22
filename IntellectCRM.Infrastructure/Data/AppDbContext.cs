@@ -27,6 +27,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<TrialLesson> TrialLessons => Set<TrialLesson>();
     public DbSet<TestResult> TestResults => Set<TestResult>();
     public DbSet<TestScore> TestScores => Set<TestScore>();
+    public DbSet<TestBotSession> TestBotSessions => Set<TestBotSession>();
     public DbSet<JournalEntry> JournalEntries => Set<JournalEntry>();
     public DbSet<LessonNote> LessonNotes => Set<LessonNote>();
     public DbSet<LessonReschedule> LessonReschedules => Set<LessonReschedule>();
@@ -371,6 +372,14 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         b.Entity<TestScore>()
             .HasOne<TestResult>().WithMany()
             .HasForeignKey(t => t.TestResultId)
+            .OnDelete(DeleteBehavior.Cascade);
+        // Onlayn test — botdagi ishlash sessiyasi (bitta chatda bitta faol sessiya).
+        b.Entity<TestBotSession>().Property(s => s.TestResultId).HasMaxLength(200);
+        b.Entity<TestBotSession>().Property(s => s.StudentId).HasMaxLength(200);
+        b.Entity<TestBotSession>().HasIndex(s => s.ChatId).IsUnique();
+        b.Entity<TestBotSession>()
+            .HasOne<TestResult>().WithMany()
+            .HasForeignKey(s => s.TestResultId)
             .OnDelete(DeleteBehavior.Cascade);
 
         // Group.RoomId → Room (SET NULL on delete)

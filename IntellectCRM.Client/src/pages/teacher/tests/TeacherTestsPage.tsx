@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ArrowLeft, ClipboardList, Plus, Pencil, Trash2, GraduationCap } from 'lucide-react'
+import { ArrowLeft, Bot, ClipboardList, Plus, Pencil, Trash2, GraduationCap } from 'lucide-react'
 import type { GroupTest, TeacherClass, TestResultDetail } from '@/types'
 import {
   getMyClasses,
@@ -331,12 +331,29 @@ export function TeacherTestsPage() {
                     onClick={() => openDetail(t)}
                     className="flex min-w-0 flex-1 items-start gap-3 text-left"
                   >
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-tealsoft text-teal-600">
-                      <ClipboardList className="h-5 w-5" />
+                    <div
+                      className={
+                        t.online?.mode === 'online'
+                          ? 'flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet-50 text-violet-600'
+                          : 'flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-tealsoft text-teal-600'
+                      }
+                    >
+                      {t.online?.mode === 'online' ? <Bot className="h-5 w-5" /> : <ClipboardList className="h-5 w-5" />}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-[15px] font-bold text-ink">{t.name}</p>
-                      <p className="text-[12px] text-mute">{formatDate(t.date)}</p>
+                      <p className="flex items-center gap-1.5 truncate text-[15px] font-bold text-ink">
+                        {t.name}
+                        {t.online?.mode === 'online' && (
+                          <span className="shrink-0 rounded-md bg-violet-50 px-1.5 py-0.5 text-[10px] font-bold text-violet-600">
+                            ONLAYN
+                          </span>
+                        )}
+                      </p>
+                      <p className="text-[12px] text-mute">
+                        {formatDate(t.date)}
+                        {t.online?.mode === 'online' &&
+                          ` · botdan yuborgan: ${t.submittedCount}/${t.studentCount}`}
+                      </p>
                     </div>
                   </button>
                   <div className="flex shrink-0 items-center gap-0.5">

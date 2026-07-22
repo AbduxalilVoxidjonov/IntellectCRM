@@ -431,18 +431,38 @@ public record GroupFillRowDto(
 public record TestGroupOverviewDto(
     string GroupId, string Name, string CourseName, string TeacherId, string TeacherName,
     int StudentCount, int TestCount);
-/// <summary>Bitta test qatori (guruh testlar ro'yxatida) — soni/o'rtacha bilan.</summary>
+/// <summary>Onlayn test sozlamalari — yaratish/tahrirlash va ro'yxat/tafsilotda BIR XIL shakl.
+/// <c>Mode</c>="offline" bo'lsa qolgan maydonlar e'tiborga olinmaydi (eski tizim o'zgarmaydi).</summary>
+/// <param name="Mode">"offline" (qo'lda ball) | "online" (bot orqali)</param>
+/// <param name="PdfUrl">Savollar PDF fayli ("/uploads/xxx.pdf") — botga shu yuboriladi</param>
+/// <param name="QuestionCount">Savollar soni (onlayn testda MaxScore shunga teng)</param>
+/// <param name="OptionCount">Variantlar soni: 4 → A–D, 5 → A–E</param>
+/// <param name="AnswerKey">To'g'ri javoblar ("ABCDA...", uzunligi = QuestionCount)</param>
+/// <param name="StartAt">Javob qabul qilish boshlanishi (ISO "yyyy-MM-ddTHH:mm")</param>
+/// <param name="EndAt">Javob qabul qilish tugashi (ISO "yyyy-MM-ddTHH:mm")</param>
+public record OnlineTestDto(
+    string Mode, string PdfUrl, string PdfName, int QuestionCount, int OptionCount,
+    string AnswerKey, string StartAt, string EndAt);
+/// <summary>Bitta test qatori (guruh testlar ro'yxatida) — soni/o'rtacha bilan.
+/// <c>Online</c> — onlayn test sozlamalari (Mode="offline" bo'lsa ham to'ldiriladi).
+/// <c>SubmittedCount</c> — botdan javob yuborgan o'quvchilar soni (onlayn).</summary>
 public record GroupTestDto(
     string Id, string GroupId, string Name, string Date, decimal MaxScore,
-    string CreatedAt, string CreatedBy, int StudentCount, int ScoredCount, decimal? AvgScore);
-public record CreateTestResultRequest(string GroupId, string Name, string Date, decimal MaxScore);
-public record UpdateTestResultRequest(string Name, string Date, decimal MaxScore);
-/// <summary>Test natijasi qatori — bitta o'quvchining bali (ball bo'yicha saralanadi). Rank = 0 → ball kiritilmagan.</summary>
-public record TestScoreRowDto(string StudentId, string FullName, decimal? Score, int Rank);
+    string CreatedAt, string CreatedBy, int StudentCount, int ScoredCount, decimal? AvgScore,
+    OnlineTestDto Online, int SubmittedCount);
+public record CreateTestResultRequest(
+    string GroupId, string Name, string Date, decimal MaxScore, OnlineTestDto? Online = null);
+public record UpdateTestResultRequest(
+    string Name, string Date, decimal MaxScore, OnlineTestDto? Online = null);
+/// <summary>Test natijasi qatori — bitta o'quvchining bali (ball bo'yicha saralanadi). Rank = 0 → ball kiritilmagan.
+/// <c>Answers</c>/<c>SubmittedAt</c> — onlayn testda botdan yuborilgan javoblar va vaqti (aks holda bo'sh).</summary>
+public record TestScoreRowDto(
+    string StudentId, string FullName, decimal? Score, int Rank,
+    string Answers = "", string SubmittedAt = "", string Source = "");
 /// <summary>Test tafsiloti — test ma'lumoti + faol o'quvchilar ballari (ball desc bo'yicha saralangan).</summary>
 public record TestResultDetailDto(
     string Id, string GroupId, string GroupName, string Name, string Date, decimal MaxScore,
-    string CreatedAt, string CreatedBy, List<TestScoreRowDto> Rows);
+    string CreatedAt, string CreatedBy, List<TestScoreRowDto> Rows, OnlineTestDto Online);
 /// <summary>Bitta o'quvchiga ball qo'yish/tozalash (Score=null → tozalash).</summary>
 public record SetTestScoreRequest(string StudentId, decimal? Score);
 /// <summary>O'quvchi profilidagi test natijasi qatori (barcha guruhlaridan, sana desc).</summary>

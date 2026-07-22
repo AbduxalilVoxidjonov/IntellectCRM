@@ -89,6 +89,63 @@ public class TelegramService(
         }
     }
 
+    /// <summary>Xabar yuboradi va Telegram bergan <c>message_id</c>ni qaytaradi (keyin o'sha xabarni
+    /// JOYIDA yangilash uchun — masalan onlayn test javob varaqasi). Xato bo'lsa null.</summary>
+    public async Task<long?> SendMessageReturningIdAsync(
+        long chatId, string text, object? replyMarkup = null, CancellationToken ct = default, string? parseMode = null)
+    {
+        if (!IsConfigured) return null;
+        try
+        {
+            var payload = new Dictionary<string, object?> { ["chat_id"] = chatId, ["text"] = text };
+            if (replyMarkup is not null) payload["reply_markup"] = replyMarkup;
+            if (parseMode is not null) payload["parse_mode"] = parseMode;
+            using var content = new StringContent(
+                JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+            var resp = await Client().PostAsync($"{ApiBase}/sendMessage", content, ct);
+            if (!resp.IsSuccessStatusCode) return null;
+            var body = await resp.Content.ReadAsStringAsync(ct);
+            using var doc = JsonDocument.Parse(body);
+            if (doc.RootElement.TryGetProperty("result", out var r) &&
+                r.TryGetProperty("message_id", out var mid))
+                return mid.GetInt64();
+            return null;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Telegram sendMessage (id bilan) xatosi");
+            return null;
+        }
+    }
+
+    /// <summary>Mavjud xabar MATNINI va tugmalarini joyida yangilaydi (editMessageText) — onlayn test
+    /// javob varaqasi har bosishda yangi xabar yubormasdan shu yerda o'zgaradi. Muvaffaqiyat — true
+    /// (xabar eskirgan/o'chirilgan bo'lsa false, chaqiruvchi yangi xabar yuborishi mumkin).</summary>
+    public async Task<bool> EditMessageTextAsync(
+        long chatId, long messageId, string text, object? replyMarkup = null,
+        CancellationToken ct = default, string? parseMode = null)
+    {
+        if (!IsConfigured) return false;
+        try
+        {
+            var payload = new Dictionary<string, object?>
+            {
+                ["chat_id"] = chatId, ["message_id"] = messageId, ["text"] = text,
+            };
+            if (replyMarkup is not null) payload["reply_markup"] = replyMarkup;
+            if (parseMode is not null) payload["parse_mode"] = parseMode;
+            using var content = new StringContent(
+                JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+            var resp = await Client().PostAsync($"{ApiBase}/editMessageText", content, ct);
+            return resp.IsSuccessStatusCode;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Telegram editMessageText xatosi");
+            return false;
+        }
+    }
+
     /// <summary>Mavjud xabarning inline-klaviaturasini (reply_markup) yangilaydi (editMessageReplyMarkup).
     /// Checklist tugmalari holatini (☐ → ✅) o'sha xabarning O'ZIDA yangilash uchun.</summary>
     public async Task<bool> EditMessageReplyMarkupAsync(

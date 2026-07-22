@@ -1,6 +1,7 @@
 import { api } from '../client'
 import type {
   GroupTest,
+  OnlineTest,
   StudentTestResult,
   TestGroupOverview,
   TestResultDetail,
@@ -29,6 +30,8 @@ export interface TestPayload {
   name: string
   date: string
   maxScore: number
+  /** Onlayn test sozlamalari; berilmasa (yoki mode="offline") — eski (oflayn) test. */
+  online?: OnlineTest
 }
 
 export async function createTest(payload: TestPayload): Promise<GroupTest> {
@@ -38,7 +41,7 @@ export async function createTest(payload: TestPayload): Promise<GroupTest> {
 
 export async function updateTest(
   id: string,
-  payload: { name: string; date: string; maxScore: number },
+  payload: { name: string; date: string; maxScore: number; online?: OnlineTest },
 ): Promise<void> {
   await api.put(`/admin/test-results/${id}`, payload)
 }

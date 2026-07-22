@@ -258,6 +258,8 @@ builder.Services.AddHostedService<IntellectCRM.Application.Services.CenterAiSche
 // Token appsettings "Telegram:BotToken" da; bo'sh bo'lsa bot ishga tushmaydi.
 builder.Services.AddHttpClient();
 builder.Services.AddSingleton<TelegramService>();
+// Onlayn test (bot orqali ishlanadigan) oqimi — TelegramBotService shu servisga yo'naltiradi.
+builder.Services.AddSingleton<OnlineTestBotService>();
 builder.Services.AddHostedService<TelegramBotService>();
 // FCM (Firebase push) — service account CenterMeta'da; token keshi uchun singleton.
 builder.Services.AddSingleton<FcmService>();

@@ -545,6 +545,28 @@ public class TestResult
     public string CreatedAt { get; set; } = string.Empty;
     /// <summary>Yaratgan foydalanuvchi ismi (admin yoki o'qituvchi) — faqat ko'rsatish uchun.</summary>
     public string CreatedBy { get; set; } = string.Empty;
+
+    // ---------- ONLAYN test (bot orqali ishlanadi) ----------
+    /// <summary>Rejim: <c>"offline"</c> (an'anaviy — ballni o'qituvchi qo'lda kiritadi) |
+    /// <c>"online"</c> (o'quvchi Telegram botdan PDF oladi va javoblarini yuboradi).</summary>
+    public string Mode { get; set; } = "offline";
+    /// <summary>Savollar PDF fayli (URL "/uploads/xxx.pdf") — onlayn testda botga yuboriladi.</summary>
+    public string PdfUrl { get; set; } = string.Empty;
+    /// <summary>PDF faylning asl nomi (Telegramda shu nom bilan ko'rinadi).</summary>
+    public string PdfName { get; set; } = string.Empty;
+    /// <summary>Telegram <c>file_id</c> keshi — PDF bir marta yuklanadi, keyingi o'quvchilarga
+    /// shu id bilan (qayta yuklamasdan) yuboriladi. APK yuborish bilan bir xil usul.</summary>
+    public string PdfFileId { get; set; } = string.Empty;
+    /// <summary>Savollar soni (onlayn). Onlayn testda <see cref="MaxScore"/> shunga teng — har savol 1 ball.</summary>
+    public int QuestionCount { get; set; }
+    /// <summary>Har savoldagi variantlar soni: 4 → A–D, 5 → A–E (2..6).</summary>
+    public int OptionCount { get; set; } = 4;
+    /// <summary>To'g'ri javoblar kaliti — har savolga bitta harf ("ABCDA..."), uzunligi = <see cref="QuestionCount"/>.</summary>
+    public string AnswerKey { get; set; } = string.Empty;
+    /// <summary>Javob qabul qilish oynasi BOSHLANISHI (ISO "yyyy-MM-ddTHH:mm"). Bo'sh = test kuni 00:00.</summary>
+    public string StartAt { get; set; } = string.Empty;
+    /// <summary>Javob qabul qilish oynasi TUGASHI (ISO "yyyy-MM-ddTHH:mm"). Bo'sh = test kuni 23:59.</summary>
+    public string EndAt { get; set; } = string.Empty;
 }
 
 /// <summary>O'quvchining bitta testdan olgan bali (<see cref="TestResult"/> ↔ o'quvchi).</summary>
@@ -557,6 +579,38 @@ public class TestScore
     public string StudentId { get; set; } = string.Empty;
     /// <summary>O'quvchi olgan ball (0 .. MaxScore).</summary>
     public decimal Score { get; set; }
+    /// <summary>ONLAYN test: o'quvchi bot orqali yuborgan javoblar ("ABDCA...", javobsiz savol '-').
+    /// Qo'lda kiritilgan ballda bo'sh.</summary>
+    public string Answers { get; set; } = string.Empty;
+    /// <summary>ONLAYN test: javoblar yuborilgan vaqt (ISO "yyyy-MM-ddTHH:mm:ss").</summary>
+    public string SubmittedAt { get; set; } = string.Empty;
+    /// <summary>Manba: "" (o'qituvchi/admin qo'lda kiritgan) | "bot" (o'quvchi botdan yuborgan).</summary>
+    public string Source { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Telegram botda ONLAYN testni ishlash sessiyasi (vaqtinchalik holat). Bitta chatda bir vaqtda
+/// bitta sessiya bo'ladi: o'quvchi testni ochganda yaratiladi, javoblar yuborilgach yoki bekor
+/// qilinganda o'chiriladi. Tugmali rejimda javoblar shu yerda to'planib boradi.
+/// </summary>
+public class TestBotSession
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    /// <summary>Telegram chat id (kim ishlayapti).</summary>
+    public long ChatId { get; set; }
+    /// <summary>Qaysi test (TestResult.Id).</summary>
+    public string TestResultId { get; set; } = string.Empty;
+    /// <summary>Kim uchun (Student.Id) — bir chatda bir nechta farzand bo'lishi mumkin.</summary>
+    public string StudentId { get; set; } = string.Empty;
+    /// <summary>Kiritilgan javoblar; har savol uchun bitta belgi, javobsiz savol '-'. Uzunligi = savollar soni.</summary>
+    public string Answers { get; set; } = string.Empty;
+    /// <summary>Tugmali rejimda hozir turgan savol (0-based).</summary>
+    public int Current { get; set; }
+    /// <summary>Tugmali rejimdagi "javob varaqasi" xabari id'si (o'sha xabar joyida yangilanadi).</summary>
+    public long MessageId { get; set; }
+    /// <summary>Kiritish usuli: "buttons" (tugmalar) | "text" (bitta xabarda).</summary>
+    public string InputMode { get; set; } = "buttons";
+    public string StartedAt { get; set; } = string.Empty;
 }
 
 /// <summary>Lid (markazga qiziqqan).</summary>
