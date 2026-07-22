@@ -108,6 +108,12 @@ export interface TelegramConfig {
   channel: string
   /** Kontakt ulashilganda o'quvchini qaysi raqami bo'yicha qidirish: "parent" (ota-ona) | "student" (o'zi). */
   phoneMatchField: 'parent' | 'student'
+  /** MAJBURIY OBUNA tekshiruvi holati: ok | not-set | no-token | private | not-found | bot-not-admin.
+   *  Telegram getChatMember faqat bot kanalda ADMIN bo'lsagina ishlaydi — aks holda obuna
+   *  tekshirilmaydi va hamma o'tkazib yuboriladi. */
+  channelStatus?: string
+  /** Shu holatning tushuntirishi (adminga ko'rsatiladi). */
+  channelMessage?: string
 }
 
 export async function getTelegramSettings(): Promise<TelegramConfig> {

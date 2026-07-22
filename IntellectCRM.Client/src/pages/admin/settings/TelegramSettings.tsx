@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
-import { Check, CheckCircle2, XCircle } from 'lucide-react'
+import { AlertTriangle, Check, CheckCircle2, XCircle } from 'lucide-react'
 import {
   getTelegramSettings,
   saveTelegramSettings,
@@ -26,6 +26,9 @@ export function TelegramSettings() {
   const [configured, setConfigured] = useState(false)
   const [loading, setLoading] = useState(true)
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
+  // Majburiy obuna tekshiruvi haqiqatan ishlayaptimi (serverdan diagnostika)
+  const [channelStatus, setChannelStatus] = useState('')
+  const [channelMessage, setChannelMessage] = useState('')
 
   useEffect(() => {
     getTelegramSettings()
@@ -36,6 +39,8 @@ export function TelegramSettings() {
         setChannel(c.channel ?? '')
         setPhoneMatchField(c.phoneMatchField === 'student' ? 'student' : 'parent')
         setConfigured(c.configured)
+        setChannelStatus(c.channelStatus ?? '')
+        setChannelMessage(c.channelMessage ?? '')
       })
       .catch(() => setLoading(false))
       .finally(() => setLoading(false))
@@ -137,9 +142,40 @@ export function TelegramSettings() {
             autoComplete="off"
           />
           <p className="mt-1 text-xs text-slate-400">
-            To'ldirilsa — o'quvchi va o'qituvchi ilovasida "Telegram kanalga o'tish" tugmasi chiqadi.
-            Botdan alohida (markaz e'lonlari kanali).
+            To'ldirilsa — o'quvchi va o'qituvchi ilovasida "Telegram kanalga o'tish" tugmasi chiqadi,
+            hamda botda MAJBURIY OBUNA yoqiladi (kod olish va onlayn testni ishlash uchun).
           </p>
+
+          {/* Majburiy obuna DIAGNOSTIKASI — Telegram getChatMember faqat bot kanalda ADMIN
+              bo'lsagina ishlaydi. Aks holda bot tekshira olmaydi va hammani o'tkazib yuboradi. */}
+          {channelMessage && (
+            <div
+              className={
+                channelStatus === 'ok'
+                  ? 'mt-2 flex items-start gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-700'
+                  : channelStatus === 'not-set'
+                    ? 'mt-2 flex items-start gap-2 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500'
+                    : 'mt-2 flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700'
+              }
+            >
+              {channelStatus === 'ok' ? (
+                <CheckCircle2 className="mt-px h-4 w-4 shrink-0" />
+              ) : (
+                <AlertTriangle className="mt-px h-4 w-4 shrink-0" />
+              )}
+              <span>
+                <b>Majburiy obuna:</b> {channelMessage}
+                {channelStatus !== 'ok' && channelStatus !== 'not-set' && (
+                  <>
+                    {' '}
+                    <span className="text-amber-600">
+                      (Kanalga kiring → Administratorlar → botni qo'shing.)
+                    </span>
+                  </>
+                )}
+              </span>
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-3">

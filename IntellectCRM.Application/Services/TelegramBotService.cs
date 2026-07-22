@@ -45,6 +45,11 @@ public class TelegramBotService(
     /// <summary>Obunadan oldin kontakt yuborgan, lekin hali obuna bo'lmaganlar: chatId → telefon.</summary>
     private readonly ConcurrentDictionary<long, string> _pendingPhone = new();
 
+    /// <summary>Obuna tekshiruvi keshi: chatId → shu vaqtgacha qayta so'ramaymiz. Har tugma bosishda
+    /// Telegram API'ga murojaat qilmaslik uchun (obuna holati tez-tez o'zgarmaydi).</summary>
+    private readonly ConcurrentDictionary<long, DateTime> _subOkUntil = new();
+    private static readonly TimeSpan SubCacheTtl = TimeSpan.FromMinutes(5);
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         long offset = 0;
@@ -192,16 +197,22 @@ public class TelegramBotService(
         else if (text == "/support" || text == SupportButtonText)
         {
             await LogInAsync(chatId, text, ct);
+            // ATAYIN obuna talab qilinmaydi: adminga murojaat — yagona "zaxira yo'l". Kanalni topa
+            // olmagan yoki muammosi bor foydalanuvchi hech bo'lmasa yozib so'ray olishi kerak.
             await HandleSupportCommandAsync(chatId, ct);
         }
         else if (text == "/kod" || text == OtpButtonText)
         {
             await LogInAsync(chatId, text, ct);
+            // MAJBURIY OBUNA: kirish kodi faqat kanalga obuna bo'lganlarga.
+            if (!await RequireSubscriptionAsync(chatId, OtpButtonText, ct)) return;
             await HandleOtpRequestAsync(chatId, ct);
         }
         else if (text == "/test" || text == OnlineTestBotService.TestButtonText)
         {
             await LogInAsync(chatId, text, ct);
+            // MAJBURIY OBUNA: onlayn testni ishlash ham obunani talab qiladi.
+            if (!await RequireSubscriptionAsync(chatId, OnlineTestBotService.TestButtonText, ct)) return;
             using var scope = sp.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
             await onlineTest.ShowListAsync(db, chatId, ct);
@@ -322,12 +333,24 @@ public class TelegramBotService(
         {
             await HandleSupportCommandAsync(chatId, ct);
         }
+        else if (data == "check_sub_menu")
+        {
+            // Menyu darvozasidagi "✅ Tekshirish": obunani qayta tekshiramiz.
+            _subOkUntil.TryRemove(chatId, out _);
+            if (await RequireSubscriptionAsync(chatId, "Davom etish", ct))
+                await SendAsync(chatId,
+                    "✅ Rahmat! Endi pastdagi tugmalardan foydalanishingiz mumkin.", RegisteredKeyboard, ct);
+        }
         else if (OnlineTestBotService.Handles(data))
         {
             using var scope = sp.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
             if (data.StartsWith(OnlineTestBotService.CbOpen, StringComparison.Ordinal))
+            {
+                // MAJBURIY OBUNA: eski xabardagi tugma orqali ham chetlab o'tib bo'lmasin.
+                if (!await RequireSubscriptionAsync(chatId, OnlineTestBotService.TestButtonText, ct)) return;
                 await onlineTest.OpenTestAsync(db, chatId, data, ct);
+            }
             else if (data.StartsWith(OnlineTestBotService.CbAnswer, StringComparison.Ordinal))
                 await onlineTest.AnswerAsync(db, chatId, data, ct);
             else if (data.StartsWith(OnlineTestBotService.CbGoto, StringComparison.Ordinal))
@@ -381,6 +404,53 @@ public class TelegramBotService(
             .Where(l => l.StaffUserId == log.StaffUserId && l.Date == log.Date).ToListAsync(ct);
         if (messageId != 0)
             await telegram.EditMessageReplyMarkupAsync(chatId, messageId, StaffTaskChecklist.Keyboard(logs), ct);
+    }
+
+    /// <summary>
+    /// MAJBURIY OBUNA DARVOZASI — botning HAR bir "foydali" amali (bir martalik kod, onlayn test)
+    /// shu yerdan o'tadi. Ilgari tekshiruv FAQAT /start va telefon yuborishda bo'lgani uchun,
+    /// ro'yxatdan o'tib olgan foydalanuvchi kanaldan chiqib ketsa ham kod olishda va boshqa
+    /// amallarda hech narsa tekshirilmasdi — shu teshik yopildi.
+    /// <para>Obuna bo'lmasa: kanal havolasi + "✅ Tekshirish" tugmasi yuboriladi va <c>false</c>
+    /// qaytadi (chaqiruvchi to'xtashi kerak). Tekshirib BO'LMASA (kanal sozlanmagan, xususiy kanal
+    /// yoki bot kanalda admin emas) — BLOKLAMAYMIZ (fail-open), lekin log'ga ogohlantirish yoziladi;
+    /// admin buni "Sozlamalar → Xabar kanallari → Telegram bot" diagnostikasida ko'radi.</para>
+    /// <para>Natija 5 daqiqa keshlanadi — har tugma bosishda Telegram API'ga bormaslik uchun.</para>
+    /// </summary>
+    /// <param name="action">Bloklangan xabarda ko'rsatiladigan amal nomi (masalan "Yangi kod olish").</param>
+    private async Task<bool> RequireSubscriptionAsync(long chatId, string action, CancellationToken ct)
+    {
+        if (_subOkUntil.TryGetValue(chatId, out var until) && until > DateTime.UtcNow) return true;
+
+        using var scope = sp.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
+        var meta = await db.CenterMeta.FirstOrDefaultAsync(ct);
+        var channel = meta?.TelegramChannel ?? "";
+
+        var channelUser = TelegramService.ChannelUsername(channel);
+        if (channelUser is null) return true;   // kanal yo'q / xususiy — tekshirib bo'lmaydi
+
+        var status = await telegram.GetChatMemberStatusAsync(channelUser, chatId, ct);
+        if (status is "left" or "kicked")
+        {
+            _subOkUntil.TryRemove(chatId, out _);
+            await SendAsync(chatId,
+                $"📢 «{action}» uchun avval markaz kanaliga obuna bo'ling.\n"
+                + "Obuna bo'lgach «✅ Tekshirish» tugmasini bosing.",
+                SubscribeKeyboard(ChannelUrl(channel), "check_sub_menu"), ct);
+            return false;
+        }
+        if (status is null)
+        {
+            // Bot kanalga ADMIN qilinmagan yoki kanal nomi noto'g'ri — Telegram javob bermaydi.
+            logger.LogWarning(
+                "Majburiy obuna TEKSHIRILMADI (bot {Ch} kanalida admin bo'lishi kerak) — chat {Chat} o'tkazib yuborildi.",
+                channelUser, chatId);
+            return true;
+        }
+
+        _subOkUntil[chatId] = DateTime.UtcNow.Add(SubCacheTtl);
+        return true;
     }
 
     /// <summary>

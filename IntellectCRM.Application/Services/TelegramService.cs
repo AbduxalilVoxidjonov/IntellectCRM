@@ -266,6 +266,55 @@ public class TelegramService(
         }
     }
 
+    /// <summary>Botning o'z Telegram user id'si — token boshidagi raqam ("&lt;botId&gt;:&lt;hash&gt;").
+    /// Token yo'q/noto'g'ri bo'lsa 0.</summary>
+    public long BotId()
+    {
+        var t = _token;
+        var i = t.IndexOf(':');
+        return i > 0 && long.TryParse(t[..i], out var id) ? id : 0;
+    }
+
+    /// <summary>
+    /// MAJBURIY OBUNA sozlamasi haqiqatan ishlayaptimi — diagnostika (Sozlamalar → Telegram bot).
+    /// Telegram <c>getChatMember</c> faqat bot kanalda ADMIN bo'lsagina ishlaydi; aks holda bot
+    /// tekshira olmaydi va (foydalanuvchini qulflab qo'ymaslik uchun) hammani o'tkazib yuboradi.
+    /// Shu sabab admin buni ko'rib turishi kerak.
+    /// </summary>
+    /// <returns>Status: ok | not-set | no-token | private | not-found | bot-not-admin.</returns>
+    public async Task<(string Status, string Message)> CheckChannelAsync(
+        string? channel, CancellationToken ct = default)
+    {
+        if (!IsConfigured)
+            return ("no-token", "Bot tokeni sozlanmagan — obuna tekshiruvi ishlamaydi.");
+
+        var c = (channel ?? "").Trim();
+        if (c.Length == 0)
+            return ("not-set", "Kanal ko'rsatilmagan — majburiy obuna TEKSHIRILMAYDI (hamma kira oladi).");
+
+        var user = ChannelUsername(c);
+        if (user is null)
+            return ("private",
+                "Xususiy kanal havolasi (+ yoki joinchat) — Telegram API bunday kanalda obunani "
+                + "tekshira olmaydi. Kanalni ommaviy qilib, @username ko'rinishida kiriting.");
+
+        var botId = BotId();
+        if (botId == 0)
+            return ("no-token", "Bot tokeni noto'g'ri — obuna tekshiruvi ishlamaydi.");
+
+        var status = await GetChatMemberStatusAsync(user, botId, ct);
+        if (status is null)
+            return ("not-found",
+                $"{user} topilmadi yoki bot unga kira olmadi. Kanal nomini tekshiring va botni "
+                + "kanalga ADMIN qilib qo'shing — aks holda obuna tekshirilmaydi.");
+        if (status is "administrator" or "creator")
+            return ("ok", $"Majburiy obuna ishlayapti ({user}).");
+
+        return ("bot-not-admin",
+            $"Bot {user} kanalida admin emas (holati: {status}) — obuna TEKSHIRILMAYDI, hamma "
+            + "o'tkazib yuboriladi. Botni kanalga admin qiling.");
+    }
+
     /// <summary>answerCallbackQuery — inline tugma bosilganda "yuklanish" spinnerini to'xtatadi.</summary>
     public async Task AnswerCallbackAsync(string callbackId, string? text = null, CancellationToken ct = default)
     {

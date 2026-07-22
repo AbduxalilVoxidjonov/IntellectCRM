@@ -88,10 +88,16 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
     public async Task<ActionResult<TelegramSettingsDto>> GetTelegram()
     {
         var m = await db.CenterMeta.FirstOrDefaultAsync();
+        // Majburiy obuna tekshiruvi ishlayaptimi (bot kanalda admin bo'lishi shart) — 5 soniyalik
+        // chegara bilan, Telegram javob bermasa sozlamalar sahifasi kutib qolmasin.
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(HttpContext.RequestAborted);
+        cts.CancelAfter(TimeSpan.FromSeconds(5));
+        var (chStatus, chMessage) = await telegram.CheckChannelAsync(m?.TelegramChannel, cts.Token);
         return new TelegramSettingsDto(
             m?.TelegramBotToken ?? "", m?.TelegramBotUsername ?? "", m?.TelegramBotName ?? "",
             telegram.IsConfigured, m?.TelegramChannel ?? "",
-            m?.TelegramPhoneMatchField is "student" ? "student" : "parent");
+            m?.TelegramPhoneMatchField is "student" ? "student" : "parent",
+            chStatus, chMessage);
     }
 
     [HttpPut("telegram")]

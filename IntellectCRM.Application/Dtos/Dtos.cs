@@ -943,9 +943,14 @@ public record SchoolNameDto(string Name, string TelegramChannel = "", string Log
 public record PublicBrandDto(string Name, string LogoUrl, string Phone);
 /// <summary>Telegram bot sozlamasi (admin). Configured = token bo'sh emasligini bildiradi.
 /// PhoneMatchField: "parent" (default) | "student" — kontakt ulashilganda qaysi raqam bo'yicha qidirish.</summary>
+/// <summary>Telegram bot sozlamalari. <c>ChannelStatus</c>/<c>ChannelMessage</c> — MAJBURIY OBUNA
+/// tekshiruvi haqiqatan ishlayaptimi (ok | not-set | no-token | private | not-found | bot-not-admin):
+/// Telegram getChatMember faqat bot kanalda ADMIN bo'lsagina ishlaydi, aks holda bot obunani
+/// tekshira olmaydi va hammani o'tkazib yuboradi — admin buni ko'rib turishi kerak.</summary>
 public record TelegramSettingsDto(
     string BotToken, string BotUsername, string BotName, bool Configured,
-    string Channel = "", string PhoneMatchField = "parent");
+    string Channel = "", string PhoneMatchField = "parent",
+    string ChannelStatus = "", string ChannelMessage = "");
 /// <summary>Telegram bot sozlamasini saqlash so'rovi.</summary>
 public record SaveTelegramSettingsRequest(
     string? BotToken, string? BotUsername, string? BotName, string? Channel, string? PhoneMatchField);
