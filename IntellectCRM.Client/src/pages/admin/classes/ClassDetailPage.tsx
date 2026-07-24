@@ -1054,6 +1054,14 @@ export function ClassDetailPage() {
                               {journal!.columns.map((c) => {
                                 const e = entryMap.get(`${st.studentId}|${c.date}`)
                                 const reason = e?.reasonId ? reasonById.get(e.reasonId) : undefined
+                                // Muzlatilgandan KEYINGI o'tilgan darslarda o'quvchi qatnashmagan — avto-"keldi"
+                                // qo'yilmaydi (faqat aniq belgilangan e.present yashil bo'ladi). Undan oldingi
+                                // real davomat/baho esa faol o'quvchi kabi ko'rinadi.
+                                const afterFrozen = !!st.frozenAt && c.date > st.frozenAt
+                                const present =
+                                  e?.grade == null && !reason && conductedSet.has(c.date) &&
+                                  (e?.present || ((!st.presentDefaultFrom || c.date >= st.presentDefaultFrom) && !afterFrozen))
+                                const masteryInfo = e?.mastery != null ? masteryDisplay(e.mastery) : { label: '', cls: '' }
                                 return (
                                   <td key={c.date} className="border-b border-r border-slate-100 p-1 text-center">
                                     <span
@@ -1061,18 +1069,26 @@ export function ClassDetailPage() {
                                         'inline-flex h-7 min-w-7 items-center justify-center rounded px-1 text-sm font-semibold',
                                         e?.grade != null
                                           ? gradeBadgeCls(e.grade)
-                                          : reason
-                                            ? reason.isLate
-                                              ? 'bg-amber-50 text-amber-700'
-                                              : 'bg-red-50 text-red-600'
-                                            : 'text-slate-300',
+                                          : e?.mastery != null
+                                            ? masteryInfo.cls
+                                            : reason
+                                              ? reason.isLate
+                                                ? 'bg-amber-50 text-amber-700'
+                                                : 'bg-red-50 text-red-600'
+                                              : present
+                                                ? 'bg-emerald-50 text-emerald-600'
+                                                : 'text-slate-300',
                                       )}
                                     >
                                       {e?.grade != null
                                         ? e.grade
-                                        : reason
-                                          ? reason.short || reason.name.slice(0, 2)
-                                          : '·'}
+                                        : e?.mastery != null
+                                          ? masteryInfo.label
+                                          : reason
+                                            ? reason.short || reason.name.slice(0, 2)
+                                            : present
+                                              ? '✓'
+                                              : '·'}
                                     </span>
                                   </td>
                                 )

@@ -55,6 +55,9 @@ export interface GroupJournalStudent {
    *  bo'lmasa ham katak avtomatik "keldi" (yashil ✓) bo'lib ko'rsatilmaydi — bo'sh qoladi, o'qituvchi
    *  qo'lda belgilashi kerak (bloklanmaydi, faqat default holat farq qiladi). Bo'sh = cheklovsiz. */
   presentDefaultFrom: string
+  /** Muzlatilgan sana ("yyyy-MM-dd") — status=="frozen" bo'lsa. Bo'sh = muzlatilmagan. Shu sanadan
+   *  KEYINGI o'tilgan darslarda o'quvchi qatnashmagan, shuning uchun avto-"keldi" ✓ ko'rsatilmaydi. */
+  frozenAt: string
 }
 /** Bitta darsning bir martalik boshqa kunga ko'chirilishi (shu oyga tegishli). */
 export interface LessonReschedule {

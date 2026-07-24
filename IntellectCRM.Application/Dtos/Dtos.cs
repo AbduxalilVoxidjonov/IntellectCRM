@@ -617,7 +617,7 @@ public record GroupJournalInfoDto(
 /// o'quvchi to'lagan guruhida "qarzi yo'q", to'lamaganida qarzdor ko'rinadi (har o'qituvchi o'z guruhini ko'radi).</summary>
 public record GroupJournalStudentDto(
     string StudentId, string FullName, string Status, string ActivatedAt, decimal Balance, string MemberStart,
-    string PresentDefaultFrom);
+    string PresentDefaultFrom, string FrozenAt);
 /// <summary>Guruhning bitta oylik jurnali: ustunlar guruh dars kunlari bo'yicha avtomatik, qatorlar — faol o'quvchilar.
 /// <see cref="ConductedDates"/> — "o'tildi" deb belgilangan dars sanalari (sababsiz o'quvchi shu kunda KELDI = yashil).</summary>
 public record GroupJournalDto(

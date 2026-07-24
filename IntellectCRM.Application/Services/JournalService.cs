@@ -54,7 +54,7 @@ public static class JournalService
                 return new GroupJournalStudentDto(
                     m.StudentId, st.FullName, m.Status ?? "trial", m.ActivatedAt ?? "",
                     balanceByStudent.GetValueOrDefault(m.StudentId, 0m),
-                    MemberStart(m) ?? "", m.RecordedAt ?? "");
+                    MemberStart(m) ?? "", m.RecordedAt ?? "", m.FrozenAt ?? "");
             })
             .OrderBy(s => s.FullName, StringComparer.OrdinalIgnoreCase)
             .ToList();
