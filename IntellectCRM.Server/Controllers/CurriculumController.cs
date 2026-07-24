@@ -720,59 +720,68 @@ public class CurriculumController(AppDbContext db) : ControllerBase
         if (targetCurriculum == null) return NotFound("Maqsadli dastur topilmadi");
 
         var source = await LoadModuleSourceAsync(moduleId);
-        var result = await CopyModuleIntoCurriculumAsync(sourceModule, source, targetCurriculum);
-        if (!result.Ok) return BadRequest(result.Error);
+        var r = await CopyModuleIntoCurriculumAsync(sourceModule, source, targetCurriculum);
 
         return Ok(new
         {
-            moduleId = result.NewModuleId,
+            moduleId = r.ModuleId,
             moduleName = sourceModule.Name,
-            topicCount = result.TopicCount,
-            lessonCount = result.LessonCount,
-            itemCount = result.ItemCount,
+            merged = r.Merged,
+            topicCount = r.AddedTopics,
+            lessonCount = r.AddedLessons,
+            itemCount = r.AddedItems,
         });
     }
 
     /// <summary>
-    /// Modulni BIR NECHTA o'quv dasturiga birdan nusxalash. Har bir maqsad mustaqil ishlanadi —
-    /// bittasida xato (masalan nom allaqachon band) bo'lsa qolganlariga baribir nusxalanadi.
-    /// Har bir maqsad uchun alohida holat (ok/xato + sanoq) qaytadi.
+    /// BIR NECHTA modulni BIR NECHTA o'quv dasturiga birdan nusxalash (har modul × har dastur).
+    /// Agar maqsad dasturda shu NOMLI modul allaqachon bo'lsa — BIRLASHTIRILADI (nom bo'yicha
+    /// mavzu/dars, matn bo'yicha topshiriq moslashadi; bir xillari takrorlanmaydi, faqat yangilari
+    /// qo'shiladi). Har bir (modul, dastur) juftligi uchun alohida natija qaytadi.
     /// </summary>
-    [HttpPost("modules/{moduleId}/copy-to-many")]
-    public async Task<ActionResult> CopyModuleToCurricula(string moduleId, [FromBody] CopyModuleToManyRequest req)
+    [HttpPost("modules/copy-many")]
+    public async Task<ActionResult> CopyModulesToCurricula([FromBody] CopyModulesRequest req)
     {
-        var sourceModule = await db.CourseModules.FindAsync(moduleId);
-        if (sourceModule == null) return NotFound("Modul topilmadi");
-
+        var moduleIds = (req?.ModuleIds ?? new List<string>())
+            .Where(id => !string.IsNullOrWhiteSpace(id)).Distinct().ToList();
         var targetIds = (req?.TargetCurriculumIds ?? new List<string>())
-            .Where(id => !string.IsNullOrWhiteSpace(id) && id != sourceModule.CurriculumId)
-            .Distinct()
-            .ToList();
+            .Where(id => !string.IsNullOrWhiteSpace(id)).Distinct().ToList();
+        if (moduleIds.Count == 0) return BadRequest("Kamida bitta modul tanlang");
         if (targetIds.Count == 0) return BadRequest("Kamida bitta maqsadli dastur tanlang");
 
-        var source = await LoadModuleSourceAsync(moduleId);
+        var sourceModules = await db.CourseModules.Where(m => moduleIds.Contains(m.Id)).ToListAsync();
+        if (sourceModules.Count == 0) return NotFound("Modul topilmadi");
+
         var targetById = (await db.Curricula.Where(c => targetIds.Contains(c.Id)).ToListAsync())
             .ToDictionary(c => c.Id);
 
-        var results = new List<CopyModuleTargetResultDto>();
-        foreach (var targetId in targetIds)
+        var results = new List<CopyModuleResultDto>();
+        foreach (var sourceModule in sourceModules)
         {
-            if (!targetById.TryGetValue(targetId, out var targetCurriculum))
+            var source = await LoadModuleSourceAsync(sourceModule.Id);
+            foreach (var targetId in targetIds)
             {
-                results.Add(new CopyModuleTargetResultDto(targetId, null, false, "Dastur topilmadi", 0, 0, 0));
-                continue;
-            }
+                if (!targetById.TryGetValue(targetId, out var tc))
+                {
+                    results.Add(new CopyModuleResultDto(
+                        sourceModule.Id, sourceModule.Name, targetId, null, false, false, "Dastur topilmadi", 0, 0, 0));
+                    continue;
+                }
+                // Modulni o'z dasturiga nusxalab bo'lmaydi — jimgina o'tkazamiz.
+                if (tc.Id == sourceModule.CurriculumId) continue;
 
-            var r = await CopyModuleIntoCurriculumAsync(sourceModule, source, targetCurriculum);
-            results.Add(new CopyModuleTargetResultDto(
-                targetCurriculum.Id, targetCurriculum.Name, r.Ok, r.Error, r.TopicCount, r.LessonCount, r.ItemCount));
+                var r = await CopyModuleIntoCurriculumAsync(sourceModule, source, tc);
+                results.Add(new CopyModuleResultDto(
+                    sourceModule.Id, sourceModule.Name, tc.Id, tc.Name, true, r.Merged, null,
+                    r.AddedTopics, r.AddedLessons, r.AddedItems));
+            }
         }
 
         return Ok(new
         {
-            moduleName = sourceModule.Name,
-            successCount = results.Count(x => x.Ok),
+            okCount = results.Count(x => x.Ok),
             failCount = results.Count(x => !x.Ok),
+            mergedCount = results.Count(x => x.Ok && x.Merged),
             results,
         });
     }
@@ -791,90 +800,145 @@ public class CurriculumController(AppDbContext db) : ControllerBase
         return new ModuleSource(topics, lessons, items);
     }
 
-    // Bitta modul (oldindan yuklangan manba bilan) bitta maqsadli dasturga nusxalanadi.
+    // Bitta modulni (oldindan yuklangan manba bilan) bitta maqsadli dasturga nusxalaydi.
+    // Agar shu nomli modul allaqachon bo'lsa — YANGI yaratmasdan mavjudiga BIRLASHTIRADI:
+    //   modul: Name bo'yicha, mavzu: Title bo'yicha, dars: Title bo'yicha, topshiriq: Text bo'yicha
+    //   moslashadi — bir xillari takrorlanmaydi, faqat yangilari qo'shiladi.
     // Kontent maydonlari (video/audio/matn/lug'at/test) BO'SH qoladi — faqat tuzilma nusxalanadi.
     private async Task<CopyModuleOutcome> CopyModuleIntoCurriculumAsync(
         CourseModule sourceModule, ModuleSource source, Curriculum targetCurriculum)
     {
-        // Target dasturda ushbu nomi bo'lgan modul mavjudmi?
-        var existingModule = await db.CourseModules
+        // Maqsad dasturda shu nomli modul bormi? Bo'lsa — birlashtiramiz, bo'lmasa — yangi yaratamiz.
+        var module = await db.CourseModules
             .FirstOrDefaultAsync(m => m.CurriculumId == targetCurriculum.Id && m.Name == sourceModule.Name);
-        if (existingModule != null)
-            return new CopyModuleOutcome(false, $"\"{sourceModule.Name}\" nomi bilan modul allaqachon mavjud", 0, 0, 0, null);
+        var merged = module != null;
 
-        var maxOrder = await db.CourseModules
-            .Where(m => m.CurriculumId == targetCurriculum.Id)
-            .Select(m => (int?)m.Order).MaxAsync() ?? -1;
-
-        var newModule = new CourseModule
+        if (module == null)
         {
-            CurriculumId = targetCurriculum.Id,
-            Name = sourceModule.Name,
-            Note = sourceModule.Note,
-            Order = maxOrder + 1,
-        };
-        db.CourseModules.Add(newModule);
+            var maxOrder = await db.CourseModules
+                .Where(m => m.CurriculumId == targetCurriculum.Id)
+                .Select(m => (int?)m.Order).MaxAsync() ?? -1;
+            module = new CourseModule
+            {
+                CurriculumId = targetCurriculum.Id,
+                Name = sourceModule.Name,
+                Note = sourceModule.Note,
+                Order = maxOrder + 1,
+            };
+            db.CourseModules.Add(module);
+            await db.SaveChangesAsync();
+        }
+
+        // ---- Mavzular: Title bo'yicha moslash ----
+        var existingTopics = await db.CourseTopics.Where(t => t.ModuleId == module.Id).ToListAsync();
+        var topicByTitle = new Dictionary<string, CourseTopic>();
+        foreach (var t in existingTopics) topicByTitle.TryAdd(t.Title ?? "", t);
+        var topicMaxOrder = existingTopics.Count == 0 ? -1 : existingTopics.Max(t => t.Order);
 
         var topicMapping = new Dictionary<string, string>();
+        var addedTopics = 0;
+        foreach (var st in source.Topics)
+        {
+            if (topicByTitle.TryGetValue(st.Title ?? "", out var et))
+            {
+                topicMapping[st.Id] = et.Id;
+            }
+            else
+            {
+                var nt = new CourseTopic
+                {
+                    CurriculumId = targetCurriculum.Id,
+                    ModuleId = module.Id,
+                    Title = st.Title,
+                    Note = st.Note,
+                    Order = ++topicMaxOrder,
+                };
+                db.CourseTopics.Add(nt);
+                topicByTitle[st.Title ?? ""] = nt;
+                topicMapping[st.Id] = nt.Id;
+                addedTopics++;
+            }
+        }
+        await db.SaveChangesAsync();
+
+        // ---- Darslar: (TopicId + Title) bo'yicha moslash ----
+        var targetTopicIds = topicMapping.Values.Distinct().ToList();
+        var existingLessons = await db.CourseLessons.Where(s => targetTopicIds.Contains(s.TopicId)).ToListAsync();
+        var lessonByKey = new Dictionary<(string, string), CourseLesson>();
+        var lessonMaxOrder = new Dictionary<string, int>();
+        foreach (var s in existingLessons)
+        {
+            lessonByKey.TryAdd((s.TopicId, s.Title ?? ""), s);
+            lessonMaxOrder[s.TopicId] = Math.Max(lessonMaxOrder.GetValueOrDefault(s.TopicId, -1), s.Order);
+        }
+
         var lessonMapping = new Dictionary<string, string>();
-
-        foreach (var sourceTopic in source.Topics)
+        var addedLessons = 0;
+        foreach (var sl in source.Lessons)
         {
-            var newTopic = new CourseTopic
+            if (!topicMapping.TryGetValue(sl.TopicId, out var targetTopicId)) continue;
+            var key = (targetTopicId, sl.Title ?? "");
+            if (lessonByKey.TryGetValue(key, out var el))
             {
-                CurriculumId = targetCurriculum.Id,
-                ModuleId = newModule.Id,
-                Title = sourceTopic.Title,
-                Note = sourceTopic.Note,
-                Order = sourceTopic.Order,
-            };
-            db.CourseTopics.Add(newTopic);
-            topicMapping[sourceTopic.Id] = newTopic.Id;
+                lessonMapping[sl.Id] = el.Id;
+            }
+            else
+            {
+                var nextOrder = lessonMaxOrder.GetValueOrDefault(targetTopicId, -1) + 1;
+                lessonMaxOrder[targetTopicId] = nextOrder;
+                var nl = new CourseLesson
+                {
+                    CurriculumId = targetCurriculum.Id,
+                    TopicId = targetTopicId,
+                    Title = sl.Title,
+                    Note = sl.Note,
+                    Order = nextOrder,
+                };
+                db.CourseLessons.Add(nl);
+                lessonByKey[key] = nl;
+                lessonMapping[sl.Id] = nl.Id;
+                addedLessons++;
+            }
         }
-
         await db.SaveChangesAsync();
 
-        foreach (var sourceLesson in source.Lessons)
+        // ---- Topshiriqlar: (LessonId + Text) bo'yicha moslash — bir xil matnli takrorlanmaydi ----
+        var targetLessonIds = lessonMapping.Values.Distinct().ToList();
+        var existingItems = await db.CourseItems.Where(i => targetLessonIds.Contains(i.LessonId)).ToListAsync();
+        var itemKeys = new HashSet<(string, string)>();
+        var itemMaxOrder = new Dictionary<string, int>();
+        foreach (var it in existingItems)
         {
-            if (!topicMapping.TryGetValue(sourceLesson.TopicId, out var newTopicId))
-                continue;
-
-            var newLesson = new CourseLesson
-            {
-                CurriculumId = targetCurriculum.Id,
-                TopicId = newTopicId,
-                Title = sourceLesson.Title,
-                Note = sourceLesson.Note,
-                Order = sourceLesson.Order,
-            };
-            db.CourseLessons.Add(newLesson);
-            lessonMapping[sourceLesson.Id] = newLesson.Id;
+            itemKeys.Add((it.LessonId, it.Text ?? ""));
+            itemMaxOrder[it.LessonId] = Math.Max(itemMaxOrder.GetValueOrDefault(it.LessonId, -1), it.Order);
         }
-
-        await db.SaveChangesAsync();
 
         var now = AppClock.Now.ToString("yyyy-MM-ddTHH:mm:ss");
-        foreach (var sourceItem in source.Items)
+        var addedItems = 0;
+        foreach (var si in source.Items)
         {
-            if (!lessonMapping.TryGetValue(sourceItem.LessonId, out var newLessonId))
-                continue;
-
+            if (!lessonMapping.TryGetValue(si.LessonId, out var targetLessonId)) continue;
+            var key = (targetLessonId, si.Text ?? "");
+            if (itemKeys.Contains(key)) continue; // shu darsda shu matnli topshiriq bor — o'tkazamiz
+            itemKeys.Add(key);
+            var nextOrder = itemMaxOrder.GetValueOrDefault(targetLessonId, -1) + 1;
+            itemMaxOrder[targetLessonId] = nextOrder;
             db.CourseItems.Add(new CourseItem
             {
                 CurriculumId = targetCurriculum.Id,
-                LessonId = newLessonId,
-                Text = sourceItem.Text,
-                Note = sourceItem.Note,
-                Type = sourceItem.Type,
-                Order = sourceItem.Order,
+                LessonId = targetLessonId,
+                Text = si.Text,
+                Note = si.Note,
+                Type = si.Type,
+                Order = nextOrder,
                 CreatedAt = now,
                 // Kontent maydonlari BO'SH qoladi (video, audio, matn, lug'at, test)
             });
+            addedItems++;
         }
-
         await db.SaveChangesAsync();
 
-        return new CopyModuleOutcome(true, null, source.Topics.Count, source.Lessons.Count, source.Items.Count, newModule.Id);
+        return new CopyModuleOutcome(merged, addedTopics, addedLessons, addedItems, module.Id);
     }
 
     // ---- Progress (kurs/Subject bo'yicha — kirish nazorati uchun; kontent M2M orqali resolve qilinadi) ----
@@ -1098,18 +1162,19 @@ public class CurriculumController(AppDbContext db) : ControllerBase
             .ToList();
     }
 
-    // Modulni bir nechta dasturga nusxalash — so'rov tanasi.
-    public record CopyModuleToManyRequest(List<string>? TargetCurriculumIds);
+    // Bir nechta modulni bir nechta dasturga nusxalash — so'rov tanasi.
+    public record CopyModulesRequest(List<string>? ModuleIds, List<string>? TargetCurriculumIds);
 
-    // Bir maqsadli dastur uchun nusxalash natijasi (klientga qaytadi).
-    public record CopyModuleTargetResultDto(
-        string CurriculumId, string? CurriculumName, bool Ok, string? Error,
-        int TopicCount, int LessonCount, int ItemCount);
+    // Bir (modul, dastur) juftligi uchun nusxalash natijasi (klientga qaytadi).
+    // Merged=true bo'lsa — mavjud modulga birlashtirildi; Added* — QO'SHILGAN (yangi) elementlar soni.
+    public record CopyModuleResultDto(
+        string ModuleId, string ModuleName, string CurriculumId, string? CurriculumName,
+        bool Ok, bool Merged, string? Error, int AddedTopics, int AddedLessons, int AddedItems);
 
     // Ichki: modul ostidagi oldindan yuklangan manba.
     private record ModuleSource(List<CourseTopic> Topics, List<CourseLesson> Lessons, List<CourseItem> Items);
 
-    // Ichki: bitta nusxalash amalining natijasi.
+    // Ichki: bitta nusxalash/birlashtirish amalining natijasi.
     private record CopyModuleOutcome(
-        bool Ok, string? Error, int TopicCount, int LessonCount, int ItemCount, string? NewModuleId);
+        bool Merged, int AddedTopics, int AddedLessons, int AddedItems, string ModuleId);
 }

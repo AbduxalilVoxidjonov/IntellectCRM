@@ -292,50 +292,38 @@ export async function importCurriculumExcel(
   return data
 }
 
-// ---- Modulni nusxalash (boshqa o'quv dasturiga) ----
+// ---- Modul(lar)ni boshqa dastur(lar)ga nusxalash / birlashtirish ----
 
+// Bir (modul, dastur) juftligi natijasi. merged=true — mavjud modulga birlashtirildi;
+// added* — QO'SHILGAN yangi elementlar soni (bir xillari takrorlanmagan).
 export interface CopyModuleResult {
   moduleId: string
   moduleName: string
-  topicCount: number
-  lessonCount: number
-  itemCount: number
-}
-
-export async function copyModuleToCurriculum(moduleId: string, targetCurriculumId: string): Promise<CopyModuleResult> {
-  const { data } = await api.post<CopyModuleResult>(
-    `/admin/curriculum/modules/${moduleId}/copy-to/${targetCurriculumId}`,
-    {},
-  )
-  return data
-}
-
-// ---- Modulni bir nechta dasturga birdan nusxalash ----
-
-export interface CopyModuleTargetResult {
   curriculumId: string
   curriculumName: string | null
   ok: boolean
+  merged: boolean
   error: string | null
-  topicCount: number
-  lessonCount: number
-  itemCount: number
+  addedTopics: number
+  addedLessons: number
+  addedItems: number
 }
 
-export interface CopyModuleToManyResult {
-  moduleName: string
-  successCount: number
+export interface CopyModulesResult {
+  okCount: number
   failCount: number
-  results: CopyModuleTargetResult[]
+  mergedCount: number
+  results: CopyModuleResult[]
 }
 
-export async function copyModuleToCurricula(
-  moduleId: string,
+// Bir nechta modulni bir nechta o'quv dasturiga birdan nusxalaydi (har modul × har dastur).
+export async function copyModulesToCurricula(
+  moduleIds: string[],
   targetCurriculumIds: string[],
-): Promise<CopyModuleToManyResult> {
-  const { data } = await api.post<CopyModuleToManyResult>(
-    `/admin/curriculum/modules/${moduleId}/copy-to-many`,
-    { targetCurriculumIds },
+): Promise<CopyModulesResult> {
+  const { data } = await api.post<CopyModulesResult>(
+    `/admin/curriculum/modules/copy-many`,
+    { moduleIds, targetCurriculumIds },
   )
   return data
 }

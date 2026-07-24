@@ -2,11 +2,11 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft, Plus, Trash2, Pencil, Copy, ChevronRight, ListChecks, Loader2,
-  FileSpreadsheet, FileDown, AlertTriangle, CheckCircle2,
+  FileSpreadsheet, FileDown, AlertTriangle, CheckCircle2, CheckSquare, Square, X,
 } from 'lucide-react'
 import type { Curriculum, CurriculumModule } from '@/types'
 import {
-  getCurriculum, createModule, updateModule, deleteModule, copyModuleToCurricula,
+  getCurriculum, createModule, updateModule, deleteModule, copyModulesToCurricula,
   downloadCurriculumImportTemplate, importCurriculumExcel, listCurricula,
 } from '@/api/services/curriculum'
 import type { CurriculumExcelImportResult, CurriculumSummary } from '@/api/services/curriculum'
@@ -39,7 +39,11 @@ export function CurriculumModulesPage() {
   const [deleteBusy, setDeleteBusy] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
 
-  const [copyingModule, setCopyingModule] = useState<CurriculumModule | null>(null)
+  // Nusxalash uchun tanlangan modullar (checkbox bilan bir nechtasini belgilash mumkin).
+  const [selectedModuleIds, setSelectedModuleIds] = useState<string[]>([])
+  // Nusxalash modali: qaysi modul(lar) nusxalanmoqda + qaysi dasturlarga.
+  const [copyOpen, setCopyOpen] = useState(false)
+  const [copyModuleIds, setCopyModuleIds] = useState<string[]>([])
   const [copyTargets, setCopyTargets] = useState<string[]>([])
   const [isCopying, setIsCopying] = useState(false)
 
@@ -102,6 +106,17 @@ export function CurriculumModulesPage() {
     }
   }
 
+  const toggleModuleSelect = (id: string) =>
+    setSelectedModuleIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+
+  // Nusxalash modalini ochish — bitta modul (nusxalash tugmasi) yoki tanlanganlar (panel) uchun.
+  const openCopy = (moduleIds: string[]) => {
+    if (moduleIds.length === 0) return
+    setCopyModuleIds(moduleIds)
+    setCopyTargets([])
+    setCopyOpen(true)
+  }
+
   const toggleCopyTarget = (id: string) =>
     setCopyTargets((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
 
@@ -109,32 +124,39 @@ export function CurriculumModulesPage() {
     setCopyTargets((prev) => (prev.length === otherCurricula.length ? [] : otherCurricula.map((c) => c.id)))
 
   const doCopyModule = async () => {
-    if (copyTargets.length === 0 || !copyingModule) return
+    if (copyTargets.length === 0 || copyModuleIds.length === 0) return
     setIsCopying(true)
     try {
-      const result = await copyModuleToCurricula(copyingModule.id, copyTargets)
+      const result = await copyModulesToCurricula(copyModuleIds, copyTargets)
       const ok = result.results.filter((r) => r.ok)
       const failed = result.results.filter((r) => !r.ok)
 
+      const modCount = new Set(ok.map((r) => r.moduleId)).size
+      const curCount = new Set(ok.map((r) => r.curriculumId)).size
+      const sumT = ok.reduce((a, r) => a + r.addedTopics, 0)
+      const sumL = ok.reduce((a, r) => a + r.addedLessons, 0)
+      const sumI = ok.reduce((a, r) => a + r.addedItems, 0)
+      const mergedNote = result.mergedCount > 0 ? ` ${result.mergedCount} joyda mavjud modulga birlashtirildi.` : ''
+      const okText =
+        `${modCount} ta modul ${curCount} ta dasturga qo'shildi.${mergedNote}` +
+        ` Jami +${sumT} mavzu, +${sumL} dars, +${sumI} topshiriq.`
+
       if (failed.length === 0) {
-        setNotice({
-          type: 'success',
-          text: `"${result.moduleName}" moduli ${ok.length} ta dasturga nusxalandi (${ok[0]?.topicCount ?? 0} mavzu, ${ok[0]?.lessonCount ?? 0} dars, ${ok[0]?.itemCount ?? 0} topshiriq).`,
-        })
+        setNotice({ type: 'success', text: okText })
       } else {
-        const failText = failed.map((r) => `"${r.curriculumName ?? '?'}" (${r.error ?? 'xato'})`).join(', ')
+        const failText = failed
+          .map((r) => `"${r.moduleName}" → "${r.curriculumName ?? '?'}" (${r.error ?? 'xato'})`)
+          .join(', ')
         setNotice({
           type: ok.length > 0 ? 'success' : 'error',
-          text:
-            ok.length > 0
-              ? `${ok.length} ta dasturga nusxalandi. ${failed.length} tasi o'tkazib yuborildi: ${failText}`
-              : `Nusxalanmadi: ${failText}`,
+          text: ok.length > 0 ? `${okText} ${failed.length} ta o'tkazildi: ${failText}` : `Nusxalanmadi: ${failText}`,
         })
       }
 
       if (ok.length > 0) {
-        setCopyingModule(null)
+        setCopyOpen(false)
         setCopyTargets([])
+        setSelectedModuleIds([])
       }
     } catch (err) {
       setNotice({ type: 'error', text: apiErrorMessage(err, 'Xato yuz berdi') })
@@ -215,6 +237,23 @@ export function CurriculumModulesPage() {
         </div>
       )}
 
+      {selectedModuleIds.length > 0 && (
+        <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-brand-200 bg-brand-50 px-4 py-2.5">
+          <div className="flex items-center gap-2 text-sm font-medium text-brand-700">
+            <CheckSquare className="h-4 w-4" />
+            {selectedModuleIds.length} ta modul tanlandi
+          </div>
+          <div className="flex items-center gap-1.5">
+            <Button onClick={() => openCopy(selectedModuleIds)}>
+              <Copy className="h-4 w-4" /> Nusxalash
+            </Button>
+            <Button variant="secondary" onClick={() => setSelectedModuleIds([])}>
+              <X className="h-4 w-4" /> Bekor qilish
+            </Button>
+          </div>
+        </div>
+      )}
+
       {data.modules.length === 0 ? (
         <Card className="py-12 text-center text-slate-400">
           <ListChecks className="mx-auto mb-2 h-6 w-6" />
@@ -225,13 +264,32 @@ export function CurriculumModulesPage() {
           {data.modules.map((module) => {
             const items = module.topics.flatMap((t) => t.lessons.flatMap((s) => s.items))
             const ready = items.filter((it) => it.ready).length
+            const selected = selectedModuleIds.includes(module.id)
             return (
               <button
                 key={module.id}
                 type="button"
                 onClick={() => navigate(`/admin/curricula/${curriculumId}/${module.id}`)}
-                className="group flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 text-left transition-all hover:border-brand-300 hover:shadow-[0_4px_16px_oklch(0.5_0.18_282_/_0.1)]"
+                className={cn(
+                  'group flex items-center gap-3 rounded-xl border bg-white p-4 text-left transition-all hover:shadow-[0_4px_16px_oklch(0.5_0.18_282_/_0.1)]',
+                  selected ? 'border-brand-400 ring-1 ring-brand-300' : 'border-slate-200 hover:border-brand-300',
+                )}
               >
+                <span
+                  role="button"
+                  aria-label="Tanlash"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    toggleModuleSelect(module.id)
+                  }}
+                  className={cn(
+                    'flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg transition-colors',
+                    selected ? 'text-brand-600' : 'text-slate-300 hover:text-slate-500',
+                  )}
+                  title="Nusxalash uchun tanlash"
+                >
+                  {selected ? <CheckSquare className="h-5 w-5" /> : <Square className="h-5 w-5" />}
+                </span>
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-semibold text-slate-800">{module.name}</p>
                   <div className="mt-1.5 flex items-center gap-3 text-xs">
@@ -257,8 +315,7 @@ export function CurriculumModulesPage() {
                     role="button"
                     onClick={(e) => {
                       e.stopPropagation()
-                      setCopyingModule(module)
-                      setCopyTargets([])
+                      openCopy([module.id])
                     }}
                     className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-brand-50 hover:text-brand-600"
                     title="Boshqa dasturlarga nusxalash"
@@ -324,13 +381,17 @@ export function CurriculumModulesPage() {
       />
 
       <Modal
-        open={!!copyingModule}
-        onClose={() => setCopyingModule(null)}
+        open={copyOpen}
+        onClose={() => setCopyOpen(false)}
         size="sm"
-        title={`"${copyingModule?.name}" modulini nusxalash`}
+        title={
+          copyModuleIds.length === 1
+            ? `"${data.modules.find((m) => m.id === copyModuleIds[0])?.name ?? ''}" modulini nusxalash`
+            : `${copyModuleIds.length} ta modulni nusxalash`
+        }
         footer={
           <>
-            <Button variant="secondary" onClick={() => setCopyingModule(null)} disabled={isCopying}>
+            <Button variant="secondary" onClick={() => setCopyOpen(false)} disabled={isCopying}>
               Bekor qilish
             </Button>
             <Button onClick={doCopyModule} disabled={copyTargets.length === 0 || isCopying}>
@@ -340,6 +401,10 @@ export function CurriculumModulesPage() {
           </>
         }
       >
+        <p className="mb-3 rounded-lg bg-slate-50 px-3 py-2 text-xs leading-relaxed text-slate-500">
+          Maqsad dasturda shu nomli modul allaqachon bo'lsa — <b>birlashtiriladi</b> (bir xil
+          mavzu/dars/topshiriq takrorlanmaydi, faqat yangilari qo'shiladi).
+        </p>
         <div className="mb-3 flex items-center justify-between">
           <p className="text-xs font-semibold text-slate-500">Maqsadli dasturlarni tanlang:</p>
           {otherCurricula.length > 0 && (
