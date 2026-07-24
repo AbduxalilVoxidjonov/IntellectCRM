@@ -309,3 +309,33 @@ export async function copyModuleToCurriculum(moduleId: string, targetCurriculumI
   )
   return data
 }
+
+// ---- Modulni bir nechta dasturga birdan nusxalash ----
+
+export interface CopyModuleTargetResult {
+  curriculumId: string
+  curriculumName: string | null
+  ok: boolean
+  error: string | null
+  topicCount: number
+  lessonCount: number
+  itemCount: number
+}
+
+export interface CopyModuleToManyResult {
+  moduleName: string
+  successCount: number
+  failCount: number
+  results: CopyModuleTargetResult[]
+}
+
+export async function copyModuleToCurricula(
+  moduleId: string,
+  targetCurriculumIds: string[],
+): Promise<CopyModuleToManyResult> {
+  const { data } = await api.post<CopyModuleToManyResult>(
+    `/admin/curriculum/modules/${moduleId}/copy-to-many`,
+    { targetCurriculumIds },
+  )
+  return data
+}

@@ -6,7 +6,7 @@ import {
 } from 'lucide-react'
 import type { Curriculum, CurriculumModule } from '@/types'
 import {
-  getCurriculum, createModule, updateModule, deleteModule, copyModuleToCurriculum,
+  getCurriculum, createModule, updateModule, deleteModule, copyModuleToCurricula,
   downloadCurriculumImportTemplate, importCurriculumExcel, listCurricula,
 } from '@/api/services/curriculum'
 import type { CurriculumExcelImportResult, CurriculumSummary } from '@/api/services/curriculum'
@@ -40,7 +40,7 @@ export function CurriculumModulesPage() {
   const [importOpen, setImportOpen] = useState(false)
 
   const [copyingModule, setCopyingModule] = useState<CurriculumModule | null>(null)
-  const [copyTarget, setCopyTarget] = useState('')
+  const [copyTargets, setCopyTargets] = useState<string[]>([])
   const [isCopying, setIsCopying] = useState(false)
 
   const load = () =>
@@ -102,17 +102,40 @@ export function CurriculumModulesPage() {
     }
   }
 
+  const toggleCopyTarget = (id: string) =>
+    setCopyTargets((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+
+  const toggleAllCopyTargets = () =>
+    setCopyTargets((prev) => (prev.length === otherCurricula.length ? [] : otherCurricula.map((c) => c.id)))
+
   const doCopyModule = async () => {
-    if (!copyTarget || !copyingModule) return
+    if (copyTargets.length === 0 || !copyingModule) return
     setIsCopying(true)
     try {
-      const result = await copyModuleToCurriculum(copyingModule.id, copyTarget)
-      setNotice({
-        type: 'success',
-        text: `"${copyingModule.name}" → "${otherCurricula.find((c) => c.id === copyTarget)?.name}": ${result.topicCount} mavzu, ${result.lessonCount} dars va ${result.itemCount} topshiriq nusxalandi`,
-      })
-      setCopyingModule(null)
-      setCopyTarget('')
+      const result = await copyModuleToCurricula(copyingModule.id, copyTargets)
+      const ok = result.results.filter((r) => r.ok)
+      const failed = result.results.filter((r) => !r.ok)
+
+      if (failed.length === 0) {
+        setNotice({
+          type: 'success',
+          text: `"${result.moduleName}" moduli ${ok.length} ta dasturga nusxalandi (${ok[0]?.topicCount ?? 0} mavzu, ${ok[0]?.lessonCount ?? 0} dars, ${ok[0]?.itemCount ?? 0} topshiriq).`,
+        })
+      } else {
+        const failText = failed.map((r) => `"${r.curriculumName ?? '?'}" (${r.error ?? 'xato'})`).join(', ')
+        setNotice({
+          type: ok.length > 0 ? 'success' : 'error',
+          text:
+            ok.length > 0
+              ? `${ok.length} ta dasturga nusxalandi. ${failed.length} tasi o'tkazib yuborildi: ${failText}`
+              : `Nusxalanmadi: ${failText}`,
+        })
+      }
+
+      if (ok.length > 0) {
+        setCopyingModule(null)
+        setCopyTargets([])
+      }
     } catch (err) {
       setNotice({ type: 'error', text: apiErrorMessage(err, 'Xato yuz berdi') })
     } finally {
@@ -235,10 +258,10 @@ export function CurriculumModulesPage() {
                     onClick={(e) => {
                       e.stopPropagation()
                       setCopyingModule(module)
-                      setCopyTarget('')
+                      setCopyTargets([])
                     }}
                     className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-brand-50 hover:text-brand-600"
-                    title="Boshqa dasturga nusxalash"
+                    title="Boshqa dasturlarga nusxalash"
                   >
                     <Copy className="h-4 w-4" />
                   </span>
@@ -310,32 +333,51 @@ export function CurriculumModulesPage() {
             <Button variant="secondary" onClick={() => setCopyingModule(null)} disabled={isCopying}>
               Bekor qilish
             </Button>
-            <Button onClick={doCopyModule} disabled={!copyTarget || isCopying}>
+            <Button onClick={doCopyModule} disabled={copyTargets.length === 0 || isCopying}>
               {isCopying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Copy className="h-4 w-4" />}
-              Nusxalash
+              Nusxalash{copyTargets.length > 0 ? ` (${copyTargets.length})` : ''}
             </Button>
           </>
         }
       >
-        <p className="mb-3 text-xs font-semibold text-slate-500">Maqsadli dasturni tanlang:</p>
+        <div className="mb-3 flex items-center justify-between">
+          <p className="text-xs font-semibold text-slate-500">Maqsadli dasturlarni tanlang:</p>
+          {otherCurricula.length > 0 && (
+            <button
+              type="button"
+              onClick={toggleAllCopyTargets}
+              className="text-xs font-medium text-brand-600 hover:text-brand-700"
+            >
+              {copyTargets.length === otherCurricula.length ? 'Tanlovni bekor qilish' : 'Hammasini tanlash'}
+            </button>
+          )}
+        </div>
         <div className="max-h-64 space-y-2 overflow-y-auto">
           {otherCurricula.length === 0 ? (
             <p className="text-xs text-slate-400">Boshqa dastur yo'q</p>
           ) : (
-            otherCurricula.map((c) => (
-              <button
-                key={c.id}
-                onClick={() => setCopyTarget(c.id)}
-                className={cn(
-                  'w-full rounded-lg border px-3 py-2 text-left text-sm transition-colors',
-                  copyTarget === c.id
-                    ? 'border-brand-400 bg-brand-50 font-medium text-brand-700'
-                    : 'border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50',
-                )}
-              >
-                {c.name}
-              </button>
-            ))
+            otherCurricula.map((c) => {
+              const checked = copyTargets.includes(c.id)
+              return (
+                <label
+                  key={c.id}
+                  className={cn(
+                    'flex w-full cursor-pointer items-center gap-2.5 rounded-lg border px-3 py-2 text-left text-sm transition-colors',
+                    checked
+                      ? 'border-brand-400 bg-brand-50 font-medium text-brand-700'
+                      : 'border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50',
+                  )}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggleCopyTarget(c.id)}
+                    className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-400"
+                  />
+                  <span className="min-w-0 flex-1 truncate">{c.name}</span>
+                </label>
+              )
+            })
           )}
         </div>
       </Modal>
