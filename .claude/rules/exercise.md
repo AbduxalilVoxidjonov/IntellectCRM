@@ -40,11 +40,13 @@ paths:
 
 - **TAXONOMIYA — 8 kategoriya, 25 tur** (`components/exercise/catalog.tsx`, `CATEGORIES`):
   Make sentence (so'z tartibi / audio / rasm / variant tanlash) · Bo'sh joyni to'ldirish (variant /
-  yozish / audio / rasm) · So'z tanlash (oddiy / rasm / audio) · So'z topish (oddiy / rasm / audio) ·
-  Reading (variant / to'g'ri-xato / bo'sh joy / qisqa javob) · Test (rasmli / rasmli variantlar /
-  audio) · Writing & Speaking · Moslashtirish (oddiy / reading / audio). Tur `ExerciseKind`
-  (`model.ts`) — `kindFamily()` tahrirlovchini, `kindMedia()` audio/rasm borligini, `kindTheme()`
-  maketdagi rang sxemasini beradi.
+  yozish / audio / rasm / **audio + rasm**) · So'z tanlash (oddiy / rasm / audio) · So'z topish
+  (oddiy / rasm / audio) · Reading (variant / bo'sh joy / qisqa javob) · Test (rasmli / rasmli
+  variantlar / audio) · Writing & Speaking · Moslashtirish (oddiy / reading / audio).
+  Tur `ExerciseKind` (`model.ts`) — `kindFamily()` tahrirlovchini, `kindMedia()` media rejimini
+  (`none | audio | image | **both**`), `kindTheme()` rang sxemasini beradi. Nom oxiri qoida:
+  `-audio` → audio, `-image` → rasm, `-media` → IKKALASI.
+  DIQQAT: Reading'da "To'g'ri / Xato" turi ATAYIN yo'q (foydalanuvchi talabi bilan olib tashlangan).
 
 - **KOMPONENTLAR** (`src/components/exercise/`, CRM ichida — admin ham, o'quvchi portali ham
   ishlatadi): `model.ts` (ma'lumot modeli + parsing yordamchilari: `___` bo'sh joylar,

@@ -22,6 +22,7 @@ export type ExerciseKind =
   | 'fill-write'
   | 'fill-audio'
   | 'fill-image'
+  | 'fill-media'
   // So'z tanlash
   | 'wordpick-plain'
   | 'wordpick-image'
@@ -32,7 +33,6 @@ export type ExerciseKind =
   | 'wordfind-audio'
   // Reading
   | 'reading-choice'
-  | 'reading-truefalse'
   | 'reading-fill'
   | 'reading-short'
   // Test
@@ -47,8 +47,8 @@ export type ExerciseKind =
   | 'matching-reading'
   | 'matching-audio'
 
-/** Mashqning media ko'rinishi — turdan kelib chiqadi (audio/rasm qo'shiladimi). */
-export type MediaMode = 'none' | 'audio' | 'image'
+/** Mashqning media ko'rinishi — turdan kelib chiqadi: audio, rasm yoki IKKALASI ("both"). */
+export type MediaMode = 'none' | 'audio' | 'image' | 'both'
 
 export interface Option {
   id: string
@@ -232,8 +232,9 @@ export function kindFamily(kind: ExerciseKind) {
   return 'matching' as const
 }
 
-/** Turdagi media rejimi: audio yoki rasm qo'shiladimi. */
+/** Turdagi media rejimi: audio, rasm yoki ikkalasi. */
 export function kindMedia(kind: ExerciseKind): MediaMode {
+  if (kind.endsWith('-media')) return 'both'
   if (kind.endsWith('-audio') || kind === 'sentence-audio') return 'audio'
   if (kind.endsWith('-image') || kind === 'sentence-image') return 'image'
   return 'none'

@@ -26,10 +26,13 @@ function MediaRow({
 }) {
   const media = kindMedia(kind as never)
   if (media === 'none') return null
+  // 'both' — rasm va audio YONMA-YON (bo'sh joy · audio + rasm turi).
   return (
     <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-      {media === 'image' && <ImagePicker url={imageUrl} onChange={onImage} />}
-      {media === 'audio' && <AudioPicker accent={accent} url={audioUrl} name={audioName} onChange={onAudio} />}
+      {(media === 'image' || media === 'both') && <ImagePicker url={imageUrl} onChange={onImage} />}
+      {(media === 'audio' || media === 'both') && (
+        <AudioPicker accent={accent} url={audioUrl} name={audioName} onChange={onAudio} />
+      )}
     </div>
   )
 }

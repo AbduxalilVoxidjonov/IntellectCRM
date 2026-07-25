@@ -56,8 +56,10 @@ export function SentenceEditor({ data, onChange, active, setActive, theme }: Edi
             <WordChips list={words(s.text)} />
             {media !== 'none' && (
               <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                {media === 'image' && <ImagePicker url={s.imageUrl} onChange={(url) => update(s.id, { imageUrl: url })} />}
-                {media === 'audio' && (
+                {(media === 'image' || media === 'both') && (
+                  <ImagePicker url={s.imageUrl} onChange={(url) => update(s.id, { imageUrl: url })} />
+                )}
+                {(media === 'audio' || media === 'both') && (
                   <AudioPicker
                     accent={theme.accent}
                     url={s.audioUrl}

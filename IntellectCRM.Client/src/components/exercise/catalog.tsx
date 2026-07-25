@@ -195,7 +195,7 @@ export function Icon({ name, size = 20, color = '#fff', width = 2 }: { name: str
 
 export type PreviewKind =
   | 'order' | 'audio' | 'image' | 'choice' | 'fill' | 'inline' | 'pool'
-  | 'match' | 'reading' | 'writing' | 'speaking' | 'testimg' | 'testimgopts'
+  | 'match' | 'reading' | 'writing' | 'speaking' | 'testimg' | 'testimgopts' | 'audioimage'
 
 export interface ExerciseType {
   kind: ExerciseKind
@@ -230,12 +230,13 @@ export const CATEGORIES: ExerciseCategory[] = [
     id: 'fill',
     label: "Bo'sh joyni to'ldirish",
     title: "Bo'sh joyni to'ldirish turini tanlang",
-    desc: "Gapdagi bo'sh joyni (___ yoki ···) to'ldirish. To'rt xil turda mavjud.",
+    desc: "Gapdagi bo'sh joyni (___ yoki ···) to'ldirish. Besh xil turda mavjud.",
     types: [
       { kind: 'fill-choose', preview: 'choice', name: 'Variant tanlash', desc: "Bo'sh joyga variantlardan to'g'ri so'zni tanlash.", icon: 'list' },
       { kind: 'fill-write', preview: 'fill', name: "So'z yozish", desc: "Bo'sh joyga to'g'ri so'zni yozib qo'yish.", icon: 'edit' },
       { kind: 'fill-audio', preview: 'audio', name: "Audio bo'yicha", desc: "Audioni tinglab, bo'sh joyni to'ldirish.", icon: 'play' },
       { kind: 'fill-image', preview: 'image', name: "Rasm bo'yicha", desc: "Rasmga qarab, bo'sh joyni to'ldirish.", icon: 'image' },
+      { kind: 'fill-media', preview: 'audioimage', name: 'Audio + rasm', desc: "Ham audio, ham rasm beriladi — ikkalasidan foydalanib bo'sh joyni to'ldirish.", icon: 'grid' },
     ],
   },
   {
@@ -264,10 +265,9 @@ export const CATEGORIES: ExerciseCategory[] = [
     id: 'reading',
     label: 'Reading',
     title: 'Reading turini tanlang',
-    desc: "Matn beriladi, foydalanuvchi o'qib savollarga javob beradi. To'rt xil turda mavjud.",
+    desc: "Matn beriladi, foydalanuvchi o'qib savollarga javob beradi. Uch xil turda mavjud.",
     types: [
       { kind: 'reading-choice', preview: 'reading', name: 'Variant tanlash', desc: "Matn bo'yicha variantlardan to'g'risini tanlash.", icon: 'list' },
-      { kind: 'reading-truefalse', preview: 'reading', name: "To'g'ri / Xato", desc: "Fikr matnga mos yoki nomosligini aniqlash.", icon: 'check' },
       { kind: 'reading-fill', preview: 'reading', name: "Bo'sh joyni to'ldirish", desc: "Matn asosida bo'sh joyni to'ldirish.", icon: 'edit' },
       { kind: 'reading-short', preview: 'reading', name: 'Qisqa javob', desc: "Matn bo'yicha savolga qisqa javob yozish.", icon: 'book' },
     ],
@@ -497,6 +497,27 @@ export function MiniPreview({ preview, kind }: { preview: PreviewKind; kind: Exe
           </div>
         </div>
       )
+    case 'audioimage':
+      return (
+        <div style={{ padding: '12px 13px', display: 'flex', flexDirection: 'column', gap: 9 }}>
+          <div style={{ height: 44, borderRadius: 9, background: 'linear-gradient(135deg,#eef0ff,#fbfaf7)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #e3e4e8' }}>
+            {imgIcon('#8582f0', 20)}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ flex: 'none', width: 24, height: 24, borderRadius: '50%', background: '#5d53cb', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="#fff"><path d="M8 5v14l11-7z" /></svg>
+            </span>
+            <span style={{ display: 'flex', alignItems: 'flex-end', gap: 2.5, height: 16 }}>
+              {[6, 12, 16, 9, 13, 7].map((h, i) => (
+                <span key={i} style={{ width: 2.5, height: h, background: i % 2 === 0 ? '#cfd3ff' : '#5d53cb', borderRadius: 2 }} />
+              ))}
+            </span>
+          </div>
+          <div style={{ fontSize: 11.5, lineHeight: 1.5, color: '#4a4d56' }}>
+            Bu <span style={{ borderBottom: '2px solid #5d53cb', padding: '0 12px', color: 'transparent' }}>x</span> juda qiziqarli
+          </div>
+        </div>
+      )
     case 'testimg':
       return (
         <div style={{ padding: '12px 13px', display: 'flex', flexDirection: 'column', gap: 9 }}>
@@ -575,17 +596,27 @@ export function MiniPreview({ preview, kind }: { preview: PreviewKind; kind: Exe
               <span key={i} style={{ height: 6, width: `${w}%`, borderRadius: 3, background: '#cfd3ff', display: 'inline-block' }} />
             ))}
           </div>
-          <div style={{ fontSize: 11, fontWeight: 600, color: '#4a4d56' }}>How does Ali go to school?</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 11, fontWeight: 600, color: '#5d53cb', background: '#eef0ff', border: '1.3px solid #5d53cb', borderRadius: 7, padding: '5px 8px' }}>
-              <span style={{ width: 9, height: 9, borderRadius: '50%', border: '3px solid #5d53cb', display: 'inline-block' }} />
-              By bus
-            </span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 11, color: '#4a4d56', background: '#fff', border: '1.2px solid #e3e4e8', borderRadius: 7, padding: '5px 8px' }}>
-              <span style={{ width: 9, height: 9, borderRadius: '50%', border: '1.5px solid #cfd3ff', display: 'inline-block' }} />
-              By car
-            </span>
+          <div style={{ fontSize: 11, fontWeight: 600, color: '#4a4d56' }}>
+            {kind === 'reading-fill' ? 'Ali maktabga ___ boradi' : 'How does Ali go to school?'}
           </div>
+          {kind === 'reading-choice' ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 11, fontWeight: 600, color: '#5d53cb', background: '#eef0ff', border: '1.3px solid #5d53cb', borderRadius: 7, padding: '5px 8px' }}>
+                <span style={{ width: 9, height: 9, borderRadius: '50%', border: '3px solid #5d53cb', display: 'inline-block' }} />
+                By bus
+              </span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 11, color: '#4a4d56', background: '#fff', border: '1.2px solid #e3e4e8', borderRadius: 7, padding: '5px 8px' }}>
+                <span style={{ width: 9, height: 9, borderRadius: '50%', border: '1.5px solid #cfd3ff', display: 'inline-block' }} />
+                By car
+              </span>
+            </div>
+          ) : (
+            /* Bo'sh joy / qisqa javob — variant emas, javob maydoni */
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#fbfaf7', border: '1.2px solid #cfd3ff', borderRadius: 8, padding: '7px 9px' }}>
+              <span style={{ fontSize: 11.5, color: '#9aa0aa' }}>javobni yozing…</span>
+              <span style={{ marginLeft: 'auto', width: 1.5, height: 13, background: '#5d53cb', display: 'inline-block' }} />
+            </div>
+          )}
         </div>
       )
     case 'match':

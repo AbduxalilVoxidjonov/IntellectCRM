@@ -63,7 +63,7 @@ export interface CourseItemDetail {
   meta: string
   vocab: VocabEntry[]
   questions: CourseQuestion[]
-  /** Interaktiv mashq turi ("sentence-order", "reading-truefalse", ...) — "exercise" turidagi topshiriqda. */
+  /** Interaktiv mashq turi ("sentence-order", "reading-choice", ...) — "exercise" turidagi topshiriqda. */
   exerciseKind: string
   /** Interaktiv mashq mazmuni (JSON) — konstruktor o'qiydi/yozadi. */
   exerciseJson: string

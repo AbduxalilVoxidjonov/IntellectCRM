@@ -381,7 +381,7 @@ export interface LessonContent {
   meta: string
   vocab: LessonVocab[]
   questions: LessonQuestion[]
-  /** Interaktiv mashq turi ("sentence-order", "reading-truefalse", ...) — "exercise" turida. */
+  /** Interaktiv mashq turi ("sentence-order", "reading-choice", ...) — "exercise" turida. */
   exerciseKind: string
   /** Interaktiv mashq mazmuni (JSON) — o'quvchi shu asosda mashqni ishlaydi. */
   exerciseJson: string

@@ -87,19 +87,28 @@ function Hint({ theme, text }: { theme: Theme; text?: string }) {
 
 function Media({ theme, kind, imageUrl, audioUrl }: { theme: Theme; kind: ExerciseKind; imageUrl?: string; audioUrl?: string }) {
   const media = kindMedia(kind)
-  if (media === 'image') {
-    return (
-      <div style={{ width: '100%', aspectRatio: '16 / 10', borderRadius: 14, overflow: 'hidden', border: `1px solid ${theme.line}`, background: theme.soft, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        {imageUrl ? (
-          <img src={imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-        ) : (
-          <span style={{ fontSize: 13, color: theme.caption }}>Rasm yuklanmagan</span>
-        )}
-      </div>
-    )
-  }
-  if (media === 'audio') return <PlayButton accent={theme.accent} tint={theme.soft} url={audioUrl} />
-  return null
+  if (media === 'none') return null
+
+  const picture = (
+    <div style={{ width: '100%', aspectRatio: '16 / 10', borderRadius: 14, overflow: 'hidden', border: `1px solid ${theme.line}`, background: theme.soft, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      {imageUrl ? (
+        <img src={imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+      ) : (
+        <span style={{ fontSize: 13, color: theme.caption }}>Rasm yuklanmagan</span>
+      )}
+    </div>
+  )
+  const player = <PlayButton accent={theme.accent} tint={theme.soft} url={audioUrl} />
+
+  if (media === 'image') return picture
+  if (media === 'audio') return player
+  // 'both' — avval rasm, ostida audio (masalan "Bo'sh joy · audio + rasm").
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {picture}
+      {player}
+    </div>
+  )
 }
 
 /** Preview/solve pastidagi tugmalar qatori. */

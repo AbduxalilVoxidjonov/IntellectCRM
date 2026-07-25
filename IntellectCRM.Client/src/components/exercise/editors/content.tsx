@@ -22,7 +22,7 @@ export function ReadingEditor({ data, onChange, active, setActive, theme }: Edit
   const reading = data.reading ?? { passage: '', items: [] }
   const items = reading.items
   const isWrite = data.kind === 'reading-fill' || data.kind === 'reading-short'
-  const isTf = data.kind === 'reading-truefalse'
+  const isFill = data.kind === 'reading-fill'
 
   const patch = (next: ReadingItem[]) => onChange({ ...data, reading: { ...reading, items: next } })
   const update = (id: string, fields: Partial<ReadingItem>) => patch(items.map((it) => (it.id === id ? { ...it, ...fields } : it)))
@@ -30,19 +30,7 @@ export function ReadingEditor({ data, onChange, active, setActive, theme }: Edit
   const add = () => {
     const q = draft.trim()
     if (!q) return
-    const id = uid('r')
-    let options: ReadingItem['options'] = []
-    let correctId: string | null = null
-    if (isTf) {
-      const a = uid('t')
-      const b = uid('t')
-      options = [
-        { id: a, text: "To'g'ri" },
-        { id: b, text: 'Xato' },
-      ]
-      correctId = a
-    }
-    patch([...items, { id, q, options, correctId, answer: '' }])
+    patch([...items, { id: uid('r'), q, options: [], correctId: null, answer: '' }])
     setDraft('')
     setActive(items.length)
   }
@@ -89,7 +77,7 @@ export function ReadingEditor({ data, onChange, active, setActive, theme }: Edit
               value={q.q}
               onChange={(e) => update(q.id, { q: e.target.value })}
               onClick={(e) => e.stopPropagation()}
-              placeholder={isTf ? 'Fikrni yozing' : 'Savol matni'}
+              placeholder={isFill ? "Bo'sh joyli gap: Ali maktabga ___ boradi" : 'Savol matni'}
               style={softInput}
             />
 
@@ -101,45 +89,40 @@ export function ReadingEditor({ data, onChange, active, setActive, theme }: Edit
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }} onClick={(e) => e.stopPropagation()}>
-                <MiniLabel>{isTf ? "To'g'ri javobni belgilang" : "Variantlar — to'g'risini belgilang"}</MiniLabel>
+                <MiniLabel>Variantlar — to'g'risini belgilang</MiniLabel>
                 {q.options.map((o) => (
                   <div key={o.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <CorrectDot on={q.correctId === o.id} accent={theme.accent} onClick={() => update(q.id, { correctId: o.id })} />
                     <input
                       value={o.text}
                       onChange={(e) => update(q.id, { options: q.options.map((x) => (x.id === o.id ? { ...x, text: e.target.value } : x)) })}
-                      readOnly={isTf}
                       placeholder="Variant"
-                      style={{ ...optInput, background: isTf ? '#fbfaf7' : '#fff' }}
-                    />
-                    {!isTf && (
-                      <RemoveBtn size={16} onClick={() => update(q.id, { options: q.options.filter((x) => x.id !== o.id), correctId: q.correctId === o.id ? null : q.correctId })} />
-                    )}
-                  </div>
-                ))}
-                {!isTf && (
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <input
-                      value={optDrafts[q.id] ?? ''}
-                      onChange={(e) => setOptDrafts((d) => ({ ...d, [q.id]: e.target.value }))}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault()
-                          addOption(q)
-                        }
-                      }}
-                      placeholder="Yangi variant"
                       style={optInput}
                     />
-                    <button
-                      type="button"
-                      onClick={() => addOption(q)}
-                      style={{ ...sans, background: '#fff', border: `1px solid ${theme.accent}55`, color: theme.accent, fontWeight: 600, fontSize: 13.5, padding: '0 14px', borderRadius: 9, cursor: 'pointer' }}
-                    >
-                      + Qo'shish
-                    </button>
+                    <RemoveBtn size={16} onClick={() => update(q.id, { options: q.options.filter((x) => x.id !== o.id), correctId: q.correctId === o.id ? null : q.correctId })} />
                   </div>
-                )}
+                ))}
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input
+                    value={optDrafts[q.id] ?? ''}
+                    onChange={(e) => setOptDrafts((d) => ({ ...d, [q.id]: e.target.value }))}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        addOption(q)
+                      }
+                    }}
+                    placeholder="Yangi variant"
+                    style={optInput}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => addOption(q)}
+                    style={{ ...sans, background: '#fff', border: `1px solid ${theme.accent}55`, color: theme.accent, fontWeight: 600, fontSize: 13.5, padding: '0 14px', borderRadius: 9, cursor: 'pointer' }}
+                  >
+                    + Qo'shish
+                  </button>
+                </div>
               </div>
             )}
           </ItemCard>
@@ -149,7 +132,7 @@ export function ReadingEditor({ data, onChange, active, setActive, theme }: Edit
 
       <AddPanel
         label="Yangi savol qo'shish"
-        placeholder={isTf ? 'Matnga mos yoki nomos fikrni yozing' : 'Savolni yozing, Enter bosing'}
+        placeholder={isFill ? "Bo'sh joyli gapni yozing (___), Enter bosing" : 'Savolni yozing, Enter bosing'}
         value={draft}
         onChange={setDraft}
         onAdd={add}
