@@ -49,6 +49,9 @@ WORKLOG.md
 DEPLOY.md
 IntellectCRM_TZ.md
 
+# Claude Code lokal sozlamalari (mashinaga xos ruxsat qoidalari) — .claude/skills, .claude/agents git'da qoladi
+.claude/settings.local.json
+
 # Asterisk manba arxivi va lokal yozuvlar (asterisk-local) - git'da saqlanmaydi
 asterisk-local/*.tar.gz
 asterisk-local/recordings/
