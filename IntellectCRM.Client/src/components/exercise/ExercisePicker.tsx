@@ -23,8 +23,9 @@ interface Props {
   subtitle?: string
 }
 
-/** Karta ichidagi mini preview sarlavhasi. */
-function CardHead({ badge, badgeOn }: { badge: string; badgeOn: boolean }) {
+/** Karta ichidagi mini preview sarlavhasi. `badge` — faqat HOLAT uchun (masalan "Tanlangan");
+ *  bo'sh bo'lsa umuman ko'rsatilmaydi (har kartada turgan "Tayyor" yorlig'i olib tashlandi). */
+function CardHead({ badge }: { badge?: string }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 11px', borderBottom: '1px solid #eceef2', background: '#fbfaf7' }}>
       <span style={{ flex: 'none', width: 6, height: 6, borderRadius: '50%', background: UI.accent, display: 'inline-block' }} />
@@ -36,14 +37,16 @@ function CardHead({ badge, badgeOn }: { badge: string; badgeOn: boolean }) {
       >
         Foydalanuvchi ko'rinishi
       </span>
-      <span
-        style={{
-          flex: 'none', whiteSpace: 'nowrap', fontSize: 9.5, fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase',
-          padding: '3px 8px', borderRadius: 20, color: badgeOn ? '#5d53cb' : '#169f65', background: badgeOn ? '#eef0ff' : '#e7f6ee',
-        }}
-      >
-        {badge}
-      </span>
+      {badge && (
+        <span
+          style={{
+            flex: 'none', whiteSpace: 'nowrap', fontSize: 9.5, fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase',
+            padding: '3px 8px', borderRadius: 20, color: UI.accent, background: UI.accentSoft,
+          }}
+        >
+          {badge}
+        </span>
+      )}
     </div>
   )
 }
@@ -185,7 +188,7 @@ export function ExercisePicker({ current, onPick, onPickLegacy, onClose, subtitl
               ? OTHER_CATEGORY.types.map((t) => (
                   <button key={t.lesson} type="button" onClick={() => onPickLegacy?.(t.lesson)} className="dc-tcard" style={cardStyle(false)}>
                     <div style={{ borderRadius: 13, overflow: 'hidden', background: '#fff', border: '1px solid #eceef2', boxShadow: '0 2px 8px -4px rgba(40,30,80,.12)' }}>
-                      <CardHead badge="Oddiy" badgeOn={false} />
+                      <CardHead />
                       <LegacyPreview type={t.lesson} />
                     </div>
                     <CardBody icon={t.icon} name={t.name} desc={t.desc} cta="Yaratishni boshlash" />
@@ -196,7 +199,7 @@ export function ExercisePicker({ current, onPick, onPickLegacy, onClose, subtitl
                   return (
                     <button key={t.kind} type="button" onClick={() => onPick(t.kind)} className="dc-tcard" style={cardStyle(chosen)}>
                       <div style={{ borderRadius: 13, overflow: 'hidden', background: '#fff', border: '1px solid #eceef2', boxShadow: '0 2px 8px -4px rgba(40,30,80,.12)' }}>
-                        <CardHead badge={chosen ? 'Tanlangan' : 'Tayyor'} badgeOn={chosen} />
+                        <CardHead badge={chosen ? 'Tanlangan' : undefined} />
                         <MiniPreview preview={t.preview} kind={t.kind} />
                       </div>
                       <CardBody icon={t.icon} name={t.name} desc={t.desc} cta={chosen ? 'Davom etish' : 'Yaratishni boshlash'} />
