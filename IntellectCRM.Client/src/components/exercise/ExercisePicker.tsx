@@ -7,6 +7,7 @@
  * lug'at, oddiy test). Ular tanlansa oddiy (eski) topshiriq yaratiladi.
  */
 import { Fragment, useEffect, useState } from 'react'
+import type { CSSProperties } from 'react'
 import type { LessonType } from '@/types'
 import type { ExerciseKind } from './model'
 import { CATEGORIES, LegacyPreview, MiniPreview, OTHER_CATEGORY, UI, display, sans, Icon } from './catalog'
@@ -80,6 +81,22 @@ function CardBody({ icon, name, desc, cta }: { icon: string; name: string; desc:
   )
 }
 
+/** Karta ichidagi preview qutisi — kartaning bo'sh balandligini to'ldiradi. */
+const previewBox: CSSProperties = {
+  flex: 1,
+  minHeight: 0,
+  display: 'flex',
+  flexDirection: 'column',
+  borderRadius: 13,
+  overflow: 'hidden',
+  background: '#fff',
+  border: '1px solid #eceef2',
+  boxShadow: '0 2px 8px -4px rgba(40,30,80,.12)',
+}
+
+/** Mini maket — qutining o'rtasida turadi. */
+const previewInner: CSSProperties = { flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }
+
 const cardStyle = (on: boolean) => ({
   display: 'flex' as const,
   flexDirection: 'column' as const,
@@ -88,7 +105,7 @@ const cardStyle = (on: boolean) => ({
   padding: 18,
   position: 'relative' as const,
   overflow: 'hidden' as const,
-  minHeight: 392,
+  minHeight: 'clamp(400px, 47vh, 500px)',
   textAlign: 'left' as const,
   background: '#fff',
   border: `1.5px solid ${on ? UI.accent : UI.line}`,
@@ -129,7 +146,7 @@ export function ExercisePicker({ current, onPick, onPickLegacy, onClose, subtitl
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          width: 'min(1420px,96vw)', maxHeight: '92vh', background: UI.page, borderRadius: 20, overflow: 'hidden',
+          width: 'min(1420px,96vw)', minHeight: 'min(760px,92vh)', maxHeight: '92vh', background: UI.page, borderRadius: 20, overflow: 'hidden',
           display: 'flex', flexDirection: 'column', boxShadow: '0 40px 90px -30px rgba(23,22,31,.7)', ...sans,
         }}
       >
@@ -187,9 +204,11 @@ export function ExercisePicker({ current, onPick, onPickLegacy, onClose, subtitl
             {isOther
               ? OTHER_CATEGORY.types.map((t) => (
                   <button key={t.lesson} type="button" onClick={() => onPickLegacy?.(t.lesson)} className="dc-tcard" style={cardStyle(false)}>
-                    <div style={{ borderRadius: 13, overflow: 'hidden', background: '#fff', border: '1px solid #eceef2', boxShadow: '0 2px 8px -4px rgba(40,30,80,.12)' }}>
+                    <div style={previewBox}>
                       <CardHead />
-                      <LegacyPreview type={t.lesson} />
+                      <div style={previewInner}>
+                        <LegacyPreview type={t.lesson} />
+                      </div>
                     </div>
                     <CardBody icon={t.icon} name={t.name} desc={t.desc} cta="Yaratishni boshlash" />
                   </button>
@@ -198,9 +217,11 @@ export function ExercisePicker({ current, onPick, onPickLegacy, onClose, subtitl
                   const chosen = current === t.kind
                   return (
                     <button key={t.kind} type="button" onClick={() => onPick(t.kind)} className="dc-tcard" style={cardStyle(chosen)}>
-                      <div style={{ borderRadius: 13, overflow: 'hidden', background: '#fff', border: '1px solid #eceef2', boxShadow: '0 2px 8px -4px rgba(40,30,80,.12)' }}>
+                      <div style={previewBox}>
                         <CardHead badge={chosen ? 'Tanlangan' : undefined} />
-                        <MiniPreview preview={t.preview} kind={t.kind} />
+                        <div style={previewInner}>
+                          <MiniPreview preview={t.preview} kind={t.kind} />
+                        </div>
                       </div>
                       <CardBody icon={t.icon} name={t.name} desc={t.desc} cta={chosen ? 'Davom etish' : 'Yaratishni boshlash'} />
                     </button>
