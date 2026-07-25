@@ -185,7 +185,11 @@ export function CurriculumItemsPage() {
 
       <PageHeader
         title={lesson.title}
-        sub={lesson.items.length > 0 ? `${ready} / ${lesson.items.length} topshiriq tayyor` : 'Hali topshiriq yo\'q'}
+        sub={
+          lesson.items.length > 0
+            ? `${lesson.items.length} ta topshiriq yaratilgan · ${ready} tasi tayyor`
+            : "Hali topshiriq yo'q"
+        }
         actions={
           <Button onClick={() => setPicking(true)}>
             <Plus className="h-4 w-4" /> Topshiriq
@@ -219,7 +223,8 @@ export function CurriculumItemsPage() {
                 <tr className="border-b border-slate-100 bg-slate-50/70 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">
                   <th className="w-12 px-4 py-2.5">No</th>
                   <th className="px-2 py-2.5">Nomi</th>
-                  <th className="w-36 px-2 py-2.5">Topshiriq turi</th>
+                  <th className="w-32 px-2 py-2.5">Topshiriqlar soni</th>
+                  <th className="w-44 px-2 py-2.5">Topshiriq turi</th>
                   <th className="w-32 px-2 py-2.5">Yaratilgan sana</th>
                   <th className="w-28 px-4 py-2.5" />
                 </tr>
@@ -246,6 +251,15 @@ export function CurriculumItemsPage() {
                           )}
                           <span className="font-medium text-slate-800">{item.text}</span>
                         </div>
+                      </td>
+                      <td className="px-2 py-2.5">
+                        {item.count > 0 ? (
+                          <span className="inline-flex items-center rounded-lg bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">
+                            {item.count} ta
+                          </span>
+                        ) : (
+                          <span className="text-xs text-slate-300">—</span>
+                        )}
                       </td>
                       <td className="px-2 py-2.5">
                         <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-50 px-2.5 py-1 text-xs font-semibold text-brand-600">

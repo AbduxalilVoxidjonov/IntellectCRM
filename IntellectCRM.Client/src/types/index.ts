@@ -1658,6 +1658,8 @@ export interface CurriculumItem {
   meta: string
   /** Topshiriq kontenti to'liq kiritilganmi (tayyor) */
   ready: boolean
+  /** Topshiriq ICHIDAGI elementlar soni: mashqda gap/savol/juftlik, testda savol, lug'atda so'z. */
+  count: number
   /** Yaratilgan sana-vaqt (ISO) — eski (maydon qo'shilishidan oldingi) topshiriqlar uchun bo'sh */
   createdAt: string
 }

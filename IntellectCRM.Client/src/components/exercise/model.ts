@@ -11,8 +11,6 @@
 
 // ============================ Turlar ============================
 
-export type Lang = 'uz' | 'en' | 'ru'
-
 export type ExerciseKind =
   // Gap tuzish (Make sentence)
   | 'sentence-order'
@@ -195,10 +193,10 @@ export interface MatchingData {
   rows: MatchRow[]
 }
 
-/** Bitta topshiriqda saqlanadigan to'liq mashq. `kind` — tur, qolgani turga mos bo'lim. */
+/** Bitta topshiriqda saqlanadigan to'liq mashq. `kind` — tur, qolgani turga mos bo'lim.
+ *  Til tanlash YO'Q — mashq bitta tilda yoziladi (markaz o'z tilida). */
 export interface ExerciseData {
   kind: ExerciseKind
-  lang: Lang
   sentence?: SentenceData
   sentenceChoice?: SentenceChoiceData
   fill?: FillData
@@ -319,8 +317,8 @@ export function colLetter(i: number): string {
 // ============================ Bo'sh (default) mazmun ============================
 
 /** Tur tanlanganda ochiladigan boshlang'ich mazmun — namuna yozuvsiz, faqat tuzilma. */
-export function emptyExercise(kind: ExerciseKind, lang: Lang = 'uz'): ExerciseData {
-  const base: ExerciseData = { kind, lang }
+export function emptyExercise(kind: ExerciseKind): ExerciseData {
+  const base: ExerciseData = { kind }
   switch (kindFamily(kind)) {
     case 'sentence':
       return { ...base, sentence: { items: [] } }
@@ -364,8 +362,8 @@ export function parseExercise(kind: string, json: string): ExerciseData | null {
     const parsed = JSON.parse(json) as ExerciseData
     if (!parsed || typeof parsed !== 'object') return emptyExercise(k)
     // Tur o'zgargan bo'lsa (masalan boshqa turga almashtirilgan) — bo'sh mazmun.
-    if (parsed.kind !== k) return emptyExercise(k, parsed.lang ?? 'uz')
-    return { ...emptyExercise(k, parsed.lang ?? 'uz'), ...parsed }
+    if (parsed.kind !== k) return emptyExercise(k)
+    return { ...emptyExercise(k), ...parsed }
   } catch {
     return emptyExercise(k)
   }

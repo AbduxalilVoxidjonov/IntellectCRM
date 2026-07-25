@@ -105,7 +105,7 @@ const cardStyle = (on: boolean) => ({
   padding: 18,
   position: 'relative' as const,
   overflow: 'hidden' as const,
-  minHeight: 'clamp(400px, 47vh, 500px)',
+  minHeight: 'clamp(430px, 50vh, 530px)',
   textAlign: 'left' as const,
   background: '#fff',
   border: `1.5px solid ${on ? UI.accent : UI.line}`,
@@ -146,7 +146,7 @@ export function ExercisePicker({ current, onPick, onPickLegacy, onClose, subtitl
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          width: 'min(1420px,96vw)', minHeight: 'min(760px,92vh)', maxHeight: '92vh', background: UI.page, borderRadius: 20, overflow: 'hidden',
+          width: 'min(1420px,96vw)', minHeight: 'min(790px,92vh)', maxHeight: '92vh', background: UI.page, borderRadius: 20, overflow: 'hidden',
           display: 'flex', flexDirection: 'column', boxShadow: '0 40px 90px -30px rgba(23,22,31,.7)', ...sans,
         }}
       >

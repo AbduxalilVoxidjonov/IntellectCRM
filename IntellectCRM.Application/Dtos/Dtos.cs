@@ -1869,9 +1869,11 @@ public record ArchivedRecordDto(
    ko'p-ko'pga (SubjectCurriculum orqali) biriktiriladi ---------- */
 
 /// <summary>Sillabus bandi / TOPSHIRIQ (4-bosqich) — daraxt/jadvalda ko'rsatish uchun (tur + meta +
-/// tayyorlik + yaratilgan sana).</summary>
+/// tayyorlik + yaratilgan sana). <paramref name="Count"/> — topshiriq ICHIDAGI elementlar soni:
+/// mashqda gap/savol/juftlik soni, testda savollar soni, lug'atda so'zlar soni; qolgan turlarda 0.</summary>
 public record CurriculumItemDto(
-    string Id, string Text, string Note, int Order, string Type, string Meta, bool Ready, string CreatedAt);
+    string Id, string Text, string Note, int Order, string Type, string Meta, bool Ready, string CreatedAt,
+    int Count = 0);
 
 /// <summary>Lug'at (vocab) yozuvi: so'z + tarjima.</summary>
 public record VocabEntryDto(string Term, string Meaning);

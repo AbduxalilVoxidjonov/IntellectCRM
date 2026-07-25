@@ -21,8 +21,16 @@ paths:
   · Mashq turi tanlansa → bitta nom so'raladi (`NameModal`, tur nomi bilan oldindan to'ldirilgan) →
     `createItem(..., type="exercise", exerciseKind)` → darhol konstruktorga o'tiladi.
   · "Boshqa" turi tanlansa → eski `BulkAddModal` (tur qulflangan, faqat nomlar) → `createItemsBulk`.
-  Turni keyin ham almashtirish mumkin: jadvaldagi qalam tugmasi (`ItemEditModal`) yoki konstruktordagi
-  "Turni o'zgartirish" (u yerda "Boshqa" tabi ko'rsatilmaydi — mashqdan mashqqa).
+  Konstruktor ichida TUR ALMASHTIRISH va TIL tanlash YO'Q (mashq bitta tilda yoziladi) — tur
+  topshiriq yaratishda tanlanadi; keyin o'zgartirish kerak bo'lsa jadvaldagi qalam tugmasi
+  (`ItemEditModal`) ishlatiladi.
+
+- **TOPSHIRIQLAR RO'YXATI** (`CurriculumItemsPage`): sarlavhada "N ta topshiriq yaratilgan · M tasi
+  tayyor"; jadval ustunlari — **Nomi · Topshiriqlar soni · Topshiriq turi · Yaratilgan sana**.
+  "Topshiriqlar soni" = topshiriq ICHIDAGI elementlar soni (`CurriculumItemDto.Count`): mashqda
+  gap/savol/juftlik, testda savol, lug'atda so'z soni. Server tomonda `CurriculumController.CountFor`
+  + `ExerciseItemCount` — mashq JSON'i turga bog'lanmasdan umumiy tarzda sanaladi
+  (`<oila>.items` / `matching.rows` / writing-speaking `topic`), yangi tur qo'shilsa tegish shart emas.
 
 - **SAQLASH:** `CourseItem.ExerciseKind` (tur, masalan `sentence-order`) + `CourseItem.ExerciseJson`
   (turga mos JSON mazmun) — migratsiya `AddCourseItemExercise`. `SaveItemContentRequest`da bu ikki

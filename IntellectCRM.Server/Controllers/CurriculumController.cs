@@ -149,7 +149,42 @@ public class CurriculumController(AppDbContext db) : ControllerBase
     /// <summary>Topshiriq (CourseItem) → daraxt DTO: tur, meta (test savoli/lug'at so'zi soni),
     /// tayyorlik (o'z turiga mos maydon to'ldirilganmi), yaratilgan sana.</summary>
     private static CurriculumItemDto ToItemDto(CourseItem i, IReadOnlyDictionary<string, int> qCounts) =>
-        new(i.Id, i.Text, i.Note, i.Order, i.Type, MetaFor(i, qCounts), IsReady(i, qCounts), i.CreatedAt);
+        new(i.Id, i.Text, i.Note, i.Order, i.Type, MetaFor(i, qCounts), IsReady(i, qCounts), i.CreatedAt,
+            CountFor(i, qCounts));
+
+    /// <summary>Topshiriq ICHIDAGI elementlar soni (jadvaldagi "Topshiriqlar soni" ustuni):
+    /// mashqda gap/savol/juftlik, testda savol, lug'atda so'z soni. Media/matn turlarida 0.</summary>
+    private static int CountFor(CourseItem i, IReadOnlyDictionary<string, int> qCounts)
+    {
+        if (i.Type == "exercise") return ExerciseItemCount(i.ExerciseJson);
+        if (i.Type == "vocab") return ParseVocab(i.VocabJson).Count;
+        return qCounts.GetValueOrDefault(i.Id, 0);
+    }
+
+    /// <summary>Mashq JSON'idagi elementlar soni. Tuzilma: <c>{ kind, &lt;oila&gt;: { items: [...] } }</c>
+    /// (moslashtirishda <c>rows</c>, writing/speaking'da bitta <c>topic</c>), shuning uchun turga
+    /// bog'lanmasdan umumiy tarzda sanaladi — yangi tur qo'shilganda bu joyni tahrirlash shart emas.</summary>
+    private static int ExerciseItemCount(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return 0;
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.ValueKind != JsonValueKind.Object) return 0;
+            foreach (var prop in doc.RootElement.EnumerateObject())
+            {
+                if (prop.Value.ValueKind != JsonValueKind.Object) continue;
+                if (prop.Value.TryGetProperty("items", out var items) && items.ValueKind == JsonValueKind.Array)
+                    return items.GetArrayLength();
+                if (prop.Value.TryGetProperty("rows", out var rows) && rows.ValueKind == JsonValueKind.Array)
+                    return rows.GetArrayLength();
+                if (prop.Value.TryGetProperty("topic", out var topic) && topic.ValueKind == JsonValueKind.String)
+                    return string.IsNullOrWhiteSpace(topic.GetString()) ? 0 : 1;
+            }
+            return 0;
+        }
+        catch { return 0; }
+    }
 
     private static bool IsReady(CourseItem i, IReadOnlyDictionary<string, int> qCounts) =>
         !string.IsNullOrWhiteSpace(i.VideoUrl) || !string.IsNullOrWhiteSpace(i.TextContent)

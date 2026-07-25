@@ -15,7 +15,7 @@ import {
 } from './kit'
 import { ExercisePlayer } from './players'
 import { emptyExercise, exerciseCount, kindFamily, parseExercise } from './model'
-import type { ExerciseData, ExerciseKind, Lang } from './model'
+import type { ExerciseData, ExerciseKind } from './model'
 import { SentenceChoiceEditor, SentenceEditor } from './editors/sentence'
 import { FillEditor, WordFindEditor, WordPickEditor } from './editors/blanks'
 import { MatchingEditor, ReadingEditor, SpeakingEditor, TestEditor, WritingEditor } from './editors/content'
@@ -84,7 +84,7 @@ export function ExerciseWorkspace({ itemName, initialKind, initialJson, onSave, 
 
   const pick = (kind: ExerciseKind) => {
     // Tur o'zgarsa mazmun ham almashadi (har turning o'z shakli bor).
-    setData((prev) => (prev && prev.kind === kind ? prev : emptyExercise(kind, prev?.lang ?? 'uz')))
+    setData((prev) => (prev && prev.kind === kind ? prev : emptyExercise(kind)))
     setPicking(false)
     setActive(0)
     if (!data || data.kind !== kind) setDirty(true)
@@ -156,8 +156,6 @@ export function ExerciseWorkspace({ itemName, initialKind, initialJson, onSave, 
         title={info?.cat.label ?? 'Mashq'}
         badge={info?.type.name ?? ''}
         desc={info?.type.desc ?? ''}
-        lang={data.lang}
-        onLang={(l: Lang) => change({ ...data, lang: l })}
         extra={
           <>
             {family === 'fill' && data.fill && (
@@ -174,13 +172,6 @@ export function ExerciseWorkspace({ itemName, initialKind, initialJson, onSave, 
                 onChange={(v) => change({ ...data, wordfind: { blank: v, items: data.wordfind?.items ?? [] } })}
               />
             )}
-            <button
-              type="button"
-              onClick={() => setPicking(true)}
-              style={{ ...sans, background: '#fff', border: '1px solid #e3e4e8', color: '#4a4d56', fontWeight: 600, fontSize: 13, padding: '8px 13px', borderRadius: 9, cursor: 'pointer' }}
-            >
-              Turni o'zgartirish
-            </button>
           </>
         }
       />

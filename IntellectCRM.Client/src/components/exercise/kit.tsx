@@ -7,7 +7,6 @@ import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { uploadAdminFile } from '@/api/services/students'
 import { UI, display, sans, Icon } from './catalog'
-import type { Lang } from './model'
 
 // ============================ Umumiy stillar ============================
 
@@ -151,13 +150,11 @@ interface BannerProps {
   title: string
   badge: string
   desc: string
-  lang: Lang
-  onLang: (l: Lang) => void
   /** Qo'shimcha boshqaruv (masalan "Bo'sh joy" tanlagichi). */
   extra?: ReactNode
 }
 
-export function TypeBanner({ accent, icon, title, badge, desc, lang, onLang, extra }: BannerProps) {
+export function TypeBanner({ accent, icon, title, badge, desc, extra }: BannerProps) {
   return (
     <div
       style={{
@@ -182,21 +179,7 @@ export function TypeBanner({ accent, icon, title, badge, desc, lang, onLang, ext
         </div>
         <span style={{ fontSize: 14, color: UI.muted }}>{desc}</span>
       </div>
-      <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>
-        {extra}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 13, color: '#777a82' }}>Til</span>
-          <select
-            value={lang}
-            onChange={(e) => onLang(e.target.value as Lang)}
-            style={{ ...sans, fontSize: 14, fontWeight: 600, color: UI.ink, background: '#fff', border: '1px solid #e3e4e8', borderRadius: 9, padding: '8px 12px', cursor: 'pointer', outline: 'none' }}
-          >
-            <option value="uz">O'zbek</option>
-            <option value="en">English</option>
-            <option value="ru">Русский</option>
-          </select>
-        </div>
-      </div>
+      {extra && <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>{extra}</div>}
     </div>
   )
 }
