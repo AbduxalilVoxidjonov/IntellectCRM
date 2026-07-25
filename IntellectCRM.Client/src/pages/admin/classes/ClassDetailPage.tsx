@@ -389,13 +389,16 @@ export function ClassDetailPage() {
   )
 
   /** Davomat tabidagi jadval — tanlangan oy uchun har o'quvchi davomat foizi (jurnal ma'lumotidan).
-   *  O'tilgan darslar = conductedDates ∩ (sana ≥ memberStart); qoldirgan = sababli (kech kelish MUSTASNO). */
+   *  O'tilgan darslar = conductedDates ∩ (memberStart ≤ sana ≤ frozenAt); qoldirgan = sababli
+   *  (kech kelish MUSTASNO). Muzlatilgandan KEYINGI darslar hisobga olinmaydi — jurnal jadvali
+   *  va o'quvchi portali (StudentAttendanceController memberEnd) bilan bir xil konvensiya. */
   const attendanceRows = useMemo(() => {
     if (!journal) return []
     const conducted = journal.conductedDates ?? []
     return (journal.students ?? []).map((s) => {
       const start = s.memberStart || ''
-      const held = conducted.filter((d) => !start || d >= start)
+      const end = s.frozenAt || ''
+      const held = conducted.filter((d) => (!start || d >= start) && (!end || d <= end))
       let absent = 0
       for (const d of held) {
         const e = entryMap.get(`${s.studentId}|${d}`)
@@ -1058,9 +1061,14 @@ export function ClassDetailPage() {
                                 // qo'yilmaydi (faqat aniq belgilangan e.present yashil bo'ladi). Undan oldingi
                                 // real davomat/baho esa faol o'quvchi kabi ko'rinadi.
                                 const afterFrozen = !!st.frozenAt && c.date > st.frozenAt
+                                // Faol qatorlardagi kabi: guruhga qo'shilishidan (memberStart) yoki guruh
+                                // yaratilishidan oldingi darslar hech qachon avto-"keldi" bo'lmaydi.
+                                const isBeforeStart =
+                                  (!!g.startDate && c.date < g.startDate) || (!!st.memberStart && c.date < st.memberStart)
                                 const present =
                                   e?.grade == null && !reason && conductedSet.has(c.date) &&
-                                  (e?.present || ((!st.presentDefaultFrom || c.date >= st.presentDefaultFrom) && !afterFrozen))
+                                  (e?.present ||
+                                    ((!st.presentDefaultFrom || c.date >= st.presentDefaultFrom) && !afterFrozen && !isBeforeStart))
                                 const masteryInfo = e?.mastery != null ? masteryDisplay(e.mastery) : { label: '', cls: '' }
                                 return (
                                   <td key={c.date} className="border-b border-r border-slate-100 p-1 text-center">
