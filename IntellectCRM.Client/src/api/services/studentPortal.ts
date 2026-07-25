@@ -363,7 +363,7 @@ export async function getStudentGrading(month?: string, studentId?: string) {
 }
 
 // ---------- Dars kontenti (Duolingo node bosilganda) ----------
-export type LessonType = 'text' | 'video' | 'audio' | 'vocab' | 'test' | 'pdf'
+export type LessonType = 'text' | 'video' | 'audio' | 'vocab' | 'test' | 'pdf' | 'exercise'
 export interface LessonVocab { term: string; meaning: string }
 export interface LessonQuestion { id: string; text: string; options: string[]; correctIndex: number }
 export interface LessonContent {
@@ -381,6 +381,10 @@ export interface LessonContent {
   meta: string
   vocab: LessonVocab[]
   questions: LessonQuestion[]
+  /** Interaktiv mashq turi ("sentence-order", "reading-truefalse", ...) — "exercise" turida. */
+  exerciseKind: string
+  /** Interaktiv mashq mazmuni (JSON) — o'quvchi shu asosda mashqni ishlaydi. */
+  exerciseJson: string
 }
 /** Bitta darsning to'liq kontenti (video/matn/audio/lug'at/test). */
 export async function getStudentLesson(itemId: string, studentId?: string) {

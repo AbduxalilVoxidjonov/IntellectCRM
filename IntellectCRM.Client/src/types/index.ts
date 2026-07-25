@@ -1644,8 +1644,8 @@ export interface PortalMeta {
 
 // ===================== O'quv dasturi (curriculum / syllabus) — Kurs(Subject)dan mustaqil =====================
 
-/** Topshiriq turi: matnli / video / audio / lug'at / test / pdf */
-export type LessonType = 'text' | 'video' | 'audio' | 'vocab' | 'test' | 'pdf'
+/** Topshiriq turi: matnli / video / audio / lug'at / test / pdf / interaktiv mashq (konstruktor) */
+export type LessonType = 'text' | 'video' | 'audio' | 'vocab' | 'test' | 'pdf' | 'exercise'
 
 export interface CurriculumItem {
   id: string

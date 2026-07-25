@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/Button'
 import { Loader } from '@/components/ui/Loader'
 import { apiErrorMessage, cn } from '@/lib/utils'
 import { control, typeMeta, genId } from './shared'
+import { ExerciseWorkspace } from '@/components/exercise/ExerciseWorkspace'
 
 /** O'quv dasturi 5-bosqich: bitta topshiriqning to'liq kontent tahrirlovchisi
  *  (video/matn/audio/pdf/lug'at/test — topshiriq yaratishda tanlangan turga mos). */
@@ -36,6 +37,9 @@ export function CurriculumItemEditorPage() {
   const [meta, setMeta] = useState('')
   const [vocab, setVocab] = useState<VocabEntry[]>([])
   const [questions, setQuestions] = useState<CourseQuestion[]>([])
+  /** Interaktiv mashq ("exercise" turi) — konstruktor tanlagan tur va JSON mazmuni. */
+  const [exerciseKind, setExerciseKind] = useState('')
+  const [exerciseJson, setExerciseJson] = useState('')
 
   useEffect(() => {
     setLoading(true)
@@ -52,10 +56,31 @@ export function CurriculumItemEditorPage() {
         setMeta(d.meta)
         setVocab(d.vocab ?? [])
         setQuestions(d.questions ?? [])
+        setExerciseKind(d.exerciseKind ?? '')
+        setExerciseJson(d.exerciseJson ?? '')
       })
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false))
   }, [itemId])
+
+  /** Konstruktordan saqlash — faqat mashq maydonlari yangilanadi (nom o'zgarmaydi). */
+  const saveExercise = async (kind: string, json: string) => {
+    await saveItemContent(itemId, {
+      text: text.trim() || 'Topshiriq',
+      videoUrl,
+      audioUrl,
+      textContent,
+      pdfUrl,
+      pdfName,
+      meta,
+      vocab,
+      questions,
+      exerciseKind: kind,
+      exerciseJson: json,
+    })
+    setExerciseKind(kind)
+    setExerciseJson(json)
+  }
 
   const save = async () => {
     if (saving) return
@@ -103,6 +128,30 @@ export function CurriculumItemEditorPage() {
   }
 
   const tMeta = typeMeta(type)
+
+  // INTERAKTIV MASHQ — o'quv dasturining oxirgi bosqichidagi topshiriq konstruktori: tur tanlash
+  // (8 kategoriya, 25 tur) va turga mos tahrirlovchi + jonli "foydalanuvchi ko'rinishi".
+  if (type === 'exercise') {
+    return (
+      <div>
+        <button
+          type="button"
+          onClick={() => navigate(backUrl)}
+          className="mb-3 inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-700"
+        >
+          <ArrowLeft className="h-4 w-4" /> Topshiriqlarga qaytish
+        </button>
+        <ExerciseWorkspace
+          key={itemId}
+          itemName={text}
+          initialKind={exerciseKind}
+          initialJson={exerciseJson}
+          onSave={saveExercise}
+          onExit={() => navigate(backUrl)}
+        />
+      </div>
+    )
+  }
 
   return (
     <div>

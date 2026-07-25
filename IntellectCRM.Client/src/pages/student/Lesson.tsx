@@ -2,6 +2,9 @@ import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { getStudentLesson, getStudentCurriculum, type LessonContent, type LessonQuestion } from '@/api/services/studentPortal'
 import { Icon } from '@/pages/student/lib'
+import { ExerciseRunner } from '@/components/exercise/players'
+import { parseExercise } from '@/components/exercise/model'
+import { kindTitle } from '@/components/exercise/catalog'
 
 /* ============================================================
    O'quvchi portali — DARS ko'rish (Duolingo node bosilganda ochiladi).
@@ -10,7 +13,7 @@ import { Icon } from '@/pages/student/lib'
    Ko'p kurs bo'lsa, tepada kurs selector ko'rinadi.
    ============================================================ */
 
-type SectionKind = 'video' | 'text' | 'audio' | 'pdf' | 'vocab' | 'test' | 'audiotest'
+type SectionKind = 'video' | 'text' | 'audio' | 'pdf' | 'vocab' | 'test' | 'audiotest' | 'exercise'
 
 const SECTION_LABEL: Record<SectionKind, string> = {
   video: 'Video',
@@ -20,6 +23,7 @@ const SECTION_LABEL: Record<SectionKind, string> = {
   vocab: "Lug'at",
   test: 'Test',
   audiotest: 'Audio test',
+  exercise: 'Mashq',
 }
 const SECTION_ICON: Record<SectionKind, string> = {
   video: 'video',
@@ -29,6 +33,7 @@ const SECTION_ICON: Record<SectionKind, string> = {
   vocab: 'book',
   test: 'checkCircle',
   audiotest: 'checkCircle',
+  exercise: 'checkCircle',
 }
 
 /** Fisher–Yates aralashtirish (nusxada) — savol/variant tartibi har ochilishda har xil. */
@@ -110,6 +115,8 @@ export function StudentLessonScreen() {
     if (lesson.pdfUrl) s.push('pdf')
     if (lesson.vocab.length) s.push('vocab')
     if (hasTest) s.push(hasAudio ? 'audiotest' : 'test')
+    // Interaktiv mashq (topshiriq konstruktorida yaratilgan) — alohida bo'lim.
+    if (lesson.exerciseKind && lesson.exerciseJson) s.push('exercise')
     return s
   }, [lesson])
 
@@ -218,6 +225,7 @@ export function StudentLessonScreen() {
                 {cur === 'vocab' && <VocabBlock lesson={lesson} />}
                 {cur === 'test' && <TestRunner questions={lesson.questions} />}
                 {cur === 'audiotest' && <AudioTestBlock lesson={lesson} />}
+                {cur === 'exercise' && <ExerciseBlock lesson={lesson} />}
               </div>
 
               {/* Navigatsiya: oldingi / keyingi-tugatdim */}
@@ -558,6 +566,46 @@ function TestRunner({ questions }: { questions: LessonQuestion[] }) {
           </div>
         )
       })}
+    </div>
+  )
+}
+
+/* ============================================================
+   INTERAKTIV MASHQ — o'quv dasturi konstruktorida yaratilgan topshiriq
+   (gap tuzish, bo'sh joy, so'z tanlash/topish, reading, test, writing,
+   speaking, moslashtirish). Admin previewi bilan AYNAN bir komponent
+   ishlaydi — `ExerciseRunner`.
+   ============================================================ */
+function ExerciseBlock({ lesson }: { lesson: LessonContent }) {
+  const data = useMemo(
+    () => parseExercise(lesson.exerciseKind, lesson.exerciseJson),
+    [lesson.exerciseKind, lesson.exerciseJson],
+  )
+  const [result, setResult] = useState<{ correct: number; total: number } | null>(null)
+
+  if (!data) {
+    return (
+      <div className="card">
+        <div className="empty">
+          <div className="empty-ic"><Icon name="book" size={28} /></div>
+          <div style={{ fontSize: 15, fontWeight: 800 }}>Mashq hali to'ldirilmagan</div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div className="muted" style={{ fontSize: 12.5, fontWeight: 800 }}>{kindTitle(data.kind)}</div>
+      <ExerciseRunner data={data} frame={false} onDone={(correct, total) => setResult({ correct, total })} />
+      {result && (
+        <div
+          className="card"
+          style={{ textAlign: 'center', fontWeight: 800, fontSize: 15, color: result.correct === result.total ? 'var(--green, #16a34a)' : 'var(--text)' }}
+        >
+          Natija: {result.correct} / {result.total}
+        </div>
+      )}
     </div>
   )
 }

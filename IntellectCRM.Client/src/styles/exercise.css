@@ -1,0 +1,121 @@
+/* ============================================================================
+   TOPSHIRIQ KONSTRUKTORI (o'quv dasturidagi interaktiv mashqlar)
+   Dizayn maketidagi hover/animatsiya effektlari. Barcha qoidalar `.dc-root`
+   ichida — CRM'ning qolgan qismiga ta'sir qilmaydi.
+   ========================================================================== */
+
+.dc-root {
+  font-family: 'Figtree', system-ui, sans-serif;
+  color: #1b1b26;
+}
+
+.dc-root ::placeholder {
+  color: #a7a4b3;
+}
+
+.dc-root input:focus,
+.dc-root select:focus,
+.dc-root textarea:focus {
+  outline: none;
+}
+
+/* Tur tanlash kartalari */
+.dc-root .dc-tcard {
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.dc-root .dc-tcard:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 18px 34px -16px rgba(106, 92, 255, 0.5);
+  border-color: #6a5cff;
+}
+.dc-root .dc-tcard:hover .dc-go {
+  background: #6a5cff;
+  color: #fff;
+}
+
+/* So'z plitkalari (gap tuzish / so'z topish) */
+.dc-root .dc-tile {
+  transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
+}
+.dc-root .dc-tile:hover {
+  transform: translateY(-2px);
+}
+.dc-root .dc-tile:active {
+  transform: translateY(0);
+}
+
+/* Variant tugmalari */
+.dc-root .dc-opt {
+  transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease, border-color 0.12s ease;
+}
+.dc-root .dc-opt:hover {
+  transform: translateY(-2px);
+}
+
+/* Moslashtirish jadvali kataklari */
+.dc-root .dc-cell {
+  transition: background 0.1s ease;
+}
+.dc-root .dc-cell:hover {
+  background: #e8f0ec;
+}
+
+/* Ro'yxat scrollbari */
+.dc-root ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.dc-root ::-webkit-scrollbar-thumb {
+  background: #d6d1c6;
+  border-radius: 4px;
+}
+
+@keyframes dcPop {
+  0% {
+    transform: scale(0.85);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+@keyframes dcSlotIn {
+  0% {
+    transform: translateY(6px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+@keyframes dcPulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.06);
+    opacity: 0.85;
+  }
+}
+
+.dc-root .dc-pop {
+  animation: dcPop 0.18s ease;
+}
+.dc-root .dc-slot-in {
+  animation: dcSlotIn 0.25s ease;
+}
+.dc-root .dc-pulse {
+  animation: dcPulse 1.2s infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dc-root .dc-pop,
+  .dc-root .dc-slot-in,
+  .dc-root .dc-pulse {
+    animation: none;
+  }
+}

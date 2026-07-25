@@ -1877,18 +1877,22 @@ public record CurriculumItemDto(
 public record VocabEntryDto(string Term, string Meaning);
 /// <summary>Test savoli: matn + variantlar + to'g'ri javob indeksi.</summary>
 public record CourseQuestionDto(string Id, string Text, List<string> Options, int CorrectIndex);
-/// <summary>Bitta topshiriqning TO'LIQ kontenti (tahrirlovchi + ko'rish ekrani uchun).</summary>
+/// <summary>Bitta topshiriqning TO'LIQ kontenti (tahrirlovchi + ko'rish ekrani uchun).
+/// <paramref name="ExerciseKind"/>/<paramref name="ExerciseJson"/> — interaktiv mashq ("exercise"
+/// turi): konstruktorda tanlangan tur va uning JSON mazmuni.</summary>
 public record CourseItemDetailDto(
     string Id, string LessonId, string Text, string Note, int Order,
     string Type, string VideoUrl, string AudioUrl, string TextContent,
     string PdfUrl, string PdfName, string Meta,
-    List<VocabEntryDto> Vocab, List<CourseQuestionDto> Questions);
-/// <summary>Topshiriq kontentini saqlash payload'i (nom + kontent + lug'at + test savollari). Type
-/// YO'Q — u topshiriq yaratilganda tanlanadi, bu yerda o'zgartirilmaydi.</summary>
+    List<VocabEntryDto> Vocab, List<CourseQuestionDto> Questions,
+    string ExerciseKind = "", string ExerciseJson = "");
+/// <summary>Topshiriq kontentini saqlash payload'i (nom + kontent + lug'at + test savollari +
+/// interaktiv mashq). Type YO'Q — u topshiriq yaratilganda tanlanadi, bu yerda o'zgartirilmaydi.</summary>
 public record SaveItemContentRequest(
     string Text, string? VideoUrl, string? AudioUrl, string? TextContent,
     string? PdfUrl, string? PdfName, string? Meta,
-    List<VocabEntryDto>? Vocab, List<CourseQuestionDto>? Questions);
+    List<VocabEntryDto>? Vocab, List<CourseQuestionDto>? Questions,
+    string? ExerciseKind = null, string? ExerciseJson = null);
 
 /// <summary>Sillabus darsi (3-bosqich) + uning topshiriqlari (har biri o'z turida).</summary>
 public record CurriculumLessonDto(

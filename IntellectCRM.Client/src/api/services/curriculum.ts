@@ -63,8 +63,13 @@ export interface CourseItemDetail {
   meta: string
   vocab: VocabEntry[]
   questions: CourseQuestion[]
+  /** Interaktiv mashq turi ("sentence-order", "reading-truefalse", ...) — "exercise" turidagi topshiriqda. */
+  exerciseKind: string
+  /** Interaktiv mashq mazmuni (JSON) — konstruktor o'qiydi/yozadi. */
+  exerciseJson: string
 }
-/** MUHIM: `type` yo'q — bu yerda o'zgartirilmaydi (buning uchun `updateItem`). */
+/** MUHIM: `type` yo'q — bu yerda o'zgartirilmaydi (buning uchun `updateItem`).
+ *  `exerciseKind`/`exerciseJson` berilmasa (undefined) — server ularga TEGMAYDI. */
 export interface SaveItemContent {
   text: string
   videoUrl?: string
@@ -75,6 +80,8 @@ export interface SaveItemContent {
   meta?: string
   vocab?: VocabEntry[]
   questions?: CourseQuestion[]
+  exerciseKind?: string
+  exerciseJson?: string
 }
 
 /** Bitta topshiriqning to'liq kontentini o'qish (tahrirlovchi/ko'rish uchun). */

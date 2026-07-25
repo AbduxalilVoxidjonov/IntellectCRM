@@ -1836,8 +1836,9 @@ public class CourseItem
     public string Text { get; set; } = string.Empty;
     public string Note { get; set; } = string.Empty;
     public int Order { get; set; }
-    /// <summary>Topshiriq turi: text | video | audio | vocab | test | pdf — yaratishda tanlanadi,
-    /// keyinchalik ham o'zgartirilishi mumkin.</summary>
+    /// <summary>Topshiriq turi: text | video | audio | vocab | test | pdf | exercise — yaratishda
+    /// tanlanadi, keyinchalik ham o'zgartirilishi mumkin. "exercise" — interaktiv mashq
+    /// (topshiriq konstruktori: gap tuzish, bo'sh joy, reading, matching, writing/speaking...).</summary>
     public string Type { get; set; } = "text";
     /// <summary>Video havolasi (YouTube/mp4) yoki yuklangan fayl URL — "video" dars.</summary>
     public string VideoUrl { get; set; } = string.Empty;
@@ -1851,6 +1852,14 @@ public class CourseItem
     public string PdfName { get; set; } = string.Empty;
     /// <summary>Lug'at ("vocab") — JSON: [{"term":"hello","meaning":"salom"}].</summary>
     public string VocabJson { get; set; } = string.Empty;
+    /// <summary>Interaktiv mashq ("exercise") TURI — topshiriq konstruktorida tanlangan aniq tur,
+    /// masalan "sentence-order", "fill-choose", "reading-truefalse", "matching-audio", "writing".
+    /// Bo'sh = mashq turi hali tanlanmagan (konstruktor tur tanlash ekranini ko'rsatadi).</summary>
+    public string ExerciseKind { get; set; } = string.Empty;
+    /// <summary>Interaktiv mashq MAZMUNI — konstruktor to'ldirgan JSON (tur bo'yicha turlicha:
+    /// gaplar/savollar/variantlar/matn/juftliklar...). Front-end shu JSON'ni o'qib mashqni
+    /// ham tahrirlaydi, ham o'quvchiga ishlatadi.</summary>
+    public string ExerciseJson { get; set; } = string.Empty;
     /// <summary>Qisqa meta yorlig'i (masalan "12 daq"). Test/lug'atda avtomatik sanaladi.</summary>
     public string Meta { get; set; } = string.Empty;
     /// <summary>Yaratilgan sana-vaqt (ISO) — jadval ko'rinishida "Yaratilgan sana" ustuni uchun.

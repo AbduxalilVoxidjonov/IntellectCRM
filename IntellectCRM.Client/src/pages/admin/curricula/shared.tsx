@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
-  Video, FileText, Music, BookOpen, ClipboardCheck, FileType, Trash2, AlertTriangle, Loader2, Plus,
+  Video, FileText, Music, BookOpen, ClipboardCheck, FileType, Blocks, Trash2, AlertTriangle, Loader2, Plus,
 } from 'lucide-react'
 import type { LessonType } from '@/types'
 import { Modal } from '@/components/ui/Modal'
@@ -18,6 +18,8 @@ export const LESSON_TYPES: { type: LessonType; label: string; icon: typeof Video
   { type: 'pdf', label: 'PDF', icon: FileType },
   { type: 'vocab', label: "Lug'at", icon: BookOpen },
   { type: 'test', label: 'Test', icon: ClipboardCheck },
+  // Interaktiv mashq — topshiriq konstruktori (gap tuzish, bo'sh joy, reading, matching, writing...).
+  { type: 'exercise', label: 'Mashq', icon: Blocks },
 ]
 
 export function typeMeta(type: LessonType) {

@@ -1115,7 +1115,7 @@ public class StudentPortalController(
         return new CourseItemDetailDto(
             i.Id, i.LessonId, i.Text, i.Note, i.Order, i.Type,
             i.VideoUrl, i.AudioUrl, i.TextContent, i.PdfUrl, i.PdfName,
-            i.Meta, vocab, qs);
+            i.Meta, vocab, qs, i.ExerciseKind, i.ExerciseJson);
     }
 
     private static List<VocabEntryDto>? TryDeserialize(string json)

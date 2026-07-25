@@ -154,7 +154,12 @@ public class CurriculumController(AppDbContext db) : ControllerBase
     private static bool IsReady(CourseItem i, IReadOnlyDictionary<string, int> qCounts) =>
         !string.IsNullOrWhiteSpace(i.VideoUrl) || !string.IsNullOrWhiteSpace(i.TextContent)
         || !string.IsNullOrWhiteSpace(i.AudioUrl) || !string.IsNullOrWhiteSpace(i.PdfUrl)
-        || ParseVocab(i.VocabJson).Count > 0 || qCounts.GetValueOrDefault(i.Id, 0) > 0;
+        || ParseVocab(i.VocabJson).Count > 0 || qCounts.GetValueOrDefault(i.Id, 0) > 0
+        || ExerciseFilled(i);
+
+    /// <summary>Interaktiv mashq to'ldirilganmi: tur tanlangan VA mazmuni bo'sh emas.</summary>
+    private static bool ExerciseFilled(CourseItem i) =>
+        !string.IsNullOrWhiteSpace(i.ExerciseKind) && !string.IsNullOrWhiteSpace(i.ExerciseJson);
 
     private static string MetaFor(CourseItem i, IReadOnlyDictionary<string, int> qCounts)
     {
@@ -168,10 +173,44 @@ public class CurriculumController(AppDbContext db) : ControllerBase
         if (!string.IsNullOrWhiteSpace(i.PdfUrl)) sections.Add("PDF");
         if (vocabCount > 0) sections.Add("Lug'at");
         if (qc > 0) sections.Add("Test");
+        if (ExerciseFilled(i)) sections.Add(ExerciseLabel(i.ExerciseKind));
         return string.Join(" · ", sections);
     }
 
-    private static readonly string[] AllowedTypes = { "text", "video", "audio", "vocab", "test", "pdf" };
+    /// <summary>Mashq turining o'zbekcha nomi (daraxt/jadvaldagi meta yorlig'i uchun). Front-end
+    /// katalogi (<c>exercise/catalog.ts</c>) bilan bir xil nomlar.</summary>
+    private static string ExerciseLabel(string kind) => kind switch
+    {
+        "sentence-order" => "Gap tuzish · so'z tartibi",
+        "sentence-audio" => "Gap tuzish · audio",
+        "sentence-image" => "Gap tuzish · rasm",
+        "sentence-choice" => "Gap tuzish · variant",
+        "fill-choose" => "Bo'sh joy · variant",
+        "fill-write" => "Bo'sh joy · yozish",
+        "fill-audio" => "Bo'sh joy · audio",
+        "fill-image" => "Bo'sh joy · rasm",
+        "wordpick-plain" => "So'z tanlash",
+        "wordpick-image" => "So'z tanlash · rasm",
+        "wordpick-audio" => "So'z tanlash · audio",
+        "wordfind-plain" => "So'z topish",
+        "wordfind-image" => "So'z topish · rasm",
+        "wordfind-audio" => "So'z topish · audio",
+        "reading-choice" => "Reading · variant",
+        "reading-truefalse" => "Reading · to'g'ri/xato",
+        "reading-fill" => "Reading · bo'sh joy",
+        "reading-short" => "Reading · qisqa javob",
+        "test-image" => "Test · rasmli",
+        "test-imageopts" => "Test · rasmli variantlar",
+        "test-audio" => "Test · audio",
+        "writing" => "Writing",
+        "speaking" => "Speaking",
+        "matching-plain" => "Moslashtirish",
+        "matching-reading" => "Moslashtirish · reading",
+        "matching-audio" => "Moslashtirish · audio",
+        _ => "Mashq",
+    };
+
+    private static readonly string[] AllowedTypes = { "text", "video", "audio", "vocab", "test", "pdf", "exercise" };
     private static string NormalizeType(string? t) => t is not null && AllowedTypes.Contains(t) ? t : "text";
     private static List<VocabEntryDto> ParseVocab(string? json)
     {
@@ -443,7 +482,7 @@ public class CurriculumController(AppDbContext db) : ControllerBase
         return new CourseItemDetailDto(
             i.Id, i.LessonId, i.Text, i.Note, i.Order, i.Type,
             i.VideoUrl, i.AudioUrl, i.TextContent, i.PdfUrl, i.PdfName,
-            i.Meta, ParseVocab(i.VocabJson), qs);
+            i.Meta, ParseVocab(i.VocabJson), qs, i.ExerciseKind, i.ExerciseJson);
     }
 
     /// <summary>Topshiriq kontentini saqlash: nom + (video/matn/audio/lug'at) + test savollari
@@ -478,6 +517,11 @@ public class CurriculumController(AppDbContext db) : ControllerBase
                 CorrectIndex = q.CorrectIndex,
                 Order = order++,
             });
+
+        // Interaktiv mashq (topshiriq konstruktori): tur + JSON mazmun. null berilsa — tegilmaydi
+        // (boshqa turdagi topshiriqni saqlash mashq mazmunini o'chirib yubormasin).
+        if (req.ExerciseKind is not null) item.ExerciseKind = req.ExerciseKind.Trim();
+        if (req.ExerciseJson is not null) item.ExerciseJson = req.ExerciseJson;
 
         // Meta — foydalanuvchi erkin yorlig'i (masalan "12 daq"); bo'sh bo'lsa daraxtda
         // bo'limlar ro'yxati avtomatik ko'rsatiladi (MetaFor).
