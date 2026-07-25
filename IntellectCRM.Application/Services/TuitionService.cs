@@ -500,6 +500,95 @@ public static class TuitionService
     }
 
     /// <summary>
+    /// GURUH ALMASHTIRISHDA AVANSNI KO'CHIRISH. Muammo: o'quvchi oy boshida ESKI guruhga to'lab, keyin
+    /// yangi guruhga o'tkazilsa — muzlatish qisman hisobi eski guruh hisobini (masalan oy boshidan
+    /// muzlatilsa) deyarli nolga tushiradi, lekin PUL o'sha eski guruhga TEGLANGAN bo'lib qoladi.
+    /// Natijada per-guruh balansda: eski guruh AVANS (yashil), yangi guruh esa to'liq QARZ (qizil) —
+    /// o'quvchi to'lagan bo'lsa ham yangi o'qituvchida "qarzdor" ko'rinadi.
+    /// <para>Bu metod eski guruhda ORTIB QOLGAN summani (to'langan − hisoblangan, oy bo'yicha) yangi
+    /// guruhga qayta teglaydi: to'lov to'liq ortiqcha bo'lsa <c>GroupId</c> almashtiriladi, qisman
+    /// bo'lsa tranzaksiya ikkiga bo'linadi (asl yozuv kamayadi + yangi guruhga yangi yozuv). Umumiy
+    /// pul miqdori, o'quvchi balansi va kassa hisobotlari O'ZGARMAYDI — faqat guruh tegi o'zgaradi
+    /// (shu sabab o'qituvchining foizli maoshi ham to'g'ri guruhga o'tadi).</para>
+    /// <para>Faqat <paramref name="fromMonth"/> (muzlatish oyi) va undan KEYINGI oylar ko'chiriladi —
+    /// o'tgan oylardagi avans eski guruh tarixida qoladi. Vozvrat qilingan summa (expense+refund)
+    /// ortiqchadan ayriladi. SaveChanges — chaqiruvchida. Qaytaradi: ko'chirilgan jami summa.</para>
+    /// </summary>
+    public static async Task<decimal> CarryGroupAdvanceAsync(
+        IAppDbContext db, Student s, Group fromGroup, Group toGroup, string fromMonth)
+    {
+        if (fromMonth.Length < 7 || fromGroup.Id == toGroup.Id) return 0m;
+        var month0 = fromMonth[..7];
+
+        // Eski guruhda shu oydan boshlab HISOBLANGAN (chegirmadan keyin) summa — oy bo'yicha.
+        var owedByMonth = (await db.MonthlyCharges
+                .Where(c => c.StudentId == s.Id && c.GroupId == fromGroup.Id)
+                .ToListAsync())
+            .Where(c => c.Month.Length >= 7 && string.CompareOrdinal(c.Month[..7], month0) >= 0)
+            .GroupBy(c => c.Month[..7])
+            .ToDictionary(g => g.Key, g => g.Sum(c => Math.Max(0m, c.Amount - c.Discount)));
+
+        // Eski guruhga teglangan to'lovlar va vozvratlar (shu oydan boshlab).
+        var movements = (await db.FinanceTransactions
+                .Where(t => t.StudentId == s.Id && t.GroupId == fromGroup.Id && t.Month != null
+                            && ((t.Direction == "income" && t.Category == "tuition")
+                                || (t.Direction == "expense" && t.Category == "refund")))
+                .ToListAsync())
+            .Where(t => t.Month!.Length >= 7 && string.CompareOrdinal(t.Month![..7], month0) >= 0)
+            .ToList();
+        if (movements.Count == 0) return 0m;
+
+        var moved = 0m;
+        foreach (var byMonth in movements.GroupBy(t => t.Month![..7]))
+        {
+            var paid = byMonth.Where(t => t.Direction == "income").Sum(t => t.Amount);
+            var refunded = byMonth.Where(t => t.Direction == "expense").Sum(t => t.Amount);
+            var surplus = paid - refunded - owedByMonth.GetValueOrDefault(byMonth.Key, 0m);
+            if (surplus <= 0m) continue;
+
+            // Ortiqchani eng OXIRGI to'lovdan boshlab ko'chiramiz (oxirgi to'lov yangi davr uchun
+            // qilingan bo'lish ehtimoli yuqori).
+            var mark = $"[guruh almashtirildi: {fromGroup.Name} → {toGroup.Name}]";
+            var remaining = surplus;
+            foreach (var tx in byMonth.Where(t => t.Direction == "income")
+                         .OrderByDescending(t => t.Date).ThenByDescending(t => t.CreatedAt))
+            {
+                if (remaining <= 0m) break;
+                var take = Math.Min(remaining, tx.Amount);
+                if (take >= tx.Amount)
+                {
+                    // To'lov to'liq ortiqcha — butunicha yangi guruhga teglanadi.
+                    tx.GroupId = toGroup.Id;
+                    tx.Note = $"{tx.Note} {mark}".Trim();
+                }
+                else
+                {
+                    // Qisman ortiqcha — to'lov ikkiga bo'linadi (asl yozuv eski guruhda kamayadi).
+                    tx.Amount -= take;
+                    tx.Note = $"{tx.Note} [{AuditService.Money(take)} so'm {toGroup.Name} guruhiga ko'chirildi]".Trim();
+                    db.FinanceTransactions.Add(new FinanceTransaction
+                    {
+                        Date = tx.Date,
+                        Direction = tx.Direction,
+                        Category = tx.Category,
+                        Amount = take,
+                        StudentId = tx.StudentId,
+                        GroupId = toGroup.Id,
+                        Month = tx.Month,
+                        Method = tx.Method,
+                        Comment = tx.Comment,
+                        CreatedBy = tx.CreatedBy,
+                        Note = $"O'quvchi to'lovi ({tx.Month}) [{toGroup.Name}] {mark}",
+                    });
+                }
+                remaining -= take;
+                moved += take;
+            }
+        }
+        return moved;
+    }
+
+    /// <summary>
     /// Hisoblanishi kerak bo'lgan BARCHA oylarni (eng erta o'quvchi kelgan oydan / o'quv yili
     /// boshidan — qaysi biri ertaroq — joriy oygacha) to'ldiradi. Har oy uchun
     /// <see cref="AccrueMonth"/> chaqiriladi: u idempotent (allaqachon hisoblangan o'quvchini

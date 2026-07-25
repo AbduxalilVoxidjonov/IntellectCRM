@@ -173,7 +173,9 @@ export function TransferGroupModal({ open, onClose, studentId, studentName, from
         <p className="text-xs text-slate-400">
           Saqlanganda: eski guruhda shu sanagacha qatnashgan darslar uchun qisman to'lov hisoblanib
           a'zolik muzlatiladi; yangi guruhda esa shu sanadan qisman oylik hisoblanib darhol
-          aktivlashtiriladi.
+          aktivlashtiriladi. O'quvchi shu oy uchun eski guruhga allaqachon to'lagan bo'lsa —
+          ortib qolgan summa avtomatik YANGI guruhga o'tkaziladi (to'lagan o'quvchi yangi guruhda
+          qarzdor bo'lib ko'rinmasligi uchun).
         </p>
       </div>
     </Modal>

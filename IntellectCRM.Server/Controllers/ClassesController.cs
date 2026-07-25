@@ -482,7 +482,9 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
     /// <summary>A'zolikni AKTIVLASHTIRISH (sinov → faol). Birinchi (qisman) oy to'lovi avtomatik hisoblanadi:
     /// oyning birinchi darsidan / 12+ dars qolgan bo'lsa to'liq oylik, aks holda qolgan dars × kursning bir
     /// dars yaxlit narxi (LessonPrice); to'liq oylikdan oshmaydi; chegirma qo'llanadi. Keyingi to'liq oylar
-    /// oddiy oylik hisob (AccrueMonth) orqali. TRANSACTION: race condition oldini olish uchun atomik read-modify-write.</summary>
+    /// oddiy oylik hisob (AccrueMonth) orqali. TRANSACTION: race condition oldini olish uchun atomik read-modify-write.
+    /// <para>Shu OYDA boshqa guruhda muzlatilgan a'zolik bo'lsa (qo'lda guruh almashtirish), o'sha guruhda
+    /// ORTIB QOLGAN to'lov shu guruhga ko'chiriladi — <see cref="TuitionService.CarryGroupAdvanceAsync"/>.</para></summary>
     [HttpPost("{id}/members/{studentId}/activate")]
     public async Task<IActionResult> ActivateMember(string id, string studentId, MembershipStatusRequest req)
     {
@@ -520,9 +522,34 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
             if (s is not null)
                 await TuitionService.ChargeActivationProrateAsync(db, s, cls, date, addSegment: reactivateFromFreeze);
 
+            // AVANSNI KO'CHIRISH (guruh almashtirish QO'LDA bajarilganda): o'quvchi SHU OYDA boshqa guruhda
+            // muzlatilgan bo'lib, o'sha guruhga to'lagan puli muzlatish hisobidan ORTIB QOLGAN bo'lsa — u shu
+            // yangi guruhga o'tadi. Aks holda to'lagan o'quvchi yangi guruhda "qarzdor" (qizil) ko'rinardi.
+            // Faqat AYNAN SHU OYDA muzlatilgan a'zolik (ya'ni guruh almashtirish belgisi) hisobga olinadi —
+            // ilgari muzlatilgan (masalan ta'tildagi) a'zolikning avansi tegilmaydi.
+            var movedAdvance = 0m;
+            if (s is not null && date.Length >= 7)
+            {
+                var month = date[..7];
+                var frozen = await db.StudentGroups
+                    .Where(x => x.StudentId == studentId && x.GroupId != id && x.Status == "frozen")
+                    .ToListAsync();
+                foreach (var fz in frozen.Where(x => x.FrozenAt.Length >= 7 && x.FrozenAt[..7] == month))
+                {
+                    var fromGroup = await db.Classes.FindAsync(fz.GroupId);
+                    if (fromGroup is null) continue;
+                    var carried = await TuitionService.CarryGroupAdvanceAsync(db, s, fromGroup, cls, month);
+                    if (carried <= 0) continue;
+                    movedAdvance += carried;
+                    audit.Record("Membership", $"{id}:{studentId}", "update",
+                        $"To'lov guruhi ko'chirildi: {fromGroup.Name} → {cls.Name} — {AuditService.Money(carried)} so'm ({month})",
+                        studentId: studentId);
+                }
+            }
+
             await db.SaveChangesAsync();
 
-            return Ok(new { ok = true });
+            return Ok(new { ok = true, movedAdvance });
         }
         catch (Exception ex)
         {
@@ -650,17 +677,25 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
         toSg.FrozenAt = string.Empty;
         await TuitionService.ChargeActivationProrateAsync(db, s, toGroup, activateDate);
 
+        // 4) AVANSNI KO'CHIRISH: o'quvchi shu oy uchun ESKI guruhga allaqachon to'lagan bo'lsa, muzlatish
+        //    qisman hisobidan ORTIB QOLGAN summa yangi guruhga qayta teglanadi. Aks holda to'lagan o'quvchi
+        //    yangi guruhda "qarzdor" (qizil) bo'lib ko'rinardi, puli esa eski guruhda avans bo'lib qolardi.
+        var movedAdvance = freezeDate.Length >= 7
+            ? await TuitionService.CarryGroupAdvanceAsync(db, s, fromGroup, toGroup, freezeDate[..7])
+            : 0m;
+
         // Eski (single-class) ko'rinishlar uchun asosiy guruh nomini ko'chiramiz.
         if (s.ClassName == fromGroup.Name) s.ClassName = toGroup.Name;
 
         var reason = await ReasonLabelAsync(req.ReasonId);
         audit.Record("Membership", $"{id}:{studentId}", "update",
             $"Guruh almashtirildi: {fromGroup.Name} → {toGroup.Name} (muzlatish {freezeDate}, aktivlashtirish {activateDate})"
+                + (movedAdvance > 0 ? $" — {AuditService.Money(movedAdvance)} so'm to'lov yangi guruhga ko'chirildi" : "")
                 + (reason.Length > 0 ? $" — sabab: {reason}" : ""),
             studentId: studentId);
 
         await db.SaveChangesAsync();
-        return Ok(new { ok = true });
+        return Ok(new { ok = true, movedAdvance });
     }
 
     /// <summary>O'quvchining barcha guruh a'zoliklari (faol + o'tgan) — kurs/o'qituvchi/holat/narx/jadval bilan (kartalar uchun).</summary>
