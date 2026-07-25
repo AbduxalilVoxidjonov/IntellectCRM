@@ -61,10 +61,10 @@ function Head({ theme, progress, label, caption }: { theme: Theme; progress: num
             <path d="M15 18l-6-6 6-6" />
           </svg>
         </div>
-        <div style={{ flex: 1, height: 8, borderRadius: 4, background: '#eeecf6', overflow: 'hidden' }}>
+        <div style={{ flex: 1, height: 8, borderRadius: 4, background: '#f7f5f1', overflow: 'hidden' }}>
           <div style={{ width: `${Math.max(0, Math.min(100, progress))}%`, height: '100%', background: theme.accent, borderRadius: 4, transition: 'width .2s ease' }} />
         </div>
-        <span style={{ fontSize: 12, fontWeight: 600, color: '#b3adc6' }}>{label}</span>
+        <span style={{ fontSize: 12, fontWeight: 600, color: '#9aa0aa' }}>{label}</span>
       </div>
       <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: '.03em', textTransform: 'uppercase', color: theme.caption }}>{caption}</div>
     </div>
@@ -80,7 +80,7 @@ function Hint({ theme, text }: { theme: Theme; text?: string }) {
         <circle cx="12" cy="12" r="9" />
         <path d="M12 8h.01M11 12h1v4h1" />
       </svg>
-      <span style={{ fontSize: 14, color: '#5f5a78', fontStyle: 'italic' }}>{text}</span>
+      <span style={{ fontSize: 14, color: '#4a4d56', fontStyle: 'italic' }}>{text}</span>
     </div>
   )
 }
@@ -122,7 +122,7 @@ function Actions({
         type="button"
         onClick={onReset}
         title="Qayta boshlash"
-        style={{ ...sans, flex: 'none', background: theme.line, border: 'none', color: '#7a7590', fontWeight: 600, fontSize: 15, padding: '14px 16px', borderRadius: 13, cursor: 'pointer' }}
+        style={{ ...sans, flex: 'none', background: theme.line, border: 'none', color: '#4a4d56', fontWeight: 600, fontSize: 15, padding: '14px 16px', borderRadius: 13, cursor: 'pointer' }}
       >
         ↺
       </button>
@@ -131,7 +131,7 @@ function Actions({
         onClick={showNext ? onNext : onCheck}
         disabled={disabled && !showNext}
         style={{
-          ...sans, flex: 1, background: disabled && !showNext ? '#d9d5e6' : theme.accent, border: 'none', color: '#fff',
+          ...sans, flex: 1, background: disabled && !showNext ? '#9aa0aa' : theme.accent, border: 'none', color: '#fff',
           fontWeight: 700, fontSize: 15, padding: '14px 16px', borderRadius: 13, cursor: disabled && !showNext ? 'default' : 'pointer',
         }}
       >
@@ -217,7 +217,7 @@ function SentencePlayer(props: InnerProps) {
               {correct[wi]}
             </button>
           ))}
-          {placed.length === 0 && <span style={{ fontSize: 14, color: '#c3bed4', padding: '8px 2px' }}>So'zlarni bu yerga terib chiqing…</span>}
+          {placed.length === 0 && <span style={{ fontSize: 14, color: '#cfd3ff', padding: '8px 2px' }}>So'zlarni bu yerga terib chiqing…</span>}
         </div>
 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 9, flex: 1, alignContent: 'flex-start' }}>
@@ -229,13 +229,13 @@ function SentencePlayer(props: InnerProps) {
                 type="button"
                 className="dc-tile"
                 onClick={() => setPlaced((p) => [...p, b.i])}
-                style={{ background: '#fff', border: '1.5px solid #e2def0', color: '#3a3552', borderRadius: 11, padding: '11px 15px', ...sans, fontSize: 16, fontWeight: 600, cursor: 'pointer', boxShadow: '0 2px 5px -2px rgba(40,30,80,.15)' }}
+                style={{ background: '#fff', border: '1.5px solid #e3e4e8', color: '#4a4d56', borderRadius: 11, padding: '11px 15px', ...sans, fontSize: 16, fontWeight: 600, cursor: 'pointer', boxShadow: '0 2px 5px -2px rgba(40,30,80,.15)' }}
               >
                 {b.w}
               </button>
             ))}
           {placed.length === bank.length && bank.length > 0 && (
-            <span style={{ fontSize: 14, color: '#c3bed4', padding: '8px 2px' }}>Barcha so'zlar ishlatildi</span>
+            <span style={{ fontSize: 14, color: '#cfd3ff', padding: '8px 2px' }}>Barcha so'zlar ishlatildi</span>
           )}
         </div>
 
@@ -265,7 +265,7 @@ function SentenceChoicePlayer(props: InnerProps) {
       <div style={bodyStyle}>
         <div style={{ background: theme.soft, borderRadius: 12, padding: '12px 14px' }}>
           <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: theme.caption, marginBottom: 4 }}>Savol</div>
-          <div style={{ fontSize: 17, fontWeight: 600, color: '#22303f' }}>{item.prompt}</div>
+          <div style={{ fontSize: 17, fontWeight: 600, color: '#181a22' }}>{item.prompt}</div>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -285,12 +285,12 @@ function SentenceChoicePlayer(props: InnerProps) {
                 style={{
                   display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left', ...sans, fontSize: 15,
                   fontWeight: on || isRight ? 600 : 500, borderRadius: 13, padding: '13px 14px', cursor: 'pointer',
-                  background: isRight ? '#e6f6ec' : isWrong ? '#fdeaea' : on ? theme.soft : '#fff',
-                  border: `1.5px solid ${isRight ? '#1f9d55' : isWrong ? '#d64545' : on ? theme.accent : '#e6e2f2'}`,
-                  color: '#3a3552',
+                  background: isRight ? '#e7f6ee' : isWrong ? '#fdecec' : on ? theme.soft : '#fff',
+                  border: `1.5px solid ${isRight ? '#169f65' : isWrong ? '#de3b3d' : on ? theme.accent : '#e3e4e8'}`,
+                  color: '#4a4d56',
                 }}
               >
-                <span style={{ width: 14, height: 14, borderRadius: '50%', flex: 'none', border: on ? `4px solid ${theme.accent}` : '1.5px solid #cfc8e0' }} />
+                <span style={{ width: 14, height: 14, borderRadius: '50%', flex: 'none', border: on ? `4px solid ${theme.accent}` : '1.5px solid #cfd3ff' }} />
                 {o.text}
               </button>
             )
@@ -347,7 +347,7 @@ function FillPlayer(props: InnerProps) {
         <Media theme={theme} kind={data.kind} imageUrl={item.imageUrl} audioUrl={item.audioUrl} />
         <Hint theme={theme} text={item.translation} />
 
-        <div style={{ fontSize: 19, lineHeight: 1.9, fontWeight: 500, color: '#22303f' }}>
+        <div style={{ fontSize: 19, lineHeight: 1.9, fontWeight: 500, color: '#181a22' }}>
           {parts.map((p, i) => (
             <span key={i}>
               {p}
@@ -355,7 +355,7 @@ function FillPlayer(props: InnerProps) {
                 <span
                   style={{
                     display: 'inline-block', minWidth: 74, textAlign: 'center', margin: '0 4px', fontWeight: 700,
-                    color: filledText ? theme.accent : '#c3bed4',
+                    color: filledText ? theme.accent : '#cfd3ff',
                     borderBottom: `2px solid ${theme.accent}`,
                   }}
                 >
@@ -383,12 +383,12 @@ function FillPlayer(props: InnerProps) {
                   }}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left', ...sans, fontSize: 15, fontWeight: 600,
-                    borderRadius: 13, padding: '13px 14px', cursor: 'pointer', color: '#22303f',
-                    background: isRight ? '#e6f6ec' : isWrong ? '#fdeaea' : on ? theme.soft : '#fff',
-                    border: `1.5px solid ${isRight ? '#1f9d55' : isWrong ? '#d64545' : on ? theme.accent : '#e2e8f0'}`,
+                    borderRadius: 13, padding: '13px 14px', cursor: 'pointer', color: '#181a22',
+                    background: isRight ? '#e7f6ee' : isWrong ? '#fdecec' : on ? theme.soft : '#fff',
+                    border: `1.5px solid ${isRight ? '#169f65' : isWrong ? '#de3b3d' : on ? theme.accent : '#e3e4e8'}`,
                   }}
                 >
-                  <span style={{ width: 13, height: 13, borderRadius: '50%', flex: 'none', border: on ? `4px solid ${theme.accent}` : '1.5px solid #cbd5e1' }} />
+                  <span style={{ width: 13, height: 13, borderRadius: '50%', flex: 'none', border: on ? `4px solid ${theme.accent}` : '1.5px solid #cfd3ff' }} />
                   {o.text}
                 </button>
               )
@@ -405,7 +405,7 @@ function FillPlayer(props: InnerProps) {
               if (e.key === 'Enter') check()
             }}
             placeholder="Javobni yozing…"
-            style={{ ...sans, width: '100%', fontSize: 17, fontWeight: 600, color: '#1c2b3f', background: theme.phone, border: `1.6px solid ${theme.phoneBorder}`, borderRadius: 13, padding: '14px 16px', outline: 'none' }}
+            style={{ ...sans, width: '100%', fontSize: 17, fontWeight: 600, color: '#181a22', background: theme.phone, border: `1.6px solid ${theme.phoneBorder}`, borderRadius: 13, padding: '14px 16px', outline: 'none' }}
           />
         )}
 
@@ -451,7 +451,7 @@ function WordPickPlayer(props: InnerProps) {
         <Media theme={theme} kind={data.kind} imageUrl={item.imageUrl} audioUrl={item.audioUrl} />
         <Hint theme={theme} text={item.translation} />
 
-        <div style={{ fontSize: 18, lineHeight: 2.5, color: '#22303f' }}>
+        <div style={{ fontSize: 18, lineHeight: 2.5, color: '#181a22' }}>
           {tokens.map((t, i) =>
             t.kind === 'text' ? (
               <span key={i}>{t.text}</span>
@@ -474,9 +474,9 @@ function WordPickPlayer(props: InnerProps) {
                       }}
                       style={{
                         ...sans, fontSize: 15, fontWeight: 700, borderRadius: 9, padding: '5px 12px', cursor: 'pointer',
-                        background: good ? '#1f9d55' : bad ? '#d64545' : on ? theme.accent : '#fff',
-                        border: `1.5px solid ${good ? '#1f9d55' : bad ? '#d64545' : on ? theme.accent : theme.phoneBorder}`,
-                        color: good || bad || on ? '#fff' : '#4a635f',
+                        background: good ? '#169f65' : bad ? '#de3b3d' : on ? theme.accent : '#fff',
+                        border: `1.5px solid ${good ? '#169f65' : bad ? '#de3b3d' : on ? theme.accent : theme.phoneBorder}`,
+                        color: good || bad || on ? '#fff' : '#4a4d56',
                       }}
                     >
                       {o.text}
@@ -538,7 +538,7 @@ function WordFindPlayer(props: InnerProps) {
         <Media theme={theme} kind={data.kind} imageUrl={item.imageUrl} audioUrl={item.audioUrl} />
         <Hint theme={theme} text={item.translation} />
 
-        <div style={{ fontSize: 18, lineHeight: 2.2, color: '#22303f' }}>
+        <div style={{ fontSize: 18, lineHeight: 2.2, color: '#181a22' }}>
           {parts.map((p, i) => (
             <span key={i}>
               {p}
@@ -570,13 +570,13 @@ function WordFindPlayer(props: InnerProps) {
                 type="button"
                 className="dc-tile"
                 onClick={() => place(p.id)}
-                style={{ ...sans, fontSize: 15, fontWeight: 600, color: '#4a3411', background: '#fff', border: `1.2px solid ${theme.phoneBorder}`, borderRadius: 9, padding: '9px 13px', cursor: 'pointer' }}
+                style={{ ...sans, fontSize: 15, fontWeight: 600, color: '#4a4d56', background: '#fff', border: `1.2px solid ${theme.phoneBorder}`, borderRadius: 9, padding: '9px 13px', cursor: 'pointer' }}
               >
                 {p.w}
               </button>
             ))}
           {usedIds.length === pool.length && pool.length > 0 && (
-            <span style={{ fontSize: 14, color: '#c3bed4', padding: '8px 2px' }}>Barcha so'zlar ishlatildi</span>
+            <span style={{ fontSize: 14, color: '#cfd3ff', padding: '8px 2px' }}>Barcha so'zlar ishlatildi</span>
           )}
         </div>
 
@@ -606,7 +606,7 @@ function ReadingPlayer(props: InnerProps) {
       <Head theme={theme} progress={items.length ? ((index + 1) / items.length) * 100 : 0} label={items.length ? `${index + 1}/${items.length}` : '0/0'} caption="Matnni o'qing" />
       <div style={{ ...bodyStyle, padding: '18px 18px 20px' }}>
         <div style={{ background: theme.soft, borderRadius: 14, padding: '13px 14px', maxHeight: 190, overflowY: 'auto' }}>
-          <p style={{ margin: 0, fontSize: 14.5, lineHeight: 1.7, color: '#4a3d36', whiteSpace: 'pre-wrap' }}>
+          <p style={{ margin: 0, fontSize: 14.5, lineHeight: 1.7, color: '#4a4d56', whiteSpace: 'pre-wrap' }}>
             {passage || 'Matn shu yerda ko\'rinadi…'}
           </p>
         </div>
@@ -615,7 +615,7 @@ function ReadingPlayer(props: InnerProps) {
           <span style={{ fontSize: 14, color: theme.caption, textAlign: 'center', padding: '20px 0' }}>Hali savol qo'shilmadi</span>
         ) : (
           <>
-            <div style={{ fontSize: 16, fontWeight: 600, color: '#3a2f2a' }}>{item.q}</div>
+            <div style={{ fontSize: 16, fontWeight: 600, color: '#181a22' }}>{item.q}</div>
 
             {isWrite ? (
               <input
@@ -628,7 +628,7 @@ function ReadingPlayer(props: InnerProps) {
                   if (e.key === 'Enter') runner.finish(answerMatches(item.answer, typed))
                 }}
                 placeholder="Javobni yozing…"
-                style={{ ...sans, width: '100%', fontSize: 16, fontWeight: 600, color: '#3a2f2a', background: theme.phone, border: `1.6px solid ${theme.phoneBorder}`, borderRadius: 13, padding: '13px 15px', outline: 'none' }}
+                style={{ ...sans, width: '100%', fontSize: 16, fontWeight: 600, color: '#181a22', background: theme.phone, border: `1.6px solid ${theme.phoneBorder}`, borderRadius: 13, padding: '13px 15px', outline: 'none' }}
               />
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
@@ -647,12 +647,12 @@ function ReadingPlayer(props: InnerProps) {
                       }}
                       style={{
                         display: 'flex', alignItems: 'center', gap: 9, textAlign: 'left', ...sans, fontSize: 14.5, fontWeight: on || isRight ? 600 : 500,
-                        borderRadius: 12, padding: '11px 13px', cursor: 'pointer', color: '#4a3d36',
-                        background: isRight ? '#e6f6ec' : isWrong ? '#fdeaea' : on ? theme.soft : '#fff',
-                        border: `1.4px solid ${isRight ? '#1f9d55' : isWrong ? '#d64545' : on ? theme.accent : '#ecd8c9'}`,
+                        borderRadius: 12, padding: '11px 13px', cursor: 'pointer', color: '#4a4d56',
+                        background: isRight ? '#e7f6ee' : isWrong ? '#fdecec' : on ? theme.soft : '#fff',
+                        border: `1.4px solid ${isRight ? '#169f65' : isWrong ? '#de3b3d' : on ? theme.accent : '#e3e4e8'}`,
                       }}
                     >
-                      <span style={{ width: 12, height: 12, borderRadius: '50%', flex: 'none', border: on ? `3.5px solid ${theme.accent}` : '1.5px solid #d8c4b6' }} />
+                      <span style={{ width: 12, height: 12, borderRadius: '50%', flex: 'none', border: on ? `3.5px solid ${theme.accent}` : '1.5px solid #cfd3ff' }} />
                       {o.text}
                     </button>
                   )
@@ -709,7 +709,7 @@ function TestPlayer(props: InnerProps) {
         )}
         {data.kind === 'test-audio' && <PlayButton accent={theme.accent} tint={theme.soft} url={item.audioUrl} />}
 
-        <div style={{ fontSize: 16.5, fontWeight: 600, color: '#132c3a' }}>{item.q}</div>
+        <div style={{ fontSize: 16.5, fontWeight: 600, color: '#181a22' }}>{item.q}</div>
 
         {imageOptions ? (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
@@ -727,18 +727,18 @@ function TestPlayer(props: InnerProps) {
                     runner.setChecked(null)
                   }}
                   style={{
-                    height: 96, borderRadius: 12, cursor: 'pointer', overflow: 'hidden', padding: 0, background: '#f7fafc',
-                    border: `2px solid ${isRight ? '#1f9d55' : isWrong ? '#d64545' : on ? theme.accent : '#dae5ec'}`,
+                    height: 96, borderRadius: 12, cursor: 'pointer', overflow: 'hidden', padding: 0, background: '#fbfaf7',
+                    border: `2px solid ${isRight ? '#169f65' : isWrong ? '#de3b3d' : on ? theme.accent : '#e3e4e8'}`,
                     display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative',
                   }}
                 >
                   {o.imageUrl ? (
                     <img src={o.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   ) : (
-                    <span style={{ fontSize: 12, color: '#b9cbd6' }}>{o.text || 'Rasm'}</span>
+                    <span style={{ fontSize: 12, color: '#cfd3ff' }}>{o.text || 'Rasm'}</span>
                   )}
                   {o.imageUrl && o.text && (
-                    <span style={{ position: 'absolute', left: 0, right: 0, bottom: 0, background: 'rgba(19,44,58,.62)', color: '#fff', fontSize: 11.5, fontWeight: 600, padding: '3px 6px' }}>{o.text}</span>
+                    <span style={{ position: 'absolute', left: 0, right: 0, bottom: 0, background: 'rgba(24,26,34,.62)', color: '#fff', fontSize: 11.5, fontWeight: 600, padding: '3px 6px' }}>{o.text}</span>
                   )}
                 </button>
               )
@@ -761,12 +761,12 @@ function TestPlayer(props: InnerProps) {
                   }}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 9, textAlign: 'left', ...sans, fontSize: 14.5, fontWeight: on || isRight ? 600 : 500,
-                    borderRadius: 12, padding: '11px 13px', cursor: 'pointer', color: '#0b3a52',
-                    background: isRight ? '#e6f6ec' : isWrong ? '#fdeaea' : on ? theme.soft : '#fff',
-                    border: `1.4px solid ${isRight ? '#1f9d55' : isWrong ? '#d64545' : on ? theme.accent : '#dae5ec'}`,
+                    borderRadius: 12, padding: '11px 13px', cursor: 'pointer', color: '#181a22',
+                    background: isRight ? '#e7f6ee' : isWrong ? '#fdecec' : on ? theme.soft : '#fff',
+                    border: `1.4px solid ${isRight ? '#169f65' : isWrong ? '#de3b3d' : on ? theme.accent : '#e3e4e8'}`,
                   }}
                 >
-                  <span style={{ width: 12, height: 12, borderRadius: '50%', flex: 'none', border: on ? `3.5px solid ${theme.accent}` : '1.5px solid #ccd9e2' }} />
+                  <span style={{ width: 12, height: 12, borderRadius: '50%', flex: 'none', border: on ? `3.5px solid ${theme.accent}` : '1.5px solid #cfd3ff' }} />
                   {o.text}
                 </button>
               )
@@ -813,9 +813,9 @@ function WritingPlayer({ data, mode = 'preview', onFinish }: InnerProps) {
       <div style={{ ...bodyStyle, padding: '18px 18px 20px' }}>
         <div style={{ background: theme.soft, borderRadius: 12, padding: '11px 13px', display: 'flex', flexDirection: 'column', gap: 4 }}>
           <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: theme.caption }}>Mavzu</span>
-          <span style={{ fontSize: 15.5, fontWeight: 700, color: '#16224a' }}>{w.topic || 'Mavzu kiritilmagan'}</span>
+          <span style={{ fontSize: 15.5, fontWeight: 700, color: '#181a22' }}>{w.topic || 'Mavzu kiritilmagan'}</span>
         </div>
-        {w.prompt && <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6, color: '#4b5675' }}>{w.prompt}</p>}
+        {w.prompt && <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6, color: '#4a4d56' }}>{w.prompt}</p>}
         {w.hints.length > 0 && (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {w.hints.map((h, i) => (
@@ -833,13 +833,13 @@ function WritingPlayer({ data, mode = 'preview', onFinish }: InnerProps) {
           }}
           placeholder="Matnni shu yerga yozing…"
           rows={8}
-          style={{ ...sans, width: '100%', flex: 1, fontSize: 15, lineHeight: 1.6, color: '#1f2a44', background: theme.phone, border: `1.4px solid ${theme.phoneBorder}`, borderRadius: 13, padding: '12px 14px', outline: 'none', resize: 'none' }}
+          style={{ ...sans, width: '100%', flex: 1, fontSize: 15, lineHeight: 1.6, color: '#181a22', background: theme.phone, border: `1.4px solid ${theme.phoneBorder}`, borderRadius: 13, padding: '12px 14px', outline: 'none', resize: 'none' }}
         />
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12.5, color: enough ? '#1f7a45' : '#8b8798' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12.5, color: enough ? '#0f7a4c' : '#777a82' }}>
           <span>
             {count} / {w.minWords} so'z
           </span>
-          {submitted && <span style={{ fontWeight: 700, color: '#1f7a45' }}>Topshirildi ✓</span>}
+          {submitted && <span style={{ fontWeight: 700, color: '#0f7a4c' }}>Topshirildi ✓</span>}
         </div>
         <button
           type="button"
@@ -848,7 +848,7 @@ function WritingPlayer({ data, mode = 'preview', onFinish }: InnerProps) {
             if (mode === 'solve') onFinish?.(enough ? 1 : 0, 1)
           }}
           disabled={!answer.trim()}
-          style={{ ...sans, background: answer.trim() ? theme.accent : '#d9d5e6', border: 'none', color: '#fff', fontWeight: 700, fontSize: 15, padding: '14px 16px', borderRadius: 13, cursor: answer.trim() ? 'pointer' : 'default', marginTop: 'auto' }}
+          style={{ ...sans, background: answer.trim() ? theme.accent : '#9aa0aa', border: 'none', color: '#fff', fontWeight: 700, fontSize: 15, padding: '14px 16px', borderRadius: 13, cursor: answer.trim() ? 'pointer' : 'default', marginTop: 'auto' }}
         >
           {submitted ? 'Qayta topshirish' : 'Topshirish'}
         </button>
@@ -933,13 +933,13 @@ function SpeakingPlayer({ data, mode = 'preview', onFinish }: InnerProps) {
       <div style={{ ...bodyStyle, padding: '18px 18px 20px' }}>
         <div style={{ background: theme.soft, borderRadius: 12, padding: '11px 13px', display: 'flex', flexDirection: 'column', gap: 4 }}>
           <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: theme.caption }}>Mavzu</span>
-          <span style={{ fontSize: 15.5, fontWeight: 700, color: '#4a1030' }}>{s.topic || 'Mavzu kiritilmagan'}</span>
+          <span style={{ fontSize: 15.5, fontWeight: 700, color: '#181a22' }}>{s.topic || 'Mavzu kiritilmagan'}</span>
         </div>
-        {s.prompt && <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6, color: '#6b4759' }}>{s.prompt}</p>}
+        {s.prompt && <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6, color: '#4a4d56' }}>{s.prompt}</p>}
         {s.hints.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {s.hints.map((h, i) => (
-              <span key={i} style={{ fontSize: 13.5, color: '#6b4759', background: theme.head, borderRadius: 10, padding: '8px 11px' }}>
+              <span key={i} style={{ fontSize: 13.5, color: '#4a4d56', background: theme.head, borderRadius: 10, padding: '8px 11px' }}>
                 • {h}
               </span>
             ))}
@@ -953,7 +953,7 @@ function SpeakingPlayer({ data, mode = 'preview', onFinish }: InnerProps) {
             className={phase === 'rec' ? 'dc-pulse' : undefined}
             style={{
               width: 78, height: 78, borderRadius: '50%', border: 'none', cursor: 'pointer',
-              background: phase === 'rec' ? '#d64545' : theme.accent,
+              background: phase === 'rec' ? '#de3b3d' : theme.accent,
               display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 12px 26px -10px ${theme.accent}`,
             }}
           >
@@ -1004,10 +1004,10 @@ function MatchingPlayer({ data, mode = 'preview', onFinish }: InnerProps) {
     <>
       <Head theme={theme} progress={(done / m.rows.length) * 100} label={`${done}/${m.rows.length}`} caption="Moslashtiring" />
       <div style={{ ...bodyStyle, padding: '18px 18px 20px' }}>
-        {m.statement && <div style={{ fontSize: 14.5, fontWeight: 600, color: '#1f2a26' }}>{m.statement}</div>}
+        {m.statement && <div style={{ fontSize: 14.5, fontWeight: 600, color: '#181a22' }}>{m.statement}</div>}
         {data.kind === 'matching-reading' && (
           <div style={{ background: theme.soft, borderRadius: 12, padding: '12px 13px', maxHeight: 150, overflowY: 'auto' }}>
-            <p style={{ margin: 0, fontSize: 14, lineHeight: 1.7, color: '#33453d', whiteSpace: 'pre-wrap' }}>{m.passage || "Matn shu yerda ko'rinadi…"}</p>
+            <p style={{ margin: 0, fontSize: 14, lineHeight: 1.7, color: '#4a4d56', whiteSpace: 'pre-wrap' }}>{m.passage || "Matn shu yerda ko'rinadi…"}</p>
           </div>
         )}
         {data.kind === 'matching-audio' && <PlayButton accent={theme.accent} tint={theme.soft} url={m.audioUrl} />}
@@ -1015,11 +1015,11 @@ function MatchingPlayer({ data, mode = 'preview', onFinish }: InnerProps) {
         {/* Harflar ma'nosi */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {cols.map((c) => (
-            <div key={c} style={{ display: 'flex', alignItems: 'center', gap: 9, fontSize: 13.5, color: '#33453d' }}>
+            <div key={c} style={{ display: 'flex', alignItems: 'center', gap: 9, fontSize: 13.5, color: '#4a4d56' }}>
               <span style={{ flex: 'none', width: 22, height: 22, borderRadius: 6, background: theme.head, color: theme.accent, fontWeight: 700, fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', ...display }}>
                 {colLetter(c)}
               </span>
-              {m.colLabels[c] || <span style={{ color: '#a9bab7' }}>—</span>}
+              {m.colLabels[c] || <span style={{ color: '#777a82' }}>—</span>}
             </div>
           ))}
         </div>
@@ -1038,7 +1038,7 @@ function MatchingPlayer({ data, mode = 'preview', onFinish }: InnerProps) {
               </tr>
               {m.rows.map((r, ri) => (
                 <tr key={r.id}>
-                  <td style={{ padding: '6px 8px', fontSize: 13, fontWeight: 700, color: '#1f2a26', borderTop: `1px solid ${theme.line}`, whiteSpace: 'nowrap' }}>
+                  <td style={{ padding: '6px 8px', fontSize: 13, fontWeight: 700, color: '#181a22', borderTop: `1px solid ${theme.line}`, whiteSpace: 'nowrap' }}>
                     {m.startNum + ri}. {r.text}
                   </td>
                   {cols.map((c) => {
@@ -1057,7 +1057,7 @@ function MatchingPlayer({ data, mode = 'preview', onFinish }: InnerProps) {
                           }}
                           style={{
                             width: '100%', height: 26, borderRadius: 5, cursor: 'pointer', border: 'none',
-                            background: good ? '#1f9d55' : bad ? '#d64545' : on ? theme.accent : 'transparent',
+                            background: good ? '#169f65' : bad ? '#de3b3d' : on ? theme.accent : 'transparent',
                             color: '#fff', fontWeight: 700, fontSize: 12,
                           }}
                         >
@@ -1080,7 +1080,7 @@ function MatchingPlayer({ data, mode = 'preview', onFinish }: InnerProps) {
               setAnswers({})
               setChecked(null)
             }}
-            style={{ ...sans, flex: 'none', background: theme.line, border: 'none', color: '#6f827f', fontWeight: 600, fontSize: 15, padding: '14px 16px', borderRadius: 13, cursor: 'pointer' }}
+            style={{ ...sans, flex: 'none', background: theme.line, border: 'none', color: '#4a4d56', fontWeight: 600, fontSize: 15, padding: '14px 16px', borderRadius: 13, cursor: 'pointer' }}
           >
             ↺
           </button>
@@ -1088,7 +1088,7 @@ function MatchingPlayer({ data, mode = 'preview', onFinish }: InnerProps) {
             type="button"
             onClick={check}
             disabled={done === 0}
-            style={{ ...sans, flex: 1, background: done === 0 ? '#d9d5e6' : theme.accent, border: 'none', color: '#fff', fontWeight: 700, fontSize: 15, padding: '14px 16px', borderRadius: 13, cursor: done === 0 ? 'default' : 'pointer' }}
+            style={{ ...sans, flex: 1, background: done === 0 ? '#9aa0aa' : theme.accent, border: 'none', color: '#fff', fontWeight: 700, fontSize: 15, padding: '14px 16px', borderRadius: 13, cursor: done === 0 ? 'default' : 'pointer' }}
           >
             Tekshirish
           </button>

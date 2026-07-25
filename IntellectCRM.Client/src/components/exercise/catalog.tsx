@@ -10,24 +10,25 @@ import type { ExerciseKind } from './model'
 // ============================ Dizayn tokenlari ============================
 
 export const UI = {
-  /** Sahifa foni (maketdagi issiq kulrang). */
-  page: '#efece6',
-  /** Qorong'i yuqori panel. */
-  bar: '#17161f',
-  barMuted: '#8f8ca0',
-  /** Asosiy binafsha aksent. */
-  accent: '#6a5cff',
-  accentSoft: '#8b7bff',
-  ink: '#241f3a',
-  muted: '#6e6a80',
-  line: '#e5e1d7',
-  panel: '#e7e3db',
-  ok: '#1f9d55',
-  danger: '#d64545',
+  /** Ish maydoni foni — CRM'ning yumshoq yuzasi (bg-2). */
+  page: '#f7f5f1',
+  /** Sarlavha paneli — OQ (CRM modallari kabi); ilgari deyarli qora edi. */
+  bar: '#ffffff',
+  barMuted: '#777a82',
+  /** YAGONA aksent — CRM brand-600 (violet). Kategoriyalar uchun alohida rang YO'Q. */
+  accent: '#5d53cb',
+  accentSoft: '#eef0ff',
+  ink: '#181a22',
+  muted: '#777a82',
+  line: '#e3e4e8',
+  panel: '#fbfaf7',
+  ok: '#169f65',
+  danger: '#de3b3d',
 } as const
 
-export const display: CSSProperties = { fontFamily: "'Space Grotesk', system-ui, sans-serif" }
-export const sans: CSSProperties = { fontFamily: "'Figtree', system-ui, sans-serif" }
+/** Sarlavhalar — CRM global shrifti (Pliant), faqat harflar orasi zichroq. */
+export const display: CSSProperties = { fontFamily: 'var(--font-sans)', letterSpacing: '-0.01em' }
+export const sans: CSSProperties = { fontFamily: 'var(--font-sans)' }
 
 /** Bitta mashq turining rang sxemasi — maketdagi qiymatlar (aksent, telefon ramkasi, yumshoq fon). */
 export interface Theme {
@@ -45,18 +46,31 @@ export interface Theme {
   line: string
 }
 
-/** Har kategoriyaning maketdagi rang sxemasi. */
+/** YAGONA rang sxemasi — CRM dizayn tokenlari (brand-600 + neytral yuzalar). Ilgari har
+ *  kategoriyaning o'z rangi bor edi (binafsha/ko'k/yashil/sariq...) va juda rang-barang chiqardi;
+ *  endi barchasi bitta CRM sxemasida. Struktura saqlangan — kerak bo'lsa alohida turga rang
+ *  berish oson. */
+const CRM_THEME: Theme = {
+  accent: '#5d53cb',
+  phone: '#fbfaf7',
+  phoneBorder: '#e3e4e8',
+  head: '#eef0ff',
+  caption: '#8582f0',
+  soft: '#f5f4fc',
+  line: '#eceef2',
+}
+
 export const THEMES: Record<string, Theme> = {
-  sentence: { accent: '#6a5cff', phone: '#faf9ff', phoneBorder: '#d9d4ea', head: '#efecfd', caption: '#a49edb', soft: '#f5f3ff', line: '#f0eef7' },
-  'sentence-choice': { accent: '#6a5cff', phone: '#faf9ff', phoneBorder: '#d9d4ea', head: '#efecfd', caption: '#a49edb', soft: '#f5f3ff', line: '#f0eef7' },
-  fill: { accent: '#2f80ed', phone: '#f7faff', phoneBorder: '#d4e0ee', head: '#e7f0fd', caption: '#8fb4e6', soft: '#eff5ff', line: '#eef2f8' },
-  wordpick: { accent: '#0d9488', phone: '#f4fbfa', phoneBorder: '#cfe6e2', head: '#e0f2f0', caption: '#6cc0b8', soft: '#eefaf8', line: '#eef4f3' },
-  wordfind: { accent: '#d97706', phone: '#fffbf3', phoneBorder: '#eaddc4', head: '#fbeed3', caption: '#e0a75a', soft: '#fdf6e9', line: '#f4ecdd' },
-  reading: { accent: '#c2410c', phone: '#fffaf6', phoneBorder: '#ecd8c9', head: '#fbe4d5', caption: '#e08a5a', soft: '#fdf3ec', line: '#f5e6dc' },
-  test: { accent: '#0369a1', phone: '#f6fbfe', phoneBorder: '#d2e3ee', head: '#e2f0f9', caption: '#7fb6d8', soft: '#eef7fd', line: '#e9f1f7' },
-  writing: { accent: '#1d4ed8', phone: '#f7f9ff', phoneBorder: '#d5deef', head: '#e6edfd', caption: '#8fa5df', soft: '#eef2fc', line: '#e8edf9' },
-  speaking: { accent: '#be185d', phone: '#fff9fc', phoneBorder: '#eed3e0', head: '#fbe7f0', caption: '#dd8fb2', soft: '#fdf1f6', line: '#f7e6ee' },
-  matching: { accent: '#1a6b52', phone: '#f5faf7', phoneBorder: '#cfe3d8', head: '#e3f0ea', caption: '#6fae95', soft: '#eaf3ef', line: '#e7f0ea' },
+  sentence: CRM_THEME,
+  'sentence-choice': CRM_THEME,
+  fill: CRM_THEME,
+  wordpick: CRM_THEME,
+  wordfind: CRM_THEME,
+  reading: CRM_THEME,
+  test: CRM_THEME,
+  writing: CRM_THEME,
+  speaking: CRM_THEME,
+  matching: CRM_THEME,
 }
 
 /** Har kategoriyaning o'z aksent rangi — maketlardagi ranglar. */
@@ -352,7 +366,7 @@ export function kindAccent(kind: ExerciseKind): string {
 const chip = (text: string, i: number) => (
   <span
     key={i}
-    style={{ fontSize: 11.5, fontWeight: 600, color: '#3a3552', background: '#fff', border: '1.2px solid #e2def0', borderRadius: 6, padding: '4px 8px' }}
+    style={{ fontSize: 11.5, fontWeight: 600, color: '#4a4d56', background: '#fff', border: '1.2px solid #e3e4e8', borderRadius: 6, padding: '4px 8px' }}
   >
     {text}
   </span>
@@ -380,10 +394,10 @@ export function MiniPreview({ preview, kind }: { preview: PreviewKind; kind: Exe
     case 'order':
       return (
         <div style={{ padding: '12px 13px', display: 'flex', flexDirection: 'column', gap: 9 }}>
-          <div style={{ fontSize: 11, fontStyle: 'italic', color: '#9490a6' }}>"I go running every morning"</div>
-          <div style={{ display: 'flex', gap: 5, borderBottom: '1.5px dashed #e6e2f2', paddingBottom: 9, flexWrap: 'wrap' }}>
+          <div style={{ fontSize: 11, fontStyle: 'italic', color: '#777a82' }}>"I go running every morning"</div>
+          <div style={{ display: 'flex', gap: 5, borderBottom: '1.5px dashed #e3e4e8', paddingBottom: 9, flexWrap: 'wrap' }}>
             {['Men', 'har'].map((t, i) => (
-              <span key={i} style={{ fontSize: 11.5, fontWeight: 600, color: '#fff', background: '#6a5cff', borderRadius: 6, padding: '4px 8px' }}>
+              <span key={i} style={{ fontSize: 11.5, fontWeight: 600, color: '#fff', background: '#5d53cb', borderRadius: 6, padding: '4px 8px' }}>
                 {t}
               </span>
             ))}
@@ -395,12 +409,12 @@ export function MiniPreview({ preview, kind }: { preview: PreviewKind; kind: Exe
       return (
         <div style={{ padding: '12px 13px', display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-            <span style={{ flex: 'none', width: 30, height: 30, borderRadius: '50%', background: '#6a5cff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <span style={{ flex: 'none', width: 30, height: 30, borderRadius: '50%', background: '#5d53cb', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="#fff"><path d="M8 5v14l11-7z" /></svg>
             </span>
-            {wave([8, 16, 22, 13, 18, 9, 15, 7], ['#cfc8ec', '#a99cf0', '#6a5cff', '#a99cf0', '#8b7bff', '#cfc8ec', '#a99cf0', '#cfc8ec'])}
+            {wave([8, 16, 22, 13, 18, 9, 15, 7], ['#cfd3ff', '#8582f0', '#5d53cb', '#8582f0', '#8582f0', '#cfd3ff', '#8582f0', '#cfd3ff'])}
           </div>
-          <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', borderTop: '1.5px dashed #e6e2f2', paddingTop: 9 }}>
+          <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', borderTop: '1.5px dashed #e3e4e8', paddingTop: 9 }}>
             {['kuni', 'har', 'Men', 'yaxshi'].map(chip)}
           </div>
         </div>
@@ -408,8 +422,8 @@ export function MiniPreview({ preview, kind }: { preview: PreviewKind; kind: Exe
     case 'image':
       return (
         <div style={{ padding: '12px 13px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={{ height: 52, borderRadius: 9, background: 'linear-gradient(135deg,#efe9fd,#f5f2ff)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #ece7f9' }}>
-            {imgIcon('#b4a9ee')}
+          <div style={{ height: 52, borderRadius: 9, background: 'linear-gradient(135deg,#eef0ff,#eef0ff)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #eceef2' }}>
+            {imgIcon('#cfd3ff')}
           </div>
           <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>{['bola', 'olma', 'yemoqda'].map(chip)}</div>
         </div>
@@ -417,7 +431,7 @@ export function MiniPreview({ preview, kind }: { preview: PreviewKind; kind: Exe
     case 'choice':
       return (
         <div style={{ padding: '12px 13px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: '#5f5a78' }}>To'g'ri tarjimani tanlang:</div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: '#4a4d56' }}>To'g'ri tarjimani tanlang:</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {[
               { t: 'He runs slowly', on: false },
@@ -429,12 +443,12 @@ export function MiniPreview({ preview, kind }: { preview: PreviewKind; kind: Exe
                 style={{
                   display: 'flex', alignItems: 'center', gap: 8, fontSize: 11.5, borderRadius: 8, padding: '6px 9px',
                   fontWeight: o.on ? 600 : 400,
-                  color: o.on ? '#3a2f6a' : '#6e6a80',
-                  background: o.on ? '#efecfd' : '#fff',
-                  border: o.on ? '1.4px solid #6a5cff' : '1.2px solid #e6e2f2',
+                  color: o.on ? '#5d53cb' : '#4a4d56',
+                  background: o.on ? '#eef0ff' : '#fff',
+                  border: o.on ? '1.4px solid #5d53cb' : '1.2px solid #e3e4e8',
                 }}
               >
-                <span style={{ width: 11, height: 11, borderRadius: '50%', border: o.on ? '3.5px solid #6a5cff' : '1.5px solid #cfc8e0', display: 'inline-block' }} />
+                <span style={{ width: 11, height: 11, borderRadius: '50%', border: o.on ? '3.5px solid #5d53cb' : '1.5px solid #cfd3ff', display: 'inline-block' }} />
                 {o.t}
               </span>
             ))}
@@ -444,23 +458,23 @@ export function MiniPreview({ preview, kind }: { preview: PreviewKind; kind: Exe
     case 'fill':
       return (
         <div style={{ padding: '14px 13px', display: 'flex', flexDirection: 'column', gap: 11 }}>
-          <div style={{ fontSize: 12, lineHeight: 1.6, color: '#3a3552' }}>
-            Bu <span style={{ borderBottom: '2px solid #6a5cff', padding: '0 14px', color: 'transparent' }}>x</span> juda qiziqarli
+          <div style={{ fontSize: 12, lineHeight: 1.6, color: '#4a4d56' }}>
+            Bu <span style={{ borderBottom: '2px solid #5d53cb', padding: '0 14px', color: 'transparent' }}>x</span> juda qiziqarli
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#faf9ff', border: '1.2px solid #e2def0', borderRadius: 8, padding: '7px 9px' }}>
-            <span style={{ fontSize: 11.5, color: '#b6b0c8' }}>javobni yozing…</span>
-            <span style={{ marginLeft: 'auto', width: 1.5, height: 13, background: '#6a5cff', display: 'inline-block' }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#fbfaf7', border: '1.2px solid #e3e4e8', borderRadius: 8, padding: '7px 9px' }}>
+            <span style={{ fontSize: 11.5, color: '#cfd3ff' }}>javobni yozing…</span>
+            <span style={{ marginLeft: 'auto', width: 1.5, height: 13, background: '#5d53cb', display: 'inline-block' }} />
           </div>
         </div>
       )
     case 'inline':
       return (
         <div style={{ padding: '16px 13px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={{ fontSize: 13, lineHeight: 2, color: '#3a3552' }}>
+          <div style={{ fontSize: 13, lineHeight: 2, color: '#4a4d56' }}>
             Men
             <span style={{ display: 'inline-flex', gap: 4, verticalAlign: 'middle', margin: '0 3px' }}>
-              <span style={{ fontSize: 12, fontWeight: 700, borderRadius: 7, padding: '3px 9px', background: '#fff', border: '1.4px solid #cfe6e2', color: '#6e6a80' }}>bir</span>
-              <span style={{ fontSize: 12, fontWeight: 700, borderRadius: 7, padding: '3px 9px', background: '#0d9488', border: '1.4px solid #0d9488', color: '#fff' }}>ikki</span>
+              <span style={{ fontSize: 12, fontWeight: 700, borderRadius: 7, padding: '3px 9px', background: '#fff', border: '1.4px solid #e3e4e8', color: '#4a4d56' }}>bir</span>
+              <span style={{ fontSize: 12, fontWeight: 700, borderRadius: 7, padding: '3px 9px', background: '#5d53cb', border: '1.4px solid #5d53cb', color: '#fff' }}>ikki</span>
             </span>
             olma yedim
           </div>
@@ -469,14 +483,14 @@ export function MiniPreview({ preview, kind }: { preview: PreviewKind; kind: Exe
     case 'pool':
       return (
         <div style={{ padding: '14px 13px', display: 'flex', flexDirection: 'column', gap: 11 }}>
-          <div style={{ fontSize: 12, lineHeight: 1.6, color: '#3a3552' }}>
+          <div style={{ fontSize: 12, lineHeight: 1.6, color: '#4a4d56' }}>
             Men har kuni{' '}
-            <span style={{ display: 'inline-block', minWidth: 44, borderRadius: 6, background: '#fbeed3', border: '1.4px dashed #e6b567', verticalAlign: 'middle', height: 15 }} /> yaxshi
+            <span style={{ display: 'inline-block', minWidth: 44, borderRadius: 6, background: '#eef0ff', border: '1.4px dashed #cfd3ff', verticalAlign: 'middle', height: 15 }} /> yaxshi
             ko'raman
           </div>
           <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
             {['yugurishni', 'uxlashni', 'kitobni'].map((t, i) => (
-              <span key={i} style={{ fontSize: 11.5, fontWeight: 600, color: '#4a3411', background: '#fff', border: '1.2px solid #ecdcbf', borderRadius: 6, padding: '4px 8px' }}>
+              <span key={i} style={{ fontSize: 11.5, fontWeight: 600, color: '#4a4d56', background: '#fff', border: '1.2px solid #cfd3ff', borderRadius: 6, padding: '4px 8px' }}>
                 {t}
               </span>
             ))}
@@ -486,16 +500,16 @@ export function MiniPreview({ preview, kind }: { preview: PreviewKind; kind: Exe
     case 'testimg':
       return (
         <div style={{ padding: '12px 13px', display: 'flex', flexDirection: 'column', gap: 9 }}>
-          <div style={{ height: 56, borderRadius: 9, background: 'linear-gradient(135deg,#e2f0f9,#f0f8fd)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #dceaf3' }}>
-            {imgIcon('#8ec2e0')}
+          <div style={{ height: 56, borderRadius: 9, background: 'linear-gradient(135deg,#eef0ff,#eef0ff)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #e3e4e8' }}>
+            {imgIcon('#8582f0')}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 11, fontWeight: 600, color: '#08496b', background: '#e2f0f9', border: '1.3px solid #0369a1', borderRadius: 7, padding: '5px 8px' }}>
-              <span style={{ width: 9, height: 9, borderRadius: '50%', border: '3px solid #0369a1', display: 'inline-block' }} />
+            <span style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 11, fontWeight: 600, color: '#5d53cb', background: '#eef0ff', border: '1.3px solid #5d53cb', borderRadius: 7, padding: '5px 8px' }}>
+              <span style={{ width: 9, height: 9, borderRadius: '50%', border: '3px solid #5d53cb', display: 'inline-block' }} />
               Olma
             </span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 11, color: '#6e6a80', background: '#fff', border: '1.2px solid #dae5ec', borderRadius: 7, padding: '5px 8px' }}>
-              <span style={{ width: 9, height: 9, borderRadius: '50%', border: '1.5px solid #ccd9e2', display: 'inline-block' }} />
+            <span style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 11, color: '#4a4d56', background: '#fff', border: '1.2px solid #e3e4e8', borderRadius: 7, padding: '5px 8px' }}>
+              <span style={{ width: 9, height: 9, borderRadius: '50%', border: '1.5px solid #cfd3ff', display: 'inline-block' }} />
               Banan
             </span>
           </div>
@@ -504,18 +518,18 @@ export function MiniPreview({ preview, kind }: { preview: PreviewKind; kind: Exe
     case 'testimgopts':
       return (
         <div style={{ padding: '12px 13px', display: 'flex', flexDirection: 'column', gap: 9 }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: '#132c3a' }}>Qaysi rasmda olma bor?</div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: '#181a22' }}>Qaysi rasmda olma bor?</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
             {[true, false, false, false].map((on, i) => (
               <span
                 key={i}
                 style={{
                   height: 38, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  background: on ? '#e2f0f9' : '#f7fafc',
-                  border: on ? '2px solid #0369a1' : '1.5px solid #dae5ec',
+                  background: on ? '#eef0ff' : '#fbfaf7',
+                  border: on ? '2px solid #5d53cb' : '1.5px solid #e3e4e8',
                 }}
               >
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={on ? '#0369a1' : '#b9cbd6'} strokeWidth={1.9} strokeLinecap="round">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={on ? '#5d53cb' : '#cfd3ff'} strokeWidth={1.9} strokeLinecap="round">
                   <rect x="3" y="4" width="18" height="16" rx="2" />
                   <path d="M21 16l-5-5-9 9" />
                 </svg>
@@ -527,13 +541,13 @@ export function MiniPreview({ preview, kind }: { preview: PreviewKind; kind: Exe
     case 'writing':
       return (
         <div style={{ padding: '12px 13px', display: 'flex', flexDirection: 'column', gap: 9 }}>
-          <div style={{ background: '#eef2fc', borderRadius: 8, padding: '8px 9px', display: 'flex', flexDirection: 'column', gap: 3 }}>
-            <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: '#8fa5df' }}>Mavzu</span>
-            <span style={{ fontSize: 11.5, fontWeight: 700, color: '#16224a' }}>Mening yozgi ta'tilim</span>
+          <div style={{ background: '#eef0ff', borderRadius: 8, padding: '8px 9px', display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: '#8582f0' }}>Mavzu</span>
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: '#181a22' }}>Mening yozgi ta'tilim</span>
           </div>
-          <div style={{ background: '#fafbfe', border: '1.3px solid #dbe2f2', borderRadius: 8, padding: '9px 10px', display: 'flex', flexDirection: 'column', gap: 4, minHeight: 44 }}>
+          <div style={{ background: '#fbfaf7', border: '1.3px solid #e3e4e8', borderRadius: 8, padding: '9px 10px', display: 'flex', flexDirection: 'column', gap: 4, minHeight: 44 }}>
             {[90, 75, 45].map((w, i) => (
-              <span key={i} style={{ height: 5, width: `${w}%`, borderRadius: 3, background: '#e4e9f6', display: 'inline-block' }} />
+              <span key={i} style={{ height: 5, width: `${w}%`, borderRadius: 3, background: '#e3e4e8', display: 'inline-block' }} />
             ))}
           </div>
         </div>
@@ -541,34 +555,34 @@ export function MiniPreview({ preview, kind }: { preview: PreviewKind; kind: Exe
     case 'speaking':
       return (
         <div style={{ padding: '12px 13px', display: 'flex', flexDirection: 'column', gap: 11 }}>
-          <div style={{ background: '#fdf1f6', borderRadius: 8, padding: '8px 9px', display: 'flex', flexDirection: 'column', gap: 3 }}>
-            <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: '#dd8fb2' }}>Mavzu</span>
-            <span style={{ fontSize: 11.5, fontWeight: 700, color: '#4a1030' }}>Sevimli kitobingiz haqida</span>
+          <div style={{ background: '#eef0ff', borderRadius: 8, padding: '8px 9px', display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: '#8582f0' }}>Mavzu</span>
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: '#181a22' }}>Sevimli kitobingiz haqida</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9 }}>
-            <span style={{ width: 34, height: 34, borderRadius: '50%', background: '#be185d', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
+            <span style={{ width: 34, height: 34, borderRadius: '50%', background: '#5d53cb', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
               <Icon name="mic" size={16} />
             </span>
-            {wave([8, 16, 22, 13, 18, 9], ['#f0b8d0', '#e8578f', '#be185d', '#e8578f', '#d64d86', '#f0b8d0'])}
+            {wave([8, 16, 22, 13, 18, 9], ['#cfd3ff', '#8582f0', '#5d53cb', '#8582f0', '#8582f0', '#cfd3ff'])}
           </div>
         </div>
       )
     case 'reading':
       return (
         <div style={{ padding: '12px 13px', display: 'flex', flexDirection: 'column', gap: 9 }}>
-          <div style={{ background: '#fdf3ec', borderRadius: 8, padding: '8px 9px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <div style={{ background: '#eef0ff', borderRadius: 8, padding: '8px 9px', display: 'flex', flexDirection: 'column', gap: 4 }}>
             {[100, 85, 60].map((w, i) => (
-              <span key={i} style={{ height: 6, width: `${w}%`, borderRadius: 3, background: '#f0dccc', display: 'inline-block' }} />
+              <span key={i} style={{ height: 6, width: `${w}%`, borderRadius: 3, background: '#cfd3ff', display: 'inline-block' }} />
             ))}
           </div>
-          <div style={{ fontSize: 11, fontWeight: 600, color: '#5a4a40' }}>How does Ali go to school?</div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: '#4a4d56' }}>How does Ali go to school?</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 11, fontWeight: 600, color: '#8a2f0a', background: '#fbeadf', border: '1.3px solid #c2410c', borderRadius: 7, padding: '5px 8px' }}>
-              <span style={{ width: 9, height: 9, borderRadius: '50%', border: '3px solid #c2410c', display: 'inline-block' }} />
+            <span style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 11, fontWeight: 600, color: '#5d53cb', background: '#eef0ff', border: '1.3px solid #5d53cb', borderRadius: 7, padding: '5px 8px' }}>
+              <span style={{ width: 9, height: 9, borderRadius: '50%', border: '3px solid #5d53cb', display: 'inline-block' }} />
               By bus
             </span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 11, color: '#6e6a80', background: '#fff', border: '1.2px solid #ecd8c9', borderRadius: 7, padding: '5px 8px' }}>
-              <span style={{ width: 9, height: 9, borderRadius: '50%', border: '1.5px solid #d8c4b6', display: 'inline-block' }} />
+            <span style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 11, color: '#4a4d56', background: '#fff', border: '1.2px solid #e3e4e8', borderRadius: 7, padding: '5px 8px' }}>
+              <span style={{ width: 9, height: 9, borderRadius: '50%', border: '1.5px solid #cfd3ff', display: 'inline-block' }} />
               By car
             </span>
           </div>
@@ -576,37 +590,37 @@ export function MiniPreview({ preview, kind }: { preview: PreviewKind; kind: Exe
       )
     case 'match':
     default: {
-      const cell = { padding: 2, borderLeft: '1px solid #eae5f3', borderTop: '1px solid #eae5f3' } as CSSProperties
+      const cell = { padding: 2, borderLeft: '1px solid #eceef2', borderTop: '1px solid #eceef2' } as CSSProperties
       const tick = (
-        <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 16, borderRadius: 3, background: '#7c3aed', color: '#fff', fontSize: 9, fontWeight: 700 }}>✓</span>
+        <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 16, borderRadius: 3, background: '#5d53cb', color: '#fff', fontSize: 9, fontWeight: 700 }}>✓</span>
       )
       return (
         <div style={{ padding: '11px 12px', display: 'flex', flexDirection: 'column', gap: 7 }}>
           {kind === 'matching-reading' && (
-            <div style={{ background: '#f5f0ff', borderRadius: 7, padding: '6px 8px', display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <div style={{ background: '#eef0ff', borderRadius: 7, padding: '6px 8px', display: 'flex', flexDirection: 'column', gap: 3 }}>
               {[100, 72].map((w, i) => (
-                <span key={i} style={{ height: 4, width: `${w}%`, borderRadius: 2, background: '#e2d8f6', display: 'inline-block' }} />
+                <span key={i} style={{ height: 4, width: `${w}%`, borderRadius: 2, background: '#cfd3ff', display: 'inline-block' }} />
               ))}
             </div>
           )}
           {kind === 'matching-audio' && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 7, background: '#f5f0ff', borderRadius: 7, padding: '6px 8px' }}>
-              <span style={{ flex: 'none', width: 18, height: 18, borderRadius: '50%', background: '#7c3aed', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, background: '#eef0ff', borderRadius: 7, padding: '6px 8px' }}>
+              <span style={{ flex: 'none', width: 18, height: 18, borderRadius: '50%', background: '#5d53cb', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <svg width="9" height="9" viewBox="0 0 24 24" fill="#fff"><path d="M8 5v14l11-7z" /></svg>
               </span>
               <span style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 12 }}>
                 {[5, 10, 12, 7].map((h, i) => (
-                  <span key={i} style={{ width: 2, height: h, background: ['#c4b0ee', '#9b76e8', '#7c3aed', '#9b76e8'][i], borderRadius: 1 }} />
+                  <span key={i} style={{ width: 2, height: h, background: ['#cfd3ff', '#8582f0', '#5d53cb', '#8582f0'][i], borderRadius: 1 }} />
                 ))}
               </span>
             </div>
           )}
-          <table style={{ borderCollapse: 'collapse', width: '100%', border: '1px solid #eae5f3', borderRadius: 6 }}>
+          <table style={{ borderCollapse: 'collapse', width: '100%', border: '1px solid #eceef2', borderRadius: 6 }}>
             <tbody>
-              <tr style={{ background: '#f7f5fc' }}>
+              <tr style={{ background: '#eef0ff' }}>
                 <td style={{ padding: '4px 6px' }} />
                 {['A', 'B', 'C'].map((l) => (
-                  <td key={l} style={{ padding: '4px 0', textAlign: 'center', fontWeight: 700, fontSize: 9, color: '#8b86a0', borderLeft: '1px solid #eae5f3', ...display }}>
+                  <td key={l} style={{ padding: '4px 0', textAlign: 'center', fontWeight: 700, fontSize: 9, color: '#777a82', borderLeft: '1px solid #eceef2', ...display }}>
                     {l}
                   </td>
                 ))}
@@ -616,7 +630,7 @@ export function MiniPreview({ preview, kind }: { preview: PreviewKind; kind: Exe
                 { label: '2. book', at: 1 },
               ].map((r) => (
                 <tr key={r.label}>
-                  <td style={{ padding: '3px 6px', fontSize: 9.5, fontWeight: 700, color: '#33234f', borderTop: '1px solid #eae5f3', whiteSpace: 'nowrap' }}>{r.label}</td>
+                  <td style={{ padding: '3px 6px', fontSize: 9.5, fontWeight: 700, color: '#181a22', borderTop: '1px solid #eceef2', whiteSpace: 'nowrap' }}>{r.label}</td>
                   {[0, 1, 2].map((c) => (
                     <td key={c} style={cell}>
                       {r.at === c ? tick : <span style={{ display: 'block', height: 16 }} />}
@@ -634,42 +648,42 @@ export function MiniPreview({ preview, kind }: { preview: PreviewKind; kind: Exe
 
 /** "Boshqa" kategoriyasidagi eski turlar uchun mini preview (hub kartalari ichida). */
 export function LegacyPreview({ type }: { type: LessonType }) {
-  const line = (w: number, i: number, color = '#e4e1ee') => (
+  const line = (w: number, i: number, color = '#e3e4e8') => (
     <span key={i} style={{ height: 6, width: `${w}%`, borderRadius: 3, background: color, display: 'inline-block' }} />
   )
   switch (type) {
     case 'video':
       return (
         <div style={{ padding: '12px 13px', display: 'flex', flexDirection: 'column', gap: 9 }}>
-          <div style={{ height: 62, borderRadius: 9, background: 'linear-gradient(135deg,#26233a,#3b3557)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ height: 62, borderRadius: 9, background: 'linear-gradient(135deg,#181a22,#181a22)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <span style={{ width: 30, height: 30, borderRadius: '50%', background: 'rgba(255,255,255,.92)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="#3b3557"><path d="M8 5v14l11-7z" /></svg>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="#181a22"><path d="M8 5v14l11-7z" /></svg>
             </span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-            <span style={{ flex: 1, height: 4, borderRadius: 3, background: '#e4e1ee', overflow: 'hidden' }}>
-              <span style={{ display: 'block', width: '38%', height: '100%', background: '#6a5cff' }} />
+            <span style={{ flex: 1, height: 4, borderRadius: 3, background: '#e3e4e8', overflow: 'hidden' }}>
+              <span style={{ display: 'block', width: '38%', height: '100%', background: '#5d53cb' }} />
             </span>
-            <span style={{ fontSize: 9.5, fontWeight: 700, color: '#a49edb' }}>04:12</span>
+            <span style={{ fontSize: 9.5, fontWeight: 700, color: '#8582f0' }}>04:12</span>
           </div>
         </div>
       )
     case 'text':
       return (
         <div style={{ padding: '14px 13px', display: 'flex', flexDirection: 'column', gap: 7 }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: '#5f5a78' }}>Dars matni</span>
+          <span style={{ fontSize: 11, fontWeight: 700, color: '#4a4d56' }}>Dars matni</span>
           {[100, 92, 80, 96, 55].map((w, i) => line(w, i))}
         </div>
       )
     case 'audio':
       return (
         <div style={{ padding: '16px 13px', display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ flex: 'none', width: 32, height: 32, borderRadius: '50%', background: '#6a5cff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <span style={{ flex: 'none', width: 32, height: 32, borderRadius: '50%', background: '#5d53cb', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="#fff"><path d="M8 5v14l11-7z" /></svg>
           </span>
           <span style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 26 }}>
             {[10, 18, 26, 14, 22, 9, 17, 24, 12, 8].map((h, i) => (
-              <span key={i} style={{ width: 3, height: h, background: i % 3 === 0 ? '#6a5cff' : '#cfc8ec', borderRadius: 2 }} />
+              <span key={i} style={{ width: 3, height: h, background: i % 3 === 0 ? '#5d53cb' : '#cfd3ff', borderRadius: 2 }} />
             ))}
           </span>
         </div>
@@ -677,8 +691,8 @@ export function LegacyPreview({ type }: { type: LessonType }) {
     case 'pdf':
       return (
         <div style={{ padding: '12px 13px', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-          <span style={{ flex: 'none', width: 40, height: 50, borderRadius: 7, background: '#fff', border: '1.4px solid #e4e1ee', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: 4 }}>
-            <span style={{ fontSize: 8.5, fontWeight: 800, color: '#d64545', letterSpacing: '.04em' }}>PDF</span>
+          <span style={{ flex: 'none', width: 40, height: 50, borderRadius: 7, background: '#fff', border: '1.4px solid #e3e4e8', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: 4 }}>
+            <span style={{ fontSize: 8.5, fontWeight: 800, color: '#de3b3d', letterSpacing: '.04em' }}>PDF</span>
           </span>
           <span style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6, paddingTop: 4 }}>
             {[95, 78, 60].map((w, i) => line(w, i))}
@@ -693,10 +707,10 @@ export function LegacyPreview({ type }: { type: LessonType }) {
             ['book', 'kitob'],
             ['water', 'suv'],
           ].map(([a, b], i) => (
-            <span key={i} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 11, background: '#faf9ff', border: '1px solid #ece9f6', borderRadius: 7, padding: '5px 8px' }}>
-              <span style={{ fontWeight: 700, color: '#3a3552' }}>{a}</span>
-              <span style={{ color: '#c3bed4' }}>→</span>
-              <span style={{ color: '#6e6a80' }}>{b}</span>
+            <span key={i} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 11, background: '#fbfaf7', border: '1px solid #eceef2', borderRadius: 7, padding: '5px 8px' }}>
+              <span style={{ fontWeight: 700, color: '#4a4d56' }}>{a}</span>
+              <span style={{ color: '#cfd3ff' }}>→</span>
+              <span style={{ color: '#4a4d56' }}>{b}</span>
             </span>
           ))}
         </div>
@@ -704,7 +718,7 @@ export function LegacyPreview({ type }: { type: LessonType }) {
     default:
       return (
         <div style={{ padding: '12px 13px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: '#5f5a78' }}>2 + 2 = ?</div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: '#4a4d56' }}>2 + 2 = ?</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {[
               { t: '3', on: false },
@@ -716,12 +730,12 @@ export function LegacyPreview({ type }: { type: LessonType }) {
                 style={{
                   display: 'flex', alignItems: 'center', gap: 8, fontSize: 11.5, borderRadius: 8, padding: '6px 9px',
                   fontWeight: o.on ? 600 : 400,
-                  color: o.on ? '#1f7a45' : '#6e6a80',
-                  background: o.on ? '#e6f6ec' : '#fff',
-                  border: o.on ? '1.4px solid #1f9d55' : '1.2px solid #e6e2f2',
+                  color: o.on ? '#0f7a4c' : '#4a4d56',
+                  background: o.on ? '#e7f6ee' : '#fff',
+                  border: o.on ? '1.4px solid #169f65' : '1.2px solid #e3e4e8',
                 }}
               >
-                <span style={{ width: 11, height: 11, borderRadius: '50%', border: o.on ? '3.5px solid #1f9d55' : '1.5px solid #cfc8e0', display: 'inline-block' }} />
+                <span style={{ width: 11, height: 11, borderRadius: '50%', border: o.on ? '3.5px solid #169f65' : '1.5px solid #cfd3ff', display: 'inline-block' }} />
                 {o.t}
               </span>
             ))}

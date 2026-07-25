@@ -138,7 +138,7 @@ export function FillEditor({ data, onChange, active, setActive, theme }: EditorP
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }} onClick={(e) => e.stopPropagation()}>
                 <MiniLabel>To'g'ri javob</MiniLabel>
                 <input value={s.answer} onChange={(e) => update(s.id, { answer: e.target.value })} placeholder="masalan: yugurishni" style={optInput} />
-                <span style={{ fontSize: 11.5, color: '#a5a1b3' }}>Bir nechta to'g'ri variant bo'lsa "/" bilan ajrating: yugurishni/chopishni</span>
+                <span style={{ fontSize: 11.5, color: '#777a82' }}>Bir nechta to'g'ri variant bo'lsa "/" bilan ajrating: yugurishni/chopishni</span>
               </div>
             )}
 
@@ -186,7 +186,7 @@ export function WordPickEditor({ data, onChange, active, setActive, theme }: Edi
   return (
     <>
       <SectionHead title="Gaplar" count={`${items.length} ta gap`} />
-      <div style={{ fontSize: 12.5, color: '#948fa2', background: '#f4f2ec', border: '1px solid #e2ded4', borderRadius: 10, padding: '9px 12px' }}>
+      <div style={{ fontSize: 12.5, color: '#777a82', background: '#f7f5f1', border: '1px solid #e3e4e8', borderRadius: 10, padding: '9px 12px' }}>
         Variantlarni qavs ichida <b>/</b> bilan yozing, to'g'risiga <b>*</b> qo'ying. Masalan: Men (bir/*ikki) olma yedim
       </div>
 
@@ -215,7 +215,7 @@ export function WordPickEditor({ data, onChange, active, setActive, theme }: Edi
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
                 {tokens.map((t, ti) =>
                   t.kind === 'text' ? (
-                    <span key={ti} style={{ fontSize: 13, color: '#8b8798' }}>
+                    <span key={ti} style={{ fontSize: 13, color: '#777a82' }}>
                       {t.text.trim()}
                     </span>
                   ) : (
@@ -227,7 +227,7 @@ export function WordPickEditor({ data, onChange, active, setActive, theme }: Edi
                             fontSize: 12.5, fontWeight: 700, borderRadius: 7, padding: '3px 9px',
                             background: o.correct ? theme.accent : '#fff',
                             border: `1.3px solid ${o.correct ? theme.accent : theme.phoneBorder}`,
-                            color: o.correct ? '#fff' : '#6e6a80',
+                            color: o.correct ? '#fff' : '#4a4d56',
                           }}
                         >
                           {o.text}
@@ -302,7 +302,7 @@ export function WordFindEditor({ data, onChange, active, setActive, theme }: Edi
   return (
     <>
       <SectionHead title="Savollar" count={`${items.length} ta savol`} />
-      <div style={{ fontSize: 12.5, color: '#948fa2', background: '#f4f2ec', border: '1px solid #e2ded4', borderRadius: 10, padding: '9px 12px' }}>
+      <div style={{ fontSize: 12.5, color: '#777a82', background: '#f7f5f1', border: '1px solid #e3e4e8', borderRadius: 10, padding: '9px 12px' }}>
         Bir nechta so'z tushadigan gap uchun bir nechta <b>___</b> qo'ying. Har bir bo'sh joyga tartib bo'yicha to'g'ri javob yoziladi.
       </div>
 
@@ -341,7 +341,7 @@ export function WordFindEditor({ data, onChange, active, setActive, theme }: Edi
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }} onClick={(e) => e.stopPropagation()}>
                 <MiniLabel>To'g'ri javoblar — bo'sh joy tartibida</MiniLabel>
-                {n === 0 && <span style={{ fontSize: 11.5, color: '#a5a1b3' }}>Gapda ___ yo'q</span>}
+                {n === 0 && <span style={{ fontSize: 11.5, color: '#777a82' }}>Gapda ___ yo'q</span>}
                 {Array.from({ length: n }, (_, bi) => (
                   <div key={bi} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ flex: 'none', width: 20, height: 20, borderRadius: 6, background: theme.head, color: theme.accent, fontSize: 11.5, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -365,12 +365,12 @@ export function WordFindEditor({ data, onChange, active, setActive, theme }: Edi
                 <MiniLabel>Chalg'ituvchi so'zlar — ixtiyoriy</MiniLabel>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                   {s.distractors.map((d, di) => (
-                    <span key={di} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 600, color: '#4a3411', background: '#fff', border: `1px solid ${theme.phoneBorder}`, borderRadius: 8, padding: '5px 9px' }}>
+                    <span key={di} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 600, color: '#4a4d56', background: '#fff', border: `1px solid ${theme.phoneBorder}`, borderRadius: 8, padding: '5px 9px' }}>
                       {d}
                       <button
                         type="button"
                         onClick={() => update(s.id, { distractors: s.distractors.filter((_, j) => j !== di) })}
-                        style={{ border: 'none', background: 'transparent', color: '#b3adc6', cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: 0 }}
+                        style={{ border: 'none', background: 'transparent', color: '#9aa0aa', cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: 0 }}
                       >
                         ×
                       </button>

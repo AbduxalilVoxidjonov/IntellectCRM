@@ -15,7 +15,7 @@ export interface EditorProps {
 
 /** Kichik yorliq (maketdagi "Variantlar — to'g'risini belgilang" kabi). */
 export function MiniLabel({ children }: { children: ReactNode }) {
-  return <span style={{ fontSize: 12, fontWeight: 600, color: '#8b8798' }}>{children}</span>
+  return <span style={{ fontSize: 12, fontWeight: 600, color: '#777a82' }}>{children}</span>
 }
 
 /** Kartadagi ikkilamchi (tarjima/izoh) input. */
@@ -24,7 +24,7 @@ export const subInput: CSSProperties = {
   width: '100%',
   fontSize: 13.5,
   fontStyle: 'italic',
-  color: '#6e6a80',
+  color: '#4a4d56',
   background: 'transparent',
   border: 'none',
   padding: 0,
@@ -36,9 +36,9 @@ export const optInput: CSSProperties = {
   ...sans,
   flex: 1,
   fontSize: 14,
-  color: '#3a3552',
+  color: '#4a4d56',
   background: '#fff',
-  border: '1px solid #e7e3f2',
+  border: '1px solid #e3e4e8',
   borderRadius: 9,
   padding: '8px 11px',
   outline: 'none',
@@ -56,7 +56,7 @@ export function CorrectDot({ on, accent, onClick }: { on: boolean; accent: strin
       title="To'g'ri javob"
       style={{
         flex: 'none', width: 20, height: 20, borderRadius: '50%', cursor: 'pointer', padding: 0,
-        border: on ? `6px solid ${accent}` : '1.6px solid #cfc8e0',
+        border: on ? `6px solid ${accent}` : '1.6px solid #cfd3ff',
         background: '#fff',
       }}
     />
@@ -68,7 +68,7 @@ export function WordChips({ list }: { list: string[] }) {
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
       {list.map((w, i) => (
-        <span key={i} style={{ fontSize: 13, fontWeight: 500, color: '#5b5470', background: '#f2f0f9', border: '1px solid #e7e3f2', borderRadius: 7, padding: '4px 8px' }}>
+        <span key={i} style={{ fontSize: 13, fontWeight: 500, color: '#4a4d56', background: '#f7f5f1', border: '1px solid #e3e4e8', borderRadius: 7, padding: '4px 8px' }}>
           {w}
         </span>
       ))}
@@ -93,7 +93,7 @@ export function HintList({
         {hints.map((h, i) => (
           <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, color: accent, background: '#fff', border: `1px solid ${accent}33`, borderRadius: 20, padding: '6px 11px' }}>
             {h}
-            <button type="button" onClick={() => onRemove(i)} style={{ border: 'none', background: 'transparent', color: '#b3adc6', cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: 0 }}>
+            <button type="button" onClick={() => onRemove(i)} style={{ border: 'none', background: 'transparent', color: '#9aa0aa', cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: 0 }}>
               ×
             </button>
           </span>
@@ -134,7 +134,7 @@ export function NumberField({ label, value, onChange, min = 0, max = 999, suffix
           onChange={(e) => onChange(Math.max(min, Math.min(max, Number(e.target.value) || 0)))}
           style={{ ...optInput, maxWidth: 110 }}
         />
-        {suffix && <span style={{ fontSize: 13, color: '#8b8798' }}>{suffix}</span>}
+        {suffix && <span style={{ fontSize: 13, color: '#777a82' }}>{suffix}</span>}
       </div>
     </label>
   )

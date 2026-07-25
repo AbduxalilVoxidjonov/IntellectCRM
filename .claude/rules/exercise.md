@@ -54,8 +54,12 @@ paths:
   (video/matn/audio/pdf/lug'at/test dan keyin) alohida qadam sifatida chiqadi. Dars ochilishi eski
   qoidada: o'qituvchi "o'tildi" qilmaguncha yopiq (`GroupCurriculumLog`).
 
-- **DIZAYN:** maketlar (`tpshiriqlar.zip`) 1:1 ko'chirilgan — inline stillar, 'Space Grotesk' +
-  'Figtree' shriftlari (`index.html`), hover/animatsiyalar `src/styles/exercise.css` da `.dc-root`
-  ichida (CRM'ning qolgan qismiga ta'sir qilmaydi). Har kategoriyaning o'z aksent rangi bor
-  (`THEMES`) — gap tuzish binafsha, bo'sh joy ko'k, so'z tanlash yashil-ko'k, so'z topish sariq,
-  reading to'q sariq, test ko'k, writing ko'k, speaking pushti, moslashtirish yashil.
+- **DIZAYN — CRM tizimiga moslangan:** maketning TUZILISHI va o'zaro ta'siri saqlangan, ranglar esa
+  CRM dizayn tokenlariga keltirilgan (`catalog.tsx` → `UI` va `THEMES`): yagona aksent
+  **brand-600 `#5d53cb`** (+ `#eef0ff` yumshoq fon), matn `#181a22 / #4a4d56 / #777a82`, chegara
+  `#e3e4e8`, yuzalar `#fff / #fbfaf7 / #f7f5f1`, holat ranglari `#169f65` va `#de3b3d`.
+  DIQQAT: ilgari har kategoriyaning o'z rangi bor edi (binafsha/ko'k/yashil/sariq/pushti) va juda
+  rang-barang ko'rinardi — endi `THEMES` ning barcha yozuvlari bitta `CRM_THEME` ga ishora qiladi.
+  Sarlavha paneli ham QORA emas, oq (CRM modallari kabi). Shrift — CRM global shrifti
+  (`var(--font-sans)`, Pliant); alohida Google shriftlari ishlatilmaydi.
+  Hover/animatsiyalar `src/styles/exercise.css` da `.dc-root` ichida (qolgan CRM'ga ta'sir qilmaydi).

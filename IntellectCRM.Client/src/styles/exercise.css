@@ -5,12 +5,12 @@
    ========================================================================== */
 
 .dc-root {
-  font-family: 'Figtree', system-ui, sans-serif;
-  color: #1b1b26;
+  font-family: var(--font-sans);
+  color: #181a22;
 }
 
 .dc-root ::placeholder {
-  color: #a7a4b3;
+  color: #9aa0aa;
 }
 
 .dc-root input:focus,
@@ -25,12 +25,20 @@
 }
 .dc-root .dc-tcard:hover {
   transform: translateY(-4px);
-  box-shadow: 0 18px 34px -16px rgba(106, 92, 255, 0.5);
-  border-color: #6a5cff;
+  box-shadow: 0 16px 30px -18px rgba(93, 83, 203, 0.45);
+  border-color: #5d53cb;
 }
 .dc-root .dc-tcard:hover .dc-go {
-  background: #6a5cff;
+  background: #5d53cb;
   color: #fff;
+}
+
+/* Kategoriya tablari (tur tanlash oynasi) */
+.dc-root .dc-tab {
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.dc-root .dc-tab:hover {
+  background: #f7f5f1;
 }
 
 /* So'z plitkalari (gap tuzish / so'z topish) */
@@ -57,7 +65,7 @@
   transition: background 0.1s ease;
 }
 .dc-root .dc-cell:hover {
-  background: #e8f0ec;
+  background: #eef0ff;
 }
 
 /* Ro'yxat scrollbari */
@@ -66,7 +74,7 @@
   height: 8px;
 }
 .dc-root ::-webkit-scrollbar-thumb {
-  background: #d6d1c6;
+  background: #d7d9e0;
   border-radius: 4px;
 }
 

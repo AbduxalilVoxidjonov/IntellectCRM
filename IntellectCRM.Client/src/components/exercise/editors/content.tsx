@@ -60,8 +60,8 @@ export function ReadingEditor({ data, onChange, active, setActive, theme }: Edit
   return (
     <>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <h2 style={{ margin: 0, fontWeight: 600, fontSize: 15, letterSpacing: '.02em', textTransform: 'uppercase', color: '#9793a3', ...display }}>O'qish matni</h2>
-        <span style={{ fontSize: 12.5, fontWeight: 600, color: '#8b8798', background: '#e6e2d9', padding: '4px 11px', borderRadius: 20 }}>{wordCount} so'z</span>
+        <h2 style={{ margin: 0, fontWeight: 600, fontSize: 15, letterSpacing: '.02em', textTransform: 'uppercase', color: '#777a82', ...display }}>O'qish matni</h2>
+        <span style={{ fontSize: 12.5, fontWeight: 600, color: '#777a82', background: '#f7f5f1', padding: '4px 11px', borderRadius: 20 }}>{wordCount} so'z</span>
       </div>
       <textarea
         value={reading.passage}
@@ -97,7 +97,7 @@ export function ReadingEditor({ data, onChange, active, setActive, theme }: Edit
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }} onClick={(e) => e.stopPropagation()}>
                 <MiniLabel>To'g'ri javob</MiniLabel>
                 <input value={q.answer} onChange={(e) => update(q.id, { answer: e.target.value })} placeholder="masalan: By bus" style={optInput} />
-                <span style={{ fontSize: 11.5, color: '#a5a1b3' }}>Bir nechta to'g'ri javob bo'lsa "/" bilan ajrating.</span>
+                <span style={{ fontSize: 11.5, color: '#777a82' }}>Bir nechta to'g'ri javob bo'lsa "/" bilan ajrating.</span>
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }} onClick={(e) => e.stopPropagation()}>
@@ -110,7 +110,7 @@ export function ReadingEditor({ data, onChange, active, setActive, theme }: Edit
                       onChange={(e) => update(q.id, { options: q.options.map((x) => (x.id === o.id ? { ...x, text: e.target.value } : x)) })}
                       readOnly={isTf}
                       placeholder="Variant"
-                      style={{ ...optInput, background: isTf ? '#f7f6fb' : '#fff' }}
+                      style={{ ...optInput, background: isTf ? '#fbfaf7' : '#fff' }}
                     />
                     {!isTf && (
                       <RemoveBtn size={16} onClick={() => update(q.id, { options: q.options.filter((x) => x.id !== o.id), correctId: q.correctId === o.id ? null : q.correctId })} />
@@ -206,7 +206,7 @@ export function TestEditor({ data, onChange, active, setActive, theme }: EditorP
             {data.kind === 'test-image' && (
               <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
                 <ImagePicker url={q.imageUrl} onChange={(url) => update(q.id, { imageUrl: url })} size={92} />
-                <span style={{ fontSize: 12, color: '#a5a1b3' }}>Savol rasmi</span>
+                <span style={{ fontSize: 12, color: '#777a82' }}>Savol rasmi</span>
               </div>
             )}
             {data.kind === 'test-audio' && (
@@ -427,7 +427,7 @@ export function MatchingEditor({ data, onChange, theme }: EditorProps) {
       {/* Chap ustun elementlari */}
       <ScrollList>
         {m.rows.map((r, i) => (
-          <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#fff', border: '1.5px solid #ece9f3', borderRadius: 12, padding: '10px 12px' }}>
+          <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#fff', border: '1.5px solid #eceef2', borderRadius: 12, padding: '10px 12px' }}>
             <span style={{ flex: 'none', width: 24, height: 24, borderRadius: 7, background: theme.head, color: theme.accent, fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', ...display }}>
               {m.startNum + i}
             </span>
@@ -452,7 +452,7 @@ export function MatchingEditor({ data, onChange, theme }: EditorProps) {
           <button
             type="button"
             onClick={() => set({ colCount: Math.max(2, m.colCount - 1) })}
-            style={{ ...sans, width: 30, height: 30, borderRadius: 8, border: '1px solid #ddd8ea', background: '#fff', color: '#6e6a80', fontSize: 16, cursor: 'pointer' }}
+            style={{ ...sans, width: 30, height: 30, borderRadius: 8, border: '1px solid #e3e4e8', background: '#fff', color: '#4a4d56', fontSize: 16, cursor: 'pointer' }}
           >
             −
           </button>
@@ -462,7 +462,7 @@ export function MatchingEditor({ data, onChange, theme }: EditorProps) {
           <button
             type="button"
             onClick={() => set({ colCount: Math.min(9, m.colCount + 1) })}
-            style={{ ...sans, width: 30, height: 30, borderRadius: 8, border: '1px solid #ddd8ea', background: '#fff', color: '#6e6a80', fontSize: 16, cursor: 'pointer' }}
+            style={{ ...sans, width: 30, height: 30, borderRadius: 8, border: '1px solid #e3e4e8', background: '#fff', color: '#4a4d56', fontSize: 16, cursor: 'pointer' }}
           >
             +
           </button>
@@ -492,23 +492,23 @@ export function MatchingEditor({ data, onChange, theme }: EditorProps) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
           <MiniLabel>To'g'ri javoblar — katakni bosing</MiniLabel>
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ borderCollapse: 'collapse', width: '100%', border: '1px solid #e7e3f2', background: '#fff', borderRadius: 8 }}>
+            <table style={{ borderCollapse: 'collapse', width: '100%', border: '1px solid #e3e4e8', background: '#fff', borderRadius: 8 }}>
               <tbody>
-                <tr style={{ background: '#f7f6fb' }}>
+                <tr style={{ background: '#fbfaf7' }}>
                   <td style={{ padding: '6px 8px' }} />
                   {cols.map((c) => (
-                    <td key={c} style={{ padding: '6px 0', textAlign: 'center', fontSize: 12, fontWeight: 700, color: '#8b86a0', borderLeft: '1px solid #e7e3f2', ...display }}>
+                    <td key={c} style={{ padding: '6px 0', textAlign: 'center', fontSize: 12, fontWeight: 700, color: '#777a82', borderLeft: '1px solid #e3e4e8', ...display }}>
                       {colLetter(c)}
                     </td>
                   ))}
                 </tr>
                 {m.rows.map((r, ri) => (
                   <tr key={r.id}>
-                    <td style={{ padding: '6px 8px', fontSize: 13, fontWeight: 600, color: '#33234f', borderTop: '1px solid #e7e3f2', whiteSpace: 'nowrap' }}>
+                    <td style={{ padding: '6px 8px', fontSize: 13, fontWeight: 600, color: '#181a22', borderTop: '1px solid #e3e4e8', whiteSpace: 'nowrap' }}>
                       {m.startNum + ri}. {r.text}
                     </td>
                     {cols.map((c) => (
-                      <td key={c} style={{ padding: 3, borderLeft: '1px solid #e7e3f2', borderTop: '1px solid #e7e3f2' }}>
+                      <td key={c} style={{ padding: 3, borderLeft: '1px solid #e3e4e8', borderTop: '1px solid #e3e4e8' }}>
                         <button
                           type="button"
                           className="dc-cell"

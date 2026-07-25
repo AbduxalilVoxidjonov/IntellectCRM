@@ -3,7 +3,7 @@
  *
  * Ikki holat:
  *   1) tur tanlanmagan → "Topshiriq yaratish" (ExercisePicker) ekrani;
- *   2) tur tanlangan  → qorong'i sarlavha + tur banneri + chapda tahrirlovchi, o'ngda jonli
+ *   2) tur tanlangan  → sarlavha + tur banneri + chapda tahrirlovchi, o'ngda jonli
  *      "foydalanuvchi ko'rinishi" (aynan shu komponent o'quvchi portalida ham ishlaydi).
  */
 import { useMemo, useState } from 'react'
@@ -122,7 +122,7 @@ export function ExerciseWorkspace({ itemName, initialKind, initialJson, onSave, 
   // Tur hali tanlanmagan (yangi topshiriq) — bo'sh holat + tanlash tugmasi.
   if (!data) {
     return (
-      <div className="dc-root" style={{ background: UI.page, minHeight: 420, display: 'flex', flexDirection: 'column', borderRadius: 16, overflow: 'hidden', border: `1px solid ${UI.line}` }}>
+      <div className="dc-root" style={{ background: '#fff', minHeight: 420, display: 'flex', flexDirection: 'column', borderRadius: 16, overflow: 'hidden', border: `1px solid ${UI.line}` }}>
         <ConstructorHeader subtitle={itemName || 'Yangi mashq'} accent={UI.accent} onCancel={onExit} hideSave />
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, padding: '60px 24px', textAlign: 'center' }}>
           <p style={{ margin: 0, fontSize: 15, color: UI.muted }}>Mashq turi hali tanlanmagan.</p>
@@ -143,7 +143,7 @@ export function ExerciseWorkspace({ itemName, initialKind, initialJson, onSave, 
   const count = exerciseCount(data)
 
   return (
-    <div className="dc-root" style={{ background: UI.page, minHeight: '100%', display: 'flex', flexDirection: 'column', borderRadius: 16, overflow: 'hidden', border: `1px solid ${UI.line}` }}>
+    <div className="dc-root" style={{ background: '#fff', minHeight: '100%', display: 'flex', flexDirection: 'column', borderRadius: 16, overflow: 'hidden', border: `1px solid ${UI.line}` }}>
       {toast && <Toast text={toast} />}
       {confirm && <ConfirmExit onStay={() => setConfirm(false)} onLeave={onExit} />}
       {picker}
@@ -152,7 +152,6 @@ export function ExerciseWorkspace({ itemName, initialKind, initialJson, onSave, 
 
       <TypeBanner
         accent={theme.accent}
-        tint={[theme.head, theme.phone]}
         icon={info?.type.icon ?? 'blocks'}
         title={info?.cat.label ?? 'Mashq'}
         badge={info?.type.name ?? ''}
@@ -178,7 +177,7 @@ export function ExerciseWorkspace({ itemName, initialKind, initialJson, onSave, 
             <button
               type="button"
               onClick={() => setPicking(true)}
-              style={{ ...sans, background: '#fff', border: '1px solid #ddd8ea', color: '#6e6a80', fontWeight: 600, fontSize: 13, padding: '8px 13px', borderRadius: 9, cursor: 'pointer' }}
+              style={{ ...sans, background: '#fff', border: '1px solid #e3e4e8', color: '#4a4d56', fontWeight: 600, fontSize: 13, padding: '8px 13px', borderRadius: 9, cursor: 'pointer' }}
             >
               Turni o'zgartirish
             </button>
