@@ -35,3 +35,23 @@ Agent hisobini yaratish: Admin → Call Center → **Local Call** → "Agentlar"
 
 Operator API ruxsati — mavjud `calls` bo'lim ruxsati (`AdminPerm("calls")`), ya'ni Call Center
 ko'ra oladigan xodim Local Call'ni ham ko'radi.
+
+## Arxitektura eslatmalari (ESLAB QOLISH)
+
+- **WebSocket SignalR EMAS** — raw `/ws?token=`; ulanishlarni `CtiConnectionManager` singleton'i
+  boshqaradi. U **Application qatlamida** (Server/Cti/ dan ko'chirilgan) — sababi: Local SMS uchun
+  `AutoMessageService` kabi Application xizmatlari ham shu gateway orqali yuboradi.
+- **Click-to-call:** WS ulangan bo'lsa `dial` buyrug'i; agent oflayn bo'lsa mavjud
+  `FcmService.SendDataAsync` (data-only push, `CenterMeta.FcmServiceAccountJson`) bilan uyg'otib
+  qayta urinish. Dial raqami `CtiController.NormalizePhone` orqali `+998` formatga keltiriladi
+  (9 xonali lokal → `+998XXXXXXXXX`; ilova qo'ng'iroq qilishi uchun oldida `+` SHART).
+- **Agent autentifikatsiyasi** — mavjud JWT kaliti, rol `Roles.CtiAgent`, parol mavjud
+  `PasswordHasher` bilan. Alohida secret/kalit yaratilmaydi.
+- **`POST /api/mobile/calls` IDEMPOTENT** — kalit (agent + raqam + yo'nalish + startedAt); retry
+  dublikat yozuv yaratmaydi. Javobda id **3 xil nom bilan** qaytadi (`{serverCallId, id, callId}`) —
+  ilovaning qaysi versiyasi qaysi maydonni kutsa ham o'qiy oladi (sinxronlanmagan-retry muammosi).
+- **Tarix RAQAM bo'yicha guruhlangan:** `GET /api/cti/calls/grouped` — har raqam bitta qator
+  (qo'ng'iroqlar soni + oxirgisi); raqam bosilganda `GET /api/cti/calls?number=` bilan o'sha
+  raqamning barcha qo'ng'iroqlari ochiladi.
+- **Frontend:** `IntellectCRM.Client/src/pages/admin/calls/local/`; nav "Call Center" → bolalari
+  ("Bulut (MoiZvonki)" + "Local Call").
