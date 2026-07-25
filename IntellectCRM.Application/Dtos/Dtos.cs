@@ -1946,9 +1946,11 @@ public record TopicInput(string Title, string? Note);
 /// <summary>Dars yaratish/yangilash payload'i (nom/izoh) — tur yo'q, u topshiriq darajasida tanlanadi.</summary>
 public record LessonInput(string Title, string? Note);
 /// <summary>Topshiriq (CourseItem) yaratish payload'i. <paramref name="Type"/> MAJBURIY (text|video|
-/// audio|vocab|test|pdf) — shu yerda tanlanadi. Yangilashda (UpdateItem) faqat nom/izoh o'zgaradi —
-/// Type qayta yuborilmaydi.</summary>
-public record ItemInput(string Text, string? Note, string? Type = null);
+/// audio|vocab|test|pdf|exercise) — shu yerda tanlanadi. Yangilashda (UpdateItem) faqat nom/izoh
+/// o'zgaradi — Type qayta yuborilmaydi. <paramref name="ExerciseKind"/> — "exercise" turida
+/// topshiriq yaratish ekranida tanlangan MASHQ TURI (masalan "sentence-order"), shu zahoti
+/// yoziladi (konstruktor darhol o'sha tur tahrirlovchisini ochadi).</summary>
+public record ItemInput(string Text, string? Note, string? Type = null, string? ExerciseKind = null);
 /// <summary>Bir nechta topshiriqni bir zumda yaratish payload'i — barchasi BITTA turda
 /// (<paramref name="Type"/> MAJBURIY), har bir nom alohida band bo'ladi.</summary>
 public record BulkItemInput(List<string>? Texts, string? Type);

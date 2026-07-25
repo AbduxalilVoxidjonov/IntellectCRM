@@ -173,7 +173,9 @@ public class CurriculumController(AppDbContext db) : ControllerBase
         if (!string.IsNullOrWhiteSpace(i.PdfUrl)) sections.Add("PDF");
         if (vocabCount > 0) sections.Add("Lug'at");
         if (qc > 0) sections.Add("Test");
-        if (ExerciseFilled(i)) sections.Add(ExerciseLabel(i.ExerciseKind));
+        // Mashq turi tanlangan bo'lsa — hali to'ldirilmagan bo'lsa ham ko'rsatamiz (jadvalda
+        // "Gap tuzish · so'z tartibi" deb turadi, tayyorlik esa alohida belgi bilan).
+        if (!string.IsNullOrWhiteSpace(i.ExerciseKind)) sections.Add(ExerciseLabel(i.ExerciseKind));
         return string.Join(" · ", sections);
     }
 
@@ -396,6 +398,8 @@ public class CurriculumController(AppDbContext db) : ControllerBase
             Note = input.Note ?? "",
             Order = maxOrder + 1,
             Type = NormalizeType(input.Type),
+            // Mashq turi topshiriq YARATISH ekranida tanlanadi — konstruktor uni darhol ochadi.
+            ExerciseKind = (input.ExerciseKind ?? "").Trim(),
             CreatedAt = AppClock.Now.ToString("yyyy-MM-ddTHH:mm:ss"),
         };
         db.CourseItems.Add(item);

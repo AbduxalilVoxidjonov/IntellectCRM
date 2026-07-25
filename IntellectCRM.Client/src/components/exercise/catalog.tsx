@@ -4,6 +4,7 @@
  * saqlangan (kartalar, badge'lar, ikonlar).
  */
 import type { CSSProperties, ReactNode } from 'react'
+import type { LessonType } from '@/types'
 import type { ExerciseKind } from './model'
 
 // ============================ Dizayn tokenlari ============================
@@ -143,6 +144,20 @@ const ICON_PATHS: Record<string, ReactNode> = {
       <rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5" />
     </>
   ),
+  // "Boshqa" (eski) topshiriq turlari uchun ikonlar.
+  video: (
+    <>
+      <rect x="2" y="5" width="14" height="14" rx="2.5" />
+      <path d="M16 10l6-3v10l-6-3z" />
+    </>
+  ),
+  file: (
+    <>
+      <path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z" />
+      <path d="M14 3v5h5" />
+    </>
+  ),
+  note: <path d="M4 6h16M4 12h16M4 18h10" />,
 }
 
 export function Icon({ name, size = 20, color = '#fff', width = 2 }: { name: string; size?: number; color?: string; width?: number }) {
@@ -276,6 +291,32 @@ export const CATEGORIES: ExerciseCategory[] = [
     ],
   },
 ]
+
+// ---- "Boshqa" kategoriyasi: ESKI (oddiy kontent) topshiriq turlari ----
+
+/** Eski topshiriq turi — mashq emas, oddiy kontent bandi (video/matn/audio/PDF/lug'at/test). */
+export interface LegacyType {
+  lesson: LessonType
+  name: string
+  desc: string
+  icon: string
+}
+
+/** Tur tanlash ekranidagi OXIRGI tab — ilgari "+ Topshiriq" modalida bo'lgan turlar shu yerda. */
+export const OTHER_CATEGORY = {
+  id: 'other',
+  label: 'Boshqa',
+  title: 'Boshqa topshiriq turlari',
+  desc: "Interaktiv mashq emas, oddiy kontent bandlari: video, matn, audio, PDF, lug'at yoki oddiy test. Bir nechta nom kiritib, birdan bir nechtasini yaratish mumkin.",
+  types: [
+    { lesson: 'video', name: 'Video', desc: 'YouTube havolasi yoki yuklangan video dars.', icon: 'video' },
+    { lesson: 'text', name: 'Matn', desc: "O'qish uchun matnli dars mazmuni.", icon: 'note' },
+    { lesson: 'audio', name: 'Audio', desc: 'Tinglash uchun audio (MP3) dars.', icon: 'play' },
+    { lesson: 'pdf', name: 'PDF', desc: "Yuklangan PDF hujjat (darslik, tarqatma).", icon: 'file' },
+    { lesson: 'vocab', name: "Lug'at", desc: "So'z + tarjima juftliklari ro'yxati.", icon: 'book' },
+    { lesson: 'test', name: 'Test', desc: 'Oddiy savol-variant testi (avtomatik tekshiriladi).', icon: 'check' },
+  ] as LegacyType[],
+}
 
 const BY_KIND = new Map<ExerciseKind, { cat: ExerciseCategory; type: ExerciseType }>()
 for (const cat of CATEGORIES) for (const type of cat.types) BY_KIND.set(type.kind, { cat, type })
@@ -588,5 +629,104 @@ export function MiniPreview({ preview, kind }: { preview: PreviewKind; kind: Exe
         </div>
       )
     }
+  }
+}
+
+/** "Boshqa" kategoriyasidagi eski turlar uchun mini preview (hub kartalari ichida). */
+export function LegacyPreview({ type }: { type: LessonType }) {
+  const line = (w: number, i: number, color = '#e4e1ee') => (
+    <span key={i} style={{ height: 6, width: `${w}%`, borderRadius: 3, background: color, display: 'inline-block' }} />
+  )
+  switch (type) {
+    case 'video':
+      return (
+        <div style={{ padding: '12px 13px', display: 'flex', flexDirection: 'column', gap: 9 }}>
+          <div style={{ height: 62, borderRadius: 9, background: 'linear-gradient(135deg,#26233a,#3b3557)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <span style={{ width: 30, height: 30, borderRadius: '50%', background: 'rgba(255,255,255,.92)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="#3b3557"><path d="M8 5v14l11-7z" /></svg>
+            </span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+            <span style={{ flex: 1, height: 4, borderRadius: 3, background: '#e4e1ee', overflow: 'hidden' }}>
+              <span style={{ display: 'block', width: '38%', height: '100%', background: '#6a5cff' }} />
+            </span>
+            <span style={{ fontSize: 9.5, fontWeight: 700, color: '#a49edb' }}>04:12</span>
+          </div>
+        </div>
+      )
+    case 'text':
+      return (
+        <div style={{ padding: '14px 13px', display: 'flex', flexDirection: 'column', gap: 7 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: '#5f5a78' }}>Dars matni</span>
+          {[100, 92, 80, 96, 55].map((w, i) => line(w, i))}
+        </div>
+      )
+    case 'audio':
+      return (
+        <div style={{ padding: '16px 13px', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ flex: 'none', width: 32, height: 32, borderRadius: '50%', background: '#6a5cff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="#fff"><path d="M8 5v14l11-7z" /></svg>
+          </span>
+          <span style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 26 }}>
+            {[10, 18, 26, 14, 22, 9, 17, 24, 12, 8].map((h, i) => (
+              <span key={i} style={{ width: 3, height: h, background: i % 3 === 0 ? '#6a5cff' : '#cfc8ec', borderRadius: 2 }} />
+            ))}
+          </span>
+        </div>
+      )
+    case 'pdf':
+      return (
+        <div style={{ padding: '12px 13px', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+          <span style={{ flex: 'none', width: 40, height: 50, borderRadius: 7, background: '#fff', border: '1.4px solid #e4e1ee', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: 4 }}>
+            <span style={{ fontSize: 8.5, fontWeight: 800, color: '#d64545', letterSpacing: '.04em' }}>PDF</span>
+          </span>
+          <span style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6, paddingTop: 4 }}>
+            {[95, 78, 60].map((w, i) => line(w, i))}
+          </span>
+        </div>
+      )
+    case 'vocab':
+      return (
+        <div style={{ padding: '12px 13px', display: 'flex', flexDirection: 'column', gap: 7 }}>
+          {[
+            ['hello', 'salom'],
+            ['book', 'kitob'],
+            ['water', 'suv'],
+          ].map(([a, b], i) => (
+            <span key={i} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 11, background: '#faf9ff', border: '1px solid #ece9f6', borderRadius: 7, padding: '5px 8px' }}>
+              <span style={{ fontWeight: 700, color: '#3a3552' }}>{a}</span>
+              <span style={{ color: '#c3bed4' }}>→</span>
+              <span style={{ color: '#6e6a80' }}>{b}</span>
+            </span>
+          ))}
+        </div>
+      )
+    default:
+      return (
+        <div style={{ padding: '12px 13px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: '#5f5a78' }}>2 + 2 = ?</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {[
+              { t: '3', on: false },
+              { t: '4', on: true },
+              { t: '5', on: false },
+            ].map((o, i) => (
+              <span
+                key={i}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8, fontSize: 11.5, borderRadius: 8, padding: '6px 9px',
+                  fontWeight: o.on ? 600 : 400,
+                  color: o.on ? '#1f7a45' : '#6e6a80',
+                  background: o.on ? '#e6f6ec' : '#fff',
+                  border: o.on ? '1.4px solid #1f9d55' : '1.2px solid #e6e2f2',
+                }}
+              >
+                <span style={{ width: 11, height: 11, borderRadius: '50%', border: o.on ? '3.5px solid #1f9d55' : '1.5px solid #cfc8e0', display: 'inline-block' }} />
+                {o.t}
+              </span>
+            ))}
+          </div>
+        </div>
+      )
   }
 }

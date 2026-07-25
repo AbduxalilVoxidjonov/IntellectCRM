@@ -14,6 +14,16 @@ paths:
   ochilganda `CurriculumItemEditorPage` oddiy tahrirlovchi o'rniga **`ExerciseWorkspace`** ni
   ko'rsatadi.
 
+- **YARATISH OQIMI (muhim):** darsdagi **"+ Topshiriq"** tugmasi endi eski "tur chiplari" modalini
+  EMAS, **tur tanlash ekranini** (`ExercisePicker` — zip maketidagi "Topshiriq yaratish") ochadi.
+  Tablar: 8 mashq kategoriyasi + **oxirgi "Boshqa"** tabi (`OTHER_CATEGORY`) — u yerda ESKI turlar
+  (video / matn / audio / PDF / lug'at / oddiy test) o'z mini previewlari bilan.
+  · Mashq turi tanlansa → bitta nom so'raladi (`NameModal`, tur nomi bilan oldindan to'ldirilgan) →
+    `createItem(..., type="exercise", exerciseKind)` → darhol konstruktorga o'tiladi.
+  · "Boshqa" turi tanlansa → eski `BulkAddModal` (tur qulflangan, faqat nomlar) → `createItemsBulk`.
+  Turni keyin ham almashtirish mumkin: jadvaldagi qalam tugmasi (`ItemEditModal`) yoki konstruktordagi
+  "Turni o'zgartirish" (u yerda "Boshqa" tabi ko'rsatilmaydi — mashqdan mashqqa).
+
 - **SAQLASH:** `CourseItem.ExerciseKind` (tur, masalan `sentence-order`) + `CourseItem.ExerciseJson`
   (turga mos JSON mazmun) — migratsiya `AddCourseItemExercise`. `SaveItemContentRequest`da bu ikki
   maydon **null bo'lsa TEGILMAYDI** (boshqa turdagi topshiriqni saqlash mashqni o'chirmasin).

@@ -109,10 +109,32 @@ export function ExerciseWorkspace({ itemName, initialKind, initialJson, onSave, 
     else onExit()
   }
 
-  if (picking || !data) {
+  // Tur tanlash — KATTA MODAL KARTA sifatida konstruktor ustida ochiladi.
+  const picker = picking ? (
+    <ExercisePicker
+      current={data?.kind ?? null}
+      onPick={pick}
+      onClose={() => setPicking(false)}
+      subtitle={itemName || 'Yangi mashq'}
+    />
+  ) : null
+
+  // Tur hali tanlanmagan (yangi topshiriq) — bo'sh holat + tanlash tugmasi.
+  if (!data) {
     return (
-      <div className="dc-root">
-        <ExercisePicker current={data?.kind ?? null} onPick={pick} onClose={() => (data ? setPicking(false) : onExit())} />
+      <div className="dc-root" style={{ background: UI.page, minHeight: 420, display: 'flex', flexDirection: 'column', borderRadius: 16, overflow: 'hidden', border: `1px solid ${UI.line}` }}>
+        <ConstructorHeader subtitle={itemName || 'Yangi mashq'} accent={UI.accent} onCancel={onExit} hideSave />
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, padding: '60px 24px', textAlign: 'center' }}>
+          <p style={{ margin: 0, fontSize: 15, color: UI.muted }}>Mashq turi hali tanlanmagan.</p>
+          <button
+            type="button"
+            onClick={() => setPicking(true)}
+            style={{ ...sans, background: UI.accent, border: 'none', color: '#fff', fontWeight: 600, fontSize: 14.5, padding: '11px 20px', borderRadius: 11, cursor: 'pointer' }}
+          >
+            Turini tanlash
+          </button>
+        </div>
+        {picker}
       </div>
     )
   }
@@ -124,6 +146,7 @@ export function ExerciseWorkspace({ itemName, initialKind, initialJson, onSave, 
     <div className="dc-root" style={{ background: UI.page, minHeight: '100%', display: 'flex', flexDirection: 'column', borderRadius: 16, overflow: 'hidden', border: `1px solid ${UI.line}` }}>
       {toast && <Toast text={toast} />}
       {confirm && <ConfirmExit onStay={() => setConfirm(false)} onLeave={onExit} />}
+      {picker}
 
       <ConstructorHeader subtitle={itemName || 'Yangi mashq'} accent={theme.accent} saving={saving} saved={saved} onCancel={exit} onSave={save} />
 

@@ -2,14 +2,17 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Plus, Trash2, Pencil, ChevronRight, ListChecks, Check, Loader2, X } from 'lucide-react'
 import type { Curriculum, CurriculumTopic, CurriculumLesson, CurriculumItem, LessonType } from '@/types'
-import { getCurriculum, createItemsBulk, updateItem, deleteItem } from '@/api/services/curriculum'
+import { getCurriculum, createItem, createItemsBulk, updateItem, deleteItem } from '@/api/services/curriculum'
+import { ExercisePicker } from '@/components/exercise/ExercisePicker'
+import { kindInfo, kindTitle } from '@/components/exercise/catalog'
+import type { ExerciseKind } from '@/components/exercise/model'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
 import { Loader } from '@/components/ui/Loader'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { apiErrorMessage, cn, formatDate } from '@/lib/utils'
-import { control, LESSON_TYPES, typeMeta, ConfirmDeleteModal } from './shared'
+import { control, LESSON_TYPES, typeMeta, ConfirmDeleteModal, NameModal } from './shared'
 
 type Notice = { type: 'success' | 'error'; text: string }
 
@@ -26,7 +29,12 @@ export function CurriculumItemsPage() {
   const [data, setData] = useState<Curriculum | null>(null)
   const [notice, setNotice] = useState<Notice | null>(null)
 
-  const [bulkOpen, setBulkOpen] = useState(false)
+  /** "+ Topshiriq" — avval TUR tanlanadi (dizayn ekrani), keyin nom(lar) so'raladi. */
+  const [picking, setPicking] = useState(false)
+  /** "Boshqa" tabidan tanlangan eski tur — bir nechta nom bilan birdan yaratiladi. */
+  const [bulkType, setBulkType] = useState<LessonType | null>(null)
+  /** Mashq turi tanlangan — bitta nom so'raladi va konstruktor ochiladi. */
+  const [newKind, setNewKind] = useState<ExerciseKind | null>(null)
   const [bulkBusy, setBulkBusy] = useState(false)
 
   const [editing, setEditing] = useState<CurriculumItem | null>(null)
@@ -82,13 +90,31 @@ export function CurriculumItemsPage() {
         : d,
     )
 
+  /** "Boshqa" (eski) tur — bir nechta nom bilan birdan yaratish. */
   const bulkAdd = async (names: string[], type: LessonType) => {
     setBulkBusy(true)
     try {
       const created = await createItemsBulk(lessonId, names, type)
       await load(true)
-      setBulkOpen(false)
+      setBulkType(null)
+      setPicking(false)
       setNotice({ type: 'success', text: `${created.length} ta topshiriq qo'shildi` })
+    } catch (err) {
+      setNotice({ type: 'error', text: apiErrorMessage(err, 'Xato yuz berdi') })
+    } finally {
+      setBulkBusy(false)
+    }
+  }
+
+  /** Mashq turi tanlangan — topshiriq yaratiladi va DARHOL konstruktor ochiladi. */
+  const addExercise = async (name: string) => {
+    if (!newKind) return
+    setBulkBusy(true)
+    try {
+      const { id } = await createItem(lessonId, name, 'exercise', '', newKind)
+      setNewKind(null)
+      setPicking(false)
+      navigate(`/admin/curricula/${curriculumId}/${moduleId}/${topicId}/${lessonId}/${id}`)
     } catch (err) {
       setNotice({ type: 'error', text: apiErrorMessage(err, 'Xato yuz berdi') })
     } finally {
@@ -161,7 +187,7 @@ export function CurriculumItemsPage() {
         title={lesson.title}
         sub={lesson.items.length > 0 ? `${ready} / ${lesson.items.length} topshiriq tayyor` : 'Hali topshiriq yo\'q'}
         actions={
-          <Button onClick={() => setBulkOpen(true)}>
+          <Button onClick={() => setPicking(true)}>
             <Plus className="h-4 w-4" /> Topshiriq
           </Button>
         }
@@ -223,7 +249,8 @@ export function CurriculumItemsPage() {
                       </td>
                       <td className="px-2 py-2.5">
                         <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-50 px-2.5 py-1 text-xs font-semibold text-brand-600">
-                          <Icon className="h-3.5 w-3.5" /> {meta.label}
+                          {/* Mashqda aniq turi ko'rinadi ("Gap tuzish · so'z tartibi") — meta serverdan keladi. */}
+                          <Icon className="h-3.5 w-3.5" /> {item.type === 'exercise' && item.meta ? item.meta : meta.label}
                         </span>
                       </td>
                       <td className="px-2 py-2.5 text-xs text-slate-400">
@@ -265,10 +292,37 @@ export function CurriculumItemsPage() {
         </Card>
       )}
 
-      <BulkAddModal
-        open={bulkOpen}
+      {/* "+ Topshiriq" — TUR TANLASH oynasi (katta modal karta): 8 mashq kategoriyasi va
+          oxirida "Boshqa" tabi (eski turlar: video/matn/audio/PDF/lug'at/test). */}
+      {picking && (
+        <ExercisePicker
+          subtitle={lesson.title}
+          onPick={(k) => setNewKind(k)}
+          onPickLegacy={(t) => setBulkType(t)}
+          onClose={() => setPicking(false)}
+        />
+      )}
+
+      {/* Mashq turi tanlandi — bitta nom so'raladi, so'ng konstruktor ochiladi */}
+      <NameModal
+        open={!!newKind}
+        title="Yangi mashq"
+        label="Topshiriq nomi"
+        placeholder="Masalan: 1-mashq. Gap tuzish"
+        initialValue={newKind ? kindTitle(newKind) : ''}
+        hint={newKind ? `Tur: ${kindInfo(newKind)?.type.name ?? ''} — yaratilgach konstruktor ochiladi.` : undefined}
+        submitLabel="Yaratish"
         busy={bulkBusy}
-        onClose={() => setBulkOpen(false)}
+        onClose={() => setNewKind(null)}
+        onSubmit={addExercise}
+      />
+
+      {/* "Boshqa" turi tanlandi — eski oqim: bir nechta nom, birdan yaratish */}
+      <BulkAddModal
+        open={!!bulkType}
+        type={bulkType ?? 'video'}
+        busy={bulkBusy}
+        onClose={() => setBulkType(null)}
         onSubmit={bulkAdd}
       />
 
@@ -303,6 +357,8 @@ export function CurriculumItemsPage() {
 
 interface BulkAddModalProps {
   open: boolean
+  /** Tur "Boshqa" tabida ALLAQACHON tanlangan — modalda faqat nomlar kiritiladi. */
+  type: LessonType
   busy: boolean
   onClose: () => void
   onSubmit: (names: string[], type: LessonType) => void
@@ -310,18 +366,16 @@ interface BulkAddModalProps {
 
 const INITIAL_ROWS = 3
 
-/** Turini bir marta tanlaysiz, bir nechta nom kiritasiz (qatorlar), BIR marta "N ta yaratish"
- *  bosasiz — hammasi bitta amal bilan yaratiladi. Har qatorda Enter — oxirgisida yangi qator
- *  qo'shadi, boshqasida keyingi qatorga o'tadi (jadval kabi tez to'ldirish uchun). */
-function BulkAddModal({ open, busy, onClose, onSubmit }: BulkAddModalProps) {
-  const [type, setType] = useState<LessonType>('video')
+/** Tur tanlash ekranida turini tanlaysiz, bu yerda bir nechta nom kiritasiz (qatorlar), BIR marta
+ *  "N ta yaratish" bosasiz — hammasi bitta amal bilan yaratiladi. Har qatorda Enter — oxirgisida
+ *  yangi qator qo'shadi, boshqasida keyingi qatorga o'tadi (jadval kabi tez to'ldirish uchun). */
+function BulkAddModal({ open, type, busy, onClose, onSubmit }: BulkAddModalProps) {
   const [names, setNames] = useState<string[]>(() => Array(INITIAL_ROWS).fill(''))
   const inputsRef = useRef<(HTMLInputElement | null)[]>([])
   const prevLenRef = useRef(names.length)
 
   useEffect(() => {
     if (open) {
-      setType('video')
       setNames(Array(INITIAL_ROWS).fill(''))
       prevLenRef.current = INITIAL_ROWS
     }
@@ -374,27 +428,13 @@ function BulkAddModal({ open, busy, onClose, onSubmit }: BulkAddModalProps) {
           <label className="mb-1.5 block text-xs font-semibold text-slate-500">
             Turi <span className="font-normal text-slate-400">— barchasi shu turda yaratiladi</span>
           </label>
-          <div className="flex flex-wrap gap-2">
-            {LESSON_TYPES.map((t) => {
-              const TIcon = t.icon
-              const on = type === t.type
-              return (
-                <button
-                  key={t.type}
-                  type="button"
-                  onClick={() => setType(t.type)}
-                  className={cn(
-                    'inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-[13px] font-semibold transition-colors',
-                    on
-                      ? 'border-brand-400 bg-brand-50 text-brand-700'
-                      : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50',
-                  )}
-                >
-                  <TIcon className="h-4 w-4" /> {t.label}
-                </button>
-              )
-            })}
-          </div>
+          <span className="inline-flex items-center gap-1.5 rounded-lg border border-brand-400 bg-brand-50 px-3 py-2 text-[13px] font-semibold text-brand-700">
+            {(() => {
+              const TIcon = typeMeta(type).icon
+              return <TIcon className="h-4 w-4" />
+            })()}
+            {typeMeta(type).label}
+          </span>
         </div>
 
         <div>

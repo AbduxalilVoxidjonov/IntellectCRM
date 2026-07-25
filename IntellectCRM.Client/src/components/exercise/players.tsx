@@ -8,7 +8,7 @@
  * o'tiladi ("Keyingi") va oxirida natija qaytariladi.
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { CSSProperties, ReactNode } from 'react'
+import type { CSSProperties, MutableRefObject, ReactNode } from 'react'
 import { display, sans, kindTheme } from './catalog'
 import type { Theme } from './catalog'
 import { PlayButton, ResultBar } from './kit'
@@ -28,6 +28,14 @@ export interface PlayerProps {
   /** preview — konstruktor; solve — o'quvchi (ketma-ket o'tish + yakuniy natija). */
   mode?: 'preview' | 'solve'
   onFinish?: (correct: number, total: number) => void
+}
+
+/** Ichki pleyerlar props'i — natija hisoblagichi element almashganda YO'QOLMASLIGI uchun
+ *  tashqarida (dispatcher'da) saqlanadi. Pleyerning o'zi esa har element uchun `key` bilan
+ *  QAYTA YARATILADI — javob holati (tanlov, terilgan so'zlar) shu tarzda tozalanadi (effekt bilan
+ *  emas: effekt ortiqcha render va bir lahzalik eski holatni ko'rsatishga olib kelardi). */
+interface InnerProps extends PlayerProps {
+  scoreRef: MutableRefObject<{ correct: number; answered: number }>
 }
 
 /** Barqaror (id bo'yicha) aralashtirish — har renderda tartib o'zgarib ketmasligi uchun. */
@@ -145,13 +153,9 @@ function EmptyState({ theme, text }: { theme: Theme; text: string }) {
 }
 
 /** Ko'p elementli mashqlarda umumiy holat (joriy element, natija, keyingiga o'tish). */
-function useRunner(total: number, props: PlayerProps) {
-  const { index, onIndex, mode = 'preview', onFinish } = props
-  const scoreRef = useRef({ correct: 0, answered: 0 })
+function useRunner(total: number, props: InnerProps) {
+  const { index, onIndex, mode = 'preview', onFinish, scoreRef } = props
   const [checked, setChecked] = useState<boolean | null>(null)
-
-  // Element almashsa — javob holati tozalanadi.
-  useEffect(() => setChecked(null), [index])
 
   const finish = (ok: boolean) => {
     setChecked(ok)
@@ -172,7 +176,7 @@ function useRunner(total: number, props: PlayerProps) {
 
 // ============================ 1. Gap tuzish (so'z tartibi) ============================
 
-function SentencePlayer(props: PlayerProps) {
+function SentencePlayer(props: InnerProps) {
   const { data, index } = props
   const theme = kindTheme(data.kind)
   const items = data.sentence?.items ?? []
@@ -181,7 +185,6 @@ function SentencePlayer(props: PlayerProps) {
   const [placed, setPlaced] = useState<number[]>([])
 
   const bank = useMemo(() => (item ? shuffled(words(item.text).map((w, i) => ({ i, w })), item.id) : []), [item])
-  useEffect(() => setPlaced([]), [item?.id])
 
   if (!item) return <EmptyState theme={theme} text="Hali gap qo'shilmadi" />
 
@@ -245,7 +248,7 @@ function SentencePlayer(props: PlayerProps) {
 
 // ============================ 2. Gap tuzish · variant tanlash ============================
 
-function SentenceChoicePlayer(props: PlayerProps) {
+function SentenceChoicePlayer(props: InnerProps) {
   const { data, index } = props
   const theme = kindTheme(data.kind)
   const items = data.sentenceChoice?.items ?? []
@@ -254,7 +257,6 @@ function SentenceChoicePlayer(props: PlayerProps) {
   const [picked, setPicked] = useState<string | null>(null)
   const options = useMemo(() => (item ? shuffled(item.options, item.id) : []), [item])
 
-  useEffect(() => setPicked(null), [item?.id])
   if (!item) return <EmptyState theme={theme} text="Hali savol qo'shilmadi" />
 
   return (
@@ -316,7 +318,7 @@ function SentenceChoicePlayer(props: PlayerProps) {
 
 // ============================ 3. Bo'sh joyni to'ldirish ============================
 
-function FillPlayer(props: PlayerProps) {
+function FillPlayer(props: InnerProps) {
   const { data, index } = props
   const theme = kindTheme(data.kind)
   const items = data.fill?.items ?? []
@@ -326,11 +328,6 @@ function FillPlayer(props: PlayerProps) {
   const [picked, setPicked] = useState<string | null>(null)
   const [typed, setTyped] = useState('')
   const options = useMemo(() => (item ? shuffled(item.options, item.id) : []), [item])
-
-  useEffect(() => {
-    setPicked(null)
-    setTyped('')
-  }, [item?.id])
 
   if (!item) return <EmptyState theme={theme} text="Hali savol qo'shilmadi" />
 
@@ -426,7 +423,7 @@ function FillPlayer(props: PlayerProps) {
 
 // ============================ 4. So'z tanlash (gap ichida) ============================
 
-function WordPickPlayer(props: PlayerProps) {
+function WordPickPlayer(props: InnerProps) {
   const { data, index } = props
   const theme = kindTheme(data.kind)
   const items = data.wordpick?.items ?? []
@@ -434,7 +431,6 @@ function WordPickPlayer(props: PlayerProps) {
   const runner = useRunner(items.length, props)
   const [sel, setSel] = useState<Record<number, number>>({})
 
-  useEffect(() => setSel({}), [item?.id])
   if (!item) return <EmptyState theme={theme} text="Hali gap qo'shilmadi" />
 
   const tokens = parsePickText(item.text)
@@ -501,20 +497,21 @@ function WordPickPlayer(props: PlayerProps) {
 
 // ============================ 5. So'z topish (bo'sh joylarga so'z terish) ============================
 
-function WordFindPlayer(props: PlayerProps) {
+function WordFindPlayer(props: InnerProps) {
   const { data, index } = props
   const theme = kindTheme(data.kind)
   const items = data.wordfind?.items ?? []
   const blank = data.wordfind?.blank ?? 'line'
   const item = items[index]
   const runner = useRunner(items.length, props)
-  const [placed, setPlaced] = useState<(string | null)[]>([])
+  const [placed, setPlaced] = useState<(string | null)[]>(() =>
+    item ? new Array(Math.max(1, splitBlanks(item.text).length - 1)).fill(null) : [],
+  )
 
   const pool = useMemo(
     () => (item ? shuffled([...item.answers, ...item.distractors].map((w, i) => ({ id: `${i}-${w}`, w })), item.id) : []),
     [item],
   )
-  useEffect(() => setPlaced(item ? new Array(Math.max(1, splitBlanks(item.text).length - 1)).fill(null) : []), [item?.id])
 
   if (!item) return <EmptyState theme={theme} text="Hali savol qo'shilmadi" />
 
@@ -592,7 +589,7 @@ function WordFindPlayer(props: PlayerProps) {
 
 // ============================ 6. Reading ============================
 
-function ReadingPlayer(props: PlayerProps) {
+function ReadingPlayer(props: InnerProps) {
   const { data, index } = props
   const theme = kindTheme(data.kind)
   const passage = data.reading?.passage ?? ''
@@ -601,11 +598,6 @@ function ReadingPlayer(props: PlayerProps) {
   const runner = useRunner(items.length, props)
   const [picked, setPicked] = useState<string | null>(null)
   const [typed, setTyped] = useState('')
-
-  useEffect(() => {
-    setPicked(null)
-    setTyped('')
-  }, [item?.id])
 
   const isWrite = data.kind === 'reading-fill' || data.kind === 'reading-short'
 
@@ -694,7 +686,7 @@ function ReadingPlayer(props: PlayerProps) {
 
 // ============================ 7. Test ============================
 
-function TestPlayer(props: PlayerProps) {
+function TestPlayer(props: InnerProps) {
   const { data, index } = props
   const theme = kindTheme(data.kind)
   const items = data.test?.items ?? []
@@ -702,7 +694,6 @@ function TestPlayer(props: PlayerProps) {
   const runner = useRunner(items.length, props)
   const [picked, setPicked] = useState<string | null>(null)
 
-  useEffect(() => setPicked(null), [item?.id])
   if (!item) return <EmptyState theme={theme} text="Hali savol qo'shilmadi" />
 
   const imageOptions = data.kind === 'test-imageopts'
@@ -806,7 +797,7 @@ function TestPlayer(props: PlayerProps) {
 
 // ============================ 8. Writing ============================
 
-function WritingPlayer({ data, mode = 'preview', onFinish }: PlayerProps) {
+function WritingPlayer({ data, mode = 'preview', onFinish }: InnerProps) {
   const theme = kindTheme(data.kind)
   const w = data.writing
   const [answer, setAnswer] = useState('')
@@ -868,7 +859,7 @@ function WritingPlayer({ data, mode = 'preview', onFinish }: PlayerProps) {
 
 // ============================ 9. Speaking ============================
 
-function SpeakingPlayer({ data, mode = 'preview', onFinish }: PlayerProps) {
+function SpeakingPlayer({ data, mode = 'preview', onFinish }: InnerProps) {
   const theme = kindTheme(data.kind)
   const s = data.speaking
   const [phase, setPhase] = useState<'idle' | 'prep' | 'rec' | 'done'>('idle')
@@ -992,7 +983,7 @@ function SpeakingPlayer({ data, mode = 'preview', onFinish }: PlayerProps) {
 
 // ============================ 10. Moslashtirish ============================
 
-function MatchingPlayer({ data, mode = 'preview', onFinish }: PlayerProps) {
+function MatchingPlayer({ data, mode = 'preview', onFinish }: InnerProps) {
   const theme = kindTheme(data.kind)
   const m = data.matching
   const [answers, setAnswers] = useState<Record<string, number>>({})
@@ -1109,8 +1100,15 @@ function MatchingPlayer({ data, mode = 'preview', onFinish }: PlayerProps) {
 
 // ============================ Dispatcher ============================
 
-/** Turga mos pleyer (telefon ichidagi mazmun). */
+/** Turga mos pleyer. Element almashganda `key` orqali QAYTA YARATILADI — javob holati
+ *  (tanlangan variant, terilgan so'zlar) o'z-o'zidan tozalanadi; yig'ilgan natija esa
+ *  `scoreRef` da (bu komponentda) saqlanib qoladi. */
 export function ExercisePlayer(props: PlayerProps) {
+  const scoreRef = useRef({ correct: 0, answered: 0 })
+  return <PlayerBody key={`${props.data.kind}:${props.index}`} {...props} scoreRef={scoreRef} />
+}
+
+function PlayerBody(props: InnerProps) {
   switch (kindFamily(props.data.kind)) {
     case 'sentence':
       return <SentencePlayer {...props} />

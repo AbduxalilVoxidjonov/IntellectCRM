@@ -149,10 +149,10 @@ export async function deleteLesson(id: string): Promise<void> {
 
 // ---- Topshiriq — o'z turini tanlaydi (video|matn|audio|pdf|lug'at|test), keyin ham o'zgartiriladi ----
 export async function createItem(
-  lessonId: string, text: string, type: LessonType, note = '',
+  lessonId: string, text: string, type: LessonType, note = '', exerciseKind = '',
 ): Promise<{ id: string }> {
   const { data } = await api.post<{ id: string }>(
-    `/admin/curriculum/lessons/${lessonId}/items`, { text, note, type },
+    `/admin/curriculum/lessons/${lessonId}/items`, { text, note, type, exerciseKind },
   )
   return data
 }
