@@ -193,6 +193,42 @@ export async function getGroupFill(): Promise<GroupFillRow[]> {
   return data
 }
 
+export interface CloseGroupResult {
+  ok: boolean
+  groupId: string
+  groupName: string
+  /** Muzlatish sanasi — qarzdorlik shu sanagacha hisoblangan. */
+  freezeDate: string
+  frozenCount: number
+  alreadyFrozen: number
+  /** Sinovdagi (hisobsiz) a'zoliklar — ular guruhdan chiqarildi. */
+  trialClosed: number
+  /** Muzlatishdan keyingi oylar uchun bekor qilingan (balansga qaytarilgan) summa. */
+  restoredCharges: number
+}
+
+/**
+ * Guruhni YOPISH: barcha faol a'zolar berilgan sanadan muzlatiladi (qarzdorlik shu sanagacha
+ * hisoblanadi) va guruh arxivga olinadi. Sertifikat berilmaydi, yangi guruh ochilmaydi.
+ */
+export async function closeClass(
+  id: string,
+  opts: { date: string; reasonId?: string },
+): Promise<CloseGroupResult> {
+  if (USE_MOCK) {
+    await delay(300)
+    return {
+      ok: true, groupId: id, groupName: '', freezeDate: opts.date,
+      frozenCount: 0, alreadyFrozen: 0, trialClosed: 0, restoredCharges: 0,
+    }
+  }
+  const { data } = await api.post<CloseGroupResult>(`/admin/classes/${id}/close`, {
+    date: opts.date,
+    reasonId: opts.reasonId ?? null,
+  })
+  return data
+}
+
 export interface CompleteAndTransferResult {
   ok: boolean
   archivedGroupId: string

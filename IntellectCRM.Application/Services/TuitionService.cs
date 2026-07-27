@@ -500,6 +500,41 @@ public static class TuitionService
     }
 
     /// <summary>
+    /// MUZLATISHDAN KEYINGI oylarning hisobini BEKOR qiladi (guruh yopilganda / orqaga sanalgan muzlatishda).
+    /// Muzlatish sanasi o'tgan oyga qo'yilsa, oradagi oylar uchun <see cref="AccrueMonth"/> allaqachon to'liq
+    /// oylik yozib qo'ygan bo'lishi mumkin — qarz muzlatish sanasidan keyin ham o'sib ketardi. Bu metod shu
+    /// (o'quvchi, guruh) juftligining <paramref name="month"/> dan KEYINGI oy hisoblarini o'chiradi va
+    /// effektiv summani balansga QAYTARADI. <c>Locked</c> (qo'lda tahrirlangan) qatorlar tegilmaydi.
+    /// <paramref name="inclusive"/>=true bo'lsa <paramref name="month"/> ning O'ZI ham o'chiriladi (a'zolik
+    /// muzlatish sanasidan KEYIN aktivlashtirilgan bo'lsa — o'sha oyda umuman hisob bo'lmasligi kerak).
+    /// SaveChanges — chaqiruvchida. Qaytaradi: balansga qaytarilgan jami summa.
+    /// </summary>
+    public static async Task<decimal> PurgeChargesAfterMonthAsync(
+        IAppDbContext db, Student s, string groupId, string month, bool inclusive = false)
+    {
+        if (month.Length < 7) return 0m;
+        var m0 = month[..7];
+        var rows = (await db.MonthlyCharges
+                .Where(c => c.StudentId == s.Id && c.GroupId == groupId)
+                .ToListAsync())
+            .Where(c => !c.Locked && c.Month.Length >= 7
+                        && (inclusive
+                            ? string.CompareOrdinal(c.Month[..7], m0) >= 0
+                            : string.CompareOrdinal(c.Month[..7], m0) > 0))
+            .ToList();
+
+        var restored = 0m;
+        foreach (var row in rows)
+        {
+            var effective = Math.Max(0m, row.Amount - row.Discount);
+            s.Balance += effective;   // yaratilganda yechilgan effektivni qaytaramiz
+            restored += effective;
+            db.MonthlyCharges.Remove(row);
+        }
+        return restored;
+    }
+
+    /// <summary>
     /// GURUH ALMASHTIRISHDA AVANSNI KO'CHIRISH. Muammo: o'quvchi oy boshida ESKI guruhga to'lab, keyin
     /// yangi guruhga o'tkazilsa — muzlatish qisman hisobi eski guruh hisobini (masalan oy boshidan
     /// muzlatilsa) deyarli nolga tushiradi, lekin PUL o'sha eski guruhga TEGLANGAN bo'lib qoladi.

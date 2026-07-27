@@ -36,11 +36,21 @@ public static class StudentGroupLedger
         var startMonth = membership.ActivatedAt.Length >= 7 ? membership.ActivatedAt[..7]
             : membership.JoinedAt.Length >= 7 ? membership.JoinedAt[..7] : current;
         var endMonth = current;
-        if (membership.FrozenAt.Length >= 7 && string.CompareOrdinal(membership.FrozenAt[..7], endMonth) < 0)
-            // Muzlatilgan — kelajak yo'q, oxiri = muzlatish oyi.
-            endMonth = membership.FrozenAt[..7];
+        // MUZLATILGAN yoki guruhdan CHIQARILGAN a'zolikda kelajak oy YO'Q — hisob muzlatish (guruh
+        // yopilganda ham shu) yoki chiqish oyida to'xtaydi. Qarz shu sanadan keyin o'smaydi, lekin
+        // shu oygacha bo'lgan qarzga to'lov qabul qilinaveradi.
+        string? stopMonth = membership.FrozenAt.Length >= 7 ? membership.FrozenAt[..7] : null;
+        if (!membership.IsActive && (membership.LeftAt ?? "").Length >= 7)
+        {
+            var leftMonth = membership.LeftAt![..7];
+            if (stopMonth is null || string.CompareOrdinal(leftMonth, stopMonth) < 0) stopMonth = leftMonth;
+        }
+        if (stopMonth is not null)
+        {
+            if (string.CompareOrdinal(stopMonth, endMonth) < 0) endMonth = stopMonth;
+        }
         else
-            // AVANS: muzlatilmagan a'zolik uchun joriy oydan keyingi 3 oyni ham ko'rsatamiz — kassir
+            // AVANS: faol a'zolik uchun joriy oydan keyingi 3 oyni ham ko'rsatamiz — kassir
             // oldindan to'lay olsin (to'lov qilinsa o'sha oy hisobi EnsureCharge orqali ochiladi).
             for (var i = 0; i < AdvanceMonths; i++) endMonth = TuitionService.NextMonth(endMonth);
         if (string.CompareOrdinal(startMonth, endMonth) > 0)

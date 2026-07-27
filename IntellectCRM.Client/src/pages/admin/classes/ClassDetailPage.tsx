@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '@/context/auth-context'
 import { usePerm } from '@/lib/permissions'
 import {
-  ArrowLeft, Users, BookOpen, User,
+  ArrowLeft, Users, BookOpen, User, Archive,
   CalendarDays, Clock, MapPin, Wallet, Snowflake, CheckCircle2,
   ListChecks, ChevronRight, ChevronDown, Plus, Minus, Repeat, CalendarClock, Flag, TrendingUp, Trophy,
   ArrowLeftRight, RotateCcw, Trash2, X, Pencil, ClipboardList, CalendarCheck, History,
@@ -41,6 +41,7 @@ import { Button } from '@/components/ui/Button'
 import { ReasonPromptModal } from '@/components/ui/ReasonPromptModal'
 import { JournalCellModal } from '../journal/JournalCellModal'
 import { CompleteAndTransferModal } from './CompleteAndTransferModal'
+import { CloseGroupModal } from './CloseGroupModal'
 import { TransferGroupModal } from './TransferGroupModal'
 import { ClassMembersModal } from './ClassMembersModal'
 import { ClassFormModal } from './ClassFormModal'
@@ -150,6 +151,8 @@ export function ClassDetailPage() {
 
   // ---- "Guruhni tugatish" modali ----
   const [showCompleteModal, setShowCompleteModal] = useState(false)
+  // ---- "Guruhni yopish" (barchasini muzlatish + arxivga olish) modali ----
+  const [showCloseModal, setShowCloseModal] = useState(false)
 
   const openCompleteModal = () => setShowCompleteModal(true)
 
@@ -671,7 +674,10 @@ export function ClassDetailPage() {
                         ? [{ label: 'Guruhni tahrirlash', icon: Pencil, onClick: () => setEditOpen(true) }]
                         : []),
                       ...(user?.role === 'superadmin' && can('classes', 'delete')
-                        ? [{ label: 'Tugatish', icon: Trophy, onClick: openCompleteModal }]
+                        ? [
+                            { label: 'Tugatish (sertifikat bilan)', icon: Trophy, onClick: openCompleteModal },
+                            { label: 'Guruhni yopish', icon: Archive, onClick: () => setShowCloseModal(true) },
+                          ]
                         : []),
                     ]}
                   />
@@ -1529,6 +1535,27 @@ export function ClassDetailPage() {
             `Tugatildi!\n• ${result.certificatesGenerated} ta sertifikat yaratildi\n• Yangi guruh ochildi${coursePart}\n• ${result.enrolledInNew} o'quvchi yangi guruhga qo'shildi`,
           )
           window.location.href = `/admin/classes/${result.newGroupId}`
+        }}
+      />
+
+      {/* Guruhni yopish modali (barcha a'zolarni muzlatish + guruhni arxivga olish) */}
+      <CloseGroupModal
+        open={showCloseModal}
+        onClose={() => setShowCloseModal(false)}
+        groupId={id}
+        groupName={journal?.group?.name ?? group?.name ?? ''}
+        activeMembers={members.filter((m) => m.isActive).length}
+        onSuccess={(result) => {
+          alert(
+            `"${result.groupName}" yopildi.\n` +
+              `• ${result.frozenCount} ta o'quvchi ${formatDate(result.freezeDate)} sanasidan muzlatildi\n` +
+              (result.trialClosed > 0 ? `• ${result.trialClosed} ta sinovdagi a'zolik yakunlandi\n` : '') +
+              (result.restoredCharges > 0
+                ? `• Muzlatishdan keyingi ${formatMoney(result.restoredCharges)} hisob bekor qilindi\n`
+                : '') +
+              '• Guruh arxivga olindi (to\'lov qabul qilinaveradi)',
+          )
+          navigate('/admin/classes')
         }}
       />
     </div>

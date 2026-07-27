@@ -46,6 +46,14 @@ const pickDefault = (rows: Row[]): { month: string; amount: number } => {
   return { month: target?.month ?? cur, amount: curRow ? curRow.remaining : 0 }
 }
 
+/** Guruh tanlovidagi izoh: muzlatilgan / guruhdan chiqarilgan a'zolik ekani ko'rinib tursin. */
+const membershipNote = (g: StudentGroupMembership): string =>
+  g.status === 'frozen'
+    ? ` — muzlatilgan${g.frozenAt ? ` ${g.frozenAt}` : ''}`
+    : !g.isActive
+      ? ' — chiqarilgan'
+      : ''
+
 export function PaymentModal({ student, onClose, onSubmit }: Props) {
   const [amount, setAmount] = useState<number>(0)
   const [month, setMonth] = useState<string>(currentMonth())
@@ -75,7 +83,10 @@ export function PaymentModal({ student, onClose, onSubmit }: Props) {
     setPaidDate(today())
     getStudentGroups(student.id)
       .then(async (allGroups) => {
-        const billable = allGroups.filter((g) => g.isActive && g.status !== 'trial')
+        // To'lov qilish mumkin bo'lgan a'zoliklar: SINOVDAN boshqa hammasi — MUZLATILGAN va guruhi
+        // YOPILGAN (arxivdagi) a'zoliklar ham. Ular bo'yicha qarz muzlatish sanasigacha hisoblangan
+        // bo'lishi mumkin — kassir keyin ham to'lovni qabul qila olishi kerak.
+        const billable = allGroups.filter((g) => g.status !== 'trial')
         setGroups(billable)
         if (billable.length === 0) {
           // Guruhsiz (eski ClassName) o'quvchi — aggregate hisob.
@@ -89,11 +100,14 @@ export function PaymentModal({ student, onClose, onSubmit }: Props) {
           const d = pickDefault(r)
           setMonth(d.month)
           setAmount(d.amount)
-        } else if (billable.length === 1) {
-          // Bitta guruh — avtomatik tanlanadi (oylar guruh effekti orqali yuklanadi).
-          setGroupId(billable[0].groupId)
+        } else {
+          // JORIY (faol, muzlatilmagan) a'zolik bitta bo'lsa — avtomatik tanlanadi. Eski/muzlatilgan
+          // guruhlar ro'yxatda qoladi (tanlash mumkin), lekin standart tanlovni buzmaydi.
+          const current = billable.filter((g) => g.isActive && g.status !== 'frozen')
+          if (current.length === 1) setGroupId(current[0].groupId)
+          else if (billable.length === 1) setGroupId(billable[0].groupId)
+          // Aks holda — foydalanuvchi tanlaguncha kutamiz.
         }
-        // Bir nechta guruh — foydalanuvchi tanlaguncha kutamiz.
       })
       .finally(() => setLoading(false))
   }, [student])
@@ -194,6 +208,7 @@ export function PaymentModal({ student, onClose, onSubmit }: Props) {
                   <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
                     {groups[0].groupName}
                     {groups[0].courseName ? ` — ${groups[0].courseName}` : ''}
+                    {membershipNote(groups[0])}
                   </div>
                 ) : (
                   <select
@@ -207,6 +222,7 @@ export function PaymentModal({ student, onClose, onSubmit }: Props) {
                         {g.groupName}
                         {g.courseName ? ` — ${g.courseName}` : ''}
                         {` (${formatMoney(g.monthlyFee)})`}
+                        {membershipNote(g)}
                       </option>
                     ))}
                   </select>

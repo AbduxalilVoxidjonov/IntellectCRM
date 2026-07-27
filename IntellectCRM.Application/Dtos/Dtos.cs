@@ -2039,6 +2039,29 @@ public record CompleteAndTransferResultDto(
     int EnrolledInNew,
     string? TargetCourseName = null);
 
+/// <summary>
+/// Guruhni YOPISH so'rovi: barcha a'zolar <paramref name="Date"/> sanasidan MUZLATILADI
+/// (qarzdorlik shu sanagacha hisoblanadi) va guruh arxivga (NotActive) olinadi.
+/// Sertifikat berilmaydi va yangi guruh ochilmaydi — bu "Tugatish (sertifikat bilan)"dan farqi.
+/// </summary>
+public record CloseGroupRequest(string? Date = null, string? ReasonId = null);
+
+/// <summary>Guruhni yopish natijasi.</summary>
+public record CloseGroupResultDto(
+    bool Ok,
+    string GroupId,
+    string GroupName,
+    /// <summary>Muzlatish sanasi (ISO) — qarzdorlik shu sanagacha hisoblangan.</summary>
+    string FreezeDate,
+    /// <summary>Muzlatilgan (aktiv) a'zolar soni.</summary>
+    int FrozenCount,
+    /// <summary>Allaqachon muzlatilgan bo'lgani uchun tegilmagan a'zolar soni.</summary>
+    int AlreadyFrozen,
+    /// <summary>Sinovdagi (hisob ochilmagan) a'zolar soni — ular guruhdan chiqarildi.</summary>
+    int TrialClosed,
+    /// <summary>Muzlatish sanasidan KEYINGI oylar uchun bekor qilingan (balansga qaytarilgan) hisob summasi.</summary>
+    decimal RestoredCharges);
+
 /// <summary>Admin tomonidan qo'lda sertifikat yaratish so'rovi.</summary>
 public record GenerateCertificateRequest(string CourseId, string? Notes = null);
 

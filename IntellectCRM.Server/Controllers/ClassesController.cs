@@ -317,6 +317,9 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
 
         cls.IsArchived = false;
         cls.ArchivedAt = null;
+        // "Guruhni yopish" Status'ni "archived" qilgan bo'lsa — qaytarganda yana faol holatga o'tkazamiz
+        // (a'zoliklar muzlatilganicha qoladi — kerak bo'lsa qo'lda aktivlashtiriladi).
+        if (cls.Status == "archived") cls.Status = "active";
 
         var students = await db.Students
             .Where(s => s.ClassName == cls.Name && s.IsArchived && s.ArchivedWithClass).ToListAsync();
@@ -915,6 +918,118 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
             CertificatesGenerated: certCount,
             EnrolledInNew: enrolledCount,
             TargetCourseName: targetCourseName));
+    }
+
+    /// <summary>
+    /// GURUHNI YOPISH (sertifikatsiz, yangi guruhsiz) — "Tugatish"dan farqli o'laroq faqat yopadi:
+    /// <list type="bullet">
+    ///   <item>Guruhning BARCHA faol a'zolari berilgan <c>Date</c> sanasidan MUZLATILADI (bitta-bitta
+    ///     "Muzlatish" bilan AYNAN bir xil hisob — <see cref="TuitionService.ChargeFreezeProrateAsync"/>:
+    ///     shu oyda muzlatish SANASIGACHA (shu sana ham) qatnashgan darslar uchun qisman to'lov).</item>
+    ///   <item>Muzlatish sanasidan KEYINGI oylarga allaqachon yozilgan hisoblar bekor qilinadi
+    ///     (<see cref="TuitionService.PurgeChargesAfterMonthAsync"/>) — orqaga sanalgan yopishda ham
+    ///     qarzdorlik AYNAN muzlatish sanasigacha bo'ladi va keyin o'smaydi.</item>
+    ///   <item>SINOVDAGI (trial) a'zolar muzlatilmaydi — ularda hisob umuman ochilmagan, muzlatilsa
+    ///     hisobda "qarz" bo'lib ko'rinardi; ular guruhdan chiqariladi (tarix saqlanadi).</item>
+    ///   <item>Guruh ARXIVGA olinadi (<c>IsArchived=true</c>, <c>Status="archived"</c>) — faol guruhlar
+    ///     ro'yxatidan chiqadi. O'quvchilar ARXIVLANMAYDI (boshqa guruhlarda o'qiyverishi mumkin).</item>
+    /// </list>
+    /// A'zoliklar (IsActive) saqlanadi — muzlatilgan a'zolikka KEYIN ham to'lov qilish mumkin
+    /// (to'lov oynasi muzlatilgan/arxiv guruhlarni ham ko'rsatadi).
+    /// </summary>
+    [HttpPost("{id}/close")]
+    [Authorize]
+    public async Task<ActionResult<CloseGroupResultDto>> Close(string id, CloseGroupRequest req)
+    {
+        var group = await db.Classes.FindAsync(id);
+        if (group is null) return NotFound(new { message = "Guruh topilmadi" });
+        if (group.IsArchived) return BadRequest(new { message = "Guruh allaqachon arxivda" });
+
+        var date = string.IsNullOrWhiteSpace(req.Date)
+            ? AppClock.Today.ToString("yyyy-MM-dd") : req.Date!.Trim();
+        if (date.Length < 10 || !DateOnly.TryParse(date, out _))
+            return BadRequest(new { message = "Sana noto'g'ri (YYYY-MM-DD)" });
+        var month = date[..7];
+
+        var members = await db.StudentGroups
+            .Where(sg => sg.GroupId == id && sg.IsActive)
+            .ToListAsync();
+        var studentIds = members.Select(m => m.StudentId).Distinct().ToList();
+        var students = (await db.Students.Where(s => studentIds.Contains(s.Id)).ToListAsync())
+            .ToDictionary(s => s.Id);
+
+        var frozen = 0;
+        var alreadyFrozen = 0;
+        var trialClosed = 0;
+        var restored = 0m;
+
+        foreach (var m in members)
+        {
+            if (m.Status == "frozen") { alreadyFrozen++; continue; }
+
+            // SINOV a'zoligi — hech qachon hisob ochilmagan. Muzlatilsa hisob-kitobda (StudentGroupLedger)
+            // guruh narxi bo'yicha "qarz" bo'lib ko'rinardi, shuning uchun guruhdan chiqaramiz (tarix qoladi).
+            if (m.Status != "active")
+            {
+                m.IsActive = false;
+                m.LeftAt = date;
+                trialClosed++;
+                audit.Record("Membership", $"{id}:{m.StudentId}", "update",
+                    $"Guruh yopildi — sinovdagi a'zolik yakunlandi ({date}, guruh: {group.Name})",
+                    studentId: m.StudentId);
+                continue;
+            }
+
+            var activatedAt = m.ActivatedAt;
+            // A'zolik yopish sanasidan KEYIN aktivlashtirilgan bo'lsa (orqaga sanalgan yopish) — qisman
+            // to'lov ham yozilmaydi va aktivlashtirish oyi hisobi ham butunlay bekor qilinadi.
+            var activatedAfterClose = activatedAt.Length >= 10 && string.CompareOrdinal(activatedAt, date) > 0;
+
+            m.Status = "frozen";
+            m.FrozenAt = date;
+
+            if (students.TryGetValue(m.StudentId, out var s))
+            {
+                if (!activatedAfterClose)
+                    await TuitionService.ChargeFreezeProrateAsync(db, s, group, activatedAt, date);
+                // Muzlatishdan keyingi oylarning hisobini bekor qilamiz (qarz shu sanadan keyin o'smasin).
+                restored += await TuitionService.PurgeChargesAfterMonthAsync(
+                    db, s, group.Id, month, inclusive: activatedAfterClose);
+            }
+
+            frozen++;
+            audit.Record("Membership", $"{id}:{m.StudentId}", "update",
+                $"Guruh yopildi — muzlatildi ({date}, guruh: {group.Name})",
+                studentId: m.StudentId);
+        }
+
+        // Guruhni arxivga (NotActive) olamiz — o'quvchilar ARXIVLANMAYDI.
+        group.IsArchived = true;
+        group.ArchivedAt = date;
+        group.Status = "archived";
+        if (string.IsNullOrWhiteSpace(group.EndDate)) group.EndDate = date;
+
+        var reason = await ReasonLabelAsync(req.ReasonId);
+        audit.Record(AuditService.EntityGroup, id, "update",
+            $"Guruh yopildi ({group.Name}) — {date} sanasidan {frozen} a'zo muzlatildi, guruh arxivga olindi"
+            + (trialClosed > 0 ? $", {trialClosed} sinovdagi a'zolik yakunlandi" : "")
+            + (reason.Length > 0 ? $" — sabab: {reason}" : ""));
+
+        await db.SaveChangesAsync();
+
+        logger.LogInformation(
+            "CloseGroup: group={GroupId} ({GroupName}) date={Date} frozen={Frozen} already={Already} trial={Trial} restored={Restored}",
+            id, group.Name, date, frozen, alreadyFrozen, trialClosed, restored);
+
+        return Ok(new CloseGroupResultDto(
+            Ok: true,
+            GroupId: id,
+            GroupName: group.Name,
+            FreezeDate: date,
+            FrozenCount: frozen,
+            AlreadyFrozen: alreadyFrozen,
+            TrialClosed: trialClosed,
+            RestoredCharges: restored));
     }
 
 }

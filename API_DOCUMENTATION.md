@@ -285,6 +285,7 @@ Admin controllerlar `[AdminPerm("<kalit>")]` bilan himoyalangan:
 | GET | /api/admin/classes/student/{studentId}/groups | O'quvchining barcha a'zoliklari. |
 | GET | /api/admin/classes/fill | Guruh to'ldirish hisoboti (bo'sh o'rinlar). |
 | POST | /api/admin/classes/{id}/complete-and-transfer | Yakunlab arxivlaydi, sertifikat, yangi guruh. |
+| POST | /api/admin/classes/{id}/close | Guruhni YOPADI: barcha a'zolar `date` sanasidan muzlatiladi (qarz shu sanagacha), guruh arxivga. |
 
 ### SubjectsController
 `api/admin/subjects` · Ruxsat: `[Authorize]` + `[AdminPerm("schedule")]`. Kurslar (Subject) CRUD — narx o'zgarsa guruhlar oyligi yangilanadi.
