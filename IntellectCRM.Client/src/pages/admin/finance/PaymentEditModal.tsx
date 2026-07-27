@@ -46,6 +46,8 @@ export function PaymentEditModal({ payment, onClose, onSaved }: Props) {
       groupId: payment.groupId ?? '',
       method: payment.method ?? 'cash',
       comment: payment.comment ?? '',
+      receiptNo: payment.receiptNo ?? '',
+      paidTime: payment.paidTime ?? '',
     })
     const sid = payment.studentId
     if (!sid) {
@@ -76,6 +78,9 @@ export function PaymentEditModal({ payment, onClose, onSaved }: Props) {
         ...form,
         groupId: form.groupId || undefined,
         comment: form.comment?.trim() || undefined,
+        // Kvitansiya faqat naqdda, vaqt faqat kartada saqlanadi (usul o'zgarsa eskisi tozalanadi).
+        receiptNo: (form.method ?? 'cash') === 'cash' ? form.receiptNo?.trim() || '' : '',
+        paidTime: (form.method ?? 'cash') === 'card' ? form.paidTime || '' : '',
       })
       onSaved()
       onClose()
@@ -205,6 +210,37 @@ export function PaymentEditModal({ payment, onClose, onSaved }: Props) {
                 </button>
               ))}
             </div>
+
+            {/* Naqd — qog'oz kvitansiya raqami; karta — pul o'tkazilgan vaqt (to'lov oynasidagi kabi). */}
+            {(form.method ?? 'cash') === 'cash' && (
+              <div className="mt-3">
+                <label className="mb-1 block text-sm font-medium text-slate-600">Kvitansiya raqami</label>
+                <div className="flex items-stretch">
+                  <span className="flex select-none items-center rounded-l-lg border border-r-0 border-slate-200 bg-slate-50 px-3 text-sm font-semibold tracking-wide text-slate-500">
+                    KV
+                  </span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={(form.receiptNo ?? '').replace(/^KV/i, '')}
+                    onChange={(e) => set('receiptNo', e.target.value.replace(/\s+/g, ''))}
+                    placeholder="000123"
+                    maxLength={20}
+                    className="w-full rounded-r-lg border border-slate-200 bg-white px-3 py-2 font-mono text-sm text-slate-700 outline-none focus:border-brand-400"
+                  />
+                </div>
+              </div>
+            )}
+            {(form.method ?? 'cash') === 'card' && (
+              <div className="mt-3">
+                <Input
+                  label="To'lov vaqti"
+                  type="time"
+                  value={form.paidTime ?? ''}
+                  onChange={(e) => set('paidTime', e.target.value)}
+                />
+              </div>
+            )}
           </div>
 
           <Textarea

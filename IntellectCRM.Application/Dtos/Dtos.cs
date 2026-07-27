@@ -58,7 +58,10 @@ public record StudentPayload(
 /// <summary>O'quvchi to'lovi kiritish so'rovi. <paramref name="Date"/> — to'lov haqiqatan sodir bo'lgan
 /// sana (ISO "YYYY-MM-DD"), ixtiyoriy — bo'sh bo'lsa bugungi sana ishlatiladi (masalan bugun to'lagan,
 /// lekin tizimga ertaga kiritilayotgan to'lov uchun eski sanani tanlash imkoni).</summary>
-public record PaymentRequest(decimal Amount, string? Month, string? GroupId = null, string? Comment = null, string? Method = null, string? Date = null);
+/// <summary>O'quvchiga to'lov kiritish. <paramref name="ReceiptNo"/> — NAQD to'lovda qog'oz kvitansiya
+/// raqami ("KV" seriyasi + raqam), <paramref name="PaidTime"/> — KARTA to'lovida haqiqiy to'lov vaqti "HH:mm".</summary>
+public record PaymentRequest(decimal Amount, string? Month, string? GroupId = null, string? Comment = null,
+    string? Method = null, string? Date = null, string? ReceiptNo = null, string? PaidTime = null);
 
 /* ---------- Tuman + maktab (sozlamalar) ---------- */
 public record DistrictDto(string Id, string Name, int Order, List<SchoolDto> Schools);
@@ -1019,7 +1022,10 @@ public record FinanceTransactionDto(
     // Bu to'lovdan (income+tuition) jami qancha VOZVRAT qilingani (>0 bo'lsa qisman/to'liq qaytarilgan).
     decimal Refunded = 0m,
     // Bu yozuvning O'ZI vozvrat bo'lsa — qaysi asl to'lov uchun.
-    string? RefundOfId = null);
+    string? RefundOfId = null,
+    // Qog'oz kvitansiya raqami (naqd to'lov, "KV...") va karta to'lovining haqiqiy vaqti ("HH:mm").
+    string? ReceiptNo = null,
+    string? PaidTime = null);
 
 /// <summary>O'quvchi to'lovini (income+tuition) qisman/to'liq VOZVRAT qilish — FAQAT superadmin.
 /// Muzlatishdan hosil bo'lgan avans shu orqali qaytariladi (balans 0 ga tushadi), o'qituvchi foizi net'dan.</summary>
@@ -1042,18 +1048,22 @@ public record ReceiptDto(
     string ReceiptNo, string DateTime, string StudentName, string TeacherName,
     string ResponsibleName, string GroupName, string Method, string? Comment, decimal? Total,
     string CenterName, string CenterPhone, string CenterAddress, string LogoUrl, string SettingsJson,
-    string? Subtitle = null);
+    string? Subtitle = null,
+    /// <summary>QOG'OZ kvitansiya raqami ("KV...") — naqd to'lovda kiritilgan bo'lsa chekda ham chiqadi.</summary>
+    string? KvNo = null);
 /// <summary>
 /// O'quvchi to'lovini (income+tuition) tahrirlash — FAQAT superadmin. Sana/summa/oy/guruh/usul/izoh.
 /// O'quvchi o'zgartirilmaydi (boshqa o'quvchiga o'tkazish uchun o'chirib, qaytadan kiritiladi).
 /// </summary>
 public record PaymentEditPayload(
     string Date, decimal Amount, string Month,
-    string? GroupId = null, string? Method = null, string? Comment = null);
+    string? GroupId = null, string? Method = null, string? Comment = null,
+    string? ReceiptNo = null, string? PaidTime = null);
 
 public record FinanceTransactionPayload(
     string Date, string Direction, string Category, decimal Amount, string? Note,
-    string? StudentId, string? TeacherId, string? Month = null, string? GroupId = null, string? Comment = null, string? Method = null);
+    string? StudentId, string? TeacherId, string? Month = null, string? GroupId = null, string? Comment = null,
+    string? Method = null, string? ReceiptNo = null, string? PaidTime = null);
 public record CategoryAmountDto(string Category, decimal Amount);
 public record FinanceSummaryDto(
     decimal TotalIncome, decimal TotalExpense, decimal Net,
@@ -1108,14 +1118,17 @@ public record GroupPaymentsReportDto(
 /// <summary>Oydagi bitta kurs ulushi (qaysi kursga qancha) — to'lov tarixida breakdown uchun.
 /// GroupId — shu ulush qaysi guruh hisobiga tegishli (null = guruhsiz/ClassName); super admin
 /// shu guruhning oylik hisobini alohida tahrirlashi uchun (ko'p guruhli o'quvchi).</summary>
-public record MonthCourseDto(string CourseName, decimal Fee, string? GroupId = null);
+/// <summary>Oy hisobining bitta qatori: qaysi GURUH uchun (GroupName — asosiy) va uning kursi
+/// (CourseName). O'quvchi profilida "Guruh — Kurs" ko'rinishida chiqadi.</summary>
+public record MonthCourseDto(string CourseName, decimal Fee, string? GroupId = null, string? GroupName = null);
 public record MonthLedgerDto(
     string Month, decimal Charged, decimal Discount, decimal Paid, decimal Remaining, string Status,
     List<MonthCourseDto> Courses, string? GroupId = null);
-/// <summary>Bitta to'lov yozuvi (kassa). GroupName/TeacherName — to'lov QAYSI guruh uchun qilingani
-/// va o'sha guruh o'qituvchisi (to'lov guruhga teglanmagan bo'lsa null).</summary>
+/// <summary>Bitta to'lov yozuvi (kassa). GroupName/CourseName — to'lov QAYSI guruh (va uning kursi)
+/// uchun qilingani; TeacherName — o'sha guruh o'qituvchisi (to'lov guruhga teglanmagan bo'lsa null).
+/// O'quvchi profilida "Guruh — Kurs" ko'rinishida chiqadi.</summary>
 public record PaymentDto(string Date, decimal Amount, string? Note, string? Month, string? Comment, string? Method = null,
-    string? GroupName = null, string? TeacherName = null);
+    string? GroupName = null, string? TeacherName = null, string? CourseName = null);
 /// <summary>To'lov oynasi uchun BITTA guruh bo'yicha oylik hisob: shu guruhning oylik to'lovi (chegirma
 /// ayirilgan), shu guruhga teglangan to'langan summa va qoldiq. Aggregate emas — faqat shu guruh.</summary>
 public record GroupMonthDto(string Month, decimal Fee, decimal Paid, decimal Remaining, string Status);

@@ -38,6 +38,10 @@ export interface FinanceTransactionPayload {
   month?: string
   /** To'lov usuli (kirim uchun): cash | card | bank */
   method?: string
+  /** Qog'oz kvitansiya raqami (naqd to'lov) — "KV" seriyasi bilan */
+  receiptNo?: string
+  /** To'lov vaqti "HH:mm" (karta orqali to'lov) */
+  paidTime?: string
 }
 
 /**
@@ -55,6 +59,10 @@ export interface PaymentEditPayload {
   method?: string
   /** Kassir izohi */
   comment?: string
+  /** Qog'oz kvitansiya raqami (naqd to'lov) — "KV" seriyasi bilan */
+  receiptNo?: string
+  /** To'lov vaqti "HH:mm" (karta orqali to'lov) */
+  paidTime?: string
 }
 
 export interface TransactionFilters {

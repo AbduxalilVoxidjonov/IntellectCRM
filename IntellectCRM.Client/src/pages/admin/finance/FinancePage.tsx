@@ -231,10 +231,14 @@ export function FinancePage() {
     return payments.filter((p) => {
       if (payTeacher && (!p.groupId || teacherByGroup.get(p.groupId) !== payTeacher)) return false
       if (!q) return true
+      // Kvitansiya raqami bo'yicha ham qidiriladi: "kv123" ham, faqat "123" ham topsin.
+      const receipt = (p.receiptNo ?? '').toLowerCase()
       return (
         (p.studentName ?? '').toLowerCase().includes(q) ||
         (p.groupName ?? '').toLowerCase().includes(q) ||
-        (p.note ?? '').toLowerCase().includes(q)
+        (p.note ?? '').toLowerCase().includes(q) ||
+        receipt.includes(q) ||
+        receipt.replace(/^kv/, '').includes(q)
       )
     })
   })()
@@ -242,13 +246,15 @@ export function FinancePage() {
   const handleExportPayments = () => {
     exportToCsv(
       'tolovlar.csv',
-      ['Sana', "O'quvchi", 'Guruh', 'Oy', "To'lov usuli", 'Summa'],
+      ['Sana', "O'quvchi", 'Guruh', 'Oy', "To'lov usuli", 'Kvitansiya', "To'lov vaqti", 'Summa'],
       filteredPayments.map((p) => [
         formatDate(p.date),
         p.studentName ?? '',
         p.groupName ?? '',
         p.month ?? '',
         p.method ? paymentMethodLabel(p.method) : '',
+        p.receiptNo ?? '',
+        p.paidTime ?? '',
         String(p.amount),
       ]),
     )
@@ -763,7 +769,7 @@ export function FinancePage() {
                       <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                       <input
                         type="text"
-                        placeholder="O'quvchi / guruh qidirish..."
+                        placeholder="O'quvchi / guruh / kvitansiya..."
                         value={paySearch}
                         onChange={(e) => setPaySearch(e.target.value)}
                         className="w-56 rounded-lg border border-slate-200 bg-white py-2 pl-8 pr-3 text-sm text-slate-700 outline-none focus:border-brand-400"
@@ -784,6 +790,7 @@ export function FinancePage() {
                         <th>Guruh</th>
                         <th>Oy</th>
                         <th>To'lov usuli</th>
+                        <th>Kvitansiya</th>
                         <th className="num">Summa</th>
                         <th className="num">Amallar</th>
                       </tr>
@@ -826,6 +833,13 @@ export function FinancePage() {
                             ) : (
                               <span className="text-slate-300">—</span>
                             )}
+                            {/* Karta to'lovida — pul o'tkazilgan HAQIQIY vaqt (kassir kiritgan). */}
+                            {p.paidTime && (
+                              <div className="mt-0.5 font-mono text-[11px] text-slate-400">{p.paidTime}</div>
+                            )}
+                          </td>
+                          <td className="font-mono text-[12.5px] text-slate-600">
+                            {p.receiptNo || <span className="text-slate-300">—</span>}
                           </td>
                           <td className="num font-semibold text-emerald-600">
                             +{formatMoney(p.amount)}

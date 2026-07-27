@@ -790,6 +790,10 @@ export interface FinanceTransaction {
   refunded?: number
   /** Bu yozuvning O'ZI vozvrat bo'lsa — qaysi asl to'lov uchun (id) */
   refundOfId?: string | null
+  /** QOG'OZ kvitansiya raqami (naqd to'lovda kiritiladi) — "KV" seriyasi bilan, masalan "KV000123" */
+  receiptNo?: string | null
+  /** To'lov haqiqatan qilingan VAQT "HH:mm" (karta orqali to'lovda kiritiladi) */
+  paidTime?: string | null
 }
 
 /** Vozvrat (pul qaytarish) yozuvi — "Vozvratlar tarixi" uchun, asl to'lov ma'lumoti bilan. */
@@ -865,6 +869,8 @@ export interface MonthCourse {
   fee: number
   /** Shu kurs ulushi qaysi guruh hisobiga tegishli (null = guruhsiz/ClassName) */
   groupId?: string | null
+  /** GURUH nomi — ro'yxatda asosiy ko'rsatkich ("Guruh — Kurs" ko'rinishida) */
+  groupName?: string | null
 }
 
 export interface LedgerPayment {
@@ -881,6 +887,8 @@ export interface LedgerPayment {
   groupName?: string
   /** O'sha guruhning o'qituvchisi */
   teacherName?: string
+  /** O'sha guruhning kursi — ro'yxatda "Guruh — Kurs" bo'lib chiqadi */
+  courseName?: string
 }
 
 export interface StudentLedger {

@@ -37,7 +37,8 @@ public class FinanceController(AppDbContext db, AuditService audit, AutoMessageS
             // Kiritilgan vaqt — UTC saqlangan CreatedAt'ni markaz mintaqasiga (UTC+5) o'tkazib beramiz.
             t.CreatedAt == default ? null : AppClock.ToLocal(t.CreatedAt).ToString("yyyy-MM-ddTHH:mm:ss"),
             refunded is not null && refunded.TryGetValue(t.Id, out var rf) ? rf : 0m,
-            t.RefundOfId);
+            t.RefundOfId,
+            t.ReceiptNo, t.PaidTime);
 
     [HttpGet("transactions")]
     public async Task<ActionResult<IEnumerable<FinanceTransactionDto>>> GetTransactions(
@@ -90,7 +91,8 @@ public class FinanceController(AppDbContext db, AuditService audit, AutoMessageS
             ReceiptNumber(tx.Id), dt, studentName, teacherName, tx.CreatedBy ?? "", groupName,
             tx.Method ?? "", string.IsNullOrWhiteSpace(tx.Comment) ? tx.Note : tx.Comment, tx.Amount,
             meta?.Name ?? "", meta?.Phone ?? "", meta?.Address ?? "", meta?.LogoUrl ?? "",
-            meta?.CheckSettings ?? "");
+            meta?.CheckSettings ?? "",
+            KvNo: tx.ReceiptNo);
     }
 
     /// <summary>GUID'dan barqaror 9 xonali chek raqami (lid sinov cheki ham shu formatdan foydalanadi).</summary>
@@ -106,6 +108,8 @@ public class FinanceController(AppDbContext db, AuditService audit, AutoMessageS
     {
         if (p.Amount <= 0)
             return BadRequest(new { message = "Summa musbat bo'lishi kerak" });
+        if (!PaymentFields.TryNormalizeTime(p.PaidTime, out var newPaidTime))
+            return BadRequest(new { message = "To'lov vaqti noto'g'ri (HH:mm)" });
 
         // IDEMPOTENCY CHECK: oxirgi 5 soniyada bir xil tranzaksiya bo'lsa — dublikat qo'shmasdan
         // mavjudni qaytaramiz (admin double-click yoki network retry uchun).
@@ -145,6 +149,9 @@ public class FinanceController(AppDbContext db, AuditService audit, AutoMessageS
             GroupId = string.IsNullOrWhiteSpace(p.GroupId) ? null : p.GroupId,
             Comment = p.Comment,
             Method = string.IsNullOrWhiteSpace(p.Method) ? null : p.Method.Trim().ToLowerInvariant(),
+            // Qog'oz kvitansiya raqami (naqd) + karta to'lovining haqiqiy vaqti.
+            ReceiptNo = PaymentFields.NormalizeReceiptNo(p.ReceiptNo),
+            PaidTime = newPaidTime,
             CreatedBy = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value, // mas'ul (chek uchun)
         };
         db.FinanceTransactions.Add(tx);
@@ -231,6 +238,10 @@ public class FinanceController(AppDbContext db, AuditService audit, AutoMessageS
         if (!string.IsNullOrWhiteSpace(p.GroupId)) tx.GroupId = p.GroupId;
         if (p.Comment is not null) tx.Comment = p.Comment;
         if (!string.IsNullOrWhiteSpace(p.Method)) tx.Method = p.Method.Trim().ToLowerInvariant();
+        // Kvitansiya raqami / to'lov vaqti — forma yubormasa (null) eski qiymat saqlanadi.
+        if (p.ReceiptNo is not null) tx.ReceiptNo = PaymentFields.NormalizeReceiptNo(p.ReceiptNo);
+        if (p.PaidTime is not null && PaymentFields.TryNormalizeTime(p.PaidTime, out var upPaidTime))
+            tx.PaidTime = upPaidTime;
 
         // Balansni moslaymiz: o'quvchi o'zgarmasa — delta; o'zgarsa — eskidan qaytarib, yangisiga qo'llaymiz.
         var newEffect = StudentBalanceEffect(tx);
@@ -396,6 +407,12 @@ public class FinanceController(AppDbContext db, AuditService audit, AutoMessageS
         if (tx.Method != method) changes.Add($"usul {tx.Method ?? "—"} → {method ?? "—"}");
         var comment = string.IsNullOrWhiteSpace(p.Comment) ? null : p.Comment.Trim();
         if (tx.Comment != comment) changes.Add("izoh o'zgartirildi");
+        // Qog'oz kvitansiya raqami (naqd) va to'lov vaqti (karta) — tuzatish mumkin.
+        var receiptNo = PaymentFields.NormalizeReceiptNo(p.ReceiptNo);
+        if (tx.ReceiptNo != receiptNo) changes.Add($"kvitansiya {tx.ReceiptNo ?? "—"} → {receiptNo ?? "—"}");
+        if (!PaymentFields.TryNormalizeTime(p.PaidTime, out var editPaidTime))
+            return BadRequest(new { message = "To'lov vaqti noto'g'ri (HH:mm)" });
+        if (tx.PaidTime != editPaidTime) changes.Add($"to'lov vaqti {tx.PaidTime ?? "—"} → {editPaidTime ?? "—"}");
 
         // 1) BALANS — faqat summa farqi (o'quvchi va toifa o'zgarmaydi).
         student.Balance += p.Amount - tx.Amount;
@@ -412,6 +429,8 @@ public class FinanceController(AppDbContext db, AuditService audit, AutoMessageS
         tx.GroupId = groupId;
         tx.Method = method;
         tx.Comment = comment;
+        tx.ReceiptNo = receiptNo;
+        tx.PaidTime = editPaidTime;
         if (wasAutoNote)
             tx.Note = $"O'quvchi to'lovi ({month})"
                 + (groupId is null ? "" : $" [{GName(groupId)}]")

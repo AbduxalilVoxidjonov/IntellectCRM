@@ -50,17 +50,22 @@ public static class StudentLedger
             // Shu oyning per-guruh hisob qatorlari — har biri guruh (kurs) nomi + summasi.
             return chargeRows.Where(c => c.Month == month).Select(c =>
             {
+                // GURUH nomi — asosiy ko'rsatkich (o'quvchi profilida "Guruh — Kurs" bo'lib chiqadi),
+                // kurs nomi esa yonida. Kurs biriktirilmagan bo'lsa faqat guruh nomi qoladi.
                 if (c.GroupId is null)
                 {
-                    var nm = nameGroup is null ? student.ClassName
-                        : string.IsNullOrEmpty(nameGroup.CourseId) ? nameGroup.Name
-                        : courseNames.GetValueOrDefault(nameGroup.CourseId, nameGroup.Name);
-                    return new MonthCourseDto(string.IsNullOrEmpty(nm) ? "—" : nm, c.Amount, null);
+                    var gName = nameGroup?.Name ?? student.ClassName;
+                    var cName = nameGroup is null || string.IsNullOrEmpty(nameGroup.CourseId)
+                        ? "" : courseNames.GetValueOrDefault(nameGroup.CourseId, "");
+                    return new MonthCourseDto(
+                        string.IsNullOrEmpty(cName) ? (string.IsNullOrEmpty(gName) ? "—" : gName) : cName,
+                        c.Amount, null, string.IsNullOrEmpty(gName) ? null : gName);
                 }
                 if (!groupsById.TryGetValue(c.GroupId, out var g))
                     return new MonthCourseDto("—", c.Amount, c.GroupId);
-                var name = string.IsNullOrEmpty(g.CourseId) ? g.Name : courseNames.GetValueOrDefault(g.CourseId, g.Name);
-                return new MonthCourseDto(name, c.Amount, c.GroupId);
+                var course = string.IsNullOrEmpty(g.CourseId) ? "" : courseNames.GetValueOrDefault(g.CourseId, "");
+                return new MonthCourseDto(
+                    string.IsNullOrEmpty(course) ? g.Name : course, c.Amount, c.GroupId, g.Name);
             }).ToList();
         }
         var payments = await db.FinanceTransactions
@@ -122,20 +127,32 @@ public static class StudentLedger
         // To'lov QAYSI guruhga qilingani — guruh nomi + o'sha guruh o'qituvchisi (to'lov tarixida ko'rsatiladi).
         var payGroupIds = payments.Where(t => t.GroupId != null).Select(t => t.GroupId!).Distinct().ToList();
         var payGroups = await db.Classes.Where(c => payGroupIds.Contains(c.Id))
-            .Select(c => new { c.Id, c.Name, c.TeacherId }).AsNoTracking().ToListAsync();
+            .Select(c => new { c.Id, c.Name, c.TeacherId, c.CourseId }).AsNoTracking().ToListAsync();
         var payTeacherIds = payGroups.Select(g => g.TeacherId).Where(t => !string.IsNullOrEmpty(t)).Distinct().ToList();
         var payTeacherNames = (await db.Teachers.Where(t => payTeacherIds.Contains(t.Id))
                 .Select(t => new { t.Id, t.FullName }).AsNoTracking().ToListAsync())
             .ToDictionary(t => t.Id, t => t.FullName);
+        // To'lov guruhining KURSI (profil to'lov ro'yxatida "Guruh — Kurs" bo'lib chiqadi).
+        var payCourseIds = payGroups.Select(g => g.CourseId).Where(s => !string.IsNullOrEmpty(s)).Distinct().ToList();
+        var payCourseNames = (await db.Subjects.Where(s => payCourseIds.Contains(s.Id))
+                .Select(s => new { s.Id, s.Name }).AsNoTracking().ToListAsync())
+            .ToDictionary(s => s.Id, s => s.Name);
         var payGroupInfo = payGroups.ToDictionary(
             g => g.Id,
-            g => (Name: g.Name, Teacher: string.IsNullOrEmpty(g.TeacherId) ? null : payTeacherNames.GetValueOrDefault(g.TeacherId)));
+            g => (Name: g.Name,
+                  Teacher: string.IsNullOrEmpty(g.TeacherId) ? null : payTeacherNames.GetValueOrDefault(g.TeacherId),
+                  Course: string.IsNullOrEmpty(g.CourseId) ? null : payCourseNames.GetValueOrDefault(g.CourseId)));
 
         var paymentDtos = payments.Select(t =>
         {
-            string? gName = null, tName = null;
-            if (t.GroupId != null && payGroupInfo.TryGetValue(t.GroupId, out var gi)) { gName = gi.Name; tName = gi.Teacher; }
-            return new PaymentDto(t.Date, t.Amount, t.Note, t.Month, t.Comment, t.Method, gName, tName);
+            string? gName = null, tName = null, cName = null;
+            if (t.GroupId != null && payGroupInfo.TryGetValue(t.GroupId, out var gi))
+            {
+                gName = gi.Name;
+                tName = gi.Teacher;
+                cName = gi.Course;
+            }
+            return new PaymentDto(t.Date, t.Amount, t.Note, t.Month, t.Comment, t.Method, gName, tName, cName);
         }).ToList();
 
         return new StudentLedgerDto(

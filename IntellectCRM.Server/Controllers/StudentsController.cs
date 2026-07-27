@@ -1347,6 +1347,10 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
         if (month.Length < 7)
             return BadRequest(new { message = "To'lov qaysi oy uchun ekanini tanlang" });
 
+        // KARTA to'lovining haqiqiy vaqti ("HH:mm") — kiritilgan bo'lsa formati tekshiriladi.
+        if (!PaymentFields.TryNormalizeTime(req.PaidTime, out var paidTime))
+            return BadRequest(new { message = "To'lov vaqti noto'g'ri (HH:mm)" });
+
         // O'quvchining billable (faol, sinov emas) guruhlari. To'lov faqat aktivlashtirilgan guruhga.
         var billableGroups = await db.StudentGroups
             .Where(sg => sg.StudentId == student.Id && sg.IsActive && sg.Status != "trial")
@@ -1406,6 +1410,9 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
                 + $" — {student.FullName}",
             Comment = string.IsNullOrWhiteSpace(req.Comment) ? null : req.Comment.Trim(),
             Method = string.IsNullOrWhiteSpace(req.Method) ? null : req.Method.Trim().ToLowerInvariant(),
+            // Naqd to'lovda qog'oz kvitansiya raqami ("KV" + raqam), kartada esa to'lov vaqti ("HH:mm").
+            ReceiptNo = PaymentFields.NormalizeReceiptNo(req.ReceiptNo),
+            PaidTime = paidTime,
             CreatedBy = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value, // mas'ul (chek uchun)
         };
         db.FinanceTransactions.Add(tx);

@@ -20,6 +20,8 @@ interface Props {
     comment?: string,
     method?: string,
     date?: string,
+    /** Naqd — qog'oz kvitansiya raqami ("KV..."); karta — to'lov vaqti "HH:mm". */
+    extra?: { receiptNo?: string; paidTime?: string },
   ) => void | Promise<void>
 }
 
@@ -30,6 +32,13 @@ type Row = { month: string; remaining: number; status: MonthStatus }
 const currentMonth = () => new Date().toISOString().slice(0, 7)
 /** "YYYY-MM-DD" bugungi sana */
 const today = () => new Date().toISOString().slice(0, 10)
+/** "HH:mm" hozirgi vaqt (karta to'lovi vaqti uchun standart qiymat) */
+const nowTime = () => {
+  const d = new Date()
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+/** Kvitansiya seriyasi — qog'oz blankada bosilgan (backend ham shu bilan saqlaydi). */
+const RECEIPT_SERIES = 'KV'
 
 /** Oylar ro'yxatidan standart tanlov. Avval JORIY OYGACHA (o'tgan/joriy) eng eski QARZDOR oy tanlanadi —
  *  ya'ni qarz bo'lsa u to'lanadi. KELAJAK (avans) oy HECH QACHON avtomatik tanlanmaydi (foydalanuvchi o'zi
@@ -62,6 +71,10 @@ export function PaymentModal({ student, onClose, onSubmit }: Props) {
   const [groupId, setGroupId] = useState<string>('')
   const [comment, setComment] = useState("")
   const [method, setMethod] = useState<string>('cash')
+  /** NAQD to'lov — qog'oz kvitansiya raqami (seriya "KV" alohida ko'rsatiladi, bu yerda faqat raqam). */
+  const [receiptNo, setReceiptNo] = useState('')
+  /** KARTA to'lovi — pul haqiqatan o'tkazilgan vaqt ("HH:mm"), bank ilovasidagi vaqt bilan solishtirish uchun. */
+  const [paidTime, setPaidTime] = useState(nowTime())
   /** To'lov haqiqatan sodir bo'lgan sana — bugun to'lagan, lekin tizimga keyinroq kiritilayotgan
    * to'lov uchun eski sana tanlash imkoni. */
   const [paidDate, setPaidDate] = useState<string>(today())
@@ -81,6 +94,8 @@ export function PaymentModal({ student, onClose, onSubmit }: Props) {
     setAmount(0)
     setMonth(currentMonth())
     setPaidDate(today())
+    setReceiptNo('')
+    setPaidTime(nowTime())
     getStudentGroups(student.id)
       .then(async (allGroups) => {
         // To'lov qilish mumkin bo'lgan a'zoliklar: SINOVDAN boshqa hammasi — MUZLATILGAN va guruhi
@@ -151,7 +166,11 @@ export function PaymentModal({ student, onClose, onSubmit }: Props) {
     if (submitting || amount <= 0 || !month || (needGroup && !groupId)) return
     setSubmitting(true)
     try {
-      await onSubmit(amount, month, groupId || undefined, comment.trim() || undefined, method, paidDate || undefined)
+      await onSubmit(amount, month, groupId || undefined, comment.trim() || undefined, method, paidDate || undefined, {
+        // Kvitansiya faqat NAQD to'lovda, vaqt faqat KARTA to'lovida yuboriladi.
+        receiptNo: method === 'cash' && receiptNo.trim() ? RECEIPT_SERIES + receiptNo.trim() : undefined,
+        paidTime: method === 'card' && paidTime ? paidTime : undefined,
+      })
     } finally {
       setSubmitting(false)
     }
@@ -326,6 +345,48 @@ export function PaymentModal({ student, onClose, onSubmit }: Props) {
                       </button>
                     ))}
                   </div>
+
+                  {/* NAQD — qog'oz kvitansiya raqami: seriya "KV" (o'zgarmas) + raqam. */}
+                  {method === 'cash' && (
+                    <div className="mt-3">
+                      <label className="mb-1 block text-sm font-medium text-slate-600">
+                        Kvitansiya raqami
+                      </label>
+                      <div className="flex items-stretch">
+                        <span className="flex select-none items-center rounded-l-lg border border-r-0 border-slate-200 bg-slate-50 px-3 text-sm font-semibold tracking-wide text-slate-500">
+                          {RECEIPT_SERIES}
+                        </span>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={receiptNo}
+                          onChange={(e) => setReceiptNo(e.target.value.replace(/\s+/g, ''))}
+                          placeholder="000123"
+                          maxLength={20}
+                          className="w-full rounded-r-lg border border-slate-200 bg-white px-3 py-2 font-mono text-sm text-slate-700 outline-none focus:border-brand-400"
+                        />
+                      </div>
+                      <p className="mt-1 text-xs text-slate-400">
+                        Qog'oz kvitansiyadagi raqam — Moliya bo'limida ko'rinadi va qidiriladi
+                        (ixtiyoriy).
+                      </p>
+                    </div>
+                  )}
+
+                  {/* KARTA — pul haqiqatan o'tkazilgan vaqt (bank ilovasidagi vaqt bilan solishtirish uchun). */}
+                  {method === 'card' && (
+                    <div className="mt-3">
+                      <Input
+                        label="To'lov vaqti"
+                        type="time"
+                        value={paidTime}
+                        onChange={(e) => setPaidTime(e.target.value)}
+                      />
+                      <p className="mt-1 text-xs text-slate-400">
+                        Karta orqali pul o'tkazilgan vaqt (bank cheki bilan solishtirish uchun).
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 <div>

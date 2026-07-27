@@ -291,10 +291,11 @@ export function StudentDetailPage() {
     comment?: string,
     method?: string,
     date?: string,
+    extra?: { receiptNo?: string; paidTime?: string },
   ) => {
     if (!id) return
     try {
-      await addPayment(id, amount, month, groupId, comment, method, date)
+      await addPayment(id, amount, month, groupId, comment, method, date, extra)
       setPaymentTarget(null)
       setReloadKey((k) => k + 1)
     } catch (err) {

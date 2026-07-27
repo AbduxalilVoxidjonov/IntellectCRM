@@ -356,6 +356,8 @@ export async function addPayment(
   comment?: string,
   method?: string,
   date?: string,
+  /** Naqd to'lovda — qog'oz kvitansiya raqami ("KV..."); kartada — to'lov vaqti "HH:mm". */
+  extra?: { receiptNo?: string; paidTime?: string },
 ): Promise<string | null> {
   if (USE_MOCK) {
     await delay(250)
@@ -368,6 +370,8 @@ export async function addPayment(
     comment,
     method,
     date,
+    receiptNo: extra?.receiptNo,
+    paidTime: extra?.paidTime,
   })
   return data?.id ?? null
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Check, GraduationCap, Pencil, Users, Wallet, X } from 'lucide-react'
+import { Check, Pencil, Users, Wallet, X } from 'lucide-react'
 import type { MonthStatus, Student, StudentLedger } from '@/types'
 import { getStudentLedger, editStudentCharge, getStudent, addPayment } from '@/api/services/students'
 import { useAuth } from '@/context/auth-context'
@@ -86,10 +86,11 @@ export function PaymentHistoryPanel({ studentId, onPaid }: Props) {
     comment?: string,
     method?: string,
     date?: string,
+    extra?: { receiptNo?: string; paidTime?: string },
   ) => {
     if (!studentId) return
     try {
-      await addPayment(studentId, amount, month, groupId, comment, method, date)
+      await addPayment(studentId, amount, month, groupId, comment, method, date, extra)
       const fresh = await getStudentLedger(studentId)
       setLedger(fresh)
       setPayTarget(null)
@@ -165,7 +166,13 @@ export function PaymentHistoryPanel({ studentId, onPaid }: Props) {
                                 className="flex items-center gap-1.5 text-xs font-normal text-slate-400"
                               >
                                 <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-brand-300" />
-                                <span className="truncate text-slate-500">{co.courseName}</span>
+                                {/* GURUH nomi asosiy, yonida — kursi (bir xil bo'lsa takrorlanmaydi). */}
+                                <span className="truncate text-slate-500">
+                                  {co.groupName || co.courseName}
+                                  {co.groupName && co.courseName && co.courseName !== co.groupName
+                                    ? ` — ${co.courseName}`
+                                    : ''}
+                                </span>
                                 <span className="text-slate-300">·</span>
                                 {editing ? (
                                   <span className="inline-flex items-center gap-1">
@@ -309,19 +316,13 @@ export function PaymentHistoryPanel({ studentId, onPaid }: Props) {
                     </span>
                     <span className="font-mono font-medium text-emerald-600">+{formatMoney(p.amount)}</span>
                   </div>
-                  {/* To'lov qaysi guruhga tushgani + o'sha guruh o'qituvchisi */}
-                  {(p.groupName || p.teacherName) && (
+                  {/* To'lov qaysi GURUHGA tushgani — yonida shu guruhning kursi ("Guruh — Kurs"). */}
+                  {p.groupName && (
                     <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-500">
-                      {p.groupName && (
-                        <span className="inline-flex items-center gap-1 rounded-md bg-brand-50 px-1.5 py-0.5 font-medium text-brand-700">
-                          <Users className="h-3 w-3" /> {p.groupName}
-                        </span>
-                      )}
-                      {p.teacherName && (
-                        <span className="inline-flex items-center gap-1 text-slate-500">
-                          <GraduationCap className="h-3 w-3 text-slate-400" /> {p.teacherName}
-                        </span>
-                      )}
+                      <span className="inline-flex items-center gap-1 rounded-md bg-brand-50 px-1.5 py-0.5 font-medium text-brand-700">
+                        <Users className="h-3 w-3" /> {p.groupName}
+                        {p.courseName && p.courseName !== p.groupName ? ` — ${p.courseName}` : ''}
+                      </span>
                     </p>
                   )}
                   {p.comment && <p className="mt-0.5 text-xs text-slate-500">{p.comment}</p>}

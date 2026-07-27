@@ -938,6 +938,14 @@ public class FinanceTransaction
     /// <summary>To'lov usuli (kirim/to'lov uchun): "cash" (Naqd) | "card" (Karta) | "bank" (Bank orqali).
     /// null = belgilanmagan (eski yozuvlar yoki chiqim).</summary>
     public string? Method { get; set; }
+    /// <summary>QOG'OZ KVITANSIYA raqami — NAQD to'lovda kassir kiritadi. Seriya "KV" + raqam, to'liq
+    /// ko'rinishda saqlanadi (masalan "KV000123"). Moliya → To'lovlar ro'yxatida ko'rinadi va qidiriladi.
+    /// null = kiritilmagan (karta/bank yoki eski yozuv). Chek (kvitansiya) `ReceiptNo`si — Id'dan
+    /// hosil qilinadigan ICHKI raqam, bu esa QO'LDA kiritilgan qog'oz raqami (ikkisi boshqa-boshqa).</summary>
+    public string? ReceiptNo { get; set; }
+    /// <summary>To'lov HAQIQATAN qilingan VAQT ("HH:mm") — KARTA orqali to'lovda kiritiladi (bank
+    /// ilovasidagi vaqt bilan solishtirish uchun). null = kiritilmagan. Sana `Date` maydonida.</summary>
+    public string? PaidTime { get; set; }
     /// <summary>Tranzaksiya yaratilgan vaqti (UTC) — idempotency check uchun (5s ichida dublikat).</summary>
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     /// <summary>Mas'ul — to'lovni kiritgan admin/kassir F.I.Sh (chekda "Mas'ul" qatori uchun).</summary>

@@ -1630,7 +1630,9 @@ function MemberRow({
   onTransfer: () => void
   onRemove: () => void
 }) {
-  // Rang ustuvorligi: chiqqan (line-through) → qarzdor (qizil) → muzlatilgan (ko'k) → sinov (sariq) → aktiv (yashil).
+  // Rang ustuvorligi: chiqqan (line-through) → qarzdor (qizil) → sinov (sariq) → to'lagan (yashil).
+  // MUZLATILGAN a'zo ham TO'LOV bo'yicha bo'yaladi (jurnaldagi kabi): to'lagan bo'lsa YASHIL,
+  // qarzi bo'lsa qizil — holati esa yonidagi "Muzlatilgan" yorlig'ida ko'rinadi.
   // MUHIM: "aktiv" holat xira kulrang (slate) EMAS, yashil (emerald) — aks holda chiqarilgan (kulrang+
   // chizilgan) bilan vizual chalkashib, aktiv/to'lov qilgan a'zo ham "qora"day ko'rinardi.
   const removed = !m.isActive
@@ -1638,11 +1640,9 @@ function MemberRow({
     ? 'text-slate-400 line-through'
     : m.balance < 0
       ? 'text-red-600'
-      : m.status === 'frozen'
-        ? 'text-sky-600'
-        : m.status === 'trial'
-          ? 'text-amber-600'
-          : 'text-emerald-700'
+      : m.status === 'trial'
+        ? 'text-amber-600'
+        : 'text-emerald-700'
   const sb = statusBadge(m.status)
 
   return (
@@ -1655,7 +1655,7 @@ function MemberRow({
           <X className="h-3.5 w-3.5 shrink-0 text-slate-300" />
         ) : (
           <span
-            className={cn('h-2 w-2 shrink-0 rounded-full', m.balance < 0 ? 'bg-red-500' : m.status === 'frozen' ? 'bg-sky-500' : m.status === 'trial' ? 'bg-amber-500' : 'bg-emerald-500')}
+            className={cn('h-2 w-2 shrink-0 rounded-full', m.balance < 0 ? 'bg-red-500' : m.status === 'trial' ? 'bg-amber-500' : 'bg-emerald-500')}
             title={m.balance < 0 ? `Qarz (shu guruh): ${formatMoney(m.balance)}` : 'Shu guruh uchun to\'langan'}
           />
         )}

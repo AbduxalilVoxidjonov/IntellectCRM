@@ -26,6 +26,8 @@ export interface ReceiptData {
   logoUrl: string
   /** Sarlavha ostidagi kichik izoh, masalan "Sinov darsiga yozildi". */
   subtitle?: string | null
+  /** QOG'OZ kvitansiya raqami ("KV...") — naqd to'lovda kiritilgan bo'lsa chekda ham chiqadi. */
+  kvNo?: string | null
 }
 
 /** Pul: "200,000 so'm" (chekda — minglik ajratkichi vergul, misoldagidek). */
@@ -63,6 +65,8 @@ export function receiptHtml(d: ReceiptData, s: CheckSettings): string {
     f.responsible ? row("Mas'ul", d.responsibleName) : '',
     f.group ? row('Guruh', d.groupName) : '',
     f.method ? row("To'lov turi", paymentMethodLabel(d.method)) : '',
+    // Qog'oz kvitansiya raqami — kiritilgan bo'lsa har doim chiqadi (sozlamada alohida bayroq yo'q).
+    row('Kvitansiya', d.kvNo ?? ''),
     f.comment ? row('Izoh', d.comment ?? '') : '',
   ].join('')
 
