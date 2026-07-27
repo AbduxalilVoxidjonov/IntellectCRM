@@ -1,5 +1,7 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
+using Microsoft.EntityFrameworkCore;
+using IntellectCRM.Application.Abstractions;
 using IntellectCRM.Domain;
 using DomainGroup = IntellectCRM.Domain.Group; // System.Text.RegularExpressions.Group bilan ziddiyatni oldini olish
 
@@ -121,10 +123,42 @@ public static class MessageTokenizer
         return r;
     }
 
+    /// <summary>
+    /// Guruh o'qituvchisining F.I.Sh — <c>{oqituvchi}</c> tokeni uchun. <paramref name="group"/> berilmasa
+    /// (yoki unda o'qituvchi bo'lmasa) va <paramref name="student"/> berilgan bo'lsa — o'quvchining ASOSIY
+    /// guruhi (<see cref="Student.ClassName"/>) bo'yicha topiladi. Hech nima topilmasa "" qaytadi
+    /// (token bo'sh qoladi, matnda "{oqituvchi}" ko'rinib qolmaydi).
+    /// <para>DIQQAT: bu DB so'rovi — ro'yxat (bulk) yuborishda HAR o'quvchi uchun chaqirmang;
+    /// o'qituvchi nomlarini bir marta lug'atga yig'ing (<see cref="TeacherNamesByIdAsync"/>).</para>
+    /// </summary>
+    public static async Task<string> GroupTeacherNameAsync(
+        IAppDbContext db, DomainGroup? group, Student? student = null, CancellationToken ct = default)
+    {
+        var g = group;
+        if ((g is null || string.IsNullOrEmpty(g.TeacherId)) && !string.IsNullOrWhiteSpace(student?.ClassName))
+            g = await db.Classes.FirstOrDefaultAsync(c => c.Name == student!.ClassName, ct);
+        if (g is null || string.IsNullOrEmpty(g.TeacherId)) return "";
+        return await db.Teachers.Where(t => t.Id == g.TeacherId)
+            .Select(t => t.FullName).FirstOrDefaultAsync(ct) ?? "";
+    }
+
+    /// <summary>O'qituvchi id → F.I.Sh lug'ati (ommaviy yuborishda {oqituvchi} tokenini N+1 so'rovsiz
+    /// to'ldirish uchun). <see cref="TeacherNameOf"/> bilan birga ishlatiladi.</summary>
+    public static async Task<Dictionary<string, string>> TeacherNamesByIdAsync(
+        IAppDbContext db, CancellationToken ct = default) =>
+        await db.Teachers.ToDictionaryAsync(t => t.Id, t => t.FullName, ct);
+
+    /// <summary>Guruhning o'qituvchisi F.I.Sh — oldindan yuklangan lug'atdan (yo'q bo'lsa "").</summary>
+    public static string TeacherNameOf(DomainGroup? group, IReadOnlyDictionary<string, string>? namesById) =>
+        group is null || string.IsNullOrEmpty(group.TeacherId) || namesById is null
+            ? ""
+            : namesById.GetValueOrDefault(group.TeacherId, "");
+
     /// <summary>O'quvchi/ota-ona xabari — barcha o'quvchi tokenlari. group berilsa — dars jadvali tokenlari
-    /// ({dars_sana}/{dars_vaqti}/{dars_kunlari}) to'ladi.</summary>
+    /// ({dars_sana}/{dars_vaqti}/{dars_kunlari}) to'ladi. teacherName berilsa — {oqituvchi} (guruh
+    /// o'qituvchisining F.I.Sh); berilmasa token bo'sh qoladi.</summary>
     public static string Student(string text, Student s, string? parentName, string? contactPhone, string? centerName,
-        IReadOnlyDictionary<string, string>? extra = null, DomainGroup? group = null)
+        IReadOnlyDictionary<string, string>? extra = null, DomainGroup? group = null, string? teacherName = null)
     {
         var debt = s.Balance < 0 ? -s.Balance : 0m;
         var parent = string.IsNullOrWhiteSpace(parentName) ? "Ota-ona" : parentName!;
@@ -147,6 +181,7 @@ public static class MessageTokenizer
         r = Rep(r, "{oquvchi_telefon}", s.Phone);
         r = Rep(r, "{manzil}", s.Address);
         r = Rep(r, "{tugilgan}", s.BirthDate);
+        r = Rep(r, "{oqituvchi}", teacherName); // guruh o'qituvchisi F.I.Sh (berilmasa bo'sh)
         r = Schedule(r, group); // guruh dars jadvali (sana/vaqt/kunlar)
         return Common(r, centerName, extra);
     }
@@ -165,6 +200,7 @@ public static class MessageTokenizer
         r = Rep(r, "{manzil}", t.Address);
         r = Rep(r, "{tugilgan}", t.BirthDate);
         r = Rep(r, "{guruh}", group?.Name ?? "");
+        r = Rep(r, "{oqituvchi}", t.FullName); // o'qituvchiga yozilgan xabarda — o'zining F.I.Sh
         foreach (var tok in new[]
                  {
                      "{ism}", "{familiya}", "{sharif}", "{sinf}", "{qarzdorlik}", "{balans}",
@@ -177,9 +213,11 @@ public static class MessageTokenizer
 
     /// <summary>Lid xabari — lid ma'lumotlari; o'quvchi-spetsifik tokenlar bo'sh.
     /// trialAt berilsa (sinov darsi vaqti "yyyy-MM-ddTHH:mm") — {dars_sana}/{dars_vaqti} to'ladi,
-    /// {dars_kunlari} esa group berilса guruh kunlaridan keladi.</summary>
+    /// {dars_kunlari} esa group berilса guruh kunlaridan keladi. teacherName — {oqituvchi} (sinov darsi
+    /// guruhining o'qituvchisi).</summary>
     public static string Lead(string text, Lead l, string? contactPhone, string? centerName,
-        IReadOnlyDictionary<string, string>? extra = null, DomainGroup? group = null, string? trialAt = null)
+        IReadOnlyDictionary<string, string>? extra = null, DomainGroup? group = null, string? trialAt = null,
+        string? teacherName = null)
     {
         var r = text;
         r = Rep(r, "{fish}", l.FullName);
@@ -191,6 +229,7 @@ public static class MessageTokenizer
         r = Rep(r, "{ona_telefon}", l.MotherPhone);
         r = Rep(r, "{fan}", l.InterestSubject);
         r = Rep(r, "{tugilgan}", l.BirthDate);
+        r = Rep(r, "{oqituvchi}", teacherName); // sinov darsi guruhining o'qituvchisi (berilmasa bo'sh)
         foreach (var tok in new[]
                  {
                      "{ism}", "{familiya}", "{sharif}", "{sinf}", "{guruh}", "{qarzdorlik}", "{balans}",

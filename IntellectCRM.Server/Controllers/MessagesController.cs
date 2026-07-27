@@ -170,12 +170,13 @@ public class MessagesController(
 
         var centerName = (await db.CenterMeta.FirstOrDefaultAsync())?.Name ?? "";
         var groupByName = await GroupByNameAsync();
+        var teacherNames = await TeacherNamesAsync();
         var sent = 0;
         foreach (var r in regs)
         {
             if (!byId.TryGetValue(r.StudentId, out var s)) continue;
             var grp = groupByName.GetValueOrDefault(s.ClassName ?? "");
-            var message = $"📢 Markaz e'loni\n\n{Personalize(text, s, r, centerName, grp)}";
+            var message = $"📢 Markaz e'loni\n\n{Personalize(text, s, r, centerName, grp, MessageTokenizer.TeacherNameOf(grp, teacherNames))}";
             if (await telegram.SendMessageAsync(r.ChatId, message)) sent++;
         }
         foreach (var r in teacherRegs)
@@ -210,13 +211,19 @@ public class MessagesController(
     private async Task<Dictionary<string, Group>> GroupByNameAsync() =>
         (await db.Classes.ToListAsync()).GroupBy(c => c.Name).ToDictionary(g => g.Key, g => g.First());
 
+    /// <summary>O'qituvchi id → F.I.Sh ({oqituvchi} tokeni uchun) — ro'yxatga bir marta yuklanadi.</summary>
+    private async Task<Dictionary<string, string>> TeacherNamesAsync() =>
+        await MessageTokenizer.TeacherNamesByIdAsync(db);
+
     /// <summary>E'lon matnini shu o'quvchi/ota-ona ma'lumotiga moslab almashtiradi.</summary>
-    private static string Personalize(string template, Student s, TelegramRegistration reg, string centerName, Group? group = null) =>
-        MessageTokenizer.Student(template, s, reg.ParentName, reg.Phone, centerName, null, group);
+    private static string Personalize(string template, Student s, TelegramRegistration reg, string centerName,
+        Group? group = null, string? teacherName = null) =>
+        MessageTokenizer.Student(template, s, reg.ParentName, reg.Phone, centerName, null, group, teacherName);
 
     /// <summary>Push/SMS matnini o'quvchi (ota-ona akkaunti) ma'lumotiga moslaydi.</summary>
-    private static string PersonalizePush(string text, Student s, string centerName, Group? group = null) =>
-        MessageTokenizer.Student(text, s, s.ParentFullName, s.ParentPhone, centerName, null, group);
+    private static string PersonalizePush(string text, Student s, string centerName,
+        Group? group = null, string? teacherName = null) =>
+        MessageTokenizer.Student(text, s, s.ParentFullName, s.ParentPhone, centerName, null, group, teacherName);
 
     /// <summary>Push/SMS matnini o'qituvchiga moslaydi — o'quvchi-spetsifik tokenlar bo'sh.</summary>
     private static string PersonalizeTeacherPush(string text, Teacher t, string centerName) =>
@@ -399,6 +406,7 @@ public class MessagesController(
         var json = meta?.FcmServiceAccountJson ?? "";
         var centerName = meta?.Name ?? "";
         var groupByName = await GroupByNameAsync();
+        var teacherNames = await TeacherNamesAsync();
         var recipientCount = tokensByUser.Sum(kv => kv.Value.Count);
         var sent = 0;
         var deadTokens = new List<string>();
@@ -410,8 +418,9 @@ public class MessagesController(
             if (studentByUser.TryGetValue(userId, out var st))
             {
                 var grp = groupByName.GetValueOrDefault(st.ClassName ?? "");
-                t = PersonalizePush(title, st, centerName, grp);
-                b = PersonalizePush(body, st, centerName, grp);
+                var tn = MessageTokenizer.TeacherNameOf(grp, teacherNames);
+                t = PersonalizePush(title, st, centerName, grp, tn);
+                b = PersonalizePush(body, st, centerName, grp, tn);
             }
             else if (teacherByUser.TryGetValue(userId, out var tch))
             {
@@ -433,7 +442,7 @@ public class MessagesController(
         {
             var t = title;
             var b = body;
-            if (studentByUser.TryGetValue(userId, out var stn)) { var grp = groupByName.GetValueOrDefault(stn.ClassName ?? ""); t = PersonalizePush(title, stn, centerName, grp); b = PersonalizePush(body, stn, centerName, grp); }
+            if (studentByUser.TryGetValue(userId, out var stn)) { var grp = groupByName.GetValueOrDefault(stn.ClassName ?? ""); var tn = MessageTokenizer.TeacherNameOf(grp, teacherNames); t = PersonalizePush(title, stn, centerName, grp, tn); b = PersonalizePush(body, stn, centerName, grp, tn); }
             else if (teacherByUser.TryGetValue(userId, out var tchn)) { t = PersonalizeTeacherPush(title, tchn, centerName); b = PersonalizeTeacherPush(body, tchn, centerName); }
             NotificationStore.Add(db, userId, t, b, "announcement", pushId);
         }
@@ -569,6 +578,7 @@ public class MessagesController(
             var students = await q.ToListAsync();
             if (req.OnlyDebtors) { students = students.Where(s => s.Balance < 0).ToList(); label += " — qarzdorlar"; }
             var groupByName = await GroupByNameAsync();
+            var teacherNames = await TeacherNamesAsync();
 
             // O'quvchining o'z raqami: audience=="students" YOKI "selected" + ToParent=false. Aks holda ota-ona.
             var toStudentPhone = audience == "students" || (audience == "selected" && !req.ToParent);
@@ -580,7 +590,8 @@ public class MessagesController(
                         : !string.IsNullOrWhiteSpace(s.FatherPhone) ? s.FatherPhone : s.MotherPhone);
                 if (string.IsNullOrWhiteSpace(phone)) continue;
                 var grp = groupByName.GetValueOrDefault(s.ClassName ?? "");
-                targets.Add((phone, s.FullName, MessageTokenizer.Student(text, s, s.ParentFullName, phone, centerName, null, grp)));
+                targets.Add((phone, s.FullName, MessageTokenizer.Student(text, s, s.ParentFullName, phone, centerName,
+                    null, grp, MessageTokenizer.TeacherNameOf(grp, teacherNames))));
             }
             label = toStudentPhone ? $"O'quvchilar — {label}" : $"Ota-onalar — {label}";
 
@@ -740,8 +751,10 @@ public class MessagesController(
                         .OrderByDescending(t => t.ScheduledAt).FirstOrDefaultAsync();
         var trialGroup = trial is not null && !string.IsNullOrWhiteSpace(trial.GroupId)
             ? await db.Classes.FindAsync(trial.GroupId) : null;
+        // {oqituvchi} — sinov darsi guruhining o'qituvchisi.
+        var trialTeacher = await MessageTokenizer.GroupTeacherNameAsync(db, trialGroup);
         var msg = MessageTokenizer.Lead(text, lead, phone, centerName,
-            group: trialGroup, trialAt: trial?.ScheduledAt);
+            group: trialGroup, trialAt: trial?.ScheduledAt, teacherName: trialTeacher);
 
         bool ok;
         if (provider == "local")

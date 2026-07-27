@@ -28,13 +28,14 @@ public class TeacherPortalController(
     private async Task DispatchAbsencesAsync(string classId, string date, string? reasonId, IEnumerable<string> studentIds)
     {
         if (string.IsNullOrWhiteSpace(reasonId)) return;
-        var groupName = (await db.Classes.FindAsync(classId))?.Name ?? "";
+        var cls = await db.Classes.FindAsync(classId);
+        var groupName = cls?.Name ?? "";
         var reasonName = (await db.AbsenceReasons.FindAsync(reasonId))?.Name ?? "Sababsiz";
         foreach (var sid in studentIds.Distinct())
         {
             var s = await db.Students.FindAsync(sid);
             if (s is not null)
-                await autoMsg.DispatchAttendanceAbsentAsync(db, s, groupName, reasonName, date);
+                await autoMsg.DispatchAttendanceAbsentAsync(db, s, groupName, reasonName, date, cls);
         }
     }
 

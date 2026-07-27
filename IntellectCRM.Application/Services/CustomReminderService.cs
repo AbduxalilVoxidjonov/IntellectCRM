@@ -112,12 +112,19 @@ public class CustomReminderService(
         else
         {
             var students = await db.Students.Where(s => !s.IsArchived).ToListAsync(ct);
+            // Guruh konteksti (asosiy guruh, ClassName bo'yicha) — {dars_sana}/{dars_vaqti}/{dars_kunlari}
+            // va {oqituvchi} tokenlari uchun; ro'yxat uchun bir marta yuklanadi.
+            var groupByName = (await db.Classes.ToListAsync(ct))
+                .GroupBy(c => c.Name).ToDictionary(g => g.Key, g => g.First());
+            var teacherNames = await MessageTokenizer.TeacherNamesByIdAsync(db, ct);
             foreach (var s in students)
             {
                 var phone = !string.IsNullOrWhiteSpace(s.ParentPhone) ? s.ParentPhone
                     : !string.IsNullOrWhiteSpace(s.FatherPhone) ? s.FatherPhone
                     : !string.IsNullOrWhiteSpace(s.MotherPhone) ? s.MotherPhone : s.Phone;
-                var body = MessageTokenizer.Student(rule.Template, s, s.ParentFullName, phone, centerName);
+                var grp = groupByName.GetValueOrDefault(s.ClassName ?? "");
+                var body = MessageTokenizer.Student(rule.Template, s, s.ParentFullName, phone, centerName,
+                    group: grp, teacherName: MessageTokenizer.TeacherNameOf(grp, teacherNames));
                 await DeliverAsync(db, rule, s.UserId, s.Id, isTeacher: false, phone, s.FullName, title, body,
                     fcmJson, pushReady, meta, deadTokens, ct);
             }

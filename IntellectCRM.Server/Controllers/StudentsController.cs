@@ -355,7 +355,7 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
         // Avto xabar — o'quvchi guruhga qo'shilganda ota-onaga ("O'quvchi guruhga qo'shilganda" hodisasi).
         if (cls is not null)
             await autoMsg.DispatchStudentAsync(db, AutoMessageTriggers.StudentAdded, student,
-                new Dictionary<string, string> { ["{guruh}"] = cls.Name });
+                new Dictionary<string, string> { ["{guruh}"] = cls.Name }, group: cls);
         return student;
     }
 

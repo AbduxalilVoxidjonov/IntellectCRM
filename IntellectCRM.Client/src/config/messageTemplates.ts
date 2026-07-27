@@ -34,6 +34,7 @@ export const messageTokens: { token: string; label: string }[] = [
   // Guruh / moliya
   { token: '{guruh}', label: 'Guruh' },
   { token: '{sinf}', label: 'Sinf/guruh (= {guruh})' },
+  { token: '{oqituvchi}', label: "Guruh o'qituvchisi F.I.SH" },
   { token: '{qarzdorlik}', label: 'Qarzdorlik' },
   { token: '{balans}', label: 'Balans' },
   // Aloqa

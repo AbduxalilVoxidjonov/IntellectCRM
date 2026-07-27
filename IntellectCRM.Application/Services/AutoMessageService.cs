@@ -41,6 +41,8 @@ public class AutoMessageService(
             // aks holda o'quvchining asosiy guruhi (ClassName bo'yicha) — dars jadvali tokenlari uchun.
             var ctxGroup = group ?? (string.IsNullOrWhiteSpace(s.ClassName) ? null
                 : await db.Classes.FirstOrDefaultAsync(c => c.Name == s.ClassName, ct));
+            // {oqituvchi} tokeni — shu guruhning o'qituvchisi F.I.Sh (guruh/o'qituvchi bo'lmasa bo'sh).
+            var groupTeacherName = await MessageTokenizer.GroupTeacherNameAsync(db, ctxGroup, s, ct);
 
             var deadTokens = new List<string>();
             var dirty = false;
@@ -69,7 +71,8 @@ public class AutoMessageService(
                         : Coalesce(s.ParentPhone, s.FatherPhone, s.MotherPhone, s.Phone);
 
                     var withExtra = MessageTokenizer.ApplyExtra(rule.Template, extraTokens);
-                    var msg = MessageTokenizer.Student(withExtra, s, s.ParentFullName, phone, centerName, extra: null, group: ctxGroup);
+                    var msg = MessageTokenizer.Student(withExtra, s, s.ParentFullName, phone, centerName,
+                        extra: null, group: ctxGroup, teacherName: groupTeacherName);
                     var title = Title(rule, trigger);
                     if (string.IsNullOrWhiteSpace(msg)) continue;
 
@@ -146,6 +149,8 @@ public class AutoMessageService(
             var centerName = meta?.Name ?? "";
             var phone = Coalesce(lead.Phone, lead.FatherPhone, lead.MotherPhone);
             if (string.IsNullOrWhiteSpace(phone)) return;
+            // {oqituvchi} — sinov darsi guruhining o'qituvchisi (guruh berilmasa bo'sh).
+            var teacherName = await MessageTokenizer.GroupTeacherNameAsync(db, group, ct: ct);
 
             var dirty = false;
             foreach (var rule in rules)
@@ -155,7 +160,8 @@ public class AutoMessageService(
                 try
                 {
                     var withExtra = MessageTokenizer.ApplyExtra(rule.Template, extraTokens);
-                    var msg = MessageTokenizer.Lead(withExtra, lead, phone, centerName, extra: null, group: group, trialAt: trialAt);
+                    var msg = MessageTokenizer.Lead(withExtra, lead, phone, centerName, extra: null, group: group,
+                        trialAt: trialAt, teacherName: teacherName);
                     if (string.IsNullOrWhiteSpace(msg)) continue;
                     dirty |= await SendSmsAsync(db, trigger, rule.SmsProvider, phone!, lead.FullName, rule.Template, msg, ct);
                 }
@@ -177,8 +183,11 @@ public class AutoMessageService(
 
     /// <summary>O'quvchi darsga kelmaganda (attendance_absent) ota-onaga xabar. {sana}=dars sanasi (dd.MM.yyyy),
     /// {guruh}=guruh nomi, {sabab}=davomat sababi. Jurnal (SetEntry) yoki ommaviy davomat muvaffaqiyatidan keyin chaqiriladi.</summary>
+    /// <param name="group">Dars QAYSI guruhda bo'lgani — {oqituvchi} va {dars_*} tokenlari shundan
+    /// (berilmasa o'quvchining asosiy guruhi olinadi).</param>
     public Task DispatchAttendanceAbsentAsync(
-        IAppDbContext db, Student s, string groupName, string reasonName, string dateIso, CancellationToken ct = default)
+        IAppDbContext db, Student s, string groupName, string reasonName, string dateIso,
+        Group? group = null, CancellationToken ct = default)
     {
         var sana = dateIso.Length >= 10 ? $"{dateIso[8..10]}.{dateIso[5..7]}.{dateIso[..4]}" : dateIso;
         return DispatchStudentAsync(db, AutoMessageTriggers.AttendanceAbsent, s, new Dictionary<string, string>
@@ -186,7 +195,7 @@ public class AutoMessageService(
             ["{sana}"] = sana,
             ["{guruh}"] = groupName,
             ["{sabab}"] = reasonName,
-        }, ct: ct);
+        }, group: group, ct: ct);
     }
 
     /// <summary>Yangi yaratilgan oylik hisoblar (monthly_charge) uchun ota-onaga xabar. (o'quvchi, oy)

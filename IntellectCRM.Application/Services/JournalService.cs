@@ -317,7 +317,7 @@ public static class JournalService
         await db.SaveChangesAsync();
 
         // Avtomatik push: farzandi baho olsa yoki davomatda belgilansa, oila ilovasiga xabar.
-        await NotifyEntryAsync(db, fcm, autoMsg, req, student, cls.Name, oldGrade, oldReason);
+        await NotifyEntryAsync(db, fcm, autoMsg, req, student, cls, oldGrade, oldReason);
 
         // Davomat sababi YANGI belgilandimi (kelmadi) — chaqiruvchi avto-xabar yuborishi uchun.
         return req.ReasonId is not null && req.ReasonId != oldReason;
@@ -330,8 +330,10 @@ public static class JournalService
     /// patterni). Davomat (type "attendance") push'i o'zgarmagan.</summary>
     private static async Task NotifyEntryAsync(
         IAppDbContext db, FcmService? fcm, AutoMessageService? autoMsg, SetJournalEntryRequest req,
-        Student? student, string groupName, int? oldGrade, string? oldReason)
+        Student? student, Group? group, int? oldGrade, string? oldReason)
     {
+        // Xabar KONTEKSTI — aynan shu dars guruhi ({guruh}, {oqituvchi}, {dars_*} tokenlari shundan).
+        var groupName = group?.Name ?? "";
         if (student is null) return;
         var notifyGrade = req.Grade.HasValue && req.Grade != oldGrade;
         var notifyAbsence = !notifyGrade && req.ReasonId is not null && req.ReasonId != oldReason;
@@ -349,7 +351,7 @@ public static class JournalService
                     ["{baho}"] = req.Grade!.Value.ToString(),
                     ["{sana}"] = sana,
                     ["{guruh}"] = groupName,
-                });
+                }, group: group);
             return;
         }
 

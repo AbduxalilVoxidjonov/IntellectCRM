@@ -110,6 +110,12 @@ public class PaymentReminderService(
             .GroupBy(d => d.UserId)
             .ToDictionary(g => g.Key, g => g.Select(x => x.Token).Distinct().ToList());
 
+        // Guruh konteksti (o'quvchining ASOSIY guruhi, ClassName bo'yicha) — {dars_sana}/{dars_vaqti}/
+        // {dars_kunlari} va {oqituvchi} tokenlari uchun. Ro'yxat uchun bir marta yuklanadi (N+1 yo'q).
+        var groupByName = (await db.Classes.ToListAsync(ct))
+            .GroupBy(c => c.Name).ToDictionary(g => g.Key, g => g.First());
+        var teacherNames = await MessageTokenizer.TeacherNamesByIdAsync(db, ct);
+
         var fcmJson = meta?.FcmServiceAccountJson ?? "";
         var centerName = meta?.Name ?? "";
         var telegramReady = sendTelegram && telegram.IsConfigured;
@@ -138,13 +144,18 @@ public class PaymentReminderService(
                     : !string.IsNullOrWhiteSpace(s.FatherPhone) ? s.FatherPhone
                     : !string.IsNullOrWhiteSpace(s.MotherPhone) ? s.MotherPhone : s.Phone;
 
+                // O'quvchining asosiy guruhi + uning o'qituvchisi — {dars_*} va {oqituvchi} tokenlari uchun.
+                var grp = groupByName.GetValueOrDefault(s.ClassName ?? "");
+                var grpTeacher = MessageTokenizer.TeacherNameOf(grp, teacherNames);
+
                 // Qoidaning matni bo'lsa — tokenlar bilan render (qarzdorlik = aniq jami), aks holda tizim matni.
                 string BodyFor(AutoMessageRule? r)
                 {
                     if (r is null || string.IsNullOrWhiteSpace(r.Template)) return systemBody;
                     var withExtra = MessageTokenizer.ApplyExtra(r.Template,
                         new Dictionary<string, string> { ["{qarzdorlik}"] = Money(total) });
-                    return MessageTokenizer.Student(withExtra, s, s.ParentFullName, phone, centerName);
+                    return MessageTokenizer.Student(withExtra, s, s.ParentFullName, phone, centerName,
+                        group: grp, teacherName: grpTeacher);
                 }
 
                 // Ilova tarixiga (push/telegram bo'lmasa ham ilovada ko'rinadi). Push kanali yoqilganda.
