@@ -63,7 +63,23 @@ type DirFilter = 'all' | FinanceDirection
 type MethodFilter = 'all' | 'cash' | 'card' | 'bank'
 /** To'lovlar bo'limi: kvitansiya raqami kiritilgan / kiritilmagan to'lovlarni ajratish. */
 type ReceiptFilter = 'all' | 'with' | 'without'
+/** To'lovlar ro'yxatining saralanishi — sana yoki kvitansiya raqami bo'yicha. */
+type PaySort = 'date-desc' | 'date-asc' | 'receipt-asc' | 'receipt-desc'
 type Tab = 'overview' | 'groups' | 'teachers' | 'payments' | 'refunds'
+
+const paySortOptions: { value: PaySort; label: string }[] = [
+  { value: 'date-desc', label: 'Sana: yangi → eski' },
+  { value: 'date-asc', label: 'Sana: eski → yangi' },
+  { value: 'receipt-asc', label: 'Kvitansiya: 1 → 9' },
+  { value: 'receipt-desc', label: 'Kvitansiya: 9 → 1' },
+]
+
+/** Kvitansiya raqamining SON qismi ("KV000123" → 123). Raqam yo'q bo'lsa null.
+ *  Matn sifatida solishtirish noto'g'ri bo'lardi: "KV9" > "KV10" chiqib ketardi. */
+function receiptNum(receiptNo: string | null | undefined): number | null {
+  const digits = (receiptNo ?? '').replace(/\D/g, '')
+  return digits.length > 0 ? Number(digits) : null
+}
 
 const tabs: { value: Tab; label: string }[] = [
   { value: 'overview', label: 'Umumiy' },
@@ -101,6 +117,8 @@ export function FinancePage() {
   const [payMethod, setPayMethod] = useState<MethodFilter>('all')
   /** "To'lovlar" tabidagi kvitansiya filtri (raqami bor / yo'q). */
   const [payReceipt, setPayReceipt] = useState<ReceiptFilter>('all')
+  /** "To'lovlar" tabidagi saralash (sana / kvitansiya raqami). */
+  const [paySort, setPaySort] = useState<PaySort>('date-desc')
   const [courseReport, setCourseReport] = useState<CourseFinanceReport | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -258,6 +276,22 @@ export function FinancePage() {
       )
     })
   })()
+    // SARALASH: sana yoki kvitansiya raqami bo'yicha (raqami YO'Q to'lovlar har doim OXIRIDA —
+    // yo'nalishdan qat'i nazar, aks holda ular ro'yxat boshini egallab, kerakli raqamlar ko'rinmasdi).
+    .sort((a, b) => {
+      if (paySort === 'date-desc' || paySort === 'date-asc') {
+        const cmp = a.date === b.date
+          ? (a.createdAt ?? '').localeCompare(b.createdAt ?? '')
+          : a.date.localeCompare(b.date)
+        return paySort === 'date-asc' ? cmp : -cmp
+      }
+      const na = receiptNum(a.receiptNo)
+      const nb = receiptNum(b.receiptNo)
+      if (na === null && nb === null) return -a.date.localeCompare(b.date)
+      if (na === null) return 1
+      if (nb === null) return -1
+      return paySort === 'receipt-asc' ? na - nb : nb - na
+    })
 
   const handleExportPayments = () => {
     exportToCsv(
@@ -816,6 +850,18 @@ export function FinancePage() {
                       {teacherOptions(courseReport).map((t) => (
                         <option key={t.id} value={t.id}>
                           {t.name}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      value={paySort}
+                      onChange={(e) => setPaySort(e.target.value as PaySort)}
+                      className={filterSelect}
+                      title="Saralash"
+                    >
+                      {paySortOptions.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
                         </option>
                       ))}
                     </select>
