@@ -12,3 +12,6 @@
 DEPLOY.md
 README.md
 **/*.md
+# Baza backuplari (haqiqiy ma'lumot) — build kontekstiga umuman tushmasin
+backups/
+intellectcrm_backup_*.json
