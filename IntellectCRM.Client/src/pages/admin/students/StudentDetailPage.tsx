@@ -297,16 +297,14 @@ export function StudentDetailPage() {
     comment?: string,
     method?: string,
     date?: string,
-    extra?: { receiptNo?: string; paidTime?: string },
+    extra?: { receiptNo?: string; paidTime?: string; forceReceipt?: boolean },
   ) => {
     if (!id) return
-    try {
-      await addPayment(id, amount, month, groupId, comment, method, date, extra)
-      setPaymentTarget(null)
-      setReloadKey((k) => k + 1)
-    } catch (err) {
-      alert(apiErrorMessage(err, "To'lovni saqlab bo'lmadi"))
-    }
+    // Xato QAYTA OTILADI — PaymentModal uni o'zi ko'rsatadi (kvitansiya band bo'lsa kartochka
+    // + "Baribir saqlash", boshqa xatolarda oddiy xabar). Bu yerda alert qilinmaydi.
+    await addPayment(id, amount, month, groupId, comment, method, date, extra)
+    setPaymentTarget(null)
+    setReloadKey((k) => k + 1)
   }
 
   /** Guruh a'zoligi ro'yxatini qayta yuklaydi (amal bajarilgach). */

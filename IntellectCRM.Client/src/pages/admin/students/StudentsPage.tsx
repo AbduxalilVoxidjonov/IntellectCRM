@@ -413,18 +413,21 @@ export function StudentsPage() {
     setEditing(null)
   }
 
-  const handlePayment = (
+  // DIQQAT: `await` SHART — saqlash muvaffaqiyatli bo'lgandagina modal yopiladi va balans
+  // yangilanadi. Xato (masalan kvitansiya raqami band — 409) modalga QAYTA OTILADI: u yerda
+  // "allaqachon kiritilgan to'lov" kartochkasi + "Baribir saqlash" ko'rsatiladi.
+  const handlePayment = async (
     amount: number,
     month: string,
     groupId?: string,
     comment?: string,
     method?: string,
     date?: string,
-    extra?: { receiptNo?: string; paidTime?: string },
+    extra?: { receiptNo?: string; paidTime?: string; forceReceipt?: boolean },
   ) => {
     if (!paying) return
     const id = paying.id
-    addPayment(id, amount, month, groupId, comment, method, date, extra)
+    await addPayment(id, amount, month, groupId, comment, method, date, extra)
     setStudents((prev) =>
       prev.map((s) => (s.id === id ? { ...s, balance: s.balance + amount } : s)),
     )

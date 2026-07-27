@@ -1351,6 +1351,14 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
         if (!PaymentFields.TryNormalizeTime(req.PaidTime, out var paidTime))
             return BadRequest(new { message = "To'lov vaqti noto'g'ri (HH:mm)" });
 
+        // QOG'OZ KVITANSIYA raqami BIR MARTA ishlatiladi — band bo'lsa 409 va allaqachon kiritilgan
+        // to'lov ma'lumoti qaytadi (kassir ekranida kartochka bo'lib chiqadi).
+        // "Baribir saqlash" (ForceReceipt) bosilgan bo'lsa — kassir ataylab davom etyapti, o'tkazamiz.
+        var receiptNo = PaymentFields.NormalizeReceiptNo(req.ReceiptNo);
+        var dupReceipt = req.ForceReceipt ? null : await ReceiptGuard.FindDuplicateAsync(db, receiptNo);
+        if (dupReceipt is not null)
+            return Conflict(new { message = $"{receiptNo} kvitansiya raqami allaqachon kiritilgan", duplicate = dupReceipt });
+
         // O'quvchining billable (faol, sinov emas) guruhlari. To'lov faqat aktivlashtirilgan guruhga.
         var billableGroups = await db.StudentGroups
             .Where(sg => sg.StudentId == student.Id && sg.IsActive && sg.Status != "trial")
@@ -1411,7 +1419,7 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
             Comment = string.IsNullOrWhiteSpace(req.Comment) ? null : req.Comment.Trim(),
             Method = string.IsNullOrWhiteSpace(req.Method) ? null : req.Method.Trim().ToLowerInvariant(),
             // Naqd to'lovda qog'oz kvitansiya raqami ("KV" + raqam), kartada esa to'lov vaqti ("HH:mm").
-            ReceiptNo = PaymentFields.NormalizeReceiptNo(req.ReceiptNo),
+            ReceiptNo = receiptNo,
             PaidTime = paidTime,
             CreatedBy = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value, // mas'ul (chek uchun)
         };
@@ -1420,7 +1428,9 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
         audit.Record(AuditService.EntityFinanceTransaction, tx.Id, "create",
             $"To'lov qabul qilindi: +{AuditService.Money(req.Amount)} so'm ({month} uchun)"
                 + (groupName is null ? "" : $" — {groupName}")
-                + (teacherName is null ? "" : $" · {teacherName}"),
+                + (teacherName is null ? "" : $" · {teacherName}")
+                // Kassir "Baribir saqlash"ni bosgan bo'lsa — izda qolsin (band raqam bilan yozildi).
+                + (req.ForceReceipt && receiptNo is not null ? $" [takroriy kvitansiya {receiptNo} — ataylab saqlandi]" : ""),
             after: AuditService.Snapshot(tx), studentId: student.Id);
 
         await db.SaveChangesAsync();

@@ -111,6 +111,12 @@ public class FinanceController(AppDbContext db, AuditService audit, AutoMessageS
         if (!PaymentFields.TryNormalizeTime(p.PaidTime, out var newPaidTime))
             return BadRequest(new { message = "To'lov vaqti noto'g'ri (HH:mm)" });
 
+        // QOG'OZ KVITANSIYA raqami BIR MARTA ishlatiladi (StudentsController.AddPayment bilan bir xil qoida).
+        var newReceiptNo = PaymentFields.NormalizeReceiptNo(p.ReceiptNo);
+        var dupReceipt = p.ForceReceipt ? null : await ReceiptGuard.FindDuplicateAsync(db, newReceiptNo);
+        if (dupReceipt is not null)
+            return Conflict(new { message = $"{newReceiptNo} kvitansiya raqami allaqachon kiritilgan", duplicate = dupReceipt });
+
         // IDEMPOTENCY CHECK: oxirgi 5 soniyada bir xil tranzaksiya bo'lsa — dublikat qo'shmasdan
         // mavjudni qaytaramiz (admin double-click yoki network retry uchun).
         // Shartlar: bir xil StudentId, Amount, Direction, Category, Type (tuition/salary/other),
@@ -150,7 +156,7 @@ public class FinanceController(AppDbContext db, AuditService audit, AutoMessageS
             Comment = p.Comment,
             Method = string.IsNullOrWhiteSpace(p.Method) ? null : p.Method.Trim().ToLowerInvariant(),
             // Qog'oz kvitansiya raqami (naqd) + karta to'lovining haqiqiy vaqti.
-            ReceiptNo = PaymentFields.NormalizeReceiptNo(p.ReceiptNo),
+            ReceiptNo = newReceiptNo,
             PaidTime = newPaidTime,
             CreatedBy = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value, // mas'ul (chek uchun)
         };
@@ -212,6 +218,15 @@ public class FinanceController(AppDbContext db, AuditService audit, AutoMessageS
 
         if (p.Amount <= 0)
             return BadRequest(new { message = "Summa musbat bo'lishi kerak" });
+
+        // Kvitansiya raqami boshqa YOZUVDA band bo'lmasin (o'zining raqami — dublikat emas).
+        if (p.ReceiptNo is not null && !p.ForceReceipt)
+        {
+            var upReceiptNo = PaymentFields.NormalizeReceiptNo(p.ReceiptNo);
+            var upDup = await ReceiptGuard.FindDuplicateAsync(db, upReceiptNo, excludeTxId: id);
+            if (upDup is not null)
+                return Conflict(new { message = $"{upReceiptNo} kvitansiya raqami allaqachon kiritilgan", duplicate = upDup });
+        }
 
         var before = AuditService.Snapshot(tx);
         // Eski balans ta'sirini (eski o'quvchida) hisoblab olamiz — tahrirdan keyin delta qo'llaymiz.
@@ -407,9 +422,16 @@ public class FinanceController(AppDbContext db, AuditService audit, AutoMessageS
         if (tx.Method != method) changes.Add($"usul {tx.Method ?? "—"} → {method ?? "—"}");
         var comment = string.IsNullOrWhiteSpace(p.Comment) ? null : p.Comment.Trim();
         if (tx.Comment != comment) changes.Add("izoh o'zgartirildi");
-        // Qog'oz kvitansiya raqami (naqd) va to'lov vaqti (karta) — tuzatish mumkin.
+        // Qog'oz kvitansiya raqami (naqd) va to'lov vaqti (karta) — tuzatish mumkin, lekin yangi raqam
+        // BOSHQA to'lovda band bo'lmasligi kerak (o'zining raqami — dublikat emas).
         var receiptNo = PaymentFields.NormalizeReceiptNo(p.ReceiptNo);
-        if (tx.ReceiptNo != receiptNo) changes.Add($"kvitansiya {tx.ReceiptNo ?? "—"} → {receiptNo ?? "—"}");
+        if (tx.ReceiptNo != receiptNo)
+        {
+            var editDup = p.ForceReceipt ? null : await ReceiptGuard.FindDuplicateAsync(db, receiptNo, excludeTxId: id);
+            if (editDup is not null)
+                return Conflict(new { message = $"{receiptNo} kvitansiya raqami allaqachon kiritilgan", duplicate = editDup });
+            changes.Add($"kvitansiya {tx.ReceiptNo ?? "—"} → {receiptNo ?? "—"}");
+        }
         if (!PaymentFields.TryNormalizeTime(p.PaidTime, out var editPaidTime))
             return BadRequest(new { message = "To'lov vaqti noto'g'ri (HH:mm)" });
         if (tx.PaidTime != editPaidTime) changes.Add($"to'lov vaqti {tx.PaidTime ?? "—"} → {editPaidTime ?? "—"}");

@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react'
-import { Wallet } from 'lucide-react'
+import { Wallet, AlertTriangle } from 'lucide-react'
 import type { MonthStatus, Student, StudentGroupMembership } from '@/types'
-import { getStudentLedger, getGroupLedger } from '@/api/services/students'
+import { getStudentLedger, getGroupLedger, receiptDuplicateOf, type DuplicateReceipt } from '@/api/services/students'
 import { getStudentGroups } from '@/api/services/classes'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Loader } from '@/components/ui/Loader'
-import { formatMoney, cn } from '@/lib/utils'
-import { formatMonth, monthStatusLabels, paymentMethods } from '@/config/constants'
+import { formatMoney, formatDate, formatDateTime, apiErrorMessage, cn } from '@/lib/utils'
+import { formatMonth, monthStatusLabels, paymentMethods, paymentMethodLabel } from '@/config/constants'
 
 interface Props {
   student: Student | null
@@ -20,8 +20,9 @@ interface Props {
     comment?: string,
     method?: string,
     date?: string,
-    /** Naqd — qog'oz kvitansiya raqami ("KV..."); karta — to'lov vaqti "HH:mm". */
-    extra?: { receiptNo?: string; paidTime?: string },
+    /** Naqd — qog'oz kvitansiya raqami ("KV..."); karta — to'lov vaqti "HH:mm".
+     *  `forceReceipt` — kvitansiya band bo'lsa ham saqlash ("Baribir saqlash"). */
+    extra?: { receiptNo?: string; paidTime?: string; forceReceipt?: boolean },
   ) => void | Promise<void>
 }
 
@@ -96,6 +97,8 @@ export function PaymentModal({ student, onClose, onSubmit }: Props) {
     setPaidDate(today())
     setReceiptNo('')
     setPaidTime(nowTime())
+    setDuplicate(null)
+    setError(null)
     getStudentGroups(student.id)
       .then(async (allGroups) => {
         // To'lov qilish mumkin bo'lgan a'zoliklar: SINOVDAN boshqa hammasi — MUZLATILGAN va guruhi
@@ -160,20 +163,37 @@ export function PaymentModal({ student, onClose, onSubmit }: Props) {
   }
 
   const [submitting, setSubmitting] = useState(false)
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  /** Kvitansiya raqami BAND — server 409 qaytardi; shu to'lov ma'lumoti kartochka bo'lib chiqadi. */
+  const [duplicate, setDuplicate] = useState<DuplicateReceipt | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  /** To'lovni saqlash. `force=true` — kvitansiya band bo'lsa ham ("Baribir saqlash"). */
+  const save = async (force: boolean) => {
     // Ikki marta bosishdan himoya (dublikat to'lov yaratilmasin).
     if (submitting || amount <= 0 || !month || (needGroup && !groupId)) return
     setSubmitting(true)
+    setError(null)
     try {
       await onSubmit(amount, month, groupId || undefined, comment.trim() || undefined, method, paidDate || undefined, {
         // Kvitansiya faqat NAQD to'lovda, vaqt faqat KARTA to'lovida yuboriladi.
         receiptNo: method === 'cash' && receiptNo.trim() ? RECEIPT_SERIES + receiptNo.trim() : undefined,
         paidTime: method === 'card' && paidTime ? paidTime : undefined,
+        forceReceipt: force,
       })
+      setDuplicate(null)
+    } catch (err) {
+      // Kvitansiya raqami allaqachon ishlatilgan — modal yopilmaydi, kassir qaror qabul qiladi.
+      const dup = receiptDuplicateOf(err)
+      if (dup) setDuplicate(dup)
+      else setError(apiErrorMessage(err, "To'lovni saqlab bo'lmadi"))
     } finally {
       setSubmitting(false)
     }
+  }
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    void save(false)
   }
 
   const selected = rows.find((r) => r.month === month)
@@ -191,13 +211,20 @@ export function PaymentModal({ student, onClose, onSubmit }: Props) {
           <Button variant="secondary" onClick={onClose}>
             Bekor qilish
           </Button>
-          <Button
-            type="submit"
-            form="payment-form"
-            disabled={amount <= 0 || !month || (needGroup && !groupId) || loading || loadingMonths || submitting}
-          >
-            <Wallet className="h-4 w-4" /> {submitting ? 'Saqlanmoqda...' : 'Saqlash'}
-          </Button>
+          {duplicate ? (
+            // Kvitansiya band — kassir ataylab davom etishi mumkin (haqiqatan takroriy blank bo'lsa).
+            <Button variant="danger" disabled={submitting} onClick={() => void save(true)}>
+              <Wallet className="h-4 w-4" /> {submitting ? 'Saqlanmoqda...' : 'Baribir saqlash'}
+            </Button>
+          ) : (
+            <Button
+              type="submit"
+              form="payment-form"
+              disabled={amount <= 0 || !month || (needGroup && !groupId) || loading || loadingMonths || submitting}
+            >
+              <Wallet className="h-4 w-4" /> {submitting ? 'Saqlanmoqda...' : 'Saqlash'}
+            </Button>
+          )}
         </>
       }
     >
@@ -206,6 +233,66 @@ export function PaymentModal({ student, onClose, onSubmit }: Props) {
           <Loader label="Yuklanmoqda..." />
         ) : (
           <form id="payment-form" onSubmit={handleSubmit} className="space-y-4">
+            {/* KVITANSIYA BAND — shu raqam bilan qaysi to'lov allaqachon kiritilgani.
+                Kassir yo raqamni to'g'rilaydi, yo "Baribir saqlash"ni bosadi. */}
+            {duplicate && (
+              <div className="rounded-lg border border-amber-300 bg-amber-50 p-3">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-amber-800">
+                      {duplicate.receiptNo} raqami allaqachon kiritilgan
+                    </p>
+                    <dl className="mt-2 space-y-1 text-[13px]">
+                      <div className="flex gap-2">
+                        <dt className="w-28 shrink-0 text-amber-700/70">O'quvchi</dt>
+                        <dd className="font-semibold text-slate-800">{duplicate.studentName || '—'}</dd>
+                      </div>
+                      <div className="flex gap-2">
+                        <dt className="w-28 shrink-0 text-amber-700/70">Guruh</dt>
+                        <dd className="text-slate-700">
+                          {duplicate.groupName || '—'}
+                          {duplicate.courseName ? ` — ${duplicate.courseName}` : ''}
+                        </dd>
+                      </div>
+                      <div className="flex gap-2">
+                        <dt className="w-28 shrink-0 text-amber-700/70">O'qituvchi</dt>
+                        <dd className="text-slate-700">{duplicate.teacherName || '—'}</dd>
+                      </div>
+                      <div className="flex gap-2">
+                        <dt className="w-28 shrink-0 text-amber-700/70">Summa</dt>
+                        <dd className="font-mono font-semibold text-emerald-700">
+                          {formatMoney(duplicate.amount)}
+                          {duplicate.month ? ` · ${formatMonth(duplicate.month)} uchun` : ''}
+                        </dd>
+                      </div>
+                      <div className="flex gap-2">
+                        <dt className="w-28 shrink-0 text-amber-700/70">To'lov sanasi</dt>
+                        <dd className="text-slate-700">
+                          {formatDate(duplicate.date)}
+                          {duplicate.method ? ` · ${paymentMethodLabel(duplicate.method)}` : ''}
+                        </dd>
+                      </div>
+                      <div className="flex gap-2">
+                        <dt className="w-28 shrink-0 text-amber-700/70">Kiritilgan</dt>
+                        <dd className="text-slate-700">
+                          {formatDateTime(duplicate.createdAt)}
+                          {duplicate.createdBy ? ` · ${duplicate.createdBy}` : ''}
+                        </dd>
+                      </div>
+                    </dl>
+                    <p className="mt-2 text-xs text-amber-700">
+                      Raqamni tekshirib to'g'rilang. Haqiqatan takroriy blank bo'lsa — "Baribir saqlash".
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {error && (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
+            )}
+
             <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm">
               <p className="text-slate-500">{student.fullName}</p>
               <p className="mt-1 text-slate-500">
@@ -360,7 +447,11 @@ export function PaymentModal({ student, onClose, onSubmit }: Props) {
                           type="text"
                           inputMode="numeric"
                           value={receiptNo}
-                          onChange={(e) => setReceiptNo(e.target.value.replace(/\s+/g, ''))}
+                          onChange={(e) => {
+                            setReceiptNo(e.target.value.replace(/\s+/g, ''))
+                            // Raqam o'zgardi — eski "band" ogohlantirishi endi tegishli emas.
+                            setDuplicate(null)
+                          }}
                           placeholder="000123"
                           maxLength={20}
                           className="w-full rounded-r-lg border border-slate-200 bg-white px-3 py-2 font-mono text-sm text-slate-700 outline-none focus:border-brand-400"

@@ -86,18 +86,16 @@ export function PaymentHistoryPanel({ studentId, onPaid }: Props) {
     comment?: string,
     method?: string,
     date?: string,
-    extra?: { receiptNo?: string; paidTime?: string },
+    extra?: { receiptNo?: string; paidTime?: string; forceReceipt?: boolean },
   ) => {
     if (!studentId) return
-    try {
-      await addPayment(studentId, amount, month, groupId, comment, method, date, extra)
-      const fresh = await getStudentLedger(studentId)
-      setLedger(fresh)
-      setPayTarget(null)
-      onPaid?.()
-    } catch (err) {
-      alert(apiErrorMessage(err, "To'lovni saqlab bo'lmadi"))
-    }
+    // Xato QAYTA OTILADI — PaymentModal o'zi ko'rsatadi (kvitansiya band bo'lsa kartochka
+    // + "Baribir saqlash"). Shu sabab bu yerda catch/alert yo'q.
+    await addPayment(studentId, amount, month, groupId, comment, method, date, extra)
+    const fresh = await getStudentLedger(studentId)
+    setLedger(fresh)
+    setPayTarget(null)
+    onPaid?.()
   }
 
   if (loading || !ledger) return <Loader label="Yuklanmoqda..." />

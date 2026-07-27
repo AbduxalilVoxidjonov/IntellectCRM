@@ -3,14 +3,14 @@ import type { FormEvent } from 'react'
 import { AlertTriangle } from 'lucide-react'
 import type { FinanceTransaction, MonthLedger, StudentGroupMembership } from '@/types'
 import { updatePayment, type PaymentEditPayload } from '@/api/services/finance'
-import { getStudentLedger } from '@/api/services/students'
+import { getStudentLedger, receiptDuplicateOf, type DuplicateReceipt } from '@/api/services/students'
 import { getStudentGroups } from '@/api/services/classes'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input, Select, Textarea } from '@/components/ui/Input'
 import { Loader } from '@/components/ui/Loader'
 import { formatMonth, monthStatusLabels, paymentMethods } from '@/config/constants'
-import { apiErrorMessage, formatMoney, cn } from '@/lib/utils'
+import { apiErrorMessage, formatDate, formatMoney, cn } from '@/lib/utils'
 
 interface Props {
   /** Tahrirlanadigan o'quvchi to'lovi (income + tuition) */
@@ -33,6 +33,8 @@ export function PaymentEditModal({ payment, onClose, onSaved }: Props) {
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  /** Kvitansiya raqami BOSHQA to'lovda band — server 409 bilan qaytargan yozuv. */
+  const [duplicate, setDuplicate] = useState<DuplicateReceipt | null>(null)
 
   useEffect(() => {
     if (!payment) return
@@ -68,8 +70,8 @@ export function PaymentEditModal({ payment, onClose, onSaved }: Props) {
   const set = <K extends keyof PaymentEditPayload>(key: K, value: PaymentEditPayload[K]) =>
     setForm((f) => (f ? { ...f, [key]: value } : f))
 
-  const submit = async (e: FormEvent) => {
-    e.preventDefault()
+  /** Saqlash. `force=true` — kvitansiya raqami boshqa to'lovda band bo'lsa ham ("Baribir saqlash"). */
+  const save = async (force: boolean) => {
     if (!payment || !form || form.amount <= 0 || !form.date || !form.month) return
     setSaving(true)
     setError(null)
@@ -81,14 +83,24 @@ export function PaymentEditModal({ payment, onClose, onSaved }: Props) {
         // Kvitansiya faqat naqdda, vaqt faqat kartada saqlanadi (usul o'zgarsa eskisi tozalanadi).
         receiptNo: (form.method ?? 'cash') === 'cash' ? form.receiptNo?.trim() || '' : '',
         paidTime: (form.method ?? 'cash') === 'card' ? form.paidTime || '' : '',
+        forceReceipt: force,
       })
+      setDuplicate(null)
       onSaved()
       onClose()
     } catch (err) {
-      setError(apiErrorMessage(err, "To'lovni saqlab bo'lmadi"))
+      // Kvitansiya raqami boshqa to'lovda band — qaysi to'lov ekani kartochka bo'lib chiqadi.
+      const dup = receiptDuplicateOf(err)
+      if (dup) setDuplicate(dup)
+      else setError(apiErrorMessage(err, "To'lovni saqlab bo'lmadi"))
     } finally {
       setSaving(false)
     }
+  }
+
+  const submit = (e: FormEvent) => {
+    e.preventDefault()
+    void save(false)
   }
 
   // Oy tanlovi: o'quvchi hisob oylari + joriy to'lov oyi (ro'yxatda bo'lmasa ham yo'qolmasin).
@@ -110,13 +122,19 @@ export function PaymentEditModal({ payment, onClose, onSaved }: Props) {
           <Button variant="secondary" onClick={onClose} disabled={saving}>
             Bekor qilish
           </Button>
-          <Button
-            type="submit"
-            form="payment-edit-form"
-            disabled={saving || loading || !form || form.amount <= 0 || !form.month}
-          >
-            {saving ? 'Saqlanmoqda...' : 'Saqlash'}
-          </Button>
+          {duplicate ? (
+            <Button variant="danger" disabled={saving} onClick={() => void save(true)}>
+              {saving ? 'Saqlanmoqda...' : 'Baribir saqlash'}
+            </Button>
+          ) : (
+            <Button
+              type="submit"
+              form="payment-edit-form"
+              disabled={saving || loading || !form || form.amount <= 0 || !form.month}
+            >
+              {saving ? 'Saqlanmoqda...' : 'Saqlash'}
+            </Button>
+          )}
         </>
       }
     >
@@ -124,6 +142,24 @@ export function PaymentEditModal({ payment, onClose, onSaved }: Props) {
         <Loader label="Yuklanmoqda..." />
       ) : (
         <form id="payment-edit-form" onSubmit={submit} className="space-y-4">
+          {/* Kvitansiya raqami BOSHQA to'lovda band — qaysi to'lov ekani ko'rsatiladi. */}
+          {duplicate && (
+            <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5 text-[13px]">
+              <p className="font-semibold text-amber-800">
+                {duplicate.receiptNo} raqami boshqa to'lovda band
+              </p>
+              <p className="mt-1 text-slate-700">
+                {duplicate.studentName || '—'}
+                {duplicate.groupName ? ` · ${duplicate.groupName}` : ''}
+                {duplicate.teacherName ? ` · ${duplicate.teacherName}` : ''}
+              </p>
+              <p className="mt-0.5 text-slate-700">
+                <span className="font-mono font-semibold text-emerald-700">{formatMoney(duplicate.amount)}</span>
+                {` · ${formatDate(duplicate.date)}`}
+                {duplicate.createdBy ? ` · kiritgan: ${duplicate.createdBy}` : ''}
+              </p>
+            </div>
+          )}
           {/* O'quvchi — o'zgartirilmaydi */}
           <div className="rounded-lg bg-slate-50 px-3 py-2.5">
             <p className="text-xs text-slate-400">O'quvchi</p>

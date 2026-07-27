@@ -63,6 +63,8 @@ export interface PaymentEditPayload {
   receiptNo?: string
   /** To'lov vaqti "HH:mm" (karta orqali to'lov) */
   paidTime?: string
+  /** Kvitansiya raqami boshqa to'lovda band bo'lsa ham saqlash ("Baribir saqlash"). */
+  forceReceipt?: boolean
 }
 
 export interface TransactionFilters {

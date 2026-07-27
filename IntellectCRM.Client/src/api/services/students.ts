@@ -356,8 +356,9 @@ export async function addPayment(
   comment?: string,
   method?: string,
   date?: string,
-  /** Naqd to'lovda — qog'oz kvitansiya raqami ("KV..."); kartada — to'lov vaqti "HH:mm". */
-  extra?: { receiptNo?: string; paidTime?: string },
+  /** Naqd to'lovda — qog'oz kvitansiya raqami ("KV..."); kartada — to'lov vaqti "HH:mm".
+   *  `forceReceipt` — kvitansiya raqami band bo'lsa ham saqlash ("Baribir saqlash"). */
+  extra?: { receiptNo?: string; paidTime?: string; forceReceipt?: boolean },
 ): Promise<string | null> {
   if (USE_MOCK) {
     await delay(250)
@@ -372,8 +373,37 @@ export async function addPayment(
     date,
     receiptNo: extra?.receiptNo,
     paidTime: extra?.paidTime,
+    forceReceipt: extra?.forceReceipt ?? false,
   })
   return data?.id ?? null
+}
+
+/**
+ * ALLAQACHON kiritilgan kvitansiya raqami haqidagi ma'lumot — server 409 Conflict bilan qaytaradi.
+ * Kassir ekranida kartochka bo'lib chiqadi: kim to'lagan, qaysi guruh/o'qituvchi, qancha, qachon.
+ */
+export interface DuplicateReceipt {
+  receiptNo: string
+  transactionId: string
+  studentId: string | null
+  studentName: string
+  groupName: string
+  courseName: string
+  teacherName: string
+  amount: number
+  date: string
+  month: string
+  method: string
+  /** To'lovni kiritgan xodim (kassir/admin). */
+  createdBy: string
+  createdAt: string
+}
+
+/** Xatolik kvitansiya dublikati (409) bo'lsa — uning ma'lumotini qaytaradi, aks holda null. */
+export function receiptDuplicateOf(err: unknown): DuplicateReceipt | null {
+  const res = (err as { response?: { status?: number; data?: { duplicate?: DuplicateReceipt } } })?.response
+  if (res?.status !== 409) return null
+  return res.data?.duplicate ?? null
 }
 
 const LEDGER_MONTHS = ['2026-01', '2026-02', '2026-03', '2026-04', '2026-05']

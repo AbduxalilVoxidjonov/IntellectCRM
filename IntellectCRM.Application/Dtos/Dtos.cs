@@ -61,7 +61,21 @@ public record StudentPayload(
 /// <summary>O'quvchiga to'lov kiritish. <paramref name="ReceiptNo"/> — NAQD to'lovda qog'oz kvitansiya
 /// raqami ("KV" seriyasi + raqam), <paramref name="PaidTime"/> — KARTA to'lovida haqiqiy to'lov vaqti "HH:mm".</summary>
 public record PaymentRequest(decimal Amount, string? Month, string? GroupId = null, string? Comment = null,
-    string? Method = null, string? Date = null, string? ReceiptNo = null, string? PaidTime = null);
+    string? Method = null, string? Date = null, string? ReceiptNo = null, string? PaidTime = null,
+    /// <summary>Kvitansiya raqami band bo'lsa ham SAQLASH (kassir "Baribir saqlash"ni bosgan) —
+    /// haqiqatan takroriy blank ishlatilgan holatlar uchun. Auditda alohida qayd etiladi.</summary>
+    bool ForceReceipt = false);
+
+/// <summary>
+/// ALLAQACHON kiritilgan kvitansiya raqami haqidagi ma'lumot — bitta qog'oz blank ikki marta
+/// yozilmasligi uchun. To'lov saqlanayotganda shu raqam band bo'lsa server 409 Conflict bilan
+/// shu kartochkani qaytaradi (kim to'lagan, qaysi guruh/o'qituvchi, qancha, qachon kiritilgan).
+/// </summary>
+public record DuplicateReceiptDto(
+    string ReceiptNo, string TransactionId, string? StudentId, string StudentName,
+    string GroupName, string CourseName, string TeacherName,
+    decimal Amount, string Date, string Month, string Method,
+    string CreatedBy, DateTime CreatedAt);
 
 /* ---------- Tuman + maktab (sozlamalar) ---------- */
 public record DistrictDto(string Id, string Name, int Order, List<SchoolDto> Schools);
@@ -1058,12 +1072,12 @@ public record ReceiptDto(
 public record PaymentEditPayload(
     string Date, decimal Amount, string Month,
     string? GroupId = null, string? Method = null, string? Comment = null,
-    string? ReceiptNo = null, string? PaidTime = null);
+    string? ReceiptNo = null, string? PaidTime = null, bool ForceReceipt = false);
 
 public record FinanceTransactionPayload(
     string Date, string Direction, string Category, decimal Amount, string? Note,
     string? StudentId, string? TeacherId, string? Month = null, string? GroupId = null, string? Comment = null,
-    string? Method = null, string? ReceiptNo = null, string? PaidTime = null);
+    string? Method = null, string? ReceiptNo = null, string? PaidTime = null, bool ForceReceipt = false);
 public record CategoryAmountDto(string Category, decimal Amount);
 public record FinanceSummaryDto(
     decimal TotalIncome, decimal TotalExpense, decimal Net,

@@ -33,6 +33,7 @@ import { Badge } from '@/components/ui/Badge'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Loader } from '@/components/ui/Loader'
 import { StatCard } from '@/components/ui/StatCard'
+import { TablePagination, usePagination } from '@/components/ui/TablePagination'
 import { FinanceMonthlyChart } from '@/components/charts/FinanceMonthlyChart'
 import { AuditHistoryModal } from '@/components/audit/AuditHistoryModal'
 import type { AuditFilters } from '@/api/services/audit'
@@ -56,6 +57,8 @@ const control =
 type DirFilter = 'all' | FinanceDirection
 /** To'lov usuli filtri — "Amallar" jadvalida kirimlarni naqt/karta/bank bo'yicha ajratish. */
 type MethodFilter = 'all' | 'cash' | 'card' | 'bank'
+/** To'lovlar bo'limi: kvitansiya raqami kiritilgan / kiritilmagan to'lovlarni ajratish. */
+type ReceiptFilter = 'all' | 'with' | 'without'
 type Tab = 'overview' | 'groups' | 'teachers' | 'payments' | 'refunds'
 
 const tabs: { value: Tab; label: string }[] = [
@@ -90,6 +93,10 @@ export function FinancePage() {
   const [paySearch, setPaySearch] = useState('')
   /** "To'lovlar" tabidagi o'qituvchi filtri (bo'sh = hammasi) — to'lov guruhi orqali aniqlanadi. */
   const [payTeacher, setPayTeacher] = useState('')
+  /** "To'lovlar" tabidagi to'lov usuli filtri (naqd / karta / bank). */
+  const [payMethod, setPayMethod] = useState<MethodFilter>('all')
+  /** "To'lovlar" tabidagi kvitansiya filtri (raqami bor / yo'q). */
+  const [payReceipt, setPayReceipt] = useState<ReceiptFilter>('all')
   const [courseReport, setCourseReport] = useState<CourseFinanceReport | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -230,6 +237,11 @@ export function FinancePage() {
     const q = paySearch.trim().toLowerCase()
     return payments.filter((p) => {
       if (payTeacher && (!p.groupId || teacherByGroup.get(p.groupId) !== payTeacher)) return false
+      // To'lov usuli (naqd/karta/bank) — usuli belgilanmagan eski yozuvlar filtrga tushmaydi.
+      if (payMethod !== 'all' && p.method !== payMethod) return false
+      // Kvitansiya raqami bor / yo'q.
+      if (payReceipt === 'with' && !p.receiptNo) return false
+      if (payReceipt === 'without' && p.receiptNo) return false
       if (!q) return true
       // Kvitansiya raqami bo'yicha ham qidiriladi: "kv123" ham, faqat "123" ham topsin.
       const receipt = (p.receiptNo ?? '').toLowerCase()
@@ -311,6 +323,19 @@ export function FinancePage() {
     methodFilter === 'all'
       ? transactions
       : transactions.filter((t) => t.direction === 'income' && t.method === methodFilter)
+
+  // To'lovlar bo'limidagi usul kesimidagi summalar (filtr chiplarida ko'rsatiladi). O'qituvchi/
+  // qidiruv/kvitansiya filtrlari QO'LLANGAN ro'yxatdan sanaladi — usul chiplari faqat o'zini filtrlaydi.
+  const paymentsByMethod: Record<'cash' | 'card' | 'bank', number> = { cash: 0, card: 0, bank: 0 }
+  for (const p of payments) {
+    if (p.method === 'cash' || p.method === 'card' || p.method === 'bank') paymentsByMethod[p.method] += p.amount
+  }
+
+  // Jadval sahifalash — uzun ro'yxatlar brauzerni cho'ktirmasin (20/30/50/100 talik).
+  const txPg = usePagination(visibleTx)
+  const payPg = usePagination(filteredPayments)
+  const refundPg = usePagination(refunds)
+  const salaryPg = usePagination(salaryReport)
 
   return (
     <div>
@@ -473,7 +498,7 @@ export function FinancePage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {visibleTx.map((t) => (
+                      {txPg.paged.map((t) => (
                         <tr key={t.id}>
                           <td className="font-mono text-[12.5px] text-slate-500">
                             {formatDate(t.date)}
@@ -574,6 +599,7 @@ export function FinancePage() {
                     )}
                   </table>
                 </div>
+                <TablePagination {...txPg} />
                 {visibleTx.length === 0 && (
                   <div className="state">
                     <div className="state-icon">
@@ -647,7 +673,7 @@ export function FinancePage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {salaryReport.map((r) => (
+                      {salaryPg.paged.map((r) => (
                         <tr
                           key={r.teacherId}
                           onClick={() => setDetailTeacher(r)}
@@ -719,6 +745,7 @@ export function FinancePage() {
                     <p>Tanlangan davr bo'yicha maosh hisoboti topilmadi.</p>
                   </div>
                 )}
+                <TablePagination {...salaryPg} />
               </Card>
             </div>
           )}
@@ -752,7 +779,39 @@ export function FinancePage() {
                     : "O'quvchi to'lovlari (tuition) — xato bo'lsa o'chiring, balans qayta tiklanadi"
                 }
                 actions={
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {/* To'lov usuli — naqd/karta/bank kesimida ko'rish (har chipda shu usul jami summasi). */}
+                    <div className="toolbar !mb-0">
+                      {(['all', 'cash', 'card', 'bank'] as MethodFilter[]).map((m) => (
+                        <button
+                          key={m}
+                          onClick={() => setPayMethod(m)}
+                          className={cn('filter-chip', payMethod === m && 'active')}
+                        >
+                          {m === 'all'
+                            ? 'Usul: barchasi'
+                            : `${paymentMethodLabel(m)} · ${formatMoney(paymentsByMethod[m])}`}
+                        </button>
+                      ))}
+                    </div>
+                    {/* Kvitansiya raqami kiritilgan / kiritilmagan to'lovlar. */}
+                    <div className="toolbar !mb-0">
+                      {(
+                        [
+                          { v: 'all', label: 'Kvitansiya: barchasi' },
+                          { v: 'with', label: 'Raqami bor' },
+                          { v: 'without', label: "Raqami yo'q" },
+                        ] as { v: ReceiptFilter; label: string }[]
+                      ).map((r) => (
+                        <button
+                          key={r.v}
+                          onClick={() => setPayReceipt(r.v)}
+                          className={cn('filter-chip', payReceipt === r.v && 'active')}
+                        >
+                          {r.label}
+                        </button>
+                      ))}
+                    </div>
                     <select
                       value={payTeacher}
                       onChange={(e) => setPayTeacher(e.target.value)}
@@ -796,7 +855,7 @@ export function FinancePage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredPayments.map((p) => (
+                      {payPg.paged.map((p) => (
                         <tr key={p.id}>
                           <td className="font-mono text-[12.5px] text-slate-500">
                             {formatDate(p.date)}
@@ -909,6 +968,7 @@ export function FinancePage() {
                     </tbody>
                   </table>
                 </div>
+                <TablePagination {...payPg} />
                 {filteredPayments.length === 0 && (
                   <div className="state">
                     <div className="state-icon">
@@ -954,7 +1014,7 @@ export function FinancePage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {refunds.map((r) => (
+                      {refundPg.paged.map((r) => (
                         <tr key={r.id}>
                           <td className="font-mono text-[12.5px] text-slate-500">
                             {formatDate(r.date)}
@@ -996,6 +1056,7 @@ export function FinancePage() {
                     </tbody>
                   </table>
                 </div>
+                <TablePagination {...refundPg} />
                 {refunds.length === 0 && (
                   <div className="state">
                     <div className="state-icon">
