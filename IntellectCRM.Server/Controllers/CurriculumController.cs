@@ -1248,6 +1248,117 @@ public class CurriculumController(AppDbContext db) : ControllerBase
     // Bir nechta modulni bir nechta dasturga nusxalash — so'rov tanasi.
     public record CopyModulesRequest(List<string>? ModuleIds, List<string>? TargetCurriculumIds);
 
+    // ---- O'quvchining topshiriq URINISHLARI (profildagi "Topshiriq natijalari") ----
+
+    /// <summary>
+    /// O'quvchi ishlagan topshiriqlar tarixi: har urinish alohida qator, sillabusdagi joyi
+    /// (dastur → modul → mavzu → dars → topshiriq) va guruh nomi bilan boyitilgan.
+    /// Javob tafsiloti bu yerda YUBORILMAYDI (ro'yxat yengil bo'lishi uchun) — u
+    /// <c>attempt/{id}</c> orqali alohida olinadi.
+    /// </summary>
+    [HttpGet("student/{studentId}/attempts")]
+    public async Task<ActionResult<StudentAttemptsDto>> GetStudentAttempts(string studentId, [FromQuery] int limit = 300)
+    {
+        var attempts = await db.CourseItemAttempts.AsNoTracking()
+            .Where(a => a.StudentId == studentId)
+            .OrderByDescending(a => a.FinishedAt)
+            .Take(Math.Clamp(limit, 1, 1000))
+            .ToListAsync();
+
+        if (attempts.Count == 0)
+            return new StudentAttemptsDto(0, 0, 0, 0, 0, new List<StudentAttemptDto>());
+
+        var rows = await EnrichAttemptsAsync(attempts);
+
+        // Baholanadigan urinishlar — "view" (ko'rildi) bo'limi o'rtachaga kirmaydi.
+        var graded = rows.Where(r => r.Total > 0).ToList();
+        return new StudentAttemptsDto(
+            ItemCount: rows.Select(r => r.ItemId).Distinct().Count(),
+            AttemptCount: rows.Count,
+            GradedCount: graded.Count,
+            AvgScorePct: graded.Count > 0 ? (int)Math.Round(graded.Average(r => r.ScorePct)) : 0,
+            TotalMinutes: (int)Math.Round(rows.Sum(r => r.DurationSec) / 60.0),
+            Attempts: rows);
+    }
+
+    /// <summary>Bitta urinishning TO'LIQ tafsiloti — har savolga o'quvchi nima javob bergani.</summary>
+    [HttpGet("attempt/{id}")]
+    public async Task<ActionResult<StudentAttemptDetailDto>> GetAttempt(string id)
+    {
+        var a = await db.CourseItemAttempts.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
+        if (a is null) return NotFound();
+
+        var rows = await EnrichAttemptsAsync(new List<CourseItemAttempt> { a });
+        return new StudentAttemptDetailDto(rows[0], ParseAnswers(a.AnswersJson));
+    }
+
+    /// <summary>Urinish qatorlarini sillabus nomlari + guruh nomi bilan to'ldiradi (bitta so'rovda,
+    /// per-qator so'rovsiz).</summary>
+    private async Task<List<StudentAttemptDto>> EnrichAttemptsAsync(List<CourseItemAttempt> attempts)
+    {
+        var itemIds = attempts.Select(a => a.ItemId).Distinct().ToList();
+        var groupIds = attempts.Select(a => a.GroupId).Where(g => g != "").Distinct().ToList();
+        var curriculumIds = attempts.Select(a => a.CurriculumId).Distinct().ToList();
+
+        var items = await db.CourseItems.AsNoTracking().Where(i => itemIds.Contains(i.Id)).ToListAsync();
+        var lessonIds = items.Select(i => i.LessonId).Distinct().ToList();
+        var lessons = await db.CourseLessons.AsNoTracking().Where(l => lessonIds.Contains(l.Id)).ToListAsync();
+        var topicIds = lessons.Select(l => l.TopicId).Distinct().ToList();
+        var topics = await db.CourseTopics.AsNoTracking().Where(t => topicIds.Contains(t.Id)).ToListAsync();
+        var moduleIds = topics.Select(t => t.ModuleId).Distinct().ToList();
+        var modules = await db.CourseModules.AsNoTracking().Where(m => moduleIds.Contains(m.Id)).ToListAsync();
+        var curricula = await db.Curricula.AsNoTracking().Where(c => curriculumIds.Contains(c.Id)).ToListAsync();
+        var groups = await db.Classes.AsNoTracking().Where(g => groupIds.Contains(g.Id)).ToListAsync();
+
+        var itemById = items.ToDictionary(i => i.Id);
+        var lessonById = lessons.ToDictionary(l => l.Id);
+        var topicById = topics.ToDictionary(t => t.Id);
+        var moduleById = modules.ToDictionary(m => m.Id);
+        var curriculumName = curricula.ToDictionary(c => c.Id, c => c.Name);
+        var groupName = groups.ToDictionary(g => g.Id, g => g.Name);
+
+        return attempts.Select(a =>
+        {
+            itemById.TryGetValue(a.ItemId, out var item);
+            CourseLesson? lesson = null;
+            CourseTopic? topic = null;
+            CourseModule? module = null;
+            if (item is not null && lessonById.TryGetValue(item.LessonId, out var l))
+            {
+                lesson = l;
+                if (topicById.TryGetValue(l.TopicId, out var t))
+                {
+                    topic = t;
+                    moduleById.TryGetValue(t.ModuleId, out module);
+                }
+            }
+
+            return new StudentAttemptDto(
+                a.Id, a.ItemId,
+                // Topshiriq o'chirilgan bo'lsa ham urinish tarixi qoladi — nomi o'rniga izoh.
+                item?.Text ?? "(o'chirilgan topshiriq)",
+                item?.Type ?? "",
+                lesson?.Title ?? "", topic?.Title ?? "", module?.Name ?? "",
+                curriculumName.GetValueOrDefault(a.CurriculumId, ""),
+                groupName.GetValueOrDefault(a.GroupId, ""),
+                a.Section, a.ExerciseKind, a.AttemptNo,
+                a.Correct, a.Total, a.ScorePct, a.DurationSec, a.FinishedAt,
+                ParseAnswers(a.AnswersJson).Count);
+        }).ToList();
+    }
+
+    /// <summary>AnswersJson → javoblar ro'yxati (buzuq JSON bo'lsa bo'sh ro'yxat).</summary>
+    private static List<AttemptAnswerDto> ParseAnswers(string json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return new();
+        try
+        {
+            return JsonSerializer.Deserialize<List<AttemptAnswerDto>>(
+                json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new();
+        }
+        catch { return new(); }
+    }
+
     // Bir (modul, dastur) juftligi uchun nusxalash natijasi (klientga qaytadi).
     // Merged=true bo'lsa — mavjud modulga birlashtirildi; Added* — QO'SHILGAN (yangi) elementlar soni.
     public record CopyModuleResultDto(

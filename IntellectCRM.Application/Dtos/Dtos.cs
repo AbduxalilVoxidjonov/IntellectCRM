@@ -1938,6 +1938,43 @@ public record CurriculumModuleDto(string Id, string Name, string Note, int Order
 /// <summary>Bitta o'quv dasturining to'liq sillabusi (Modul → Mavzu → Dars → Topshiriq).</summary>
 public record CurriculumDto(string Id, string Name, List<CurriculumModuleDto> Modules);
 
+// ---- Topshiriq URINISHLARI (o'quvchi ishlagan natijalar) ----
+
+/// <summary>Bitta savol/element bo'yicha o'quvchi javobi — <c>CourseItemAttempt.AnswersJson</c>
+/// ichida massiv bo'lib saqlanadi. <paramref name="Sec"/> — shu elementga sarflangan soniya.</summary>
+public record AttemptAnswerDto(int Index, string Prompt, string Answer, string Expected, bool Ok, int Sec);
+
+/// <summary>O'quvchi urinishini saqlash payload'i (o'quvchi portali → server).
+/// <paramref name="Section"/>: exercise | test | view.</summary>
+public record SaveAttemptRequest(
+    string ItemId, string Section, string? ExerciseKind,
+    int Correct, int Total, int DurationSec, List<AttemptAnswerDto>? Answers);
+
+/// <summary>Urinish saqlangandan keyingi javob — nechanchi urinish bo'lgani.</summary>
+public record SaveAttemptResponse(int AttemptNo);
+
+/// <summary>O'quvchining O'Z urinishi (ilovadagi "oldingi natijalarim" ro'yxati).</summary>
+public record MyAttemptDto(
+    string Id, string Section, string ExerciseKind, int AttemptNo,
+    int Correct, int Total, int ScorePct, int DurationSec, DateTime FinishedAt);
+
+/// <summary>Admin: o'quvchi profilidagi urinish qatori — sillabusdagi joyi (dastur → modul →
+/// mavzu → dars → topshiriq) va guruh nomi bilan boyitilgan.</summary>
+public record StudentAttemptDto(
+    string Id, string ItemId, string ItemText, string ItemType,
+    string LessonTitle, string TopicTitle, string ModuleName, string CurriculumName, string GroupName,
+    string Section, string ExerciseKind, int AttemptNo,
+    int Correct, int Total, int ScorePct, int DurationSec, DateTime FinishedAt, int AnswerCount);
+
+/// <summary>Admin: bitta urinishning to'liq javoblari (modal ichida ochiladi).</summary>
+public record StudentAttemptDetailDto(StudentAttemptDto Attempt, List<AttemptAnswerDto> Answers);
+
+/// <summary>Admin: o'quvchining topshiriq natijalari — jami ko'rsatkichlar + urinishlar ro'yxati.
+/// <paramref name="ItemCount"/> — nechta HAR XIL topshiriq ishlangani (urinishlar emas).</summary>
+public record StudentAttemptsDto(
+    int ItemCount, int AttemptCount, int GradedCount, int AvgScorePct, int TotalMinutes,
+    List<StudentAttemptDto> Attempts);
+
 /// <summary>O'quv dasturlari ro'yxati uchun qisqacha kartochka (top-level "O'quv dasturi" sahifasi).</summary>
 public record CurriculumSummaryDto(
     string Id, string Name, string Note, int Order, string CreatedAt,

@@ -1906,6 +1906,54 @@ public class CourseProgress
     public string UpdatedAt { get; set; } = string.Empty;
 }
 
+/// <summary>
+/// O'quvchining sillabus topshirig'i (<see cref="CourseItem"/>) bo'yicha BITTA URINISHI —
+/// "kim, qaysi topshiriqni, qachon, qanday natija bilan ishladi". <see cref="CourseProgress"/>
+/// faqat "bajarildi/bajarilmadi" bayrog'ini saqlaydi, bu esa TARIX: har ishlash yangi qator
+/// (<see cref="AttemptNo"/> = 1, 2, 3 ...), shuning uchun o'quvchining o'sish dinamikasi ko'rinadi.
+///
+/// Bitta topshiriq ichida bir nechta bo'lim bo'lishi mumkin (video → matn → lug'at → test → mashq),
+/// shuning uchun urinish <see cref="Section"/> bilan ajratiladi — har bo'limning o'z natijasi bor.
+/// </summary>
+public class CourseItemAttempt
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    /// <summary>Topshiriqni ishlagan o'quvchi (AppUser/Student id).</summary>
+    public string StudentId { get; set; } = string.Empty;
+    /// <summary>Qaysi topshiriq (<see cref="CourseItem"/>).</summary>
+    public string ItemId { get; set; } = string.Empty;
+    /// <summary>Dastur id (banddan meros — filtrlash/hisobot uchun denormalized).</summary>
+    public string CurriculumId { get; set; } = string.Empty;
+    /// <summary>Dars id (banddan meros — denormalized).</summary>
+    public string LessonId { get; set; } = string.Empty;
+    /// <summary>Qaysi guruh orqali ishlandi (o'quvchining shu dasturdagi faol guruhi), topilmasa bo'sh.</summary>
+    public string GroupId { get; set; } = string.Empty;
+    /// <summary>Bo'lim turi: <c>exercise</c> (interaktiv mashq) | <c>test</c> (dars ichidagi test) |
+    /// <c>view</c> (video/matn/audio/PDF/lug'at — ballsiz, faqat ko'rib chiqildi).</summary>
+    public string Section { get; set; } = "exercise";
+    /// <summary>Mashq turi (Section=exercise bo'lganda): sentence-order, fill-choose ... Boshqa
+    /// bo'limlarda bo'sh.</summary>
+    public string ExerciseKind { get; set; } = string.Empty;
+    /// <summary>Nechanchi urinish — shu (StudentId, ItemId, Section) uchun 1 dan boshlab sanaladi.</summary>
+    public int AttemptNo { get; set; } = 1;
+    /// <summary>To'g'ri javoblar soni. Section=view uchun 0.</summary>
+    public int Correct { get; set; }
+    /// <summary>Jami savol/element soni. Section=view uchun 0.</summary>
+    public int Total { get; set; }
+    /// <summary>Natija foizi 0..100 (Total=0 bo'lsa 0) — reyting/diagramma uchun oldindan hisoblangan.</summary>
+    public int ScorePct { get; set; }
+    /// <summary>Boshidan oxirigacha sarflangan vaqt (soniya).</summary>
+    public int DurationSec { get; set; }
+    /// <summary>Javoblar tafsiloti — JSON massiv:
+    /// <c>[{"i":0,"prompt":"...","answer":"...","expected":"...","ok":true,"sec":12}]</c>.
+    /// O'qituvchi "qayerda xato qildi" ni ko'radi; keyinchalik AI tahlil uchun ham asos.</summary>
+    public string AnswersJson { get; set; } = string.Empty;
+    /// <summary>Bo'lim ochilgan vaqt.</summary>
+    public DateTime StartedAt { get; set; } = AppClock.Now;
+    /// <summary>Yakunlangan vaqt (yozuv shu paytda yaratiladi).</summary>
+    public DateTime FinishedAt { get; set; } = AppClock.Now;
+}
+
 /// <summary>Guruh darajasida sillabus o'tilishi: o'tilgan band (ItemId, IsRevision=false) yoki
 /// takrorlash darsi (ItemId="", IsRevision=true — sillabusni ilgarilatmaydi).</summary>
 public class GroupCurriculumLog

@@ -43,8 +43,14 @@ import {
   getStudentGroups, getClasses, freezeMember, activateMember, returnMemberToTrial, addGroupMember,
   removeGroupMember,
 } from '@/api/services/classes'
-import { getSubjectCurriculumTree, getProgress, setProgress, getStudentCoverageLog, type CoverageLogEntry } from '@/api/services/curriculum'
+import {
+  getSubjectCurriculumTree, getProgress, setProgress, getStudentCoverageLog,
+  getStudentAttempts, getAttemptDetail,
+  type CoverageLogEntry, type StudentAttempt, type AttemptAnswer,
+} from '@/api/services/curriculum'
 import { getStudentGradingSummary, type MonthGradingSummary } from '@/api/services/grading'
+import { kindTitle } from '@/components/exercise/catalog'
+import type { ExerciseKind } from '@/components/exercise/model'
 import { getTeachers } from '@/api/services/teachers'
 import { getStudentTestResults } from '@/api/services/testResults'
 import type { Student, StudentGroupMembership, Curriculum, Group, Teacher, StudentTestResult } from '@/types'
@@ -1079,6 +1085,9 @@ export function StudentDetailPage() {
       </Section>
 
       )}
+
+      {/* Ilovada ishlagan topshiriqlari — mashq/test natijalari + javob tafsiloti */}
+      {tab === 'dastur' && <AttemptsSection studentId={data.id} />}
 
       {/* Darslar tarixi — guruh jurnalida belgilangan o'tilgan mavzular, eng yangisi birinchi */}
       {tab === 'dastur' && (
@@ -2182,6 +2191,248 @@ function StudentSmsRow({ sms }: { sms: StudentSms }) {
         </div>
       </div>
     </div>
+  )
+}
+
+/* ============================================================================
+   TOPSHIRIQ NATIJALARI — o'quvchi ilovada (o'quvchi portalida) ishlagan sillabus
+   topshiriqlari. Har ishlash alohida URINISH bo'lib saqlanadi (CourseItemAttempt),
+   shuning uchun bir topshiriq bir necha marta ishlansa o'sish dinamikasi ko'rinadi.
+   Qatorga bosilsa — har savolga nima javob bergani modalda ochiladi.
+   ============================================================================ */
+
+/** Bo'lim turi yorlig'i (jadval "Tur" ustuni). */
+const SECTION_LABEL: Record<string, string> = {
+  exercise: 'Mashq',
+  test: 'Test',
+  view: "Ko'rildi",
+}
+
+/** Sekundni "3 daq 20 s" ko'rinishida. */
+function humanSec(sec: number): string {
+  if (sec <= 0) return '—'
+  if (sec < 60) return `${sec} s`
+  const m = Math.floor(sec / 60)
+  const s = sec % 60
+  return s ? `${m} daq ${s} s` : `${m} daq`
+}
+
+/** Ball nisbatiga qarab rang (baholar jadvalidagi mantiq bilan bir xil). */
+function scoreTone(pct: number): BadgeTone {
+  if (pct >= 85) return 'green'
+  if (pct >= 50) return 'amber'
+  return 'red'
+}
+
+function AttemptsSection({ studentId }: { studentId: string }) {
+  const [rows, setRows] = useState<StudentAttempt[]>([])
+  const [stats, setStats] = useState({ itemCount: 0, attemptCount: 0, gradedCount: 0, avgScorePct: 0, totalMinutes: 0 })
+  const [loading, setLoading] = useState(true)
+  const [filter, setFilter] = useState<'all' | 'exercise' | 'test' | 'view'>('all')
+  /** Ochilgan urinish tafsiloti (modal). */
+  const [detail, setDetail] = useState<{ attempt: StudentAttempt; answers: AttemptAnswer[] } | null>(null)
+  const [detailLoading, setDetailLoading] = useState(false)
+
+  useEffect(() => {
+    let alive = true
+    setLoading(true)
+    getStudentAttempts(studentId)
+      .then((d) => {
+        if (!alive) return
+        setRows(d.attempts)
+        setStats({
+          itemCount: d.itemCount, attemptCount: d.attemptCount,
+          gradedCount: d.gradedCount, avgScorePct: d.avgScorePct, totalMinutes: d.totalMinutes,
+        })
+      })
+      .catch(() => alive && setRows([]))
+      .finally(() => alive && setLoading(false))
+    return () => { alive = false }
+  }, [studentId])
+
+  const shown = useMemo(
+    () => (filter === 'all' ? rows : rows.filter((r) => r.section === filter)),
+    [rows, filter],
+  )
+
+  const openDetail = async (a: StudentAttempt) => {
+    if (a.answerCount === 0) return
+    setDetailLoading(true)
+    try {
+      setDetail(await getAttemptDetail(a.id))
+    } catch {
+      setDetail({ attempt: a, answers: [] })
+    } finally {
+      setDetailLoading(false)
+    }
+  }
+
+  const tabs: Array<{ key: typeof filter; label: string }> = [
+    { key: 'all', label: `Hammasi (${rows.length})` },
+    { key: 'exercise', label: `Mashq (${rows.filter((r) => r.section === 'exercise').length})` },
+    { key: 'test', label: `Test (${rows.filter((r) => r.section === 'test').length})` },
+    { key: 'view', label: `Ko'rilgan (${rows.filter((r) => r.section === 'view').length})` },
+  ]
+
+  return (
+    <Section title="Topshiriq natijalari (ilovada ishlagan)" icon={ClipboardCheck}>
+      {loading ? (
+        <Loader />
+      ) : rows.length === 0 ? (
+        <Empty>O'quvchi hali ilovada birorta topshiriq ishlamagan</Empty>
+      ) : (
+        <>
+          <div className="mb-4 grid gap-3 sm:grid-cols-4">
+            <StatCard label="Ishlangan topshiriq" value={String(stats.itemCount)} icon={ListChecks} />
+            <StatCard label="Jami urinish" value={String(stats.attemptCount)} icon={History} />
+            <StatCard
+              label="O'rtacha natija"
+              value={stats.gradedCount > 0 ? `${stats.avgScorePct}%` : '—'}
+              hint={stats.gradedCount > 0 ? `${stats.gradedCount} ta baholangan urinish` : undefined}
+              icon={Percent}
+            />
+            <StatCard label="Sarflangan vaqt" value={`${stats.totalMinutes} daq`} icon={Clock} />
+          </div>
+
+          <div className="mb-3 flex flex-wrap gap-2">
+            {tabs.map((t) => (
+              <button
+                key={t.key}
+                type="button"
+                onClick={() => setFilter(t.key)}
+                className={cn(
+                  'rounded-full border px-3 py-1 text-xs font-semibold transition-colors',
+                  filter === t.key
+                    ? 'border-brand-300 bg-brand-50 text-brand-700'
+                    : 'border-slate-200 text-slate-500 hover:border-brand-200 hover:text-brand-600',
+                )}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          {shown.length === 0 ? (
+            <Empty>Bu turda natija yo'q</Empty>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="border-b border-slate-200 text-xs uppercase text-slate-400">
+                  <tr>
+                    <th className="px-3 py-2">Sana</th>
+                    <th className="px-3 py-2">Topshiriq</th>
+                    <th className="px-3 py-2">Tur</th>
+                    <th className="px-3 py-2 text-center">Urinish</th>
+                    <th className="px-3 py-2 text-center">Natija</th>
+                    <th className="px-3 py-2 text-center">Vaqt</th>
+                    <th className="px-3 py-2" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {shown.map((a) => (
+                    <tr key={a.id} className="hover:bg-slate-50/60">
+                      <td className="whitespace-nowrap px-3 py-2 text-slate-500">{formatDateTime(a.finishedAt)}</td>
+                      <td className="px-3 py-2">
+                        <p className="font-semibold text-slate-800">{a.itemText}</p>
+                        <p className="text-xs text-slate-400">
+                          {[a.moduleName, a.topicTitle, a.lessonTitle].filter(Boolean).join(' · ')}
+                          {a.groupName ? ` — ${a.groupName}` : ''}
+                        </p>
+                      </td>
+                      <td className="px-3 py-2">
+                        <Badge tone={a.section === 'view' ? 'default' : 'violet'}>
+                          {SECTION_LABEL[a.section] ?? a.section}
+                        </Badge>
+                        {a.exerciseKind && (
+                          <p className="mt-1 text-xs text-slate-400">{kindTitle(a.exerciseKind as ExerciseKind)}</p>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-center text-slate-500">{a.attemptNo}</td>
+                      <td className="px-3 py-2 text-center">
+                        {a.total > 0 ? (
+                          <Badge tone={scoreTone(a.scorePct)}>
+                            {a.correct}/{a.total} · {a.scorePct}%
+                          </Badge>
+                        ) : (
+                          <span className="text-slate-300">—</span>
+                        )}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-2 text-center text-slate-500">{humanSec(a.durationSec)}</td>
+                      <td className="px-3 py-2 text-right">
+                        {a.answerCount > 0 && (
+                          <Button variant="ghost" onClick={() => openDetail(a)} disabled={detailLoading}>
+                            Batafsil
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
+
+      {detail && (
+        <Modal open onClose={() => setDetail(null)} title={detail.attempt.itemText} size="lg">
+          <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+            <Badge tone={detail.attempt.section === 'view' ? 'default' : 'violet'}>
+              {SECTION_LABEL[detail.attempt.section] ?? detail.attempt.section}
+            </Badge>
+            <span>{detail.attempt.attemptNo}-urinish</span>
+            <span>·</span>
+            <span>{formatDateTime(detail.attempt.finishedAt)}</span>
+            <span>·</span>
+            <span>{humanSec(detail.attempt.durationSec)}</span>
+            {detail.attempt.total > 0 && (
+              <Badge tone={scoreTone(detail.attempt.scorePct)}>
+                {detail.attempt.correct}/{detail.attempt.total} · {detail.attempt.scorePct}%
+              </Badge>
+            )}
+          </div>
+
+          {detail.answers.length === 0 ? (
+            <Empty>Javob tafsiloti saqlanmagan</Empty>
+          ) : (
+            <ul className="space-y-2">
+              {detail.answers.map((ans) => (
+                <li
+                  key={ans.index}
+                  className={cn(
+                    'rounded-lg border px-3 py-2.5',
+                    ans.ok ? 'border-emerald-100 bg-emerald-50/40' : 'border-red-100 bg-red-50/40',
+                  )}
+                >
+                  <div className="flex items-start gap-2">
+                    <span className="mt-0.5 shrink-0 rounded-md bg-white px-2 py-0.5 font-mono text-xs font-semibold text-slate-500">
+                      {ans.index + 1}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      {ans.prompt && <p className="break-words text-sm font-semibold text-slate-800">{ans.prompt}</p>}
+                      <p className="mt-1 break-words text-sm">
+                        <span className="text-slate-400">Javobi: </span>
+                        <span className={ans.ok ? 'font-semibold text-emerald-700' : 'font-semibold text-red-600'}>
+                          {ans.answer || '—'}
+                        </span>
+                      </p>
+                      {/* To'g'ri javob faqat XATO bo'lganda ko'rsatiladi — to'g'ri javobda ortiqcha. */}
+                      {!ans.ok && ans.expected && (
+                        <p className="mt-0.5 break-words text-sm">
+                          <span className="text-slate-400">To'g'ri javob: </span>
+                          <span className="font-semibold text-slate-700">{ans.expected}</span>
+                        </p>
+                      )}
+                    </div>
+                    <span className="shrink-0 text-xs text-slate-400">{ans.sec > 0 ? humanSec(ans.sec) : ''}</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Modal>
+      )}
+    </Section>
   )
 }
 

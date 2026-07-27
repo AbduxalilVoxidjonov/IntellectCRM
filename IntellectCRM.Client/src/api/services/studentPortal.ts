@@ -403,6 +403,61 @@ export async function setStudentCourseProgress(itemId: string, done: boolean, st
   await api.post('/student/curriculum/progress', { itemId, done }, { params: sid(studentId) })
 }
 
+// ---------- Topshiriq urinishlari (o'quvchi natijasi) ----------
+
+/** Bitta savol/element bo'yicha o'quvchi javobi (serverda AnswersJson ichida saqlanadi). */
+export interface AttemptAnswer {
+  index: number
+  prompt: string
+  answer: string
+  expected: string
+  ok: boolean
+  sec: number
+}
+
+/** Yakunlangan urinish — mashq/test/ko'rish bo'limi tugaganda serverga yuboriladi. */
+export interface AttemptPayload {
+  itemId: string
+  /** exercise — interaktiv mashq · test — dars ichidagi test · view — ko'rish (ballsiz). */
+  section: 'exercise' | 'test' | 'view'
+  exerciseKind?: string
+  correct: number
+  total: number
+  durationSec: number
+  answers?: AttemptAnswer[]
+}
+
+/**
+ * O'quvchi topshiriqni yakunlaganda natijani saqlaydi (har chaqiruv YANGI urinish — tarix).
+ * Server bandni avtomatik "bajarildi" ham qiladi.
+ * Xato bo'lsa YUTILADI: internet uzilgani uchun o'quvchi ekranida natija ko'rsatilmay qolmasin.
+ */
+export async function saveCourseAttempt(payload: AttemptPayload): Promise<void> {
+  try {
+    await api.post('/student/curriculum/attempt', payload)
+  } catch {
+    /* natija ko'rsatilishi saqlanishga bog'liq emas */
+  }
+}
+
+/** O'quvchining shu topshiriq bo'yicha oldingi urinishlari (eng yangisidan). */
+export interface MyAttempt {
+  id: string
+  section: string
+  exerciseKind: string
+  attemptNo: number
+  correct: number
+  total: number
+  scorePct: number
+  durationSec: number
+  finishedAt: string
+}
+
+export async function getMyCourseAttempts(itemId: string, studentId?: string): Promise<MyAttempt[]> {
+  const { data } = await api.get<MyAttempt[]>(`/student/curriculum/item/${itemId}/attempts`, { params: sid(studentId) })
+  return data || []
+}
+
 // ---------- Dashboard ----------
 export async function getStudentDashboard(studentId?: string) {
   const { data } = await api.get<StudentDashboard>('/student/dashboard', { params: sid(studentId) })

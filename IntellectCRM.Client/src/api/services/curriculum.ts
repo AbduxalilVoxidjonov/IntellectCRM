@@ -182,6 +182,66 @@ export async function setProgress(studentId: string, itemId: string, done: boole
   await api.post(`/admin/curriculum/progress`, { studentId, itemId, done })
 }
 
+// ---- O'quvchining topshiriq URINISHLARI (ilovada ishlagan natijalari) ----
+// Har urinish alohida yozuv — o'quvchi bir topshiriqni bir necha marta ishlasa, tarix ko'rinadi.
+
+/** Bitta savol/element bo'yicha o'quvchi javobi. */
+export interface AttemptAnswer {
+  index: number
+  prompt: string
+  answer: string
+  expected: string
+  ok: boolean
+  /** Shu savolga sarflangan vaqt (soniya). */
+  sec: number
+}
+
+/** Bitta urinish — sillabusdagi joyi (dastur → modul → mavzu → dars → topshiriq) bilan. */
+export interface StudentAttempt {
+  id: string
+  itemId: string
+  itemText: string
+  itemType: string
+  lessonTitle: string
+  topicTitle: string
+  moduleName: string
+  curriculumName: string
+  groupName: string
+  /** exercise — interaktiv mashq · test — dars testi · view — ko'rildi (ballsiz). */
+  section: 'exercise' | 'test' | 'view' | string
+  exerciseKind: string
+  attemptNo: number
+  correct: number
+  total: number
+  scorePct: number
+  durationSec: number
+  finishedAt: string
+  /** Nechta javob tafsiloti saqlangan (0 bo'lsa "batafsil" ochilmaydi). */
+  answerCount: number
+}
+
+export interface StudentAttempts {
+  /** Nechta HAR XIL topshiriq ishlangani (urinishlar emas). */
+  itemCount: number
+  attemptCount: number
+  /** Ballanadigan urinishlar soni (view'dan tashqari). */
+  gradedCount: number
+  avgScorePct: number
+  totalMinutes: number
+  attempts: StudentAttempt[]
+}
+
+export async function getStudentAttempts(studentId: string): Promise<StudentAttempts> {
+  const { data } = await api.get<StudentAttempts>(`/admin/curriculum/student/${studentId}/attempts`)
+  return data
+}
+
+/** Bitta urinishning to'liq javoblari (modalda ochiladi). */
+export async function getAttemptDetail(attemptId: string): Promise<{ attempt: StudentAttempt; answers: AttemptAnswer[] }> {
+  const { data } = await api.get<{ attempt: StudentAttempt; answers: AttemptAnswer[] }>(`/admin/curriculum/attempt/${attemptId}`)
+  return data
+}
+
 // ---- Guruh o'quv dasturi (darsda o'tilgan bandlar + tugatish prognozi) ----
 // Guruh kursiga BIR NECHTA dastur biriktirilgan bo'lsa — hammasi shu bitta ro'yxatga birlashtiriladi.
 

@@ -1,8 +1,11 @@
-import { useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { getStudentLesson, getStudentCurriculum, type LessonContent, type LessonQuestion } from '@/api/services/studentPortal'
+import {
+  getStudentLesson, getStudentCurriculum, saveCourseAttempt,
+  type LessonContent, type LessonQuestion,
+} from '@/api/services/studentPortal'
 import { Icon } from '@/pages/student/lib'
-import { ExerciseRunner } from '@/components/exercise/players'
+import { ExerciseRunner, type ExerciseAnswerLog } from '@/components/exercise/players'
 import { parseExercise } from '@/components/exercise/model'
 import { kindTitle } from '@/components/exercise/catalog'
 
@@ -11,6 +14,11 @@ import { kindTitle } from '@/components/exercise/catalog'
    Bitta dars BIR NECHTA bo'limdan iborat bo'lishi mumkin: video → matn →
    audio → lug'at → test. O'quvchi tepadagi progress bilan ketma-ket o'tadi.
    Ko'p kurs bo'lsa, tepada kurs selector ko'rinadi.
+
+   NATIJA SAQLANISHI: har bo'lim yakunlanganda `saveCourseAttempt` chaqiriladi va serverda
+   `CourseItemAttempt` ga YANGI URINISH bo'lib yoziladi (mashq/test — ball + har savolga
+   berilgan javob; ko'rish bo'limlari — sarflangan vaqt). Admin buni o'quvchi profilida
+   "Topshiriq natijalari" bo'limida ko'radi.
    ============================================================ */
 
 type SectionKind = 'video' | 'text' | 'audio' | 'pdf' | 'vocab' | 'test' | 'audiotest' | 'exercise'
@@ -35,6 +43,9 @@ const SECTION_ICON: Record<SectionKind, string> = {
   audiotest: 'checkCircle',
   exercise: 'checkCircle',
 }
+
+/** Ballsiz ("ko'rildi" deb yoziladigan) bo'limlar — test/mashq o'z natijasini alohida yuboradi. */
+const VIEW_SECTIONS: SectionKind[] = ['video', 'text', 'audio', 'pdf', 'vocab']
 
 /** Fisher–Yates aralashtirish (nusxada) — savol/variant tartibi har ochilishda har xil. */
 function shuffled<T>(arr: T[]): T[] {
@@ -123,6 +134,52 @@ export function StudentLessonScreen() {
   const total = sections.length
   const cur = sections[Math.min(step, total - 1)]
   const isLast = step >= total - 1
+
+  // Ballsiz bo'limlarda sarflangan vaqt — bo'lim almashganda yig'iladi, "Yakunlash"da yuboriladi.
+  const enteredAt = useRef(Date.now())
+  const viewSeconds = useRef<Partial<Record<SectionKind, number>>>({})
+  const prevSection = useRef<SectionKind | undefined>(undefined)
+  const viewSent = useRef(false)
+
+  /** Joriy bo'limda o'tirilgan vaqtni hisobga qo'shadi va sanashni qaytadan boshlaydi. */
+  const flushSection = () => {
+    const s = prevSection.current
+    if (s) viewSeconds.current[s] = (viewSeconds.current[s] ?? 0) + Math.round((Date.now() - enteredAt.current) / 1000)
+    enteredAt.current = Date.now()
+  }
+
+  useEffect(() => {
+    if (!cur) return
+    if (prevSection.current !== cur) {
+      flushSection()
+      prevSection.current = cur
+    }
+  }, [cur])
+
+  /** "Yakunlash" — ballsiz bo'limlar bo'yicha "ko'rib chiqdi" yozuvini yuboradi (bir marta). */
+  const finishLesson = () => {
+    flushSection()
+    const viewed = VIEW_SECTIONS.filter((s) => sections.includes(s))
+    if (!viewSent.current && viewed.length > 0) {
+      viewSent.current = true
+      void saveCourseAttempt({
+        itemId: id,
+        section: 'view',
+        correct: 0,
+        total: 0,
+        durationSec: viewed.reduce((sum, s) => sum + (viewSeconds.current[s] ?? 0), 0),
+        answers: viewed.map((s, i) => ({
+          index: i,
+          prompt: SECTION_LABEL[s],
+          answer: "Ko'rib chiqdi",
+          expected: '',
+          ok: true,
+          sec: viewSeconds.current[s] ?? 0,
+        })),
+      })
+    }
+    nav(-1)
+  }
 
   return (
     <div className="screen">
@@ -223,9 +280,9 @@ export function StudentLessonScreen() {
                 {cur === 'text' && <TextBlock text={lesson.textContent} />}
                 {cur === 'pdf' && <PdfBlock lesson={lesson} />}
                 {cur === 'vocab' && <VocabBlock lesson={lesson} />}
-                {cur === 'test' && <TestRunner questions={lesson.questions} />}
-                {cur === 'audiotest' && <AudioTestBlock lesson={lesson} />}
-                {cur === 'exercise' && <ExerciseBlock lesson={lesson} />}
+                {cur === 'test' && <TestRunner questions={lesson.questions} itemId={id} />}
+                {cur === 'audiotest' && <AudioTestBlock lesson={lesson} itemId={id} />}
+                {cur === 'exercise' && <ExerciseBlock lesson={lesson} itemId={id} />}
               </div>
 
               {/* Navigatsiya: oldingi / keyingi-tugatdim */}
@@ -245,7 +302,7 @@ export function StudentLessonScreen() {
                   type="button"
                   className="btn btn-primary press"
                   style={{ flex: 2 }}
-                  onClick={() => (isLast ? nav(-1) : setStep((s) => s + 1))}
+                  onClick={() => (isLast ? finishLesson() : setStep((s) => s + 1))}
                 >
                   {isLast ? (
                     <>
@@ -477,7 +534,7 @@ function VocabBlock({ lesson }: { lesson: LessonContent }) {
 
 /** AUDIO TEST — audio va test birga: o'quvchi tinglab, savollarga javob beradi.
  * (Audio yuklanmagan darsda test o'zi alohida chiqadi — TestRunner.) */
-function AudioTestBlock({ lesson }: { lesson: LessonContent }) {
+function AudioTestBlock({ lesson, itemId }: { lesson: LessonContent; itemId: string }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div className="card">
@@ -486,7 +543,7 @@ function AudioTestBlock({ lesson }: { lesson: LessonContent }) {
         </p>
         <audio src={lesson.audioUrl} controls style={{ width: '100%' }} />
       </div>
-      <TestRunner questions={lesson.questions} />
+      <TestRunner questions={lesson.questions} itemId={itemId} />
     </div>
   )
 }
@@ -494,7 +551,7 @@ function AudioTestBlock({ lesson }: { lesson: LessonContent }) {
 /** Interaktiv test — variant tanlanadi, darhol to'g'ri/xato ko'rinadi (Duolingo uslubi).
  * Savollar TARTIBI ham, har savol VARIANTLARI ham har ochilishda tasodifiy — turli
  * o'quvchilarda (va qayta urinishlarda) bir xil chiqmaydi, yonidagidan ko'chirish qiyinlashadi. */
-function TestRunner({ questions }: { questions: LessonQuestion[] }) {
+function TestRunner({ questions, itemId }: { questions: LessonQuestion[]; itemId: string }) {
   // Bir ochilishda barqaror (useMemo), ochilishlar orasida tasodifiy.
   const randomized = useMemo(
     () =>
@@ -512,6 +569,30 @@ function TestRunner({ questions }: { questions: LessonQuestion[] }) {
 
   const [answers, setAnswers] = useState<Record<string, number>>({})
   const correct = randomized.filter((q) => answers[q.id] === q.correctIndex).length
+
+  // Natijani saqlash — BARCHA savolga javob berilganda BIR MARTA (har variant tanlashda emas).
+  const startedAt = useRef(Date.now())
+  const saved = useRef(false)
+  useEffect(() => {
+    const done = randomized.length > 0 && randomized.every((q) => answers[q.id] !== undefined)
+    if (!done || saved.current) return
+    saved.current = true
+    void saveCourseAttempt({
+      itemId,
+      section: 'test',
+      correct,
+      total: randomized.length,
+      durationSec: Math.round((Date.now() - startedAt.current) / 1000),
+      answers: randomized.map((q, i) => ({
+        index: i,
+        prompt: q.text,
+        answer: q.options[answers[q.id]] ?? '',
+        expected: q.options[q.correctIndex] ?? '',
+        ok: answers[q.id] === q.correctIndex,
+        sec: 0,
+      })),
+    })
+  }, [answers, randomized, correct, itemId])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -576,12 +657,27 @@ function TestRunner({ questions }: { questions: LessonQuestion[] }) {
    speaking, moslashtirish). Admin previewi bilan AYNAN bir komponent
    ishlaydi — `ExerciseRunner`.
    ============================================================ */
-function ExerciseBlock({ lesson }: { lesson: LessonContent }) {
+function ExerciseBlock({ lesson, itemId }: { lesson: LessonContent; itemId: string }) {
   const data = useMemo(
     () => parseExercise(lesson.exerciseKind, lesson.exerciseJson),
     [lesson.exerciseKind, lesson.exerciseJson],
   )
   const [result, setResult] = useState<{ correct: number; total: number } | null>(null)
+  const startedAt = useRef(Date.now())
+
+  /** Mashq yakunlandi — natija ekranda ko'rsatiladi VA serverga urinish bo'lib yoziladi. */
+  const onDone = (correct: number, total: number, answers: ExerciseAnswerLog[]) => {
+    setResult({ correct, total })
+    void saveCourseAttempt({
+      itemId,
+      section: 'exercise',
+      exerciseKind: lesson.exerciseKind,
+      correct,
+      total,
+      durationSec: Math.round((Date.now() - startedAt.current) / 1000),
+      answers,
+    })
+  }
 
   if (!data) {
     return (
@@ -597,7 +693,7 @@ function ExerciseBlock({ lesson }: { lesson: LessonContent }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div className="muted" style={{ fontSize: 12.5, fontWeight: 800 }}>{kindTitle(data.kind)}</div>
-      <ExerciseRunner data={data} frame={false} onDone={(correct, total) => setResult({ correct, total })} />
+      <ExerciseRunner data={data} frame={false} onDone={onDone} />
       {result && (
         <div
           className="card"

@@ -1285,14 +1285,16 @@ public class StudentPortalController(
 
     /// <summary>O'quvchining shu kursda o'tilgan (Done=true) bandlar id'larini qaytaradi.</summary>
     [HttpGet("curriculum/{courseId}/progress")]
-    public async Task<ActionResult<string[]>> GetCourseProgress(string courseId)
+    public async Task<ActionResult<string[]>> GetCourseProgress(string courseId, [FromQuery] string? studentId)
     {
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (userId is null) return Unauthorized();
+        // DIQQAT: progress/urinishlar HAR DOIM Student.Id bilan yoziladi (AppUser.Id bilan EMAS) —
+        // admin tomoni (CurriculumController) ham shu kalit bo'yicha o'qiydi.
+        var s = await TargetAsync(studentId);
+        if (s is null) return Unauthorized();
 
         // O'quvchi shu kursda faol guruhda bo'lganini tekshirish
         var hasAccess = await db.StudentGroups
-            .AnyAsync(sg => sg.StudentId == userId
+            .AnyAsync(sg => sg.StudentId == s.Id
                          && sg.IsActive
                          && sg.Status != "frozen"
                          && db.Classes.Any(c => c.Id == sg.GroupId && c.CourseId == courseId));
@@ -1303,7 +1305,7 @@ public class StudentPortalController(
         var curriculumIds = await db.SubjectCurricula
             .Where(sc => sc.SubjectId == courseId).Select(sc => sc.CurriculumId).ToListAsync();
         var done = await db.CourseProgresses
-            .Where(p => p.StudentId == userId && p.Done)
+            .Where(p => p.StudentId == s.Id && p.Done)
             .Join(db.CourseItems.Where(i => curriculumIds.Contains(i.CurriculumId)),
                 p => p.ItemId, i => i.Id, (p, i) => p.ItemId)
             .ToListAsync();
@@ -1311,13 +1313,22 @@ public class StudentPortalController(
         return done.ToArray();
     }
 
+    /// <summary>O'quvchi shu topshiriqni ochish huquqiga egami — dastur uning faol guruhi kursiga
+    /// biriktirilganmi. Ha bo'lsa (guruh id, dastur bandi) qaytaradi.</summary>
+    private async Task<string?> GroupForItemAsync(string studentId, string curriculumId) =>
+        await (from sg in db.StudentGroups
+               join c in db.Classes on sg.GroupId equals c.Id
+               where sg.StudentId == studentId && sg.IsActive
+                     && db.SubjectCurricula.Any(sc => sc.SubjectId == c.CourseId && sc.CurriculumId == curriculumId)
+               select sg.GroupId).FirstOrDefaultAsync();
+
     /// <summary>Dars progresini yangilash (o'tildi/o'tilmadi) — upsert. Faqat student rolida.</summary>
     [HttpPost("curriculum/progress")]
     [Authorize(Roles = "student")]
     public async Task<ActionResult> SetCourseProgress([FromBody] SetCourseProgressRequest req)
     {
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (userId is null) return Unauthorized();
+        var me = await MeAsync();
+        if (me is null) return Unauthorized();
 
         // ItemId → CurriculumId topish
         var item = await db.CourseItems.FirstOrDefaultAsync(i => i.Id == req.ItemId);
@@ -1325,36 +1336,131 @@ public class StudentPortalController(
 
         // Access control — o'quvchi shu topshiriq dasturi biriktirilgan biror kursda faol guruhda
         // bo'lishi kerak (dastur bir nechta kursga biriktirilgan bo'lishi mumkin — biri yetarli).
-        var hasAccess = await db.StudentGroups
-            .AnyAsync(sg => sg.StudentId == userId
-                         && sg.IsActive
-                         && db.Classes.Any(c => c.Id == sg.GroupId
-                             && db.SubjectCurricula.Any(sc => sc.SubjectId == c.CourseId && sc.CurriculumId == item.CurriculumId)));
+        var groupId = await GroupForItemAsync(me.Id, item.CurriculumId);
+        if (groupId is null) return Forbid();
 
-        if (!hasAccess) return Forbid();
+        await UpsertProgressAsync(me.Id, item, req.Done);
+        await db.SaveChangesAsync();
+        return Ok(new { ok = true });
+    }
 
-        // Upsert — haqiqiy kalit (StudentId, ItemId); CurriculumId faqat filtrlash uchun denormalized.
+    /// <summary>CourseProgress upsert — haqiqiy kalit (StudentId, ItemId); CurriculumId faqat
+    /// filtrlash uchun denormalized. SaveChanges CHAQIRUVCHIDA qilinadi.</summary>
+    private async Task UpsertProgressAsync(string studentId, CourseItem item, bool done)
+    {
         var existing = await db.CourseProgresses
-            .FirstOrDefaultAsync(p => p.StudentId == userId && p.ItemId == req.ItemId);
+            .FirstOrDefaultAsync(p => p.StudentId == studentId && p.ItemId == item.Id);
+        var now = AppClock.Now.ToString("yyyy-MM-ddTHH:mm:ss");
 
         if (existing is not null)
         {
-            existing.Done = req.Done;
+            existing.Done = done;
+            existing.UpdatedAt = now;
         }
         else
         {
             db.CourseProgresses.Add(new CourseProgress
             {
-                StudentId = userId,
-                ItemId = req.ItemId,
+                StudentId = studentId,
+                ItemId = item.Id,
                 CurriculumId = item.CurriculumId,
-                Done = req.Done,
-                UpdatedAt = AppClock.Now.ToString("yyyy-MM-ddTHH:mm:ss"),
+                Done = done,
+                UpdatedAt = now,
             });
         }
+    }
 
+    // ---------- Topshiriq URINISHLARI (o'quvchi natijasi saqlanadigan joy) ----------
+
+    /// <summary>
+    /// O'quvchi topshiriqni (mashq / test / ko'rish) yakunlaganda chaqiriladi — natija
+    /// <see cref="CourseItemAttempt"/> ga TARIX sifatida yoziladi (har chaqiruv yangi urinish)
+    /// va <see cref="CourseProgress"/> avtomatik "bajarildi" bo'ladi.
+    /// Faqat student rolida — admin boshqa nomdan urinish yoza olmaydi.
+    /// </summary>
+    [HttpPost("curriculum/attempt")]
+    [Authorize(Roles = "student")]
+    public async Task<ActionResult<SaveAttemptResponse>> SaveAttempt([FromBody] SaveAttemptRequest req)
+    {
+        var me = await MeAsync();
+        if (me is null) return Unauthorized();
+
+        var item = await db.CourseItems.FirstOrDefaultAsync(i => i.Id == req.ItemId);
+        if (item is null) return NotFound(new { message = "Topshiriq topilmadi" });
+
+        var groupId = await GroupForItemAsync(me.Id, item.CurriculumId);
+        if (groupId is null) return Forbid();
+
+        var section = req.Section is "exercise" or "test" or "view" ? req.Section : "exercise";
+
+
+        // Nechanchi urinish — shu (o'quvchi, topshiriq, bo'lim) bo'yicha.
+        var attemptNo = await db.CourseItemAttempts
+            .CountAsync(a => a.StudentId == me.Id && a.ItemId == item.Id && a.Section == section) + 1;
+
+        var total = Math.Max(0, req.Total);
+        var correct = Math.Clamp(req.Correct, 0, total);
+        var finishedAt = AppClock.Now;
+        var duration = Math.Clamp(req.DurationSec, 0, 24 * 60 * 60);
+
+        // Javoblar tafsiloti — kiruvchi ma'lumot qirqiladi va QAYTA seriyalanadi (xom JSON'ga
+        // ishonmaymiz: uzunlik cheklovi + faqat kutilgan maydonlar bazaga tushadi).
+        var answers = (req.Answers ?? new()).Take(500).Select((a, i) => new AttemptAnswerDto(
+            a.Index > 0 ? a.Index : i,
+            Trim(a.Prompt, 500),
+            Trim(a.Answer, 500),
+            Trim(a.Expected, 500),
+            a.Ok,
+            Math.Clamp(a.Sec, 0, 60 * 60))).ToList();
+
+        db.CourseItemAttempts.Add(new CourseItemAttempt
+        {
+            StudentId = me.Id,
+            ItemId = item.Id,
+            CurriculumId = item.CurriculumId,
+            LessonId = item.LessonId,
+            GroupId = groupId,
+            Section = section,
+            ExerciseKind = section == "exercise" ? Trim(req.ExerciseKind, 60) : "",
+            AttemptNo = attemptNo,
+            Correct = correct,
+            Total = total,
+            ScorePct = total > 0 ? (int)Math.Round(correct * 100.0 / total) : 0,
+            DurationSec = duration,
+            AnswersJson = answers.Count > 0 ? JsonSerializer.Serialize(answers) : "",
+            StartedAt = finishedAt.AddSeconds(-duration),
+            FinishedAt = finishedAt,
+        });
+
+        // Ishlagan bo'lsa — band avtomatik "bajarildi" (ilgari faqat admin qo'lda belgilardi).
+        await UpsertProgressAsync(me.Id, item, true);
         await db.SaveChangesAsync();
-        return Ok(new { ok = true });
+
+        return new SaveAttemptResponse(attemptNo);
+    }
+
+    /// <summary>O'quvchining shu topshiriq bo'yicha o'z urinishlari (eng yangisidan) — ilovada
+    /// "oldingi natijalarim" ko'rinishi uchun.</summary>
+    [HttpGet("curriculum/item/{itemId}/attempts")]
+    public async Task<ActionResult<IEnumerable<MyAttemptDto>>> MyAttempts(string itemId, [FromQuery] string? studentId)
+    {
+        var s = await TargetAsync(studentId);
+        if (s is null) return Unauthorized();
+
+        return await db.CourseItemAttempts.AsNoTracking()
+            .Where(a => a.StudentId == s.Id && a.ItemId == itemId)
+            .OrderByDescending(a => a.FinishedAt)
+            .Take(50)
+            .Select(a => new MyAttemptDto(
+                a.Id, a.Section, a.ExerciseKind, a.AttemptNo,
+                a.Correct, a.Total, a.ScorePct, a.DurationSec, a.FinishedAt))
+            .ToListAsync();
+    }
+
+    private static string Trim(string? v, int max)
+    {
+        var t = (v ?? "").Trim();
+        return t.Length <= max ? t : t[..max];
     }
 
     public class SetCourseProgressRequest

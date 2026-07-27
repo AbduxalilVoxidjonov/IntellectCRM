@@ -20,6 +20,22 @@ import type { ExerciseData, ExerciseKind } from './model'
 
 // ============================ Umumiy ============================
 
+/** Bitta element bo'yicha o'quvchi javobi — mashq yakunlanganda serverga yuboriladi va
+ *  `CourseItemAttempt.AnswersJson` da saqlanadi (o'qituvchi "qayerda xato qildi" ni ko'radi). */
+export interface ExerciseAnswerLog {
+  /** Element tartib raqami (0-asosli). */
+  index: number
+  /** Savol / topshiriq matni. */
+  prompt: string
+  /** O'quvchi bergan javob. */
+  answer: string
+  /** To'g'ri javob. */
+  expected: string
+  ok: boolean
+  /** Shu elementga sarflangan vaqt (soniya). */
+  sec: number
+}
+
 export interface PlayerProps {
   data: ExerciseData
   /** Joriy element (0-asosli). Konstruktorda chapdagi tanlov bilan boshqariladi. */
@@ -27,15 +43,36 @@ export interface PlayerProps {
   onIndex?: (i: number) => void
   /** preview — konstruktor; solve — o'quvchi (ketma-ket o'tish + yakuniy natija). */
   mode?: 'preview' | 'solve'
-  onFinish?: (correct: number, total: number) => void
+  onFinish?: (correct: number, total: number, answers: ExerciseAnswerLog[]) => void
 }
 
-/** Ichki pleyerlar props'i — natija hisoblagichi element almashganda YO'QOLMASLIGI uchun
- *  tashqarida (dispatcher'da) saqlanadi. Pleyerning o'zi esa har element uchun `key` bilan
- *  QAYTA YARATILADI — javob holati (tanlov, terilgan so'zlar) shu tarzda tozalanadi (effekt bilan
- *  emas: effekt ortiqcha render va bir lahzalik eski holatni ko'rsatishga olib kelardi). */
+/** Mashqni ishlash jarayoni — element almashganda YO'QOLMASLIGI uchun ref'da (dispatcher'da).
+ *  Javoblar Map'da INDEKS bo'yicha saqlanadi: o'quvchi ↺ bosib qayta tekshirsa, eski yozuv
+ *  almashadi (ilgari hisoblagich ikki marta oshib ketardi). */
+interface RunState {
+  answers: Map<number, ExerciseAnswerLog>
+  /** Joriy element boshlangan vaqt (ms) — sarflangan soniyani hisoblash uchun. */
+  itemStart: number
+}
+
+/** Ichki pleyerlar props'i. Pleyerning o'zi har element uchun `key` bilan QAYTA YARATILADI —
+ *  javob holati (tanlov, terilgan so'zlar) shu tarzda tozalanadi (effekt bilan emas: effekt
+ *  ortiqcha render va bir lahzalik eski holatni ko'rsatishga olib kelardi). */
 interface InnerProps extends PlayerProps {
-  scoreRef: MutableRefObject<{ correct: number; answered: number }>
+  runRef: MutableRefObject<RunState>
+}
+
+/** Ref'dagi javoblardan yakuniy ro'yxat (indeks bo'yicha tartiblangan) va to'g'rilar soni. */
+function collect(run: RunState): { answers: ExerciseAnswerLog[]; correct: number } {
+  const answers = [...run.answers.values()].sort((a, b) => a.index - b.index)
+  return { answers, correct: answers.filter((a) => a.ok).length }
+}
+
+/** BIR elementli mashqlar (writing / speaking / matching) uchun yagona javob yozuvi. */
+function singleLog(
+  run: RunState, ok: boolean, prompt: string, answer: string, expected: string,
+): ExerciseAnswerLog[] {
+  return [{ index: 0, prompt, answer, expected, ok, sec: Math.max(0, Math.round((Date.now() - run.itemStart) / 1000)) }]
 }
 
 /** Barqaror (id bo'yicha) aralashtirish — har renderda tartib o'zgarib ketmasligi uchun. */
@@ -161,22 +198,33 @@ function EmptyState({ theme, text }: { theme: Theme; text: string }) {
   )
 }
 
-/** Ko'p elementli mashqlarda umumiy holat (joriy element, natija, keyingiga o'tish). */
+/** Ko'p elementli mashqlarda umumiy holat (joriy element, natija, keyingiga o'tish).
+ *  `finish(ok, detail)` — natijani BELGILAYDI va o'quvchi javobini ref'ga yozadi (tarix uchun). */
 function useRunner(total: number, props: InnerProps) {
-  const { index, onIndex, mode = 'preview', onFinish, scoreRef } = props
+  const { index, onIndex, mode = 'preview', onFinish, runRef } = props
   const [checked, setChecked] = useState<boolean | null>(null)
 
-  const finish = (ok: boolean) => {
+  const finish = (ok: boolean, detail?: { prompt?: string; answer?: string; expected?: string }) => {
     setChecked(ok)
-    scoreRef.current.answered += 1
-    if (ok) scoreRef.current.correct += 1
+    const run = runRef.current
+    run.answers.set(index, {
+      index,
+      prompt: detail?.prompt ?? '',
+      answer: detail?.answer ?? '',
+      expected: detail?.expected ?? '',
+      ok,
+      sec: Math.max(0, Math.round((Date.now() - run.itemStart) / 1000)),
+    })
+    run.itemStart = Date.now()
   }
 
   const next = () => {
     if (index + 1 >= total) {
-      onFinish?.(scoreRef.current.correct, total)
+      const { answers, correct } = collect(runRef.current)
+      onFinish?.(correct, total, answers)
       if (mode === 'solve') return
     }
+    runRef.current.itemStart = Date.now()
     onIndex?.(Math.min(total - 1, index + 1))
   }
 
@@ -200,7 +248,11 @@ function SentencePlayer(props: InnerProps) {
   const correct = words(item.text)
   const check = () => {
     const answer = placed.map((i) => correct[i])
-    runner.finish(answer.length === correct.length && answer.every((w, i) => w === correct[i]))
+    runner.finish(answer.length === correct.length && answer.every((w, i) => w === correct[i]), {
+      prompt: item.translation || 'Gapni tuzing',
+      answer: answer.join(' '),
+      expected: item.text,
+    })
   }
   const reset = () => {
     setPlaced([])
@@ -310,7 +362,13 @@ function SentenceChoicePlayer(props: InnerProps) {
         <Actions
           theme={theme}
           checked={runner.checked !== null}
-          onCheck={() => runner.finish(picked !== null && picked === item.correctId)}
+          onCheck={() =>
+            runner.finish(picked !== null && picked === item.correctId, {
+              prompt: item.prompt,
+              answer: item.options.find((o) => o.id === picked)?.text ?? '',
+              expected: item.options.find((o) => o.id === item.correctId)?.text ?? '',
+            })
+          }
           onReset={() => {
             setPicked(null)
             runner.setChecked(null)
@@ -345,8 +403,13 @@ function FillPlayer(props: InnerProps) {
   const filledText = mode === 'choose' ? item.options.find((o) => o.id === picked)?.text ?? '' : typed
 
   const check = () => {
-    if (mode === 'choose') runner.finish(picked !== null && picked === item.correctId)
-    else runner.finish(answerMatches(item.answer, typed))
+    const detail = {
+      prompt: item.text,
+      answer: mode === 'choose' ? item.options.find((o) => o.id === picked)?.text ?? '' : typed,
+      expected: mode === 'choose' ? item.options.find((o) => o.id === item.correctId)?.text ?? '' : item.answer,
+    }
+    if (mode === 'choose') runner.finish(picked !== null && picked === item.correctId, detail)
+    else runner.finish(answerMatches(item.answer, typed), detail)
   }
 
   return (
@@ -450,7 +513,12 @@ function WordPickPlayer(props: InnerProps) {
       const chosen = sel[g.groupIndex ?? 0]
       return chosen !== undefined && g.options?.[chosen]?.correct
     })
-    runner.finish(groups.length > 0 && ok)
+    runner.finish(groups.length > 0 && ok, {
+      // Gapdagi variantlar `(bir/*ikki)` shaklida yozilgan — o'qish uchun `[…]` bilan almashtiramiz.
+      prompt: tokens.map((t) => (t.kind === 'text' ? t.text : '[…]')).join(''),
+      answer: groups.map((g) => g.options?.[sel[g.groupIndex ?? 0]]?.text ?? '—').join(', '),
+      expected: groups.map((g) => g.options?.find((o) => o.correct)?.text ?? '—').join(', '),
+    })
   }
 
   return (
@@ -538,7 +606,12 @@ function WordFindPlayer(props: InnerProps) {
     runner.setChecked(null)
   }
   const textOf = (id: string | null) => pool.find((p) => p.id === id)?.w ?? ''
-  const check = () => runner.finish(placed.every((id, i) => textOf(id).toLowerCase() === (item.answers[i] ?? '').toLowerCase()))
+  const check = () =>
+    runner.finish(placed.every((id, i) => textOf(id).toLowerCase() === (item.answers[i] ?? '').toLowerCase()), {
+      prompt: item.text,
+      answer: placed.map((id) => textOf(id) || '—').join(', '),
+      expected: item.answers.join(', '),
+    })
 
   return (
     <>
@@ -610,6 +683,13 @@ function ReadingPlayer(props: InnerProps) {
 
   const isWrite = data.kind === 'reading-fill' || data.kind === 'reading-short'
 
+  /** Joriy savol bo'yicha javob tafsiloti (tarixga yoziladi). */
+  const detail = () => ({
+    prompt: item?.q ?? '',
+    answer: isWrite ? typed : item?.options.find((o) => o.id === picked)?.text ?? '',
+    expected: isWrite ? item?.answer ?? '' : item?.options.find((o) => o.id === item.correctId)?.text ?? '',
+  })
+
   return (
     <>
       <Head theme={theme} progress={items.length ? ((index + 1) / items.length) * 100 : 0} label={items.length ? `${index + 1}/${items.length}` : '0/0'} caption="Matnni o'qing" />
@@ -634,7 +714,7 @@ function ReadingPlayer(props: InnerProps) {
                   runner.setChecked(null)
                 }}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') runner.finish(answerMatches(item.answer, typed))
+                  if (e.key === 'Enter') runner.finish(answerMatches(item.answer, typed), detail())
                 }}
                 placeholder="Javobni yozing…"
                 style={{ ...sans, width: '100%', fontSize: 16, fontWeight: 600, color: '#181a22', background: theme.phone, border: `1.6px solid ${theme.phoneBorder}`, borderRadius: 13, padding: '13px 15px', outline: 'none' }}
@@ -675,7 +755,7 @@ function ReadingPlayer(props: InnerProps) {
             <Actions
               theme={theme}
               checked={runner.checked !== null}
-              onCheck={() => runner.finish(isWrite ? answerMatches(item.answer, typed) : picked !== null && picked === item.correctId)}
+              onCheck={() => runner.finish(isWrite ? answerMatches(item.answer, typed) : picked !== null && picked === item.correctId, detail())}
               onReset={() => {
                 setPicked(null)
                 setTyped('')
@@ -789,7 +869,13 @@ function TestPlayer(props: InnerProps) {
         <Actions
           theme={theme}
           checked={runner.checked !== null}
-          onCheck={() => runner.finish(picked !== null && picked === item.correctId)}
+          onCheck={() =>
+            runner.finish(picked !== null && picked === item.correctId, {
+              prompt: item.q,
+              answer: item.options.find((o) => o.id === picked)?.text ?? '',
+              expected: item.options.find((o) => o.id === item.correctId)?.text ?? '',
+            })
+          }
           onReset={() => {
             setPicked(null)
             runner.setChecked(null)
@@ -806,7 +892,7 @@ function TestPlayer(props: InnerProps) {
 
 // ============================ 8. Writing ============================
 
-function WritingPlayer({ data, mode = 'preview', onFinish }: InnerProps) {
+function WritingPlayer({ data, mode = 'preview', onFinish, runRef }: InnerProps) {
   const theme = kindTheme(data.kind)
   const w = data.writing
   const [answer, setAnswer] = useState('')
@@ -854,7 +940,13 @@ function WritingPlayer({ data, mode = 'preview', onFinish }: InnerProps) {
           type="button"
           onClick={() => {
             setSubmitted(true)
-            if (mode === 'solve') onFinish?.(enough ? 1 : 0, 1)
+            // O'quvchi yozgan MATNNING O'ZI tarixga tushadi — o'qituvchi keyin o'qib baholaydi.
+            if (mode === 'solve') {
+              onFinish?.(enough ? 1 : 0, 1, singleLog(
+                runRef.current, enough, w.topic || 'Writing', answer.trim(),
+                `Kamida ${w.minWords} so'z (yozildi: ${count})`,
+              ))
+            }
           }}
           disabled={!answer.trim()}
           style={{ ...sans, background: answer.trim() ? theme.accent : '#9aa0aa', border: 'none', color: '#fff', fontWeight: 700, fontSize: 15, padding: '14px 16px', borderRadius: 13, cursor: answer.trim() ? 'pointer' : 'default', marginTop: 'auto' }}
@@ -868,12 +960,14 @@ function WritingPlayer({ data, mode = 'preview', onFinish }: InnerProps) {
 
 // ============================ 9. Speaking ============================
 
-function SpeakingPlayer({ data, mode = 'preview', onFinish }: InnerProps) {
+function SpeakingPlayer({ data, mode = 'preview', onFinish, runRef }: InnerProps) {
   const theme = kindTheme(data.kind)
   const s = data.speaking
   const [phase, setPhase] = useState<'idle' | 'prep' | 'rec' | 'done'>('idle')
   const [left, setLeft] = useState(0)
   const timer = useRef<number | null>(null)
+  /** Gapirish boshlangan vaqt — necha soniya gapirgani tarixga yoziladi. */
+  const spokeFrom = useRef(0)
 
   useEffect(() => {
     return () => {
@@ -898,35 +992,44 @@ function SpeakingPlayer({ data, mode = 'preview', onFinish }: InnerProps) {
     }, 1000)
   }
 
+  /** Yakunlash — javob (necha soniya gapirgani) tarixga yoziladi. Speaking hozircha
+   *  avto-baholanmaydi: topshirilgani "to'g'ri" deb hisoblanadi, ballni o'qituvchi qo'yadi. */
+  const done = () => {
+    setPhase('done')
+    if (mode !== 'solve') return
+    const spoke = spokeFrom.current ? Math.round((Date.now() - spokeFrom.current) / 1000) : 0
+    onFinish?.(1, 1, singleLog(
+      runRef.current, true, s.topic || 'Speaking',
+      `Ovozli javob · ${spoke} soniya gapirdi`,
+      `${s.speakSec} soniya`,
+    ))
+  }
+
+  const startRec = () => {
+    setPhase('rec')
+    spokeFrom.current = Date.now()
+    run(s.speakSec, done)
+  }
+
   const start = () => {
     if (s.prepSec > 0) {
       setPhase('prep')
-      run(s.prepSec, () => {
-        setPhase('rec')
-        run(s.speakSec, () => {
-          setPhase('done')
-          if (mode === 'solve') onFinish?.(1, 1)
-        })
-      })
+      run(s.prepSec, startRec)
     } else {
-      setPhase('rec')
-      run(s.speakSec, () => {
-        setPhase('done')
-        if (mode === 'solve') onFinish?.(1, 1)
-      })
+      startRec()
     }
   }
 
   const stop = () => {
     if (timer.current) window.clearInterval(timer.current)
-    setPhase('done')
-    if (mode === 'solve') onFinish?.(1, 1)
+    done()
   }
 
   const reset = () => {
     if (timer.current) window.clearInterval(timer.current)
     setPhase('idle')
     setLeft(0)
+    spokeFrom.current = 0
   }
 
   const mmss = (v: number) => `${String(Math.floor(v / 60)).padStart(2, '0')}:${String(v % 60).padStart(2, '0')}`
@@ -992,7 +1095,7 @@ function SpeakingPlayer({ data, mode = 'preview', onFinish }: InnerProps) {
 
 // ============================ 10. Moslashtirish ============================
 
-function MatchingPlayer({ data, mode = 'preview', onFinish }: InnerProps) {
+function MatchingPlayer({ data, mode = 'preview', onFinish, runRef }: InnerProps) {
   const theme = kindTheme(data.kind)
   const m = data.matching
   const [answers, setAnswers] = useState<Record<string, number>>({})
@@ -1003,10 +1106,22 @@ function MatchingPlayer({ data, mode = 'preview', onFinish }: InnerProps) {
 
   const cols = Array.from({ length: m.colCount }, (_, i) => i)
   const done = Object.keys(answers).length
+  const rows = m.rows
+  const startNum = m.startNum
   const check = () => {
-    const ok = m.rows.every((r) => answers[r.id] === r.key)
+    const ok = rows.every((r) => answers[r.id] === r.key)
     setChecked(ok)
-    if (mode === 'solve') onFinish?.(ok ? 1 : 0, 1)
+    if (mode !== 'solve') return
+    // Javob "1→A, 2→C" ko'rinishida yoziladi — o'qituvchi qaysi qator xato bo'lganini ko'radi.
+    const pairs = (pick: (r: (typeof rows)[number]) => number | undefined) =>
+      rows.map((r, ri) => {
+        const c = pick(r)
+        return `${startNum + ri}→${c === undefined ? '—' : colLetter(c)}`
+      }).join(', ')
+    onFinish?.(ok ? 1 : 0, 1, singleLog(
+      runRef.current, ok, m.statement || 'Moslashtiring',
+      pairs((r) => answers[r.id]), pairs((r) => r.key),
+    ))
   }
 
   return (
@@ -1110,11 +1225,11 @@ function MatchingPlayer({ data, mode = 'preview', onFinish }: InnerProps) {
 // ============================ Dispatcher ============================
 
 /** Turga mos pleyer. Element almashganda `key` orqali QAYTA YARATILADI — javob holati
- *  (tanlangan variant, terilgan so'zlar) o'z-o'zidan tozalanadi; yig'ilgan natija esa
- *  `scoreRef` da (bu komponentda) saqlanib qoladi. */
+ *  (tanlangan variant, terilgan so'zlar) o'z-o'zidan tozalanadi; yig'ilgan javoblar esa
+ *  `runRef` da (bu komponentda) saqlanib qoladi. */
 export function ExercisePlayer(props: PlayerProps) {
-  const scoreRef = useRef({ correct: 0, answered: 0 })
-  return <PlayerBody key={`${props.data.kind}:${props.index}`} {...props} scoreRef={scoreRef} />
+  const runRef = useRef<RunState>({ answers: new Map(), itemStart: Date.now() })
+  return <PlayerBody key={`${props.data.kind}:${props.index}`} {...props} runRef={runRef} />
 }
 
 function PlayerBody(props: InnerProps) {
@@ -1142,13 +1257,15 @@ function PlayerBody(props: InnerProps) {
   }
 }
 
-/** O'quvchi uchun to'liq mashq (barcha elementlar ketma-ket) — portal sahifasi ishlatadi. */
-export function ExerciseRunner({ data, onDone, frame = true }: { data: ExerciseData; onDone?: (correct: number, total: number) => void; frame?: boolean }) {
+/** O'quvchi uchun to'liq mashq (barcha elementlar ketma-ket) — portal sahifasi ishlatadi.
+ *  `onDone` yakunda natija VA har element bo'yicha javoblarni beradi — portal shu ma'lumotni
+ *  serverga yuboradi (urinish tarixi). */
+export function ExerciseRunner({ data, onDone, frame = true }: { data: ExerciseData; onDone?: (correct: number, total: number, answers: ExerciseAnswerLog[]) => void; frame?: boolean }) {
   const theme = kindTheme(data.kind)
   const [index, setIndex] = useState(0)
   const total = Math.max(1, exerciseCount(data))
   const inner: ReactNode = (
-    <ExercisePlayer data={data} index={Math.min(index, total - 1)} onIndex={setIndex} mode="solve" onFinish={(c, t) => onDone?.(c, t)} />
+    <ExercisePlayer data={data} index={Math.min(index, total - 1)} onIndex={setIndex} mode="solve" onFinish={(c, t, a) => onDone?.(c, t, a)} />
   )
   if (!frame) return <div className="dc-root" style={{ display: 'flex', flexDirection: 'column', minHeight: 480, background: '#fff', borderRadius: 18, overflow: 'hidden', border: `1px solid ${theme.phoneBorder}` }}>{inner}</div>
   return (

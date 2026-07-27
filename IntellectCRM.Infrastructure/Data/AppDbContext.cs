@@ -79,6 +79,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<CourseItem> CourseItems => Set<CourseItem>();
     public DbSet<CourseQuestion> CourseQuestions => Set<CourseQuestion>();
     public DbSet<CourseProgress> CourseProgresses => Set<CourseProgress>();
+    /// <summary>O'quvchi topshiriqni ishlagan urinishlari (natija + javoblar tarixi).</summary>
+    public DbSet<CourseItemAttempt> CourseItemAttempts => Set<CourseItemAttempt>();
     public DbSet<GroupCurriculumLog> GroupCurriculumLogs => Set<GroupCurriculumLog>();
 
     // Amal sabablari (muzlatish/o'chirish/sinovga qaytarish/lid/guruh)
@@ -291,6 +293,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
             (typeof(CourseLesson), "TopicId"),
             (typeof(CourseItem), "LessonId"),
             (typeof(CourseProgress), "StudentId"), (typeof(CourseProgress), "ItemId"),
+            (typeof(CourseItemAttempt), "StudentId"), (typeof(CourseItemAttempt), "ItemId"),
+            (typeof(CourseItemAttempt), "CurriculumId"), (typeof(CourseItemAttempt), "Section"),
             (typeof(SubjectCurriculum), "SubjectId"), (typeof(SubjectCurriculum), "CurriculumId"),
         })
             b.Entity(type).Property(prop).HasMaxLength(200);
@@ -299,6 +303,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         b.Entity<CourseLesson>().HasIndex(s => new { s.TopicId, s.Order });
         b.Entity<CourseItem>().HasIndex(i => new { i.LessonId, i.Order });
         b.Entity<CourseProgress>().HasIndex(p => new { p.StudentId, p.ItemId }).IsUnique();
+        // Urinishlar TARIX — unique EMAS (har ishlash yangi qator). Profilda o'quvchi bo'yicha
+        // eng yangisidan tartiblab o'qiladi; ikkinchi indeks topshiriq kesimidagi hisobot uchun.
+        b.Entity<CourseItemAttempt>().HasIndex(a => new { a.StudentId, a.FinishedAt });
+        b.Entity<CourseItemAttempt>().HasIndex(a => new { a.ItemId, a.StudentId, a.Section });
         // Kurs↔Dastur: bitta kursga bitta dastur faqat bir marta biriktiriladi.
         b.Entity<SubjectCurriculum>().HasIndex(sc => new { sc.SubjectId, sc.CurriculumId }).IsUnique();
         b.Entity<SubjectCurriculum>().HasIndex(sc => sc.CurriculumId);
