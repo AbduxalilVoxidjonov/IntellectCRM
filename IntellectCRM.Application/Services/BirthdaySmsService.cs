@@ -56,10 +56,13 @@ public class BirthdaySmsService(
         if (!hasRule) return;
 
         var students = await db.Students.Where(s => !s.IsArchived).ToListAsync(ct);
+        // Guruhi YOPILGAN/TUGATILGAN o'quvchiga tabrik yuborilmaydi (u endi markazda o'qimaydi).
+        var closedGroupStudents = await MessagingAudience.ClosedGroupStudentIdsAsync(db, ct);
         var sent = 0;
         foreach (var s in students)
         {
             if (!IsBirthdayToday(s.BirthDate, today)) continue;
+            if (closedGroupStudents.Contains(s.Id)) continue;
             await autoMsg.DispatchStudentAsync(db, AutoMessageTriggers.Birthday, s, ct: ct);
             sent++;
         }

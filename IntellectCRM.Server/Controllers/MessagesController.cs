@@ -152,6 +152,13 @@ public class MessagesController(
             students = students.Where(s => s.Balance < 0).ToList();
             audience += " — qarzdorlar";
         }
+        // OMMAVIY e'lon: arxivdagi va guruhi YOPILGAN/TUGATILGAN o'quvchilar chiqarib tashlanadi
+        // ("Tanlangan" rejimida admin kimni tanlagan bo'lsa — o'shanga yuboriladi).
+        if (scope != "selected")
+        {
+            var closed = await MessagingAudience.ClosedGroupStudentIdsAsync(db);
+            students = students.Where(s => !s.IsArchived && !closed.Contains(s.Id)).ToList();
+        }
         var byId = students.ToDictionary(s => s.Id);
         var sids = students.Select(s => s.Id).ToList();
 
@@ -390,7 +397,12 @@ public class MessagesController(
             var cn = req.ClassName?.Trim() ?? "";
             if (cn.Length > 0) { q = q.Where(s => s.ClassName == cn); label = $"Ota-onalar — {cn}"; }
             else label = "Ota-onalar";
-            userIds = await q.Select(s => s.UserId!).ToListAsync();
+            // Guruhi YOPILGAN/TUGATILGAN o'quvchilarga ommaviy push yuborilmaydi.
+            var closed = await MessagingAudience.ClosedGroupStudentIdsAsync(db);
+            userIds = (await q.Select(s => new { s.Id, UserId = s.UserId! }).ToListAsync())
+                .Where(x => !closed.Contains(x.Id))
+                .Select(x => x.UserId)
+                .ToList();
         }
 
         // Per-oluvchi moslash uchun: foydalanuvchi → o'quvchi/o'qituvchi + uning tokenlari.
@@ -577,6 +589,13 @@ public class MessagesController(
             }
             var students = await q.ToListAsync();
             if (req.OnlyDebtors) { students = students.Where(s => s.Balance < 0).ToList(); label += " — qarzdorlar"; }
+            // OMMAVIY yuborishda guruhi YOPILGAN/TUGATILGAN o'quvchilar chiqarib tashlanadi
+            // ("Tanlangan" rejimida esa admin kimni tanlagan bo'lsa — o'shanga yuboriladi).
+            if (audience != "selected")
+            {
+                var closed = await MessagingAudience.ClosedGroupStudentIdsAsync(db);
+                students = students.Where(s => !closed.Contains(s.Id)).ToList();
+            }
             var groupByName = await GroupByNameAsync();
             var teacherNames = await TeacherNamesAsync();
 

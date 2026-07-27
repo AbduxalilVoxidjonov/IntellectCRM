@@ -112,6 +112,9 @@ public class CustomReminderService(
         else
         {
             var students = await db.Students.Where(s => !s.IsArchived).ToListAsync(ct);
+            // Guruhi YOPILGAN/TUGATILGAN o'quvchilar eslatma olmaydi (endi o'qimaydi).
+            var closedGroupStudents = await MessagingAudience.ClosedGroupStudentIdsAsync(db, ct);
+            students = students.Where(s => !closedGroupStudents.Contains(s.Id)).ToList();
             // Guruh konteksti (asosiy guruh, ClassName bo'yicha) — {dars_sana}/{dars_vaqti}/{dars_kunlari}
             // va {oqituvchi} tokenlari uchun; ro'yxat uchun bir marta yuklanadi.
             var groupByName = (await db.Classes.ToListAsync(ct))

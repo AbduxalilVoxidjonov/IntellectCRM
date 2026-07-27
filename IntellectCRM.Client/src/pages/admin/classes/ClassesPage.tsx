@@ -17,6 +17,7 @@ import {
   User,
   BookOpenCheck,
   X,
+  Eye,
 } from 'lucide-react'
 import type { Group, GroupFillRow, Teacher, Subject } from '@/types'
 import type { ClassPayload } from '@/api/services/classes'
@@ -1003,7 +1004,14 @@ function ArchivedTable({
               <td className="px-4 py-3 text-slate-600">{c.room || '—'}</td>
               <td className="px-4 py-3 text-slate-500">{c.archivedAt ? formatDate(c.archivedAt) : '—'}</td>
               <td className="px-4 py-3">
-                <div className="flex items-center justify-end gap-0.5">
+                <div className="flex items-center justify-end gap-1">
+                  {/* Arxivdagi guruh ma'lumotlari (jurnal, a'zolar, baholash, tarix) — faqat ko'rish. */}
+                  <Link
+                    to={`/admin/classes/${c.id}`}
+                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600 transition-colors hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700"
+                  >
+                    <Eye className="h-3.5 w-3.5" /> Ko'rish
+                  </Link>
                   {canDelete && (
                     <IconBtn
                       icon={ArchiveRestore}

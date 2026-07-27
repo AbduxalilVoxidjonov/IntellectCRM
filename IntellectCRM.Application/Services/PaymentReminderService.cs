@@ -87,6 +87,14 @@ public class PaymentReminderService(
         var debtors = await db.Students
             .Where(s => !s.IsArchived && s.Balance < 0)
             .ToListAsync(ct);
+        // Guruhi YOPILGAN/TUGATILGAN (tirik a'zoligi qolmagan) o'quvchilarga eslatma yuborilmaydi.
+        var closedGroupStudents = await MessagingAudience.ClosedGroupStudentIdsAsync(db, ct);
+        var skipped = debtors.Count(s => closedGroupStudents.Contains(s.Id));
+        if (skipped > 0)
+        {
+            debtors = debtors.Where(s => !closedGroupStudents.Contains(s.Id)).ToList();
+            logger.LogInformation("To'lov eslatmasi: {Count} qarzdor o'tkazib yuborildi (guruhi yopilgan/tugatilgan).", skipped);
+        }
         if (debtors.Count == 0)
         {
             logger.LogInformation("To'lov eslatmasi: qarzdor yo'q.");
