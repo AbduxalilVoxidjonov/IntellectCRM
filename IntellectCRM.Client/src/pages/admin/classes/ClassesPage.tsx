@@ -981,7 +981,15 @@ function ArchivedTable({
           {items.map((c, i) => (
             <tr key={c.id} className="hover:bg-slate-50/60">
               <td className="px-4 py-3 text-slate-400">{i + 1}</td>
-              <td className="px-4 py-3 font-medium text-slate-800">{c.name}</td>
+              {/* Arxivdagi guruh ham ochiladi — jurnal/a'zolar/tarixi faqat ko'rish uchun qoladi. */}
+              <td className="px-4 py-3 font-medium text-slate-800">
+                <Link
+                  to={`/admin/classes/${c.id}`}
+                  className="text-inherit no-underline hover:text-brand-600 hover:underline"
+                >
+                  {c.name}
+                </Link>
+              </td>
               <td className="px-4 py-3">
                 <span
                   className={cn(

@@ -25,7 +25,11 @@ paths:
   bulk-attendance'da chaqiriladi, taqiq 400+message. API: `GET/PUT /api/admin/journal/policy`
   (AdminPerm "classes"). Kelajak sanalar HAR DOIM taqiq (JournalService).
 
-- **Muzlatilgan o'quvchi jurnalda:** alohida yig'iladigan blokda ko'rinadi (faqat o'qish). Muzlatilgan
+- **Muzlatilgan o'quvchi jurnalda:** alohida yig'iladigan blokda ko'rinadi (faqat o'qish). Blok
+  BALANS rangini faol qatorlar bilan bir xil ko'rsatadi (to'lagan — yashil nuqta+ism, qarzdor — qizil)
+  va ism yonida "Muzlatilgan" yorlig'i turadi. Guruhda FAOL o'quvchi qolmasa (masalan guruh yopilgan)
+  blok avtomatik OCHIQ bo'ladi. TUGATILGAN (arxiv) guruh jurnalida oylar ro'yxati arxiv oyida
+  to'xtaydi (`JournalService.GroupMonthAsync`) — bo'sh joriy oy ochilmasin. Muzlatilgan
   sanadan KEYINGI o'tilgan darslar avto-"keldi" ✓ EMAS (faqat aniq belgilangan `entry.present` yashil);
   guruhga qo'shilishidan (`memberStart`) yoki guruh `startDate`idan OLDINGI darslar ham hech qachon
   avto-"keldi" bo'lmaydi. "Davomat" tabi ham shu chegaralarda sanaydi:

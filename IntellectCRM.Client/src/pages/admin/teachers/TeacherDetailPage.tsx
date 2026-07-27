@@ -12,6 +12,7 @@ import {
   Medal,
   Award,
   Plus,
+  Archive,
 } from 'lucide-react'
 import type {
   Credentials,
@@ -83,6 +84,8 @@ export function TeacherDetailPage() {
 
   const [teacher, setTeacher] = useState<Teacher | null>(null)
   const [groups, setGroups] = useState<Group[]>([])
+  /** TUGATILGAN (arxivlangan) guruhlar — shu o'qituvchining; alohida bo'limda ko'rinadi va ochiladi. */
+  const [archivedGroups, setArchivedGroups] = useState<Group[]>([])
   const [subjects, setSubjects] = useState<Subject[]>([])
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<Tab>('info')
@@ -183,10 +186,12 @@ export function TeacherDetailPage() {
   const reloadSalary = () => {
     if (!id) return
     setSalaryLoading(true)
-    Promise.all([getSalaryLedger(id), getClasses()])
+    Promise.all([getSalaryLedger(id), getClasses(true)])
       .then(([ledger, classes]) => {
         setSalaryLedger(ledger)
-        setGroups(classes.filter((c) => c.teacherId === id && !c.isArchived))
+        const mine = classes.filter((c) => c.teacherId === id)
+        setGroups(mine.filter((c) => !c.isArchived))
+        setArchivedGroups(mine.filter((c) => c.isArchived))
         setSalaryVersion((v) => v + 1)
       })
       .finally(() => setSalaryLoading(false))
@@ -197,11 +202,14 @@ export function TeacherDetailPage() {
 
   useEffect(() => {
     if (!id) return
-    Promise.all([getTeachers(), getClasses(), getSubjects()])
+    Promise.all([getTeachers(), getClasses(true), getSubjects()])
       .then(([teachers, classes, subs]) => {
         const t = teachers.find((x) => x.id === id) ?? null
         setTeacher(t)
-        setGroups(classes.filter((c) => c.teacherId === id && !c.isArchived))
+        // Arxivlangan (tugatilgan) guruhlar ham keladi — faol va tugatilgan alohida ko'rsatiladi.
+        const mine = classes.filter((c) => c.teacherId === id)
+        setGroups(mine.filter((c) => !c.isArchived))
+        setArchivedGroups(mine.filter((c) => c.isArchived))
         setSubjects(subs)
       })
       .finally(() => setLoading(false))
@@ -302,7 +310,8 @@ export function TeacherDetailPage() {
           onClick={() => setTab('groups')}
         >
           <Users className="mr-1 inline h-3.5 w-3.5" />
-          Guruhlar ({groups.length})
+          Guruhlar ({groups.length}
+          {archivedGroups.length > 0 ? ` + ${archivedGroups.length} arxiv` : ''})
         </button>
         <button
           type="button"
@@ -405,8 +414,12 @@ export function TeacherDetailPage() {
           {groups.length === 0 ? (
             <Card>
               <div className="state">
-                <h4>Guruh biriktirilmagan</h4>
-                <p>Bu o'qituvchiga hech qanday faol guruh biriktirilmagan.</p>
+                <h4>Faol guruh biriktirilmagan</h4>
+                <p>
+                  {archivedGroups.length > 0
+                    ? `Bu o'qituvchida ${archivedGroups.length} ta tugatilgan guruh bor — pastda ko'rishingiz mumkin.`
+                    : "Bu o'qituvchiga hech qanday faol guruh biriktirilmagan."}
+                </p>
               </div>
             </Card>
           ) : (
@@ -460,6 +473,82 @@ export function TeacherDetailPage() {
                         </td>
                         <td className="px-4 py-3 font-mono text-slate-700">
                           {g.monthlyFee ? formatMoney(g.monthlyFee) : '—'}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <Link
+                            to={`/admin/classes/${g.id}`}
+                            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600 transition-colors hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700"
+                          >
+                            Ko'rish
+                            <ArrowUpRight className="h-3 w-3" />
+                          </Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          )}
+
+          {/* TUGATILGAN (arxivlangan) guruhlar — ma'lumotlari saqlanadi, ochib ko'rish mumkin. */}
+          {archivedGroups.length > 0 && (
+            <Card tight>
+              <div className="flex items-center gap-2 px-4 pt-4 pb-2">
+                <Archive className="h-4 w-4 text-slate-400" />
+                <h3 className="font-semibold text-slate-700">Tugatilgan guruhlar</h3>
+                <span className="text-sm text-slate-400">{archivedGroups.length}</span>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-400">
+                    <tr>
+                      <th className="px-4 py-3">Guruh</th>
+                      <th className="px-4 py-3">Kurs</th>
+                      <th className="px-4 py-3">Kunlar</th>
+                      <th className="px-4 py-3">Vaqt</th>
+                      <th className="px-4 py-3">Tugatilgan</th>
+                      <th className="px-4 py-3 text-right">Amallar</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {archivedGroups.map((g) => (
+                      <tr key={g.id} className="hover:bg-slate-50/60">
+                        <td className="px-4 py-3 font-medium text-slate-700">
+                          <Link
+                            to={`/admin/classes/${g.id}`}
+                            className="text-inherit hover:text-brand-600 hover:underline"
+                          >
+                            {g.name}
+                          </Link>
+                          <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium text-amber-700">
+                            arxiv
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-slate-600">
+                          {subjects.find((s) => s.id === g.courseId)?.name ?? '—'}
+                        </td>
+                        <td className="px-4 py-3">
+                          {g.days && g.days.length > 0 ? (
+                            <div className="flex flex-wrap gap-1">
+                              {g.days.map((d) => (
+                                <span
+                                  key={d}
+                                  className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-600"
+                                >
+                                  {weekdayShort[d] ?? d}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
+                        <td className="px-4 py-3 font-mono text-xs text-slate-600">
+                          {g.startTime && g.endTime ? `${g.startTime}–${g.endTime}` : '—'}
+                        </td>
+                        <td className="px-4 py-3 text-slate-500">
+                          {g.archivedAt ? formatDate(g.archivedAt) : '—'}
                         </td>
                         <td className="px-4 py-3 text-right">
                           <Link

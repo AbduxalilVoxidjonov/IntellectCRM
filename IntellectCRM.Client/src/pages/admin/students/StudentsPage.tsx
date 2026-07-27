@@ -96,6 +96,8 @@ export function StudentsPage() {
   const [students, setStudents] = useState<Student[]>([])
   const [archived, setArchived] = useState<Student[]>([])
   const [classNames, setClassNames] = useState<string[]>([])
+  /** TUGATILGAN (arxivlangan) guruh nomlari — filtrda alohida guruhda ko'rsatiladi. */
+  const [archivedClassNames, setArchivedClassNames] = useState<string[]>([])
   const [teachers, setTeachers] = useState<Teacher[]>([])
   const [groupTeachers, setGroupTeachers] = useState<Record<string, string>>({})
   /** O'quvchi ID -> ball (jurnal baholari + bajarilgan baholash mezonlari soni). */
@@ -179,12 +181,24 @@ export function StudentsPage() {
         setArchived(arch)
       })
       .finally(() => setLoading(false))
-    Promise.all([getClasses(), getTeachers()]).then(([cs, ts]) => {
-      setClassNames(cs.map((c) => c.name))
+    // includeArchived=true — TUGATILGAN guruhlar ham filtrda chiqsin (o'quvchilar ularda qolgan:
+    // muzlatilgan a'zolik, qarz va h.k.). Faol va tugatilgan alohida ro'yxatda ko'rsatiladi.
+    Promise.all([getClasses(true), getTeachers()]).then(([cs, ts]) => {
+      const active = cs.filter((c) => !c.isArchived)
+      const activeNames = active.map((c) => c.name)
+      setClassNames(activeNames)
+      // Tugatilgan guruhlar — nomi faol guruhda takrorlanmaganlari (aks holda ikki marta chiqardi).
+      setArchivedClassNames(
+        Array.from(new Set(cs.filter((c) => c.isArchived).map((c) => c.name)))
+          .filter((n) => !activeNames.includes(n)),
+      )
       setTeachers(ts)
-      // Guruh nomi -> o'qituvchi ID xarita
+      // Guruh nomi -> o'qituvchi ID xarita. Avval arxiv, keyin faol — bir xil nomda FAOL guruh ustun.
       const mapping: Record<string, string> = {}
-      cs.forEach((c) => {
+      cs.filter((c) => c.isArchived).forEach((c) => {
+        if (c.teacherId) mapping[c.name] = c.teacherId
+      })
+      active.forEach((c) => {
         if (c.teacherId) mapping[c.name] = c.teacherId
       })
       setGroupTeachers(mapping)
@@ -637,6 +651,15 @@ export function StudentsPage() {
                 {c}
               </option>
             ))}
+            {archivedClassNames.length > 0 && (
+              <optgroup label="Tugatilgan guruhlar">
+                {archivedClassNames.map((c) => (
+                  <option key={`arch-${c}`} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </optgroup>
+            )}
           </select>
           <select
             value={teacherFilter}

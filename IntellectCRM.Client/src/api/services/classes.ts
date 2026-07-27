@@ -5,12 +5,19 @@ import { classesMock } from '../mock/classes'
 
 export type ClassPayload = Omit<Group, 'id'>
 
-export async function getClasses(): Promise<Group[]> {
+/**
+ * Guruhlar ro'yxati. Standart holatda faqat FAOL guruhlar; `includeArchived=true` bo'lsa
+ * tugatilgan (arxivlangan) guruhlar ham qo'shiladi — o'qituvchi profilidagi "Tugatilgan guruhlar",
+ * o'quvchilar ro'yxatidagi guruh filtri va arxiv guruh sahifasini ochish uchun.
+ */
+export async function getClasses(includeArchived = false): Promise<Group[]> {
   if (USE_MOCK) {
     await delay()
     return classesMock
   }
-  const { data } = await api.get<Group[]>('/admin/classes')
+  const { data } = await api.get<Group[]>('/admin/classes', {
+    params: includeArchived ? { includeArchived: true } : undefined,
+  })
   return data
 }
 

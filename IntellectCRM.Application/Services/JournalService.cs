@@ -65,6 +65,11 @@ public static class JournalService
         foreach (var m in memberships)
             if (!string.IsNullOrEmpty(m.JoinedAt) && m.JoinedAt.Length >= 7) starts.Add(m.JoinedAt[..7]);
         var cur = TuitionService.CurrentMonth();
+        // TUGATILGAN (arxivlangan) guruhda oylar ARXIV OYIDA to'xtaydi — aks holda o'qituvchi profilidan
+        // ochilgan tugatilgan guruh jurnali bo'm-bo'sh joriy oyda ochilardi (oxirgi haqiqiy oy ko'rinsin).
+        if (cls.IsArchived && cls.ArchivedAt is { Length: >= 7 } archMonth
+            && string.CompareOrdinal(archMonth[..7], cur) < 0)
+            cur = archMonth[..7];
         var from = starts.Count > 0 ? starts.Min()! : cur;
         if (string.CompareOrdinal(from, cur) > 0) from = cur;
         var months = TuitionService.MonthRange(from, cur).ToList();

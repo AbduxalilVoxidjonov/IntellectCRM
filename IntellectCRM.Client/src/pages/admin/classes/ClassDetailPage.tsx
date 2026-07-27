@@ -252,7 +252,9 @@ export function ClassDetailPage() {
   // Guruh o'qituvchisi id'si — "O'qituvchi" nomini profilga link qilish uchun (jurnal DTO'sida yo'q).
   useEffect(() => {
     if (!id) return
-    getClasses()
+    // includeArchived=true — TUGATILGAN (arxivlangan) guruh sahifasi ham to'liq ochilsin
+    // (o'qituvchi profilidan yoki havola orqali kirilganda ma'lumotlari ko'rinadi).
+    getClasses(true)
       .then((cs) => {
         const cls = cs.find((c) => c.id === id)
         setGroup(cls ?? null)
@@ -383,8 +385,12 @@ export function ClassDetailPage() {
     () => (journal?.students ?? []).filter((s) => s.status === 'frozen'),
     [journal],
   )
-  /** Muzlatilganlar bo'limi — sarlavha tugmasi bilan ochiladi/yopiladi (standart: yopiq). */
-  const [frozenOpen, setFrozenOpen] = useState(false)
+  /** Muzlatilganlar bo'limi — sarlavha tugmasi bilan ochiladi/yopiladi. null = foydalanuvchi hali
+   *  tegmagan: standart YOPIQ, lekin guruhda faol o'quvchi qolmagan bo'lsa (masalan guruh yopilgan/
+   *  tugatilgan) OCHIQ — aks holda jurnal bo'm-bo'sh ko'rinardi. */
+  const [frozenOpen, setFrozenOpen] = useState<boolean | null>(null)
+  /** Muzlatilganlar bloki hozir ochiqmi (foydalanuvchi tanlovi, aks holda avtomatik qoida). */
+  const frozenVisible = frozenOpen ?? (journalStudents.length === 0 && frozenStudents.length > 0)
   /** Shu guruhdagi FAOL o'quvchilar soni (status === 'active') — o'qituvchi hisoboti "Faol" bilan bir xil ta'rif. */
   const activeCount = useMemo(
     () => (journal?.students ?? []).filter((s) => s.status === 'active').length,
@@ -641,7 +647,15 @@ export function ClassDetailPage() {
                 {/* Sarlavha */}
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <h1 className="text-xl font-semibold text-slate-800">{g.name}</h1>
+                    <h1 className="flex flex-wrap items-center gap-2 text-xl font-semibold text-slate-800">
+                      {g.name}
+                      {/* TUGATILGAN guruh — ma'lumotlari faqat ko'rish uchun ochiq. */}
+                      {group?.isArchived && (
+                        <span className="rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                          Tugatilgan{group.archivedAt ? ` · ${formatDate(group.archivedAt)}` : ''}
+                        </span>
+                      )}
+                    </h1>
                     <p className="mt-0.5 break-words text-sm text-slate-400">
                       {g.courseName || 'Kurs biriktirilmagan'}
                       {g.teacherName && (
@@ -673,7 +687,8 @@ export function ClassDetailPage() {
                       ...(can('classes', 'edit')
                         ? [{ label: 'Guruhni tahrirlash', icon: Pencil, onClick: () => setEditOpen(true) }]
                         : []),
-                      ...(user?.role === 'superadmin' && can('classes', 'delete')
+                      // Tugatish/yopish — faqat FAOL guruhda (arxivdagi guruh allaqachon yopilgan).
+                      ...(user?.role === 'superadmin' && can('classes', 'delete') && !group?.isArchived
                         ? [
                             { label: 'Tugatish (sertifikat bilan)', icon: Trophy, onClick: openCompleteModal },
                             { label: 'Guruhni yopish', icon: Archive, onClick: () => setShowCloseModal(true) },
@@ -1036,15 +1051,15 @@ export function ClassDetailPage() {
                           <td colSpan={3 + journal!.columns.length} className="border-b border-t-2 border-slate-200 bg-slate-50 p-0">
                             <button
                               type="button"
-                              onClick={() => setFrozenOpen((v) => !v)}
+                              onClick={() => setFrozenOpen(!frozenVisible)}
                               className="flex w-full items-center gap-1.5 px-4 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
                             >
-                              {frozenOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                              {frozenVisible ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
                               Muzlatilgan ({frozenStudents.length}) — faqat ko'rish, baho/davomat saqlanadi
                             </button>
                           </td>
                         </tr>
-                        {frozenOpen && frozenStudents.map((st) => {
+                        {frozenVisible && frozenStudents.map((st) => {
                           const totalGrade = journal!.columns.reduce((sum, c) => {
                             const e = entryMap.get(`${st.studentId}|${c.date}`)
                             return sum + (e?.grade ?? 0)
@@ -1053,10 +1068,22 @@ export function ClassDetailPage() {
                             <tr key={st.studentId} className="bg-slate-50 text-slate-400">
                               <td className="border-b border-r border-slate-200 bg-inherit px-2 py-1 text-center" />
                               <td className="sticky left-0 z-10 border-b border-r-2 border-slate-200 bg-inherit px-2 py-1">
+                                {/* Muzlatilgan bo'lsa ham per-guruh BALANS ko'rsatiladi: to'lagan bo'lsa
+                                    yashil, qarzi bo'lsa qizil (faol qatorlar bilan bir xil) + "Muzlatilgan" yorlig'i. */}
                                 <div className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left">
-                                  <Snowflake className="h-3.5 w-3.5 shrink-0 text-sky-500" />
-                                  <span className={cn('font-medium', st.balance < 0 ? 'text-red-600' : 'text-slate-500')}>
+                                  <span
+                                    className={cn(
+                                      'h-2 w-2 shrink-0 rounded-full',
+                                      st.balance < 0 ? 'bg-red-500' : 'bg-emerald-500',
+                                    )}
+                                    title={st.balance < 0 ? `Qarz (shu guruh): ${formatMoney(st.balance)}` : "Shu guruh uchun to'langan"}
+                                  />
+                                  <span className={cn('font-medium', st.balance < 0 ? 'text-red-600' : 'text-emerald-700')}>
                                     {st.fullName}
+                                  </span>
+                                  <span className="inline-flex shrink-0 items-center gap-1 rounded bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium text-sky-700">
+                                    <Snowflake className="h-3 w-3" />
+                                    Muzlatilgan
                                   </span>
                                 </div>
                               </td>
