@@ -65,3 +65,5 @@ backup-config/
 
 # Baza backuplari (haqiqiy foydalanuvchi maʼlumotlari) — commit qilinmasin
 backups/
+# Telegram bot yuboradigan JSON backup (haqiqiy o'quvchi/parol-hash ma'lumotlari)
+intellectcrm_backup_*.json
