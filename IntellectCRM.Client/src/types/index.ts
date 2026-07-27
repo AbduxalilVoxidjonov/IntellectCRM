@@ -290,6 +290,14 @@ export interface CrmStats {
   byStage: { label: string; count: number }[]
   bySource: { label: string; count: number }[]
   monthly: { month: string; created: number; converted: number }[]
+  /** Qiziqish fanlari (kurslar) bo'yicha — eng ko'pidan kamiga. */
+  byInterest?: {
+    label: string
+    count: number
+    converted: number
+    /** Shu fan bo'yicha konversiya foizi (0-100) */
+    conversionRate: number
+  }[]
 }
 
 /* ---------- O'quvchilar ---------- */

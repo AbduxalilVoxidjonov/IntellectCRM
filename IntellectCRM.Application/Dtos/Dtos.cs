@@ -537,10 +537,22 @@ public record LeadSourceInput(string Name);
 /// <summary>CRM statistikasi: jami, bosqich/manba bo'yicha, konversiya %, oylik dinamika.</summary>
 public record CrmStatChartItemDto(string Label, int Count);
 public record CrmMonthlyDto(string Month, int Created, int Converted);
+
+/// <summary>Qiziqish fani (kurs) bo'yicha lid statistikasi qatori.</summary>
+public record CrmInterestStatDto(
+    /// <summary>Kurs nomi (yoki lidda yozilgan matn; bo'sh bo'lsa "Ko'rsatilmagan").</summary>
+    string Label,
+    int Count,
+    int Converted,
+    /// <summary>Shu fan bo'yicha konversiya foizi (0-100).</summary>
+    double ConversionRate);
+
 public record CrmStatsDto(
     int TotalLeads, int Converted, double ConversionRate,
     List<CrmStatChartItemDto> ByStage, List<CrmStatChartItemDto> BySource,
-    List<CrmMonthlyDto> Monthly);
+    List<CrmMonthlyDto> Monthly,
+    /// <summary>Qiziqish fanlari (kurslar) bo'yicha — eng ko'pidan kamiga.</summary>
+    List<CrmInterestStatDto>? ByInterest = null);
 
 /* ---------- Lead stages ---------- */
 public record StagePayload(string Title, string Color);

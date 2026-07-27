@@ -21,6 +21,15 @@ paths:
   ("Noma'lum" = bo'sh source). Migratsiya mavjud `Leads.Source` qiymatlarini + 6 standart manbani seed
   qiladi.
 
+- **Qiziqqan fani = KURS** (`Lead.InterestSubject` kurs NOMINI saqlaydi — `LevelTestService` bilan bir
+  xil konvensiya): lid formasidagi maydon endi erkin matn emas, `GET /api/admin/leads/courses`
+  (Subject nomlari; kurslar `schedule` ruxsatida bo'lgani uchun leads ruxsati ostida alohida endpoint)
+  dan keladigan SELECT. Ro'yxatda yo'q eski/landing qiymati variant sifatida saqlanadi. Kurs nomi
+  o'zgartirilsa `SubjectsController.Update` eski nomli lidlarni ham ko'chiradi (`LeadSource` kabi).
+  **CRM statistikasi** (`/stats` → `CrmStatsDto.ByInterest`, `CrmInterestStatDto`): fan bo'yicha lid
+  soni + aylantirilgan + konversiya %; normalizatsiya — kurs id → nomi, registr farqisiz kurs nomiga
+  moslash, bo'sh = "Ko'rsatilmagan". UI: `CrmStatsPage` — gorizontal bar (top 10) + to'liq jadval.
+
 - **Lidda tashqi maktab** (migratsiya `AddLeadSchool`): `Lead.DistrictId`/`SchoolId` (o'quvchidagi
   `District`/`School` ma'lumotnomasi) — formada tuman→maktab select'lari, Lidlar sahifasida shu bo'yicha
   filtr + lidlar ichida qidiruv (ism/telefon/ota-ona/manba/maktab; telefon raqamlar bo'yicha).

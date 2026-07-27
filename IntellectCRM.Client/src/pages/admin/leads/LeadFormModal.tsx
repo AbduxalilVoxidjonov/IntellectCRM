@@ -6,6 +6,7 @@ import { Input, Select, Textarea } from '@/components/ui/Input'
 import { PhoneInput } from '@/components/ui/PhoneInput'
 import { genderOptions, leadSourceOptions } from '@/config/constants'
 import { getLeadSources } from '@/api/services/leadSources'
+import { getLeadCourses } from '@/api/services/leads'
 import { getDistricts } from '@/api/services/districts'
 
 export type LeadFormValues = Omit<Lead, 'id' | 'stage'>
@@ -40,12 +41,17 @@ export function LeadFormModal({ open, onClose, onSubmit, initial }: Props) {
   const [sourceOptions, setSourceOptions] = useState<string[]>(leadSourceOptions)
   // Tashqi maktab ma'lumotnomasi (tuman → maktablar) — o'quvchi formasidagi bilan bir xil.
   const [districts, setDistricts] = useState<District[]>([])
+  // "Qiziqqan fani" ro'yxati — markazdagi kurslar (Subject nomlari).
+  const [courseOptions, setCourseOptions] = useState<string[]>([])
 
   useEffect(() => {
     if (!open) return
     getDistricts()
       .then(setDistricts)
       .catch(() => setDistricts([]))
+    getLeadCourses()
+      .then(setCourseOptions)
+      .catch(() => setCourseOptions([]))
     getLeadSources()
       .then((list) => {
         const names = list.map((s) => s.name)
@@ -176,12 +182,25 @@ export function LeadFormModal({ open, onClose, onSubmit, initial }: Props) {
               </option>
             ))}
           </Select>
-          <Input
-            label="Qiziqqan fani"
-            placeholder="Masalan: Matematika"
+          {/* Qiziqqan fani = markazdagi KURSLAR ro'yxati (yangi kurs yaratilsa shu yerda chiqadi).
+              Eski/landing lidlarida ro'yxatda yo'q matn bo'lsa — u ham variant sifatida saqlanadi. */}
+          <Select
+            label="Qiziqqan fani (kurs)"
             value={form.interestSubject ?? ''}
             onChange={(e) => update('interestSubject', e.target.value)}
-          />
+          >
+            <option value="">— tanlanmagan —</option>
+            {form.interestSubject && !courseOptions.includes(form.interestSubject) && (
+              <option key={form.interestSubject} value={form.interestSubject}>
+                {form.interestSubject}
+              </option>
+            )}
+            {courseOptions.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </Select>
         </div>
         {/* Tashqi maktab (lid qayerda o'qiydi) — o'quvchiga aylantirilganda ko'chadi */}
         <div className="grid grid-cols-2 gap-4">

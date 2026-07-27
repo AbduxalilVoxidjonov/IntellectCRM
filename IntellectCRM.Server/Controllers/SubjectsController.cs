@@ -40,6 +40,7 @@ public class SubjectsController(AppDbContext db, AuditService audit) : Controlle
         var subject = await db.Subjects.FindAsync(id);
         if (subject is null) return NotFound();
         var oldPrice = subject.Price;
+        var oldName = subject.Name;
         subject.Name = payload.Name;
         subject.Price = payload.Price;
         subject.LessonPrice = payload.LessonPrice;
@@ -66,6 +67,14 @@ public class SubjectsController(AppDbContext db, AuditService audit) : Controlle
         }
 
         await db.SaveChangesAsync();
+
+        // Kurs NOMI o'zgarsa — lidlarning "Qiziqqan fani" (Lead.InterestSubject kurs NOMINI saqlaydi)
+        // ham ko'chiriladi, aks holda CRM statistikasida eski nom alohida qator bo'lib qolardi
+        // (lid manbasi — LeadSource — bilan bir xil konvensiya).
+        if (!string.IsNullOrWhiteSpace(oldName) && oldName != payload.Name)
+            await db.Leads.Where(l => l.InterestSubject == oldName)
+                .ExecuteUpdateAsync(s => s.SetProperty(l => l.InterestSubject, payload.Name));
+
         return subject;
     }
 

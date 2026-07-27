@@ -313,7 +313,18 @@ public class LeadsController(AppDbContext db, AuditService audit, TelegramServic
 
     // ---------- CRM statistikasi ----------
 
-    /// <summary>CRM statistikasi: jami, bosqich/manba bo'yicha, konversiya %, oylik dinamika.</summary>
+    /// <summary>Lid formasi "Qiziqqan fani" ro'yxati uchun KURSLAR (Subject) nomlari. Kurslar bo'limi
+    /// "schedule" ruxsatida — CRM xodimida u bo'lmasligi mumkin, shuning uchun "leads" ruxsati ostida
+    /// shu yerda ochiladi. Yangi kurs yaratilsa — shu ro'yxatda avtomatik chiqadi.</summary>
+    [HttpGet("courses")]
+    public async Task<ActionResult<IEnumerable<string>>> Courses() =>
+        await db.Subjects.AsNoTracking()
+            .Where(s => s.Name != "")
+            .OrderBy(s => s.Name)
+            .Select(s => s.Name)
+            .ToListAsync();
+
+    /// <summary>CRM statistikasi: jami, bosqich/manba/qiziqish fani bo'yicha, konversiya %, oylik dinamika.</summary>
     [HttpGet("stats")]
     public async Task<ActionResult<CrmStatsDto>> Stats()
     {
@@ -337,7 +348,42 @@ public class LeadsController(AppDbContext db, AuditService audit, TelegramServic
             .Select(g => new CrmMonthlyDto(g.Key, g.Count(), g.Count(l => l.ConvertedStudentId != null)))
             .ToList();
 
-        return new CrmStatsDto(total, converted, rate, byStage, bySource, monthly);
+        // QIZIQISH FANLARI (kurslar) bo'yicha. `Lead.InterestSubject` — odatda kurs NOMI (lid formasi,
+        // daraja testi), lekin eski/ommaviy (landing) yozuvlarda ixtiyoriy matn yoki kurs id'si ham
+        // bo'lishi mumkin. Shuning uchun avval kurs id'si → nomi, so'ng registr farqisiz kurs nomiga
+        // moslaymiz; qolgani matn ko'rinishida (registr farqi bo'yicha birlashtirilib) ko'rsatiladi.
+        var courses = await db.Subjects.AsNoTracking().Select(s => new { s.Id, s.Name }).ToListAsync();
+        var courseById = courses.ToDictionary(c => c.Id, c => c.Name);
+        var courseByName = courses
+            .Where(c => !string.IsNullOrWhiteSpace(c.Name))
+            .GroupBy(c => c.Name.Trim().ToLowerInvariant())
+            .ToDictionary(g => g.Key, g => g.First().Name.Trim());
+
+        string InterestLabel(string? raw)
+        {
+            var v = (raw ?? "").Trim();
+            if (v.Length == 0) return "Ko'rsatilmagan";
+            if (courseById.TryGetValue(v, out var byId) && !string.IsNullOrWhiteSpace(byId)) return byId.Trim();
+            if (courseByName.TryGetValue(v.ToLowerInvariant(), out var byName)) return byName;
+            return v;
+        }
+
+        var byInterest = leads
+            .Select(l => new { Label = InterestLabel(l.InterestSubject), Converted = l.ConvertedStudentId != null })
+            .GroupBy(x => x.Label.ToLowerInvariant())
+            .Select(g =>
+            {
+                // Ko'rsatiladigan nom: guruhdagi eng ko'p uchragan yozilishi (kurs nomi bo'lsa — o'zi).
+                var label = g.GroupBy(x => x.Label).OrderByDescending(x => x.Count()).First().Key;
+                var count = g.Count();
+                var conv = g.Count(x => x.Converted);
+                return new CrmInterestStatDto(label, count, conv,
+                    count == 0 ? 0 : Math.Round(conv * 100.0 / count, 1));
+            })
+            .OrderByDescending(x => x.Count).ThenBy(x => x.Label, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return new CrmStatsDto(total, converted, rate, byStage, bySource, monthly, byInterest);
     }
 
     // ---------- Yordamchilar ----------

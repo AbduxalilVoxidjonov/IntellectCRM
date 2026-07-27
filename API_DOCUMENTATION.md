@@ -460,7 +460,8 @@ Bazaviy route yo'q · Ruxsat: har action o'zi (student portal / admin / public).
 | GET | /api/admin/leads/trials/{trialId}/receipt | Sinov darsiga yozilish cheki. |
 | PATCH | /api/admin/leads/trials/{trialId} | Sinov natijasi (stayed/left). |
 | POST | /api/admin/leads/{id}/convert | Lidni o'quvchiga aylantiradi. |
-| GET | /api/admin/leads/stats | CRM statistikasi (konversiya, oylik). |
+| GET | /api/admin/leads/courses | Kurslar nomlari — lid formasi "Qiziqqan fani" ro'yxati uchun. |
+| GET | /api/admin/leads/stats | CRM statistikasi (konversiya, oylik, qiziqish fanlari). |
 
 ### LeadStagesController
 `api/admin/lead-stages` · Ruxsat: `[Authorize]` + `[AdminPerm("leads")]`. CRM voronka bosqichlari (kanban ustunlari).

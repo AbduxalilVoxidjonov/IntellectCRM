@@ -134,8 +134,24 @@ export async function convertLead(
 export async function getCrmStats(): Promise<CrmStats> {
   if (USE_MOCK) {
     await delay(300)
-    return { totalLeads: 0, converted: 0, conversionRate: 0, byStage: [], bySource: [], monthly: [] }
+    return {
+      totalLeads: 0, converted: 0, conversionRate: 0,
+      byStage: [], bySource: [], monthly: [], byInterest: [],
+    }
   }
   const { data } = await api.get<CrmStats>('/admin/leads/stats')
+  return data
+}
+
+/**
+ * Lid formasi "Qiziqqan fani" ro'yxati — markazdagi KURSLAR nomlari. Kurslar bo'limi "schedule"
+ * ruxsatida bo'lgani uchun CRM xodimiga shu (leads ruxsatidagi) endpoint orqali beriladi.
+ */
+export async function getLeadCourses(): Promise<string[]> {
+  if (USE_MOCK) {
+    await delay()
+    return []
+  }
+  const { data } = await api.get<string[]>('/admin/leads/courses')
   return data
 }

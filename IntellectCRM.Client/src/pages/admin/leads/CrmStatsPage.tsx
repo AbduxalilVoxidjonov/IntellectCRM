@@ -36,6 +36,14 @@ export function CrmStatsPage() {
 
   const sourceData = data.bySource.map((s) => ({ name: s.label, count: s.count }))
   const stageData = data.byStage.map((s) => ({ name: s.label, value: s.count }))
+  // Qiziqish fanlari: jadval BARCHA fanlarni, diagramma esa eng ko'p 10 tasini ko'rsatadi.
+  const interestRows = data.byInterest ?? []
+  const topInterest = interestRows[0]
+  const interestChart = interestRows.slice(0, 10).map((r) => ({
+    name: r.label,
+    Lidlar: r.count,
+    Aylantirilgan: r.converted,
+  }))
   const monthlyData = data.monthly.map((m) => ({
     name: `${monthShortNames[Number(m.month.slice(5, 7)) - 1] ?? m.month} '${m.month.slice(2, 4)}`,
     Yangi: m.created,
@@ -117,6 +125,80 @@ export function CrmStatsPage() {
           )}
         </Card>
       </div>
+
+      {/* Qiziqish fanlari (kurslar) bo'yicha — gorizontal bar + to'liq jadval */}
+      <Card>
+        <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="font-semibold text-slate-800">Qiziqish fanlari bo'yicha lidlar</h2>
+          {topInterest && (
+            <p className="text-sm text-slate-400">
+              Eng ko'p qiziqish:{' '}
+              <span className="font-medium text-slate-600">{topInterest.label}</span> — {topInterest.count} ta lid
+            </p>
+          )}
+        </div>
+
+        {interestRows.length === 0 ? (
+          <p className="py-12 text-center text-sm text-slate-400">Ma'lumot yo'q</p>
+        ) : (
+          <>
+            <ResponsiveContainer width="100%" height={Math.max(200, interestChart.length * 46 + 40)}>
+              <BarChart
+                data={interestChart}
+                layout="vertical"
+                margin={{ top: 4, right: 24, left: 0, bottom: 0 }}
+                barGap={2}
+              >
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eef0f4" />
+                <XAxis type="number" tickLine={false} axisLine={false} tick={axisTick} allowDecimals={false} />
+                <YAxis
+                  type="category"
+                  dataKey="name"
+                  width={150}
+                  tickLine={false}
+                  axisLine={false}
+                  tick={axisTick}
+                />
+                <Tooltip cursor={{ fill: 'rgba(0,0,0,0.03)' }} contentStyle={tooltipStyle} />
+                <Legend wrapperStyle={{ fontSize: 13 }} />
+                <Bar dataKey="Lidlar" fill="#6366f1" radius={[0, 6, 6, 0]} maxBarSize={14} />
+                <Bar dataKey="Aylantirilgan" fill="#16a34a" radius={[0, 6, 6, 0]} maxBarSize={14} />
+              </BarChart>
+            </ResponsiveContainer>
+
+            {interestRows.length > interestChart.length && (
+              <p className="mt-1 text-xs text-slate-400">
+                Diagrammada eng ko'p {interestChart.length} ta fan — qolgani jadvalda.
+              </p>
+            )}
+
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="border-b border-slate-100 text-xs uppercase tracking-wide text-slate-400">
+                  <tr>
+                    <th className="py-2 pr-3 font-medium">Fan (kurs)</th>
+                    <th className="py-2 pr-3 text-right font-medium">Lidlar</th>
+                    <th className="py-2 pr-3 text-right font-medium">Aylantirilgan</th>
+                    <th className="py-2 text-right font-medium">Konversiya</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {interestRows.map((r) => (
+                    <tr key={r.label} className="border-b border-slate-50 last:border-0">
+                      <td className="py-2 pr-3 text-slate-700">{r.label}</td>
+                      <td className="py-2 pr-3 text-right font-mono text-slate-700">{r.count}</td>
+                      <td className="py-2 pr-3 text-right font-mono text-emerald-600">{r.converted}</td>
+                      <td className="py-2 text-right font-mono text-slate-500">
+                        {r.conversionRate.toFixed(1)}%
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+      </Card>
 
       {/* Oylik dinamika (line) */}
       <Card>
