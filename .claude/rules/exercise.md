@@ -64,6 +64,27 @@ paths:
   (video/matn/audio/pdf/lug'at/test dan keyin) alohida qadam sifatida chiqadi. Dars ochilishi eski
   qoidada: o'qituvchi "o'tildi" qilmaguncha yopiq (`GroupCurriculumLog`).
 
+- **NATIJA SAQLANADI — `CourseItemAttempt`** (migratsiya `AddCourseItemAttempt`): har ishlash
+  ALOHIDA URINISH (`AttemptNo` 1,2,3…), ustiga yozilmaydi — o'sish dinamikasi ko'rinadi.
+  Maydonlar: `Section` (**exercise** | **test** | **view**), `ExerciseKind`, `Correct/Total/ScorePct`,
+  `DurationSec`, `AnswersJson` (`[{index,prompt,answer,expected,ok,sec}]`), `GroupId` (qaysi guruh
+  orqali ishlangani), `StartedAt/FinishedAt`.
+  · **Pleyer**: `useRunner.finish(ok, {prompt,answer,expected})` va `onFinish(correct,total,answers)` —
+    javoblar `RunState.answers` **Map**'ida INDEKS bo'yicha (↺ bosib qayta tekshirilsa hisob
+    ikkilanmaydi; ilgari `scoreRef` har tekshiruvda oshib ketardi). Bir elementli mashqlar
+    (writing/speaking/matching) `singleLog(...)` bilan bitta yozuv qaytaradi.
+  · **Yozish yo'li**: `POST /api/student/curriculum/attempt` (faqat `student` roli) →
+    urinish + `CourseProgress.Done=true` avtomatik. Xato YUTILADI — internet uzilsa ham o'quvchi
+    ekranida natija ko'rinaveradi.
+  · **Ko'rish bo'limlari** (video/matn/audio/PDF/lug'at): "Yakunlash" bosilganda BITTA `view`
+    urinishi — har bo'limga sarflangan vaqt bilan (ballsiz, `Total=0`).
+  · **Admin**: o'quvchi profili → "O'quv dasturi" tabi → **"Topshiriq natijalari"**
+    (`AttemptsSection`): statistika, tur bo'yicha filtr, urinish tafsiloti modali.
+    `GET /api/admin/curriculum/student/{id}/attempts` + `attempt/{id}`.
+  · DIQQAT: progress/urinish kaliti HAR DOIM **`Student.Id`** (AppUser.Id EMAS) — ilgari student
+    portali claim'dagi user id'ni yozardi, admin esa Student.Id bo'yicha o'qirdi va hech qachon
+    mos kelmasdi (`MeAsync()`/`TargetAsync()` ishlatiladi).
+
 - **DIZAYN — CRM tizimiga moslangan:** maketning TUZILISHI va o'zaro ta'siri saqlangan, ranglar esa
   CRM dizayn tokenlariga keltirilgan (`catalog.tsx` → `UI` va `THEMES`): yagona aksent
   **brand-600 `#5d53cb`** (+ `#eef0ff` yumshoq fon), matn `#181a22 / #4a4d56 / #777a82`, chegara

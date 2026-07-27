@@ -52,6 +52,26 @@ paths:
   DIQQAT: chekdagi `ReceiptNo` (tranzaksiya Id'sidan hosil bo'ladigan ichki raqam) va qog'oz
   kvitansiya raqami (`KvNo`) — BOSHQA-BOSHQA maydonlar.
 
+- **KVITANSIYA RAQAMI BIR MARTA ISHLATILADI** (`ReceiptGuard.FindDuplicateAsync`): bitta qog'oz
+  blank bo'yicha ikki marta to'lov yozilmasin. BARCHA yozish yo'llari tekshiradi —
+  `StudentsController.AddPayment`, `FinanceController.Create/Update/UpdatePayment` (tahrirda
+  `excludeTxId` bilan o'zini hisobga olmaydi). Band bo'lsa **409 Conflict** +
+  `{ message, duplicate: DuplicateReceiptDto }` (F.I.Sh · guruh/kurs · o'qituvchi · summa · oy ·
+  sana/usul · kim va qachon kiritgan). Klientda `receiptDuplicateOf(err)` shu ma'lumotni ajratadi va
+  `PaymentModal`/`PaymentEditModal` ichida OGOHLANTIRISH KARTOCHKASI chiqaradi: "Bekor qilish" yoki
+  **"Baribir saqlash"** (`ForceReceipt=true` — haqiqatan takroriy blank uchun; auditga
+  "[takroriy kvitansiya KV… — ataylab saqlandi]" izohi tushadi).
+  DIQQAT: to'lov modallari endi xatoni YUTMAYDI — `onSubmit` xatoni qayta otadi va modal faqat
+  saqlash muvaffaqiyatli bo'lgandagina yopiladi (ilgari `StudentsPage` `addPayment`ni `await`
+  qilmasdan modalni yopib yuborardi — xato bilinmay qolardi).
+
+- **MOLIYA JADVALLARI SAHIFALANADI** (`components/ui/TablePagination.tsx`): `usePagination(items)`
+  hook + `<TablePagination {...pg} />` — 20/30/50/100 talik, filtr/qidiruv o'zgarsa 1-sahifaga
+  qaytadi. Ulangan joylar: Moliya → Amallar, O'qituvchilar, To'lovlar, Vozvratlar. CSV eksporti va
+  jami summalar SAHIFAGA emas, butun FILTRLANGAN ro'yxatga tayanadi.
+  To'lovlar bo'limida qo'shimcha filtrlar: **to'lov usuli** (naqd/karta/bank — chipda o'sha usul
+  jami summasi) va **kvitansiya** (raqami bor / raqami yo'q).
+
 - **GURUHNI YOPISH** (`POST /api/admin/classes/{id}/close`, guruh sahifasi "⋮" → "Guruhni yopish"):
   berilgan sanadan guruhning BARCHA faol a'zoliklari muzlatiladi (har biriga oddiy muzlatish bilan bir
   xil qisman to'lov), muzlatish oyidan KEYINGI hisoblar bekor qilinadi
