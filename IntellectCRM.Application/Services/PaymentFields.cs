@@ -27,6 +27,24 @@ public static class PaymentFields
     }
 
     /// <summary>
+    /// KARTA raqamining oxirgi 4 raqamini ajratadi ("8600 **** 1234" → "1234").
+    /// Bo'sh bo'lsa — true + null (ixtiyoriy). Raqamlari 4 tadan KAM bo'lsa — false (chaqiruvchi
+    /// 400 qaytaradi: kassir yarim raqam kiritib qo'ymasin).
+    ///
+    /// XAVFSIZLIK: to'liq karta raqami HECH QACHON saqlanmaydi — bu yerda faqat oxirgi 4 raqam
+    /// olinadi, qolgani tashlanadi (kassir butun raqamni yopishtirsa ham).
+    /// </summary>
+    public static bool TryNormalizeCardLast4(string? raw, out string? last4)
+    {
+        last4 = null;
+        var digits = new string((raw ?? "").Where(char.IsDigit).ToArray());
+        if (digits.Length == 0) return true;
+        if (digits.Length < 4) return false;
+        last4 = digits[^4..];
+        return true;
+    }
+
+    /// <summary>
     /// To'lov vaqtini ("HH:mm") tekshiradi va normallashtiradi. Bo'sh bo'lsa — true + null
     /// (vaqt ixtiyoriy). Format noto'g'ri bo'lsa — false (chaqiruvchi 400 qaytaradi).
     /// </summary>

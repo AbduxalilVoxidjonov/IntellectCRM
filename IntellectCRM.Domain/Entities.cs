@@ -946,6 +946,12 @@ public class FinanceTransaction
     /// <summary>To'lov HAQIQATAN qilingan VAQT ("HH:mm") — KARTA orqali to'lovda kiritiladi (bank
     /// ilovasidagi vaqt bilan solishtirish uchun). null = kiritilmagan. Sana `Date` maydonida.</summary>
     public string? PaidTime { get; set; }
+    /// <summary>KARTA raqamining OXIRGI 4 RAQAMI (masalan "1234") — karta orqali to'lovda kassir
+    /// kiritadi, bank ko'chirmasi bilan solishtirish uchun. Moliya → To'lovlar jadvalida naqd
+    /// to'lovning kvitansiya raqami o'rniga shu ko'rinadi ("•••• 1234").
+    /// XAVFSIZLIK: FAQAT oxirgi 4 raqam saqlanadi — kassir to'liq raqam kiritsa ham
+    /// <c>PaymentFields.NormalizeCardLast4</c> qolganini tashlab yuboradi. null = kiritilmagan.</summary>
+    public string? CardLast4 { get; set; }
     /// <summary>Tranzaksiya yaratilgan vaqti (UTC) — idempotency check uchun (5s ichida dublikat).</summary>
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     /// <summary>Mas'ul — to'lovni kiritgan admin/kassir F.I.Sh (chekda "Mas'ul" qatori uchun).</summary>

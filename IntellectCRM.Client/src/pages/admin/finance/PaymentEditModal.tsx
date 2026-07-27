@@ -50,6 +50,7 @@ export function PaymentEditModal({ payment, onClose, onSaved }: Props) {
       comment: payment.comment ?? '',
       receiptNo: payment.receiptNo ?? '',
       paidTime: payment.paidTime ?? '',
+      cardLast4: payment.cardLast4 ?? '',
     })
     const sid = payment.studentId
     if (!sid) {
@@ -83,6 +84,7 @@ export function PaymentEditModal({ payment, onClose, onSaved }: Props) {
         // Kvitansiya faqat naqdda, vaqt faqat kartada saqlanadi (usul o'zgarsa eskisi tozalanadi).
         receiptNo: (form.method ?? 'cash') === 'cash' ? form.receiptNo?.trim() || '' : '',
         paidTime: (form.method ?? 'cash') === 'card' ? form.paidTime || '' : '',
+        cardLast4: (form.method ?? 'cash') === 'card' ? form.cardLast4 || '' : '',
         forceReceipt: force,
       })
       setDuplicate(null)
@@ -268,14 +270,36 @@ export function PaymentEditModal({ payment, onClose, onSaved }: Props) {
               </div>
             )}
             {(form.method ?? 'cash') === 'card' && (
-              <div className="mt-3">
-                <Input
-                  label="To'lov vaqti"
-                  type="time"
-                  value={form.paidTime ?? ''}
-                  onChange={(e) => set('paidTime', e.target.value)}
-                />
-              </div>
+              <>
+                <div className="mt-3">
+                  <label className="mb-1 block text-sm font-medium text-slate-600">
+                    Karta raqami (oxirgi 4 raqam)
+                  </label>
+                  <div className="flex items-stretch">
+                    <span className="flex select-none items-center rounded-l-lg border border-r-0 border-slate-200 bg-slate-50 px-3 font-mono text-sm tracking-widest text-slate-400">
+                      ••••
+                    </span>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={form.cardLast4 ?? ''}
+                      // Faqat raqam va faqat OXIRGI 4 tasi (to'liq karta raqami saqlanmaydi).
+                      onChange={(e) => set('cardLast4', e.target.value.replace(/\D/g, '').slice(-4))}
+                      placeholder="1234"
+                      maxLength={4}
+                      className="w-full rounded-r-lg border border-slate-200 bg-white px-3 py-2 font-mono text-sm tracking-widest text-slate-700 outline-none focus:border-brand-400"
+                    />
+                  </div>
+                </div>
+                <div className="mt-3">
+                  <Input
+                    label="To'lov vaqti"
+                    type="time"
+                    value={form.paidTime ?? ''}
+                    onChange={(e) => set('paidTime', e.target.value)}
+                  />
+                </div>
+              </>
             )}
           </div>
 

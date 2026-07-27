@@ -20,9 +20,10 @@ interface Props {
     comment?: string,
     method?: string,
     date?: string,
-    /** Naqd — qog'oz kvitansiya raqami ("KV..."); karta — to'lov vaqti "HH:mm".
+    /** Naqd — qog'oz kvitansiya raqami ("KV..."); karta — to'lov vaqti "HH:mm" va karta
+     *  raqamining oxirgi 4 raqami.
      *  `forceReceipt` — kvitansiya band bo'lsa ham saqlash ("Baribir saqlash"). */
-    extra?: { receiptNo?: string; paidTime?: string; forceReceipt?: boolean },
+    extra?: { receiptNo?: string; paidTime?: string; cardLast4?: string; forceReceipt?: boolean },
   ) => void | Promise<void>
 }
 
@@ -76,6 +77,9 @@ export function PaymentModal({ student, onClose, onSubmit }: Props) {
   const [receiptNo, setReceiptNo] = useState('')
   /** KARTA to'lovi — pul haqiqatan o'tkazilgan vaqt ("HH:mm"), bank ilovasidagi vaqt bilan solishtirish uchun. */
   const [paidTime, setPaidTime] = useState(nowTime())
+  /** KARTA to'lovi — karta raqamining OXIRGI 4 RAQAMI (bank ko'chirmasi bilan solishtirish uchun).
+   *  To'liq karta raqami saqlanmaydi — server ham faqat oxirgi 4 raqamni oladi. */
+  const [cardLast4, setCardLast4] = useState('')
   /** To'lov haqiqatan sodir bo'lgan sana — bugun to'lagan, lekin tizimga keyinroq kiritilayotgan
    * to'lov uchun eski sana tanlash imkoni. */
   const [paidDate, setPaidDate] = useState<string>(today())
@@ -97,6 +101,7 @@ export function PaymentModal({ student, onClose, onSubmit }: Props) {
     setPaidDate(today())
     setReceiptNo('')
     setPaidTime(nowTime())
+    setCardLast4('')
     setDuplicate(null)
     setError(null)
     getStudentGroups(student.id)
@@ -178,6 +183,7 @@ export function PaymentModal({ student, onClose, onSubmit }: Props) {
         // Kvitansiya faqat NAQD to'lovda, vaqt faqat KARTA to'lovida yuboriladi.
         receiptNo: method === 'cash' && receiptNo.trim() ? RECEIPT_SERIES + receiptNo.trim() : undefined,
         paidTime: method === 'card' && paidTime ? paidTime : undefined,
+        cardLast4: method === 'card' && cardLast4 ? cardLast4 : undefined,
         forceReceipt: force,
       })
       setDuplicate(null)
@@ -464,19 +470,48 @@ export function PaymentModal({ student, onClose, onSubmit }: Props) {
                     </div>
                   )}
 
-                  {/* KARTA — pul haqiqatan o'tkazilgan vaqt (bank ilovasidagi vaqt bilan solishtirish uchun). */}
+                  {/* KARTA — avval karta raqamining oxirgi 4 raqami, so'ng pul o'tkazilgan vaqt
+                      (ikkalasi ham bank ko'chirmasi bilan solishtirish uchun). */}
                   {method === 'card' && (
-                    <div className="mt-3">
-                      <Input
-                        label="To'lov vaqti"
-                        type="time"
-                        value={paidTime}
-                        onChange={(e) => setPaidTime(e.target.value)}
-                      />
-                      <p className="mt-1 text-xs text-slate-400">
-                        Karta orqali pul o'tkazilgan vaqt (bank cheki bilan solishtirish uchun).
-                      </p>
-                    </div>
+                    <>
+                      <div className="mt-3">
+                        <label className="mb-1 block text-sm font-medium text-slate-600">
+                          Karta raqami (oxirgi 4 raqam)
+                        </label>
+                        <div className="flex items-stretch">
+                          <span className="flex select-none items-center rounded-l-lg border border-r-0 border-slate-200 bg-slate-50 px-3 font-mono text-sm tracking-widest text-slate-400">
+                            ••••
+                          </span>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            value={cardLast4}
+                            // Faqat raqam; kassir to'liq raqam kiritsa ham OXIRGI 4 tasi qoladi
+                            // (to'liq karta raqami saqlanmaydi).
+                            onChange={(e) => setCardLast4(e.target.value.replace(/\D/g, '').slice(-4))}
+                            placeholder="1234"
+                            maxLength={4}
+                            className="w-full rounded-r-lg border border-slate-200 bg-white px-3 py-2 font-mono text-sm tracking-widest text-slate-700 outline-none focus:border-brand-400"
+                          />
+                        </div>
+                        <p className="mt-1 text-xs text-slate-400">
+                          Faqat oxirgi 4 raqam saqlanadi. Moliya → To'lovlar jadvalida "Kvitansiya"
+                          ustunida ko'rinadi (ixtiyoriy).
+                        </p>
+                      </div>
+
+                      <div className="mt-3">
+                        <Input
+                          label="To'lov vaqti"
+                          type="time"
+                          value={paidTime}
+                          onChange={(e) => setPaidTime(e.target.value)}
+                        />
+                        <p className="mt-1 text-xs text-slate-400">
+                          Karta orqali pul o'tkazilgan vaqt (bank cheki bilan solishtirish uchun).
+                        </p>
+                      </div>
+                    </>
                   )}
                 </div>
 

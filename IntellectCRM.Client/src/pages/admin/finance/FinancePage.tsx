@@ -74,6 +74,15 @@ const paySortOptions: { value: PaySort; label: string }[] = [
   { value: 'receipt-desc', label: 'Kvitansiya: 9 → 1' },
 ]
 
+/**
+ * "Kvitansiya" ustunida ko'rinadigan raqam: NAQD to'lovda qog'oz kvitansiya raqami ("KV000123"),
+ * KARTA to'lovida esa karta raqamining oxirgi 4 raqami ("•••• 1234"). Ikkalasi ham yo'q bo'lsa null.
+ */
+function receiptCell(p: FinanceTransaction): string | null {
+  if (p.receiptNo) return p.receiptNo
+  return p.cardLast4 ? `•••• ${p.cardLast4}` : null
+}
+
 /** Kvitansiya raqamining SON qismi ("KV000123" → 123). Raqam yo'q bo'lsa null.
  *  Matn sifatida solishtirish noto'g'ri bo'lardi: "KV9" > "KV10" chiqib ketardi. */
 function receiptNum(receiptNo: string | null | undefined): number | null {
@@ -261,9 +270,11 @@ export function FinancePage() {
       if (payTeacher && (!p.groupId || teacherByGroup.get(p.groupId) !== payTeacher)) return false
       // To'lov usuli (naqd/karta/bank) — usuli belgilanmagan eski yozuvlar filtrga tushmaydi.
       if (payMethod !== 'all' && p.method !== payMethod) return false
-      // Kvitansiya raqami bor / yo'q.
-      if (payReceipt === 'with' && !p.receiptNo) return false
-      if (payReceipt === 'without' && p.receiptNo) return false
+      // "Kvitansiya" ustunida raqam bor / yo'q — naqdda kvitansiya, kartada karta oxiri
+      // (ustunda nima ko'rinsa, filtr ham shunga qaraydi).
+      const hasNumber = !!(p.receiptNo || p.cardLast4)
+      if (payReceipt === 'with' && !hasNumber) return false
+      if (payReceipt === 'without' && hasNumber) return false
       if (!q) return true
       // Kvitansiya raqami bo'yicha ham qidiriladi: "kv123" ham, faqat "123" ham topsin.
       const receipt = (p.receiptNo ?? '').toLowerCase()
@@ -272,7 +283,9 @@ export function FinancePage() {
         (p.groupName ?? '').toLowerCase().includes(q) ||
         (p.note ?? '').toLowerCase().includes(q) ||
         receipt.includes(q) ||
-        receipt.replace(/^kv/, '').includes(q)
+        receipt.replace(/^kv/, '').includes(q) ||
+        // Karta to'lovi — oxirgi 4 raqam bo'yicha ham topilsin ("1234").
+        (p.cardLast4 ?? '').includes(q)
       )
     })
   })()
@@ -303,7 +316,8 @@ export function FinancePage() {
         p.groupName ?? '',
         p.month ?? '',
         p.method ? paymentMethodLabel(p.method) : '',
-        p.receiptNo ?? '',
+        // Naqdda kvitansiya raqami, kartada karta oxiri (jadvaldagi ustun bilan bir xil).
+        p.receiptNo ?? (p.cardLast4 ? `**** ${p.cardLast4}` : ''),
         p.paidTime ?? '',
         String(p.amount),
       ]),
@@ -939,7 +953,7 @@ export function FinancePage() {
                             )}
                           </td>
                           <td className="font-mono text-[12.5px] text-slate-600">
-                            {p.receiptNo || <span className="text-slate-300">—</span>}
+                            {receiptCell(p) ?? <span className="text-slate-300">—</span>}
                           </td>
                           <td className="num font-semibold text-emerald-600">
                             +{formatMoney(p.amount)}

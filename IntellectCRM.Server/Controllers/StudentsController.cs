@@ -1351,6 +1351,10 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
         if (!PaymentFields.TryNormalizeTime(req.PaidTime, out var paidTime))
             return BadRequest(new { message = "To'lov vaqti noto'g'ri (HH:mm)" });
 
+        // KARTA raqamining oxirgi 4 raqami — faqat shu qismi saqlanadi (to'liq raqam emas).
+        if (!PaymentFields.TryNormalizeCardLast4(req.CardLast4, out var cardLast4))
+            return BadRequest(new { message = "Karta raqamining oxirgi 4 raqamini kiriting" });
+
         // QOG'OZ KVITANSIYA raqami BIR MARTA ishlatiladi — band bo'lsa 409 va allaqachon kiritilgan
         // to'lov ma'lumoti qaytadi (kassir ekranida kartochka bo'lib chiqadi).
         // "Baribir saqlash" (ForceReceipt) bosilgan bo'lsa — kassir ataylab davom etyapti, o'tkazamiz.
@@ -1421,6 +1425,7 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
             // Naqd to'lovda qog'oz kvitansiya raqami ("KV" + raqam), kartada esa to'lov vaqti ("HH:mm").
             ReceiptNo = receiptNo,
             PaidTime = paidTime,
+            CardLast4 = cardLast4,
             CreatedBy = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value, // mas'ul (chek uchun)
         };
         db.FinanceTransactions.Add(tx);

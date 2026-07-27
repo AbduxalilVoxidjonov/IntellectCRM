@@ -64,7 +64,9 @@ public record PaymentRequest(decimal Amount, string? Month, string? GroupId = nu
     string? Method = null, string? Date = null, string? ReceiptNo = null, string? PaidTime = null,
     /// <summary>Kvitansiya raqami band bo'lsa ham SAQLASH (kassir "Baribir saqlash"ni bosgan) —
     /// haqiqatan takroriy blank ishlatilgan holatlar uchun. Auditda alohida qayd etiladi.</summary>
-    bool ForceReceipt = false);
+    bool ForceReceipt = false,
+    /// <summary>KARTA to'lovida — karta raqamining oxirgi 4 raqami (faqat shu qismi saqlanadi).</summary>
+    string? CardLast4 = null);
 
 /// <summary>
 /// ALLAQACHON kiritilgan kvitansiya raqami haqidagi ma'lumot — bitta qog'oz blank ikki marta
@@ -1039,7 +1041,9 @@ public record FinanceTransactionDto(
     string? RefundOfId = null,
     // Qog'oz kvitansiya raqami (naqd to'lov, "KV...") va karta to'lovining haqiqiy vaqti ("HH:mm").
     string? ReceiptNo = null,
-    string? PaidTime = null);
+    string? PaidTime = null,
+    // Karta raqamining oxirgi 4 raqami (karta to'lovi) — jadvalda "•••• 1234" bo'lib ko'rinadi.
+    string? CardLast4 = null);
 
 /// <summary>O'quvchi to'lovini (income+tuition) qisman/to'liq VOZVRAT qilish — FAQAT superadmin.
 /// Muzlatishdan hosil bo'lgan avans shu orqali qaytariladi (balans 0 ga tushadi), o'qituvchi foizi net'dan.</summary>
@@ -1072,12 +1076,14 @@ public record ReceiptDto(
 public record PaymentEditPayload(
     string Date, decimal Amount, string Month,
     string? GroupId = null, string? Method = null, string? Comment = null,
-    string? ReceiptNo = null, string? PaidTime = null, bool ForceReceipt = false);
+    string? ReceiptNo = null, string? PaidTime = null, bool ForceReceipt = false,
+    string? CardLast4 = null);
 
 public record FinanceTransactionPayload(
     string Date, string Direction, string Category, decimal Amount, string? Note,
     string? StudentId, string? TeacherId, string? Month = null, string? GroupId = null, string? Comment = null,
-    string? Method = null, string? ReceiptNo = null, string? PaidTime = null, bool ForceReceipt = false);
+    string? Method = null, string? ReceiptNo = null, string? PaidTime = null, bool ForceReceipt = false,
+    string? CardLast4 = null);
 public record CategoryAmountDto(string Category, decimal Amount);
 public record FinanceSummaryDto(
     decimal TotalIncome, decimal TotalExpense, decimal Net,

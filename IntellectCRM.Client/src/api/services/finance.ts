@@ -42,6 +42,8 @@ export interface FinanceTransactionPayload {
   receiptNo?: string
   /** To'lov vaqti "HH:mm" (karta orqali to'lov) */
   paidTime?: string
+  /** Karta raqamining oxirgi 4 raqami (karta orqali to'lov) */
+  cardLast4?: string
 }
 
 /**
@@ -63,6 +65,8 @@ export interface PaymentEditPayload {
   receiptNo?: string
   /** To'lov vaqti "HH:mm" (karta orqali to'lov) */
   paidTime?: string
+  /** Karta raqamining oxirgi 4 raqami (karta orqali to'lov) */
+  cardLast4?: string
   /** Kvitansiya raqami boshqa to'lovda band bo'lsa ham saqlash ("Baribir saqlash"). */
   forceReceipt?: boolean
 }

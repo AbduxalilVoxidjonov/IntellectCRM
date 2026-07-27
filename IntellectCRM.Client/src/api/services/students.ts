@@ -356,9 +356,10 @@ export async function addPayment(
   comment?: string,
   method?: string,
   date?: string,
-  /** Naqd to'lovda — qog'oz kvitansiya raqami ("KV..."); kartada — to'lov vaqti "HH:mm".
+  /** Naqd to'lovda — qog'oz kvitansiya raqami ("KV..."); kartada — to'lov vaqti "HH:mm" va
+   *  karta raqamining oxirgi 4 raqami.
    *  `forceReceipt` — kvitansiya raqami band bo'lsa ham saqlash ("Baribir saqlash"). */
-  extra?: { receiptNo?: string; paidTime?: string; forceReceipt?: boolean },
+  extra?: { receiptNo?: string; paidTime?: string; cardLast4?: string; forceReceipt?: boolean },
 ): Promise<string | null> {
   if (USE_MOCK) {
     await delay(250)
@@ -373,6 +374,7 @@ export async function addPayment(
     date,
     receiptNo: extra?.receiptNo,
     paidTime: extra?.paidTime,
+    cardLast4: extra?.cardLast4,
     forceReceipt: extra?.forceReceipt ?? false,
   })
   return data?.id ?? null

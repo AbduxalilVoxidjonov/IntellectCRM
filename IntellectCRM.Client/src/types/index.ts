@@ -794,6 +794,9 @@ export interface FinanceTransaction {
   receiptNo?: string | null
   /** To'lov haqiqatan qilingan VAQT "HH:mm" (karta orqali to'lovda kiritiladi) */
   paidTime?: string | null
+  /** KARTA raqamining oxirgi 4 raqami (karta to'lovida kiritiladi) — jadvalda "•••• 1234".
+   *  Faqat oxirgi 4 raqam saqlanadi (to'liq karta raqami hech qachon saqlanmaydi). */
+  cardLast4?: string | null
 }
 
 /** Vozvrat (pul qaytarish) yozuvi — "Vozvratlar tarixi" uchun, asl to'lov ma'lumoti bilan. */

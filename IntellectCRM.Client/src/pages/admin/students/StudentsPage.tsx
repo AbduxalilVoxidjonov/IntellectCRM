@@ -423,7 +423,7 @@ export function StudentsPage() {
     comment?: string,
     method?: string,
     date?: string,
-    extra?: { receiptNo?: string; paidTime?: string; forceReceipt?: boolean },
+    extra?: { receiptNo?: string; paidTime?: string; cardLast4?: string; forceReceipt?: boolean },
   ) => {
     if (!paying) return
     const id = paying.id

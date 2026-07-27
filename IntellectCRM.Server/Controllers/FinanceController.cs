@@ -38,7 +38,7 @@ public class FinanceController(AppDbContext db, AuditService audit, AutoMessageS
             t.CreatedAt == default ? null : AppClock.ToLocal(t.CreatedAt).ToString("yyyy-MM-ddTHH:mm:ss"),
             refunded is not null && refunded.TryGetValue(t.Id, out var rf) ? rf : 0m,
             t.RefundOfId,
-            t.ReceiptNo, t.PaidTime);
+            t.ReceiptNo, t.PaidTime, t.CardLast4);
 
     [HttpGet("transactions")]
     public async Task<ActionResult<IEnumerable<FinanceTransactionDto>>> GetTransactions(
@@ -110,6 +110,8 @@ public class FinanceController(AppDbContext db, AuditService audit, AutoMessageS
             return BadRequest(new { message = "Summa musbat bo'lishi kerak" });
         if (!PaymentFields.TryNormalizeTime(p.PaidTime, out var newPaidTime))
             return BadRequest(new { message = "To'lov vaqti noto'g'ri (HH:mm)" });
+        if (!PaymentFields.TryNormalizeCardLast4(p.CardLast4, out var newCardLast4))
+            return BadRequest(new { message = "Karta raqamining oxirgi 4 raqamini kiriting" });
 
         // QOG'OZ KVITANSIYA raqami BIR MARTA ishlatiladi (StudentsController.AddPayment bilan bir xil qoida).
         var newReceiptNo = PaymentFields.NormalizeReceiptNo(p.ReceiptNo);
@@ -158,6 +160,7 @@ public class FinanceController(AppDbContext db, AuditService audit, AutoMessageS
             // Qog'oz kvitansiya raqami (naqd) + karta to'lovining haqiqiy vaqti.
             ReceiptNo = newReceiptNo,
             PaidTime = newPaidTime,
+            CardLast4 = newCardLast4,
             CreatedBy = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value, // mas'ul (chek uchun)
         };
         db.FinanceTransactions.Add(tx);
@@ -257,6 +260,8 @@ public class FinanceController(AppDbContext db, AuditService audit, AutoMessageS
         if (p.ReceiptNo is not null) tx.ReceiptNo = PaymentFields.NormalizeReceiptNo(p.ReceiptNo);
         if (p.PaidTime is not null && PaymentFields.TryNormalizeTime(p.PaidTime, out var upPaidTime))
             tx.PaidTime = upPaidTime;
+        if (p.CardLast4 is not null && PaymentFields.TryNormalizeCardLast4(p.CardLast4, out var upCardLast4))
+            tx.CardLast4 = upCardLast4;
 
         // Balansni moslaymiz: o'quvchi o'zgarmasa — delta; o'zgarsa — eskidan qaytarib, yangisiga qo'llaymiz.
         var newEffect = StudentBalanceEffect(tx);
@@ -435,6 +440,9 @@ public class FinanceController(AppDbContext db, AuditService audit, AutoMessageS
         if (!PaymentFields.TryNormalizeTime(p.PaidTime, out var editPaidTime))
             return BadRequest(new { message = "To'lov vaqti noto'g'ri (HH:mm)" });
         if (tx.PaidTime != editPaidTime) changes.Add($"to'lov vaqti {tx.PaidTime ?? "—"} → {editPaidTime ?? "—"}");
+        if (!PaymentFields.TryNormalizeCardLast4(p.CardLast4, out var editCardLast4))
+            return BadRequest(new { message = "Karta raqamining oxirgi 4 raqamini kiriting" });
+        if (tx.CardLast4 != editCardLast4) changes.Add($"karta raqami {tx.CardLast4 ?? "—"} → {editCardLast4 ?? "—"}");
 
         // 1) BALANS — faqat summa farqi (o'quvchi va toifa o'zgarmaydi).
         student.Balance += p.Amount - tx.Amount;
@@ -453,6 +461,7 @@ public class FinanceController(AppDbContext db, AuditService audit, AutoMessageS
         tx.Comment = comment;
         tx.ReceiptNo = receiptNo;
         tx.PaidTime = editPaidTime;
+        tx.CardLast4 = editCardLast4;
         if (wasAutoNote)
             tx.Note = $"O'quvchi to'lovi ({month})"
                 + (groupId is null ? "" : $" [{GName(groupId)}]")

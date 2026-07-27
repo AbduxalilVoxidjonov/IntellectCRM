@@ -52,6 +52,17 @@ paths:
   DIQQAT: chekdagi `ReceiptNo` (tranzaksiya Id'sidan hosil bo'ladigan ichki raqam) va qog'oz
   kvitansiya raqami (`KvNo`) — BOSHQA-BOSHQA maydonlar.
 
+- **KARTA RAQAMINING OXIRGI 4 RAQAMI** (migratsiya `AddPaymentCardLast4`): `FinanceTransaction.CardLast4`
+  — KARTA to'lovida kassir kiritadi (bank ko'chirmasi bilan solishtirish uchun), to'lov vaqtidan
+  OLDIN so'raladi. Normalizatsiya `PaymentFields.TryNormalizeCardLast4`: faqat raqamlar qoldiriladi
+  va OXIRGI 4 tasi olinadi — **to'liq karta raqami hech qachon saqlanmaydi** (kassir butun raqamni
+  yopishtirsa ham). Raqamlari 4 tadan kam bo'lsa 400. UI'da ham `slice(-4)` bilan cheklangan.
+  KO'RINISHI: Moliya → To'lovlar jadvalidagi **"Kvitansiya" ustuni** ikki maqsadli — naqdda
+  kvitansiya raqami ("KV000123"), kartada `•••• 1234` (`receiptCell()`). Shunga mos ravishda
+  "Kvitansiya raqami: bor / yo'q" filtri ikkalasini ham hisobga oladi, qidiruv karta oxirgi 4
+  raqami bo'yicha ham topadi, CSV'da `**** 1234` chiqadi. SARALASH esa faqat kvitansiya raqami
+  bo'yicha (karta oxiri tasodifiy son — saralash ma'nosiz), kartalar ro'yxat oxirida qoladi.
+
 - **KVITANSIYA RAQAMI BIR MARTA ISHLATILADI** (`ReceiptGuard.FindDuplicateAsync`): bitta qog'oz
   blank bo'yicha ikki marta to'lov yozilmasin. BARCHA yozish yo'llari tekshiradi —
   `StudentsController.AddPayment`, `FinanceController.Create/Update/UpdatePayment` (tahrirda
