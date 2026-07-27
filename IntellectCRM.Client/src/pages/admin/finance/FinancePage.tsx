@@ -54,6 +54,10 @@ const yearOf = (d: string) => Number(d.slice(0, 4))
 const control =
   'rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-mono text-slate-700 outline-none focus:border-brand-400'
 
+/** To'lovlar bo'limidagi filtr tanlovlari (to'lov turi / kvitansiya / o'qituvchi) — bir xil ko'rinish. */
+const filterSelect =
+  'rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-brand-400'
+
 type DirFilter = 'all' | FinanceDirection
 /** To'lov usuli filtri — "Amallar" jadvalida kirimlarni naqt/karta/bank bo'yicha ajratish. */
 type MethodFilter = 'all' | 'cash' | 'card' | 'bank'
@@ -780,42 +784,33 @@ export function FinancePage() {
                 }
                 actions={
                   <div className="flex flex-wrap items-center gap-2">
-                    {/* To'lov usuli — naqd/karta/bank kesimida ko'rish (har chipda shu usul jami summasi). */}
-                    <div className="toolbar !mb-0">
-                      {(['all', 'cash', 'card', 'bank'] as MethodFilter[]).map((m) => (
-                        <button
-                          key={m}
-                          onClick={() => setPayMethod(m)}
-                          className={cn('filter-chip', payMethod === m && 'active')}
-                        >
-                          {m === 'all'
-                            ? 'Usul: barchasi'
-                            : `${paymentMethodLabel(m)} · ${formatMoney(paymentsByMethod[m])}`}
-                        </button>
+                    {/* To'lov turi — naqd/karta/bank kesimi (yonida shu usul bo'yicha jami summa). */}
+                    <select
+                      value={payMethod}
+                      onChange={(e) => setPayMethod(e.target.value as MethodFilter)}
+                      className={filterSelect}
+                    >
+                      <option value="all">To'lov turi: barchasi</option>
+                      {(['cash', 'card', 'bank'] as const).map((m) => (
+                        <option key={m} value={m}>
+                          {paymentMethodLabel(m)} · {formatMoney(paymentsByMethod[m])}
+                        </option>
                       ))}
-                    </div>
+                    </select>
                     {/* Kvitansiya raqami kiritilgan / kiritilmagan to'lovlar. */}
-                    <div className="toolbar !mb-0">
-                      {(
-                        [
-                          { v: 'all', label: 'Kvitansiya: barchasi' },
-                          { v: 'with', label: 'Raqami bor' },
-                          { v: 'without', label: "Raqami yo'q" },
-                        ] as { v: ReceiptFilter; label: string }[]
-                      ).map((r) => (
-                        <button
-                          key={r.v}
-                          onClick={() => setPayReceipt(r.v)}
-                          className={cn('filter-chip', payReceipt === r.v && 'active')}
-                        >
-                          {r.label}
-                        </button>
-                      ))}
-                    </div>
+                    <select
+                      value={payReceipt}
+                      onChange={(e) => setPayReceipt(e.target.value as ReceiptFilter)}
+                      className={filterSelect}
+                    >
+                      <option value="all">Kvitansiya raqami: barchasi</option>
+                      <option value="with">Kvitansiya raqami: bor</option>
+                      <option value="without">Kvitansiya raqami: yo'q</option>
+                    </select>
                     <select
                       value={payTeacher}
                       onChange={(e) => setPayTeacher(e.target.value)}
-                      className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-brand-400"
+                      className={filterSelect}
                     >
                       <option value="">Barcha o'qituvchilar</option>
                       {teacherOptions(courseReport).map((t) => (
