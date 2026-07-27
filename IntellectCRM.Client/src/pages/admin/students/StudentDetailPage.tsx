@@ -29,6 +29,7 @@ import {
   addPayment,
   getStudentNotes,
   addStudentNote,
+  updateStudentNote,
   deleteStudentNote,
   type StudentNote,
   type StudentCompletedCourse,
@@ -2220,6 +2221,10 @@ function NotesSection({ studentId }: { studentId: string }) {
   const [loading, setLoading] = useState(true)
   const [text, setText] = useState('')
   const [saving, setSaving] = useState(false)
+  /** Hozir tahrirlanayotgan izoh id'si (null = tahrir rejimi yopiq) + tahrir matni. */
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editText, setEditText] = useState('')
+  const [editSaving, setEditSaving] = useState(false)
 
   useEffect(() => {
     let alive = true
@@ -2253,6 +2258,35 @@ function NotesSection({ studentId }: { studentId: string }) {
       .catch((e) => alert(apiErrorMessage(e, "Izohni o'chirib bo'lmadi")))
   }
 
+  /** Tahrirlashni boshlash — izoh o'rnida matn maydoni ochiladi. */
+  const startEdit = (note: StudentNote) => {
+    setEditingId(note.id)
+    setEditText(note.text)
+  }
+
+  const cancelEdit = () => {
+    setEditingId(null)
+    setEditText('')
+  }
+
+  /** Tahrirni saqlash — muallif va yozilgan vaqt o'zgarmaydi, "tahrirlangan" belgisi qo'shiladi. */
+  const handleEditSave = (note: StudentNote) => {
+    const value = editText.trim()
+    if (!value || editSaving) return
+    if (value === note.text) {
+      cancelEdit()
+      return
+    }
+    setEditSaving(true)
+    updateStudentNote(note.id, value)
+      .then((updated) => {
+        setNotes((prev) => prev.map((n) => (n.id === updated.id ? { ...n, ...updated } : n)))
+        cancelEdit()
+      })
+      .catch((e) => alert(apiErrorMessage(e, "Izohni tahrirlab bo'lmadi")))
+      .finally(() => setEditSaving(false))
+  }
+
   return (
     <Section title="Izohlar" icon={StickyNote}>
       <div className="mb-5">
@@ -2284,26 +2318,79 @@ function NotesSection({ studentId }: { studentId: string }) {
         <Empty>Bu o'quvchi haqida hali izoh yozilmagan.</Empty>
       ) : (
         <div className="divide-y divide-slate-100">
-          {notes.map((n) => (
-            <div key={n.id} className="group flex items-start gap-3 py-3">
-              <div className="min-w-0 flex-1">
-                <p className="whitespace-pre-wrap break-words text-sm text-slate-700">{n.text}</p>
-                <p className="mt-1 text-xs text-slate-400">
-                  {n.authorName || 'Admin'} · {formatDateTime(n.createdAt)}
-                </p>
+          {notes.map((n) => {
+            // Tahrirlash huquqi o'chirish bilan bir xil (muallifi yoki superadmin); eski javoblarda
+            // canEdit bo'lmasligi mumkin — o'shanda canDelete'ga tayanamiz.
+            const canEdit = n.canEdit ?? n.canDelete
+            const editing = editingId === n.id
+            return (
+              <div key={n.id} className="group flex items-start gap-3 py-3">
+                <div className="min-w-0 flex-1">
+                  {editing ? (
+                    <>
+                      <textarea
+                        value={editText}
+                        onChange={(e) => setEditText(e.target.value)}
+                        // Ctrl/Cmd+Enter — saqlash, Esc — bekor qilish.
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                            e.preventDefault()
+                            handleEditSave(n)
+                          } else if (e.key === 'Escape') {
+                            e.preventDefault()
+                            cancelEdit()
+                          }
+                        }}
+                        rows={3}
+                        autoFocus
+                        className="w-full resize-y rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-brand-400"
+                      />
+                      <div className="mt-2 flex items-center gap-2">
+                        <Button
+                          onClick={() => handleEditSave(n)}
+                          disabled={!editText.trim() || editSaving}
+                        >
+                          {editSaving ? 'Saqlanmoqda...' : 'Saqlash'}
+                        </Button>
+                        <Button variant="secondary" onClick={cancelEdit} disabled={editSaving}>
+                          Bekor qilish
+                        </Button>
+                        <span className="text-xs text-slate-400">Ctrl + Enter · Esc</span>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <p className="whitespace-pre-wrap break-words text-sm text-slate-700">{n.text}</p>
+                      <p className="mt-1 text-xs text-slate-400">
+                        {n.authorName || 'Admin'} · {formatDateTime(n.createdAt)}
+                        {n.editedAt ? ` · tahrirlangan ${formatDateTime(n.editedAt)}` : ''}
+                      </p>
+                    </>
+                  )}
+                </div>
+                {!editing && canEdit && (
+                  <button
+                    type="button"
+                    title="Izohni tahrirlash"
+                    onClick={() => startEdit(n)}
+                    className="rounded-lg p-1.5 text-slate-300 transition-colors hover:bg-brand-50 hover:text-brand-600"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                )}
+                {!editing && n.canDelete && (
+                  <button
+                    type="button"
+                    title="Izohni o'chirish"
+                    onClick={() => handleDelete(n)}
+                    className="rounded-lg p-1.5 text-slate-300 transition-colors hover:bg-red-50 hover:text-red-600"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                )}
               </div>
-              {n.canDelete && (
-                <button
-                  type="button"
-                  title="Izohni o'chirish"
-                  onClick={() => handleDelete(n)}
-                  className="rounded-lg p-1.5 text-slate-300 transition-colors hover:bg-red-50 hover:text-red-600"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              )}
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </Section>

@@ -309,10 +309,13 @@ public class StudentNote
     public string Text { get; set; } = string.Empty;
     /// <summary>Yozgan xodim F.I.Sh (faqat ko'rsatish uchun — xodim o'chsa ham izoh muallifi qoladi).</summary>
     public string AuthorName { get; set; } = string.Empty;
-    /// <summary>Yozgan xodim (AppUser.Id) — "faqat o'zi o'chira oladi" qoidasi uchun.</summary>
+    /// <summary>Yozgan xodim (AppUser.Id) — "faqat o'zi o'chira/tahrirlay oladi" qoidasi uchun.</summary>
     public string AuthorId { get; set; } = string.Empty;
     /// <summary>Yozilgan vaqt (ISO "yyyy-MM-ddTHH:mm:ss").</summary>
     public string CreatedAt { get; set; } = string.Empty;
+    /// <summary>Oxirgi TAHRIRLANGAN vaqt (ISO). null = tahrirlanmagan. Izoh tarix bo'lgani uchun
+    /// tahrirlangani ro'yxatda "(tahrirlangan)" deb ko'rinadi.</summary>
+    public string? EditedAt { get; set; }
 }
 
 /// <summary>O'qituvchi.</summary>

@@ -719,7 +719,7 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
 
     // ---------- IZOHLAR (o'quvchi profilidagi erkin eslatmalar) ----------
 
-    /// <summary>O'quvchining izohlari — yangisi tepada. CanDelete: o'z izohi yoki superadmin.</summary>
+    /// <summary>O'quvchining izohlari — yangisi tepada. CanDelete/CanEdit: o'z izohi yoki superadmin.</summary>
     [HttpGet("{id}/notes")]
     public async Task<ActionResult<IEnumerable<StudentNoteDto>>> Notes(string id)
     {
@@ -730,7 +730,9 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
             .OrderByDescending(n => n.CreatedAt)
             .Select(n => new StudentNoteDto(
                 n.Id, n.Text, n.AuthorName, n.CreatedAt,
-                isSuper || (n.AuthorId != "" && n.AuthorId == uid)))
+                isSuper || (n.AuthorId != "" && n.AuthorId == uid),
+                isSuper || (n.AuthorId != "" && n.AuthorId == uid),
+                n.EditedAt))
             .ToListAsync();
     }
 
@@ -753,7 +755,32 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
         };
         db.StudentNotes.Add(note);
         await db.SaveChangesAsync();
-        return new StudentNoteDto(note.Id, note.Text, note.AuthorName, note.CreatedAt, true);
+        return new StudentNoteDto(note.Id, note.Text, note.AuthorName, note.CreatedAt, true, true, null);
+    }
+
+    /// <summary>Izoh MATNINI tahrirlash — faqat muallifi yoki superadmin (o'chirish bilan bir xil qoida).
+    /// Muallif va yozilgan vaqt O'ZGARMAYDI; <c>EditedAt</c> yoziladi va ro'yxatda "(tahrirlangan)"
+    /// bo'lib ko'rinadi (izoh — tarix, jimgina qayta yozilmasin).</summary>
+    [HttpPut("notes/{noteId}")]
+    public async Task<ActionResult<StudentNoteDto>> EditNote(string noteId, EditStudentNoteRequest req)
+    {
+        var text = (req.Text ?? "").Trim();
+        if (text.Length == 0) return BadRequest(new { message = "Izoh bo'sh bo'lmasin" });
+
+        var note = await db.StudentNotes.FindAsync(noteId);
+        if (note is null) return NotFound();
+        var uid = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "";
+        if (!User.IsInRole(Roles.SuperAdmin) && (note.AuthorId.Length == 0 || note.AuthorId != uid))
+            return Forbid();
+
+        // Matn o'zgarmagan bo'lsa "(tahrirlangan)" belgisini qo'ymaymiz (bekorga tegmasin).
+        if (note.Text != text)
+        {
+            note.Text = text;
+            note.EditedAt = AppClock.Now.ToString("yyyy-MM-ddTHH:mm:ss");
+            await db.SaveChangesAsync();
+        }
+        return new StudentNoteDto(note.Id, note.Text, note.AuthorName, note.CreatedAt, true, true, note.EditedAt);
     }
 
     /// <summary>Izohni o'chirish — faqat muallifi yoki superadmin (tarix o'zgarmasligi uchun).</summary>

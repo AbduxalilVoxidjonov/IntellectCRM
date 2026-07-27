@@ -499,12 +499,16 @@ public record LeadUpdateRequest(
     string? DistrictId = null, string? SchoolId = null);
 public record LeadStageRequest(string Stage);
 
-/// <summary>O'quvchi profilidagi izoh (tarix). CanDelete — joriy foydalanuvchi o'chira oladimi
-/// (o'z izohi yoki superadmin) — frontend "×" tugmasini shunga qarab ko'rsatadi.</summary>
+/// <summary>O'quvchi profilidagi izoh (tarix). CanDelete/CanEdit — joriy foydalanuvchi o'chira/tahrirlay
+/// oladimi (o'z izohi yoki superadmin) — frontend tugmalarni shunga qarab ko'rsatadi.
+/// EditedAt — tahrirlangan bo'lsa oxirgi tahrir vaqti (ISO), aks holda null.</summary>
 public record StudentNoteDto(
-    string Id, string Text, string AuthorName, string CreatedAt, bool CanDelete);
+    string Id, string Text, string AuthorName, string CreatedAt, bool CanDelete,
+    bool CanEdit = false, string? EditedAt = null);
 /// <summary>O'quvchiga izoh qo'shish.</summary>
 public record AddStudentNoteRequest(string Text);
+/// <summary>Izoh matnini tahrirlash (faqat muallifi yoki superadmin).</summary>
+public record EditStudentNoteRequest(string Text);
 
 /// <summary>Lid hodisasi (tarix).</summary>
 public record LeadEventDto(string Id, string Type, string Text, string ActorName, string CreatedAt);

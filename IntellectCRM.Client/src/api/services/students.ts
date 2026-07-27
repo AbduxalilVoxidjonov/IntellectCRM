@@ -653,6 +653,10 @@ export interface StudentNote {
   createdAt: string
   /** Joriy foydalanuvchi o'chira oladimi (o'z izohi yoki superadmin) */
   canDelete: boolean
+  /** Joriy foydalanuvchi tahrirlay oladimi (o'chirish bilan bir xil qoida) */
+  canEdit?: boolean
+  /** Tahrirlangan bo'lsa — oxirgi tahrir vaqti (ISO); tahrirlanmagan bo'lsa null. */
+  editedAt?: string | null
 }
 
 /** O'quvchining izohlari — yangisi tepada. */
@@ -668,6 +672,15 @@ export async function getStudentNotes(studentId: string): Promise<StudentNote[]>
 /** Yangi izoh qo'shish — javobda yaratilgan izoh qaytadi (ro'yxat boshiga qo'shish uchun). */
 export async function addStudentNote(studentId: string, text: string): Promise<StudentNote> {
   const { data } = await api.post<StudentNote>(`/admin/students/${studentId}/notes`, { text })
+  return data
+}
+
+/**
+ * Izoh matnini tahrirlash — faqat muallifi yoki superadmin (server ham tekshiradi).
+ * Muallif va yozilgan vaqt o'zgarmaydi, javobda `editedAt` to'ladi ("tahrirlangan" belgisi).
+ */
+export async function updateStudentNote(noteId: string, text: string): Promise<StudentNote> {
+  const { data } = await api.put<StudentNote>(`/admin/students/notes/${noteId}`, { text })
   return data
 }
 

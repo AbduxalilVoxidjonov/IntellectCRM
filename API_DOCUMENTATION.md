@@ -177,6 +177,10 @@ Admin controllerlar `[AdminPerm("<kalit>")]` bilan himoyalangan:
 | GET | /api/admin/students/{id}/ledger | To'lov tarixi (oylar bo'yicha). |
 | PUT | /api/admin/students/{id}/charges/{month} | Oy hisoblangan summasini qo'lda (superadmin; `groupId`). |
 | GET | /api/admin/students/{id}/calls | Local Call (CTI) qo'ng'iroqlari (max 100). |
+| GET | /api/admin/students/{id}/notes | Profil izohlari (yangisi tepada; canEdit/canDelete bilan). |
+| POST | /api/admin/students/{id}/notes | Yangi izoh (muallif + vaqt bilan). |
+| PUT | /api/admin/students/notes/{noteId} | Izoh matnini tahrirlaydi (muallifi/superadmin; `editedAt`). |
+| DELETE | /api/admin/students/notes/{noteId} | Izohni o'chiradi (muallifi yoki superadmin). |
 
 ### TeachersController
 `api/admin/teachers` · Ruxsat: `[Authorize]` + `[AdminPerm("teachers")]` (eksport — superadmin). O'qituvchilar CRUD, arxiv, akkaunt, maosh, samaradorlik.
