@@ -2180,3 +2180,25 @@ public record TeacherPerformanceDto(
     /// <summary>O'qituvchi biriktirilgan guruhlar soni (arxivlanmagan).</summary>
     int GroupCount
 );
+
+/* ---------- Kassa (to'lov qabul qilish oynasi) ---------- */
+
+/// <summary>
+/// Kassa qidiruvida chiqadigan bitta o'quvchi qatori — F.I.Sh bo'yicha topilgan o'quvchini kassir
+/// ADASHMASDAN tanishi uchun kerakli minimum: telefonlar, guruhlari va joriy balansi (manfiy = qarz).
+/// To'liq profil YUBORILMAYDI (kassirga kerak emas) — to'lov oynasi ochilganda alohida olinadi.
+/// </summary>
+public record KassaStudentDto(
+    string Id,
+    string FullName,
+    /// <summary>O'quvchining o'z telefoni (bo'sh bo'lishi mumkin).</summary>
+    string Phone,
+    /// <summary>Ota-ona telefoni (kassada ko'pincha shu bo'yicha topiladi).</summary>
+    string ParentPhone,
+    /// <summary>Faol a'zoliklaridagi guruh nomlari (sinov ham kiradi — kassir kontekstni ko'rsin).</summary>
+    List<string> Groups,
+    /// <summary>UMUMIY balans (so'm): manfiy = qarzdor, musbat = avans.</summary>
+    decimal Balance,
+    /// <summary>Arxivlangan o'quvchi (to'lov qabul qilinaveradi, lekin ro'yxatda belgilanadi).</summary>
+    bool IsArchived
+);

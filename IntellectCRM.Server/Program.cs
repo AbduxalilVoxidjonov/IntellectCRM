@@ -490,7 +490,9 @@ using (var scope = app.Services.CreateScope())
                 new[] { "calls", "leads", "messages" }),
             ("cashier", "Kassir",
                 "To'lovlarni kiritadi va boshqaradi, o'quvchi ma'lumotlarini ko'radi",
-                new[] { "students", "finance", "messages" }),
+                // "kassa" — pul qabul qilish ish o'rni (o'quvchini topib to'lov kiritish). Faqat
+                // shu ruxsat berilsa ham kassir ishlay oladi (o'quvchi tahriri/moliya hisobotisiz).
+                new[] { "kassa", "students", "finance", "messages" }),
             ("administrator", "Administrator",
                 "Asosiy boshqaruv — guruhlar, o'quvchilar, o'qituvchilar, o'quv bo'limi",
                 new[] { "leads", "students", "teachers", "classes", "schedule", "messages", "app" }),

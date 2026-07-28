@@ -64,6 +64,7 @@ import { CamerasPage } from '@/pages/admin/cameras/CamerasPage'
 import { ParentsPage } from '@/pages/admin/parents/ParentsPage'
 import { TeacherAppPage } from '@/pages/admin/parents/TeacherAppPage'
 import { FinancePage } from '@/pages/admin/finance/FinancePage'
+import { KassaPage } from '@/pages/admin/kassa/KassaPage'
 import { SettingsPage } from '@/pages/admin/settings/SettingsPage'
 import { AccountPage } from '@/pages/admin/account/AccountPage'
 // Marketing — ijtimoiy tarmoq avtojavob (Javobot UI; hozircha faqat UI, mock)
@@ -217,6 +218,7 @@ export default function App() {
           <Route path="locations" element={<RequirePerm perm="app"><LocationPage /></RequirePerm>} />
           <Route path="parents" element={<RequirePerm perm="app"><ParentsPage /></RequirePerm>} />
           <Route path="app/teachers" element={<RequirePerm perm="app"><TeacherAppPage /></RequirePerm>} />
+          <Route path="kassa" element={<RequirePerm perm="kassa"><KassaPage /></RequirePerm>} />
           <Route path="finance" element={<RequirePerm perm="finance"><FinancePage /></RequirePerm>} />
           <Route path="settings" element={<Navigate to="/admin/settings/school" replace />} />
           <Route path="settings/:section" element={<RequirePerm perm="settings"><SettingsPage /></RequirePerm>} />

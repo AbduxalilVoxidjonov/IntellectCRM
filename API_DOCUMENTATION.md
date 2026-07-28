@@ -38,7 +38,7 @@ Admin controllerlar `[AdminPerm("<kalit>")]` bilan himoyalangan:
 - **boshqa rollar** (teacher/student) — taqiqlanadi.
 
 **Ruxsat kalitlari:** `app`, `settings`, `messages`, `students`, `teachers`, `teacherReports`,
-`classes`, `calls`, `contracts`, `discipline`, `staff`, `schedule`, `leads`, `finance`, `cameras`, `feedback`.
+`classes`, `calls`, `contracts`, `discipline`, `staff`, `schedule`, `leads`, `kassa`, `finance`, `cameras`, `feedback`.
 
 ### 1.4. Ochiq (autentifikatsiyasiz) endpointlar
 `[AllowAnonymous]`: `POST /api/auth/login`, ommaviy test/brending (`/api/public/*`), landing lid
@@ -522,6 +522,18 @@ Bazaviy route yo'q · Ruxsat: har action o'zi (student portal / admin / public).
 | GET | /api/admin/finance/group-payments/{groupId} | Guruh ichida to'lov holati. |
 | POST | /api/admin/finance/accrue | Oylik to'lovni hisoblaydi (month bo'sh = barcha). |
 | GET | /api/admin/finance/monthly | Bir yil oylik kirim/chiqim (12 oy). |
+
+### KassaController
+`api/admin/kassa` · Ruxsat: `[Authorize]` + `[AdminPerm("kassa")]`. Kassa — pul qabul qilish ish o'rni:
+kassir o'quvchini topib to'lov kiritadi. To'lov mantiqi `StudentsController.AddPayment` bilan BIR XIL
+(`PaymentIntake` xizmati) — farqi faqat ruxsatda: kassirga o'quvchilarni tahrirlash huquqi kerak emas.
+Ro'yxatlar (o'qituvchi/guruh/a'zolar/o'quvchi profili/oylik hisob) uchun alohida endpoint yo'q —
+staff'ga GET har doim ochiq bo'lgani uchun mavjud endpointlar ishlatiladi.
+
+| Metod | Yo'l | Vazifasi |
+|---|---|---|
+| GET | /api/admin/kassa/students?q= | O'quvchini F.I.Sh yoki telefon bo'yicha qidiradi (min 2 belgi, max 30 ta). |
+| POST | /api/admin/kassa/students/{id}/payments | To'lov kiritadi (kvitansiya nazorati, idempotent 6s, avans hisobi, audit, avto-xabar). 409 = kvitansiya band. |
 
 ### ContractsController
 `api/admin/contracts` · Ruxsat: `[Authorize]` + `[AdminPerm("contracts")]`. Shartnomalar — andozalar, `@`-tokenli .docx yuklab olish/Telegram.

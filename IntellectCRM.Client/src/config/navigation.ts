@@ -8,6 +8,7 @@ import {
   NotebookText,
   ClipboardList,
   Wallet,
+  Banknote,
   MessageSquare,
   ClipboardCheck,
   Settings,
@@ -142,6 +143,7 @@ export const navByRole: Record<Role, NavItem[]> = {
         { label: 'Local Call', to: '/admin/calls/local' },
       ],
     },
+    { label: 'Kassa', to: '/admin/kassa', icon: Banknote, perm: 'kassa' },
     { label: 'Moliya', to: '/admin/finance', icon: Wallet, perm: 'finance' },
     {
       label: 'Marketing',

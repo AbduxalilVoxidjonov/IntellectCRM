@@ -77,6 +77,9 @@ export const adminPermissions: { key: string; label: string }[] = [
   { key: 'app', label: 'Ilova' },
   { key: 'teacherReports', label: "O'qituvchilar hisoboti" },
   { key: 'contracts', label: 'Shartnomalar' },
+  // Kassa — FAQAT pul qabul qilish ish o'rni (o'quvchini topib to'lov kiritish). Moliyadan farqi:
+  // hisobotlar, maosh, chiqimlar KO'RINMAYDI — kassirga shu bittasini berish kifoya.
+  { key: 'kassa', label: 'Kassa' },
   { key: 'finance', label: 'Moliya' },
   { key: 'settings', label: 'Sozlamalar' },
   { key: 'staff', label: 'Xodimlar' },

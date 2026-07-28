@@ -1323,142 +1323,17 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
     }
 
     /// <summary>O'quvchiga to'lov kiritish — balansga qo'shiladi va moliyaga kirim sifatida yoziladi.
-    /// <paramref name="req"/> ichida Month ("YYYY-MM") berilsa, to'lov shu oy uchun hisoblanadi.</summary>
+    /// <paramref name="req"/> ichida Month ("YYYY-MM") berilsa, to'lov shu oy uchun hisoblanadi.
+    /// Mantiqning O'ZI <see cref="PaymentIntake"/> da — Kassa bo'limi ham aynan shu yo'ldan yozadi.</summary>
     [HttpPost("{id}/payments")]
     public async Task<IActionResult> AddPayment(string id, PaymentRequest req)
     {
         var student = await db.Students.FindAsync(id);
         if (student is null) return NotFound();
 
-        if (req.Amount <= 0)
-            return BadRequest(new { message = "To'lov summasi musbat bo'lishi kerak" });
-
-        // To'lov sanasi — kiritilmasa bugungi, kiritilsa (masalan kechroq tizimga yozilgan
-        // to'lov uchun) o'sha eski sana ishlatiladi. Kelajakdagi sanaga ruxsat berilmaydi.
-        var paidDate = (req.Date ?? "").Trim();
-        if (paidDate.Length == 0) paidDate = AppClock.Today.ToString("yyyy-MM-dd");
-        else if (!DateOnly.TryParse(paidDate, out var parsedDate))
-            return BadRequest(new { message = "To'lov sanasi noto'g'ri" });
-        else if (parsedDate > AppClock.Today)
-            return BadRequest(new { message = "To'lov sanasi kelajakda bo'lishi mumkin emas" });
-
-        // OY MAJBURIY — to'lov har doim aniq oyga bog'lanadi (per-guruh billing).
-        var month = (req.Month ?? "").Trim();
-        if (month.Length < 7)
-            return BadRequest(new { message = "To'lov qaysi oy uchun ekanini tanlang" });
-
-        // KARTA to'lovining haqiqiy vaqti ("HH:mm") — kiritilgan bo'lsa formati tekshiriladi.
-        if (!PaymentFields.TryNormalizeTime(req.PaidTime, out var paidTime))
-            return BadRequest(new { message = "To'lov vaqti noto'g'ri (HH:mm)" });
-
-        // KARTA raqamining oxirgi 4 raqami — faqat shu qismi saqlanadi (to'liq raqam emas).
-        if (!PaymentFields.TryNormalizeCardLast4(req.CardLast4, out var cardLast4))
-            return BadRequest(new { message = "Karta raqamining oxirgi 4 raqamini kiriting" });
-
-        // QOG'OZ KVITANSIYA raqami BIR MARTA ishlatiladi — band bo'lsa 409 va allaqachon kiritilgan
-        // to'lov ma'lumoti qaytadi (kassir ekranida kartochka bo'lib chiqadi).
-        // "Baribir saqlash" (ForceReceipt) bosilgan bo'lsa — kassir ataylab davom etyapti, o'tkazamiz.
-        var receiptNo = PaymentFields.NormalizeReceiptNo(req.ReceiptNo);
-        var dupReceipt = req.ForceReceipt ? null : await ReceiptGuard.FindDuplicateAsync(db, receiptNo);
-        if (dupReceipt is not null)
-            return Conflict(new { message = $"{receiptNo} kvitansiya raqami allaqachon kiritilgan", duplicate = dupReceipt });
-
-        // O'quvchining billable (faol, sinov emas) guruhlari. To'lov faqat aktivlashtirilgan guruhga.
-        var billableGroups = await db.StudentGroups
-            .Where(sg => sg.StudentId == student.Id && sg.IsActive && sg.Status != "trial")
-            .Select(sg => sg.GroupId).ToListAsync();
-
-        var groupId = string.IsNullOrWhiteSpace(req.GroupId) ? null : req.GroupId.Trim();
-        if (billableGroups.Count >= 2)
-        {
-            // Bir nechta guruh — guruh MAJBURIY va o'quvchining billable guruhi bo'lishi shart.
-            if (groupId is null || !billableGroups.Contains(groupId))
-                return BadRequest(new { message = "To'lov qaysi guruh uchun ekanini tanlang" });
-        }
-        else if (billableGroups.Count == 1)
-            groupId = billableGroups[0]; // yagona guruh — avtomatik
-        else
-            groupId = null; // guruhsiz (eski ClassName) o'quvchi
-
-        // IDEMPOTENTLIK: oxirgi ~6 soniyada AYNAN shu to'lov (o'quvchi, guruh, oy, summa) yozilgan bo'lsa —
-        // dublikat qo'shmaymiz (admin double-click / tarmoq retry). Balansni ikki marta oshirmaslik uchun
-        // EnsureCharge/balans o'zgarishidan OLDIN tekshiramiz (FinanceController.Create bilan bir xil mantiq).
-        var dupCutoff = DateTime.UtcNow.AddSeconds(-6);
-        var recentDup = await db.FinanceTransactions
-            .Where(t => t.StudentId == student.Id && t.Direction == "income" && t.Category == "tuition"
-                && t.Amount == req.Amount && t.Month == month && t.GroupId == groupId
-                && t.CreatedAt >= dupCutoff)
-            .OrderByDescending(t => t.CreatedAt)
-            .FirstOrDefaultAsync();
-        if (recentDup is not null)
-            return Ok(new { id = recentDup.Id, idempotent = true });
-
-        // AVANS: to'lov tushadigan (guruh, oy) hisobi hali yo'q bo'lsa — shu zahoti ochamiz
-        // (kelajak oyga oldindan to'lov; balans hisob miqdorida kamayadi, to'lov esa oshiradi).
-        await TuitionService.EnsureChargeAsync(db, student, groupId, month);
-
-        student.Balance += req.Amount;
-
-        // To'lov qaysi guruh (kurs) uchun ekani — audit izohi va avto-xabar ({guruh}/{kurs}) uchun.
-        var payGroup = groupId is null ? null : await db.Classes.FindAsync(groupId);
-        var groupName = payGroup?.Name;
-        var teacherName = string.IsNullOrEmpty(payGroup?.TeacherId) ? null
-            : await db.Teachers.Where(t => t.Id == payGroup!.TeacherId).Select(t => t.FullName).FirstOrDefaultAsync();
-        var courseName = string.IsNullOrEmpty(payGroup?.CourseId) ? null
-            : await db.Subjects.Where(su => su.Id == payGroup!.CourseId).Select(su => su.Name).FirstOrDefaultAsync();
-
-        // To'lovni moliyaviy kirim (o'quvchi to'lovi) sifatida qayd etamiz.
-        var tx = new FinanceTransaction
-        {
-            Date = paidDate,
-            Direction = "income",
-            Category = "tuition",
-            Amount = req.Amount,
-            StudentId = student.Id,
-            GroupId = groupId,
-            Month = month,
-            Note = $"O'quvchi to'lovi ({month})"
-                + (groupName is null ? "" : $" [{groupName}]")
-                + $" — {student.FullName}",
-            Comment = string.IsNullOrWhiteSpace(req.Comment) ? null : req.Comment.Trim(),
-            Method = string.IsNullOrWhiteSpace(req.Method) ? null : req.Method.Trim().ToLowerInvariant(),
-            // Naqd to'lovda qog'oz kvitansiya raqami ("KV" + raqam), kartada esa to'lov vaqti ("HH:mm").
-            ReceiptNo = receiptNo,
-            PaidTime = paidTime,
-            CardLast4 = cardLast4,
-            CreatedBy = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value, // mas'ul (chek uchun)
-        };
-        db.FinanceTransactions.Add(tx);
-
-        audit.Record(AuditService.EntityFinanceTransaction, tx.Id, "create",
-            $"To'lov qabul qilindi: +{AuditService.Money(req.Amount)} so'm ({month} uchun)"
-                + (groupName is null ? "" : $" — {groupName}")
-                + (teacherName is null ? "" : $" · {teacherName}")
-                // Kassir "Baribir saqlash"ni bosgan bo'lsa — izda qolsin (band raqam bilan yozildi).
-                + (req.ForceReceipt && receiptNo is not null ? $" [takroriy kvitansiya {receiptNo} — ataylab saqlandi]" : ""),
-            after: AuditService.Snapshot(tx), studentId: student.Id);
-
-        await db.SaveChangesAsync();
-
-        // Avto xabar — o'quvchi tuition to'lovi qabul qilinganda ("To'lov qabul qilinganda" hodisasi).
-        // Moliya bo'limidagi to'lov bilan bir xil xulq (FinanceController). {summa} = faqat raqam,
-        // {sana} = to'lovning HAQIQIY sanasi (paidDate — orqaga sanalgan bo'lishi mumkin, bugun emas).
-        // {oy} = to'lov QAYSI OY uchun (tanlangan `month`), bugungi oy EMAS.
-        // {kurs}/{guruh} = to'lov QAYSI guruh (kurs) uchun ekani — o'quvchi bir necha guruhda o'qisa
-        // har to'lov alohida yoziladi, demak har biriga o'z kursi nomi bilan alohida xabar ketadi.
-        await autoMsg.DispatchStudentAsync(db, AutoMessageTriggers.PaymentReceived, student,
-            new Dictionary<string, string>
-            {
-                ["{summa}"] = MessageTokenizer.MoneyPlain(req.Amount),
-                ["{sana}"] = $"{paidDate[8..10]}.{paidDate[5..7]}.{paidDate[..4]}",
-                ["{oy}"] = int.TryParse(month.Substring(5, 2), out var payMm) ? MessageTokenizer.MonthNameUz(payMm) : "",
-                ["{kurs}"] = courseName ?? groupName ?? "",
-                ["{guruh}"] = groupName ?? student.ClassName,
-            },
-            group: payGroup);
-
-        // Chek (kvitansiya) uchun yaratilgan tranzaksiya id'sini qaytaramiz.
-        return Ok(new { id = tx.Id });
+        var res = await PaymentIntake.AddAsync(db, audit, autoMsg, student, req,
+            User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value);
+        return PaymentIntakeHttp.ToActionResult(this, res);
     }
 
     /// <summary>O'quvchi to'lov tarixi: oylar bo'yicha hisoblangan/to'langan holat.</summary>

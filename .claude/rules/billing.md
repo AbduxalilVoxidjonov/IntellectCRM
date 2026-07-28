@@ -76,6 +76,21 @@ paths:
   saqlash muvaffaqiyatli bo'lgandagina yopiladi (ilgari `StudentsPage` `addPayment`ni `await`
   qilmasdan modalni yopib yuborardi — xato bilinmay qolardi).
 
+- **KASSA — pul qabul qilish ish o'rni** (`/admin/kassa`, ruxsat kaliti **`kassa`**): kassir o'quvchini
+  IKKI yo'l bilan topadi — (1) F.I.Sh yoki telefon qidiruvi (`GET /api/admin/kassa/students?q=`,
+  server tomonda, 30 tagacha; telefon bazada `+998-XX-...` formatida saqlangani uchun raqamli
+  moslashtirish XOTIRADA), (2) o'qituvchi → guruh → o'quvchi (mavjud GET'lar: `/admin/teachers`,
+  `/admin/classes`, `/admin/classes/{id}/members` — a'zolar balansi PER-GURUH). "To'lov qilish"
+  o'quvchilar bo'limidagi AYNAN SHU `PaymentModal`ni ochadi, saqlangach chek avtomatik chiqadi.
+  **YOZISH YO'LI BITTA:** `PaymentIntake.AddAsync` (Application) — `StudentsController.AddPayment`
+  ham, `KassaController` (`POST /api/admin/kassa/students/{id}/payments`) ham shu xizmatni chaqiradi
+  (kvitansiya nazorati, idempotentlik, avans `EnsureCharge`, audit, avto-xabar — nusxalanmagan);
+  HTTP tarjimasi `PaymentIntakeHttp.ToActionResult` (409 dublikat / 400 xato / 200 `{id}`).
+  NEGA ALOHIDA CONTROLLER: to'lov `[AdminPerm("students")]` ostida edi — kassirga to'lov uchun
+  o'quvchi yaratish/tahrirlash huquqini ham berish kerak bo'lardi; endi "kassa" ruxsati YETADI
+  (xodimga GET har doim ochiq, shuning uchun ro'yxatlar uchun yangi endpoint kerak emas).
+  "Kassir" xodim shabloni (Program.cs seed) endi `kassa` ruxsatini ham beradi.
+
 - **MOLIYA JADVALLARI SAHIFALANADI** (`components/ui/TablePagination.tsx`): `usePagination(items)`
   hook + `<TablePagination {...pg} />` — 20/30/50/100 talik, filtr/qidiruv o'zgarsa 1-sahifaga
   qaytadi. Ulangan joylar: Moliya → Amallar, O'qituvchilar, To'lovlar, Vozvratlar. CSV eksporti va
