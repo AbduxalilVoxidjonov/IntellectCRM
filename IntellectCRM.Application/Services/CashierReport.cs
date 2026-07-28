@@ -28,21 +28,43 @@ public static class CashierReport
     public static string KeyOf(string? createdById, string? createdBy) =>
         !string.IsNullOrEmpty(createdById) ? createdById : "name:" + (createdBy ?? "");
 
-    /// <summary>Davr bo'yicha KASSIRLAR kesimi — har biri uchun soni, jami va usul bo'yicha yoyilma.</summary>
+    /// <summary>Davr bo'yicha KASSIRLAR kesimi — har biri uchun soni, jami va usul bo'yicha yoyilma.
+    ///
+    /// <para>ESKI va YANGI yozuvlar BIR QATORGA birlashadi: id'siz (eski) yozuvning
+    /// <c>CreatedBy</c> ismi bo'yicha akkaunt BIR DONA topilsa — o'sha akkaunt id'si kalit qilib
+    /// olinadi. Aks holda bitta odam ro'yxatda ikki marta ("Ali" va id'li "Ali") chiqib qolardi.</para>
+    /// </summary>
     public static async Task<List<CashierSummaryDto>> SummaryAsync(IAppDbContext db, string from, string to)
     {
         var rows = await IncomeQuery(db, from, to)
             .Select(t => new { t.CreatedById, t.CreatedBy, t.Amount, t.Method, t.CreatedAt })
             .ToListAsync();
 
+        // Akkauntlar: id → F.I.Sh va (NOYOB bo'lsa) F.I.Sh → id.
+        var users = await db.Users.AsNoTracking().Select(u => new { u.Id, u.FullName }).ToListAsync();
+        var nameById = users.ToDictionary(u => u.Id, u => u.FullName);
+        var idByName = users.GroupBy(u => u.FullName).Where(g => g.Count() == 1)
+            .ToDictionary(g => g.Key, g => g.First().Id);
+
+        // Eski yozuvning ismi noyob akkauntga to'g'ri kelsa — o'sha akkaunt id'siga bog'laymiz.
+        string Resolve(string? id, string? name) =>
+            !string.IsNullOrEmpty(id) ? id
+            : (!string.IsNullOrWhiteSpace(name) && idByName.TryGetValue(name, out var uid) ? uid : KeyOf(null, name));
+
         return rows
-            .GroupBy(t => KeyOf(t.CreatedById, t.CreatedBy))
-            .Select(g => Summarize(
-                g.Key,
-                g.First().CreatedById,
-                // Ismi bo'sh bo'lsa (juda eski yozuv) — hisobotda ko'rinib tursin.
-                string.IsNullOrWhiteSpace(g.First().CreatedBy) ? "(noma'lum)" : g.First().CreatedBy!,
-                g.Select(x => (x.Amount, x.Method, x.CreatedAt))))
+            .GroupBy(t => Resolve(t.CreatedById, t.CreatedBy))
+            .Select(g =>
+            {
+                var isId = !g.Key.StartsWith("name:", StringComparison.Ordinal);
+                var display = isId && nameById.TryGetValue(g.Key, out var n) && !string.IsNullOrWhiteSpace(n)
+                    ? n
+                    : (string.IsNullOrWhiteSpace(g.First().CreatedBy) ? "(noma'lum)" : g.First().CreatedBy!);
+                return Summarize(
+                    g.Key,
+                    isId ? g.Key : null,
+                    display,
+                    g.Select(x => (x.Amount, x.Method, x.CreatedAt)));
+            })
             .OrderByDescending(r => r.Total)
             .ToList();
     }
@@ -93,7 +115,8 @@ public static class CashierReport
                 ReceiptNo: t.ReceiptNo,
                 CardLast4: t.CardLast4,
                 PaidTime: t.PaidTime,
-                CreatedAt: t.CreatedAt.ToString("s"));
+                // UTC saqlanadi — markaz mintaqasiga (UTC+5) o'tkazib beramiz (jadvaldagi soat to'g'ri chiqsin).
+                CreatedAt: AppClock.ToLocal(t.CreatedAt).ToString("s"));
         }).ToList();
 
         var summary = Summarize(
@@ -134,6 +157,6 @@ public static class CashierReport
             Card: card,
             Bank: bank,
             Other: total - cash - card - bank,
-            LastAt: list.Count == 0 ? null : list.Max(x => x.CreatedAt).ToString("s"));
+            LastAt: list.Count == 0 ? null : AppClock.ToLocal(list.Max(x => x.CreatedAt)).ToString("s"));
     }
 }

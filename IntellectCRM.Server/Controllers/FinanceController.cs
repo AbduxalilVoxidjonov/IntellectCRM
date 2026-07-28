@@ -38,7 +38,7 @@ public class FinanceController(AppDbContext db, AuditService audit, AutoMessageS
             t.CreatedAt == default ? null : AppClock.ToLocal(t.CreatedAt).ToString("yyyy-MM-ddTHH:mm:ss"),
             refunded is not null && refunded.TryGetValue(t.Id, out var rf) ? rf : 0m,
             t.RefundOfId,
-            t.ReceiptNo, t.PaidTime, t.CardLast4);
+            t.ReceiptNo, t.PaidTime, t.CardLast4, t.CreatedBy);
 
     [HttpGet("transactions")]
     public async Task<ActionResult<IEnumerable<FinanceTransactionDto>>> GetTransactions(

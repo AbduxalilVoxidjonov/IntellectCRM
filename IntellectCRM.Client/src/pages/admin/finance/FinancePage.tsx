@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Plus, Pencil, Trash2, Download, TrendingUp, TrendingDown, Wallet, AlertCircle, Calculator, History, Inbox, Percent, Search, Receipt, Undo2, Banknote, Users } from 'lucide-react'
 import type {
   FinanceDirection,
@@ -45,7 +45,6 @@ import { GroupPaymentsModal, type PaymentsTarget } from './GroupPaymentsModal'
 import { DailyReportCard } from './DailyReportCard'
 import { ReasonPromptModal } from '@/components/ui/ReasonPromptModal'
 import { ReceiptModal } from '@/components/finance/ReceiptModal'
-import { CashierPaymentsModal } from './CashierPaymentsModal'
 import { PaymentEditModal } from './PaymentEditModal'
 import { RefundModal } from './RefundModal'
 import { useAuth } from '@/context/auth-context'
@@ -113,6 +112,7 @@ export function FinancePage() {
   const { user } = useAuth()
   const isSuper = user?.role === 'superadmin'
   const { can } = usePerm()
+  const navigate = useNavigate()
   const [tab, setTab] = useState<Tab>('overview')
   const [from, setFrom] = useState(`${yearOf(todayStr)}-01-01`)
   const [to, setTo] = useState(todayStr)
@@ -153,8 +153,6 @@ export function FinancePage() {
   const [refunds, setRefunds] = useState<Refund[]>([])
   /** "Kassirlar" tabi — davr bo'yicha kim qancha qabul qilgan. */
   const [cashiers, setCashiers] = useState<CashierSummary[]>([])
-  /** Qatorni bosganda ochiladigan kassir (uning to'lovlari ro'yxati). */
-  const [cashierTarget, setCashierTarget] = useState<CashierSummary | null>(null)
 
   const load = useCallback(() => {
     setLoading(true)
@@ -296,7 +294,9 @@ export function FinancePage() {
         receipt.includes(q) ||
         receipt.replace(/^kv/, '').includes(q) ||
         // Karta to'lovi — oxirgi 4 raqam bo'yicha ham topilsin ("1234").
-        (p.cardLast4 ?? '').includes(q)
+        (p.cardLast4 ?? '').includes(q) ||
+        // Kim kiritgani (kassir) bo'yicha ham.
+        (p.createdBy ?? '').toLowerCase().includes(q)
       )
     })
   })()
@@ -320,7 +320,7 @@ export function FinancePage() {
   const handleExportPayments = () => {
     exportToCsv(
       'tolovlar.csv',
-      ['Sana', "O'quvchi", 'Guruh', 'Oy', "To'lov usuli", 'Kvitansiya', "To'lov vaqti", 'Summa'],
+      ['Sana', "O'quvchi", 'Guruh', 'Oy', "To'lov usuli", 'Kvitansiya', "To'lov vaqti", 'Kiritgan', 'Summa'],
       filteredPayments.map((p) => [
         formatDate(p.date),
         p.studentName ?? '',
@@ -330,6 +330,7 @@ export function FinancePage() {
         // Naqdda kvitansiya raqami, kartada karta oxiri (jadvaldagi ustun bilan bir xil).
         p.receiptNo ?? (p.cardLast4 ? `**** ${p.cardLast4}` : ''),
         p.paidTime ?? '',
+        p.createdBy ?? '',
         String(p.amount),
       ]),
     )
@@ -916,6 +917,7 @@ export function FinancePage() {
                         <th>Oy</th>
                         <th>To'lov usuli</th>
                         <th>Kvitansiya</th>
+                        <th>Kiritgan</th>
                         <th className="num">Summa</th>
                         <th className="num">Amallar</th>
                       </tr>
@@ -965,6 +967,10 @@ export function FinancePage() {
                           </td>
                           <td className="font-mono text-[12.5px] text-slate-600">
                             {receiptCell(p) ?? <span className="text-slate-300">—</span>}
+                          </td>
+                          {/* KIM KIRITGAN — kassir/admin (FinanceTransaction.CreatedBy). */}
+                          <td className="text-[12.5px] text-slate-600">
+                            {p.createdBy || <span className="text-slate-300">—</span>}
                           </td>
                           <td className="num font-semibold text-emerald-600">
                             +{formatMoney(p.amount)}
@@ -1094,7 +1100,17 @@ export function FinancePage() {
                         </tr>
                       ) : (
                         cashiers.map((c) => (
-                          <tr key={c.key} onClick={() => setCashierTarget(c)} className="cursor-pointer">
+                          <tr
+                            key={c.key}
+                            // Alohida SAHIFA — ichida qidiruv, sahifalash va CSV bor (modal sig'masdi).
+                            onClick={() =>
+                              navigate(
+                                `/admin/finance/cashiers/${encodeURIComponent(c.key)}` +
+                                  `?name=${encodeURIComponent(c.cashierName)}&from=${from}&to=${to}`,
+                              )
+                            }
+                            className="cursor-pointer"
+                          >
                             <td className="font-medium text-slate-700">{c.cashierName}</td>
                             <td className="num">{c.count}</td>
                             <td className="num font-mono text-[12.5px] text-slate-600">{formatMoney(c.cash)}</td>
@@ -1249,13 +1265,6 @@ export function FinancePage() {
       <PaymentEditModal payment={editPayment} onClose={() => setEditPayment(null)} onSaved={load} />
 
       <RefundModal payment={refundTarget} onClose={() => setRefundTarget(null)} onSaved={load} />
-
-      <CashierPaymentsModal
-        target={cashierTarget}
-        from={from}
-        to={to}
-        onClose={() => setCashierTarget(null)}
-      />
 
       <ReceiptModal
         txId={receiptTx}

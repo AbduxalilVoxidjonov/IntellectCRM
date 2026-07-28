@@ -1043,7 +1043,9 @@ public record FinanceTransactionDto(
     string? ReceiptNo = null,
     string? PaidTime = null,
     // Karta raqamining oxirgi 4 raqami (karta to'lovi) — jadvalda "•••• 1234" bo'lib ko'rinadi.
-    string? CardLast4 = null);
+    string? CardLast4 = null,
+    // KIM KIRITGAN (kassir/admin F.I.Sh) — "To'lovlar" va "Kunlik hisobot" jadvallarida ko'rinadi.
+    string? CreatedBy = null);
 
 /// <summary>O'quvchi to'lovini (income+tuition) qisman/to'liq VOZVRAT qilish — FAQAT superadmin.
 /// Muzlatishdan hosil bo'lgan avans shu orqali qaytariladi (balans 0 ga tushadi), o'qituvchi foizi net'dan.</summary>

@@ -108,6 +108,19 @@ paths:
   bosish → `GET /api/admin/finance/cashier-payments`). DIQQAT: bu ikki finance endpointi ATAYIN
   qattiqroq (`CanSeeCashiers`) — odatdagi "staff'ga GET ochiq" qoidasidan farqli, kassir boshqa
   kassirlarning tushumini ko'rmaydi (faqat admin/superadmin yoki `finance` ruxsatli xodim).
+  Bitta kassirni bosish — MODAL emas, **alohida sahifa** `/admin/finance/cashiers/:key`
+  (`?name=&from=&to=`): ichida qidiruv (F.I.Sh · guruh · kurs · o'qituvchi · kvitansiya "kv123"/"123" ·
+  karta oxiri · summa), davr, sahifalash, CSV va chek. `key` — akkaunt id'si yoki "name:F.I.Sh".
+  BIRLASHTIRISH: eski (id'siz) yozuvning ismi NOYOB akkauntga to'g'ri kelsa, o'sha akkaunt id'si
+  kalit bo'ladi — bitta odam ro'yxatda ikki marta chiqmaydi. Vaqtlar `AppClock.ToLocal` (UTC+5).
+  Kassirning "To'lovlarim" ekrani: KUNMA-KUN (◀ sana ▶ yoki kalendardan istalgan kun) + "7 kun"/
+  "Shu oy", ichida qidiruv va naqd/karta/bank filtri; jami summalar EKRANDAGI (filtrlangan) ro'yxatga
+  qarab hisoblanadi.
+
+- **KIM KIRITGANI JADVALLARDA KO'RINADI**: `FinanceTransactionDto.CreatedBy` (backend
+  `FinanceController.ToDto`) — Moliya → **To'lovlar** jadvalida "Kiritgan" ustuni (qidiruv va CSV'ga
+  ham kiradi) va **Umumiy → Kunlik hisobot**da kun tanlanganda "Vaqt · Kvitansiya · Kiritgan"
+  ustunlari. Ya'ni har bir to'lov yonida qaysi kassir kiritgani va qog'oz kvitansiya raqami turadi.
 
 - **MOLIYA JADVALLARI SAHIFALANADI** (`components/ui/TablePagination.tsx`): `usePagination(items)`
   hook + `<TablePagination {...pg} />` — 20/30/50/100 talik, filtr/qidiruv o'zgarsa 1-sahifaga

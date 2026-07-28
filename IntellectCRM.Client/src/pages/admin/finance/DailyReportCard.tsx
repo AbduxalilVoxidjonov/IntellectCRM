@@ -3,7 +3,7 @@ import { ChevronLeft, ChevronRight, TrendingUp, TrendingDown, Wallet, Inbox } fr
 import type { FinanceTransaction } from '@/types'
 import { getTransactions } from '@/api/services/finance'
 import { financeCategoryLabel, formatMonth, paymentMethodLabel } from '@/config/constants'
-import { formatMoney, cn } from '@/lib/utils'
+import { formatMoney, formatTime, cn } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
 import { Loader } from '@/components/ui/Loader'
 import { Badge } from '@/components/ui/Badge'
@@ -180,9 +180,12 @@ export function DailyReportCard({ initialMonth }: { initialMonth: string }) {
                 <table className="table">
                   <thead>
                     <tr>
+                      <th>Vaqt</th>
                       <th>Yo'nalish</th>
                       <th>Toifa</th>
                       <th>To'lov usuli</th>
+                      <th>Kvitansiya</th>
+                      <th>Kiritgan</th>
                       <th>Izoh</th>
                       <th className="num">Summa</th>
                     </tr>
@@ -190,6 +193,10 @@ export function DailyReportCard({ initialMonth }: { initialMonth: string }) {
                   <tbody>
                     {dayTx.map((t) => (
                       <tr key={t.id}>
+                        {/* Kiritilgan (yoki kartada — pul o'tkazilgan) vaqt. */}
+                        <td className="font-mono text-[12.5px] text-slate-500">
+                          {t.paidTime || formatTime(t.createdAt) || '—'}
+                        </td>
                         <td>
                           <Badge tone={t.direction === 'income' ? 'green' : 'red'}>
                             {t.direction === 'income' ? 'Kirim' : 'Chiqim'}
@@ -202,6 +209,14 @@ export function DailyReportCard({ initialMonth }: { initialMonth: string }) {
                           ) : (
                             <span className="text-slate-300">—</span>
                           )}
+                        </td>
+                        {/* Kvitansiya: naqdda qog'oz raqami ("KV000123"), kartada karta oxiri. */}
+                        <td className="font-mono text-[12.5px] text-slate-600">
+                          {t.receiptNo ?? (t.cardLast4 ? `•••• ${t.cardLast4}` : <span className="text-slate-300">—</span>)}
+                        </td>
+                        {/* KIM KIRITGAN — kassir/admin. */}
+                        <td className="text-[12.5px] text-slate-600">
+                          {t.createdBy || <span className="text-slate-300">—</span>}
                         </td>
                         <td className="text-slate-500">{t.studentName ? `${t.studentName}` : (t.note ?? '—')}</td>
                         <td className={cn('num font-semibold', t.direction === 'income' ? 'text-emerald-600' : 'text-red-600')}>

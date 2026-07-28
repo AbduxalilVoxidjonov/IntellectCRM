@@ -786,6 +786,8 @@ export interface FinanceTransaction {
   comment?: string | null
   /** Kiritilgan vaqt (ISO "yyyy-MM-ddTHH:mm:ss", markaz mintaqasi UTC+5) — ro'yxatda soat ko'rsatish uchun */
   createdAt?: string
+  /** KIM KIRITGAN — kassir/admin F.I.Sh ("To'lovlar" va "Kunlik hisobot" jadvallarida ustun) */
+  createdBy?: string | null
   /** Bu to'lovdan jami qancha VOZVRAT (pul qaytarish) qilingani (>0 = qisman/to'liq qaytarilgan) */
   refunded?: number
   /** Bu yozuvning O'ZI vozvrat bo'lsa — qaysi asl to'lov uchun (id) */

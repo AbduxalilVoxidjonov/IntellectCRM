@@ -64,6 +64,7 @@ import { CamerasPage } from '@/pages/admin/cameras/CamerasPage'
 import { ParentsPage } from '@/pages/admin/parents/ParentsPage'
 import { TeacherAppPage } from '@/pages/admin/parents/TeacherAppPage'
 import { FinancePage } from '@/pages/admin/finance/FinancePage'
+import { CashierPaymentsPage } from '@/pages/admin/finance/CashierPaymentsPage'
 import { KassaPage } from '@/pages/admin/kassa/KassaPage'
 import { KassaMyPaymentsPage } from '@/pages/admin/kassa/KassaMyPaymentsPage'
 import { KassaMobileLayout } from '@/components/layout/KassaMobileLayout'
@@ -222,6 +223,8 @@ export default function App() {
           <Route path="app/teachers" element={<RequirePerm perm="app"><TeacherAppPage /></RequirePerm>} />
           <Route path="kassa" element={<RequirePerm perm="kassa"><KassaPage /></RequirePerm>} />
           <Route path="finance" element={<RequirePerm perm="finance"><FinancePage /></RequirePerm>} />
+          {/* Bitta kassir qabul qilgan to'lovlar — alohida sahifa (Moliya → Kassirlar qatoridan). */}
+          <Route path="finance/cashiers/:key" element={<RequirePerm perm="finance"><CashierPaymentsPage /></RequirePerm>} />
           <Route path="settings" element={<Navigate to="/admin/settings/school" replace />} />
           <Route path="settings/:section" element={<RequirePerm perm="settings"><SettingsPage /></RequirePerm>} />
           <Route path="account" element={<AccountPage />} />
