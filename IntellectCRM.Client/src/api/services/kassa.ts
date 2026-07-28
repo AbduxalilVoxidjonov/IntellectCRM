@@ -63,3 +63,59 @@ export async function addKassaPayment(
   })
   return data?.id ?? null
 }
+
+/* ---------- Kassir hisoboti ---------- */
+
+/** Kassirning davr bo'yicha jami ko'rsatkichlari (o'zi uchun ham, Moliya jadvali uchun ham). */
+export interface CashierSummary {
+  /** Guruhlash kaliti: akkaunt id'si yoki eski yozuvlar uchun "name:F.I.Sh" */
+  key: string
+  cashierId: string | null
+  cashierName: string
+  count: number
+  total: number
+  cash: number
+  card: number
+  bank: number
+  /** Usuli ko'rsatilmagan/boshqa to'lovlar */
+  other: number
+  /** Oxirgi to'lov kiritilgan vaqt (ISO) */
+  lastAt: string | null
+}
+
+/** Kassir kiritgan bitta to'lov. */
+export interface CashierPayment {
+  id: string
+  date: string
+  amount: number
+  method: string | null
+  studentName: string
+  groupName: string
+  courseName: string
+  teacherName: string
+  month: string | null
+  receiptNo: string | null
+  cardLast4: string | null
+  paidTime: string | null
+  createdAt: string
+}
+
+export interface CashierPayments {
+  summary: CashierSummary
+  payments: CashierPayment[]
+}
+
+/**
+ * Kassirning O'ZI kiritgan to'lovlari (davr bo'yicha) + jami. Kim ekani TOKENDAN olinadi —
+ * boshqa kassirning ro'yxatini so'rab bo'lmaydi. Sanalar bo'sh bo'lsa — bugungi kun.
+ */
+export async function getMyKassaPayments(from?: string, to?: string): Promise<CashierPayments> {
+  if (USE_MOCK) {
+    return {
+      summary: { key: '', cashierId: null, cashierName: '', count: 0, total: 0, cash: 0, card: 0, bank: 0, other: 0, lastAt: null },
+      payments: [],
+    }
+  }
+  const { data } = await api.get<CashierPayments>('/admin/kassa/my-payments', { params: { from, to } })
+  return data
+}

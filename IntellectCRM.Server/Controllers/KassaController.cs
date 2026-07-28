@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using IntellectCRM.Application.Dtos;
 using IntellectCRM.Application.Services;
+using IntellectCRM.Domain;
 using IntellectCRM.Infrastructure.Data;
 
 namespace IntellectCRM.Server.Controllers;
@@ -100,8 +101,26 @@ public class KassaController(AppDbContext db, AuditService audit, AutoMessageSer
         if (student is null) return NotFound();
 
         var res = await PaymentIntake.AddAsync(db, audit, autoMsg, student, req,
-            User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value);
+            User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value,
+            User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value);
         return PaymentIntakeHttp.ToActionResult(this, res);
+    }
+
+    /// <summary>
+    /// KASSIR O'ZI kiritgan to'lovlar (davr bo'yicha) + jami. Kassir FAQAT o'zinikini ko'radi —
+    /// filtr so'rovdan emas, TOKENDAN olinadi (boshqa kassirning hisobotini so'rab bo'lmaydi).
+    /// <paramref name="from"/>/<paramref name="to"/> — "yyyy-MM-dd"; berilmasa BUGUNGI kun.
+    /// </summary>
+    [HttpGet("my-payments")]
+    public async Task<ActionResult<CashierPaymentsDto>> MyPayments(
+        [FromQuery] string? from = null, [FromQuery] string? to = null)
+    {
+        var today = AppClock.Today.ToString("yyyy-MM-dd");
+        return await CashierReport.PaymentsAsync(db,
+            string.IsNullOrWhiteSpace(from) ? today : from,
+            string.IsNullOrWhiteSpace(to) ? today : to,
+            User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value,
+            User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value);
     }
 }
 

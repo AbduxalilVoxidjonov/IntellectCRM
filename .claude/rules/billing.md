@@ -76,12 +76,17 @@ paths:
   saqlash muvaffaqiyatli bo'lgandagina yopiladi (ilgari `StudentsPage` `addPayment`ni `await`
   qilmasdan modalni yopib yuborardi — xato bilinmay qolardi).
 
-- **KASSA — pul qabul qilish ish o'rni** (`/admin/kassa`, ruxsat kaliti **`kassa`**): kassir o'quvchini
-  IKKI yo'l bilan topadi — (1) F.I.Sh yoki telefon qidiruvi (`GET /api/admin/kassa/students?q=`,
-  server tomonda, 30 tagacha; telefon bazada `+998-XX-...` formatida saqlangani uchun raqamli
-  moslashtirish XOTIRADA), (2) o'qituvchi → guruh → o'quvchi (mavjud GET'lar: `/admin/teachers`,
-  `/admin/classes`, `/admin/classes/{id}/members` — a'zolar balansi PER-GURUH). "To'lov qilish"
-  o'quvchilar bo'limidagi AYNAN SHU `PaymentModal`ni ochadi, saqlangach chek avtomatik chiqadi.
+- **KASSA — TELEFON uchun alohida portal** (`/kassa`, ruxsat kaliti **`kassa`**): kassirda faqat telefon
+  bor, shuning uchun admin paneli EMAS — `KassaMobileLayout` (bosh sahifa/yon menyu YO'Q, pastda 2 tab:
+  "To'lov" va "To'lovlarim"). FAQAT `kassa` ruxsatiga ega xodim login'dan keyin shu yerga tushadi va
+  `/admin/*` ga kirsa `/kassa` ga qaytariladi (`isKassaOnly`/`homeFor` — `config/navigation.ts`,
+  `ProtectedRoute`). Admin/superadmin uchun o'sha ekran admin panelida ham bor (`/admin/kassa`).
+  O'quvchini topish: (1) F.I.Sh yoki telefon qidiruvi (`GET /api/admin/kassa/students?q=`, server
+  tomonda, 30 tagacha; telefon bazada `+998-XX-...` formatida saqlangani uchun raqamli moslashtirish
+  XOTIRADA, kamida 4 raqam), (2) "ichiga kirish": **BARCHA** o'qituvchilar (arxivdagilar ham) → uning
+  guruhlari (**ARXIV guruhlar ham** — `getClasses(true)`) → guruh o'quvchilari (chiqarilgan/muzlatilgan/
+  sinov ham, balans PER-GURUH). Sabab: eski/yopilgan guruhning qarzi ham to'lanadi.
+  "To'lov qilish" o'quvchilar bo'limidagi AYNAN SHU `PaymentModal`ni ochadi, saqlangach chek chiqadi.
   **YOZISH YO'LI BITTA:** `PaymentIntake.AddAsync` (Application) — `StudentsController.AddPayment`
   ham, `KassaController` (`POST /api/admin/kassa/students/{id}/payments`) ham shu xizmatni chaqiradi
   (kvitansiya nazorati, idempotentlik, avans `EnsureCharge`, audit, avto-xabar — nusxalanmagan);
@@ -90,6 +95,19 @@ paths:
   o'quvchi yaratish/tahrirlash huquqini ham berish kerak bo'lardi; endi "kassa" ruxsati YETADI
   (xodimga GET har doim ochiq, shuning uchun ro'yxatlar uchun yangi endpoint kerak emas).
   "Kassir" xodim shabloni (Program.cs seed) endi `kassa` ruxsatini ham beradi.
+
+- **KIM QANCHA PUL QABUL QILGAN** (`CashierReport`, migratsiya `AddFinanceCreatedById`):
+  `FinanceTransaction.CreatedById` — to'lovni kiritgan xodimning AKKAUNT id'si (`CreatedBy` esa
+  ko'rsatish uchun F.I.Sh, chekdagi "Mas'ul"). ESKI yozuvlarda `CreatedById` null, shuning uchun
+  guruhlash kaliti `CreatedById ?? "name:"+CreatedBy` — eski to'lovlar ism bo'yicha guruhlanadi va
+  hisobotdan tushib qolmaydi. Faqat KIRIM (`Direction=="income"`) hisoblanadi.
+  Ikki ko'rinish: **kassirning o'zi** — `GET /api/admin/kassa/my-payments?from&to` (kim ekani
+  TOKENDAN olinadi, boshqa kassirnikini so'rab bo'lmaydi; standart davr — BUGUN) → "To'lovlarim"
+  tabi (Bugun/7 kun/Shu oy, jami + naqd/karta/bank, qatorni bosib chekni qayta chiqarish);
+  **admin/superadmin** — Moliya → **"Kassirlar"** tabi (`GET /api/admin/finance/cashiers`, qatorni
+  bosish → `GET /api/admin/finance/cashier-payments`). DIQQAT: bu ikki finance endpointi ATAYIN
+  qattiqroq (`CanSeeCashiers`) — odatdagi "staff'ga GET ochiq" qoidasidan farqli, kassir boshqa
+  kassirlarning tushumini ko'rmaydi (faqat admin/superadmin yoki `finance` ruxsatli xodim).
 
 - **MOLIYA JADVALLARI SAHIFALANADI** (`components/ui/TablePagination.tsx`): `usePagination(items)`
   hook + `<TablePagination {...pg} />` — 20/30/50/100 talik, filtr/qidiruv o'zgarsa 1-sahifaga

@@ -1,7 +1,7 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import type { Role } from '@/types'
 import { useAuth } from '@/context/auth-context'
-import { homeByRole } from '@/config/navigation'
+import { homeFor, isKassaOnly } from '@/config/navigation'
 
 /**
  * Marshrutni himoyalaydi:
@@ -19,6 +19,12 @@ export function ProtectedRoute({ role }: { role?: Role }) {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />
   }
 
+  // FAQAT kassa ruxsatiga ega xodim — admin paneli (bosh sahifa va boshqa bo'limlar) unga
+  // ko'rsatilmaydi: u telefondagi kassa portalida ishlaydi.
+  if (isKassaOnly(user) && location.pathname.startsWith('/admin')) {
+    return <Navigate to="/kassa" replace />
+  }
+
   if (role) {
     // "admin" darvozasi: admin + superadmin + xodim (staff). Xodimning ko'radigan bo'limlari
     // nav filtri (Sidebar) va route RequirePerm bilan cheklanadi.
@@ -30,7 +36,7 @@ export function ProtectedRoute({ role }: { role?: Role }) {
           ? ['student', 'parent']
           : [role]
     if (!allowed.includes(user.role)) {
-      return <Navigate to={homeByRole[user.role]} replace />
+      return <Navigate to={homeFor(user)} replace />
     }
   }
 
@@ -40,5 +46,5 @@ export function ProtectedRoute({ role }: { role?: Role }) {
 /** Ildiz (/) va noma'lum manzillar uchun: rolga qarab bosh sahifa yoki login. */
 export function RootRedirect() {
   const { isAuthenticated, user } = useAuth()
-  return <Navigate to={isAuthenticated && user ? homeByRole[user.role] : '/login'} replace />
+  return <Navigate to={isAuthenticated && user ? homeFor(user) : '/login'} replace />
 }

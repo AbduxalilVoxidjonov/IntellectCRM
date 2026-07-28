@@ -162,6 +162,7 @@ public class FinanceController(AppDbContext db, AuditService audit, AutoMessageS
             PaidTime = newPaidTime,
             CardLast4 = newCardLast4,
             CreatedBy = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value, // mas'ul (chek uchun)
+            CreatedById = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value,
         };
         db.FinanceTransactions.Add(tx);
         // O'quvchiga bog'langan tuition kirimi balansni oshiradi (izchillik — o'chirishda qaytariladi).
@@ -540,6 +541,7 @@ public class FinanceController(AppDbContext db, AuditService audit, AutoMessageS
             Note = $"Vozvrat ({student.FullName})" + (reason is null ? "" : $" — {reason}"),
             Comment = reason,
             CreatedBy = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value,
+            CreatedById = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value,
         };
         db.FinanceTransactions.Add(refund);
 
@@ -669,6 +671,40 @@ public class FinanceController(AppDbContext db, AuditService audit, AutoMessageS
     public async Task<ActionResult<GroupPaymentsReportDto>> TeacherPayments(
         string teacherId, [FromQuery] string? from, [FromQuery] string? to) =>
         await CourseFinanceReport.BuildTeacherPaymentsAsync(db, teacherId, from, to);
+
+    /// <summary>
+    /// KASSIRLAR KESIMI — davr ichida kim qancha pul qabul qilgan (soni, jami, naqd/karta/bank).
+    /// Moliya → "Kassirlar" jadvali. Eski (CreatedById'siz) yozuvlar ism bo'yicha guruhlanadi.
+    /// </summary>
+    [HttpGet("cashiers")]
+    public async Task<ActionResult<IEnumerable<CashierSummaryDto>>> Cashiers(
+        [FromQuery] string? from, [FromQuery] string? to)
+    {
+        if (!CanSeeCashiers()) return Forbid();
+        return await CashierReport.SummaryAsync(db, from ?? "", to ?? "");
+    }
+
+    /// <summary>
+    /// Kassirlar hisobotini KIM ko'radi: admin/superadmin yoki "moliya" ruxsati berilgan xodim.
+    /// DIQQAT: odatda xodimga GET har doim ochiq (<see cref="AdminPermAttribute"/>), lekin bu
+    /// yerda ATAYIN qattiqroq — kassir boshqa kassirlarning tushumini ko'rmasligi kerak
+    /// (o'zinikini <c>GET /api/admin/kassa/my-payments</c> orqali ko'radi).
+    /// </summary>
+    private bool CanSeeCashiers() =>
+        User.IsInRole(Roles.Admin) || User.IsInRole(Roles.SuperAdmin) ||
+        User.Claims.Any(c => c.Type == AdminPermAttribute.ClaimType
+                             && (c.Value == "finance" || c.Value.StartsWith("finance:")));
+
+    /// <summary>Bitta kassir kiritgan to'lovlar ro'yxati (jadvaldagi qatorni bosganda) + jami.
+    /// Kalit: <paramref name="cashierId"/> (yangi yozuvlar) yoki <paramref name="cashierName"/> (eski).</summary>
+    [HttpGet("cashier-payments")]
+    public async Task<ActionResult<CashierPaymentsDto>> CashierPayments(
+        [FromQuery] string? from, [FromQuery] string? to,
+        [FromQuery] string? cashierId, [FromQuery] string? cashierName)
+    {
+        if (!CanSeeCashiers()) return Forbid();
+        return await CashierReport.PaymentsAsync(db, from ?? "", to ?? "", cashierId, cashierName);
+    }
 
     /// <summary>Oylik to'lovni qo'lda hisoblash. month berilmasa — hisoblanmagan barcha oylar.</summary>
     [HttpPost("accrue")]

@@ -20,11 +20,12 @@ public static class PaymentIntake
     /// <summary>
     /// To'lovni yozadi: balansni oshiradi, moliyaga kirim (tuition) tranzaksiyasi qo'shadi,
     /// auditga yozadi va "To'lov qabul qilinganda" avto-xabarini yuboradi.
-    /// <paramref name="createdBy"/> — to'lovni kiritgan xodim F.I.Sh (chekdagi "Mas'ul").
+    /// <paramref name="createdBy"/> — to'lovni kiritgan xodim F.I.Sh (chekdagi "Mas'ul"),
+    /// <paramref name="createdById"/> — o'sha xodimning akkaunt id'si (kassir hisoboti uchun).
     /// </summary>
     public static async Task<PaymentIntakeResult> AddAsync(
         IAppDbContext db, AuditService audit, AutoMessageService autoMsg,
-        Student student, PaymentRequest req, string? createdBy)
+        Student student, PaymentRequest req, string? createdBy, string? createdById = null)
     {
         if (req.Amount <= 0)
             return PaymentIntakeResult.Invalid("To'lov summasi musbat bo'lishi kerak");
@@ -122,7 +123,8 @@ public static class PaymentIntake
             ReceiptNo = receiptNo,
             PaidTime = paidTime,
             CardLast4 = cardLast4,
-            CreatedBy = createdBy, // mas'ul (chek uchun)
+            CreatedBy = createdBy,     // mas'ul (chek uchun)
+            CreatedById = createdById,  // kim kiritgani (kassir hisoboti)
         };
         db.FinanceTransactions.Add(tx);
 

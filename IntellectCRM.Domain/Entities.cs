@@ -956,6 +956,11 @@ public class FinanceTransaction
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     /// <summary>Mas'ul — to'lovni kiritgan admin/kassir F.I.Sh (chekda "Mas'ul" qatori uchun).</summary>
     public string? CreatedBy { get; set; }
+    /// <summary>Mas'ulning AKKAUNT id'si (<see cref="AppUser.Id"/>) — kassir hisoboti aynan kim
+    /// kiritganini ism bo'yicha emas, id bo'yicha ajratishi uchun (bir xil ismli xodimlar,
+    /// keyinchalik ism o'zgarishi). ESKI yozuvlarda null — hisobotda <see cref="CreatedBy"/>
+    /// (ism) bo'yicha guruhlanadi.</summary>
+    public string? CreatedById { get; set; }
     /// <summary>Bu yozuv VOZVRAT (pul qaytarish) bo'lsa — qaysi ASL to'lov (income+tuition) uchun qaytarilgani.
     /// Vozvrat: Direction="expense", Category="refund", StudentId/GroupId/Month asl to'lovdan ko'chiriladi.
     /// O'qituvchining foizli maoshi va "yig'ilgan" hisobotlari vozvratni AYIRADI (net = to'langan − vozvrat).

@@ -9,6 +9,8 @@ import type {
   StudentFinanceRow,
 } from '@/types'
 import type { ReceiptData } from '@/lib/receipt'
+// Kassir kesimi turlari kassa servisida (yagona manba) — moliya jadvali ham shulardan foydalanadi.
+import type { CashierPayments, CashierSummary } from './kassa'
 import { delay, uid } from '@/lib/utils'
 import { api, USE_MOCK } from '../client'
 import { financeMock } from '../mock/finance'
@@ -452,5 +454,27 @@ export async function getFinanceMonthly(year: number): Promise<FinanceMonthly[]>
     return result
   }
   const { data } = await api.get<FinanceMonthly[]>('/admin/finance/monthly', { params: { year } })
+  return data
+}
+
+/* ---------- Kassirlar kesimi (Moliya → "Kassirlar") ---------- */
+
+/** Davr ichida kim qancha pul qabul qilgan (kassir kesimi). */
+export async function getCashiers(from?: string, to?: string): Promise<CashierSummary[]> {
+  if (USE_MOCK) return []
+  const { data } = await api.get<CashierSummary[]>('/admin/finance/cashiers', { params: { from, to } })
+  return data
+}
+
+/** Bitta kassir kiritgan to'lovlar (jadvaldagi qatorni bosganda) + o'sha kassirning jami. */
+export async function getCashierPayments(
+  from: string | undefined,
+  to: string | undefined,
+  cashierId: string | null,
+  cashierName: string,
+): Promise<CashierPayments> {
+  const { data } = await api.get<CashierPayments>('/admin/finance/cashier-payments', {
+    params: { from, to, cashierId: cashierId ?? undefined, cashierName },
+  })
   return data
 }

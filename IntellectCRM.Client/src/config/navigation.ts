@@ -221,6 +221,26 @@ export const homeByRole: Record<Role, string> = {
   staff: '/admin',
 }
 
+/**
+ * FAQAT KASSA xodimimi? — ruxsatlari orasida boshqa bo'lim yo'q (masalan `["kassa"]` yoki
+ * `["kassa:create"]`). Bunday xodim uchun admin paneli (bosh sahifa, yon menyu) KERAK EMAS:
+ * u telefondagi kassa portalida (`/kassa`) ishlaydi.
+ */
+export function isKassaOnly(user: { role: Role; permissions?: string[] | null } | null): boolean {
+  if (!user || user.role !== 'staff') return false
+  const perms = user.permissions ?? []
+  if (perms.length === 0) return false
+  const sections = new Set(perms.map((p) => p.split(':')[0]))
+  return sections.size === 1 && sections.has('kassa')
+}
+
+/** Foydalanuvchining bosh sahifasi — rol, kassa xodimi uchun esa kassa portali. */
+export function homeFor(user: { role: Role; permissions?: string[] | null } | null): string {
+  if (!user) return '/login'
+  if (isKassaOnly(user)) return '/kassa'
+  return homeByRole[user.role]
+}
+
 export const roleLabels: Record<Role, string> = {
   superadmin: 'Tizim egasi',
   admin: 'Administrator',

@@ -2202,3 +2202,44 @@ public record KassaStudentDto(
     /// <summary>Arxivlangan o'quvchi (to'lov qabul qilinaveradi, lekin ro'yxatda belgilanadi).</summary>
     bool IsArchived
 );
+
+/// <summary>
+/// Kassir kesimidagi jami (davr bo'yicha): u qancha to'lov qabul qilgan. Moliya → "Kassirlar"
+/// jadvali qatori va kassaning o'zidagi "Mening to'lovlarim" sarlavhasi uchun.
+/// </summary>
+public record CashierSummaryDto(
+    /// <summary>Guruhlash kaliti: akkaunt id'si yoki eski yozuvlar uchun "name:F.I.Sh".</summary>
+    string Key,
+    /// <summary>Akkaunt id'si (eski yozuvlarda null — faqat ism bor).</summary>
+    string? CashierId,
+    string CashierName,
+    int Count,
+    decimal Total,
+    decimal Cash,
+    decimal Card,
+    decimal Bank,
+    /// <summary>Usuli ko'rsatilmagan yoki boshqa usuldagi to'lovlar yig'indisi.</summary>
+    decimal Other,
+    /// <summary>Oxirgi to'lov kiritilgan vaqt (ISO) — kassir faolligini ko'rish uchun.</summary>
+    string? LastAt
+);
+
+/// <summary>Kassir kiritgan bitta to'lov (o'z ro'yxati va superadmin drill-down'i uchun).</summary>
+public record CashierPaymentDto(
+    string Id,
+    string Date,
+    decimal Amount,
+    string? Method,
+    string StudentName,
+    string GroupName,
+    string CourseName,
+    string TeacherName,
+    string? Month,
+    string? ReceiptNo,
+    string? CardLast4,
+    string? PaidTime,
+    string CreatedAt
+);
+
+/// <summary>Bitta kassirning davr bo'yicha to'lovlari + jami.</summary>
+public record CashierPaymentsDto(CashierSummaryDto Summary, List<CashierPaymentDto> Payments);

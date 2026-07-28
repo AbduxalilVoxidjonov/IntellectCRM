@@ -1332,7 +1332,8 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
         if (student is null) return NotFound();
 
         var res = await PaymentIntake.AddAsync(db, audit, autoMsg, student, req,
-            User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value);
+            User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value,
+            User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value);
         return PaymentIntakeHttp.ToActionResult(this, res);
     }
 

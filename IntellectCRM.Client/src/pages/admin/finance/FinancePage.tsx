@@ -20,13 +20,15 @@ import {
   getSalaryReport,
   getCourseReport,
   getRefunds,
+  getCashiers,
   type FinanceTransactionPayload,
   type CourseFinanceReport,
   type GroupFinanceRow,
 } from '@/api/services/finance'
 import { addPayment } from '@/api/services/students'
+import type { CashierSummary } from '@/api/services/kassa'
 import { financeCategoryLabel, financeDirectionLabels, formatMonth, paymentMethodLabel } from '@/config/constants'
-import { formatDate, formatTime, formatMoney, exportToCsv, cn } from '@/lib/utils'
+import { formatDate, formatTime, formatDateTime, formatMoney, exportToCsv, cn } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
@@ -43,6 +45,7 @@ import { GroupPaymentsModal, type PaymentsTarget } from './GroupPaymentsModal'
 import { DailyReportCard } from './DailyReportCard'
 import { ReasonPromptModal } from '@/components/ui/ReasonPromptModal'
 import { ReceiptModal } from '@/components/finance/ReceiptModal'
+import { CashierPaymentsModal } from './CashierPaymentsModal'
 import { PaymentEditModal } from './PaymentEditModal'
 import { RefundModal } from './RefundModal'
 import { useAuth } from '@/context/auth-context'
@@ -65,7 +68,7 @@ type MethodFilter = 'all' | 'cash' | 'card' | 'bank'
 type ReceiptFilter = 'all' | 'with' | 'without'
 /** To'lovlar ro'yxatining saralanishi — sana yoki kvitansiya raqami bo'yicha. */
 type PaySort = 'date-desc' | 'date-asc' | 'receipt-asc' | 'receipt-desc'
-type Tab = 'overview' | 'groups' | 'teachers' | 'payments' | 'refunds'
+type Tab = 'overview' | 'groups' | 'teachers' | 'payments' | 'refunds' | 'cashiers'
 
 const paySortOptions: { value: PaySort; label: string }[] = [
   { value: 'date-desc', label: 'Sana: yangi → eski' },
@@ -96,6 +99,8 @@ const tabs: { value: Tab; label: string }[] = [
   { value: 'teachers', label: "O'qituvchilar" },
   { value: 'payments', label: "To'lovlar" },
   { value: 'refunds', label: 'Vozvratlar' },
+  // Kassirlar — kim qancha pul qabul qilgan (kassa bo'limidan va moliyadan kiritilgan to'lovlar).
+  { value: 'cashiers', label: 'Kassirlar' },
 ]
 
 /** Qoldiq/qarz summasini belgisiga qarab ranglash */
@@ -146,6 +151,10 @@ export function FinancePage() {
   /** Vozvrat (pul qaytarish) qilinayotgan to'lov (superadmin). */
   const [refundTarget, setRefundTarget] = useState<FinanceTransaction | null>(null)
   const [refunds, setRefunds] = useState<Refund[]>([])
+  /** "Kassirlar" tabi — davr bo'yicha kim qancha qabul qilgan. */
+  const [cashiers, setCashiers] = useState<CashierSummary[]>([])
+  /** Qatorni bosganda ochiladigan kassir (uning to'lovlari ro'yxati). */
+  const [cashierTarget, setCashierTarget] = useState<CashierSummary | null>(null)
 
   const load = useCallback(() => {
     setLoading(true)
@@ -157,8 +166,9 @@ export function FinancePage() {
       getTransactions({ from, to, direction: 'income', category: 'tuition' }),
       getCourseReport(from, to),
       getRefunds(from, to),
+      getCashiers(from, to),
     ])
-      .then(([s, m, t, sr, pay, cr, rf]) => {
+      .then(([s, m, t, sr, pay, cr, rf, csh]) => {
         setSummary(s)
         setMonthly(m)
         setTransactions(t)
@@ -166,6 +176,7 @@ export function FinancePage() {
         setPayments(pay)
         setCourseReport(cr)
         setRefunds(rf)
+        setCashiers(csh)
       })
       .finally(() => setLoading(false))
   }, [from, to, dirFilter])
@@ -1037,6 +1048,72 @@ export function FinancePage() {
             </div>
           )}
 
+          {/* KASSIRLAR — kim qancha pul qabul qilgan (kassa bo'limi + moliyadan kiritilgan to'lovlar).
+              Qatorni bosish — o'sha kassirning to'lovlari ro'yxati. */}
+          {tab === 'cashiers' && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+                <StatCard label="Kassirlar" value={String(cashiers.length)} icon={Users} />
+                <StatCard
+                  label="Jami qabul qilingan"
+                  value={formatMoney(cashiers.reduce((a, c) => a + c.total, 0))}
+                  icon={Wallet}
+                  iconBg="bg-emerald-50"
+                  iconColor="text-emerald-600"
+                />
+                <StatCard
+                  label="To'lovlar soni"
+                  value={String(cashiers.reduce((a, c) => a + c.count, 0))}
+                  icon={Receipt}
+                />
+              </div>
+              <Card
+                tight
+                title="Kassirlar kesimi"
+                sub="Davr ichida kim qancha pul qabul qilgan — qatorni bosing (uning to'lovlari ro'yxati)"
+              >
+                <div className="table-wrap">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Kassir</th>
+                        <th className="num">To'lovlar</th>
+                        <th className="num">Naqd</th>
+                        <th className="num">Karta</th>
+                        <th className="num">Bank</th>
+                        <th className="num">Jami</th>
+                        <th>Oxirgi to'lov</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {cashiers.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="py-10 text-center text-slate-400">
+                            Bu davrda to'lov kiritilmagan.
+                          </td>
+                        </tr>
+                      ) : (
+                        cashiers.map((c) => (
+                          <tr key={c.key} onClick={() => setCashierTarget(c)} className="cursor-pointer">
+                            <td className="font-medium text-slate-700">{c.cashierName}</td>
+                            <td className="num">{c.count}</td>
+                            <td className="num font-mono text-[12.5px] text-slate-600">{formatMoney(c.cash)}</td>
+                            <td className="num font-mono text-[12.5px] text-slate-600">{formatMoney(c.card)}</td>
+                            <td className="num font-mono text-[12.5px] text-slate-600">{formatMoney(c.bank)}</td>
+                            <td className="num font-mono font-semibold text-emerald-600">{formatMoney(c.total)}</td>
+                            <td className="text-[12.5px] text-slate-500">
+                              {c.lastAt ? formatDateTime(c.lastAt) : '—'}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
+            </div>
+          )}
+
           {tab === 'refunds' && (
             <div className="space-y-6">
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
@@ -1172,6 +1249,13 @@ export function FinancePage() {
       <PaymentEditModal payment={editPayment} onClose={() => setEditPayment(null)} onSaved={load} />
 
       <RefundModal payment={refundTarget} onClose={() => setRefundTarget(null)} onSaved={load} />
+
+      <CashierPaymentsModal
+        target={cashierTarget}
+        from={from}
+        to={to}
+        onClose={() => setCashierTarget(null)}
+      />
 
       <ReceiptModal
         txId={receiptTx}

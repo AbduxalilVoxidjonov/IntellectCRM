@@ -521,6 +521,8 @@ Bazaviy route yo'q · Ruxsat: har action o'zi (student portal / admin / public).
 | GET | /api/admin/finance/course-report | Kurs/guruh kesimida hisobot. |
 | GET | /api/admin/finance/group-payments/{groupId} | Guruh ichida to'lov holati. |
 | POST | /api/admin/finance/accrue | Oylik to'lovni hisoblaydi (month bo'sh = barcha). |
+| GET | /api/admin/finance/cashiers?from=&to= | Kassirlar kesimi: kim qancha qabul qilgan (soni, jami, naqd/karta/bank). Faqat admin/superadmin yoki `finance` ruxsatli xodim. |
+| GET | /api/admin/finance/cashier-payments?from=&to=&cashierId=&cashierName= | Bitta kassir kiritgan to'lovlar ro'yxati + jami. |
 | GET | /api/admin/finance/monthly | Bir yil oylik kirim/chiqim (12 oy). |
 
 ### KassaController
@@ -534,6 +536,7 @@ staff'ga GET har doim ochiq bo'lgani uchun mavjud endpointlar ishlatiladi.
 |---|---|---|
 | GET | /api/admin/kassa/students?q= | O'quvchini F.I.Sh yoki telefon bo'yicha qidiradi (min 2 belgi, max 30 ta). |
 | POST | /api/admin/kassa/students/{id}/payments | To'lov kiritadi (kvitansiya nazorati, idempotent 6s, avans hisobi, audit, avto-xabar). 409 = kvitansiya band. |
+| GET | /api/admin/kassa/my-payments?from=&to= | Kassir O'ZI kiritgan to'lovlar + jami (kim ekani TOKENDAN; standart — bugun). |
 
 ### ContractsController
 `api/admin/contracts` · Ruxsat: `[Authorize]` + `[AdminPerm("contracts")]`. Shartnomalar — andozalar, `@`-tokenli .docx yuklab olish/Telegram.

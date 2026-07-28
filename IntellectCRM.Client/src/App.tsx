@@ -65,6 +65,8 @@ import { ParentsPage } from '@/pages/admin/parents/ParentsPage'
 import { TeacherAppPage } from '@/pages/admin/parents/TeacherAppPage'
 import { FinancePage } from '@/pages/admin/finance/FinancePage'
 import { KassaPage } from '@/pages/admin/kassa/KassaPage'
+import { KassaMyPaymentsPage } from '@/pages/admin/kassa/KassaMyPaymentsPage'
+import { KassaMobileLayout } from '@/components/layout/KassaMobileLayout'
 import { SettingsPage } from '@/pages/admin/settings/SettingsPage'
 import { AccountPage } from '@/pages/admin/account/AccountPage'
 // Marketing — ijtimoiy tarmoq avtojavob (Javobot UI; hozircha faqat UI, mock)
@@ -234,6 +236,15 @@ export default function App() {
             <Route path="boshqaruv/branches" element={<BranchesPage />} />
             <Route path="boshqaruv/staff-tasks" element={<StaffTasksPage />} />
           </Route>
+        </Route>
+      </Route>
+
+      {/* KASSA portali — TELEFON uchun (kassirning yagona ish o'rni: bosh sahifa/yon menyu YO'Q).
+          Admin/superadmin ham kira oladi; kassa-only xodim login'dan keyin shu yerga tushadi. */}
+      <Route element={<ProtectedRoute role="admin" />}>
+        <Route path="/kassa" element={<RequirePerm perm="kassa"><KassaMobileLayout /></RequirePerm>}>
+          <Route index element={<KassaPage />} />
+          <Route path="payments" element={<KassaMyPaymentsPage />} />
         </Route>
       </Route>
 

@@ -4,7 +4,7 @@ import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { useAuth } from '@/context/auth-context'
-import { homeByRole } from '@/config/navigation'
+import { homeFor } from '@/config/navigation'
 import { getPublicBrand, type PublicBrand } from '@/api/services/settings'
 import { apiErrorMessage, cn } from '@/lib/utils'
 import type { User } from '@/types'
@@ -36,12 +36,12 @@ export function LoginPage() {
 
   // Allaqachon kirgan bo'lsa — o'z bo'limiga
   if (isAuthenticated && user) {
-    return <Navigate to={homeByRole[user.role]} replace />
+    return <Navigate to={homeFor(user)} replace />
   }
 
   const afterLogin = (u: User) => {
     const from = (location.state as LocationState | null)?.from
-    navigate(from ?? homeByRole[u.role], { replace: true })
+    navigate(from ?? homeFor(u), { replace: true })
   }
 
   const handleSubmit = async (e: FormEvent) => {
