@@ -67,3 +67,6 @@ backup-config/
 backups/
 # Telegram bot yuboradigan JSON backup (haqiqiy o'quvchi/parol-hash ma'lumotlari)
 intellectcrm_backup_*.json
+# pg_dump nusxalari (prod bazadan olingan — haqiqiy ma'lumot)
+*.dump
+*.sql.gz
