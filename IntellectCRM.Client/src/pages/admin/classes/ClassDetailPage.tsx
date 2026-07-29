@@ -179,19 +179,22 @@ export function ClassDetailPage() {
     }
   }
 
-  /** "SMS jo'natish" (guruhga) — faol a'zolarning to'liq (telefon raqamli) ma'lumotini yuklaydi. */
+  /** "SMS jo'natish" (guruhga) — faol a'zolarning to'liq (telefon raqamli) ma'lumotini yuklaydi.
+   *  A'zolik holati va SHU GURUH balansi ham uzatiladi — modal ichida "aktiv/sinov/muzlatilgan" va
+   *  "faqat qarzdorlar" filtrlari shularga tayanadi. */
   const openGroupSms = async () => {
     if (smsLoading) return
     setSmsLoading(true)
     try {
-      const activeIds = new Set(members.filter((m) => m.isActive).map((m) => m.studentId))
+      const byId = new Map(members.filter((m) => m.isActive).map((m) => [m.studentId, m]))
       const all = await getStudents()
       setSmsRecipients(
         all
-          .filter((s) => activeIds.has(s.id))
+          .filter((s) => byId.has(s.id))
           .map((s) => ({
             id: s.id, fullName: s.fullName, phone: s.phone,
             parentPhone: s.parentPhone, fatherPhone: s.fatherPhone, motherPhone: s.motherPhone,
+            status: byId.get(s.id)!.status, balance: byId.get(s.id)!.balance,
           })),
       )
       setSmsOpen(true)
