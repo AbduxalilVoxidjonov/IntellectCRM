@@ -7,31 +7,38 @@ using IntellectCRM.Domain;
 namespace IntellectCRM.Application.Services;
 
 /// <summary>
-/// Eskiz.uz SMS shlyuzi (https://notify.eskiz.uz). Login/parol/sender BAZADAN (CenterMeta) o'qiladi —
-/// admin "Sozlamalar → SMS (Eskiz)"dan kiritadi (FcmService kabi — har chaqiruvda DB'dan). Bearer token
-/// CenterMeta'da keshlanadi (~30 kun); SMS yuborishda muddati tekshiriladi, eskirsa qayta login qilinadi.
-/// 401 qaytsa token yangilanib bir marta qayta urinadi. IHttpClientFactory ishlatiladi (singleton).
+/// Eskiz.uz SMS shlyuzi (https://notify.eskiz.uz).
+///
+/// <para><b>Login/parol — faqat .env dan</b> (<c>ESKIZ_EMAIL</c> / <c>ESKIZ_PASSWORD</c>,
+/// <see cref="AppSecrets"/>): bazada saqlanmaydi, UI'dan kiritilmaydi. Jo'natuvchi nomi (sender)
+/// maxfiy emas — u CenterMeta'da qoladi va admin UI'dan o'zgartiradi.</para>
+///
+/// <para>Bearer token XOTIRADA keshlanadi (~29 kun; xizmat singleton) — ilgari CenterMeta'da
+/// saqlanardi. Restartdan keyin bir marta qayta login qilinadi, 401 qaytsa token yangilanib bitta
+/// qayta urinish bo'ladi. IHttpClientFactory ishlatiladi.</para>
 /// </summary>
 public class EskizService(
     IConfiguration config, IHttpClientFactory httpFactory, ILogger<EskizService> logger)
 {
-    // Login/parol/sender — avval CenterMeta (admin Sozlamalar), bo'sh bo'lsa .env / appsettings
-    // (Eskiz__Email / Eskiz__Password / Eskiz__From) zaxira sifatida ishlatiladi.
-    private string EmailOf(CenterMeta? m) =>
-        !string.IsNullOrWhiteSpace(m?.EskizEmail) ? m!.EskizEmail.Trim() : (config["Eskiz:Email"] ?? "").Trim();
-    private string PasswordOf(CenterMeta? m) =>
-        !string.IsNullOrWhiteSpace(m?.EskizPassword) ? m!.EskizPassword.Trim() : (config["Eskiz:Password"] ?? "").Trim();
+    // Keshlangan Bearer token (xotirada — bazaga yozilmaydi). Singleton bo'lgani uchun butun ilova
+    // uchun bitta; parallel SMS yuborishlarda poyga bo'lmasin deb qulf bilan yangilanadi.
+    private string _token = "";
+    private DateTime _tokenExpiresAt = DateTime.MinValue;
+    private readonly SemaphoreSlim _tokenLock = new(1, 1);
 
-    public bool IsConfigured(CenterMeta? m) =>
-        !string.IsNullOrWhiteSpace(EmailOf(m)) && !string.IsNullOrWhiteSpace(PasswordOf(m));
+    private static string Email => AppSecrets.EskizEmail;
+    private static string Password => AppSecrets.EskizPassword;
+
+    /// <summary>Login/parol .env'da berilganmi (parametr eski imzoni saqlash uchun — e'tiborsiz).</summary>
+    public bool IsConfigured(CenterMeta? m = null) => AppSecrets.EskizConfigured;
 
     public string SenderOf(CenterMeta? m) =>
         !string.IsNullOrWhiteSpace(m?.EskizFrom) ? m!.EskizFrom.Trim()
         : !string.IsNullOrWhiteSpace(config["Eskiz:From"]) ? config["Eskiz:From"]!.Trim()
         : "4546";
 
-    /// <summary>Ko'rsatish uchun amaldagi email (DB yoki .env).</summary>
-    public string DisplayEmail(CenterMeta? m) => EmailOf(m);
+    /// <summary>Ko'rsatish uchun amaldagi email (.env dan).</summary>
+    public string DisplayEmail(CenterMeta? m = null) => Email;
 
     private string BaseUrl => (config["Eskiz:BaseUrl"] ?? "https://notify.eskiz.uz").TrimEnd('/');
     private HttpClient Client() => httpFactory.CreateClient("eskiz");
@@ -46,39 +53,38 @@ public class EskizService(
     }
 
     /// <summary>Keshlangan (yaroqli) tokenni qaytaradi; yo'q/eskirgan yoki <paramref name="forceRefresh"/>
-    /// bo'lsa login qiladi va CenterMeta'ga saqlaydi. (token, error).</summary>
+    /// bo'lsa qayta login qiladi. Kesh XOTIRADA (bazaga yozilmaydi). (token, error).
+    /// <paramref name="db"/> endi kerak emas — imzo chaqiruvchilar uchun saqlangan.</summary>
     public async Task<(string? Token, string? Error)> GetTokenAsync(
-        IAppDbContext db, bool forceRefresh = false, CancellationToken ct = default)
+        IAppDbContext? db = null, bool forceRefresh = false, CancellationToken ct = default)
     {
-        var meta = await db.CenterMeta.FirstOrDefaultAsync(ct);
-        if (!IsConfigured(meta)) return (null, "Eskiz login/parol sozlanmagan.");
+        if (!AppSecrets.EskizConfigured)
+            return (null, $"Eskiz login/parol sozlanmagan (.env: {AppSecrets.EnvKeys.EskizEmail} / {AppSecrets.EnvKeys.EskizPassword}).");
 
-        if (!forceRefresh && meta is not null && !string.IsNullOrWhiteSpace(meta.EskizToken)
-            && meta.EskizTokenExpiresAt is { } exp && exp > DateTime.UtcNow.AddDays(1))
-            return (meta.EskizToken, null);
+        if (!forceRefresh && Cached() is { } cached) return (cached, null);
 
-        // .env orqali sozlangan, lekin CenterMeta qatori bo'lmasa — tokenni keshlash uchun yaratamiz.
-        if (meta is null) { meta = new CenterMeta(); db.CenterMeta.Add(meta); }
-
+        await _tokenLock.WaitAsync(ct);
         try
         {
+            // Qulfni kutayotganda boshqa so'rov yangilagan bo'lishi mumkin.
+            if (!forceRefresh && Cached() is { } fresh) return (fresh, null);
+
             using var form = new MultipartFormDataContent
             {
-                { new StringContent(EmailOf(meta)), "email" },
-                { new StringContent(PasswordOf(meta)), "password" },
+                { new StringContent(Email), "email" },
+                { new StringContent(Password), "password" },
             };
             var resp = await Client().PostAsync($"{BaseUrl}/api/auth/login", form, ct);
             var body = await resp.Content.ReadAsStringAsync(ct);
             if (!resp.IsSuccessStatusCode)
-                return (null, $"Eskiz login xato ({(int)resp.StatusCode}). Login/parolni tekshiring.");
+                return (null, $"Eskiz login xato ({(int)resp.StatusCode}). .env dagi login/parolni tekshiring.");
             using var doc = JsonDocument.Parse(body);
             if (!doc.RootElement.TryGetProperty("data", out var data) ||
                 !data.TryGetProperty("token", out var tok) || tok.GetString() is not { Length: > 0 } token)
                 return (null, "Eskiz token qaytmadi.");
 
-            meta.EskizToken = token;
-            meta.EskizTokenExpiresAt = DateTime.UtcNow.AddDays(29);
-            await db.SaveChangesAsync(ct);
+            _token = token;
+            _tokenExpiresAt = DateTime.UtcNow.AddDays(29);
             return (token, null);
         }
         catch (Exception ex)
@@ -86,7 +92,15 @@ public class EskizService(
             logger.LogWarning(ex, "Eskiz login xatosi");
             return (null, "Eskiz bilan bog'lanishda xatolik.");
         }
+        finally
+        {
+            _tokenLock.Release();
+        }
     }
+
+    /// <summary>Xotiradagi token — hali kamida bir kun yaroqli bo'lsa. Aks holda null.</summary>
+    private string? Cached() =>
+        !string.IsNullOrEmpty(_token) && _tokenExpiresAt > DateTime.UtcNow.AddDays(1) ? _token : null;
 
     public record SmsResult(bool Ok, string RequestId, string Status, string? Error);
 
@@ -94,8 +108,9 @@ public class EskizService(
     public async Task<SmsResult> SendSmsAsync(
         IAppDbContext db, string phone, string message, string? callbackUrl = null, CancellationToken ct = default)
     {
+        if (!AppSecrets.EskizConfigured)
+            return new SmsResult(false, "", "error", "Eskiz sozlanmagan (.env: ESKIZ_EMAIL / ESKIZ_PASSWORD).");
         var meta = await db.CenterMeta.FirstOrDefaultAsync(ct);
-        if (!IsConfigured(meta)) return new SmsResult(false, "", "error", "Eskiz sozlanmagan.");
         var from = SenderOf(meta);
         var mobile = NormalizePhone(phone);
         if (mobile.Length < 12) return new SmsResult(false, "", "error", "Telefon raqami noto'g'ri.");

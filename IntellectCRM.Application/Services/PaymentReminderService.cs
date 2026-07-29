@@ -124,7 +124,7 @@ public class PaymentReminderService(
             .GroupBy(c => c.Name).ToDictionary(g => g.Key, g => g.First());
         var teacherNames = await MessageTokenizer.TeacherNamesByIdAsync(db, ct);
 
-        var fcmJson = meta?.FcmServiceAccountJson ?? "";
+        var fcmJson = AppSecrets.FcmServiceAccountJson;
         var centerName = meta?.Name ?? "";
         var telegramReady = sendTelegram && telegram.IsConfigured;
         var pushReady = sendPush && FcmService.IsConfigured(fcmJson);

@@ -704,8 +704,8 @@ public class StudentPortalController(
             return NotFound(new { message = "Speaking topshirig'i topilmadi" });
 
         var meta = await db.CenterMeta.FirstOrDefaultAsync();
-        var key = meta?.AzureSpeechKey ?? "";
-        var region = meta?.AzureSpeechRegion ?? "";
+        var key = AppSecrets.AzureSpeechKey;
+        var region = AppSecrets.AzureSpeechRegion ?? "";
         if (!AzureSpeechService.IsConfigured(key, region))
             return BadRequest(new { message = "Speaking baholash hali sozlanmagan (admin Azure kalitini kiritishi kerak)." });
         if (audio is null || audio.Length == 0) return BadRequest(new { message = "Audio bo'sh" });
@@ -770,8 +770,8 @@ public class StudentPortalController(
         var s = await TargetAsync(studentId);
         if (s is null) return NotFound();
         var meta = await db.CenterMeta.FirstOrDefaultAsync();
-        var geminiReady = GeminiService.IsConfigured(meta?.GeminiApiKey);
-        var azureReady = AzureSpeechService.IsConfigured(meta?.AzureSpeechKey, meta?.AzureSpeechRegion);
+        var geminiReady = GeminiService.IsConfigured(AppSecrets.GeminiApiKey);
+        var azureReady = AzureSpeechService.IsConfigured(AppSecrets.AzureSpeechKey, AppSecrets.AzureSpeechRegion);
         var (premium, blocked, limit, used) = await AiAccessAsync(s.Id, meta);
         var remaining = premium ? 999 : Math.Max(0, limit - used);
         return new AiCheckStatusDto(geminiReady, azureReady, premium, blocked, limit, used, remaining);
@@ -812,7 +812,7 @@ public class StudentPortalController(
 
         var meta = await db.CenterMeta.FirstOrDefaultAsync();
         if (await GuardLimitAsync(s.Id, meta) is { } limitError) return limitError;
-        if (!GeminiService.IsConfigured(meta?.GeminiApiKey))
+        if (!GeminiService.IsConfigured(AppSecrets.GeminiApiKey))
             return BadRequest(new { message = "AI tekshiruv hali sozlanmagan (admin Gemini kalitini kiritishi kerak)." });
 
         var taskType = (req.TaskType ?? "").Trim();
@@ -820,7 +820,7 @@ public class StudentPortalController(
 
         var model = GeminiService.ResolveModel(config);
         var prompt = AiCheckService.WritingPrompt(req.Prompt, text, taskType);
-        var (ok, raw, err) = await GeminiService.GenerateAsync(meta!.GeminiApiKey, model, prompt, jsonMode: true);
+        var (ok, raw, err) = await GeminiService.GenerateAsync(AppSecrets.GeminiApiKey, model, prompt, jsonMode: true);
         if (!ok) return BadRequest(new { message = err ?? "AI tahlil qilolmadi." });
         var analysis = AiCheckService.Parse(raw);
         if (analysis is null) return BadRequest(new { message = "AI javobini o'qib bo'lmadi. Qaytadan urinib ko'ring." });
@@ -859,11 +859,11 @@ public class StudentPortalController(
         if (s is null) return NotFound();
         var meta = await db.CenterMeta.FirstOrDefaultAsync();
         if (await GuardLimitAsync(s.Id, meta) is { } limitError) return limitError;
-        var key = meta?.AzureSpeechKey ?? "";
-        var region = meta?.AzureSpeechRegion ?? "";
+        var key = AppSecrets.AzureSpeechKey;
+        var region = AppSecrets.AzureSpeechRegion ?? "";
         if (!AzureSpeechService.IsConfigured(key, region))
             return BadRequest(new { message = "Speaking baholash hali sozlanmagan (admin Azure kalitini kiritishi kerak)." });
-        if (!GeminiService.IsConfigured(meta?.GeminiApiKey))
+        if (!GeminiService.IsConfigured(AppSecrets.GeminiApiKey))
             return BadRequest(new { message = "AI tahlil hali sozlanmagan (admin Gemini kalitini kiritishi kerak)." });
         if (audio is null || audio.Length == 0) return BadRequest(new { message = "Audio bo'sh" });
         if (audio.Length > 8_000_000) return BadRequest(new { message = "Audio juda katta (8 MB dan oshmasin)." });
@@ -891,7 +891,7 @@ public class StudentPortalController(
         // 2-qadam: Gemini — Azure talaffuz natijasini (har so'z aniqligi bilan) tahlil qiladi va maslahat beradi.
         var model = GeminiService.ResolveModel(config);
         var aiPrompt = AiCheckService.SpeakingPrompt(prompt, azure.RecognizedText, azure);
-        var (ok, raw, err) = await GeminiService.GenerateAsync(meta!.GeminiApiKey, model, aiPrompt, jsonMode: true);
+        var (ok, raw, err) = await GeminiService.GenerateAsync(AppSecrets.GeminiApiKey, model, aiPrompt, jsonMode: true);
         var analysis = ok ? AiCheckService.Parse(raw) : null;
         // Gemini tahlili bo'lmasa ham Azure talaffuz natijasi (ballar + so'zlar) bilan yozuvni saqlaymiz.
 

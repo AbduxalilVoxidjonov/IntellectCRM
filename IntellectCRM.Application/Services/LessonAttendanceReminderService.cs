@@ -78,7 +78,7 @@ public class LessonAttendanceReminderService(
         groups = groups.Where(g => g.Days.Contains(weekday)).ToList();
 
         var meta = await db.CenterMeta.FirstOrDefaultAsync(ct);
-        var fcmJson = meta?.FcmServiceAccountJson ?? "";
+        var fcmJson = AppSecrets.FcmServiceAccountJson;
         var pushReady = FcmService.IsConfigured(fcmJson);
         var todayStr = today.ToString("yyyy-MM-dd");
         var now = AppClock.Now;

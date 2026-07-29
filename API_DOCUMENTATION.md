@@ -75,27 +75,27 @@ Admin controllerlar `[AdminPerm("<kalit>")]` bilan himoyalangan:
 | PUT | /api/admin/settings/school | Markaz ma'lumotlarini saqlaydi. |
 | POST | /api/admin/settings/logo | Markaz logotipini yuklaydi (maks 8 MB). |
 | DELETE | /api/admin/settings/logo | Logotipni o'chiradi. |
-| GET | /api/admin/settings/telegram | Telegram bot sozlamalari (token, username, kanal, holat). |
-| PUT | /api/admin/settings/telegram | Telegram bot sozlamalarini saqlaydi + xizmat keshini yangilaydi. |
+| GET | /api/admin/settings/telegram | Telegram bot sozlamalari (username, nom, kanal + token HOLATI; token qiymati qaytmaydi — u .env da). |
+| PUT | /api/admin/settings/telegram | Bot nomi/username/kanalni saqlaydi. Token yuborilsa 400 (token faqat .env: TELEGRAM_BOT_TOKEN). |
 | GET | /api/admin/settings/telegram-backup | Telegram backup sozlamalari (admin chat ID, jadval, yoqilgan). |
 | POST | /api/admin/settings/telegram-backup | Telegram backup sozlamalarini saqlaydi (validatsiya bilan). |
 | POST | /api/admin/settings/telegram-backup/test | Admin chat ID ga test xabari yuboradi. |
 | POST | /api/admin/settings/telegram-backup/run | Baza backupini HOZIR Telegram orqali adminga yuboradi. |
-| GET | /api/admin/settings/firebase | Firebase/FCM sozlamalari (service account, web config, VAPID). |
-| PUT | /api/admin/settings/firebase | Firebase/FCM sozlamalarini saqlaydi (JSON validatsiya). |
-| GET | /api/admin/settings/azure-speech | Azure Speech (talaffuz baholash) sozlamalari. |
-| PUT | /api/admin/settings/azure-speech | Azure Speech sozlamalarini saqlaydi (kalit faqat berilsa). |
-| GET | /api/admin/settings/gemini | Google Gemini AI sozlamalari (model, holat). |
-| PUT | /api/admin/settings/gemini | Gemini API kalitini saqlaydi (faqat berilsa). |
+| GET | /api/admin/settings/firebase | Firebase/FCM: web config + VAPID (ommaviy) va service account HOLATI (.env: FCM_SERVICE_ACCOUNT_JSON). |
+| PUT | /api/admin/settings/firebase | Web config + VAPID saqlaydi. Service account yuborilsa 400 (u .env da). |
+| GET | /api/admin/settings/azure-speech | Azure Speech holati (region + kalit holati; ikkalasi .env dan). |
+| PUT | /api/admin/settings/azure-speech | Saqlamaydi — kalit/region yuborilsa 400 (.env: AZURE_SPEECH_KEY / AZURE_SPEECH_REGION). |
+| GET | /api/admin/settings/gemini | Gemini holati (model + kalit holati; kalit .env: GEMINI_API_KEY). |
+| PUT | /api/admin/settings/gemini | Saqlamaydi — kalit yuborilsa 400 (kalit faqat .env da). |
 | GET | /api/admin/settings/check | To'lov cheki (termal kvitansiya) sozlamalari. |
 | PUT | /api/admin/settings/check | To'lov cheki sozlamalarini saqlaydi. |
-| GET | /api/admin/settings/eskiz | Eskiz.uz SMS sozlamalari (email, sender, holat, balans). |
-| PUT | /api/admin/settings/eskiz | Eskiz sozlamalarini saqlaydi (parol faqat berilsa). |
+| GET | /api/admin/settings/eskiz | Eskiz SMS holati (login .env dan, sender, holat, balans). |
+| PUT | /api/admin/settings/eskiz | Faqat sender (From) saqlanadi. Login/parol yuborilsa 400 (.env: ESKIZ_EMAIL / ESKIZ_PASSWORD). |
 | GET | /api/admin/settings/app-apk | Yuklangan o'quvchi/o'qituvchi APK ma'lumotlari. |
 | POST | /api/admin/settings/app-apk/{role} | Rol (`student`/`teacher`) uchun APK yuklaydi (maks 50 MB). |
 | DELETE | /api/admin/settings/app-apk/{role} | Rol uchun APK ni o'chiradi. |
 | GET | /api/admin/settings/turnstile | Turniket/FaceID sozlamalari. |
-| PUT | /api/admin/settings/turnstile | Turniket sozlamalari + o'qituvchi qurilma moslamasini saqlaydi. |
+| PUT | /api/admin/settings/turnstile | Turniket sozlamalari + qurilma moslamasi. Login/parol yuborilsa 400 (.env: TURNSTILE_USERNAME / TURNSTILE_PASSWORD). |
 | GET | /api/admin/settings/cameras | Kamera sozlamalari (yoqilgan, soni). |
 | PUT | /api/admin/settings/cameras | Kamera yoqilgan/o'chirilgan holatini saqlaydi. |
 | PUT | /api/admin/settings/absence-reasons | Davomat (kelmaganlik) sabablarini saqlaydi. |

@@ -113,7 +113,7 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
 
         var meta = await db.CenterMeta.FirstOrDefaultAsync();
         var model = GeminiService.ResolveModel(config);
-        if (!GeminiService.IsConfigured(meta?.GeminiApiKey))
+        if (!GeminiService.IsConfigured(AppSecrets.GeminiApiKey))
             return new StudentAiAnalysisResponseDto(false, false, null,
                 "Gemini API kaliti sozlanmagan. Sozlamalar → AI Tahlil (Gemini) bo'limidan kalit kiriting.");
 
@@ -159,7 +159,7 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
             "to'qib chiqarma. Har matn maydoni qisqa va aniq. " + prevContext + "\n\n" +
             "O'quvchi ma'lumotlari (JSON):\n" + json;
 
-        var (ok, text, err) = await GeminiService.GenerateAsync(meta!.GeminiApiKey, model, prompt, jsonMode: true);
+        var (ok, text, err) = await GeminiService.GenerateAsync(AppSecrets.GeminiApiKey, model, prompt, jsonMode: true);
         if (!ok)
             return new StudentAiAnalysisResponseDto(false, false, null, err);
 

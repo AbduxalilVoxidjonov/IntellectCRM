@@ -38,7 +38,15 @@ public static class BackupService
 
         data["generatedAt"] = AppClock.Iso();
         // ---- Asosiy biznes ma'lumotlari ----
-        await Add("users", db.Users);
+        // PAROLLAR NUSXAGA TUSHMAYDI: bu JSON Telegram chatiga yuboriladi, shuning uchun
+        // AppUser TO'LIQ emas, tanlab olinadi — `PasswordHash` ham, birinchi login'gacha OCHIQ
+        // saqlanadigan `InitialPassword` ham chiqarib tashlanadi. To'liq tiklash baribir
+        // pg_dump (.sql.gz) orqali qilinadi (DEPLOY.md §6.3), bu JSON esa ma'lumot nusxasi.
+        await Add("users", db.Users.Select(u => new
+        {
+            u.Id, u.FullName, u.Role, u.Email, u.Phone, u.AvatarUrl,
+            u.FirstLoginAt, u.LastLoginAt, u.Position, u.Permissions,
+        }));
         await Add("students", db.Students);
         await Add("teachers", db.Teachers);
         await Add("teacherAttendances", db.TeacherAttendances);

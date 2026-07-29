@@ -294,7 +294,7 @@ public class TurnstileService
         var baseUrl = $"http://{meta.TurnstileHost}:{port}";
         using var handler = new HttpClientHandler
         {
-            Credentials = new NetworkCredential(meta.TurnstileUsername, meta.TurnstilePassword),
+            Credentials = new NetworkCredential(AppSecrets.TurnstileUsername, AppSecrets.TurnstilePassword),
             ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator,
         };
         using var http = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(20) };

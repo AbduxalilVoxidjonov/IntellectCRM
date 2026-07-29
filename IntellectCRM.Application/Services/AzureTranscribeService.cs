@@ -11,7 +11,7 @@ namespace IntellectCRM.Application.Services;
 /// MUHIM: <c>profanityFilterMode=None</c> — matn HECH QANDAY moslashtirish/senzurasiz,
 /// aytilganidek qaytadi (foydalanuvchi talabi: so'zma-so'z transkript).
 /// Bir nechta locale berilsa Azure tilni o'zi aniqlaydi (o'zbek/rus aralash suhbatlar uchun).
-/// Kalit/region — CenterMeta.AzureSpeechKey/Region (Speaking bilan bir xil).
+/// Kalit/region — .env dan: AZURE_SPEECH_KEY / AZURE_SPEECH_REGION (Speaking bilan bir xil).
 /// DIQQAT: Fast Transcription hamma regionda emas (eastus, westeurope, southeastasia, ...);
 /// region qo'llamasa Azure xatosi qaytadi va UI'da ko'rinadi.
 /// </summary>

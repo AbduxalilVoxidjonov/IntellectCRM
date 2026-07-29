@@ -39,7 +39,7 @@ public class CenterAiSchedulerService(
         var db = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
         var meta = await db.CenterMeta.FirstOrDefaultAsync(ct);
         if (meta is null || !meta.AiDailyAnalysisEnabled) return;
-        if (!GeminiService.IsConfigured(meta.GeminiApiKey)) return;
+        if (!GeminiService.IsConfigured(AppSecrets.GeminiApiKey)) return;
 
         var hour = Math.Clamp(meta.AiDailyAnalysisHour, 0, 23);
         var target = hour * 60; // soat:00

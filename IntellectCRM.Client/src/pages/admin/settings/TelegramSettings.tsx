@@ -11,14 +11,17 @@ import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Input, Select } from '@/components/ui/Input'
 import { Loader } from '@/components/ui/Loader'
+import { EnvSecretField } from '@/components/settings/EnvSecretField'
+import type { EnvSecret } from '@/api/services/settings'
 
 /**
- * Telegram bot tokenini (ota-onalarga e'lon yuborish uchun) kiritadigan sozlama.
- * Zaxira nusxa va APK yuklash alohida bo'limlarga ajratilgan:
- * "Sozlamalar → Zaxira nusxa" va "Sozlamalar → Mobil ilova (APK)".
+ * Telegram bot sozlamasi (ota-onalarga e'lon yuborish uchun).
+ * TOKEN bu yerda KIRITILMAYDI — u serverdagi `.env` faylida (TELEGRAM_BOT_TOKEN), bazada
+ * saqlanmaydi. Bu sahifada faqat maxfiy bo'lmagan qismlar: bot nomi/username, kanal, telefon
+ * moslash. Zaxira nusxa va APK yuklash alohida bo'limlarda.
  */
 export function TelegramSettings() {
-  const [token, setToken] = useState('')
+  const [tokenSecret, setTokenSecret] = useState<EnvSecret | null>(null)
   const [username, setUsername] = useState('')
   const [name, setName] = useState('')
   const [channel, setChannel] = useState('')
@@ -33,7 +36,7 @@ export function TelegramSettings() {
   useEffect(() => {
     getTelegramSettings()
       .then((c: TelegramConfig) => {
-        setToken(c.botToken ?? '')
+        setTokenSecret(c.token ?? null)
         setUsername(c.botUsername ?? '')
         setName(c.botName ?? '')
         setChannel(c.channel ?? '')
@@ -51,13 +54,13 @@ export function TelegramSettings() {
     setStatus('saving')
     try {
       const saved = await saveTelegramSettings({
-        botToken: (token ?? '').trim(),
         botUsername: (username ?? '').trim(),
         botName: (name ?? '').trim(),
         channel: (channel ?? '').trim(),
         phoneMatchField,
       })
       setConfigured(saved.configured)
+      setTokenSecret(saved.token ?? null)
       setStatus('saved')
       setTimeout(() => setStatus('idle'), 2000)
     } catch (err) {
@@ -88,16 +91,16 @@ export function TelegramSettings() {
       <p className="mb-4 text-sm text-slate-400">
         Bot orqali guruh ota-onalariga e'lon yuboriladi. Tokenni Telegramdagi{' '}
         <span className="font-medium text-slate-500">@BotFather</span> dan oling
-        (/newbot → token). Token kiritilgandan so'ng bot avtomatik ishga tushadi.
+        (/newbot → token) va serverdagi <code className="rounded bg-slate-100 px-1">.env</code> ga
+        joylang — bot qayta ishga tushganda avtomatik ulanadi.
       </p>
 
       <form onSubmit={onSubmit} className="max-w-2xl space-y-4">
-        <Input
+        <EnvSecretField
           label="Bot tokeni"
-          placeholder="123456789:AAH..."
-          value={token}
-          onChange={(e) => setToken(e.target.value)}
-          autoComplete="off"
+          secret={tokenSecret}
+          sample="123456789:AAH..."
+          hint="Token @BotFather dan olinadi (/newbot yoki /token)."
         />
         <Input
           label="Bot nomi (ko'rsatish uchun)"

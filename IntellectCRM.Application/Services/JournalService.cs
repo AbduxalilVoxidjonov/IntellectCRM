@@ -384,7 +384,7 @@ public static class JournalService
 
         // Push (FCM sozlangan + token bor bo'lsa) — fire-and-forget, jurnal javobini bloklamaymiz.
         var meta = await db.CenterMeta.FirstOrDefaultAsync();
-        var json = meta?.FcmServiceAccountJson ?? "";
+        var json = AppSecrets.FcmServiceAccountJson;
         if (fcm is null || !FcmService.IsConfigured(json)) return;
         var tokens = await db.DeviceTokens.Where(d => d.UserId == student.UserId)
             .Select(d => d.Token).Distinct().ToListAsync();

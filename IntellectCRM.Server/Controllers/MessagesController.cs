@@ -283,11 +283,9 @@ public class MessagesController(
 
     /// <summary>Firebase (push) sozlanganmi — admin UI ko'rsatishi uchun.</summary>
     [HttpGet("push/status")]
-    public async Task<ActionResult<object>> PushStatus()
-    {
-        var m = await db.CenterMeta.FirstOrDefaultAsync();
-        return Ok(new { configured = FcmService.IsConfigured(m?.FcmServiceAccountJson) });
-    }
+    public ActionResult<object> PushStatus() =>
+        // Service account .env dan (FCM_SERVICE_ACCOUNT_JSON) — bazadan emas.
+        Ok(new { configured = FcmService.IsConfigured(AppSecrets.FcmServiceAccountJson) });
 
     /// <summary>Ro'yxatdan o'tgan qurilma tokenlari soni + so'nggilari — push nega yetib bormayotganini
     /// tekshirish uchun (0 bo'lsa: ilova FCM tokenni ro'yxatdan o'tkazmayapti).</summary>
@@ -415,7 +413,7 @@ public class MessagesController(
             .ToDictionary(g => g.Key, g => g.Select(x => x.Token).Distinct().ToList());
 
         var meta = await db.CenterMeta.FirstOrDefaultAsync();
-        var json = meta?.FcmServiceAccountJson ?? "";
+        var json = AppSecrets.FcmServiceAccountJson;
         var centerName = meta?.Name ?? "";
         var groupByName = await GroupByNameAsync();
         var teacherNames = await TeacherNamesAsync();

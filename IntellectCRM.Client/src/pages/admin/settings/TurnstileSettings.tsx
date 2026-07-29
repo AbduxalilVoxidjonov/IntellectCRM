@@ -12,17 +12,19 @@ import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Input, Select, Time24Input } from '@/components/ui/Input'
 import { Loader } from '@/components/ui/Loader'
+import { EnvSecretField } from '@/components/settings/EnvSecretField'
 
 const control =
   'rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition-colors focus:border-brand-400 focus:ring-2 focus:ring-brand-100'
 
 /**
  * Turniket / FaceID integratsiya sozlamasi. Qurilma (Hikvision/ZKTeco) o'tish hodisalaridan
+ * Qurilma LOGIN/PAROLI serverdagi `.env` faylida (TURNSTILE_USERNAME / TURNSTILE_PASSWORD) —
+ * bazada saqlanmaydi va UI'dan kiritilmaydi.
  * o'qituvchilar davomati AVTOMATIK yuklanadi (natija — "O'qituvchilar → Davomat" dashboardida).
  */
 export function TurnstileSettings() {
   const [cfg, setCfg] = useState<TurnstileConfig | null>(null)
-  const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(true)
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
 
@@ -52,14 +54,11 @@ export function TurnstileSettings() {
         vendor: cfg.vendor,
         host: (cfg.host ?? '').trim(),
         port: cfg.port,
-        username: (cfg.username ?? '').trim(),
-        password: password || undefined,
         workStartTime: cfg.workStartTime,
         lateGraceMinutes: cfg.lateGraceMinutes,
         teachers: cfg.teachers,
       })
       setCfg(saved)
-      setPassword('')
       setStatus('saved')
       setTimeout(() => setStatus('idle'), 2000)
     } catch {
@@ -130,19 +129,20 @@ export function TurnstileSettings() {
             autoComplete="off"
           />
           <Input
-            label="Login"
-            placeholder="admin"
-            value={cfg.username}
-            onChange={(e) => set('username', e.target.value)}
+            label="Login (.env: TURNSTILE_USERNAME)"
+            value={cfg.username || '—'}
+            readOnly
+            disabled
             autoComplete="off"
           />
-          <Input
-            label={cfg.hasPassword ? 'Parol (saqlangan — o\'zgartirish uchun yozing)' : 'Parol'}
-            type="password"
-            placeholder={cfg.hasPassword ? '••••••••' : 'Qurilma paroli'}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="new-password"
+        </div>
+
+        <div className="mt-4 max-w-2xl">
+          <EnvSecretField
+            label="Qurilma login/paroli"
+            secret={cfg.credentials}
+            sample="<qurilma paroli>"
+            hint="Login uchun TURNSTILE_USERNAME, parol uchun TURNSTILE_PASSWORD qatorlari."
           />
         </div>
       </Card>

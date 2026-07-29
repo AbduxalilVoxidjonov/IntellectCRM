@@ -7,63 +7,44 @@ namespace IntellectCRM.Application.Services;
 
 /// <summary>
 /// Telegram Bot API bilan ishlash: e'lon yuborish (sendMessage) va bot yangilanishlarini olish
-/// (getUpdates, long polling). Token endi BAZADAN (CenterMeta) — admin "Sozlamalar" bo'limidan
-/// kiritadi; xizmat tokenni xotirada saqlaydi (Load startupda yuklaydi, Set saqlangach yangilaydi).
-/// Eski appsettings "Telegram:BotToken" faqat birinchi marta (DB bo'sh bo'lsa) urug' sifatida ishlatiladi.
-/// Token bo'sh bo'lsa xizmat "sozlanmagan" — hech narsa yubormaydi, ilova baribir ishlaydi.
+/// (getUpdates, long polling).
+///
+/// <para><b>TOKEN — faqat .env dan</b> (<c>TELEGRAM_BOT_TOKEN</c> / <c>Telegram__BotToken</c>,
+/// <see cref="AppSecrets.TelegramBotToken"/>). Bazada saqlanmaydi va UI'dan kiritilmaydi.
+/// Token bo'sh bo'lsa xizmat "sozlanmagan" — hech narsa yubormaydi, ilova baribir ishlaydi.</para>
+///
+/// <para>Bot <b>username/nomi</b> maxfiy emas (havola va ilovada ko'rsatish uchun) — u CenterMeta'da
+/// qoladi va <see cref="Load"/> bilan startupda xotiraga olinadi, <see cref="Set"/> esa admin
+/// sozlamani saqlaganda yangilaydi.</para>
 /// </summary>
-public class TelegramService(
-    IConfiguration config, IHttpClientFactory httpFactory, ILogger<TelegramService> logger)
+public class TelegramService(IHttpClientFactory httpFactory, ILogger<TelegramService> logger)
 {
-    private volatile string _token = "";
     private volatile string _username = "";
     private volatile string _name = "";
 
-    public string BotToken => _token;
+    public string BotToken => AppSecrets.TelegramBotToken;
     public string BotUsername => _username;
     public string BotName => _name;
-    public bool IsConfigured => !string.IsNullOrWhiteSpace(_token);
+    public bool IsConfigured => !string.IsNullOrWhiteSpace(BotToken);
 
-    /// <summary>Xotiradagi token/username/nom'ni yangilaydi (admin sozlamani saqlaganda chaqiriladi).</summary>
-    public void Set(string? token, string? username, string? name = null)
+    /// <summary>Xotiradagi bot username/nomini yangilaydi (admin sozlamani saqlaganda chaqiriladi).
+    /// Token bu yerda YO'Q — u .env dan o'qiladi.</summary>
+    public void Set(string? username, string? name = null)
     {
-        _token = (token ?? "").Trim();
         _username = (username ?? "").Trim().TrimStart('@');
         _name = (name ?? "").Trim();
     }
 
-    /// <summary>
-    /// Startupda chaqiriladi: tokenni CenterMeta'dan yuklaydi. DB bo'sh, lekin appsettings'da token
-    /// bo'lsa — uni bir marta DB'ga ko'chiradi (orqaga moslik + UI'da ko'rinishi uchun).
-    /// </summary>
+    /// <summary>Startupda chaqiriladi: bot username/nomini CenterMeta'dan xotiraga oladi
+    /// (token .env dan kelgani uchun bu yerda o'qilmaydi).</summary>
     public void Load(IAppDbContext db)
     {
-        // Bitta markaz — tokenli CenterMeta qatorini topamiz (xotirada bitta token).
-        var meta = db.CenterMeta
-            .FirstOrDefault(m => m.TelegramBotToken != "");
-
-        // Hech kimda token yo'q — eski appsettings urug'i (mavjud birinchi qatorga bir marta ko'chiriladi).
-        if (meta is null)
-        {
-            var cfgToken = config["Telegram:BotToken"];
-            if (!string.IsNullOrWhiteSpace(cfgToken))
-            {
-                var any = db.CenterMeta.IgnoreQueryFilters().FirstOrDefault();
-                if (any is not null)
-                {
-                    any.TelegramBotToken = cfgToken.Trim();
-                    any.TelegramBotUsername = (config["Telegram:BotUsername"] ?? "").Trim().TrimStart('@');
-                    db.SaveChanges();
-                    meta = any;
-                }
-            }
-        }
-
-        Set(meta?.TelegramBotToken, meta?.TelegramBotUsername, meta?.TelegramBotName);
+        var meta = db.CenterMeta.FirstOrDefault();
+        Set(meta?.TelegramBotUsername, meta?.TelegramBotName);
     }
 
     private HttpClient Client() => httpFactory.CreateClient("telegram");
-    private string ApiBase => $"https://api.telegram.org/bot{_token}";
+    private string ApiBase => $"https://api.telegram.org/bot{BotToken}";
 
     /// <summary>Berilgan chatga matn yuboradi (ixtiyoriy reply_markup va parseMode bilan). Muvaffaqiyat — true.
     /// parseMode="HTML" bersa — masalan &lt;code&gt; bilan o'ralgan qism Telegram mijozlarida
@@ -270,7 +251,7 @@ public class TelegramService(
     /// Token yo'q/noto'g'ri bo'lsa 0.</summary>
     public long BotId()
     {
-        var t = _token;
+        var t = BotToken;
         var i = t.IndexOf(':');
         return i > 0 && long.TryParse(t[..i], out var id) ? id : 0;
     }

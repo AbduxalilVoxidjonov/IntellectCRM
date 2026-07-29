@@ -7,14 +7,18 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Loader } from '@/components/ui/Loader'
 import { formatMoney } from '@/lib/utils'
+import { EnvSecretField } from '@/components/settings/EnvSecretField'
+import type { EnvSecret } from '@/api/services/settings'
 
 /**
- * SMS (Eskiz.uz) sozlamasi — kabinet login/parol + jo'natuvchi nomi (sender).
- * Kiritilgach, Xabarlar → "SMS yuborish" bo'limida ota-ona/o'quvchi/o'qituvchi raqamlariga SMS yuboriladi.
+ * SMS (Eskiz.uz) sozlamasi.
+ * Kabinet LOGIN/PAROLI serverdagi `.env` faylida (ESKIZ_EMAIL / ESKIZ_PASSWORD) — bazada
+ * saqlanmaydi va UI'dan kiritilmaydi. Bu yerdan faqat jo'natuvchi nomi (sender) o'zgartiriladi.
  */
 export function EskizSettings() {
   const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
+  const [login, setLogin] = useState<EnvSecret | null>(null)
+  const [password, setPassword] = useState<EnvSecret | null>(null)
   const [from, setFrom] = useState('4546')
   const [configured, setConfigured] = useState(false)
   const [balance, setBalance] = useState<number | null>(null)
@@ -27,6 +31,8 @@ export function EskizSettings() {
     setFrom(c.from || '4546')
     setConfigured(c.configured)
     setBalance(c.balance)
+    setLogin(c.login ?? null)
+    setPassword(c.password ?? null)
   }
 
   useEffect(() => {
@@ -40,13 +46,8 @@ export function EskizSettings() {
     setStatus('saving')
     setError(null)
     try {
-      const saved = await saveEskizSettings({
-        email: email.trim(),
-        password: password.trim() || undefined,
-        from: from.trim() || '4546',
-      })
+      const saved = await saveEskizSettings({ from: from.trim() || '4546' })
       apply(saved)
-      setPassword('')
       setStatus('saved')
       setTimeout(() => setStatus('idle'), 2000)
     } catch (e: unknown) {
@@ -83,37 +84,21 @@ export function EskizSettings() {
     >
       <p className="mb-4 text-sm text-slate-400">
         <b>Eskiz.uz</b> SMS shlyuzi orqali ota-ona/o'quvchi/o'qituvchi raqamlariga SMS yuboriladi
-        (Xabarlar → <b>SMS yuborish</b>). Login/parol — eskiz.uz kabinetingiznikidir. Jo'natuvchi nomi
+        (Xabarlar → <b>SMS yuborish</b>). Login/parol — eskiz.uz kabinetingiznikidir va serverdagi
+        <code className="rounded bg-slate-100 px-1">.env</code> faylida turadi. Jo'natuvchi nomi
         (sender) tasdiqlangan niknemingiz; tasdiqlanmaguncha faqat test matnlari ketadi (test uchun{' '}
         <span className="font-mono">4546</span>).
       </p>
 
       <form onSubmit={onSubmit} className="space-y-4">
-        <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">Email (login)</label>
-          <Input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="sizning@email.uz"
-            spellCheck={false}
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">Parol</label>
-          <p className="mb-2 text-xs text-slate-400">
-            {configured
-              ? "Allaqachon saqlangan. O'zgartirish uchun yangi parolni kiriting (bo'sh qoldirsangiz eski saqlanadi)."
-              : 'Eskiz kabinet parolini kiriting.'}
-          </p>
-          <Input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder={configured ? '•••••••• (saqlangan)' : 'Parol'}
-            spellCheck={false}
-          />
-        </div>
+        <EnvSecretField
+          label="Eskiz kabinet logini (email)"
+          secret={login}
+          sample="sizning@email.uz"
+          hint={email ? `Hozirgi qiymat: ${email}` : undefined}
+        />
+        <EnvSecretField label="Eskiz kabinet paroli" secret={password} sample="********" />
+
         <div>
           <label className="mb-1 block text-sm font-medium text-slate-700">Jo'natuvchi (sender)</label>
           <p className="mb-2 text-xs text-slate-400">

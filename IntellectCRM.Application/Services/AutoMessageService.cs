@@ -36,7 +36,7 @@ public class AutoMessageService(
 
             var meta = await db.CenterMeta.FirstOrDefaultAsync(ct);
             var centerName = meta?.Name ?? "";
-            var fcmJson = meta?.FcmServiceAccountJson ?? "";
+            var fcmJson = AppSecrets.FcmServiceAccountJson;
             // Hodisa guruhi: chaqiruvchi bergan bo'lsa (to'lov qaysi guruhga tushgani) — o'sha;
             // aks holda o'quvchining asosiy guruhi (ClassName bo'yicha) — dars jadvali tokenlari uchun.
             var ctxGroup = group ?? (string.IsNullOrWhiteSpace(s.ClassName) ? null

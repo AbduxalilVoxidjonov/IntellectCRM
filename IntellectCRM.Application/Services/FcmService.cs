@@ -6,8 +6,8 @@ namespace IntellectCRM.Application.Services;
 
 /// <summary>
 /// Firebase Cloud Messaging (FCM HTTP v1) orqali ilovaga push yuboradi. Hisob ma'lumotlari —
-/// Firebase service account JSON (admin "Sozlamalar → Push (Firebase)"dan kiritadi, CenterMeta'da
-/// saqlanadi). Bitta Firebase loyiha ikkala app (parent/teacher) uchun ishlaydi — token o'zi
+/// Firebase service account JSON (.env: FCM_SERVICE_ACCOUNT_JSON — <see cref="AppSecrets"/>;
+/// bazada saqlanmaydi va UI'dan kiritilmaydi). Bitta Firebase loyiha ikkala app (parent/teacher) uchun ishlaydi — token o'zi
 /// to'g'ri ilovaga yetadi. OAuth access token xotirada keshlanadi (~1 soat).
 /// Tashqi paket talab qilmaydi (BCL: RSA + HttpClient).
 /// </summary>

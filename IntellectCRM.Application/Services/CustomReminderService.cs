@@ -64,7 +64,7 @@ public class CustomReminderService(
 
         var now = AppClock.Now;
         var meta = await db.CenterMeta.FirstOrDefaultAsync(ct);
-        var fcmJson = meta?.FcmServiceAccountJson ?? "";
+        var fcmJson = AppSecrets.FcmServiceAccountJson;
         var pushReady = FcmService.IsConfigured(fcmJson);
         var centerName = meta?.Name ?? "";
 

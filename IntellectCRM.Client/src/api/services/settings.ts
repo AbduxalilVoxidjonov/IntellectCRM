@@ -95,10 +95,21 @@ export async function getPublicBrand(): Promise<PublicBrand> {
   return data
 }
 
+/* ---------- Maxfiy qiymatlar (.env) ---------- */
+
+/**
+ * MAXFIY QIYMAT HOLATI — qiymatning o'zi hech qachon qaytmaydi. Barcha kalitlar serverdagi
+ * `.env` faylida (backend: `AppSecrets`), bazada saqlanmaydi va UI'dan kiritilmaydi.
+ * `envKey` — `.env` dagi o'zgaruvchi nomi (masalan "GEMINI_API_KEY").
+ */
+export interface EnvSecret {
+  envKey: string
+  configured: boolean
+}
+
 /* ---------- Telegram bot sozlamasi ---------- */
 
 export interface TelegramConfig {
-  botToken: string
   botUsername: string
   /** Bot ko'rsatiladigan nomi (masalan "IntellectCRM Bot") */
   botName: string
@@ -114,19 +125,21 @@ export interface TelegramConfig {
   channelStatus?: string
   /** Shu holatning tushuntirishi (adminga ko'rsatiladi). */
   channelMessage?: string
+  /** Bot TOKENI holati — qiymat emas (token faqat .env da: TELEGRAM_BOT_TOKEN). */
+  token?: EnvSecret
 }
 
 export async function getTelegramSettings(): Promise<TelegramConfig> {
   if (USE_MOCK) {
     await delay()
-    return { botToken: '', botUsername: '', botName: '', configured: false, channel: '', phoneMatchField: 'parent' }
+    return { botUsername: '', botName: '', configured: false, channel: '', phoneMatchField: 'parent' }
   }
   const { data } = await api.get<TelegramConfig>('/admin/settings/telegram')
   return data
 }
 
+/** Bot tokeni bu yerda YO'Q — u .env orqali beriladi (UI'dan saqlanmaydi). */
 export async function saveTelegramSettings(cfg: {
-  botToken: string
   botUsername: string
   botName: string
   channel: string
@@ -134,7 +147,7 @@ export async function saveTelegramSettings(cfg: {
 }): Promise<TelegramConfig> {
   if (USE_MOCK) {
     await delay(250)
-    return { ...cfg, configured: !!cfg.botToken.trim() }
+    return { ...cfg, configured: false }
   }
   const { data } = await api.put<TelegramConfig>('/admin/settings/telegram', cfg)
   return data
@@ -175,9 +188,7 @@ export async function deleteAppApk(role: 'student' | 'teacher'): Promise<AppApkC
 /* ---------- Push (Firebase / FCM) sozlamasi ---------- */
 
 export interface FirebaseConfig {
-  /** Firebase service account (JSON, to'liq) — server push YUBORISH uchun (maxfiy) */
-  serviceAccountJson: string
-  /** Service account to'g'ri kiritilgan (native push yuborishga tayyor) */
+  /** Service account (maxfiy) sozlanganmi — JSON'ning O'ZI qaytmaydi (u .env da) */
   configured: boolean
   /** Firebase web app config (JSON: apiKey, projectId, messagingSenderId, appId...) — brauzer/PWA token uchun */
   webConfigJson: string
@@ -185,10 +196,12 @@ export interface FirebaseConfig {
   vapidKey: string
   /** Web/PWA push tayyor (web config + vapid kalit kiritilgan) */
   webConfigured: boolean
+  /** Service account JSON holati (.env: FCM_SERVICE_ACCOUNT_JSON) */
+  serviceAccount?: EnvSecret
 }
 
+/** Service account bu yerda YO'Q — u .env orqali beriladi. Web config/VAPID esa ommaviy. */
 export interface SaveFirebaseInput {
-  serviceAccountJson: string
   webConfigJson: string
   vapidKey: string
 }
@@ -196,7 +209,7 @@ export interface SaveFirebaseInput {
 export async function getFirebaseSettings(): Promise<FirebaseConfig> {
   if (USE_MOCK) {
     await delay()
-    return { serviceAccountJson: '', configured: false, webConfigJson: '', vapidKey: '', webConfigured: false }
+    return { configured: false, webConfigJson: '', vapidKey: '', webConfigured: false }
   }
   const { data } = await api.get<FirebaseConfig>('/admin/settings/firebase')
   return data
@@ -207,7 +220,7 @@ export async function saveFirebaseSettings(input: SaveFirebaseInput): Promise<Fi
     await delay(250)
     return {
       ...input,
-      configured: !!input.serviceAccountJson.trim(),
+      configured: false,
       webConfigured: !!input.webConfigJson.trim() && !!input.vapidKey.trim(),
     }
   }
@@ -232,9 +245,13 @@ export async function getPublicPushConfig(): Promise<PublicPushConfig> {
 
 /* ---------- Speaking (Azure Pronunciation Assessment) ---------- */
 
+/** Kalit ham, region ham .env dan (AZURE_SPEECH_KEY / AZURE_SPEECH_REGION) — UI faqat ko'rsatadi. */
 export interface AzureSpeechConfig {
   region: string
   configured: boolean
+  key?: EnvSecret
+  /** Region uchun .env o'zgaruvchisi nomi */
+  regionEnvKey?: string
 }
 export async function getAzureSpeechSettings(): Promise<AzureSpeechConfig> {
   if (USE_MOCK) {
@@ -244,10 +261,6 @@ export async function getAzureSpeechSettings(): Promise<AzureSpeechConfig> {
   const { data } = await api.get<AzureSpeechConfig>('/admin/settings/azure-speech')
   return data
 }
-export async function saveAzureSpeechSettings(input: { key?: string; region: string }): Promise<AzureSpeechConfig> {
-  const { data } = await api.put<AzureSpeechConfig>('/admin/settings/azure-speech', input)
-  return data
-}
 
 /* ---------- AI Tahlil (Google Gemini) ---------- */
 
@@ -255,6 +268,8 @@ export interface GeminiConfig {
   /** Ishlatiladigan model (env GEMINI_MODEL, default gemini-3.1-flash-lite). */
   model: string
   configured: boolean
+  /** API kaliti holati (.env: GEMINI_API_KEY) */
+  key?: EnvSecret
 }
 export async function getGeminiSettings(): Promise<GeminiConfig> {
   if (USE_MOCK) {
@@ -264,18 +279,19 @@ export async function getGeminiSettings(): Promise<GeminiConfig> {
   const { data } = await api.get<GeminiConfig>('/admin/settings/gemini')
   return data
 }
-export async function saveGeminiSettings(input: { key?: string }): Promise<GeminiConfig> {
-  const { data } = await api.put<GeminiConfig>('/admin/settings/gemini', input)
-  return data
-}
 
 /* ---------- SMS (Eskiz.uz) ---------- */
 export interface EskizConfig {
+  /** .env dagi login (ko'rsatish uchun) */
   email: string
   from: string
   configured: boolean
   /** Hisobdagi qoldiq (so'm) — sozlangan bo'lsa, aks holda null. */
   balance: number | null
+  /** Login holati (.env: ESKIZ_EMAIL) */
+  login?: EnvSecret
+  /** Parol holati (.env: ESKIZ_PASSWORD) */
+  password?: EnvSecret
 }
 export async function getEskizSettings(): Promise<EskizConfig> {
   if (USE_MOCK) {
@@ -285,11 +301,8 @@ export async function getEskizSettings(): Promise<EskizConfig> {
   const { data } = await api.get<EskizConfig>('/admin/settings/eskiz')
   return data
 }
-export async function saveEskizSettings(input: {
-  email?: string
-  password?: string
-  from?: string
-}): Promise<EskizConfig> {
+/** Login/parol bu yerda YO'Q — ular .env orqali beriladi. Faqat jo'natuvchi nomi saqlanadi. */
+export async function saveEskizSettings(input: { from?: string }): Promise<EskizConfig> {
   const { data } = await api.put<EskizConfig>('/admin/settings/eskiz', input)
   return data
 }
@@ -331,9 +344,12 @@ export interface TurnstileConfig {
   vendor: string
   host: string
   port: number
+  /** Qurilma logini — .env dagi TURNSTILE_USERNAME (UI'dan o'zgartirilmaydi) */
   username: string
-  /** Parol saqlanganmi (parolning o'zi qaytmaydi) */
+  /** Parol .env da berilganmi (parolning o'zi qaytmaydi) */
   hasPassword: boolean
+  /** Qurilma login/paroli holati (.env: TURNSTILE_USERNAME / TURNSTILE_PASSWORD) */
+  credentials?: EnvSecret
   /** Ish boshlanish vaqti "HH:mm" */
   workStartTime: string
   /** Kechikishga yo'l qo'yiladigan daqiqalar */
@@ -343,14 +359,12 @@ export interface TurnstileConfig {
   teachers: TeacherDeviceMap[]
 }
 
+/** Login/parol bu yerda YO'Q — ular .env orqali beriladi (TURNSTILE_USERNAME / TURNSTILE_PASSWORD). */
 export interface SaveTurnstilePayload {
   enabled: boolean
   vendor: string
   host: string
   port: number
-  username: string
-  /** Bo'sh = o'zgartirilmaydi (eski parol saqlanadi) */
-  password?: string
   workStartTime: string
   lateGraceMinutes: number
   teachers: TeacherDeviceMap[]

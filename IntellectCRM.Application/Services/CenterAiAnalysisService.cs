@@ -57,7 +57,7 @@ public static class CenterAiAnalysisService
 
         var meta = await db.CenterMeta.FirstOrDefaultAsync(ct);
         var model = GeminiService.ResolveModel(config);
-        if (!GeminiService.IsConfigured(meta?.GeminiApiKey))
+        if (!GeminiService.IsConfigured(AppSecrets.GeminiApiKey))
             return new CenterAiResponseDto(false, false, null,
                 "Gemini API kaliti sozlanmagan. Sozlamalar → AI Tahlil (Gemini) bo'limidan kalit kiriting.");
 
@@ -87,7 +87,7 @@ public static class CenterAiAnalysisService
             "rahbarga foydali. Summalarni so'mda ko'rsat.\n\n" +
             "Markaz ma'lumotlari (JSON):\n" + snapshotJson;
 
-        var (ok, text, err) = await GeminiService.GenerateAsync(meta!.GeminiApiKey, model, prompt, jsonMode: true);
+        var (ok, text, err) = await GeminiService.GenerateAsync(AppSecrets.GeminiApiKey, model, prompt, jsonMode: true);
         if (!ok) return new CenterAiResponseDto(false, false, null, err);
 
         var ai = ParseNarrative(text);

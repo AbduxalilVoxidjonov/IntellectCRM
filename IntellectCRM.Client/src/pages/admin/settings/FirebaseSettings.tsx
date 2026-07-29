@@ -6,15 +6,18 @@ import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Input, Textarea } from '@/components/ui/Input'
 import { Loader } from '@/components/ui/Loader'
+import { EnvSecretField } from '@/components/settings/EnvSecretField'
+import type { EnvSecret } from '@/api/services/settings'
 
 /**
  * Firebase push sozlamasi — ikki qatlam:
- *  1) Service Account JSON — server FCM'ga push YUBORISHI uchun (maxfiy).
+ *  1) Service Account JSON — server FCM'ga push YUBORISHI uchun (MAXFIY: faqat serverdagi
+ *     `.env` da — FCM_SERVICE_ACCOUNT_JSON; bazada saqlanmaydi va UI'dan kiritilmaydi).
  *  2) Web app config + VAPID kaliti — brauzer/PWA token OLISHI uchun (ommaviy).
  * Native (Flutter) ilova tokenni o'zi oladi; web/PWA esa web config bilan Firebase JS SDK orqali.
  */
 export function FirebaseSettings() {
-  const [json, setJson] = useState('')
+  const [serviceAccount, setServiceAccount] = useState<EnvSecret | null>(null)
   const [webJson, setWebJson] = useState('')
   const [vapid, setVapid] = useState('')
   const [configured, setConfigured] = useState(false)
@@ -26,7 +29,7 @@ export function FirebaseSettings() {
   useEffect(() => {
     getFirebaseSettings()
       .then((c: FirebaseConfig) => {
-        setJson(c.serviceAccountJson)
+        setServiceAccount(c.serviceAccount ?? null)
         setWebJson(c.webConfigJson)
         setVapid(c.vapidKey)
         setConfigured(c.configured)
@@ -41,11 +44,10 @@ export function FirebaseSettings() {
     setError(null)
     try {
       const saved = await saveFirebaseSettings({
-        serviceAccountJson: (json ?? '').trim(),
         webConfigJson: (webJson ?? '').trim(),
         vapidKey: (vapid ?? '').trim(),
       })
-      setJson(saved.serviceAccountJson)
+      setServiceAccount(saved.serviceAccount ?? null)
       setWebJson(saved.webConfigJson)
       setVapid(saved.vapidKey)
       setConfigured(saved.configured)
@@ -97,23 +99,18 @@ export function FirebaseSettings() {
       </p>
 
       <form onSubmit={onSubmit} className="max-w-2xl space-y-6">
-        {/* 1) Server → push yuboradi */}
-        <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">
-            Service account (JSON) <span className="text-slate-400">— server push yuborishi uchun (maxfiy)</span>
-          </label>
-          <p className="mb-2 text-xs text-slate-400">
-            Firebase Console → Project Settings → Service accounts → "Generate new private key" →
-            yuklab olingan JSON faylni to'liq shu yerga qo'ying.
-          </p>
-          <Textarea
-            value={json}
-            onChange={(e) => setJson(e.target.value)}
-            placeholder='{ "type": "service_account", "project_id": "...", "private_key": "...", "client_email": "..." }'
-            spellCheck={false}
-            className="h-40 font-mono text-xs"
-          />
-        </div>
+        {/* 1) Server → push yuboradi (maxfiy kalit — .env) */}
+        <EnvSecretField
+          label="Service account (JSON) — server push yuborishi uchun"
+          secret={serviceAccount}
+          sample='{"type":"service_account","project_id":"...","private_key":"..."}'
+          hint={
+            <>
+              Firebase Console → Project Settings → Service accounts → "Generate new private key" →
+              yuklab olingan JSON faylni BIR QATORGA aylantirib .env ga qo'ying.
+            </>
+          }
+        />
 
         <div className="border-t border-slate-100 pt-5">
           <p className="mb-3 text-sm font-semibold text-slate-700">Web / PWA push (brauzer tokeni uchun)</p>

@@ -983,12 +983,21 @@ public record PublicBrandDto(string Name, string LogoUrl, string Phone);
 /// Telegram getChatMember faqat bot kanalda ADMIN bo'lsagina ishlaydi, aks holda bot obunani
 /// tekshira olmaydi va hammani o'tkazib yuboradi — admin buni ko'rib turishi kerak.</summary>
 public record TelegramSettingsDto(
-    string BotToken, string BotUsername, string BotName, bool Configured,
+    string BotUsername, string BotName, bool Configured,
     string Channel = "", string PhoneMatchField = "parent",
-    string ChannelStatus = "", string ChannelMessage = "");
-/// <summary>Telegram bot sozlamasini saqlash so'rovi.</summary>
+    string ChannelStatus = "", string ChannelMessage = "",
+    EnvSecretDto? Token = null);
+/// <summary>Telegram bot sozlamasini saqlash so'rovi. <c>BotToken</c> ATAYIN qoldirilgan: eski
+/// mijoz token yuborsa jimgina e'tiborsiz qolmasdan tushunarli xato qaytadi (token — .env da).</summary>
 public record SaveTelegramSettingsRequest(
     string? BotToken, string? BotUsername, string? BotName, string? Channel, string? PhoneMatchField);
+
+/// <summary>
+/// MAXFIY QIYMAT HOLATI — qiymatning O'ZI hech qachon UI'ga qaytmaydi (u faqat serverda, .env da).
+/// <c>EnvKey</c> — <c>.env</c> dagi o'zgaruvchi nomi (masalan "GEMINI_API_KEY"), <c>Configured</c> —
+/// qiymat berilganmi. Sozlamalar sahifasi shu ikkisi bilan "sozlangan / qanday sozlash" ni ko'rsatadi.
+/// </summary>
+public record EnvSecretDto(string EnvKey, bool Configured);
 /// <summary>Telegram backup konfiguratsiyasi — DB'dan o'qilgan holat.</summary>
 public record TelegramBackupConfigDto(
     string? AdminChatId,
@@ -1005,11 +1014,14 @@ public record SaveTelegramBackupConfigRequest(
 /// <summary>Ilova (APK) sozlamasi — Telegram bot ro'yxatdan o'tgan o'quvchi/o'qituvchiga yuboradigan fayl(lar).
 /// Nom + hajm (bayt; 0 = yuklanmagan).</summary>
 public record AppApkSettingsDto(string StudentApkName, long StudentApkSize, string TeacherApkName, long TeacherApkSize);
-/// <summary>Firebase (FCM push) sozlamasi. <b>ServiceAccountJson</b> — server push yuborishi uchun
-/// (maxfiy). <b>WebConfigJson</b> + <b>VapidKey</b> — brauzer/PWA push token olishi uchun (ommaviy).
+/// <summary>Firebase (FCM push) sozlamasi. <b>ServiceAccount</b> — server push yuborishi uchun
+/// (MAXFIY: faqat .env, qiymati qaytmaydi). <b>WebConfigJson</b> + <b>VapidKey</b> — brauzer/PWA push
+/// token olishi uchun (OMMAVIY, bazada saqlanadi va UI'dan kiritiladi).
 /// Configured = native push tayyor; WebConfigured = web/PWA push tayyor.</summary>
 public record FirebaseSettingsDto(
-    string ServiceAccountJson, bool Configured, string WebConfigJson, string VapidKey, bool WebConfigured);
+    bool Configured, string WebConfigJson, string VapidKey, bool WebConfigured,
+    EnvSecretDto? ServiceAccount = null);
+/// <summary><c>ServiceAccountJson</c> endi qabul qilinmaydi (bo'sh bo'lmasa — xato); u .env dan.</summary>
 public record SaveFirebaseSettingsRequest(string? ServiceAccountJson, string? WebConfigJson, string? VapidKey);
 
 /// <summary>Ommaviy (autentifikatsiyasiz) web/PWA push konfiguratsiyasi — brauzer Firebase JS SDK'ni
@@ -1021,7 +1033,9 @@ public record PublicPushConfigDto(string WebConfigJson, string VapidKey, bool Co
 public record TurnstileSettingsDto(
     bool Enabled, string Vendor, string Host, int Port, string Username, bool HasPassword,
     string WorkStartTime, int LateGraceMinutes, string LastSync,
-    List<TeacherDeviceMapDto> Teachers);
+    List<TeacherDeviceMapDto> Teachers,
+    // Qurilma login/paroli endi .env dan (TURNSTILE_USERNAME / TURNSTILE_PASSWORD) — UI'dan kiritilmaydi.
+    EnvSecretDto? Credentials = null);
 /// <summary>O'qituvchi ↔ qurilma ID moslamasi.</summary>
 public record TeacherDeviceMapDto(string TeacherId, string FullName, string DeviceUserId);
 /// <summary>Turniket sozlamasini saqlash so'rovi. Password null/bo'sh = o'zgartirilmaydi (eski saqlanadi).</summary>
@@ -1388,8 +1402,11 @@ public record SendLeadBulkSmsRequest(List<string> LeadIds, string Text, string? 
 public record LeadBulkSmsResultDto(int Sent, int Failed, int NoPhone);
 /// <summary>Eskiz callback (yetkazib berish holati webhook'i) tanasi.</summary>
 public record EskizCallbackDto(string? request_id, string? message_id, string? phone_number, string? status, string? status_date);
-/// <summary>SMS (Eskiz) sozlamasi holati — parol qaytarilmaydi.</summary>
-public record EskizSettingsDto(string Email, string From, bool Configured, decimal? Balance);
+/// <summary>SMS (Eskiz) sozlamasi holati. Login/parol .env dan (qiymat qaytmaydi) — faqat
+/// jo'natuvchi nomi (From) UI'dan o'zgartiriladi.</summary>
+public record EskizSettingsDto(
+    string Email, string From, bool Configured, decimal? Balance,
+    EnvSecretDto? Login = null, EnvSecretDto? Password = null);
 /// <summary>SMS (Eskiz) login/parol/sender saqlash so'rovi (bo'sh qoldirilsa eski saqlanadi).</summary>
 public record SaveEskizRequest(string? Email, string? Password, string? From);
 /// <summary>Local SMS (CTI agent telefonidan) sozlamasi holati. DelaySeconds — massaviy yuborishda
@@ -1784,14 +1801,16 @@ public record SpeakingWordDto(string Word, double Accuracy, string ErrorType);
 public record SpeakingResultDto(
     string RecognizedText, double PronScore, double Accuracy, double Fluency,
     double Completeness, double Prosody, List<SpeakingWordDto> Words, string? Error);
-/// <summary>Azure Speech sozlamasi holati (kalit qaytarilmaydi — faqat region + sozlanganmi).</summary>
-public record AzureSpeechSettingsDto(string Region, bool Configured);
-/// <summary>Azure Speech kalit/region saqlash so'rovi.</summary>
+/// <summary>Azure Speech sozlamasi holati. Kalit ham, region ham .env dan (AZURE_SPEECH_KEY /
+/// AZURE_SPEECH_REGION) — UI faqat holatni ko'rsatadi.</summary>
+public record AzureSpeechSettingsDto(
+    string Region, bool Configured, EnvSecretDto? Key = null, string RegionEnvKey = "AZURE_SPEECH_REGION");
+/// <summary>ESKI so'rov — endi qabul qilinmaydi (kalit/region .env da); bo'sh bo'lmasa xato qaytadi.</summary>
 public record SaveAzureSpeechRequest(string? Key, string? Region);
 
-/// <summary>Gemini AI sozlamasi holati (kalit qaytarilmaydi — faqat model + sozlanganmi).</summary>
-public record GeminiSettingsDto(string Model, bool Configured);
-/// <summary>Gemini API kaliti saqlash so'rovi (bo'sh qoldirilsa eski saqlanadi).</summary>
+/// <summary>Gemini AI sozlamasi holati (kalit .env dan — GEMINI_API_KEY; model — GEMINI_MODEL).</summary>
+public record GeminiSettingsDto(string Model, bool Configured, EnvSecretDto? Key = null);
+/// <summary>ESKI so'rov — endi qabul qilinmaydi (kalit .env da); bo'sh bo'lmasa xato qaytadi.</summary>
 public record SaveGeminiRequest(string? Key);
 /// <summary>AI tahlilidagi sohaviy baholar (0-100) — radar/diagramma uchun.</summary>
 public record AiRatingsDto(int Akademik, int Davomat, int Intizom, int UyVazifa, int Faollik, int Umumiy);

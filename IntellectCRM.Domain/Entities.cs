@@ -1068,8 +1068,8 @@ public class CenterMeta
     public string Address { get; set; } = string.Empty;
     public string Region { get; set; } = string.Empty;
     public string District { get; set; } = string.Empty;
-    /// <summary>Telegram bot tokeni (BotFather'dan). Bo'sh bo'lsa bot ishlamaydi (e'lon yuborilmaydi).</summary>
-    public string TelegramBotToken { get; set; } = string.Empty;
+    // DIQQAT: Telegram bot TOKENI bu yerda YO'Q — barcha maxfiy kalitlar faqat .env dan o'qiladi
+    // (AppSecrets). Bazada saqlanmaydi: dump/backup va SQL orqali sizib chiqmasin.
     /// <summary>Telegram bot foydalanuvchi nomi (@siz) — t.me havolasi va ro'yxat taklifi uchun.</summary>
     public string TelegramBotUsername { get; set; } = string.Empty;
     /// <summary>Telegram bot ko'rsatiladigan nomi (masalan "IntellectCRM Bot") — UI/ilovada ko'rsatish uchun.</summary>
@@ -1089,11 +1089,9 @@ public class CenterMeta
     public string TeacherApkName { get; set; } = string.Empty;
     public string TeacherApkPath { get; set; } = string.Empty;
     public string TeacherApkFileId { get; set; } = string.Empty;
-    /// <summary>
-    /// Firebase service account (JSON, to'liq) — ilovaga push (FCM) yuborish uchun. Bo'sh bo'lsa
-    /// push yuborilmaydi. Admin "Sozlamalar → Push (Firebase)" bo'limidan kiritadi.
-    /// </summary>
-    public string FcmServiceAccountJson { get; set; } = string.Empty;
+    // Firebase SERVICE ACCOUNT JSON (maxfiy, ichida private_key) — .env: FCM_SERVICE_ACCOUNT_JSON
+    // (AppSecrets.FcmServiceAccountJson). Quyidagi ikkitasi esa OMMAVIY (brauzerga beriladi) —
+    // shuning uchun bazada qoladi va UI'dan kiritiladi.
     /// <summary>
     /// Firebase WEB app konfiguratsiyasi (JSON: apiKey, authDomain, projectId, messagingSenderId,
     /// appId). Web (PWA) push uchun — brauzer FCM token olishi uchun zarur. Firebase Console →
@@ -1106,17 +1104,9 @@ public class CenterMeta
     /// </summary>
     public string FcmVapidKey { get; set; } = string.Empty;
 
-    /// <summary>Azure Speech (Cognitive Services) maxfiy kaliti — Speaking topshirig'i talaffuzni
-    /// baholash uchun (Pronunciation Assessment). Bo'sh bo'lsa speaking baholanmaydi. Admin
-    /// "Sozlamalar → Speaking (Azure)" bo'limidan kiritadi.</summary>
-    public string AzureSpeechKey { get; set; } = string.Empty;
-    /// <summary>Azure Speech resursi hududi (region), masalan "eastus", "westeurope".</summary>
-    public string AzureSpeechRegion { get; set; } = string.Empty;
-
-    /// <summary>Google Gemini API kaliti — o'quvchi profilini AI bilan tahlil qilish uchun
-    /// ("AI Tahlil" tugmasi). Bo'sh bo'lsa tahlil ishlamaydi. Admin "Sozlamalar → AI Tahlil (Gemini)"
-    /// bo'limidan kiritadi. Model env o'zgaruvchi GEMINI_MODEL dan olinadi (default gemini-3.1-flash-lite).</summary>
-    public string GeminiApiKey { get; set; } = string.Empty;
+    // Azure Speech kaliti/hududi (.env: AZURE_SPEECH_KEY / AZURE_SPEECH_REGION) va Gemini API
+    // kaliti (.env: GEMINI_API_KEY) — AppSecrets orqali; bazada saqlanmaydi. Gemini modeli ham
+    // env'dan (GEMINI_MODEL, default gemini-3.1-flash-lite).
 
     /// <summary>AI tekshiruv (Speaking/Writing) — o'quvchi uchun standart KUNLIK limit (necha marta).
     /// Per-o'quvchi <see cref="StudentAiAccess"/> override qiladi (premium = cheksiz). Default 3.</summary>
@@ -1138,8 +1128,7 @@ public class CenterMeta
     public string TurnstileHost { get; set; } = string.Empty;
     /// <summary>Qurilma porti (Hikvision ISAPI odatda 80).</summary>
     public int TurnstilePort { get; set; } = 80;
-    public string TurnstileUsername { get; set; } = string.Empty;
-    public string TurnstilePassword { get; set; } = string.Empty;
+    // Qurilma login/paroli — .env: TURNSTILE_USERNAME / TURNSTILE_PASSWORD (AppSecrets).
     /// <summary>Ish boshlanish vaqti "HH:mm" — kechikishni aniqlash uchun (dars jadvalidagi birinchi
     /// dars bilan birga, qaysi biri erta bo'lsa). Bo'sh bo'lsa faqat dars jadvali ishlatiladi.</summary>
     public string WorkStartTime { get; set; } = "08:30";
@@ -1186,16 +1175,11 @@ public class CenterMeta
     public int StaffTaskMinute { get; set; }
 
     // ---------- Eskiz.uz SMS shlyuzi ----------
-    /// <summary>Eskiz kabinet email (login). Admin "Sozlamalar → SMS (Eskiz)"da kiritadi.</summary>
-    public string EskizEmail { get; set; } = string.Empty;
-    /// <summary>Eskiz kabinet paroli.</summary>
-    public string EskizPassword { get; set; } = string.Empty;
-    /// <summary>SMS jo'natuvchi nomi (sender) — tasdiqlangan nikname yoki test uchun "4546".</summary>
+    // Kabinet login/paroli — .env: ESKIZ_EMAIL / ESKIZ_PASSWORD (AppSecrets). Bearer token esa
+    // endi XOTIRADA keshlanadi (EskizService) — bazada saqlanmaydi.
+    /// <summary>SMS jo'natuvchi nomi (sender) — tasdiqlangan nikname yoki test uchun "4546".
+    /// Maxfiy emas: admin UI'dan o'zgartiradi (.env'dagi ESKIZ_FROM boshlang'ich qiymat beradi).</summary>
     public string EskizFrom { get; set; } = "4546";
-    /// <summary>Eskiz Bearer tokeni (keshlangan; muddati ~30 kun). SMS yuborishda qayta login qilmaslik uchun.</summary>
-    public string EskizToken { get; set; } = string.Empty;
-    /// <summary>Eskiz token muddati (UTC) — shu vaqtdan oldin yangilanadi.</summary>
-    public DateTime? EskizTokenExpiresAt { get; set; }
     /// <summary>To'lov cheki (termal kvitansiya) sozlamalari — JSON. Qaysi maydonlar ko'rinishi,
     /// sarlavha (logotip/nom), pastki izoh (footer), aloqa/QR. Bo'sh = standart shablon.</summary>
     public string CheckSettings { get; set; } = string.Empty;

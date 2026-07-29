@@ -97,7 +97,7 @@ public class CtiSmsService(CtiConnectionManager conn, FcmService fcm)
         // 2) Oflayn — FCM bilan uyg'otamiz, so'ng WS ulanishini poll qilamiz.
         if (agent.FcmToken.Length > 0)
         {
-            var json = meta?.FcmServiceAccountJson ?? "";
+            var json = AppSecrets.FcmServiceAccountJson;
             await fcm.SendDataAsync(json, agent.FcmToken, new Dictionary<string, string>
             {
                 ["action"] = "send_sms",

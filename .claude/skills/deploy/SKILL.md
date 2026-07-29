@@ -12,6 +12,11 @@ docker compose up -d --build    # app + postgres + cloudflared + backup + mediam
 - **`.env`** (git'ga tushmaydi): `ROOT_DOMAIN=intellectschool.uz`, `APP_HOST=crm.intellectschool.uz`,
   `POSTGRES_PASSWORD` (kuchli!), `POSTGRES_USER`/`POSTGRES_DB` (default intellectcrm), `JWT_KEY`,
   `TUNNEL_TOKEN` (tunnel `80531fd7`).
+- **KALITLAR faqat `.env` da** (bazada saqlanmaydi, UI'dan kiritilmaydi — `AppSecrets`):
+  `TELEGRAM_BOT_TOKEN`, `FCM_SERVICE_ACCOUNT_JSON`, `GEMINI_API_KEY`, `AZURE_SPEECH_KEY/REGION`,
+  `ESKIZ_EMAIL/PASSWORD`, `TURNSTILE_USERNAME/PASSWORD`, `MOIZVONKI_*`. O'zgartirgach
+  `docker compose up -d`. Eski (kalitlar bazada bo'lgan) o'rnatishdan yangilashda — DEPLOY.md §2.1
+  (migratsiya ustunlarni o'chiradi; qiymatlar startup logida `.env` qatorlari bo'lib chiqadi).
 - **DB:** PostgreSQL 16 (alpine). Server'da **>=1GB RAM** (+swap tavsiya). Baza `intellectcrm`.
   Volume `postgres-data`.
 - **Cloudflare panel:** Public Hostname `crm.intellectschool.uz` → HTTP → `app:8080`. Ko'chirishda

@@ -276,7 +276,7 @@ public class CallsController(
             return BadRequest(new { message = "Bu qo'ng'iroqda yozuv yo'q" });
 
         var meta = await db.CenterMeta.FirstOrDefaultAsync();
-        if (!AzureTranscribeService.IsConfigured(meta?.AzureSpeechKey, meta?.AzureSpeechRegion))
+        if (!AzureTranscribeService.IsConfigured(AppSecrets.AzureSpeechKey, AppSecrets.AzureSpeechRegion))
             return StatusCode(503, new { message = "Azure Speech sozlanmagan (Sozlamalar → AI Check: kalit va region)" });
 
         var (audio, fileName, error) = await GetRecordingBytesAsync(call);
@@ -284,7 +284,7 @@ public class CallsController(
             return BadRequest(new { message = error ?? "Yozuv faylini olib bo'lmadi" });
 
         var (ok, text, err) = await AzureTranscribeService.TranscribeAsync(
-            audio, fileName, meta!.AzureSpeechKey, meta.AzureSpeechRegion,
+            audio, fileName, AppSecrets.AzureSpeechKey, AppSecrets.AzureSpeechRegion,
             config["Azure:TranscribeLocales"], HttpContext.RequestAborted);
         if (!ok) return StatusCode(502, new { message = err });
 
@@ -307,7 +307,7 @@ public class CallsController(
             return BadRequest(new { message = "Avval transkript qiling — tahlil transkript asosida ishlaydi" });
 
         var meta = await db.CenterMeta.FirstOrDefaultAsync();
-        if (!GeminiService.IsConfigured(meta?.GeminiApiKey))
+        if (!GeminiService.IsConfigured(AppSecrets.GeminiApiKey))
             return StatusCode(503, new { message = "Gemini sozlanmagan (Sozlamalar → AI Tahlil: API kalit)" });
 
         var direction = call.Direction == "inbound" ? "KIRUVCHI (mijoz qo'ng'iroq qildi)" : "CHIQUVCHI (operator qo'ng'iroq qildi)";
@@ -323,7 +323,7 @@ public class CallsController(
             "TRANSKRIPT:\n" + call.Transcript;
 
         var model = GeminiService.ResolveModel(config);
-        var (ok, text, err) = await GeminiService.GenerateAsync(meta!.GeminiApiKey, model, prompt);
+        var (ok, text, err) = await GeminiService.GenerateAsync(AppSecrets.GeminiApiKey, model, prompt);
         if (!ok) return StatusCode(502, new { message = err ?? "Gemini javob bermadi" });
 
         call.AiAnalysis = text.Trim();

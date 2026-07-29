@@ -83,6 +83,8 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
     }
 
     // ---------- Telegram bot ----------
+    // TOKEN (maxfiy) — faqat .env: TELEGRAM_BOT_TOKEN. Bu yerda faqat maxfiy BO'LMAGAN qismlar
+    // (bot username/nomi, kanal, telefon moslash) saqlanadi.
 
     [HttpGet("telegram")]
     public async Task<ActionResult<TelegramSettingsDto>> GetTelegram()
@@ -94,35 +96,50 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
         cts.CancelAfter(TimeSpan.FromSeconds(5));
         var (chStatus, chMessage) = await telegram.CheckChannelAsync(m?.TelegramChannel, cts.Token);
         return new TelegramSettingsDto(
-            m?.TelegramBotToken ?? "", m?.TelegramBotUsername ?? "", m?.TelegramBotName ?? "",
+            m?.TelegramBotUsername ?? "", m?.TelegramBotName ?? "",
             telegram.IsConfigured, m?.TelegramChannel ?? "",
             m?.TelegramPhoneMatchField is "student" ? "student" : "parent",
-            chStatus, chMessage);
+            chStatus, chMessage,
+            new EnvSecretDto(AppSecrets.EnvKeys.TelegramBotToken, AppSecrets.TelegramConfigured));
     }
 
     [HttpPut("telegram")]
     public async Task<ActionResult<TelegramSettingsDto>> SaveTelegram(SaveTelegramSettingsRequest req)
     {
+        if (EnvOnly(req.BotToken, AppSecrets.EnvKeys.TelegramBotToken) is { } err) return err;
+
         var m = await db.CenterMeta.FirstOrDefaultAsync();
         if (m is null)
         {
             m = new CenterMeta();
             db.CenterMeta.Add(m);
         }
-        m.TelegramBotToken = (req.BotToken ?? "").Trim();
         m.TelegramBotUsername = (req.BotUsername ?? "").Trim().TrimStart('@');
         m.TelegramBotName = (req.BotName ?? "").Trim();
         m.TelegramChannel = (req.Channel ?? "").Trim();
         m.TelegramPhoneMatchField = req.PhoneMatchField is "student" ? "student" : "parent";
         await db.SaveChangesAsync();
 
-        // Ishlab turgan xizmat (va bot) darrov yangi tokenni ishlatishi uchun keshni yangilaymiz.
-        telegram.Set(m.TelegramBotToken, m.TelegramBotUsername, m.TelegramBotName);
+        // Ishlab turgan xizmat (va bot) darrov yangi nomni ishlatishi uchun keshni yangilaymiz.
+        telegram.Set(m.TelegramBotUsername, m.TelegramBotName);
 
-        return new TelegramSettingsDto(
-            m.TelegramBotToken, m.TelegramBotUsername, m.TelegramBotName, telegram.IsConfigured,
-            m.TelegramChannel, m.TelegramPhoneMatchField);
+        return await GetTelegram();
     }
+
+    /// <summary>
+    /// MAXFIY QIYMATNI QABUL QILMASLIK: kalit/parol endi FAQAT <c>.env</c> orqali beriladi
+    /// (<see cref="AppSecrets"/>) va bazada saqlanmaydi. Eski mijoz (keshlangan SPA) qiymat
+    /// yuborsa — jimgina yutib yubormasdan tushunarli 400 qaytaramiz.
+    /// Bo'sh/berilmagan qiymat — normal (xato yo'q).
+    /// </summary>
+    private BadRequestObjectResult? EnvOnly(string? value, string envKey) =>
+        string.IsNullOrWhiteSpace(value)
+            ? null
+            : BadRequest(new
+            {
+                message = $"Bu kalit endi UI'dan saqlanmaydi — serverdagi .env fayliga "
+                          + $"{envKey}=... qatorini qo'shing va `docker compose up -d` qiling.",
+            });
 
     // ---------- Telegram backup ----------
 
@@ -179,19 +196,19 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
     public async Task<ActionResult<FirebaseSettingsDto>> GetFirebase()
     {
         var m = await db.CenterMeta.FirstOrDefaultAsync();
-        var json = m?.FcmServiceAccountJson ?? "";
         var web = m?.FcmWebConfigJson ?? "";
         var vapid = m?.FcmVapidKey ?? "";
+        // Service account (maxfiy) — .env dan; qiymatning O'ZI hech qachon qaytmaydi.
+        var saConfigured = FcmService.IsConfigured(AppSecrets.FcmServiceAccountJson);
         return new FirebaseSettingsDto(
-            json, FcmService.IsConfigured(json), web, vapid, WebPushConfigured(web, vapid));
+            saConfigured, web, vapid, WebPushConfigured(web, vapid),
+            new EnvSecretDto(AppSecrets.EnvKeys.FcmServiceAccountJson, saConfigured));
     }
 
     [HttpPut("firebase")]
     public async Task<ActionResult<FirebaseSettingsDto>> SaveFirebase(SaveFirebaseSettingsRequest req)
     {
-        var json = (req.ServiceAccountJson ?? "").Trim();
-        if (json.Length > 0 && !FcmService.IsConfigured(json))
-            return BadRequest(new { message = "Service account JSON noto'g'ri (client_email/private_key/project_id kerak)" });
+        if (EnvOnly(req.ServiceAccountJson, AppSecrets.EnvKeys.FcmServiceAccountJson) is { } err) return err;
 
         var web = (req.WebConfigJson ?? "").Trim();
         if (web.Length > 0 && !IsValidJsonObject(web))
@@ -200,12 +217,10 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
 
         var m = await db.CenterMeta.FirstOrDefaultAsync();
         if (m is null) { m = new CenterMeta(); db.CenterMeta.Add(m); }
-        m.FcmServiceAccountJson = json;
         m.FcmWebConfigJson = web;
         m.FcmVapidKey = vapid;
         await db.SaveChangesAsync();
-        return new FirebaseSettingsDto(
-            json, FcmService.IsConfigured(json), web, vapid, WebPushConfigured(web, vapid));
+        return await GetFirebase();
     }
 
     /// <summary>Web/PWA push tayyor — web config JSON obyekti va VAPID kalit ham kiritilgan.</summary>
@@ -225,47 +240,39 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
 
     // ---------- Speaking (Azure Pronunciation Assessment) ----------
 
+    // Kalit ham, region ham .env dan (AZURE_SPEECH_KEY / AZURE_SPEECH_REGION) — UI faqat holatni ko'rsatadi.
+
     [HttpGet("azure-speech")]
-    public async Task<ActionResult<AzureSpeechSettingsDto>> GetAzureSpeech()
-    {
-        var m = await db.CenterMeta.FirstOrDefaultAsync();
-        return new AzureSpeechSettingsDto(
-            m?.AzureSpeechRegion ?? "",
-            AzureSpeechService.IsConfigured(m?.AzureSpeechKey, m?.AzureSpeechRegion));
-    }
+    public ActionResult<AzureSpeechSettingsDto> GetAzureSpeech() =>
+        new AzureSpeechSettingsDto(
+            AppSecrets.AzureSpeechRegion,
+            AppSecrets.AzureSpeechConfigured,
+            new EnvSecretDto(AppSecrets.EnvKeys.AzureSpeechKey, AppSecrets.AzureSpeechKey.Length > 0),
+            AppSecrets.EnvKeys.AzureSpeechRegion);
 
     [HttpPut("azure-speech")]
-    public async Task<ActionResult<AzureSpeechSettingsDto>> SaveAzureSpeech(SaveAzureSpeechRequest req)
+    public ActionResult<AzureSpeechSettingsDto> SaveAzureSpeech(SaveAzureSpeechRequest req)
     {
-        var m = await db.CenterMeta.FirstOrDefaultAsync();
-        if (m is null) { m = new CenterMeta(); db.CenterMeta.Add(m); }
-        // Kalit faqat yangi qiymat berilsa yangilanadi (bo'sh qoldirilsa eski saqlanadi — GET kalitni qaytarmaydi).
-        if (!string.IsNullOrWhiteSpace(req.Key)) m.AzureSpeechKey = req.Key.Trim();
-        if (req.Region is not null) m.AzureSpeechRegion = req.Region.Trim();
-        await db.SaveChangesAsync();
-        return new AzureSpeechSettingsDto(m.AzureSpeechRegion, AzureSpeechService.IsConfigured(m.AzureSpeechKey, m.AzureSpeechRegion));
+        if (EnvOnly(req.Key, AppSecrets.EnvKeys.AzureSpeechKey) is { } keyErr) return keyErr;
+        if (EnvOnly(req.Region, AppSecrets.EnvKeys.AzureSpeechRegion) is { } regionErr) return regionErr;
+        return GetAzureSpeech();
     }
 
     // ---------- AI Tahlil (Google Gemini) ----------
+    // Kalit .env dan (GEMINI_API_KEY), model ham env'dan (GEMINI_MODEL).
 
     [HttpGet("gemini")]
-    public async Task<ActionResult<GeminiSettingsDto>> GetGemini()
-    {
-        var m = await db.CenterMeta.FirstOrDefaultAsync();
-        return new GeminiSettingsDto(
+    public ActionResult<GeminiSettingsDto> GetGemini() =>
+        new GeminiSettingsDto(
             GeminiService.ResolveModel(config),
-            GeminiService.IsConfigured(m?.GeminiApiKey));
-    }
+            AppSecrets.GeminiConfigured,
+            new EnvSecretDto(AppSecrets.EnvKeys.GeminiApiKey, AppSecrets.GeminiConfigured));
 
     [HttpPut("gemini")]
-    public async Task<ActionResult<GeminiSettingsDto>> SaveGemini(SaveGeminiRequest req)
+    public ActionResult<GeminiSettingsDto> SaveGemini(SaveGeminiRequest req)
     {
-        var m = await db.CenterMeta.FirstOrDefaultAsync();
-        if (m is null) { m = new CenterMeta(); db.CenterMeta.Add(m); }
-        // Kalit faqat yangi qiymat berilsa yangilanadi (bo'sh qoldirilsa eski saqlanadi — GET kalitni qaytarmaydi).
-        if (!string.IsNullOrWhiteSpace(req.Key)) m.GeminiApiKey = req.Key.Trim();
-        await db.SaveChangesAsync();
-        return new GeminiSettingsDto(GeminiService.ResolveModel(config), GeminiService.IsConfigured(m.GeminiApiKey));
+        if (EnvOnly(req.Key, AppSecrets.EnvKeys.GeminiApiKey) is { } err) return err;
+        return GetGemini();
     }
 
     // ---------- To'lov cheki (termal kvitansiya) sozlamalari ----------
@@ -290,30 +297,31 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
 
     // ---------- SMS (Eskiz.uz) ----------
 
+    // Login/parol — faqat .env (ESKIZ_EMAIL / ESKIZ_PASSWORD). UI'dan faqat jo'natuvchi nomi (From).
+
     [HttpGet("eskiz")]
     public async Task<ActionResult<EskizSettingsDto>> GetEskiz()
     {
         var m = await db.CenterMeta.FirstOrDefaultAsync();
         // Balans — sozlangan bo'lsa best-effort (tarmoq xatosi UI'ni buzmaydi).
-        decimal? balance = eskiz.IsConfigured(m) ? await eskiz.GetBalanceAsync(db) : null;
-        return new EskizSettingsDto(eskiz.DisplayEmail(m), eskiz.SenderOf(m), eskiz.IsConfigured(m), balance);
+        decimal? balance = eskiz.IsConfigured() ? await eskiz.GetBalanceAsync(db) : null;
+        return new EskizSettingsDto(
+            eskiz.DisplayEmail(), eskiz.SenderOf(m), eskiz.IsConfigured(), balance,
+            new EnvSecretDto(AppSecrets.EnvKeys.EskizEmail, AppSecrets.EskizEmail.Length > 0),
+            new EnvSecretDto(AppSecrets.EnvKeys.EskizPassword, AppSecrets.EskizPassword.Length > 0));
     }
 
     [HttpPut("eskiz")]
     public async Task<ActionResult<EskizSettingsDto>> SaveEskiz(SaveEskizRequest req)
     {
+        if (EnvOnly(req.Email, AppSecrets.EnvKeys.EskizEmail) is { } emailErr) return emailErr;
+        if (EnvOnly(req.Password, AppSecrets.EnvKeys.EskizPassword) is { } passErr) return passErr;
+
         var m = await db.CenterMeta.FirstOrDefaultAsync();
         if (m is null) { m = new CenterMeta(); db.CenterMeta.Add(m); }
-        var changed = false;
-        if (req.Email is not null && req.Email.Trim() != m.EskizEmail) { m.EskizEmail = req.Email.Trim(); changed = true; }
-        // Parol faqat yangi qiymat berilsa yangilanadi (bo'sh qoldirilsa eski saqlanadi — GET parolni qaytarmaydi).
-        if (!string.IsNullOrWhiteSpace(req.Password)) { m.EskizPassword = req.Password.Trim(); changed = true; }
         if (req.From is not null) m.EskizFrom = string.IsNullOrWhiteSpace(req.From) ? "4546" : req.From.Trim();
-        // Login/parol o'zgarsa keshlangan tokenni bekor qilamiz (yangisi bilan qayta login bo'ladi).
-        if (changed) { m.EskizToken = ""; m.EskizTokenExpiresAt = null; }
         await db.SaveChangesAsync();
-        decimal? balance = eskiz.IsConfigured(m) ? await eskiz.GetBalanceAsync(db) : null;
-        return new EskizSettingsDto(eskiz.DisplayEmail(m), eskiz.SenderOf(m), eskiz.IsConfigured(m), balance);
+        return await GetEskiz();
     }
 
     // ---------- Local SMS (CTI agent telefonining SIM-kartasidan) ----------
@@ -443,27 +451,29 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
         var m = await db.CenterMeta.FirstOrDefaultAsync();
         var teachers = (await db.Teachers.Where(t => !t.IsArchived).OrderBy(t => t.FullName).ToListAsync())
             .Select(t => new TeacherDeviceMapDto(t.Id, t.FullName, t.DeviceUserId)).ToList();
+        // Qurilma login/paroli — .env dan (TURNSTILE_USERNAME / TURNSTILE_PASSWORD).
         return new TurnstileSettingsDto(
             m?.TurnstileEnabled ?? false,
             string.IsNullOrEmpty(m?.TurnstileVendor) ? "hikvision" : m!.TurnstileVendor,
-            m?.TurnstileHost ?? "", m?.TurnstilePort ?? 80, m?.TurnstileUsername ?? "",
-            !string.IsNullOrEmpty(m?.TurnstilePassword),
+            m?.TurnstileHost ?? "", m?.TurnstilePort ?? 80, AppSecrets.TurnstileUsername,
+            AppSecrets.TurnstilePassword.Length > 0,
             string.IsNullOrEmpty(m?.WorkStartTime) ? "08:30" : m!.WorkStartTime,
-            m?.LateGraceMinutes ?? 10, m?.TurnstileLastSync ?? "", teachers);
+            m?.LateGraceMinutes ?? 10, m?.TurnstileLastSync ?? "", teachers,
+            new EnvSecretDto(AppSecrets.EnvKeys.TurnstilePassword, AppSecrets.TurnstileCredentialsConfigured));
     }
 
     [HttpPut("turnstile")]
     public async Task<ActionResult<TurnstileSettingsDto>> SaveTurnstile(SaveTurnstileSettingsRequest req)
     {
+        if (EnvOnly(req.Username, AppSecrets.EnvKeys.TurnstileUsername) is { } userErr) return userErr;
+        if (EnvOnly(req.Password, AppSecrets.EnvKeys.TurnstilePassword) is { } passErr) return passErr;
+
         var m = await db.CenterMeta.FirstOrDefaultAsync();
         if (m is null) { m = new CenterMeta(); db.CenterMeta.Add(m); }
         m.TurnstileEnabled = req.Enabled;
         m.TurnstileVendor = (req.Vendor ?? m.TurnstileVendor).Trim().ToLowerInvariant();
         m.TurnstileHost = (req.Host ?? "").Trim();
         m.TurnstilePort = req.Port is > 0 ? req.Port.Value : 80;
-        m.TurnstileUsername = (req.Username ?? "").Trim();
-        // Parol bo'sh kelsa — eskisi saqlanadi (UI parolni qaytarmaydi).
-        if (!string.IsNullOrEmpty(req.Password)) m.TurnstilePassword = req.Password;
         if (!string.IsNullOrEmpty(req.WorkStartTime)) m.WorkStartTime = req.WorkStartTime.Trim();
         if (req.LateGraceMinutes is >= 0) m.LateGraceMinutes = req.LateGraceMinutes.Value;
 
