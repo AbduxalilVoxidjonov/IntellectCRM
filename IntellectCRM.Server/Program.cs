@@ -553,10 +553,6 @@ using (var scope = app.Services.CreateScope())
             "[seed] StaffRoleTemplates seed failed (migration qo'llanmagan bo'lsa normal) — keyingi restartda qayta urinyadi");
     }
 
-    // Telegram bot username/nomi — xotiraga (token .env dan o'qiladi, DB'da saqlanmaydi).
-    try { scope.ServiceProvider.GetRequiredService<TelegramService>().Load(db); }
-    catch (Exception ex) { app.Logger.LogWarning(ex, "[telegram] bot nomini yuklab bo'lmadi"); }
-
     // ---------- Integratsiya sozlamalarini .env (config) dan CenterMeta'ga qo'llash ----------
     // ENV-WINS: .env'da berilgan integratsiya qiymati DB'dagidan USTUN turadi (har deploy'da qo'llanadi) —
     // admin .env'da boshqaradi, UI'da "Saqlash" bosish shart emas. .env'da BO'SH qoldirilgan integratsiya
@@ -584,8 +580,10 @@ using (var scope = app.Services.CreateScope())
         S("Telegram:BotName", v => meta.TelegramBotName = v);
         S("Telegram:Channel", v => meta.TelegramChannel = v);
         S("Telegram:AdminChatId", v => meta.TelegramAdminChatId = v);
-        // Eskiz SMS — faqat jo'natuvchi nomi (login/parol .env da)
-        S("Eskiz:From", v => meta.EskizFrom = v);
+        // Eskiz SMS: jo'natuvchi nomi (From) ATAYIN bu yerda YO'Q — u UI'dan boshqariladigan
+        // yagona Eskiz sozlamasi. .env'dagi ESKIZ_FROM faqat DB'da qiymat bo'lmaganda zaxira
+        // sifatida ishlatiladi (EskizService.SenderOf); aks holda har deployda admin tanlagan
+        // tasdiqlangan nikname "4546" ga qaytib ketardi.
         // Turniket / FaceID (login/parol .env da)
         B("Turnstile:Enabled", v => meta.TurnstileEnabled = v);
         S("Turnstile:Vendor", v => meta.TurnstileVendor = v);
@@ -612,6 +610,12 @@ using (var scope = app.Services.CreateScope())
     {
         app.Logger.LogWarning(ex, "[env] Integratsiya sozlamalarini .env dan qo'llashda xatolik (migratsiya qo'llanmagan bo'lsa normal)");
     }
+
+    // Telegram bot username/nomi — xotiraga (token .env dan o'qiladi, DB'da saqlanmaydi).
+    // DIQQAT: env-wins blokidan KEYIN — aks holda .env dagi TELEGRAM_BOT_USERNAME endigina DB'ga
+    // yozilgan bo'lsa ham, xizmat keyingi restartgacha bo'sh nom bilan qolardi (t.me havolasi buzilardi).
+    try { scope.ServiceProvider.GetRequiredService<TelegramService>().Load(db); }
+    catch (Exception ex) { app.Logger.LogWarning(ex, "[telegram] bot nomini yuklab bo'lmadi"); }
 }
 
 // ---------- Pipeline ----------

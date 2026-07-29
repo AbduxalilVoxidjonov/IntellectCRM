@@ -22,7 +22,9 @@ public class EskizService(
 {
     // Keshlangan Bearer token (xotirada — bazaga yozilmaydi). Singleton bo'lgani uchun butun ilova
     // uchun bitta; parallel SMS yuborishlarda poyga bo'lmasin deb qulf bilan yangilanadi.
-    private string _token = "";
+    // volatile: qulf FAQAT yangilashda olinadi, o'qish (Cached) esa qulfsiz — ayni paytdagi
+    // qiymatni ko'rishi uchun.
+    private volatile string _token = "";
     private DateTime _tokenExpiresAt = DateTime.MinValue;
     private readonly SemaphoreSlim _tokenLock = new(1, 1);
 

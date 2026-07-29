@@ -58,7 +58,9 @@ services:
       # SMS (Eskiz.uz) — login/parol MAXFIY; From (sender) maxfiy emas:
       Eskiz__Email: "${ESKIZ_EMAIL:-}"
       Eskiz__Password: "${ESKIZ_PASSWORD:-}"
-      Eskiz__From: "${ESKIZ_FROM:-4546}"
+      # From (jo'natuvchi nomi) UI'dan boshqariladi — default QO'YILMAYDI, aks holda har
+      # deployda admin tanlagan tasdiqlangan nikname "4546" ga qaytib ketardi.
+      Eskiz__From: "${ESKIZ_FROM:-}"
       # Turniket / FaceID — Username/Password MAXFIY, qolgani UI'dan ham sozlanadi:
       Turnstile__Enabled: "${TURNSTILE_ENABLED:-}"
       Turnstile__Vendor: "${TURNSTILE_VENDOR:-}"

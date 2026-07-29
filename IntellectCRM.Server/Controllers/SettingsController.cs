@@ -132,14 +132,21 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
     /// yuborsa — jimgina yutib yubormasdan tushunarli 400 qaytaramiz.
     /// Bo'sh/berilmagan qiymat — normal (xato yo'q).
     /// </summary>
-    private BadRequestObjectResult? EnvOnly(string? value, string envKey) =>
-        string.IsNullOrWhiteSpace(value)
-            ? null
-            : BadRequest(new
-            {
-                message = $"Bu kalit endi UI'dan saqlanmaydi — serverdagi .env fayliga "
-                          + $"{envKey}=... qatorini qo'shing va `docker compose up -d` qiling.",
-            });
+    /// <param name="current">Ayni paytda amalda bo'lgan (.env dagi) qiymat — GET qaytaradigan
+    /// maydonlar uchun (turniket logini, Azure regioni). Mijoz o'sha qiymatni O'ZGARTIRMASDAN
+    /// qaytarib yuborsa bu "yozish" emas — jimgina o'tkazamiz, aks holda admin o'sha formadagi
+    /// boshqa (maxfiy bo'lmagan) sozlamalarni ham saqlay olmay qolardi.</param>
+    private BadRequestObjectResult? EnvOnly(string? value, string envKey, string? current = null)
+    {
+        var v = (value ?? "").Trim();
+        if (v.Length == 0) return null;
+        if (!string.IsNullOrEmpty(current) && v == current.Trim()) return null;
+        return BadRequest(new
+        {
+            message = $"Bu kalit endi UI'dan saqlanmaydi — serverdagi .env fayliga "
+                      + $"{envKey}=... qatorini qo'shing va `docker compose up -d` qiling.",
+        });
+    }
 
     // ---------- Telegram backup ----------
 
@@ -254,7 +261,7 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
     public ActionResult<AzureSpeechSettingsDto> SaveAzureSpeech(SaveAzureSpeechRequest req)
     {
         if (EnvOnly(req.Key, AppSecrets.EnvKeys.AzureSpeechKey) is { } keyErr) return keyErr;
-        if (EnvOnly(req.Region, AppSecrets.EnvKeys.AzureSpeechRegion) is { } regionErr) return regionErr;
+        if (EnvOnly(req.Region, AppSecrets.EnvKeys.AzureSpeechRegion, AppSecrets.AzureSpeechRegion) is { } regionErr) return regionErr;
         return GetAzureSpeech();
     }
 
@@ -314,7 +321,7 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
     [HttpPut("eskiz")]
     public async Task<ActionResult<EskizSettingsDto>> SaveEskiz(SaveEskizRequest req)
     {
-        if (EnvOnly(req.Email, AppSecrets.EnvKeys.EskizEmail) is { } emailErr) return emailErr;
+        if (EnvOnly(req.Email, AppSecrets.EnvKeys.EskizEmail, AppSecrets.EskizEmail) is { } emailErr) return emailErr;
         if (EnvOnly(req.Password, AppSecrets.EnvKeys.EskizPassword) is { } passErr) return passErr;
 
         var m = await db.CenterMeta.FirstOrDefaultAsync();
@@ -465,7 +472,7 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
     [HttpPut("turnstile")]
     public async Task<ActionResult<TurnstileSettingsDto>> SaveTurnstile(SaveTurnstileSettingsRequest req)
     {
-        if (EnvOnly(req.Username, AppSecrets.EnvKeys.TurnstileUsername) is { } userErr) return userErr;
+        if (EnvOnly(req.Username, AppSecrets.EnvKeys.TurnstileUsername, AppSecrets.TurnstileUsername) is { } userErr) return userErr;
         if (EnvOnly(req.Password, AppSecrets.EnvKeys.TurnstilePassword) is { } passErr) return passErr;
 
         var m = await db.CenterMeta.FirstOrDefaultAsync();
