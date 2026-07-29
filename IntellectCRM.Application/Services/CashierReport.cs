@@ -127,6 +127,68 @@ public static class CashierReport
         return new CashierPaymentsDto(summary, payments);
     }
 
+    /// <summary>
+    /// TO'LOV KIRITA OLADIGANLAR ro'yxati — Moliya → "To'lovlar" dagi <b>"Kiritgan"</b> filtri uchun.
+    ///
+    /// <para>Ro'yxatga KIM kiradi: (1) to'lov kirita oladigan HAR BIR akkaunt — admin/superadmin va
+    /// <c>kassa</c> / <c>students</c> / <c>finance</c> bo'limiga yozish ruxsati berilgan xodim (davr
+    /// ichida hali bitta ham to'lov kiritmagan bo'lsa ham ro'yxatda turadi, tanlansa bo'sh chiqadi);
+    /// (2) davr ichida to'lov kiritgan, lekin endi bunday ruxsati yo'q yoki akkaunti o'chirilgan
+    /// kishilar — aks holda ularning to'lovlarini filtrlab bo'lmasdi.</para>
+    ///
+    /// <para>Kalit — <see cref="KeyOf"/> bilan bir xil konvensiya, ya'ni "Kassirlar" tabidagi kalit
+    /// bilan mos tushadi.</para>
+    /// </summary>
+    public static async Task<List<PaymentAuthorDto>> AuthorsAsync(IAppDbContext db, string from, string to)
+    {
+        // Faqat panelga kiradigan rollar (o'quvchi/ota-ona akkauntlari ko'p — ular kerak emas).
+        var panelRoles = new[] { Roles.Admin, Roles.SuperAdmin, Roles.PlatformOwner, Roles.Staff };
+        var accounts = await db.Users.AsNoTracking()
+            .Where(u => panelRoles.Contains(u.Role))
+            .Select(u => new { u.Id, u.FullName, u.Role, u.Position, u.Permissions })
+            .ToListAsync();
+
+        // To'lov yozish yo'llari: kassa portali ("kassa"), o'quvchi kartochkasi ("students") va
+        // Moliya ("finance"). Yozish = POST → yalang bo'lim yoki "bo'lim:create" ruxsati.
+        static bool CanEnter(string role, IEnumerable<string> perms) =>
+            role is Roles.Admin or Roles.SuperAdmin or Roles.PlatformOwner ||
+            perms.Any(p => p is "kassa" or "students" or "finance"
+                        or "kassa:create" or "students:create" or "finance:create");
+
+        var result = accounts
+            .Where(a => CanEnter(a.Role, a.Permissions))
+            .Select(a => new PaymentAuthorDto(a.Id, a.Id, a.FullName, a.Position ?? "", true))
+            .ToList();
+        var seen = result.Select(r => r.Key).ToHashSet(StringComparer.Ordinal);
+
+        // Davr ichida haqiqatan to'lov kiritganlar — ruxsati olib tashlangan/o'chirilganlar ham
+        // ro'yxatda qolsin (eski, id'siz yozuvlar ism bo'yicha).
+        var entered = await IncomeQuery(db, from, to)
+            .Select(t => new { t.CreatedById, t.CreatedBy })
+            .Distinct().ToListAsync();
+        var nameById = accounts.ToDictionary(a => a.Id, a => a.FullName);
+        // Eski (id'siz) yozuvning ismi NOYOB akkauntga to'g'ri kelsa — o'sha akkaunt bilan
+        // birlashadi (aks holda bitta odam ro'yxatda ikki marta chiqardi — "Kassirlar" tabidagi
+        // birlashtirish bilan bir xil qoida).
+        var idByName = accounts.GroupBy(a => a.FullName).Where(g => g.Count() == 1)
+            .ToDictionary(g => g.Key, g => g.First().Id, StringComparer.Ordinal);
+        foreach (var e in entered)
+        {
+            var key = !string.IsNullOrEmpty(e.CreatedById) ? e.CreatedById!
+                : (!string.IsNullOrWhiteSpace(e.CreatedBy) && idByName.TryGetValue(e.CreatedBy!, out var uid)
+                    ? uid
+                    : KeyOf(null, e.CreatedBy));
+            if (key == "name:" || !seen.Add(key)) continue;
+            var isId = !key.StartsWith("name:", StringComparison.Ordinal);
+            var name = isId && nameById.TryGetValue(key, out var n) && !string.IsNullOrWhiteSpace(n)
+                ? n
+                : (string.IsNullOrWhiteSpace(e.CreatedBy) ? "(noma'lum)" : e.CreatedBy!);
+            result.Add(new PaymentAuthorDto(key, isId ? key : null, name, "", false));
+        }
+
+        return result.OrderBy(r => r.Name, StringComparer.CurrentCulture).ToList();
+    }
+
     /// <summary>Davr filtri: sana "yyyy-MM-dd" matn bo'lgani uchun oddiy taqqoslash ishlaydi.</summary>
     private static IQueryable<FinanceTransaction> IncomeQuery(IAppDbContext db, string from, string to)
     {

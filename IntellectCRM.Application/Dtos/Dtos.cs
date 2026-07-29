@@ -1045,7 +1045,18 @@ public record FinanceTransactionDto(
     // Karta raqamining oxirgi 4 raqami (karta to'lovi) — jadvalda "•••• 1234" bo'lib ko'rinadi.
     string? CardLast4 = null,
     // KIM KIRITGAN (kassir/admin F.I.Sh) — "To'lovlar" va "Kunlik hisobot" jadvallarida ko'rinadi.
-    string? CreatedBy = null);
+    string? CreatedBy = null,
+    // Kiritgan xodimning AKKAUNT id'si (eski yozuvlarda null) — "Kiritgan" filtri ism emas,
+    // aynan akkaunt bo'yicha ajratishi uchun (bir xil ismli ikki xodim aralashmasin).
+    string? CreatedById = null);
+
+/// <summary>
+/// "Kiritgan" filtri uchun bitta variant — TO'LOV KIRITA OLADIGAN xodim/admin. Ro'yxatga
+/// ruxsati borlarning HAMMASI kiradi (hali to'lov kiritmagan bo'lsa ham) + davr ichida
+/// to'lov kiritgan eski/o'chirilgan akkauntlar. <paramref name="Key"/> — CashierReport bilan
+/// bir xil kalit (akkaunt id'si yoki "name:F.I.Sh").
+/// </summary>
+public record PaymentAuthorDto(string Key, string? Id, string Name, string Position, bool CanEnter);
 
 /// <summary>O'quvchi to'lovini (income+tuition) qisman/to'liq VOZVRAT qilish — FAQAT superadmin.
 /// Muzlatishdan hosil bo'lgan avans shu orqali qaytariladi (balans 0 ga tushadi), o'qituvchi foizi net'dan.</summary>

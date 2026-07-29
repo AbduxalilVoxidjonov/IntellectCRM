@@ -466,6 +466,25 @@ export async function getCashiers(from?: string, to?: string): Promise<CashierSu
   return data
 }
 
+/** "Kiritgan" filtri varianti — to'lov kirita oladigan xodim/admin (yoki ilgari kiritgan akkaunt). */
+export interface PaymentAuthor {
+  /** Kalit: akkaunt id'si yoki eski yozuvlar uchun "name:F.I.Sh" */
+  key: string
+  id: string | null
+  name: string
+  /** Lavozim yorlig'i (Kassir/Administrator/...) — bo'sh bo'lishi mumkin */
+  position: string
+  /** Hozir to'lov kirita oladimi (ruxsati bormi) — false = faqat eski to'lovlari bor */
+  canEnter: boolean
+}
+
+/** To'lov kirita oladiganlar ro'yxati ("Kiritgan" filtri uchun; davr — eski kiritganlar ham chiqsin). */
+export async function getPaymentAuthors(from?: string, to?: string): Promise<PaymentAuthor[]> {
+  if (USE_MOCK) return []
+  const { data } = await api.get<PaymentAuthor[]>('/admin/finance/payment-authors', { params: { from, to } })
+  return data
+}
+
 /** Bitta kassir kiritgan to'lovlar (jadvaldagi qatorni bosganda) + o'sha kassirning jami. */
 export async function getCashierPayments(
   from: string | undefined,

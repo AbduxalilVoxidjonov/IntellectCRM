@@ -38,7 +38,7 @@ public class FinanceController(AppDbContext db, AuditService audit, AutoMessageS
             t.CreatedAt == default ? null : AppClock.ToLocal(t.CreatedAt).ToString("yyyy-MM-ddTHH:mm:ss"),
             refunded is not null && refunded.TryGetValue(t.Id, out var rf) ? rf : 0m,
             t.RefundOfId,
-            t.ReceiptNo, t.PaidTime, t.CardLast4, t.CreatedBy);
+            t.ReceiptNo, t.PaidTime, t.CardLast4, t.CreatedBy, t.CreatedById);
 
     [HttpGet("transactions")]
     public async Task<ActionResult<IEnumerable<FinanceTransactionDto>>> GetTransactions(
@@ -704,6 +704,20 @@ public class FinanceController(AppDbContext db, AuditService audit, AutoMessageS
     {
         if (!CanSeeCashiers()) return Forbid();
         return await CashierReport.PaymentsAsync(db, from ?? "", to ?? "", cashierId, cashierName);
+    }
+
+    /// <summary>
+    /// "KIRITGAN" FILTRI ro'yxati — to'lov kirita oladigan xodim/adminlarning HAMMASI (hali to'lov
+    /// kiritmagan bo'lsa ham) + davr ichida to'lov kiritgan eski/ruxsati olib tashlangan akkauntlar.
+    /// Moliya → "To'lovlar" tabidagi "Kiritgan: barchasi" tanlovi shu ro'yxatdan to'ladi.
+    /// </summary>
+    [HttpGet("payment-authors")]
+    public async Task<ActionResult<IEnumerable<PaymentAuthorDto>>> PaymentAuthors(
+        [FromQuery] string? from, [FromQuery] string? to)
+    {
+        // Kim kiritgani kesimi — "Kassirlar" hisoboti bilan bir xil darajadagi ma'lumot.
+        if (!CanSeeCashiers()) return Forbid();
+        return await CashierReport.AuthorsAsync(db, from ?? "", to ?? "");
     }
 
     /// <summary>Oylik to'lovni qo'lda hisoblash. month berilmasa — hisoblanmagan barcha oylar.</summary>

@@ -21,9 +21,11 @@ import {
   getCourseReport,
   getRefunds,
   getCashiers,
+  getPaymentAuthors,
   type FinanceTransactionPayload,
   type CourseFinanceReport,
   type GroupFinanceRow,
+  type PaymentAuthor,
 } from '@/api/services/finance'
 import { addPayment } from '@/api/services/students'
 import type { CashierSummary } from '@/api/services/kassa'
@@ -131,6 +133,11 @@ export function FinancePage() {
   const [payMethod, setPayMethod] = useState<MethodFilter>('all')
   /** "To'lovlar" tabidagi kvitansiya filtri (raqami bor / yo'q). */
   const [payReceipt, setPayReceipt] = useState<ReceiptFilter>('all')
+  /** "To'lovlar" tabidagi "Kiritgan" filtri — tanlangan xodim (null = hammasi). Kalit emas, obyekt
+   *  saqlanadi: davr o'zgarib ro'yxatdan tushib qolsa ham tanlov yo'qolmaydi. */
+  const [payAuthor, setPayAuthor] = useState<PaymentAuthor | null>(null)
+  /** To'lov kirita oladigan xodim/adminlar (filtr ro'yxati uchun). */
+  const [payAuthors, setPayAuthors] = useState<PaymentAuthor[]>([])
   /** "To'lovlar" tabidagi saralash (sana / kvitansiya raqami). */
   const [paySort, setPaySort] = useState<PaySort>('date-desc')
   const [courseReport, setCourseReport] = useState<CourseFinanceReport | null>(null)
@@ -165,8 +172,9 @@ export function FinancePage() {
       getCourseReport(from, to),
       getRefunds(from, to),
       getCashiers(from, to),
+      getPaymentAuthors(from, to),
     ])
-      .then(([s, m, t, sr, pay, cr, rf, csh]) => {
+      .then(([s, m, t, sr, pay, cr, rf, csh, authors]) => {
         setSummary(s)
         setMonthly(m)
         setTransactions(t)
@@ -175,6 +183,7 @@ export function FinancePage() {
         setCourseReport(cr)
         setRefunds(rf)
         setCashiers(csh)
+        setPayAuthors(authors)
       })
       .finally(() => setLoading(false))
   }, [from, to, dirFilter])
@@ -273,10 +282,23 @@ export function FinancePage() {
     courseReport?.groups.forEach((g) => map.set(g.groupId, g.teacherId))
     return map
   })()
+  // "Kiritgan" filtri: tanlangan xodimning to'lovlari. Yangi yozuvlar akkaunt id'si bo'yicha,
+  // ESKI (createdById'siz) yozuvlar esa ism bo'yicha mos keladi — backend'dagi kassir hisoboti
+  // bilan bir xil qoida (CashierReport.PaymentsAsync).
+  const matchesAuthor = (p: FinanceTransaction) => {
+    if (!payAuthor) return true
+    if (payAuthor.id && p.createdById === payAuthor.id) return true
+    return !p.createdById && (p.createdBy ?? '') === payAuthor.name
+  }
+  /** Filtr ro'yxati: ruxsati borlar + (tanlangani ro'yxatda bo'lmasa) tanlangan xodim. */
+  const authorOptions = payAuthor && !payAuthors.some((a) => a.key === payAuthor.key)
+    ? [payAuthor, ...payAuthors]
+    : payAuthors
   const filteredPayments = (() => {
     const q = paySearch.trim().toLowerCase()
     return payments.filter((p) => {
       if (payTeacher && (!p.groupId || teacherByGroup.get(p.groupId) !== payTeacher)) return false
+      if (!matchesAuthor(p)) return false
       // To'lov usuli (naqd/karta/bank) — usuli belgilanmagan eski yozuvlar filtrga tushmaydi.
       if (payMethod !== 'all' && p.method !== payMethod) return false
       // "Kvitansiya" ustunida raqam bor / yo'q — naqdda kvitansiya, kartada karta oxiri
@@ -838,9 +860,11 @@ export function FinancePage() {
                 tight
                 title="Kiritilgan to'lovlar"
                 sub={
-                  payTeacher
-                    ? "O'qituvchi guruhlariga teglangan to'lovlar (teglanmagan to'lov bitta o'qituvchiga tegishli emas)"
-                    : "O'quvchi to'lovlari (tuition) — xato bo'lsa o'chiring, balans qayta tiklanadi"
+                  payAuthor
+                    ? `${payAuthor.name} kiritgan to'lovlar`
+                    : payTeacher
+                      ? "O'qituvchi guruhlariga teglangan to'lovlar (teglanmagan to'lov bitta o'qituvchiga tegishli emas)"
+                      : "O'quvchi to'lovlari (tuition) — xato bo'lsa o'chiring, balans qayta tiklanadi"
                 }
                 actions={
                   <div className="flex flex-wrap items-center gap-2">
@@ -866,6 +890,24 @@ export function FinancePage() {
                       <option value="all">Kvitansiya raqami: barchasi</option>
                       <option value="with">Kvitansiya raqami: bor</option>
                       <option value="without">Kvitansiya raqami: yo'q</option>
+                    </select>
+                    {/* KIM KIRITGAN — to'lov kirita oladigan barcha xodim/adminlar ro'yxati
+                        (hali to'lov kiritmagani ham turadi; jadvaldagi "Kiritgan" ustuni kesimi). */}
+                    <select
+                      value={payAuthor?.key ?? ''}
+                      onChange={(e) =>
+                        setPayAuthor(authorOptions.find((a) => a.key === e.target.value) ?? null)
+                      }
+                      className={filterSelect}
+                      title="To'lovni kim kiritgan"
+                    >
+                      <option value="">Kiritgan: barchasi</option>
+                      {authorOptions.map((a) => (
+                        <option key={a.key} value={a.key}>
+                          {a.name}
+                          {a.position ? ` · ${a.position}` : ''}
+                        </option>
+                      ))}
                     </select>
                     <select
                       value={payTeacher}

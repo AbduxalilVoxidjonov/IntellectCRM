@@ -788,6 +788,8 @@ export interface FinanceTransaction {
   createdAt?: string
   /** KIM KIRITGAN — kassir/admin F.I.Sh ("To'lovlar" va "Kunlik hisobot" jadvallarida ustun) */
   createdBy?: string | null
+  /** Kiritgan xodimning akkaunt id'si (eski yozuvlarda yo'q) — "Kiritgan" filtri shunga tayanadi */
+  createdById?: string | null
   /** Bu to'lovdan jami qancha VOZVRAT (pul qaytarish) qilingani (>0 = qisman/to'liq qaytarilgan) */
   refunded?: number
   /** Bu yozuvning O'ZI vozvrat bo'lsa — qaysi asl to'lov uchun (id) */

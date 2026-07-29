@@ -121,6 +121,13 @@ paths:
   `FinanceController.ToDto`) — Moliya → **To'lovlar** jadvalida "Kiritgan" ustuni (qidiruv va CSV'ga
   ham kiradi) va **Umumiy → Kunlik hisobot**da kun tanlanganda "Vaqt · Kvitansiya · Kiritgan"
   ustunlari. Ya'ni har bir to'lov yonida qaysi kassir kiritgani va qog'oz kvitansiya raqami turadi.
+  **"Kiritgan" FILTRI** (Moliya → To'lovlar): ro'yxat `GET /api/admin/finance/payment-authors`
+  (`CashierReport.AuthorsAsync`, gate = `CanSeeCashiers`) — to'lov KIRITA OLADIGAN barcha akkauntlar
+  (admin/superadmin + `kassa`/`students`/`finance` yozish ruxsatli xodim, hali to'lov kiritmagani ham)
+  **+** davr ichida kiritgan, ammo endi ruxsati yo'q/o'chirilgan akkauntlar. Kalit — `CashierReport.KeyOf`
+  (id yoki "name:F.I.Sh"), eski id'siz yozuv NOYOB ism bo'yicha akkauntga birlashadi. Mos kelish
+  qoidasi klientda ham bir xil: `createdById == id` YOKI (id yo'q eski yozuvda) `createdBy == ism` —
+  shuning uchun `FinanceTransactionDto`ga `CreatedById` qo'shilgan.
 
 - **MOLIYA JADVALLARI SAHIFALANADI** (`components/ui/TablePagination.tsx`): `usePagination(items)`
   hook + `<TablePagination {...pg} />` — 20/30/50/100 talik, filtr/qidiruv o'zgarsa 1-sahifaga
