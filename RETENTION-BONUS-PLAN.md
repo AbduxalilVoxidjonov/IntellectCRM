@@ -668,7 +668,21 @@ Natija (iyulda, fevraldan aktivlashtirish, oylik 500 000):
    ilovasidagi Maosh sahifasi) ochilganda BARCHA ptichkali o'quvchilar bo'ylab yuriladi.
    Hozircha maqbul, lekin ptichkali o'quvchilar soni yuzlab bo'lsa kesh yoki `onlyTeacherId`
    filtri kerak bo'ladi.
-8. **Bonus berish sanasi (`Award.CreatedAt`) `AppClock.Now` bilan yoziladi** — ya'ni allaqachon
+8. **⚠️ Bonus berish TEKSHIRUV va YOZUV orasida poyga (race) bo'lgan — tuzatildi.**
+   `GiveAsync` avval holatni o'qiydi (sikl tayyormi, o'qituvchi bloklanganmi), keyin yozadi.
+   Ikkinchi so'rov oraliqda kirib ulgursa ikkalasi ham "tayyor" ni ko'rardi. Bir fan ichida buni
+   unikal indeks ushlardi (lekin 500 bilan), **turli fanlarda esa umuman ushlanmasdi** — bir
+   o'qituvchi bitta o'quvchidan IKKI bonus olardi (600 000, 300 000 o'rniga).
+   Yechim: `RetentionBonusController.Give` shu O'QUVCHI kesimida PostgreSQL advisory lock bilan
+   ketma-ketlashtiriladi; `23505` endi 409 + tushunarli xabar; modal ham `saving` bilan
+   ikkinchi to'siq qo'yadi.
+   DIQQAT: `finally` da **`pg_advisory_unlock_all()`** ishlatiladi, aniq `pg_advisory_unlock` emas —
+   EF'da `EnableRetryOnFailure` yoqilgani uchun qulf buyrug'i qayta bajarilib, re-entrant qulf
+   ikki marta olinishi mumkin; bir marta bo'shatish yetmay, qulf ushlab turgan ulanish poolga
+   qaytardi va o'sha o'quvchi bo'yicha keyingi so'rovlar abadiy kutib qolardi.
+9. **Moliya tabidagi "Bonuslar soni" ulushlarni sanardi** — ikki o'qituvchiga bo'lingan bitta
+   bonus ikki marta chiqardi (summalar to'g'ri edi). Endi award id'lari bo'yicha `Distinct().Count()`.
+10. **Bonus berish sanasi (`Award.CreatedAt`) `AppClock.Now` bilan yoziladi** — ya'ni allaqachon
    markaz vaqti (UTC+5). Moliya hisobotida `AppClock.ToLocal` **qo'llanmaydi**: qo'llansa sana
    5 soatga siljib, chegaradagi bonus noto'g'ri oyga tushardi. Bu `FinanceTransaction.CreatedAt`
    dan (u UTC yoziladi va `ToLocal` qilinadi) FARQ qiladi — chalkashmasin.

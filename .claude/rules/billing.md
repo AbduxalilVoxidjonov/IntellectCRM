@@ -31,10 +31,24 @@ paths:
   Guruhga qo'shilganda "trial". **Aktivlashtirish** (`/members/{sid}/activate` {date}): birinchi (qisman)
   oy = (guruh `MonthlyFee` ÷ SHU OYDAGI jami dars) × shu sanadan oy oxirigacha qolgan darslar
   (`group.Days` bo'yicha) — qolgan ≤ jami bo'lgani uchun to'liqdan oshmaydi, chegirma qo'llanadi
-  (`TuitionService.ChargeActivationProrateAsync`). **Muzlatish** (`/members/{sid}/freeze` {date}): shu
+  (`TuitionService.ChargeActivationProrateAsync`). **ORQAGA SANALGAN aktivlashtirishda** (masalan iyulda
+  fevraldan) oraliq oylar — aktiv oydan KEYINGI oydan joriy oygacha — DARHOL to'liq oylik bilan yoziladi
+  (`TuitionService.AccrueCatchUpAsync`, javobda `catchUpMonths`); ilgari ularni faqat fon xizmati
+  (har 12 soatda) yozardi va `AccrueMonth` dagi `EnrollmentDate` filtri tufayli umuman yozilmasdi.
+  **Muzlatish** (`/members/{sid}/freeze` {date}): shu
   oydan boshlab hisoblanmaydi; **muzlatish SANASINING O'ZI hisobga kiradi** (o'sha kuni dars bo'lsa
   to'lovga qo'shiladi) — `StudentGroupLedger.FreezeGross` previewi ham aynan shu konvensiyada va
-  `TuitionService.ProratedLessonCharge` ni ishlatadi. `AccrueMonth` har oy = FAOL a'zoliklarning
+  `TuitionService.ProratedLessonCharge` ni ishlatadi.
+  **ORQAGA SANALGAN muzlatishda muzlatish oyidan KEYINGI hisoblar BEKOR qilinadi**
+  (`TuitionService.PurgeChargesAfterMonthAsync`, javobda `restored`) — o'quvchi o'qimagan oylar uchun
+  qarzdor bo'lib qolmasin; `Locked` qatorlar tegilmaydi. Bu AKTIVLASHTIRISHNING teskarisi va uchala
+  yo'lda ham bir xil: **muzlatish**, **guruh almashtirish** (`transfer`) va **guruhni yopish** (`close`).
+  Muzlatish sanasi AKTIVLASHTIRISH sanasidan oldin bo'lsa (umuman o'qimagan) — qisman to'lov ham
+  yozilmaydi va aktivlashtirish oyi hisobi ham bekor qilinadi (`inclusive: true`).
+  DIQQAT (`transfer`): bekor qilingan oylar ro'yxati `CarryGroupAdvanceAsync` ga `zeroOwedMonths`
+  sifatida uzatiladi — EF hali flush qilinmagan (o'chirishga belgilangan) qatorni so'rovda baribir
+  qaytargani uchun, usiz o'sha oylar "hisoblangan" bo'lib ko'rinib, ularga to'langan pul eski guruhda
+  qolib ketardi. `AccrueMonth` har oy = FAOL a'zoliklarning
   `MonthlyFee` yig'indisi — faqat Status=="active", aktivlashtirilgan oydan KEYINGI oylar, muzlatish
   oyidan OLDIN (a'zoligi yo'q o'quvchi — eski ClassName narxi). **`MonthlyCharge` PER-GURUH** — unikal
   kalit (StudentId, **GroupId**, Month); guruhsiz (eski ClassName) o'quvchida GroupId=null. To'lov

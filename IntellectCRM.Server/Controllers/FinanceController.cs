@@ -878,24 +878,30 @@ public class FinanceController(AppDbContext db, AuditService audit, AutoMessageS
         var given = rows.Where(r => r.Status == RetentionBonusAward.StatusGiven).ToList();
         var cancelled = rows.Where(r => r.Status != RetentionBonusAward.StatusGiven).ToList();
 
+        // SONLAR — BONUSLAR soni, ulushlar soni EMAS. Qator = award × o'qituvchi bo'lgani uchun
+        // ikki o'qituvchiga bo'lingan BITTA bonus qatorlarni sanaganda IKKI marta chiqardi
+        // ("Bonuslar soni: 2" — aslida 1 ta bonus). Summalar to'g'ri edi (ulushlar yig'indisi =
+        // bonus summasi), faqat SANOQ noto'g'ri edi — shuning uchun award id'lari bo'yicha Distinct.
         var byTeacher = given
             .GroupBy(r => new { r.TeacherId, r.TeacherName })
             .Select(g => new RetentionBonusByTeacherDto(
-                g.Key.TeacherId, g.Key.TeacherName, g.Count(), g.Sum(x => x.Amount)))
+                g.Key.TeacherId, g.Key.TeacherName,
+                g.Select(x => x.AwardId).Distinct().Count(), g.Sum(x => x.Amount)))
             .OrderByDescending(t => t.Total)
             .ThenBy(t => t.TeacherName)
             .ToList();
 
         var byMonth = given
             .GroupBy(r => r.GivenMonth)
-            .Select(g => new RetentionBonusByMonthDto(g.Key, g.Count(), g.Sum(x => x.Amount)))
+            .Select(g => new RetentionBonusByMonthDto(
+                g.Key, g.Select(x => x.AwardId).Distinct().Count(), g.Sum(x => x.Amount)))
             .OrderByDescending(m => m.Month, StringComparer.Ordinal)
             .ToList();
 
         return new RetentionBonusFinanceDto(
             fromMonth, toMonth,
-            given.Sum(r => r.Amount), given.Count,
-            cancelled.Sum(r => r.Amount), cancelled.Count,
+            given.Sum(r => r.Amount), given.Select(r => r.AwardId).Distinct().Count(),
+            cancelled.Sum(r => r.Amount), cancelled.Select(r => r.AwardId).Distinct().Count(),
             byTeacher, byMonth, rows);
     }
 

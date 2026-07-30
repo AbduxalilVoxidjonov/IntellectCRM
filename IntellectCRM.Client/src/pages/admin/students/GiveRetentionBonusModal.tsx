@@ -64,7 +64,9 @@ export function GiveRetentionBonusModal({ row, defaultAmount, onClose, onSaved }
     )
 
   const submit = async () => {
-    if (!balanced || allBlocked) return
+    // `saving` tekshiruvi — tugma `disabled` bo'lishidan tashqari IKKINCHI to'siq: tez ikki marta
+    // bosilganda ikkita `POST /awards` ketib qolmasin (server ham qulf bilan himoyalangan).
+    if (saving || !balanced || allBlocked) return
     setSaving(true)
     setError('')
     try {

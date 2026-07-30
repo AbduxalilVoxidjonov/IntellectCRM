@@ -552,12 +552,17 @@ public static class TuitionService
     /// effektiv summani balansga QAYTARADI. <c>Locked</c> (qo'lda tahrirlangan) qatorlar tegilmaydi.
     /// <paramref name="inclusive"/>=true bo'lsa <paramref name="month"/> ning O'ZI ham o'chiriladi (a'zolik
     /// muzlatish sanasidan KEYIN aktivlashtirilgan bo'lsa — o'sha oyda umuman hisob bo'lmasligi kerak).
-    /// SaveChanges — chaqiruvchida. Qaytaradi: balansga qaytarilgan jami summa.
+    /// SaveChanges — chaqiruvchida. Qaytaradi: balansga qaytarilgan summa va O'CHIRILGAN OYLAR.
+    /// <para><paramref name="Months"/> nega kerak: <see cref="CarryGroupAdvanceAsync"/> shu chaqiruvdan
+    /// KEYIN, lekin SaveChanges'dan OLDIN ishlaydi. U hisoblarni bazadan qayta o'qiydi va o'chirilgan
+    /// (hali flush qilinmagan) qatorlarni EF baribir qaytaradi — natijada o'sha oylar "hisoblangan"
+    /// bo'lib ko'rinib, avans ko'chmay qolardi. Shuning uchun o'chirilgan oylar ro'yxati unga
+    /// <c>zeroOwedMonths</c> sifatida uzatiladi.</para>
     /// </summary>
-    public static async Task<decimal> PurgeChargesAfterMonthAsync(
+    public static async Task<(decimal Restored, List<string> Months)> PurgeChargesAfterMonthAsync(
         IAppDbContext db, Student s, string groupId, string month, bool inclusive = false)
     {
-        if (month.Length < 7) return 0m;
+        if (month.Length < 7) return (0m, []);
         var m0 = month[..7];
         var rows = (await db.MonthlyCharges
                 .Where(c => c.StudentId == s.Id && c.GroupId == groupId)
@@ -569,14 +574,16 @@ public static class TuitionService
             .ToList();
 
         var restored = 0m;
+        var months = new List<string>();
         foreach (var row in rows)
         {
             var effective = Math.Max(0m, row.Amount - row.Discount);
             s.Balance += effective;   // yaratilganda yechilgan effektivni qaytaramiz
             restored += effective;
+            months.Add(row.Month[..7]);
             db.MonthlyCharges.Remove(row);
         }
-        return restored;
+        return (restored, months);
     }
 
     /// <summary>
@@ -594,8 +601,15 @@ public static class TuitionService
     /// o'tgan oylardagi avans eski guruh tarixida qoladi. Vozvrat qilingan summa (expense+refund)
     /// ortiqchadan ayriladi. SaveChanges — chaqiruvchida. Qaytaradi: ko'chirilgan jami summa.</para>
     /// </summary>
+    /// <param name="zeroOwedMonths">
+    /// Hisobi SHU chaqiruvdan oldin bekor qilingan, lekin hali bazaga yozilmagan oylar
+    /// (<see cref="PurgeChargesAfterMonthAsync"/> qaytaradi). EF o'chirishga belgilangan qatorni
+    /// so'rovda baribir qaytargani uchun ular "hisoblangan" bo'lib ko'rinadi va avans ko'chmay
+    /// qolardi — shuning uchun bu oylar majburan 0 deb olinadi.
+    /// </param>
     public static async Task<decimal> CarryGroupAdvanceAsync(
-        IAppDbContext db, Student s, Group fromGroup, Group toGroup, string fromMonth)
+        IAppDbContext db, Student s, Group fromGroup, Group toGroup, string fromMonth,
+        IReadOnlyCollection<string>? zeroOwedMonths = null)
     {
         if (fromMonth.Length < 7 || fromGroup.Id == toGroup.Id) return 0m;
         var month0 = fromMonth[..7];
@@ -607,6 +621,11 @@ public static class TuitionService
             .Where(c => c.Month.Length >= 7 && string.CompareOrdinal(c.Month[..7], month0) >= 0)
             .GroupBy(c => c.Month[..7])
             .ToDictionary(g => g.Key, g => g.Sum(c => Math.Max(0m, c.Amount - c.Discount)));
+
+        // Bekor qilingan (hali flush qilinmagan) oylar — hisobi yo'q deb olinadi.
+        if (zeroOwedMonths is not null)
+            foreach (var m in zeroOwedMonths)
+                owedByMonth[m] = 0m;
 
         // Eski guruhga teglangan to'lovlar va vozvratlar (shu oydan boshlab).
         var movements = (await db.FinanceTransactions

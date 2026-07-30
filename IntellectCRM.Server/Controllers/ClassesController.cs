@@ -583,7 +583,13 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
     }
 
     /// <summary>A'zolikni MUZLATISH — kiritilgan sanadan (shu oydan) boshlab oylik to'lov hisoblanmaydi. TRANSACTION:
-    /// race condition (shunas vaqtda activation + freeze) oldini olish uchun atomik read-modify-write.</summary>
+    /// race condition (shunas vaqtda activation + freeze) oldini olish uchun atomik read-modify-write.
+    /// <para>ORQAGA SANALGAN muzlatishda muzlatish oyidan KEYINGI hisoblar BEKOR QILINADI
+    /// (<see cref="TuitionService.PurgeChargesAfterMonthAsync"/>) va effektiv summa balansga qaytariladi —
+    /// o'quvchi o'qimagan oylar uchun qarzdor bo'lib qolmasin. Bu "Guruhni yopish" (<c>close</c>) bilan
+    /// AYNAN bir xil konvensiya; javobdagi <c>restored</c> — qaytarilgan summa.</para>
+    /// <para>Muzlatish sanasi aktivlashtirish sanasidan OLDIN bo'lsa (ya'ni umuman o'qimagan) —
+    /// qisman to'lov ham yozilmaydi va aktivlashtirish oyi hisobi ham butunlay bekor qilinadi.</para></summary>
     [HttpPost("{id}/members/{studentId}/freeze")]
     public async Task<IActionResult> FreezeMember(string id, string studentId, MembershipStatusRequest req)
     {
@@ -607,19 +613,37 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
         sg.Status = "frozen";
         sg.FrozenAt = date;
 
-        // Muzlatish OYINING qisman to'lovi: shu sanagacha qatnashgan darslar uchun (to'liq oy emas).
         var cls = await db.Classes.FindAsync(id);
         var s = await db.Students.FindAsync(studentId);
+        var restored = 0m;
         if (cls is not null && s is not null)
-            await TuitionService.ChargeFreezeProrateAsync(db, s, cls, activatedAt, date);
+        {
+            // Muzlatish sanasi aktivlashtirish sanasidan OLDIN bo'lsa — o'quvchi bu guruhda umuman
+            // o'qimagan: qisman to'lov ham yozilmaydi, aktivlashtirish oyi hisobi ham bekor qilinadi.
+            var frozenBeforeActive = activatedAt.Length >= 10 && string.CompareOrdinal(activatedAt, date) > 0;
+
+            // Muzlatish OYINING qisman to'lovi: shu sanagacha qatnashgan darslar uchun (to'liq oy emas).
+            if (!frozenBeforeActive)
+                await TuitionService.ChargeFreezeProrateAsync(db, s, cls, activatedAt, date);
+
+            // ORQAGA SANALGAN muzlatish: keyingi oylar hisobini bekor qilamiz (qarz shu sanadan
+            // keyin o'smasin) va effektivni balansga qaytaramiz. Odatdagi (bugungi sanadan)
+            // muzlatishda keyingi oylar bo'lmagani uchun bu amalda hech narsani o'zgartirmaydi —
+            // faqat avans oylari (kassir oldindan to'laganda ochilgan hisoblar) qaytariladi.
+            // Locked (superadmin qo'lda tahrirlagan) qatorlar TEGILMAYDI.
+            (restored, _) = await TuitionService.PurgeChargesAfterMonthAsync(
+                db, s, id, date, inclusive: frozenBeforeActive);
+        }
 
         var reason = await ReasonLabelAsync(req.ReasonId);
         audit.Record("Membership", $"{id}:{studentId}", "update",
-            $"Muzlatildi ({date}, guruh: {cls?.Name ?? id})" + (reason.Length > 0 ? $" — sabab: {reason}" : ""),
+            $"Muzlatildi ({date}, guruh: {cls?.Name ?? id})"
+                + (restored > 0 ? $" — keyingi oylar hisobi bekor qilindi: {AuditService.Money(restored)} so'm" : "")
+                + (reason.Length > 0 ? $" — sabab: {reason}" : ""),
             studentId: studentId);
         await db.SaveChangesAsync();
 
-        return Ok(new { ok = true });
+        return Ok(new { ok = true, restored });
     }
 
     /// <summary>
@@ -669,13 +693,28 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
             ? AppClock.Today.ToString("yyyy-MM-dd") : req.FreezeDate!.Trim();
         var activateDate = string.IsNullOrWhiteSpace(req.ActivateDate) ? freezeDate : req.ActivateDate!.Trim();
 
+        // Eski guruhda bekor qilingan oylar — (4) avans ko'chirishga uzatiladi (pastdagi izohga qarang).
+        var purgedMonths = new List<string>();
+
         // 1) Eski guruh — MUZLATISH (allaqachon muzlatilgan bo'lsa qisman to'lovni qayta hisoblamaymiz).
         if (fromSg.Status != "frozen")
         {
             var activatedAt = fromSg.ActivatedAt;
             fromSg.Status = "frozen";
             fromSg.FrozenAt = freezeDate;
-            await TuitionService.ChargeFreezeProrateAsync(db, s, fromGroup, activatedAt, freezeDate);
+
+            // Muzlatish sanasi aktivlashtirishdan OLDIN bo'lsa — bu guruhda umuman o'qimagan.
+            var frozenBeforeActive = activatedAt.Length >= 10 && string.CompareOrdinal(activatedAt, freezeDate) > 0;
+            if (!frozenBeforeActive)
+                await TuitionService.ChargeFreezeProrateAsync(db, s, fromGroup, activatedAt, freezeDate);
+
+            // ESKI guruhda muzlatish oyidan KEYINGI hisoblar bekor qilinadi — o'quvchi u yerda
+            // o'qimaydi. DIQQAT: bu (4) AVANS KO'CHIRISHDAN OLDIN bajarilishi SHART — hisob bekor
+            // qilingach o'sha oylarga to'langan pul "ortiqcha" bo'lib qoladi va yangi guruhga
+            // ko'chadi. Aks holda o'quvchi eski guruhda ham hisoblanib, yangi guruhda ham qarzdor
+            // bo'lib ko'rinardi. ("Guruhni yopish" va "Muzlatish" bilan bir xil konvensiya.)
+            (_, purgedMonths) = await TuitionService.PurgeChargesAfterMonthAsync(
+                db, s, id, freezeDate, inclusive: frozenBeforeActive);
         }
 
         // 2) Maqsad guruh — a'zolik yaratish yoki tiklash (AddMember bilan bir xil mantiq).
@@ -704,8 +743,12 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
         // 4) AVANSNI KO'CHIRISH: o'quvchi shu oy uchun ESKI guruhga allaqachon to'lagan bo'lsa, muzlatish
         //    qisman hisobidan ORTIB QOLGAN summa yangi guruhga qayta teglanadi. Aks holda to'lagan o'quvchi
         //    yangi guruhda "qarzdor" (qizil) bo'lib ko'rinardi, puli esa eski guruhda avans bo'lib qolardi.
+        //    DIQQAT: (1) da bekor qilingan oylar `purgedMonths` bilan uzatiladi — ular hali bazaga
+        //    yozilmagani uchun EF so'rovda baribir qaytaradi va aks holda "hisoblangan" bo'lib
+        //    ko'rinib, o'sha oylarga to'langan pul eski guruhda qolib ketardi.
         var movedAdvance = freezeDate.Length >= 7
-            ? await TuitionService.CarryGroupAdvanceAsync(db, s, fromGroup, toGroup, freezeDate[..7])
+            ? await TuitionService.CarryGroupAdvanceAsync(
+                db, s, fromGroup, toGroup, freezeDate[..7], purgedMonths)
             : 0m;
 
         // Eski (single-class) ko'rinishlar uchun asosiy guruh nomini ko'chiramiz.
@@ -1014,8 +1057,8 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
                 if (!activatedAfterClose)
                     await TuitionService.ChargeFreezeProrateAsync(db, s, group, activatedAt, date);
                 // Muzlatishdan keyingi oylarning hisobini bekor qilamiz (qarz shu sanadan keyin o'smasin).
-                restored += await TuitionService.PurgeChargesAfterMonthAsync(
-                    db, s, group.Id, month, inclusive: activatedAfterClose);
+                restored += (await TuitionService.PurgeChargesAfterMonthAsync(
+                    db, s, group.Id, month, inclusive: activatedAfterClose)).Restored;
             }
 
             frozen++;

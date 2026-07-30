@@ -43,21 +43,69 @@ public class RetentionBonusController(AppDbContext db, AuditService audit) : Con
     /// <summary>
     /// Bonus berish. Holat serverda QAYTA tekshiriladi (jadval eskirgan yoki ikki admin bir vaqtda
     /// bosgan bo'lishi mumkin) va taqsimot yig'indisi jami summaga teng bo'lishi shart.
+    ///
+    /// <para><b>BIR SO'ROVDAN ORTIG'I O'TMAYDI.</b> Tekshiruv (<c>BuildReportAsync</c> — sikl
+    /// tayyormi, o'qituvchi bloklanganmi) bilan yozuv ORASIDA boshqa so'rov kirib ulgursa, ikkalasi
+    /// ham "tayyor" holatni ko'rib IKKITA bonus yozib qo'yardi — «bonusni ikki marta hisoblab
+    /// qo'ymoqda» shikoyatining aynan shu yo'li bor edi (ikki marta bosish, ikkinchi oyna yoki ikki
+    /// admin). Ayniqsa bir o'quvchining IKKI FANI bir o'qituvchiga tegishli bo'lsa: unikal indeks
+    /// <c>(StudentId, CourseId, CycleNo)</c> ni ushlamaydi (fan boshqa) va «bir o'qituvchi — bir
+    /// o'quvchi — bitta bonus» qoidasi buzilardi.
+    /// Yechim: shu O'QUVCHI bo'yicha bonus berish PostgreSQL advisory lock bilan
+    /// ketma-ketlashtiriladi — ikkinchi so'rov birinchisini kutadi va allaqachon YOZILGAN holatni
+    /// ko'rib odatdagi tushunarli xato bilan rad etiladi.</para>
     /// </summary>
     [HttpPost("awards")]
     public async Task<IActionResult> Give(GiveRetentionBonusRequest req, CancellationToken ct)
     {
-        var (award, error) = await RetentionBonusService.GiveAsync(db, req, Actor, ct);
-        if (error is not null || award is null) return BadRequest(new { message = error });
+        // Qulf kaliti — o'quvchi (sikl ham, o'qituvchi bloki ham AYNAN o'quvchi kesimida tekshiriladi).
+        var lockKey = $"retention-bonus:{req.StudentId}";
+        // Sessiya darajasidagi qulf bitta ulanishda ushlanadi — shuning uchun ulanish qo'lda ochiladi
+        // (aks holda EF har buyruq uchun poolda boshqa ulanish olishi mumkin edi).
+        await db.Database.OpenConnectionAsync(ct);
+        try
+        {
+            await db.Database.ExecuteSqlInterpolatedAsync(
+                $"SELECT pg_advisory_lock(hashtext({lockKey}))", ct);
 
-        audit.Record(AuditService.EntityStudent, award.StudentId, "create",
-            $"Ushlab turish bonusi berildi: {AuditService.Money(award.TotalAmount)} so'm " +
-            $"({award.StudentName} · {award.CourseName}, {award.PeriodFrom}…{award.PeriodTo}, {award.CycleNo}-sikl)",
-            after: new { award.TotalAmount, award.CourseId, award.CourseName, award.PeriodFrom, award.PeriodTo, award.CycleNo, req.Shares },
-            studentId: award.StudentId);
+            var (award, error) = await RetentionBonusService.GiveAsync(db, req, Actor, ct);
+            if (error is not null || award is null) return BadRequest(new { message = error });
 
-        await db.SaveChangesAsync(ct);
-        return Ok(new { id = award.Id });
+            audit.Record(AuditService.EntityStudent, award.StudentId, "create",
+                $"Ushlab turish bonusi berildi: {AuditService.Money(award.TotalAmount)} so'm " +
+                $"({award.StudentName} · {award.CourseName}, {award.PeriodFrom}…{award.PeriodTo}, {award.CycleNo}-sikl)",
+                after: new { award.TotalAmount, award.CourseId, award.CourseName, award.PeriodFrom, award.PeriodTo, award.CycleNo, req.Shares },
+                studentId: award.StudentId);
+
+            await db.SaveChangesAsync(ct);
+            return Ok(new { id = award.Id });
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is Npgsql.PostgresException { SqlState: "23505" })
+        {
+            // Oxirgi to'siq: unikal indeks (StudentId, CourseId, CycleNo). Qulf bilan bu yerga
+            // yetib kelinmaydi, lekin kelib qolsa — foydalanuvchi 500 emas, tushunarli xabar ko'rsin.
+            // (Faqat UNIKAL buzilishi ushlanadi — boshqa saqlash xatolari yashirilmaydi.)
+            return Conflict(new { message = "Bu sikl uchun bonus allaqachon berilgan — sahifani yangilang" });
+        }
+        finally
+        {
+            try
+            {
+                // `unlock_all`, aniq `pg_advisory_unlock` EMAS. Sabab: EF'da EnableRetryOnFailure
+                // yoqilgan (Program.cs) — tranzient xatoda `pg_advisory_lock` QAYTA bajarilishi
+                // mumkin. Advisory qulf re-entrant: ikki marta olingan bo'lsa bir marta bo'shatish
+                // YETMAYDI va qulf ushlab turgan ulanish poolga qaytardi — o'sha o'quvchi bo'yicha
+                // keyingi barcha so'rovlar abadiy kutib qolardi. `unlock_all` sanoqdan qat'i nazar
+                // hammasini bo'shatadi; loyihada boshqa advisory qulf ishlatilmagani uchun xavfsiz.
+                await db.Database.ExecuteSqlRawAsync("SELECT pg_advisory_unlock_all()", CancellationToken.None);
+            }
+            catch (Exception)
+            {
+                // Ulanish uzilgan bo'lsa qulf o'z-o'zidan bo'shaydi (sessiya tugadi) — asl xatoni
+                // yashirib yubormaslik uchun bu yerdagi xato yutiladi.
+            }
+            await db.Database.CloseConnectionAsync();
+        }
     }
 
     /// <summary>
