@@ -33,6 +33,7 @@ import { Loader } from '@/components/ui/Loader'
 import { Modal } from '@/components/ui/Modal'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { StatCard } from '@/components/ui/StatCard'
+import { TablePagination, usePagination } from '@/components/ui/TablePagination'
 import { GiveRetentionBonusModal } from './GiveRetentionBonusModal'
 import { RetentionSettingsModal } from './RetentionSettingsModal'
 
@@ -116,6 +117,10 @@ export function RetentionBonusPage() {
       return true
     })
   }, [rows, chip, search])
+
+  // Sahifalash — jadval uzun bo'lgani uchun (har o'quvchi × fan alohida qator).
+  // Filtr/qidiruv o'zgarsa hook o'zi 1-sahifaga qaytaradi.
+  const pg = usePagination(filtered)
 
   // Sanoq FAN kesimida: bitta o'quvchi ikki fanga qatnasa ikki marta hisoblanadi.
   const totals = useMemo(() => {
@@ -240,13 +245,14 @@ export function RetentionBonusPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {filtered.map((r, i) => {
+              {pg.paged.map((r, i) => {
                 const cells = r.months.slice(-MAX_CELLS)
                 const hidden = r.months.length - cells.length
                 const givenAwards = r.awards.filter((a) => a.status === 'given')
                 return (
                   <tr key={rowKey(r)} className="align-top hover:bg-slate-50/60">
-                    <td className="px-4 py-3 text-slate-400">{i + 1}</td>
+                    {/* Raqam UMUMIY ro'yxat bo'yicha (2-sahifada 21, 22… davom etadi). */}
+                    <td className="px-4 py-3 text-slate-400">{pg.rangeFrom + i}</td>
                     <td className="px-4 py-3">
                       <Link
                         to={`/admin/students/${r.studentId}`}
@@ -385,6 +391,7 @@ export function RetentionBonusPage() {
               })}
             </tbody>
           </table>
+          <TablePagination {...pg} />
         </Card>
       )}
 

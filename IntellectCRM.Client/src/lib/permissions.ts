@@ -33,6 +33,32 @@ export function can(
   return false
 }
 
+/**
+ * SUPERADMIN yoki shu bo'lim ruxsati ANIQ berilgan xodim.
+ *
+ * `can()` dan farqi: oddiy **`admin`** roli (`permissions == null`) `false` oladi. Markaz egasi
+ * o'zida qoldirmoqchi bo'lgan nozik amallar uchun — masalan a'zolikni aktivlashtirishdagi
+ * «Bonus hisoblansin» ptichkasi. Xodimga ruxsat «Xodimlar va rollar» bo'limidan beriladi
+ * (`adminPermissions` katalogidagi kalit orqali).
+ *
+ * Server tomonda AYNAN shu qoida: `AdminPermAttribute.IsSuperAdminOrGranted`.
+ */
+export function superOrGranted(
+  role: string | undefined,
+  permissions: string[] | null | undefined,
+  section: string,
+): boolean {
+  if (role === 'superadmin') return true
+  if (!permissions) return false // admin (cheklovsiz) — bu yerda ATAYIN kirmaydi
+  return permissions.includes(section) || permissions.some((p) => p.startsWith(`${section}:`))
+}
+
+/** <see cref="superOrGranted"/> ning hook ko'rinishi — joriy foydalanuvchi bo'yicha. */
+export function useSuperOrGranted(section: string): boolean {
+  const { user } = useAuth()
+  return superOrGranted(user?.role, user?.permissions, section)
+}
+
 /** Joriy foydalanuvchining ruxsatiga bog'langan tekshiruv: `can('students', 'edit')`. */
 export function usePerm() {
   const { user } = useAuth()

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { usePersistentState } from '@/hooks/usePersistentState'
 import {
   Plus,
@@ -33,7 +33,7 @@ import { usePerm } from '@/lib/permissions'
 import { getSubjects } from '@/api/services/subjects'
 import { getClasses } from '@/api/services/classes'
 import { genderLabels } from '@/config/constants'
-import { formatDate, cn } from '@/lib/utils'
+import { formatDate, formatMoney, cn } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
@@ -42,11 +42,22 @@ import { StatCard } from '@/components/ui/StatCard'
 import { Loader } from '@/components/ui/Loader'
 import { Modal } from '@/components/ui/Modal'
 import { Textarea } from '@/components/ui/Input'
+import { TablePagination, usePagination } from '@/components/ui/TablePagination'
 import { TeacherFormModal } from './TeacherFormModal'
 import { TeacherViewModal } from './TeacherViewModal'
 import { ReasonPromptModal } from '@/components/ui/ReasonPromptModal'
 
-type Tab = 'active' | 'archived'
+/** Ro'yxat holati filtri — avvalgi "Faol | Arxiv" tablari o'rniga (endi "Hammasi" ham bor). */
+type StatusFilter = 'active' | 'archived' | 'all'
+
+const STATUS_CHIPS: { key: StatusFilter; label: string }[] = [
+  { key: 'active', label: 'Faol' },
+  { key: 'archived', label: 'Arxivlangan' },
+  { key: 'all', label: 'Hammasi' },
+]
+
+const control =
+  'rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition-colors focus:border-brand-400 focus:ring-2 focus:ring-brand-100'
 
 // Avatar uchun ism harflari va barqaror rang (faqat ko'rinish uchun)
 const initialsOf = (name: string) =>
@@ -76,15 +87,15 @@ const avatarColor = (name: string) => {
 export function TeachersPage() {
   const { user } = useAuth()
   const { can } = usePerm()
-  const navigate = useNavigate()
   const [teachers, setTeachers] = useState<Teacher[]>([])
   const [archived, setArchived] = useState<Teacher[]>([])
   const [subjects, setSubjects] = useState<Subject[]>([])
   const [classes, setClasses] = useState<Group[]>([])
   const [loading, setLoading] = useState(true)
 
-  const [tab, setTab] = usePersistentState<Tab>('teachers.tab', 'active')
+  const [status, setStatus] = usePersistentState<StatusFilter>('teachers.status', 'active')
   const [search, setSearch] = usePersistentState('teachers.search', '')
+  const [subjectFilter, setSubjectFilter] = usePersistentState('teachers.subjectFilter', 'all')
   const [genderFilter, setGenderFilter] = usePersistentState<'all' | Gender>('teachers.genderFilter', 'all')
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<Teacher | null>(null)
@@ -110,19 +121,33 @@ export function TeachersPage() {
   // O'qituvchi o'tadigan guruhlar (guruhga o'qituvchi guruh formasida biriktiriladi — Group.teacherId).
   const teacherGroups = (tid: string) => classes.filter((c) => c.teacherId === tid && !c.isArchived)
 
-  const source = tab === 'archived' ? archived : teachers
+  const source =
+    status === 'archived' ? archived : status === 'all' ? [...teachers, ...archived] : teachers
+
   const filtered = source.filter((t) => {
     const q = search.trim().toLowerCase()
-    const matchSearch = !q || t.fullName.toLowerCase().includes(q)
+    const matchSearch =
+      !q || t.fullName.toLowerCase().includes(q) || (t.phone ?? '').toLowerCase().includes(q)
+    const matchSubject = subjectFilter === 'all' || t.subjectIds.includes(subjectFilter)
     const matchGender = genderFilter === 'all' || t.gender === genderFilter
-    return matchSearch && matchGender
+    return matchSearch && matchSubject && matchGender
   })
 
+  const pg = usePagination(filtered)
+  const { setPage } = pg
+  // Filtr o'zgarganda — birinchi sahifaga (ro'yxat uzunligi tasodifan bir xil qolsa ham).
+  useEffect(() => {
+    setPage(1)
+  }, [search, subjectFilter, genderFilter, status, setPage])
+
   // Filtrlar standart holatdan farq qiladimi — "Tozalash" tugmasi shunda ko'rinadi.
-  const filtersActive = search !== '' || genderFilter !== 'all'
+  const filtersActive =
+    search !== '' || genderFilter !== 'all' || subjectFilter !== 'all' || status !== 'active'
   const clearFilters = () => {
     setSearch('')
     setGenderFilter('all')
+    setSubjectFilter('all')
+    setStatus('active')
   }
 
   // KPI: faol guruhlarda biriktirilgan o'qituvchilar soni
@@ -184,6 +209,9 @@ export function TeachersPage() {
       .catch((e) => alert(e?.response?.data?.message ?? "O'chirib bo'lmadi"))
   }
 
+  // Arxiv ustunlari faqat arxiv ko'rinayotganda kerak
+  const showArchiveCols = status !== 'active'
+
   return (
     <div>
       <PageHeader
@@ -198,7 +226,7 @@ export function TeachersPage() {
                 <Download className="h-4 w-4" /> Login/parollar
               </Button>
             )}
-            {tab === 'active' && can('teachers', 'create') && (
+            {can('teachers', 'create') && (
               <Button
                 onClick={() => {
                   setEditing(null)
@@ -231,58 +259,74 @@ export function TeachersPage() {
         />
       </div>
 
-      {/* Faol | Arxiv toggle */}
-      <div className="tabs mb-4" role="tablist">
-        <button
-          type="button"
-          className={cn('tab', tab === 'active' && 'active')}
-          onClick={() => setTab('active')}
-        >
-          Faol ({teachers.length})
-        </button>
-        <button
-          type="button"
-          className={cn('tab', tab === 'archived' && 'active')}
-          onClick={() => setTab('archived')}
-        >
-          Arxiv ({archived.length})
-        </button>
-      </div>
-
-      {/* Qidiruv + filtr toolbar */}
-      <div className={cn('toolbar')}>
-        <div className="left">
-          <div className="search-inline">
-            <Search className="h-4 w-4 text-slate-400" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="F.I.SH bo'yicha qidirish..."
-            />
+      {/* ---- Filtrlar (jadval ustida, bitta qatorda) ---- */}
+      <Card className="mb-4 p-4">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="min-w-[240px] flex-1">
+            <span className="mb-1 block text-sm font-medium text-slate-600">Qidiruv</span>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                className={cn(control, 'w-full pl-9')}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="F.I.SH yoki telefon bo'yicha qidirish..."
+              />
+            </div>
           </div>
-        </div>
-        <div className="right">
-          <button
-            type="button"
-            className={cn('filter-chip', genderFilter === 'all' && 'active')}
-            onClick={() => setGenderFilter('all')}
-          >
-            Barchasi
-          </button>
-          <button
-            type="button"
-            className={cn('filter-chip', genderFilter === 'male' && 'active')}
-            onClick={() => setGenderFilter('male')}
-          >
-            {genderLabels.male}
-          </button>
-          <button
-            type="button"
-            className={cn('filter-chip', genderFilter === 'female' && 'active')}
-            onClick={() => setGenderFilter('female')}
-          >
-            {genderLabels.female}
-          </button>
+
+          <div className="w-[190px]">
+            <span className="mb-1 block text-sm font-medium text-slate-600">Fan</span>
+            <select
+              className={cn(control, 'w-full')}
+              value={subjectFilter}
+              onChange={(e) => setSubjectFilter(e.target.value)}
+            >
+              <option value="all">Barcha fanlar</option>
+              {subjects.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="w-[150px]">
+            <span className="mb-1 block text-sm font-medium text-slate-600">Jinsi</span>
+            <select
+              className={cn(control, 'w-full')}
+              value={genderFilter}
+              onChange={(e) => setGenderFilter(e.target.value as 'all' | Gender)}
+            >
+              <option value="all">Barchasi</option>
+              <option value="male">{genderLabels.male}</option>
+              <option value="female">{genderLabels.female}</option>
+            </select>
+          </div>
+
+          <div>
+            <span className="mb-1 block text-sm font-medium text-slate-600">Holat</span>
+            <div className="flex items-center gap-1.5">
+              {STATUS_CHIPS.map((c) => (
+                <button
+                  key={c.key}
+                  type="button"
+                  onClick={() => setStatus(c.key)}
+                  className={cn(
+                    'rounded-lg border px-3 py-2 text-[13px] font-semibold transition-colors',
+                    status === c.key
+                      ? 'border-transparent bg-brand-50 text-brand-700'
+                      : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50',
+                  )}
+                >
+                  {c.label}
+                  {c.key === 'active' && ` (${teachers.length})`}
+                  {c.key === 'archived' && ` (${archived.length})`}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {filtersActive && (
             <button
               type="button"
@@ -290,11 +334,11 @@ export function TeachersPage() {
               className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-700"
               title="Barcha filtrlarni tozalash"
             >
-              <X className="h-4 w-4" /> Filtrni tozalash
+              <X className="h-4 w-4" /> Tozalash
             </button>
           )}
         </div>
-      </div>
+      </Card>
 
       {loading ? (
         <Card>
@@ -303,213 +347,210 @@ export function TeachersPage() {
       ) : filtered.length === 0 ? (
         <Card>
           <div className="state">
-            <h4>{tab === 'active' ? 'Hech narsa topilmadi' : "Arxivda o'qituvchi yo'q"}</h4>
-            <p>Filtrlarni o'zgartirib ko'ring.</p>
+            <h4>
+              {status === 'archived' ? "Arxivda o'qituvchi yo'q" : "O'qituvchi topilmadi"}
+            </h4>
+            <p>
+              {filtersActive
+                ? 'Filtrga mos o‘qituvchi yo‘q — filtrlarni o‘zgartirib ko‘ring.'
+                : "Hozircha ro'yxat bo'sh. «Yangi qo'shish» tugmasi orqali o'qituvchi qo'shing."}
+            </p>
           </div>
         </Card>
-      ) : tab === 'active' ? (
-        /* ---- Faol o'qituvchilar — kartalar ---- */
-        <div className="entity-grid">
-          {filtered.map((t) => {
-            const groups = teacherGroups(t.id)
-            return (
-              <div
-                key={t.id}
-                className="entity-card cursor-pointer"
-                role="button"
-                tabIndex={0}
-                onClick={() => navigate(`/admin/teachers/${t.id}`)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault()
-                    navigate(`/admin/teachers/${t.id}`)
-                  }
-                }}
-              >
-                <div className="ec-head">
-                  {t.photoUrl ? (
-                    <img
-                      src={t.photoUrl}
-                      alt=""
-                      className="h-11 w-11 flex-shrink-0 rounded-full object-cover"
-                    />
-                  ) : (
-                    <div
-                      className="avatar h-11 w-11 text-sm"
-                      style={{ background: avatarColor(t.fullName) }}
-                    >
-                      {initialsOf(t.fullName)}
-                    </div>
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <div className="ec-name truncate">{t.fullName}</div>
-                    <div className="ec-meta">
-                      {genderLabels[t.gender]}
-                      {t.birthDate ? ` · ${formatDate(t.birthDate)}` : ''}
-                    </div>
-                  </div>
-                  <Badge tone={t.salaryMode === 'percent' ? 'blue' : 'violet'} dot>
-                    {t.salaryMode === 'percent' ? 'Foiz' : "Qat'iy"}
-                  </Badge>
-                </div>
-
-                {/* Fanlar */}
-                <div className="flex flex-wrap gap-1">
-                  {t.subjectIds.length > 0 ? (
-                    t.subjectIds.map((id) => (
-                      <Badge key={id} tone="violet">
-                        {subjectName(id)}
-                      </Badge>
-                    ))
-                  ) : (
-                    <span className="text-xs text-slate-400">Fan biriktirilmagan</span>
-                  )}
-                </div>
-
-                {/* Statistika bloki */}
-                <div className="ec-stats">
-                  <div>
-                    <div className="ec-stat-label">Guruhlar</div>
-                    <div className="ec-stat-value">{groups.length}</div>
-                  </div>
-                  <div>
-                    <div className="ec-stat-label">Fanlar</div>
-                    <div className="ec-stat-value">{t.subjectIds.length}</div>
-                  </div>
-                  <div>
-                    <div className="ec-stat-label">Telefon</div>
-                    <div className="ec-stat-value font-mono text-[12px]">{t.phone || '—'}</div>
-                  </div>
-                </div>
-
-                {/* O'qituvchi o'tadigan guruhlar chiplari */}
-                {groups.length > 0 && (
-                  <div className="flex flex-wrap gap-1">
-                    {groups.map((c) => (
-                      <span
-                        key={c.id}
-                        className="rounded-md bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-700"
-                      >
-                        {c.name}
-                      </span>
-                    ))}
-                  </div>
-                )}
-
-                <div className="ec-foot" onClick={(e) => e.stopPropagation()}>
-                  <Link
-                    to={`/admin/teachers/${t.id}`}
-                    className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition-colors hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700"
-                  >
-                    <ArrowUpRight className="h-4 w-4" /> Batafsil
-                  </Link>
-                  <Button
-                    variant="secondary"
-                    onClick={() => setViewing(t)}
-                  >
-                    <Eye className="h-4 w-4" />
-                  </Button>
-                  {can('teachers', 'edit') && (
-                    <Button
-                      variant="secondary"
-                      onClick={() => {
-                        setEditing(t)
-                        setFormOpen(true)
-                      }}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                  )}
-                  {can('teachers', 'delete') && (
-                    <Button
-                      variant="secondary"
-                      onClick={() => {
-                        setReason('')
-                        setArchiveTarget(t)
-                      }}
-                      title="Arxivga ko'chirish"
-                      aria-label="Arxivga ko'chirish"
-                    >
-                      <Archive className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
-              </div>
-            )
-          })}
-        </div>
       ) : (
-        /* ---- Arxiv — jadval ---- */
+        /* ---- O'qituvchilar jadvali ---- */
         <Card tight>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-400">
+          <div className="table-wrap">
+            <table className="table min-w-[1080px]">
+              <thead>
                 <tr>
-                  <th className="w-10 px-4 py-3">#</th>
-                  <th className="px-4 py-3">F.I.SH</th>
-                  <th className="px-4 py-3">Jinsi</th>
-                  <th className="px-4 py-3">Fanlar</th>
-                  <th className="px-4 py-3">Arxiv sanasi</th>
-                  <th className="px-4 py-3">Sabab</th>
-                  <th className="px-4 py-3 text-right">Amallar</th>
+                  <th className="w-12">№</th>
+                  <th>F.I.SH</th>
+                  <th>Telefon</th>
+                  <th>Fanlar</th>
+                  <th>Guruhlar</th>
+                  <th>Maosh rejimi</th>
+                  <th>Holat</th>
+                  {showArchiveCols && <th>Arxiv sababi</th>}
+                  <th className="num">Amallar</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filtered.map((t, i) => (
-                  <tr key={t.id} className="hover:bg-slate-50/60">
-                    <td className="px-4 py-3 text-slate-400">{i + 1}</td>
-                    <td className="px-4 py-3">
-                      <div className="cell-user">
-                        {t.photoUrl ? (
-                          <img src={t.photoUrl} alt="" className="avatar object-cover" />
+              <tbody>
+                {pg.paged.map((t, i) => {
+                  const groups = teacherGroups(t.id)
+                  const isArchived = !!t.isArchived
+                  return (
+                    <tr key={t.id}>
+                      <td className="text-slate-400">{pg.rangeFrom + i}</td>
+
+                      {/* F.I.SH — bosilsa profilga */}
+                      <td>
+                        <Link
+                          to={`/admin/teachers/${t.id}`}
+                          className="cell-user group"
+                          title="Profilga o'tish"
+                        >
+                          {t.photoUrl ? (
+                            <img src={t.photoUrl} alt="" className="avatar object-cover" />
+                          ) : (
+                            <div className="avatar" style={{ background: avatarColor(t.fullName) }}>
+                              {initialsOf(t.fullName)}
+                            </div>
+                          )}
+                          <div className="meta">
+                            <strong className="text-slate-800 group-hover:text-brand-600">
+                              {t.fullName}
+                            </strong>
+                            <span>
+                              {genderLabels[t.gender]}
+                              {t.birthDate ? ` · ${formatDate(t.birthDate)}` : ''}
+                            </span>
+                          </div>
+                        </Link>
+                      </td>
+
+                      <td className="font-mono text-[12.5px] text-slate-600">
+                        {t.phone || <span className="text-slate-300">—</span>}
+                      </td>
+
+                      <td>
+                        <SubjectTags ids={t.subjectIds} name={subjectName} />
+                      </td>
+
+                      {/* Guruhlar — soni + nomlari */}
+                      <td>
+                        {groups.length === 0 ? (
+                          <span className="text-slate-300">—</span>
                         ) : (
-                          <div className="avatar" style={{ background: avatarColor(t.fullName) }}>
-                            {initialsOf(t.fullName)}
+                          <div className="flex flex-wrap items-center gap-1">
+                            <span className="font-mono text-[12.5px] font-semibold text-slate-700">
+                              {groups.length}
+                            </span>
+                            {groups.slice(0, 3).map((c) => (
+                              <Link key={c.id} to={`/admin/classes/${c.id}`}>
+                                <Badge>{c.name}</Badge>
+                              </Link>
+                            ))}
+                            {groups.length > 3 && (
+                              <span
+                                className="text-[11px] font-semibold text-slate-400"
+                                title={groups
+                                  .slice(3)
+                                  .map((c) => c.name)
+                                  .join(', ')}
+                              >
+                                +{groups.length - 3}
+                              </span>
+                            )}
                           </div>
                         )}
-                        <div className="meta">
-                          <strong className="text-slate-800">{t.fullName}</strong>
+                      </td>
+
+                      {/* Maosh rejimi */}
+                      <td>
+                        {t.salaryMode === 'percent' ? (
+                          <div className="flex items-center gap-1.5">
+                            <Badge tone="blue" dot>
+                              Foiz
+                            </Badge>
+                            <span className="font-mono text-[12.5px] text-slate-500">
+                              {t.salaryPercent ?? 0}%
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5">
+                            <Badge tone="violet" dot>
+                              Qat'iy
+                            </Badge>
+                            <span className="font-mono text-[12.5px] text-slate-500">
+                              {formatMoney(t.salary ?? 0)}
+                            </span>
+                          </div>
+                        )}
+                      </td>
+
+                      {/* Holat */}
+                      <td>
+                        {isArchived ? (
+                          <div>
+                            <Badge tone="red">Arxivlangan</Badge>
+                            {t.archivedAt && (
+                              <div className="mt-0.5 font-mono text-[11px] text-slate-400">
+                                {formatDate(t.archivedAt)}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <Badge tone="green" dot>
+                            Faol
+                          </Badge>
+                        )}
+                      </td>
+
+                      {showArchiveCols && (
+                        <td
+                          className="max-w-[220px] truncate text-slate-500"
+                          title={t.archiveReason ?? ''}
+                        >
+                          {t.archiveReason || <span className="text-slate-300">—</span>}
+                        </td>
+                      )}
+
+                      {/* Amallar */}
+                      <td className="num">
+                        <div className="flex items-center justify-end gap-0.5">
+                          <Link
+                            to={`/admin/teachers/${t.id}`}
+                            title="Batafsil (profil)"
+                            className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-brand-50 hover:text-brand-600"
+                          >
+                            <ArrowUpRight className="h-4 w-4" />
+                          </Link>
+                          <IconBtn icon={Eye} title="Ko'rish" onClick={() => setViewing(t)} />
+                          {!isArchived && can('teachers', 'edit') && (
+                            <IconBtn
+                              icon={Pencil}
+                              title="Tahrirlash"
+                              onClick={() => {
+                                setEditing(t)
+                                setFormOpen(true)
+                              }}
+                            />
+                          )}
+                          {!isArchived && can('teachers', 'delete') && (
+                            <IconBtn
+                              icon={Archive}
+                              title="Arxivga ko'chirish"
+                              onClick={() => {
+                                setReason('')
+                                setArchiveTarget(t)
+                              }}
+                            />
+                          )}
+                          {isArchived && can('teachers', 'edit') && (
+                            <IconBtn
+                              icon={RotateCcw}
+                              title="Arxivdan qaytarish"
+                              onClick={() => handleRestore(t)}
+                            />
+                          )}
+                          {isArchived && can('teachers', 'delete') && (
+                            <IconBtn
+                              icon={Trash2}
+                              title="Butunlay o'chirish"
+                              danger
+                              onClick={() => handleDelete(t)}
+                            />
+                          )}
                         </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-slate-600">{genderLabels[t.gender]}</td>
-                    <td className="px-4 py-3">
-                      <SubjectTags ids={t.subjectIds} name={subjectName} />
-                    </td>
-                    <td className="px-4 py-3 text-slate-600">
-                      {t.archivedAt ? formatDate(t.archivedAt) : '—'}
-                    </td>
-                    <td
-                      className="max-w-[220px] truncate px-4 py-3 text-slate-500"
-                      title={t.archiveReason ?? ''}
-                    >
-                      {t.archiveReason || '—'}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-0.5">
-                        <IconBtn icon={Eye} title="Ko'rish" onClick={() => setViewing(t)} />
-                        {can('teachers', 'edit') && (
-                          <IconBtn
-                            icon={RotateCcw}
-                            title="Arxivdan qaytarish"
-                            onClick={() => handleRestore(t)}
-                          />
-                        )}
-                        {can('teachers', 'delete') && (
-                          <IconBtn
-                            icon={Trash2}
-                            title="Butunlay o'chirish"
-                            danger
-                            onClick={() => handleDelete(t)}
-                          />
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
+          <TablePagination {...pg} />
         </Card>
       )}
 
@@ -578,7 +619,7 @@ export function TeachersPage() {
 }
 
 function SubjectTags({ ids, name }: { ids: string[]; name: (id: string) => string }) {
-  if (ids.length === 0) return <span className="text-slate-400">—</span>
+  if (ids.length === 0) return <span className="text-slate-300">—</span>
   return (
     <div className="flex flex-wrap gap-1">
       {ids.map((id) => (

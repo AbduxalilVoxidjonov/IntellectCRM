@@ -64,4 +64,16 @@ public sealed class AdminPermAttribute(string perm) : Attribute, IAuthorizationF
     public static bool HasFullAccess(ClaimsPrincipal user, string section) =>
         user.IsInRole(Roles.Admin) || user.IsInRole(Roles.SuperAdmin) ||
         user.Claims.Any(c => c.Type == ClaimType && c.Value == section);
+
+    /// <summary>
+    /// SUPERADMIN yoki shu bo'lim ruxsati ANIQ berilgan xodim.
+    /// <para><see cref="HasFullAccess"/> dan farqi: oddiy <c>admin</c> roli KIRMAYDI. Markaz egasi
+    /// o'zida qoldirmoqchi bo'lgan nozik amallar uchun (masalan bonus ptichkasi) — u faqat
+    /// superadminda va "Xodimlar va rollar" dan ruxsat berilgan xodimda ochiladi.</para>
+    /// </summary>
+    public static bool IsSuperAdminOrGranted(ClaimsPrincipal user, string section) =>
+        user.IsInRole(Roles.SuperAdmin) ||
+        user.Claims.Any(c => c.Type == ClaimType
+                             && (c.Value == section
+                                 || c.Value.StartsWith(section + ":", StringComparison.Ordinal)));
 }

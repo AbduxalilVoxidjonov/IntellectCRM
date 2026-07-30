@@ -92,6 +92,11 @@ export const adminPermissions: { key: string; label: string }[] = [
   // Bosh sahifadagi markaz AI tahlili — DEFAULT faqat superadmin ko'radi; xodimga shu yerdan
   // ruxsat beriladi ("Ko'rish" = karta ko'rinadi, "Qo'shish" = qo'lda tahlil yaratish tugmasi).
   { key: 'ai', label: 'AI tahlil (bosh sahifa)' },
+  // A'zolikni AKTIVLASHTIRISHDAGI «Bonus hisoblansin» ptichkasi. DIQQAT: bu ruxsat boshqalardan
+  // QATTIQROQ — oddiy `admin` roli ham KO'RMAYDI, faqat SUPERADMIN va shu yerdan ruxsat berilgan
+  // xodim (markaz egasi bonusga kirishni o'zida qoldirishni tanlagan). Tekshiruv:
+  // `useSuperOrGranted('retentionBonus')` — `can()` bu yerda YARAMAYDI, u admin uchun true qaytaradi.
+  { key: 'retentionBonus', label: 'Bonus ptichkasi (aktivlashtirishda)' },
 ]
 
 /* ---------- Moliya ---------- */

@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/Button'
 import { Loader } from '@/components/ui/Loader'
 import { ReasonPromptModal } from '@/components/ui/ReasonPromptModal'
 import { formatDate, formatMoney, cn, apiErrorMessage } from '@/lib/utils'
+import { useSuperOrGranted } from '@/lib/permissions'
 import { StudentFormModal } from '../students/StudentFormModal'
 import { TransferGroupModal } from './TransferGroupModal'
 
@@ -39,7 +40,10 @@ export function ClassMembersModal({ group, onClose }: Props) {
   const [dateAction, setDateAction] = useState<{ kind: 'activate'; m: GroupMember } | null>(null)
   const [actionDate, setActionDate] = useState('')
   /** Aktivlashtirishda: ushlab turish bonusi hisoblansinmi (standart — BELGILANGAN). */
-  const [actionBonus, setActionBonus] = useState(true)
+  const [actionBonus, setActionBonus] = useState(false)
+  /** «Bonus hisoblansin» ptichkasi — faqat superadmin yoki shu ruxsat berilgan xodimga ko'rinadi
+   *  (oddiy "admin" ham ko'rmaydi; server tomonda ham AYNAN shu qoida tekshiriladi). */
+  const canSetBonus = useSuperOrGranted('retentionBonus')
   /** Sabab bilan amal (muzlatish/chiqarish/sinovga qaytarish). */
   const [reasonAction, setReasonAction] = useState<{ kind: 'freeze' | 'remove' | 'return'; m: GroupMember } | null>(null)
   /** "Yangi o'quvchi" yaratish formasi ochiqmi — yaratilgach shu guruhga qo'shiladi. */
@@ -135,7 +139,7 @@ Kerak bo'lsa "Parolni tiklash" orqali yangi parol bering.`)
 
   const openActivate = (m: GroupMember) => {
     setActionDate(new Date().toISOString().slice(0, 10))
-    setActionBonus(true)
+    setActionBonus(false)
     setDateAction({ kind: 'activate', m })
   }
 
@@ -144,7 +148,9 @@ Kerak bo'lsa "Parolni tiklash" orqali yangi parol bering.`)
     setBusy(true)
     try {
       // Bu modal FAQAT aktivlashtirish uchun ochiladi — bonus ptichkasi shu yerda.
-      await activateMember(group.id, dateAction.m.studentId, actionDate, actionBonus)
+      // Ruxsat yo'q bo'lsa maydon umuman yuborilmaydi (server ham e'tiborsiz qoldiradi).
+      await activateMember(
+        group.id, dateAction.m.studentId, actionDate, canSetBonus ? actionBonus : undefined)
       const fresh = await getGroupMembers(group.id)
       setMembers(fresh)
       setDateAction(null)
@@ -455,7 +461,7 @@ Kerak bo'lsa "Parolni tiklash" orqali yangi parol bering.`)
                 className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 outline-none focus:border-brand-400"
               />
             </div>
-            <label className="flex cursor-pointer items-start gap-2">
+            <label className={cn('flex cursor-pointer items-start gap-2', !canSetBonus && 'hidden')}>
               <input
                 type="checkbox"
                 className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"

@@ -63,7 +63,7 @@ import { getTeachers } from '@/api/services/teachers'
 import { getStudentTestResults } from '@/api/services/testResults'
 import type { Student, StudentGroupMembership, Curriculum, Group, Teacher, StudentTestResult } from '@/types'
 import { cn, formatDate, formatDateTime, formatMoney, apiErrorMessage, gradeBadgeCls } from '@/lib/utils'
-import { usePerm } from '@/lib/permissions'
+import { usePerm, useSuperOrGranted } from '@/lib/permissions'
 import { useAuth } from '@/context/auth-context'
 import { Card } from '@/components/ui/Card'
 import { DropdownMenu } from '@/components/ui/DropdownMenu'
@@ -138,6 +138,9 @@ export function StudentDetailPage() {
   // endpoint boshqa rolga 403 qaytaradi. `usePerm().can()` bu yerda yaramaydi — u xodimga
   // ("staff") "students" ruxsati berilgan bo'lsa ham true qaytaradi, shuning uchun ROL tekshiriladi.
   const isBonusAllowed = user?.role === 'admin' || user?.role === 'superadmin'
+  // Aktivlashtirish oynasidagi «Bonus hisoblansin» ptichkasi — bundan ham QATTIQROQ darvoza:
+  // faqat superadmin yoki «Xodimlar va rollar» dan shu ruxsat berilgan xodim (oddiy "admin" emas).
+  const canSetBonus = useSuperOrGranted('retentionBonus')
   const [data, setData] = useState<StudentNotebook | null>(null)
   const [groups, setGroups] = useState<StudentGroupMembership[]>([])
   /** groupId → courseId (Group.courseId) — o'quv dasturini olish uchun kurs id'sini topish. */
@@ -1825,7 +1828,7 @@ export function StudentDetailPage() {
         }
         tone={groupReasonAction === 'freeze' ? 'sky' : groupReasonAction === 'remove' ? 'red' : 'brand'}
         showDate={groupReasonAction === 'freeze' || groupReasonAction === 'activate'}
-        showRetentionBonus={groupReasonAction === 'activate'}
+        showRetentionBonus={groupReasonAction === 'activate' && canSetBonus}
         defaultDate={groupActionDate}
         onConfirm={confirmGroupReason}
         onClose={() => setGroupReasonAction(null)}

@@ -16,6 +16,10 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
 {
     private string Actor => User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value ?? "Admin";
 
+    /// <summary>Aktivlashtirishdagi «Bonus hisoblansin» ptichkasi uchun ruxsat kaliti
+    /// ("Xodimlar va rollar" da ko'rinadi). Klientdagi `adminPermissions` bilan bir xil bo'lishi shart.</summary>
+    private const string RetentionBonusPerm = "retentionBonus";
+
     /// <summary>Faol (arxivlanmagan) guruhlar. <paramref name="includeArchived"/>=true bo'lsa hammasi.</summary>
     [HttpGet]
     public async Task<ActionResult<IEnumerable<Group>>> GetAll([FromQuery] bool includeArchived = false)
@@ -549,8 +553,15 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
                 // oynasidagi ptichka). Sanoq AYNAN shu — aktivlashtirilgan — oydan boshlanadi:
                 // o'quvchi guruhga bir oyda qo'shilib, keyingi oydan aktivlashtirilishi mumkin.
                 // req.RetentionBonus == null bo'lsa tegilmaydi (eski chaqiruvlar).
+                //
+                // RUXSAT: ptichkani FAQAT superadmin yoki "retentionBonus" ruxsati berilgan xodim
+                // qo'ya oladi (oddiy `admin` roli ham kirmaydi — markaz egasining talabi).
+                // Ruxsatsiz kelgan qiymat JIM e'tiborsiz qoldiriladi: UI ptichkani ko'rsatmaydi,
+                // ya'ni bunday so'rov faqat qo'lda yasalgan bo'lishi mumkin va u aktivlashtirishning
+                // o'zini bloklamasligi kerak.
+                var maySetBonus = AdminPermAttribute.IsSuperAdminOrGranted(User, RetentionBonusPerm);
                 await RetentionBonusService.ApplyOnActivateAsync(
-                    db, studentId, cls, date, req.RetentionBonus, Actor);
+                    db, studentId, cls, date, maySetBonus ? req.RetentionBonus : null, Actor);
             }
 
             // AVANSNI KO'CHIRISH (guruh almashtirish QO'LDA bajarilganda): o'quvchi SHU OYDA boshqa guruhda

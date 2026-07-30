@@ -37,14 +37,14 @@ export function ReasonPromptModal({
   const [selected, setSelected] = useState<string | undefined>(undefined)
   const [date, setDate] = useState('')
   /** Ushlab turish bonusi hisoblansinmi — standart holatda BELGILANGAN. */
-  const [retentionBonus, setRetentionBonus] = useState(true)
+  const [retentionBonus, setRetentionBonus] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
     if (!open) return
     setSelected(undefined)
     setSubmitting(false)
-    setRetentionBonus(true)
+    setRetentionBonus(false)
     setDate(defaultDate ?? new Date().toISOString().slice(0, 10))
     getActionReasons()
       .then((all) => setReasons(all.filter((r) => r.category === category)))

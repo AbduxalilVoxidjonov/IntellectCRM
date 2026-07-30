@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '@/context/auth-context'
-import { usePerm } from '@/lib/permissions'
+import { usePerm, useSuperOrGranted } from '@/lib/permissions'
 import {
   ArrowLeft, Users, BookOpen, User, Archive,
   CalendarDays, Clock, MapPin, Wallet, Snowflake, CheckCircle2,
@@ -97,6 +97,9 @@ export function ClassDetailPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
   const { can } = usePerm()
+  // «Bonus hisoblansin» ptichkasi — FAQAT superadmin yoki «Xodimlar va rollar» dan shu ruxsat
+  // berilgan xodim uchun. Oddiy "admin" roli ham ko'rmaydi — shuning uchun can() emas.
+  const canSetBonus = useSuperOrGranted('retentionBonus')
   const [journal, setJournal] = useState<GroupJournal | null>(null)
   const [reasons, setReasons] = useState<AbsenceReason[]>([])
   const [loading, setLoading] = useState(true)
@@ -1531,7 +1534,7 @@ export function ClassDetailPage() {
         }
         tone={rosterReason === 'freeze' ? 'sky' : rosterReason === 'remove' ? 'red' : 'brand'}
         showDate={rosterReason === 'freeze' || rosterReason === 'activate'}
-        showRetentionBonus={rosterReason === 'activate'}
+        showRetentionBonus={rosterReason === 'activate' && canSetBonus}
         defaultDate={rosterDate}
         onConfirm={confirmRosterReason}
         onClose={() => setRosterReason(null)}
