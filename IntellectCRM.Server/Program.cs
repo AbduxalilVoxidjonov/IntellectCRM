@@ -270,6 +270,8 @@ builder.Services.AddHttpClient();
 builder.Services.AddSingleton<TelegramService>();
 // Onlayn test (bot orqali ishlanadigan) oqimi — TelegramBotService shu servisga yo'naltiradi.
 builder.Services.AddSingleton<OnlineTestBotService>();
+// Kitob sotuvi (bot orqali buyurtma) oqimi — TelegramBotService shu servisga yo'naltiradi.
+builder.Services.AddSingleton<BookShopBotService>();
 builder.Services.AddHostedService<TelegramBotService>();
 // FCM (Firebase push) — service account CenterMeta'da; token keshi uchun singleton.
 builder.Services.AddSingleton<FcmService>();

@@ -47,6 +47,7 @@ import { AiCheckPage } from '@/pages/admin/ai-check/AiCheckPage'
 import { AiCheckStudentPage } from '@/pages/admin/ai-check/AiCheckStudentPage'
 import { ArchivePage } from '@/pages/admin/archive/ArchivePage'
 import { GradingCriteriaPage } from '@/pages/admin/grading/GradingCriteriaPage'
+import { BookSalesPage } from '@/pages/admin/books/BookSalesPage'
 import { LevelTestsPage } from '@/pages/admin/level-tests/LevelTestsPage'
 import { LevelTestEditorPage } from '@/pages/admin/level-tests/LevelTestEditorPage'
 import { LevelTestStatsPage } from '@/pages/admin/level-tests/LevelTestStatsPage'
@@ -205,6 +206,7 @@ export default function App() {
           <Route path="districts" element={<RequirePerm perm="settings"><DistrictsPage /></RequirePerm>} />
           <Route path="archive" element={<RequirePerm perm="settings"><ArchivePage /></RequirePerm>} />
           <Route path="grading" element={<RequirePerm perm="schedule"><GradingCriteriaPage /></RequirePerm>} />
+          <Route path="books" element={<RequirePerm perm="books"><BookSalesPage /></RequirePerm>} />
           <Route path="level-tests" element={<RequirePerm perm="schedule"><LevelTestsPage /></RequirePerm>} />
           <Route path="level-tests/stats" element={<RequirePerm perm="schedule"><LevelTestStatsPage /></RequirePerm>} />
           <Route path="level-tests/:id" element={<RequirePerm perm="schedule"><LevelTestEditorPage /></RequirePerm>} />

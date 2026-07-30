@@ -77,6 +77,8 @@ export const adminPermissions: { key: string; label: string }[] = [
   { key: 'app', label: 'Ilova' },
   { key: 'teacherReports', label: "O'qituvchilar hisoboti" },
   { key: 'contracts', label: 'Shartnomalar' },
+  // Kitoblar sotuvi — ombor (kitob/narx/qoldiq), botdan tushgan buyurtmalarni tasdiqlash va hisobotlar.
+  { key: 'books', label: 'Kitoblar sotuvi' },
   // Kassa — FAQAT pul qabul qilish ish o'rni (o'quvchini topib to'lov kiritish). Moliyadan farqi:
   // hisobotlar, maosh, chiqimlar KO'RINMAYDI — kassirga shu bittasini berish kifoya.
   { key: 'kassa', label: 'Kassa' },

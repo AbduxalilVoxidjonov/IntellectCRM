@@ -1194,6 +1194,18 @@ public class CenterMeta
     /// <summary>Massaviy Local SMS yuborishda ikkita SMS orasidagi minimal kutish (soniya) — agent
     /// telefonini/operatorni haddan tashqari yuklamaslik uchun. 0 = kutishsiz (default).</summary>
     public int LocalSmsDelaySeconds { get; set; }
+
+    // ---------- Kitoblar sotuvi (bot orqali buyurtma + to'lov rekvizitlari) ----------
+    /// <summary>Botdagi «📚 Kitob sotib olish» tugmasi yoqilganmi (default true).</summary>
+    public bool BookSalesEnabled { get; set; } = true;
+    /// <summary>Botda ko'rsatiladigan KARTA raqami (P2P o'tkazma uchun). Bo'sh bo'lsa botda
+    /// karta orqali to'lash varianti KO'RSATILMAYDI (faqat naqd qoladi). Maxfiy emas — mijozga
+    /// baribir ko'rsatiladi, shuning uchun bazada saqlanadi.</summary>
+    public string BookCardNumber { get; set; } = string.Empty;
+    /// <summary>Karta egasining ismi (mijoz o'tkazma qilishda ko'radi).</summary>
+    public string BookCardHolder { get; set; } = string.Empty;
+    /// <summary>Rekvizitlar ostida ko'rsatiladigan qo'shimcha izoh (masalan bank nomi/eslatma).</summary>
+    public string BookPaymentNote { get; set; } = string.Empty;
 }
 
 /// <summary>Avto-xabar qoidasi — hodisa (Trigger) yuz berganda tanlangan kanallar orqali
@@ -2337,4 +2349,126 @@ public class StaffTaskLog
     /// <summary>Bajarildi deb belgilangan vaqt (ISO). Bo'sh — bajarilmagan.</summary>
     public string? DoneAt { get; set; }
     public string CreatedAt { get; set; } = string.Empty;
+}
+
+// =====================================================================================
+//  KITOBLAR SOTUVI (O'quv bo'limi → Kitoblar sotuvi + Telegram bot orqali buyurtma)
+// =====================================================================================
+
+/// <summary>
+/// Sotuvdagi kitob (tovar). Narx va ombor qoldig'i shu yerda; qoldiqning har bir o'zgarishi
+/// <see cref="BookStockMove"/> da tarix sifatida qoladi (kirim/sotuv/korreksiya).
+/// </summary>
+public class Book
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    /// <summary>Kitob nomi (botda ko'rinadi).</summary>
+    public string Title { get; set; } = string.Empty;
+    /// <summary>Muallif (ixtiyoriy).</summary>
+    public string Author { get; set; } = string.Empty;
+    /// <summary>Qisqa tavsif — botda kitob tanlanganda ko'rsatiladi.</summary>
+    public string Description { get; set; } = string.Empty;
+    /// <summary>Muqova rasmi (`/uploads/...`) — botda va admin panelida ko'rinadi.</summary>
+    public string CoverUrl { get; set; } = string.Empty;
+    /// <summary>Telegram keshlagan muqova <c>file_id</c>'si — bir marta yuklangach botga qayta
+    /// yuklanmasdan yuboriladi (APK/test PDF bilan bir xil usul). Muqova o'zgarsa bo'shatiladi.</summary>
+    public string CoverFileId { get; set; } = string.Empty;
+    /// <summary>Bir dona narxi (so'm).</summary>
+    public decimal Price { get; set; }
+    /// <summary>JORIY ombor qoldig'i (ostatka). Buyurtma TASDIQLANGANDA ayiriladi.</summary>
+    public int Stock { get; set; }
+    /// <summary>Botda ko'rinadimi (qoldiq 0 bo'lsa ham "tugagan" deb ko'rsatiladi, o'chirilmaydi).</summary>
+    public bool IsActive { get; set; } = true;
+    /// <summary>Kitob tizimga qo'shilgan vaqt — "kitoblar qo'shilish tarixi" hisobotida.</summary>
+    public DateTime CreatedAt { get; set; } = AppClock.Now;
+    /// <summary>Kim qo'shgani (admin F.I.Sh.).</summary>
+    public string CreatedBy { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Ombor harakati (kitob qoldig'ining har bir o'zgarishi). <see cref="Qty"/> musbat = KIRIM
+/// (yangi kitob qo'shildi / qoldiq to'ldirildi), manfiy = CHIQIM (sotuv yoki korreksiya).
+/// "Kitoblar qo'shilish tarixi" hisoboti — Qty &gt; 0 bo'lgan yozuvlar.
+/// </summary>
+public class BookStockMove
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string BookId { get; set; } = string.Empty;
+    /// <summary>Kitob nomi nusxasi (kitob o'chirilsa ham tarix o'qiladi).</summary>
+    public string BookTitle { get; set; } = string.Empty;
+    /// <summary>O'zgarish miqdori: +N kirim, -N chiqim.</summary>
+    public int Qty { get; set; }
+    /// <summary>Sabab: "initial" (kitob yaratildi) | "restock" (qoldiq to'ldirildi) |
+    /// "sale" (buyurtma tasdiqlandi) | "correction" (qo'lda tuzatish).</summary>
+    public string Reason { get; set; } = "restock";
+    /// <summary>Sotuv bo'lsa — tegishli buyurtma (<see cref="BookOrder.Id"/>).</summary>
+    public string? OrderId { get; set; }
+    /// <summary>Izoh (masalan "Nashriyotdan 20 dona").</summary>
+    public string Note { get; set; } = string.Empty;
+    /// <summary>Shu harakatdan KEYINGI qoldiq — hisobotda "ostatka" ustuni uchun.</summary>
+    public int StockAfter { get; set; }
+    public DateTime CreatedAt { get; set; } = AppClock.Now;
+    /// <summary>Kim bajargani (admin F.I.Sh. yoki "Bot").</summary>
+    public string CreatedBy { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Telegram bot orqali tushgan kitob buyurtmasi. Oqim: mijoz kitob+soni+to'lov turini tanlaydi →
+/// karta bo'lsa chek rasmini yuklaydi → buyurtma <b>pending</b> holatda adminga boradi → admin
+/// tasdiqlasa qoldiq ayiriladi va mijozga xabar ketadi, rad etsa sababi bilan xabar ketadi.
+/// Kitob nomi/narxi SNAPSHOT sifatida saqlanadi — keyin narx o'zgarsa hisobot buzilmaydi.
+/// </summary>
+public class BookOrder
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    /// <summary>Ko'rsatiladigan ketma-ket buyurtma raqami (#1, #2 ...).</summary>
+    public int Number { get; set; }
+    /// <summary>Buyurtma bergan Telegram chat id'si (xabar qaytarish uchun).</summary>
+    public long ChatId { get; set; }
+    /// <summary>Mijoz ismi (Telegram profilidan yoki markaz ma'lumotidan).</summary>
+    public string CustomerName { get; set; } = string.Empty;
+    /// <summary>Telefon (faqat raqamlar).</summary>
+    public string Phone { get; set; } = string.Empty;
+    /// <summary>Telefon markazdagi o'quvchiga mos kelsa — shu o'quvchi id'si (ixtiyoriy).</summary>
+    public string? StudentId { get; set; }
+    public string BookId { get; set; } = string.Empty;
+    /// <summary>Kitob nomi nusxasi (buyurtma vaqtidagi).</summary>
+    public string BookTitle { get; set; } = string.Empty;
+    /// <summary>Buyurtma vaqtidagi bir dona narxi.</summary>
+    public decimal UnitPrice { get; set; }
+    public int Qty { get; set; } = 1;
+    /// <summary>Umumiy summa = UnitPrice × Qty (buyurtma vaqtida hisoblanadi).</summary>
+    public decimal Total { get; set; }
+    /// <summary>To'lov turi: "cash" (naqd) | "card" (karta raqamiga o'tkazma).</summary>
+    public string PaymentMethod { get; set; } = "cash";
+    /// <summary>Karta to'lovida mijoz yuborgan chek rasmi/PDF'i (`/uploads/...`). Naqdda bo'sh.</summary>
+    public string ReceiptUrl { get; set; } = string.Empty;
+    /// <summary>Holat: "pending" (kutilmoqda) | "approved" (tasdiqlandi) | "rejected" (rad etildi).</summary>
+    public string Status { get; set; } = "pending";
+    /// <summary>Rad etish sababi (admin kiritadi) — mijozga shu matn yuboriladi.</summary>
+    public string RejectReason { get; set; } = string.Empty;
+    public DateTime CreatedAt { get; set; } = AppClock.Now;
+    /// <summary>Tasdiqlangan/rad etilgan vaqt.</summary>
+    public DateTime? DecidedAt { get; set; }
+    /// <summary>Qarorni kim qabul qilgani (admin F.I.Sh.).</summary>
+    public string DecidedBy { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Botdagi buyurtma bergan chatning VAQTINCHALIK holati (bitta chatda bitta faol savdo sessiyasi).
+/// <see cref="TestBotSession"/> bilan bir xil g'oya — bosqichma-bosqich savol-javob uchun.
+/// </summary>
+public class BookBotSession
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    /// <summary>Telegram chat id (unikal — chatda bitta sessiya).</summary>
+    public long ChatId { get; set; }
+    /// <summary>Bosqich: "qty" (sonini kutamiz) | "pay" (to'lov turini kutamiz) |
+    /// "receipt" (chek rasmini kutamiz).</summary>
+    public string Step { get; set; } = "qty";
+    public string BookId { get; set; } = string.Empty;
+    public int Qty { get; set; } = 1;
+    /// <summary>Tanlangan to'lov turi ("cash" | "card"), hali tanlanmagan bo'lsa bo'sh.</summary>
+    public string PaymentMethod { get; set; } = string.Empty;
+    public string UpdatedAt { get; set; } = string.Empty;
 }

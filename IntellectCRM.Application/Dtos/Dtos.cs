@@ -2275,3 +2275,113 @@ public record CashierPaymentDto(
 
 /// <summary>Bitta kassirning davr bo'yicha to'lovlari + jami.</summary>
 public record CashierPaymentsDto(CashierSummaryDto Summary, List<CashierPaymentDto> Payments);
+
+/* ---------- Kitoblar sotuvi (O'quv bo'limi → Kitoblar sotuvi) ---------- */
+
+/// <summary>Kitob yaratish/tahrirlash payload'i. <c>InitialStock</c> FAQAT yaratishda ishlatiladi
+/// (boshlang'ich qoldiq → "initial" kirim yozuvi); tahrirlashda qoldiq alohida "kirim" amali orqali
+/// o'zgartiriladi, aks holda ombor tarixi buzilardi.</summary>
+public record BookPayload(
+    string Title,
+    decimal Price,
+    string? Author = null,
+    string? Description = null,
+    string? CoverUrl = null,
+    bool IsActive = true,
+    int InitialStock = 0);
+
+/// <summary>Omborga kirim (yoki qo'lda korreksiya): <c>Qty</c> musbat = kirim, manfiy = ayirish.</summary>
+public record BookStockPayload(int Qty, string? Note = null);
+
+/// <summary>Kitob — ro'yxat/karta ko'rinishi (qoldiq + sotuv statistikasi bilan).</summary>
+public record BookDto(
+    string Id,
+    string Title,
+    string Author,
+    string Description,
+    string CoverUrl,
+    decimal Price,
+    int Stock,
+    bool IsActive,
+    // Tasdiqlangan buyurtmalarda sotilgan umumiy dona.
+    int SoldQty,
+    // Tasdiqlangan sotuvlardan tushum (so'm).
+    decimal SoldTotal,
+    // Shu kitob bo'yicha KUTILAYOTGAN buyurtmalardagi dona (rezerv emas — faqat ogohlantirish).
+    int PendingQty,
+    string CreatedAt,
+    string CreatedBy);
+
+/// <summary>Ombor harakati (kirim/sotuv/korreksiya) — "kitoblar qo'shilish tarixi" hisoboti.</summary>
+public record BookStockMoveDto(
+    string Id,
+    string BookId,
+    string BookTitle,
+    int Qty,
+    string Reason,
+    string? OrderId,
+    string Note,
+    int StockAfter,
+    string CreatedAt,
+    string CreatedBy);
+
+/// <summary>Botdan tushgan kitob buyurtmasi (admin ro'yxati uchun).</summary>
+public record BookOrderDto(
+    string Id,
+    int Number,
+    string CustomerName,
+    string Phone,
+    string? StudentId,
+    string? StudentName,
+    string BookId,
+    string BookTitle,
+    decimal UnitPrice,
+    int Qty,
+    decimal Total,
+    string PaymentMethod,
+    string ReceiptUrl,
+    string Status,
+    string RejectReason,
+    string CreatedAt,
+    string? DecidedAt,
+    string DecidedBy,
+    // Kitobning JORIY qoldig'i — admin tasdiqlashdan oldin yetarlimi ko'rish uchun.
+    int BookStock);
+
+/// <summary>Buyurtmani rad etish sababi.</summary>
+public record BookRejectPayload(string Reason);
+
+/// <summary>Kunlik sotuv nuqtasi (grafik uchun).</summary>
+public record BookDaySalesDto(string Date, int Qty, decimal Cash, decimal Card, decimal Total);
+
+/// <summary>Kitob kesimidagi sotuv (top kitoblar jadvali).</summary>
+public record BookSalesByBookDto(string BookId, string BookTitle, int Qty, decimal Total, int Stock);
+
+/// <summary>Kitoblar sotuvi analitikasi — tanlangan davr bo'yicha.</summary>
+public record BookAnalyticsDto(
+    string From,
+    string To,
+    // Tasdiqlangan buyurtmalar soni.
+    int OrdersApproved,
+    int OrdersPending,
+    int OrdersRejected,
+    // Sotilgan umumiy dona (tasdiqlangan).
+    int SoldQty,
+    decimal RevenueCash,
+    decimal RevenueCard,
+    decimal RevenueTotal,
+    // Ombordagi umumiy qoldiq (barcha kitoblar, davrga bog'liq emas).
+    int StockTotal,
+    // Davr ichida omborga kirim qilingan dona.
+    int StockInQty,
+    List<BookDaySalesDto> ByDay,
+    List<BookSalesByBookDto> ByBook,
+    // Qoldig'i tugagan/kam qolgan kitoblar (qoldiq ≤ 3).
+    List<BookSalesByBookDto> LowStock);
+
+/// <summary>Botdagi kitob sotuvi sozlamalari (to'lov rekvizitlari).</summary>
+public record BookSettingsDto(
+    bool BookSalesEnabled,
+    string BookCardNumber,
+    string BookCardHolder,
+    string BookPaymentNote);

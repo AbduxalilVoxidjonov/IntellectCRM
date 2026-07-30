@@ -20,7 +20,8 @@ namespace IntellectCRM.Application.Services;
 /// </summary>
 public class TelegramBotService(
     IServiceProvider sp, TelegramService telegram, IHostEnvironment env,
-    OnlineTestBotService onlineTest, ILogger<TelegramBotService> logger) : BackgroundService
+    OnlineTestBotService onlineTest, BookShopBotService bookShop,
+    ILogger<TelegramBotService> logger) : BackgroundService
 {
     private const string ApkMime = "application/vnd.android.package-archive";
     private const string ApkCaption =
@@ -186,6 +187,12 @@ public class TelegramBotService(
             return;
         }
 
+        // Rasm/hujjat kelgani — KITOB buyurtmasidagi to'lov cheki kutilyapti bo'lsa qabul qilamiz.
+        if (msg.TryGetProperty("photo", out var photo) || msg.TryGetProperty("document", out _))
+        {
+            if (await HandleFileMessageAsync(chatId, msg, ct)) return;
+        }
+
         var text = msg.TryGetProperty("text", out var t) ? t.GetString() ?? "" : "";
 
         if (text.StartsWith("/start"))
@@ -217,6 +224,15 @@ public class TelegramBotService(
             var db = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
             await onlineTest.ShowListAsync(db, chatId, ct);
         }
+        else if (text == "/kitoblar" || text == BookShopBotService.BooksButtonText)
+        {
+            await LogInAsync(chatId, text, ct);
+            // MAJBURIY OBUNA: kitob buyurtmasi ham kanalga obunani talab qiladi.
+            if (!await RequireSubscriptionAsync(chatId, BookShopBotService.BooksButtonText, ct)) return;
+            using var scope = sp.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
+            await bookShop.ShowCatalogAsync(db, chatId, ct);
+        }
         else
         {
             // Support rejimida bo'lsa — murojaatni adminga yuborish.
@@ -230,6 +246,14 @@ public class TelegramBotService(
                 && await onlineTest.HandleTextAsync(db, chatId, text, ct))
             {
                 await LogInAsync(chatId, "[test javoblari yuborildi]", ct);
+                return;
+            }
+
+            // KITOB BUYURTMASI: soni qo'lda yozilishi kutilyapti bo'lsa (yoki chek o'rniga matn
+            // kelgan bo'lsa) shu servis qabul qiladi. Aks holda pastdagi oddiy oqim davom etadi.
+            if (botUser?.Mode != "support" && await bookShop.HandleTextAsync(db, chatId, text, ct))
+            {
+                await LogInAsync(chatId, text, ct);
                 return;
             }
 
@@ -248,6 +272,49 @@ public class TelegramBotService(
                 else
                     await SendAsync(chatId, PhonePrompt, ContactKeyboard, ct);
             }
+        }
+    }
+
+    /// <summary>
+    /// Rasm yoki hujjat kelgani. Hozircha faqat KITOB buyurtmasidagi to'lov CHEKI uchun ishlatiladi:
+    /// chat chek kutayotgan bo'lsa fayl serverga ko'chiriladi va buyurtma yaratiladi (true qaytadi).
+    /// Aks holda false — chaqiruvchi oddiy matn oqimini davom ettiradi.
+    /// </summary>
+    private async Task<bool> HandleFileMessageAsync(long chatId, JsonElement msg, CancellationToken ct)
+    {
+        try
+        {
+            using var scope = sp.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
+
+            // Support rejimida bo'lsa — chek emas, adminga murojaat; fayllarni bu yerda ushlamaymiz.
+            var botUser = await db.BotUsers.FirstOrDefaultAsync(u => u.ChatId == chatId, ct);
+            if (botUser?.Mode == "support") return false;
+            if (!await bookShop.AwaitingReceiptAsync(db, chatId, ct)) return false;
+
+            string? fileId = null;
+            string? fileName = null;
+            if (msg.TryGetProperty("photo", out var photos) && photos.GetArrayLength() > 0)
+            {
+                // Eng katta o'lchamdagi variant (oxirgi element) — chek matni o'qilishi uchun.
+                var best = photos[photos.GetArrayLength() - 1];
+                if (best.TryGetProperty("file_id", out var pid)) fileId = pid.GetString();
+            }
+            else if (msg.TryGetProperty("document", out var doc))
+            {
+                if (doc.TryGetProperty("file_id", out var did)) fileId = did.GetString();
+                if (doc.TryGetProperty("file_name", out var dn)) fileName = dn.GetString();
+            }
+            if (string.IsNullOrEmpty(fileId)) return false;
+
+            await LogInAsync(chatId, "[kitob buyurtmasi uchun to'lov cheki yuborildi]", ct);
+            await bookShop.HandleReceiptAsync(db, chatId, fileId, fileName, ct);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Kitob cheki (fayl) ishlovida xato: chat {Chat}", chatId);
+            return false;
         }
     }
 
@@ -338,8 +405,13 @@ public class TelegramBotService(
             // Menyu darvozasidagi "✅ Tekshirish": obunani qayta tekshiramiz.
             _subOkUntil.TryRemove(chatId, out _);
             if (await RequireSubscriptionAsync(chatId, "Davom etish", ct))
+            {
+                using var scope = sp.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
                 await SendAsync(chatId,
-                    "✅ Rahmat! Endi pastdagi tugmalardan foydalanishingiz mumkin.", RegisteredKeyboard, ct);
+                    "✅ Rahmat! Endi pastdagi tugmalardan foydalanishingiz mumkin.",
+                    RegisteredKeyboard(await BookSalesEnabledAsync(db, ct)), ct);
+            }
         }
         else if (OnlineTestBotService.Handles(data))
         {
@@ -369,6 +441,31 @@ public class TelegramBotService(
                 await onlineTest.CancelAsync(db, chatId, ct);
             else if (data == OnlineTestBotService.CbList)
                 await onlineTest.ShowListAsync(db, chatId, ct);
+        }
+        else if (BookShopBotService.Handles(data))
+        {
+            using var scope = sp.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
+            if (data.StartsWith(BookShopBotService.CbBook, StringComparison.Ordinal))
+            {
+                // MAJBURIY OBUNA: eski xabardagi tugma orqali ham chetlab o'tib bo'lmasin.
+                if (!await RequireSubscriptionAsync(chatId, BookShopBotService.BooksButtonText, ct)) return;
+                await bookShop.OpenBookAsync(db, chatId, data, ct);
+            }
+            else if (data.StartsWith(BookShopBotService.CbQty, StringComparison.Ordinal))
+                await bookShop.SetQtyAsync(db, chatId, data, ct);
+            else if (data == BookShopBotService.CbQtyOther)
+                await bookShop.AskQtyAsync(db, chatId, ct);
+            else if (data == BookShopBotService.CbPayCash)
+                await bookShop.ChooseCashAsync(db, chatId, ct);
+            else if (data == BookShopBotService.CbPayCard)
+                await bookShop.ChooseCardAsync(db, chatId, ct);
+            else if (data == BookShopBotService.CbConfirm)
+                await bookShop.ConfirmCashAsync(db, chatId, ct);
+            else if (data == BookShopBotService.CbCancel)
+                await bookShop.CancelAsync(db, chatId, ct);
+            else if (data == BookShopBotService.CbList)
+                await bookShop.ShowCatalogAsync(db, chatId, ct);
         }
         else if (data.StartsWith(StaffTaskChecklist.CallbackPrefix, StringComparison.Ordinal))
         {
@@ -497,12 +594,14 @@ public class TelegramBotService(
             var db = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
             if (await db.TelegramRegistrations.AnyAsync(r => r.ChatId == chatId, ct))
             {
+                var books = await BookSalesEnabledAsync(db, ct);
                 await SendAsync(chatId,
                     "Assalomu alaykum! 👋\n\nPastdagi tugmalardan foydalaning:\n"
                     + $"• {OtpButtonText} — tizimga kirish uchun bir martalik kod\n"
                     + $"• {OnlineTestBotService.TestButtonText} — sizga ochilgan onlayn testlar\n"
+                    + (books ? $"• {BookShopBotService.BooksButtonText} — sotuvdagi kitoblarga buyurtma\n" : "")
                     + $"• {SupportButtonText} — administratorga savol",
-                    RegisteredKeyboard, ct);
+                    RegisteredKeyboard(books), ct);
                 return;
             }
         }
@@ -538,13 +637,18 @@ public class TelegramBotService(
                 .ToListAsync(ct))
             .Where(u => PhoneUtil.Key(u.Phone) == key).ToList();
 
-        // Ro'yxatdan o'tmagan — to'xtatamiz.
+        // Markaz ro'yxatida topilmadi — tizimga KIRISH berilmaydi, lekin raqam saqlanadi va
+        // KITOB SOTUVI ochiq qoladi (kitob sotib olish uchun markazda o'qish shart emas).
         if (matchedStudents.Count == 0 && matchedTeachers.Count == 0 && matchedAdmins.Count == 0)
         {
             _pendingPhone.TryRemove(chatId, out _);
+            await UpsertBotUserAfterContactAsync(db, chatId, PhoneUtil.DigitsOnly(phone!), new List<string>(), ct);
+            var booksOn = meta?.BookSalesEnabled ?? true;
             await SendAsync(chatId,
-                $"Bu raqam ({phone}) markaz ro'yxatida topilmadi. Iltimos, markaz ma'muriyatiga murojaat qiling.",
-                ct: ct);
+                $"Bu raqam ({phone}) markaz o'quvchilari ro'yxatida topilmadi — tizimga kirish ma'lumotlari "
+                + "berilmaydi. Ma'lumotingiz noto'g'ri bo'lsa, markaz ma'muriyatiga murojaat qiling."
+                + (booksOn ? $"\n\n📚 Kitob sotib olish esa ochiq — «{BookShopBotService.BooksButtonText}» tugmasini bosing." : ""),
+                booksOn ? GuestKeyboard : null, ct);
             return;
         }
 
@@ -653,7 +757,8 @@ public class TelegramBotService(
         await db.SaveChangesAsync(ct);
 
         await SendAsync(chatId,
-            "✅ Ro'yxatdan o'tdingiz:\n• " + string.Join("\n• ", linked), RegisteredKeyboard, ct);
+            "✅ Ro'yxatdan o'tdingiz:\n• " + string.Join("\n• ", linked),
+            RegisteredKeyboard(meta?.BookSalesEnabled ?? true), ct);
 
         // Admin/xodim — yangi lid xabarnomalari haqida ma'lumot.
         if (admins.Count > 0)
@@ -786,7 +891,8 @@ public class TelegramBotService(
             else
             {
                 botUser.Phone = digits;
-                botUser.Linked = linkedStr;
+                // Moslik topilmasa (mehmon — faqat kitob sotib oluvchi) eski yorliq TOZALANMAYDI.
+                if (linkedStr.Length > 0) botUser.Linked = linkedStr;
             }
             await db.SaveChangesAsync(ct);
         }
@@ -1133,19 +1239,37 @@ public class TelegramBotService(
     };
 
     /// <summary>Ro'yxatdan o'tgan (telefoni tasdiqlangan) foydalanuvchi klaviaturasi: bir martalik
-    /// kirish kodi → ONLAYN TESTNI ISHLASH → adminga murojaat. Ro'yxatdan o'tish tugagach (va
-    /// ro'yxatdan o'tgan foydalanuvchi /start bosganda) shu klaviatura o'rnatiladi.</summary>
-    private static object RegisteredKeyboard => new
+    /// kirish kodi → ONLAYN TESTNI ISHLASH → (yoqilgan bo'lsa) KITOB SOTIB OLISH → adminga murojaat.
+    /// Ro'yxatdan o'tish tugagach (va ro'yxatdan o'tgan foydalanuvchi /start bosganda) o'rnatiladi.</summary>
+    private static object RegisteredKeyboard(bool books = true)
     {
-        keyboard = new object[][]
+        var rows = new List<object[]>
         {
             new object[] { new { text = OtpButtonText } },
             new object[] { new { text = OnlineTestBotService.TestButtonText } },
+        };
+        if (books) rows.Add(new object[] { new { text = BookShopBotService.BooksButtonText } });
+        rows.Add(new object[] { new { text = SupportButtonText } });
+        return new { keyboard = rows.ToArray(), resize_keyboard = true, one_time_keyboard = false };
+    }
+
+    /// <summary>Faqat KITOB sotib olish + adminga murojaat — markaz ro'yxatida topilmagan (o'quvchi/
+    /// o'qituvchi emas) mijoz uchun. Kitob sotuvi hamma uchun ochiq: sotib olish uchun markazda
+    /// o'qish shart emas, telefon raqamini ulashish kifoya.</summary>
+    private static object GuestKeyboard => new
+    {
+        keyboard = new object[][]
+        {
+            new object[] { new { text = BookShopBotService.BooksButtonText } },
             new object[] { new { text = SupportButtonText } },
         },
         resize_keyboard = true,
         one_time_keyboard = false,
     };
+
+    /// <summary>Kitoblar sotuvi botda yoqilganmi (Sozlamalar → Kitoblar sotuvi).</summary>
+    private static async Task<bool> BookSalesEnabledAsync(IAppDbContext db, CancellationToken ct) =>
+        (await db.CenterMeta.AsNoTracking().FirstOrDefaultAsync(ct))?.BookSalesEnabled ?? true;
 
     /// <summary>Kanal havolasi + "✅ Tekshirish" inline tugmalari. <paramref name="callbackData"/> —
     /// tugma bosilganda qaysi oqim davom etishini bildiradi ("check_sub" — kontakt oqimi,

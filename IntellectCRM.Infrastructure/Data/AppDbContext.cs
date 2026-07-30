@@ -142,6 +142,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<AiCheck> AiChecks => Set<AiCheck>();
     public DbSet<StudentAiAccess> StudentAiAccesses => Set<StudentAiAccess>();
 
+    // Kitoblar sotuvi (ombor + botdan tushgan buyurtmalar)
+    public DbSet<Book> Books => Set<Book>();
+    public DbSet<BookStockMove> BookStockMoves => Set<BookStockMove>();
+    public DbSet<BookOrder> BookOrders => Set<BookOrder>();
+    public DbSet<BookBotSession> BookBotSessions => Set<BookBotSession>();
+
     protected override void OnModelCreating(ModelBuilder b)
     {
         // SQL Server: indeksda qatnashadigan string ustunlar default `nvarchar(max)` bo'lib
@@ -325,6 +331,27 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         b.Entity<StudentAiAccess>().HasIndex(a => a.StudentId).IsUnique();
 
         b.Entity<ArchivedRecord>().HasIndex(r => new { r.Type, r.DeletedAt });
+
+        // ---------- Kitoblar sotuvi ----------
+        b.Entity<Book>().Property(x => x.Price).HasPrecision(18, 2);
+        b.Entity<BookOrder>().Property(x => x.UnitPrice).HasPrecision(18, 2);
+        b.Entity<BookOrder>().Property(x => x.Total).HasPrecision(18, 2);
+        foreach (var (type, prop) in new (Type, string)[]
+        {
+            (typeof(BookStockMove), "BookId"), (typeof(BookStockMove), "Reason"),
+            (typeof(BookOrder), "BookId"), (typeof(BookOrder), "Status"),
+        })
+            b.Entity(type).Property(prop).HasMaxLength(200);
+        // Ombor harakati: kitob bo'yicha tarix + "kirim tarixi" sanaga qarab o'qiladi.
+        b.Entity<BookStockMove>().HasIndex(m => new { m.BookId, m.CreatedAt });
+        b.Entity<BookStockMove>().HasIndex(m => new { m.Reason, m.CreatedAt });
+        // Buyurtmalar: kutilayotganlar ro'yxati (status) va sotuv hisobotlari (sana/kitob).
+        b.Entity<BookOrder>().HasIndex(o => new { o.Status, o.CreatedAt });
+        b.Entity<BookOrder>().HasIndex(o => o.CreatedAt);
+        b.Entity<BookOrder>().HasIndex(o => new { o.BookId, o.Status });
+        b.Entity<BookOrder>().HasIndex(o => o.ChatId);
+        // Bot savdo sessiyasi — bitta chatda bitta faol sessiya.
+        b.Entity<BookBotSession>().HasIndex(s => s.ChatId).IsUnique();
 
         // Daraja testi — Slug ommaviy URL kaliti (noyob, indekslanishi uchun uzunlik beriladi).
         b.Entity<LevelTest>().Property(t => t.Slug).HasMaxLength(64);

@@ -75,6 +75,12 @@ public interface IAppDbContext
     DbSet<AiCheck> AiChecks { get; }
     DbSet<StudentAiAccess> StudentAiAccesses { get; }
 
+    // Kitoblar sotuvi — ombor, harakatlar tarixi, botdan tushgan buyurtmalar, bot savdo sessiyasi
+    DbSet<Book> Books { get; }
+    DbSet<BookStockMove> BookStockMoves { get; }
+    DbSet<BookOrder> BookOrders { get; }
+    DbSet<BookBotSession> BookBotSessions { get; }
+
     // LMS (Ta'lim)
 
     // O'quv dasturi (standalone, Kurs/Subject'dan mustaqil) + Kurs↔Dastur ko'p-ko'pga bog'lanishi

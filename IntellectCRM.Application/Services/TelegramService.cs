@@ -221,6 +221,117 @@ public class TelegramService(IHttpClientFactory httpFactory, ILogger<TelegramSer
     }
 
     /// <summary>
+    /// Rasm yuboradi (sendPhoto) — keshlangan <paramref name="fileId"/> bo'lsa qayta yuklamasdan,
+    /// aks holda <paramref name="bytes"/>ni multipart bilan yuklab. Telegram qaytargan yangi
+    /// <c>file_id</c>ni qaytaradi (keshlash uchun; muvaffaqiyatsiz bo'lsa null).
+    /// <para>Caption HTML sifatida yuboriladi va inline tugmalar qo'shilishi mumkin — kitob
+    /// katalogida muqova + narx + "Sotib olish" tugmasi bitta xabarda chiqadi.</para>
+    /// </summary>
+    public async Task<string?> SendPhotoReturningIdAsync(
+        long chatId, string? fileId, byte[]? bytes, string fileName, string? caption,
+        object? replyMarkup = null, CancellationToken ct = default)
+    {
+        if (!IsConfigured) return null;
+        try
+        {
+            using var form = new MultipartFormDataContent();
+            form.Add(new StringContent(chatId.ToString()), "chat_id");
+            if (!string.IsNullOrWhiteSpace(caption))
+            {
+                form.Add(new StringContent(caption, Encoding.UTF8), "caption");
+                form.Add(new StringContent("HTML"), "parse_mode");
+            }
+            if (replyMarkup is not null)
+                form.Add(new StringContent(JsonSerializer.Serialize(replyMarkup), Encoding.UTF8), "reply_markup");
+
+            if (!string.IsNullOrWhiteSpace(fileId))
+            {
+                form.Add(new StringContent(fileId), "photo");
+            }
+            else if (bytes is not null && bytes.Length > 0)
+            {
+                var content = new ByteArrayContent(bytes);
+                content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(MimeOf(fileName));
+                form.Add(content, "photo", fileName);
+            }
+            else return null;
+
+            var resp = await Client().PostAsync($"{ApiBase}/sendPhoto", form, ct);
+            if (!resp.IsSuccessStatusCode) return null;
+            var body = await resp.Content.ReadAsStringAsync(ct);
+            using var doc = JsonDocument.Parse(body);
+            // sendPhoto "photo" massivini qaytaradi (turli o'lchamlar) — eng kattasining file_id'sini olamiz.
+            if (doc.RootElement.TryGetProperty("result", out var r) &&
+                r.TryGetProperty("photo", out var photos) && photos.GetArrayLength() > 0)
+            {
+                var last = photos[photos.GetArrayLength() - 1];
+                if (last.TryGetProperty("file_id", out var fid)) return fid.GetString() ?? fileId ?? "";
+            }
+            return fileId ?? "";
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Telegram sendPhoto xatosi");
+            return null;
+        }
+    }
+
+    private static string MimeOf(string fileName) =>
+        Path.GetExtension(fileName).ToLowerInvariant() switch
+        {
+            ".png" => "image/png",
+            ".webp" => "image/webp",
+            ".gif" => "image/gif",
+            _ => "image/jpeg",
+        };
+
+    /// <summary>
+    /// getFile — Telegram serverdagi fayl yo'lini (<c>file_path</c>) qaytaradi. Keyin
+    /// <see cref="DownloadFileAsync"/> bilan yuklab olinadi. Xato bo'lsa null.
+    /// <para>Kitob buyurtmasidagi to'lov CHEKI (rasm/PDF) shu ikkisi bilan serverga ko'chiriladi —
+    /// Telegram file_id vaqt o'tib ishlamay qolishi mumkin, admin panelida esa chek doim ochilishi kerak.</para>
+    /// </summary>
+    public async Task<string?> GetFilePathAsync(string fileId, CancellationToken ct = default)
+    {
+        if (!IsConfigured || string.IsNullOrWhiteSpace(fileId)) return null;
+        try
+        {
+            var resp = await Client().GetAsync($"{ApiBase}/getFile?file_id={Uri.EscapeDataString(fileId)}", ct);
+            if (!resp.IsSuccessStatusCode) return null;
+            var body = await resp.Content.ReadAsStringAsync(ct);
+            using var doc = JsonDocument.Parse(body);
+            if (doc.RootElement.TryGetProperty("result", out var r) &&
+                r.TryGetProperty("file_path", out var fp))
+                return fp.GetString();
+            return null;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Telegram getFile xatosi");
+            return null;
+        }
+    }
+
+    /// <summary>Telegram serverdan faylni (<paramref name="filePath"/> — getFile natijasi) yuklab oladi.
+    /// Xato bo'lsa null.</summary>
+    public async Task<byte[]?> DownloadFileAsync(string filePath, CancellationToken ct = default)
+    {
+        if (!IsConfigured || string.IsNullOrWhiteSpace(filePath)) return null;
+        try
+        {
+            var url = $"https://api.telegram.org/file/bot{BotToken}/{filePath}";
+            var resp = await Client().GetAsync(url, ct);
+            if (!resp.IsSuccessStatusCode) return null;
+            return await resp.Content.ReadAsByteArrayAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Telegram fayl yuklab olish xatosi");
+            return null;
+        }
+    }
+
+    /// <summary>
     /// getChatMember — foydalanuvchining kanal/guruh a'zoligi holatini qaytaradi
     /// (creator/administrator/member/restricted/left/kicked) yoki null (xato/yo'q).
     /// <paramref name="chatRef"/> ommaviy kanal uchun "@username" bo'lishi kerak; bot kanal a'zosi/admin bo'lishi shart.

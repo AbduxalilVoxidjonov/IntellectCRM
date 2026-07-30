@@ -106,6 +106,7 @@ export const navByRole: Record<Role, NavItem[]> = {
         { label: 'Baholash mezonlari', to: '/admin/grading', perm: 'schedule' },
         { label: 'Testlar natijalari', to: '/admin/test-results', perm: 'classes' },
         { label: 'Daraja testi', to: '/admin/level-tests', perm: 'schedule' },
+        { label: 'Kitoblar sotuvi', to: '/admin/books', perm: 'books' },
         { label: 'Sabablar', to: '/admin/reasons', perm: 'settings' },
         {
           label: 'Intizomiy ball',
