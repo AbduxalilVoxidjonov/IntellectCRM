@@ -17,11 +17,25 @@ public static class StudentProfileBuilder
     {
         var cls = await db.Classes.AsNoTracking().FirstOrDefaultAsync(c => c.Name == st.ClassName);
         // O'quvchining FAOL guruh(lar)i (M2M) — yo'q bo'lsa ClassName (StudentReportBuilder bilan bir xil mantiq).
-        var memberGroupIds = await db.StudentGroups.AsNoTracking()
-            .Where(sg => sg.StudentId == st.Id && sg.IsActive).Select(sg => sg.GroupId).ToListAsync();
-        var classIds = memberGroupIds.Count > 0
-            ? memberGroupIds.ToHashSet()
+        var memberships = await db.StudentGroups.AsNoTracking()
+            .Where(sg => sg.StudentId == st.Id && sg.IsActive).ToListAsync();
+        var classIds = memberships.Count > 0
+            ? memberships.Select(m => m.GroupId).ToHashSet()
             : (cls is null ? new HashSet<string>() : new HashSet<string> { cls.Id });
+        // Har guruh uchun a'zolik oynasi (memberStart..frozenAt) — jurnal (JournalService.GroupMonthAsync)
+        // va o'quvchi portali (StudentAttendanceController) bilan BIR XIL chegara: guruhga qo'shilishidan
+        // oldingi va muzlatilgandan keyingi o'tilgan darslar bu o'quvchiga "davomat" hisobiga kirmaydi.
+        var boundsByClass = memberships.ToDictionary(
+            m => m.GroupId,
+            m => (Start: JournalService.MemberStart(m),
+                  End: m.Status == "frozen" && m.FrozenAt is { Length: >= 10 } ? m.FrozenAt[..10] : null));
+        bool InMemberWindow(string classId, string date)
+        {
+            if (!boundsByClass.TryGetValue(classId, out var b)) return true;
+            if (b.Start is not null && string.CompareOrdinal(date, b.Start) < 0) return false;
+            if (b.End is not null && string.CompareOrdinal(date, b.End) > 0) return false;
+            return true;
+        }
         // Topshiriqlar bitta guruhga tegishli — asosiy (ClassName) guruh, bo'lmasa birinchi guruh.
         var classId = cls?.Id ?? classIds.FirstOrDefault();
 
@@ -35,15 +49,17 @@ public static class StudentProfileBuilder
         var reasonMap = reasons.ToDictionary(r => r.Id);
         var lateSet = reasons.Where(r => r.IsLate).Select(r => r.Id).ToHashSet();
 
-        // ---- Qatnashish (o'tilgan / qatnashgan) — o'quvchining faol guruh(lar)i bo'yicha ----
+        // ---- Qatnashish (o'tilgan / qatnashgan) — o'quvchining faol guruh(lar)i bo'yicha, FAQAT
+        // a'zolik oynasi ichidagi darslar (jurnaldagi "Davomat" tabi bilan mos kelishi uchun) ----
         var studentConducted = classIds.Count == 0
-            ? new HashSet<(string SubjectId, string Date, int Period)>()
+            ? new HashSet<(string ClassId, string SubjectId, string Date, int Period)>()
             : (await db.LessonNotes.AsNoTracking().Where(n => n.Conducted && classIds.Contains(n.ClassId))
-                    .Select(n => new { n.SubjectId, n.Date, n.Period }).ToListAsync())
-                .Select(n => (n.SubjectId, n.Date, n.Period)).ToHashSet();
+                    .Select(n => new { n.ClassId, n.SubjectId, n.Date, n.Period }).ToListAsync())
+                .Where(n => InMemberWindow(n.ClassId, n.Date))
+                .Select(n => (n.ClassId, n.SubjectId, n.Date, n.Period)).ToHashSet();
         var conducted = studentConducted.Count;
-        var absent = entries.Count(e => e.ReasonId != null && !lateSet.Contains(e.ReasonId)
-            && studentConducted.Contains((e.SubjectId, e.Date, e.Period)));
+        var absent = entries.Count(e => classIds.Contains(e.ClassId) && e.ReasonId != null && !lateSet.Contains(e.ReasonId)
+            && studentConducted.Contains((e.ClassId, e.SubjectId, e.Date, e.Period)));
         var attended = Math.Max(0, conducted - absent);
         var pct = conducted > 0 ? (int)Math.Round((double)attended / conducted * 100) : 0;
 
