@@ -2,9 +2,9 @@
 
 # 🎓 IntellectCRM
 
-### Bitta o'quv markazi uchun zamonaviy CRM + LMS platformasi
+### Bitta o'quv markazi uchun zamonaviy CRM platformasi
 
-Lidlar (CRM) · O'quvchilar · Guruhlar · Moliya · Jurnal · O'quv dasturi · 3 ta alohida portal
+Lidlar (CRM) · O'quvchilar · Guruhlar · Moliya · Jurnal · O'quv dasturi · Call-center · 3 ta alohida portal
 
 ![.NET](https://img.shields.io/badge/.NET-8.0-512BD4?logo=dotnet&logoColor=white)
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
@@ -19,8 +19,7 @@ Lidlar (CRM) · O'quvchilar · Guruhlar · Moliya · Jurnal · O'quv dasturi · 
 ## ✨ Umumiy ma'lumot
 
 **IntellectCRM** — o'quv markazlari uchun mo'ljallangan, lidlardan tortib to'lovlargacha bo'lgan
-butun jarayonni boshqaradigan to'liq CRM/LMS tizimi. Bitta backend uch xil foydalanuvchiga
-xizmat qiladi:
+butun jarayonni boshqaradigan CRM tizimi. Bitta backend uch xil foydalanuvchiga xizmat qiladi:
 
 | Portal | Foydalanuvchi | Dizayn | Holati |
 |---|---|---|---|
@@ -36,9 +35,9 @@ xizmat qiladi:
 
 **Backend**
 - ASP.NET Core 8 (C#) — **Clean Architecture**
-- Entity Framework Core 8 + **PostgreSQL** (inkremental migratsiyalar)
-- **SignalR** (real-time chat / turniket) · **JWT** auth
-- **FCM** (push) · **Telegram bot** · **OpenXML** (shartnoma/hisobot)
+- Entity Framework Core 8 + **PostgreSQL 16** (`Npgsql`, inkremental migratsiyalar)
+- **SignalR** (chat / turniket) + raw **WebSocket** (CTI agent telefonlari) · **JWT** auth
+- **FCM** (push) · **Telegram bot** · **OpenXML** (shartnoma/hisobot/Excel eksport)
 
 **Frontend**
 - React 19 + TypeScript + **Vite**
@@ -46,7 +45,7 @@ xizmat qiladi:
 - Recharts (admin grafiklar) · lucide ikonkalar · React Router
 
 **Infratuzilma**
-- **Docker Compose** (app + SQL Server + cloudflared + backup)
+- **Docker Compose** — `app` · `postgres` · `cloudflared` · `backup` · `mediamtx` (kamera)
 - **Cloudflare Tunnel** (port internetga ochilmaydi)
 
 ---
@@ -68,13 +67,17 @@ IntellectCRM.slnx
 
 ### 🟣 Admin panel
 - **CRM / Lidlar** — kanban, sinov darslari, konversiya, statistika
-- **O'quvchilar** — profil, ko'p-guruh a'zoligi, daftar (oyma-oy), to'lov tarixi
+- **O'quvchilar** — profil, ko'p-guruh a'zoligi, daftar (oyma-oy), to'lov tarixi, turniket, feedback
 - **Guruhlar** — kurs + o'qituvchi + dars kunlari/vaqti; oylik jurnal
 - **Kurslar + O'quv dasturi** — daraja → mavzu → band ierarxiyasi (Excel import)
-- **Moliya** — kirim/chiqim, oylik hisoblash, **kurs/guruh bo'yicha daromad hisoboti**
+- **Moliya / Kassa** — kirim/chiqim, oylik hisoblash, **kurs/guruh bo'yicha daromad hisoboti**
 - **Maosh** — qat'iy yoki guruhdan yig'ilgan to'lovning foizi
-- **Daraja testi** — ommaviy test → avtomatik lid
-- **Topshiriqlar · Xabarlar · Intizomiy ball · Shartnomalar · Arxiv**
+- **Xabarlar** — SMS (Eskiz yoki Local SIM) · Telegram · Push, avto-xabar qoidalari (13 trigger)
+- **Call Center** — Bulut (MoiZvonki) va **Local Call** (Android agent-telefonlar, `README-CTI.md`)
+- **Marketing** — inbox, javob qoidalari, kanallar, AI yordamchi, analitika
+- **Daraja testi** + **onlayn test** (Telegram bot orqali PDF, avtomatik baholash)
+- **Kitoblar sotuvi** — ombor + botdan buyurtma + admin tasdiqlash + analitika
+- **Topshiriqlar · AI check · Intizomiy ball · Shartnomalar · Kameralar · Arxiv**
 
 ### 🟢 O'qituvchi ilovasi (mobil)
 - Guruhga kirib **oylik jurnal** (baho/davomat) yuritish
@@ -94,18 +97,38 @@ IntellectCRM.slnx
 - **A'zolik holati:** `trial` (sinov, to'lovsiz) · `active` · `frozen`
 - **Aktivlashtirish** — birinchi oy qisman (qolgan darslar nisbatida)
 - **Muzlatish** — o'tilgan darslar uchun qisman hisob
-- **Oylik hisob** — faqat faol a'zoliklarning `MonthlyFee` yig'indisi (per-guruh)
+- **Oylik hisob** — faqat faol a'zoliklarning `MonthlyFee` yig'indisi (**per-guruh**, `MonthlyCharge`)
+
+Batafsil: [`.claude/rules/billing.md`](.claude/rules/billing.md)
+
+---
+
+## 🔐 Maxfiy kalitlar — faqat `.env`
+
+Barcha maxfiy qiymatlar (Telegram bot tokeni, FCM service account JSON, Gemini/Azure kaliti,
+Eskiz login/paroli, turniket login/paroli, MoiZvonki) **`.env` dan** o'qiladi — yagona joy
+`AppSecrets` (Application/Services). Ular **bazada saqlanmaydi** va Sozlamalar sahifasidan
+kiritilmaydi: sahifada faqat "sozlangan / sozlanmagan" holati va qo'shiladigan `.env` qatori
+ko'rinadi. Sabab — baza dump'i yoki Telegram'ga yuboriladigan zaxira nusxa ichida kalit sizib
+chiqmasin. Namuna: [`.env.example`](.env.example).
+
+Maxfiy **bo'lmagan** sozlamalar (bot username, kanal, turniket IP, yoqish-o'chirish bayroqlari)
+env-wins: `.env` da berilsa har deploy'da qo'llanadi, bo'sh qoldirilsa UI'dan boshqariladi.
 
 ---
 
 ## 🛠 Ishga tushirish
 
 ### Talablar
-- .NET 8 SDK · Node.js 20+ · SQL Server (lokal: LocalDB) yoki Docker
+- .NET 8 SDK · Node.js 20+ · PostgreSQL 16 (yoki Docker)
 
 ### Lokal (development)
 ```bash
-# Backend (API + avtomatik migratsiya, baza: IntellectCRM_DB)
+# PostgreSQL (Docker bilan eng oson)
+docker run -d -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=intellectcrm \
+  -p 5432:5432 postgres:16-alpine
+
+# Backend (API + avtomatik migratsiya, baza: intellectcrm)
 dotnet run --project IntellectCRM.Server
 
 # Frontend (ixtiyoriy dev server)
@@ -127,8 +150,9 @@ cd IntellectCRM.Client && npx tsc -b && npm run build
 ```bash
 docker compose up -d --build
 ```
-`.env` fayli (git'ga tushmaydi): `APP_HOST`, `MSSQL_SA_PASSWORD`, `JWT_KEY`, `TUNNEL_TOKEN`,
-`OWNER_LOGIN`/`OWNER_PASSWORD` (super-admin bootstrap) va h.k.
+`.env` fayli (git'ga tushmaydi): `ROOT_DOMAIN`, `APP_HOST`, `POSTGRES_PASSWORD`, `JWT_KEY`,
+`TUNNEL_TOKEN`, `OWNER_LOGIN`/`OWNER_PASSWORD` (super-admin bootstrap) va integratsiya kalitlari.
+To'liq ro'yxat — [`.env.example`](.env.example), qadamlar — [`DEPLOY.md`](DEPLOY.md).
 
 ---
 
@@ -143,11 +167,14 @@ dotnet ef migrations add <Nom> --project IntellectCRM.Infrastructure \
 ```
 App ishga tushganda `Migrate()` mavjud bazaga `ALTER` qo'llaydi.
 
+> ⚠️ `migrations add` dan KEYIN `database update` qilishdan oldin **yana build qiling** — aks holda
+> yangi migratsiya assembly'ga kirmaydi va EF "already up to date" deb o'tkazib yuboradi.
+
 ---
 
 ## 🔔 Push bildirishnoma (Flutter)
 
-1. **Firebase** loyiha → Service Account JSON ni **Admin → Sozlamalar → Push (Firebase)** ga qo'ying.
+1. **Firebase** loyiha → Service Account JSON ni **`.env`** ga qo'ying (`FCM_SERVICE_ACCOUNT_JSON`).
 2. Flutter ilovaga shu loyihaning `google-services.json` ni qo'ying, FCM tokenni `window.__FCM_TOKEN__`
    ga (yoki `postMessage`) bering.
 3. Web (`AuthProvider`) login'da tokenni avtomatik ro'yxatdan o'tkazadi, logout'da o'chiradi.
@@ -158,8 +185,24 @@ App ishga tushganda `Migrate()` mavjud bazaga `ALTER` qo'llaydi.
 
 - **Multi-tenant YO'Q** — bitta markazga moslangan (sodda va tez)
 - **Choraklar olib tashlangan** — barcha hisob **oyma-oy** (monthly)
+- **Dars jadvali yo'q** — jurnal ustunlari qo'lda qo'shilgan darslardan (`LessonNote`) keladi
 - **3 ta mustaqil dizayn-tizimi** — admin (violet), teacher (teal), student (blue) — bir-biriga ta'sir qilmaydi
-- **Kunlik avtomatik backup** — `BACKUP DATABASE` → gzip, 7 kun saqlanadi
+- **1 GB RAM serverga sig'adi** — shu sabab SQL Server o'rniga PostgreSQL
+- **Kunlik avtomatik backup** — `pg_dump | gzip` + uploads/CTI audio `tar.gz`, 7 kun saqlanadi;
+  ixtiyoriy GPG shifrlash va rclone off-site nusxa
+
+---
+
+## 📚 Hujjatlar
+
+| Fayl | Nima haqida |
+|---|---|
+| [`CLAUDE.md`](CLAUDE.md) | Arxitektura qarorlari, entity rename'lari, olib tashlangan modullar, build buyruqlari |
+| [`API_DOCUMENTATION.md`](API_DOCUMENTATION.md) | To'liq REST API ma'lumotnomasi (controller · yo'l · ruxsat) |
+| [`DEPLOY.md`](DEPLOY.md) | Prod deploy, Cloudflare Tunnel, backup/restore, serverni ko'chirish |
+| [`README-CTI.md`](README-CTI.md) | Local Call moduli — API xaritasi, WS/FCM oqimi, audio saqlash |
+| [`WORKLOG.md`](WORKLOG.md) | To'liq o'zgarishlar tarixi |
+| `.claude/rules/*.md` | Modulga xos qoidalar: billing · messaging · journal · tests · exercise · books · crm-leads |
 
 ---
 
