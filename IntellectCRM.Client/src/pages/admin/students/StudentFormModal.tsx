@@ -47,8 +47,6 @@ const empty: StudentPayload = {
   discountStartMonth: '',
   discountEndMonth: '',
   discountGroupId: '',
-  retentionBonus: false,
-  retentionBonusStartMonth: '',
 }
 
 /** "Familiya Ism Sharifi" stringidan parts. Eski yozuvlarni tahrirda taqsimlaymiz. */
@@ -79,21 +77,10 @@ export function StudentFormModal({ open, onClose, onSubmit, initial }: Props) {
   const [uploading, setUploading] = useState<{ birth?: boolean }>({})
   /** Tahrirlanayotgan o'quvchining login (username)i — backend'dan olinadi, faqat ko'rsatish uchun. */
   const [login, setLogin] = useState('')
-  /** O'quvchining BARCHA guruh a'zoliklari (muzlatilgan/chiqarilgan ham) — bonus boshlanish oyi
-   *  taklifi eng erta aktivlashgan oyni bilishi kerak. */
+  /** O'quvchining guruh a'zoliklari — chegirmani guruhga biriktirish tanlovi uchun. */
   const [memberships, setMemberships] = useState<StudentGroupMembership[]>([])
   /** Chegirmani muayyan guruhga biriktirish tanlovi — faqat FAOL a'zoliklar. */
   const activeMemberships = useMemo(() => memberships.filter((m) => m.isActive), [memberships])
-  /** Eng ERTA aktivlashgan oy ("YYYY-MM") — bonus boshlanish oyi uchun TAKLIF (avtomatik
-   *  yozilmaydi: qaror bo'yicha oyni admin o'zi kiritadi). Sinov (trial) oyi hisobga kirmagani
-   *  uchun aynan activatedAt olinadi — joinedAt bo'lsa birinchi katak har doim ✗ chiqardi. */
-  const suggestedBonusMonth = useMemo(() => {
-    const months = memberships
-      .map((m) => (m.activatedAt ?? '').slice(0, 7))
-      .filter((m) => m.length === 7)
-      .sort()
-    return months[0] ?? ''
-  }, [memberships])
   /** Telefon dublikati tekshiruvi holati. */
   const [checking, setChecking] = useState(false)
   /** Topilgan dublikatlar (bo'lsa — tasdiq modali ochiladi). */
@@ -190,8 +177,6 @@ export function StudentFormModal({ open, onClose, onSubmit, initial }: Props) {
         discountStartMonth: initial.discountStartMonth ?? '',
         discountEndMonth: initial.discountEndMonth ?? '',
         discountGroupId: initial.discountGroupId ?? '',
-        retentionBonus: initial.retentionBonus ?? false,
-        retentionBonusStartMonth: initial.retentionBonusStartMonth ?? '',
       })
     } else {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- yangi forma boshlash (maqsadli)
@@ -201,8 +186,7 @@ export function StudentFormModal({ open, onClose, onSubmit, initial }: Props) {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- modal ochilishida ro'yxatni tozalash (maqsadli)
     setMemberships([])
     if (initial?.id) {
-      // HAMMASI olinadi: chegirma tanlovi faqat faollarni ko'rsatadi, bonus boshlanish oyi
-      // taklifi esa eng ERTA aktivlashgan oyni bilishi kerak (a'zolik keyin muzlatilgan bo'lsa ham).
+      // Hammasi olinadi, lekin chegirma tanlovida faqat FAOL a'zoliklar ko'rsatiladi.
       getStudentGroups(initial.id)
         .then((gs) => setMemberships(gs))
         .catch(() => setMemberships([]))
@@ -526,55 +510,6 @@ export function StudentFormModal({ open, onClose, onSubmit, initial }: Props) {
             kiritilsa (masalan iyun–avgust), chegirma faqat shu oylar uchun hisoblanadi; bo'sh
             qoldirilsa — har doim.
           </p>
-        </Section>
-
-        {/* ---------- Ushlab turish bonusi ---------- */}
-        <Section title="Ushlab turish bonusi">
-          <label className="flex cursor-pointer items-start gap-2">
-            <input
-              type="checkbox"
-              className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-              checked={form.retentionBonus ?? false}
-              onChange={(e) => {
-                const on = e.target.checked
-                update('retentionBonus', on)
-                // O'chirilsa oy ham tozalanadi (backend ham shunday qiladi) — qayta yoqilganda
-                // eski oy "tirilib" kutilmagan sikl ochib yubormasin.
-                if (!on) update('retentionBonusStartMonth', '')
-              }}
-            />
-            <span className="text-sm text-slate-700">
-              Bu o'quvchi bonus tizimiga kirsin
-              <span className="block text-xs text-slate-400">
-                Belgilansa — «O'quvchilar → Bonus hisoboti» sahifasida ko'rinadi va uzluksiz
-                o'qigan oylari sanaladi.
-              </span>
-            </span>
-          </label>
-
-          {form.retentionBonus && (
-            <div className="mt-3">
-              <Input
-                label="Sanoq boshlanadigan oy"
-                type="month"
-                value={form.retentionBonusStartMonth ?? ''}
-                onChange={(e) => update('retentionBonusStartMonth', e.target.value)}
-              />
-              {suggestedBonusMonth && form.retentionBonusStartMonth !== suggestedBonusMonth && (
-                <button
-                  type="button"
-                  className="mt-1 text-xs text-blue-600 hover:underline"
-                  onClick={() => update('retentionBonusStartMonth', suggestedBonusMonth)}
-                >
-                  Birinchi aktivlashgan oy: {suggestedBonusMonth} — shuni qo'yish
-                </button>
-              )}
-              <p className="mt-1 text-xs text-slate-400">
-                Oy bo'sh qolsa sanoq boshlanmaydi. Sinov (trial) oyida to'lov hisoblanmaydi —
-                shuning uchun odatda birinchi AKTIVLASHGAN oy qo'yiladi.
-              </p>
-            </div>
-          )}
         </Section>
 
         {/* ---------- Login va parol (faqat tahrirda) ---------- */}

@@ -544,6 +544,13 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
                 // to'liq oylik hisoblar DARHOL yoziladi (aks holda fon xizmati 12 soatgacha kechikardi).
                 // Idempotent — mavjud hisoblarga tegmaydi, kelajak oy yozmaydi.
                 catchUpMonths = await TuitionService.AccrueCatchUpAsync(db, s, cls, date);
+
+                // USHLAB TURISH BONUSI: shu guruh FANI bo'yicha bonus hisoblansinmi (aktivlashtirish
+                // oynasidagi ptichka). Sanoq AYNAN shu — aktivlashtirilgan — oydan boshlanadi:
+                // o'quvchi guruhga bir oyda qo'shilib, keyingi oydan aktivlashtirilishi mumkin.
+                // req.RetentionBonus == null bo'lsa tegilmaydi (eski chaqiruvlar).
+                await RetentionBonusService.ApplyOnActivateAsync(
+                    db, studentId, cls, date, req.RetentionBonus, Actor);
             }
 
             // AVANSNI KO'CHIRISH (guruh almashtirish QO'LDA bajarilganda): o'quvchi SHU OYDA boshqa guruhda

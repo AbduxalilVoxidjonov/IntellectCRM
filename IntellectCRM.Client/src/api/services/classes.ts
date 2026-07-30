@@ -128,13 +128,27 @@ export async function removeGroupMember(id: string, studentId: string, reasonId?
   })
 }
 
-/** A'zolikni AKTIVLASHTIRISH (sinov → faol). Birinchi (qisman) oy to'lovi shu sanadan avtomatik hisoblanadi. */
-export async function activateMember(id: string, studentId: string, date: string): Promise<void> {
+/**
+ * A'zolikni AKTIVLASHTIRISH (sinov → faol). Birinchi (qisman) oy to'lovi shu sanadan avtomatik hisoblanadi.
+ *
+ * `retentionBonus` — ushlab turish bonusi shu guruh FANI bo'yicha hisoblansinmi:
+ * - `true` — hisoblanadi, sanoq AKTIVLASHTIRILGAN OYdan boshlanadi;
+ * - `false` — bu fan bonus hisobotida ko'rinmaydi;
+ * - berilmasa (`undefined`) — tegilmaydi (eski xatti-harakat saqlanadi).
+ */
+export async function activateMember(
+  id: string,
+  studentId: string,
+  date: string,
+  retentionBonus?: boolean,
+): Promise<void> {
   if (USE_MOCK) {
     await delay(150)
     return
   }
-  await api.post(`/admin/classes/${id}/members/${studentId}/activate`, { date })
+  const body: Record<string, unknown> = { date }
+  if (retentionBonus !== undefined) body.retentionBonus = retentionBonus
+  await api.post(`/admin/classes/${id}/members/${studentId}/activate`, body)
 }
 
 /** A'zolikni MUZLATISH — kiritilgan sanadan boshlab oylik to'lov hisoblanmaydi. Sabab (ixtiyoriy). */

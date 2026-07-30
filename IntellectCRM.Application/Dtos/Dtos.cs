@@ -438,7 +438,14 @@ public record GroupMemberDto(
 /// <summary>O'quvchini guruhga qo'shish so'rovi.</summary>
 public record AddStudentToGroupRequest(string StudentId, string? JoinedAt);
 /// <summary>A'zolikni aktivlashtirish/muzlatish so'rovi (sana ISO "YYYY-MM-DD"; bo'sh = bugun).</summary>
-public record MembershipStatusRequest(string? Date, string? ReasonId = null);
+/// <summary>
+/// A'zolikni aktivlashtirish/muzlatish so'rovi (sana ISO "YYYY-MM-DD"; bo'sh = bugun).
+/// <paramref name="RetentionBonus"/> — FAQAT aktivlashtirishda: shu guruh FANI bo'yicha ushlab
+/// turish bonusi hisoblansinmi. Sanoq AKTIVLASHTIRILGAN oydan boshlanadi (o'quvchi guruhga bir
+/// oyda qo'shilib, keyingi oydan aktivlashtirilishi mumkin — shuning uchun ptichka qo'shishda
+/// emas, aynan shu yerda). <c>null</c> = tegilmaydi (eski chaqiruvlar buzilmaydi).
+/// </summary>
+public record MembershipStatusRequest(string? Date, string? ReasonId = null, bool? RetentionBonus = null);
 /// <summary>
 /// O'quvchini boshqa guruhga o'tkazish so'rovi: joriy guruh <paramref name="FreezeDate"/>dan
 /// muzlatiladi, maqsad guruh (<paramref name="ToGroupId"/>) <paramref name="ActivateDate"/>dan

@@ -16,7 +16,12 @@ interface Props {
   /** Sana maydoni ko'rsatilsinmi (masalan muzlatish uchun). */
   showDate?: boolean
   defaultDate?: string
-  onConfirm: (reasonId: string | undefined, date?: string) => void
+  /**
+   * "Bonus hisoblansin" ptichkasi ko'rsatilsinmi — FAQAT aktivlashtirish oqimida.
+   * Ko'rsatilmasa `onConfirm` ga `retentionBonus` umuman uzatilmaydi (undefined).
+   */
+  showRetentionBonus?: boolean
+  onConfirm: (reasonId: string | undefined, date?: string, retentionBonus?: boolean) => void
   onClose: () => void
 }
 
@@ -25,17 +30,21 @@ interface Props {
  * Sabablar Sozlamalar → Sabablar bo'limidan (kategoriya bo'yicha) keladi. Sabab ixtiyoriy.
  */
 export function ReasonPromptModal({
-  open, category, title, message, confirmLabel, tone = 'red', showDate, defaultDate, onConfirm, onClose,
+  open, category, title, message, confirmLabel, tone = 'red', showDate, defaultDate,
+  showRetentionBonus, onConfirm, onClose,
 }: Props) {
   const [reasons, setReasons] = useState<ActionReason[]>([])
   const [selected, setSelected] = useState<string | undefined>(undefined)
   const [date, setDate] = useState('')
+  /** Ushlab turish bonusi hisoblansinmi — standart holatda BELGILANGAN. */
+  const [retentionBonus, setRetentionBonus] = useState(true)
   const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
     if (!open) return
     setSelected(undefined)
     setSubmitting(false)
+    setRetentionBonus(true)
     setDate(defaultDate ?? new Date().toISOString().slice(0, 10))
     getActionReasons()
       .then((all) => setReasons(all.filter((r) => r.category === category)))
@@ -64,7 +73,11 @@ export function ReasonPromptModal({
             onClick={() => {
               if (submitting) return
               setSubmitting(true)
-              onConfirm(selected, showDate ? date : undefined)
+              onConfirm(
+                selected,
+                showDate ? date : undefined,
+                showRetentionBonus ? retentionBonus : undefined,
+              )
             }}
             className={cn('rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors disabled:opacity-50', toneCls)}
           >
@@ -86,6 +99,24 @@ export function ReasonPromptModal({
               className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 outline-none focus:border-brand-400"
             />
           </div>
+        )}
+
+        {showRetentionBonus && (
+          <label className="flex cursor-pointer items-start gap-2">
+            <input
+              type="checkbox"
+              className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+              checked={retentionBonus}
+              onChange={(e) => setRetentionBonus(e.target.checked)}
+            />
+            <span className="text-sm text-slate-700">
+              Bonus hisoblansin
+              <span className="block text-xs text-slate-400">
+                Ushlab turish bonusi shu fan bo'yicha sanaladi. Sanoq aktivlashtirilgan oydan
+                boshlanadi.
+              </span>
+            </span>
+          </label>
         )}
 
         <div>

@@ -444,7 +444,10 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
             DiscountStartMonth = (p.DiscountStartMonth ?? "").Trim(),
             DiscountEndMonth = (p.DiscountEndMonth ?? "").Trim(),
             DiscountGroupId = string.IsNullOrWhiteSpace(p.DiscountGroupId) ? null : p.DiscountGroupId.Trim(),
-            // Ushlab turish bonusi — ptichka va sanoq boshlanadigan oy (admin qo'lda kiritadi).
+            // Ushlab turish bonusi — ESKI (legacy) maydonlar. Endi bonusga kirish HAR FAN uchun
+            // alohida, a'zolikni AKTIVLASHTIRISH oynasidagi ptichka orqali belgilanadi
+            // (RetentionBonusTrack). O'quvchi formasi bu maydonlarni endi YUBORMAYDI; shu sabab
+            // yangi o'quvchida ular bo'sh qoladi. Eski yozuvlar uchun o'qilishda davom etadi.
             RetentionBonus = p.RetentionBonus ?? false,
             RetentionBonusStartMonth = NormalizeMonth(p.RetentionBonusStartMonth),
         };
@@ -583,7 +586,9 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
         if (p.DiscountGroupId is not null)
             student.DiscountGroupId = string.IsNullOrWhiteSpace(p.DiscountGroupId) ? null : p.DiscountGroupId.Trim();
 
-        // Ushlab turish bonusi. null = tegilmaydi (formadan kelmagan chaqiruvlar buzilmasin).
+        // Ushlab turish bonusi — ESKI maydonlar (yuqoridagi izohga qarang). O'quvchi formasi
+        // ularni endi yubormaydi, ya'ni bu yerda null keladi va MAVJUD qiymat TEGILMAYDI —
+        // oddiy tahrirlash eski bonus sozlamasini yo'qotmaydi.
         if (p.RetentionBonus.HasValue) student.RetentionBonus = p.RetentionBonus.Value;
         if (p.RetentionBonusStartMonth is not null)
             student.RetentionBonusStartMonth = NormalizeMonth(p.RetentionBonusStartMonth);

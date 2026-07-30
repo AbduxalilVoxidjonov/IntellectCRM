@@ -38,6 +38,8 @@ export function ClassMembersModal({ group, onClose }: Props) {
   /** Aktivlashtirish uchun sana so'rash modali. */
   const [dateAction, setDateAction] = useState<{ kind: 'activate'; m: GroupMember } | null>(null)
   const [actionDate, setActionDate] = useState('')
+  /** Aktivlashtirishda: ushlab turish bonusi hisoblansinmi (standart — BELGILANGAN). */
+  const [actionBonus, setActionBonus] = useState(true)
   /** Sabab bilan amal (muzlatish/chiqarish/sinovga qaytarish). */
   const [reasonAction, setReasonAction] = useState<{ kind: 'freeze' | 'remove' | 'return'; m: GroupMember } | null>(null)
   /** "Yangi o'quvchi" yaratish formasi ochiqmi — yaratilgach shu guruhga qo'shiladi. */
@@ -133,6 +135,7 @@ Kerak bo'lsa "Parolni tiklash" orqali yangi parol bering.`)
 
   const openActivate = (m: GroupMember) => {
     setActionDate(new Date().toISOString().slice(0, 10))
+    setActionBonus(true)
     setDateAction({ kind: 'activate', m })
   }
 
@@ -140,7 +143,8 @@ Kerak bo'lsa "Parolni tiklash" orqali yangi parol bering.`)
     if (!group || !dateAction || busy) return
     setBusy(true)
     try {
-      await activateMember(group.id, dateAction.m.studentId, actionDate)
+      // Bu modal FAQAT aktivlashtirish uchun ochiladi — bonus ptichkasi shu yerda.
+      await activateMember(group.id, dateAction.m.studentId, actionDate, actionBonus)
       const fresh = await getGroupMembers(group.id)
       setMembers(fresh)
       setDateAction(null)
@@ -451,6 +455,21 @@ Kerak bo'lsa "Parolni tiklash" orqali yangi parol bering.`)
                 className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 outline-none focus:border-brand-400"
               />
             </div>
+            <label className="flex cursor-pointer items-start gap-2">
+              <input
+                type="checkbox"
+                className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                checked={actionBonus}
+                onChange={(e) => setActionBonus(e.target.checked)}
+              />
+              <span className="text-sm text-slate-700">
+                Bonus hisoblansin
+                <span className="block text-xs text-slate-400">
+                  Ushlab turish bonusi shu fan bo'yicha sanaladi. Sanoq aktivlashtirilgan oydan
+                  boshlanadi.
+                </span>
+              </span>
+            </label>
           </div>
         )}
       </Modal>

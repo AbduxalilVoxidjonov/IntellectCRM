@@ -388,6 +388,14 @@ public class RetentionBonusTrack
     public string CourseId { get; set; } = string.Empty;
     /// <summary>Shu fan uchun joriy sikl qaysi oydan sanaladi ("YYYY-MM").</summary>
     public string StartMonth { get; set; } = string.Empty;
+    /// <summary>
+    /// Shu fan bo'yicha bonus HISOBLANADIMI. Admin buni a'zolikni AKTIVLASHTIRISH oynasida
+    /// belgilaydi — aynan o'sha paytda, chunki o'quvchi guruhga bir oyda qo'shilib, keyingi
+    /// oydan aktivlashtirilishi mumkin va sanoq AKTIVLASHTIRILGAN oydan boshlanishi kerak.
+    /// <para>false — fan bonus hisobotida umuman ko'rinmaydi (sanoq oyi saqlanib qoladi, ya'ni
+    /// qayta yoqilsa tarix yo'qolmaydi).</para>
+    /// </summary>
+    public bool Enabled { get; set; } = true;
     public string UpdatedBy { get; set; } = string.Empty;
     public DateTime UpdatedAt { get; set; } = AppClock.Now;
 }

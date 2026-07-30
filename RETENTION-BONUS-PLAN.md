@@ -331,18 +331,21 @@ public class RetentionBonusShare
 // INDEX (AwardId), INDEX (TeacherId)
 // TeacherId+award orqali (o'qituvchi, o'quvchi) bloki hisoblanadi — 5.6-bo'lim
 
-// 3b) Sanoq boshlanish oyi — HAR FAN uchun alohida
+// 3b) Sanoq holati — HAR FAN uchun alohida (bonus tizimiga KIRISH nuqtasi ham shu)
 public class RetentionBonusTrack
 {
     string Id;
     string StudentId;
     string CourseId;
     string StartMonth;         // "2026-08" — shu fanning JORIY sikli qaysi oydan
+    bool   Enabled;            // shu fan bo'yicha bonus hisoblanadimi (aktivlashtirish ptichkasi)
     string UpdatedBy;
     DateTime UpdatedAt;
 }
 // UNIQUE INDEX (StudentId, CourseId)
-// Track qatori bo'lmasa — Student.RetentionBonusStartMonth ishlatiladi (fallback).
+// KIM hisobotga kiradi: track bo'lsa — uning Enabled'i; bo'lmasa eski Student.RetentionBonus
+// (orqaga moslik — o'quvchi formasidagi ptichka olib tashlanganidan keyin ham eski ma'lumot
+// yo'qolmasin). Track StartMonth ham Student.RetentionBonusStartMonth dan ustun turadi.
 // Bonus BERILGANDA track = NextMonth(PeriodTo). «Qayta boshlash» ham shu qatorni yozadi.
 // DIQQAT: shundan keyin o'quvchi formasidagi oyni o'zgartirish O'SHA FANGA ta'sir qilmaydi —
 // oyni ko'chirish uchun «Qayta boshlash» ishlatiladi.
@@ -415,16 +418,49 @@ bo'lishi tekshiriladi).
 `StudentFormModal.tsx` (chegirma bloki yonida, ~satr 443) — bir qatorli checkbox.
 `StudentDto` (`Dtos.cs:715`) ga 2 ta **default qiymatli** parametr qo'shiladi — eski chaqiruvlar buzilmaydi.
 
-**Boshlanish oyi (qaror #1): admin QO'LDA kiritadi.** Ptichka yoqilganda yonida `month` input
-paydo bo'ladi va u **majburiy**. Avtomatik to'ldirilmaydi.
+> **⚠️ Bu bo'lim 2026-07-30 da o'zgardi — ptichka o'quvchi formasidan OLIB TASHLANDI.**
+> Yangi joyi: **a'zolikni AKTIVLASHTIRISH oynasi** (pastda ①b).
 
-- Bo'sh qolsa → o'quvchi hisobotda «hali boshlanmagan» holatida turadi, sanoq ko'rsatilmaydi
-- Yordam sifatida input yonida **matn** chiqadi: `birinchi aktivlashgan oy: 2026-08` — bosilsa
-  maydonga qo'yiladi, lekin o'zi yozilmaydi (`StudentGroup.ActivatedAt` eng ertasi)
+<details>
+<summary>Eski yondashuv (o'quvchi formasida ptichka + qo'lda oy)</summary>
 
-> Nega qo'lda? Markaz egasi bonus sanog'ini qaysi oydan boshlashni o'zi hal qilishi kerak —
-> masalan tizim joriy qilingan oydan, yoki kelishilgan boshqa sanadan. Avtomatik taxmin eski
-> o'quvchilarga kutilmagan sanoq ochib yuborardi.
+Ptichka `StudentFormModal` da edi, boshlanish oyi qo'lda kiritilardi (qaror #1).
+Nega o'zgartirildi — ①b ga qarang.
+
+</details>
+
+### ①b Ptichka — A'ZOLIKNI AKTIVLASHTIRISHDA ⭐
+
+> Markaz egasi: *"bonusni o'quvchi profilidan emas, uni guruhga qo'shib turilganida «bonus
+> hisoblansin yoki hisoblanmasin» ptichkasi shu yerga qo'yilsin... Qo'shishda emas,
+> AKTIVLASHTIRISHDA bo'lishi kerak — chunki o'quvchi qo'shilib, keyingi oydan aktiv bo'lishi
+> mumkin."*
+
+Ptichka `POST /admin/classes/{gid}/members/{sid}/activate` so'roviga qo'shiladi:
+`{ date, retentionBonus }`. Uchala aktivlashtirish oynasida bor: guruh sahifasi
+(`ClassDetailPage`), guruh a'zolari modali (`ClassMembersModal`), o'quvchi profilidagi guruh
+boshqaruvi (`StudentDetailPage`). Standart holat — **belgilangan**.
+
+**Nega aynan aktivlashtirishda, qo'shishda emas:** o'quvchi guruhga iyunda qo'shilib, iyuldan
+aktivlashtirilishi mumkin (sinov oyi to'lovsiz — `SalaryLedger`/`BillableInMonth`). Sanoq esa
+PULLIK oydan boshlanishi kerak. Shuning uchun **boshlanish oyi = aktivlashtirilgan oy**, qo'shilgan
+oy emas — va admin oyni alohida kiritmaydi (qaror #1 shu bilan **bekor qilindi**).
+
+Mantiq: `RetentionBonusService.ApplyOnActivateAsync` → `RetentionBonusTrack` upsert.
+
+| Holat | Natija |
+|---|---|
+| Ptichka ☑, track yo'q | Track yaratiladi, `StartMonth` = aktivlashtirilgan oy |
+| Ptichka ☐, track yo'q | Hech narsa yozilmaydi — fan hisobotda ko'rinmaydi |
+| Ptichka ☑, track BOR va yoqilgan | `StartMonth` **TEGILMAYDI** — yig'ilgan oylar yo'qolmasin (ta'tildan keyin qayta aktivlashtirish, bir fan ichida guruh almashtirish) |
+| Ptichka ☑, track o'chirilgan edi | Qayta yoqiladi, `StartMonth` = shu oy |
+| Ptichka ☐, track bor | `Enabled = false` — sanoq oyi saqlanadi, qayta yoqilsa tarix yo'qolmaydi |
+| `retentionBonus` umuman berilmagan | Tegilmaydi (eski chaqiruvlar buzilmaydi) |
+
+> **Qamrab olinmagan yo'l:** Excel **importi** (`StudentsController` ommaviy import) a'zolikni
+> to'g'ridan-to'g'ri `Status="active"` bilan yaratadi va `ActivateMember` dan o'tmaydi — u yerda
+> `ActivatedAt` ham yozilmaydi (eskidan shunday). Import orqali kelgan o'quvchilar bonus
+> hisobotiga tushmaydi; kerak bo'lsa aktivlashtirish oynasidan yoqiladi.
 
 ### ② «Bonus hisoboti» sahifasi
 `navigation.ts` → **O'quvchilar** → "Bonus hisoboti" (`/admin/students/bonus`).
@@ -693,7 +729,7 @@ Natija (iyulda, fevraldan aktivlashtirish, oylik 500 000):
 
 | # | Savol | **QAROR** |
 |---|---|---|
-| 1 | Sanoq qaysi oydan? | **Adminning o'zi kiritadi** — avtomatik taklif yo'q, ptichka qo'yilganda oy tanlanadi |
+| ~~1~~ | ~~Sanoq qaysi oydan?~~ | ❌ **BEKOR QILINDI (2026-07-30).** Endi oy qo'lda kiritilmaydi — u **aktivlashtirilgan oydan** olinadi (8-bo'lim ①b). Ptichka ham o'quvchi formasidan aktivlashtirish oynasiga ko'chdi |
 | 2 | Muzlatilgan oy? | **PAUZA, max 2 oy** (`RetentionMaxGapMonths=2`, sozlanadi) |
 | 3 | Bonus maoshga qo'shiladimi? | **YO'Q — faqat alohida «Bonus» bo'limida.** `SalaryLedger` TEGILMAYDI |
 | 4 | «Berish» = pul chiqdimi? | **Yo'q — hisoblanadi.** Pul odatdagi maosh to'lovi orqali beriladi |

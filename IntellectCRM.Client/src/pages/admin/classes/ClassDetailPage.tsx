@@ -481,12 +481,17 @@ export function ClassDetailPage() {
   const rosterRemoveCategory = (status: string) =>
     status === 'active' ? 'remove_active' : status === 'frozen' ? 'remove_frozen' : 'remove_trial'
   /** Muzlatish/sinovga qaytarish/chiqarish/aktivlashtirish (sanali) — sabab modali tasdiqlangach. */
-  const confirmRosterReason = async (reasonId: string | undefined, date?: string) => {
+  const confirmRosterReason = async (
+    reasonId: string | undefined,
+    date?: string,
+    retentionBonus?: boolean,
+  ) => {
     if (!rosterTarget || !rosterReason || rosterBusy) return
     setRosterBusy(true)
     try {
       if (rosterReason === 'freeze') await freezeMember(id, rosterTarget.studentId, date ?? rosterDate, reasonId)
-      else if (rosterReason === 'activate') await activateMember(id, rosterTarget.studentId, date ?? rosterDate)
+      // Bonus ptichkasi faqat aktivlashtirish oynasida bo'ladi — boshqa oqimlarda `undefined`.
+      else if (rosterReason === 'activate') await activateMember(id, rosterTarget.studentId, date ?? rosterDate, retentionBonus)
       else if (rosterReason === 'remove') await removeGroupMember(id, rosterTarget.studentId, reasonId)
       else await returnMemberToTrial(id, rosterTarget.studentId, reasonId)
       setRosterReason(null)
@@ -1526,6 +1531,7 @@ export function ClassDetailPage() {
         }
         tone={rosterReason === 'freeze' ? 'sky' : rosterReason === 'remove' ? 'red' : 'brand'}
         showDate={rosterReason === 'freeze' || rosterReason === 'activate'}
+        showRetentionBonus={rosterReason === 'activate'}
         defaultDate={rosterDate}
         onConfirm={confirmRosterReason}
         onClose={() => setRosterReason(null)}

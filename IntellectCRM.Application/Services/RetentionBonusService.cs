@@ -137,10 +137,20 @@ public static class RetentionBonusService
         var meta = await db.CenterMeta.AsNoTracking().FirstOrDefaultAsync(ct);
         var settings = Settings(meta);
 
-        var q = db.Students.AsNoTracking().Where(s => s.RetentionBonus);
+        // KIM hisobotga kiradi: ptichka endi a'zolikni AKTIVLASHTIRISH oynasida qo'yiladi va
+        // (o'quvchi, fan) uchun `RetentionBonusTrack` yozadi. Shu sabab ikkita manba birlashtiriladi:
+        //   1) kamida bitta YOQILGAN tracki bor o'quvchilar (yangi, asosiy yo'l);
+        //   2) eski `Student.RetentionBonus` ptichkasi qo'yilganlar (orqaga moslik — o'quvchi
+        //      formasidagi ptichka olib tashlanganidan keyin ham eski ma'lumot yo'qolmasin).
+        // Fan darajasida qaysi biri ustun turishi pastda: track bo'lsa `Enabled`, bo'lmasa legacy.
+        var trackStudentIds = await db.RetentionBonusTracks.AsNoTracking()
+            .Where(t => t.Enabled).Select(t => t.StudentId).Distinct().ToListAsync(ct);
+
+        var q = db.Students.AsNoTracking()
+            .Where(s => s.RetentionBonus || trackStudentIds.Contains(s.Id));
         if (onlyStudentId is not null) q = q.Where(s => s.Id == onlyStudentId);
         var students = await q
-            .Select(s => new { s.Id, s.FullName, s.IsArchived, s.ArchivedAt, s.RetentionBonusStartMonth })
+            .Select(s => new { s.Id, s.FullName, s.IsArchived, s.ArchivedAt, s.RetentionBonusStartMonth, s.RetentionBonus })
             .ToListAsync(ct);
         if (students.Count == 0) return (new RetentionReportDto([], settings, 0), teachersByRow);
 
@@ -218,7 +228,7 @@ public static class RetentionBonusService
 
         var tracks = (await db.RetentionBonusTracks.AsNoTracking()
                 .Where(t => ids.Contains(t.StudentId)).ToListAsync(ct))
-            .ToDictionary(t => (t.StudentId, t.CourseId), t => t.StartMonth);
+            .ToDictionary(t => (t.StudentId, t.CourseId), t => t);
 
         var membsByStudent = memberships.GroupBy(m => m.StudentId)
             .ToDictionary(g => g.Key, g => g.ToList());
@@ -245,6 +255,11 @@ public static class RetentionBonusService
 
             foreach (var course in courseKeys)
             {
+                // Shu FAN bonus hisobiga kiradimi. Track bo'lsa — u ustun (aktivlashtirish
+                // oynasidagi ptichka shuni yozadi); bo'lmasa eski o'quvchi darajasidagi ptichka.
+                var track = tracks.GetValueOrDefault((s.Id, course));
+                if (!(track?.Enabled ?? s.RetentionBonus)) continue;
+
                 var courseMembs = membs.Where(m => CourseKeyOf(m.GroupId, groupById) == course).ToList();
                 var courseName = CourseNameOf(course, courseMembs, groupById, studentAwards);
                 var courseAwards = studentAwards.Where(a => a.CourseId == course)
@@ -273,7 +288,7 @@ public static class RetentionBonusService
 
                 // Sanoq boshlanish oyi: shu fan uchun track, bo'lmasa o'quvchining umumiy
                 // boshlang'ich qiymati (orqaga moslik — track jadvali paydo bo'lgunga qadar).
-                var startMonth = (tracks.GetValueOrDefault((s.Id, course))
+                var startMonth = (track?.StartMonth
                                   ?? s.RetentionBonusStartMonth ?? "").Trim();
                 if (startMonth.Length < 7)
                 {
@@ -838,6 +853,61 @@ public static class RetentionBonusService
             db.RetentionBonusTracks.Add(track);
         }
         track.StartMonth = startMonth;
+        track.Enabled = true;
+        track.UpdatedBy = actor;
+        track.UpdatedAt = AppClock.Now;
+    }
+
+    /// <summary>
+    /// A'ZOLIK AKTIVLASHTIRILGANDA chaqiriladi: shu guruh FANI bo'yicha bonus hisoblanishini
+    /// yoqadi/o'chiradi va sanoqni AKTIVLASHTIRILGAN oydan boshlaydi.
+    ///
+    /// <para>Nega aynan aktivlashtirishda: o'quvchi guruhga bir oyda qo'shilib, keyingi oydan
+    /// aktivlashtirilishi mumkin (sinov oyi to'lovsiz). Sanoq esa PULLIK oydan boshlanishi kerak,
+    /// shuning uchun boshlanish oyi qo'shilgan sanadan emas, <paramref name="activatedAtIso"/>
+    /// dan olinadi.</para>
+    ///
+    /// <para><b>Mavjud sanoqqa tegilmaydi:</b> agar shu fan uchun sanoq allaqachon ketayotgan
+    /// bo'lsa (masalan bir fan ichida guruh almashtirilgan yoki ta'tildan keyin qayta
+    /// aktivlashtirilgan), boshlanish oyi ORQAGA SURILMAYDI — aks holda yig'ilgan oylar
+    /// yo'qolardi. Faqat yangi yoki o'chirilgan holatdagi sanoq shu oydan boshlanadi.</para>
+    ///
+    /// <para><c>enabled == null</c> — hech narsa qilinmaydi (eski chaqiruvlar buzilmasin).
+    /// <c>SaveChangesAsync</c> chaqirilmaydi — chaqiruvchi saqlaydi.</para>
+    /// </summary>
+    public static async Task ApplyOnActivateAsync(
+        IAppDbContext db, string studentId, Group group, string activatedAtIso, bool? enabled,
+        string actor, CancellationToken ct = default)
+    {
+        if (enabled is null || activatedAtIso.Length < 7) return;
+
+        var courseId = string.IsNullOrWhiteSpace(group.CourseId) ? group.Id : group.CourseId;
+        var month = activatedAtIso[..7];
+
+        var track = await db.RetentionBonusTracks
+            .FirstOrDefaultAsync(t => t.StudentId == studentId && t.CourseId == courseId, ct);
+
+        if (track is null)
+        {
+            if (enabled != true) return;   // o'chirilgan holat uchun bo'sh qator yaratish shart emas
+            db.RetentionBonusTracks.Add(new RetentionBonusTrack
+            {
+                StudentId = studentId, CourseId = courseId, StartMonth = month,
+                Enabled = true, UpdatedBy = actor, UpdatedAt = AppClock.Now,
+            });
+            return;
+        }
+
+        // Ketayotgan sanoq bor edi va yoqilgan holicha qolyapti — boshlanish oyi TEGILMAYDI.
+        if (track.Enabled && enabled == true)
+        {
+            track.UpdatedBy = actor;
+            track.UpdatedAt = AppClock.Now;
+            return;
+        }
+
+        if (enabled == true) track.StartMonth = month;   // o'chirilgandan qayta yoqildi → shu oydan
+        track.Enabled = enabled.Value;
         track.UpdatedBy = actor;
         track.UpdatedAt = AppClock.Now;
     }

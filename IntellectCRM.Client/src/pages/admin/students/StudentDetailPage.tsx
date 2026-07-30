@@ -372,14 +372,19 @@ export function StudentDetailPage() {
     status === 'active' ? 'remove_active' : status === 'frozen' ? 'remove_frozen' : 'remove_trial'
 
   /** Muzlatish/sinovga qaytarish/chiqarish/aktivlashtirish (sanali) — sabab modali tasdiqlangach. */
-  const confirmGroupReason = async (reasonId: string | undefined, date?: string) => {
+  const confirmGroupReason = async (
+    reasonId: string | undefined,
+    date?: string,
+    retentionBonus?: boolean,
+  ) => {
     if (!id || !groupModal || !groupReasonAction || groupBusy) return
     setGroupBusy(true)
     try {
       if (groupReasonAction === 'freeze') {
         await freezeMember(groupModal.groupId, id, date ?? groupActionDate, reasonId)
       } else if (groupReasonAction === 'activate') {
-        await activateMember(groupModal.groupId, id, date ?? groupActionDate)
+        // Bonus ptichkasi faqat aktivlashtirish oynasida ko'rinadi — qolgan oqimlarda `undefined`.
+        await activateMember(groupModal.groupId, id, date ?? groupActionDate, retentionBonus)
       } else if (groupReasonAction === 'remove') {
         await removeGroupMember(groupModal.groupId, id, reasonId)
       } else {
@@ -1820,6 +1825,7 @@ export function StudentDetailPage() {
         }
         tone={groupReasonAction === 'freeze' ? 'sky' : groupReasonAction === 'remove' ? 'red' : 'brand'}
         showDate={groupReasonAction === 'freeze' || groupReasonAction === 'activate'}
+        showRetentionBonus={groupReasonAction === 'activate'}
         defaultDate={groupActionDate}
         onConfirm={confirmGroupReason}
         onClose={() => setGroupReasonAction(null)}
