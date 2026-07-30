@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { usePersistentState } from '@/hooks/usePersistentState'
 import {
   Plus,
@@ -33,7 +33,7 @@ import { usePerm } from '@/lib/permissions'
 import { getSubjects } from '@/api/services/subjects'
 import { getClasses } from '@/api/services/classes'
 import { genderLabels } from '@/config/constants'
-import { formatDate, formatMoney, cn } from '@/lib/utils'
+import { formatDate, cn } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
@@ -87,6 +87,7 @@ const avatarColor = (name: string) => {
 export function TeachersPage() {
   const { user } = useAuth()
   const { can } = usePerm()
+  const navigate = useNavigate()
   const [teachers, setTeachers] = useState<Teacher[]>([])
   const [archived, setArchived] = useState<Teacher[]>([])
   const [subjects, setSubjects] = useState<Subject[]>([])
@@ -117,7 +118,6 @@ export function TeachersPage() {
       .finally(() => setLoading(false))
   }, [])
 
-  const subjectName = (id: string) => subjects.find((s) => s.id === id)?.name ?? id
   // O'qituvchi o'tadigan guruhlar (guruhga o'qituvchi guruh formasida biriktiriladi — Group.teacherId).
   const teacherGroups = (tid: string) => classes.filter((c) => c.teacherId === tid && !c.isArchived)
 
@@ -367,9 +367,8 @@ export function TeachersPage() {
                   <th className="w-12">№</th>
                   <th>F.I.SH</th>
                   <th>Telefon</th>
-                  <th>Fanlar</th>
-                  <th>Guruhlar</th>
-                  <th>Maosh rejimi</th>
+                  {/* Fanlar / Guruhlar / Maosh rejimi ustunlari ATAYIN yo'q — ro'yxat qisqa va
+                      o'qishga qulay bo'lsin (bu ma'lumotlar o'qituvchi profilida ko'rinadi). */}
                   <th>Holat</th>
                   {showArchiveCols && <th>Arxiv sababi</th>}
                   <th className="num">Amallar</th>
@@ -377,10 +376,16 @@ export function TeachersPage() {
               </thead>
               <tbody>
                 {pg.paged.map((t, i) => {
-                  const groups = teacherGroups(t.id)
                   const isArchived = !!t.isArchived
                   return (
-                    <tr key={t.id}>
+                    // BUTUN QATOR bosilsa profilga o'tiladi. Amallar katagi esa bosilishni
+                    // to'xtatadi (stopPropagation) — u yerda tugmalar o'z ishini bajaradi.
+                    <tr
+                      key={t.id}
+                      className="cursor-pointer"
+                      onClick={() => navigate(`/admin/teachers/${t.id}`)}
+                      title="Profilga o'tish"
+                    >
                       <td className="text-slate-400">{pg.rangeFrom + i}</td>
 
                       {/* F.I.SH — bosilsa profilga */}
@@ -413,61 +418,9 @@ export function TeachersPage() {
                         {t.phone || <span className="text-slate-300">—</span>}
                       </td>
 
-                      <td>
-                        <SubjectTags ids={t.subjectIds} name={subjectName} />
-                      </td>
-
-                      {/* Guruhlar — soni + nomlari */}
-                      <td>
-                        {groups.length === 0 ? (
-                          <span className="text-slate-300">—</span>
-                        ) : (
-                          <div className="flex flex-wrap items-center gap-1">
-                            <span className="font-mono text-[12.5px] font-semibold text-slate-700">
-                              {groups.length}
-                            </span>
-                            {groups.slice(0, 3).map((c) => (
-                              <Link key={c.id} to={`/admin/classes/${c.id}`}>
-                                <Badge>{c.name}</Badge>
-                              </Link>
-                            ))}
-                            {groups.length > 3 && (
-                              <span
-                                className="text-[11px] font-semibold text-slate-400"
-                                title={groups
-                                  .slice(3)
-                                  .map((c) => c.name)
-                                  .join(', ')}
-                              >
-                                +{groups.length - 3}
-                              </span>
-                            )}
-                          </div>
-                        )}
-                      </td>
-
-                      {/* Maosh rejimi */}
-                      <td>
-                        {t.salaryMode === 'percent' ? (
-                          <div className="flex items-center gap-1.5">
-                            <Badge tone="blue" dot>
-                              Foiz
-                            </Badge>
-                            <span className="font-mono text-[12.5px] text-slate-500">
-                              {t.salaryPercent ?? 0}%
-                            </span>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-1.5">
-                            <Badge tone="violet" dot>
-                              Qat'iy
-                            </Badge>
-                            <span className="font-mono text-[12.5px] text-slate-500">
-                              {formatMoney(t.salary ?? 0)}
-                            </span>
-                          </div>
-                        )}
-                      </td>
+                      {/* Fanlar / Guruhlar / Maosh rejimi — bu yerda KO'RSATILMAYDI (sarlavhadagi
+                          izohga qarang). Fan bo'yicha FILTR saqlangan: u ro'yxatni toraytiradi,
+                          lekin o'qituvchining fanlarini jadvalda chiqarmaydi. */}
 
                       {/* Holat */}
                       <td>
@@ -497,7 +450,8 @@ export function TeachersPage() {
                       )}
 
                       {/* Amallar */}
-                      <td className="num">
+                      {/* Amallar — qatorning profilga o'tishi bu yerda TO'XTAYDI. */}
+                      <td className="num" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-0.5">
                           <Link
                             to={`/admin/teachers/${t.id}`}
@@ -618,21 +572,6 @@ export function TeachersPage() {
   )
 }
 
-function SubjectTags({ ids, name }: { ids: string[]; name: (id: string) => string }) {
-  if (ids.length === 0) return <span className="text-slate-300">—</span>
-  return (
-    <div className="flex flex-wrap gap-1">
-      {ids.map((id) => (
-        <span
-          key={id}
-          className="rounded-md bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-700"
-        >
-          {name(id)}
-        </span>
-      ))}
-    </div>
-  )
-}
 
 interface IconBtnProps {
   icon: typeof Eye
