@@ -19,6 +19,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<Camera> Cameras => Set<Camera>();
     public DbSet<Subject> Subjects => Set<Subject>();
     public DbSet<Group> Classes => Set<Group>();
+    public DbSet<GroupTeacherAssignment> GroupTeacherAssignments => Set<GroupTeacherAssignment>();
     public DbSet<StudentGroup> StudentGroups => Set<StudentGroup>();
     public DbSet<StudentNote> StudentNotes => Set<StudentNote>();
     public DbSet<Lead> Leads => Set<Lead>();
@@ -331,6 +332,14 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         b.Entity<StudentAiAccess>().HasIndex(a => a.StudentId).IsUnique();
 
         b.Entity<ArchivedRecord>().HasIndex(r => new { r.Type, r.DeletedAt });
+
+        // ---------- Guruhning o'qituvchi tarixi ----------
+        // Asosiy so'rov: "shu guruhni FALON sanada kim o'qitgan" → (GroupId, FromDate).
+        // Ikkinchisi: o'qituvchi profili uchun "u qaysi guruhlarni o'qitgan".
+        b.Entity<GroupTeacherAssignment>().Property(x => x.GroupId).HasMaxLength(200);
+        b.Entity<GroupTeacherAssignment>().Property(x => x.TeacherId).HasMaxLength(200);
+        b.Entity<GroupTeacherAssignment>().HasIndex(x => new { x.GroupId, x.FromDate });
+        b.Entity<GroupTeacherAssignment>().HasIndex(x => x.TeacherId);
 
         // ---------- Kitoblar sotuvi ----------
         b.Entity<Book>().Property(x => x.Price).HasPrecision(18, 2);

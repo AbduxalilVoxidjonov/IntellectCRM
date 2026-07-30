@@ -497,6 +497,41 @@ public class Group
 }
 
 /// <summary>
+/// GURUHNING O'QITUVCHI TARIXI — kim guruhni qachondan qachongacha o'qitgani.
+///
+/// <para>Nega kerak: <see cref="Group.TeacherId"/> faqat <b>HOZIRGI</b> o'qituvchini saqlaydi va
+/// almashganda eski qiymat ustiga yoziladi. Jurnal (<see cref="LessonNote"/>, <see cref="JournalEntry"/>)
+/// ham o'qituvchini yozmaydi. Ya'ni "2026-09 da bu guruhni kim o'qitgan?" savoliga bazada javob
+/// yo'q edi. O'quvchini ushlab turish bonusi (retention) esa bonusni o'qigan oylar nisbatida
+/// o'qituvchilar orasida bo'lishi kerak — shuning uchun aynan shu savolga javob talab qilinadi.</para>
+///
+/// <para><b>ORQAGA SANALMAYDI:</b> <see cref="FromDate"/>/<see cref="ToDate"/> har doim amal
+/// bajarilgan kundagi <c>AppClock.Today</c> bilan yoziladi (<see cref="StudentGroup.RecordedAt"/>
+/// bilan bir xil tamoyil) — admin tarixni orqaga o'zgartira olmaydi.</para>
+///
+/// <para><b>Invariant:</b> bir guruhda bir vaqtda ko'pi bilan BITTA ochiq (<c>ToDate == null</c>)
+/// qator bo'ladi. Yozish yagona joyda — <c>GroupTeacherHistory.AssignAsync</c>.</para>
+///
+/// <para><b>Cheklov:</b> migratsiyadagi backfill har mavjud guruh uchun bitta ochiq qator yaratadi,
+/// lekin O'TMISHDAGI almashuvlarni tiklay olmaydi — bunday ma'lumot bazada yo'q edi. Tizim to'g'ri
+/// taqsimlashni joriy qilingan kundan boshlaydi.</para>
+/// </summary>
+public class GroupTeacherAssignment
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    /// <summary>Guruh (<see cref="Group.Id"/>).</summary>
+    public string GroupId { get; set; } = string.Empty;
+    /// <summary>O'qituvchi (<see cref="Teacher.Id"/>).</summary>
+    public string TeacherId { get; set; } = string.Empty;
+    /// <summary>Biriktirilgan sana (ISO "YYYY-MM-DD").</summary>
+    public string FromDate { get; set; } = string.Empty;
+    /// <summary>Biriktirish tugagan sana (ISO "YYYY-MM-DD"). <c>null</c> = HOZIRGI o'qituvchi.</summary>
+    public string? ToDate { get; set; }
+    /// <summary>Kim biriktirgani (admin F.I.Sh.) yoki backfill uchun "migratsiya".</summary>
+    public string CreatedBy { get; set; } = string.Empty;
+}
+
+/// <summary>
 /// O'quvchi ↔ Guruh a'zoligi (M2M). Bir o'quvchi bir vaqtda bir nechta guruhda bo'lishi mumkin.
 /// JoinedAt — qo'shilish sanasi, LeftAt — chiqish sanasi (null = hozir ham a'zo).
 /// </summary>

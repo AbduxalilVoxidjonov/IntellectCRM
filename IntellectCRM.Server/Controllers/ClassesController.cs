@@ -14,6 +14,8 @@ namespace IntellectCRM.Server.Controllers;
 [Route("api/admin/classes")]
 public class ClassesController(AppDbContext db, AuditService audit, ILogger<ClassesController> logger, CertificateService certSvc, RoomConflictService roomConflict, AutoMessageService autoMsg) : ControllerBase
 {
+    private string Actor => User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value ?? "Admin";
+
     /// <summary>Faol (arxivlanmagan) guruhlar. <paramref name="includeArchived"/>=true bo'lsa hammasi.</summary>
     [HttpGet]
     public async Task<ActionResult<IEnumerable<Group>>> GetAll([FromQuery] bool includeArchived = false)
@@ -88,6 +90,10 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
         }
         db.Classes.Add(cls);
 
+        // O'qituvchi TARIXINI ochamiz — Group.TeacherId keyinchalik almashsa, kim qachon
+        // o'qitgani shu yerda qoladi (retention bonusini oylar nisbatida bo'lish uchun).
+        await GroupTeacherHistory.AssignAsync(db, cls.Id, cls.TeacherId, Actor);
+
         if (cls.MonthlyFee > 0)
             audit.Record(AuditService.EntityClassFee, cls.Id, "create",
                 $"Oylik to'lov belgilandi: {AuditService.Money(cls.MonthlyFee)} so'm ({cls.Name})",
@@ -156,6 +162,12 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
         cls.Capacity = p.Capacity;
         cls.CourseId = p.CourseId ?? "";
         cls.TeacherId = p.TeacherId ?? "";
+        // O'qituvchi TARIXI: almashsa eski biriktirish yopiladi va yangisi ochiladi (retention
+        // bonusi "qaysi oyda kim o'qitgan" savoliga aynan shu tarixdan javob oladi).
+        // Almashmagan bo'lsa ham chaqiriladi — o'sha o'qituvchida ochiq qator bo'lsa AssignAsync
+        // hech narsa qilmaydi, yo'q bo'lsa (tarixsiz eski guruh) yetishmayotganini to'ldiradi.
+        // Audit alohida yozilmaydi — pastdagi GroupSnapshot before/after TeacherId'ni ham qamraydi.
+        await GroupTeacherHistory.AssignAsync(db, cls.Id, cls.TeacherId, Actor);
         cls.Note = p.Note ?? "";
         cls.Days = p.Days ?? new();
         cls.StartTime = p.StartTime ?? "";

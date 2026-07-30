@@ -108,12 +108,23 @@ Tekshirildi — tarix hech qayerda saqlanmaydi:
 
 **Oqibati:** guruhda A o'qituvchi 4 oy ishlab, keyin B kelsa — bonus to'liq B ga ketadi.
 
-**Yechim:** yangi `GroupTeacherAssignment` entity (6-bo'limga qarang) va uni `ClassesController`
-`Create` (satr 32) / `Update` (satr 158) da yozish.
+**Yechim (✅ BAJARILDI — migratsiya `AddGroupTeacherHistory`):** `GroupTeacherAssignment` entity va
+`GroupTeacherHistory` xizmati (`Application/Services/`). Yozish YAGONA joyda —
+`GroupTeacherHistory.AssignAsync`, u `ClassesController.Create` va `Update` da chaqiriladi
+(eski ochiq qator yopiladi, yangisi ochiladi). O'qish — `LoadAsync` (ommaviy, N+1 yo'q) va
+`TeacherAtMonth(history, "YYYY-MM")`.
 
 **❗ Halol ogohlantirish:** migratsiyadagi backfill eski guruhlar uchun bitta "ochiq" qator yaratadi,
-lekin **o'tmishdagi almashuvlarni tiklay olmaydi** — bunday ma'lumot bazada yo'q. Tizim to'g'ri
-taqsimlashni **joriy qilingan kundan** boshlaydi.
+lekin **o'tmishdagi almashuvlarni tiklay olmaydi** — bunday ma'lumot bazada yo'q edi.
+
+`FromDate` uchun eng oqilona taxmin olinadi: `Group.StartDate` → yo'q bo'lsa shu guruhga eng erta
+qo'shilgan o'quvchining `JoinedAt` → u ham yo'q bo'lsa migratsiya kuni. `CreatedBy = "migratsiya"`
+— bu qatorlar **taxmin** ekani ko'rinib turadi.
+
+> Nega bugungi sana emas: tarix faqat bugundan boshlansa, ertaga o'qituvchi almashgan zahoti
+> o'tmishdagi oylar YANGI o'qituvchiga yozilib qolardi (`TeacherAtMonth` topa olmay
+> `Group.TeacherId` ga fallback qiladi). Guruh boshlanishidan yozish — noto'g'ri emas,
+> shunchaki aniqligi cheklangan.
 
 > Yumshatuvchi omil: bonus summasi va taqsimoti berish paytida **qo'lda tahrirlanadi**, ya'ni admin
 > noto'g'ri taqsimotni ko'rsa tuzata oladi. Shu sabab bu to'siq bloklovchi emas.
@@ -203,7 +214,8 @@ avvalgi sikl tarixda `broken` bo'lib qoladi.
 ```csharp
 // 1) Student (mavjud entity'ga 2 maydon) — Entities.cs:178
 public bool   RetentionBonus          { get; set; }          // ptichka
-public string RetentionBonusStartMonth { get; set; } = "";   // "2026-08" — sanoq qaysi oydan
+public string RetentionBonusStartMonth { get; set; } = "";   // "2026-08" — admin QO'LDA kiritadi (qaror #1)
+                                                             // bo'sh = "hali boshlanmagan"
 
 // 2) Berilgan bonus (sikl darajasi)
 public class RetentionBonusAward
@@ -234,17 +246,18 @@ public class RetentionBonusShare
     string SalaryMonth;        // "2027-01" — qaysi oy maoshiga qo'shiladi
 }
 
-// 4) Guruhning o'qituvchi TARIXI (4-bo'limdagi to'siq yechimi)
+// 4) Guruhning o'qituvchi TARIXI (4-bo'limdagi to'siq yechimi) — ✅ BAJARILDI
 public class GroupTeacherAssignment
 {
     string  Id;
     string  GroupId;
     string  TeacherId;
-    string  FromDate;          // "YYYY-MM-DD"
+    string  FromDate;          // "YYYY-MM-DD" — ORQAGA SANALMAYDI (AppClock.Today)
     string? ToDate;            // null = hozirgi o'qituvchi
-    string  CreatedBy;
+    string  CreatedBy;         // admin F.I.Sh yoki "migratsiya" (backfill)
 }
-// INDEX (GroupId, FromDate)
+// INDEX (GroupId, FromDate), INDEX (TeacherId)
+// Invariant: bir guruhda bir vaqtda ko'pi bilan BITTA ochiq (ToDate == null) qator
 
 // 5) CenterMeta (Entities.cs:1028) — 3 ta sozlama
 public int     RetentionMonthsRequired { get; set; } = 6;
@@ -298,12 +311,16 @@ bo'lishi tekshiriladi).
 `StudentFormModal.tsx` (chegirma bloki yonida, ~satr 443) — bir qatorli checkbox.
 `StudentDto` (`Dtos.cs:715`) ga 2 ta **default qiymatli** parametr qo'shiladi — eski chaqiruvlar buzilmaydi.
 
-**Boshlanish oyi:** ptichka birinchi marta yoqilganda avtomatik = o'quvchining **birinchi aktivlashgan
-oyi** (`StudentGroup.ActivatedAt` eng ertasi). Yo'q bo'lsa — "hali boshlanmagan" holati. Maydon
-tahrirlanadi.
+**Boshlanish oyi (qaror #1): admin QO'LDA kiritadi.** Ptichka yoqilganda yonida `month` input
+paydo bo'ladi va u **majburiy**. Avtomatik to'ldirilmaydi.
 
-> Nega qo'shilgan oy emas? Sinov (trial) oyida to'lov hisoblanmaydi (`SalaryLedger.cs:285`) — sanoq
-> qo'shilgan oydan boshlansa, birinchi katak har doim ✗ chiqadi va jadval buzilgandek ko'rinadi.
+- Bo'sh qolsa → o'quvchi hisobotda «hali boshlanmagan» holatida turadi, sanoq ko'rsatilmaydi
+- Yordam sifatida input yonida **matn** chiqadi: `birinchi aktivlashgan oy: 2026-08` — bosilsa
+  maydonga qo'yiladi, lekin o'zi yozilmaydi (`StudentGroup.ActivatedAt` eng ertasi)
+
+> Nega qo'lda? Markaz egasi bonus sanog'ini qaysi oydan boshlashni o'zi hal qilishi kerak —
+> masalan tizim joriy qilingan oydan, yoki kelishilgan boshqa sanadan. Avtomatik taxmin eski
+> o'quvchilarga kutilmagan sanoq ochib yuborardi.
 
 ### ② «Bonus hisoboti» sahifasi
 `navigation.ts` → **O'quvchilar** → "Bonus hisoboti" (`/admin/students/bonus`).
@@ -335,7 +352,8 @@ Taqsimot (avtomatik, tahrirlanadi):
 ### ④ O'qituvchi profilida «Bonus» bo'limi
 `TeacherDetailPage.tsx:53` — hozirgi tablar `info | groups | rating | salary | performance`,
 ularga **`bonus`** qo'shiladi: qaysi o'quvchi · qaysi davr · necha oy · summa · qachon berilgan · jami.
-O'qituvchi ilovasida ham (`teacher/salary/SalaryPage.tsx`) shu ma'lumot ko'rinadi.
+O'qituvchi ilovasida ham (`teacher/salary/SalaryPage.tsx`) shu ma'lumot **alohida bo'lim** sifatida
+ko'rinadi — maosh jadvalining `Expected`/`Remaining` raqamlariga **qo'shilmaydi** (qaror #3).
 
 ---
 
@@ -360,9 +378,14 @@ controller ham, kelajakdagi har qanday chaqiruvchi ham shu orqali o'tadi.
 
 ---
 
-## 10. Maoshga ulash
+## 10. Maoshga ulash — ❌ QILINMAYDI (qaror #3)
 
-Tanlangan yo'l: **tasdiqlangan bonus `SalaryLedger` da alohida qator sifatida `Expected` ga qo'shiladi.**
+> **Bu bo'lim tarixiy tahlil sifatida qoldirilgan.** Qaror: bonus `SalaryLedger` ga **ulanmaydi**,
+> alohida «Bonus» bo'limida ko'rsatiladi. Quyidagi variant ko'rib chiqilgan va **rad etilgan**;
+> kelajakda kerak bo'lsa shu yerdan davom ettiriladi.
+
+<details>
+<summary>Rad etilgan variant: bonusni <code>Expected</code> ga qo'shish</summary>
 
 ```
 Expected = BaseExpected − Deduction + Bonus
@@ -373,16 +396,20 @@ Expected = BaseExpected − Deduction + Bonus
 - `SalaryReportRowDto` (`Dtos.cs:209`) → `+ decimal Bonus = 0`
 - `SalaryLedger.cs:193` → `var expected = baseExpected - deduction + bonus;`
 
-Barcha yangi parametrlar **default qiymatli** — eski chaqiruvlar buzilmaydi.
+Nega rad etildi: `SalaryLedger` ni 3 ta ekran ishlatadi (3.3-bo'lim) va u tizimning eng nozik joyi.
+Bonusning qiymati — **ko'rinishi**da; uni maosh formulasiga kiritmasdan ham to'liq beradi.
 
-### Nega darhol chiqim yozilmaydi
+</details>
+
+### Nega darhol chiqim yozilmaydi (qaror #4 — kuchda)
 
 «Bonus berish» = **hisoblash**, pul chiqarish emas. Haqiqiy pul mavjud maosh to'lovi orqali beriladi
 (`FinanceTransaction(expense, "salary")`). Aks holda Kassa/Moliya bir xil pulni ikki marta hisoblaydi
 va "berilgan" deb ko'rsatilgan pul aslida kassadan chiqmagan bo'lib qoladi.
 
-Natijada: bonus o'qituvchining `Remaining` (qoldiq) summasiga qo'shiladi → oddiy maosh to'lovi bilan
-yopiladi → Moliya, Kassirlar hisoboti va Chiqimlar bo'limi **hech narsa o'zgarmaydi**.
+Natijada bonus umuman pul oqimiga tegmaydi — u **qayd**: o'qituvchi profilida va o'qituvchi
+ilovasida ko'rinadi, admin maosh to'lovini kiritganda summani hisobga oladi. Moliya, Kassirlar
+hisoboti va Chiqimlar bo'limi **hech narsa o'zgarmaydi**.
 
 ---
 
@@ -390,16 +417,16 @@ yopiladi → Moliya, Kassirlar hisoboti va Chiqimlar bo'limi **hech narsa o'zgar
 
 | # | Ish | Fayllar | Vaqt |
 |---|---|---|---|
-| **0** | `GroupTeacherAssignment` + `ClassesController.cs:32,158` ga ilgak + backfill | Domain, Infrastructure, ClassesController | ~1 soat |
+| **0** ✅ | `GroupTeacherAssignment` + `ClassesController` ilgagi + backfill | Domain, Infrastructure, ClassesController | **BAJARILDI** |
 | 1 | Entity'lar + `CenterMeta` maydonlari + migratsiya `RetentionBonusSystem` | Entities.cs, IAppDbContext, AppDbContext | ~1.5 soat |
 | 2 | `RetentionBonusService` — jadval, holat mantig'i, taqsimot | Application/Services | ~3 soat |
 | 3 | `RetentionBonusController` + .xlsx eksport | Server/Controllers | ~1.5 soat |
 | 4 | O'quvchi formasi ptichkasi + DTO | StudentFormModal, StudentsController, Dtos | ~1 soat |
 | 5 | «Bonus hisoboti» sahifasi + berish modali | pages/admin/students/bonus/ | ~3 soat |
-| 6 | O'qituvchi profili `bonus` tabi + o'qituvchi ilovasi | TeacherDetailPage, teacher/salary | ~2 soat |
-| 7 | `SalaryLedger` ga ulash | SalaryLedger.cs, Dtos.cs | ~1.5 soat |
+| 6 | O'qituvchi profili `bonus` tabi + o'qituvchi ilovasida alohida bo'lim | TeacherDetailPage, teacher/salary | ~2 soat |
+| ~~7~~ | ~~`SalaryLedger` ga ulash~~ | — | ❌ **chiqarildi** (qaror #3) |
 
-**Jami ~14 soat.**
+**Jami ~12.5 soat.**
 
 **Bosqich 0 birinchi bajariladi** — u kechikkan har kun qayta tiklab bo'lmaydigan ma'lumot yo'qotadi
 (4-bo'limga qarang).
@@ -408,8 +435,8 @@ yopiladi → Moliya, Kassirlar hisoboti va Chiqimlar bo'limi **hech narsa o'zgar
 
 ## 12. Xavflar va diqqat nuqtalari
 
-1. **`SalaryLedger` — tizimning eng nozik joyi.** Uni 3 ta ekran ishlatadi (3.3-bo'lim). O'zgartirishdan
-   keyin: bonusi yo'q o'qituvchining raqamlari **bitta ham o'zgarmasligi** tekshiriladi.
+1. ~~**`SalaryLedger` — tizimning eng nozik joyi.**~~ ✅ **Xavf yo'q** — qaror #3 bo'yicha
+   `SalaryLedger` va uning DTO'lari **umuman o'zgartirilmaydi**.
 2. **`BillableInMonth` nusxalanmasin** — `SalaryLedger.cs:283` dan umumiy joyga chiqariladi. Ikki nusxa
    bo'lsa, vaqt o'tib bir-biridan ajralib ketadi.
 3. **Arxivlangan o'qituvchi** — bonus baribir hisoblanadi (o'tgan mehnati uchun), lekin ro'yxatda
@@ -422,17 +449,39 @@ yopiladi → Moliya, Kassirlar hisoboti va Chiqimlar bo'limi **hech narsa o'zgar
 
 ---
 
-## 13. Tasdiqlanishi kerak bo'lgan qarorlar
+## 13. Qarorlar — ✅ TASDIQLANDI (2026-07-30)
 
-| # | Savol | Tavsiya |
+| # | Savol | **QAROR** |
 |---|---|---|
-| 1 | Sanoq qaysi oydan? | **Birinchi aktivlashgan (pullik) oy** — sinov oyi ✗ chiqmasin |
-| 2 | Muzlatilgan oy? | **PAUZA, max 2 oy** — ta'til kechiriladi, uzoq muzlash siklni uzadi |
-| 3 | Bonus maoshga qo'shiladimi? | **Ha, alohida qator sifatida** (`Expected` ga) — o'qituvchi ilovasida ham ko'rinadi |
+| 1 | Sanoq qaysi oydan? | **Adminning o'zi kiritadi** — avtomatik taklif yo'q, ptichka qo'yilganda oy tanlanadi |
+| 2 | Muzlatilgan oy? | **PAUZA, max 2 oy** (`RetentionMaxGapMonths=2`, sozlanadi) |
+| 3 | Bonus maoshga qo'shiladimi? | **YO'Q — faqat alohida «Bonus» bo'limida.** `SalaryLedger` TEGILMAYDI |
 | 4 | «Berish» = pul chiqdimi? | **Yo'q — hisoblanadi.** Pul odatdagi maosh to'lovi orqali beriladi |
 
-3 va 4 bir-biriga bog'liq: eng xavfsiz kombinatsiya — bonus maoshga alohida qator bo'lib qo'shiladi,
-pul esa mavjud maosh to'lovi bilan chiqadi.
+### Qarorlarning kodga ta'siri
+
+**#1 — boshlanish oyi qo'lda.** `RetentionBonusStartMonth` ptichka bilan birga majburiy maydon
+(`month` input). Bo'sh bo'lsa o'quvchi "hali boshlanmagan" holatida turadi va hisobotda sanoq
+ko'rsatilmaydi. Tavsiya sifatida forma yonida birinchi aktivlashgan oy **matn ko'rinishida**
+ko'rsatilishi mumkin, lekin maydonga o'zi yozilmaydi. → 8-bo'lim ① shunga moslanadi.
+
+**#3 — `SalaryLedger` tegilmaydi.** Bu eng katta soddalashtirish:
+- ❌ `Bosqich 7` rejadan **chiqarildi** (~1.5 soat kamaydi → jami ~12.5 soat)
+- ❌ `MonthSalaryDto` / `SalaryLedgerDto` / `SalaryReportRowDto` o'zgarmaydi
+- ❌ `SalaryLedger.cs:193` (`expected = baseExpected - deduction`) o'zgarmaydi
+- ✅ 12-bo'limdagi 1-xavf ("SalaryLedger — eng nozik joy") **yo'qoladi**
+- ✅ `SalaryLedger.cs:283` `BillableInMonth` baribir umumiy joyga chiqariladi (2-xavf kuchda qoladi) —
+  lekin bu faqat **o'qish**, hisob mantig'i o'zgarmaydi
+
+Bonus qayerda ko'rinadi: o'qituvchi profilidagi **`bonus` tabi** (8-bo'lim ④) va o'qituvchi
+ilovasidagi `SalaryPage` da **alohida bo'lim** sifatida ("Maosh" raqamlariga qo'shilmaydi).
+
+**#3 + #4 birgalikda:** bonus hech qayerda pul oqimiga aralashmaydi — u **qayd**. Admin bonusni
+ko'rib turadi va maosh to'lovini kiritganda summani o'zi hisobga oladi. Moliya, Kassa va
+Chiqimlar bo'limlari **hech qanday o'zgarishsiz** qoladi.
+
+> Kelajakda maoshga ulash kerak bo'lsa — bu qo'shimcha, ortga qaytariladigan qadam
+> (10-bo'limdagi tahlil o'z kuchida qoladi).
 
 ---
 
