@@ -7,7 +7,7 @@ import {
   CalendarClock, Award, Download, LifeBuoy, Sparkles, Pencil, MessageSquare,
   PhoneIncoming, PhoneOutgoing, PhoneMissed, PhoneCall,
   Snowflake, CheckCircle2, RotateCcw, ArrowLeftRight, Plus, NotebookText, X,
-  StickyNote, Trash2,
+  StickyNote, Trash2, Gift,
 } from 'lucide-react'
 import { genderLabels } from '@/config/constants'
 import {
@@ -49,6 +49,14 @@ import {
   type CoverageLogEntry, type StudentAttempt, type AttemptAnswer,
 } from '@/api/services/curriculum'
 import { getStudentGradingSummary, type MonthGradingSummary } from '@/api/services/grading'
+import {
+  getStudentRetention,
+  type RetentionReport,
+  type RetentionRow,
+  type RetentionAward,
+  type RetentionState,
+  type RetentionStatus,
+} from '@/api/services/retentionBonus'
 import { kindTitle } from '@/components/exercise/catalog'
 import type { ExerciseKind } from '@/components/exercise/model'
 import { getTeachers } from '@/api/services/teachers'
@@ -56,6 +64,7 @@ import { getStudentTestResults } from '@/api/services/testResults'
 import type { Student, StudentGroupMembership, Curriculum, Group, Teacher, StudentTestResult } from '@/types'
 import { cn, formatDate, formatDateTime, formatMoney, apiErrorMessage, gradeBadgeCls } from '@/lib/utils'
 import { usePerm } from '@/lib/permissions'
+import { useAuth } from '@/context/auth-context'
 import { Card } from '@/components/ui/Card'
 import { DropdownMenu } from '@/components/ui/DropdownMenu'
 import { Badge, type BadgeTone } from '@/components/ui/Badge'
@@ -117,12 +126,18 @@ type Tab =
   | 'sertifikatlar'
   | 'aloqa'
   | 'izohlar'
+  | 'bonus'
   | 'ai'
 
 export function StudentDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { can } = usePerm()
+  const { user } = useAuth()
+  // «Bonus» bo'limi FAQAT admin/superadmin uchun: bu o'qituvchi haqiga taalluqli ma'lumot va
+  // endpoint boshqa rolga 403 qaytaradi. `usePerm().can()` bu yerda yaramaydi — u xodimga
+  // ("staff") "students" ruxsati berilgan bo'lsa ham true qaytaradi, shuning uchun ROL tekshiriladi.
+  const isBonusAllowed = user?.role === 'admin' || user?.role === 'superadmin'
   const [data, setData] = useState<StudentNotebook | null>(null)
   const [groups, setGroups] = useState<StudentGroupMembership[]>([])
   /** groupId → courseId (Group.courseId) — o'quv dasturini olish uchun kurs id'sini topish. */
@@ -189,6 +204,36 @@ export function StudentDetailPage() {
   } | null>(null)
   /** Saqlangandan keyin sahifa ma'lumotini qayta yuklash uchun (o'zgarsa — pastdagi useEffect qayta ishga tushadi). */
   const [reloadKey, setReloadKey] = useState(0)
+  /** Ushlab turish bonusi holati — «Bonus» tabi BIRINCHI ochilganda bir marta yuklanadi. */
+  const [bonus, setBonus] = useState<RetentionReport | null>(null)
+  const [bonusLoading, setBonusLoading] = useState(false)
+  const [bonusError, setBonusError] = useState('')
+  /** Bonus ma'lumoti QAYSI o'quvchi uchun yuklangani — o'quvchi almashsa qayta yuklanadi. */
+  const [bonusLoadedFor, setBonusLoadedFor] = useState('')
+
+  // Bonus — faqat tab ochilganda va faqat admin/superadmin uchun so'raladi (aks holda 403 keladi).
+  useEffect(() => {
+    if (tab !== 'bonus' || !isBonusAllowed || !id || bonusLoadedFor === id) return
+    let alive = true
+    setBonusLoading(true)
+    setBonusError('')
+    getStudentRetention(id)
+      .then((r) => {
+        if (!alive) return
+        setBonus(r)
+        setBonusLoadedFor(id)
+      })
+      .catch((err) => {
+        if (!alive) return
+        setBonusError(apiErrorMessage(err, "Bonus ma'lumotini yuklab bo'lmadi"))
+      })
+      .finally(() => {
+        if (alive) setBonusLoading(false)
+      })
+    return () => {
+      alive = false
+    }
+  }, [tab, id, isBonusAllowed, bonusLoadedFor])
 
   useEffect(() => {
     if (!id) return
@@ -240,6 +285,9 @@ export function StudentDetailPage() {
     setSmsTarget(null)
     setEditing(null)
     setCallOpen(false)
+    // Bonus ma'lumoti ham eski o'quvchiniki bo'lib qolmasin (yangisi tab ochilganda yuklanadi).
+    setBonus(null)
+    setBonusError('')
   }, [id])
 
   /** "Tahrirlash" bosilganda — StudentFormModal uchun TO'LIQ Student kerak (data — StudentNotebook, formaga yaramaydi). */
@@ -734,10 +782,21 @@ export function StudentDetailPage() {
             <button type="button" className={cn('tab', tab === 'izohlar' && 'active')} onClick={() => setTab('izohlar')}>
               <StickyNote className="mr-1 inline h-3.5 w-3.5" /> Izohlar
             </button>
+            {/* Bonus — faqat admin/superadmin ko'radi (o'qituvchi haqiga oid ma'lumot). */}
+            {isBonusAllowed && (
+              <button type="button" className={cn('tab', tab === 'bonus' && 'active')} onClick={() => setTab('bonus')}>
+                <Gift className="mr-1 inline h-3.5 w-3.5" /> Bonus
+              </button>
+            )}
             <button type="button" className={cn('tab', tab === 'ai' && 'active')} onClick={() => setTab('ai')}>
               <Sparkles className="mr-1 inline h-3.5 w-3.5" /> AI Tahlil
             </button>
           </div>
+
+          {/* Bonus — o'quvchini ushlab turish bonusi holati (faqat o'qish uchun) */}
+          {tab === 'bonus' && isBonusAllowed && (
+            <BonusSection report={bonus} loading={bonusLoading} error={bonusError} />
+          )}
 
           {/* Izohlar — xodim yozadigan erkin eslatmalar (tarix: kim, qachon) */}
           {tab === 'izohlar' && <NotesSection studentId={data.id} />}
@@ -2701,6 +2760,331 @@ function AiSection({
         </div>
       )}
     </Section>
+  )
+}
+
+/* ============================================================================
+   BONUS — o'quvchini ushlab turish bonusi. FAQAT ko'rsatish uchun: bonus berish,
+   bekor qilish va siklni qayta boshlash "O'quvchilar → Bonus hisoboti" sahifasida.
+   Oylik holatlar hech qayerda saqlanmaydi — server har so'rovda qayta hisoblaydi.
+   ============================================================================ */
+
+/** Oy katagining belgisi va tushuntirishi (bonus hisobotidagi ko'rinishning shu sahifaga mos nusxasi). */
+const BONUS_STATE_UI: Record<RetentionState, { icon: string; title: string; cls: string }> = {
+  paid: { icon: '✅', title: "To'liq — o'qidi va to'ladi (sanoqqa kiradi)", cls: 'bg-emerald-50 text-emerald-700' },
+  debt: { icon: '⏳', title: "Qarzdor — o'qidi, lekin to'lov hali yo'q (sikl uzilmaydi)", cls: 'bg-amber-50 text-amber-700' },
+  nocharge: { icon: '📄', title: 'Hisob yozilmagan — sanoqqa kirmaydi (sikl uzilmaydi)', cls: 'bg-violet-50 text-violet-700' },
+  frozen: { icon: '❄️', title: "Muzlatilgan — sanoq to'xtaydi, oyna cho'ziladi", cls: 'bg-sky-50 text-sky-700' },
+  gone: { icon: '🚪', title: "A'zolik yo'q — sanoq to'xtaydi", cls: 'bg-slate-100 text-slate-500' },
+}
+
+/** Qator (fan) holati — badge yorlig'i va rangi. */
+const BONUS_STATUS_UI: Record<RetentionStatus, { label: string; tone: BadgeTone }> = {
+  notstarted: { label: 'Boshlanmagan', tone: 'amber' },
+  progress: { label: "Yo'lda", tone: 'default' },
+  ready: { label: 'Tayyor', tone: 'green' },
+  broken: { label: 'Uzildi', tone: 'red' },
+  blocked: { label: 'Bonus berilgan', tone: 'amber' },
+}
+
+function BonusSection({
+  report,
+  loading,
+  error,
+}: {
+  report: RetentionReport | null
+  loading: boolean
+  error: string
+}) {
+  const rows = report?.rows ?? []
+  const settings = report?.settings
+
+  // Bonuslar HAR QATORDA (fan bo'yicha) qaytadi — id bo'yicha takrorlanmasin, eng yangisi tepada.
+  const awards = useMemo(() => {
+    const map = new Map<string, RetentionAward>()
+    rows.forEach((r) => r.awards.forEach((a) => map.set(a.id, a)))
+    return [...map.values()].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
+  }, [rows])
+  // JAMIga faqat BERILGAN bonuslar kiradi — bekor qilinganlari hisoblanmaydi.
+  const given = awards.filter((a) => a.status === 'given')
+  const givenTotal = given.reduce((s, a) => s + a.totalAmount, 0)
+
+  if (loading)
+    return (
+      <Section title="Bonus" icon={Gift}>
+        <Loader label="Yuklanmoqda..." />
+      </Section>
+    )
+
+  if (error)
+    return (
+      <Section title="Bonus" icon={Gift}>
+        <p className="py-8 text-center text-sm text-red-600">{error}</p>
+      </Section>
+    )
+
+  return (
+    <div className="space-y-6">
+      <Section title="Bonus — o'quvchini ushlab turish" icon={Gift}>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <StatCard
+            label="Bonus olganmi?"
+            value={given.length > 0 ? 'Ha' : "Yo'q"}
+            hint={
+              given.length > 0
+                ? `${given.length} ta bonus · ${formatMoney(givenTotal)}`
+                : 'Hali bonus berilmagan'
+            }
+            icon={Award}
+            iconBg={given.length > 0 ? 'bg-emerald-50' : 'bg-slate-100'}
+            iconColor={given.length > 0 ? 'text-emerald-600' : 'text-slate-400'}
+          />
+          <StatCard
+            label="Bonus tizimida"
+            value={rows.length > 0 ? 'Ha' : "Yo'q"}
+            hint={
+              rows.length > 0
+                ? `${rows.length} ta fan bo'yicha kuzatilmoqda`
+                : 'Ptichka yoqilmagan'
+            }
+            icon={ListChecks}
+            iconBg={rows.length > 0 ? 'bg-brand-50' : 'bg-slate-100'}
+            iconColor={rows.length > 0 ? 'text-brand-600' : 'text-slate-400'}
+          />
+          <StatCard
+            label="Talab qilinadigan muddat"
+            value={settings ? `${settings.monthsRequired} oy` : '—'}
+            hint={settings ? `Ruxsat etilgan tanaffus: ${settings.maxGapMonths} oy` : undefined}
+            icon={CalendarClock}
+            iconBg="bg-indigo-50"
+            iconColor="text-indigo-600"
+          />
+        </div>
+
+        {rows.length === 0 ? (
+          <Empty>
+            Bu o'quvchi bonus tizimiga kiritilmagan. O'quvchi formasidagi «Ushlab turish bonusi»
+            ptichkasini yoqsangiz, sanoq shu yerda ko'rina boshlaydi.
+          </Empty>
+        ) : (
+          <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50/60 p-3">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+              Qaysi oydan sanaladi
+            </p>
+            <div className="space-y-1.5">
+              {rows.map((r) => (
+                <div
+                  key={r.courseId}
+                  className="flex flex-wrap items-center justify-between gap-2 text-sm"
+                >
+                  <span className="font-medium text-slate-700">
+                    {r.courseName || "Fan ko'rsatilmagan"}
+                  </span>
+                  <span className="text-slate-500">
+                    {r.startMonth
+                      ? `${monthLabel(r.startMonth)} dan · ${r.cycleNo}-sikl`
+                      : 'Boshlanish oyi kiritilmagan'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </Section>
+
+      {/* Har FAN uchun alohida sikl — guruh/o'qituvchi, sanoq va oylik kataklar */}
+      {rows.length > 0 && (
+        <Section title="Fanlar bo'yicha sanoq" icon={BookOpen}>
+          {/* Oy kataklari izohi */}
+          <div className="mb-4 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-400">
+            {(Object.keys(BONUS_STATE_UI) as RetentionState[]).map((s) => (
+              <span key={s}>
+                {BONUS_STATE_UI[s].icon} {BONUS_STATE_UI[s].title}
+              </span>
+            ))}
+          </div>
+          <div className="space-y-4">
+            {rows.map((r) => (
+              <BonusCourseCard key={r.courseId} row={r} />
+            ))}
+          </div>
+        </Section>
+      )}
+
+      {/* Berilgan bonuslar tarixi — barcha fanlar bo'yicha, eng yangisi tepada */}
+      {awards.length > 0 && (
+        <Section
+          title="Berilgan bonuslar tarixi"
+          icon={History}
+          action={
+            <span className="text-sm text-slate-500">
+              Jami: <span className="font-mono font-semibold text-slate-700">{formatMoney(givenTotal)}</span>
+            </span>
+          }
+        >
+          <div className="space-y-3">
+            {awards.map((a) => {
+              const cancelled = a.status === 'cancelled'
+              return (
+                <div
+                  key={a.id}
+                  className={cn(
+                    'rounded-xl border border-slate-200 p-3',
+                    cancelled && 'bg-slate-50/60 opacity-60',
+                  )}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-800">
+                      <Award className="h-4 w-4 shrink-0 text-amber-500" />
+                      {a.courseName || "Fan ko'rsatilmagan"}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={cn(
+                          'font-mono text-sm font-semibold',
+                          cancelled ? 'text-slate-400 line-through' : 'text-emerald-700',
+                        )}
+                      >
+                        {formatMoney(a.totalAmount)}
+                      </span>
+                      {cancelled && <Badge tone="red">bekor qilingan</Badge>}
+                    </div>
+                  </div>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {a.cycleNo}-sikl · {monthLabel(a.periodFrom)} — {monthLabel(a.periodTo)}
+                  </p>
+                  {a.shares.length > 0 && (
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      {a.shares.map((s) => (
+                        <span
+                          key={s.teacherId}
+                          className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-0.5 text-xs text-slate-600"
+                        >
+                          <Link
+                            to={`/admin/teachers/${s.teacherId}`}
+                            className="font-medium hover:text-brand-600 hover:underline"
+                          >
+                            {s.teacherName}
+                          </Link>
+                          <span className="font-mono">{formatMoney(s.amount)}</span>
+                          <span className="text-slate-400">· {s.months} oy</span>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <p className="mt-1.5 text-xs text-slate-400">
+                    {formatDateTime(a.createdAt)}
+                    {a.givenBy ? ` · bergan: ${a.givenBy}` : ''}
+                    {a.note ? ` · ${a.note}` : ''}
+                  </p>
+                  {cancelled && a.cancelReason && (
+                    <p className="mt-1 text-xs text-red-600">Bekor qilish sababi: {a.cancelReason}</p>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </Section>
+      )}
+    </div>
+  )
+}
+
+/** Bitta FAN bo'yicha sikl kartochkasi: guruh/o'qituvchi, sanoq progressi va oylik kataklar. */
+function BonusCourseCard({ row }: { row: RetentionRow }) {
+  const st = BONUS_STATUS_UI[row.status]
+  const pct = row.required > 0 ? Math.min(100, Math.round((row.counted / row.required) * 100)) : 0
+
+  return (
+    <div className="rounded-2xl border border-slate-200 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="flex items-center gap-1.5 text-sm font-semibold text-slate-800">
+          <BookOpen className="h-4 w-4 text-brand-600" /> {row.courseName || "Fan ko'rsatilmagan"}
+        </p>
+        <div className="flex items-center gap-2">
+          {row.isArchived && <Badge tone="red">arxivda</Badge>}
+          {st && <Badge tone={st.tone}>{st.label}</Badge>}
+        </div>
+      </div>
+
+      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
+        <span className="inline-flex items-center gap-1">
+          <School className="h-3.5 w-3.5 text-slate-400" />
+          {row.groups.length === 0
+            ? '—'
+            : row.groups.map((g, i) => (
+                <span key={g.id}>
+                  {i > 0 && ', '}
+                  <Link to={`/admin/classes/${g.id}`} className="hover:text-brand-600 hover:underline">
+                    {g.name}
+                  </Link>
+                </span>
+              ))}
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <User className="h-3.5 w-3.5 text-slate-400" />
+          {row.teachers.length === 0
+            ? '—'
+            : row.teachers.map((t, i) => (
+                <span key={t.id}>
+                  {i > 0 && ', '}
+                  <Link to={`/admin/teachers/${t.id}`} className="hover:text-brand-600 hover:underline">
+                    {t.name}
+                  </Link>
+                </span>
+              ))}
+        </span>
+        {row.days && (
+          <span className="inline-flex items-center gap-1">
+            <CalendarDays className="h-3.5 w-3.5 text-slate-400" /> {row.days}
+          </span>
+        )}
+      </div>
+
+      {/* Sanoq — nechta oy yig'ilgan / nechta kerak */}
+      <div className="mt-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+          <span className="text-slate-500">
+            {row.startMonth
+              ? `${monthLabel(row.startMonth)} dan · ${row.cycleNo}-sikl`
+              : 'Boshlanish oyi kiritilmagan'}
+          </span>
+          <span className="font-mono font-semibold text-slate-600">
+            {row.counted}/{row.required}
+          </span>
+        </div>
+        <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-slate-200/70">
+          <div className="h-full rounded-full bg-brand-500 transition-all" style={{ width: `${pct}%` }} />
+        </div>
+      </div>
+
+      {row.statusNote && <p className="mt-2 text-xs text-slate-400">{row.statusNote}</p>}
+
+      {/* Oylik kataklar — belgi ustiga kursor olib borilsa tushuntirish chiqadi */}
+      {row.months.length > 0 && (
+        <div className="mt-3 flex flex-wrap items-start gap-1">
+          {row.months.map((m) => (
+            <div
+              key={m.month}
+              title={`${monthLabel(m.month)} — ${BONUS_STATE_UI[m.state].title}${
+                m.teacherName ? `\nO'qituvchi: ${m.teacherName}` : ''
+              }${
+                m.state === 'debt'
+                  ? `\nHisoblangan: ${formatMoney(m.charged)} · To'langan: ${formatMoney(m.paid)}`
+                  : ''
+              }${m.counted ? '\nSanoqqa kirdi (+1)' : ''}`}
+              className={cn('w-14 rounded-md px-1 py-1 text-center', BONUS_STATE_UI[m.state].cls)}
+            >
+              <div className="text-sm leading-none">{BONUS_STATE_UI[m.state].icon}</div>
+              <div className="mt-0.5 text-[10px] leading-tight opacity-70">{m.month.slice(5)}</div>
+              <div className="truncate text-[10px] leading-tight opacity-60">
+                {m.teacherName ? m.teacherName.split(' ')[0] : ''}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 

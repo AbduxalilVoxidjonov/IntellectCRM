@@ -147,6 +147,22 @@ public class RetentionBonusController(AppDbContext db, AuditService audit) : Con
         return NoContent();
     }
 
+    /// <summary>
+    /// Bitta O'QUVCHINING bonus holati — o'quvchi profilidagi «Bonus» bo'limi uchun: har fan
+    /// bo'yicha sanoq, oylik kataklar va berilgan bonuslar tarixi.
+    ///
+    /// <para>FAQAT admin/superadmin. Odatdagi <see cref="AdminPermAttribute"/> qoidasidan
+    /// (xodimga GET har doim ochiq) ATAYIN qattiqroq: bonus — o'qituvchi haqiga taalluqli
+    /// moliyaviy ma'lumot va uni har bir xodim ko'rishi shart emas. Xodim ruxsati bilan ham
+    /// ochilmaydi — markaz egasining talabi.</para>
+    /// </summary>
+    [HttpGet("student/{id}")]
+    public async Task<ActionResult<RetentionReportDto>> ForStudent(string id, CancellationToken ct)
+    {
+        if (!User.IsInRole(Roles.Admin) && !User.IsInRole(Roles.SuperAdmin)) return Forbid();
+        return await RetentionBonusService.BuildReportAsync(db, id, ct);
+    }
+
     /// <summary>Bitta o'qituvchining bonuslari — profil "Bonus" tabi va o'qituvchi ilovasi uchun.</summary>
     [HttpGet("teacher/{id}")]
     public async Task<ActionResult<TeacherRetentionSummaryDto>> ForTeacher(string id, CancellationToken ct) =>
@@ -186,14 +202,15 @@ public class RetentionBonusController(AppDbContext db, AuditService audit) : Con
 
         var headers = new List<string>
         {
-            "F.I.Sh", "Fan", "Guruh", "Dars kunlari", "Boshlanish oyi", "Sikl",
+            "F.I.Sh", "Fan", "Guruh", "O'qituvchi", "Dars kunlari", "Boshlanish oyi", "Sikl",
             "Sanoq", "Holat", "Izoh", "Oylar",
         };
         var rows = report.Rows.Select(r => (IReadOnlyList<string>)new List<string>
         {
             r.FullName,
             r.CourseName,
-            r.GroupNames,
+            string.Join(", ", r.Groups.Select(g => g.Name)),
+            string.Join(", ", r.Teachers.Select(t => t.Name)),
             r.Days,
             r.StartMonth,
             r.CycleNo.ToString(),

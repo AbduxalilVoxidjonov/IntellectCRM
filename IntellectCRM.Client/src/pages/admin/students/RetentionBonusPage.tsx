@@ -108,7 +108,8 @@ export function RetentionBonusPage() {
       if (
         q &&
         !r.fullName.toLowerCase().includes(q) &&
-        !r.groupNames.toLowerCase().includes(q) &&
+        !r.groups.some((g) => g.name.toLowerCase().includes(q)) &&
+        !r.teachers.some((t) => t.name.toLowerCase().includes(q)) &&
         !r.courseName.toLowerCase().includes(q)
       )
         return false
@@ -190,7 +191,7 @@ export function RetentionBonusPage() {
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
               className={cn(control, 'pl-9')}
-              placeholder="F.I.Sh, fan yoki guruh..."
+              placeholder="F.I.Sh, fan, guruh yoki o'qituvchi..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -228,10 +229,10 @@ export function RetentionBonusPage() {
           <table className="w-full min-w-[1000px] text-sm">
             <thead className="border-b border-slate-100 text-left text-xs uppercase tracking-wide text-slate-400">
               <tr>
+                <th className="px-4 py-3 w-12">№</th>
                 <th className="px-4 py-3">F.I.Sh</th>
-                <th className="px-4 py-3">Fan</th>
                 <th className="px-4 py-3">Guruh</th>
-                <th className="px-4 py-3">Dars kunlari</th>
+                <th className="px-4 py-3">O'qituvchi</th>
                 <th className="px-4 py-3">Oylar</th>
                 <th className="px-4 py-3">Sanoq</th>
                 <th className="px-4 py-3">Holat</th>
@@ -239,16 +240,17 @@ export function RetentionBonusPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {filtered.map((r) => {
+              {filtered.map((r, i) => {
                 const cells = r.months.slice(-MAX_CELLS)
                 const hidden = r.months.length - cells.length
                 const givenAwards = r.awards.filter((a) => a.status === 'given')
                 return (
                   <tr key={rowKey(r)} className="align-top hover:bg-slate-50/60">
+                    <td className="px-4 py-3 text-slate-400">{i + 1}</td>
                     <td className="px-4 py-3">
                       <Link
                         to={`/admin/students/${r.studentId}`}
-                        className="font-medium text-slate-800 hover:text-brand-600"
+                        className="font-medium text-slate-800 hover:text-brand-600 hover:underline"
                       >
                         {r.fullName}
                       </Link>
@@ -257,17 +259,47 @@ export function RetentionBonusPage() {
                           arxivda
                         </Badge>
                       )}
-                      {r.startMonth && (
-                        <div className="text-xs text-slate-400">
-                          {r.cycleNo}-sikl · {r.startMonth} dan
-                        </div>
+                      {/* Fan ustuni alohida emas — qator (o'quvchi × fan) bo'lgani uchun fan nomi
+                          shu yerda, sikl ma'lumoti bilan birga ko'rsatiladi. */}
+                      <div className="text-xs text-slate-400">
+                        {r.courseName || '—'}
+                        {r.startMonth ? ` · ${r.cycleNo}-sikl · ${r.startMonth} dan` : ''}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      {r.groups.length === 0 ? (
+                        <span className="text-slate-400">—</span>
+                      ) : (
+                        r.groups.map((g, gi) => (
+                          <span key={g.id}>
+                            {gi > 0 && ', '}
+                            <Link
+                              to={`/admin/classes/${g.id}`}
+                              className="text-slate-600 hover:text-brand-600 hover:underline"
+                            >
+                              {g.name}
+                            </Link>
+                          </span>
+                        ))
                       )}
                     </td>
                     <td className="px-4 py-3">
-                      <span className="font-medium text-slate-700">{r.courseName || '—'}</span>
+                      {r.teachers.length === 0 ? (
+                        <span className="text-slate-400">—</span>
+                      ) : (
+                        r.teachers.map((t, ti) => (
+                          <span key={t.id}>
+                            {ti > 0 && ', '}
+                            <Link
+                              to={`/admin/teachers/${t.id}`}
+                              className="text-slate-600 hover:text-brand-600 hover:underline"
+                            >
+                              {t.name}
+                            </Link>
+                          </span>
+                        ))
+                      )}
                     </td>
-                    <td className="px-4 py-3 text-slate-600">{r.groupNames || '—'}</td>
-                    <td className="px-4 py-3 text-slate-500">{r.days || '—'}</td>
                     <td className="px-4 py-3">
                       {cells.length === 0 ? (
                         <span className="text-xs text-slate-400">—</span>

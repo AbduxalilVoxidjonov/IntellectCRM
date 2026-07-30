@@ -265,7 +265,9 @@ public static class RetentionBonusService
                 var activeGroups = courseMembs
                     .Where(m => m.IsActive && m.Status != "frozen" && groupById.ContainsKey(m.GroupId))
                     .Select(m => groupById[m.GroupId]).ToList();
-                var groupNames = string.Join(", ", activeGroups.Select(g => g.Name).Distinct());
+                // Guruhlar — id bilan: hisobotda nomi bosilsa guruh sahifasiga o'tiladi.
+                var groupRefs = activeGroups
+                    .GroupBy(g => g.Id).Select(g => new RetentionRefDto(g.Key, g.First().Name)).ToList();
                 var days = string.Join(" · ", activeGroups
                     .Select(g => FormatDays(g.Days)).Where(d => d != "").Distinct());
 
@@ -275,9 +277,15 @@ public static class RetentionBonusService
                                   ?? s.RetentionBonusStartMonth ?? "").Trim();
                 if (startMonth.Length < 7)
                 {
+                    // Sikl boshlanmagan — o'qitgan oy yo'q, shuning uchun guruhlarning HOZIRGI
+                    // o'qituvchisi ko'rsatiladi (jadval ustuni bo'sh qolmasin).
+                    var currentTeachers = activeGroups
+                        .Select(g => g.TeacherId).Where(t => !string.IsNullOrEmpty(t)).Distinct()
+                        .Select(t => new RetentionRefDto(t, teacherNames.GetValueOrDefault(t, "—")))
+                        .ToList();
                     rows.Add(new RetentionRowDto(
-                        s.Id, s.FullName, course, courseName, groupNames, days, "", cycleNo, [],
-                        0, settings.MonthsRequired,
+                        s.Id, s.FullName, course, courseName, groupRefs, currentTeachers, days,
+                        "", cycleNo, [], 0, settings.MonthsRequired,
                         RowNotStarted, "Boshlanish oyi kiritilmagan", s.IsArchived, [], awardDtos));
                     continue;
                 }
@@ -300,15 +308,40 @@ public static class RetentionBonusService
 
                 var status = walk.Status;
                 var note = walk.Note;
-                // Sanoq to'ldi, lekin taqsimotdagi HAMMA o'qituvchi bloklangan — bonus berib bo'lmaydi.
-                if (status == RowReady && shareDtos.Count > 0 && shareDtos.All(x => x.AlreadyAwarded))
+
+                // Shu sikldan bonus OLISHI MUMKIN bo'lgan o'qituvchilar. Sikl hali boshlanmagan
+                // bo'lsa (birorta oy o'tmagan — masalan bonus berilgach keyingi sikl kelasi oydan
+                // boshlanadi) guruhlarning HOZIRGI o'qituvchisi olinadi.
+                var candidates = rowTeachers.Participants.Count > 0
+                    ? rowTeachers.Participants
+                    : activeGroups.Select(g => g.TeacherId)
+                        .Where(t => !string.IsNullOrEmpty(t)).ToHashSet();
+
+                // Barcha nomzod o'qituvchilar shu o'quvchi orqali ALLAQACHON bonus olgan — bu sikl
+                // hech kimga bonus keltirmaydi. Sanoq to'lishini KUTMASDAN shuni ko'rsatamiz:
+                // aks holda bonus berilgandan keyin ochilgan yangi sikl jadvalda "Yo'lda 0/6" bo'lib
+                // turaverardi va admin "bonus berilgan-ku, nega yo'lda?" deb chalkashardi.
+                // O'qituvchi almashsa qator o'z-o'zidan yana "yo'lda" ga qaytadi (jonli hisob).
+                if (status is RowProgress or RowReady
+                    && candidates.Count > 0 && candidates.All(blocked.Contains))
                 {
                     status = RowBlocked;
                     note = "Barcha o'qituvchilar bu o'quvchi orqali bonus olgan";
                 }
 
+                // Jadvaldagi «O'qituvchi» ustuni — eng ko'p oy olgani birinchi (asosiy o'qituvchi
+                // oldinda tursin). `candidates` ishlatiladi: siklda o'qitganlar, ular hali yo'q
+                // bo'lsa (sikl boshlanmagan — masalan bonusdan keyingi yangi sikl kelasi oydan
+                // boshlanadi) guruhning HOZIRGI o'qituvchisi — ustun bo'sh qolmasin.
+                var teacherRefs = candidates
+                    .OrderByDescending(t => rowTeachers.Weights.GetValueOrDefault(t))
+                    .ThenBy(t => teacherNames.GetValueOrDefault(t, ""), StringComparer.OrdinalIgnoreCase)
+                    .Select(t => new RetentionRefDto(t, teacherNames.GetValueOrDefault(t, "—")))
+                    .ToList();
+
                 rows.Add(new RetentionRowDto(
-                    s.Id, s.FullName, course, courseName, groupNames, days, startMonth, cycleNo,
+                    s.Id, s.FullName, course, courseName, groupRefs, teacherRefs, days,
+                    startMonth, cycleNo,
                     walk.Cells, walk.Counted, settings.MonthsRequired,
                     status, note, s.IsArchived, shareDtos, awardDtos));
             }
@@ -867,7 +900,8 @@ public static class RetentionBonusService
                 && !r.Shares.Any(x => x.TeacherId == teacherId)) continue;
 
             inProgress.Add(new TeacherRetentionProgressDto(
-                r.StudentId, r.FullName, r.CourseId, r.CourseName, r.GroupNames,
+                r.StudentId, r.FullName, r.CourseId, r.CourseName,
+                string.Join(", ", r.Groups.Select(g => g.Name)),
                 r.Counted, r.Required, decimal.Round(mine, 4),
                 r.Status, r.StatusNote, awardedStudents.Contains(r.StudentId)));
         }

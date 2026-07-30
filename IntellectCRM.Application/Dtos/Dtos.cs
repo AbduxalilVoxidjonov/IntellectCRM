@@ -2438,10 +2438,19 @@ public record RetentionAwardDto(
 /// "ready" — sanoq to'ldi, bonus berish mumkin · "broken" — sikl uzilgan ·
 /// "blocked" — sanoq to'ldi, LEKIN barcha o'qituvchilar bu o'quvchi orqali allaqachon bonus olgan
 /// </param>
+/// <summary>Bosiladigan havola uchun (id + nom) — guruh yoki o'qituvchi. Jadvalda nomi ko'rinadi,
+/// bosilganda id bo'yicha profilga o'tiladi.</summary>
+public record RetentionRefDto(string Id, string Name);
+
 public record RetentionRowDto(
     string StudentId, string FullName,
     string CourseId, string CourseName,
-    string GroupNames, string Days,
+    /// <summary>Shu fandagi FAOL guruhlar (bosilsa guruh sahifasiga o'tiladi).</summary>
+    List<RetentionRefDto> Groups,
+    /// <summary>Shu siklda o'qitgan o'qituvchi(lar) (bosilsa profilga o'tiladi). Sikl boshlanmagan
+    /// bo'lsa — faol guruhlarning hozirgi o'qituvchisi.</summary>
+    List<RetentionRefDto> Teachers,
+    string Days,
     string StartMonth, int CycleNo,
     List<RetentionMonthCellDto> Months,
     int Counted, int Required,

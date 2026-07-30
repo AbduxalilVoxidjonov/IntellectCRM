@@ -64,13 +64,22 @@ export interface RetentionAward {
   shares: RetentionShare[]
 }
 
+/** Bosiladigan havola: nomi ko'rinadi, bosilganda id bo'yicha profilga o'tiladi. */
+export interface RetentionRef {
+  id: string
+  name: string
+}
+
 export interface RetentionRow {
   studentId: string
   fullName: string
   /** Sikl kaliti — (studentId, courseId). Kursi biriktirilmagan eski guruhda — guruh id'si. */
   courseId: string
   courseName: string
-  groupNames: string
+  /** Shu fandagi faol guruhlar (bosilsa guruh sahifasiga o'tiladi) */
+  groups: RetentionRef[]
+  /** Shu siklda o'qitgan o'qituvchi(lar); sikl boshlanmagan bo'lsa — hozirgi o'qituvchi */
+  teachers: RetentionRef[]
   days: string
   startMonth: string
   cycleNo: number
@@ -169,6 +178,15 @@ export async function restartRetentionCycle(
   startMonth: string,
 ): Promise<void> {
   await api.post(`/admin/retention-bonus/students/${studentId}/restart`, { courseId, startMonth })
+}
+
+/**
+ * Bitta o'quvchining bonus holati — o'quvchi profilidagi «Bonus» bo'limi uchun.
+ * FAQAT admin/superadmin ochadi (server 403 qaytaradi) — bonus o'qituvchi haqiga taalluqli.
+ */
+export async function getStudentRetention(studentId: string): Promise<RetentionReport> {
+  const { data } = await api.get<RetentionReport>(`/admin/retention-bonus/student/${studentId}`)
+  return data
 }
 
 export async function getTeacherRetentionBonuses(
