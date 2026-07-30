@@ -339,6 +339,17 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
         return (fallback ?? "").Trim();
     }
 
+    /// <summary>"YYYY-MM" oyini normallashtiradi. Klient <c>&lt;input type="month"&gt;</c> aynan shu
+    /// formatda yuboradi, lekin to'liq sana ("2026-08-01") kelib qolsa ham oy qismi olinadi;
+    /// noto'g'ri qiymat bo'sh satrga tushadi ("hali boshlanmagan").</summary>
+    private static string NormalizeMonth(string? month)
+    {
+        var m = (month ?? "").Trim();
+        if (m.Length < 7) return "";
+        m = m[..7];
+        return DateOnly.TryParse($"{m}-01", out _) ? m : "";
+    }
+
     /// <summary>"Familiya Ism Sharifi" — parts'ni birlashtirish (bo'sh qismlar tashlanadi).</summary>
     private static string JoinName(string? last, string? first, string? middle) =>
         string.Join(' ', new[] { last, first, middle }
@@ -433,6 +444,9 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
             DiscountStartMonth = (p.DiscountStartMonth ?? "").Trim(),
             DiscountEndMonth = (p.DiscountEndMonth ?? "").Trim(),
             DiscountGroupId = string.IsNullOrWhiteSpace(p.DiscountGroupId) ? null : p.DiscountGroupId.Trim(),
+            // Ushlab turish bonusi — ptichka va sanoq boshlanadigan oy (admin qo'lda kiritadi).
+            RetentionBonus = p.RetentionBonus ?? false,
+            RetentionBonusStartMonth = NormalizeMonth(p.RetentionBonusStartMonth),
         };
         db.Students.Add(student);
 
@@ -568,6 +582,14 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
         // Chegirma guruhi: null = tegilmaydi, "" = tozalanadi (barcha guruhlarga), id = shu guruhga.
         if (p.DiscountGroupId is not null)
             student.DiscountGroupId = string.IsNullOrWhiteSpace(p.DiscountGroupId) ? null : p.DiscountGroupId.Trim();
+
+        // Ushlab turish bonusi. null = tegilmaydi (formadan kelmagan chaqiruvlar buzilmasin).
+        if (p.RetentionBonus.HasValue) student.RetentionBonus = p.RetentionBonus.Value;
+        if (p.RetentionBonusStartMonth is not null)
+            student.RetentionBonusStartMonth = NormalizeMonth(p.RetentionBonusStartMonth);
+        // Ptichka o'chirilsa sanoq oyi ham tozalanadi — qayta yoqilganda eski oy "tirilib"
+        // kutilmagan sikl ochib yubormasin.
+        if (!student.RetentionBonus) student.RetentionBonusStartMonth = "";
 
         // Akkaunt nomini sinxronlaymiz va (ixtiyoriy) yangi parol o'rnatamiz.
         var user = student.UserId is null ? null : await db.Users.FindAsync(student.UserId);

@@ -1,10 +1,24 @@
 # O'quvchini ushlab turish bonusi (Student Retention Bonus) — TAHLIL VA REJA
 
-> **HOLAT: REJA — hali kod yozilmagan.** Bu hujjat mavjud tizim tahlili, tanlangan dizayn va
-> bosqichma-bosqich ish rejasi. Amalga oshirilgandan keyin bu fayl `.claude/rules/retention-bonus.md`
-> ga aylantiriladi (yoki shu yerda "BAJARILDI" deb belgilanadi).
+> **HOLAT: ✅ BAJARILDI (2026-07-30)** — barcha bosqichlar (0–6) yozildi va sinovdan o'tdi.
+> Bosqich 7 (`SalaryLedger` ga ulash) qaror #3 bo'yicha ATAYIN qilinmadi.
 >
 > Sana: 2026-07-30 · Tahlil manbai: kod bazasining o'zi (havolalar `fayl:satr` ko'rinishida).
+>
+> ### Qayerda ishlaydi
+> - **Ptichka:** o'quvchi formasi → «Ushlab turish bonusi» bo'limi (ptichka + sanoq boshlanadigan oy)
+> - **Hisobot:** O'quvchilar → **Bonus hisoboti** (`/admin/students/bonus`) — oylik kataklar
+>   (✅ ⏳ ❄️ 🚪), har katak ostida O'SHA OYDAGI o'qituvchi, filtrlar, Excel, sozlamalar
+> - **Bonus berish:** hisobotdagi «Bonus berish» tugmasi (`finance` yozish ruxsati) — taqsimot
+>   avtomatik hisoblanadi va qo'lda tahrirlanadi
+> - **O'qituvchi:** profilida **«Bonus»** tabi; o'qituvchi ilovasida Maosh sahifasi ostida
+>   alohida bo'lim (maosh raqamlariga QO'SHILMAYDI)
+>
+> ### Asosiy fayllar
+> `RetentionBonusService.cs` (butun mantiq) · `GroupTeacherHistory.cs` (o'qituvchi tarixi) ·
+> `RetentionBonusController.cs` · `RetentionBonusPage.tsx` + `GiveRetentionBonusModal.tsx` +
+> `RetentionSettingsModal.tsx` · `TeacherBonusPanel.tsx` ·
+> migratsiyalar `AddGroupTeacherHistory`, `RetentionBonusSystem`
 
 ---
 
@@ -418,18 +432,35 @@ hisoboti va Chiqimlar bo'limi **hech narsa o'zgarmaydi**.
 | # | Ish | Fayllar | Vaqt |
 |---|---|---|---|
 | **0** ✅ | `GroupTeacherAssignment` + `ClassesController` ilgagi + backfill | Domain, Infrastructure, ClassesController | **BAJARILDI** |
-| 1 | Entity'lar + `CenterMeta` maydonlari + migratsiya `RetentionBonusSystem` | Entities.cs, IAppDbContext, AppDbContext | ~1.5 soat |
-| 2 | `RetentionBonusService` — jadval, holat mantig'i, taqsimot | Application/Services | ~3 soat |
-| 3 | `RetentionBonusController` + .xlsx eksport | Server/Controllers | ~1.5 soat |
-| 4 | O'quvchi formasi ptichkasi + DTO | StudentFormModal, StudentsController, Dtos | ~1 soat |
-| 5 | «Bonus hisoboti» sahifasi + berish modali | pages/admin/students/bonus/ | ~3 soat |
-| 6 | O'qituvchi profili `bonus` tabi + o'qituvchi ilovasida alohida bo'lim | TeacherDetailPage, teacher/salary | ~2 soat |
+| **1** ✅ | Entity'lar + `CenterMeta` maydonlari + migratsiya `RetentionBonusSystem` | Entities.cs, IAppDbContext, AppDbContext | **BAJARILDI** |
+| **2** ✅ | `RetentionBonusService` — jadval, holat mantig'i, taqsimot | Application/Services | **BAJARILDI** |
+| **3** ✅ | `RetentionBonusController` + .xlsx eksport | Server/Controllers | **BAJARILDI** |
+| **4** ✅ | O'quvchi formasi ptichkasi + payload | StudentFormModal, StudentsController, Dtos | **BAJARILDI** |
+| **5** ✅ | «Bonus hisoboti» sahifasi + berish modali + sozlamalar | pages/admin/students/ | **BAJARILDI** |
+| **6** ✅ | O'qituvchi profili `bonus` tabi + o'qituvchi ilovasida alohida bo'lim | TeacherDetailPage, teacher/salary | **BAJARILDI** |
 | ~~7~~ | ~~`SalaryLedger` ga ulash~~ | — | ❌ **chiqarildi** (qaror #3) |
 
-**Jami ~12.5 soat.**
+### Sinovdan o'tgan ssenariylar
 
-**Bosqich 0 birinchi bajariladi** — u kechikkan har kun qayta tiklab bo'lmaydigan ma'lumot yo'qotadi
-(4-bo'limga qarang).
+Toza PostgreSQL 16 bazasi + haqiqiy API (login → endpointlar) bilan tekshirildi:
+
+| Ssenariy | Kutilgan | Natija |
+|---|---|---|
+| Guruh yaratish | o'qituvchi tarixi ochiladi | ✅ |
+| Guruh o'qituvchisini almashtirish | eski qator yopiladi, yangisi ochiladi (bitta ochiq qator) | ✅ |
+| 6 oy to'liq, 3-oyda o'qituvchi almashgan | 6/6 tayyor; taqsimot 2 oy A / 4 oy B (§7 misol 1) | ✅ |
+| Bonus berish, 300 000 | A: 100 000 · B: 200 000; sanoq keyingi siklga suriladi | ✅ |
+| Taqsimot yig'indisi noto'g'ri | rad etiladi (aniq xabar bilan) | ✅ |
+| Takroriy bonus | rad etiladi (sikl endi tayyor emas) | ✅ |
+| Bonusni bekor qilish | "cancelled", sanoq davr boshiga qaytadi, jamidan chiqadi | ✅ |
+| To'lov o'chirildi (qarz) | ⏳, sanoqqa kirmaydi, sikl UZILMAYDI, oyna cho'ziladi | ✅ |
+| Kechikkan to'lov kiritildi | katak o'z-o'zidan ✅ ga aylanadi (§5.3) | ✅ |
+| 3 oy muzlash (ruxsat 2) | sikl uziladi, sabab ko'rsatiladi | ✅ |
+| 2 oy muzlash, keyin qaytdi | uzilmaydi, oyna cho'ziladi (§5.4) | ✅ |
+| O'quvchi arxivlandi | DARHOL uziladi (2 oy kutilmaydi) | ✅ |
+| Qayta boshlash | yangi oydan yangi sikl; noto'g'ri oy rad etiladi | ✅ |
+| Excel eksport | to'g'ri .xlsx qaytadi | ✅ |
+| **`SalaryLedgerDto`** | bonus maydoni YO'Q — maosh o'zgarmagan (qaror #3) | ✅ |
 
 ---
 
@@ -488,6 +519,10 @@ Chiqimlar bo'limlari **hech qanday o'zgarishsiz** qoladi.
 ## 14. Ochiq savollar (keyinroq hal qilinadi)
 
 - 6 oy to'lganda adminga Telegram xabarnomasi kerakmi? (`BookSalesService.NotifyAdminsAsync` tayyor
-  namuna, `TuitionAccrualService` shabloni bilan yengil job)
-- Ikkinchi va keyingi sikllar avtomatik boshlanadimi yoki admin qayta ptichka qo'yadimi?
-- Bonus o'quvchining o'ziga/ota-onasiga ko'rinadimi? (hozircha **yo'q** deb rejalashtirilgan)
+  namuna, `TuitionAccrualService` shabloni bilan yengil job) — **hali qilinmadi**
+- ~~Ikkinchi va keyingi sikllar avtomatik boshlanadimi?~~ → **HAL QILINDI: avtomatik.** Bonus
+  berilganda `RetentionBonusStartMonth` davr oxiridan keyingi oyga suriladi (uzluksiz zanjir).
+  Aks holda o'sha sikl jadvalda «tayyor» bo'lib turaverardi. Admin oyni istalgan payt
+  o'quvchi formasida yoki «Qayta boshlash» tugmasi bilan o'zgartira oladi; bonus bekor
+  qilinsa oy avtomatik davr boshiga qaytadi.
+- Bonus o'quvchining o'ziga/ota-onasiga ko'rinadimi? (hozircha **yo'q** — faqat admin va o'qituvchi)

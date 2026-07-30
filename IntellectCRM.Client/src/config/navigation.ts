@@ -69,6 +69,7 @@ export const navByRole: Record<Role, NavItem[]> = {
       children: [
         { label: "O'quvchilar ro'yxati", to: '/admin/students', end: true },
         { label: "O'quvchilar davomati", to: '/admin/students/davomat' },
+        { label: 'Bonus hisoboti', to: '/admin/students/bonus' },
         { label: 'Turniket', to: '/admin/students/turniket' },
         { label: "O'quvchilarga feedback", to: '/admin/students/baholash' },
         { label: 'Feedback nomi', to: '/admin/students/baholash-turlari' },

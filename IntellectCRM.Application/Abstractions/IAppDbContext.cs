@@ -21,6 +21,8 @@ public interface IAppDbContext
     DbSet<Subject> Subjects { get; }
     DbSet<Group> Classes { get; }
     DbSet<GroupTeacherAssignment> GroupTeacherAssignments { get; }
+    DbSet<RetentionBonusAward> RetentionBonusAwards { get; }
+    DbSet<RetentionBonusShare> RetentionBonusShares { get; }
     DbSet<StudentGroup> StudentGroups { get; }
     DbSet<StudentNote> StudentNotes { get; }
     DbSet<Lead> Leads { get; }

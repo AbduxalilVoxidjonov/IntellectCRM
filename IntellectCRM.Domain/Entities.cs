@@ -293,6 +293,75 @@ public class Student
     /// <summary>Turniket/FaceID qurilmasidagi shaxs ID'si (personId/employeeNo). Turniket o'tish
     /// hodisalari shu ID orqali o'quvchiga bog'lanadi (kirgan/chiqqan vaqt). Bo'sh = moslanmagan.</summary>
     public string DeviceUserId { get; set; } = string.Empty;
+
+    // ---------- O'quvchini ushlab turish bonusi (retention) ----------
+    /// <summary>Shu o'quvchi USHLAB TURISH BONUSI tizimiga kiradimi (admin qo'lda belgilaydi).
+    /// false = bonus hisoboti ro'yxatida umuman ko'rinmaydi. Avtomatik yoqilmaydi — markaz egasi
+    /// kimga bonus tizimi tegishli ekanini o'zi hal qiladi (retroaktiv "eski o'quvchilarga
+    /// birdaniga bonus chiqib ketishi" xavfi shu bilan yopiladi).</summary>
+    public bool RetentionBonus { get; set; }
+    /// <summary>Bonus sanog'i QAYSI OYDAN boshlanadi ("YYYY-MM"). Admin QO'LDA kiritadi —
+    /// avtomatik to'ldirilmaydi. Bo'sh = "hali boshlanmagan" (sanoq ko'rsatilmaydi).
+    /// <see cref="RetentionBonus"/> yoqilgan, lekin bu bo'sh bo'lsa — o'quvchi ro'yxatda
+    /// "boshlanish oyi kiritilmagan" holatida turadi.</summary>
+    public string RetentionBonusStartMonth { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// BERILGAN USHLAB TURISH BONUSI — bitta yakunlangan sikl (o'quvchi N oy uzluksiz o'qidi).
+///
+/// <para>Nega faqat YAKUNIY natija saqlanadi: oylik holatlar (✅/⏳/❄️) HECH QAYERDA saqlanmaydi,
+/// har so'rovda qayta hisoblanadi — chunki superadmin <see cref="MonthlyCharge"/>ni tahrirlashi,
+/// to'lov tuzatilishi yoki vozvrat qilinishi mumkin. Saqlansa jadval haqiqatdan uzilib qolardi.
+/// Maosh (<c>SalaryLedger</c>) ham aynan shunday ishlaydi.</para>
+///
+/// <para><b>Pul chiqimi EMAS:</b> bonus berish — hisoblash/qayd. Haqiqiy pul odatdagi maosh
+/// to'lovi (<see cref="FinanceTransaction"/> expense/salary) orqali beriladi. Aks holda Kassa va
+/// Moliya bir xil pulni ikki marta hisoblardi.</para>
+/// </summary>
+public class RetentionBonusAward
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string StudentId { get; set; } = string.Empty;
+    /// <summary>O'quvchi F.I.Sh — SNAPSHOT (o'quvchi o'chirilsa/arxivlansa ham tarix o'qiladi).</summary>
+    public string StudentName { get; set; } = string.Empty;
+    /// <summary>Nechanchi sikl (1, 2, 3 …). <c>(StudentId, CycleNo)</c> NOYOB — takroriy bonus mumkin emas.</summary>
+    public int CycleNo { get; set; } = 1;
+    /// <summary>Sikl boshlanish oyi ("YYYY-MM").</summary>
+    public string PeriodFrom { get; set; } = string.Empty;
+    /// <summary>Sikl tugash oyi ("YYYY-MM") — hisobga kirgan oxirgi oy.</summary>
+    public string PeriodTo { get; set; } = string.Empty;
+    /// <summary>Jami bonus summasi (so'm) — admin berish paytida kiritadi.</summary>
+    public decimal TotalAmount { get; set; }
+    /// <summary>"given" (berilgan) | "cancelled" (bekor qilingan — xato kiritilgan bo'lsa).</summary>
+    public string Status { get; set; } = StatusGiven;
+    public const string StatusGiven = "given";
+    public const string StatusCancelled = "cancelled";
+    /// <summary>Bekor qilish sababi (Status=="cancelled" bo'lsa).</summary>
+    public string CancelReason { get; set; } = string.Empty;
+    public DateTime CreatedAt { get; set; } = AppClock.Now;
+    /// <summary>Kim bergani (admin F.I.Sh).</summary>
+    public string GivenBy { get; set; } = string.Empty;
+    public string Note { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Bitta bonusning BIR O'QITUVCHIGA tegishli ulushi. Bir sikl → N qator (o'quvchi davr ichida
+/// o'qituvchi/guruh almashtirgan bo'lsa). Ulush o'qigan oylar nisbatida hisoblanadi
+/// (<c>RetentionBonusService</c>), lekin admin berish modalida QO'LDA o'zgartira oladi.
+/// </summary>
+public class RetentionBonusShare
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string AwardId { get; set; } = string.Empty;
+    public string TeacherId { get; set; } = string.Empty;
+    /// <summary>O'qituvchi F.I.Sh — SNAPSHOT (o'qituvchi o'chirilsa ham tarix o'qiladi).</summary>
+    public string TeacherName { get; set; } = string.Empty;
+    /// <summary>Shu o'qituvchida o'tgan oylar (kasrli bo'lishi mumkin: o'quvchi bir vaqtda ikki
+    /// guruhda o'qisa oy vazni 1.0 guruhlar narxi nisbatida bo'linadi).</summary>
+    public decimal Months { get; set; }
+    /// <summary>Shu o'qituvchiga tegadigan summa (so'm).</summary>
+    public decimal Amount { get; set; }
 }
 
 /// <summary>
@@ -1090,6 +1159,17 @@ public class CenterMeta
     /// <summary>Jurnalni to'ldirishga beriladigan muhlat (kun). Dars sanasi shu kundan yosh bo'lsa hali
     /// "o'tkazib yuborilgan" hisoblanmaydi (o'qituvchi keyinroq belgilashi mumkin). 0-30.</summary>
     public int SalaryGraceDays { get; set; }
+
+    /* ---------- O'quvchini ushlab turish bonusi (retention) ---------- */
+
+    /// <summary>Bonus uchun necha oy uzluksiz o'qish kerak (default 6). 1-36.</summary>
+    public int RetentionMonthsRequired { get; set; } = 6;
+    /// <summary>Ketma-ket necha oy a'zoliksiz/muzlatilgan turish KECHIRILADI (default 2). Bundan
+    /// oshsa sikl uziladi. 0 = har qanday uzilish siklni buzadi. 0-12.</summary>
+    public int RetentionMaxGapMonths { get; set; } = 2;
+    /// <summary>Bonus berish modalida oldindan to'ldiriladigan standart summa (so'm). Admin
+    /// har safar o'zgartira oladi — bu faqat qulaylik uchun.</summary>
+    public decimal RetentionDefaultAmount { get; set; }
 
     /// <summary>Markaz nomi.</summary>
     public string Name { get; set; } = string.Empty;

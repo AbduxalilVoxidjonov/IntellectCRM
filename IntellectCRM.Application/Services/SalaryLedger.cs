@@ -280,13 +280,10 @@ public static class SalaryLedger
         var membsByStudent = memberships.GroupBy(m => m.StudentId)
             .ToDictionary(g => g.Key, g => g.ToList());
 
-        static bool BillableInMonth(StudentGroup m, string month)
-        {
-            if (m.Status == "trial") return false;
-            var actOk = m.ActivatedAt.Length < 7 || string.CompareOrdinal(month, m.ActivatedAt[..7]) >= 0;
-            var frzOk = m.FrozenAt.Length < 7 || string.CompareOrdinal(month, m.FrozenAt[..7]) <= 0;
-            return actOk && frzOk;
-        }
+        // Ta'rif MembershipLifecycle da — ushlab turish bonusi ham AYNAN shuni ishlatadi
+        // (nusxa qilinsa, vaqt o'tib maosh va bonus bir oyni turlicha hisoblab qolardi).
+        static bool BillableInMonth(StudentGroup m, string month) =>
+            MembershipLifecycle.BillableInMonth(m, month);
 
         foreach (var p in payments)
         {

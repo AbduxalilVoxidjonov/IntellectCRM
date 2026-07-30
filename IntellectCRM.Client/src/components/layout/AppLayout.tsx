@@ -5,14 +5,35 @@ import { Sidebar } from './Sidebar'
 import { Topbar } from './Topbar'
 import { CommandPalette } from './CommandPalette'
 
+/** Desktopdagi yig'ilgan holat brauzerda eslab qolinadi (har sahifada qayta yig'ilmasin). */
+const COLLAPSE_KEY = 'sidebar:collapsed'
+
 export function AppLayout() {
-  // Desktopda ochiq, mobil ekranda yopiq holatda boshlanadi
+  // MOBIL drawer: desktopda ochiq, mobil ekranda yopiq holatda boshlanadi.
   const [open, setOpen] = useState(
     () => typeof window !== 'undefined' && window.innerWidth >= 1024,
+  )
+  // DESKTOP: yon menyu yig'ilganmi. Mobil drawer'dan ALOHIDA holat — ikkalasi bir o'zgaruvchida
+  // bo'lsa, oynani kichraytirib-kattalashtirganda holat chalkashib ketardi.
+  const [collapsed, setCollapsed] = useState(
+    () => typeof window !== 'undefined' && localStorage.getItem(COLLAPSE_KEY) === '1',
   )
 
   const closeOnMobile = () => {
     if (window.innerWidth < 1024) setOpen(false)
+  }
+
+  /** Hamburger: desktopda yon menyuni yig'adi/ochadi, mobilda drawer'ni ochadi/yopadi. */
+  const toggleMenu = () => {
+    if (window.innerWidth >= 1024) {
+      setCollapsed((c) => {
+        const next = !c
+        localStorage.setItem(COLLAPSE_KEY, next ? '1' : '0')
+        return next
+      })
+    } else {
+      setOpen((o) => !o)
+    }
   }
 
   // Breakpoint (lg=1024px) KESIB O'TILGANDA holatni moslaymiz: desktopga o'tilsa drawer ochiq
@@ -37,10 +58,10 @@ export function AppLayout() {
           />
         )}
 
-        <Sidebar open={open} onNavigate={closeOnMobile} />
+        <Sidebar open={open} collapsed={collapsed} onNavigate={closeOnMobile} />
 
         <div className="flex flex-1 flex-col overflow-hidden">
-          <Topbar onMenuClick={() => setOpen((o) => !o)} />
+          <Topbar onMenuClick={toggleMenu} />
           <main className="flex-1 overflow-y-auto p-6">
             <Outlet />
           </main>

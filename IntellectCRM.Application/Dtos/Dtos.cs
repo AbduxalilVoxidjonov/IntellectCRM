@@ -54,7 +54,11 @@ public record StudentPayload(
     string? MotherFullName = null, string? MotherPhone = null,
     string? DiscountStartMonth = null, string? DiscountEndMonth = null,
     string? DistrictId = null, string? SchoolId = null,
-    string? DiscountGroupId = null);
+    string? DiscountGroupId = null,
+    /// <summary>Ushlab turish bonusi ptichkasi. null = tegilmaydi (eski chaqiruvlar buzilmaydi).</summary>
+    bool? RetentionBonus = null,
+    /// <summary>Bonus sanog'i boshlanadigan oy "YYYY-MM" (admin QO'LDA kiritadi). null = tegilmaydi.</summary>
+    string? RetentionBonusStartMonth = null);
 /// <summary>O'quvchi to'lovi kiritish so'rovi. <paramref name="Date"/> — to'lov haqiqatan sodir bo'lgan
 /// sana (ISO "YYYY-MM-DD"), ixtiyoriy — bo'sh bo'lsa bugungi sana ishlatiladi (masalan bugun to'lagan,
 /// lekin tizimga ertaga kiritilayotgan to'lov uchun eski sanani tanlash imkoni).</summary>
@@ -2385,3 +2389,71 @@ public record BookSettingsDto(
     string BookCardNumber,
     string BookCardHolder,
     string BookPaymentNote);
+
+/* ---------- O'QUVCHINI USHLAB TURISH BONUSI (retention) ---------- */
+
+/// <summary>
+/// Bonus jadvalidagi BITTA OY katagi. Hech qayerda saqlanmaydi — har so'rovda qayta hisoblanadi
+/// (to'lov keyinroq kiritilsa katak o'z-o'zidan ✅ ga aylanadi).
+/// </summary>
+/// <param name="State">
+/// "paid" ✅ pullik a'zolik bor + qarz yo'q (sanoqqa +1) ·
+/// "debt" ⏳ pullik a'zolik bor + qarz bor (+0, lekin sikl UZILMAYDI) ·
+/// "frozen" ❄️ muzlatilgan (pauza) · "gone" 🚪 pullik a'zolik yo'q (pauza)
+/// </param>
+public record RetentionMonthCellDto(
+    string Month, string State, decimal Charged, decimal Paid,
+    string TeacherId, string TeacherName, bool Counted);
+
+/// <summary>Bonusning bitta o'qituvchiga tegadigan ulushi (taxminiy yoki berilgan).</summary>
+public record RetentionShareDto(string TeacherId, string TeacherName, decimal Months, decimal Amount);
+
+/// <summary>Berilgan bonus (tarix).</summary>
+public record RetentionAwardDto(
+    string Id, string StudentId, string StudentName, int CycleNo,
+    string PeriodFrom, string PeriodTo, decimal TotalAmount,
+    string Status, string CancelReason, DateTime CreatedAt, string GivenBy, string Note,
+    List<RetentionShareDto> Shares);
+
+/// <summary>
+/// Bonus hisobotidagi bitta o'quvchi qatori.
+/// </summary>
+/// <param name="Status">
+/// "notstarted" — boshlanish oyi kiritilmagan · "progress" — yo'lda ·
+/// "ready" — sanoq to'ldi, bonus berish mumkin · "broken" — sikl uzilgan
+/// </param>
+public record RetentionRowDto(
+    string StudentId, string FullName, string GroupNames, string Days,
+    string StartMonth, int CycleNo,
+    List<RetentionMonthCellDto> Months,
+    int Counted, int Required,
+    string Status, string StatusNote,
+    bool IsArchived,
+    List<RetentionShareDto> Shares,
+    List<RetentionAwardDto> Awards);
+
+/// <summary>Bonus tizimi sozlamalari (<c>CenterMeta</c>).</summary>
+public record RetentionSettingsDto(int MonthsRequired, int MaxGapMonths, decimal DefaultAmount);
+
+/// <summary>Bonus hisoboti — jadval + sozlamalar + "tayyor" bo'lganlar soni.</summary>
+public record RetentionReportDto(
+    List<RetentionRowDto> Rows, RetentionSettingsDto Settings, int ReadyCount);
+
+/// <summary>Bonus berish so'rovi. <c>Shares</c> — admin tahrirlagan taqsimot (yig'indisi
+/// <c>TotalAmount</c> ga TENG bo'lishi shart).</summary>
+public record GiveRetentionBonusRequest(
+    string StudentId, decimal TotalAmount, List<RetentionShareInput> Shares, string? Note = null);
+public record RetentionShareInput(string TeacherId, decimal Amount, decimal Months = 0);
+
+/// <summary>Uzilgan siklni yangi oydan qayta boshlash.</summary>
+public record RestartRetentionRequest(string StartMonth);
+
+/// <summary>Bonusni bekor qilish (xato kiritilgan bo'lsa).</summary>
+public record CancelRetentionBonusRequest(string? Reason = null);
+
+/// <summary>O'qituvchi profilidagi "Bonus" tabi uchun — u olgan barcha ulushlar.</summary>
+public record TeacherRetentionBonusDto(
+    string AwardId, string StudentId, string StudentName,
+    string PeriodFrom, string PeriodTo, decimal Months, decimal Amount,
+    DateTime GivenAt, string GivenBy, string Status);
+public record TeacherRetentionSummaryDto(decimal Total, int Count, List<TeacherRetentionBonusDto> Items);

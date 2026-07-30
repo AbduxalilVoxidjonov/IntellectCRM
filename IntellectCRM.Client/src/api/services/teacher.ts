@@ -19,6 +19,7 @@ import type { MaterialInput, SaveAssignmentInput } from './assignments'
 import type { GroupJournal, LessonReschedule } from './journal'
 import type { GroupCurriculum } from './curriculum'
 import type { GradingBoard, SetGrade, BulkGrade } from './grading'
+import type { TeacherRetentionSummary } from './retentionBonus'
 
 /** O'qituvchi profili (panel sarlavhasi/salom uchun) */
 export interface TeacherProfile {
@@ -211,6 +212,16 @@ export async function getTeacherSalary(from?: string, to?: string): Promise<Sala
   const { data } = await api.get<SalaryLedger>('/teacher/salary', {
     params: { from, to },
   })
+  return data
+}
+
+/**
+ * O'quvchini ushlab turish bonuslari (faqat o'ziniki). Maosh raqamlariga QO'SHILMAGAN —
+ * alohida qayd; pul odatdagi maosh to'lovi orqali beriladi.
+ */
+export async function getMyRetentionBonuses(): Promise<TeacherRetentionSummary | null> {
+  if (USE_MOCK) return null
+  const { data } = await api.get<TeacherRetentionSummary>('/teacher/retention-bonus')
   return data
 }
 

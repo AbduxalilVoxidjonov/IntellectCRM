@@ -390,6 +390,10 @@ export interface Student {
   discountEndMonth?: string
   /** Chegirma qaysi GURUHGA tegishli (guruh id). Bo'sh/null — barcha guruh hisoblariga. */
   discountGroupId?: string | null
+  /** O'quvchi USHLAB TURISH BONUSI tizimiga kiradimi (admin qo'lda belgilaydi). */
+  retentionBonus?: boolean
+  /** Bonus sanog'i qaysi oydan boshlanadi ("YYYY-MM"). Admin QO'LDA kiritadi; bo'sh = boshlanmagan. */
+  retentionBonusStartMonth?: string
 }
 
 /* ---------- Tuman + maktab ---------- */

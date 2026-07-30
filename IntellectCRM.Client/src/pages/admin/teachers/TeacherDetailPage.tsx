@@ -49,8 +49,13 @@ import { Loader } from '@/components/ui/Loader'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { CredentialsBox } from '@/components/ui/CredentialsBox'
 import { AuditHistoryList } from '@/components/audit/AuditHistoryList'
+import { TeacherBonusPanel } from '@/components/retention/TeacherBonusPanel'
+import {
+  getTeacherRetentionBonuses,
+  type TeacherRetentionSummary,
+} from '@/api/services/retentionBonus'
 
-type Tab = 'info' | 'groups' | 'rating' | 'salary' | 'performance'
+type Tab = 'info' | 'groups' | 'rating' | 'salary' | 'bonus' | 'performance'
 
 const weekdayShort = ['Du', 'Se', 'Cho', 'Pa', 'Ju', 'Sha', 'Ya']
 
@@ -197,6 +202,10 @@ export function TeacherDetailPage() {
       .finally(() => setSalaryLoading(false))
   }
 
+  // Ushlab turish bonuslari — tab ochilganda bir marta yuklanadi.
+  const [bonuses, setBonuses] = useState<TeacherRetentionSummary | null>(null)
+  const [bonusLoading, setBonusLoading] = useState(false)
+
   // Credentials
   const [credentials, setCredentials] = useState<Credentials | null>(null)
 
@@ -229,6 +238,15 @@ export function TeacherDetailPage() {
       .then(setPerf)
       .finally(() => setPerfLoading(false))
   }, [tab, id, perf])
+
+  useEffect(() => {
+    if (tab !== 'bonus' || !id || bonuses) return
+    setBonusLoading(true)
+    getTeacherRetentionBonuses(id)
+      .then(setBonuses)
+      .catch(() => setBonuses({ total: 0, count: 0, items: [] }))
+      .finally(() => setBonusLoading(false))
+  }, [tab, id, bonuses])
 
   useEffect(() => {
     if (tab !== 'rating' || !id || rating) return
@@ -328,6 +346,14 @@ export function TeacherDetailPage() {
         >
           <Wallet className="mr-1 inline h-3.5 w-3.5" />
           Maosh
+        </button>
+        <button
+          type="button"
+          className={cn('tab', tab === 'bonus' && 'active')}
+          onClick={() => setTab('bonus')}
+        >
+          <Award className="mr-1 inline h-3.5 w-3.5" />
+          Bonus
         </button>
         <button
           type="button"
@@ -1080,6 +1106,9 @@ export function TeacherDetailPage() {
           </Card>
         </div>
       )}
+
+      {/* BONUS TAB — o'quvchini ushlab turish bonuslari (maoshga qo'shilmaydi, alohida qayd) */}
+      {tab === 'bonus' && <TeacherBonusPanel data={bonuses} loading={bonusLoading} />}
 
       {/* PERFORMANCE TAB */}
       {tab === 'performance' && (

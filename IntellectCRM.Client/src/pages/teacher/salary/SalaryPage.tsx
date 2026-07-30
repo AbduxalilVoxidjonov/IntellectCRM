@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { AlertTriangle, ArrowLeft, ChevronDown, Wallet } from 'lucide-react'
-import { getTeacherSalary } from '@/api/services/teacher'
+import { AlertTriangle, ArrowLeft, Award, ChevronDown, Wallet } from 'lucide-react'
+import { getTeacherSalary, getMyRetentionBonuses } from '@/api/services/teacher'
+import type { TeacherRetentionSummary } from '@/api/services/retentionBonus'
 import type { SalaryLedger } from '@/types'
 import { formatMoney } from '@/lib/utils'
 import { Loader } from '@/components/ui/Loader'
@@ -38,6 +39,8 @@ function statusChip(status: string): { label: string; cls: string } {
 export function TeacherSalaryPage() {
   const nav = useNavigate()
   const [ledger, setLedger] = useState<SalaryLedger | null>(null)
+  /** Ushlab turish bonuslari — maoshdan ALOHIDA (Expected/Remaining ga qo'shilmagan). */
+  const [bonuses, setBonuses] = useState<TeacherRetentionSummary | null>(null)
   const [loading, setLoading] = useState(true)
   /** Ushlanma sababi ochilgan oy ("YYYY-MM") */
   const [expanded, setExpanded] = useState<string | null>(null)
@@ -53,6 +56,13 @@ export function TeacherSalaryPage() {
       })
       .finally(() => {
         if (alive) setLoading(false)
+      })
+    getMyRetentionBonuses()
+      .then((d) => {
+        if (alive) setBonuses(d)
+      })
+      .catch(() => {
+        if (alive) setBonuses(null)
       })
     return () => {
       alive = false
@@ -248,6 +258,54 @@ export function TeacherSalaryPage() {
                 </div>
               )
             })}
+          </div>
+        </>
+      )}
+
+      {/* Ushlab turish bonuslari — maosh raqamlaridan ALOHIDA bo'lim (Hisoblandi/Qoldi ga
+          qo'shilmagan): bonus qayd, pul odatdagi maosh to'lovi orqali beriladi. */}
+      {!loading && bonuses && bonuses.items.length > 0 && (
+        <>
+          <p className="px-0.5 pb-2 pt-5 text-[13px] font-bold text-ink">Ushlab turish bonusi</p>
+          <div className="rounded-[20px] border border-line bg-white shadow-[var(--shadow-card)]">
+            <div className="flex items-center gap-2.5 px-3.5 py-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-tealsoft text-teal-700">
+                <Award className="h-5 w-5" />
+              </div>
+              <div className="min-w-0">
+                <p className="font-mono text-[15px] font-extrabold text-teal-700">
+                  {formatMoney(bonuses.total)}
+                </p>
+                <p className="text-[12px] text-mute">
+                  {bonuses.count} ta bonus · maoshga qo'shilmagan
+                </p>
+              </div>
+            </div>
+            <div className="divide-y divide-line border-t border-line">
+              {bonuses.items.map((b) => (
+                <div
+                  key={b.awardId}
+                  className={b.status === 'cancelled' ? 'px-3.5 py-2.5 opacity-50' : 'px-3.5 py-2.5'}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="truncate text-[13px] font-bold text-ink">{b.studentName}</span>
+                    <span
+                      className={
+                        b.status === 'cancelled'
+                          ? 'shrink-0 font-mono text-[12px] font-bold text-mute line-through'
+                          : 'shrink-0 font-mono text-[12px] font-bold text-teal-700'
+                      }
+                    >
+                      {formatMoney(b.amount)}
+                    </span>
+                  </div>
+                  <p className="mt-0.5 text-[11px] text-mute">
+                    {b.periodFrom} … {b.periodTo} · {b.months} oy
+                    {b.status === 'cancelled' ? ' · bekor qilingan' : ''}
+                  </p>
+                </div>
+              ))}
+            </div>
           </div>
         </>
       )}

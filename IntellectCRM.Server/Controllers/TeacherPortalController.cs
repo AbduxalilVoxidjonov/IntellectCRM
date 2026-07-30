@@ -228,6 +228,20 @@ public class TeacherPortalController(
         return await SalaryLedger.BuildAsync(db, t, from, to);
     }
 
+    /// <summary>
+    /// O'quvchini ushlab turish bonuslari (faqat o'ziniki). Maosh jadvaliga QO'SHILMAYDI —
+    /// alohida bo'lim sifatida ko'rsatiladi (bonus <c>SalaryLedger</c> ga ulanmagan).
+    /// Maosh ruxsati bilan bir xil darvoza: bonus ham pul ma'lumoti.
+    /// </summary>
+    [HttpGet("retention-bonus")]
+    public async Task<ActionResult<TeacherRetentionSummaryDto>> RetentionBonus(CancellationToken ct)
+    {
+        var t = await Me();
+        if (t is null) return NotFound();
+        if (!t.Permissions.Contains(TeacherPermissions.Salary)) return Forbid();
+        return await RetentionBonusService.ForTeacherAsync(db, t.Id, ct);
+    }
+
     // ---------- Jurnal katak (PUT/DELETE) ----------
     // ZAMONAVIY oylik guruh jurnali (journal/group) shu ikki endpointni quarter/period opaque=1 bilan
     // ishlatadi (bitta katakni belgilash/tozalash). Eski chorak GET endpointlari olib tashlandi.

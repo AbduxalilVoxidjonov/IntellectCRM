@@ -56,10 +56,14 @@ export function Topbar({ onMenuClick }: TopbarProps) {
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-slate-200 bg-[oklch(0.99_0.004_80_/_0.85)] px-4 backdrop-blur-md sm:gap-4 sm:px-6">
       <div className="flex shrink-0 items-center gap-3">
+        {/* Yon menyuni ochish/yopish — HAR QANDAY ekranda ko'rinadi (desktopda yig'adi,
+            mobilda drawer'ni ochadi). Sidebar desktopda yashirilishi mumkin bo'lgani uchun
+            bu tugma yo'qolmasligi SHART, aks holda navigatsiyasiz qolinadi. */}
         <button
           onClick={onMenuClick}
-          className="flex h-[34px] w-[34px] items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition-colors hover:border-slate-300 hover:bg-slate-50 lg:hidden"
-          title="Menyu"
+          className="flex h-[34px] w-[34px] items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition-colors hover:border-slate-300 hover:bg-slate-50"
+          title="Menyuni ochish/yopish"
+          aria-label="Menyuni ochish/yopish"
         >
           <Menu className="h-[18px] w-[18px]" />
         </button>

@@ -10,7 +10,10 @@ import { can } from '@/lib/permissions'
 import { cn } from '@/lib/utils'
 
 interface SidebarProps {
+  /** Mobil drawer ochiqmi (&lt;1024px). */
   open: boolean
+  /** Desktopda yon menyu yig'ilganmi — Topbar'dagi hamburger boshqaradi. */
+  collapsed?: boolean
   onNavigate: () => void
 }
 
@@ -24,7 +27,7 @@ function initialsOf(name: string): string {
     .toUpperCase()
 }
 
-export function Sidebar({ open, onNavigate }: SidebarProps) {
+export function Sidebar({ open, collapsed = false, onNavigate }: SidebarProps) {
   const { user } = useAuth()
   const { unreadChannels } = useUnread()
   const totalUnread = unreadChannels.size
@@ -66,11 +69,13 @@ export function Sidebar({ open, onNavigate }: SidebarProps) {
   return (
     <aside
       className={cn(
-        // Desktopda (lg) DOIM statik va ko'rinadi — `open` faqat mobil drawer'ni boshqaradi.
-        // (Ilgari `open=false` da `lg:hidden` edi → tor oynada ochib kattalashtirilganda sidebar
-        //  ham, hamburger ham yo'qolib, navigatsiyasiz qolinardi.)
+        // Desktopda (lg) statik; `open` faqat MOBIL drawer'ni boshqaradi.
         'fixed inset-y-0 left-0 z-40 flex w-64 shrink-0 flex-col border-r border-slate-200 bg-white transition-transform duration-200 lg:static lg:translate-x-0',
         open ? 'translate-x-0' : '-translate-x-full',
+        // Desktopda yig'ilgan holat. Bu XAVFSIZ, chunki Topbar'dagi hamburger endi HAR QANDAY
+        // ekran kengligida ko'rinadi — menyusiz qolib ketilmaydi (ilgari hamburger `lg:hidden`
+        // bo'lgani uchun sidebar'ni desktopda yashirish mumkin emas edi).
+        collapsed && 'lg:hidden',
       )}
     >
       {/* Brend */}

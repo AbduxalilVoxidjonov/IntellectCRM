@@ -45,4 +45,29 @@ public static class MembershipLifecycle
         }
         return new LifecycleTally(came, active, trial, frozen, left);
     }
+
+    /// <summary>
+    /// A'zolik SHU OYDA pullik (billable) bo'lganmi — ya'ni oylik to'lov hisoblanadigan oymi.
+    ///
+    /// <para><b>YAGONA TA'RIF.</b> Maosh (<c>SalaryLedger</c>) teglanmagan to'lovni guruhlar orasida
+    /// shu qoida bo'yicha taqsimlaydi, ushlab turish bonusi (<c>RetentionBonusService</c>) esa
+    /// "shu oyda o'quvchi haqiqatan o'qiganmi" savoliga shu bilan javob beradi. Ikki nusxa bo'lsa
+    /// vaqt o'tib bir-biridan ajralib ketadi va maosh bir oyni "pullik", bonus esa "pullik emas"
+    /// deb hisoblab, raqamlar bir-biriga to'g'ri kelmay qoladi.</para>
+    ///
+    /// <para>Qoida: sinov (trial) — hisoblanmaydi; aktivlashtirilgan oydan boshlab; muzlatish
+    /// oyigacha (muzlatish oyining O'ZI kiradi — billing konvensiyasi).</para>
+    /// </summary>
+    /// <param name="month">"YYYY-MM"</param>
+    public static bool BillableInMonth(string status, string activatedAt, string frozenAt, string month)
+    {
+        if (status == "trial") return false;
+        var actOk = activatedAt.Length < 7 || string.CompareOrdinal(month, activatedAt[..7]) >= 0;
+        var frzOk = frozenAt.Length < 7 || string.CompareOrdinal(month, frozenAt[..7]) <= 0;
+        return actOk && frzOk;
+    }
+
+    /// <inheritdoc cref="BillableInMonth(string,string,string,string)"/>
+    public static bool BillableInMonth(Domain.StudentGroup m, string month) =>
+        BillableInMonth(m.Status, m.ActivatedAt, m.FrozenAt, month);
 }
