@@ -1,4 +1,4 @@
-import { Award } from 'lucide-react'
+import { Award, Hourglass } from 'lucide-react'
 import type { TeacherRetentionSummary } from '@/api/services/retentionBonus'
 import { formatMoney, formatDate, cn } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
@@ -17,6 +17,9 @@ interface Props {
  * ilovasidagi maosh sahifasi AYNAN shu komponentni ishlatadi (raqamlar ikki joyda ikki xil
  * ko'rinmasin).
  *
+ * Ikki bo'lim: YO'LDAGILAR (oylari to'planayotgan (o'quvchi × fan) sikllari) va BERILGAN
+ * bonuslar. Sikl har FAN uchun alohida yuritiladi.
+ *
  * DIQQAT: bu summalar maosh (`SalaryLedger`) raqamlariga QO'SHILMAGAN — bonus alohida qayd.
  * Pul odatdagi maosh to'lovi orqali beriladi.
  */
@@ -24,6 +27,7 @@ export function TeacherBonusPanel({ data, loading, title = 'Ushlab turish bonusl
   if (loading) return <Loader />
 
   const items = data?.items ?? []
+  const inProgress = data?.inProgress ?? []
 
   return (
     <Card title={title} className="p-0">
@@ -36,11 +40,100 @@ export function TeacherBonusPanel({ data, loading, title = 'Ushlab turish bonusl
           <div className="text-xs uppercase tracking-wide text-slate-400">Bonuslar soni</div>
           <div className="text-xl font-bold text-slate-800">{data?.count ?? 0}</div>
         </div>
+        <div>
+          <div className="text-xs uppercase tracking-wide text-slate-400">Yo'lda</div>
+          <div className="text-xl font-bold text-slate-800">{inProgress.length}</div>
+        </div>
         <p className="ml-auto max-w-md text-xs text-slate-400">
           Bonus o'quvchini uzoq muddat ushlab turgani uchun beriladi. Bu summa maosh
           hisob-kitobiga <b>qo'shilmagan</b> — u alohida qayd; pul odatdagi maosh to'lovi
           orqali beriladi.
         </p>
+      </div>
+
+      {/* ---------- 1. YO'LDAGILAR ---------- */}
+      <div className="border-b border-slate-100">
+        <div className="flex flex-wrap items-center gap-2 px-4 pt-4">
+          <Hourglass className="h-4 w-4 text-slate-400" />
+          <span className="text-sm font-bold text-slate-800">Yo'ldagilar</span>
+          <span className="text-xs text-slate-400">
+            oylari to'planayotgan (o'quvchi × fan) sikllari
+          </span>
+        </div>
+        <p className="px-4 pt-1.5 text-xs text-slate-400">
+          «Menda» ustuni — bonusdan sizga qancha <b>ULUSH</b> tegishini ko'rsatadi, «necha oy dars
+          berdim» degani EMAS: faqat sanoqqa kirgan (to'langan) oylar hisoblanadi.
+        </p>
+
+        {inProgress.length === 0 ? (
+          <div className="px-4 py-6 text-sm text-slate-400">
+            Hozircha yo'ldagi o'quvchi yo'q — sanoq boshlangach shu yerda ko'rinadi.
+          </div>
+        ) : (
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full min-w-[720px] text-sm">
+              <thead className="border-y border-slate-100 text-left text-xs uppercase tracking-wide text-slate-400">
+                <tr>
+                  <th className="px-4 py-2.5">O'quvchi</th>
+                  <th className="px-4 py-2.5">Fan</th>
+                  <th className="px-4 py-2.5">Guruh</th>
+                  <th className="px-4 py-2.5">Sanoq</th>
+                  <th className="px-4 py-2.5 text-right">Menda</th>
+                  <th className="px-4 py-2.5">Holat</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {inProgress.map((p) => {
+                  const pct =
+                    p.required > 0 ? Math.min(100, Math.round((p.counted / p.required) * 100)) : 0
+                  return (
+                    <tr
+                      key={`${p.studentId}:${p.courseId}`}
+                      className={cn('hover:bg-slate-50/60', p.alreadyAwarded && 'opacity-50')}
+                    >
+                      <td className="px-4 py-3 font-medium text-slate-800">
+                        {p.studentName}
+                        {p.alreadyAwarded && (
+                          <Badge tone="amber" className="ml-2">
+                            bonus olingan
+                          </Badge>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-slate-600">{p.courseName || '—'}</td>
+                      <td className="px-4 py-3 text-slate-500">{p.groupNames || '—'}</td>
+                      <td className="px-4 py-3">
+                        <div className="font-mono text-xs text-slate-600">
+                          {p.counted}/{p.required}
+                        </div>
+                        <div className="mt-1 h-1.5 w-24 overflow-hidden rounded-full bg-slate-100">
+                          <div
+                            className={cn(
+                              'h-full rounded-full',
+                              pct >= 100 ? 'bg-emerald-500' : 'bg-brand-500',
+                            )}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-right font-mono text-slate-600">
+                        {p.myMonths}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="text-xs text-slate-500">{p.statusNote}</div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* ---------- 2. BERILGAN BONUSLAR ---------- */}
+      <div className="flex items-center gap-2 px-4 pt-4">
+        <Award className="h-4 w-4 text-slate-400" />
+        <span className="text-sm font-bold text-slate-800">Berilgan bonuslar</span>
       </div>
 
       {items.length === 0 ? (
@@ -49,11 +142,12 @@ export function TeacherBonusPanel({ data, loading, title = 'Ushlab turish bonusl
           Hali bonus berilmagan.
         </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[640px] text-sm">
-            <thead className="border-b border-slate-100 text-left text-xs uppercase tracking-wide text-slate-400">
+        <div className="mt-3 overflow-x-auto">
+          <table className="w-full min-w-[720px] text-sm">
+            <thead className="border-y border-slate-100 text-left text-xs uppercase tracking-wide text-slate-400">
               <tr>
                 <th className="px-4 py-3">O'quvchi</th>
+                <th className="px-4 py-3">Fan</th>
                 <th className="px-4 py-3">Davr</th>
                 <th className="px-4 py-3 text-right">Oy</th>
                 <th className="px-4 py-3 text-right">Summa</th>
@@ -74,6 +168,7 @@ export function TeacherBonusPanel({ data, loading, title = 'Ushlab turish bonusl
                       </Badge>
                     )}
                   </td>
+                  <td className="px-4 py-3 text-slate-600">{x.courseName || '—'}</td>
                   <td className="px-4 py-3 text-slate-500">
                     {x.periodFrom} … {x.periodTo}
                   </td>

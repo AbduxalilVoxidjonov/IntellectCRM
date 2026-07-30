@@ -496,8 +496,10 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
 
     /// <summary>A'zolikni AKTIVLASHTIRISH (sinov → faol). Birinchi (qisman) oy to'lovi avtomatik hisoblanadi:
     /// oyning birinchi darsidan / 12+ dars qolgan bo'lsa to'liq oylik, aks holda qolgan dars × kursning bir
-    /// dars yaxlit narxi (LessonPrice); to'liq oylikdan oshmaydi; chegirma qo'llanadi. Keyingi to'liq oylar
-    /// oddiy oylik hisob (AccrueMonth) orqali. TRANSACTION: race condition oldini olish uchun atomik read-modify-write.
+    /// dars yaxlit narxi (LessonPrice); to'liq oylikdan oshmaydi; chegirma qo'llanadi. ORQAGA SANALGAN
+    /// aktivlashtirishda oraliq oylar (aktiv oydan keyingi oydan joriy oygacha) DARHOL to'liq oylik bilan
+    /// yoziladi — <see cref="TuitionService.AccrueCatchUpAsync"/>; javobdagi <c>catchUpMonths</c> — nechta oy.
+    /// Keyingi (kelajak) to'liq oylar oddiy oylik hisob (AccrueMonth) orqali. TRANSACTION: race condition oldini olish uchun atomik read-modify-write.
     /// <para>Shu OYDA boshqa guruhda muzlatilgan a'zolik bo'lsa (qo'lda guruh almashtirish), o'sha guruhda
     /// ORTIB QOLGAN to'lov shu guruhga ko'chiriladi — <see cref="TuitionService.CarryGroupAdvanceAsync"/>.</para></summary>
     [HttpPost("{id}/members/{studentId}/activate")]
@@ -534,8 +536,15 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
             sg.RecordedAt = AppClock.Today.ToString("yyyy-MM-dd");
 
             var s = await db.Students.FindAsync(studentId);
+            var catchUpMonths = 0;
             if (s is not null)
+            {
                 await TuitionService.ChargeActivationProrateAsync(db, s, cls, date, addSegment: reactivateFromFreeze);
+                // ORQAGA SANALGAN aktivlashtirish: aktivlashtirilgan oydan KEYINGI oylardan joriy oygacha
+                // to'liq oylik hisoblar DARHOL yoziladi (aks holda fon xizmati 12 soatgacha kechikardi).
+                // Idempotent — mavjud hisoblarga tegmaydi, kelajak oy yozmaydi.
+                catchUpMonths = await TuitionService.AccrueCatchUpAsync(db, s, cls, date);
+            }
 
             // AVANSNI KO'CHIRISH (guruh almashtirish QO'LDA bajarilganda): o'quvchi SHU OYDA boshqa guruhda
             // muzlatilgan bo'lib, o'sha guruhga to'lagan puli muzlatish hisobidan ORTIB QOLGAN bo'lsa — u shu
@@ -564,7 +573,7 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
 
             await db.SaveChangesAsync();
 
-            return Ok(new { ok = true, movedAdvance });
+            return Ok(new { ok = true, movedAdvance, catchUpMonths });
         }
         catch (Exception ex)
         {

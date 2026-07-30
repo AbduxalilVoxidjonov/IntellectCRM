@@ -7,12 +7,18 @@ import { api } from '../client'
  * o'qituvchi(lar)ga bonus ajratiladi — o'qigan oylar nisbatida. Oylik holatlar hech qayerda
  * SAQLANMAYDI: har so'rovda qayta hisoblanadi (kechikkan to'lov kiritilsa katak o'z-o'zidan
  * "to'liq" ga aylanadi). Faqat BERILGAN bonus saqlanadi.
+ *
+ * DIQQAT: sikl har FAN uchun ALOHIDA yuritiladi — hisobot qatorining kaliti `(studentId, courseId)`.
+ * Bir o'quvchi ikki fanga qatnasa, hisobotda ikkita mustaqil qator chiqadi. Bir fan ICHIDA guruh
+ * almashtirish siklni uzmaydi.
+ *
+ * Yana bir qoida: `(o'qituvchi, o'quvchi)` juftligi umr bo'yi BITTA bonus oladi.
  */
 
-/** Oy katagi holati: ✅ to'liq · ⏳ qarzdor · ❄️ muzlatilgan · 🚪 a'zolik yo'q */
-export type RetentionState = 'paid' | 'debt' | 'frozen' | 'gone'
-/** Qator holati: boshlanmagan · yo'lda · tayyor · uzilgan */
-export type RetentionStatus = 'notstarted' | 'progress' | 'ready' | 'broken'
+/** Oy katagi holati: ✅ to'liq · ⏳ qarzdor · 📄 hisob yozilmagan · ❄️ muzlatilgan · 🚪 a'zolik yo'q */
+export type RetentionState = 'paid' | 'debt' | 'nocharge' | 'frozen' | 'gone'
+/** Qator holati: boshlanmagan · yo'lda · tayyor · uzilgan · bonus berilgan (bloklangan) */
+export type RetentionStatus = 'notstarted' | 'progress' | 'ready' | 'broken' | 'blocked'
 
 export interface RetentionMonthCell {
   month: string
@@ -31,12 +37,21 @@ export interface RetentionShare {
   /** Shu o'qituvchida o'tgan oylar (kasrli bo'lishi mumkin — parallel guruhlar) */
   months: number
   amount: number
+  /**
+   * true — shu o'qituvchi bu o'quvchi orqali ALLAQACHON bonus olgan (bir juftlik = bitta bonus).
+   * Bunda ulushi 0 bo'ladi, vazni qolgan o'qituvchilarga qayta taqsimlanadi; `months` esa nega
+   * ro'yxatda turgani ko'rinsin uchun haqiqiy qiymat bilan keladi.
+   */
+  alreadyAwarded: boolean
 }
 
 export interface RetentionAward {
   id: string
   studentId: string
   studentName: string
+  /** Qaysi fan bo'yicha berilgan (nomi snapshot; juda eski yozuvlarda bo'sh bo'lishi mumkin) */
+  courseId: string
+  courseName: string
   cycleNo: number
   periodFrom: string
   periodTo: string
@@ -52,6 +67,9 @@ export interface RetentionAward {
 export interface RetentionRow {
   studentId: string
   fullName: string
+  /** Sikl kaliti — (studentId, courseId). Kursi biriktirilmagan eski guruhda — guruh id'si. */
+  courseId: string
+  courseName: string
   groupNames: string
   days: string
   startMonth: string
@@ -84,6 +102,7 @@ export interface TeacherRetentionBonus {
   awardId: string
   studentId: string
   studentName: string
+  courseName: string
   periodFrom: string
   periodTo: string
   months: number
@@ -93,10 +112,29 @@ export interface TeacherRetentionBonus {
   status: 'given' | 'cancelled'
 }
 
+/** O'qituvchida oylari to'planayotgan, hali bonus berilmagan (o'quvchi × fan) sikli. */
+export interface TeacherRetentionProgress {
+  studentId: string
+  studentName: string
+  courseId: string
+  courseName: string
+  groupNames: string
+  counted: number
+  required: number
+  /** Shu SIKLDA aynan shu o'qituvchida o'tgan oylar (kasrli bo'lishi mumkin — parallel guruhlar) */
+  myMonths: number
+  status: RetentionStatus
+  statusNote: string
+  /** true — bu o'quvchi orqali allaqachon bonus olgan, bu sikldan unga bonus tegmaydi */
+  alreadyAwarded: boolean
+}
+
 export interface TeacherRetentionSummary {
   total: number
   count: number
   items: TeacherRetentionBonus[]
+  /** DIQQAT: backend `null` yuborishi mumkin — doim `?? []` bilan o'qing. */
+  inProgress?: TeacherRetentionProgress[] | null
 }
 
 export async function getRetentionReport(): Promise<RetentionReport> {
@@ -104,8 +142,10 @@ export async function getRetentionReport(): Promise<RetentionReport> {
   return data
 }
 
+/** Bonus berish — HAR FAN uchun alohida, shuning uchun `courseId` MAJBURIY. */
 export async function giveRetentionBonus(payload: {
   studentId: string
+  courseId: string
   totalAmount: number
   shares: { teacherId: string; amount: number; months: number }[]
   note?: string
@@ -114,12 +154,21 @@ export async function giveRetentionBonus(payload: {
   return data
 }
 
+/**
+ * Bonusni bekor qilish. DIQQAT: bekor qilish sanoqni QAYTARMAYDI va o'qituvchini bloklangan
+ * qoldiradi — ya'ni shu o'quvchi orqali o'sha o'qituvchiga qayta bonus berib bo'lmaydi.
+ */
 export async function cancelRetentionBonus(awardId: string, reason?: string): Promise<void> {
   await api.post(`/admin/retention-bonus/awards/${awardId}/cancel`, { reason })
 }
 
-export async function restartRetentionCycle(studentId: string, startMonth: string): Promise<void> {
-  await api.post(`/admin/retention-bonus/students/${studentId}/restart`, { startMonth })
+/** Uzilgan siklni yangi oydan qayta boshlash — FAQAT ko'rsatilgan fan uchun. */
+export async function restartRetentionCycle(
+  studentId: string,
+  courseId: string,
+  startMonth: string,
+): Promise<void> {
+  await api.post(`/admin/retention-bonus/students/${studentId}/restart`, { courseId, startMonth })
 }
 
 export async function getTeacherRetentionBonuses(
@@ -157,17 +206,27 @@ export async function exportRetentionReport(): Promise<void> {
 
 /**
  * Jami summani o'qigan OYLAR nisbatida o'qituvchilar orasida bo'ladi — serverdagi
- * taqsimot bilan bir xil qoida (yaxlitlash qoldig'i eng katta ulushga qo'shiladi, shunda
- * yig'indi jami summaga ANIQ teng chiqadi). Admin summani o'zgartirganda modal shu bilan
- * qayta hisoblaydi.
+ * taqsimot bilan bir xil qoida.
+ *
+ * DIQQAT: taqsimotga faqat BLOKLANMAGAN (`alreadyAwarded === false`) ulushlar kiradi —
+ * allaqachon bonus olgan o'qituvchining ulushi 0 bo'lib qoladi, uning vazni qolganlarga
+ * qayta taqsimlanadi. Yaxlitlash qoldig'i eng katta `months` ga qo'shiladi, shunda yig'indi
+ * jami summaga ANIQ teng chiqadi. Admin summani o'zgartirganda modal shu bilan qayta hisoblaydi.
  */
 export function splitByMonths(shares: RetentionShare[], total: number): RetentionShare[] {
-  const totalMonths = shares.reduce((s, x) => s + x.months, 0)
-  if (shares.length === 0 || totalMonths <= 0) return shares
-  const out = shares.map((s) => ({ ...s, amount: Math.round((total * s.months) / totalMonths) }))
+  const active = shares.filter((s) => !s.alreadyAwarded)
+  const totalMonths = active.reduce((s, x) => s + x.months, 0)
+  // Bo'ladigan hech kim yo'q (yoki oylar 0) — hammasi 0 bo'lib qolsin.
+  if (active.length === 0 || totalMonths <= 0) return shares.map((s) => ({ ...s, amount: 0 }))
+
+  const out = shares.map((s) => ({
+    ...s,
+    amount: s.alreadyAwarded ? 0 : Math.round((total * s.months) / totalMonths),
+  }))
   const diff = total - out.reduce((s, x) => s + x.amount, 0)
   if (diff !== 0) {
-    const biggest = out.reduce((a, b) => (b.months > a.months ? b : a), out[0])
+    const open = out.filter((s) => !s.alreadyAwarded)
+    const biggest = open.reduce((a, b) => (b.months > a.months ? b : a), open[0])
     biggest.amount += diff
   }
   return out

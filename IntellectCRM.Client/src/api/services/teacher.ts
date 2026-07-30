@@ -216,8 +216,9 @@ export async function getTeacherSalary(from?: string, to?: string): Promise<Sala
 }
 
 /**
- * O'quvchini ushlab turish bonuslari (faqat o'ziniki). Maosh raqamlariga QO'SHILMAGAN —
- * alohida qayd; pul odatdagi maosh to'lovi orqali beriladi.
+ * O'quvchini ushlab turish bonuslari (faqat o'ziniki): berilganlar (`items`) va oylari
+ * to'planayotgan (o'quvchi × fan) sikllari (`inProgress` — backend `null` yuborishi mumkin).
+ * Maosh raqamlariga QO'SHILMAGAN — alohida qayd; pul odatdagi maosh to'lovi orqali beriladi.
  */
 export async function getMyRetentionBonuses(): Promise<TeacherRetentionSummary | null> {
   if (USE_MOCK) return null

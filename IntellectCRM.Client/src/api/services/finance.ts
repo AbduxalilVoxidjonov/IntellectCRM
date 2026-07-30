@@ -497,3 +497,98 @@ export async function getCashierPayments(
   })
   return data
 }
+
+/* ---------- Bonuslar hisoboti (Moliya → "Bonus") ----------
+ *
+ * DIQQAT: bonus PUL CHIQIMI EMAS — u faqat qayd (haqiqiy pul o'qituvchiga maosh to'lovi orqali
+ * beriladi). Shuning uchun bu raqamlar Moliyaning kirim/chiqim xulosasiga KIRMAYDI, alohida
+ * hisobot bo'lib turadi. Bonus BERISH — "O'quvchilar → Bonus hisoboti" sahifasida.
+ */
+
+/** Hisobotdagi bitta qator — bonus × o'qituvchi (bitta bonus bir necha o'qituvchiga bo'linishi mumkin). */
+export interface RetentionBonusFinanceRow {
+  awardId: string
+  /** Bonus BERILGAN oy ("YYYY-MM") */
+  givenMonth: string
+  teacherId: string
+  teacherName: string
+  studentId: string
+  studentName: string
+  courseName: string
+  /** Qaysi davr uchun ("YYYY-MM") */
+  periodFrom: string
+  periodTo: string
+  /** Shu o'qituvchida o'tgan oylar (kasrli bo'lishi mumkin) */
+  months: number
+  /** Shu o'qituvchiga tegadigan summa (so'm) */
+  amount: number
+  /** given — berilgan | cancelled — bekor qilingan */
+  status: string
+  /** Berilgan sana-vaqti ("yyyy-MM-ddTHH:mm:ss") */
+  givenAt: string
+  givenBy: string
+}
+
+/** O'qituvchilar kesimi — kim qancha bonus oldi (faqat "given"). */
+export interface RetentionBonusByTeacher {
+  teacherId: string
+  teacherName: string
+  count: number
+  total: number
+}
+
+/** Oylar kesimi — qaysi oyda qancha bonus berildi (faqat "given"). */
+export interface RetentionBonusByMonth {
+  month: string
+  count: number
+  total: number
+}
+
+export interface RetentionBonusFinanceReport {
+  /** Hisobot davri ("YYYY-MM", ikkalasi ham inklyuziv) */
+  from: string
+  to: string
+  /** Jami berilgan summa — faqat "given" */
+  total: number
+  count: number
+  /** Bekor qilinganlar alohida (jamiga qo'shilmaydi) */
+  cancelledTotal: number
+  cancelledCount: number
+  byTeacher: RetentionBonusByTeacher[]
+  byMonth: RetentionBonusByMonth[]
+  rows: RetentionBonusFinanceRow[]
+}
+
+/** Bonuslar hisoboti (davr "YYYY-MM"; bo'sh bo'lsa server joriy yil boshidan joriy oygacha oladi). */
+export async function getRetentionBonusReport(
+  from?: string,
+  to?: string,
+): Promise<RetentionBonusFinanceReport> {
+  const { data } = await api.get<RetentionBonusFinanceReport>('/admin/finance/retention-bonuses', {
+    params: cleanParams({ from, to }),
+  })
+  return data
+}
+
+/** Bonuslar hisobotini Excel'ga yuklab olish. */
+export async function exportRetentionBonusReport(from?: string, to?: string): Promise<void> {
+  const res = await api.get('/admin/finance/retention-bonuses/export', {
+    params: cleanParams({ from, to }),
+    responseType: 'blob',
+  })
+  const cd = String(res.headers['content-disposition'] ?? '')
+  const match = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(cd)
+  const href = URL.createObjectURL(res.data as Blob)
+  const a = document.createElement('a')
+  a.href = href
+  a.download = match?.[1] ?? `bonus_moliya_${new Date().toISOString().slice(0, 10)}.xlsx`
+  a.click()
+  URL.revokeObjectURL(href)
+}
+
+/** Bo'sh (undefined/null/"") parametrlarni so'rovdan chiqarib tashlaydi. */
+function cleanParams(params: object): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== ''),
+  )
+}

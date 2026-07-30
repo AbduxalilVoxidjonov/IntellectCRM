@@ -422,12 +422,13 @@ public static class TuitionService
         decimal total = 0;
         foreach (var s in students)
         {
-            // O'quvchi shu oydan oldin kelmagan bo'lsa, hisoblamaymiz. (.Length >= 7 — noto'g'ri/qisqa
-            // EnrollmentDate qatorida [..7] crash bo'lmasligi uchun; boshqa call-site'lar bilan bir xil himoya.)
-            if (s.EnrollmentDate.Length >= 7 && string.CompareOrdinal(s.EnrollmentDate[..7], month) > 0) continue;
-
             if (membershipsByStudent.TryGetValue(s.Id, out var mships) && mships.Count > 0)
             {
+                // DIQQAT: bu yerda EnrollmentDate bo'yicha filtr QO'YILMAYDI. A'zoligi bor o'quvchida haqiqat
+                // manbai — m.ActivatedAt (quyida tekshiriladi), EnrollmentDate emas. Aks holda ORQAGA SANALGAN
+                // aktivlashtirishda (o'quvchi bugun qo'shilib, guruhda fevraldan aktivlashtirilsa) EnrollmentDate
+                // = "2026-07" bo'lgani uchun mart..iyun oylari "kelmagan" deb tashlab yuborilardi va u oylar
+                // HECH QACHON hisoblanmasdi (fon xizmati keyin ishlaganda ham).
                 // Har FAOL a'zolik uchun alohida hisob qatori.
                 foreach (var m in mships)
                 {
@@ -448,6 +449,10 @@ public static class TuitionService
             else
             {
                 // Guruhsiz (eski ClassName) — GroupId=null, narx ClassName→guruh nomi orqali.
+                // Bu shoxobchada a'zolik (ActivatedAt) yo'q, shuning uchun boshlanish nuqtasi — EnrollmentDate:
+                // o'quvchi shu oydan KEYIN kelgan bo'lsa, hisoblamaymiz. (.Length >= 7 — noto'g'ri/qisqa
+                // EnrollmentDate qatorida [..7] crash bo'lmasligi uchun; boshqa call-site'lar bilan bir xil himoya.)
+                if (s.EnrollmentDate.Length >= 7 && string.CompareOrdinal(s.EnrollmentDate[..7], month) > 0) continue;
                 if (already.Contains((s.Id, (string?)null))) continue;
                 var nfee = feesByName.TryGetValue(s.ClassName, out var nf) ? nf : 0m;
                 if (nfee <= 0) continue;
@@ -475,6 +480,46 @@ public static class TuitionService
         });
         s.Balance -= effective;
         return effective;
+    }
+
+    /// <summary>
+    /// ORQAGA SANALGAN aktivlashtirishdan keyin ORALIQ oylarni darhol hisoblaydi: aktivlashtirilgan
+    /// oydan KEYINGI oydan joriy oygacha har oy uchun TO'LIQ oylik. Aktivlashtirilgan oyning O'ZI bu
+    /// yerda tegilmaydi — u qisman (dars soni bo'yicha) hisob bilan
+    /// <see cref="ChargeActivationProrateAsync"/> da yoziladi.
+    /// <para>NEGA KERAK: oraliq oylarni odatda faqat fon xizmati (<c>TuitionAccrualService</c> →
+    /// <see cref="AccrueDue"/> → <see cref="AccrueMonth"/>) yozadi, u esa startupda va har 12 SOATDA
+    /// ishlaydi. Usiz admin fevraldan aktivlashtirgach mart..joriy oy hisoblarini 12 soatgacha
+    /// ko'rmaydi — o'quvchi qarzi kam bo'lib turadi.</para>
+    /// <para>IDEMPOTENT: mavjud (o'quvchi, guruh, oy) hisobiga TEGILMAYDI — shu bilan qo'lda
+    /// tahrirlangan (<c>Locked</c>) qatorlar ham himoyalanadi. KELAJAK oy yozilmaydi. Muzlatilgandan
+    /// keyin qayta aktivlashtirishda ham xavfsiz (faqat KEYINGI oylardan boshlaydi).</para>
+    /// SaveChanges QILINMAYDI — chaqiruvchi saqlaydi.
+    /// </summary>
+    /// <returns>Nechta oy uchun yangi hisob yaratildi.</returns>
+    public static async Task<int> AccrueCatchUpAsync(IAppDbContext db, Student s, Group cls, string activatedAtIso)
+    {
+        if (cls.MonthlyFee <= 0 || string.IsNullOrEmpty(activatedAtIso) || activatedAtIso.Length < 7) return 0;
+        var from = NextMonth(activatedAtIso[..7]);
+        var cur = CurrentMonth();
+        if (string.CompareOrdinal(from, cur) > 0) return 0; // odatdagi holat: joriy oydan aktivlashtirilgan
+
+        // Shu (o'quvchi, guruh) uchun allaqachon mavjud oylar — ular ustidan yozilmaydi.
+        var existing = (await db.MonthlyCharges
+                .Where(c => c.StudentId == s.Id && c.GroupId == cls.Id)
+                .Select(c => c.Month).ToListAsync())
+            .Where(m => m.Length >= 7).Select(m => m[..7]).ToHashSet();
+
+        var created = 0;
+        foreach (var month in MonthRange(from, cur))
+        {
+            if (existing.Contains(month)) continue;
+            // Eski aggregate (GroupId=null) qator bo'lsa — dublikat bo'lmasin.
+            await PurgeAggregateRowAsync(db, s, month);
+            AccrueOne(db, s, cls.Id, month, cls.MonthlyFee); // to'liq oylik + chegirma
+            created++;
+        }
+        return created;
     }
 
     /// <summary>AVANS uchun: berilgan (o'quvchi, guruh, oy) hisobi mavjudligini ta'minlaydi — yo'q bo'lsa

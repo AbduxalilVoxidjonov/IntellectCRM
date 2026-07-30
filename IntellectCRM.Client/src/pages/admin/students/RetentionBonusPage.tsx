@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
+  AlertTriangle,
   Award,
   CheckCircle2,
   Download,
@@ -27,19 +28,22 @@ import { usePerm } from '@/lib/permissions'
 import { Card } from '@/components/ui/Card'
 import { Badge, type BadgeTone } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
+import { Input } from '@/components/ui/Input'
 import { Loader } from '@/components/ui/Loader'
+import { Modal } from '@/components/ui/Modal'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { StatCard } from '@/components/ui/StatCard'
 import { GiveRetentionBonusModal } from './GiveRetentionBonusModal'
 import { RetentionSettingsModal } from './RetentionSettingsModal'
 
-type Chip = 'all' | 'progress' | 'ready' | 'broken' | 'given'
+type Chip = 'all' | 'progress' | 'ready' | 'broken' | 'blocked' | 'given'
 
 const CHIPS: { key: Chip; label: string }[] = [
   { key: 'all', label: 'Hammasi' },
   { key: 'ready', label: 'Tayyor' },
   { key: 'progress', label: "Yo'lda" },
   { key: 'broken', label: 'Uzilgan' },
+  { key: 'blocked', label: 'Bonus berilgan' },
   { key: 'given', label: 'Berilgan' },
 ]
 
@@ -47,6 +51,7 @@ const CHIPS: { key: Chip; label: string }[] = [
 const STATE_UI: Record<RetentionState, { icon: string; title: string; cls: string }> = {
   paid: { icon: '✅', title: "To'liq — o'qidi va to'ladi", cls: 'bg-emerald-50 text-emerald-700' },
   debt: { icon: '⏳', title: "Qarzdor — o'qidi, lekin to'lov hali yo'q (sikl uzilmaydi)", cls: 'bg-amber-50 text-amber-700' },
+  nocharge: { icon: '📄', title: 'Hisob yozilmagan — sanoqqa kirmaydi (sikl uzilmaydi)', cls: 'bg-violet-50 text-violet-700' },
   frozen: { icon: '❄️', title: "Muzlatilgan — sanoq to'xtaydi, oyna cho'ziladi", cls: 'bg-sky-50 text-sky-700' },
   gone: { icon: '🚪', title: "A'zolik yo'q — sanoq to'xtaydi", cls: 'bg-slate-100 text-slate-500' },
 }
@@ -56,6 +61,7 @@ const STATUS_UI: Record<RetentionStatus, { label: string; tone: BadgeTone }> = {
   progress: { label: "Yo'lda", tone: 'default' },
   broken: { label: 'Uzildi', tone: 'red' },
   notstarted: { label: 'Boshlanmagan', tone: 'amber' },
+  blocked: { label: 'Bonus berilgan', tone: 'amber' },
 }
 
 const control =
@@ -63,6 +69,9 @@ const control =
 
 /** Qatorda ko'rsatiladigan oxirgi N oy — jadval juda uzun bo'lib ketmasin. */
 const MAX_CELLS = 14
+
+/** Qator kaliti — sikl har FAN uchun alohida yuritiladi. */
+const rowKey = (r: RetentionRow) => `${r.studentId}:${r.courseId}`
 
 export function RetentionBonusPage() {
   const { can } = usePerm()
@@ -74,8 +83,9 @@ export function RetentionBonusPage() {
   const [chip, setChip] = useState<Chip>('all')
   const [search, setSearch] = useState('')
   const [giveFor, setGiveFor] = useState<RetentionRow | null>(null)
+  const [restartFor, setRestartFor] = useState<RetentionRow | null>(null)
+  const [cancelFor, setCancelFor] = useState<{ awardId: string; label: string } | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [busy, setBusy] = useState('')
 
   const load = () => {
     setLoading(true)
@@ -95,12 +105,18 @@ export function RetentionBonusPage() {
     return rows.filter((r) => {
       if (chip === 'given' && r.awards.filter((a) => a.status === 'given').length === 0) return false
       if (chip !== 'all' && chip !== 'given' && r.status !== chip) return false
-      if (q && !r.fullName.toLowerCase().includes(q) && !r.groupNames.toLowerCase().includes(q))
+      if (
+        q &&
+        !r.fullName.toLowerCase().includes(q) &&
+        !r.groupNames.toLowerCase().includes(q) &&
+        !r.courseName.toLowerCase().includes(q)
+      )
         return false
       return true
     })
   }, [rows, chip, search])
 
+  // Sanoq FAN kesimida: bitta o'quvchi ikki fanga qatnasa ikki marta hisoblanadi.
   const totals = useMemo(() => {
     const given = rows.flatMap((r) => r.awards).filter((a) => a.status === 'given')
     return {
@@ -111,45 +127,13 @@ export function RetentionBonusPage() {
     }
   }, [rows])
 
-  const handleRestart = async (row: RetentionRow) => {
-    const suggested = new Date().toISOString().slice(0, 7)
-    const month = window.prompt(
-      `${row.fullName} — sanoq qaysi oydan qayta boshlansin? (YYYY-MM)`,
-      suggested,
-    )
-    if (!month) return
-    setBusy(row.studentId)
-    try {
-      await restartRetentionCycle(row.studentId, month.trim())
-      load()
-    } catch (err) {
-      setError(apiErrorMessage(err, "Qayta boshlab bo'lmadi"))
-    } finally {
-      setBusy('')
-    }
-  }
-
-  const handleCancel = async (awardId: string, studentName: string) => {
-    const reason = window.prompt(`${studentName} — bonusni bekor qilish sababi?`, '')
-    if (reason === null) return
-    setBusy(awardId)
-    try {
-      await cancelRetentionBonus(awardId, reason)
-      load()
-    } catch (err) {
-      setError(apiErrorMessage(err, "Bekor qilib bo'lmadi"))
-    } finally {
-      setBusy('')
-    }
-  }
-
   return (
     <div className="space-y-5">
       <PageHeader
         title="Bonus hisoboti"
         sub={
           report
-            ? `O'quvchi ${report.settings.monthsRequired} oy uzluksiz o'qib to'lasa — uni o'qitgan o'qituvchilarga bonus. Tanaffusga ruxsat: ${report.settings.maxGapMonths} oy.`
+            ? `Har FAN alohida sanaladi: o'quvchi ${report.settings.monthsRequired} oy uzluksiz o'qib to'lasa — uni o'qitgan o'qituvchilarga bonus. Tanaffusga ruxsat: ${report.settings.maxGapMonths} oy.`
             : "O'quvchini ushlab turgan o'qituvchilarni rag'batlantirish."
         }
         actions={
@@ -179,8 +163,8 @@ export function RetentionBonusPage() {
       )}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard label="Bonusga tayyor" value={totals.ready} icon={Award} />
-        <StatCard label="Yo'lda" value={totals.progress} icon={Hourglass} />
+        <StatCard label="Bonusga tayyor (fan)" value={totals.ready} icon={Award} />
+        <StatCard label="Yo'ldagi sikl (fan)" value={totals.progress} icon={Hourglass} />
         <StatCard label="Berilgan bonuslar" value={totals.givenCount} icon={CheckCircle2} />
         <StatCard label="Berilgan summa" value={formatMoney(totals.givenSum)} icon={Wallet} />
       </div>
@@ -206,7 +190,7 @@ export function RetentionBonusPage() {
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
               className={cn(control, 'pl-9')}
-              placeholder="F.I.Sh yoki guruh..."
+              placeholder="F.I.Sh, fan yoki guruh..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -219,6 +203,10 @@ export function RetentionBonusPage() {
               {STATE_UI[s].icon} {STATE_UI[s].title}
             </span>
           ))}
+        </p>
+        <p className="mt-1 text-xs text-slate-400">
+          Sikl har fan uchun alohida: bir o'quvchi ikki fanga qatnasa — ikkita qator. Bir
+          o'qituvchi bitta o'quvchi orqali <b>umr bo'yi bir marta</b> bonus oladi.
         </p>
       </Card>
 
@@ -237,10 +225,11 @@ export function RetentionBonusPage() {
         </Card>
       ) : (
         <Card className="overflow-x-auto">
-          <table className="w-full min-w-[900px] text-sm">
+          <table className="w-full min-w-[1000px] text-sm">
             <thead className="border-b border-slate-100 text-left text-xs uppercase tracking-wide text-slate-400">
               <tr>
                 <th className="px-4 py-3">F.I.Sh</th>
+                <th className="px-4 py-3">Fan</th>
                 <th className="px-4 py-3">Guruh</th>
                 <th className="px-4 py-3">Dars kunlari</th>
                 <th className="px-4 py-3">Oylar</th>
@@ -255,7 +244,7 @@ export function RetentionBonusPage() {
                 const hidden = r.months.length - cells.length
                 const givenAwards = r.awards.filter((a) => a.status === 'given')
                 return (
-                  <tr key={r.studentId} className="align-top hover:bg-slate-50/60">
+                  <tr key={rowKey(r)} className="align-top hover:bg-slate-50/60">
                     <td className="px-4 py-3">
                       <Link
                         to={`/admin/students/${r.studentId}`}
@@ -273,6 +262,9 @@ export function RetentionBonusPage() {
                           {r.cycleNo}-sikl · {r.startMonth} dan
                         </div>
                       )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="font-medium text-slate-700">{r.courseName || '—'}</span>
                     </td>
                     <td className="px-4 py-3 text-slate-600">{r.groupNames || '—'}</td>
                     <td className="px-4 py-3 text-slate-500">{r.days || '—'}</td>
@@ -325,8 +317,12 @@ export function RetentionBonusPage() {
                               type="button"
                               className="ml-1 text-slate-400 hover:text-rose-600"
                               title="Bonusni bekor qilish"
-                              disabled={busy === a.id}
-                              onClick={() => void handleCancel(a.id, r.fullName)}
+                              onClick={() =>
+                                setCancelFor({
+                                  awardId: a.id,
+                                  label: `${r.fullName} · ${r.courseName || a.courseName}`,
+                                })
+                              }
                             >
                               <Undo2 className="inline h-3 w-3" />
                             </button>
@@ -345,8 +341,7 @@ export function RetentionBonusPage() {
                         <Button
                           variant="ghost"
                           className="whitespace-nowrap"
-                          disabled={busy === r.studentId}
-                          onClick={() => void handleRestart(r)}
+                          onClick={() => setRestartFor(r)}
                         >
                           <RotateCcw className="h-4 w-4" />
                           {r.status === 'broken' ? 'Qayta boshlash' : 'Oyni belgilash'}
@@ -373,6 +368,29 @@ export function RetentionBonusPage() {
         />
       )}
 
+      {restartFor && (
+        <RestartCycleModal
+          row={restartFor}
+          onClose={() => setRestartFor(null)}
+          onSaved={() => {
+            setRestartFor(null)
+            load()
+          }}
+        />
+      )}
+
+      {cancelFor && (
+        <CancelAwardModal
+          awardId={cancelFor.awardId}
+          label={cancelFor.label}
+          onClose={() => setCancelFor(null)}
+          onSaved={() => {
+            setCancelFor(null)
+            load()
+          }}
+        />
+      )}
+
       {settingsOpen && (
         <RetentionSettingsModal
           onClose={() => setSettingsOpen(false)}
@@ -383,5 +401,156 @@ export function RetentionBonusPage() {
         />
       )}
     </div>
+  )
+}
+
+/** Siklni yangi oydan qayta boshlash — FAQAT tanlangan fan uchun. */
+function RestartCycleModal({
+  row,
+  onClose,
+  onSaved,
+}: {
+  row: RetentionRow
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const [month, setMonth] = useState(row.startMonth || new Date().toISOString().slice(0, 7))
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  const submit = async () => {
+    if (!month) return
+    setSaving(true)
+    setError('')
+    try {
+      await restartRetentionCycle(row.studentId, row.courseId, month)
+      onSaved()
+    } catch (err) {
+      setError(apiErrorMessage(err, "Qayta boshlab bo'lmadi"))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title="Sanoqni qayta boshlash"
+      size="sm"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={saving}>
+            Bekor
+          </Button>
+          <Button onClick={() => void submit()} disabled={saving || !month}>
+            {saving ? 'Saqlanmoqda...' : 'Saqlash'}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-3">
+        <div className="rounded-lg bg-slate-50 px-4 py-3 text-sm">
+          <div className="font-semibold text-slate-800">{row.fullName}</div>
+          <div className="text-slate-500">
+            Fan: {row.courseName || '—'} · {row.cycleNo}-sikl
+          </div>
+        </div>
+
+        <Input
+          label="Sanoq qaysi oydan boshlansin"
+          type="month"
+          value={month}
+          onChange={(e) => setMonth(e.target.value)}
+        />
+        <p className="text-xs text-slate-400">
+          Faqat shu <b>fan</b> bo'yicha sanoq yangidan boshlanadi — o'quvchining boshqa fanlaridagi
+          sikllarga ta'sir qilmaydi.
+        </p>
+
+        {error && (
+          <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+            {error}
+          </div>
+        )}
+      </div>
+    </Modal>
+  )
+}
+
+/** Berilgan bonusni bekor qilish — sabab + qaytmas oqibat haqida ogohlantirish. */
+function CancelAwardModal({
+  awardId,
+  label,
+  onClose,
+  onSaved,
+}: {
+  awardId: string
+  label: string
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const [reason, setReason] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  const submit = async () => {
+    setSaving(true)
+    setError('')
+    try {
+      await cancelRetentionBonus(awardId, reason.trim() || undefined)
+      onSaved()
+    } catch (err) {
+      setError(apiErrorMessage(err, "Bekor qilib bo'lmadi"))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title="Bonusni bekor qilish"
+      size="sm"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={saving}>
+            Yopish
+          </Button>
+          <Button variant="danger" onClick={() => void submit()} disabled={saving}>
+            {saving ? 'Bekor qilinmoqda...' : 'Bekor qilish'}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-3">
+        <div className="rounded-lg bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-800">
+          {label}
+        </div>
+
+        <div className="flex gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>
+            Bekor qilingandan keyin bu o'quvchi orqali o'sha o'qituvchi(lar)ga <b>QAYTA bonus
+            berib bo'lmaydi</b>. Sanoq ham qaytarilmaydi — bekor qilish faqat summani hisobdan
+            chiqaradi.
+          </span>
+        </div>
+
+        <Input
+          label="Bekor qilish sababi (ixtiyoriy)"
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          placeholder="masalan: xato kiritilgan"
+        />
+
+        {error && (
+          <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+            {error}
+          </div>
+        )}
+      </div>
+    </Modal>
   )
 }

@@ -22,6 +22,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<GroupTeacherAssignment> GroupTeacherAssignments => Set<GroupTeacherAssignment>();
     public DbSet<RetentionBonusAward> RetentionBonusAwards => Set<RetentionBonusAward>();
     public DbSet<RetentionBonusShare> RetentionBonusShares => Set<RetentionBonusShare>();
+    public DbSet<RetentionBonusTrack> RetentionBonusTracks => Set<RetentionBonusTrack>();
     public DbSet<StudentGroup> StudentGroups => Set<StudentGroup>();
     public DbSet<StudentNote> StudentNotes => Set<StudentNote>();
     public DbSet<Lead> Leads => Set<Lead>();
@@ -348,13 +349,19 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         b.Entity<RetentionBonusShare>().Property(x => x.Amount).HasPrecision(18, 2);
         b.Entity<RetentionBonusShare>().Property(x => x.Months).HasPrecision(18, 4);
         b.Entity<RetentionBonusAward>().Property(x => x.StudentId).HasMaxLength(200);
+        b.Entity<RetentionBonusAward>().Property(x => x.CourseId).HasMaxLength(200);
         b.Entity<RetentionBonusShare>().Property(x => x.AwardId).HasMaxLength(200);
         b.Entity<RetentionBonusShare>().Property(x => x.TeacherId).HasMaxLength(200);
         // Bitta sikl uchun ikkinchi marta bonus berilmasin (ikki admin bir vaqtda bosgan holat ham).
-        b.Entity<RetentionBonusAward>().HasIndex(x => new { x.StudentId, x.CycleNo }).IsUnique();
+        // Sikl HAR FAN uchun alohida yuritilgani sababli kalitga CourseId ham kiradi.
+        b.Entity<RetentionBonusAward>().HasIndex(x => new { x.StudentId, x.CourseId, x.CycleNo }).IsUnique();
         b.Entity<RetentionBonusShare>().HasIndex(x => x.AwardId);
         // O'qituvchi profilidagi "Bonus" tabi shu indeks bo'yicha o'qiydi.
         b.Entity<RetentionBonusShare>().HasIndex(x => x.TeacherId);
+        // Sanoq boshlanish oyi — har (o'quvchi, fan) uchun BITTA qator.
+        b.Entity<RetentionBonusTrack>().Property(x => x.StudentId).HasMaxLength(200);
+        b.Entity<RetentionBonusTrack>().Property(x => x.CourseId).HasMaxLength(200);
+        b.Entity<RetentionBonusTrack>().HasIndex(x => new { x.StudentId, x.CourseId }).IsUnique();
 
         // ---------- Kitoblar sotuvi ----------
         b.Entity<Book>().Property(x => x.Price).HasPrecision(18, 2);

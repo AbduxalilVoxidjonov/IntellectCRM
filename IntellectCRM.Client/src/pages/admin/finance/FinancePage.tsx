@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Plus, Pencil, Trash2, Download, TrendingUp, TrendingDown, Wallet, AlertCircle, Calculator, History, Inbox, Percent, Search, Receipt, Undo2, Banknote, Users } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
+import { Plus, Pencil, Trash2, Download, TrendingUp, TrendingDown, Wallet, AlertCircle, Calculator, History, Inbox, Percent, Search, Receipt, Undo2, Banknote, Users, Award } from 'lucide-react'
 import type {
   FinanceDirection,
   FinanceMonthly,
@@ -49,6 +50,7 @@ import { ReasonPromptModal } from '@/components/ui/ReasonPromptModal'
 import { ReceiptModal } from '@/components/finance/ReceiptModal'
 import { PaymentEditModal } from './PaymentEditModal'
 import { RefundModal } from './RefundModal'
+import { RetentionBonusTab } from './RetentionBonusTab'
 import { useAuth } from '@/context/auth-context'
 import { usePerm } from '@/lib/permissions'
 
@@ -69,7 +71,7 @@ type MethodFilter = 'all' | 'cash' | 'card' | 'bank'
 type ReceiptFilter = 'all' | 'with' | 'without'
 /** To'lovlar ro'yxatining saralanishi — sana yoki kvitansiya raqami bo'yicha. */
 type PaySort = 'date-desc' | 'date-asc' | 'receipt-asc' | 'receipt-desc'
-type Tab = 'overview' | 'groups' | 'teachers' | 'payments' | 'refunds' | 'cashiers'
+type Tab = 'overview' | 'groups' | 'teachers' | 'payments' | 'refunds' | 'cashiers' | 'bonuses'
 
 const paySortOptions: { value: PaySort; label: string }[] = [
   { value: 'date-desc', label: 'Sana: yangi → eski' },
@@ -94,7 +96,7 @@ function receiptNum(receiptNo: string | null | undefined): number | null {
   return digits.length > 0 ? Number(digits) : null
 }
 
-const tabs: { value: Tab; label: string }[] = [
+const tabs: { value: Tab; label: string; icon?: LucideIcon }[] = [
   { value: 'overview', label: 'Umumiy' },
   { value: 'groups', label: 'Guruhlar' },
   { value: 'teachers', label: "O'qituvchilar" },
@@ -102,6 +104,8 @@ const tabs: { value: Tab; label: string }[] = [
   { value: 'refunds', label: 'Vozvratlar' },
   // Kassirlar — kim qancha pul qabul qilgan (kassa bo'limidan va moliyadan kiritilgan to'lovlar).
   { value: 'cashiers', label: 'Kassirlar' },
+  // Bonus — o'quvchini ushlab turish bonuslarining HISOBOTI (faqat o'qish; berish "O'quvchilar"da).
+  { value: 'bonuses', label: 'Bonus', icon: Award },
 ]
 
 /** Qoldiq/qarz summasini belgisiga qarab ranglash */
@@ -461,20 +465,28 @@ export function FinancePage() {
             onClick={() => setTab(t.value)}
             className={cn('subnav-tab', tab === t.value && 'active')}
           >
+            {t.icon && <t.icon className="mr-1 h-3.5 w-3.5" />}
             {t.label}
           </button>
         ))}
       </div>
 
-      {/* Davr tanlash (barcha bo'limlar uchun) */}
-      <div className="toolbar">
-        <span className="text-sm font-medium text-slate-600">Davr:</span>
-        <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className={control} />
-        <span className="text-slate-400">—</span>
-        <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className={control} />
-      </div>
+      {/* Davr tanlash (barcha bo'limlar uchun). "Bonus" bo'limi ATAYIN chetda — u OY bo'yicha
+          ishlaydi va o'z davr tanlovi bor (ikkita davr bir vaqtda ko'rinmasin). */}
+      {tab !== 'bonuses' && (
+        <div className="toolbar">
+          <span className="text-sm font-medium text-slate-600">Davr:</span>
+          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className={control} />
+          <span className="text-slate-400">—</span>
+          <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className={control} />
+        </div>
+      )}
 
-      {loading || !summary ? (
+      {/* ============ BONUS (o'quvchini ushlab turish bonuslari hisoboti) ============
+          Sahifaning umumiy yuklanishidan MUSTAQIL: ma'lumot faqat shu tab ochilganda so'raladi. */}
+      {tab === 'bonuses' && <RetentionBonusTab />}
+
+      {tab === 'bonuses' ? null : loading || !summary ? (
         <Loader label="Yuklanmoqda..." />
       ) : (
         <>

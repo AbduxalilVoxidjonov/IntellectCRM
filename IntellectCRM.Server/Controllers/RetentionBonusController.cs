@@ -52,8 +52,8 @@ public class RetentionBonusController(AppDbContext db, AuditService audit) : Con
 
         audit.Record(AuditService.EntityStudent, award.StudentId, "create",
             $"Ushlab turish bonusi berildi: {AuditService.Money(award.TotalAmount)} so'm " +
-            $"({award.StudentName}, {award.PeriodFrom}…{award.PeriodTo}, {award.CycleNo}-sikl)",
-            after: new { award.TotalAmount, award.PeriodFrom, award.PeriodTo, award.CycleNo, req.Shares },
+            $"({award.StudentName} · {award.CourseName}, {award.PeriodFrom}…{award.PeriodTo}, {award.CycleNo}-sikl)",
+            after: new { award.TotalAmount, award.CourseId, award.CourseName, award.PeriodFrom, award.PeriodTo, award.CycleNo, req.Shares },
             studentId: award.StudentId);
 
         await db.SaveChangesAsync(ct);
@@ -62,7 +62,8 @@ public class RetentionBonusController(AppDbContext db, AuditService audit) : Con
 
     /// <summary>
     /// Bonusni bekor qilish (xato kiritilgan bo'lsa). Yozuv o'chirilmaydi — tarixda "cancelled"
-    /// bo'lib qoladi; o'quvchining sanog'i davr boshiga qaytariladi va sikl yana "tayyor" bo'ladi.
+    /// bo'lib qoladi. Sanoq QAYTARILMAYDI va bekor qilingan bonus o'qituvchi(lar)ni shu o'quvchi
+    /// orqali yangi bonusdan bloklab turaveradi (markaz egasining talabi).
     /// </summary>
     [HttpPost("awards/{id}/cancel")]
     public async Task<IActionResult> Cancel(string id, CancelRetentionBonusRequest? req, CancellationToken ct)
@@ -74,7 +75,7 @@ public class RetentionBonusController(AppDbContext db, AuditService audit) : Con
         if (award is not null)
             audit.Record(AuditService.EntityStudent, award.StudentId, "update",
                 $"Ushlab turish bonusi BEKOR qilindi: {AuditService.Money(award.TotalAmount)} so'm " +
-                $"({award.StudentName}){(string.IsNullOrWhiteSpace(req?.Reason) ? "" : $" — {req!.Reason}")}",
+                $"({award.StudentName} · {award.CourseName}){(string.IsNullOrWhiteSpace(req?.Reason) ? "" : $" — {req!.Reason}")}",
                 before: new { award.Status, award.TotalAmount },
                 studentId: award.StudentId);
 
@@ -82,16 +83,17 @@ public class RetentionBonusController(AppDbContext db, AuditService audit) : Con
         return NoContent();
     }
 
-    /// <summary>Uzilgan siklni yangi oydan qayta boshlash (avvalgi sikl tarixda qoladi).</summary>
+    /// <summary>Uzilgan siklni yangi oydan qayta boshlash — FAQAT ko'rsatilgan fan uchun
+    /// (avvalgi sikl tarixda qoladi, boshqa fanlar tegilmaydi).</summary>
     [HttpPost("students/{id}/restart")]
     public async Task<IActionResult> Restart(string id, RestartRetentionRequest req, CancellationToken ct)
     {
-        var error = await RetentionBonusService.RestartAsync(db, id, req.StartMonth, ct);
+        var error = await RetentionBonusService.RestartAsync(db, id, req.CourseId, req.StartMonth, Actor, ct);
         if (error is not null) return BadRequest(new { message = error });
 
         audit.Record(AuditService.EntityStudent, id, "update",
             $"Ushlab turish bonusi sanog'i qayta boshlandi ({req.StartMonth})",
-            after: new { req.StartMonth }, studentId: id);
+            after: new { req.CourseId, req.StartMonth }, studentId: id);
 
         await db.SaveChangesAsync(ct);
         return NoContent();
@@ -136,12 +138,13 @@ public class RetentionBonusController(AppDbContext db, AuditService audit) : Con
 
         var headers = new List<string>
         {
-            "F.I.Sh", "Guruh", "Dars kunlari", "Boshlanish oyi", "Sikl",
+            "F.I.Sh", "Fan", "Guruh", "Dars kunlari", "Boshlanish oyi", "Sikl",
             "Sanoq", "Holat", "Izoh", "Oylar",
         };
         var rows = report.Rows.Select(r => (IReadOnlyList<string>)new List<string>
         {
             r.FullName,
+            r.CourseName,
             r.GroupNames,
             r.Days,
             r.StartMonth,
@@ -161,6 +164,7 @@ public class RetentionBonusController(AppDbContext db, AuditService audit) : Con
         RetentionBonusService.RowReady => "Tayyor",
         RetentionBonusService.RowBroken => "Uzildi",
         RetentionBonusService.RowNotStarted => "Boshlanmagan",
+        RetentionBonusService.RowBlocked => "Bloklangan",
         _ => "Yo'lda",
     };
 
@@ -168,6 +172,7 @@ public class RetentionBonusController(AppDbContext db, AuditService audit) : Con
     {
         RetentionBonusService.StatePaid => "to'liq",
         RetentionBonusService.StateDebt => "qarz",
+        RetentionBonusService.StateNoCharge => "hisob yo'q",
         RetentionBonusService.StateFrozen => "muzlatilgan",
         _ => "a'zolik yo'q",
     };

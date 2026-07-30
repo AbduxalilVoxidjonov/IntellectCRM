@@ -229,9 +229,10 @@ public class TeacherPortalController(
     }
 
     /// <summary>
-    /// O'quvchini ushlab turish bonuslari (faqat o'ziniki). Maosh jadvaliga QO'SHILMAYDI —
-    /// alohida bo'lim sifatida ko'rsatiladi (bonus <c>SalaryLedger</c> ga ulanmagan).
-    /// Maosh ruxsati bilan bir xil darvoza: bonus ham pul ma'lumoti.
+    /// O'quvchini ushlab turish bonuslari (faqat o'ziniki): berilganlar (<c>items</c>) va hali
+    /// oylari to'planayotgan sikllar (<c>inProgress</c> — "yangi o'quvchilarim qanday hisoblanyapti").
+    /// Maosh jadvaliga QO'SHILMAYDI — alohida bo'lim sifatida ko'rsatiladi (bonus
+    /// <c>SalaryLedger</c> ga ulanmagan). Maosh ruxsati bilan bir xil darvoza: bonus ham pul ma'lumoti.
     /// </summary>
     [HttpGet("retention-bonus")]
     public async Task<ActionResult<TeacherRetentionSummaryDto>> RetentionBonus(CancellationToken ct)

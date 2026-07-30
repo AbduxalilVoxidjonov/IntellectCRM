@@ -325,7 +325,14 @@ public class RetentionBonusAward
     public string StudentId { get; set; } = string.Empty;
     /// <summary>O'quvchi F.I.Sh — SNAPSHOT (o'quvchi o'chirilsa/arxivlansa ham tarix o'qiladi).</summary>
     public string StudentName { get; set; } = string.Empty;
-    /// <summary>Nechanchi sikl (1, 2, 3 …). <c>(StudentId, CycleNo)</c> NOYOB — takroriy bonus mumkin emas.</summary>
+    /// <summary>Qaysi FAN (kurs) bo'yicha berilgan — <see cref="Group.CourseId"/> (Subject id);
+    /// kursi biriktirilmagan eski guruhda esa guruh id'si. Sikl HAR FAN uchun ALOHIDA yuritiladi
+    /// (o'quvchi 2 fanga qatnasa — 2 mustaqil sanoq, 2 mustaqil bonus).</summary>
+    public string CourseId { get; set; } = string.Empty;
+    /// <summary>Fan nomi — SNAPSHOT (kurs o'chirilsa/nomi o'zgarsa ham tarix o'qiladi).</summary>
+    public string CourseName { get; set; } = string.Empty;
+    /// <summary>Nechanchi sikl (1, 2, 3 …). <c>(StudentId, CourseId, CycleNo)</c> NOYOB — takroriy
+    /// bonus mumkin emas. Bekor qilingan bonus ham raqamni BAND qiladi (sikl qaytarilmaydi).</summary>
     public int CycleNo { get; set; } = 1;
     /// <summary>Sikl boshlanish oyi ("YYYY-MM").</summary>
     public string PeriodFrom { get; set; } = string.Empty;
@@ -362,6 +369,27 @@ public class RetentionBonusShare
     public decimal Months { get; set; }
     /// <summary>Shu o'qituvchiga tegadigan summa (so'm).</summary>
     public decimal Amount { get; set; }
+}
+
+/// <summary>
+/// Bonus sanog'ining HAR FAN uchun joriy holati. Nega alohida jadval: o'quvchi bir nechta fanga
+/// qatnashi mumkin va har fanning sikli mustaqil boshlanadi/tugaydi
+/// (<see cref="Student.RetentionBonusStartMonth"/> — faqat BOSHLANG'ICH qiymat, hamma fan uchun).
+///
+/// <para>Qator bo'lmasa — <see cref="Student.RetentionBonusStartMonth"/> ishlatiladi (orqaga moslik).
+/// Bonus BERILGANDA bu qator upsert qilinadi (<c>StartMonth = keyingi oy</c>); «Qayta boshlash» ham
+/// shu qatorni yozadi. Bonus BEKOR qilinganda qator QAYTARILMAYDI — bekor qilingan sikl qaytmaydi.</para>
+/// </summary>
+public class RetentionBonusTrack
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string StudentId { get; set; } = string.Empty;
+    /// <summary>Kurs (Subject id); kursi yo'q eski guruhda — guruh id'si.</summary>
+    public string CourseId { get; set; } = string.Empty;
+    /// <summary>Shu fan uchun joriy sikl qaysi oydan sanaladi ("YYYY-MM").</summary>
+    public string StartMonth { get; set; } = string.Empty;
+    public string UpdatedBy { get; set; } = string.Empty;
+    public DateTime UpdatedAt { get; set; } = AppClock.Now;
 }
 
 /// <summary>

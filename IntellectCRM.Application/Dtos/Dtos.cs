@@ -2395,35 +2395,53 @@ public record BookSettingsDto(
 /// <summary>
 /// Bonus jadvalidagi BITTA OY katagi. Hech qayerda saqlanmaydi — har so'rovda qayta hisoblanadi
 /// (to'lov keyinroq kiritilsa katak o'z-o'zidan ✅ ga aylanadi).
+///
+/// <para>Kataklar HAR FAN uchun ALOHIDA hisoblanadi: <c>Charged</c>/<c>Paid</c> — faqat SHU KURS
+/// guruhlariga tegishli summalar (teglanmagan eski yozuvlar narx nisbatida taqsimlanadi).</para>
 /// </summary>
 /// <param name="State">
 /// "paid" ✅ pullik a'zolik bor + qarz yo'q (sanoqqa +1) ·
 /// "debt" ⏳ pullik a'zolik bor + qarz bor (+0, lekin sikl UZILMAYDI) ·
+/// "nocharge" 📄 pullik a'zolik bor, LEKIN shu oy uchun hisob (MonthlyCharge) YOZILMAGAN
+/// (+0, sikl UZILMAYDI va tanaffusga ham kirmaydi — hisob paydo bo'lgach o'z-o'zidan tuzaladi) ·
 /// "frozen" ❄️ muzlatilgan (pauza) · "gone" 🚪 pullik a'zolik yo'q (pauza)
 /// </param>
 public record RetentionMonthCellDto(
     string Month, string State, decimal Charged, decimal Paid,
     string TeacherId, string TeacherName, bool Counted);
 
-/// <summary>Bonusning bitta o'qituvchiga tegadigan ulushi (taxminiy yoki berilgan).</summary>
-public record RetentionShareDto(string TeacherId, string TeacherName, decimal Months, decimal Amount);
+/// <summary>Bonusning bitta o'qituvchiga tegadigan ulushi (taxminiy yoki berilgan).
+/// <para><c>AlreadyAwarded</c> — bu o'qituvchi SHU o'quvchi orqali ALLAQACHON bonus olgan
+/// (bir juftlik = umr bo'yi bitta bonus). Bunda <c>Amount</c> 0 bo'ladi va uning vazni qolgan
+/// o'qituvchilarga qayta taqsimlanadi; qator ro'yxatda nega tushib qolgani ko'rinsin uchun
+/// <c>Months</c> HAQIQIY qiymat bilan qaytadi.</para></summary>
+public record RetentionShareDto(
+    string TeacherId, string TeacherName, decimal Months, decimal Amount, bool AlreadyAwarded = false);
 
-/// <summary>Berilgan bonus (tarix).</summary>
+/// <summary>Berilgan bonus (tarix). <c>CourseId</c>/<c>CourseName</c> — qaysi FAN bo'yicha
+/// (nomi SNAPSHOT). Eski (fanlarga bo'linishdan oldingi) yozuvlarda bo'sh bo'lishi mumkin.</summary>
 public record RetentionAwardDto(
-    string Id, string StudentId, string StudentName, int CycleNo,
-    string PeriodFrom, string PeriodTo, decimal TotalAmount,
+    string Id, string StudentId, string StudentName,
+    string CourseId, string CourseName,
+    int CycleNo, string PeriodFrom, string PeriodTo, decimal TotalAmount,
     string Status, string CancelReason, DateTime CreatedAt, string GivenBy, string Note,
     List<RetentionShareDto> Shares);
 
 /// <summary>
-/// Bonus hisobotidagi bitta o'quvchi qatori.
+/// Bonus hisobotidagi bitta qator. Qator kaliti — <b>(StudentId, CourseId)</b>: o'quvchi 2 fanga
+/// qatnasa hisobotda 2 ta mustaqil qator chiqadi (har fanning sanog'i, davri va bonusi alohida).
+/// Bir fan ICHIDA guruh almashtirish (Ingliz A1 → Ingliz A2) siklni UZMAYDI — kalit guruh emas, KURS.
 /// </summary>
+/// <param name="CourseId">Kurs (Subject id); kursi biriktirilmagan eski guruhda — guruh id'si.</param>
 /// <param name="Status">
 /// "notstarted" — boshlanish oyi kiritilmagan · "progress" — yo'lda ·
-/// "ready" — sanoq to'ldi, bonus berish mumkin · "broken" — sikl uzilgan
+/// "ready" — sanoq to'ldi, bonus berish mumkin · "broken" — sikl uzilgan ·
+/// "blocked" — sanoq to'ldi, LEKIN barcha o'qituvchilar bu o'quvchi orqali allaqachon bonus olgan
 /// </param>
 public record RetentionRowDto(
-    string StudentId, string FullName, string GroupNames, string Days,
+    string StudentId, string FullName,
+    string CourseId, string CourseName,
+    string GroupNames, string Days,
     string StartMonth, int CycleNo,
     List<RetentionMonthCellDto> Months,
     int Counted, int Required,
@@ -2435,25 +2453,52 @@ public record RetentionRowDto(
 /// <summary>Bonus tizimi sozlamalari (<c>CenterMeta</c>).</summary>
 public record RetentionSettingsDto(int MonthsRequired, int MaxGapMonths, decimal DefaultAmount);
 
-/// <summary>Bonus hisoboti — jadval + sozlamalar + "tayyor" bo'lganlar soni.</summary>
+/// <summary>Bonus hisoboti — jadval + sozlamalar + "tayyor" (faqat "ready") qatorlar soni.</summary>
 public record RetentionReportDto(
     List<RetentionRowDto> Rows, RetentionSettingsDto Settings, int ReadyCount);
 
-/// <summary>Bonus berish so'rovi. <c>Shares</c> — admin tahrirlagan taqsimot (yig'indisi
-/// <c>TotalAmount</c> ga TENG bo'lishi shart).</summary>
+/// <summary>Bonus berish so'rovi — HAR FAN uchun alohida (<c>CourseId</c> majburiy).
+/// <c>Shares</c> — admin tahrirlagan taqsimot (yig'indisi <c>TotalAmount</c> ga TENG bo'lishi shart).</summary>
 public record GiveRetentionBonusRequest(
-    string StudentId, decimal TotalAmount, List<RetentionShareInput> Shares, string? Note = null);
+    string StudentId, string CourseId, decimal TotalAmount,
+    List<RetentionShareInput> Shares, string? Note = null);
 public record RetentionShareInput(string TeacherId, decimal Amount, decimal Months = 0);
 
-/// <summary>Uzilgan siklni yangi oydan qayta boshlash.</summary>
-public record RestartRetentionRequest(string StartMonth);
+/// <summary>Uzilgan siklni yangi oydan qayta boshlash — FAQAT ko'rsatilgan fan uchun.</summary>
+public record RestartRetentionRequest(string CourseId, string StartMonth);
 
 /// <summary>Bonusni bekor qilish (xato kiritilgan bo'lsa).</summary>
 public record CancelRetentionBonusRequest(string? Reason = null);
 
 /// <summary>O'qituvchi profilidagi "Bonus" tabi uchun — u olgan barcha ulushlar.</summary>
 public record TeacherRetentionBonusDto(
-    string AwardId, string StudentId, string StudentName,
+    string AwardId, string StudentId, string StudentName, string CourseName,
     string PeriodFrom, string PeriodTo, decimal Months, decimal Amount,
     DateTime GivenAt, string GivenBy, string Status);
-public record TeacherRetentionSummaryDto(decimal Total, int Count, List<TeacherRetentionBonusDto> Items);
+
+/// <summary>
+/// O'qituvchi profilidagi "yo'ldagilar" qatori: shu o'qituvchiga oy(lar) to'planayotgan, lekin
+/// hali bonus berilmagan (o'quvchi × fan) sikli. O'qituvchi "yangi o'quvchilarim qanday
+/// hisoblanyapti" ni shu orqali ko'radi.
+/// </summary>
+/// <param name="MyMonths">Shu SIKLDA aynan SHU o'qituvchida o'tgan oylar (kasrli bo'lishi mumkin:
+/// o'quvchi bir fan bo'yicha parallel ikki guruhda o'qisa oy vazni narx nisbatida bo'linadi).</param>
+/// <param name="Status">Qator holati: "progress" | "ready" | "broken" | "blocked".</param>
+/// <param name="AlreadyAwarded">Shu o'qituvchi bu o'quvchi orqali allaqachon bonus olganmi — olgan
+/// bo'lsa bu sikldan unga bonus tegmaydi (qoida: bir o'qituvchi — bir o'quvchi — bir bonus).</param>
+public record TeacherRetentionProgressDto(
+    string StudentId, string StudentName,
+    string CourseId, string CourseName,
+    string GroupNames,
+    int Counted, int Required,
+    decimal MyMonths,
+    string Status,
+    string StatusNote,
+    bool AlreadyAwarded);
+
+/// <summary>O'qituvchining bonus jamlanmasi: berilganlar (<paramref name="Items"/>) va hali
+/// yo'ldagi sikllar (<paramref name="InProgress"/>). <paramref name="Total"/>/<paramref name="Count"/>
+/// — faqat bekor qilinmagan bonuslar.</summary>
+public record TeacherRetentionSummaryDto(
+    decimal Total, int Count, List<TeacherRetentionBonusDto> Items,
+    List<TeacherRetentionProgressDto>? InProgress = null);

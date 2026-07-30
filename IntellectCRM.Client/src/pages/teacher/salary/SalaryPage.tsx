@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { AlertTriangle, ArrowLeft, Award, ChevronDown, Wallet } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, Award, ChevronDown, Hourglass, Wallet } from 'lucide-react'
 import { getTeacherSalary, getMyRetentionBonuses } from '@/api/services/teacher'
 import type { TeacherRetentionSummary } from '@/api/services/retentionBonus'
 import type { SalaryLedger } from '@/types'
@@ -263,50 +263,116 @@ export function TeacherSalaryPage() {
       )}
 
       {/* Ushlab turish bonuslari — maosh raqamlaridan ALOHIDA bo'lim (Hisoblandi/Qoldi ga
-          qo'shilmagan): bonus qayd, pul odatdagi maosh to'lovi orqali beriladi. */}
-      {!loading && bonuses && bonuses.items.length > 0 && (
+          qo'shilmagan): bonus qayd, pul odatdagi maosh to'lovi orqali beriladi.
+          Ikki qism: YO'LDAGILAR (oylari to'planayotgan o'quvchi × fan sikllari) va BERILGANLAR. */}
+      {!loading && bonuses && (bonuses.items.length > 0 || (bonuses.inProgress ?? []).length > 0) && (
         <>
           <p className="px-0.5 pb-2 pt-5 text-[13px] font-bold text-ink">Ushlab turish bonusi</p>
-          <div className="rounded-[20px] border border-line bg-white shadow-[var(--shadow-card)]">
-            <div className="flex items-center gap-2.5 px-3.5 py-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-tealsoft text-teal-700">
-                <Award className="h-5 w-5" />
-              </div>
-              <div className="min-w-0">
-                <p className="font-mono text-[15px] font-extrabold text-teal-700">
-                  {formatMoney(bonuses.total)}
-                </p>
-                <p className="text-[12px] text-mute">
-                  {bonuses.count} ta bonus · maoshga qo'shilmagan
-                </p>
-              </div>
-            </div>
-            <div className="divide-y divide-line border-t border-line">
-              {bonuses.items.map((b) => (
-                <div
-                  key={b.awardId}
-                  className={b.status === 'cancelled' ? 'px-3.5 py-2.5 opacity-50' : 'px-3.5 py-2.5'}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="truncate text-[13px] font-bold text-ink">{b.studentName}</span>
-                    <span
-                      className={
-                        b.status === 'cancelled'
-                          ? 'shrink-0 font-mono text-[12px] font-bold text-mute line-through'
-                          : 'shrink-0 font-mono text-[12px] font-bold text-teal-700'
-                      }
-                    >
-                      {formatMoney(b.amount)}
-                    </span>
-                  </div>
-                  <p className="mt-0.5 text-[11px] text-mute">
-                    {b.periodFrom} … {b.periodTo} · {b.months} oy
-                    {b.status === 'cancelled' ? ' · bekor qilingan' : ''}
+
+          {/* Yo'ldagilar — hali bonus berilmagan, oylari to'planayotgan sikllar */}
+          {(bonuses.inProgress ?? []).length > 0 && (
+            <div className="mb-3 rounded-[20px] border border-line bg-white shadow-[var(--shadow-card)]">
+              <div className="flex items-center gap-2.5 px-3.5 py-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-tealsoft text-teal-700">
+                  <Hourglass className="h-5 w-5" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[14px] font-bold text-ink">Yo'ldagilar</p>
+                  <p className="text-[12px] text-mute">
+                    {(bonuses.inProgress ?? []).length} ta o'quvchi · fan bo'yicha alohida
                   </p>
                 </div>
-              ))}
+              </div>
+              <p className="px-3.5 pb-2.5 text-[11px] leading-relaxed text-faint">
+                «Menda» — bonusdan sizga qancha <span className="font-bold">ulush</span> tegishi,
+                «necha oy dars berdim» EMAS: faqat sanoqqa kirgan (to'langan) oylar hisoblanadi.
+              </p>
+              <div className="divide-y divide-line border-t border-line">
+                {(bonuses.inProgress ?? []).map((p) => {
+                  const pct =
+                    p.required > 0 ? Math.min(100, Math.round((p.counted / p.required) * 100)) : 0
+                  return (
+                    <div
+                      key={`${p.studentId}:${p.courseId}`}
+                      className={p.alreadyAwarded ? 'px-3.5 py-2.5 opacity-50' : 'px-3.5 py-2.5'}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="truncate text-[13px] font-bold text-ink">
+                          {p.studentName}
+                        </span>
+                        <span className="shrink-0 font-mono text-[12px] font-bold text-teal-700">
+                          {p.counted}/{p.required}
+                        </span>
+                      </div>
+                      <p className="mt-0.5 truncate text-[11px] text-mute">
+                        {p.courseName || '—'}
+                        {p.groupNames ? ` · ${p.groupNames}` : ''}
+                      </p>
+                      <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+                        <div
+                          className="h-full rounded-full bg-teal-600"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                      <p className="mt-1 text-[11px] text-faint">
+                        Menda: <span className="font-mono text-ink">{p.myMonths}</span> oy
+                        {p.alreadyAwarded
+                          ? ' · bu o’quvchi orqali bonus olingan, bu sikldan tegmaydi'
+                          : p.statusNote
+                            ? ` · ${p.statusNote}`
+                            : ''}
+                      </p>
+                    </div>
+                  )
+                })}
+              </div>
             </div>
-          </div>
+          )}
+
+          {/* Berilgan bonuslar */}
+          {bonuses.items.length > 0 && (
+            <div className="rounded-[20px] border border-line bg-white shadow-[var(--shadow-card)]">
+              <div className="flex items-center gap-2.5 px-3.5 py-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-tealsoft text-teal-700">
+                  <Award className="h-5 w-5" />
+                </div>
+                <div className="min-w-0">
+                  <p className="font-mono text-[15px] font-extrabold text-teal-700">
+                    {formatMoney(bonuses.total)}
+                  </p>
+                  <p className="text-[12px] text-mute">
+                    {bonuses.count} ta bonus · maoshga qo'shilmagan
+                  </p>
+                </div>
+              </div>
+              <div className="divide-y divide-line border-t border-line">
+                {bonuses.items.map((b) => (
+                  <div
+                    key={b.awardId}
+                    className={b.status === 'cancelled' ? 'px-3.5 py-2.5 opacity-50' : 'px-3.5 py-2.5'}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate text-[13px] font-bold text-ink">{b.studentName}</span>
+                      <span
+                        className={
+                          b.status === 'cancelled'
+                            ? 'shrink-0 font-mono text-[12px] font-bold text-mute line-through'
+                            : 'shrink-0 font-mono text-[12px] font-bold text-teal-700'
+                        }
+                      >
+                        {formatMoney(b.amount)}
+                      </span>
+                    </div>
+                    <p className="mt-0.5 text-[11px] text-mute">
+                      {b.courseName ? `${b.courseName} · ` : ''}
+                      {b.periodFrom} … {b.periodTo} · {b.months} oy
+                      {b.status === 'cancelled' ? ' · bekor qilingan' : ''}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>

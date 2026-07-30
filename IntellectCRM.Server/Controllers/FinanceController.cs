@@ -766,4 +766,152 @@ public class FinanceController(AppDbContext db, AuditService audit, AutoMessageS
         }
         return result;
     }
+
+    /* ================= MOLIYA → "BONUS" TABI (o'quvchini ushlab turish bonuslari) =================
+     *
+     * DIQQAT: bonus PUL CHIQIMI EMAS. RetentionBonusAward/Share — bu faqat QAYD; ular
+     * FinanceTransaction ham, SalaryLedger ham EMAS. Shuning uchun bu hisobot Moliyaning
+     * kirim/chiqim/summary raqamlariga UMUMAN ta'sir qilmaydi va alohida turadi — haqiqiy pul
+     * o'qituvchiga maosh to'lovi orqali beriladi. Bu yerdagi endpointlar FAQAT O'QISH uchun;
+     * bonus BERISH/bekor qilish "O'quvchilar → Bonus hisoboti" (RetentionBonusController) da qoladi.
+     *
+     * RUXSAT: sinfdagi [AdminPerm("finance")] yetadi — GET xodim uchun ochiq (loyiha qoidasi).
+     * Kassirlar hisobotidagi kabi qattiqroq CanSeeCashiers() gate KERAK EMAS: bonus qaydi
+     * kassirlar tushumi kabi maxfiy emas.
+     */
+
+    private const string XlsxMime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+    /// <summary>
+    /// Bonuslar hisoboti: davr ichida qaysi o'qituvchi qancha bonus oldi, qaysi oyda qancha berildi
+    /// va har bir ulushning batafsil qatori. Davr bonus BERILGAN sana (<c>CreatedAt</c>) bo'yicha.
+    /// </summary>
+    [HttpGet("retention-bonuses")]
+    public async Task<ActionResult<RetentionBonusFinanceDto>> RetentionBonuses(
+        [FromQuery] string? from, [FromQuery] string? to, CancellationToken ct) =>
+        await BuildRetentionBonusReportAsync(from, to, ct);
+
+    /// <summary>Bonuslar hisobotini Excel'ga yuklash (batafsil ro'yxat — har ulush bitta qator).</summary>
+    [HttpGet("retention-bonuses/export")]
+    public async Task<IActionResult> ExportRetentionBonuses(
+        [FromQuery] string? from, [FromQuery] string? to, CancellationToken ct)
+    {
+        var report = await BuildRetentionBonusReportAsync(from, to, ct);
+
+        var headers = new List<string>
+        {
+            "Berilgan sana", "Berilgan oy", "O'qituvchi", "O'quvchi", "Fan",
+            "Davr", "Oy", "Summa", "Holat", "Kim bergan",
+        };
+        var rows = report.Rows.Select(r => (IReadOnlyList<string>)new List<string>
+        {
+            r.GivenAt.ToString("yyyy-MM-dd HH:mm"),
+            r.GivenMonth,
+            r.TeacherName,
+            r.StudentName,
+            r.CourseName,
+            $"{r.PeriodFrom} — {r.PeriodTo}",
+            r.Months.ToString("0.##"),
+            AuditService.Money(r.Amount),
+            r.Status == RetentionBonusAward.StatusCancelled ? "Bekor qilingan" : "Berilgan",
+            r.GivenBy,
+        }).ToList();
+
+        return File(ExcelExport.Build("Bonuslar", headers, rows), XlsxMime,
+            $"bonus_moliya_{report.From}_{report.To}.xlsx");
+    }
+
+    /// <summary>
+    /// Hisobotni yig'ish. <paramref name="from"/>/<paramref name="to"/> — "YYYY-MM" (ikkalasi
+    /// inklyuziv); bo'sh bo'lsa joriy yil boshidan joriy oygacha (FinancePage'dagi standart davr
+    /// ham shunday — yanvardan bugungacha).
+    /// </summary>
+    private async Task<RetentionBonusFinanceDto> BuildRetentionBonusReportAsync(
+        string? from, string? to, CancellationToken ct)
+    {
+        // Davr chegaralari. "YYYY-MM-DD" berilsa ham ishlasin — birinchi 7 belgi olinadi.
+        var now = AppClock.Now;
+        var fromMonth = NormalizeMonth(from) ?? $"{now.Year:D4}-01";
+        var toMonth = NormalizeMonth(to) ?? $"{now.Year:D4}-{now.Month:D2}";
+        if (string.CompareOrdinal(fromMonth, toMonth) > 0) (fromMonth, toMonth) = (toMonth, fromMonth);
+
+        // CreatedAt — AppClock.Now bilan yoziladi, ya'ni MARKAZ vaqti (UTC+5) sifatida saqlanadi
+        // (Program.cs: Npgsql.EnableLegacyTimestampBehavior → `timestamp` timezonesiz). Shuning
+        // uchun bu yerda AppClock.ToLocal QO'LLANMAYDI — qiymat allaqachon local (RetentionBonusService
+        // ham CreatedAt'ni aynan shunday, o'zgartirmasdan qaytaradi).
+        var start = MonthStart(fromMonth);
+        var endExclusive = MonthStart(toMonth).AddMonths(1);
+
+        var awards = await db.RetentionBonusAwards.AsNoTracking()
+            .Where(a => a.CreatedAt >= start && a.CreatedAt < endExclusive)
+            .ToListAsync(ct);
+
+        // N+1 bo'lmasin: barcha ulushlar BITTA so'rovda (award id'lari bo'yicha).
+        var awardIds = awards.Select(a => a.Id).ToList();
+        var shares = awardIds.Count == 0
+            ? []
+            : await db.RetentionBonusShares.AsNoTracking()
+                .Where(s => awardIds.Contains(s.AwardId))
+                .ToListAsync(ct);
+
+        var awardById = awards.ToDictionary(a => a.Id);
+
+        // HAR ULUSH — bitta qator (award × o'qituvchi), eng yangisi tepada.
+        var rows = shares
+            .Where(s => awardById.ContainsKey(s.AwardId))
+            .Select(s =>
+            {
+                var a = awardById[s.AwardId];
+                return new RetentionBonusFinanceRowDto(
+                    a.Id, a.CreatedAt.ToString("yyyy-MM"),
+                    s.TeacherId, s.TeacherName,
+                    a.StudentId, a.StudentName, a.CourseName,
+                    a.PeriodFrom, a.PeriodTo,
+                    s.Months, s.Amount,
+                    a.Status, a.CreatedAt, a.GivenBy);
+            })
+            .OrderByDescending(r => r.GivenAt)
+            .ThenBy(r => r.TeacherName)
+            .ToList();
+
+        // Kesimlar FAQAT "given" bo'yicha — bekor qilingan bonus hech qayerda jamiga qo'shilmaydi.
+        var given = rows.Where(r => r.Status == RetentionBonusAward.StatusGiven).ToList();
+        var cancelled = rows.Where(r => r.Status != RetentionBonusAward.StatusGiven).ToList();
+
+        var byTeacher = given
+            .GroupBy(r => new { r.TeacherId, r.TeacherName })
+            .Select(g => new RetentionBonusByTeacherDto(
+                g.Key.TeacherId, g.Key.TeacherName, g.Count(), g.Sum(x => x.Amount)))
+            .OrderByDescending(t => t.Total)
+            .ThenBy(t => t.TeacherName)
+            .ToList();
+
+        var byMonth = given
+            .GroupBy(r => r.GivenMonth)
+            .Select(g => new RetentionBonusByMonthDto(g.Key, g.Count(), g.Sum(x => x.Amount)))
+            .OrderByDescending(m => m.Month, StringComparer.Ordinal)
+            .ToList();
+
+        return new RetentionBonusFinanceDto(
+            fromMonth, toMonth,
+            given.Sum(r => r.Amount), given.Count,
+            cancelled.Sum(r => r.Amount), cancelled.Count,
+            byTeacher, byMonth, rows);
+    }
+
+    /// <summary>"YYYY-MM" yoki "YYYY-MM-DD" dan oy kalitini ajratadi; noto'g'ri/bo'sh bo'lsa null.</summary>
+    private static string? NormalizeMonth(string? value)
+    {
+        var v = (value ?? "").Trim();
+        if (v.Length < 7) return null;
+        var head = v[..7];
+        return DateTime.TryParseExact(head + "-01", "yyyy-MM-dd",
+            System.Globalization.CultureInfo.InvariantCulture,
+            System.Globalization.DateTimeStyles.None, out _)
+            ? head : null;
+    }
+
+    /// <summary>"YYYY-MM" → o'sha oyning birinchi kuni (00:00).</summary>
+    private static DateTime MonthStart(string month) =>
+        new(int.Parse(month[..4]), int.Parse(month[5..7]), 1, 0, 0, 0, DateTimeKind.Unspecified);
 }
