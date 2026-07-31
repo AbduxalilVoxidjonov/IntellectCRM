@@ -28,6 +28,7 @@ import { getGroupPayments, type GroupPaymentsReport } from '@/api/services/finan
 import { getGroupTests, createTest, updateTest, deleteTest } from '@/api/services/testResults'
 import { getSettings } from '@/api/services/settings'
 import { cn, formatMoney, formatDate, apiErrorMessage, gradeBadgeCls } from '@/lib/utils'
+import { backState, type BackState } from '@/lib/nav'
 import { Card } from '@/components/ui/Card'
 import { DropdownMenu } from '@/components/ui/DropdownMenu'
 import { AuditHistoryList } from '@/components/audit/AuditHistoryList'
@@ -596,6 +597,13 @@ export function ClassDetailPage() {
     return membersSortAsc ? list : list.reverse()
   }, [members, membersSortAsc])
 
+  // Bu sahifadan o'quvchi profiliga o'tilganda "Orqaga" havolasi o'quvchilar ro'yxatiga emas,
+  // SHU GURUHGA qaytarsin — havolalarga `state` sifatida uzatiladi (qarang `lib/nav.ts`).
+  const memberBack = useMemo<BackState>(
+    () => backState(`/admin/classes/${id}`, journal?.group?.name ?? group?.name ?? 'Guruhga qaytish'),
+    [id, journal?.group?.name, group?.name],
+  )
+
   // Shu oyga ko'chirilgan darslar: yangi kun (toDate) → ko'chirish yozuvi (ustun belgisi + bekor qilish uchun).
   const rescheduledByDate = useMemo(() => {
     const m = new Map<string, { id: string; fromDate: string; time?: string | null }>()
@@ -791,6 +799,7 @@ export function ClassDetailPage() {
                             <MemberRow
                               key={m.studentId}
                               m={m}
+                              back={memberBack}
                               canManage={can('classes', 'create')}
                               onActivate={() => { openRoster(m); setRosterReason('activate') }}
                               onFreeze={() => { openRoster(m); setRosterReason('freeze') }}
@@ -810,6 +819,7 @@ export function ClassDetailPage() {
                                 <MemberRow
                                   key={m.studentId}
                                   m={m}
+                                  back={memberBack}
                                   canManage={can('classes', 'create')}
                                   onActivate={() => { openRoster(m); setRosterReason('activate') }}
                                   onFreeze={() => { openRoster(m); setRosterReason('freeze') }}
@@ -1311,6 +1321,7 @@ export function ClassDetailPage() {
           {tab === 'tolovlar' && canSeePayments && (
             <GroupPaymentsTab
               groupId={id}
+              back={memberBack}
               months={journal?.months ?? []}
               defaultMonth={journal?.month ?? ''}
             />
@@ -1658,9 +1669,11 @@ function Info({
 
 /** Chap ustundagi bitta a'zolik qatori — bosilsa profilga o'tadi, "⋮" menyu faqat FAOL a'zolarda. */
 function MemberRow({
-  m, canManage, onActivate, onFreeze, onReturn, onTransfer, onRemove,
+  m, back, canManage, onActivate, onFreeze, onReturn, onTransfer, onRemove,
 }: {
   m: GroupMember
+  /** Profilga o'tilganda "Orqaga" shu guruhga qaytarsin. */
+  back: BackState
   canManage: boolean
   onActivate: () => void
   onFreeze: () => void
@@ -1687,6 +1700,7 @@ function MemberRow({
     <li className="relative">
       <Link
         to={`/admin/students/${m.studentId}`}
+        state={back}
         className="flex items-center gap-2 rounded-lg px-2 py-2 pr-9 transition-colors hover:bg-slate-50"
       >
         {removed ? (
@@ -1745,10 +1759,13 @@ function monthEnd(month: string): string {
  */
 function GroupPaymentsTab({
   groupId,
+  back,
   months,
   defaultMonth,
 }: {
   groupId: string
+  /** Profilga o'tilganda "Orqaga" shu guruhga qaytarsin. */
+  back: BackState
   months: string[]
   defaultMonth: string
 }) {
@@ -1836,6 +1853,7 @@ function GroupPaymentsTab({
                       <td className="py-2 pr-3">
                         <Link
                           to={`/admin/students/${r.studentId}`}
+                          state={back}
                           className="font-medium text-slate-700 hover:text-brand-600 hover:underline"
                         >
                           {r.fullName}

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft, GraduationCap, CalendarCheck, ShieldAlert, ClipboardCheck,
   User, Phone, Wallet, BookOpen, MapPin, Cake, CalendarPlus, Percent, IdCard,
@@ -64,6 +64,7 @@ import { getStudentTestResults } from '@/api/services/testResults'
 import type { Student, StudentGroupMembership, Curriculum, Group, Teacher, StudentTestResult } from '@/types'
 import { cn, formatDate, formatDateTime, formatMoney, apiErrorMessage, gradeBadgeCls } from '@/lib/utils'
 import { usePerm, useSuperOrGranted } from '@/lib/permissions'
+import { readBackState } from '@/lib/nav'
 import { useAuth } from '@/context/auth-context'
 import { Card } from '@/components/ui/Card'
 import { DropdownMenu } from '@/components/ui/DropdownMenu'
@@ -2178,13 +2179,21 @@ function TopicBlock({
   )
 }
 
+/**
+ * "Orqaga" havolasi — profil QAYERDAN ochilganiga qarab. Guruh sahifasidan kirilgan bo'lsa
+ * (`Link state` da `BackState` keladi) o'sha GURUHGA qaytaradi, aks holda o'quvchilar ro'yxatiga.
+ */
 function BackLink() {
+  const { backTo, backLabel } = readBackState(useLocation().state, {
+    backTo: '/admin/students',
+    backLabel: "O'quvchilar ro'yxati",
+  })
   return (
     <Link
-      to="/admin/students"
+      to={backTo}
       className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-800"
     >
-      <ArrowLeft className="h-4 w-4" /> O'quvchilar ro'yxati
+      <ArrowLeft className="h-4 w-4" /> {backLabel}
     </Link>
   )
 }
