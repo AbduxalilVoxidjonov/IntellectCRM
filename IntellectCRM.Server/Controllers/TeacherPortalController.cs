@@ -21,7 +21,7 @@ namespace IntellectCRM.Server.Controllers;
 [Route("api/teacher")]
 public class TeacherPortalController(
     AppDbContext db, ChatService chat, IWebHostEnvironment env, ReferenceCache refCache,
-    FcmService fcm, AutoMessageService autoMsg) : ControllerBase
+    FcmService fcm, AutoMessageService autoMsg, ContractService contracts) : ControllerBase
 {
     /// <summary>"Darsga kelmadi" avto-xabari (attendance_absent) — o'quvchi(lar)ga guruh+sabab bilan.
     /// Exception yutiladi (jurnal javobini bloklamaydi).</summary>
@@ -121,6 +121,35 @@ public class TeacherPortalController(
             await db.SaveChangesAsync();
         }
         return NoContent();
+    }
+
+    // ---------- Shartnoma (o'z hujjatlari) ----------
+
+    /// <summary>O'qituvchining o'z shartnomalari (admin yashirganlari ko'rinmaydi), eng yangisi birinchi.</summary>
+    [HttpGet("contracts")]
+    public async Task<ActionResult<IEnumerable<ContractDocDto>>> Contracts()
+    {
+        var t = await Me();
+        if (t is null) return NotFound();
+        var items = await db.Contracts.AsNoTracking()
+            .Where(c => c.Target == "staff" && c.RecipientKey == t.Id && c.Visible)
+            .OrderByDescending(c => c.Number).ToListAsync();
+        return items.Select(ContractService.ToDoc).ToList();
+    }
+
+    /// <summary>Shartnoma PDF nusxasini qaytaradi (imzolangani bo'lsa — o'sha). Faqat o'ziniki.</summary>
+    [HttpGet("contracts/{id}/pdf")]
+    public async Task<IActionResult> ContractPdf(string id)
+    {
+        var t = await Me();
+        if (t is null) return NotFound();
+        var c = await db.Contracts.AsNoTracking().FirstOrDefaultAsync(x =>
+            x.Id == id && x.Target == "staff" && x.RecipientKey == t.Id && x.Visible);
+        if (c is null) return NotFound();
+        var path = contracts.ResolveUpload(string.IsNullOrEmpty(c.SignedUrl) ? c.PdfUrl : c.SignedUrl);
+        if (path is null) return NotFound(new { message = "Shartnoma fayli topilmadi" });
+        return PhysicalFile(path, ContractService.MimeOf(path),
+            $"shartnoma-{c.Number}{Path.GetExtension(path)}");
     }
 
     // ---------- Push qurilma (bildirishnoma) ----------

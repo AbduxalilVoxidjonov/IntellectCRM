@@ -27,6 +27,18 @@
   <ItemGroup>
     <PackageReference Include="DocumentFormat.OpenXml" Version="3.5.1" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.*" />
+    <!-- Shartnomani PDF qilib saqlash (ContractPdfService). To'liq managed — Docker'ga
+         qo'shimcha native kutubxona kerak emas. -->
+    <PackageReference Include="PDFsharp-MigraDoc" Version="6.2.4" />
+  </ItemGroup>
+
+  <!-- PDF shriftlari (DejaVu Sans — kirill + lotin + o'zbekcha `ʻ`). ContractPdfService
+       ularni chiqish papkasidan o'qiydi (IFontResolver). -->
+  <ItemGroup>
+    <None Include="Assets\Fonts\*.ttf">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>Assets\Fonts\%(Filename)%(Extension)</Link>
+    </None>
   </ItemGroup>
 
   <ItemGroup>

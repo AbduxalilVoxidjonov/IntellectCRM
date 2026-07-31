@@ -24,7 +24,8 @@ namespace IntellectCRM.Server.Controllers;
 [Route("api/student")]
 public class StudentPortalController(
     AppDbContext db, ChatService chat, IWebHostEnvironment env, ReferenceCache refCache,
-    TelegramService telegram, IConfiguration config, DataCache dataCache) : ControllerBase
+    TelegramService telegram, IConfiguration config, DataCache dataCache,
+    ContractService contracts) : ControllerBase
 {
 
     /// <summary>
@@ -283,6 +284,37 @@ public class StudentPortalController(
         var minus = items.Where(i => i.Points < 0).Sum(i => -i.Points);
         var ordered = items.OrderByDescending(i => i.CreatedAt, StringComparer.Ordinal).ToList();
         return new StudentDisciplineDto(100 + plus - minus, plus, minus, ordered);
+    }
+
+    // ---------- Shartnoma (o'z hujjatlari) ----------
+
+    /// <summary>O'quvchi (oila) shartnomalari — admin yashirganlari ko'rinmaydi, eng yangisi birinchi.</summary>
+    [HttpGet("contracts")]
+    public async Task<ActionResult<IEnumerable<ContractDocDto>>> Contracts([FromQuery] string? studentId)
+    {
+        if (User.IsInRole("admin") && string.IsNullOrWhiteSpace(studentId)) return NeedStudentId();
+        var s = await TargetAsync(studentId);
+        if (s is null) return NotFound();
+        var items = await db.Contracts.AsNoTracking()
+            .Where(c => c.Target == "parent" && c.RecipientKey == s.Id && c.Visible)
+            .OrderByDescending(c => c.Number).ToListAsync();
+        return items.Select(ContractService.ToDoc).ToList();
+    }
+
+    /// <summary>Shartnoma PDF nusxasi (imzolangani bo'lsa — o'sha). Faqat shu o'quvchiniki.</summary>
+    [HttpGet("contracts/{id}/pdf")]
+    public async Task<IActionResult> ContractPdf(string id, [FromQuery] string? studentId)
+    {
+        if (User.IsInRole("admin") && string.IsNullOrWhiteSpace(studentId)) return NeedStudentId();
+        var s = await TargetAsync(studentId);
+        if (s is null) return NotFound();
+        var c = await db.Contracts.AsNoTracking().FirstOrDefaultAsync(x =>
+            x.Id == id && x.Target == "parent" && x.RecipientKey == s.Id && x.Visible);
+        if (c is null) return NotFound();
+        var path = contracts.ResolveUpload(string.IsNullOrEmpty(c.SignedUrl) ? c.PdfUrl : c.SignedUrl);
+        if (path is null) return NotFound(new { message = "Shartnoma fayli topilmadi" });
+        return PhysicalFile(path, ContractService.MimeOf(path),
+            $"shartnoma-{c.Number}{Path.GetExtension(path)}");
     }
 
     // ---------- Baholar va davomat (o'ziniki) ----------

@@ -38,6 +38,7 @@ butun jarayonni boshqaradigan CRM tizimi. Bitta backend uch xil foydalanuvchiga 
 - Entity Framework Core 8 + **PostgreSQL 16** (`Npgsql`, inkremental migratsiyalar)
 - **SignalR** (chat / turniket) + raw **WebSocket** (CTI agent telefonlari) · **JWT** auth
 - **FCM** (push) · **Telegram bot** · **OpenXML** (shartnoma/hisobot/Excel eksport)
+- **PDFsharp/MigraDoc** — shartnomaning PDF nusxasi (ilovalarda ko'rish uchun)
 
 **Frontend**
 - React 19 + TypeScript + **Vite**
@@ -77,17 +78,21 @@ IntellectCRM.slnx
 - **Marketing** — inbox, javob qoidalari, kanallar, AI yordamchi, analitika
 - **Daraja testi** + **onlayn test** (Telegram bot orqali PDF, avtomatik baholash)
 - **Kitoblar sotuvi** — ombor + botdan buyurtma + admin tasdiqlash + analitika
-- **Topshiriqlar · AI check · Intizomiy ball · Shartnomalar · Kameralar · Arxiv**
+- **Shartnomalar** — Word/matnli andoza (`@`-o'rinbosarlar) → tuzilgan shartnoma **PDF+DOCX bo'lib
+  saqlanadi**, imzolangan skanni biriktirish mumkin; oluvchi (o'qituvchi/o'quvchi) uni o'z ilovasida ko'radi
+- **Topshiriqlar · AI check · Intizomiy ball · Kameralar · Arxiv**
 
 ### 🟢 O'qituvchi ilovasi (mobil)
 - Guruhga kirib **oylik jurnal** (baho/davomat) yuritish
 - **O'quv dasturi o'tilishi** + tugash prognozi (sana bilan)
 - Topshiriqlar · Guruh chati · O'z maoshi · Baholash
+- **Shartnoma** — o'zi bilan tuzilgan shartnomaning elektron (PDF) nusxasi (Profil ichida)
 
 ### 🔵 O'quvchi ilovasi (mobil)
 - **Duolingo uslubidagi o'quv dasturi yo'l-xaritasi** (o'tilgan/qolgan + prognoz)
 - **Umumiy statistika** — diagrammalarda (baholar trendi, davomat, intizom, feedback, topshiriqlar)
 - Baholar · Davomat · Intizom · To'lovlar · Reyting · Chat
+- **Shartnoma** — o'quvchi va ota-ona bilan tuzilgan shartnomaning elektron (PDF) nusxasi
 - Telegram kanalga o'tish · Push bildirishnomalar
 
 ---

@@ -12,8 +12,19 @@ import {
   CheckCircle2,
   XCircle,
   AlertTriangle,
+  Eye,
+  EyeOff,
+  FileSignature,
+  Search,
 } from 'lucide-react'
-import type { ContractTemplate, ContractField, StudentRecipient, StaffRecipient, SendResult } from '@/types'
+import type {
+  ContractTemplate,
+  ContractField,
+  ContractDoc,
+  StudentRecipient,
+  StaffRecipient,
+  SendResult,
+} from '@/types'
 import {
   getTemplates,
   createTemplate,
@@ -24,6 +35,10 @@ import {
   getStaffRecipients,
   sendContracts,
   downloadContract,
+  getContracts,
+  attachSignedContract,
+  setContractVisibility,
+  deleteContract,
 } from '@/api/services/contracts'
 import { uploadAdminFile } from '@/api/services/students'
 import { Card } from '@/components/ui/Card'
@@ -32,7 +47,7 @@ import { Badge } from '@/components/ui/Badge'
 import { Modal } from '@/components/ui/Modal'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Loader } from '@/components/ui/Loader'
-import { cn } from '@/lib/utils'
+import { cn, formatDate, apiErrorMessage } from '@/lib/utils'
 import { usePerm } from '@/lib/permissions'
 
 type Target = 'parent' | 'staff'
@@ -117,8 +132,12 @@ const TOKEN_LABELS: Record<string, string> = {
 
 const DOCX = '.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 
+/** Sahifa bo'limlari: shartnoma tuzish (andoza + oluvchilar) yoki tuzilganlar tarixi. */
+type View = 'build' | 'history'
+
 export function ContractsPage() {
   const { can } = usePerm()
+  const [view, setView] = useState<View>('build')
   const [target, setTarget] = useState<Target>('staff')
   const [templates, setTemplates] = useState<ContractTemplate[]>([])
   const [selectedTpl, setSelectedTpl] = useState('')
@@ -248,28 +267,52 @@ export function ContractsPage() {
     <div>
       <PageHeader
         title="Shartnomalar"
-        sub="Andoza tanlang, o'quvchi yoki xodimni tanlab shartnomani Word (.docx) qilib yuklab oling — @-o'rinbosarlar haqiqiy ma'lumot bilan to'ldiriladi"
+        sub={
+          view === 'build'
+            ? "Andoza tanlang, o'quvchi yoki xodimni tanlab shartnomani Word (.docx) qilib yuklab oling — @-o'rinbosarlar haqiqiy ma'lumot bilan to'ldiriladi"
+            : "Tuzilgan shartnomalar tarixi: PDF/DOCX nusxalar, imzolangan skan va ilovada ko'rinishi"
+        }
         actions={
-          <div className="tabs" role="tablist">
-            <button
-              type="button"
-              className={cn('tab', target === 'staff' && 'active')}
-              onClick={() => setTarget('staff')}
-            >
-              Xodimlar
-            </button>
-            <button
-              type="button"
-              className={cn('tab', target === 'parent' && 'active')}
-              onClick={() => setTarget('parent')}
-            >
-              O'quvchilar
-            </button>
-          </div>
+          <>
+            <div className="tabs" role="tablist">
+              <button
+                type="button"
+                className={cn('tab', view === 'build' && 'active')}
+                onClick={() => setView('build')}
+              >
+                Shartnoma tuzish
+              </button>
+              <button
+                type="button"
+                className={cn('tab', view === 'history' && 'active')}
+                onClick={() => setView('history')}
+              >
+                Tuzilgan shartnomalar
+              </button>
+            </div>
+            <div className="tabs" role="tablist">
+              <button
+                type="button"
+                className={cn('tab', target === 'staff' && 'active')}
+                onClick={() => setTarget('staff')}
+              >
+                Xodimlar
+              </button>
+              <button
+                type="button"
+                className={cn('tab', target === 'parent' && 'active')}
+                onClick={() => setTarget('parent')}
+              >
+                O'quvchilar
+              </button>
+            </div>
+          </>
         }
       />
 
-      {loading ? (
+      {view === 'history' ? (
+        <ContractsHistory target={target} />
+      ) : loading ? (
         <Card>
           <Loader label="Yuklanmoqda..." />
         </Card>
@@ -520,6 +563,296 @@ export function ContractsPage() {
         />
       )}
     </div>
+  )
+}
+
+/**
+ * "Tuzilgan shartnomalar" bo'limi — saqlangan nusxalar tarixi.
+ * PDF/DOCX yuklab olish, imzolangan skan biriktirish, ilovada ko'rinishini boshqarish, o'chirish.
+ */
+function ContractsHistory({ target }: { target: Target }) {
+  const { can } = usePerm()
+  const [docs, setDocs] = useState<ContractDoc[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [q, setQ] = useState('')
+  const [query, setQuery] = useState('') // qidiruv tugmasi/Enter bosilganda qo'llanadi
+  const [busyId, setBusyId] = useState<string | null>(null)
+  const [toDelete, setToDelete] = useState<ContractDoc | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  // Server javobida `visible` bo'lmasa (DTO'da ixtiyoriy), oxirgi amalni shu yerda eslab qolamiz.
+  const [visOverride, setVisOverride] = useState<Record<string, boolean>>({})
+
+  /** Yozuv ilovada ko'rinadimi: server qiymati ustun, bo'lmasa lokal o'zgarish, standart — ko'rinadi. */
+  const isVisible = (d: ContractDoc) => d.visible ?? visOverride[d.id] ?? true
+
+  useEffect(() => {
+    let alive = true
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- target/qidiruv almashganda qayta yuklash (maqsadli)
+    setLoading(true)
+    setError(null)
+    getContracts({ target, q: query || undefined })
+      .then((d) => alive && setDocs(d))
+      .catch((e) => alive && setError(apiErrorMessage(e, 'Yuklab bo\'lmadi')))
+      .finally(() => alive && setLoading(false))
+    return () => {
+      alive = false
+    }
+  }, [target, query])
+
+  /** Yuklangan/o'zgargan yozuvni ro'yxatda almashtirish. */
+  const replaceDoc = (doc: ContractDoc) =>
+    setDocs((prev) => prev.map((d) => (d.id === doc.id ? doc : d)))
+
+  /** Imzolangan skan (PDF) biriktirish — avval faylni yuklaymiz, keyin yozuvga bog'laymiz. */
+  const handleSigned = async (doc: ContractDoc, e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0]
+    e.target.value = ''
+    if (!f) return
+    setBusyId(doc.id)
+    try {
+      const up = await uploadAdminFile(f)
+      replaceDoc(await attachSignedContract(doc.id, up.url, f.name))
+    } catch (err) {
+      alert(apiErrorMessage(err, 'Yuklashda xatolik'))
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  /** Ilovada ko'rinishini yoqish/o'chirish. */
+  const handleVisibility = async (doc: ContractDoc) => {
+    const next = !isVisible(doc)
+    setBusyId(doc.id)
+    try {
+      replaceDoc(await setContractVisibility(doc.id, next))
+      setVisOverride((prev) => ({ ...prev, [doc.id]: next }))
+    } catch (err) {
+      alert(apiErrorMessage(err, "O'zgartirib bo'lmadi"))
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!toDelete) return
+    setDeleting(true)
+    try {
+      await deleteContract(toDelete.id)
+      setDocs((prev) => prev.filter((d) => d.id !== toDelete.id))
+      setToDelete(null)
+    } catch (err) {
+      alert(apiErrorMessage(err, "O'chirib bo'lmadi"))
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  return (
+    <>
+      <Card
+        tight
+        title={`Tuzilgan shartnomalar ${target === 'staff' ? '(xodimlar)' : "(o'quvchilar)"}`}
+        sub={`Jami: ${docs.length} ta`}
+        actions={
+          <form
+            className="flex items-center gap-2"
+            onSubmit={(e) => {
+              e.preventDefault()
+              setQuery(q.trim())
+            }}
+          >
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Oluvchi yoki raqam..."
+                className="w-56 rounded-lg border border-slate-200 py-1.5 pl-8 pr-3 text-sm outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
+              />
+            </div>
+            <Button type="submit" variant="ghost">
+              Qidirish
+            </Button>
+          </form>
+        }
+      >
+        {loading ? (
+          <div className="p-5">
+            <Loader label="Yuklanmoqda..." />
+          </div>
+        ) : error ? (
+          <p className="px-4 py-12 text-center text-sm text-red-500">{error}</p>
+        ) : (
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th className="num w-16">№</th>
+                  <th>Oluvchi</th>
+                  <th>Andoza</th>
+                  <th className="w-28">Sana</th>
+                  <th className="w-56">Holat</th>
+                  <th className="w-52">Fayllar</th>
+                  <th className="w-52">Amallar</th>
+                </tr>
+              </thead>
+              <tbody>
+                {docs.map((d) => {
+                  const visible = isVisible(d)
+                  const busy = busyId === d.id
+                  return (
+                    <tr key={d.id} className={cn(!visible && 'opacity-60')}>
+                      <td className="num font-mono text-slate-600">{d.number}</td>
+                      <td className="font-medium text-slate-800">{d.recipientName || '—'}</td>
+                      <td className="text-slate-500">{d.templateName || '—'}</td>
+                      <td className="text-slate-500">{d.date ? formatDate(d.date) : '—'}</td>
+                      <td>
+                        <div className="flex flex-wrap items-center gap-1">
+                          {d.signed ? (
+                            <Badge tone="green">
+                              <CheckCircle2 className="h-3 w-3" /> Imzolangan
+                            </Badge>
+                          ) : (
+                            <Badge tone="amber">Imzolanmagan</Badge>
+                          )}
+                          {d.delivered && <Badge tone="blue">Yuborilgan</Badge>}
+                          {!visible && (
+                            <Badge tone="default">
+                              <EyeOff className="h-3 w-3" /> Yashirilgan
+                            </Badge>
+                          )}
+                        </div>
+                      </td>
+                      <td>
+                        <div className="flex flex-wrap items-center gap-2 text-xs font-medium">
+                          {d.pdfUrl ? (
+                            <a
+                              href={d.pdfUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-brand-600 hover:underline"
+                            >
+                              <Download className="h-3.5 w-3.5" /> PDF
+                            </a>
+                          ) : (
+                            <span className="text-slate-300">PDF yo'q</span>
+                          )}
+                          {d.docxUrl ? (
+                            <a
+                              href={d.docxUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-brand-600 hover:underline"
+                            >
+                              <Download className="h-3.5 w-3.5" /> DOCX
+                            </a>
+                          ) : (
+                            <span className="text-slate-300">DOCX yo'q</span>
+                          )}
+                          {d.signedUrl && (
+                            <a
+                              href={d.signedUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-emerald-600 hover:underline"
+                            >
+                              <FileSignature className="h-3.5 w-3.5" /> Imzolangan
+                            </a>
+                          )}
+                        </div>
+                      </td>
+                      <td>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {can('contracts', 'edit') && (
+                            <>
+                              <label
+                                title="Imzolangan nusxani (PDF) yuklash"
+                                className={cn(
+                                  'inline-flex cursor-pointer items-center gap-1 rounded-lg border border-brand-200 bg-brand-50 px-2 py-1.5 text-xs font-medium text-brand-700 transition-colors hover:bg-brand-100',
+                                  busy && 'pointer-events-none opacity-60',
+                                )}
+                              >
+                                <Upload className="h-3.5 w-3.5" />
+                                {busy ? 'Yuklanmoqda...' : d.signed ? 'Almashtirish' : 'Imzolangan'}
+                                <input
+                                  type="file"
+                                  accept=".pdf,application/pdf"
+                                  hidden
+                                  onChange={(e) => handleSigned(d, e)}
+                                />
+                              </label>
+                              <button
+                                type="button"
+                                title={visible ? "Ilovada yashirish" : "Ilovada ko'rsatish"}
+                                disabled={busy}
+                                onClick={() => handleVisibility(d)}
+                                className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-brand-50 hover:text-brand-600 disabled:opacity-50"
+                              >
+                                {visible ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                              </button>
+                            </>
+                          )}
+                          {can('contracts', 'delete') && (
+                            <button
+                              type="button"
+                              title="O'chirish"
+                              disabled={busy}
+                              onClick={() => setToDelete(d)}
+                              className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+                {docs.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="px-4 py-12 text-center text-slate-400">
+                      Shartnoma hali tuzilmagan
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <p className="border-t border-slate-100 px-4 py-3 text-xs text-slate-400">
+          "Ko'z" belgisi — shartnoma o'quvchi/o'qituvchi ilovasida ko'rinishini boshqaradi.
+          Imzolangan nusxa yuklansa, ilovada aynan shu ko'rsatiladi.
+        </p>
+      </Card>
+
+      {/* O'chirishni tasdiqlash */}
+      {toDelete && (
+        <Modal
+          open
+          onClose={() => setToDelete(null)}
+          title="Shartnomani o'chirish"
+          footer={
+            <>
+              <Button variant="ghost" onClick={() => setToDelete(null)}>
+                Bekor qilish
+              </Button>
+              <Button variant="danger" onClick={handleDelete} disabled={deleting}>
+                {deleting ? "O'chirilmoqda..." : "O'chirish"}
+              </Button>
+            </>
+          }
+        >
+          <p className="text-sm text-slate-600">
+            <span className="font-medium text-slate-800">
+              {toDelete.title || `Shartnoma № ${toDelete.number}`}
+            </span>{' '}
+            ({toDelete.recipientName}) yozuvi va saqlangan fayllari butunlay o'chiriladi.
+            Bu amalni qaytarib bo'lmaydi.
+          </p>
+        </Modal>
+      )}
+    </>
   )
 }
 

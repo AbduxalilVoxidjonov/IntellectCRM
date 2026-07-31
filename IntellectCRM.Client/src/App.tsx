@@ -119,6 +119,7 @@ import { StudentAiCheckScreen } from '@/pages/student/AiCheck'
 import { StudentSupportScreen } from '@/pages/student/Support'
 import { StudentAccountScreen } from '@/pages/student/Account'
 import { CertificatesPage } from '@/pages/student/Certificates'
+import { StudentContractsScreen } from '@/pages/student/Contracts'
 
 export default function App() {
   // Brauzer TAB'i — markaz brendingi: nom → sarlavha, logo → favicon (sozlangach avtomatik).
@@ -303,6 +304,7 @@ export default function App() {
           <Route path="support" element={<StudentSupportScreen />} />
           <Route path="account" element={<StudentAccountScreen />} />
           <Route path="certificates" element={<CertificatesPage />} />
+          <Route path="contracts" element={<StudentContractsScreen />} />
         </Route>
       </Route>
 

@@ -33,6 +33,7 @@ const MENU: MenuEntry[] = [
   { icon: 'shield', label: 'Intizomiy ball', color: '#0EA5E9', to: '/student/discipline' },
   { icon: 'wallet', label: "To'lovlar", color: '#7C3AED', to: '/student/finance' },
   { icon: 'award', label: 'Sertifikatlar', color: '#D97706', to: '/student/certificates' },
+  { icon: 'file', label: 'Shartnoma', color: '#2563EB', to: '/student/contracts' },
   { icon: 'feedback', label: 'Taklif va shikoyat', color: '#0D9488', to: '/student/feedback' },
   { icon: 'clock', label: 'Support', color: '#0EA5E9', to: '/student/support' },
   { icon: 'pin', label: 'Uy joylashuvi', color: '#DC2626', to: '/student/location' },

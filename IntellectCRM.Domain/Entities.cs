@@ -1775,6 +1775,18 @@ public class Contract
     public bool Delivered { get; set; }
     /// <summary>sent</summary>
     public string Status { get; set; } = "sent";
+    /// <summary>Saqlangan PDF nusxa ("/uploads/xxx.pdf"). Ilovada shu ko'rsatiladi.</summary>
+    public string PdfUrl { get; set; } = string.Empty;
+    /// <summary>Saqlangan .docx nusxa ("/uploads/xxx.docx") — admin uchun tahrirlanadigan variant.</summary>
+    public string DocxUrl { get; set; } = string.Empty;
+    /// <summary>Ko'rsatish uchun fayl nomi, masalan "Shartnoma № 12".</summary>
+    public string FileName { get; set; } = string.Empty;
+    /// <summary>Andoza nomi (tarixiy nusxa — andoza o'chirilsa ham qoladi).</summary>
+    public string TemplateName { get; set; } = string.Empty;
+    /// <summary>Imzolangan skan (PDF) — superadmin yuklaydi. Bo'lsa ilovada shu ustun.</summary>
+    public string SignedUrl { get; set; } = string.Empty;
+    /// <summary>Ilovada (o'qituvchi/o'quvchi) ko'rinadimi. Superadmin yashira oladi.</summary>
+    public bool Visible { get; set; } = true;
 }
 
 // ============================ DARAJA TESTI (placement/level test) ============================

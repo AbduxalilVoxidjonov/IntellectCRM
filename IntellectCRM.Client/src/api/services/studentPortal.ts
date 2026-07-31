@@ -1,3 +1,4 @@
+import type { ContractDoc } from '@/types'
 import { api } from '../client'
 
 /* ============================================================
@@ -635,5 +636,13 @@ export interface StudentCertificateDto {
 
 export async function getStudentCertificates(): Promise<StudentCertificateDto[]> {
   const { data } = await api.get<StudentCertificateDto[]>('/student/certificates')
+  return data
+}
+
+// ---------- Shartnoma ----------
+
+/** O'quvchi (ota-ona) uchun tuzilgan shartnomalar — faqat ilovada ko'rinadiganlari */
+export async function getStudentContracts(studentId?: string): Promise<ContractDoc[]> {
+  const { data } = await api.get<ContractDoc[]>('/student/contracts', { params: sid(studentId) })
   return data
 }

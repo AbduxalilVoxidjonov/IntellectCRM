@@ -1358,6 +1358,39 @@ export interface StaffRecipient {
   lastNumber: number | null
 }
 
+/** Tuzilgan shartnoma hujjati (saqlangan PDF/DOCX nusxa bilan) */
+export interface ContractDoc {
+  id: string
+  /** Shartnoma raqami */
+  number: number
+  /** Ko'rsatiladigan sarlavha, masalan "Shartnoma № 12" */
+  title: string
+  target: 'parent' | 'staff'
+  /** Oluvchi kaliti (o'quvchi yoki xodim id) */
+  recipientKey: string
+  recipientName: string
+  /** Andoza nomi (tarixiy nusxa) */
+  templateName: string
+  /** Tuzilgan sana (ISO) */
+  date: string
+  /** Saqlangan PDF ("/uploads/...") — eski yozuvlarda bo'sh bo'lishi mumkin */
+  pdfUrl: string
+  /** Saqlangan .docx ("/uploads/...") */
+  docxUrl: string
+  /** Imzolangan skan (PDF) — superadmin yuklaydi */
+  signedUrl: string
+  /** signedUrl bo'sh emasmi */
+  signed: boolean
+  /** Telegram orqali yetkazilganmi */
+  delivered: boolean
+  status: string
+  /**
+   * Ilovada (o'quvchi/o'qituvchi) ko'rinadimi.
+   * Spec'dagi ContractDocDto'da bu maydon ixtiyoriy — kelmasa `true` deb hisoblanadi.
+   */
+  visible?: boolean
+}
+
 /** Bitta oluvchiga yuborish natijasi */
 export interface SendResult {
   recipientKey: string

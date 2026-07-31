@@ -1,6 +1,7 @@
 import type {
   ContractTemplate,
   ContractField,
+  ContractDoc,
   StudentRecipient,
   StaffRecipient,
   SendResult,
@@ -106,6 +107,43 @@ export async function downloadContract(
   a.download = name
   a.click()
   URL.revokeObjectURL(url)
+}
+
+/* ---------- Tuzilgan shartnomalar (saqlangan PDF/DOCX nusxalar) ---------- */
+
+/** Tuzilgan shartnomalar tarixi (raqam bo'yicha kamayish tartibida) */
+export async function getContracts(params?: {
+  target?: Target
+  recipientKey?: string
+  q?: string
+}): Promise<ContractDoc[]> {
+  if (USE_MOCK) return []
+  const { data } = await api.get<ContractDoc[]>('/admin/contracts', { params })
+  return data
+}
+
+/** Imzolangan skan (PDF) nusxasini biriktirish — fayl avval uploadAdminFile orqali yuklanadi */
+export async function attachSignedContract(
+  id: string,
+  fileUrl: string,
+  fileName: string,
+): Promise<ContractDoc> {
+  const { data } = await api.post<ContractDoc>(`/admin/contracts/${id}/signed`, {
+    fileUrl,
+    fileName,
+  })
+  return data
+}
+
+/** Shartnomaning ilovada ko'rinishini yoqish/o'chirish */
+export async function setContractVisibility(id: string, visible: boolean): Promise<ContractDoc> {
+  const { data } = await api.put<ContractDoc>(`/admin/contracts/${id}/visibility`, { visible })
+  return data
+}
+
+/** Shartnoma yozuvini va saqlangan fayllarini o'chirish */
+export async function deleteContract(id: string): Promise<void> {
+  await api.delete(`/admin/contracts/${id}`)
 }
 
 /** Tanlangan oluvchilarga shartnoma yuborish (Telegram bot orqali) */

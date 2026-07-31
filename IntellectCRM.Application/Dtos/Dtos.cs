@@ -1483,6 +1483,27 @@ public record SendContractsRequest(string Target, string TemplateId, List<string
 public record SendResultDto(string RecipientKey, bool Ok, int? Number, string Message);
 /// <summary>Bitta oluvchi uchun shartnomani to'ldirib .docx YUKLAB OLISH so'rovi (Telegram shart emas).</summary>
 public record BuildContractRequest(string Target, string TemplateId, string RecipientKey);
+/// <summary>Shartnoma hujjati — portal/ilova va admin tarixi uchun.</summary>
+public record ContractDocDto(
+    string Id,
+    int Number,
+    string Title,          // "Shartnoma № 12"
+    string Target,         // parent | staff
+    string RecipientKey,
+    string RecipientName,
+    string TemplateName,
+    string Date,           // ISO ("o") — SentAt
+    string PdfUrl,         // "" bo'lishi mumkin (eski yozuvlar)
+    string DocxUrl,
+    string SignedUrl,
+    bool Signed,           // SignedUrl bo'sh emas
+    bool Delivered,
+    string Status,
+    bool Visible);      // ilovada (o'qituvchi/o'quvchi) ko'rinadimi
+/// <summary>Imzolangan skan (PDF) biriktirish so'rovi — fayl avval /api/admin/uploads orqali yuklanadi.</summary>
+public record ContractSignedRequest(string FileUrl, string? FileName);
+/// <summary>Shartnomani ilovada ko'rsatish/yashirish so'rovi.</summary>
+public record ContractVisibilityRequest(bool Visible);
 
 /* ---------- O'quv xonalari ---------- */
 

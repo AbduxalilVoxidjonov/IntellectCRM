@@ -301,6 +301,9 @@ builder.Services.AddScoped<IntellectCRM.Application.Services.AuditService>();
 // Shartnoma andozasini (Word) to'ldirish xizmati
 builder.Services.AddScoped<IntellectCRM.Application.Services.ContractService>();
 
+// Shartnomaning PDF nusxasini hosil qilish (matn yoki .docx dan)
+builder.Services.AddScoped<IntellectCRM.Application.Services.ContractPdfService>();
+
 // Sertifikat tizimi (HTML yaratish, hash, tekshirish)
 builder.Services.AddScoped<IntellectCRM.Application.Services.CertificateService>();
 
