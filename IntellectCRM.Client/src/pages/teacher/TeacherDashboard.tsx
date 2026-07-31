@@ -134,9 +134,9 @@ export function TeacherDashboard() {
         </div>
       </div>
 
-      {/* ── Topshiriqlar yorlig'i ── */}
+      {/* ── Testlar yorlig'i (avval Topshiriqlarga olib borardi — u endi profil menyusida) ── */}
       <Link
-        to="/teacher/assignments"
+        to="/teacher/tests"
         className="tap-scale mb-5 flex items-center gap-3.5 rounded-[20px] p-[18px] text-white shadow-[var(--shadow-glow)]"
         style={{ background: 'linear-gradient(135deg,#0D9488,#115E59)' }}
       >
@@ -144,9 +144,9 @@ export function TeacherDashboard() {
           <ClipboardCheck className="h-5 w-5" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-[16px] font-extrabold tracking-tight">Topshiriqlar</p>
+          <p className="text-[16px] font-extrabold tracking-tight">Testlar</p>
           <p className="mt-0.5 text-[13px] text-white/85">
-            Guruhlaringizga topshiriq yarating va kuzating
+            Guruhlaringizga onlayn/oflayn test yarating
           </p>
         </div>
         <ChevronRight className="h-5 w-5 shrink-0 text-white/80" />
