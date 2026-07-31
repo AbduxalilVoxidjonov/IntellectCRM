@@ -2209,6 +2209,31 @@ public class StudentAiAnalysis
 }
 
 /// <summary>
+/// O'QITUVCHI AI tahlili (Gemini) — saqlanadigan yozuv. Bir o'qituvchiga KUNIGA BIR MARTA
+/// yaratiladi (Date bo'yicha cheklov). ResultJson — { ai, metrics }: AI narrativ (o'quvchi oqimi,
+/// ketish sabablari, jurnal intizomi, rivojlanish, tavsiyalar) + DETERMINISTIK hisoblangan
+/// raqamlar (<see cref="Application.Services.TeacherSnapshotBuilder"/>). O'qituvchi profilidagi
+/// "AI tahlil" tabida ko'rsatiladi; keyingi tahlil oldingisiga tayanib o'zgarishlarni aytadi.
+/// </summary>
+public class TeacherAiAnalysis
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string TeacherId { get; set; } = string.Empty;
+    /// <summary>Tahlil sanasi "yyyy-MM-dd" (Toshkent) — kuniga bir marta cheklovi shu bo'yicha.</summary>
+    public string Date { get; set; } = string.Empty;
+    /// <summary>Yaratilgan vaqt ISO ("yyyy-MM-ddTHH:mm:ss", Toshkent).</summary>
+    public string CreatedAt { get; set; } = AppClock.Iso();
+    /// <summary>Ishlatilgan Gemini modeli.</summary>
+    public string Model { get; set; } = string.Empty;
+    /// <summary>Qisqa xulosa (umumiy holat) — ro'yxat ko'rinishi uchun.</summary>
+    public string Summary { get; set; } = string.Empty;
+    /// <summary>Umumiy ball (0-100) — tarix grafigi/badge uchun.</summary>
+    public int OverallScore { get; set; }
+    /// <summary>To'liq strukturali natija (JSON): { ai, metrics }.</summary>
+    public string ResultJson { get; set; } = string.Empty;
+}
+
+/// <summary>
 /// Markaz (butun o'quv markazi) AI tahlili (Gemini) — KUNIGA BIR MARTA (ertalab soat ~8da fon
 /// xizmati orqali, yoki admin qo'lda). ResultJson — strukturali natija: AI narrativ (umumiy holat,
 /// tushum tahlili, baholar dinamikasi, lidlar, ketganlar, xavflar, tavsiyalar) + deterministik

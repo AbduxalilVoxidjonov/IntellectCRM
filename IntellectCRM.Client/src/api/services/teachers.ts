@@ -4,6 +4,9 @@ import type {
   MonthStatus,
   SalaryLedger,
   Teacher,
+  TeacherAiMetrics,
+  TeacherAiRecord,
+  TeacherAiResponse,
   TeacherPerformance,
   TeacherRating,
 } from '@/types'
@@ -242,5 +245,29 @@ export async function getTeacherRating(id: string): Promise<TeacherRating> {
     return { teacherId: id, fullName: '', groupsCount: 0, studentsCount: 0, averageBall: 0, rows: [] }
   }
   const { data } = await api.get<TeacherRating>(`/admin/teachers/${id}/rating`)
+  return data
+}
+
+/* ---------- AI tahlil (o'qituvchi profili) ---------- */
+
+/**
+ * O'qituvchining DETERMINISTIK ko'rsatkichlari (AI'siz ham ko'rinadi): o'quvchi oqimi
+ * (kelgan/ketgan), ketish sabablari, jurnalni o'z vaqtida to'ldirish, baholar dinamikasi,
+ * testlar/topshiriqlar, davomat — oxirgi 12 oy.
+ */
+export async function getTeacherAiSnapshot(id: string): Promise<TeacherAiMetrics> {
+  const { data } = await api.get<TeacherAiMetrics>(`/admin/teachers/${id}/ai-snapshot`)
+  return data
+}
+
+/** O'qituvchining saqlangan AI tahlillari (eng yangisi birinchi). */
+export async function getTeacherAiAnalyses(id: string): Promise<TeacherAiRecord[]> {
+  const { data } = await api.get<TeacherAiRecord[]>(`/admin/teachers/${id}/ai-analyses`)
+  return data
+}
+
+/** Yangi AI tahlil yaratish (kuniga bir marta — bugungi bo'lsa mavjudi qaytadi). */
+export async function runTeacherAiAnalysis(id: string): Promise<TeacherAiResponse> {
+  const { data } = await api.post<TeacherAiResponse>(`/admin/teachers/${id}/ai-analysis`)
   return data
 }

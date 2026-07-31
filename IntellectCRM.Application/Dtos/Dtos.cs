@@ -1875,6 +1875,51 @@ public record CenterAiHistoryItemDto(string Id, string Date, string CreatedAt, i
 public record CenterAiResponseDto(
     bool Ok, bool AlreadyToday, CenterAiRecordDto? Record, string? Error);
 
+/* ---------- O'QITUVCHI AI tahlili (profil → "AI tahlil" tabi) ---------- */
+/// <summary>Bir oydagi o'quvchi OQIMI: kelgan / aktivlashgan / muzlatilgan / ketgan.</summary>
+public record TeacherFlowPointDto(string Month, int Came, int Activated, int Frozen, int Left);
+/// <summary>Bir oydagi JURNAL intizomi: reja/o'tilgan/o'tkazib yuborilgan + mavzu/uy vazifa/davomat foizi.</summary>
+public record TeacherJournalMonthDto(
+    string Month, int Planned, int Conducted, int Missed,
+    int TopicPct, int HomeworkPct, int AttendanceTakenPct, int Grades, double AvgGrade);
+/// <summary>Guruh kesimidagi qisqa ko'rsatkichlar (AI tahlil jadvali uchun).</summary>
+public record TeacherGroupStatDto(
+    string GroupId, string Name, string CourseName, bool IsArchived,
+    int Active, int Trial, int Frozen, int Left,
+    int Planned, int Conducted, int Missed, double AvgGrade);
+/// <summary>DETERMINISTIK hisoblangan o'qituvchi ko'rsatkichlari (AI emas) — diagramma va jadvallar uchun.</summary>
+public record TeacherAiMetricsDto(
+    int GroupCount, int ActiveGroupCount,
+    int CameTotal, int ActiveStudents, int TrialStudents, int FrozenStudents, int LeftStudents,
+    double RetentionPct, double LossPct,
+    int PlannedLessons, int ConductedLessons, int MissedLessons, int JournalDonePct,
+    int TopicPct, int HomeworkPct, int AttendanceTakenPct, int GradesCount,
+    double AvgGradeThisMonth, double AvgGradePrevMonth, double StudentAttendancePct, double AvgBall,
+    int TestCount, double TestAvgPct, int AssignmentCount, int AssignmentDonePct,
+    int TeacherPresentDays, int TeacherLateDays, int TeacherAbsentDays,
+    int ComplaintCount, int SuggestionCount,
+    List<TeacherFlowPointDto> FlowByMonth,
+    List<TeacherJournalMonthDto> JournalByMonth,
+    List<CenterPointDto> DepartureReasons,
+    List<TeacherGroupStatDto> Groups,
+    List<string> RecentMissedDates);
+/// <summary>O'qituvchi AI baholari (0-100) — radar diagramma uchun.</summary>
+public record TeacherAiScoresDto(
+    int Jurnal, int Saqlash, int Baholash, int Rivojlanish, int Faollik, int Umumiy);
+/// <summary>AI yozgan narrativ (o'zbekcha) — o'qituvchi tahlilining matn qismlari.</summary>
+public record TeacherAiNarrativeDto(
+    string Umumiy, string OquvchiOqimi, string KetishSabablari, string Jurnal,
+    string Rivojlanish, string Ozgarishlar,
+    List<string> Kuchli, List<string> Zaif, List<string> Xavflar, List<string> Tavsiyalar,
+    TeacherAiScoresDto Baholar, string Trend);
+/// <summary>Saqlangan bitta o'qituvchi AI tahlili (AI narrativ + deterministik raqamlar).</summary>
+public record TeacherAiRecordDto(
+    string Id, string Date, string CreatedAt, string Model, int OverallScore,
+    TeacherAiNarrativeDto Ai, TeacherAiMetricsDto Metrics);
+/// <summary>O'qituvchi AI tahlil yaratish javobi. AlreadyToday=true — bugun allaqachon qilingan.</summary>
+public record TeacherAiResponseDto(
+    bool Ok, bool AlreadyToday, TeacherAiRecordDto? Record, string? Error);
+
 /* ---------- O'quvchi baholash statistikasi (oylik + har darslik) ---------- */
 /// <summary>Mezon bo'yicha OYLIK xulosa: shu oyda nechta darsda bajargan / jami dars.</summary>
 public record StudentGradingCriterionDto(string Id, string Name, int Done, int Total);

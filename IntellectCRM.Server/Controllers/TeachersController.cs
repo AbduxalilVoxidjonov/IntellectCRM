@@ -13,7 +13,7 @@ namespace IntellectCRM.Server.Controllers;
 [Authorize]
 [AdminPerm("teachers")]
 [Route("api/admin/teachers")]
-public class TeachersController(AppDbContext db, AuditService audit) : ControllerBase
+public class TeachersController(AppDbContext db, AuditService audit, IConfiguration config) : ControllerBase
 {
     private const int MinPasswordLength = 8;
     private const string WeakPasswordMessage = "Parol kamida 8 belgidan iborat bo'lsin";
@@ -393,6 +393,35 @@ public class TeachersController(AppDbContext db, AuditService audit) : Controlle
         .ToList();
 
         return result;
+    }
+
+    /// <summary>
+    /// O'QITUVCHI AI TAHLILI — deterministik ko'rsatkichlar (AI'siz ham ko'rinadi): o'quvchi oqimi
+    /// (kelgan/ketgan), ketish sabablari, jurnalni o'z vaqtida to'ldirish, baholar dinamikasi,
+    /// testlar/topshiriqlar, davomat. Profildagi "AI tahlil" tabi shu bilan ochiladi.
+    /// </summary>
+    [HttpGet("{id}/ai-snapshot")]
+    public async Task<ActionResult<TeacherAiMetricsDto>> AiSnapshot(string id, CancellationToken ct)
+    {
+        var t = await db.Teachers.FirstOrDefaultAsync(x => x.Id == id, ct);
+        if (t is null) return NotFound();
+        var (metrics, _) = await TeacherSnapshotBuilder.BuildAsync(db, t, ct);
+        return metrics;
+    }
+
+    /// <summary>O'qituvchining saqlangan AI tahlillari tarixi (eng yangisi birinchi).</summary>
+    [HttpGet("{id}/ai-analyses")]
+    public async Task<ActionResult<IEnumerable<TeacherAiRecordDto>>> AiAnalyses(string id, CancellationToken ct) =>
+        await TeacherAiAnalysisService.HistoryAsync(db, id, ct);
+
+    /// <summary>O'qituvchining BARCHA ma'lumotlarini Gemini orqali tahlil qiladi (kuniga bir marta —
+    /// bugungi yozuv bo'lsa Gemini chaqirilmaydi, mavjudi qaytadi). API kaliti: Sozlamalar → AI Tahlil.</summary>
+    [HttpPost("{id}/ai-analysis")]
+    public async Task<ActionResult<TeacherAiResponseDto>> AiAnalysis(string id, CancellationToken ct)
+    {
+        var t = await db.Teachers.FirstOrDefaultAsync(x => x.Id == id, ct);
+        if (t is null) return NotFound();
+        return await TeacherAiAnalysisService.GenerateAsync(db, config, t, ct);
     }
 
     /// <summary>

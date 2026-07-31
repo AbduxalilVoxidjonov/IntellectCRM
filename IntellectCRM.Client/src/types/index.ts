@@ -201,6 +201,123 @@ export interface CenterAiResponse {
   error: string | null
 }
 
+/* ---------- O'qituvchi AI tahlili (profil → "AI tahlil" tabi) ---------- */
+
+/** Bir oydagi o'quvchi oqimi: kelgan / aktivlashgan / muzlatilgan / ketgan. */
+export interface TeacherFlowPoint {
+  month: string
+  came: number
+  activated: number
+  frozen: number
+  left: number
+}
+/** Bir oydagi jurnal intizomi (reja/o'tilgan/belgilanmagan + mavzu/uy vazifa/davomat foizi). */
+export interface TeacherJournalMonth {
+  month: string
+  planned: number
+  conducted: number
+  missed: number
+  topicPct: number
+  homeworkPct: number
+  attendanceTakenPct: number
+  grades: number
+  avgGrade: number
+}
+/** Guruh kesimidagi qisqa ko'rsatkichlar. */
+export interface TeacherGroupStat {
+  groupId: string
+  name: string
+  courseName: string
+  isArchived: boolean
+  active: number
+  trial: number
+  frozen: number
+  left: number
+  planned: number
+  conducted: number
+  missed: number
+  avgGrade: number
+}
+/** Deterministik hisoblangan o'qituvchi ko'rsatkichlari (AI emas — diagramma/jadval uchun). */
+export interface TeacherAiMetrics {
+  groupCount: number
+  activeGroupCount: number
+  cameTotal: number
+  activeStudents: number
+  trialStudents: number
+  frozenStudents: number
+  leftStudents: number
+  retentionPct: number
+  lossPct: number
+  plannedLessons: number
+  conductedLessons: number
+  /** Muhlati o'tgan, lekin jurnalda belgilanmagan darslar — "o'z vaqtida to'ldirish" ko'rsatkichi */
+  missedLessons: number
+  journalDonePct: number
+  topicPct: number
+  homeworkPct: number
+  attendanceTakenPct: number
+  gradesCount: number
+  avgGradeThisMonth: number
+  avgGradePrevMonth: number
+  studentAttendancePct: number
+  avgBall: number
+  testCount: number
+  testAvgPct: number
+  assignmentCount: number
+  assignmentDonePct: number
+  teacherPresentDays: number
+  teacherLateDays: number
+  teacherAbsentDays: number
+  complaintCount: number
+  suggestionCount: number
+  flowByMonth: TeacherFlowPoint[]
+  journalByMonth: TeacherJournalMonth[]
+  departureReasons: CenterPoint[]
+  groups: TeacherGroupStat[]
+  recentMissedDates: string[]
+}
+/** AI sohaviy baholari (0-100) — radar diagramma uchun. */
+export interface TeacherAiScores {
+  jurnal: number
+  saqlash: number
+  baholash: number
+  rivojlanish: number
+  faollik: number
+  umumiy: number
+}
+/** AI yozgan narrativ (o'zbekcha) — o'qituvchi tahlilining matn qismlari. */
+export interface TeacherAiNarrative {
+  umumiy: string
+  oquvchiOqimi: string
+  ketishSabablari: string
+  jurnal: string
+  rivojlanish: string
+  ozgarishlar: string
+  kuchli: string[]
+  zaif: string[]
+  xavflar: string[]
+  tavsiyalar: string[]
+  baholar: TeacherAiScores
+  trend: string
+}
+/** Saqlangan bitta o'qituvchi AI tahlili. */
+export interface TeacherAiRecord {
+  id: string
+  date: string
+  createdAt: string
+  model: string
+  overallScore: number
+  ai: TeacherAiNarrative
+  metrics: TeacherAiMetrics
+}
+export interface TeacherAiResponse {
+  ok: boolean
+  alreadyToday: boolean
+  record: TeacherAiRecord | null
+  error: string | null
+}
+
 /* ---------- Lidlar (markazga qiziqqanlar) ---------- */
 
 export type StageColor =

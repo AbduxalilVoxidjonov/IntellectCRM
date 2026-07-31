@@ -13,6 +13,7 @@ import {
   Award,
   Plus,
   Archive,
+  Sparkles,
 } from 'lucide-react'
 import type {
   Credentials,
@@ -50,12 +51,13 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { CredentialsBox } from '@/components/ui/CredentialsBox'
 import { AuditHistoryList } from '@/components/audit/AuditHistoryList'
 import { TeacherBonusPanel } from '@/components/retention/TeacherBonusPanel'
+import { TeacherAiPanel } from './TeacherAiPanel'
 import {
   getTeacherRetentionBonuses,
   type TeacherRetentionSummary,
 } from '@/api/services/retentionBonus'
 
-type Tab = 'info' | 'groups' | 'rating' | 'salary' | 'bonus' | 'performance'
+type Tab = 'info' | 'groups' | 'rating' | 'salary' | 'bonus' | 'performance' | 'ai'
 
 const weekdayShort = ['Du', 'Se', 'Cho', 'Pa', 'Ju', 'Sha', 'Ya']
 
@@ -362,6 +364,14 @@ export function TeacherDetailPage() {
         >
           <TrendingUp className="mr-1 inline h-3.5 w-3.5" />
           Performance
+        </button>
+        <button
+          type="button"
+          className={cn('tab', tab === 'ai' && 'active')}
+          onClick={() => setTab('ai')}
+        >
+          <Sparkles className="mr-1 inline h-3.5 w-3.5" />
+          AI tahlil
         </button>
       </div>
 
@@ -1244,6 +1254,9 @@ export function TeacherDetailPage() {
           )}
         </div>
       )}
+
+      {/* AI TAHLIL TAB — o'quvchi oqimi, ketish sabablari, jurnal intizomi, rivojlanish + AI xulosasi */}
+      {tab === 'ai' && id && <TeacherAiPanel teacherId={id} teacherName={teacher.fullName} />}
     </div>
   )
 }
