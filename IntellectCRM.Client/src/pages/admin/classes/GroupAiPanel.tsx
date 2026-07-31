@@ -505,7 +505,7 @@ export function GroupAiPanel({ groupId }: { groupId: string }) {
                   />
                   <Tooltip
                     contentStyle={{ fontSize: 12, borderRadius: 10, border: '1px solid #e2e8f0' }}
-                    formatter={(v: number) => formatMoney(v)}
+                    formatter={(v) => formatMoney(Number(v))}
                   />
                   <Bar dataKey="Hisoblangan" fill="#cbd5e1" radius={[4, 4, 0, 0]} />
                   <Bar dataKey="Yig'ilgan" fill="#10b981" radius={[4, 4, 0, 0]} />
