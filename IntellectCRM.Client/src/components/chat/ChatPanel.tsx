@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { Send, ArrowLeft, AlertCircle } from 'lucide-react'
 import type { ChatMessage } from '@/types'
 import { useAuth } from '@/context/auth-context'
@@ -7,6 +7,57 @@ import { Card } from '@/components/ui/Card'
 import { Loader } from '@/components/ui/Loader'
 import { roleLabels } from '@/config/navigation'
 import { cn, formatTime, apiErrorMessage } from '@/lib/utils'
+
+/** O'zbekcha oy nomlari (loyihadagi boshqa ekranlar bilan bir xil ro'yxat). */
+const UZ_MONTHS = [
+  'Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'Iyun',
+  'Iyul', 'Avgust', 'Sentabr', 'Oktabr', 'Noyabr', 'Dekabr',
+]
+
+/** `Date` → mahalliy "yyyy-MM-dd" kaliti (UTC emas — `toISOString()` kunni siljitib yuboradi). */
+function dayKeyOf(d: Date): string {
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  return `${d.getFullYear()}-${mm}-${dd}`
+}
+
+/**
+ * Xabar vaqtidan KUN kalitini ("yyyy-MM-dd") oladi — ajratgich shu kalit o'zgarganda chiqadi.
+ * Nega ikki xil yo'l:
+ *  - `createdAt`da vaqt mintaqasi bor bo'lsa ("...Z" yoki "...+05:00") — `new Date()` bilan
+ *    MAHALLIY vaqtga o'giramiz va mahalliy getter'lardan kalit yasaymiz. Aks holda UTC sanasi
+ *    ishlatilib, kechqurun (yoki erta tongda) yozilgan xabarlar qo'shni kunga tushib qolardi;
+ *    kun boshi esa foydalanuvchining mahalliy yarim tuni bo'lishi kerak.
+ *  - Mintaqa ko'rsatilmagan bo'lsa ("yyyy-MM-ddTHH:mm:ss" — server allaqachon Toshkent vaqtini
+ *    yuboradi) satrning sana qismini TO'G'RIDAN-TO'G'RI o'qiymiz: shunda `formatTime` ko'rsatgan
+ *    soat bilan bir xil kunga tegishli bo'ladi (brauzer TZ'si sanani siljitmaydi).
+ */
+function messageDayKey(iso: string): string {
+  const zoned = /(?:Z|[+-]\d{2}:?\d{2})$/.test(iso)
+  if (!zoned) {
+    const m = /^(\d{4}-\d{2}-\d{2})/.exec(iso)
+    if (m) return m[1]
+  }
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso // noma'lum format — kalit sifatida satrning o'zi
+  return dayKeyOf(d)
+}
+
+/** Kun kaliti → ajratgich matni: «Bugun» / «Kecha» / «12 Iyul» / «12 Iyul, 2025». */
+function dayDividerLabel(dayKey: string): string {
+  const now = new Date()
+  if (dayKey === dayKeyOf(now)) return 'Bugun'
+  // "Kecha" ni ham mahalliy kalendar bo'yicha hisoblaymiz (setDate oy/yil chegarasini o'zi hal qiladi).
+  const yesterday = new Date(now)
+  yesterday.setDate(yesterday.getDate() - 1)
+  if (dayKey === dayKeyOf(yesterday)) return 'Kecha'
+
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dayKey)
+  if (!m) return dayKey // format tanilmadi — xom qiymatni ko'rsatamiz
+  const label = `${Number(m[3])} ${UZ_MONTHS[Number(m[2]) - 1]}`
+  // Shu yil ichidagi sanada yil takrorlanmaydi, boshqa yil bo'lsa — qo'shiladi.
+  return Number(m[1]) === now.getFullYear() ? label : `${label}, ${m[1]}`
+}
 
 interface Props {
   className: string
@@ -172,35 +223,49 @@ export function ChatPanel({ className, fetchMessages, sendMessage, title, subtit
             Hozircha xabar yo'q. Birinchi bo'lib yozing.
           </p>
         ) : (
-          messages.map((m) => {
+          messages.map((m, i) => {
             const mine = m.senderUserId === user?.id
+            // Kun ajratgichi: birinchi xabarda yoki kun avvalgi xabar kunidan farq qilganda.
+            const dayKey = messageDayKey(m.createdAt)
+            const showDay = i === 0 || dayKey !== messageDayKey(messages[i - 1].createdAt)
             return (
-              <div key={m.id} className={cn('flex', mine ? 'justify-end' : 'justify-start')}>
-                <div
-                  className={cn(
-                    'max-w-[75%] rounded-2xl px-3 py-2 text-sm',
-                    mine ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-800',
-                  )}
-                >
-                  {!mine && (
-                    <div className="mb-0.5 flex items-center gap-1.5">
-                      <span className="text-xs font-semibold text-slate-700">{m.senderName}</span>
-                      <span className="rounded bg-slate-200 px-1 text-[10px] text-slate-500">
-                        {roleLabels[m.senderRole]}
-                      </span>
-                    </div>
-                  )}
-                  <p className="whitespace-pre-wrap break-words">{m.text}</p>
+              <Fragment key={m.id}>
+                {showDay && (
+                  <div className="flex items-center gap-3">
+                    <span className="flex-1 border-t border-line" />
+                    <span className="rounded-lg bg-panel2 px-2.5 py-1 text-[11px] font-semibold text-mute">
+                      {dayDividerLabel(dayKey)}
+                    </span>
+                    <span className="flex-1 border-t border-line" />
+                  </div>
+                )}
+                <div className={cn('flex', mine ? 'justify-end' : 'justify-start')}>
                   <div
                     className={cn(
-                      'mt-0.5 text-right text-[10px]',
-                      mine ? 'text-brand-100' : 'text-slate-400',
+                      'max-w-[75%] rounded-2xl px-3 py-2 text-sm',
+                      mine ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-800',
                     )}
                   >
-                    {formatTime(m.createdAt)}
+                    {!mine && (
+                      <div className="mb-0.5 flex items-center gap-1.5">
+                        <span className="text-xs font-semibold text-slate-700">{m.senderName}</span>
+                        <span className="rounded bg-slate-200 px-1 text-[10px] text-slate-500">
+                          {roleLabels[m.senderRole]}
+                        </span>
+                      </div>
+                    )}
+                    <p className="whitespace-pre-wrap break-words">{m.text}</p>
+                    <div
+                      className={cn(
+                        'mt-0.5 text-right text-[10px]',
+                        mine ? 'text-brand-100' : 'text-slate-400',
+                      )}
+                    >
+                      {formatTime(m.createdAt)}
+                    </div>
                   </div>
                 </div>
-              </div>
+              </Fragment>
             )
           })
         )}

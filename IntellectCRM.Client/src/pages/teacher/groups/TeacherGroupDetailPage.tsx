@@ -654,6 +654,8 @@ export function TeacherGroupDetailPage() {
                   <table className="min-w-full border-collapse text-sm">
                     <thead>
                       <tr className="bg-panel3 text-xs uppercase text-mute">
+                        {/* Qator raqami (№) — jurnal jadvalidagi bilan bir xil uslub */}
+                        <th className="w-8 border-b border-line px-2 py-3 text-center font-semibold">№</th>
                         <th className="border-b border-line px-4 py-3 text-left font-semibold">O'quvchi</th>
                         <th className="border-b border-line px-3 py-3 text-center font-semibold">Darslar</th>
                         <th className="border-b border-line px-3 py-3 text-center font-semibold">Keldi</th>
@@ -662,8 +664,11 @@ export function TeacherGroupDetailPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {attendanceRows.map((r) => (
+                      {attendanceRows.map((r, idx) => (
                         <tr key={r.studentId} className="border-b border-line-soft hover:bg-panel2">
+                          <td className="w-8 px-2 py-3 text-center">
+                            <span className="text-xs font-medium text-mute">{idx + 1}</span>
+                          </td>
                           <td
                             className={cn(
                               'px-4 py-3 text-sm font-medium',
