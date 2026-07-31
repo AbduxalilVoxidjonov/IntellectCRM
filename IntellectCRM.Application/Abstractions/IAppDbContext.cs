@@ -128,6 +128,9 @@ public interface IAppDbContext
     // O'qituvchi AI tahlili (Gemini)
     DbSet<TeacherAiAnalysis> TeacherAiAnalyses { get; }
 
+    // Guruh AI tahlili (Gemini)
+    DbSet<GroupAiAnalysis> GroupAiAnalyses { get; }
+
     // Markaz (butun o'quv markazi) kunlik AI tahlili (Gemini)
     DbSet<CenterAiAnalysis> CenterAiAnalyses { get; }
 

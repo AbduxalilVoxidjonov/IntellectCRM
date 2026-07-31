@@ -318,6 +318,154 @@ export interface TeacherAiResponse {
   error: string | null
 }
 
+/* ---------- Guruh AI tahlili (guruh sahifasi → "AI tahlil" tabi) ---------- */
+
+/** Bir oydagi a'zolik oqimi: kelgan / aktivlashgan / muzlatilgan / ketgan. */
+export interface GroupFlowPoint {
+  month: string
+  came: number
+  activated: number
+  frozen: number
+  left: number
+}
+/** Bir oydagi guruh ko'rsatkichlari (jurnal + davomat + baho + moliya). */
+export interface GroupMonthStat {
+  month: string
+  planned: number
+  conducted: number
+  missed: number
+  attendancePct: number
+  grades: number
+  avgGrade: number
+  billed: number
+  collected: number
+}
+/** Guruhda o'tkazilgan bitta test/imtihon natijasi. */
+export interface GroupTestStat {
+  id: string
+  name: string
+  date: string
+  mode: string
+  maxScore: number
+  scored: number
+  studentCount: number
+  avgPct: number
+}
+/** Guruhdagi bitta o'quvchi kesimi. */
+export interface GroupStudentStat {
+  studentId: string
+  fullName: string
+  status: string
+  ball: number
+  avgGrade: number
+  attendancePct: number | null
+  absent: number
+  debt: number
+}
+/** Deterministik hisoblangan guruh ko'rsatkichlari (AI emas). */
+export interface GroupAiMetrics {
+  groupName: string
+  courseName: string
+  teacherName: string
+  days: string
+  time: string
+  startDate: string
+  endDate: string
+  isArchived: boolean
+  capacity: number
+  monthlyFee: number
+  cameTotal: number
+  activeStudents: number
+  trialStudents: number
+  frozenStudents: number
+  leftStudents: number
+  retentionPct: number
+  lossPct: number
+  fillPct: number
+  plannedLessons: number
+  conductedLessons: number
+  /** Muhlati o'tgan, lekin jurnalda belgilanmagan darslar */
+  missedLessons: number
+  journalDonePct: number
+  topicPct: number
+  homeworkPct: number
+  attendanceTakenPct: number
+  attendancePct: number
+  absenceCount: number
+  lateCount: number
+  gradesCount: number
+  avgGradeThisMonth: number
+  avgGradePrevMonth: number
+  avgBall: number
+  homeworkDone: number
+  homeworkMissed: number
+  behaviorGood: number
+  behaviorBad: number
+  testCount: number
+  testAvgPct: number
+  /** Moliya ruxsati bo'lmasa false — to'lov raqamlari yig'ilmagan (0) */
+  financeIncluded: boolean
+  billed: number
+  collected: number
+  collectionPct: number
+  debt: number
+  paidCount: number
+  unpaidCount: number
+  curriculumTotal: number
+  curriculumCovered: number
+  curriculumRemaining: number
+  curriculumFinishDate: string
+  flowByMonth: GroupFlowPoint[]
+  monthStats: GroupMonthStat[]
+  departureReasons: CenterPoint[]
+  absenceReasons: CenterPoint[]
+  tests: GroupTestStat[]
+  students: GroupStudentStat[]
+  recentMissedDates: string[]
+}
+/** Guruh AI baholari (0-100). */
+export interface GroupAiScores {
+  davomat: number
+  barqarorlik: number
+  ozlashtirish: number
+  tolov: number
+  jurnal: number
+  umumiy: number
+}
+/** AI yozgan narrativ (o'zbekcha, tanqidiy). */
+export interface GroupAiNarrative {
+  umumiy: string
+  davomat: string
+  oqim: string
+  ozlashtirish: string
+  imtihonlar: string
+  tolovlar: string
+  jurnal: string
+  ozgarishlar: string
+  kuchli: string[]
+  zaif: string[]
+  xavflar: string[]
+  tavsiyalar: string[]
+  baholar: GroupAiScores
+  trend: string
+}
+/** Saqlangan bitta guruh AI tahlili. */
+export interface GroupAiRecord {
+  id: string
+  date: string
+  createdAt: string
+  model: string
+  overallScore: number
+  ai: GroupAiNarrative
+  metrics: GroupAiMetrics
+}
+export interface GroupAiResponse {
+  ok: boolean
+  alreadyToday: boolean
+  record: GroupAiRecord | null
+  error: string | null
+}
+
 /* ---------- Lidlar (markazga qiziqqanlar) ---------- */
 
 export type StageColor =

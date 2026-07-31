@@ -1,4 +1,12 @@
-import type { Group, GroupMember, StudentGroupMembership, GroupFillRow } from '@/types'
+import type {
+  Group,
+  GroupAiMetrics,
+  GroupAiRecord,
+  GroupAiResponse,
+  GroupFillRow,
+  GroupMember,
+  StudentGroupMembership,
+} from '@/types'
 import { delay, uid } from '@/lib/utils'
 import { api, USE_MOCK } from '../client'
 import { classesMock } from '../mock/classes'
@@ -290,5 +298,29 @@ export async function completeAndTransferClass(
       targetCourseId: opts?.targetCourseId ?? null,
     },
   )
+  return data
+}
+
+/* ---------- AI tahlil (guruh sahifasi) ---------- */
+
+/**
+ * Guruhning DETERMINISTIK ko'rsatkichlari (AI'siz ham ko'rinadi): a'zolik oqimi va ketish
+ * sabablari, davomat, jurnal intizomi, o'zlashtirish, imtihonlar, to'lovlar (moliya ruxsati
+ * bo'lsa), dastur qamrovi, o'quvchilar kesimi — oxirgi 12 oy.
+ */
+export async function getGroupAiSnapshot(id: string): Promise<GroupAiMetrics> {
+  const { data } = await api.get<GroupAiMetrics>(`/admin/classes/${id}/ai-snapshot`)
+  return data
+}
+
+/** Guruhning saqlangan AI tahlillari (eng yangisi birinchi). */
+export async function getGroupAiAnalyses(id: string): Promise<GroupAiRecord[]> {
+  const { data } = await api.get<GroupAiRecord[]>(`/admin/classes/${id}/ai-analyses`)
+  return data
+}
+
+/** Yangi AI tahlil yaratish (kuniga bir marta — bugungi bo'lsa mavjudi qaytadi). */
+export async function runGroupAiAnalysis(id: string): Promise<GroupAiResponse> {
+  const { data } = await api.post<GroupAiResponse>(`/admin/classes/${id}/ai-analysis`)
   return data
 }

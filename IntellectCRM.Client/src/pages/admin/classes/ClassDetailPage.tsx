@@ -7,7 +7,7 @@ import {
   CalendarDays, Clock, MapPin, Wallet, Snowflake, CheckCircle2,
   ListChecks, ChevronRight, ChevronDown, Plus, Minus, Repeat, CalendarClock, Flag, TrendingUp, Trophy,
   ArrowLeftRight, RotateCcw, Trash2, X, Pencil, ClipboardList, CalendarCheck, History,
-  Loader2, AlertTriangle, UserPlus, MessageSquare, ArrowUpDown,
+  Loader2, AlertTriangle, UserPlus, MessageSquare, ArrowUpDown, Sparkles,
 } from 'lucide-react'
 import type { AbsenceReason, MasteryLevel, Group, GroupMember, GroupTest } from '@/types'
 import {
@@ -45,6 +45,7 @@ import { CompleteAndTransferModal } from './CompleteAndTransferModal'
 import { CloseGroupModal } from './CloseGroupModal'
 import { TransferGroupModal } from './TransferGroupModal'
 import { ClassMembersModal } from './ClassMembersModal'
+import { GroupAiPanel } from './GroupAiPanel'
 import { ClassFormModal } from './ClassFormModal'
 import { SmsModal, type SmsRecipient } from '../students/SmsModal'
 
@@ -90,7 +91,7 @@ function masteryDisplay(m: MasteryLevel | undefined): { label: string; cls: stri
   }
 }
 
-type Tab = 'jurnal' | 'davomat' | 'baholash' | 'reyting' | 'imtihonlar' | 'tarix' | 'tolovlar'
+type Tab = 'jurnal' | 'davomat' | 'baholash' | 'reyting' | 'imtihonlar' | 'tarix' | 'tolovlar' | 'ai'
 
 export function ClassDetailPage() {
   const { id = '' } = useParams()
@@ -854,6 +855,9 @@ export function ClassDetailPage() {
                     <Wallet className="mr-1 inline h-3.5 w-3.5" /> Oylik to'lov yig'ilishi
                   </button>
                 )}
+                <button type="button" className={cn('tab', tab === 'ai' && 'active')} onClick={() => setTab('ai')}>
+                  <Sparkles className="mr-1 inline h-3.5 w-3.5" /> AI tahlil
+                </button>
               </div>
 
           {/* Oylik jurnal */}
@@ -1311,6 +1315,9 @@ export function ClassDetailPage() {
               defaultMonth={journal?.month ?? ''}
             />
           )}
+
+          {/* AI tahlil — davomat, muzlatish/ketish, imtihon, to'lov, jurnal: tanqidiy tahlil */}
+          {tab === 'ai' && <GroupAiPanel groupId={id} />}
             </div>
           </div>
 

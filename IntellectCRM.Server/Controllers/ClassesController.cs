@@ -12,7 +12,7 @@ namespace IntellectCRM.Server.Controllers;
 [Authorize]
 [AdminPerm("classes")]
 [Route("api/admin/classes")]
-public class ClassesController(AppDbContext db, AuditService audit, ILogger<ClassesController> logger, CertificateService certSvc, RoomConflictService roomConflict, AutoMessageService autoMsg) : ControllerBase
+public class ClassesController(AppDbContext db, AuditService audit, ILogger<ClassesController> logger, CertificateService certSvc, RoomConflictService roomConflict, AutoMessageService autoMsg, IConfiguration config) : ControllerBase
 {
     private string Actor => User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value ?? "Admin";
 
@@ -782,6 +782,43 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
         await db.SaveChangesAsync();
         return Ok(new { ok = true, movedAdvance });
     }
+
+    /// <summary>
+    /// GURUH AI TAHLILI — deterministik ko'rsatkichlar (AI'siz ham ko'rinadi): a'zolik oqimi
+    /// (kelgan/muzlatilgan/ketgan) va ketish sabablari, davomat, jurnal intizomi, o'zlashtirish,
+    /// imtihonlar, to'lovlar, dastur qamrovi, o'quvchilar kesimi. Guruh sahifasidagi "AI tahlil" tabi.
+    /// </summary>
+    [HttpGet("{id}/ai-snapshot")]
+    public async Task<ActionResult<GroupAiMetricsDto>> AiSnapshot(string id, CancellationToken ct)
+    {
+        var g = await db.Classes.FirstOrDefaultAsync(c => c.Id == id, ct);
+        if (g is null) return NotFound();
+        var (metrics, _) = await GroupSnapshotBuilder.BuildAsync(db, g, CanSeeFinance(), ct);
+        return metrics;
+    }
+
+    /// <summary>Guruhning saqlangan AI tahlillari tarixi (eng yangisi birinchi).</summary>
+    [HttpGet("{id}/ai-analyses")]
+    public async Task<ActionResult<IEnumerable<GroupAiRecordDto>>> AiAnalyses(string id, CancellationToken ct) =>
+        await GroupAiAnalysisService.HistoryAsync(db, id, ct);
+
+    /// <summary>Guruhning BARCHA ma'lumotini Gemini orqali TANQIDIY tahlil qiladi (kuniga bir marta —
+    /// bugungi yozuv bo'lsa Gemini chaqirilmaydi, mavjudi qaytadi).</summary>
+    [HttpPost("{id}/ai-analysis")]
+    public async Task<ActionResult<GroupAiResponseDto>> AiAnalysis(string id, CancellationToken ct)
+    {
+        var g = await db.Classes.FirstOrDefaultAsync(c => c.Id == id, ct);
+        if (g is null) return NotFound();
+        return await GroupAiAnalysisService.GenerateAsync(db, config, g, CanSeeFinance(), ct);
+    }
+
+    /// <summary>Tahlilga TO'LOV raqamlari kirsinmi: admin/superadmin yoki "moliya" ruxsatli xodim
+    /// (guruh sahifasidagi "To'lovlar" tabi bilan bir xil qoida — moliya ruxsati yo'q xodim
+    /// summalarni AI tahlilida ham ko'rmaydi).</summary>
+    private bool CanSeeFinance() =>
+        User.IsInRole(Roles.Admin) || User.IsInRole(Roles.SuperAdmin) ||
+        User.Claims.Any(c => c.Type == AdminPermAttribute.ClaimType
+                             && (c.Value == "finance" || c.Value.StartsWith("finance:")));
 
     /// <summary>O'quvchining barcha guruh a'zoliklari (faol + o'tgan) — kurs/o'qituvchi/holat/narx/jadval bilan (kartalar uchun).</summary>
     [HttpGet("student/{studentId}/groups")]

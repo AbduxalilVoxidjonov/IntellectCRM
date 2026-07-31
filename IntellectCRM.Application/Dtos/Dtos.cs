@@ -1920,6 +1920,60 @@ public record TeacherAiRecordDto(
 public record TeacherAiResponseDto(
     bool Ok, bool AlreadyToday, TeacherAiRecordDto? Record, string? Error);
 
+/* ---------- GURUH AI tahlili (guruh sahifasi → "AI tahlil" tabi) ---------- */
+/// <summary>Bir oydagi a'zolik oqimi: kelgan / aktivlashgan / muzlatilgan / ketgan.</summary>
+public record GroupFlowPointDto(string Month, int Came, int Activated, int Frozen, int Left);
+/// <summary>Bir oydagi guruh ko'rsatkichlari (jurnal + davomat + baho + moliya).</summary>
+public record GroupMonthStatDto(
+    string Month, int Planned, int Conducted, int Missed,
+    int AttendancePct, int Grades, double AvgGrade, decimal Billed, decimal Collected);
+/// <summary>Guruhda o'tkazilgan bitta test/imtihon natijasi.</summary>
+public record GroupTestStatDto(
+    string Id, string Name, string Date, string Mode, decimal MaxScore,
+    int Scored, int StudentCount, double AvgPct);
+/// <summary>Guruhdagi bitta o'quvchining kesimi (ball, o'zlashtirish, davomat, qarz).</summary>
+public record GroupStudentStatDto(
+    string StudentId, string FullName, string Status,
+    int Ball, double AvgGrade, int? AttendancePct, int Absent, decimal Debt);
+/// <summary>DETERMINISTIK hisoblangan guruh ko'rsatkichlari (AI emas) — diagramma va jadvallar uchun.</summary>
+public record GroupAiMetricsDto(
+    string GroupName, string CourseName, string TeacherName, string Days, string Time,
+    string StartDate, string EndDate, bool IsArchived, int Capacity, decimal MonthlyFee,
+    int CameTotal, int ActiveStudents, int TrialStudents, int FrozenStudents, int LeftStudents,
+    double RetentionPct, double LossPct, int FillPct,
+    int PlannedLessons, int ConductedLessons, int MissedLessons, int JournalDonePct,
+    int TopicPct, int HomeworkPct, int AttendanceTakenPct,
+    int AttendancePct, int AbsenceCount, int LateCount,
+    int GradesCount, double AvgGradeThisMonth, double AvgGradePrevMonth, double AvgBall,
+    int HomeworkDone, int HomeworkMissed, int BehaviorGood, int BehaviorBad,
+    int TestCount, double TestAvgPct,
+    bool FinanceIncluded, decimal Billed, decimal Collected, int CollectionPct,
+    decimal Debt, int PaidCount, int UnpaidCount,
+    int CurriculumTotal, int CurriculumCovered, int CurriculumRemaining, string CurriculumFinishDate,
+    List<GroupFlowPointDto> FlowByMonth,
+    List<GroupMonthStatDto> MonthStats,
+    List<CenterPointDto> DepartureReasons,
+    List<CenterPointDto> AbsenceReasons,
+    List<GroupTestStatDto> Tests,
+    List<GroupStudentStatDto> Students,
+    List<string> RecentMissedDates);
+/// <summary>Guruh AI baholari (0-100) — radar diagramma uchun.</summary>
+public record GroupAiScoresDto(
+    int Davomat, int Barqarorlik, int Ozlashtirish, int Tolov, int Jurnal, int Umumiy);
+/// <summary>AI yozgan narrativ (o'zbekcha, TANQIDIY) — guruh tahlilining matn qismlari.</summary>
+public record GroupAiNarrativeDto(
+    string Umumiy, string Davomat, string Oqim, string Ozlashtirish, string Imtihonlar,
+    string Tolovlar, string Jurnal, string Ozgarishlar,
+    List<string> Kuchli, List<string> Zaif, List<string> Xavflar, List<string> Tavsiyalar,
+    GroupAiScoresDto Baholar, string Trend);
+/// <summary>Saqlangan bitta guruh AI tahlili (AI narrativ + deterministik raqamlar).</summary>
+public record GroupAiRecordDto(
+    string Id, string Date, string CreatedAt, string Model, int OverallScore,
+    GroupAiNarrativeDto Ai, GroupAiMetricsDto Metrics);
+/// <summary>Guruh AI tahlil yaratish javobi. AlreadyToday=true — bugun allaqachon qilingan.</summary>
+public record GroupAiResponseDto(
+    bool Ok, bool AlreadyToday, GroupAiRecordDto? Record, string? Error);
+
 /* ---------- O'quvchi baholash statistikasi (oylik + har darslik) ---------- */
 /// <summary>Mezon bo'yicha OYLIK xulosa: shu oyda nechta darsda bajargan / jami dars.</summary>
 public record StudentGradingCriterionDto(string Id, string Name, int Done, int Total);

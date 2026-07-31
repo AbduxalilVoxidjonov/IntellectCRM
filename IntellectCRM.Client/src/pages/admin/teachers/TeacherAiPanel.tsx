@@ -12,12 +12,9 @@ import {
   History,
   Info,
   Lightbulb,
-  Minus,
   MessageSquareWarning,
   RefreshCw,
   Sparkles,
-  TrendingDown,
-  TrendingUp,
   UserMinus,
   UserPlus,
   Users,
@@ -28,11 +25,6 @@ import {
   CartesianGrid,
   Line,
   LineChart,
-  PolarAngleAxis,
-  PolarGrid,
-  PolarRadiusAxis,
-  Radar,
-  RadarChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -48,25 +40,15 @@ import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Loader } from '@/components/ui/Loader'
 import { StatCard } from '@/components/ui/StatCard'
+import {
+  AiErrorBox, AiRadar, CardList, MiniStat, PctRow, RankedBars, ScoreGrid, ScoreRing, TextBlock,
+} from '@/components/ai/AiParts'
+import { escapeHtml, openPrintWindow, printCss, trendInfo } from '@/lib/ai'
 import { monthShortNames } from '@/config/constants'
 import { apiErrorMessage, cn, formatDate } from '@/lib/utils'
 
 /** "2026-07" → "Iyl" (diagramma o'qi uchun qisqa yorliq). */
 const shortMonth = (ym: string) => monthShortNames[Number(ym.slice(5, 7)) - 1] ?? ym
-
-function scoreColor(v: number): string {
-  if (v >= 80) return '#16a34a'
-  if (v >= 60) return '#2563eb'
-  if (v >= 40) return '#f59e0b'
-  return '#dc2626'
-}
-
-function trendInfo(trend: string): { label: string; cls: string; Icon: typeof TrendingUp } {
-  const t = (trend || '').toLowerCase()
-  if (t.includes('yaxshi')) return { label: 'Yaxshilanmoqda', cls: 'bg-emerald-50 text-emerald-700', Icon: TrendingUp }
-  if (t.includes('yomon')) return { label: 'Yomonlashmoqda', cls: 'bg-red-50 text-red-700', Icon: TrendingDown }
-  return { label: 'Barqaror', cls: 'bg-slate-100 text-slate-600', Icon: Minus }
-}
 
 const dimLabels: { key: keyof TeacherAiRecord['ai']['baholar']; label: string }[] = [
   { key: 'jurnal', label: 'Jurnal' },
@@ -76,93 +58,6 @@ const dimLabels: { key: keyof TeacherAiRecord['ai']['baholar']; label: string }[
   { key: 'faollik', label: 'Faollik' },
 ]
 
-/** Umumiy ball halqasi (SVG ring). */
-function ScoreRing({ value }: { value: number }) {
-  const r = 46
-  const c = 2 * Math.PI * r
-  const pct = Math.max(0, Math.min(100, value))
-  const color = scoreColor(pct)
-  return (
-    <div className="relative h-32 w-32 shrink-0">
-      <svg viewBox="0 0 110 110" className="h-full w-full -rotate-90">
-        <circle cx="55" cy="55" r={r} fill="none" stroke="#eef0f4" strokeWidth="9" />
-        <circle
-          cx="55" cy="55" r={r} fill="none" stroke={color} strokeWidth="9" strokeLinecap="round"
-          strokeDasharray={`${(pct / 100) * c} ${c}`}
-        />
-      </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="font-mono text-3xl font-bold" style={{ color }}>{pct}</span>
-        <span className="text-[11px] text-slate-400">/ 100</span>
-      </div>
-    </div>
-  )
-}
-
-/** Foizli qator (mavzu/uy vazifa/davomat kabi ko'rsatkichlar uchun). */
-function PctRow({ label, value, hint }: { label: string; value: number; hint?: string }) {
-  const color = value >= 80 ? 'bg-emerald-500' : value >= 50 ? 'bg-amber-400' : 'bg-red-500'
-  return (
-    <div className="flex items-center gap-3 py-2">
-      <div className="w-44 shrink-0">
-        <p className="text-sm text-slate-600">{label}</p>
-        {hint && <p className="text-[11px] text-slate-400">{hint}</p>}
-      </div>
-      <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-slate-100">
-        <div className={cn('h-full rounded-full transition-all', color)} style={{ width: `${Math.min(100, value)}%` }} />
-      </div>
-      <span className="w-12 text-right font-mono text-sm font-semibold text-slate-700">{value}%</span>
-    </div>
-  )
-}
-
-const tones: Record<string, { box: string; chip: string }> = {
-  green: { box: 'border-emerald-100 bg-emerald-50/50', chip: 'text-emerald-600' },
-  amber: { box: 'border-amber-100 bg-amber-50/50', chip: 'text-amber-600' },
-  red: { box: 'border-red-100 bg-red-50/50', chip: 'text-red-600' },
-  blue: { box: 'border-blue-100 bg-blue-50/50', chip: 'text-blue-600' },
-}
-
-function CardList({
-  title, Icon, tone, items,
-}: {
-  title: string
-  Icon: typeof CheckCircle2
-  tone: 'green' | 'amber' | 'red' | 'blue'
-  items: string[]
-}) {
-  const t = tones[tone]
-  return (
-    <div className={`rounded-xl border p-4 ${t.box}`}>
-      <p className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-800">
-        <Icon className={`h-4 w-4 ${t.chip}`} /> {title}
-      </p>
-      <ul className="space-y-1.5">
-        {items.map((it, i) => (
-          <li key={i} className="flex gap-2 text-sm leading-relaxed text-slate-700">
-            <span className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${t.chip.replace('text-', 'bg-')}`} />
-            <span>{it}</span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  )
-}
-
-function TextBlock({ title, text }: { title: string; text: string }) {
-  if (!text) return null
-  return (
-    <div>
-      <p className="mb-1.5 text-sm font-semibold text-slate-800">{title}</p>
-      <p className="text-sm leading-relaxed text-slate-700">{text}</p>
-    </div>
-  )
-}
-
-function escapeHtml(s: string): string {
-  return (s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-}
-
 function buildPrintHtml(rec: TeacherAiRecord, teacherName: string): string {
   const r = rec.ai
   const m = rec.metrics
@@ -171,18 +66,7 @@ function buildPrintHtml(rec: TeacherAiRecord, teacherName: string): string {
   const row = (label: string, v: string | number) =>
     `<tr><td>${label}</td><td style="text-align:right;font-weight:bold">${v}</td></tr>`
   return `<!DOCTYPE html><html lang="uz"><head><meta charset="utf-8"><title>AI tahlil — ${escapeHtml(teacherName)}</title>
-<style>
-  body{font-family:'Times New Roman',Times,serif;color:#1e293b;margin:0;padding:40px 48px;line-height:1.6}
-  .head{border-bottom:3px solid #6d28d9;padding-bottom:14px;margin-bottom:18px}
-  .brand{color:#6d28d9;font-size:13px;letter-spacing:1px;text-transform:uppercase;font-weight:bold}
-  h1{font-size:24px;margin:6px 0 2px}.meta{font-size:12px;color:#64748b}
-  h2{font-size:17px;color:#4c1d95;margin:18px 0 6px;border-left:4px solid #a78bfa;padding-left:10px}
-  table{border-collapse:collapse;width:340px;margin:6px 0}
-  td{border:1px solid #e2e8f0;padding:4px 10px;font-size:14px}
-  ul{margin:4px 0 10px;padding-left:22px}li{margin:3px 0}
-  .foot{margin-top:26px;border-top:1px solid #e2e8f0;padding-top:10px;font-size:11px;color:#94a3b8}
-  @media print{body{padding:20px 24px}}
-</style></head><body>
+<style>${printCss}</style></head><body>
   <div class="head"><div class="brand">IntellectCRM · O'qituvchi AI tahlili</div>
     <h1>${escapeHtml(teacherName)}</h1>
     <div class="meta">Sana: ${escapeHtml(rec.date)} · Model: ${escapeHtml(rec.model)} · Umumiy baho: <b>${b.umumiy}/100</b> · Trend: ${escapeHtml(r.trend)}</div>
@@ -271,15 +155,7 @@ export function TeacherAiPanel({ teacherId, teacherName }: { teacherId: string; 
   }
 
   const downloadPdf = () => {
-    if (!shown) return
-    const win = window.open('', '_blank', 'width=840,height=920')
-    if (!win) {
-      alert("Brauzer yangi oynani bloklab qo'ydi. Pop-up'ga ruxsat bering.")
-      return
-    }
-    win.document.write(buildPrintHtml(shown, teacherName))
-    win.document.close()
-    win.focus()
+    if (shown) openPrintWindow(buildPrintHtml(shown, teacherName))
   }
 
   if (loading) return <Card><Loader label="Yuklanmoqda..." /></Card>
@@ -300,7 +176,6 @@ export function TeacherAiPanel({ teacherId, teacherName }: { teacherId: string; 
   const gradeData = metrics.journalByMonth
     .filter((p) => p.grades > 0)
     .map((p) => ({ name: shortMonth(p.month), "O'rtacha baho": p.avgGrade }))
-  const maxReason = Math.max(1, ...metrics.departureReasons.map((r) => r.value))
 
   return (
     <div className="space-y-4">
@@ -348,15 +223,7 @@ export function TeacherAiPanel({ teacherId, teacherName }: { teacherId: string; 
             <Info className="mt-0.5 h-4 w-4 shrink-0" /> <span>{info}</span>
           </div>
         )}
-        {runError && (
-          <div className="flex items-start gap-2 rounded-lg border border-red-100 bg-red-50 px-3 py-2.5 text-sm text-red-700">
-            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-            <div>
-              <p className="font-semibold">Tahlil amalga oshmadi</p>
-              <p className="mt-0.5 text-red-600">{runError}</p>
-            </div>
-          </div>
-        )}
+        {runError && <AiErrorBox message={runError} />}
         {running && (
           <div className="flex flex-col items-center justify-center gap-2 py-8 text-slate-400">
             <RefreshCw className="h-7 w-7 animate-spin text-brand-500" />
@@ -403,28 +270,10 @@ export function TeacherAiPanel({ teacherId, teacherName }: { teacherId: string; 
         </Card>
 
         <Card title="Ketish sabablari" sub="Guruhdan chiqarish/muzlatishda ko'rsatilgan sabablar">
-          {metrics.departureReasons.length === 0 ? (
-            <div className="py-10 text-center text-sm text-slate-400">
-              Oxirgi 12 oyda ketish sababi qayd etilmagan.
-            </div>
-          ) : (
-            <ul className="space-y-2.5">
-              {metrics.departureReasons.slice(0, 8).map((r) => (
-                <li key={r.label} className="flex items-center gap-3">
-                  <span className="w-44 shrink-0 truncate text-sm text-slate-600" title={r.label}>
-                    {r.label}
-                  </span>
-                  <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-slate-100">
-                    <div
-                      className="h-full rounded-full bg-red-400"
-                      style={{ width: `${(r.value / maxReason) * 100}%` }}
-                    />
-                  </div>
-                  <span className="w-8 text-right font-mono text-sm font-semibold text-slate-700">{r.value}</span>
-                </li>
-              ))}
-            </ul>
-          )}
+          <RankedBars
+            items={metrics.departureReasons.slice(0, 8)}
+            empty="Oxirgi 12 oyda ketish sababi qayd etilmagan."
+          />
         </Card>
       </div>
 
@@ -600,33 +449,11 @@ export function TeacherAiPanel({ teacherId, teacherName }: { teacherId: string; 
                   })()}
                 </div>
               </div>
-              <div className="h-52 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <RadarChart data={dimLabels.map((d) => ({ subject: d.label, value: shown.ai.baholar[d.key] ?? 0 }))} outerRadius="70%">
-                    <PolarGrid stroke="#e2e8f0" />
-                    <PolarAngleAxis dataKey="subject" tick={{ fontSize: 10, fill: '#64748b' }} />
-                    <PolarRadiusAxis domain={[0, 100]} tick={{ fontSize: 9, fill: '#cbd5e1' }} angle={90} />
-                    <Radar dataKey="value" stroke="#6d28d9" fill="#7c3aed" fillOpacity={0.35} />
-                  </RadarChart>
-                </ResponsiveContainer>
-              </div>
+              <AiRadar data={dimLabels.map((d) => ({ subject: d.label, value: shown.ai.baholar[d.key] ?? 0 }))} />
             </div>
 
             {/* Sohaviy ballar */}
-            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-5">
-              {dimLabels.map((d) => {
-                const v = shown.ai.baholar[d.key] ?? 0
-                return (
-                  <div key={d.key} className="rounded-xl border border-slate-100 p-2.5 text-center">
-                    <p className="font-mono text-lg font-bold" style={{ color: scoreColor(v) }}>{v}</p>
-                    <p className="text-[11px] text-slate-500">{d.label}</p>
-                    <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-100">
-                      <div className="h-full rounded-full" style={{ width: `${v}%`, background: scoreColor(v) }} />
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
+            <ScoreGrid items={dimLabels.map((d) => ({ label: d.label, value: shown.ai.baholar[d.key] ?? 0 }))} />
 
             <TextBlock title="Umumiy holat" text={shown.ai.umumiy} />
 
@@ -677,16 +504,6 @@ export function TeacherAiPanel({ teacherId, teacherName }: { teacherId: string; 
           </Card>
         )
       )}
-    </div>
-  )
-}
-
-function MiniStat({ label, value, hint }: { label: string; value: string | number; hint?: string }) {
-  return (
-    <div className="rounded-xl border border-slate-100 p-3">
-      <p className="text-[11px] uppercase tracking-wide text-slate-400">{label}</p>
-      <p className="mt-1 font-mono text-xl font-semibold text-slate-800">{value}</p>
-      {hint && <p className="mt-0.5 text-[11px] text-slate-400">{hint}</p>}
     </div>
   )
 }
