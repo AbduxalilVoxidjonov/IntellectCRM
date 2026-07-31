@@ -986,6 +986,26 @@ public class TeacherPortalController(
         return d is null ? NotFound() : d;
     }
 
+    /// <summary>Onlayn test savollari (PDF) faylini yuklash — testlar bo'limi uchun (maks ~20MB).
+    /// Ruxsat: "journal" (o'qituvchi ilovasidagi «Testlar» bo'limi shu ruxsat bilan ochiladi) —
+    /// topshiriqlar ruxsati yo'q o'qituvchi ham onlayn test yarata olsin.</summary>
+    [HttpPost("test-results/uploads")]
+    [RequestSizeLimit(20_000_000)]
+    public async Task<ActionResult<UploadedFileDto>> TeacherTestUpload(IFormFile file)
+    {
+        if (!await HasPerm(TeacherPermissions.Journal)) return Forbid();
+        if (Application.Services.UploadGuard.Validate(file) is { } error)
+            return BadRequest(new { message = error });
+
+        var dir = System.IO.Path.Combine(env.ContentRootPath, "uploads");
+        System.IO.Directory.CreateDirectory(dir);
+        var stored = Application.Services.UploadGuard.SafeName(file);
+        await using (var fs = System.IO.File.Create(System.IO.Path.Combine(dir, stored)))
+            await file.CopyToAsync(fs);
+
+        return new UploadedFileDto(file.FileName, $"/uploads/{stored}", file.Length, file.ContentType ?? "");
+    }
+
     /// <summary>Yangi test yaratish (o'z guruhiga).</summary>
     [HttpPost("test-results")]
     public async Task<ActionResult<GroupTestDto>> TeacherTestCreate(CreateTestResultRequest req)

@@ -42,5 +42,11 @@ paths:
   `editMessageText` bilan joyida yangilanadigan varaqa; yoki bitta xabarda "abcda"/"1a 2b") →
   avtomatik tekshirish → natija (foiz/baho/o'rin). Bir marta topshiriladi; javob kaliti FAQAT vaqt
   tugagach ochiladi. Vaqtinchalik holat: `TestBotSession` (ChatId unikal).
-  DIQQAT: `TestResultService.UpdateAsync`ga `Online` berilmasa rejim O'ZGARMAYDI (o'qituvchi
-  ilovasidagi eski forma onlayn testni oflaynga aylantirmasin).
+  DIQQAT: `TestResultService.UpdateAsync`ga `Online` berilmasa rejim O'ZGARMAYDI (eski/qisqartirilgan
+  forma onlayn testni oflaynga aylantirmasin).
+  REJIM TANLASH IKKALA ILOVADA HAM BOR: admin `TestGroupPage`dagi `TestFormModal` va o'qituvchi
+  ilovasidagi `TeacherTestFormModal` (`pages/teacher/tests/TeacherTestsPage.tsx`) — bir xil maydonlar
+  va bir xil tekshiruvlar; o'qituvchi PDF'ni `POST /api/teacher/test-results/uploads` orqali yuklaydi
+  (ruxsat "journal" — topshiriqlar ruxsati shart emas). O'qituvchi test tafsilotida ham onlayn
+  ma'lumot bloki bor (savollar soni, vaqt oynasi, PDF, javob kaliti — yopiq holatda, botdan yuborgan
+  o'quvchilar soni) va har qatorda o'quvchining javoblari ko'rinadi.

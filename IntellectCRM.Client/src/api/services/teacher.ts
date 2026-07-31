@@ -4,6 +4,7 @@ import type {
   AssignmentType,
   ChatMessage,
   GroupTest,
+  OnlineTest,
   PortalMeta,
   SalaryLedger,
   Subject,
@@ -394,6 +395,8 @@ export async function createTeacherTest(payload: {
   name: string
   date: string
   maxScore: number
+  /** Onlayn test sozlamalari; berilmasa (yoki mode="offline") — oflayn test. */
+  online?: OnlineTest
 }): Promise<GroupTest> {
   const { data } = await api.post<GroupTest>('/teacher/test-results', payload)
   return data
@@ -401,9 +404,19 @@ export async function createTeacherTest(payload: {
 
 export async function updateTeacherTest(
   id: string,
-  payload: { name: string; date: string; maxScore: number },
+  payload: { name: string; date: string; maxScore: number; online?: OnlineTest },
 ): Promise<void> {
   await api.put(`/teacher/test-results/${id}`, payload)
+}
+
+/** Onlayn test savollari (PDF) faylini yuklash; yuklangan fayl metadatasini qaytaradi. */
+export async function uploadTeacherTestFile(file: File): Promise<MaterialInput> {
+  const fd = new FormData()
+  fd.append('file', file)
+  const { data } = await api.post<MaterialInput>('/teacher/test-results/uploads', fd, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+  return data
 }
 
 export async function deleteTeacherTest(id: string): Promise<void> {

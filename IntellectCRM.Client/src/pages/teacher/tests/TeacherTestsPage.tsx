@@ -1,6 +1,21 @@
-import { useEffect, useState } from 'react'
-import { ArrowLeft, Bot, ClipboardList, Plus, Pencil, Trash2, GraduationCap } from 'lucide-react'
-import type { GroupTest, TeacherClass, TestResultDetail } from '@/types'
+import { useEffect, useMemo, useState } from 'react'
+import {
+  ArrowLeft,
+  Bot,
+  ClipboardList,
+  Clock,
+  Eye,
+  EyeOff,
+  FileText,
+  GraduationCap,
+  Loader2,
+  Pencil,
+  Plus,
+  Send,
+  Trash2,
+  Upload,
+} from 'lucide-react'
+import type { GroupTest, OnlineTest, TeacherClass, TestResultDetail } from '@/types'
 import {
   getMyClasses,
   getTeacherGroupTests,
@@ -9,6 +24,7 @@ import {
   updateTeacherTest,
   deleteTeacherTest,
   setTeacherTestScore,
+  uploadTeacherTestFile,
 } from '@/api/services/teacher'
 import { cn, formatDate, apiErrorMessage } from '@/lib/utils'
 import { Loader } from '@/components/ui/Loader'
@@ -26,13 +42,452 @@ function initialsOf(name: string): string {
 
 const todayIso = () => new Date().toISOString().slice(0, 10)
 
-interface TestForm {
-  name: string
-  date: string
-  maxScore: string
-}
+/** Javob varianti harflari (A, B, C, ...). */
+const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F']
 
-const emptyForm: TestForm = { name: '', date: todayIso(), maxScore: '100' }
+/** "2026-07-22T09:30" → "09:30" (bo'sh/noto'g'ri bo'lsa — zaxira qiymat). */
+const timeOf = (iso: string, fallback: string) => (iso && iso.length >= 16 ? iso.slice(11, 16) : fallback)
+
+const field =
+  'h-10 w-full rounded-lg border border-line bg-white px-3 text-[14px] text-ink focus:border-teal-500 focus:outline-none'
+const label = 'mb-1 block text-[12px] font-semibold text-mute'
+
+/**
+ * O'qituvchi — test yaratish/tahrirlash. Admin ("O'quv bo'limi → Testlar natijalari") bilan BIR XIL
+ * ikki rejim:
+ *  • Oflayn — nom, sana, maksimal ball (ballni o'qituvchi qo'lda kiritadi).
+ *  • Onlayn (bot) — savollar PDF'i, savollar soni, variantlar, javoblar kaliti va vaqt oynasi;
+ *    o'quvchi Telegram botdan ishlaydi, ball avtomatik yoziladi (har savol — 1 ball).
+ */
+function TeacherTestFormModal({
+  groupId,
+  editing,
+  onClose,
+  onSaved,
+}: {
+  groupId: string
+  editing: GroupTest | null
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const initialOnline = editing?.online
+  const [mode, setMode] = useState<'offline' | 'online'>(
+    initialOnline?.mode === 'online' ? 'online' : 'offline',
+  )
+  const [name, setName] = useState(editing?.name ?? '')
+  const [date, setDate] = useState(editing ? editing.date.slice(0, 10) : todayIso())
+  const [maxScore, setMaxScore] = useState<string>(editing ? String(editing.maxScore) : '100')
+
+  // --- onlayn maydonlari ---
+  const [pdfUrl, setPdfUrl] = useState(initialOnline?.pdfUrl ?? '')
+  const [pdfName, setPdfName] = useState(initialOnline?.pdfName ?? '')
+  const [uploading, setUploading] = useState(false)
+  const [count, setCount] = useState<string>(
+    initialOnline?.questionCount ? String(initialOnline.questionCount) : '20',
+  )
+  const [options, setOptions] = useState<number>(initialOnline?.optionCount || 4)
+  const [key, setKey] = useState<string[]>(
+    (initialOnline?.answerKey ?? '').split('').map((c) => (c === '-' ? '' : c)),
+  )
+  const [bulkKey, setBulkKey] = useState('')
+  const [startTime, setStartTime] = useState(timeOf(initialOnline?.startAt ?? '', '09:00'))
+  const [endTime, setEndTime] = useState(timeOf(initialOnline?.endAt ?? '', '11:00'))
+
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+
+  const qCount = useMemo(() => {
+    const n = Number(count)
+    return Number.isFinite(n) && n > 0 ? Math.min(200, Math.floor(n)) : 0
+  }, [count])
+
+  // Savollar soni o'zgarsa kalit massivi moslanadi (kiritilganlar saqlanadi).
+  const keys = useMemo(() => {
+    const arr = key.slice(0, qCount)
+    while (arr.length < qCount) arr.push('')
+    return arr
+  }, [key, qCount])
+  const filled = keys.filter(Boolean).length
+
+  const setAnswer = (i: number, letter: string) =>
+    setKey(() => {
+      const next = keys.slice()
+      next[i] = next[i] === letter ? '' : letter
+      return next
+    })
+
+  /** Kalitni matndan to'ldirish: "abcdab..." yoki "1a 2b 3c" — harflar tartib bilan olinadi. */
+  const applyBulk = () => {
+    const allowed = LETTERS.slice(0, options)
+    const letters = bulkKey
+      .toUpperCase()
+      .split('')
+      .filter((c) => allowed.includes(c))
+    if (letters.length === 0) {
+      setErr('Kalit topilmadi — masalan: abcdabcd...')
+      return
+    }
+    const next = letters.slice(0, qCount)
+    while (next.length < qCount) next.push('')
+    setKey(next)
+    setBulkKey('')
+    setErr('')
+  }
+
+  const handlePdf = async (file: File) => {
+    setUploading(true)
+    setErr('')
+    try {
+      const up = await uploadTeacherTestFile(file)
+      setPdfUrl(up.url)
+      setPdfName(up.name)
+    } catch (e) {
+      setErr(apiErrorMessage(e, "Faylni yuklab bo'lmadi"))
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const max = useMemo(() => Number(maxScore), [maxScore])
+  const validOffline = name.trim().length > 0 && !!date && Number.isFinite(max) && max > 0
+  const validOnline =
+    name.trim().length > 0 &&
+    !!date &&
+    qCount > 0 &&
+    !!pdfUrl &&
+    filled === qCount &&
+    startTime < endTime
+  const valid = mode === 'online' ? validOnline : validOffline
+
+  const submit = async () => {
+    if (!valid) {
+      setErr(
+        mode === 'online'
+          ? "Nom, sana, PDF, savollar soni, to'liq javob kaliti va to'g'ri vaqt oralig'i kerak"
+          : 'Nom, sana va 0 dan katta maksimal ball kiriting',
+      )
+      return
+    }
+    setBusy(true)
+    setErr('')
+    const online: OnlineTest =
+      mode === 'online'
+        ? {
+            mode: 'online',
+            pdfUrl,
+            pdfName,
+            questionCount: qCount,
+            optionCount: options,
+            answerKey: keys.join(''),
+            startAt: `${date}T${startTime}`,
+            endAt: `${date}T${endTime}`,
+          }
+        : {
+            mode: 'offline',
+            pdfUrl: '',
+            pdfName: '',
+            questionCount: 0,
+            optionCount: 4,
+            answerKey: '',
+            startAt: '',
+            endAt: '',
+          }
+    const finalMax = mode === 'online' ? qCount : max
+    try {
+      if (editing) {
+        await updateTeacherTest(editing.id, { name: name.trim(), date, maxScore: finalMax, online })
+      } else {
+        await createTeacherTest({ groupId, name: name.trim(), date, maxScore: finalMax, online })
+      }
+      onSaved()
+    } catch (e) {
+      setErr(apiErrorMessage(e, "Saqlab bo'lmadi"))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Modal
+      open
+      onClose={() => !busy && onClose()}
+      size="lg"
+      title={editing ? 'Testni tahrirlash' : 'Yangi test'}
+      footer={
+        <>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={busy}
+            className="rounded-lg border border-line bg-white px-3.5 py-2 text-[13px] font-semibold text-mute disabled:opacity-50"
+          >
+            Bekor qilish
+          </button>
+          <button
+            type="button"
+            onClick={submit}
+            disabled={busy || !valid}
+            className="rounded-lg bg-teal-600 px-3.5 py-2 text-[13px] font-semibold text-white disabled:opacity-50"
+          >
+            {busy ? 'Saqlanmoqda...' : 'Saqlash'}
+          </button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        {/* Rejim tanlash */}
+        <div className="grid grid-cols-2 gap-2 rounded-xl bg-panel2 p-1">
+          {(
+            [
+              { v: 'offline', icon: ClipboardList, t: 'Oflayn', s: "Ballni qo'lda kiritasiz" },
+              { v: 'online', icon: Bot, t: 'Onlayn (bot)', s: "O'quvchi botdan ishlaydi" },
+            ] as const
+          ).map((m) => {
+            const Icon = m.icon
+            const active = mode === m.v
+            return (
+              <button
+                key={m.v}
+                type="button"
+                onClick={() => setMode(m.v)}
+                className={cn(
+                  'flex items-center gap-2 rounded-lg px-2.5 py-2 text-left transition-colors',
+                  active ? 'bg-white shadow-[var(--shadow-card)]' : 'hover:bg-white/60',
+                )}
+              >
+                <Icon className={cn('h-5 w-5 shrink-0', active ? 'text-teal-600' : 'text-faint')} />
+                <span className="min-w-0">
+                  <span
+                    className={cn('block text-[13px] font-bold', active ? 'text-ink' : 'text-mute')}
+                  >
+                    {m.t}
+                  </span>
+                  <span className="block truncate text-[10px] text-faint">{m.s}</span>
+                </span>
+              </button>
+            )
+          })}
+        </div>
+
+        <div>
+          <span className={label}>Test nomi</span>
+          <input
+            className={field}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Masalan: 1-chorak test"
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <span className={label}>Sana</span>
+            <input type="date" className={field} value={date} onChange={(e) => setDate(e.target.value)} />
+          </div>
+          {mode === 'offline' ? (
+            <div>
+              <span className={label}>Maksimal ball</span>
+              <input
+                type="number"
+                min={1}
+                className={field}
+                value={maxScore}
+                onChange={(e) => setMaxScore(e.target.value)}
+                placeholder="100"
+              />
+            </div>
+          ) : (
+            <div>
+              <span className={label}>Maksimal ball (avtomatik)</span>
+              <div className="flex h-10 items-center rounded-lg border border-dashed border-line bg-panel2 px-3 text-[13px] text-mute">
+                {qCount || '—'} ball · har savol 1 ball
+              </div>
+            </div>
+          )}
+        </div>
+
+        {mode === 'online' && (
+          <>
+            {/* PDF */}
+            <div>
+              <span className={label}>Test savollari (PDF)</span>
+              {pdfUrl ? (
+                <div className="flex items-center gap-2 rounded-lg border border-line bg-white px-3 py-2">
+                  <FileText className="h-4 w-4 shrink-0 text-red-500" />
+                  <a
+                    href={pdfUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="min-w-0 flex-1 truncate text-[13px] font-semibold text-teal-600"
+                  >
+                    {pdfName || 'test.pdf'}
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPdfUrl('')
+                      setPdfName('')
+                    }}
+                    className="shrink-0 rounded-md p-1 text-faint hover:bg-red-50 hover:text-red-500"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : (
+                <label
+                  className={cn(
+                    'flex cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed border-line px-3 py-4 text-[13px] font-semibold text-mute transition-colors hover:border-teal-300 hover:text-teal-600',
+                    uploading && 'pointer-events-none opacity-60',
+                  )}
+                >
+                  {uploading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Upload className="h-4 w-4" />
+                  )}
+                  {uploading ? 'Yuklanmoqda...' : 'PDF faylni tanlang (20 MB gacha)'}
+                  <input
+                    type="file"
+                    accept="application/pdf,.pdf"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0]
+                      if (f) void handlePdf(f)
+                      e.target.value = ''
+                    }}
+                  />
+                </label>
+              )}
+              <p className="mt-1 text-[11px] text-faint">
+                Shu fayl o'quvchiga Telegram botda yuboriladi.
+              </p>
+            </div>
+
+            {/* Savollar soni / variantlar / vaqt */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <span className={label}>Savollar soni</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={200}
+                  className={field}
+                  value={count}
+                  onChange={(e) => setCount(e.target.value)}
+                />
+              </div>
+              <div>
+                <span className={label}>Variantlar</span>
+                <select
+                  className={field}
+                  value={options}
+                  onChange={(e) => setOptions(Number(e.target.value))}
+                >
+                  {[2, 3, 4, 5, 6].map((n) => (
+                    <option key={n} value={n}>
+                      A–{LETTERS[n - 1]} ({n} ta)
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <span className={label}>Boshlanishi</span>
+                <input
+                  type="time"
+                  className={field}
+                  value={startTime}
+                  onChange={(e) => setStartTime(e.target.value)}
+                />
+              </div>
+              <div>
+                <span className={label}>Tugashi</span>
+                <input
+                  type="time"
+                  className={field}
+                  value={endTime}
+                  onChange={(e) => setEndTime(e.target.value)}
+                />
+              </div>
+            </div>
+            <p className="-mt-2 text-[11px] text-faint">
+              O'quvchi javoblarni faqat shu vaqt oralig'ida yubora oladi ({date} kuni).
+            </p>
+
+            {/* Javoblar kaliti */}
+            <div>
+              <div className="mb-1.5 flex items-center justify-between">
+                <span className="text-[12px] font-semibold text-mute">To'g'ri javoblar kaliti</span>
+                <span
+                  className={cn(
+                    'text-[12px] font-semibold',
+                    filled === qCount && qCount > 0 ? 'text-emerald-600' : 'text-amber-600',
+                  )}
+                >
+                  {filled}/{qCount} to'ldirildi
+                </span>
+              </div>
+              <div className="mb-2 flex gap-2">
+                <input
+                  className={field}
+                  value={bulkKey}
+                  onChange={(e) => setBulkKey(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      applyBulk()
+                    }
+                  }}
+                  placeholder="Tez to'ldirish: abcdabcd..."
+                />
+                <button
+                  type="button"
+                  onClick={applyBulk}
+                  disabled={!bulkKey.trim()}
+                  className="shrink-0 rounded-lg border border-line bg-white px-3 text-[13px] font-semibold text-mute disabled:opacity-50"
+                >
+                  To'ldirish
+                </button>
+              </div>
+              <div className="max-h-64 overflow-y-auto rounded-lg border border-line bg-panel2 p-2">
+                <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                  {keys.map((v, i) => (
+                    <div
+                      key={i}
+                      className="flex items-center gap-1.5 rounded-lg border border-line bg-white px-2 py-1.5"
+                    >
+                      <span className="w-7 shrink-0 text-right text-[11px] font-bold text-faint">
+                        {i + 1}.
+                      </span>
+                      <div className="flex flex-1 gap-1">
+                        {LETTERS.slice(0, options).map((L) => (
+                          <button
+                            key={L}
+                            type="button"
+                            onClick={() => setAnswer(i, L)}
+                            className={cn(
+                              'h-7 flex-1 rounded-md text-[12px] font-bold transition-colors',
+                              v === L ? 'bg-teal-600 text-white' : 'bg-panel3 text-mute',
+                            )}
+                          >
+                            {L}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
+        {err && (
+          <p className="rounded-lg bg-rose-50 px-3 py-2 text-[13px] font-semibold text-rose-600">{err}</p>
+        )}
+      </div>
+    </Modal>
+  )
+}
 
 /** O'qituvchi — Test natijalari. Ichki drill-down: guruhlar → testlar → test tafsiloti (marshrutsiz). */
 export function TeacherTestsPage() {
@@ -47,12 +502,11 @@ export function TeacherTestsPage() {
   const [detail, setDetail] = useState<TestResultDetail | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [detailError, setDetailError] = useState<string | null>(null)
+  // Onlayn test: javob kaliti yopiq turadi (tasodifan ko'rinib qolmasin)
+  const [showKey, setShowKey] = useState(false)
 
   const [formOpen, setFormOpen] = useState(false)
   const [editingTest, setEditingTest] = useState<GroupTest | null>(null)
-  const [form, setForm] = useState<TestForm>(emptyForm)
-  const [formError, setFormError] = useState<string | null>(null)
-  const [saving, setSaving] = useState(false)
 
   const [deleteTarget, setDeleteTarget] = useState<GroupTest | null>(null)
   const [deleting, setDeleting] = useState(false)
@@ -92,6 +546,7 @@ export function TeacherTestsPage() {
     setDetailLoading(true)
     setDetailError(null)
     setDetail(null)
+    setShowKey(false)
     getTeacherTestDetail(t.id)
       .then((d) => {
         setDetail(d)
@@ -111,56 +566,23 @@ export function TeacherTestsPage() {
 
   const openCreate = () => {
     setEditingTest(null)
-    setForm(emptyForm)
-    setFormError(null)
     setFormOpen(true)
   }
 
   const openEdit = (t: GroupTest) => {
     setEditingTest(t)
-    setForm({ name: t.name, date: t.date.slice(0, 10), maxScore: String(t.maxScore) })
-    setFormError(null)
     setFormOpen(true)
   }
 
   const closeForm = () => {
-    if (saving) return
     setFormOpen(false)
     setEditingTest(null)
   }
 
-  const submitForm = async () => {
-    if (!selectedClass) return
-    const name = form.name.trim()
-    const maxScore = Number(form.maxScore)
-    if (!name) {
-      setFormError('Test nomini kiriting')
-      return
-    }
-    if (!form.date) {
-      setFormError('Sanani tanlang')
-      return
-    }
-    if (!Number.isFinite(maxScore) || maxScore <= 0) {
-      setFormError("Maksimal ball 0 dan katta bo'lishi kerak")
-      return
-    }
-    setSaving(true)
-    setFormError(null)
-    try {
-      if (editingTest) {
-        await updateTeacherTest(editingTest.id, { name, date: form.date, maxScore })
-      } else {
-        await createTeacherTest({ groupId: selectedClass.classId, name, date: form.date, maxScore })
-      }
-      setFormOpen(false)
-      setEditingTest(null)
-      loadTests(selectedClass.classId)
-    } catch (err) {
-      setFormError(apiErrorMessage(err, "Saqlab bo'lmadi"))
-    } finally {
-      setSaving(false)
-    }
+  const onFormSaved = () => {
+    setFormOpen(false)
+    setEditingTest(null)
+    if (selectedClass) loadTests(selectedClass.classId)
   }
 
   const confirmDelete = async () => {
@@ -201,6 +623,8 @@ export function TeacherTestsPage() {
 
   // ---------------- 3. Test tafsiloti ----------------
   if (detail || detailLoading || detailError) {
+    const isOnline = detail?.online?.mode === 'online'
+    const submitted = detail ? detail.rows.filter((r) => r.source === 'bot').length : 0
     return (
       <div className="px-4 pt-3 pb-6">
         <div className="mb-4 flex items-center gap-2.5">
@@ -220,6 +644,56 @@ export function TeacherTestsPage() {
             )}
           </div>
         </div>
+
+        {detail && isOnline && (
+          <div className="mb-3 rounded-[20px] border border-line bg-white p-4 shadow-[var(--shadow-card)]">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[12px] text-mute">
+              <span className="inline-flex items-center gap-1.5 rounded-md bg-violet-50 px-2 py-1 text-[10px] font-bold text-violet-600">
+                <Bot className="h-3.5 w-3.5" /> ONLAYN TEST
+              </span>
+              <span>
+                Savollar: <b className="text-ink">{detail.online.questionCount}</b> ta (A–
+                {String.fromCharCode(64 + detail.online.optionCount)})
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <Clock className="h-4 w-4 text-faint" />
+                {timeOf(detail.online.startAt, '—')}–{timeOf(detail.online.endAt, '—')}
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <Send className="h-4 w-4 text-faint" />
+                Botdan yuborgan: <b className="text-ink">{submitted}</b>
+              </span>
+            </div>
+            <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-2">
+              {detail.online.pdfUrl && (
+                <a
+                  href={detail.online.pdfUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-teal-600"
+                >
+                  <FileText className="h-4 w-4" /> Savollar (PDF)
+                </a>
+              )}
+              <button
+                type="button"
+                onClick={() => setShowKey((v) => !v)}
+                className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-mute"
+              >
+                {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                Javob kaliti
+              </button>
+            </div>
+            {showKey && (
+              <pre className="mt-2.5 overflow-x-auto rounded-lg bg-panel2 p-3 text-[11px] leading-relaxed text-mute">
+                {detail.online.answerKey
+                  .split('')
+                  .map((c, i) => `${i + 1}.${c}`)
+                  .join('   ')}
+              </pre>
+            )}
+          </div>
+        )}
 
         {detailLoading ? (
           <div className="rounded-[20px] border border-line bg-white p-6 shadow-[var(--shadow-card)]">
@@ -249,7 +723,17 @@ export function TeacherTestsPage() {
                     <div className="flex h-7 w-7 shrink-0 items-center justify-center text-[14px] font-bold text-mute">
                       {r.rank === 0 ? '' : medal ?? r.rank}
                     </div>
-                    <p className="min-w-0 flex-1 truncate text-[14px] font-semibold text-ink">{r.fullName}</p>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[14px] font-semibold text-ink">{r.fullName}</p>
+                      {isOnline &&
+                        (r.source === 'bot' ? (
+                          <p className="truncate text-[11px] text-faint" title={r.answers}>
+                            <span className="font-mono">{r.answers}</span> · {timeOf(r.submittedAt, '—')}
+                          </p>
+                        ) : (
+                          <p className="text-[11px] text-faint">— topshirmagan</p>
+                        ))}
+                    </div>
                     <div className="flex shrink-0 items-center gap-1.5">
                       <input
                         type="number"
@@ -396,69 +880,15 @@ export function TeacherTestsPage() {
           </div>
         )}
 
-        <Modal
-          open={formOpen}
-          onClose={closeForm}
-          size="sm"
-          title={editingTest ? 'Testni tahrirlash' : 'Yangi test'}
-          footer={
-            <>
-              <button
-                type="button"
-                onClick={closeForm}
-                disabled={saving}
-                className="rounded-lg border border-line bg-white px-3.5 py-2 text-[13px] font-semibold text-mute disabled:opacity-50"
-              >
-                Bekor qilish
-              </button>
-              <button
-                type="button"
-                onClick={submitForm}
-                disabled={saving}
-                className="rounded-lg bg-teal-600 px-3.5 py-2 text-[13px] font-semibold text-white disabled:opacity-50"
-              >
-                {saving ? 'Saqlanmoqda...' : 'Saqlash'}
-              </button>
-            </>
-          }
-        >
-          <div className="space-y-3">
-            {formError && (
-              <p className="rounded-lg bg-rose-50 px-3 py-2 text-[13px] font-semibold text-rose-600">
-                {formError}
-              </p>
-            )}
-            <label className="block">
-              <span className="mb-1 block text-[12px] font-semibold text-mute">Nom</span>
-              <input
-                type="text"
-                value={form.name}
-                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                placeholder="Masalan: 1-chorak test"
-                className="h-10 w-full rounded-lg border border-line bg-white px-3 text-[14px] text-ink focus:border-teal-500 focus:outline-none"
-              />
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-[12px] font-semibold text-mute">Sana</span>
-              <input
-                type="date"
-                value={form.date}
-                onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
-                className="h-10 w-full rounded-lg border border-line bg-white px-3 text-[14px] text-ink focus:border-teal-500 focus:outline-none"
-              />
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-[12px] font-semibold text-mute">Maksimal ball</span>
-              <input
-                type="number"
-                min={1}
-                value={form.maxScore}
-                onChange={(e) => setForm((f) => ({ ...f, maxScore: e.target.value }))}
-                className="h-10 w-full rounded-lg border border-line bg-white px-3 text-[14px] text-ink focus:border-teal-500 focus:outline-none"
-              />
-            </label>
-          </div>
-        </Modal>
+        {formOpen && (
+          <TeacherTestFormModal
+            key={editingTest?.id ?? 'new'}
+            groupId={selectedClass.classId}
+            editing={editingTest}
+            onClose={closeForm}
+            onSaved={onFormSaved}
+          />
+        )}
 
         <Modal
           open={!!deleteTarget}
