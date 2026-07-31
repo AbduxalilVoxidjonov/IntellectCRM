@@ -197,7 +197,8 @@ export const navByRole: Record<Role, NavItem[]> = {
     { label: 'Bosh sahifa', to: '/teacher', icon: LayoutDashboard },
     { label: 'Jurnal', to: '/teacher/journal', icon: NotebookText, perm: 'journal' },
     { label: 'Feedback', to: '/teacher/evaluation', icon: ClipboardList },
-    { label: 'Topshiriqlar', to: '/teacher/assignments', icon: ClipboardCheck, perm: 'assignments' },
+    // Asosiy navigatsiyada "Test" (onlayn/oflayn test yaratish); Topshiriqlar profil menyusida.
+    { label: 'Test', to: '/teacher/tests', icon: ClipboardCheck, perm: 'journal' },
     { label: 'Xabarlar', to: '/teacher/messages', icon: MessageSquare, perm: 'messages' },
   ],
   student: [{ label: 'Bosh sahifa', to: '/student', icon: LayoutDashboard }],

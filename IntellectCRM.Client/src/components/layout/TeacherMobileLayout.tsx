@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
-import { Home, BookOpen, ClipboardList, MessageCircle, User } from 'lucide-react'
+import { Home, BookOpen, ClipboardCheck, MessageCircle, User } from 'lucide-react'
 import { UnreadProvider, useUnread } from '@/context/unread-context'
 import { useAuth } from '@/context/auth-context'
 import { cn } from '@/lib/utils'
@@ -28,10 +28,12 @@ interface Tab {
   badge?: boolean
 }
 
+// DIQQAT: 3-tab — "Test" (onlayn/oflayn test yaratish). Avval bu yerda "Vazifa"
+// (Topshiriqlar) turardi; u profil menyusiga ko'chirildi (TeacherProfilePage MENU).
 const TABS: Tab[] = [
   { to: '/teacher', label: 'Bosh', icon: Home, end: true },
   { to: '/teacher/journal', label: 'Jurnal', icon: BookOpen },
-  { to: '/teacher/assignments', label: 'Vazifa', icon: ClipboardList },
+  { to: '/teacher/tests', label: 'Test', icon: ClipboardCheck },
   { to: '/teacher/messages', label: 'Suhbat', icon: MessageCircle, badge: true },
   { to: '/teacher/profile', label: 'Profil', icon: User },
 ]

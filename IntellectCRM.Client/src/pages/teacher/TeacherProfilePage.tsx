@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
   GraduationCap, BookOpen, Wallet, LogOut, MessageSquare, ChevronRight,
-  ListChecks, BarChart3, Lock, Moon, Bell, LifeBuoy, Trophy, ClipboardCheck,
+  ListChecks, BarChart3, Lock, Moon, Bell, LifeBuoy, Trophy, ClipboardList,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import type { SalaryLedger, TeacherClass } from '@/types'
@@ -10,8 +10,11 @@ import { getTeacherTheme, setTeacherTheme } from '@/components/layout/TeacherMob
 import { useAuth } from '@/context/auth-context'
 import { Loader } from '@/components/ui/Loader'
 import { formatMoney, cn } from '@/lib/utils'
+import { usePerm } from '@/lib/permissions'
 
-type MenuItem = { to: string; label: string; sub: string; icon: typeof BookOpen; color: string }
+/** `perm` berilgan bo'lsa — o'qituvchida shu bo'lim ruxsati bo'lmasa qator KO'RSATILMAYDI
+ *  (aks holda bosilganda "ruxsatingiz yo'q" chiqadi). */
+type MenuItem = { to: string; label: string; sub: string; icon: typeof BookOpen; color: string; perm?: string }
 
 // Support o'qituvchi uchun qo'shimcha bo'lim (faqat IsSupport bo'lsa ko'rsatiladi).
 const SUPPORT_MENU: MenuItem = {
@@ -23,7 +26,8 @@ const MENU: MenuItem[] = [
   { to: '/teacher/learning', label: "Ta'lim progresi", sub: "O'quvchilar o'zlashtirishi", icon: BarChart3, color: '#2563eb' },
   { to: '/teacher/salary', label: 'Maosh', sub: 'Oylik hisob va tarix', icon: Wallet, color: '#7c3aed' },
   { to: '/teacher/rating', label: "O'quvchilar reytingi", sub: "Ball bo'yicha saralangan ro'yxat", icon: Trophy, color: '#d97706' },
-  { to: '/teacher/tests', label: 'Testlar', sub: "Test natijalarini kiritish", icon: ClipboardCheck, color: '#2563eb' },
+  // Topshiriqlar avval pastki navigatsiyada ("Vazifa" tabi) edi — o'rni "Test" bilan almashtirildi.
+  { to: '/teacher/assignments', label: 'Topshiriqlar', sub: "Uy vazifa va materiallar", icon: ClipboardList, color: '#2563eb', perm: 'assignments' },
   { to: '/teacher/feedback', label: 'Taklif va shikoyat', sub: 'Adminga xabar yuborish', icon: MessageSquare, color: '#0d9488' },
   { to: '/teacher/account', label: 'Parolni almashtirish', sub: 'Hisob xavfsizligi', icon: Lock, color: '#64748b' },
 ]
@@ -41,6 +45,7 @@ function initialsOf(name: string): string {
 /** O'qituvchi profili — mobil ekran (teal): header karta, ma'lumot qatorlari, guruhlar, chiqish. */
 export function TeacherProfilePage() {
   const { user, logout } = useAuth()
+  const { can } = usePerm()
   const [classes, setClasses] = useState<TeacherClass[]>([])
   const [salary, setSalary] = useState<SalaryLedger | null>(null)
   const [loading, setLoading] = useState(true)
@@ -73,8 +78,9 @@ export function TeacherProfilePage() {
       .finally(() => setLoading(false))
   }, [])
 
-  // Support o'qituvchiga "Support" bo'limi menyu boshida qo'shiladi.
-  const menu = isSupport ? [SUPPORT_MENU, ...MENU] : MENU
+  // Support o'qituvchiga "Support" bo'limi menyu boshida qo'shiladi; `perm` li qatorlar esa
+  // faqat shu bo'lim ruxsati bor o'qituvchiga ko'rinadi.
+  const menu = (isSupport ? [SUPPORT_MENU, ...MENU] : MENU).filter((i) => !i.perm || can(i.perm, 'view'))
 
   const subjectCount = classes.reduce((acc, c) => acc + c.subjects.length, 0)
 
