@@ -63,6 +63,7 @@ import { AssignmentsPage } from '@/pages/admin/assignments/AssignmentsPage'
 import { AssignmentScoresPage } from '@/pages/admin/assignment-scores/AssignmentScoresPage'
 import { LocationPage } from '@/pages/admin/locations/LocationPage'
 import { CamerasPage } from '@/pages/admin/cameras/CamerasPage'
+import { VacanciesPage } from '@/pages/admin/vacancies/VacanciesPage'
 import { ParentsPage } from '@/pages/admin/parents/ParentsPage'
 import { TeacherAppPage } from '@/pages/admin/parents/TeacherAppPage'
 import { FinancePage } from '@/pages/admin/finance/FinancePage'
@@ -235,6 +236,7 @@ export default function App() {
           <Route path="account" element={<AccountPage />} />
 
           {/* Boshqaruv */}
+          <Route path="boshqaruv/vacancies" element={<RequirePerm perm="vacancies"><VacanciesPage /></RequirePerm>} />
           <Route path="boshqaruv/cameras" element={<RequirePerm perm="cameras"><CamerasPage /></RequirePerm>} />
           <Route path="boshqaruv/staff" element={<RequirePerm perm="staff"><StaffPage /></RequirePerm>} />
           <Route path="boshqaruv/feedback" element={<RequirePerm perm="feedback"><FeedbackPage /></RequirePerm>} />

@@ -87,6 +87,9 @@ export const adminPermissions: { key: string; label: string }[] = [
   { key: 'staff', label: 'Xodimlar' },
   { key: 'feedback', label: 'Taklif va shikoyatlar' },
   { key: 'cameras', label: 'Kameralar' },
+  // Vakansiyalar — ishga qabul moduli (Intellect Career boti + `/vakansiya` Mini App):
+  // vakansiya e'lonlari, nomzod arizalari va "Biz haqimizda" bloki.
+  { key: 'vacancies', label: 'Vakansiyalar' },
   { key: 'discipline', label: 'Intizomiy ball' },
   { key: 'calls', label: 'Call Center' },
   // Bosh sahifadagi markaz AI tahlili — DEFAULT faqat superadmin ko'radi; xodimga shu yerdan

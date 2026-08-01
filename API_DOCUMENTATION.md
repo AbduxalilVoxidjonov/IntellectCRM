@@ -844,6 +844,17 @@ staff'ga GET har doim ochiq bo'lgani uchun mavjud endpointlar ishlatiladi.
 |---|---|---|
 | POST | /api/public/landing-lead | Saytdan lid (ism+telefon+yo'nalish) — Telegram + avto-xabar. |
 
+### PublicCareerController
+`api/career` · Ruxsat: `[AllowAnonymous]` + Telegram imzosi. Karyera **Mini App**i (`/vakansiya`) uchun.
+Autentifikatsiya `X-Telegram-Init-Data` sarlavhasi orqali (KARYERA boti tokeni bilan tekshiriladi —
+`TelegramInitData`); imzo bo'lmasa faqat ko'rish rejimi.
+
+| Metod | Yo'l | Vazifasi |
+|---|---|---|
+| GET | /api/career/bootstrap | Boshlang'ich holat: biz haqimizda + faol vakansiyalar + o'z arizalari + bosqichlar. |
+| POST | /api/career/cv | CV yuklash — FAQAT PDF, 10MB (`public-lead` limiti). |
+| POST | /api/career/apply | Vakansiyaga ariza (`public-lead` limiti; bitta vakansiyaga bitta ariza). |
+
 ### SmsCallbackController
 `api/sms` · Ruxsat: `[AllowAnonymous]` (Eskiz serveri chaqiradi). SMS yetkazish holati webhook'i.
 
@@ -861,6 +872,26 @@ staff'ga GET har doim ochiq bo'lgani uchun mavjud endpointlar ishlatiladi.
 | Metod | Yo'l | Vazifasi |
 |---|---|---|
 | POST | /api/admin/uploads | Fayl yuklaydi (`/uploads/...` URL; maks 20MB). |
+
+### CareerController
+`api/admin/career` · Ruxsat: `[Authorize]` + `[AdminPerm("vacancies")]`. Karyera (ishga qabul) —
+"Boshqaruv → Vakansiyalar": vakansiyalar, nomzod arizalari va Mini App'ning "Biz haqimizda" bloki.
+
+| Metod | Yo'l | Vazifasi |
+|---|---|---|
+| GET | /api/admin/career/stages | Ariza bosqichlari katalogi. |
+| GET/PUT | /api/admin/career/about | "Biz haqimizda" (Mini App birinchi ekrani). |
+| GET | /api/admin/career/vacancies | Vakansiyalar (`status=active\|archived`) + ariza soni. |
+| POST/PUT | /api/admin/career/vacancies[/{id}] | Yaratish / tahrirlash. |
+| POST | /api/admin/career/vacancies/{id}/archive | Arxivlash (ilovada ko'rinmaydi). |
+| POST | /api/admin/career/vacancies/{id}/restore | Arxivdan tiklash. |
+| DELETE | /api/admin/career/vacancies/{id} | O'chirish — faqat ariza tushmagan bo'lsa. |
+| GET | /api/admin/career/applications | Arizalar (`status`/`vacancyId`/`q` filtri). |
+| GET | /api/admin/career/applications/{id} | Bitta ariza + bosqichlar tarixi. |
+| POST | /api/admin/career/applications/{id}/status | Bosqichni o'zgartiradi (nomzodga botda xabar). |
+| PUT | /api/admin/career/applications/{id}/note | Ichki izoh (nomzodga ko'rinmaydi). |
+| DELETE | /api/admin/career/applications/{id} | Arizani tarixi bilan o'chiradi. |
+| GET | /api/admin/career/stats | Bosqich bo'yicha jamlanma. |
 
 ### ArchiveController
 `api/admin/archive` · Ruxsat: `[Authorize]` + `[AdminPerm("settings")]`. Arxiv — o'chirilgan yozuvlar JSON suratlari (ro'yxat, tiklash, butunlay o'chirish).

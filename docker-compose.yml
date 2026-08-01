@@ -48,6 +48,10 @@ services:
       Telegram__BotName: "${TELEGRAM_BOT_NAME:-}"
       Telegram__Channel: "${TELEGRAM_CHANNEL:-}"
       Telegram__AdminChatId: "${TELEGRAM_ADMIN_CHAT_ID:-}"
+      # Karyera boti (Intellect Career — ishga qabul; ALOHIDA bot, token MAXFIY).
+      # MiniAppUrl bo'sh bo'lsa APP_HOST'dan yasaladi: https://<APP_HOST>/vakansiya
+      Career__BotToken: "${CAREER_BOT_TOKEN:-}"
+      Career__MiniAppUrl: "${CAREER_MINIAPP_URL:-}"
       # Push (Firebase) — service account JSON (MAXFIY, bir qatorli):
       Fcm__ServiceAccountJson: "${FCM_SERVICE_ACCOUNT_JSON:-}"
       # AI Tahlil (Gemini) kaliti (MAXFIY):

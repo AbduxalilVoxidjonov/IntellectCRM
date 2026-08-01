@@ -2704,3 +2704,175 @@ public class BookBotSession
     public string PaymentMethod { get; set; } = string.Empty;
     public string UpdatedAt { get; set; } = string.Empty;
 }
+
+/* =====================================================================================
+ *  KARYERA (Intellect Career) — ishga qabul moduli
+ *  Alohida Telegram bot (CAREER_BOT_TOKEN) + Mini App (`/vakansiya`, statik HTML/Bootstrap).
+ *  Nomzod: Biz haqimizda / Vakansiyalar / Arizalarim. Admin: "Boshqaruv → Vakansiyalar".
+ * ===================================================================================== */
+
+/// <summary>
+/// "Biz haqimizda" — karyera Mini App'ining birinchi bo'limi. Bitta qator (CenterMeta kabi
+/// singleton): kimmiz, manzil, aloqa va ijtimoiy tarmoqlar. Admin "Boshqaruv → Vakansiyalar →
+/// Biz haqimizda" bo'limidan to'ldiradi.
+/// </summary>
+public class CareerAbout
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    /// <summary>Sahifa sarlavhasi (masalan "Intellect o'quv markazi").</summary>
+    public string Title { get; set; } = string.Empty;
+    /// <summary>Bir-ikki jumlalik shior/qisqa tanishtiruv (sarlavha ostida).</summary>
+    public string Tagline { get; set; } = string.Empty;
+    /// <summary>Kimmiz — asosiy matn (bir necha xatboshi bo'lishi mumkin).</summary>
+    public string About { get; set; } = string.Empty;
+    /// <summary>Nega biz bilan ishlash kerak — imtiyozlar (har qatorda bittadan).</summary>
+    public string Benefits { get; set; } = string.Empty;
+    /// <summary>Logotip (`/uploads/...` yoki tashqi URL).</summary>
+    public string LogoUrl { get; set; } = string.Empty;
+
+    /* ---------- Manzil ---------- */
+    public string Address { get; set; } = string.Empty;
+    /// <summary>Mo'ljal ("Metro yonida", "3-qavat" va h.k.).</summary>
+    public string Landmark { get; set; } = string.Empty;
+    /// <summary>Xaritaga havola (Yandex/Google Maps) — "Xaritada ochish" tugmasi.</summary>
+    public string MapUrl { get; set; } = string.Empty;
+    /// <summary>Ish vaqti ("Du–Sh, 09:00–18:00").</summary>
+    public string WorkTime { get; set; } = string.Empty;
+
+    /* ---------- Aloqa ---------- */
+    public string Phone { get; set; } = string.Empty;
+    public string Phone2 { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+
+    /* ---------- Ijtimoiy tarmoqlar (bo'sh bo'lsa ko'rsatilmaydi) ---------- */
+    public string Telegram { get; set; } = string.Empty;
+    public string Instagram { get; set; } = string.Empty;
+    public string Facebook { get; set; } = string.Empty;
+    public string Youtube { get; set; } = string.Empty;
+    public string Tiktok { get; set; } = string.Empty;
+    public string Website { get; set; } = string.Empty;
+
+    public string UpdatedAt { get; set; } = string.Empty;
+    public string UpdatedBy { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Vakansiya — bo'sh ish o'rni. <see cref="Status"/> "active" bo'lsa Mini App'dagi
+/// "Vakansiyalar" bo'limida ko'rinadi; "archived" bo'lsa ko'rinmaydi, lekin unga tushgan
+/// arizalar saqlanib qoladi (o'chirilmaydi — tarix buzilmasin).
+/// </summary>
+public class Vacancy
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    /// <summary>Lavozim nomi ("Ingliz tili o'qituvchisi").</summary>
+    public string Title { get; set; } = string.Empty;
+    /// <summary>Bo'lim/yo'nalish ("O'quv bo'limi", "Marketing").</summary>
+    public string Department { get; set; } = string.Empty;
+    /// <summary>Bandlik turi: "full" (to'liq) | "part" (yarim) | "shift" (smenali) | "remote" (masofaviy).</summary>
+    public string EmploymentType { get; set; } = "full";
+    /// <summary>Ish joyi / filial ("Qo'qon, Markaziy filial").</summary>
+    public string Location { get; set; } = string.Empty;
+
+    /* ---------- Maosh ---------- */
+    public decimal SalaryFrom { get; set; }
+    public decimal SalaryTo { get; set; }
+    /// <summary>Raqam o'rniga (yoki qo'shimcha) ko'rsatiladigan izoh — "kelishilgan holda".</summary>
+    public string SalaryNote { get; set; } = string.Empty;
+
+    /* ---------- Matnlar (har qatorda bitta band) ---------- */
+    /// <summary>Qisqacha tavsif — ro'yxatda ham ko'rinadi.</summary>
+    public string Description { get; set; } = string.Empty;
+    /// <summary>Talablar.</summary>
+    public string Requirements { get; set; } = string.Empty;
+    /// <summary>Vazifalar.</summary>
+    public string Responsibilities { get; set; } = string.Empty;
+    /// <summary>Shart-sharoitlar.</summary>
+    public string Conditions { get; set; } = string.Empty;
+
+    /// <summary>Holat: "active" (faol — ilovada ko'rinadi) | "archived" (arxivlangan).</summary>
+    public string Status { get; set; } = "active";
+    /// <summary>Ariza qabul qilish oxirgi sanasi ("yyyy-MM-dd", ixtiyoriy). O'tib ketsa ilovada
+    /// "muddati tugagan" deb ko'rsatiladi va yangi ariza qabul qilinmaydi.</summary>
+    public string Deadline { get; set; } = string.Empty;
+    /// <summary>Ro'yxatdagi tartibi (kichigi tepada).</summary>
+    public int Order { get; set; }
+
+    public string CreatedAt { get; set; } = string.Empty;
+    public string CreatedBy { get; set; } = string.Empty;
+    public string ArchivedAt { get; set; } = string.Empty;
+    public string ArchivedBy { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Nomzod arizasi — Mini App'dagi forma orqali tushadi (F.I.Sh., telefon, tajriba, motivatsion
+/// xat, CV fayli). Bosqichi <see cref="Status"/>da; har o'zgarish <see cref="JobApplicationEvent"/>
+/// ga yoziladi va nomzodga karyera boti orqali xabar ketadi.
+/// </summary>
+public class JobApplication
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    /// <summary>Ko'rsatiladigan ketma-ket raqam (#1, #2 ...).</summary>
+    public int Number { get; set; }
+    public string VacancyId { get; set; } = string.Empty;
+    /// <summary>Vakansiya nomi nusxasi (vakansiya keyin o'zgarsa ham ariza o'qiladi).</summary>
+    public string VacancyTitle { get; set; } = string.Empty;
+
+    /* ---------- Telegram (karyera boti) ---------- */
+    /// <summary>Ariza yuborgan chat — bosqich o'zgarganda shu yerga xabar ketadi.</summary>
+    public long ChatId { get; set; }
+    public string TgUsername { get; set; } = string.Empty;
+
+    /* ---------- Nomzod ---------- */
+    public string FullName { get; set; } = string.Empty;
+    public string Phone { get; set; } = string.Empty;
+    /// <summary>Ish tajribasi (erkin matn).</summary>
+    public string Experience { get; set; } = string.Empty;
+    /// <summary>Motivatsion xat.</summary>
+    public string Motivation { get; set; } = string.Empty;
+    /// <summary>CV fayli (`/uploads/...`, faqat PDF).</summary>
+    public string CvUrl { get; set; } = string.Empty;
+    /// <summary>CV faylining asl nomi (adminga ko'rsatish uchun).</summary>
+    public string CvName { get; set; } = string.Empty;
+
+    /* ---------- Bosqich ---------- */
+    /// <summary>Bosqich kaliti — <c>CareerStages</c> katalogidan:
+    /// "new" | "review" | "interview" | "trial" | "hired" | "rejected".</summary>
+    public string Status { get; set; } = "new";
+    /// <summary>Oxirgi bosqich izohi — nomzod ilovada shuni ko'radi (suhbat vaqti, rad sababi).</summary>
+    public string StatusNote { get; set; } = string.Empty;
+    public string StatusChangedAt { get; set; } = string.Empty;
+    public string StatusChangedBy { get; set; } = string.Empty;
+    /// <summary>Faqat ADMIN ko'radigan ichki izoh (nomzodga ko'rinmaydi).</summary>
+    public string AdminNote { get; set; } = string.Empty;
+
+    public string CreatedAt { get; set; } = string.Empty;
+}
+
+/// <summary>Ariza bosqichining har bir o'zgarishi (nomzod "Arizalarim"da tarix sifatida ko'radi).</summary>
+public class JobApplicationEvent
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string ApplicationId { get; set; } = string.Empty;
+    /// <summary>Yangi bosqich kaliti.</summary>
+    public string Status { get; set; } = string.Empty;
+    /// <summary>Izoh (nomzodga ko'rinadi).</summary>
+    public string Note { get; set; } = string.Empty;
+    public string CreatedAt { get; set; } = string.Empty;
+    /// <summary>Kim o'zgartirgani (admin F.I.Sh. yoki "Nomzod").</summary>
+    public string CreatedBy { get; set; } = string.Empty;
+}
+
+/// <summary>Karyera botiga /start bosgan foydalanuvchi (statistika + xabar yuborish uchun).</summary>
+public class CareerBotUser
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    /// <summary>Telegram chat id (unikal).</summary>
+    public long ChatId { get; set; }
+    public string Username { get; set; } = string.Empty;
+    public string FirstName { get; set; } = string.Empty;
+    public string LastName { get; set; } = string.Empty;
+    /// <summary>Botga ulashgan telefon raqami (ixtiyoriy — forma uni oldindan to'ldiradi).</summary>
+    public string Phone { get; set; } = string.Empty;
+    public string CreatedAt { get; set; } = string.Empty;
+    public string LastSeenAt { get; set; } = string.Empty;
+}

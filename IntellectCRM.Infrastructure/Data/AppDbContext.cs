@@ -158,6 +158,13 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<BookOrder> BookOrders => Set<BookOrder>();
     public DbSet<BookBotSession> BookBotSessions => Set<BookBotSession>();
 
+    // Karyera (Intellect Career) — vakansiyalar + nomzod arizalari (alohida bot + Mini App)
+    public DbSet<CareerAbout> CareerAbout => Set<CareerAbout>();
+    public DbSet<Vacancy> Vacancies => Set<Vacancy>();
+    public DbSet<JobApplication> JobApplications => Set<JobApplication>();
+    public DbSet<JobApplicationEvent> JobApplicationEvents => Set<JobApplicationEvent>();
+    public DbSet<CareerBotUser> CareerBotUsers => Set<CareerBotUser>();
+
     protected override void OnModelCreating(ModelBuilder b)
     {
         // SQL Server: indeksda qatnashadigan string ustunlar default `nvarchar(max)` bo'lib
@@ -391,6 +398,26 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         b.Entity<BookOrder>().HasIndex(o => o.ChatId);
         // Bot savdo sessiyasi — bitta chatda bitta faol sessiya.
         b.Entity<BookBotSession>().HasIndex(s => s.ChatId).IsUnique();
+
+        // ---------- Karyera (vakansiyalar + arizalar) ----------
+        b.Entity<Vacancy>().Property(x => x.SalaryFrom).HasPrecision(18, 2);
+        b.Entity<Vacancy>().Property(x => x.SalaryTo).HasPrecision(18, 2);
+        foreach (var (type, prop) in new (Type, string)[]
+        {
+            (typeof(Vacancy), "Status"), (typeof(Vacancy), "CreatedAt"),
+            (typeof(JobApplication), "VacancyId"), (typeof(JobApplication), "Status"),
+            (typeof(JobApplication), "CreatedAt"),
+            (typeof(JobApplicationEvent), "ApplicationId"), (typeof(JobApplicationEvent), "CreatedAt"),
+        })
+            b.Entity(type).Property(prop).HasMaxLength(200);
+        // Ilovada faqat faol vakansiyalar tartib bo'yicha o'qiladi.
+        b.Entity<Vacancy>().HasIndex(v => new { v.Status, v.Order });
+        // Admin ro'yxati bosqich/sana bo'yicha; "Arizalarim" esa chat bo'yicha.
+        b.Entity<JobApplication>().HasIndex(a => new { a.Status, a.CreatedAt });
+        b.Entity<JobApplication>().HasIndex(a => new { a.ChatId, a.CreatedAt });
+        b.Entity<JobApplication>().HasIndex(a => new { a.VacancyId, a.Status });
+        b.Entity<JobApplicationEvent>().HasIndex(e => new { e.ApplicationId, e.CreatedAt });
+        b.Entity<CareerBotUser>().HasIndex(u => u.ChatId).IsUnique();
 
         // Daraja testi — Slug ommaviy URL kaliti (noyob, indekslanishi uchun uzunlik beriladi).
         b.Entity<LevelTest>().Property(t => t.Slug).HasMaxLength(64);

@@ -85,6 +85,13 @@ public interface IAppDbContext
     DbSet<BookOrder> BookOrders { get; }
     DbSet<BookBotSession> BookBotSessions { get; }
 
+    // Karyera (Intellect Career) — vakansiyalar + nomzod arizalari
+    DbSet<CareerAbout> CareerAbout { get; }
+    DbSet<Vacancy> Vacancies { get; }
+    DbSet<JobApplication> JobApplications { get; }
+    DbSet<JobApplicationEvent> JobApplicationEvents { get; }
+    DbSet<CareerBotUser> CareerBotUsers { get; }
+
     // LMS (Ta'lim)
 
     // O'quv dasturi (standalone, Kurs/Subject'dan mustaqil) + Kurs↔Dastur ko'p-ko'pga bog'lanishi

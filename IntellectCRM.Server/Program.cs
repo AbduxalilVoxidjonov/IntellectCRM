@@ -273,6 +273,11 @@ builder.Services.AddSingleton<OnlineTestBotService>();
 // Kitob sotuvi (bot orqali buyurtma) oqimi — TelegramBotService shu servisga yo'naltiradi.
 builder.Services.AddSingleton<BookShopBotService>();
 builder.Services.AddHostedService<TelegramBotService>();
+// KARYERA (Intellect Career) — ALOHIDA bot (.env: CAREER_BOT_TOKEN) + `/vakansiya` Mini App.
+// Token bo'sh bo'lsa bot jim kutadi, qolgan hamma narsa odatdagidek ishlaydi.
+builder.Services.AddSingleton<CareerTelegramService>();
+builder.Services.AddSingleton<CareerService>();
+builder.Services.AddHostedService<CareerBotService>();
 // FCM (Firebase push) — service account CenterMeta'da; token keshi uchun singleton.
 builder.Services.AddSingleton<FcmService>();
 // Eskiz.uz SMS — login/parol CenterMeta'da; token keshi uchun singleton.
@@ -812,6 +817,22 @@ app.MapFallback("/api/{**slug}", () => Results.NotFound(new { message = "API end
 var webRoot = app.Environment.WebRootPath
     ?? Path.Combine(app.Environment.ContentRootPath, "wwwroot");
 var rootDomain = (builder.Configuration["Tenancy:RootDomain"] ?? "").Trim().ToLowerInvariant();
+
+// KARYERA MINI APP — `/vakansiya` (va `/vakansiya/...`) statik `vakansiya.html` sahifasini beradi.
+// SPA (React) EMAS: karyera boti Telegram Mini App sifatida ochadigan yengil HTML/CSS/Bootstrap
+// sahifa. Fallback'dan OLDIN turadi, aks holda index.html qaytardi.
+app.MapGet("/vakansiya/{**rest}", ServeCareerAppAsync);
+app.MapGet("/vakansiya", ServeCareerAppAsync);
+
+async Task ServeCareerAppAsync(HttpContext ctx)
+{
+    var file = Path.Combine(webRoot, "vakansiya.html");
+    if (!File.Exists(file)) { ctx.Response.StatusCode = StatusCodes.Status404NotFound; return; }
+    ctx.Response.ContentType = "text/html; charset=utf-8";
+    // no-cache: Telegram ichidagi WebView eski nusxani ushlab qolmasin.
+    ctx.Response.Headers.CacheControl = "no-cache";
+    await ctx.Response.SendFileAsync(file);
+}
 
 app.MapGet("/landing", async ctx =>
 {

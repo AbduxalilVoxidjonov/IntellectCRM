@@ -166,6 +166,7 @@ export const navByRole: Record<Role, NavItem[]> = {
       to: '/admin/boshqaruv/staff',
       icon: Building2,
       children: [
+        { label: 'Vakansiyalar', to: '/admin/boshqaruv/vacancies', perm: 'vacancies' },
         { label: 'Kameralar', to: '/admin/boshqaruv/cameras', perm: 'cameras' },
         { label: 'Filiallar', to: '/admin/boshqaruv/branches', roles: ['superadmin'] },
         { label: 'Adminga topshiriq', to: '/admin/boshqaruv/staff-tasks', roles: ['superadmin'] },

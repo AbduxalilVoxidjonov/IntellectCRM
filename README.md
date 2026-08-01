@@ -26,6 +26,7 @@ butun jarayonni boshqaradigan CRM tizimi. Bitta backend uch xil foydalanuvchiga 
 | 🟣 **Admin panel** | Markaz ma'muriyati | Violet · Desktop | To'liq |
 | 🟢 **O'qituvchi ilovasi** | O'qituvchilar | Teal · Mobil (WebView) | To'liq |
 | 🔵 **O'quvchi ilovasi** | O'quvchi / ota-ona | Blue · Mobil (WebView) | To'liq |
+| 💼 **Intellect Career** | Ishga kirmoqchi nomzodlar | Telegram Mini App (`/vakansiya`) | To'liq |
 
 > Bitta Flutter WebView ilovadan o'qituvchi ham, o'quvchi ham kira oladi — rolga qarab tegishli portal ochiladi.
 
@@ -80,6 +81,8 @@ IntellectCRM.slnx
 - **Shartnomalar** — Word/matnli andoza (`@`-o'rinbosarlar) → har bir oluvchi uchun .docx hosil bo'ladi
   va saqlanadi; superadmin uni yakunlab **tayyor PDF nusxasini yuklaydi** — shundan keyin shartnoma
   oluvchining (o'qituvchi/o'quvchi) ilovasidagi "Shartnoma" bo'limida ko'rinadi va yuklab olinadi
+- **Vakansiyalar (Intellect Career)** — bo'sh ish o'rinlari e'loni + nomzod arizalari (bosqichma-bosqich);
+  nomzod tomoni **alohida Telegram bot** va uning Mini App'ida (`crm.<domen>/vakansiya`)
 - **Topshiriqlar · AI check · Intizomiy ball · Kameralar · Arxiv**
 
 ### 🟢 O'qituvchi ilovasi (mobil)
@@ -207,7 +210,7 @@ App ishga tushganda `Migrate()` mavjud bazaga `ALTER` qo'llaydi.
 | [`DEPLOY.md`](DEPLOY.md) | Prod deploy, Cloudflare Tunnel, backup/restore, serverni ko'chirish |
 | [`README-CTI.md`](README-CTI.md) | Local Call moduli — API xaritasi, WS/FCM oqimi, audio saqlash |
 | [`WORKLOG.md`](WORKLOG.md) | To'liq o'zgarishlar tarixi |
-| `.claude/rules/*.md` | Modulga xos qoidalar: billing · messaging · journal · tests · exercise · books · crm-leads |
+| `.claude/rules/*.md` | Modulga xos qoidalar: billing · messaging · journal · tests · exercise · books · crm-leads · career |
 
 ---
 
