@@ -51,26 +51,14 @@ public class ContractService(IWebHostEnvironment env)
         try { File.Delete(path); } catch { /* fayl band/yo'q — yozuvni o'chirishga to'sqinlik qilmaydi */ }
     }
 
-    /// <summary>Fayl kengaytmasi bo'yicha MIME turi — imzolangan nusxa PDF bo'lmasligi ham mumkin
-    /// (skaner rasm sifatida yuklashi mumkin), shuning uchun turni yo'ldan aniqlaymiz.</summary>
-    public static string MimeOf(string path) => Path.GetExtension(path).ToLowerInvariant() switch
-    {
-        ".pdf" => "application/pdf",
-        ".jpg" or ".jpeg" => "image/jpeg",
-        ".png" => "image/png",
-        ".webp" => "image/webp",
-        ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        _ => "application/octet-stream",
-    };
-
     /// <summary>Shartnoma yozuvini portal/admin uchun DTO'ga aylantiradi (admin, o'qituvchi va
     /// o'quvchi controller'lari bir xil ko'rinishdan foydalanadi).</summary>
     public static ContractDocDto ToDoc(Contract c) =>
         new(c.Id, c.Number,
             string.IsNullOrWhiteSpace(c.FileName) ? $"Shartnoma № {c.Number}" : c.FileName,
             c.Target, c.RecipientKey, c.RecipientName, c.TemplateName,
-            c.SentAt.ToString("o"), c.PdfUrl, c.DocxUrl, c.SignedUrl,
-            !string.IsNullOrEmpty(c.SignedUrl), c.Delivered, c.Status, c.Visible);
+            c.SentAt.ToString("o"), c.PdfUrl, c.DocxUrl,
+            c.Delivered, c.Status, c.Visible);
 
     /// <summary>Andoza baytlarini nusxalab, tokenlarni almashtiradi va yangi .docx baytlarini qaytaradi.</summary>
     public byte[] FillTemplate(byte[] docxBytes, IDictionary<string, string> tokens)
@@ -92,9 +80,8 @@ public class ContractService(IWebHostEnvironment env)
         return ms.ToArray();
     }
 
-    /// <summary>Custom (matnli) andozadagi @-o'rinbosarlarni almashtirib TAYYOR MATN qaytaradi
-    /// (PDF nusxasi shu matndan hosil qilinadi).</summary>
-    public string FillText(string body, IDictionary<string, string> tokens) =>
+    /// <summary>Custom (matnli) andozadagi @-o'rinbosarlarni almashtirib tayyor matn qaytaradi.</summary>
+    private static string FillText(string body, IDictionary<string, string> tokens) =>
         Apply(body ?? string.Empty, tokens);
 
     /// <summary>

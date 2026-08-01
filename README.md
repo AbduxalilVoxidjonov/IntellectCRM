@@ -38,7 +38,6 @@ butun jarayonni boshqaradigan CRM tizimi. Bitta backend uch xil foydalanuvchiga 
 - Entity Framework Core 8 + **PostgreSQL 16** (`Npgsql`, inkremental migratsiyalar)
 - **SignalR** (chat / turniket) + raw **WebSocket** (CTI agent telefonlari) · **JWT** auth
 - **FCM** (push) · **Telegram bot** · **OpenXML** (shartnoma/hisobot/Excel eksport)
-- **PDFsharp/MigraDoc** — shartnomaning PDF nusxasi (ilovalarda ko'rish uchun)
 
 **Frontend**
 - React 19 + TypeScript + **Vite**
@@ -78,8 +77,9 @@ IntellectCRM.slnx
 - **Marketing** — inbox, javob qoidalari, kanallar, AI yordamchi, analitika
 - **Daraja testi** + **onlayn test** (Telegram bot orqali PDF, avtomatik baholash)
 - **Kitoblar sotuvi** — ombor + botdan buyurtma + admin tasdiqlash + analitika
-- **Shartnomalar** — Word/matnli andoza (`@`-o'rinbosarlar) → tuzilgan shartnoma **PDF+DOCX bo'lib
-  saqlanadi**, imzolangan skanni biriktirish mumkin; oluvchi (o'qituvchi/o'quvchi) uni o'z ilovasida ko'radi
+- **Shartnomalar** — Word/matnli andoza (`@`-o'rinbosarlar) → har bir oluvchi uchun .docx hosil bo'ladi
+  va saqlanadi; superadmin uni yakunlab **tayyor PDF nusxasini yuklaydi** — shundan keyin shartnoma
+  oluvchining (o'qituvchi/o'quvchi) ilovasidagi "Shartnoma" bo'limida ko'rinadi va yuklab olinadi
 - **Topshiriqlar · AI check · Intizomiy ball · Kameralar · Arxiv**
 
 ### 🟢 O'qituvchi ilovasi (mobil)

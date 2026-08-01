@@ -122,13 +122,16 @@ export async function getContracts(params?: {
   return data
 }
 
-/** Imzolangan skan (PDF) nusxasini biriktirish — fayl avval uploadAdminFile orqali yuklanadi */
-export async function attachSignedContract(
+/**
+ * Tayyor PDF nusxani shartnomaga biriktirish (fayl avval uploadAdminFile orqali yuklanadi).
+ * PDF'ni superadminning o'zi tayyorlaydi; qayta yuklansa eskisi almashtiriladi.
+ */
+export async function uploadContractPdf(
   id: string,
   fileUrl: string,
   fileName: string,
 ): Promise<ContractDoc> {
-  const { data } = await api.post<ContractDoc>(`/admin/contracts/${id}/signed`, {
+  const { data } = await api.post<ContractDoc>(`/admin/contracts/${id}/pdf`, {
     fileUrl,
     fileName,
   })

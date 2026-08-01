@@ -125,19 +125,20 @@ public class TeacherPortalController(
 
     // ---------- Shartnoma (o'z hujjatlari) ----------
 
-    /// <summary>O'qituvchining o'z shartnomalari (admin yashirganlari ko'rinmaydi), eng yangisi birinchi.</summary>
+    /// <summary>O'qituvchining o'z shartnomalari, eng yangisi birinchi. Faqat superadmin PDF nusxasini
+    /// YUKLAGAN va yashirmagan yozuvlar ko'rinadi.</summary>
     [HttpGet("contracts")]
     public async Task<ActionResult<IEnumerable<ContractDocDto>>> Contracts()
     {
         var t = await Me();
         if (t is null) return NotFound();
         var items = await db.Contracts.AsNoTracking()
-            .Where(c => c.Target == "staff" && c.RecipientKey == t.Id && c.Visible)
+            .Where(c => c.Target == "staff" && c.RecipientKey == t.Id && c.Visible && c.PdfUrl != "")
             .OrderByDescending(c => c.Number).ToListAsync();
         return items.Select(ContractService.ToDoc).ToList();
     }
 
-    /// <summary>Shartnoma PDF nusxasini qaytaradi (imzolangani bo'lsa — o'sha). Faqat o'ziniki.</summary>
+    /// <summary>Shartnoma PDF nusxasi. Faqat o'ziniki.</summary>
     [HttpGet("contracts/{id}/pdf")]
     public async Task<IActionResult> ContractPdf(string id)
     {
@@ -146,10 +147,9 @@ public class TeacherPortalController(
         var c = await db.Contracts.AsNoTracking().FirstOrDefaultAsync(x =>
             x.Id == id && x.Target == "staff" && x.RecipientKey == t.Id && x.Visible);
         if (c is null) return NotFound();
-        var path = contracts.ResolveUpload(string.IsNullOrEmpty(c.SignedUrl) ? c.PdfUrl : c.SignedUrl);
+        var path = contracts.ResolveUpload(c.PdfUrl);
         if (path is null) return NotFound(new { message = "Shartnoma fayli topilmadi" });
-        return PhysicalFile(path, ContractService.MimeOf(path),
-            $"shartnoma-{c.Number}{Path.GetExtension(path)}");
+        return PhysicalFile(path, "application/pdf", $"shartnoma-{c.Number}.pdf");
     }
 
     // ---------- Push qurilma (bildirishnoma) ----------

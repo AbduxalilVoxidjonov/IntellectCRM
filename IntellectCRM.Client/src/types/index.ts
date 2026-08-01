@@ -1373,14 +1373,10 @@ export interface ContractDoc {
   templateName: string
   /** Tuzilgan sana (ISO) */
   date: string
-  /** Saqlangan PDF ("/uploads/...") — eski yozuvlarda bo'sh bo'lishi mumkin */
+  /** Superadmin yuklagan PDF ("/uploads/...") — bo'sh bo'lsa, PDF hali yuklanmagan */
   pdfUrl: string
-  /** Saqlangan .docx ("/uploads/...") */
+  /** Tizim hosil qilgan .docx nusxa ("/uploads/...") */
   docxUrl: string
-  /** Imzolangan skan (PDF) — superadmin yuklaydi */
-  signedUrl: string
-  /** signedUrl bo'sh emasmi */
-  signed: boolean
   /** Telegram orqali yetkazilganmi */
   delivered: boolean
   status: string

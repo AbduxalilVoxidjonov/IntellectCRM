@@ -1493,15 +1493,13 @@ public record ContractDocDto(
     string RecipientName,
     string TemplateName,
     string Date,           // ISO ("o") — SentAt
-    string PdfUrl,         // "" bo'lishi mumkin (eski yozuvlar)
-    string DocxUrl,
-    string SignedUrl,
-    bool Signed,           // SignedUrl bo'sh emas
+    string PdfUrl,         // superadmin yuklagan PDF; "" — hali yuklanmagan
+    string DocxUrl,        // tizim hosil qilgan Word nusxa
     bool Delivered,
     string Status,
     bool Visible);      // ilovada (o'qituvchi/o'quvchi) ko'rinadimi
-/// <summary>Imzolangan skan (PDF) biriktirish so'rovi — fayl avval /api/admin/uploads orqali yuklanadi.</summary>
-public record ContractSignedRequest(string FileUrl, string? FileName);
+/// <summary>Tayyor PDF nusxani biriktirish so'rovi — fayl avval /api/admin/uploads orqali yuklanadi.</summary>
+public record ContractPdfRequest(string FileUrl, string? FileName);
 /// <summary>Shartnomani ilovada ko'rsatish/yashirish so'rovi.</summary>
 public record ContractVisibilityRequest(bool Visible);
 

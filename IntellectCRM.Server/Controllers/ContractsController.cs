@@ -15,15 +15,17 @@ namespace IntellectCRM.Server.Controllers;
 /// shartnomani <c>@</c>-o'rinbosarlar bilan to'ldirish. Ikki yo'l: (1) to'ldirilgan .docx faylni
 /// YUKLAB OLISH (<c>build</c> — Telegram shart emas), (2) Telegram bot orqali yuborish (<c>send</c> —
 /// faqat ro'yxatdan o'tganlarga). O'rinbosarlar bazadagi haqiqiy ma'lumot bilan almashtiriladi.
-/// Har ikki yo'lda ham hosil bo'lgan hujjat <c>uploads</c> papkasiga PDF + DOCX bo'lib SAQLANADI va
-/// <c>Contract</c> yozuviga bog'lanadi — oluvchi (o'qituvchi/o'quvchi) uni o'z portalida ko'radi.
+///
+/// Hosil bo'lgan .docx <c>uploads</c> papkasiga saqlanadi va <c>Contract</c> yozuviga bog'lanadi.
+/// So'ng superadmin hujjatni yakunlab, TAYYOR PDF nusxasini <c>{id}/pdf</c> orqali yuklaydi —
+/// faqat shundan keyin shartnoma oluvchining (o'qituvchi/o'quvchi) ilovasida ko'rinadi.
 /// </summary>
 [ApiController]
 [Authorize]
 [AdminPerm("contracts")]
 [Route("api/admin/contracts")]
 public class ContractsController(
-    AppDbContext db, ContractService contracts, ContractPdfService pdf, TelegramService telegram)
+    AppDbContext db, ContractService contracts, TelegramService telegram)
     : ControllerBase
 {
     private const string DocxMime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
@@ -179,8 +181,8 @@ public class ContractsController(
             ? contracts.BuildDocxFromText(tpl.Body, merged)
             : contracts.FillTemplate(bytes!, merged);
 
-        // Hujjat saqlanadi: PDF (ilovada ko'rish uchun) + DOCX (admin tahriri uchun).
-        var (pdfUrl, docxUrl) = await SaveDocsAsync(filled, RenderPdf(isCustom, tpl.Body, merged, filled));
+        // Word nusxa saqlanadi — admin uni keyin qayta yuklab olib, yakunlab, PDF qilib qaytadan yuklaydi.
+        var docxUrl = await contracts.SaveUploadAsync(filled, ".docx");
 
         db.Contracts.Add(new Contract
         {
@@ -192,7 +194,6 @@ public class ContractsController(
             SentAt = AppClock.Now,
             Delivered = false,
             Status = "downloaded",
-            PdfUrl = pdfUrl,
             DocxUrl = docxUrl,
             FileName = $"Shartnoma № {number}",
             TemplateName = tpl.Name,
@@ -219,11 +220,10 @@ public class ContractsController(
             if (bytes is null) return BadRequest(new { message = "Andoza fayli topilmadi" });
         }
         var customFields = ParseFields(tpl.FieldsJson);
-        (byte[] Docx, byte[]? Pdf) Render(IDictionary<string, string> tokens)
+        byte[] Render(IDictionary<string, string> tokens)
         {
             var merged = MergeTokens(customFields, tokens);
-            var docx = isCustom ? contracts.BuildDocxFromText(tpl.Body, merged) : contracts.FillTemplate(bytes!, merged);
-            return (docx, RenderPdf(isCustom, tpl.Body, merged, docx));
+            return isCustom ? contracts.BuildDocxFromText(tpl.Body, merged) : contracts.FillTemplate(bytes!, merged);
         }
 
         var ctx = await LoadCtxAsync();
@@ -244,9 +244,9 @@ public class ContractsController(
                 if (chatIds.Count == 0) { results.Add(new(key, false, null, "Telegramda ro'yxatdan o'tmagan")); continue; }
 
                 number++;
-                var (filled, pdfBytes) = Render(StaffTokens(t, ctx, number, today));
+                var filled = Render(StaffTokens(t, ctx, number, today));
                 var ok = await DeliverAsync(chatIds, filled, number);
-                var (pdfUrl, docxUrl) = await SaveDocsAsync(filled, pdfBytes);
+                var docxUrl = await contracts.SaveUploadAsync(filled, ".docx");
                 db.Contracts.Add(new Contract
                 {
                     Target = "staff",
@@ -256,7 +256,6 @@ public class ContractsController(
                     TemplateId = tpl.Id,
                     SentAt = AppClock.Now,
                     Delivered = ok,
-                    PdfUrl = pdfUrl,
                     DocxUrl = docxUrl,
                     FileName = $"Shartnoma № {number}",
                     TemplateName = tpl.Name,
@@ -277,9 +276,9 @@ public class ContractsController(
                 if (chatIds.Count == 0) { results.Add(new(key, false, null, "Telegramda ro'yxatdan o'tmagan")); continue; }
 
                 number++;
-                var (filled, pdfBytes) = Render(StudentTokens(s, ctx, number, today));
+                var filled = Render(StudentTokens(s, ctx, number, today));
                 var ok = await DeliverAsync(chatIds, filled, number);
-                var (pdfUrl, docxUrl) = await SaveDocsAsync(filled, pdfBytes);
+                var docxUrl = await contracts.SaveUploadAsync(filled, ".docx");
                 db.Contracts.Add(new Contract
                 {
                     Target = "parent",
@@ -289,7 +288,6 @@ public class ContractsController(
                     TemplateId = tpl.Id,
                     SentAt = AppClock.Now,
                     Delivered = ok,
-                    PdfUrl = pdfUrl,
                     DocxUrl = docxUrl,
                     FileName = $"Shartnoma № {number}",
                     TemplateName = tpl.Name,
@@ -325,19 +323,22 @@ public class ContractsController(
         return items.Select(ContractService.ToDoc).ToList();
     }
 
-    /// <summary>Imzolangan (skanlangan) PDF nusxani biriktiradi — fayl avval /api/admin/uploads orqali yuklanadi.</summary>
-    [HttpPost("{id}/signed")]
-    public async Task<ActionResult<ContractDocDto>> AttachSigned(string id, ContractSignedRequest req)
+    /// <summary>Tayyor PDF nusxani biriktiradi — superadmin .docx ni yakunlab, PDF qilib yuklaydi
+    /// (fayl avval /api/admin/uploads orqali yuklanadi). Shundan keyin shartnoma oluvchining
+    /// ilovasida ko'rinadi. Qayta yuklansa — eskisi almashtiriladi.</summary>
+    [HttpPost("{id}/pdf")]
+    public async Task<ActionResult<ContractDocDto>> UploadPdf(string id, ContractPdfRequest req)
     {
         var c = await db.Contracts.FindAsync(id);
         if (c is null) return NotFound();
-        if (string.IsNullOrWhiteSpace(req.FileUrl))
-            return BadRequest(new { message = "Imzolangan nusxa faylini yuklang" });
-        // Eski imzolangan nusxa almashtirilsa — diskda axlat qolmasin.
-        if (!string.IsNullOrEmpty(c.SignedUrl) && c.SignedUrl != req.FileUrl) contracts.DeleteUpload(c.SignedUrl);
-        c.SignedUrl = req.FileUrl.Trim();
-        if (!string.IsNullOrWhiteSpace(req.FileName)) c.FileName = req.FileName.Trim();
-        c.Status = "signed";
+        var url = (req.FileUrl ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(url))
+            return BadRequest(new { message = "PDF faylni yuklang" });
+        if (!url.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
+            return BadRequest(new { message = "Faqat PDF fayl yuklash mumkin" });
+        // Eski nusxa almashtirilsa — diskda axlat qolmasin.
+        if (!string.IsNullOrEmpty(c.PdfUrl) && c.PdfUrl != url) contracts.DeleteUpload(c.PdfUrl);
+        c.PdfUrl = url;
         await db.SaveChangesAsync();
         return ContractService.ToDoc(c);
     }
@@ -353,7 +354,7 @@ public class ContractsController(
         return ContractService.ToDoc(c);
     }
 
-    /// <summary>Shartnoma yozuvini va u bilan saqlangan fayllarni (PDF/DOCX/imzolangan) o'chiradi.</summary>
+    /// <summary>Shartnoma yozuvini va u bilan saqlangan fayllarni (PDF va DOCX) o'chiradi.</summary>
     [HttpDelete("{id}")]
     public async Task<IActionResult> DeleteDoc(string id)
     {
@@ -361,35 +362,12 @@ public class ContractsController(
         if (c is null) return NotFound();
         contracts.DeleteUpload(c.PdfUrl);
         contracts.DeleteUpload(c.DocxUrl);
-        contracts.DeleteUpload(c.SignedUrl);
         db.Contracts.Remove(c);
         await db.SaveChangesAsync();
         return NoContent();
     }
 
     // ---------- Yordamchilar ----------
-
-    /// <summary>To'ldirilgan hujjatni "/uploads"ga saqlaydi: DOCX doim, PDF hosil bo'lgan bo'lsa.</summary>
-    private async Task<(string PdfUrl, string DocxUrl)> SaveDocsAsync(byte[] docx, byte[]? pdfBytes)
-    {
-        var docxUrl = await contracts.SaveUploadAsync(docx, ".docx");
-        var pdfUrl = pdfBytes is { Length: > 0 } ? await contracts.SaveUploadAsync(pdfBytes, ".pdf") : "";
-        return (pdfUrl, docxUrl);
-    }
-
-    /// <summary>PDF nusxa: matnli andoza — to'ldirilgan matndan, Word andoza — to'ldirilgan .docx dan.
-    /// Xato bo'lsa null — shartnoma baribir saqlanadi (.docx qoladi, ilova PdfUrl bo'sh holatni biladi).</summary>
-    private byte[]? RenderPdf(bool isCustom, string body, IDictionary<string, string> merged, byte[] filledDocx)
-    {
-        try
-        {
-            return isCustom ? pdf.FromText(contracts.FillText(body, merged)) : pdf.FromDocx(filledDocx);
-        }
-        catch
-        {
-            return null;
-        }
-    }
 
     private async Task<bool> DeliverAsync(List<long> chatIds, byte[] filled, int number)
     {

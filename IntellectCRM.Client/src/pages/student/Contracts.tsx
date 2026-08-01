@@ -14,9 +14,9 @@ import { Icon, fmtDate } from '@/pages/student/lib'
 const ACCENT = '#2563EB'
 const ACCENT_SOFT = '#DBEAFE'
 
-/** Ochish uchun havola: imzolangan nusxa ustun, keyin PDF, bo'lmasa auth'li stream. */
+/** Ochish uchun havola: yuklangan PDF, bo'lmasa auth'li stream. */
 function docUrl(doc: ContractDoc): string {
-  return doc.signedUrl || doc.pdfUrl || `/api/student/contracts/${doc.id}/pdf`
+  return doc.pdfUrl || `/api/student/contracts/${doc.id}/pdf`
 }
 
 function ContractCard({ doc }: { doc: ContractDoc }) {
@@ -32,7 +32,7 @@ function ContractCard({ doc }: { doc: ContractDoc }) {
         borderRadius: 18,
         padding: '16px 16px 14px',
         marginBottom: 12,
-        borderLeft: `4px solid ${doc.signed ? 'var(--green)' : ACCENT}`,
+        borderLeft: `4px solid ${ACCENT}`,
       }}
     >
       {/* Sarlavha qatori */}
@@ -67,23 +67,6 @@ function ContractCard({ doc }: { doc: ContractDoc }) {
             {doc.templateName || 'Shartnoma'}
           </div>
         </div>
-        {/* Imzolangan belgisi */}
-        {doc.signed && (
-          <div
-            style={{
-              fontSize: 11.5,
-              fontWeight: 700,
-              color: 'var(--green)',
-              background: 'var(--greenSoft)',
-              borderRadius: 8,
-              padding: '3px 8px',
-              whiteSpace: 'nowrap',
-              flex: 'none',
-            }}
-          >
-            ✓ Imzolangan
-          </div>
-        )}
       </div>
 
       {/* Raqam va sana */}
@@ -240,9 +223,7 @@ export function StudentContractsScreen() {
                   <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-.3px' }}>
                     {docs.length}
                   </div>
-                  <div style={{ fontSize: 13, opacity: 0.9 }}>
-                    ta shartnoma ({docs.filter((d) => d.signed).length} ta imzolangan)
-                  </div>
+                  <div style={{ fontSize: 13, opacity: 0.9 }}>ta shartnoma</div>
                 </div>
               </div>
 

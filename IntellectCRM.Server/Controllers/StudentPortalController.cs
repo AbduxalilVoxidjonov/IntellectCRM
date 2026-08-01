@@ -296,7 +296,7 @@ public class StudentPortalController(
         var s = await TargetAsync(studentId);
         if (s is null) return NotFound();
         var items = await db.Contracts.AsNoTracking()
-            .Where(c => c.Target == "parent" && c.RecipientKey == s.Id && c.Visible)
+            .Where(c => c.Target == "parent" && c.RecipientKey == s.Id && c.Visible && c.PdfUrl != "")
             .OrderByDescending(c => c.Number).ToListAsync();
         return items.Select(ContractService.ToDoc).ToList();
     }
@@ -311,10 +311,9 @@ public class StudentPortalController(
         var c = await db.Contracts.AsNoTracking().FirstOrDefaultAsync(x =>
             x.Id == id && x.Target == "parent" && x.RecipientKey == s.Id && x.Visible);
         if (c is null) return NotFound();
-        var path = contracts.ResolveUpload(string.IsNullOrEmpty(c.SignedUrl) ? c.PdfUrl : c.SignedUrl);
+        var path = contracts.ResolveUpload(c.PdfUrl);
         if (path is null) return NotFound(new { message = "Shartnoma fayli topilmadi" });
-        return PhysicalFile(path, ContractService.MimeOf(path),
-            $"shartnoma-{c.Number}{Path.GetExtension(path)}");
+        return PhysicalFile(path, "application/pdf", $"shartnoma-{c.Number}.pdf");
     }
 
     // ---------- Baholar va davomat (o'ziniki) ----------

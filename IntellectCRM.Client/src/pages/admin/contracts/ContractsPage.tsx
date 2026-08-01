@@ -14,7 +14,7 @@ import {
   AlertTriangle,
   Eye,
   EyeOff,
-  FileSignature,
+  Info,
   Search,
 } from 'lucide-react'
 import type {
@@ -36,7 +36,7 @@ import {
   sendContracts,
   downloadContract,
   getContracts,
-  attachSignedContract,
+  uploadContractPdf,
   setContractVisibility,
   deleteContract,
 } from '@/api/services/contracts'
@@ -150,12 +150,15 @@ export function ContractsPage() {
   const [downloadingKey, setDownloadingKey] = useState<string | null>(null)
   const [results, setResults] = useState<SendResult[] | null>(null)
   const [editor, setEditor] = useState<ContractTemplate | 'new' | null>(null)
+  // .docx yuklab olingandan keyingi qisqa eslatma (PDF nusxani qayerdan yuklash haqida)
+  const [notice, setNotice] = useState<string | null>(null)
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- target almashganda qayta yuklash (maqsadli)
     setLoading(true)
     setChecked(new Set())
     setResults(null)
+    setNotice(null)
     setSelectedTpl('')
     const recipients = target === 'staff' ? getStaffRecipients() : getStudentRecipients()
     Promise.all([getTemplates(target), recipients])
@@ -250,8 +253,14 @@ export function ContractsPage() {
   const handleDownload = async (key: string) => {
     if (!selectedTpl || downloadingKey) return
     setDownloadingKey(key)
+    setNotice(null)
     try {
       await downloadContract(target, selectedTpl, key)
+      setNotice(
+        "Word (.docx) fayl yuklab olindi. Hujjatni yakunlab, PDF qiling va uni " +
+          '"Tuzilgan shartnomalar" bo\'limidagi shu shartnoma qatoridan "PDF yuklash" tugmasi ' +
+          'orqali yuklang — PDF yuklanmaguncha shartnoma oluvchining ilovasida ko\'rinmaydi.',
+      )
       await refreshRecipients()
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Yuklab olishda xatolik')
@@ -270,7 +279,7 @@ export function ContractsPage() {
         sub={
           view === 'build'
             ? "Andoza tanlang, o'quvchi yoki xodimni tanlab shartnomani Word (.docx) qilib yuklab oling — @-o'rinbosarlar haqiqiy ma'lumot bilan to'ldiriladi"
-            : "Tuzilgan shartnomalar tarixi: PDF/DOCX nusxalar, imzolangan skan va ilovada ko'rinishi"
+            : "Tuzilgan shartnomalar tarixi: DOCX nusxa, tayyor PDF'ni yuklash va ilovada ko'rinishi"
         }
         actions={
           <>
@@ -318,6 +327,24 @@ export function ContractsPage() {
         </Card>
       ) : (
         <div className="space-y-5">
+          {/* .docx yuklab olingandan keyingi eslatma */}
+          {notice && (
+            <Card className="border border-brand-200 bg-brand-50/60">
+              <div className="flex items-start gap-2">
+                <Info className="mt-0.5 h-4 w-4 shrink-0 text-brand-600" />
+                <p className="flex-1 text-sm text-slate-700">{notice}</p>
+                <button
+                  type="button"
+                  title="Yopish"
+                  onClick={() => setNotice(null)}
+                  className="rounded-lg p-1 text-slate-400 transition-colors hover:bg-white hover:text-slate-600"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </Card>
+          )}
+
           {/* Andoza paneli */}
           <Card
             title="Andozalar"
@@ -568,7 +595,7 @@ export function ContractsPage() {
 
 /**
  * "Tuzilgan shartnomalar" bo'limi — saqlangan nusxalar tarixi.
- * PDF/DOCX yuklab olish, imzolangan skan biriktirish, ilovada ko'rinishini boshqarish, o'chirish.
+ * DOCX/PDF yuklab olish, tayyor PDF'ni yuklash, ilovada ko'rinishini boshqarish, o'chirish.
  */
 function ContractsHistory({ target }: { target: Target }) {
   const { can } = usePerm()
@@ -604,15 +631,21 @@ function ContractsHistory({ target }: { target: Target }) {
   const replaceDoc = (doc: ContractDoc) =>
     setDocs((prev) => prev.map((d) => (d.id === doc.id ? doc : d)))
 
-  /** Imzolangan skan (PDF) biriktirish — avval faylni yuklaymiz, keyin yozuvga bog'laymiz. */
-  const handleSigned = async (doc: ContractDoc, e: React.ChangeEvent<HTMLInputElement>) => {
+  /** Tayyor PDF'ni yuklash — avval faylni serverga yuklaymiz, keyin yozuvga bog'laymiz. */
+  const handleUploadPdf = async (doc: ContractDoc, e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]
     e.target.value = ''
     if (!f) return
+    // Faqat PDF: boshqa tur tanlansa yuklashga urinmaymiz.
+    const isPdf = f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf')
+    if (!isPdf) {
+      alert('Faqat PDF fayl yuklash mumkin')
+      return
+    }
     setBusyId(doc.id)
     try {
       const up = await uploadAdminFile(f)
-      replaceDoc(await attachSignedContract(doc.id, up.url, f.name))
+      replaceDoc(await uploadContractPdf(doc.id, up.url, f.name))
     } catch (err) {
       alert(apiErrorMessage(err, 'Yuklashda xatolik'))
     } finally {
@@ -709,12 +742,12 @@ function ContractsHistory({ target }: { target: Target }) {
                       <td className="text-slate-500">{d.date ? formatDate(d.date) : '—'}</td>
                       <td>
                         <div className="flex flex-wrap items-center gap-1">
-                          {d.signed ? (
+                          {d.pdfUrl ? (
                             <Badge tone="green">
-                              <CheckCircle2 className="h-3 w-3" /> Imzolangan
+                              <CheckCircle2 className="h-3 w-3" /> PDF yuklangan
                             </Badge>
                           ) : (
-                            <Badge tone="amber">Imzolanmagan</Badge>
+                            <Badge tone="amber">PDF yuklanmagan</Badge>
                           )}
                           {d.delivered && <Badge tone="blue">Yuborilgan</Badge>}
                           {!visible && (
@@ -726,18 +759,6 @@ function ContractsHistory({ target }: { target: Target }) {
                       </td>
                       <td>
                         <div className="flex flex-wrap items-center gap-2 text-xs font-medium">
-                          {d.pdfUrl ? (
-                            <a
-                              href={d.pdfUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center gap-1 text-brand-600 hover:underline"
-                            >
-                              <Download className="h-3.5 w-3.5" /> PDF
-                            </a>
-                          ) : (
-                            <span className="text-slate-300">PDF yo'q</span>
-                          )}
                           {d.docxUrl ? (
                             <a
                               href={d.docxUrl}
@@ -750,15 +771,17 @@ function ContractsHistory({ target }: { target: Target }) {
                           ) : (
                             <span className="text-slate-300">DOCX yo'q</span>
                           )}
-                          {d.signedUrl && (
+                          {d.pdfUrl ? (
                             <a
-                              href={d.signedUrl}
+                              href={d.pdfUrl}
                               target="_blank"
                               rel="noreferrer"
                               className="inline-flex items-center gap-1 text-emerald-600 hover:underline"
                             >
-                              <FileSignature className="h-3.5 w-3.5" /> Imzolangan
+                              <Download className="h-3.5 w-3.5" /> PDF
                             </a>
+                          ) : (
+                            <span className="text-slate-300">PDF yo'q</span>
                           )}
                         </div>
                       </td>
@@ -767,19 +790,27 @@ function ContractsHistory({ target }: { target: Target }) {
                           {can('contracts', 'edit') && (
                             <>
                               <label
-                                title="Imzolangan nusxani (PDF) yuklash"
+                                title={
+                                  d.pdfUrl
+                                    ? "Yuklangan PDF'ni yangisiga almashtirish"
+                                    : 'Tayyor PDF nusxani yuklash'
+                                }
                                 className={cn(
                                   'inline-flex cursor-pointer items-center gap-1 rounded-lg border border-brand-200 bg-brand-50 px-2 py-1.5 text-xs font-medium text-brand-700 transition-colors hover:bg-brand-100',
                                   busy && 'pointer-events-none opacity-60',
                                 )}
                               >
                                 <Upload className="h-3.5 w-3.5" />
-                                {busy ? 'Yuklanmoqda...' : d.signed ? 'Almashtirish' : 'Imzolangan'}
+                                {busy
+                                  ? 'Yuklanmoqda...'
+                                  : d.pdfUrl
+                                    ? 'PDF almashtirish'
+                                    : 'PDF yuklash'}
                                 <input
                                   type="file"
-                                  accept=".pdf,application/pdf"
+                                  accept="application/pdf"
                                   hidden
-                                  onChange={(e) => handleSigned(d, e)}
+                                  onChange={(e) => handleUploadPdf(d, e)}
                                 />
                               </label>
                               <button
@@ -821,8 +852,9 @@ function ContractsHistory({ target }: { target: Target }) {
           </div>
         )}
         <p className="border-t border-slate-100 px-4 py-3 text-xs text-slate-400">
-          "Ko'z" belgisi — shartnoma o'quvchi/o'qituvchi ilovasida ko'rinishini boshqaradi.
-          Imzolangan nusxa yuklansa, ilovada aynan shu ko'rsatiladi.
+          PDF'ni tizim hosil qilmaydi: hujjatni Word'da yakunlab, o'zingiz PDF qiling va shu yerdan yuklang.
+          Shartnoma o'quvchi/o'qituvchi ilovasida faqat PDF yuklangandan keyin ko'rinadi;
+          "ko'z" belgisi esa ko'rinishni qo'lda yoqib/o'chirib turadi.
         </p>
       </Card>
 
