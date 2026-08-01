@@ -10,6 +10,9 @@
 [Rr]elease/
 *.user
 
+# dotnet test natijalari (coverlet .trx/.coverage)
+TestResults/
+
 # Visual Studio
 .vs/
 
