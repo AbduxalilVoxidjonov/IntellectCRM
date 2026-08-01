@@ -38,6 +38,13 @@ export default defineConfig(({ command }): UserConfig => {
     // shuning uchun bu blokni ishga tushirmaymiz (aks holda build yiqiladi).
     if (command !== 'serve') return config
 
+    // DOCKER (hot reload) rejimi: konteynerda `dotnet dev-certs` YO'Q, shuning uchun dev-server
+    // oddiy HTTP'da ko'tariladi va fayllarni SO'ROV (polling) bilan kuzatadi — bind-mount'da
+    // macOS/Windows fayl hodisalari konteynerga yetib kelmaydi. Bayroqlar docker-compose.dev.yml'da.
+    // Bo'sh qoldirilsa (odatdagi lokal `npm run dev`) — hammasi avvalgidek: HTTPS + sertifikat.
+    const useHttps = env.VITE_DEV_HTTPS !== 'false'
+    const usePolling = env.VITE_DEV_POLL === 'true'
+
     // ASP.NET Core SPA proxy uchun HTTPS sertifikat sozlamasi.
     const baseFolder =
         env.APPDATA !== undefined && env.APPDATA !== ''
@@ -48,20 +55,22 @@ export default defineConfig(({ command }): UserConfig => {
     const certFilePath = path.join(baseFolder, `${certificateName}.pem`)
     const keyFilePath = path.join(baseFolder, `${certificateName}.key`)
 
-    if (!fs.existsSync(baseFolder)) {
-        fs.mkdirSync(baseFolder, { recursive: true })
-    }
+    if (useHttps) {
+        if (!fs.existsSync(baseFolder)) {
+            fs.mkdirSync(baseFolder, { recursive: true })
+        }
 
-    if (!fs.existsSync(certFilePath) || !fs.existsSync(keyFilePath)) {
-        if (
-            0 !==
-            child_process.spawnSync(
-                'dotnet',
-                ['dev-certs', 'https', '--export-path', certFilePath, '--format', 'Pem', '--no-password'],
-                { stdio: 'inherit' },
-            ).status
-        ) {
-            throw new Error('Could not create certificate.')
+        if (!fs.existsSync(certFilePath) || !fs.existsSync(keyFilePath)) {
+            if (
+                0 !==
+                child_process.spawnSync(
+                    'dotnet',
+                    ['dev-certs', 'https', '--export-path', certFilePath, '--format', 'Pem', '--no-password'],
+                    { stdio: 'inherit' },
+                ).status
+            ) {
+                throw new Error('Could not create certificate.')
+            }
         }
     }
 
@@ -98,16 +107,37 @@ export default defineConfig(({ command }): UserConfig => {
                     target,
                     secure: false,
                 },
+                // Karyera Mini App'i (`/vakansiya`) va landing — React EMAS, backend `wwwroot`idan
+                // beriladigan statik sahifalar. Dev-server portida ham ochilsin.
+                '^/vakansiya': {
+                    target,
+                    secure: false,
+                },
+                '^/vendor/': {
+                    target,
+                    secure: false,
+                },
+                '^/landing': {
+                    target,
+                    secure: false,
+                },
                 '^/weatherforecast': {
                     target,
                     secure: false,
                 },
             },
             port: parseInt(env.DEV_SERVER_PORT || '58472'),
-            https: {
-                key: fs.readFileSync(keyFilePath),
-                cert: fs.readFileSync(certFilePath),
-            },
+            // Docker'da bind-mount fayl hodisalarini bermaydi — polling shart, aks holda
+            // tahrir qilingan fayl brauzerga umuman yetib bormaydi.
+            ...(usePolling ? { watch: { usePolling: true, interval: 300 } } : {}),
+            ...(useHttps
+                ? {
+                      https: {
+                          key: fs.readFileSync(keyFilePath),
+                          cert: fs.readFileSync(certFilePath),
+                      },
+                  }
+                : {}),
         },
     }
 })

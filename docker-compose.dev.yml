@@ -1,0 +1,137 @@
+# ============================================================================
+#  IntellectCRM — LOKAL RIVOJLANISH (hot reload). Prod config'ni O'ZGARTIRMAYDI.
+#
+#  Ishga tushirish (bitta buyruq):   ./dev.sh up
+#      • Backend  → http://localhost:8080   (.cs o'zgarsa `dotnet watch` o'zi qayta yig'adi)
+#      • Frontend → http://localhost:5173   (.tsx o'zgarsa brauzer O'ZI yangilanadi — HMR)
+#      • Postgres → localhost:5432          (DBeaver/psql uchun)
+#
+#  Nega ikkita manzil: React qismini Vite dev-serveri (5173) beradi va u `/api`,
+#  `/hubs`, `/uploads`, `/vakansiya` so'rovlarini backendga uzatadi. Ya'ni KUNDALIK
+#  ISHDA FAQAT http://localhost:5173 ochib ishlayverasiz.
+#
+#  Prod fayli (`docker-compose.yml`) shu yerdan faqat USTIGA yoziladi:
+#  environment bloki (barcha kalitlar) va postgres xizmati o'sha yerdan meros bo'ladi —
+#  ya'ni sozlamalar IKKI joyda takrorlanmaydi.
+# ============================================================================
+
+# Alohida loyiha nomi — dev konteyner/volume'lari prod (yoki lokal prod-test)
+# konteynerlarini BOSIB KETMAYDI, ikkalasi yonma-yon tura oladi.
+name: intellectcrm-dev
+
+services:
+  postgres:
+    # Nom prod faylidagidan FARQLI bo'lishi shart — aks holda lokal prod-test konteyneri
+    # (`intellectcrm-postgres`) bilan to'qnashadi va `up` "name is already in use" deb yiqiladi.
+    container_name: intellectcrm-dev-postgres
+    ports:
+      - "5432:5432"          # lokal DB kirish (psql / DBeaver)
+
+  # ---------------------------------------------------------------- Backend (dotnet watch)
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: intellectcrm-dev-app
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Development"
+      # Dev'da ham to'g'ri ishlaydi: karyera Mini App'ining havolasi lokal manzilga qarasin.
+      Career__MiniAppUrl: "${DEV_CAREER_MINIAPP_URL:-http://localhost:5173/vakansiya}"
+
+      # ⚠️ SHART: repo butunlay konteynerga ulangani uchun `/src/.env` (PROD kalitlari bilan)
+      # ichkarida ko'rinadi va `DotEnvFile` uni o'qib, quyidagi bo'sh qiymatlarni BEKOR QILADI
+      # (AppSecrets bo'sh `Telegram__BotToken` dan keyin xom `TELEGRAM_BOT_TOKEN` ga tushadi).
+      # Shu bayroq faylni umuman o'qitmaydi — barcha kerakli qiymat compose'dan keladi.
+      DOTENV_DISABLED: "true"
+
+      # ====== TASHQI DUNYOGA TEGADIGAN INTEGRATSIYALAR — DEV'DA O'CHIQ ======
+      # ⚠️ ENG MUHIMI — BOT TOKENLARI. Telegram har yangilanishni FAQAT BIR MARTA yetkazadi:
+      # lokal bot serverdagi bot bilan BIR XIL token bilan `getUpdates` qilsa, xabarlarni
+      # o'g'irlaydi va JONLI bot foydalanuvchilarga javob bermay qoladi. Shu sabab bo'sh.
+      # Botni lokal sinash uchun BotFather'da ALOHIDA test boti oching va .env ga qo'shing:
+      #     DEV_TELEGRAM_BOT_TOKEN=...      DEV_CAREER_BOT_TOKEN=...
+      Telegram__BotToken: "${DEV_TELEGRAM_BOT_TOKEN:-}"
+      Career__BotToken: "${DEV_CAREER_BOT_TOKEN:-}"
+      # Eskiz — bo'sh: lokaldan HAQIQIY SMS ketib qolmasin (pul va mijozlar bezovtaligi).
+      Eskiz__Email: ""
+      Eskiz__Password: ""
+      # Telefoniya / turniket / kamera — lokal mashinadan real qurilma va bulutga ulanmasin.
+      MoiZvonki__Enabled: "false"
+      Turnstile__Enabled: "false"
+      Camera__Enabled: "false"
+      # Fon jadvallari (eslatma, AI tahlil, backup) — dev'da shovqin qilmasin.
+      PaymentReminders__Enabled: "false"
+      AiAnalysis__Enabled: "false"
+      Backup__TelegramEnabled: "false"
+    volumes:
+      # BUTUN manba kodi konteynerga ulanadi — fayl o'zgarishi darhol ko'rinadi.
+      - ./:/src
+      # bin/obj HOST'nikidan ajratiladi: host'da macOS uchun, konteynerda Linux uchun
+      # yig'iladi — aralashsa ikkala tomon ham buziladi (anonim volume ularni "yopadi").
+      - /src/IntellectCRM.Domain/bin
+      - /src/IntellectCRM.Domain/obj
+      - /src/IntellectCRM.Application/bin
+      - /src/IntellectCRM.Application/obj
+      - /src/IntellectCRM.Infrastructure/bin
+      - /src/IntellectCRM.Infrastructure/obj
+      - /src/IntellectCRM.Server/bin
+      - /src/IntellectCRM.Server/obj
+      # Frontend node_modules backendga umuman kerak emas (va juda sekin mount bo'ladi).
+      - /src/IntellectCRM.Client/node_modules
+      # NuGet keshi — konteyner qayta yaratilsa ham paketlar qaytadan yuklanmasin.
+      - nuget-cache:/root/.nuget/packages
+    ports:
+      - "8080:8080"          # to'g'ridan-to'g'ri backend (masalan http://localhost:8080/vakansiya)
+    restart: "no"            # yiqilsa ko'rinib tursin (prod'dagi kabi jimgina qayta ko'tarilmasin)
+
+  # ---------------------------------------------------------------- Frontend (Vite HMR)
+  client:
+    image: node:20-slim
+    container_name: intellectcrm-dev-client
+    working_dir: /client
+    environment:
+      # Vite proxy'sining nishoni (vite.config.ts shu o'zgaruvchini o'qiydi).
+      ASPNETCORE_URLS: "http://app:8080"
+      DEV_SERVER_PORT: "5173"
+      # Konteynerda `dotnet dev-certs` yo'q — dev-server oddiy HTTP'da ishlaydi.
+      VITE_DEV_HTTPS: "false"
+      # macOS/Windows bind-mount'da fayl hodisalari yetib kelmaydi — so'rov (polling) rejimi.
+      VITE_DEV_POLL: "true"
+      VITE_ROOT_DOMAIN: "${ROOT_DOMAIN:-localhost}"
+      VITE_USE_MOCK: "false"
+    volumes:
+      - ./IntellectCRM.Client:/client
+      # node_modules KONTEYNERNIKI bo'lsin (host'dagi macOS binarylari Linux'da ishlamaydi).
+      - client-node-modules:/client/node_modules
+    ports:
+      - "5173:5173"
+    command:
+      - sh
+      - -c
+      - |
+        set -e
+        if [ ! -x node_modules/.bin/vite ]; then
+          echo "[client] node_modules bo'sh — o'rnatilmoqda (birinchi marta biroz vaqt oladi)..."
+          # `npm ci` — package-lock.json'ni AYNAN bajaradi va uni QAYTA YOZMAYDI.
+          # (`npm install` konteynerdagi eskiroq npm bilan lockfile'ni "tozalab" yuborardi —
+          #  host'da keraksiz o'zgarish bo'lib ko'rinardi.)
+          npm ci --no-audit --no-fund || npm install --no-save --no-audit --no-fund
+        fi
+        exec npm run dev -- --host 0.0.0.0
+    depends_on:
+      - app
+    restart: "no"
+
+  # ---------------------------------------------------------------- Lokalda kerak bo'lmaydiganlar
+  # `profiles` berilgan xizmat oddiy `up` da ISHGA TUSHMAYDI (prod faylida profil yo'q —
+  # serverda hammasi odatdagidek ko'tariladi).
+  cloudflared:
+    profiles: ["donotstart"]
+  mediamtx:
+    profiles: ["donotstart"]
+  backup:
+    profiles: ["donotstart"]
+
+volumes:
+  nuget-cache:
+  client-node-modules:

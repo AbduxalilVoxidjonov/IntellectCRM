@@ -130,7 +130,41 @@ env-wins: `.env` da berilsa har deploy'da qo'llanadi, bo'sh qoldirilsa UI'dan bo
 ### Talablar
 - .NET 8 SDK · Node.js 20+ · PostgreSQL 16 (yoki Docker)
 
-### Lokal (development)
+### Lokal (development) — Docker + **hot reload** ⭐ tavsiya etiladi
+
+Hech narsani qo'lda qayta qurish kerak emas: `.cs` fayl o'zgarsa backend **o'zi** qayta
+yig'iladi va ko'tariladi (`dotnet watch`), `.tsx`/`.css` o'zgarsa brauzer **o'zi** yangilanadi
+(Vite HMR). `docker compose build` faqat birinchi marta kerak.
+
+```bash
+cp .env.example .env      # (bir marta) kalitlarni to'ldiring
+./dev.sh up               # ko'tarish — loglar ekranda, Ctrl+C to'xtatadi
+```
+
+| Manzil | Nima |
+|---|---|
+| **http://localhost:5173** | 👈 **kundalik ish shu yerda** — React (HMR), `/api`·`/hubs`·`/uploads`·`/vakansiya` backendga uzatiladi |
+| http://localhost:8080 | backendning o'zi (Mini App, statik sahifalar, API'ni to'g'ridan-to'g'ri sinash) |
+| localhost:5432 | PostgreSQL (DBeaver/psql) |
+
+```bash
+./dev.sh up -d            # fonda
+./dev.sh logs -f app      # backend loglari
+./dev.sh restart app      # backendni qayta ishga tushirish
+./dev.sh down             # to'xtatish (baza saqlanadi)
+./dev.sh down -v          # to'xtatish + dev bazasini o'chirish
+```
+
+> ⚠️ **Dev'da botlar va tashqi integratsiyalar ATAYIN O'CHIQ** (`docker-compose.dev.yml`):
+> Telegram har yangilanishni faqat **bir marta** yetkazadi — lokal bot serverdagi bot bilan bir xil
+> token bilan ishlasa, jonli bot foydalanuvchilarga javob bermay qoladi. Shuningdek Eskiz (haqiqiy
+> SMS), telefoniya, turniket va kamera ham o'chirilgan. Botni lokal sinash uchun BotFather'da
+> **alohida test boti** oching va `.env` ga qo'shing: `DEV_TELEGRAM_BOT_TOKEN` / `DEV_CAREER_BOT_TOKEN`.
+
+Dev muhiti prod konfiguratsiyasidan **meros** oladi (kalitlar ikki joyda takrorlanmaydi) va
+alohida compose loyihasida (`intellectcrm-dev`) ishlaydi — prod konteynerlarini bosib ketmaydi.
+
+### Lokal (Docker'siz)
 ```bash
 # PostgreSQL (Docker bilan eng oson)
 docker run -d -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=intellectcrm \

@@ -1,0 +1,43 @@
+# ============================================================================
+#  IntellectCRM — DEV obrazi (faqat lokal ishlash uchun, prod'ga TUSHMAYDI).
+#
+#  Prod `Dockerfile`dan farqi: bu yerda .NET SDK qoladi va ilova `dotnet watch`
+#  ostida ishlaydi — kod bind-mount orqali ichkaridan ko'rinadi, .cs fayl
+#  o'zgarsa ilova O'ZI qayta yig'iladi/ishga tushadi (`docker compose build`
+#  qayta chaqirilmaydi).
+#
+#  Ishlatilishi: docker-compose.dev.yml (qarang: ./dev.sh)
+# ============================================================================
+FROM mcr.microsoft.com/dotnet/sdk:8.0
+
+WORKDIR /src
+
+ENV TZ=Asia/Tashkent
+RUN apt-get update && apt-get install -y --no-install-recommends tzdata \
+    && ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV DOTNET_CLI_TELEMETRY_OPTOUT=1 \
+    DOTNET_NOLOGO=1 \
+    # macOS/Windows bind-mount'da fayl hodisalari (inotify) konteynerga YETIB KELMAYDI —
+    # shuning uchun `dotnet watch` so'rov (polling) rejimida kuzatadi.
+    DOTNET_USE_POLLING_FILE_WATCHER=1 \
+    # "Rude edit" (hot-reload qo'llab bo'lmaydigan o'zgarish) bo'lsa savol bermay qayta ishga tushsin.
+    DOTNET_WATCH_RESTART_ON_RUDE_EDIT=1 \
+    ASPNETCORE_URLS=http://+:8080 \
+    # MSBuild muhit o'zgaruvchilarini global xossa sifatida o'qiydi: SPA (esproj) havolasi
+    # o'chadi — konteynerda `npm` yo'q, frontend alohida `client` xizmatida ishlaydi.
+    BuildSpa=false
+
+# Paketlarni oldindan tiklaymiz — birinchi `up` sezilarli tez bo'ladi (keyin nuget-cache volume'i keshlaydi).
+COPY IntellectCRM.Domain/IntellectCRM.Domain.csproj IntellectCRM.Domain/
+COPY IntellectCRM.Application/IntellectCRM.Application.csproj IntellectCRM.Application/
+COPY IntellectCRM.Infrastructure/IntellectCRM.Infrastructure.csproj IntellectCRM.Infrastructure/
+COPY IntellectCRM.Server/IntellectCRM.Server.csproj IntellectCRM.Server/
+RUN dotnet restore IntellectCRM.Server/IntellectCRM.Server.csproj
+
+EXPOSE 8080
+
+# `--non-interactive` — konteynerda terminal savoliga javob beradigan odam yo'q.
+CMD ["dotnet", "watch", "--project", "IntellectCRM.Server/IntellectCRM.Server.csproj", \
+     "--non-interactive", "run", "--no-launch-profile"]
