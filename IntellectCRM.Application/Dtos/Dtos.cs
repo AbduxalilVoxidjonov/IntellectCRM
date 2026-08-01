@@ -124,10 +124,11 @@ public record AiCheckDto(
 /// <summary>Tarix elementi (ro'yxat — yengil).</summary>
 public record AiCheckListItemDto(string Id, string Type, string Prompt, double Score, string Date, string CreatedAt, bool HasAudio);
 
-/// <summary>O'quvchi AI tekshiruv holati (limit/premium/blok + bugungi foydalanish).</summary>
+/// <summary>O'quvchi AI tekshiruv holati (limit/premium/blok + bugungi foydalanish).
+/// <paramref name="Enabled"/> — bo'lim markaz tomonidan ilovada ochilganmi (CenterMeta.AiCheckEnabled).</summary>
 public record AiCheckStatusDto(
     bool GeminiReady, bool AzureReady, bool Premium, bool Blocked,
-    int Limit, int UsedToday, int Remaining);
+    int Limit, int UsedToday, int Remaining, bool Enabled = false);
 
 /// <summary>TaskType: "" (umumiy) | "ielts_task1" | "ielts_task2".</summary>
 public record AiCheckWritingRequest(string? Prompt, string? Text, string? TaskType = null);
@@ -137,8 +138,11 @@ public record AiCheckOverviewRowDto(
     string StudentId, string FullName, string ClassName,
     int SpeakingCount, int WritingCount, int Total, int TodayUsed,
     int EffectiveLimit, bool Premium, bool Blocked);
-public record AiCheckSettingsDto(int DefaultDailyLimit);
+/// <summary><paramref name="Enabled"/> — o'quvchi ilovasida bo'lim ochilganmi.</summary>
+public record AiCheckSettingsDto(int DefaultDailyLimit, bool Enabled = false);
 public record SaveAiCheckSettingsRequest(int DailyLimit);
+/// <summary>Bo'limni ilovada ochish/yopish (ALOHIDA endpoint — limitni saqlash bayroqqa tegmasin).</summary>
+public record SetAiCheckEnabledRequest(bool Enabled);
 public record SaveAiAccessRequest(int DailyLimit, bool IsPremium, bool IsBlocked);
 
 /* ---------- Telefon dublikatini tekshirish (o'quvchi/ota-ona raqami) ---------- */

@@ -44,16 +44,48 @@ public static class SalaryLedger
         // Oylik o'qituvchi boshlagan oydan hisoblanadi — undan oldingi oylar uchun qarz yozilmaydi.
         var startMonth = string.CompareOrdinal(teacherStartMonth, fromMonth) > 0 ? teacherStartMonth : fromMonth;
 
-        var fromDate = $"{startMonth}-01";
-        var toDate = $"{toMonth}-31";
-
-        var payments = await db.FinanceTransactions
-            .Where(t => t.TeacherId == teacher.Id && t.Direction == "expense" && t.Category == "salary"
-                        && string.Compare(t.Date, fromDate) >= 0 && string.Compare(t.Date, toDate) <= 0)
+        // MAOSH QAYSI OYGA TEGISHLI — `Month` maydoni hal qiladi, to'lov SANASI emas:
+        // iyul maoshi 5-avgustda berilishi mumkin. `Month` bo'sh bo'lsa (eski yozuvlar,
+        // Moliya formasi ilgari uni saqlamasdi) — orqaga moslik uchun sanadan olinadi.
+        // Shu sabab so'rovda SANA oralig'i bo'yicha filtrlab bo'lmaydi: kech berilgan
+        // to'lov oraliqdan tashqarida qolib ketardi. O'qituvchining maosh to'lovlari kam,
+        // shu bois hammasi olinadi va oy bo'yicha keyin filtrlanadi.
+        var allPayments = await db.FinanceTransactions
+            .Where(t => t.TeacherId == teacher.Id && t.Direction == "expense" && t.Category == "salary")
             .OrderByDescending(t => t.Date).ToListAsync();
 
+        // "yyyy-MM" qaytaradi. Month to'liq bo'lmasa (bo'sh yoki buzuq eski yozuv) — sanadan;
+        // ikkalasi ham yaroqsiz bo'lsa "" (bunday to'lov oy hisobiga umuman kirmaydi).
+        static string PayMonth(FinanceTransaction t) =>
+            t.Month is { Length: >= 7 } m ? m[..7]
+            : t.Date is { Length: >= 7 } d ? d[..7]
+            : "";
+
+        // OLDINDAN berilgan maosh (masalan sentyabr maoshi avgustda) davr oxiridan KEYINGI oyga
+        // tegishli bo'lsa — u ko'rinmay qolsa admin ikkinchi marta to'lab yuborishi mumkin edi.
+        // Shu sabab oxirgi chegara to'lov oylarini QAMRAB olguncha cho'ziladi (xato kiritilgan
+        // oy jadvalni cheksiz uzaytirmasligi uchun 12 oy bilan cheklangan).
+        var maxPayMonth = allPayments.Select(PayMonth)
+            .Where(m => m.Length == 7 && string.CompareOrdinal(m, toMonth) > 0)
+            .DefaultIfEmpty("").Max();
+        if (maxPayMonth.Length == 7)
+        {
+            var cap = TuitionService.MonthRange(toMonth, maxPayMonth).Take(13).Last();
+            toMonth = cap;
+        }
+
+        var payments = allPayments
+            .Where(t =>
+            {
+                var m = PayMonth(t);
+                return m.Length == 7
+                       && string.CompareOrdinal(m, startMonth) >= 0
+                       && string.CompareOrdinal(m, toMonth) <= 0;
+            })
+            .ToList();
+
         var paidByMonth = payments
-            .GroupBy(p => p.Date[..7])
+            .GroupBy(PayMonth)
             .ToDictionary(g => g.Key, g => g.Sum(x => x.Amount));
 
         // O'qituvchi guruhlari + per-guruh maosh sozlamasi.

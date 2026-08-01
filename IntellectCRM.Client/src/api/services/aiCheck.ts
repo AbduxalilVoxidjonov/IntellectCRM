@@ -7,14 +7,30 @@ export async function getAiCheckOverview(): Promise<AiCheckOverviewRow[]> {
   return data
 }
 
-/** Global standart kunlik limit. */
-export async function getAiCheckSettings(): Promise<{ defaultDailyLimit: number }> {
-  const { data } = await api.get<{ defaultDailyLimit: number }>('/admin/ai-check/settings')
+/** AI tekshiruv global sozlamalari. */
+export interface AiCheckSettings {
+  /** Standart kunlik limit (premium/shaxsiy limiti yo'q o'quvchilar uchun). */
+  defaultDailyLimit: number
+  /** Bo'lim o'quvchi ilovasida ochiqmi. Default: false (yopiq). */
+  enabled: boolean
+}
+
+/** Global sozlamalar: standart kunlik limit + ilovadagi ochiq/yopiq bayrog'i. */
+export async function getAiCheckSettings(): Promise<AiCheckSettings> {
+  const { data } = await api.get<AiCheckSettings>('/admin/ai-check/settings')
   return data
 }
 
 export async function saveAiCheckSettings(dailyLimit: number): Promise<void> {
   await api.put('/admin/ai-check/settings', { dailyLimit })
+}
+
+/**
+ * Bo'limni o'quvchi ilovasida ochish/yopish. ALOHIDA endpoint —
+ * kunlik limit saqlash (`saveAiCheckSettings`) bilan aralashmaydi.
+ */
+export async function setAiCheckEnabled(enabled: boolean): Promise<void> {
+  await api.put('/admin/ai-check/enabled', { enabled })
 }
 
 /** O'quvchiga limit/premium/blok belgilash. */

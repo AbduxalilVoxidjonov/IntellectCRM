@@ -1,17 +1,19 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Sparkles, Check, Search } from 'lucide-react'
+import { Sparkles, Check, Search, Lock, LockOpen, Loader2, AlertCircle } from 'lucide-react'
 import type { AiCheckOverviewRow } from '@/types'
 import {
   getAiCheckOverview,
   getAiCheckSettings,
   saveAiCheckSettings,
   saveAiAccess,
+  setAiCheckEnabled,
 } from '@/api/services/aiCheck'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Loader } from '@/components/ui/Loader'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { apiErrorMessage, cn } from '@/lib/utils'
 
 const control =
   'rounded-lg border border-slate-200 px-2 py-1.5 text-sm text-slate-800 outline-none transition-colors focus:border-brand-400'
@@ -22,6 +24,10 @@ export function AiCheckPage() {
   const [defaultLimit, setDefaultLimit] = useState(3)
   const [savingDefault, setSavingDefault] = useState<'idle' | 'saving' | 'saved'>('idle')
   const [query, setQuery] = useState('')
+  // Bo'lim o'quvchi ilovasida ochiqmi (default: yopiq).
+  const [enabled, setEnabled] = useState(false)
+  const [togglingEnabled, setTogglingEnabled] = useState(false)
+  const [enabledError, setEnabledError] = useState('')
 
   // FISH yoki guruh bo'yicha qidiruv (registrsiz).
   const filtered = useMemo(() => {
@@ -37,9 +43,25 @@ export function AiCheckPage() {
       .then(([o, s]) => {
         setRows(o)
         setDefaultLimit(s.defaultDailyLimit)
+        setEnabled(!!s.enabled)
       })
       .finally(() => setLoading(false))
   }, [])
+
+  // Bo'limni o'quvchi ilovasida ochish/yopish (kunlik limitdan ALOHIDA endpoint).
+  const toggleEnabled = async () => {
+    const next = !enabled
+    setTogglingEnabled(true)
+    setEnabledError('')
+    try {
+      await setAiCheckEnabled(next)
+      setEnabled(next)
+    } catch (e) {
+      setEnabledError(apiErrorMessage(e, "Holatni o'zgartirib bo'lmadi"))
+    } finally {
+      setTogglingEnabled(false)
+    }
+  }
 
   const saveDefault = async () => {
     setSavingDefault('saving')
@@ -67,6 +89,60 @@ export function AiCheckPage() {
         title="AI tekshiruv (Speaking & Writing)"
         sub="Kim necha marta foydalanayotgani, kunlik limit, premium va cheklash boshqaruvi"
       />
+
+      {/* Bo'limni o'quvchi ilovasida ochish/yopish — AI kalitlaridan ALOHIDA bayroq. */}
+      <Card
+        title="O'quvchi ilovasidagi holat"
+        sub="Bo'lim o'quvchilarga ko'rinadimi va tekshiruv yuborsa bo'ladimi"
+        className="mb-4"
+        actions={
+          <div className="flex items-center gap-2">
+            <span
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold',
+                enabled ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700',
+              )}
+            >
+              {enabled ? <LockOpen className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}
+              {enabled ? 'Ilovada ochiq' : 'Ilovada YOPIQ'}
+            </span>
+            <Button
+              variant={enabled ? 'secondary' : 'primary'}
+              onClick={toggleEnabled}
+              disabled={togglingEnabled}
+            >
+              {togglingEnabled ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : enabled ? (
+                <Lock className="h-4 w-4" />
+              ) : (
+                <LockOpen className="h-4 w-4" />
+              )}
+              {togglingEnabled
+                ? 'Saqlanmoqda...'
+                : enabled
+                  ? 'Ilovada yopish'
+                  : 'Ilovada ochish'}
+            </Button>
+          </div>
+        }
+      >
+        {enabledError && (
+          <p className="mb-2 flex items-start gap-1.5 text-xs font-medium text-red-600">
+            <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            {enabledError}
+          </p>
+        )}
+        <p className="text-xs text-slate-400">
+          {enabled
+            ? "Bo'lim ochiq: o'quvchilar ilovada AI tekshiruvga (Speaking & Writing) ish yuborishlari mumkin — kunlik limit va bloklash qoidalari amal qiladi."
+            : "Bo'lim yopiq: o'quvchi ilovasida \"Bu bo'lim hali markaz tomonidan ochilmagan\" xabari chiqadi va tekshiruv yuborib bo'lmaydi. Eski natijalar saqlanib qoladi — yo'qolmaydi."}
+        </p>
+        <p className="mt-1.5 text-xs text-slate-400">
+          Bu bayroq AI kalitlaridan ALOHIDA: Gemini/Azure kalitlari kiritilgan bo'lsa ham, bayroq
+          yopiq turganda o'quvchi ilovasida bo'lim ishlamaydi.
+        </p>
+      </Card>
 
       <Card
         title="Standart kunlik limit"

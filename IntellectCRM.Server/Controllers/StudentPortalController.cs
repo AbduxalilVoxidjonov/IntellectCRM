@@ -942,7 +942,9 @@ public class StudentPortalController(
         var azureReady = AzureSpeechService.IsConfigured(AppSecrets.AzureSpeechKey, AppSecrets.AzureSpeechRegion);
         var (premium, blocked, limit, used) = await AiAccessAsync(s.Id, meta);
         var remaining = premium ? 999 : Math.Max(0, limit - used);
-        return new AiCheckStatusDto(geminiReady, azureReady, premium, blocked, limit, used, remaining);
+        // Enabled=false bo'lsa ilova bo'limni yopiq ko'rsatadi (tarixni o'qish baribir ishlaydi).
+        return new AiCheckStatusDto(geminiReady, azureReady, premium, blocked, limit, used, remaining,
+            meta?.AiCheckEnabled ?? false);
     }
 
     /// <summary>O'quvchi AI tekshiruv tarixi (eng yangi birinchi).</summary>
@@ -979,6 +981,7 @@ public class StudentPortalController(
         if (text.Length > 8000) text = text[..8000];
 
         var meta = await db.CenterMeta.FirstOrDefaultAsync();
+        if (GuardEnabled(meta) is { } offError) return offError;
         if (await GuardLimitAsync(s.Id, meta) is { } limitError) return limitError;
         if (!GeminiService.IsConfigured(AppSecrets.GeminiApiKey))
             return BadRequest(new { message = "AI tekshiruv hali sozlanmagan (admin Gemini kalitini kiritishi kerak)." });
@@ -1026,6 +1029,7 @@ public class StudentPortalController(
         var s = await MeAsync();
         if (s is null) return NotFound();
         var meta = await db.CenterMeta.FirstOrDefaultAsync();
+        if (GuardEnabled(meta) is { } offError) return offError;
         if (await GuardLimitAsync(s.Id, meta) is { } limitError) return limitError;
         var key = AppSecrets.AzureSpeechKey;
         var region = AppSecrets.AzureSpeechRegion ?? "";
@@ -1094,6 +1098,12 @@ public class StudentPortalController(
         var used = await db.AiChecks.CountAsync(a => a.StudentId == studentId && a.Date == today);
         return (access?.IsPremium ?? false, access?.IsBlocked ?? false, limit, used);
     }
+
+    /// <summary>Bo'lim markaz tomonidan ilovada ochilganmi (<c>CenterMeta.AiCheckEnabled</c>).
+    /// Yopiq bo'lsa YANGI tekshiruv bajarilmaydi (o'qish — status/tarix — ruxsat).
+    /// Xabar matni yagona joyda: <see cref="AiCheckController.DisabledMessage"/>.</summary>
+    private ActionResult? GuardEnabled(CenterMeta? meta) =>
+        (meta?.AiCheckEnabled ?? false) ? null : BadRequest(new { message = AiCheckController.DisabledMessage });
 
     /// <summary>Limit/blok tekshiruvi — buzilsa xato javobi, aks holda null (davom etadi).</summary>
     private async Task<ActionResult?> GuardLimitAsync(string studentId, CenterMeta? meta)

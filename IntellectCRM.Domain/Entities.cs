@@ -1276,6 +1276,12 @@ public class CenterMeta
     /// Per-o'quvchi <see cref="StudentAiAccess"/> override qiladi (premium = cheksiz). Default 3.</summary>
     public int AiCheckDailyLimit { get; set; } = 3;
 
+    /// <summary>O'quvchi ilovasidagi «AI tekshiruv» bo'limi ochilganmi. Default FALSE — ataylab:
+    /// markaz o'zi ochadi (admin: Ilova → AI check → «Ilovada ochish»). O'chiq bo'lsa o'quvchi
+    /// yangi tekshiruv YUBORA OLMAYDI (eski natijalarni o'qish qoladi).
+    /// DIQQAT: bu MAXFIY EMAS — `.env` emas, oddiy sozlama (BookSalesEnabled kabi).</summary>
+    public bool AiCheckEnabled { get; set; }
+
     /// <summary>O'qituvchi maoshi hisoblashda toifa bo'yicha BIR SOAT dars narxi (so'm).
     /// Oylik maosh = haftalik darslar soni × 4 × shu narx. Admin "Dars jadvali → Oylik hisoblash"da kiritadi.</summary>
     public decimal SalaryRateOliy { get; set; }

@@ -766,6 +766,9 @@ export interface AiCheckStatus {
   limit: number
   usedToday: number
   remaining: number
+  /** Markaz bo'limni ilovada OCHGANMI (admin: Ilova → AI check). Kalitlar tayyorligidan
+   *  MUSTAQIL: kalit bo'lsa ham, yopiq bo'lsa bo'lim ishlamaydi. */
+  enabled: boolean
 }
 /** Admin: foydalanuvchilar bo'yicha umumiy ko'rinish */
 export interface AiCheckOverviewRow {

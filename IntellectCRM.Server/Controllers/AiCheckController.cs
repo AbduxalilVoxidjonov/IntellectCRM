@@ -54,12 +54,18 @@ public class AiCheckController(AppDbContext db) : ControllerBase
         return rows.OrderByDescending(r => r.Total).ThenBy(r => r.FullName).ToList();
     }
 
-    /// <summary>Global standart kunlik limit.</summary>
+    /// <summary>Bo'lim ilovada yopiq bo'lganda o'quvchiga ko'rsatiladigan YAGONA xabar matni.
+    /// Boshqa joyda xom satr yozilmasin — shu konstantadan foydalaning.</summary>
+    public const string DisabledMessage = "AI tekshiruv bo'limi hali markaz tomonidan ochilmagan";
+
+    /// <summary>Global standart kunlik limit + bo'lim ilovada ochilganmi.</summary>
     [HttpGet("settings")]
     public async Task<ActionResult<AiCheckSettingsDto>> GetSettings()
     {
         var meta = await db.CenterMeta.FirstOrDefaultAsync();
-        return new AiCheckSettingsDto(meta?.AiCheckDailyLimit > 0 ? meta.AiCheckDailyLimit : 3);
+        return new AiCheckSettingsDto(
+            meta?.AiCheckDailyLimit > 0 ? meta.AiCheckDailyLimit : 3,
+            meta?.AiCheckEnabled ?? false);
     }
 
     [HttpPut("settings")]
@@ -68,6 +74,19 @@ public class AiCheckController(AppDbContext db) : ControllerBase
         var meta = await db.CenterMeta.FirstOrDefaultAsync();
         if (meta is null) { meta = new CenterMeta(); db.CenterMeta.Add(meta); }
         meta.AiCheckDailyLimit = Math.Clamp(req.DailyLimit, 0, 1000);
+        await db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    /// <summary>Bo'limni o'quvchi ilovasida OCHISH/YOPISH. ATAYLAB alohida endpoint —
+    /// `PUT settings` (kunlik limit) bayroqqa TEGMAYDI, aks holda eski klient limitni
+    /// saqlaganda bayroqni beixtiyor almashtirib yuborardi.</summary>
+    [HttpPut("enabled")]
+    public async Task<IActionResult> SetEnabled(SetAiCheckEnabledRequest req)
+    {
+        var meta = await db.CenterMeta.FirstOrDefaultAsync();
+        if (meta is null) { meta = new CenterMeta(); db.CenterMeta.Add(meta); }
+        meta.AiCheckEnabled = req.Enabled;
         await db.SaveChangesAsync();
         return NoContent();
     }

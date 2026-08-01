@@ -36,7 +36,11 @@ export interface FinanceTransactionPayload {
   studentId?: string
   /** Chiqim "salary" bo'lsa — qaysi o'qituvchiga (oylik maosh) */
   teacherId?: string
-  /** Kirim "tuition" (o'quvchi to'lovi) bo'lsa — qaysi oy uchun ("YYYY-MM") */
+  /**
+   * QAYSI OY UCHUN ("YYYY-MM") — `date` (pul harakat qilgan kun) bilan ARALASHTIRMANG.
+   * Kirim "tuition" (o'quvchi to'lovi) va chiqim "salary" (o'qituvchi maoshi) uchun to'ldiriladi;
+   * maosh aynan shu maydon bo'yicha oyga bog'lanadi (`SalaryLedger.BuildAsync`).
+   */
   month?: string
   /** To'lov usuli (kirim uchun): cash | card | bank */
   method?: string

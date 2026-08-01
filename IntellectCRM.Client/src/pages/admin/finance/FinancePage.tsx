@@ -57,6 +57,12 @@ import { usePerm } from '@/lib/permissions'
 const todayStr = new Date().toISOString().slice(0, 10)
 const yearOf = (d: string) => Number(d.slice(0, 4))
 
+/** "2026-02" → "2026-02-28" (oyning HAQIQIY oxirgi kuni — kabisa yili ham to'g'ri). */
+const monthEndDate = (month: string) => {
+  const [y, m] = month.split('-').map(Number)
+  return `${month}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`
+}
+
 const control =
   'rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-mono text-slate-700 outline-none focus:border-brand-400'
 
@@ -164,19 +170,45 @@ export function FinancePage() {
   const [refunds, setRefunds] = useState<Refund[]>([])
   /** "Kassirlar" tabi — davr bo'yicha kim qancha qabul qilgan. */
   const [cashiers, setCashiers] = useState<CashierSummary[]>([])
+  /** Davr ICHIDAGI bitta oy ("" = butun davr) — BARCHA bo'limlarga birdek ta'sir qiladi.
+   *  Tanlansa so'rovlar shu oy chegaralari bilan ketadi (`rangeFrom`/`rangeTo`). */
+  const [selMonth, setSelMonth] = useState('')
+
+  // AMALDAGI ORALIQ — oy tanlangan bo'lsa faqat o'sha oy, aks holda butun davr.
+  // Barcha bo'limlar (umumiy, guruhlar, o'qituvchilar, to'lovlar, vozvrat, kassirlar)
+  // SHU oraliqdan foydalanadi — oy tanlovi hamma joyda bir xil ishlasin.
+  //
+  // DIQQAT 1: tanlangan oy DAVR ichida bo'lishi shart. Sanalar o'zgartirilib, oy davrdan
+  // chiqib qolsa — tanlov bekor qilinadi (aks holda select bo'sh ko'rinib, panellar esa eski
+  // oy ma'lumotini ko'rsatib turardi).
+  // DIQQAT 2: oy chegaralari davr bilan QIRQILADI — "davr ichidagi oy" shartnomasi buzilmasin
+  // (masalan davr 15-martdan boshlansa, mart tanlansa 1-14 mart tortilib kelmasin).
+  const monthInPeriod = !selMonth || (selMonth >= from.slice(0, 7) && selMonth <= to.slice(0, 7))
+  const activeMonth = monthInPeriod ? selMonth : ''
+  const rangeFrom = activeMonth
+    ? (`${activeMonth}-01` < from ? from : `${activeMonth}-01`)
+    : from
+  const rangeTo = activeMonth
+    ? (monthEndDate(activeMonth) > to ? to : monthEndDate(activeMonth))
+    : to
+
+  // Davr o'zgarib oy undan chiqib qolsa — tanlovni tozalaymiz (select "Butun davr"ga qaytsin).
+  useEffect(() => {
+    if (selMonth && !monthInPeriod) setSelMonth('')
+  }, [selMonth, monthInPeriod])
 
   const load = useCallback(() => {
     setLoading(true)
     Promise.all([
-      getFinanceSummary(from, to),
-      getFinanceMonthly(yearOf(to)),
-      getTransactions({ from, to, direction: dirFilter === 'all' ? undefined : dirFilter }),
-      getSalaryReport(from, to),
-      getTransactions({ from, to, direction: 'income', category: 'tuition' }),
-      getCourseReport(from, to),
-      getRefunds(from, to),
-      getCashiers(from, to),
-      getPaymentAuthors(from, to),
+      getFinanceSummary(rangeFrom, rangeTo),
+      getFinanceMonthly(yearOf(rangeTo)),
+      getTransactions({ from: rangeFrom, to: rangeTo, direction: dirFilter === 'all' ? undefined : dirFilter }),
+      getSalaryReport(rangeFrom, rangeTo),
+      getTransactions({ from: rangeFrom, to: rangeTo, direction: 'income', category: 'tuition' }),
+      getCourseReport(rangeFrom, rangeTo),
+      getRefunds(rangeFrom, rangeTo),
+      getCashiers(rangeFrom, rangeTo),
+      getPaymentAuthors(rangeFrom, rangeTo),
     ])
       .then(([s, m, t, sr, pay, cr, rf, csh, authors]) => {
         setSummary(s)
@@ -190,7 +222,7 @@ export function FinancePage() {
         setPayAuthors(authors)
       })
       .finally(() => setLoading(false))
-  }, [from, to, dirFilter])
+  }, [rangeFrom, rangeTo, dirFilter])
 
   // eslint-disable-next-line react-hooks/set-state-in-effect -- filtr o'zgarganda ma'lumotni qayta yuklash (maqsadli, useAsync bilan bir xil naqsh)
   useEffect(() => load(), [load])
@@ -384,10 +416,29 @@ export function FinancePage() {
   // Tanlangan davrning kalendar oylari (har o'qituvchining hisoblangan oyi boshlanish oyiga
   // qarab farq qilishi mumkin — bu faqat davr uzunligini ko'rsatadi).
   const periodMonths = (() => {
-    const [fy, fm] = from.slice(0, 7).split('-').map(Number)
-    const [ty, tm] = to.slice(0, 7).split('-').map(Number)
+    const [fy, fm] = rangeFrom.slice(0, 7).split('-').map(Number)
+    const [ty, tm] = rangeTo.slice(0, 7).split('-').map(Number)
     return Math.max(1, (ty - fy) * 12 + (tm - fm) + 1)
   })()
+
+  // Tanlov ro'yxati DAVR (from..to) bo'yicha quriladi — oy tanlangach ro'yxat qisqarib
+  // qolmasligi uchun `periodMonths` (amaldagi oraliq) EMAS, davr uzunligi ishlatiladi.
+  const periodMonthList = (() => {
+    const out: string[] = []
+    const [fy, fm] = from.slice(0, 7).split('-').map(Number)
+    const [ty, tm] = to.slice(0, 7).split('-').map(Number)
+    const total = Math.max(1, (ty - fy) * 12 + (tm - fm) + 1)
+    let y = fy
+    let m = fm
+    for (let i = 0; i < total && i < 240; i++) {
+      out.push(`${y}-${String(m).padStart(2, '0')}`)
+      m += 1
+      if (m > 12) { m = 1; y += 1 }
+    }
+    return out
+  })()
+
+
 
   const teacherTotals = {
     expected: salaryReport.reduce((a, r) => a + r.expected, 0),
@@ -479,6 +530,23 @@ export function FinancePage() {
           <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className={control} />
           <span className="text-slate-400">—</span>
           <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className={control} />
+
+          {/* Davr ICHIDAGI bitta oy — barcha bo'limlarga birdek qo'llanadi (guruhlar,
+              o'qituvchilar, to'lovlar, kassirlar, vozvrat, umumiy). */}
+          <span className="ml-2 text-sm font-medium text-slate-600">Oy:</span>
+          <select
+            value={selMonth}
+            onChange={(e) => setSelMonth(e.target.value)}
+            title="Davr ichidagi bitta oyni tanlang"
+            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-brand-400"
+          >
+            <option value="">Butun davr ({periodMonthList.length} oy)</option>
+            {periodMonthList.map((m) => (
+              <option key={m} value={m}>
+                {formatMonth(m)}
+              </option>
+            ))}
+          </select>
         </div>
       )}
 
@@ -494,7 +562,7 @@ export function FinancePage() {
           {tab === 'overview' && (
             <div className="space-y-6">
               {/* Kunlik hisobot — oy kalendar qatori, kun bosilsa shu kunlik kirim/chiqim */}
-              <DailyReportCard initialMonth={to.slice(0, 7)} />
+              <DailyReportCard key={rangeTo.slice(0, 7)} initialMonth={rangeTo.slice(0, 7)} />
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 <StatCard
@@ -533,7 +601,7 @@ export function FinancePage() {
               <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
                 <Card
                   className="xl:col-span-2"
-                  title={`Oylik kirim/chiqim (${yearOf(to)})`}
+                  title={`Oylik kirim/chiqim (${yearOf(rangeTo)})`}
                 >
                   <FinanceMonthlyChart data={monthly} />
                 </Card>
@@ -715,6 +783,7 @@ export function FinancePage() {
           {tab === 'groups' && courseReport && (
             <GroupsReport
               report={courseReport}
+              month={activeMonth}
               onExport={handleExportGroups}
               onSelect={(g) => setPaymentsTarget({ kind: 'group', id: g.groupId, name: g.groupName })}
               onSelectTeacher={(t) => setPaymentsTarget({ kind: 'teacher', id: t.id, name: t.name })}
@@ -1160,7 +1229,7 @@ export function FinancePage() {
                             onClick={() =>
                               navigate(
                                 `/admin/finance/cashiers/${encodeURIComponent(c.key)}` +
-                                  `?name=${encodeURIComponent(c.cashierName)}&from=${from}&to=${to}`,
+                                  `?name=${encodeURIComponent(c.cashierName)}&from=${rangeFrom}&to=${rangeTo}`,
                               )
                             }
                             className="cursor-pointer"
@@ -1293,15 +1362,15 @@ export function FinancePage() {
 
       <TeacherSalaryDetailModal
         teacher={detailTeacher}
-        from={from}
-        to={to}
+        from={rangeFrom}
+        to={rangeTo}
         onClose={() => setDetailTeacher(null)}
       />
 
       <GroupPaymentsModal
         target={paymentsTarget}
-        from={from}
-        to={to}
+        from={rangeFrom}
+        to={rangeTo}
         onClose={() => setPaymentsTarget(null)}
       />
 
@@ -1355,11 +1424,14 @@ function pctBar(p: number): string {
  *  va "Barchasini ko'rish" bilan uning barcha o'quvchilari bitta ro'yxatda ochiladi. */
 function GroupsReport({
   report,
+  month,
   onExport,
   onSelect,
   onSelectTeacher,
 }: {
   report: CourseFinanceReport
+  /** Sahifada tanlangan oy ("" = butun davr) — faqat sarlavha/izoh matni uchun. */
+  month: string
   onExport: () => void
   onSelect: (g: GroupFinanceRow) => void
   onSelectTeacher: (t: { id: string; name: string }) => void
@@ -1376,17 +1448,19 @@ function GroupsReport({
   const billed = groups.reduce((a, g) => a + g.billed, 0)
   const pct = billed > 0 ? Math.round((collected / billed) * 1000) / 10 : 0
   const scope = teacherId ? teacherName : 'Markaz bo\'yicha'
+  // Kartochka sarlavha/izohlarida "davr" o'rniga tanlangan oy nomi ko'rsatiladi.
+  const rangeLabel = month ? formatMonth(month) : 'davr'
 
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
-          label="Jami yig'ilgan (davr)"
+          label={`Jami yig'ilgan (${rangeLabel})`}
           value={formatMoney(collected)}
           icon={Wallet}
           iconBg="bg-emerald-50"
           iconColor="text-emerald-600"
-          hint={`${scope} — davr oylari uchun to'langan (avans o'z oyida hisoblanadi)`}
+          hint={`${scope} — ${month ? 'shu oy' : 'davr oylari'} uchun to'langan (avans o'z oyida hisoblanadi)`}
         />
         <StatCard
           label="Naqd jami"
@@ -1400,7 +1474,7 @@ function GroupsReport({
           label="Jami hisoblangan"
           value={formatMoney(billed)}
           icon={Calculator}
-          hint={`${scope} — davr uchun hisoblangan oyliklar`}
+          hint={`${scope} — ${rangeLabel} uchun hisoblangan oyliklar`}
         />
         <StatCard
           label="Yig'ilish foizi"

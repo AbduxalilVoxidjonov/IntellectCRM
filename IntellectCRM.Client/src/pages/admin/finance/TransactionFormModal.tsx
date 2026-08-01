@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import type {
   FinanceDirection,
@@ -28,6 +28,10 @@ interface Props {
 
 const today = () => new Date().toISOString().slice(0, 10)
 
+/** Shu yo'nalish+toifa "oylik maosh chiqimi"mi? */
+const isSalaryCat = (direction: FinanceDirection, category: string) =>
+  direction === 'expense' && category === 'salary'
+
 const emptyFor = (direction: FinanceDirection): FinanceTransactionPayload => ({
   date: today(),
   direction,
@@ -48,11 +52,16 @@ export function TransactionFormModal({ open, onClose, onSubmit, initial }: Props
   // Tuition to'lovi: avval o'qituvchi, keyin uning guruhi (kaskad)
   const [tuitionTeacherId, setTuitionTeacherId] = useState('')
   const [ledgerMonths, setLedgerMonths] = useState<MonthLedger[]>([])
+  // Maosh izohi avtomatik to'ldiriladi — foydalanuvchi qo'lda yozganini bosib ketmaslik uchun
+  // oxirgi avto izohni eslab turamiz.
+  const autoNoteRef = useRef('')
 
-  const isSalaryExpense = form.direction === 'expense' && form.category === 'salary'
+  const isSalaryExpense = isSalaryCat(form.direction, form.category)
   const isTuitionIncome = form.direction === 'income' && form.category === 'tuition'
   const showTuition = isTuitionIncome && !initial
-  const month = form.date?.slice(0, 7)
+  // "Qaysi oy uchun" — maoshda foydalanuvchi TANLAYDI (pul berilgan sanadan mustaqil).
+  // Tanlanmagan bo'lsa — zaxira sifatida sana oyi ishlatiladi (eski xatti-harakat).
+  const month = form.month || form.date?.slice(0, 7)
 
   const studentsInClass = useMemo(
     () => (classId ? students.filter((s) => s.className === classId && !s.isArchived) : []),
@@ -106,6 +115,13 @@ export function TransactionFormModal({ open, onClose, onSubmit, initial }: Props
             note: initial.note ?? '',
             studentId: initial.studentId,
             teacherId: initial.teacherId,
+            // Tahrirda "qaysi oy uchun" saqlanib qolsin (ilgari yo'qolib ketardi).
+            // Eski maosh yozuvlarida month bo'sh — orqaga moslik uchun sanadan olinadi.
+            month:
+              initial.month ??
+              (isSalaryCat(initial.direction, initial.category)
+                ? initial.date?.slice(0, 7)
+                : undefined),
             method: initial.method,
           }
         : emptyFor('income'),
@@ -122,6 +138,7 @@ export function TransactionFormModal({ open, onClose, onSubmit, initial }: Props
     setTuitionTeacherId('')
     setClassId('')
     setLedgerMonths([])
+    autoNoteRef.current = ''
   }, [open])
 
   // Oylik maosh + o'qituvchi tanlanganda: shu oy uchun belgilangan/berilgan/qoldiq
@@ -138,11 +155,14 @@ export function TransactionFormModal({ open, onClose, onSubmit, initial }: Props
       // Yangi amalda qoldiqni avtomatik summaga qo'yamiz
       if (!initial && m) {
         const teacherName = teachers.find((t) => t.id === form.teacherId)?.fullName ?? ''
+        const autoNote = `Oylik maosh — ${teacherName} (${formatMonth(month)})`
         setForm((f) => ({
           ...f,
           amount: Math.max(0, m.remaining),
-          note: f.note?.trim() ? f.note : `Oylik maosh — ${teacherName} (${formatMonth(month)})`,
+          // Izoh bo'sh yoki oldingi AVTO izoh bo'lsa — tanlangan oyga qarab yangilanadi
+          note: !f.note?.trim() || f.note === autoNoteRef.current ? autoNote : f.note,
         }))
+        autoNoteRef.current = autoNote
       }
     })
     return () => {
@@ -158,31 +178,43 @@ export function TransactionFormModal({ open, onClose, onSubmit, initial }: Props
 
   // Yo'nalish o'zgarsa, toifani shu yo'nalishning birinchi qiymatiga moslaymiz
   const changeDirection = (direction: FinanceDirection) => {
-    setForm((f) => ({
-      ...f,
-      direction,
-      category: categoriesByDirection[direction][0].value,
-      studentId: undefined,
-      month: undefined,
-      teacherId: undefined,
-      method: direction === 'income' ? (f.method ?? 'cash') : undefined,
-    }))
+    setForm((f) => {
+      const category = categoriesByDirection[direction][0].value
+      return {
+        ...f,
+        direction,
+        category,
+        studentId: undefined,
+        // "Qaysi oy uchun": maosh chiqimida bo'sh qolmasin (standart — sana oyi)
+        month: isSalaryCat(direction, category) ? f.date?.slice(0, 7) : undefined,
+        teacherId: undefined,
+        method: direction === 'income' ? (f.method ?? 'cash') : undefined,
+      }
+    })
     setTuitionTeacherId('')
     setClassId('')
     setLedgerMonths([])
+    autoNoteRef.current = ''
   }
 
   const changeCategory = (category: string) => {
     setForm((f) => ({
       ...f,
       category,
-      ...(category !== 'tuition' ? { studentId: undefined, month: undefined } : {}),
+      ...(category !== 'tuition'
+        ? {
+            studentId: undefined,
+            // Maoshga o'tilsa — oy standart (sana oyi) bilan to'ldiriladi, aks holda tozalanadi
+            month: isSalaryCat(f.direction, category) ? f.month || f.date?.slice(0, 7) : undefined,
+          }
+        : {}),
     }))
     if (category !== 'tuition') {
       setTuitionTeacherId('')
       setClassId('')
       setLedgerMonths([])
     }
+    autoNoteRef.current = ''
   }
 
   const handleSubmit = (e: FormEvent) => {
@@ -193,10 +225,13 @@ export function TransactionFormModal({ open, onClose, onSubmit, initial }: Props
     onSubmit({
       ...form,
       note: form.note?.trim() || undefined,
-      // teacherId faqat oylik maosh chiqimida; studentId/month faqat o'quvchi to'lovida saqlanadi
+      // teacherId faqat oylik maosh chiqimida; studentId faqat o'quvchi to'lovida saqlanadi
       teacherId: isSalaryExpense ? form.teacherId : undefined,
       studentId: isTuitionIncome ? form.studentId : undefined,
-      month: isTuitionIncome ? form.month : undefined,
+      // month = "QAYSI OY UCHUN" (sana emas!): o'quvchi to'lovida ham, maoshda ham saqlanadi —
+      // maosh shu maydon bo'yicha oyga bog'lanadi (SalaryLedger.BuildAsync)
+      // (maoshda bo'sh qolsa sana oyi zaxira; o'quvchi to'lovi mantig'i o'zgarmagan)
+      month: isSalaryExpense ? month : isTuitionIncome ? form.month : undefined,
       method: form.direction === 'income' ? (form.method || 'cash') : undefined,
     })
   }
@@ -261,6 +296,20 @@ export function TransactionFormModal({ open, onClose, onSubmit, initial }: Props
                 </option>
               ))}
             </Select>
+
+            {/* QAYSI OY UCHUN — pul berilgan sanadan MUSTAQIL (iyul maoshi avgustda berilishi mumkin) */}
+            <div>
+              <Input
+                label="Qaysi oy uchun"
+                type="month"
+                value={form.month ?? ''}
+                onChange={(e) => update('month', e.target.value || undefined)}
+              />
+              <p className="mt-1 text-xs text-slate-400">
+                Maosh qaysi oyga tegishli. Pastdagi <b>Sana</b> — pul berilgan kun; masalan iyul
+                maoshini 5-avgustda berish mumkin.
+              </p>
+            </div>
 
             {form.teacherId && monthInfo && (
               <div className="grid grid-cols-3 gap-2 text-center text-sm">
@@ -381,13 +430,18 @@ export function TransactionFormModal({ open, onClose, onSubmit, initial }: Props
             value={form.amount}
             onChange={(e) => update('amount', Number(e.target.value))}
           />
-          <Input
-            label="Sana"
-            type="date"
-            required
-            value={form.date}
-            onChange={(e) => update('date', e.target.value)}
-          />
+          <div>
+            <Input
+              label={isSalaryExpense ? 'Sana (berilgan kun)' : 'Sana'}
+              type="date"
+              required
+              value={form.date}
+              onChange={(e) => update('date', e.target.value)}
+            />
+            {isSalaryExpense && (
+              <p className="mt-1 text-xs text-slate-400">Pul haqiqatda berilgan kun.</p>
+            )}
+          </div>
         </div>
         {form.direction === 'income' && (
           <div>

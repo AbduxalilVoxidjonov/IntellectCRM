@@ -125,6 +125,11 @@ export function TeacherDetailPage() {
   const [dedOpen, setDedOpen] = useState(false)
   const [payOpen, setPayOpen] = useState(false)
   const [payAmount, setPayAmount] = useState(0)
+  // "Qaysi oy uchun" — standart tanlangan oy, lekin formada O'ZGARTIRISH mumkin
+  // (masalan, iyul maoshi 5-avgustda berilsa: oy = iyul, sana = 5-avgust).
+  const [payMonth, setPayMonth] = useState(currentMonthKey)
+  const [payInfo, setPayInfo] = useState<MonthSalary | null>(null)
+  const [payInfoLoading, setPayInfoLoading] = useState(false)
   const [payDate, setPayDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [payNote, setPayNote] = useState('')
   const [payBusy, setPayBusy] = useState(false)
@@ -145,6 +150,12 @@ export function TeacherDetailPage() {
     return arr
   }, [currentMonthKey])
 
+  // Tanlangan oy oxirgi 12 oydan tashqarida bo'lsa (eski oyga maosh berilganda) — ro'yxatga qo'shamiz
+  const monthChoices = useMemo(
+    () => (monthOptions.includes(selMonth) ? monthOptions : [selMonth, ...monthOptions]),
+    [monthOptions, selMonth],
+  )
+
   const loadSelMonth = (month: string) => {
     if (!id) return
     setSelMonthLoading(true)
@@ -155,18 +166,42 @@ export function TeacherDetailPage() {
       .finally(() => setSelMonthLoading(false))
   }
 
+  /** Maosh izohi — tanlangan OY bo'yicha (berilgan sana emas). */
+  const salaryNoteFor = (month: string) =>
+    teacher ? `Oylik maosh — ${teacher.fullName} (${formatMonth(month)})` : ''
+
   const openPayForm = () => {
+    setPayMonth(selMonth)
+    setPayInfo(selMonthData)
     setPayAmount(Math.max(0, selMonthData?.remaining ?? 0))
     setPayDate(new Date().toISOString().slice(0, 10))
-    setPayNote(
-      teacher ? `Oylik maosh — ${teacher.fullName} (${formatMonth(selMonth)})` : '',
-    )
+    setPayNote(salaryNoteFor(selMonth))
     setPayError(null)
     setPayOpen(true)
   }
 
+  /** Formada oy o'zgarganda — o'sha oyning qoldig'i va izohi ham yangilanadi. */
+  const changePayMonth = (month: string) => {
+    setPayMonth(month)
+    setPayNote(salaryNoteFor(month))
+    if (!id || !month) return
+    setPayInfoLoading(true)
+    getSalaryMonth(id, month)
+      .then((m) => {
+        setPayInfo(m)
+        setPayAmount(Math.max(0, m?.remaining ?? 0))
+      })
+      .catch(() => {
+        // Summani ham nolga tushiramiz: aks holda oy almashtirilib so'rov muvaffaqiyatsiz
+        // bo'lsa, forma OLDINGI oyning qoldig'ini YANGI oyga yozib yuborardi.
+        setPayInfo(null)
+        setPayAmount(0)
+      })
+      .finally(() => setPayInfoLoading(false))
+  }
+
   const submitPay = async () => {
-    if (!id) return
+    if (!id || !payMonth) return
     setPayBusy(true)
     setPayError(null)
     try {
@@ -176,10 +211,13 @@ export function TeacherDetailPage() {
         category: 'salary',
         amount: payAmount,
         teacherId: id,
-        month: selMonth,
+        // QAYSI OY UCHUN — formada tanlangan oy (sanadan mustaqil)
+        month: payMonth,
         note: payNote.trim() || undefined,
       })
-      const m = await getSalaryMonth(id, selMonth)
+      // Natija ko'rinsin: yuqoridagi panel to'lov qilingan OYga o'tadi
+      const m = await getSalaryMonth(id, payMonth)
+      setSelMonth(payMonth)
       setSelMonthData(m)
       reloadSalary()
       setPayOpen(false)
@@ -789,7 +827,7 @@ export function TeacherDetailPage() {
                   onChange={(e) => setSelMonth(e.target.value)}
                   className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm focus:border-brand-400 focus:outline-none"
                 >
-                  {monthOptions.map((m) => (
+                  {monthChoices.map((m) => (
                     <option key={m} value={m}>
                       {formatMonth(m)}
                     </option>
@@ -923,9 +961,29 @@ export function TeacherDetailPage() {
             {payOpen && (
               <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
                 <p className="mb-3 text-sm font-semibold text-slate-700">
-                  {formatMonth(selMonth)} uchun maosh berish
+                  {payMonth ? `${formatMonth(payMonth)} uchun maosh berish` : 'Maosh berish'}
                 </p>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <label className="block">
+                    <span className="text-xs text-slate-500">Qaysi oy uchun</span>
+                    <input
+                      type="month"
+                      value={payMonth}
+                      onChange={(e) => changePayMonth(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm focus:border-brand-400 focus:outline-none"
+                    />
+                    <span className="mt-1 block text-[11px] text-slate-400">
+                      {payInfoLoading
+                        ? 'Yuklanmoqda...'
+                        : payInfo
+                          ? `Qoldiq: ${
+                              payInfo.remaining < 0
+                                ? `+${formatMoney(-payInfo.remaining)}`
+                                : formatMoney(payInfo.remaining)
+                            }`
+                          : "Bu oy uchun ma'lumot yo'q"}
+                    </span>
+                  </label>
                   <label className="block">
                     <span className="text-xs text-slate-500">Summa (so'm)</span>
                     <input
@@ -938,24 +996,27 @@ export function TeacherDetailPage() {
                     />
                   </label>
                   <label className="block">
-                    <span className="text-xs text-slate-500">Sana</span>
+                    <span className="text-xs text-slate-500">Sana (berilgan kun)</span>
                     <input
                       type="date"
                       value={payDate}
                       onChange={(e) => setPayDate(e.target.value)}
                       className="mt-1 w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm focus:border-brand-400 focus:outline-none"
                     />
-                  </label>
-                  <label className="block sm:col-span-1">
-                    <span className="text-xs text-slate-500">Izoh</span>
-                    <input
-                      type="text"
-                      value={payNote}
-                      onChange={(e) => setPayNote(e.target.value)}
-                      className="mt-1 w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm focus:border-brand-400 focus:outline-none"
-                    />
+                    <span className="mt-1 block text-[11px] text-slate-400">
+                      Pul haqiqatda berilgan kun
+                    </span>
                   </label>
                 </div>
+                <label className="mt-3 block">
+                  <span className="text-xs text-slate-500">Izoh</span>
+                  <input
+                    type="text"
+                    value={payNote}
+                    onChange={(e) => setPayNote(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm focus:border-brand-400 focus:outline-none"
+                  />
+                </label>
                 {payError && (
                   <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
                     {payError}
@@ -973,10 +1034,10 @@ export function TeacherDetailPage() {
                   <button
                     type="button"
                     onClick={submitPay}
-                    disabled={payBusy || payAmount <= 0}
+                    disabled={payBusy || payAmount <= 0 || !payMonth}
                     className={cn(
                       'rounded-lg px-4 py-2 text-sm font-semibold text-white transition-colors',
-                      payBusy || payAmount <= 0
+                      payBusy || payAmount <= 0 || !payMonth
                         ? 'cursor-not-allowed bg-slate-300'
                         : 'bg-brand-600 hover:bg-brand-700',
                     )}

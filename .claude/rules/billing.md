@@ -16,6 +16,18 @@ paths:
 
 # Moliya / billing qoidalari
 
+- **MAOSH QAYSI OYGA TEGISHLI — `FinanceTransaction.Month`, to'lov SANASI EMAS.** Iyul maoshi
+  5-avgustda berilishi mumkin: `Date` = pul berilgan kun, `Month` ("yyyy-MM") = qaysi oy uchun.
+  `SalaryLedger.BuildAsync` to'lovlarni `Month` bo'yicha guruhlaydi; `Month` bo'sh/buzuq bo'lsa
+  (eski yozuvlar) — orqaga moslik uchun `Date`dan olinadi (`PayMonth` yordamchisi). **So'rov
+  sana oralig'i bilan filtrlanMAYDI** — aks holda kech berilgan to'lov (masalan iyul maoshi
+  sentyabrda) oraliqdan tushib qolib, umuman ko'rinmasdi; filtr oy bo'yicha keyin qo'llanadi.
+  UI: Moliya → "Yangi amal" (maosh chiqimi) va o'qituvchi profili → Maosh → "To'lov qilish" —
+  ikkalasida ham **"Qaysi oy uchun"** va **"Sana (berilgan kun)"** ALOHIDA maydonlar.
+  ⚠️ Ilgari Moliya formasi maoshda `Month`ni umuman saqlamasdi (`month: isTuitionIncome ? ... : undefined`)
+  va backend sanadan olardi — oylar aralashib ketardi. Eski (Month'siz) yozuvlar avvalgidek
+  sana bo'yicha hisoblanaveradi, o'z-o'zidan tuzalmaydi — kerak bo'lsa qo'lda tahrirlanadi.
+
 - **Maosh QO'LDA, 2 rejim** (`Teacher.SalaryMode`): **"fixed"** — admin `Teacher.Salary` qat'iy summasini
   kiritadi; **"percent"** — o'qituvchi guruh(lar)idan SHU OYDA haqiqatan yig'ilgan tuition to'lovining
   `Teacher.SalaryPercent` foizi (yig'ilgan sayin o'sib boradi). Hisob:
