@@ -168,6 +168,15 @@ paths:
   taqsimlanadi — `SalaryLedger`/`CourseFinanceReport` bilan bir xil konvensiya (per-guruh balanslar
   yig'indisi umumiy balansga teng chiqadi). DIQQAT: markaz bo'yicha qarzdorlik (Dashboard, qarzdorlarga
   SMS, o'quvchi profili/portali) ATAYIN umumiy `Student.Balance`da qoladi.
+  **UCHINCHI RANG — 2+ OYLIK QARZ (fuchsia):** `GroupBalanceService.DetailedForGroupAsync` balans bilan
+  birga **qarzdor OYLAR sonini** (`GroupBalanceInfo.DebtMonths`) qaytaradi — o'sha bir so'rovdagi
+  hisob/to'lov OYMA-OY yig'iladi (teglanmagan yozuvlar o'sha `MonthlyFee` nisbatida taqsimlanadi) va
+  `StudentGroupLedger`dagi qoida takrorlanadi: `hisoblangan(oy) − o'sha oyga to'langan > 0` → oy qarz
+  (har oy MUSTAQIL — keyingi oyga to'langan avans o'tgan oy qarzini yopmaydi). `ForGroupAsync` — shu
+  metodning o'rami, balans raqami o'zgarmagan. Jurnalda (admin ham, o'qituvchi ham — bitta
+  `GroupJournalStudentDto.DebtMonths`) 2+ oy qarz **qizildan USTUN** va binafsha-pushti ko'rsatiladi;
+  frontend ranglari yagona joyda — `lib/utils.ts` `balanceTextCls/balanceDotCls/balanceTitle`,
+  chegara `HEAVY_DEBT_MONTHS`.
 
 - **GURUH ALMASHTIRISHDA AVANS YANGI GURUHGA KO'CHADI** (`TuitionService.CarryGroupAdvanceAsync`):
   o'quvchi oy boshida ESKI guruhga to'lab, so'ng boshqa guruhga o'tkazilsa — muzlatish qisman hisobi eski

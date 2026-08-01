@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { CalendarCheck, CalendarClock, CalendarRange, Info, ShieldCheck, Wallet } from 'lucide-react'
+import { CalendarCheck, CalendarClock, CalendarRange, EyeOff, Info, ShieldCheck, Wallet } from 'lucide-react'
 import { getJournalPolicy, saveJournalPolicy, type JournalPolicy } from '@/api/services/journal'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
@@ -10,6 +10,8 @@ import { cn } from '@/lib/utils'
  * "Jurnal boshqaruvi" — barcha guruhlar jurnali uchun tahrirlash siyosati (Guruhlar sahifasidan
  * ochiladi). Rejim: erkin / faqat bugungi kun / oxirgi N kun; qo'shimcha: faqat "o'tildi" darsga
  * baho, cheklovni adminlarga ham qo'llash. Kelajak sanalar HAR DOIM taqiqlangan (server tomonda).
+ * Alohida "To'lov nazorati" bo'limi — to'lamagan o'quvchini FAQAT o'qituvchi jurnalidan yashiradi
+ * (muzlatish emas: hisob davom etadi, to'lovdan keyin qaytadi, admin hammani ko'radi).
  */
 export function JournalPolicyModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [policy, setPolicy] = useState<JournalPolicy | null>(null)
@@ -140,6 +142,73 @@ export function JournalPolicyModal({ open, onClose }: { open: boolean; onClose: 
               checked={policy.applyToAdmins}
               onChange={(v) => set({ applyToAdmins: v })}
             />
+          </div>
+
+          {/* ---- To'lov nazorati (o'qituvchi jurnalida yashirish) ---- */}
+          <div>
+            <h3 className="mb-2 text-sm font-semibold text-slate-700">To'lov nazorati</h3>
+            <p className="mb-3 text-xs text-slate-500">
+              To'lov qilmagan o'quvchi <b>o'qituvchi jurnalida</b> ko'rinmasin — o'qituvchi unga
+              davomat/baho qo'ya olmaydi.
+            </p>
+
+            <div className="space-y-2">
+              <ToggleRow
+                icon={EyeOff}
+                title="O'tgan oy(lar) uchun to'lamaganlar ko'rinmasin"
+                desc="Oldingi oylardan qarzi bo'lgan o'quvchi o'qituvchi jurnalidan olib turiladi. Qarz yopilishi bilan qator o'z-o'zidan qaytadi."
+                checked={policy.hideUnpaidPrevMonth}
+                onChange={(v) => set({ hideUnpaidPrevMonth: v })}
+              />
+
+              <ToggleRow
+                icon={CalendarClock}
+                title="Joriy oy uchun belgilangan sanadan keyin to'lamaganlar ko'rinmasin"
+                desc="Oyning belgilangan kunigacha shu oy uchun to'lov tushmasa, o'quvchi o'qituvchi jurnalidan olib turiladi."
+                checked={policy.hideUnpaidAfterDay}
+                onChange={(v) => set({ hideUnpaidAfterDay: v })}
+              />
+            </div>
+
+            {policy.hideUnpaidAfterDay && (
+              <div className="mt-3 flex flex-wrap items-center gap-3 rounded-lg bg-slate-50 px-3 py-2.5">
+                <span className="text-sm text-slate-600">To'lov muddati — oyning</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={28}
+                  value={policy.unpaidCutoffDay}
+                  onChange={(e) =>
+                    set({ unpaidCutoffDay: Math.max(1, Math.min(28, Number(e.target.value) || 1)) })
+                  }
+                  className="w-20 rounded-lg border border-slate-200 px-2.5 py-1.5 text-center text-sm font-semibold outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
+                />
+                <span className="text-sm text-slate-600">-kuni</span>
+                <span className="ml-auto text-xs text-slate-400">
+                  Eng katta qiymat — 28 (fevralda ham mavjud bo'lishi uchun)
+                </span>
+              </div>
+            )}
+
+            {(policy.hideUnpaidPrevMonth || policy.hideUnpaidAfterDay) && (
+              <div className="mt-2 flex items-start gap-2.5 rounded-lg bg-amber-50 px-3 py-2.5 text-xs text-amber-800">
+                <Info className="mt-0.5 h-4 w-4 shrink-0" />
+                <div>
+                  <p>
+                    Bu <b>muzlatish EMAS</b>: a'zolik saqlanadi, oylik to'lov odatdagidek hisoblanib
+                    boraveradi va qarz o'sadi. O'quvchi faqat <b>o'qituvchi jurnalida</b> ko'rinmaydi.
+                  </p>
+                  <p className="mt-1">
+                    To'lov qilinishi bilan qator o'z-o'zidan <b>qaytadi</b> — hech qanday qo'shimcha
+                    amal kerak emas.
+                  </p>
+                  <p className="mt-1">
+                    <b>Admin jurnalida hamma ko'rinaveradi</b> — bunday o'quvchi ismi yonida
+                    "O'qituvchida ko'rinmaydi" belgisi turadi.
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* ---- Maoshni jurnalga bog'lash ---- */}

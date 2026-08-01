@@ -470,6 +470,10 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
                 JoinedAt = enrollment,
                 IsActive = memberStatus != "frozen", // frozen — IsActive = false
                 Status = memberStatus,
+                // RecordedAt — HAQIQIY bugungi sana (enrollment ORQAGA sanalgan bo'lishi mumkin).
+                // Jurnalda undan OLDINGI, allaqachon davomati olingan darslar avto-"keldi" ✓
+                // bo'lib to'lib qolmasin (ClassesController.AddMember bilan bir xil qoida).
+                RecordedAt = AppClock.Today.ToString("yyyy-MM-dd"),
             });
         }
 
@@ -643,6 +647,9 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
                     : AppClock.Today.ToString("yyyy-MM-dd"),
                 IsActive = true,
                 Status = "trial",
+                // Jurnaldagi avto-"keldi" qoidasi shu sanadan boshlanadi (JoinedAt orqaga
+                // sanalgan bo'lishi mumkin — eski darslar bo'sh qolishi kerak).
+                RecordedAt = AppClock.Today.ToString("yyyy-MM-dd"),
             });
             hasMembership = true; // billing blokini o'tkazib yuborish uchun
         }

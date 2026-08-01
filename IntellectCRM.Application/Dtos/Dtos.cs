@@ -500,6 +500,29 @@ public record StudentGroupTestDto(
     string TestId, string GroupId, string GroupName, string Name, string Date,
     decimal MaxScore, decimal? Score, int Rank, int Total);
 
+/* ---------- ONLAYN TEST — o'quvchi ilovasi (bot oqimi bilan bir xil mantiq) ---------- */
+/// <summary>O'quvchi ko'radigan onlayn test qatori.
+/// <paramref name="State"/>: <c>upcoming</c> (hali boshlanmagan) | <c>open</c> (hozir ishlash mumkin) |
+/// <c>closed</c> (vaqti tugagan, topshirmagan) | <c>submitted</c> (topshirilgan).
+/// <paramref name="PdfUrl"/> — savollar fayli ("/uploads/..."), statik tarqatiladi.</summary>
+public record StudentOnlineTestDto(
+    string Id, string GroupId, string GroupName, string Name, string Date,
+    int QuestionCount, int OptionCount, string StartAt, string EndAt,
+    string PdfUrl, string PdfName, string State,
+    decimal? Score, string Answers, string SubmittedAt);
+
+/// <summary>Onlayn test tafsiloti — qator ma'lumoti + o'rin va (vaqt tugagach) javob kaliti.
+/// <paramref name="AnswerKey"/> test vaqti TUGAGUNCHA bo'sh keladi (kalit tarqalib ketmasin).</summary>
+public record StudentOnlineTestDetailDto(
+    string Id, string GroupId, string GroupName, string Name, string Date,
+    int QuestionCount, int OptionCount, string StartAt, string EndAt,
+    string PdfUrl, string PdfName, string State,
+    decimal? Score, string Answers, string SubmittedAt,
+    string AnswerKey, int Rank, int Participants);
+
+/// <summary>Javoblarni yuborish so'rovi — "ABCDA…" (javobsiz savol uchun '-' yoki bo'sh).</summary>
+public record OnlineTestSubmitRequest(string Answers);
+
 /* ---------- Leads (CRM) ---------- */
 /// <summary>Lid (bo'lajak o'quvchi) yaratish so'rovi.
 /// TELEFON VALIDATSIYA (PhoneUtil.Normalize orqali standartlashtirilib saqlanadi):
@@ -661,9 +684,16 @@ public record GroupJournalInfoDto(
 /// <summary><c>Balance</c>: SHU GURUH bo'yicha balans (manfiy = qarz) — o'quvchining umumiy balansi EMAS.
 /// <see cref="IntellectCRM.Application.Services.GroupBalanceService"/> hisoblaydi: bir nechta guruhda o'qiydigan
 /// o'quvchi to'lagan guruhida "qarzi yo'q", to'lamaganida qarzdor ko'rinadi (har o'qituvchi o'z guruhini ko'radi).</summary>
+/// <summary><c>DebtMonths</c>: SHU GURUH bo'yicha to'liq yopilmagan OYLAR soni (0 = qarz yo'q).
+/// 2 va undan ortiq bo'lsa jurnalda o'quvchi ALOHIDA rangda (binafsha-pushti) ko'rsatiladi — oddiy
+/// qizil (1 oylik qarz) dan og'irroq holat. Hisob: <see cref="IntellectCRM.Application.Services.GroupBalanceService"/>.</summary>
+/// <summary><c>PaymentHidden</c>: to'lov "darvozasi" (<see cref="JournalPolicyDto"/>) bo'yicha bu o'quvchi
+/// O'QITUVCHI jurnalida KO'RINMASLIGI kerak (<c>PaymentHiddenReason</c>: "prevMonth" | "cutoff").
+/// ADMIN jurnalida qator baribir qaytariladi — admin hammani ko'radi, bu faqat bayroq.</summary>
 public record GroupJournalStudentDto(
     string StudentId, string FullName, string Status, string ActivatedAt, decimal Balance, string MemberStart,
-    string PresentDefaultFrom, string FrozenAt);
+    string PresentDefaultFrom, string FrozenAt, int DebtMonths = 0,
+    bool PaymentHidden = false, string PaymentHiddenReason = "");
 /// <summary>Guruhning bitta oylik jurnali: ustunlar guruh dars kunlari bo'yicha avtomatik, qatorlar — faol o'quvchilar.
 /// <see cref="ConductedDates"/> — "o'tildi" deb belgilangan dars sanalari (sababsiz o'quvchi shu kunda KELDI = yashil).</summary>
 public record GroupJournalDto(
@@ -686,9 +716,13 @@ public record SetLessonNoteRequest(
 /// <summary>Jurnal tahrirlash siyosati (admin "Guruhlar → Jurnal boshqaruvi"). EditMode:
 /// "free" (istalgan o'tgan sana) | "today" (faqat bugun) | "window" (oxirgi RetroDays kun).
 /// ConductedOnly — baho/davomat faqat "o'tildi" darsga. ApplyToAdmins — admin jurnaliga ham qo'llash.</summary>
+/// <summary><c>HideUnpaidPrevMonth</c> — O'TGAN oydan qarzi bor o'quvchi o'qituvchi jurnalida ko'rinmaydi.
+/// <c>HideUnpaidAfterDay</c> + <c>UnpaidCutoffDay</c> (1-28) — JORIY oy qarzi shu kundan boshlab yashiradi.
+/// Ikkalasi ham MUZLATISH EMAS: hisob-kitob davom etadi, to'lov kelishi bilan qator o'zi qaytadi.</summary>
 public record JournalPolicyDto(
     string EditMode, int RetroDays, bool ConductedOnly, bool ApplyToAdmins,
-    bool SalaryRequireJournal = false, int SalaryGraceDays = 0);
+    bool SalaryRequireJournal = false, int SalaryGraceDays = 0,
+    bool HideUnpaidPrevMonth = false, bool HideUnpaidAfterDay = false, int UnpaidCutoffDay = 10);
 
 /* ---------- Settings ---------- */
 public record LessonTimeDto(int Period, string StartTime, string EndTime);
@@ -1290,6 +1324,25 @@ public record StudentDashboardDto(
     StudentProfileDto Profile, PortalMetaDto Meta,
     List<StudentLessonDto> TodayLessons, List<HomeworkItemDto> TodayGrades,
     int PendingAssignmentsCount, decimal Balance, decimal MonthlyFee);
+
+/// <summary>
+/// O'quvchining guruhi (ilova uchun) — FAOL ham, tugagan/chiqilgan ham qaytadi, hech biri
+/// jimgina yo'qolmaydi (`GET /api/student/groups`).
+///
+/// <para><paramref name="State"/> — ilova ko'rsatadigan YAGONA holat, server hisoblaydi:
+/// <c>active</c> (faol) · <c>trial</c> (sinov) · <c>frozen</c> (muzlatilgan) ·
+/// <c>finished</c> (chiqilgan/yakunlangan yoki guruh yopilgan). Qoidani ikki tilda
+/// takrorlamaslik uchun ATAYIN shu yerda hisoblanadi.</para>
+///
+/// <para><paramref name="Days"/>: 0=Dushanba … 6=Yakshanba.
+/// <paramref name="Status"/> — a'zolikning xom holati (trial|active|frozen|completed),
+/// <paramref name="GroupArchived"/> — guruhning o'zi yopilgan/arxivlangan.</para>
+/// </summary>
+public record StudentGroupItemDto(
+    string GroupId, string Name, string CourseName, string TeacherName,
+    List<int> Days, string StartTime, string EndTime, string Room,
+    string State, string Status, bool IsActive, bool GroupArchived,
+    string JoinedAt, string LeftAt);
 
 /// <summary>O'quvchi/foydalanuvchi shaxsiy sozlamasi (til, tema, bildirishnoma).</summary>
 public record UserSettingsDto(string Language, string Theme, bool NotificationsEnabled);
@@ -2479,6 +2532,23 @@ public record BookOrderDto(
 
 /// <summary>Buyurtmani rad etish sababi.</summary>
 public record BookRejectPayload(string Reason);
+
+/// <summary>
+/// KARTA TO'LOVLARI — kartaga o'tkazma bilan to'langan kitob buyurtmalari (chek rasmi bilan).
+/// <paramref name="CardNumber"/>/<paramref name="CardHolder"/> — bo'lim bog'langan karta
+/// (<c>CenterMeta.BookCardNumber/BookCardHolder</c>), ya'ni pul shu kartaga tushadi.
+/// Jami summalar TO'LIQ topilma bo'yicha hisoblanadi (<paramref name="Orders"/> ro'yxati
+/// ko'rsatish uchun cheklangan bo'lishi mumkin).
+/// </summary>
+public record BookCardPaymentsDto(
+    string CardNumber,
+    string CardHolder,
+    // Tasdiqlangan — kartaga haqiqatda tushgan deb hisoblangan pul.
+    int CountApproved, decimal TotalApproved,
+    // Kutilmoqda — chek kelgan, lekin admin hali tasdiqlamagan.
+    int CountPending, decimal TotalPending,
+    int CountRejected,
+    List<BookOrderDto> Orders);
 
 /// <summary>Kunlik sotuv nuqtasi (grafik uchun).</summary>
 public record BookDaySalesDto(string Date, int Qty, decimal Cash, decimal Card, decimal Total);

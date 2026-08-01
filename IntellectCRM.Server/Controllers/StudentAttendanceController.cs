@@ -147,6 +147,17 @@ public class StudentAttendanceController(AppDbContext db) : ControllerBase
         var memberEnd = membership?.Status == "frozen" && membership.FrozenAt is { Length: >= 10 } ? membership.FrozenAt[..10]
             : !string.Equals(membership?.Status, "frozen", StringComparison.Ordinal) && membership?.LeftAt is { Length: >= 10 } ? membership.LeftAt[..10]
             : null;
+        // A'zolik HAQIQATDA tizimga kiritilgan sana (RecordedAt — ORQAGA SANALMAYDI).
+        // JoinedAt/ActivatedAt orqaga sanalgan bo'lishi mumkin: o'quvchi bugun qo'shilib, o'tgan
+        // oydan aktivlashtirilsa — o'sha eski darslarda o'qituvchi "hammasi keldi" bosgan paytda bu
+        // o'quvchi hali GURUHDA YO'Q edi (JournalService.BulkAttendanceAsync uni chetlab o'tgan),
+        // shu sabab unda yozuv yo'q. Standart "davomat olindi + yozuv yo'q = keldi" qoidasi
+        // FAQAT shu sanadan keyin qo'llanadi, aks holda bo'sh qolishi kerak kataklar avto-✓ bo'lardi.
+        // Guruh jurnali (JournalService → PresentDefaultFrom) bilan AYNAN bir xil qoida.
+        // Bo'sh = cheklovsiz (eski a'zoliklar).
+        var presentDefaultFrom = membership?.RecordedAt is { Length: >= 10 }
+            ? membership.RecordedAt[..10]
+            : null;
 
         var entries = string.IsNullOrEmpty(subjectId)
             ? new List<JournalEntry>()
@@ -181,6 +192,12 @@ public class StudentAttendanceController(AppDbContext db) : ControllerBase
         var moves = (await db.LessonReschedules.Where(r => r.ClassId == gid).ToListAsync())
             .Select(m => new JournalService.LessonMove(m.FromDate, m.ToDate)).ToList();
         var cells = new List<StudentJournalCellDto>();
+        // A'zolik tizimga kiritilishidan OLDINGI (orqaga sanalgan) va bu o'quvchida yozuvi
+        // BO'LMAGAN darslar — holati NOMA'LUM: o'qituvchi ularni qo'lda belgilamaguncha ular
+        // na "keldi", na "kelmadi". Shuning uchun jamlanmada (jami/keldi/qoldirdi) ham
+        // sanalmaydi — aks holda orqaga sanab qo'shilgan o'quvchining davomat foizi asossiz
+        // tushib ketardi. O'qituvchi belgilagach (yozuv paydo bo'ladi) darhol hisobga kiradi.
+        var unknown = new HashSet<string>();
         foreach (var date in JournalService.EffectiveLessonDatesInMonth(group.Days, resolved, moves))
         {
             var blocked = (group.StartDate is { Length: >= 10 } && string.CompareOrdinal(date, group.StartDate[..10]) < 0)
@@ -191,8 +208,18 @@ public class StudentAttendanceController(AppDbContext db) : ControllerBase
             var isConducted = conducted.Contains(date);
             var isAttendanceTaken = attendanceTaken.Contains(date);
             // ANIQ Present belgisi (katakdagi "Keldi" tugmasi / "hammasi keldi") davomat olinmagan
-            // kunda ham "keldi" hisoblanadi.
-            var present = !blocked && e?.Grade is null && reason is null && (isAttendanceTaken || e?.Present == true);
+            // kunda ham "keldi" hisoblanadi. STANDART "keldi" (davomat olingan, lekin bu o'quvchida
+            // yozuv yo'q) esa faqat a'zolik tizimga kiritilgan sanadan (presentDefaultFrom) keyin.
+            var defaultPresent = isAttendanceTaken
+                && (presentDefaultFrom is null || string.CompareOrdinal(date, presentDefaultFrom) >= 0);
+            var present = !blocked && e?.Grade is null && reason is null
+                && (e?.Present == true || defaultPresent);
+            if (!blocked && isConducted && e is null
+                && presentDefaultFrom is not null
+                && string.CompareOrdinal(date, presentDefaultFrom) < 0)
+            {
+                unknown.Add(date);
+            }
 
             cells.Add(new StudentJournalCellDto(
                 date, isConducted, blocked, present,
@@ -200,7 +227,7 @@ public class StudentAttendanceController(AppDbContext db) : ControllerBase
                 e?.Homework ?? 0, e?.Behavior ?? 0, e?.Mastery));
         }
 
-        var live = cells.Where(c => !c.Blocked && c.Conducted).ToList();
+        var live = cells.Where(c => !c.Blocked && c.Conducted && !unknown.Contains(c.Date)).ToList();
         var absent = live.Count(c => c.ReasonName is not null && !c.IsLate);
         var late = live.Count(c => c.ReasonName is not null && c.IsLate);
         // "Keldi" — faqat rassmiy tasdiqlangan (present) yoki baho olingan kunlar; davomat olinmagan

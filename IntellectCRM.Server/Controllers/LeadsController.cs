@@ -289,6 +289,9 @@ public class LeadsController(AppDbContext db, AuditService audit, TelegramServic
                 db.StudentGroups.Add(new StudentGroup
                 {
                     StudentId = student.Id, GroupId = group.Id, JoinedAt = enrollment, IsActive = true,
+                    // Jurnaldagi avto-"keldi" qoidasi shu sanadan (enrollment orqaga sanalgan
+                    // bo'lishi mumkin — undan oldingi darslar bo'sh qolishi kerak).
+                    RecordedAt = AppClock.Today.ToString("yyyy-MM-dd"),
                 });
             }
         }

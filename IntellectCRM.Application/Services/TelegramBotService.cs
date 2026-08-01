@@ -462,6 +462,8 @@ public class TelegramBotService(
                 await bookShop.ChooseCardAsync(db, chatId, ct);
             else if (data == BookShopBotService.CbConfirm)
                 await bookShop.ConfirmCashAsync(db, chatId, ct);
+            else if (data == BookShopBotService.CbSendReceipt)
+                await bookShop.PromptReceiptAsync(db, chatId, ct);
             else if (data == BookShopBotService.CbCancel)
                 await bookShop.CancelAsync(db, chatId, ct);
             else if (data == BookShopBotService.CbList)

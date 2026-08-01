@@ -15,7 +15,7 @@ import {
 } from '@/api/services/teacher'
 import type { GroupJournal } from '@/api/services/journal'
 import type { GroupCurriculum } from '@/api/services/curriculum'
-import { cn, formatDate, formatMoney, apiErrorMessage, gradeBadgeCls } from '@/lib/utils'
+import { cn, formatDate, apiErrorMessage, gradeBadgeCls, balanceTextCls, balanceDotCls, balanceTitle, HEAVY_DEBT_MONTHS } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
 import { GradingSection } from '@/components/grading/GradingSection'
 import type { GradingBoard } from "@/api/services/grading"
@@ -198,7 +198,7 @@ export function TeacherGroupDetailPage() {
       }
       const present = total - absences
       const percent = total > 0 ? Math.round((present / total) * 100) : 0
-      return { studentId: st.studentId, fullName: st.fullName, balance: st.balance, total, present, absences, percent }
+      return { studentId: st.studentId, fullName: st.fullName, balance: st.balance, debtMonths: st.debtMonths, total, present, absences, percent }
     })
   }, [journalStudents, journal, entryMap, lateReasonIds])
 
@@ -485,6 +485,20 @@ export function TeacherGroupDetailPage() {
                   {monthLabel(journal?.month ?? "")} oyida bu guruh kunlariga dars to'g'ri kelmadi.
                 </p>
               ) : (
+                <>
+                {/* Rang izohi — o'quvchi ismining rangi SHU GURUH balansiga qarab beriladi.
+                    Ranglar `balanceDotCls` bilan bir manbadan olinadi (izoh va jadval bir-biriga mos tursin). */}
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-line-soft px-4 py-2 text-[11px] text-faint">
+                  <span className="inline-flex items-center gap-1">
+                    <span className={cn('h-2 w-2 rounded-full', balanceDotCls(0))} /> To'lagan
+                  </span>
+                  <span className="inline-flex items-center gap-1">
+                    <span className={cn('h-2 w-2 rounded-full', balanceDotCls(-1))} /> Qarzdor
+                  </span>
+                  <span className="inline-flex items-center gap-1">
+                    <span className={cn('h-2 w-2 rounded-full', balanceDotCls(-1, HEAVY_DEBT_MONTHS))} /> 2+ oylik qarz
+                  </span>
+                </div>
                 <div className="overflow-x-auto">
                   <table className="min-w-full border-collapse text-sm">
                     <thead>
@@ -541,14 +555,15 @@ export function TeacherGroupDetailPage() {
                           <td className="sticky left-0 z-10 border-b border-r-2 border-line bg-inherit px-3 py-2">
                             {/* FISH to'liq ko'rinishi shart (telefonda o'qish uchun) — kesilmaydi,
                                 bir necha qatorga o'raladi; kenglik sticky ustun barqarorligi uchun qat'iy.
-                                Rang: qarzdor (balance<0) qizil, to'lagan yashil — admin ro'yxati bilan bir xil.
-                                MUHIM: balance — SHU GURUH bo'yicha (boshqa guruhdagi qarz bu yerni qizil qilmaydi). */}
+                                Rang: 2+ oylik qarz binafsha-pushti (eng og'ir, qizildan USTUN), qarzdor
+                                (balance<0) qizil, to'lagan yashil — admin ro'yxati bilan bir xil.
+                                MUHIM: balance/debtMonths — SHU GURUH bo'yicha (boshqa guruhdagi qarz bu yerni qizil qilmaydi). */}
                             <span
                               className={cn(
                                 'block w-32 whitespace-normal break-words text-sm font-medium leading-snug',
-                                st.balance < 0 ? 'text-red-600' : 'text-emerald-700',
+                                balanceTextCls(st.balance, st.debtMonths),
                               )}
-                              title={st.balance < 0 ? `Qarz (shu guruh): ${formatMoney(st.balance)}` : "Shu guruh uchun to'langan"}
+                              title={balanceTitle(st.balance, st.debtMonths)}
                             >
                               {st.fullName}
                             </span>
@@ -631,6 +646,7 @@ export function TeacherGroupDetailPage() {
                     </tbody>
                   </table>
                 </div>
+                </>
               )}
             </Card>
           )}
@@ -672,9 +688,9 @@ export function TeacherGroupDetailPage() {
                           <td
                             className={cn(
                               'px-4 py-3 text-sm font-medium',
-                              r.balance < 0 ? 'text-red-600' : 'text-emerald-700',
+                              balanceTextCls(r.balance, r.debtMonths),
                             )}
-                            title={r.balance < 0 ? `Qarz (shu guruh): ${formatMoney(r.balance)}` : "Shu guruh uchun to'langan"}
+                            title={balanceTitle(r.balance, r.debtMonths)}
                           >
                             {r.fullName}
                           </td>

@@ -64,8 +64,14 @@ Admin: Rad etish         →  Stock TEGILMAYDI, mijozga sabab yuboriladi
    → kq:{n} / kqm             — soni tanlandi yoki qo'lda yoziladi (max 50)
    → kpc  ChooseCashAsync     — Step="confirm" → kconf ConfirmCashAsync
    → kpk  ChooseCardAsync     — karta rekvizitlari, Step="receipt" → rasm/PDF kutiladi
+   → krcp PromptReceiptAsync  — «🧾 Chekni yuborish»: chekni qanday yuborish yo'riqnomasi
    → kcan CancelAsync         — sessiya o'chiriladi
 ```
+
+- **«🧾 Chekni yuborish» tugmasi** (`CbSendReceipt`) sessiya bosqichini O'ZGARTIRMAYDI — karta
+  tanlangan zahoti `Step="receipt"` va chek allaqachon qabul qilinadi. Tugma faqat yo'riqnoma
+  (mijoz uzun matnni o'qimay, nima qilishni bilmay qolmasin). Shu sabab tugmani bosmasdan
+  yuborilgan chek ham ishlaydi — **bu ataylab**, aks holda rasm jimgina yo'qolardi.
 
 - **Majburiy obuna** kitob buyurtmasiga ham tegishli (`RequireSubscriptionAsync`) — katalog ochishda
   va eski xabardagi `kb:` tugmasi bosilganda ikkalasida ham tekshiriladi.
@@ -101,6 +107,7 @@ Sozlamalar `CenterMeta`da (maxfiy EMAS — mijozga baribir ko'rsatiladi, `.env` 
 | `POST /{id}/stock` | Qoldiq kirim/korreksiya (`qty` ±, `note`) |
 | `GET /stock-moves` | Ombor tarixi; `onlyIn=true` → faqat kirim (Qty>0) |
 | `GET /orders`, `GET /orders/pending-count` | Buyurtmalar + nav belgisi uchun sanoq |
+| `GET /card-payments` | KARTA to'lovlari + jamlanma (tasdiqlangan/kutilayotgan summa) va karta rekvizitlari |
 | `POST /orders/{id}/approve`, `/reject` | `BookSalesService` orqali; muvaffaqiyatda mijozga xabar |
 | `GET /analytics` | Tushum (naqd/karta), sotilgan soni, qoldiq, kunlik va kitob kesimi |
 | `GET /orders/export`, `/stock-moves/export`, `/analytics/export` | .xlsx (analitika — 3 varaq) |
@@ -109,8 +116,14 @@ Sozlamalar `CenterMeta`da (maxfiy EMAS — mijozga baribir ko'rsatiladi, `.env` 
 
 ## 6. Frontend — `/admin/books` (nav: O'quv bo'limi → Kitoblar sotuvi)
 
-`pages/admin/books/BookSalesPage.tsx` — 4 tab: **Buyurtmalar** (default) · **Ombor** · **Analitika** ·
-**Sozlamalar**. Yozish amallari `can('books','edit')` bilan darvozalangan. API qatlami
+`pages/admin/books/BookSalesPage.tsx` — 5 tab: **Buyurtmalar** (default) · **Karta to'lovlari** ·
+**Ombor** · **Analitika** · **Sozlamalar**.
+"Karta to'lovlari" (`BookCardPaymentsTab`) — kartaga o'tkazma qilganlar: chek rasmi jadvalda
+kichik ko'rinishda turadi (bosilsa kattalashadi), tepada bo'lim bog'langan karta rekvizitlari va
+shu kartaga hisoblangan jami summa. **Jamlanma SERVERDA butun topilma bo'yicha hisoblanadi** —
+`GET /orders` 1000 ta bilan cheklangani uchun ro'yxatdan qo'shib chiqarish noto'g'ri bo'lardi.
+
+Yozish amallari `can('books','edit')` bilan darvozalangan. API qatlami
 `api/services/books.ts`, yorliqlar `bookLabels.ts` (status/to'lov/sabab matnlari — komponentda xom
 satr yozilmasin).
 

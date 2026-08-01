@@ -45,16 +45,27 @@ public static class JournalService
             .ToDictionary(s => s.Id);
         // Balans — SHU GURUH bo'yicha (umumiy Student.Balance emas): o'quvchi bir nechta guruhda o'qib
         // faqat bittasiga to'lasa, to'lagan guruhida "qarzi yo'q", to'lamaganida qarzdor ko'rinadi.
-        var balanceByStudent = await GroupBalanceService.ForGroupAsync(db, classId, ids);
+        // Balans bilan birga QARZDOR OYLAR soni ham keladi (2+ oy → jurnalda alohida rang).
+        var balanceByStudent = await GroupBalanceService.DetailedForGroupAsync(db, classId, ids);
+        // TO'LOV "DARVOZASI": to'lamagan o'quvchi O'QITUVCHI jurnalida ko'rinmasin (muzlatish EMAS —
+        // hisob-kitob davom etadi). Bu yerda faqat BAYROQ qo'yiladi: admin jurnali hammani ko'radi,
+        // o'qituvchi controlleri esa (TeacherPortalController) bayroqli qatorlarni javobdan olib tashlaydi.
+        // DIQQAT: darvoza BUGUNGI holatga qarab ishlaydi (ko'rilayotgan `resolved` oyga emas).
+        var policy = await JournalPolicy.GetAsync(db);
+        var curMonthNow = TuitionService.CurrentMonth();
+        var dayNow = AppClock.Today.Day;
         var students = memberships
             .Where(m => studentById.ContainsKey(m.StudentId))
             .Select(m =>
             {
                 var st = studentById[m.StudentId];
+                var bal = balanceByStudent.GetValueOrDefault(m.StudentId);
+                var (payHidden, payReason) = JournalPolicy.PaymentGate(policy, bal, curMonthNow, dayNow);
                 return new GroupJournalStudentDto(
                     m.StudentId, st.FullName, m.Status ?? "trial", m.ActivatedAt ?? "",
-                    balanceByStudent.GetValueOrDefault(m.StudentId, 0m),
-                    MemberStart(m) ?? "", m.RecordedAt ?? "", m.FrozenAt ?? "");
+                    bal.Balance,
+                    MemberStart(m) ?? "", m.RecordedAt ?? "", m.FrozenAt ?? "", bal.DebtMonths,
+                    payHidden, payReason);
             })
             .OrderBy(s => s.FullName, StringComparer.OrdinalIgnoreCase)
             .ToList();

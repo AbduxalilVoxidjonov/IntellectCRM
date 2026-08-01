@@ -209,6 +209,70 @@ public class BooksController(AppDbContext db, TelegramService telegram, IWebHost
         return await ToOrderDtosAsync(orders);
     }
 
+    /// <summary>
+    /// KARTA TO'LOVLARI — kartaga o'tkazma bilan to'langan buyurtmalar (mijoz botdan yuborgan
+    /// chek rasmi bilan) va shu karta bo'yicha jamlanma.
+    ///
+    /// <para>Jami summalar <b>butun topilma</b> bo'yicha SQL tomonda hisoblanadi — qaytariladigan
+    /// ro'yxat ko'rsatish uchun cheklangan (<see cref="FilteredOrdersAsync"/> 1000 ta), shu sabab
+    /// ro'yxatdan qo'shib chiqarilsa jami noto'g'ri bo'lardi.</para>
+    ///
+    /// <para>Pul MOLIYAGA (FinanceTransaction) YOZILMAYDI — kitob sotuvi ataylab o'quv to'lovi
+    /// hisobotlaridan ajratilgan (.claude/rules/books.md §7). "Kartaga hisoblangan" = tasdiqlangan
+    /// karta buyurtmalari yig'indisi.</para>
+    /// </summary>
+    [HttpGet("card-payments")]
+    public async Task<ActionResult<BookCardPaymentsDto>> CardPayments(
+        [FromQuery] string? status, [FromQuery] string? from, [FromQuery] string? to,
+        [FromQuery] string? bookId, [FromQuery] string? q)
+    {
+        // Jamlanma — holat filtridan QAT'I NAZAR (foydalanuvchi "kutilmoqda"ni ko'rayotganda ham
+        // kartaga jami qancha tushgani ko'rinib tursin).
+        var summaryQuery = CardOrdersQuery(from, to, bookId, q);
+        var totals = await summaryQuery
+            .GroupBy(o => o.Status)
+            .Select(g => new { Status = g.Key, Count = g.Count(), Sum = g.Sum(x => x.Total) })
+            .ToListAsync();
+        var byStatus = totals.ToDictionary(x => x.Status);
+        (int Count, decimal Sum) Of(string s) =>
+            byStatus.TryGetValue(s, out var v) ? (v.Count, v.Sum) : (0, 0m);
+
+        var approved = Of(BookSalesService.StatusApproved);
+        var pending = Of(BookSalesService.StatusPending);
+        var rejected = Of(BookSalesService.StatusRejected);
+
+        var orders = await FilteredOrdersAsync(status, from, to, bookId, BookSalesService.PayCard, q);
+        var meta = await db.CenterMeta.AsNoTracking().FirstOrDefaultAsync();
+
+        return new BookCardPaymentsDto(
+            meta?.BookCardNumber ?? "", meta?.BookCardHolder ?? "",
+            approved.Count, approved.Sum,
+            pending.Count, pending.Sum,
+            rejected.Count,
+            await ToOrderDtosAsync(orders));
+    }
+
+    /// <summary>Karta to'lovlari jamlanmasi uchun so'rov (holat filtrisiz).</summary>
+    private IQueryable<BookOrder> CardOrdersQuery(string? from, string? to, string? bookId, string? q)
+    {
+        var query = db.BookOrders.AsNoTracking()
+            .Where(o => o.PaymentMethod == BookSalesService.PayCard);
+        if (!string.IsNullOrWhiteSpace(bookId)) query = query.Where(o => o.BookId == bookId);
+        var (fromDt, toDt) = DateRange(from, to);
+        if (fromDt is not null) query = query.Where(o => o.CreatedAt >= fromDt);
+        if (toDt is not null) query = query.Where(o => o.CreatedAt < toDt);
+        if (!string.IsNullOrWhiteSpace(q))
+        {
+            var term = q.Trim();
+            var digits = PhoneUtil.DigitsOnly(term);
+            query = digits.Length >= 4
+                ? query.Where(o => o.Phone.Contains(digits) || o.CustomerName.Contains(term))
+                : query.Where(o => o.CustomerName.Contains(term) || o.BookTitle.Contains(term)
+                                   || o.Number.ToString().Contains(term));
+        }
+        return query;
+    }
+
     private async Task<List<BookOrder>> FilteredOrdersAsync(
         string? status, string? from, string? to, string? bookId, string? method, string? q)
     {

@@ -289,6 +289,10 @@ public class TeacherPortalController(
         var deny = await JournalPolicy.CheckAsync(db, req.ClassId, req.SubjectId, req.Date, req.Period,
             isAdmin: false, skipConducted: true);
         if (deny is not null) return BadRequest(new { message = deny });
+        // To'lov "darvozasi": o'qituvchi ko'rmayotgan (yashirilgan) o'quvchiga yozib bo'lmaydi.
+        var hidden = await JournalPolicy.PaymentHiddenStudentsAsync(db, req.ClassId, new[] { req.StudentId });
+        if (hidden.Contains(req.StudentId))
+            return BadRequest(new { message = JournalPolicy.PaymentHiddenMessage });
         var newAbsence = await JournalService.SetEntryAsync(db, req, fcm, autoMsg);
         if (newAbsence)
             await DispatchAbsencesAsync(req.ClassId, req.Date, req.ReasonId, new[] { req.StudentId });
@@ -305,6 +309,10 @@ public class TeacherPortalController(
         var deny = await JournalPolicy.CheckAsync(db, classId, subjectId, date, period,
             isAdmin: false, skipConducted: true);
         if (deny is not null) return BadRequest(new { message = deny });
+        // To'lov "darvozasi": yashirilgan o'quvchining yozuvini o'qituvchi tozalay ham olmaydi.
+        var hidden = await JournalPolicy.PaymentHiddenStudentsAsync(db, classId, new[] { studentId });
+        if (hidden.Contains(studentId))
+            return BadRequest(new { message = JournalPolicy.PaymentHiddenMessage });
         await JournalService.ClearEntryAsync(db, classId, subjectId, quarter, studentId, date, period);
         return NoContent();
     }
@@ -453,7 +461,18 @@ public class TeacherPortalController(
         if (g is null) return NotFound(new { message = "Guruh topilmadi" });
         if (!owns) return Forbid();
         var result = await JournalService.GroupMonthAsync(db, classId, month);
-        return result is null ? NotFound(new { message = "Guruh topilmadi" }) : result;
+        if (result is null) return NotFound(new { message = "Guruh topilmadi" });
+        // TO'LOV "DARVOZASI": to'lov qilmagan o'quvchi o'qituvchi jurnalida UMUMAN ko'rinmasin —
+        // qatori ham, uning yozuvlari (baho/davomat) ham javobdan olib tashlanadi. Admin jurnali
+        // (JournalController) tegilmaydi — u hammani ko'radi. To'lov kelishi bilan qator o'zi qaytadi.
+        var hiddenIds = result.Students.Where(s => s.PaymentHidden).Select(s => s.StudentId).ToHashSet();
+        if (hiddenIds.Count > 0)
+            result = result with
+            {
+                Students = result.Students.Where(s => !hiddenIds.Contains(s.StudentId)).ToList(),
+                Entries = result.Entries.Where(e => !hiddenIds.Contains(e.StudentId)).ToList(),
+            };
+        return result;
     }
 
     /// <summary>Bitta dars (sana) uchun BARCHA o'quvchiga birdan davomat (admin bilan bir xil), faqat o'z guruhi uchun.</summary>
@@ -469,6 +488,15 @@ public class TeacherPortalController(
         var deny = await JournalPolicy.CheckAsync(db, req.ClassId, req.SubjectId, req.Date, req.Period,
             isAdmin: false, skipConducted: true);
         if (deny is not null) return BadRequest(new { message = deny });
+        // To'lov "darvozasi": yashirilgan o'quvchilar CHETLAB O'TILADI (butun amal rad etilmaydi —
+        // qolganlarga davomat odatdagidek yoziladi). O'qituvchi ularni ro'yxatda ko'rmaydi ham.
+        var hidden = await JournalPolicy.PaymentHiddenStudentsAsync(db, req.ClassId, req.StudentIds);
+        if (hidden.Count > 0)
+        {
+            var allowed = req.StudentIds.Where(id => !hidden.Contains(id)).ToList();
+            if (allowed.Count == 0) return NoContent();
+            req = req with { StudentIds = allowed };
+        }
         var absentReasonId = await JournalService.BulkAttendanceAsync(db, req);
         if (absentReasonId is not null)
             await DispatchAbsencesAsync(req.ClassId, req.Date, absentReasonId, req.StudentIds);

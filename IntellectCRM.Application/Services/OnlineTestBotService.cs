@@ -123,7 +123,7 @@ public class OnlineTestBotService(TelegramService telegram, IHostEnvironment env
         // Allaqachon topshirganmi?
         var existing = await db.TestScores
             .FirstOrDefaultAsync(s => s.TestResultId == testId && s.StudentId == studentId, ct);
-        if (existing is not null && existing.Source == "bot")
+        if (existing is not null && OnlineTestService.IsStudentSubmission(existing.Source))
         {
             await telegram.SendMessageAsync(chatId,
                 BuildResultText(test, existing.Answers, (int)existing.Score, studentName, existing.SubmittedAt,
@@ -455,7 +455,7 @@ public class OnlineTestBotService(TelegramService telegram, IHostEnvironment env
         // Qayta topshirishning oldini olamiz (parallel urinish / ikki marta bosish).
         var existing = await db.TestScores
             .FirstOrDefaultAsync(s => s.TestResultId == test.Id && s.StudentId == studentId, ct);
-        if (existing is not null && existing.Source == "bot")
+        if (existing is not null && OnlineTestService.IsStudentSubmission(existing.Source))
         {
             db.TestBotSessions.Remove(session);
             await db.SaveChangesAsync(ct);

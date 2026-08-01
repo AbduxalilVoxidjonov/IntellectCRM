@@ -131,6 +131,25 @@ export interface BookOrderFilters {
   q?: string
 }
 
+/**
+ * Karta to'lovlari bo'limi — kartaga o'tkazma bilan to'langan buyurtmalar + jamlanma.
+ * Jami summalar SERVERDA butun topilma bo'yicha hisoblanadi (`orders` ro'yxati ko'rsatish
+ * uchun cheklangan bo'lishi mumkin, undan qo'shib chiqarish NOTO'G'RI bo'lardi).
+ */
+export interface BookCardPayments {
+  /** Bo'lim bog'langan karta (Sozlamalar tabidan) — pul shu kartaga tushadi */
+  cardNumber: string
+  cardHolder: string
+  /** Tasdiqlangan — kartaga hisoblangan pul */
+  countApproved: number
+  totalApproved: number
+  /** Chek kelgan, admin hali tasdiqlamagan */
+  countPending: number
+  totalPending: number
+  countRejected: number
+  orders: BookOrder[]
+}
+
 /** Bo'sh qiymatlarni tashlab, faqat to'ldirilgan filtrlarni yuboradi. */
 function clean(params: object): Record<string, unknown> {
   return Object.fromEntries(
@@ -189,6 +208,17 @@ export async function getBookStockMoves(params: {
 
 export async function getBookOrders(filters: BookOrderFilters = {}): Promise<BookOrder[]> {
   const { data } = await api.get<BookOrder[]>('/admin/books/orders', { params: clean(filters) })
+  return data
+}
+
+/** Karta to'lovlari (chek rasmi bilan) + shu karta bo'yicha jamlanma. `method` yubormaymiz —
+ *  server har doim faqat karta buyurtmalarini qaytaradi. */
+export async function getBookCardPayments(
+  filters: Omit<BookOrderFilters, 'method'> = {},
+): Promise<BookCardPayments> {
+  const { data } = await api.get<BookCardPayments>('/admin/books/card-payments', {
+    params: clean(filters),
+  })
   return data
 }
 

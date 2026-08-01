@@ -123,6 +123,36 @@ export function formatMoney(n: number): string {
   return `${new Intl.NumberFormat('ru-RU').format(n)} so'm`
 }
 
+/* ─────────── PER-GURUH BALANS RANGI (jurnal, davomat, guruh ro'yxatlari) ───────────
+ * Rang shkalasi (og'irlik bo'yicha, YUQORIDAGISI USTUN):
+ *   1) 2+ OYLIK QARZ  → binafsha-pushti (fuchsia) — eng og'ir holat, qizildan USTUN;
+ *   2) qarzdor (balance < 0) → qizil;
+ *   3) to'lagan → yashil.
+ * `debtMonths` — SHU GURUH bo'yicha to'liq yopilmagan oylar soni (server: GroupBalanceService).
+ * Eski chaqiruvlar (debtMonths berilmagan) avvalgidek qizil/yashil bo'lib qolaveradi. */
+
+/** Nechta oylik qarzdan boshlab "og'ir qarzdor" (binafsha-pushti) hisoblanadi. */
+export const HEAVY_DEBT_MONTHS = 2
+
+/** Ism/matn rangi: 2+ oylik qarz → fuchsia, qarzdor → qizil, aks holda yashil. */
+export function balanceTextCls(balance: number, debtMonths = 0): string {
+  if (debtMonths >= HEAVY_DEBT_MONTHS) return 'text-fuchsia-600'
+  return balance < 0 ? 'text-red-600' : 'text-emerald-700'
+}
+
+/** Yonidagi nuqta (yoki fon) rangi — matn rangi bilan bir xil shkala. */
+export function balanceDotCls(balance: number, debtMonths = 0): string {
+  if (debtMonths >= HEAVY_DEBT_MONTHS) return 'bg-fuchsia-500'
+  return balance < 0 ? 'bg-red-500' : 'bg-emerald-500'
+}
+
+/** Tooltip matni: 2+ oylik qarzda necha oyligi ham yoziladi ("3 oylik qarz (shu guruh): …"). */
+export function balanceTitle(balance: number, debtMonths = 0): string {
+  if (debtMonths >= HEAVY_DEBT_MONTHS)
+    return `${debtMonths} oylik qarz (shu guruh): ${formatMoney(balance)}`
+  return balance < 0 ? `Qarz (shu guruh): ${formatMoney(balance)}` : "Shu guruh uchun to'langan"
+}
+
 /**
  * 1-5 ball uchun BUTUN TIZIMDA yagona rang shkalasi — faqat YASHIL (emerald), 1 uchun eng OCH,
  * 5 uchun eng TO'Q. Avval har bir sahifa o'zicha qizil/sariq/ko'k/yashil ("svetofor") mustaqil

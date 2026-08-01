@@ -40,6 +40,11 @@ export interface GroupJournalInfo {
   startDate: string
   monthlyFee: number
 }
+/** O'quvchi o'qituvchi jurnalida NEGA ko'rinmayotgani (to'lov nazorati sozlamasi bo'yicha).
+ *  '' = yashirilmagan; 'prevMonth' = o'tgan oy(lar) uchun to'lov yo'q;
+ *  'cutoff' = joriy oy uchun belgilangan sanagacha to'lov yo'q. */
+export type PaymentHiddenReason = 'prevMonth' | 'cutoff' | ''
+
 export interface GroupJournalStudent {
   studentId: string
   fullName: string
@@ -48,6 +53,9 @@ export interface GroupJournalStudent {
   /** SHU GURUH bo'yicha balans (manfiy = qarz) — o'quvchining umumiy balansi EMAS. Ko'p guruhda
    *  o'qiydigan o'quvchi to'lagan guruhida yashil, to'lamaganida qizil ko'rinadi (server: GroupBalanceService). */
   balance: number
+  /** SHU GURUH bo'yicha to'liq yopilmagan (qarzdor) OYLAR soni. 0 = qarz yo'q, 1 = bir oylik qarz
+   *  (qizil), 2+ = og'ir qarzdorlik — jurnalda binafsha-pushti (fuchsia) rangda ko'rsatiladi. */
+  debtMonths: number
   /** O'quvchi guruhda boshlangan sana ("yyyy-MM-dd"). Undan oldingi darslarga davomat/baho kiritilmaydi
    *  (bu sanadan oldingi kataklar bloklanadi). Aktivlashtirilgan bo'lsa ActivatedAt, aks holda JoinedAt. */
   memberStart: string
@@ -58,6 +66,13 @@ export interface GroupJournalStudent {
   /** Muzlatilgan sana ("yyyy-MM-dd") — status=="frozen" bo'lsa. Bo'sh = muzlatilmagan. Shu sanadan
    *  KEYINGI o'tilgan darslarda o'quvchi qatnashmagan, shuning uchun avto-"keldi" ✓ ko'rsatilmaydi. */
   frozenAt: string
+  /** true — to'lov nazorati sozlamasi bo'yicha bu o'quvchi O'QITUVCHI jurnalida KO'RINMAYDI
+   *  (o'qituvchi unga davomat/baho qo'ya olmaydi). Bu MUZLATISH EMAS: a'zolik va oylik hisob
+   *  odatdagidek davom etadi, to'lov qilinishi bilan qator o'z-o'zidan qaytadi. ADMIN jurnalida
+   *  esa qator har doim ko'rinadi — faqat shu belgi bilan. */
+  paymentHidden: boolean
+  /** Yashirish sababi — `paymentHidden` true bo'lganda to'ldiriladi. */
+  paymentHiddenReason: PaymentHiddenReason
 }
 /** Bitta darsning bir martalik boshqa kunga ko'chirilishi (shu oyga tegishli). */
 export interface LessonReschedule {
@@ -255,11 +270,19 @@ export interface JournalPolicy {
   salaryRequireJournal: boolean
   /** Jurnalni to'ldirish muhlati (kun) — shu kun ichidagi darslar hali ushlanmaydi (0-30) */
   salaryGraceDays: number
+  /** true — o'tgan oy(lar) uchun to'lamagan o'quvchi O'QITUVCHI jurnalida ko'rinmaydi
+   *  (muzlatish EMAS: hisob davom etadi, to'lovdan keyin qator qaytadi; admin hammani ko'radi) */
+  hideUnpaidPrevMonth: boolean
+  /** true — joriy oy uchun `unpaidCutoffDay` kunidan keyin to'lamaganlar o'qituvchi jurnalida ko'rinmaydi */
+  hideUnpaidAfterDay: boolean
+  /** Joriy oy uchun to'lov muddati — oyning kuni (1-28; 28 dan katta kun har oyda mavjud emas) */
+  unpaidCutoffDay: number
 }
 
 const DEFAULT_POLICY: JournalPolicy = {
   editMode: 'free', retroDays: 3, conductedOnly: false, applyToAdmins: false,
   salaryRequireJournal: false, salaryGraceDays: 0,
+  hideUnpaidPrevMonth: false, hideUnpaidAfterDay: false, unpaidCutoffDay: 10,
 }
 
 export async function getJournalPolicy(): Promise<JournalPolicy> {

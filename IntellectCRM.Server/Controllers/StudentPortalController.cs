@@ -179,6 +179,46 @@ public class StudentPortalController(
         return await TestResultService.StudentResultsAsync(db, s.Id);
     }
 
+    // ---------- ONLAYN TEST (ilovada ishlanadi — Telegram bot bilan bir xil mantiq) ----------
+
+    /// <summary>O'quvchining faol guruhlaridagi ONLAYN testlar: hozirgi/kelgusi va oxirgi 7 kunda
+    /// tugaganlar. Har qatorda savollar PDF'i, vaqt oynasi va holat (ochiq/topshirilgan/…) keladi.
+    /// student — o'ziniki; parent — farzandiniki; admin — <c>?studentId=...</c>.</summary>
+    [HttpGet("online-tests")]
+    public async Task<ActionResult<List<StudentOnlineTestDto>>> OnlineTests([FromQuery] string? studentId)
+    {
+        if (User.IsInRole("admin") && string.IsNullOrWhiteSpace(studentId)) return NeedStudentId();
+        var s = await TargetAsync(studentId);
+        if (s is null) return NotFound();
+        return await OnlineTestService.ListForStudentAsync(db, s.Id);
+    }
+
+    /// <summary>Bitta onlayn test tafsiloti (o'z javoblari, o'rni; javob kaliti FAQAT vaqt tugagach).</summary>
+    [HttpGet("online-tests/{id}")]
+    public async Task<ActionResult<StudentOnlineTestDetailDto>> OnlineTest(string id, [FromQuery] string? studentId)
+    {
+        if (User.IsInRole("admin") && string.IsNullOrWhiteSpace(studentId)) return NeedStudentId();
+        var s = await TargetAsync(studentId);
+        if (s is null) return NotFound();
+        var dto = await OnlineTestService.DetailAsync(db, s.Id, id);
+        return dto is null ? NotFound(new { message = "Test topilmadi" }) : dto;
+    }
+
+    /// <summary>Javoblarni yuborish ("ABCDA…"). Avtomatik tekshiriladi va ball
+    /// <see cref="TestScore"/>ga yoziladi — bot orqali topshirish bilan bir xil natija.
+    /// Bir marta topshiriladi; admin boshqa o'quvchi nomidan yubora olmaydi.</summary>
+    [HttpPost("online-tests/{id}/submit")]
+    [Authorize(Roles = "student,parent")]
+    public async Task<ActionResult<StudentOnlineTestDetailDto>> SubmitOnlineTest(
+        string id, OnlineTestSubmitRequest req)
+    {
+        var s = await TargetAsync(null);
+        if (s is null) return NotFound();
+        var (result, error) = await OnlineTestService.SubmitAsync(db, s.Id, id, req.Answers ?? "");
+        if (error is not null) return BadRequest(new { message = error });
+        return result is null ? NotFound(new { message = "Test topilmadi" }) : result;
+    }
+
     /// <summary>
     /// O'quvchining TO'LIQ "shaxsiy daftari" — admin ko'radigan detal sahifasi bilan AYNAN bir xil
     /// (<see cref="StudentProfileBuilder"/>): profil + shaxsiy ma'lumot (manzil, chegirma, guruh,
@@ -500,6 +540,103 @@ public class StudentPortalController(
         return new StudentDashboardDto(
             profile, meta, todayLessons, todayGrades, pending, s.Balance, monthlyFee);
     }
+
+    /// <summary>
+    /// O'quvchining GURUHLARI — faol ham, tugagan/chiqilgan ham. Ilova bosh sahifasi va profili
+    /// shu yagona manbadan foydalanadi.
+    ///
+    /// <para>CRM'dagi <c>ClassesController.StudentGroups</c> bilan BIR XIL qamrov: a'zolik
+    /// yozuvlari FILTRLANMAYDI (arxivlangan guruh ham, chiqib ketilgan a'zolik ham qaytadi) —
+    /// aks holda guruh ilovada jimgina yo'qolib, "guruhi yo'q" bo'lib ko'rinardi. Ko'rsatish
+    /// qoidasini <c>State</c> hal qiladi.</para>
+    /// </summary>
+    [HttpGet("groups")]
+    public async Task<ActionResult<List<StudentGroupItemDto>>> Groups([FromQuery] string? studentId)
+    {
+        if (User.IsInRole("admin") && string.IsNullOrWhiteSpace(studentId)) return NeedStudentId();
+        var s = await TargetAsync(studentId);
+        if (s is null) return NotFound();
+        return await StudentGroupsAsync(s);
+    }
+
+    /// <summary>Ko'rsatiladigan yagona holat — qoida ikki tilda takrorlanmasin.</summary>
+    private static string GroupState(StudentGroup m, bool groupArchived)
+    {
+        // Guruhning o'zi yopilgan yoki a'zolik tugagan/chiqilgan — "tugagan".
+        if (groupArchived) return "finished";
+        if (!string.IsNullOrWhiteSpace(m.LeftAt) || m.Status == "completed") return "finished";
+        // DIQQAT: muzlatilgan a'zolik ikki xil yoziladi — ClassesController IsActive'ni
+        // tegmaydi, StudentsController esa false qo'yadi. Shu sabab avval Status tekshiriladi.
+        if (m.Status == "frozen") return "frozen";
+        if (!m.IsActive) return "finished";
+        return m.Status == "trial" ? "trial" : "active";
+    }
+
+    /// <summary>Ro'yxat tartibi: faol → sinov → muzlatilgan → tugagan, so'ng nom bo'yicha.</summary>
+    private static int StateRank(string state) => state switch
+    {
+        "active" => 0, "trial" => 1, "frozen" => 2, _ => 3,
+    };
+
+    private async Task<List<StudentGroupItemDto>> StudentGroupsAsync(Student s)
+    {
+        var memberships = await db.StudentGroups.AsNoTracking()
+            .Where(sg => sg.StudentId == s.Id)
+            .ToListAsync();
+
+        var groupIds = memberships.Select(m => m.GroupId).Distinct().ToList();
+        var groups = groupIds.Count == 0
+            ? new List<Group>()
+            : await db.Classes.AsNoTracking().Where(g => groupIds.Contains(g.Id)).ToListAsync();
+
+        // ORQAGA MOSLIK: a'zolik yozuvi UMUMAN bo'lmasa — `Student.ClassName` bo'yicha guruh.
+        // StudentReportBuilder/StudentProfileBuilder ham AYNAN shunday qiladi, ya'ni baho va
+        // davomat shu guruhdan hisoblanadi — ilova ham SHU guruhni ko'rsatishi kerak, aks holda
+        // o'quvchi "guruhim yo'q" degan bo'sh ekranni ko'radi (eski bazalarda uchraydi).
+        if (memberships.Count == 0 && !string.IsNullOrWhiteSpace(s.ClassName))
+        {
+            var byName = await db.Classes.AsNoTracking().FirstOrDefaultAsync(c => c.Name == s.ClassName);
+            if (byName is not null)
+            {
+                groups.Add(byName);
+                memberships.Add(new StudentGroup
+                {
+                    StudentId = s.Id, GroupId = byName.Id, IsActive = true, Status = "active",
+                });
+            }
+        }
+        if (groups.Count == 0) return new List<StudentGroupItemDto>();
+
+        var byId = groups.ToDictionary(g => g.Id);
+        var courseIds = groups.Select(g => g.CourseId).Where(x => !string.IsNullOrEmpty(x)).Distinct().ToList();
+        var teacherIds = groups.Select(g => g.TeacherId).Where(x => !string.IsNullOrEmpty(x)).Distinct().ToList();
+        var courses = await db.Subjects.AsNoTracking()
+            .Where(x => courseIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.Name);
+        var teachers = await db.Teachers.AsNoTracking()
+            .Where(x => teacherIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.FullName);
+
+        return memberships
+            .Where(m => byId.ContainsKey(m.GroupId))
+            // Bir guruhda bir nechta a'zolik tarixi bo'lsa (chiqib, qaytib qo'shilgan) — eng
+            // "tirik"ini olamiz, aks holda bitta guruh ikki marta chiqardi.
+            .GroupBy(m => m.GroupId)
+            .Select(g => g.OrderBy(m => StateRank(GroupState(m, byId[m.GroupId].IsArchived))).First())
+            .Select(m =>
+            {
+                var c = byId[m.GroupId];
+                return new StudentGroupItemDto(
+                    c.Id, c.Name,
+                    courses.GetValueOrDefault(c.CourseId ?? "", ""),
+                    teachers.GetValueOrDefault(c.TeacherId ?? "", ""),
+                    c.Days ?? new List<int>(), c.StartTime ?? "", c.EndTime ?? "", c.Room ?? "",
+                    GroupState(m, c.IsArchived), m.Status ?? "", m.IsActive, c.IsArchived,
+                    m.JoinedAt ?? "", m.LeftAt ?? "");
+            })
+            .OrderBy(r => StateRank(r.State))
+            .ThenBy(r => r.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
 
     // ---------- Foydalanuvchi sozlamalari (til, tema, bildirishnoma) ----------
 

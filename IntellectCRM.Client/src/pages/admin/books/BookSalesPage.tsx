@@ -1,20 +1,23 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { LucideIcon } from 'lucide-react'
-import { ShoppingCart, Package, BarChart3, CreditCard } from 'lucide-react'
+import { ShoppingCart, Package, BarChart3, CreditCard, Wallet } from 'lucide-react'
 import { getPendingBookOrderCount } from '@/api/services/books'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { cn } from '@/lib/utils'
 import { usePerm } from '@/lib/permissions'
 import { BookOrdersTab } from './BookOrdersTab'
+import { BookCardPaymentsTab } from './BookCardPaymentsTab'
 import { BookInventoryTab } from './BookInventoryTab'
 import { BookAnalyticsTab } from './BookAnalyticsTab'
 import { BookSettingsTab } from './BookSettingsTab'
 
-type Tab = 'orders' | 'inventory' | 'analytics' | 'settings'
+type Tab = 'orders' | 'card' | 'inventory' | 'analytics' | 'settings'
 
 /**
- * KITOBLAR SOTUVI — bitta sahifa, 4 tab:
+ * KITOBLAR SOTUVI — bitta sahifa, 5 tab:
  *  • Buyurtmalar — botdan tushgan so'rovlarni tasdiqlash/rad etish (chek rasmi bilan);
+ *  • Karta to'lovlari — kartaga o'tkazma qilganlar: chek rasmi ro'yxatda ko'rinadi,
+ *    tepada shu kartaga hisoblangan jami summa;
  *  • Ombor — kitob yaratish/tahrirlash, narx, qoldiq kirim + kirim tarixi;
  *  • Analitika — sotuv/tushum (naqd/karta), kunlik grafik, top kitoblar, qoldiq;
  *  • Sozlamalar — botda ko'rinadigan karta rekvizitlari.
@@ -49,6 +52,9 @@ export function BookSalesPage() {
                 )}
               </span>
             </TabButton>
+            <TabButton active={tab === 'card'} onClick={() => setTab('card')} icon={Wallet}>
+              Karta to'lovlari
+            </TabButton>
             <TabButton active={tab === 'inventory'} onClick={() => setTab('inventory')} icon={Package}>
               Ombor
             </TabButton>
@@ -64,6 +70,8 @@ export function BookSalesPage() {
 
       {tab === 'orders' ? (
         <BookOrdersTab canDecide={can('books', 'edit')} onDecided={refreshPending} />
+      ) : tab === 'card' ? (
+        <BookCardPaymentsTab canDecide={can('books', 'edit')} onDecided={refreshPending} />
       ) : tab === 'inventory' ? (
         <BookInventoryTab
           canCreate={can('books', 'create')}

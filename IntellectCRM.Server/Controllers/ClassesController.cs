@@ -756,6 +756,10 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
         toSg.Status = "active";
         toSg.ActivatedAt = activateDate;
         toSg.FrozenAt = string.Empty;
+        // RecordedAt — HAQIQIY bugungi sana (activateDate ORQAGA sanalgan bo'lishi mumkin).
+        // Jurnalda MemberStart bilan RecordedAt orasidagi, allaqachon davomati olingan darslar
+        // avto-"keldi" ✓ bo'lib to'lib qolmasin (AddMember/ActivateMember bilan bir xil qoida).
+        toSg.RecordedAt = AppClock.Today.ToString("yyyy-MM-dd");
         await TuitionService.ChargeActivationProrateAsync(db, s, toGroup, activateDate);
 
         // 4) AVANSNI KO'CHIRISH: o'quvchi shu oy uchun ESKI guruhga allaqachon to'lagan bo'lsa, muzlatish
@@ -1009,6 +1013,8 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
                     JoinedAt = today,
                     IsActive = true,
                     Status = "trial",
+                    // Jurnaldagi avto-"keldi" qoidasi shu sanadan boshlanadi (AddMember bilan bir xil).
+                    RecordedAt = today,
                 });
                 enrolledCount++;
             }

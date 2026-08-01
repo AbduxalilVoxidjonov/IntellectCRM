@@ -16,6 +16,28 @@ paths:
 
 # Jurnal va reyting qoidalari
 
+- **TO'LOV NAZORATI (jurnal "darvozasi")** — migratsiya `AddJournalPaymentGate`. "Guruhlar →
+  Jurnal boshqaruvi" oynasidagi ikkita mustaqil sozlama (`CenterMeta`):
+  `JournalHideUnpaidPrevMonth` (o'tgan oy(lar)dan qarzi bor) va `JournalHideUnpaidAfterDay` +
+  `JournalUnpaidCutoffDay` (1..28; joriy oy qarzi + shu kun kelgan). Ikkalasi ham default
+  **o'chiq** — yoqilmasa xatti-harakat o'zgarmaydi.
+  **BU MUZLATISH EMAS:** a'zolik, oylik hisoblash, qarz/balans hammasi davom etadi; faqat
+  O'QITUVCHI jurnalida qator ko'rinmaydi va o'qituvchi yoza olmaydi. To'lov tushishi bilan
+  qator O'Z-O'ZIDAN qaytadi (holat balansdan real vaqtda hisoblanadi, qo'lda "ochish" yo'q).
+  Yagona qoida — `JournalPolicy.PaymentGate(policy, balanceInfo, currentMonth, today)` →
+  `(Hidden, Reason)` bunda Reason = `prevMonth` | `cutoff`. Manba:
+  `GroupBalanceService.GroupBalanceInfo.OldestDebtMonth` / `.DebtThisMonth` (mavjud qarz-oy
+  siklida hisoblanadi, QO'SHIMCHA SO'ROV YO'Q).
+  Qo'llanish: `JournalService.GroupMonthAsync` faqat BAYROQ qo'yadi
+  (`GroupJournalStudentDto.PaymentHidden/PaymentHiddenReason`) — **admin jurnalidan hech kim
+  olib tashlanmaydi** (admin belgisi bilan ko'radi); `TeacherPortalController` esa
+  `journal/group` javobidan bunday o'quvchi va uning yozuvlarini OLIB TASHLAYDI, katak
+  PUT/DELETE'ni 400 bilan rad etadi, `bulk-attendance`da ularni CHETLAB O'TADI.
+  DIQQAT: qoida BUGUNGI holatga qarab ishlaydi (ko'rilayotgan oyga emas) — qarzdor eski oy
+  jurnalida ham ko'rinmaydi, to'lagach hamma oyda birdan qaytadi.
+  Qamrovda EMAS (kerak bo'lsa alohida qo'shiladi): baholash/evaluation board, topshiriq
+  natijalari, chat — u yerlarda o'quvchi ko'rinaveradi.
+
 - **Jurnal boshqaruvi (tahrirlash siyosati):** Guruhlar sahifasida "Jurnal boshqaruvi" tugmasi → modal
   (`JournalPolicyModal`). Sozlama `CenterMeta`da (migratsiya `AddJournalPolicy`): `JournalEditMode`
   ("free"|"today"|"window"), `JournalRetroDays` (window uchun 1-90), `JournalConductedOnly` (baho faqat
@@ -32,7 +54,22 @@ paths:
   to'xtaydi (`JournalService.GroupMonthAsync`) — bo'sh joriy oy ochilmasin. Muzlatilgan
   sanadan KEYINGI o'tilgan darslar avto-"keldi" ✓ EMAS (faqat aniq belgilangan `entry.present` yashil);
   guruhga qo'shilishidan (`memberStart`) yoki guruh `startDate`idan OLDINGI darslar ham hech qachon
-  avto-"keldi" bo'lmaydi. "Davomat" tabi ham shu chegaralarda sanaydi:
+  avto-"keldi" bo'lmaydi.
+
+- **ORQAGA SANALGAN A'ZOLIK — `StudentGroup.RecordedAt`:** `JoinedAt`/`ActivatedAt` orqaga
+  sanalishi mumkin (o'quvchi bugun qo'shilib, o'tgan oydan aktivlashtiriladi), `RecordedAt` esa
+  a'zolik HAQIQATDA tizimga kiritilgan kun (hech qachon orqaga sanalmaydi). Standart
+  "davomat olindi + yozuv yo'q = keldi" qoidasi FAQAT `RecordedAt`dan keyingi darslarga
+  qo'llanadi — undan oldingilari BO'SH qoladi (o'qituvchi qo'lda belgilaydi), chunki o'sha
+  paytda bu o'quvchi guruhda yo'q edi va `BulkAttendanceAsync` uni chetlab o'tgan.
+  Qo'llanadigan joylar: `JournalService.GroupMonthAsync` → `PresentDefaultFrom` (admin va
+  o'qituvchi guruh jurnali) VA `StudentAttendanceController.Journal` (o'quvchi profilidagi
+  jurnal modali). **Yangi jurnal ko'rinishi qo'shilsa — shu cheklovni ham qo'shish SHART.**
+  O'quvchi profilidagi modalda bunday NOMA'LUM (yozuvsiz, RecordedAt'dan oldingi) darslar
+  jamlanma sanog'iga ham kirmaydi — aks holda davomat foizi asossiz tushardi.
+  `RecordedAt` a'zolik yaratilgan/aktivlashtirilgan HAR bir joyda to'ldirilishi shart
+  (`ClassesController` AddMember/ActivateMember/TransferMember/guruhni bo'lish,
+  `StudentsController`, `LeadsController`) — bo'sh qolsa "cheklov yo'q" deb talqin qilinadi. "Davomat" tabi ham shu chegaralarda sanaydi:
   `held = conducted ∩ (memberStart ≤ sana ≤ frozenAt)` — o'quvchi portali (`StudentAttendanceController`
   `memberEnd`) bilan bir xil.
 

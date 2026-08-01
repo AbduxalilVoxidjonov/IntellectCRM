@@ -7,13 +7,13 @@ import {
   CalendarDays, Clock, MapPin, Wallet, Snowflake, CheckCircle2,
   ListChecks, ChevronRight, ChevronDown, Plus, Minus, Repeat, CalendarClock, Flag, TrendingUp, Trophy,
   ArrowLeftRight, RotateCcw, X, Pencil, ClipboardList, CalendarCheck, History,
-  UserPlus, MessageSquare, ArrowUpDown, Sparkles,
+  UserPlus, MessageSquare, ArrowUpDown, Sparkles, EyeOff,
 } from 'lucide-react'
 import type { AbsenceReason, MasteryLevel, Group, GroupMember } from '@/types'
 import {
   getGroupJournal, setJournalEntry, clearJournalEntry, bulkAttendance,
   rescheduleLesson, cancelReschedule,
-  type GroupJournal,
+  type GroupJournal, type PaymentHiddenReason,
 } from '@/api/services/journal'
 import {
   getGroupCurriculum, setGroupCover, changeGroupRevision,
@@ -27,7 +27,7 @@ import { getStudents } from '@/api/services/students'
 import { getGroupPayments, type GroupPaymentsReport } from '@/api/services/finance'
 import { GroupTestsPanel } from '../tests/GroupTestsPanel'
 import { getSettings } from '@/api/services/settings'
-import { cn, formatMoney, formatDate, apiErrorMessage, gradeBadgeCls } from '@/lib/utils'
+import { cn, formatMoney, formatDate, apiErrorMessage, gradeBadgeCls, balanceTextCls, balanceDotCls, balanceTitle, HEAVY_DEBT_MONTHS } from '@/lib/utils'
 import { backState, type BackState } from '@/lib/nav'
 import { Card } from '@/components/ui/Card'
 import { DropdownMenu } from '@/components/ui/DropdownMenu'
@@ -74,6 +74,18 @@ function statusBadge(status: string): { label: string; cls: string } {
     default:
       return { label: 'Sinov', cls: 'bg-amber-50 text-amber-700' }
   }
+}
+
+/** "O'qituvchida ko'rinmaydi" belgisining tooltip matni — sababi bo'yicha (Jurnal boshqaruvi →
+ *  To'lov nazorati). Bu muzlatish emas: to'lov qilinishi bilan qator o'qituvchida ham qaytadi. */
+function paymentHiddenTitle(reason: PaymentHiddenReason): string {
+  const base =
+    reason === 'prevMonth'
+      ? "O'tgan oy uchun to'lov yo'q"
+      : reason === 'cutoff'
+        ? "Joriy oy uchun belgilangan sanagacha to'lov yo'q"
+        : "To'lov nazorati sozlamasi bo'yicha yashirilgan"
+  return `${base} — o'qituvchi jurnalida ko'rinmaydi (muzlatish emas: hisob davom etadi, to'lovdan keyin qaytadi).`
 }
 
 /** Mastery darajasi — rangi va yorlig'i */
@@ -928,6 +940,26 @@ export function ClassDetailPage() {
                 {monthLabel(journal?.month ?? '')} oyida bu guruh kunlariga dars to'g'ri kelmadi.
               </p>
             ) : (
+              <>
+              {/* Rang izohi — o'quvchi ismi rangi SHU GURUH balansiga qarab (o'qituvchi jurnali bilan bir xil). */}
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-slate-100 px-4 py-2 text-[11px] text-slate-400">
+                <span className="inline-flex items-center gap-1">
+                  <span className={cn('h-2 w-2 rounded-full', balanceDotCls(0))} /> To'lagan
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <span className={cn('h-2 w-2 rounded-full', balanceDotCls(-1))} /> Qarzdor
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <span className={cn('h-2 w-2 rounded-full', balanceDotCls(-1, HEAVY_DEBT_MONTHS))} /> 2+ oylik qarz
+                </span>
+                {/* To'lov nazorati belgisi — balans ranglaridan MUSTAQIL, alohida chip. */}
+                <span
+                  className="inline-flex items-center gap-1"
+                  title="Jurnal boshqaruvi → To'lov nazorati sozlamasi bo'yicha. Muzlatish emas: hisob davom etadi, to'lovdan keyin qator o'z-o'zidan qaytadi. Admin jurnalida hamma ko'rinaveradi."
+                >
+                  <EyeOff className="h-3 w-3 text-amber-500" /> O'qituvchida ko'rinmaydi
+                </span>
+              </div>
               <div className="overflow-x-auto">
                 <table className="min-w-full border-collapse text-sm">
                   <thead>
@@ -992,20 +1024,31 @@ export function ClassDetailPage() {
                             <span className="text-xs font-medium text-slate-500">{idx + 1}</span>
                           </td>
                           <td className="sticky left-0 z-10 border-b border-r-2 border-slate-200 bg-inherit px-2 py-1">
+                            {/* Rang: 2+ oylik qarz binafsha-pushti (eng og'ir, qizildan USTUN),
+                                qarzdor qizil, to'lagan yashil — o'qituvchi jurnali bilan bir xil. */}
                             <div className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left">
                               <span
-                                className={cn(
-                                  'h-2 w-2 shrink-0 rounded-full',
-                                  st.balance < 0 ? 'bg-red-500' : 'bg-emerald-500',
-                                )}
-                                title={st.balance < 0 ? `Qarz (shu guruh): ${formatMoney(st.balance)}` : 'Shu guruh uchun to\'langan'}
+                                className={cn('h-2 w-2 shrink-0 rounded-full', balanceDotCls(st.balance, st.debtMonths))}
+                                title={balanceTitle(st.balance, st.debtMonths)}
                               />
-                              <span className={cn('font-medium', st.balance < 0 ? 'text-red-600' : 'text-emerald-700')}>
+                              <span className={cn('font-medium', balanceTextCls(st.balance, st.debtMonths))}>
                                 {st.fullName}
                               </span>
                               <span className={cn('rounded px-1.5 py-0.5 text-[10px] font-medium', sb.cls)}>
                                 {sb.label}
                               </span>
+                              {/* To'lov nazorati: o'quvchi O'QITUVCHI jurnalidan olib turilgan.
+                                  Admin jurnalida qator O'CHIRILMAYDI — faqat shu belgi qo'shiladi
+                                  (balans ranglariga tegmaydi, alohida element). */}
+                              {st.paymentHidden && (
+                                <span
+                                  className="inline-flex shrink-0 items-center gap-1 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700"
+                                  title={paymentHiddenTitle(st.paymentHiddenReason)}
+                                >
+                                  <EyeOff className="h-3 w-3" />
+                                  O'qituvchida ko'rinmaydi
+                                </span>
+                              )}
                             </div>
                           </td>
                           {journal!.columns.map((c) => {
@@ -1104,16 +1147,14 @@ export function ClassDetailPage() {
                               <td className="border-b border-r border-slate-200 bg-inherit px-2 py-1 text-center" />
                               <td className="sticky left-0 z-10 border-b border-r-2 border-slate-200 bg-inherit px-2 py-1">
                                 {/* Muzlatilgan bo'lsa ham per-guruh BALANS ko'rsatiladi: to'lagan bo'lsa
-                                    yashil, qarzi bo'lsa qizil (faol qatorlar bilan bir xil) + "Muzlatilgan" yorlig'i. */}
+                                    yashil, qarzi bo'lsa qizil, 2+ oylik qarzda binafsha-pushti (faol
+                                    qatorlar bilan bir xil) + "Muzlatilgan" yorlig'i. */}
                                 <div className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left">
                                   <span
-                                    className={cn(
-                                      'h-2 w-2 shrink-0 rounded-full',
-                                      st.balance < 0 ? 'bg-red-500' : 'bg-emerald-500',
-                                    )}
-                                    title={st.balance < 0 ? `Qarz (shu guruh): ${formatMoney(st.balance)}` : "Shu guruh uchun to'langan"}
+                                    className={cn('h-2 w-2 shrink-0 rounded-full', balanceDotCls(st.balance, st.debtMonths))}
+                                    title={balanceTitle(st.balance, st.debtMonths)}
                                   />
-                                  <span className={cn('font-medium', st.balance < 0 ? 'text-red-600' : 'text-emerald-700')}>
+                                  <span className={cn('font-medium', balanceTextCls(st.balance, st.debtMonths))}>
                                     {st.fullName}
                                   </span>
                                   <span className="inline-flex shrink-0 items-center gap-1 rounded bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium text-sky-700">
@@ -1182,6 +1223,7 @@ export function ClassDetailPage() {
                   </tbody>
                 </table>
               </div>
+              </>
             )}
           </Card>
           )}

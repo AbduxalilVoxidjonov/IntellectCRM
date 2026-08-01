@@ -1189,6 +1189,19 @@ public class CenterMeta
     /// <summary>true — yuqoridagi cheklovlar ADMIN jurnaliga ham qo'llanadi (default: faqat o'qituvchiga).</summary>
     public bool JournalApplyToAdmins { get; set; }
 
+    /* ---------- To'lov "darvozasi": to'lamagan o'quvchi O'QITUVCHI jurnalida ko'rinmasin ----------
+       DIQQAT: bu MUZLATISH EMAS — a'zolik, hisob-kitob, qarz o'sishi hammasi odatdagidek davom etadi.
+       Faqat o'qituvchi ilovasidagi jurnal qatori yashiriladi (admin hammani ko'raveradi), to'lov
+       kelishi bilan qator o'z-o'zidan qaytadi (hech qanday qo'lda amal kerak emas). */
+
+    /// <summary>true — O'TGAN oy(lar)dan qarzi bor o'quvchi o'qituvchi jurnalida ko'rinmaydi.</summary>
+    public bool JournalHideUnpaidPrevMonth { get; set; }
+    /// <summary>true — JORIY oyda qarzi bor o'quvchi <see cref="JournalUnpaidCutoffDay"/> kunidan
+    /// boshlab (shu kun ham kiradi) o'qituvchi jurnalida ko'rinmaydi.</summary>
+    public bool JournalHideUnpaidAfterDay { get; set; }
+    /// <summary>Joriy oy qarzi uchun "muddat" kuni (1-28; 28 — har oyda mavjudligi kafolatlangan eng katta kun).</summary>
+    public int JournalUnpaidCutoffDay { get; set; } = 10;
+
     /// <summary>true — o'qituvchi maoshi (qat'iy ham, foizli ham) SHU OYDA jurnalda "o'tildi" deb
     /// belgilangan darslar nisbatiga ko'paytiriladi: belgilanmagan dars = o'tilmagan dars, maoshdan ushlanadi.</summary>
     public bool SalaryRequireJournal { get; set; }

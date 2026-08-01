@@ -42,6 +42,10 @@ public class BookShopBotService(
     public const string CbPayCard = "kpk";
     /// <summary>Naqd buyurtmani yakuniy tasdiqlash.</summary>
     public const string CbConfirm = "kconf";
+    /// <summary>«🧾 Chekni yuborish» — mijozga chekni qanday yuborishni aniq tushuntiradi.
+    /// Sessiya bosqichini O'ZGARTIRMAYDI: karta tanlangan zahoti chek allaqachon qabul qilinadi,
+    /// bu tugma faqat yo'l-yo'riq (mijoz uzun matnni o'qimay tushunib qolmasin).</summary>
+    public const string CbSendReceipt = "krcp";
     /// <summary>Katalogga qaytish / bekor qilish.</summary>
     public const string CbList = "klist";
     public const string CbCancel = "kcan";
@@ -55,7 +59,7 @@ public class BookShopBotService(
     public static bool Handles(string data) =>
         data.StartsWith(CbBook, StringComparison.Ordinal)
         || data.StartsWith(CbQty, StringComparison.Ordinal)
-        || data is CbQtyOther or CbPayCash or CbPayCard or CbConfirm or CbList or CbCancel;
+        || data is CbQtyOther or CbPayCash or CbPayCard or CbConfirm or CbSendReceipt or CbList or CbCancel;
 
     // ==================================================================================
     //  1) KATALOG
@@ -354,10 +358,42 @@ public class BookShopBotService(
             lines.Append($"👤 Karta egasi: <b>{Esc(meta.BookCardHolder)}</b>\n");
         if (!string.IsNullOrWhiteSpace(meta.BookPaymentNote))
             lines.Append($"\nℹ️ {Esc(meta.BookPaymentNote)}\n");
-        lines.Append("\n🧾 To'lovni amalga oshirib, <b>chek rasmini (skrinshot) yoki PDF faylini</b> "
-                     + "shu yerga yuboring — administrator tekshirib tasdiqlaydi.");
+        lines.Append("\n🧾 To'lovni amalga oshirgach, quyidagi tugmani bosing va "
+                     + "<b>chek rasmini (skrinshot) yoki PDF faylini</b> shu yerga yuboring.");
 
         await telegram.SendMessageAsync(chatId, lines.ToString(),
+            new
+            {
+                inline_keyboard = new object[][]
+                {
+                    new object[] { new { text = "🧾 Chekni yuborish", callback_data = CbSendReceipt } },
+                    new object[] { new { text = "❌ Bekor qilish", callback_data = CbCancel } },
+                },
+            }, ct, "HTML");
+    }
+
+    /// <summary>«🧾 Chekni yuborish» bosildi — mijozga chekni qanday yuborishni aniq ko'rsatamiz.
+    /// Bosqich allaqachon <c>receipt</c> (karta tanlanganda o'rnatilgan), shuning uchun tugmani
+    /// bosmasdan yuborilgan chek ham QABUL QILINADI — tugma faqat yo'riqnoma.</summary>
+    public async Task PromptReceiptAsync(IAppDbContext db, long chatId, CancellationToken ct)
+    {
+        var (session, book) = await SessionWithBookAsync(db, chatId, ct);
+        if (session is null || book is null) { await ExpiredAsync(chatId, ct); return; }
+        if (session.Step != "receipt")
+        {
+            await telegram.SendMessageAsync(chatId,
+                "Bu buyurtmada chek talab qilinmaydi.", null, ct);
+            return;
+        }
+
+        var total = book.Price * session.Qty;
+        await telegram.SendMessageAsync(chatId,
+            "🧾 <b>Chekni yuborish</b>\n\n"
+            + $"📕 {Esc(book.Title)} — {session.Qty} dona\n"
+            + $"💰 To'lov summasi: <b>{AuditService.Money(total)} so'm</b>\n\n"
+            + "📸 Endi <b>chek rasmini</b> (skrinshot) yoki <b>PDF faylini</b> shu chatga yuboring.\n"
+            + "Telegramdagi 📎 tugmasi orqali galereyadan rasm tanlang yoki suratga oling.\n\n"
+            + "Chek kelgach buyurtma administratorga yuboriladi — u tekshirib tasdiqlaydi.",
             new
             {
                 inline_keyboard = new object[][]
