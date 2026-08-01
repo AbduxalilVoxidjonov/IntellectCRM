@@ -81,6 +81,27 @@ public class StudentPortalController(
     private async Task<string?> ClassIdOf(Student s) =>
         (await db.Classes.FirstOrDefaultAsync(c => c.Name == s.ClassName))?.Id;
 
+    /// <summary>
+    /// BILDIRISHNOMA IDENTIFIKATORI — ota-ona ham, o'quvchi ham BITTA ilovadan foydalanadi,
+    /// shuning uchun push va bildirishnoma tarixi HAR DOIM o'quvchining akkauntiga bog'lanadi.
+    ///
+    /// <para>student → o'z `UserId`si; parent → FARZANDINING `Student.UserId`si.
+    /// Shu sabab: (1) ota-ona telefonida ro'yxatdan o'tgan qurilma o'quvchiga yuborilgan pushni
+    /// oladi; (2) ota-ona ilovada bildirishnomalar tarixini KO'RADI (ilgari bo'sh chiqardi —
+    /// hamma narsa `Student.UserId` ga yozilardi, ota-onaning esa alohida akkaunti bor).</para>
+    ///
+    /// <para>Ota-onada bir nechta farzand bo'lsa — birinchisi (butun portal shu konvensiyada:
+    /// <see cref="TargetAsync"/> ham `children.FirstOrDefault()` qaytaradi).</para>
+    /// </summary>
+    private async Task<string?> NotificationUserIdAsync()
+    {
+        var uid = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (uid is null) return null;
+        if (!User.IsInRole("parent")) return uid;
+        var child = await TargetAsync(null);
+        return child?.UserId ?? uid;
+    }
+
     /// <summary>Admin uchun: studentId berilmagan bo'lsa 400 javobi.</summary>
     private ActionResult NeedStudentId() =>
         BadRequest(new { message = "Admin chaqiruvi uchun ?studentId=... kerak" });
@@ -253,7 +274,7 @@ public class StudentPortalController(
     [HttpGet("notifications")]
     public async Task<ActionResult<NotificationsResponseDto>> Notifications()
     {
-        var uid = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var uid = await NotificationUserIdAsync();
         if (uid is null) return Unauthorized();
         var items = await db.UserNotifications.Where(n => n.UserId == uid)
             .OrderByDescending(n => n.CreatedAt).Take(100).ToListAsync();
@@ -267,7 +288,7 @@ public class StudentPortalController(
     [HttpPost("notifications/read")]
     public async Task<IActionResult> MarkNotificationsRead()
     {
-        var uid = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var uid = await NotificationUserIdAsync();
         if (uid is null) return Unauthorized();
         var unread = await db.UserNotifications.Where(n => n.UserId == uid && n.ReadAt == null).ToListAsync();
         foreach (var n in unread) n.ReadAt = AppClock.Now;
@@ -279,7 +300,7 @@ public class StudentPortalController(
     [HttpPost("notifications/{id}/confirm")]
     public async Task<IActionResult> ConfirmNotification(string id)
     {
-        var uid = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var uid = await NotificationUserIdAsync();
         if (uid is null) return Unauthorized();
         var n = await db.UserNotifications.FirstOrDefaultAsync(x => x.Id == id && x.UserId == uid);
         if (n is null) return NotFound();
@@ -750,12 +771,14 @@ public class StudentPortalController(
     /// <summary>Push (FCM/APNs/Web) qurilma tokenini ro'yxatdan o'tkazadi (yangi bo'lsa qo'shadi,
     /// mavjud bo'lsa LastSeenAt yangilanadi). Token boshqa foydalanuvchiga bog'langan bo'lsa
     /// joriy foydalanuvchiga ko'chiriladi (qurilma boshqa akkauntga kirgan deb hisoblanadi).
-    /// Faqat student rolida — token tokendagi foydalanuvchiga bog'lanadi.</summary>
+    /// OTA-ONA ham SHU ilovadan kiradi, shuning uchun uning qurilmasi ham qabul qilinadi —
+    /// token FARZANDINING akkauntiga bog'lanadi (<see cref="NotificationUserIdAsync"/>), aks holda
+    /// ota-ona telefoniga push hech qachon yetib bormasdi.</summary>
     [HttpPost("notifications/register")]
-    [Authorize(Roles = "student")]
+    [Authorize(Roles = "student,parent")]
     public async Task<ActionResult> RegisterDevice(RegisterDeviceRequest req)
     {
-        var uid = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var uid = await NotificationUserIdAsync();
         if (uid is null) return Unauthorized();
         var token = req.Token?.Trim();
         if (string.IsNullOrWhiteSpace(token)) return BadRequest(new { message = "Token bo'sh" });
@@ -783,17 +806,27 @@ public class StudentPortalController(
             if (appId.Length > 0) existing.AppId = appId;
             existing.LastSeenAt = AppClock.Now;
         }
+
+        // BITTA AKKAUNT — BITTA QURILMA: shu akkauntning boshqa (eski) qurilma tokenlari
+        // o'chiriladi, ya'ni push FAQAT ENG OXIRGI kirilgan qurilmaga boradi.
+        // Sabab: o'quvchi akkauntidan O'QUVCHI ham, OTA-ONA ham foydalanadi (bitta ilova) va
+        // eski/ikkinchi telefon qolib ketsa bir xil xabar bir necha qurilmaga ketardi.
+        var stale = await db.DeviceTokens
+            .Where(d => d.UserId == uid && d.Token != token)
+            .ToListAsync();
+        if (stale.Count > 0) db.DeviceTokens.RemoveRange(stale);
+
         await db.SaveChangesAsync();
         return Ok(new { ok = true });
     }
 
     /// <summary>Qurilma tokenini o'chiradi (logout/disable). Topilmasa ham 200 qaytaradi.</summary>
     [HttpDelete("notifications/register")]
-    [Authorize(Roles = "student")]
+    [Authorize(Roles = "student,parent")]
     public async Task<ActionResult> UnregisterDevice([FromQuery] string token)
     {
         if (string.IsNullOrWhiteSpace(token)) return BadRequest(new { message = "Token bo'sh" });
-        var uid = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var uid = await NotificationUserIdAsync();
         var d = await db.DeviceTokens.FirstOrDefaultAsync(x => x.Token == token && x.UserId == uid);
         if (d is not null)
         {

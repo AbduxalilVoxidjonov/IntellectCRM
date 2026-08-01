@@ -21,6 +21,22 @@ paths:
 
 # Xabar tizimi qoidalari
 
+- **PUSH VA O'QUVCHI ILOVASI — BITTA AKKAUNT, BITTA QURILMA.** O'quvchi ilovasidan O'QUVCHI ham,
+  OTA-ONA ham foydalanadi (ota-ona uchun alohida ilova YO'Q). Shuning uchun:
+  • `POST/DELETE /api/student/notifications/register` — `student` VA `parent` rollariga ochiq;
+  • ota-onaning qurilma tokeni FARZANDINING `Student.UserId` iga bog'lanadi
+    (`StudentPortalController.NotificationUserIdAsync`: parent → `TargetAsync(null)?.UserId`).
+    Shu sabab push YUBORISH mantig'i o'zgarmaydi (u har doim `Student.UserId` ga yuboradi) va
+    bildirishnoma TARIXI ham ota-onada ko'rinadi (ilgari bo'sh chiqardi — ro'yxat login qilgan
+    foydalanuvchi id'si bo'yicha filtrlanardi);
+  • **ro'yxatdan o'tkazishda shu akkauntning BOSHQA tokenlari O'CHIRILADI** — push faqat ENG
+    OXIRGI kirilgan qurilmaga boradi (aks holda o'quvchi va ota-ona telefoniga bir xil xabar
+    ikki marta ketardi);
+  • Admin "Tanlab push" ro'yxatida o'quvchi akkaunti **"O'quvchi / ota-ona"** deb ko'rsatiladi
+    (ilgari xato "Ota-ona" deb yozilgan edi) — ALOHIDA ota-ona oluvchisi yo'q va kerak emas.
+  ⚠️ Ilova tomonda FCM: `ilova/student/lib/services/push.dart` (o'qituvchi ilovasidagi bilan bir
+  xil naqsh). Ilgari ilovada FCM kodi UMUMAN yo'q edi — token serverga bormas, push ishlamasdi.
+
 - **KALITLAR .env DA:** Telegram bot tokeni (`TELEGRAM_BOT_TOKEN`), FCM service account
   (`FCM_SERVICE_ACCOUNT_JSON`), Eskiz login/paroli (`ESKIZ_EMAIL`/`ESKIZ_PASSWORD`) — hammasi
   `AppSecrets` orqali .env dan o'qiladi, bazada saqlanmaydi va Sozlamalar sahifasidan

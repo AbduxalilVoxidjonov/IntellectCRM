@@ -305,7 +305,10 @@ public class MessagesController(
         return Ok(new { count = all.Count, recent });
     }
 
-    /// <summary>"Tanlab" push uchun oluvchilar ro'yxati: ota-onalar (o'quvchi akkaunti) + o'qituvchilar.</summary>
+    /// <summary>"Tanlab" push uchun oluvchilar ro'yxati: o'quvchilar + o'qituvchilar.
+    /// DIQQAT: o'quvchi akkauntidan O'QUVCHI ham, OTA-ONA ham foydalanadi (bitta ilova) —
+    /// ota-ona telefonida ro'yxatdan o'tgan qurilma ham shu akkauntga bog'lanadi, shuning uchun
+    /// alohida "ota-ona" oluvchisi YO'Q va bo'lishi ham shart emas.</summary>
     [HttpGet("push/recipients")]
     public async Task<ActionResult<IEnumerable<PushRecipientDto>>> PushRecipients()
     {
@@ -317,7 +320,8 @@ public class MessagesController(
 
         var list = new List<PushRecipientDto>();
         foreach (var s in students)
-            list.Add(new PushRecipientDto(s.UserId!, s.FullName, "Ota-ona", s.ClassName, withDevice.Contains(s.UserId!)));
+            // Guruh yorlig'i: bitta akkaunt — o'quvchi ham, ota-ona ham shundan kiradi.
+            list.Add(new PushRecipientDto(s.UserId!, s.FullName, "O'quvchi / ota-ona", s.ClassName, withDevice.Contains(s.UserId!)));
         foreach (var t in teachers)
             list.Add(new PushRecipientDto(t.UserId!, t.FullName, "O'qituvchi", "", withDevice.Contains(t.UserId!)));
         return list
@@ -393,8 +397,8 @@ public class MessagesController(
         {
             var q = db.Students.Where(s => !s.IsArchived && s.UserId != null);
             var cn = req.ClassName?.Trim() ?? "";
-            if (cn.Length > 0) { q = q.Where(s => s.ClassName == cn); label = $"Ota-onalar — {cn}"; }
-            else label = "Ota-onalar";
+            if (cn.Length > 0) { q = q.Where(s => s.ClassName == cn); label = $"O'quvchilar — {cn}"; }
+            else label = "O'quvchilar (o'quvchi/ota-ona ilovasi)";
             // Guruhi YOPILGAN/TUGATILGAN o'quvchilarga ommaviy push yuborilmaydi.
             var closed = await MessagingAudience.ClosedGroupStudentIdsAsync(db);
             userIds = (await q.Select(s => new { s.Id, UserId = s.UserId! }).ToListAsync())
