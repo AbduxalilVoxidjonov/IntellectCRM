@@ -63,7 +63,10 @@ public class CertificateService(IAppDbContext db, IHostEnvironment env)
         }
 
         var certId = Guid.NewGuid().ToString("N");
-        var certNumber = GenerateCertificateNumber();
+
+        // Noyob raqam (u ayni paytda FAYL NOMI ham): bazada yoki diskda band bo'lsa qayta uriniladi.
+        // Aks holda ikkinchi sertifikat birinchisining faylini qayta yozib, uning hash'ini buzardi.
+        var (certNumber, fileName) = await ReserveCertificateNumberAsync();
 
         // Tekshirish URL (QR uchun)
         var verifyUrl = $"https://crm.intellectschool.uz/verify-certificate/{certId}";
@@ -78,14 +81,15 @@ public class CertificateService(IAppDbContext db, IHostEnvironment env)
             verifyUrl: verifyUrl
         );
 
-        var htmlBytes = Encoding.UTF8.GetBytes(htmlContent);
+        // MUHIM: fayl AYNAN shu baytlar bilan yoziladi (BOM'siz), hash va FileSize ham
+        // AYNAN shu baytlardan olinadi. Ilgari fayl `Encoding.UTF8` bilan (BOM — EF BB BF)
+        // yozilib, hash esa BOM'siz baytlardan hisoblanardi → hash hech qachon mos kelmasdi.
+        var htmlBytes = Utf8NoBom.GetBytes(htmlContent);
 
         // Saqlash yo'li
         var certsDir = GetCertificatesDirectory();
-        var safeName = certNumber.Replace("/", "-").Replace("\\", "-");
-        var fileName = $"{safeName}.html";
         var absolutePath = System.IO.Path.Combine(certsDir, fileName);
-        await System.IO.File.WriteAllTextAsync(absolutePath, htmlContent, Encoding.UTF8);
+        await System.IO.File.WriteAllBytesAsync(absolutePath, htmlBytes);
 
         var hash = ComputeSHA256(htmlBytes);
 
@@ -150,24 +154,35 @@ public class CertificateService(IAppDbContext db, IHostEnvironment env)
             .Where(c => c.Id == certificateId)
             .FirstOrDefaultAsync();
 
-        bool hashMatched = false;
-        bool isValid = false;
-
-        if (cert is not null)
+        // Sertifikat topilmadi (soxta yoki xato id) — bu ANONIM ommaviy endpoint bo'lgani uchun
+        // yiqilmasligi shart. Tekshiruv jurnaliga yozmaymiz: StudentCertificateId MAJBURIY FK,
+        // mavjud bo'lmagan id bilan saqlash DbUpdateException (500) beradi.
+        if (cert is null)
         {
-            var absolutePath = ResolveAbsolutePath(cert.FilePath);
-            if (System.IO.File.Exists(absolutePath))
+            return new CertificateVerification
             {
-                var fileBytes = await System.IO.File.ReadAllBytesAsync(absolutePath);
-                var currentHash = ComputeSHA256(fileBytes);
-                hashMatched = string.Equals(currentHash, cert.FileHash, StringComparison.OrdinalIgnoreCase);
-            }
+                StudentCertificateId = certificateId,
+                VerifiedAt = AppClock.Now,
+                VerifiedFrom = verifiedFromIp,
+                IsValid = false,
+                HashMatched = false,
+            };
+        }
 
-            var now = AppClock.Now;
-            isValid = hashMatched
+        bool hashMatched = false;
+
+        var absolutePath = ResolveAbsolutePath(cert.FilePath);
+        if (System.IO.File.Exists(absolutePath))
+        {
+            var fileBytes = StripBom(await System.IO.File.ReadAllBytesAsync(absolutePath));
+            var currentHash = ComputeSHA256(fileBytes);
+            hashMatched = string.Equals(currentHash, cert.FileHash, StringComparison.OrdinalIgnoreCase);
+        }
+
+        var now = AppClock.Now;
+        var isValid = hashMatched
                    && cert.Status == "active"
                    && (cert.ExpiresAt is null || cert.ExpiresAt.Value > now);
-        }
 
         var verification = new CertificateVerification
         {
@@ -234,13 +249,25 @@ public class CertificateService(IAppDbContext db, IHostEnvironment env)
         return Convert.ToHexString(hash).ToLowerInvariant();
     }
 
-    /// <summary>Noyob sertifikat raqami: CERT-yyyy-MM-dd-NNNN.</summary>
+    /// <summary>
+    /// Sertifikat raqami: CERT-yyyy-MM-dd-NNNN (odam o'qiy oladigan format saqlanadi).
+    /// <para>Qo'shimcha (NNNN) ilgari vaqtdan olinardi ((ms + sek*1000) % 10000) va har 10
+    /// soniyada takrorlanardi — bir xil raqam = bir xil fayl nomi = eski faylning ustiga
+    /// yozilishi. Endi tasodifiy nuqtadan boshlanuvchi atomik hisoblagich ishlatiladi, ya'ni
+    /// jarayon ichidagi ketma-ket chaqiruvlar HECH QACHON takrorlanmaydi.</para>
+    /// <para>Jarayonlar/qayta ishga tushirish orasidagi to'qnashuvni esa
+    /// <see cref="ReserveCertificateNumberAsync"/> baza va diskdan tekshirib to'sadi.</para>
+    /// </summary>
     public static string GenerateCertificateNumber()
     {
         var datePart = AppClock.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-        var suffix = (AppClock.Now.Millisecond + AppClock.Now.Second * 1000) % 10000;
+        var suffix = (uint)Interlocked.Increment(ref _numberSequence) % 10000;
         return $"CERT-{datePart}-{suffix:D4}";
     }
+
+    /// <summary>Hisoblagichning boshlang'ich nuqtasi tasodifiy — qayta ishga tushirishda
+    /// har doim bir xil raqamdan boshlanmasligi uchun.</summary>
+    private static int _numberSequence = Random.Shared.Next(10000);
 
     /// <summary>Sertifikat andozasi uchun token almashtirish (HTML andoza uchun).</summary>
     public static string RenderTemplate(
@@ -273,6 +300,47 @@ public class CertificateService(IAppDbContext db, IHostEnvironment env)
     // ─────────────────────────────────────────────────────────────
     // Xususiy yordamchilar
     // ─────────────────────────────────────────────────────────────
+
+    /// <summary>BOM'siz UTF-8. `Encoding.UTF8` statik xossasi BOM (EF BB BF) YOZADI.</summary>
+    private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
+
+    /// <summary>
+    /// Baytlar boshidagi UTF-8 BOM'ni (EF BB BF) olib tashlaydi.
+    /// <para>MIGRATSIYA KERAK EMAS: ESKI sertifikat fayllari BOM bilan yozilgan, lekin ularning
+    /// saqlangan FileHash'i BOM'SIZ baytlardan hisoblangan edi. Tekshirishda BOM'ni olib
+    /// tashlaganimiz uchun eski fayl → eski hash bilan MOS KELADI. YANGI fayllar esa allaqachon
+    /// BOM'siz yoziladi → o'zgarishsiz qoladi va yangi hash bilan MOS KELADI.</para>
+    /// </summary>
+    private static byte[] StripBom(byte[] bytes) =>
+        bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF
+            ? bytes[3..]
+            : bytes;
+
+    /// <summary>
+    /// Bo'sh (band bo'lmagan) sertifikat raqami va unga mos fayl nomini tanlaydi.
+    /// Raqam fayl nomi bo'lgani uchun bazadagi FileName va diskdagi fayl bo'yicha tekshiriladi.
+    /// </summary>
+    private async Task<(string CertNumber, string FileName)> ReserveCertificateNumberAsync()
+    {
+        var certsDir = GetCertificatesDirectory();
+
+        for (var attempt = 0; attempt < 50; attempt++)
+        {
+            var certNumber = GenerateCertificateNumber();
+            var safeName = certNumber.Replace("/", "-").Replace("\\", "-");
+            var fileName = $"{safeName}.html";
+
+            if (System.IO.File.Exists(System.IO.Path.Combine(certsDir, fileName))) continue;
+            if (await db.StudentCertificates.AnyAsync(c => c.FileName == fileName)) continue;
+
+            return (certNumber, fileName);
+        }
+
+        // Deyarli imkonsiz holat (bir kunda 50 ta ketma-ket band raqam) — Guid bilan kafolatlaymiz.
+        var fallbackNumber = $"CERT-{AppClock.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}"
+                           + $"-{Guid.NewGuid().ToString("N")[..8]}";
+        return (fallbackNumber, $"{fallbackNumber}.html");
+    }
 
     private static readonly string[] UzMonths =
         ["yanvar", "fevral", "mart", "aprel", "may", "iyun",

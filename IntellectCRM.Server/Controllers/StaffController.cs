@@ -119,10 +119,15 @@ public class StaffController(AppDbContext db) : ControllerBase
     }
 
     /// <summary>Xodim akkaunti logini. Parol xavfsizlik uchun saqlanmaydi — bo'sh qaytadi
-    /// (ko'rsatish kerak bo'lsa <see cref="ResetPassword"/> orqali yangisini yarating).</summary>
+    /// (ko'rsatish kerak bo'lsa <see cref="ResetPassword"/> orqali yangisini yarating).
+    /// <para>GET odatda xodim uchun ochiq bo'lsa-da (bo'limlararo o'qish uchun), bu endpoint
+    /// AKKAUNT MA'LUMOTINI (login va dastlabki parol) qaytargani uchun MAXSUS tekshiriladi —
+    /// faqat superadmin/admin yoki "Xodimlar" bo'limiga TO'LIQ ruxsati bor xodim. Aks holda
+    /// bo'lim ruxsati yo'q istalgan xodim boshqalarning parolini o'qib olardi.</para></summary>
     [HttpGet("{id}/credentials")]
     public async Task<ActionResult<CredentialsDto>> Credentials(string id)
     {
+        if (!AdminPermAttribute.HasFullAccess(User, "staff")) return Forbid();
         var user = await db.Users.FindAsync(id);
         if (user is null || user.Role != Roles.Staff) return NotFound();
         return new CredentialsDto(user.Email, user.InitialPassword ?? "", user.Role);

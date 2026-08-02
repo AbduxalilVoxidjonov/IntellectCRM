@@ -4,7 +4,9 @@
     "target": "es2023",
     "lib": ["ES2023", "DOM"],
     "module": "esnext",
-    "types": ["vite/client"],
+    // `vitest/globals` — testlar (`src/**/__tests__/*.test.ts`) ham `include: ["src"]` ichida,
+    // shuning uchun `describe/it/expect/vi` global tiplari `tsc -b` uchun kerak.
+    "types": ["vite/client", "vitest/globals"],
     "skipLibCheck": true,
 
     /* Bundler mode */

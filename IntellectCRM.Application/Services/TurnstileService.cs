@@ -45,6 +45,7 @@ public class TurnstileService
             if (status == "" && !notYet && isPast) status = "absent";
 
             var lateMin = 0;
+            // Erta kelganda MinutesBetween MANFIY qaytaradi → Math.Max bilan kechikish 0 ko'rsatiladi.
             if (status == "late" && e is not null && e.CheckIn.Length == 5 && expected.Length == 5)
                 lateMin = Math.Max(0, MinutesBetween(expected, e.CheckIn));
 
@@ -228,6 +229,7 @@ public class TurnstileService
                     checkOut = times.Count > 1 ? times[^1] : "";
                     var expected = ExpectedArrival(t, date, meta?.WorkStartTime ?? "", firstPeriod, lessonStart);
                     var grace = meta?.LateGraceMinutes ?? 0;
+                    // Erta kelgan → manfiy daqiqa → grace'dan katta emas → "present".
                     status = expected.Length == 5 && MinutesBetween(expected, checkIn) > grace ? "late" : "present";
                 }
                 else if (isPast) status = "absent"; // o'tgan kun, hodisa yo'q → kelmadi
@@ -277,10 +279,18 @@ public class TurnstileService
     private static Task<Dictionary<int, string>> LessonStartByPeriodAsync(IAppDbContext db) =>
         Task.FromResult(new Dictionary<int, string>());
 
+    /// <summary>
+    /// <paramref name="fromHhmm"/> dan <paramref name="toHhmm"/> gacha bo'lgan BELGILI (manfiy bo'la
+    /// oladigan) daqiqalar farqi: musbat = kechikish, manfiy = erta kelish.
+    /// <para>DIQQAT: bu yerda <c>TimeOnly</c> ayirmasi (<c>b - a</c>) ISHLATILMAYDI — u "a dan b gacha
+    /// oldinga qarab o'tgan vaqt"ni beradi va natija HAR DOIM [0, 24 soat) oralig'ida bo'lib, yarim tunda
+    /// aylanib ketadi (08:00 − 08:30 = 23:30 = 1410 daqiqa). Shu sababli erta kelgan o'qituvchi
+    /// ~24 soat "kechikkan" bo'lib chiqardi. Iltimos, qaytarib qo'ymang.</para>
+    /// </summary>
     private static int MinutesBetween(string fromHhmm, string toHhmm)
     {
         if (!TimeOnly.TryParse(fromHhmm, out var a) || !TimeOnly.TryParse(toHhmm, out var b)) return 0;
-        return (int)(b - a).TotalMinutes;
+        return (int)(b.ToTimeSpan() - a.ToTimeSpan()).TotalMinutes;
     }
 
     // ---------- Hikvision ISAPI (AcsEvent) ----------

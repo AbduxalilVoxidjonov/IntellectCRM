@@ -4,7 +4,11 @@ using IntellectCRM.Application.Abstractions;
 using IntellectCRM.Domain;
 using System.Collections.Concurrent;
 using System.Net;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
+
+// Test loyihasi xavfsizlik seam'lariga (IsOwnContact) kira olishi uchun.
+[assembly: InternalsVisibleTo("IntellectCRM.Tests")]
 
 namespace IntellectCRM.Application.Services;
 
@@ -33,15 +37,22 @@ public class TelegramBotService(
     /// <summary>Ro'yxatdan o'tgan foydalanuvchi klaviaturasidagi "bir martalik kod olish" tugmasi matni.</summary>
     private const string OtpButtonText = "🔑 Yangi kod olish";
 
-    /// <summary>Telefon so'rovchi yagona yo'riqnoma: tugma orqali YOKI raqamni yozib yuborish (namuna bilan).
-    /// Har ikkala usulda ham raqam markaz profili bilan solishtirilib bog'lanadi.</summary>
+    /// <summary>Telefon so'rovchi yagona yo'riqnoma. XAVFSIZLIK: raqam FAQAT «Telefon raqamni yuborish»
+    /// tugmasi orqali (Telegram kontakti) qabul qilinadi — matn sifatida yozilgan raqam profilga
+    /// BOG'LANMAYDI, aks holda begona (hatto admin) raqamini yozib akkauntni egallash mumkin edi.</summary>
     private const string PhonePrompt =
-        "📱 Telefon raqamingizni yuboring — 2 usuldan biri bilan:\n\n" +
-        "1️⃣ Pastdagi «📱 Telefon raqamni yuborish» tugmasini bosing;\n" +
-        "2️⃣ yoki raqamingizni shu ko'rinishda yozib yuboring:  901234567\n" +
-        "     (+998 90 123 45 67  yoki  998901234567  ham bo'ladi).\n\n" +
+        "📱 Telefon raqamingizni yuboring:\n\n" +
+        "👉 Pastdagi «📱 Telefon raqamni yuborish» tugmasini bosing.\n\n" +
+        "⚠️ Raqamni matn sifatida yozish ishlamaydi — xavfsizlik uchun raqam faqat shu tugma orqali " +
+        "(Telegram akkauntingizdan) qabul qilinadi.\n" +
         "Raqamingiz markaz ma'lumotlari bilan solishtirilib, profilingizga bog'lanadi.\n" +
         "Administratorga murojaat uchun «" + SupportButtonText + "» tugmasini bosing.";
+
+    /// <summary>Foydalanuvchi raqamni matn qilib yozganda yoki BEGONA kontakt yuborganda javob.</summary>
+    private const string OwnContactOnlyPrompt =
+        "❗️ Raqam qabul qilinmadi.\n\n" +
+        "Iltimos, O'ZINGIZNING raqamingizni pastdagi «📱 Telefon raqamni yuborish» tugmasi orqali yuboring.\n" +
+        "Qo'lda yozilgan yoki boshqa odamning kontakti qabul qilinmaydi.";
 
     /// <summary>Obunadan oldin kontakt yuborgan, lekin hali obuna bo'lmaganlar: chatId → telefon.</summary>
     private readonly ConcurrentDictionary<long, string> _pendingPhone = new();
@@ -178,10 +189,19 @@ public class TelegramBotService(
         if (!msg.TryGetProperty("chat", out var chat) || !chat.TryGetProperty("id", out var chatIdEl)) return;
         var chatId = chatIdEl.GetInt64();
 
-        // Kontakt ulashildi.
+        // Kontakt ulashildi. XAVFSIZLIK: faqat O'ZINING kontakti qabul qilinadi — Telegramda manzillar
+        // kitobidan BEGONA odamning kontaktini ham yuborish mumkin, u holda o'sha odamning profili
+        // (login/parol, kirish kodi) hujumchining chatiga bog'lanib qolardi.
         if (msg.TryGetProperty("contact", out var contact))
         {
             var phone = contact.TryGetProperty("phone_number", out var p) ? p.GetString() : null;
+            if (!IsOwnContact(msg))
+            {
+                await LogInAsync(chatId, "[begona kontakt yuborildi — rad etildi]", ct);
+                logger.LogWarning("Bot: begona kontakt rad etildi, chatId {Id}", chatId);
+                await SendAsync(chatId, OwnContactOnlyPrompt, ContactKeyboard, ct);
+                return;
+            }
             await LogInAsync(chatId, $"[telefon raqami ulashildi: {phone}]", ct);
             await HandleContactAsync(chatId, phone, SenderName(msg), ct);
             return;
@@ -265,12 +285,11 @@ public class TelegramBotService(
             else
             {
                 await LogInAsync(chatId, text, ct);
-                // Foydalanuvchi raqamni MATN sifatida yozgan bo'lsa — kontakt ulashgandek qabul qilamiz
-                // (moslik → profilni bog'lash), tugma bosishi shart emas. Aks holda — yo'riqnoma (namuna bilan).
-                if (LooksLikePhone(text))
-                    await HandleContactAsync(chatId, text, SenderName(msg), ct);
-                else
-                    await SendAsync(chatId, PhonePrompt, ContactKeyboard, ct);
+                // XAVFSIZLIK: matn sifatida yozilgan raqam profilga BOG'LANMAYDI (istalgan odamning
+                // raqamini yozib akkauntni egallash mumkin edi). Raqamga o'xshash matnga — aniq
+                // tushuntirish, boshqa matnga — umumiy yo'riqnoma. Har holda jim qolmaymiz.
+                await SendAsync(chatId, LooksLikePhone(text) ? OwnContactOnlyPrompt : PhonePrompt,
+                    ContactKeyboard, ct);
             }
         }
     }
@@ -1218,6 +1237,24 @@ public class TelegramBotService(
         var digits = PhoneUtil.DigitsOnly(t);
         if (digits.Length is < 7 or > 12) return false;
         return t.All(c => char.IsDigit(c) || c is '+' or '-' or '(' or ')' or ' ');
+    }
+
+    /// <summary>XAVFSIZLIK SEAM: kelgan <c>contact</c> yuboruvchining O'ZIGA tegishlimi?
+    /// Telegram "request_contact" tugmasi orqali yuborilgan kontaktda <c>contact.user_id</c> bo'ladi va u
+    /// <c>message.from.id</c> ga TENG bo'ladi. Manzillar kitobidan tanlangan BEGONA kontaktda esa user_id
+    /// boshqa bo'ladi (yoki umuman bo'lmaydi — Telegramda ro'yxatdan o'tmagan raqam).
+    /// Maydon yo'q bo'lsa yoki turi noto'g'ri bo'lsa — <c>false</c> (istisno tashlamaydi).</summary>
+    internal static bool IsOwnContact(JsonElement message)
+    {
+        if (message.ValueKind != JsonValueKind.Object) return false;
+        if (!message.TryGetProperty("contact", out var contact) || contact.ValueKind != JsonValueKind.Object) return false;
+        if (!message.TryGetProperty("from", out var from) || from.ValueKind != JsonValueKind.Object) return false;
+        // DIQQAT: TryGetInt64 raqam bo'lmagan turda ISTISNO tashlaydi — avval ValueKind tekshiriladi.
+        if (!contact.TryGetProperty("user_id", out var uidEl) || uidEl.ValueKind != JsonValueKind.Number
+            || !uidEl.TryGetInt64(out var userId)) return false;
+        if (!from.TryGetProperty("id", out var fromIdEl) || fromIdEl.ValueKind != JsonValueKind.Number
+            || !fromIdEl.TryGetInt64(out var fromId)) return false;
+        return userId == fromId;
     }
 
     private static string SenderName(JsonElement msg)

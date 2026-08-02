@@ -39,6 +39,19 @@ test kerak bo'lsa `WebApplicationFactory` bilan alohida loyiha ochiladi).
 - Vaqt: kodda `DateTime.Now` emas, `AppClock.Now` (Asia/Tashkent, UTC+5). Testda ham shundan boshlang —
   UTC bilan solishtirish 5 soatlik xatoga olib keladi.
 
+## 2b. Ma'lum xatolar — `Skip` konvensiyasi
+
+Auditda topilgan, lekin HALI TUZATILMAGAN xatolar test bilan **hujjatlashtirilgan**. Naqsh — juft test:
+
+- `[Fact(Skip = "XATO (fayl:qator): ...")]` — **kutilgan (to'g'ri)** xulq. Tuzatilgach `Skip` olib tashlanadi.
+- yonida yashil test — **hozirgi (noto'g'ri)** xulqni muzlatadi, ya'ni xatoni isbotlaydi va
+  regressiyani ushlaydi. Tuzatilganda bu test **o'chiriladi** (izohda shunday yozilgan).
+
+Frontendda xuddi shu narsa `it.skip(...)` bilan.
+
+⚠️ Shuning uchun `Skip` sonining kamayishi — yaxshi belgi (xato tuzatildi), oshishi — yangi
+xato topildi degani. Test to'plami DOIM yashil bo'lishi kerak.
+
 ## 3. Yangi test yozganda
 
 1. Avval **`.claude/rules/*.md`** ni o'qing — kutilayotgan xulqning RASMIY manbai
@@ -66,16 +79,24 @@ Sinalgan bo'linish — hududlar bir-birining fayllariga tegmaydi:
 `fayl:qator — muammo — qanday sindiradi — tuzatish` ko'rinishida qaytaradi. Tuzatish qarori odamda.
 Test yozuvchi agentlarga har biriga ALOHIDA test fayllari beriladi (parallel konflikt bo'lmasin).
 
-## 5. Frontend testlari
+## 5. Frontend testlari (Vitest)
 
-Hozircha **yo'q** (vitest o'rnatilmagan). Bu mashinada `node`/`npm` PATH da yo'q —
-Docker orqali ishlatiladi:
+Bu mashinada `node`/`npm` PATH da **yo'q** — hammasi Docker orqali (`IntellectCRM.Client` ichidan):
 ```bash
-cd IntellectCRM.Client
-docker run --rm -v "$PWD":/w -w /w node:20-slim npx tsc -b --pretty false   # tipni tekshirish
-docker run --rm -v "$PWD":/w -w /w node:20-slim npx eslint .                # lint
+docker run --rm -v "$PWD":/w -w /w node:24-slim npx vitest run     # testlar
+docker run --rm -v "$PWD":/w -w /w node:24-slim npm run build      # tsc -b + vite build
+docker run --rm -v "$PWD":/w -w /w node:24-slim npx eslint .       # lint
 ```
-Vitest qo'shilganda `npm run test` shu yerga yoziladi.
+
+- Konfiguratsiya **`vitest.config.ts`** da — `vite.config.ts` ni QAYTA ISHLATIB BO'LMAYDI:
+  u `command === 'serve'` da `dotnet dev-certs` chaqiradi va konteynerda yiqiladi.
+- Testlar `src/**/__tests__/*.test.ts` da; faqat **sof funksiyalar** qamralgan
+  (komponent render testlari ataylab yo'q).
+- DOM kerak bo'lsa fayl boshiga `// @vitest-environment jsdom`.
+
+**Tuzoqlar (tekshirilgan):** `Blob.text()` BOM'ni yeb qo'yadi — BOM'ni `arrayBuffer()` +
+`TextDecoder(..., {ignoreBOM:true})` bilan tekshiring. jsdom `URL.createObjectURL` ni
+implementatsiya qilmaydi — `vi.spyOn` yiqiladi, stub'ni qo'lda o'rnatib keyin tozalang.
 
 ## 6. Flutter ilovalari
 

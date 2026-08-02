@@ -232,10 +232,15 @@ public class TeachersController(AppDbContext db, AuditService audit, IConfigurat
         return NoContent();
     }
 
-    /// <summary>O'qituvchining tizim akkaunti (login/parol). Akkaunt yo'q bo'lsa — yaratib biriktiradi.</summary>
+    /// <summary>O'qituvchining tizim akkaunti (login/parol). Akkaunt yo'q bo'lsa — yaratib biriktiradi.
+    /// <para>GET odatda xodim uchun ochiq bo'lsa-da (bo'limlararo o'qish uchun), bu endpoint
+    /// LOGIN va DASTLABKI PAROLNI qaytargani (va akkaunt yaratib DB'ni o'zgartirgani) uchun
+    /// MAXSUS tekshiriladi — faqat superadmin/admin yoki "O'qituvchilar" bo'limiga TO'LIQ
+    /// ruxsati bor xodim. Aks holda bo'lim ruxsati yo'q xodim ham parolni o'qiy olardi.</para></summary>
     [HttpGet("{id}/credentials")]
     public async Task<ActionResult<CredentialsDto>> Credentials(string id)
     {
+        if (!AdminPermAttribute.HasFullAccess(User, "teachers")) return Forbid();
         var teacher = await db.Teachers.FindAsync(id);
         if (teacher is null) return NotFound();
 

@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Test qamrovi (vitest --coverage)
+coverage
+
 # MSBuild / .NET (esproj) artifacts
 bin/
 obj/
