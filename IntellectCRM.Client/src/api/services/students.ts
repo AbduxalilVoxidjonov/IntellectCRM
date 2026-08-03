@@ -278,6 +278,22 @@ export async function updateStudent(
   })
 }
 
+/**
+ * O'QUVCHI RASMINI o'rnatish/o'chirish (`photoUrl = null` → o'chirish).
+ *
+ * Nega alohida: rasm o'quvchi sahifasidagi DUMALOQ avatarni bosib ham yuklanadi — u yerda
+ * to'liq forma yo'q, to'liq `PUT` yuborilsa boshqa maydonlar bo'shab qolishi mumkin edi.
+ * Serverda ma'lumot `Student.BirthCertificateUrl` ustunida (nomi eski, tizim uni RASM deb
+ * ishlatadi — o'quvchi ilovasida `photoUrl` bo'lib chiqadi).
+ */
+export async function updateStudentPhoto(id: string, photoUrl: string | null): Promise<void> {
+  if (USE_MOCK) {
+    await delay(200)
+    return
+  }
+  await api.put(`/admin/students/${id}/photo`, { photoUrl })
+}
+
 export async function deleteStudent(id: string, reasonId?: string): Promise<void> {
   if (USE_MOCK) {
     await delay(200)

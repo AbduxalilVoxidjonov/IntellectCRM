@@ -7,7 +7,7 @@ import {
   CalendarClock, Award, Download, LifeBuoy, Sparkles, Pencil, MessageSquare,
   PhoneIncoming, PhoneOutgoing, PhoneMissed, PhoneCall,
   Snowflake, CheckCircle2, RotateCcw, ArrowLeftRight, Plus, NotebookText, X,
-  StickyNote, Trash2, Gift,
+  StickyNote, Trash2, Gift, Camera,
 } from 'lucide-react'
 import { genderLabels } from '@/config/constants'
 import {
@@ -29,6 +29,7 @@ import {
   addPayment,
   getStudentNotes,
   addStudentNote,
+  updateStudentPhoto,
   updateStudentNote,
   deleteStudentNote,
   type StudentNote,
@@ -75,6 +76,7 @@ import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { PaymentHistoryPanel } from './PaymentHistoryPanel'
 import { TeacherReviewsSection } from './TeacherReviewsSection'
+import { StudentPhotoDialog } from './StudentPhotoDialog'
 import { PaymentModal } from './PaymentModal'
 import { AiAnalysisModal } from './AiAnalysisModal'
 import { AiAnalysisView } from './AiAnalysisView'
@@ -143,6 +145,9 @@ export function StudentDetailPage() {
   // «O'qituvchilar haqida fikr» — AYNAN shu darvoza: o'qituvchi haqidagi ichki baholash bo'lgani
   // uchun xodimga (staff) ochilmaydi, server ham faqat admin/superadmin'ga ruxsat beradi.
   const canWriteTeacherReviews = isBonusAllowed
+  // RASM — o'quvchini tahrirlash huquqi bilan bir xil (dumaloq avatarni bosib almashtiriladi).
+  const canEditPhoto = can('students', 'edit')
+  const [photoOpen, setPhotoOpen] = useState(false)
   // Aktivlashtirish oynasidagi «Bonus hisoblansin» ptichkasi — bundan ham QATTIQROQ darvoza:
   // faqat superadmin yoki «Xodimlar va rollar» dan shu ruxsat berilgan xodim (oddiy "admin" emas).
   const canSetBonus = useSuperOrGranted('retentionBonus')
@@ -669,15 +674,44 @@ export function StudentDetailPage() {
               />
             </div>
 
-            {/* Profil sarlavhasi */}
+            {/* Profil sarlavhasi — DUMALOQ rasm. Rasm bo'lmasa bosilganda darhol KAMERA
+                ochiladi; rasm bo'lsa pastida "Rasmni almashtirish" turadi. */}
             <div className="flex flex-col items-center gap-3 text-center">
-              <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-brand-50 text-3xl font-semibold text-brand-600">
+              <button
+                type="button"
+                onClick={() => canEditPhoto && setPhotoOpen(true)}
+                disabled={!canEditPhoto}
+                title={canEditPhoto ? (data.photoUrl ? 'Rasmni almashtirish' : 'Rasm qo\'shish') : undefined}
+                className={cn(
+                  'group relative flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-full bg-brand-50 text-3xl font-semibold text-brand-600',
+                  canEditPhoto && 'cursor-pointer ring-offset-2 transition hover:ring-2 hover:ring-brand-300',
+                )}
+              >
                 {data.photoUrl ? (
                   <img src={data.photoUrl} alt={data.fullName} className="h-full w-full object-cover" />
                 ) : (
                   initials(data.fullName)
                 )}
-              </div>
+                {canEditPhoto && (
+                  <span
+                    className={cn(
+                      'absolute inset-0 flex items-center justify-center bg-slate-900/45 text-white transition-opacity',
+                      data.photoUrl ? 'opacity-0 group-hover:opacity-100' : 'opacity-0 group-hover:opacity-100',
+                    )}
+                  >
+                    <Camera className="h-6 w-6" />
+                  </span>
+                )}
+              </button>
+              {canEditPhoto && data.photoUrl && (
+                <button
+                  type="button"
+                  onClick={() => setPhotoOpen(true)}
+                  className="-mt-1 text-xs font-medium text-brand-600 hover:underline"
+                >
+                  Rasmni almashtirish
+                </button>
+              )}
               <div className="min-w-0">
                 <h1 className="text-xl font-semibold text-slate-800">{data.fullName}</h1>
                 <div className="mt-1.5 flex flex-col items-center gap-1 text-sm text-slate-500">
@@ -751,7 +785,7 @@ export function StudentDetailPage() {
                 <div className="mt-4 flex flex-wrap gap-4 border-t border-slate-100 pt-4">
                   {data.photoUrl && (
                     <a href={data.photoUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:underline">
-                      <IdCard className="h-4 w-4" /> O'quvchi hujjati / surati
+                      <IdCard className="h-4 w-4" /> O'quvchi rasmi (to'liq)
                     </a>
                   )}
                   {data.parentPassportUrl && (
@@ -1759,6 +1793,20 @@ export function StudentDetailPage() {
         onClose={() => setEditing(null)}
         onSubmit={handleEditSubmit}
         initial={editing}
+      />
+
+      {/* O'quvchi rasmi — dumaloq avatarni bosganda ochiladi (kamera yoki fayl). */}
+      <StudentPhotoDialog
+        open={photoOpen}
+        currentUrl={data.photoUrl ?? null}
+        // Rasm hali yo'q bo'lsa darhol kamera yoqiladi — shunisi tezroq.
+        startWithCamera={!data.photoUrl}
+        onClose={() => setPhotoOpen(false)}
+        onSaved={async (url) => {
+          if (!id) return
+          await updateStudentPhoto(id, url)
+          setData((d) => (d ? { ...d, photoUrl: url } : d))
+        }}
       />
 
       <SmsModal

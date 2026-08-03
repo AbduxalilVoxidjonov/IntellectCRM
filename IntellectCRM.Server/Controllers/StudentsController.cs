@@ -863,6 +863,39 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
     /* ---------- Arxiv ---------- */
 
     /// <summary>
+    /// O'QUVCHI RASMINI (profil surati) o'rnatish yoki o'chirish.
+    ///
+    /// <para>Nega alohida endpoint: rasm o'quvchi sahifasidagi DUMALOQ avatarni bosib ham
+    /// (kameradan yoki fayldan) yuklanadi. U yerda to'liq <see cref="StudentPayload"/> yo'q —
+    /// to'liq <c>PUT</c> yuborilsa boshqa maydonlar (chegirma, ota-ona, manzil...) tasodifan
+    /// bo'shab qolishi mumkin edi. Shu sabab faqat bitta maydonga tegadigan yengil yo'l.</para>
+    ///
+    /// <para>DIQQAT: rasm ANIQ shu ustunda — <see cref="Student.BirthCertificateUrl"/>. Nomi
+    /// eski (ilgari tug'ilganlik guvohnomasi edi), lekin butun tizim uni RASM deb ishlatadi:
+    /// admin formasidagi yorlig'i "O'quvchi rasmi", o'quvchi ilovasiga esa
+    /// <c>StudentProfileDto.PhotoUrl</c> bo'lib chiqadi. Ikkinchi ustun ochilmadi — aks holda
+    /// ikkita "rasm" manbai paydo bo'lib, qaysi biri ko'rsatilishi chalkashardi.</para>
+    /// </summary>
+    [HttpPut("{id}/photo")]
+    public async Task<IActionResult> SetPhoto(string id, StudentPhotoRequest req)
+    {
+        var student = await db.Students.FindAsync(id);
+        if (student is null) return NotFound();
+
+        var url = (req.PhotoUrl ?? "").Trim();
+        // Faqat serverning o'z yuklamalari qabul qilinadi (tashqi havola qo'yib bo'lmasin).
+        if (url.Length > 0 && !url.StartsWith("/uploads/", StringComparison.Ordinal))
+            return BadRequest(new { message = "Rasm manzili noto'g'ri" });
+
+        student.BirthCertificateUrl = url.Length == 0 ? null : url;
+        audit.Record(AuditService.EntityStudent, id, "update",
+            url.Length == 0 ? "O'quvchi rasmi o'chirildi" : "O'quvchi rasmi yangilandi",
+            studentId: id);
+        await db.SaveChangesAsync();
+        return Ok(new { photoUrl = student.BirthCertificateUrl });
+    }
+
+    /// <summary>
     /// O'quvchini arxivga ko'chirish: <c>IsArchived=true</c>, sana saqlanadi, sabab yoziladi,
     /// akkaunt login bloklanadi (PasswordHash bo'shaltiriladi). Tarixiy ma'lumotlar saqlanadi.
     /// ReasonId berilsa, ActionReason.Label yoziladi; aks holda Reason suz berilsa yoziladi.

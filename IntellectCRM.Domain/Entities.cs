@@ -225,7 +225,15 @@ public class Student
     /// <summary>Otasining ismi / Sharifi (alohida).</summary>
     public string MiddleName { get; set; } = string.Empty;
     public string BirthDate { get; set; } = string.Empty;
-    /// <summary>O'quvchining rasmi (profil surati) manzili (`/uploads/...`). Ilova profilida ko'rinadi.</summary>
+    /// <summary>
+    /// O'QUVCHINING RASMI (profil surati) manzili ("/uploads/...").
+    ///
+    /// <para><b>NOMI ESKI</b> — ilgari tug'ilganlik guvohnomasi uchun edi, lekin butun tizim uni
+    /// RASM deb ishlatadi: admin formasidagi yorlig'i "O'quvchi rasmi", o'quvchi ilovasiga
+    /// <c>StudentProfileDto.PhotoUrl</c> bo'lib chiqadi, admin profilida esa dumaloq avatarda
+    /// ko'rinadi. Ustun QAYTA NOMLANMAGAN (migratsiya + barcha DTO'larni buzmaslik uchun);
+    /// ikkinchi "rasm" ustuni ham OCHILMAYDI — aks holda qaysi biri ko'rsatilishi chalkashardi.</para>
+    /// </summary>
     public string? BirthCertificateUrl { get; set; }
     public string Address { get; set; } = string.Empty;
     /// <summary>male | female</summary>

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Upload, X, FileText, Loader2, AlertTriangle } from 'lucide-react'
+import { Upload, X, FileText, Loader2, AlertTriangle, Camera } from 'lucide-react'
 import type { Student } from '@/types'
 import type { StudentPayload, PhoneMatch } from '@/api/services/students'
 import { uploadAdminFile, getStudentCredentials, checkStudentPhones } from '@/api/services/students'
@@ -14,6 +14,7 @@ import { Input, Select } from '@/components/ui/Input'
 import { PhoneInput } from '@/components/ui/PhoneInput'
 import { genderOptions } from '@/config/constants'
 import { randomPassword, cn, apiErrorMessage } from '@/lib/utils'
+import { StudentPhotoDialog } from './StudentPhotoDialog'
 
 interface Props {
   open: boolean
@@ -196,6 +197,9 @@ export function StudentFormModal({ open, onClose, onSubmit, initial }: Props) {
   const update =<K extends keyof StudentPayload>(key: K, value: StudentPayload[K]) =>
     setForm((f) => ({ ...f, [key]: value }))
 
+  /** «Kameradan olish» dialogi ochiqmi (rasm shu yerda ham yuklanadi). */
+  const [photoOpen, setPhotoOpen] = useState(false)
+
   /** Fayl yuklash — admin uploads endpoint'iga uzatib, qaytgan URL'ni formaga yozadi. */
   const handleUpload = async (key: 'birthCertificateUrl', file: File) => {
     setUploading((u) => ({ ...u, birth: true }))
@@ -324,6 +328,14 @@ export function StudentFormModal({ open, onClose, onSubmit, initial }: Props) {
               onUpload={(f) => handleUpload('birthCertificateUrl', f)}
               onClear={() => update('birthCertificateUrl', null)}
             />
+            {/* KAMERADAN olish — noutbuk/telefon kamerasi bilan darhol suratga olish. */}
+            <button
+              type="button"
+              onClick={() => setPhotoOpen(true)}
+              className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-medium text-brand-600 hover:underline"
+            >
+              <Camera className="h-3.5 w-3.5" /> Kameradan olish
+            </button>
           </div>
         </Section>
 
@@ -549,6 +561,16 @@ export function StudentFormModal({ open, onClose, onSubmit, initial }: Props) {
         )}
       </form>
     </Modal>
+
+    {/* O'quvchi rasmi — kameradan olish yoki fayldan tanlash. Bu yerda faqat FORMAGA
+        yoziladi, serverga esa forma saqlanganda umumiy payload bilan ketadi. */}
+    <StudentPhotoDialog
+      open={photoOpen}
+      currentUrl={form.birthCertificateUrl ?? null}
+      startWithCamera
+      onClose={() => setPhotoOpen(false)}
+      onSaved={(url) => update('birthCertificateUrl', url)}
+    />
 
     {/* Telefon dublikati ogohlantirishi — "Baribir saqlash" / "Bekor qilish" */}
     <Modal

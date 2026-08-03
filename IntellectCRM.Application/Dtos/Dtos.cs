@@ -793,6 +793,12 @@ public record StudentDto(
 /// <summary>O'quvchini arxivlash so'rovi — sababini saqlaydi (ReasonId yo'ki Reason).</summary>
 public record ArchiveStudentRequest(string? Reason = null, string? ReasonId = null);
 
+/// <summary>O'quvchi rasmini (profil surati) o'rnatish/o'chirish. <c>PhotoUrl</c> — serverga
+/// yuklangan fayl manzili ("/uploads/..."); bo'sh yoki null bo'lsa rasm O'CHIRILADI.
+/// Ma'lumot <see cref="Student.BirthCertificateUrl"/> ustunida saqlanadi (nomi eski — butun
+/// tizim uni RASM deb ishlatadi).</summary>
+public record StudentPhotoRequest(string? PhotoUrl);
+
 /// <summary>Admin o'quvchi login'ini vaqtincha cheklaydi/qayta ochadi.</summary>
 public record StudentLoginBlockRequest(bool Blocked);
 
