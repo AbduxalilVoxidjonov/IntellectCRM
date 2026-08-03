@@ -13,6 +13,11 @@ COPY IntellectCRM.Client/ ./
 ARG VITE_ROOT_DOMAIN=intellectcrm.uz
 ARG VITE_USE_MOCK=false
 ENV VITE_ROOT_DOMAIN=$VITE_ROOT_DOMAIN VITE_USE_MOCK=$VITE_USE_MOCK
+# Node HEAP chegarasi: konteynerda Node o'zi ~512 MB "old space" tanlab oladi va loyiha
+# o'sgani sayin `tsc -b && vite build` o'sha chegarada "heap out of memory" (exit 134) bilan
+# yiqiladi. Aniq belgilab qo'yamiz. DIQQAT: Docker VM'ining o'zida ham shuncha RAM bo'lishi
+# kerak (Docker Desktop → Settings → Resources → Memory ≥ 6 GB).
+ENV NODE_OPTIONS=--max-old-space-size=4096
 RUN npm run build        # natija: /client/dist
 
 # ---------- 2) Backend (.NET) publish ----------
