@@ -322,6 +322,29 @@ export interface StudentTeacherReviewGroup {
   reviews: TeacherReview[]
 }
 
+/**
+ * O'qituvchi profilidagi «Fikrlar» bo'limi uchun bitta qator — shu o'qituvchi haqida yozilgan
+ * fikr, kim (o'quvchi) va qaysi guruh bo'yicha ekani bilan.
+ *
+ * DIQQAT: bu ADMIN ko'rinishi (o'quvchi ismi bor). O'qituvchining O'ZIGA berilmaydi.
+ */
+export interface TeacherReviewFeedItem {
+  id: string
+  studentId: string
+  studentName: string
+  groupId: string
+  groupName: string
+  text: string
+  createdAt: string
+  createdBy: string
+}
+
+/** O'qituvchi «Fikrlar» bo'limi: jami soni + qatorlar (eng yangisi tepada). */
+export interface TeacherReviewFeed {
+  total: number
+  items: TeacherReviewFeedItem[]
+}
+
 export interface TeacherAiNarrative {
   umumiy: string
   oquvchiOqimi: string

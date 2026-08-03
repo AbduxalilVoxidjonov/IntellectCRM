@@ -34,6 +34,16 @@ public class TeacherReviewsController(AppDbContext db, AuditService audit) : Con
     public async Task<ActionResult<IEnumerable<StudentTeacherReviewGroupDto>>> ForStudent(string studentId) =>
         await TeacherReviewService.ForStudentAsync(db, studentId);
 
+    /// <summary>
+    /// O'QITUVCHI PROFILIDAGI «Fikrlar» bo'limi: shu o'qituvchi haqida yozilgan BARCHA fikrlar
+    /// (eng yangisi tepada, o'quvchi va guruh nomi bilan). Yozuvlar vaqt o'tgani sayin yig'ilib boradi.
+    /// <para>Bu ADMIN ko'rinishi. O'qituvchi portali (<c>api/teacher/*</c>) va Flutter ilovasida
+    /// bunday endpoint ATAYIN yo'q — o'qituvchi o'zi haqidagi xom fikrlarni ko'rmaydi.</para>
+    /// </summary>
+    [HttpGet("teachers/{teacherId}/reviews")]
+    public async Task<ActionResult<TeacherReviewFeedDto>> ForTeacher(string teacherId) =>
+        await TeacherReviewService.ForTeacherAsync(db, teacherId);
+
     /// <summary>Yangi fikr yozish. Fikr AYNAN guruh o'qituvchisi haqida bo'ladi (server tekshiradi).</summary>
     [HttpPost("students/{studentId}/teacher-reviews")]
     public async Task<ActionResult<TeacherReviewDto>> Add(string studentId, CreateTeacherReviewRequest req)

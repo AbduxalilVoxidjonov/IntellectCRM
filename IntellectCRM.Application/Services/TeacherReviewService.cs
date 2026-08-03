@@ -16,9 +16,11 @@ namespace IntellectCRM.Application.Services;
 /// <para><b>Kim yozadi:</b> FAQAT admin/superadmin (o'quvchi yoki ota-ona emas) — ruxsat
 /// controllerda tekshiriladi.</para>
 ///
-/// <para><b>MAXFIYLIK:</b> xom matn O'QITUVCHIGA ko'rsatilmaydi. <see cref="TextsForTeacherAsync"/>
-/// faqat AI tahlil uchun ishlatiladi; o'qituvchi profilida esa AI umumlashtirgan xulosa chiqadi.
-/// Shu sabab bu servisda "o'qituvchi uchun ro'yxat" qaytaradigan metod ATAYIN yo'q.</para>
+/// <para><b>MAXFIYLIK — CHEGARA QAYERDA:</b> fikrlar ADMIN uchun ochiq (o'quvchi profilida ham,
+/// o'qituvchi profilidagi «Fikrlar» bo'limida ham — <see cref="ForTeacherAsync"/>), lekin
+/// O'QITUVCHINING O'ZIGA hech qachon berilmaydi: na o'qituvchi portalida, na Flutter ilovasida
+/// bunday endpoint yo'q. AI xulosasi esa o'qituvchiga ham ko'rsatilishi mumkin — shuning uchun
+/// <see cref="TextsForTeacherAsync"/> promptga O'QUVCHI ISMINI QO'SHMAYDI.</para>
 /// </summary>
 public static class TeacherReviewService
 {
@@ -93,6 +95,44 @@ public static class TeacherReviewService
             .OrderByDescending(x => x.IsActive)
             .ThenBy(x => x.GroupName, StringComparer.OrdinalIgnoreCase)
             .ToList();
+    }
+
+    /// <summary>
+    /// O'QITUVCHI PROFILIDAGI «Fikrlar» bo'limi: shu o'qituvchi haqida yozilgan BARCHA fikrlar,
+    /// eng yangisi tepada, o'quvchi va guruh nomi bilan. Yozuvlar vaqt o'tgani sayin YIG'ILIB boradi.
+    /// <para>Bu ADMIN ko'rinishi — o'quvchi ismi ko'rsatiladi. O'qituvchining o'ziga berilmaydi
+    /// (o'qituvchi portalida/ilovasida bunday endpoint yo'q).</para>
+    /// </summary>
+    /// <param name="max">Ko'pi bilan nechta qator qaytadi (jami soni alohida sanaladi).</param>
+    public static async Task<TeacherReviewFeedDto> ForTeacherAsync(
+        IAppDbContext db, string teacherId, int max = 300)
+    {
+        var rows = await db.TeacherReviews.AsNoTracking()
+            .Where(r => r.TeacherId == teacherId)
+            .ToListAsync();
+        if (rows.Count == 0) return new TeacherReviewFeedDto(0, new List<TeacherReviewFeedItemDto>());
+
+        var ordered = rows
+            .OrderByDescending(r => r.CreatedAt, StringComparer.Ordinal)
+            .Take(max)
+            .ToList();
+
+        var studentIds = ordered.Select(r => r.StudentId).Distinct().ToList();
+        var studentNames = await db.Students.AsNoTracking()
+            .Where(s => studentIds.Contains(s.Id))
+            .ToDictionaryAsync(s => s.Id, s => s.FullName);
+
+        var groupIds = ordered.Select(r => r.GroupId).Distinct().ToList();
+        var groupNames = await db.Classes.AsNoTracking()
+            .Where(g => groupIds.Contains(g.Id))
+            .ToDictionaryAsync(g => g.Id, g => g.Name);
+
+        return new TeacherReviewFeedDto(
+            rows.Count,
+            ordered.Select(r => new TeacherReviewFeedItemDto(
+                r.Id, r.StudentId, studentNames.GetValueOrDefault(r.StudentId, ""),
+                r.GroupId, groupNames.GetValueOrDefault(r.GroupId, ""),
+                r.Text, r.CreatedAt, r.CreatedBy)).ToList());
     }
 
     /// <summary>Yangi fikr yozadi. Xato bo'lsa (matn bo'sh / a'zolik yo'q / guruh o'qituvchisi

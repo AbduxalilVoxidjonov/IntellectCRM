@@ -1743,6 +1743,20 @@ public record StudentTeacherReviewGroupDto(
 
 /// <summary>Yangi fikr yozish (admin/superadmin). Matn bo'sh bo'lmasligi kerak.</summary>
 public record CreateTeacherReviewRequest(string TeacherId, string GroupId, string Text);
+
+/// <summary>
+/// O'QITUVCHI PROFILIDAGI «Fikrlar» bo'limi uchun bitta qator — shu o'qituvchi haqida yozilgan
+/// fikr, kim (o'quvchi) va qaysi guruh bo'yicha ekani bilan. Eng yangisi tepada.
+/// <para>DIQQAT: bu ADMIN ko'rinishi (o'quvchi ismi bor). O'qituvchining O'ZIGA — na o'qituvchi
+/// portalida, na Flutter ilovasida — bu ma'lumot berilmaydi.</para>
+/// </summary>
+public record TeacherReviewFeedItemDto(
+    string Id, string StudentId, string StudentName,
+    string GroupId, string GroupName,
+    string Text, string CreatedAt, string CreatedBy);
+
+/// <summary>O'qituvchi «Fikrlar» bo'limi: jami soni + qatorlar (eng yangisi tepada).</summary>
+public record TeacherReviewFeedDto(int Total, List<TeacherReviewFeedItemDto> Items);
 /// <summary>
 /// Topshiriq natijasi — bitta o'quvchining holati: bajardimi, qachon, qancha ball (Score) hamda
 /// yuborgan javobi (AnswerText — yozma) yoki fayli (FileUrl — fayl/video). Bularni o'qituvchi

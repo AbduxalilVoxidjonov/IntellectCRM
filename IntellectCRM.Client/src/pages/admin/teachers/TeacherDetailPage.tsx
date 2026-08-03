@@ -14,6 +14,7 @@ import {
   Plus,
   Archive,
   Sparkles,
+  MessageSquareQuote,
 } from 'lucide-react'
 import type {
   Credentials,
@@ -50,14 +51,16 @@ import { Loader } from '@/components/ui/Loader'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { CredentialsBox } from '@/components/ui/CredentialsBox'
 import { AuditHistoryList } from '@/components/audit/AuditHistoryList'
+import { useAuth } from '@/context/auth-context'
 import { TeacherBonusPanel } from '@/components/retention/TeacherBonusPanel'
 import { TeacherAiPanel } from './TeacherAiPanel'
+import { TeacherReviewsFeed } from './TeacherReviewsFeed'
 import {
   getTeacherRetentionBonuses,
   type TeacherRetentionSummary,
 } from '@/api/services/retentionBonus'
 
-type Tab = 'info' | 'groups' | 'rating' | 'salary' | 'bonus' | 'performance' | 'ai'
+type Tab = 'info' | 'groups' | 'rating' | 'salary' | 'bonus' | 'performance' | 'fikrlar' | 'ai'
 
 const weekdayShort = ['Du', 'Se', 'Cho', 'Pa', 'Ju', 'Sha', 'Ya']
 
@@ -96,6 +99,11 @@ export function TeacherDetailPage() {
   const [subjects, setSubjects] = useState<Subject[]>([])
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<Tab>('info')
+
+  // «Fikrlar» tabi — o'quvchilardan yig'ilgan, o'qituvchi haqidagi ichki baholash. FAQAT
+  // admin/superadmin (server ham shu rolda cheklaydi); xodimga (staff) ko'rsatilmaydi.
+  const { user } = useAuth()
+  const canSeeReviews = user?.role === 'admin' || user?.role === 'superadmin'
 
   // Performance
   const [perf, setPerf] = useState<TeacherPerformance | null>(null)
@@ -403,6 +411,16 @@ export function TeacherDetailPage() {
           <TrendingUp className="mr-1 inline h-3.5 w-3.5" />
           Performance
         </button>
+        {canSeeReviews && (
+          <button
+            type="button"
+            className={cn('tab', tab === 'fikrlar' && 'active')}
+            onClick={() => setTab('fikrlar')}
+          >
+            <MessageSquareQuote className="mr-1 inline h-3.5 w-3.5" />
+            Fikrlar
+          </button>
+        )}
         <button
           type="button"
           className={cn('tab', tab === 'ai' && 'active')}
@@ -1315,6 +1333,9 @@ export function TeacherDetailPage() {
           )}
         </div>
       )}
+
+      {/* FIKRLAR TAB — o'quvchilardan yig'ilgan fikrlar (faqat ma'muriyat ko'radi) */}
+      {tab === 'fikrlar' && canSeeReviews && id && <TeacherReviewsFeed teacherId={id} />}
 
       {/* AI TAHLIL TAB — o'quvchi oqimi, ketish sabablari, jurnal intizomi, rivojlanish + AI xulosasi */}
       {tab === 'ai' && id && <TeacherAiPanel teacherId={id} teacherName={teacher.fullName} />}

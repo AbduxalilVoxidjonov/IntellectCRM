@@ -218,6 +218,95 @@ public class TeacherReviewTests
         Assert.Empty(ctx.TeacherReviews.ToList());   // FK CASCADE
     }
 
+    // ==================== O'qituvchi profili: «Fikrlar» bo'limi ====================
+
+    [Fact]
+    public async Task Oqituvchi_profilida_BARCHA_fikrlar_yigiladi_eng_yangisi_tepada()
+    {
+        using var db = TestDb.Sqlite();
+        var ctx = db.Context;
+        var t = AddTeacher(ctx, "Ustoz");
+        var boshqa = AddTeacher(ctx, "Boshqa ustoz");
+        var g1 = AddGroup(ctx, t, "A guruh");
+        var g2 = AddGroup(ctx, t, "B guruh");
+        var gb = AddGroup(ctx, boshqa, "C guruh");
+        var s1 = AddStudent(ctx, g1, g2);
+        var s2 = new Student { FullName = "Vali Aliyev", EnrollmentDate = Today };
+        ctx.Students.Add(s2);
+        ctx.StudentGroups.Add(new StudentGroup
+        {
+            StudentId = s2.Id, GroupId = g1.Id, Status = "active", IsActive = true,
+            JoinedAt = Today, ActivatedAt = Today, RecordedAt = Today,
+        });
+        await ctx.SaveChangesAsync();
+
+        ctx.TeacherReviews.AddRange(
+            new TeacherReview
+            {
+                StudentId = s1.Id, TeacherId = t.Id, GroupId = g1.Id,
+                Text = "Eskiroq", CreatedAt = "2026-01-01T10:00:00", CreatedBy = "Admin",
+            },
+            new TeacherReview
+            {
+                StudentId = s2.Id, TeacherId = t.Id, GroupId = g2.Id,
+                Text = "Eng yangi", CreatedAt = "2026-05-01T10:00:00", CreatedBy = "Admin",
+            },
+            // Boshqa o'qituvchi haqida — bu ro'yxatga TUSHMASLIGI kerak.
+            new TeacherReview
+            {
+                StudentId = s1.Id, TeacherId = boshqa.Id, GroupId = gb.Id,
+                Text = "Begona", CreatedAt = "2026-06-01T10:00:00", CreatedBy = "Admin",
+            });
+        await ctx.SaveChangesAsync();
+
+        var feed = await TeacherReviewService.ForTeacherAsync(ctx, t.Id);
+
+        Assert.Equal(2, feed.Total);
+        Assert.Equal("Eng yangi", feed.Items[0].Text);       // eng yangisi TEPADA
+        Assert.Equal("Vali Aliyev", feed.Items[0].StudentName);
+        Assert.Equal("B guruh", feed.Items[0].GroupName);
+        Assert.Equal("Eskiroq", feed.Items[1].Text);
+        Assert.DoesNotContain(feed.Items, x => x.Text == "Begona");
+    }
+
+    [Fact]
+    public async Task Oqituvchi_profilidagi_royxat_CHEKLANADI_lekin_JAMI_soni_togri()
+    {
+        using var db = TestDb.Sqlite();
+        var ctx = db.Context;
+        var t = AddTeacher(ctx, "Ustoz");
+        var g = AddGroup(ctx, t, "A guruh");
+        var s = AddStudent(ctx, g);
+        await ctx.SaveChangesAsync();
+
+        for (var i = 0; i < 10; i++)
+            ctx.TeacherReviews.Add(new TeacherReview
+            {
+                StudentId = s.Id, TeacherId = t.Id, GroupId = g.Id,
+                Text = $"Fikr {i}", CreatedAt = $"2026-01-{i + 1:D2}T10:00:00",
+            });
+        await ctx.SaveChangesAsync();
+
+        var feed = await TeacherReviewService.ForTeacherAsync(ctx, t.Id, max: 4);
+
+        Assert.Equal(10, feed.Total);        // JAMI — hammasi
+        Assert.Equal(4, feed.Items.Count);   // ko'rsatiladigani — cheklangan
+        Assert.Contains("Fikr 9", feed.Items[0].Text);
+    }
+
+    [Fact]
+    public async Task Oqituvchi_profilida_fikr_yoq_bolsa_bosh_royxat()
+    {
+        using var db = TestDb.Sqlite();
+        var ctx = db.Context;
+        var t = AddTeacher(ctx, "Ustoz");
+        await ctx.SaveChangesAsync();
+
+        var feed = await TeacherReviewService.ForTeacherAsync(ctx, t.Id);
+        Assert.Equal(0, feed.Total);
+        Assert.Empty(feed.Items);
+    }
+
     // ==================== AI tahlilga uzatish (maxfiylik) ====================
 
     [Fact]

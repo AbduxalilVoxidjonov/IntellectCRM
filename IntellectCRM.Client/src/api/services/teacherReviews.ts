@@ -1,5 +1,5 @@
 import { api } from '../client'
-import type { StudentTeacherReviewGroup, TeacherReview } from '@/types'
+import type { StudentTeacherReviewGroup, TeacherReview, TeacherReviewFeed } from '@/types'
 
 /**
  * O'QUVCHINING O'QITUVCHI HAQIDAGI FIKRI — o'quvchi profilidagi «Fikr-mulohazalar» bo'limi.
@@ -30,6 +30,17 @@ export async function addTeacherReview(
     `/admin/students/${studentId}/teacher-reviews`,
     payload,
   )
+  return data
+}
+
+/**
+ * O'QITUVCHI profilidagi «Fikrlar» bo'limi: shu o'qituvchi haqida yozilgan BARCHA fikrlar
+ * (eng yangisi tepada, o'quvchi va guruh nomi bilan).
+ *
+ * Bu ADMIN ko'rinishi — o'qituvchi portalida/ilovasida bunday endpoint ataylab YO'Q.
+ */
+export async function getTeacherReviewFeed(teacherId: string): Promise<TeacherReviewFeed> {
+  const { data } = await api.get<TeacherReviewFeed>(`/admin/teachers/${teacherId}/reviews`)
   return data
 }
 

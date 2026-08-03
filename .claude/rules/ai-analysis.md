@@ -75,9 +75,17 @@ paths:
   • **HAR GURUH UCHUN ALOHIDA:** kalit (o'quvchi, o'qituvchi, guruh). O'quvchi 2+ guruhda o'qisa —
     2+ blok chiqadi. Chiqarilgan/tugatgan a'zolik ham ko'rinadi (tarix qimmatli), faollar tepada.
     Server klientdan kelgan `teacherId`ga ISHONMAYDI — guruhning amaldagi o'qituvchisi olinadi.
-  • **MAXFIYLIK — ASOSIY QOIDA:** xom matn o'qituvchiga va uning profiliga **HECH QACHON**
-    ko'rsatilmaydi (auditga ham matn yozilmaydi, faqat fakt). U faqat (1) o'quvchi profilida va
-    (2) AI promptida ishlatiladi. `TeacherReviewService.TextsForTeacherAsync` matnga faqat
+  • **KO'RISH — ADMIN uchun IKKI joyda:** (1) o'quvchi profilida (guruh bo'yicha bloklar);
+    (2) **o'qituvchi profilida «Fikrlar» tabi** (`GET /api/admin/teachers/{id}/reviews` →
+    `TeacherReviewService.ForTeacherAsync`) — shu o'qituvchi haqidagi BARCHA fikrlar bir joyda
+    yig'iladi, eng yangisi tepada, o'quvchi (profiliga havola bilan) va guruh nomi ko'rinadi,
+    guruh bo'yicha filtr va o'chirish bor. Yozish u yerda YO'Q — fikr faqat o'quvchi profilida
+    yoziladi (u yerda guruh/o'qituvchi konteksti aniq).
+  • **MAXFIYLIK — CHEGARA QAYERDA:** xom matn **O'QITUVCHINING O'ZIGA** hech qachon berilmaydi —
+    o'qituvchi portalida (`api/teacher/*`) va Flutter ilovasida bunday endpoint ATAYIN yo'q;
+    auditga ham matn yozilmaydi (faqat fakt). ADMIN esa yuqoridagi ikki joyda ko'radi.
+    AI xulosasi o'qituvchiga ko'rsatilishi mumkin, shuning uchun
+    `TeacherReviewService.TextsForTeacherAsync` matnga faqat
     **sana + guruh nomi** qo'shadi, O'QUVCHI ISMINI QO'SHMAYDI; promptda ham "so'zma-so'z ko'chirma,
     ism yozma" ko'rsatmasi bor — chunki xulosa o'qituvchining o'ziga ham ko'rsatiladi.
   • **AI'ga ULANISHI:** `TeacherSnapshotBuilder` 7b-bo'lim → snapshotdagi `oquvchilarFikri`
