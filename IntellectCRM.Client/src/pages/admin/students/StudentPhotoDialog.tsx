@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Camera, Upload, RotateCcw, Trash2, Loader2, AlertTriangle, Check } from 'lucide-react'
+import {
+  Camera, Upload, RotateCcw, Trash2, Loader2, AlertTriangle, Check, FlipHorizontal,
+} from 'lucide-react'
 import { uploadAdminFile } from '@/api/services/students'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
@@ -43,6 +45,15 @@ export function StudentPhotoDialog({
 
   const [camOn, setCamOn] = useState(false)
   const [camError, setCamError] = useState('')
+  /**
+   * Tasvirni AKS ETTIRISH (ko'zgu). Old kamera odatda ko'zgudek ko'rsatiladi — odam o'ngga
+   * qimirlasa tasvir ham o'ngga siljiydi, shunisi tabiiy.
+   *
+   * MUHIM: kadr AYNAN SHU holatda saqlanadi. Ilgari faqat KO'RINISH aks ettirilar, saqlanadigan
+   * rasm esa aks ettirilmasdi — natijada olingan surat ko'rganingizga nisbatan o'ngdan chapga
+   * ag'darilib ketardi. Endi "nima ko'rsang — shuni olasan".
+   */
+  const [mirror, setMirror] = useState(true)
   /** Olingan/tanlangan rasm — hali yuklanmagan (oldindan ko'rish). */
   const [preview, setPreview] = useState<{ url: string; file: File } | null>(null)
   const [busy, setBusy] = useState(false)
@@ -111,7 +122,12 @@ export function StudentPhotoDialog({
   // Komponent butunlay olib tashlansa ham kamera o'chsin.
   useEffect(() => () => stopCamera(), [stopCamera])
 
-  /** Videodan KVADRAT kadr oladi (avatar dumaloq — markazdan qirqiladi). */
+  /**
+   * Videodan KVADRAT kadr oladi (avatar dumaloq — markazdan qirqiladi).
+   *
+   * Aks ettirish (<see cref="mirror"/>) EKRANDAGIDEK qo'llanadi: ko'zguda ko'rganingiz aynan
+   * shundayligicha saqlanadi. Aks holda surat o'ngdan chapga ag'darilib chiqardi.
+   */
   const shoot = () => {
     const v = videoRef.current
     if (!v || !v.videoWidth) return
@@ -121,6 +137,11 @@ export function StudentPhotoDialog({
     canvas.height = size
     const ctx = canvas.getContext('2d')
     if (!ctx) return
+    if (mirror) {
+      // Gorizontal aks ettirish — ekrandagi `scale-x-[-1]` bilan bir xil natija.
+      ctx.translate(size, 0)
+      ctx.scale(-1, 1)
+    }
     ctx.drawImage(v, (v.videoWidth - size) / 2, (v.videoHeight - size) / 2, size, size, 0, 0, size, size)
     canvas.toBlob(
       (blob) => {
@@ -185,8 +206,8 @@ export function StudentPhotoDialog({
     <Modal
       open={open}
       onClose={() => !busy && onClose()}
-      // KATTA oyna — rasmni bemalol ko'rish uchun (kichik doirada nima olinayotgani bilinmasdi).
-      size="lg"
+      // ENG KATTA oyna — rasmni bemalol ko'rish uchun.
+      size="xl"
       title="O'quvchi rasmi"
       footer={
         <>
@@ -213,17 +234,17 @@ export function StudentPhotoDialog({
               joylashtirish uchun;
             • tayyor rasmda esa faqat ingichka chiziq — rasm to'silmasin, bemalol ko'rinsin.
         */}
-        <div className="relative mx-auto aspect-square w-full max-w-[440px] overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">
+        <div className="relative mx-auto aspect-square w-full max-w-[min(68vh,660px)] overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">
           {camOn ? (
             <>
-              {/* Jonli tasvir OYNADEK ko'rsatiladi (o'ziga qarab turish qulay), lekin SAQLANADIGAN
-                  kadr aynan kamera ko'rgani — teskari emas (hujjat rasmi to'g'ri chiqsin). */}
+              {/* Ko'rinish va SAQLANADIGAN kadr bir xil aks ettirishda — «nima ko'rsang, shuni
+                  olasan». Aks ettirishni pastdagi tugma bilan o'zgartirish mumkin. */}
               <video
                 ref={videoRef}
                 autoPlay
                 playsInline
                 muted
-                className="h-full w-full scale-x-[-1] object-cover"
+                className={mirror ? 'h-full w-full scale-x-[-1] object-cover' : 'h-full w-full object-cover'}
               />
               <div className="pointer-events-none absolute inset-[5%] rounded-full ring-2 ring-white/80 shadow-[0_0_0_9999px_rgba(15,23,42,0.38)]" />
             </>
@@ -258,6 +279,11 @@ export function StudentPhotoDialog({
             <>
               <Button onClick={shoot}>
                 <Camera className="h-4 w-4" /> Suratga olish
+              </Button>
+              {/* Aks ettirish — ko'rinish ham, saqlanadigan kadr ham birga o'zgaradi.
+                  Kiyimdagi yozuv teskari chiqsa shu tugma bilan to'g'rilanadi. */}
+              <Button variant="secondary" onClick={() => setMirror((m) => !m)}>
+                <FlipHorizontal className="h-4 w-4" /> Aks ettirish
               </Button>
               <Button variant="secondary" onClick={stopCamera}>
                 To'xtatish
@@ -301,7 +327,7 @@ export function StudentPhotoDialog({
 
         <p className="text-center text-xs text-slate-400">
           {camOn
-            ? "Yuzni doira ichiga joylashtiring — aynan shu qism avatarda ko'rinadi."
+            ? "Yuzni doira ichiga joylashtiring — aynan shu qism avatarda ko'rinadi. Surat ekranda ko'rganingizdek saqlanadi."
             : "Doira ichidagi qism o'quvchi profilida dumaloq avatar bo'lib chiqadi."}
         </p>
       </div>
