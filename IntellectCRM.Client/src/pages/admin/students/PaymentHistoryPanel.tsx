@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { Loader } from '@/components/ui/Loader'
 import { AuditHistoryList } from '@/components/audit/AuditHistoryList'
 import { PaymentModal } from './PaymentModal'
+import { ReceiptModal } from '@/components/finance/ReceiptModal'
 import { formatDate, formatMoney, cn, apiErrorMessage } from '@/lib/utils'
 import { formatMonth, monthStatusLabels, paymentMethodLabel } from '@/config/constants'
 
@@ -36,6 +37,9 @@ export function PaymentHistoryPanel({ studentId, onPaid }: Props) {
   const [saving, setSaving] = useState(false)
   /** "To'lov qilish" bosilganda — PaymentModal uchun to'liq Student kerak. */
   const [payTarget, setPayTarget] = useState<Student | null>(null)
+  /** To'lov cheki — to'lov kiritilgach shu tranzaksiya cheki ochiladi. */
+  const [receiptTx, setReceiptTx] = useState<string | null>(null)
+  const [receiptAuto, setReceiptAuto] = useState(false)
 
   const keyOf = (month: string, groupId?: string | null) => `${month}|${groupId ?? ''}`
 
@@ -91,11 +95,16 @@ export function PaymentHistoryPanel({ studentId, onPaid }: Props) {
     if (!studentId) return
     // Xato QAYTA OTILADI — PaymentModal o'zi ko'rsatadi (kvitansiya band bo'lsa kartochka
     // + "Baribir saqlash"). Shu sabab bu yerda catch/alert yo'q.
-    await addPayment(studentId, amount, month, groupId, comment, method, date, extra)
+    const txId = await addPayment(studentId, amount, month, groupId, comment, method, date, extra)
     const fresh = await getStudentLedger(studentId)
     setLedger(fresh)
     setPayTarget(null)
     onPaid?.()
+    // CHEK: to'lov saqlangach kvitansiya ochiladi (Kassa bo'limidagi bilan bir xil).
+    if (txId) {
+      setReceiptAuto(true)
+      setReceiptTx(txId)
+    }
   }
 
   if (loading || !ledger) return <Loader label="Yuklanmoqda..." />
@@ -341,6 +350,18 @@ export function PaymentHistoryPanel({ studentId, onPaid }: Props) {
       </div>
 
       <PaymentModal student={payTarget} onClose={() => setPayTarget(null)} onSubmit={handlePayment} />
+
+      {/* TO'LOV CHEKI — to'lov kiritilgach avtomatik ochiladi va bosib chiqarish dialogini
+          chaqiradi (Kassa/Moliya bo'limlaridagi bilan bir xil xatti-harakat). */}
+      <ReceiptModal
+        txId={receiptTx}
+        autoPrint={receiptAuto}
+        onClose={() => {
+          setReceiptTx(null)
+          setReceiptAuto(false)
+        }}
+      />
+
     </>
   )
 }

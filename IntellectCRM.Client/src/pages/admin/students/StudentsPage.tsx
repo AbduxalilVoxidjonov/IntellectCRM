@@ -38,6 +38,7 @@ import { Modal } from '@/components/ui/Modal'
 import { StudentFormModal } from './StudentFormModal'
 import { SmsModal } from './SmsModal'
 import { PaymentModal } from './PaymentModal'
+import { ReceiptModal } from '@/components/finance/ReceiptModal'
 import { PaymentHistoryModal } from './PaymentHistoryModal'
 import { ReasonPromptModal } from '@/components/ui/ReasonPromptModal'
 import { CallPickerModal, type CallOption } from '@/components/CallPickerModal'
@@ -131,6 +132,9 @@ export function StudentsPage() {
   const openNotebook = (s: Student) => navigate(`/admin/students/${s.id}`)
   const [smsRecipients, setSmsRecipients] = useState<Student[]>([])
   const [paying, setPaying] = useState<Student | null>(null)
+  /** To'lov cheki — to'lov kiritilgach shu tranzaksiya cheki ochiladi. */
+  const [receiptTx, setReceiptTx] = useState<string | null>(null)
+  const [receiptAuto, setReceiptAuto] = useState(false)
   const [historyOf, setHistoryOf] = useState<Student | null>(null)
   /** Qo'ng'iroq qilish — CallPickerModal uchun tanlangan o'quvchi */
   const [callStudent, setCallStudent] = useState<Student | null>(null)
@@ -427,11 +431,16 @@ export function StudentsPage() {
   ) => {
     if (!paying) return
     const id = paying.id
-    await addPayment(id, amount, month, groupId, comment, method, date, extra)
+    const txId = await addPayment(id, amount, month, groupId, comment, method, date, extra)
     setStudents((prev) =>
       prev.map((s) => (s.id === id ? { ...s, balance: s.balance + amount } : s)),
     )
     setPaying(null)
+    // CHEK: to'lov saqlangach kvitansiya ochiladi (Kassa bo'limidagi bilan bir xil).
+    if (txId) {
+      setReceiptAuto(true)
+      setReceiptTx(txId)
+    }
   }
 
   const handleDelete = (s: Student) => setDeleting(s)
@@ -1093,6 +1102,18 @@ export function StudentsPage() {
         recipients={smsRecipients}
       />
       <PaymentModal student={paying} onClose={() => setPaying(null)} onSubmit={handlePayment} />
+
+      {/* TO'LOV CHEKI — to'lov kiritilgach avtomatik ochiladi va bosib chiqarish dialogini
+          chaqiradi (Kassa/Moliya bo'limlaridagi bilan bir xil xatti-harakat). */}
+      <ReceiptModal
+        txId={receiptTx}
+        autoPrint={receiptAuto}
+        onClose={() => {
+          setReceiptTx(null)
+          setReceiptAuto(false)
+        }}
+      />
+
       <PaymentHistoryModal
         studentId={historyOf?.id ?? null}
         onClose={() => setHistoryOf(null)}

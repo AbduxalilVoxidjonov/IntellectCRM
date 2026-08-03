@@ -77,6 +77,7 @@ import { Button } from '@/components/ui/Button'
 import { PaymentHistoryPanel } from './PaymentHistoryPanel'
 import { TeacherReviewsSection } from './TeacherReviewsSection'
 import { StudentPhotoDialog } from './StudentPhotoDialog'
+import { ReceiptModal } from '@/components/finance/ReceiptModal'
 import { PaymentModal } from './PaymentModal'
 import { AiAnalysisModal } from './AiAnalysisModal'
 import { AiAnalysisView } from './AiAnalysisView'
@@ -148,6 +149,9 @@ export function StudentDetailPage() {
   // RASM — o'quvchini tahrirlash huquqi bilan bir xil (dumaloq avatarni bosib almashtiriladi).
   const canEditPhoto = can('students', 'edit')
   const [photoOpen, setPhotoOpen] = useState(false)
+  /** To'lov cheki — to'lov kiritilgach shu tranzaksiya cheki ochiladi. */
+  const [receiptTx, setReceiptTx] = useState<string | null>(null)
+  const [receiptAuto, setReceiptAuto] = useState(false)
   // Aktivlashtirish oynasidagi «Bonus hisoblansin» ptichkasi — bundan ham QATTIQROQ darvoza:
   // faqat superadmin yoki «Xodimlar va rollar» dan shu ruxsat berilgan xodim (oddiy "admin" emas).
   const canSetBonus = useSuperOrGranted('retentionBonus')
@@ -363,9 +367,14 @@ export function StudentDetailPage() {
     if (!id) return
     // Xato QAYTA OTILADI — PaymentModal uni o'zi ko'rsatadi (kvitansiya band bo'lsa kartochka
     // + "Baribir saqlash", boshqa xatolarda oddiy xabar). Bu yerda alert qilinmaydi.
-    await addPayment(id, amount, month, groupId, comment, method, date, extra)
+    const txId = await addPayment(id, amount, month, groupId, comment, method, date, extra)
     setPaymentTarget(null)
     setReloadKey((k) => k + 1)
+    // CHEK: to'lov saqlangach kvitansiya ochiladi (Kassa bo'limidagi bilan bir xil).
+    if (txId) {
+      setReceiptAuto(true)
+      setReceiptTx(txId)
+    }
   }
 
   /** Guruh a'zoligi ro'yxatini qayta yuklaydi (amal bajarilgach). */
@@ -1757,6 +1766,18 @@ export function StudentDetailPage() {
       />
 
       <PaymentModal student={paymentTarget} onClose={() => setPaymentTarget(null)} onSubmit={handlePayment} />
+
+      {/* TO'LOV CHEKI — to'lov kiritilgach avtomatik ochiladi va bosib chiqarish dialogini
+          chaqiradi (Kassa/Moliya bo'limlaridagi bilan bir xil xatti-harakat). */}
+      <ReceiptModal
+        txId={receiptTx}
+        autoPrint={receiptAuto}
+        onClose={() => {
+          setReceiptTx(null)
+          setReceiptAuto(false)
+        }}
+      />
+
 
       <CallPickerModal
         open={callOpen}
