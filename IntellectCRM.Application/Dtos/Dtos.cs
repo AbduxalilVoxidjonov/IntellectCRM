@@ -1048,7 +1048,9 @@ public record SchoolInfoDto(
 /// <summary>Markaz nomi + logo (brending — barcha foydalanuvchilar uchun).</summary>
 public record SchoolNameDto(string Name, string TelegramChannel = "", string LogoUrl = "");
 /// <summary>Ommaviy brending (login/daraja testi kabi autentifikatsiyasiz sahifalar uchun).</summary>
-public record PublicBrandDto(string Name, string LogoUrl, string Phone);
+/// <summary>Ommaviy brending (tokensiz) — login, daraja testi va MAXFIYLIK SIYOSATI sahifalari uchun.
+/// <c>Email</c> maxfiylik sahifasida aloqa manzili sifatida ko'rsatiladi (Google Play talab qiladi).</summary>
+public record PublicBrandDto(string Name, string LogoUrl, string Phone, string Email = "");
 /// <summary>Telegram bot sozlamasi (admin). Configured = token bo'sh emasligini bildiradi.
 /// PhoneMatchField: "parent" (default) | "student" — kontakt ulashilganda qaysi raqam bo'yicha qidirish.</summary>
 /// <summary>Telegram bot sozlamalari. <c>ChannelStatus</c>/<c>ChannelMessage</c> — MAJBURIY OBUNA

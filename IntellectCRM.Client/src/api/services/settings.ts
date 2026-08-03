@@ -83,13 +83,15 @@ export interface PublicBrand {
   name: string
   logoUrl: string
   phone: string
+  /** Aloqa emaili — maxfiylik siyosati sahifasida ko'rsatiladi (Google Play talab qiladi). */
+  email?: string
 }
 
 /** Login/test sahifalari uchun ommaviy brending (tokensiz). */
 export async function getPublicBrand(): Promise<PublicBrand> {
   if (USE_MOCK) {
     await delay()
-    return { name: '', logoUrl: '', phone: '' }
+    return { name: '', logoUrl: '', phone: '', email: '' }
   }
   const { data } = await api.get<PublicBrand>('/public/brand')
   return data

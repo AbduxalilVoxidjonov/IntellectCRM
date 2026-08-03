@@ -22,7 +22,7 @@ public class PublicTestController(AppDbContext db, TelegramService telegram, Aut
     public async Task<ActionResult<PublicBrandDto>> Brand()
     {
         var m = await db.CenterMeta.FirstOrDefaultAsync();
-        return new PublicBrandDto(m?.Name ?? "", m?.LogoUrl ?? "", m?.Phone ?? "");
+        return new PublicBrandDto(m?.Name ?? "", m?.LogoUrl ?? "", m?.Phone ?? "", m?.Email ?? "");
     }
 
     /// <summary>Ommaviy web/PWA push konfiguratsiyasi — brauzer Firebase JS SDK'ni ishga tushirib
