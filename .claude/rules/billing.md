@@ -29,12 +29,20 @@ paths:
   sana bo'yicha hisoblanaveradi, o'z-o'zidan tuzalmaydi — kerak bo'lsa qo'lda tahrirlanadi.
 
 - **Maosh QO'LDA, 2 rejim** (`Teacher.SalaryMode`): **"fixed"** — admin `Teacher.Salary` qat'iy summasini
-  kiritadi; **"percent"** — o'qituvchi guruh(lar)idan SHU OYDA haqiqatan yig'ilgan tuition to'lovining
-  `Teacher.SalaryPercent` foizi (yig'ilgan sayin o'sib boradi). Hisob:
-  `SalaryLedger.CollectedForTeacherGroupsAsync` — guruh = `Group.TeacherId`; to'lov
-  `FinanceTransaction.GroupId` tegiga ega bo'lsa 100% o'sha guruhga, **teglanmagan** to'lov esa
-  o'quvchining shu oydagi billable guruhlari `MonthlyFee` nisbatida taqsimlanadi. Frontend
-  `TeacherSalaryPage` (rejim toggle + foiz).
+  kiritadi; **"percent"** — o'qituvchi guruh(lar)idan **SHU OY UCHUN** yig'ilgan tuition to'lovining
+  `Teacher.SalaryPercent` foizi. Hisob: `SalaryLedger.CollectedPerGroupAsync` — guruh =
+  `Group.TeacherId`; to'lov `FinanceTransaction.GroupId` tegiga ega bo'lsa 100% o'sha guruhga,
+  **teglanmagan** to'lov esa o'quvchining shu oydagi billable guruhlari `MonthlyFee` nisbatida
+  taqsimlanadi. Frontend `TeacherSalaryPage` (rejim toggle + foiz).
+  **TO'LOV QAYSI OYGA — `FinanceTransaction.Month`, to'lov SANASI EMAS** (yuqoridagi maosh to'lovlari
+  bilan AYNAN bir xil qoida): o'quvchi 3-avgustda IYUL uchun to'lasa, pul o'qituvchining IYUL
+  maoshiga kiradi — u iyulda dars bergan. Vozvrat ham o'z oyidan ayriladi. `Month` bo'sh bo'lgan
+  ESKI yozuvlarda sana ishlatiladi; so'rov shu sabab ikki shartli (oyi mos YOKI oyi yo'q va sanasi
+  oraliqda) — aks holda kech to'langan pul umuman tushib qolardi (`CourseFinanceReport
+  .LoadPaymentsAsync` bilan bir xil naqsh).
+  ⚠️ Ilgari FAQAT shu joyda to'lov SANASI ishlatilardi va o'qituvchi profilida bitta qatorning ikki
+  yarmi turlicha hisoblanardi ("iyul uchun berilgan maosh" — `Month`, "iyulda yig'ilgan" — SANA);
+  raqamlar tushunarsiz chiqardi. Endi butun tizim bitta konvensiyada.
   DIQQAT: `TeachersController.Create/Update` `Salary/SalaryMode/SalaryPercent`ni YOZADI (ilgari Salary
   umuman yozilmasdi — latent bug); `TeacherFormModal` bu maydonlarni round-trip qiladi (profil tahrirda
   reset bo'lmaydi).

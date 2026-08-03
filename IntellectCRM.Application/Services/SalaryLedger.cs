@@ -257,10 +257,23 @@ public static class SalaryLedger
     }
 
     /// <summary>
-    /// Foizli maosh bazasi PER-GURUH: (oy, guruh) → o'qituvchi guruhi o'quvchilaridan SHU OYDA
-    /// (to'lov sanasi oyi) haqiqatan yig'ilgan tuition summasi. O'quvchi bir nechta guruhda bo'lsa,
-    /// TEGLANMAGAN to'lovi guruhlar oylik narxi (MonthlyFee) nisbatida taqsimlanadi — har guruhga o'z
-    /// ulushi. TEGLANGAN to'lov 100% o'sha guruhga. Trial/muzlatilgan a'zoliklar shu oyda hisobga olinmaydi.
+    /// Foizli maosh bazasi PER-GURUH: (oy, guruh) → o'qituvchi guruhi o'quvchilaridan SHU OY UCHUN
+    /// yig'ilgan tuition summasi. O'quvchi bir nechta guruhda bo'lsa, TEGLANMAGAN to'lovi guruhlar
+    /// oylik narxi (MonthlyFee) nisbatida taqsimlanadi — har guruhga o'z ulushi. TEGLANGAN to'lov
+    /// 100% o'sha guruhga. Trial/muzlatilgan a'zoliklar shu oyda hisobga olinmaydi.
+    ///
+    /// <para><b>TO'LOV QAYSI OYGA TEGISHLI — <see cref="FinanceTransaction.Month"/>, to'lov SANASI EMAS.</b>
+    /// O'quvchi 3-avgustda IYUL uchun to'lasa, o'sha pul o'qituvchining IYUL maoshiga kiradi — chunki
+    /// o'qituvchi iyulda dars bergan. Bu markazdagi boshqa hamma joy bilan bir xil konvensiya
+    /// (<see cref="StudentGroupLedger"/>, <see cref="GroupBalanceService"/>,
+    /// <see cref="CourseFinanceReport"/> va shu faylning O'ZIDAGI maosh to'lovlari — <c>PayMonth</c>).
+    /// ⚠️ Ilgari BU YERDA to'lov SANASI ishlatilardi va o'qituvchi profilida bitta qatorning ikki
+    /// yarmi turlicha hisoblanardi: "iyul uchun berilgan maosh" — <c>Month</c> bo'yicha, "iyulda
+    /// yig'ilgan" esa SANA bo'yicha. Shu sabab raqamlar tushunarsiz chiqardi.</para>
+    ///
+    /// <para><c>Month</c> bo'sh bo'lgan ESKI yozuvlarda (Moliya formasi uni ilgari saqlamasdi) orqaga
+    /// moslik uchun sana ishlatiladi. So'rov shu sabab IKKI shart bilan: oyi mos yoki (oyi yo'q va)
+    /// sanasi oraliqda — aks holda kech to'langan pul umuman tushib qolardi.</para>
     /// </summary>
     private static async Task<Dictionary<(string month, string groupId), decimal>> CollectedPerGroupAsync(
         IAppDbContext db, Teacher teacher, string startMonth, string toMonth)
@@ -294,15 +307,31 @@ public static class SalaryLedger
         // o'qituvchining foizli maoshi net (to'langan − vozvrat) dan hisoblanadi — qaytarilgan pul bazadan chiqadi.
         var fromDate = $"{startMonth}-01";
         var toDate = $"{toMonth}-31";
+        // Davr oylari — to'lovning `Month` tegi shu ro'yxatda bo'lsa hisobga olinadi (CourseFinanceReport
+        // bilan AYNAN bir xil filtr). `Month`i yo'q eski yozuvlar sana bo'yicha tutiladi.
+        var monthList = TuitionService.MonthRange(startMonth, toMonth).ToList();
+        var monthSet = monthList.ToHashSet();
         var movements = await db.FinanceTransactions
             .Where(t => t.StudentId != null && studentIds.Contains(t.StudentId)
                         && ((t.Direction == "income" && t.Category == "tuition")
                             || (t.Direction == "expense" && t.Category == "refund"))
-                        && string.Compare(t.Date, fromDate) >= 0 && string.Compare(t.Date, toDate) <= 0)
-            .Select(t => new { StudentId = t.StudentId!, t.GroupId, t.Date, t.Amount, t.Direction }).ToListAsync();
+                        && ((t.Month != null && t.Month != "" && monthList.Contains(t.Month))
+                            || ((t.Month == null || t.Month == "")
+                                && string.Compare(t.Date, fromDate) >= 0
+                                && string.Compare(t.Date, toDate) <= 0)))
+            .Select(t => new { StudentId = t.StudentId!, t.GroupId, t.Date, t.Month, t.Amount, t.Direction }).ToListAsync();
         // Vozvrat manfiy belgi bilan: yig'ilgan bazani kamaytiradi.
+        // To'lov QAYSI OYGA tegishli: `Month` tegi (yo'q bo'lsa — sana oyi, eski yozuvlar uchun).
         var payments = movements
-            .Select(t => new { t.StudentId, t.GroupId, t.Date, Amount = t.Direction == "expense" ? -t.Amount : t.Amount })
+            .Select(t => new
+            {
+                t.StudentId, t.GroupId,
+                Month = string.IsNullOrEmpty(t.Month)
+                    ? (t.Date.Length >= 7 ? t.Date[..7] : "")
+                    : (t.Month.Length >= 7 ? t.Month[..7] : t.Month),
+                Amount = t.Direction == "expense" ? -t.Amount : t.Amount,
+            })
+            .Where(t => monthSet.Contains(t.Month))
             .ToList();
 
         // TEGLANGAN to'lovlar (GroupId bor) — 100% o'sha guruhga; faqat o'qituvchi guruhi hisobga olinadi.
@@ -320,7 +349,7 @@ public static class SalaryLedger
         foreach (var p in payments)
         {
             if (p.Amount == 0m) continue;   // vozvrat manfiy — o'tkazib yubormaymiz
-            var month = p.Date[..7];
+            var month = p.Month;
             if (!string.IsNullOrEmpty(p.GroupId))
             {
                 // Teglangan: faqat o'qituvchi guruhiga tegishli bo'lsa, 100% o'sha guruhga.
