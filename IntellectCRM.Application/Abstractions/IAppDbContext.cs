@@ -72,6 +72,8 @@ public interface IAppDbContext
     DbSet<Contract> Contracts { get; }
     DbSet<Branch> Branches { get; }
     DbSet<Feedback> Feedbacks { get; }
+    /// <summary>O'quvchining o'qituvchi haqidagi fikrlari (admin yozadi, AI tahlil manbai).</summary>
+    DbSet<TeacherReview> TeacherReviews { get; }
 
     // Tuman + maktab (o'quvchi formasi uchun, sozlamalardan boshqariladi)
     DbSet<District> Districts { get; }

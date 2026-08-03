@@ -151,6 +151,44 @@ public class StudentAiAccess
     public string UpdatedAt { get; set; } = string.Empty;
 }
 
+/// <summary>
+/// O'QUVCHINING O'QITUVCHI HAQIDAGI FIKRI — o'qituvchini rivojlantirish uchun yig'iladigan
+/// MATNLI ma'lumot.
+///
+/// <para><b>Kim yozadi:</b> FAQAT admin/superadmin, o'quvchi profilidagi «Fikr-mulohazalar»
+/// bo'limida (o'quvchi yoki ota-ona O'ZI yozmaydi — bu ichki, boshqaruv yozuvi). O'quvchi bir
+/// nechta guruhda o'qisa, HAR GURUH o'qituvchisi uchun alohida yoziladi — shuning uchun kalit
+/// (o'quvchi, o'qituvchi, guruh) uchligi.</para>
+///
+/// <para><b>MAXFIYLIK — ENG MUHIM QOIDA:</b> XOM matn O'QITUVCHIGA VA UNING PROFILIGA
+/// KO'RSATILMAYDI. U faqat (1) o'quvchi profilida (admin ko'radi) va (2) AI TAHLIL uchun
+/// manba sifatida ishlatiladi. O'qituvchi profilidagi «Tahlillar» bo'limida faqat AI
+/// UMUMLASHTIRGAN xulosa chiqadi — aks holda o'quvchi ismini taniб, munosabat buzilardi.</para>
+///
+/// <para>Tahlil MATN asosida: baho/ball emas, aynan yozilgan fikrlar AI'ga beriladi va u
+/// takrorlanuvchi naqshlarni (kuchli tomon, o'sish nuqtasi) ajratadi.</para>
+/// </summary>
+public class TeacherReview
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    /// <summary>Kimning fikri (<see cref="Student.Id"/>).</summary>
+    public string StudentId { get; set; } = string.Empty;
+    /// <summary>Kim haqida (<see cref="Teacher.Id"/>).</summary>
+    public string TeacherId { get; set; } = string.Empty;
+    /// <summary>Qaysi guruh konteksti (<see cref="Group.Id"/>) — bir o'qituvchining bir nechta
+    /// guruhi bo'lishi mumkin, fikr aynan shu guruhdagi ish haqida.</summary>
+    public string GroupId { get; set; } = string.Empty;
+    /// <summary>Fikr matni (AI tahlilining asosiy manbai).</summary>
+    public string Text { get; set; } = string.Empty;
+    /// <summary>Yozilgan vaqt (ISO "yyyy-MM-ddTHH:mm:ss") — ro'yxat shu bo'yicha kamayish
+    /// tartibida (eng yangisi tepada).</summary>
+    public string CreatedAt { get; set; } = AppClock.Iso();
+    /// <summary>Kim yozgani — admin F.I.Sh (ko'rsatish uchun).</summary>
+    public string CreatedBy { get; set; } = string.Empty;
+    /// <summary>Kim yozgani — akkaunt id'si (<see cref="AppUser.Id"/>).</summary>
+    public string? CreatedById { get; set; }
+}
+
 /// <summary>Ota-ona ilova orqali yuborgan taklif yoki shikoyat.</summary>
 public class Feedback
 {

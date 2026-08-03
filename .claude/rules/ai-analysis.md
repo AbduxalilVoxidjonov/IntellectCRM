@@ -65,6 +65,33 @@ paths:
   DIQQAT: `GET {id}/ai-snapshot` — AI'SIZ ham ishlaydi (Gemini chaqirilmaydi). Tab ochilganda barcha
   diagramma/jadval shu endpointdan to'ladi; AI xulosasi esa alohida, tugma bosilganda yaratiladi.
 
+- **O'QUVCHILARNING O'QITUVCHI HAQIDAGI FIKRI** (migratsiya `AddTeacherReviews`, entity
+  `TeacherReview`): o'qituvchini rivojlantirish uchun yig'iladigan **MATNLI** manba — AI aynan
+  shundan raqamlar ko'rsatmaydigan narsani (tushuntirish uslubi, munosabat, adolatlilik) biladi.
+  • **KIM YOZADI:** FAQAT `admin`/`superadmin` (+platforma egasi) — o'quvchi profili →
+    «Fikr-mulohaza» tabi → "O'qituvchilar haqida fikr". O'quvchi/ota-ona O'ZI yozmaydi, xodim
+    (staff) ham ko'rmaydi: `TeacherReviewsController` da ATAYIN `[AdminPerm]` EMAS, balki
+    `[Authorize(Roles = admin,superadmin,platformowner)]` (AdminPerm xodimga GET'ni ochib qo'yardi).
+  • **HAR GURUH UCHUN ALOHIDA:** kalit (o'quvchi, o'qituvchi, guruh). O'quvchi 2+ guruhda o'qisa —
+    2+ blok chiqadi. Chiqarilgan/tugatgan a'zolik ham ko'rinadi (tarix qimmatli), faollar tepada.
+    Server klientdan kelgan `teacherId`ga ISHONMAYDI — guruhning amaldagi o'qituvchisi olinadi.
+  • **MAXFIYLIK — ASOSIY QOIDA:** xom matn o'qituvchiga va uning profiliga **HECH QACHON**
+    ko'rsatilmaydi (auditga ham matn yozilmaydi, faqat fakt). U faqat (1) o'quvchi profilida va
+    (2) AI promptida ishlatiladi. `TeacherReviewService.TextsForTeacherAsync` matnga faqat
+    **sana + guruh nomi** qo'shadi, O'QUVCHI ISMINI QO'SHMAYDI; promptda ham "so'zma-so'z ko'chirma,
+    ism yozma" ko'rsatmasi bor — chunki xulosa o'qituvchining o'ziga ham ko'rsatiladi.
+  • **AI'ga ULANISHI:** `TeacherSnapshotBuilder` 7b-bo'lim → snapshotdagi `oquvchilarFikri`
+    (`{soni, matnlar}`, oxirgi 12 oy, eng yangi 25 ta, har biri 400 belgigacha);
+    `TeacherAiMetricsDto.StudentReviewCount` (faqat SON — UI'ga chiqadi, matn emas);
+    `TeacherAiNarrativeDto.OquvchilarFikri` — AI ajratgan TAKRORLANUVCHI naqshlar.
+    Prompt AI'ga bu fikrlarni `kuchli`/`zaif`/`tavsiyalar` ro'yxatlarida ham hisobga olishni buyuradi.
+  • **KO'RINISHI:** o'qituvchi profili → «AI tahlil» tabida (1) yangi **«Tahlillar»** kartochkasi —
+    tahlillar TARIXI sana + umumiy ball bilan, **eng yangisi tepada**, qatorni bosib o'shanisi
+    ochiladi (ilgari oddiy `<select>` edi, tarix ko'rinmasdi); (2) «O'quvchilar fikri asosida»
+    binafsha bloki + nechta fikr asosida ekani. PDF eksportga ham qo'shilgan.
+  • Flutter O'QITUVCHI ilovasida AI tahlil ekrani UMUMAN yo'q — u yerga hech narsa qo'shilmaydi
+    (va qo'shilmasligi ham kerak: xom fikrlar o'qituvchiga ko'rinmaydi).
+
 - **GURUH TAHLILI — ma'lumot manbalari** (`GroupSnapshotBuilder`, oxirgi 12 oy; hammasi MAVJUD
   yagona manbalardan, yangi hisoblash mantig'i yaratilmaydi):
   - **a'zolik oqimi** — `StudentGroup` sanalari + `MembershipLifecycle.Tally`;

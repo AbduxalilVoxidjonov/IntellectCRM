@@ -74,6 +74,7 @@ import { Loader } from '@/components/ui/Loader'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { PaymentHistoryPanel } from './PaymentHistoryPanel'
+import { TeacherReviewsSection } from './TeacherReviewsSection'
 import { PaymentModal } from './PaymentModal'
 import { AiAnalysisModal } from './AiAnalysisModal'
 import { AiAnalysisView } from './AiAnalysisView'
@@ -139,6 +140,9 @@ export function StudentDetailPage() {
   // endpoint boshqa rolga 403 qaytaradi. `usePerm().can()` bu yerda yaramaydi — u xodimga
   // ("staff") "students" ruxsati berilgan bo'lsa ham true qaytaradi, shuning uchun ROL tekshiriladi.
   const isBonusAllowed = user?.role === 'admin' || user?.role === 'superadmin'
+  // «O'qituvchilar haqida fikr» — AYNAN shu darvoza: o'qituvchi haqidagi ichki baholash bo'lgani
+  // uchun xodimga (staff) ochilmaydi, server ham faqat admin/superadmin'ga ruxsat beradi.
+  const canWriteTeacherReviews = isBonusAllowed
   // Aktivlashtirish oynasidagi «Bonus hisoblansin» ptichkasi — bundan ham QATTIQROQ darvoza:
   // faqat superadmin yoki «Xodimlar va rollar» dan shu ruxsat berilgan xodim (oddiy "admin" emas).
   const canSetBonus = useSuperOrGranted('retentionBonus')
@@ -1392,6 +1396,15 @@ export function StudentDetailPage() {
           </div>
         )}
       </Section>
+      )}
+
+      {/* O'QUVCHINING O'QITUVCHI(LAR)I HAQIDAGI FIKRI — har guruh uchun alohida blok.
+          Faqat admin/superadmin yozadi va ko'radi (server ham shu rolda cheklaydi);
+          o'qituvchiga bu matnlar KO'RSATILMAYDI — ular AI tahlil uchun manba. */}
+      {tab === 'fikr' && canWriteTeacherReviews && id && (
+        <Section title="O'qituvchilar haqida fikr" icon={MessageSquare}>
+          <TeacherReviewsSection studentId={id} />
+        </Section>
       )}
 
       {/* Support feedback — support o'qituvchining o'tilgan darslari (guruhsiz) */}

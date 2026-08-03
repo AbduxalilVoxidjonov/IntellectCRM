@@ -276,6 +276,11 @@ export interface TeacherAiMetrics {
   departureReasons: CenterPoint[]
   groups: TeacherGroupStat[]
   recentMissedDates: string[]
+  /**
+   * O'quvchilarning shu o'qituvchi haqida yozilgan fikrlari SONI (oxirgi 12 oy).
+   * Matnlarning O'ZI bu yerda YO'Q — ular faqat AI promptiga boradi (maxfiylik).
+   */
+  studentReviewCount?: number
 }
 /** AI sohaviy baholari (0-100) — radar diagramma uchun. */
 export interface TeacherAiScores {
@@ -287,6 +292,36 @@ export interface TeacherAiScores {
   umumiy: number
 }
 /** AI yozgan narrativ (o'zbekcha) — o'qituvchi tahlilining matn qismlari. */
+/* ---------- O'quvchining O'QITUVCHI haqidagi fikri (admin yozadi) ---------- */
+
+/** Bitta yozib qo'yilgan fikr (eng yangisi tepada). */
+export interface TeacherReview {
+  id: string
+  teacherId: string
+  groupId: string
+  text: string
+  /** ISO — yozilgan vaqt */
+  createdAt: string
+  /** Kim yozgani (admin F.I.Sh) */
+  createdBy: string
+}
+
+/**
+ * O'quvchi profilidagi bitta BLOK: guruh + uning o'qituvchisi + shu o'qituvchi haqida yozilgan
+ * fikrlar. O'quvchi 2+ guruhda o'qisa — shunday blok 2+ ta bo'ladi.
+ */
+export interface StudentTeacherReviewGroup {
+  groupId: string
+  groupName: string
+  courseName: string
+  teacherId: string
+  teacherName: string
+  isActive: boolean
+  /** active | trial | frozen | completed */
+  membershipStatus: string
+  reviews: TeacherReview[]
+}
+
 export interface TeacherAiNarrative {
   umumiy: string
   oquvchiOqimi: string
@@ -300,6 +335,11 @@ export interface TeacherAiNarrative {
   tavsiyalar: string[]
   baholar: TeacherAiScores
   trend: string
+  /**
+   * O'QUVCHILAR FIKRI bo'yicha xulosa — admin yozib borgan matnli mulohazalardan AI ajratgan
+   * takrorlanuvchi naqshlar. Xom matn va o'quvchi ismi hech qachon ko'rsatilmaydi.
+   */
+  oquvchilarFikri?: string
 }
 /** Saqlangan bitta o'qituvchi AI tahlili. */
 export interface TeacherAiRecord {

@@ -81,7 +81,11 @@ public static class TeacherAiAnalysisService
             "davomat olinishi, qo'yilgan baholar soni;\n" +
             "• RIVOJLANISH — o'rtacha baho dinamikasi, o'quvchilar davomati va yig'gan bali, test va " +
             "topshiriqlar natijalari;\n" +
-            "• o'qituvchining o'z davomati va ota-onalardan kelgan shikoyat/takliflar.\n\n" +
+            "• o'qituvchining o'z davomati va ota-onalardan kelgan shikoyat/takliflar;\n" +
+            "• O'QUVCHILARNING SHU O'QITUVCHI HAQIDAGI FIKRLARI (`oquvchilarFikri.matnlar`) — " +
+            "ma'muriyat o'quvchilar bilan suhbatlashib yozib borgan MATNLI mulohazalar. Bu eng qimmatli " +
+            "sifat manbai: raqamlar ko'rsatmaydigan narsani (tushuntirish uslubi, munosabat, dars " +
+            "qiziqarliligi, adolatlilik) aynan shu yerdan bilib olasan.\n\n" +
             "Vazifa: shu ma'lumotni CHUQUR tahlil qilib, FAQAT O'ZBEK TILIDA (lotin alifbosi) natijani QUYIDAGI " +
             "JSON sxemasida QAYTAR (boshqa hech narsa yozma, faqat JSON):\n" +
             "{\n" +
@@ -90,6 +94,8 @@ public static class TeacherAiAnalysisService
             "  \"ketishSabablari\": \"o'quvchilar nima sababdan ketmoqda, qaysi sabab ustun, buni kamaytirish yo'llari\",\n" +
             "  \"jurnal\": \"jurnalni o'z vaqtida to'ldirish intizomi: belgilanmagan darslar, mavzu/uy vazifa/baho qo'yish\",\n" +
             "  \"rivojlanish\": \"o'quvchilar o'zlashtirishi va davomati dinamikasi — yaxshilanmoqdami yoki pasaymoqda\",\n" +
+            "  \"oquvchilarFikri\": \"O'QUVCHILAR FIKRI tahlili: matnlarda TAKRORLANUVCHI naqshlar — nima " +
+            "maqtaladi, nimadan shikoyat qilinadi, qaysi guruhda muammo ko'proq; 3-6 jumla. Matn yo'q bo'lsa bo'sh\",\n" +
             "  \"ozgarishlar\": \"oldingi tahlilga nisbatan o'zgarishlar (yo'q bo'lsa bo'sh)\",\n" +
             "  \"kuchli\": [\"kuchli tomon\", ...],\n" +
             "  \"zaif\": [\"zaif tomon / e'tibor kerak\", ...],\n" +
@@ -103,6 +109,10 @@ public static class TeacherAiAnalysisService
             "rivojlanish (o'zlashtirish va davomat dinamikasi), faollik (test/topshiriq/umumiy faollik), " +
             "umumiy (boshqalarning umumlashmasi). Ma'lumot yo'q soha uchun ehtiyotkor o'rta baho qo'y. " +
             "FAQAT berilgan raqamlarga tayan, to'qib chiqarma. Har matn maydoni qisqa, aniq va rahbarga foydali. " +
+            "MAXFIYLIK: o'quvchilar fikri matnlarini SO'ZMA-SO'Z KO'CHIRMA va o'quvchi ismini yozma — " +
+            "faqat umumlashtirilgan naqshni yoz (bu xulosa o'qituvchining o'ziga ham ko'rsatiladi). " +
+            "O'quvchilar fikri bo'lsa — uni \"kuchli\"/\"zaif\"/\"tavsiyalar\" ro'yxatlarida ham hisobga ol, " +
+            "chunki o'qituvchini rivojlantirish uchun eng aniq signal shu. " +
             prevContext + "\n\n" +
             "O'qituvchi ma'lumotlari (JSON):\n" + snapshotJson;
 
@@ -180,7 +190,8 @@ public static class TeacherAiAnalysisService
             new TeacherAiScoresDto(
                 Math.Clamp(b.Jurnal, 0, 100), Math.Clamp(b.Saqlash, 0, 100), Math.Clamp(b.Baholash, 0, 100),
                 Math.Clamp(b.Rivojlanish, 0, 100), Math.Clamp(b.Faollik, 0, 100), Math.Clamp(b.Umumiy, 0, 100)),
-            r.Trend ?? "");
+            r.Trend ?? "",
+            r.OquvchilarFikri ?? "");
     }
 
     private static string Trim(string? s, int max)

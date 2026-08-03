@@ -1720,6 +1720,29 @@ public record FeedbackDto(
     string Id, string StudentName, string ParentName, string ClassName,
     string Type, string Text, string CreatedAt, string Status,
     string SenderRole, string SenderName, string? ImageUrl);
+
+/* ---------- O'quvchining O'QITUVCHI haqidagi fikri (admin yozadi, AI tahlil manbai) ---------- */
+
+/// <summary>Bitta yozib qo'yilgan fikr. <c>CreatedAt</c> — ISO; ro'yxat shu bo'yicha
+/// kamayish tartibida (eng yangisi tepada).</summary>
+public record TeacherReviewDto(
+    string Id, string TeacherId, string GroupId, string Text,
+    string CreatedAt, string CreatedBy);
+
+/// <summary>
+/// O'quvchi profilidagi bitta BLOK — o'quvchining shu guruhdagi o'qituvchisi va u haqida
+/// yozilgan fikrlar. O'quvchi 2+ guruhda o'qisa, shunday blok 2+ ta bo'ladi.
+/// </summary>
+/// <param name="MembershipStatus">A'zolik holati: active | trial | frozen | completed — admin
+/// fikr yozayotganda o'quvchi hozir shu guruhda faolmi yoki yo'qmi ko'rib tursin.</param>
+public record StudentTeacherReviewGroupDto(
+    string GroupId, string GroupName, string CourseName,
+    string TeacherId, string TeacherName,
+    bool IsActive, string MembershipStatus,
+    List<TeacherReviewDto> Reviews);
+
+/// <summary>Yangi fikr yozish (admin/superadmin). Matn bo'sh bo'lmasligi kerak.</summary>
+public record CreateTeacherReviewRequest(string TeacherId, string GroupId, string Text);
 /// <summary>
 /// Topshiriq natijasi — bitta o'quvchining holati: bajardimi, qachon, qancha ball (Score) hamda
 /// yuborgan javobi (AnswerText — yozma) yoki fayli (FileUrl — fayl/video). Bularni o'qituvchi
@@ -1996,16 +2019,23 @@ public record TeacherAiMetricsDto(
     List<TeacherJournalMonthDto> JournalByMonth,
     List<CenterPointDto> DepartureReasons,
     List<TeacherGroupStatDto> Groups,
-    List<string> RecentMissedDates);
+    List<string> RecentMissedDates,
+    /// <summary>O'quvchilarning shu o'qituvchi haqida yozilgan fikrlari SONI (oxirgi 12 oy).
+    /// Matnlarning O'ZI bu yerda YO'Q — ular faqat AI promptiga boradi (maxfiylik).</summary>
+    int StudentReviewCount = 0);
 /// <summary>O'qituvchi AI baholari (0-100) — radar diagramma uchun.</summary>
 public record TeacherAiScoresDto(
     int Jurnal, int Saqlash, int Baholash, int Rivojlanish, int Faollik, int Umumiy);
 /// <summary>AI yozgan narrativ (o'zbekcha) — o'qituvchi tahlilining matn qismlari.</summary>
+/// <param name="OquvchilarFikri">O'QUVCHILARNING FIKRI bo'yicha xulosa — admin yozib borgan
+/// matnli mulohazalardan AI ajratgan takrorlanuvchi naqshlar. Xom matn (va o'quvchi ismi)
+/// hech qachon ko'rsatilmaydi, faqat shu umumlashma.</param>
 public record TeacherAiNarrativeDto(
     string Umumiy, string OquvchiOqimi, string KetishSabablari, string Jurnal,
     string Rivojlanish, string Ozgarishlar,
     List<string> Kuchli, List<string> Zaif, List<string> Xavflar, List<string> Tavsiyalar,
-    TeacherAiScoresDto Baholar, string Trend);
+    TeacherAiScoresDto Baholar, string Trend,
+    string OquvchilarFikri = "");
 /// <summary>Saqlangan bitta o'qituvchi AI tahlili (AI narrativ + deterministik raqamlar).</summary>
 public record TeacherAiRecordDto(
     string Id, string Date, string CreatedAt, string Model, int OverallScore,

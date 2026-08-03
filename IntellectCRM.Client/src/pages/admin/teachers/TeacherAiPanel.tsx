@@ -12,6 +12,7 @@ import {
   History,
   Info,
   Lightbulb,
+  MessageSquareQuote,
   MessageSquareWarning,
   RefreshCw,
   Sparkles,
@@ -43,7 +44,7 @@ import { StatCard } from '@/components/ui/StatCard'
 import {
   AiErrorBox, AiRadar, CardList, MiniStat, PctRow, RankedBars, ScoreGrid, ScoreRing, TextBlock,
 } from '@/components/ai/AiParts'
-import { escapeHtml, openPrintWindow, printCss, trendInfo } from '@/lib/ai'
+import { escapeHtml, openPrintWindow, printCss, scoreColor, trendInfo } from '@/lib/ai'
 import { monthShortNames } from '@/config/constants'
 import { apiErrorMessage, cn, formatDate } from '@/lib/utils'
 
@@ -76,6 +77,7 @@ function buildPrintHtml(rec: TeacherAiRecord, teacherName: string): string {
   <h2>Asosiy raqamlar</h2>
   <table>${row('Kelgan o\'quvchilar', m.cameTotal)}${row('Hozir faol', m.activeStudents)}${row('Ketgan', m.leftStudents)}${row('Saqlash %', m.retentionPct + '%')}${row('Rejadagi darslar', m.plannedLessons)}${row('Belgilanmagan darslar', m.missedLessons)}${row('Jurnal to\'ldirilishi %', m.journalDonePct + '%')}${row('O\'rtacha baho (shu oy)', m.avgGradeThisMonth)}</table>
   ${r.umumiy ? `<h2>Umumiy holat</h2><p>${escapeHtml(r.umumiy)}</p>` : ''}
+  ${r.oquvchilarFikri ? `<h2>O'quvchilar fikri asosida</h2><p>${escapeHtml(r.oquvchilarFikri)}</p>` : ''}
   ${r.ozgarishlar ? `<h2>Oldingi tahlilga nisbatan o'zgarishlar</h2><p>${escapeHtml(r.ozgarishlar)}</p>` : ''}
   ${r.oquvchiOqimi ? `<h2>O'quvchi oqimi</h2><p>${escapeHtml(r.oquvchiOqimi)}</p>` : ''}
   ${r.ketishSabablari ? `<h2>Ketish sabablari</h2><p>${escapeHtml(r.ketishSabablari)}</p>` : ''}
@@ -189,19 +191,6 @@ export function TeacherAiPanel({ teacherId, teacherName }: { teacherId: string; 
         sub="O'quvchi oqimi, ketish sabablari, jurnal intizomi va rivojlanish — oxirgi 12 oy"
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            {records.length > 1 && (
-              <select
-                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-600 outline-none focus:border-brand-400"
-                value={shown?.id ?? ''}
-                onChange={(e) => setSelectedId(e.target.value)}
-              >
-                {records.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {formatDate(r.date)} · {r.overallScore}/100
-                  </option>
-                ))}
-              </select>
-            )}
             <Button variant="secondary" onClick={generate} disabled={running || blockedToday}>
               <RefreshCw className={running ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} />
               {records.length ? 'Yangi tahlil' : 'Tahlil qilish'}
@@ -231,6 +220,61 @@ export function TeacherAiPanel({ teacherId, teacherName }: { teacherId: string; 
           </div>
         )}
       </Card>
+
+      {/* ---------- TAHLILLAR (tarix) ----------
+          Tahlillar vaqt o'tgani sayin YIG'ILIB boradi — qaysi sanada nima yozilgani ko'rinib
+          tursin. Eng YANGISI tepada (server shu tartibda qaytaradi), qatorni bosib o'shanisi
+          ochiladi. Ilgari bu oddiy <select> edi va tarix ko'rinmasdi. */}
+      {records.length > 0 && (
+        <Card
+          title={
+            <span className="inline-flex items-center gap-2">
+              <History className="h-4 w-4 text-brand-600" /> Tahlillar
+            </span>
+          }
+          sub={`${records.length} ta tahlil · eng yangisi tepada`}
+        >
+          <div className="max-h-72 space-y-1.5 overflow-y-auto">
+            {records.map((r) => {
+              const active = r.id === shown?.id
+              return (
+                <button
+                  key={r.id}
+                  type="button"
+                  onClick={() => setSelectedId(r.id)}
+                  className={`flex w-full items-center gap-3 rounded-lg border px-3 py-2 text-left transition-colors ${
+                    active
+                      ? 'border-brand-300 bg-brand-50/60'
+                      : 'border-slate-100 hover:border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  <span
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-50 text-xs font-bold"
+                    style={{ color: scoreColor(r.overallScore) }}
+                  >
+                    {r.overallScore}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-semibold text-slate-800">
+                      {formatDate(r.date)}
+                    </span>
+                    <span className="block truncate text-xs text-slate-400">
+                      {r.createdAt.length >= 16 ? `${r.createdAt.slice(11, 16)} · ` : ''}
+                      {r.ai.umumiy || r.model}
+                    </span>
+                  </span>
+                  {r.ai.oquvchilarFikri && (
+                    <MessageSquareQuote
+                      className="h-3.5 w-3.5 shrink-0 text-violet-500"
+                      aria-label="O'quvchilar fikri hisobga olingan"
+                    />
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        </Card>
+      )}
 
       {/* ---------- 1. O'QUVCHI OQIMI ---------- */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -456,6 +500,23 @@ export function TeacherAiPanel({ teacherId, teacherName }: { teacherId: string; 
             <ScoreGrid items={dimLabels.map((d) => ({ label: d.label, value: shown.ai.baholar[d.key] ?? 0 }))} />
 
             <TextBlock title="Umumiy holat" text={shown.ai.umumiy} />
+
+            {/* O'QUVCHILAR FIKRI — o'quvchi profilida yozib borilgan matnli mulohazalardan AI
+                ajratgan naqshlar. XOM matn va o'quvchi ismi bu yerda HECH QACHON chiqmaydi. */}
+            {shown.ai.oquvchilarFikri && (
+              <div className="rounded-xl border border-violet-100 bg-violet-50/60 p-4">
+                <p className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold text-violet-800">
+                  <MessageSquareQuote className="h-4 w-4" /> O'quvchilar fikri asosida
+                </p>
+                <p className="text-sm leading-relaxed text-slate-700">{shown.ai.oquvchilarFikri}</p>
+                {(shown.metrics.studentReviewCount ?? 0) > 0 && (
+                  <p className="mt-2 text-[11px] text-violet-700/70">
+                    {shown.metrics.studentReviewCount} ta yozib olingan fikr asosida · xom matnlar
+                    ko'rsatilmaydi
+                  </p>
+                )}
+              </div>
+            )}
 
             {shown.ai.ozgarishlar && (
               <div className="rounded-xl border border-brand-100 bg-brand-50/60 p-4">

@@ -70,6 +70,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<Contract> Contracts => Set<Contract>();
     public DbSet<Branch> Branches => Set<Branch>();
     public DbSet<Feedback> Feedbacks => Set<Feedback>();
+    public DbSet<TeacherReview> TeacherReviews => Set<TeacherReview>();
 
     // LMS (Ta'lim)
 
@@ -310,6 +311,21 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
 
         // Boshqaruv: filiallar va taklif/shikoyatlar
         b.Entity<Feedback>().HasIndex(f => new { f.Status, f.CreatedAt });
+
+        // O'QUVCHINING O'QITUVCHI HAQIDAGI FIKRI — ikki tomondan ham o'qiladi: o'quvchi
+        // profilida (StudentId bo'yicha) va o'qituvchi AI tahlilida (TeacherId bo'yicha).
+        // O'quvchi/o'qituvchi/guruh o'chirilsa fikrlar ham keraksiz — FK CASCADE.
+        b.Entity<TeacherReview>().Property(r => r.StudentId).HasMaxLength(200);
+        b.Entity<TeacherReview>().Property(r => r.TeacherId).HasMaxLength(200);
+        b.Entity<TeacherReview>().Property(r => r.GroupId).HasMaxLength(200);
+        b.Entity<TeacherReview>().HasIndex(r => new { r.StudentId, r.CreatedAt });
+        b.Entity<TeacherReview>().HasIndex(r => new { r.TeacherId, r.CreatedAt });
+        b.Entity<TeacherReview>()
+            .HasOne<Student>().WithMany().HasForeignKey(r => r.StudentId)
+            .OnDelete(DeleteBehavior.Cascade);
+        b.Entity<TeacherReview>()
+            .HasOne<Teacher>().WithMany().HasForeignKey(r => r.TeacherId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         // O'quv dasturi — indekslarda qatnashadigan string ustunlarga aniq uzunlik beriladi.
         foreach (var (type, prop) in new (Type, string)[]

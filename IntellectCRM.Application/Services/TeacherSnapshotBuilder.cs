@@ -189,6 +189,14 @@ public static class TeacherSnapshotBuilder
             .Select(f => $"[{(f.Type == "complaint" ? "shikoyat" : "taklif")}] " + Trim(f.Text, 200))
             .ToList();
 
+        // ---------- 7b. O'QUVCHILARNING O'QITUVCHI HAQIDAGI FIKRI ----------
+        // Admin o'quvchi profilida yozib boradigan MATNLI mulohazalar. AI aynan shu matnlardan
+        // takrorlanuvchi naqshlarni (kuchli tomon / o'sish nuqtasi) ajratadi.
+        // MAXFIYLIK: o'quvchi ISMI berilmaydi (xulosa o'qituvchiga ko'rsatiladi) — faqat sana va
+        // guruh nomi; xom matn o'qituvchi profilida hech qachon chiqmaydi.
+        var (reviewCount, reviewTexts) = await TeacherReviewService.TextsForTeacherAsync(
+            db, teacher.Id, sinceDt.ToString("yyyy-MM-ddTHH:mm:ss"), max: 25, ct);
+
         // ---------- 8. Guruh kesimi ----------
         var groupStats = groups.Select(g =>
         {
@@ -219,7 +227,8 @@ public static class TeacherSnapshotBuilder
             tests.Count, testAvgPct, myAssignmentIds.Count, assignmentDonePct,
             present, late, absent,
             complaints, suggestions,
-            flow, journalByMonth, reasons, groupStats, recentMissed);
+            flow, journalByMonth, reasons, groupStats, recentMissed,
+            reviewCount);
 
         // ---------- 9. AI promptiga beriladigan snapshot ----------
         var snapshot = new
@@ -279,6 +288,8 @@ public static class TeacherSnapshotBuilder
             },
             oqituvchiDavomati = new { keldi = present, kechikdi = late, kelmadi = absent },
             otaOnalarFikri = new { shikoyatlar = complaints, takliflar = suggestions, oxirgilari = feedbackTexts },
+            // O'quvchilarning o'qituvchi haqidagi fikri — MATNLI tahlilning asosiy manbai.
+            oquvchilarFikri = new { soni = reviewCount, matnlar = reviewTexts },
         };
 
         var snapshotJson = JsonSerializer.Serialize(snapshot, new JsonSerializerOptions
