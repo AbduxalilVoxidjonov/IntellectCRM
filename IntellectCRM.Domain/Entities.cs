@@ -710,6 +710,50 @@ public class TestResult
     public string StartAt { get; set; } = string.Empty;
     /// <summary>Javob qabul qilish oynasi TUGASHI (ISO "yyyy-MM-ddTHH:mm"). Bo'sh = test kuni 23:59.</summary>
     public string EndAt { get; set; } = string.Empty;
+
+    /// <summary>
+    /// TEST KODI (onlayn test) — masalan "K7M4QP". Markazda O'QIMAYDIGAN odam ham botda shu kodni
+    /// yuborib testni ishlay oladi (kod → F.I.Sh → test). Kod NOYOB (butun markaz bo'yicha);
+    /// oflayn testda bo'sh. Uniklik <c>TestResultService</c> da tekshiriladi.
+    /// </summary>
+    public string Code { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Test GURUH a'zolariga ham ochiladimi. <c>true</c> (standart) — guruh o'quvchilari botda/ilovada
+    /// testni ro'yxatdan ko'radi VA tashqi odam <see cref="Code"/> bilan qo'shila oladi.
+    /// <c>false</c> — "FAQAT ONLAYN": guruhga E'LON QILINMAYDI, faqat kod bilan ishlanadi (test guruh
+    /// ichida yaratilgani uchun natijalari o'sha guruh ichida ko'rinadi).
+    /// </summary>
+    public bool GroupOpen { get; set; } = true;
+}
+
+/// <summary>
+/// MARKAZDAN TASHQARI ishtirokchining onlayn test natijasi. Markazda o'qimaydigan odam botda test
+/// KODINI va F.I.Sh ini yuborib testni ishlaydi — u <see cref="Student"/> emas, shuning uchun bali
+/// <see cref="TestScore"/> ga (StudentId FK) yozilmaydi, mana shu jadvalga tushadi.
+///
+/// <para>Bir chat bir testni BIR MARTA ishlaydi — unikal kalit (TestResultId, ChatId).</para>
+/// <para>Test o'chirilsa natijalari ham kaskad o'chadi.</para>
+/// </summary>
+public class ExternalTestScore
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    /// <summary>Qaysi test (<see cref="TestResult.Id"/>).</summary>
+    public string TestResultId { get; set; } = string.Empty;
+    /// <summary>Telegram chat id — kim ishlagani (qayta topshirishning oldini oladi).</summary>
+    public long ChatId { get; set; }
+    /// <summary>Ishtirokchi o'zi yozgan F.I.Sh.</summary>
+    public string FullName { get; set; } = string.Empty;
+    /// <summary>Telefon raqami (botga ulashgan bo'lsa, <see cref="BotUser.Phone"/> dan) — aks holda bo'sh.</summary>
+    public string Phone { get; set; } = string.Empty;
+    /// <summary>Olgan bali (to'g'ri javoblar soni).</summary>
+    public decimal Score { get; set; }
+    /// <summary>Yuborgan javoblari ("ABDCA…", javobsiz savol '-').</summary>
+    public string Answers { get; set; } = string.Empty;
+    /// <summary>Yuborilgan vaqt (ISO "yyyy-MM-ddTHH:mm:ss").</summary>
+    public string SubmittedAt { get; set; } = string.Empty;
+    /// <summary>Manba — hozircha faqat "bot".</summary>
+    public string Source { get; set; } = "bot";
 }
 
 /// <summary>O'quvchining bitta testdan olgan bali (<see cref="TestResult"/> ↔ o'quvchi).</summary>
@@ -743,8 +787,15 @@ public class TestBotSession
     public long ChatId { get; set; }
     /// <summary>Qaysi test (TestResult.Id).</summary>
     public string TestResultId { get; set; } = string.Empty;
-    /// <summary>Kim uchun (Student.Id) — bir chatda bir nechta farzand bo'lishi mumkin.</summary>
+    /// <summary>Kim uchun (Student.Id) — bir chatda bir nechta farzand bo'lishi mumkin.
+    /// <b>Bo'sh</b> = MARKAZDAN TASHQARI ishtirokchi (test kodi bilan kirgan): natijasi
+    /// <see cref="ExternalTestScore"/> ga yoziladi, ismi <see cref="ExternalName"/> da.</summary>
     public string StudentId { get; set; } = string.Empty;
+    /// <summary>Sessiya bosqichi: <c>""</c> — javob kiritilyapti (odatdagi holat) |
+    /// <c>"name"</c> — markazdan tashqari ishtirokchidan F.I.Sh kutilyapti (kod tasdiqlangan).</summary>
+    public string Stage { get; set; } = string.Empty;
+    /// <summary>Markazdan tashqari ishtirokchi yozgan F.I.Sh (<see cref="StudentId"/> bo'sh bo'lganda).</summary>
+    public string ExternalName { get; set; } = string.Empty;
     /// <summary>Kiritilgan javoblar; har savol uchun bitta belgi, javobsiz savol '-'. Uzunligi = savollar soni.</summary>
     public string Answers { get; set; } = string.Empty;
     /// <summary>Tugmali rejimda hozir turgan savol (0-based).</summary>
@@ -1548,7 +1599,8 @@ public class BotUser
     public string Phone { get; set; } = string.Empty;
     /// <summary>Tizimdagi moslik yorlig'i (masalan "O'quvchi: Ali (ota-ona)" / "O'qituvchi: Vali" / "Admin").</summary>
     public string Linked { get; set; } = string.Empty;
-    /// <summary>Rejim: "" (oddiy) | "support" (adminga murojaat — keyingi matnlar adminga ketadi).</summary>
+    /// <summary>Rejim: "" (oddiy) | "support" (adminga murojaat — keyingi matnlar adminga ketadi)
+    /// | "testcode" (onlayn test KODI kutilyapti — keyingi matn kod deb o'qiladi).</summary>
     public string Mode { get; set; } = string.Empty;
     /// <summary>Birinchi /start vaqti (ISO).</summary>
     public string StartedAt { get; set; } = string.Empty;

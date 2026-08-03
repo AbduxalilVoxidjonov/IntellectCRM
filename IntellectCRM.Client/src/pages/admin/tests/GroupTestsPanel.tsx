@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   Plus, Pencil, Trash2, ClipboardList, ChevronRight, AlertTriangle, Loader2,
-  Bot, FileText, Upload, Clock, Send,
+  Bot, FileText, Upload, Clock, Send, Users, KeyRound, Copy, Globe,
 } from 'lucide-react'
 import type { GroupTest } from '@/types'
 import { getGroupTests, createTest, updateTest, deleteTest } from '@/api/services/testResults'
@@ -138,6 +138,22 @@ export function GroupTestsPanel({
                           ONLAYN
                         </span>
                       )}
+                      {isOnline && !t.online.groupOpen && (
+                        <span
+                          className="shrink-0 rounded-md bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700"
+                          title="Guruhga e'lon qilinmagan — faqat test kodi bilan ishlanadi"
+                        >
+                          FAQAT KOD
+                        </span>
+                      )}
+                      {isOnline && !!t.online.code && (
+                        <span
+                          className="shrink-0 rounded-md bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] font-semibold tracking-wider text-slate-600"
+                          title="Test kodi"
+                        >
+                          {t.online.code}
+                        </span>
+                      )}
                     </p>
                     <p className="text-xs text-slate-400">
                       {formatDate(t.date)} · Maks: {t.maxScore} ball
@@ -164,6 +180,11 @@ export function GroupTestsPanel({
                           <span className="inline-flex items-center gap-1 text-violet-600">
                             <Send className="h-3 w-3" /> Botdan: {t.submittedCount}
                           </span>
+                          {t.externalCount > 0 && (
+                            <span className="inline-flex items-center gap-1 text-teal-600">
+                              <Globe className="h-3 w-3" /> Markazdan tashqari: {t.externalCount}
+                            </span>
+                          )}
                         </>
                       )}
                     </div>
@@ -275,6 +296,11 @@ function TestFormModal({
   const [bulkKey, setBulkKey] = useState('')
   const [startTime, setStartTime] = useState(timeOf(initialOnline?.startAt ?? '', '09:00'))
   const [endTime, setEndTime] = useState(timeOf(initialOnline?.endAt ?? '', '11:00'))
+  // Test KODI — markazda o'qimaydigan odam ham shu kod bilan botda testni ishlaydi.
+  // Bo'sh qoldirilsa server o'zi noyob kod yaratadi.
+  const [code, setCode] = useState(initialOnline?.code ?? '')
+  // true — guruhga ham e'lon qilinadi; false — FAQAT kod bilan ishlanadi.
+  const [groupOpen, setGroupOpen] = useState(initialOnline?.groupOpen ?? true)
 
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
@@ -364,6 +390,8 @@ function TestFormModal({
             answerKey: keys.join(''),
             startAt: `${date}T${startTime}`,
             endAt: `${date}T${endTime}`,
+            code: code.trim(),
+            groupOpen,
           }
         : {
             mode: 'offline' as const,
@@ -374,12 +402,16 @@ function TestFormModal({
             answerKey: '',
             startAt: '',
             endAt: '',
+            code: '',
+            groupOpen: true,
           }
     const finalMax = mode === 'online' ? qCount : max
     try {
       if (editing) {
         await updateTest(editing.id, { name: name.trim(), date, maxScore: finalMax, online })
-        onSaved({ ...editing, name: name.trim(), date, maxScore: finalMax, online })
+        // Kod maydoni bo'sh qoldirilsa server MAVJUD kodni saqlaydi — ro'yxatda ham shu ko'rinsin.
+        const echoed = { ...online, code: online.code || editing.online?.code || '' }
+        onSaved({ ...editing, name: name.trim(), date, maxScore: finalMax, online: echoed })
       } else {
         const created = await createTest({
           groupId, name: name.trim(), date, maxScore: finalMax, online,
@@ -483,6 +515,84 @@ function TestFormModal({
 
         {mode === 'online' && (
           <>
+            {/* KIMLAR ISHLAYDI: guruh + kod  |  faqat kod */}
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-slate-500">
+                Testni kimlar ishlaydi?
+              </label>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {([
+                  {
+                    v: true,
+                    icon: Users,
+                    t: 'Guruh + kod',
+                    s: "Guruh o'quvchilarida o'zi chiqadi, tashqi odam kod bilan qo'shiladi",
+                  },
+                  {
+                    v: false,
+                    icon: KeyRound,
+                    t: 'Faqat kod bilan',
+                    s: "Guruhga e'lon qilinmaydi — faqat kodni bilgan ishlaydi",
+                  },
+                ] as const).map((o) => {
+                  const Icon = o.icon
+                  const active = groupOpen === o.v
+                  return (
+                    <button
+                      key={String(o.v)}
+                      type="button"
+                      onClick={() => setGroupOpen(o.v)}
+                      className={cn(
+                        'flex items-start gap-2.5 rounded-lg border px-3 py-2.5 text-left transition-colors',
+                        active
+                          ? 'border-brand-400 bg-brand-50/50'
+                          : 'border-slate-200 hover:border-slate-300',
+                      )}
+                    >
+                      <Icon
+                        className={cn('mt-0.5 h-4 w-4 shrink-0', active ? 'text-brand-600' : 'text-slate-400')}
+                      />
+                      <span className="min-w-0">
+                        <span
+                          className={cn(
+                            'block text-sm font-semibold',
+                            active ? 'text-slate-800' : 'text-slate-600',
+                          )}
+                        >
+                          {o.t}
+                        </span>
+                        <span className="block text-[11px] leading-snug text-slate-400">{o.s}</span>
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* TEST KODI */}
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-500">Test kodi</label>
+              <div className="flex gap-2">
+                <input
+                  className={cn(control, 'font-mono uppercase tracking-widest')}
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.toUpperCase())}
+                  placeholder={editing ? '' : 'Avtomatik yaratiladi'}
+                  maxLength={32}
+                />
+                {!!code && (
+                  <Button variant="secondary" onClick={() => void navigator.clipboard?.writeText(code)}>
+                    <Copy className="h-4 w-4" /> Nusxa
+                  </Button>
+                )}
+              </div>
+              <p className="mt-1 text-[11px] text-slate-400">
+                Markazda o'qimaydigan odam ham botda «Testni ishlash» → «Test kodi bilan kirish» →
+                shu kod → F.I.Sh orqali testni ishlaydi. Bo'sh qoldirsangiz tizim o'zi noyob kod
+                yaratadi.
+              </p>
+            </div>
+
             {/* PDF */}
             <div>
               <label className="mb-1 block text-xs font-medium text-slate-500">

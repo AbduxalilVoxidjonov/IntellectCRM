@@ -13,6 +13,10 @@ import {
   Send,
   Trash2,
   Upload,
+  Users,
+  KeyRound,
+  Copy,
+  Globe,
 } from 'lucide-react'
 import type { GroupTest, OnlineTest, TestResultDetail } from '@/types'
 import {
@@ -90,6 +94,11 @@ function TeacherTestFormModal({
   const [bulkKey, setBulkKey] = useState('')
   const [startTime, setStartTime] = useState(timeOf(initialOnline?.startAt ?? '', '09:00'))
   const [endTime, setEndTime] = useState(timeOf(initialOnline?.endAt ?? '', '11:00'))
+  // Test KODI — markazda o'qimaydigan odam ham shu kod bilan botda testni ishlaydi
+  // (bo'sh qoldirilsa server o'zi noyob kod yaratadi).
+  const [code, setCode] = useState(initialOnline?.code ?? '')
+  // true — guruhga ham e'lon qilinadi; false — FAQAT kod bilan ishlanadi.
+  const [groupOpen, setGroupOpen] = useState(initialOnline?.groupOpen ?? true)
 
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
@@ -179,6 +188,8 @@ function TeacherTestFormModal({
             answerKey: keys.join(''),
             startAt: `${date}T${startTime}`,
             endAt: `${date}T${endTime}`,
+            code: code.trim(),
+            groupOpen,
           }
         : {
             mode: 'offline',
@@ -189,6 +200,8 @@ function TeacherTestFormModal({
             answerKey: '',
             startAt: '',
             endAt: '',
+            code: '',
+            groupOpen: true,
           }
     const finalMax = mode === 'online' ? qCount : max
     try {
@@ -306,6 +319,78 @@ function TeacherTestFormModal({
 
         {mode === 'online' && (
           <>
+            {/* KIMLAR ISHLAYDI: guruh + kod  |  faqat kod */}
+            <div>
+              <span className={label}>Testni kimlar ishlaydi?</span>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {(
+                  [
+                    {
+                      v: true,
+                      icon: Users,
+                      t: 'Guruh + kod',
+                      s: "Guruh o'quvchilarida o'zi chiqadi, tashqi odam kod bilan qo'shiladi",
+                    },
+                    {
+                      v: false,
+                      icon: KeyRound,
+                      t: 'Faqat kod bilan',
+                      s: "Guruhga e'lon qilinmaydi — faqat kodni bilgan ishlaydi",
+                    },
+                  ] as const
+                ).map((o) => {
+                  const Icon = o.icon
+                  const active = groupOpen === o.v
+                  return (
+                    <button
+                      key={String(o.v)}
+                      type="button"
+                      onClick={() => setGroupOpen(o.v)}
+                      className={cn(
+                        'flex items-start gap-2 rounded-lg border px-2.5 py-2 text-left transition-colors',
+                        active ? 'border-teal-500 bg-teal-50/60' : 'border-line hover:border-mute',
+                      )}
+                    >
+                      <Icon className={cn('mt-0.5 h-4 w-4 shrink-0', active ? 'text-teal-600' : 'text-faint')} />
+                      <span className="min-w-0">
+                        <span className={cn('block text-[13px] font-bold', active ? 'text-ink' : 'text-mute')}>
+                          {o.t}
+                        </span>
+                        <span className="block text-[10px] leading-snug text-faint">{o.s}</span>
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* TEST KODI */}
+            <div>
+              <span className={label}>Test kodi</span>
+              <div className="flex gap-2">
+                <input
+                  className={cn(field, 'font-mono uppercase tracking-widest')}
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.toUpperCase())}
+                  placeholder={editing ? '' : 'Avtomatik yaratiladi'}
+                  maxLength={32}
+                />
+                {!!code && (
+                  <button
+                    type="button"
+                    onClick={() => void navigator.clipboard?.writeText(code)}
+                    className="flex h-10 shrink-0 items-center gap-1.5 rounded-lg border border-line bg-white px-3 text-[13px] font-semibold text-mute"
+                  >
+                    <Copy className="h-4 w-4" /> Nusxa
+                  </button>
+                )}
+              </div>
+              <p className="mt-1 text-[11px] text-faint">
+                Markazda o'qimaydigan odam ham botda «Testni ishlash» → «Test kodi bilan kirish» →
+                shu kod → F.I.Sh orqali testni ishlaydi. Bo'sh qoldirsangiz tizim o'zi kod yaratadi.
+              </p>
+            </div>
+
             {/* PDF */}
             <div>
               <span className={label}>Test savollari (PDF)</span>
@@ -609,6 +694,8 @@ export function TeacherGroupTestsPanel({
   if (detail || detailLoading || detailError) {
     const isOnline = detail?.online?.mode === 'online'
     const submitted = detail ? detail.rows.filter((r) => r.source === 'bot').length : 0
+    // MARKAZDAN TASHQARI ishtirokchilar (test kodi bilan kirganlar) — alohida ro'yxat.
+    const external = detail?.externalRows ?? []
     return (
       <div>
         <div className="mb-4 flex items-center gap-2.5">
@@ -667,6 +754,22 @@ export function TeacherGroupTestsPanel({
                 {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 Javob kaliti
               </button>
+              {!!detail.online.code && (
+                <button
+                  type="button"
+                  onClick={() => void navigator.clipboard?.writeText(detail.online.code)}
+                  className="inline-flex items-center gap-1.5 rounded-md bg-panel2 px-2 py-1 font-mono text-[12px] font-bold tracking-wider text-ink"
+                  title="Test kodini nusxalash"
+                >
+                  <KeyRound className="h-3.5 w-3.5 text-faint" /> {detail.online.code}
+                  <Copy className="h-3 w-3 text-faint" />
+                </button>
+              )}
+              {!detail.online.groupOpen && (
+                <span className="rounded-md bg-amber-50 px-2 py-1 text-[11px] font-bold text-amber-700">
+                  FAQAT KOD
+                </span>
+              )}
             </div>
             {showKey && (
               <pre className="mt-2.5 overflow-x-auto rounded-lg bg-panel2 p-3 text-[11px] leading-relaxed text-mute">
@@ -694,6 +797,12 @@ export function TeacherGroupTestsPanel({
         ) : (
           detail && (
             <div className="overflow-hidden rounded-[20px] border border-line bg-white shadow-[var(--shadow-card)]">
+              {external.length > 0 && (
+                <p className="flex items-center gap-1.5 border-b border-line bg-panel2 px-4 py-2 text-[12px] font-bold text-mute">
+                  <Users className="h-3.5 w-3.5 text-faint" /> Markazdagilar
+                  <span className="font-normal text-faint">({detail.rows.length})</span>
+                </p>
+              )}
               {detail.rows.map((r, i) => {
                 const medal = r.rank === 1 ? '🥇' : r.rank === 2 ? '🥈' : r.rank === 3 ? '🥉' : null
                 return (
@@ -708,7 +817,17 @@ export function TeacherGroupTestsPanel({
                       {r.rank === 0 ? '' : medal ?? r.rank}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-[14px] font-semibold text-ink">{r.fullName}</p>
+                      <p className="truncate text-[14px] font-semibold text-ink">
+                        {r.fullName}
+                        {r.member === false && (
+                          <span
+                            className="ml-1.5 rounded bg-sky-50 px-1.5 py-0.5 text-[10px] font-bold text-sky-700"
+                            title="Boshqa guruh o'quvchisi — test kodi bilan qo'shilgan"
+                          >
+                            BOSHQA GURUH
+                          </span>
+                        )}
+                      </p>
                       {isOnline &&
                         (r.source === 'bot' ? (
                           <p className="truncate text-[11px] text-faint" title={r.answers}>
@@ -739,6 +858,44 @@ export function TeacherGroupTestsPanel({
               })}
             </div>
           )
+        )}
+
+        {/* MARKAZDAN TASHQARI — test kodi bilan kirgan, markazda o'qimaydigan ishtirokchilar.
+            Ular Student emas: ball qo'lda tahrirlanmaydi (faqat botdan kelgan natija). */}
+        {detail && external.length > 0 && (
+          <div className="mt-4 overflow-hidden rounded-[20px] border border-line bg-white shadow-[var(--shadow-card)]">
+            <p className="flex items-center gap-1.5 border-b border-line bg-panel2 px-4 py-2 text-[12px] font-bold text-mute">
+              <Globe className="h-3.5 w-3.5 text-teal-500" /> Markazdan tashqari
+              <span className="font-normal text-faint">({external.length})</span>
+            </p>
+            {external.map((r, i) => {
+              const medal = r.rank === 1 ? '🥇' : r.rank === 2 ? '🥈' : r.rank === 3 ? '🥉' : null
+              return (
+                <div
+                  key={r.id}
+                  className={cn(
+                    'flex items-center gap-3 px-4 py-3',
+                    i < external.length - 1 && 'border-b border-line',
+                  )}
+                >
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center text-[14px] font-bold text-mute">
+                    {medal ?? r.rank}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[14px] font-semibold text-ink">{r.fullName}</p>
+                    <p className="truncate text-[11px] text-faint" title={r.answers}>
+                      <span className="font-mono">{r.answers}</span> · {timeOf(r.submittedAt, '—')}
+                      {r.phone ? ` · ${r.phone}` : ''}
+                    </p>
+                  </div>
+                  <div className="shrink-0 text-[14px] font-bold text-ink">
+                    <span className="font-mono">{r.score}</span>
+                    <span className="text-[12px] font-normal text-faint">/{detail.maxScore}</span>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
         )}
         {savingRow && <p className="mt-2 text-center text-[12px] text-mute">Saqlanmoqda...</p>}
       </div>
@@ -820,11 +977,23 @@ export function TeacherGroupTestsPanel({
                           ONLAYN
                         </span>
                       )}
+                      {t.online?.mode === 'online' && !t.online.groupOpen && (
+                        <span className="shrink-0 rounded-md bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">
+                          FAQAT KOD
+                        </span>
+                      )}
+                      {t.online?.mode === 'online' && !!t.online.code && (
+                        <span className="shrink-0 rounded-md bg-panel2 px-1.5 py-0.5 font-mono text-[10px] font-bold tracking-wider text-mute">
+                          {t.online.code}
+                        </span>
+                      )}
                     </p>
                     <p className="text-[12px] text-mute">
                       {formatDate(t.date)}
                       {t.online?.mode === 'online' &&
                         ` · botdan yuborgan: ${t.submittedCount}/${t.studentCount}`}
+                      {t.online?.mode === 'online' && t.externalCount > 0 &&
+                        ` · markazdan tashqari: ${t.externalCount}`}
                     </p>
                   </div>
                 </button>

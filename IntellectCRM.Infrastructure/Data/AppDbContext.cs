@@ -31,6 +31,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<TrialLesson> TrialLessons => Set<TrialLesson>();
     public DbSet<TestResult> TestResults => Set<TestResult>();
     public DbSet<TestScore> TestScores => Set<TestScore>();
+    public DbSet<ExternalTestScore> ExternalTestScores => Set<ExternalTestScore>();
     public DbSet<TestBotSession> TestBotSessions => Set<TestBotSession>();
     public DbSet<JournalEntry> JournalEntries => Set<JournalEntry>();
     public DbSet<LessonNote> LessonNotes => Set<LessonNote>();
@@ -465,12 +466,27 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         b.Entity<TestResult>().Property(t => t.MaxScore).HasPrecision(18, 2);
         b.Entity<TestResult>().Property(t => t.GroupId).HasMaxLength(200);
         b.Entity<TestResult>().HasIndex(t => t.GroupId);
+        // TEST KODI — bot bo'yicha qidiriladi (markazdan tashqari ishtirokchi kodni yuboradi).
+        // Uniklik DB indeksi bilan EMAS, `TestResultService` da tekshiriladi: kod faqat ONLAYN testda
+        // bo'ladi, oflayn testlarda bo'sh — bo'sh qiymatlar ustidan unikal indeks provayderga bog'liq
+        // (filtrli indeks) bo'lib qolardi.
+        b.Entity<TestResult>().Property(t => t.Code).HasMaxLength(32);
+        b.Entity<TestResult>().HasIndex(t => t.Code);
         b.Entity<TestScore>().Property(t => t.Score).HasPrecision(18, 2);
         b.Entity<TestScore>().Property(t => t.TestResultId).HasMaxLength(200);
         b.Entity<TestScore>().Property(t => t.StudentId).HasMaxLength(200);
         b.Entity<TestScore>().HasIndex(t => new { t.TestResultId, t.StudentId }).IsUnique();
         b.Entity<TestScore>().HasIndex(t => t.StudentId);
         b.Entity<TestScore>()
+            .HasOne<TestResult>().WithMany()
+            .HasForeignKey(t => t.TestResultId)
+            .OnDelete(DeleteBehavior.Cascade);
+        // MARKAZDAN TASHQARI ishtirokchi natijasi — bir chat bitta testni bir marta ishlaydi;
+        // test o'chirilsa natijalari ham kaskad o'chadi (TestScore bilan bir xil qoida).
+        b.Entity<ExternalTestScore>().Property(t => t.Score).HasPrecision(18, 2);
+        b.Entity<ExternalTestScore>().Property(t => t.TestResultId).HasMaxLength(200);
+        b.Entity<ExternalTestScore>().HasIndex(t => new { t.TestResultId, t.ChatId }).IsUnique();
+        b.Entity<ExternalTestScore>()
             .HasOne<TestResult>().WithMany()
             .HasForeignKey(t => t.TestResultId)
             .OnDelete(DeleteBehavior.Cascade);

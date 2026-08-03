@@ -32,6 +32,8 @@ public interface IAppDbContext
     DbSet<TrialLesson> TrialLessons { get; }
     DbSet<TestResult> TestResults { get; }
     DbSet<TestScore> TestScores { get; }
+    /// <summary>Markazdan tashqari (test kodi bilan kirgan) ishtirokchilar natijalari.</summary>
+    DbSet<ExternalTestScore> ExternalTestScores { get; }
     DbSet<TestBotSession> TestBotSessions { get; }
     DbSet<JournalEntry> JournalEntries { get; }
     DbSet<LessonNote> LessonNotes { get; }

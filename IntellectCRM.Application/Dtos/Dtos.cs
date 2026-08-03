@@ -474,29 +474,44 @@ public record TestGroupOverviewDto(
 /// <param name="AnswerKey">To'g'ri javoblar ("ABCDA...", uzunligi = QuestionCount)</param>
 /// <param name="StartAt">Javob qabul qilish boshlanishi (ISO "yyyy-MM-ddTHH:mm")</param>
 /// <param name="EndAt">Javob qabul qilish tugashi (ISO "yyyy-MM-ddTHH:mm")</param>
+/// <param name="Code">TEST KODI — markazda o'qimaydigan odam ham botda shu kod bilan testni ishlaydi.
+/// Bo'sh yuborilsa server O'ZI noyob kod yaratadi (onlayn testda kod HAR DOIM bo'ladi).</param>
+/// <param name="GroupOpen">true — guruh a'zolariga ham e'lon qilinadi (va kod bilan tashqi odam ham
+/// qo'shiladi); false — "FAQAT ONLAYN": guruhga e'lon qilinmaydi, faqat kod bilan ishlanadi.</param>
 public record OnlineTestDto(
     string Mode, string PdfUrl, string PdfName, int QuestionCount, int OptionCount,
-    string AnswerKey, string StartAt, string EndAt);
+    string AnswerKey, string StartAt, string EndAt,
+    string Code = "", bool GroupOpen = true);
 /// <summary>Bitta test qatori (guruh testlar ro'yxatida) — soni/o'rtacha bilan.
 /// <c>Online</c> — onlayn test sozlamalari (Mode="offline" bo'lsa ham to'ldiriladi).
-/// <c>SubmittedCount</c> — botdan javob yuborgan o'quvchilar soni (onlayn).</summary>
+/// <c>SubmittedCount</c> — botdan javob yuborgan O'QUVCHILAR soni (onlayn).
+/// <c>ExternalCount</c> — MARKAZDAN TASHQARI (kod bilan kirgan) ishtirokchilar soni.</summary>
 public record GroupTestDto(
     string Id, string GroupId, string Name, string Date, decimal MaxScore,
     string CreatedAt, string CreatedBy, int StudentCount, int ScoredCount, decimal? AvgScore,
-    OnlineTestDto Online, int SubmittedCount);
+    OnlineTestDto Online, int SubmittedCount, int ExternalCount = 0);
 public record CreateTestResultRequest(
     string GroupId, string Name, string Date, decimal MaxScore, OnlineTestDto? Online = null);
 public record UpdateTestResultRequest(
     string Name, string Date, decimal MaxScore, OnlineTestDto? Online = null);
 /// <summary>Test natijasi qatori — bitta o'quvchining bali (ball bo'yicha saralanadi). Rank = 0 → ball kiritilmagan.
 /// <c>Answers</c>/<c>SubmittedAt</c> — onlayn testda botdan yuborilgan javoblar va vaqti (aks holda bo'sh).</summary>
+/// <param name="Member">Guruhning FAOL a'zosimi. <c>false</c> — markazning BOSHQA guruhidagi o'quvchi
+/// test KODI bilan qo'shilgan (bali bor, lekin bu guruh ro'yxatida yo'q).</param>
 public record TestScoreRowDto(
     string StudentId, string FullName, decimal? Score, int Rank,
-    string Answers = "", string SubmittedAt = "", string Source = "");
-/// <summary>Test tafsiloti — test ma'lumoti + faol o'quvchilar ballari (ball desc bo'yicha saralangan).</summary>
+    string Answers = "", string SubmittedAt = "", string Source = "", bool Member = true);
+/// <summary>MARKAZDAN TASHQARI ishtirokchi qatori — test kodi bilan kirgan, markazda o'qimaydigan odam.
+/// <c>Rank</c> — shu ro'yxat ICHIDAGI o'rin (markazdagilar bilan aralashtirilmaydi).</summary>
+public record ExternalTestScoreRowDto(
+    string Id, string FullName, string Phone, decimal Score, int Rank,
+    string Answers, string SubmittedAt);
+/// <summary>Test tafsiloti — test ma'lumoti + faol o'quvchilar ballari (ball desc bo'yicha saralangan).
+/// <c>ExternalRows</c> — MARKAZDAN TASHQARI (kod bilan kirgan) ishtirokchilar, alohida ro'yxat.</summary>
 public record TestResultDetailDto(
     string Id, string GroupId, string GroupName, string Name, string Date, decimal MaxScore,
-    string CreatedAt, string CreatedBy, List<TestScoreRowDto> Rows, OnlineTestDto Online);
+    string CreatedAt, string CreatedBy, List<TestScoreRowDto> Rows, OnlineTestDto Online,
+    List<ExternalTestScoreRowDto>? ExternalRows = null);
 /// <summary>Bitta o'quvchiga ball qo'yish/tozalash (Score=null → tozalash).</summary>
 public record SetTestScoreRequest(string StudentId, decimal? Score);
 /// <summary>O'quvchi profilidagi test natijasi qatori (barcha guruhlaridan, sana desc).</summary>

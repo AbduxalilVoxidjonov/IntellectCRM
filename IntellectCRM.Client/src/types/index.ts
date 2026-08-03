@@ -2233,6 +2233,17 @@ export interface OnlineTest {
   /** Javob qabul qilish oynasi (ISO "yyyy-MM-ddTHH:mm") */
   startAt: string
   endAt: string
+  /**
+   * TEST KODI — markazda o'qimaydigan odam ham botda shu kod bilan testni ishlaydi
+   * («📝 Testni ishlash» → «🔑 Test kodi bilan kirish» → KOD → F.I.Sh → test).
+   * Bo'sh yuborilsa server o'zi noyob kod yaratadi.
+   */
+  code: string
+  /**
+   * true — test guruh a'zolariga ham e'lon qilinadi (va kod bilan tashqi odam ham qo'shiladi);
+   * false — "FAQAT ONLAYN": guruhga e'lon qilinmaydi, faqat kod bilan ishlanadi.
+   */
+  groupOpen: boolean
 }
 
 /** Bitta test qatori (guruh testlar ro'yxatida). */
@@ -2250,6 +2261,8 @@ export interface GroupTest {
   online: OnlineTest
   /** Botdan javob yuborgan o'quvchilar soni (onlayn test) */
   submittedCount: number
+  /** Markazdan tashqari (test kodi bilan kirgan) ishtirokchilar soni */
+  externalCount: number
 }
 
 /** Test natijasi qatori — bitta o'quvchi bali (rank=0 → ball kiritilmagan). */
@@ -2264,6 +2277,21 @@ export interface TestScoreRow {
   submittedAt: string
   /** "bot" — o'quvchi botdan yubordi; "" — qo'lda kiritilgan */
   source: string
+  /** Guruhning faol a'zosimi. false — markazning BOSHQA guruhidagi o'quvchi kod bilan qo'shilgan. */
+  member: boolean
+}
+
+/** MARKAZDAN TASHQARI ishtirokchi qatori — test kodi bilan kirgan, markazda o'qimaydigan odam. */
+export interface ExternalTestScoreRow {
+  id: string
+  fullName: string
+  /** Botga ulashgan telefon raqami (bo'lmasa bo'sh) */
+  phone: string
+  score: number
+  /** Shu ro'yxat ICHIDAGI o'rin */
+  rank: number
+  answers: string
+  submittedAt: string
 }
 
 /** Test tafsiloti — test + o'quvchilar ballari (ball desc bo'yicha saralangan). */
@@ -2276,8 +2304,11 @@ export interface TestResultDetail {
   maxScore: number
   createdAt: string
   createdBy: string
+  /** MARKAZDAGILAR — guruh a'zolari + kod bilan qo'shilgan markaz o'quvchilari */
   rows: TestScoreRow[]
   online: OnlineTest
+  /** MARKAZDAN TASHQARI — kod bilan kirgan, markazda o'qimaydigan ishtirokchilar */
+  externalRows: ExternalTestScoreRow[]
 }
 
 /** O'quvchi profilidagi test natijasi qatori (barcha guruhlaridan). */

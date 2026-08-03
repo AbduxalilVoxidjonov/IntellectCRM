@@ -19,15 +19,29 @@ namespace IntellectCRM.Application.Services;
 /// <para>Bir marta topshiriladi: (test, o'quvchi) uchun bot bali mavjud bo'lsa qayta topshirib
 /// bo'lmaydi. Javob kaliti test vaqti TUGAGUNCHA ko'rsatilmaydi (birinchi topshirgan o'quvchi
 /// kalitni tarqatib yubormasligi uchun) — tugagach to'liq tahlil chiqadi.</para>
+///
+/// <para><b>MARKAZDAN TASHQARI ISHTIROKCHI (test kodi).</b> Markazda o'qimaydigan odam ham testni
+/// ishlay oladi: «📝 Testni ishlash» → «🔑 Test kodi bilan kirish» → KOD → F.I.Sh → test. Uning
+/// natijasi <see cref="ExternalTestScore"/> ga yoziladi (u <see cref="Student"/> emas) va natijalar
+/// ro'yxatida "Markazdan tashqari" bo'limida ko'rinadi. Majburiy kanal obunasi bu yo'lda ham
+/// ishlaydi — darvoza <c>TelegramBotService.RequireSubscriptionAsync</c> da, tugma bosilishida.</para>
 /// </summary>
 public class OnlineTestBotService(TelegramService telegram, IHostEnvironment env, ILogger<OnlineTestBotService> logger)
 {
     /// <summary>Reply-klaviaturadagi tugma matni (kod olish bilan adminga murojaat orasida).</summary>
     public const string TestButtonText = "📝 Testni ishlash";
 
+    /// <summary><see cref="BotUser.Mode"/> qiymati: keyingi matn TEST KODI deb o'qiladi.</summary>
+    public const string ModeAwaitingCode = "testcode";
+
+    /// <summary><see cref="TestBotSession.Stage"/> qiymati: markazdan tashqari ishtirokchidan F.I.Sh kutilyapti.</summary>
+    private const string StageName = "name";
+
     // ---------- callback_data prefikslari (Telegram cheklovi: 64 bayt) ----------
     /// <summary>Testni ochish: <c>ot:{testId}:{studentIdx}</c></summary>
     public const string CbOpen = "ot:";
+    /// <summary>«Test kodi bilan kirish» — kod so'raladi.</summary>
+    public const string CbCode = "ocode";
     /// <summary>Kiritish usuli: <c>omb</c> (tugmalar) | <c>omt</c> (bitta xabarda)</summary>
     public const string CbModeButtons = "omb";
     public const string CbModeText = "omt";
@@ -46,52 +60,196 @@ public class OnlineTestBotService(TelegramService telegram, IHostEnvironment env
         data.StartsWith(CbOpen, StringComparison.Ordinal)
         || data.StartsWith(CbAnswer, StringComparison.Ordinal)
         || data.StartsWith(CbGoto, StringComparison.Ordinal)
-        || data is CbModeButtons or CbModeText or CbFinish or CbConfirm or CbEdit or CbCancel or CbList;
+        || data is CbModeButtons or CbModeText or CbFinish or CbConfirm or CbEdit or CbCancel or CbList or CbCode;
 
     // ==================================================================================
     //  1) TESTLAR RO'YXATI
     // ==================================================================================
 
-    /// <summary>«📝 Testni ishlash» — shu chatga bog'langan o'quvchi(lar)ning onlayn testlari ro'yxati.</summary>
+    /// <summary>«📝 Testni ishlash» — shu chatga bog'langan o'quvchi(lar)ning onlayn testlari ro'yxati.
+    /// <para>Chat markaz o'quvchisiga bog'lanmagan bo'lsa (MARKAZDAN TASHQARI odam) ro'yxat bo'lmaydi,
+    /// lekin «🔑 Test kodi bilan kirish» yo'li OCHIQ — o'qituvchi bergan kod bilan testni ishlaydi.
+    /// Kod tugmasi bog'langan foydalanuvchilarga ham ko'rsatiladi (boshqa guruh testiga qo'shilishi mumkin).</para></summary>
     public async Task ShowListAsync(IAppDbContext db, long chatId, CancellationToken ct)
     {
         var students = await ChatStudentsAsync(db, chatId, ct);
+
+        // MARKAZ O'QUVCHISI EMAS (chat hech qaysi o'quvchiga bog'lanmagan) — ro'yxat ko'rsatishning
+        // ma'nosi yo'q: darhol TEST KODI so'raymiz (foydalanuvchi qo'shimcha tugma bosmasin).
+        // Markaz o'quvchisi bo'lsa-yu hali ro'yxatdan o'tmagan bo'lsa — telefon yuborish yo'li ham
+        // shu xabarda aytiladi (kontakt yuborish matn emas, shuning uchun kod rejimiga xalaqit bermaydi).
         if (students.Count == 0)
         {
+            await SetBotModeAsync(db, chatId, ModeAwaitingCode, ct);
             await telegram.SendMessageAsync(chatId,
-                "Avval ro'yxatdan o'ting — telefon raqamingizni yuboring.\n"
-                + "Raqam markaz ma'lumotlari bilan mos kelsa, testlaringiz shu yerda chiqadi.", null, ct);
+                "🔑 <b>Test kodini yuboring.</b>\n\n"
+                + "Markazda o'qimasangiz ham testni ishlashingiz mumkin — o'qituvchi bergan kodni "
+                + "shu yerga yozing (masalan <code>K7M4QP</code>).\n\n"
+                + "ℹ️ Markaz o'quvchisi bo'lsangiz — telefon raqamingizni yuboring, keyin testlaringiz "
+                + "shu tugmada o'zi chiqadi.",
+                new
+                {
+                    inline_keyboard = new object[][]
+                    {
+                        new object[] { new { text = "✖️ Bekor qilish", callback_data = CbCancel } },
+                    },
+                }, ct, "HTML");
             return;
         }
 
         var items = await AvailableTestsAsync(db, students, ct);
-        if (items.Count == 0)
-        {
-            await telegram.SendMessageAsync(chatId,
-                "📭 Hozircha siz uchun ochilgan onlayn test yo'q.\n\n"
-                + "O'qituvchingiz test e'lon qilganda, shu tugma orqali uni ishlashingiz mumkin bo'ladi.", null, ct);
-            return;
-        }
 
-        var multi = students.Count > 1;
         var rows = new List<object[]>();
         var text = new StringBuilder("📝 <b>Onlayn testlar</b>\n\n");
-        foreach (var it in items)
+
+        if (items.Count > 0)
         {
-            var state = StateOf(it);
-            text.Append($"{state.Icon} <b>{Esc(it.Test.Name)}</b>\n")
-                .Append($"     📅 {Human(it.Test.Date)} · {it.Test.QuestionCount} ta savol\n")
-                .Append($"     ⏰ {Clock(it.Test.StartAt)} – {Clock(it.Test.EndAt)} · {state.Label}\n")
-                .Append(multi ? $"     👤 {Esc(it.StudentName)}\n" : "")
-                .Append('\n');
-            var label = $"{state.Icon} {Human(it.Test.Date)} — {Short(it.Test.Name, 22)}"
-                        + (multi ? $" ({Short(it.StudentName, 12)})" : "");
-            rows.Add(new object[] { new { text = label, callback_data = CbOpen + it.Test.Id + ":" + it.StudentIndex } });
+            var multi = students.Count > 1;
+            foreach (var it in items)
+            {
+                var state = StateOf(it);
+                text.Append($"{state.Icon} <b>{Esc(it.Test.Name)}</b>\n")
+                    .Append($"     📅 {Human(it.Test.Date)} · {it.Test.QuestionCount} ta savol\n")
+                    .Append($"     ⏰ {Clock(it.Test.StartAt)} – {Clock(it.Test.EndAt)} · {state.Label}\n")
+                    .Append(multi ? $"     👤 {Esc(it.StudentName)}\n" : "")
+                    .Append('\n');
+                var label = $"{state.Icon} {Human(it.Test.Date)} — {Short(it.Test.Name, 22)}"
+                            + (multi ? $" ({Short(it.StudentName, 12)})" : "");
+                rows.Add(new object[] { new { text = label, callback_data = CbOpen + it.Test.Id + ":" + it.StudentIndex } });
+            }
+            text.Append("Ishlamoqchi bo'lgan testni tanlang 👇\n\n")
+                .Append("Yoki o'qituvchingiz alohida <b>test kodi</b> bergan bo'lsa — pastdagi tugma.");
         }
-        text.Append("Ishlamoqchi bo'lgan testni tanlang 👇");
+        else
+        {
+            text.Append("📭 Hozircha siz uchun ochilgan onlayn test yo'q.\n\n")
+                .Append("O'qituvchingiz test e'lon qilganda, shu tugma orqali uni ishlashingiz mumkin bo'ladi.\n\n")
+                .Append("Sizga alohida <b>test kodi</b> berilgan bo'lsa — pastdagi tugmani bosing.");
+        }
+
+        rows.Add(new object[] { new { text = "🔑 Test kodi bilan kirish", callback_data = CbCode } });
 
         await telegram.SendMessageAsync(chatId, text.ToString(),
             new { inline_keyboard = rows.ToArray() }, ct, "HTML");
+    }
+
+    // ==================================================================================
+    //  1b) TEST KODI — markazda o'qimaydigan (yoki boshqa guruhdagi) ishtirokchi uchun
+    // ==================================================================================
+
+    /// <summary>«🔑 Test kodi bilan kirish» bosildi — keyingi matn KOD deb o'qiladi
+    /// (<see cref="BotUser.Mode"/> = <see cref="ModeAwaitingCode"/>).</summary>
+    public async Task AskCodeAsync(IAppDbContext db, long chatId, CancellationToken ct)
+    {
+        await SetBotModeAsync(db, chatId, ModeAwaitingCode, ct);
+        await telegram.SendMessageAsync(chatId,
+            "🔑 <b>Test kodini yuboring.</b>\n\n"
+            + "Kodni o'qituvchi yoki markaz beradi — masalan <code>K7M4QP</code>.\n"
+            + "Kichik harf, probel, tire — farqi yo'q.",
+            new
+            {
+                inline_keyboard = new object[][]
+                {
+                    new object[] { new { text = "✖️ Bekor qilish", callback_data = CbCancel } },
+                },
+            }, ct, "HTML");
+    }
+
+    /// <summary>Chat hozir TEST KODI kutyaptimi (matn shu servisga yo'naltirilsinmi).</summary>
+    public static async Task<bool> AwaitingCodeAsync(IAppDbContext db, long chatId, CancellationToken ct) =>
+        await db.BotUsers.AnyAsync(u => u.ChatId == chatId && u.Mode == ModeAwaitingCode, ct);
+
+    /// <summary>Kod yuborildi: test topilsa ishlash boshlanadi. Chat markaz o'quvchisiga bog'langan
+    /// bo'lsa — o'sha o'quvchi nomidan (bali <see cref="TestScore"/> ga), aks holda F.I.Sh so'raladi
+    /// va natija <see cref="ExternalTestScore"/> ga yoziladi.</summary>
+    public async Task HandleCodeAsync(IAppDbContext db, long chatId, string text, CancellationToken ct)
+    {
+        var test = await TestResultService.FindByCodeAsync(db, text);
+        if (test is null)
+        {
+            await telegram.SendMessageAsync(chatId,
+                "❌ Bunday kodli test topilmadi.\n\n"
+                + "Kodni tekshirib qaytadan yuboring yoki o'qituvchingizdan so'rang.",
+                new
+                {
+                    inline_keyboard = new object[][]
+                    {
+                        new object[] { new { text = "✖️ Bekor qilish", callback_data = CbCancel } },
+                    },
+                }, ct);
+            return;   // rejim saqlanadi — foydalanuvchi qayta urinib ko'radi
+        }
+
+        await SetBotModeAsync(db, chatId, "", ct);
+
+        var students = await ChatStudentsAsync(db, chatId, ct);
+        if (students.Count == 1)
+        {
+            await StartAttemptAsync(db, chatId, test, students[0].Id, students[0].Name, ct);
+            return;
+        }
+        if (students.Count > 1)
+        {
+            // Bir chatda bir nechta farzand — kim ishlashini so'raymiz (odatdagi ro'yxat tugmalari).
+            await telegram.SendMessageAsync(chatId,
+                $"📝 <b>{Esc(test.Name)}</b>\n\nTestni kim ishlaydi?",
+                new
+                {
+                    inline_keyboard = students
+                        .Select((s, i) => new object[]
+                        {
+                            new { text = $"👤 {Short(s.Name, 30)}", callback_data = CbOpen + test.Id + ":" + i },
+                        })
+                        .Append(new object[] { new { text = "✖️ Bekor qilish", callback_data = CbCancel } })
+                        .ToArray(),
+                }, ct, "HTML");
+            return;
+        }
+
+        // MARKAZDAN TASHQARI — avval F.I.Sh so'raymiz (natija shu ism bilan chiqadi).
+        var gate = await GateAsync(db, test, chatId, studentId: null, ct);
+        if (gate is not null) { await telegram.SendMessageAsync(chatId, gate, null, ct, "HTML"); return; }
+
+        await ResetSessionAsync(db, chatId, new TestBotSession
+        {
+            ChatId = chatId, TestResultId = test.Id, StudentId = "",
+            Answers = new string('-', test.QuestionCount), Current = 0,
+            InputMode = "buttons", Stage = StageName,
+            StartedAt = AppClock.Now.ToString("yyyy-MM-ddTHH:mm:ss"),
+        }, ct);
+
+        await telegram.SendMessageAsync(chatId,
+            $"✅ Kod to'g'ri — <b>{Esc(test.Name)}</b>\n\n"
+            + "👤 Endi <b>familiya va ismingizni</b> yuboring.\n"
+            + "Natija ro'yxatida aynan shu ism ko'rinadi — to'g'ri yozing.\n\n"
+            + "Masalan: <code>Aliyev Vali</code>",
+            new
+            {
+                inline_keyboard = new object[][]
+                {
+                    new object[] { new { text = "✖️ Bekor qilish", callback_data = CbCancel } },
+                },
+            }, ct, "HTML");
+    }
+
+    /// <summary>F.I.Sh yuborildi (markazdan tashqari ishtirokchi) — saqlanadi va test boshlanadi.</summary>
+    private async Task HandleNameAsync(
+        IAppDbContext db, long chatId, TestBotSession session, TestResult test, string text, CancellationToken ct)
+    {
+        var name = (text ?? "").Trim();
+        if (name.Length is < 3 or > 120)
+        {
+            await telegram.SendMessageAsync(chatId,
+                "⚠️ Familiya va ismingizni to'liqroq yozing (kamida 3 ta belgi).", null, ct);
+            return;
+        }
+
+        session.ExternalName = name;
+        session.Stage = "";
+        await db.SaveChangesAsync(ct);
+
+        await SendPdfAsync(db, chatId, test, ct);
+        await AskInputModeAsync(chatId, test, name, ct);
     }
 
     // ==================================================================================
@@ -113,60 +271,89 @@ public class OnlineTestBotService(TelegramService telegram, IHostEnvironment env
         }
         var (studentId, studentName) = students[sIdx];
 
-        var test = await db.TestResults.FirstOrDefaultAsync(t => t.Id == testId, ct);
+        var test = await db.TestResults.AsNoTracking().FirstOrDefaultAsync(t => t.Id == testId, ct);
         if (test is null || test.Mode != "online")
         {
             await telegram.SendMessageAsync(chatId, "Test topilmadi yoki o'chirilgan.", null, ct);
             return;
         }
 
-        // Allaqachon topshirganmi?
-        var existing = await db.TestScores
-            .FirstOrDefaultAsync(s => s.TestResultId == testId && s.StudentId == studentId, ct);
-        if (existing is not null && OnlineTestService.IsStudentSubmission(existing.Source))
-        {
-            await telegram.SendMessageAsync(chatId,
-                BuildResultText(test, existing.Answers, (int)existing.Score, studentName, existing.SubmittedAt,
-                    rank: null, total: null, header: "ℹ️ Siz bu testni allaqachon topshirgansiz"),
-                null, ct, "HTML");
-            return;
-        }
+        await StartAttemptAsync(db, chatId, test, studentId, studentName, ct);
+    }
 
-        var now = NowStamp();
-        if (string.CompareOrdinal(now, StartOf(test)) < 0)
-        {
-            await telegram.SendMessageAsync(chatId,
-                $"⏳ Test hali boshlanmadi.\n\n📝 <b>{Esc(test.Name)}</b>\n"
-                + $"🕒 Boshlanishi: <b>{Human(test.Date)} {Clock(test.StartAt)}</b>\n\n"
-                + "Shu vaqtda qayta kiring.", null, ct, "HTML");
-            return;
-        }
-        if (string.CompareOrdinal(now, EndOf(test)) > 0)
-        {
-            await telegram.SendMessageAsync(chatId,
-                $"⛔️ Test vaqti tugagan.\n\n📝 <b>{Esc(test.Name)}</b>\n"
-                + $"🕒 Tugagan: <b>{Human(test.Date)} {Clock(test.EndAt)}</b>\n\n"
-                + "O'qituvchingizga murojaat qiling.", null, ct, "HTML");
-            return;
-        }
+    /// <summary>
+    /// TESTNI BOSHLASH — ikkala yo'l uchun ham YAGONA nuqta: ro'yxatdan tanlash (markaz o'quvchisi) va
+    /// test KODI bilan kirish. Tekshiradi (allaqachon topshirgan / vaqt oynasi), PDF yuboradi,
+    /// sessiya ochadi va javob kiritish usulini so'raydi.
+    /// <paramref name="studentId"/> bo'sh bo'lsa — markazdan tashqari ishtirokchi
+    /// (<paramref name="displayName"/> — u yozgan F.I.Sh).
+    /// </summary>
+    private async Task StartAttemptAsync(
+        IAppDbContext db, long chatId, TestResult test, string studentId, string displayName, CancellationToken ct)
+    {
+        var gate = await GateAsync(db, test, chatId, studentId, ct);
+        if (gate is not null) { await telegram.SendMessageAsync(chatId, gate, null, ct, "HTML"); return; }
 
         // Savollar PDF'i (file_id keshi bilan — bir marta yuklanadi).
         await SendPdfAsync(db, chatId, test, ct);
 
-        // Sessiyani (qayta) ochamiz — bitta chatda bitta faol sessiya.
-        var old = await db.TestBotSessions.FirstOrDefaultAsync(s => s.ChatId == chatId, ct);
-        if (old is not null) db.TestBotSessions.Remove(old);
-        db.TestBotSessions.Add(new TestBotSession
+        await ResetSessionAsync(db, chatId, new TestBotSession
         {
             ChatId = chatId, TestResultId = test.Id, StudentId = studentId,
             Answers = new string('-', test.QuestionCount), Current = 0,
-            InputMode = "buttons", StartedAt = AppClock.Now.ToString("yyyy-MM-ddTHH:mm:ss"),
-        });
-        await db.SaveChangesAsync(ct);
+            InputMode = "buttons", Stage = "",
+            ExternalName = studentId.Length == 0 ? displayName : "",
+            StartedAt = AppClock.Now.ToString("yyyy-MM-ddTHH:mm:ss"),
+        }, ct);
 
+        await AskInputModeAsync(chatId, test, displayName, ct);
+    }
+
+    /// <summary>Testni ishlashga RUXSAT tekshiruvi. null = boshlash mumkin; aks holda — foydalanuvchiga
+    /// ko'rsatiladigan sabab (allaqachon topshirgan / hali boshlanmagan / vaqti tugagan).
+    /// <paramref name="studentId"/> null yoki bo'sh — markazdan tashqari ishtirokchi (chat bo'yicha).</summary>
+    private static async Task<string?> GateAsync(
+        IAppDbContext db, TestResult test, long chatId, string? studentId, CancellationToken ct)
+    {
+        // Allaqachon topshirganmi?
+        if (!string.IsNullOrEmpty(studentId))
+        {
+            var existing = await db.TestScores.AsNoTracking()
+                .FirstOrDefaultAsync(s => s.TestResultId == test.Id && s.StudentId == studentId, ct);
+            if (existing is not null && OnlineTestService.IsStudentSubmission(existing.Source))
+            {
+                var name = await db.Students.AsNoTracking()
+                    .Where(s => s.Id == studentId).Select(s => s.FullName).FirstOrDefaultAsync(ct) ?? "";
+                return BuildResultText(test, existing.Answers, (int)existing.Score, name, existing.SubmittedAt,
+                    rank: null, total: null, header: "ℹ️ Siz bu testni allaqachon topshirgansiz");
+            }
+        }
+        else
+        {
+            var ext = await db.ExternalTestScores.AsNoTracking()
+                .FirstOrDefaultAsync(s => s.TestResultId == test.Id && s.ChatId == chatId, ct);
+            if (ext is not null)
+                return BuildResultText(test, ext.Answers, (int)ext.Score, ext.FullName, ext.SubmittedAt,
+                    rank: null, total: null, header: "ℹ️ Siz bu testni allaqachon topshirgansiz");
+        }
+
+        var now = NowStamp();
+        if (string.CompareOrdinal(now, StartOf(test)) < 0)
+            return $"⏳ Test hali boshlanmadi.\n\n📝 <b>{Esc(test.Name)}</b>\n"
+                   + $"🕒 Boshlanishi: <b>{Human(test.Date)} {Clock(test.StartAt)}</b>\n\n"
+                   + "Shu vaqtda qayta kiring.";
+        if (string.CompareOrdinal(now, EndOf(test)) > 0)
+            return $"⛔️ Test vaqti tugagan.\n\n📝 <b>{Esc(test.Name)}</b>\n"
+                   + $"🕒 Tugagan: <b>{Human(test.Date)} {Clock(test.EndAt)}</b>\n\n"
+                   + "O'qituvchingizga murojaat qiling.";
+        return null;
+    }
+
+    /// <summary>Javob kiritish usulini so'rovchi xabar (ikkala yo'lda ham bir xil).</summary>
+    private async Task AskInputModeAsync(long chatId, TestResult test, string displayName, CancellationToken ct) =>
         await telegram.SendMessageAsync(chatId,
             $"📝 <b>{Esc(test.Name)}</b>\n"
-            + $"👤 {Esc(studentName)}\n"
+            + $"👤 {Esc(displayName)}\n"
             + $"❓ Savollar: <b>{test.QuestionCount}</b> ta · variantlar: <b>A–{Letter(test.OptionCount - 1)}</b>\n"
             + $"⏰ Javoblar qabul qilinadi: <b>{Clock(test.StartAt)} – {Clock(test.EndAt)}</b>\n"
             + $"❗️ Bitta urinish beriladi.\n\n"
@@ -180,6 +367,25 @@ public class OnlineTestBotService(TelegramService telegram, IHostEnvironment env
                     new object[] { new { text = "✖️ Bekor qilish", callback_data = CbCancel } },
                 },
             }, ct, "HTML");
+
+    /// <summary>Chatdagi eski sessiyani o'chirib yangisini qo'yadi (bitta chatda bitta faol sessiya).</summary>
+    private static async Task ResetSessionAsync(
+        IAppDbContext db, long chatId, TestBotSession fresh, CancellationToken ct)
+    {
+        var old = await db.TestBotSessions.FirstOrDefaultAsync(s => s.ChatId == chatId, ct);
+        if (old is not null) db.TestBotSessions.Remove(old);
+        db.TestBotSessions.Add(fresh);
+        await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary><see cref="BotUser.Mode"/> ni o'zgartiradi (BotUser bo'lmasa — jim o'tadi:
+    /// u /start da yaratiladi, kod oqimi esa har doim tugma bosishdan keyin keladi).</summary>
+    private static async Task SetBotModeAsync(IAppDbContext db, long chatId, string mode, CancellationToken ct)
+    {
+        var user = await db.BotUsers.FirstOrDefaultAsync(u => u.ChatId == chatId, ct);
+        if (user is null || user.Mode == mode) return;
+        user.Mode = mode;
+        await db.SaveChangesAsync(ct);
     }
 
     /// <summary>Savollar PDF'ini yuboradi. Telegram <c>file_id</c> keshlanadi — keyingi o'quvchilarga
@@ -234,6 +440,13 @@ public class OnlineTestBotService(TelegramService telegram, IHostEnvironment env
     {
         var (session, test) = await SessionAsync(db, chatId, ct);
         if (session is null || test is null) { await NoSessionAsync(chatId, ct); return; }
+        // Hali F.I.Sh kiritilmagan (markazdan tashqari ishtirokchi) — avval ism kerak.
+        if (session.Stage == StageName)
+        {
+            await telegram.SendMessageAsync(chatId,
+                "👤 Avval familiya va ismingizni yuboring.", null, ct);
+            return;
+        }
 
         session.InputMode = buttons ? "buttons" : "text";
         session.Current = FirstEmpty(session.Answers);
@@ -346,11 +559,12 @@ public class OnlineTestBotService(TelegramService telegram, IHostEnvironment env
         await db.SaveChangesAsync(ct);
     }
 
-    /// <summary>Sessiyani bekor qiladi (javoblar saqlanmaydi).</summary>
+    /// <summary>Sessiyani bekor qiladi (javoblar saqlanmaydi) va kod kutish rejimini ham o'chiradi.</summary>
     public async Task CancelAsync(IAppDbContext db, long chatId, CancellationToken ct)
     {
         var s = await db.TestBotSessions.FirstOrDefaultAsync(x => x.ChatId == chatId, ct);
         if (s is not null) { db.TestBotSessions.Remove(s); await db.SaveChangesAsync(ct); }
+        await SetBotModeAsync(db, chatId, "", ct);
         await telegram.SendMessageAsync(chatId,
             "✖️ Bekor qilindi. Testni «" + TestButtonText + "» tugmasi orqali qaytadan ochishingiz mumkin.", null, ct);
     }
@@ -369,6 +583,13 @@ public class OnlineTestBotService(TelegramService telegram, IHostEnvironment env
     {
         var (session, test) = await SessionAsync(db, chatId, ct);
         if (session is null || test is null) return false;
+
+        // MARKAZDAN TASHQARI ishtirokchidan F.I.Sh kutilyapti — javob emas, ism.
+        if (session.Stage == StageName)
+        {
+            await HandleNameAsync(db, chatId, session, test, text, ct);
+            return true;
+        }
 
         var parsed = ParseAnswers(text, test.OptionCount);
         if (parsed.Length == 0) return false;   // javobga o'xshamaydi — oddiy oqimga qaytaramiz
@@ -450,48 +671,80 @@ public class OnlineTestBotService(TelegramService telegram, IHostEnvironment env
         }
 
         var studentId = session.StudentId;
+        var external = studentId.Length == 0;   // markazdan tashqari ishtirokchi (test kodi bilan kirgan)
         var answers = Pad(session.Answers, test.QuestionCount);
-
-        // Qayta topshirishning oldini olamiz (parallel urinish / ikki marta bosish).
-        var existing = await db.TestScores
-            .FirstOrDefaultAsync(s => s.TestResultId == test.Id && s.StudentId == studentId, ct);
-        if (existing is not null && OnlineTestService.IsStudentSubmission(existing.Source))
-        {
-            db.TestBotSessions.Remove(session);
-            await db.SaveChangesAsync(ct);
-            await telegram.SendMessageAsync(chatId, "ℹ️ Siz bu testni allaqachon topshirgansiz.", null, ct);
-            return;
-        }
-
         var correct = CountCorrect(answers, test.AnswerKey);
         var submittedAt = AppClock.Now.ToString("yyyy-MM-ddTHH:mm:ss");
+        string takerName;
 
-        if (existing is null)
-            db.TestScores.Add(new TestScore
+        if (external)
+        {
+            // Qayta topshirishning oldini olamiz (chat bo'yicha — bu odamning Student yozuvi yo'q).
+            var existingExt = await db.ExternalTestScores
+                .FirstOrDefaultAsync(s => s.TestResultId == test.Id && s.ChatId == chatId, ct);
+            if (existingExt is not null)
             {
-                TestResultId = test.Id, StudentId = studentId, Score = correct,
-                Answers = answers, SubmittedAt = submittedAt, Source = "bot",
+                db.TestBotSessions.Remove(session);
+                await db.SaveChangesAsync(ct);
+                await telegram.SendMessageAsync(chatId, "ℹ️ Siz bu testni allaqachon topshirgansiz.", null, ct);
+                return;
+            }
+
+            takerName = session.ExternalName.Length > 0 ? session.ExternalName : "Ishtirokchi";
+            var phone = await db.BotUsers.AsNoTracking()
+                .Where(u => u.ChatId == chatId).Select(u => u.Phone).FirstOrDefaultAsync(ct) ?? "";
+
+            db.ExternalTestScores.Add(new ExternalTestScore
+            {
+                TestResultId = test.Id, ChatId = chatId, FullName = takerName, Phone = phone,
+                Score = correct, Answers = answers, SubmittedAt = submittedAt, Source = "bot",
             });
+        }
         else
         {
-            existing.Score = correct;
-            existing.Answers = answers;
-            existing.SubmittedAt = submittedAt;
-            existing.Source = "bot";
+            // Qayta topshirishning oldini olamiz (parallel urinish / ikki marta bosish).
+            var existing = await db.TestScores
+                .FirstOrDefaultAsync(s => s.TestResultId == test.Id && s.StudentId == studentId, ct);
+            if (existing is not null && OnlineTestService.IsStudentSubmission(existing.Source))
+            {
+                db.TestBotSessions.Remove(session);
+                await db.SaveChangesAsync(ct);
+                await telegram.SendMessageAsync(chatId, "ℹ️ Siz bu testni allaqachon topshirgansiz.", null, ct);
+                return;
+            }
+
+            if (existing is null)
+                db.TestScores.Add(new TestScore
+                {
+                    TestResultId = test.Id, StudentId = studentId, Score = correct,
+                    Answers = answers, SubmittedAt = submittedAt, Source = "bot",
+                });
+            else
+            {
+                existing.Score = correct;
+                existing.Answers = answers;
+                existing.SubmittedAt = submittedAt;
+                existing.Source = "bot";
+            }
+
+            takerName = await db.Students.AsNoTracking()
+                .Where(s => s.Id == studentId).Select(s => s.FullName).FirstOrDefaultAsync(ct) ?? "";
         }
+
         db.TestBotSessions.Remove(session);
         await db.SaveChangesAsync(ct);
 
-        // O'rin (test yakunlangan bo'lsa yakuniy, aks holda "hozircha").
-        var all = await db.TestScores.AsNoTracking()
+        // O'rin — MARKAZDAGI va MARKAZDAN TASHQARI ishtirokchilar BIRGA sanaladi (ishtirokchiga
+        // "nechanchiman" degan savolga to'g'ri javob shu; hisobotdagi ikki ro'yxat bundan mustaqil).
+        var scores = await db.TestScores.AsNoTracking()
             .Where(s => s.TestResultId == test.Id).Select(s => s.Score).ToListAsync(ct);
+        var extScores = await db.ExternalTestScores.AsNoTracking()
+            .Where(s => s.TestResultId == test.Id).Select(s => s.Score).ToListAsync(ct);
+        var all = scores.Concat(extScores).ToList();
         var rank = all.Count(x => x > correct) + 1;
 
-        var studentName = await db.Students.AsNoTracking()
-            .Where(s => s.Id == studentId).Select(s => s.FullName).FirstOrDefaultAsync(ct) ?? "";
-
         await telegram.SendMessageAsync(chatId,
-            BuildResultText(test, answers, correct, studentName, submittedAt, rank, all.Count,
+            BuildResultText(test, answers, correct, takerName, submittedAt, rank, all.Count,
                 header: "✅ <b>Javoblaringiz qabul qilindi!</b>"),
             null, ct, "HTML");
     }
@@ -705,8 +958,9 @@ public class OnlineTestBotService(TelegramService telegram, IHostEnvironment env
         if (memberships.Count == 0) return new List<TestItem>();
 
         var groupIds = memberships.Select(m => m.GroupId).Distinct().ToList();
+        // GroupOpen=false — "FAQAT ONLAYN" test: guruhga E'LON QILINMAYDI, faqat kod bilan ishlanadi.
         var tests = await db.TestResults.AsNoTracking()
-            .Where(t => t.Mode == "online" && groupIds.Contains(t.GroupId))
+            .Where(t => t.Mode == "online" && t.GroupOpen && groupIds.Contains(t.GroupId))
             .ToListAsync(ct);
         if (tests.Count == 0) return new List<TestItem>();
 

@@ -58,8 +58,10 @@ public static class OnlineTestService
         var groupIds = await GroupIdsAsync(db, studentId);
         if (groupIds.Count == 0) return new List<StudentOnlineTestDto>();
 
+        // GroupOpen=false — "FAQAT ONLAYN" test: guruhga e'lon qilinmaydi, faqat bot orqali TEST KODI
+        // bilan ishlanadi (bot ro'yxati bilan bir xil qoida).
         var tests = await db.TestResults.AsNoTracking()
-            .Where(t => t.Mode == "online" && groupIds.Contains(t.GroupId))
+            .Where(t => t.Mode == "online" && t.GroupOpen && groupIds.Contains(t.GroupId))
             .ToListAsync();
         if (tests.Count == 0) return new List<StudentOnlineTestDto>();
 
@@ -99,6 +101,8 @@ public static class OnlineTestService
     {
         var t = await db.TestResults.AsNoTracking().FirstOrDefaultAsync(x => x.Id == testId);
         if (t is null || t.Mode != "online") return null;
+        // "Faqat onlayn" (kod bilan) test ilovada ochilmaydi — u faqat botda, kod orqali ishlanadi.
+        if (!t.GroupOpen) return null;
 
         var groupIds = await GroupIdsAsync(db, studentId);
         if (!groupIds.Contains(t.GroupId)) return null;
@@ -129,6 +133,8 @@ public static class OnlineTestService
     {
         var t = await db.TestResults.AsNoTracking().FirstOrDefaultAsync(x => x.Id == testId);
         if (t is null || t.Mode != "online") return (null, "Test topilmadi");
+        if (!t.GroupOpen)
+            return (null, "Bu test faqat TEST KODI bilan, Telegram bot orqali ishlanadi");
 
         var groupIds = await GroupIdsAsync(db, studentId);
         if (!groupIds.Contains(t.GroupId)) return (null, "Bu test sizning guruhingizga tegishli emas");

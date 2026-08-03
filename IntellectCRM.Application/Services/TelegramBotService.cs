@@ -260,6 +260,15 @@ public class TelegramBotService(
             var db = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
             var botUser = await db.BotUsers.FirstOrDefaultAsync(u => u.ChatId == chatId, ct);
 
+            // ONLAYN TEST — TEST KODI kutilyapti (markazda o'qimaydigan odam ham testni ishlay oladi).
+            // Bu tekshiruv sessiya tekshiruvidan OLDIN: kod bosqichida hali sessiya yo'q.
+            if (botUser?.Mode == OnlineTestBotService.ModeAwaitingCode)
+            {
+                await LogInAsync(chatId, "[test kodi yuborildi]", ct);
+                await onlineTest.HandleCodeAsync(db, chatId, text, ct);
+                return;
+            }
+
             // ONLAYN TEST: matn rejimida javoblar kutilyapti (faol sessiya bor) — avval shuni sinaymiz.
             // Javobga o'xshamasa (ParseAnswers bo'sh qaytarsa) — pastdagi oddiy oqim davom etadi.
             if (botUser?.Mode != "support" && await onlineTest.HasSessionAsync(db, chatId, ct)
@@ -441,6 +450,13 @@ public class TelegramBotService(
                 // MAJBURIY OBUNA: eski xabardagi tugma orqali ham chetlab o'tib bo'lmasin.
                 if (!await RequireSubscriptionAsync(chatId, OnlineTestBotService.TestButtonText, ct)) return;
                 await onlineTest.OpenTestAsync(db, chatId, data, ct);
+            }
+            else if (data == OnlineTestBotService.CbCode)
+            {
+                // MAJBURIY OBUNA: test kodi bilan kirish ham obunani talab qiladi (markazda
+                // o'qimaydigan ishtirokchi ham kanalga obuna bo'ladi).
+                if (!await RequireSubscriptionAsync(chatId, OnlineTestBotService.TestButtonText, ct)) return;
+                await onlineTest.AskCodeAsync(db, chatId, ct);
             }
             else if (data.StartsWith(OnlineTestBotService.CbAnswer, StringComparison.Ordinal))
                 await onlineTest.AnswerAsync(db, chatId, data, ct);
@@ -668,8 +684,10 @@ public class TelegramBotService(
             await SendAsync(chatId,
                 $"Bu raqam ({phone}) markaz o'quvchilari ro'yxatida topilmadi — tizimga kirish ma'lumotlari "
                 + "berilmaydi. Ma'lumotingiz noto'g'ri bo'lsa, markaz ma'muriyatiga murojaat qiling."
-                + (booksOn ? $"\n\n📚 Kitob sotib olish esa ochiq — «{BookShopBotService.BooksButtonText}» tugmasini bosing." : ""),
-                booksOn ? GuestKeyboard : null, ct);
+                + $"\n\n📝 <b>Test kodi</b> berilgan bo'lsa — «{OnlineTestBotService.TestButtonText}» tugmasi orqali "
+                + "markazda o'qimasangiz ham testni ishlashingiz mumkin."
+                + (booksOn ? $"\n📚 Kitob sotib olish ham ochiq — «{BookShopBotService.BooksButtonText}»." : ""),
+                GuestKeyboard, ct, "HTML");
             return;
         }
 
@@ -1265,12 +1283,15 @@ public class TelegramBotService(
         return string.Join(" ", new[] { fn, ln }.Where(x => !string.IsNullOrWhiteSpace(x)));
     }
 
-    /// <summary>Telefon so'rovchi klaviatura (request_contact) + "Adminga murojaat" tugmasi (doimiy).</summary>
+    /// <summary>Telefon so'rovchi klaviatura (request_contact) + "Testni ishlash" + "Adminga murojaat".
+    /// <para>«📝 Testni ishlash» ATAYIN bu yerda ham bor: markazda o'qimaydigan odam TEST KODI bilan
+    /// testni ishlay olishi kerak — u telefon raqamini ulashishi shart emas.</para></summary>
     private static object ContactKeyboard => new
     {
         keyboard = new object[][]
         {
             new object[] { new { text = "📱 Telefon raqamni yuborish", request_contact = true } },
+            new object[] { new { text = OnlineTestBotService.TestButtonText } },
             new object[] { new { text = SupportButtonText } },
         },
         resize_keyboard = true,
@@ -1299,6 +1320,7 @@ public class TelegramBotService(
     {
         keyboard = new object[][]
         {
+            new object[] { new { text = OnlineTestBotService.TestButtonText } },
             new object[] { new { text = BookShopBotService.BooksButtonText } },
             new object[] { new { text = SupportButtonText } },
         },
