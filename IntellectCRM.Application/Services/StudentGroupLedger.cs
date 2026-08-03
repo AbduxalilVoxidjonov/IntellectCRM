@@ -86,6 +86,11 @@ public static class StudentGroupLedger
                     gross = ActivationGross(group, lessonFee, membership.ActivatedAt);
                 else if (membership.FrozenAt.Length >= 10 && membership.FrozenAt[..7] == month)
                     gross = FreezeGross(group, lessonFee, membership.ActivatedAt, membership.FrozenAt);
+                // Guruhdan CHIQARILGAN/TUGATGAN a'zolik — chiqish oyi ham muzlatish kabi QISMAN
+                // (chiqish sanasigacha o'qilgan darslar), to'liq oylik EMAS.
+                else if (!membership.IsActive && (membership.LeftAt ?? "").Length >= 10
+                         && membership.LeftAt![..7] == month)
+                    gross = FreezeGross(group, lessonFee, membership.ActivatedAt, membership.LeftAt!);
                 else
                     gross = group.MonthlyFee;
                 discount = TuitionService.DiscountForMonth(student, gross, month, group.Id);

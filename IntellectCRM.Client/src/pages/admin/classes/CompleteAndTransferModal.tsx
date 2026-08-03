@@ -1,9 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { completeAndTransferClass, type CompleteAndTransferResult } from '@/api/services/classes'
 import { getSubjects } from '@/api/services/subjects'
 import type { Subject } from '@/types'
+
+/** "YYYY-MM-DD" bugungi sana */
+const today = () => new Date().toISOString().slice(0, 10)
 
 export function CompleteAndTransferModal({
   open,
@@ -25,12 +28,18 @@ export function CompleteAndTransferModal({
   const [newGroupName, setNewGroupName] = useState('')
   const [notes, setNotes] = useState('')
   const [autoEnroll, setAutoEnroll] = useState(true)
+  const [closeDate, setCloseDate] = useState(today())
+  const [activateDate, setActivateDate] = useState(today())
+  const [activateInNew, setActivateInNew] = useState(true)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   // Load courses when modal opens
   useEffect(() => {
     if (!open) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- modal ochilganda sanalarni tiklash (maqsadli)
+    setCloseDate(today())
+    setActivateDate(today())
     getSubjects()
       .then((data) => {
         setCourses(data)
@@ -42,8 +51,13 @@ export function CompleteAndTransferModal({
 
   const selectedCourse = courses.find((c) => c.id === targetCourseId)
   const resolvedNewName = newGroupName.trim() || currentGroupName
+  const datesInvalid = !closeDate || (autoEnroll && activateInNew && (!activateDate || activateDate < closeDate))
 
   async function handleSubmit() {
+    if (datesInvalid) {
+      setError("Aktivlashtirish sanasi yopish sanasidan oldin bo'lmasligi kerak")
+      return
+    }
     setLoading(true)
     setError(null)
     try {
@@ -52,6 +66,9 @@ export function CompleteAndTransferModal({
         newGroupName: newGroupName.trim() || undefined,
         completionNotes: notes.trim() || undefined,
         targetCourseId: targetCourseId || undefined,
+        closeDate,
+        activateDate: activateDate || closeDate,
+        activateInNewGroup: autoEnroll && activateInNew,
       })
       onSuccess?.(result)
       onClose()
@@ -90,6 +107,25 @@ export function CompleteAndTransferModal({
             }}
           >
             {currentGroupName}
+          </div>
+        </div>
+
+        {/* Yopish sanasi — eski guruh hisobi AYNAN shu sanagacha */}
+        <div style={{ marginBottom: 16 }}>
+          <label
+            style={{ fontSize: 12, fontWeight: 700, color: 'var(--mute)', display: 'block', marginBottom: 6 }}
+          >
+            GURUH YOPILADIGAN SANA
+          </label>
+          <input
+            type="date"
+            value={closeDate}
+            onChange={(e) => setCloseDate(e.target.value)}
+            style={dateInputStyle}
+          />
+          <div style={{ fontSize: 11, color: 'var(--mute)', marginTop: 4 }}>
+            A'zoliklar shu sanadan muzlatiladi: <strong>eski guruhga</strong> shu sanagacha o'qilgan
+            darslar uchun oylik yoziladi, keyingi oylar hisobi bekor qilinadi.
           </div>
         </div>
 
@@ -200,6 +236,9 @@ export function CompleteAndTransferModal({
             type="checkbox"
             checked={autoEnroll}
             onChange={(e) => setAutoEnroll(e.target.checked)}
+            // Aks holda hodisa o'ram <div>ning onClick'iga ham yetib borib, ptichka IKKI marta
+            // almashadi (ya'ni to'g'ridan-to'g'ri ptichkani bosish hech narsa qilmaydi).
+            onClick={(e) => e.stopPropagation()}
             style={{ width: 16, height: 16, cursor: 'pointer' }}
           />
           <div>
@@ -207,10 +246,64 @@ export function CompleteAndTransferModal({
               O'quvchilarni yangi guruhga avtomatik qo'shish
             </div>
             <div style={{ fontSize: 12, color: 'var(--mute)' }}>
-              Faol a'zolar "{resolvedNewName}" guruhiga "sinov" statusida qo'shiladi
+              Eski a'zolar "{resolvedNewName}" guruhiga ko'chiriladi
             </div>
           </div>
         </div>
+
+        {/* Yangi guruhda aktivlashtirish (sana bilan) */}
+        {autoEnroll && (
+          <div
+            style={{
+              padding: '12px 14px',
+              borderRadius: 8,
+              border: '1.5px solid var(--border)',
+              marginBottom: 16,
+            }}
+          >
+            <div
+              style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}
+              onClick={() => setActivateInNew((v) => !v)}
+            >
+              <input
+                type="checkbox"
+                checked={activateInNew}
+                onChange={(e) => setActivateInNew(e.target.checked)}
+                onClick={(e) => e.stopPropagation()}
+                style={{ width: 16, height: 16, cursor: 'pointer' }}
+              />
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700 }}>
+                  Yangi guruhda darhol aktivlashtirish
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--mute)' }}>
+                  O'chirilsa — "sinov" statusida qoladi va to'lov hisoblanmaydi
+                </div>
+              </div>
+            </div>
+
+            {activateInNew && (
+              <div style={{ marginTop: 12 }}>
+                <label
+                  style={{ fontSize: 12, fontWeight: 700, color: 'var(--mute)', display: 'block', marginBottom: 6 }}
+                >
+                  YANGI GURUHDA AKTIVLASHTIRISH SANASI
+                </label>
+                <input
+                  type="date"
+                  value={activateDate}
+                  min={closeDate || undefined}
+                  onChange={(e) => setActivateDate(e.target.value)}
+                  style={dateInputStyle}
+                />
+                <div style={{ fontSize: 11, color: 'var(--mute)', marginTop: 4 }}>
+                  Yangi guruh oyligi shu sanadan hisoblanadi. Eski guruhga ortiqcha to'langan pul
+                  yangi guruhga ko'chiriladi.
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Notes */}
         <div style={{ marginBottom: 20 }}>
@@ -273,14 +366,24 @@ export function CompleteAndTransferModal({
           <div style={{ fontWeight: 700, marginBottom: 4 }}>Nima bo'ladi?</div>
           <ul style={{ margin: '4px 0 0 16px', padding: 0 }}>
             <li>Barcha faol a'zolar sertifikat oladi (eski kurs uchun)</li>
-            <li>Eski guruh arxivga o'tadi (o'quvchilar arxivlanmaydi)</li>
+            <li>
+              A'zoliklar <strong>{closeDate || '—'}</strong> sanasidan muzlatiladi — shu sanagacha
+              o'qilgan darslar uchun oylik <strong>eski guruhga</strong> yoziladi, keyingi oylar
+              hisobi bekor qilinadi
+            </li>
+            <li>Sinovdagi a'zoliklar yakunlanadi (ularda hisob ochilmagan)</li>
+            <li>Eski guruh arxivga o'tadi (o'quvchilar arxivlanmaydi, to'lov qabul qilinaveradi)</li>
             <li>
               {selectedCourse
                 ? <><strong>{selectedCourse.name}</strong> kursi bilan yangi guruh "{resolvedNewName}" ochiladi</>
                 : <>Eski kurs bilan yangi guruh "{resolvedNewName}" ochiladi</>
               }
             </li>
-            {autoEnroll && <li>Faol a'zolar yangi guruhga "sinov" statusida qo'shiladi</li>}
+            {autoEnroll && (
+              activateInNew
+                ? <li>Eski guruhda faol bo'lganlar yangi guruhda <strong>{activateDate || closeDate || '—'}</strong> sanasidan aktivlashtiriladi</li>
+                : <li>Eski a'zolar yangi guruhga "sinov" statusida qo'shiladi</li>
+            )}
           </ul>
         </div>
 
@@ -289,11 +392,25 @@ export function CompleteAndTransferModal({
           <Button variant="ghost" onClick={onClose} style={{ flex: 1 }} disabled={loading}>
             Bekor qilish
           </Button>
-          <Button onClick={handleSubmit} style={{ flex: 1 }} disabled={loading}>
+          <Button onClick={handleSubmit} style={{ flex: 1 }} disabled={loading || datesInvalid}>
             {loading ? 'Yuklanmoqda...' : 'Tugatish'}
           </Button>
         </div>
       </div>
     </Modal>
   )
+}
+
+/** Sana maydonlari uchun umumiy ko'rinish (modaldagi boshqa inputlar bilan bir xil). */
+const dateInputStyle: CSSProperties = {
+  width: '100%',
+  padding: '10px 12px',
+  borderRadius: 8,
+  border: '1.5px solid var(--border)',
+  fontSize: 14,
+  fontFamily: 'inherit',
+  outline: 'none',
+  boxSizing: 'border-box',
+  background: 'var(--paper)',
+  color: 'var(--ink)',
 }

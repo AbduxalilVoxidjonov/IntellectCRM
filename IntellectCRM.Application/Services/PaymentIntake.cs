@@ -60,10 +60,19 @@ public static class PaymentIntake
         if (dupReceipt is not null)
             return PaymentIntakeResult.DuplicateReceipt(dupReceipt);
 
-        // O'quvchining billable (faol, sinov emas) guruhlari. To'lov faqat aktivlashtirilgan guruhga.
+        // O'quvchining billable (sinovdan boshqa) guruhlari — QARZ QOLDIRGAN ESKI a'zoliklar HAM.
+        //
+        // DIQQAT — `IsActive` SHARTI ATAYIN YO'Q. Guruhdan chiqarilgan, "tugatgan" (sertifikat bilan
+        // yopilgan guruh) yoki muzlatilgan a'zolikda ham qarz qolishi mumkin va kassir uni KEYIN ham
+        // qabul qila olishi SHART (Kassa bo'limi eski/arxiv guruhlarni ataylab ko'rsatadi, `PaymentModal`
+        // ham "— chiqarilgan" yorlig'i bilan tanlashga ruxsat beradi). Ilgari `sg.IsActive` talab
+        // qilinar edi va bu ikki xil buzilish berardi:
+        //   (1) boshqa faol guruhi bor o'quvchida — 400 "To'lov qaysi guruh uchun ekanini tanlang"
+        //       (tanlangan eski guruh ro'yxatda yo'q edi);
+        //   (2) faol guruhi BITTA bo'lsa — to'lov jimgina O'SHA (noto'g'ri) guruhga teglanardi.
         var billableGroups = await db.StudentGroups
-            .Where(sg => sg.StudentId == student.Id && sg.IsActive && sg.Status != "trial")
-            .Select(sg => sg.GroupId).ToListAsync();
+            .Where(sg => sg.StudentId == student.Id && sg.Status != "trial")
+            .Select(sg => sg.GroupId).Distinct().ToListAsync();
 
         var groupId = string.IsNullOrWhiteSpace(req.GroupId) ? null : req.GroupId.Trim();
         if (billableGroups.Count >= 2)

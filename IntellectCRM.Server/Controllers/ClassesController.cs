@@ -636,21 +636,10 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
         var restored = 0m;
         if (cls is not null && s is not null)
         {
-            // Muzlatish sanasi aktivlashtirish sanasidan OLDIN bo'lsa — o'quvchi bu guruhda umuman
-            // o'qimagan: qisman to'lov ham yozilmaydi, aktivlashtirish oyi hisobi ham bekor qilinadi.
-            var frozenBeforeActive = activatedAt.Length >= 10 && string.CompareOrdinal(activatedAt, date) > 0;
-
-            // Muzlatish OYINING qisman to'lovi: shu sanagacha qatnashgan darslar uchun (to'liq oy emas).
-            if (!frozenBeforeActive)
-                await TuitionService.ChargeFreezeProrateAsync(db, s, cls, activatedAt, date);
-
-            // ORQAGA SANALGAN muzlatish: keyingi oylar hisobini bekor qilamiz (qarz shu sanadan
-            // keyin o'smasin) va effektivni balansga qaytaramiz. Odatdagi (bugungi sanadan)
-            // muzlatishda keyingi oylar bo'lmagani uchun bu amalda hech narsani o'zgartirmaydi —
-            // faqat avans oylari (kassir oldindan to'laganda ochilgan hisoblar) qaytariladi.
-            // Locked (superadmin qo'lda tahrirlagan) qatorlar TEGILMAYDI.
-            (restored, _) = await TuitionService.PurgeChargesAfterMonthAsync(
-                db, s, id, date, inclusive: frozenBeforeActive);
+            // Muzlatish OYINING qisman to'lovi (shu sanagacha qatnashgan darslar) + ORQAGA SANALGAN
+            // muzlatishda keyingi oylar hisobini bekor qilish — hammasi YAGONA manbada
+            // (guruhni yopish / tugatish / guruh almashtirish bilan aynan bir xil).
+            restored = (await MembershipBilling.SettleFreezeAsync(db, s, cls, activatedAt, date)).Restored;
         }
 
         var reason = await ReasonLabelAsync(req.ReasonId);
@@ -721,18 +710,12 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
             fromSg.Status = "frozen";
             fromSg.FrozenAt = freezeDate;
 
-            // Muzlatish sanasi aktivlashtirishdan OLDIN bo'lsa — bu guruhda umuman o'qimagan.
-            var frozenBeforeActive = activatedAt.Length >= 10 && string.CompareOrdinal(activatedAt, freezeDate) > 0;
-            if (!frozenBeforeActive)
-                await TuitionService.ChargeFreezeProrateAsync(db, s, fromGroup, activatedAt, freezeDate);
-
-            // ESKI guruhda muzlatish oyidan KEYINGI hisoblar bekor qilinadi — o'quvchi u yerda
-            // o'qimaydi. DIQQAT: bu (4) AVANS KO'CHIRISHDAN OLDIN bajarilishi SHART — hisob bekor
-            // qilingach o'sha oylarga to'langan pul "ortiqcha" bo'lib qoladi va yangi guruhga
-            // ko'chadi. Aks holda o'quvchi eski guruhda ham hisoblanib, yangi guruhda ham qarzdor
-            // bo'lib ko'rinardi. ("Guruhni yopish" va "Muzlatish" bilan bir xil konvensiya.)
-            (_, purgedMonths) = await TuitionService.PurgeChargesAfterMonthAsync(
-                db, s, id, freezeDate, inclusive: frozenBeforeActive);
+            // Muzlatish hisobi — YAGONA manbada (qisman to'lov + keyingi oylarni bekor qilish).
+            // DIQQAT: bu (4) AVANS KO'CHIRISHDAN OLDIN bajarilishi SHART — hisob bekor qilingach
+            // o'sha oylarga to'langan pul "ortiqcha" bo'lib qoladi va yangi guruhga ko'chadi. Aks
+            // holda o'quvchi eski guruhda ham hisoblanib, yangi guruhda ham qarzdor bo'lib ko'rinardi.
+            purgedMonths = (await MembershipBilling.SettleFreezeAsync(
+                db, s, fromGroup, activatedAt, freezeDate)).PurgedMonths;
         }
 
         // 2) Maqsad guruh — a'zolik yaratish yoki tiklash (AddMember bilan bir xil mantiq).
@@ -876,13 +859,27 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
     }
 
     /// <summary>
-    /// Guruhni YAKUNLAB ARXIVLAYDI va YANGI guruh ochadi (Hybrid).
+    /// Guruhni YAKUNLAB ARXIVLAYDI va YANGI guruh ochadi (Hybrid — "Tugatish (sertifikat bilan)").
     /// <list type="bullet">
-    ///   <item>Barcha faol a'zolar Status="completed", IsActive=false qilinadi (eski guruhda tarix saqlanadi).</item>
-    ///   <item>Eski guruh IsArchived=true, ArchivedAt=bugun qilinadi (o'quvchilar arxivlanmaydi).</item>
+    ///   <item><b>Eski guruh HISOBI YOPILADI:</b> har bir FAOL a'zolik <c>CloseDate</c> sanasidan
+    ///     muzlatiladi — oddiy "Muzlatish" va "Guruhni yopish" bilan AYNAN bir xil hisob
+    ///     (<see cref="MembershipBilling.SettleFreezeAsync"/>): shu oyda yopish SANASIGACHA (shu sana
+    ///     ham) qatnashgan darslar uchun ESKI GURUHGA qisman oylik yoziladi, yopish oyidan KEYINGI
+    ///     oylar hisobi esa bekor qilinadi. Ilgari bu YO'Q edi: a'zolik shunchaki "completed" bo'lib
+    ///     yopilar, oyning allaqachon yozilgan TO'LIQ oyligi kamaymas, hisob umuman bo'lmagan holatda
+    ///     esa oy "to'langan" bo'lib ko'rinardi.</item>
+    ///   <item>A'zoliklar Status="completed", IsActive=false, LeftAt=FrozenAt=<c>CloseDate</c>
+    ///     (eski guruhda tarix saqlanadi; <c>FrozenAt</c> — hisob-kitob chegarasi).</item>
+    ///   <item>Eski guruh IsArchived=true, Status="archived", ArchivedAt=<c>CloseDate</c>
+    ///     (o'quvchilar arxivlanmaydi).</item>
     ///   <item>Asl kurs uchun sertifikat yaratiladi.</item>
     ///   <item>TargetCourseId ko'rsatilsa SHU kurs bilan, aks holda eski guruh kursi bilan YANGI guruh yaratiladi.</item>
-    ///   <item>autoEnrollNewGroup=true bo'lsa, eski a'zolar yangi guruhga "trial" statusida qo'shiladi.</item>
+    ///   <item><c>autoEnrollNewGroup</c>=true — eski a'zolar yangi guruhga qo'shiladi;
+    ///     <c>activateInNewGroup</c>=true bo'lsa (standart) eski guruhda FAOL bo'lganlar
+    ///     <c>ActivateDate</c> sanasidan DARHOL aktivlashtiriladi (yangi guruhga qisman oylik shu
+    ///     sanadan yoziladi, eski guruhda ortib qolgan avans yangi guruhga ko'chiriladi —
+    ///     <see cref="TuitionService.CarryGroupAdvanceAsync"/>). Sinov/muzlatilgan a'zolar yangi
+    ///     guruhda "sinov" bo'lib qoladi.</item>
     /// </list>
     /// </summary>
     [HttpPost("{id}/complete-and-transfer")]
@@ -902,7 +899,20 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
         if (activeMembers.Count == 0)
             return BadRequest(new { message = "Guruhda faol a'zo yo'q" });
 
-        var today = AppClock.Today.ToString("yyyy-MM-dd");
+        // YOPISH sanasi — eski guruh hisobi AYNAN shu sanagacha (bo'sh bo'lsa bugun).
+        var closeDate = string.IsNullOrWhiteSpace(req.CloseDate)
+            ? AppClock.Today.ToString("yyyy-MM-dd") : req.CloseDate!.Trim();
+        if (closeDate.Length < 10 || !DateOnly.TryParse(closeDate, out _))
+            return BadRequest(new { message = "Yopish sanasi noto'g'ri (YYYY-MM-DD)" });
+
+        // YANGI guruhda aktivlashtirish sanasi (bo'sh bo'lsa — yopish sanasi).
+        var activateDate = string.IsNullOrWhiteSpace(req.ActivateDate)
+            ? closeDate : req.ActivateDate!.Trim();
+        if (activateDate.Length < 10 || !DateOnly.TryParse(activateDate, out _))
+            return BadRequest(new { message = "Aktivlashtirish sanasi noto'g'ri (YYYY-MM-DD)" });
+        if (string.CompareOrdinal(activateDate, closeDate) < 0)
+            return BadRequest(new { message = "Aktivlashtirish sanasi yopish sanasidan oldin bo'lmasligi kerak" });
+
         // Sertifikat eski kurs uchun beriladi.
         var oldCourseId = group.CourseId ?? "";
 
@@ -919,19 +929,47 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
         if (!string.IsNullOrWhiteSpace(req.TargetCourseId) && targetCourse is null)
             return BadRequest(new { message = "Tanlangan kurs topilmadi" });
 
-        // 1. Eski a'zoliklarni "completed" qilib yopamiz (tarix saqlanadi).
+        var memberStudentIds = activeMembers.Select(m => m.StudentId).Distinct().ToList();
+        var students = (await db.Students.Where(s => memberStudentIds.Contains(s.Id)).ToListAsync())
+            .ToDictionary(s => s.Id);
+
+        // 1. ESKI GURUH HISOBINI YOPAMIZ, so'ng a'zoliklarni "completed" qilamiz (tarix saqlanadi).
+        //    Hisob "Muzlatish"/"Guruhni yopish" bilan bitta manbadan (MembershipBilling) — o'quvchi
+        //    yopish sanasigacha o'qigan darslari uchun AYNAN ESKI GURUHGA qarzdor bo'lib qoladi.
+        var chargedOldGroup = 0;
+        var restored = 0m;
+        // Eski guruhda FAOL bo'lganlar — faqat ular yangi guruhda darhol aktivlashtiriladi
+        // (sinovdagi/muzlatilgan a'zo yangi guruhda ham "sinov" bo'lib qoladi).
+        var wasActive = new HashSet<string>();
         foreach (var m in activeMembers)
         {
+            if (m.Status == "active")
+            {
+                wasActive.Add(m.StudentId);
+                if (students.TryGetValue(m.StudentId, out var s))
+                {
+                    var settle = await MembershipBilling.SettleFreezeAsync(db, s, group, m.ActivatedAt, closeDate);
+                    if (settle.Charged) chargedOldGroup++;
+                    restored += settle.Restored;
+                }
+                // Hisob-kitob chegarasi (StudentGroupLedger, GroupBalanceService, SalaryLedger,
+                // RetentionBonusService hammasi FrozenAt'ga qaraydi) — "Guruhni yopish" bilan bir xil.
+                m.FrozenAt = closeDate;
+            }
+            // SINOV a'zoligida hisob umuman ochilmagan — qisman to'lov ham yozilmaydi.
+
             m.Status = "completed";
             m.IsActive = false;
-            m.LeftAt = today;
+            m.LeftAt = closeDate;
         }
 
         // 2. Eski guruhni arxivlaymiz (o'quvchilar arxivlanmaydi — faqat guruh).
         group.IsArchived = true;
-        group.ArchivedAt = today;
+        group.ArchivedAt = closeDate;
+        group.Status = "archived";
+        if (string.IsNullOrWhiteSpace(group.EndDate)) group.EndDate = closeDate;
 
-        await db.SaveChangesAsync();   // Completed + archive atomically
+        await db.SaveChangesAsync();   // Hisob + completed + archive atomically
 
         // 3. Sertifikatlar — eski kurs bo'yicha (eski kurs yo'q bo'lsa targetCourseId ishlatiladi).
         var certCount = 0;
@@ -985,7 +1023,7 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
             MonthlyFee = newMonthlyFee,
             Room = group.Room,
             Status = "active",
-            StartDate = today,
+            StartDate = activateDate,
             EndDate = null,
             Capacity = group.Capacity,
             CourseId = targetCourseId,
@@ -999,31 +1037,52 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
         db.Classes.Add(newGroup);
         await db.SaveChangesAsync();   // newGroup.Id assigned
 
-        // 5. Auto-enroll eski a'zolarni yangi guruhga "trial" statusida.
+        // 5. Auto-enroll eski a'zolarni yangi guruhga. Eski guruhda FAOL bo'lganlar (va
+        //    `activateInNewGroup` yoqilgan bo'lsa) DARHOL aktivlashtiriladi — "Guruh almashtirish"
+        //    (TransferMember) bilan AYNAN bir xil: qisman oylik `activateDate`dan YANGI guruhga
+        //    yoziladi, orqaga sanalgan bo'lsa oraliq oylar to'ldiriladi va ESKI guruhda ortib
+        //    qolgan (avans) pul yangi guruhga qayta teglanadi. Sinov/muzlatilgan a'zolar "sinov"da qoladi.
         var enrolledCount = 0;
+        var activatedInNew = 0;
+        var movedAdvance = 0m;
+        var recordedAt = AppClock.Today.ToString("yyyy-MM-dd");
         if (req.AutoEnrollNewGroup)
         {
-            var studentIds = activeMembers.Select(m => m.StudentId).ToList();
-            foreach (var sid in studentIds)
+            foreach (var sid in memberStudentIds)
             {
-                db.StudentGroups.Add(new StudentGroup
+                var activate = req.ActivateInNewGroup && wasActive.Contains(sid);
+                var sg = new StudentGroup
                 {
                     StudentId = sid,
                     GroupId = newGroup.Id,
-                    JoinedAt = today,
+                    JoinedAt = activate ? activateDate : recordedAt,
                     IsActive = true,
-                    Status = "trial",
-                    // Jurnaldagi avto-"keldi" qoidasi shu sanadan boshlanadi (AddMember bilan bir xil).
-                    RecordedAt = today,
-                });
+                    Status = activate ? "active" : "trial",
+                    ActivatedAt = activate ? activateDate : string.Empty,
+                    // Jurnaldagi avto-"keldi" qoidasi HAQIQIY bugungi sanadan boshlanadi — activateDate
+                    // orqaga sanalgan bo'lsa, allaqachon o'tilgan darslar avto-"keldi" bo'lib to'lib
+                    // qolmasin (AddMember/ActivateMember/TransferMember bilan bir xil qoida).
+                    RecordedAt = recordedAt,
+                };
+                db.StudentGroups.Add(sg);
                 enrolledCount++;
+
+                if (!activate || !students.TryGetValue(sid, out var st)) continue;
+
+                await TuitionService.ChargeActivationProrateAsync(db, st, newGroup, activateDate);
+                await TuitionService.AccrueCatchUpAsync(db, st, newGroup, activateDate);
+                // Eski guruhga to'langan, ammo yopish hisobidan ORTIB QOLGAN summa yangi guruhga
+                // ko'chadi (aks holda to'lagan o'quvchi yangi guruhda "qarzdor" bo'lib ko'rinardi).
+                // Eski guruhdagi bekor qilingan oylar (1) da allaqachon bazaga yozilgan, shuning
+                // uchun `zeroOwedMonths` kerak emas.
+                if (closeDate.Length >= 7)
+                    movedAdvance += await TuitionService.CarryGroupAdvanceAsync(
+                        db, st, group, newGroup, closeDate[..7]);
+                activatedInNew++;
             }
 
             // Student.ClassName ni yangi guruh nomiga yangilaymiz.
-            var students = await db.Students
-                .Where(s => studentIds.Contains(s.Id))
-                .ToListAsync();
-            foreach (var s in students)
+            foreach (var s in students.Values)
                 s.ClassName = newGroupName;
 
             await db.SaveChangesAsync();
@@ -1033,8 +1092,12 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
         var targetCourseName = targetCourse?.Name ?? "";
         audit.Record(
             "Group", id, "complete-and-transfer",
-            $"Guruh yakunlandi va arxivlandi ({group.Name}): {activeMembers.Count} a'zo, sertifikat={certCount}. " +
-            $"Yangi guruh: {newGroup.Id} ({newGroupName}), kurs: {targetCourseName}, enrolled={enrolledCount}");
+            $"Guruh yakunlandi va arxivlandi ({group.Name}, yopish sanasi {closeDate}): {activeMembers.Count} a'zo, " +
+            $"sertifikat={certCount}, eski guruhga qisman oylik yozildi={chargedOldGroup}" +
+            (restored > 0 ? $", keyingi oylar hisobi bekor qilindi: {AuditService.Money(restored)} so'm" : "") +
+            $". Yangi guruh: {newGroup.Id} ({newGroupName}), kurs: {targetCourseName}, enrolled={enrolledCount}" +
+            (activatedInNew > 0 ? $", {activateDate} sanasidan aktivlashtirildi={activatedInNew}" : "") +
+            (movedAdvance > 0 ? $", avans ko'chirildi: {AuditService.Money(movedAdvance)} so'm" : ""));
 
         return Ok(new CompleteAndTransferResultDto(
             Ok: true,
@@ -1042,7 +1105,13 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
             NewGroupId: newGroup.Id,
             CertificatesGenerated: certCount,
             EnrolledInNew: enrolledCount,
-            TargetCourseName: targetCourseName));
+            TargetCourseName: targetCourseName,
+            CloseDate: closeDate,
+            ActivateDate: activatedInNew > 0 ? activateDate : "",
+            ChargedOldGroup: chargedOldGroup,
+            RestoredCharges: restored,
+            ActivatedInNew: activatedInNew,
+            MovedAdvance: movedAdvance));
     }
 
     /// <summary>
@@ -1074,7 +1143,6 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
             ? AppClock.Today.ToString("yyyy-MM-dd") : req.Date!.Trim();
         if (date.Length < 10 || !DateOnly.TryParse(date, out _))
             return BadRequest(new { message = "Sana noto'g'ri (YYYY-MM-DD)" });
-        var month = date[..7];
 
         var members = await db.StudentGroups
             .Where(sg => sg.GroupId == id && sg.IsActive)
@@ -1106,21 +1174,13 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
             }
 
             var activatedAt = m.ActivatedAt;
-            // A'zolik yopish sanasidan KEYIN aktivlashtirilgan bo'lsa (orqaga sanalgan yopish) — qisman
-            // to'lov ham yozilmaydi va aktivlashtirish oyi hisobi ham butunlay bekor qilinadi.
-            var activatedAfterClose = activatedAt.Length >= 10 && string.CompareOrdinal(activatedAt, date) > 0;
-
             m.Status = "frozen";
             m.FrozenAt = date;
 
+            // Qisman to'lov (yopish sanasigacha o'qilgan darslar) + yopishdan keyingi oylar hisobini
+            // bekor qilish — YAGONA manbada ("Muzlatish"/"Tugatish" bilan aynan bir xil).
             if (students.TryGetValue(m.StudentId, out var s))
-            {
-                if (!activatedAfterClose)
-                    await TuitionService.ChargeFreezeProrateAsync(db, s, group, activatedAt, date);
-                // Muzlatishdan keyingi oylarning hisobini bekor qilamiz (qarz shu sanadan keyin o'smasin).
-                restored += (await TuitionService.PurgeChargesAfterMonthAsync(
-                    db, s, group.Id, month, inclusive: activatedAfterClose)).Restored;
-            }
+                restored += (await MembershipBilling.SettleFreezeAsync(db, s, group, activatedAt, date)).Restored;
 
             frozen++;
             audit.Record("Membership", $"{id}:{m.StudentId}", "update",

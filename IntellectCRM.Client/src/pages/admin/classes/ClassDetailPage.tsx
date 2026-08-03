@@ -1652,7 +1652,23 @@ export function ClassDetailPage() {
         onSuccess={(result) => {
           const coursePart = result.targetCourseName ? ` (${result.targetCourseName} kursi)` : ''
           alert(
-            `Tugatildi!\n• ${result.certificatesGenerated} ta sertifikat yaratildi\n• Yangi guruh ochildi${coursePart}\n• ${result.enrolledInNew} o'quvchi yangi guruhga qo'shildi`,
+            `Tugatildi!\n` +
+              `• ${result.certificatesGenerated} ta sertifikat yaratildi\n` +
+              `• Eski guruh ${formatDate(result.closeDate)} sanasida yopildi` +
+              (result.chargedOldGroup > 0
+                ? ` — ${result.chargedOldGroup} o'quvchiga shu sanagacha oylik yozildi\n`
+                : '\n') +
+              (result.restoredCharges > 0
+                ? `• Yopishdan keyingi ${formatMoney(result.restoredCharges)} hisob bekor qilindi\n`
+                : '') +
+              `• Yangi guruh ochildi${coursePart}\n` +
+              `• ${result.enrolledInNew} o'quvchi yangi guruhga qo'shildi` +
+              (result.activatedInNew > 0
+                ? ` (${result.activatedInNew} tasi ${formatDate(result.activateDate)} sanasidan aktiv)\n`
+                : '\n') +
+              (result.movedAdvance > 0
+                ? `• ${formatMoney(result.movedAdvance)} avans yangi guruhga ko'chirildi`
+                : ''),
           )
           window.location.href = `/admin/classes/${result.newGroupId}`
         }}

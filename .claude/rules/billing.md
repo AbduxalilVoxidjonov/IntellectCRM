@@ -162,6 +162,44 @@ paths:
   To'lovlar bo'limida qo'shimcha filtrlar: **to'lov usuli** (naqd/karta/bank — chipda o'sha usul
   jami summasi) va **kvitansiya** (raqami bor / raqami yo'q).
 
+- **ESKI / ARXIV GURUHGA TO'LOV QABUL QILINADI** (`PaymentIntake.AddAsync`): "billable guruhlar"
+  ro'yxatida `sg.IsActive` sharti **YO'Q** — faqat `Status != "trial"`. Guruhdan CHIQARILGAN,
+  "tugatgan" (sertifikat bilan yopilgan guruh) va MUZLATILGAN a'zoliklarda ham qarz qolishi mumkin,
+  kassir uni keyin ham qabul qila olishi shart. UI allaqachon shunday ishlaydi (`PaymentModal`
+  sinovdan boshqa BARCHA a'zoliklarni ko'rsatadi, "— chiqarilgan" yorlig'i bilan; Kassa esa arxiv
+  guruhlarni ataylab ro'yxatlaydi).
+  ⚠️ Ilgari `sg.IsActive` talab qilinardi va IKKI xil buzilish berardi: (1) o'quvchining boshqa faol
+  guruhi bo'lsa — 400 "To'lov qaysi guruh uchun ekanini tanlang" (tanlangan eski guruh ro'yxatda
+  yo'q edi); (2) faol guruhi BITTA bo'lsa — to'lov JIMGINA o'sha noto'g'ri guruhga teglanardi.
+  `FinanceController` (Moliya → to'lovni tahrirlash) allaqachon `IsActive`siz tekshirardi.
+
+- **MUZLATISH HISOBI — YAGONA MANBA `MembershipBilling.SettleFreezeAsync`** (Application/Services):
+  qisman to'lov (`ChargeFreezeProrateAsync`) + muzlatish oyidan keyingi hisoblarni bekor qilish
+  (`PurgeChargesAfterMonthAsync`, muzlatish sanasi aktivlashtirishdan oldin bo'lsa `inclusive: true`).
+  TO'RTTA yo'l ham AYNAN shuni chaqiradi: **Muzlatish** (`FreezeMember`), **Guruh almashtirish**
+  (`TransferMember`), **Guruhni yopish** (`Close`) va **Guruhni tugatish — sertifikat bilan**
+  (`CompleteAndTransfer`). Yangi muzlatish yo'li qo'shilsa — SHU metod chaqiriladi, nusxa ko'chirilmaydi.
+
+- **GURUHNI TUGATISH (SERTIFIKAT BILAN)** (`POST /api/admin/classes/{id}/complete-and-transfer`,
+  guruh sahifasi "⋮" → "Tugatish (sertifikat bilan)"): modalda **IKKITA SANA** so'raladi —
+  `closeDate` (eski guruh yopiladigan sana) va `activateDate` (yangi guruhda aktivlashtirish sanasi;
+  `activateInNewGroup` ptichkasi bilan o'chirilsa o'quvchilar yangi guruhda "sinov"da qoladi).
+  Oqim `TransferMember` (guruh almashtirish) bilan bir xil, faqat OMMAVIY: eski guruhdagi FAOL
+  a'zoliklar `closeDate`dan muzlatiladi (`MembershipBilling.SettleFreezeAsync` — shu sanagacha o'qilgan
+  darslar uchun oylik **ESKI GURUHGA** yoziladi, keyingi oylar bekor qilinadi), a'zolik
+  `Status="completed"`, `IsActive=false`, `LeftAt=FrozenAt=closeDate` bo'ladi (FrozenAt — hisob-kitob
+  chegarasi: `StudentGroupLedger`/`GroupBalanceService`/`SalaryLedger`/`RetentionBonusService` hammasi
+  shunga qaraydi), sertifikat beriladi, guruh `IsArchived`+`Status="archived"` bo'ladi, yangi guruhda
+  esa eski guruhda FAOL bo'lganlar `activateDate`dan aktivlashtiriladi
+  (`ChargeActivationProrateAsync` + `AccrueCatchUpAsync` + `CarryGroupAdvanceAsync` — eski guruhda
+  ortib qolgan avans yangi guruhga ko'chadi). Sinov/muzlatilgan a'zolar yangi guruhda "sinov"da qoladi.
+  ⚠️ Ilgari bu endpoint hisobga UMUMAN tegmasdi: a'zolik shunchaki "completed" bo'lib yopilar,
+  yopish oyining allaqachon yozilgan TO'LIQ oyligi kamaymas, hisob umuman bo'lmagan holatda esa oy
+  "to'langan" bo'lib ko'rinardi va eski guruhga qarz yozilmasdi.
+  Javob: `CloseDate/ActivateDate/ChargedOldGroup/RestoredCharges/ActivatedInNew/MovedAdvance`.
+  `StudentGroupLedger` ham chiqish oyini endi QISMAN ko'rsatadi (`!IsActive && LeftAt` shu oyda →
+  `FreezeGross`), to'liq oylik emas — hisob qatori hali yozilmagan holatda ham.
+
 - **GURUHNI YOPISH** (`POST /api/admin/classes/{id}/close`, guruh sahifasi "⋮" → "Guruhni yopish"):
   berilgan sanadan guruhning BARCHA faol a'zoliklari muzlatiladi (har biriga oddiy muzlatish bilan bir
   xil qisman to'lov), muzlatish oyidan KEYINGI hisoblar bekor qilinadi

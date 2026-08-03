@@ -265,6 +265,18 @@ export interface CompleteAndTransferResult {
   certificatesGenerated: number
   enrolledInNew: number
   targetCourseName?: string
+  /** Eski guruh yopilgan (a'zoliklar muzlatilgan) sana. */
+  closeDate: string
+  /** Yangi guruhda aktivlashtirish sanasi ('' — aktivlashtirilmagan, sinovda qoldi). */
+  activateDate: string
+  /** Eski guruhga qisman oylik hisobi yozilgan a'zolar soni. */
+  chargedOldGroup: number
+  /** Yopishdan keyingi oylar uchun bekor qilingan (balansga qaytarilgan) summa. */
+  restoredCharges: number
+  /** Yangi guruhda darhol aktivlashtirilgan a'zolar soni. */
+  activatedInNew: number
+  /** Eski guruhdan yangi guruhga ko'chirilgan avans summasi. */
+  movedAdvance: number
 }
 
 /** Guruhni yakunlash (Hybrid): eski guruh arxivlanadi, maqsad kurs bilan yangi guruh ochiladi, sertifikat beriladi. */
@@ -276,6 +288,12 @@ export async function completeAndTransferClass(
     completionNotes?: string
     /** Yangi guruh kursi. Bo'sh bo'lsa — eski kurs qayta ishlatiladi. */
     targetCourseId?: string
+    /** ESKI guruh yopiladigan sana — hisob AYNAN shu sanagacha eski guruhga yoziladi. */
+    closeDate?: string
+    /** YANGI guruhda aktivlashtirish sanasi (bo'sh — closeDate). */
+    activateDate?: string
+    /** Yangi guruhda darhol aktivlashtirish (false — "sinov" bo'lib qoladi, to'lov hisoblanmaydi). */
+    activateInNewGroup?: boolean
   },
 ): Promise<CompleteAndTransferResult> {
   if (USE_MOCK) {
@@ -287,6 +305,12 @@ export async function completeAndTransferClass(
       certificatesGenerated: 5,
       enrolledInNew: 5,
       targetCourseName: 'Elementary',
+      closeDate: opts?.closeDate ?? '',
+      activateDate: opts?.activateDate ?? '',
+      chargedOldGroup: 5,
+      restoredCharges: 0,
+      activatedInNew: 5,
+      movedAdvance: 0,
     }
   }
   const { data } = await api.post<CompleteAndTransferResult>(
@@ -296,6 +320,9 @@ export async function completeAndTransferClass(
       newGroupName: opts?.newGroupName ?? null,
       completionNotes: opts?.completionNotes ?? null,
       targetCourseId: opts?.targetCourseId ?? null,
+      closeDate: opts?.closeDate ?? null,
+      activateDate: opts?.activateDate ?? null,
+      activateInNewGroup: opts?.activateInNewGroup ?? true,
     },
   )
   return data

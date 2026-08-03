@@ -2332,7 +2332,17 @@ public record CompleteAndTransferRequest(
     string? NewGroupName = null,
     string? CompletionNotes = null,
     /// <summary>Yangi guruh qaysi kurs bilan ochiladi. Bo'sh bo'lsa — eski guruh kursi qayta ishlatiladi.</summary>
-    string? TargetCourseId = null);
+    string? TargetCourseId = null,
+    /// <summary>ESKI guruh YOPILADIGAN sana (ISO "YYYY-MM-DD"). A'zoliklar AYNAN shu sanadan
+    /// muzlatiladi: shu sanagacha qatnashgan darslar uchun eski guruhga qisman oylik yoziladi,
+    /// keyingi oylar hisobi bekor qilinadi. Bo'sh — bugun.</summary>
+    string? CloseDate = null,
+    /// <summary>YANGI guruhda AKTIVLASHTIRISH sanasi (ISO). Bo'sh — <paramref name="CloseDate"/>.
+    /// <paramref name="ActivateInNewGroup"/>=false bo'lsa ishlatilmaydi.</summary>
+    string? ActivateDate = null,
+    /// <summary>Yangi guruhda DARHOL aktivlashtirish (qisman oylik shu sanadan yangi guruhga yoziladi).
+    /// false bo'lsa o'quvchilar yangi guruhga "sinov" statusida qo'shiladi (to'lov hisoblanmaydi).</summary>
+    bool ActivateInNewGroup = true);
 
 /// <summary>Complete-and-Transfer (Hybrid) natijasi.</summary>
 public record CompleteAndTransferResultDto(
@@ -2341,7 +2351,19 @@ public record CompleteAndTransferResultDto(
     string NewGroupId,
     int CertificatesGenerated,
     int EnrolledInNew,
-    string? TargetCourseName = null);
+    string? TargetCourseName = null,
+    /// <summary>Eski guruh yopilgan (a'zoliklar muzlatilgan) sana.</summary>
+    string CloseDate = "",
+    /// <summary>Yangi guruhda aktivlashtirish sanasi ("" — aktivlashtirilmagan, sinovda qoldi).</summary>
+    string ActivateDate = "",
+    /// <summary>ESKI guruhga qisman oylik hisobi yozilgan a'zolar soni.</summary>
+    int ChargedOldGroup = 0,
+    /// <summary>Yopish oyidan KEYINGI oylar uchun bekor qilingan (balansga qaytarilgan) hisob summasi.</summary>
+    decimal RestoredCharges = 0,
+    /// <summary>Yangi guruhda darhol aktivlashtirilgan a'zolar soni.</summary>
+    int ActivatedInNew = 0,
+    /// <summary>Eski guruhda ortib qolgan (avans) va yangi guruhga ko'chirilgan to'lov summasi.</summary>
+    decimal MovedAdvance = 0);
 
 /// <summary>
 /// Guruhni YOPISH so'rovi: barcha a'zolar <paramref name="Date"/> sanasidan MUZLATILADI
