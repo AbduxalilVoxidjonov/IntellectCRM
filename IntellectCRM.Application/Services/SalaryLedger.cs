@@ -146,6 +146,9 @@ public static class SalaryLedger
             // Har guruhning shu oydagi ulushi (breakdown + per-guruh yig'indisi uchun doim hisoblanadi).
             // Jurnalga bog'langan bo'lsa — shu yerda ushlanma ham ayriladi (guruh o'z darslariga javob beradi).
             decimal grossSum = 0m, groupDeduction = 0m;
+            // Foizli maosh BAZASI (shu oy uchun yig'ilgan) — o'qituvchiga "Hisoblandi" qayerdan
+            // chiqqanini ko'rsatish uchun: yig'ilgan × foiz = hisoblangan.
+            decimal monthCollected = 0m;
             var lessonLines = new List<SalaryLessonStatDto>();
             int plannedTotal = 0, conductedTotal = 0;
 
@@ -159,6 +162,7 @@ public static class SalaryLedger
                     var col = collectedPerGroup.GetValueOrDefault((month, g.Id), 0m);
                     contribution = decimal.Round(col * pct / 100m, 2);
                     groupPeriodCollected[g.Id] += col;
+                    monthCollected += col;
                 }
                 else
                 {
@@ -230,7 +234,8 @@ public static class SalaryLedger
                 month, expected, paid, remaining, status,
                 baseExpected, deduction,
                 plannedTotal, conductedTotal, plannedTotal - conductedTotal,
-                journalLinked ? lessonLines : null));
+                journalLinked ? lessonLines : null,
+                decimal.Round(monthCollected, 2)));
         }
 
         var totalExpected = months.Sum(m => m.Expected);

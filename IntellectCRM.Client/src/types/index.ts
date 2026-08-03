@@ -1500,6 +1500,12 @@ export interface MonthSalary {
   missedLessons?: number
   /** Ushlanma tafsiloti (guruhlar bo'yicha) — maosh jurnalga bog'langanda */
   lessons?: SalaryLessonStat[]
+  /**
+   * FOIZLI maosh bazasi — shu OY UCHUN o'qituvchi guruhlaridan yig'ilgan tuition (vozvrat ayrilgan).
+   * Qat'iy maoshda 0. To'lov QAYSI OY UCHUN qilingan bo'lsa shu oyga kiradi — to'lov sanasi emas
+   * (3-avgustda iyul uchun to'lansa → iyul oyiga).
+   */
+  collected?: number
 }
 
 /** Maosh hisobida bitta guruhning ulushi (davr bo'yicha) */

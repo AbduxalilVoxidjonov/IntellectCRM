@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { AlertTriangle, ArrowLeft, Award, ChevronDown, Hourglass, Wallet } from 'lucide-react'
+import {
+  AlertTriangle, ArrowLeft, Award, CalendarClock, ChevronDown, Hourglass, Wallet,
+} from 'lucide-react'
 import { getTeacherSalary, getMyRetentionBonuses } from '@/api/services/teacher'
 import type { TeacherRetentionSummary } from '@/api/services/retentionBonus'
 import type { SalaryLedger } from '@/types'
@@ -23,6 +25,18 @@ function monthLabel(m: string): string {
   const mi = Number(parts[1]) - 1
   if (mi >= 0 && mi < 12 && y) return `${MONTH_NAMES[mi]} ${y}`
   return m
+}
+
+/**
+ * Foizli maosh ulushi yorlig'i. Har guruh alohida foizga sozlangan bo'lishi mumkin
+ * (bir guruhi 40%, keyingisi 60%) — bunday holda bitta raqam yozib bo'lmaydi.
+ */
+function percentLabel(l: SalaryLedger): string {
+  const groups = (l.groups ?? []).filter((g) => g.mode === 'percent')
+  const rates = [...new Set(groups.map((g) => g.percent))]
+  if (rates.length === 1) return `${rates[0]}%`
+  if (rates.length > 1) return 'guruh foizlari'
+  return `${l.salaryPercent ?? 0}%`
 }
 
 function statusChip(status: string): { label: string; cls: string } {
@@ -72,6 +86,11 @@ export function TeacherSalaryPage() {
   // Joriy oy "YYYY-MM"
   const now = new Date()
   const curKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+
+  // Maoshda foizli ulush bormi (o'qituvchi darajasida yoki biror guruhda) — yig'ilgan
+  // to'lov bazasi faqat shunda ma'noga ega.
+  const isPercent =
+    ledger?.salaryMode === 'percent' || (ledger?.groups ?? []).some((g) => g.mode === 'percent')
 
   return (
     <div className="px-4 pt-3 pb-6">
@@ -144,6 +163,20 @@ export function TeacherSalaryPage() {
                   </div>
                 </div>
 
+                {/* FOIZLI maoshda: hisob qayerdan chiqqani — yig'ilgan × foiz. */}
+                {isPercent && cur && (cur.collected ?? 0) > 0 && (
+                  <p className="mt-3 rounded-[14px] bg-slate-50 px-3.5 py-2.5 text-[12px] leading-relaxed text-mute">
+                    Yig'ilgan:{' '}
+                    <span className="font-mono font-bold text-ink">{formatMoney(cur.collected ?? 0)}</span>
+                    {' × '}
+                    <span className="font-bold text-ink">{percentLabel(ledger)}</span>
+                    {' = '}
+                    <span className="font-mono font-bold text-ink">
+                      {formatMoney(cur.baseExpected ?? cur.expected)}
+                    </span>
+                  </p>
+                )}
+
                 {/* Jami (joriy oy ko'rsatilganda alohida) */}
                 {cur && (
                   <div className="mt-3 flex items-center justify-between rounded-[14px] bg-tealsoft px-3.5 py-2.5">
@@ -156,6 +189,20 @@ export function TeacherSalaryPage() {
               </div>
             )
           })()}
+
+          {/* QAYSI OYGA — eng ko'p savol tug'diradigan joy. To'lov qaysi oy UCHUN qilingan
+              bo'lsa, o'sha oyga kiradi: 3-avgustda iyul uchun to'lansa — iyul maoshiga. */}
+          {isPercent && (
+            <div className="mt-3 flex items-start gap-2.5 rounded-[16px] border border-line bg-white px-3.5 py-2.5 shadow-[var(--shadow-card)]">
+              <CalendarClock className="mt-0.5 h-4 w-4 shrink-0 text-teal-600" />
+              <p className="text-[12px] leading-relaxed text-mute">
+                To'lov <span className="font-bold text-ink">qaysi oy uchun</span> qilingan bo'lsa,
+                o'sha oy maoshiga kiradi — to'langan kun emas. Masalan 3-avgustda{' '}
+                <span className="font-bold text-ink">iyul</span> uchun to'langan pul{' '}
+                <span className="font-bold text-ink">iyul</span> maoshida ko'rinadi.
+              </p>
+            </div>
+          )}
 
           {/* Jurnal ushlanmasi haqida eslatma */}
           {ledger.journalLinked && (
@@ -198,6 +245,13 @@ export function TeacherSalaryPage() {
                         {' · '}Berildi:{' '}
                         <span className="font-mono text-teal-700">{formatMoney(m.paid)}</span>
                       </p>
+                      {/* Foizli maoshda: shu OY UCHUN yig'ilgan to'lov — hisob shundan chiqadi. */}
+                      {isPercent && (m.collected ?? 0) > 0 && (
+                        <p className="text-[11px] text-faint">
+                          Shu oy uchun yig'ilgan:{' '}
+                          <span className="font-mono text-mute">{formatMoney(m.collected ?? 0)}</span>
+                        </p>
+                      )}
                       {deduction > 0 && (
                         <p className="mt-0.5 text-[12px] font-semibold text-rose-600">
                           Ushlandi: <span className="font-mono">−{formatMoney(deduction)}</span>

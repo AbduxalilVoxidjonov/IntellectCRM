@@ -190,11 +190,14 @@ public record SalaryLessonStatDto(
 /// <paramref name="BaseExpected"/> — ushlanmagacha bo'lgan summa; <paramref name="Deduction"/> — jurnalda
 /// belgilanmagan darslar uchun ushlanma (CenterMeta.SalaryRequireJournal yoqilgan bo'lsa).
 /// </summary>
+/// <param name="Collected">FOIZLI maosh bazasi — shu OY UCHUN o'qituvchi guruhlaridan yig'ilgan
+/// tuition summasi (vozvrat ayrilgan). Qat'iy maoshda 0. Shu raqam ko'rsatilgani uchun o'qituvchi
+/// "Hisoblandi" qayerdan chiqqanini ko'radi: yig'ilgan × foiz = hisoblangan.</param>
 public record MonthSalaryDto(
     string Month, decimal Expected, decimal Paid, decimal Remaining, string Status,
     decimal BaseExpected = 0, decimal Deduction = 0,
     int PlannedLessons = 0, int ConductedLessons = 0, int MissedLessons = 0,
-    List<SalaryLessonStatDto>? Lessons = null);
+    List<SalaryLessonStatDto>? Lessons = null, decimal Collected = 0);
 /// <summary>
 /// Maosh hisobida bitta guruhning ulushi (davr bo'yicha): qaysi rejim (foiz/qat'iy), qiymati,
 /// shu davrda guruhdan yig'ilgan to'lov bazasi va shu guruh keltirgan hisoblangan maosh.
