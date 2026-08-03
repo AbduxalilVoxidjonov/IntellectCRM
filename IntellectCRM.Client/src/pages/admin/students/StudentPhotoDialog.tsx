@@ -3,7 +3,7 @@ import { Camera, Upload, RotateCcw, Trash2, Loader2, AlertTriangle, Check } from
 import { uploadAdminFile } from '@/api/services/students'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
-import { apiErrorMessage, cn } from '@/lib/utils'
+import { apiErrorMessage } from '@/lib/utils'
 
 /**
  * O'QUVCHI RASMI — kameradan olish yoki fayldan tanlash.
@@ -185,7 +185,8 @@ export function StudentPhotoDialog({
     <Modal
       open={open}
       onClose={() => !busy && onClose()}
-      size="sm"
+      // KATTA oyna — rasmni bemalol ko'rish uchun (kichik doirada nima olinayotgani bilinmasdi).
+      size="lg"
       title="O'quvchi rasmi"
       footer={
         <>
@@ -204,31 +205,52 @@ export function StudentPhotoDialog({
         </>
       }
     >
-      <div className="space-y-3">
-        {/* Ko'rish maydoni: kamera / oldindan ko'rish / hozirgi rasm */}
-        <div className="relative mx-auto flex h-56 w-56 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-slate-50">
+      <div className="space-y-4">
+        {/*
+          KATTA ko'rish maydoni — kvadrat (rasm ham kvadrat qirqiladi), balandligi ekranga
+          moslashadi. Ichidagi doira — AVATARDA ko'rinadigan qism:
+            • kamera yoqilganda "projektor" (tashqarisi qoraytiriladi) — kadrni to'g'ri
+              joylashtirish uchun;
+            • tayyor rasmda esa faqat ingichka chiziq — rasm to'silmasin, bemalol ko'rinsin.
+        */}
+        <div className="relative mx-auto aspect-square w-full max-w-[440px] overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">
           {camOn ? (
-            <video
-              ref={videoRef}
-              autoPlay
-              playsInline
-              muted
-              className="h-full w-full scale-x-[-1] object-cover"
-            />
+            <>
+              {/* Jonli tasvir OYNADEK ko'rsatiladi (o'ziga qarab turish qulay), lekin SAQLANADIGAN
+                  kadr aynan kamera ko'rgani — teskari emas (hujjat rasmi to'g'ri chiqsin). */}
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted
+                className="h-full w-full scale-x-[-1] object-cover"
+              />
+              <div className="pointer-events-none absolute inset-[5%] rounded-full ring-2 ring-white/80 shadow-[0_0_0_9999px_rgba(15,23,42,0.38)]" />
+            </>
           ) : shown ? (
-            <img src={shown} alt="" className="h-full w-full object-cover" />
+            <>
+              <img src={shown} alt="" className="h-full w-full object-cover" />
+              <div className="pointer-events-none absolute inset-[5%] rounded-full ring-2 ring-white/60" />
+            </>
           ) : (
-            <Camera className="h-12 w-12 text-slate-300" />
+            <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-slate-300">
+              <Camera className="h-16 w-16" />
+              <span className="text-sm text-slate-400">Rasm hali yuklanmagan</span>
+            </div>
           )}
         </div>
 
         {camError && (
-          <p className="flex items-start gap-1.5 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          <p className="mx-auto flex max-w-[520px] items-start gap-1.5 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             {camError}
           </p>
         )}
-        {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
+        {error && (
+          <p className="mx-auto max-w-[520px] rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
+            {error}
+          </p>
+        )}
 
         {/* Amallar */}
         <div className="flex flex-wrap justify-center gap-2">
@@ -277,8 +299,10 @@ export function StudentPhotoDialog({
           }}
         />
 
-        <p className={cn('text-center text-[11px] text-slate-400', camOn && 'invisible')}>
-          Rasm kvadrat qilib qirqiladi va dumaloq ko'rinishda chiqadi.
+        <p className="text-center text-xs text-slate-400">
+          {camOn
+            ? "Yuzni doira ichiga joylashtiring — aynan shu qism avatarda ko'rinadi."
+            : "Doira ichidagi qism o'quvchi profilida dumaloq avatar bo'lib chiqadi."}
         </p>
       </div>
     </Modal>
