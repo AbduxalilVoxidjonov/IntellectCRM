@@ -4,20 +4,52 @@ Yuklangan barcha fayllar bitta TEKIS papkada: `ContentRoot/uploads`. U docker vo
 (`uploads:/app/uploads`) va tungi zaxiraga kiradigan **yagona** papka — shuning uchun fayllarni
 undan chiqarish (ko'chirish) zaxiradan tushib qolish degani.
 
-## Asosiy haqiqat: `/uploads` AUTENTIFIKATSIYASIZ beriladi
+## `/uploads` DARVOZASI — login talab qiladi (`UploadsGuard`)
 
-`Program.cs` da `UseStaticFiles(RequestPath = "/uploads")` — manzilni bilgan har kim **login'siz**
-oladi. Buni oddiy `[Authorize]` bilan yopib bo'lmaydi: loyihada JWT Bearer (cookie YO'Q), brauzer
-esa `<img src="/uploads/...">` ga `Authorization` sarlavhasini yubormaydi.
+`/uploads` ilgari autentifikatsiyasiz berilardi. Endi `UploadsGuard` (Server) middleware'i uni
+darvozalaydi: **token yo'q → 404** (403 emas — faylning mavjudligini ham tasdiqlamaymiz).
 
-**Shundan kelib chiqadigan qoida — HAR SAFAR eslang:**
+**Nega cookie?** Loyihada JWT Bearer ishlatiladi, brauzer esa `<img src="/uploads/...">` ga
+`Authorization` sarlavhasini **yubormaydi**. Shuning uchun `Path=/uploads` ga cheklangan
+`up_at` cookie'si qo'yiladi — brauzer uni rasm so'rovlarida o'zi yuboradi va **frontend kodiga
+tegish kerak bo'lmadi**. (Loyihadagi mavjud yondashuv bilan bir xil: `/ws` va SignalR ham sarlavha
+yubora olmagani uchun tokenni boshqa yo'ldan oladi.)
 
-> `/uploads/...` manzilini bir marta olgan odam faylni **ABADIY** oladi — tizimdan chiqarilsa ham,
-> ishdan bo'shatilsa ham, guruhdan olib tashlansa ham. Ya'ni manzilni bergan joy = ruxsatni
-> BUTUNLAYGA bergan joy.
+**Cookie qanday paydo bo'ladi?** Alohida qadam YO'Q: `UseAuthentication` dan keyingi middleware
+har qanday avtorizatsiyalangan API so'rovida cookie'ni qo'yadi/tiklaydi. Ya'ni **mavjud
+sessiyalar qayta login qilmasdan** ishlayveradi.
 
-Shu sabab yangi endpoint yozganda savol "kim ko'rishi mumkin" emas, **"kim abadiy saqlab qolishi
-mumkin"** bo'lishi kerak.
+Cookie sozlamalari va ular NEGA shunday:
+- `HttpOnly` — JS o'qiy olmaydi (XSS bilan o'g'irlanmasin);
+- `Path=/uploads` — API so'rovlariga umuman yuborilmaydi;
+- HTTPS'da `SameSite=None; Secure` — Telegram Mini App SPA'ni `web.telegram.org` ichida
+  IFRAME'da ochadi, u yerdan kelgan rasm so'rovlari "cross-site" hisoblanadi va `Lax` cookie
+  **yuborilmasdi**. Dev (http) da `Lax`.
+
+**Token tekshiruvi qo'lda:** statik fayllar pipeline'da `UseAuthentication` dan OLDIN turadi, ya'ni
+guard ichida `HttpContext.User` hali bo'sh. Shuning uchun token (sarlavha yoki cookie) qo'lda
+tekshiriladi va natija keshlanadi (bitta sahifada o'nlab rasm bo'lishi mumkin).
+
+**OCHIQ qoladigan yagona narsa — markaz LOGOTIPI:** u login sahifasida, PWA manifestida va ochiq
+vakansiya sahifasida kerak (foydalanuvchi hali kirmagan). Ro'yxat bazadan olinadi
+(`CenterMeta.LogoUrl`, `CareerAbout.LogoUrl`) va 1 daqiqa keshlanadi — ya'ni "ochiq" deb faqat
+markaz O'ZI ommaviy ko'rsatayotgan fayl hisoblanadi. Qoidalar `UploadAccessRules` (Application)
+da — testlangan.
+
+**Favqulodda o'chirish:** `Uploads:RequireAuth=false` — kodni qayta yig'masdan eski xatti-harakatga
+qaytaradi (startupda ogohlantirish logi yoziladi). Rad etilgan har so'rov logga yoziladi
+(`/uploads rad etildi: <yo'l> (UA: ...)`) — kutilmagan mijoz shu yerdan ko'rinadi.
+
+⚠️ **MOBIL ILOVALAR:** Flutter ilovalari bu repoda EMAS. Agar ular rasmlarni `Authorization`
+sarlavhasisiz yuklasa, ular uchun rasm ko'rinmay qoladi. Guard sarlavhani ham qabul qiladi, ya'ni
+ilova HTTP mijoziga token qo'shsa yetadi. Deploydan keyin log'da `/uploads rad etildi` qatorlarini
+kuzating.
+
+**Eski qoida hamon kuchda** (endpoint yozganda):
+
+> Manzilni bergan joy = faylni ko'rishga ruxsat bergan joy. Endi u login talab qiladi, lekin
+> tizimdagi ISTALGAN foydalanuvchi manzilni bilsa ochadi — ya'ni "kim ko'rishi mumkin" savoli
+> baribir muhim.
 
 ## Hozirgi himoya qatlamlari
 
@@ -77,9 +109,11 @@ adashish yo'q: `"students-arxiv"` ruxsati `"students"` ni ochmaydi.
   `/api/admin/...` yo'lida u hech qachon turmasligi kerak (ilgari `GradingController` da shunday
   xato bor edi — studentId bilan baholash statistikasi login'siz ochiq edi).
 
-## Hali OCHIQ (bilib turilgan qaror)
+## Qatlamlar (kim nimani ko'radi)
 
-O'quvchi suratlari, kitob muqovalari, dars PDF'lari — `<img>`/`<iframe>` da kerak, shuning uchun
-`/uploads` da ochiq qoladi. Ularni yopish yo'li: login'da `Path=/uploads` cookie qo'yib, papkani
-cookie/token bilan darvozalash. Bunda mobil ilovalar ham yangilanishi kerak, shuning uchun avval
-"faqat log yozadigan" rejimda o'lchash tavsiya etiladi.
+1. **Tashqaridagi begona** — `/uploads` dan faqat LOGOTIPNI oladi, boshqa hech narsani (404).
+2. **Tizimga kirgan foydalanuvchi** — manzilni bilsa faylni oladi. Shuning uchun manzilni
+   javobga qo'shishdan oldin "bu rol buni ko'rishi kerakmi" savoli baribir muhim (yuqoridagi
+   darvozalar shu uchun).
+3. **`uploads/certificates`** — hech kimga statik yo'ldan berilmaydi (hatto adminga ham), faqat
+   avtorizatsiyalangan download endpointlari orqali.

@@ -317,6 +317,10 @@ builder.Services.AddScoped<IntellectCRM.Application.Services.TestCertificateServ
 // shuning uchun Singleton (o'zi kerakli joyda scope ochadi).
 builder.Services.AddSingleton<IntellectCRM.Application.Services.TestCertificateJobs>();
 
+// `/uploads` darvozasi — token tekshiruvi, ochiq fayllar keshi va cookie (batafsil: UploadsGuard).
+// Singleton: keshlar so'rovlar oralig'ida yashashi kerak.
+builder.Services.AddSingleton<IntellectCRM.Server.UploadsGuard>();
+
 // Turniket/FaceID integratsiyasi — o'qituvchilar davomatini avtomatik yuklash
 builder.Services.AddScoped<IntellectCRM.Application.Services.TurnstileService>();
 
@@ -740,6 +744,26 @@ if (certificatesArePublic)
     privateFilesLogger.LogWarning(
         "DIQQAT: Uploads:PublicCertificates=true — sertifikat fayllari statik yo'l bilan OCHIQ berilmoqda.");
 
+// ---------------------------------------------------------------------------------------------
+// `/uploads` DARVOZASI — yuklangan fayllar login talab qiladi (batafsil: UploadsGuard).
+// DIQQAT: statik fayllar pipeline'da `UseAuthentication` dan OLDIN turadi, shuning uchun bu yerda
+// `HttpContext.User` hali bo'sh — token QO'LDA tekshiriladi (xuddi `/ws` dagidek).
+// Guard IKKALA statik middleware'dan ham oldin: wwwroot ham `/uploads/...` yo'lini berishi mumkin.
+var uploadsGuard = app.Services.GetRequiredService<IntellectCRM.Server.UploadsGuard>();
+if (!uploadsGuard.Enabled)
+    app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("UploadsGuard")
+        .LogWarning("DIQQAT: Uploads:RequireAuth=false — /uploads fayllari login'siz OCHIQ berilmoqda.");
+
+app.Use(async (context, next) =>
+{
+    if (!context.Request.Path.StartsWithSegments("/uploads")) { await next(); return; }
+    if (await uploadsGuard.IsAllowedAsync(context)) { await next(); return; }
+
+    uploadsGuard.LogDenied(context);
+    // 403 emas, 404: faylning MAVJUDLIGINI ham tasdiqlamaymiz.
+    context.Response.StatusCode = StatusCodes.Status404NotFound;
+});
+
 IFileProvider Guarded(IFileProvider innerProvider) =>
     certificatesArePublic
         ? innerProvider
@@ -839,6 +863,16 @@ static (bool Valid, string? AgentId) ValidateAgentToken(string token, JwtOptions
 app.UseHttpsRedirection();
 
 app.UseAuthentication();
+
+// `/uploads` cookie'sini TIKLASH — avtorizatsiyalangan har qanday so'rovdan keyin.
+// Alohida "login" qadami yo'q: SPA baribir doim API chaqiradi, ya'ni mavjud sessiyalar ham
+// qayta login qilmasdan rasmlarni ko'raveradi. Cookie faqat `Path=/uploads` ga tegishli.
+app.Use(async (context, next) =>
+{
+    if (context.User.Identity?.IsAuthenticated == true) uploadsGuard.IssueCookie(context);
+    await next();
+});
+
 app.UseAuthorization();
 app.UseRateLimiter();
 // OutputCache middleware — tayyor turadi, lekin [OutputCache] faqat ochiq endpointlarga qo'yiladi
