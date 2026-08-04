@@ -44,6 +44,8 @@ import { ReasonPromptModal } from '@/components/ui/ReasonPromptModal'
 import { CallPickerModal, type CallOption } from '@/components/CallPickerModal'
 
 type BalanceFilter = 'all' | 'debt' | 'paid'
+/** Surat filtri — rasmi bor / rasmi yo'q o'quvchilarni ajratish uchun. */
+type PhotoFilter = 'all' | 'with' | 'without'
 type Tab = 'active' | 'archived'
 type SortOption = 'default' | 'ball-desc' | 'ball-asc'
 
@@ -116,6 +118,7 @@ export function StudentsPage() {
   const [activeFilter, setActiveFilter] = usePersistentState<'all' | 'active' | 'inactive'>('students.activeFilter', 'all')
   const [districtFilter, setDistrictFilter] = usePersistentState('students.districtFilter', 'all')
   const [schoolFilter, setSchoolFilter] = usePersistentState('students.schoolFilter', 'all')
+  const [photoFilter, setPhotoFilter] = usePersistentState<PhotoFilter>('students.photoFilter', 'all')
   /** "Bugun tug'ilgan kun" filtri — yil hisobga olinmasdan oy/kun bo'yicha solishtiriladi. */
   const [birthdayToday, setBirthdayToday] = usePersistentState('students.birthdayToday', false)
   const [sort, setSort] = usePersistentState<SortOption>('students.sort', 'default')
@@ -247,7 +250,11 @@ export function StudentsPage() {
     const matchDistrict = districtFilter === 'all' || s.districtId === districtFilter
     const matchSchool = schoolFilter === 'all' || s.schoolId === schoolFilter
     const matchBirthday = !birthdayToday || (s.birthDate && s.birthDate.slice(5, 10) === todayMonthDay)
-    return matchSearch && matchClass && matchTeacher && matchGender && matchBalance && matchActive && matchDistrict && matchSchool && matchBirthday
+    // Surat: birthCertificateUrl — o'quvchi rasmi (nomi eski, .claude qoidalariga qarang).
+    const hasPhoto = !!(s.birthCertificateUrl && s.birthCertificateUrl.trim())
+    const matchPhoto =
+      photoFilter === 'all' || (photoFilter === 'with' ? hasPhoto : !hasPhoto)
+    return matchSearch && matchClass && matchTeacher && matchGender && matchBalance && matchActive && matchDistrict && matchSchool && matchBirthday && matchPhoto
   })
     .sort((a, b) => {
       if (sort === 'ball-desc' || sort === 'ball-asc') {
@@ -272,7 +279,7 @@ export function StudentsPage() {
   // qidirib bir o'quvchini belgilab, keyin boshqasini qidirib belgilay olishi uchun.
   useEffect(() => {
     setPage(1)
-  }, [search, classFilter, teacherFilter, genderFilter, balanceFilter, activeFilter, districtFilter, schoolFilter, birthdayToday, sort, tab, pageSize])
+  }, [search, classFilter, teacherFilter, genderFilter, balanceFilter, activeFilter, districtFilter, schoolFilter, photoFilter, birthdayToday, sort, tab, pageSize])
   // Faqat tab (faol/arxiv/hammasi) almashganda tanlovni tozalaymiz — bu boshqa ro'yxat.
   useEffect(() => {
     setSelected(new Set())
@@ -323,6 +330,7 @@ export function StudentsPage() {
     activeFilter !== 'all' ||
     districtFilter !== 'all' ||
     schoolFilter !== 'all' ||
+    photoFilter !== 'all' ||
     birthdayToday ||
     sort !== 'default'
   const clearFilters = () => {
@@ -334,6 +342,7 @@ export function StudentsPage() {
     setActiveFilter('all')
     setDistrictFilter('all')
     setSchoolFilter('all')
+    setPhotoFilter('all')
     setBirthdayToday(false)
     setSort('default')
   }
@@ -747,6 +756,16 @@ export function StudentsPage() {
               </option>
             ))}
           </select>
+          <select
+            value={photoFilter}
+            onChange={(e) => setPhotoFilter(e.target.value as PhotoFilter)}
+            className={control}
+            title="O'quvchi surati bo'yicha filtr"
+          >
+            <option value="all">Barcha suratlar</option>
+            <option value="with">Rasmi bor</option>
+            <option value="without">Rasmi yo'q</option>
+          </select>
           <button
             type="button"
             onClick={() => setBirthdayToday((v) => !v)}
@@ -900,9 +919,19 @@ export function StudentsPage() {
                     <td className="font-mono text-slate-400">{(pageClamped - 1) * pageSize + i + 1}</td>
                     <td>
                       <div className="cell-user">
-                        <div className="avatar" style={{ background: avatarColor(s.fullName) }}>
-                          {initials(s.fullName)}
-                        </div>
+                        {/* Rasm bo'lsa — o'quvchi surati, bo'lmasa harflardan yasalgan avatar. */}
+                        {s.birthCertificateUrl ? (
+                          <img
+                            src={s.birthCertificateUrl}
+                            alt=""
+                            loading="lazy"
+                            className="avatar avatar-lg object-cover"
+                          />
+                        ) : (
+                          <div className="avatar avatar-lg" style={{ background: avatarColor(s.fullName) }}>
+                            {initials(s.fullName)}
+                          </div>
+                        )}
                         <div className="meta">
                           <strong>
                             <Link

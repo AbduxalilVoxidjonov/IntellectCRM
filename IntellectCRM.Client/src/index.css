@@ -722,6 +722,13 @@ body {
   color: #fff;
   flex-shrink: 0;
 }
+/* Ro'yxatda haqiqiy surat ko'rsatiladigan joylar uchun kattaroq avatar
+   (o'quvchilar ro'yxati) — 28px da rasm juda mayda ko'rinadi. */
+.cell-user .avatar.avatar-lg {
+  width: 36px;
+  height: 36px;
+  font-size: 12.5px;
+}
 .cell-user .meta {
   display: flex;
   flex-direction: column;

@@ -692,7 +692,9 @@ export function StudentDetailPage() {
                 disabled={!canEditPhoto}
                 title={canEditPhoto ? (data.photoUrl ? 'Rasmni almashtirish' : 'Rasm qo\'shish') : undefined}
                 className={cn(
-                  'group relative flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-full bg-brand-50 text-3xl font-semibold text-brand-600',
+                  // Rasm oynani ochmasdan ham bemalol ko'rinishi uchun katta o'lcham
+                  // (mobilda 128px, kengroq ekranda 176px).
+                  'group relative flex h-32 w-32 shrink-0 items-center justify-center overflow-hidden rounded-full bg-brand-50 text-4xl font-semibold text-brand-600 ring-1 ring-slate-200 sm:h-44 sm:w-44 sm:text-5xl',
                   canEditPhoto && 'cursor-pointer ring-offset-2 transition hover:ring-2 hover:ring-brand-300',
                 )}
               >
@@ -708,7 +710,7 @@ export function StudentDetailPage() {
                       data.photoUrl ? 'opacity-0 group-hover:opacity-100' : 'opacity-0 group-hover:opacity-100',
                     )}
                   >
-                    <Camera className="h-6 w-6" />
+                    <Camera className="h-7 w-7" />
                   </span>
                 )}
               </button>
