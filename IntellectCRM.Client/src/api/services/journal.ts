@@ -73,6 +73,10 @@ export interface GroupJournalStudent {
   paymentHidden: boolean
   /** Yashirish sababi — `paymentHidden` true bo'lganda to'ldiriladi. */
   paymentHiddenReason: PaymentHiddenReason
+  /** O'quvchining profil surati ("/uploads/..."), yuklanmagan bo'lsa bo'sh satr. Jurnalda F.I.SH
+   *  ustiga bosilganda ochiladi — o'qituvchi o'quvchini yuzidan tanishi uchun. Eski javoblarda
+   *  bo'lmasligi mumkin (shuning uchun ixtiyoriy). */
+  photoUrl?: string
 }
 /** Bitta darsning bir martalik boshqa kunga ko'chirilishi (shu oyga tegishli). */
 export interface LessonReschedule {

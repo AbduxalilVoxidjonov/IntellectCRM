@@ -4,7 +4,7 @@ import {
   ArrowLeft, Users, BookOpen, User,
   CalendarDays, Clock, MapPin, CheckCircle2,
   ListChecks, ChevronRight, ChevronDown, Plus, Minus, Repeat, CalendarClock, Flag,
-  TrendingUp, RotateCcw, ClipboardCheck,
+  TrendingUp, RotateCcw, ClipboardCheck, ImageIcon,
 } from 'lucide-react'
 import type { AbsenceReason } from '@/types'
 import {
@@ -21,6 +21,7 @@ import { GradingSection } from '@/components/grading/GradingSection'
 import type { GradingBoard } from "@/api/services/grading"
 import { Loader } from '@/components/ui/Loader'
 import { Modal } from '@/components/ui/Modal'
+import { PhotoViewerModal } from '@/components/ui/PhotoViewerModal'
 import { Button } from '@/components/ui/Button'
 import { JournalCellModal } from '@/pages/admin/journal/JournalCellModal'
 import { TeacherGroupTestsPanel } from '@/pages/teacher/tests/TeacherGroupTestsPanel'
@@ -57,6 +58,8 @@ export function TeacherGroupDetailPage() {
   const [reasons, setReasons] = useState<AbsenceReason[]>([])
   const [loading, setLoading] = useState(true)
   const [cell, setCell] = useState<{ studentId: string; studentName: string; date: string } | null>(null)
+  /** Jurnalda F.I.SH bosilganda ochiladigan rasm oynasi (o'quvchini yuzidan tanish uchun). */
+  const [photoOf, setPhotoOf] = useState<{ fullName: string; photoUrl: string } | null>(null)
   /** JournalCellModal saqlash/tozalash xatoligi — banner sifatida modal ichida ko'rsatiladi. */
   const [cellError, setCellError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -198,7 +201,7 @@ export function TeacherGroupDetailPage() {
       }
       const present = total - absences
       const percent = total > 0 ? Math.round((present / total) * 100) : 0
-      return { studentId: st.studentId, fullName: st.fullName, balance: st.balance, debtMonths: st.debtMonths, total, present, absences, percent }
+      return { studentId: st.studentId, fullName: st.fullName, photoUrl: st.photoUrl ?? '', balance: st.balance, debtMonths: st.debtMonths, total, present, absences, percent }
     })
   }, [journalStudents, journal, entryMap, lateReasonIds])
 
@@ -558,15 +561,24 @@ export function TeacherGroupDetailPage() {
                                 Rang: 2+ oylik qarz binafsha-pushti (eng og'ir, qizildan USTUN), qarzdor
                                 (balance<0) qizil, to'lagan yashil — admin ro'yxati bilan bir xil.
                                 MUHIM: balance/debtMonths — SHU GURUH bo'yicha (boshqa guruhdagi qarz bu yerni qizil qilmaydi). */}
-                            <span
+                            {/* F.I.SH bosilsa — o'quvchining rasmi ochiladi (jurnaldan chiqmasdan).
+                                Rasmi borlarda ism yonida kichik ikonka turadi. */}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setPhotoOf({ fullName: st.fullName, photoUrl: st.photoUrl ?? '' })
+                              }
                               className={cn(
-                                'block w-32 whitespace-normal break-words text-sm font-medium leading-snug',
+                                'block w-32 whitespace-normal break-words text-left text-sm font-medium leading-snug hover:underline',
                                 balanceTextCls(st.balance, st.debtMonths),
                               )}
-                              title={balanceTitle(st.balance, st.debtMonths)}
+                              title={`${balanceTitle(st.balance, st.debtMonths)} — rasmni ko'rish uchun bosing`}
                             >
                               {st.fullName}
-                            </span>
+                              {st.photoUrl && (
+                                <ImageIcon className="ml-1 inline-block h-3 w-3 shrink-0 align-[-1px] opacity-50" />
+                              )}
+                            </button>
                           </td>
                           {journal!.columns.map((c) => {
                             const e = entryMap.get(`${st.studentId}|${c.date}`)
@@ -685,14 +697,22 @@ export function TeacherGroupDetailPage() {
                           <td className="w-8 px-2 py-3 text-center">
                             <span className="text-xs font-medium text-mute">{idx + 1}</span>
                           </td>
-                          <td
-                            className={cn(
-                              'px-4 py-3 text-sm font-medium',
-                              balanceTextCls(r.balance, r.debtMonths),
-                            )}
-                            title={balanceTitle(r.balance, r.debtMonths)}
-                          >
-                            {r.fullName}
+                          <td className="px-4 py-3">
+                            {/* Jurnal tabidagi kabi — ism bosilsa rasm ochiladi. */}
+                            <button
+                              type="button"
+                              onClick={() => setPhotoOf({ fullName: r.fullName, photoUrl: r.photoUrl })}
+                              className={cn(
+                                'text-left text-sm font-medium hover:underline',
+                                balanceTextCls(r.balance, r.debtMonths),
+                              )}
+                              title={`${balanceTitle(r.balance, r.debtMonths)} — rasmni ko'rish uchun bosing`}
+                            >
+                              {r.fullName}
+                              {r.photoUrl && (
+                                <ImageIcon className="ml-1 inline-block h-3 w-3 shrink-0 align-[-1px] opacity-50" />
+                              )}
+                            </button>
                           </td>
                           <td className="px-3 py-3 text-center font-mono text-sm text-mute">{r.total}</td>
                           <td className="px-3 py-3 text-center font-mono text-sm font-semibold text-emerald-600">
@@ -777,6 +797,14 @@ export function TeacherGroupDetailPage() {
         }}
         onSave={handleSave}
         onClear={handleClear}
+      />
+
+      {/* F.I.SH bosilganda — o'quvchining rasmi (telefon/kompyuterga moslashadi) */}
+      <PhotoViewerModal
+        open={!!photoOf}
+        onClose={() => setPhotoOf(null)}
+        url={photoOf?.photoUrl}
+        title={photoOf?.fullName}
       />
 
       {/* Sarlavha sanasi bosilganda — shu kun uchun hammaga birdan davomat */}

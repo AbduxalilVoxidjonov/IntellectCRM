@@ -65,7 +65,7 @@ public static class JournalService
                     m.StudentId, st.FullName, m.Status ?? "trial", m.ActivatedAt ?? "",
                     bal.Balance,
                     MemberStart(m) ?? "", m.RecordedAt ?? "", m.FrozenAt ?? "", bal.DebtMonths,
-                    payHidden, payReason);
+                    payHidden, payReason, st.BirthCertificateUrl ?? "");
             })
             .OrderBy(s => s.FullName, StringComparer.OrdinalIgnoreCase)
             .ToList();

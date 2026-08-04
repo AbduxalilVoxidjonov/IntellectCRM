@@ -712,10 +712,13 @@ public record GroupJournalInfoDto(
 /// <summary><c>PaymentHidden</c>: to'lov "darvozasi" (<see cref="JournalPolicyDto"/>) bo'yicha bu o'quvchi
 /// O'QITUVCHI jurnalida KO'RINMASLIGI kerak (<c>PaymentHiddenReason</c>: "prevMonth" | "cutoff").
 /// ADMIN jurnalida qator baribir qaytariladi — admin hammani ko'radi, bu faqat bayroq.</summary>
+/// <summary><c>PhotoUrl</c>: o'quvchining profil surati ("/uploads/..."), bo'lmasa bo'sh satr.
+/// Manba — <c>Student.BirthCertificateUrl</c> (nomi eski, qarang: Entities.cs). Jurnalda F.I.SH ustiga
+/// bosilganda o'qituvchi o'quvchini yuzidan taniy olishi uchun kerak.</summary>
 public record GroupJournalStudentDto(
     string StudentId, string FullName, string Status, string ActivatedAt, decimal Balance, string MemberStart,
     string PresentDefaultFrom, string FrozenAt, int DebtMonths = 0,
-    bool PaymentHidden = false, string PaymentHiddenReason = "");
+    bool PaymentHidden = false, string PaymentHiddenReason = "", string PhotoUrl = "");
 /// <summary>Guruhning bitta oylik jurnali: ustunlar guruh dars kunlari bo'yicha avtomatik, qatorlar — faol o'quvchilar.
 /// <see cref="ConductedDates"/> — "o'tildi" deb belgilangan dars sanalari (sababsiz o'quvchi shu kunda KELDI = yashil).</summary>
 public record GroupJournalDto(
