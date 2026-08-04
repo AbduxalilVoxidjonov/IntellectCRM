@@ -313,6 +313,9 @@ builder.Services.AddScoped<IntellectCRM.Application.Services.CertificateService>
 // Konvertor holatsiz (stateless) va o'zi navbatlaydi — Singleton yetarli.
 builder.Services.AddSingleton<IntellectCRM.Application.Services.DocxToPdfConverter>();
 builder.Services.AddScoped<IntellectCRM.Application.Services.TestCertificateService>();
+// Generatsiya FON ishi + uning holati. Holat xotirada va so'rovlar oralig'ida yashashi kerak —
+// shuning uchun Singleton (o'zi kerakli joyda scope ochadi).
+builder.Services.AddSingleton<IntellectCRM.Application.Services.TestCertificateJobs>();
 
 // Turniket/FaceID integratsiyasi — o'qituvchilar davomatini avtomatik yuklash
 builder.Services.AddScoped<IntellectCRM.Application.Services.TurnstileService>();

@@ -170,24 +170,61 @@ public class TestCertificateService(IHostEnvironment env, DocxToPdfConverter pdf
     // =============================================================================================
 
     /// <summary>
-    /// Test bo'yicha BALL KIRITILGAN barcha o'quvchiga sertifikat yaratadi (mavjudi yangilanadi).
+    /// BO'LAK O'LCHAMI — bitta LibreOffice chaqiruvida nechta sertifikat chizilishi.
+    ///
+    /// <para>LibreOffice narxi FAYLGA emas, <b>jarayonni ochishga</b>: sovuq start ~2-4 s va
+    /// ~150-200 MB, bitta hujjatni chizish esa ~0.5-1 s. Uchta yo'l bor edi:</para>
+    /// <list type="bullet">
+    ///   <item>hammasi BITTA chaqiruvda — jami eng tez (start bir marta), lekin xotira cho'qqisi
+    ///   eng baland va natija faqat oxirida ko'rinadi;</item>
+    ///   <item>bittalab — xotira eng past, lekin start har safar to'lanadi (30 kishida ~110 s);</item>
+    ///   <item><b>bo'laklab (tanlangan yo'l)</b> — 30 kishida start 6 marta (~40 s), xotira cho'qqisi
+    ///   ~2 barobar past va har bo'lakdan keyin yozuvlar bazaga tushgani uchun foydalanuvchi tayyor
+    ///   sertifikatlarni DARHOL yuklab ola boshlaydi.</item>
+    /// </list>
+    /// 1 GB RAM li serverda xotira cho'qqisi jami vaqtdan muhimroq — shu sabab bo'laklab ishlanadi.
     /// </summary>
-    /// <returns>Yaratilgan sertifikatlar; xato bo'lsa <c>Error</c> to'ldiriladi va ro'yxat bo'sh.</returns>
-    public async Task<(List<TestCertificateDto> Items, string? Error)> GenerateForTestAsync(
-        IAppDbContext db, string testId, string actor, CancellationToken ct = default)
+    public const int ChunkSize = 5;
+
+    /// <summary>
+    /// SERTIFIKAT RAQAMI NAVBATI — bir vaqtda faqat BITTA bo'lak raqam oladi va saqlaydi.
+    /// Raqam bazadagi eng kattasidan keyingisi bo'lgani uchun, qulfsiz holda ikkita parallel
+    /// generatsiya bir xil raqamni ikki xil o'quvchiga berib yuborardi.
+    /// </summary>
+    private static readonly SemaphoreSlim NumberGate = new(1, 1);
+
+    /// <summary>Bitta o'quvchi haqida sertifikat uchun kerak bo'ladigan ma'lumot.</summary>
+    private sealed record StudentInfo(string FullName, string? PhotoUrl);
+
+    /// <summary>
+    /// Generatsiya REJASI — tekshiruvlar o'tgan va hamma ma'lumot yig'ilgan holat.
+    /// Bu yerda hali BIRORTA Word fayl to'ldirilmaydi (ya'ni arzon): shuning uchun uni so'rov ichida
+    /// chaqirib, "nechta sertifikat chiqadi va xato bormi" degan savolga darhol javob berish mumkin.
+    /// </summary>
+    private sealed record Plan(
+        TestResult Test, TestCertificateTemplate Template, byte[] TemplateBytes,
+        string GroupName, string CourseName, string TeacherName,
+        List<TestScore> Eligible, Dictionary<string, StudentInfo> Students,
+        Dictionary<string, int> RankOf, List<TestCertificate> Existing);
+
+    /// <summary>Tekshiruvlar + ma'lumot yig'ish. Word fayllar TO'LDIRILMAYDI (qarang: <see cref="Plan"/>).</summary>
+    /// <param name="needTemplateBytes">Faqat "nechta chiqadi" so'ralganda <c>false</c> — shablon fayli
+    /// bir necha MB bo'lishi mumkin, uni bekorga o'qib tashlash shart emas.</param>
+    private async Task<(Plan? Plan, string? Error)> PrepareAsync(
+        IAppDbContext db, string testId, CancellationToken ct, bool needTemplateBytes = true)
     {
         var test = await db.TestResults.FirstOrDefaultAsync(t => t.Id == testId, ct);
-        if (test is null) return ([], "Test topilmadi");
+        if (test is null) return (null, "Test topilmadi");
         if (!test.CertificateEnabled)
-            return ([], "Bu testda sertifikat berish yoqilmagan (test sozlamasidagi ptichkani belgilang)");
+            return (null, "Bu testda sertifikat berish yoqilmagan (test sozlamasidagi ptichkani belgilang)");
 
         var template = await ResolveTemplateAsync(db, test.CertificateTemplateId, ct);
         if (template is null)
-            return ([], "Sertifikat shabloni topilmadi. \"Testlar natijalari → Sertifikat shablonlari\" bo'limida Word shablon yuklang.");
+            return (null, "Sertifikat shabloni topilmadi. \"Testlar natijalari → Sertifikat shablonlari\" bo'limida Word shablon yuklang.");
         var templatePath = ResolveUpload(template.FileUrl);
         if (templatePath is null)
-            return ([], $"\"{template.Name}\" shablonining fayli topilmadi (qayta yuklang)");
-        var templateBytes = await File.ReadAllBytesAsync(templatePath, ct);
+            return (null, $"\"{template.Name}\" shablonining fayli topilmadi (qayta yuklang)");
+        var templateBytes = needTemplateBytes ? await File.ReadAllBytesAsync(templatePath, ct) : [];
 
         var group = await db.Classes.AsNoTracking().FirstOrDefaultAsync(c => c.Id == test.GroupId, ct);
         var courseName = group is null || string.IsNullOrEmpty(group.CourseId)
@@ -201,7 +238,7 @@ public class TestCertificateService(IHostEnvironment env, DocxToPdfConverter pdf
         var scores = await db.TestScores.AsNoTracking()
             .Where(s => s.TestResultId == testId)
             .ToListAsync(ct);
-        if (scores.Count == 0) return ([], "Hali birorta ball kiritilmagan");
+        if (scores.Count == 0) return (null, "Hali birorta ball kiritilmagan");
 
         var studentIds = scores.Select(s => s.StudentId).Distinct().ToList();
         // Surat ham olinadi: andozada rasm o'rni bo'lsa uning ichiga qo'yiladi.
@@ -209,9 +246,11 @@ public class TestCertificateService(IHostEnvironment env, DocxToPdfConverter pdf
         var students = await db.Students.AsNoTracking()
             .Where(s => studentIds.Contains(s.Id))
             .Select(s => new { s.Id, s.FullName, PhotoUrl = s.BirthCertificateUrl })
-            .ToDictionaryAsync(s => s.Id, s => s, ct);
+            .ToDictionaryAsync(s => s.Id, s => new StudentInfo(s.FullName, s.PhotoUrl), ct);
 
         // O'RIN — test tafsilotidagi bilan bir xil qoida (teng ball = teng o'rin, keyingisi tashlab ketiladi).
+        // DIQQAT: o'rin BARCHA ballar bo'yicha sanaladi — o'chirilgan o'quvchi ham qatorda turadi,
+        // aks holda sertifikat o'rni test tafsilotidagidan farq qilardi.
         var ordered = scores.OrderByDescending(s => s.Score).ToList();
         var rankOf = new Dictionary<string, int>();
         decimal? prev = null;
@@ -223,66 +262,143 @@ public class TestCertificateService(IHostEnvironment env, DocxToPdfConverter pdf
             prev = ordered[i].Score;
         }
 
-        var existing = await db.TestCertificates.Where(c => c.TestResultId == testId).ToListAsync(ct);
-        var seq = await NextNumberSeedAsync(db, ct);
-        var result = new List<TestCertificate>();
+        // O'chirilgan (yoki topilmagan) o'quvchiga sertifikat berilmaydi — ism bo'lmasa nima yozamiz.
+        var eligible = ordered
+            .Where(s => (students.GetValueOrDefault(s.StudentId)?.FullName ?? "").Length > 0)
+            .ToList();
+        if (eligible.Count == 0) return (null, "Hali birorta ball kiritilmagan");
 
-        // ---- 1-BOSQICH: barcha Word fayllarni to'ldiramiz (xotirada, tez) ----
-        // Konvertatsiya bu yerda QILINMAYDI: LibreOffice keyin BITTA marta, hamma fayl bilan
-        // chaqiriladi (sovuq ishga tushish ~2-4s va ~200MB — uni har o'quvchi uchun to'lash
-        // 1GB RAM li serverda ham sekin, ham xavfli).
-        var pending = new List<(TestScore Score, string FullName, int Percent, string Number, byte[] Docx)>();
-        foreach (var s in ordered)
+        var existing = await db.TestCertificates.Where(c => c.TestResultId == testId).ToListAsync(ct);
+
+        return (new Plan(test, template, templateBytes, group?.Name ?? "", courseName, teacherName,
+            eligible, students, rankOf, existing), null);
+    }
+
+    /// <summary>
+    /// Nechta sertifikat chiqishini OLDINDAN aytadi (hech narsa yaratmaydi) — fon ishini boshlashdan
+    /// oldin tekshirish uchun: xato bo'lsa foydalanuvchi darhol ko'radi, UI esa "0/N" ni biladi.
+    /// </summary>
+    public async Task<(int Total, string? Error)> ExpectedCountAsync(
+        IAppDbContext db, string testId, CancellationToken ct = default)
+    {
+        var (plan, error) = await PrepareAsync(db, testId, ct, needTemplateBytes: false);
+        return plan is null ? (0, error) : (plan.Eligible.Count, null);
+    }
+
+    /// <summary>
+    /// Test bo'yicha BALL KIRITILGAN barcha o'quvchiga sertifikat yaratadi (mavjudi yangilanadi).
+    ///
+    /// <para><b>BO'LAKLAB ishlaydi</b> (<see cref="ChunkSize"/>): har bo'lak alohida LibreOffice
+    /// chaqiruvida chiziladi va darhol bazaga yoziladi. Ya'ni ish tugashini kutmasdan ham tayyor
+    /// sertifikatlar ro'yxatda ko'rinaveradi, xotirada esa bir vaqtda faqat bitta bo'lakning
+    /// fayllari turadi.</para>
+    /// </summary>
+    /// <param name="onProgress">Har bo'lakdan keyin — jami nechtasi tayyor bo'lgani.</param>
+    /// <returns>Yaratilgan sertifikatlar; xato bo'lsa <c>Error</c> to'ldiriladi va ro'yxat bo'sh.</returns>
+    public async Task<(List<TestCertificateDto> Items, string? Error)> GenerateForTestAsync(
+        IAppDbContext db, string testId, string actor, CancellationToken ct = default,
+        Action<int>? onProgress = null)
+    {
+        var (plan, error) = await PrepareAsync(db, testId, ct);
+        if (plan is null) return ([], error);
+
+        var result = new List<TestCertificate>();
+        var done = 0;
+
+        foreach (var chunk in plan.Eligible.Chunk(ChunkSize))
         {
             ct.ThrowIfCancellationRequested();
-            var student = students.GetValueOrDefault(s.StudentId);
-            var fullName = student?.FullName ?? "";
-            if (fullName.Length == 0) continue;   // o'quvchi o'chirilgan — sertifikat berilmaydi
 
-            var percent = test.MaxScore > 0 ? (int)Math.Round(s.Score / test.MaxScore * 100m) : 0;
-            var row = existing.FirstOrDefault(c => c.StudentId == s.StudentId);
-            var number = row?.Number is { Length: > 0 } n ? n : $"SRT-{AppClock.Today:yyyy}-{seq++:D4}";
+            // RAQAM NAVBATI — butun bo'lak shu qulf ostida bajariladi.
+            // Sabab: raqam (`SRT-yyyy-NNNN`) bazadagi ENG KATTA raqamdan keyingisi bo'lib beriladi.
+            // Agar ikkita test bir vaqtda yaratilsa, ikkalasi ham bir xil "eng katta"ni ko'rib,
+            // BIR XIL raqamli sertifikat chiqarardi. Qulf raqam berish → yozib qo'yish oralig'ini
+            // bo'linmas qiladi. Ilova bitta nusxada ishlagani uchun bu yetarli.
+            // Og'ir qism (LibreOffice) allaqachon o'z navbati bilan ketardi, shuning uchun bu
+            // qulf sezilarli sekinlik qo'shmaydi.
+            await NumberGate.WaitAsync(ct);
+            try
+            {
+                result.AddRange(await ProcessChunkAsync(db, plan, chunk, testId, actor, ct));
+            }
+            finally
+            {
+                NumberGate.Release();
+            }
+
+            done += chunk.Length;
+            onProgress?.Invoke(done);
+        }
+
+        return (result.Select(ToDto).ToList(), null);
+    }
+
+    /// <summary>
+    /// BITTA BO'LAK: Word to'ldirish → PDF → fayl → yozuv → saqlash.
+    /// <see cref="NumberGate"/> ostida chaqiriladi (raqam berish bo'linmas bo'lishi uchun).
+    /// </summary>
+    private async Task<List<TestCertificate>> ProcessChunkAsync(
+        IAppDbContext db, Plan plan, TestScore[] chunk, string testId, string actor, CancellationToken ct)
+    {
+        // Seed HAR BO'LAKDA qaytadan o'qiladi: shu qulf ichida bazadagi eng katta raqam
+        // haqiqatan ham eng oxirgisi bo'ladi.
+        var seq = await NextNumberSeedAsync(db, ct);
+
+        // ---- 1-BOSQICH: SHU BO'LAKNING Word fayllari (xotirada faqat shuncha turadi) ----
+        var built = new List<(TestScore Score, string FullName, int Percent, string Number, byte[] Docx)>();
+        foreach (var s in chunk)
+        {
+            var student = plan.Students.GetValueOrDefault(s.StudentId);
+            var fullName = student?.FullName ?? "";
+            var percent = plan.Test.MaxScore > 0
+                ? (int)Math.Round(s.Score / plan.Test.MaxScore * 100m) : 0;
+            var prevRow = plan.Existing.FirstOrDefault(c => c.StudentId == s.StudentId);
+            var number = prevRow?.Number is { Length: > 0 } n
+                ? n : $"SRT-{AppClock.Today:yyyy}-{seq++:D4}";
 
             var tokens = new Dictionary<string, string>
             {
                 ["@fish"] = fullName,
-                ["@guruh"] = group?.Name ?? "",
-                ["@kurs"] = courseName,
-                ["@oqituvchi"] = teacherName,
-                ["@test"] = test.Name,
+                ["@guruh"] = plan.GroupName,
+                ["@kurs"] = plan.CourseName,
+                ["@oqituvchi"] = plan.TeacherName,
+                ["@test"] = plan.Test.Name,
                 ["@ball"] = Num(s.Score),
-                ["@maksball"] = Num(test.MaxScore),
+                ["@maksball"] = Num(plan.Test.MaxScore),
                 ["@foiz"] = percent.ToString(),
-                ["@orin"] = rankOf.GetValueOrDefault(s.StudentId, 0).ToString(),
-                ["@sana"] = FormatDate(test.Date),
+                ["@orin"] = plan.RankOf.GetValueOrDefault(s.StudentId, 0).ToString(),
+                ["@sana"] = FormatDate(plan.Test.Date),
                 ["@bugun"] = AppClock.Today.ToString("dd.MM.yyyy"),
                 ["@raqam"] = number,
             };
 
-            var docx = DocxTemplate.Fill(templateBytes, tokens);
+            var docx = DocxTemplate.Fill(plan.TemplateBytes, tokens);
             // O'quvchining surati: andozadagi `@rasm` belgisiga yoki Word'dagi rasm o'rniga.
             // HAR DOIM chaqiriladi — surat bo'lmasa ham, aks holda sertifikatda "@rasm" yozuvi
             // qolib ketardi (`Fill` noma'lum belgini ataylab tegmasdan qoldiradi).
             var photo = ReadPhoto(student?.PhotoUrl);
             docx = DocxTemplate.ApplyPhoto(docx, photo?.Bytes, photo?.Extension);
 
-            pending.Add((s, fullName, percent, number, docx));
+            built.Add((s, fullName, percent, number, docx));
         }
-        if (pending.Count == 0) return ([], "Hali birorta ball kiritilmagan");
 
-        // ---- 2-BOSQICH: HAMMASI bitta LibreOffice chaqiruvida PDF ga ----
+        // ---- 2-BOSQICH: bo'lak BITTA LibreOffice chaqiruvida PDF ga ----
         // Konvertor yo'q bo'lsa massiv null'lar bilan qaytadi — sertifikatlar .docx bo'lib saqlanadi.
-        var pdfs = await pdf.ConvertManyAsync(pending.Select(p => p.Docx).ToList(), ct);
+        var pdfs = await pdf.ConvertManyAsync(built.Select(b => b.Docx).ToList(), ct);
 
-        // ---- 3-BOSQICH: fayllarni yozib, yozuvlarni yangilaymiz ----
-        for (var i = 0; i < pending.Count; i++)
+        // ---- 3-BOSQICH: yangi fayllarni yozib, yozuvlarni yangilaymiz ----
+        var rows = new List<TestCertificate>();
+        var stale = new List<string>();     // eski fayllar — SaqlanGANDAN keyin o'chiriladi
+        for (var i = 0; i < built.Count; i++)
         {
-            var (s, fullName, percent, number, docx) = pending[i];
+            var (s, fullName, percent, number, docx) = built[i];
             var pdfBytes = pdfs[i];
-            var row = existing.FirstOrDefault(c => c.StudentId == s.StudentId);
+            var row = plan.Existing.FirstOrDefault(c => c.StudentId == s.StudentId);
 
-            // Qayta yaratishda eski fayllar o'chiriladi (ombor shishmasin).
-            if (row is not null) { DeleteCertFile(row.DocxUrl); DeleteCertFile(row.PdfUrl); }
+            // Qayta yaratishda eski fayllar keraksiz bo'ladi (ombor shishmasin), lekin ular
+            // HOZIR o'chirilmaydi: SaveChanges uzilib qolsa (disk to'ldi, deploy) bazadagi eski
+            // manzil mavjud bo'lmagan faylga ishora qilib qolardi — «Yuklab olish» 404 berardi.
+            if (row is not null) { stale.Add(row.DocxUrl); stale.Add(row.PdfUrl); }
 
             var baseName = $"cert-{Guid.NewGuid():N}";
             var docxUrl = await SaveCertFileAsync(baseName + ".docx", docx, ct);
@@ -292,25 +408,28 @@ public class TestCertificateService(IHostEnvironment env, DocxToPdfConverter pdf
             {
                 row = new TestCertificate { TestResultId = testId, StudentId = s.StudentId };
                 db.TestCertificates.Add(row);
-                existing.Add(row);
+                plan.Existing.Add(row);
             }
             row.StudentName = fullName;
-            row.TemplateId = template.Id;
-            row.TemplateName = template.Name;
+            row.TemplateId = plan.Template.Id;
+            row.TemplateName = plan.Template.Name;
             row.Number = number;
             row.DocxUrl = docxUrl;
             row.PdfUrl = pdfUrl;
             row.Status = pdfBytes is null ? StatusDocxOnly : StatusReady;
             row.Score = s.Score;
-            row.MaxScore = test.MaxScore;
+            row.MaxScore = plan.Test.MaxScore;
             row.Percent = percent;
             row.IssuedAt = AppClock.Now;
             row.CreatedBy = actor;
-            result.Add(row);
+            rows.Add(row);
         }
 
+        // Har BO'LAKDAN keyin saqlanadi — UI shu daqiqada tayyor bo'lganlarni ko'ra oladi.
         await db.SaveChangesAsync(ct);
-        return (result.Select(ToDto).ToList(), null);
+        // Endi yozuvlar yangi fayllarga ishora qiladi — eskilarini xavfsiz o'chirsa bo'ladi.
+        foreach (var old in stale) DeleteCertFile(old);
+        return rows;
     }
 
     /// <summary>Test bo'yicha berilgan sertifikatlar (o'rin bo'yicha emas — ball kamayishi bo'yicha).</summary>
@@ -398,8 +517,11 @@ public class TestCertificateService(IHostEnvironment env, DocxToPdfConverter pdf
     {
         if (!string.IsNullOrWhiteSpace(templateId))
         {
+            // `IsActive` SHART: admin shablonni "nofaol" qilgach (o'chirib bo'lmaydi — undan
+            // sertifikat berilgan bo'lsa tarix saqlanadi) u endi ishlatilmasligi kerak. Aks holda
+            // testda saqlanib qolgan eski id orqali nofaol andoza bilan sertifikat chiqaverardi.
             var chosen = await db.TestCertificateTemplates.AsNoTracking()
-                .FirstOrDefaultAsync(t => t.Id == templateId, ct);
+                .FirstOrDefaultAsync(t => t.Id == templateId && t.IsActive, ct);
             if (chosen is not null) return chosen;
         }
         // Tanlanmagan yoki o'chirilgan — standart, u ham bo'lmasa birinchi faol shablon.
@@ -409,17 +531,26 @@ public class TestCertificateService(IHostEnvironment env, DocxToPdfConverter pdf
             .FirstOrDefaultAsync(ct);
     }
 
-    /// <summary>Joriy yildagi keyingi tartib raqami (SRT-yyyy-NNNN).</summary>
+    /// <summary>
+    /// Joriy yildagi keyingi tartib raqami (SRT-yyyy-NNNN).
+    ///
+    /// <para>Saralash MATN bo'yicha emas, SON bo'yicha: matnda <c>"...-9999" &gt; "...-10000"</c>
+    /// bo'lgani uchun bir yilda 10 000 dan oshsa hisob yana 10000 dan boshlanib, raqamlar
+    /// takrorlanardi. Shuning uchun prefiksga mos raqamlar o'qilib, sonli maksimum olinadi
+    /// (yiliga bir necha ming qator — arzon).</para>
+    /// </summary>
     private static async Task<int> NextNumberSeedAsync(IAppDbContext db, CancellationToken ct)
     {
         var prefix = $"SRT-{AppClock.Today:yyyy}-";
-        var last = await db.TestCertificates.AsNoTracking()
+        var numbers = await db.TestCertificates.AsNoTracking()
             .Where(c => c.Number.StartsWith(prefix))
-            .OrderByDescending(c => c.Number)
             .Select(c => c.Number)
-            .FirstOrDefaultAsync(ct);
-        if (last is null) return 1;
-        return int.TryParse(last[prefix.Length..], out var n) ? n + 1 : 1;
+            .ToListAsync(ct);
+
+        var max = 0;
+        foreach (var s in numbers)
+            if (int.TryParse(s[prefix.Length..], out var n) && n > max) max = n;
+        return max + 1;
     }
 
     /// <summary>"1234.50" emas, "1234.5"/"1234" — sertifikatda ortiqcha nol chiqmasin.</summary>

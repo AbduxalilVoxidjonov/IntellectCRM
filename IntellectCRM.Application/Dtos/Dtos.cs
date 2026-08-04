@@ -553,10 +553,18 @@ public record TestCertificateDto(
     string Number, string TemplateName, string DocxUrl, string PdfUrl, string Status,
     decimal Score, decimal MaxScore, int Percent, string IssuedAt);
 
-/// <summary>Sertifikat yaratish natijasi. <c>PdfAvailable=false</c> bo'lsa serverda LibreOffice
-/// o'rnatilmagan — foydalanuvchiga aniq ogohlantirish ko'rsatiladi.</summary>
-public record GenerateTestCertificatesResultDto(
-    int Created, bool PdfAvailable, List<TestCertificateDto> Items, string? Warning = null);
+/// <summary>
+/// SERTIFIKAT YARATISH — fon ishining holati (boshlashda ham, keyingi so'rovlarda ham shu qaytadi).
+///
+/// <para><c>Running</c> — hali yaratilmoqda; <c>Done</c>/<c>Total</c> — nechtadan nechtasi tayyor
+/// (UI shuni "12/30" qilib ko'rsatadi va ZIP tugmasini faqat tugagach ochadi).
+/// <c>Items</c> — SHU DAQIQADA tayyor bo'lgan sertifikatlar: ish tugashini kutmasdan yuklab olinadi.
+/// <c>PdfAvailable=false</c> bo'lsa serverda LibreOffice o'rnatilmagan (<c>Warning</c> to'ldiriladi) —
+/// sertifikatlar faqat Word bo'lib chiqadi.</para>
+/// </summary>
+public record TestCertificateJobDto(
+    bool Running, int Total, int Done, bool PdfAvailable,
+    string? Error, string? Warning, List<TestCertificateDto> Items);
 /// <summary>O'quvchi profilidagi test natijasi qatori (barcha guruhlaridan, sana desc).</summary>
 public record StudentGroupTestDto(
     string TestId, string GroupId, string GroupName, string Name, string Date,

@@ -4,10 +4,12 @@ using DocumentFormat.OpenXml.Wordprocessing;
 using A = DocumentFormat.OpenXml.Drawing;
 using DW = DocumentFormat.OpenXml.Drawing.Wordprocessing;
 using PIC = DocumentFormat.OpenXml.Drawing.Pictures;
+using IntellectCRM.Application.Abstractions;
 using IntellectCRM.Application.Dtos;
 using IntellectCRM.Application.Services;
 using IntellectCRM.Domain;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -635,5 +637,177 @@ public class TestCertificateTests : IDisposable
         using var ms = new MemoryStream(zip!.Value.Bytes);
         using var archive = new System.IO.Compression.ZipArchive(ms, System.IO.Compression.ZipArchiveMode.Read);
         Assert.Equal(2, archive.Entries.Count);
+    }
+
+    // =============================================================================================
+    //  4) BO'LAKLAB YARATISH va FON ISHI
+    // =============================================================================================
+
+    /// <summary>Berilgan sonda o'quvchi + ball bilan test tayyorlaydi (bo'lak chegarasini sinash uchun).</summary>
+    private async Task<TestResult> SeedManyAsync(TestDb db, TestCertificateService svc, int studentCount)
+    {
+        var ctx = db.Context;
+        var group = new Group { Name = "Katta guruh" };
+        var test = new TestResult
+        {
+            GroupId = group.Id, Name = "Yakuniy", Date = "2026-08-04", MaxScore = 100,
+            CreatedAt = AppClock.Now.ToString("yyyy-MM-ddTHH:mm:ss"),
+            CertificateEnabled = true,
+        };
+        ctx.Classes.Add(group);
+        ctx.TestResults.Add(test);
+        for (var i = 0; i < studentCount; i++)
+        {
+            var s = new Student { FullName = $"O'quvchi {i:D2}" };
+            ctx.Students.Add(s);
+            // Ball har xil — o'rin hisoblanishi ham tabiiy bo'lsin.
+            ctx.TestScores.Add(new TestScore { TestResultId = test.Id, StudentId = s.Id, Score = 100 - i });
+        }
+        await ctx.SaveChangesAsync();
+
+        await svc.CreateTemplateAsync(ctx, new TestCertificateTemplatePayload(
+            "Standart", WriteTemplateFile(MakeDocx("@fish", "@ball")), "cert.docx"), "Admin");
+        return test;
+    }
+
+    [Fact]
+    public async Task Yaratish_BOLAKLABBajariladi_ProgressHarBolakdanKeyinKeladi()
+    {
+        // 12 o'quvchi, bo'lak 5 ta → 5 + 5 + 2. LibreOffice'ni har fayl uchun qayta ochish qimmat,
+        // hammasini birdan chizish esa 1 GB serverda xotirani to'ldiradi — shu sabab bo'laklab.
+        using var db = TestDb.Sqlite();
+        var svc = Service();
+        var test = await SeedManyAsync(db, svc, 12);
+
+        var progress = new List<int>();
+        var (items, err) = await svc.GenerateForTestAsync(
+            db.Context, test.Id, "Admin", onProgress: done => progress.Add(done));
+
+        Assert.Null(err);
+        Assert.Equal(12, items.Count);
+        Assert.Equal(TestCertificateService.ChunkSize, 5);   // hujjatlashtirilgan qiymat o'zgarmasin
+        Assert.Equal(new[] { 5, 10, 12 }, progress);
+    }
+
+    [Fact]
+    public async Task Yaratish_HarBolakdanKeyin_BAZAGAYoziladi()
+    {
+        // Eng muhim xossa: ish tugashini kutmasdan tayyor sertifikatlar ro'yxatda ko'rinishi kerak.
+        // Buning uchun har bo'lak o'z SaveChanges'i bilan yakunlanadi.
+        using var db = TestDb.Sqlite();
+        var svc = Service();
+        var test = await SeedManyAsync(db, svc, 12);
+
+        var seenInDb = new List<int>();
+        await svc.GenerateForTestAsync(db.Context, test.Id, "Admin",
+            onProgress: _ => seenInDb.Add(db.Context.TestCertificates.Count(c => c.TestResultId == test.Id)));
+
+        // Ya'ni birinchi bo'lak tugagach bazada ALLAQACHON 5 ta yozuv bor edi.
+        Assert.Equal(new[] { 5, 10, 12 }, seenInDb);
+    }
+
+    [Fact]
+    public async Task KutilganSoni_HechNarsaYARATMASDANAytadi()
+    {
+        using var db = TestDb.Sqlite();
+        var svc = Service();
+        var test = await SeedManyAsync(db, svc, 7);
+
+        var (total, err) = await svc.ExpectedCountAsync(db.Context, test.Id);
+
+        Assert.Null(err);
+        Assert.Equal(7, total);
+        // "Oldindan aytish" — yaratish EMAS: bazada hech narsa paydo bo'lmasligi kerak.
+        Assert.Equal(0, await db.Context.TestCertificates.CountAsync());
+    }
+
+    [Fact]
+    public async Task KutilganSoni_ShablonYOQBolsa_XatoQaytaradi()
+    {
+        using var db = TestDb.Sqlite();
+        var ctx = db.Context;
+        var test = new TestResult
+        {
+            GroupId = "g1", Name = "T", Date = "2026-08-04", MaxScore = 10, CertificateEnabled = true,
+        };
+        ctx.TestResults.Add(test);
+        ctx.SaveChanges();
+
+        var (total, err) = await Service().ExpectedCountAsync(ctx, test.Id);
+
+        Assert.Equal(0, total);
+        Assert.NotNull(err);
+    }
+
+    /// <summary>Fon ishi uchun eng kichik DI konteyneri (u scope'ni shu yerdan ochadi).</summary>
+    private static TestCertificateJobs Jobs(TestDb db, TestCertificateService svc)
+    {
+        var sp = new ServiceCollection()
+            .AddSingleton<IAppDbContext>(db.Context)
+            .AddSingleton(svc)
+            .BuildServiceProvider();
+        return new TestCertificateJobs(sp, NullLogger<TestCertificateJobs>.Instance);
+    }
+
+    [Fact]
+    public async Task FonIshi_DARHOLQaytadi_SoOngraTugaydi()
+    {
+        using var db = TestDb.Sqlite();
+        var svc = Service();
+        var jobs = Jobs(db, svc);
+        var (test, _, _) = await SeedTestAsync(db, svc);
+
+        var (job, err) = await jobs.StartAsync(db.Context, svc, test.Id, "Admin");
+
+        // Boshlash so'rovi kutmaydi: hali yaratilmagan bo'lsa ham javob qaytdi.
+        Assert.Null(err);
+        Assert.True(job.Running);
+        Assert.Equal(2, job.Total);
+
+        // Fon ishi tugashini kutamiz (cheklangan urinish — test osilib qolmasin).
+        for (var i = 0; i < 200 && jobs.Status(test.Id)?.Running == true; i++)
+            await Task.Delay(50);
+
+        var final = await jobs.StatusWithItemsAsync(db.Context, test.Id);
+        Assert.False(final.Running);
+        Assert.Null(final.Error);
+        Assert.Equal(2, final.Done);
+        Assert.Equal(2, final.Items.Count);
+    }
+
+    [Fact]
+    public async Task FonIshi_TekshiruvXATOSISorovIchidaQaytadi()
+    {
+        // Shablon yo'q / ball kiritilmagan kabi xatolar fonga O'TKAZILMAYDI — foydalanuvchi ularni
+        // "boshlandi" degan javob o'rniga darhol ko'rishi kerak.
+        using var db = TestDb.Sqlite();
+        var svc = Service();
+        var jobs = Jobs(db, svc);
+        var (test, _, _) = await SeedTestAsync(db, svc, certificateEnabled: false);
+
+        var (job, err) = await jobs.StartAsync(db.Context, svc, test.Id, "Admin");
+
+        Assert.NotNull(err);
+        Assert.False(job.Running);
+        Assert.Null(jobs.Status(test.Id));      // ish umuman ro'yxatga olinmadi
+    }
+
+    [Fact]
+    public async Task FonIshi_ISHYOQBolsa_BazadagiRoyxatQaytadi()
+    {
+        // Server qayta ishga tushsa xotiradagi holat yo'qoladi — UI shunda ham to'g'ri ko'rinishi
+        // kerak: "yaratilmayapti" + bazadagi mavjud sertifikatlar "hammasi tayyor" deb.
+        using var db = TestDb.Sqlite();
+        var svc = Service();
+        var jobs = Jobs(db, svc);
+        var (test, _, _) = await SeedTestAsync(db, svc);
+        await svc.GenerateForTestAsync(db.Context, test.Id, "Admin");
+
+        var status = await jobs.StatusWithItemsAsync(db.Context, test.Id);
+
+        Assert.False(status.Running);
+        Assert.Equal(2, status.Total);
+        Assert.Equal(2, status.Done);
+        Assert.Equal(2, status.Items.Count);
     }
 }

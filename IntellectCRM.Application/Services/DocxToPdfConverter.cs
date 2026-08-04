@@ -174,6 +174,14 @@ public class DocxToPdfConverter(ILogger<DocxToPdfConverter> logger)
             using var proc = Process.Start(psi);
             if (proc is null) return result;
 
+            // OQIMLARNI DARHOL DRENAJLAYMIZ. Yo'naltirilgan (redirect) stdout/stderr buferi Linux'da
+            // ~64 KB: LibreOffice shrift/konfiguratsiya ogohlantirishlarini shuncha yozib bufer
+            // to'lsa, u YOZISHDA bloklanadi va hech qachon tugamaydi — biz esa `WaitForExitAsync`
+            // da timeout'gacha kutib, butun bo'lakni PDF'siz qoldirardik. Shuning uchun o'qishni
+            // KUTISHDAN OLDIN boshlaymiz.
+            var stdoutTask = proc.StandardOutput.ReadToEndAsync();
+            var stderrTask = proc.StandardError.ReadToEndAsync();
+
             var timeout = TimeoutFor(docs.Count);
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             timeoutCts.CancelAfter(timeout);
@@ -191,9 +199,14 @@ public class DocxToPdfConverter(ILogger<DocxToPdfConverter> logger)
 
             if (proc.ExitCode != 0)
             {
-                var err = await proc.StandardError.ReadToEndAsync(ct);
+                var err = await stderrTask;
                 logger.LogWarning("LibreOffice xato bilan tugadi (exit {Code}): {Error}", proc.ExitCode, err);
                 // ExitCode != 0 bo'lsa ham ba'zi fayllar chiqqan bo'lishi mumkin — pastda tekshiramiz.
+            }
+            else
+            {
+                // Kutilmasa `ReadToEndAsync` vazifasi kuzatilmagan holda qolib ketardi.
+                await stdoutTask;
             }
 
             // Chiqmagan fayl null bo'lib qoladi: o'sha sertifikat .docx sifatida saqlanadi,

@@ -16,7 +16,8 @@ namespace IntellectCRM.Server.Controllers;
 [Authorize]
 [AdminPerm("classes")]
 [Route("api/admin/test-results")]
-public class TestResultsController(AppDbContext db, TestCertificateService certs) : ControllerBase
+public class TestResultsController(
+    AppDbContext db, TestCertificateService certs, TestCertificateJobs certJobs) : ControllerBase
 {
     private const string ZipMime = "application/zip";
 
@@ -130,25 +131,33 @@ public class TestResultsController(AppDbContext db, TestCertificateService certs
     }
 
     /// <summary>
-    /// Test bo'yicha SERTIFIKATLARNI YARATISH — ball kiritilgan har bir o'quvchiga bittadan.
+    /// Test bo'yicha SERTIFIKATLARNI YARATISHNI BOSHLASH — ball kiritilgan har bir o'quvchiga bittadan.
     /// Qayta chaqirilsa mavjudlari yangilanadi (nusxa yaratilmaydi).
+    ///
+    /// <para>Ish FONDA bajariladi va bu so'rov DARHOL qaytadi: 30 kishilik guruhda generatsiya
+    /// ~40 soniya olardi va Cloudflare uni uzib yuborishi mumkin edi. Holatni bilish uchun UI
+    /// <c>{id}/certificates/status</c> ni so'rab turadi.</para>
     /// </summary>
     [HttpPost("{id}/certificates")]
-    public async Task<ActionResult<GenerateTestCertificatesResultDto>> GenerateCertificates(
+    public async Task<ActionResult<TestCertificateJobDto>> GenerateCertificates(
         string id, CancellationToken ct)
     {
-        var (items, err) = await certs.GenerateForTestAsync(db, id, Actor(), ct);
+        var (_, err) = await certJobs.StartAsync(db, certs, id, Actor(), ct);
         if (err != null) return BadRequest(new { message = err });
-        var pdfOk = DocxToPdfConverter.IsAvailable;
-        return new GenerateTestCertificatesResultDto(
-            items.Count, pdfOk, items,
-            pdfOk ? null : "Serverda PDF konvertori (LibreOffice) o'rnatilmagan — sertifikatlar Word (.docx) sifatida saqlandi.");
+        // Javobda MAVJUD sertifikatlar ham qaytariladi: UI ro'yxatni shu javobdan oladi va agar
+        // bo'sh kelsa, allaqachon berilgan sertifikatlar birinchi holat javobigacha g'oyib bo'lardi.
+        return await certJobs.StatusWithItemsAsync(db, id, ct);
     }
 
     /// <summary>Test bo'yicha berilgan sertifikatlar ro'yxati.</summary>
     [HttpGet("{id}/certificates")]
     public async Task<List<TestCertificateDto>> Certificates(string id, CancellationToken ct) =>
         await TestCertificateService.ListForTestAsync(db, id, ct);
+
+    /// <summary>Generatsiya holati + SHU DAQIQADA tayyor sertifikatlar (UI shuni so'rab turadi).</summary>
+    [HttpGet("{id}/certificates/status")]
+    public async Task<TestCertificateJobDto> CertificatesStatus(string id, CancellationToken ct) =>
+        await certJobs.StatusWithItemsAsync(db, id, ct);
 
     /// <summary>Bitta sertifikatni yuklab olish (PDF bo'lsa PDF, aks holda .docx).</summary>
     [HttpGet("certificates/{certificateId}/download")]

@@ -73,12 +73,29 @@ export interface TestCertificate {
   issuedAt: string
 }
 
-export interface GenerateCertificatesResult {
-  created: number
-  /** false — serverda LibreOffice yo'q, faqat .docx yaratildi */
+/**
+ * SERTIFIKAT YARATISH — fon ishining holati.
+ *
+ * Generatsiya so'rov ichida emas, FONDA bajariladi va 5 tadan bo'lib chiziladi (LibreOffice'ni
+ * har fayl uchun qayta ochish qimmat, hammasini birdan chizish esa 1 GB serverda xotirani
+ * to'ldirardi). Shuning uchun UI bu holatni so'rab turadi: `done/total` — progress,
+ * `items` — SHU DAQIQADA tayyor bo'lganlar (ish tugashini kutmasdan yuklab olinadi).
+ */
+export interface CertificateJob {
+  /** true — hali yaratilmoqda (UI so'rashda davom etadi) */
+  running: boolean
+  /** Jami nechta sertifikat chiqishi kutilmoqda */
+  total: number
+  /** Shu daqiqada nechtasi tayyor */
+  done: number
+  /** false — serverda LibreOffice yo'q, faqat .docx yaratiladi */
   pdfAvailable: boolean
-  items: TestCertificate[]
+  /** Fon ishida xato bo'lgan bo'lsa (UI qizil xabar ko'rsatadi) */
+  error?: string | null
+  /** LibreOffice yo'qligi haqidagi ogohlantirish */
   warning?: string | null
+  /** Tayyor sertifikatlar — holat bilan BITTA so'rovda keladi */
+  items: TestCertificate[]
 }
 
 // ---------------------------------------------------------------- Admin: andozalar
@@ -126,12 +143,10 @@ export async function deleteCertificateTemplate(id: string): Promise<void> {
 
 // ---------------------------------------------------------------- Admin: sertifikatlar
 
-/** Test bo'yicha sertifikatlarni yaratish (ball kiritilgan har o'quvchiga bittadan).
- *  Qayta chaqirilsa mavjudlari YANGILANADI — nusxa yaratilmaydi. */
-export async function generateTestCertificates(testId: string): Promise<GenerateCertificatesResult> {
-  const { data } = await api.post<GenerateCertificatesResult>(
-    `/admin/test-results/${testId}/certificates`,
-  )
+/** Sertifikat yaratishni BOSHLASH (ball kiritilgan har o'quvchiga bittadan). So'rov darhol qaytadi —
+ *  keyin `getCertificateJob` bilan holat so'raladi. Qayta chaqirilsa mavjudlari YANGILANADI. */
+export async function startTestCertificates(testId: string): Promise<CertificateJob> {
+  const { data } = await api.post<CertificateJob>(`/admin/test-results/${testId}/certificates`)
   return data
 }
 
@@ -154,12 +169,17 @@ export async function getTeacherCertificateTemplates(): Promise<{
   return data
 }
 
-export async function generateTeacherTestCertificates(
-  testId: string,
-): Promise<GenerateCertificatesResult> {
-  const { data } = await api.post<GenerateCertificatesResult>(
-    `/teacher/test-results/${testId}/certificates`,
-  )
+export async function startTeacherTestCertificates(testId: string): Promise<CertificateJob> {
+  const { data } = await api.post<CertificateJob>(`/teacher/test-results/${testId}/certificates`)
+  return data
+}
+
+// ---------------------------------------------------------------- Holat (ikkala rol uchun)
+
+/** Generatsiya holati + shu daqiqada tayyor sertifikatlar. UI shuni bir necha soniyada bir so'raydi. */
+export async function getCertificateJob(testId: string, teacher = false): Promise<CertificateJob> {
+  const base = teacher ? '/teacher/test-results' : '/admin/test-results'
+  const { data } = await api.get<CertificateJob>(`${base}/${testId}/certificates/status`)
   return data
 }
 

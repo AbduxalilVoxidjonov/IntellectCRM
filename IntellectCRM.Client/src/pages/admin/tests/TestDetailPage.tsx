@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft, Trophy, Check, Loader2, Bot, Clock, Send, FileText, Eye, EyeOff,
@@ -7,10 +7,12 @@ import {
 import type { TestResultDetail } from '@/types'
 import { getTestDetail, setTestScore } from '@/api/services/testResults'
 import {
-  generateTestCertificates,
+  startTestCertificates,
+  getCertificateJob,
   downloadCertificate,
   downloadAllCertificates,
 } from '@/api/services/testCertificates'
+import type { CertificateJob } from '@/api/services/testCertificates'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Loader } from '@/components/ui/Loader'
@@ -19,6 +21,11 @@ import { apiErrorMessage, formatDate } from '@/lib/utils'
 import { usePerm } from '@/lib/permissions'
 
 const MEDALS = ['🥇', '🥈', '🥉']
+
+/** Sertifikat fon ishi holatini shuncha vaqtda bir so'raymiz (bo'lak ~7 soniyada tayyor bo'ladi). */
+const CERT_POLL_MS = 2500
+/** Ketma-ket shuncha xatodan keyin so'rashni to'xtatamiz (tarmoq uzilsa abadiy urinmasin). */
+const CERT_POLL_MAX_FAILS = 5
 
 /** Ball foizi (butun songa yaxlitlangan). */
 const percentOf = (score: number, max: number) => (max > 0 ? Math.round((score / max) * 100) : 0)
@@ -43,25 +50,77 @@ export function TestDetailPage() {
   // Onlayn test: javob kalitini ko'rsatish (yopiq holatda — tasodifan ko'rinib qolmasin)
   const [showKey, setShowKey] = useState(false)
   // --- sertifikat ---
+  // Generatsiya FONDA, 5 tadan bo'lib bajariladi: `certJob` — holat (nechtadan nechtasi tayyor)
+  // va shu daqiqada tayyor sertifikatlar. Ish ketayotganda ham ro'yxat to'lib boradi.
+  const [certJob, setCertJob] = useState<CertificateJob | null>(null)
   const [certBusy, setCertBusy] = useState(false)
-  const [certInfo, setCertInfo] = useState('')
-  const [certWarning, setCertWarning] = useState('')
   const [certError, setCertError] = useState('')
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
+
+  const jobRunning = certJob?.running === true
+  /** Ketma-ket muvaffaqiyatsiz holat so'rovlari soni (render'ga ta'sir qilmaydi — shuning uchun ref). */
+  const pollFails = useRef(0)
 
   const syncDraft = (d: TestResultDetail) =>
     setDraft(Object.fromEntries(d.rows.map((r) => [r.studentId, r.score == null ? '' : String(r.score)])))
 
+  // Manzildagi testId almashsa komponent QAYTA YARATILMAYDI (marshrut bir xil), shuning uchun
+  // sertifikat holatini o'zimiz tozalaymiz — aks holda yangi testda ESKI testning sertifikatlari
+  // va "N ta yaratildi" xabari turib qolardi. Tozalash RENDER paytida bajariladi (React'ning
+  // "prop o'zgarganda holatni moslash" usuli) — effekt ichida qilinsa ortiqcha render bo'lardi.
+  const [shownTestId, setShownTestId] = useState(testId)
+  if (shownTestId !== testId) {
+    setShownTestId(testId)
+    setLoading(true)
+    setDetail(null)
+    setCertJob(null)
+    setCertError('')
+    setError('')
+  }
+
   useEffect(() => {
+    let active = true      // testId almashsa eski so'rovning javobi yozilmasin
     getTestDetail(testId)
       .then((d) => {
+        if (!active) return
         setDetail(d)
         syncDraft(d)
+        // Sahifa boshqa oynada boshlangan generatsiya PAYTIDA ochilgan bo'lishi mumkin —
+        // shuni ilib olamiz, aks holda progress ko'rinmay qolardi.
+        if (d.certificateEnabled) {
+          getCertificateJob(testId)
+            .then((j) => { if (active && j.running) setCertJob(j) })
+            .catch(() => { /* holat olinmasa ham sahifa ishlayveradi */ })
+        }
       })
-      .catch((e) => setError(apiErrorMessage(e, 'Yuklab bo\'lmadi')))
-      .finally(() => setLoading(false))
+      .catch((e) => { if (active) setError(apiErrorMessage(e, 'Yuklab bo\'lmadi')) })
+      .finally(() => { if (active) setLoading(false) })
+    return () => { active = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [testId])
+
+  /** Ish ketayotganda holatni so'rab turamiz — tayyor bo'lganlar ro'yxatga qo'shilib boradi. */
+  useEffect(() => {
+    if (!jobRunning) return
+    pollFails.current = 0
+    const timer = setInterval(() => {
+      getCertificateJob(testId)
+        .then((j) => {
+          pollFails.current = 0
+          setCertJob(j)
+        })
+        .catch(() => {
+          // Ketma-ket bir necha xatodan keyin TO'XTAYMIZ. Aks holda tarmoq uzilsa yoki test
+          // o'chirilsa (404/403) UI abadiy "Yaratilmoqda..." holatida so'rov yuboraverardi.
+          pollFails.current += 1
+          if (pollFails.current >= CERT_POLL_MAX_FAILS) {
+            setCertJob((j) => (j ? { ...j, running: false } : j))
+            setCertError("Holat aniqlanmadi — sertifikatlar fonda yaratilayotgan bo'lishi mumkin. Sahifani yangilang.")
+          }
+        })
+    }, CERT_POLL_MS)
+    return () => clearInterval(timer)
+  }, [jobRunning, testId])
 
   const save = async (studentId: string) => {
     if (!detail) return
@@ -88,19 +147,40 @@ export function TestDetailPage() {
     }
   }
 
-  /** «Saqlash va sertifikat yaratish» — ball kiritilgan har o'quvchiga sertifikat (qayta bosilsa yangilanadi). */
+  /**
+   * Hali saqlanmagan ballarni saqlab BO'LGUNCHA kutamiz.
+   *
+   * Tugma "Saqlash va sertifikat yaratish" deyiladi, lekin ball aslida katakdan chiqilganda
+   * (`onBlur`) ALOHIDA so'rov bilan saqlanadi. Tugma bosilganda `mousedown` blur'ni, `click` esa
+   * generatsiyani qo'zg'aydi — ikkalasi bir vaqtda ketib, server ball yozilishidan OLDIN ro'yxatni
+   * o'qishi mumkin edi: oxirgi kiritilgan o'quvchi sertifikatsiz yoki ESKI ball bilan qolardi.
+   */
+  const flushDrafts = async () => {
+    if (!detail) return
+    const pending = detail.rows.filter((r) => {
+      const raw = (draft[r.studentId] ?? '').trim()
+      const next = raw === '' ? null : Number(raw)
+      if (next !== null && (!Number.isFinite(next) || next < 0)) return false
+      return next !== (r.score ?? null)
+    })
+    if (pending.length === 0) return
+    for (const r of pending) {
+      const raw = (draft[r.studentId] ?? '').trim()
+      await setTestScore(testId, r.studentId, raw === '' ? null : Number(raw))
+    }
+    const fresh = await getTestDetail(testId)
+    setDetail(fresh)
+    syncDraft(fresh)
+  }
+
+  /** «Saqlash va sertifikat yaratish» — ball kiritilgan har o'quvchiga sertifikat (qayta bosilsa yangilanadi).
+   *  So'rov ishni FONDA boshlaydi va darhol qaytadi; qolganini holat so'rovi kuzatadi. */
   const generate = async () => {
     setCertBusy(true)
-    setCertInfo('')
-    setCertWarning('')
     setCertError('')
     try {
-      const res = await generateTestCertificates(testId)
-      const fresh = await getTestDetail(testId)
-      setDetail(fresh)
-      syncDraft(fresh)
-      setCertInfo(`${res.created} ta sertifikat yaratildi`)
-      if (res.pdfAvailable === false && res.warning) setCertWarning(res.warning)
+      await flushDrafts()   // avval ballar, keyin sertifikat — tartib muhim
+      setCertJob(await startTestCertificates(testId))
     } catch (e) {
       setCertError(apiErrorMessage(e, "Sertifikat yaratib bo'lmadi"))
     } finally {
@@ -141,8 +221,12 @@ export function TestDetailPage() {
   const submitted = detail.rows.filter((r) => r.source === 'bot').length
   // MARKAZDAN TASHQARI ishtirokchilar (test kodi bilan kirganlar) — alohida ro'yxat.
   const external = detail.externalRows ?? []
-  const certificates = detail.certificates ?? []
+  // Ish boshlangan bo'lsa ro'yxat FON ISHIDAN keladi (u ish davomida to'lib boradi),
+  // aks holda test tafsiloti bilan kelgan ro'yxatdan.
+  const certificates = certJob ? certJob.items : detail.certificates ?? []
   const certEnabled = detail.certificateEnabled === true
+  // Ish tugadi va biror sertifikat chiqdi — yashil xabar.
+  const certDone = certJob && !certJob.running && certJob.done > 0
 
   return (
     <div>
@@ -350,19 +434,40 @@ export function TestDetailPage() {
       {/* SERTIFIKAT natijalari — xabarlar va yaratish tugmasi (pastda yopishib turadi) */}
       {certEnabled && (
         <>
-          {certInfo && (
+          {/* Ish ketmoqda — progress chizig'i. Sertifikatlar 5 tadan tayyor bo'lib, pastdagi
+              ro'yxatga qo'shilib boradi: kutmasdan yuklab olsa ham bo'ladi. */}
+          {jobRunning && (
+            <div className="mt-3 rounded-lg bg-brand-50 px-3 py-2.5">
+              <p className="flex items-center justify-center gap-2 text-sm font-medium text-brand-700">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Sertifikatlar yaratilmoqda... {certJob?.done ?? 0} / {certJob?.total ?? 0}
+              </p>
+              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-brand-100">
+                <div
+                  className="h-full rounded-full bg-brand-500 transition-all duration-500"
+                  style={{
+                    width: `${certJob && certJob.total > 0 ? Math.round((certJob.done / certJob.total) * 100) : 0}%`,
+                  }}
+                />
+              </div>
+              <p className="mt-1.5 text-center text-xs text-brand-600/80">
+                Tayyor bo'lganlarini pastdan hoziroq yuklab olsangiz bo'ladi.
+              </p>
+            </div>
+          )}
+          {certDone && (
             <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-center text-sm font-medium text-emerald-700">
-              {certInfo}
+              {certJob?.done} ta sertifikat yaratildi
             </p>
           )}
-          {certWarning && (
+          {certJob?.warning && (
             <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-center text-sm text-amber-700">
-              {certWarning}
+              {certJob.warning}
             </p>
           )}
-          {certError && (
+          {(certError || certJob?.error) && (
             <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-center text-sm text-red-600">
-              {certError}
+              {certError || certJob?.error}
             </p>
           )}
           {editable && (
@@ -371,9 +476,15 @@ export function TestDetailPage() {
                 Sertifikat FAQAT ball kiritilgan o'quvchilarga yaratiladi. Qayta bosilsa mavjudlari
                 yangilanadi — nusxa chiqmaydi.
               </p>
-              <Button onClick={generate} disabled={certBusy} className="shrink-0">
-                {certBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Award className="h-4 w-4" />}
-                Saqlash va sertifikat yaratish
+              <Button onClick={generate} disabled={certBusy || jobRunning} className="shrink-0">
+                {certBusy || jobRunning ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Award className="h-4 w-4" />
+                )}
+                {jobRunning
+                  ? `Yaratilmoqda... ${certJob?.done ?? 0}/${certJob?.total ?? 0}`
+                  : 'Saqlash va sertifikat yaratish'}
               </Button>
             </div>
           )}
@@ -388,7 +499,13 @@ export function TestDetailPage() {
               <Award className="h-4 w-4 text-emerald-600" /> Sertifikatlar
               <span className="text-xs font-normal text-slate-400">({certificates.length})</span>
             </h2>
-            <Button variant="secondary" onClick={downloadZip} disabled={downloadingId === 'all'}>
+            {/* ZIP faqat HAMMASI tayyor bo'lgach — yarim to'plamni "hammasi" deb yuklab bermaymiz. */}
+            <Button
+              variant="secondary"
+              onClick={downloadZip}
+              disabled={downloadingId === 'all' || jobRunning}
+              title={jobRunning ? 'Hamma sertifikat tayyor bo\'lgach faollashadi' : undefined}
+            >
               {downloadingId === 'all' ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (

@@ -22,7 +22,7 @@ namespace IntellectCRM.Server.Controllers;
 public class TeacherPortalController(
     AppDbContext db, ChatService chat, IWebHostEnvironment env, ReferenceCache refCache,
     FcmService fcm, AutoMessageService autoMsg, ContractService contracts,
-    TestCertificateService testCerts) : ControllerBase
+    TestCertificateService testCerts, TestCertificateJobs testCertJobs) : ControllerBase
 {
     /// <summary>"Darsga kelmadi" avto-xabari (attendance_absent) — o'quvchi(lar)ga guruh+sabab bilan.
     /// Exception yutiladi (jurnal javobini bloklamaydi).</summary>
@@ -1123,9 +1123,10 @@ public class TeacherPortalController(
         return Ok(new { templates = list, pdfAvailable = DocxToPdfConverter.IsAvailable });
     }
 
-    /// <summary>Test bo'yicha sertifikatlarni yaratish (ball kiritilgan har o'quvchiga).</summary>
+    /// <summary>Test bo'yicha sertifikat yaratishni BOSHLASH (ball kiritilgan har o'quvchiga).
+    /// Ish fonda bajariladi — holat uchun <c>test-results/{id}/certificates/status</c>.</summary>
     [HttpPost("test-results/{id}/certificates")]
-    public async Task<ActionResult<GenerateTestCertificatesResultDto>> TeacherGenerateCertificates(
+    public async Task<ActionResult<TestCertificateJobDto>> TeacherGenerateCertificates(
         string id, CancellationToken ct)
     {
         var me = await Me();
@@ -1134,12 +1135,22 @@ public class TeacherPortalController(
         if (groupId is null) return NotFound();
         if (!await OwnsGroup(groupId)) return Forbid();
 
-        var (items, err) = await testCerts.GenerateForTestAsync(db, id, me.FullName, ct);
+        var (_, err) = await testCertJobs.StartAsync(db, testCerts, id, me.FullName, ct);
         if (err != null) return BadRequest(new { message = err });
-        var pdfOk = DocxToPdfConverter.IsAvailable;
-        return new GenerateTestCertificatesResultDto(
-            items.Count, pdfOk, items,
-            pdfOk ? null : "Serverda PDF konvertori (LibreOffice) o'rnatilmagan — sertifikatlar Word (.docx) sifatida saqlandi.");
+        // Javobda MAVJUD sertifikatlar ham qaytariladi — aks holda tugma bosilishi bilan ro'yxat
+        // birinchi holat javobigacha g'oyib bo'lardi.
+        return await testCertJobs.StatusWithItemsAsync(db, id, ct);
+    }
+
+    /// <summary>Generatsiya holati + shu daqiqada tayyor sertifikatlar (UI so'rab turadi).</summary>
+    [HttpGet("test-results/{id}/certificates/status")]
+    public async Task<ActionResult<TestCertificateJobDto>> TeacherCertificatesStatus(
+        string id, CancellationToken ct)
+    {
+        var groupId = await TestResultService.GroupIdOfAsync(db, id);
+        if (groupId is null) return NotFound();
+        if (!await OwnsGroup(groupId)) return Forbid();
+        return await testCertJobs.StatusWithItemsAsync(db, id, ct);
     }
 
     /// <summary>Bitta sertifikatni yuklab olish.</summary>

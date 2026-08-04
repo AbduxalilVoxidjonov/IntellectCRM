@@ -137,20 +137,50 @@ PDF ga o'girish **LibreOffice headless** orqali (ko'rinish AYNAN saqlanadi).
   sertifikat yaratish»** → `POST .../{testId}/certificates` ball kiritilgan HAR o'quvchiga bitta
   sertifikat yaratadi. **IDEMPOTENT**: qayta bosilsa mavjudlari YANGILANADI (ball o'zgargan
   bo'lishi mumkin), raqam saqlanadi, nusxa yaratilmaydi.
+
+### BO'LAKLAB + FONDA yaratish (nega shunday)
+
+LibreOffice narxi **faylga emas, jarayonni ochishga**: sovuq start ~2-4 s va ~150-200 MB, bitta
+hujjatni chizish esa ~0.5-1 s. Shundan kelib chiqib **ikkita** qaror qabul qilingan:
+
+- **Bo'laklab** — `TestCertificateService.ChunkSize = 5`. Hammasini bitta chaqiruvda chizish jami
+  eng tez edi, lekin 30 o'quvchida barcha `.docx` bir vaqtda xotirada turardi va LibreOffice
+  cho'qqisi ~400 MB ga chiqardi — **1 GB RAM li serverda OOM xavfi**. Bittalab chizish esa startni
+  30 marta to'lardi (~110 s). 5 tadan — start 6 marta (~40 s), xotira cho'qqisi ~2 barobar past.
+  Har bo'lak o'z `SaveChanges`i bilan tugaydi, shuning uchun tayyor sertifikatlar ish tugashini
+  kutmasdan ro'yxatda ko'rinadi.
+- **Fonda** — `TestCertificateJobs` (Singleton). Ilgari generatsiya so'rov ICHIDA edi va katta
+  guruhda **Cloudflare 100 soniyada `524` qaytarardi**. Endi `POST` ishni boshlab darhol qaytadi,
+  UI esa `GET .../{id}/certificates/status` ni ~2.5 soniyada bir so'raydi (`TestCertificateJobDto`:
+  `running/total/done/items/error/warning` — ro'yxat holat bilan BITTA javobda keladi).
+  ⚠️ Tekshiruvlar (shablon yo'q, ball kiritilmagan) **so'rov ichida** bajariladi
+  (`ExpectedCountAsync` — hech narsa yaratmaydi), fonga o'tkazilmaydi: xato darhol ko'rinishi kerak.
+  ⚠️ Fon ishiga so'rovning `CancellationToken`i **BERILMAYDI** — javob yuborilgach u bekor bo'lib,
+  ish yarim yo'lda to'xtab qolardi.
+  Holat **xotirada** (baza jadvali emas — ish bir necha daqiqa yashaydi, tugagach 10 daqiqa
+  saqlanadi). Server qayta yuklansa holat yo'qoladi: UI `Running=false` ko'radi va bazadagi tayyor
+  sertifikatlarni ko'rsatadi — tugmani qayta bosish yetarli (generatsiya idempotent).
+  UI: progress chizig'i «Yaratilmoqda... 12/30», tayyor bo'lganlar darhol yuklab olinadi,
+  **«Hammasini yuklash (ZIP)» faqat ish tugagach** faollashadi (yarim to'plam "hammasi" bo'lmasin).
+
 - **PDF bo'lmasa ham ishlaydi:** `DocxToPdfConverter` LibreOffice'ni topa olmasa `null` qaytaradi →
   sertifikat `Status="docx"` bilan faqat Word sifatida saqlanadi va UI amber ogohlantirish
   ko'rsatadi. **Server LibreOfficesiz ham ishlaydi — bu ataylab.**
   ⚠️ 1GB RAM: konvertatsiya ~150-200MB oladi, shuning uchun `SemaphoreSlim(1,1)` bilan NAVBAT
-  bilan bajariladi. Docker image'ga `libreoffice-writer` + `fonts-liberation`/`fonts-dejavu`
-  qo'shilgan (shriftsiz o'zbek harflari kvadratga aylanadi), `HOME=/tmp` shart.
+  bilan bajariladi (bu bo'laklardan tashqari yana bir himoya: ikki foydalanuvchi bir vaqtda
+  yaratsa ham LibreOffice bittadan ishlaydi). Docker image'ga `libreoffice-writer` +
+  `fonts-liberation`/`fonts-dejavu` qo'shilgan (shriftsiz o'zbek harflari kvadratga aylanadi),
+  `HOME=/tmp` shart.
 - **Fayllar `ContentRootPath/uploads/certificates`** ga yoziladi — `wwwroot` ga EMAS. Sabab:
   `/uploads` Program.cs'da ContentRoot dan beriladi va docker volume + tungi zaxiraga kiradi;
   wwwroot esa har deployda qayta yoziladi (eski HTML sertifikatlardagi xato aynan shu).
 - **API:** admin `api/admin/test-results` — `certificate-tokens`, `certificate-templates`
   (GET/POST/PUT/DELETE), `{id}/certificates` (POST yaratish / GET ro'yxat),
+  **`{id}/certificates/status`** (fon ishi holati + shu daqiqada tayyor ro'yxat),
   `certificates/{id}/download?format=docx`, `{id}/certificates/download` (ZIP).
   O'qituvchi `api/teacher/test-results` — `certificate-templates` (faqat o'qish),
-  `{id}/certificates` (POST), download + ZIP; hammasi `OwnsGroup` bilan darvozalangan.
+  `{id}/certificates` (POST), **`{id}/certificates/status`**, download + ZIP;
+  hammasi `OwnsGroup` bilan darvozalangan.
   Andozalarni FAQAT admin boshqaradi, o'qituvchi tanlaydi.
 - **UI:** admin `/admin/test-results/certificate-templates`
   («Testlar natijalari» sarlavhasidagi «Sertifikat shablonlari» tugmasi): shablonlar CRUD +
