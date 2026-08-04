@@ -134,8 +134,10 @@ public class GradingController(AppDbContext db, DataCache dataCache) : Controlle
     }
 
     /// <summary>O'quvchining baholash xulosa (oylik o'rtacha + jami) — barcha faol guruhlari bo'yicha.</summary>
+    // ⚠️ Bu yerda ilgari `[AllowAnonymous]` turardi va u sinfdagi `[Authorize]` + `[AdminPerm]`
+    // ni ham BEKOR qilardi: studentId ni bilgan har kim (login'siz) o'quvchining baholash
+    // statistikasini olardi. `/api/admin/...` yo'lida ochiq endpoint bo'lmasligi kerak.
     [HttpGet("student/{studentId}/summary")]
-    [AllowAnonymous]  // Admin endpoint uchun ruxsat yo'q esa — 401; boshqa admin-specific o'zgartirishlar yo'q.
     public async Task<ActionResult<IEnumerable<MonthGradingSummaryDto>>> StudentGradingSummary(string studentId)
     {
         // Qatnashlik tekshirishi: faqat o'quvchining faol guruhlari (admin uchun).

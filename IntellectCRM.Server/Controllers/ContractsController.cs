@@ -22,7 +22,11 @@ namespace IntellectCRM.Server.Controllers;
 /// </summary>
 [ApiController]
 [Authorize]
-[AdminPerm("contracts")]
+// O'QISH ham darvozalanadi (ReadRequiresPerm): `GET /` javobida shartnomaning `PdfUrl` va `DocxUrl`
+// — ya'ni `/uploads/...` HUJJAT manzillari qaytadi. `/uploads` autentifikatsiyasiz berilgani uchun
+// manzilni bir marta olgan xodim shartnomani abadiy o'qiy oladi. Shu sabab GET uchun ham
+// `contracts` bo'limi ruxsati (biror amali) talab qilinadi.
+[AdminPerm("contracts", ReadRequiresPerm = true)]
 [Route("api/admin/contracts")]
 public class ContractsController(
     AppDbContext db, ContractService contracts, TelegramService telegram)

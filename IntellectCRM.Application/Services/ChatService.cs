@@ -84,6 +84,31 @@ public class ChatService(IAppDbContext db, IHubContext<ChatHub> hub)
         return names.Contains(className);
     }
 
+    /// <summary>Admin panelidagi chat "Xabarlar" bo'limiga tegishli — ruxsat tokeni shu nom bilan.</summary>
+    public const string MessagesSection = "messages";
+
+    /// <summary>
+    /// ADMIN paneli (web) chatining darvozasi — SOF funksiya, shuning uchun testlanadi.
+    ///
+    /// <para>Sabab: <c>AdminPermAttribute</c> xodim (staff) uchun BARCHA GET so'rovlarini ruxsat
+    /// tekshirmasdan o'tkazadi (bo'limlararo o'qish buzilmasin deb). Guruh chati esa "bo'limlararo
+    /// o'qish" emas — bu shaxsiy yozishmalar va <see cref="StaffChannel"/> (xodimlar kanali).
+    /// Darvozasiz qolsa, tor ruxsatli xodim (masalan faqat "books") istalgan guruh chatini va
+    /// xodimlar kanalini o'qiy olardi.</para>
+    ///
+    /// <para>Qoida: <b>admin/superadmin</b> — cheklovsiz (barcha kanallar, mavjud xatti-harakat
+    /// o'zgarmaydi); <b>staff</b> — faqat "messages" bo'lim ruxsati (yalang <c>"messages"</c> yoki
+    /// <c>"messages:amal"</c>) berilgan bo'lsa; boshqa rollar — yo'q (ular o'z portallaridan,
+    /// a'zolik tekshiruvi bilan kiradi: <see cref="CanAccessAsync"/>).</para>
+    ///
+    /// <para>Aynan shu qoida frontend'dagi <c>RequirePerm perm="messages"</c> bilan bir xil —
+    /// ya'ni UI'da "Xabarlar" sahifasini ko'ra oladigan xodim serverdan ham hamma narsani oladi,
+    /// ko'ra olmaydigani esa endi serverdan ham ololmaydi.</para>
+    /// </summary>
+    public static bool CanUseAdminChat(string? role, IEnumerable<string>? permissions) =>
+        role == Roles.Admin || role == Roles.SuperAdmin ||
+        (role == Roles.Staff && PermissionRules.HasSection(permissions, MessagesSection));
+
     /// <summary>
     /// Guruh chatidagi xabarlar. since=null bo'lsa — eng so'nggi 200 ta (vaqt bo'yicha o'sish
     /// tartibida); since berilsa — shu vaqtdan keyingilar (yangilanish uchun).

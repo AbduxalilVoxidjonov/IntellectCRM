@@ -22,6 +22,23 @@ public class MessagesController(
 {
     private string Uid => User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "";
 
+    /// <summary>Joriy foydalanuvchining roli (chat darvozasi uchun) — claim tipiga bog'lanmasdan,
+    /// <c>IsInRole</c> orqali. Bu controllerga faqat admin/superadmin/staff kiradi (AdminPerm).</summary>
+    private string RoleName => User.IsInRole(Roles.SuperAdmin) ? Roles.SuperAdmin
+        : User.IsInRole(Roles.Admin) ? Roles.Admin
+        : User.IsInRole(Roles.Staff) ? Roles.Staff : "";
+
+    /// <summary>
+    /// CHAT DARVOZASI: guruh chati va xodimlar kanali — "messages" bo'lim ruxsatini TALAB QILADI.
+    ///
+    /// <para>AdminPerm xodim uchun GET'larni ruxsatsiz o'tkazadi (bo'limlararo o'qish uchun ataylab).
+    /// Chat esa bo'limlararo ma'lumot emas — shu sabab bu yerda alohida tekshiriladi. Qoida va
+    /// asoslash: <see cref="ChatService.CanUseAdminChat"/>. Admin/superadmin uchun hech narsa
+    /// o'zgarmaydi — ular avvalgidek barcha kanallarni ko'radi.</para>
+    /// </summary>
+    private bool CanUseChat() => ChatService.CanUseAdminChat(
+        RoleName, User.FindAll(AdminPermAttribute.ClaimType).Select(c => c.Value));
+
     /// <summary>"eskiz" (default) | "local" — bo'sh/notanish qiymat "eskiz"ga tushadi.</summary>
     private static string NormalizeProvider(string? provider) =>
         provider?.Trim().ToLowerInvariant() == "local" ? "local" : "eskiz";
@@ -43,6 +60,8 @@ public class MessagesController(
     [HttpGet("classes")]
     public async Task<ActionResult<IEnumerable<ChatClassDto>>> Classes()
     {
+        // Chat kanallari ro'yxati (oxirgi xabar vaqti bilan) — chat darvozasi ostida.
+        if (!CanUseChat()) return Forbid();
         var classes = await db.Classes.OrderBy(c => c.Grade).ThenBy(c => c.Name).ToListAsync();
         var students = await db.Students.Select(s => new { s.Id, s.ClassName }).ToListAsync();
         var regs = await db.TelegramRegistrations.Select(r => new { r.StudentId, r.ChatId }).ToListAsync();
@@ -74,11 +93,14 @@ public class MessagesController(
     /// <summary>
     /// Har bir kanal uchun oxirgi xabar vaqti (ISO) — frontend o'qilmagan xabarlarni aniqlaydi.
     /// Admin uchun barcha guruhlar + xodimlar kanali qaytadi. Xabari yo'q kanal uchun null.
+    /// Ruxsati yo'q xodimga — bo'sh ro'yxat (403 emas): bu endpointni har sahifada o'qilmagan
+    /// belgisi uchun umumiy kontekst chaqiradi, xato bermasligi kerak.
     /// </summary>
     [HttpGet("last-messages")]
     public async Task<ActionResult<Dictionary<string, string?>>> LastMessages()
     {
-        var channels = await chat.ClassNamesForUserAsync(Uid, "admin");
+        if (!CanUseChat()) return new Dictionary<string, string?>();
+        var channels = await chat.ClassNamesForUserAsync(Uid, Roles.Admin);
         var lastByChannel = (await db.ChatMessages
                 .Where(m => channels.Contains(m.ClassName))
                 .GroupBy(m => m.ClassName)
@@ -92,11 +114,17 @@ public class MessagesController(
 
     [HttpGet("chat/{className}")]
     public async Task<ActionResult<IEnumerable<ChatMessageDto>>> Chat(string className, [FromQuery] string? since)
-        => await chat.GetMessagesAsync(className, ChatService.ParseSince(since));
+    {
+        if (!CanUseChat()) return Forbid();
+        return await chat.GetMessagesAsync(className, ChatService.ParseSince(since));
+    }
 
     [HttpPost("chat/{className}")]
     public async Task<ActionResult<ChatMessageDto>> SendChat(string className, SendChatRequest req)
     {
+        // POST'ni AdminPerm allaqachon "messages"/"messages:create" bilan darvozalaydi —
+        // bu yerdagi tekshiruv qatlam sifatida (o'qish bilan bir xil qoida) qoldirilgan.
+        if (!CanUseChat()) return Forbid();
         var dto = await chat.PostAsync(className, Uid, req.Text);
         return dto is null ? BadRequest(new { message = "Xabar bo'sh" }) : dto;
     }

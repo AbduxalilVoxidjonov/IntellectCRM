@@ -23,12 +23,40 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
     /// Faol (arxivlanmagan) o'quvchilar ro'yxati. <paramref name="includeArchived"/>=true bo'lsa
     /// arxivlangan o'quvchilar ham qaytadi.
     /// </summary>
+    /// <summary>
+    /// HUJJAT MANZILLARINI TOZALAYDI — <c>students</c> bo'limi ruxsati YO'Q xodim uchun.
+    ///
+    /// <para>Xodim (staff) uchun GET so'rovlari ataylab ochiq: moliya/qabul sahifasi o'quvchilar
+    /// ro'yxatini o'qiy olishi kerak (<see cref="AdminPermAttribute"/> izohiga qarang). Lekin bu
+    /// ro'yxat XOM <see cref="Student"/> obyektini qaytaradi — ichida o'quvchining SURATI
+    /// (<c>BirthCertificateUrl</c> — nomi eski) va ota-onaning passport skani
+    /// (<c>ParentPassportUrl</c>) manzillari bor.</para>
+    ///
+    /// <para>Bu manzillar <c>/uploads</c> ga ishora qiladi, u esa autentifikatsiyasiz beriladi —
+    /// ya'ni bir marta olingan manzil <b>abadiy</b>, hatto xodim ishdan bo'shatilgandan keyin ham
+    /// ishlayveradi. Shuning uchun o'quvchilar bo'limiga kira olmaydigan xodimga bu manzillar
+    /// berilmaydi; ism/telefon/balans kabi bo'limlararo ishlash uchun kerak bo'lgan maydonlar
+    /// avvalgidek qoladi. UI tomonda surat o'rniga bosh harflar ko'rinadi — ish buzilmaydi.</para>
+    /// </summary>
+    private void RedactDocs(IEnumerable<Student> students)
+    {
+        if (AdminPermAttribute.HasSectionAccess(User, "students")) return;
+        foreach (var s in students)
+        {
+            s.BirthCertificateUrl = null;
+            s.ParentPassportUrl = null;
+        }
+    }
+
     [HttpGet]
     public async Task<ActionResult<IEnumerable<Student>>> GetAll([FromQuery] bool includeArchived = false)
     {
-        var q = db.Students.AsQueryable();
+        // AsNoTracking: quyida obyektlar KO'RSATISH uchun o'zgartiriladi (guruh nomlari, tuman,
+        // hujjat manzillarini tozalash) — ular tasodifan bazaga yozilib qolmasin.
+        var q = db.Students.AsNoTracking().AsQueryable();
         if (!includeArchived) q = q.Where(s => !s.IsArchived);
         var students = await q.OrderBy(s => s.FullName).ToListAsync();
+        RedactDocs(students);
 
         // Har o'quvchiga FAOL a'zo guruhlari nomlarini biriktiramiz (ro'yxatda hammasi ko'rinsin).
         var ids = students.Select(s => s.Id).ToList();
@@ -69,8 +97,12 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
     [HttpGet("{id}/profile")]
     public async Task<ActionResult<StudentNotebookDto>> GetProfile(string id)
     {
-        var st = await db.Students.FirstOrDefaultAsync(s => s.Id == id);
+        // AsNoTracking — quyida hujjat manzillari tozalanishi mumkin (qarang: RedactDocs).
+        var st = await db.Students.AsNoTracking().FirstOrDefaultAsync(s => s.Id == id);
         if (st is null) return NotFound();
+        // Tozalash MANBADA: `st` dan keyin butun daftar yig'iladi, ya'ni surat va passport
+        // manzillari javobga umuman tushmaydi.
+        RedactDocs([st]);
         return await StudentProfileBuilder.BuildAsync(db, st);
     }
 
@@ -268,16 +300,23 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
 
     /// <summary>Faqat arxivlangan o'quvchilar ro'yxati.</summary>
     [HttpGet("archived")]
-    public async Task<ActionResult<IEnumerable<Student>>> GetArchived() =>
-        await db.Students.Where(s => s.IsArchived)
+    public async Task<ActionResult<IEnumerable<Student>>> GetArchived()
+    {
+        var students = await db.Students.AsNoTracking().Where(s => s.IsArchived)
             .OrderByDescending(s => s.ArchivedAt).ThenBy(s => s.FullName).ToListAsync();
+        RedactDocs(students);
+        return students;
+    }
 
     /// <summary>Bitta o'quvchi (profil sahifasidan tahrirlash formasi uchun to'liq obyekt).</summary>
     [HttpGet("{id}")]
     public async Task<ActionResult<Student>> GetOne(string id)
     {
-        var s = await db.Students.FindAsync(id);
-        return s is null ? NotFound() : s;
+        // AsNoTracking — pastda hujjat manzillari tozalanishi mumkin (qarang: RedactDocs).
+        var s = await db.Students.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
+        if (s is null) return NotFound();
+        RedactDocs([s]);
+        return s;
     }
 
     /// <summary>

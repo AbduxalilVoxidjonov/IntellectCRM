@@ -15,7 +15,12 @@ namespace IntellectCRM.Server.Controllers;
 /// </summary>
 [ApiController]
 [Authorize]
-[AdminPerm("app")]
+// O'QISH ham darvozalanadi (ReadRequiresPerm): `GET item/{id}` javobida o'quvchining `AudioUrl` —
+// `/uploads/...` OVOZ YOZUVI manzili qaytadi (ustiga yozgan matni va tahlili). `/uploads`
+// autentifikatsiyasiz berilgani uchun manzilni olgan xodim yozuvni abadiy tinglay oladi. Shu sabab
+// GET uchun ham `app` bo'limi ruxsati (biror amali) talab qilinadi — bu "Ilova" navigatsiyasidagi
+// talab bilan bir xil (nav: perm 'app').
+[AdminPerm("app", ReadRequiresPerm = true)]
 [Route("api/admin/ai-check")]
 public class AiCheckController(AppDbContext db) : ControllerBase
 {

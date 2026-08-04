@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using IntellectCRM.Domain;
+using IntellectCRM.Application.Services;
 
 namespace IntellectCRM.Server.Controllers;
 
@@ -22,13 +23,32 @@ namespace IntellectCRM.Server.Controllers;
 /// yuklanadi. Shuning uchun superadmin xodim ruxsatini o'zgartirsa, xodim qayta login qilmasdan
 /// darrov yangi ruxsat bilan ishlaydi.
 /// </summary>
-[AttributeUsage(AttributeTargets.Class, AllowMultiple = false)]
+/// <remarks>Odatda CONTROLLER ga qo'yiladi. Amal (metod) darajasida ham ishlaydi — bir controller
+/// ichida ochiq/o'quvchi/admin marshrutlari aralash bo'lganda kerak bo'ladi
+/// (<c>CertificatesController</c>).</remarks>
+[AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, AllowMultiple = false)]
 public sealed class AdminPermAttribute(string perm) : Attribute, IAuthorizationFilter
 {
     /// <summary>Staff ruxsatlari shu turdagi claim sifatida principal'ga qo'shiladi.</summary>
     public const string ClaimType = "perm";
 
     private readonly string _perm = perm;
+
+    /// <summary>
+    /// <b>O'QISH ham shu bo'lim ruxsatini talab qiladimi.</b> Standart holat <c>false</c> — GET
+    /// hamma xodimga ochiq (yuqoridagi izohga qarang: bo'limlararo o'qish buzilmasin).
+    ///
+    /// <para>Lekin ba'zi bo'limlar javobida <c>/uploads/...</c> HUJJAT manzillari qaytadi
+    /// (shartnoma skanlari, nomzod CV'lari, o'quvchining ovoz yozuvlari). <c>/uploads</c> esa
+    /// autentifikatsiyasiz beriladi — ya'ni bunday manzilni bir marta olgan odam faylni
+    /// <b>abadiy</b>, hatto ishdan bo'shatilgandan keyin ham ola oladi. Shu sabab bunday
+    /// bo'limlarda o'qish ham darvozalanadi: xodimda shu bo'lim ruxsati (biror amali) bo'lishi shart.</para>
+    ///
+    /// <para>Bu bayroq bo'limlararo o'qish HAQIQATAN kerak bo'lgan joylarda (masalan Moliya →
+    /// o'quvchilar ro'yxati) <b>YOQILMAYDI</b> — u yerdagi nozik maydonlar javobning o'zida
+    /// tozalanadi.</para>
+    /// </summary>
+    public bool ReadRequiresPerm { get; init; }
 
     public void OnAuthorization(AuthorizationFilterContext context)
     {
@@ -41,19 +61,37 @@ public sealed class AdminPermAttribute(string perm) : Attribute, IAuthorizationF
         // Faqat xodim (staff) shu darvozadan o'tishi mumkin; qolganlari — rad.
         if (!user.IsInRole(Roles.Staff)) { context.Result = new ForbidResult(); return; }
 
-        // O'qish har doim ochiq (bo'limlararo bog'liqliklar uchun); "ko'rish" frontend'da boshqariladi.
+        // O'qish odatda ochiq (bo'limlararo bog'liqliklar uchun); "ko'rish" frontend'da boshqariladi.
+        // Nozik hujjat qaytaradigan bo'limlarda esa (ReadRequiresPerm) o'qish ham darvozalanadi.
         var method = context.HttpContext.Request.Method;
-        if (HttpMethods.IsGet(method) || HttpMethods.IsHead(method) || HttpMethods.IsOptions(method)) return;
+        if (HttpMethods.IsGet(method) || HttpMethods.IsHead(method) || HttpMethods.IsOptions(method))
+        {
+            if (!ReadRequiresPerm) return;
+            if (!HasSectionAccess(user, _perm)) context.Result = new ForbidResult();
+            return;
+        }
 
-        // Yozish amali → kerakli ruxsat harakati.
-        var action = HttpMethods.IsPost(method) ? "create"
-                   : HttpMethods.IsDelete(method) ? "delete"
-                   : "edit"; // PUT / PATCH va boshqalar
-
-        // Ruxsat: yalang "section" (TO'LIQ) YOKI aniq "section:action".
-        bool Has(string value) => user.Claims.Any(c => c.Type == ClaimType && c.Value == value);
-        if (!Has(_perm) && !Has(_perm + ":" + action)) context.Result = new ForbidResult();
+        // Yozish amali: yalang "section" (TO'LIQ) YOKI aniq "section:amal".
+        // Qoidaning O'ZI `PermissionRules` da (Application) — u yerda testlanadi.
+        if (!PermissionRules.CanWrite(PermValues(user), _perm, method)) context.Result = new ForbidResult();
     }
+
+    /// <summary>
+    /// Shu bo'limda ISHLAYDIMI — ya'ni bo'lim ruxsatining birortasi (yalang <c>section</c> yoki
+    /// <c>section:amal</c>) berilganmi. Admin/superadmin — har doim.
+    ///
+    /// <para><see cref="HasFullAccess"/> dan farqi: bu yerda TO'LIQ ruxsat shart emas — faqat
+    /// "qo'shish" ruxsati bor xodim ham bo'lim ma'lumotini o'qiy oladi. Nozik hujjat qaytaradigan
+    /// GET'larni darvozalash uchun ishlatiladi (<see cref="ReadRequiresPerm"/>) va javobdagi
+    /// maydonlarni tozalash uchun (masalan passport skani manzili).</para>
+    /// </summary>
+    public static bool HasSectionAccess(ClaimsPrincipal user, string section) =>
+        user.IsInRole(Roles.Admin) || user.IsInRole(Roles.SuperAdmin) ||
+        PermissionRules.HasSection(PermValues(user), section);
+
+    /// <summary>Foydalanuvchining <c>perm</c> claim qiymatlari (qoidalar shu ro'yxat ustida ishlaydi).</summary>
+    private static IEnumerable<string> PermValues(ClaimsPrincipal user) =>
+        user.Claims.Where(c => c.Type == ClaimType).Select(c => c.Value);
 
     /// <summary>
     /// Bo'lim bo'yicha TO'LIQ (barcha 4 amal) ruxsati bormi — GET bo'lgani uchun odatdagi

@@ -89,7 +89,12 @@ alohida `AdminNote` maydoni bor va u hech qachon yuborilmaydi.
 
 ## 6. API
 
-- **Admin:** `api/admin/career` — `AdminPerm("vacancies")`.
+- **Admin:** `api/admin/career` — `AdminPerm("vacancies", ReadRequiresPerm = true)`.
+  ⚠️ O'QISH ham darvozalangan (odatdagi `AdminPerm` da xodim uchun GET ochiq): arizalar javobida
+  nomzodning `CvUrl` — `/uploads/*.pdf` rezyume manzili qaytadi, `/uploads` esa autentifikatsiyasiz
+  beriladi (manzilni olgan xodim faylni abadiy ola oladi). Bo'limni FAQAT `vacancies` ruxsati
+  (biror amali) bor xodim o'qiy oladi; admin/superadmin — cheklovsiz. Bu Mini App'ga TEGMAYDI —
+  nomzod tomoni alohida `api/career` (`[AllowAnonymous]`) da.
   `about` (GET/PUT) · `vacancies` (GET/POST/PUT + `/{id}/archive`, `/{id}/restore`, DELETE) ·
   `applications` (GET ro'yxat/filtr, `/{id}` tarixi bilan, `/{id}/status`, `/{id}/note`, DELETE) ·
   `stages` · `stats`.

@@ -22,7 +22,12 @@ namespace IntellectCRM.Server.Controllers;
 /// </summary>
 [ApiController]
 [Authorize]
-[AdminPerm("vacancies")]
+// O'QISH ham darvozalanadi (ReadRequiresPerm): `GET applications` va `applications/{id}` javobida
+// nomzodning `CvUrl` — `/uploads/*.pdf` REZYUME manzili qaytadi (ustiga telefon, ichki `AdminNote`).
+// `/uploads` autentifikatsiyasiz berilgani uchun manzilni olgan xodim CV'ni abadiy ko'chirib ola
+// oladi. Shu sabab GET uchun ham `vacancies` bo'limi ruxsati (biror amali) talab qilinadi.
+// Nomzod tomoni (Mini App) bunga bog'liq EMAS — u alohida `api/career` ([AllowAnonymous]) da.
+[AdminPerm("vacancies", ReadRequiresPerm = true)]
 [Route("api/admin/career")]
 public class CareerController(AppDbContext db, CareerService career) : ControllerBase
 {
