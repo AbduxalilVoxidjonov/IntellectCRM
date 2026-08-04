@@ -86,6 +86,23 @@ public class TestCertificateTests : IDisposable
         return ms.ToArray();
     }
 
+    /// <summary>Bitta paragraf, matni QALIN qilib belgilangan run bilan (formatlash sinovi uchun).</summary>
+    private static byte[] MakeDocxBold(string text)
+    {
+        using var ms = new MemoryStream();
+        using (var doc = WordprocessingDocument.Create(ms, WordprocessingDocumentType.Document))
+        {
+            var main = doc.AddMainDocumentPart();
+            var run = new Run(new Text(text) { Space = SpaceProcessingModeValues.Preserve })
+            {
+                RunProperties = new RunProperties(new Bold()),
+            };
+            main.Document = new Document(new Body(new Paragraph(run)));
+            main.Document.Save();
+        }
+        return ms.ToArray();
+    }
+
     private static string ReadText(byte[] docx)
     {
         using var ms = new MemoryStream(docx);
@@ -317,6 +334,38 @@ public class TestCertificateTests : IDisposable
         Assert.Contains("Surat: ", text);
         Assert.Contains("(o'quvchi)", text);    // belgidan keyingi matn yo'qolmaydi
         Assert.Equal((4, 4), ImageBytesIn(result));
+    }
+
+    [Fact]
+    public void ApplyPhoto_BittaParagrafdaIKKITAbelgi_IKKALASIHAMRasmBoladi()
+    {
+        // Bir qatorda ikkita surat o'rni. Ilgari faqat BIRINCHISI almashtirilib, ikkinchisi
+        // sertifikatda "@rasm" YOZUVI bo'lib chop etilardi.
+        var docx = MakeDocx("@rasm va @rasm");
+
+        var result = DocxTemplate.ApplyPhoto(docx, MakeJpeg(4, 4), ".jpg");
+
+        Assert.DoesNotContain("@rasm", ReadText(result));
+        Assert.Contains(" va ", ReadText(result));
+        using var ms = new MemoryStream(result);
+        using var doc = WordprocessingDocument.Open(ms, false);
+        Assert.Equal(2, doc.MainDocumentPart!.Document.Descendants<DW.Extent>().Count());
+    }
+
+    [Fact]
+    public void ApplyPhoto_BelgidanKEYINGIMATN_FORMATLASHNIYoqotmaydi()
+    {
+        // "@rasm @fish" — surat qo'yilgach ism shablondagi QALIN shriftda qolishi kerak edi,
+        // lekin keyingi matn yangi run'da qayta yaratilgani uchun standart shriftga tushib qolardi.
+        var docx = MakeDocxBold("@rasm Valiyev Ali");
+
+        var result = DocxTemplate.ApplyPhoto(docx, MakeJpeg(4, 4), ".jpg");
+
+        using var ms = new MemoryStream(result);
+        using var doc = WordprocessingDocument.Open(ms, false);
+        var textRun = doc.MainDocumentPart!.Document.Descendants<Run>()
+            .Single(r => r.Descendants<Text>().Any(t => t.Text.Contains("Valiyev Ali")));
+        Assert.NotNull(textRun.RunProperties?.Bold);
     }
 
     [Fact]
@@ -737,6 +786,57 @@ public class TestCertificateTests : IDisposable
 
         Assert.Equal(0, total);
         Assert.NotNull(err);
+    }
+
+    [Fact]
+    public async Task Shablon_OZNUSXASINIOladi_BEGONAFAYLOCHIRILMAYDI()
+    {
+        // `/uploads` — yagona tekis papka (shartnomalar, skanlar ham shu yerda). Ilgari shablon
+        // istalgan mavjud .docx manzilini ko'rsata olardi va o'chirilganda o'sha BEGONA fayl
+        // diskdan o'chib ketardi. Endi shablon o'z nusxasiga egalik qiladi.
+        using var db = TestDb.Sqlite();
+        var svc = Service();
+        var foreignUrl = WriteTemplateFile(MakeDocx("Shartnoma andozasi"));
+        var foreignPath = Path.Combine(_root, "uploads", Path.GetFileName(foreignUrl));
+
+        var (tpl, err) = await svc.CreateTemplateAsync(db.Context,
+            new TestCertificateTemplatePayload("A", foreignUrl, "a.docx"), "Admin");
+
+        Assert.Null(err);
+        Assert.NotEqual(foreignUrl, tpl!.FileUrl);      // o'z nusxasi olindi
+        Assert.True(File.Exists(foreignPath));
+
+        Assert.Null(await svc.DeleteTemplateAsync(db.Context, tpl.Id));
+
+        // Eng muhimi: begona fayl JOYIDA turibdi, shablonning o'z nusxasi esa o'chdi.
+        Assert.True(File.Exists(foreignPath));
+        Assert.False(File.Exists(Path.Combine(_root, "uploads", Path.GetFileName(tpl.FileUrl))));
+    }
+
+    [Fact]
+    public async Task Yaratish_BALLOCHIRILGANoquvchiningSertifikati_OLIBTASHLANADI()
+    {
+        // Ssenariy: noto'g'ri o'quvchiga ball qo'yildi → sertifikat chiqdi → ball tozalandi →
+        // qayta yaratildi. Ilgari noto'g'ri sertifikat ro'yxatda ham, ZIP da ham qolib ketardi.
+        using var db = TestDb.Sqlite();
+        var ctx = db.Context;
+        var svc = Service();
+        var (test, _, b) = await SeedTestAsync(db, svc);
+        var (first, _) = await svc.GenerateForTestAsync(ctx, test.Id, "Admin");
+        Assert.Equal(2, first.Count);
+        var removed = first.Single(c => c.StudentId == b.Id);
+
+        // "b" o'quvchining bali tozalandi.
+        ctx.TestScores.RemoveRange(ctx.TestScores.Where(s => s.TestResultId == test.Id && s.StudentId == b.Id));
+        await ctx.SaveChangesAsync();
+
+        var (again, err) = await svc.GenerateForTestAsync(ctx, test.Id, "Admin");
+
+        Assert.Null(err);
+        Assert.Single(again);
+        Assert.Equal(1, await ctx.TestCertificates.CountAsync(c => c.TestResultId == test.Id));
+        // Fayli ham qolmaydi (ombor shishmasin).
+        Assert.False(File.Exists(Path.Combine(_root, "uploads", "certificates", Path.GetFileName(removed.DocxUrl))));
     }
 
     /// <summary>Fon ishi uchun eng kichik DI konteyneri (u scope'ni shu yerdan ochadi).</summary>

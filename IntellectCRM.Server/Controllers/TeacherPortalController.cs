@@ -1015,12 +1015,26 @@ public class TeacherPortalController(
     }
 
     // ---------- Test natijalari (o'qituvchi — faqat o'z guruhlari) ----------
-    // Mantiq admin bilan umumiy (TestResultService); bu yerda faqat guruh EGASI (Group.TeacherId == me)
-    // ekani tekshiriladi. Test id orqali kelgan amallarda testning guruhi egalik uchun tekshiriladi.
+    // Mantiq admin bilan umumiy (TestResultService); bu yerda IKKI darvoza tekshiriladi:
+    // "journal" ruxsati va guruh EGASI (Group.TeacherId == me) ekani. Test id orqali kelgan
+    // amallarda testning guruhi egalik uchun tekshiriladi.
 
-    /// <summary>Test amali uchun ruxsat: o'qituvchi topilsa va guruh EGASI bo'lsa true.</summary>
+    /// <summary>
+    /// Test amali uchun ruxsat: o'qituvchida <b>"journal"</b> ruxsati bor VA guruh EGASI bo'lsa true.
+    ///
+    /// <para>Ilgari bu yerda faqat egalik tekshirilardi. Ya'ni admin o'qituvchidan "Jurnal" ruxsatini
+    /// olib qo'ysa ham, u ilovada tugmalarni ko'rmasa-da, API'ga to'g'ridan-to'g'ri murojaat qilib
+    /// ball qo'ya olardi, testni O'CHIRA olardi va sertifikat yaratib yuklab olardi. Endi ruxsat
+    /// olingan zahoti bu yo'l ham yopiladi.</para>
+    ///
+    /// <para>Nega aynan "journal": o'qituvchi ilovasidagi «Testlar» bo'limi shu ruxsat bilan
+    /// ochiladi (qarang: <c>test-results/uploads</c> va <c>certificate-templates</c> — ular
+    /// allaqachon shuni tekshirardi). Ya'ni bu tekshiruv yangi qoida emas, mavjud qoidani
+    /// qolgan endpointlarga ham yoyish.</para>
+    /// </summary>
     private async Task<bool> OwnsGroup(string classId)
     {
+        if (!await HasPerm(TeacherPermissions.Journal)) return false;
         var (_, _, owns) = await ResolveOwnedGroup(classId);
         return owns;
     }

@@ -177,4 +177,22 @@ public class UploadGuardTests
         foreach (var xavfli in new[] { ".svg", ".html", ".htm", ".js", ".php", ".exe", ".sh", ".xml" })
             Assert.DoesNotContain(xavfli, UploadGuard.AllowedExtensions);
     }
+
+    [Fact]
+    public void IsPhotoUrl_FaqatJPGvaPNGniQabulQiladi()
+    {
+        Assert.True(UploadGuard.IsPhotoUrl("/uploads/abc.jpg"));
+        Assert.True(UploadGuard.IsPhotoUrl("/uploads/abc.JPEG"));
+        Assert.True(UploadGuard.IsPhotoUrl("/uploads/abc.png"));
+
+        // Sertifikatga (Word) qo'yib bo'lmaydigan turlar — ular jimgina yo'qolmasin,
+        // foydalanuvchi rasmni bog'lash paytidayoq xato ko'rsin.
+        Assert.False(UploadGuard.IsPhotoUrl("/uploads/abc.heic"));
+        Assert.False(UploadGuard.IsPhotoUrl("/uploads/abc.webp"));
+        // Nisbatini o'qiy olmaydiganlarimiz — cho'zilib ketardi.
+        Assert.False(UploadGuard.IsPhotoUrl("/uploads/abc.gif"));
+        // Rasm umuman emas (ilgari `/uploads/` prefiksi yetarli edi — passport skani ham o'tardi).
+        Assert.False(UploadGuard.IsPhotoUrl("/uploads/abc.pdf"));
+        Assert.False(UploadGuard.IsPhotoUrl("/uploads/abc"));
+    }
 }

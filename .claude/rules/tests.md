@@ -179,8 +179,12 @@ hujjatni chizish esa ~0.5-1 s. Shundan kelib chiqib **ikkita** qaror qabul qilin
   **`{id}/certificates/status`** (fon ishi holati + shu daqiqada tayyor ro'yxat),
   `certificates/{id}/download?format=docx`, `{id}/certificates/download` (ZIP).
   O'qituvchi `api/teacher/test-results` — `certificate-templates` (faqat o'qish),
-  `{id}/certificates` (POST), **`{id}/certificates/status`**, download + ZIP;
-  hammasi `OwnsGroup` bilan darvozalangan.
+  `{id}/certificates` (POST), **`{id}/certificates/status`**, download + ZIP.
+  ⚠️ **RUXSAT:** o'qituvchi tarafdagi BARCHA test amallari `TeacherPortalController.OwnsGroup`
+  orqali o'tadi va u endi IKKI narsani tekshiradi: **`journal` ruxsati** VA guruh egasi ekani.
+  Ilgari faqat egalik tekshirilardi — ya'ni admin "Jurnal" ruxsatini olib qo'ysa ham o'qituvchi
+  API'ga to'g'ridan-to'g'ri murojaat qilib ball qo'ya olardi, testni o'chira olardi va sertifikat
+  yaratardi. Yangi endpoint qo'shilsa — u ham SHU helper orqali o'tishi shart.
   Andozalarni FAQAT admin boshqaradi, o'qituvchi tanlaydi.
 - **UI:** admin `/admin/test-results/certificate-templates`
   («Testlar natijalari» sarlavhasidagi «Sertifikat shablonlari» tugmasi): shablonlar CRUD +
@@ -188,6 +192,16 @@ hujjatni chizish esa ~0.5-1 s. Shundan kelib chiqib **ikkita** qaror qabul qilin
   o'quvchi yonida `ball / maks · foiz`, pastda «Saqlash va sertifikat yaratish» va
   «Sertifikatlar» bo'limi (har biri uchun «Yuklab olish» + «Hammasini yuklab olish (ZIP)»).
 - Shablon o'chirilmaydi, agar undan sertifikat berilgan bo'lsa — **nofaol** qilinadi (tarix buzilmasin).
+  Nofaol shablon `certificateTemplateId` orqali ham ISHLATILMAYDI (`ResolveTemplateAsync` `IsActive`
+  talab qiladi) — aks holda testda saqlanib qolgan eski id bilan u baribir ishlatilaverardi.
+- **Shablon fayli — SHU BO'LIMNING O'ZINIKI.** Yuklangan fayl `/uploads` ichida `certtpl-<guid>.docx`
+  nomi bilan NUSXALANADI va shablon shu nusxaga ishora qiladi; o'chirish ham FAQAT shu prefiksli
+  fayllarga qo'llanadi. Sabab: `/uploads` yagona tekis papka (shartnomalar, skanlar ham shu yerda) —
+  ilgari shablon istalgan mavjud `.docx` manzilini ko'rsata olardi va o'chirilganda **begona fayl
+  diskdan o'chib ketardi**. Eski (nusxalashdan oldingi) shablonlarning fayli tegilmay qoldiriladi.
+- **ESKIRGAN sertifikat olib tashlanadi:** ball TOZALANGAN o'quvchining sertifikati qayta yaratishda
+  o'chiriladi (yozuv + fayl). Ilgari noto'g'ri qo'yilgan ball sertifikati ro'yxatda ham, ZIP ichida
+  ham eski ball bilan abadiy qolib ketardi.
 
 ### Sertifikatda O'QUVCHI SURATI
 
@@ -196,8 +210,13 @@ Ikki usul qo'llab-quvvatlanadi — yagona kirish nuqtasi `DocxTemplate.ApplyPhot
 1. **`@rasm` matn belgisi** (oddiy yo'l) — shablonda shunchaki `@rasm` deb yoziladi va o'sha joyga
    surat **185×260 px** o'lchamda qo'yiladi (`PhotoWidthPx`/`PhotoHeightPx`; 96 DPI → ×9525 EMU).
    Belgi bir nechta joyda bo'lishi mumkin, kolontitullarda ham ishlaydi. Word uni bir necha
-   "run"ga bo'lib yozgan bo'lsa ham topiladi (paragraf matni birlashtirilib, belgidan OLDINGI va
-   KEYINGI qismlarga bo'linadi, rasm o'rtaga qo'yiladi).
+   "run"ga bo'lib yozgan bo'lsa ham topiladi (paragraf matni birlashtirilib, belgilar bo'yicha
+   bo'laklarga ajratiladi, rasmlar oralarga qo'yiladi).
+   ⚠️ **BITTA paragrafda bir nechta `@rasm`** bo'lsa HAMMASI almashtiriladi (ilgari faqat
+   birinchisi almashtirilib, qolgani sertifikatda "@rasm" yozuvi bo'lib chop etilardi).
+   ⚠️ Belgidan **keyingi matnning formatlashi saqlanadi** — asl run'ning `RunProperties`
+   (shrift/o'lcham/qalinlik/rang) nusxalanadi; aks holda `@rasm @fish` da ism standart shriftga
+   tushib qolardi.
 2. **Word'dagi rasm o'rni** — muallif rasm qo'yib o'lchami/ramkasi/joyini o'zi sozlaydi, biz faqat
    MAZMUNINI almashtiramiz. Bunda **muallif bergan o'lcham TEGILMAYDI**.
 
@@ -220,6 +239,12 @@ tegmasdan qoldirgan) sertifikatda matn bo'lib qolardi.
   ishlatiladi — kutubxonaning hujjatlashtirilmagan `ImagePartType` turiga bog'lanmaslik uchun.
 - Qo'llanadigan formatlar: jpg/png/gif/bmp/tiff. **webp/heic — o'tkazib yuboriladi** (andozaga
   tegilmaydi). O'quvchi surati `StudentPhotoDialog` dan JPEG bo'lib keladi, muammo yo'q.
+  ⚠️ Shu sabab **o'quvchi surati sifatida faqat `.jpg`/`.jpeg`/`.png` qabul qilinadi**
+  (`UploadGuard.PhotoExtensions`, `PUT /students/{id}/photo` tekshiradi). Ilgari `/uploads/` bilan
+  boshlangan HAR QANDAY fayl (masalan `.pdf` skan yoki iPhone'ning `.heic` surati) avatar bo'lib
+  qo'yilaverardi: ro'yxatda buzuq rasm ko'rinardi, sertifikatda esa surat JIMGINA chiqmasdi.
+  `.gif/.bmp/.tiff` ham rad etiladi — ularning o'lchamini fayl sarlavhasidan o'qiy olmaymiz,
+  ya'ni nisbati saqlanmay cho'zilib ketardi.
 - O'quvchida surat bo'lmasa yoki fayl topilmasa — `@rasm` belgisi **olib tashlanadi**, Word'dagi
   rasm o'rni esa **o'z holicha qoladi** (joylashuv buzilmasin). Manba: `Student.BirthCertificateUrl`.
 - Admin paneldagi yo'riqnoma matni `TestCertificateService.PhotoHelp` da (yagona manba) va

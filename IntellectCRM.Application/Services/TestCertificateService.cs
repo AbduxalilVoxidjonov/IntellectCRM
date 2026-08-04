@@ -92,12 +92,13 @@ public class TestCertificateService(IHostEnvironment env, DocxToPdfConverter pdf
         var fileUrl = (payload.FileUrl ?? "").Trim();
         if (!fileUrl.EndsWith(TemplateExtension, StringComparison.OrdinalIgnoreCase))
             return (null, "Faqat Word (.docx) fayl yuklanadi");
-        if (ResolveUpload(fileUrl) is null) return (null, "Yuklangan fayl topilmadi");
+        var adopted = await AdoptTemplateFileAsync(fileUrl, ct);
+        if (adopted is null) return (null, "Yuklangan fayl topilmadi");
 
         var row = new TestCertificateTemplate
         {
             Name = name,
-            FileUrl = fileUrl,
+            FileUrl = adopted,
             FileName = (payload.FileName ?? "").Trim(),
             IsActive = true,
             CreatedBy = actor,
@@ -128,9 +129,10 @@ public class TestCertificateService(IHostEnvironment env, DocxToPdfConverter pdf
         {
             if (!fileUrl.EndsWith(TemplateExtension, StringComparison.OrdinalIgnoreCase))
                 return (null, "Faqat Word (.docx) fayl yuklanadi");
-            if (ResolveUpload(fileUrl) is null) return (null, "Yuklangan fayl topilmadi");
-            DeleteUpload(row.FileUrl);
-            row.FileUrl = fileUrl;
+            var adopted = await AdoptTemplateFileAsync(fileUrl, ct);
+            if (adopted is null) return (null, "Yuklangan fayl topilmadi");
+            DeleteTemplateFile(row.FileUrl);
+            row.FileUrl = adopted;
             row.FileName = (payload.FileName ?? "").Trim();
         }
 
@@ -150,7 +152,7 @@ public class TestCertificateService(IHostEnvironment env, DocxToPdfConverter pdf
         if (await db.TestCertificates.AnyAsync(c => c.TemplateId == id, ct))
             return "Bu shablon bo'yicha sertifikatlar berilgan — o'chirib bo'lmaydi. Uni \"nofaol\" qiling.";
 
-        DeleteUpload(row.FileUrl);
+        DeleteTemplateFile(row.FileUrl);
         db.TestCertificateTemplates.Remove(row);
         await db.SaveChangesAsync(ct);
         return null;
@@ -205,7 +207,8 @@ public class TestCertificateService(IHostEnvironment env, DocxToPdfConverter pdf
         TestResult Test, TestCertificateTemplate Template, byte[] TemplateBytes,
         string GroupName, string CourseName, string TeacherName,
         List<TestScore> Eligible, Dictionary<string, StudentInfo> Students,
-        Dictionary<string, int> RankOf, List<TestCertificate> Existing);
+        Dictionary<string, int> RankOf, List<TestCertificate> Existing,
+        HashSet<string> ScoredIds);
 
     /// <summary>Tekshiruvlar + ma'lumot yig'ish. Word fayllar TO'LDIRILMAYDI (qarang: <see cref="Plan"/>).</summary>
     /// <param name="needTemplateBytes">Faqat "nechta chiqadi" so'ralganda <c>false</c> — shablon fayli
@@ -271,7 +274,8 @@ public class TestCertificateService(IHostEnvironment env, DocxToPdfConverter pdf
         var existing = await db.TestCertificates.Where(c => c.TestResultId == testId).ToListAsync(ct);
 
         return (new Plan(test, template, templateBytes, group?.Name ?? "", courseName, teacherName,
-            eligible, students, rankOf, existing), null);
+            eligible, students, rankOf, existing,
+            ordered.Select(s => s.StudentId).ToHashSet()), null);
     }
 
     /// <summary>
@@ -328,6 +332,22 @@ public class TestCertificateService(IHostEnvironment env, DocxToPdfConverter pdf
 
             done += chunk.Length;
             onProgress?.Invoke(done);
+        }
+
+        // ---- ESKIRGANLARINI OLIB TASHLAYMIZ ----
+        // Ssenariy: o'qituvchi noto'g'ri o'quvchiga ball qo'ydi → sertifikatlar yaratildi → ballni
+        // TOZALADI → qayta yaratdi. Ilgari o'sha noto'g'ri sertifikat ro'yxatda ham, ZIP ichida ham
+        // eski ball bilan qolib ketardi va uni o'chirishning yo'li yo'q edi.
+        // Faqat BALLI O'CHIRILGANLAR olib tashlanadi (o'quvchi hali ham ro'yxatda bo'lsa —
+        // ya'ni "qayta yaratish" amali natijani ballar bilan moslashtiradi).
+        var obsolete = plan.Existing.Where(c => !plan.ScoredIds.Contains(c.StudentId)).ToList();
+        if (obsolete.Count > 0)
+        {
+            foreach (var c in obsolete) db.TestCertificates.Remove(c);
+            await db.SaveChangesAsync(ct);
+            // Fayllar yozuv o'chgandan KEYIN (yuqoridagi bilan bir xil sabab: uzilishda baza
+            // mavjud bo'lmagan faylga ishora qilib qolmasin).
+            foreach (var c in obsolete) { DeleteCertFile(c.DocxUrl); DeleteCertFile(c.PdfUrl); }
         }
 
         return (result.Select(ToDto).ToList(), null);
@@ -620,10 +640,44 @@ public class TestCertificateService(IHostEnvironment env, DocxToPdfConverter pdf
         try { File.Delete(path); } catch { /* band/yo'q — yozuvni yangilashga to'sqinlik qilmasin */ }
     }
 
-    private void DeleteUpload(string? fileUrl)
+    /// <summary>
+    /// Shablon fayli — SHU BO'LIMNING O'ZINIKI. Yuklangan fayl `/uploads` ichida NUSXALANIB,
+    /// <see cref="TemplateFilePrefix"/> bilan nomlanadi va shablon shu nusxaga ishora qiladi.
+    ///
+    /// <para><b>Nega nusxa?</b> `/uploads` — YAGONA tekis papka: shartnoma andozalari, passport
+    /// skanlari, topshiriq materiallari — hammasi shu yerda. Ilgari shablon yaratishda istalgan
+    /// mavjud `/uploads/....docx` manzilini ko'rsatish mumkin edi, keyin shablon o'chirilganda
+    /// esa <b>o'sha begona fayl diskdan o'chib ketardi</b>. Endi shablon faqat O'Z nusxasiga
+    /// egalik qiladi va faqat shuni o'chira oladi.</para>
+    /// </summary>
+    private const string TemplateFilePrefix = "certtpl-";
+
+    /// <summary>Yuklangan faylni shablonning O'Z nusxasiga ko'chiradi. Manba topilmasa <c>null</c>.</summary>
+    private async Task<string?> AdoptTemplateFileAsync(string fileUrl, CancellationToken ct)
     {
+        var source = ResolveUpload(fileUrl);
+        if (source is null) return null;
+
+        var name = $"{TemplateFilePrefix}{Guid.NewGuid():N}{TemplateExtension}";
+        Directory.CreateDirectory(UploadsDir);
+        // Nusxalash (ko'chirish EMAS): manba boshqa bo'limning fayli bo'lishi mumkin — unga tegmaymiz.
+        await File.WriteAllBytesAsync(
+            Path.Combine(UploadsDir, name), await File.ReadAllBytesAsync(source, ct), ct);
+        return "/uploads/" + name;
+    }
+
+    /// <summary>
+    /// Shablon faylini o'chiradi — FAQAT u shu bo'limning o'z nusxasi bo'lsa
+    /// (<see cref="TemplateFilePrefix"/>). Eski (nusxalash joriy etilishidan oldingi) shablonlar
+    /// begona faylga ishora qilayotgan bo'lishi mumkin, shuning uchun ular TEGILMAY qoldiriladi:
+    /// ortiqcha fayl qolgani begona hujjatni o'chirib yuborishdan ko'ra xavfsizroq.
+    /// </summary>
+    private void DeleteTemplateFile(string? fileUrl)
+    {
+        var name = Path.GetFileName(fileUrl ?? "");
+        if (!name.StartsWith(TemplateFilePrefix, StringComparison.Ordinal)) return;
         var path = ResolveUpload(fileUrl);
         if (path is null) return;
-        try { File.Delete(path); } catch { /* yuqoridagi bilan bir xil siyosat */ }
+        try { File.Delete(path); } catch { /* band/yo'q — yozuvni yangilashga to'sqinlik qilmasin */ }
     }
 }

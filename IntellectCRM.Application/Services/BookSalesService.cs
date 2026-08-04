@@ -70,12 +70,80 @@ public static class BookSalesService
         };
     }
 
-    /// <summary>Keyingi ko'rsatiladigan buyurtma raqami (#1, #2 ...).</summary>
+    /// <summary>
+    /// BUYURTMA RAQAMI NAVBATI — bir vaqtda faqat BITTA chaqiruv raqam oladi.
+    /// Sabab: raqam bazadagi eng kattasidan keyingisi bo'lib beriladi, lekin raqam olingandan
+    /// keyin buyurtma bazaga YOZILGUNCHA bir necha <c>await</c> bor (o'quvchi qidiruvi, chek
+    /// saqlash va h.k.). Ikki kassir (yoki bot bilan kassir) bir vaqtda sotsa, ikkalasi ham bir
+    /// xil "eng katta"ni ko'rib, IKKALA buyurtma ham <c>#57</c> bo'lib qolardi.
+    /// Ilova BITTA nusxada ishlagani uchun jarayon ichidagi navbat yetarli
+    /// (<c>TestCertificateService.NumberGate</c> bilan bir xil yondashuv).
+    /// </summary>
+    private static readonly SemaphoreSlim NumberGate = new(1, 1);
+
+    /// <summary>
+    /// Shu jarayonda oxirgi BERILGAN raqam — hali bazaga yozilmagan bo'lishi mumkin.
+    /// Faqat qulfning o'zi yetmaydi: qulf ostida berilgan raqam bazada darhol paydo bo'lmaydi,
+    /// shuning uchun keyingi chaqiruv <c>MAX(Number)</c> dan yana o'shani ko'rardi. Belgi shu
+    /// "berildi, lekin hali saqlanmadi" oralig'ini qoplaydi.
+    /// </summary>
+    private static int _lastIssuedNumber;
+
+    /// <summary>Keyingi ko'rsatiladigan buyurtma raqami (#1, #2 ...). Qarang: <see cref="NumberGate"/>.</summary>
     public static async Task<int> NextOrderNumberAsync(IAppDbContext db, CancellationToken ct = default)
     {
-        var max = await db.BookOrders.MaxAsync(o => (int?)o.Number, ct) ?? 0;
-        return max + 1;
+        await NumberGate.WaitAsync(ct);
+        try
+        {
+            var max = await db.BookOrders.MaxAsync(o => (int?)o.Number, ct) ?? 0;
+            // Raqam olingach buyurtma yozilmasligi mumkin (masalan qoldiq yetmadi) — u holda shu
+            // raqam "kuyadi" va ro'yxatda bo'shliq qoladi. Bu takrorlanishdan ko'ra zararsizroq.
+            var next = Math.Max(max, _lastIssuedNumber) + 1;
+            _lastIssuedNumber = next;
+            return next;
+        }
+        finally
+        {
+            NumberGate.Release();
+        }
     }
+
+    /// <summary>
+    /// FAQAT TESTLAR uchun: raqam navbatining xotiradagi belgisini nolga qaytaradi. Har test o'z
+    /// bazasi bilan ishlagani uchun, oldingi testdan qolgan belgi natijani buzmasin.
+    /// </summary>
+    public static void ResetOrderNumberSequence() => _lastIssuedNumber = 0;
+
+    /// <summary>Telefon bo'yicha qidiruvda talab qilinadigan eng kam raqam soni.</summary>
+    public const int MinPhoneDigits = 4;
+
+    /// <summary>
+    /// TELEFON QIDIRUVI mosligi (qo'lda sotuvda o'quvchi tanlash uchun).
+    ///
+    /// <para>Bazada raqam <c>+998-90-123-45-67</c> ko'rinishida saqlanadi, ya'ni HAMMA raqam
+    /// <c>998</c> bilan boshlanadi. Shu sabab xom raqamlar ustida oddiy <c>Contains</c> qilinsa,
+    /// "9989" kabi so'rov deyarli har bir o'quvchiga mos kelib, kassirga tasodifiy begona
+    /// odamlar ro'yxatini chiqarardi.</para>
+    ///
+    /// <para>Yechim: ikkala tomon ham MAHALLIY qismga keltiriladi (mamlakat kodisiz oxirgi 9
+    /// raqam — <see cref="PhoneUtil.Key"/>), keyin solishtiriladi. Shunda "9989" faqat mahalliy
+    /// raqami aynan shu bo'lakni o'z ichiga olganlarga mos keladi.</para>
+    /// </summary>
+    /// <param name="stored">Bazadagi raqam (istalgan formatda).</param>
+    /// <param name="needleKey">Qidiruv raqami — allaqachon <see cref="PhoneUtil.Key"/> dan o'tgan.</param>
+    public static bool PhoneMatches(string? stored, string needleKey) =>
+        needleKey.Length >= MinPhoneDigits && PhoneUtil.Key(stored).Contains(needleKey);
+
+    /// <summary>
+    /// QO'LDA SOTUV uchun kitob darvozasi: sotuvdan olingan (<c>IsActive=false</c>) kitobni
+    /// sotib bo'lmaydi. Frontend'da bunday kitob ro'yxatda ko'rinmaydi, lekin API to'g'ridan-to'g'ri
+    /// chaqirilsa tekshiruv YO'Q edi — sotuvdan olingan kitob baribir sotilardi.
+    /// </summary>
+    /// <returns><c>null</c> — sotsa bo'ladi; aks holda foydalanuvchiga ko'rsatiladigan xato matni.</returns>
+    public static string? ManualSaleBookError(Book? book) =>
+        book is null ? "Kitob topilmadi"
+        : !book.IsActive ? "Kitob sotuvdan olingan — avval \"Sotuvda\" belgisini yoqing"
+        : null;
 
     /// <summary>
     /// Buyurtmani TASDIQLAYDI: qoldiqdan kitob soni ayiriladi, harakat tarixi yoziladi, holat
@@ -94,15 +162,35 @@ public static class BookSalesService
         if (book.Stock < order.Qty)
             return $"Omborda yetarli emas: qoldiq {book.Stock} dona, buyurtma {order.Qty} dona.";
 
-        db.BookStockMoves.Add(Move(
+        var move = Move(
             book, -order.Qty, ReasonSale,
-            $"Buyurtma #{order.Number} — {order.CustomerName}".Trim(), decidedBy, order.Id));
+            $"Buyurtma #{order.Number} — {order.CustomerName}".Trim(), decidedBy, order.Id);
+        db.BookStockMoves.Add(move);
 
         order.Status = StatusApproved;
         order.RejectReason = string.Empty;
         order.DecidedAt = AppClock.Now;
         order.DecidedBy = decidedBy ?? string.Empty;
-        await db.SaveChangesAsync(ct);
+
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // QOLDIQ POYGASI: yuqoridagi tekshiruv bilan SaveChanges orasida BOSHQA amal
+            // (ikkinchi kassir, bot buyurtmasini tasdiqlash, ombor korreksiyasi) shu kitobning
+            // qoldig'ini o'zgartirgan. `Book.Stock` konkurentlik tokeni bo'lgani uchun (qarang:
+            // AppDbContext, "Kitoblar sotuvi") EF ning UPDATE'i 0 qator yangilagan — ya'ni bazaga
+            // HECH NARSA yozilmagan. Xotiradagi o'zgarishlarni ham qaytaramiz: chaqiruvchi
+            // "ayrilgan" qoldiqni yoki "tasdiqlangan" buyurtmani ko'rib qolmasin.
+            book.Stock += order.Qty;
+            db.BookStockMoves.Remove(move);
+            order.Status = StatusPending;
+            order.DecidedAt = null;
+            order.DecidedBy = string.Empty;
+            return "Qoldiq shu payt boshqa amalda o'zgardi — qaytadan urinib ko'ring.";
+        }
         return null;
     }
 

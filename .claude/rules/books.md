@@ -53,6 +53,46 @@ Qo'lda sotuv             →  pending yaratiladi + DARHOL ApproveAsync (bitta Sa
 - `NotifyAdminsAsync` — yangi buyurtma haqida `TelegramRegistration`dagi admin/superadminlarga xabar.
   Xato **jim yutiladi** (`LeadNotifier` bilan bir xil siyosat) — xabarnoma buyurtmani buzmasin.
 
+## 2.2 QOLDIQ POYGASI (race) — `Book.Stock` konkurentlik tokeni
+
+`ApproveAsync` "qoldiqni o'qi → yetadimi deb tekshir → yangisini yoz" ketma-ketligi bilan ishlaydi va
+orada `await` bor. Qoldiq 1 bo'lganda **ikki kassir bir vaqtda** "Kitob sotish" bossa, ikkalasi ham
+`Stock=1` ni o'qib, ikkalasi ham tekshiruvdan o'tib ketardi: **2 dona sotilib, qoldiqdan 1 tasi
+ayirilardi**, `BookStockMove` ning ikkala qatorida ham `StockAfter=0` turgani uchun buni tarixdan ham
+bilib bo'lmasdi.
+
+- `AppDbContext`: `b.Entity<Book>().Property(x => x.Stock).IsConcurrencyToken()`.
+  EF endi `UPDATE Books SET Stock=@yangi WHERE Id=@id AND Stock=@asl` yozadi — oraga boshqa amal
+  tushgan bo'lsa **0 qator** yangilanadi va `DbUpdateConcurrencyException` chiqadi.
+  Bu **faqat model metadatasi**: ustun/indeks o'zgarmaydi, ya'ni **MIGRATSIYA KERAK EMAS**
+  (keyingi migratsiya yaratilganda `ModelSnapshot` ga annotatsiya o'zi qo'shiladi, DDL chiqmaydi).
+- `ApproveAsync` istisnoni ushlaydi, xotiradagi o'zgarishlarni **qaytaradi** (qoldiq, holat, ombor
+  harakati) va odatiy uslubda xato matnini beradi:
+  `"Qoldiq shu payt boshqa amalda o'zgardi — qaytadan urinib ko'ring."`
+- `POST /{id}/stock` (`AddStock`) ham shu istisnoni ushlaydi va 500 o'rniga o'sha matn bilan 400 beradi.
+- **Kitob yangilanadigan barcha joylar kitobni kuzatilgan holda (`AsNoTracking` SIZ) yuklashi shart** —
+  aks holda EF asl qiymatni bilmay, istisno chiqara boshlaydi. Tekshirilgan: `BooksController`
+  (`Update`, `Delete`, `AddStock`, `ManualSale`) va `BookSalesService.ApproveAsync` — hammasi kuzatilgan.
+  `BookShopBotService` kitobni faqat O'QIYDI (qoldiqni o'zgartirmaydi), shuning uchun UPDATE ham
+  generatsiya qilinmaydi.
+
+## 2.3 BUYURTMA RAQAMI — jarayon ichidagi navbat
+
+`NextOrderNumberAsync` = `MAX(Number)+1`, unikal indeks yo'q va raqam olingandan keyin `Add`/
+`SaveChanges` gacha bir necha `await` bor → ikki kassir bir vaqtda sotsa **ikkala buyurtma ham #57**
+bo'lardi. Ilova bitta nusxada ishlagani uchun jarayon ichidagi navbat yetarli
+(`TestCertificateService.NumberGate` bilan bir xil yondashuv):
+
+- `SemaphoreSlim NumberGate` — "o'qish + belgilash" oralig'ini bo'linmas qiladi;
+- `_lastIssuedNumber` — **berilgan, lekin hali saqlanmagan** raqamni eslab qoladi (faqat qulf
+  yetmaydi: qulf ostida berilgan raqam bazada darhol ko'rinmaydi);
+- raqam olingach buyurtma yozilmasa (masalan qoldiq yetmadi) raqam "kuyadi" va ro'yxatda bo'shliq
+  qoladi — takrorlanishdan ko'ra zararsizroq;
+- `ResetOrderNumberSequence()` — **faqat testlar uchun** (har test o'z bazasi bilan ishlaydi).
+
+Tuzatish `NextOrderNumberAsync` ning O'ZIDA bo'lgani uchun **bot oqimi ham** (`BookShopBotService`)
+avtomatik himoyalangan — chaqiruvchilarni o'zgartirish shart emas.
+
 ## 2.1 QO'LDA SOTUV — markazda, joyida (migratsiya `AddBookManualSale`)
 
 "Buyurtmalar" tabidagi **«Kitob sotish»** tugmasi (`BookSellModal`, perm `books:create`):
@@ -69,8 +109,17 @@ YO'Q, chunki pul kassirning oldida to'langan. Normalizatsiya moliya bo'limi bila
   Qo'lda sotuvda `ChatId = 0` → **`Approve`/`Reject` Telegram xabarini `ChatId != 0` bilan
   darvozalaydi** (yuboriladigan chat yo'q). Migratsiya eski qatorlarni `defaultValue: "bot"`
   bilan to'ldirgan.
-- O'quvchi qidiruvi — `GET /students?q=` (`BookStudentDto`), `KassaController.SearchStudents`
-  mantig'i bilan bir xil, lekin `books` ruxsati ostida va balanssiz (kitob sotuvi balansga tegmaydi).
+- **Sotuvdan olingan kitob sotilmaydi**: `ManualSale` `BookSalesService.ManualSaleBookError(book)`
+  darvozasidan o'tadi (`null` — sotsa bo'ladi). Ilgari tekshiruv faqat frontend'da (`sellable`
+  filtri) edi, ya'ni API to'g'ridan-to'g'ri chaqirilsa `IsActive=false` kitob ham sotilardi.
+- O'quvchi qidiruvi — `GET /students?q=` (`BookStudentDto`), `books` ruxsati ostida va balanssiz
+  (kitob sotuvi balansga tegmaydi). Telefon bo'yicha moslik — `BookSalesService.PhoneMatches`:
+  **ikkala tomon ham mahalliy qismga keltiriladi** (`PhoneUtil.Key` = mamlakat kodisiz oxirgi 9
+  raqam), keyin `Contains`. Sabab: bazada hamma raqam `+998...` bo'lgani uchun xom raqamlar ustidagi
+  qidiruvda **"9989" deyarli BARCHA o'quvchiga mos kelib**, kassirga 80 ta begona odam chiqarardi.
+  Nomzodlar `PhoneScanLimit` (40) ga yetganda o'qish to'xtaydi — butun jadval ro'yxatga yig'ilmaydi.
+  > ⚠️ `KassaController.SearchStudents` da hali ESKI mantiq (xom raqamlar + `Take(80)`) turibdi —
+  > boshqa bo'lim bo'lgani uchun ataylab tegilmagan. O'sha yerda ham xuddi shu kamchilik bor.
 - Qo'lda sotuv `PaymentMethod=card` bo'lsa **"Karta to'lovlari" tabida ham** ko'rinadi
   (`CardOrdersQuery` faqat to'lov turiga qaraydi) — chek o'rnida `••1234` + vaqt turadi.
 

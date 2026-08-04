@@ -399,6 +399,16 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
 
         // ---------- Kitoblar sotuvi ----------
         b.Entity<Book>().Property(x => x.Price).HasPrecision(18, 2);
+        // QOLDIQ POYGASI (race) himoyasi — `Stock` konkurentlik TOKENI.
+        // Muammo: sotuv "qoldiqni o'qi → yetadimi deb tekshir → yangisini yoz" ketma-ketligi bilan
+        // ishlaydi. Qoldiq 1 bo'lganda ikki kassir bir vaqtda "Kitob sotish" bossa, ikkalasi ham
+        // Stock=1 ni o'qib, ikkalasi ham tekshiruvdan o'tib, 2 dona sotilardi (ombor 0 emas, -1 ga
+        // tushishi kerak edi, lekin tarixda ikkala qatorda ham StockAfter=0 turardi).
+        // Token bilan EF `UPDATE Books SET Stock=@yangi WHERE Id=@id AND Stock=@asl` yozadi: oraga
+        // boshqa amal tushgan bo'lsa 0 qator yangilanadi va `DbUpdateConcurrencyException` chiqadi
+        // (uni `BookSalesService.ApproveAsync` tushunarli xatoga o'giradi).
+        // Bu FAQAT model metadatasi — ustun/indeks o'zgarmaydi, ya'ni MIGRATSIYA KERAK EMAS.
+        b.Entity<Book>().Property(x => x.Stock).IsConcurrencyToken();
         b.Entity<BookOrder>().Property(x => x.UnitPrice).HasPrecision(18, 2);
         b.Entity<BookOrder>().Property(x => x.Total).HasPrecision(18, 2);
         foreach (var (type, prop) in new (Type, string)[]

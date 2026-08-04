@@ -31,6 +31,10 @@ public class BooksController(AppDbContext db, TelegramService telegram, IWebHost
 {
     private const string XlsxMime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
+    /// <summary>O'quvchi qidiruvida telefon bo'yicha nechta moslik yig'ilgach o'qish to'xtaydi
+    /// (ro'yxat baribir 20 ta bilan cheklangan — bu IN(...) ro'yxatining yuqori chegarasi).</summary>
+    private const int PhoneScanLimit = 40;
+
     private string Actor => User.FindFirst(ClaimTypes.Name)?.Value ?? "Admin";
 
     // =============================================================================================
@@ -163,7 +167,18 @@ public class BooksController(AppDbContext db, TelegramService telegram, IWebHost
 
         var reason = payload.Qty > 0 ? BookSalesService.ReasonRestock : BookSalesService.ReasonCorrection;
         db.BookStockMoves.Add(BookSalesService.Move(book, payload.Qty, reason, payload.Note ?? "", Actor));
-        await db.SaveChangesAsync();
+        try
+        {
+            await db.SaveChangesAsync();
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // `Book.Stock` — konkurentlik tokeni: kirim yozilayotgan payt boshqa amal (sotuvni
+            // tasdiqlash) qoldiqni o'zgartirgan bo'lsa, bu UPDATE 0 qator yangilaydi va bazaga
+            // hech narsa tushmaydi. 500 o'rniga tushunarli xabar qaytaramiz (ApproveAsync bilan
+            // bir xil uslub) — foydalanuvchi qaytadan bosadi va yangi qoldiq ustiga yoziladi.
+            return BadRequest(new { message = "Qoldiq shu payt boshqa amalda o'zgardi — qaytadan urinib ko'ring." });
+        }
         return (await ToDtosAsync(new List<Book> { book }))[0];
     }
 
@@ -380,20 +395,32 @@ public class BooksController(AppDbContext db, TelegramService telegram, IWebHost
 
         // TELEFON: bazada "+998-90-123-45-67" ko'rinishida saqlanadi, shuning uchun SQL'da
         // to'g'ridan-to'g'ri solishtirib bo'lmaydi — yengil proyeksiya olib xotirada moslashtiramiz.
-        // Kamida 4 raqam: "998" BARCHA raqamlarga mos kelardi.
-        var digits = PhoneUtil.DigitsOnly(term);
+        //
+        // ⚠️ MAMLAKAT KODI: ilgari xom raqamlar solishtirilardi va HAMMA raqam "998" bilan
+        // boshlangani uchun "9989" kabi so'rov deyarli har bir o'quvchiga mos kelib, kassirga
+        // 80 ta begona odam chiqarardi. Endi ikkala tomon ham MAHALLIY qismga keltiriladi
+        // (PhoneUtil.Key = oxirgi 9 raqam) — qarang: BookSalesService.PhoneMatches.
+        // Natija ham cheklangan: mos kelganlar `PhoneScanLimit` ga yetganda o'qish TO'XTAYDI,
+        // ya'ni butun jadval ro'yxatga yig'ilmaydi va IN(...) ro'yxati shishmaydi.
+        //
+        // FARQ: `KassaController.SearchStudents` da hali ESKI mantiq (xom raqamlar + Take(80))
+        // turibdi — u boshqa bo'lim (balans bilan) va bu ish doirasiga kirmagani uchun ataylab
+        // tegilmadi. O'sha yerda ham xuddi shu kamchilik bor.
+        var key = PhoneUtil.Key(term);
         var phoneIds = new List<string>();
-        if (digits.Length >= 4)
+        if (key.Length >= BookSalesService.MinPhoneDigits)
         {
-            var rows = await db.Students.AsNoTracking()
+            await foreach (var r in db.Students.AsNoTracking()
                 .Select(s => new { s.Id, s.Phone, s.ParentPhone, s.FatherPhone, s.MotherPhone })
-                .ToListAsync();
-            phoneIds = rows
-                .Where(r => new[] { r.Phone, r.ParentPhone, r.FatherPhone, r.MotherPhone }
-                    .Any(p => PhoneUtil.DigitsOnly(p).Contains(digits)))
-                .Select(r => r.Id)
-                .Take(80)
-                .ToList();
+                .AsAsyncEnumerable())
+            {
+                if (BookSalesService.PhoneMatches(r.Phone, key)
+                    || BookSalesService.PhoneMatches(r.ParentPhone, key)
+                    || BookSalesService.PhoneMatches(r.FatherPhone, key)
+                    || BookSalesService.PhoneMatches(r.MotherPhone, key))
+                    phoneIds.Add(r.Id);
+                if (phoneIds.Count >= PhoneScanLimit) break;
+            }
         }
 
         return await db.Students.AsNoTracking()
@@ -418,7 +445,10 @@ public class BooksController(AppDbContext db, TelegramService telegram, IWebHost
         if (payload.Qty > 500) return BadRequest(new { message = "Soni juda katta (maksimal 500 dona)" });
 
         var book = await db.Books.FirstOrDefaultAsync(b => b.Id == payload.BookId);
-        if (book is null) return BadRequest(new { message = "Kitob topilmadi" });
+        // Sotuvdan olingan kitob sotilmaydi. Frontend uni ro'yxatda ko'rsatmaydi, lekin bu
+        // endpoint to'g'ridan-to'g'ri chaqirilsa ilgari hech qanday to'siq yo'q edi.
+        var bookError = BookSalesService.ManualSaleBookError(book);
+        if (book is null || bookError is not null) return BadRequest(new { message = bookError });
 
         var student = await db.Students.AsNoTracking().FirstOrDefaultAsync(s => s.Id == payload.StudentId);
         if (student is null) return BadRequest(new { message = "O'quvchi topilmadi" });

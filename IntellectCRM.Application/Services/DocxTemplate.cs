@@ -170,50 +170,77 @@ public static class DocxTemplate
             var texts = para.Descendants<Text>().ToList();
             if (texts.Count == 0) continue;
             var combined = string.Concat(texts.Select(t => t.Text));
-            var at = combined.IndexOf(PhotoToken, StringComparison.OrdinalIgnoreCase);
-            if (at < 0) continue;
+            // Belgi paragrafda BIR NECHTA bo'lishi mumkin (masalan bir qatorda ikkita surat o'rni).
+            // Ilgari faqat BIRINCHISI almashtirilib, qolgani sertifikatda "@rasm" yozuvi bo'lib
+            // chop etilardi — shuning uchun paragraf belgilar bo'yicha to'liq bo'linadi.
+            var segments = SplitOnToken(combined, PhotoToken);
+            if (segments.Count < 2) continue;   // belgi umuman yo'q
 
             found = true;
-            var before = combined[..at];
-            var after = combined[(at + PhotoToken.Length)..];
 
-            // Matnni belgidan oldingi qismga qisqartiramiz, qolgan run'lar bo'shatiladi.
-            texts[0].Text = before;
+            // Matnni birinchi belgigacha bo'lgan qismga qisqartiramiz, qolgan run'lar bo'shatiladi.
+            texts[0].Text = segments[0];
             texts[0].Space = SpaceProcessingModeValues.Preserve;
             for (var i = 1; i < texts.Count; i++) texts[i].Text = "";
 
             var anchorRun = texts[0].Ancestors<Run>().FirstOrDefault();
             if (anchorRun?.Parent is null) continue;
 
-            if (imageBytes is not null && contentType is not null)
+            if (imageBytes is null || contentType is null)
             {
-                // Rasm qismi bir marta qo'shiladi va barcha belgilar uchun qayta ishlatiladi.
-                if (relId is null)
-                {
-                    relId = "rIdPhoto" + Guid.NewGuid().ToString("N")[..8];
-                    var imagePart = part.AddNewPart<ImagePart>(contentType, relId);
-                    using var src = new MemoryStream(imageBytes);
-                    imagePart.FeedData(src);
-                    size = ImageSize(imageBytes);
-                }
-                var cx = PhotoWidthPx * EmuPerPixel;
-                var cy = PhotoHeightPx * EmuPerPixel;
+                // Surat yo'q — belgi(lar) olib tashlandi, qolgan matn joyida qoladi.
+                texts[0].Text = string.Concat(segments);
+                continue;
+            }
+
+            // Rasm qismi bir marta qo'shiladi va barcha belgilar uchun qayta ishlatiladi.
+            if (relId is null)
+            {
+                relId = "rIdPhoto" + Guid.NewGuid().ToString("N")[..8];
+                var imagePart = part.AddNewPart<ImagePart>(contentType, relId);
+                using var src = new MemoryStream(imageBytes);
+                imagePart.FeedData(src);
+                size = ImageSize(imageBytes);
+            }
+
+            var cx = PhotoWidthPx * EmuPerPixel;
+            var cy = PhotoHeightPx * EmuPerPixel;
+            // Yangi elementlar ketma-ket, oldingisidan KEYIN qo'yiladi — tartib saqlansin.
+            OpenXmlElement cursor = anchorRun;
+            for (var k = 1; k < segments.Count; k++)
+            {
                 var imageRun = new Run(BuildInlineImage(
                     relId, cx, cy, nextId++, CoverCrop(size.W, size.H, cx, cy)));
-                anchorRun.Parent.InsertAfter(imageRun, anchorRun);
+                anchorRun.Parent.InsertAfter(imageRun, cursor);
+                cursor = imageRun;
 
-                // Belgidan KEYINGI matn rasmdan keyin turishi kerak.
-                if (after.Length > 0)
-                    anchorRun.Parent.InsertAfter(
-                        new Run(new Text(after) { Space = SpaceProcessingModeValues.Preserve }), imageRun);
-            }
-            else if (after.Length > 0)
-            {
-                // Surat yo'q — belgi olib tashlandi, qolgan matn joyida qoladi.
-                texts[0].Text = before + after;
+                if (segments[k].Length == 0) continue;
+                var textRun = new Run(new Text(segments[k]) { Space = SpaceProcessingModeValues.Preserve });
+                // FORMATLASH SAQLANADI: asl run'ning xossalari (shrift, o'lcham, qalinlik, rang)
+                // nusxalanadi. Aks holda `@rasm` dan keyingi matn — masalan `@rasm @fish` da
+                // o'quvchining ismi — hujjatning standart shriftiga tushib qolardi.
+                if (anchorRun.RunProperties is { } rp)
+                    textRun.RunProperties = (RunProperties)rp.CloneNode(true);
+                anchorRun.Parent.InsertAfter(textRun, cursor);
+                cursor = textRun;
             }
         }
         return found;
+    }
+
+    /// <summary>Matnni belgi bo'yicha bo'laklarga ajratadi (registrga qaramaydi).
+    /// N ta belgi bo'lsa N+1 bo'lak qaytadi; belgi bo'lmasa bitta bo'lak (butun matn).</summary>
+    private static List<string> SplitOnToken(string text, string token)
+    {
+        var parts = new List<string>();
+        var from = 0;
+        while (true)
+        {
+            var at = text.IndexOf(token, from, StringComparison.OrdinalIgnoreCase);
+            if (at < 0) { parts.Add(text[from..]); return parts; }
+            parts.Add(text[from..at]);
+            from = at + token.Length;
+        }
     }
 
     /// <summary>Word uchun "matn ichidagi" (inline) rasm elementini yasaydi.</summary>

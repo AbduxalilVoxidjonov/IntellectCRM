@@ -1,5 +1,7 @@
 using IntellectCRM.Application.Services;
 using IntellectCRM.Domain;
+using IntellectCRM.Infrastructure.Data;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
@@ -43,6 +45,40 @@ public class BookSalesTests
         PaymentMethod = BookSalesService.PayCash,
         Status = status,
     };
+
+    /// <summary>
+    /// "IKKI KASSIR" — bitta SQLite bazasi ustida IKKITA mustaqil <see cref="AppDbContext"/>.
+    /// Har birining o'z ChangeTracker'i bor, ya'ni ikki alohida HTTP so'rovi (ikki kassir)
+    /// bir vaqtda ishlayotgan holat aynan takrorlanadi. <see cref="TestDb"/> bitta kontekst
+    /// beradi — poyga (race) ssenariysi uchun shu yordamchi kerak.
+    /// </summary>
+    private sealed class IkkiKassir : IDisposable
+    {
+        private readonly SqliteConnection _connection;
+
+        /// <summary>Birinchi kassirning konteksti (baza shu orqali yaratiladi).</summary>
+        public AppDbContext A { get; }
+
+        /// <summary>Ikkinchi kassirning konteksti — AYNI bazaga, lekin o'z kuzatuvi bilan.</summary>
+        public AppDbContext B { get; }
+
+        public IkkiKassir()
+        {
+            _connection = new SqliteConnection("Filename=:memory:");
+            _connection.Open();
+            var options = new DbContextOptionsBuilder<AppDbContext>().UseSqlite(_connection).Options;
+            A = new AppDbContext(options);
+            A.Database.EnsureCreated();
+            B = new AppDbContext(options);
+        }
+
+        public void Dispose()
+        {
+            A.Dispose();
+            B.Dispose();
+            _connection.Dispose();
+        }
+    }
 
     // =============================================================================================
     //  1) SOF MANTIQ — yorliqlar
@@ -334,6 +370,9 @@ public class BookSalesTests
     [Fact]
     public async Task NextOrderNumber_BoshBazada_Bir()
     {
+        // Raqam navbati jarayon bo'yicha umumiy (static) — har test o'z bazasi bilan ishlagani
+        // uchun oldingi testdan qolgan belgi natijani buzmasin.
+        BookSalesService.ResetOrderNumberSequence();
         using var db = TestDb.Sqlite();
 
         Assert.Equal(1, await BookSalesService.NextOrderNumberAsync(db.Context));
@@ -342,6 +381,7 @@ public class BookSalesTests
     [Fact]
     public async Task NextOrderNumber_EngKattaRaqamdanKeyingisi()
     {
+        BookSalesService.ResetOrderNumberSequence();
         using var db = TestDb.Sqlite();
         var ctx = db.Context;
         var book = NewBook();
@@ -355,6 +395,40 @@ public class BookSalesTests
         await ctx.SaveChangesAsync();
 
         Assert.Equal(8, await BookSalesService.NextOrderNumberAsync(ctx));
+    }
+
+    [Fact]
+    public async Task NextOrderNumber_SaqlanmasdanIkkiMartaOlinsa_TAKRORLANMAYDI()
+    {
+        // POYGA: raqam olingandan keyin buyurtma bazaga yozilgunicha bir necha `await` bor.
+        // Ilgari ikkala kassir ham MAX(Number)+1 = #1 ni olib, IKKALA buyurtma #1 bo'lardi.
+        BookSalesService.ResetOrderNumberSequence();
+        using var db = TestDb.Sqlite();
+        var ctx = db.Context;
+
+        var birinchi = await BookSalesService.NextOrderNumberAsync(ctx);
+        var ikkinchi = await BookSalesService.NextOrderNumberAsync(ctx);   // hali HECH BIRI saqlanmadi
+
+        Assert.Equal(1, birinchi);
+        Assert.Equal(2, ikkinchi);
+    }
+
+    [Fact]
+    public async Task NextOrderNumber_XotiradagiBelgi_BazadagiEngKATTAdanOrtaOlmaydi()
+    {
+        // Belgi bazadan ORQADA qolsa (masalan ilova qayta ishga tushdi) — baza yutadi.
+        BookSalesService.ResetOrderNumberSequence();
+        using var db = TestDb.Sqlite();
+        var ctx = db.Context;
+        var book = NewBook();
+        ctx.Books.Add(book);
+        var saqlangan = NewOrder(book);
+        saqlangan.Number = 40;
+        ctx.BookOrders.Add(saqlangan);
+        await ctx.SaveChangesAsync();
+
+        Assert.Equal(41, await BookSalesService.NextOrderNumberAsync(ctx));
+        Assert.Equal(42, await BookSalesService.NextOrderNumberAsync(ctx));
     }
 
     // =============================================================================================
@@ -746,5 +820,180 @@ public class BookSalesTests
         // "pending" qatori bazada QOLMAYDI — qo'lda sotuvning asosiy kafolati.
         Assert.Empty(await ctx.BookOrders.AsNoTracking().ToListAsync());
         Assert.Empty(await ctx.BookStockMoves.AsNoTracking().ToListAsync());
+    }
+
+    [Fact]
+    public void QoldaSotuv_SotuvdanOlinganKitob_SOTILMAYDI()
+    {
+        // Frontend sotuvdan olingan kitobni ro'yxatda ko'rsatmaydi, lekin `POST /orders/manual`
+        // to'g'ridan-to'g'ri chaqirilsa ilgari hech qanday to'siq yo'q edi.
+        var book = NewBook();
+        Assert.Null(BookSalesService.ManualSaleBookError(book));
+
+        book.IsActive = false;
+        var err = BookSalesService.ManualSaleBookError(book);
+        Assert.NotNull(err);
+        Assert.Contains("sotuvdan olingan", err);
+
+        Assert.Equal("Kitob topilmadi", BookSalesService.ManualSaleBookError(null));
+    }
+
+    // =============================================================================================
+    //  QOLDIQ POYGASI (race) — `Book.Stock` konkurentlik tokeni
+    // =============================================================================================
+
+    [Fact]
+    public async Task Qoldiq_KonkurentlikTokeni_EskirganQiymatUstigaYOZTIRMAYDI()
+    {
+        using var kassirlar = new IkkiKassir();
+        var book = NewBook(stock: 1);
+        kassirlar.A.Books.Add(book);
+        await kassirlar.A.SaveChangesAsync();
+
+        // Ikkinchi kassir kitobni O'Z kontekstida o'qidi — Stock=1 ni ko'rib turibdi.
+        var eskirgan = await kassirlar.B.Books.SingleAsync(x => x.Id == book.Id);
+        Assert.Equal(1, eskirgan.Stock);
+
+        // Birinchi kassir sotdi — bazada qoldiq 0 bo'ldi.
+        book.Stock = 0;
+        await kassirlar.A.SaveChangesAsync();
+
+        // Ikkinchi kassir eskirgan Stock=1 ustiga yozmoqchi: EF `WHERE Id=@id AND Stock=1` yozadi,
+        // 0 qator yangilanadi → istisno. Token bo'lmaganda bu jimgina "0" bo'lib o'tib ketardi.
+        eskirgan.Stock = 0;
+        await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => kassirlar.B.SaveChangesAsync());
+    }
+
+    [Fact]
+    public async Task Approve_IkkiKassirBirVaqtda_OXIRGISI_TushunarliXATOoladi()
+    {
+        using var kassirlar = new IkkiKassir();
+        var book = NewBook(stock: 1);                 // omborda BITTA dona
+        var birinchi = NewOrder(book, qty: 1);
+        var ikkinchi = NewOrder(book, qty: 1);
+        ikkinchi.Number = 2;
+        kassirlar.A.Books.Add(book);
+        kassirlar.A.BookOrders.Add(birinchi);
+        kassirlar.A.BookOrders.Add(ikkinchi);
+        await kassirlar.A.SaveChangesAsync();
+
+        // Ikkinchi kassir o'z so'rovida buyurtmani va kitobni oldin o'qib qo'ydi (qoldiq 1 ko'rinadi).
+        var ikkinchiB = await kassirlar.B.BookOrders.SingleAsync(o => o.Id == ikkinchi.Id);
+        var bookB = await kassirlar.B.Books.SingleAsync(x => x.Id == book.Id);
+        Assert.Equal(1, bookB.Stock);
+
+        // Birinchi kassir ulgurdi — yagona dona sotildi.
+        Assert.Null(await BookSalesService.ApproveAsync(kassirlar.A, birinchi, "Kassir-1"));
+        Assert.Equal(0, book.Stock);
+
+        // Ikkinchi kassir tasdiqlaydi: xotirasidagi tekshiruv (1 >= 1) o'tadi, lekin YOZUV rad etiladi.
+        var err = await BookSalesService.ApproveAsync(kassirlar.B, ikkinchiB, "Kassir-2");
+
+        Assert.NotNull(err);
+        Assert.Contains("boshqa amalda o'zgardi", err);
+
+        // BAZA: faqat BITTA sotuv yozilgan, qoldiq manfiyga tushmagan, ikkinchi buyurtma pending.
+        Assert.Equal(1, await kassirlar.A.BookStockMoves.AsNoTracking().CountAsync());
+        Assert.Equal(0, (await kassirlar.A.Books.AsNoTracking().SingleAsync(x => x.Id == book.Id)).Stock);
+        var bazada = await kassirlar.A.BookOrders.AsNoTracking().SingleAsync(o => o.Id == ikkinchi.Id);
+        Assert.Equal(BookSalesService.StatusPending, bazada.Status);
+
+        // XOTIRA: ikkinchi kassirning kontekstida ham "sotilgan" ko'rinish qolmadi.
+        Assert.Equal(1, bookB.Stock);
+        Assert.Equal(BookSalesService.StatusPending, ikkinchiB.Status);
+        Assert.Null(ikkinchiB.DecidedAt);
+    }
+
+    [Fact]
+    public async Task Approve_BoshqaKitobningQoldigiOzgargani_TASDIQLASHNIBUZMAYDI()
+    {
+        // Token faqat AYNI kitobga tegishli — parallel sotuvlar bir-birini bekorga to'smasin.
+        using var kassirlar = new IkkiKassir();
+        var alifbo = NewBook("Alifbo", stock: 5);
+        var fizika = NewBook("Fizika 9", stock: 5);
+        var order = NewOrder(fizika, qty: 2);
+        kassirlar.A.Books.Add(alifbo);
+        kassirlar.A.Books.Add(fizika);
+        kassirlar.A.BookOrders.Add(order);
+        await kassirlar.A.SaveChangesAsync();
+
+        var fizikaB = await kassirlar.B.Books.SingleAsync(x => x.Id == fizika.Id);
+        var orderB = await kassirlar.B.BookOrders.SingleAsync(o => o.Id == order.Id);
+
+        // Birinchi kassir BOSHQA kitobning qoldig'ini o'zgartirdi.
+        alifbo.Stock = 1;
+        await kassirlar.A.SaveChangesAsync();
+
+        Assert.Null(await BookSalesService.ApproveAsync(kassirlar.B, orderB, "Kassir-2"));
+        Assert.Equal(3, fizikaB.Stock);
+    }
+
+    // =============================================================================================
+    //  O'QUVCHI QIDIRUVI — telefon mosligi (qo'lda sotuv oynasi)
+    // =============================================================================================
+
+    [Fact]
+    public void PhoneMatches_MamlakatKODI_BEGONAoquvchilarniTortmaydi()
+    {
+        // XATO edi: bazada hamma raqam "+998..." bo'lgani uchun xom raqamlar ustidagi Contains
+        // "9989" so'roviga deyarli BUTUN ro'yxatni qaytarardi.
+        const string saqlangan = "+998-90-123-45-67";
+
+        Assert.False(BookSalesService.PhoneMatches(saqlangan, PhoneUtil.Key("9989")));
+        Assert.False(BookSalesService.PhoneMatches(saqlangan, PhoneUtil.Key("998")));
+        Assert.False(BookSalesService.PhoneMatches(saqlangan, PhoneUtil.Key("7777")));
+    }
+
+    [Fact]
+    public void PhoneMatches_MahalliyRaqamBolagiga_MosKeladi()
+    {
+        const string saqlangan = "+998-90-123-45-67";
+
+        Assert.True(BookSalesService.PhoneMatches(saqlangan, PhoneUtil.Key("901234567")));
+        Assert.True(BookSalesService.PhoneMatches(saqlangan, PhoneUtil.Key("+998 90 123 45 67")));
+        Assert.True(BookSalesService.PhoneMatches(saqlangan, PhoneUtil.Key("9012")));   // boshi
+        Assert.True(BookSalesService.PhoneMatches(saqlangan, PhoneUtil.Key("4567")));   // oxirgi 4 raqam
+    }
+
+    [Fact]
+    public void PhoneMatches_JudaQisqaYokiBoshRaqam_MosKELMAYDI()
+    {
+        Assert.False(BookSalesService.PhoneMatches("+998-90-123-45-67", PhoneUtil.Key("901")));
+        Assert.False(BookSalesService.PhoneMatches(null, PhoneUtil.Key("9012")));
+        Assert.False(BookSalesService.PhoneMatches("", PhoneUtil.Key("9012")));
+        Assert.False(BookSalesService.PhoneMatches("+998-90-123-45-67", PhoneUtil.Key("")));
+    }
+
+    [Fact]
+    public async Task OquvchiQidiruvi_9989_BUTUNROYXATNIqaytarmaydi()
+    {
+        // Controller mantig'ining takrori: telefon bo'yicha nomzodlarni ajratish.
+        using var db = TestDb.Sqlite();
+        var ctx = db.Context;
+        ctx.Students.AddRange(
+            new Student { FullName = "Ali Valiyev", Phone = PhoneUtil.Normalize("901234567") },
+            new Student { FullName = "Vali Aliyev", Phone = PhoneUtil.Normalize("935556677") },
+            new Student { FullName = "Zuhra Karimova", ParentPhone = PhoneUtil.Normalize("939989900") });
+        await ctx.SaveChangesAsync();
+
+        var rows = await ctx.Students.AsNoTracking()
+            .Select(s => new { s.Id, s.FullName, s.Phone, s.ParentPhone })
+            .ToListAsync();
+
+        List<string> Topilgan(string soz)
+        {
+            var key = PhoneUtil.Key(soz);
+            return rows
+                .Where(r => BookSalesService.PhoneMatches(r.Phone, key)
+                            || BookSalesService.PhoneMatches(r.ParentPhone, key))
+                .Select(r => r.FullName)
+                .ToList();
+        }
+
+        // "9989" — faqat MAHALLIY raqami shu bo'lakni o'z ichiga olgan o'quvchi (mamlakat kodi emas).
+        Assert.Equal(new[] { "Zuhra Karimova" }, Topilgan("9989"));
+        Assert.Equal(new[] { "Ali Valiyev" }, Topilgan("901234567"));
+        Assert.Equal(new[] { "Vali Aliyev" }, Topilgan("5566"));
+        Assert.Empty(Topilgan("998"));   // mamlakat kodi — 4 raqamdan qisqa, umuman qidirilmaydi
     }
 }

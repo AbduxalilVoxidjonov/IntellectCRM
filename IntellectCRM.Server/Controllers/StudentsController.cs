@@ -886,6 +886,10 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
         // Faqat serverning o'z yuklamalari qabul qilinadi (tashqi havola qo'yib bo'lmasin).
         if (url.Length > 0 && !url.StartsWith("/uploads/", StringComparison.Ordinal))
             return BadRequest(new { message = "Rasm manzili noto'g'ri" });
+        // Kengaytma ham tekshiriladi: ilgari `/uploads/` bilan boshlangan HAR QANDAY fayl (masalan
+        // `.pdf` skan) avatar bo'lib qo'yilaverardi. Ro'yxat sabablari — `UploadGuard.PhotoExtensions`.
+        if (url.Length > 0 && !Application.Services.UploadGuard.IsPhotoUrl(url))
+            return BadRequest(new { message = "Surat faqat JPG yoki PNG bo'lishi kerak (sertifikatda ham shu turlar chiqadi)" });
 
         student.BirthCertificateUrl = url.Length == 0 ? null : url;
         audit.Record(AuditService.EntityStudent, id, "update",

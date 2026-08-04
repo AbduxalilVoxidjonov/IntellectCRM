@@ -18,6 +18,30 @@ public static class UploadGuard
     };
 
     /// <summary>
+    /// O'QUVCHI SURATI uchun ruxsat etilgan kengaytmalar — umumiy ro'yxatdan TORROQ.
+    ///
+    /// <para>Sabab: surat nafaqat ekranda ko'rsatiladi, balki Word sertifikatiga ham qo'yiladi
+    /// (<see cref="DocxTemplate.ApplyPhoto"/>). U yerda faqat shu turlar ishonchli ishlaydi:</para>
+    /// <list type="bullet">
+    ///   <item><c>.heic</c> — Word/LibreOffice uni umuman chiza olmaydi va `@rasm` belgisi
+    ///   sertifikatdan JIMGINA yo'qolardi (foydalanuvchi sababini bilmasdi);</item>
+    ///   <item><c>.webp</c> — brauzerda ko'rinadi, lekin sertifikatda chiqmaydi;</item>
+    ///   <item><c>.gif</c>/<c>.bmp</c>/<c>.tiff</c> — o'lchamini fayl sarlavhasidan o'qiy olmaymiz,
+    ///   shuning uchun nisbati saqlanmay CHO'ZILIB ketardi.</item>
+    /// </list>
+    /// Ilova va admin panelidagi surat oynasi baribir JPEG chiqaradi, ya'ni bu odatiy oqimni
+    /// cheklamaydi — faqat "qo'lda boshqa fayl tanlash" yo'lini yopadi.
+    /// </summary>
+    public static readonly HashSet<string> PhotoExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".jpg", ".jpeg", ".png",
+    };
+
+    /// <summary>O'quvchi surati sifatida shu manzilni qabul qilsa bo'ladimi (kengaytma bo'yicha).</summary>
+    public static bool IsPhotoUrl(string url) =>
+        PhotoExtensions.Contains(Path.GetExtension(url));
+
+    /// <summary>
     /// Faylni tekshiradi. Hammasi joyida bo'lsa <c>null</c>, aks holda xato xabarini qaytaradi.
     /// </summary>
     public static string? Validate(IFormFile? file)
