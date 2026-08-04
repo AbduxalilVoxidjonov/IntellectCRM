@@ -2,11 +2,12 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ArrowLeft, Plus, Pencil, Trash2, FileText, Upload, Loader2, AlertTriangle,
-  Star, Eye, EyeOff, Check, Copy, Award, Info,
+  Star, Eye, EyeOff, Check, Copy, Award, Info, ImageIcon,
 } from 'lucide-react'
 import type {
   TestCertificateTemplate,
   CertificateToken,
+  CertificatePhotoHelp,
   TestCertificateTemplatePayload,
 } from '@/api/services/testCertificates'
 import {
@@ -46,6 +47,8 @@ export function CertificateTemplatesPage() {
   const { can } = usePerm()
   const [templates, setTemplates] = useState<TestCertificateTemplate[]>([])
   const [tokens, setTokens] = useState<CertificateToken[]>([])
+  /** O'quvchi surati bo'yicha yo'riqnoma (serverdan — kodda takrorlanmasin). */
+  const [photoHelp, setPhotoHelp] = useState<CertificatePhotoHelp | null>(null)
   const [pdfAvailable, setPdfAvailable] = useState(true)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -70,6 +73,7 @@ export function CertificateTemplatesPage() {
         if (!active) return
         setTemplates(list)
         setTokens(info.tokens)
+        setPhotoHelp(info.photoHelp ?? null)
         setPdfAvailable(info.pdfAvailable)
       })
       .catch((e) => active && setError(apiErrorMessage(e, "Yuklab bo'lmadi")))
@@ -242,6 +246,24 @@ export function CertificateTemplatesPage() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            )}
+
+            {/* ---- O'quvchi surati — matn belgisi EMAS, Word'dagi rasm o'rni ---- */}
+            {photoHelp && (
+              <div className="mt-4 rounded-lg border border-brand-100 bg-brand-50/50 px-3.5 py-3">
+                <div className="flex items-center gap-2 text-sm font-semibold text-brand-700">
+                  <ImageIcon className="h-4 w-4" /> {photoHelp.title}
+                </div>
+                <p className="mt-1 text-sm text-slate-600">
+                  Bu <b>belgi bilan yozilmaydi</b> — rasmni Word'ning o'zida qo'yasiz:
+                </p>
+                <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-slate-600 marker:font-semibold marker:text-brand-500">
+                  {photoHelp.steps.map((s, i) => (
+                    <li key={i}>{s}</li>
+                  ))}
+                </ol>
+                <p className="mt-2 text-xs text-slate-500">{photoHelp.note}</p>
               </div>
             )}
           </Card>

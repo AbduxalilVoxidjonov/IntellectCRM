@@ -530,6 +530,11 @@ public record SetTestScoreRequest(string StudentId, decimal? Score);
 /// <summary>Andozada ishlatiladigan bitta <c>@</c>-o'zgaruvchi (admin paneli shu ro'yxatni ko'rsatadi).</summary>
 public record CertificateTokenDto(string Token, string Label, string Example);
 
+/// <summary>O'QUVCHI SURATI andozaga qanday qo'yilishi — admin panelidagi yo'riqnoma.
+/// Bu matn tokeni EMAS (rasmning o'lchami/joyini kod taxmin qila olmaydi), shuning uchun
+/// alohida tushuntiriladi.</summary>
+public record CertificatePhotoHelpDto(string Title, List<string> Steps, string Note);
+
 /// <summary>Sertifikat Word andozasi (ro'yxat/karta uchun).</summary>
 public record TestCertificateTemplateDto(
     string Id, string Name, string FileUrl, string FileName,

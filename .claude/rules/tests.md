@@ -158,3 +158,29 @@ PDF ga o'girish **LibreOffice headless** orqali (ko'rinish AYNAN saqlanadi).
   o'quvchi yonida `ball / maks · foiz`, pastda «Saqlash va sertifikat yaratish» va
   «Sertifikatlar» bo'limi (har biri uchun «Yuklab olish» + «Hammasini yuklab olish (ZIP)»).
 - Shablon o'chirilmaydi, agar undan sertifikat berilgan bo'lsa — **nofaol** qilinadi (tarix buzilmasin).
+
+### Sertifikatda O'QUVCHI SURATI
+
+Surat **matn tokeni EMAS** (`@rasm` yo'q) — sabab: rasmning o'lchami/joylashuvini kod taxmin
+qila olmaydi. Buning o'rniga shablon muallifi **Word'da rasm qo'yadi** (istalgan surat — u faqat
+o'rin), o'lchami/ramkasi/matn bilan joylashuvini xohlagancha sozlaydi, biz esa
+`DocxTemplate.ReplaceImage` bilan faqat uning **mazmunini** almashtiramiz. Natijada muallif
+ko'rgan ko'rinish aynan saqlanadi.
+
+- **Qaysi rasm tanlanadi:** nomi/alt-matnida `rasm|surat|foto|photo` bo'lgani; belgi yo'q bo'lsa
+  va hujjatda BITTA rasm bo'lsa — o'sha. Aks holda (logotip + rasm, ikkalasi belgilanmagan)
+  **hech narsa o'zgartirilmaydi** — noto'g'ri rasmni buzgandan ko'ra tegmagan yaxshi.
+- **Nisbat saqlanadi:** surat muallif ajratgan katak ICHIGA sig'diriladi ("contain") —
+  `wp:extent` va `a:xfrm/a:ext` ikkalasi ham yangilanadi (faqat bittasi yangilansa Word rasmni
+  cho'zib ko'rsatadi). Rasm o'lchami fayl SARLAVHASIDAN o'qiladi (`DocxTemplate.ImageSize` —
+  PNG IHDR / JPEG SOFn), tashqi kutubxona SHART EMAS: bizga faqat nisbat kerak.
+- **Yangi ImagePart qo'shiladi** va `a:blip/@r:embed` unga yo'naltiriladi — mavjud qismning
+  content-type'ini o'zgartirib bo'lmaydi (andozadagi o'rin PNG, surat JPEG bo'lsa baytlarni
+  to'g'ridan-to'g'ri yozish hujjatni buzardi). `AddNewPart<ImagePart>(contentType, relId)`
+  ishlatiladi — kutubxonaning hujjatlashtirilmagan `ImagePartType` turiga bog'lanmaslik uchun.
+- Qo'llanadigan formatlar: jpg/png/gif/bmp/tiff. **webp/heic — o'tkazib yuboriladi** (andozaga
+  tegilmaydi). O'quvchi surati `StudentPhotoDialog` dan JPEG bo'lib keladi, muammo yo'q.
+- O'quvchida surat bo'lmasa yoki fayl topilmasa — andozadagi rasm **o'z holicha qoladi**
+  (joylashuv buzilmasin). Manba: `Student.BirthCertificateUrl`.
+- Admin paneldagi yo'riqnoma matni `TestCertificateService.PhotoHelp` da (yagona manba) va
+  `GET certificate-tokens` javobida `photoHelp` bo'lib keladi.

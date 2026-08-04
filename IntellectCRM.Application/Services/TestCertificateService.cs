@@ -48,6 +48,22 @@ public class TestCertificateService(IHostEnvironment env, DocxToPdfConverter pdf
         new("@raqam", "Sertifikat raqami", "SRT-2026-0042"),
     ];
 
+    /// <summary>
+    /// O'QUVCHI SURATI — matn tokeni EMAS. Sabab: <c>@rasm</c> deb yozilsa rasmning o'lchami va
+    /// joylashuvini KOD taxmin qilishi kerak bo'lardi. Buning o'rniga shablon muallifi Word'ning
+    /// o'zida rasm qo'yadi va uni xohlagancha sozlaydi — biz faqat MAZMUNINI almashtiramiz.
+    /// </summary>
+    public static readonly CertificatePhotoHelpDto PhotoHelp = new(
+        "O'quvchining surati",
+        [
+            "Word'da istalgan rasm qo'ying (Qo'yish → Rasm) — u faqat O'RIN, mazmuni almashtiriladi.",
+            "O'lchami, ramkasi va joyini xohlagancha sozlang — sertifikatda AYNAN shunday chiqadi.",
+            "Rasmni o'ng tugma bilan bosing → «Alt matn» (Edit Alt Text) → «rasm» deb yozing.",
+            "Agar shablonda boshqa rasm bo'lmasa (logotip ham), alt matn yozish shart emas.",
+        ],
+        "Surat nisbati saqlanadi — siz ajratgan katak ICHIGA sig'diriladi, cho'zilmaydi. "
+        + "O'quvchida surat bo'lmasa andozadagi rasm o'z holicha qoladi.");
+
     // =============================================================================================
     //  ANDOZALAR
     // =============================================================================================
@@ -181,9 +197,12 @@ public class TestCertificateService(IHostEnvironment env, DocxToPdfConverter pdf
         if (scores.Count == 0) return ([], "Hali birorta ball kiritilmagan");
 
         var studentIds = scores.Select(s => s.StudentId).Distinct().ToList();
+        // Surat ham olinadi: andozada rasm o'rni bo'lsa uning ichiga qo'yiladi.
+        // (`BirthCertificateUrl` — nomi eski, aslida o'quvchi rasmi; qarang: Entities.cs)
         var students = await db.Students.AsNoTracking()
             .Where(s => studentIds.Contains(s.Id))
-            .ToDictionaryAsync(s => s.Id, s => s.FullName, ct);
+            .Select(s => new { s.Id, s.FullName, PhotoUrl = s.BirthCertificateUrl })
+            .ToDictionaryAsync(s => s.Id, s => s, ct);
 
         // O'RIN — test tafsilotidagi bilan bir xil qoida (teng ball = teng o'rin, keyingisi tashlab ketiladi).
         var ordered = scores.OrderByDescending(s => s.Score).ToList();
@@ -209,7 +228,8 @@ public class TestCertificateService(IHostEnvironment env, DocxToPdfConverter pdf
         foreach (var s in ordered)
         {
             ct.ThrowIfCancellationRequested();
-            var fullName = students.GetValueOrDefault(s.StudentId) ?? "";
+            var student = students.GetValueOrDefault(s.StudentId);
+            var fullName = student?.FullName ?? "";
             if (fullName.Length == 0) continue;   // o'quvchi o'chirilgan — sertifikat berilmaydi
 
             var percent = test.MaxScore > 0 ? (int)Math.Round(s.Score / test.MaxScore * 100m) : 0;
@@ -232,7 +252,14 @@ public class TestCertificateService(IHostEnvironment env, DocxToPdfConverter pdf
                 ["@raqam"] = number,
             };
 
-            pending.Add((s, fullName, percent, number, DocxTemplate.Fill(templateBytes, tokens)));
+            var docx = DocxTemplate.Fill(templateBytes, tokens);
+            // Andozada rasm o'rni bo'lsa — o'quvchining surati qo'yiladi. Surat yo'q yoki fayl
+            // topilmasa andozadagi o'rin O'Z HOLICHA qoladi (joylashuv buzilmasin).
+            var photo = ReadPhoto(student?.PhotoUrl);
+            if (photo is not null)
+                docx = DocxTemplate.ReplaceImage(docx, photo.Value.Bytes, photo.Value.Extension);
+
+            pending.Add((s, fullName, percent, number, docx));
         }
         if (pending.Count == 0) return ([], "Hali birorta ball kiritilmagan");
 
@@ -421,6 +448,16 @@ public class TestCertificateService(IHostEnvironment env, DocxToPdfConverter pdf
         if (string.IsNullOrEmpty(name)) return null;
         var path = Path.Combine(UploadsDir, name);
         return File.Exists(path) ? path : null;
+    }
+
+    /// <summary>O'quvchi suratini "/uploads/..." dan o'qiydi. Yo'q bo'lsa null — sertifikat
+    /// baribir yaratiladi (rasmsiz), chunki yarim guruhda surat bo'lmasligi odatiy hol.</summary>
+    private (byte[] Bytes, string Extension)? ReadPhoto(string? photoUrl)
+    {
+        var path = ResolveUpload(photoUrl);
+        if (path is null) return null;
+        try { return (File.ReadAllBytes(path), Path.GetExtension(path)); }
+        catch { return null; }
     }
 
     private string? ResolveCertFile(string? fileUrl)

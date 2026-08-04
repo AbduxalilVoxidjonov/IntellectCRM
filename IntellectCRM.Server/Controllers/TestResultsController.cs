@@ -90,7 +90,12 @@ public class TestResultsController(AppDbContext db, TestCertificateService certs
     /// Admin paneli shu ro'yxatni ko'rsatadi — shablon muallifi nimani yozishini bilsin.</summary>
     [HttpGet("certificate-tokens")]
     public ActionResult<object> CertificateTokens() =>
-        Ok(new { tokens = TestCertificateService.Tokens, pdfAvailable = DocxToPdfConverter.IsAvailable });
+        Ok(new
+        {
+            tokens = TestCertificateService.Tokens,
+            photoHelp = TestCertificateService.PhotoHelp,
+            pdfAvailable = DocxToPdfConverter.IsAvailable,
+        });
 
     /// <summary>Sertifikat Word andozalari ro'yxati.</summary>
     [HttpGet("certificate-templates")]

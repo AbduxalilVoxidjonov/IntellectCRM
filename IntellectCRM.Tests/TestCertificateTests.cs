@@ -1,6 +1,9 @@
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
+using A = DocumentFormat.OpenXml.Drawing;
+using DW = DocumentFormat.OpenXml.Drawing.Wordprocessing;
+using PIC = DocumentFormat.OpenXml.Drawing.Pictures;
 using IntellectCRM.Application.Dtos;
 using IntellectCRM.Application.Services;
 using IntellectCRM.Domain;
@@ -148,6 +151,136 @@ public class TestCertificateTests : IDisposable
         // Takroriy token bo'lmasin (ikkita bir xil qator UI'da chalkashtirardi).
         Assert.Equal(TestCertificateService.Tokens.Count,
             TestCertificateService.Tokens.Select(t => t.Token).Distinct().Count());
+    }
+
+    // =============================================================================================
+    //  1b) RASM O'RNI — o'quvchi surati
+    // =============================================================================================
+
+    /// <summary>Minimal, HAQIQIY PNG (1×2 piksel) — nisbat 1:2, o'lcham hisobini tekshirish uchun.</summary>
+    private static byte[] Png1x2() =>
+    [
+        0x89, (byte)'P', (byte)'N', (byte)'G', 0x0D, 0x0A, 0x1A, 0x0A,
+        0, 0, 0, 13, (byte)'I', (byte)'H', (byte)'D', (byte)'R',
+        0, 0, 0, 1,     // kenglik = 1
+        0, 0, 0, 2,     // balandlik = 2
+        8, 6, 0, 0, 0, 0, 0, 0, 0,
+    ];
+
+    /// <summary>Rasm o'rni (100×100 EMU katak) bo'lgan .docx — muallif Word'da qo'ygan rasm kabi.</summary>
+    private static byte[] MakeDocxWithImage(string? altText, long cx = 1000, long cy = 1000)
+    {
+        using var ms = new MemoryStream();
+        using (var doc = WordprocessingDocument.Create(ms, WordprocessingDocumentType.Document))
+        {
+            var main = doc.AddMainDocumentPart();
+            var img = main.AddNewPart<ImagePart>("image/png", "rIdSeed");
+            using (var s = new MemoryStream(Png1x2())) img.FeedData(s);
+
+            var drawing = new Drawing(
+                new DW.Inline(
+                    new DW.Extent { Cx = cx, Cy = cy },
+                    new DW.DocProperties { Id = 1U, Name = altText ?? "Picture 1", Description = altText ?? "" },
+                    new A.Graphic(new A.GraphicData(
+                        new PIC.Picture(
+                            new PIC.NonVisualPictureProperties(
+                                new PIC.NonVisualDrawingProperties { Id = 0U, Name = altText ?? "p.png" },
+                                new PIC.NonVisualPictureDrawingProperties()),
+                            new PIC.BlipFill(
+                                new A.Blip { Embed = "rIdSeed" },
+                                new A.Stretch(new A.FillRectangle())),
+                            new PIC.ShapeProperties(
+                                new A.Transform2D(
+                                    new A.Offset { X = 0L, Y = 0L },
+                                    new A.Extents { Cx = cx, Cy = cy }),
+                                new A.PresetGeometry(new A.AdjustValueList())
+                                { Preset = A.ShapeTypeValues.Rectangle }))
+                    ) { Uri = "http://schemas.openxmlformats.org/drawingml/2006/picture" })));
+
+            main.Document = new Document(new Body(new Paragraph(new Run(drawing))));
+            main.Document.Save();
+        }
+        return ms.ToArray();
+    }
+
+    private static (int W, int H) ImageBytesIn(byte[] docx)
+    {
+        using var ms = new MemoryStream(docx);
+        using var doc = WordprocessingDocument.Open(ms, false);
+        var main = doc.MainDocumentPart!;
+        // Blip qaysi qismga ishora qilyapti — o'shani o'qiymiz.
+        var relId = main.Document.Descendants<A.Blip>().First().Embed!.Value!;
+        var part = (ImagePart)main.GetPartById(relId);
+        using var s = part.GetStream();
+        using var mem = new MemoryStream();
+        s.CopyTo(mem);
+        return DocxTemplate.ImageSize(mem.ToArray());
+    }
+
+    [Fact]
+    public void ImageSize_PNGVaJPEGolchaminiOqiydi()
+    {
+        Assert.Equal((1, 2), DocxTemplate.ImageSize(Png1x2()));
+        Assert.Equal((0, 0), DocxTemplate.ImageSize([1, 2, 3]));   // tanilmasa — yiqilmaydi
+    }
+
+    [Fact]
+    public void ReplaceImage_BITTArasmBolsa_AltMatnSHARTEMAS()
+    {
+        var docx = MakeDocxWithImage(altText: null);
+        var photo = MakeJpeg(4, 4);
+
+        var result = DocxTemplate.ReplaceImage(docx, photo, ".jpg");
+
+        Assert.Equal((4, 4), ImageBytesIn(result));
+    }
+
+    [Fact]
+    public void ReplaceImage_NISBATSAQLANADI_KatakdanCHIQMAYDI()
+    {
+        // Katak 1000×1000, surat 1:2 (bo'yiga cho'zilgan) → balandlik 1000, kenglik 500.
+        var docx = MakeDocxWithImage(altText: "rasm", cx: 1000, cy: 1000);
+
+        var result = DocxTemplate.ReplaceImage(docx, Png1x2(), ".png");
+
+        using var ms = new MemoryStream(result);
+        using var doc = WordprocessingDocument.Open(ms, false);
+        var extent = doc.MainDocumentPart!.Document.Descendants<DW.Extent>().First();
+        Assert.Equal(500L, extent.Cx!.Value);
+        Assert.Equal(1000L, extent.Cy!.Value);
+        // Shakl o'lchami ham yangilanadi — aks holda Word rasmni cho'zib ko'rsatadi.
+        var ext = doc.MainDocumentPart.Document.Descendants<A.Extents>().First();
+        Assert.Equal(500L, ext.Cx!.Value);
+        Assert.Equal(1000L, ext.Cy!.Value);
+    }
+
+    [Fact]
+    public void ReplaceImage_QollanmaydiganFormat_ANDOZAGATEGILMAYDI()
+    {
+        var docx = MakeDocxWithImage(altText: "rasm");
+
+        var result = DocxTemplate.ReplaceImage(docx, MakeJpeg(4, 4), ".webp");
+
+        Assert.Equal(docx, result);                 // bayt-bayt o'zgarmagan
+        Assert.Equal((1, 2), ImageBytesIn(result)); // eski (andozadagi) rasm joyida
+    }
+
+    [Fact]
+    public void HasPhotoPlaceholder_RasmsizAndozadaFALSE()
+    {
+        Assert.False(DocxTemplate.HasPhotoPlaceholder(MakeDocx("@fish")));
+        Assert.True(DocxTemplate.HasPhotoPlaceholder(MakeDocxWithImage("rasm")));
+    }
+
+    /// <summary>Haqiqiy (minimal) JPEG — SOF0 sarlavhasi bilan, o'lchami berilganidek.</summary>
+    private static byte[] MakeJpeg(int w, int h)
+    {
+        var b = new List<byte> { 0xFF, 0xD8, 0xFF, 0xC0, 0x00, 0x11, 0x08 };
+        b.Add((byte)(h >> 8)); b.Add((byte)(h & 0xFF));
+        b.Add((byte)(w >> 8)); b.Add((byte)(w & 0xFF));
+        b.AddRange(new byte[] { 0x03, 0x01, 0x11, 0x00, 0x02, 0x11, 0x01, 0x03, 0x11, 0x01 });
+        b.AddRange(new byte[] { 0xFF, 0xD9 });
+        return [.. b];
     }
 
     // =============================================================================================

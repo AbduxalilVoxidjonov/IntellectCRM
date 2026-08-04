@@ -18,6 +18,20 @@ export interface CertificateToken {
   example: string
 }
 
+/** O'quvchi surati andozaga QANDAY qo'yilishi — bu matn belgisi emas, Word'dagi rasm o'rni. */
+export interface CertificatePhotoHelp {
+  title: string
+  steps: string[]
+  note: string
+}
+
+export interface CertificateTokensResponse {
+  tokens: CertificateToken[]
+  photoHelp: CertificatePhotoHelp
+  /** false — serverda LibreOffice yo'q, sertifikatlar .docx bo'lib chiqadi */
+  pdfAvailable: boolean
+}
+
 export interface TestCertificateTemplate {
   id: string
   name: string
@@ -70,11 +84,8 @@ export interface GenerateCertificatesResult {
 // ---------------------------------------------------------------- Admin: andozalar
 
 /** Andozada ishlatiladigan o'zgaruvchilar ro'yxati (yagona manba — server). */
-export async function getCertificateTokens(): Promise<{
-  tokens: CertificateToken[]
-  pdfAvailable: boolean
-}> {
-  const { data } = await api.get<{ tokens: CertificateToken[]; pdfAvailable: boolean }>(
+export async function getCertificateTokens(): Promise<CertificateTokensResponse> {
+  const { data } = await api.get<CertificateTokensResponse>(
     '/admin/test-results/certificate-tokens',
   )
   return data
