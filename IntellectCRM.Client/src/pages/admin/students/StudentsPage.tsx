@@ -250,7 +250,7 @@ export function StudentsPage() {
     const matchDistrict = districtFilter === 'all' || s.districtId === districtFilter
     const matchSchool = schoolFilter === 'all' || s.schoolId === schoolFilter
     const matchBirthday = !birthdayToday || (s.birthDate && s.birthDate.slice(5, 10) === todayMonthDay)
-    // Surat: birthCertificateUrl — o'quvchi rasmi (nomi eski, .claude qoidalariga qarang).
+    // Surat: birthCertificateUrl — o'quvchi rasmi (nomi eski, `types/index.ts` izohiga qarang).
     const hasPhoto = !!(s.birthCertificateUrl && s.birthCertificateUrl.trim())
     const matchPhoto =
       photoFilter === 'all' || (photoFilter === 'with' ? hasPhoto : !hasPhoto)

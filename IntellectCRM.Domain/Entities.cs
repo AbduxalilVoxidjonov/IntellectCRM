@@ -231,8 +231,17 @@ public class Student
     /// <para><b>NOMI ESKI</b> — ilgari tug'ilganlik guvohnomasi uchun edi, lekin butun tizim uni
     /// RASM deb ishlatadi: admin formasidagi yorlig'i "O'quvchi rasmi", o'quvchi ilovasiga
     /// <c>StudentProfileDto.PhotoUrl</c> bo'lib chiqadi, admin profilida esa dumaloq avatarda
-    /// ko'rinadi. Ustun QAYTA NOMLANMAGAN (migratsiya + barcha DTO'larni buzmaslik uchun);
-    /// ikkinchi "rasm" ustuni ham OCHILMAYDI — aks holda qaysi biri ko'rsatilishi chalkashardi.</para>
+    /// ko'rinadi. Ikkinchi "rasm" ustuni OCHILMAYDI — aks holda qaysi biri ko'rsatilishi chalkashardi.</para>
+    ///
+    /// <para><b>QAYTA NOMLAMANG</b> (2026-08-04 da ko'rib chiqilgan va RAD ETILGAN):
+    /// EF Core property rename'ni ANIQLAY OLMAYDI — <c>migrations add</c> buni
+    /// <c>DropColumn("BirthCertificateUrl")</c> + <c>AddColumn("PhotoUrl")</c> qilib yozadi, va
+    /// <c>Program.cs</c> dagi <c>db.Database.Migrate()</c> uni deployda AVTOMATIK bajaradi →
+    /// prodda yig'ilgan barcha rasm manzillari yo'qoladi (fayllar <c>/uploads</c> da qoladi, lekin
+    /// nomi tasodifiy GUID — qaysi o'quvchiniki ekani tiklanmaydi). Bundan tashqari eski SQL/JSON
+    /// zaxira nusxalari (<c>BackupService</c> entity property nomlari bilan yozadi) yangi sxemaga
+    /// mos kelmay qoladi. Zarur bo'lsa — YAGONA xavfsiz yo'l: property nomini o'zgartirib,
+    /// Fluent config'da <c>.HasColumnName("BirthCertificateUrl")</c> bilan eski ustunga bog'lash.</para>
     /// </summary>
     public string? BirthCertificateUrl { get; set; }
     public string Address { get; set; } = string.Empty;

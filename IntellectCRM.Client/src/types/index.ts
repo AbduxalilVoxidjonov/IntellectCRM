@@ -641,7 +641,12 @@ export interface Student {
   /** Otasining ismi / sharifi (alohida) */
   middleName?: string
   birthDate: string
-  /** Metrika (tug'ilganlik haqida guvohnoma) rasm/skani manzili */
+  /**
+   * O'QUVCHINING RASMI (profil surati) manzili — "/uploads/...".
+   * NOMI ESKI: ilgari metrika (tug'ilganlik guvohnomasi) uchun edi, endi rasm sifatida
+   * ishlatiladi. Boshqa DTO'larda (`StudentNotebookDto`, `StudentProfileDto`) shu maydon
+   * `photoUrl` deb keladi. Batafsil sabab — `Student.BirthCertificateUrl` XML izohida.
+   */
   birthCertificateUrl?: string | null
   address: string
   gender: Gender
