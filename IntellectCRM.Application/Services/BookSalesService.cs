@@ -31,8 +31,15 @@ public static class BookSalesService
     public const string PayCash = "cash";
     public const string PayCard = "card";
 
+    // Buyurtma manbai: mijoz botdan bergan yoki markazda qo'lda sotilgan
+    public const string SourceBot = "bot";
+    public const string SourceManual = "manual";
+
     public static string PaymentLabel(string? method) =>
         method == PayCard ? "Karta" : method == PayCash ? "Naqd" : (method ?? "");
+
+    public static string SourceLabel(string? source) =>
+        source == SourceManual ? "Qo'lda" : "Bot";
 
     public static string StatusLabel(string? status) => status switch
     {

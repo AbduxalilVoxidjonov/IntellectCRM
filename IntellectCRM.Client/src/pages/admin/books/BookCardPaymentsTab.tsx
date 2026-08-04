@@ -275,6 +275,12 @@ export function BookCardPaymentsTab({ canDecide, onDecided }: Props) {
                             />
                           )}
                         </button>
+                      ) : o.cardLast4 ? (
+                        // Markazda qo'lda sotuv — chek rasmi yo'q, kassir karta va vaqtni kiritgan.
+                        <div className="flex h-16 w-14 flex-col items-center justify-center gap-0.5 rounded-lg border border-dashed border-slate-200 bg-slate-50 text-[10px] text-slate-500">
+                          <span className="font-mono font-semibold">••{o.cardLast4}</span>
+                          {o.paidTime && <span className="text-slate-400">{o.paidTime}</span>}
+                        </div>
                       ) : (
                         <span className="text-xs text-slate-400">chek yo'q</span>
                       )}
@@ -285,7 +291,17 @@ export function BookCardPaymentsTab({ canDecide, onDecided }: Props) {
                       <span className="ml-1 text-xs text-slate-400">{o.createdAt.slice(11, 16)}</span>
                     </td>
                     <td>
-                      <div className="font-medium text-slate-800">{o.customerName || "Noma'lum"}</div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-medium text-slate-800">{o.customerName || "Noma'lum"}</span>
+                        {o.source === 'manual' && (
+                          <span
+                            className="rounded bg-amber-50 px-1.5 py-0.5 text-[11px] font-semibold text-amber-700"
+                            title="Markazda qo'lda sotilgan (bot orqali emas)"
+                          >
+                            Qo'lda
+                          </span>
+                        )}
+                      </div>
                       {o.phone && (
                         <div className="font-mono text-xs text-slate-400">{maskPhone(o.phone)}</div>
                       )}

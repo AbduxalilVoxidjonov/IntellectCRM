@@ -317,7 +317,8 @@ public class BooksController(AppDbContext db, TelegramService telegram, IWebHost
             o.BookId, o.BookTitle, o.UnitPrice, o.Qty, o.Total, o.PaymentMethod, o.ReceiptUrl,
             o.Status, o.RejectReason, o.CreatedAt.ToString("yyyy-MM-ddTHH:mm:ss"),
             o.DecidedAt?.ToString("yyyy-MM-ddTHH:mm:ss"), o.DecidedBy,
-            stocks.GetValueOrDefault(o.BookId, 0))).ToList();
+            stocks.GetValueOrDefault(o.BookId, 0),
+            o.Source, o.CardLast4, o.PaidTime)).ToList();
     }
 
     /// <summary>Kutilayotgan buyurtmalar soni (nav/tab belgisi uchun).</summary>
@@ -338,7 +339,9 @@ public class BooksController(AppDbContext db, TelegramService telegram, IWebHost
         var error = await BookSalesService.ApproveAsync(db, order, Actor);
         if (error is not null) return BadRequest(new { message = error });
 
-        await telegram.SendMessageAsync(order.ChatId, BookSalesService.CustomerApprovedText(order));
+        // Qo'lda sotilgan buyurtmada Telegram chat yo'q (ChatId=0) — xabar yuborilmaydi.
+        if (order.ChatId != 0)
+            await telegram.SendMessageAsync(order.ChatId, BookSalesService.CustomerApprovedText(order));
         return (await ToOrderDtosAsync(new List<BookOrder> { order }))[0];
     }
 
@@ -354,7 +357,117 @@ public class BooksController(AppDbContext db, TelegramService telegram, IWebHost
         var error = await BookSalesService.RejectAsync(db, order, payload.Reason, Actor);
         if (error is not null) return BadRequest(new { message = error });
 
-        await telegram.SendMessageAsync(order.ChatId, BookSalesService.CustomerRejectedText(order));
+        if (order.ChatId != 0)
+            await telegram.SendMessageAsync(order.ChatId, BookSalesService.CustomerRejectedText(order));
+        return (await ToOrderDtosAsync(new List<BookOrder> { order }))[0];
+    }
+
+    // =============================================================================================
+    //  QO'LDA SOTUV — markazda, joyida (bot orqali emas)
+    // =============================================================================================
+
+    /// <summary>
+    /// Qo'lda sotuv oynasi uchun O'QUVCHI QIDIRUVI (F.I.Sh yoki telefon, kamida 2 belgi).
+    /// <c>KassaController.SearchStudents</c> bilan bir xil mantiq, lekin <c>books</c> ruxsati ostida
+    /// va yengilroq (balans hisoblanmaydi — kitob sotuvi o'quvchi balansiga tegmaydi).
+    /// </summary>
+    [HttpGet("students")]
+    public async Task<ActionResult<List<BookStudentDto>>> SearchStudents([FromQuery] string q)
+    {
+        var term = (q ?? "").Trim();
+        if (term.Length < 2) return new List<BookStudentDto>();
+        var name = term.ToLower();
+
+        // TELEFON: bazada "+998-90-123-45-67" ko'rinishida saqlanadi, shuning uchun SQL'da
+        // to'g'ridan-to'g'ri solishtirib bo'lmaydi — yengil proyeksiya olib xotirada moslashtiramiz.
+        // Kamida 4 raqam: "998" BARCHA raqamlarga mos kelardi.
+        var digits = PhoneUtil.DigitsOnly(term);
+        var phoneIds = new List<string>();
+        if (digits.Length >= 4)
+        {
+            var rows = await db.Students.AsNoTracking()
+                .Select(s => new { s.Id, s.Phone, s.ParentPhone, s.FatherPhone, s.MotherPhone })
+                .ToListAsync();
+            phoneIds = rows
+                .Where(r => new[] { r.Phone, r.ParentPhone, r.FatherPhone, r.MotherPhone }
+                    .Any(p => PhoneUtil.DigitsOnly(p).Contains(digits)))
+                .Select(r => r.Id)
+                .Take(80)
+                .ToList();
+        }
+
+        return await db.Students.AsNoTracking()
+            .Where(s => s.FullName.ToLower().Contains(name) || phoneIds.Contains(s.Id))
+            .OrderBy(s => s.IsArchived).ThenBy(s => s.FullName)
+            .Take(20)
+            .Select(s => new BookStudentDto(
+                s.Id, s.FullName, s.Phone, s.ParentPhone, s.ClassName, s.IsArchived))
+            .ToListAsync();
+    }
+
+    /// <summary>
+    /// MARKAZDA QO'LDA SOTUV: kitob → soni → o'quvchi → naqd/karta. Buyurtma darhol
+    /// <b>tasdiqlangan</b> holatda yaratiladi, ya'ni qoldiq shu zahoti ayiriladi va sotuv
+    /// analitikaga tushadi. Qoldiq va tarix baribir <see cref="BookSalesService.ApproveAsync"/>
+    /// orqali o'zgaradi — ombor mantig'i bitta joyda qoladi (botdagi oqim bilan bir xil).
+    /// </summary>
+    [HttpPost("orders/manual")]
+    public async Task<ActionResult<BookOrderDto>> ManualSale(BookManualSalePayload payload)
+    {
+        if (payload.Qty <= 0) return BadRequest(new { message = "Sonini kiriting (kamida 1 dona)" });
+        if (payload.Qty > 500) return BadRequest(new { message = "Soni juda katta (maksimal 500 dona)" });
+
+        var book = await db.Books.FirstOrDefaultAsync(b => b.Id == payload.BookId);
+        if (book is null) return BadRequest(new { message = "Kitob topilmadi" });
+
+        var student = await db.Students.AsNoTracking().FirstOrDefaultAsync(s => s.Id == payload.StudentId);
+        if (student is null) return BadRequest(new { message = "O'quvchi topilmadi" });
+
+        var method = payload.PaymentMethod == BookSalesService.PayCard
+            ? BookSalesService.PayCard
+            : BookSalesService.PayCash;
+
+        // Karta to'lovida oxirgi 4 raqam va to'lov vaqti — moliya bo'limi bilan BIR XIL
+        // normalizatsiya (PaymentFields): to'liq karta raqami hech qachon saqlanmaydi.
+        string? last4 = null;
+        string? paidTime = null;
+        if (method == BookSalesService.PayCard)
+        {
+            if (!PaymentFields.TryNormalizeCardLast4(payload.CardLast4, out last4))
+                return BadRequest(new { message = "Karta raqamining oxirgi 4 raqamini to'liq kiriting" });
+            if (last4 is null)
+                return BadRequest(new { message = "Karta to'lovida oxirgi 4 raqam majburiy" });
+            if (!PaymentFields.TryNormalizeTime(payload.PaidTime, out paidTime))
+                return BadRequest(new { message = "To'lov vaqti noto'g'ri (HH:mm)" });
+            if (paidTime is null)
+                return BadRequest(new { message = "Karta to'lovida to'lov vaqti majburiy" });
+        }
+
+        var order = new BookOrder
+        {
+            Number = await BookSalesService.NextOrderNumberAsync(db),
+            ChatId = 0,                       // Telegram chat yo'q — xabar yuborilmaydi
+            Source = BookSalesService.SourceManual,
+            CustomerName = student.FullName,
+            Phone = string.IsNullOrWhiteSpace(student.Phone) ? student.ParentPhone : student.Phone,
+            StudentId = student.Id,
+            BookId = book.Id,
+            BookTitle = book.Title,           // SNAPSHOT — keyin narx/nom o'zgarsa hisobot buzilmasin
+            UnitPrice = book.Price,
+            Qty = payload.Qty,
+            Total = book.Price * payload.Qty,
+            PaymentMethod = method,
+            CardLast4 = last4,
+            PaidTime = paidTime,
+            Status = BookSalesService.StatusPending,   // ApproveAsync faqat pending'ni qabul qiladi
+        };
+        db.BookOrders.Add(order);
+
+        // Qoldiq yetmasa — bu yerda 400 qaytadi va SaveChanges CHAQIRILMAYDI, ya'ni buyurtma ham
+        // yozilmaydi (yarim holatda "pending" qatori qolib ketmasin).
+        var error = await BookSalesService.ApproveAsync(db, order, Actor);
+        if (error is not null) return BadRequest(new { message = error });
+
         return (await ToOrderDtosAsync(new List<BookOrder> { order }))[0];
     }
 

@@ -20,7 +20,7 @@ Telegram bot orqali buyurtma qabul qiladi. **Click/Payme YO'Q** — faqat naqd y
 |---|---|
 | `Book` | Tovar: `Title/Author/Description/CoverUrl/CoverFileId/Price/Stock/IsActive/CreatedAt/CreatedBy` |
 | `BookStockMove` | Qoldiqning HAR bir o'zgarishi: `Qty` (±), `Reason`, `OrderId?`, `Note`, `StockAfter`, `CreatedBy` |
-| `BookOrder` | Botdan tushgan buyurtma (nom/narx SNAPSHOT), `Number` (#1,#2…), `Status`, `ReceiptUrl`, `DecidedAt/By` |
+| `BookOrder` | Buyurtma (nom/narx SNAPSHOT), `Number` (#1,#2…), `Status`, `ReceiptUrl`, `DecidedAt/By`, `Source`, `CardLast4`, `PaidTime` |
 | `BookBotSession` | Chatning vaqtinchalik savdo holati — `ChatId` UNIKAL (bir chatda bitta faol sessiya) |
 
 - `Book.CoverFileId` — Telegram keshlagan `file_id`. Muqova bir marta yuklangach botga qayta
@@ -37,6 +37,7 @@ Controller ham, bot ham faqat shu orqali ishlaydi, aks holda "qoldiq qanday o'zg
 Bot: buyurtma yaratildi  →  Stock TEGILMAYDI  (Status=pending)
 Admin: Tasdiqlash        →  Move(book, -Qty, "sale", …)  →  Stock ayiriladi
 Admin: Rad etish         →  Stock TEGILMAYDI, mijozga sabab yuboriladi
+Qo'lda sotuv             →  pending yaratiladi + DARHOL ApproveAsync (bitta SaveChanges)
 ```
 
 - `Move(book, qty, reason, note, createdBy, orderId?)` — `Stock`ni o'zgartiradi va `BookStockMove`
@@ -51,6 +52,27 @@ Admin: Rad etish         →  Stock TEGILMAYDI, mijozga sabab yuboriladi
   `AdminNewOrderText`) — controller va bot bir xil matn yuborsin.
 - `NotifyAdminsAsync` — yangi buyurtma haqida `TelegramRegistration`dagi admin/superadminlarga xabar.
   Xato **jim yutiladi** (`LeadNotifier` bilan bir xil siyosat) — xabarnoma buyurtmani buzmasin.
+
+## 2.1 QO'LDA SOTUV — markazda, joyida (migratsiya `AddBookManualSale`)
+
+"Buyurtmalar" tabidagi **«Kitob sotish»** tugmasi (`BookSellModal`, perm `books:create`):
+kitob → soni → **o'quvchi qidirib tanlanadi** → naqd/karta. Karta bo'lsa **to'lov vaqti**
+(`PaidTime`, "HH:mm") va **kartaning oxirgi 4 raqami** (`CardLast4`) kiritiladi — chek rasmi
+YO'Q, chunki pul kassirning oldida to'langan. Normalizatsiya moliya bo'limi bilan bir xil
+(`PaymentFields.TryNormalizeCardLast4/TryNormalizeTime`) — **to'liq karta raqami saqlanmaydi**.
+
+- `POST /orders/manual` (`BookManualSalePayload`) buyurtmani `pending` qilib qo'shadi va
+  **darhol `ApproveAsync`** chaqiradi. Qoldiq yetmasa `ApproveAsync` `SaveChanges` qilmaydi →
+  400 qaytadi va **buyurtma umuman yozilmaydi** (yarim holatdagi `pending` qolib ketmasin).
+  Ombor mantig'i shu bilan botdagi oqim bilan **bitta joyda** qoladi.
+- `BookOrder.Source` = `"bot"` | `"manual"` (`BookSalesService.SourceBot/SourceManual`).
+  Qo'lda sotuvda `ChatId = 0` → **`Approve`/`Reject` Telegram xabarini `ChatId != 0` bilan
+  darvozalaydi** (yuboriladigan chat yo'q). Migratsiya eski qatorlarni `defaultValue: "bot"`
+  bilan to'ldirgan.
+- O'quvchi qidiruvi — `GET /students?q=` (`BookStudentDto`), `KassaController.SearchStudents`
+  mantig'i bilan bir xil, lekin `books` ruxsati ostida va balanssiz (kitob sotuvi balansga tegmaydi).
+- Qo'lda sotuv `PaymentMethod=card` bo'lsa **"Karta to'lovlari" tabida ham** ko'rinadi
+  (`CardOrdersQuery` faqat to'lov turiga qaraydi) — chek o'rnida `••1234` + vaqt turadi.
 
 ## 3. Bot oqimi (`BookShopBotService`, singleton)
 
@@ -107,6 +129,8 @@ Sozlamalar `CenterMeta`da (maxfiy EMAS — mijozga baribir ko'rsatiladi, `.env` 
 | `POST /{id}/stock` | Qoldiq kirim/korreksiya (`qty` ±, `note`) |
 | `GET /stock-moves` | Ombor tarixi; `onlyIn=true` → faqat kirim (Qty>0) |
 | `GET /orders`, `GET /orders/pending-count` | Buyurtmalar + nav belgisi uchun sanoq |
+| `POST /orders/manual` | QO'LDA SOTUV — yaratadi va darhol tasdiqlaydi (§2.1) |
+| `GET /students?q=` | Qo'lda sotuv uchun o'quvchi qidiruvi (min 2 belgi, max 20) |
 | `GET /card-payments` | KARTA to'lovlari + jamlanma (tasdiqlangan/kutilayotgan summa) va karta rekvizitlari |
 | `POST /orders/{id}/approve`, `/reject` | `BookSalesService` orqali; muvaffaqiyatda mijozga xabar |
 | `GET /analytics` | Tushum (naqd/karta), sotilgan soni, qoldiq, kunlik va kitob kesimi |

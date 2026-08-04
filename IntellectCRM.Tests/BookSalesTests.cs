@@ -663,4 +663,88 @@ public class BookSalesTests
         Assert.True(yosh > TimeSpan.FromMinutes(30));
         Assert.Empty(await ctx.BookBotSessions.Where(s => s.ChatId == 55).ToListAsync());
     }
+
+    // =============================================================================================
+    //  QO'LDA SOTUV (markazda, bot orqali emas) — BooksController.ManualSale oqimi
+    // =============================================================================================
+
+    /// <summary>Qo'lda sotuvda controller nima qilishini takrorlaydi: SAQLANMAGAN pending buyurtma
+    /// qo'shiladi va darhol <c>ApproveAsync</c> chaqiriladi (bitta SaveChanges).</summary>
+    private static BookOrder NewManualOrder(Book book, int qty = 1) => new()
+    {
+        Number = 1,
+        ChatId = 0,                                    // Telegram chat yo'q
+        Source = BookSalesService.SourceManual,
+        CustomerName = "Ali Valiyev",
+        Phone = "998901234567",
+        StudentId = "st-1",
+        BookId = book.Id,
+        BookTitle = book.Title,
+        UnitPrice = book.Price,
+        Qty = qty,
+        Total = book.Price * qty,
+        PaymentMethod = BookSalesService.PayCard,
+        CardLast4 = "1234",
+        PaidTime = "14:30",
+        Status = BookSalesService.StatusPending,
+    };
+
+    [Fact]
+    public void SourceLabel_QoldaVaBot()
+    {
+        Assert.Equal("Qo'lda", BookSalesService.SourceLabel(BookSalesService.SourceManual));
+        Assert.Equal("Bot", BookSalesService.SourceLabel(BookSalesService.SourceBot));
+        Assert.Equal("Bot", BookSalesService.SourceLabel(""));      // eski qatorlar
+    }
+
+    [Fact]
+    public async Task QoldaSotuv_BuyurtmaVaQoldiqBittaSaveChangesdaYoziladi()
+    {
+        using var db = TestDb.Sqlite();
+        var ctx = db.Context;
+        var book = NewBook(stock: 10, price: 25000);
+        ctx.Books.Add(book);
+        await ctx.SaveChangesAsync();
+
+        var order = NewManualOrder(book, qty: 3);
+        ctx.BookOrders.Add(order);                     // hali SAQLANMAGAN
+        var err = await BookSalesService.ApproveAsync(ctx, order, "Kassir");
+
+        Assert.Null(err);
+        Assert.Equal(7, book.Stock);
+        Assert.Equal(BookSalesService.StatusApproved, order.Status);
+        Assert.Equal("Kassir", order.DecidedBy);
+
+        // Buyurtma ham, ombor harakati ham bazaga tushdi.
+        var saved = await ctx.BookOrders.SingleAsync();
+        Assert.Equal(BookSalesService.SourceManual, saved.Source);
+        Assert.Equal(0, saved.ChatId);                 // botga xabar yuborilmaydi
+        Assert.Equal("1234", saved.CardLast4);
+        Assert.Equal("14:30", saved.PaidTime);
+        Assert.Equal("st-1", saved.StudentId);
+        var move = await ctx.BookStockMoves.SingleAsync();
+        Assert.Equal(-3, move.Qty);
+        Assert.Equal(BookSalesService.ReasonSale, move.Reason);
+    }
+
+    [Fact]
+    public async Task QoldaSotuv_QoldiqYetmasa_BuyurtmaUMUMANYOZILMAYDI()
+    {
+        using var db = TestDb.Sqlite();
+        var ctx = db.Context;
+        var book = NewBook(stock: 2);
+        ctx.Books.Add(book);
+        await ctx.SaveChangesAsync();
+
+        var order = NewManualOrder(book, qty: 5);
+        ctx.BookOrders.Add(order);
+        var err = await BookSalesService.ApproveAsync(ctx, order, "Kassir");
+
+        Assert.NotNull(err);
+        Assert.Contains("qoldiq 2", err);
+        // ApproveAsync SaveChanges chaqirmagani uchun controller 400 qaytaradi va yarim holatdagi
+        // "pending" qatori bazada QOLMAYDI — qo'lda sotuvning asosiy kafolati.
+        Assert.Empty(await ctx.BookOrders.AsNoTracking().ToListAsync());
+        Assert.Empty(await ctx.BookStockMoves.AsNoTracking().ToListAsync());
+    }
 }

@@ -2627,10 +2627,38 @@ public record BookOrderDto(
     string? DecidedAt,
     string DecidedBy,
     // Kitobning JORIY qoldig'i — admin tasdiqlashdan oldin yetarlimi ko'rish uchun.
-    int BookStock);
+    int BookStock,
+    // Manba: "bot" (mijoz o'zi buyurtma bergan) | "manual" (markazda qo'lda sotilgan).
+    string Source = "bot",
+    // Karta to'lovida: karta oxirgi 4 raqami va to'lov qilingan vaqt ("HH:mm").
+    string? CardLast4 = null,
+    string? PaidTime = null);
 
 /// <summary>Buyurtmani rad etish sababi.</summary>
 public record BookRejectPayload(string Reason);
+
+/// <summary>
+/// MARKAZDA QO'LDA SOTUV ("Buyurtmalar → Kitob sotish"): admin kitobni o'quvchiga joyida sotadi.
+/// Botdagi oqimdan farqi — chek rasmi YO'Q (pul kassirning oldida to'lanadi), buning o'rniga
+/// karta to'lovida <paramref name="CardLast4"/> va <paramref name="PaidTime"/> qo'lda kiritiladi.
+/// Buyurtma darhol TASDIQLANGAN holatda yaratiladi (qoldiq shu zahoti ayiriladi).
+/// </summary>
+public record BookManualSalePayload(
+    string BookId,
+    string StudentId,
+    int Qty,
+    string PaymentMethod,
+    string? CardLast4 = null,
+    string? PaidTime = null);
+
+/// <summary>Qo'lda sotuvda o'quvchi qidirish natijasi (yengil — balans/hisob hisoblanmaydi).</summary>
+public record BookStudentDto(
+    string Id,
+    string FullName,
+    string Phone,
+    string ParentPhone,
+    string ClassName,
+    bool IsArchived);
 
 /// <summary>
 /// KARTA TO'LOVLARI — kartaga o'tkazma bilan to'langan kitob buyurtmalari (chek rasmi bilan).

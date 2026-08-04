@@ -2791,6 +2791,20 @@ public class BookOrder
     public DateTime? DecidedAt { get; set; }
     /// <summary>Qarorni kim qabul qilgani (admin F.I.Sh.).</summary>
     public string DecidedBy { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Buyurtma QAYERDAN kelgani: <c>"bot"</c> (Telegram, mijozning o'zi) | <c>"manual"</c>
+    /// (markazda admin/kassir qo'lda sotgan). Qo'lda sotuvda <see cref="ChatId"/> = 0 bo'ladi —
+    /// mijozga Telegram xabari YUBORILMAYDI (yuboriladigan chat yo'q).
+    /// </summary>
+    public string Source { get; set; } = "bot";
+    /// <summary>KARTA to'lovida karta raqamining OXIRGI 4 raqami ("1234"). To'liq raqam
+    /// HECH QACHON saqlanmaydi (<see cref="IntellectCRM.Application.Services.PaymentFields"/>
+    /// bilan bir xil siyosat). Naqdda / botdan kelgan buyurtmada bo'sh.</summary>
+    public string? CardLast4 { get; set; }
+    /// <summary>KARTA to'lovi HAQIQATAN qilingan vaqt ("HH:mm"). Sana — <see cref="CreatedAt"/>.
+    /// Moliyadagi <c>FinanceTransaction.PaidTime</c> bilan bir xil format.</summary>
+    public string? PaidTime { get; set; }
 }
 
 /// <summary>

@@ -13,10 +13,13 @@ import { Modal } from '@/components/ui/Modal'
 import { Input, Select, Textarea } from '@/components/ui/Input'
 import { apiErrorMessage, cn, formatMoney, maskPhone } from '@/lib/utils'
 import { statusLabel, statusPillCls, paymentLabel } from './bookLabels'
+import { BookSellModal } from './BookSellModal'
 
 interface Props {
   /** Tasdiqlash/rad etish tugmalari ko'rinadimi (books:edit ruxsati) */
   canDecide: boolean
+  /** "Kitob sotish" (markazda qo'lda sotuv) tugmasi ko'rinadimi (books:create ruxsati) */
+  canSell: boolean
   /** Qaror qabul qilingach — "Buyurtmalar" tabidagi qizil belgini yangilash */
   onDecided: () => void
 }
@@ -33,7 +36,7 @@ const statusTabs: { value: BookOrderStatus | ''; label: string }[] = [
  * ayiriladi va mijozga botda tasdiq xabari ketadi; "Rad etish"da sabab kiritiladi va mijozga
  * shu sabab yuboriladi.
  */
-export function BookOrdersTab({ canDecide, onDecided }: Props) {
+export function BookOrdersTab({ canDecide, canSell, onDecided }: Props) {
   const [orders, setOrders] = useState<BookOrder[]>([])
   const [books, setBooks] = useState<Book[]>([])
   const [loading, setLoading] = useState(true)
@@ -42,6 +45,8 @@ export function BookOrdersTab({ canDecide, onDecided }: Props) {
   const [rejecting, setRejecting] = useState<BookOrder | null>(null)
   const [rejectReason, setRejectReason] = useState('')
   const [receipt, setReceipt] = useState<BookOrder | null>(null)
+  /** Markazda qo'lda sotuv oynasi ("Kitob sotish"). */
+  const [sellOpen, setSellOpen] = useState(false)
 
   const [filters, setFilters] = useState<BookOrderFilters>({ status: 'pending' })
   // Qidiruv maydonini har harfda so'rov yubormasdan, "Qidirish" bosilganda qo'llaymiz.
@@ -180,7 +185,12 @@ export function BookOrdersTab({ canDecide, onDecided }: Props) {
             </Button>
           </form>
 
-          <div className="ml-auto">
+          <div className="ml-auto flex gap-2">
+            {canSell && (
+              <Button onClick={() => setSellOpen(true)}>
+                <ShoppingCart className="h-4 w-4" /> Kitob sotish
+              </Button>
+            )}
             <Button variant="secondary" onClick={() => exportBookOrders(filters)}>
               <FileDown className="h-4 w-4" /> Excel
             </Button>
@@ -239,7 +249,17 @@ export function BookOrdersTab({ canDecide, onDecided }: Props) {
                       <span className="ml-1 text-xs text-slate-400">{o.createdAt.slice(11, 16)}</span>
                     </td>
                     <td>
-                      <div className="font-medium text-slate-800">{o.customerName || "Noma'lum"}</div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-medium text-slate-800">{o.customerName || "Noma'lum"}</span>
+                        {o.source === 'manual' && (
+                          <span
+                            className="rounded bg-amber-50 px-1.5 py-0.5 text-[11px] font-semibold text-amber-700"
+                            title="Markazda qo'lda sotilgan (bot orqali emas)"
+                          >
+                            Qo'lda
+                          </span>
+                        )}
+                      </div>
                       {o.phone && (
                         <div className="font-mono text-xs text-slate-400">{maskPhone(o.phone)}</div>
                       )}
@@ -281,6 +301,12 @@ export function BookOrdersTab({ canDecide, onDecided }: Props) {
                         >
                           <Receipt className="h-4 w-4" /> Ko'rish
                         </button>
+                      ) : o.cardLast4 ? (
+                        // Qo'lda sotuvda chek rasmi yo'q — kassir kiritgan karta va to'lov vaqti.
+                        <div className="whitespace-nowrap font-mono text-xs text-slate-500">
+                          •••• {o.cardLast4}
+                          {o.paidTime && <span className="ml-1 text-slate-400">{o.paidTime}</span>}
+                        </div>
                       ) : (
                         <span className="text-xs text-slate-400">—</span>
                       )}
@@ -418,6 +444,20 @@ export function BookOrdersTab({ canDecide, onDecided }: Props) {
           </div>
         )}
       </Modal>
+
+      {/* Markazda qo'lda sotuv — buyurtma darhol tasdiqlangan holatda yaratiladi */}
+      <BookSellModal
+        open={sellOpen}
+        books={books}
+        onClose={() => setSellOpen(false)}
+        onSold={() => {
+          // Sotuv "approved" bo'lgani uchun joriy filtr "pending" bo'lsa ro'yxatda ko'rinmaydi —
+          // shuning uchun butun ro'yxatni qayta yuklaymiz (qoldiqlar ham yangilansin).
+          load(filters)
+          getBooks().then(setBooks).catch(() => {})
+          onDecided()
+        }}
+      />
     </div>
   )
 }

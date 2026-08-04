@@ -69,7 +69,11 @@ export function BookSalesPage() {
       />
 
       {tab === 'orders' ? (
-        <BookOrdersTab canDecide={can('books', 'edit')} onDecided={refreshPending} />
+        <BookOrdersTab
+          canDecide={can('books', 'edit')}
+          canSell={can('books', 'create')}
+          onDecided={refreshPending}
+        />
       ) : tab === 'card' ? (
         <BookCardPaymentsTab canDecide={can('books', 'edit')} onDecided={refreshPending} />
       ) : tab === 'inventory' ? (

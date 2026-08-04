@@ -8,6 +8,8 @@ import { api } from '../client'
 
 export type BookPaymentMethod = 'cash' | 'card'
 export type BookOrderStatus = 'pending' | 'approved' | 'rejected'
+/** Buyurtma manbai: botdan tushgan yoki markazda qo'lda sotilgan. */
+export type BookOrderSource = 'bot' | 'manual'
 /** Ombor harakati turi: boshlang'ich qoldiq | kirim | sotuv | qo'lda korreksiya */
 export type BookStockReason = 'initial' | 'restock' | 'sale' | 'correction'
 
@@ -80,6 +82,34 @@ export interface BookOrder {
   decidedBy: string
   /** Kitobning JORIY qoldig'i — tasdiqlash mumkinligini ko'rish uchun */
   bookStock: number
+  /** Manba: 'bot' — mijoz o'zi buyurtma bergan; 'manual' — markazda qo'lda sotilgan */
+  source?: BookOrderSource
+  /** Karta to'lovida kartaning oxirgi 4 raqami ("1234"). Qo'lda sotuvda kiritiladi. */
+  cardLast4?: string | null
+  /** Karta to'lovi qilingan vaqt ("HH:mm"). Sana — `createdAt`. */
+  paidTime?: string | null
+}
+
+/** Qo'lda sotuv oynasidagi o'quvchi qidiruvi natijasi. */
+export interface BookStudent {
+  id: string
+  fullName: string
+  phone: string
+  parentPhone: string
+  className: string
+  isArchived: boolean
+}
+
+/** Markazda qo'lda sotuv so'rovi (kitob → o'quvchi → soni → naqd/karta). */
+export interface BookManualSalePayload {
+  bookId: string
+  studentId: string
+  qty: number
+  paymentMethod: BookPaymentMethod
+  /** Karta to'lovida MAJBURIY — kartaning oxirgi 4 raqami. */
+  cardLast4?: string
+  /** Karta to'lovida MAJBURIY — to'lov qilingan vaqt ("HH:mm"). */
+  paidTime?: string
 }
 
 export interface BookDaySales {
@@ -219,6 +249,21 @@ export async function getBookCardPayments(
   const { data } = await api.get<BookCardPayments>('/admin/books/card-payments', {
     params: clean(filters),
   })
+  return data
+}
+
+// ---------- Qo'lda sotuv (markazda, joyida) ----------
+
+/** O'quvchi qidiruvi (F.I.Sh yoki telefon, kamida 2 belgi). Bo'sh so'rovda server [] qaytaradi. */
+export async function searchBookStudents(q: string): Promise<BookStudent[]> {
+  const { data } = await api.get<BookStudent[]>('/admin/books/students', { params: { q } })
+  return data
+}
+
+/** Markazda qo'lda sotish. Buyurtma DARHOL tasdiqlangan holatda yaratiladi — qoldiq shu
+ *  zahoti ayiriladi va sotuv analitikaga tushadi. Qoldiq yetmasa server 400 qaytaradi. */
+export async function sellBookManual(payload: BookManualSalePayload): Promise<BookOrder> {
+  const { data } = await api.post<BookOrder>('/admin/books/orders/manual', payload)
   return data
 }
 
