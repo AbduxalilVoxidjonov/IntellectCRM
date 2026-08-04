@@ -284,6 +284,37 @@ public class TestCertificateTests : IDisposable
     }
 
     [Fact]
+    public async Task Yaratish_HarKIMOZFayliniOladi_INDEKSSILJIMAYDI()
+    {
+        // Fayllar bitta LibreOffice chaqiruvida TO'PLAM bo'lib konvertatsiya qilinadi
+        // (ConvertManyAsync) — natijalar kirish TARTIBIGA qat'iy mos kelishi shart, aks holda
+        // Ali'ning sertifikati Vali'ga tegib ketardi. Shu yerda aynan shuni tekshiramiz.
+        using var db = TestDb.Sqlite();
+        var svc = Service();
+        var (test, a, b) = await SeedTestAsync(db, svc);
+
+        var (items, _) = await svc.GenerateForTestAsync(db.Context, test.Id, "Admin");
+
+        string TextOf(string studentId)
+        {
+            var c = items.Single(x => x.StudentId == studentId);
+            var path = Path.Combine(_root, "uploads", "certificates", Path.GetFileName(c.DocxUrl));
+            return ReadText(File.ReadAllBytes(path));
+        }
+
+        var aText = TextOf(a.Id);
+        var bText = TextOf(b.Id);
+        Assert.Contains("Ali Valiyev", aText);
+        Assert.DoesNotContain("Vali Aliyev", aText);
+        Assert.Contains("90 / 100", aText);
+        Assert.Contains("Vali Aliyev", bText);
+        Assert.Contains("70 / 100", bText);
+        // Fayllar ham har xil bo'lishi kerak (bitta fayl ikki marta yozilib qolmasin).
+        Assert.NotEqual(items.Single(x => x.StudentId == a.Id).DocxUrl,
+                        items.Single(x => x.StudentId == b.Id).DocxUrl);
+    }
+
+    [Fact]
     public async Task Yaratish_IKKINCHIMartaNusxaYARATMAYDI()
     {
         using var db = TestDb.Sqlite();

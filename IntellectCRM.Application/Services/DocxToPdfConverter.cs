@@ -25,8 +25,9 @@ public class DocxToPdfConverter(ILogger<DocxToPdfConverter> logger)
     /// <summary>Bir vaqtda FAQAT bitta konvertatsiya (past xotirali serverda OOM bo'lmasin).</summary>
     private static readonly SemaphoreSlim Gate = new(1, 1);
 
-    /// <summary>Bitta faylni konvertatsiya qilish uchun maksimal vaqt.</summary>
-    private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(90);
+    /// <summary>Kutish vaqti: sovuq ishga tushish + har faylga qo'shimcha (10 daqiqadan oshmaydi).</summary>
+    private static TimeSpan TimeoutFor(int fileCount) =>
+        TimeSpan.FromSeconds(Math.Min(600, 60 + 10 * Math.Max(1, fileCount)));
 
     private static string? _resolved;
     private static bool _searched;
@@ -104,27 +105,41 @@ public class DocxToPdfConverter(ILogger<DocxToPdfConverter> logger)
     /// <c>null</c> (istisno TASHLANMAYDI: sertifikat yaratish to'xtab qolmasin, Word fayl baribir
     /// saqlanadi).
     /// </summary>
-    public async Task<byte[]?> ConvertAsync(byte[] docxBytes, CancellationToken ct = default)
+    public async Task<byte[]?> ConvertAsync(byte[] docxBytes, CancellationToken ct = default) =>
+        (await ConvertManyAsync([docxBytes], ct))[0];
+
+    /// <summary>
+    /// BIR NECHTA .docx ni <b>BITTA</b> LibreOffice chaqiruvida PDF ga o'giradi.
+    ///
+    /// <para><b>Nega bitta chaqiruv?</b> LibreOffice'ning sovuq ishga tushishi ~2-4 soniya va
+    /// ~150-200 MB xotira oladi. Har sertifikat uchun alohida jarayon ochilsa, 30 o'quvchilik
+    /// guruhda 30 marta shu narx to'lanadi: ~2 daqiqa kutish (Cloudflare Tunnel javobni uzib
+    /// yuborishi mumkin) va 30 marta xotira ko'tarilishi — 1 GB RAM li serverda bu xavfli.
+    /// Bitta chaqiruvda esa narx BIR MARTA to'lanadi, xotira cho'qqisi ham bitta bo'ladi.</para>
+    /// </summary>
+    /// <returns>Kirish bilan INDEKS bo'yicha mos massiv; konvertatsiya qilinmagan fayl uchun
+    /// <c>null</c> (chaqiruvchi u sertifikatni faqat .docx sifatida saqlaydi).</returns>
+    public async Task<byte[]?[]> ConvertManyAsync(
+        IReadOnlyList<byte[]> docs, CancellationToken ct = default)
     {
+        var result = new byte[]?[docs.Count];
+        if (docs.Count == 0) return result;
+
         var exe = ExecutablePath;
         if (exe is null)
         {
-            logger.LogWarning("LibreOffice topilmadi — sertifikat faqat .docx sifatida saqlanadi. "
+            logger.LogWarning("LibreOffice topilmadi — sertifikatlar faqat .docx sifatida saqlanadi. "
                               + "Docker image'ga libreoffice-writer qo'shing yoki LIBREOFFICE_PATH bering.");
-            return null;
+            return result;
         }
 
-        // Har konvertatsiya O'Z vaqtinchalik papkasida — bir nechta so'rov bir-birini bloklamasin
-        // va LibreOffice profil qulfi (lock) muammosi chiqmasin.
+        // Konvertatsiya O'Z vaqtinchalik papkasida — LibreOffice profil qulfi (lock) chiqmasin.
         var work = Path.Combine(Path.GetTempPath(), "icrm-pdf-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(work);
-        var input = Path.Combine(work, "cert.docx");
 
         await Gate.WaitAsync(ct);
         try
         {
-            await File.WriteAllBytesAsync(input, docxBytes, ct);
-
             var psi = new ProcessStartInfo
             {
                 FileName = exe,
@@ -147,13 +162,21 @@ public class DocxToPdfConverter(ILogger<DocxToPdfConverter> logger)
             psi.ArgumentList.Add("pdf");
             psi.ArgumentList.Add("--outdir");
             psi.ArgumentList.Add(work);
-            psi.ArgumentList.Add(input);
+
+            // Nomlar indeks bo'yicha: "0.docx" → "0.pdf" — javobni kirish tartibiga qaytarish uchun.
+            for (var i = 0; i < docs.Count; i++)
+            {
+                var input = Path.Combine(work, $"{i}.docx");
+                await File.WriteAllBytesAsync(input, docs[i], ct);
+                psi.ArgumentList.Add(input);
+            }
 
             using var proc = Process.Start(psi);
-            if (proc is null) return null;
+            if (proc is null) return result;
 
+            var timeout = TimeoutFor(docs.Count);
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            timeoutCts.CancelAfter(Timeout);
+            timeoutCts.CancelAfter(timeout);
             try
             {
                 await proc.WaitForExitAsync(timeoutCts.Token);
@@ -161,23 +184,36 @@ public class DocxToPdfConverter(ILogger<DocxToPdfConverter> logger)
             catch (OperationCanceledException)
             {
                 try { proc.Kill(entireProcessTree: true); } catch { /* allaqachon tugagan */ }
-                logger.LogWarning("LibreOffice {Timeout}s ichida javob bermadi — PDF yaratilmadi.", Timeout.TotalSeconds);
-                return null;
+                logger.LogWarning("LibreOffice {Timeout}s ichida tugamadi ({Count} fayl) — PDF yaratilmadi.",
+                    timeout.TotalSeconds, docs.Count);
+                return result;
             }
 
-            var output = Path.Combine(work, "cert.pdf");
-            if (proc.ExitCode != 0 || !File.Exists(output))
+            if (proc.ExitCode != 0)
             {
                 var err = await proc.StandardError.ReadToEndAsync(ct);
-                logger.LogWarning("LibreOffice PDF yarata olmadi (exit {Code}): {Error}", proc.ExitCode, err);
-                return null;
+                logger.LogWarning("LibreOffice xato bilan tugadi (exit {Code}): {Error}", proc.ExitCode, err);
+                // ExitCode != 0 bo'lsa ham ba'zi fayllar chiqqan bo'lishi mumkin — pastda tekshiramiz.
             }
-            return await File.ReadAllBytesAsync(output, ct);
+
+            // Chiqmagan fayl null bo'lib qoladi: o'sha sertifikat .docx sifatida saqlanadi,
+            // qolganlari PDF bo'ladi (bitta buzuq hujjat butun guruhni yiqitmasin).
+            var missing = 0;
+            for (var i = 0; i < docs.Count; i++)
+            {
+                var output = Path.Combine(work, $"{i}.pdf");
+                if (File.Exists(output)) result[i] = await File.ReadAllBytesAsync(output, ct);
+                else missing++;
+            }
+            if (missing > 0)
+                logger.LogWarning("{Missing}/{Total} fayl PDF ga o'girilmadi — ular .docx bo'lib qoladi.",
+                    missing, docs.Count);
+            return result;
         }
         catch (Exception ex)
         {
             logger.LogWarning(ex, "PDF konvertatsiyasi xato bilan tugadi — .docx saqlanadi.");
-            return null;
+            return result;
         }
         finally
         {

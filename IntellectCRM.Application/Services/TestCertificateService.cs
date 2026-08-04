@@ -201,6 +201,11 @@ public class TestCertificateService(IHostEnvironment env, DocxToPdfConverter pdf
         var seq = await NextNumberSeedAsync(db, ct);
         var result = new List<TestCertificate>();
 
+        // ---- 1-BOSQICH: barcha Word fayllarni to'ldiramiz (xotirada, tez) ----
+        // Konvertatsiya bu yerda QILINMAYDI: LibreOffice keyin BITTA marta, hamma fayl bilan
+        // chaqiriladi (sovuq ishga tushish ~2-4s va ~200MB — uni har o'quvchi uchun to'lash
+        // 1GB RAM li serverda ham sekin, ham xavfli).
+        var pending = new List<(TestScore Score, string FullName, int Percent, string Number, byte[] Docx)>();
         foreach (var s in ordered)
         {
             ct.ThrowIfCancellationRequested();
@@ -227,14 +232,26 @@ public class TestCertificateService(IHostEnvironment env, DocxToPdfConverter pdf
                 ["@raqam"] = number,
             };
 
-            var filled = DocxTemplate.Fill(templateBytes, tokens);
-            var pdfBytes = await pdf.ConvertAsync(filled, ct);
+            pending.Add((s, fullName, percent, number, DocxTemplate.Fill(templateBytes, tokens)));
+        }
+        if (pending.Count == 0) return ([], "Hali birorta ball kiritilmagan");
+
+        // ---- 2-BOSQICH: HAMMASI bitta LibreOffice chaqiruvida PDF ga ----
+        // Konvertor yo'q bo'lsa massiv null'lar bilan qaytadi — sertifikatlar .docx bo'lib saqlanadi.
+        var pdfs = await pdf.ConvertManyAsync(pending.Select(p => p.Docx).ToList(), ct);
+
+        // ---- 3-BOSQICH: fayllarni yozib, yozuvlarni yangilaymiz ----
+        for (var i = 0; i < pending.Count; i++)
+        {
+            var (s, fullName, percent, number, docx) = pending[i];
+            var pdfBytes = pdfs[i];
+            var row = existing.FirstOrDefault(c => c.StudentId == s.StudentId);
 
             // Qayta yaratishda eski fayllar o'chiriladi (ombor shishmasin).
             if (row is not null) { DeleteCertFile(row.DocxUrl); DeleteCertFile(row.PdfUrl); }
 
             var baseName = $"cert-{Guid.NewGuid():N}";
-            var docxUrl = await SaveCertFileAsync(baseName + ".docx", filled, ct);
+            var docxUrl = await SaveCertFileAsync(baseName + ".docx", docx, ct);
             var pdfUrl = pdfBytes is null ? "" : await SaveCertFileAsync(baseName + ".pdf", pdfBytes, ct);
 
             if (row is null)
