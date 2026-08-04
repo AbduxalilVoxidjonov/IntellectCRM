@@ -32,6 +32,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<TestResult> TestResults => Set<TestResult>();
     public DbSet<TestScore> TestScores => Set<TestScore>();
     public DbSet<ExternalTestScore> ExternalTestScores => Set<ExternalTestScore>();
+    public DbSet<TestCertificateTemplate> TestCertificateTemplates => Set<TestCertificateTemplate>();
+    public DbSet<TestCertificate> TestCertificates => Set<TestCertificate>();
     public DbSet<TestBotSession> TestBotSessions => Set<TestBotSession>();
     public DbSet<JournalEntry> JournalEntries => Set<JournalEntry>();
     public DbSet<LessonNote> LessonNotes => Set<LessonNote>();
@@ -506,6 +508,20 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
             .HasOne<TestResult>().WithMany()
             .HasForeignKey(t => t.TestResultId)
             .OnDelete(DeleteBehavior.Cascade);
+        // TEST SERTIFIKATI — bir test bo'yicha o'quvchiga BITTA sertifikat; test o'chirilsa
+        // sertifikat yozuvlari ham kaskad o'chadi (fayllar `/uploads` da qoladi — ular zaxirada).
+        b.Entity<TestCertificate>().Property(c => c.Score).HasPrecision(18, 2);
+        b.Entity<TestCertificate>().Property(c => c.MaxScore).HasPrecision(18, 2);
+        b.Entity<TestCertificate>().Property(c => c.TestResultId).HasMaxLength(200);
+        b.Entity<TestCertificate>().Property(c => c.StudentId).HasMaxLength(200);
+        b.Entity<TestCertificate>().HasIndex(c => new { c.TestResultId, c.StudentId }).IsUnique();
+        b.Entity<TestCertificate>().HasIndex(c => c.StudentId);
+        b.Entity<TestCertificate>()
+            .HasOne<TestResult>().WithMany()
+            .HasForeignKey(c => c.TestResultId)
+            .OnDelete(DeleteBehavior.Cascade);
+        b.Entity<TestCertificateTemplate>().HasIndex(t => t.IsActive);
+
         // Onlayn test — botdagi ishlash sessiyasi (bitta chatda bitta faol sessiya).
         b.Entity<TestBotSession>().Property(s => s.TestResultId).HasMaxLength(200);
         b.Entity<TestBotSession>().Property(s => s.StudentId).HasMaxLength(200);

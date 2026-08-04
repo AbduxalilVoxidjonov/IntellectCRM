@@ -21,7 +21,8 @@ namespace IntellectCRM.Server.Controllers;
 [Route("api/teacher")]
 public class TeacherPortalController(
     AppDbContext db, ChatService chat, IWebHostEnvironment env, ReferenceCache refCache,
-    FcmService fcm, AutoMessageService autoMsg, ContractService contracts) : ControllerBase
+    FcmService fcm, AutoMessageService autoMsg, ContractService contracts,
+    TestCertificateService testCerts) : ControllerBase
 {
     /// <summary>"Darsga kelmadi" avto-xabari (attendance_absent) — o'quvchi(lar)ga guruh+sabab bilan.
     /// Exception yutiladi (jurnal javobini bloklamaydi).</summary>
@@ -1071,7 +1072,8 @@ public class TeacherPortalController(
         if (me is null) return NotFound();
         if (!await OwnsGroup(req.GroupId)) return Forbid();
         var (dto, err) = await TestResultService.CreateAsync(
-            db, req.GroupId, req.Name, req.Date, req.MaxScore, me.FullName, req.Online);
+            db, req.GroupId, req.Name, req.Date, req.MaxScore, me.FullName, req.Online,
+            req.CertificateEnabled, req.CertificateTemplateId);
         return err != null ? BadRequest(new { message = err }) : dto!;
     }
 
@@ -1082,7 +1084,9 @@ public class TeacherPortalController(
         var groupId = await TestResultService.GroupIdOfAsync(db, id);
         if (groupId is null) return NotFound();
         if (!await OwnsGroup(groupId)) return Forbid();
-        var (ok, err) = await TestResultService.UpdateAsync(db, id, req.Name, req.Date, req.MaxScore, req.Online);
+        var (ok, err) = await TestResultService.UpdateAsync(
+            db, id, req.Name, req.Date, req.MaxScore, req.Online,
+            req.CertificateEnabled, req.CertificateTemplateId);
         return ok ? NoContent() : BadRequest(new { message = err });
     }
 
@@ -1105,5 +1109,63 @@ public class TeacherPortalController(
         if (!await OwnsGroup(groupId)) return Forbid();
         var (detail, err) = await TestResultService.SetScoreAsync(db, id, req.StudentId, req.Score);
         return err != null ? BadRequest(new { message = err }) : detail!;
+    }
+
+    // ---------- Test sertifikatlari (o'qituvchi — faqat o'z guruhi testlari) ----------
+    // Andozalarni FAQAT admin boshqaradi; o'qituvchi ularni tanlaydi va sertifikat yaratadi.
+
+    /// <summary>Tanlash uchun FAOL sertifikat andozalari + PDF konvertori bormi.</summary>
+    [HttpGet("test-results/certificate-templates")]
+    public async Task<ActionResult<object>> TeacherCertificateTemplates(CancellationToken ct)
+    {
+        if (!await HasPerm(TeacherPermissions.Journal)) return Forbid();
+        var list = await testCerts.ListTemplatesAsync(db, includeInactive: false, ct);
+        return Ok(new { templates = list, pdfAvailable = DocxToPdfConverter.IsAvailable });
+    }
+
+    /// <summary>Test bo'yicha sertifikatlarni yaratish (ball kiritilgan har o'quvchiga).</summary>
+    [HttpPost("test-results/{id}/certificates")]
+    public async Task<ActionResult<GenerateTestCertificatesResultDto>> TeacherGenerateCertificates(
+        string id, CancellationToken ct)
+    {
+        var me = await Me();
+        if (me is null) return NotFound();
+        var groupId = await TestResultService.GroupIdOfAsync(db, id);
+        if (groupId is null) return NotFound();
+        if (!await OwnsGroup(groupId)) return Forbid();
+
+        var (items, err) = await testCerts.GenerateForTestAsync(db, id, me.FullName, ct);
+        if (err != null) return BadRequest(new { message = err });
+        var pdfOk = DocxToPdfConverter.IsAvailable;
+        return new GenerateTestCertificatesResultDto(
+            items.Count, pdfOk, items,
+            pdfOk ? null : "Serverda PDF konvertori (LibreOffice) o'rnatilmagan — sertifikatlar Word (.docx) sifatida saqlandi.");
+    }
+
+    /// <summary>Bitta sertifikatni yuklab olish.</summary>
+    [HttpGet("test-results/certificates/{certificateId}/download")]
+    public async Task<IActionResult> TeacherDownloadCertificate(
+        string certificateId, [FromQuery] string? format = null, CancellationToken ct = default)
+    {
+        // Egalik: sertifikat qaysi testga tegishli → o'sha testning guruhi meniki bo'lishi shart.
+        var testId = await db.TestCertificates.AsNoTracking()
+            .Where(c => c.Id == certificateId).Select(c => c.TestResultId).FirstOrDefaultAsync(ct);
+        if (testId is null) return NotFound();
+        var groupId = await TestResultService.GroupIdOfAsync(db, testId);
+        if (groupId is null || !await OwnsGroup(groupId)) return Forbid();
+
+        var file = await testCerts.ReadFileAsync(db, certificateId, preferPdf: format != "docx", ct);
+        return file is null ? NotFound() : File(file.Value.Bytes, file.Value.ContentType, file.Value.FileName);
+    }
+
+    /// <summary>Test bo'yicha barcha sertifikatlar — bitta ZIP.</summary>
+    [HttpGet("test-results/{id}/certificates/download")]
+    public async Task<IActionResult> TeacherDownloadAllCertificates(string id, CancellationToken ct)
+    {
+        var groupId = await TestResultService.GroupIdOfAsync(db, id);
+        if (groupId is null) return NotFound();
+        if (!await OwnsGroup(groupId)) return Forbid();
+        var zip = await testCerts.ZipForTestAsync(db, id, ct);
+        return zip is null ? NotFound(new { message = "Sertifikat yo'q" }) : File(zip.Value.Bytes, "application/zip", zip.Value.FileName);
     }
 }

@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ClipboardList, Users, Search, ChevronRight, ArrowLeft, GraduationCap } from 'lucide-react'
+import { ClipboardList, Users, Search, ChevronRight, ArrowLeft, GraduationCap, Award } from 'lucide-react'
 import type { TestGroupOverview } from '@/types'
 import { getTestGroups } from '@/api/services/testResults'
 import { Card } from '@/components/ui/Card'
+import { Button } from '@/components/ui/Button'
 import { Loader } from '@/components/ui/Loader'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { apiErrorMessage } from '@/lib/utils'
@@ -89,6 +90,11 @@ export function TestResultsPage() {
           selectedTeacher
             ? `${selectedTeacher.teacherName} — guruh tanlang`
             : "O'qituvchi tanlang — keyin uning guruhlarini ko'rasiz"
+        }
+        actions={
+          <Button variant="secondary" onClick={() => navigate('/admin/test-results/certificate-templates')}>
+            <Award className="h-4 w-4" /> Sertifikat shablonlari
+          </Button>
         }
       />
 

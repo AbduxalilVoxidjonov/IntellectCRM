@@ -1,5 +1,8 @@
 // Tizimdagi barcha asosiy tiplar
 
+// Sertifikat tiplari API qatlamida yozilgan (yagona manba) — bu yerda faqat qayta ishlatiladi.
+import type { TestCertificate } from '@/api/services/testCertificates'
+
 /**
  * Tizim rollari.
  * - `superadmin` — tizim egasi: admin'ning hamma huquqlari + qulflangan amallarni (masalan,
@@ -2337,6 +2340,12 @@ export interface GroupTest {
   submittedCount: number
   /** Markazdan tashqari (test kodi bilan kirgan) ishtirokchilar soni */
   externalCount: number
+  /** true — test natijasi bo'yicha sertifikat beriladi */
+  certificateEnabled: boolean
+  /** Tanlangan sertifikat shabloni (bo'sh — standart shablon) */
+  certificateTemplateId: string
+  /** Shu test bo'yicha yaratilgan sertifikatlar soni */
+  certificateCount: number
 }
 
 /** Test natijasi qatori — bitta o'quvchi bali (rank=0 → ball kiritilmagan). */
@@ -2383,6 +2392,12 @@ export interface TestResultDetail {
   online: OnlineTest
   /** MARKAZDAN TASHQARI — kod bilan kirgan, markazda o'qimaydigan ishtirokchilar */
   externalRows: ExternalTestScoreRow[]
+  /** true — test natijasi bo'yicha sertifikat beriladi */
+  certificateEnabled: boolean
+  /** Tanlangan sertifikat shabloni (bo'sh — standart shablon) */
+  certificateTemplateId: string
+  /** Yaratilgan sertifikatlar (eski javoblarda bo'lmasligi mumkin) */
+  certificates?: TestCertificate[]
 }
 
 /** O'quvchi profilidagi test natijasi qatori (barcha guruhlaridan). */

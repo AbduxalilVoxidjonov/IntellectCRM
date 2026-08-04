@@ -492,11 +492,15 @@ public record OnlineTestDto(
 public record GroupTestDto(
     string Id, string GroupId, string Name, string Date, decimal MaxScore,
     string CreatedAt, string CreatedBy, int StudentCount, int ScoredCount, decimal? AvgScore,
-    OnlineTestDto Online, int SubmittedCount, int ExternalCount = 0);
+    OnlineTestDto Online, int SubmittedCount, int ExternalCount = 0,
+    // Sertifikat: yoqilganmi, qaysi andoza, nechta sertifikat berilgan.
+    bool CertificateEnabled = false, string CertificateTemplateId = "", int CertificateCount = 0);
 public record CreateTestResultRequest(
-    string GroupId, string Name, string Date, decimal MaxScore, OnlineTestDto? Online = null);
+    string GroupId, string Name, string Date, decimal MaxScore, OnlineTestDto? Online = null,
+    bool CertificateEnabled = false, string? CertificateTemplateId = null);
 public record UpdateTestResultRequest(
-    string Name, string Date, decimal MaxScore, OnlineTestDto? Online = null);
+    string Name, string Date, decimal MaxScore, OnlineTestDto? Online = null,
+    bool CertificateEnabled = false, string? CertificateTemplateId = null);
 /// <summary>Test natijasi qatori — bitta o'quvchining bali (ball bo'yicha saralanadi). Rank = 0 → ball kiritilmagan.
 /// <c>Answers</c>/<c>SubmittedAt</c> — onlayn testda botdan yuborilgan javoblar va vaqti (aks holda bo'sh).</summary>
 /// <param name="Member">Guruhning FAOL a'zosimi. <c>false</c> — markazning BOSHQA guruhidagi o'quvchi
@@ -514,9 +518,40 @@ public record ExternalTestScoreRowDto(
 public record TestResultDetailDto(
     string Id, string GroupId, string GroupName, string Name, string Date, decimal MaxScore,
     string CreatedAt, string CreatedBy, List<TestScoreRowDto> Rows, OnlineTestDto Online,
-    List<ExternalTestScoreRowDto>? ExternalRows = null);
+    List<ExternalTestScoreRowDto>? ExternalRows = null,
+    // Sertifikat: yoqilganmi, qaysi andoza va shu testda allaqachon berilganlari.
+    bool CertificateEnabled = false, string CertificateTemplateId = "",
+    List<TestCertificateDto>? Certificates = null);
 /// <summary>Bitta o'quvchiga ball qo'yish/tozalash (Score=null → tozalash).</summary>
 public record SetTestScoreRequest(string StudentId, decimal? Score);
+
+// ==== TEST SERTIFIKATI (Word andoza → PDF) ====
+
+/// <summary>Andozada ishlatiladigan bitta <c>@</c>-o'zgaruvchi (admin paneli shu ro'yxatni ko'rsatadi).</summary>
+public record CertificateTokenDto(string Token, string Label, string Example);
+
+/// <summary>Sertifikat Word andozasi (ro'yxat/karta uchun).</summary>
+public record TestCertificateTemplateDto(
+    string Id, string Name, string FileUrl, string FileName,
+    bool IsDefault, bool IsActive, string CreatedAt, string CreatedBy);
+
+/// <summary>Andoza yaratish/tahrirlash. <c>FileUrl</c> — avval <c>/api/admin/uploads</c> ga
+/// yuklangan .docx manzili. Tahrirlashda bo'sh qoldirilsa fayl o'zgarmaydi.</summary>
+public record TestCertificateTemplatePayload(
+    string Name, string? FileUrl = null, string? FileName = null,
+    bool IsDefault = false, bool IsActive = true);
+
+/// <summary>Berilgan sertifikat. <c>Status</c>: <c>"ready"</c> — PDF tayyor;
+/// <c>"docx"</c> — PDF konvertori (LibreOffice) yo'q, faqat Word fayl bor.</summary>
+public record TestCertificateDto(
+    string Id, string TestResultId, string StudentId, string StudentName,
+    string Number, string TemplateName, string DocxUrl, string PdfUrl, string Status,
+    decimal Score, decimal MaxScore, int Percent, string IssuedAt);
+
+/// <summary>Sertifikat yaratish natijasi. <c>PdfAvailable=false</c> bo'lsa serverda LibreOffice
+/// o'rnatilmagan — foydalanuvchiga aniq ogohlantirish ko'rsatiladi.</summary>
+public record GenerateTestCertificatesResultDto(
+    int Created, bool PdfAvailable, List<TestCertificateDto> Items, string? Warning = null);
 /// <summary>O'quvchi profilidagi test natijasi qatori (barcha guruhlaridan, sana desc).</summary>
 public record StudentGroupTestDto(
     string TestId, string GroupId, string GroupName, string Name, string Date,

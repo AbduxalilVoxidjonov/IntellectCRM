@@ -32,6 +32,10 @@ export interface TestPayload {
   maxScore: number
   /** Onlayn test sozlamalari; berilmasa (yoki mode="offline") — eski (oflayn) test. */
   online?: OnlineTest
+  /** true — test natijasi bo'yicha sertifikat beriladi */
+  certificateEnabled?: boolean
+  /** Sertifikat shabloni; bo'sh/null — standart shablon */
+  certificateTemplateId?: string | null
 }
 
 export async function createTest(payload: TestPayload): Promise<GroupTest> {
@@ -41,7 +45,16 @@ export async function createTest(payload: TestPayload): Promise<GroupTest> {
 
 export async function updateTest(
   id: string,
-  payload: { name: string; date: string; maxScore: number; online?: OnlineTest },
+  payload: {
+    name: string
+    date: string
+    maxScore: number
+    online?: OnlineTest
+    /** true — test natijasi bo'yicha sertifikat beriladi */
+    certificateEnabled?: boolean
+    /** Sertifikat shabloni; bo'sh/null — standart shablon */
+    certificateTemplateId?: string | null
+  },
 ): Promise<void> {
   await api.put(`/admin/test-results/${id}`, payload)
 }

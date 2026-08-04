@@ -74,6 +74,11 @@ public static class TestResultService
                 .Where(s => testIds.Contains(s.TestResultId))
                 .Select(s => s.TestResultId).ToListAsync())
             .GroupBy(x => x).ToDictionary(g => g.Key, g => g.Count());
+        // Berilgan sertifikatlar soni (ro'yxatda "N ta sertifikat" belgisi uchun).
+        var certCounts = (await db.TestCertificates.AsNoTracking()
+                .Where(c => testIds.Contains(c.TestResultId))
+                .Select(c => c.TestResultId).ToListAsync())
+            .GroupBy(x => x).ToDictionary(g => g.Key, g => g.Count());
 
         return tests
             .OrderByDescending(t => t.Date)
@@ -85,7 +90,9 @@ public static class TestResultService
                 return new GroupTestDto(t.Id, t.GroupId, t.Name, t.Date, t.MaxScore,
                     t.CreatedAt, t.CreatedBy, studentCount, s.Count, avg,
                     Online(t), s.Count(x => x.Source == "bot"),
-                    externalCounts.GetValueOrDefault(t.Id, 0));
+                    externalCounts.GetValueOrDefault(t.Id, 0),
+                    t.CertificateEnabled, t.CertificateTemplateId,
+                    certCounts.GetValueOrDefault(t.Id, 0));
             })
             .ToList();
     }
@@ -95,7 +102,7 @@ public static class TestResultService
     /// tekshiriladi va MaxScore savollar soniga tenglashtiriladi (har savol 1 ball).</summary>
     public static async Task<(GroupTestDto? Dto, string? Error)> CreateAsync(
         IAppDbContext db, string groupId, string name, string date, decimal maxScore, string createdBy,
-        OnlineTestDto? online = null)
+        OnlineTestDto? online = null, bool certificateEnabled = false, string? certificateTemplateId = null)
     {
         var group = await db.Classes.FindAsync(groupId);
         if (group is null) return (null, "Guruh topilmadi");
@@ -109,6 +116,8 @@ public static class TestResultService
             MaxScore = maxScore,
             CreatedAt = AppClock.Now.ToString("yyyy-MM-ddTHH:mm:ss"),
             CreatedBy = createdBy,
+            CertificateEnabled = certificateEnabled,
+            CertificateTemplateId = certificateEnabled ? (certificateTemplateId ?? "").Trim() : "",
         };
         var applyErr = await ApplyOnlineAsync(db, t, online);
         if (applyErr != null) return (null, applyErr);
@@ -121,13 +130,14 @@ public static class TestResultService
         var studentCount = await db.StudentGroups.AsNoTracking()
             .CountAsync(sg => sg.GroupId == groupId && sg.IsActive);
         return (new GroupTestDto(t.Id, t.GroupId, t.Name, t.Date, t.MaxScore,
-            t.CreatedAt, t.CreatedBy, studentCount, 0, null, Online(t), 0, 0), null);
+            t.CreatedAt, t.CreatedBy, studentCount, 0, null, Online(t), 0, 0,
+            t.CertificateEnabled, t.CertificateTemplateId, 0), null);
     }
 
     /// <summary>Test ma'lumotini tahrirlash (nomi/sana/maksimal ball + onlayn sozlamalari).</summary>
     public static async Task<(bool Ok, string? Error)> UpdateAsync(
         IAppDbContext db, string id, string name, string date, decimal maxScore,
-        OnlineTestDto? online = null)
+        OnlineTestDto? online = null, bool certificateEnabled = false, string? certificateTemplateId = null)
     {
         var t = await db.TestResults.FindAsync(id);
         if (t is null) return (false, "Test topilmadi");
@@ -135,6 +145,8 @@ public static class TestResultService
         t.Name = (name ?? "").Trim();
         if (!string.IsNullOrWhiteSpace(date)) t.Date = date.Trim();
         t.MaxScore = maxScore;
+        t.CertificateEnabled = certificateEnabled;
+        t.CertificateTemplateId = certificateEnabled ? (certificateTemplateId ?? "").Trim() : "";
         var applyErr = await ApplyOnlineAsync(db, t, online);
         if (applyErr != null) return (false, applyErr);
         var err = Validate(t.Name, t.MaxScore);
@@ -399,8 +411,10 @@ public static class TestResultService
                 e.Id, e.FullName, e.Phone, e.Score, extRank, e.Answers, e.SubmittedAt));
         }
 
+        var certificates = await TestCertificateService.ListForTestAsync(db, id);
         return new TestResultDetailDto(t.Id, t.GroupId, group?.Name ?? "", t.Name, t.Date,
-            t.MaxScore, t.CreatedAt, t.CreatedBy, result, Online(t), externalRows);
+            t.MaxScore, t.CreatedAt, t.CreatedBy, result, Online(t), externalRows,
+            t.CertificateEnabled, t.CertificateTemplateId, certificates);
     }
 
     /// <summary>Bitta o'quvchiga ball qo'yish/yangilash yoki tozalash (score=null). Ball 0..MaxScore

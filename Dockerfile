@@ -42,9 +42,21 @@ WORKDIR /app
 # Markaz mintaqasi (UTC+5). tzdata — TimeZoneInfo "Asia/Tashkent"ni topishi uchun;
 # TZ — log/uchinchi-tomon kutubxonalar ham mahalliy vaqtda bo'lishi uchun.
 ENV TZ=Asia/Tashkent
-RUN apt-get update && apt-get install -y --no-install-recommends tzdata \
+# SERTIFIKAT: Word (.docx) andozasini PDF ga o'girish uchun LibreOffice kerak — u sahifani
+# AYNAN Word'dagidek chizadi (bepul .NET kutubxonalari buni uddalay olmaydi).
+#   • `libreoffice-writer` — to'liq LibreOffice EMAS, faqat matn hujjatlari moduli (~250-300 MB).
+#   • `fonts-dejavu`/`fonts-liberation` — shriftsiz PDF'da o'zbek/rus harflari kvadratga aylanadi;
+#     `fonts-liberation` Arial/Times ga metrik jihatdan mos (andozalar odatda shularda yoziladi).
+#   • `--no-install-recommends` — java va boshqa og'ir tavsiyalar tortilmasin.
+# DIQQAT (1 GB RAM server): bitta konvertatsiya ~150-200 MB oladi, shuning uchun kod ularni
+# NAVBAT bilan bajaradi (DocxToPdfConverter). LibreOffice bo'lmasa tizim ishdan chiqmaydi —
+# sertifikat .docx sifatida saqlanadi va foydalanuvchiga ogohlantirish ko'rsatiladi.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        tzdata libreoffice-writer libreoffice-core fonts-dejavu fonts-liberation \
     && ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone \
     && rm -rf /var/lib/apt/lists/*
+# LibreOffice o'z profilini HOME ichida yaratadi; konteynerda HOME bo'lmasa xato beradi.
+ENV HOME=/tmp
 COPY --from=build /app/publish ./
 # Qurilgan SPA'ni server statik papkasiga qo'yamiz (API ham, SPA ham bitta originda).
 COPY --from=client /client/dist ./wwwroot

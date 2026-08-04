@@ -309,6 +309,11 @@ builder.Services.AddScoped<IntellectCRM.Application.Services.ContractService>();
 // Sertifikat tizimi (HTML yaratish, hash, tekshirish)
 builder.Services.AddScoped<IntellectCRM.Application.Services.CertificateService>();
 
+// TEST SERTIFIKATI — Word andoza to'ldirish + LibreOffice orqali PDF ga o'girish.
+// Konvertor holatsiz (stateless) va o'zi navbatlaydi — Singleton yetarli.
+builder.Services.AddSingleton<IntellectCRM.Application.Services.DocxToPdfConverter>();
+builder.Services.AddScoped<IntellectCRM.Application.Services.TestCertificateService>();
+
 // Turniket/FaceID integratsiyasi — o'qituvchilar davomatini avtomatik yuklash
 builder.Services.AddScoped<IntellectCRM.Application.Services.TurnstileService>();
 

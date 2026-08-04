@@ -2,10 +2,16 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft, Trophy, Check, Loader2, Bot, Clock, Send, FileText, Eye, EyeOff,
-  Users, Globe, KeyRound, Copy,
+  Users, Globe, KeyRound, Copy, Award, Download,
 } from 'lucide-react'
 import type { TestResultDetail } from '@/types'
 import { getTestDetail, setTestScore } from '@/api/services/testResults'
+import {
+  generateTestCertificates,
+  downloadCertificate,
+  downloadAllCertificates,
+} from '@/api/services/testCertificates'
+import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Loader } from '@/components/ui/Loader'
 import { PageHeader } from '@/components/ui/PageHeader'
@@ -13,6 +19,9 @@ import { apiErrorMessage, formatDate } from '@/lib/utils'
 import { usePerm } from '@/lib/permissions'
 
 const MEDALS = ['🥇', '🥈', '🥉']
+
+/** Ball foizi (butun songa yaxlitlangan). */
+const percentOf = (score: number, max: number) => (max > 0 ? Math.round((score / max) * 100) : 0)
 
 /**
  * Test tafsiloti — guruhning faol o'quvchilari ballari (ball bo'yicha kamayish tartibida).
@@ -33,6 +42,12 @@ export function TestDetailPage() {
   const [savedId, setSavedId] = useState<string | null>(null)
   // Onlayn test: javob kalitini ko'rsatish (yopiq holatda — tasodifan ko'rinib qolmasin)
   const [showKey, setShowKey] = useState(false)
+  // --- sertifikat ---
+  const [certBusy, setCertBusy] = useState(false)
+  const [certInfo, setCertInfo] = useState('')
+  const [certWarning, setCertWarning] = useState('')
+  const [certError, setCertError] = useState('')
+  const [downloadingId, setDownloadingId] = useState<string | null>(null)
 
   const syncDraft = (d: TestResultDetail) =>
     setDraft(Object.fromEntries(d.rows.map((r) => [r.studentId, r.score == null ? '' : String(r.score)])))
@@ -73,6 +88,50 @@ export function TestDetailPage() {
     }
   }
 
+  /** «Saqlash va sertifikat yaratish» — ball kiritilgan har o'quvchiga sertifikat (qayta bosilsa yangilanadi). */
+  const generate = async () => {
+    setCertBusy(true)
+    setCertInfo('')
+    setCertWarning('')
+    setCertError('')
+    try {
+      const res = await generateTestCertificates(testId)
+      const fresh = await getTestDetail(testId)
+      setDetail(fresh)
+      syncDraft(fresh)
+      setCertInfo(`${res.created} ta sertifikat yaratildi`)
+      if (res.pdfAvailable === false && res.warning) setCertWarning(res.warning)
+    } catch (e) {
+      setCertError(apiErrorMessage(e, "Sertifikat yaratib bo'lmadi"))
+    } finally {
+      setCertBusy(false)
+    }
+  }
+
+  const downloadOne = async (certificateId: string) => {
+    setDownloadingId(certificateId)
+    setCertError('')
+    try {
+      await downloadCertificate(certificateId, false)
+    } catch (e) {
+      setCertError(apiErrorMessage(e, "Yuklab bo'lmadi"))
+    } finally {
+      setDownloadingId(null)
+    }
+  }
+
+  const downloadZip = async () => {
+    setDownloadingId('all')
+    setCertError('')
+    try {
+      await downloadAllCertificates(testId, false)
+    } catch (e) {
+      setCertError(apiErrorMessage(e, "Yuklab bo'lmadi"))
+    } finally {
+      setDownloadingId(null)
+    }
+  }
+
   if (loading) return <Loader label="Yuklanmoqda..." />
   if (!detail)
     return <Card className="py-12 text-center text-slate-400">{error || 'Test topilmadi'}</Card>
@@ -82,6 +141,8 @@ export function TestDetailPage() {
   const submitted = detail.rows.filter((r) => r.source === 'bot').length
   // MARKAZDAN TASHQARI ishtirokchilar (test kodi bilan kirganlar) — alohida ro'yxat.
   const external = detail.externalRows ?? []
+  const certificates = detail.certificates ?? []
+  const certEnabled = detail.certificateEnabled === true
 
   return (
     <div>
@@ -263,7 +324,12 @@ export function TestDetailPage() {
                             placeholder="—"
                             className="w-20 rounded-lg border border-slate-200 px-2.5 py-1.5 text-right text-sm text-slate-800 outline-none transition-colors focus:border-brand-400 disabled:bg-slate-50 disabled:text-slate-400"
                           />
-                          <span className="text-xs text-slate-400">/ {detail.maxScore}</span>
+                          {/* Jami ball — "85 / 100 · 85%" */}
+                          <span className="whitespace-nowrap text-xs text-slate-400">
+                            {r.score == null
+                              ? `/ ${detail.maxScore}`
+                              : `${r.score} / ${detail.maxScore} · ${percentOf(r.score, detail.maxScore)}%`}
+                          </span>
                         </div>
                       </div>
                     </td>
@@ -279,6 +345,109 @@ export function TestDetailPage() {
         <p className="mt-3 text-center text-xs text-slate-400">
           Ballni kiritib bosing yoki katakdan chiqing — natija avtomatik saqlanadi va ro'yxat qayta saralanadi.
         </p>
+      )}
+
+      {/* SERTIFIKAT natijalari — xabarlar va yaratish tugmasi (pastda yopishib turadi) */}
+      {certEnabled && (
+        <>
+          {certInfo && (
+            <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-center text-sm font-medium text-emerald-700">
+              {certInfo}
+            </p>
+          )}
+          {certWarning && (
+            <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-center text-sm text-amber-700">
+              {certWarning}
+            </p>
+          )}
+          {certError && (
+            <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-center text-sm text-red-600">
+              {certError}
+            </p>
+          )}
+          {editable && (
+            <div className="sticky bottom-0 z-10 mt-3 flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white/95 px-4 py-3 shadow-lg backdrop-blur">
+              <p className="text-xs text-slate-500">
+                Sertifikat FAQAT ball kiritilgan o'quvchilarga yaratiladi. Qayta bosilsa mavjudlari
+                yangilanadi — nusxa chiqmaydi.
+              </p>
+              <Button onClick={generate} disabled={certBusy} className="shrink-0">
+                {certBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Award className="h-4 w-4" />}
+                Saqlash va sertifikat yaratish
+              </Button>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* SERTIFIKATLAR — yaratilganlari (yuklab olish: PDF yoki Word) */}
+      {certificates.length > 0 && (
+        <div className="mt-6">
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+              <Award className="h-4 w-4 text-emerald-600" /> Sertifikatlar
+              <span className="text-xs font-normal text-slate-400">({certificates.length})</span>
+            </h2>
+            <Button variant="secondary" onClick={downloadZip} disabled={downloadingId === 'all'}>
+              {downloadingId === 'all' ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4" />
+              )}
+              Hammasini yuklab olish (ZIP)
+            </Button>
+          </div>
+          <Card tight className="overflow-hidden">
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr className="border-b border-slate-100 bg-slate-50/60 text-xs uppercase tracking-wide text-slate-400">
+                  <th className="px-4 py-3 font-medium">O'quvchi</th>
+                  <th className="px-4 py-3 font-medium">Raqami</th>
+                  <th className="px-4 py-3 font-medium">Ball</th>
+                  <th className="px-4 py-3 font-medium">Berilgan sana</th>
+                  <th className="w-44 px-4 py-3 text-right font-medium"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {certificates.map((c) => (
+                  <tr key={c.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/40">
+                    <td className="px-4 py-2.5 font-medium text-slate-700">{c.studentName}</td>
+                    <td className="px-4 py-2.5">
+                      <span className="font-mono text-xs text-slate-500">{c.number}</span>
+                      {c.status === 'docx' && (
+                        <span
+                          className="ml-1.5 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700"
+                          title="Serverda PDF yaratilmadi — faqat Word fayl mavjud"
+                        >
+                          faqat Word
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2.5 text-slate-600">
+                      {c.score} / {c.maxScore} · {c.percent}%
+                    </td>
+                    <td className="px-4 py-2.5 text-slate-500">{formatDate(c.issuedAt)}</td>
+                    <td className="px-4 py-2.5 text-right">
+                      <button
+                        type="button"
+                        onClick={() => downloadOne(c.id)}
+                        disabled={downloadingId === c.id}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:border-brand-300 hover:text-brand-600 disabled:opacity-50"
+                      >
+                        {downloadingId === c.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Download className="h-3.5 w-3.5" />
+                        )}
+                        Yuklab olish
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </Card>
+        </div>
       )}
 
       {/* MARKAZDAN TASHQARI — test kodi bilan kirgan, markazda o'qimaydigan ishtirokchilar.

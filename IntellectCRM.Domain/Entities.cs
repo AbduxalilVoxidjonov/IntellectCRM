@@ -780,6 +780,84 @@ public class TestResult
     /// ichida yaratilgani uchun natijalari o'sha guruh ichida ko'rinadi).
     /// </summary>
     public bool GroupOpen { get; set; } = true;
+
+    // ---------- SERTIFIKAT (oflayn ham, onlayn ham) ----------
+    /// <summary>
+    /// Test natijasi bo'yicha SERTIFIKAT chiqariladimi (test formasidagi ptichka). <c>true</c> bo'lsa
+    /// natijalar saqlanganda ball kiritilgan HAR bir o'quvchiga Word shablondan sertifikat yaratiladi.
+    /// Standart — <c>false</c> (eski testlar xatti-harakati o'zgarmasin).
+    /// </summary>
+    public bool CertificateEnabled { get; set; }
+    /// <summary>Qaysi Word shablondan chiqariladi (<see cref="TestCertificateTemplate"/> Id).
+    /// Bo'sh bo'lsa — standart (<c>IsDefault</c>) shablon ishlatiladi.</summary>
+    public string CertificateTemplateId { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// TEST SERTIFIKATI uchun WORD (.docx) ANDOZASI — "O'quv bo'limi → Testlar natijalari → Sertifikat
+/// shablonlari" bo'limida yuklanadi. Bir nechta shablon bo'lishi mumkin (turli kurs/tadbir uchun),
+/// test yaratishda qaysi biri ishlatilishi tanlanadi.
+///
+/// <para>Andoza ichidagi <c>@</c>-o'rinbosarlar (masalan <c>@fish</c>, <c>@ball</c>) sertifikat
+/// yaratilganda almashtiriladi — shartnoma andozalari bilan BIR XIL sintaksis
+/// (<see cref="IntellectCRM.Application.Services.DocxTemplate"/>).</para>
+/// </summary>
+public class TestCertificateTemplate
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    /// <summary>Ko'rsatiladigan nom ("Ingliz tili — oraliq test").</summary>
+    public string Name { get; set; } = string.Empty;
+    /// <summary>Yuklangan .docx fayl manzili ("/uploads/xxx.docx").</summary>
+    public string FileUrl { get; set; } = string.Empty;
+    /// <summary>Faylning asl nomi (adminga ko'rsatish uchun).</summary>
+    public string FileName { get; set; } = string.Empty;
+    /// <summary>Standart shablon — test formasida shablon tanlanmasa shu ishlatiladi.
+    /// Bir vaqtda FAQAT bitta shablon standart bo'ladi (servis ta'minlaydi).</summary>
+    public bool IsDefault { get; set; }
+    /// <summary>Ro'yxatda tanlash mumkinmi. <c>false</c> — eski sertifikatlar saqlanadi,
+    /// lekin yangi testga tanlanmaydi.</summary>
+    public bool IsActive { get; set; } = true;
+    public DateTime CreatedAt { get; set; } = AppClock.Now;
+    public string CreatedBy { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Bitta o'quvchiga bitta test bo'yicha berilgan SERTIFIKAT. Word andozasi to'ldiriladi va
+/// LibreOffice orqali PDF ga o'giriladi (ko'rinish o'zgarmaydi — "chop etilgan" holat).
+///
+/// <para>Kalit — <b>(TestResultId, StudentId)</b> unikal: bir test bo'yicha o'quvchiga bitta
+/// sertifikat. Natijalar qayta saqlansa mavjud yozuv YANGILANADI (ball o'zgargan bo'lishi mumkin),
+/// yangi qator qo'shilmaydi.</para>
+///
+/// <para>DIQQAT: bu mavjud <see cref="StudentCertificate"/> (kursni TUGATGANLIK sertifikati, HTML)
+/// dan ALOHIDA — u yerda kalit (o'quvchi, kurs, sana) bo'lib, bir kunda ikkita test sertifikati
+/// berilsa to'qnashardi va formati ham boshqa.</para>
+/// </summary>
+public class TestCertificate
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string TestResultId { get; set; } = string.Empty;
+    public string StudentId { get; set; } = string.Empty;
+    /// <summary>O'quvchi F.I.Sh — SNAPSHOT (keyin ism o'zgarsa sertifikat matni bilan mos qolsin).</summary>
+    public string StudentName { get; set; } = string.Empty;
+    /// <summary>Qaysi shablondan yaratilgani (o'chirilgan bo'lishi mumkin — shuning uchun FK yo'q).</summary>
+    public string TemplateId { get; set; } = string.Empty;
+    public string TemplateName { get; set; } = string.Empty;
+    /// <summary>Ko'rsatiladigan raqam — "SRT-2026-0042".</summary>
+    public string Number { get; set; } = string.Empty;
+    /// <summary>To'ldirilgan Word fayl ("/uploads/certificates/xxx.docx"). HAR DOIM bo'ladi.</summary>
+    public string DocxUrl { get; set; } = string.Empty;
+    /// <summary>PDF ("/uploads/certificates/xxx.pdf"). LibreOffice mavjud bo'lmasa BO'SH —
+    /// bunda <see cref="Status"/> = <c>"docx"</c> bo'ladi va admin buni ro'yxatda ko'radi.</summary>
+    public string PdfUrl { get; set; } = string.Empty;
+    /// <summary><c>"ready"</c> — PDF tayyor; <c>"docx"</c> — faqat Word (konvertor topilmadi).</summary>
+    public string Status { get; set; } = "ready";
+    /// <summary>Sertifikat yaratilgan paytdagi ball/maksimal ball va foiz — SNAPSHOT.</summary>
+    public decimal Score { get; set; }
+    public decimal MaxScore { get; set; }
+    public int Percent { get; set; }
+    public DateTime IssuedAt { get; set; } = AppClock.Now;
+    public string CreatedBy { get; set; } = string.Empty;
 }
 
 /// <summary>

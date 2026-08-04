@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   Plus, Pencil, Trash2, ClipboardList, ChevronRight, AlertTriangle, Loader2,
-  Bot, FileText, Upload, Clock, Send, Users, KeyRound, Copy, Globe,
+  Bot, FileText, Upload, Clock, Send, Users, KeyRound, Copy, Globe, Award,
 } from 'lucide-react'
 import type { GroupTest } from '@/types'
 import { getGroupTests, createTest, updateTest, deleteTest } from '@/api/services/testResults'
+import { getCertificateTemplates } from '@/api/services/testCertificates'
+import type { TestCertificateTemplate } from '@/api/services/testCertificates'
 import { uploadAdminFile } from '@/api/services/students'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -152,6 +154,16 @@ export function GroupTestsPanel({
                           title="Test kodi"
                         >
                           {t.online.code}
+                        </span>
+                      )}
+                      {t.certificateEnabled && (
+                        <span
+                          className="inline-flex shrink-0 items-center gap-1 rounded-md bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700"
+                          title="Test natijasi bo'yicha sertifikat beriladi"
+                        >
+                          <Award className="h-3 w-3" />
+                          SERTIFIKAT
+                          {t.certificateCount > 0 && ` · ${t.certificateCount}`}
                         </span>
                       )}
                     </p>
@@ -302,8 +314,26 @@ function TestFormModal({
   // true — guruhga ham e'lon qilinadi; false — FAQAT kod bilan ishlanadi.
   const [groupOpen, setGroupOpen] = useState(initialOnline?.groupOpen ?? true)
 
+  // --- sertifikat (ikkala rejimda ham ishlaydi) ---
+  const [certEnabled, setCertEnabled] = useState(editing?.certificateEnabled ?? false)
+  const [certTemplateId, setCertTemplateId] = useState(editing?.certificateTemplateId ?? '')
+  const [templates, setTemplates] = useState<TestCertificateTemplate[]>([])
+  const [templatesLoaded, setTemplatesLoaded] = useState(false)
+
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
+
+  // Shablonlar ro'yxati modal ochilganda bir marta yuklanadi.
+  useEffect(() => {
+    let active = true
+    getCertificateTemplates(true)
+      .then((list) => active && setTemplates(list))
+      .catch(() => active && setTemplates([]))
+      .finally(() => active && setTemplatesLoaded(true))
+    return () => {
+      active = false
+    }
+  }, [])
 
   const qCount = useMemo(() => {
     const n = Number(count)
@@ -406,15 +436,23 @@ function TestFormModal({
             groupOpen: true,
           }
     const finalMax = mode === 'online' ? qCount : max
+    const certificateTemplateId = certEnabled ? certTemplateId || null : null
     try {
       if (editing) {
-        await updateTest(editing.id, { name: name.trim(), date, maxScore: finalMax, online })
+        await updateTest(editing.id, {
+          name: name.trim(), date, maxScore: finalMax, online,
+          certificateEnabled: certEnabled, certificateTemplateId,
+        })
         // Kod maydoni bo'sh qoldirilsa server MAVJUD kodni saqlaydi — ro'yxatda ham shu ko'rinsin.
         const echoed = { ...online, code: online.code || editing.online?.code || '' }
-        onSaved({ ...editing, name: name.trim(), date, maxScore: finalMax, online: echoed })
+        onSaved({
+          ...editing, name: name.trim(), date, maxScore: finalMax, online: echoed,
+          certificateEnabled: certEnabled, certificateTemplateId: certificateTemplateId ?? '',
+        })
       } else {
         const created = await createTest({
           groupId, name: name.trim(), date, maxScore: finalMax, online,
+          certificateEnabled: certEnabled, certificateTemplateId,
         })
         onSaved(created)
       }
@@ -765,6 +803,57 @@ function TestFormModal({
             </div>
           </>
         )}
+
+        {/* SERTIFIKAT — oflayn va onlayn testda bir xil ishlaydi */}
+        <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+          <label className="flex cursor-pointer items-start gap-2.5">
+            <input
+              type="checkbox"
+              checked={certEnabled}
+              onChange={(e) => setCertEnabled(e.target.checked)}
+              className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-brand-600 focus:ring-brand-400"
+            />
+            <span className="min-w-0">
+              <span className="flex items-center gap-1.5 text-sm font-semibold text-slate-800">
+                <Award className="h-4 w-4 text-emerald-600" />
+                Test natijasi bo'yicha sertifikat berilsin
+              </span>
+              <span className="block text-[11px] leading-snug text-slate-400">
+                Ball kiritilgan har bir o'quvchiga bittadan sertifikat yaratiladi.
+              </span>
+            </span>
+          </label>
+
+          {certEnabled && (
+            <div className="mt-3">
+              {templatesLoaded && templates.length === 0 ? (
+                <p className="rounded-lg bg-amber-50 px-3 py-2 text-[12px] text-amber-700">
+                  Avval «Testlar natijalari → Sertifikat shablonlari» bo'limida Word shablon yuklang.
+                </p>
+              ) : (
+                <>
+                  <label className="mb-1 block text-xs font-medium text-slate-500">
+                    Sertifikat shabloni
+                  </label>
+                  <select
+                    className={control}
+                    value={certTemplateId}
+                    onChange={(e) => setCertTemplateId(e.target.value)}
+                    disabled={!templatesLoaded}
+                  >
+                    <option value="">— standart shablon —</option>
+                    {templates.map((tpl) => (
+                      <option key={tpl.id} value={tpl.id}>
+                        {tpl.name}
+                        {tpl.isDefault ? ' (standart)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </>
+              )}
+            </div>
+          )}
+        </div>
 
         {err && <p className="text-sm text-red-500">{err}</p>}
       </div>

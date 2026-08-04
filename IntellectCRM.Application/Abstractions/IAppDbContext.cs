@@ -35,6 +35,10 @@ public interface IAppDbContext
     /// <summary>Markazdan tashqari (test kodi bilan kirgan) ishtirokchilar natijalari.</summary>
     DbSet<ExternalTestScore> ExternalTestScores { get; }
     DbSet<TestBotSession> TestBotSessions { get; }
+    /// <summary>Test sertifikati uchun Word andozalari.</summary>
+    DbSet<TestCertificateTemplate> TestCertificateTemplates { get; }
+    /// <summary>Test natijasi bo'yicha berilgan sertifikatlar.</summary>
+    DbSet<TestCertificate> TestCertificates { get; }
     DbSet<JournalEntry> JournalEntries { get; }
     DbSet<LessonNote> LessonNotes { get; }
     DbSet<LessonReschedule> LessonReschedules { get; }

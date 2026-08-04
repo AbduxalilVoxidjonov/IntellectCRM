@@ -43,6 +43,7 @@ import { ReasonsPage } from '@/pages/admin/reasons/ReasonsPage'
 import { TestResultsPage } from '@/pages/admin/tests/TestResultsPage'
 import { TestGroupPage } from '@/pages/admin/tests/TestGroupPage'
 import { TestDetailPage } from '@/pages/admin/tests/TestDetailPage'
+import { CertificateTemplatesPage } from '@/pages/admin/tests/CertificateTemplatesPage'
 import { DistrictsPage } from '@/pages/admin/districts/DistrictsPage'
 import { AiCheckPage } from '@/pages/admin/ai-check/AiCheckPage'
 import { AiCheckStudentPage } from '@/pages/admin/ai-check/AiCheckStudentPage'
@@ -205,6 +206,7 @@ export default function App() {
           <Route path="curricula/:curriculumId/:moduleId/:topicId/:lessonId/:itemId" element={<RequirePerm perm="schedule"><CurriculumItemEditorPage /></RequirePerm>} />
           <Route path="reasons" element={<RequirePerm perm="settings"><ReasonsPage /></RequirePerm>} />
           <Route path="test-results" element={<RequirePerm perm="classes"><TestResultsPage /></RequirePerm>} />
+          <Route path="test-results/certificate-templates" element={<RequirePerm perm="classes"><CertificateTemplatesPage /></RequirePerm>} />
           <Route path="test-results/:groupId" element={<RequirePerm perm="classes"><TestGroupPage /></RequirePerm>} />
           <Route path="test-results/:groupId/tests/:testId" element={<RequirePerm perm="classes"><TestDetailPage /></RequirePerm>} />
           <Route path="districts" element={<RequirePerm perm="settings"><DistrictsPage /></RequirePerm>} />

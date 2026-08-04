@@ -1,7 +1,10 @@
 ---
-description: Test natijalari (oflayn — ball qo'lda) va ONLAYN TEST (Telegram bot orqali PDF + avtomatik baholash).
+description: Test natijalari (oflayn — ball qo'lda), ONLAYN TEST (Telegram bot orqali PDF + avtomatik baholash) va TEST SERTIFIKATI (Word andoza → PDF).
 paths:
   - "IntellectCRM.Application/Services/TestResultService.cs"
+  - "IntellectCRM.Application/Services/TestCertificateService.cs"
+  - "IntellectCRM.Application/Services/DocxToPdfConverter.cs"
+  - "IntellectCRM.Application/Services/DocxTemplate.cs"
   - "IntellectCRM.Application/Services/OnlineTestBotService.cs"
   - "IntellectCRM.Application/Services/LevelTestService.cs"
   - "IntellectCRM.Server/Controllers/TestResultsController.cs"
@@ -112,3 +115,46 @@ paths:
   (ruxsat "journal" — topshiriqlar ruxsati shart emas). O'qituvchi test tafsilotida ham onlayn
   ma'lumot bloki bor (savollar soni, vaqt oynasi, PDF, javob kaliti — yopiq holatda, botdan yuborgan
   o'quvchilar soni) va har qatorda o'quvchining javoblari ko'rinadi.
+
+## TEST SERTIFIKATI — Word andoza → PDF (migratsiya `AddTestCertificates`)
+
+Test natijasi bo'yicha o'quvchiga sertifikat beriladi. Andoza — **Word (.docx)**, admin yuklaydi;
+PDF ga o'girish **LibreOffice headless** orqali (ko'rinish AYNAN saqlanadi).
+
+- **Entitylar:** `TestCertificateTemplate` (Name, FileUrl `/uploads/*.docx`, IsDefault, IsActive) va
+  `TestCertificate` (kalit **(TestResultId, StudentId) UNIKAL** — bir test bo'yicha o'quvchiga bitta;
+  Number `SRT-yyyy-NNNN`, DocxUrl, PdfUrl, Status, ball/foiz SNAPSHOT). `TestResult` ga
+  `CertificateEnabled` (test formasidagi ptichka) + `CertificateTemplateId` qo'shildi.
+  ⚠️ Bu mavjud `StudentCertificate` (kursni TUGATGANLIK, HTML) dan ALOHIDA: u yerda kalit
+  (o'quvchi, kurs, sana) bo'lib, bir kunda ikkita test sertifikati to'qnashardi.
+- **Tokenlar** — `TestCertificateService.Tokens` **yagona manba**: `@fish @guruh @kurs @oqituvchi
+  @test @ball @maksball @foiz @orin @sana @bugun @raqam`. Admin paneli shu ro'yxatni
+  `GET /api/admin/test-results/certificate-tokens` dan oladi (qo'lda takrorlanmaydi).
+  Almashtirish `DocxTemplate` da — **shartnoma andozalari bilan bir xil kod** (ilgari
+  `ContractService` ichida edi, ajratib olindi). Paragraf darajasida ishlaydi, chunki Word bitta
+  so'zni bir nechta "run"ga bo'lib yozadi va oddiy `Replace` topa olmaydi.
+- **Oqim:** test formasida ptichka + shablon tanlanadi → natijalar kiritiladi → **«Saqlash va
+  sertifikat yaratish»** → `POST .../{testId}/certificates` ball kiritilgan HAR o'quvchiga bitta
+  sertifikat yaratadi. **IDEMPOTENT**: qayta bosilsa mavjudlari YANGILANADI (ball o'zgargan
+  bo'lishi mumkin), raqam saqlanadi, nusxa yaratilmaydi.
+- **PDF bo'lmasa ham ishlaydi:** `DocxToPdfConverter` LibreOffice'ni topa olmasa `null` qaytaradi →
+  sertifikat `Status="docx"` bilan faqat Word sifatida saqlanadi va UI amber ogohlantirish
+  ko'rsatadi. **Server LibreOfficesiz ham ishlaydi — bu ataylab.**
+  ⚠️ 1GB RAM: konvertatsiya ~150-200MB oladi, shuning uchun `SemaphoreSlim(1,1)` bilan NAVBAT
+  bilan bajariladi. Docker image'ga `libreoffice-writer` + `fonts-liberation`/`fonts-dejavu`
+  qo'shilgan (shriftsiz o'zbek harflari kvadratga aylanadi), `HOME=/tmp` shart.
+- **Fayllar `ContentRootPath/uploads/certificates`** ga yoziladi — `wwwroot` ga EMAS. Sabab:
+  `/uploads` Program.cs'da ContentRoot dan beriladi va docker volume + tungi zaxiraga kiradi;
+  wwwroot esa har deployda qayta yoziladi (eski HTML sertifikatlardagi xato aynan shu).
+- **API:** admin `api/admin/test-results` — `certificate-tokens`, `certificate-templates`
+  (GET/POST/PUT/DELETE), `{id}/certificates` (POST yaratish / GET ro'yxat),
+  `certificates/{id}/download?format=docx`, `{id}/certificates/download` (ZIP).
+  O'qituvchi `api/teacher/test-results` — `certificate-templates` (faqat o'qish),
+  `{id}/certificates` (POST), download + ZIP; hammasi `OwnsGroup` bilan darvozalangan.
+  Andozalarni FAQAT admin boshqaradi, o'qituvchi tanlaydi.
+- **UI:** admin `/admin/test-results/certificate-templates`
+  («Testlar natijalari» sarlavhasidagi «Sertifikat shablonlari» tugmasi): shablonlar CRUD +
+  bosilsa nusxalanadigan o'zgaruvchilar jadvali. Test tafsilotida (admin va o'qituvchi) har
+  o'quvchi yonida `ball / maks · foiz`, pastda «Saqlash va sertifikat yaratish» va
+  «Sertifikatlar» bo'limi (har biri uchun «Yuklab olish» + «Hammasini yuklab olish (ZIP)»).
+- Shablon o'chirilmaydi, agar undan sertifikat berilgan bo'lsa — **nofaol** qilinadi (tarix buzilmasin).

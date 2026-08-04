@@ -397,6 +397,10 @@ export async function createTeacherTest(payload: {
   maxScore: number
   /** Onlayn test sozlamalari; berilmasa (yoki mode="offline") — oflayn test. */
   online?: OnlineTest
+  /** true — test natijasi bo'yicha sertifikat beriladi */
+  certificateEnabled?: boolean
+  /** Sertifikat shabloni; bo'sh/null — standart shablon */
+  certificateTemplateId?: string | null
 }): Promise<GroupTest> {
   const { data } = await api.post<GroupTest>('/teacher/test-results', payload)
   return data
@@ -404,7 +408,16 @@ export async function createTeacherTest(payload: {
 
 export async function updateTeacherTest(
   id: string,
-  payload: { name: string; date: string; maxScore: number; online?: OnlineTest },
+  payload: {
+    name: string
+    date: string
+    maxScore: number
+    online?: OnlineTest
+    /** true — test natijasi bo'yicha sertifikat beriladi */
+    certificateEnabled?: boolean
+    /** Sertifikat shabloni; bo'sh/null — standart shablon */
+    certificateTemplateId?: string | null
+  },
 ): Promise<void> {
   await api.put(`/teacher/test-results/${id}`, payload)
 }

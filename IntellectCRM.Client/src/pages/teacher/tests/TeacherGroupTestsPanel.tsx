@@ -17,6 +17,8 @@ import {
   KeyRound,
   Copy,
   Globe,
+  Award,
+  Download,
 } from 'lucide-react'
 import type { GroupTest, OnlineTest, TestResultDetail } from '@/types'
 import {
@@ -28,6 +30,13 @@ import {
   setTeacherTestScore,
   uploadTeacherTestFile,
 } from '@/api/services/teacher'
+import {
+  getTeacherCertificateTemplates,
+  generateTeacherTestCertificates,
+  downloadCertificate,
+  downloadAllCertificates,
+} from '@/api/services/testCertificates'
+import type { TestCertificateTemplate } from '@/api/services/testCertificates'
 import { cn, formatDate, apiErrorMessage } from '@/lib/utils'
 import { Loader } from '@/components/ui/Loader'
 import { Modal } from '@/components/ui/Modal'
@@ -48,6 +57,9 @@ const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F']
 
 /** "2026-07-22T09:30" → "09:30" (bo'sh/noto'g'ri bo'lsa — zaxira qiymat). */
 const timeOf = (iso: string, fallback: string) => (iso && iso.length >= 16 ? iso.slice(11, 16) : fallback)
+
+/** Ball foizi (butun songa yaxlitlangan). */
+const percentOf = (score: number, max: number) => (max > 0 ? Math.round((score / max) * 100) : 0)
 
 const field =
   'h-10 w-full rounded-lg border border-line bg-white px-3 text-[14px] text-ink focus:border-teal-500 focus:outline-none'
@@ -100,8 +112,26 @@ function TeacherTestFormModal({
   // true — guruhga ham e'lon qilinadi; false — FAQAT kod bilan ishlanadi.
   const [groupOpen, setGroupOpen] = useState(initialOnline?.groupOpen ?? true)
 
+  // --- sertifikat (ikkala rejimda ham ishlaydi) ---
+  const [certEnabled, setCertEnabled] = useState(editing?.certificateEnabled ?? false)
+  const [certTemplateId, setCertTemplateId] = useState(editing?.certificateTemplateId ?? '')
+  const [templates, setTemplates] = useState<TestCertificateTemplate[]>([])
+  const [templatesLoaded, setTemplatesLoaded] = useState(false)
+
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
+
+  // Shablonlar ro'yxati modal ochilganda bir marta yuklanadi (o'qituvchi faqat tanlaydi).
+  useEffect(() => {
+    let active = true
+    getTeacherCertificateTemplates()
+      .then((res) => active && setTemplates(res.templates))
+      .catch(() => active && setTemplates([]))
+      .finally(() => active && setTemplatesLoaded(true))
+    return () => {
+      active = false
+    }
+  }, [])
 
   const qCount = useMemo(() => {
     const n = Number(count)
@@ -204,11 +234,18 @@ function TeacherTestFormModal({
             groupOpen: true,
           }
     const finalMax = mode === 'online' ? qCount : max
+    const certificateTemplateId = certEnabled ? certTemplateId || null : null
     try {
       if (editing) {
-        await updateTeacherTest(editing.id, { name: name.trim(), date, maxScore: finalMax, online })
+        await updateTeacherTest(editing.id, {
+          name: name.trim(), date, maxScore: finalMax, online,
+          certificateEnabled: certEnabled, certificateTemplateId,
+        })
       } else {
-        await createTeacherTest({ groupId, name: name.trim(), date, maxScore: finalMax, online })
+        await createTeacherTest({
+          groupId, name: name.trim(), date, maxScore: finalMax, online,
+          certificateEnabled: certEnabled, certificateTemplateId,
+        })
       }
       onSaved()
     } catch (e) {
@@ -564,6 +601,55 @@ function TeacherTestFormModal({
           </>
         )}
 
+        {/* SERTIFIKAT — oflayn va onlayn testda bir xil ishlaydi */}
+        <div className="rounded-xl border border-line bg-panel2 p-3">
+          <label className="flex cursor-pointer items-start gap-2.5">
+            <input
+              type="checkbox"
+              checked={certEnabled}
+              onChange={(e) => setCertEnabled(e.target.checked)}
+              className="mt-0.5 h-4 w-4 shrink-0 rounded border-line text-teal-600 focus:ring-teal-500"
+            />
+            <span className="min-w-0">
+              <span className="flex items-center gap-1.5 text-[13px] font-bold text-ink">
+                <Award className="h-4 w-4 text-emerald-600" />
+                Test natijasi bo'yicha sertifikat berilsin
+              </span>
+              <span className="block text-[11px] leading-snug text-faint">
+                Ball kiritilgan har bir o'quvchiga bittadan sertifikat yaratiladi.
+              </span>
+            </span>
+          </label>
+
+          {certEnabled && (
+            <div className="mt-3">
+              {templatesLoaded && templates.length === 0 ? (
+                <p className="rounded-lg bg-amber-50 px-3 py-2 text-[12px] font-semibold text-amber-700">
+                  Sertifikat shabloni hali yuklanmagan — administratorga murojaat qiling.
+                </p>
+              ) : (
+                <>
+                  <span className={label}>Sertifikat shabloni</span>
+                  <select
+                    className={field}
+                    value={certTemplateId}
+                    onChange={(e) => setCertTemplateId(e.target.value)}
+                    disabled={!templatesLoaded}
+                  >
+                    <option value="">— standart shablon —</option>
+                    {templates.map((tpl) => (
+                      <option key={tpl.id} value={tpl.id}>
+                        {tpl.name}
+                        {tpl.isDefault ? ' (standart)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+
         {err && (
           <p className="rounded-lg bg-rose-50 px-3 py-2 text-[13px] font-semibold text-rose-600">{err}</p>
         )}
@@ -608,6 +694,13 @@ export function TeacherGroupTestsPanel({
   const [savingRow, setSavingRow] = useState<string | null>(null)
   const [scoreDrafts, setScoreDrafts] = useState<Record<string, string>>({})
 
+  // --- sertifikat ---
+  const [certBusy, setCertBusy] = useState(false)
+  const [certInfo, setCertInfo] = useState('')
+  const [certWarning, setCertWarning] = useState('')
+  const [certError, setCertError] = useState('')
+  const [downloadingId, setDownloadingId] = useState<string | null>(null)
+
   const loadTests = useCallback(() => {
     setTestsLoading(true)
     setTestsError(null)
@@ -626,6 +719,9 @@ export function TeacherGroupTestsPanel({
     setDetailError(null)
     setDetail(null)
     setShowKey(false)
+    setCertInfo('')
+    setCertWarning('')
+    setCertError('')
     getTeacherTestDetail(t.id)
       .then((d) => {
         setDetail(d)
@@ -690,12 +786,63 @@ export function TeacherGroupTestsPanel({
     }
   }
 
+  /** «Saqlash va sertifikat yaratish» — ball kiritilgan har o'quvchiga (qayta bosilsa yangilanadi). */
+  const generateCertificates = async () => {
+    if (!detail) return
+    setCertBusy(true)
+    setCertInfo('')
+    setCertWarning('')
+    setCertError('')
+    try {
+      const res = await generateTeacherTestCertificates(detail.id)
+      const fresh = await getTeacherTestDetail(detail.id)
+      setDetail(fresh)
+      setScoreDrafts(
+        Object.fromEntries(fresh.rows.map((r) => [r.studentId, r.score == null ? '' : String(r.score)])),
+      )
+      setCertInfo(`${res.created} ta sertifikat yaratildi`)
+      if (res.pdfAvailable === false && res.warning) setCertWarning(res.warning)
+    } catch (err) {
+      setCertError(apiErrorMessage(err, "Sertifikat yaratib bo'lmadi"))
+    } finally {
+      setCertBusy(false)
+    }
+  }
+
+  const downloadOne = async (certificateId: string) => {
+    setDownloadingId(certificateId)
+    setCertError('')
+    try {
+      await downloadCertificate(certificateId, true)
+    } catch (err) {
+      setCertError(apiErrorMessage(err, "Yuklab bo'lmadi"))
+    } finally {
+      setDownloadingId(null)
+    }
+  }
+
+  const downloadZip = async () => {
+    if (!detail) return
+    setDownloadingId('all')
+    setCertError('')
+    try {
+      await downloadAllCertificates(detail.id, true)
+    } catch (err) {
+      setCertError(apiErrorMessage(err, "Yuklab bo'lmadi"))
+    } finally {
+      setDownloadingId(null)
+    }
+  }
+
   // ---------------- Test tafsiloti (ball qo'yish + onlayn ma'lumot) ----------------
   if (detail || detailLoading || detailError) {
     const isOnline = detail?.online?.mode === 'online'
     const submitted = detail ? detail.rows.filter((r) => r.source === 'bot').length : 0
     // MARKAZDAN TASHQARI ishtirokchilar (test kodi bilan kirganlar) — alohida ro'yxat.
     const external = detail?.externalRows ?? []
+    // SERTIFIKAT — testda yoqilgan bo'lsa yaratish tugmasi va ro'yxat ko'rinadi.
+    const certEnabled = detail?.certificateEnabled === true
+    const certificates = detail?.certificates ?? []
     return (
       <div>
         <div className="mb-4 flex items-center gap-2.5">
@@ -851,7 +998,12 @@ export function TeacherGroupTestsPanel({
                         disabled={savingRow === r.studentId}
                         className="h-9 w-16 rounded-lg border border-line bg-panel2 text-center font-mono text-[14px] font-bold text-ink focus:border-teal-500 focus:outline-none disabled:opacity-50"
                       />
-                      <span className="text-[12px] text-faint">/{detail.maxScore}</span>
+                      {/* Jami ball — "85 / 100 · 85%" */}
+                      <span className="whitespace-nowrap text-[12px] text-faint">
+                        {r.score == null
+                          ? `/${detail.maxScore}`
+                          : `${r.score} / ${detail.maxScore} · ${percentOf(r.score, detail.maxScore)}%`}
+                      </span>
                     </div>
                   </div>
                 )
@@ -898,6 +1050,111 @@ export function TeacherGroupTestsPanel({
           </div>
         )}
         {savingRow && <p className="mt-2 text-center text-[12px] text-mute">Saqlanmoqda...</p>}
+
+        {/* SERTIFIKAT xabarlari + yaratish tugmasi (pastda yopishib turadi) */}
+        {detail && certEnabled && (
+          <>
+            {certInfo && (
+              <p className="mt-3 rounded-xl bg-emerald-50 px-3 py-2 text-center text-[13px] font-semibold text-emerald-700">
+                {certInfo}
+              </p>
+            )}
+            {certWarning && (
+              <p className="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-center text-[12px] font-semibold text-amber-700">
+                {certWarning}
+              </p>
+            )}
+            {certError && (
+              <p className="mt-2 rounded-xl bg-rose-50 px-3 py-2 text-center text-[13px] font-semibold text-rose-600">
+                {certError}
+              </p>
+            )}
+            <div className="sticky bottom-0 z-10 mt-3 rounded-[20px] border border-line bg-white/95 p-3 shadow-[var(--shadow-card)] backdrop-blur">
+              <button
+                type="button"
+                onClick={generateCertificates}
+                disabled={certBusy}
+                className="tap-scale flex w-full items-center justify-center gap-1.5 rounded-xl bg-teal-600 px-3 py-2.5 text-[14px] font-bold text-white disabled:opacity-50"
+              >
+                {certBusy ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Award className="h-4 w-4" />
+                )}
+                Saqlash va sertifikat yaratish
+              </button>
+              <p className="mt-1.5 text-center text-[11px] text-faint">
+                Sertifikat FAQAT ball kiritilgan o'quvchilarga yaratiladi; qayta bosilsa mavjudlari
+                yangilanadi.
+              </p>
+            </div>
+          </>
+        )}
+
+        {/* SERTIFIKATLAR — yaratilganlari (yuklab olish: PDF yoki Word) */}
+        {detail && certificates.length > 0 && (
+          <div className="mt-4 overflow-hidden rounded-[20px] border border-line bg-white shadow-[var(--shadow-card)]">
+            <div className="flex items-center gap-2 border-b border-line bg-panel2 px-4 py-2">
+              <p className="flex min-w-0 flex-1 items-center gap-1.5 text-[12px] font-bold text-mute">
+                <Award className="h-3.5 w-3.5 text-emerald-600" /> Sertifikatlar
+                <span className="font-normal text-faint">({certificates.length})</span>
+              </p>
+              <button
+                type="button"
+                onClick={downloadZip}
+                disabled={downloadingId === 'all'}
+                className="flex shrink-0 items-center gap-1.5 rounded-lg border border-line bg-white px-2.5 py-1.5 text-[12px] font-semibold text-mute disabled:opacity-50"
+              >
+                {downloadingId === 'all' ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Download className="h-3.5 w-3.5" />
+                )}
+                Hammasini yuklab olish (ZIP)
+              </button>
+            </div>
+            {certificates.map((c, i) => (
+              <div
+                key={c.id}
+                className={cn(
+                  'flex items-center gap-3 px-4 py-3',
+                  i < certificates.length - 1 && 'border-b border-line',
+                )}
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[14px] font-semibold text-ink">
+                    {c.studentName}
+                    {c.status === 'docx' && (
+                      <span
+                        className="ml-1.5 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold text-amber-700"
+                        title="Serverda PDF yaratilmadi — faqat Word fayl mavjud"
+                      >
+                        faqat Word
+                      </span>
+                    )}
+                  </p>
+                  <p className="truncate text-[11px] text-faint">
+                    <span className="font-mono">{c.number}</span> · {c.score}/{c.maxScore} ·{' '}
+                    {c.percent}% · {formatDate(c.issuedAt)}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => downloadOne(c.id)}
+                  disabled={downloadingId === c.id}
+                  className="flex shrink-0 items-center gap-1.5 rounded-lg border border-line bg-white px-2.5 py-1.5 text-[12px] font-semibold text-mute disabled:opacity-50"
+                >
+                  {downloadingId === c.id ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Download className="h-3.5 w-3.5" />
+                  )}
+                  Yuklab olish
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     )
   }
@@ -985,6 +1242,16 @@ export function TeacherGroupTestsPanel({
                       {t.online?.mode === 'online' && !!t.online.code && (
                         <span className="shrink-0 rounded-md bg-panel2 px-1.5 py-0.5 font-mono text-[10px] font-bold tracking-wider text-mute">
                           {t.online.code}
+                        </span>
+                      )}
+                      {t.certificateEnabled && (
+                        <span
+                          className="inline-flex shrink-0 items-center gap-1 rounded-md bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700"
+                          title="Test natijasi bo'yicha sertifikat beriladi"
+                        >
+                          <Award className="h-3 w-3" />
+                          SERTIFIKAT
+                          {t.certificateCount > 0 && ` · ${t.certificateCount}`}
                         </span>
                       )}
                     </p>
