@@ -174,6 +174,41 @@ hujjatni chizish esa ~0.5-1 s. Shundan kelib chiqib **ikkita** qaror qabul qilin
 - **Fayllar `ContentRootPath/uploads/certificates`** ga yoziladi — `wwwroot` ga EMAS. Sabab:
   `/uploads` Program.cs'da ContentRoot dan beriladi va docker volume + tungi zaxiraga kiradi;
   wwwroot esa har deployda qayta yoziladi (eski HTML sertifikatlardagi xato aynan shu).
+
+### ⚠️ `uploads/certificates` — STATIK YO'L BILAN BERILMAYDI
+
+`/uploads` ochiq statik papka: manzilni bilgan har kim **login'siz** oladi. Sertifikat esa shaxsiy
+ma'lumot (F.I.Sh, ball, foiz, o'quvchining SURATI) — API'dagi `OwnsGroup`/`AdminPerm` tekshiruvi
+faylning o'zini qo'riqlamasdi: manzil bir marta oshkor bo'lsa (brauzer tarixi, ulashilgan havola)
+u **abadiy** ishlayverardi, o'qituvchi guruhdan chiqarilsa ham.
+
+Yechim — `PrivateFolderFileProvider` (Application/Services): statik fayl provayderi ustidagi
+darvoza. Program.cs'da **ikkala** `UseStaticFiles` ham shu bilan o'raladi, chunki ikki sertifikat
+tizimi ikki xil joyga yozadi: yangi test sertifikatlari `ContentRoot/uploads/certificates`,
+eski HTML sertifikatlar `wwwroot/uploads/certificates`.
+
+- **Fayllar KO'CHIRILMAYDI** — `uploads` docker volume + tungi zaxiraga kiradigan yagona papka;
+  undan chiqarish zaxiradan tushib qolish degani bo'lardi. Fayllar joyida qoladi, faqat
+  berilmaydi. Ya'ni **migratsiya ham, mavjud fayllarga tegish ham kerak emas**.
+- **Yuklab olish o'zgarmaydi** — u avvalgidek avtorizatsiyalangan endpointlar orqali, fayl
+  diskdan o'qib beriladi (`ReadFileAsync`/`ZipForTestAsync`). Mijozga to'g'ridan-to'g'ri fayl
+  manzili berilmaydi: eski tizimda `DownloadUrl` har doim API manzili, yangi tizimda UI
+  `certificates/{id}/download` ni chaqiradi (DTO'dagi `DocxUrl`/`PdfUrl` — ichki saqlash havolasi,
+  frontendda ishlatilmaydi).
+- **Tekshiruv MANZILGA emas, hal qilingan FIZIK YO'LGA asoslanadi** — `..` segmentlari yoki
+  registr bilan chetlab o'tib bo'lmaydi (jonli tekshirildi: `/uploads/certificates/x.pdf`,
+  `.../certificates/../certificates/x.pdf`, `/uploads/CERTIFICATES/x.pdf` — hammasi 404;
+  `/uploads/surat.jpg` — 200).
+- Rad etilgan har urinish **logga** yoziladi ("Statik yo'l bilan MAXFIY faylga urinish rad etildi")
+  — kutilmagan mijoz (masalan eski havola) bo'lsa shu yerdan ko'rinadi.
+- `Uploads:PublicCertificates=true` — favqulodda qaytarish kaliti (kodni qayta yig'masdan).
+
+**HALI OCHIQ:** `/uploads` dagi qolgan fayllar — o'quvchi surati, kitob muqovasi, dars PDF —
+hamon login'siz olinadi. Ular `<img>`/`<iframe>` da kerak, brauzer esa u yerga `Authorization`
+sarlavhasini yubora olmaydi (loyihada JWT Bearer, cookie yo'q). Ularni yopish alohida ish:
+login'da `Path=/uploads` cookie qo'yib, papkani cookie/token bilan darvozalash — bunda mobil
+ilovalar ham yangilanishi kerak, shuning uchun avval "faqat log yozadigan" rejimda o'lchash tavsiya
+etiladi. Hozirgi himoya: manzil tasodifiy GUID + `Referrer-Policy: no-referrer` + `Cache-Control: private`.
 - **API:** admin `api/admin/test-results` — `certificate-tokens`, `certificate-templates`
   (GET/POST/PUT/DELETE), `{id}/certificates` (POST yaratish / GET ro'yxat),
   **`{id}/certificates/status`** (fon ishi holati + shu daqiqada tayyor ro'yxat),

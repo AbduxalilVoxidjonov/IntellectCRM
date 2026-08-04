@@ -704,10 +704,53 @@ app.Use(async (context, next) =>
 if (!app.Environment.IsDevelopment())
     app.UseHsts();
 
+var uploadsDir = Path.Combine(app.Environment.ContentRootPath, "uploads");
+Directory.CreateDirectory(uploadsDir);
+
+// ---------------------------------------------------------------------------------------------
+// MAXFIY PAPKALAR — statik yo'l bilan BERILMAYDI.
+//
+// `/uploads` ochiq statik papka: manzilni bilgan har kim login'siz oladi. Sertifikat esa shaxsiy
+// ma'lumot (F.I.Sh, ball, foiz, o'quvchining SURATI). API tomonda egalik tekshiriladi, lekin
+// faylning o'zi shu tekshiruvni chetlab o'tib olinardi — manzil bir marta oshkor bo'lsa (brauzer
+// tarixi, ulashilgan havola) u abadiy ishlayverardi, o'qituvchi guruhdan chiqarilsa ham.
+//
+// Fayllar KO'CHIRILMAYDI: `uploads` — docker volume va tungi zaxiraga kiradigan yagona papka.
+// Ular joyida qoladi, faqat statik tarzda berilmaydi. Yuklab olish avvalgidek ishlaydi — u
+// avtorizatsiyalangan endpointlar orqali, fayl diskdan o'qib beriladi:
+//   • test sertifikati  — `test-results/certificates/{id}/download` va ZIP (OwnsGroup/AdminPerm)
+//   • eski HTML sertifikat — `students/{id}/certificates/{id}/download`, `student/certificates/...`
+// Mijozga to'g'ridan-to'g'ri fayl manzili BERILMAYDI (`DownloadUrl` har doim API manzili).
+//
+// Ikkala statik middleware ham yopiladi, chunki ikki sertifikat tizimi ikki xil joyga yozadi:
+//   • yangi test sertifikatlari → ContentRoot/uploads/certificates (TestCertificateService)
+//   • eski HTML sertifikatlar   → wwwroot/uploads/certificates     (CertificateService)
+//
+// `Uploads:PublicCertificates=true` — favqulodda qaytarish kaliti (kutilmaganda biror mijoz
+// faylni to'g'ridan-to'g'ri olayotgani aniqlansa, kodni qayta yig'masdan yoqib turish uchun).
+var webRootForPrivate = app.Environment.WebRootPath ?? app.Environment.ContentRootPath;
+var privateFolders = new[]
+{
+    Path.Combine(uploadsDir, "certificates"),
+    Path.Combine(webRootForPrivate, "uploads", "certificates"),
+};
+var privateFilesLogger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("PrivateFiles");
+var certificatesArePublic = app.Configuration.GetValue("Uploads:PublicCertificates", false);
+if (certificatesArePublic)
+    privateFilesLogger.LogWarning(
+        "DIQQAT: Uploads:PublicCertificates=true — sertifikat fayllari statik yo'l bilan OCHIQ berilmoqda.");
+
+IFileProvider Guarded(IFileProvider innerProvider) =>
+    certificatesArePublic
+        ? innerProvider
+        : new IntellectCRM.Application.Services.PrivateFolderFileProvider(
+            innerProvider, privateFilesLogger, privateFolders);
+
 // DIQQAT: UseDefaultFiles ATAYLAB ishlatilmaydi — `/` ni o'zimiz SPA fallback'da beramiz.
 // SPA statik fayllari: Vite assetlari kontent-hash bilan (immutable, 1 yil); index.html — no-cache.
 app.UseStaticFiles(new StaticFileOptions
 {
+    FileProvider = Guarded(app.Environment.WebRootFileProvider),
     OnPrepareResponse = ctx =>
     {
         var headers = ctx.Context.Response.Headers;
@@ -724,12 +767,14 @@ app.UseStaticFiles(new StaticFileOptions
 
 // Yuklangan materiallar (/uploads) — alohida papkadan. Kesh PRIVATE: maxfiy hujjatlar (passport/tug'ilganlik
 // guvohnomasi/shartnoma skanlari) Cloudflare/proxy/umumiy keshda SAQLANMASIN — faqat brauzerning o'z keshi
-// (URL tasodifiy GUID + no-referrer bilan birga). (Auth-gating katta frontend refactor talab qiladi — kelajak.)
-var uploadsDir = Path.Combine(app.Environment.ContentRootPath, "uploads");
-Directory.CreateDirectory(uploadsDir);
+// (URL tasodifiy GUID + no-referrer bilan birga).
+// ⚠️ Bu yerdagi QOLGAN fayllar (o'quvchi surati, kitob muqovasi, dars PDF) hamon ochiq — ular
+// `<img>`/`<iframe>` da kerak va brauzer ularga `Authorization` sarlavhasini yubora olmaydi.
+// Ularni yopish alohida ish: login'da `/uploads` ga cookie qo'yib, shu papkani cookie/token bilan
+// darvozalash (mobil ilovalar ham yangilanishi kerak).
 app.UseStaticFiles(new StaticFileOptions
 {
-    FileProvider = new PhysicalFileProvider(uploadsDir),
+    FileProvider = Guarded(new PhysicalFileProvider(uploadsDir)),
     RequestPath = "/uploads",
     OnPrepareResponse = ctx => ctx.Context.Response.Headers.CacheControl = "private,max-age=3600",
 });
