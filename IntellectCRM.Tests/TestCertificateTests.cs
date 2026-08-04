@@ -225,44 +225,110 @@ public class TestCertificateTests : IDisposable
     }
 
     [Fact]
-    public void ReplaceImage_BITTArasmBolsa_AltMatnSHARTEMAS()
+    public void ApplyPhoto_BITTArasmBolsa_AltMatnSHARTEMAS()
     {
         var docx = MakeDocxWithImage(altText: null);
-        var photo = MakeJpeg(4, 4);
 
-        var result = DocxTemplate.ReplaceImage(docx, photo, ".jpg");
+        var result = DocxTemplate.ApplyPhoto(docx, MakeJpeg(4, 4), ".jpg");
 
         Assert.Equal((4, 4), ImageBytesIn(result));
     }
 
     [Fact]
-    public void ReplaceImage_NISBATSAQLANADI_KatakdanCHIQMAYDI()
+    public void ApplyPhoto_RasmORNI_MUALLIFOLCHAMISAQLANADI_ortiqchasiQIRQILADI()
     {
-        // Katak 1000×1000, surat 1:2 (bo'yiga cho'zilgan) → balandlik 1000, kenglik 500.
+        // Katak 1000×1000 (kvadrat), surat 1:2 (bo'yiga cho'zilgan) → tepa/pastdan qirqiladi.
         var docx = MakeDocxWithImage(altText: "rasm", cx: 1000, cy: 1000);
 
-        var result = DocxTemplate.ReplaceImage(docx, Png1x2(), ".png");
+        var result = DocxTemplate.ApplyPhoto(docx, Png1x2(), ".png");
 
         using var ms = new MemoryStream(result);
         using var doc = WordprocessingDocument.Open(ms, false);
+        // O'lcham TEGILMAYDI — muallif chizgan ramka o'z joyida qoladi.
         var extent = doc.MainDocumentPart!.Document.Descendants<DW.Extent>().First();
-        Assert.Equal(500L, extent.Cx!.Value);
+        Assert.Equal(1000L, extent.Cx!.Value);
         Assert.Equal(1000L, extent.Cy!.Value);
-        // Shakl o'lchami ham yangilanadi — aks holda Word rasmni cho'zib ko'rsatadi.
-        var ext = doc.MainDocumentPart.Document.Descendants<A.Extents>().First();
-        Assert.Equal(500L, ext.Cx!.Value);
-        Assert.Equal(1000L, ext.Cy!.Value);
+        // Ortiqchasi markazdan qirqiladi: 1:2 rasmning yarmi ko'rinadi → har tomondan 25%.
+        var crop = doc.MainDocumentPart.Document.Descendants<A.SourceRectangle>().Single();
+        Assert.Equal(25000, crop.Top!.Value);
+        Assert.Equal(25000, crop.Bottom!.Value);
+        Assert.Equal(0, crop.Left!.Value);      // yon tomonlar qirqilmaydi
+        Assert.Equal(0, crop.Right!.Value);
     }
 
     [Fact]
-    public void ReplaceImage_QollanmaydiganFormat_ANDOZAGATEGILMAYDI()
+    public void ApplyPhoto_QollanmaydiganFormat_ANDOZAGATEGILMAYDI()
     {
         var docx = MakeDocxWithImage(altText: "rasm");
 
-        var result = DocxTemplate.ReplaceImage(docx, MakeJpeg(4, 4), ".webp");
+        var result = DocxTemplate.ApplyPhoto(docx, MakeJpeg(4, 4), ".webp");
 
         Assert.Equal(docx, result);                 // bayt-bayt o'zgarmagan
         Assert.Equal((1, 2), ImageBytesIn(result)); // eski (andozadagi) rasm joyida
+    }
+
+    // ---- `@rasm` MATN BELGISI ----
+
+    [Fact]
+    public void CoverCrop_KengManbaCHAPONGDAN_BalandManbaTEPAPASTDAN()
+    {
+        // Kvadrat surat (1:1) 185×260 katakda → chap/o'ngdan qirqiladi.
+        var wide = DocxTemplate.CoverCrop(100, 100, 185, 260);
+        Assert.True(wide.L > 0 && wide.R > 0 && wide.T == 0 && wide.B == 0);
+        Assert.Equal(wide.L, wide.R);   // markazdan — teng
+
+        // Bo'yiga cho'zilgan surat kvadrat katakda → tepa/pastdan.
+        var tall = DocxTemplate.CoverCrop(100, 200, 100, 100);
+        Assert.True(tall.T > 0 && tall.B > 0 && tall.L == 0 && tall.R == 0);
+
+        // Nisbat bir xil — qirqish shart emas.
+        Assert.Equal(default, DocxTemplate.CoverCrop(185, 260, 185, 260));
+    }
+
+    [Fact]
+    public void ApplyPhoto_RASMbelgisi_185x260olchamdaQoyiladi()
+    {
+        var docx = MakeDocx("Hurmatli @fish", "@rasm");
+
+        var result = DocxTemplate.ApplyPhoto(docx, MakeJpeg(300, 300), ".jpg");
+
+        using var ms = new MemoryStream(result);
+        using var doc = WordprocessingDocument.Open(ms, false);
+        var extent = doc.MainDocumentPart!.Document.Descendants<DW.Extent>().Single();
+        Assert.Equal(185L * 9525, extent.Cx!.Value);    // 96 DPI: 1 px = 9525 EMU
+        Assert.Equal(260L * 9525, extent.Cy!.Value);
+        // Belgining o'zi matnda qolmaydi.
+        Assert.DoesNotContain("@rasm", ReadText(result));
+        Assert.Equal((300, 300), ImageBytesIn(result));
+    }
+
+    [Fact]
+    public void ApplyPhoto_RASMbelgisi_BOLINGANRUNlardaHamIshlaydi()
+    {
+        // Word "@rasm" ni "@ra" + "sm" qilib bo'lib yozgan bo'lishi mumkin.
+        var docx = MakeDocxSplitRuns("Surat: ", "@ra", "sm", " (o'quvchi)");
+
+        var result = DocxTemplate.ApplyPhoto(docx, MakeJpeg(4, 4), ".jpg");
+
+        var text = ReadText(result);
+        Assert.DoesNotContain("@rasm", text);
+        Assert.Contains("Surat: ", text);
+        Assert.Contains("(o'quvchi)", text);    // belgidan keyingi matn yo'qolmaydi
+        Assert.Equal((4, 4), ImageBytesIn(result));
+    }
+
+    [Fact]
+    public void ApplyPhoto_SURATYOQ_belgiOLIBTASHLANADI()
+    {
+        // Sertifikatda "@rasm" yozuvi qolib ketmasligi kerak.
+        var docx = MakeDocx("Surat: @rasm shu yerda");
+
+        var result = DocxTemplate.ApplyPhoto(docx, null, null);
+
+        var text = ReadText(result);
+        Assert.DoesNotContain("@rasm", text);
+        Assert.Contains("Surat: ", text);
+        Assert.Contains("shu yerda", text);
     }
 
     [Fact]

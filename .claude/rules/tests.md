@@ -161,18 +161,28 @@ PDF ga o'girish **LibreOffice headless** orqali (ko'rinish AYNAN saqlanadi).
 
 ### Sertifikatda O'QUVCHI SURATI
 
-Surat **matn tokeni EMAS** (`@rasm` yo'q) — sabab: rasmning o'lchami/joylashuvini kod taxmin
-qila olmaydi. Buning o'rniga shablon muallifi **Word'da rasm qo'yadi** (istalgan surat — u faqat
-o'rin), o'lchami/ramkasi/matn bilan joylashuvini xohlagancha sozlaydi, biz esa
-`DocxTemplate.ReplaceImage` bilan faqat uning **mazmunini** almashtiramiz. Natijada muallif
-ko'rgan ko'rinish aynan saqlanadi.
+Ikki usul qo'llab-quvvatlanadi — yagona kirish nuqtasi `DocxTemplate.ApplyPhoto`:
+
+1. **`@rasm` matn belgisi** (oddiy yo'l) — shablonda shunchaki `@rasm` deb yoziladi va o'sha joyga
+   surat **185×260 px** o'lchamda qo'yiladi (`PhotoWidthPx`/`PhotoHeightPx`; 96 DPI → ×9525 EMU).
+   Belgi bir nechta joyda bo'lishi mumkin, kolontitullarda ham ishlaydi. Word uni bir necha
+   "run"ga bo'lib yozgan bo'lsa ham topiladi (paragraf matni birlashtirilib, belgidan OLDINGI va
+   KEYINGI qismlarga bo'linadi, rasm o'rtaga qo'yiladi).
+2. **Word'dagi rasm o'rni** — muallif rasm qo'yib o'lchami/ramkasi/joyini o'zi sozlaydi, biz faqat
+   MAZMUNINI almashtiramiz. Bunda **muallif bergan o'lcham TEGILMAYDI**.
+
+Belgi ishlatilgan bo'lsa 2-yo'lga o'tilmaydi (belgi — aniq ko'rsatma). `Fill` dan KEYIN chaqiriladi
+va **surat bo'lmasa ham** chaqirilishi shart: aks holda `@rasm` (noma'lum token sifatida `Fill`
+tegmasdan qoldirgan) sertifikatda matn bo'lib qolardi.
 
 - **Qaysi rasm tanlanadi:** nomi/alt-matnida `rasm|surat|foto|photo` bo'lgani; belgi yo'q bo'lsa
   va hujjatda BITTA rasm bo'lsa — o'sha. Aks holda (logotip + rasm, ikkalasi belgilanmagan)
   **hech narsa o'zgartirilmaydi** — noto'g'ri rasmni buzgandan ko'ra tegmagan yaxshi.
-- **Nisbat saqlanadi:** surat muallif ajratgan katak ICHIGA sig'diriladi ("contain") —
-  `wp:extent` va `a:xfrm/a:ext` ikkalasi ham yangilanadi (faqat bittasi yangilansa Word rasmni
-  cho'zib ko'rsatadi). Rasm o'lchami fayl SARLAVHASIDAN o'qiladi (`DocxTemplate.ImageSize` —
+- **Surat CHO'ZILMAYDI:** katakni to'ldiradi, ortiqchasi MARKAZDAN qirqiladi (`DocxTemplate.CoverCrop`
+  → `a:srcRect`, qiymatlar foizning mingdan biri: 100000 = 100%). Qirqishni **Word/LibreOffice o'zi
+  bajaradi** — rasmni qayta chizadigan kutubxona (ImageSharp va h.k.) KERAK EMAS, bu 1GB serverda
+  muhim. Surat kvadrat qilib olingani uchun (StudentPhotoDialog) yuz o'rtada qoladi.
+  Rasm o'lchami fayl SARLAVHASIDAN o'qiladi (`DocxTemplate.ImageSize` —
   PNG IHDR / JPEG SOFn), tashqi kutubxona SHART EMAS: bizga faqat nisbat kerak.
 - **Yangi ImagePart qo'shiladi** va `a:blip/@r:embed` unga yo'naltiriladi — mavjud qismning
   content-type'ini o'zgartirib bo'lmaydi (andozadagi o'rin PNG, surat JPEG bo'lsa baytlarni
@@ -180,7 +190,7 @@ ko'rgan ko'rinish aynan saqlanadi.
   ishlatiladi — kutubxonaning hujjatlashtirilmagan `ImagePartType` turiga bog'lanmaslik uchun.
 - Qo'llanadigan formatlar: jpg/png/gif/bmp/tiff. **webp/heic — o'tkazib yuboriladi** (andozaga
   tegilmaydi). O'quvchi surati `StudentPhotoDialog` dan JPEG bo'lib keladi, muammo yo'q.
-- O'quvchida surat bo'lmasa yoki fayl topilmasa — andozadagi rasm **o'z holicha qoladi**
-  (joylashuv buzilmasin). Manba: `Student.BirthCertificateUrl`.
+- O'quvchida surat bo'lmasa yoki fayl topilmasa — `@rasm` belgisi **olib tashlanadi**, Word'dagi
+  rasm o'rni esa **o'z holicha qoladi** (joylashuv buzilmasin). Manba: `Student.BirthCertificateUrl`.
 - Admin paneldagi yo'riqnoma matni `TestCertificateService.PhotoHelp` da (yagona manba) va
   `GET certificate-tokens` javobida `photoHelp` bo'lib keladi.

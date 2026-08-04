@@ -46,6 +46,9 @@ public class TestCertificateService(IHostEnvironment env, DocxToPdfConverter pdf
         new("@sana", "Test o'tkazilgan sana", "04.08.2026"),
         new("@bugun", "Sertifikat berilgan sana", "04.08.2026"),
         new("@raqam", "Sertifikat raqami", "SRT-2026-0042"),
+        // Matn emas — shu joyga o'quvchining SURATI qo'yiladi (185×260 px).
+        new("@rasm", "O'quvchining surati (shu joyga rasm qo'yiladi)",
+            $"{DocxTemplate.PhotoWidthPx}×{DocxTemplate.PhotoHeightPx} px"),
     ];
 
     /// <summary>
@@ -54,15 +57,19 @@ public class TestCertificateService(IHostEnvironment env, DocxToPdfConverter pdf
     /// o'zida rasm qo'yadi va uni xohlagancha sozlaydi — biz faqat MAZMUNINI almashtiramiz.
     /// </summary>
     public static readonly CertificatePhotoHelpDto PhotoHelp = new(
-        "O'quvchining surati",
+        "O'quvchining surati — ikki usul",
         [
-            "Word'da istalgan rasm qo'ying (Qo'yish → Rasm) — u faqat O'RIN, mazmuni almashtiriladi.",
-            "O'lchami, ramkasi va joyini xohlagancha sozlang — sertifikatda AYNAN shunday chiqadi.",
-            "Rasmni o'ng tugma bilan bosing → «Alt matn» (Edit Alt Text) → «rasm» deb yozing.",
-            "Agar shablonda boshqa rasm bo'lmasa (logotip ham), alt matn yozish shart emas.",
+            $"ODDIY YO'L: shablonda kerakli joyga {DocxTemplate.PhotoToken} deb yozing — surat "
+            + $"{DocxTemplate.PhotoWidthPx}×{DocxTemplate.PhotoHeightPx} px o'lchamda qo'yiladi.",
+            "O'Z O'LCHAMINGIZ KERAK BO'LSA: Word'da istalgan rasm qo'ying (Qo'yish → Rasm) — u "
+            + "faqat O'RIN, mazmuni almashtiriladi.",
+            "O'lchamini, ramkasini va joyini xohlagancha sozlang — sertifikatda AYNAN shunday chiqadi.",
+            "Rasmni o'ng tugma bilan bosing → «Alt matn» (Edit Alt Text) → «rasm» deb yozing. "
+            + "Shablonda boshqa rasm bo'lmasa (logotip ham), alt matn shart emas.",
         ],
-        "Surat nisbati saqlanadi — siz ajratgan katak ICHIGA sig'diriladi, cho'zilmaydi. "
-        + "O'quvchida surat bo'lmasa andozadagi rasm o'z holicha qoladi.");
+        "Surat CHO'ZILMAYDI: katakni to'ldiradi, ortiqchasi markazdan qirqiladi (yuz o'rtada qoladi). "
+        + $"O'quvchida surat bo'lmasa {DocxTemplate.PhotoToken} belgisi olib tashlanadi, "
+        + "Word'dagi rasm o'rni esa o'z holicha qoladi.");
 
     // =============================================================================================
     //  ANDOZALAR
@@ -253,11 +260,11 @@ public class TestCertificateService(IHostEnvironment env, DocxToPdfConverter pdf
             };
 
             var docx = DocxTemplate.Fill(templateBytes, tokens);
-            // Andozada rasm o'rni bo'lsa — o'quvchining surati qo'yiladi. Surat yo'q yoki fayl
-            // topilmasa andozadagi o'rin O'Z HOLICHA qoladi (joylashuv buzilmasin).
+            // O'quvchining surati: andozadagi `@rasm` belgisiga yoki Word'dagi rasm o'rniga.
+            // HAR DOIM chaqiriladi — surat bo'lmasa ham, aks holda sertifikatda "@rasm" yozuvi
+            // qolib ketardi (`Fill` noma'lum belgini ataylab tegmasdan qoldiradi).
             var photo = ReadPhoto(student?.PhotoUrl);
-            if (photo is not null)
-                docx = DocxTemplate.ReplaceImage(docx, photo.Value.Bytes, photo.Value.Extension);
+            docx = DocxTemplate.ApplyPhoto(docx, photo?.Bytes, photo?.Extension);
 
             pending.Add((s, fullName, percent, number, docx));
         }
