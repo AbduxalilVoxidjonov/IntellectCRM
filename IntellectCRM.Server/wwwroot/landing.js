@@ -54,9 +54,9 @@
   var submitBtn = document.getElementById('leadSubmitBtn');
   var nameInput = document.getElementById('leadName');
   var phoneInput = document.getElementById('leadPhone');
-  var subjectChipsWrap = document.getElementById('leadSubjectChips');
-  var subjectChips = subjectChipsWrap ? subjectChipsWrap.querySelectorAll('.subject-chip') : [];
-  var selectedSubjects = [];
+  // Yo'nalish — BITTA tanlov (dropdown). Ilgari "chip"lar bilan bir nechtasini tanlash mumkin edi
+  // va ular vergul bilan birlashtirilib yuborilardi; endi ariza bitta yo'nalish bilan keladi.
+  var subjectSelect = document.getElementById('leadSubject');
 
   function showError(text){
     msgEl.textContent = text;
@@ -76,21 +76,7 @@
   });
   nameInput.addEventListener('input', clearError);
 
-  // Yo'nalish chiplari — bir nechtasi yoki bittasi tanlanishi mumkin (toggle).
-  subjectChips.forEach(function(chip){
-    chip.addEventListener('click', function(){
-      var val = chip.getAttribute('data-subject');
-      var idx = selectedSubjects.indexOf(val);
-      if (idx === -1) {
-        selectedSubjects.push(val);
-        chip.classList.add('active');
-      } else {
-        selectedSubjects.splice(idx, 1);
-        chip.classList.remove('active');
-      }
-      clearError();
-    });
-  });
+  if (subjectSelect) subjectSelect.addEventListener('change', clearError);
 
   form.addEventListener('submit', function(event){
     event.preventDefault();
@@ -98,7 +84,7 @@
 
     var fullName = nameInput.value.trim();
     var phone = phoneInput.value.trim();
-    var subject = selectedSubjects.join(', ');
+    var subject = subjectSelect ? subjectSelect.value : '';
 
     if (!fullName) {
       showError('Iltimos, ismingizni kiriting.');
@@ -110,8 +96,9 @@
       phoneInput.focus();
       return;
     }
-    if (selectedSubjects.length === 0) {
-      showError('Iltimos, kamida bitta yo\'nalishni tanlang.');
+    if (!subject) {
+      showError('Iltimos, yo\'nalishni tanlang.');
+      if (subjectSelect) subjectSelect.focus();
       return;
     }
 
