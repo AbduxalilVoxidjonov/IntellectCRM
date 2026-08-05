@@ -514,10 +514,13 @@ export function TeacherGroupDetailPage() {
                   <table className="min-w-full border-collapse text-sm">
                     <thead>
                       <tr className="bg-panel3 text-xs text-mute">
-                        <th className="border-b-2 border-r border-line bg-panel3 px-2 py-2.5 text-center font-semibold w-8">
+                        {/* № ustuni ham STICKY: aks holda o'ngga siljitilganda F.I.SH ustuni
+                            uning ustidan surilib, tartib raqami ko'rinmay qolardi. Kengligi QAT'IY
+                            (w-10 = 40px) — F.I.SH ustuni aynan shu masofada (`left-10`) turadi. */}
+                        <th className="sticky left-0 z-20 w-10 border-b-2 border-r border-line bg-panel3 px-1 py-2.5 text-center font-semibold">
                           №
                         </th>
-                        <th className="sticky left-0 z-20 border-b-2 border-r-2 border-line bg-panel3 px-3 py-2.5 text-left font-semibold">
+                        <th className="sticky left-10 z-20 border-b-2 border-r-2 border-line bg-panel3 px-3 py-2.5 text-left font-semibold">
                           O'quvchi
                         </th>
                         {journal!.columns.map((c) => {
@@ -560,10 +563,10 @@ export function TeacherGroupDetailPage() {
                       {journalStudents.map((st, idx) => {
                         return (
                         <tr key={st.studentId} className="bg-white even:bg-panel2">
-                          <td className="border-b border-r border-line bg-inherit px-2 py-2 text-center">
+                          <td className="sticky left-0 z-10 w-10 border-b border-r border-line bg-inherit px-1 py-2 text-center">
                             <span className="text-xs font-medium text-mute">{idx + 1}</span>
                           </td>
-                          <td className="sticky left-0 z-10 border-b border-r-2 border-line bg-inherit px-3 py-2">
+                          <td className="sticky left-10 z-10 border-b border-r-2 border-line bg-inherit px-3 py-2">
                             {/* FISH to'liq ko'rinishi shart (telefonda o'qish uchun) — kesilmaydi,
                                 bir necha qatorga o'raladi; kenglik sticky ustun barqarorligi uchun qat'iy.
                                 Rang: 2+ oylik qarz binafsha-pushti (eng og'ir, qizildan USTUN), qarzdor

@@ -981,10 +981,13 @@ export function ClassDetailPage() {
                 <table className="min-w-full border-collapse text-sm">
                   <thead>
                     <tr className="bg-slate-100 text-xs text-slate-500">
-                      <th className="border-b-2 border-r border-slate-200 bg-slate-100 px-2 py-2.5 text-center font-semibold w-8">
+                      {/* № ustuni ham STICKY: aks holda o'ngga siljitilganda F.I.SH ustuni
+                          uning ustidan surilib, tartib raqami ko'rinmay qolardi. Kengligi QAT'IY
+                          (w-10 = 40px) — F.I.SH ustuni aynan shu masofada (`left-10`) turadi. */}
+                      <th className="sticky left-0 z-20 w-10 border-b-2 border-r border-slate-200 bg-slate-100 px-1 py-2.5 text-center font-semibold">
                         №
                       </th>
-                      <th className="sticky left-0 z-20 border-b-2 border-r-2 border-slate-200 bg-slate-100 px-4 py-2.5 text-left font-semibold">
+                      <th className="sticky left-10 z-20 border-b-2 border-r-2 border-slate-200 bg-slate-100 px-4 py-2.5 text-left font-semibold">
                         O'quvchi
                       </th>
                       {journal!.columns.map((c) => {
@@ -1037,10 +1040,10 @@ export function ClassDetailPage() {
                       const sb = statusBadge(st.status)
                       return (
                         <tr key={st.studentId} className="bg-white even:bg-slate-50 hover:bg-brand-50">
-                          <td className="border-b border-r border-slate-200 bg-inherit px-2 py-1 text-center">
+                          <td className="sticky left-0 z-10 w-10 border-b border-r border-slate-200 bg-inherit px-1 py-1 text-center">
                             <span className="text-xs font-medium text-slate-500">{idx + 1}</span>
                           </td>
-                          <td className="sticky left-0 z-10 border-b border-r-2 border-slate-200 bg-inherit px-2 py-1">
+                          <td className="sticky left-10 z-10 border-b border-r-2 border-slate-200 bg-inherit px-2 py-1">
                             {/* Rang: 2+ oylik qarz binafsha-pushti (eng og'ir, qizildan USTUN),
                                 qarzdor qizil, to'lagan yashil — o'qituvchi jurnali bilan bir xil. */}
                             <div className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left">
@@ -1161,8 +1164,8 @@ export function ClassDetailPage() {
                           }, 0)
                           return (
                             <tr key={st.studentId} className="bg-slate-50 text-slate-400">
-                              <td className="border-b border-r border-slate-200 bg-inherit px-2 py-1 text-center" />
-                              <td className="sticky left-0 z-10 border-b border-r-2 border-slate-200 bg-inherit px-2 py-1">
+                              <td className="sticky left-0 z-10 w-10 border-b border-r border-slate-200 bg-inherit px-1 py-1 text-center" />
+                              <td className="sticky left-10 z-10 border-b border-r-2 border-slate-200 bg-inherit px-2 py-1">
                                 {/* Muzlatilgan bo'lsa ham per-guruh BALANS ko'rsatiladi: to'lagan bo'lsa
                                     yashil, qarzi bo'lsa qizil, 2+ oylik qarzda binafsha-pushti (faol
                                     qatorlar bilan bir xil) + "Muzlatilgan" yorlig'i. */}
