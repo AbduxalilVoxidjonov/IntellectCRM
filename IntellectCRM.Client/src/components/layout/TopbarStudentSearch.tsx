@@ -124,8 +124,10 @@ export function TopbarStudentSearch() {
 
   return (
     // Kengroq: natijada har o'quvchining BARCHA guruhlari tagma-tag chiqadi, tor oynada
-    // nomlar qirqilib ketardi.
-    <div ref={boxRef} className="relative w-full max-w-2xl">
+    // nomlar qirqilib ketardi. 712px = `max-w-2xl` (672px) + ikkala tarafga 20px dan.
+    // Topbar'dagi o'ram `justify-center` bo'lgani uchun qo'shimcha kenglik CHAP va O'NGGA
+    // teng bo'linadi — aks holda faqat o'ngga o'sardi.
+    <div ref={boxRef} className="relative w-full max-w-[712px]">
       <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 transition-colors focus-within:border-brand-400 focus-within:bg-white">
         <Search className="h-[16px] w-[16px] shrink-0 text-slate-400" />
         <input
