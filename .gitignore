@@ -1,4 +1,4 @@
-# Secrets / environment (HECH QACHON git'ga tushmasin)
+﻿# Secrets / environment (HECH QACHON git'ga tushmasin)
 .env
 *.env
 !.env.example
@@ -45,6 +45,10 @@ docker-compose.override.yml
 *AUDIT*.md
 *AUDIT*.txt
 *_AUDIT*.md
+# ISTISNO: modul qoidalari (.claude/rules/) — bular hisobot emas, LOYIHA hujjati.
+# Windows'da git registrga sezgir emas (core.ignorecase=true), shuning uchun `audit.md`
+# yuqoridagi `*AUDIT*.md` naqshiga TUSHIB QOLADI va jimgina commit'ga kirmay qolardi.
+!.claude/rules/*audit*.md
 
 # Lokal ish hujjatlari — mashinada qoladi, git'ga tushmaydi
 CLAUDE.md
