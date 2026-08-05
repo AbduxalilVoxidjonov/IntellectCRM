@@ -84,6 +84,83 @@ public static class ContactService
         && !string.IsNullOrEmpty(dueDate)
         && string.CompareOrdinal(dueDate, today) < 0;
 
+    /* =========================================================================================
+     *  JAVOBLAR TAHLILI ("javobi nima dedi" matnlari)
+     * ====================================================================================== */
+
+    /// <summary>
+    /// MA'NOSIZ so'zlar — chastota tahlilida chiqarib tashlanadi.
+    ///
+    /// <para>Ro'yxat ATAYIN qisqa: faqat bog'lovchi/olmosh/yordamchi so'zlar. "to'lov", "dars",
+    /// "kasal", "kerak" kabi so'zlar QOLADI — aynan ular hisobotning ma'nosi.</para>
+    /// </summary>
+    private static readonly HashSet<string> StopWords = new(StringComparer.Ordinal)
+    {
+        "va", "bilan", "uchun", "ham", "lekin", "ammo", "yoki", "shu", "bu", "u", "o'sha",
+        "men", "sen", "siz", "biz", "ular", "uni", "unga", "meni", "menga", "bizga", "sizga",
+        "deb", "dedi", "deydi", "aytdi", "gapirdi", "javob", "berdi",
+        "bo'ldi", "bo'lib", "bo'lgan", "bo'ladi", "edi", "emas", "yana", "endi",
+        "qildi", "qilib", "qilish", "qilaman", "qiladi",
+        "haqida", "ustida", "keyin", "oldin", "hozir", "juda", "faqat", "yaxshi",
+        "bir", "ikki", "uch", "ha", "yo'q", "mumkin", "kelmadi", "kelaman",
+        "the", "and", "for", "with",
+    };
+
+    /// <summary>Chastotaga kiradigan eng qisqa so'z (uzunligi shundan kichik so'z tashlab yuboriladi).</summary>
+    private const int MinWordLength = 3;
+
+    /// <summary>
+    /// Javob matnlaridagi eng ko'p uchragan so'zlar.
+    ///
+    /// <para>Har matn ichida bir so'z bir necha marta kelsa ham BIR marta sanaladi — aks holda
+    /// bitta uzun izoh butun hisobotni egallab olardi ("nechta javobda uchradi" degan savol
+    /// "necha marta yozildi" dan foydaliroq).</para>
+    ///
+    /// <para>Apostroflar (' ʻ ’ `) BIR ko'rinishga keltiriladi: aks holda "to'lov" va "toʻlov"
+    /// ikki xil so'z bo'lib sanalardi (matn turli klaviaturalardan kiritiladi).</para>
+    /// </summary>
+    public static List<(string Word, int Count)> TopWords(IEnumerable<string> texts, int take = 25)
+    {
+        var counts = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var text in texts)
+        {
+            if (string.IsNullOrWhiteSpace(text)) continue;
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var word in Tokenize(text))
+            {
+                if (word.Length < MinWordLength || StopWords.Contains(word)) continue;
+                if (!seen.Add(word)) continue;                      // bitta matnda bir marta
+                counts[word] = counts.GetValueOrDefault(word) + 1;
+            }
+        }
+
+        return counts
+            .OrderByDescending(kv => kv.Value).ThenBy(kv => kv.Key, StringComparer.Ordinal)
+            .Take(Math.Max(1, take))
+            .Select(kv => (kv.Key, kv.Value))
+            .ToList();
+    }
+
+    /// <summary>Matnni so'zlarga ajratadi: kichik harf, apostrof normallashtirilgan, tinish belgisisiz.</summary>
+    public static IEnumerable<string> Tokenize(string text)
+    {
+        var buf = new System.Text.StringBuilder();
+        foreach (var raw in text)
+        {
+            var ch = raw switch
+            {
+                'ʻ' or 'ʼ' or '’' or '‘' or '`' or '´' => '\'',
+                _ => char.ToLowerInvariant(raw),
+            };
+            if (char.IsLetterOrDigit(ch) || ch == '\'') buf.Append(ch);
+            else if (buf.Length > 0) { yield return Trim(buf); buf.Clear(); }
+        }
+        if (buf.Length > 0) yield return Trim(buf);
+    }
+
+    /// <summary>Chetidagi apostroflarni olib tashlaydi ("'kasal'" → "kasal").</summary>
+    private static string Trim(System.Text.StringBuilder b) => b.ToString().Trim('\'');
+
     /// <summary>
     /// Bog'lanish urinishidan keyingi holat QABUL QILINADIMI.
     ///

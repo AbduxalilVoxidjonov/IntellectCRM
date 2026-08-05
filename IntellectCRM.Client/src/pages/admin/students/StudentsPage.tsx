@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+﻿import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { usePersistentState } from '@/hooks/usePersistentState'
 import { StudentViewModal } from './StudentViewModal'
-import { Plus, Search, Pencil, Trash2, Send, Download, X, Wallet, History, Archive, RotateCcw, FileDown, Upload, ChevronLeft, ChevronRight, Lock, LockOpen, Loader2, Phone, Cake, Medal } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, Send, Download, X, Wallet, History, Archive, RotateCcw, FileDown, Upload, ChevronLeft, ChevronRight, Lock, LockOpen, Loader2, Phone, PhoneCall, Cake, Medal } from 'lucide-react'
 import type { Gender, Student, Teacher, District } from '@/types'
 import { getDistricts } from '@/api/services/districts'
 import type { StudentPayload, StudentImportResult } from '@/api/services/students'
@@ -37,6 +37,7 @@ import { Loader } from '@/components/ui/Loader'
 import { Modal } from '@/components/ui/Modal'
 import { StudentFormModal } from './StudentFormModal'
 import { SmsModal } from './SmsModal'
+import { NeedContactModal } from './contacts/NeedContactModal'
 import { PaymentModal } from './PaymentModal'
 import { ReceiptModal } from '@/components/finance/ReceiptModal'
 import { PaymentHistoryModal } from './PaymentHistoryModal'
@@ -126,6 +127,8 @@ export function StudentsPage() {
 
   // tanlash
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  /** Tanlanganlarni "Bog'lanish kerak" navbatiga qo'shish oynasi (`contacts` ruxsati). */
+  const [contactOpen, setContactOpen] = useState(false)
 
   // modallar
   const [formOpen, setFormOpen] = useState(false)
@@ -815,6 +818,12 @@ export function StudentsPage() {
             <Button variant="secondary" onClick={() => setSmsRecipients(selectedStudents)}>
               <Send className="h-4 w-4" /> SMS yuborish
             </Button>
+            {/* Tanlanganlarni bog'lanish navbatiga qo'shish — sabab bir marta tanlanadi. */}
+            {can('contacts', 'create') && (
+              <Button variant="secondary" onClick={() => setContactOpen(true)}>
+                <PhoneCall className="h-4 w-4" /> Bog'lanish kerak ({selected.size})
+              </Button>
+            )}
             <Button variant="secondary" onClick={handleExportExcel} disabled={exportingSelected}>
               {exportingSelected ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -1129,6 +1138,17 @@ export function StudentsPage() {
         open={smsRecipients.length > 0}
         onClose={() => setSmsRecipients([])}
         recipients={smsRecipients}
+      />
+
+      {/* Tanlangan o'quvchilarni "Bog'lanish kerak" navbatiga qo'shish. Ochiq talabi
+          borlar server tomonda chetlab o'tiladi — oyna nechtasi qo'shilganini ko'rsatadi. */}
+      <NeedContactModal
+        open={contactOpen}
+        students={selectedStudents.map((s) => ({ id: s.id, fullName: s.fullName }))}
+        onClose={() => setContactOpen(false)}
+        onCreated={(res) => {
+          if (res.created > 0) clearSelection()
+        }}
       />
       <PaymentModal student={paying} onClose={() => setPaying(null)} onSubmit={handlePayment} />
 

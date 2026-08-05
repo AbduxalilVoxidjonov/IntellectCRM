@@ -1,4 +1,4 @@
-import { delay } from '@/lib/utils'
+﻿import { delay } from '@/lib/utils'
 import { api, USE_MOCK } from '../client'
 
 /**
@@ -87,6 +87,10 @@ export interface ContactStats {
   byStaff: { actorName: string; attempts: number; reached: number; done: number; callback: number; failed: number }[]
   byReason: { reasonLabel: string; created: number; done: number; failed: number; open: number }[]
   byResult: { key: string; label: string; count: number }[]
+  /** Javoblarda eng ko'p uchragan so'zlar — "nima deb yozilyapti" ni bir qarashda ko'rsatadi. */
+  topWords?: { word: string; count: number }[]
+  /** Javob YOZILGAN urinishlar soni (bo'sh javoblar hisobga olinmaydi). */
+  withResponse?: number
 }
 
 const emptyMeta: ContactMeta = { statuses: [], results: [], counts: [], overdue: 0 }
@@ -175,5 +179,72 @@ export async function deleteContactRequest(id: string): Promise<void> {
 /** Davr bo'yicha hisobot (kunlik oqim, xodimlar/sabablar/natijalar kesimi). */
 export async function getContactStats(from?: string, to?: string): Promise<ContactStats> {
   const { data } = await api.get<ContactStats>('/admin/contacts/stats', { params: { from, to } })
+  return data
+}
+
+/* ---------- Ko'plab qo'shish (o'quvchilar ro'yxatidan) ---------- */
+
+export interface ContactBulkResult {
+  created: number
+  /** Ochiq talabi borligi uchun chetlab o'tilganlar. */
+  skipped: number
+  /** Ulardan bir nechtasining ismi (xabarda ko'rsatish uchun). */
+  skippedNames: string[]
+  /** Topilmagan o'quvchilar (ro'yxat eskirgan bo'lsa). */
+  notFound: number
+}
+
+/**
+ * Bir nechta o'quvchini birdan navbatga qo'shadi.
+ *
+ * ⚠️ Ochiq talabi bor o'quvchi CHETLAB O'TILADI (butun amal to'xtamaydi) — natijada
+ * `skipped` qaytadi. Bitta o'quvchi uchun ham shu ishlatiladi.
+ */
+export async function createContactRequestsBulk(payload: {
+  studentIds: string[]
+  reasonId?: string
+  note?: string
+  dueDate?: string
+}): Promise<ContactBulkResult> {
+  if (USE_MOCK) {
+    await delay()
+    return { created: payload.studentIds.length, skipped: 0, skippedNames: [], notFound: 0 }
+  }
+  const { data } = await api.post<ContactBulkResult>('/admin/contacts/bulk', payload)
+  return data
+}
+
+/* ---------- Javoblar tahlili ---------- */
+
+/** Yozilgan javob ("javobi nima dedi") — hisobotdagi javoblar lentasi. */
+export interface ContactResponseRow {
+  id: string
+  requestId: string
+  studentId: string
+  studentName: string
+  reasonLabel: string
+  result: string
+  resultLabel: string
+  nextStatus: string
+  nextStatusLabel: string
+  response: string
+  actorName: string
+  createdAt: string
+}
+
+/** Javob YOZILGAN urinishlar (bo'sh javoblar qaytmaydi) — o'qish uchun. */
+export async function getContactResponses(params: {
+  from?: string
+  to?: string
+  result?: string
+  actor?: string
+  q?: string
+  limit?: number
+} = {}): Promise<ContactResponseRow[]> {
+  if (USE_MOCK) {
+    await delay()
+    return []
+  }
+  const { data } = await api.get<ContactResponseRow[]>('/admin/contacts/responses', { params })
   return data
 }

@@ -1066,7 +1066,7 @@ export function StudentDetailPage() {
           tabida, qo'ng'iroqlar tarixidan YUQORIDA: avval "nima uchun bog'lanish kerak edi",
           keyin "qanday qo'ng'iroqlar bo'lgan". */}
       {tab === 'aloqa' && canSeeContacts && (
-        <Section title="Bog'lanish talablari" icon={PhoneCall}>
+        <Section title="Bog'lanish tarixi" icon={PhoneCall}>
           {contacts.length === 0 ? (
             <Empty>Bu o'quvchi bo'yicha bog'lanish talabi ochilmagan.</Empty>
           ) : (
@@ -1094,15 +1094,50 @@ export function StudentDetailPage() {
                       <span className="text-xs text-sky-600">{formatDate(c.dueDate)}</span>
                     )}
                   </div>
-                  {c.lastResponse && (
-                    <p className="mt-1 text-sm text-slate-600">
-                      <span className="text-slate-400">Javobi: </span>{c.lastResponse}
+                  {/* Talab ochilishidagi izoh (operator uchun "nima haqida gaplashish kerak"). */}
+                  {c.note && (
+                    <p className="mt-1 text-sm text-slate-500">
+                      <span className="text-slate-400">Topshiriq: </span>{c.note}
                     </p>
                   )}
-                  <p className="mt-0.5 text-xs text-slate-400">
-                    {formatDateTime(c.lastActionAt || c.createdAt)}
-                    {c.lastActorName && ` · ${c.lastActorName}`}
-                  </p>
+
+                  {/* HAR BIR BOG'LANISH URINISHI va unda yozilgan JAVOB — qo'ng'iroqlar tarixi
+                      bilan yonma-yon turadi: "kim qo'ng'iroq qildi" va "nima deyildi" bitta
+                      joyda ko'rinsin. Server bu endpointda tarixni ataylab qo'shib beradi. */}
+                  {(c.history ?? []).filter((h) => h.type === 'contact' || h.type === 'note').length > 0 ? (
+                    <ul className="mt-2 space-y-1.5 border-l-2 border-slate-100 pl-3">
+                      {(c.history ?? [])
+                        .filter((h) => h.type === 'contact' || h.type === 'note')
+                        .map((h) => (
+                          <li key={h.id} className="text-sm">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              {h.resultLabel ? (
+                                <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">
+                                  {h.resultLabel}
+                                </span>
+                              ) : (
+                                <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500">
+                                  Izoh
+                                </span>
+                              )}
+                              {h.nextStatusLabel && (
+                                <span className="text-xs text-slate-400">→ {h.nextStatusLabel}</span>
+                              )}
+                              <span className="text-xs text-slate-400">
+                                {formatDateTime(h.createdAt)}
+                                {h.actorName && ` · ${h.actorName}`}
+                              </span>
+                            </div>
+                            {h.response && <p className="text-slate-600">{h.response}</p>}
+                          </li>
+                        ))}
+                    </ul>
+                  ) : (
+                    <p className="mt-1 text-xs text-slate-400">
+                      Hali bog'lanilmagan — {formatDateTime(c.createdAt)}
+                      {c.createdBy && ` · ${c.createdBy} ochgan`}
+                    </p>
+                  )}
                 </li>
               ))}
             </ul>
@@ -1884,8 +1919,7 @@ export function StudentDetailPage() {
       {/* "Bog'lanish kerak" — sabab so'raladi va o'quvchi navbatga tushadi. */}
       <NeedContactModal
         open={contactOpen}
-        studentId={id ?? ''}
-        studentName={data.fullName}
+        students={[{ id: id ?? '', fullName: data.fullName }]}
         onClose={() => setContactOpen(false)}
         onCreated={() => {
           if (id) getStudentContactRequests(id).then(setContacts).catch(() => {})

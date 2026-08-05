@@ -1,8 +1,14 @@
-import { useEffect, useState } from 'react'
-import { getContactStats, type ContactStats } from '@/api/services/contacts'
+﻿import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { Search, MessageSquareText } from 'lucide-react'
+import {
+  getContactStats, getContactResponses,
+  type ContactStats, type ContactResponseRow,
+} from '@/api/services/contacts'
 import { Card } from '@/components/ui/Card'
+import { Button } from '@/components/ui/Button'
 import { Loader } from '@/components/ui/Loader'
-import { apiErrorMessage, cn, formatDate } from '@/lib/utils'
+import { apiErrorMessage, cn, formatDate, formatDateTime } from '@/lib/utils'
 
 /** "YYYY-MM-DD" — bugundan `days` kun oldin. */
 function daysAgo(days: number): string {
@@ -36,6 +42,14 @@ export function ContactStatsPanel() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
+  /* --- Javoblar lentasi ("javobi nima dedi" matnlarini o'qish) --- */
+  const [responses, setResponses] = useState<ContactResponseRow[]>([])
+  const [respLoading, setRespLoading] = useState(true)
+  /** Natija bo'yicha filtr ('' — hammasi). */
+  const [respResult, setRespResult] = useState('')
+  const [term, setTerm] = useState('')
+  const [q, setQ] = useState('')
+
   useEffect(() => {
     let active = true
     // eslint-disable-next-line react-hooks/set-state-in-effect -- davr o'zgarganda qayta yuklash (maqsadli)
@@ -46,6 +60,23 @@ export function ContactStatsPanel() {
       .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
   }, [from, to])
+
+  useEffect(() => {
+    let active = true
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- filtr o'zgarganda qayta yuklash (maqsadli)
+    setRespLoading(true)
+    getContactResponses({
+      from: from || undefined,
+      to: to || undefined,
+      result: respResult || undefined,
+      q: q || undefined,
+      limit: 200,
+    })
+      .then((r) => { if (active) setResponses(r) })
+      .catch(() => { if (active) setResponses([]) })
+      .finally(() => { if (active) setRespLoading(false) })
+    return () => { active = false }
+  }, [from, to, respResult, q])
 
   return (
     <div className="space-y-4">
@@ -101,6 +132,15 @@ export function ContactStatsPanel() {
               label="Aloqa foizi"
               value={data.attempts > 0 ? `${Math.round((data.reached / data.attempts) * 100)}%` : '—'}
               hint="Gaplashilgan / urinish"
+            />
+            <Stat
+              label="Javob yozilgan"
+              value={data.withResponse ?? 0}
+              hint={
+                data.attempts > 0
+                  ? `${Math.round(((data.withResponse ?? 0) / data.attempts) * 100)}% urinishda izoh bor`
+                  : undefined
+              }
             />
           </div>
 
@@ -230,6 +270,124 @@ export function ContactStatsPanel() {
               )}
             </Card>
           </div>
+
+          {/* ==================== JAVOBLAR TAHLILI ====================
+              Yuqoridagi jadvallar "NECHTA" ga javob beradi, bu bo'lim esa "NIMA deyilgan" ga. */}
+          {(data.topWords?.length ?? 0) > 0 && (
+            <Card
+              title="Javoblarda eng ko'p uchragan so'zlar"
+              sub="Bir javobda so'z necha marta yozilsa ham BIR marta sanaladi — savol «nechta javobda uchradi»."
+            >
+              <div className="flex flex-wrap gap-2">
+                {data.topWords!.map((w) => {
+                  const max = data.topWords![0].count || 1
+                  const strength = Math.round((w.count / max) * 100)
+                  return (
+                    <button
+                      key={w.word}
+                      type="button"
+                      // So'z bosilsa — o'sha so'z bo'yicha javoblar lentasi filtrlanadi
+                      // ("nega bu so'z ko'p?" savoli darhol javob topsin).
+                      onClick={() => { setTerm(w.word); setQ(w.word) }}
+                      title={`«${w.word}» bo'yicha javoblarni ko'rish`}
+                      className={cn(
+                        'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition-colors',
+                        q === w.word
+                          ? 'border-brand-500 bg-brand-50 text-brand-700'
+                          : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50',
+                      )}
+                      style={q === w.word ? undefined : { opacity: 0.55 + strength / 250 }}
+                    >
+                      {w.word}
+                      <span className="rounded-full bg-slate-100 px-1.5 text-xs font-semibold text-slate-500">
+                        {w.count}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            </Card>
+          )}
+
+          <Card
+            title={
+              <span className="inline-flex items-center gap-2">
+                <MessageSquareText className="h-4 w-4 text-slate-400" />
+                Javoblar lentasi
+              </span>
+            }
+            sub="Har bir bog'lanishda NIMA deb yozilgani. Natija bo'yicha filtrlang yoki so'z bo'yicha qidiring."
+            actions={
+              <form
+                className="flex gap-2"
+                onSubmit={(e) => { e.preventDefault(); setQ(term.trim()) }}
+              >
+                <select
+                  value={respResult}
+                  onChange={(e) => setRespResult(e.target.value)}
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-brand-400"
+                >
+                  <option value="">Barcha natijalar</option>
+                  {data.byResult.map((r) => (
+                    <option key={r.key} value={r.key}>{r.label}</option>
+                  ))}
+                </select>
+                <input
+                  value={term}
+                  onChange={(e) => setTerm(e.target.value)}
+                  placeholder="Javob matnidan qidirish"
+                  className="min-w-[170px] rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 outline-none focus:border-brand-400"
+                />
+                <Button type="submit" variant="secondary">
+                  <Search className="h-4 w-4" />
+                </Button>
+              </form>
+            }
+          >
+            {respLoading ? (
+              <Loader label="Yuklanmoqda..." />
+            ) : responses.length === 0 ? (
+              <p className="py-8 text-center text-sm text-slate-400">
+                {q || respResult
+                  ? 'Bu filtrlarda javob topilmadi'
+                  : "Bu davrda izoh yozilgan bog'lanish yo'q"}
+              </p>
+            ) : (
+              <ul className="divide-y divide-slate-100">
+                {responses.map((r) => (
+                  <li key={r.id} className="py-2.5 first:pt-0 last:pb-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Link
+                        to={`/admin/students/${r.studentId}`}
+                        className="text-sm font-semibold text-slate-800 hover:text-brand-600 hover:underline"
+                      >
+                        {r.studentName || "Noma'lum"}
+                      </Link>
+                      <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
+                        {r.resultLabel}
+                      </span>
+                      {r.nextStatusLabel && (
+                        <span className="text-xs text-slate-400">→ {r.nextStatusLabel}</span>
+                      )}
+                      {r.reasonLabel && (
+                        <span className="text-xs text-slate-400">· {r.reasonLabel}</span>
+                      )}
+                    </div>
+                    <p className="mt-1 text-sm text-slate-700">{r.response}</p>
+                    <p className="mt-0.5 text-xs text-slate-400">
+                      {formatDateTime(r.createdAt)}
+                      {r.actorName && ` · ${r.actorName}`}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {responses.length >= 200 && (
+              <p className="mt-3 text-center text-xs text-slate-400">
+                Eng so'nggi 200 ta javob ko'rsatildi — davrni toraytiring yoki qidiruvdan foydalaning.
+              </p>
+            )}
+          </Card>
         </>
       )}
     </div>

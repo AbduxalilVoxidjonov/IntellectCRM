@@ -2992,7 +2992,11 @@ public record ContactStatsDto(
     List<ContactDailyRowDto> Daily,
     List<ContactStaffRowDto> ByStaff,
     List<ContactReasonRowDto> ByReason,
-    List<ContactResultRowDto> ByResult);
+    List<ContactResultRowDto> ByResult,
+    /// <summary>Javoblarda eng ko'p uchragan so'zlar — "nima deb yozilyapti" ni bir qarashda ko'rsatadi.</summary>
+    List<ContactWordDto>? TopWords = null,
+    /// <summary>Javob YOZILGAN urinishlar soni (bo'sh javoblar hisobga olinmaydi).</summary>
+    int WithResponse = 0);
 
 /* =================================================================================================
  *  KURSLAR ANALITIKASI (O'quv bo'limi)
@@ -3040,3 +3044,25 @@ public record CourseAnalyticsDto(
     List<CourseAnalyticsRowDto> Courses,
     CourseOverlapDto Overlap,
     int ActiveStudents, int TotalGroups, decimal MonthlyRevenue);
+
+/* ---------- Bog'lanish kerak: KO'PLAB qo'shish va JAVOBLAR tahlili ---------- */
+
+/// <summary>Bir nechta o'quvchini birdan navbatga qo'shish ("O'quvchilar ro'yxati"dan).</summary>
+public record CreateContactRequestsBulk(
+    List<string> StudentIds, string? ReasonId = null, string? Note = null, string? DueDate = null);
+
+/// <summary>Ko'plab qo'shish natijasi.</summary>
+/// <param name="Skipped">Ochiq talabi borligi uchun CHETLAB O'TILGANLAR soni.</param>
+/// <param name="SkippedNames">Ulardan bir nechtasining ismi (xabarda ko'rsatish uchun, chegaralangan).</param>
+/// <param name="NotFound">Topilmagan o'quvchilar soni (ro'yxat eskirgan bo'lsa).</param>
+public record ContactBulkResultDto(int Created, int Skipped, List<string> SkippedNames, int NotFound);
+
+/// <summary>Yozilgan JAVOB ("javobi nima dedi") — hisobotdagi javoblar lentasi uchun.</summary>
+public record ContactResponseRowDto(
+    string Id, string RequestId, string StudentId, string StudentName,
+    string ReasonLabel, string Result, string ResultLabel,
+    string NextStatus, string NextStatusLabel,
+    string Response, string ActorName, string CreatedAt);
+
+/// <summary>Javoblarda eng ko'p uchragan so'z.</summary>
+public record ContactWordDto(string Word, int Count);

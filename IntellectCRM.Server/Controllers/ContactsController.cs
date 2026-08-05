@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using IntellectCRM.Infrastructure.Data;
@@ -36,6 +36,10 @@ public class ContactsController(AppDbContext db, AuditService audit) : Controlle
 
     /// <summary>Audit tur nomi — <see cref="AuditSections"/> da "Bog'lanish kerak" bo'limiga tushadi.</summary>
     private const string AuditEntity = "ContactRequest";
+
+    /// <summary>Bir amalda navbatga qo'shiladigan eng ko'p o'quvchi ("hammasini tanlash"
+    /// bosilsa ham so'rov cheksiz o'smasin).</summary>
+    private const int MaxBulk = 500;
 
     /* =========================================================================================
      *  KATALOG + SANOQLAR
@@ -128,7 +132,13 @@ public class ContactsController(AppDbContext db, AuditService audit) : Controlle
         return ToDto(c, Today, phones, history);
     }
 
-    /// <summary>O'quvchining BARCHA talablari (profil sahifasidagi "Bog'lanish" bo'limi uchun).</summary>
+    /// <summary>
+    /// O'quvchining BARCHA talablari — HAR BIRI TARIXI BILAN.
+    ///
+    /// <para>Tarix ataylab qo'shiladi: o'quvchi profilining "Aloqa" tabida har bog'lanish urinishi
+    /// ("javobi nima dedi") qo'ng'iroqlar tarixi bilan yonma-yon ko'rinadi. Bitta o'quvchi
+    /// bo'lgani uchun bu ikkita yengil so'rov — ro'yxat endpointiga tarix qo'shilmaydi.</para>
+    /// </summary>
     [HttpGet("student/{studentId}")]
     public async Task<ActionResult<IEnumerable<ContactRequestDto>>> ByStudent(string studentId)
     {
@@ -136,8 +146,18 @@ public class ContactsController(AppDbContext db, AuditService audit) : Controlle
             .Where(c => c.StudentId == studentId)
             .OrderByDescending(c => c.CreatedAt)
             .ToListAsync();
+        if (items.Count == 0) return new List<ContactRequestDto>();
+
+        var ids = items.Select(c => c.Id).ToList();
+        var history = (await db.ContactAttempts.AsNoTracking()
+                .Where(a => ids.Contains(a.RequestId))
+                .OrderByDescending(a => a.CreatedAt).ThenByDescending(a => a.Id)
+                .ToListAsync())
+            .GroupBy(a => a.RequestId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
         var phones = await PhonesAsync(new List<string> { studentId });
-        return items.Select(c => ToDto(c, Today, phones)).ToList();
+        return items.Select(c => ToDto(c, Today, phones, history.GetValueOrDefault(c.Id))).ToList();
     }
 
     /* =========================================================================================
@@ -166,19 +186,73 @@ public class ContactsController(AppDbContext db, AuditService audit) : Controlle
                 existingId = open.Id,
             });
 
-        var reasonLabel = "";
-        var reasonId = (req.ReasonId ?? "").Trim();
-        if (reasonId.Length > 0)
-        {
-            reasonLabel = await db.ActionReasons.Where(r => r.Id == reasonId).Select(r => r.Label)
-                .FirstOrDefaultAsync() ?? "";
-            if (reasonLabel.Length == 0) reasonId = "";
-        }
+        var (reasonId, reasonLabel) = await ResolveReasonAsync(req.ReasonId);
 
         var due = (req.DueDate ?? "").Trim();
         if (due.Length > 0 && !DateOnly.TryParse(due, out _))
             return BadRequest(new { message = "Sana noto'g'ri (YYYY-MM-DD)" });
 
+        var c = AddRequest(student, reasonId, reasonLabel, (req.Note ?? "").Trim(), due);
+        await db.SaveChangesAsync();
+        return ToDto(c, Today, await PhonesAsync(new List<string> { c.StudentId }));
+    }
+
+    /// <summary>
+    /// KO'PLAB o'quvchini birdan navbatga qo'shish — "O'quvchilar ro'yxati"da bir nechtasini
+    /// belgilab "Bog'lanish kerak" bosilganda.
+    ///
+    /// <para>DIQQAT: bitta o'quvchida ochiq talab bo'lsa BUTUN amal to'xtamaydi — u chetlab
+    /// o'tiladi va javobda soni/ismlari qaytadi. Aks holda 100 ta tanlangan o'quvchidan bittasi
+    /// tufayli hech kim navbatga tushmasdi.</para>
+    /// </summary>
+    [HttpPost("bulk")]
+    public async Task<ActionResult<ContactBulkResultDto>> CreateBulk(CreateContactRequestsBulk req)
+    {
+        var ids = (req.StudentIds ?? new List<string>())
+            .Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).Distinct().ToList();
+        if (ids.Count == 0) return BadRequest(new { message = "O'quvchi tanlanmagan" });
+        if (ids.Count > MaxBulk)
+            return BadRequest(new { message = $"Bir vaqtda ko'pi bilan {MaxBulk} ta o'quvchi tanlanadi" });
+
+        var due = (req.DueDate ?? "").Trim();
+        if (due.Length > 0 && !DateOnly.TryParse(due, out _))
+            return BadRequest(new { message = "Sana noto'g'ri (YYYY-MM-DD)" });
+
+        var (reasonId, reasonLabel) = await ResolveReasonAsync(req.ReasonId);
+        var note = (req.Note ?? "").Trim();
+
+        // Ikkita TO'PLAMLI so'rov — o'quvchi boshiga alohida so'rov ketmasin (N+1).
+        var students = await db.Students.AsNoTracking()
+            .Where(s => ids.Contains(s.Id)).ToDictionaryAsync(s => s.Id);
+        var alreadyOpen = (await db.ContactRequests
+                .Where(c => ids.Contains(c.StudentId)
+                            && (c.Status == ContactStatuses.New || c.Status == ContactStatuses.Callback))
+                .Select(c => c.StudentId).ToListAsync())
+            .ToHashSet();
+
+        var created = 0;
+        var skipped = new List<string>();
+        var notFound = 0;
+        foreach (var id in ids)
+        {
+            if (!students.TryGetValue(id, out var student)) { notFound++; continue; }
+            if (alreadyOpen.Contains(id)) { skipped.Add(student.FullName); continue; }
+            AddRequest(student, reasonId, reasonLabel, note, due);
+            created++;
+        }
+
+        await db.SaveChangesAsync();
+        // Ismlar ro'yxati CHEGARALANADI — 300 ta ism xabarga sig'maydi (soni baribir to'liq).
+        return new ContactBulkResultDto(created, skipped.Count, skipped.Take(10).ToList(), notFound);
+    }
+
+    /// <summary>
+    /// Talabni (va uning "ochildi" hodisasini) tranzaksiyaga qo'shadi. <b>SaveChanges QILMAYDI</b> —
+    /// chaqiruvchi saqlaydi (ko'plab qo'shishda bitta SaveChanges bo'lsin).
+    /// </summary>
+    private ContactRequest AddRequest(
+        Student student, string reasonId, string reasonLabel, string note, string due)
+    {
         var now = AppClock.Iso();
         var c = new ContactRequest
         {
@@ -186,7 +260,7 @@ public class ContactsController(AppDbContext db, AuditService audit) : Controlle
             StudentName = student.FullName,
             ReasonId = reasonId,
             ReasonLabel = reasonLabel,
-            Note = (req.Note ?? "").Trim(),
+            Note = note,
             // Sana berilgan bo'lsa darhol "qayta qo'ng'iroq" — masalan "ertaga bog'laning".
             Status = due.Length > 0 ? ContactStatuses.Callback : ContactStatuses.New,
             DueDate = due,
@@ -217,8 +291,18 @@ public class ContactsController(AppDbContext db, AuditService audit) : Controlle
             + (due.Length > 0 ? $", qayta qo'ng'iroq: {due}" : ""),
             studentId: c.StudentId);
 
-        await db.SaveChangesAsync();
-        return ToDto(c, Today, await PhonesAsync(new List<string> { c.StudentId }));
+        return c;
+    }
+
+    /// <summary>Sabab id'sini tekshiradi va MATNINI (snapshot) qaytaradi. Topilmasa ikkalasi ham
+    /// bo'sh — sabab ixtiyoriy, noto'g'ri id tufayli amal to'xtamasin.</summary>
+    private async Task<(string Id, string Label)> ResolveReasonAsync(string? reasonId)
+    {
+        var id = (reasonId ?? "").Trim();
+        if (id.Length == 0) return ("", "");
+        var label = await db.ActionReasons.Where(r => r.Id == id).Select(r => r.Label)
+            .FirstOrDefaultAsync() ?? "";
+        return label.Length == 0 ? ("", "") : (id, label);
     }
 
     /// <summary>
@@ -471,7 +555,62 @@ public class ContactsController(AppDbContext db, AuditService audit) : Controlle
             Callback: attempts.Count(a => a.NextStatus == ContactStatuses.Callback && IsContact(a)),
             Failed: attempts.Count(a => a.NextStatus == ContactStatuses.Failed),
             OpenNow: openNow, OverdueNow: overdueNow,
-            Daily: daily, ByStaff: byStaff, ByReason: byReason, ByResult: byResult);
+            Daily: daily, ByStaff: byStaff, ByReason: byReason, ByResult: byResult,
+            // JAVOBLAR TAHLILI — eng ko'p uchragan so'zlar. Qoida `ContactService.TopWords` da
+            // (sof funksiya, testlangan): bir matnda takrorlangan so'z BIR marta sanaladi.
+            TopWords: ContactService
+                .TopWords(attempts.Where(IsContact).Select(a => a.Response), 25)
+                .Select(w => new ContactWordDto(w.Word, w.Count)).ToList(),
+            WithResponse: attempts.Count(a => IsContact(a) && a.Response.Length > 0));
+    }
+
+    /// <summary>
+    /// JAVOBLAR LENTASI — "javobi nima dedi" matnlarini o'qish uchun. Hisobotdagi sonlar
+    /// "nechta" ga javob beradi, bu esa "NIMA deyilgan" ga.
+    /// </summary>
+    /// <param name="result">Natija kaliti bo'yicha filtr (answered / no_answer / ...).</param>
+    /// <param name="q">Javob matni ichidan qidiruv.</param>
+    [HttpGet("responses")]
+    public async Task<ActionResult<IEnumerable<ContactResponseRowDto>>> Responses(
+        [FromQuery] string? from, [FromQuery] string? to, [FromQuery] string? result,
+        [FromQuery] string? actor, [FromQuery] string? q, [FromQuery] int limit = 200)
+    {
+        var query = db.ContactAttempts.AsNoTracking()
+            // Faqat HAQIQIY bog'lanish urinishlari va faqat MATN yozilganlari — bo'sh qatorlar
+            // lentani suyultirib, o'qishni qiyinlashtirardi.
+            .Where(a => a.Type == ContactAttemptTypes.Contact && a.Response != "");
+
+        if (!string.IsNullOrWhiteSpace(from)) query = query.Where(a => string.Compare(a.Date, from) >= 0);
+        if (!string.IsNullOrWhiteSpace(to)) query = query.Where(a => string.Compare(a.Date, to) <= 0);
+        if (!string.IsNullOrWhiteSpace(result)) query = query.Where(a => a.Result == result);
+        if (!string.IsNullOrWhiteSpace(actor)) query = query.Where(a => a.ActorName == actor);
+        if (!string.IsNullOrWhiteSpace(q))
+        {
+            var needle = q.Trim().ToLower();
+            query = query.Where(a => a.Response.ToLower().Contains(needle));
+        }
+
+        var rows = await query
+            .OrderByDescending(a => a.CreatedAt).ThenByDescending(a => a.Id)
+            .Take(Math.Clamp(limit, 1, 500))
+            .ToListAsync();
+
+        // Talab ma'lumoti (o'quvchi ismi, sabab) — bitta so'rovda biriktiriladi (N+1 emas).
+        var requestIds = rows.Select(r => r.RequestId).Distinct().ToList();
+        var requests = await db.ContactRequests.AsNoTracking()
+            .Where(c => requestIds.Contains(c.Id))
+            .Select(c => new { c.Id, c.StudentName, c.ReasonLabel })
+            .ToDictionaryAsync(c => c.Id);
+
+        return rows.Select(a =>
+        {
+            var req = requests.GetValueOrDefault(a.RequestId);
+            return new ContactResponseRowDto(
+                a.Id, a.RequestId, a.StudentId, req?.StudentName ?? "",
+                req?.ReasonLabel ?? "", a.Result, ContactService.ResultLabel(a.Result),
+                a.NextStatus, ContactService.StatusLabel(a.NextStatus),
+                a.Response, a.ActorName, a.CreatedAt);
+        }).ToList();
     }
 
     /* =========================================================================================

@@ -1,4 +1,4 @@
-# "Bog'lanish kerak" (follow-up navbati) qoidalari
+﻿# "Bog'lanish kerak" (follow-up navbati) qoidalari
 
 Migratsiya: `AddContactRequests`. Modul O'quvchilar bo'limi ostida, lekin **ruxsati alohida**.
 
@@ -51,6 +51,21 @@ o'quvchi arxivlansa, sabab katalogi tahrirlansa yoki xodim o'chsa ham tarix va h
 `ContactAttempt.Date` ("yyyy-MM-dd") — kunlik hisobot AYNAN shu ustun bo'yicha guruhlanadi
 (ISO vaqtdan `Substring` bilan guruhlash indeksdan foydalana olmasdi).
 
+## 3.5. KO'PLAB QO'SHISH (o'quvchilar ro'yxatidan)
+
+"O'quvchilar ro'yxati"da bir nechtasini belgilab **«Bog'lanish kerak»** bosiladi — sabab/izoh/
+sana BIR marta tanlanadi va hammasiga birdek qo'llanadi. `POST /api/admin/contacts/bulk`
+(`MaxBulk = 500`).
+
+⚠️ Ochiq talabi bor o'quvchi **CHETLAB O'TILADI**, butun amal to'xtamaydi — javobda
+`created` / `skipped` / `skippedNames` / `notFound` qaytadi. Aks holda 100 ta tanlangandan
+bittasi tufayli hech kim navbatga tushmasdi.
+
+Bitta o'quvchi uchun ham (profil "⋮") AYNAN shu endpoint ishlatiladi — `NeedContactModal`
+`students: ContactTarget[]` qabul qiladi, ya'ni qoida ikki joyda ayri ketmaydi. Talab
+yaratish mantig'i controllerda bitta `AddRequest` yordamchisida (`POST /contacts` ham,
+`/bulk` ham shuni chaqiradi).
+
 ## 4. BITTA OCHIQ TALAB qoidasi
 
 Bir o'quvchida bir vaqtda faqat **bitta** ochiq talab (`new`/`callback`) bo'ladi — aks holda navbat
@@ -88,6 +103,30 @@ Barcha sonlar **hodisalardan** (`ContactAttempt`), ya'ni "kim nima qildi" bo'yic
 - **Natijalar kesimi** — ko'tarmagan/band ulushi (aloqa sifati).
 
 `OpenNow`/`OverdueNow` — davrga bog'liq EMAS, joriy holat (navbat sanoqlari bilan bir xil bo'lsin).
+
+## 7.5. JAVOBLAR TAHLILI ("nima deb yozilgan")
+
+Sonlar "nechta" ga javob beradi, bu bo'lim esa **"NIMA deyilgan"** ga:
+
+- **`GET /api/admin/contacts/responses`** — javoblar lentasi. Faqat `Type=contact` VA
+  `Response != ""` qatorlar (bo'sh javoblar lentani suyultirib, o'qishni qiyinlashtirardi).
+  Filtrlar: davr, natija, xodim, matn ichidan qidiruv. Chegara 500 (default 200).
+- **`ContactStatsDto.TopWords`** — javoblarda eng ko'p uchragan so'zlar
+  (`ContactService.TopWords`, sof funksiya, testlangan).
+  - ⚠️ Bir matnda takrorlangan so'z **BIR marta** sanaladi: savol "necha marta yozildi" emas,
+    "NECHTA JAVOBDA uchradi" — aks holda bitta uzun izoh butun hisobotni egallab olardi.
+  - ⚠️ Apostroflar (`'` `ʻ` `’` `` ` ``) bir ko'rinishga keltiriladi — aks holda "to'lov" va
+    "toʻlov" ikki xil so'z bo'lib sanalardi (matn turli klaviaturalardan kiritiladi).
+  - `StopWords` ATAYIN qisqa: faqat bog'lovchi/olmosh/yordamchi so'zlar. "to'lov", "dars",
+    "kasal", "kerak" QOLADI — aynan ular hisobotning ma'nosi.
+- UI'da so'z bosilsa javoblar lentasi o'sha so'z bo'yicha filtrlanadi ("nega bu so'z ko'p?").
+
+## 7.6. O'QUVCHI PROFILIDA
+
+`GET /contacts/student/{id}` **tarixni ham** qaytaradi (ro'yxat endpointi qaytarmaydi — bu
+bitta o'quvchi uchun ikkita yengil so'rov). O'quvchi profilining **"Aloqa"** tabida
+"Bog'lanish tarixi" bo'limi har bir urinishni va unda yozilgan javobni qo'ng'iroqlar
+tarixi bilan yonma-yon ko'rsatadi: "kim qo'ng'iroq qildi" va "nima deyildi" bitta joyda.
 
 ## 8. Audit
 

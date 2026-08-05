@@ -90,6 +90,70 @@ public class ContactServiceTests
         string status, string due, string today, bool expected)
         => Assert.Equal(expected, ContactService.IsOverdue(status, due, today));
 
+    // ==================== Javoblar tahlili (TopWords) ====================
+
+    [Fact]
+    public void TopWords_eng_kop_uchragan_sozlarni_beradi()
+    {
+        var words = ContactService.TopWords(new[]
+        {
+            "To'lovni juma kuni qiladi",
+            "To'lov kechikdi, dushanbagacha so'radi",
+            "Bola kasal, dars qoldirdi",
+        });
+
+        // "to'lov" ikki javobda uchradi — birinchi o'rinda.
+        Assert.Equal("to'lov", words[0].Word);
+        Assert.Equal(2, words[0].Count);
+    }
+
+    [Fact]
+    public void TopWords_bitta_javobdagi_takror_BIR_marta_sanaladi()
+    {
+        // Aks holda bitta uzun izoh butun hisobotni egallab olardi: savol "necha marta yozildi"
+        // emas, "NECHTA JAVOBDA uchradi".
+        var words = ContactService.TopWords(new[] { "kasal kasal kasal kasal" });
+        var w = Assert.Single(words);
+        Assert.Equal("kasal", w.Word);
+        Assert.Equal(1, w.Count);
+    }
+
+    [Fact]
+    public void TopWords_manosiz_va_qisqa_sozlarni_tashlaydi()
+    {
+        var words = ContactService.TopWords(new[] { "u va bilan uchun ham deb bo'ldi to'lov" });
+        var w = Assert.Single(words);
+        Assert.Equal("to'lov", w.Word);
+    }
+
+    [Theory]
+    // Apostrof turlari BIR ko'rinishga keltiriladi — aks holda "to'lov" va "toʻlov" ikki xil
+    // so'z bo'lib sanalardi (matn turli klaviaturalardan kiritiladi).
+    [InlineData("to'lov")]
+    [InlineData("toʻlov")]
+    [InlineData("to’lov")]
+    [InlineData("To`lov")]
+    public void TopWords_apostroflarni_bir_xil_koradi(string text)
+    {
+        var w = Assert.Single(ContactService.TopWords(new[] { text }));
+        Assert.Equal("to'lov", w.Word);
+    }
+
+    [Fact]
+    public void TopWords_tinish_belgilari_va_bosh_matn_muammo_qilmaydi()
+    {
+        var words = ContactService.TopWords(new[] { "", "   ", "Kasal!!! Dars, qoldirdi." });
+        Assert.Contains(words, w => w.Word == "kasal");
+        Assert.Contains(words, w => w.Word == "dars");
+        // Tinish belgisi so'zga yopishib qolmaydi.
+        Assert.DoesNotContain(words, w => w.Word.Contains('!') || w.Word.Contains(','));
+    }
+
+    [Fact]
+    public void TopWords_chegara_hurmat_qilinadi()
+        => Assert.Equal(2, ContactService.TopWords(
+            new[] { "birinchi ikkinchi uchinchi to'rtinchi" }, take: 2).Count);
+
     // ==================== Katalog butunligi ====================
 
     [Fact]
