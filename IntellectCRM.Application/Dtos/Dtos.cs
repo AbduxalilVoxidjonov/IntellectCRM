@@ -2988,3 +2988,50 @@ public record ContactStatsDto(
     List<ContactStaffRowDto> ByStaff,
     List<ContactReasonRowDto> ByReason,
     List<ContactResultRowDto> ByResult);
+
+/* =================================================================================================
+ *  KURSLAR ANALITIKASI (O'quv bo'limi)
+ * ============================================================================================== */
+
+/// <summary>Kursning bir oydagi oqimi.</summary>
+/// <param name="Joined">Kursga KELGAN (sinovdagilar ham) — oraliq boshlandi.</param>
+/// <param name="Activated">Shu oyda BIRINCHI marta aktivlashgan (to'lov boshlangan).</param>
+/// <param name="Left">KETGAN (haqiqiy churn — tugatgan emas).</param>
+/// <param name="Completed">Kursni TUGATGAN (sertifikat bilan).</param>
+/// <param name="ActiveEnd">Oy oxirida faol bo'lgan o'quvchilar.</param>
+public record CourseMonthFlowDto(
+    string Month, int Joined, int Activated, int Left, int Completed, int ActiveEnd);
+
+/// <summary>Bitta kursning to'liq kesimi.</summary>
+/// <param name="Students">HOZIR shu kursda o'qiyotgan takrorsiz o'quvchilar (faol+sinov+muzlatilgan).</param>
+/// <param name="TotalEver">Shu kursda BIROR PAYT o'qigan takrorsiz o'quvchilar.</param>
+/// <param name="MonthlyRevenue">Faol a'zoliklar bo'yicha kutilayotgan oylik tushum (guruh oyliklari yig'indisi).</param>
+/// <param name="Monthly">Oylik oqim (eng eski oydan boshlab).</param>
+public record CourseAnalyticsRowDto(
+    string CourseId, string CourseName, decimal Price,
+    int Groups, int Teachers,
+    int Active, int Trial, int Frozen, int Students, int TotalEver,
+    decimal MonthlyRevenue,
+    List<CourseMonthFlowDto> Monthly);
+
+/// <summary>Nechta kursga qatnashadigan o'quvchilar taqsimoti.</summary>
+public record CourseOverlapBucketDto(int Courses, int Students);
+
+/// <summary>Birga o'qiladigan kurs juftligi.</summary>
+public record CoursePairDto(string AId, string AName, string BId, string BName, int Students);
+
+/// <summary>Kurslar kesishuvi — FAOL a'zoliklar bo'yicha.</summary>
+/// <param name="OneCourse">Faqat bitta kursga qatnaydigan o'quvchilar.</param>
+/// <param name="MultiCourse">BIRDAN ORTIQ kursga qatnaydigan o'quvchilar.</param>
+public record CourseOverlapDto(
+    int TotalStudents, int OneCourse, int MultiCourse,
+    List<CourseOverlapBucketDto> Buckets, List<CoursePairDto> Pairs);
+
+/// <summary>"Kurslar analitikasi" sahifasining butun ma'lumoti (bitta so'rovda).</summary>
+/// <param name="Months">Ko'rilayotgan oylar ("yyyy-MM"), eng eskisidan.</param>
+/// <param name="ActiveStudents">Markazda faol a'zoligi bor takrorsiz o'quvchilar.</param>
+public record CourseAnalyticsDto(
+    List<string> Months,
+    List<CourseAnalyticsRowDto> Courses,
+    CourseOverlapDto Overlap,
+    int ActiveStudents, int TotalGroups, decimal MonthlyRevenue);

@@ -75,6 +75,7 @@ import { KassaMobileLayout } from '@/components/layout/KassaMobileLayout'
 import { SettingsPage } from '@/pages/admin/settings/SettingsPage'
 import { AuditLogPage } from '@/pages/admin/settings/AuditLogPage'
 import { ContactQueuePage } from '@/pages/admin/students/contacts/ContactQueuePage'
+import { CourseAnalyticsPage } from '@/pages/admin/subjects/CourseAnalyticsPage'
 import { AccountPage } from '@/pages/admin/account/AccountPage'
 // Marketing — ijtimoiy tarmoq avtojavob (Javobot UI; hozircha faqat UI, mock)
 import { MarketingDashboard } from '@/pages/admin/marketing/MarketingDashboard'
@@ -202,6 +203,8 @@ export default function App() {
           <Route path="discipline" element={<RequirePerm perm="discipline"><BallarNazoratiPage /></RequirePerm>} />
           <Route path="discipline/reasons" element={<RequirePerm perm="discipline"><BallSabablarPage /></RequirePerm>} />
           <Route path="subjects" element={<RequirePerm perm="schedule"><SubjectsPage /></RequirePerm>} />
+          {/* Kurslar analitikasi — O'quv bo'limi ichida, "Kurslar" ruxsati (`schedule`) bilan. */}
+          <Route path="subjects/analitika" element={<RequirePerm perm="schedule"><CourseAnalyticsPage /></RequirePerm>} />
           <Route path="curricula" element={<RequirePerm perm="schedule"><CurriculaListPage /></RequirePerm>} />
           <Route path="curricula/:curriculumId" element={<RequirePerm perm="schedule"><CurriculumModulesPage /></RequirePerm>} />
           <Route path="curricula/:curriculumId/:moduleId" element={<RequirePerm perm="schedule"><CurriculumTopicsPage /></RequirePerm>} />
