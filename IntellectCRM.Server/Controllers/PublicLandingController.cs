@@ -52,6 +52,8 @@ public class PublicLandingController(AppDbContext db, TelegramService telegram, 
         {
             LeadId = lead.Id, Type = "created", Text = $"Lid yaratildi ({lead.FullName})",
             ActorName = "Sayt", CreatedAt = Now(),
+            // Voronka analitikasi uchun: lid birinchi bosqichga tushdi (ActorUserId yo'q — sayt formasi).
+            ToStage = firstStageId,
         });
         await db.SaveChangesAsync();
 

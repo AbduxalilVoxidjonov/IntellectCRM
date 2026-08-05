@@ -254,6 +254,8 @@ public static class LevelTestService
             {
                 LeadId = lead.Id, Type = "created", ActorName = "Daraja testi", CreatedAt = now,
                 Text = $"Daraja testi orqali keldi: {score}/{total} ({percent}%){levelText}",
+                // Voronka analitikasi uchun: lid birinchi bosqichga tushdi (ActorUserId yo'q — o'quvchi o'zi topshirdi).
+                ToStage = firstStage,
             });
         }
         var submission = new LevelTestSubmission

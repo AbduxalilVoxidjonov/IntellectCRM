@@ -681,6 +681,43 @@ public record CrmStatsDto(
     /// <summary>Qiziqish fanlari (kurslar) bo'yicha — eng ko'pidan kamiga.</summary>
     List<CrmInterestStatDto>? ByInterest = null);
 
+/* ---------- CRM voronka analitikasi (amoCRM uslubidagi dashboard) ---------- */
+
+/// <summary>
+/// Voronka bosqichi. <c>Reached</c> — shu bosqichga YETIB KELGAN lidlar soni (joriy bosqichi shundan
+/// past bo'lmagan YOKI tarixda shu bosqichga o'tgani yozilgan lidlar), shuning uchun ro'yxat pastga
+/// qarab kamayib boradi.
+///
+/// <para><b>HALOLLIK:</b> <c>AvgHours</c> (bosqichda o'rtacha necha soat turilgani) faqat bosqich
+/// TARIXI yozila boshlagandan keyingi ma'lumot bo'yicha hisoblanadi — eski lidlarda bunday o'lchov
+/// yo'q. <c>Samples</c> aynan shuning uchun qaytariladi: nechta TO'LIQ (kirdi→chiqdi) oraliq
+/// o'lchangani. <c>Samples == 0</c> bo'lsa <c>AvgHours</c> — <c>null</c> (taxminiy son EMAS).</para>
+/// </summary>
+public record LeadFunnelStageDto(
+    string StageId, string Title, string Color, int Order,
+    int Reached, int Pct,
+    double? AvgHours, int Samples);
+
+/// <summary>Manba kesmasi. <c>Source</c> — lidda yozilgan xom qiymat, <c>Label</c> — ko'rsatiladigan nom.</summary>
+public record LeadSourceSliceDto(string Source, string Label, int Count, int Pct);
+
+/// <summary>
+/// Menejer qatori: <c>Moves</c> — bosqich o'zgartirishlar soni, <c>Leads</c> — nechta HAR XIL lidga
+/// tegilgani, <c>Won</c> — shu menejer o'quvchiga aylantirgan lidlar soni.
+///
+/// <para><b>HALOLLIK:</b> bu kesim <c>LeadEvent.ActorUserId</c> ga tayanadi — u eski yozuvlarda
+/// YO'Q, shuning uchun ro'yxat faqat tarix yozila boshlagandan keyingi ishni ko'rsatadi.</para>
+/// </summary>
+public record LeadManagerRowDto(string UserId, string Name, int Moves, int Leads, int Won);
+
+/// <summary>CRM voronka analitikasi. <c>From</c>/<c>To</c> — so'ralgan davr (bo'sh = cheklanmagan).</summary>
+public record LeadAnalyticsDto(
+    string From, string To,
+    int Total, int Converted, int ConversionRate,
+    List<LeadFunnelStageDto> Funnel,
+    List<LeadSourceSliceDto> Sources,
+    List<LeadManagerRowDto> Managers);
+
 /* ---------- Lead stages ---------- */
 public record StagePayload(string Title, string Color);
 public record ReorderRequest(List<string> Ids);

@@ -1031,6 +1031,20 @@ public class LeadEvent
     public string ActorName { get; set; } = string.Empty;
     /// <summary>Vaqt (ISO "yyyy-MM-ddTHH:mm:ss").</summary>
     public string CreatedAt { get; set; } = string.Empty;
+
+    // ---- Voronka analitikasi uchun O'QILADIGAN maydonlar (Text faqat odam uchun) ----
+    // DIQQAT: bu uchta maydon 2026-08 dagi o'zgarishda qo'shildi — UNGACHA yozilgan hodisalarda
+    // ular BO'SH. Ya'ni ular ustiga qurilgan hisob (bosqichda o'tirish vaqti, menejerlar kesimi)
+    // faqat SHU SANADAN keyingi tarixni qamraydi. Shuning uchun analitika javobida `Samples`
+    // qaytariladi — raqam nechta haqiqiy o'lchovga asoslanganini ko'rsatish uchun.
+
+    /// <summary>Qaysi bosqichdan (<see cref="LeadStage"/>.Id). Bo'sh — lid YARATILGANDA (oldingi bosqich yo'q).</summary>
+    public string FromStage { get; set; } = string.Empty;
+    /// <summary>Qaysi bosqichga (<see cref="LeadStage"/>.Id). Faqat Type=="stage"/"created" da to'ldiriladi.</summary>
+    public string ToStage { get; set; } = string.Empty;
+    /// <summary>Kim bajargan — <see cref="AppUser"/>.Id (menejerlar kesimi uchun). Nomi <see cref="ActorName"/> da.
+    /// Bo'sh/null — tizim yozgan (sayt formasi, daraja testi) yoki eski yozuv.</summary>
+    public string? ActorUserId { get; set; }
 }
 
 /// <summary>Lid uchun sinov darsi — guruh + sana; natija lid statusini yangilaydi.</summary>

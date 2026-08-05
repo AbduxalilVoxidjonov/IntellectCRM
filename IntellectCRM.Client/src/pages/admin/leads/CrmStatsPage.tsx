@@ -1,3 +1,4 @@
+import { useCallback, useState } from 'react'
 import {
   Bar,
   BarChart,
@@ -13,22 +14,57 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { Users, UserCheck, Percent } from 'lucide-react'
-import { getCrmStats } from '@/api/services/leads'
+import { AlertTriangle, Users, UserCheck, Percent } from 'lucide-react'
+import { getCrmStats, getLeadAnalytics } from '@/api/services/leads'
 import { useAsync } from '@/hooks/useAsync'
 import { Card } from '@/components/ui/Card'
+import { Input } from '@/components/ui/Input'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { StatCard } from '@/components/ui/StatCard'
 import { Loader } from '@/components/ui/Loader'
+import { apiErrorMessage, cn } from '@/lib/utils'
 import { monthShortNames } from '@/config/constants'
+import { ConversionFunnel } from './stats/ConversionFunnel'
+import { SourcesDonut } from './stats/SourcesDonut'
+import { ManagerPerformance } from './stats/ManagerPerformance'
+import { axisTick, barCursor, CATEGORICAL, gridStroke, stageRamp, tooltipStyle } from './stats/palette'
 
-const PIE_COLORS = ['#6366f1', '#16a34a', '#f59e0b', '#0ea5e9', '#ec4899', '#94a3b8']
+const today = () => new Date().toISOString().slice(0, 10)
 
-const axisTick = { fontSize: 12, fill: '#94a3b8' }
-const tooltipStyle = { borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 13 }
+/**
+ * Analitika xatosini foydalanuvchi tilida beradi. Backend endpointi hali tayyor bo'lmasligi
+ * mumkin (404) — bu sahifani BUZMAYDI, faqat shu bo'lim o'rniga izoh ko'rsatiladi.
+ */
+function analyticsErrorMessage(err: unknown): string {
+  const status = (err as { response?: { status?: number } } | null)?.response?.status
+  if (status === 404) {
+    return "Analitika hali serverda mavjud emas (endpoint topilmadi). Backend tayyor bo'lgach bu bo'lim o'zi ishlay boshlaydi."
+  }
+  return apiErrorMessage(err, "Analitikani yuklab bo'lmadi")
+}
 
 export function CrmStatsPage() {
   const { data, loading, error } = useAsync(getCrmStats, [])
+
+  // Davr filtri — voronka / manbalar / menejerlar bloklarini qamraydi.
+  const [from, setFrom] = useState('')
+  const [to, setTo] = useState('')
+
+  const fetchAnalytics = useCallback(
+    () =>
+      getLeadAnalytics(from || undefined, to || undefined).catch((err: unknown) => {
+        throw new Error(analyticsErrorMessage(err))
+      }),
+    [from, to],
+  )
+  const { data: analytics, loading: aLoading, error: aError } = useAsync(fetchAnalytics, [fetchAnalytics])
+
+  const quick = (days: number) => {
+    const start = new Date()
+    start.setDate(start.getDate() - days + 1)
+    setFrom(start.toISOString().slice(0, 10))
+    setTo(today())
+  }
 
   if (loading) return <Loader label="Yuklanmoqda..." />
   if (error) return <p className="text-red-600">Xatolik: {error}</p>
@@ -36,6 +72,8 @@ export function CrmStatsPage() {
 
   const sourceData = data.bySource.map((s) => ({ name: s.label, count: s.count }))
   const stageData = data.byStage.map((s) => ({ name: s.label, value: s.count }))
+  // Bosqichlar ORDINAL — bitta tusning ochiqdan quyuqqa rampi (kategorial ranglar emas).
+  const stageColors = stageRamp(stageData.length)
   // Qiziqish fanlari: jadval BARCHA fanlarni, diagramma esa eng ko'p 10 tasini ko'rsatadi.
   const interestRows = data.byInterest ?? []
   const topInterest = interestRows[0]
@@ -50,6 +88,10 @@ export function CrmStatsPage() {
     Aylantirilgan: m.converted,
   }))
 
+  // KPI: davr filtri ishlaganda analitikadan, aks holda butun davr statistikasidan.
+  const kpi = analytics ?? { total: data.totalLeads, converted: data.converted, conversionRate: data.conversionRate }
+  const kpiHint = analytics ? undefined : 'butun davr'
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -57,27 +99,126 @@ export function CrmStatsPage() {
         sub="Lidlar va konversiya bo'yicha umumiy ko'rsatkichlar"
       />
 
-      {/* KPI kartalar */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <StatCard label="Jami lidlar" value={data.totalLeads.toLocaleString()} icon={Users} />
-        <StatCard
-          label="Aylantirilgan"
-          value={data.converted.toLocaleString()}
-          icon={UserCheck}
-          iconBg="bg-emerald-50"
-          iconColor="text-emerald-600"
-        />
-        <StatCard
-          label="Konversiya"
-          value={`${data.conversionRate.toFixed(1)}%`}
-          icon={Percent}
-          iconBg="bg-amber-50"
-          iconColor="text-amber-600"
-        />
+      {/* ---- Davr filtri: quyidagi voronka / manbalar / menejerlar bloklarini qamraydi ---- */}
+      <Card tight>
+        <div className="flex flex-wrap items-end gap-3 p-4">
+          <Input
+            label="Sanadan"
+            type="date"
+            className="w-auto"
+            value={from}
+            onChange={(e) => setFrom(e.target.value)}
+          />
+          <Input
+            label="Sanagacha"
+            type="date"
+            className="w-auto"
+            value={to}
+            onChange={(e) => setTo(e.target.value)}
+          />
+          <div className="tabs">
+            <button type="button" className="tab" onClick={() => quick(7)}>
+              7 kun
+            </button>
+            <button type="button" className="tab" onClick={() => quick(30)}>
+              30 kun
+            </button>
+            <button type="button" className="tab" onClick={() => quick(90)}>
+              90 kun
+            </button>
+            <button
+              type="button"
+              className="tab"
+              onClick={() => {
+                setFrom('')
+                setTo('')
+              }}
+            >
+              Butun davr
+            </button>
+          </div>
+        </div>
+      </Card>
+
+      {/*
+        KPI: konversiya — sahifaning ASOSIY raqami, shuning uchun u yagona "hero" figura
+        (katta, proporsional raqamlar bilan — tabular-nums FAQAT ustundagi raqamlarga).
+        Qolgan ikkitasi unga bo'ysunadigan kichik plitkalar.
+      */}
+      <div className="grid gap-4 lg:grid-cols-3">
+        <div className="flex flex-col justify-between gap-4 rounded-xl border border-slate-200 bg-white p-5 shadow-[var(--shadow-1)]">
+          <div className="flex items-start justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+              Konversiya
+            </span>
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50 text-amber-600">
+              <Percent className="h-[18px] w-[18px]" />
+            </div>
+          </div>
+          <div>
+            <div className="text-[52px] font-semibold leading-none tracking-tight text-slate-900">
+              {kpi.conversionRate.toFixed(1)}
+              <span className="ml-1 text-2xl font-medium text-slate-400">%</span>
+            </div>
+            <p className="mt-2 text-xs text-slate-500">
+              {kpi.total.toLocaleString()} ta liddan {kpi.converted.toLocaleString()} tasi
+              o'quvchiga aylandi{kpiHint ? ` · ${kpiHint}` : ''}
+            </p>
+          </div>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2 lg:col-span-2">
+          <StatCard label="Jami lidlar" value={kpi.total.toLocaleString()} icon={Users} hint={kpiHint} />
+          <StatCard
+            label="Aylantirilgan"
+            value={kpi.converted.toLocaleString()}
+            icon={UserCheck}
+            iconBg="bg-emerald-50"
+            iconColor="text-emerald-600"
+            hint={kpiHint}
+          />
+        </div>
+      </div>
+
+      {/* ---- Davr bo'yicha analitika ---- */}
+      {aError ? (
+        <div className="flex items-start gap-2 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>
+            {aError}
+            <span className="mt-0.5 block text-xs text-red-600/80">
+              Voronka, manbalar va menejerlar bloklari vaqtincha ko'rsatilmayapti. Quyidagi butun
+              davr bo'yicha grafiklar ishlashda davom etadi.
+            </span>
+          </span>
+        </div>
+      ) : aLoading && !analytics ? (
+        <Card>
+          <Loader label="Analitika yuklanmoqda..." />
+        </Card>
+      ) : (
+        analytics && (
+          // Qayta yuklashda oldingi ko'rinish saqlanadi — skelet ham, sakrash ham yo'q.
+          <div className={cn('space-y-6', aLoading && 'opacity-60 transition-opacity')}>
+            <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+              <ConversionFunnel funnel={analytics.funnel} />
+              <SourcesDonut sources={analytics.sources} />
+            </div>
+            <ManagerPerformance managers={analytics.managers} />
+          </div>
+        )
+      )}
+
+      {/* ---- Butun davr bo'yicha (davr filtriga bog'liq emas) ---- */}
+      <div className="flex items-center gap-3 pt-2">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">
+          Butun davr bo'yicha
+        </h2>
+        <div className="h-px flex-1 bg-slate-200" />
       </div>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-        {/* Manba bo'yicha (bar) */}
+        {/* Manba bo'yicha (bar) — bitta seriya, shuning uchun legend kerak emas */}
         <Card>
           <h2 className="mb-4 font-semibold text-slate-800">Manba bo'yicha lidlar</h2>
           {sourceData.length === 0 ? (
@@ -85,11 +226,11 @@ export function CrmStatsPage() {
           ) : (
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={sourceData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eef0f4" />
+                <CartesianGrid vertical={false} stroke={gridStroke} />
                 <XAxis dataKey="name" tickLine={false} axisLine={false} tick={axisTick} />
                 <YAxis tickLine={false} axisLine={false} tick={axisTick} allowDecimals={false} />
-                <Tooltip cursor={{ fill: 'rgba(0,0,0,0.03)' }} contentStyle={tooltipStyle} />
-                <Bar dataKey="count" name="Lidlar" fill="#6366f1" radius={[6, 6, 0, 0]} maxBarSize={48} />
+                <Tooltip cursor={barCursor} contentStyle={tooltipStyle} />
+                <Bar dataKey="count" name="Lidlar" fill={CATEGORICAL[0]} radius={[4, 4, 0, 0]} maxBarSize={24} />
               </BarChart>
             </ResponsiveContainer>
           )}
@@ -110,12 +251,14 @@ export function CrmStatsPage() {
                   cx="50%"
                   cy="50%"
                   outerRadius={100}
+                  stroke="#ffffff"
+                  strokeWidth={2}
                   label={(entry: { name?: string; value?: number }) =>
                     `${entry.name ?? ''}: ${entry.value ?? 0}`
                   }
                 >
-                  {stageData.map((_, i) => (
-                    <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                  {stageData.map((s, i) => (
+                    <Cell key={s.name} fill={stageColors[i]} />
                   ))}
                 </Pie>
                 <Tooltip contentStyle={tooltipStyle} />
@@ -149,7 +292,7 @@ export function CrmStatsPage() {
                 margin={{ top: 4, right: 24, left: 0, bottom: 0 }}
                 barGap={2}
               >
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eef0f4" />
+                <CartesianGrid horizontal={false} stroke={gridStroke} />
                 <XAxis type="number" tickLine={false} axisLine={false} tick={axisTick} allowDecimals={false} />
                 <YAxis
                   type="category"
@@ -159,10 +302,10 @@ export function CrmStatsPage() {
                   axisLine={false}
                   tick={axisTick}
                 />
-                <Tooltip cursor={{ fill: 'rgba(0,0,0,0.03)' }} contentStyle={tooltipStyle} />
+                <Tooltip cursor={barCursor} contentStyle={tooltipStyle} />
                 <Legend wrapperStyle={{ fontSize: 13 }} />
-                <Bar dataKey="Lidlar" fill="#6366f1" radius={[0, 6, 6, 0]} maxBarSize={14} />
-                <Bar dataKey="Aylantirilgan" fill="#16a34a" radius={[0, 6, 6, 0]} maxBarSize={14} />
+                <Bar dataKey="Lidlar" fill={CATEGORICAL[0]} radius={[0, 4, 4, 0]} maxBarSize={14} />
+                <Bar dataKey="Aylantirilgan" fill={CATEGORICAL[1]} radius={[0, 4, 4, 0]} maxBarSize={14} />
               </BarChart>
             </ResponsiveContainer>
 
@@ -186,9 +329,9 @@ export function CrmStatsPage() {
                   {interestRows.map((r) => (
                     <tr key={r.label} className="border-b border-slate-50 last:border-0">
                       <td className="py-2 pr-3 text-slate-700">{r.label}</td>
-                      <td className="py-2 pr-3 text-right font-mono text-slate-700">{r.count}</td>
-                      <td className="py-2 pr-3 text-right font-mono text-emerald-600">{r.converted}</td>
-                      <td className="py-2 text-right font-mono text-slate-500">
+                      <td className="py-2 pr-3 text-right font-mono tabular-nums text-slate-700">{r.count}</td>
+                      <td className="py-2 pr-3 text-right font-mono tabular-nums text-emerald-600">{r.converted}</td>
+                      <td className="py-2 text-right font-mono tabular-nums text-slate-500">
                         {r.conversionRate.toFixed(1)}%
                       </td>
                     </tr>
@@ -208,18 +351,18 @@ export function CrmStatsPage() {
         ) : (
           <ResponsiveContainer width="100%" height={320}>
             <LineChart data={monthlyData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eef0f4" />
+              <CartesianGrid vertical={false} stroke={gridStroke} />
               <XAxis dataKey="name" tickLine={false} axisLine={false} tick={axisTick} />
               <YAxis tickLine={false} axisLine={false} tick={axisTick} allowDecimals={false} />
               <Tooltip contentStyle={tooltipStyle} />
               <Legend wrapperStyle={{ fontSize: 13 }} />
-              <Line type="monotone" dataKey="Yangi" stroke="#6366f1" strokeWidth={2} dot={{ r: 3 }} />
+              <Line type="monotone" dataKey="Yangi" stroke={CATEGORICAL[0]} strokeWidth={2} dot={{ r: 4 }} />
               <Line
                 type="monotone"
                 dataKey="Aylantirilgan"
-                stroke="#16a34a"
+                stroke={CATEGORICAL[1]}
                 strokeWidth={2}
-                dot={{ r: 3 }}
+                dot={{ r: 4 }}
               />
             </LineChart>
           </ResponsiveContainer>

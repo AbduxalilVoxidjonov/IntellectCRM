@@ -143,6 +143,71 @@ export async function getCrmStats(): Promise<CrmStats> {
   return data
 }
 
+/* ---------- CRM: analitika (voronka / manbalar / menejerlar) ---------- */
+
+/** Voronkaning bitta bosqichi. */
+export interface LeadFunnelStage {
+  stageId: string
+  title: string
+  color: string
+  order: number
+  /** Shu bosqichga YETIB kelgan lidlar soni. */
+  reached: number
+  /** Birinchi bosqichga nisbatan foiz (0-100). */
+  pct: number
+  /**
+   * Bosqichda o'rtacha turish vaqti (soat). `null` — o'lchash uchun ma'lumot YETARLI EMAS
+   * (tarix yaqinda yozila boshlangan). Buni "0 soat" deb ko'rsatish MUMKIN EMAS.
+   */
+  avgHours: number | null
+  /** Nechta to'liq oraliq o'lchangani — raqamga qanchalik ishonish mumkinligini ko'rsatadi. */
+  samples: number
+}
+
+/** Manba bo'yicha ulush (donut kesmasi). */
+export interface LeadSourceSlice {
+  source: string
+  label: string
+  count: number
+  /** Umumiy lidlarga nisbatan foiz (0-100). */
+  pct: number
+}
+
+/** Menejer kesimidagi ko'rsatkichlar. */
+export interface LeadManagerRow {
+  userId: string
+  name: string
+  /** Bosqichlar bo'ylab qilingan harakatlar soni. */
+  moves: number
+  leads: number
+  won: number
+}
+
+export interface LeadAnalytics {
+  from: string
+  to: string
+  total: number
+  converted: number
+  /** Konversiya foizi (0-100). */
+  conversionRate: number
+  funnel: LeadFunnelStage[]
+  sources: LeadSourceSlice[]
+  /** Bo'sh bo'lishi MUMKIN — bu xato emas, shunchaki davrda harakat qilgan menejer yo'q. */
+  managers: LeadManagerRow[]
+}
+
+/**
+ * Lidlar analitikasi. `from`/`to` — `YYYY-MM-DD`, ikkalasi ham ixtiyoriy
+ * (berilmasa server butun davrni oladi).
+ */
+export async function getLeadAnalytics(from?: string, to?: string): Promise<LeadAnalytics> {
+  const params: Record<string, string> = {}
+  if (from) params.from = from
+  if (to) params.to = to
+  const { data } = await api.get<LeadAnalytics>('/admin/leads/analytics', { params })
+  return data
+}
+
 /**
  * Lid formasi "Qiziqqan fani" ro'yxati — markazdagi KURSLAR nomlari. Kurslar bo'limi "schedule"
  * ruxsatida bo'lgani uchun CRM xodimiga shu (leads ruxsatidagi) endpoint orqali beriladi.

@@ -62,7 +62,8 @@ public class LeadsController(AppDbContext db, AuditService audit, TelegramServic
             CreatedAt = Now(),
         };
         db.Leads.Add(lead);
-        AddEvent(lead.Id, "created", $"Lid yaratildi ({lead.FullName})");
+        // Voronka uchun: lid QAYSI bosqichda tug'ilgani ham tarixga tushadi (FromStage yo'q).
+        AddEvent(lead.Id, "created", $"Lid yaratildi ({lead.FullName})", toStage: lead.Stage);
         await db.SaveChangesAsync();
         // Botda ro'yxatdan o'tgan admin/xodimlarga yangi lid xabarnomasi (kim kiritgani bilan).
         await LeadNotifier.NotifyNewLeadAsync(db, telegram, lead, createdBy: Actor());
@@ -127,8 +128,11 @@ public class LeadsController(AppDbContext db, AuditService audit, TelegramServic
         var lead = await db.Leads.FindAsync(id);
         if (lead is null) return NotFound();
         var stage = await db.LeadStages.FindAsync(req.Stage);
+        // Eski bosqich YANGILASHDAN OLDIN o'qib olinadi — voronkaga "qayerdan qayerga" yoziladi.
+        var oldStage = lead.Stage;
         lead.Stage = req.Stage;
-        AddEvent(id, "stage", $"Bosqich: {stage?.Title ?? req.Stage}");
+        AddEvent(id, "stage", $"Bosqich: {stage?.Title ?? req.Stage}",
+            fromStage: oldStage, toStage: req.Stage);
         await db.SaveChangesAsync();
         return NoContent();
     }
@@ -389,6 +393,65 @@ public class LeadsController(AppDbContext db, AuditService audit, TelegramServic
         return new CrmStatsDto(total, converted, rate, byStage, bySource, monthly, byInterest);
     }
 
+    /// <summary>
+    /// VORONKA ANALITIKASI (amoCRM uslubidagi dashboard): bosqichlar bo'yicha yetib kelgan lidlar,
+    /// manbalar kesimi va menejerlar kesimi. <c>from</c>/<c>to</c> — "yyyy-MM-dd" (ikkalasi ixtiyoriy,
+    /// berilmasa hamma vaqt); filtr <c>Lead.CreatedAt</c> bo'yicha, chegara kunlari QO'SHIB olinadi.
+    ///
+    /// <para>Butun hisob-kitob <see cref="LeadAnalytics"/> da (sof funksiyalar, testlangan) — bu
+    /// yerda faqat ma'lumot yuklanadi.</para>
+    ///
+    /// <para><b>HALOLLIK:</b> bosqichda o'tirish vaqti (<c>AvgHours</c>) va menejerlar kesimi lid
+    /// hodisalaridagi <c>FromStage</c>/<c>ToStage</c>/<c>ActorUserId</c> maydonlariga tayanadi —
+    /// ular ESKI yozuvlarda yo'q. Shuning uchun bu ikki bo'lim faqat tarix yozila boshlagandan
+    /// keyingi davrni qamraydi; har bosqichda <c>Samples</c> qaytariladi (nechta haqiqiy o'lchov).
+    /// Voronkaning o'zi (<c>Reached</c>) esa lidning JORIY bosqichiga ham qaraydi, shuning uchun
+    /// eski lidlar bilan ham to'la ishlaydi.</para>
+    /// </summary>
+    [HttpGet("analytics")]
+    public async Task<ActionResult<LeadAnalyticsDto>> Analytics(
+        [FromQuery] string? from = null, [FromQuery] string? to = null)
+    {
+        var leads = (await db.Leads.AsNoTracking()
+                .Select(l => new { l.Id, l.Stage, l.Source, l.ConvertedStudentId, l.CreatedAt })
+                .ToListAsync())
+            .Select(l => new LeadAnalytics.LeadRow(
+                l.Id, l.Stage ?? "", l.Source ?? "", l.ConvertedStudentId != null, l.CreatedAt ?? ""))
+            .ToList();
+
+        // Faqat bosqich/konversiyaga oid hodisalar kerak (izoh/qo'ng'iroq/sinov — voronkaga aloqasiz).
+        var events = (await db.LeadEvents.AsNoTracking()
+                .Where(e => e.Type == LeadAnalytics.TypeStage
+                            || e.Type == LeadAnalytics.TypeCreated
+                            || e.Type == LeadAnalytics.TypeConvert)
+                .Select(e => new
+                {
+                    e.LeadId, e.Type, e.FromStage, e.ToStage, e.ActorUserId, e.ActorName, e.CreatedAt,
+                })
+                .ToListAsync())
+            .Select(e => new LeadAnalytics.EventRow(
+                e.LeadId, e.Type ?? "", e.FromStage ?? "", e.ToStage ?? "",
+                e.ActorUserId, e.ActorName ?? "", e.CreatedAt ?? ""))
+            .ToList();
+
+        var stages = (await db.LeadStages.AsNoTracking()
+                .Select(s => new { s.Id, s.Title, s.Color, s.Order }).ToListAsync())
+            .Select(s => new LeadAnalytics.StageRow(s.Id, s.Title ?? "", s.Color ?? "", s.Order))
+            .ToList();
+
+        var sources = (await db.LeadSources.AsNoTracking()
+                .Select(s => new { s.Id, s.Name }).ToListAsync())
+            .Select(s => new LeadAnalytics.SourceRow(s.Id, s.Name ?? ""))
+            .ToList();
+
+        // Menejer ismi JORIY ro'yxatdan olinadi (hodisadagi ism eskirgan bo'lishi mumkin).
+        var userNames = (await db.Users.AsNoTracking()
+                .Select(u => new { u.Id, u.FullName }).ToListAsync())
+            .ToDictionary(u => u.Id, u => u.FullName ?? "", StringComparer.Ordinal);
+
+        return LeadAnalytics.Build(leads, events, stages, sources, from, to, userNames);
+    }
+
     // ---------- Yordamchilar ----------
 
     /// <summary>
@@ -480,9 +543,25 @@ public class LeadsController(AppDbContext db, AuditService audit, TelegramServic
         ?? User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value
         ?? "Admin";
 
-    private void AddEvent(string leadId, string type, string text) =>
+    /// <summary>Joriy foydalanuvchi id'si (<see cref="AppUser"/>.Id) — menejerlar kesimi uchun.
+    /// Claim bo'lmasa null (analitikada bunday yozuvlar hisobga olinmaydi).</summary>
+    private string? UserId()
+    {
+        var id = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                 ?? User.FindFirst("sub")?.Value;
+        return string.IsNullOrWhiteSpace(id) ? null : id;
+    }
+
+    /// <summary>
+    /// Lid tarixiga hodisa yozadi. <paramref name="fromStage"/>/<paramref name="toStage"/> — bosqich
+    /// o'zgarishida TO'LDIRILADI: matn ("Bosqich: Yangi") odam uchun, bu ikki maydon esa voronka
+    /// analitikasi uchun (<see cref="LeadAnalytics"/>). Chaqiruvchi bermasa — bo'sh qoladi.
+    /// </summary>
+    private void AddEvent(string leadId, string type, string text,
+        string? fromStage = null, string? toStage = null) =>
         db.LeadEvents.Add(new LeadEvent
         {
             LeadId = leadId, Type = type, Text = text, ActorName = Actor(), CreatedAt = Now(),
+            FromStage = fromStage ?? "", ToStage = toStage ?? "", ActorUserId = UserId(),
         });
 }
