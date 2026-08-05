@@ -2958,9 +2958,25 @@ public record ContactRequestDto(
     List<ContactAttemptDto>? History = null);
 
 /// <summary>Bosqich/natija KATALOGI + navbat sanoqlari (sahifa bir so'rovda to'liq ochilsin).</summary>
+/// <param name="Due">MUDDAT bo'yicha kesim — "bugun nechta odamga bog'lanish kerak".</param>
+/// <param name="Days">Yaqin kunlar rejasi: qaysi kuni nechta qayta qo'ng'iroq bor.</param>
 public record ContactMetaDto(
     List<ContactStatusDto> Statuses, List<ContactResultDto> Results,
-    List<ContactCountDto> Counts, int Overdue);
+    List<ContactCountDto> Counts, int Overdue,
+    ContactDueCountsDto? Due = null, List<ContactDayPlanDto>? Days = null);
+
+/// <summary>
+/// Navbatning MUDDAT bo'yicha kesimi (<c>ContactService.Due</c>).
+/// </summary>
+/// <param name="Todo">BUGUN qilinishi kerak = <paramref name="Overdue"/> + <paramref name="Today"/>
+/// + <paramref name="NoDate"/>. Operatorning asosiy raqami.</param>
+/// <param name="Week">Ertadan keyingi 6 kun (bugundan +2..+7).</param>
+/// <param name="NoDate">Sana belgilanmagan ("Bog'lanish kerak" holatidagilar).</param>
+public record ContactDueCountsDto(
+    int Todo, int Overdue, int Today, int Tomorrow, int Week, int Later, int NoDate);
+
+/// <summary>Bitta kunning rejasi — "qaysi kuni nechta qo'ng'iroq".</summary>
+public record ContactDayPlanDto(string Date, int Count);
 
 public record ContactStatusDto(string Key, string Label, bool IsOpen, string Color);
 public record ContactResultDto(string Key, string Label, bool Reached);

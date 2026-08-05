@@ -41,6 +41,9 @@ public class ContactsController(AppDbContext db, AuditService audit) : Controlle
     /// bosilsa ham so'rov cheksiz o'smasin).</summary>
     private const int MaxBulk = 500;
 
+    /// <summary>"Yaqin kunlar" rejasida ko'rsatiladigan kunlar soni (bugundan boshlab).</summary>
+    private const int DayPlanHorizon = 13;
+
     /* =========================================================================================
      *  KATALOG + SANOQLAR
      * ====================================================================================== */
@@ -59,15 +62,54 @@ public class ContactsController(AppDbContext db, AuditService audit) : Controlle
             .ToDictionary(x => x.Status, x => x.Count);
 
         var today = Today;
-        var overdue = await db.ContactRequests.AsNoTracking()
-            .CountAsync(c => c.Status == ContactStatuses.Callback
-                             && c.DueDate != "" && string.Compare(c.DueDate, today) < 0);
+
+        // MUDDAT kesimi — bitta guruhli so'rovdan. Qaysi kunga nechta qayta qo'ng'iroq
+        // rejalashtirilgani ham shu yerdan chiqadi (alohida so'rov kerak emas).
+        var byDay = await db.ContactRequests.AsNoTracking()
+            .Where(c => c.Status == ContactStatuses.Callback)
+            .GroupBy(c => c.DueDate)
+            .Select(g => new { Date = g.Key, Count = g.Count() })
+            .ToListAsync();
+
+        var newCount = counts.GetValueOrDefault(ContactStatuses.New);
+        var due = new int[7];   // indeks: 0 todo, 1 overdue, 2 today, 3 tomorrow, 4 week, 5 later, 6 nodate
+        foreach (var row in byDay)
+        {
+            // Guruhni YAGONA qoidadan olamiz (ContactService) — UI va API bir xil sanasin.
+            var bucket = ContactService.BucketOf(ContactStatuses.Callback, row.Date, today);
+            var idx = bucket switch
+            {
+                ContactService.Due.Overdue => 1,
+                ContactService.Due.Today => 2,
+                ContactService.Due.Tomorrow => 3,
+                ContactService.Due.Week => 4,
+                ContactService.Due.Later => 5,
+                _ => 6,
+            };
+            due[idx] += row.Count;
+            if (ContactService.IsTodo(bucket)) due[0] += row.Count;
+        }
+        // "Bog'lanish kerak" (sanasiz) — ular ham bugungi ishga kiradi.
+        due[6] += newCount;
+        due[0] += newCount;
+
+        // YAQIN KUNLAR REJASI — bugundan boshlab 14 kun, faqat ish BOR kunlar.
+        var horizon = AppClock.Today.AddDays(DayPlanHorizon).ToString("yyyy-MM-dd");
+        var days = byDay
+            .Where(d => d.Date.Length >= 10
+                        && string.CompareOrdinal(d.Date, today) >= 0
+                        && string.CompareOrdinal(d.Date, horizon) <= 0)
+            .OrderBy(d => d.Date, StringComparer.Ordinal)
+            .Select(d => new ContactDayPlanDto(d.Date, d.Count))
+            .ToList();
 
         return new ContactMetaDto(
             ContactService.Statuses.Select(s => new ContactStatusDto(s.Key, s.Label, s.IsOpen, s.Color)).ToList(),
             ContactService.Results.Select(r => new ContactResultDto(r.Key, r.Label, r.Reached)).ToList(),
             ContactService.Statuses.Select(s => new ContactCountDto(s.Key, counts.GetValueOrDefault(s.Key))).ToList(),
-            overdue);
+            due[1],
+            new ContactDueCountsDto(due[0], due[1], due[2], due[3], due[4], due[5], due[6]),
+            days);
     }
 
     /* =========================================================================================
@@ -78,10 +120,15 @@ public class ContactsController(AppDbContext db, AuditService audit) : Controlle
     /// Navbat ro'yxati. <paramref name="status"/> bo'sh — FAQAT ochiqlar (new + callback), chunki
     /// bo'lim ochilganda operatorga kerakli narsa shu. <paramref name="status"/>="all" — hammasi.
     /// </summary>
-    /// <param name="overdue">true — faqat muddati o'tgan qayta qo'ng'iroqlar.</param>
+    /// <param name="overdue">true — faqat muddati o'tgan qayta qo'ng'iroqlar
+    /// (ESKI parametr; <paramref name="due"/> berilsa e'tiborga olinmaydi).</param>
+    /// <param name="due">MUDDAT guruhi: todo | overdue | today | tomorrow | week | later | nodate
+    /// (<c>ContactService.Due</c>). "Bugun kimga qo'ng'iroq qilishim kerak?" savoliga shu javob beradi.</param>
+    /// <param name="dueDate">ANIQ kun ("yyyy-MM-dd") — "yaqin kunlar" chizig'idan kun tanlanganda.</param>
     [HttpGet]
     public async Task<ActionResult<IEnumerable<ContactRequestDto>>> List(
         [FromQuery] string? status, [FromQuery] string? q, [FromQuery] bool overdue = false,
+        [FromQuery] string? due = null, [FromQuery] string? dueDate = null,
         [FromQuery] int limit = 200)
     {
         var today = Today;
@@ -92,7 +139,41 @@ public class ContactsController(AppDbContext db, AuditService audit) : Controlle
         else if (status != "all" && ContactService.IsValidStatus(status))
             query = query.Where(c => c.Status == status);
 
-        if (overdue)
+        // ANIQ KUN — "yaqin kunlar" chizig'idan tanlangan sana.
+        if (!string.IsNullOrWhiteSpace(dueDate) && DateOnly.TryParse(dueDate, out _))
+            query = query.Where(c => c.Status == ContactStatuses.Callback && c.DueDate == dueDate);
+        else if (ContactService.IsKnownDue(due))
+        {
+            // Guruh chegaralarini C#da hisoblab, SQLga oddiy sana solishtiruvi bo'lib tushadi
+            // (qoidaning O'ZI `ContactService.BucketOf` da — bu yer faqat tarjima).
+            var tomorrow = AppClock.Today.AddDays(1).ToString("yyyy-MM-dd");
+            var weekEnd = AppClock.Today.AddDays(7).ToString("yyyy-MM-dd");
+            query = due switch
+            {
+                ContactService.Due.Todo => query.Where(c =>
+                    c.Status == ContactStatuses.New
+                    || (c.Status == ContactStatuses.Callback
+                        && (c.DueDate == "" || string.Compare(c.DueDate, today) <= 0))),
+                ContactService.Due.Overdue => query.Where(c =>
+                    c.Status == ContactStatuses.Callback && c.DueDate != ""
+                    && string.Compare(c.DueDate, today) < 0),
+                ContactService.Due.Today => query.Where(c =>
+                    c.Status == ContactStatuses.Callback && c.DueDate == today),
+                ContactService.Due.Tomorrow => query.Where(c =>
+                    c.Status == ContactStatuses.Callback && c.DueDate == tomorrow),
+                ContactService.Due.Week => query.Where(c =>
+                    c.Status == ContactStatuses.Callback
+                    && string.Compare(c.DueDate, tomorrow) > 0
+                    && string.Compare(c.DueDate, weekEnd) <= 0),
+                ContactService.Due.Later => query.Where(c =>
+                    c.Status == ContactStatuses.Callback && string.Compare(c.DueDate, weekEnd) > 0),
+                // Sanasiz: "Bog'lanish kerak" + (buzuq) sanasiz qayta qo'ng'iroqlar.
+                _ => query.Where(c =>
+                    c.Status == ContactStatuses.New
+                    || (c.Status == ContactStatuses.Callback && c.DueDate == "")),
+            };
+        }
+        else if (overdue)
             query = query.Where(c => c.Status == ContactStatuses.Callback
                                      && c.DueDate != "" && string.Compare(c.DueDate, today) < 0);
 

@@ -66,6 +66,36 @@ Bitta o'quvchi uchun ham (profil "⋮") AYNAN shu endpoint ishlatiladi — `Need
 yaratish mantig'i controllerda bitta `AddRequest` yordamchisida (`POST /contacts` ham,
 `/bulk` ham shuni chaqiradi).
 
+## 3.6. MUDDAT GURUHLARI — "bugun kimga qo'ng'iroq kerak?"
+
+Operatorning asosiy savoli BOSQICH emas, VAQT. Qoida `ContactService.BucketOf` da (sof
+funksiya, testlangan) — `today` PARAMETR sifatida uzatiladi, ichkarida `AppClock` o'qilmaydi.
+
+| Guruh | Nima |
+|---|---|
+| `todo` | **BUGUN QILISH KERAK** = `overdue` + `today` + `nodate` |
+| `overdue` | Qayta qo'ng'iroq sanasi bugundan OLDIN |
+| `today` / `tomorrow` | Bugun / ertaga |
+| `week` | Bugundan +2..+7 kun |
+| `later` | +7 kundan keyin |
+| `nodate` | Sana belgilanmagan (`new` holati) — hoziroq navbatda |
+
+⚠️ `todo` ga **kechikkanlar ham, sanasizlar ham** kiradi — aks holda operator "bugun 5 ta"
+deb ko'rib, kechagi 12 tasini ko'rmay qolardi.
+
+⚠️ Sanasiz `callback` bo'lmasligi kerak (server sanani talab qiladi), lekin eski/qo'lda
+tuzatilgan yozuv shunday bo'lsa **`nodate` ga tushadi** — yo'qolib ketmaydi. Buzuq sana
+(`2026-13-99`) `later` ga tushadi va navbatda ko'rinadi.
+
+**API:** `GET /contacts?due=<guruh>` yoki `?dueDate=YYYY-MM-DD` (aniq kun). `GET /contacts/meta`
+javobida `due` (kesim) va `days` (yaqin 14 kun rejasi, faqat ish BOR kunlar) qaytadi.
+SQL tarjimasi controllerda, QOIDA esa `ContactService` da — ikkisi bir xil bo'lishi shart.
+
+**UI:** navbat tepasida uchta katta raqam (Bugun qilish kerak · Muddati o'tgan · Ertaga),
+"Yaqin kunlar" chizig'i (kun → nechta, bosilsa o'sha kun filtri) va "Muddat" chiplari.
+Muddat va Holat filtrlari **BIR-BIRINI TOZALAYDI** — "Hal bo'ldi + bugun" kabi mantiqan bo'sh
+kesishmalar operatorni chalg'itardi.
+
 ## 4. BITTA OCHIQ TALAB qoidasi
 
 Bir o'quvchida bir vaqtda faqat **bitta** ochiq talab (`new`/`callback`) bo'ladi — aks holda navbat

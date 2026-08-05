@@ -1,12 +1,12 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+﻿import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  PhoneCall, RotateCcw, Search, AlertTriangle, Trash2, MessageSquarePlus, History,
+  PhoneCall, RotateCcw, Search, AlertTriangle, Trash2, MessageSquarePlus, History, CalendarDays,
 } from 'lucide-react'
 import {
   getContactMeta, getContactRequests, getContactRequest, reopenContactRequest,
   deleteContactRequest, addContactNote,
-  type ContactMeta, type ContactRequestItem,
+  type ContactMeta, type ContactRequestItem, type ContactDue,
 } from '@/api/services/contacts'
 import { ContactAttemptModal } from './ContactAttemptModal'
 import { ContactStatsPanel } from './ContactStatsPanel'
@@ -19,6 +19,28 @@ import { usePerm } from '@/lib/permissions'
 import { apiErrorMessage, cn, formatDate, formatDateTime } from '@/lib/utils'
 
 type Tab = 'navbat' | 'hisobot'
+
+/**
+ * MUDDAT guruhlari — operatorning asosiy savoli bosqich emas, VAQT: "bugun kimga qo'ng'iroq
+ * qilishim kerak?". Kalitlar backend `ContactService.Due` bilan AYNAN bir xil.
+ */
+const DUE_CHIPS: { key: ContactDue; label: string; tone?: string; hint?: string }[] = [
+  { key: 'todo', label: 'Bugun qilish kerak', tone: 'amber', hint: "Muddati o'tgan + bugungi + sanasiz" },
+  { key: 'overdue', label: "Muddati o'tgan", tone: 'rose' },
+  { key: 'today', label: 'Bugun', tone: 'sky' },
+  { key: 'tomorrow', label: 'Ertaga' },
+  { key: 'week', label: 'Shu hafta', hint: 'Ertadan keyingi 6 kun' },
+  { key: 'later', label: 'Keyinroq' },
+  { key: 'nodate', label: 'Sanasiz', hint: "Sana belgilanmagan — hoziroq navbatda" },
+]
+
+/** "2026-08-05" → "05.08, Chor" (kun chizig'i uchun qisqa yorliq). */
+const weekdays = ['Yak', 'Du', 'Se', 'Chor', 'Pay', 'Ju', 'Sha']
+function dayLabel(iso: string): string {
+  const d = new Date(`${iso}T00:00:00`)
+  if (Number.isNaN(d.getTime())) return iso
+  return `${iso.slice(8, 10)}.${iso.slice(5, 7)}, ${weekdays[d.getDay()]}`
+}
 
 /** Chip rangi — server bergan `color` kalitidan (ContactService.Statuses). */
 const chipTone: Record<string, string> = {
@@ -48,9 +70,29 @@ export function ContactQueuePage() {
   const [loading, setLoading] = useState(true)
 
   const [status, setStatus] = useState('')          // '' = ochiqlar, 'all' = hammasi
-  const [onlyOverdue, setOnlyOverdue] = useState(false)
+  /**
+   * MUDDAT filtri. Holat filtri bilan BIRGA ishlatilmaydi — biri tanlansa ikkinchisi tozalanadi:
+   * "Hal bo'ldi + bugun" kabi mantiqan bo'sh kesishmalar operatorni chalg'itardi.
+   */
+  const [due, setDue] = useState<ContactDue | ''>('')
+  /** "Yaqin kunlar" chizig'idan tanlangan ANIQ kun (muddat guruhidan ustun turadi). */
+  const [dueDate, setDueDate] = useState('')
   const [term, setTerm] = useState('')
   const [q, setQ] = useState('')
+
+  /** Muddat guruhini tanlash — holat filtri va aniq kun tozalanadi (bir vaqtda bitta o'lchov). */
+  const pickDue = (key: ContactDue | '') => {
+    setDue(key)
+    setDueDate('')
+    setStatus('')
+  }
+
+  /** Holatni tanlash — muddat filtri tozalanadi. */
+  const pickStatus = (key: string) => {
+    setStatus(key)
+    setDue('')
+    setDueDate('')
+  }
 
   const [attemptFor, setAttemptFor] = useState<ContactRequestItem | null>(null)
   const [detail, setDetail] = useState<ContactRequestItem | null>(null)
@@ -63,7 +105,12 @@ export function ContactQueuePage() {
     try {
       const [m, list] = await Promise.all([
         getContactMeta(),
-        getContactRequests({ status: status || undefined, q: q || undefined, overdue: onlyOverdue || undefined }),
+        getContactRequests({
+          status: status || undefined,
+          q: q || undefined,
+          due: due || undefined,
+          dueDate: dueDate || undefined,
+        }),
       ])
       setMeta(m)
       setItems(list)
@@ -73,7 +120,7 @@ export function ContactQueuePage() {
     } finally {
       setLoading(false)
     }
-  }, [status, q, onlyOverdue])
+  }, [status, q, due, dueDate])
 
   useEffect(() => {
     void load()
@@ -130,11 +177,41 @@ export function ContactQueuePage() {
         <ContactStatsPanel />
       ) : (
         <div className="space-y-4">
+          {/* BUGUNGI ISH — sahifa ochilganda birinchi ko'rinadigan raqam. */}
+          {meta.due && (
+            <div className="grid gap-3 sm:grid-cols-3">
+              <SummaryTile
+                label="Bugun qilish kerak"
+                value={meta.due.todo}
+                hint="Muddati o'tgan + bugungi + sanasiz"
+                tone="amber"
+                active={due === 'todo'}
+                onClick={() => pickDue(due === 'todo' ? '' : 'todo')}
+              />
+              <SummaryTile
+                label="Muddati o'tgan"
+                value={meta.due.overdue}
+                hint={meta.due.overdue > 0 ? 'Kechikkan — birinchi shular' : 'Kechikkan yo\'q'}
+                tone={meta.due.overdue > 0 ? 'rose' : undefined}
+                active={due === 'overdue'}
+                onClick={() => pickDue(due === 'overdue' ? '' : 'overdue')}
+              />
+              <SummaryTile
+                label="Ertaga"
+                value={meta.due.tomorrow}
+                hint="Ertangi qayta qo'ng'iroqlar"
+                tone="sky"
+                active={due === 'tomorrow'}
+                onClick={() => pickDue(due === 'tomorrow' ? '' : 'tomorrow')}
+              />
+            </div>
+          )}
+
           {/* Muddati o'tganlar — eng muhim ogohlantirish, tepada turadi. */}
-          {meta.overdue > 0 && !onlyOverdue && (
+          {meta.overdue > 0 && due !== 'overdue' && due !== 'todo' && (
             <button
               type="button"
-              onClick={() => { setOnlyOverdue(true); setStatus('') }}
+              onClick={() => pickDue('overdue')}
               className="flex w-full items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-left text-sm text-rose-700 transition-colors hover:bg-rose-100"
             >
               <AlertTriangle className="h-4 w-4 shrink-0" />
@@ -144,55 +221,130 @@ export function ContactQueuePage() {
             </button>
           )}
 
-          <Card title="Filtr">
-            <div className="flex flex-wrap items-center gap-2">
-              <Chip
-                label="Ochiqlar"
-                count={openCount}
-                active={status === '' && !onlyOverdue}
-                onClick={() => { setStatus(''); setOnlyOverdue(false) }}
-              />
-              {meta.statuses.map((s) => (
-                <Chip
-                  key={s.key}
-                  label={s.label}
-                  count={countOf(s.key)}
-                  tone={s.color}
-                  active={status === s.key && !onlyOverdue}
-                  onClick={() => { setStatus(s.key); setOnlyOverdue(false) }}
-                />
-              ))}
-              <Chip
-                label="Hammasi"
-                count={meta.counts.reduce((a, c) => a + c.count, 0)}
-                active={status === 'all' && !onlyOverdue}
-                onClick={() => { setStatus('all'); setOnlyOverdue(false) }}
-              />
-              <Chip
-                label="Muddati o'tgan"
-                count={meta.overdue}
-                tone="rose"
-                active={onlyOverdue}
-                onClick={() => { setOnlyOverdue(!onlyOverdue); setStatus('') }}
-              />
+          {/* YAQIN KUNLAR — "qaysi kuni qancha qo'ng'iroq" (faqat ish bor kunlar). */}
+          {(meta.days?.length ?? 0) > 0 && (
+            <Card
+              title={
+                <span className="inline-flex items-center gap-2">
+                  <CalendarDays className="h-4 w-4 text-slate-400" />
+                  Yaqin kunlar
+                </span>
+              }
+              sub="Rejalashtirilgan qayta qo'ng'iroqlar. Kunni bosib o'sha kunning ro'yxatini ko'ring."
+            >
+              <div className="flex flex-wrap gap-2">
+                {meta.days!.map((d) => (
+                  <button
+                    key={d.date}
+                    type="button"
+                    onClick={() => {
+                      // Ikkinchi bosilishda filtr olib tashlanadi.
+                      if (dueDate === d.date) { setDueDate(''); return }
+                      setDueDate(d.date)
+                      setDue('')
+                      setStatus('')
+                    }}
+                    className={cn(
+                      'flex min-w-[92px] flex-col items-start rounded-lg border px-3 py-2 transition-colors',
+                      dueDate === d.date
+                        ? 'border-brand-500 bg-brand-50'
+                        : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50',
+                    )}
+                  >
+                    <span className="text-xs text-slate-500">{dayLabel(d.date)}</span>
+                    <span className="text-lg font-bold leading-tight text-slate-800">{d.count}</span>
+                  </button>
+                ))}
+              </div>
+            </Card>
+          )}
 
-              <form
-                className="ml-auto flex gap-2"
-                onSubmit={(e) => {
-                  e.preventDefault()
-                  setQ(term.trim())
-                }}
-              >
-                <input
-                  value={term}
-                  onChange={(e) => setTerm(e.target.value)}
-                  placeholder="O'quvchi yoki sabab"
-                  className="min-w-[180px] rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 outline-none focus:border-brand-400"
-                />
-                <Button type="submit" variant="secondary">
-                  <Search className="h-4 w-4" /> Qidirish
-                </Button>
-              </form>
+          <Card title="Filtr">
+            <div className="space-y-3">
+              {/* MUDDAT bo'yicha — "qachon qo'ng'iroq qilish kerak". */}
+              {meta.due && (
+                <div>
+                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    Muddat
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {DUE_CHIPS.map((d) => (
+                      <Chip
+                        key={d.key}
+                        label={d.label}
+                        title={d.hint}
+                        count={meta.due![d.key]}
+                        tone={d.tone}
+                        active={due === d.key && !dueDate}
+                        onClick={() => pickDue(due === d.key ? '' : d.key)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* HOLAT bo'yicha — bosqich kesimi. */}
+              <div>
+                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  Holat
+                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Chip
+                    label="Ochiqlar"
+                    count={openCount}
+                    active={status === '' && !due && !dueDate}
+                    onClick={() => pickStatus('')}
+                  />
+                  {meta.statuses.map((s) => (
+                    <Chip
+                      key={s.key}
+                      label={s.label}
+                      count={countOf(s.key)}
+                      tone={s.color}
+                      active={status === s.key}
+                      onClick={() => pickStatus(s.key)}
+                    />
+                  ))}
+                  <Chip
+                    label="Hammasi"
+                    count={meta.counts.reduce((a, c) => a + c.count, 0)}
+                    active={status === 'all'}
+                    onClick={() => pickStatus('all')}
+                  />
+
+                  <form
+                    className="ml-auto flex gap-2"
+                    onSubmit={(e) => {
+                      e.preventDefault()
+                      setQ(term.trim())
+                    }}
+                  >
+                    <input
+                      value={term}
+                      onChange={(e) => setTerm(e.target.value)}
+                      placeholder="O'quvchi yoki sabab"
+                      className="min-w-[180px] rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 outline-none focus:border-brand-400"
+                    />
+                    <Button type="submit" variant="secondary">
+                      <Search className="h-4 w-4" /> Qidirish
+                    </Button>
+                  </form>
+                </div>
+              </div>
+
+              {dueDate && (
+                <p className="text-sm text-slate-500">
+                  <strong className="text-slate-700">{dayLabel(dueDate)}</strong> kuni rejalashtirilganlar
+                  {' · '}
+                  <button
+                    type="button"
+                    onClick={() => setDueDate('')}
+                    className="font-medium text-brand-600 hover:underline"
+                  >
+                    filtrni olib tashlash
+                  </button>
+                </p>
+              )}
             </div>
           </Card>
 
@@ -428,6 +580,46 @@ function eventTitle(type: string): string {
   }
 }
 
+/** Tepadagi katta raqam — bosilsa navbat o'sha guruh bo'yicha filtrlanadi. */
+function SummaryTile({
+  label, value, hint, tone, active, onClick,
+}: {
+  label: string
+  value: number
+  hint?: string
+  tone?: 'amber' | 'rose' | 'sky'
+  active: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'rounded-xl border px-4 py-3 text-left transition-colors',
+        active
+          ? 'border-brand-500 bg-brand-50'
+          : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50',
+      )}
+    >
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{label}</p>
+      <p
+        className={cn(
+          'mt-1 text-3xl font-bold leading-none',
+          value === 0 ? 'text-slate-300'
+          : tone === 'rose' ? 'text-rose-600'
+          : tone === 'amber' ? 'text-amber-600'
+          : tone === 'sky' ? 'text-sky-600'
+          : 'text-slate-800',
+        )}
+      >
+        {value}
+      </p>
+      {hint && <p className="mt-1 text-xs text-slate-400">{hint}</p>}
+    </button>
+  )
+}
+
 function StatusBadge({ label, status, overdue }: { label: string; status: string; overdue: boolean }) {
   const tone =
     overdue ? 'bg-rose-100 text-rose-700'
@@ -443,17 +635,20 @@ function StatusBadge({ label, status, overdue }: { label: string; status: string
 }
 
 function Chip({
-  label, count, active, onClick, tone,
+  label, count, active, onClick, tone, title,
 }: {
   label: string
   count: number
   active: boolean
   onClick: () => void
   tone?: string
+  /** Tushuntirish (hover) — masalan "muddati o'tgan + bugungi + sanasiz". */
+  title?: string
 }) {
   return (
     <button
       type="button"
+      title={title}
       onClick={onClick}
       className={cn(
         'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors',

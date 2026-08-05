@@ -85,6 +85,69 @@ public static class ContactService
         && string.CompareOrdinal(dueDate, today) < 0;
 
     /* =========================================================================================
+     *  MUDDAT GURUHLARI — "bugun nechta odamga bog'lanish kerak?"
+     * ====================================================================================== */
+
+    /// <summary>
+    /// Navbatning MUDDAT bo'yicha guruhlari. Operator savoli bosqich emas, VAQT:
+    /// "bugun kimga qo'ng'iroq qilishim kerak?".
+    /// </summary>
+    public static class Due
+    {
+        /// <summary>BUGUN qilinishi kerak: muddati o'tgan + bugungi + sanasiz (jamlanma).</summary>
+        public const string Todo = "todo";
+        public const string Overdue = "overdue";
+        public const string Today = "today";
+        public const string Tomorrow = "tomorrow";
+        /// <summary>Ertadan keyingi 6 kun (ya'ni bugundan +2..+7).</summary>
+        public const string Week = "week";
+        public const string Later = "later";
+        /// <summary>Sana belgilanmagan — "Bog'lanish kerak" holatidagi talablar.</summary>
+        public const string NoDate = "nodate";
+    }
+
+    /// <summary>
+    /// Ochiq talab qaysi MUDDAT guruhiga tushadi. Yakuniy (done/failed) talab uchun bo'sh satr —
+    /// u navbatda umuman yo'q.
+    /// </summary>
+    /// <param name="today">Bugungi kun ("yyyy-MM-dd") — sof funksiya bo'lishi uchun UZATILADI
+    /// (<see cref="AppClock"/> ichkarida o'qilmaydi).</param>
+    public static string BucketOf(string? status, string? dueDate, string today)
+    {
+        // "Bog'lanish kerak" — sana yo'q, ya'ni "hoziroq navbatda turibdi".
+        if (status == ContactStatuses.New) return Due.NoDate;
+        if (status != ContactStatuses.Callback) return "";
+
+        var due = (dueDate ?? "").Trim();
+        // Sanasiz "qayta qo'ng'iroq" bo'lmasligi kerak (server sanani talab qiladi), lekin eski
+        // yoki qo'lda tuzatilgan yozuv shunday bo'lsa u YO'QOLIB ketmasin — sanasizlarga qo'shamiz.
+        if (due.Length == 0) return Due.NoDate;
+
+        var cmp = string.CompareOrdinal(due, today);
+        if (cmp < 0) return Due.Overdue;
+        if (cmp == 0) return Due.Today;
+
+        if (!DateOnly.TryParse(today, out var t) || !DateOnly.TryParse(due, out var d))
+            return Due.Later;
+        var days = d.DayNumber - t.DayNumber;
+        return days == 1 ? Due.Tomorrow : days <= 7 ? Due.Week : Due.Later;
+    }
+
+    /// <summary>
+    /// Shu guruh "BUGUN QILISH KERAK" ga kiradimi.
+    ///
+    /// <para>Muddati o'tganlar ham kiradi (kechikkani ish yo'qolgani degani emas) va sanasizlar
+    /// ham (ular ochilgan kunidan beri kutmoqda). Aks holda operator "bugun 5 ta" deb ko'rib,
+    /// kechagi 12 tasini ko'rmay qolardi.</para>
+    /// </summary>
+    public static bool IsTodo(string? bucket) =>
+        bucket is Due.Overdue or Due.Today or Due.NoDate;
+
+    /// <summary>Guruh kaliti haqiqiymi (noma'lum kalit filtrga qo'yilmaydi).</summary>
+    public static bool IsKnownDue(string? key) =>
+        key is Due.Todo or Due.Overdue or Due.Today or Due.Tomorrow or Due.Week or Due.Later or Due.NoDate;
+
+    /* =========================================================================================
      *  JAVOBLAR TAHLILI ("javobi nima dedi" matnlari)
      * ====================================================================================== */
 

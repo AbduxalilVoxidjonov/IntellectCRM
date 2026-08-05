@@ -159,7 +159,7 @@ export function ContactStatsPanel() {
                       <th className="num">Bog'lanildi</th>
                       <th className="num">Hal bo'ldi</th>
                       <th className="num">Qayta qo'ng'iroq</th>
-                      <th className="num">Bo'lmadi</th>
+                      <th className="num">Hal bo'lmadi</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -195,7 +195,7 @@ export function ContactStatsPanel() {
                       <th className="num">Bog'lanildi</th>
                       <th className="num">Hal bo'ldi</th>
                       <th className="num">Qayta qo'ng'iroq</th>
-                      <th className="num">Bo'lmadi</th>
+                      <th className="num">Hal bo'lmadi</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -226,7 +226,7 @@ export function ContactStatsPanel() {
                       <th>Sabab</th>
                       <th className="num">Ochilgan</th>
                       <th className="num">Hal</th>
-                      <th className="num">Bo'lmadi</th>
+                      <th className="num">Hal bo'lmadi</th>
                       <th className="num">Ochiq</th>
                     </tr>
                   </thead>

@@ -54,11 +54,32 @@ export interface ContactRequestItem {
   history?: ContactAttempt[]
 }
 
+/** Navbatning MUDDAT guruhlari — "bugun kimga qo'ng'iroq qilish kerak?". */
+export type ContactDue =
+  | 'todo' | 'overdue' | 'today' | 'tomorrow' | 'week' | 'later' | 'nodate'
+
+export interface ContactDueCounts {
+  /** BUGUN qilinishi kerak = overdue + today + nodate. Operatorning asosiy raqami. */
+  todo: number
+  overdue: number
+  today: number
+  tomorrow: number
+  /** Ertadan keyingi 6 kun (bugundan +2..+7). */
+  week: number
+  later: number
+  /** Sana belgilanmagan ("Bog'lanish kerak" holatidagilar). */
+  nodate: number
+}
+
 export interface ContactMeta {
   statuses: { key: string; label: string; isOpen: boolean; color: string }[]
   results: { key: string; label: string; reached: boolean }[]
   counts: { key: string; count: number }[]
   overdue: number
+  /** Muddat kesimi (eski server javob bermasa — undefined). */
+  due?: ContactDueCounts
+  /** Yaqin 14 kun rejasi: qaysi kuni nechta qayta qo'ng'iroq (faqat ish BOR kunlar). */
+  days?: { date: string; count: number }[]
 }
 
 export interface ContactDailyRow {
@@ -112,6 +133,10 @@ export async function getContactRequests(params: {
   status?: string
   q?: string
   overdue?: boolean
+  /** MUDDAT guruhi — "bugun qilinadiganlar", "ertaga" va h.k. */
+  due?: ContactDue
+  /** ANIQ kun ("yyyy-MM-dd") — "yaqin kunlar" chizig'idan tanlanganda. */
+  dueDate?: string
 } = {}): Promise<ContactRequestItem[]> {
   if (USE_MOCK) {
     await delay()

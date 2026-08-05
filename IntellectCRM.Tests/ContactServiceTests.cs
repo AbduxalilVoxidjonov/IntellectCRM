@@ -90,6 +90,63 @@ public class ContactServiceTests
         string status, string due, string today, bool expected)
         => Assert.Equal(expected, ContactService.IsOverdue(status, due, today));
 
+    // ==================== Muddat guruhlari ("bugun kimga qo'ng'iroq kerak?") ====================
+
+    private const string T = "2026-08-05";   // "bugun"
+
+    [Theory]
+    // Sanasiz "Bog'lanish kerak" — hoziroq navbatda turibdi.
+    [InlineData(ContactStatuses.New, "", ContactService.Due.NoDate)]
+    [InlineData(ContactStatuses.New, "2026-09-01", ContactService.Due.NoDate)]   // sana e'tiborsiz
+    [InlineData(ContactStatuses.Callback, "2026-08-04", ContactService.Due.Overdue)]
+    [InlineData(ContactStatuses.Callback, "2026-01-01", ContactService.Due.Overdue)]
+    [InlineData(ContactStatuses.Callback, "2026-08-05", ContactService.Due.Today)]
+    [InlineData(ContactStatuses.Callback, "2026-08-06", ContactService.Due.Tomorrow)]
+    [InlineData(ContactStatuses.Callback, "2026-08-07", ContactService.Due.Week)]
+    [InlineData(ContactStatuses.Callback, "2026-08-12", ContactService.Due.Week)]    // +7 — hali hafta
+    [InlineData(ContactStatuses.Callback, "2026-08-13", ContactService.Due.Later)]   // +8 — keyinroq
+    // Sanasiz "qayta qo'ng'iroq" bo'lmasligi kerak, lekin bo'lsa YO'QOLMASIN.
+    [InlineData(ContactStatuses.Callback, "", ContactService.Due.NoDate)]
+    public void Muddat_guruhi_togri_aniqlanadi(string status, string due, string expected)
+        => Assert.Equal(expected, ContactService.BucketOf(status, due, T));
+
+    [Theory]
+    // Yakunlangan talab navbatda umuman yo'q.
+    [InlineData(ContactStatuses.Done)]
+    [InlineData(ContactStatuses.Failed)]
+    public void Yakunlangan_talab_hech_qaysi_muddat_guruhiga_tushmaydi(string status)
+        => Assert.Equal("", ContactService.BucketOf(status, "2026-08-05", T));
+
+    [Fact]
+    public void BUGUN_QILISH_KERAK_kechikkanlarni_va_sanasizlarni_ham_qamraydi()
+    {
+        // Aks holda operator "bugun 5 ta" deb ko'rib, kechagi 12 tasini ko'rmay qolardi.
+        Assert.True(ContactService.IsTodo(ContactService.Due.Overdue));
+        Assert.True(ContactService.IsTodo(ContactService.Due.Today));
+        Assert.True(ContactService.IsTodo(ContactService.Due.NoDate));
+        Assert.False(ContactService.IsTodo(ContactService.Due.Tomorrow));
+        Assert.False(ContactService.IsTodo(ContactService.Due.Week));
+        Assert.False(ContactService.IsTodo(ContactService.Due.Later));
+        Assert.False(ContactService.IsTodo(""));      // yakunlangan
+    }
+
+    [Fact]
+    public void Buzuq_sana_KEYINROQ_ga_tushadi_va_xato_bermaydi()
+    {
+        // Yo'qolib ketmaydi: navbatda "keyinroq" bo'lib ko'rinadi va admin tuzatishi mumkin.
+        Assert.Equal(ContactService.Due.Later,
+            ContactService.BucketOf(ContactStatuses.Callback, "2026-13-99", T));
+    }
+
+    [Fact]
+    public void IsKnownDue_faqat_royxatdagini_tan_oladi()
+    {
+        Assert.True(ContactService.IsKnownDue(ContactService.Due.Todo));
+        Assert.True(ContactService.IsKnownDue(ContactService.Due.NoDate));
+        Assert.False(ContactService.IsKnownDue("bugun"));
+        Assert.False(ContactService.IsKnownDue(null));
+    }
+
     // ==================== Javoblar tahlili (TopWords) ====================
 
     [Fact]
