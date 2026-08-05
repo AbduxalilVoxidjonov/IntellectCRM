@@ -8,7 +8,7 @@ namespace IntellectCRM.Application.Services;
 
 /// <summary>
 /// Google Gemini (Generative Language API) — matnli tahlil (generateContent).
-/// O'quvchi profilini (baholar, davomat, intizom, topshiriqlar, to'lov...) tahlil qilib,
+/// O'quvchi profilini (baholar, davomat, oylik baholash, to'lov...) tahlil qilib,
 /// o'zbek tilida xulosa/tavsiya qaytaradi ("AI Tahlil" tugmasi).
 /// SDK'siz, REST orqali (Docker'da yengil). API kaliti .env dan (GEMINI_API_KEY —
 /// <see cref="AppSecrets.GeminiApiKey"/>; bazada saqlanmaydi), model esa GEMINI_MODEL

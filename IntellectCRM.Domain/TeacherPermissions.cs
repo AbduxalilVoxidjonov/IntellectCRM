@@ -7,11 +7,10 @@ namespace IntellectCRM.Domain;
 public static class TeacherPermissions
 {
     public const string Journal = "journal";
-    public const string Assignments = "assignments";
     public const string Schedule = "schedule";
     public const string Messages = "messages";
     public const string Salary = "salary";
 
     /// <summary>Barcha mavjud bo'lim kalitlari (yangi o'qituvchi uchun standart — hammasi ochiq).</summary>
-    public static readonly string[] All = { Journal, Assignments, Schedule, Messages, Salary };
+    public static readonly string[] All = { Journal, Schedule, Messages, Salary };
 }

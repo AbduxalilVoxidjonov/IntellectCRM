@@ -267,8 +267,6 @@ export interface TeacherAiMetrics {
   avgBall: number
   testCount: number
   testAvgPct: number
-  assignmentCount: number
-  assignmentDonePct: number
   teacherPresentDays: number
   teacherLateDays: number
   teacherAbsentDays: number
@@ -1808,40 +1806,6 @@ export interface EvaluationBoard {
   groupId?: string
 }
 
-/* ---------- Intizomiy ball ---------- */
-
-/** Intizomiy ball sababi (nomi + ball, musbat=rag'bat / manfiy=jazo) */
-export interface DisciplineReason {
-  id: string
-  name: string
-  points: number
-  /** "other" — mustaqil intizomiy sabab; "attendance" — davomat sababi (jurnalda ishlatiladi) */
-  kind: 'other' | 'attendance'
-}
-
-/** Ballar nazorati qatori: o'quvchi, guruh, plus, minus, qoldi (100 + plus − minus) */
-export interface DisciplineScoreRow {
-  studentId: string
-  fullName: string
-  className: string
-  plus: number
-  minus: number
-  remaining: number
-}
-
-/** Bitta intizomiy ball yozuvi (tarix) */
-export interface DisciplinePoint {
-  id: string
-  studentId: string
-  reasonName: string
-  points: number
-  note: string
-  createdAt: string
-  createdBy: string
-  /** "manual" — qo'lda (o'chirsa bo'ladi), "attendance" — jurnal davomati (faqat ko'rish) */
-  source: 'manual' | 'attendance'
-}
-
 /** Telegram bot holati (admin UI uchun) */
 export interface TelegramStatus {
   configured: boolean
@@ -1875,126 +1839,6 @@ export interface PushMessage {
   confirmedCount: number
   /** Jami oluvchi (bildirishnoma yozilganlar) */
   targetCount: number
-}
-
-/* ---------- Topshiriqlar (qo'shimcha) ---------- */
-
-/** Topshiriq formati */
-export type AssignmentFormat = 'written' | 'file' | 'test' | 'video' | 'speaking'
-
-/** Topshiriqqa biriktirilgan material (yuklangan fayl yoki havola) */
-export interface AssignmentMaterial {
-  id: string
-  name: string
-  url: string
-  size: number
-  contentType: string
-  /** Ixtiyoriy hamrohlik audio (masalan shu materialni ovoz chiqarib o'qigan yozuv) */
-  audioUrl?: string | null
-}
-
-/** Test savoli (format=test) */
-export interface TestQuestion {
-  id: string
-  text: string
-  options: string[]
-  correctIndex: number
-  order: number
-}
-
-/** Topshiriq natijasi — bitta o'quvchining holati (bajardi/bajarmadi + ball + yuborgan javobi) */
-export interface SubmissionRow {
-  studentId: string
-  studentName: string
-  className: string
-  completed: boolean
-  submittedAt: string | null
-  /** Qo'yilgan/avto-hisoblangan ball (yo'q bo'lsa null) */
-  score: number | null
-  /** Yozma javob matni (format=written) */
-  answerText: string | null
-  /** Yuklangan fayl manzili (format=file/video) */
-  fileUrl: string | null
-}
-
-/** Topshiriq bo'yicha natijalar (kim bajardi/bajarmadi) */
-export interface AssignmentResult {
-  assignmentId: string
-  title: string
-  /** Topshiriq formati — ballni ko'rsatish va javob turini bilish uchun */
-  format: AssignmentFormat
-  /** Maksimal ball */
-  maxScore: number
-  total: number
-  completedCount: number
-  rows: SubmissionRow[]
-}
-
-/** Topshiriqlar bali (admin) — ustun: bitta topshiriq */
-export interface AssignmentScoreColumn {
-  assignmentId: string
-  title: string
-  subjectName: string
-  format: AssignmentFormat
-  maxScore: number
-  dueDate: string | null
-}
-/** Bitta katak — o'quvchining shu topshiriqdagi holati/bali */
-export interface AssignmentScoreCell {
-  assignmentId: string
-  completed: boolean
-  score: number | null
-}
-/** Bitta qator — o'quvchi va barcha topshiriqlardagi ballari */
-export interface AssignmentScoreRow {
-  studentId: string
-  fullName: string
-  className: string
-  cells: AssignmentScoreCell[]
-  totalScore: number
-  totalMax: number
-  gradedCount: number
-}
-/** Guruh bo'yicha topshiriqlar ball jadvali */
-export interface AssignmentScoreboard {
-  classId: string
-  className: string
-  assignments: AssignmentScoreColumn[]
-  students: AssignmentScoreRow[]
-}
-
-/** Topshiriq/test (boy model) */
-export interface Assignment {
-  id: string
-  createdByUserId: string
-  subjectId: string
-  subjectName: string
-  title: string
-  description: string
-  format: AssignmentFormat
-  /** Beriladigan guruhlar (id'lar) */
-  classIds: string[]
-  /** Guruh nomlari (ko'rsatish uchun) */
-  classNames: string[]
-  /** Boshlash vaqti (ISO) yoki null */
-  startDate: string | null
-  /** Tugash/muddat vaqti (ISO) yoki null */
-  dueDate: string | null
-  lateAccept: boolean
-  latePenaltyPct: number
-  maxScore: number
-  autoGrade: boolean
-  createdAt: string
-  materials: AssignmentMaterial[]
-  questions: TestQuestion[]
-  /** Speaking (format=speaking) uchun o'qiladigan matn */
-  referenceText?: string
-}
-
-/** Topshiriq turi (Sozlamalarda boshqariladi) */
-export interface AssignmentType {
-  id: string
-  name: string
 }
 
 /** Ota-onalar bo'limidagi farzand (qisqacha) */

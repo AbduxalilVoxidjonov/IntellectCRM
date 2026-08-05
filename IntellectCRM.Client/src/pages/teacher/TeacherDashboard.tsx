@@ -134,7 +134,7 @@ export function TeacherDashboard() {
         </div>
       </div>
 
-      {/* ── Testlar yorlig'i (avval Topshiriqlarga olib borardi — u endi profil menyusida) ── */}
+      {/* ── Testlar yorlig'i ── */}
       <Link
         to="/teacher/tests"
         className="tap-scale mb-5 flex items-center gap-3.5 rounded-[20px] p-[18px] text-white shadow-[var(--shadow-glow)]"

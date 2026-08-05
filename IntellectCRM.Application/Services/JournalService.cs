@@ -466,7 +466,7 @@ public static class JournalService
                 var def = await db.AbsenceReasons.FirstOrDefaultAsync(r => !r.IsLate);
                 if (def is null)
                 {
-                    def = new AbsenceReason { Name = "Sababsiz", Short = "S", IsLate = false, Points = 0 };
+                    def = new AbsenceReason { Name = "Sababsiz", Short = "S", IsLate = false };
                     db.AbsenceReasons.Add(def);
                 }
                 absentReasonId = def.Id;

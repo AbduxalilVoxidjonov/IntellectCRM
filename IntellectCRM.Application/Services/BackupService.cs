@@ -57,12 +57,10 @@ public static class BackupService
         await Add("leadStages", db.LeadStages);
         await Add("leadEvents", db.LeadEvents);
         await Add("trialLessons", db.TrialLessons);
-        // ---- Jurnal / baholash / intizom ----
+        // ---- Jurnal / baholash ----
         await Add("journalEntries", db.JournalEntries);
         await Add("lessonNotes", db.LessonNotes);
         await Add("absenceReasons", db.AbsenceReasons);
-        await Add("disciplineReasons", db.DisciplineReasons);
-        await Add("disciplinePoints", db.DisciplinePoints);
         await Add("evaluationTypes", db.EvaluationTypes);
         await Add("evaluationGrades", db.EvaluationGrades);
         await Add("gradingCriteria", db.GradingCriteria);
@@ -80,12 +78,6 @@ public static class BackupService
         await Add("userNotifications", db.UserNotifications);
         await Add("deviceTokens", db.DeviceTokens);
         await Add("feedbacks", db.Feedbacks);
-        // ---- Topshiriqlar ----
-        await Add("assignments", db.Assignments);
-        await Add("assignmentTypes", db.AssignmentTypes);
-        await Add("assignmentMaterials", db.AssignmentMaterials);
-        await Add("testQuestions", db.TestQuestions);
-        await Add("assignmentSubmissions", db.AssignmentSubmissions);
         // ---- O'quv dasturi (curriculum) ----
         await Add("curricula", db.Curricula);
         await Add("subjectCurricula", db.SubjectCurricula);

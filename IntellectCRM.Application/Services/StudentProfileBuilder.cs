@@ -8,8 +8,7 @@ namespace IntellectCRM.Application.Services;
 /// <summary>
 /// O'quvchi shaxsiy daftari — bitta o'quvchi haqida BARCHA ma'lumotni jamlaydi:
 /// profil, o'zlashtirish (<see cref="StudentReportBuilder"/>), qatnashish (<see cref="Analytics"/>
-/// mantig'i), davomat sabablari, intizomiy ball, topshiriqlar (<see cref="AssignmentService"/>),
-/// oylik baholash va jurnaldagi uy vazifa/xulq belgilari.
+/// mantig'i), davomat sabablari, oylik baholash va jurnaldagi uy vazifa/xulq belgilari.
 /// </summary>
 public static class StudentProfileBuilder
 {
@@ -36,9 +35,6 @@ public static class StudentProfileBuilder
             if (b.End is not null && string.CompareOrdinal(date, b.End) > 0) return false;
             return true;
         }
-        // Topshiriqlar bitta guruhga tegishli — asosiy (ClassName) guruh, bo'lmasa birinchi guruh.
-        var classId = cls?.Id ?? classIds.FirstOrDefault();
-
         var report = await StudentReportBuilder.BuildAsync(db, st);
         // Bu builder faqat-o'qish (hisobot generatori) — barcha ro'yxatlar AsNoTracking.
         // (Lug'atlar — AbsenceReasons/Subjects — har chaqiruvda yuklanadi; ReferenceCache'ni ulash
@@ -73,28 +69,6 @@ public static class StudentProfileBuilder
                 return new AttendanceReasonCountDto(r.Id, r.Name, r.Short, r.IsLate, g.Count());
             })
             .OrderByDescending(x => x.Count).ToList();
-
-        // ---- Intizomiy ball (100 + plus − minus) ----
-        var manual = await db.DisciplinePoints.AsNoTracking().Where(p => p.StudentId == st.Id).ToListAsync();
-        int plus = 0, minus = 0;
-        void Apply(int pts) { if (pts > 0) plus += pts; else if (pts < 0) minus += -pts; }
-        foreach (var m in manual) Apply(m.Points);
-        foreach (var e in entries)
-            if (e.ReasonId != null && reasonMap.TryGetValue(e.ReasonId, out var r) && r.Points != 0) Apply(r.Points);
-        var disciplineScore = 100 + plus - minus;
-
-        var dPoints = manual.Select(p => new DisciplinePointDto(
-            p.Id, p.StudentId, string.IsNullOrEmpty(p.ReasonName) ? "—" : p.ReasonName,
-            p.Points, p.Note, p.CreatedAt, p.CreatedBy, "manual")).ToList();
-        foreach (var e in entries)
-            if (e.ReasonId != null && reasonMap.TryGetValue(e.ReasonId, out var r) && r.Points != 0)
-                dPoints.Add(new DisciplinePointDto(e.Id, st.Id, r.Name, r.Points, "Jurnal davomati", e.Date, "", "attendance"));
-        dPoints = dPoints.OrderByDescending(p => p.CreatedAt, StringComparer.Ordinal).ToList();
-
-        // ---- Topshiriqlar ballari ----
-        var assignments = classId is null
-            ? new StudentAssignmentScoresDto(0, 0, 0, 0, [])
-            : await AssignmentService.ScoresForStudentAsync(db, classId, st.Id);
 
         // ---- Oylik baholash (fan kesimida + umumiy fanlar o'rtachasi) ----
         var evalTypes = await db.EvaluationTypes.AsNoTracking().OrderBy(t => t.CreatedAt)
@@ -191,8 +165,6 @@ public static class StudentProfileBuilder
             st.ParentPassportUrl,
             report.Subjects, gradesByMonth, avgGrade,
             monthlyAttendance, conducted, attended, pct, reasonCounts,
-            disciplineScore, plus, minus, dPoints,
-            assignments,
             evalTypes, evals, evalsBySubject,
             hwDone, hwMissed, bGood, bBad, trend);
     }

@@ -861,16 +861,6 @@ public record StudentLoginBlockRequest(bool Blocked);
 /// <summary>Admin bir nechta o'quvchi login'ini birdaniga cheklaydi/qayta ochadi.</summary>
 public record StudentLoginBlockBulkRequest(List<string> StudentIds, bool Blocked);
 
-/* ---------- Intizomiy ball ---------- */
-/// <summary>
-/// Intizomiy ball sababi (nomi + ball). <c>Kind</c>: "other" — mustaqil intizomiy sabab;
-/// "attendance" — davomat sababi (jurnalda ishlatiladi, manbai bitta).
-/// </summary>
-public record DisciplineReasonDto(string Id, string Name, int Points, string Kind);
-public record SaveDisciplineReasonRequest(string Name, int Points);
-/// <summary>Davomat sababiga ball belgilash so'rovi.</summary>
-public record SetReasonPointsRequest(int Points);
-
 /// <summary>O'quvchilarni baholash turi (admin xohlagancha qo'shadi).</summary>
 public record EvaluationTypeDto(string Id, string Name, string Description);
 public record SaveEvaluationTypeRequest(string Name, string? Description);
@@ -919,17 +909,6 @@ public record SetEvaluationGradeRequest(
 
 /// <summary>O'quvchining bitta fan bo'yicha oylik baholashlari (shaxsiy daftarda "fan kesimida").</summary>
 public record SubjectEvaluationDto(string SubjectId, string SubjectName, double Avg, List<MonthlyEvaluationDto> Evaluations);
-/// <summary>Ballar nazorati qatori: o'quvchi, guruh, plus (rag'bat), minus (jazo), qoldi (100+plus−minus).</summary>
-public record DisciplineScoreRowDto(
-    string StudentId, string FullName, string ClassName, int Plus, int Minus, int Remaining);
-/// <summary>O'quvchiga ball kiritish so'rovi (sabab bo'yicha).</summary>
-public record AddDisciplinePointRequest(string StudentId, string ReasonId, string? Note);
-/// <summary>Bitta intizomiy ball yozuvi (tarix). <c>Source</c>: "manual" (qo'lda, o'chirsa bo'ladi) yoki "attendance" (jurnal davomati, faqat ko'rish).</summary>
-public record DisciplinePointDto(
-    string Id, string StudentId, string ReasonName, int Points, string Note, string CreatedAt,
-    string CreatedBy, string Source);
-/// <summary>O'quvchi/ota-ona ilovasi uchun intizomiy ball: qoldi + plus/minus + tarix (100 dan boshlanadi).</summary>
-public record StudentDisciplineDto(int Remaining, int Plus, int Minus, List<DisciplinePointDto> Items);
 /// <summary>O'quvchini arxivdan qaytarish — ixtiyoriy yangi parol (arxivlanganda parol bloklangan edi).</summary>
 public record RestoreStudentRequest(string? NewPassword);
 
@@ -1054,7 +1033,7 @@ public record MonthlyAttendanceDto(
 
 /// <summary>
 /// O'quvchi shaxsiy daftari — bitta o'quvchi haqida BARCHA ma'lumot (profil, o'zlashtirish,
-/// davomat, intizom, topshiriqlar, oylik baholash, uy vazifa va xulq).
+/// davomat, oylik baholash, uy vazifa va xulq).
 /// </summary>
 public record StudentNotebookDto(
     // Profil
@@ -1069,10 +1048,6 @@ public record StudentNotebookDto(
     // Davomat — oyma-oy
     MonthlyAttendanceDto Attendance, int Conducted, int Attended, int AttendancePct,
     List<AttendanceReasonCountDto> Reasons,
-    // Intizom
-    int DisciplineScore, int DisciplinePlus, int DisciplineMinus, List<DisciplinePointDto> DisciplinePoints,
-    // Topshiriqlar
-    StudentAssignmentScoresDto Assignments,
     // Oylik baholash — umumiy (fanlar o'rtachasi) + fan kesimida
     List<EvaluationTypeDto> EvaluationTypes, List<MonthlyEvaluationDto> Evaluations,
     List<SubjectEvaluationDto> EvaluationsBySubject,
@@ -1420,7 +1395,7 @@ public record StudentAttendanceFullDto(
 public record StudentDashboardDto(
     StudentProfileDto Profile, PortalMetaDto Meta,
     List<StudentLessonDto> TodayLessons, List<HomeworkItemDto> TodayGrades,
-    int PendingAssignmentsCount, decimal Balance, decimal MonthlyFee);
+    decimal Balance, decimal MonthlyFee);
 
 /// <summary>
 /// O'quvchining guruhi (ilova uchun) — FAOL ham, tugagan/chiqilgan ham qaytadi, hech biri
@@ -1455,32 +1430,6 @@ public record PortalMetaDto(
     List<LessonTimeDto> LessonTimes,
     List<AbsenceReasonDto> AbsenceReasons, List<QuarterPeriodDto> Quarters,
     int CurrentQuarter = 1, int CurrentWeek = 1);
-
-/* ---------- O'quvchi: topshiriqlar/testlar (xavfsiz — to'g'ri javob OSHKOR QILINMAYDI) ---------- */
-
-/// <summary>Test savoli o'quvchi uchun — to'g'ri javob indeksi BERILMAYDI.</summary>
-public record StudentTestQuestionDto(string Id, string Text, List<string> Options);
-/// <summary>O'quvchi topshiriqlar ro'yxatidagi element (o'z holati bilan).</summary>
-public record StudentAssignmentDto(
-    string Id, string SubjectName, string Title, string Description, string Format,
-    string? StartDate, string? DueDate, bool LateAccept, int LatePenaltyPct, int MaxScore,
-    int QuestionCount, List<AssignmentMaterialDto> Materials,
-    bool Completed, string? SubmittedAt, int? Score, string ReferenceText = "");
-/// <summary>O'quvchi topshiriq tafsiloti (test bo'lsa — javobsiz savollar bilan).</summary>
-public record StudentAssignmentDetailDto(
-    string Id, string SubjectName, string Title, string Description, string Format,
-    string? StartDate, string? DueDate, bool LateAccept, int LatePenaltyPct, int MaxScore,
-    List<AssignmentMaterialDto> Materials, List<StudentTestQuestionDto> Questions,
-    bool Completed, string? SubmittedAt, int? Score, string? AnswerText, string? FileUrl,
-    string ReferenceText = "");
-/// <summary>Test javobi: savol id + tanlangan variant indeksi.</summary>
-public record TestAnswerInput(string QuestionId, int SelectedIndex);
-/// <summary>Topshiriqni topshirish: test uchun Answers; yozma uchun AnswerText; fayl/video uchun FileUrl.</summary>
-public record SubmitAssignmentRequest(
-    List<TestAnswerInput>? Answers, string? AnswerText, string? FileUrl);
-/// <summary>Topshirish natijasi: test bo'lsa ball + to'g'ri/jami.</summary>
-public record SubmitResultDto(bool Completed, int? Score, int? CorrectCount, int? Total);
-
 
 /* ---------- Messaging (chat + e'lon + telegram) ---------- */
 
@@ -1585,28 +1534,8 @@ public record SmsTeacherRecipientDto(string TeacherId, string FullName, string? 
 /// <summary>Birlashgan tayyor matn. Source: "sms" (Eskiz andozasi) | "auto" (avto-xabar qoidasi shabloni).</summary>
 public record UnifiedTemplateDto(string Source, string Name, string Text);
 
-/* ---------- Assignments (qo'shimcha topshiriqlar) ---------- */
+/* ---------- Fayl yuklash ---------- */
 
-/// <summary>Topshiriqqa biriktirilgan material (yuklangan fayl yoki havola). AudioUrl — ixtiyoriy
-/// hamrohlik audio (masalan shu materialni ovoz chiqarib o'qigan yozuv).</summary>
-public record AssignmentMaterialDto(string Id, string Name, string Url, long Size, string ContentType, string? AudioUrl = null);
-/// <summary>Test savoli (format=test).</summary>
-public record TestQuestionDto(string Id, string Text, List<string> Options, int CorrectIndex, int Order);
-/// <summary>Topshiriq/test (to'liq). Format: written|file|test|video. CreatedAt/Start/Due — ISO.</summary>
-public record AssignmentDto(
-    string Id, string CreatedByUserId, string SubjectId, string SubjectName, string Title,
-    string Description, string Format, List<string> ClassIds, List<string> ClassNames,
-    string? StartDate, string? DueDate, bool LateAccept, int LatePenaltyPct, int MaxScore,
-    bool AutoGrade, string CreatedAt,
-    List<AssignmentMaterialDto> Materials, List<TestQuestionDto> Questions, string ReferenceText = "");
-public record MaterialInput(string Name, string Url, long Size, string ContentType, string? AudioUrl = null);
-public record QuestionInput(string Text, List<string> Options, int CorrectIndex);
-/// <summary>Topshiriq yaratish/tahrirlash so'rovi (ham create, ham update).</summary>
-public record SaveAssignmentRequest(
-    string SubjectId, string Title, string? Description, string Format, List<string> ClassIds,
-    string? StartDate, string? DueDate, bool LateAccept, int LatePenaltyPct, int MaxScore,
-    bool AutoGrade, List<MaterialInput>? Materials, List<QuestionInput>? Questions,
-    string? ReferenceText = null);
 /// <summary>Yuklangan fayl haqida ma'lumot (upload javobida).</summary>
 public record UploadedFileDto(string Name, string Url, long Size, string ContentType);
 
@@ -1832,54 +1761,6 @@ public record TeacherReviewFeedItemDto(
 
 /// <summary>O'qituvchi «Fikrlar» bo'limi: jami soni + qatorlar (eng yangisi tepada).</summary>
 public record TeacherReviewFeedDto(int Total, List<TeacherReviewFeedItemDto> Items);
-/// <summary>
-/// Topshiriq natijasi — bitta o'quvchining holati: bajardimi, qachon, qancha ball (Score) hamda
-/// yuborgan javobi (AnswerText — yozma) yoki fayli (FileUrl — fayl/video). Bularni o'qituvchi
-/// ko'rib baholaydi; test esa avto-baholangan ball bilan keladi.
-/// </summary>
-public record SubmissionRowDto(
-    string StudentId, string StudentName, string ClassName, bool Completed, string? SubmittedAt,
-    int? Score, string? AnswerText, string? FileUrl);
-/// <summary>
-/// Topshiriq bo'yicha natijalar: jami / bajarganlar soni / har o'quvchi holati.
-/// Format + MaxScore ballni to'g'ri ko'rsatish va javob turini (matn/fayl) bilish uchun.
-/// </summary>
-public record AssignmentResultDto(
-    string AssignmentId, string Title, string Format, int MaxScore,
-    int Total, int CompletedCount, List<SubmissionRowDto> Rows);
-/// <summary>O'quvchi holatini belgilash (o'qituvchi).</summary>
-public record SetSubmissionRequest(bool Completed, int? Score);
-/// <summary>Topshiriq turi (Sozlamalarda boshqariladi — kategoriya; yangi forma ishlatmaydi).</summary>
-public record AssignmentTypeDto(string Id, string Name);
-public record SaveAssignmentTypesRequest(List<AssignmentTypeDto> Types);
-
-/* ---------- Topshiriqlar bali (admin: guruh bo'yicha ball jadvali) ---------- */
-
-/// <summary>Ball jadvalidagi ustun — bitta topshiriq.</summary>
-public record AssignmentScoreColumnDto(
-    string AssignmentId, string Title, string SubjectName, string Format, int MaxScore, string? DueDate);
-/// <summary>Bitta katak — o'quvchining shu topshiriqdagi holati/bali.</summary>
-public record AssignmentScoreCellDto(string AssignmentId, bool Completed, int? Score);
-/// <summary>Bitta qator — o'quvchi va uning barcha topshiriqlardagi ballari.</summary>
-public record AssignmentScoreRowDto(
-    string StudentId, string FullName, string ClassName,
-    List<AssignmentScoreCellDto> Cells, int TotalScore, int TotalMax, int GradedCount);
-/// <summary>Guruh bo'yicha topshiriqlar ball jadvali (ustunlar = topshiriqlar, qatorlar = o'quvchilar).</summary>
-public record AssignmentScoreboardDto(
-    string ClassId, string ClassName,
-    List<AssignmentScoreColumnDto> Assignments, List<AssignmentScoreRowDto> Students);
-
-/* ---------- Topshiriq ballari (o'quvchi/ota-ona ko'rinishi) ---------- */
-
-/// <summary>O'quvchining bitta topshiriqdagi bali.</summary>
-public record StudentAssignmentScoreDto(
-    string AssignmentId, string SubjectName, string Title, string Format,
-    int MaxScore, int? Score, bool Completed, string? DueDate, string? SubmittedAt);
-/// <summary>O'quvchining barcha topshiriqlari bo'yicha ballari + yig'ma.</summary>
-public record StudentAssignmentScoresDto(
-    int Count, int GradedCount, int TotalScore, int TotalMax,
-    List<StudentAssignmentScoreDto> Items);
-
 /* ---------- Fan progresi (dars o'tilishiga qarab — LMS'siz) ----------
    Reja (Planned) = chorakdagi guruh jadvalidagi shu fan dars kataklari soni.
    O'tilgan (Conducted) = o'qituvchi "dars o'tildi" deb belgilagan (LessonNote.Conducted) darslar.
@@ -2101,7 +1982,7 @@ public record TeacherAiMetricsDto(
     int PlannedLessons, int ConductedLessons, int MissedLessons, int JournalDonePct,
     int TopicPct, int HomeworkPct, int AttendanceTakenPct, int GradesCount,
     double AvgGradeThisMonth, double AvgGradePrevMonth, double StudentAttendancePct, double AvgBall,
-    int TestCount, double TestAvgPct, int AssignmentCount, int AssignmentDonePct,
+    int TestCount, double TestAvgPct,
     int TeacherPresentDays, int TeacherLateDays, int TeacherAbsentDays,
     int ComplaintCount, int SuggestionCount,
     List<TeacherFlowPointDto> FlowByMonth,

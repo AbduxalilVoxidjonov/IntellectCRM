@@ -105,8 +105,8 @@ export function PrivacyPolicyPage() {
                   ilovada siz ularni asosan ko'rasiz.
                 </li>
                 <li>
-                  <b>O'quv ma'lumotlari:</b> davomat, baholar, intizom ballari, uy vazifasi va
-                  topshiriqlar, testlar va ularning javoblari, dars jadvali, sertifikatlar, reyting.
+                  <b>O'quv ma'lumotlari:</b> davomat, baholar, uy vazifasi va o'quv dasturi
+                  topshiriqlari, testlar va ularning javoblari, dars jadvali, sertifikatlar, reyting.
                 </li>
                 <li>
                   <b>To'lov ma'lumotlari:</b> oylik hisob, to'langan summalar va balans —{' '}

@@ -114,15 +114,6 @@ export const navByRole: Record<Role, NavItem[]> = {
         { label: 'Daraja testi', to: '/admin/level-tests', perm: 'schedule' },
         { label: 'Kitoblar sotuvi', to: '/admin/books', perm: 'books' },
         { label: 'Sabablar', to: '/admin/reasons', perm: 'settings' },
-        {
-          label: 'Intizomiy ball',
-          to: '/admin/discipline',
-          perm: 'discipline',
-          children: [
-            { label: 'Ballar nazorati', to: '/admin/discipline', end: true },
-            { label: 'Ball sabablar', to: '/admin/discipline/reasons' },
-          ],
-        },
         { label: 'Shartnomalar', to: '/admin/contracts', perm: 'contracts' },
       ],
     },
@@ -130,12 +121,10 @@ export const navByRole: Record<Role, NavItem[]> = {
     { label: 'Support Telegram', to: '/admin/support-telegram', icon: Headset, perm: 'messages' },
     {
       label: 'Ilova',
-      to: '/admin/assignments',
+      to: '/admin/ai-check',
       icon: Smartphone,
       perm: 'app',
       children: [
-        { label: 'Topshiriqlar', to: '/admin/assignments' },
-        { label: 'Topshiriqlar bali', to: '/admin/assignment-scores' },
         { label: 'AI check', to: '/admin/ai-check' },
         { label: 'Support', to: '/admin/support' },
         { label: 'Joylashuv', to: '/admin/locations' },
@@ -207,7 +196,7 @@ export const navByRole: Record<Role, NavItem[]> = {
     { label: 'Bosh sahifa', to: '/teacher', icon: LayoutDashboard },
     { label: 'Jurnal', to: '/teacher/journal', icon: NotebookText, perm: 'journal' },
     { label: 'Feedback', to: '/teacher/evaluation', icon: ClipboardList },
-    // Asosiy navigatsiyada "Test" (onlayn/oflayn test yaratish); Topshiriqlar profil menyusida.
+    // Asosiy navigatsiyada "Test" (onlayn/oflayn test yaratish).
     { label: 'Test', to: '/teacher/tests', icon: ClipboardCheck, perm: 'journal' },
     { label: 'Xabarlar', to: '/teacher/messages', icon: MessageSquare, perm: 'messages' },
   ],

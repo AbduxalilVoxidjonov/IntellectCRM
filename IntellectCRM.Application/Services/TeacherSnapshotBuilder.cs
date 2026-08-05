@@ -18,7 +18,7 @@ namespace IntellectCRM.Application.Services;
 /// <item>JURNAL INTIZOMI — <see cref="SalaryJournalStats"/> (reja/o'tilgan/o'tkazib yuborilgan darslar,
 ///   "o'z vaqtida to'ldirish" shu yerdan) + <see cref="LessonNote"/> (mavzu/uy vazifa/davomat olindi);</item>
 /// <item>RIVOJLANISH — oyma-oy o'rtacha baho, o'quvchilar davomati va bali
-///   (<see cref="StudentBallService.TeacherAsync"/>), testlar va topshiriqlar natijasi;</item>
+///   (<see cref="StudentBallService.TeacherAsync"/>), testlar natijasi;</item>
 /// <item>o'qituvchining O'Z davomati (<see cref="TeacherAttendance"/>) va guruh ota-onalaridan kelgan
 ///   shikoyat/takliflar (<see cref="Feedback"/>).</item>
 /// </list>
@@ -132,7 +132,7 @@ public static class TeacherSnapshotBuilder
             .Select(x => $"{x.Date} ({groups.FirstOrDefault(g => g.Id == x.Group)?.Name ?? "—"})")
             .ToList();
 
-        // ---------- 5. Rivojlanish: ball, davomat, testlar, topshiriqlar ----------
+        // ---------- 5. Rivojlanish: ball, davomat, testlar ----------
         var rating = await StudentBallService.TeacherAsync(db, teacher);
         var attendances = rating.Rows.Where(r => r.Attendance != null).Select(r => r.Attendance!.Value).ToList();
         var attendancePct = attendances.Count > 0 ? Math.Round(attendances.Average(), 1) : 0;
@@ -152,19 +152,6 @@ public static class TeacherSnapshotBuilder
             .Select(s => (double)(s.Score / maxByTest[s.TestResultId]) * 100)
             .ToList();
         var testAvgPct = testPcts.Count > 0 ? Math.Round(testPcts.Average(), 1) : 0;
-
-        var recentAssignments = await db.Assignments.AsNoTracking()
-            .Where(a => a.CreatedAt >= sinceDt)
-            .Select(a => new { a.Id, a.ClassIds, a.ClassId })
-            .ToListAsync(ct);
-        var myAssignmentIds = recentAssignments
-            .Where(a => a.ClassIds.Any(c => groupIds.Contains(c)) || groupIds.Contains(a.ClassId))
-            .Select(a => a.Id).ToList();
-        var submissions = myAssignmentIds.Count == 0
-            ? new List<AssignmentSubmission>()
-            : await db.AssignmentSubmissions.AsNoTracking()
-                .Where(s => myAssignmentIds.Contains(s.AssignmentId)).ToListAsync(ct);
-        var assignmentDonePct = Pct(submissions.Count(s => s.Completed), submissions.Count);
 
         // ---------- 6. O'qituvchining O'Z davomati ----------
         var myAttendance = await db.TeacherAttendances.AsNoTracking()
@@ -224,7 +211,7 @@ public static class TeacherSnapshotBuilder
             AvgGradeIn(gradeRows.Where(g => MonthOf(g.Date) == curMonth)),
             AvgGradeIn(gradeRows.Where(g => MonthOf(g.Date) == prevMonth)),
             attendancePct, rating.AverageBall,
-            tests.Count, testAvgPct, myAssignmentIds.Count, assignmentDonePct,
+            tests.Count, testAvgPct,
             present, late, absent,
             complaints, suggestions,
             flow, journalByMonth, reasons, groupStats, recentMissed,
@@ -283,8 +270,6 @@ public static class TeacherSnapshotBuilder
                 ortachaBall = rating.AverageBall,
                 testlarSoni = tests.Count,
                 testOrtachaFoiz = testAvgPct,
-                topshiriqlarSoni = myAssignmentIds.Count,
-                topshiriqBajarilishFoizi = assignmentDonePct,
             },
             oqituvchiDavomati = new { keldi = present, kechikdi = late, kelmadi = absent },
             otaOnalarFikri = new { shikoyatlar = complaints, takliflar = suggestions, oxirgilari = feedbackTexts },

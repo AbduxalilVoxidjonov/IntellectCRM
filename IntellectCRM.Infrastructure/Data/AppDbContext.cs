@@ -39,8 +39,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<LessonNote> LessonNotes => Set<LessonNote>();
     public DbSet<LessonReschedule> LessonReschedules => Set<LessonReschedule>();
     public DbSet<AbsenceReason> AbsenceReasons => Set<AbsenceReason>();
-    public DbSet<DisciplineReason> DisciplineReasons => Set<DisciplineReason>();
-    public DbSet<DisciplinePoint> DisciplinePoints => Set<DisciplinePoint>();
     public DbSet<EvaluationType> EvaluationTypes => Set<EvaluationType>();
     public DbSet<EvaluationGrade> EvaluationGrades => Set<EvaluationGrade>();
     public DbSet<GradingCriterion> GradingCriteria => Set<GradingCriterion>();
@@ -60,11 +58,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<StaffTask> StaffTasks => Set<StaffTask>();
     public DbSet<StaffTaskLog> StaffTaskLogs => Set<StaffTaskLog>();
     public DbSet<BotSupportMessage> BotSupportMessages => Set<BotSupportMessage>();
-    public DbSet<Assignment> Assignments => Set<Assignment>();
-    public DbSet<AssignmentType> AssignmentTypes => Set<AssignmentType>();
-    public DbSet<AssignmentMaterial> AssignmentMaterials => Set<AssignmentMaterial>();
-    public DbSet<TestQuestion> TestQuestions => Set<TestQuestion>();
-    public DbSet<AssignmentSubmission> AssignmentSubmissions => Set<AssignmentSubmission>();
     public DbSet<UserSettings> UserSettings => Set<UserSettings>();
     public DbSet<DeviceToken> DeviceTokens => Set<DeviceToken>();
     public DbSet<UserNotification> UserNotifications => Set<UserNotification>();
@@ -193,8 +186,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
             (typeof(ChatMessage), "ClassName"),
             (typeof(Broadcast), "ClassName"),
             (typeof(TelegramRegistration), "StudentId"),
-            (typeof(Assignment), "ClassId"), (typeof(Assignment), "SubjectId"), (typeof(Assignment), "CreatedByUserId"),
-            (typeof(AssignmentSubmission), "AssignmentId"), (typeof(AssignmentSubmission), "StudentId"),
             (typeof(DeviceToken), "Token"), (typeof(DeviceToken), "UserId"),
             (typeof(ContractTemplate), "Target"),
             (typeof(Contract), "Target"), (typeof(Contract), "RecipientKey"),
@@ -304,18 +295,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         b.Entity<BotUser>().HasIndex(u => u.ChatId).IsUnique();
         b.Entity<TelegramGroup>().HasIndex(g => g.ChatId).IsUnique();
         b.Entity<BotSupportMessage>().HasIndex(m => m.ChatId);
-
-        // Qo'shimcha topshiriqlar
-        b.Entity<Assignment>().HasIndex(a => new { a.ClassId, a.SubjectId, a.Quarter });
-        b.Entity<Assignment>().HasIndex(a => a.CreatedByUserId);
-        b.Entity<Assignment>()
-            .HasMany(a => a.Materials).WithOne().HasForeignKey(m => m.AssignmentId)
-            .OnDelete(DeleteBehavior.Cascade);
-        b.Entity<Assignment>()
-            .HasMany(a => a.Questions).WithOne().HasForeignKey(q => q.AssignmentId)
-            .OnDelete(DeleteBehavior.Cascade);
-        b.Entity<AssignmentSubmission>().HasIndex(x => new { x.AssignmentId, x.StudentId }).IsUnique();
-        b.Entity<AssignmentSubmission>().HasIndex(x => x.StudentId);
 
         // Foydalanuvchi sozlamalari va qurilma tokenlari
         b.Entity<UserSettings>().HasKey(s => s.UserId);

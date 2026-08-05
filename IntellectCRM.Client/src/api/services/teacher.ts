@@ -1,7 +1,4 @@
 import type {
-  Assignment,
-  AssignmentResult,
-  AssignmentType,
   ChatMessage,
   GroupTest,
   OnlineTest,
@@ -16,7 +13,6 @@ import type {
 } from '@/types'
 import { api, USE_MOCK } from '../client'
 import { delay } from '@/lib/utils'
-import type { MaterialInput, SaveAssignmentInput } from './assignments'
 import type { GroupJournal, LessonReschedule } from './journal'
 import type { GroupCurriculum } from './curriculum'
 import type { GradingBoard, SetGrade, BulkGrade } from './grading'
@@ -80,61 +76,6 @@ export async function setTeacherEvalGrade(
   await api.post('/teacher/evaluation/grade', {
     classId, subjectId, studentId, typeId, month, week: 0, score,
   })
-}
-
-/** O'qituvchining o'zi yaratgan topshiriqlari */
-export async function getTeacherAssignments(): Promise<Assignment[]> {
-  if (USE_MOCK) return []
-  const { data } = await api.get<Assignment[]>('/teacher/assignments')
-  return data
-}
-
-export async function createTeacherAssignment(input: SaveAssignmentInput): Promise<Assignment> {
-  const { data } = await api.post<Assignment>('/teacher/assignments', input)
-  return data
-}
-
-export async function updateTeacherAssignment(id: string, input: SaveAssignmentInput): Promise<void> {
-  await api.put(`/teacher/assignments/${id}`, input)
-}
-
-export async function deleteTeacherAssignment(id: string): Promise<void> {
-  await api.delete(`/teacher/assignments/${id}`)
-}
-
-/** Topshiriq natijalari — kim bajardi/bajarmadi */
-export async function getTeacherAssignmentResults(id: string): Promise<AssignmentResult> {
-  const { data } = await api.get<AssignmentResult>(`/teacher/assignments/${id}/results`)
-  return data
-}
-
-/** O'quvchining bajarish holatini belgilash */
-export async function setTeacherSubmission(
-  id: string,
-  studentId: string,
-  completed: boolean,
-  score?: number | null,
-): Promise<void> {
-  await api.put(`/teacher/assignments/${id}/submissions/${studentId}`, {
-    completed,
-    score: score ?? null,
-  })
-}
-
-/** Topshiriq materiali sifatida fayl yuklash; yuklangan fayl metadatasini qaytaradi */
-export async function uploadTeacherFile(file: File): Promise<MaterialInput> {
-  const fd = new FormData()
-  fd.append('file', file)
-  const { data } = await api.post<MaterialInput>('/teacher/uploads', fd, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  })
-  return data
-}
-
-export async function getTeacherAssignmentTypes(): Promise<AssignmentType[]> {
-  if (USE_MOCK) return []
-  const { data } = await api.get<AssignmentType[]>('/teacher/assignment-types')
-  return data
 }
 
 /* ---------- Meta (choraklar, dars vaqtlari, davomat sabablari) ---------- */
@@ -420,6 +361,16 @@ export async function updateTeacherTest(
   },
 ): Promise<void> {
   await api.put(`/teacher/test-results/${id}`, payload)
+}
+
+/** Yuklangan fayl metadatasi (test savollari PDF'i va shunga o'xshash yuklamalar uchun) */
+export interface MaterialInput {
+  name: string
+  url: string
+  size: number
+  contentType: string
+  /** Ixtiyoriy hamrohlik audio (masalan shu materialni ovoz chiqarib o'qigan yozuv) */
+  audioUrl?: string | null
 }
 
 /** Onlayn test savollari (PDF) faylini yuklash; yuklangan fayl metadatasini qaytaradi. */

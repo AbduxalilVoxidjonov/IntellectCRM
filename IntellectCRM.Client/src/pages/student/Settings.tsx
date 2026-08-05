@@ -149,7 +149,7 @@ export function StudentSettingsScreen() {
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 14.5, fontWeight: 700 }}>Push bildirishnoma</div>
               <div className="muted" style={{ fontSize: 12 }}>
-                Yangi baho, xabar, topshiriq
+                Yangi baho va xabar
               </div>
             </div>
             <div className={'switch press' + (push ? ' on' : '')} onClick={togglePush}>

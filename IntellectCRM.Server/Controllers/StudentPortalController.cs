@@ -244,8 +244,8 @@ public class StudentPortalController(
     /// O'quvchining TO'LIQ "shaxsiy daftari" — admin ko'radigan detal sahifasi bilan AYNAN bir xil
     /// (<see cref="StudentProfileBuilder"/>): profil + shaxsiy ma'lumot (manzil, chegirma, guruh,
     /// hujjatlar, balans), fan×chorak baholar va o'rtacha, davomat (qoldirgan/kech + sabablar),
-    /// intizomiy ball va tarixi, topshiriqlar ballari, OYLIK BAHOLASH (turlar×oy), uy vazifa/xulq
-    /// jamlamasi va oylik trend — bularning bari bitta javobda.
+    /// OYLIK BAHOLASH (turlar×oy), uy vazifa/xulq jamlamasi va oylik trend — bularning bari
+    /// bitta javobda.
     /// student — o'ziniki; parent — farzandiniki; admin — <c>?studentId=...</c>.
     /// </summary>
     [HttpGet("notebook")]
@@ -311,40 +311,6 @@ public class StudentPortalController(
             await db.SaveChangesAsync();
         }
         return NoContent();
-    }
-
-    /// <summary>
-    /// O'quvchining intizomiy balli: qoldi (100 dan boshlanadi) + rag'bat(+)/jazo(−) + tarix.
-    /// Tarix qo'lda kiritilgan ballar va jurnal davomati (sabab balli != 0) yozuvlaridan iborat.
-    /// </summary>
-    [HttpGet("discipline")]
-    public async Task<ActionResult<StudentDisciplineDto>> Discipline([FromQuery] string? studentId)
-    {
-        if (User.IsInRole("admin") && string.IsNullOrWhiteSpace(studentId)) return NeedStudentId();
-        var s = await TargetAsync(studentId);
-        if (s is null) return NotFound();
-
-        var manual = await db.DisciplinePoints.Where(p => p.StudentId == s.Id).ToListAsync();
-        var drNames = await db.DisciplineReasons.ToDictionaryAsync(r => r.Id, r => r.Name);
-        var absReasons = await db.AbsenceReasons.ToDictionaryAsync(r => r.Id, r => new { r.Name, r.Points });
-
-        var items = manual.Select(p => new DisciplinePointDto(
-            p.Id, p.StudentId,
-            string.IsNullOrEmpty(p.ReasonName) ? drNames.GetValueOrDefault(p.ReasonId, "—") : p.ReasonName,
-            p.Points, p.Note, p.CreatedAt, p.CreatedBy, "manual")).ToList();
-
-        var journal = await db.JournalEntries
-            .Where(e => e.StudentId == s.Id && e.ReasonId != null).ToListAsync();
-        foreach (var e in journal)
-        {
-            if (e.ReasonId is null || !absReasons.TryGetValue(e.ReasonId, out var r) || r.Points == 0) continue;
-            items.Add(new DisciplinePointDto(e.Id, s.Id, r.Name, r.Points, "Jurnal davomati", e.Date, "", "attendance"));
-        }
-
-        var plus = items.Where(i => i.Points > 0).Sum(i => i.Points);
-        var minus = items.Where(i => i.Points < 0).Sum(i => -i.Points);
-        var ordered = items.OrderByDescending(i => i.CreatedAt, StringComparer.Ordinal).ToList();
-        return new StudentDisciplineDto(100 + plus - minus, plus, minus, ordered);
     }
 
     // ---------- Shartnoma (o'z hujjatlari) ----------
@@ -476,7 +442,7 @@ public class StudentPortalController(
 
     /// <summary>
     /// Bosh sahifa uchun YAGONA chaqiruv — profil + meta + bugungi darslar + bugungi baholar +
-    /// bajarilmagan topshiriqlar soni + balans. Bir o'rinda hammasi (Flutter Dashboard ekraniga mos).
+    /// balans. Bir o'rinda hammasi (Flutter Dashboard ekraniga mos).
     /// </summary>
     [HttpGet("dashboard")]
     public async Task<ActionResult<StudentDashboardDto>> Dashboard([FromQuery] string? studentId)
@@ -547,19 +513,10 @@ public class StudentPortalController(
                 .ToList();
         }
 
-        // Bajarilmagan topshiriqlar soni.
-        int pending = 0;
-        var classId = cls?.Id;
-        if (classId is not null)
-        {
-            var assignments = await AssignmentService.ListForStudentAsync(db, classId, s.Id);
-            pending = assignments.Count(a => !a.Completed);
-        }
-
         var monthlyFee = cls?.MonthlyFee ?? 0m;
 
         return new StudentDashboardDto(
-            profile, meta, todayLessons, todayGrades, pending, s.Balance, monthlyFee);
+            profile, meta, todayLessons, todayGrades, s.Balance, monthlyFee);
     }
 
     /// <summary>
@@ -874,94 +831,6 @@ public class StudentPortalController(
         return dto is null ? BadRequest(new { message = "Xabar bo'sh" }) : dto;
     }
 
-    // ---------- Topshiriqlar / testlar (o'z guruhi) ----------
-
-    /// <summary>O'z guruhiga berilgan topshiriqlar — har birida o'z holati (bajardi/ball).</summary>
-    [HttpGet("assignments")]
-    public async Task<ActionResult<IEnumerable<StudentAssignmentDto>>> Assignments(
-        [FromQuery] string? studentId)
-    {
-        if (User.IsInRole("admin") && string.IsNullOrWhiteSpace(studentId)) return NeedStudentId();
-        var s = await TargetAsync(studentId);
-        if (s is null) return NotFound();
-        var classId = await ClassIdOf(s);
-        if (classId is null) return new List<StudentAssignmentDto>();
-        return await AssignmentService.ListForStudentAsync(db, classId, s.Id);
-    }
-
-    /// <summary>SPEAKING topshirig'i — o'quvchi audio (WAV) yuboradi, Azure talaffuzni baholaydi,
-    /// natija + avto-baho saqlanadi va qaytariladi.</summary>
-    [HttpPost("assignments/{id}/speaking")]
-    [Authorize(Roles = "student,parent")]
-    [RequestSizeLimit(8_000_000)]
-    public async Task<ActionResult<SpeakingResultDto>> SubmitSpeaking(string id, IFormFile audio)
-    {
-        var s = await TargetAsync(null);
-        if (s is null) return NotFound();
-        // FIX 1 — egalik: topshiriq o'quvchining guruhiga tegishli bo'lishi shart (normal yo'l kabi).
-        var classId = await ClassIdOf(s);
-        var a = await db.Assignments.FindAsync(id);
-        if (a is null || a.Format != "speaking" || classId is null || !a.ClassIds.Contains(classId))
-            return NotFound(new { message = "Speaking topshirig'i topilmadi" });
-
-        var meta = await db.CenterMeta.FirstOrDefaultAsync();
-        var key = AppSecrets.AzureSpeechKey;
-        var region = AppSecrets.AzureSpeechRegion ?? "";
-        if (!AzureSpeechService.IsConfigured(key, region))
-            return BadRequest(new { message = "Speaking baholash hali sozlanmagan (admin Azure kalitini kiritishi kerak)." });
-        if (audio is null || audio.Length == 0) return BadRequest(new { message = "Audio bo'sh" });
-        // FIX 3 — hajm chegarasi (60s 16kHz mono WAV ≈ 2 MB; 8 MB yetarli zaxira).
-        if (audio.Length > 8_000_000) return BadRequest(new { message = "Audio juda katta (8 MB dan oshmasin)." });
-
-        var sub = await db.AssignmentSubmissions.FirstOrDefaultAsync(x => x.AssignmentId == id && x.StudentId == s.Id);
-        // FIX 4 — rate-limit: ketma-ket pullik Azure chaqiruvlarini cheklash (5s cooldown).
-        if (sub is not null && DateTime.TryParse(sub.SubmittedAt, out var last)
-            && (AppClock.Now - last).TotalSeconds < 5)
-            return BadRequest(new { message = "Biroz kuting — qayta urinishdan oldin bir necha soniya o'ting." });
-
-        using var ms = new MemoryStream();
-        await audio.CopyToAsync(ms);
-        var bytes = ms.ToArray();
-        // FIX 3 — kontent tekshiruvi: faqat haqiqiy WAV Azure'ga ketadi (ixtiyoriy bayt emas).
-        if (!AzureSpeechService.LooksLikeWav(bytes))
-            return BadRequest(new { message = "Audio formati noto'g'ri (WAV kutilgan)." });
-
-        var result = await AzureSpeechService.AssessAsync(bytes, a.ReferenceText, key, region);
-        if (result.Error is not null) return BadRequest(new { message = result.Error });
-
-        var dir = System.IO.Path.Combine(env.ContentRootPath, "uploads");
-        System.IO.Directory.CreateDirectory(dir);
-        var stored = $"speaking-{Guid.NewGuid():N}.wav";
-        await System.IO.File.WriteAllBytesAsync(System.IO.Path.Combine(dir, stored), bytes);
-
-        if (sub is null) { sub = new AssignmentSubmission { AssignmentId = id, StudentId = s.Id }; db.AssignmentSubmissions.Add(sub); }
-        sub.Completed = true;
-        sub.SubmittedAt = AppClock.Now.ToString("yyyy-MM-ddTHH:mm:ss");
-        // FIX 2 — PronScore (0..100) ni topshiriq MaxScore'iga masshtablash (boshqa formatlar kabi).
-        var max = a.MaxScore > 0 ? a.MaxScore : 100;
-        sub.Score = Math.Clamp((int)Math.Round(result.PronScore * max / 100.0), 0, max);
-        sub.FileUrl = $"/uploads/{stored}";
-        sub.SpeakingResultJson = JsonSerializer.Serialize(result);
-        await db.SaveChangesAsync();
-        return result;
-    }
-
-    /// <summary>Oldingi speaking natijasini o'qish (bor bo'lsa) — qaytadan ko'rsatish uchun.</summary>
-    [HttpGet("assignments/{id}/speaking")]
-    public async Task<ActionResult<SpeakingResultDto>> GetSpeaking(string id, [FromQuery] string? studentId)
-    {
-        var s = await TargetAsync(studentId);
-        if (s is null) return NotFound();
-        var sub = await db.AssignmentSubmissions.FirstOrDefaultAsync(x => x.AssignmentId == id && x.StudentId == s.Id);
-        if (sub?.SpeakingResultJson is null) return NoContent();
-        try
-        {
-            var r = JsonSerializer.Deserialize<SpeakingResultDto>(sub.SpeakingResultJson);
-            return r is null ? NoContent() : r;
-        }
-        catch { return NoContent(); }
-    }
-
     // ==================== AI tekshiruv (Speaking / Writing) ====================
 
     /// <summary>O'quvchining bugungi AI tekshiruv holati (kalitlar tayyorligi + limit/premium/blok).</summary>
@@ -1166,69 +1035,6 @@ public class StudentPortalController(
         }
         return new AiCheckDto(a.Id, a.Type, a.Prompt, a.InputText, a.RecognizedText, a.AudioUrl,
             a.Score, a.Date, a.CreatedAt, analysis, speech, a.TaskType);
-    }
-
-    /// <summary>
-    /// "Topshiriq ballari" — o'quvchiga berilgan topshiriqlar va uning har biridagi bali (+ yig'ma).
-    /// Ota-ona ham shu orqali farzandi ballarini ko'radi.
-    /// </summary>
-    [HttpGet("assignment-scores")]
-    public async Task<ActionResult<StudentAssignmentScoresDto>> AssignmentScores([FromQuery] string? studentId)
-    {
-        if (User.IsInRole("admin") && string.IsNullOrWhiteSpace(studentId)) return NeedStudentId();
-        var s = await TargetAsync(studentId);
-        if (s is null) return NotFound();
-        var classId = await ClassIdOf(s);
-        if (classId is null) return new StudentAssignmentScoresDto(0, 0, 0, 0, new());
-        return await AssignmentService.ScoresForStudentAsync(db, classId, s.Id);
-    }
-
-    /// <summary>Topshiriq tafsiloti (test bo'lsa — to'g'ri javobsiz savollar).</summary>
-    [HttpGet("assignments/{id}")]
-    public async Task<ActionResult<StudentAssignmentDetailDto>> Assignment(
-        string id, [FromQuery] string? studentId)
-    {
-        if (User.IsInRole("admin") && string.IsNullOrWhiteSpace(studentId)) return NeedStudentId();
-        var s = await TargetAsync(studentId);
-        if (s is null) return NotFound();
-        var classId = await ClassIdOf(s);
-        if (classId is null) return NotFound();
-        var dto = await AssignmentService.GetForStudentAsync(db, id, classId, s.Id);
-        return dto is null ? NotFound() : dto;
-    }
-
-    /// <summary>Topshiriqni topshirish — faqat student rolida (admin o'zi o'rniga topshira olmaydi).</summary>
-    [HttpPost("assignments/{id}/submit")]
-    [Authorize(Roles = "student")]
-    public async Task<ActionResult<SubmitResultDto>> Submit(string id, SubmitAssignmentRequest req)
-    {
-        var s = await MeAsync();
-        if (s is null) return NotFound();
-        var classId = await ClassIdOf(s);
-        if (classId is null) return NotFound();
-        var res = await AssignmentService.SubmitAsync(db, id, classId, s.Id, req);
-        return res is null ? NotFound() : res;
-    }
-
-    /// <summary>O'quvchi javobi sifatida fayl yuklash (rasm/PDF/video, maks ~20MB).
-    /// Faqat student rolida — admin yuklamaydi.</summary>
-    [HttpPost("uploads")]
-    [Authorize(Roles = "student")]
-    [RequestSizeLimit(20_000_000)]
-    public async Task<ActionResult<UploadedFileDto>> Upload(IFormFile file)
-    {
-        var s = await MeAsync();
-        if (s is null) return NotFound();
-        if (Application.Services.UploadGuard.Validate(file) is { } error)
-            return BadRequest(new { message = error });
-
-        var dir = System.IO.Path.Combine(env.ContentRootPath, "uploads");
-        System.IO.Directory.CreateDirectory(dir);
-        var stored = Application.Services.UploadGuard.SafeName(file);
-        await using (var fs = System.IO.File.Create(System.IO.Path.Combine(dir, stored)))
-            await file.CopyToAsync(fs);
-
-        return new UploadedFileDto(file.FileName, $"/uploads/{stored}", file.Length, file.ContentType ?? "");
     }
 
     /* ─── Fan progresi (dars o'tilishiga qarab — LMS'siz) ──────

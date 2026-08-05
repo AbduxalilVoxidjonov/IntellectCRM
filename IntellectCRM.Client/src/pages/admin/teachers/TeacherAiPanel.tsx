@@ -96,7 +96,7 @@ function buildPrintHtml(rec: TeacherAiRecord, teacherName: string): string {
  * O'qituvchi profilidagi "AI tahlil" tabi.
  *
  * Ikki qatlam: (1) DETERMINISTIK ko'rsatkichlar — o'quvchi oqimi (kim kelyapti/ketyapti), ketish
- * sabablari, jurnalni o'z vaqtida to'ldirish, baholar dinamikasi, testlar/topshiriqlar, davomat —
+ * sabablari, jurnalni o'z vaqtida to'ldirish, baholar dinamikasi, testlar, davomat —
  * AI ishlatilmasa ham ko'rinadi; (2) AI NARRATIVI — Gemini shu raqamlarga tayanib yozgan xulosa,
  * kuchli/zaif tomonlar, xavflar va tavsiyalar (kuniga bir marta, tarixi saqlanadi).
  */
@@ -363,7 +363,6 @@ export function TeacherAiPanel({ teacherId, teacherName }: { teacherId: string; 
             <PctRow label="Uy vazifa berilgan" value={metrics.homeworkPct} />
             <PctRow label="Davomat olingan" value={metrics.attendanceTakenPct} />
             <PctRow label="O'quvchilar davomati" value={Math.round(metrics.studentAttendancePct)} hint="Guruhlaridagi o'quvchilar" />
-            <PctRow label="Topshiriq bajarilishi" value={metrics.assignmentDonePct} hint={`${metrics.assignmentCount} ta topshiriq`} />
           </div>
           {metrics.recentMissedDates.length > 0 && (
             <div className="mt-3 rounded-lg border border-red-100 bg-red-50/50 p-3">

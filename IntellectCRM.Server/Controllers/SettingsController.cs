@@ -586,9 +586,6 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
     public async Task<IActionResult> SaveAbsenceReasons(SaveAbsenceReasonsRequest req)
     {
         // Mavjud id'larni saqlab qolamiz (jurnal yozuvlari reasonId orqali bog'langan).
-        // Intizomiy ball (Points) "Ball sabablar"da belgilanadi — bu yerda qayta yaratilganda
-        // id bo'yicha eski ballni saqlab qolamiz (aks holda 0 ga tushib qolardi).
-        var oldPoints = await db.AbsenceReasons.ToDictionaryAsync(r => r.Id, r => r.Points);
         db.AbsenceReasons.RemoveRange(db.AbsenceReasons);
         db.AbsenceReasons.AddRange(req.AbsenceReasons.Select(r => new AbsenceReason
         {
@@ -596,32 +593,8 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
             Name = r.Name,
             Short = r.Short,
             IsLate = r.IsLate,
-            Points = oldPoints.GetValueOrDefault(r.Id, 0),
         }));
         LogSettings("Davomat sabablari");
-        await db.SaveChangesAsync();
-        return NoContent();
-    }
-
-    // ---------- Topshiriq turlari ----------
-
-    [HttpGet("assignment-types")]
-    public async Task<ActionResult<IEnumerable<AssignmentTypeDto>>> GetAssignmentTypes() =>
-        await db.AssignmentTypes.Select(t => new AssignmentTypeDto(t.Id, t.Name)).ToListAsync();
-
-    [HttpPut("assignment-types")]
-    public async Task<IActionResult> SaveAssignmentTypes(SaveAssignmentTypesRequest req)
-    {
-        // Mavjud id'larni saqlaymiz (topshiriqlar TypeId orqali bog'langan).
-        db.AssignmentTypes.RemoveRange(db.AssignmentTypes);
-        db.AssignmentTypes.AddRange(req.Types
-            .Where(t => !string.IsNullOrWhiteSpace(t.Name))
-            .Select(t => new AssignmentType
-            {
-                Id = string.IsNullOrWhiteSpace(t.Id) ? Guid.NewGuid().ToString() : t.Id,
-                Name = t.Name.Trim(),
-            }));
-        LogSettings("Topshiriq turlari");
         await db.SaveChangesAsync();
         return NoContent();
     }

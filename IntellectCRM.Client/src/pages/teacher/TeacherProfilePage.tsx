@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
   GraduationCap, BookOpen, Wallet, LogOut, MessageSquare, ChevronRight,
-  ListChecks, BarChart3, Lock, Moon, Bell, LifeBuoy, Trophy, ClipboardList,
+  ListChecks, BarChart3, Lock, Moon, Bell, LifeBuoy, Trophy,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import type { SalaryLedger, TeacherClass } from '@/types'
@@ -26,8 +26,6 @@ const MENU: MenuItem[] = [
   { to: '/teacher/learning', label: "Ta'lim progresi", sub: "O'quvchilar o'zlashtirishi", icon: BarChart3, color: '#2563eb' },
   { to: '/teacher/salary', label: 'Maosh', sub: 'Oylik hisob va tarix', icon: Wallet, color: '#7c3aed' },
   { to: '/teacher/rating', label: "O'quvchilar reytingi", sub: "Ball bo'yicha saralangan ro'yxat", icon: Trophy, color: '#d97706' },
-  // Topshiriqlar avval pastki navigatsiyada ("Vazifa" tabi) edi — o'rni "Test" bilan almashtirildi.
-  { to: '/teacher/assignments', label: 'Topshiriqlar', sub: "Uy vazifa va materiallar", icon: ClipboardList, color: '#2563eb', perm: 'assignments' },
   { to: '/teacher/feedback', label: 'Taklif va shikoyat', sub: 'Adminga xabar yuborish', icon: MessageSquare, color: '#0d9488' },
   { to: '/teacher/account', label: 'Parolni almashtirish', sub: 'Hisob xavfsizligi', icon: Lock, color: '#64748b' },
 ]

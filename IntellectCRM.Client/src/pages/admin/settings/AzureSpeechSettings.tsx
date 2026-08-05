@@ -44,9 +44,9 @@ export function AzureSpeechSettings() {
       }
     >
       <p className="mb-4 text-sm text-slate-400">
-        Speaking topshiriqlari <b>Azure Speech — Pronunciation Assessment</b> orqali baholanadi: o'quvchi
+        Speaking mashqlari <b>Azure Speech — Pronunciation Assessment</b> orqali baholanadi: o'quvchi
         gapiradi, xizmat nutqni matnga o'giradi va talaffuzni (aniqlik, ravonlik, to'liqlik, ohang) baholab,
-        avtomatik ball qo'yadi. Kalit/region berilmasa, speaking topshirig'i baholanmaydi. Kalit{' '}
+        avtomatik ball qo'yadi. Kalit/region berilmasa, speaking baholanmaydi. Kalit{' '}
         <b>Azure portal → Speech service → Keys and Endpoint</b> bo'limidan olinadi.
       </p>
 

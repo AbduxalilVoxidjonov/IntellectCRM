@@ -268,7 +268,7 @@ export async function getTeacherRating(id: string): Promise<TeacherRating> {
 /**
  * O'qituvchining DETERMINISTIK ko'rsatkichlari (AI'siz ham ko'rinadi): o'quvchi oqimi
  * (kelgan/ketgan), ketish sabablari, jurnalni o'z vaqtida to'ldirish, baholar dinamikasi,
- * testlar/topshiriqlar, davomat — oxirgi 12 oy.
+ * testlar, davomat — oxirgi 12 oy.
  */
 export async function getTeacherAiSnapshot(id: string): Promise<TeacherAiMetrics> {
   const { data } = await api.get<TeacherAiMetrics>(`/admin/teachers/${id}/ai-snapshot`)

@@ -476,7 +476,7 @@ public class TeachersController(AppDbContext db, AuditService audit, IConfigurat
     /// <summary>
     /// O'QITUVCHI AI TAHLILI — deterministik ko'rsatkichlar (AI'siz ham ko'rinadi): o'quvchi oqimi
     /// (kelgan/ketgan), ketish sabablari, jurnalni o'z vaqtida to'ldirish, baholar dinamikasi,
-    /// testlar/topshiriqlar, davomat. Profildagi "AI tahlil" tabi shu bilan ochiladi.
+    /// testlar, davomat. Profildagi "AI tahlil" tabi shu bilan ochiladi.
     /// </summary>
     [HttpGet("{id}/ai-snapshot")]
     public async Task<ActionResult<TeacherAiMetricsDto>> AiSnapshot(string id, CancellationToken ct)

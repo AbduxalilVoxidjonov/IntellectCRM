@@ -43,8 +43,6 @@ public interface IAppDbContext
     DbSet<LessonNote> LessonNotes { get; }
     DbSet<LessonReschedule> LessonReschedules { get; }
     DbSet<AbsenceReason> AbsenceReasons { get; }
-    DbSet<DisciplineReason> DisciplineReasons { get; }
-    DbSet<DisciplinePoint> DisciplinePoints { get; }
     DbSet<EvaluationType> EvaluationTypes { get; }
     DbSet<EvaluationGrade> EvaluationGrades { get; }
     DbSet<GradingCriterion> GradingCriteria { get; }
@@ -64,11 +62,6 @@ public interface IAppDbContext
     DbSet<StaffTask> StaffTasks { get; }
     DbSet<StaffTaskLog> StaffTaskLogs { get; }
     DbSet<BotSupportMessage> BotSupportMessages { get; }
-    DbSet<Assignment> Assignments { get; }
-    DbSet<AssignmentType> AssignmentTypes { get; }
-    DbSet<AssignmentMaterial> AssignmentMaterials { get; }
-    DbSet<TestQuestion> TestQuestions { get; }
-    DbSet<AssignmentSubmission> AssignmentSubmissions { get; }
     DbSet<UserSettings> UserSettings { get; }
     DbSet<DeviceToken> DeviceTokens { get; }
     DbSet<UserNotification> UserNotifications { get; }

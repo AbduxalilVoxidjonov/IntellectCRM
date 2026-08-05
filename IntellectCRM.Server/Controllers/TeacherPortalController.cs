@@ -719,106 +719,6 @@ public class TeacherPortalController(
         return dto is null ? BadRequest(new { message = "Xabar bo'sh" }) : dto;
     }
 
-    // ---------- Topshiriqlar / testlar (o'qituvchi yaratadi) ----------
-
-    /// <summary>O'qituvchining o'zi yaratgan topshiriqlari.</summary>
-    [HttpGet("assignments")]
-    public async Task<ActionResult<IEnumerable<AssignmentDto>>> Assignments()
-    {
-        if (!await HasPerm(TeacherPermissions.Assignments)) return Forbid();
-        var uid = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "";
-        return await AssignmentService.ListForTeacherAsync(db, uid);
-    }
-
-    [HttpPost("assignments")]
-    public async Task<ActionResult<AssignmentDto>> CreateAssignment(SaveAssignmentRequest req)
-    {
-        if (!await HasPerm(TeacherPermissions.Assignments)) return Forbid();
-        if (string.IsNullOrWhiteSpace(req.Title)) return BadRequest(new { message = "Topshiriq nomi kerak" });
-        if (req.ClassIds is null || req.ClassIds.Count == 0)
-            return BadRequest(new { message = "Kamida bitta guruh tanlang" });
-        var uid = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "";
-        return await AssignmentService.CreateAsync(db, uid, req);
-    }
-
-    [HttpPut("assignments/{id}")]
-    public async Task<IActionResult> UpdateAssignment(string id, SaveAssignmentRequest req)
-    {
-        if (!await HasPerm(TeacherPermissions.Assignments)) return Forbid();
-        var uid = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "";
-        var a = await db.Assignments.FindAsync(id);
-        if (a is null) return NotFound();
-        if (a.CreatedByUserId != uid) return Forbid(); // faqat o'zinikini tahrirlaydi
-        if (string.IsNullOrWhiteSpace(req.Title)) return BadRequest(new { message = "Topshiriq nomi kerak" });
-        await AssignmentService.UpdateAsync(db, id, req);
-        return NoContent();
-    }
-
-    [HttpDelete("assignments/{id}")]
-    public async Task<IActionResult> DeleteAssignment(string id)
-    {
-        if (!await HasPerm(TeacherPermissions.Assignments)) return Forbid();
-        var uid = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "";
-        var a = await db.Assignments.FindAsync(id);
-        if (a is null) return NotFound();
-        if (a.CreatedByUserId != uid) return Forbid();
-        await AssignmentService.DeleteAsync(db, id);
-        return NoContent();
-    }
-
-    /// <summary>Topshiriq materiali sifatida fayl yuklash (PDF/rasm/doc, maks ~20MB).</summary>
-    [HttpPost("uploads")]
-    [RequestSizeLimit(20_000_000)]
-    public async Task<ActionResult<UploadedFileDto>> Upload(IFormFile file)
-    {
-        if (!await HasPerm(TeacherPermissions.Assignments)) return Forbid();
-        if (Application.Services.UploadGuard.Validate(file) is { } error)
-            return BadRequest(new { message = error });
-
-        var dir = System.IO.Path.Combine(env.ContentRootPath, "uploads");
-        System.IO.Directory.CreateDirectory(dir);
-        var stored = Application.Services.UploadGuard.SafeName(file);
-        await using (var fs = System.IO.File.Create(System.IO.Path.Combine(dir, stored)))
-            await file.CopyToAsync(fs);
-
-        return new UploadedFileDto(file.FileName, $"/uploads/{stored}", file.Length, file.ContentType ?? "");
-    }
-
-    /// <summary>Topshiriq natijalari — kim bajardi/bajarmadi (faqat o'zining topshirig'i).</summary>
-    [HttpGet("assignments/{id}/results")]
-    public async Task<ActionResult<AssignmentResultDto>> AssignmentResults(string id)
-    {
-        if (!await HasPerm(TeacherPermissions.Assignments)) return Forbid();
-        var uid = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "";
-        var a = await db.Assignments.FindAsync(id);
-        if (a is null) return NotFound();
-        if (a.CreatedByUserId != uid) return Forbid();
-        var res = await AssignmentService.GetResultsAsync(db, id);
-        return res is null ? NotFound() : res;
-    }
-
-    /// <summary>O'quvchining bajarish holatini belgilash (bajardi/bajarmadi + ixtiyoriy ball).</summary>
-    [HttpPut("assignments/{id}/submissions/{studentId}")]
-    public async Task<IActionResult> SetSubmission(string id, string studentId, SetSubmissionRequest req)
-    {
-        if (!await HasPerm(TeacherPermissions.Assignments)) return Forbid();
-        var uid = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "";
-        var a = await db.Assignments.FindAsync(id);
-        if (a is null) return NotFound();
-        if (a.CreatedByUserId != uid) return Forbid();
-        await AssignmentService.SetSubmissionAsync(db, id, studentId, req.Completed, req.Score);
-        return NoContent();
-    }
-
-    /// <summary>Topshiriq turlari (faqat o'qish) — topshiriq formasidagi dropdown uchun.</summary>
-    [HttpGet("assignment-types")]
-    public async Task<ActionResult<IEnumerable<AssignmentTypeDto>>> AssignmentTypes()
-    {
-        if (!await HasPerm(TeacherPermissions.Assignments)) return Forbid();
-        return await db.AssignmentTypes.Select(t => new AssignmentTypeDto(t.Id, t.Name)).ToListAsync();
-    }
-
-
     // ---------- Taklif va shikoyatlar (o'qituvchi → admin) ----------
 
     /// <summary>
@@ -1060,8 +960,7 @@ public class TeacherPortalController(
     }
 
     /// <summary>Onlayn test savollari (PDF) faylini yuklash — testlar bo'limi uchun (maks ~20MB).
-    /// Ruxsat: "journal" (o'qituvchi ilovasidagi «Testlar» bo'limi shu ruxsat bilan ochiladi) —
-    /// topshiriqlar ruxsati yo'q o'qituvchi ham onlayn test yarata olsin.</summary>
+    /// Ruxsat: "journal" (o'qituvchi ilovasidagi «Testlar» bo'limi shu ruxsat bilan ochiladi).</summary>
     [HttpPost("test-results/uploads")]
     [RequestSizeLimit(20_000_000)]
     public async Task<ActionResult<UploadedFileDto>> TeacherTestUpload(IFormFile file)

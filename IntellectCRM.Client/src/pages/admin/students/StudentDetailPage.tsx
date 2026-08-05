@@ -1,7 +1,7 @@
 ﻿import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import {
-  ArrowLeft, GraduationCap, CalendarCheck, ShieldAlert, ClipboardCheck,
+  ArrowLeft, GraduationCap, CalendarCheck, ClipboardCheck,
   User, Phone, Wallet, BookOpen, MapPin, Cake, CalendarPlus, Percent, IdCard,
   School, Clock, CalendarDays, ChevronRight, History, ListChecks, ChevronDown, Check,
   CalendarClock, Award, Download, LifeBuoy, Sparkles, Pencil, MessageSquare,
@@ -878,7 +878,7 @@ export function StudentDetailPage() {
               <ListChecks className="mr-1 inline h-3.5 w-3.5" /> O'quv dasturi
             </button>
             <button type="button" className={cn('tab', tab === 'baholar' && 'active')} onClick={() => setTab('baholar')}>
-              <GraduationCap className="mr-1 inline h-3.5 w-3.5" /> Baholar, davomat va intizom
+              <GraduationCap className="mr-1 inline h-3.5 w-3.5" /> Baholar va davomat
             </button>
             <button type="button" className={cn('tab', tab === 'fikr' && 'active')} onClick={() => setTab('fikr')}>
               <LifeBuoy className="mr-1 inline h-3.5 w-3.5" /> Fikr-mulohaza
@@ -1395,7 +1395,7 @@ export function StudentDetailPage() {
 
       )}
 
-      {/* Stat kartalar — Baholar */}
+      {/* Stat kartalar — Baholar va davomat */}
       {tab === 'baholar' && (
       <div className="grid gap-4 sm:grid-cols-2">
         <StatCard
@@ -1406,34 +1406,12 @@ export function StudentDetailPage() {
           iconColor="text-brand-600"
         />
         <StatCard
-          label="Topshiriqlar"
-          value={`${data.assignments.gradedCount}/${data.assignments.count}`}
-          hint={data.assignments.totalMax > 0 ? `${data.assignments.totalScore}/${data.assignments.totalMax} ball` : undefined}
-          icon={ClipboardCheck}
-          iconBg="bg-indigo-50"
-          iconColor="text-indigo-600"
-        />
-      </div>
-      )}
-
-      {/* Stat kartalar — Davomat va intizom */}
-      {tab === 'baholar' && (
-      <div className="grid gap-4 sm:grid-cols-2">
-        <StatCard
           label="Davomat"
           value={data.conducted > 0 ? `${data.attendancePct}%` : '—'}
           hint={data.conducted > 0 ? `${data.attended} / ${data.conducted} dars` : undefined}
           icon={CalendarCheck}
           iconBg="bg-emerald-50"
           iconColor="text-emerald-600"
-        />
-        <StatCard
-          label="Intizomiy ball"
-          value={data.disciplineScore}
-          hint={`+${data.disciplinePlus} / −${data.disciplineMinus}`}
-          icon={ShieldAlert}
-          iconBg="bg-amber-50"
-          iconColor="text-amber-600"
         />
       </div>
       )}
@@ -1765,46 +1743,6 @@ export function StudentDetailPage() {
         </Section>
       )}
 
-      {/* Topshiriqlar */}
-      {tab === 'baholar' && (
-      <Section title="Topshiriqlar ballari" icon={ClipboardCheck}>
-        {data.assignments.items.length === 0 ? (
-          <Empty>Topshiriq yo'q</Empty>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-400">
-                <tr>
-                  <th className="px-3 py-2">Topshiriq</th>
-                  <th className="px-3 py-2">Fan</th>
-                  <th className="px-3 py-2 text-center">Holat</th>
-                  <th className="px-3 py-2 text-center">Ball</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {data.assignments.items.map((a) => (
-                  <tr key={a.assignmentId} className="hover:bg-slate-50/60">
-                    <td className="px-3 py-2 font-medium text-slate-700">{a.title}</td>
-                    <td className="px-3 py-2 text-slate-500">{a.subjectName}</td>
-                    <td className="px-3 py-2 text-center">
-                      {a.completed ? (
-                        <span className="rounded bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">Bajardi</span>
-                      ) : (
-                        <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-400">—</span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2 text-center font-mono font-semibold text-slate-800">
-                      {a.score != null ? `${a.score}/${a.maxScore}` : <span className="text-slate-300">—</span>}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Section>
-      )}
-
       {/* Yig'ilgan ballar — har oyda nechta baholash mezoni bajarilgani (o'rtacha EMAS, JAMI ball) */}
       {tab === 'baholar' && gradingSummary.length > 0 && (
         <Section title="Yig'ilgan ballar" icon={ClipboardCheck}>
@@ -1877,34 +1815,6 @@ export function StudentDetailPage() {
       </Section>
       )}
 
-      {/* Intizomiy ball tarixi */}
-      {tab === 'baholar' && (
-      <Section title="Intizomiy ball tarixi" icon={ShieldAlert}>
-        {data.disciplinePoints.length === 0 ? (
-          <Empty>Yozuv yo'q</Empty>
-        ) : (
-          <div className="space-y-2">
-            {data.disciplinePoints.map((p) => (
-              <div key={p.id} className="flex items-center gap-3 rounded-lg border border-slate-100 px-3 py-2">
-                <span
-                  className={cn(
-                    'rounded-md px-2 py-0.5 font-mono text-sm font-semibold',
-                    p.points < 0 ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600',
-                  )}
-                >
-                  {p.points > 0 ? `+${p.points}` : p.points}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-slate-700">{p.reasonName}</p>
-                  {p.note && <p className="truncate text-xs text-slate-400">{p.note}</p>}
-                </div>
-                <span className="shrink-0 font-mono text-xs text-slate-400">{formatDate(p.createdAt)}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </Section>
-      )}
         </div>
       </div>
 
@@ -2991,7 +2901,7 @@ function AiSection({
       {records.length === 0 ? (
         <Empty>
           Hali AI tahlil qilinmagan. "Tahlil qilish" tugmasini bosing — AI o'quvchining barcha ma'lumotlarini
-          (baholar, davomat, intizom, topshiriqlar, balans) tahlil qilib, diagrammalar va tavsiyalar beradi.
+          (baholar, davomat, uy vazifa, xulq, balans) tahlil qilib, diagrammalar va tavsiyalar beradi.
         </Empty>
       ) : (
         <div className="space-y-4">

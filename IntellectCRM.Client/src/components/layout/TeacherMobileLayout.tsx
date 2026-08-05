@@ -28,8 +28,7 @@ interface Tab {
   badge?: boolean
 }
 
-// DIQQAT: 3-tab — "Test" (onlayn/oflayn test yaratish). Avval bu yerda "Vazifa"
-// (Topshiriqlar) turardi; u profil menyusiga ko'chirildi (TeacherProfilePage MENU).
+// DIQQAT: 3-tab — "Test" (onlayn/oflayn test yaratish).
 const TABS: Tab[] = [
   { to: '/teacher', label: 'Bosh', icon: Home, end: true },
   { to: '/teacher/journal', label: 'Jurnal', icon: BookOpen },

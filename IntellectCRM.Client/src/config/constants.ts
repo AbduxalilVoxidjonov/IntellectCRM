@@ -55,7 +55,6 @@ export const STAFF_CHANNEL_LABEL = 'Xodimlar'
 /** O'qituvchi web paneli bo'limlari (admin ruxsat beradi). Kalitlar backend bilan bir xil. */
 export const teacherPermissions: { key: string; label: string }[] = [
   { key: 'journal', label: 'Jurnal' },
-  { key: 'assignments', label: 'Topshiriqlar' },
   { key: 'schedule', label: 'Dars jadvali' },
   { key: 'messages', label: 'Xabarlar (chat)' },
   { key: 'salary', label: 'Maosh' },
@@ -102,7 +101,6 @@ export const adminPermissions: { key: string; label: string }[] = [
   // Vakansiyalar — ishga qabul moduli (Intellect Career boti + `/vakansiya` Mini App):
   // vakansiya e'lonlari, nomzod arizalari va "Biz haqimizda" bloki.
   { key: 'vacancies', label: 'Vakansiyalar' },
-  { key: 'discipline', label: 'Intizomiy ball' },
   { key: 'calls', label: 'Call Center' },
   // Bosh sahifadagi markaz AI tahlili — DEFAULT faqat superadmin ko'radi; xodimga shu yerdan
   // ruxsat beriladi ("Ko'rish" = karta ko'rinadi, "Qo'shish" = qo'lda tahlil yaratish tugmasi).

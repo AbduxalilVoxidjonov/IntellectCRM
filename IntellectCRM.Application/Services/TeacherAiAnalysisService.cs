@@ -12,7 +12,7 @@ namespace IntellectCRM.Application.Services;
 /// KUNIGA BIR MARTA yaratiladi (mavjud bo'lsa Gemini chaqirilmaydi — saqlangani qaytadi).
 ///
 /// Raqamlar DETERMINISTIK: <see cref="TeacherSnapshotBuilder"/> hisoblaydi (o'quvchi oqimi, ketish
-/// sabablari, jurnalni o'z vaqtida to'ldirish, baholar dinamikasi, testlar/topshiriqlar, davomat).
+/// sabablari, jurnalni o'z vaqtida to'ldirish, baholar dinamikasi, testlar, davomat).
 /// AI faqat NARRATIV yozadi (o'zbek tilida) va 0..100 oralig'ida sohaviy baholar qo'yadi.
 /// Oldingi tahlil bo'lsa — yangi tahlil unga nisbatan o'zgarishlarni ham aytadi.
 /// </summary>
@@ -79,8 +79,8 @@ public static class TeacherAiAnalysisService
             "• JURNAL INTIZOMI — rejadagi va o'tilgan darslar, MUHLATI O'TGANIGA QARAMAY jurnalda " +
             "belgilanmagan darslar (jurnalni o'z vaqtida to'ldirish ko'rsatkichi), mavzu/uy vazifa yozilishi, " +
             "davomat olinishi, qo'yilgan baholar soni;\n" +
-            "• RIVOJLANISH — o'rtacha baho dinamikasi, o'quvchilar davomati va yig'gan bali, test va " +
-            "topshiriqlar natijalari;\n" +
+            "• RIVOJLANISH — o'rtacha baho dinamikasi, o'quvchilar davomati va yig'gan bali, " +
+            "test natijalari;\n" +
             "• o'qituvchining o'z davomati va ota-onalardan kelgan shikoyat/takliflar;\n" +
             "• O'QUVCHILARNING SHU O'QITUVCHI HAQIDAGI FIKRLARI (`oquvchilarFikri.matnlar`) — " +
             "ma'muriyat o'quvchilar bilan suhbatlashib yozib borgan MATNLI mulohazalar. Bu eng qimmatli " +
@@ -106,7 +106,7 @@ public static class TeacherAiAnalysisService
             "}\n\n" +
             "Qoidalar: \"baholar\" — 0..100 butun sonlar: jurnal (darslarni o'z vaqtida belgilash va to'ldirish), " +
             "saqlash (o'quvchini ushlab qola olishi), baholash (baho/mavzu/uy vazifa muntazamligi), " +
-            "rivojlanish (o'zlashtirish va davomat dinamikasi), faollik (test/topshiriq/umumiy faollik), " +
+            "rivojlanish (o'zlashtirish va davomat dinamikasi), faollik (test va umumiy faollik), " +
             "umumiy (boshqalarning umumlashmasi). Ma'lumot yo'q soha uchun ehtiyotkor o'rta baho qo'y. " +
             "FAQAT berilgan raqamlarga tayan, to'qib chiqarma. Har matn maydoni qisqa, aniq va rahbarga foydali. " +
             "MAXFIYLIK: o'quvchilar fikri matnlarini SO'ZMA-SO'Z KO'CHIRMA va o'quvchi ismini yozma — " +

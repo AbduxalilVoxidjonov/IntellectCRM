@@ -1,7 +1,6 @@
 import type {
   Subject,
   AttendanceReasonCount,
-  DisciplinePoint,
   EvaluationType,
 } from '@/types'
 import { api } from '../client'
@@ -29,27 +28,6 @@ export interface MonthMarks {
   homeworkMissed: number
   behaviorGood: number
   behaviorBad: number
-}
-
-/** Bitta topshiriqdagi natija */
-export interface AssignmentScoreItem {
-  assignmentId: string
-  subjectName: string
-  title: string
-  format: string
-  maxScore: number
-  score?: number | null
-  completed: boolean
-  dueDate?: string | null
-  submittedAt?: string | null
-}
-
-export interface StudentAssignmentScores {
-  count: number
-  gradedCount: number
-  totalScore: number
-  totalMax: number
-  items: AssignmentScoreItem[]
 }
 
 /** Davomat — har metrika OY ("yyyy-MM") → son */
@@ -101,13 +79,6 @@ export interface StudentNotebook {
   attended: number
   attendancePct: number
   reasons: AttendanceReasonCount[]
-  // Intizom
-  disciplineScore: number
-  disciplinePlus: number
-  disciplineMinus: number
-  disciplinePoints: DisciplinePoint[]
-  // Topshiriqlar
-  assignments: StudentAssignmentScores
   // Oylik baholash — umumiy (fanlar o'rtachasi) + fan kesimida
   evaluationTypes: EvaluationType[]
   evaluations: MonthlyEvaluation[]

@@ -46,7 +46,7 @@ export function GeminiSettings() {
     >
       <p className="mb-4 text-sm text-slate-400">
         Har o'quvchi profilida <b>"AI Tahlil"</b> tugmasi bo'ladi: bosilganda o'quvchining barcha
-        ma'lumotlari (baholar, davomat, intizom, topshiriqlar, baholash, balans) <b>Google Gemini</b>{' '}
+        ma'lumotlari (baholar, davomat, uy vazifa, baholash, balans) <b>Google Gemini</b>{' '}
         orqali tahlil qilinib, o'zbek tilida xulosa va tavsiyalar beriladi. Kalit berilmasa AI tahlil
         ishlamaydi.
       </p>

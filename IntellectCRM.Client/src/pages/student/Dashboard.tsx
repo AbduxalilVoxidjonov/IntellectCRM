@@ -93,11 +93,9 @@ export function StudentDashboardScreen() {
   const conducted = num(nb?.conducted)
   const missed = Math.max(0, conducted - attended)
   const attPct = num(nb?.attendancePct)
-  const discipline = num(nb?.disciplineScore) || 100
   const hwDone = num(nb?.homeworkDone)
   const hwMissed = num(nb?.homeworkMissed)
   const hwPct = hwDone + hwMissed > 0 ? Math.round((hwDone / (hwDone + hwMissed)) * 100) : 0
-  const discColor = discipline >= 85 ? 'var(--green)' : discipline >= 60 ? 'var(--amber)' : 'var(--red)'
 
   return (
     <div className="screen">
@@ -192,7 +190,7 @@ export function StudentDashboardScreen() {
                 <Icon name="chevR" size={16} color="var(--accent)" />
               </button>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
               <Stat icon="chart" label="O'rtacha baho" value={avg > 0 ? avg.toFixed(2) : '—'} color={gradeColor(avg)} />
               <Stat
                 icon="checkCircle"
@@ -201,7 +199,6 @@ export function StudentDashboardScreen() {
                 color="var(--green)"
                 sub={conducted > 0 ? `${attended}/${conducted} dars` : undefined}
               />
-              <Stat icon="shield" label="Intizom balli" value={`${discipline}`} color={discColor} />
               <Stat icon="checkCircle" label="Uy vazifa" value={`${hwPct}%`} color="var(--violet)" />
             </div>
           </div>

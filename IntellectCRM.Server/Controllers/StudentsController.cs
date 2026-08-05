@@ -109,7 +109,7 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
         return students;
     }
 
-    /// <summary>O'quvchi shaxsiy daftari — bitta o'quvchi haqida barcha ma'lumot (profil, o'zlashtirish, davomat, intizom, topshiriqlar, oylik baholash, uy vazifa/xulq).</summary>
+    /// <summary>O'quvchi shaxsiy daftari — bitta o'quvchi haqida barcha ma'lumot (profil, o'zlashtirish, davomat, oylik baholash, uy vazifa/xulq).</summary>
     [HttpGet("{id}/profile")]
     public async Task<ActionResult<StudentNotebookDto>> GetProfile(string id)
     {
@@ -188,8 +188,8 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
         var prompt =
             "Sen o'quv markazi uchun tajribali pedagog-tahlilchisan. Quyida bitta o'quvchining to'liq " +
             "ma'lumotlari JSON ko'rinishida: shaxsiy ma'lumotlar, fanlar bo'yicha oylik baholar, davomat " +
-            "(qoldirgan/kasal/kech), intizomiy ball, topshiriqlar natijasi, oylik baholash (feedback), uy " +
-            "vazifa va xulq dinamikasi, to'lov balansi.\n\n" +
+            "(qoldirgan/kasal/kech), oylik baholash (feedback), uy vazifa va xulq dinamikasi, " +
+            "to'lov balansi.\n\n" +
             "Vazifa: shu ma'lumotni CHUQUR tahlil qilib, FAQAT O'ZBEK TILIDA (lotin alifbosi) natijani QUYIDAGI " +
             "JSON sxemasida QAYTAR (boshqa hech narsa yozma, faqat JSON):\n" +
             "{\n" +
@@ -893,13 +893,12 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
         if (student is null) return NotFound();
         var reason = string.IsNullOrWhiteSpace(reasonId) ? "" : (await db.ActionReasons.Where(r => r.Id == reasonId).Select(r => r.Label).FirstOrDefaultAsync() ?? "");
         // Bog'liq qatorlar orphan qolmasligi uchun ularni ham olib tashlaymiz: oylik hisob, guruh a'zoliklari,
-        // jurnal yozuvlari, oylik baholar, intizomiy ballar. (Moliya yozuvlari audit uchun saqlanadi.)
+        // jurnal yozuvlari, oylik baholar. (Moliya yozuvlari audit uchun saqlanadi.)
         db.MonthlyCharges.RemoveRange(db.MonthlyCharges.Where(c => c.StudentId == id));
         db.StudentGroups.RemoveRange(db.StudentGroups.Where(sg => sg.StudentId == id));
         db.StudentNotes.RemoveRange(db.StudentNotes.Where(n => n.StudentId == id));
         db.JournalEntries.RemoveRange(db.JournalEntries.Where(e => e.StudentId == id));
         db.EvaluationGrades.RemoveRange(db.EvaluationGrades.Where(g => g.StudentId == id));
-        db.DisciplinePoints.RemoveRange(db.DisciplinePoints.Where(p => p.StudentId == id));
         // Biriktirilgan tizim akkaunti + qurilma tokenlarini ham o'chiramiz.
         if (student.UserId is not null)
         {

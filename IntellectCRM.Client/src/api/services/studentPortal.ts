@@ -58,7 +58,6 @@ export interface StudentDashboard {
   meta: PortalMeta
   todayLessons: StudentLesson[]
   todayGrades: HomeworkItem[]
-  pendingAssignmentsCount: number
   balance: number
   monthlyFee: number
 }
@@ -95,17 +94,6 @@ export interface StudentAttendanceFull {
   summary: StudentAttendanceSummary
   rows: AbsenceRow[]
 }
-
-export interface DisciplinePoint {
-  id: string
-  reasonName: string
-  points: number
-  note: string
-  createdAt: string
-  createdBy: string
-  source: string
-}
-export interface StudentDiscipline { remaining: number; plus: number; minus: number; items: DisciplinePoint[] }
 
 export interface RatingRow {
   rank: number
@@ -155,80 +143,6 @@ export interface SubjectProgressDetail {
   lessons: SubjectLesson[]
 }
 
-export interface AssignmentMaterial { id?: string; name: string; url: string; size: number; contentType: string; audioUrl?: string | null }
-export interface StudentAssignment {
-  id: string
-  subjectName: string
-  title: string
-  description: string
-  format: 'written' | 'file' | 'test' | 'video' | 'speaking'
-  startDate?: string | null
-  dueDate?: string | null
-  lateAccept: boolean
-  latePenaltyPct: number
-  maxScore: number
-  questionCount: number
-  materials: AssignmentMaterial[]
-  completed: boolean
-  submittedAt?: string | null
-  score?: number | null
-  /** Speaking topshirig'i uchun o'qiladigan matn */
-  referenceText?: string
-}
-
-// ---------- Speaking (Azure talaffuz bahosi) ----------
-export interface SpeakingWord { word: string; accuracy: number; errorType: string }
-export interface SpeakingResult {
-  recognizedText: string
-  pronScore: number
-  accuracy: number
-  fluency: number
-  completeness: number
-  prosody: number
-  words: SpeakingWord[]
-  error: string | null
-}
-/** Audio (WAV) yuborib, Azure talaffuz bahosini olish (natija saqlanadi). */
-export async function submitSpeaking(assignmentId: string, audio: Blob): Promise<SpeakingResult> {
-  const fd = new FormData()
-  fd.append('audio', audio, 'speaking.wav')
-  const { data } = await api.post<SpeakingResult>(`/student/assignments/${assignmentId}/speaking`, fd, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  })
-  return data
-}
-/** Oldingi speaking natijasi (bor bo'lsa) — 204 bo'lsa null. */
-export async function getSpeaking(assignmentId: string, studentId?: string): Promise<SpeakingResult | null> {
-  const { data } = await api.get<SpeakingResult>(`/student/assignments/${assignmentId}/speaking`, { params: sid(studentId) })
-  return data || null
-}
-export interface TestQuestion { id: string; text: string; options: string[] }
-export interface StudentAssignmentDetail extends Omit<StudentAssignment, 'questionCount'> {
-  questions: TestQuestion[]
-  answerText?: string | null
-  fileUrl?: string | null
-}
-export interface AssignmentScoreItem {
-  assignmentId: string
-  subjectName: string
-  title: string
-  format: string
-  maxScore: number
-  score?: number | null
-  completed: boolean
-  dueDate?: string | null
-  submittedAt?: string | null
-}
-export interface StudentAssignmentScores {
-  count: number
-  gradedCount: number
-  totalScore: number
-  totalMax: number
-  items: AssignmentScoreItem[]
-}
-export interface TestAnswer { questionId: string; selectedIndex: number }
-export interface SubmitResult { completed: boolean; score?: number | null; correctCount?: number | null; total?: number | null }
-export interface UploadedFile { name: string; url: string; size: number; contentType: string }
 
 export interface MonthCourse { courseName: string; fee: number }
 export interface MonthLedger { month: string; charged: number; discount: number; paid: number; remaining: number; status: string; courses: MonthCourse[] }
@@ -481,9 +395,6 @@ export interface MonthlyAttendance {
 export interface MonthlyEvaluation { month: string; grades: Record<string, number>; avg: number }
 export interface SubjectEvaluation { subjectId: string; subjectName: string; avg: number; evaluations: MonthlyEvaluation[] }
 export interface MonthMarks { month: string; homeworkDone: number; homeworkMissed: number; behaviorGood: number; behaviorBad: number }
-export interface NotebookAssignmentScore { assignmentId: string; subjectName: string; title: string; format: string; maxScore: number; score?: number | null; completed: boolean }
-export interface NotebookAssignments { count: number; gradedCount: number; totalScore: number; totalMax: number; items: NotebookAssignmentScore[] }
-export interface NotebookDisciplinePoint { id: string; reasonName: string; points: number; note: string; createdAt: string; source: string }
 export interface StudentNotebook {
   id: string
   fullName: string
@@ -498,11 +409,6 @@ export interface StudentNotebook {
   attended: number
   attendancePct: number
   reasons: AttendanceReasonCount[]
-  disciplineScore: number
-  disciplinePlus: number
-  disciplineMinus: number
-  disciplinePoints: NotebookDisciplinePoint[]
-  assignments: NotebookAssignments
   evaluationTypes: { id: string; name: string }[]
   evaluations: MonthlyEvaluation[]
   evaluationsBySubject: SubjectEvaluation[]
@@ -521,10 +427,6 @@ export async function getStudentAttendance(quarter = 1, studentId?: string) {
   const { data } = await api.get<StudentAttendanceFull>('/student/attendance', { params: { quarter, ...sid(studentId) } })
   return data
 }
-export async function getStudentDiscipline(studentId?: string) {
-  const { data } = await api.get<StudentDiscipline>('/student/discipline', { params: sid(studentId) })
-  return data
-}
 export async function getStudentRating(studentId?: string) {
   const { data } = await api.get<StudentRating>('/student/rating', { params: sid(studentId) })
   return data
@@ -538,37 +440,6 @@ export async function getStudentSubjectProgressDetail(subjectId: string, quarter
   return data
 }
 
-// ---------- Assignments ----------
-export async function getStudentAssignments(studentId?: string) {
-  const { data } = await api.get<StudentAssignment[]>('/student/assignments', { params: sid(studentId) })
-  return data
-}
-export async function getStudentAssignment(id: string, studentId?: string) {
-  const { data } = await api.get<StudentAssignmentDetail>(`/student/assignments/${id}`, { params: sid(studentId) })
-  return data
-}
-export async function getStudentAssignmentScores(studentId?: string) {
-  const { data } = await api.get<StudentAssignmentScores>('/student/assignment-scores', { params: sid(studentId) })
-  return data
-}
-export async function submitStudentAssignment(
-  id: string,
-  body: { answers?: TestAnswer[]; answerText?: string; fileUrl?: string },
-) {
-  const { data } = await api.post<SubmitResult>(`/student/assignments/${id}/submit`, body)
-  return data
-}
-export async function uploadStudentFile(file: File, onProgress?: (pct: number) => void) {
-  const fd = new FormData()
-  fd.append('file', file)
-  const { data } = await api.post<UploadedFile>('/student/uploads', fd, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-    onUploadProgress: (e) => {
-      if (onProgress && e.total) onProgress(Math.round((e.loaded / e.total) * 100))
-    },
-  })
-  return data
-}
 
 // ---------- Finance ----------
 export async function getStudentFinance(studentId?: string) {

@@ -1,14 +1,13 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getStudentNotebook, type StudentNotebook } from '@/api/services/studentPortal'
-import { Icon, Ring, gradeColor, subjectColor, MONTHS } from '@/pages/student/lib'
+import { Icon, gradeColor, subjectColor, MONTHS } from '@/pages/student/lib'
 import { GradingPanel } from '@/pages/student/GradingPanel'
 
 /* ============================================================
    O'quvchi — UMUMIY STATISTIKA (o'quvchi haqida yig'ilgan barcha
    ma'lumot diagrammalarda): baholar trendi, fanlar o'rtachasi,
-   davomat + sabablar, intizom, topshiriqlar, oylik feedback,
-   uy vazifa va xulq.
+   davomat + sabablar, oylik feedback, uy vazifa va xulq.
    ============================================================ */
 
 const sumVals = (o: Record<string, number> | undefined) =>
@@ -100,14 +99,6 @@ function Body({ nb }: { nb: StudentNotebook }) {
   const absent = Math.max(0, conducted - attended)
   const lateTotal = sumVals(nb.attendance?.lateCount)
 
-  // ---- Intizom ----
-  const disc = nb.disciplineScore || 0
-  const discColor = disc >= 85 ? 'var(--green)' : disc >= 60 ? 'var(--amber)' : 'var(--red)'
-
-  // ---- Topshiriqlar ----
-  const a = nb.assignments
-  const aPct = a && a.totalMax > 0 ? Math.round((a.totalScore / a.totalMax) * 100) : 0
-
   // ---- Oylik feedback (fan kesimida) ----
   const feedback = (nb.evaluationsBySubject || []).filter((s) => s.avg > 0).sort((x, y) => y.avg - x.avg)
 
@@ -127,11 +118,10 @@ function Body({ nb }: { nb: StudentNotebook }) {
   return (
     <div className="pad" style={{ paddingBottom: 28 }}>
       {/* KPI plitalar */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8, marginTop: 4 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginTop: 4 }}>
         <Kpi value={nb.avgGrade > 0 ? nb.avgGrade.toFixed(1) : '—'} label="Baho" color={gradeColor(nb.avgGrade)} />
         <Kpi value={`${nb.attendancePct || 0}%`} label="Davomat" color="var(--green)" />
-        <Kpi value={`${disc}`} label="Intizom" color={discColor} />
-        <Kpi value={`${aPct}%`} label="Topshiriq" color="var(--violet)" />
+        <Kpi value={`${hwPct}%`} label="Uy vazifa" color="var(--violet)" />
       </div>
 
       {/* Baholar trendi */}
@@ -199,41 +189,7 @@ function Body({ nb }: { nb: StudentNotebook }) {
         </Section>
       )}
 
-      {/* Intizomiy ball */}
-      <Section title="Intizomiy ball" sub="100 balldan boshlanadi">
-        <div className="row" style={{ gap: 18, alignItems: 'center' }}>
-          <Ring value={disc} max={100} size={104} stroke={12} color={discColor}>
-            <div style={{ fontSize: 26, fontWeight: 800, color: discColor }}>{disc}</div>
-            <div className="muted" style={{ fontSize: 10 }}>
-              ball
-            </div>
-          </Ring>
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <Legend color="var(--green)" label="Rag'bat" value={`+${nb.disciplinePlus || 0}`} />
-            <Legend color="var(--red)" label="Jazo" value={`−${nb.disciplineMinus || 0}`} />
-          </div>
-        </div>
-      </Section>
-
       {/* TODO: Darsga munosabat (O'zlashtirish darajasi taqsimoti) - implement in backend */}
-
-      {/* Topshiriqlar */}
-      {a && a.count > 0 && (
-        <Section title="Topshiriqlar" sub={`${a.gradedCount}/${a.count} baholandi`}>
-          <div className="row" style={{ gap: 18, alignItems: 'center' }}>
-            <Ring value={aPct} max={100} size={104} stroke={12} color="var(--violet)">
-              <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--violet)' }}>{aPct}%</div>
-              <div className="muted" style={{ fontSize: 10 }}>
-                ball
-              </div>
-            </Ring>
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <Legend color="var(--violet)" label="To'plangan ball" value={`${a.totalScore}/${a.totalMax}`} />
-              <Legend color="var(--accent)" label="Topshiriqlar" value={a.count} />
-            </div>
-          </div>
-        </Section>
-      )}
 
       {/* Oylik feedback (baholash) */}
       {feedback.length > 0 && (
