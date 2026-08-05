@@ -4,7 +4,7 @@ import {
   ArrowLeft, Users, BookOpen, User,
   CalendarDays, Clock, MapPin, CheckCircle2,
   ListChecks, ChevronRight, ChevronDown, Plus, Minus, Repeat, CalendarClock, Flag,
-  TrendingUp, RotateCcw, ClipboardCheck, ImageIcon,
+  TrendingUp, RotateCcw, ClipboardCheck, ImageIcon, PhoneCall,
 } from 'lucide-react'
 import type { AbsenceReason } from '@/types'
 import {
@@ -20,6 +20,8 @@ import { Card } from '@/components/ui/Card'
 import { GradingSection } from '@/components/grading/GradingSection'
 import type { GradingBoard } from "@/api/services/grading"
 import { Loader } from '@/components/ui/Loader'
+import { GroupContactTab } from '@/components/contacts/GroupContactTab'
+import { getTeacherContactReasons, sendTeacherGroupContacts } from '@/api/services/contacts'
 import { Modal } from '@/components/ui/Modal'
 import { PhotoViewerModal } from '@/components/ui/PhotoViewerModal'
 import { Button } from '@/components/ui/Button'
@@ -74,7 +76,9 @@ export function TeacherGroupDetailPage() {
   const [rError, setRError] = useState<string | null>(null)
 
   // ---- Guruh o'quv dasturi (darsda o'tilgan) ----
-  const [groupView, setGroupView] = useState<'jurnal' | 'davomat' | 'baholash' | 'reyting' | 'imtihonlar'>('jurnal')
+  const [groupView, setGroupView] = useState<
+    'jurnal' | 'davomat' | 'baholash' | 'reyting' | 'imtihonlar' | 'aloqa'
+  >('jurnal')
   const [curr, setCurr] = useState<GroupCurriculum | null>(null)
   const [currLoading, setCurrLoading] = useState(true)
   const [currOpen, setCurrOpen] = useState(false)
@@ -424,6 +428,8 @@ export function TeacherGroupDetailPage() {
               { key: "baholash", label: "Baholash" },
               { key: "reyting", label: "Reyting" },
               { key: "imtihonlar", label: "Imtihonlar" },
+              // ALOQA — o'quvchini "Bog'lanish kerak" navbatiga yuborish (admin ko'radi va qo'ng'iroq qiladi).
+              { key: "aloqa", label: "Aloqa" },
             ] as const).map((t) => (
               <button
                 key={t.key}
@@ -760,6 +766,30 @@ export function TeacherGroupDetailPage() {
           )}
 
           {/* Reyting — o'quvchilarning o'rtacha bahosi va baholash statistikasi (bir yoki bir nechta oy) */}
+          {groupView === "aloqa" && id && (
+            <Card className="rounded-[20px] border border-line bg-white p-4 shadow-[var(--shadow-card)]">
+              <div className="mb-3 flex items-center gap-2">
+                <PhoneCall className="h-5 w-5 text-teal-600" />
+                <h2 className="font-semibold text-ink">Bog'lanish kerak</h2>
+              </div>
+              <GroupContactTab
+                students={(journal?.students ?? []).map((s) => ({
+                  id: s.studentId,
+                  fullName: s.fullName,
+                  status: s.status,
+                }))}
+                loadReasons={getTeacherContactReasons}
+                onSend={(ids, reasonId, note) =>
+                  sendTeacherGroupContacts(id, {
+                    studentIds: ids,
+                    reasonId: reasonId || undefined,
+                    note: note || undefined,
+                  })
+                }
+              />
+            </Card>
+          )}
+
           {groupView === "reyting" && <RatingsTab groupId={id} months={journal?.months ?? []} defaultMonth={journal?.month} />}
 
           {/* Imtihonlar — shu guruh testlari (yaratish/tahrirlash/ball qo'yish) */}

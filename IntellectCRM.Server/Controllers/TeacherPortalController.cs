@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using IntellectCRM.Infrastructure.Data;
@@ -22,7 +22,8 @@ namespace IntellectCRM.Server.Controllers;
 public class TeacherPortalController(
     AppDbContext db, ChatService chat, IWebHostEnvironment env, ReferenceCache refCache,
     FcmService fcm, AutoMessageService autoMsg, ContractService contracts,
-    TestCertificateService testCerts, TestCertificateJobs testCertJobs) : ControllerBase
+    TestCertificateService testCerts, TestCertificateJobs testCertJobs,
+    ContactQueueService queue) : ControllerBase
 {
     /// <summary>"Darsga kelmadi" avto-xabari (attendance_absent) — o'quvchi(lar)ga guruh+sabab bilan.
     /// Exception yutiladi (jurnal javobini bloklamaydi).</summary>
@@ -1192,5 +1193,59 @@ public class TeacherPortalController(
         if (!await OwnsGroup(groupId)) return Forbid();
         var zip = await testCerts.ZipForTestAsync(db, id, ct);
         return zip is null ? NotFound(new { message = "Sertifikat yo'q" }) : File(zip.Value.Bytes, "application/zip", zip.Value.FileName);
+    }
+
+    /* =============================================================================================
+     *  BOG'LANISH KERAK — o'qituvchi o'z guruhidagi o'quvchini navbatga yuboradi
+     * ========================================================================================== */
+
+    /// <summary>
+    /// Bog'lanish sabablari (Sozlamalar → Sabablar, kategoriya "contact") — o'qituvchi tanlashi uchun.
+    /// Admin endpointi (`/api/admin/action-reasons`) o'qituvchiga yopiq, shuning uchun alohida.
+    /// </summary>
+    [HttpGet("contact-reasons")]
+    public async Task<ActionResult<IEnumerable<ActionReasonDto>>> ContactReasons() =>
+        await db.ActionReasons
+            .Where(r => r.Category == ContactService.ReasonCategory)
+            .OrderBy(r => r.Order)
+            .Select(r => new ActionReasonDto(r.Id, r.Category, r.Label, r.Order))
+            .ToListAsync();
+
+    /// <summary>
+    /// O'z guruhidagi o'quvchi(lar)ni "Bog'lanish kerak" navbatiga yuboradi (jurnaldagi "Aloqa" tabi).
+    ///
+    /// <para>SANA SO'RALMAYDI — talab darhol navbatga tushadi (bugungi ish). Sabab va izoh
+    /// TANLANGANLARNING HAMMASIGA bir xil qo'yiladi.</para>
+    ///
+    /// <para>XAVFSIZLIK: guruh o'qituvchiniki ekani tekshiriladi VA faqat o'sha guruhning FAOL
+    /// a'zolari qabul qilinadi — aks holda o'qituvchi id yozib begona o'quvchini navbatga
+    /// qo'sha olardi.</para>
+    /// </summary>
+    [HttpPost("groups/{classId}/contacts")]
+    public async Task<ActionResult<ContactBulkResultDto>> SendToContactQueue(
+        string classId, TeacherContactRequest req)
+    {
+        var me = await Me();
+        if (me is null) return Forbid();
+        if (!await Teaches(me.Id, classId, "")) return Forbid();
+
+        var ids = (req.StudentIds ?? new List<string>())
+            .Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).Distinct().ToList();
+        if (ids.Count == 0) return BadRequest(new { message = "O'quvchi tanlanmagan" });
+
+        // Ruxsat ro'yxati — SHU guruhning faol a'zolari.
+        var allowed = (await db.StudentGroups.AsNoTracking()
+                .Where(sg => sg.GroupId == classId && sg.IsActive)
+                .Select(sg => sg.StudentId).ToListAsync())
+            .ToHashSet();
+
+        var r = await queue.AddManyAsync(
+            ids, req.ReasonId, req.Note,
+            // Sana YO'Q: o'qituvchi "hoziroq bog'laning" deydi, rejalashtirish operatorning ishi.
+            due: null,
+            actorId: me.UserId ?? "", actorName: me.FullName,
+            allowedStudentIds: allowed);
+
+        return new ContactBulkResultDto(r.Created, r.Skipped, r.SkippedNames, r.NotFound);
     }
 }

@@ -27,7 +27,7 @@ namespace IntellectCRM.Server.Controllers;
 [Authorize]
 [AdminPerm("contacts", ReadRequiresPerm = true)]
 [Route("api/admin/contacts")]
-public class ContactsController(AppDbContext db, AuditService audit) : ControllerBase
+public class ContactsController(AppDbContext db, AuditService audit, ContactQueueService queue) : ControllerBase
 {
     private string Actor => User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value ?? "Admin";
     private string ActorId => User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
@@ -35,11 +35,11 @@ public class ContactsController(AppDbContext db, AuditService audit) : Controlle
     private static string Today => AppClock.Today.ToString("yyyy-MM-dd");
 
     /// <summary>Audit tur nomi — <see cref="AuditSections"/> da "Bog'lanish kerak" bo'limiga tushadi.</summary>
-    private const string AuditEntity = "ContactRequest";
+    private const string AuditEntity = ContactQueueService.AuditEntity;
 
     /// <summary>Bir amalda navbatga qo'shiladigan eng ko'p o'quvchi ("hammasini tanlash"
     /// bosilsa ham so'rov cheksiz o'smasin).</summary>
-    private const int MaxBulk = 500;
+    private const int MaxBulk = ContactQueueService.MaxBulk;
 
     /* =========================================================================================
      *  KATALOG + SANOQLAR
@@ -272,13 +272,13 @@ public class ContactsController(AppDbContext db, AuditService audit) : Controlle
                 existingId = open.Id,
             });
 
-        var (reasonId, reasonLabel) = await ResolveReasonAsync(req.ReasonId);
+        var (reasonId, reasonLabel) = await queue.ResolveReasonAsync(req.ReasonId);
 
         var due = (req.DueDate ?? "").Trim();
         if (due.Length > 0 && !DateOnly.TryParse(due, out _))
             return BadRequest(new { message = "Sana noto'g'ri (YYYY-MM-DD)" });
 
-        var c = AddRequest(student, reasonId, reasonLabel, (req.Note ?? "").Trim(), due);
+        var c = queue.Add(student, reasonId, reasonLabel, (req.Note ?? "").Trim(), due, ActorId, Actor);
         await db.SaveChangesAsync();
         return ToDto(c, Today, await PhonesAsync(new List<string> { c.StudentId }));
     }
@@ -304,92 +304,10 @@ public class ContactsController(AppDbContext db, AuditService audit) : Controlle
         if (due.Length > 0 && !DateOnly.TryParse(due, out _))
             return BadRequest(new { message = "Sana noto'g'ri (YYYY-MM-DD)" });
 
-        var (reasonId, reasonLabel) = await ResolveReasonAsync(req.ReasonId);
-        var note = (req.Note ?? "").Trim();
-
-        // Ikkita TO'PLAMLI so'rov — o'quvchi boshiga alohida so'rov ketmasin (N+1).
-        var students = await db.Students.AsNoTracking()
-            .Where(s => ids.Contains(s.Id)).ToDictionaryAsync(s => s.Id);
-        var alreadyOpen = (await db.ContactRequests
-                .Where(c => ids.Contains(c.StudentId)
-                            && (c.Status == ContactStatuses.New || c.Status == ContactStatuses.Callback))
-                .Select(c => c.StudentId).ToListAsync())
-            .ToHashSet();
-
-        var created = 0;
-        var skipped = new List<string>();
-        var notFound = 0;
-        foreach (var id in ids)
-        {
-            if (!students.TryGetValue(id, out var student)) { notFound++; continue; }
-            if (alreadyOpen.Contains(id)) { skipped.Add(student.FullName); continue; }
-            AddRequest(student, reasonId, reasonLabel, note, due);
-            created++;
-        }
-
-        await db.SaveChangesAsync();
-        // Ismlar ro'yxati CHEGARALANADI — 300 ta ism xabarga sig'maydi (soni baribir to'liq).
-        return new ContactBulkResultDto(created, skipped.Count, skipped.Take(10).ToList(), notFound);
+        var r = await queue.AddManyAsync(ids, req.ReasonId, req.Note, due, ActorId, Actor);
+        return new ContactBulkResultDto(r.Created, r.Skipped, r.SkippedNames, r.NotFound);
     }
 
-    /// <summary>
-    /// Talabni (va uning "ochildi" hodisasini) tranzaksiyaga qo'shadi. <b>SaveChanges QILMAYDI</b> —
-    /// chaqiruvchi saqlaydi (ko'plab qo'shishda bitta SaveChanges bo'lsin).
-    /// </summary>
-    private ContactRequest AddRequest(
-        Student student, string reasonId, string reasonLabel, string note, string due)
-    {
-        var now = AppClock.Iso();
-        var c = new ContactRequest
-        {
-            StudentId = student.Id,
-            StudentName = student.FullName,
-            ReasonId = reasonId,
-            ReasonLabel = reasonLabel,
-            Note = note,
-            // Sana berilgan bo'lsa darhol "qayta qo'ng'iroq" — masalan "ertaga bog'laning".
-            Status = due.Length > 0 ? ContactStatuses.Callback : ContactStatuses.New,
-            DueDate = due,
-            CreatedAt = now,
-            CreatedBy = Actor,
-            LastActorName = Actor,
-            LastActionAt = now,
-        };
-        db.ContactRequests.Add(c);
-
-        db.ContactAttempts.Add(new ContactAttempt
-        {
-            RequestId = c.Id,
-            StudentId = c.StudentId,
-            Type = ContactAttemptTypes.Created,
-            NextStatus = c.Status,
-            DueDate = due,
-            Response = c.Note,
-            ActorId = ActorId,
-            ActorName = Actor,
-            CreatedAt = now,
-            Date = Today,
-        });
-
-        audit.Record(AuditEntity, c.Id, "create",
-            $"Bog'lanish kerak: {c.StudentName}"
-            + (reasonLabel.Length > 0 ? $" — sabab: {reasonLabel}" : "")
-            + (due.Length > 0 ? $", qayta qo'ng'iroq: {due}" : ""),
-            studentId: c.StudentId);
-
-        return c;
-    }
-
-    /// <summary>Sabab id'sini tekshiradi va MATNINI (snapshot) qaytaradi. Topilmasa ikkalasi ham
-    /// bo'sh — sabab ixtiyoriy, noto'g'ri id tufayli amal to'xtamasin.</summary>
-    private async Task<(string Id, string Label)> ResolveReasonAsync(string? reasonId)
-    {
-        var id = (reasonId ?? "").Trim();
-        if (id.Length == 0) return ("", "");
-        var label = await db.ActionReasons.Where(r => r.Id == id).Select(r => r.Label)
-            .FirstOrDefaultAsync() ?? "";
-        return label.Length == 0 ? ("", "") : (id, label);
-    }
 
     /// <summary>
     /// BOG'LANILDI — urinish natijasi + "javobi nima dedi" + keyingi bosqich.

@@ -408,9 +408,19 @@ export function ContactQueuePage() {
                         )}
 
                         <p className="mt-1 text-xs text-slate-400">
-                          {r.lastActionAt ? formatDateTime(r.lastActionAt) : formatDateTime(r.createdAt)}
-                          {r.lastActorName && ` · ${r.lastActorName}`}
+                          {/* KIM YUBORGANI — talabni ochgan xodim/o'qituvchi. Guruh jurnalidan
+                              yuborilgan bo'lsa bu o'qituvchining ismi bo'ladi, ya'ni operator
+                              kimning iltimosi bilan qo'ng'iroq qilayotganini biladi. */}
+                          Yuborgan: <span className="text-slate-500">{r.createdBy || 'Tizim'}</span>
+                          {' · '}
+                          {formatDateTime(r.createdAt)}
                         </p>
+                        {r.lastActionAt && r.lastActionAt !== r.createdAt && (
+                          <p className="text-xs text-slate-400">
+                            Oxirgi harakat: {formatDateTime(r.lastActionAt)}
+                            {r.lastActorName && ` · ${r.lastActorName}`}
+                          </p>
+                        )}
 
                         {r.phones.length > 0 && (
                           <p className="mt-1 flex flex-wrap gap-3">

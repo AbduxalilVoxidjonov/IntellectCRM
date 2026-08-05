@@ -7,7 +7,7 @@ import {
   CalendarDays, Clock, MapPin, Wallet, Snowflake, CheckCircle2,
   ListChecks, ChevronRight, ChevronDown, Plus, Minus, Repeat, CalendarClock, Flag, TrendingUp, Trophy,
   ArrowLeftRight, RotateCcw, X, Pencil, ClipboardList, CalendarCheck, History,
-  UserPlus, MessageSquare, ArrowUpDown, Sparkles, EyeOff,
+  UserPlus, MessageSquare, ArrowUpDown, Sparkles, EyeOff, PhoneCall,
 } from 'lucide-react'
 import type { AbsenceReason, MasteryLevel, Group, GroupMember } from '@/types'
 import {
@@ -32,6 +32,9 @@ import { backState, type BackState } from '@/lib/nav'
 import { Card } from '@/components/ui/Card'
 import { DropdownMenu } from '@/components/ui/DropdownMenu'
 import { AuditHistoryList } from '@/components/audit/AuditHistoryList'
+import { GroupContactTab } from '@/components/contacts/GroupContactTab'
+import { getActionReasons } from '@/api/services/actionReasons'
+import { createContactRequestsBulk } from '@/api/services/contacts'
 import { GradingSection } from '@/components/grading/GradingSection'
 import {
   getGradingBoard, setGrade, bulkGrade,
@@ -104,7 +107,7 @@ function masteryDisplay(m: MasteryLevel | undefined): { label: string; cls: stri
   }
 }
 
-type Tab = 'jurnal' | 'davomat' | 'baholash' | 'reyting' | 'imtihonlar' | 'tarix' | 'tolovlar' | 'ai'
+type Tab = 'jurnal' | 'davomat' | 'baholash' | 'reyting' | 'imtihonlar' | 'aloqa' | 'tarix' | 'tolovlar' | 'ai'
 
 export function ClassDetailPage() {
   const { id = '' } = useParams()
@@ -113,6 +116,8 @@ export function ClassDetailPage() {
   const { can } = usePerm()
   // O'zgarishlar tarixi — alohida `audit` ruxsati (admin/superadmin uchun har doim true).
   const canSeeAudit = can('audit', 'view')
+  /** "Aloqa" tabi — o'quvchini bog'lanish navbatiga yuborish (`contacts` ruxsati). */
+  const canContact = can('contacts', 'create')
   // «Bonus hisoblansin» ptichkasi — FAQAT superadmin yoki «Xodimlar va rollar» dan shu ruxsat
   // berilgan xodim uchun. Oddiy "admin" roli ham ko'rmaydi — shuning uchun can() emas.
   const canSetBonus = useSuperOrGranted('retentionBonus')
@@ -870,6 +875,11 @@ export function ClassDetailPage() {
                 <button type="button" className={cn('tab', tab === 'imtihonlar' && 'active')} onClick={() => setTab('imtihonlar')}>
                   <ClipboardList className="mr-1 inline h-3.5 w-3.5" /> Imtihonlar
                 </button>
+                {canContact && (
+                  <button type="button" className={cn('tab', tab === 'aloqa' && 'active')} onClick={() => setTab('aloqa')}>
+                    <PhoneCall className="mr-1 inline h-3.5 w-3.5" /> Aloqa
+                  </button>
+                )}
                 {canSeeAudit && (
                   <button type="button" className={cn('tab', tab === 'tarix' && 'active')} onClick={() => setTab('tarix')}>
                     <History className="mr-1 inline h-3.5 w-3.5" /> Tarix
@@ -1357,6 +1367,35 @@ export function ClassDetailPage() {
           {/* Imtihonlar — "Testlar natijalari" bo'limi bilan AYNAN bir xil panel:
               onlayn (bot) va oflayn test shu yerning o'zida yaratiladi. */}
           {tab === 'imtihonlar' && <GroupTestsPanel groupId={id} onOpenTest={(testId) => navigate(`/admin/test-results/${id}/tests/${testId}`)} />}
+
+          {/* ALOQA — guruh o'quvchilarini "Bog'lanish kerak" navbatiga yuborish */}
+          {tab === 'aloqa' && canContact && (
+            <Card
+              title="Bog'lanish kerak"
+              sub="O'quvchini tanlab navbatga yuboring — sabab va izoh bilan, bugungi sana bilan."
+            >
+              <GroupContactTab
+                students={(journal?.students ?? []).map((s) => ({
+                  id: s.studentId,
+                  fullName: s.fullName,
+                  status: s.status,
+                }))}
+                loadReasons={() =>
+                  getActionReasons().then((all) =>
+                    all.filter((r) => r.category === 'contact').map((r) => ({ id: r.id, label: r.label })),
+                  )
+                }
+                onSend={(ids, reasonId, note) =>
+                  createContactRequestsBulk({
+                    studentIds: ids,
+                    reasonId: reasonId || undefined,
+                    note: note || undefined,
+                    // Sana YO'Q — talab darhol navbatga tushadi (bugungi ish).
+                  })
+                }
+              />
+            </Card>
+          )}
 
           {/* Tarix — guruhga oid barcha o'zgarishlar (to'g'ridan-to'g'ri tahrir + a'zolik amallari) */}
           {tab === 'tarix' && canSeeAudit && (

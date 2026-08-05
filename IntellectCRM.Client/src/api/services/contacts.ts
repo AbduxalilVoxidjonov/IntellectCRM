@@ -244,6 +244,33 @@ export async function createContactRequestsBulk(payload: {
   return data
 }
 
+/* ---------- O'qituvchi tomoni (guruh jurnalidagi "Aloqa" tabi) ---------- */
+
+/**
+ * Bog'lanish sabablari — O'QITUVCHI uchun (`/api/teacher/...`).
+ * Admin endpointi (`/admin/action-reasons`) o'qituvchiga yopiq.
+ */
+export async function getTeacherContactReasons(): Promise<{ id: string; label: string }[]> {
+  if (USE_MOCK) {
+    await delay()
+    return []
+  }
+  const { data } = await api.get<{ id: string; label: string }[]>('/teacher/contact-reasons')
+  return data
+}
+
+/**
+ * O'qituvchi o'z guruhidagi o'quvchi(lar)ni navbatga yuboradi.
+ * SANA YO'Q — talab darhol navbatga tushadi (bugungi ish).
+ */
+export async function sendTeacherGroupContacts(
+  classId: string,
+  payload: { studentIds: string[]; reasonId?: string; note?: string },
+): Promise<ContactBulkResult> {
+  const { data } = await api.post<ContactBulkResult>(`/teacher/groups/${classId}/contacts`, payload)
+  return data
+}
+
 /* ---------- Javoblar tahlili ---------- */
 
 /** Yozilgan javob ("javobi nima dedi") — hisobotdagi javoblar lentasi. */

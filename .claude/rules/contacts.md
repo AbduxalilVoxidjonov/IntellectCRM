@@ -108,6 +108,35 @@ oyga BOG'LIQ EMAS, ular har doim joriy holat).
 Muddat va Holat filtrlari **BIR-BIRINI TOZALAYDI** — "Hal bo'ldi + bugun" kabi mantiqan bo'sh
 kesishmalar operatorni chalg'itardi.
 
+## 3.7. GURUH JURNALIDAGI "ALOQA" TABI (o'qituvchi ham, admin ham)
+
+Guruh jurnalida **"Aloqa"** tabi: guruh o'quvchilari ro'yxati, tanlab (yoki qatordagi tugma
+bilan bittasini) **"Bog'lanish kerak"** navbatiga yuboriladi. Sabab va izoh tanlanganlarning
+HAMMASIGA bir xil qo'yiladi.
+
+⚠️ **SANA SO'RALMAYDI** — talab darhol navbatga tushadi (`new`, bugungi ish). Rejalashtirish
+(qayta qo'ng'iroq sanasi) — operatorning ishi, o'qituvchining emas.
+
+| Tomon | Sahifa | API |
+|---|---|---|
+| Admin/xodim | `ClassDetailPage` → "Aloqa" tabi (`contacts:create`) | `POST /admin/contacts/bulk` |
+| O'qituvchi | `TeacherGroupDetailPage` → "Aloqa" tabi | `POST /api/teacher/groups/{classId}/contacts` |
+
+Ko'rinish BITTA komponentda — `components/contacts/GroupContactTab.tsx` (API farqi
+`loadReasons`/`onSend` orqali tashqaridan beriladi).
+
+**XAVFSIZLIK (o'qituvchi):** guruh o'qituvchiniki ekani tekshiriladi (`Teaches`) VA faqat
+SHU guruhning faol a'zolari qabul qilinadi (`allowedStudentIds`) — aks holda o'qituvchi
+id yozib begona o'quvchini navbatga qo'sha olardi. Sabablar katalogi o'qituvchiga alohida
+endpointdan (`GET /api/teacher/contact-reasons`) — admin endpointi unga yopiq.
+
+**YAGONA MANBA:** talab yaratish mantig'i `ContactQueueService` da (Application/Services) —
+admin va o'qituvchi controllerlari AYNAN shuni chaqiradi, ya'ni "bitta ochiq talab" qoidasi,
+hodisa yozuvi va audit izi ikki joyda ayri ketmaydi.
+
+Navbat ro'yxatida **"Yuborgan: <ism>"** ko'rinadi (`CreatedBy`) — jurnaldan yuborilgan bo'lsa
+bu o'qituvchining ismi, ya'ni operator kimning iltimosi bilan qo'ng'iroq qilayotganini biladi.
+
 ## 4. BITTA OCHIQ TALAB qoidasi
 
 Bir o'quvchida bir vaqtda faqat **bitta** ochiq talab (`new`/`callback`) bo'ladi — aks holda navbat

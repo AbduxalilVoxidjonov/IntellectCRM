@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authentication.JwtBearer;
+﻿using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
@@ -302,6 +302,10 @@ builder.Services.AddSingleton<CtiSmsService>();
 // O'zgarishlar tarixi (audit) — joriy foydalanuvchini aniqlash uchun HttpContext kerak
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IntellectCRM.Application.Services.AuditService>();
+// Bog'lanish navbatiga qo'shish — admin va O'QITUVCHI controllerlari uchun yagona manba.
+builder.Services.AddScoped<IntellectCRM.Application.Services.ContactQueueService>();
+// Bog'lanish navbatiga qo'shish — admin va O'QITUVCHI controllerlari uchun yagona manba.
+builder.Services.AddScoped<IntellectCRM.Application.Services.ContactQueueService>();
 
 // Shartnoma andozasini (Word) to'ldirish xizmati
 builder.Services.AddScoped<IntellectCRM.Application.Services.ContractService>();

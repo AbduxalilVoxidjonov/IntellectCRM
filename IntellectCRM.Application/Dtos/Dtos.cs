@@ -3082,3 +3082,9 @@ public record ContactResponseRowDto(
 
 /// <summary>Javoblarda eng ko'p uchragan so'z.</summary>
 public record ContactWordDto(string Word, int Count);
+
+/// <summary>
+/// O'qituvchi jurnalidagi "Aloqa" tabidan navbatga yuborish. SANA YO'Q — talab darhol
+/// navbatga tushadi (bugungi ish); rejalashtirish operatorning ishi.
+/// </summary>
+public record TeacherContactRequest(List<string> StudentIds, string? ReasonId = null, string? Note = null);
