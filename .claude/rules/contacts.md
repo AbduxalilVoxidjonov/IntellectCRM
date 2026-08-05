@@ -92,7 +92,19 @@ javobida `due` (kesim) va `days` (yaqin 14 kun rejasi, faqat ish BOR kunlar) qay
 SQL tarjimasi controllerda, QOIDA esa `ContactService` da — ikkisi bir xil bo'lishi shart.
 
 **UI:** navbat tepasida uchta katta raqam (Bugun qilish kerak · Muddati o'tgan · Ertaga),
-"Yaqin kunlar" chizig'i (kun → nechta, bosilsa o'sha kun filtri) va "Muddat" chiplari.
+**oylik kalendar chizig'i** (`MonthDayStrip`) va "Muddat" chiplari.
+
+Kalendar: OY TO'LIQ chiqadi (bo'sh kunlar ham o'z o'rnida — ilgari faqat "ish bor" kunlar
+ko'rsatilib, ro'yxat sakrab turardi), strelkalar bilan oy almashadi, **BUGUN doim tanlangan**
+(sahifa ochilganda va joriy oyga qaytilganda). Boshqa oyga o'tilganda tanlov tozalanadi —
+u oyda "bugun" yo'q, tasodifiy kun tanlab qo'yish chalg'itardi.
+
+⚠️ **BUGUNGI katak `todo` sonini ko'rsatadi** (muddati o'tgan + bugungi + sanasiz), qolgan
+kunlar esa aynan o'sha kunga rejalashtirilganini. Sabab: "bugun" operator uchun "bugungi
+ish" degani — kechagi kechikkanlar ham unga kiradi. Chiziq ostida shu izoh yozib qo'yilgan.
+
+`GET /contacts/meta?month=yyyy-MM` — kunlik reja shu oy uchun qaytadi (chiplar/sanoqlar
+oyga BOG'LIQ EMAS, ular har doim joriy holat).
 Muddat va Holat filtrlari **BIR-BIRINI TOZALAYDI** — "Hal bo'ldi + bugun" kabi mantiqan bo'sh
 kesishmalar operatorni chalg'itardi.
 
@@ -140,6 +152,12 @@ Barcha sonlar **hodisalardan** (`ContactAttempt`), ya'ni "kim nima qildi" bo'yic
 - **Natijalar kesimi** — ko'tarmagan/band ulushi (aloqa sifati).
 
 `OpenNow`/`OverdueNow` — davrga bog'liq EMAS, joriy holat (navbat sanoqlari bilan bir xil bo'lsin).
+
+**Davr tanlash** — navbatdagi bilan BIR XIL oylik kalendar: kun bosilsa o'sha kun hisoboti,
+«Butun oy» — butun oy, tez oraliqlar (7/30/90 kun) va qo'lda `from`/`to` ham bor.
+Ochilganda BUGUN tanlangan. Kalendar kataklaridagi sonlar (o'sha kundagi urinishlar) BUTUN
+OY uchun ALOHIDA yengil so'rovdan keladi — aks holda bitta kun tanlanganda kalendar
+bo'shab qolardi.
 
 ## 7.5. JAVOBLAR TAHLILI ("nima deb yozilgan")
 

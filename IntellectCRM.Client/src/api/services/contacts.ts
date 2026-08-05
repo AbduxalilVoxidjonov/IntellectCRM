@@ -116,13 +116,18 @@ export interface ContactStats {
 
 const emptyMeta: ContactMeta = { statuses: [], results: [], counts: [], overdue: 0 }
 
-/** Bosqich/natija katalogi + navbat sanoqlari (sahifa bir so'rovda ochiladi). */
-export async function getContactMeta(): Promise<ContactMeta> {
+/**
+  * Bosqich/natija katalogi + navbat sanoqlari (sahifa bir so'rovda ochiladi).
+  *
+  * `month` ("yyyy-MM") — KUNLIK REJA qaysi oy uchun qaytsin. Chiplar va sanoqlar oyga
+  * bog'liq emas: ular har doim JORIY holatni bildiradi.
+  */
+export async function getContactMeta(month?: string): Promise<ContactMeta> {
   if (USE_MOCK) {
     await delay()
     return emptyMeta
   }
-  const { data } = await api.get<ContactMeta>('/admin/contacts/meta')
+  const { data } = await api.get<ContactMeta>('/admin/contacts/meta', { params: { month } })
   return data
 }
 

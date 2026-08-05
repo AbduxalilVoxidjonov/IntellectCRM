@@ -9,6 +9,7 @@ import {
   type ContactMeta, type ContactRequestItem, type ContactDue,
 } from '@/api/services/contacts'
 import { ContactAttemptModal } from './ContactAttemptModal'
+import { MonthDayStrip, currentMonth, todayIso } from './MonthDayStrip'
 import { ContactStatsPanel } from './ContactStatsPanel'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -75,8 +76,10 @@ export function ContactQueuePage() {
    * "Hal bo'ldi + bugun" kabi mantiqan bo'sh kesishmalar operatorni chalg'itardi.
    */
   const [due, setDue] = useState<ContactDue | ''>('')
-  /** "Yaqin kunlar" chizig'idan tanlangan ANIQ kun (muddat guruhidan ustun turadi). */
+  /** Kalendar chizig'idan tanlangan ANIQ kun (muddat guruhidan ustun turadi). */
   const [dueDate, setDueDate] = useState('')
+  /** Kalendarda ko'rinayotgan oy ("yyyy-MM"). */
+  const [month, setMonth] = useState(currentMonth())
   const [term, setTerm] = useState('')
   const [q, setQ] = useState('')
 
@@ -104,7 +107,7 @@ export function ContactQueuePage() {
     setLoading(true)
     try {
       const [m, list] = await Promise.all([
-        getContactMeta(),
+        getContactMeta(month),
         getContactRequests({
           status: status || undefined,
           q: q || undefined,
@@ -120,11 +123,28 @@ export function ContactQueuePage() {
     } finally {
       setLoading(false)
     }
-  }, [status, q, due, dueDate])
+  }, [status, q, due, dueDate, month])
 
   useEffect(() => {
     void load()
   }, [load])
+
+  /**
+   * BUGUNGI kun doim tanlangan bo'lib turadi: sahifa ochilganda ham, kalendarda joriy oyga
+   * qaytilganda ham. Boshqa oyga o'tilganda tanlov tozalanadi — u oyda "bugun" yo'q va
+   * tasodifiy kun tanlab qo'yish operatorni chalg'itardi.
+   */
+  useEffect(() => {
+    if (month === currentMonth()) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- oy almashganda tanlovni tiklash (maqsadli)
+      setDueDate(todayIso())
+      setDue('')
+      setStatus('')
+    } else {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setDueDate('')
+    }
+  }, [month])
 
   const countOf = useCallback(
     (key: string) => meta.counts.find((c) => c.key === key)?.count ?? 0,
@@ -221,43 +241,33 @@ export function ContactQueuePage() {
             </button>
           )}
 
-          {/* YAQIN KUNLAR — "qaysi kuni qancha qo'ng'iroq" (faqat ish bor kunlar). */}
-          {(meta.days?.length ?? 0) > 0 && (
-            <Card
-              title={
-                <span className="inline-flex items-center gap-2">
-                  <CalendarDays className="h-4 w-4 text-slate-400" />
-                  Yaqin kunlar
-                </span>
-              }
-              sub="Rejalashtirilgan qayta qo'ng'iroqlar. Kunni bosib o'sha kunning ro'yxatini ko'ring."
-            >
-              <div className="flex flex-wrap gap-2">
-                {meta.days!.map((d) => (
-                  <button
-                    key={d.date}
-                    type="button"
-                    onClick={() => {
-                      // Ikkinchi bosilishda filtr olib tashlanadi.
-                      if (dueDate === d.date) { setDueDate(''); return }
-                      setDueDate(d.date)
-                      setDue('')
-                      setStatus('')
-                    }}
-                    className={cn(
-                      'flex min-w-[92px] flex-col items-start rounded-lg border px-3 py-2 transition-colors',
-                      dueDate === d.date
-                        ? 'border-brand-500 bg-brand-50'
-                        : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50',
-                    )}
-                  >
-                    <span className="text-xs text-slate-500">{dayLabel(d.date)}</span>
-                    <span className="text-lg font-bold leading-tight text-slate-800">{d.count}</span>
-                  </button>
-                ))}
-              </div>
-            </Card>
-          )}
+          {/* OYLIK KALENDAR — oy bo'ylab har kun va o'sha kunga rejalashtirilgan qo'ng'iroqlar. */}
+          <Card
+            title={
+              <span className="inline-flex items-center gap-2">
+                <CalendarDays className="h-4 w-4 text-slate-400" />
+                Kunlik reja
+              </span>
+            }
+            sub="Kunni bosib o'sha kunning ro'yxatini ko'ring. Oyni strelkalar bilan almashtiring."
+          >
+            <MonthDayStrip
+              month={month}
+              onMonthChange={setMonth}
+              selected={dueDate}
+              onSelect={(d) => {
+                setDueDate(d)
+                setDue('')
+                setStatus('')
+              }}
+              counts={Object.fromEntries((meta.days ?? []).map((d) => [d.date, d.count]))}
+              // BUGUNGI katak "bugun qilish kerak" ni ko'rsatadi: aynan bugungi qo'ng'iroqlar
+              // bilan birga MUDDATI O'TGAN va SANASIZLAR ham kiradi — operator kechagi ishni
+              // ko'rmay qolmasin.
+              todayCount={meta.due?.todo}
+              hint="Bugungi katak muddati o'tgan va sana belgilanmagan talablarni ham qamraydi."
+            />
+          </Card>
 
           <Card title="Filtr">
             <div className="space-y-3">

@@ -41,9 +41,6 @@ public class ContactsController(AppDbContext db, AuditService audit) : Controlle
     /// bosilsa ham so'rov cheksiz o'smasin).</summary>
     private const int MaxBulk = 500;
 
-    /// <summary>"Yaqin kunlar" rejasida ko'rsatiladigan kunlar soni (bugundan boshlab).</summary>
-    private const int DayPlanHorizon = 13;
-
     /* =========================================================================================
      *  KATALOG + SANOQLAR
      * ====================================================================================== */
@@ -52,8 +49,10 @@ public class ContactsController(AppDbContext db, AuditService audit) : Controlle
     /// Bosqich/natija katalogi va navbat sanoqlari — sahifa BITTA so'rovda ochilsin.
     /// Sanoqlar har doim JORIY holat bo'yicha (davr filtri hisobotga tegishli, navbatga emas).
     /// </summary>
+    /// <param name="month">Kunlik reja ko'rsatiladigan OY ("yyyy-MM"). Bo'sh — joriy oy.
+    /// Chiplar/sanoqlar oyga BOG'LIQ EMAS — ular har doim joriy holatni bildiradi.</param>
     [HttpGet("meta")]
-    public async Task<ActionResult<ContactMetaDto>> Meta()
+    public async Task<ActionResult<ContactMetaDto>> Meta([FromQuery] string? month = null)
     {
         var counts = (await db.ContactRequests.AsNoTracking()
                 .GroupBy(c => c.Status)
@@ -93,12 +92,18 @@ public class ContactsController(AppDbContext db, AuditService audit) : Controlle
         due[6] += newCount;
         due[0] += newCount;
 
-        // YAQIN KUNLAR REJASI — bugundan boshlab 14 kun, faqat ish BOR kunlar.
-        var horizon = AppClock.Today.AddDays(DayPlanHorizon).ToString("yyyy-MM-dd");
+        // OYLIK REJA — tanlangan oyning ish BOR kunlari (klient qolgan kunlarni 0 bilan to'ldiradi).
+        // Ilgari "bugundan 14 kun" edi; endi kalendar bir oylik bo'lgani uchun chegara ham OY.
+        var m = (month ?? "").Trim();
+        if (m.Length != 7 || !int.TryParse(m[..4], out _) || !int.TryParse(m[5..7], out _))
+            m = today[..7];
+        var monthStart = $"{m}-01";
+        var monthEnd = $"{m}-31";   // satr solishtiruvi uchun yetarli (kun 31 dan oshmaydi)
+
         var days = byDay
             .Where(d => d.Date.Length >= 10
-                        && string.CompareOrdinal(d.Date, today) >= 0
-                        && string.CompareOrdinal(d.Date, horizon) <= 0)
+                        && string.CompareOrdinal(d.Date, monthStart) >= 0
+                        && string.CompareOrdinal(d.Date, monthEnd) <= 0)
             .OrderBy(d => d.Date, StringComparer.Ordinal)
             .Select(d => new ContactDayPlanDto(d.Date, d.Count))
             .ToList();

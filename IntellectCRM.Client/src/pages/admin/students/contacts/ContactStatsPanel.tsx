@@ -5,6 +5,7 @@ import {
   getContactStats, getContactResponses,
   type ContactStats, type ContactResponseRow,
 } from '@/api/services/contacts'
+import { MonthDayStrip, currentMonth, todayIso } from './MonthDayStrip'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Loader } from '@/components/ui/Loader'
@@ -35,9 +36,28 @@ const ranges = [
  * (server: `ContactService.Reached`) — ko'tarmagan qo'ng'iroq "urinish"ga kiradi, "bog'lanildi"ga
  * emas. Aks holda hisobot haqiqiy aloqani ko'rsatmasdi.</p>
  */
+/** Oyning birinchi va oxirgi kuni ("yyyy-MM" → "yyyy-MM-dd"). */
+function monthRange(month: string): { from: string; to: string } {
+  const y = Number(month.slice(0, 4))
+  const m = Number(month.slice(5, 7))
+  const last = new Date(y, m, 0).getDate()
+  return { from: `${month}-01`, to: `${month}-${String(last).padStart(2, '0')}` }
+}
+
 export function ContactStatsPanel() {
-  const [from, setFrom] = useState(daysAgo(29))
-  const [to, setTo] = useState('')
+  /** Kalendarda ko'rinayotgan oy. */
+  const [month, setMonth] = useState(currentMonth())
+  /** Tanlangan KUN ("" — butun oy). Sahifa ochilganda BUGUN tanlangan bo'ladi. */
+  const [day, setDay] = useState(todayIso())
+  /** Qo'lda kiritilgan oraliq — tanlangan bo'lsa oy/kun tanlovidan USTUN turadi. */
+  const [custom, setCustom] = useState<{ from: string; to: string } | null>(null)
+  /** Kalendar kataklaridagi sonlar: oyning har kunidagi bog'lanish urinishlari. */
+  const [monthCounts, setMonthCounts] = useState<Record<string, number>>({})
+
+  // Davr — yuqoridagi uch manbadan HOSILA (bitta haqiqat manbai bo'lsin).
+  const range = monthRange(month)
+  const from = custom ? custom.from : day || range.from
+  const to = custom ? custom.to : day || range.to
   const [data, setData] = useState<ContactStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -49,6 +69,30 @@ export function ContactStatsPanel() {
   const [respResult, setRespResult] = useState('')
   const [term, setTerm] = useState('')
   const [q, setQ] = useState('')
+
+  /**
+   * Kalendar kataklaridagi sonlar BUTUN OY bo'yicha — tanlangan davrga bog'liq emas.
+   * Shuning uchun alohida (yengil) so'rov: aks holda bitta kun tanlanganda kalendar
+   * bo'shab qolardi.
+   */
+  useEffect(() => {
+    let active = true
+    const r = monthRange(month)
+    getContactStats(r.from, r.to)
+      .then((d) => {
+        if (!active) return
+        setMonthCounts(Object.fromEntries(d.daily.map((x) => [x.date, x.attempts])))
+      })
+      .catch(() => { if (active) setMonthCounts({}) })
+    return () => { active = false }
+  }, [month])
+
+  /** Oy joriy oyga qaytsa BUGUN yana tanlanadi (navbat sahifasidagi qoida bilan bir xil). */
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- oy almashganda tanlovni tiklash (maqsadli)
+    setCustom(null)
+    setDay(month === currentMonth() ? todayIso() : '')
+  }, [month])
 
   useEffect(() => {
     let active = true
@@ -80,37 +124,66 @@ export function ContactStatsPanel() {
 
   return (
     <div className="space-y-4">
-      <Card title="Davr" sub="Sanoqlar shu davrdagi amallar bo'yicha (navbat sanoqlari — joriy holat).">
-        <div className="flex flex-wrap items-end gap-3">
-          {ranges.map((r) => (
+      <Card
+        title="Davr"
+        sub="Kunni bosing yoki «Butun oy» ni tanlang. Sanoqlar shu davrdagi amallar bo'yicha (navbat sanoqlari — joriy holat)."
+      >
+        <div className="space-y-3">
+          <MonthDayStrip
+            month={month}
+            onMonthChange={setMonth}
+            selected={custom ? '' : day}
+            onSelect={(d) => { setCustom(null); setDay(d) }}
+            counts={monthCounts}
+            hint="Katakdagi son — o'sha kundagi bog'lanish urinishlari."
+          />
+
+          <div className="flex flex-wrap items-end gap-3">
             <button
-              key={r.label}
               type="button"
-              onClick={() => { setFrom(daysAgo(r.days)); setTo('') }}
+              onClick={() => { setCustom(null); setDay('') }}
               className={cn(
                 'rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors',
-                from === daysAgo(r.days) && !to
+                !custom && !day
                   ? 'border-brand-500 bg-brand-50 text-brand-700'
                   : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50',
               )}
             >
-              {r.label}
+              Butun oy
             </button>
-          ))}
-          <label className="flex flex-col gap-1 text-xs font-medium text-slate-500">
-            Sanadan
-            <input
-              type="date" value={from} onChange={(e) => setFrom(e.target.value)}
-              className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 outline-none focus:border-brand-400"
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-xs font-medium text-slate-500">
-            Sanagacha
-            <input
-              type="date" value={to} onChange={(e) => setTo(e.target.value)}
-              className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 outline-none focus:border-brand-400"
-            />
-          </label>
+            {ranges.map((r) => (
+              <button
+                key={r.label}
+                type="button"
+                // Tez oraliqlar QO'LDA oraliq sifatida qo'yiladi — kalendar tanlovi tozalanadi.
+                onClick={() => { setDay(''); setCustom({ from: daysAgo(r.days), to: todayIso() }) }}
+                className={cn(
+                  'rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors',
+                  custom?.from === daysAgo(r.days)
+                    ? 'border-brand-500 bg-brand-50 text-brand-700'
+                    : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50',
+                )}
+              >
+                {r.label}
+              </button>
+            ))}
+            <label className="flex flex-col gap-1 text-xs font-medium text-slate-500">
+              Sanadan
+              <input
+                type="date" value={from}
+                onChange={(e) => { setDay(''); setCustom({ from: e.target.value, to }) }}
+                className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 outline-none focus:border-brand-400"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-xs font-medium text-slate-500">
+              Sanagacha
+              <input
+                type="date" value={to}
+                onChange={(e) => { setDay(''); setCustom({ from, to: e.target.value }) }}
+                className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 outline-none focus:border-brand-400"
+              />
+            </label>
+          </div>
         </div>
       </Card>
 
