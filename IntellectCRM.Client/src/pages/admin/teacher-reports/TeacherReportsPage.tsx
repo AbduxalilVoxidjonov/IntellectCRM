@@ -7,6 +7,8 @@ import { formatDate, cn } from '@/lib/utils'
 import { formatMonth } from '@/config/constants'
 import { Card } from '@/components/ui/Card'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { CardTabs } from '@/components/ui/CardTabs'
+import { teacherTabs } from '@/config/sectionTabs'
 import { StatCard } from '@/components/ui/StatCard'
 import { Badge } from '@/components/ui/Badge'
 import type { BadgeTone } from '@/components/ui/Badge'
@@ -66,6 +68,8 @@ export function TeacherReportsPage() {
 
   return (
     <div>
+      {/* Bu sahifaga faqat `teacherReports` ruxsati bilan kiriladi — card har doim ko'rinadi */}
+      <CardTabs items={teacherTabs(true)} className="mb-5" />
       <PageHeader
         title="O'qituvchilar hisoboti"
         sub={`Dars o'tilishi, baho, mavzu, uy vazifa faolligi va o'quvchi konversiyasi — ${monthLabel}`}

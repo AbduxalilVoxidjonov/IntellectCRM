@@ -71,7 +71,7 @@ Sinalgan bo'linish — hududlar bir-birining fayllariga tegmaydi:
 | Agent | Hudud |
 |---|---|
 | Moliya | `TuitionService`, `MembershipLifecycle`, `StudentLedger`, `GroupBalanceService`, `TeacherSalaryCalc`, `SalaryLedger`, `RetentionBonusService`, `CourseFinanceReport`, `PaymentIntake`, `CashierReport` |
-| O'quv jarayoni | `JournalService/Policy`, `GradingService`, `TestResultService`, `OnlineTest*`, `LevelTestService`, `AssignmentService`, `CurriculumForecast`, `RatingService` |
+| O'quv jarayoni | `JournalService/Policy`, `GradingService`, `TestResultService`, `OnlineTest*`, `LevelTestService`, `CurriculumForecast`, `RatingService` |
 | Bot / xabar / xavfsizlik | `Telegram*`, `Career*`, `TelegramInitData`, `AutoMessage*`, `MessageTokenizer`, `PhoneUtil`, `UploadGuard`, `AppSecrets`, `AdminPermAttribute`, ochiq (`Public*`) controllerlar |
 | Frontend | `src/lib/utils.ts`, `src/lib/permissions.ts`, `src/api/services/**`, `careerLabels.ts` |
 

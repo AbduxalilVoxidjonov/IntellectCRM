@@ -106,8 +106,11 @@ paths:
   `{sent,failed,noPhone}` (bitta SmsBatch, har lidga LeadEvent; `SendOneLeadSmsAsync` helper — sms/lead
   bilan umumiy).
 
-- **FRONTEND:** Xabarlar sahifasi 4 tab — **Xabar yuborish (default)** | Avto xabarlar (trigger'lar
-  Category bo'yicha guruhlangan) | Tarix (3 kanal + kanal filtri chiplari) | Guruh chati. Yagona
+- **FRONTEND:** Xabarlar sahifasi 3 tab — **Xabar yuborish (default)** | Avto xabarlar (trigger'lar
+  Category bo'yicha guruhlangan) | Tarix (3 kanal + kanal filtri chiplari).
+  ⚠️ **Guruh chati bu yerda EMAS:** u alohida «Chats» menyusiga chiqarilgan (menyuda «Xabarlar» dan
+  TEPADA) — `/admin/chats` (`pages/admin/chats/GroupChatPage.tsx`) va yonida «Support Telegram»
+  (`/admin/support-telegram`). Sidebar'dagi o'qilmagan xabar belgisi ham shu «Chats» guruhida. Yagona
   `MessageEditor` komponenti (`components/messaging/`) — token+shablon chiplar + to'g'ri SMS uzunlik
   hisobi — composer, SmsModal, RuleCard, LeadDetailModal, MessageTemplateLibrary hammasi ishlatadi.
   Kanal tartibi/yorliqlari yagona `config/channels.ts`dan (SMS → Telegram → Push). Lidlar Kanban'da

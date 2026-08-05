@@ -5,6 +5,8 @@ import type { LucideIcon } from 'lucide-react'
 import type { Role, Student } from '@/types'
 import { useAuth } from '@/context/auth-context'
 import { navByRole } from '@/config/navigation'
+import { teacherTabs, roomTabs } from '@/config/sectionTabs'
+import type { CardTabItem } from '@/components/ui/CardTabs'
 import { searchStudents } from '@/api/services/students'
 import { studentStateBadge } from '@/config/constants'
 import { cn } from '@/lib/utils'
@@ -96,6 +98,33 @@ export function CommandPalette() {
         out.push({ label: item.label, to: item.to, icon: item.icon })
       }
     }
+
+    // BO'LIM ICHIDAGI CARD SAHIFALARI. Ular menyuda alohida band emas — bo'lim ichida
+    // `CardTabs` orqali ochiladi. Lekin Ctrl+K dan topilishi SHART: aks holda menyuni
+    // birlashtirish qidiruvni yo'qotib qo'yardi ("O'qituvchilar davomati" ni yozib topib
+    // bo'lmasdi). Manba `sectionTabs` — cardlar bilan bir xil ro'yxat, ikki joyda takrorlanmaydi.
+    const seen = new Set(out.map((c) => c.to))
+    const addTabs = (tabs: CardTabItem[], group: string, icon: LucideIcon) => {
+      for (const t of tabs) {
+        // `hidden` — ruxsati yo'q (masalan «Hisoboti»); `seen` — menyuda allaqachon bor sahifa.
+        if (t.hidden || seen.has(t.to)) continue
+        seen.add(t.to)
+        out.push({ label: `${group} — ${t.label}`, group, to: t.to, icon })
+      }
+    }
+    // Faqat bo'lim boshi shu foydalanuvchiga KO'RINSA qo'shamiz — rol/ruxsat qoidasi
+    // menyudan meros bo'lib qoladi, alohida tekshiruv yozilmaydi.
+    // Bo'lim boshi (yoki uni o'z ichiga olgan guruh) — ikonkani o'shandan olamiz.
+    const ownerOf = (to: string) =>
+      navByRole[role].find((i) => i.to === to || i.children?.some((c) => c.to === to))
+
+    const teachers = ownerOf('/admin/teachers')
+    if (teachers && seen.has('/admin/teachers'))
+      addTabs(teacherTabs(canSee({ perm: 'teacherReports' })), "O'qituvchilar", teachers.icon)
+
+    const rooms = ownerOf('/admin/rooms')
+    if (rooms && seen.has('/admin/rooms')) addTabs(roomTabs, 'Xonalar', rooms.icon)
+
     return out
   }, [user])
 

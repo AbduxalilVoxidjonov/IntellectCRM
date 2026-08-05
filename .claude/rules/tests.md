@@ -112,7 +112,7 @@ paths:
   (`pages/teacher/tests/TeacherGroupTestsPanel.tsx`) — bir xil maydonlar va bir xil tekshiruvlar;
   admin PDF'ni `POST /api/admin/uploads` (admin/superadmin/staff — bo'lim ruxsati talab qilinmaydi),
   o'qituvchi esa `POST /api/teacher/test-results/uploads` orqali yuklaydi
-  (ruxsat "journal" — topshiriqlar ruxsati shart emas). O'qituvchi test tafsilotida ham onlayn
+  (ruxsat "journal"). O'qituvchi test tafsilotida ham onlayn
   ma'lumot bloki bor (savollar soni, vaqt oynasi, PDF, javob kaliti — yopiq holatda, botdan yuborgan
   o'quvchilar soni) va har qatorda o'quvchining javoblari ko'rinadi.
 

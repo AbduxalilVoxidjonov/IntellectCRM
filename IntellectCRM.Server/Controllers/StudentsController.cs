@@ -893,12 +893,11 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
         if (student is null) return NotFound();
         var reason = string.IsNullOrWhiteSpace(reasonId) ? "" : (await db.ActionReasons.Where(r => r.Id == reasonId).Select(r => r.Label).FirstOrDefaultAsync() ?? "");
         // Bog'liq qatorlar orphan qolmasligi uchun ularni ham olib tashlaymiz: oylik hisob, guruh a'zoliklari,
-        // jurnal yozuvlari, oylik baholar. (Moliya yozuvlari audit uchun saqlanadi.)
+        // jurnal yozuvlari. (Moliya yozuvlari audit uchun saqlanadi.)
         db.MonthlyCharges.RemoveRange(db.MonthlyCharges.Where(c => c.StudentId == id));
         db.StudentGroups.RemoveRange(db.StudentGroups.Where(sg => sg.StudentId == id));
         db.StudentNotes.RemoveRange(db.StudentNotes.Where(n => n.StudentId == id));
         db.JournalEntries.RemoveRange(db.JournalEntries.Where(e => e.StudentId == id));
-        db.EvaluationGrades.RemoveRange(db.EvaluationGrades.Where(g => g.StudentId == id));
         // Biriktirilgan tizim akkaunti + qurilma tokenlarini ham o'chiramiz.
         if (student.UserId is not null)
         {

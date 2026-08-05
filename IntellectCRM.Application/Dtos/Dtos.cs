@@ -861,54 +861,9 @@ public record StudentLoginBlockRequest(bool Blocked);
 /// <summary>Admin bir nechta o'quvchi login'ini birdaniga cheklaydi/qayta ochadi.</summary>
 public record StudentLoginBlockBulkRequest(List<string> StudentIds, bool Blocked);
 
-/// <summary>O'quvchilarni baholash turi (admin xohlagancha qo'shadi).</summary>
-public record EvaluationTypeDto(string Id, string Name, string Description);
-public record SaveEvaluationTypeRequest(string Name, string? Description);
-
 /// <summary>Bitta davomat sababidan o'quvchida necha marta bo'lgani (jurnal belgilaridan).</summary>
 public record AttendanceReasonCountDto(string ReasonId, string Name, string Short, bool IsLate, int Count);
 
-/// <summary>
-/// Baholash jadvalidagi bitta o'quvchi qatori: qatnashish (o'tilgan/qatnashgan), davomat sabablari
-/// bo'yicha taqsimot va baholash turlari bo'yicha baholar (typeId → 1-5).
-/// </summary>
-public record EvaluationRowDto(
-    string StudentId,
-    string FullName,
-    string ClassName,
-    int Conducted,
-    int Attended,
-    IReadOnlyList<AttendanceReasonCountDto> Reasons,
-    Dictionary<string, int> Grades,
-    double AvgGrade);
-
-/// <summary>
-/// Baholash jadvali: mavjud oylar katalogi, joriy (tanlangan) oy/hafta, ustun turlari va qatorlar.
-/// Qatnashish/davomat tanlangan davr (oy yoki hafta) bo'yicha, baholar tanlangan oy bo'yicha.
-/// </summary>
-/// <summary>Baholash board guruh filtri uchun guruh varianti.</summary>
-public record GroupOptionDto(string Id, string Name);
-public record EvaluationBoardDto(
-    IReadOnlyList<string> Months,
-    string Month,
-    int Week,
-    IReadOnlyList<EvaluationTypeDto> Types,
-    IReadOnlyList<EvaluationRowDto> Rows,
-    string SubjectId = "",
-    IReadOnlyList<SubjectDto>? Subjects = null,
-    IReadOnlyList<GroupOptionDto>? Groups = null,
-    string GroupId = "all");
-
-/// <summary>
-/// Baho qo'yish/yangilash/tozalash so'rovi (oy bo'yicha; Score null yoki 1-5 dan tashqari = tozalash).
-/// <c>SubjectId</c> — qaysi fan ("" = umumiy). <c>ClassId</c> — o'qituvchi chaqiruvida egalik tekshiruvi uchun.
-/// </summary>
-public record SetEvaluationGradeRequest(
-    string StudentId, string TypeId, string Month, int Week, int? Score,
-    string? SubjectId = null, string? ClassId = null);
-
-/// <summary>O'quvchining bitta fan bo'yicha oylik baholashlari (shaxsiy daftarda "fan kesimida").</summary>
-public record SubjectEvaluationDto(string SubjectId, string SubjectName, double Avg, List<MonthlyEvaluationDto> Evaluations);
 /// <summary>O'quvchini arxivdan qaytarish — ixtiyoriy yangi parol (arxivlanganda parol bloklangan edi).</summary>
 public record RestoreStudentRequest(string? NewPassword);
 
@@ -1021,8 +976,6 @@ public record StudentReportDto(
     List<SubjectDto> Subjects, Dictionary<string, Dictionary<int, double>> Grades,
     StudentAttendanceDto Attendance);
 
-/// <summary>O'quvchining bitta oydagi baholash turlari bo'yicha baholari.</summary>
-public record MonthlyEvaluationDto(string Month, Dictionary<string, int> Grades, double Avg);
 /// <summary>O'quvchining bitta OYDAGI ("yyyy-MM") uy vazifa/xulq jamlamasi (daftar — oyma-oy).</summary>
 public record MonthMarksDto(string Month, int HomeworkDone, int HomeworkMissed, int BehaviorGood, int BehaviorBad);
 /// <summary>O'quvchi davomati — har metrika OY ("yyyy-MM") → son ko'rinishida (daftar — oyma-oy).</summary>
@@ -1033,7 +986,7 @@ public record MonthlyAttendanceDto(
 
 /// <summary>
 /// O'quvchi shaxsiy daftari — bitta o'quvchi haqida BARCHA ma'lumot (profil, o'zlashtirish,
-/// davomat, oylik baholash, uy vazifa va xulq).
+/// davomat, uy vazifa va xulq).
 /// </summary>
 public record StudentNotebookDto(
     // Profil
@@ -1048,9 +1001,6 @@ public record StudentNotebookDto(
     // Davomat — oyma-oy
     MonthlyAttendanceDto Attendance, int Conducted, int Attended, int AttendancePct,
     List<AttendanceReasonCountDto> Reasons,
-    // Oylik baholash — umumiy (fanlar o'rtachasi) + fan kesimida
-    List<EvaluationTypeDto> EvaluationTypes, List<MonthlyEvaluationDto> Evaluations,
-    List<SubjectEvaluationDto> EvaluationsBySubject,
     // Uy vazifa + xulq (oyma-oy)
     int HomeworkDone, int HomeworkMissed, int BehaviorGood, int BehaviorBad, List<MonthMarksDto> MarksTrend);
 

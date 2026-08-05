@@ -4,6 +4,8 @@ import type { RoomUtilization } from '@/types'
 import { getRoomUtilizationDashboard, getRoomDetail, type RoomDetailMetric } from '@/api/services/rooms'
 import { Card } from '@/components/ui/Card'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { CardTabs } from '@/components/ui/CardTabs'
+import { roomTabs } from '@/config/sectionTabs'
 import { Loader } from '@/components/ui/Loader'
 import { cn } from '@/lib/utils'
 
@@ -116,10 +118,19 @@ export function RoomUtilizationPage() {
     return { optimal, under, over, avgEff }
   }, [items])
 
-  if (loading) return <Loader />
+  // Cardlar yuklanish paytida ham turadi (qarang: RoomsPage) — bo'limlar orasida o'tish
+  // ma'lumot kelishini kutmasin.
+  if (loading)
+    return (
+      <div className="space-y-6">
+        <CardTabs items={roomTabs} />
+        <Loader />
+      </div>
+    )
 
   return (
     <div className="space-y-6">
+      <CardTabs items={roomTabs} />
       <PageHeader
         title="Xona samaradorligi"
         sub="Xonalarning bandlik va samaradorlik ko'rsatkichlari"

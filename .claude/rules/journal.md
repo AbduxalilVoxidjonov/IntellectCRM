@@ -35,8 +35,8 @@ paths:
   PUT/DELETE'ni 400 bilan rad etadi, `bulk-attendance`da ularni CHETLAB O'TADI.
   DIQQAT: qoida BUGUNGI holatga qarab ishlaydi (ko'rilayotgan oyga emas) — qarzdor eski oy
   jurnalida ham ko'rinmaydi, to'lagach hamma oyda birdan qaytadi.
-  Qamrovda EMAS (kerak bo'lsa alohida qo'shiladi): baholash/evaluation board, topshiriq
-  natijalari, chat — u yerlarda o'quvchi ko'rinaveradi.
+  Qamrovda EMAS (kerak bo'lsa alohida qo'shiladi): topshiriq natijalari (o'quv dasturidagi
+  `CourseItem` urinishlari), chat — u yerlarda o'quvchi ko'rinaveradi.
 
 - **Jurnal boshqaruvi (tahrirlash siyosati):** Guruhlar sahifasida "Jurnal boshqaruvi" tugmasi → modal
   (`JournalPolicyModal`). Sozlama `CenterMeta`da (migratsiya `AddJournalPolicy`): `JournalEditMode`

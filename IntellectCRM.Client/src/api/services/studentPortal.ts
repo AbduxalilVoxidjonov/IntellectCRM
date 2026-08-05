@@ -392,8 +392,6 @@ export interface MonthlyAttendance {
   illnessLessons: Record<string, number>
   lateCount: Record<string, number>
 }
-export interface MonthlyEvaluation { month: string; grades: Record<string, number>; avg: number }
-export interface SubjectEvaluation { subjectId: string; subjectName: string; avg: number; evaluations: MonthlyEvaluation[] }
 export interface MonthMarks { month: string; homeworkDone: number; homeworkMissed: number; behaviorGood: number; behaviorBad: number }
 export interface StudentNotebook {
   id: string
@@ -409,9 +407,6 @@ export interface StudentNotebook {
   attended: number
   attendancePct: number
   reasons: AttendanceReasonCount[]
-  evaluationTypes: { id: string; name: string }[]
-  evaluations: MonthlyEvaluation[]
-  evaluationsBySubject: SubjectEvaluation[]
   homeworkDone: number
   homeworkMissed: number
   behaviorGood: number

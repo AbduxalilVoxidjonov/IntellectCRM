@@ -1751,15 +1751,6 @@ export interface TelegramTeacher {
   createdAt: string
 }
 
-/* ---------- O'quvchilarni baholash ---------- */
-
-/** Baholash turi (admin xohlagancha qo'shadi: nom + ixtiyoriy izoh) */
-export interface EvaluationType {
-  id: string
-  name: string
-  description: string
-}
-
 /** Bitta davomat sababidan o'quvchida necha marta bo'lgani (jurnal belgilaridan) */
 export interface AttendanceReasonCount {
   reasonId: string
@@ -1767,43 +1758,6 @@ export interface AttendanceReasonCount {
   short: string
   isLate: boolean
   count: number
-}
-
-/** Baholash jadvalidagi bitta o'quvchi qatori */
-export interface EvaluationRow {
-  studentId: string
-  fullName: string
-  className: string
-  /** O'tilgan darslar soni (guruhga mos) */
-  conducted: number
-  /** Qatnashgan darslar = o'tilgan − davomatsizlik (kech keldi mustasno) */
-  attended: number
-  /** Davomat sabablari taqsimoti (har sababdan necha marta) */
-  reasons: AttendanceReasonCount[]
-  /** Baholash turi id → baho (1-5) */
-  grades: Record<string, number>
-  /** Baholar o'rtachasi (0 = baho yo'q) */
-  avgGrade: number
-}
-
-/** Baholash jadvali: oylar katalogi, tanlangan oy/hafta, ustun turlari + o'quvchi qatorlari */
-export interface EvaluationBoard {
-  /** Mavjud oylar ("YYYY-MM"), yangidan eskiga */
-  months: string[]
-  /** Tanlangan (joriy) oy "YYYY-MM" */
-  month: string
-  /** Tanlangan hafta (0 = butun oy, 1..5) */
-  week: number
-  types: EvaluationType[]
-  rows: EvaluationRow[]
-  /** Tanlangan fan id'si ("" yoki "all" = fanlar o'rtachasi, faqat ko'rish). */
-  subjectId?: string
-  /** Mavjud fanlar (admin board fan selektori uchun). */
-  subjects?: { id: string; name: string }[]
-  /** Mavjud guruhlar (guruh selektori uchun). */
-  groups?: { id: string; name: string }[]
-  /** Tanlangan guruh id'si ("all" = barcha guruhlar). */
-  groupId?: string
 }
 
 /** Telegram bot holati (admin UI uchun) */

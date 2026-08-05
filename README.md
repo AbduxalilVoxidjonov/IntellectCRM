@@ -83,18 +83,18 @@ IntellectCRM.slnx
   oluvchining (o'qituvchi/o'quvchi) ilovasidagi "Shartnoma" bo'limida ko'rinadi va yuklab olinadi
 - **Vakansiyalar (Intellect Career)** — bo'sh ish o'rinlari e'loni + nomzod arizalari (bosqichma-bosqich);
   nomzod tomoni **alohida Telegram bot** va uning Mini App'ida (`crm.<domen>/vakansiya`)
-- **Topshiriqlar · AI check · Intizomiy ball · Kameralar · Arxiv**
+- **AI check · Kameralar · Arxiv**
 
 ### 🟢 O'qituvchi ilovasi (mobil)
 - Guruhga kirib **oylik jurnal** (baho/davomat) yuritish
 - **O'quv dasturi o'tilishi** + tugash prognozi (sana bilan)
-- Topshiriqlar · Guruh chati · O'z maoshi · Baholash
+- Guruh chati · O'z maoshi · Baholash
 - **Shartnoma** — o'zi bilan tuzilgan shartnomaning elektron (PDF) nusxasi (Profil ichida)
 
 ### 🔵 O'quvchi ilovasi (mobil)
 - **Duolingo uslubidagi o'quv dasturi yo'l-xaritasi** (o'tilgan/qolgan + prognoz)
-- **Umumiy statistika** — diagrammalarda (baholar trendi, davomat, intizom, feedback, topshiriqlar)
-- Baholar · Davomat · Intizom · To'lovlar · Reyting · Chat
+- **Umumiy statistika** — diagrammalarda (baholar trendi, davomat, uy vazifa va xulq, feedback)
+- Baholar · Davomat · To'lovlar · Reyting · Chat
 - **Shartnoma** — o'quvchi va ota-ona bilan tuzilgan shartnomaning elektron (PDF) nusxasi
 - Telegram kanalga o'tish · Push bildirishnomalar
 

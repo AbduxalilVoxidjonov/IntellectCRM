@@ -11,9 +11,7 @@ import { LocalCallPage } from '@/pages/admin/calls/local/LocalCallPage'
 import { LeadsPage } from '@/pages/admin/leads/LeadsPage'
 import { CrmStatsPage } from '@/pages/admin/leads/CrmStatsPage'
 import { StudentsPage } from '@/pages/admin/students/StudentsPage'
-import { StudentEvaluationPage } from '@/pages/admin/students/StudentEvaluationPage'
 import { RetentionBonusPage } from '@/pages/admin/students/RetentionBonusPage'
-import { EvaluationTypesPage } from '@/pages/admin/students/EvaluationTypesPage'
 import { StudentDetailPage } from '@/pages/admin/students/StudentDetailPage'
 import { StudentTurnstilePage } from '@/pages/admin/students/StudentTurnstilePage'
 import { StudentAbsencePage } from '@/pages/admin/students/StudentAbsencePage'
@@ -57,6 +55,7 @@ import { PublicTestPage } from '@/pages/public/PublicTestPage'
 import { VerifyCertificatePage } from '@/pages/public/VerifyCertificate'
 import { PrivacyPolicyPage } from '@/pages/public/PrivacyPolicyPage'
 import { MessagesPage } from '@/pages/admin/messages/MessagesPage'
+import { GroupChatPage } from '@/pages/admin/chats/GroupChatPage'
 import { SupportTelegramPage } from '@/pages/admin/messages/SupportTelegramPage'
 import { LocationPage } from '@/pages/admin/locations/LocationPage'
 import { CamerasPage } from '@/pages/admin/cameras/CamerasPage'
@@ -84,7 +83,6 @@ import { MarketingAnalytics } from '@/pages/admin/marketing/MarketingAnalytics'
 import { TeacherDashboard } from '@/pages/teacher/TeacherDashboard'
 import { TeacherGroupsPage } from '@/pages/teacher/groups/TeacherGroupsPage'
 import { TeacherGroupDetailPage } from '@/pages/teacher/groups/TeacherGroupDetailPage'
-import { TeacherEvaluationPage } from '@/pages/teacher/evaluation/EvaluationPage'
 import { TeacherMessagesPage } from '@/pages/teacher/messages/MessagesPage'
 import { TeacherProfilePage } from '@/pages/teacher/TeacherProfilePage'
 import { TeacherSupportPage } from '@/pages/teacher/support/SupportPage'
@@ -177,8 +175,6 @@ export default function App() {
           <Route path="calls/local" element={<RequirePerm perm="calls"><LocalCallPage /></RequirePerm>} />
           <Route path="crm-stats" element={<RequirePerm perm="leads"><CrmStatsPage /></RequirePerm>} />
           <Route path="students" element={<RequirePerm perm="students"><StudentsPage /></RequirePerm>} />
-          <Route path="students/baholash" element={<RequirePerm perm="students"><StudentEvaluationPage /></RequirePerm>} />
-          <Route path="students/baholash-turlari" element={<RequirePerm perm="students"><EvaluationTypesPage /></RequirePerm>} />
           <Route path="students/turniket" element={<RequirePerm perm="students"><StudentTurnstilePage /></RequirePerm>} />
           {/* Bog'lanish kerak — O'quvchilar bo'limi ICHIDA, lekin ruxsati alohida (`contacts`). */}
           <Route path="students/boglanish" element={<RequirePerm perm="contacts"><ContactQueuePage /></RequirePerm>} />
@@ -218,6 +214,8 @@ export default function App() {
           <Route path="ai-check" element={<RequirePerm perm="app"><AiCheckPage /></RequirePerm>} />
           <Route path="ai-check/:studentId" element={<RequirePerm perm="app"><AiCheckStudentPage /></RequirePerm>} />
           <Route path="messages" element={<RequirePerm perm="messages"><MessagesPage /></RequirePerm>} />
+          {/* Chats — guruh chati "Xabarlar"dan ajratilgan alohida sahifa */}
+          <Route path="chats" element={<RequirePerm perm="messages"><GroupChatPage /></RequirePerm>} />
           <Route path="support-telegram" element={<RequirePerm perm="messages"><SupportTelegramPage /></RequirePerm>} />
           <Route path="teacher-reports" element={<RequirePerm perm="teacherReports"><TeacherReportsPage /></RequirePerm>} />
           <Route path="contracts" element={<RequirePerm perm="contracts"><ContractsPage /></RequirePerm>} />
@@ -266,7 +264,6 @@ export default function App() {
           <Route index element={<TeacherDashboard />} />
           <Route path="journal" element={<RequirePerm perm="journal"><TeacherGroupsPage /></RequirePerm>} />
           <Route path="groups/:id" element={<RequirePerm perm="journal"><TeacherGroupDetailPage /></RequirePerm>} />
-          <Route path="evaluation" element={<TeacherEvaluationPage />} />
           <Route path="messages" element={<RequirePerm perm="messages"><TeacherMessagesPage /></RequirePerm>} />
           <Route path="feedback" element={<TeacherFeedbackPage />} />
           <Route path="support" element={<TeacherSupportPage />} />

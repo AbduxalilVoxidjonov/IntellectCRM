@@ -39,8 +39,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<LessonNote> LessonNotes => Set<LessonNote>();
     public DbSet<LessonReschedule> LessonReschedules => Set<LessonReschedule>();
     public DbSet<AbsenceReason> AbsenceReasons => Set<AbsenceReason>();
-    public DbSet<EvaluationType> EvaluationTypes => Set<EvaluationType>();
-    public DbSet<EvaluationGrade> EvaluationGrades => Set<EvaluationGrade>();
     public DbSet<GradingCriterion> GradingCriteria => Set<GradingCriterion>();
     public DbSet<GroupGradingCriterion> GroupGradingCriteria => Set<GroupGradingCriterion>();
     public DbSet<CriterionGrade> CriterionGrades => Set<CriterionGrade>();

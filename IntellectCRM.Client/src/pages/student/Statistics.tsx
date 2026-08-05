@@ -7,7 +7,7 @@ import { GradingPanel } from '@/pages/student/GradingPanel'
 /* ============================================================
    O'quvchi — UMUMIY STATISTIKA (o'quvchi haqida yig'ilgan barcha
    ma'lumot diagrammalarda): baholar trendi, fanlar o'rtachasi,
-   davomat + sabablar, oylik feedback, uy vazifa va xulq.
+   davomat + sabablar, uy vazifa va xulq, baholash mezonlari.
    ============================================================ */
 
 const sumVals = (o: Record<string, number> | undefined) =>
@@ -99,9 +99,6 @@ function Body({ nb }: { nb: StudentNotebook }) {
   const absent = Math.max(0, conducted - attended)
   const lateTotal = sumVals(nb.attendance?.lateCount)
 
-  // ---- Oylik feedback (fan kesimida) ----
-  const feedback = (nb.evaluationsBySubject || []).filter((s) => s.avg > 0).sort((x, y) => y.avg - x.avg)
-
   // ---- Uy vazifa ----
   const hwDone = nb.homeworkDone || 0
   const hwMissed = nb.homeworkMissed || 0
@@ -190,23 +187,6 @@ function Body({ nb }: { nb: StudentNotebook }) {
       )}
 
       {/* TODO: Darsga munosabat (O'zlashtirish darajasi taqsimoti) - implement in backend */}
-
-      {/* Oylik feedback (baholash) */}
-      {feedback.length > 0 && (
-        <Section title="Oylik feedback (baholash)" sub="Fan bo'yicha o'rtacha (1-5)">
-          {feedback.map((s) => (
-            <HBar
-              key={s.subjectId}
-              label={s.subjectName}
-              value={s.avg}
-              max={5}
-              color={gradeColor(s.avg)}
-              right={s.avg.toFixed(1)}
-              dot={subjectColor(s.subjectId)}
-            />
-          ))}
-        </Section>
-      )}
 
       {/* Uy vazifa va xulq */}
       <Section title="Uy vazifa va xulq">

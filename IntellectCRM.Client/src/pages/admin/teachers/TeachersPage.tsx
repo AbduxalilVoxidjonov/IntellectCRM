@@ -38,6 +38,8 @@ import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { CardTabs } from '@/components/ui/CardTabs'
+import { teacherTabs } from '@/config/sectionTabs'
 import { StatCard } from '@/components/ui/StatCard'
 import { Loader } from '@/components/ui/Loader'
 import { Modal } from '@/components/ui/Modal'
@@ -214,6 +216,7 @@ export function TeachersPage() {
 
   return (
     <div>
+      <CardTabs items={teacherTabs(can('teacherReports', 'view'))} className="mb-5" />
       <PageHeader
         title="O'qituvchilar"
         sub={`Faol ${teachers.length} ta · Arxivda ${archived.length} ta`}

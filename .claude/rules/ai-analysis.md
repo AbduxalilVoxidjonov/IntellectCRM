@@ -59,7 +59,7 @@ paths:
     muhlati o'tgan, lekin belgilanmagan darslar; muhlat = `CenterMeta.SalaryGraceDays`) +
     `LessonNote` (mavzu/uy vazifa/`AttendanceTaken` foizi) + qo'yilgan baholar soni;
   - **rivojlanish** — oyma-oy o'rtacha baho (`JournalEntry.Grade`), o'quvchilar davomati va bali
-    (`StudentBallService.TeacherAsync`), testlar (`TestResult`/`TestScore`) va topshiriqlar;
+    (`StudentBallService.TeacherAsync`) va testlar (`TestResult`/`TestScore`);
   - qo'shimcha: o'qituvchining O'Z davomati (`TeacherAttendance`) va guruh ota-onalaridan kelgan
     shikoyat/takliflar (`Feedback`).
   DIQQAT: `GET {id}/ai-snapshot` — AI'SIZ ham ishlaydi (Gemini chaqirilmaydi). Tab ochilganda barcha

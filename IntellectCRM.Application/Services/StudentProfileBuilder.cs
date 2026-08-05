@@ -8,7 +8,7 @@ namespace IntellectCRM.Application.Services;
 /// <summary>
 /// O'quvchi shaxsiy daftari — bitta o'quvchi haqida BARCHA ma'lumotni jamlaydi:
 /// profil, o'zlashtirish (<see cref="StudentReportBuilder"/>), qatnashish (<see cref="Analytics"/>
-/// mantig'i), davomat sabablari, oylik baholash va jurnaldagi uy vazifa/xulq belgilari.
+/// mantig'i), davomat sabablari va jurnaldagi uy vazifa/xulq belgilari.
 /// </summary>
 public static class StudentProfileBuilder
 {
@@ -70,47 +70,6 @@ public static class StudentProfileBuilder
             })
             .OrderByDescending(x => x.Count).ToList();
 
-        // ---- Oylik baholash (fan kesimida + umumiy fanlar o'rtachasi) ----
-        var evalTypes = await db.EvaluationTypes.AsNoTracking().OrderBy(t => t.CreatedAt)
-            .Select(t => new EvaluationTypeDto(t.Id, t.Name, t.Description)).ToListAsync();
-        // Faqat fan kesimidagi baholar — "Umumiy" (SubjectId="") ga baho qo'yilmaydi,
-        // umumiy statistika butunlay fanlar o'rtachasidan hisoblanadi.
-        var evalGrades = (await db.EvaluationGrades.AsNoTracking().Where(g => g.StudentId == st.Id).ToListAsync())
-            .Where(g => !string.IsNullOrEmpty(g.Month) && !string.IsNullOrEmpty(g.SubjectId))
-            .ToList();
-
-        // Fan kesimida: o'quvchining BARCHA biriktirilgan kurslari (baho qo'yilmagan bo'lsa ham KO'RINADI —
-        // shu sabab ko'p guruhli o'quvchida hamma kurs/guruh chiqadi, faqat baholangani emas).
-        var gradesBySubj = evalGrades.GroupBy(g => g.SubjectId).ToDictionary(g => g.Key, g => g.ToList());
-        var evalsBySubject = report.Subjects
-            .Select(subj =>
-            {
-                var sg = gradesBySubj.GetValueOrDefault(subj.Id) ?? new List<EvaluationGrade>();
-                var months = sg.GroupBy(g => g.Month)
-                    .OrderBy(m => m.Key, StringComparer.Ordinal)
-                    .Select(m =>
-                    {
-                        var dict = m.GroupBy(x => x.EvaluationTypeId).ToDictionary(x => x.Key, x => x.First().Score);
-                        return new MonthlyEvaluationDto(m.Key, dict, dict.Count > 0 ? Math.Round(dict.Values.Average(), 1) : 0);
-                    }).ToList();
-                var subjAvg = sg.Count > 0 ? Math.Round(sg.Average(x => x.Score), 1) : 0;
-                return new SubjectEvaluationDto(subj.Id, subj.Name, subjAvg, months);
-            })
-            .OrderBy(x => x.SubjectName, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        // Umumiy: oy → tur bo'yicha FANLAR O'RTACHASI (yaxlitlangan); oylik avg = o'sha oy barcha baholari o'rtachasi.
-        var evals = evalGrades
-            .GroupBy(g => g.Month)
-            .OrderBy(g => g.Key, StringComparer.Ordinal)
-            .Select(g =>
-            {
-                var dict = g.GroupBy(x => x.EvaluationTypeId)
-                    .ToDictionary(x => x.Key, x => (int)Math.Round(x.Average(v => v.Score)));
-                var avg = g.Any() ? Math.Round(g.Average(v => v.Score), 1) : 0;
-                return new MonthlyEvaluationDto(g.Key, dict, avg);
-            }).ToList();
-
         // ---- O'zlashtirish: fan → OY ("yyyy-MM") → o'rtacha baho (daftar oyma-oy) ----
         var gradesByMonth = new Dictionary<string, Dictionary<string, double>>();
         foreach (var subj in report.Subjects)
@@ -165,7 +124,6 @@ public static class StudentProfileBuilder
             st.ParentPassportUrl,
             report.Subjects, gradesByMonth, avgGrade,
             monthlyAttendance, conducted, attended, pct, reasonCounts,
-            evalTypes, evals, evalsBySubject,
             hwDone, hwMissed, bGood, bBad, trend);
     }
 }

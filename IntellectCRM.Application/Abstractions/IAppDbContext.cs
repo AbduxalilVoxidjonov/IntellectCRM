@@ -43,8 +43,6 @@ public interface IAppDbContext
     DbSet<LessonNote> LessonNotes { get; }
     DbSet<LessonReschedule> LessonReschedules { get; }
     DbSet<AbsenceReason> AbsenceReasons { get; }
-    DbSet<EvaluationType> EvaluationTypes { get; }
-    DbSet<EvaluationGrade> EvaluationGrades { get; }
     DbSet<GradingCriterion> GradingCriteria { get; }
     DbSet<GroupGradingCriterion> GroupGradingCriteria { get; }
     DbSet<CriterionGrade> CriterionGrades { get; }

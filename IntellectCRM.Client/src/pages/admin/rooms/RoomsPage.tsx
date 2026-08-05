@@ -6,6 +6,8 @@ import { getRooms, createRoom, updateRoom, deleteRoom } from '@/api/services/roo
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { CardTabs } from '@/components/ui/CardTabs'
+import { roomTabs } from '@/config/sectionTabs'
 import { Loader } from '@/components/ui/Loader'
 import { Modal } from '@/components/ui/Modal'
 import { Input } from '@/components/ui/Input'
@@ -85,12 +87,21 @@ export function RoomsPage() {
   const update = <K extends keyof CreateRoomPayload>(key: K, value: CreateRoomPayload[K]) =>
     setForm((f) => ({ ...f, [key]: value }))
 
-  if (loading) return <Loader />
+  // Cardlar yuklanish paytida ham TURADI — aks holda sahifa ochilganda ular bir lahzaga
+  // yo'qolib, foydalanuvchi ma'lumot kelguncha boshqa bo'limga o'ta olmasdi.
+  if (loading)
+    return (
+      <div className="space-y-6">
+        <CardTabs items={roomTabs} />
+        <Loader />
+      </div>
+    )
 
   const activeRooms = rooms.filter((r) => r.isActive)
 
   return (
     <div className="space-y-6">
+      <CardTabs items={roomTabs} />
       <PageHeader
         title="Xonalar"
         sub={`Jami ${activeRooms.length} ta faol xona`}

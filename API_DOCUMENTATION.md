@@ -38,7 +38,7 @@ Admin controllerlar `[AdminPerm("<kalit>")]` bilan himoyalangan:
 - **boshqa rollar** (teacher/student) — taqiqlanadi.
 
 **Ruxsat kalitlari:** `app`, `settings`, `messages`, `students`, `teachers`, `teacherReports`,
-`classes`, `calls`, `contracts`, `discipline`, `staff`, `schedule`, `leads`, `kassa`, `finance`, `cameras`, `feedback`.
+`classes`, `calls`, `contracts`, `staff`, `schedule`, `leads`, `kassa`, `finance`, `cameras`, `feedback`.
 
 ### 1.4. Ochiq (autentifikatsiyasiz) endpointlar
 `[AllowAnonymous]`: `POST /api/auth/login`, ommaviy test/brending (`/api/public/*`), landing lid
@@ -99,8 +99,6 @@ Admin controllerlar `[AdminPerm("<kalit>")]` bilan himoyalangan:
 | GET | /api/admin/settings/cameras | Kamera sozlamalari (yoqilgan, soni). |
 | PUT | /api/admin/settings/cameras | Kamera yoqilgan/o'chirilgan holatini saqlaydi. |
 | PUT | /api/admin/settings/absence-reasons | Davomat (kelmaganlik) sabablarini saqlaydi. |
-| GET | /api/admin/settings/assignment-types | Topshiriq turlari ro'yxati. |
-| PUT | /api/admin/settings/assignment-types | Topshiriq turlarini saqlaydi. |
 
 ### BranchesController
 `api/admin/branches` · Ruxsat: `[Authorize(Roles = "superadmin")]`. Filiallar CRUD (faqat superadmin).
@@ -154,7 +152,7 @@ Admin controllerlar `[AdminPerm("<kalit>")]` bilan himoyalangan:
 | GET | /api/admin/students | Faol o'quvchilar (`includeArchived=true` bilan arxiv ham). |
 | GET | /api/admin/students/archived | Faqat arxivlangan o'quvchilar. |
 | GET | /api/admin/students/{id} | Bitta o'quvchi (tahrirlash formasi uchun). |
-| GET | /api/admin/students/{id}/profile | Shaxsiy daftar — to'liq (o'zlashtirish, davomat, intizom, topshiriq, baholash). |
+| GET | /api/admin/students/{id}/profile | Shaxsiy daftar — to'liq (o'zlashtirish, davomat). |
 | GET | /api/admin/students/{id}/ai-analyses | Saqlangan AI tahlillar tarixi. |
 | POST | /api/admin/students/{id}/ai-analysis | Gemini AI tahlil (kuniga bir marta). |
 | GET | /api/admin/students/{id}/support-feedback | Support darslari feedbacki. |
@@ -242,21 +240,6 @@ Admin controllerlar `[AdminPerm("<kalit>")]` bilan himoyalangan:
 |---|---|---|
 | GET | /api/admin/app/teachers | O'qituvchilar ilova faolligi (login vaqtlari + oxirgi qurilma). |
 
-### DisciplineController
-`api/admin/discipline` · Ruxsat: `[Authorize]` + `[AdminPerm("discipline")]`. Intizomiy ball (100 balldan; sabablar "other" + "attendance").
-
-| Metod | Yo'l | Vazifasi |
-|---|---|---|
-| GET | /api/admin/discipline/reasons | Barcha sabablar (mustaqil + davomat). |
-| POST | /api/admin/discipline/reasons | Yangi mustaqil sabab. |
-| PUT | /api/admin/discipline/reasons/{id} | Mustaqil sababni tahrirlaydi. |
-| DELETE | /api/admin/discipline/reasons/{id} | Mustaqil sababni o'chiradi. |
-| PUT | /api/admin/discipline/reasons/attendance/{id} | Davomat sababiga ball belgilaydi. |
-| GET | /api/admin/discipline/scores | Faol o'quvchilar ball jamlamasi. |
-| POST | /api/admin/discipline/points | Qo'lda ball kiritadi. |
-| GET | /api/admin/discipline/points | O'quvchi ball tarixi (`studentId`). |
-| DELETE | /api/admin/discipline/points/{id} | Qo'lda ball yozuvini o'chiradi. |
-
 ### ParentsController
 `api/admin/parents` · Ruxsat: `[Authorize]` + `[AdminPerm("app")]`. Ota-onalar — o'quvchi akkauntlari telefon bo'yicha guruhlangan.
 
@@ -324,7 +307,7 @@ Admin controllerlar `[AdminPerm("<kalit>")]` bilan himoyalangan:
 
 ---
 
-## 5. Jurnal, o'quv dasturi, baholash, topshiriqlar
+## 5. Jurnal, o'quv dasturi, baholash
 
 ### JournalController
 `api/admin/journal` · Ruxsat: `[Authorize]` + `[AdminPerm("classes")]`. Guruh jurnali: ustunlar, baho/davomat, ommaviy davomat, tahrirlash siyosati, Excel import.
@@ -390,32 +373,6 @@ Admin controllerlar `[AdminPerm("<kalit>")]` bilan himoyalangan:
 | GET | /api/admin/grading/student/{studentId}/summary | O'quvchi baholash xulosasi (anonim). |
 | GET | /api/admin/grading/group/{groupId}/summary | Guruh baholash statistikasi. |
 | GET | /api/admin/grading/groups/summary | Barcha guruhlar statistikasi (keshlanadi). |
-
-### AssignmentsController
-`api/admin/assignments` · Ruxsat: `[Authorize]` + `[AdminPerm("app")]`. Topshiriqlar (o'qituvchilar yaratganini ham) yaratish/baholash.
-
-| Metod | Yo'l | Vazifasi |
-|---|---|---|
-| GET | /api/admin/assignments | Barcha topshiriqlar (yoki `classId`). |
-| GET | /api/admin/assignments/{id}/results | Natijalar (kim bajardi + ball + javob). |
-| GET | /api/admin/assignments/scoreboard | Guruh ball jadvali. |
-| POST | /api/admin/assignments | Yangi topshiriq. |
-| PUT | /api/admin/assignments/{id} | Tahrirlaydi. |
-| DELETE | /api/admin/assignments/{id} | O'chiradi. |
-| PUT | /api/admin/assignments/{id}/submissions/{studentId} | Bajarish holati + ball. |
-| POST | /api/admin/assignments/uploads | Material faylini yuklaydi (~20MB). |
-
-### StudentEvaluationController
-`api/admin/student-evaluation` · Ruxsat: `[Authorize]` + `[AdminPerm("students")]`. O'quvchilarni baholash (turlar + 1-5 baho jadvali).
-
-| Metod | Yo'l | Vazifasi |
-|---|---|---|
-| GET | /api/admin/student-evaluation/types | Baholash turlari. |
-| POST | /api/admin/student-evaluation/types | Baholash turi yaratadi. |
-| PUT | /api/admin/student-evaluation/types/{id} | Turini tahrirlaydi. |
-| DELETE | /api/admin/student-evaluation/types/{id} | Turini o'chiradi. |
-| GET | /api/admin/student-evaluation/board | Oy/hafta baholash jadvali. |
-| POST | /api/admin/student-evaluation/grade | 1-5 baho qo'yadi/tozalaydi. |
 
 ### ClassAnalyticsController
 Bazaviy route yo'q · Ruxsat: `[Authorize(Roles = "admin,superadmin,staff")]`. Guruh analitikasi, statistika, o'quvchilar reytingi (keshlanadi).
@@ -728,7 +685,7 @@ staff'ga GET har doim ochiq bo'lgani uchun mavjud endpointlar ishlatiladi.
 | Metod | Yo'l | Vazifasi |
 |---|---|---|
 | GET | /api/student/me | Profil (asosiy). |
-| GET | /api/student/notebook | To'liq shaxsiy daftar (profil+baholar+davomat+intizom+ball). |
+| GET | /api/student/notebook | To'liq shaxsiy daftar (profil+baholar+davomat). |
 | GET | /api/student/dashboard | Bosh sahifa (profil + bugungi darslar/baholar + balans). |
 | GET | /api/student/meta | Markaz meta'si (chorak/dars vaqti/sabablar). |
 | GET | /api/student/school | Markaz nomi/logo/telegram kanal. |
@@ -739,7 +696,6 @@ staff'ga GET har doim ochiq bo'lgani uchun mavjud endpointlar ishlatiladi.
 | POST | /api/student/notifications/{id}/confirm | Bittasini tasdiqlaydi. |
 | POST | /api/student/notifications/register | Push qurilma tokenini ro'yxatga. |
 | DELETE | /api/student/notifications/register | Qurilma tokenini o'chiradi. |
-| GET | /api/student/discipline | Intizomiy ball + tarix. |
 | GET | /api/student/grades | Baholar hisoboti. |
 | GET | /api/student/rating | Reyting (o'z guruhi + markaz TOP 15). |
 | GET | /api/student/attendance | Davomat (chorak + kunlik). |
@@ -751,13 +707,6 @@ staff'ga GET har doim ochiq bo'lgani uchun mavjud endpointlar ishlatiladi.
 | PUT | /api/student/location | Uy joylashuvini yangilaydi (GPS). |
 | GET | /api/student/chat | Guruh chati xabarlari. |
 | POST | /api/student/chat | Chatga xabar. |
-| GET | /api/student/assignments | Topshiriqlar (holati bilan). |
-| GET | /api/student/assignments/{id} | Topshiriq tafsiloti (test — javobsiz). |
-| POST | /api/student/assignments/{id}/submit | Topshiriqni topshiradi. |
-| POST | /api/student/assignments/{id}/speaking | Speaking — audio → Azure baholash. |
-| GET | /api/student/assignments/{id}/speaking | Speaking natijasini o'qiydi. |
-| GET | /api/student/assignment-scores | Topshiriq ballari (yig'ma). |
-| POST | /api/student/uploads | Javob faylini yuklaydi (~20MB). |
 | GET | /api/student/ai-check/status | AI tekshiruv holati (limit/premium/blok). |
 | GET | /api/student/ai-check/history | AI tekshiruv tarixi. |
 | GET | /api/student/ai-check/history/{id} | Bitta yozuv (to'liq). |
@@ -793,9 +742,6 @@ staff'ga GET har doim ochiq bo'lgani uchun mavjud endpointlar ishlatiladi.
 | PUT | /api/teacher/journal | Jurnal katagi (baho/davomat, siyosat). |
 | DELETE | /api/teacher/journal | Katakni tozalaydi. |
 | POST | /api/teacher/journal/bulk-attendance | Bir darsga ommaviy davomat. |
-| GET | /api/teacher/evaluation/types | Baholash turlari. |
-| GET | /api/teacher/evaluation/board | Guruh+fan baholash jadvali. |
-| POST | /api/teacher/evaluation/grade | 1-5 baho (o'z fani). |
 | GET | /api/teacher/grading/group/{groupId}/board | Guruh baholash grid'i. |
 | POST | /api/teacher/grading/grade | Mezon bahosini saqlaydi. |
 | POST | /api/teacher/grading/grade/bulk | Sanada bir mezon bo'yicha barchani. |
@@ -806,14 +752,6 @@ staff'ga GET har doim ochiq bo'lgani uchun mavjud endpointlar ishlatiladi.
 | GET | /api/teacher/chat/classes | Chat kanallari. |
 | GET | /api/teacher/chat/{className} | Kanal xabarlari. |
 | POST | /api/teacher/chat/{className} | Kanalga xabar. |
-| GET | /api/teacher/assignments | O'zi yaratgan topshiriqlar. |
-| POST | /api/teacher/assignments | Topshiriq yaratadi. |
-| PUT | /api/teacher/assignments/{id} | Tahrirlaydi (o'ziniki). |
-| DELETE | /api/teacher/assignments/{id} | O'chiradi (o'ziniki). |
-| POST | /api/teacher/uploads | Material faylini yuklaydi (~20MB). |
-| GET | /api/teacher/assignments/{id}/results | Natijalar (kim bajardi). |
-| PUT | /api/teacher/assignments/{id}/submissions/{studentId} | Bajarish holati (+ball). |
-| GET | /api/teacher/assignment-types | Topshiriq turlari. |
 | POST | /api/teacher/feedback | Taklif/shikoyat (matn + rasm). |
 | GET | /api/teacher/support/slots | O'z bo'sh slotlari (oy bo'yicha). |
 | POST | /api/teacher/support/slots | Bo'sh vaqt bloki (bo'lish + takror). |

@@ -16,6 +16,9 @@ import { cn, formatDateTime } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { CardTabs } from '@/components/ui/CardTabs'
+import { teacherTabs } from '@/config/sectionTabs'
+import { usePerm } from '@/lib/permissions'
 import { Loader } from '@/components/ui/Loader'
 
 // Bo'sh → keldi → kelmadi → kechikdi → bo'sh
@@ -47,8 +50,10 @@ const initials = (name: string) =>
 const syncLabel = (iso: string) => formatDateTime(iso)
 
 export function TeacherAttendancePage() {
+  const { can } = usePerm()
   return (
     <div>
+      <CardTabs items={teacherTabs(can('teacherReports', 'view'))} className="mb-5" />
       <PageHeader
         title="O'qituvchilar davomati"
         sub="Turniket/FaceID qurilmasidan avtomatik yuklanadi. Kunlik holat — kim keldi, soat nechada, kechikdimi."

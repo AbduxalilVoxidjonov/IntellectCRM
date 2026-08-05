@@ -6,19 +6,17 @@ import {
   GraduationCap,
   School,
   NotebookText,
-  ClipboardList,
   Wallet,
   Banknote,
   MessageSquare,
+  MessagesSquare,
   ClipboardCheck,
   Settings,
   Smartphone,
   Building2,
   BookOpen,
   Archive,
-  DoorOpen,
   Megaphone,
-  Headset,
   PhoneCall,
 } from 'lucide-react'
 import type { Role } from '@/types'
@@ -75,32 +73,12 @@ export const navByRole: Record<Role, NavItem[]> = {
         { label: "O'quvchilar davomati", to: '/admin/students/davomat', perm: 'students' },
         { label: 'Bonus hisoboti', to: '/admin/students/bonus', perm: 'students' },
         { label: 'Turniket', to: '/admin/students/turniket', perm: 'students' },
-        { label: "O'quvchilarga feedback", to: '/admin/students/baholash', perm: 'students' },
-        { label: 'Feedback nomi', to: '/admin/students/baholash-turlari', perm: 'students' },
       ],
     },
-    {
-      label: "O'qituvchilar",
-      to: '/admin/teachers',
-      icon: GraduationCap,
-      perm: 'teachers',
-      children: [
-        { label: "O'qituvchilar ro'yxati", to: '/admin/teachers', end: true },
-        { label: "O'qituvchilar davomati", to: '/admin/teachers/attendance' },
-        { label: "O'qituvchilar hisoboti", to: '/admin/teacher-reports', perm: 'teacherReports' },
-      ],
-    },
+    // O'qituvchilar — BITTA band. Ro'yxati/Davomati/Hisoboti sahifalari orasida sahifa tepasidagi
+    // cardlar orqali o'tiladi (`CardTabs` + `config/sectionTabs.ts`), marshrutlar o'zgarmagan.
+    { label: "O'qituvchilar", to: '/admin/teachers', icon: GraduationCap, perm: 'teachers' },
     { label: 'Guruhlar', to: '/admin/classes', icon: School, perm: 'classes' },
-    {
-      label: 'Xonalar',
-      to: '/admin/rooms',
-      icon: DoorOpen,
-      perm: 'classes',
-      children: [
-        { label: "Xonalar ro'yxati", to: '/admin/rooms', end: true },
-        { label: 'Samaradorlik', to: '/admin/rooms/utilization' },
-      ],
-    },
     {
       label: "O'quv bo'limi",
       to: '/admin/oquv-bolimi',
@@ -110,6 +88,9 @@ export const navByRole: Record<Role, NavItem[]> = {
         { label: 'Kurslar analitikasi', to: '/admin/subjects/analitika', perm: 'schedule' },
         { label: "O'quv dasturi", to: '/admin/curricula', perm: 'schedule' },
         { label: 'Baholash mezonlari', to: '/admin/grading', perm: 'schedule' },
+        // Xonalar — ilgari yuqori darajadagi alohida menyu edi; ikkinchi sahifasi
+        // ("Samaradorlik") endi sahifa tepasidagi cardlardan ochiladi.
+        { label: 'Xonalar', to: '/admin/rooms', perm: 'classes' },
         { label: 'Testlar natijalari', to: '/admin/test-results', perm: 'classes' },
         { label: 'Daraja testi', to: '/admin/level-tests', perm: 'schedule' },
         { label: 'Kitoblar sotuvi', to: '/admin/books', perm: 'books' },
@@ -117,8 +98,18 @@ export const navByRole: Record<Role, NavItem[]> = {
         { label: 'Shartnomalar', to: '/admin/contracts', perm: 'contracts' },
       ],
     },
+    {
+      // Chats — jonli yozishmalar (Xabarlar bo'limidagi ommaviy yuborishdan alohida).
+      label: 'Chats',
+      to: '/admin/chats',
+      icon: MessagesSquare,
+      perm: 'messages',
+      children: [
+        { label: 'Guruh chati', to: '/admin/chats' },
+        { label: 'Support Telegram', to: '/admin/support-telegram' },
+      ],
+    },
     { label: 'Xabarlar', to: '/admin/messages', icon: MessageSquare, perm: 'messages' },
-    { label: 'Support Telegram', to: '/admin/support-telegram', icon: Headset, perm: 'messages' },
     {
       label: 'Ilova',
       to: '/admin/ai-check',
@@ -195,7 +186,6 @@ export const navByRole: Record<Role, NavItem[]> = {
   teacher: [
     { label: 'Bosh sahifa', to: '/teacher', icon: LayoutDashboard },
     { label: 'Jurnal', to: '/teacher/journal', icon: NotebookText, perm: 'journal' },
-    { label: 'Feedback', to: '/teacher/evaluation', icon: ClipboardList },
     // Asosiy navigatsiyada "Test" (onlayn/oflayn test yaratish).
     { label: 'Test', to: '/teacher/tests', icon: ClipboardCheck, perm: 'journal' },
     { label: 'Xabarlar', to: '/teacher/messages', icon: MessageSquare, perm: 'messages' },

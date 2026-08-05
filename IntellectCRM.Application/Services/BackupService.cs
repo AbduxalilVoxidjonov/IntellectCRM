@@ -61,8 +61,6 @@ public static class BackupService
         await Add("journalEntries", db.JournalEntries);
         await Add("lessonNotes", db.LessonNotes);
         await Add("absenceReasons", db.AbsenceReasons);
-        await Add("evaluationTypes", db.EvaluationTypes);
-        await Add("evaluationGrades", db.EvaluationGrades);
         await Add("gradingCriteria", db.GradingCriteria);
         await Add("groupGradingCriteria", db.GroupGradingCriteria);
         await Add("criterionGrades", db.CriterionGrades);

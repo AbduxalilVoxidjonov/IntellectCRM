@@ -1,25 +1,5 @@
-import type {
-  Subject,
-  AttendanceReasonCount,
-  EvaluationType,
-} from '@/types'
+import type { Subject, AttendanceReasonCount } from '@/types'
 import { api } from '../client'
-
-/** O'quvchining bitta oydagi baholash turlari bo'yicha baholari */
-export interface MonthlyEvaluation {
-  month: string
-  /** baholash turi id → baho (1-5) */
-  grades: Record<string, number>
-  avg: number
-}
-
-/** O'quvchining bitta fan bo'yicha oylik baholashlari (fan kesimida) */
-export interface SubjectEvaluation {
-  subjectId: string
-  subjectName: string
-  avg: number
-  evaluations: MonthlyEvaluation[]
-}
 
 /** O'quvchining bitta OYDAGI ("yyyy-MM") uy vazifa/xulq jamlamasi */
 export interface MonthMarks {
@@ -79,10 +59,6 @@ export interface StudentNotebook {
   attended: number
   attendancePct: number
   reasons: AttendanceReasonCount[]
-  // Oylik baholash — umumiy (fanlar o'rtachasi) + fan kesimida
-  evaluationTypes: EvaluationType[]
-  evaluations: MonthlyEvaluation[]
-  evaluationsBySubject: SubjectEvaluation[]
   // Uy vazifa + xulq
   homeworkDone: number
   homeworkMissed: number

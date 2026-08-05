@@ -7,8 +7,6 @@ import type {
   Subject,
   TeacherClass,
   TestResultDetail,
-  EvaluationBoard,
-  EvaluationType,
   TeacherRating,
 } from '@/types'
 import { api, USE_MOCK } from '../client'
@@ -40,42 +38,6 @@ export async function getMyClasses(): Promise<TeacherClass[]> {
   if (USE_MOCK) return []
   const { data } = await api.get<TeacherClass[]>('/teacher/classes')
   return data
-}
-
-/* ---------- O'quvchilarni baholash (o'z fanidan) ---------- */
-
-export async function getTeacherEvalTypes(): Promise<EvaluationType[]> {
-  if (USE_MOCK) return []
-  const { data } = await api.get<EvaluationType[]>('/teacher/evaluation/types')
-  return data
-}
-
-/** O'qituvchining shu guruh+fan bo'yicha baholash jadvali (tanlangan oy). */
-export async function getTeacherEvalBoard(
-  classId: string,
-  subjectId: string,
-  month?: string,
-): Promise<EvaluationBoard> {
-  if (USE_MOCK)
-    return { months: [], month: '', week: 0, types: [], rows: [], subjectId, subjects: [] }
-  const { data } = await api.get<EvaluationBoard>('/teacher/evaluation/board', {
-    params: { classId, subjectId, month },
-  })
-  return data
-}
-
-/** O'z fanidan bitta o'quvchiga bitta tur bo'yicha bir oyda baho qo'yish (1-5). score=null = tozalash. */
-export async function setTeacherEvalGrade(
-  classId: string,
-  subjectId: string,
-  studentId: string,
-  typeId: string,
-  month: string,
-  score: number | null,
-): Promise<void> {
-  await api.post('/teacher/evaluation/grade', {
-    classId, subjectId, studentId, typeId, month, week: 0, score,
-  })
 }
 
 /* ---------- Meta (choraklar, dars vaqtlari, davomat sabablari) ---------- */

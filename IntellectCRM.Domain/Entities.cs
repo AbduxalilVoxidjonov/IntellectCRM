@@ -1130,44 +1130,6 @@ public class AbsenceReason
     public bool IsLate { get; set; }
 }
 
-/// <summary>
-/// O'quvchilarni baholash turi — admin xohlagancha qo'sha oladi (masalan "Og'zaki",
-/// "Yozma", "Nazorat ishi", "Loyiha"). Hozircha faqat nom va izoh; baholash mantig'i keyin qo'shiladi.
-/// </summary>
-public class EvaluationType
-{
-    public string Id { get; set; } = Guid.NewGuid().ToString();
-    public string Name { get; set; } = string.Empty;
-    /// <summary>Ixtiyoriy izoh.</summary>
-    public string Description { get; set; } = string.Empty;
-    /// <summary>Yaratilgan vaqt (ISO) — tartiblash uchun.</summary>
-    public string CreatedAt { get; set; } = string.Empty;
-}
-
-/// <summary>
-/// O'quvchiga bitta baholash turi bo'yicha bir oyda qo'yilgan baho (1-5). Har
-/// (StudentId, EvaluationTypeId, Month) uchun yagona — "har oy bir marta" baholash.
-/// </summary>
-public class EvaluationGrade
-{
-    public string Id { get; set; } = Guid.NewGuid().ToString();
-    public string StudentId { get; set; } = string.Empty;
-    public string EvaluationTypeId { get; set; } = string.Empty;
-    /// <summary>
-    /// Qaysi FAN bo'yicha baholangani — shu fan o'qituvchisi qo'yadi. "" (bo'sh) = umumiy
-    /// (eski/admin fan ko'rsatmasdan qo'ygan). Har (Student, Subject, Type, Month) uchun yagona.
-    /// </summary>
-    public string SubjectId { get; set; } = string.Empty;
-    /// <summary>Baho tegishli oy ("YYYY-MM"). Har oy uchun alohida baho.</summary>
-    public string Month { get; set; } = string.Empty;
-    /// <summary>Oy ichida qaysi haftada baholangani (1..5; 0 = butun oy tanlangan edi).</summary>
-    public int Week { get; set; }
-    /// <summary>Baho 1-5.</summary>
-    public int Score { get; set; }
-    /// <summary>Oxirgi yangilangan vaqt (ISO).</summary>
-    public string UpdatedAt { get; set; } = string.Empty;
-}
-
 /// <summary>Baholash MEZONI (kriteriya) — qayta ishlatiladigan pul. Guruhlarga biriktiriladi
 /// (har guruhga boshqa-boshqa mezonlar). O'quvchilar guruh ichida shu mezonlar bo'yicha baholanadi.</summary>
 public class GradingCriterion

@@ -137,7 +137,10 @@ export function Sidebar({ open, collapsed = false, onNavigate }: SidebarProps) {
             >
               <item.icon className="h-[17px] w-[17px]" />
               {item.label}
-              {item.to.endsWith('/messages') && totalUnread > 0 && (
+              {/* O'qilmagan chat belgisi — guruh chati "Chats" bo'limiga ko'chgan
+                  (o'qituvchi menyusida u hamon "Xabarlar" ichida). */}
+              {(item.to.endsWith('/chats') || item.to === '/teacher/messages') &&
+                totalUnread > 0 && (
                 <span className="ml-auto flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-red-500 px-1 font-mono text-[10px] font-bold text-white">
                   {totalUnread > 9 ? '9+' : totalUnread}
                 </span>
@@ -165,6 +168,9 @@ export function Sidebar({ open, collapsed = false, onNavigate }: SidebarProps) {
 
 function NavGroup({ item, onNavigate }: { item: NavItem; onNavigate: () => void }) {
   const location = useLocation()
+  // "Chats" guruhi yig'ilgan holatda ham o'qilmagan xabar sonini ko'rsatadi.
+  const { unreadChannels } = useUnread()
+  const groupUnread = item.to.endsWith('/chats') ? unreadChannels.size : 0
   // Guruh — o'z manzili ostida YOKI bolalaridan biri faol bo'lsa belgilanadi/ochiladi
   // (bolalar boshqa yo'l ostida bo'lishi mumkin, masalan Fanlar yoki Sozlamalar).
   const isUnder =
@@ -194,8 +200,17 @@ function NavGroup({ item, onNavigate }: { item: NavItem; onNavigate: () => void 
       >
         <item.icon className="h-[17px] w-[17px]" />
         {item.label}
+        {groupUnread > 0 && (
+          <span className="ml-auto flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-red-500 px-1 font-mono text-[10px] font-bold text-white">
+            {groupUnread > 9 ? '9+' : groupUnread}
+          </span>
+        )}
         <ChevronDown
-          className={cn('ml-auto h-3.5 w-3.5 text-slate-400 transition-transform', openGroup && 'rotate-180')}
+          className={cn(
+            'h-3.5 w-3.5 text-slate-400 transition-transform',
+            groupUnread > 0 ? 'ml-1.5' : 'ml-auto',
+            openGroup && 'rotate-180',
+          )}
         />
       </button>
 

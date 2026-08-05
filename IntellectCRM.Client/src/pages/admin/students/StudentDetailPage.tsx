@@ -11,8 +11,7 @@ import {
 } from 'lucide-react'
 import { genderLabels } from '@/config/constants'
 import {
-  Area, AreaChart, Bar, BarChart, Cell, CartesianGrid, Legend,
-  PolarAngleAxis, PolarGrid, PolarRadiusAxis, Radar, RadarChart,
+  Bar, BarChart, Cell, CartesianGrid, Legend,
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts'
 import { getStudentNotebook, type StudentNotebook } from '@/api/services/studentNotebook'
@@ -113,7 +112,6 @@ function groupStatusBadge(status: string): { label: string; tone: BadgeTone } {
   }
 }
 
-const evalColors = ['#1f47f5', '#16a34a', '#f59e0b', '#dc2626', '#7c3aed', '#0891b2', '#db2777', '#65a30d']
 // Har fan uchun alohida rang (statistika uslubidagi rangli nuqtalar/legend uchun)
 const dynColors = [
   '#3b82f6', '#f59e0b', '#34d399', '#f472b6', '#a78bfa', '#22d3ee', '#fb7185', '#a3e635',
@@ -179,7 +177,6 @@ export function StudentDetailPage() {
   /** O'ng ustundagi faol bo'lim (tab). */
   const [tab, setTab] = useState<Tab>('guruhlar')
   /** Oylik baholash jadvalida tanlangan oy ("YYYY-MM"). */
-  const [evalMonth, setEvalMonth] = useState('')
   /** Fan baholari dinamikasida tanlangan oy ("YYYY-MM"). */
   const [gradeMonth, setGradeMonth] = useState('')
   /** Darslar tarixi — o'tilgan mavzular jadvali (eng yangisi birinchi). */
@@ -640,56 +637,6 @@ export function StudentDetailPage() {
       }))
   }, [data, gradeMonth])
 
-
-  // Oylik baholash — barcha oylar (fanlar bo'yicha) katalogi.
-  const evalMonths = useMemo(() => {
-    if (!data) return []
-    const set = new Set<string>()
-    data.evaluationsBySubject.forEach((s) => s.evaluations.forEach((e) => set.add(e.month)))
-    return [...set].sort()
-  }, [data])
-
-  // Feedback dinamikasi uchun tur nomlari (yozma, og'zaki/suhbat... — har biri alohida chiziq).
-  const evalTypeNames = useMemo(
-    () => data?.evaluationTypes.map((t) => t.name) ?? [],
-    [data],
-  )
-
-  // Feedback dinamikasi: har oy uchun HAR TUR (yozma, og'zaki/suhbat) bo'yicha o'rtacha — oyda bir
-  // marta qo'yiladigan baholar (barcha fanlar bo'yicha o'rtacha), fanlar o'rtachasi EMAS.
-  const typeDynamics = useMemo(() => {
-    if (!data) return []
-    return data.evaluations.map((e) => {
-      const row: Record<string, string | number> = { name: monthLabel(e.month) }
-      data.evaluationTypes.forEach((t) => {
-        const v = e.grades[t.id]
-        if (v != null) row[t.name] = v
-      })
-      return row
-    })
-  }, [data])
-
-  // Tanlangan oy yo'q yoki ro'yxatda bo'lmasa — eng oxirgi oyni standart tanlaymiz.
-  useEffect(() => {
-    if (evalMonths.length === 0) return
-    setEvalMonth((prev) => (evalMonths.includes(prev) ? prev : evalMonths[evalMonths.length - 1]))
-  }, [evalMonths])
-
-  // Turlar bo'yicha UMUMIY o'rtacha — har bir baholash turi uchun barcha fan va oylar bo'yicha o'rtacha (radar uchun).
-  const evalTypeAvg = useMemo(() => {
-    if (!data) return []
-    return data.evaluationTypes.map((t) => {
-      const vals: number[] = []
-      data.evaluationsBySubject.forEach((s) =>
-        s.evaluations.forEach((e) => {
-          const v = e.grades[t.id]
-          if (v != null) vals.push(v)
-        }),
-      )
-      const avg = vals.length ? Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 10) / 10 : 0
-      return { type: t.name, avg }
-    })
-  }, [data])
 
   const marksChart = useMemo(
     () =>
@@ -1602,144 +1549,6 @@ export function StudentDetailPage() {
               </div>
             ))}
           </div>
-        </Section>
-      )}
-
-      {/* Oylik baholash */}
-      {tab === 'fikr' && data.evaluationTypes.length > 0 && (
-        <Section title="Oylik feedback" icon={ClipboardCheck}>
-          {data.evaluationsBySubject.length === 0 ? (
-            <Empty>Hali baholanmagan</Empty>
-          ) : (
-            <>
-              <div className="grid gap-5 lg:grid-cols-5">
-                {/* Feedback dinamikasi — turlar bo'yicha (yozma, og'zaki/suhbat...), oylar bo'yicha */}
-                <div className="rounded-2xl border border-slate-100 bg-slate-50/40 p-4 lg:col-span-3">
-                  <p className="mb-3 text-sm font-medium text-slate-600">
-                    Feedback dinamikasi (turlar bo'yicha)
-                  </p>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <AreaChart data={typeDynamics} margin={{ top: 10, right: 12, left: -18, bottom: 0 }}>
-                      <defs>
-                        {evalTypeNames.map((name, i) => {
-                          const c = evalColors[i % evalColors.length]
-                          return (
-                            <linearGradient key={name} id={`evalArea${i}`} x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor={c} stopOpacity={0.3} />
-                              <stop offset="95%" stopColor={c} stopOpacity={0.03} />
-                            </linearGradient>
-                          )
-                        })}
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={gridStroke} />
-                      <XAxis dataKey="name" tickLine={false} axisLine={false} tick={axisTick} />
-                      <YAxis domain={[0, 5]} ticks={[1, 2, 3, 4, 5]} tickLine={false} axisLine={false} tick={axisTick} />
-                      <Tooltip contentStyle={tooltipStyle} />
-                      <Legend />
-                      {evalTypeNames.map((name, i) => (
-                        <Area
-                          key={name}
-                          type="monotone"
-                          dataKey={name}
-                          stroke={evalColors[i % evalColors.length]}
-                          strokeWidth={2.5}
-                          fill={`url(#evalArea${i})`}
-                          fillOpacity={1}
-                          dot={false}
-                          activeDot={{ r: 4 }}
-                          connectNulls
-                        />
-                      ))}
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-
-                {/* Turlar bo'yicha UMUMIY o'rtacha — radar (≥3 tur), aks holda gorizontal bar */}
-                <div className="rounded-2xl border border-slate-100 bg-slate-50/40 p-4 lg:col-span-2">
-                  <p className="mb-3 text-sm font-medium text-slate-600">Turlar bo'yicha umumiy o'rtacha</p>
-                  <ResponsiveContainer width="100%" height={300}>
-                    {evalTypeAvg.length >= 3 ? (
-                      <RadarChart data={evalTypeAvg} outerRadius="72%">
-                        <defs>
-                          <radialGradient id="evalRadarFill">
-                            <stop offset="0%" stopColor="#7c3aed" stopOpacity={0.55} />
-                            <stop offset="100%" stopColor="#7c3aed" stopOpacity={0.12} />
-                          </radialGradient>
-                        </defs>
-                        <PolarGrid stroke={gridStroke} />
-                        <PolarAngleAxis dataKey="type" tick={{ fontSize: 11, fill: '#64748b' }} />
-                        <PolarRadiusAxis domain={[0, 5]} tick={false} axisLine={false} />
-                        <Radar dataKey="avg" name="O'rtacha" stroke="#7c3aed" strokeWidth={2} fill="url(#evalRadarFill)" />
-                        <Tooltip contentStyle={tooltipStyle} />
-                      </RadarChart>
-                    ) : (
-                      <BarChart layout="vertical" data={evalTypeAvg} margin={{ top: 6, right: 18, left: 6, bottom: 6 }}>
-                        <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={gridStroke} />
-                        <XAxis type="number" domain={[0, 5]} ticks={[1, 2, 3, 4, 5]} tickLine={false} axisLine={false} tick={axisTick} />
-                        <YAxis type="category" dataKey="type" width={90} tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: '#64748b' }} />
-                        <Tooltip contentStyle={tooltipStyle} />
-                        <Bar dataKey="avg" name="O'rtacha" radius={[0, 6, 6, 0]} barSize={22}>
-                          {evalTypeAvg.map((_, i) => (
-                            <Cell key={i} fill={evalColors[i % evalColors.length]} />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    )}
-                  </ResponsiveContainer>
-                </div>
-              </div>
-
-              {/* Oy tanlovi — faqat oy o'zgaradi; pastda shu oydagi BARCHA fanlar natijasi */}
-              <div className="mt-6 flex flex-wrap items-center gap-2">
-                <span className="text-sm font-medium text-slate-600">Oy:</span>
-                <select
-                  value={evalMonth}
-                  onChange={(e) => setEvalMonth(e.target.value)}
-                  className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 outline-none focus:border-brand-400"
-                >
-                  {evalMonths.map((m) => (
-                    <option key={m} value={m}>
-                      {monthLabel(m)}
-                    </option>
-                  ))}
-                </select>
-                <span className="text-xs text-slate-400">Tanlangan oydagi barcha fanlar</span>
-              </div>
-              <div className="mt-3 overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-400">
-                    <tr>
-                      <th className="px-3 py-2">Fan</th>
-                      {data.evaluationTypes.map((t) => (
-                        <th key={t.id} className="px-3 py-2 text-center">{t.name}</th>
-                      ))}
-                      <th className="px-3 py-2 text-center">O'rtacha</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {data.evaluationsBySubject.map((s) => {
-                      const e = s.evaluations.find((x) => x.month === evalMonth)
-                      return (
-                        <tr key={s.subjectId || 'umumiy'} className="hover:bg-slate-50/60">
-                          <td className="whitespace-nowrap px-3 py-2 font-medium text-slate-700">{s.subjectName}</td>
-                          {data.evaluationTypes.map((t) => (
-                            <td key={t.id} className="px-3 py-2 text-center">
-                              {e && e.grades[t.id] != null ? (
-                                <span className={gradeCls(e.grades[t.id])}>{e.grades[t.id]}</span>
-                              ) : (
-                                <span className="text-slate-300">—</span>
-                              )}
-                            </td>
-                          ))}
-                          <td className="px-3 py-2 text-center font-mono font-semibold text-slate-800">{e?.avg || '—'}</td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </>
-          )}
         </Section>
       )}
 
