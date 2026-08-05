@@ -77,11 +77,12 @@ export function TeacherGroupDetailPage() {
 
   // ---- Guruh o'quv dasturi (darsda o'tilgan) ----
   const [groupView, setGroupView] = useState<
-    'jurnal' | 'davomat' | 'baholash' | 'reyting' | 'imtihonlar' | 'aloqa'
+    'jurnal' | 'davomat' | 'baholash' | 'reyting' | 'imtihonlar' | 'dastur' | 'aloqa'
   >('jurnal')
   const [curr, setCurr] = useState<GroupCurriculum | null>(null)
   const [currLoading, setCurrLoading] = useState(true)
-  const [currOpen, setCurrOpen] = useState(false)
+  // Endi ALOHIDA tab — ochilganda darhol ko'rinsin (ilgari jurnal ostidagi yig'iq blok edi).
+  const [currOpen, setCurrOpen] = useState(true)
   const [currExpanded, setCurrExpanded] = useState<Set<string>>(new Set())
   const [revSaving, setRevSaving] = useState(false)
 
@@ -428,6 +429,7 @@ export function TeacherGroupDetailPage() {
               { key: "baholash", label: "Baholash" },
               { key: "reyting", label: "Reyting" },
               { key: "imtihonlar", label: "Imtihonlar" },
+              { key: "dastur", label: "O'quv dasturi" },
               // ALOQA — o'quvchini "Bog'lanish kerak" navbatiga yuborish (admin ko'radi va qo'ng'iroq qiladi).
               { key: "aloqa", label: "Aloqa" },
             ] as const).map((t) => (
@@ -797,19 +799,22 @@ export function TeacherGroupDetailPage() {
             <TeacherGroupTestsPanel groupId={id} title="Imtihonlar (testlar)" />
           )}
 
-          {/* O'quv dasturi — yig'iladigan (default yopiq) */}
-          <CurriculumSection
-            curr={curr}
-            loading={currLoading}
-            open={currOpen}
-            onToggleOpen={() => setCurrOpen((v) => !v)}
-            expanded={currExpanded}
-            onToggleTopic={toggleTopic}
-            onToggleCover={toggleCover}
-            onChangeRevision={changeRevision}
-            revSaving={revSaving}
-            nextItemId={nextItemId}
-          />
+          {/* O'QUV DASTURI — endi ALOHIDA tab (ilgari barcha tablar ostida, jurnal pastida
+              turardi). Sarlavhasini bosib yig'ish imkoniyati qoldi. */}
+          {groupView === "dastur" && (
+            <CurriculumSection
+              curr={curr}
+              loading={currLoading}
+              open={currOpen}
+              onToggleOpen={() => setCurrOpen((v) => !v)}
+              expanded={currExpanded}
+              onToggleTopic={toggleTopic}
+              onToggleCover={toggleCover}
+              onChangeRevision={changeRevision}
+              revSaving={revSaving}
+              nextItemId={nextItemId}
+            />
+          )}
         </>
       )}
 

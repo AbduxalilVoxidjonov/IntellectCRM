@@ -107,7 +107,7 @@ function masteryDisplay(m: MasteryLevel | undefined): { label: string; cls: stri
   }
 }
 
-type Tab = 'jurnal' | 'davomat' | 'baholash' | 'reyting' | 'imtihonlar' | 'aloqa' | 'tarix' | 'tolovlar' | 'ai'
+type Tab = 'jurnal' | 'davomat' | 'baholash' | 'reyting' | 'imtihonlar' | 'dastur' | 'aloqa' | 'tarix' | 'tolovlar' | 'ai'
 
 export function ClassDetailPage() {
   const { id = '' } = useParams()
@@ -875,6 +875,9 @@ export function ClassDetailPage() {
                 <button type="button" className={cn('tab', tab === 'imtihonlar' && 'active')} onClick={() => setTab('imtihonlar')}>
                   <ClipboardList className="mr-1 inline h-3.5 w-3.5" /> Imtihonlar
                 </button>
+                <button type="button" className={cn('tab', tab === 'dastur' && 'active')} onClick={() => setTab('dastur')}>
+                  <ListChecks className="mr-1 inline h-3.5 w-3.5" /> O'quv dasturi
+                </button>
                 {canContact && (
                   <button type="button" className={cn('tab', tab === 'aloqa' && 'active')} onClick={() => setTab('aloqa')}>
                     <PhoneCall className="mr-1 inline h-3.5 w-3.5" /> Aloqa
@@ -1416,20 +1419,23 @@ export function ClassDetailPage() {
 
           {/* AI tahlil — davomat, muzlatish/ketish, imtihon, to'lov, jurnal: tanqidiy tahlil */}
           {tab === 'ai' && <GroupAiPanel groupId={id} />}
+
+          {/* O'QUV DASTURI — endi ALOHIDA tab (ilgari barcha tablar ostida, jurnal pastida
+              turardi va sahifani cho'zib yuborardi). Darsda o'tilgan bandlar + tugatish prognozi. */}
+          {tab === 'dastur' && (
+            <CurriculumSection
+              curr={curr}
+              loading={currLoading}
+              expanded={currExpanded}
+              onToggleTopic={toggleTopic}
+              onToggleCover={toggleCover}
+              onChangeRevision={changeRevision}
+              revSaving={revSaving}
+              nextItemId={nextItemId}
+            />
+          )}
             </div>
           </div>
-
-          {/* O'quv dasturi — darsda o'tilgan bandlar + tugatish prognozi (to'liq kenglik) */}
-          <CurriculumSection
-            curr={curr}
-            loading={currLoading}
-            expanded={currExpanded}
-            onToggleTopic={toggleTopic}
-            onToggleCover={toggleCover}
-            onChangeRevision={changeRevision}
-            revSaving={revSaving}
-            nextItemId={nextItemId}
-          />
         </>
       )}
 
