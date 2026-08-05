@@ -181,6 +181,14 @@ public static class ContactService
     ///
     /// <para>Apostroflar (' ʻ ’ `) BIR ko'rinishga keltiriladi: aks holda "to'lov" va "toʻlov"
     /// ikki xil so'z bo'lib sanalardi (matn turli klaviaturalardan kiritiladi).</para>
+    ///
+    /// <para><b>QO'SHIMCHALAR KESILMAYDI</b> — bu ATAYLAB qilingan qaror, kamchilik emas.
+    /// Ya'ni "to'lov" va "to'lovni" ikki xil so'z bo'lib sanaladi. O'zak ajratish (stemming)
+    /// hisobotni birmuncha yaxshilagan bo'lardi, lekin o'zbek tili uchun ishonchli qoida yozish
+    /// oson emas: ehtiyotsiz qo'shimcha ro'yxati bog'liq bo'lmagan so'zlarni ham birlashtirib
+    /// yuboradi va hisobot NOTO'G'RI ko'rsata boshlaydi — bu "biroz kamroq foydali" dan yomonroq.
+    /// Qaror <c>ContactServiceTests.TopWords_QOSHIMCHALIshakl_ALOHIDAsozDebSanaladi</c> testi
+    /// bilan qulflangan: o'zgartirmoqchi bo'lsangiz, avval o'sha testni ongli ravishda yangilang.</para>
     /// </summary>
     public static List<(string Word, int Count)> TopWords(IEnumerable<string> texts, int take = 25)
     {

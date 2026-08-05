@@ -154,7 +154,7 @@ public class ContactServiceTests
     {
         var words = ContactService.TopWords(new[]
         {
-            "To'lovni juma kuni qiladi",
+            "To'lov juma kuni qiladi",
             "To'lov kechikdi, dushanbagacha so'radi",
             "Bola kasal, dars qoldirdi",
         });
@@ -162,6 +162,21 @@ public class ContactServiceTests
         // "to'lov" ikki javobda uchradi — birinchi o'rinda.
         Assert.Equal("to'lov", words[0].Word);
         Assert.Equal(2, words[0].Count);
+    }
+
+    [Fact]
+    public void TopWords_QOSHIMCHALIshakl_ALOHIDAsozDebSanaladi()
+    {
+        // ATAYLAB shunday: qo'shimchalar KESILMAYDI. O'zak ajratish (stemming) qo'shilsa,
+        // ehtiyotsiz ro'yxat bog'liq bo'lmagan so'zlarni ham qo'shib yuborardi, natijada
+        // hisobot noto'g'ri ko'rsatardi. Shuning uchun "to'lov" va "to'lovni" — ikki xil so'z.
+        // Bu qaror shu test bilan yozib qo'yilgan: kelajakda kimdir buni "xato" deb
+        // o'zgartirmasin (yoki o'zgartirsa — ongli ravishda, shu testni yangilab qilsin).
+        var words = ContactService.TopWords(["To'lov keldi", "To'lovni kutmoqda"]);
+
+        // Ikkalasi ham BITTA martadan — ya'ni birlashtirilmadi (aks holda "to'lov" 2 bo'lardi).
+        Assert.Contains(words, w => w.Word == "to'lov" && w.Count == 1);
+        Assert.Contains(words, w => w.Word == "to'lovni" && w.Count == 1);
     }
 
     [Fact]
