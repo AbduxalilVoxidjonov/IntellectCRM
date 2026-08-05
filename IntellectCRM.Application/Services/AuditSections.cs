@@ -1,4 +1,4 @@
-namespace IntellectCRM.Application.Services;
+﻿namespace IntellectCRM.Application.Services;
 
 /// <summary>
 /// O'ZGARISHLAR TARIXINI BO'LIMLARGA AJRATISH — <b>yagona manba</b> (sof funksiyalar, testlangan:
@@ -31,6 +31,7 @@ public static class AuditSections
     public static readonly IReadOnlyList<Section> All = new List<Section>
     {
         new("students",  "O'quvchilar"),
+        new("contacts",  "Bog'lanish kerak"),
         new("classes",   "Guruhlar"),
         new("teachers",  "O'qituvchilar"),
         new("schedule",  "Kurslar"),
@@ -53,6 +54,9 @@ public static class AuditSections
         // "StudentDiscount" — chegirma, arxivlash/tiklash, login bloklash, qo'lda oylik tahriri.
         ["StudentDiscount"] = "students",
         ["Student"] = "students",
+
+        // --- Bog'lanish kerak (follow-up navbati) ---
+        ["ContactRequest"] = "contacts",
 
         // --- Guruhlar ---
         ["Group"] = "classes",

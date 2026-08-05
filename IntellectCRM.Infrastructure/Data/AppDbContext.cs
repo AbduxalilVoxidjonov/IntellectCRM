@@ -169,6 +169,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<JobApplicationEvent> JobApplicationEvents => Set<JobApplicationEvent>();
     public DbSet<CareerBotUser> CareerBotUsers => Set<CareerBotUser>();
 
+    /* ---------- Bog'lanish kerak (follow-up navbati) ---------- */
+    public DbSet<ContactRequest> ContactRequests => Set<ContactRequest>();
+    public DbSet<ContactAttempt> ContactAttempts => Set<ContactAttempt>();
+
     protected override void OnModelCreating(ModelBuilder b)
     {
         // SQL Server: indeksda qatnashadigan string ustunlar default `nvarchar(max)` bo'lib
@@ -243,6 +247,17 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         b.Entity<CriterionGrade>().HasIndex(g => new { g.GroupId, g.Date });
 
         b.Entity<AuditLog>().HasIndex(a => new { a.EntityType, a.EntityId });
+        // Bog'lanish kerak: navbat "holat + muddat" bo'yicha o'qiladi, hisobot esa KUN bo'yicha
+        // guruhlanadi. Indeksdagi matn ustunlariga uzunlik beriladi (loyihadagi umumiy qoida).
+        b.Entity<ContactRequest>().Property(c => c.Status).HasMaxLength(200);
+        b.Entity<ContactRequest>().Property(c => c.DueDate).HasMaxLength(200);
+        b.Entity<ContactRequest>().Property(c => c.StudentId).HasMaxLength(200);
+        b.Entity<ContactRequest>().HasIndex(c => new { c.Status, c.DueDate });
+        b.Entity<ContactRequest>().HasIndex(c => c.StudentId);
+        b.Entity<ContactAttempt>().Property(a => a.RequestId).HasMaxLength(200);
+        b.Entity<ContactAttempt>().Property(a => a.Date).HasMaxLength(200);
+        b.Entity<ContactAttempt>().HasIndex(a => a.RequestId);
+        b.Entity<ContactAttempt>().HasIndex(a => a.Date);
         b.Entity<StudentAiAnalysis>().HasIndex(a => new { a.StudentId, a.Date });
         b.Entity<TeacherAiAnalysis>().HasIndex(a => new { a.TeacherId, a.Date });
         b.Entity<GroupAiAnalysis>().HasIndex(a => new { a.GroupId, a.Date });

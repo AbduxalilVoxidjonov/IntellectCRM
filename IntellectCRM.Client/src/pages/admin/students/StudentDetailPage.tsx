@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+﻿import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft, GraduationCap, CalendarCheck, ShieldAlert, ClipboardCheck,
@@ -77,6 +77,8 @@ import { Button } from '@/components/ui/Button'
 import { PaymentHistoryPanel } from './PaymentHistoryPanel'
 import { TeacherReviewsSection } from './TeacherReviewsSection'
 import { StudentPhotoDialog } from './StudentPhotoDialog'
+import { NeedContactModal } from './contacts/NeedContactModal'
+import { getStudentContactRequests, type ContactRequestItem } from '@/api/services/contacts'
 import { ReceiptModal } from '@/components/finance/ReceiptModal'
 import { PaymentModal } from './PaymentModal'
 import { AiAnalysisModal } from './AiAnalysisModal'
@@ -148,6 +150,13 @@ export function StudentDetailPage() {
   const canWriteTeacherReviews = isBonusAllowed
   // RASM — o'quvchini tahrirlash huquqi bilan bir xil (dumaloq avatarni bosib almashtiriladi).
   const canEditPhoto = can('students', 'edit')
+  // "Bog'lanish kerak" — ALOHIDA ruxsat (`contacts`), o'quvchi tahririga bog'liq emas.
+  const canContact = can('contacts', 'create')
+  const [contactOpen, setContactOpen] = useState(false)
+  /** Shu o'quvchi bo'yicha bog'lanish talablari — "Aloqa" tabida ko'rinadi. */
+  const [contacts, setContacts] = useState<ContactRequestItem[]>([])
+  /** Ro'yxatni KO'RISH ruxsati — talab ochish (`create`) dan alohida. */
+  const canSeeContacts = can('contacts', 'view')
   const [photoOpen, setPhotoOpen] = useState(false)
   /** To'lov cheki — to'lov kiritilgach shu tranzaksiya cheki ochiladi. */
   const [receiptTx, setReceiptTx] = useState<string | null>(null)
@@ -280,6 +289,9 @@ export function StudentDetailPage() {
     getStudentAiAnalyses(id)
       .then(setAiRecords)
       .catch(() => {})
+    // Bog'lanish talablari — `contacts` ruxsati bo'lmasa server 403 qaytaradi, shuning uchun
+    // umuman so'ramaymiz (konsolda keraksiz xato chiqmasin).
+    if (canSeeContacts) getStudentContactRequests(id).then(setContacts).catch(() => setContacts([]))
     setCallsLoading(true)
     getStudentCalls(id)
       .then(setCalls)
@@ -675,6 +687,9 @@ export function StudentDetailPage() {
                   { label: 'AI Tahlil', icon: Sparkles, onClick: () => setShowAi(true) },
                   { label: "To'lov qilish", icon: Wallet, onClick: openPayment },
                   { label: "Qo'ng'iroq qilish", icon: Phone, onClick: openCall },
+                  ...(canContact
+                    ? [{ label: "Bog'lanish kerak", icon: PhoneCall, onClick: () => setContactOpen(true) }]
+                    : []),
                   { label: 'SMS yuborish', icon: MessageSquare, onClick: openSms },
                   ...(can('students', 'edit')
                     ? [{ label: 'Tahrirlash', icon: Pencil, onClick: openEdit }]
@@ -1045,6 +1060,54 @@ export function StudentDetailPage() {
           <PaymentHistoryPanel studentId={data.id} onPaid={() => setReloadKey((k) => k + 1)} />
         </Card>
       </>
+      )}
+
+      {/* BOG'LANISH KERAK — shu o'quvchi bo'yicha talablar (navbat moduli). Ro'yxat "Aloqa"
+          tabida, qo'ng'iroqlar tarixidan YUQORIDA: avval "nima uchun bog'lanish kerak edi",
+          keyin "qanday qo'ng'iroqlar bo'lgan". */}
+      {tab === 'aloqa' && canSeeContacts && (
+        <Section title="Bog'lanish talablari" icon={PhoneCall}>
+          {contacts.length === 0 ? (
+            <Empty>Bu o'quvchi bo'yicha bog'lanish talabi ochilmagan.</Empty>
+          ) : (
+            <ul className="divide-y divide-slate-100">
+              {contacts.map((c) => (
+                <li key={c.id} className="py-2.5 first:pt-0 last:pb-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span
+                      className={cn(
+                        'rounded-md px-2 py-0.5 text-xs font-medium',
+                        c.overdue ? 'bg-rose-100 text-rose-700'
+                        : c.status === 'new' ? 'bg-amber-100 text-amber-700'
+                        : c.status === 'callback' ? 'bg-sky-100 text-sky-700'
+                        : c.status === 'done' ? 'bg-emerald-100 text-emerald-700'
+                        : 'bg-slate-200 text-slate-600',
+                      )}
+                    >
+                      {c.overdue ? "Muddati o'tgan" : c.statusLabel}
+                    </span>
+                    <span className="text-sm text-slate-700">{c.reasonLabel || '— sababsiz —'}</span>
+                    {c.attemptCount > 0 && (
+                      <span className="text-xs text-slate-400">{c.attemptCount} urinish</span>
+                    )}
+                    {c.status === 'callback' && c.dueDate && (
+                      <span className="text-xs text-sky-600">{formatDate(c.dueDate)}</span>
+                    )}
+                  </div>
+                  {c.lastResponse && (
+                    <p className="mt-1 text-sm text-slate-600">
+                      <span className="text-slate-400">Javobi: </span>{c.lastResponse}
+                    </p>
+                  )}
+                  <p className="mt-0.5 text-xs text-slate-400">
+                    {formatDateTime(c.lastActionAt || c.createdAt)}
+                    {c.lastActorName && ` · ${c.lastActorName}`}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Section>
       )}
 
       {/* Qo'ng'iroqlar tarixi (Local Call — agent-telefonlar orqali) */}
@@ -1816,6 +1879,17 @@ export function StudentDetailPage() {
         onClose={() => setEditing(null)}
         onSubmit={handleEditSubmit}
         initial={editing}
+      />
+
+      {/* "Bog'lanish kerak" — sabab so'raladi va o'quvchi navbatga tushadi. */}
+      <NeedContactModal
+        open={contactOpen}
+        studentId={id ?? ''}
+        studentName={data.fullName}
+        onClose={() => setContactOpen(false)}
+        onCreated={() => {
+          if (id) getStudentContactRequests(id).then(setContacts).catch(() => {})
+        }}
       />
 
       {/* O'quvchi rasmi — dumaloq avatarni bosganda ochiladi (kamera yoki fayl). */}

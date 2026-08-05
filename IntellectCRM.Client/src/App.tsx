@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+﻿import { useEffect } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { getPublicBrand } from '@/api/services/settings'
 import { AppLayout } from '@/components/layout/AppLayout'
@@ -74,6 +74,7 @@ import { KassaMyPaymentsPage } from '@/pages/admin/kassa/KassaMyPaymentsPage'
 import { KassaMobileLayout } from '@/components/layout/KassaMobileLayout'
 import { SettingsPage } from '@/pages/admin/settings/SettingsPage'
 import { AuditLogPage } from '@/pages/admin/settings/AuditLogPage'
+import { ContactQueuePage } from '@/pages/admin/students/contacts/ContactQueuePage'
 import { AccountPage } from '@/pages/admin/account/AccountPage'
 // Marketing — ijtimoiy tarmoq avtojavob (Javobot UI; hozircha faqat UI, mock)
 import { MarketingDashboard } from '@/pages/admin/marketing/MarketingDashboard'
@@ -186,6 +187,8 @@ export default function App() {
           <Route path="students/baholash" element={<RequirePerm perm="students"><StudentEvaluationPage /></RequirePerm>} />
           <Route path="students/baholash-turlari" element={<RequirePerm perm="students"><EvaluationTypesPage /></RequirePerm>} />
           <Route path="students/turniket" element={<RequirePerm perm="students"><StudentTurnstilePage /></RequirePerm>} />
+          {/* Bog'lanish kerak — O'quvchilar bo'limi ICHIDA, lekin ruxsati alohida (`contacts`). */}
+          <Route path="students/boglanish" element={<RequirePerm perm="contacts"><ContactQueuePage /></RequirePerm>} />
           <Route path="students/davomat" element={<RequirePerm perm="students"><StudentAbsencePage /></RequirePerm>} />
           <Route path="students/bonus" element={<RequirePerm perm="students"><RetentionBonusPage /></RequirePerm>} />
           <Route path="students/:id" element={<RequirePerm perm="students"><StudentDetailPage /></RequirePerm>} />

@@ -18,6 +18,7 @@ public class AuditSectionsTests
     [InlineData("TeacherSalary", "teachers")]     // maosh + o'qituvchi yozuvining o'zi
     // To'g'ridan-to'g'ri turlar.
     [InlineData("Student", "students")]
+    [InlineData("ContactRequest", "contacts")]
     [InlineData("Group", "classes")]
     [InlineData("Membership", "classes")]
     [InlineData("FinanceTransaction", "finance")]

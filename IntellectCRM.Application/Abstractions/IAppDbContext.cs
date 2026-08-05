@@ -169,6 +169,10 @@ public interface IAppDbContext
     DbSet<CtiCallEvent> CtiCallEvents { get; }
     DbSet<CtiCommandLog> CtiCommandLogs { get; }
 
+    // Bog'lanish kerak (follow-up navbati)
+    DbSet<ContactRequest> ContactRequests { get; }
+    DbSet<ContactAttempt> ContactAttempts { get; }
+
     int SaveChanges();
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using IntellectCRM.Infrastructure.Data;
@@ -21,6 +21,8 @@ public class ActionReasonsController(AppDbContext db) : ControllerBase
     private static readonly HashSet<string> Categories = new()
     {
         "freeze", "return_trial", "remove_active", "remove_trial", "remove_frozen", "lead_delete", "group_delete",
+        // "contact" — "Bog'lanish kerak" talabini ochishdagi sabab (ContactService.ReasonCategory).
+        "contact",
         "student_delete", "teacher_delete", "staff_delete", "finance_delete", "archive_student",
     };
 

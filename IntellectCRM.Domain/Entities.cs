@@ -3075,3 +3075,118 @@ public class CareerBotUser
     public string CreatedAt { get; set; } = string.Empty;
     public string LastSeenAt { get; set; } = string.Empty;
 }
+
+/* =================================================================================================
+ *  BOG'LANISH KERAK (follow-up navbati) — O'quvchilar bo'limi ostidagi modul.
+ *
+ *  Oqim: o'quvchi profilidagi "⋮" → "Bog'lanish kerak" → SABAB tanlanadi → o'quvchi NAVBATGA
+ *  tushadi. Operator navbatdan bog'lanadi, "javobi nima dedi"ni yozadi va keyingi qadamni
+ *  tanlaydi: hal bo'ldi / qayta qo'ng'iroq (sana bilan) / bog'lanib bo'lmadi.
+ *
+ *  Bosqich va natija KALITLARI — `ContactService` da (yagona katalog). Bu yerda ular faqat
+ *  matn sifatida saqlanadi.
+ * ============================================================================================== */
+
+/// <summary>
+/// BITTA "bog'lanish kerak" TALABI (case). Bir o'quvchida bir vaqtda faqat BITTA ochiq talab
+/// bo'ladi — aks holda navbat bir xil odam bilan to'lib ketardi (<c>ContactService.OpenStatuses</c>).
+/// </summary>
+public class ContactRequest
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary>Qaysi o'quvchi (<see cref="Student"/>.Id).</summary>
+    public string StudentId { get; set; } = string.Empty;
+    /// <summary>O'quvchi F.I.Sh — SNAPSHOT. Hisobotlar o'quvchi arxivlansa/nomi o'zgarsa ham
+    /// buzilmasin (BookOrder bilan bir xil konvensiya).</summary>
+    public string StudentName { get; set; } = string.Empty;
+
+    /// <summary>Tanlangan sabab (<see cref="ActionReason"/>.Id, kategoriya "contact"). Bo'sh bo'lishi mumkin.</summary>
+    public string ReasonId { get; set; } = string.Empty;
+    /// <summary>Sabab matni — SNAPSHOT (sabablar katalogi keyin tahrirlansa tarix o'zgarmasin).</summary>
+    public string ReasonLabel { get; set; } = string.Empty;
+    /// <summary>Talab ochilganda yozilgan qo'shimcha izoh.</summary>
+    public string Note { get; set; } = string.Empty;
+
+    /// <summary>Holat: new | callback | done | failed (<c>ContactService.Statuses</c>).</summary>
+    public string Status { get; set; } = ContactStatuses.New;
+
+    /// <summary>QAYTA QO'NG'IROQ sanasi ("yyyy-MM-dd"). Faqat <c>Status=="callback"</c> da to'ladi;
+    /// bugundan oldin bo'lsa — "muddati o'tgan" (navbatda qizil).</summary>
+    public string DueDate { get; set; } = string.Empty;
+
+    /// <summary>Nechta bog'lanish urinishi bo'lgan (<see cref="ContactAttempt"/> "contact" turi).
+    /// Ro'yxatda ko'rsatish uchun denormalizatsiya — har qatorga alohida so'rov ketmasin.</summary>
+    public int AttemptCount { get; set; }
+    /// <summary>Oxirgi javob matni ("javobi nima dedi") — ro'yxatda ko'rinadi.</summary>
+    public string LastResponse { get; set; } = string.Empty;
+    /// <summary>Oxirgi amalni bajargan xodim F.I.Sh.</summary>
+    public string LastActorName { get; set; } = string.Empty;
+    /// <summary>Oxirgi amal vaqti (ISO "yyyy-MM-ddTHH:mm:ss").</summary>
+    public string LastActionAt { get; set; } = string.Empty;
+
+    public string CreatedAt { get; set; } = string.Empty;
+    /// <summary>Talabni ochgan xodim F.I.Sh.</summary>
+    public string CreatedBy { get; set; } = string.Empty;
+
+    /// <summary>Yakunlangan vaqt (ISO). Bo'sh = hali ochiq.</summary>
+    public string ClosedAt { get; set; } = string.Empty;
+    /// <summary>Yakunlagan xodim F.I.Sh.</summary>
+    public string ClosedBy { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Talab bo'yicha BITTA hodisa: ochilishi, bog'lanish urinishi, bosqich o'zgarishi yoki izoh.
+/// "Kim qaysi bosqichga oldi, natijasi qanday bo'ldi" savoliga AYNAN shu jadval javob beradi —
+/// hisobotlar ham shundan hisoblanadi.
+/// </summary>
+public class ContactAttempt
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string RequestId { get; set; } = string.Empty;
+    /// <summary>Hisobotlarni talabga JOIN qilmasdan yig'ish uchun takrorlangan (denormalizatsiya).</summary>
+    public string StudentId { get; set; } = string.Empty;
+
+    /// <summary>Tur: created (talab ochildi) | contact (bog'lanildi) | note (izoh) | reopen (qayta ochildi).</summary>
+    public string Type { get; set; } = ContactAttemptTypes.Contact;
+
+    /// <summary>Bog'lanish NATIJASI: answered | no_answer | busy | wrong_number | other
+    /// (<c>ContactService.Results</c>). Faqat <c>Type=="contact"</c> da to'ladi.</summary>
+    public string Result { get; set; } = string.Empty;
+    /// <summary>"Javobi nima dedi" — erkin matn. Modulning asosiy ma'lumoti.</summary>
+    public string Response { get; set; } = string.Empty;
+
+    /// <summary>Shu hodisadan KEYINGI holat (new | callback | done | failed) — "kim qaysi bosqichga oldi".</summary>
+    public string NextStatus { get; set; } = string.Empty;
+    /// <summary>Qayta qo'ng'iroq sanasi ("yyyy-MM-dd"), <c>NextStatus=="callback"</c> bo'lsa.</summary>
+    public string DueDate { get; set; } = string.Empty;
+
+    /// <summary>Bajargan xodim (AppUser.Id) — hisobotda xodimni ANIQ ajratish uchun.</summary>
+    public string ActorId { get; set; } = string.Empty;
+    /// <summary>Bajargan xodim F.I.Sh — SNAPSHOT (xodim o'chsa ham hisobot buzilmasin).</summary>
+    public string ActorName { get; set; } = string.Empty;
+    /// <summary>Vaqt (ISO "yyyy-MM-ddTHH:mm:ss").</summary>
+    public string CreatedAt { get; set; } = string.Empty;
+    /// <summary>Kun ("yyyy-MM-dd") — KUNLIK hisobot AYNAN shu ustun bo'yicha guruhlanadi
+    /// (ISO vaqtdan `Substring` qilib guruhlash SQLda indeksdan foydalana olmasdi).</summary>
+    public string Date { get; set; } = string.Empty;
+}
+
+/// <summary>"Bog'lanish kerak" talabining holat kalitlari (entity default'i uchun — yorliqlar
+/// va tartib <c>ContactService.Statuses</c> da).</summary>
+public static class ContactStatuses
+{
+    public const string New = "new";
+    public const string Callback = "callback";
+    public const string Done = "done";
+    public const string Failed = "failed";
+}
+
+/// <summary><see cref="ContactAttempt.Type"/> kalitlari.</summary>
+public static class ContactAttemptTypes
+{
+    public const string Created = "created";
+    public const string Contact = "contact";
+    public const string Note = "note";
+    public const string Reopen = "reopen";
+}

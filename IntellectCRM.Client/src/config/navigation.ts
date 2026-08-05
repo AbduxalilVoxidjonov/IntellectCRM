@@ -62,17 +62,21 @@ export const navByRole: Record<Role, NavItem[]> = {
       ],
     },
     {
+      // Guruhning O'ZIDA `perm` YO'Q — bolalarga ko'chirilgan ("Sozlamalar" bilan bir xil sabab):
+      // "Bog'lanish kerak" boshqa ruxsat (`contacts`) bilan ishlaydi, guruhda `perm: 'students'`
+      // qolsa faqat `contacts` berilgan operator uni umuman ko'rmasdi. Bolalari qolmagan guruhni
+      // Sidebar o'zi yashiradi (filterNav) — ruxsatsiz xodimga guruh baribir ko'rinmaydi.
       label: "O'quvchilar",
       to: '/admin/students',
       icon: Users,
-      perm: 'students',
       children: [
-        { label: "O'quvchilar ro'yxati", to: '/admin/students', end: true },
-        { label: "O'quvchilar davomati", to: '/admin/students/davomat' },
-        { label: 'Bonus hisoboti', to: '/admin/students/bonus' },
-        { label: 'Turniket', to: '/admin/students/turniket' },
-        { label: "O'quvchilarga feedback", to: '/admin/students/baholash' },
-        { label: 'Feedback nomi', to: '/admin/students/baholash-turlari' },
+        { label: "O'quvchilar ro'yxati", to: '/admin/students', end: true, perm: 'students' },
+        { label: "Bog'lanish kerak", to: '/admin/students/boglanish', perm: 'contacts' },
+        { label: "O'quvchilar davomati", to: '/admin/students/davomat', perm: 'students' },
+        { label: 'Bonus hisoboti', to: '/admin/students/bonus', perm: 'students' },
+        { label: 'Turniket', to: '/admin/students/turniket', perm: 'students' },
+        { label: "O'quvchilarga feedback", to: '/admin/students/baholash', perm: 'students' },
+        { label: 'Feedback nomi', to: '/admin/students/baholash-turlari', perm: 'students' },
       ],
     },
     {

@@ -2905,3 +2905,86 @@ public record TeacherRetentionProgressDto(
 public record TeacherRetentionSummaryDto(
     decimal Total, int Count, List<TeacherRetentionBonusDto> Items,
     List<TeacherRetentionProgressDto>? InProgress = null);
+
+/* =================================================================================================
+ *  BOG'LANISH KERAK (follow-up navbati)
+ * ============================================================================================== */
+
+/// <summary>Yangi "bog'lanish kerak" talabi (o'quvchi profilidagi "⋮" menyusidan).</summary>
+/// <param name="ReasonId">Sabab (<c>ActionReason</c>.Id, kategoriya "contact"). Bo'sh — sababsiz.</param>
+/// <param name="Note">Qo'shimcha izoh (ixtiyoriy).</param>
+/// <param name="DueDate">Darhol qayta qo'ng'iroqqa qo'yish sanasi ("yyyy-MM-dd"). Bo'sh — navbatga
+/// "Bog'lanish kerak" holatida tushadi.</param>
+public record CreateContactRequest(string StudentId, string? ReasonId = null, string? Note = null,
+    string? DueDate = null);
+
+/// <summary>
+/// BOG'LANILDI — bitta urinish natijasi. Modulning asosiy amali.
+/// </summary>
+/// <param name="Result">Natija kaliti (<c>ContactService.Results</c>): answered | no_answer | ...</param>
+/// <param name="Response">"Javobi nima dedi" — erkin matn.</param>
+/// <param name="NextStatus">Keyingi bosqich: callback | done | failed
+/// (<c>ContactService.CanTransitionTo</c>).</param>
+/// <param name="DueDate">Qayta qo'ng'iroq sanasi — <paramref name="NextStatus"/>=="callback" da MAJBURIY.</param>
+public record ContactAttemptRequest(string Result, string? Response, string NextStatus, string? DueDate = null);
+
+/// <summary>Talabga oddiy izoh qo'shish (bosqich o'zgarmaydi).</summary>
+public record ContactNoteRequest(string Text);
+
+/// <summary>Yakunlangan talabni QAYTA ochish (yana navbatga qaytadi).</summary>
+public record ContactReopenRequest(string? Note = null);
+
+/// <summary>Navbat/tarix qatoridagi bitta hodisa.</summary>
+public record ContactAttemptDto(
+    string Id, string Type, string Result, string ResultLabel, string Response,
+    string NextStatus, string NextStatusLabel, string DueDate,
+    string ActorName, string CreatedAt);
+
+/// <summary>Navbatdagi bitta talab.</summary>
+/// <param name="Overdue">Qayta qo'ng'iroq muddati o'tganmi (bugundan oldin).</param>
+/// <param name="Phones">Bog'lanish uchun raqamlar (o'quvchi + ota-ona), takrorsiz.</param>
+public record ContactRequestDto(
+    string Id, string StudentId, string StudentName,
+    string ReasonId, string ReasonLabel, string Note,
+    string Status, string StatusLabel, string DueDate, bool Overdue,
+    int AttemptCount, string LastResponse, string LastActorName, string LastActionAt,
+    string CreatedAt, string CreatedBy, string ClosedAt, string ClosedBy,
+    List<string> Phones,
+    List<ContactAttemptDto>? History = null);
+
+/// <summary>Bosqich/natija KATALOGI + navbat sanoqlari (sahifa bir so'rovda to'liq ochilsin).</summary>
+public record ContactMetaDto(
+    List<ContactStatusDto> Statuses, List<ContactResultDto> Results,
+    List<ContactCountDto> Counts, int Overdue);
+
+public record ContactStatusDto(string Key, string Label, bool IsOpen, string Color);
+public record ContactResultDto(string Key, string Label, bool Reached);
+public record ContactCountDto(string Key, int Count);
+
+/* ---------- Hisobotlar ---------- */
+
+/// <summary>KUNLIK qator: shu kunda nima bo'lgan.</summary>
+/// <param name="Reached">Odam bilan HAQIQATAN gaplashilgan urinishlar ("nechta odam bilan bog'lanildi").</param>
+/// <param name="Attempts">Jami urinishlar (ko'tarmagani ham).</param>
+public record ContactDailyRowDto(
+    string Date, int Created, int Attempts, int Reached, int Done, int Callback, int Failed);
+
+/// <summary>XODIM kesimi — "kim qaysi bosqichga oldi, natijasi qanday bo'ldi".</summary>
+public record ContactStaffRowDto(
+    string ActorName, int Attempts, int Reached, int Done, int Callback, int Failed);
+
+/// <summary>SABAB kesimi — qaysi sabab bilan nechta talab ochilgan va qanchasi hal bo'lgan.</summary>
+public record ContactReasonRowDto(string ReasonLabel, int Created, int Done, int Failed, int Open);
+
+/// <summary>NATIJA kesimi (ko'tarmadi/band/...) — qo'ng'iroq sifati ko'rsatkichi.</summary>
+public record ContactResultRowDto(string Key, string Label, int Count);
+
+/// <summary>"Bog'lanish kerak" bo'limi hisobotlari (davr bo'yicha).</summary>
+public record ContactStatsDto(
+    string From, string To,
+    int Created, int Attempts, int Reached, int Done, int Callback, int Failed,
+    int OpenNow, int OverdueNow,
+    List<ContactDailyRowDto> Daily,
+    List<ContactStaffRowDto> ByStaff,
+    List<ContactReasonRowDto> ByReason,
+    List<ContactResultRowDto> ByResult);

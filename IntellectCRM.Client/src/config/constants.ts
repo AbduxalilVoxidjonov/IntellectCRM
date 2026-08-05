@@ -1,4 +1,4 @@
-import type { ClassLanguage, FinanceDirection, Gender, MonthStatus } from '@/types'
+﻿import type { ClassLanguage, FinanceDirection, Gender, MonthStatus } from '@/types'
 
 export const genderLabels: Record<Gender, string> = {
   male: 'Erkak',
@@ -70,6 +70,11 @@ export const adminPermissions: { key: string; label: string }[] = [
   { key: 'marketing', label: 'Marketing' },
   { key: 'leads', label: 'Lidlar' },
   { key: 'students', label: "O'quvchilar" },
+  // BOG'LANISH KERAK — o'quvchi bilan bog'lanish navbati (follow-up) va uning hisobotlari.
+  // O'quvchilar bo'limidan ATAYIN alohida: navbat bilan ishlaydigan operatorga o'quvchilar
+  // bo'limini to'liq ochish shart emas ("Kassa" "Moliya"dan alohida bo'lgani bilan bir xil
+  // mantiq). Bu ruxsat o'quvchi profilidagi "Bog'lanish kerak" tugmasini ham ochadi.
+  { key: 'contacts', label: "Bog'lanish kerak" },
   { key: 'teachers', label: "O'qituvchilar" },
   { key: 'schedule', label: 'Kurslar' },
   { key: 'classes', label: 'Guruhlar' },
