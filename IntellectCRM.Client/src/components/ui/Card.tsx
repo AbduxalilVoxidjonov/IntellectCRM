@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+﻿import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 
 interface CardProps {
@@ -14,6 +14,21 @@ interface CardProps {
   tight?: boolean
   /** Tana uchun qo'shimcha class (tight bo'lmaganda) */
   bodyClassName?: string
+}
+
+/**
+ * Chaqiruvchi TO'LIQ padding bergan-bermaganini aniqlaydi (`p-0`, `p-4`, `sm:p-[18px]`).
+ *
+ * ⚠️ NEGA KERAK: loyihadagi `cn()` — oddiy `join`, `tailwind-merge` EMAS. Ya'ni
+ * `<Card className="p-0">` yozilganda class satrida `p-5` ham, `p-0` ham qoladi va CSS'da
+ * keyinroq turgani (`p-5`) g'olib chiqadi — card baribir paddingli bo'lib qolardi
+ * (o'qituvchi PWA'sidagi jurnal jadvali shu sababdan ikki qavat "devordan uzoqda" turardi).
+ *
+ * FAQAT to'liq `p-*` hisobga olinadi: `px-`/`py-` bergan chaqiruvchilar (masalan
+ * `py-12 text-center`) gorizontal paddingni AYNAN standartdan oladi — ularni buzmaymiz.
+ */
+function overridesPadding(className?: string): boolean {
+  return !!className && /(^|\s)([\w-]+:)*p-\S+/.test(className)
 }
 
 export function Card({
@@ -32,7 +47,8 @@ export function Card({
     return (
       <div
         className={cn(
-          'rounded-xl border border-slate-200 bg-white p-5 shadow-[var(--shadow-1)]',
+          'rounded-xl border border-slate-200 bg-white shadow-[var(--shadow-1)]',
+          !overridesPadding(className) && 'p-5',
           className,
         )}
       >

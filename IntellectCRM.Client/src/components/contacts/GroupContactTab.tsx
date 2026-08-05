@@ -67,6 +67,13 @@ export function GroupContactTab({
     return q ? list.filter((s) => s.fullName.toLowerCase().includes(q)) : list
   }, [students, term])
 
+  /**
+   * SABAB va IZOH — MAJBURIY. Ilgari qatordagi telefon tugmasi ular bo'sh bo'lsa ham
+   * yuborardi va navbatga "sababsiz, izohsiz" talab tushardi: operator nima uchun
+   * qo'ng'iroq qilayotganini bilmasdi.
+   */
+  const ready = reasonId !== '' && note.trim().length > 0
+
   const allSelected = filtered.length > 0 && filtered.every((s) => selected.has(s.id))
 
   const toggle = (id: string) =>
@@ -87,6 +94,11 @@ export function GroupContactTab({
 
   const send = async (ids: string[]) => {
     if (busy || ids.length === 0) return
+    // Tugmalar allaqachon o'chirilgan, lekin qo'shimcha to'siq — qoida bitta joyda tursin.
+    if (!ready) {
+      setError(reasonId === '' ? 'Sababni tanlang' : 'Izohni yozing')
+      return
+    }
     setBusy(true)
     setError('')
     setResult(null)
@@ -113,7 +125,9 @@ export function GroupContactTab({
       {/* Sabab + izoh — tanlanganlarning HAMMASIGA bir xil qo'yiladi. */}
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-600">Sabab</label>
+          <label className="mb-1 block text-sm font-medium text-slate-600">
+            Sabab <span className="text-red-500">*</span>
+          </label>
           <select
             value={reasonId}
             onChange={(e) => setReasonId(e.target.value)}
@@ -128,12 +142,15 @@ export function GroupContactTab({
           </select>
           {reasons.length === 0 && (
             <p className="mt-1 text-xs text-amber-700">
-              Sabablar ro'yxati bo'sh — sababsiz ham yuborsa bo'ladi.
+              Sabablar ro'yxati bo'sh — Sozlamalar → Sabablar da "Bog'lanish kerak" kategoriyasiga
+              sabab qo'shilishi kerak.
             </p>
           )}
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-600">Izoh (ixtiyoriy)</label>
+          <label className="mb-1 block text-sm font-medium text-slate-600">
+            Izoh <span className="text-red-500">*</span>
+          </label>
           <input
             value={note}
             onChange={(e) => setNote(e.target.value)}
@@ -148,6 +165,8 @@ export function GroupContactTab({
         Tanlangan o'quvchilar <strong>bugungi sana bilan</strong> "Bog'lanish kerak" navbatiga
         tushadi — sana tanlash shart emas. Navbatda kim yuborgani ko'rinib turadi.
         Muzlatilgan o'quvchilar bu ro'yxatda ko'rinmaydi.
+        <strong className="ml-1">Sabab va izoh majburiy</strong> — operator nima uchun
+        qo'ng'iroq qilayotganini bilishi kerak.
       </p>
 
       {/* Amal paneli */}
@@ -161,10 +180,17 @@ export function GroupContactTab({
           />
           Hammasini tanlash
         </label>
-        <Button onClick={() => send([...selected])} disabled={busy || selected.size === 0}>
+        <Button
+          onClick={() => send([...selected])}
+          disabled={busy || selected.size === 0 || !ready}
+          title={!ready ? "Avval sabab va izohni to'ldiring" : undefined}
+        >
           <PhoneCall className="h-4 w-4" />
           {busy ? 'Yuborilmoqda...' : `Navbatga yuborish (${selected.size})`}
         </Button>
+        {!ready && (
+          <span className="text-xs text-amber-700">Sabab va izoh to'ldirilishi kerak</span>
+        )}
         <div className="relative ml-auto">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <input
@@ -227,9 +253,13 @@ export function GroupContactTab({
                 {/* BITTA o'quvchini darhol yuborish — tanlab o'tirmasdan. */}
                 <Button
                   variant="ghost"
-                  disabled={busy}
+                  disabled={busy || !ready}
                   onClick={() => send([s.id])}
-                  title="Shu o'quvchini navbatga yuborish"
+                  title={
+                    ready
+                      ? "Shu o'quvchini navbatga yuborish"
+                      : "Avval sabab va izohni to'ldiring"
+                  }
                 >
                   <PhoneCall className="h-4 w-4" />
                 </Button>
