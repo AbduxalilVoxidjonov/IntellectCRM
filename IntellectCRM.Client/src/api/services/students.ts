@@ -1,4 +1,4 @@
-import type { Credentials, MonthStatus, Student, StudentBall, StudentLedger } from '@/types'
+﻿import type { Credentials, MonthStatus, Student, StudentBall, StudentLedger } from '@/types'
 import { delay, uid } from '@/lib/utils'
 import { api, USE_MOCK } from '../client'
 import { studentsMock } from '../mock/students'
@@ -165,15 +165,44 @@ export async function searchStudents(q: string, limit = 12): Promise<Student[]> 
   }
   // Telefonni faqat raqamlar bo'yicha solishtirish uchun normallashtiramiz (oxirgi raqamlar).
   const digits = term.replace(/\D/g, '')
+
+  /**
+   * SO'ZLARGA AJRATIB qidiramiz: har bir so'z topilishi SHART, lekin TARTIBI muhim emas.
+   *
+   * Sabab: bazada F.I.Sh. "Familiya Ism Otasining ismi" tartibida, odam esa ko'pincha
+   * "ism familiya" deb yozadi — oddiy `includes` bunday holatda HECH NARSA topmasdi.
+   * Apostrof turlari ham birxillashtiriladi ("To'lqin" / "Toʻlqin" bitta so'z).
+   */
+  const norm = (v: string) =>
+    v.toLowerCase().replace(/[\u02bb\u02bc\u2018\u2019`\u00b4]/g, "'")
+  const words = norm(term).split(/\s+/).filter(Boolean)
+
   const matches = all.filter((s) => {
-    if (s.fullName?.toLowerCase().includes(term)) return true
+    // Ism/familiya — o'quvchi va ota-ona ismlari bo'ylab (kim so'ralsa ham topilsin).
+    const haystack = norm(
+      [s.fullName, s.parentFullName, s.fatherFullName, s.motherFullName]
+        .filter(Boolean)
+        .join(' '),
+    )
+    if (words.length > 0 && words.every((w) => haystack.includes(w))) return true
+
+    // RAQAM: kamida 3 ta raqam bo'lsa telefonlar bo'yicha (o'zi + ota-ona).
     if (digits.length >= 3) {
       const phones = [s.phone, s.fatherPhone, s.motherPhone, s.parentPhone]
-      return phones.some((p) => p && p.replace(/\D/g, '').includes(digits))
+      if (phones.some((p) => p && p.replace(/\D/g, '').includes(digits))) return true
     }
     return false
   })
-  return matches.slice(0, limit)
+
+  // Tartib: ism BOSHIDAN mos kelganlar tepada (odam odatda shuni qidiradi), keyin qolganlari.
+  const first = words[0] ?? ''
+  return matches
+    .sort((a, b) => {
+      const rank = (s: Student) => (norm(s.fullName ?? '').startsWith(first) ? 0 : 1)
+      const d = rank(a) - rank(b)
+      return d !== 0 ? d : (a.fullName ?? '').localeCompare(b.fullName ?? '')
+    })
+    .slice(0, limit)
 }
 
 /** Faqat arxivlangan o'quvchilar ro'yxati (alohida ko'rish uchun). */

@@ -1,4 +1,4 @@
-namespace IntellectCRM.Domain;
+﻿namespace IntellectCRM.Domain;
 
 // Frontend (IntellectCRM.Client/src/types/index.ts) dagi tiplarga mos keluvchi
 // EF Core entity'lari. ID'lar string (frontend uid() — UUID ishlatadi),
@@ -212,6 +212,21 @@ public class Feedback
     public string Status { get; set; } = "new";
 }
 
+/// <summary>
+/// O'quvchining BITTA guruhdagi a'zoligi qisqacha (ro'yxat/qidiruv uchun). DB'ga yozilmaydi —
+/// <see cref="Student.GroupStates"/> ichida faqat javobda bo'ladi.
+/// </summary>
+public class StudentGroupState
+{
+    public string GroupId { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    /// <summary>Guruh o'qituvchisi (<see cref="Group.TeacherId"/>) — o'qituvchi filtri uchun.
+    /// Guruh NOMI bo'yicha moslash ishonchsiz edi (bir xil nomli guruhlar bo'lishi mumkin).</summary>
+    public string TeacherId { get; set; } = string.Empty;
+    /// <summary>active | trial | frozen</summary>
+    public string Status { get; set; } = string.Empty;
+}
+
 /// <summary>O'quvchi.</summary>
 public class Student
 {
@@ -282,10 +297,27 @@ public class Student
     /// <summary>Maktab nomi/raqami (DB'ga yozilmaydi — SchoolId'dan to'ldiriladi).</summary>
     [System.ComponentModel.DataAnnotations.Schema.NotMapped]
     public string SchoolName { get; set; } = string.Empty;
-    /// <summary>O'quvchi FAOL a'zo bo'lgan barcha guruh nomlari (ro'yxat ko'rinishi uchun; DB'ga yozilmaydi —
-    /// ro'yxat endpointida M2M a'zoliklardan to'ldiriladi).</summary>
+    /// <summary>
+    /// O'quvchi HOZIR QATNAYOTGAN guruh nomlari (ro'yxat ustunida ko'rinadi; DB'ga yozilmaydi —
+    /// ro'yxat endpointida M2M a'zoliklardan to'ldiriladi).
+    ///
+    /// <para>⚠️ MUZLATILGAN a'zoliklar bu ro'yxatga KIRMAYDI. Ilgari kirardi va o'quvchi eski
+    /// guruhida muzlatilib, yangisida aktiv bo'lsa ro'yxatda IKKALA guruh ko'rinardi — go'yo u
+    /// hali ham eski o'qituvchida o'qiyotgandek. Sinov (trial) a'zoliklar QOLADI: ular haqiqatan
+    /// darsga qatnaydi va ularni yashirsak sinovdagi o'quvchi "guruhsiz" bo'lib chiqardi.</para>
+    ///
+    /// <para>Batafsil kesim (holat + o'qituvchi) — <see cref="GroupStates"/>.</para>
+    /// </summary>
     [System.ComponentModel.DataAnnotations.Schema.NotMapped]
     public List<string> Groups { get; set; } = new();
+    /// <summary>
+    /// Har bir a'zolikning TO'LIQ kesimi: guruh, o'qituvchi va HOLAT. Filtrlar aynan shundan
+    /// ishlaydi — "falon o'qituvchining AKTIV o'quvchilari" savoliga faqat shu ma'lumot javob
+    /// bera oladi (guruh NOMI va o'quvchi darajasidagi "aktiv" bayrog'i yetarli emas).
+    /// DB'ga yozilmaydi.
+    /// </summary>
+    [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+    public List<StudentGroupState> GroupStates { get; set; } = new();
     /// <summary>Kursda FAOL — kamida bitta a'zoligi Status=="active" (sinov/muzlatilgan/guruhsiz emas).
     /// DB'ga yozilmaydi; ro'yxat endpointida M2M a'zoliklardan hisoblanadi.</summary>
     [System.ComponentModel.DataAnnotations.Schema.NotMapped]

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+﻿import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Search, User, X } from 'lucide-react'
 import type { Student } from '@/types'
@@ -12,10 +12,18 @@ interface Hit {
   id: string
   fullName: string
   phone?: string
-  className?: string
   archived: boolean
   /** A'zolik holati: 'active' | 'trial' | 'frozen' | '' — badge uchun */
   memberState?: string
+  /** BARCHA a'zoliklar — dropdownda tagma-tag, har biri o'z holati bilan. */
+  groups: { name: string; status: string }[]
+}
+
+/** A'zolik holati yorlig'i va rangi (dropdowndagi guruh qatorlari uchun). */
+const memberBadge: Record<string, { label: string; cls: string }> = {
+  active: { label: 'Aktiv', cls: 'bg-emerald-100 text-emerald-700' },
+  trial: { label: 'Sinov', cls: 'bg-amber-100 text-amber-700' },
+  frozen: { label: 'Muzlatilgan', cls: 'bg-slate-200 text-slate-600' },
 }
 
 /**
@@ -66,9 +74,11 @@ export function TopbarStudentSearch() {
             id: s.id,
             fullName: s.fullName,
             phone: s.phone || s.parentPhone || s.fatherPhone || s.motherPhone || undefined,
-            className: s.groups?.[0] || s.className || undefined,
             archived: !!s.isArchived,
             memberState: s.memberState,
+            // BARCHA a'zoliklar (muzlatilganlari ham) — bu yerda maqsad "qayerda va qanday
+            // holatda" ni ko'rsatish, ro'yxat ustunidan farqli o'laroq.
+            groups: (s.groupStates ?? []).map((g) => ({ name: g.name, status: g.status })),
           })),
         )
         setActive(0)
@@ -113,7 +123,9 @@ export function TopbarStudentSearch() {
   const showDropdown = open && query.trim().length >= 2
 
   return (
-    <div ref={boxRef} className="relative w-full max-w-md">
+    // Kengroq: natijada har o'quvchining BARCHA guruhlari tagma-tag chiqadi, tor oynada
+    // nomlar qirqilib ketardi.
+    <div ref={boxRef} className="relative w-full max-w-2xl">
       <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 transition-colors focus-within:border-brand-400 focus-within:bg-white">
         <Search className="h-[16px] w-[16px] shrink-0 text-slate-400" />
         <input
@@ -125,7 +137,7 @@ export function TopbarStudentSearch() {
           }}
           onFocus={() => setOpen(true)}
           onKeyDown={onKeyDown}
-          placeholder="O'quvchi qidirish (FISH yoki telefon)..."
+          placeholder="Ism, familiya yoki telefon bo'yicha qidirish..."
           className="w-full bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400"
         />
         {query && (
@@ -160,11 +172,11 @@ export function TopbarStudentSearch() {
                 onMouseEnter={() => setActive(i)}
                 onClick={() => go(s)}
                 className={cn(
-                  'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors',
+                  'flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors',
                   i === active ? 'bg-brand-50 text-brand-700' : 'text-slate-700 hover:bg-slate-50',
                 )}
               >
-                <User className="h-4 w-4 shrink-0 text-slate-400" />
+                <User className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
                 <span className="flex min-w-0 flex-1 flex-col">
                   <span className="flex items-center gap-2">
                     <span className="truncate">{s.fullName}</span>
@@ -179,11 +191,32 @@ export function TopbarStudentSearch() {
                       </span>
                     )}
                   </span>
-                  {(s.phone || s.className) && (
-                    <span className="truncate text-xs text-slate-400">
-                      {s.className && <span>{s.className}</span>}
-                      {s.className && s.phone && <span> · </span>}
-                      {s.phone && <span className="font-mono">{s.phone}</span>}
+                  {s.phone && (
+                    <span className="truncate font-mono text-xs text-slate-400">{s.phone}</span>
+                  )}
+                  {/* BARCHA guruhlar TAGMA-TAG, har biri o'z holati bilan: o'quvchi eski
+                      guruhida muzlatilib yangisida aktiv bo'lsa — ikkalasi ham ko'rinadi,
+                      lekin qaysi biri qaysi holatda ekani ADASHTIRMAYDI. */}
+                  {s.groups.length > 0 && (
+                    <span className="mt-1 flex flex-col gap-0.5">
+                      {s.groups.map((g) => {
+                        const b = memberBadge[g.status]
+                        return (
+                          <span key={`${g.name}-${g.status}`} className="flex items-center gap-1.5 text-xs">
+                            <span className="truncate text-slate-500">{g.name}</span>
+                            {b && (
+                              <span
+                                className={cn(
+                                  'shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold',
+                                  b.cls,
+                                )}
+                              >
+                                {b.label}
+                              </span>
+                            )}
+                          </span>
+                        )
+                      })}
                     </span>
                   )}
                 </span>

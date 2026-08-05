@@ -236,19 +236,38 @@ export function StudentsPage() {
       !q ||
       s.fullName.toLowerCase().includes(q) ||
       s.parentFullName.toLowerCase().includes(q)
+    /*
+     * GURUH / O'QITUVCHI / AKTIVLIK — birga ishlaydi.
+     *
+     * ⚠️ Ilgari uchtasi ALOHIDA tekshirilardi: "o'qituvchi X" + "aktiv" = «X ning guruhida
+     * a'zoligi bor» VA «bu o'quvchi biror joyda aktiv». Natijada X dan ketib (muzlatilib)
+     * boshqa o'qituvchida aktiv bo'lgan o'quvchi X ning AKTIV ro'yxatida turaverardi.
+     * Endi shart BITTA a'zolik ustida tekshiriladi: «X ning guruhida AKTIV a'zoligi bor».
+     */
+    const states = s.groupStates ?? []
+    /** Shu a'zolik tanlangan aktivlik filtriga mos keladimi. */
+    const memberMatches = (st: string) =>
+      activeFilter === 'all' ? true : activeFilter === 'active' ? st === 'active' : st !== 'active'
+
     const matchClass =
       classFilter === 'all' ||
-      s.className === classFilter ||
-      (s.groups ?? []).includes(classFilter)
+      (states.length > 0
+        ? states.some((g) => g.name === classFilter && memberMatches(g.status))
+        // Eski (guruhsiz) yozuvlar uchun zaxira — "asosiy guruh" yorlig'i.
+        : s.className === classFilter)
     const matchTeacher =
       teacherFilter === 'all' ||
-      (s.groups ?? []).some((gname) => groupTeachers[gname] === teacherFilter)
+      states.some((g) => g.teacherId === teacherFilter && memberMatches(g.status))
     const matchGender = genderFilter === 'all' || s.gender === genderFilter
     const matchBalance =
       balanceFilter === 'all' ||
       (balanceFilter === 'debt' ? s.balance < 0 : s.balance >= 0)
+    // Aktivlik FILTRI o'quvchi darajasida faqat guruh/o'qituvchi tanlanmaganda qo'llanadi —
+    // aks holda yuqoridagi a'zolik darajasidagi tekshiruv bilan ikki marta filtrlanib,
+    // "X ning muzlatilgan o'quvchilari" ro'yxati bo'sh chiqib qolardi.
+    const groupScoped = classFilter !== 'all' || teacherFilter !== 'all'
     const matchActive =
-      activeFilter === 'all' ||
+      activeFilter === 'all' || groupScoped ||
       (activeFilter === 'active' ? s.active : !s.active)
     const matchDistrict = districtFilter === 'all' || s.districtId === districtFilter
     const matchSchool = schoolFilter === 'all' || s.schoolId === schoolFilter
@@ -956,21 +975,37 @@ export function StudentsPage() {
                       </div>
                     </td>
                     <td>
-                      <div className="flex flex-wrap gap-1">
-                        {(s.groups && s.groups.length > 0
-                          ? s.groups
-                          : s.className
-                            ? [s.className]
-                            : []
-                        ).map((g, gi) => (
-                          <Badge key={gi} tone="violet">
-                            {g}
-                          </Badge>
-                        ))}
-                        {(!s.groups || s.groups.length === 0) && !s.className && (
-                          <span className="text-xs text-slate-300">—</span>
-                        )}
-                      </div>
+                      {/* GURUHLAR ustuni: MUZLATILGAN a'zoliklar ko'rsatilmaydi (server `groups`
+                          dan chiqarib beradi) — o'quvchi eski guruhida muzlatilib yangisida
+                          aktiv bo'lsa, ro'yxatda faqat YANGISI turadi.
+                          ISTISNO: hamma a'zoligi muzlatilgan bo'lsa ular xira ko'rsatiladi —
+                          aks holda o'quvchi "guruhsiz" bo'lib chiqib, qayerdaligi bilinmasdi. */}
+                      {(() => {
+                        const shown = s.groups ?? []
+                        const frozen = (s.groupStates ?? []).filter((g) => g.status === 'frozen')
+                        if (shown.length === 0 && frozen.length > 0) {
+                          return (
+                            <div className="flex flex-wrap gap-1">
+                              {frozen.map((g) => (
+                                <Badge key={g.groupId} tone="default">
+                                  {g.name} · muzlatilgan
+                                </Badge>
+                              ))}
+                            </div>
+                          )
+                        }
+                        const list = shown.length > 0 ? shown : s.className ? [s.className] : []
+                        return (
+                          <div className="flex flex-wrap gap-1">
+                            {list.map((g, gi) => (
+                              <Badge key={gi} tone="violet">
+                                {g}
+                              </Badge>
+                            ))}
+                            {list.length === 0 && <span className="text-xs text-slate-300">—</span>}
+                          </div>
+                        )
+                      })()}
                     </td>
                     <td>
                       {(() => {

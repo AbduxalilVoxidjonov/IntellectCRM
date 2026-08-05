@@ -1,4 +1,4 @@
-// Tizimdagi barcha asosiy tiplar
+﻿// Tizimdagi barcha asosiy tiplar
 
 // Sertifikat tiplari API qatlamida yozilgan (yagona manba) — bu yerda faqat qayta ishlatiladi.
 import type { TestCertificate } from '@/api/services/testCertificates'
@@ -633,6 +633,16 @@ export interface CrmStats {
 
 /* ---------- O'quvchilar ---------- */
 
+/** O'quvchining bitta guruhdagi a'zoligi (ro'yxat/qidiruv uchun; serverda hisoblanadi). */
+export interface StudentGroupState {
+  groupId: string
+  name: string
+  /** Guruh o'qituvchisi — filtr guruh NOMI emas, shu id bo'yicha ishlaydi. */
+  teacherId: string
+  /** active | trial | frozen */
+  status: string
+}
+
 export interface Student {
   id: string
   /** Familiya Ism Sharif — parts'dan join qilinadi (saqlash + qidiruv uchun) */
@@ -701,6 +711,12 @@ export interface Student {
   schoolName?: string
   /** O'quvchi FAOL a'zo bo'lgan barcha guruh nomlari (ro'yxat ko'rinishi uchun) */
   groups?: string[]
+  /**
+   * Har bir a'zolikning to'liq kesimi: guruh, o'qituvchi va HOLAT.
+   * Filtrlar aynan shundan ishlaydi — "falon o'qituvchining AKTIV o'quvchilari" savoliga
+   * guruh nomi va o'quvchi darajasidagi `active` bayrog'i javob bera olmaydi.
+   */
+  groupStates?: StudentGroupState[]
   /** Kursda aktiv — kamida bitta a'zoligi "active" (sinov/muzlatilgan/guruhsiz emas) */
   active?: boolean
   /** A'zolik holati yorlig'i: 'active' | 'trial' | 'frozen' | '' (guruhsiz).

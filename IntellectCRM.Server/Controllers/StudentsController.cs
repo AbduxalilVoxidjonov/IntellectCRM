@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -58,13 +58,28 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
         var students = await q.OrderBy(s => s.FullName).ToListAsync();
         RedactDocs(students);
 
-        // Har o'quvchiga FAOL a'zo guruhlari nomlarini biriktiramiz (ro'yxatda hammasi ko'rinsin).
+        // Har o'quvchiga a'zoliklarini biriktiramiz. O'QITUVCHI ham olinadi: filtr guruh NOMI
+        // bo'yicha emas, `TeacherId` bo'yicha ishlashi kerak (bir xil nomli guruhlar bo'lishi mumkin).
         var ids = students.Select(s => s.Id).ToList();
         var memberships = await (from sg in db.StudentGroups
                                  join c in db.Classes on sg.GroupId equals c.Id
                                  where sg.IsActive && ids.Contains(sg.StudentId)
-                                 select new { sg.StudentId, c.Name, sg.Status }).ToListAsync();
-        var byStudent = memberships.GroupBy(m => m.StudentId)
+                                 select new { sg.StudentId, c.Id, c.Name, c.TeacherId, sg.Status })
+            .ToListAsync();
+
+        var statesByStudent = memberships.GroupBy(m => m.StudentId)
+            .ToDictionary(g => g.Key, g => g
+                .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
+                .Select(x => new StudentGroupState
+                {
+                    GroupId = x.Id, Name = x.Name, TeacherId = x.TeacherId ?? "", Status = x.Status ?? "",
+                }).ToList());
+
+        // Ro'yxat ustunidagi NOMLAR — MUZLATILGANLARSIZ. O'quvchi eski guruhida muzlatilib,
+        // yangisida aktiv bo'lsa ikkala guruh ko'rinib, go'yo eski o'qituvchida ham o'qiyotgandek
+        // bo'lardi. Sinov a'zoliklar qoladi — ular haqiqatan qatnaydi.
+        var byStudent = memberships.Where(m => m.Status != "frozen")
+            .GroupBy(m => m.StudentId)
             .ToDictionary(g => g.Key, g => g.Select(x => x.Name).Distinct()
                 .OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList());
         // Kursda aktiv = kamida bitta a'zoligi Status=="active" (sinov/muzlatilgan emas).
@@ -81,6 +96,7 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
         foreach (var s in students)
         {
             s.Groups = byStudent.GetValueOrDefault(s.Id) ?? new List<string>();
+            s.GroupStates = statesByStudent.GetValueOrDefault(s.Id) ?? new List<StudentGroupState>();
             s.Active = activeIds.Contains(s.Id);
             s.MemberState = activeIds.Contains(s.Id) ? "active"
                 : trialIds.Contains(s.Id) ? "trial"
