@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+﻿import { useEffect, useMemo, useRef, useState } from 'react'
 import { Loader2, Search, ShoppingCart, User, X, Banknote, CreditCard } from 'lucide-react'
 import type { Book, BookOrder, BookPaymentMethod, BookStudent } from '@/api/services/books'
 import { searchBookStudents, sellBookManual } from '@/api/services/books'
@@ -22,7 +22,11 @@ const nowTime = () => new Date().toTimeString().slice(0, 5)
 /**
  * MARKAZDA QO'LDA SOTUV — "Buyurtmalar → Kitob sotish".
  *
- * Botdagi oqimning admin varianti: kitob → soni → o'quvchi (qidirib tanlanadi) → naqd/karta.
+ * Botdagi oqimning admin varianti: kitob → soni → (ixtiyoriy) o'quvchi → naqd/karta.
+ *
+ * O'QUVCHI IXTIYORIY: markazda o'qimaydigan odamga (ota-ona, o'tkinchi) ham kitob sotiladi.
+ * Ilgari o'quvchini tanlash majburiy edi va kassir bunday sotuv uchun soxta o'quvchi yaratishga
+ * majbur bo'lardi. Ism ham majburiy emas — bo'sh qolsa ro'yxatda "Noma'lum" bo'lib ko'rinadi.
  * Karta bo'lsa to'lov vaqti va kartaning oxirgi 4 raqami kiritiladi (chek rasmi YO'Q — pul
  * kassirning oldida to'langan). Buyurtma DARHOL tasdiqlangan holatda yaratiladi: qoldiq shu
  * zahoti ayiriladi va sotuv analitikaga tushadi.
@@ -39,6 +43,8 @@ export function BookSellModal({ open, books, onClose, onSold }: Props) {
   const [results, setResults] = useState<BookStudent[]>([])
   const [searching, setSearching] = useState(false)
   const [student, setStudent] = useState<BookStudent | null>(null)
+  /** O'quvchi tanlanmaganda — erkin yoziladigan xaridor ismi (ixtiyoriy). */
+  const [buyerName, setBuyerName] = useState('')
 
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -60,6 +66,7 @@ export function BookSellModal({ open, books, onClose, onSold }: Props) {
     setQuery('')
     setResults([])
     setStudent(null)
+    setBuyerName('')
     setError('')
   }, [open])
 
@@ -92,7 +99,7 @@ export function BookSellModal({ open, books, onClose, onSold }: Props) {
   const submit = async () => {
     if (busy) return
     if (!book) return setError('Kitobni tanlang')
-    if (!student) return setError("O'quvchini tanlang")
+    // O'quvchi ATAYIN tekshirilmaydi — u ixtiyoriy (chetdan xaridorga ham sotiladi).
     if (!Number.isInteger(qtyNum) || qtyNum <= 0) return setError('Sonini butun son sifatida kiriting')
     if (qtyNum > book.stock) return setError(`Omborda yetarli emas: qoldiq ${book.stock} dona`)
     if (method === 'card') {
@@ -106,7 +113,9 @@ export function BookSellModal({ open, books, onClose, onSold }: Props) {
     try {
       const order = await sellBookManual({
         bookId: book.id,
-        studentId: student.id,
+        studentId: student?.id ?? null,
+        // O'quvchi tanlansa ismi serverda o'quvchidan olinadi — erkin ism faqat tanlanmaganda.
+        ...(student ? {} : { customerName: buyerName.trim() || undefined }),
         qty: qtyNum,
         paymentMethod: method,
         ...(method === 'card' ? { cardLast4: cardLast4.replace(/\D/g, '').slice(-4), paidTime } : {}),
@@ -131,7 +140,7 @@ export function BookSellModal({ open, books, onClose, onSold }: Props) {
           <Button variant="secondary" onClick={onClose} disabled={busy}>
             Bekor qilish
           </Button>
-          <Button onClick={submit} disabled={busy || !book || !student}>
+          <Button onClick={submit} disabled={busy || !book}>
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingCart className="h-4 w-4" />}
             Sotish
           </Button>
@@ -168,7 +177,7 @@ export function BookSellModal({ open, books, onClose, onSold }: Props) {
         {/* 3. O'quvchi — qidirib tanlanadi */}
         <div>
           <label className="mb-1.5 block text-sm font-medium text-slate-600">
-            O'quvchi <span className="text-red-500">*</span>
+            O'quvchi <span className="font-normal text-slate-400">(ixtiyoriy)</span>
           </label>
           {student ? (
             <div className="flex items-center gap-3 rounded-lg border border-brand-200 bg-brand-50/60 px-3 py-2.5">
@@ -217,7 +226,9 @@ export function BookSellModal({ open, books, onClose, onSold }: Props) {
                 )}
               </div>
               {query.trim().length >= 2 && !searching && results.length === 0 && (
-                <p className="mt-2 text-sm text-slate-400">O'quvchi topilmadi</p>
+                <p className="mt-2 text-sm text-slate-400">
+                  O'quvchi topilmadi — quyiga ism yozib yoki umuman bo'sh qoldirib sotishingiz mumkin.
+                </p>
               )}
               {results.length > 0 && (
                 <ul className="mt-2 max-h-52 overflow-y-auto rounded-lg border border-slate-200">
@@ -246,6 +257,19 @@ export function BookSellModal({ open, books, onClose, onSold }: Props) {
                   ))}
                 </ul>
               )}
+              {/* Markazda o'qimaydigan xaridor — ismi erkin yoziladi (bu ham ixtiyoriy). */}
+              <div className="mt-3">
+                <Input
+                  label="Xaridor ismi (o'quvchi bo'lmasa)"
+                  value={buyerName}
+                  onChange={(e) => setBuyerName(e.target.value)}
+                  placeholder="Masalan: Aziza Karimova (ota-ona)"
+                  maxLength={120}
+                />
+                <p className="mt-1 text-xs text-slate-400">
+                  Bo'sh qoldirsangiz ham sotish mumkin — ro'yxatda "Noma'lum" bo'lib ko'rinadi.
+                </p>
+              </div>
             </>
           )}
         </div>

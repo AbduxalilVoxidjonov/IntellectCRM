@@ -802,6 +802,37 @@ public class BookSalesTests
     }
 
     [Fact]
+    public async Task QoldaSotuv_OQUVCHISIZ_ham_sotiladi()
+    {
+        // Markazda o'qimaydigan xaridor (ota-ona, o'tkinchi): `StudentId` yo'q va ism ham bo'sh
+        // qolishi mumkin. Ilgari qo'lda sotuvda o'quvchini tanlash MAJBURIY edi va kassir bunday
+        // sotuv uchun soxta o'quvchi yaratishga majbur bo'lardi. Ombor mantig'i o'zgarmaydi.
+        using var db = TestDb.Sqlite();
+        var ctx = db.Context;
+        var book = NewBook(stock: 4, price: 30000);
+        ctx.Books.Add(book);
+        await ctx.SaveChangesAsync();
+
+        var order = NewManualOrder(book, qty: 2);
+        order.StudentId = null;
+        order.CustomerName = "";
+        order.Phone = "";
+        ctx.BookOrders.Add(order);
+
+        var err = await BookSalesService.ApproveAsync(ctx, order, "Kassir");
+
+        Assert.Null(err);
+        Assert.Equal(2, book.Stock);
+        var saved = await ctx.BookOrders.SingleAsync();
+        Assert.Null(saved.StudentId);
+        Assert.Equal("", saved.CustomerName);
+        Assert.Equal(BookSalesService.StatusApproved, saved.Status);
+        // Sotuv analitikaga odatdagidek tushadi (ombor harakati yozilgan).
+        var move = await ctx.BookStockMoves.SingleAsync();
+        Assert.Equal(-2, move.Qty);
+    }
+
+    [Fact]
     public async Task QoldaSotuv_QoldiqYetmasa_BuyurtmaUMUMANYOZILMAYDI()
     {
         using var db = TestDb.Sqlite();

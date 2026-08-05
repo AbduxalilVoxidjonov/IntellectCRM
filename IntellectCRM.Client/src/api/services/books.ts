@@ -1,4 +1,4 @@
-import { api } from '../client'
+﻿import { api } from '../client'
 
 /**
  * KITOBLAR SOTUVI — "O'quv bo'limi → Kitoblar sotuvi" bo'limi API'si.
@@ -103,7 +103,10 @@ export interface BookStudent {
 /** Markazda qo'lda sotuv so'rovi (kitob → o'quvchi → soni → naqd/karta). */
 export interface BookManualSalePayload {
   bookId: string
-  studentId: string
+  /** Markazdagi o'quvchi — IXTIYORIY. Bo'sh = markazda o'qimaydigan xaridor. */
+  studentId?: string | null
+  /** O'quvchi tanlanmaganda xaridor ismi — bu ham ixtiyoriy (bo'sh = "Noma'lum"). */
+  customerName?: string
   qty: number
   paymentMethod: BookPaymentMethod
   /** Karta to'lovida MAJBURIY — kartaning oxirgi 4 raqami. */

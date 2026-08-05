@@ -1,4 +1,4 @@
----
+﻿---
 description: Kitoblar sotuvi — ombor (qoldiq/kirim tarixi), Telegram bot orqali buyurtma, admin tasdiqlash va analitika.
 paths:
   - "IntellectCRM.Application/Services/BookSalesService.cs"
@@ -96,7 +96,7 @@ avtomatik himoyalangan — chaqiruvchilarni o'zgartirish shart emas.
 ## 2.1 QO'LDA SOTUV — markazda, joyida (migratsiya `AddBookManualSale`)
 
 "Buyurtmalar" tabidagi **«Kitob sotish»** tugmasi (`BookSellModal`, perm `books:create`):
-kitob → soni → **o'quvchi qidirib tanlanadi** → naqd/karta. Karta bo'lsa **to'lov vaqti**
+kitob → soni → **(ixtiyoriy) o'quvchi** → naqd/karta. Karta bo'lsa **to'lov vaqti**
 (`PaidTime`, "HH:mm") va **kartaning oxirgi 4 raqami** (`CardLast4`) kiritiladi — chek rasmi
 YO'Q, chunki pul kassirning oldida to'langan. Normalizatsiya moliya bo'limi bilan bir xil
 (`PaymentFields.TryNormalizeCardLast4/TryNormalizeTime`) — **to'liq karta raqami saqlanmaydi**.
@@ -112,6 +112,18 @@ YO'Q, chunki pul kassirning oldida to'langan. Normalizatsiya moliya bo'limi bila
 - **Sotuvdan olingan kitob sotilmaydi**: `ManualSale` `BookSalesService.ManualSaleBookError(book)`
   darvozasidan o'tadi (`null` — sotsa bo'ladi). Ilgari tekshiruv faqat frontend'da (`sellable`
   filtri) edi, ya'ni API to'g'ridan-to'g'ri chaqirilsa `IsActive=false` kitob ham sotilardi.
+- **O'QUVCHI IXTIYORIY** (2026-08-05): markazda o'qimaydigan xaridorga (ota-ona, o'tkinchi,
+  qo'shni maktab o'quvchisi) ham kitob sotiladi. Ilgari `StudentId` MAJBURIY edi va kassir
+  bunday sotuv uchun soxta o'quvchi yaratishga majbur bo'lardi. `BookOrder.StudentId`
+  allaqachon nullable — bot oqimida mehmon buyurtmasi shunday yozilardi, ya'ni ma'lumot
+  modeliga tegilmadi (**migratsiya kerak emas**).
+  - `StudentId` berilsa VA topilmasa — baribir 400 (jim o'tkazilsa sotuv noto'g'ri odamga
+    teglanmay qolardi va kassir sezmasdi).
+  - Ism: o'quvchi tanlansa uning ismi (asl manba), aks holda `CustomerName` erkin matn —
+    u ham ixtiyoriy. Bo'sh qolsa `CustomerName=""` saqlanadi va UI uni `"Noma'lum"` deb
+    ko'rsatadi (`BookOrdersTab`/`BookCardPaymentsTab` da allaqachon shunday fallback bor,
+    `AdminNewOrderText` ham). **Sun'iy "Noma'lum xaridor" matni BAZAGA yozilmaydi.**
+  - O'quvchi tanlanmasa `Phone` ham bo'sh qoladi (raqam faqat o'quvchidan olinadi).
 - O'quvchi qidiruvi — `GET /students?q=` (`BookStudentDto`), `books` ruxsati ostida va balanssiz
   (kitob sotuvi balansga tegmaydi). Telefon bo'yicha moslik — `BookSalesService.PhoneMatches`:
   **ikkala tomon ham mahalliy qismga keltiriladi** (`PhoneUtil.Key` = mamlakat kodisiz oxirgi 9

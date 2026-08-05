@@ -1,4 +1,4 @@
-namespace IntellectCRM.Application.Dtos;
+﻿namespace IntellectCRM.Application.Dtos;
 
 using System.ComponentModel.DataAnnotations;
 using IntellectCRM.Domain;
@@ -2717,11 +2717,16 @@ public record BookRejectPayload(string Reason);
 /// </summary>
 public record BookManualSalePayload(
     string BookId,
-    string StudentId,
+    /// <summary>Markazdagi o'quvchi — <b>IXTIYORIY</b>. Bo'sh bo'lsa xaridor markazda o'qimaydi
+    /// (chetdan kelgan odam). Bot oqimida ham mehmon kitob sotib ola oladi.</summary>
+    string? StudentId,
     int Qty,
     string PaymentMethod,
     string? CardLast4 = null,
-    string? PaidTime = null);
+    string? PaidTime = null,
+    /// <summary>O'quvchi tanlanmaganda xaridor ismi — bu ham IXTIYORIY. Bo'sh qolsa ro'yxatda
+    /// "Noma'lum" bo'lib ko'rinadi (bot buyurtmalarida allaqachon shunday).</summary>
+    string? CustomerName = null);
 
 /// <summary>Qo'lda sotuvda o'quvchi qidirish natijasi (yengil — balans/hisob hisoblanmaydi).</summary>
 public record BookStudentDto(

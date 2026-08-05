@@ -476,8 +476,24 @@ public class BooksController(AppDbContext db, TelegramService telegram, IWebHost
         var bookError = BookSalesService.ManualSaleBookError(book);
         if (book is null || bookError is not null) return BadRequest(new { message = bookError });
 
-        var student = await db.Students.AsNoTracking().FirstOrDefaultAsync(s => s.Id == payload.StudentId);
-        if (student is null) return BadRequest(new { message = "O'quvchi topilmadi" });
+        // O'QUVCHI IXTIYORIY. Ilgari majburiy edi va kassir markazda o'qimaydigan odamga
+        // (ota-ona, qo'shni maktab o'quvchisi, o'tkinchi) kitob sota olmasdi — buning uchun soxta
+        // o'quvchi yaratishga to'g'ri kelardi. `BookOrder.StudentId` allaqachon nullable: bot
+        // oqimida mehmon buyurtmasi shunday yoziladi.
+        Student? student = null;
+        var studentId = (payload.StudentId ?? "").Trim();
+        if (studentId.Length > 0)
+        {
+            student = await db.Students.AsNoTracking().FirstOrDefaultAsync(s => s.Id == studentId);
+            // Id berilgan, lekin topilmadi — bu xato (jim o'tkazib yuborilsa sotuv noto'g'ri
+            // odamga teglanmay qolardi va kassir buni sezmasdi).
+            if (student is null) return BadRequest(new { message = "O'quvchi topilmadi" });
+        }
+
+        // Ism: o'quvchi tanlansa — uning ismi (asl manba), aks holda erkin yozilgan ism.
+        // Bo'sh qolishi ham MUMKIN — ro'yxat va cheklarda "Noma'lum" bo'lib ko'rinadi.
+        var customerName = student?.FullName ?? (payload.CustomerName ?? "").Trim();
+        if (customerName.Length > 120) customerName = customerName[..120];
 
         var method = payload.PaymentMethod == BookSalesService.PayCard
             ? BookSalesService.PayCard
@@ -504,9 +520,11 @@ public class BooksController(AppDbContext db, TelegramService telegram, IWebHost
             Number = await BookSalesService.NextOrderNumberAsync(db),
             ChatId = 0,                       // Telegram chat yo'q — xabar yuborilmaydi
             Source = BookSalesService.SourceManual,
-            CustomerName = student.FullName,
-            Phone = string.IsNullOrWhiteSpace(student.Phone) ? student.ParentPhone : student.Phone,
-            StudentId = student.Id,
+            CustomerName = customerName,
+            Phone = student is null
+                ? ""
+                : string.IsNullOrWhiteSpace(student.Phone) ? student.ParentPhone : student.Phone,
+            StudentId = student?.Id,
             BookId = book.Id,
             BookTitle = book.Title,           // SNAPSHOT — keyin narx/nom o'zgarsa hisobot buzilmasin
             UnitPrice = book.Price,
@@ -526,7 +544,10 @@ public class BooksController(AppDbContext db, TelegramService telegram, IWebHost
 
         audit.Record("BookOrder", order.Id, "create",
             $"Kitob qo'lda sotildi: {order.BookTitle} x {order.Qty} dona — " +
-            $"{AuditService.Money(order.Total)} so'm ({order.CustomerName})", studentId: order.StudentId);
+            $"{AuditService.Money(order.Total)} so'm" +
+            // Ism bo'sh bo'lishi mumkin (chetdan xaridor) — bo'sh qavs qolib ketmasin.
+            (order.CustomerName.Length > 0 ? $" ({order.CustomerName})" : ""),
+            studentId: order.StudentId);
         await db.SaveChangesAsync();
 
         return (await ToOrderDtosAsync(new List<BookOrder> { order }))[0];
