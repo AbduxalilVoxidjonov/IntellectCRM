@@ -200,6 +200,51 @@ public class GroupClosingTests
         Assert.All(yangiOylar, r => Assert.Equal(800_000m, r.Amount));
     }
 
+    // ==================== "Tugatish" — KIM yangi guruhga ko'chadi ====================
+
+    /// <summary>Sof qoida uchun a'zolik yasovchi (bazasiz).</summary>
+    private static StudentGroup Member(string studentId, string status, bool isActive = true) =>
+        new() { StudentId = studentId, GroupId = "g1", Status = status, IsActive = isActive };
+
+    [Fact]
+    public void Kochiriladiganlar_FAQAT_aktiv_azolar()
+    {
+        var ids = GroupCompletionRules.TransferableStudentIds(new[]
+        {
+            Member("s1", "active"),
+            Member("s2", "trial"),      // sinovda — ko'chirilmaydi
+            Member("s3", "frozen"),     // muzlatilgan — ko'chirilmaydi
+            Member("s4", "active"),
+        });
+
+        Assert.Equal(new[] { "s1", "s4" }, ids);
+    }
+
+    [Fact]
+    public void Kochiriladiganlar_guruhdan_CHIQQAN_azoni_olmaydi()
+    {
+        // IsActive=false — a'zolik allaqachon yakunlangan (chiqarilgan/tugatilgan).
+        var ids = GroupCompletionRules.TransferableStudentIds(new[]
+        {
+            Member("s1", "active", isActive: false),
+            Member("s2", "active"),
+        });
+
+        Assert.Equal(new[] { "s2" }, ids);
+    }
+
+    [Fact]
+    public void Kochiriladiganlar_faqat_sinovdagilar_bolsa_BOSH_qaytadi()
+    {
+        var ids = GroupCompletionRules.TransferableStudentIds(new[]
+        {
+            Member("s1", "trial"),
+            Member("s2", "frozen"),
+        });
+
+        Assert.Empty(ids);
+    }
+
     // ==================== StudentGroupLedger — chiqish oyi ====================
 
     [Fact]

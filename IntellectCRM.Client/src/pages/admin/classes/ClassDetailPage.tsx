@@ -1649,6 +1649,9 @@ export function ClassDetailPage() {
         groupId={id}
         currentGroupName={journal?.group?.name ?? ''}
         currentCourseId={journal?.group?.courseId ?? ''}
+        // Yangi guruhga FAQAT aktivlar ko'chadi — modal ikkala sonni ham ko'rsatadi.
+        activeCount={members.filter((m) => m.isActive && m.status === 'active').length}
+        inactiveCount={members.filter((m) => m.isActive && m.status !== 'active').length}
         onSuccess={(result) => {
           const coursePart = result.targetCourseName ? ` (${result.targetCourseName} kursi)` : ''
           alert(
@@ -1662,10 +1665,13 @@ export function ClassDetailPage() {
                 ? `• Yopishdan keyingi ${formatMoney(result.restoredCharges)} hisob bekor qilindi\n`
                 : '') +
               `• Yangi guruh ochildi${coursePart}\n` +
-              `• ${result.enrolledInNew} o'quvchi yangi guruhga qo'shildi` +
+              `• ${result.enrolledInNew} ta AKTIV o'quvchi yangi guruhga ko'chirildi` +
               (result.activatedInNew > 0
                 ? ` (${result.activatedInNew} tasi ${formatDate(result.activateDate)} sanasidan aktiv)\n`
                 : '\n') +
+              (result.skippedNotActive > 0
+                ? `• ${result.skippedNotActive} ta sinovdagi/muzlatilgan a'zo ko'chirilmadi (eski guruhda yakunlandi)\n`
+                : '') +
               (result.movedAdvance > 0
                 ? `• ${formatMoney(result.movedAdvance)} avans yangi guruhga ko'chirildi`
                 : ''),

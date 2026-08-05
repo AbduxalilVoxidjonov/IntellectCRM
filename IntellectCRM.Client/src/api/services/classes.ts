@@ -277,12 +277,16 @@ export interface CompleteAndTransferResult {
   activatedInNew: number
   /** Eski guruhdan yangi guruhga ko'chirilgan avans summasi. */
   movedAdvance: number
+  /** Yangi guruhga KO'CHIRILMAGAN a'zolar soni (eski guruhda sinovda yoki muzlatilgan edi). */
+  skippedNotActive: number
 }
 
 /** Guruhni yakunlash (Hybrid): eski guruh arxivlanadi, maqsad kurs bilan yangi guruh ochiladi, sertifikat beriladi. */
 export async function completeAndTransferClass(
   id: string,
   opts?: {
+    /** Yangi guruhga avtomatik qo'shish — FAQAT eski guruhda AKTIV bo'lgan a'zolar ko'chiriladi
+     *  (sinovdagi va muzlatilganlar ko'chirilmaydi). */
     autoEnrollNewGroup?: boolean
     newGroupName?: string
     completionNotes?: string
@@ -311,6 +315,7 @@ export async function completeAndTransferClass(
       restoredCharges: 0,
       activatedInNew: 5,
       movedAdvance: 0,
+      skippedNotActive: 0,
     }
   }
   const { data } = await api.post<CompleteAndTransferResult>(

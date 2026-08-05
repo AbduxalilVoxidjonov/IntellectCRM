@@ -2449,6 +2449,9 @@ public record CertificateVerificationDto(
 /// Eski guruh arxivlanadi, o'quvchilarga sertifikat beriladi, yangi kurs/guruh ochiladi.
 /// </summary>
 public record CompleteAndTransferRequest(
+    /// <summary>Yangi guruhga avtomatik qo'shish. Qo'shiladiganlar — FAQAT eski guruhda
+    /// Status=="active" bo'lgan a'zolar; sinovdagi (trial) va muzlatilgan (frozen) a'zolar
+    /// ko'chirilmaydi (ular eski guruhda "completed" bo'lib qoladi).</summary>
     bool AutoEnrollNewGroup = true,
     string? NewGroupName = null,
     string? CompletionNotes = null,
@@ -2461,8 +2464,10 @@ public record CompleteAndTransferRequest(
     /// <summary>YANGI guruhda AKTIVLASHTIRISH sanasi (ISO). Bo'sh — <paramref name="CloseDate"/>.
     /// <paramref name="ActivateInNewGroup"/>=false bo'lsa ishlatilmaydi.</summary>
     string? ActivateDate = null,
-    /// <summary>Yangi guruhda DARHOL aktivlashtirish (qisman oylik shu sanadan yangi guruhga yoziladi).
-    /// false bo'lsa o'quvchilar yangi guruhga "sinov" statusida qo'shiladi (to'lov hisoblanmaydi).</summary>
+    /// <summary>Ko'chirilgan (aktiv) a'zolarni yangi guruhda DARHOL aktivlashtirish — qisman oylik shu
+    /// sanadan yangi guruhga yoziladi. false bo'lsa ular yangi guruhga "sinov" statusida qo'shiladi
+    /// (to'lov hisoblanmaydi). Kimlar ko'chishiga TA'SIR QILMAYDI — buni <paramref
+    /// name="AutoEnrollNewGroup"/> hal qiladi.</summary>
     bool ActivateInNewGroup = true);
 
 /// <summary>Complete-and-Transfer (Hybrid) natijasi.</summary>
@@ -2484,7 +2489,10 @@ public record CompleteAndTransferResultDto(
     /// <summary>Yangi guruhda darhol aktivlashtirilgan a'zolar soni.</summary>
     int ActivatedInNew = 0,
     /// <summary>Eski guruhda ortib qolgan (avans) va yangi guruhga ko'chirilgan to'lov summasi.</summary>
-    decimal MovedAdvance = 0);
+    decimal MovedAdvance = 0,
+    /// <summary>Yangi guruhga KO'CHIRILMAGAN a'zolar soni — eski guruhda aktiv emas edi
+    /// (sinovdagi yoki muzlatilgan). Ular eski guruhda "completed" bo'lib qoladi.</summary>
+    int SkippedNotActive = 0);
 
 /// <summary>
 /// Guruhni YOPISH so'rovi: barcha a'zolar <paramref name="Date"/> sanasidan MUZLATILADI

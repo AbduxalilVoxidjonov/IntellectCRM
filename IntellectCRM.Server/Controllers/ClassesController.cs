@@ -874,12 +874,17 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
     ///     (o'quvchilar arxivlanmaydi).</item>
     ///   <item>Asl kurs uchun sertifikat yaratiladi.</item>
     ///   <item>TargetCourseId ko'rsatilsa SHU kurs bilan, aks holda eski guruh kursi bilan YANGI guruh yaratiladi.</item>
-    ///   <item><c>autoEnrollNewGroup</c>=true — eski a'zolar yangi guruhga qo'shiladi;
-    ///     <c>activateInNewGroup</c>=true bo'lsa (standart) eski guruhda FAOL bo'lganlar
-    ///     <c>ActivateDate</c> sanasidan DARHOL aktivlashtiriladi (yangi guruhga qisman oylik shu
-    ///     sanadan yoziladi, eski guruhda ortib qolgan avans yangi guruhga ko'chiriladi —
-    ///     <see cref="TuitionService.CarryGroupAdvanceAsync"/>). Sinov/muzlatilgan a'zolar yangi
-    ///     guruhda "sinov" bo'lib qoladi.</item>
+    ///   <item><c>autoEnrollNewGroup</c>=true — yangi guruhga FAQAT eski guruhda <b>Status=="active"</b>
+    ///     bo'lgan a'zolar ko'chiriladi. SINOVDAGI (trial) va MUZLATILGAN (frozen) a'zolar
+    ///     ko'chirilmaydi: ular eski guruhda "completed" bo'lib qoladi (tarix saqlanadi), yangi
+    ///     guruhga qo'lda qo'shiladi. Sabab: sinovda tashlab ketgan yoki muzlatilgan (ta'tilga
+    ///     chiqqan) o'quvchi kursni tugatmagan — uni avtomatik ko'chirish yangi guruh ro'yxatini,
+    ///     jurnalni va guruh to'ldirilishini soxta ko'rsatardi.</item>
+    ///   <item><c>activateInNewGroup</c>=true bo'lsa (standart) ko'chirilganlar <c>ActivateDate</c>
+    ///     sanasidan DARHOL aktivlashtiriladi (yangi guruhga qisman oylik shu sanadan yoziladi, eski
+    ///     guruhda ortib qolgan avans yangi guruhga ko'chiriladi —
+    ///     <see cref="TuitionService.CarryGroupAdvanceAsync"/>). false bo'lsa ular yangi guruhga
+    ///     "sinov" statusida qo'shiladi (to'lov hisoblanmaydi).</item>
     /// </list>
     /// </summary>
     [HttpPost("{id}/complete-and-transfer")]
@@ -933,19 +938,23 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
         var students = (await db.Students.Where(s => memberStudentIds.Contains(s.Id)).ToListAsync())
             .ToDictionary(s => s.Id);
 
+        // YANGI GURUHGA KO'CHADIGANLAR — qoida YAGONA manbada (GroupCompletionRules): faqat eski
+        // guruhda Status=="active" bo'lganlar. Sinov/muzlatilgan a'zolar ko'chirilmaydi.
+        // DIQQAT: ro'yxat quyidagi (1) sikldan OLDIN olinadi — u yerda Status "completed"ga
+        // o'zgaradi va keyin "kim aktiv edi" degan ma'lumot yo'qoladi.
+        var transferIds = GroupCompletionRules.TransferableStudentIds(activeMembers);
+        // Ko'chirilmaydiganlar soni (natija/audit uchun) — a'zoligi bor, lekin aktiv emas.
+        var skippedNotActive = memberStudentIds.Count - transferIds.Count;
+
         // 1. ESKI GURUH HISOBINI YOPAMIZ, so'ng a'zoliklarni "completed" qilamiz (tarix saqlanadi).
         //    Hisob "Muzlatish"/"Guruhni yopish" bilan bitta manbadan (MembershipBilling) — o'quvchi
         //    yopish sanasigacha o'qigan darslari uchun AYNAN ESKI GURUHGA qarzdor bo'lib qoladi.
         var chargedOldGroup = 0;
         var restored = 0m;
-        // Eski guruhda FAOL bo'lganlar — faqat ular yangi guruhda darhol aktivlashtiriladi
-        // (sinovdagi/muzlatilgan a'zo yangi guruhda ham "sinov" bo'lib qoladi).
-        var wasActive = new HashSet<string>();
         foreach (var m in activeMembers)
         {
             if (m.Status == "active")
             {
-                wasActive.Add(m.StudentId);
                 if (students.TryGetValue(m.StudentId, out var s))
                 {
                     var settle = await MembershipBilling.SettleFreezeAsync(db, s, group, m.ActivatedAt, closeDate);
@@ -1037,20 +1046,21 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
         db.Classes.Add(newGroup);
         await db.SaveChangesAsync();   // newGroup.Id assigned
 
-        // 5. Auto-enroll eski a'zolarni yangi guruhga. Eski guruhda FAOL bo'lganlar (va
-        //    `activateInNewGroup` yoqilgan bo'lsa) DARHOL aktivlashtiriladi — "Guruh almashtirish"
-        //    (TransferMember) bilan AYNAN bir xil: qisman oylik `activateDate`dan YANGI guruhga
-        //    yoziladi, orqaga sanalgan bo'lsa oraliq oylar to'ldiriladi va ESKI guruhda ortib
-        //    qolgan (avans) pul yangi guruhga qayta teglanadi. Sinov/muzlatilgan a'zolar "sinov"da qoladi.
+        // 5. Auto-enroll — FAQAT eski guruhda AKTIV bo'lgan a'zolar (`transferIds`); sinovdagi va
+        //    muzlatilganlar ko'chirilmaydi. `activateInNewGroup` yoqilgan bo'lsa ular DARHOL
+        //    aktivlashtiriladi — "Guruh almashtirish" (TransferMember) bilan AYNAN bir xil: qisman
+        //    oylik `activateDate`dan YANGI guruhga yoziladi, orqaga sanalgan bo'lsa oraliq oylar
+        //    to'ldiriladi va ESKI guruhda ortib qolgan (avans) pul yangi guruhga qayta teglanadi.
+        //    Yoqilmagan bo'lsa — yangi guruhga "sinov" statusida qo'shiladi (to'lov hisoblanmaydi).
         var enrolledCount = 0;
         var activatedInNew = 0;
         var movedAdvance = 0m;
         var recordedAt = AppClock.Today.ToString("yyyy-MM-dd");
         if (req.AutoEnrollNewGroup)
         {
-            foreach (var sid in memberStudentIds)
+            foreach (var sid in transferIds)
             {
-                var activate = req.ActivateInNewGroup && wasActive.Contains(sid);
+                var activate = req.ActivateInNewGroup;
                 var sg = new StudentGroup
                 {
                     StudentId = sid,
@@ -1081,9 +1091,10 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
                 activatedInNew++;
             }
 
-            // Student.ClassName ni yangi guruh nomiga yangilaymiz.
-            foreach (var s in students.Values)
-                s.ClassName = newGroupName;
+            // Student.ClassName ("asosiy guruh" yorlig'i) — FAQAT ko'chirilganlarga. Ko'chirilmagan
+            // (sinov/muzlatilgan) o'quvchi o'zi a'zo bo'lmagan guruh nomini olib yurmasligi kerak.
+            foreach (var sid in transferIds)
+                if (students.TryGetValue(sid, out var s)) s.ClassName = newGroupName;
 
             await db.SaveChangesAsync();
         }
@@ -1097,6 +1108,7 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
             (restored > 0 ? $", keyingi oylar hisobi bekor qilindi: {AuditService.Money(restored)} so'm" : "") +
             $". Yangi guruh: {newGroup.Id} ({newGroupName}), kurs: {targetCourseName}, enrolled={enrolledCount}" +
             (activatedInNew > 0 ? $", {activateDate} sanasidan aktivlashtirildi={activatedInNew}" : "") +
+            (skippedNotActive > 0 ? $", ko'chirilmadi (aktiv emas)={skippedNotActive}" : "") +
             (movedAdvance > 0 ? $", avans ko'chirildi: {AuditService.Money(movedAdvance)} so'm" : ""));
 
         return Ok(new CompleteAndTransferResultDto(
@@ -1111,7 +1123,8 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
             ChargedOldGroup: chargedOldGroup,
             RestoredCharges: restored,
             ActivatedInNew: activatedInNew,
-            MovedAdvance: movedAdvance));
+            MovedAdvance: movedAdvance,
+            SkippedNotActive: skippedNotActive));
     }
 
     /// <summary>

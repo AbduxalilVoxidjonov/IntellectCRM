@@ -14,6 +14,8 @@ export function CompleteAndTransferModal({
   groupId,
   currentGroupName,
   currentCourseId,
+  activeCount = 0,
+  inactiveCount = 0,
   onSuccess,
 }: {
   open: boolean
@@ -21,6 +23,10 @@ export function CompleteAndTransferModal({
   groupId: string
   currentGroupName: string
   currentCourseId?: string
+  /** Guruhdagi AKTIV a'zolar soni — faqat shular yangi guruhga ko'chiriladi. */
+  activeCount?: number
+  /** A'zoligi bor, ammo aktiv EMAS (sinov/muzlatilgan) — ko'chirilmaydi. */
+  inactiveCount?: number
   onSuccess?: (result: CompleteAndTransferResult) => void
 }) {
   const [courses, setCourses] = useState<Subject[]>([])
@@ -107,6 +113,10 @@ export function CompleteAndTransferModal({
             }}
           >
             {currentGroupName}
+            <div style={{ marginTop: 4, fontSize: 12, fontWeight: 500, color: 'var(--mute)' }}>
+              {activeCount} ta aktiv a'zo
+              {inactiveCount > 0 && ` · ${inactiveCount} ta sinov/muzlatilgan (ko'chirilmaydi)`}
+            </div>
           </div>
         </div>
 
@@ -243,10 +253,11 @@ export function CompleteAndTransferModal({
           />
           <div>
             <div style={{ fontSize: 13, fontWeight: 700 }}>
-              O'quvchilarni yangi guruhga avtomatik qo'shish
+              AKTIV o'quvchilarni yangi guruhga avtomatik qo'shish
             </div>
             <div style={{ fontSize: 12, color: 'var(--mute)' }}>
-              Eski a'zolar "{resolvedNewName}" guruhiga ko'chiriladi
+              Faqat aktiv a'zolar ({activeCount} ta) "{resolvedNewName}" guruhiga ko'chiriladi —
+              sinovdagi va muzlatilganlar ko'chirilmaydi
             </div>
           </div>
         </div>
@@ -277,7 +288,7 @@ export function CompleteAndTransferModal({
                   Yangi guruhda darhol aktivlashtirish
                 </div>
                 <div style={{ fontSize: 12, color: 'var(--mute)' }}>
-                  O'chirilsa — "sinov" statusida qoladi va to'lov hisoblanmaydi
+                  O'chirilsa — ko'chirilganlar "sinov" statusida qoladi va to'lov hisoblanmaydi
                 </div>
               </div>
             </div>
@@ -380,9 +391,17 @@ export function CompleteAndTransferModal({
               }
             </li>
             {autoEnroll && (
-              activateInNew
-                ? <li>Eski guruhda faol bo'lganlar yangi guruhda <strong>{activateDate || closeDate || '—'}</strong> sanasidan aktivlashtiriladi</li>
-                : <li>Eski a'zolar yangi guruhga "sinov" statusida qo'shiladi</li>
+              <>
+                <li>
+                  Yangi guruhga <strong>faqat aktiv a'zolar</strong> ({activeCount} ta) ko'chiriladi
+                  {inactiveCount > 0 && (
+                    <> — sinovdagi/muzlatilgan {inactiveCount} ta a'zo ko'chirilmaydi (eski guruhda yakunlanadi)</>
+                  )}
+                </li>
+                {activateInNew
+                  ? <li>Ular yangi guruhda <strong>{activateDate || closeDate || '—'}</strong> sanasidan aktivlashtiriladi</li>
+                  : <li>Ular yangi guruhga "sinov" statusida qo'shiladi</li>}
+              </>
             )}
           </ul>
         </div>
