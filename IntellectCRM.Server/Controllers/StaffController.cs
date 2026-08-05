@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using IntellectCRM.Infrastructure.Auth;
@@ -22,7 +22,7 @@ namespace IntellectCRM.Server.Controllers;
 [Authorize]
 [AdminPerm("staff")]
 [Route("api/admin/staff")]
-public class StaffController(AppDbContext db) : ControllerBase
+public class StaffController(AppDbContext db, AuditService audit) : ControllerBase
 {
     private const int MinPasswordLength = 8;
     private const string WeakPasswordMessage = "Parol kamida 8 belgidan iborat bo'lsin";
@@ -82,6 +82,10 @@ public class StaffController(AppDbContext db) : ControllerBase
                 return BadRequest(new { message = WeakPasswordMessage });
             user.SetInitialPassword(req.NewPassword.Trim());
         }
+        audit.Record("Staff", user.Id, "create",
+            $"Xodim qo'shildi: {user.FullName}" +
+            (user.Position.Length > 0 ? $" ({user.Position})" : "") +
+            (permissions.Count > 0 ? $" — ruxsatlar: {string.Join(", ", permissions)}" : " — ruxsatsiz"));
         await db.SaveChangesAsync();
         return ToDto(user);
     }
@@ -101,6 +105,10 @@ public class StaffController(AppDbContext db) : ControllerBase
                 return BadRequest(new { message = WeakPasswordMessage });
             user.SetInitialPassword(req.NewPassword.Trim());
         }
+        audit.Record("Staff", user.Id, "update",
+            $"Xodim tahrirlandi: {user.FullName}" +
+            (user.Position.Length > 0 ? $" ({user.Position})" : "") +
+            (!string.IsNullOrWhiteSpace(req.NewPassword) ? " — PAROL o'zgartirildi" : ""));
         await db.SaveChangesAsync();
         return ToDto(user);
     }
@@ -113,6 +121,8 @@ public class StaffController(AppDbContext db) : ControllerBase
         var reason = string.IsNullOrWhiteSpace(reasonId) ? "" : (await db.ActionReasons.Where(r => r.Id == reasonId).Select(r => r.Label).FirstOrDefaultAsync() ?? "");
         var actor = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value ?? "Admin";
         ArchiveService.Snapshot(db, "staff", user.Id, user.FullName, user.Email ?? "", user, reason.Length > 0 ? reason : null, actor);
+        audit.Record("Staff", user.Id, "delete",
+            $"Xodim o'chirildi: {user.FullName}" + (reason.Length > 0 ? $" — sabab: {reason}" : ""));
         db.Users.Remove(user);
         await db.SaveChangesAsync();
         return NoContent();
@@ -141,6 +151,8 @@ public class StaffController(AppDbContext db) : ControllerBase
         var user = await db.Users.FindAsync(id);
         if (user is null || user.Role != Roles.Staff) return NotFound();
         var pwd = AccountFactory.GeneratePassword();
+        // Parolning O'ZI hech qachon tarixga yozilmaydi — faqat "almashtirildi" faktI.
+        audit.Record("Staff", user.Id, "update", $"Xodim paroli qayta yaratildi: {user.FullName}");
         user.SetInitialPassword(pwd);
         await db.SaveChangesAsync();
         return new CredentialsDto(user.Email, pwd, user.Role);
@@ -153,6 +165,7 @@ public class StaffController(AppDbContext db) : ControllerBase
     {
         var user = await db.Users.FindAsync(id);
         if (user is null || user.Role != Roles.Staff) return NotFound();
+        var oldPerms = user.Permissions.ToList();
         // null/bo'sh/dublikat kalitlarni tozalaymiz — aks holda token validation'da
         // null claim qiymati 500 (ArgumentNullException) keltirib chiqarishi mumkin.
         user.Permissions = (req.Permissions ?? new())
@@ -160,6 +173,16 @@ public class StaffController(AppDbContext db) : ControllerBase
             .Select(p => p.Trim())
             .Distinct()
             .ToList();
+        // NIMA qo'shilgani/olib tashlangani ko'rinsin — "ruxsat kim tomonidan kengaytirilgan"
+        // savoli tarixdan javob topsin (ro'yxatning o'zi uzun bo'lishi mumkin).
+        var added = user.Permissions.Except(oldPerms).Order().ToList();
+        var removed = oldPerms.Except(user.Permissions).Order().ToList();
+        audit.Record("Staff", user.Id, "update",
+            $"Xodim ruxsatlari o'zgartirildi: {user.FullName}" +
+            (added.Count > 0 ? $" — qo'shildi: {string.Join(", ", added)}" : "") +
+            (removed.Count > 0 ? $" — olib tashlandi: {string.Join(", ", removed)}" : "") +
+            (added.Count == 0 && removed.Count == 0 ? " — o'zgarish yo'q" : ""),
+            before: new { Permissions = oldPerms }, after: new { user.Permissions });
         await db.SaveChangesAsync();
         return ToDto(user);
     }

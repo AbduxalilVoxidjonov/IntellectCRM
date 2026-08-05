@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+﻿import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -15,6 +15,7 @@ import {
   Archive,
   Sparkles,
   MessageSquareQuote,
+  Camera,
 } from 'lucide-react'
 import type {
   Credentials,
@@ -37,6 +38,7 @@ import {
   getSalaryMonth,
   resetTeacherPassword,
   saveGroupSalaries,
+  updateTeacherPhoto,
   type GroupSalaryItem,
 } from '@/api/services/teachers'
 import { createTransaction } from '@/api/services/finance'
@@ -52,6 +54,8 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { CredentialsBox } from '@/components/ui/CredentialsBox'
 import { AuditHistoryList } from '@/components/audit/AuditHistoryList'
 import { useAuth } from '@/context/auth-context'
+import { usePerm } from '@/lib/permissions'
+import { PhotoDialog } from '@/components/media/PhotoDialog'
 import { TeacherBonusPanel } from '@/components/retention/TeacherBonusPanel'
 import { TeacherAiPanel } from './TeacherAiPanel'
 import { TeacherReviewsFeed } from './TeacherReviewsFeed'
@@ -103,6 +107,12 @@ export function TeacherDetailPage() {
   // «Fikrlar» tabi — o'quvchilardan yig'ilgan, o'qituvchi haqidagi ichki baholash. FAQAT
   // admin/superadmin (server ham shu rolda cheklaydi); xodimga (staff) ko'rsatilmaydi.
   const { user } = useAuth()
+  // O'zgarishlar tarixi — alohida `audit` ruxsati (admin/superadmin uchun har doim true).
+  const { can } = usePerm()
+  const canSeeAudit = can('audit', 'view')
+  // Rasm — o'quvchi sahifasidagi bilan AYNAN bir xil oqim: avatarni bosish → kamera/fayl.
+  const canEditPhoto = can('teachers', 'edit')
+  const [photoOpen, setPhotoOpen] = useState(false)
   const canSeeReviews = user?.role === 'admin' || user?.role === 'superadmin'
 
   // Performance
@@ -436,22 +446,34 @@ export function TeacherDetailPage() {
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <Card title="Shaxsiy ma'lumotlar">
             <div className="mb-4 flex items-center gap-3">
-              {teacher.photoUrl ? (
-                <img
-                  src={teacher.photoUrl}
-                  alt=""
-                  className="h-14 w-14 rounded-full object-cover"
-                />
-              ) : (
-                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-brand-50 text-lg font-semibold text-brand-600">
-                  {teacher.fullName
+              {/* DUMALOQ avatar — bosilganda rasm oynasi ochiladi (rasm yo'q bo'lsa darhol
+                  kamera). O'quvchi sahifasidagi xatti-harakat bilan bir xil. */}
+              <button
+                type="button"
+                onClick={() => canEditPhoto && setPhotoOpen(true)}
+                disabled={!canEditPhoto}
+                title={canEditPhoto ? (teacher.photoUrl ? 'Rasmni almashtirish' : "Rasm qo'shish") : undefined}
+                className={cn(
+                  'group relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-brand-50 text-lg font-semibold text-brand-600',
+                  canEditPhoto && 'cursor-pointer ring-offset-2 transition hover:ring-2 hover:ring-brand-300',
+                )}
+              >
+                {teacher.photoUrl ? (
+                  <img src={teacher.photoUrl} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  teacher.fullName
                     .split(' ')
                     .filter(Boolean)
                     .slice(0, 2)
                     .map((s) => s[0]?.toUpperCase())
-                    .join('')}
-                </div>
-              )}
+                    .join('')
+                )}
+                {canEditPhoto && (
+                  <span className="absolute inset-0 flex items-center justify-center bg-slate-900/45 text-white opacity-0 transition-opacity group-hover:opacity-100">
+                    <Camera className="h-5 w-5" />
+                  </span>
+                )}
+              </button>
               <div>
                 <div className="text-base font-semibold text-slate-800">{teacher.fullName}</div>
                 <div className="text-xs text-slate-400">{genderLabels[teacher.gender]}</div>
@@ -1186,13 +1208,15 @@ export function TeacherDetailPage() {
             </Card>
           )}
 
-          {/* O'zgarishlar tarixi */}
-          <Card title="O'zgarishlar tarixi">
-            <AuditHistoryList
-              filters={{ teacherId: teacher.id }}
-              emptyLabel="Maosh bo'yicha o'zgarishlar yo'q"
-            />
-          </Card>
+          {/* O'zgarishlar tarixi — `audit` ruxsati bilan (admin/superadmin har doim ko'radi) */}
+          {canSeeAudit && (
+            <Card title="O'zgarishlar tarixi">
+              <AuditHistoryList
+                filters={{ teacherId: teacher.id }}
+                emptyLabel="Maosh bo'yicha o'zgarishlar yo'q"
+              />
+            </Card>
+          )}
         </div>
       )}
 
@@ -1339,6 +1363,23 @@ export function TeacherDetailPage() {
 
       {/* AI TAHLIL TAB — o'quvchi oqimi, ketish sabablari, jurnal intizomi, rivojlanish + AI xulosasi */}
       {tab === 'ai' && id && <TeacherAiPanel teacherId={id} teacherName={teacher.fullName} />}
+
+      {/* O'qituvchi rasmi — dumaloq avatarni bosganda ochiladi (kamera yoki fayl).
+          O'quvchi sahifasidagi bilan BITTA komponent (PhotoDialog). */}
+      <PhotoDialog
+        open={photoOpen}
+        currentUrl={teacher.photoUrl ?? null}
+        // Rasm hali yo'q bo'lsa darhol kamera yoqiladi — shunisi tezroq.
+        startWithCamera={!teacher.photoUrl}
+        title="O'qituvchi rasmi"
+        hint="Doira ichidagi qism o'qituvchi profilida dumaloq avatar bo'lib chiqadi."
+        onClose={() => setPhotoOpen(false)}
+        onSaved={async (url) => {
+          if (!id) return
+          await updateTeacherPhoto(id, url)
+          setTeacher((t) => (t ? { ...t, photoUrl: url } : t))
+        }}
+      />
     </div>
   )
 }

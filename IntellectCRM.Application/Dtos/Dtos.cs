@@ -850,6 +850,11 @@ public record ArchiveStudentRequest(string? Reason = null, string? ReasonId = nu
 /// tizim uni RASM deb ishlatadi).</summary>
 public record StudentPhotoRequest(string? PhotoUrl);
 
+/// <summary>O'qituvchi rasmini (profil surati) o'rnatish/o'chirish — <see cref="StudentPhotoRequest"/>
+/// bilan bir xil shakl. <c>PhotoUrl</c> — serverga oldin yuklangan <c>/uploads/...</c> manzili;
+/// bo'sh/`null` = rasmni o'chirish.</summary>
+public record TeacherPhotoRequest(string? PhotoUrl);
+
 /// <summary>Admin o'quvchi login'ini vaqtincha cheklaydi/qayta ochadi.</summary>
 public record StudentLoginBlockRequest(bool Blocked);
 
@@ -1317,7 +1322,18 @@ public record EditChargeRequest(decimal Amount);
 public record AuditLogDto(
     string Id, string EntityType, string EntityId, string Action, string Timestamp,
     string? ActorName, string Summary, string? Before, string? After,
-    string? StudentId, string? TeacherId);
+    string? StudentId, string? TeacherId,
+    /// <summary>Yozuv qaysi BO'LIMGA tegishli (<c>AuditSections.SectionOf</c>) — klient uni
+    /// o'zi hisoblamasin: `EntityType` nomlari tarixiy sabablarga ko'ra aldamchi.</summary>
+    string Section = "other");
+
+/// <summary>Tarixdagi bitta bo'lim: kalit + nom + shu filtrlarda nechta yozuv borligi.</summary>
+public record AuditSectionDto(string Key, string Label, int Count);
+
+/// <summary>"O'zgarishlar tarixi" sahifasining boshlang'ich ma'lumoti (chiplar + xodim filtri).</summary>
+/// <param name="Total">Barcha bo'limlar bo'yicha jami (chiplardagi "Hammasi").</param>
+/// <param name="Actors">Tarixda uchragan xodim nomlari (filtr ro'yxati uchun).</param>
+public record AuditSectionsDto(List<AuditSectionDto> Sections, int Total, List<string> Actors);
 
 /* ---------- Teacher portal (ilova) ---------- */
 /// <summary>O'qituvchining o'z profili (ilovada ko'rsatish uchun).</summary>

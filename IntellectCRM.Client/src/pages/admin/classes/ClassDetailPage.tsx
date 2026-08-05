@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+﻿import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '@/context/auth-context'
 import { usePerm, useSuperOrGranted } from '@/lib/permissions'
@@ -111,6 +111,8 @@ export function ClassDetailPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
   const { can } = usePerm()
+  // O'zgarishlar tarixi — alohida `audit` ruxsati (admin/superadmin uchun har doim true).
+  const canSeeAudit = can('audit', 'view')
   // «Bonus hisoblansin» ptichkasi — FAQAT superadmin yoki «Xodimlar va rollar» dan shu ruxsat
   // berilgan xodim uchun. Oddiy "admin" roli ham ko'rmaydi — shuning uchun can() emas.
   const canSetBonus = useSuperOrGranted('retentionBonus')
@@ -868,9 +870,11 @@ export function ClassDetailPage() {
                 <button type="button" className={cn('tab', tab === 'imtihonlar' && 'active')} onClick={() => setTab('imtihonlar')}>
                   <ClipboardList className="mr-1 inline h-3.5 w-3.5" /> Imtihonlar
                 </button>
-                <button type="button" className={cn('tab', tab === 'tarix' && 'active')} onClick={() => setTab('tarix')}>
-                  <History className="mr-1 inline h-3.5 w-3.5" /> Tarix
-                </button>
+                {canSeeAudit && (
+                  <button type="button" className={cn('tab', tab === 'tarix' && 'active')} onClick={() => setTab('tarix')}>
+                    <History className="mr-1 inline h-3.5 w-3.5" /> Tarix
+                  </button>
+                )}
                 {/* Oylik to'lov yig'ilishi — FAQAT moliya ruxsati bor xodimga (o'qituvchiga ko'rinmaydi) */}
                 {canSeePayments && (
                   <button type="button" className={cn('tab', tab === 'tolovlar' && 'active')} onClick={() => setTab('tolovlar')}>
@@ -1355,7 +1359,7 @@ export function ClassDetailPage() {
           {tab === 'imtihonlar' && <GroupTestsPanel groupId={id} onOpenTest={(testId) => navigate(`/admin/test-results/${id}/tests/${testId}`)} />}
 
           {/* Tarix — guruhga oid barcha o'zgarishlar (to'g'ridan-to'g'ri tahrir + a'zolik amallari) */}
-          {tab === 'tarix' && (
+          {tab === 'tarix' && canSeeAudit && (
             <Card title="O'zgarishlar tarixi" sub="Guruh va a'zolik amallari (muzlatish/aktivlashtirish/o'tkazish/chiqarish)">
               <AuditHistoryList filters={{ groupId: id }} emptyLabel="O'zgarishlar tarixi yo'q" />
             </Card>

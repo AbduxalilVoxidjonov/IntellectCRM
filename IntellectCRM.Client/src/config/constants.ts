@@ -84,6 +84,13 @@ export const adminPermissions: { key: string; label: string }[] = [
   { key: 'kassa', label: 'Kassa' },
   { key: 'finance', label: 'Moliya' },
   { key: 'settings', label: 'Sozlamalar' },
+  // O'ZGARISHLAR TARIXI (audit) — "kim, qachon, nimani o'zgartirdi". Ikki joyni ochadi:
+  //   1) Sozlamalar → "O'zgarishlar tarixi" sahifasi (bo'limlarga ajratilgan umumiy tarix);
+  //   2) o'quvchi/guruh/o'qituvchi/moliya sahifalaridagi "Tarix" bo'limlari.
+  // ⚠️ Bu BUTUN tarixni ochadi — to'lov summalari, maosh va ruxsat o'zgarishlari ham ko'rinadi.
+  // Bo'limlarga bo'lib berish ATAYIN qilinmagan: bitta tushunarli kalit, kimga berilishi o'ylab
+  // tanlansin. Admin/superadmin bu ruxsatsiz ham ko'radi (odatdagi qoida).
+  { key: 'audit', label: "O'zgarishlar tarixi" },
   { key: 'staff', label: 'Xodimlar' },
   { key: 'feedback', label: 'Taklif va shikoyatlar' },
   { key: 'cameras', label: 'Kameralar' },

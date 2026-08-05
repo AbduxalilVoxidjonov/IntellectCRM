@@ -1262,7 +1262,12 @@ export type AuditAction = 'create' | 'update' | 'delete'
 
 export interface AuditLog {
   id: string
-  /** FinanceTransaction | TeacherSalary | ClassFee */
+  /**
+   * Texnik tur: FinanceTransaction | TeacherSalary | ClassFee | Student | Group | Membership |
+   * Lead | Course | Book | Contract | Vacancy | Staff | CenterMeta | ...
+   * ⚠️ Nomlari tarixiy sabablarga ko'ra ALDAMCHI (masalan "StudentDiscount" arxivlash/bloklashda
+   * ham yoziladi) — foydalanuvchiga ko'rsatish uchun `section` ishlatilsin.
+   */
   entityType: string
   entityId: string
   action: AuditAction
@@ -1278,6 +1283,8 @@ export interface AuditLog {
   after?: string
   studentId?: string
   teacherId?: string
+  /** Bo'lim kaliti — SERVER hisoblaydi (`AuditSections`): students | classes | finance | ... | other */
+  section?: string
 }
 
 /* ---------- O'qituvchilar ---------- */

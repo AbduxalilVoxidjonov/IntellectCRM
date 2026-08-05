@@ -1,4 +1,4 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -27,7 +27,7 @@ namespace IntellectCRM.Server.Controllers;
 [Authorize]
 [AdminPerm("books")]
 [Route("api/admin/books")]
-public class BooksController(AppDbContext db, TelegramService telegram, IWebHostEnvironment env) : ControllerBase
+public class BooksController(AppDbContext db, TelegramService telegram, IWebHostEnvironment env, AuditService audit) : ControllerBase
 {
     private const string XlsxMime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
@@ -102,6 +102,9 @@ public class BooksController(AppDbContext db, TelegramService telegram, IWebHost
                 book, payload.InitialStock, BookSalesService.ReasonInitial,
                 "Kitob qo'shildi (boshlang'ich qoldiq)", Actor));
 
+        audit.Record("Book", book.Id, "create",
+            $"Kitob qo'shildi: {book.Title} — {AuditService.Money(book.Price)} so'm" +
+            (payload.InitialStock > 0 ? $", boshlang'ich qoldiq {payload.InitialStock} dona" : ""));
         await db.SaveChangesAsync();
         return (await ToDtosAsync(new List<Book> { book }))[0];
     }
@@ -125,8 +128,14 @@ public class BooksController(AppDbContext db, TelegramService telegram, IWebHost
         book.Author = (payload.Author ?? "").Trim();
         book.Description = (payload.Description ?? "").Trim();
         book.CoverUrl = newCover;
+        var oldPrice = book.Price;
         book.Price = payload.Price;
         book.IsActive = payload.IsActive;
+        audit.Record("Book", book.Id, "update",
+            $"Kitob tahrirlandi: {book.Title}" +
+            (oldPrice != payload.Price
+                ? $" — narx {AuditService.Money(oldPrice)} → {AuditService.Money(payload.Price)} so'm"
+                : ""));
         await db.SaveChangesAsync();
         return (await ToDtosAsync(new List<Book> { book }))[0];
     }
@@ -147,6 +156,7 @@ public class BooksController(AppDbContext db, TelegramService telegram, IWebHost
             });
 
         await db.BookStockMoves.Where(m => m.BookId == id).ExecuteDeleteAsync();
+        audit.Record("Book", book.Id, "delete", $"Kitob o'chirildi: {book.Title}");
         db.Books.Remove(book);
         await db.SaveChangesAsync();
         return NoContent();
@@ -167,6 +177,10 @@ public class BooksController(AppDbContext db, TelegramService telegram, IWebHost
 
         var reason = payload.Qty > 0 ? BookSalesService.ReasonRestock : BookSalesService.ReasonCorrection;
         db.BookStockMoves.Add(BookSalesService.Move(book, payload.Qty, reason, payload.Note ?? "", Actor));
+        audit.Record("Book", book.Id, "update",
+            $"Ombor: {book.Title} — {(payload.Qty > 0 ? "+" : "")}{payload.Qty} dona " +
+            $"(qoldiq {book.Stock} → {book.Stock + payload.Qty})" +
+            (string.IsNullOrWhiteSpace(payload.Note) ? "" : $", izoh: {payload.Note!.Trim()}"));
         try
         {
             await db.SaveChangesAsync();
@@ -354,6 +368,13 @@ public class BooksController(AppDbContext db, TelegramService telegram, IWebHost
         var error = await BookSalesService.ApproveAsync(db, order, Actor);
         if (error is not null) return BadRequest(new { message = error });
 
+        // DIQQAT: ApproveAsync O'ZI SaveChanges qiladi — shuning uchun audit yozuvini
+        // alohida saqlaymiz (aks holda u hech qachon bazaga tushmasdi).
+        audit.Record("BookOrder", order.Id, "update",
+            $"Buyurtma tasdiqlandi: {order.BookTitle} x {order.Qty} dona — " +
+            $"{AuditService.Money(order.Total)} so'm ({order.CustomerName})", studentId: order.StudentId);
+        await db.SaveChangesAsync();
+
         // Qo'lda sotilgan buyurtmada Telegram chat yo'q (ChatId=0) — xabar yuborilmaydi.
         if (order.ChatId != 0)
             await telegram.SendMessageAsync(order.ChatId, BookSalesService.CustomerApprovedText(order));
@@ -371,6 +392,11 @@ public class BooksController(AppDbContext db, TelegramService telegram, IWebHost
 
         var error = await BookSalesService.RejectAsync(db, order, payload.Reason, Actor);
         if (error is not null) return BadRequest(new { message = error });
+
+        audit.Record("BookOrder", order.Id, "update",
+            $"Buyurtma rad etildi: {order.BookTitle} x {order.Qty} dona ({order.CustomerName}) " +
+            $"— sabab: {payload.Reason.Trim()}", studentId: order.StudentId);
+        await db.SaveChangesAsync();
 
         if (order.ChatId != 0)
             await telegram.SendMessageAsync(order.ChatId, BookSalesService.CustomerRejectedText(order));
@@ -497,6 +523,11 @@ public class BooksController(AppDbContext db, TelegramService telegram, IWebHost
         // yozilmaydi (yarim holatda "pending" qatori qolib ketmasin).
         var error = await BookSalesService.ApproveAsync(db, order, Actor);
         if (error is not null) return BadRequest(new { message = error });
+
+        audit.Record("BookOrder", order.Id, "create",
+            $"Kitob qo'lda sotildi: {order.BookTitle} x {order.Qty} dona — " +
+            $"{AuditService.Money(order.Total)} so'm ({order.CustomerName})", studentId: order.StudentId);
+        await db.SaveChangesAsync();
 
         return (await ToOrderDtosAsync(new List<BookOrder> { order }))[0];
     }
@@ -701,6 +732,9 @@ public class BooksController(AppDbContext db, TelegramService telegram, IWebHost
         meta.BookCardNumber = (payload.BookCardNumber ?? "").Trim();
         meta.BookCardHolder = (payload.BookCardHolder ?? "").Trim();
         meta.BookPaymentNote = (payload.BookPaymentNote ?? "").Trim();
+        audit.Record("Book", "settings", "update",
+            "Kitoblar sotuvi sozlamalari o'zgartirildi — botda sotuv: " +
+            (meta.BookSalesEnabled ? "YOQILGAN" : "O'CHIRILGAN"));
         await db.SaveChangesAsync();
         return new BookSettingsDto(
             meta.BookSalesEnabled, meta.BookCardNumber, meta.BookCardHolder, meta.BookPaymentNote);

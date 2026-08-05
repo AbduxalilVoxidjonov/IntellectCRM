@@ -73,6 +73,7 @@ import { KassaPage } from '@/pages/admin/kassa/KassaPage'
 import { KassaMyPaymentsPage } from '@/pages/admin/kassa/KassaMyPaymentsPage'
 import { KassaMobileLayout } from '@/components/layout/KassaMobileLayout'
 import { SettingsPage } from '@/pages/admin/settings/SettingsPage'
+import { AuditLogPage } from '@/pages/admin/settings/AuditLogPage'
 import { AccountPage } from '@/pages/admin/account/AccountPage'
 // Marketing — ijtimoiy tarmoq avtojavob (Javobot UI; hozircha faqat UI, mock)
 import { MarketingDashboard } from '@/pages/admin/marketing/MarketingDashboard'
@@ -234,6 +235,10 @@ export default function App() {
           {/* Bitta kassir qabul qilgan to'lovlar — alohida sahifa (Moliya → Kassirlar qatoridan). */}
           <Route path="finance/cashiers/:key" element={<RequirePerm perm="finance"><CashierPaymentsPage /></RequirePerm>} />
           <Route path="settings" element={<Navigate to="/admin/settings/school" replace />} />
+          {/* O'zgarishlar tarixi — Sozlamalar ICHIDA, lekin ruxsati boshqa (`audit`). Statik
+              segment `settings/:section` dinamikasidan ustun turadi (React Router reyting), ya'ni
+              bu marshrut `settings/:section` dan OLDIN yozilishi shart emas, lekin qo'shni tursin. */}
+          <Route path="settings/history" element={<RequirePerm perm="audit"><AuditLogPage /></RequirePerm>} />
           <Route path="settings/:section" element={<RequirePerm perm="settings"><SettingsPage /></RequirePerm>} />
           <Route path="account" element={<AccountPage />} />
 

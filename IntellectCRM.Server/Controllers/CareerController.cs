@@ -1,4 +1,4 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -29,7 +29,7 @@ namespace IntellectCRM.Server.Controllers;
 // Nomzod tomoni (Mini App) bunga bog'liq EMAS — u alohida `api/career` ([AllowAnonymous]) da.
 [AdminPerm("vacancies", ReadRequiresPerm = true)]
 [Route("api/admin/career")]
-public class CareerController(AppDbContext db, CareerService career) : ControllerBase
+public class CareerController(AppDbContext db, CareerService career, AuditService audit) : ControllerBase
 {
     private string Actor => User.FindFirst(ClaimTypes.Name)?.Value ?? "Admin";
 
@@ -90,6 +90,7 @@ public class CareerController(AppDbContext db, CareerService career) : Controlle
         a.UpdatedAt = AppClock.Iso();
         a.UpdatedBy = Actor;
 
+        audit.Record("Vacancy", "about", "update", "Karyera Mini App \"Biz haqimizda\" matni o'zgartirildi");
         await db.SaveChangesAsync();
         return ToDto(a);
     }
@@ -143,6 +144,7 @@ public class CareerController(AppDbContext db, CareerService career) : Controlle
         };
         Apply(v, p);
         db.Vacancies.Add(v);
+        audit.Record("Vacancy", v.Id, "create", $"Vakansiya qo'shildi: {v.Title}");
         await db.SaveChangesAsync();
         return ToDto(v, 0, 0);
     }
@@ -157,6 +159,7 @@ public class CareerController(AppDbContext db, CareerService career) : Controlle
         if (v is null) return NotFound(new { message = "Vakansiya topilmadi" });
 
         Apply(v, p);
+        audit.Record("Vacancy", v.Id, "update", $"Vakansiya tahrirlandi: {v.Title}");
         await db.SaveChangesAsync();
         return await WithCountsAsync(v);
     }
@@ -171,6 +174,7 @@ public class CareerController(AppDbContext db, CareerService career) : Controlle
         v.Status = "archived";
         v.ArchivedAt = AppClock.Iso();
         v.ArchivedBy = Actor;
+        audit.Record("Vacancy", v.Id, "update", $"Vakansiya arxivlandi: {v.Title}");
         await db.SaveChangesAsync();
         return await WithCountsAsync(v);
     }
@@ -185,6 +189,7 @@ public class CareerController(AppDbContext db, CareerService career) : Controlle
         v.Status = "active";
         v.ArchivedAt = "";
         v.ArchivedBy = "";
+        audit.Record("Vacancy", v.Id, "update", $"Vakansiya arxivdan qaytarildi: {v.Title}");
         await db.SaveChangesAsync();
         return await WithCountsAsync(v);
     }
@@ -199,6 +204,7 @@ public class CareerController(AppDbContext db, CareerService career) : Controlle
         if (await db.JobApplications.AnyAsync(a => a.VacancyId == id))
             return BadRequest(new { message = "Bu vakansiyaga arizalar tushgan — uni o'chirib bo'lmaydi, arxivlang." });
 
+        audit.Record("Vacancy", v.Id, "delete", $"Vakansiya o'chirildi: {v.Title}");
         db.Vacancies.Remove(v);
         await db.SaveChangesAsync();
         return NoContent();
@@ -299,7 +305,12 @@ public class CareerController(AppDbContext db, CareerService career) : Controlle
         var note = (p.Note ?? "").Trim();
         if (note.Length > 2000) note = note[..2000];
 
+        var oldStatus = a.Status;
         await career.SetStatusAsync(db, a, p.Status, note, Actor);
+        audit.Record("JobApplication", a.Id, "update",
+            $"Ariza #{a.Number} bosqichi: {CareerService.StageOf(oldStatus).Label} → " +
+            $"{CareerService.StageOf(a.Status).Label} ({a.FullName})" +
+            (note.Length > 0 ? $" — izoh: {note}" : ""));
         await db.SaveChangesAsync();
         return ToDto(a, null);
     }
@@ -312,6 +323,7 @@ public class CareerController(AppDbContext db, CareerService career) : Controlle
         if (a is null) return NotFound(new { message = "Ariza topilmadi" });
 
         a.AdminNote = Trim(p.AdminNote, 4000);
+        audit.Record("JobApplication", a.Id, "update", $"Ariza #{a.Number} ichki izohi o'zgartirildi ({a.FullName})");
         await db.SaveChangesAsync();
         return ToDto(a, null);
     }
@@ -325,6 +337,7 @@ public class CareerController(AppDbContext db, CareerService career) : Controlle
 
         var events = await db.JobApplicationEvents.Where(e => e.ApplicationId == id).ToListAsync();
         db.JobApplicationEvents.RemoveRange(events);
+        audit.Record("JobApplication", a.Id, "delete", $"Ariza o'chirildi: #{a.Number} ({a.FullName})");
         db.JobApplications.Remove(a);
         await db.SaveChangesAsync();
         return NoContent();

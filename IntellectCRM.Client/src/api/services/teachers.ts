@@ -67,6 +67,21 @@ export async function updateTeacher(id: string, payload: TeacherPayload): Promis
   return data
 }
 
+/**
+ * O'qituvchi rasmini (profil surati) o'rnatadi yoki o'chiradi (`null`).
+ *
+ * <p>ALOHIDA endpoint — o'quvchidagi `updateStudentPhoto` bilan bir xil sabab: avatarni bosib
+ * rasm almashtirilganda to'liq `PUT /teachers/{id}` yuborilsa maosh, toifa, fanlar va ruxsatlar
+ * tasodifan bo'shab qolardi.</p>
+ */
+export async function updateTeacherPhoto(id: string, photoUrl: string | null): Promise<void> {
+  if (USE_MOCK) {
+    await delay(200)
+    return
+  }
+  await api.put(`/admin/teachers/${id}/photo`, { photoUrl })
+}
+
 export async function deleteTeacher(id: string, reasonId?: string): Promise<void> {
   if (USE_MOCK) {
     await delay(200)

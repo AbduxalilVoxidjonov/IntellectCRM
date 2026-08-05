@@ -9,6 +9,13 @@ interface Props {
   filters: AuditFilters
   /** Bo'sh bo'lganda ko'rsatiladigan matn */
   emptyLabel?: string
+  /**
+   * Har qatorda BO'LIM yorlig'ini ko'rsatish (umumiy tarix sahifasi uchun). O'quvchi/guruh
+   * sahifasidagi tarixda kerak emas — u yerda bo'lim baribir ma'lum.
+   */
+  sectionLabels?: Record<string, string>
+  /** Yuklab bo'lingach chaqiriladi — sahifa "Ko'proq" tugmasini shu songa qarab ko'rsatadi. */
+  onLoaded?: (count: number) => void
 }
 
 const actionConfig: Record<AuditAction, { label: string; cls: string }> = {
@@ -118,7 +125,12 @@ function SnapshotDetail({ before, after }: { before?: string; after?: string }) 
   )
 }
 
-export function AuditHistoryList({ filters, emptyLabel = "O'zgarishlar tarixi yo'q" }: Props) {
+export function AuditHistoryList({
+  filters,
+  emptyLabel = "O'zgarishlar tarixi yo'q",
+  sectionLabels,
+  onLoaded,
+}: Props) {
   const [logs, setLogs] = useState<AuditLog[]>([])
   const [loading, setLoading] = useState(true)
   const [openId, setOpenId] = useState<string | null>(null)
@@ -130,7 +142,9 @@ export function AuditHistoryList({ filters, emptyLabel = "O'zgarishlar tarixi yo
     setLoading(true)
     getAuditLogs(filters)
       .then((data) => {
-        if (active) setLogs(data)
+        if (!active) return
+        setLogs(data)
+        onLoaded?.(data.length)
       })
       .finally(() => {
         if (active) setLoading(false)
@@ -163,6 +177,11 @@ export function AuditHistoryList({ filters, emptyLabel = "O'zgarishlar tarixi yo
                   <span className={cn('rounded-md px-2 py-0.5 text-xs font-medium', cfg.cls)}>
                     {cfg.label}
                   </span>
+                  {sectionLabels && (
+                    <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
+                      {sectionLabels[log.section ?? 'other'] ?? log.entityType}
+                    </span>
+                  )}
                   <span className="text-sm text-slate-700">{log.summary}</span>
                 </div>
                 <p className="mt-0.5 text-xs text-slate-400">

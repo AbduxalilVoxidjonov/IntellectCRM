@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using IntellectCRM.Infrastructure.Auth;
@@ -17,6 +17,39 @@ public class TeachersController(AppDbContext db, AuditService audit, IConfigurat
 {
     private const int MinPasswordLength = 8;
     private const string WeakPasswordMessage = "Parol kamida 8 belgidan iborat bo'lsin";
+
+    /// <summary>
+    /// O'QITUVCHI RASMINI (profil surati) o'rnatish yoki o'chirish.
+    ///
+    /// <para>O'quvchidagi <c>PUT students/{id}/photo</c> bilan AYNAN bir xil yo'l va shu sababdan:
+    /// rasm o'qituvchi sahifasidagi DUMALOQ avatarni bosib (kameradan yoki fayldan) yuklanadi,
+    /// u yerda esa to'liq <c>TeacherPayload</c> yo'q — to'liq PUT yuborilsa maosh, toifa, fanlar,
+    /// ruxsatlar tasodifan bo'shab qolardi. Shu sabab faqat bitta maydonga tegadigan yengil yo'l.</para>
+    ///
+    /// <para>Tekshiruvlar ham o'quvchinikidek: faqat serverning O'Z yuklamasi (<c>/uploads/</c>) va
+    /// faqat rasm kengaytmasi (<c>UploadGuard.PhotoExtensions</c>) — tashqi havola yoki `.pdf`
+    /// skan avatar bo'lib qo'yilmasin.</para>
+    /// </summary>
+    [HttpPut("{id}/photo")]
+    public async Task<IActionResult> SetPhoto(string id, TeacherPhotoRequest req)
+    {
+        var teacher = await db.Teachers.FindAsync(id);
+        if (teacher is null) return NotFound();
+
+        var url = (req.PhotoUrl ?? "").Trim();
+        if (url.Length > 0 && !url.StartsWith("/uploads/", StringComparison.Ordinal))
+            return BadRequest(new { message = "Rasm manzili noto'g'ri" });
+        if (url.Length > 0 && !Application.Services.UploadGuard.IsPhotoUrl(url))
+            return BadRequest(new { message = "Surat faqat JPG yoki PNG bo'lishi kerak" });
+
+        teacher.PhotoUrl = url.Length == 0 ? null : url;
+        audit.Record(AuditService.EntityTeacherSalary, id, "update",
+            url.Length == 0 ? $"O'qituvchi rasmi o'chirildi: {teacher.FullName}"
+                            : $"O'qituvchi rasmi yangilandi: {teacher.FullName}",
+            teacherId: id);
+        await db.SaveChangesAsync();
+        return Ok(new { photoUrl = teacher.PhotoUrl });
+    }
 
     /// <summary>
     /// Faol (arxivlanmagan) o'qituvchilar. <paramref name="includeArchived"/>=true bo'lsa hammasi.

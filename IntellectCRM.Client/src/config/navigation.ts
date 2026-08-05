@@ -175,21 +175,25 @@ export const navByRole: Record<Role, NavItem[]> = {
       ],
     },
     {
+      // DIQQAT: guruhning O'ZIDA `perm` YO'Q — u ATAYIN bolalarga ko'chirilgan. Sabab:
+      // "O'zgarishlar tarixi" boshqa ruxsat (`audit`) bilan ishlaydi, guruhda `perm: 'settings'`
+      // qolsa faqat `audit` berilgan xodim uni umuman ko'rmasdi. Sidebar bolalari qolmagan
+      // guruhni o'zi yashiradi (filterNav), ya'ni ruxsatsiz xodimga guruh baribir ko'rinmaydi.
       label: 'Sozlamalar',
       to: '/admin/settings/school',
       icon: Settings,
-      perm: 'settings',
       children: [
-        { label: "Markaz ma'lumotlari", to: '/admin/settings/school' },
-        { label: 'Tuman va maktablar', to: '/admin/districts' },
-        { label: 'Xabar kanallari', to: '/admin/settings/channels' },
-        { label: 'Zaxira nusxa', to: '/admin/settings/backup' },
-        { label: 'Mobil ilova (APK)', to: '/admin/settings/apk' },
-        { label: 'Speaking (Azure)', to: '/admin/settings/azure-speech' },
-        { label: 'AI Tahlil (Gemini)', to: '/admin/settings/gemini' },
-        { label: "To'lov cheki", to: '/admin/settings/check' },
-        { label: 'Turniket integratsiya', to: '/admin/settings/turnstile' },
-        { label: 'Kamera integratsiya', to: '/admin/settings/cameras' },
+        { label: "Markaz ma'lumotlari", to: '/admin/settings/school', perm: 'settings' },
+        { label: 'Tuman va maktablar', to: '/admin/districts', perm: 'settings' },
+        { label: 'Xabar kanallari', to: '/admin/settings/channels', perm: 'settings' },
+        { label: 'Zaxira nusxa', to: '/admin/settings/backup', perm: 'settings' },
+        { label: 'Mobil ilova (APK)', to: '/admin/settings/apk', perm: 'settings' },
+        { label: 'Speaking (Azure)', to: '/admin/settings/azure-speech', perm: 'settings' },
+        { label: 'AI Tahlil (Gemini)', to: '/admin/settings/gemini', perm: 'settings' },
+        { label: "To'lov cheki", to: '/admin/settings/check', perm: 'settings' },
+        { label: 'Turniket integratsiya', to: '/admin/settings/turnstile', perm: 'settings' },
+        { label: 'Kamera integratsiya', to: '/admin/settings/cameras', perm: 'settings' },
+        { label: "O'zgarishlar tarixi", to: '/admin/settings/history', perm: 'audit' },
       ],
     },
     { label: 'Arxiv', to: '/admin/archive', icon: Archive, perm: 'settings' },

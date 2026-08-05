@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using IntellectCRM.Infrastructure.Data;
@@ -18,11 +18,18 @@ public class SubjectsController(AppDbContext db, AuditService audit) : Controlle
     public async Task<ActionResult<IEnumerable<Subject>>> GetAll() =>
         await db.Subjects.OrderBy(s => s.Name).ToListAsync();
 
+    /// <summary>Tarixdagi tur nomi — "Kurslar" bo'limiga tushadi (<c>AuditSections</c>).
+    /// Ilgari kurs narxi <c>ClassFee</c> deb yozilar va tarixda "Guruhlar"ga tushib ketardi;
+    /// ESKI yozuvlar o'sha joyda qoladi (bazadagi qatorlar qayta yozilmaydi).</summary>
+    private const string AuditCourse = "Course";
+
     [HttpPost]
     public async Task<ActionResult<Subject>> Create(SubjectPayload payload)
     {
         var subject = new Subject { Name = payload.Name, Price = payload.Price, LessonPrice = payload.LessonPrice };
         db.Subjects.Add(subject);
+        audit.Record(AuditCourse, subject.Id, "create",
+            $"Kurs qo'shildi: {subject.Name} — {AuditService.Money(subject.Price)} so'm/oy");
         await db.SaveChangesAsync();
         return subject;
     }
@@ -62,9 +69,14 @@ public class SubjectsController(AppDbContext db, AuditService audit) : Controlle
             summary += applyFee
                 ? $", joriy oydan {appliedTotal} o'quvchiga qo'llandi"
                 : ", keyingi oydan amal qiladi";
-            audit.Record(AuditService.EntityClassFee, subject.Id, "update", summary,
+            audit.Record(AuditCourse, subject.Id, "update", summary,
                 before: new { Price = oldPrice, subject.Name }, after: new { subject.Price, subject.Name });
         }
+
+        if (oldName != payload.Name)
+            audit.Record(AuditCourse, subject.Id, "update",
+                $"Kurs nomi o'zgartirildi: {oldName} → {payload.Name}",
+                before: new { Name = oldName }, after: new { subject.Name });
 
         await db.SaveChangesAsync();
 
@@ -85,6 +97,7 @@ public class SubjectsController(AppDbContext db, AuditService audit) : Controlle
         if (subject is null) return NotFound();
         // O'quv dasturlari mustaqil (Curriculum) — o'chirilmaydi, faqat biriktirilgan holat tozalanadi.
         await db.SubjectCurricula.Where(sc => sc.SubjectId == id).ExecuteDeleteAsync();
+        audit.Record(AuditCourse, subject.Id, "delete", $"Kurs o'chirildi: {subject.Name}");
         db.Subjects.Remove(subject);
         await db.SaveChangesAsync();
         return NoContent();

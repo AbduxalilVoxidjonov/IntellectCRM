@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { Check, Pencil, Users, Wallet, X } from 'lucide-react'
 import type { MonthStatus, Student, StudentLedger } from '@/types'
 import { getStudentLedger, editStudentCharge, getStudent, addPayment } from '@/api/services/students'
 import { useAuth } from '@/context/auth-context'
+import { usePerm } from '@/lib/permissions'
 import { Button } from '@/components/ui/Button'
 import { Loader } from '@/components/ui/Loader'
 import { AuditHistoryList } from '@/components/audit/AuditHistoryList'
@@ -27,6 +28,8 @@ const statusStyles: Record<MonthStatus, string> = {
  *  `PaymentHistoryModal` (modal ichida) va `StudentDetailPage`ning "To'lov tarixi" tabida (inline) ishlatiladi. */
 export function PaymentHistoryPanel({ studentId, onPaid }: Props) {
   const { user } = useAuth()
+  // O'zgarishlar tarixi — alohida `audit` ruxsati (admin/superadmin uchun har doim true).
+  const canSeeAudit = usePerm().can('audit', 'view')
   const isSuper = user?.role === 'superadmin'
   const [ledger, setLedger] = useState<StudentLedger | null>(null)
   const [loading, setLoading] = useState(false)
@@ -339,14 +342,16 @@ export function PaymentHistoryPanel({ studentId, onPaid }: Props) {
           )}
         </div>
 
-        {/* O'zgarishlar tarixi (audit) */}
-        <div>
-          <p className="mb-2 text-sm font-medium text-slate-600">O'zgarishlar tarixi</p>
-          <AuditHistoryList
-            filters={{ studentId: ledger.student.id }}
-            emptyLabel="To'lovlar bo'yicha o'zgarishlar yo'q"
-          />
-        </div>
+        {/* O'zgarishlar tarixi (audit) — `audit` ruxsati bilan */}
+        {canSeeAudit && (
+          <div>
+            <p className="mb-2 text-sm font-medium text-slate-600">O'zgarishlar tarixi</p>
+            <AuditHistoryList
+              filters={{ studentId: ledger.student.id }}
+              emptyLabel="To'lovlar bo'yicha o'zgarishlar yo'q"
+            />
+          </div>
+        )}
       </div>
 
       <PaymentModal student={payTarget} onClose={() => setPayTarget(null)} onSubmit={handlePayment} />

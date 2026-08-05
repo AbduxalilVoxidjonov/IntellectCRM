@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from 'react'
+﻿import { Fragment, useEffect, useState } from 'react'
 import { ChevronRight, Info } from 'lucide-react'
 import type { MonthStatus, SalaryLedger, SalaryReportRow } from '@/types'
 import { getSalaryLedger } from '@/api/services/teachers'
@@ -7,6 +7,7 @@ import { Loader } from '@/components/ui/Loader'
 import { Badge } from '@/components/ui/Badge'
 import type { BadgeTone } from '@/components/ui/Badge'
 import { AuditHistoryList } from '@/components/audit/AuditHistoryList'
+import { usePerm } from '@/lib/permissions'
 import { formatDate, formatMoney, cn } from '@/lib/utils'
 import { formatMonth, monthStatusLabels } from '@/config/constants'
 
@@ -24,6 +25,8 @@ const statusTones: Record<MonthStatus, BadgeTone> = {
 }
 
 export function TeacherSalaryDetailModal({ teacher, from, to, onClose }: Props) {
+  // O'zgarishlar tarixi — alohida `audit` ruxsati (admin/superadmin uchun har doim true).
+  const canSeeAudit = usePerm().can('audit', 'view')
   const [ledger, setLedger] = useState<SalaryLedger | null>(null)
   const [loading, setLoading] = useState(false)
   /** Ushlanma sababi ochilgan oy ("YYYY-MM") */
@@ -261,14 +264,16 @@ export function TeacherSalaryDetailModal({ teacher, from, to, onClose }: Props) 
             )}
           </div>
 
-          {/* O'zgarishlar tarixi */}
-          <div>
-            <p className="mb-2 text-sm font-medium text-slate-600">O'zgarishlar tarixi</p>
-            <AuditHistoryList
-              filters={{ teacherId: ledger.teacherId }}
-              emptyLabel="Maosh bo'yicha o'zgarishlar yo'q"
-            />
-          </div>
+          {/* O'zgarishlar tarixi — `audit` ruxsati bilan */}
+          {canSeeAudit && (
+            <div>
+              <p className="mb-2 text-sm font-medium text-slate-600">O'zgarishlar tarixi</p>
+              <AuditHistoryList
+                filters={{ teacherId: ledger.teacherId }}
+                emptyLabel="Maosh bo'yicha o'zgarishlar yo'q"
+              />
+            </div>
+          )}
         </div>
       )}
     </Modal>

@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using IntellectCRM.Infrastructure.Data;
@@ -29,7 +29,7 @@ namespace IntellectCRM.Server.Controllers;
 [AdminPerm("contracts", ReadRequiresPerm = true)]
 [Route("api/admin/contracts")]
 public class ContractsController(
-    AppDbContext db, ContractService contracts, TelegramService telegram)
+    AppDbContext db, ContractService contracts, TelegramService telegram, AuditService audit)
     : ControllerBase
 {
     private const string DocxMime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
@@ -60,6 +60,7 @@ public class ContractsController(
             FieldsJson = SerializeFields(req.Fields),
         };
         db.ContractTemplates.Add(tpl);
+        audit.Record("Contract", tpl.Id, "create", $"Shartnoma andozasi qo'shildi: {tpl.Name}");
         await db.SaveChangesAsync();
         return ToDto(tpl);
     }
@@ -77,6 +78,7 @@ public class ContractsController(
         tpl.Name = (req.Name ?? "").Trim();
         tpl.Body = req.Body.Trim();
         tpl.FieldsJson = SerializeFields(req.Fields);
+        audit.Record("Contract", tpl.Id, "update", $"Shartnoma andozasi tahrirlandi: {tpl.Name}");
         await db.SaveChangesAsync();
         return ToDto(tpl);
     }
@@ -86,6 +88,7 @@ public class ContractsController(
     {
         var tpl = await db.ContractTemplates.FindAsync(id);
         if (tpl is null) return NotFound();
+        audit.Record("Contract", tpl.Id, "delete", $"Shartnoma andozasi o'chirildi: {tpl.Name}");
         db.ContractTemplates.Remove(tpl);
         await db.SaveChangesAsync();
         return NoContent();
@@ -343,6 +346,9 @@ public class ContractsController(
         // Eski nusxa almashtirilsa — diskda axlat qolmasin.
         if (!string.IsNullOrEmpty(c.PdfUrl) && c.PdfUrl != url) contracts.DeleteUpload(c.PdfUrl);
         c.PdfUrl = url;
+        // MANZIL yozilmaydi — tarixni ko'rgan har kim `/uploads/...` havolasini olib qo'ymasin
+        // (qarang: .claude/rules/uploads-security.md).
+        audit.Record("Contract", c.Id, "update", $"Shartnomaga PDF nusxa biriktirildi: #{c.Number}");
         await db.SaveChangesAsync();
         return ContractService.ToDoc(c);
     }
@@ -354,6 +360,8 @@ public class ContractsController(
         var c = await db.Contracts.FindAsync(id);
         if (c is null) return NotFound();
         c.Visible = req.Visible;
+        audit.Record("Contract", c.Id, "update",
+            $"Shartnoma #{c.Number} oluvchi ilovasida " + (req.Visible ? "KO'RSATILDI" : "YASHIRILDI"));
         await db.SaveChangesAsync();
         return ContractService.ToDoc(c);
     }
@@ -366,6 +374,7 @@ public class ContractsController(
         if (c is null) return NotFound();
         contracts.DeleteUpload(c.PdfUrl);
         contracts.DeleteUpload(c.DocxUrl);
+        audit.Record("Contract", c.Id, "delete", $"Shartnoma o'chirildi: #{c.Number}");
         db.Contracts.Remove(c);
         await db.SaveChangesAsync();
         return NoContent();

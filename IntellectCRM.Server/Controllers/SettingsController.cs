@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using IntellectCRM.Infrastructure.Data;
@@ -12,8 +12,30 @@ namespace IntellectCRM.Server.Controllers;
 [Authorize]
 [AdminPerm("settings")]
 [Route("api/admin/settings")]
-public class SettingsController(AppDbContext db, TelegramService telegram, IWebHostEnvironment env, IConfiguration config, EskizService eskiz) : ControllerBase
+public class SettingsController(AppDbContext db, TelegramService telegram, IWebHostEnvironment env, IConfiguration config, EskizService eskiz, AuditService audit) : ControllerBase
 {
+    /// <summary>
+    /// Sozlama o'zgarishini "O'zgarishlar tarixi"ga yozadi (bo'lim: <b>Sozlamalar</b>).
+    ///
+    /// <para>O'zgargan MAYDONLAR ro'yxatini EF ChangeTracker'dan o'zi oladi — har bir endpointda
+    /// qo'lda sanab o'tirmaslik uchun. Shu sababdan <c>SaveChangesAsync</c> dan <b>OLDIN</b>
+    /// chaqirilishi SHART: saqlangandan keyin "o'zgargan" belgisi tozalanadi va ro'yxat bo'sh chiqadi.
+    /// Yozuvning o'zi ham o'sha SaveChanges bilan birga saqlanadi (audit alohida saqlamaydi).</para>
+    ///
+    /// <para>Maxfiy qiymatlar (bot tokeni, API kalitlari) bazada UMUMAN saqlanmaydi — ular
+    /// <c>.env</c> da (qarang: CLAUDE.md "KALITLAR"), demak bu yerga ham tushmaydi. Baribir
+    /// ehtiyot uchun faqat maydon NOMLARI yoziladi, qiymatlari emas.</para>
+    /// </summary>
+    private void LogSettings(string what)
+    {
+        var changed = db.ChangeTracker.Entries<CenterMeta>()
+            .SelectMany(e => e.Properties.Where(p => e.State == EntityState.Added || p.IsModified))
+            .Select(p => p.Metadata.Name)
+            .Distinct().Order().ToList();
+        var detail = changed.Count > 0 ? $" ({string.Join(", ", changed)})" : "";
+        audit.Record("CenterMeta", "center", "update", $"Sozlama o'zgartirildi — {what}{detail}");
+    }
+
     [HttpGet]
     public async Task<ActionResult<SchoolSettingsDto>> Get()
     {
@@ -49,6 +71,7 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
         m.Address = req.Address;
         m.Region = req.Region;
         m.District = req.District;
+        LogSettings("Markaz ma'lumotlari");
         await db.SaveChangesAsync();
         return NoContent();
     }
@@ -69,6 +92,7 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
         var m = await db.CenterMeta.FirstOrDefaultAsync();
         if (m is null) { m = new CenterMeta(); db.CenterMeta.Add(m); }
         m.LogoUrl = $"/uploads/{stored}";
+        LogSettings("Markaz logotipi yuklandi");
         await db.SaveChangesAsync();
         return await GetSchool();
     }
@@ -78,7 +102,12 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
     public async Task<ActionResult<SchoolInfoDto>> DeleteLogo()
     {
         var m = await db.CenterMeta.FirstOrDefaultAsync();
-        if (m is not null) { m.LogoUrl = ""; await db.SaveChangesAsync(); }
+        if (m is not null)
+        {
+            m.LogoUrl = "";
+            LogSettings("Markaz logotipi o'chirildi");
+            await db.SaveChangesAsync();
+        }
         return await GetSchool();
     }
 
@@ -118,6 +147,7 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
         m.TelegramBotName = (req.BotName ?? "").Trim();
         m.TelegramChannel = (req.Channel ?? "").Trim();
         m.TelegramPhoneMatchField = req.PhoneMatchField is "student" ? "student" : "parent";
+        LogSettings("Telegram bot");
         await db.SaveChangesAsync();
 
         // Ishlab turgan xizmat (va bot) darrov yangi nomni ishlatishi uchun keshni yangilaymiz.
@@ -184,6 +214,7 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
         m.BackupScheduleHour = req.ScheduleHour;
         m.BackupScheduleMinute = req.ScheduleMinute;
         m.TelegramBackupEnabled = req.Enabled;
+        LogSettings("Zaxira nusxa (Telegram)");
         await db.SaveChangesAsync();
 
         return new TelegramBackupConfigDto(
@@ -226,6 +257,7 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
         if (m is null) { m = new CenterMeta(); db.CenterMeta.Add(m); }
         m.FcmWebConfigJson = web;
         m.FcmVapidKey = vapid;
+        LogSettings("Push (Firebase)");
         await db.SaveChangesAsync();
         return await GetFirebase();
     }
@@ -298,6 +330,7 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
         var m = await db.CenterMeta.FirstOrDefaultAsync();
         if (m is null) { m = new CenterMeta(); db.CenterMeta.Add(m); }
         m.CheckSettings = (req.Json ?? "").Trim();
+        LogSettings("To'lov cheki");
         await db.SaveChangesAsync();
         return new CheckSettingsDto(m.CheckSettings);
     }
@@ -327,6 +360,7 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
         var m = await db.CenterMeta.FirstOrDefaultAsync();
         if (m is null) { m = new CenterMeta(); db.CenterMeta.Add(m); }
         if (req.From is not null) m.EskizFrom = string.IsNullOrWhiteSpace(req.From) ? "4546" : req.From.Trim();
+        LogSettings("SMS (Eskiz)");
         await db.SaveChangesAsync();
         return await GetEskiz();
     }
@@ -354,6 +388,7 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
         m.LocalSmsEnabled = req.Enabled;
         m.LocalSmsDefaultAgentId = string.IsNullOrWhiteSpace(req.DefaultAgentId) ? null : req.DefaultAgentId;
         m.LocalSmsDelaySeconds = req.DelaySeconds;
+        LogSettings("Local SMS");
         await db.SaveChangesAsync();
         return new LocalSmsSettingsDto(m.LocalSmsEnabled, m.LocalSmsDefaultAgentId, m.LocalSmsDelaySeconds);
     }
@@ -401,6 +436,7 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
             DeleteApk(m.TeacherApkPath);
             m.TeacherApkName = name; m.TeacherApkPath = relPath; m.TeacherApkFileId = "";
         }
+        LogSettings("Mobil ilova (APK) yuklandi");
         await db.SaveChangesAsync();
         return AppApkDto(m);
     }
@@ -422,6 +458,7 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
             DeleteApk(m.TeacherApkPath);
             m.TeacherApkName = ""; m.TeacherApkPath = ""; m.TeacherApkFileId = "";
         }
+        LogSettings("Mobil ilova (APK) o'chirildi");
         await db.SaveChangesAsync();
         return AppApkDto(m);
     }
@@ -492,6 +529,7 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
                 if (byId.TryGetValue(map.TeacherId, out var te))
                     te.DeviceUserId = (map.DeviceUserId ?? "").Trim();
         }
+        LogSettings("Turniket integratsiyasi");
         await db.SaveChangesAsync();
         return await GetTurnstile();
     }
@@ -512,6 +550,7 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
         var m = await db.CenterMeta.FirstOrDefaultAsync();
         if (m is null) { m = new CenterMeta(); db.CenterMeta.Add(m); }
         m.CameraEnabled = req.Enabled;
+        LogSettings("Kamera integratsiyasi");
         await db.SaveChangesAsync();
         return await GetCameras();
     }
@@ -559,6 +598,7 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
             IsLate = r.IsLate,
             Points = oldPoints.GetValueOrDefault(r.Id, 0),
         }));
+        LogSettings("Davomat sabablari");
         await db.SaveChangesAsync();
         return NoContent();
     }
@@ -581,6 +621,7 @@ public class SettingsController(AppDbContext db, TelegramService telegram, IWebH
                 Id = string.IsNullOrWhiteSpace(t.Id) ? Guid.NewGuid().ToString() : t.Id,
                 Name = t.Name.Trim(),
             }));
+        LogSettings("Topshiriq turlari");
         await db.SaveChangesAsync();
         return NoContent();
     }

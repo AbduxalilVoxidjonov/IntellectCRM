@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
+import { Camera } from 'lucide-react'
 import type { Subject, Teacher } from '@/types'
 import type { TeacherPayload } from '@/api/services/teachers'
 import { Modal } from '@/components/ui/Modal'
@@ -6,6 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { Input, Select } from '@/components/ui/Input'
 import { PhoneInput } from '@/components/ui/PhoneInput'
 import { PhotoUpload } from '@/components/ui/PhotoUpload'
+import { PhotoDialog } from '@/components/media/PhotoDialog'
 import { genderOptions, teacherPermissions } from '@/config/constants'
 import { cn, randomPassword } from '@/lib/utils'
 
@@ -39,6 +41,8 @@ const empty: TeacherPayload = {
 
 export function TeacherFormModal({ open, onClose, onSubmit, initial, subjects }: Props) {
   const [form, setForm] = useState<TeacherPayload>(empty)
+  /** «Kameradan olish» oynasi (o'quvchi formasidagi bilan bir xil komponent). */
+  const [photoOpen, setPhotoOpen] = useState(false)
 
   useEffect(() => {
     if (!open) return
@@ -116,11 +120,21 @@ export function TeacherFormModal({ open, onClose, onSubmit, initial, subjects }:
           value={form.fullName}
           onChange={(e) => update('fullName', e.target.value)}
         />
-        <PhotoUpload
-          label="O'qituvchi rasmi"
-          value={form.photoUrl ?? null}
-          onChange={(url) => update('photoUrl', url)}
-        />
+        <div>
+          <PhotoUpload
+            label="O'qituvchi rasmi"
+            value={form.photoUrl ?? null}
+            onChange={(url) => update('photoUrl', url)}
+          />
+          {/* KAMERADAN olish — o'quvchi formasidagi bilan AYNAN bir xil (bitta PhotoDialog). */}
+          <button
+            type="button"
+            onClick={() => setPhotoOpen(true)}
+            className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-medium text-brand-600 hover:underline"
+          >
+            <Camera className="h-3.5 w-3.5" /> Kameradan olish
+          </button>
+        </div>
         <div className="grid grid-cols-2 gap-4">
           <Input
             label="Tug'ilgan kun"
@@ -267,6 +281,18 @@ export function TeacherFormModal({ open, onClose, onSubmit, initial, subjects }:
           </div>
         )}
       </form>
+
+      {/* Rasm oynasi — FAQAT faylni yuklaydi va manzilni qaytaradi; bazaga forma saqlanganda
+          umumiy payload bilan tushadi (o'quvchi formasidagi bilan bir xil qoida). */}
+      <PhotoDialog
+        open={photoOpen}
+        currentUrl={form.photoUrl ?? null}
+        startWithCamera
+        title="O'qituvchi rasmi"
+        hint="Doira ichidagi qism o'qituvchi profilida dumaloq avatar bo'lib chiqadi."
+        onClose={() => setPhotoOpen(false)}
+        onSaved={(url) => update('photoUrl', url)}
+      />
     </Modal>
   )
 }

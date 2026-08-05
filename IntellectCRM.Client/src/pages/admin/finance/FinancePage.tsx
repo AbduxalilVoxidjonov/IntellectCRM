@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+﻿import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import type { LucideIcon } from 'lucide-react'
 import { Plus, Pencil, Trash2, Download, TrendingUp, TrendingDown, Wallet, AlertCircle, Calculator, History, Inbox, Percent, Search, Receipt, Undo2, Banknote, Users, Award } from 'lucide-react'
@@ -124,6 +124,8 @@ export function FinancePage() {
   const { user } = useAuth()
   const isSuper = user?.role === 'superadmin'
   const { can } = usePerm()
+  // O'zgarishlar tarixi — alohida `audit` ruxsati (admin/superadmin uchun har doim true).
+  const canSeeAudit = can('audit', 'view')
   const navigate = useNavigate()
   const [tab, setTab] = useState<Tab>('overview')
   const [from, setFrom] = useState(`${yearOf(todayStr)}-01-01`)
@@ -485,12 +487,14 @@ export function FinancePage() {
         sub="Markaz kirim-chiqimlari va hisobotlar"
         actions={
           <>
-            <Button
-              variant="secondary"
-              onClick={() => setAudit({ filters: {}, title: "Moliya o'zgarishlar tarixi" })}
-            >
-              <History className="h-4 w-4" /> Tarix
-            </Button>
+            {can('audit', 'view') && (
+              <Button
+                variant="secondary"
+                onClick={() => setAudit({ filters: {}, title: "Moliya o'zgarishlar tarixi" })}
+              >
+                <History className="h-4 w-4" /> Tarix
+              </Button>
+            )}
             <Button variant="secondary" onClick={handleAccrue}>
               <Calculator className="h-4 w-4" /> Oylik to'lovni hisoblash
             </Button>
@@ -707,19 +711,21 @@ export function FinancePage() {
                                   <Receipt className="h-4 w-4" />
                                 </button>
                               )}
-                              <button
-                                type="button"
-                                title="O'zgarishlar tarixi"
-                                onClick={() =>
-                                  setAudit({
-                                    filters: { entityType: 'FinanceTransaction', entityId: t.id },
-                                    title: 'Amal tarixi',
-                                  })
-                                }
-                                className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
-                              >
-                                <History className="h-4 w-4" />
-                              </button>
+                              {canSeeAudit && (
+                                <button
+                                  type="button"
+                                  title="O'zgarishlar tarixi"
+                                  onClick={() =>
+                                    setAudit({
+                                      filters: { entityType: 'FinanceTransaction', entityId: t.id },
+                                      title: 'Amal tarixi',
+                                    })
+                                  }
+                                  className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                                >
+                                  <History className="h-4 w-4" />
+                                </button>
+                              )}
                               {can('finance', 'edit') && (
                                 <button
                                   type="button"
@@ -886,6 +892,7 @@ export function FinancePage() {
                             {r.remaining < 0 ? `+${formatMoney(-r.remaining)}` : formatMoney(r.remaining)}
                           </td>
                           <td className="num">
+                            {canSeeAudit && (
                             <button
                               type="button"
                               title="O'zgarishlar tarixi"
@@ -897,6 +904,7 @@ export function FinancePage() {
                             >
                               <History className="h-4 w-4" />
                             </button>
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -1113,19 +1121,21 @@ export function FinancePage() {
                               >
                                 <Receipt className="h-4 w-4" />
                               </button>
-                              <button
-                                type="button"
-                                title="O'zgarishlar tarixi"
-                                onClick={() =>
-                                  setAudit({
-                                    filters: { entityType: 'FinanceTransaction', entityId: p.id },
-                                    title: "To'lov tarixi",
-                                  })
-                                }
-                                className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
-                              >
-                                <History className="h-4 w-4" />
-                              </button>
+                              {canSeeAudit && (
+                                <button
+                                  type="button"
+                                  title="O'zgarishlar tarixi"
+                                  onClick={() =>
+                                    setAudit({
+                                      filters: { entityType: 'FinanceTransaction', entityId: p.id },
+                                      title: "To'lov tarixi",
+                                    })
+                                  }
+                                  className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                                >
+                                  <History className="h-4 w-4" />
+                                </button>
+                              )}
                               {isSuper && can('finance', 'edit') && (
                                 <button
                                   type="button"
