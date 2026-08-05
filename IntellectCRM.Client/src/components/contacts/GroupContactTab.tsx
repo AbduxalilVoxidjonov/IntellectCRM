@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+﻿import { useEffect, useMemo, useState } from 'react'
 import { PhoneCall, CheckCircle2, Search } from 'lucide-react'
 import type { ContactBulkResult } from '@/api/services/contacts'
 import { Button } from '@/components/ui/Button'
@@ -28,6 +28,12 @@ const statusBadge: Record<string, { label: string; cls: string }> = {
  * <p>SANA SO'RALMAYDI — talab darhol navbatga tushadi (bugungi ish). Sabab va izoh
  * tanlanganlarning HAMMASIGA bir xil qo'yiladi; bitta o'quvchini qatordagi tugma bilan
  * ham yuborsa bo'ladi.</p>
+ *
+ * <p>⚠️ MUZLATILGAN o'quvchilar ro'yxatda KO'RINMAYDI. Jurnal ro'yxati ularni ham qaytaradi
+ * (alohida blokda), lekin ular darsga qatnamayapti — navbatga yuborish uchun nishon emas.
+ * Filtr shu yerda (komponent ichida): chaqiruv joyi ikkita (admin va o'qituvchi jurnali),
+ * ikkalasida ham qoida bir xil bo'lishi kerak va unutilib qolmasligi shart.
+ * SINOVDAGILAR QOLADI — aynan ular bilan bog'lanish ko'p kerak bo'ladi.</p>
  */
 export function GroupContactTab({
   students,
@@ -55,8 +61,10 @@ export function GroupContactTab({
   }, [])
 
   const filtered = useMemo(() => {
+    // Muzlatilganlar chiqarib tashlanadi (yuqoridagi izohga qarang).
+    const list = students.filter((s) => s.status !== 'frozen')
     const q = term.trim().toLowerCase()
-    return q ? students.filter((s) => s.fullName.toLowerCase().includes(q)) : students
+    return q ? list.filter((s) => s.fullName.toLowerCase().includes(q)) : list
   }, [students, term])
 
   const allSelected = filtered.length > 0 && filtered.every((s) => selected.has(s.id))
@@ -139,6 +147,7 @@ export function GroupContactTab({
       <p className="rounded-lg bg-sky-50 px-3 py-2 text-xs leading-relaxed text-sky-800">
         Tanlangan o'quvchilar <strong>bugungi sana bilan</strong> "Bog'lanish kerak" navbatiga
         tushadi — sana tanlash shart emas. Navbatda kim yuborgani ko'rinib turadi.
+        Muzlatilgan o'quvchilar bu ro'yxatda ko'rinmaydi.
       </p>
 
       {/* Amal paneli */}
