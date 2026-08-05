@@ -304,8 +304,6 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IntellectCRM.Application.Services.AuditService>();
 // Bog'lanish navbatiga qo'shish — admin va O'QITUVCHI controllerlari uchun yagona manba.
 builder.Services.AddScoped<IntellectCRM.Application.Services.ContactQueueService>();
-// Bog'lanish navbatiga qo'shish — admin va O'QITUVCHI controllerlari uchun yagona manba.
-builder.Services.AddScoped<IntellectCRM.Application.Services.ContactQueueService>();
 
 // Shartnoma andozasini (Word) to'ldirish xizmati
 builder.Services.AddScoped<IntellectCRM.Application.Services.ContractService>();
