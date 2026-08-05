@@ -5,7 +5,7 @@ import {
   User, Phone, Wallet, BookOpen, MapPin, Cake, CalendarPlus, Percent, IdCard,
   School, Clock, CalendarDays, ChevronRight, History, ListChecks, ChevronDown, Check,
   CalendarClock, Award, Download, LifeBuoy, Sparkles, Pencil, MessageSquare,
-  PhoneIncoming, PhoneOutgoing, PhoneMissed, PhoneCall,
+  PhoneIncoming, PhoneOutgoing, PhoneMissed, PhoneCall, MessageSquareText,
   Snowflake, CheckCircle2, RotateCcw, ArrowLeftRight, Plus, NotebookText, X,
   StickyNote, Trash2, Gift, Camera,
 } from 'lucide-react'
@@ -157,6 +157,7 @@ export function StudentDetailPage() {
   const [contacts, setContacts] = useState<ContactRequestItem[]>([])
   /** Ro'yxatni KO'RISH ruxsati — talab ochish (`create`) dan alohida. */
   const canSeeContacts = can('contacts', 'view')
+
   const [photoOpen, setPhotoOpen] = useState(false)
   /** To'lov cheki — to'lov kiritilgach shu tranzaksiya cheki ochiladi. */
   const [receiptTx, setReceiptTx] = useState<string | null>(null)
@@ -197,6 +198,45 @@ export function StudentDetailPage() {
   /** SMS tarixi (Eskiz + Local, ota-ona/o'quvchi raqamlari bo'yicha). */
   const [sms, setSms] = useState<StudentSms[]>([])
   const [smsLoading, setSmsLoading] = useState(true)
+
+  /**
+   * "Qo'ng'iroqlar tarixi" ARALASH lentasi: haqiqiy qo'ng'iroqlar (Local Call) va bog'lanish
+   * urinishlarida yozilgan javoblar BITTA vaqt o'qida.
+   *
+   * <p>Sabab: operator qo'ng'iroq qiladi, keyin navbatda "javobi nima dedi" ni yozadi — bular
+   * bitta hodisaning ikki tomoni. Ayri ro'yxatlarda ular bir-biridan uzoqda tushib qolar va
+   * "bu qo'ng'iroqda nima gaplashildi?" degan savol javobsiz qolardi.</p>
+   *
+   * <p>Faqat MATN yozilgan urinishlar qo'shiladi — bo'sh javob lentani suyultirardi.</p>
+   */
+  const contactEvents = useMemo(
+    () =>
+      contacts.flatMap((c) =>
+        (c.history ?? [])
+          .filter((h) => (h.type === 'contact' || h.type === 'note') && h.response)
+          .map((h) => ({
+            id: h.id,
+            at: h.createdAt,
+            resultLabel: h.resultLabel,
+            nextStatusLabel: h.nextStatusLabel,
+            reasonLabel: c.reasonLabel,
+            response: h.response,
+            actorName: h.actorName,
+            isNote: h.type === 'note',
+          })),
+      ),
+    [contacts],
+  )
+
+  /** Qo'ng'iroqlar + bog'lanish javoblari, eng yangisi tepada. */
+  const callFeed = useMemo(() => {
+    const items: { key: string; at: string; call?: StudentCall; note?: (typeof contactEvents)[number] }[] = [
+      ...calls.map((c) => ({ key: `call-${c.id}`, at: c.startedAt, call: c })),
+      ...contactEvents.map((e) => ({ key: `contact-${e.id}`, at: e.at, note: e })),
+    ]
+    // ISO satrlar — leksikografik solishtirish vaqt tartibini beradi (formatlar bir xil).
+    return items.sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0))
+  }, [calls, contactEvents])
   /** "Guruhlar" kartasi bosilganda — a'zolik boshqaruvi modali (muzlatish/aktivlashtirish/sinovga/almashtirish). */
   const [groupModal, setGroupModal] = useState<StudentGroupMembership | null>(null)
   const [groupActionDate, setGroupActionDate] = useState('')
@@ -1101,43 +1141,18 @@ export function StudentDetailPage() {
                     </p>
                   )}
 
-                  {/* HAR BIR BOG'LANISH URINISHI va unda yozilgan JAVOB — qo'ng'iroqlar tarixi
-                      bilan yonma-yon turadi: "kim qo'ng'iroq qildi" va "nima deyildi" bitta
-                      joyda ko'rinsin. Server bu endpointda tarixni ataylab qo'shib beradi. */}
-                  {(c.history ?? []).filter((h) => h.type === 'contact' || h.type === 'note').length > 0 ? (
-                    <ul className="mt-2 space-y-1.5 border-l-2 border-slate-100 pl-3">
-                      {(c.history ?? [])
-                        .filter((h) => h.type === 'contact' || h.type === 'note')
-                        .map((h) => (
-                          <li key={h.id} className="text-sm">
-                            <div className="flex flex-wrap items-center gap-1.5">
-                              {h.resultLabel ? (
-                                <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">
-                                  {h.resultLabel}
-                                </span>
-                              ) : (
-                                <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500">
-                                  Izoh
-                                </span>
-                              )}
-                              {h.nextStatusLabel && (
-                                <span className="text-xs text-slate-400">→ {h.nextStatusLabel}</span>
-                              )}
-                              <span className="text-xs text-slate-400">
-                                {formatDateTime(h.createdAt)}
-                                {h.actorName && ` · ${h.actorName}`}
-                              </span>
-                            </div>
-                            {h.response && <p className="text-slate-600">{h.response}</p>}
-                          </li>
-                        ))}
-                    </ul>
-                  ) : (
-                    <p className="mt-1 text-xs text-slate-400">
-                      Hali bog'lanilmagan — {formatDateTime(c.createdAt)}
-                      {c.createdBy && ` · ${c.createdBy} ochgan`}
-                    </p>
-                  )}
+                  {/* Javoblarning O'ZI pastdagi "Qo'ng'iroqlar tarixi" lentasida (qo'ng'iroqlar
+                      bilan bitta vaqt o'qida) — bu yerda TAKRORLANMAYDI, aks holda bir xil matn
+                      bitta tabda ikki marta chiqardi. Bu bo'lim "nima uchun va qaysi bosqichda"
+                      degan savolga javob beradi. */}
+                  <p className="mt-1 text-xs text-slate-400">
+                    {c.attemptCount > 0
+                      ? `Oxirgi harakat: ${formatDateTime(c.lastActionAt || c.createdAt)}`
+                      : `Hali bog'lanilmagan — ${formatDateTime(c.createdAt)}`}
+                    {c.attemptCount > 0
+                      ? c.lastActorName && ` · ${c.lastActorName}`
+                      : c.createdBy && ` · ${c.createdBy} ochgan`}
+                  </p>
                 </li>
               ))}
             </ul>
@@ -1150,13 +1165,46 @@ export function StudentDetailPage() {
       <Section title="Qo'ng'iroqlar tarixi" icon={PhoneCall}>
         {callsLoading ? (
           <Empty>Yuklanmoqda...</Empty>
-        ) : calls.length === 0 ? (
+        ) : callFeed.length === 0 ? (
           <Empty>Bu o'quvchiga hali qo'ng'iroq qilinmagan.</Empty>
         ) : (
           <div className="divide-y divide-slate-100">
-            {calls.map((c) => (
-              <StudentCallRow key={c.id} call={c} />
-            ))}
+            {/* Qo'ng'iroqlar va bog'lanish javoblari BITTA vaqt o'qida — "kim qo'ng'iroq qildi"
+                va "nima deyildi" yonma-yon tursin. */}
+            {callFeed.map((item) =>
+              item.call ? (
+                <StudentCallRow key={item.key} call={item.call} />
+              ) : (
+                <div key={item.key} className="flex gap-3 py-3">
+                  <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-600">
+                    <MessageSquareText className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="text-sm font-medium text-slate-700">
+                        {item.note!.isNote ? 'Izoh' : "Bog'lanildi"}
+                      </span>
+                      {item.note!.resultLabel && (
+                        <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">
+                          {item.note!.resultLabel}
+                        </span>
+                      )}
+                      {item.note!.nextStatusLabel && (
+                        <span className="text-xs text-slate-400">→ {item.note!.nextStatusLabel}</span>
+                      )}
+                      {item.note!.reasonLabel && (
+                        <span className="text-xs text-slate-400">· {item.note!.reasonLabel}</span>
+                      )}
+                    </div>
+                    <p className="mt-0.5 text-sm text-slate-600">{item.note!.response}</p>
+                    <p className="mt-0.5 text-xs text-slate-400">
+                      {formatDateTime(item.note!.at)}
+                      {item.note!.actorName && ` · ${item.note!.actorName}`}
+                    </p>
+                  </div>
+                </div>
+              ),
+            )}
           </div>
         )}
       </Section>

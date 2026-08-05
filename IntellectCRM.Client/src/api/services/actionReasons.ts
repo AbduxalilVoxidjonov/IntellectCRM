@@ -1,9 +1,21 @@
-import { api } from '../client'
+﻿import { api } from '../client'
 import type { ActionReason } from '@/types'
 
 /** Barcha amal sabablari (kategoriya bo'yicha tartiblangan). */
 export async function getActionReasons(): Promise<ActionReason[]> {
   const { data } = await api.get<ActionReason[]>('/admin/action-reasons')
+  return data
+}
+
+/**
+ * Serverda RUXSAT ETILGAN kategoriyalar kalitlari (tartibi bilan).
+ *
+ * "Sabablar" sahifasi kartochkalarni shundan quradi — backendga qo'shilgan yangi kategoriya
+ * UI'da o'z-o'zidan paydo bo'ladi (yorlig'i bo'lmasa kalit nomi bilan). Ilgari ro'yxat faqat
+ * frontendda edi va `contact`/`archive_student` sahifada UMUMAN ko'rinmasdi.
+ */
+export async function getActionReasonCategories(): Promise<string[]> {
+  const { data } = await api.get<string[]>('/admin/action-reasons/categories')
   return data
 }
 

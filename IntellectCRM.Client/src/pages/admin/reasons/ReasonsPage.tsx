@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Plus, Trash2, Check, UserX, Snowflake, RotateCcw, UserMinus, Users, Layers, GraduationCap, Briefcase, Wallet, Megaphone } from 'lucide-react'
+﻿import { useEffect, useMemo, useState } from 'react'
+import { Plus, Trash2, Check, UserX, Snowflake, RotateCcw, UserMinus, Users, Layers, GraduationCap, Briefcase, Wallet, Megaphone, PhoneCall, Archive, Tag } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { AbsenceReason, ActionReason, LeadSource } from '@/types'
 import { getSettings, saveAbsenceReasons } from '@/api/services/settings'
 import {
   getActionReasons,
+  getActionReasonCategories,
   createActionReason,
   updateActionReason,
   deleteActionReason,
@@ -21,13 +22,24 @@ import { Loader } from '@/components/ui/Loader'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { cn, apiErrorMessage } from '@/lib/utils'
 
-/** Amal kategoriyalari — har biri o'z sabablar ro'yxatiga ega. */
+/**
+ * Amal kategoriyalari — har biri o'z sabablar ro'yxatiga ega.
+ *
+ * ⚠️ Bu ro'yxat faqat SARLAVHA/IKONKA beradi. Qaysi kategoriyalar borligini SERVER aytadi
+ * (`GET /admin/action-reasons/categories`) — shu sababdan bu yerga qo'shishni unutish endi
+ * kategoriyani YO'Q QILMAYDI, u shunchaki kalit nomi bilan chiqadi. Ilgari ro'yxat yagona
+ * manba edi va `contact` / `archive_student` sahifada umuman ko'rinmasdi: admin ular uchun
+ * sabab qo'sha olmas, tanlash ro'yxati esa doim bo'sh chiqardi.
+ */
 const CATEGORIES: { key: string; title: string; sub: string; icon: LucideIcon }[] = [
   { key: 'freeze', title: 'Talaba muzlatilganda', sub: "Guruh a'zoligini muzlatishda tanlanadi", icon: Snowflake },
   { key: 'return_trial', title: 'Sinovga qaytarilganda', sub: 'Talaba sinov holatiga qaytarilganda', icon: RotateCcw },
   { key: 'remove_active', title: "Aktiv talaba o'chirilganda", sub: 'Aktiv a’zo guruhdan chiqarilganda', icon: UserMinus },
   { key: 'remove_trial', title: "Sinovdagi talaba o'chirilganda", sub: 'Sinovdagi a’zo chiqarilganda', icon: UserX },
   { key: 'remove_frozen', title: "Muzlatilgan talaba o'chirilganda", sub: 'Muzlatilgan a’zo chiqarilganda', icon: UserX },
+  // "Bog'lanish kerak" navbatiga qo'shishda tanlanadi (O'quvchilar → Bog'lanish kerak).
+  { key: 'contact', title: "Bog'lanish kerak", sub: "O'quvchini bog'lanish navbatiga qo'shishda tanlanadi", icon: PhoneCall },
+  { key: 'archive_student', title: "Talaba arxivga olinganda", sub: "O'quvchi arxivga ko'chirilganda tanlanadi", icon: Archive },
   { key: 'lead_delete', title: "Lid o'chirilganda", sub: 'Lid (mijoz) o’chirilganda', icon: Users },
   { key: 'group_delete', title: "Guruh o'chirilganda", sub: 'Guruh o’chirilganda', icon: Layers },
   { key: 'student_delete', title: "Talaba o'chirilganda", sub: "O'quvchi butunlay o'chirilganda", icon: UserMinus },
@@ -45,6 +57,26 @@ export function ReasonsPage() {
   const [absStatus, setAbsStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
   const [reasons, setReasons] = useState<ActionReason[]>([])
   const [sources, setSources] = useState<LeadSource[]>([])
+  /** Serverdagi kategoriya kalitlari — kartochkalar shundan quriladi. */
+  const [serverCategories, setServerCategories] = useState<string[]>([])
+
+  /**
+   * Ko'rsatiladigan kategoriyalar: server bergan HAR BIR kalit uchun kartochka. Yorlig'i
+   * `CATEGORIES` da bo'lsa — o'sha, bo'lmasa kalit nomi bilan (bo'shliq ko'rinib tursin).
+   * Server javob bermasa — eski xatti-harakat (faqat `CATEGORIES`).
+   */
+  const visibleCategories = useMemo(() => {
+    if (serverCategories.length === 0) return CATEGORIES
+    return serverCategories.map(
+      (key) =>
+        CATEGORIES.find((c) => c.key === key) ?? {
+          key,
+          title: key,
+          sub: "Yorlig'i belgilanmagan kategoriya",
+          icon: Tag,
+        },
+    )
+  }, [serverCategories])
 
   useEffect(() => {
     Promise.all([getSettings(), getActionReasons(), getLeadSources()])
@@ -54,6 +86,11 @@ export function ReasonsPage() {
         setSources(src)
       })
       .finally(() => setLoading(false))
+    // Kategoriyalar ALOHIDA: eski serverda bu endpoint bo'lmasligi mumkin — xato bo'lsa
+    // sahifa baribir ochiladi va `CATEGORIES` (zaxira ro'yxat) ishlatiladi.
+    getActionReasonCategories()
+      .then(setServerCategories)
+      .catch(() => setServerCategories([]))
   }, [])
 
   // ---- Davomat (kelmaganlik) sabablari ----
@@ -137,7 +174,7 @@ export function ReasonsPage() {
         <LeadSourcesCard sources={sources} onChange={setSources} />
 
         {/* Amal sabablari — kategoriyalar */}
-        {CATEGORIES.map((cat) => (
+        {visibleCategories.map((cat) => (
           <CategoryCard
             key={cat.key}
             cat={cat}

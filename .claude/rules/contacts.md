@@ -89,9 +89,16 @@ Yangi sabab paydo bo'lsa — yangi talab emas, mavjud talabga **izoh** (`POST {i
 
 ## 6. Sabablar
 
-Sozlamalar → Sabablar, kategoriya **`contact`** (`ContactService.ReasonCategory`,
-`ActionReasonsController` ruxsat etilgan kategoriyalar ro'yxatida). Sabab **ixtiyoriy** — bo'sh
-bo'lsa hisobotda "— sababsiz —" guruhiga tushadi.
+**O'quv bo'limi → Sabablar** sahifasida "Bog'lanish kerak" kartochkasi, kategoriya **`contact`** (`ContactService.ReasonCategory`,
+`ActionReasonsController.Categories` ro'yxatida). Sabab **ixtiyoriy** — bo'sh bo'lsa hisobotda
+"— sababsiz —" guruhiga tushadi.
+
+⚠️ **KATEGORIYA IKKI JOYDA EDI va DRIFT bo'ldi:** backendda `contact` bor edi, `ReasonsPage.tsx`
+dagi `CATEGORIES` da esa YO'Q — natijada admin sabab qo'sha olmas, tanlash ro'yxati doim bo'sh
+chiqardi (xuddi shu sabab `archive_student` ham ko'rinmasdi). Endi kartochkalar
+**`GET /api/admin/action-reasons/categories`** dan quriladi: frontenddagi ro'yxat faqat
+SARLAVHA/IKONKA beradi, yorlig'i topilmagan kategoriya baribir (kalit nomi bilan) ko'rinadi —
+bo'shliq jimgina yo'qolmaydi.
 
 ## 7. Hisobotlar (`GET /api/admin/contacts/stats`)
 
@@ -123,10 +130,18 @@ Sonlar "nechta" ga javob beradi, bu bo'lim esa **"NIMA deyilgan"** ga:
 
 ## 7.6. O'QUVCHI PROFILIDA
 
-`GET /contacts/student/{id}` **tarixni ham** qaytaradi (ro'yxat endpointi qaytarmaydi — bu
-bitta o'quvchi uchun ikkita yengil so'rov). O'quvchi profilining **"Aloqa"** tabida
-"Bog'lanish tarixi" bo'limi har bir urinishni va unda yozilgan javobni qo'ng'iroqlar
-tarixi bilan yonma-yon ko'rsatadi: "kim qo'ng'iroq qildi" va "nima deyildi" bitta joyda.
+`GET /contacts/student/{id}` **tarixni ham** qaytaradi (ro'yxat endpointi qaytarmaydi — bu bitta
+o'quvchi uchun ikkita yengil so'rov). O'quvchi profilining **"Aloqa"** tabida:
+
+- **"Bog'lanish tarixi"** — talab darajasi: sabab, bosqich, muddat ("NIMA UCHUN va qaysi
+  bosqichda");
+- **"Qo'ng'iroqlar tarixi"** — ARALASH lenta: haqiqiy qo'ng'iroqlar (Local Call) va bog'lanish
+  javoblari BITTA vaqt o'qida, eng yangisi tepada.
+
+⚠️ Javob matni **faqat lentada** chiqadi, yuqoridagi bo'limda TAKRORLANMAYDI — aks holda bir
+xil matn bitta tabda ikki marta ko'rinardi. Sabab: operator qo'ng'iroq qiladi, keyin "javobi
+nima dedi" ni yozadi — bular bitta hodisaning ikki tomoni, ayri ro'yxatlarda bir-biridan
+uzoqda tushib qolardi.
 
 ## 8. Audit
 

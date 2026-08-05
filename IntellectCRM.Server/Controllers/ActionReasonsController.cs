@@ -17,14 +17,31 @@ namespace IntellectCRM.Server.Controllers;
 [Route("api/admin/action-reasons")]
 public class ActionReasonsController(AppDbContext db) : ControllerBase
 {
-    /// <summary>Ruxsat etilgan kategoriyalar.</summary>
-    private static readonly HashSet<string> Categories = new()
+    /// <summary>
+    /// Ruxsat etilgan kategoriyalar — <b>TARTIB MUHIM</b>: "Sabablar" sahifasi kartochkalarni
+    /// shu tartibda chiqaradi.
+    ///
+    /// <para>⚠️ Bu ro'yxatga kategoriya qo'shish YETARLI EMAS: `ReasonsPage.tsx` dagi
+    /// `CATEGORIES` ga ham sarlavha/ikonka qo'shing. Ilgari aynan shu ikkilanish tufayli
+    /// <c>contact</c> va <c>archive_student</c> backendda bor, sahifada esa YO'Q edi —
+    /// admin ular uchun sabab qo'sha olmasdi va tanlash ro'yxati doim bo'sh chiqardi.
+    /// Endi sahifa `GET categories` ni ham o'qiydi va yorlig'i topilmagan kategoriyani
+    /// baribir ko'rsatadi (kalit nomi bilan) — bo'shliq KO'RINADI, jimgina yo'qolmaydi.</para>
+    /// </summary>
+    private static readonly string[] Categories =
     {
         "freeze", "return_trial", "remove_active", "remove_trial", "remove_frozen", "lead_delete", "group_delete",
         // "contact" — "Bog'lanish kerak" talabini ochishdagi sabab (ContactService.ReasonCategory).
         "contact",
         "student_delete", "teacher_delete", "staff_delete", "finance_delete", "archive_student",
     };
+
+    /// <summary>
+    /// Kategoriyalar ro'yxati — "Sabablar" sahifasi kartochkalarni shundan quradi, ya'ni
+    /// backendga qo'shilgan yangi kategoriya UI'da o'z-o'zidan paydo bo'ladi.
+    /// </summary>
+    [HttpGet("categories")]
+    public ActionResult<IEnumerable<string>> GetCategories() => Categories.ToList();
 
     [HttpGet]
     public async Task<ActionResult<IEnumerable<ActionReasonDto>>> GetAll() =>
