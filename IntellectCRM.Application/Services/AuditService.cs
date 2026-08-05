@@ -105,4 +105,32 @@ public class AuditService(IAppDbContext db, IHttpContextAccessor http)
         g.TeacherId,
         g.CourseId,
     };
+
+    /// <summary>
+    /// O'qituvchi snapshot'i (audit Before/After uchun) — <see cref="GroupSnapshot"/> bilan bir xil
+    /// maqsadda: "kim nimani o'zgartirdi".
+    ///
+    /// <para>Ro'yxatlar (fanlar, ruxsatlar) o'zgarish ANIQLASH uchun kiritilgan — frontend faqat
+    /// yorlig'i bor maydonlarni chizadi, ya'ni ular ekranda GUID bo'lib chiqmaydi.</para>
+    ///
+    /// <para>Parol/hash bu yerga HECH QACHON kirmaydi — u <c>AppUser</c> da va tarixga yozilmaydi.</para>
+    /// </summary>
+    public static object TeacherSnapshot(Teacher t) => new
+    {
+        t.FullName,
+        t.Phone,
+        t.BirthDate,
+        t.Gender,
+        t.Address,
+        t.HomeroomClass,
+        t.SalaryMode,
+        t.Salary,
+        t.SalaryPercent,
+        t.BonusPct,
+        t.Category,
+        t.SalaryStartDate,
+        t.IsSupport,
+        t.SubjectIds,
+        t.Permissions,
+    };
 }

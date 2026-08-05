@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using IntellectCRM.Infrastructure.Data;
@@ -128,7 +128,9 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
         // O'qituvchi biriktirish majburiy (eski, o'qituvchisiz guruhlar ham tahrirlanganda biriktirilsin).
         if (string.IsNullOrWhiteSpace(p.TeacherId))
             return BadRequest(new { message = "Guruhga o'qituvchi biriktirish majburiy" });
-        if (await db.Teachers.FindAsync(p.TeacherId) is null)
+        // Yangi o'qituvchini bir marta olamiz — nomi audit yozuvida kerak (GUID emas).
+        var newTeacher = await db.Teachers.FindAsync(p.TeacherId);
+        if (newTeacher is null)
             return BadRequest(new { message = "Tanlangan o'qituvchi topilmadi" });
 
         // RoomId berilsa — xona nomini DB dan olish (Room string field uchun).
@@ -154,6 +156,7 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
         var oldFee = cls.MonthlyFee;
         var oldName = cls.Name;   // o'quvchilar hozir shu nom bilan biriktirilgan
         var oldCourseId = cls.CourseId;  // kurs o'zgarishni kuzatamiz
+        var oldTeacherId = cls.TeacherId;   // o'qituvchi almashuvi — tarixda NOM bilan yoziladi
         cls.Name = p.Name;
         cls.Grade = p.Grade;
         cls.Language = p.Language;
@@ -226,6 +229,32 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
                 : " — keyingi oydan amal qiladi";
             audit.Record(AuditService.EntityClassFee, cls.Id, "update", summary,
                 before: new { MonthlyFee = oldFee, cls.Name }, after: new { cls.MonthlyFee, cls.Name });
+        }
+
+        // O'QITUVCHI va KURS almashuvi — alohida, O'QILADIGAN yozuv. Ilgari bular faqat
+        // GroupSnapshot ichidagi GUID sifatida "yozilardi": ro'yxatda "Guruh tahrirlandi" dan
+        // boshqa hech narsa ko'rinmas, kim kimga almashtirilgani bilinmasdi.
+        if (oldTeacherId != cls.TeacherId)
+        {
+            var oldTeacherName = string.IsNullOrEmpty(oldTeacherId)
+                ? "—"
+                : await db.Teachers.Where(t => t.Id == oldTeacherId).Select(t => t.FullName)
+                    .FirstOrDefaultAsync() ?? "—";
+            audit.Record(AuditService.EntityGroup, cls.Id, "update",
+                $"Guruh o'qituvchisi almashtirildi ({cls.Name}): {oldTeacherName} → {newTeacher.FullName}",
+                teacherId: cls.TeacherId);
+        }
+
+        if (oldCourseId != cls.CourseId)
+        {
+            async Task<string> CourseNameAsync(string? cid) =>
+                string.IsNullOrEmpty(cid)
+                    ? "—"
+                    : await db.Subjects.Where(x => x.Id == cid).Select(x => x.Name)
+                        .FirstOrDefaultAsync() ?? "—";
+            audit.Record(AuditService.EntityGroup, cls.Id, "update",
+                $"Guruh kursi almashtirildi ({cls.Name}): " +
+                $"{await CourseNameAsync(oldCourseId)} → {await CourseNameAsync(cls.CourseId)}");
         }
 
         // Guruh maydonlari o'zgarganda — "kim o'zgartirdi" audit izi (oylik to'lov moliyaviy audit'dan alohida).
@@ -441,6 +470,11 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
                 studentId: s.Id);
         }
 
+        audit.Record("Membership", $"{id}:{req.StudentId}", "create",
+            $"Guruhga qo'shildi: {s.FullName} → {cls.Name} (sinov, {joinedAt})" +
+            (existing is not null ? " — qayta qo'shildi" : ""),
+            studentId: s.Id);
+
         await db.SaveChangesAsync();
 
         // Avto xabar — o'quvchi guruhga qo'shilganda ota-onaga ("O'quvchi guruhga qo'shilganda" hodisasi).
@@ -540,6 +574,12 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
             sg.RecordedAt = AppClock.Today.ToString("yyyy-MM-dd");
 
             var s = await db.Students.FindAsync(studentId);
+            audit.Record("Membership", $"{id}:{studentId}", "update",
+                $"Aktivlashtirildi: {s?.FullName ?? studentId} — {cls.Name} ({date} sanasidan, " +
+                $"oylik {AuditService.Money(cls.MonthlyFee)} so'm)" +
+                (reactivateFromFreeze ? " — muzlatishdan qaytarildi" : ""),
+                studentId: studentId);
+
             var catchUpMonths = 0;
             if (s is not null)
             {

@@ -19,6 +19,16 @@ public class TeachersController(AppDbContext db, AuditService audit, IConfigurat
     private const string WeakPasswordMessage = "Parol kamida 8 belgidan iborat bo'lsin";
 
     /// <summary>
+    /// Maoshning o'qiladigan ifodasi — tarix yozuvida "3 000 000 so'm" yoki "yig'ilganning 40%i"
+    /// bo'lib chiqadi. Ikki rejim (<c>fixed</c>/<c>percent</c>) bitta joyda yoziladi, aks holda
+    /// rejim almashganda "0 → 40" kabi tushunarsiz qator paydo bo'lardi.
+    /// </summary>
+    private static string SalaryText(Teacher t) =>
+        t.SalaryMode == "percent"
+            ? $"foizli — yig'ilganning {t.SalaryPercent}%i" + (t.BonusPct > 0 ? $" (+{t.BonusPct}% ustama)" : "")
+            : $"qat'iy {AuditService.Money(t.Salary)} so'm" + (t.BonusPct > 0 ? $" (+{t.BonusPct}% ustama)" : "");
+
+    /// <summary>
     /// O'QITUVCHI RASMINI (profil surati) o'rnatish yoki o'chirish.
     ///
     /// <para>O'quvchidagi <c>PUT students/{id}/photo</c> bilan AYNAN bir xil yo'l va shu sababdan:
@@ -101,9 +111,11 @@ public class TeachersController(AppDbContext db, AuditService audit, IConfigurat
         var account = AccountFactory.CreateAccountFor(db, Roles.Teacher, teacher.FullName);
         teacher.UserId = account.Id;
 
-        if (!string.IsNullOrEmpty(teacher.Category))
-            audit.Record(AuditService.EntityTeacherSalary, teacher.Id, "create",
-                $"Toifa belgilandi: {teacher.Category}", teacherId: teacher.Id);
+        audit.Record(AuditService.EntityTeacherSalary, teacher.Id, "create",
+            $"O'qituvchi qo'shildi: {teacher.FullName}" +
+            (string.IsNullOrEmpty(teacher.Category) ? "" : $" — toifa: {teacher.Category}") +
+            $" — {SalaryText(teacher)}",
+            after: AuditService.TeacherSnapshot(teacher), teacherId: teacher.Id);
 
         await db.SaveChangesAsync();
         return teacher;
@@ -117,6 +129,10 @@ public class TeachersController(AppDbContext db, AuditService audit, IConfigurat
 
         var oldCategory = teacher.Category;
         var oldStart = teacher.SalaryStartMonth;
+        // TO'LIQ snapshot: ilgari FAQAT toifa va maosh boshlanish oyi kuzatilardi — ism, telefon,
+        // MAOSH summasi/foizi, fanlar va ruxsatlar o'zgarishi tarixda umuman ko'rinmasdi.
+        var beforeTeacher = AuditService.TeacherSnapshot(teacher);
+        var oldSalaryText = SalaryText(teacher);
         teacher.FullName = p.FullName;
         teacher.BirthDate = p.BirthDate;
         teacher.Address = p.Address;
@@ -173,6 +189,23 @@ public class TeachersController(AppDbContext db, AuditService audit, IConfigurat
                 after: new { teacher.Category, teacher.SalaryStartMonth }, teacherId: teacher.Id);
         }
 
+        // MAOSH alohida qatorda — pulga tegadigan o'zgarish ro'yxatda ko'zga tashlanib tursin
+        // (umumiy "tahrirlandi" yozuvi ichida yo'qolib ketmasin).
+        var newSalaryText = SalaryText(teacher);
+        if (oldSalaryText != newSalaryText)
+            audit.Record(AuditService.EntityTeacherSalary, teacher.Id, "update",
+                $"Maosh o'zgartirildi ({teacher.FullName}): {oldSalaryText} → {newSalaryText}",
+                teacherId: teacher.Id);
+
+        // Qolgan maydonlar (ism, telefon, manzil, fanlar, ruxsatlar, support...) — umumiy iz.
+        // Guruh tahriridagi (ClassesController) qoida bilan bir xil: snapshot'lar farq qilsa yoziladi.
+        var afterTeacher = AuditService.TeacherSnapshot(teacher);
+        if (System.Text.Json.JsonSerializer.Serialize(beforeTeacher)
+            != System.Text.Json.JsonSerializer.Serialize(afterTeacher))
+            audit.Record(AuditService.EntityTeacherSalary, teacher.Id, "update",
+                $"O'qituvchi tahrirlandi: {teacher.FullName}",
+                before: beforeTeacher, after: afterTeacher, teacherId: teacher.Id);
+
         await db.SaveChangesAsync();
         return teacher;
     }
@@ -195,6 +228,9 @@ public class TeachersController(AppDbContext db, AuditService audit, IConfigurat
         }
         var actor = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value ?? "Admin";
         ArchiveService.Snapshot(db, "teacher", teacher.Id, teacher.FullName, teacher.Phone ?? "", teacher, reason.Length > 0 ? reason : null, actor);
+        audit.Record(AuditService.EntityTeacherSalary, teacher.Id, "delete",
+            $"O'qituvchi o'chirildi: {teacher.FullName}" + (reason.Length > 0 ? $" — sabab: {reason}" : ""),
+            before: AuditService.TeacherSnapshot(teacher), teacherId: teacher.Id);
         db.Teachers.Remove(teacher);
         await db.SaveChangesAsync();
         return NoContent();
@@ -303,6 +339,10 @@ public class TeachersController(AppDbContext db, AuditService audit, IConfigurat
             teacher.UserId = user.Id;
         }
         var pwd = AccountFactory.GeneratePassword();
+        // Parolning O'ZI hech qachon tarixga yozilmaydi — faqat "almashtirildi" fakti
+        // (xodimlar bo'limidagi qoida bilan bir xil).
+        audit.Record(AuditService.EntityTeacherSalary, teacher.Id, "update",
+            $"O'qituvchi paroli qayta yaratildi: {teacher.FullName}", teacherId: teacher.Id);
         user.PasswordHash = PasswordHasher.Hash(pwd);
         await db.SaveChangesAsync();
         return new CredentialsDto(user.Email, pwd, user.Role);

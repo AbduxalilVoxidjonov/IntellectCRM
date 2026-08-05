@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { ChevronDown, Clock } from 'lucide-react'
 import type { AuditAction, AuditLog } from '@/types'
 import { getAuditLogs, type AuditFilters } from '@/api/services/audit'
@@ -25,6 +25,8 @@ const actionConfig: Record<AuditAction, { label: string; cls: string }> = {
 }
 
 const moneyKeys = new Set(['amount', 'salary', 'monthlyFee', 'discountAmount'])
+/** Ha/Yo'q ko'rinishida chiziladigan bayroqlar. */
+const boolKeys = new Set(['isSupport'])
 const fieldLabels: Record<string, string> = {
   amount: 'Summa',
   date: 'Sana',
@@ -57,9 +59,17 @@ const fieldLabels: Record<string, string> = {
   status: 'Holat',
   startTime: 'Boshlanish vaqti',
   endTime: 'Tugash vaqti',
+  // O'qituvchi snapshot'i (AuditService.TeacherSnapshot) maydonlari.
+  salaryMode: 'Maosh rejimi',
+  salaryPercent: 'Maosh foizi',
+  bonusPct: 'Ustama',
+  salaryStartDate: 'Maosh boshlanish sanasi',
+  salaryStartMonth: 'Maosh boshlanish oyi',
+  homeroomClass: 'Biriktirilgan guruh',
+  isSupport: "Support o'qituvchi",
 }
 /** Foiz qiymatlari uchun (raqamga "%" qo'shadi). */
-const pctKeys = new Set(['discountPct'])
+const pctKeys = new Set(['discountPct', 'salaryPercent', 'bonusPct'])
 const hiddenKeys = new Set(['studentId', 'teacherId'])
 
 function parse(json?: string): Record<string, unknown> | null {
@@ -75,6 +85,8 @@ function fmtValue(key: string, value: unknown): string {
   if (value === null || value === undefined || value === '') return '—'
   if (moneyKeys.has(key) && typeof value === 'number') return formatMoney(value)
   if (pctKeys.has(key) && typeof value === 'number') return `${value}%`
+  if (boolKeys.has(key)) return value ? 'Ha' : "Yo'q"
+  if (key === 'salaryMode') return value === 'percent' ? 'Foizli' : "Qat'iy"
   if (key === 'direction') return value === 'income' ? 'Kirim' : 'Chiqim'
   if (key === 'gender') return value === 'female' ? 'Ayol' : 'Erkak'
   if (key === 'language') return value === 'ru' ? 'Rus' : "O'zbek"
