@@ -15,6 +15,8 @@ import {
   BookOpen,
   ArrowUpRight,
   X,
+  Lock,
+  Unlock,
 } from 'lucide-react'
 import type { Gender, Group, Subject, Teacher } from '@/types'
 import type { TeacherPayload } from '@/api/services/teachers'
@@ -26,6 +28,8 @@ import {
   deleteTeacher,
   archiveTeacher,
   restoreTeacher,
+  blockTeacher,
+  unblockTeacher,
   downloadTeacherCredentials,
 } from '@/api/services/teachers'
 import { useAuth } from '@/context/auth-context'
@@ -108,6 +112,9 @@ export function TeachersPage() {
   const [archiveTarget, setArchiveTarget] = useState<Teacher | null>(null)
   const [reason, setReason] = useState('')
   const [deleting, setDeleting] = useState<Teacher | null>(null)
+  // "Vaqtincha aktiv emas" oynasi — o'qituvchi tizimga kira olmaydi (arxivlash EMAS)
+  const [blockTarget, setBlockTarget] = useState<Teacher | null>(null)
+  const [blockNote, setBlockNote] = useState('')
 
   useEffect(() => {
     Promise.all([getTeachers(), getArchivedTeachers(), getSubjects(), getClasses()])
@@ -196,6 +203,37 @@ export function TeachersPage() {
         ),
       )
     })
+  }
+
+  /** Vaqtincha faolsizlantirish — login yopiladi, paroli va butun tarixi joyida qoladi. */
+  const confirmBlock = () => {
+    const t = blockTarget
+    if (!t) return
+    const note = blockNote.trim()
+    const today = new Date().toISOString().slice(0, 10)
+    blockTeacher(t.id, note)
+      .then(() => {
+        setTeachers((prev) =>
+          prev.map((x) =>
+            x.id === t.id ? { ...x, isBlocked: true, blockedAt: today, blockNote: note } : x,
+          ),
+        )
+        setBlockTarget(null)
+        setBlockNote('')
+      })
+      .catch((e) => alert(e?.response?.data?.message ?? 'Amalni bajarib bo‘lmadi'))
+  }
+
+  const handleUnblock = (t: Teacher) => {
+    unblockTeacher(t.id)
+      .then(() =>
+        setTeachers((prev) =>
+          prev.map((x) =>
+            x.id === t.id ? { ...x, isBlocked: false, blockedAt: null, blockNote: '' } : x,
+          ),
+        ),
+      )
+      .catch((e) => alert(e?.response?.data?.message ?? 'Amalni bajarib bo‘lmadi'))
   }
 
   const handleDelete = (t: Teacher) => setDeleting(t)
@@ -436,6 +474,19 @@ export function TeachersPage() {
                               </div>
                             )}
                           </div>
+                        ) : t.isBlocked ? (
+                          /* Vaqtincha aktiv emas — arxivdan FARQLI: paroli va tarixi joyida,
+                             ro'yxatdan yo'qolmaydi, faqat tizimga kira olmaydi. */
+                          <div title={t.blockNote || undefined}>
+                            <Badge tone="amber">
+                              <Lock className="h-3 w-3" /> Vaqtincha aktiv emas
+                            </Badge>
+                            {t.blockedAt && (
+                              <div className="mt-0.5 font-mono text-[11px] text-slate-400">
+                                {formatDate(t.blockedAt)}
+                              </div>
+                            )}
+                          </div>
                         ) : (
                           <Badge tone="green" dot>
                             Faol
@@ -474,6 +525,25 @@ export function TeachersPage() {
                               }}
                             />
                           )}
+                          {/* Vaqtincha aktiv emas — tizimga kira olmaydi, lekin arxivlanmaydi
+                              (paroli, guruhlari va tarixi joyida qoladi). */}
+                          {!isArchived && can('teachers', 'edit') &&
+                            (t.isBlocked ? (
+                              <IconBtn
+                                icon={Unlock}
+                                title="Qayta faollashtirish (tizimga kira oladi)"
+                                onClick={() => handleUnblock(t)}
+                              />
+                            ) : (
+                              <IconBtn
+                                icon={Lock}
+                                title="Vaqtincha aktiv emas (tizimga kira olmaydi)"
+                                onClick={() => {
+                                  setBlockNote('')
+                                  setBlockTarget(t)
+                                }}
+                              />
+                            ))}
                           {!isArchived && can('teachers', 'delete') && (
                             <IconBtn
                               icon={Archive}
@@ -538,6 +608,44 @@ export function TeachersPage() {
         onConfirm={doDelete}
         onClose={() => setDeleting(null)}
       />
+
+      {/* Vaqtincha aktiv emas — arxivlash bilan chalkashmasligi uchun farqi ochiq yozilgan. */}
+      <Modal
+        open={!!blockTarget}
+        onClose={() => setBlockTarget(null)}
+        size="md"
+        title="Vaqtincha aktiv emas deb belgilash"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setBlockTarget(null)}>
+              Bekor qilish
+            </Button>
+            <Button onClick={confirmBlock}>
+              <Lock className="h-4 w-4" /> Belgilash
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <p className="text-sm text-slate-600">
+            <span className="font-semibold text-slate-800">{blockTarget?.fullName}</span> tizimga{' '}
+            <b>kira olmaydi</b> — hozir kirib turgan bo'lsa ham darrov chiqib ketadi (ilova va web
+            panel ikkalasi ham).
+          </p>
+          <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-500">
+            Bu <b className="text-slate-700">arxivlash emas</b>: paroli o'chirilmaydi, guruhlari,
+            maoshi va jurnali joyida qoladi, ro'yxatdan ham yo'qolmaydi. Qaytarish — bitta tugma
+            (arxivdan qaytarishda esa yangi parol kerak bo'ladi).
+          </div>
+          <Textarea
+            label="Izoh (ixtiyoriy)"
+            value={blockNote}
+            onChange={(e) => setBlockNote(e.target.value)}
+            rows={2}
+            placeholder="Masalan: ta'tilda, 20-avgustgacha"
+          />
+        </div>
+      </Modal>
 
       {/* Arxivga ko'chirish tasdiqi */}
       <Modal

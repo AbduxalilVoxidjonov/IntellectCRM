@@ -49,11 +49,13 @@ public class TeacherPortalController(
     }
 
     /// <summary>O'qituvchi shu guruhda shu kursni (fan) o'qitadimi? Biriktirish to'g'ridan-to'g'ri
-    /// guruhda: Group.TeacherId (o'qituvchi) + Group.CourseId (kurs). subjectId bo'sh = faqat o'qituvchi.</summary>
+    /// guruhda: Group.TeacherId (o'qituvchi) + Group.CourseId (kurs). subjectId bo'sh = faqat o'qituvchi.
+    /// <para>Arxivlangan/tugatilgan va vaqtincha bloklangan guruh o'qituvchi uchun UMUMAN yo'q —
+    /// qoida <see cref="TeacherGroupAccess"/> da (ro'yxat bilan bitta manbadan).</para></summary>
     private async Task<bool> Teaches(string teacherId, string classId, string subjectId)
     {
         var g = await db.Classes.FindAsync(classId);
-        return g != null && g.TeacherId == teacherId
+        return g != null && TeacherGroupAccess.OwnedBy(g, teacherId)
             && (g.CourseId == subjectId || string.IsNullOrEmpty(subjectId));
     }
 
@@ -212,26 +214,25 @@ public class TeacherPortalController(
         if (t is null) return NotFound();
 
         var subjectNames = await db.Subjects.ToDictionaryAsync(s => s.Id, s => s.Name);
-        var classes = await db.Classes.ToListAsync();
+
+        // FAQAT FAOL GURUHLAR. Arxivlangan/tugatilgan (sertifikat bilan yopilgan) va vaqtincha
+        // bloklangan guruhlar o'qituvchida UMUMAN ko'rinmaydi — qoida TeacherGroupAccess da,
+        // guruh ichiga kirish darvozasi (ResolveOwnedGroup/Teaches) ham AYNAN shunga tayanadi.
+        var classes = await db.Classes.AsNoTracking()
+            .Where(c => c.TeacherId == t.Id)
+            .Where(TeacherGroupAccess.VisibleQuery)
+            .ToListAsync();
 
         // O'qituvchi qaysi guruhda qaysi kursni o'qitishi to'g'ridan-to'g'ri guruhda: Group.TeacherId + Group.CourseId.
-        var taught = new Dictionary<string, HashSet<string>>(); // classId -> subjectIds (CourseId)
-        foreach (var g in classes.Where(c => c.TeacherId == t.Id))
-        {
-            if (!taught.TryGetValue(g.Id, out var set))
-                taught[g.Id] = set = new();
-            if (!string.IsNullOrEmpty(g.CourseId)) set.Add(g.CourseId);
-        }
-
         var result = new List<TeacherClassDto>();
         foreach (var cls in classes)
         {
-            // Faqat o'qituvchi DARS BERADIGAN guruhlar (Group.TeacherId == me). Guruh rahbarligi tushunchasi olib tashlandi.
-            taught.TryGetValue(cls.Id, out var subjIds);
-            if (subjIds is null || subjIds.Count == 0) continue;
-            var subjects = subjIds
-                .Select(id => new SubjectDto(id, subjectNames.GetValueOrDefault(id, "")))
-                .OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase).ToList();
+            var subjects = string.IsNullOrEmpty(cls.CourseId)
+                ? new List<SubjectDto>()
+                : new List<SubjectDto> { new(cls.CourseId, subjectNames.GetValueOrDefault(cls.CourseId, "")) };
+            // Kursi biriktirilmagan guruh o'qituvchi ilovasida ish bermaydi (jurnal kurs bo'yicha
+            // ochiladi) — ilgari ham ro'yxatga tushmasdi, shu xatti-harakat saqlanadi.
+            if (subjects.Count == 0) continue;
             result.Add(new TeacherClassDto(cls.Id, cls.Name, cls.Grade, subjects));
         }
         return result.OrderBy(c => c.Grade).ThenBy(c => c.ClassName).ToList();
@@ -334,14 +335,17 @@ public class TeacherPortalController(
             && await Teaches(t.Id, classId, subjectId);
     }
 
-    /// <summary>Guruh joriy o'qituvchinikimi (Group.TeacherId == me). Topilmasa null, egasi bo'lmasa false.</summary>
+    /// <summary>Guruh joriy o'qituvchinikimi (Group.TeacherId == me). Topilmasa null, egasi bo'lmasa false.
+    /// <para>EGALIK YETARLI EMAS: guruh arxivlangan/tugatilgan yoki admin tomonidan vaqtincha
+    /// bloklangan bo'lsa <c>Owns=false</c> qaytadi (403). Aks holda guruh ro'yxatdan yo'qolsa ham,
+    /// eski havola/keshlangan id bilan jurnalga yozib ketish mumkin bo'lardi.</para></summary>
     private async Task<(Teacher? Me, Group? Group, bool Owns)> ResolveOwnedGroup(string classId)
     {
         var t = await Me();
         if (t is null) return (null, null, false);
         var g = await db.Classes.FindAsync(classId);
         if (g is null) return (t, null, false);
-        return (t, g, g.TeacherId == t.Id);
+        return (t, g, TeacherGroupAccess.OwnedBy(g, t.Id));
     }
 
     // ---------- ZAMONAVIY: Guruh OYLIK jurnali + sillabus o'tilishi (admin bilan bir xil, o'qituvchiga skoplangan) ----------

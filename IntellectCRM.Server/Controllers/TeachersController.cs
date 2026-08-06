@@ -301,6 +301,60 @@ public class TeachersController(AppDbContext db, AuditService audit, IConfigurat
         return NoContent();
     }
 
+    /// <summary>
+    /// O'QITUVCHINI VAQTINCHA AKTIV EMAS QILISH (ta'til, to'xtatib turish, intizomiy chora):
+    /// tizimga kira olmaydi — login rad etiladi va MAVJUD tokeni ham ishlamay qoladi
+    /// (<c>Program.cs</c> dagi <c>OnTokenValidated</c> tekshiruvi).
+    ///
+    /// <para>ARXIVLASH EMAS: parol TEGILMAYDI (arxivda <c>AppUser.BlockLogin</c> uni o'chiradi va
+    /// qaytarishda yangi parol kerak bo'ladi), o'qituvchi faol ro'yxatda belgisi bilan qoladi,
+    /// guruhlari/maoshi/jurnali va butun tarixi joyida. Qaytarish — bir tugma (<c>unblock</c>).
+    /// Guruhni vaqtincha bloklash (<c>PUT /api/admin/classes/{id}/block</c>) bilan bir xil g'oya.</para>
+    ///
+    /// <para>NEGA PUT: POST → <c>teachers:create</c>, PUT → <c>teachers:edit</c> ruxsatiga
+    /// tushadi — bu amal mavjud yozuvni tahrirlash, UI darvozasi ham <c>teachers:edit</c>.</para>
+    /// </summary>
+    [HttpPut("{id}/block")]
+    public async Task<IActionResult> Block(string id, BlockRequest? req)
+    {
+        var teacher = await db.Teachers.FindAsync(id);
+        if (teacher is null) return NotFound();
+        if (teacher.IsArchived)
+            return BadRequest(new { message = "Arxivdagi o'qituvchi — u allaqachon tizimga kira olmaydi" });
+        if (teacher.IsBlocked) return BadRequest(new { message = "O'qituvchi allaqachon vaqtincha faol emas" });
+
+        teacher.IsBlocked = true;
+        teacher.BlockedAt = AppClock.Today.ToString("yyyy-MM-dd");
+        teacher.BlockNote = (req?.Note ?? "").Trim();
+
+        audit.Record(AuditService.EntityTeacherSalary, teacher.Id, "update",
+            $"O'qituvchi vaqtincha faolsizlantirildi ({teacher.FullName}) — tizimga kira olmaydi"
+                + (teacher.BlockNote.Length > 0 ? $": \"{teacher.BlockNote}\"" : ""),
+            teacherId: teacher.Id);
+
+        await db.SaveChangesAsync();
+        return Ok(new { ok = true, blockedAt = teacher.BlockedAt });
+    }
+
+    /// <summary>O'qituvchini qayta faollashtirish — eski paroli bilan odatdagidek kiraveradi.</summary>
+    [HttpPut("{id}/unblock")]
+    public async Task<IActionResult> Unblock(string id)
+    {
+        var teacher = await db.Teachers.FindAsync(id);
+        if (teacher is null) return NotFound();
+        if (!teacher.IsBlocked) return BadRequest(new { message = "O'qituvchi faol" });
+
+        teacher.IsBlocked = false;
+        teacher.BlockedAt = null;
+        teacher.BlockNote = string.Empty;
+
+        audit.Record(AuditService.EntityTeacherSalary, teacher.Id, "update",
+            $"O'qituvchi qayta faollashtirildi ({teacher.FullName})", teacherId: teacher.Id);
+
+        await db.SaveChangesAsync();
+        return Ok(new { ok = true });
+    }
+
     /// <summary>O'qituvchining tizim akkaunti (login/parol). Akkaunt yo'q bo'lsa — yaratib biriktiradi.
     /// <para>GET odatda xodim uchun ochiq bo'lsa-da (bo'limlararo o'qish uchun), bu endpoint
     /// LOGIN va DASTLABKI PAROLNI qaytargani (va akkaunt yaratib DB'ni o'zgartirgani) uchun

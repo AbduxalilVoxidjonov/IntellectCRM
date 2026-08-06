@@ -62,7 +62,10 @@ public class ChatService(IAppDbContext db, IHubContext<ChatHub> hub)
                     if (!string.IsNullOrEmpty(t.HomeroomClass)) names.Add(t.HomeroomClass);
 
                     // Dars beradigan guruhlar — guruhga biriktirilgan o'qituvchi (Group.TeacherId).
-                    var taughtNames = await db.Classes.Where(c => c.TeacherId == t.Id && !c.IsArchived)
+                    // Ko'rinish qoidasi guruhlar ro'yxati bilan BITTA manbadan (TeacherGroupAccess):
+                    // arxivlangan/tugatilgan va vaqtincha bloklangan guruh chati ham ochilmaydi.
+                    var taughtNames = await db.Classes.Where(c => c.TeacherId == t.Id)
+                        .Where(TeacherGroupAccess.VisibleQuery)
                         .Select(c => c.Name).ToListAsync();
                     foreach (var n in taughtNames) names.Add(n);
 

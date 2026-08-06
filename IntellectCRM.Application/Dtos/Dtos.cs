@@ -904,6 +904,12 @@ public record AttendanceReasonCountDto(string ReasonId, string Name, string Shor
 /// <summary>O'quvchini arxivdan qaytarish — ixtiyoriy yangi parol (arxivlanganda parol bloklangan edi).</summary>
 public record RestoreStudentRequest(string? NewPassword);
 
+/// <summary>
+/// VAQTINCHA BLOKLASH so'rovi — guruh uchun ham (o'qituvchiga ko'rinmasin), o'qituvchi uchun ham
+/// (tizimga kira olmasin). <c>Note</c> ixtiyoriy izoh, faqat admin ko'radi.
+/// </summary>
+public record BlockRequest(string? Note = null);
+
 /// <summary>O'qituvchini arxivlash so'rovi — sababini saqlaydi.</summary>
 public record ArchiveTeacherRequest(string Reason);
 /// <summary>O'qituvchini arxivdan qaytarish — ixtiyoriy yangi parol (arxivlanganda parol bloklangan edi).</summary>

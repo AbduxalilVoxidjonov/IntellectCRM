@@ -18,6 +18,8 @@ import {
   BookOpenCheck,
   X,
   Eye,
+  Lock,
+  Unlock,
 } from 'lucide-react'
 import type { Group, GroupFillRow, Teacher, Subject } from '@/types'
 import type { ClassPayload } from '@/api/services/classes'
@@ -30,6 +32,8 @@ import {
   getArchivedClasses,
   archiveClass,
   unarchiveClass,
+  blockClass,
+  unblockClass,
   getGroupFill,
 } from '@/api/services/classes'
 import { getClassesStats, type ClassStats, getAllGroupsGradingStats, type GradingGroupStats } from '@/api/services/classPerformance'
@@ -42,6 +46,7 @@ import { Badge } from '@/components/ui/Badge'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Loader } from '@/components/ui/Loader'
 import { Modal } from '@/components/ui/Modal'
+import { Textarea } from '@/components/ui/Input'
 import { ReasonPromptModal } from '@/components/ui/ReasonPromptModal'
 import { ClassFormModal } from './ClassFormModal'
 import { ClassMembersModal } from './ClassMembersModal'
@@ -120,6 +125,9 @@ export function ClassesPage() {
   const [subjects, setSubjects] = useState<Subject[]>([])
   /** "Jurnal boshqaruvi" oynasi — jurnal tahrirlash siyosati (barcha guruhlar uchun) */
   const [policyOpen, setPolicyOpen] = useState(false)
+  /** "Vaqtincha bloklash" oynasi — guruh o'qituvchida ko'rinmay qoladi (izoh ixtiyoriy) */
+  const [blockTarget, setBlockTarget] = useState<Group | null>(null)
+  const [blockNote, setBlockNote] = useState('')
 
   // Filtrlar standart holatdan farq qiladimi — "Tozalash" tugmasi shunda ko'rinadi.
   const filtersActive = teacherFilter !== 'all' || courseFilter !== 'all' || dayFilter !== 'all'
@@ -282,6 +290,37 @@ export function ClassesPage() {
         alert(`"${c.name}" arxivdan chiqarildi — ${r.restoredStudents} ta o'quvchi ham qaytarildi.`)
       })
       .catch((e) => alert(e?.response?.data?.message ?? 'Arxivdan chiqarishda xatolik'))
+  }
+
+  /** Vaqtincha bloklash — guruh o'qituvchida ko'rinmay qoladi (admin ro'yxatida qoladi). */
+  const confirmBlock = () => {
+    const c = blockTarget
+    if (!c) return
+    const note = blockNote.trim()
+    const today = new Date().toISOString().slice(0, 10)
+    blockClass(c.id, note)
+      .then(() => {
+        setClasses((prev) =>
+          prev.map((x) =>
+            x.id === c.id ? { ...x, isBlocked: true, blockedAt: today, blockNote: note } : x,
+          ),
+        )
+        setBlockTarget(null)
+        setBlockNote('')
+      })
+      .catch((e) => alert(e?.response?.data?.message ?? 'Bloklashda xatolik'))
+  }
+
+  const handleUnblock = (c: Group) => {
+    unblockClass(c.id)
+      .then(() =>
+        setClasses((prev) =>
+          prev.map((x) =>
+            x.id === c.id ? { ...x, isBlocked: false, blockedAt: null, blockNote: '' } : x,
+          ),
+        ),
+      )
+      .catch((e) => alert(e?.response?.data?.message ?? 'Blokdan chiqarishda xatolik'))
   }
 
   return (
@@ -498,7 +537,7 @@ export function ClassesPage() {
                             {initialsOf(c.name)}
                           </div>
                           <div className="meta">
-                            <strong>
+                            <strong className="flex items-center gap-1.5">
                               <Link
                                 to={`/admin/classes/${c.id}`}
                                 onClick={(e) => e.stopPropagation()}
@@ -506,8 +545,17 @@ export function ClassesPage() {
                               >
                                 {c.name}
                               </Link>
+                              {c.isBlocked && (
+                                <Badge tone="amber">
+                                  <Lock className="h-3 w-3" /> Bloklangan
+                                </Badge>
+                              )}
                             </strong>
-                            <span>{c.room || '—'}</span>
+                            <span>
+                              {c.isBlocked
+                                ? "O'qituvchida ko'rinmaydi"
+                                : c.room || '—'}
+                            </span>
                           </div>
                         </div>
                       </td>
@@ -562,6 +610,25 @@ export function ClassesPage() {
                               }}
                             />
                           )}
+                          {/* Vaqtincha bloklash — guruh o'qituvchi ilovasida ko'rinmay qoladi
+                              (arxivlash EMAS: o'quvchi/a'zolik/hisob tegilmaydi). */}
+                          {can('classes', 'edit') &&
+                            (c.isBlocked ? (
+                              <IconBtn
+                                icon={Unlock}
+                                title="Blokdan chiqarish (o'qituvchida yana ko'rinadi)"
+                                onClick={() => handleUnblock(c)}
+                              />
+                            ) : (
+                              <IconBtn
+                                icon={Lock}
+                                title="Vaqtincha bloklash (o'qituvchida ko'rinmaydi)"
+                                onClick={() => {
+                                  setBlockNote('')
+                                  setBlockTarget(c)
+                                }}
+                              />
+                            ))}
                           {can('classes', 'delete') && (
                             <IconBtn icon={Archive} title="Arxivlash" onClick={() => handleArchive(c)} />
                           )}
@@ -616,9 +683,15 @@ export function ClassesPage() {
                       )}
                     </div>
                   </div>
-                  <Badge tone={c.language === 'uz' ? 'blue' : 'amber'}>
-                    {languageLabels[c.language]}
-                  </Badge>
+                  {c.isBlocked ? (
+                    <Badge tone="amber">
+                      <Lock className="h-3 w-3" /> Bloklangan
+                    </Badge>
+                  ) : (
+                    <Badge tone={c.language === 'uz' ? 'blue' : 'amber'}>
+                      {languageLabels[c.language]}
+                    </Badge>
+                  )}
                 </div>
 
                 {/* O'qituvchi · kunlar · vaqt · xona */}
@@ -718,6 +791,29 @@ export function ClassesPage() {
                       <Pencil className="h-4 w-4" /> Tahrirlash
                     </Button>
                   )}
+                  {can('classes', 'edit') &&
+                    (c.isBlocked ? (
+                      <Button
+                        variant="secondary"
+                        title="Blokdan chiqarish (o'qituvchida yana ko'rinadi)"
+                        aria-label="Blokdan chiqarish"
+                        onClick={() => handleUnblock(c)}
+                      >
+                        <Unlock className="h-4 w-4 text-amber-600" />
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="secondary"
+                        title="Vaqtincha bloklash (o'qituvchida ko'rinmaydi)"
+                        aria-label="Vaqtincha bloklash"
+                        onClick={() => {
+                          setBlockNote('')
+                          setBlockTarget(c)
+                        }}
+                      >
+                        <Lock className="h-4 w-4" />
+                      </Button>
+                    ))}
                   {can('classes', 'delete') && (
                     <Button
                       variant="secondary"
@@ -817,6 +913,44 @@ export function ClassesPage() {
       <ClassMembersModal group={membersOf} onClose={() => setMembersOf(null)} />
 
       <JournalPolicyModal open={policyOpen} onClose={() => setPolicyOpen(false)} />
+
+      {/* Vaqtincha bloklash — nima bo'lishini ANIQ yozamiz, chunki nomi "arxivlash"ga o'xshaydi. */}
+      <Modal
+        open={!!blockTarget}
+        onClose={() => setBlockTarget(null)}
+        size="sm"
+        title="Guruhni vaqtincha bloklash"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setBlockTarget(null)}>
+              Bekor qilish
+            </Button>
+            <Button onClick={confirmBlock}>
+              <Lock className="h-4 w-4" /> Bloklash
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3 text-sm text-slate-600">
+          <p>
+            <span className="font-semibold text-slate-800">{blockTarget?.name}</span> guruhi
+            o'qituvchi ilovasida <b>umuman ko'rinmay qoladi</b>: guruhlar ro'yxati, jurnal,
+            baholash, testlar va guruh chati. O'qituvchi unga hech narsa yoza olmaydi.
+          </p>
+          <div className="rounded-lg bg-slate-50 px-3 py-2 text-slate-500">
+            Bu <b className="text-slate-700">arxivlash emas</b>: o'quvchilar, a'zoliklar, oylik
+            hisobi va hisobotlar tegilmaydi. Guruh admin panelida faol ro'yxatda qolaveradi va
+            bir tugma bilan qaytariladi.
+          </div>
+          <Textarea
+            label="Izoh (ixtiyoriy)"
+            value={blockNote}
+            onChange={(e) => setBlockNote(e.target.value)}
+            rows={2}
+            placeholder="Masalan: o'qituvchi almashguncha yopib turamiz"
+          />
+        </div>
+      </Modal>
 
       <ReasonPromptModal
         open={!!deletingGroup}

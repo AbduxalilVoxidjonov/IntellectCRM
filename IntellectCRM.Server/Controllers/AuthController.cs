@@ -68,6 +68,11 @@ public class AuthController(AppDbContext db, JwtTokenService jwt, ILogger<AuthCo
         if (user.Role == Roles.Student && await db.Students.AnyAsync(s => s.UserId == user.Id && s.LoginBlocked))
             return Unauthorized(new { message = "Sizning hisobingiz hali aktiv emas. Administratorga murojaat qiling." });
 
+        // O'qituvchi "vaqtincha aktiv emas" qilingan bo'lsa — arxivdan FARQLI xabar (paroli joyida,
+        // admin qaytarsa o'sha parol bilan kiraveradi).
+        if (user.Role == Roles.Teacher && await db.Teachers.AnyAsync(t => t.UserId == user.Id && t.IsBlocked))
+            return Unauthorized(new { message = TeacherBlockedMessage });
+
         // Muvaffaqiyatli login — noto'g'ri urinish hisoblagichi va (agar bo'lsa) blokni tozalaymiz.
         user.FailedLoginCount = 0;
         user.LockoutUntil = null;
@@ -109,6 +114,8 @@ public class AuthController(AppDbContext db, JwtTokenService jwt, ILogger<AuthCo
             return Unauthorized(new { message = "Akkaunt arxivlangan yoki to'xtatilgan" });
         if (user.Role == Roles.Student && await db.Students.AnyAsync(s => s.UserId == user.Id && s.LoginBlocked))
             return Unauthorized(new { message = "Sizning hisobingiz hali aktiv emas. Administratorga murojaat qiling." });
+        if (user.Role == Roles.Teacher && await db.Teachers.AnyAsync(t => t.UserId == user.Id && t.IsBlocked))
+            return Unauthorized(new { message = TeacherBlockedMessage });
 
         var now = AppClock.Now.ToString("yyyy-MM-ddTHH:mm:ss");
         if (string.IsNullOrEmpty(user.FirstLoginAt)) user.FirstLoginAt = now;
@@ -135,6 +142,11 @@ public class AuthController(AppDbContext db, JwtTokenService jwt, ILogger<AuthCo
         remainingSeconds = (int)Math.Ceiling((until - now).TotalSeconds);
         return true;
     }
+
+    /// <summary>"Vaqtincha aktiv emas" qilingan o'qituvchiga ko'rsatiladigan xabar (arxivdan farqli:
+    /// paroli saqlanadi, admin qaytarishi bilan o'sha parol bilan kiraveradi).</summary>
+    internal const string TeacherBlockedMessage =
+        "Hisobingiz vaqtincha faol emas. Administratorga murojaat qiling.";
 
     /// <summary>Akkaunt arxivlangan (o'qituvchi/o'quvchi) bo'lsa true — login va token rad etiladi.</summary>
     private async Task<bool> IsBlockedAsync(AppUser user) => user.Role switch

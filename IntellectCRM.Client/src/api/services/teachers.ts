@@ -118,6 +118,28 @@ export async function restoreTeacher(id: string, newPassword?: string): Promise<
   await api.post(`/admin/teachers/${id}/restore`, { newPassword })
 }
 
+/**
+ * O'qituvchini VAQTINCHA AKTIV EMAS qilish — tizimga kira olmaydi (mavjud tokeni ham darrov
+ * ishlamay qoladi). Arxivlash EMAS: paroli, guruhlari, maoshi va tarixi joyida qoladi,
+ * qaytarish bir tugma. PUT — server `teachers:edit` ruxsatini talab qilsin (UI bilan bir xil).
+ */
+export async function blockTeacher(id: string, note?: string): Promise<void> {
+  if (USE_MOCK) {
+    await delay(200)
+    return
+  }
+  await api.put(`/admin/teachers/${id}/block`, { note: note ?? '' })
+}
+
+/** O'qituvchini qayta faollashtirish — eski paroli bilan odatdagidek kiraveradi. */
+export async function unblockTeacher(id: string): Promise<void> {
+  if (USE_MOCK) {
+    await delay(200)
+    return
+  }
+  await api.put(`/admin/teachers/${id}/unblock`)
+}
+
 /** O'qituvchining tizim akkaunti (login/parol) */
 export async function getTeacherCredentials(id: string): Promise<Credentials> {
   if (USE_MOCK) {

@@ -382,6 +382,57 @@ public class ClassesController(AppDbContext db, AuditService audit, ILogger<Clas
         return Ok(new { restoredStudents = students.Count });
     }
 
+    /// <summary>
+    /// GURUHNI VAQTINCHA BLOKLASH — guruh o'qituvchi ilovasida UMUMAN ko'rinmay qoladi
+    /// (ro'yxat, jurnal, baholash, testlar, o'quv dasturi, guruh chati) va o'qituvchi unga
+    /// yoza olmaydi. Qoida bitta joyda: <see cref="TeacherGroupAccess"/>.
+    ///
+    /// <para>ARXIVLASH EMAS: o'quvchilar, a'zoliklar, oylik hisobi, maosh va hisobotlar
+    /// TEGILMAYDI — guruh admin panelida odatdagidek faol ro'yxatda qoladi (belgisi bilan).
+    /// Blokdan chiqarish bir tugma (<c>unblock</c>).</para>
+    ///
+    /// <para>NEGA PUT (POST emas): <c>AdminPermAttribute</c> da POST → <c>classes:create</c>,
+    /// PUT → <c>classes:edit</c>. Bloklash — mavjud guruhni TAHRIRLASH, shuning uchun UI'dagi
+    /// <c>can('classes','edit')</c> darvozasi bilan aynan mos tushadi.</para>
+    /// </summary>
+    [HttpPut("{id}/block")]
+    public async Task<IActionResult> Block(string id, BlockRequest? req)
+    {
+        var cls = await db.Classes.FindAsync(id);
+        if (cls is null) return NotFound();
+        if (cls.IsArchived)
+            return BadRequest(new { message = "Arxivdagi guruh — u allaqachon o'qituvchida ko'rinmaydi" });
+        if (cls.IsBlocked) return BadRequest(new { message = "Guruh allaqachon bloklangan" });
+
+        cls.IsBlocked = true;
+        cls.BlockedAt = AppClock.Today.ToString("yyyy-MM-dd");
+        cls.BlockNote = (req?.Note ?? "").Trim();
+
+        audit.Record(AuditService.EntityClassFee, cls.Id, "update",
+            $"Guruh vaqtincha bloklandi ({cls.Name}) — o'qituvchida ko'rinmaydi"
+                + (cls.BlockNote.Length > 0 ? $": \"{cls.BlockNote}\"" : ""));
+        await db.SaveChangesAsync();
+        return Ok(new { ok = true, blockedAt = cls.BlockedAt });
+    }
+
+    /// <summary>Guruhni blokdan chiqarish — o'qituvchida yana odatdagidek ko'rinadi.</summary>
+    [HttpPut("{id}/unblock")]
+    public async Task<IActionResult> Unblock(string id)
+    {
+        var cls = await db.Classes.FindAsync(id);
+        if (cls is null) return NotFound();
+        if (!cls.IsBlocked) return BadRequest(new { message = "Guruh bloklanmagan" });
+
+        cls.IsBlocked = false;
+        cls.BlockedAt = null;
+        cls.BlockNote = string.Empty;
+
+        audit.Record(AuditService.EntityClassFee, cls.Id, "update",
+            $"Guruh blokdan chiqarildi ({cls.Name}) — o'qituvchida yana ko'rinadi");
+        await db.SaveChangesAsync();
+        return Ok(new { ok = true });
+    }
+
     // ---------- Guruh a'zoligi (M2M) ----------
 
     /// <summary>Guruh a'zolari (faol + o'tgan). Faol a'zolar yuqorida.</summary>

@@ -93,6 +93,22 @@ export async function unarchiveClass(id: string): Promise<{ restoredStudents: nu
   return data
 }
 
+/**
+ * Guruhni VAQTINCHA BLOKLASH — o'qituvchi ilovasida umuman ko'rinmay qoladi (ro'yxat, jurnal,
+ * baholash, testlar, guruh chati). Arxivlash EMAS: o'quvchilar, a'zoliklar va oylik hisobi
+ * tegilmaydi, guruh admin panelida faol ro'yxatda qolaveradi.
+ *
+ * PUT (POST emas) — server tomonda `classes:edit` ruxsatiga tushsin (UI darvozasi bilan bir xil).
+ */
+export async function blockClass(id: string, note?: string): Promise<void> {
+  await api.put(`/admin/classes/${id}/block`, { note: note ?? '' })
+}
+
+/** Guruhni blokdan chiqarish — o'qituvchida yana odatdagidek ko'rinadi. */
+export async function unblockClass(id: string): Promise<void> {
+  await api.put(`/admin/classes/${id}/unblock`)
+}
+
 /* ---------- Guruh a'zoligi (many-to-many) ---------- */
 
 /** Guruh a'zolari ro'yxati. */

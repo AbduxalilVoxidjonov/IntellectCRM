@@ -698,6 +698,17 @@ export function ClassDetailPage() {
                           Tugatilgan{group.archivedAt ? ` · ${formatDate(group.archivedAt)}` : ''}
                         </span>
                       )}
+                      {/* VAQTINCHA BLOKLANGAN — guruh o'qituvchi ilovasida ko'rinmaydi
+                          (admin uchun hammasi ochiq). Blokdan chiqarish — "Guruhlar" ro'yxatida. */}
+                      {group?.isBlocked && (
+                        <span
+                          className="rounded bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700"
+                          title={group.blockNote || undefined}
+                        >
+                          Bloklangan — o'qituvchida ko'rinmaydi
+                          {group.blockedAt ? ` · ${formatDate(group.blockedAt)}` : ''}
+                        </span>
+                      )}
                     </h1>
                     <p className="mt-0.5 break-words text-sm text-slate-400">
                       {g.courseName || 'Kurs biriktirilmagan'}

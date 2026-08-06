@@ -571,6 +571,21 @@ public class Teacher
     public string? ArchivedAt { get; set; }
     /// <summary>Arxivga olish sababi.</summary>
     public string? ArchiveReason { get; set; }
+
+    /// <summary>
+    /// VAQTINCHA AKTIV EMAS (ta'til, to'xtatib turish, intizomiy chora) — o'qituvchi tizimga
+    /// KIRA OLMAYDI (login ham, eski token ham rad etiladi), lekin ro'yxatdan yo'qolmaydi:
+    /// guruhlari, maoshi, jurnali va butun tarixi joyida qoladi.
+    ///
+    /// <para>Arxivlashdan farqi: arxivda PAROL O'CHIRILADI (<c>AppUser.BlockLogin</c>) va
+    /// qaytarishda yangi parol kerak bo'ladi; bu yerda parol TEGILMAYDI — bir tugma bilan
+    /// qaytariladi. <see cref="Group.IsBlocked"/> (guruhni vaqtincha bloklash) bilan bir xil g'oya.</para>
+    /// </summary>
+    public bool IsBlocked { get; set; }
+    /// <summary>Vaqtincha faolsizlantirilgan sana ("YYYY-MM-DD").</summary>
+    public string? BlockedAt { get; set; }
+    /// <summary>Vaqtincha faolsizlantirish izohi (ixtiyoriy) — faqat admin ko'radi.</summary>
+    public string BlockNote { get; set; } = string.Empty;
 }
 
 /// <summary>
@@ -656,6 +671,20 @@ public class Group
     /// o'quvchilar ham arxivlanadi; arxivdan chiqarilganda — qaytariladi.</summary>
     public bool IsArchived { get; set; }
     public string? ArchivedAt { get; set; }
+
+    /// <summary>
+    /// VAQTINCHA BLOKLANGAN — guruh o'qituvchi ilovasida UMUMAN ko'rinmaydi (ro'yxat, jurnal,
+    /// baholash, testlar, chat) va o'qituvchi unga yoza olmaydi. Admin panelida esa guruh
+    /// odatdagidek qoladi (faol ro'yxatda, belgisi bilan) — pul/a'zolik/hisobotga TEGMAYDI.
+    ///
+    /// <para>Arxivlashdan farqi: arxiv — YAKUNLASH (o'quvchilar ham arxivlanadi/muzlatiladi,
+    /// hisob yopiladi), bu esa faqat KO'RINISH darvozasi va bir tugma bilan qaytariladi.</para>
+    /// </summary>
+    public bool IsBlocked { get; set; }
+    /// <summary>Bloklangan sana ("YYYY-MM-DD").</summary>
+    public string? BlockedAt { get; set; }
+    /// <summary>Bloklash izohi (ixtiyoriy) — nega bloklangani. O'qituvchiga KO'RSATILMAYDI.</summary>
+    public string BlockNote { get; set; } = string.Empty;
 
     // ---------- Kurs / biriktirish (eski "Fan biriktirish" o'rnida — guruh yaratishda kiritiladi) ----------
     /// <summary>Guruh kursi (Subject id). Guruh oyligi (MonthlyFee) shu kurs narxidan keladi.</summary>

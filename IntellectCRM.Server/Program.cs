@@ -144,7 +144,9 @@ builder.Services
 
                 bool blocked;
                 if (p.IsInRole(Roles.Teacher))
-                    blocked = !await db.Teachers.AnyAsync(t => t.UserId == userId && !t.IsArchived);
+                    // Arxivlangan YOKI "vaqtincha aktiv emas" qilingan o'qituvchi eski tokeni bilan
+                    // ham kira olmaydi (o'quvchidagi LoginBlocked bilan bir xil mantiq).
+                    blocked = !await db.Teachers.AnyAsync(t => t.UserId == userId && !t.IsArchived && !t.IsBlocked);
                 else if (p.IsInRole(Roles.Student))
                     // Arxivlangan YOKI admin tomonidan login cheklangan o'quvchi eski tokeni bilan kira olmaydi.
                     blocked = !await db.Students.AnyAsync(s => s.UserId == userId && !s.IsArchived && !s.LoginBlocked);

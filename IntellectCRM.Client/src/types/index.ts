@@ -934,6 +934,13 @@ export interface Group {
   isArchived?: boolean
   /** Arxivga olingan sana (ISO) */
   archivedAt?: string | null
+  /** VAQTINCHA BLOKLANGAN — guruh O'QITUVCHI ilovasida umuman ko'rinmaydi (ro'yxat, jurnal,
+   *  baholash, testlar, chat). Admin panelida esa odatdagidek qoladi; pul/a'zolikka tegmaydi. */
+  isBlocked?: boolean
+  /** Bloklangan sana (ISO) */
+  blockedAt?: string | null
+  /** Bloklash izohi (o'qituvchiga ko'rsatilmaydi) */
+  blockNote?: string
   /** Guruh holati */
   status?: 'active' | 'full' | 'archived'
   /** Boshlanish/tashkil topgan sanasi (ISO "YYYY-MM-DD") */
@@ -1340,6 +1347,13 @@ export interface Teacher {
   archivedAt?: string | null
   /** Arxivga olish sababi */
   archiveReason?: string | null
+  /** VAQTINCHA AKTIV EMAS — tizimga kira olmaydi, lekin paroli/guruhlari/tarixi saqlanadi
+   *  (arxivdan farqi shu; bir tugma bilan qaytariladi) */
+  isBlocked?: boolean
+  /** Vaqtincha faolsizlantirilgan sana (ISO) */
+  blockedAt?: string | null
+  /** Vaqtincha faolsizlantirish izohi (faqat admin ko'radi) */
+  blockNote?: string
 }
 
 /* ---------- O'qituvchi faollik hisoboti ---------- */

@@ -360,13 +360,25 @@ export function TeacherDetailPage() {
       <PageHeader
         title={teacher.fullName}
         sub={
-          <Link
-            to="/admin/teachers"
-            className="inline-flex items-center gap-1 text-xs text-slate-400 hover:text-brand-600"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" />
-            O'qituvchilar ro'yxati
-          </Link>
+          <span className="inline-flex flex-wrap items-center gap-2">
+            <Link
+              to="/admin/teachers"
+              className="inline-flex items-center gap-1 text-xs text-slate-400 hover:text-brand-600"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              O'qituvchilar ro'yxati
+            </Link>
+            {/* VAQTINCHA AKTIV EMAS — tizimga kira olmaydi. Arxiv EMAS: paroli va tarixi joyida.
+                Qaytarish — "O'qituvchilar" ro'yxatidagi qulf tugmasi. */}
+            {teacher.isBlocked && (
+              <span
+                className="rounded bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700"
+                title={teacher.blockNote || undefined}
+              >
+                Vaqtincha aktiv emas — tizimga kira olmaydi
+              </span>
+            )}
+          </span>
         }
       />
 
