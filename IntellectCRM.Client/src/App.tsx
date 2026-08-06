@@ -88,8 +88,6 @@ import { TeacherProfilePage } from '@/pages/teacher/TeacherProfilePage'
 import { TeacherSupportPage } from '@/pages/teacher/support/SupportPage'
 import { TeacherFeedbackPage } from '@/pages/teacher/feedback/FeedbackPage'
 import { TeacherSalaryPage as TeacherOwnSalaryPage } from '@/pages/teacher/salary/SalaryPage'
-import { TeacherCoveragePage } from '@/pages/teacher/coverage/CoveragePage'
-import { TeacherLearningPage } from '@/pages/teacher/learning/LearningPage'
 import { TeacherAccountPage } from '@/pages/teacher/account/AccountPage'
 import { TeacherRatingPage } from '@/pages/teacher/rating/TeacherRatingPage'
 import { TeacherTestsPage } from '@/pages/teacher/tests/TeacherTestsPage'
@@ -270,8 +268,6 @@ export default function App() {
           <Route path="salary" element={<TeacherOwnSalaryPage />} />
           <Route path="rating" element={<TeacherRatingPage />} />
           <Route path="tests" element={<RequirePerm perm="journal"><TeacherTestsPage /></RequirePerm>} />
-          <Route path="coverage" element={<TeacherCoveragePage />} />
-          <Route path="learning" element={<TeacherLearningPage />} />
           <Route path="account" element={<TeacherAccountPage />} />
           <Route path="profile" element={<TeacherProfilePage />} />
           <Route path="account" element={<AccountPage />} />

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
-import { Home, BookOpen, ClipboardCheck, MessageCircle, User } from 'lucide-react'
+import { Home, ClipboardCheck, Trophy, MessageCircle, User } from 'lucide-react'
 import { UnreadProvider, useUnread } from '@/context/unread-context'
 import { useAuth } from '@/context/auth-context'
 import { cn } from '@/lib/utils'
@@ -28,11 +28,13 @@ interface Tab {
   badge?: boolean
 }
 
-// DIQQAT: 3-tab — "Test" (onlayn/oflayn test yaratish).
+// DIQQAT: 2-tab — "Test" (onlayn/oflayn test yaratish), 3-tab — "Reyting".
+// "Jurnal" navigatsiyada YO'Q: jurnalga bosh sahifadagi guruhlar ro'yxatidan kiriladi
+// (`/teacher/groups/:id`), marshrutlar (`/teacher/journal` ham) saqlanib qolgan.
 const TABS: Tab[] = [
   { to: '/teacher', label: 'Bosh', icon: Home, end: true },
-  { to: '/teacher/journal', label: 'Jurnal', icon: BookOpen },
   { to: '/teacher/tests', label: 'Test', icon: ClipboardCheck },
+  { to: '/teacher/rating', label: 'Reyting', icon: Trophy },
   { to: '/teacher/messages', label: 'Suhbat', icon: MessageCircle, badge: true },
   { to: '/teacher/profile', label: 'Profil', icon: User },
 ]
