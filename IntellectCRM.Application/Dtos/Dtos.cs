@@ -649,13 +649,16 @@ public record TrialResultRequest(string Result);
 
 /// <summary>Lid + birinchi dars davomat holati: "attended" | "absent" | "no-lesson".
 /// DistrictId/SchoolId — lid o'qiydigan TASHQI maktab (filtr uchun; nomlarini frontend
-/// tumanlar ma'lumotnomasidan (GET /admin/districts) yechadi).</summary>
+/// tumanlar ma'lumotnomasidan (GET /admin/districts) yechadi).
+/// RepeatCount/LastRepeatAt — TAKRORIY murojaat (ommaviy forma yoki daraja testi orqali yana
+/// yozilgan): kanban kartasidagi «Takroriy N» belgisi uchun.</summary>
 public record LeadWithAttendanceDto(
     string Id, string FullName, string Gender, string BirthDate, string Phone,
     string FatherFullName, string FatherPhone, string MotherFullName, string MotherPhone,
     string? Note, string Stage, string Source, string InterestSubject, string? CreatedAt,
     string? ConvertedStudentId, string? FirstLessonAttendance,
-    string DistrictId, string SchoolId);
+    string DistrictId, string SchoolId,
+    int RepeatCount, string LastRepeatAt);
 
 /// <summary>Lid manbasi (ma'lumotnoma) — "O'quv bo'limi → Sabablar" sahifasida boshqariladi.</summary>
 public record LeadSourceDto(string Id, string Name, int Order);
@@ -1850,13 +1853,126 @@ public record LevelTestSubmissionDto(
     int Percent, string Level, string CreatedAt, string LeadId, List<SurveyAnswerDto> Survey);
 
 /// <summary>Daraja testi topshiruvchisi: aktiv bo'ldimi + qaysi guruh(lar)ga qo'shilgan va o'qituvchisi (FISH).
-/// IsDeleted — lid o'chirilgan yoki o'quvchi o'chirilgan (lead→student→archived).</summary>
+/// IsDeleted — lid o'chirilgan yoki o'quvchi o'chirilgan (lead→student→archived).
+/// <para><c>StageTitle</c> — lidning kanban bosqichi, <c>Paid</c>/<c>PaidTotal</c> — SOTUV
+/// natijasi (lid formalari bilan bir xil, yagona manba: <c>LeadOutcome</c>).</para></summary>
 public record LevelTestStatRowDto(
     string SubmissionId, string FullName, string Phone, string Level, int Percent, string CreatedAt,
-    string LeadId, string? StudentId, bool Active, string GroupName, string TeacherName, bool IsDeleted = false);
-/// <summary>Daraja testi statistikasi: jami topshirgan + nechtasi aktiv o'quvchiga aylandi.</summary>
+    string LeadId, string? StudentId, bool Active, string GroupName, string TeacherName, bool IsDeleted = false,
+    string StageTitle = "", string StageColor = "", bool Paid = false, decimal PaidTotal = 0,
+    string FirstPaidAt = "");
+/// <summary>Daraja testi statistikasi: jami topshirgan, nechtasi aktiv o'quvchiga aylandi va
+/// nechtasi PUL to'ladi (<c>Paid</c> + <c>Revenue</c> — sotuv konversiyasi uchun).</summary>
 public record LevelTestStatsDto(
-    int Total, int Active, List<LevelTestStatRowDto> Rows);
+    int Total, int Active, List<LevelTestStatRowDto> Rows, int Paid = 0, decimal Revenue = 0);
+
+// ============================ LID FORMALARI (ariza formalari) ============================
+// Har kanal (Instagram / Facebook / Telegram / ...) uchun alohida ommaviy forma → o'z manbasi bilan lid.
+
+/// <summary>Forma qatori (admin ro'yxati) — qisqa sanoqlar bilan.</summary>
+public record LeadFormListDto(
+    string Id, string Title, string Slug, string Source, string CourseName,
+    bool IsActive, int Views, int FieldCount, int SubmissionCount, string CreatedAt, string CreatedBy);
+
+/// <summary>Qo'shimcha savol (admin).</summary>
+public record LeadFormFieldDto(
+    string Id, string Label, string Kind, List<string> Options, string Placeholder, bool Required, int Order);
+
+/// <summary>Ijtimoiy tarmoq havolalari — formada saqlanadi, "rahmat" ekranida ikonka bo'ladi.</summary>
+public record LeadFormSocialsDto(
+    string Instagram, string Telegram, string Facebook, string Youtube, string Website);
+
+/// <summary>Forma to'liq tafsiloti (admin muharriri uchun).</summary>
+public record LeadFormDetailDto(
+    string Id, string Title, string Slug, string Source, string CourseName, List<string> CourseOptions,
+    string Intro, string SuccessText, string ButtonText,
+    bool AskAge, bool AskCourse, bool AskParentPhone, bool IsActive,
+    int Views, string CreatedAt, string CreatedBy, List<LeadFormFieldDto> Fields,
+    LeadFormSocialsDto Socials);
+
+/// <summary>Qo'shimcha savol payload'i (Id bo'sh — yangi).</summary>
+public record LeadFormFieldInput(
+    string? Id, string Label, string Kind, List<string>? Options, string? Placeholder, bool Required);
+
+/// <summary>Forma yaratish/yangilash payload'i.</summary>
+public record LeadFormPayload(
+    string Title, string Source, string? CourseName, List<string>? CourseOptions,
+    string? Intro, string? SuccessText, string? ButtonText,
+    bool AskAge, bool AskCourse, bool AskParentPhone, bool IsActive,
+    List<LeadFormFieldInput>? Fields, LeadFormSocialsDto? Socials);
+
+/// <summary>
+/// Formaga tushgan ariza (admin ro'yxati) + lidning HOZIRGI holati.
+/// <para><paramref name="StageTitle"/> — kanban bosqichi ("Bog'lanildi", "Sinov darsi"...);
+/// <paramref name="Paid"/>/<paramref name="PaidTotal"/> — SOTUV natijasi: odam pul to'ladimi
+/// (to'lov − vozvrat); <paramref name="Active"/> — hozir faol guruhda o'qiyaptimi.</para>
+/// </summary>
+public record LeadFormSubmissionDto(
+    string Id, string FormId, string FormTitle, string FullName, string Phone, string ParentPhone,
+    int Age, string CourseName, string Ref, string CreatedAt, string LeadId, bool IsNewLead,
+    string? StudentId, bool Active, bool LeadDeleted,
+    string StageTitle, string StageColor, bool Paid, decimal PaidTotal, string FirstPaidAt,
+    List<SurveyAnswerDto> Answers);
+
+/// <summary>
+/// Bitta forma bo'yicha voronka qatori: ochildi → ariza → lid → o'quvchi → TO'LADI → faol.
+/// <para><paramref name="PayRate"/> — SOTUV konversiyasi: takrorsiz lidlarning necha foizi
+/// haqiqatan pul to'ladi (eng halol o'lchov — "o'quvchi bo'ldi" hali pul degani emas).</para>
+/// </summary>
+public record LeadFormStatRowDto(
+    string FormId, string Title, string Source, bool IsActive,
+    int Views, int Submissions, int NewLeads, int Converted, int ActiveStudents,
+    int Paid, decimal Revenue,
+    double SubmitRate, double ConvertRate, double PayRate);
+
+/// <summary>Kunlik ariza oqimi (grafik uchun).</summary>
+public record LeadFormDayDto(string Date, int Submissions);
+
+/// <summary>Sub-kanal (`?ref=`) kesimi — bir forma havolasi bir necha joyga qo'yilganda.</summary>
+public record LeadFormRefDto(string Ref, int Submissions, int Converted, int Paid);
+
+/// <summary>Manba (kanal) kesimi — bir manbaga bir nechta forma bog'langan bo'lishi mumkin.</summary>
+public record LeadFormSourceDto(
+    string Source, int Forms, int Submissions, int Converted, int ActiveStudents,
+    int Paid, decimal Revenue);
+
+/// <summary>
+/// Bosqich kesimi — formalardan kelgan lidlar HOZIR kanbanning qaysi ustunida turibdi.
+/// "Voronka qayerda tiqilib qolgan" degan savolga javob beradi.
+/// </summary>
+public record LeadFormStageDto(string Stage, string Color, int Leads);
+
+/// <summary>Formalar UMUMIY statistikasi (barcha formalar bo'yicha).</summary>
+public record LeadFormStatsDto(
+    int Forms, int ActiveForms, int Views, int Submissions, int NewLeads, int Converted, int ActiveStudents,
+    int Paid, decimal Revenue,
+    List<LeadFormStatRowDto> ByForm, List<LeadFormSourceDto> BySource,
+    List<LeadFormRefDto> ByRef, List<LeadFormStageDto> ByStage, List<LeadFormDayDto> Daily);
+
+// ---- Ommaviy (anonim) ----
+
+/// <summary>Ommaviy formadagi qo'shimcha savol.</summary>
+public record PublicLeadFormFieldDto(
+    string Id, string Label, string Kind, List<string> Options, string Placeholder, bool Required);
+
+/// <summary>Ommaviy ijtimoiy tarmoq havolasi — ariza yuborilgach ikonka bo'lib chiziladi.
+/// <paramref name="Kind"/> ∈ instagram | telegram | facebook | youtube | website.</summary>
+public record PublicSocialLinkDto(string Kind, string Url);
+
+/// <summary>Ommaviy forma ko'rinishi (arizani to'ldiruvchi uchun). Manba/statistika KO'RSATILMAYDI.</summary>
+public record PublicLeadFormDto(
+    string Title, string Intro, string ButtonText, string CourseName,
+    bool AskAge, bool AskCourse, bool AskParentPhone,
+    List<string> Courses, List<PublicLeadFormFieldDto> Fields,
+    List<PublicSocialLinkDto> Socials);
+
+/// <summary>Ariza yuborish so'rovi. Answers — savol id → tanlangan/kiritilgan qiymat(lar).</summary>
+public record LeadFormSubmitRequest(
+    string FullName, string Phone, string? ParentPhone, int Age, string? Course,
+    Dictionary<string, List<string>>? Answers, string? Ref);
+
+/// <summary>Ariza yuborilgandan keyingi javob (rahmat matni).</summary>
+public record LeadFormSubmitResultDto(string Message);
 
 /* ---------- Baholash mezonlari (grading criteria) ---------- */
 /// <summary>Baholash mezoni (kriteriya). TeacherId/TeacherName bo'sh — umumiy mezon.</summary>

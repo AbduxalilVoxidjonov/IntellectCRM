@@ -33,30 +33,8 @@ public static class LevelTestService
     }
 
     /// <summary>Test nomidan o'qiladigan, NOYOB slug yasaydi (`ingliz-tili-3f2a`).</summary>
-    public static async Task<string> GenerateSlugAsync(IAppDbContext db, string title)
-    {
-        var baseSlug = Slugify(title);
-        if (baseSlug.Length == 0) baseSlug = "test";
-        for (var attempt = 0; attempt < 20; attempt++)
-        {
-            var suffix = Guid.NewGuid().ToString("N")[..4];
-            var slug = $"{baseSlug}-{suffix}";
-            if (!await db.LevelTests.AnyAsync(t => t.Slug == slug)) return slug;
-        }
-        return Guid.NewGuid().ToString("N")[..10];
-    }
-
-    /// <summary>Lotin harf/raqamlarni saqlab, qolganini "-"ga aylantiradi (sodda slugify).</summary>
-    private static string Slugify(string s)
-    {
-        var chars = s.Trim().ToLowerInvariant()
-            .Select(c => (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') ? c : '-')
-            .ToArray();
-        var slug = new string(chars);
-        while (slug.Contains("--")) slug = slug.Replace("--", "-");
-        slug = slug.Trim('-');
-        return slug.Length > 40 ? slug[..40].Trim('-') : slug;
-    }
+    public static Task<string> GenerateSlugAsync(IAppDbContext db, string title) =>
+        SlugUtil.UniqueAsync(title, slug => db.LevelTests.AnyAsync(t => t.Slug == slug), "test");
 
     /// <summary>Ommaviy ko'rinish (to'g'ri javobSIZ). Test yo'q yoki faol emas — null.</summary>
     public static async Task<PublicTestDto?> GetPublicAsync(IAppDbContext db, string slug)
@@ -79,63 +57,20 @@ public static class LevelTestService
     public static async Task<List<LevelTestStatRowDto>> BuildStatRowsAsync(
         IAppDbContext db, List<LevelTestSubmission> subs)
     {
-        var leadIds = subs.Select(s => s.LeadId).Where(x => !string.IsNullOrEmpty(x)).Distinct().ToList();
-        // Lid → o'quvchi (ConvertedStudentId)
-        var leadToStudent = (await db.Leads.Where(l => leadIds.Contains(l.Id) && l.ConvertedStudentId != null)
-                .Select(l => new { l.Id, l.ConvertedStudentId })
-                .ToListAsync())
-            .ToDictionary(l => l.Id, l => l.ConvertedStudentId!);
-        var studentIds = leadToStudent.Values.Distinct().ToList();
-
-        // Hali MAVJUD lidlar (CRM'dan o'chirilmagan) — "o'chirilgan" bayrog'i UCHUN.
-        var existingLeadIds = (await db.Leads.Where(l => leadIds.Contains(l.Id))
-            .Select(l => l.Id).ToListAsync()).ToHashSet();
-        // AKTIV guruh a'zoliklari (Status=="active") — guruh + o'qituvchi (FISH) uchun.
-        var activeMemberships = await db.StudentGroups
-            .Where(sg => studentIds.Contains(sg.StudentId) && sg.IsActive && sg.Status == "active")
-            .Select(sg => new { sg.StudentId, sg.GroupId }).ToListAsync();
-        var active = activeMemberships.Select(m => m.StudentId).ToHashSet();
-
-        // Guruh nomi + o'qituvchi (FISH)
-        var groupIds = activeMemberships.Select(m => m.GroupId).Distinct().ToList();
-        var groups = await db.Classes.Where(g => groupIds.Contains(g.Id))
-            .Select(g => new { g.Id, g.Name, g.TeacherId }).ToListAsync();
-        var groupById = groups.ToDictionary(g => g.Id, g => g);
-        var teacherIds = groups.Select(g => g.TeacherId).Where(t => !string.IsNullOrEmpty(t)).Distinct().ToList();
-        var teacherNames = await db.Teachers.Where(t => teacherIds.Contains(t.Id))
-            .ToDictionaryAsync(t => t.Id, t => t.FullName);
-
-        // O'quvchi → aktiv guruh(lar)i nomi va o'qituvchisi (bir nechta bo'lsa vergul bilan)
-        var byStudent = activeMemberships
-            .GroupBy(m => m.StudentId)
-            .ToDictionary(
-                g => g.Key,
-                g =>
-                {
-                    var names = new List<string>();
-                    var teachers = new List<string>();
-                    foreach (var m in g)
-                    {
-                        if (!groupById.TryGetValue(m.GroupId, out var grp)) continue;
-                        if (!string.IsNullOrEmpty(grp.Name)) names.Add(grp.Name);
-                        var tn = teacherNames.GetValueOrDefault(grp.TeacherId ?? "", "");
-                        if (!string.IsNullOrEmpty(tn)) teachers.Add(tn);
-                    }
-                    return (Groups: string.Join(", ", names.Distinct()),
-                            Teachers: string.Join(", ", teachers.Distinct()));
-                });
+        // "Lid → o'quvchi → faol a'zolik" zanjiri YAGONA joyda (lid formalari statistikasi ham
+        // shundan o'qiydi) — qarang: LeadOutcome.
+        var outcome = await LeadOutcome.BuildAsync(db, subs.Select(s => s.LeadId));
 
         return subs.Select(s =>
         {
-            string? sid = leadToStudent.TryGetValue(s.LeadId, out var v) ? v : null;
-            // IsDeleted: lid yaratilgan edi-yu, hozir CRM'da YO'Q (o'chirilgan). Konvertatsiya holati
-            // ta'sir qilmaydi — birinchi bosqichdagi (hali o'quvchiga aylanmagan) lid "o'chirilgan" emas.
-            bool isDeleted = !string.IsNullOrEmpty(s.LeadId) && !existingLeadIds.Contains(s.LeadId);
-            var isActive = sid != null && active.Contains(sid);
-            var info = sid != null && byStudent.TryGetValue(sid, out var gi) ? gi : ("", "");
+            var info = outcome.GroupInfo(s.LeadId);
+            var stage = outcome.StageOf(s.LeadId);
             return new LevelTestStatRowDto(
                 s.Id, s.FullName, s.Phone, s.Level, s.Percent, s.CreatedAt, s.LeadId,
-                sid, isActive, info.Item1, info.Item2, isDeleted);
+                outcome.StudentOf(s.LeadId), outcome.IsActive(s.LeadId),
+                info.Groups, info.Teachers, outcome.IsDeletedLead(s.LeadId),
+                stage.Title, stage.Color,
+                outcome.HasPaid(s.LeadId), outcome.PaidTotal(s.LeadId), outcome.FirstPaidAt(s.LeadId));
         }).ToList();
     }
 
@@ -199,22 +134,8 @@ public static class LevelTestService
         // CRM LID — bir xil telefon (oxirgi 9 raqam) bo'yicha MAVJUD lid bo'lsa, DUBLIKAT
         // yaratmasdan natijani o'shaning tagiga qo'shamiz; aks holda yangi lid ochamiz.
         var phone = PhoneUtil.Normalize(req.Phone);
-        var phoneKey = PhoneUtil.Key(req.Phone);
-
-        Lead? existing = null;
-        if (phoneKey.Length >= 7)
-        {
-            // Telefon xilma-xil formatda (+998-.., bo'sh joyli, xom) saqlangani uchun solishtirish
-            // oxirgi 9 raqam bo'yicha xotirada bajariladi; bir nechta mos lid bo'lsa ENG BIRINCHI
-            // yaratilgani (birinchi lid) olinadi — natija shuning tagiga tushadi.
-            var matchId = (await db.Leads.Select(l => new { l.Id, l.Phone, l.CreatedAt }).ToListAsync())
-                .Where(l => PhoneUtil.Key(l.Phone) == phoneKey)
-                .OrderBy(l => l.CreatedAt)
-                .Select(l => l.Id)
-                .FirstOrDefault();
-            if (matchId is not null)
-                existing = await db.Leads.FirstOrDefaultAsync(l => l.Id == matchId);
-        }
+        // Mavjud lidni izlash qoidasi YAGONA joyda (lid formalari ham shundan foydalanadi).
+        var existing = await LeadIntake.FindByPhoneAsync(db, req.Phone);
 
         Lead lead;
         var isNewLead = existing is null;
@@ -228,6 +149,10 @@ public static class LevelTestService
             if (!string.IsNullOrWhiteSpace(req.FullName)
                 && (string.IsNullOrWhiteSpace(existing.FullName) || existing.FullName.StartsWith("Noma'lum")))
                 existing.FullName = req.FullName.Trim();
+            // TAKRORIY MUROJAAT belgisi (lid formasi bilan bir xil qoida): bosqich o'zgarmaydi,
+            // lekin kanban kartasida "yana murojaat qildi" ko'rinib turadi.
+            existing.RepeatCount += 1;
+            existing.LastRepeatAt = now;
             db.LeadEvents.Add(new LeadEvent
             {
                 LeadId = existing.Id, Type = "note", ActorName = "Daraja testi", CreatedAt = now,
@@ -238,7 +163,7 @@ public static class LevelTestService
         else
         {
             // Yangi lid — birinchi (Order) bosqichga tushadi.
-            var firstStage = await db.LeadStages.OrderBy(s => s.Order).Select(s => s.Id).FirstOrDefaultAsync() ?? "";
+            var firstStage = await LeadIntake.FirstStageIdAsync(db);
             lead = new Lead
             {
                 FullName = string.IsNullOrWhiteSpace(req.FullName) ? "Noma'lum (daraja testi)" : req.FullName.Trim(),

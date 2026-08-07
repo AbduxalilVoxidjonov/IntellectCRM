@@ -1010,6 +1010,22 @@ public class Lead
     public string BirthDate { get; set; } = string.Empty;
     /// <summary>O'quvchining o'z telefon raqami.</summary>
     public string Phone { get; set; } = string.Empty;
+    /// <summary>
+    /// TELEFON KALITI — <see cref="Phone"/> ning oxirgi 9 raqami (mamlakat kodisiz mahalliy qism,
+    /// <c>PhoneUtil.Key</c>). FAQAT qidiruv uchun, ko'rsatilmaydi.
+    ///
+    /// <para>NEGA: bazada raqamlar turli formatda saqlangan (`+998-90-…`, `998…`, xom kiritilgan),
+    /// shuning uchun "shu odamning lidi bormi" savolini SQL tomonda so'rab bo'lmasdi va
+    /// <c>LeadIntake.FindByPhoneAsync</c> HAR ARIZADA butun <c>Leads</c> jadvalini xotiraga
+    /// o'qirdi (ommaviy forma va daraja testi — anonim endpointlar). Endi indekslangan
+    /// (<c>IX_Leads_PhoneKey</c>) ustun bo'yicha bitta so'rov.</para>
+    ///
+    /// <para>⚠️ QO'LDA TO'LDIRILMAYDI: qiymatni <c>AppDbContext.SaveChanges</c> o'zi
+    /// <see cref="Phone"/> dan hisoblab yozadi — lid yaratiladigan yangi joy qo'shilganda
+    /// unutilib qolmasin (hozir 4 joyda yaratiladi: lid formasi, daraja testi, CRM formasi,
+    /// landing).</para>
+    /// </summary>
+    public string PhoneKey { get; set; } = string.Empty;
     /// <summary>Otasining F.I.SH.</summary>
     public string FatherFullName { get; set; } = string.Empty;
     /// <summary>Otasining telefon raqami.</summary>
@@ -1034,6 +1050,19 @@ public class Lead
     public string? ConvertedStudentId { get; set; }
     /// <summary>Tegishli ustun (LeadStage) id'si.</summary>
     public string Stage { get; set; } = string.Empty;
+
+    // ---- TAKRORIY MUROJAAT ----
+    // Odam ommaviy forma yoki daraja testi orqali YANA murojaat qilsa dublikat lid ochilmaydi
+    // (`LeadIntake.FindByPhoneAsync`) — natija shu lidning tagiga tushadi. Lekin lid kanbanda
+    // qayerda tursa o'sha yerda qolaveradi (first-touch: bosqichi ATAYIN o'zgartirilmaydi), ya'ni
+    // "yo'qotilgan" ustunidagi odam qayta murojaat qilganini menejer sezmay qolardi — izoh va
+    // Telegram xabaridan boshqa hech qaerda ko'rinmasdi. Shu ikki maydon kanban kartasida
+    // «Takroriy N» belgisini chiqaradi.
+
+    /// <summary>Takroriy murojaatlar soni (birinchi murojaat sanalmaydi; 0 = takror yo'q).</summary>
+    public int RepeatCount { get; set; }
+    /// <summary>Oxirgi takroriy murojaat vaqti (ISO "yyyy-MM-ddTHH:mm:ss"); bo'sh = takror yo'q.</summary>
+    public string LastRepeatAt { get; set; } = string.Empty;
 }
 
 /// <summary>Lid bosqichi (kanban ustuni).</summary>
@@ -2043,6 +2072,141 @@ public class LevelTestSubmission
     /// <summary>So'rovnoma (survey) javoblari JSON: [{"q":"savol matni","a":["tanlangan variant",...]}].
     /// Baholanmaydi — admin natijalarda va lidda ko'rsatish uchun.</summary>
     public string SurveyJson { get; set; } = string.Empty;
+}
+
+// ============================ LID FORMALARI (ariza formalari) ============================
+// "Formalar" bo'limining IKKINCHI turi (birinchisi — yuqoridagi DARAJA TESTI). Har bir ijtimoiy
+// tarmoq / reklama kanali uchun ALOHIDA forma yaratiladi: Instagram uchun bittasi, Facebook uchun
+// boshqasi, Telegram uchun uchinchisi... Har birining o'z ommaviy havolasi (`/forma/{slug}`) va o'z
+// MANBASI (<see cref="LeadForm.Source"/>) bor — to'ldirilgan ariza AYNAN shu manba bilan lid bo'lib
+// tushadi. Shu sabab "qaysi kanal nechta mijoz keltirdi" savoliga formalar statistikasi javob beradi.
+
+/// <summary>
+/// Ommaviy LID FORMASI — bitta kanal (Instagram / Facebook / Telegram / bannerdagi QR ...) uchun
+/// alohida ariza formasi. Ism va telefon HAR DOIM so'raladi (lidning eng kam ma'lumoti), qolgani
+/// sozlanadi: yosh, kurs tanlash, ota-ona telefoni + istalgancha QO'SHIMCHA savol
+/// (<see cref="LeadFormField"/>).
+/// </summary>
+public class LeadForm
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    /// <summary>Forma nomi — ommaviy sahifada sarlavha ("Instagram — bepul sinov darsi").</summary>
+    public string Title { get; set; } = string.Empty;
+    /// <summary>Ommaviy URL uchun qisqa noyob token (`/forma/{slug}`).</summary>
+    public string Slug { get; set; } = string.Empty;
+    /// <summary>
+    /// Lid MANBASI — <see cref="LeadSource"/> NOMI (matn sifatida, <see cref="Lead.Source"/> bilan bir
+    /// xil konvensiya). Shu formadan kelgan har bir lid AYNAN shu manba bilan yoziladi — modulning
+    /// butun ma'nosi shunda: kanal → forma → manba.
+    /// </summary>
+    public string Source { get; set; } = string.Empty;
+    /// <summary>
+    /// Formaning kursi — ERKIN MATN (markazdagi <see cref="Subject"/> ro'yxatiga BOG'LANMAGAN).
+    /// Lid <see cref="Lead.InterestSubject"/>i shu bo'ladi. <see cref="AskCourse"/> yoqilgan
+    /// bo'lsa — mijoz tanlagan variant ustun turadi.
+    ///
+    /// <para>NEGA erkin matn: reklama formasida ko'pincha markazdagi rasmiy kurs nomi emas,
+    /// taklifning O'ZI yoziladi ("Bepul sinov darsi", "Yozgi IELTS intensiv") va u hali kurs
+    /// sifatida ochilmagan bo'lishi mumkin.</para>
+    /// </summary>
+    public string CourseName { get; set; } = string.Empty;
+    /// <summary>
+    /// Mijozga ko'rsatiladigan kurs VARIANTLARI — formaning O'ZIDA yoziladi (EF Core 8 primitive
+    /// collection). <see cref="AskCourse"/> yoqilganda shu ro'yxatdan tanlanadi; ro'yxat bo'sh
+    /// bo'lsa savol umuman ko'rsatilmaydi (bo'sh select ma'nosiz).
+    /// </summary>
+    public List<string> CourseOptions { get; set; } = new();
+    /// <summary>Forma tepasidagi tavsif / taklif matni (ixtiyoriy).</summary>
+    public string Intro { get; set; } = string.Empty;
+    /// <summary>Yuborilgandan keyin ko'rsatiladigan rahmat matni. Bo'sh — standart matn.</summary>
+    public string SuccessText { get; set; } = string.Empty;
+    /// <summary>Yuborish tugmasi matni. Bo'sh — "Yuborish".</summary>
+    public string ButtonText { get; set; } = string.Empty;
+    /// <summary>Yosh so'ralsinmi (lid izohiga yoziladi).</summary>
+    public bool AskAge { get; set; }
+    /// <summary>Mijoz KURSNI o'zi tanlasinmi — <see cref="CourseOptions"/> ro'yxatidan.</summary>
+    public bool AskCourse { get; set; }
+    /// <summary>Ota-onaning telefoni so'ralsinmi (<see cref="Lead.FatherPhone"/> ga yoziladi —
+    /// lidlar qidiruvi shu ustunni ham qamraydi).</summary>
+    public bool AskParentPhone { get; set; }
+    /// <summary>Faolmi — faqat faol forma ommaviy havola orqali ochiladi.</summary>
+    public bool IsActive { get; set; } = true;
+    /// <summary>Ommaviy sahifa necha marta ochilgan (konversiyani hisoblash uchun).</summary>
+    public int Views { get; set; }
+    public string CreatedAt { get; set; } = string.Empty;
+    /// <summary>Yaratgan foydalanuvchi ismi (ko'rsatish uchun).</summary>
+    public string CreatedBy { get; set; } = string.Empty;
+
+    // ---- Ijtimoiy tarmoq havolalari (ariza YUBORILGANDAN KEYIN ikonka bo'lib ko'rinadi) ----
+    // Mijoz arizani qoldirgach "Rahmat!" ekranida turadi va u shu yerdan darhol kanalga/profilga
+    // obuna bo'la oladi — menejer qo'ng'iroq qilgunicha aloqa uzilmasin. Har formada ALOHIDA:
+    // Instagram reklamasidan kelganga Instagram, Telegram kanalidan kelganga kanal ko'rsatiladi.
+    // Bo'sh maydon = ikonka umuman chizilmaydi.
+
+    /// <summary>Instagram profili havolasi (`https://...`). Bo'sh — ko'rsatilmaydi.</summary>
+    public string InstagramUrl { get; set; } = string.Empty;
+    /// <summary>Telegram kanali/akkaunti havolasi.</summary>
+    public string TelegramUrl { get; set; } = string.Empty;
+    /// <summary>Facebook sahifasi havolasi.</summary>
+    public string FacebookUrl { get; set; } = string.Empty;
+    /// <summary>YouTube kanali havolasi. DIQQAT: nomi ATAYIN `Youtube` (`YouTube` EMAS) —
+    /// camelCase JSON siyosati `YouTube` ni `youTube` qilib yuborardi va klient topa olmasdi
+    /// (<see cref="CareerAbout"/> dagi bilan bir xil sabab).</summary>
+    public string YoutubeUrl { get; set; } = string.Empty;
+    /// <summary>Sayt (yoki boshqa havola).</summary>
+    public string WebsiteUrl { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Lid formasidagi QO'SHIMCHA savol. Javoblari baholanmaydi — ular lid izohiga va topshiruvning
+/// <see cref="LeadFormSubmission.AnswersJson"/> iga tushadi.
+/// </summary>
+public class LeadFormField
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string FormId { get; set; } = string.Empty;
+    /// <summary>Savol matni / maydon yorlig'i.</summary>
+    public string Label { get; set; } = string.Empty;
+    /// <summary>Turi: text | textarea | number | select | radio | checkbox.
+    /// select/radio/checkbox uchun <see cref="Options"/> to'ldirilishi SHART.</summary>
+    public string Kind { get; set; } = "text";
+    /// <summary>Variantlar (EF Core 8 primitive collection) — faqat select/radio/checkbox uchun.</summary>
+    public List<string> Options { get; set; } = new();
+    /// <summary>Maydon ichidagi yordamchi matn (placeholder).</summary>
+    public string Placeholder { get; set; } = string.Empty;
+    /// <summary>Majburiymi — bo'sh qoldirilsa forma yuborilmaydi.</summary>
+    public bool Required { get; set; }
+    public int Order { get; set; }
+}
+
+/// <summary>
+/// Formaga tushgan bitta ARIZA. Lidning O'ZI <see cref="Lead"/> da (topshirish paytida yaratiladi
+/// yoki telefon bo'yicha mavjudiga biriktiriladi), bu yerda esa AYNAN shu forma bo'yicha kesim
+/// saqlanadi: qaysi formadan, qaysi sub-kanaldan (<see cref="Ref"/>) va qanday javoblar bilan.
+/// </summary>
+public class LeadFormSubmission
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string FormId { get; set; } = string.Empty;
+    /// <summary>Yaratilgan yoki biriktirilgan lid id'si.</summary>
+    public string LeadId { get; set; } = string.Empty;
+    /// <summary>Ariza YANGI lid ochdimi (false — mavjud lidga biriktirildi, ya'ni takroriy murojaat).</summary>
+    public bool IsNewLead { get; set; }
+    public string FullName { get; set; } = string.Empty;
+    public string Phone { get; set; } = string.Empty;
+    public string ParentPhone { get; set; } = string.Empty;
+    /// <summary>Yoshi (0 = so'ralmagan/kiritilmagan).</summary>
+    public int Age { get; set; }
+    /// <summary>Tanlangan/biriktirilgan kurs NOMI (SNAPSHOT — kurs keyin o'zgarsa ham tarix buzilmasin).</summary>
+    public string CourseName { get; set; } = string.Empty;
+    /// <summary>
+    /// Sub-kanal belgisi — ommaviy havoladagi `?ref=` qiymati (masalan `?ref=story`, `?ref=bio`).
+    /// Bir forma ichida bir necha joyga qo'yilgan havolani ajratish uchun. Bo'sh = belgilanmagan.
+    /// </summary>
+    public string Ref { get; set; } = string.Empty;
+    /// <summary>Qo'shimcha savollar javobi JSON: [{"question":"...","answers":["..."]}].</summary>
+    public string AnswersJson { get; set; } = string.Empty;
+    public string CreatedAt { get; set; } = string.Empty;
 }
 
 

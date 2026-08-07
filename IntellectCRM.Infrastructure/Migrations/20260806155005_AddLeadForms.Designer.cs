@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using IntellectCRM.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace IntellectCRM.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260806155005_AddLeadForms")]
+    partial class AddLeadForms
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2825,10 +2828,6 @@ namespace IntellectCRM.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<string>("LastRepeatAt")
-                        .IsRequired()
-                        .HasColumnType("text");
-
                     b.Property<string>("MotherFullName")
                         .IsRequired()
                         .HasColumnType("text");
@@ -2844,14 +2843,6 @@ namespace IntellectCRM.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<string>("PhoneKey")
-                        .IsRequired()
-                        .HasMaxLength(16)
-                        .HasColumnType("character varying(16)");
-
-                    b.Property<int>("RepeatCount")
-                        .HasColumnType("integer");
-
                     b.Property<string>("SchoolId")
                         .IsRequired()
                         .HasColumnType("text");
@@ -2865,8 +2856,6 @@ namespace IntellectCRM.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("PhoneKey");
 
                     b.ToTable("Leads");
                 });

@@ -1,5 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using IntellectCRM.Application.Abstractions;
+using IntellectCRM.Application.Services;
 using IntellectCRM.Domain;
 
 namespace IntellectCRM.Infrastructure.Data;
@@ -95,6 +96,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<LevelTestBand> LevelTestBands => Set<LevelTestBand>();
     public DbSet<LevelTestSubmission> LevelTestSubmissions => Set<LevelTestSubmission>();
     public DbSet<LevelTestInvite> LevelTestInvites => Set<LevelTestInvite>();
+
+    // Lid formalari (kanal → ommaviy forma → lid)
+    public DbSet<LeadForm> LeadForms => Set<LeadForm>();
+    public DbSet<LeadFormField> LeadFormFields => Set<LeadFormField>();
+    public DbSet<LeadFormSubmission> LeadFormSubmissions => Set<LeadFormSubmission>();
 
     // Support o'qituvchi bo'sh vaqt slotlari + bron
     public DbSet<SupportSlot> SupportSlots => Set<SupportSlot>();
@@ -223,6 +229,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         b.Entity<StudentGroup>().HasIndex(sg => sg.GroupId);
         b.Entity<StudentGroup>().HasIndex(sg => new { sg.StudentId, sg.IsActive });
         b.Entity<LeadEvent>().HasIndex(e => e.LeadId);
+        // Lid TELEFON KALITI (oxirgi 9 raqam) — "shu odamning lidi bormi" savolini SQL tomonda
+        // hal qiladi (`LeadIntake.FindByPhoneAsync`). Qiymatni SaveChanges o'zi yozadi.
+        b.Entity<Lead>().Property(l => l.PhoneKey).HasMaxLength(16);
+        b.Entity<Lead>().HasIndex(l => l.PhoneKey);
         b.Entity<StudentNote>().HasIndex(n => n.StudentId);
         b.Entity<TrialLesson>().HasIndex(t => t.LeadId);
         b.Entity<FinanceTransaction>().HasIndex(t => t.Date);
@@ -450,6 +460,16 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         b.Entity<LevelTestInvite>().HasIndex(i => new { i.TestId, i.CreatedAt });
         b.Entity<LevelTestInvite>().HasIndex(i => i.LeadId);
 
+        // Lid formalari — Slug ommaviy URL kaliti (daraja testidagi bilan bir xil konvensiya).
+        b.Entity<LeadForm>().Property(f => f.Slug).HasMaxLength(64);
+        b.Entity<LeadForm>().HasIndex(f => f.Slug).IsUnique();
+        b.Entity<LeadFormField>().Property(f => f.FormId).HasMaxLength(200);
+        b.Entity<LeadFormField>().HasIndex(f => new { f.FormId, f.Order });
+        b.Entity<LeadFormSubmission>().Property(s => s.FormId).HasMaxLength(200);
+        b.Entity<LeadFormSubmission>().HasIndex(s => new { s.FormId, s.CreatedAt });
+        b.Entity<LeadFormSubmission>().Property(s => s.LeadId).HasMaxLength(200);
+        b.Entity<LeadFormSubmission>().HasIndex(s => s.LeadId);
+
         // Sertifikatlar
         b.Entity<CertificateTemplate>().Property(t => t.CourseId).HasMaxLength(200);
         b.Entity<CertificateTemplate>().HasIndex(t => t.CourseId);
@@ -539,5 +559,39 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
             .HasOne<Room>().WithMany()
             .HasForeignKey(c => c.RoomId)
             .OnDelete(DeleteBehavior.SetNull);
+    }
+
+    // ==================== Saqlashdan oldingi normalizatsiya ====================
+
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        SyncLeadPhoneKeys();
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    public override Task<int> SaveChangesAsync(
+        bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    {
+        SyncLeadPhoneKeys();
+        return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
+    /// <summary>
+    /// <see cref="Lead.PhoneKey"/> ni <see cref="Lead.Phone"/> dan hisoblab qo'yadi (qo'shilgan va
+    /// o'zgargan lidlar uchun).
+    ///
+    /// <para>NEGA shu yerda: lid to'rt joyda yaratiladi (lid formasi, daraja testi, CRM formasi,
+    /// landing) va telefon tahrirlanadi ham. Har birida qo'lda yozilsa — beshinchi joy qo'shilganda
+    /// unutiladi va o'sha lid telefon bo'yicha QIDIRUVDAN tushib qolardi (dublikat lid ochilar,
+    /// modulning butun ma'nosi buzilardi). Bitta darvoza — unutish imkonsiz.</para>
+    /// </summary>
+    private void SyncLeadPhoneKeys()
+    {
+        foreach (var entry in ChangeTracker.Entries<Lead>())
+        {
+            if (entry.State is not (EntityState.Added or EntityState.Modified)) continue;
+            var key = PhoneUtil.Key(entry.Entity.Phone);
+            if (entry.Entity.PhoneKey != key) entry.Entity.PhoneKey = key;
+        }
     }
 }

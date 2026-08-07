@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   DndContext,
   DragOverlay,
@@ -36,6 +37,8 @@ import { usePerm } from '@/lib/permissions'
 
 export function LeadsPage() {
   const { can } = usePerm()
+  // `?lead=<id>` — boshqa bo'limdan (masalan "Formalar → Arizalar") AYNAN shu lidni ochish uchun.
+  const [searchParams, setSearchParams] = useSearchParams()
   const [leads, setLeads] = useState<Lead[]>([])
   const [stages, setStages] = useState<Stage[]>([])
   const [loading, setLoading] = useState(true)
@@ -81,6 +84,21 @@ export function LeadsPage() {
       .then(setDistricts)
       .catch(() => setDistricts([]))
   }, [])
+
+  /**
+   * `?lead=<id>` bilan kelingan bo'lsa — o'sha lidning oynasi ochiladi va parametr manzildan
+   * OLIB TASHLANADI: aks holda oynani yopib, sahifani yangilaganda u qaytadan ochilaverardi.
+   * Lid topilmasa (o'chirilgan) hech narsa qilinmaydi — ro'yxat odatdagidek ko'rinadi.
+   */
+  useEffect(() => {
+    const id = searchParams.get('lead')
+    if (!id || leads.length === 0) return
+    const lead = leads.find((l) => l.id === id)
+    if (lead) setDetailLead(lead)
+    const next = new URLSearchParams(searchParams)
+    next.delete('lead')
+    setSearchParams(next, { replace: true })
+  }, [leads, searchParams, setSearchParams])
 
   /* ---------- Karta drag-and-drop ---------- */
   const handleDragStart = (e: DragStartEvent) => setActiveId(String(e.active.id))

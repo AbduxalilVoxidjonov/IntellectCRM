@@ -30,6 +30,12 @@ export interface NavChild {
   roles?: Role[]
   /** Ruxsat kaliti — xodim (staff) shu bo'limga ega bo'lsagina ko'rinadi */
   perm?: string
+  /**
+   * Ruxsatlardan BIRORTASI yetarli (bir necha ruxsat bilan ishlaydigan band uchun — masalan
+   * "Formalar" ichida lid formalari `leads`, daraja testi `schedule` ruxsatida). Sahifaning O'ZI
+   * baribir `RequirePerm` bilan darvozalanadi; bu faqat MENYUda ko'rinish qoidasi.
+   */
+  permAny?: string[]
   /** Ichki bo'lim (3-daraja) — masalan "O'quv bo'limi" → "Guruhlar" → "Reyting" */
   children?: NavChild[]
 }
@@ -41,6 +47,8 @@ export interface NavItem {
   children?: NavChild[]
   /** Bo'lim ruxsat kaliti (o'qituvchi/xodim filtri uchun; yo'q = har doim ko'rinadi) */
   perm?: string
+  /** Ruxsatlardan BIRORTASI yetarli — <see cref="NavChild.permAny"/> bilan bir xil qoida */
+  permAny?: string[]
   /** Faqat shu rollarga ko'rinadi (yo'q = barcha rollarga) */
   roles?: Role[]
 }
@@ -92,7 +100,10 @@ export const navByRole: Record<Role, NavItem[]> = {
         // ("Samaradorlik") endi sahifa tepasidagi cardlardan ochiladi.
         { label: 'Xonalar', to: '/admin/rooms', perm: 'classes' },
         { label: 'Testlar natijalari', to: '/admin/test-results', perm: 'classes' },
-        { label: 'Daraja testi', to: '/admin/level-tests', perm: 'schedule' },
+        // "Formalar" — BITTA band, ichida ikki turdagi forma: lid formalari (`leads`) va
+        // daraja testlari (`schedule`). Menyuda ikkalasidan BIRORTASI bo'lsa ko'rinadi, ichkarida
+        // esa har bir card/sahifa o'z ruxsati bilan darvozalangan (`formTabs`, `RequirePerm`).
+        { label: 'Formalar', to: '/admin/forms', permAny: ['leads', 'schedule'] },
         { label: 'Kitoblar sotuvi', to: '/admin/books', perm: 'books' },
         { label: 'Sabablar', to: '/admin/reasons', perm: 'settings' },
         { label: 'Shartnomalar', to: '/admin/contracts', perm: 'contracts' },

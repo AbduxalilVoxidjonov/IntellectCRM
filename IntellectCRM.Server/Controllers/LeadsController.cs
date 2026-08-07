@@ -36,7 +36,8 @@ public class LeadsController(AppDbContext db, AuditService audit, TelegramServic
             string.IsNullOrWhiteSpace(lead.ConvertedStudentId)
                 ? "no-lesson"
                 : attendanceByStudent.GetValueOrDefault(lead.ConvertedStudentId, "no-lesson"),
-            lead.DistrictId, lead.SchoolId
+            lead.DistrictId, lead.SchoolId,
+            lead.RepeatCount, lead.LastRepeatAt
         )).ToList();
     }
 

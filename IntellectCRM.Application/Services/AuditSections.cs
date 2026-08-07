@@ -79,6 +79,9 @@ public static class AuditSections
 
         // --- Qolgan bo'limlar ---
         ["Lead"] = "leads",
+        // "LeadForm" — ijtimoiy tarmoq formalari (yaratish/tahrir/nusxa/o'chirish). Lidlar
+        // bo'limida, chunki forma AYNAN lid ishlab chiqaradi.
+        ["LeadForm"] = "leads",
         ["Book"] = "books",
         ["BookOrder"] = "books",
         ["Contract"] = "contracts",

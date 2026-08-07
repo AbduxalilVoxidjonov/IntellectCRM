@@ -408,7 +408,7 @@ Bazaviy route yo'q · Ruxsat: har action o'zi (student portal / admin / public).
 
 | Metod | Yo'l | Vazifasi |
 |---|---|---|
-| GET | /api/admin/leads | Barcha lidlar + birinchi dars davomati. |
+| GET | /api/admin/leads | Barcha lidlar + birinchi dars davomati + takroriy murojaat (`repeatCount`/`lastRepeatAt`). |
 | POST | /api/admin/leads | Yangi lid (+ Telegram + avto-SMS). |
 | POST | /api/admin/leads/{id}/send-test | Lidga bir martalik daraja-testi havolasi (SMS). |
 | PUT | /api/admin/leads/{id} | Lid ma'lumotlarini tahrirlaydi. |
@@ -449,6 +449,35 @@ Bazaviy route yo'q · Ruxsat: har action o'zi (student portal / admin / public).
 | GET | /api/admin/level-tests/overall-stats | Barcha testlar umumiy statistikasi. |
 | GET | /api/admin/level-tests/{id}/submissions | Topshirganlar ro'yxati. |
 | GET | /api/admin/level-tests/{id}/stats | Bitta test statistikasi. |
+
+### LeadFormsController
+`api/admin/lead-forms` · Ruxsat: `[Authorize]` + `[AdminPerm("leads", ReadRequiresPerm = true)]`.
+Lid formalari — har bir ijtimoiy tarmoq uchun alohida ommaviy forma (`/forma/{slug}`) o'z MANBASI
+bilan; ariza CRM'da lid bo'lib tushadi. O'qish ham darvozalangan (javobda telefonlar bor).
+
+| Metod | Yo'l | Vazifasi |
+|---|---|---|
+| GET | /api/admin/lead-forms | Formalar ro'yxati (maydon + ariza soni, ochilishlar). |
+| GET | /api/admin/lead-forms/{id} | Bitta forma (qo'shimcha savollari bilan). |
+| POST | /api/admin/lead-forms | Yangi forma. |
+| PUT | /api/admin/lead-forms/{id} | Tahrirlaydi (maydonlar to'liq almashtiriladi). |
+| POST | /api/admin/lead-forms/{id}/duplicate | Nusxa — yangi havola, manbasiz va o'chiq holda. |
+| DELETE | /api/admin/lead-forms/{id} | Formani + arizalar tarixini o'chiradi (lidlar qoladi). |
+| GET | /api/admin/lead-forms/submissions | Arizalar (`?formId=`, max 1000) + lidning holati. |
+| GET | /api/admin/lead-forms/stats | Voronka: ochildi → ariza → lid → o'quvchi (forma/manba/ref). `DataCache` da (bog'liq jadval o'zgarsa avto-yangilanadi). |
+| GET | /api/admin/lead-forms/sources | Manba ma'lumotnomasi (forma uchun). |
+| GET | /api/admin/lead-forms/field-kinds | Qo'llab-quvvatlanadigan maydon turlari. |
+
+⚠️ Kurslar ma'lumotnomasi endpointi YO'Q: forma kursni markazdagi kurslar (`Subject`) katalogidan
+olmaydi — variantlar formaning O'ZIDA yoziladi (`courseOptions`), mijoz shulardan tanlaydi.
+
+### PublicLeadFormController
+`api/public/form` · Ruxsat: `[AllowAnonymous]` (yuborish — `public-lead` rate-limit).
+
+| Metod | Yo'l | Vazifasi |
+|---|---|---|
+| GET | /api/public/form/{slug} | Faol formani oladi (+ ochilishlar sanog'ini oshiradi). |
+| POST | /api/public/form/{slug}/submit | Ariza — lid yaratiladi yoki telefon bo'yicha mavjudiga biriktiriladi. |
 
 ### FeedbackController
 `api/admin/feedback` · Ruxsat: `[Authorize]` + `[AdminPerm("feedback")]`. Taklif/shikoyatlar (ota-onalardan).

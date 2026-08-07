@@ -20,6 +20,25 @@ export function teacherTabs(canSeeReports: boolean): CardTabItem[] {
   ]
 }
 
+/**
+ * FORMALAR bo'limi (O'quv bo'limi ichida): Lid formalari · Statistika · Daraja testlari.
+ *
+ * Ikki turdagi forma bitta bo'limda turadi, lekin RUXSATLARI har xil: lid formalari — `leads`
+ * (ular lid ishlab chiqaradi), daraja testi esa tarixan `schedule` (kurs bilan bog'liq). Shu sabab
+ * cardlar alohida-alohida yashiriladi — bir turi yopiq bo'lgan xodim ikkinchisini baribir ko'radi.
+ */
+export function formTabs(canForms: boolean, canTests: boolean): CardTabItem[] {
+  return [
+    // `end` — `/admin/forms/statistika` ochilganda «Lid formalari» ham faol bo'lib qolmasin
+    { label: 'Lid formalari', to: '/admin/forms', end: true, hidden: !canForms },
+    // ⚠️ Nomi ATAYIN «Lid statistikasi» — yonida «Daraja testlari» turgani uchun yalang
+    // "Statistika" qaysi turga tegishli ekani noaniq bo'lardi (daraja testining O'Z statistikasi
+    // ham bor: `/admin/level-tests/stats`).
+    { label: 'Lid statistikasi', to: '/admin/forms/statistika', hidden: !canForms },
+    { label: 'Daraja testlari', to: '/admin/level-tests', hidden: !canTests },
+  ]
+}
+
 /** Xonalar (O'quv bo'limi ichida): Xonalar ro'yxati · Samaradorlik. */
 export const roomTabs: CardTabItem[] = [
   { label: "Xonalar ro'yxati", to: '/admin/rooms', end: true },

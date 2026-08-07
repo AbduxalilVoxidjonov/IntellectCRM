@@ -53,12 +53,17 @@ export function Sidebar({ open, collapsed = false, onNavigate }: SidebarProps) {
   const role = user.role
   // Element ko'rinadi: roli mos (yoki roles yo'q) VA xodim shu bo'limni KO'RISH ruxsatiga ega
   // (yoki perm yo'q / permissions yo'q — admin). "Ko'rish" — bare "section" yoki biror "section:action".
-  const canSee = (x: { roles?: Role[]; perm?: string }) =>
+  // `permAny` — bir necha ruxsat bilan ishlaydigan band (masalan "Formalar": lid formalari `leads`,
+  // daraja testi `schedule`): ulardan BIRORTASI yetarli. Sahifa ichida baribir `RequirePerm` bor.
+  const canSee = (x: { roles?: Role[]; perm?: string; permAny?: string[] }) =>
     (!x.roles || x.roles.includes(role)) &&
-    (!x.perm || can(user.permissions, x.perm, 'view'))
+    (!x.perm || can(user.permissions, x.perm, 'view')) &&
+    (!x.permAny || x.permAny.some((p) => can(user.permissions, p, 'view')))
 
   // Guruh bolalarini (3-darajagacha) rekursiv filtrlaymiz; barcha bolalari yashirilgan guruh ko'rinmaydi.
-  function filterNav<T extends { roles?: Role[]; perm?: string; children?: NavChild[] }>(list: T[]): T[] {
+  function filterNav<T extends { roles?: Role[]; perm?: string; permAny?: string[]; children?: NavChild[] }>(
+    list: T[],
+  ): T[] {
     return list
       .filter(canSee)
       .map((i) => (i.children ? { ...i, children: filterNav(i.children) } : i))

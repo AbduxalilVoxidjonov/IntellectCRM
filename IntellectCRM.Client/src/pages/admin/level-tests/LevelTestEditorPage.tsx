@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft, Plus, Trash2, Copy, Check, ExternalLink, Link2, GripVertical, Save, ListChecks, Users,
-  BarChart3, Zap,
+  BarChart3, Zap, Wallet,
 } from 'lucide-react'
 import type { LevelTestDetail, LevelTestSubmission, Subject } from '@/types'
 import {
@@ -16,7 +16,8 @@ import { Button } from '@/components/ui/Button'
 import { Loader } from '@/components/ui/Loader'
 import { Input, Select, Textarea } from '@/components/ui/Input'
 import { PageHeader } from '@/components/ui/PageHeader'
-import { cn, formatDate, apiErrorMessage } from '@/lib/utils'
+import { LeadStageChip } from '@/components/leads/LeadStageChip'
+import { cn, formatDate, formatMoney, apiErrorMessage } from '@/lib/utils'
 
 interface QState {
   id?: string
@@ -537,6 +538,12 @@ function StatsPanel({ stats, invites }: { stats: LevelTestStats | null; invites:
   const KPI = [
     { label: 'Topshirgan', value: stats.total, sub: 'jami lid', icon: Users, color: 'text-slate-600', bg: 'bg-slate-100' },
     { label: 'Aktiv o’quvchi', value: stats.active, sub: `${pct(stats.active)}%`, icon: Zap, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+    // SOTUV: "aktiv o'quvchi" hali pul degani emas — pul to'laganlar alohida ko'rsatiladi.
+    {
+      label: "To'lov qildi", value: stats.paid,
+      sub: stats.revenue > 0 ? `${formatMoney(stats.revenue)} so'm` : `${pct(stats.paid)}%`,
+      icon: Wallet, color: 'text-teal-600', bg: 'bg-teal-50',
+    },
   ]
 
   const Dot = ({ on }: { on: boolean }) =>
@@ -545,7 +552,7 @@ function StatsPanel({ stats, invites }: { stats: LevelTestStats | null; invites:
   return (
     <div className="space-y-4">
       {/* KPI */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         {KPI.map((k) => {
           const KIcon = k.icon
           return (
@@ -562,7 +569,10 @@ function StatsPanel({ stats, invites }: { stats: LevelTestStats | null; invites:
       </div>
 
       {/* Jadval */}
-      <Card title="Topshiruvchilar" sub="Aktiv o'quvchi bo'lganlar — guruhi va o'qituvchisi (FISH)">
+      <Card
+        title="Topshiruvchilar"
+        sub="Lid qaysi bosqichda, pul to'ladimi va aktiv o'quvchi bo'ldimi — guruhi va o'qituvchisi bilan"
+      >
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead className="border-b border-slate-100 text-xs uppercase tracking-wide text-slate-400">
@@ -571,6 +581,8 @@ function StatsPanel({ stats, invites }: { stats: LevelTestStats | null; invites:
                 <th className="px-3 py-2">Telefon</th>
                 <th className="px-3 py-2">Daraja</th>
                 <th className="px-3 py-2 text-center">Foiz</th>
+                <th className="px-3 py-2">Bosqich</th>
+                <th className="px-3 py-2 text-right">To'lov</th>
                 <th className="px-3 py-2 text-center">Aktiv</th>
                 <th className="px-3 py-2">Guruh</th>
                 <th className="px-3 py-2">O'qituvchi</th>
@@ -596,6 +608,23 @@ function StatsPanel({ stats, invites }: { stats: LevelTestStats | null; invites:
                     ) : '—'}
                   </td>
                   <td className="px-3 py-2 text-center font-mono text-slate-600">{r.percent}%</td>
+                  <td className="px-3 py-2">
+                    <LeadStageChip title={r.stageTitle} color={r.stageColor} />
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    {r.paid ? (
+                      <span className="whitespace-nowrap font-mono text-xs font-semibold text-teal-700">
+                        {formatMoney(r.paidTotal)}
+                        {r.firstPaidAt && (
+                          <span className="block font-sans text-[10px] font-normal text-slate-400">
+                            {formatDate(r.firstPaidAt)}
+                          </span>
+                        )}
+                      </span>
+                    ) : (
+                      <span className="text-slate-300">—</span>
+                    )}
+                  </td>
                   <td className="px-3 py-2 text-center"><Dot on={r.active} /></td>
                   <td className="px-3 py-2 text-slate-600">{r.groupName || <span className="text-slate-300">—</span>}</td>
                   <td className="px-3 py-2 text-slate-600">{r.teacherName || <span className="text-slate-300">—</span>}</td>

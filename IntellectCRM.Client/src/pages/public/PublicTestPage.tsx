@@ -4,7 +4,8 @@ import { GraduationCap, ArrowRight, ArrowLeft, Check, Loader2, PartyPopper, Aler
 import type { PublicTest, TestResult } from '@/types'
 import { getPublicTest, submitPublicTest, getInviteTest, submitInviteTest } from '@/api/services/publicTest'
 import { getPublicBrand, type PublicBrand } from '@/api/services/settings'
-import { apiErrorMessage } from '@/lib/utils'
+import { apiErrorMessage, cn } from '@/lib/utils'
+import { inputCls, cardPadX, primaryBtnCls, Field } from './publicFormUi'
 
 type Phase = 'loading' | 'notfound' | 'used' | 'intro' | 'quiz' | 'done'
 
@@ -128,7 +129,7 @@ export function PublicTestPage() {
           )}
 
           {phase === 'notfound' && (
-            <div className="flex flex-col items-center gap-3 px-6 py-20 text-center">
+            <div className={cn('flex flex-col items-center gap-3 py-20 text-center', cardPadX)}>
               <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-red-50 text-red-500">
                 <AlertCircle className="h-7 w-7" />
               </div>
@@ -140,7 +141,7 @@ export function PublicTestPage() {
           )}
 
           {phase === 'used' && (
-            <div className="flex flex-col items-center gap-3 px-6 py-20 text-center">
+            <div className={cn('flex flex-col items-center gap-3 py-20 text-center', cardPadX)}>
               <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-50 text-amber-500">
                 <AlertCircle className="h-7 w-7" />
               </div>
@@ -154,11 +155,19 @@ export function PublicTestPage() {
           {/* Kirish + kontakt */}
           {phase === 'intro' && test && (
             <div>
-              <div className="bg-gradient-to-br from-brand-500 to-brand-700 px-6 py-7 text-white">
-                <h1 className="text-xl font-bold">{test.title}</h1>
+              <div className={cn('bg-gradient-to-br from-brand-500 to-brand-700 py-6 text-white sm:py-7', cardPadX)}>
+                <h1 className="break-words text-xl font-bold">{test.title}</h1>
                 {test.courseName && <p className="mt-1 text-sm text-white/80">{test.courseName}</p>}
               </div>
-              <div className="space-y-4 px-6 py-6">
+              {/* Haqiqiy `<form>`: telefonda klaviatura "davom etish" tugmasini ko'rsatadi va
+                  brauzerning avto-to'ldirishi (ism/telefon) ishlaydi. */}
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  start()
+                }}
+                className={cn('space-y-4 py-6', cardPadX)}
+              >
                 {test.intro && <p className="text-sm leading-relaxed text-slate-600">{test.intro}</p>}
                 <div className="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-500">
                   <p className="font-medium text-slate-700">{questions.length} ta savol</p>
@@ -176,6 +185,10 @@ export function PublicTestPage() {
                         value={fullName}
                         onChange={(e) => setFullName(e.target.value)}
                         placeholder="Masalan: Aliyev Ali"
+                        name="name"
+                        autoComplete="name"
+                        autoCapitalize="words"
+                        enterKeyHint="next"
                         className={inputCls}
                       />
                     </Field>
@@ -184,7 +197,11 @@ export function PublicTestPage() {
                         value={phone}
                         onChange={(e) => setPhone(e.target.value)}
                         placeholder="+998 90 123 45 67"
+                        type="tel"
+                        name="tel"
+                        autoComplete="tel"
                         inputMode="tel"
+                        enterKeyHint="next"
                         className={inputCls}
                       />
                     </Field>
@@ -194,6 +211,9 @@ export function PublicTestPage() {
                         onChange={(e) => setAge(e.target.value.replace(/\D/g, ''))}
                         placeholder="18"
                         inputMode="numeric"
+                        pattern="[0-9]*"
+                        maxLength={3}
+                        enterKeyHint="go"
                         className={inputCls}
                       />
                     </Field>
@@ -203,12 +223,12 @@ export function PublicTestPage() {
                 {error && <p className="text-sm font-medium text-red-600">{error}</p>}
 
                 <button
-                  onClick={start}
-                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand-600 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-600/20 transition-colors hover:bg-brand-700"
+                  type="submit"
+                  className={cn(primaryBtnCls, 'bg-brand-600 shadow-brand-600/20 hover:bg-brand-700')}
                 >
                   Testni boshlash <ArrowRight className="h-4 w-4" />
                 </button>
-              </div>
+              </form>
             </div>
           )}
 
@@ -216,7 +236,7 @@ export function PublicTestPage() {
           {phase === 'quiz' && test && q && (
             <div>
               {/* Progress */}
-              <div className="px-6 pt-6">
+              <div className={cn('pt-6', cardPadX)}>
                 <div className="mb-2 flex items-center justify-between text-xs font-medium text-slate-400">
                   <span>
                     Savol {step + 1} / {questions.length}
@@ -231,7 +251,7 @@ export function PublicTestPage() {
                 </div>
               </div>
 
-              <div className="px-6 py-6">
+              <div className={cn('py-6', cardPadX)}>
                 <h2 className="text-base font-semibold leading-relaxed text-slate-800">{q.text}</h2>
                 {q.kind === 'survey' && (
                   <p className="mt-1 text-xs text-slate-400">
@@ -293,7 +313,7 @@ export function PublicTestPage() {
                   {step > 0 && (
                     <button
                       onClick={() => setStep((s) => s - 1)}
-                      className="flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
+                      className="flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-600 sm:py-2.5 transition-colors hover:bg-slate-50"
                     >
                       <ArrowLeft className="h-4 w-4" /> Orqaga
                     </button>
@@ -302,7 +322,7 @@ export function PublicTestPage() {
                     <button
                       onClick={() => setStep((s) => s + 1)}
                       disabled={!answered}
-                      className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-brand-600 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700 disabled:opacity-40"
+                      className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-brand-600 py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-700 sm:py-2.5 disabled:opacity-40"
                     >
                       Keyingi <ArrowRight className="h-4 w-4" />
                     </button>
@@ -310,7 +330,7 @@ export function PublicTestPage() {
                     <button
                       onClick={submit}
                       disabled={!answered || submitting}
-                      className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-600 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:opacity-40"
+                      className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 sm:py-2.5 disabled:opacity-40"
                     >
                       {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
                       Yakunlash
@@ -323,7 +343,7 @@ export function PublicTestPage() {
 
           {/* Natija */}
           {phase === 'done' && result && (
-            <div className="flex flex-col items-center gap-4 px-6 py-10 text-center">
+            <div className={cn('flex flex-col items-center gap-4 py-10 text-center', cardPadX)}>
               <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-500">
                 <PartyPopper className="h-8 w-8" />
               </div>
@@ -360,14 +380,3 @@ export function PublicTestPage() {
   )
 }
 
-const inputCls =
-  'w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none transition-colors focus:border-brand-400'
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="block">
-      <span className="mb-1 block text-xs font-medium text-slate-500">{label}</span>
-      {children}
-    </label>
-  )
-}

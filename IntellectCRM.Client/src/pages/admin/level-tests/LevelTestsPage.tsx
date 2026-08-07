@@ -11,6 +11,9 @@ import { Modal } from '@/components/ui/Modal'
 import { Input, Select } from '@/components/ui/Input'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Badge } from '@/components/ui/Badge'
+import { CardTabs } from '@/components/ui/CardTabs'
+import { formTabs } from '@/config/sectionTabs'
+import { usePerm } from '@/lib/permissions'
 import { cn, apiErrorMessage } from '@/lib/utils'
 
 /** Test ommaviy URL'i. */
@@ -20,6 +23,9 @@ function testUrl(slug: string) {
 
 export function LevelTestsPage() {
   const navigate = useNavigate()
+  const { can } = usePerm()
+  // "Formalar" bo'limining ikkinchi turi — lid formalari `leads` ruxsatida.
+  const canForms = can('leads', 'view')
   const [tests, setTests] = useState<LevelTestListItem[]>([])
   const [subjects, setSubjects] = useState<Subject[]>([])
   const [loading, setLoading] = useState(true)
@@ -90,8 +96,10 @@ export function LevelTestsPage() {
 
   return (
     <div>
+      <CardTabs items={formTabs(canForms, true)} className="mb-5" />
+
       <PageHeader
-        title="Daraja testi"
+        title="Daraja testlari"
         sub="Kurs uchun test yarating — ommaviy havola orqali topshirilsa, CRM'da yangi lid bo'lib tushadi"
         actions={
           <div className="flex items-center gap-2">

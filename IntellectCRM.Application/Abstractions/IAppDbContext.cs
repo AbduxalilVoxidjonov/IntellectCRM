@@ -120,6 +120,11 @@ public interface IAppDbContext
     DbSet<LevelTestSubmission> LevelTestSubmissions { get; }
     DbSet<LevelTestInvite> LevelTestInvites { get; }
 
+    // Lid formalari (kanal → ommaviy forma → lid)
+    DbSet<LeadForm> LeadForms { get; }
+    DbSet<LeadFormField> LeadFormFields { get; }
+    DbSet<LeadFormSubmission> LeadFormSubmissions { get; }
+
     // Support o'qituvchi bo'sh vaqt slotlari + bron
     DbSet<SupportSlot> SupportSlots { get; }
 

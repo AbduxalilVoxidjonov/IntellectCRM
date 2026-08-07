@@ -176,15 +176,21 @@ public class LevelTestsController(AppDbContext db) : ControllerBase
         catch { return new(); }
     }
 
-    /// <summary>Daraja testi STATISTIKASI — topshiruvchilardan nechtasi AKTIV o'quvchi bo'ldi +
-    /// qaysi guruh(lar)ga qo'shilgani va o'qituvchisi (FISH).</summary>
+    /// <summary>Daraja testi STATISTIKASI — topshiruvchilardan nechtasi AKTIV o'quvchi bo'ldi,
+    /// nechtasi PUL to'ladi, qaysi guruh(lar)ga qo'shilgani va o'qituvchisi (FISH).</summary>
     [HttpGet("{id}/stats")]
     public async Task<ActionResult<LevelTestStatsDto>> Stats(string id)
     {
         var subs = await db.LevelTestSubmissions.AsNoTracking().Where(s => s.TestId == id)
             .OrderByDescending(s => s.CreatedAt).ToListAsync();
         var rows = await LevelTestService.BuildStatRowsAsync(db, subs);
-        return new LevelTestStatsDto(rows.Count, rows.Count(r => r.Active), rows);
+        // ⚠️ To'lov TAKRORSIZ lid bo'yicha: bir odam testni ikki marta topshirsa summasi ikki
+        // marta qo'shilmasin (qatorlar ro'yxatida ikkalasi ham ko'rinaveradi).
+        var byLead = rows.Where(r => !string.IsNullOrEmpty(r.LeadId))
+            .GroupBy(r => r.LeadId).Select(g => g.First()).ToList();
+        return new LevelTestStatsDto(
+            rows.Count, rows.Count(r => r.Active), rows,
+            byLead.Count(r => r.Paid), byLead.Sum(r => Math.Max(0m, r.PaidTotal)));
     }
 
     private void WriteQuestions(string testId, List<LevelTestQuestionInput>? questions)

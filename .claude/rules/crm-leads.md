@@ -13,6 +13,17 @@ paths:
 - **CRM:** `Lead`(Source/InterestSubject/CreatedAt/ConvertedStudentId), `LeadEvent`(tarix),
   `TrialLesson`(sinov). Endpointlar `LeadsController`da: events, trials, `/{id}/convert`, `/stats`.
 
+- **`Lead.PhoneKey`** (migratsiya `AddLeadPhoneKeyAndRepeat`) — telefonning oxirgi 9 raqami,
+  INDEKSLANGAN. "Shu telefon bilan lid bormi?" (`LeadIntake.FindByPhoneAsync` — ommaviy forma va
+  daraja testi har murojaatda so'raydi) endi bitta SQL so'rovi; ilgari butun `Leads` jadvali
+  xotiraga o'qilardi. ⚠️ **Qo'lda to'ldirilmaydi** — `AppDbContext.SaveChanges` (`SyncLeadPhoneKeys`)
+  uni `Phone` dan o'zi yozadi, ya'ni lid yaratadigan/telefonini o'zgartiradigan YANGI joy
+  qo'shilganda ham unutilmaydi (unutilsa — o'sha lidga dublikat ochilardi).
+
+- **`Lead.RepeatCount` / `LastRepeatAt`** — TAKRORIY murojaat (odam formani/daraja testini yana
+  to'ldirdi). Bosqich ATAYIN o'zgarmaydi, belgisi kanban kartasida «Takroriy ×N» chipi va lid
+  oynasida alohida qator bo'lib chiqadi. Batafsil: `.claude/rules/lead-forms.md` §4.
+
 - **Lid manbasi ma'lumotnoma** (migratsiya `AddLeadSources`): `LeadSource`(Id,Name,Order) entity +
   `LeadSourcesController` (`api/admin/lead-sources`, AdminPerm "settings" — GET barcha xodimga ochiq).
   Boshqariladi: "O'quv bo'limi → Sabablar" sahifasi (`ReasonsPage` uchinchi karta). `Lead.Source` — manba

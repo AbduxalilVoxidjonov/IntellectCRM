@@ -47,6 +47,10 @@ import { ArchivePage } from '@/pages/admin/archive/ArchivePage'
 import { GradingCriteriaPage } from '@/pages/admin/grading/GradingCriteriaPage'
 import { BookSalesPage } from '@/pages/admin/books/BookSalesPage'
 import { LevelTestsPage } from '@/pages/admin/level-tests/LevelTestsPage'
+import { FormsEntry } from '@/pages/admin/forms/FormsEntry'
+import { FormEditorPage } from '@/pages/admin/forms/FormEditorPage'
+import { FormStatsPage } from '@/pages/admin/forms/FormStatsPage'
+import { PublicLeadFormPage } from '@/pages/public/PublicLeadFormPage'
 import { LevelTestEditorPage } from '@/pages/admin/level-tests/LevelTestEditorPage'
 import { LevelTestStatsPage } from '@/pages/admin/level-tests/LevelTestStatsPage'
 import { SupportPage } from '@/pages/admin/support/SupportPage'
@@ -149,6 +153,8 @@ export default function App() {
       {/* Ommaviy daraja testi (autentifikatsiyasiz) — topshirilsa CRM'da lid bo'ladi */}
       <Route path="/test/invite/:token" element={<PublicTestPage />} />
       <Route path="/test/:slug" element={<PublicTestPage />} />
+      {/* Ommaviy LID FORMASI (autentifikatsiyasiz) — ijtimoiy tarmoqdagi havola, to'ldirilsa lid bo'ladi */}
+      <Route path="/forma/:slug" element={<PublicLeadFormPage />} />
       {/* Sertifikat tekshiruvi (autentifikatsiyasiz) */}
       <Route path="/verify-certificate/:id" element={<VerifyCertificatePage />} />
       {/* Maxfiylik siyosati (autentifikatsiyasiz) — Google Play / App Store uchun */}
@@ -204,6 +210,13 @@ export default function App() {
           <Route path="archive" element={<RequirePerm perm="settings"><ArchivePage /></RequirePerm>} />
           <Route path="grading" element={<RequirePerm perm="schedule"><GradingCriteriaPage /></RequirePerm>} />
           <Route path="books" element={<RequirePerm perm="books"><BookSalesPage /></RequirePerm>} />
+          {/* Formalar — "Lid formalari" (`leads`) va "Daraja testlari" (`schedule`) bitta bo'limda.
+              Ruxsatlari har xil bo'lgani uchun marshrutlar ham alohida darvozalangan. */}
+          {/* `FormsEntry` — faqat `schedule` ruxsati bor xodimni daraja testlariga yo'naltiradi
+              (aks holda u menyudan kelib "ruxsat yo'q" da qolib ketardi). */}
+          <Route path="forms" element={<FormsEntry />} />
+          <Route path="forms/statistika" element={<RequirePerm perm="leads"><FormStatsPage /></RequirePerm>} />
+          <Route path="forms/:id" element={<RequirePerm perm="leads"><FormEditorPage /></RequirePerm>} />
           <Route path="level-tests" element={<RequirePerm perm="schedule"><LevelTestsPage /></RequirePerm>} />
           <Route path="level-tests/stats" element={<RequirePerm perm="schedule"><LevelTestStatsPage /></RequirePerm>} />
           <Route path="level-tests/:id" element={<RequirePerm perm="schedule"><LevelTestEditorPage /></RequirePerm>} />

@@ -582,6 +582,13 @@ export interface Lead {
   convertedStudentId?: string | null
   /** Birinchi dars davomat holati: "attended" | "absent" | "no-lesson" */
   firstLessonAttendance?: 'attended' | 'absent' | 'no-lesson'
+  /**
+   * TAKRORIY murojaatlar soni: odam ommaviy forma yoki daraja testi orqali YANA yozilgan
+   * (dublikat lid ochilmaydi — natija shu lidga tushadi). 0/undefined = takror yo'q.
+   */
+  repeatCount?: number
+  /** Oxirgi takroriy murojaat vaqti (ISO) — belgining tooltip'ida ko'rsatiladi */
+  lastRepeatAt?: string
 }
 
 /** Lid tarixidagi voqea turi */

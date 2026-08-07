@@ -5,10 +5,11 @@ import type { LucideIcon } from 'lucide-react'
 import type { Role, Student } from '@/types'
 import { useAuth } from '@/context/auth-context'
 import { navByRole } from '@/config/navigation'
-import { teacherTabs, roomTabs } from '@/config/sectionTabs'
+import { teacherTabs, roomTabs, formTabs } from '@/config/sectionTabs'
 import type { CardTabItem } from '@/components/ui/CardTabs'
 import { searchStudents } from '@/api/services/students'
 import { studentStateBadge } from '@/config/constants'
+import { can as hasPerm } from '@/lib/permissions'
 import { cn } from '@/lib/utils'
 
 interface Cmd {
@@ -84,9 +85,17 @@ export function CommandPalette() {
   const commands = useMemo<Cmd[]>(() => {
     if (!user) return []
     const role = user.role as Role
-    const canSee = (x: { roles?: Role[]; perm?: string }) =>
+    // ⚠️ Sidebar bilan AYNAN bir xil qoida (`lib/permissions.can`): "leads:view" kabi AMAL
+    // tokeni ham bo'limni ochadi va `permAny` (bir necha ruxsatdan biri yetarli — masalan
+    // "Formalar": lid formalari `leads`, daraja testi `schedule`) hisobga olinadi.
+    // Ilgari bu yerda yalang `permissions.includes(perm)` turardi: `permAny` umuman
+    // tekshirilmasdi (ya'ni "Formalar" HECH QANDAY ruxsati yo'q xodimga ham chiqardi), granular
+    // ruxsatli xodim esa menyuda ko'rinadigan bo'limni Ctrl+K dan topa olmasdi.
+    const perms = user.permissions
+    const canSee = (x: { roles?: Role[]; perm?: string; permAny?: string[] }) =>
       (!x.roles || x.roles.includes(role)) &&
-      (!x.perm || !user.permissions || user.permissions.includes(x.perm))
+      (!x.perm || hasPerm(perms, x.perm, 'view')) &&
+      (!x.permAny || x.permAny.some((p) => hasPerm(perms, p, 'view')))
     const out: Cmd[] = []
     for (const item of navByRole[role]) {
       if (!canSee(item)) continue
@@ -124,6 +133,17 @@ export function CommandPalette() {
 
     const rooms = ownerOf('/admin/rooms')
     if (rooms && seen.has('/admin/rooms')) addTabs(roomTabs, 'Xonalar', rooms.icon)
+
+    // ⚠️ «Daraja testi» ilgari menyuda ALOHIDA band edi va Ctrl+K dan topilardi; endi u
+    // "Formalar" bo'limi ichidagi card — shu sabab shu yerda qo'shiladi, aks holda "daraja"
+    // deb qidirganda hech narsa topilmasdi.
+    const forms = ownerOf('/admin/forms')
+    if (forms && seen.has('/admin/forms'))
+      addTabs(
+        formTabs(canSee({ perm: 'leads' }), canSee({ perm: 'schedule' })),
+        'Formalar',
+        forms.icon,
+      )
 
     return out
   }, [user])

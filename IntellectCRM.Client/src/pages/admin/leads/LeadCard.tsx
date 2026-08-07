@@ -1,6 +1,6 @@
 import { useDraggable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
-import { Phone, Clock } from 'lucide-react'
+import { Phone, Clock, Repeat2 } from 'lucide-react'
 import type { Lead } from '@/types'
 import { genderLabels } from '@/config/constants'
 import { Badge } from '@/components/ui/Badge'
@@ -165,6 +165,23 @@ export function LeadCardContent({
             )}
           >
             {attendanceText}
+          </div>
+        )}
+        {/* TAKRORIY MUROJAAT — odam ommaviy forma yoki daraja testi orqali YANA yozilgan.
+            Bunda lidning bosqichi ATAYIN o'zgarmaydi (birinchi teginish saqlanadi), shuning
+            uchun "yo'qotilgan" ustunidagi karta ham shu belgi bilan ko'zga tashlanadi —
+            aks holda qayta murojaat faqat izohda qolib ketardi. */}
+        {!!lead.repeatCount && lead.repeatCount > 0 && (
+          <div
+            title={
+              lead.lastRepeatAt
+                ? `Yana murojaat qildi: ${formatDateTime(lead.lastRepeatAt)}`
+                : 'Yana murojaat qildi'
+            }
+            className="inline-flex items-center gap-1 rounded-full bg-fuchsia-50 px-2 py-1 text-[10px] font-semibold text-fuchsia-700"
+          >
+            <Repeat2 className="h-3 w-3" /> Takroriy
+            {lead.repeatCount > 1 && ` ×${lead.repeatCount}`}
           </div>
         )}
       </div>

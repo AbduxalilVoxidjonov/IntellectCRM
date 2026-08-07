@@ -56,11 +56,21 @@ export interface LevelTestStatRow {
   groupName: string
   teacherName: string
   isDeleted: boolean
+  /** Lidning HOZIRGI kanban bosqichi (lid formalari bilan bir xil manba — `LeadOutcome`). */
+  stageTitle: string
+  stageColor: string
+  /** SOTUV natijasi: odam pul to'ladimi (to'lov − vozvrat > 0). */
+  paid: boolean
+  paidTotal: number
+  firstPaidAt: string
 }
 export interface LevelTestStats {
   total: number
   active: number
   rows: LevelTestStatRow[]
+  /** Pul to'lagan (takrorsiz) lidlar soni va ular keltirgan sof summa. */
+  paid: number
+  revenue: number
 }
 export async function getLevelTestStats(id: string): Promise<LevelTestStats> {
   const { data } = await api.get<LevelTestStats>(`/admin/level-tests/${id}/stats`)

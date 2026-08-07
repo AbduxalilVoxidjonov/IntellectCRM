@@ -408,6 +408,17 @@ export function LeadDetailModal({
             <Row label="Qiziqqan fani" value={lead.interestSubject || '—'} />
             <Row label="Maktab" value={schoolName || '—'} />
             {lead.createdAt && <Row label="Yaratilgan" value={formatDate(lead.createdAt)} mono />}
+            {/* TAKRORIY MUROJAAT — forma/daraja testi orqali yana yozilgan (bosqichi o'zgarmaydi,
+                shuning uchun bu yerda ochiq yozib qo'yiladi; tafsiloti tarixda). */}
+            {!!lead.repeatCount && lead.repeatCount > 0 && (
+              <Row
+                label="Takroriy murojaat"
+                value={
+                  `${lead.repeatCount} marta` +
+                  (lead.lastRepeatAt ? ` · oxirgisi ${formatDate(lead.lastRepeatAt)}` : '')
+                }
+              />
+            )}
             {lead.convertedStudentId && lead.firstLessonAttendance && (
               <div className="border-b border-slate-100 py-2.5">
                 <div className="flex justify-between gap-4">
