@@ -4,6 +4,8 @@ import type {
   LevelTestDetail,
   LevelTestSubmission,
   LevelTestPayload,
+  DayCount,
+  LeadStageCount,
 } from '@/types'
 
 /** Daraja testlari ro'yxati. */
@@ -65,12 +67,14 @@ export interface LevelTestStatRow {
   firstPaidAt: string
 }
 export interface LevelTestStats {
+  /** Topshiriqlar soni (bir odam ikki marta topshirsa — 2). */
   total: number
+  /** ⚠️ Quyidagi uchtasi TAKRORSIZ lidlar bo'yicha — `leads` ular uchun maxraj. */
   active: number
-  rows: LevelTestStatRow[]
-  /** Pul to'lagan (takrorsiz) lidlar soni va ular keltirgan sof summa. */
   paid: number
   revenue: number
+  leads: number
+  rows: LevelTestStatRow[]
 }
 export async function getLevelTestStats(id: string): Promise<LevelTestStats> {
   const { data } = await api.get<LevelTestStats>(`/admin/level-tests/${id}/stats`)
@@ -96,17 +100,33 @@ export async function getLevelTestInvites(id: string): Promise<LevelTestInvite[]
   return data
 }
 
-/** Barcha daraja testlari bo'yicha umumiy statistika. */
+/**
+ * BARCHA daraja testlari bo'yicha umumiy statistika — "Formalar → Test statistikasi" sahifasi.
+ * Voronka lid formalaridagi bilan bir xil o'qiladi: topshirdi → lid → o'quvchi → TO'LADI,
+ * foizlar TAKRORSIZ lidlar bo'yicha.
+ */
 export interface LevelCount { level: string; count: number }
+/** Bitta test bo'yicha voronka qatori. */
 export interface TestStatRow {
   testId: string
   title: string
+  isActive: boolean
   submissions: number
   invites: number
   invitesUsed: number
   avgPercent: number
+  /** Takrorsiz lidlar (bir odam ikki marta topshirsa ham bitta). */
+  leads: number
+  converted: number
+  activeStudents: number
+  /** Pul to'lagan lidlar soni va ular keltirgan sof summa. */
+  paid: number
+  revenue: number
+  convertRate: number
+  /** SOTUV konversiyasi — lidlarning necha foizi haqiqatan to'ladi. */
+  payRate: number
 }
-/** Umumiy statistikadagi bitta topshiruvchi — qaysi testga tegishli + natija + hozir aktivmi. */
+/** Umumiy statistikadagi bitta topshiruvchi — qaysi testga tegishli + natija + hozirgi holati. */
 export interface LevelTestOverallRow {
   submissionId: string
   testId: string
@@ -122,16 +142,31 @@ export interface LevelTestOverallRow {
   groupName: string
   teacherName: string
   isDeleted: boolean
+  /** Lidning HOZIRGI kanban bosqichi. */
+  stageTitle: string
+  stageColor: string
+  paid: boolean
+  paidTotal: number
+  firstPaidAt: string
 }
 export interface LevelTestOverallStats {
   testCount: number
+  activeTests: number
   submissions: number
   invites: number
   invitesUsed: number
   avgPercent: number
+  leads: number
+  converted: number
   active: number
+  paid: number
+  revenue: number
   byLevel: LevelCount[]
   byTest: TestStatRow[]
+  byStage: LeadStageCount[]
+  daily: DayCount[]
+  /** JAMI topshiruvchilar soni — `rows` esa ko'pi bilan eng yangi 500 tasi (server chegarasi). */
+  rowsTotal: number
   rows: LevelTestOverallRow[]
 }
 export async function getLevelTestOverallStats(): Promise<LevelTestOverallStats> {

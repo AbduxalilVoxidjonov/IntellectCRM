@@ -430,6 +430,33 @@ public static class LeadFormService
     /// </summary>
     private sealed record SubRow(string FormId, string LeadId, bool IsNewLead, string Ref, string CreatedAt);
 
+    /// <summary>
+    /// TAKRORSIZ lidlar soni: jami + forma kesimida.
+    ///
+    /// <para>⚠️ Bu son <see cref="LeadFormStatsDto"/> da ALOHIDA maydon sifatida YO'Q va javobdan
+    /// chiqarib olib ham bo'lmaydi: <c>ByForm</c> — FORMALAR kesimi (bir odam ikki formani
+    /// to'ldirsa ikki qatorda sanaladi, ya'ni yig'indi TAKRORLI chiqadi), <c>ByStage</c> esa
+    /// bosqichsiz (ustuni o'chirilgan) lidni umuman qoldiradi. Foizlarning MAXRAJI aynan shu
+    /// takrorsiz son bo'lgani uchun u alohida, lekin <see cref="BuildStatsAsync"/> ichidagi
+    /// <c>Funnel</c> bilan AYNAN bir xil qoidada hisoblanadi: <c>LeadId</c> bo'sh qatorlar
+    /// sanoqqa umuman kirmaydi.</para>
+    ///
+    /// <para>Bitta so'rov bilan olinadi: <c>(forma, lid)</c> juftliklari DB tomonda takrorsizlanadi,
+    /// keyin xotirada ikki kesimga bo'linadi.</para>
+    /// </summary>
+    public static async Task<(int Total, Dictionary<string, int> ByForm)> DistinctLeadCountsAsync(
+        IAppDbContext db, CancellationToken ct = default)
+    {
+        var pairs = await db.LeadFormSubmissions.AsNoTracking()
+            .Where(s => s.LeadId != "")
+            .Select(s => new { s.FormId, s.LeadId })
+            .Distinct()
+            .ToListAsync(ct);
+        return (
+            pairs.Select(p => p.LeadId).Distinct().Count(),
+            pairs.GroupBy(p => p.FormId).ToDictionary(g => g.Key, g => g.Count()));
+    }
+
     public static async Task<LeadFormStatsDto> BuildStatsAsync(IAppDbContext db)
     {
         var forms = await db.LeadForms.AsNoTracking()
@@ -499,7 +526,7 @@ public static class LeadFormService
             .Select(id => outcome.StageOf(id))
             .Where(st => st.Title.Length > 0)
             .GroupBy(st => (st.Title, st.Color))
-            .Select(g => new LeadFormStageDto(g.Key.Title, g.Key.Color, g.Count()))
+            .Select(g => new LeadStageCountDto(g.Key.Title, g.Key.Color, g.Count()))
             .OrderByDescending(x => x.Leads).ThenBy(x => x.Stage)
             .ToList();
 
@@ -509,7 +536,7 @@ public static class LeadFormService
             .ToDictionary(g => g.Key, g => g.Count());
         var daily = Enumerable.Range(0, DailyDays)
             .Select(i => today.AddDays(-(DailyDays - 1 - i)).ToString("yyyy-MM-dd"))
-            .Select(d => new LeadFormDayDto(d, counts.GetValueOrDefault(d, 0)))
+            .Select(d => new DayCountDto(d, counts.GetValueOrDefault(d, 0)))
             .ToList();
 
         var total = Funnel(subs);

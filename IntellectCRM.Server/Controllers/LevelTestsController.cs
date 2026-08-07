@@ -13,7 +13,7 @@ namespace IntellectCRM.Server.Controllers;
 [Authorize]
 [AdminPerm("schedule")]
 [Route("api/admin/level-tests")]
-public class LevelTestsController(AppDbContext db) : ControllerBase
+public class LevelTestsController(AppDbContext db, DataCache dataCache, IConfiguration config) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<IEnumerable<LevelTestListDto>>> GetAll()
@@ -96,8 +96,10 @@ public class LevelTestsController(AppDbContext db) : ControllerBase
         return NoContent();
     }
 
-    /// <summary>Bu testga yuborilgan bir martalik havolalar (invite) — lid + SMS holati + ishlangani.</summary>
+    /// <summary>Bu testga yuborilgan bir martalik havolalar (invite) — lid + SMS holati + ishlangani.
+    /// (Lidlarning ismi/telefoni qaytadi — o'qish darvozalangan.)</summary>
     [HttpGet("{id}/invites")]
+    [AdminPerm("schedule", ReadRequiresPerm = true)]
     public async Task<ActionResult<IEnumerable<LevelTestInviteDto>>> Invites(string id)
     {
         var invites = await db.LevelTestInvites.AsNoTracking().Where(i => i.TestId == id)
@@ -114,51 +116,40 @@ public class LevelTestsController(AppDbContext db) : ControllerBase
         }).ToList();
     }
 
-    /// <summary>BARCHA daraja testlari bo'yicha UMUMIY statistika (testga kirmasdan ro'yxatda ko'rish uchun).</summary>
+    /// <summary>
+    /// BARCHA daraja testlari bo'yicha UMUMIY statistika — "Formalar → Test statistikasi" sahifasi
+    /// (testga KIRMASDAN, hammasini bir ekranda solishtirib ko'rish uchun).
+    ///
+    /// <para>Hisob butun topshiruvlar to'plami ustida boradi, shuning uchun natija
+    /// <see cref="DataCache"/> da: bog'liq jadvallardan biri o'zgarsa kesh AVTO-eskiradi, TTL
+    /// faqat zaxira (lid formalari statistikasi bilan bir xil yondashuv).</para>
+    ///
+    /// <para>⚠️ <c>ReadRequiresPerm</c> — javobda abituriyentlarning TELEFONLARI va endi
+    /// TO'LOV summalari bor. Odatda <see cref="AdminPermAttribute"/> GET'ni har qanday xodimga
+    /// ochadi (bo'limlararo o'qish uchun), bu yerda esa bunga hojat yo'q: sahifani faqat
+    /// <c>schedule</c> ruxsati bor xodim ochadi. Sinf darajasida qo'yilmadi — <c>GET /</c> (testlar
+    /// ro'yxati) lidlar bo'limidagi "test yuborish" oynasiga kerak (`LeadDetailModal`), uni yopish
+    /// `leads` ruxsatli xodimning ishini buzardi.</para>
+    /// </summary>
     [HttpGet("overall-stats")]
-    public async Task<ActionResult<LevelTestOverallStatsDto>> OverallStats()
-    {
-        // Bu endpoint har topshiruvchi bo'yicha qator ishlab chiqaradi (statRows), shu sabab
-        // topshiruvlar to'liq yuklanadi — lekin faqat-o'qish (AsNoTracking).
-        var tests = await db.LevelTests.AsNoTracking().ToListAsync();
-        var subs = await db.LevelTestSubmissions.AsNoTracking().OrderByDescending(s => s.CreatedAt).ToListAsync();
-        var invites = await db.LevelTestInvites.AsNoTracking().ToListAsync();
-
-        var byLevel = subs.GroupBy(s => string.IsNullOrEmpty(s.Level) ? "—" : s.Level)
-            .Select(g => new LevelCountDto(g.Key, g.Count()))
-            .OrderByDescending(x => x.Count).ToList();
-
-        var titleById = tests.ToDictionary(t => t.Id, t => t.Title);
-        var byTest = tests
-            .Select(t =>
+    [AdminPerm("schedule", ReadRequiresPerm = true)]
+    public async Task<ActionResult<LevelTestOverallStatsDto>> OverallStats() =>
+        await dataCache.GetOrCreateAsync(
+            "level-tests:overall-stats",
+            new[]
             {
-                var ts = subs.Where(s => s.TestId == t.Id).ToList();
-                var ti = invites.Where(i => i.TestId == t.Id).ToList();
-                return new TestStatRowDto(
-                    t.Id, t.Title, ts.Count, ti.Count, ti.Count(x => !string.IsNullOrEmpty(x.UsedAt)),
-                    ts.Count > 0 ? Math.Round(ts.Average(s => s.Percent), 1) : 0);
-            })
-            .OrderByDescending(r => r.Submissions).ToList();
+                nameof(LevelTest), nameof(LevelTestSubmission), nameof(LevelTestInvite),
+                nameof(Lead), nameof(LeadStage), nameof(StudentGroup), nameof(FinanceTransaction),
+                // Guruh nomi va o'qituvchi F.I.Sh ham javobda qaytadi (`LeadOutcome`) — ular
+                // o'zgarganda kesh eskirmasa, sahifada eski nom TTL tugagunicha turib qolardi.
+                nameof(Group), nameof(Teacher),
+            },
+            TimeSpan.FromMinutes(10),
+            LevelTestService.BuildOverallStatsAsync);
 
-        // Boyitilgan per-topshiruvchi qatorlar — bitta test statistikasidagi MANTIQ, BARCHA testlarga.
-        // Qaytish tartibi `subs` bilan bir xil — test nomini biriktirish uchun zip qilamiz.
-        var statRows = await LevelTestService.BuildStatRowsAsync(db, subs);
-        var rows = statRows.Zip(subs, (r, s) => new LevelTestOverallRowDto(
-                r.SubmissionId, s.TestId, titleById.GetValueOrDefault(s.TestId, ""),
-                r.FullName, r.Phone, r.Level, r.Percent, r.CreatedAt, r.LeadId,
-                r.StudentId, r.Active, r.GroupName, r.TeacherName, r.IsDeleted))
-            .ToList();
-
-        return new LevelTestOverallStatsDto(
-            tests.Count, subs.Count, invites.Count,
-            invites.Count(i => !string.IsNullOrEmpty(i.UsedAt)),
-            subs.Count > 0 ? Math.Round(subs.Average(s => s.Percent), 1) : 0,
-            statRows.Count(r => r.Active),
-            byLevel, byTest, rows);
-    }
-
-    /// <summary>Natijalar — testni topshirganlar (har biri CRM'da lid).</summary>
+    /// <summary>Natijalar — testni topshirganlar (har biri CRM'da lid; ism/telefon qaytadi).</summary>
     [HttpGet("{id}/submissions")]
+    [AdminPerm("schedule", ReadRequiresPerm = true)]
     public async Task<ActionResult<IEnumerable<LevelTestSubmissionDto>>> Submissions(string id)
     {
         var subs = await db.LevelTestSubmissions.AsNoTracking().Where(s => s.TestId == id)
@@ -176,22 +167,55 @@ public class LevelTestsController(AppDbContext db) : ControllerBase
         catch { return new(); }
     }
 
-    /// <summary>Daraja testi STATISTIKASI — topshiruvchilardan nechtasi AKTIV o'quvchi bo'ldi,
-    /// nechtasi PUL to'ladi, qaysi guruh(lar)ga qo'shilgani va o'qituvchisi (FISH).</summary>
+    /// <summary>BITTA test STATISTIKASI — topshiruvchilardan nechtasi AKTIV o'quvchi bo'ldi,
+    /// nechtasi PUL to'ladi, qaysi guruh(lar)ga qo'shilgani va o'qituvchisi (FISH).
+    /// (Telefon + to'lov qaytgani uchun o'qish ham darvozalangan — `overall-stats` dagi izohga qarang.)</summary>
     [HttpGet("{id}/stats")]
+    [AdminPerm("schedule", ReadRequiresPerm = true)]
     public async Task<ActionResult<LevelTestStatsDto>> Stats(string id)
     {
         var subs = await db.LevelTestSubmissions.AsNoTracking().Where(s => s.TestId == id)
             .OrderByDescending(s => s.CreatedAt).ToListAsync();
         var rows = await LevelTestService.BuildStatRowsAsync(db, subs);
-        // ⚠️ To'lov TAKRORSIZ lid bo'yicha: bir odam testni ikki marta topshirsa summasi ikki
-        // marta qo'shilmasin (qatorlar ro'yxatida ikkalasi ham ko'rinaveradi).
-        var byLead = rows.Where(r => !string.IsNullOrEmpty(r.LeadId))
-            .GroupBy(r => r.LeadId).Select(g => g.First()).ToList();
+        // ⚠️ Sonlar TAKRORSIZ lid bo'yicha: bir odam testni ikki marta topshirsa "aktiv" ham,
+        // summa ham ikki marta sanalardi — va o'sha test UMUMIY statistika sahifasida boshqacha
+        // raqam ko'rsatardi (u har doim takrorsiz sanaydi). Qatorlar ro'yxatida esa ikkala
+        // topshiriq ham ko'rinaveradi. Qoida yagona joyda: `LevelTestService.DistinctByLead`.
+        var byLead = LevelTestService.DistinctByLead(rows);
         return new LevelTestStatsDto(
-            rows.Count, rows.Count(r => r.Active), rows,
-            byLead.Count(r => r.Paid), byLead.Sum(r => Math.Max(0m, r.PaidTotal)));
+            rows.Count, byLead.Count(r => r.Active), rows,
+            byLead.Count(r => r.Paid), byLead.Sum(r => Math.Max(0m, r.PaidTotal)),
+            byLead.Count);
     }
+
+    // ==================== AI tahlil (voronka) ====================
+
+    /// <summary>
+    /// Daraja testlari voronkasining saqlangan AI tahlillari (eng yangisi birinchi).
+    ///
+    /// <para>⚠️ <c>ReadRequiresPerm</c> — <c>overall-stats</c> bilan bir xil sabab: saqlangan
+    /// tahlilning ichida O'SHA statistika (voronka raqamlari, tushum) turadi, ya'ni o'qishni
+    /// har qanday xodimga ochib bo'lmaydi.</para>
+    ///
+    /// <para>⚠️ Marshrut <c>ai-analyses</c> — statik segment <c>{id}</c> dan USTUN (ASP.NET Core
+    /// marshrut ustuvorligi), ya'ni <c>GET {id}</c> uni id deb qabul qilmaydi. Bu yerda
+    /// <c>overall-stats</c> allaqachon shu tarzda ishlab turibdi.</para>
+    /// </summary>
+    [HttpGet("ai-analyses")]
+    [AdminPerm("schedule", ReadRequiresPerm = true)]
+    public async Task<ActionResult<IEnumerable<FunnelAiRecordDto>>> AiAnalyses(CancellationToken ct) =>
+        await FunnelAiAnalysisService.HistoryAsync(db, FunnelAiAnalysisService.KindLevelTests, ct);
+
+    /// <summary>
+    /// Daraja testlari voronkasini Gemini orqali TANQIDIY tahlil qiladi (kuniga bir marta —
+    /// bugungi yozuv bo'lsa Gemini chaqirilmaydi, mavjudi qaytadi).
+    ///
+    /// <para>⚠️ Auditga YOZILMAYDI: tahlil hech qanday ma'lumotni o'zgartirmaydi
+    /// (`.claude/rules/audit.md` — AI tahlil qamrovda ATAYIN yo'q).</para>
+    /// </summary>
+    [HttpPost("ai-analysis")]
+    public async Task<ActionResult<FunnelAiResponseDto>> AiAnalysis(CancellationToken ct) =>
+        await FunnelAiAnalysisService.GenerateAsync(db, config, FunnelAiAnalysisService.KindLevelTests, ct);
 
     private void WriteQuestions(string testId, List<LevelTestQuestionInput>? questions)
     {

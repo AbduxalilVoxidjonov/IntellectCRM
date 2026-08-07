@@ -1,8 +1,5 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import {
-  Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis,
-} from 'recharts'
 import { Eye, ClipboardList, UserPlus, GraduationCap, Wallet } from 'lucide-react'
 import {
   getLeadFormStats, getLeadFormSubmissions,
@@ -15,7 +12,9 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { Badge } from '@/components/ui/Badge'
 import { CardTabs } from '@/components/ui/CardTabs'
 import { formTabs } from '@/config/sectionTabs'
-import { LeadStageChip } from '@/components/leads/LeadStageChip'
+import { StageBars } from '@/components/leads/StageBars'
+import { DailyFlowChart } from '@/components/charts/DailyFlowChart'
+import { FunnelAiPanel } from '@/components/ai/FunnelAiPanel'
 import { usePerm } from '@/lib/permissions'
 import { cn, formatMoney } from '@/lib/utils'
 import { SubmissionsTable } from './FormEditorPage'
@@ -24,18 +23,10 @@ import { SubmissionsTable } from './FormEditorPage'
  * FORMALAR STATISTIKASI — modulning asosiy savoli: «qaysi ijtimoiy tarmoq haqiqiy o'quvchi
  * keltiryapti?». Voronka: ochildi → ariza → lid → o'quvchi (hozir faol).
  *
- * <p>Butun hisob serverda (`LeadFormService.BuildStatsAsync`) — bu sahifa faqat chizadi.</p>
+ * <p>Butun hisob serverda (`LeadFormService.BuildStatsAsync`) — bu sahifa faqat chizadi.
+ * Grafik va "bosqichlar" bo'lagi DARAJA TESTI statistikasi bilan umumiy komponentlarda
+ * (`DailyFlowChart`, `StageBars`) — ikkala sahifa bir xil o'qilsin.</p>
  */
-
-// Ranglar loyihadagi tekshirilgan palitradan (`.claude/rules/course-analytics.md` §6).
-const C_SUBMIT = '#0284c7' // sky-600 — ariza oqimi (yakka seriya, legend kerak emas)
-const axisTick = { fontSize: 12, fill: '#94a3b8' }
-const tooltipStyle = { borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 13 }
-
-/** "2026-08-06" → "06.08" (grafik o'qi uchun ixcham). */
-function shortDay(iso: string) {
-  return iso.length >= 10 ? `${iso.slice(8, 10)}.${iso.slice(5, 7)}` : iso
-}
 
 export function FormStatsPage() {
   const navigate = useNavigate()
@@ -55,13 +46,6 @@ export function FormStatsPage() {
   }, [])
 
   if (loading || !stats) return <Loader label="Yuklanmoqda..." />
-
-  const daily = stats.daily.map((d) => ({ name: shortDay(d.date), arizalar: d.submissions }))
-  const hasFlow = stats.daily.some((d) => d.submissions > 0)
-  // Bosqichlar chizig'i: eng katta ustunga nisbatan uzunlik, foiz esa BOSQICHDAGI jami lidlardan
-  // (bosqichsiz lidlar ro'yxatga umuman kirmaydi — kanbanda ham ko'rinmaydi).
-  const maxStage = Math.max(0, ...stats.byStage.map((s) => s.leads))
-  const stageLeads = stats.byStage.reduce((a, s) => a + s.leads, 0)
 
   return (
     <div>
@@ -114,21 +98,17 @@ export function FormStatsPage() {
         />
       </div>
 
+      {/* AI xulosasi — KPI'dan keyin, grafiklardan OLDIN: pastdagi jadvallarni o'qishdan avval
+          nima muhimligini aytadi ("boshqaruvchi xulosasi"). */}
+      <FunnelAiPanel kind="lead-forms" />
+
       <div className="space-y-4">
         <Card title="Ariza oqimi" sub="Oxirgi 30 kun — kunlik tushgan arizalar">
-          {hasFlow ? (
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={daily} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eef0f4" />
-                <XAxis dataKey="name" tickLine={false} axisLine={false} tick={axisTick} interval="preserveStartEnd" />
-                <YAxis tickLine={false} axisLine={false} tick={axisTick} allowDecimals={false} width={36} />
-                <Tooltip contentStyle={tooltipStyle} />
-                <Bar dataKey="arizalar" name="Ariza" fill={C_SUBMIT} radius={[4, 4, 0, 0]} maxBarSize={22} />
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <p className="py-10 text-center text-sm text-slate-400">Oxirgi 30 kunda ariza tushmagan.</p>
-          )}
+          <DailyFlowChart
+            data={stats.daily}
+            name="Ariza"
+            emptyText="Oxirgi 30 kunda ariza tushmagan."
+          />
         </Card>
 
         <Card
@@ -208,38 +188,7 @@ export function FormStatsPage() {
           title="Lidlar qaysi bosqichda"
           sub="Formalardan kelgan lidlarning HOZIRGI kanban ustuni — sotuv qayerda to'xtab qolganini ko'rsatadi"
         >
-          {stats.byStage.length === 0 ? (
-            <p className="py-8 text-center text-sm text-slate-400">
-              Bosqichga tushgan lid yo'q.
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {stats.byStage.map((st) => {
-                const share = maxStage > 0 ? Math.round((st.leads / maxStage) * 100) : 0
-                return (
-                  <div key={st.stage} className="flex items-center gap-3">
-                    <div className="w-40 shrink-0 sm:w-52">
-                      <LeadStageChip title={st.stage} color={st.color} />
-                    </div>
-                    <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
-                      <div
-                        className="h-full rounded-full bg-brand-400 transition-all"
-                        style={{ width: `${share}%` }}
-                      />
-                    </div>
-                    <span className="w-16 shrink-0 text-right font-mono text-sm text-slate-700">
-                      {st.leads}
-                      {stageLeads > 0 && (
-                        <span className="ml-1 text-[11px] text-slate-400">
-                          {Math.round((st.leads / stageLeads) * 100)}%
-                        </span>
-                      )}
-                    </span>
-                  </div>
-                )
-              })}
-            </div>
-          )}
+          <StageBars items={stats.byStage} emptyText="Bosqichga tushgan lid yo'q." />
         </Card>
 
         <div className="grid gap-4 lg:grid-cols-2">

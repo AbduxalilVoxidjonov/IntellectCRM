@@ -438,17 +438,33 @@ Bazaviy route yo'q · Ruxsat: har action o'zi (student portal / admin / public).
 ### LevelTestsController
 `api/admin/level-tests` · Ruxsat: `[Authorize]` + `[AdminPerm("schedule")]`. Daraja testi — CRUD, havolalar, natijalar (topshiruvchilar lid bo'ladi).
 
+⚠️ **O'qish qisman darvozalangan:** `overall-stats`, `{id}/stats`, `{id}/submissions` va
+`{id}/invites` METOD darajasida `[AdminPerm("schedule", ReadRequiresPerm = true)]` — javobda
+abituriyentlarning telefonlari va to'lov summalari bor (odatda `AdminPerm` GET'ni har qanday
+xodimga ochadi). Sinf darajasida qo'yilmadi ATAYIN: `GET /api/admin/level-tests` (testlar
+ro'yxati) lidlar bo'limidagi "test yuborish" oynasiga kerak (`LeadDetailModal`), uni yopish
+`leads` ruxsatli xodimning ishini buzardi.
+
 | Metod | Yo'l | Vazifasi |
 |---|---|---|
-| GET | /api/admin/level-tests | Testlar ro'yxati (savol + topshiruv soni). |
+| GET | /api/admin/level-tests | Testlar ro'yxati (savol + topshiruv soni). Lidlar bo'limi ham chaqiradi — o'qish darvozalanMAGAN. |
 | GET | /api/admin/level-tests/{id} | Bitta test (savollar + diapazonlar). |
 | POST | /api/admin/level-tests | Yangi test. |
 | PUT | /api/admin/level-tests/{id} | Tahrirlaydi. |
 | DELETE | /api/admin/level-tests/{id} | O'chiradi. |
-| GET | /api/admin/level-tests/{id}/invites | Yuborilgan havolalar (lid + SMS holati). |
-| GET | /api/admin/level-tests/overall-stats | Barcha testlar umumiy statistikasi. |
-| GET | /api/admin/level-tests/{id}/submissions | Topshirganlar ro'yxati. |
-| GET | /api/admin/level-tests/{id}/stats | Bitta test statistikasi. |
+| GET | /api/admin/level-tests/{id}/invites | Yuborilgan havolalar (lid + SMS holati). `ReadRequiresPerm`. |
+| GET | /api/admin/level-tests/overall-stats | «Test statistikasi» sahifasi: voronka (topshirdi → lid → o'quvchi → to'ladi) test/bosqich/daraja kesimida + 30 kunlik oqim. `ReadRequiresPerm`. `DataCache` da (`level-tests:overall-stats`, TTL 10 daq; bog'liq turlar: LevelTest, LevelTestSubmission, LevelTestInvite, Lead, LeadStage, StudentGroup, FinanceTransaction, **Group, Teacher** — javobda guruh nomi va o'qituvchi F.I.Sh ham bor). `Rows` — eng yangi **500** ta, jami son alohida `RowsTotal` da (sanoqlar cheklovdan mustaqil). |
+| GET | /api/admin/level-tests/{id}/submissions | Topshirganlar ro'yxati. `ReadRequiresPerm`. |
+| GET | /api/admin/level-tests/{id}/stats | Bitta test statistikasi — sonlar **TAKRORSIZ LIDLAR** bo'yicha (`LevelTestService.DistinctByLead`, umumiy sahifa bilan bir xil); `Leads` maydoni foizlar uchun maxraj. `ReadRequiresPerm`. |
+| GET | /api/admin/level-tests/ai-analyses | Daraja testlari voronkasining saqlangan AI tahlillari (eng yangisi birinchi). `ReadRequiresPerm` — javobda o'sha statistika (voronka + tushum) turadi. |
+| POST | /api/admin/level-tests/ai-analysis | Voronkani Gemini orqali TANQIDIY tahlil qiladi (`FunnelAiAnalysisService`, `kind=level-tests`). |
+
+⚠️ **AI tahlil (`ai-analyses` / `ai-analysis`) — ikkala bo'limda bir xil qoida:** tahlil **kuniga
+bir marta** yaratiladi (bugungi yozuv bo'lsa Gemini CHAQIRILMAYDI, `alreadyToday=true` bilan
+mavjudi qaytadi); **auditga YOZILMAYDI** (hech narsa o'zgarmaydi); **promptga shaxsiy ma'lumot
+ketmaydi** — faqat jamlanma raqamlar, murojaatchilarning ismi/telefoni/javoblari HECH QACHON
+yuborilmaydi. Yaratish o'sha bo'limning **`create`** amalini talab qiladi (faqat ko'rish ruxsatli
+xodim tahlilni o'qiydi, lekin yangisini boshlay olmaydi). Batafsil: `.claude/rules/ai-analysis.md`.
 
 ### LeadFormsController
 `api/admin/lead-forms` · Ruxsat: `[Authorize]` + `[AdminPerm("leads", ReadRequiresPerm = true)]`.
@@ -467,6 +483,8 @@ bilan; ariza CRM'da lid bo'lib tushadi. O'qish ham darvozalangan (javobda telefo
 | GET | /api/admin/lead-forms/stats | Voronka: ochildi → ariza → lid → o'quvchi (forma/manba/ref). `DataCache` da (bog'liq jadval o'zgarsa avto-yangilanadi). |
 | GET | /api/admin/lead-forms/sources | Manba ma'lumotnomasi (forma uchun). |
 | GET | /api/admin/lead-forms/field-kinds | Qo'llab-quvvatlanadigan maydon turlari. |
+| GET | /api/admin/lead-forms/ai-analyses | Lid formalari voronkasining saqlangan AI tahlillari (eng yangisi birinchi). |
+| POST | /api/admin/lead-forms/ai-analysis | Voronkani Gemini orqali TANQIDIY tahlil qiladi (`FunnelAiAnalysisService`, `kind=lead-forms`) — kuniga bir marta, auditga yozilmaydi, promptga shaxsiy ma'lumot ketmaydi (yuqoridagi `LevelTestsController` izohi bilan bir xil qoida). |
 
 ⚠️ Kurslar ma'lumotnomasi endpointi YO'Q: forma kursni markazdagi kurslar (`Subject`) katalogidan
 olmaydi — variantlar formaning O'ZIDA yoziladi (`courseOptions`), mijoz shulardan tanlaydi.

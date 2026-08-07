@@ -1,5 +1,5 @@
 ---
-description: AI tahlil (Gemini) — markaz kunlik tahlili, o'quvchi, O'QITUVCHI va GURUH tahlili (oqim, ketish sabablari, davomat, jurnal intizomi, imtihon, to'lov).
+description: AI tahlil (Gemini) — markaz kunlik tahlili, o'quvchi, O'QITUVCHI, GURUH va VORONKA (lid formalari · daraja testlari) tahlili — oqim, ketish sabablari, davomat, jurnal intizomi, imtihon, to'lov, kanallar va sotuv konversiyasi.
 paths:
   - "IntellectCRM.Application/Services/*Ai*.cs"
   - "IntellectCRM.Application/Services/GeminiService.cs"
@@ -14,11 +14,12 @@ paths:
   - "IntellectCRM.Client/src/lib/ai.ts"
   - "IntellectCRM.Client/src/components/dashboard/CenterAiAnalysisCard.tsx"
   - "IntellectCRM.Client/src/api/services/aiAnalysis.ts"
+  - "IntellectCRM.Client/src/api/services/funnelAi.ts"
 ---
 
 # AI tahlil qoidalari (Gemini)
 
-- **UMUMIY ARXITEKTURA (to'rttala tahlilda ham bir xil):** RAQAMLAR DETERMINISTIK hisoblanadi (kod),
+- **UMUMIY ARXITEKTURA (beshtala tahlilda ham bir xil):** RAQAMLAR DETERMINISTIK hisoblanadi (kod),
   AI faqat NARRATIV yozadi (o'zbekcha) va 0..100 sohaviy baho qo'yadi. Natija
   `ResultJson` (`{ ai, metrics }`) sifatida saqlanadi — shu sabab eski tahlil ochilganda ham
   diagrammalar ishlaydi. Gemini javobi ```json fence'dan tozalanadi va `Sanitize` bilan null'lardan
@@ -30,10 +31,13 @@ paths:
 - **UMUMIY UI QISMLARI:** `components/ai/AiParts.tsx` (ScoreRing, AiRadar, ScoreGrid, PctRow,
   RankedBars, CardList, TextBlock, MiniStat, AiErrorBox) + `lib/ai.ts` (scoreColor, trendInfo,
   escapeHtml, openPrintWindow, printCss). Yangi AI paneli yozilganda SHULAR ishlatiladi (nusxa
-  ko'chirilmaydi). DIQQAT: komponent va oddiy funksiyalar ARALASH bo'lmasin (eslint
+  ko'chirilmaydi) — eng yangi misol **`components/ai/FunnelAiPanel.tsx`** (voronka tahlili):
+  ScoreRing/AiRadar/ScoreGrid/CardList/TextBlock/RankedBars/AiErrorBox + `lib/ai` ning
+  `scoreColor`/`trendInfo`/`escapeHtml`/`openPrintWindow`/`printCss` (PDF chop etish).
+  DIQQAT: komponent va oddiy funksiyalar ARALASH bo'lmasin (eslint
   `react-refresh/only-export-components`) — shuning uchun funksiyalar `lib/ai.ts` da.
 
-- **To'rtta tahlil:**
+- **Beshta tahlil:**
   1. **Markaz** — `CenterAiAnalysisService` + `CenterAiSchedulerService` (har kuni ertalab avtomatik),
      `AiAnalysisController` (`api/admin/ai-analysis/center`). KIRISH: superadmin yoki "ai" ruxsatli
      xodim (oddiy admin KO'RMAYDI). Bosh sahifadagi `CenterAiAnalysisCard`.
@@ -45,6 +49,78 @@ paths:
   4. **GURUH** — `GroupAiAnalysisService` + `GroupSnapshotBuilder`, `ClassesController`
      (`{id}/ai-snapshot`, `{id}/ai-analyses`, `{id}/ai-analysis`). Ruxsat: `AdminPerm("classes")`.
      UI: guruh sahifasidagi **"AI tahlil"** tabi (`GroupAiPanel`).
+  5. **VORONKA** (lid formalari · daraja testlari) — `FunnelAiAnalysisService`, entity
+     `FunnelAiAnalysis` (migratsiya `AddFunnelAiAnalysis`, indeks `(Kind, Date)`).
+     Endpointlar: `GET/POST api/admin/lead-forms/ai-analyses|ai-analysis` va
+     `GET/POST api/admin/level-tests/ai-analyses|ai-analysis`. Ruxsat: `leads` / `schedule`.
+     UI: `components/ai/FunnelAiPanel.tsx` — "Formalar" bo'limining IKKALA statistika sahifasida.
+     Batafsil quyida.
+
+- **VORONKA TAHLILI — bitta servis, IKKI tur** (`FunnelAiAnalysisService`, `Kind` =
+  `lead-forms` | `level-tests`; `IsValidKind` — klientdan kelgan qiymat shu yerda tekshiriladi,
+  noto'g'ri tur Gemini'ga umuman bormaydi):
+  - **NEGA BITTA:** ikkala voronkaning SAVOLI ham, ma'lumot SHAKLI ham bir xil —
+    keldi → ariza/topshiriq → lid → o'quvchi → **PUL**. Shu sabab ikkita ayri servis/jadval/panel
+    YASALMADI: entity ham bitta (`FunnelAiAnalysis`), DTO'lar ham (`FunnelAiMetricsDto`,
+    `FunnelAiNarrativeDto`, `FunnelAiScoresDto`, `FunnelAiRecordDto`, `FunnelAiResponseDto`).
+  - **RAQAMLAR YANGI HISOBLANMAYDI** — `BuildMetricsAsync` MAVJUD yagona manbalardan o'qiydi
+    (`LeadFormService.BuildStatsAsync` / `LevelTestService.BuildOverallStatsAsync`), ya'ni AI
+    ko'rsatgan son statistika SAHIFASIDAGI son bilan AYNAN bir xil. Aks holda "AI boshqa raqam
+    yozyapti" holati kelib chiqardi.
+  - `ResultJson` = `{ ai, metrics }`, **kuniga bir marta** — bugungi yozuv bo'lsa Gemini
+    chaqirilmaydi (`AlreadyToday=true`) va bu tekshiruv **API kaliti tekshiruvidan OLDIN**
+    (yuqoridagi umumiy qoida bilan bir xil).
+  - **Baholar:** `hajm · konversiya · sotuv · barqarorlik · umumiy` (`FunnelAiScoresDto`).
+    **Narrativ:** `umumiy, kanallar, voronka, sifat, pul, ozgarishlar, kuchli[], zaif[],
+    xavflar[], tavsiyalar[], trend`.
+  - **PROMPT `kind` ga qarab ikkiga bo'linadi** (`LeadFormPrompt` / `LevelTestPrompt`): lid
+    formalarida gap KANALLAR va reklama byudjeti haqida ("byudjetni qayerga ko'chirish kerak"),
+    daraja testlarida esa TESTLAR va ularga yuborilgan bir martalik havolalar haqida.
+    ⚠️ **`Views` ning MA'NOSI ham har xil:** formada — havola OCHILISHLARI, testda — YUBORILGAN
+    invite'lar (`LevelTestInvite`). Testni ommaviy havola orqali ham topshirish mumkin, ya'ni
+    topshiriq invite'dan KO'P bo'lishi mumkin (foiz 100 dan oshadi) — bu **xato emas**, promptda
+    ham shunday izohlangan.
+  - **`MaxChannels = 15`** — promptga eng ko'p arizali 15 ta forma/test kesimi kiradi (prompt
+    shishmasin, token narxi oshmasin); **JAMLANMA sonlar esa BUTUN to'plam bo'yicha** — cheklov
+    faqat kesim ro'yxatiga tegishli.
+  - **RUXSAT — bo'lim ruxsatida, `ai` da EMAS:** markaz tahlili `ai` ruxsatida (faqat egasi),
+    qolgan tahlillar (o'quvchi/o'qituvchi/guruh) o'z BO'LIM ruxsatida — voronka tahlili ham shu
+    ikkinchi qoidada (`leads` / `schedule`), chunki u ko'rsatadigan raqamlar o'sha sahifada
+    allaqachon ochiq. O'qish darvozalangan: `LeadFormsController` sinf darajasida
+    `[AdminPerm("leads", ReadRequiresPerm = true)]`, `LevelTestsController` da esa GET **metod
+    darajasida** `[AdminPerm("schedule", ReadRequiresPerm = true)]` (saqlangan tahlil ichida
+    o'sha voronka raqamlari va tushum turadi).
+    ⚠️ **YARATISH — bo'limning "create" amali** (server `PermissionRules.CanWrite`), UI'da ham
+    tugma shu bilan darvozalangan: faqat KO'RISH ruxsati bor xodim tahlilni O'QIYDI, lekin
+    yangisini boshlay olmaydi — aks holda u tugmani bosib 403 olardi va Gemini chaqiruviga
+    (pulga) urinilardi.
+  - **Auditga YOZILMAYDI** — tahlil hech qanday ma'lumotni o'zgartirmaydi
+    (`.claude/rules/audit.md` — AI tahlil qamrovda ATAYIN yo'q).
+  - **UI:** yagona `FunnelAiPanel` (`kind` propi bilan; ikki nusxa YO'Q — turga bog'liq barcha
+    matnlar bitta `texts` xaritasida: `Ochilgan` ↔ `Yuborilgan havolalar`, `Ariza` ↔ `Topshirdi`,
+    `Formalar` ↔ `Testlar`). Panel ikkala sahifada **KPI kartochkalaridan keyin, birinchi
+    grafikdan oldin** turadi — u sahifaning "boshqaruvchi xulosasi": jadvallarni o'qishdan oldin
+    nima muhimligini aytadi. Ichida: ScoreRing + radar/baholar, trend chipi, narrativ bloklari,
+    kuchli/zaif/xavflar/tavsiyalar, **eng samarali kanallar** (to'lov bo'yicha; to'lov bo'lmasa
+    hajm bo'yicha), tahlillar **TARIXI** (qator bosilsa o'shanisi ochiladi) va PDF chop etish.
+  - **Testlar:** `IntellectCRM.Tests/FunnelAiTests.cs` (9 ta) — bugungi yozuvda kalitsiz ham
+    `AlreadyToday`, turlarning ajratilishi, noto'g'ri `kind`, kalitsizlikda tushunarli xato va
+    yozuvning SAQLANMASLIGI, takrorsiz lid, ikki formadagi bir odam, `Views=0` da foiz 0, testda
+    `Views` = yuborilgan havolalar, kanallar chegarasi, tarix tartibi.
+
+- ⚠️ **VORONKA TAHLILIDA MAXFIYLIK CHEGARASI — GURUH TAHLILIDAN FARQ QILADI.** Bu keyingi tahlil
+  turini yozadigan odam uchun eng muhim qoida:
+  - **Promptga FAQAT jamlanma raqamlar ketadi.** Ariza qoldirganlarning ISMI, TELEFONI va
+    savolnomaga bergan JAVOBLARI Gemini'ga **HECH QACHON** yuborilmaydi (`FunnelAiMetricsDto`
+    ichida ular umuman yo'q).
+  - **Nega guruh tahlilida boshqacha:** u yerda o'quvchilar ismi promptga KIRADI, chunki bu ICHKI
+    ro'yxat (markazning o'z o'quvchilari) va tavsiya AYNAN shu odamlar haqida bo'ladi ("falonchi
+    3 oydan beri kelmayapti"). Voronkada esa murojaatchilar **hali markazga tegishli emas** —
+    ular begona odamlarning kontaktlari, va tahlil savoli ham ular haqida emas: "qaysi kanal
+    ishlayapti", "kim yozildi" emas. Ya'ni shaxsiy ma'lumot tashqi xizmatga chiqarilishi uchun
+    **hech qanday sabab yo'q**.
+  - Yangi AI tahlil turi qo'shilayotganda birinchi savol: *promptdagi HAR bir maydon xulosa uchun
+    haqiqatan kerakmi?* Kerak bo'lmasa — u yerda umuman turmasin.
 
 - **O'QITUVCHI TAHLILI — ma'lumot manbalari** (`TeacherSnapshotBuilder`, oxirgi 12 oy; hammasi
   MAVJUD yagona manbalardan olinadi, yangi hisoblash mantig'i YARATILMAYDI):

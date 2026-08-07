@@ -534,9 +534,17 @@ function StatsPanel({ stats, invites }: { stats: LevelTestStats | null; invites:
   if (stats.total === 0 && (invites?.length ?? 0) === 0)
     return <Card><p className="py-8 text-center text-sm text-slate-400">Hali hech kim topshirmagan.</p></Card>
 
-  const pct = (n: number) => (stats.total > 0 ? Math.round((n / stats.total) * 100) : 0)
+  // ⚠️ Maxraj — TAKRORSIZ lidlar (`leads`), topshiriqlar soni EMAS: "aktiv"/"to'ladi" ham
+  // takrorsiz sanaladi (bir odam testni ikki marta topshirishi mumkin). Ikkalasini aralashtirsak
+  // foiz 100 dan oshib ketardi. `leads` bo'sh bo'lsa (eski javob) topshiriqlar soniga qaytamiz.
+  const denom = stats.leads > 0 ? stats.leads : stats.total
+  const pct = (n: number) => (denom > 0 ? Math.round((n / denom) * 100) : 0)
   const KPI = [
-    { label: 'Topshirgan', value: stats.total, sub: 'jami lid', icon: Users, color: 'text-slate-600', bg: 'bg-slate-100' },
+    {
+      label: 'Topshirgan', value: stats.total,
+      sub: stats.leads > 0 && stats.leads !== stats.total ? `${stats.leads} ta lid` : 'jami lid',
+      icon: Users, color: 'text-slate-600', bg: 'bg-slate-100',
+    },
     { label: 'Aktiv o’quvchi', value: stats.active, sub: `${pct(stats.active)}%`, icon: Zap, color: 'text-emerald-600', bg: 'bg-emerald-50' },
     // SOTUV: "aktiv o'quvchi" hali pul degani emas — pul to'laganlar alohida ko'rsatiladi.
     {

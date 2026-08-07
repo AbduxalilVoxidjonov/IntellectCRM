@@ -2515,6 +2515,35 @@ public class TeacherAiAnalysis
 /// hisoblangan raqamlar (<see cref="Application.Services.GroupSnapshotBuilder"/>). Guruh
 /// sahifasidagi "AI tahlil" tabida ko'rsatiladi.
 /// </summary>
+/// <summary>
+/// VORONKA AI tahlili (Gemini) — "Formalar" bo'limidagi ikkita statistika sahifasi uchun:
+/// <b>lid formalari</b> va <b>daraja testlari</b>. Ikkalasi bitta jadvalda, farqi
+/// <see cref="Kind"/> da: savol ham, ma'lumot shakli ham bir xil (keldi → lid → o'quvchi →
+/// to'lov), shuning uchun ikkita ayri jadval/servis yasalmadi.
+///
+/// <para>Guruh/o'qituvchi tahlili bilan bir xil qoida: raqamlar DETERMINISTIK (kod hisoblaydi),
+/// AI faqat narrativ yozadi; natija <c>ResultJson</c> = <c>{ ai, metrics }</c> bo'lib saqlanadi
+/// (eski tahlil ochilganda ham diagrammalar ishlaydi) va KUNIGA BIR MARTA yaratiladi.</para>
+/// </summary>
+public class FunnelAiAnalysis
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    /// <summary>Qaysi voronka: <c>lead-forms</c> | <c>level-tests</c>
+    /// (<c>FunnelAiAnalysisService.KindLeadForms/KindLevelTests</c>).</summary>
+    public string Kind { get; set; } = string.Empty;
+    /// <summary>Tahlil sanasi "yyyy-MM-dd" (Toshkent) — kuniga bir marta cheklovi shu bo'yicha.</summary>
+    public string Date { get; set; } = string.Empty;
+    public string CreatedAt { get; set; } = AppClock.Iso();
+    /// <summary>Ishlatilgan Gemini modeli.</summary>
+    public string Model { get; set; } = string.Empty;
+    /// <summary>Qisqa xulosa — tarix ro'yxatida ko'rinadi.</summary>
+    public string Summary { get; set; } = string.Empty;
+    /// <summary>Umumiy ball (0-100) — tarix/badge uchun.</summary>
+    public int OverallScore { get; set; }
+    /// <summary>To'liq strukturali natija (JSON): { ai, metrics }.</summary>
+    public string ResultJson { get; set; } = string.Empty;
+}
+
 public class GroupAiAnalysis
 {
     public string Id { get; set; } = Guid.NewGuid().ToString();

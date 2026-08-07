@@ -591,6 +591,26 @@ export interface Lead {
   lastRepeatAt?: string
 }
 
+/**
+ * Kunlik oqim (grafik uchun) — LID FORMALARI va DARAJA TESTI statistikasi bir xil shaklda
+ * qaytaradi (serverda `DayCountDto`), shu sabab grafik kodi ham bir xil bo'ladi.
+ */
+export interface DayCount {
+  /** "yyyy-MM-dd" */
+  date: string
+  count: number
+}
+
+/**
+ * Bosqich kesimi — kelgan lidlar HOZIR kanbanning qaysi ustunida turibdi ("voronka qayerda
+ * tiqilib qolgan"). Serverda `LeadStageCountDto`; formalar ham, daraja testi ham shundan.
+ */
+export interface LeadStageCount {
+  stage: string
+  color: string
+  leads: number
+}
+
 /** Lid tarixidagi voqea turi */
 export type LeadEventType = 'note' | 'stage' | 'call' | 'trial' | 'convert' | 'created'
 

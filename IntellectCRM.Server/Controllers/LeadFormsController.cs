@@ -25,7 +25,8 @@ namespace IntellectCRM.Server.Controllers;
 [Authorize]
 [AdminPerm("leads", ReadRequiresPerm = true)]
 [Route("api/admin/lead-forms")]
-public class LeadFormsController(AppDbContext db, AuditService audit, DataCache dataCache) : ControllerBase
+public class LeadFormsController(
+    AppDbContext db, AuditService audit, DataCache dataCache, IConfiguration config) : ControllerBase
 {
     private string Actor => User.FindFirst(ClaimTypes.Name)?.Value ?? "Admin";
     private static string Now() => AppClock.Now.ToString("yyyy-MM-ddTHH:mm:ss");
@@ -235,6 +236,24 @@ public class LeadFormsController(AppDbContext db, AuditService audit, DataCache 
             },
             TimeSpan.FromMinutes(10),
             LeadFormService.BuildStatsAsync);
+
+    // ==================== AI tahlil (voronka) ====================
+
+    /// <summary>Lid formalari voronkasining saqlangan AI tahlillari (eng yangisi birinchi).</summary>
+    [HttpGet("ai-analyses")]
+    public async Task<ActionResult<IEnumerable<FunnelAiRecordDto>>> AiAnalyses(CancellationToken ct) =>
+        await FunnelAiAnalysisService.HistoryAsync(db, FunnelAiAnalysisService.KindLeadForms, ct);
+
+    /// <summary>
+    /// Lid formalari voronkasini Gemini orqali TANQIDIY tahlil qiladi (kuniga bir marta — bugungi
+    /// yozuv bo'lsa Gemini chaqirilmaydi, mavjudi qaytadi).
+    ///
+    /// <para>⚠️ Auditga YOZILMAYDI: tahlil hech qanday ma'lumotni o'zgartirmaydi
+    /// (`.claude/rules/audit.md` — AI tahlil qamrovda ATAYIN yo'q).</para>
+    /// </summary>
+    [HttpPost("ai-analysis")]
+    public async Task<ActionResult<FunnelAiResponseDto>> AiAnalysis(CancellationToken ct) =>
+        await FunnelAiAnalysisService.GenerateAsync(db, config, FunnelAiAnalysisService.KindLeadForms, ct);
 
     // ==================== Yordamchi ma'lumotnomalar ====================
 

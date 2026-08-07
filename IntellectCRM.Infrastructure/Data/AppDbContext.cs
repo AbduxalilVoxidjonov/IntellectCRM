@@ -119,6 +119,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     // Guruh AI tahlili (Gemini)
     public DbSet<GroupAiAnalysis> GroupAiAnalyses => Set<GroupAiAnalysis>();
 
+    // Voronka AI tahlili (lid formalari va daraja testlari — bitta jadval, `Kind` bilan ajratiladi)
+    public DbSet<FunnelAiAnalysis> FunnelAiAnalyses => Set<FunnelAiAnalysis>();
+
     // Markaz kunlik AI tahlili (Gemini)
     public DbSet<CenterAiAnalysis> CenterAiAnalyses => Set<CenterAiAnalysis>();
 
@@ -260,6 +263,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         b.Entity<StudentAiAnalysis>().HasIndex(a => new { a.StudentId, a.Date });
         b.Entity<TeacherAiAnalysis>().HasIndex(a => new { a.TeacherId, a.Date });
         b.Entity<GroupAiAnalysis>().HasIndex(a => new { a.GroupId, a.Date });
+        // Voronka AI tahlili — "kuniga bir marta" tekshiruvi (Kind, Date) bo'yicha izlanadi.
+        b.Entity<FunnelAiAnalysis>().Property(a => a.Kind).HasMaxLength(32);
+        b.Entity<FunnelAiAnalysis>().HasIndex(a => new { a.Kind, a.Date });
         b.Entity<CenterAiAnalysis>().HasIndex(a => a.Date);
         b.Entity<SmsLog>().HasIndex(s => s.RequestId);
         b.Entity<SmsLog>().HasIndex(s => s.BatchId);

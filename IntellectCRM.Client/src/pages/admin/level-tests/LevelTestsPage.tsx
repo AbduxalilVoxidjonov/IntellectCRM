@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Plus, Pencil, Trash2, Link2, Copy, Check, Users, ListChecks, ExternalLink, GraduationCap, BarChart3 } from 'lucide-react'
+import { Plus, Pencil, Trash2, Link2, Copy, Check, Users, ListChecks, ExternalLink, GraduationCap } from 'lucide-react'
 import type { LevelTestListItem, Subject } from '@/types'
 import { getLevelTests, createLevelTest, deleteLevelTest } from '@/api/services/levelTests'
 import { getSubjects } from '@/api/services/subjects'
@@ -102,14 +102,11 @@ export function LevelTestsPage() {
         title="Daraja testlari"
         sub="Kurs uchun test yarating — ommaviy havola orqali topshirilsa, CRM'da yangi lid bo'lib tushadi"
         actions={
-          <div className="flex items-center gap-2">
-            <Button variant="secondary" onClick={() => navigate('/admin/level-tests/stats')}>
-              <BarChart3 className="h-4 w-4" /> Statistika
-            </Button>
-            <Button onClick={() => setCreating(true)}>
-              <Plus className="h-4 w-4" /> Yangi test
-            </Button>
-          </div>
+          // «Statistika» tugmasi OLIB TASHLANDI — u endi bo'lim cardi («Test statistikasi»),
+          // ya'ni sahifa tepasida ikkita bir xil yo'l turmasin.
+          <Button onClick={() => setCreating(true)}>
+            <Plus className="h-4 w-4" /> Yangi test
+          </Button>
         }
       />
 

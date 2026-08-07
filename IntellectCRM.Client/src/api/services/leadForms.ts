@@ -1,4 +1,5 @@
 import { api } from '../client'
+import type { DayCount, LeadStageCount } from '@/types'
 
 /**
  * LID FORMALARI — "O'quv bo'limi → Formalar" bo'limi.
@@ -178,17 +179,6 @@ export interface LeadFormRefRow {
   converted: number
   paid: number
 }
-export interface LeadFormDay {
-  date: string
-  submissions: number
-}
-/** Bosqich kesimi — formalardan kelgan lidlar HOZIR kanbanning qaysi ustunida turibdi. */
-export interface LeadFormStageRow {
-  stage: string
-  color: string
-  leads: number
-}
-
 export interface LeadFormStats {
   forms: number
   activeForms: number
@@ -202,8 +192,9 @@ export interface LeadFormStats {
   byForm: LeadFormStatRow[]
   bySource: LeadFormSourceRow[]
   byRef: LeadFormRefRow[]
-  byStage: LeadFormStageRow[]
-  daily: LeadFormDay[]
+  /** Bosqich va kunlik oqim — daraja testi statistikasi bilan YAGONA shakl (`@/types`). */
+  byStage: LeadStageCount[]
+  daily: DayCount[]
 }
 
 export async function getLeadForms(): Promise<LeadFormListItem[]> {

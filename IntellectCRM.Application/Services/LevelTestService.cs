@@ -74,6 +74,154 @@ public static class LevelTestService
         }).ToList();
     }
 
+    // ==================== UMUMIY statistika (barcha testlar) ====================
+
+    /// <summary>Kunlik grafik uzunligi — lid formalari statistikasi bilan bir xil (30 kun).</summary>
+    public const int DailyDays = LeadFormService.DailyDays;
+
+    /// <summary>
+    /// Umumiy statistikada qaytadigan topshiruvchi qatorlari chegarasi (eng yangilari).
+    /// <para>⚠️ Natija <c>DataCache</c> da saqlanadi va bog'liq jadvallar (to'lov, a'zolik) tez-tez
+    /// o'zgargani uchun bir necha nusxa bir vaqtda xotirada bo'lishi mumkin — cheklovsiz ro'yxat
+    /// 1GB serverda xavfli. Chegaradan oshgani UI'da JIM YO'QOLMAYDI: javobda
+    /// <c>RowsTotal</c> (jami) qaytadi va sahifa "N tadan oxirgi M tasi" deb yozadi.</para>
+    /// </summary>
+    public const int MaxRows = 500;
+
+    /// <summary>
+    /// Har LIDdan bitta qator qoldiradi (eng yangisi — kirish tartibi bo'yicha birinchisi).
+    /// <para>Statistikaning ASOSIY qoidasi: bir odam testni ikki marta topshirsa ham u BITTA
+    /// mijoz. Bitta test sahifasi ham, umumiy sahifa ham AYNAN shu funksiyani chaqiradi — aks
+    /// holda ikki ekranda ikki xil "aktiv"/"to'ladi" soni chiqardi.</para>
+    /// </summary>
+    public static List<LevelTestStatRowDto> DistinctByLead(IEnumerable<LevelTestStatRowDto> rows) =>
+        rows.Where(r => !string.IsNullOrEmpty(r.LeadId))
+            .GroupBy(r => r.LeadId).Select(g => g.First()).ToList();
+
+    /// <summary>
+    /// BARCHA daraja testlari bo'yicha voronka: <b>topshirdi → lid → o'quvchi → TO'LADI</b>,
+    /// test / bosqich / daraja kesimida + oxirgi 30 kunlik oqim.
+    ///
+    /// <para>Bu "Formalar → Test statistikasi" sahifasining yagona manbai: ilgari bunday ko'rinish
+    /// YO'Q edi — sotuv raqamlarini (bosqich, to'lov) ko'rish uchun HAR BIR testning ichiga kirish
+    /// kerak bo'lardi va testlarni bir-biriga solishtirib bo'lmasdi.</para>
+    ///
+    /// <para>⚠️ Foizlar <b>TAKRORSIZ LIDLAR</b> bo'yicha — lid formalaridagi bilan AYNAN bir xil
+    /// qoida (<see cref="LeadFormService.BuildStatsAsync"/>): bir odam testni ikki marta topshirsa
+    /// ham u bitta mijoz, aks holda ko'p topshirilgan test sun'iy ravishda yomon ko'rinardi.
+    /// "Aktiv" va "to'ladi" ta'rifi ham yagona (<see cref="LeadOutcome"/>).</para>
+    /// </summary>
+    public static async Task<LevelTestOverallStatsDto> BuildOverallStatsAsync(IAppDbContext db)
+    {
+        var tests = await db.LevelTests.AsNoTracking()
+            .Select(t => new { t.Id, t.Title, t.IsActive }).ToListAsync();
+        // ⚠️ Faqat KERAKLI ustunlar o'qiladi (`SurveyJson` — eng og'ir ustun — statistikaga
+        // umuman kirmaydi), keyin xotirada entity ko'rinishiga yig'iladi: `BuildStatRowsAsync`
+        // bitta test statistikasi bilan UMUMIY bo'lgani uchun kirish turi o'zgarmadi.
+        var subs = (await db.LevelTestSubmissions.AsNoTracking()
+                .OrderByDescending(s => s.CreatedAt)
+                .Select(s => new
+                {
+                    s.Id, s.TestId, s.FullName, s.Phone, s.Percent, s.Level, s.CreatedAt, s.LeadId,
+                })
+                .ToListAsync())
+            .Select(s => new LevelTestSubmission
+            {
+                Id = s.Id, TestId = s.TestId, FullName = s.FullName, Phone = s.Phone,
+                Percent = s.Percent, Level = s.Level, CreatedAt = s.CreatedAt, LeadId = s.LeadId,
+            })
+            .ToList();
+        // Takliflar test bo'yicha BIR MARTA guruhlanadi (ilgari har test uchun butun ro'yxat
+        // qaytadan skanerlanardi — O(testlar × takliflar)).
+        var invitesByTest = (await db.LevelTestInvites.AsNoTracking()
+                .Select(i => new { i.TestId, i.UsedAt }).ToListAsync())
+            .ToLookup(i => i.TestId);
+        var inviteCount = invitesByTest.Sum(g => g.Count());
+        var inviteUsed = invitesByTest.Sum(g => g.Count(x => !string.IsNullOrEmpty(x.UsedAt)));
+
+        // Bitta test statistikasidagi MANTIQ (bosqich/to'lov/aktiv — LeadOutcome orqali), barcha
+        // testlarga. Qatorlar `subs` tartibida qaytadi, lekin bog'lash id bo'yicha (tartibga
+        // tayanmaymiz — kelajakda saralash o'zgarsa jimgina noto'g'ri hisob chiqmasin).
+        var rows = await BuildStatRowsAsync(db, subs);
+        var testIdBySubmission = subs.ToDictionary(s => s.Id, s => s.TestId);
+        var rowsByTest = rows.GroupBy(r => testIdBySubmission.GetValueOrDefault(r.SubmissionId, ""))
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        // Bir guruh qatorlar uchun voronka — TAKRORSIZ lid bo'yicha (yuqoridagi izohga qarang).
+        static (int Leads, int Converted, int Active, int Paid, decimal Revenue,
+            double ConvertRate, double PayRate) Funnel(IEnumerable<LevelTestStatRowDto> items)
+        {
+            var byLead = DistinctByLead(items);
+            var converted = byLead.Count(r => r.StudentId != null);
+            var active = byLead.Count(r => r.Active);
+            var paid = byLead.Count(r => r.Paid);
+            // Tushum — faqat MUSBAT sof summalar: to'liq qaytarilgan pul "daromad" emas.
+            var revenue = byLead.Sum(r => Math.Max(0m, r.PaidTotal));
+            var n = byLead.Count;
+            return (n, converted, active, paid, revenue,
+                n > 0 ? Math.Round(converted * 100.0 / n, 1) : 0,
+                n > 0 ? Math.Round(paid * 100.0 / n, 1) : 0);
+        }
+
+        var titleById = tests.ToDictionary(t => t.Id, t => t.Title);
+
+        var byTest = tests
+            .Select(t =>
+            {
+                var tr = rowsByTest.GetValueOrDefault(t.Id, new List<LevelTestStatRowDto>());
+                var ti = invitesByTest[t.Id].ToList();
+                var fn = Funnel(tr);
+                return new TestStatRowDto(
+                    t.Id, t.Title, t.IsActive,
+                    tr.Count, ti.Count, ti.Count(x => !string.IsNullOrEmpty(x.UsedAt)),
+                    tr.Count > 0 ? Math.Round(tr.Average(r => (double)r.Percent), 1) : 0,
+                    fn.Leads, fn.Converted, fn.Active, fn.Paid, fn.Revenue,
+                    fn.ConvertRate, fn.PayRate);
+            })
+            .OrderByDescending(r => r.Submissions).ThenBy(r => r.Title).ToList();
+
+        var byLevel = subs.GroupBy(s => string.IsNullOrEmpty(s.Level) ? "—" : s.Level)
+            .Select(g => new LevelCountDto(g.Key, g.Count()))
+            .OrderByDescending(x => x.Count).ToList();
+
+        // BOSQICHLAR — testdan kelgan TAKRORSIZ lidlar hozir kanbanning qaysi ustunida.
+        // Bosqichi yo'q (yoki ustuni o'chirilgan) lid ro'yxatga kirmaydi — kanbanda ham ko'rinmaydi.
+        var byStage = DistinctByLead(rows)
+            .Where(r => r.StageTitle.Length > 0)
+            .GroupBy(r => (r.StageTitle, r.StageColor))
+            .Select(g => new LeadStageCountDto(g.Key.StageTitle, g.Key.StageColor, g.Count()))
+            .OrderByDescending(x => x.Leads).ThenBy(x => x.Stage).ToList();
+
+        // Kunlik oqim — oxirgi DailyDays kun, BO'SH kunlar ham (grafik uzilib qolmasin).
+        var today = AppClock.Now.Date;
+        var counts = subs.GroupBy(s => (s.CreatedAt ?? "") is { Length: >= 10 } c ? c[..10] : "")
+            .ToDictionary(g => g.Key, g => g.Count());
+        var daily = Enumerable.Range(0, DailyDays)
+            .Select(i => today.AddDays(-(DailyDays - 1 - i)).ToString("yyyy-MM-dd"))
+            .Select(d => new DayCountDto(d, counts.GetValueOrDefault(d, 0)))
+            .ToList();
+
+        // Qatorlar CHEKLANADI (eng yangi `MaxRows` ta) — sabab konstanta izohida. Jami son
+        // javobda alohida qaytadi, ya'ni sahifada "N tadan oxirgi M tasi" deb ko'rinadi.
+        var rowDtos = rows.Take(MaxRows).Select(r =>
+        {
+            var testId = testIdBySubmission.GetValueOrDefault(r.SubmissionId, "");
+            return new LevelTestOverallRowDto(
+                r.SubmissionId, testId, titleById.GetValueOrDefault(testId, ""),
+                r.FullName, r.Phone, r.Level, r.Percent, r.CreatedAt, r.LeadId,
+                r.StudentId, r.Active, r.GroupName, r.TeacherName, r.IsDeleted,
+                r.StageTitle, r.StageColor, r.Paid, r.PaidTotal, r.FirstPaidAt);
+        }).ToList();
+
+        var total = Funnel(rows);
+        return new LevelTestOverallStatsDto(
+            tests.Count, tests.Count(t => t.IsActive), subs.Count,
+            inviteCount, inviteUsed,
+            subs.Count > 0 ? Math.Round(subs.Average(s => (double)s.Percent), 1) : 0,
+            total.Leads, total.Converted, total.Active, total.Paid, total.Revenue,
+            byLevel, byTest, byStage, daily, rows.Count, rowDtos);
+    }
+
     /// <summary>Ball foiziga mos daraja yorlig'i — foiz ≥ MinPercent bo'lgan ENG YUQORI diapazon.</summary>
     private static string ResolveLevel(IReadOnlyList<LevelTestBand> bands, int percent)
     {

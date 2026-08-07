@@ -141,6 +141,8 @@ public interface IAppDbContext
 
     // Guruh AI tahlili (Gemini)
     DbSet<GroupAiAnalysis> GroupAiAnalyses { get; }
+    // Voronka AI tahlili — lid formalari va daraja testlari (bitta jadval, `Kind` bilan)
+    DbSet<FunnelAiAnalysis> FunnelAiAnalyses { get; }
 
     // Markaz (butun o'quv markazi) kunlik AI tahlili (Gemini)
     DbSet<CenterAiAnalysis> CenterAiAnalyses { get; }

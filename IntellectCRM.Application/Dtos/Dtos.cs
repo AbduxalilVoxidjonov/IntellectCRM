@@ -1861,10 +1861,18 @@ public record LevelTestStatRowDto(
     string LeadId, string? StudentId, bool Active, string GroupName, string TeacherName, bool IsDeleted = false,
     string StageTitle = "", string StageColor = "", bool Paid = false, decimal PaidTotal = 0,
     string FirstPaidAt = "");
-/// <summary>Daraja testi statistikasi: jami topshirgan, nechtasi aktiv o'quvchiga aylandi va
-/// nechtasi PUL to'ladi (<c>Paid</c> + <c>Revenue</c> — sotuv konversiyasi uchun).</summary>
+/// <summary>
+/// BITTA daraja testining statistikasi: <paramref name="Total"/> — topshiriqlar soni,
+/// qolgan sonlar esa TAKRORSIZ LIDLAR bo'yicha (<paramref name="Leads"/> — maxraj).
+///
+/// <para>⚠️ <paramref name="Active"/> ham takrorsiz lid bo'yicha sanaladi: bir odam testni ikki
+/// marta topshirgan bo'lsa "aktiv" ikki marta sanalardi va o'sha test umumiy statistika sahifasida
+/// (<see cref="LevelTestOverallStatsDto"/>, u har doim takrorsiz sanaydi) BOSHQACHA raqam
+/// ko'rsatardi — foydalanuvchi qaysi biri to'g'ri ekanini bilmasdi.</para>
+/// </summary>
 public record LevelTestStatsDto(
-    int Total, int Active, List<LevelTestStatRowDto> Rows, int Paid = 0, decimal Revenue = 0);
+    int Total, int Active, List<LevelTestStatRowDto> Rows, int Paid = 0, decimal Revenue = 0,
+    int Leads = 0);
 
 // ============================ LID FORMALARI (ariza formalari) ============================
 // Har kanal (Instagram / Facebook / Telegram / ...) uchun alohida ommaviy forma → o'z manbasi bilan lid.
@@ -1925,8 +1933,12 @@ public record LeadFormStatRowDto(
     int Paid, decimal Revenue,
     double SubmitRate, double ConvertRate, double PayRate);
 
-/// <summary>Kunlik ariza oqimi (grafik uchun).</summary>
-public record LeadFormDayDto(string Date, int Submissions);
+/// <summary>
+/// Kunlik oqim (grafik uchun): "yyyy-MM-dd" + o'sha kundagi soni.
+/// <para>YAGONA tur: lid formalari statistikasi ham, daraja testi statistikasi ham shundan
+/// foydalanadi — ikkala sahifadagi grafik bir xil ma'lumot shaklida bo'lsin.</para>
+/// </summary>
+public record DayCountDto(string Date, int Count);
 
 /// <summary>Sub-kanal (`?ref=`) kesimi — bir forma havolasi bir necha joyga qo'yilganda.</summary>
 public record LeadFormRefDto(string Ref, int Submissions, int Converted, int Paid);
@@ -1937,17 +1949,18 @@ public record LeadFormSourceDto(
     int Paid, decimal Revenue);
 
 /// <summary>
-/// Bosqich kesimi — formalardan kelgan lidlar HOZIR kanbanning qaysi ustunida turibdi.
-/// "Voronka qayerda tiqilib qolgan" degan savolga javob beradi.
+/// Bosqich kesimi — kelgan lidlar HOZIR kanbanning qaysi ustunida turibdi. "Voronka qayerda
+/// tiqilib qolgan" degan savolga javob beradi.
+/// <para>YAGONA tur: lid formalari ham, daraja testi statistikasi ham shundan foydalanadi.</para>
 /// </summary>
-public record LeadFormStageDto(string Stage, string Color, int Leads);
+public record LeadStageCountDto(string Stage, string Color, int Leads);
 
 /// <summary>Formalar UMUMIY statistikasi (barcha formalar bo'yicha).</summary>
 public record LeadFormStatsDto(
     int Forms, int ActiveForms, int Views, int Submissions, int NewLeads, int Converted, int ActiveStudents,
     int Paid, decimal Revenue,
     List<LeadFormStatRowDto> ByForm, List<LeadFormSourceDto> BySource,
-    List<LeadFormRefDto> ByRef, List<LeadFormStageDto> ByStage, List<LeadFormDayDto> Daily);
+    List<LeadFormRefDto> ByRef, List<LeadStageCountDto> ByStage, List<DayCountDto> Daily);
 
 // ---- Ommaviy (anonim) ----
 
@@ -2177,6 +2190,65 @@ public record GroupAiRecordDto(
 public record GroupAiResponseDto(
     bool Ok, bool AlreadyToday, GroupAiRecordDto? Record, string? Error);
 
+/* ---------- VORONKA AI tahlili (lid formalari · daraja testlari) ---------- */
+
+/// <summary>
+/// Bitta KANAL kesimi: lid formalarida — forma, daraja testlarida — test.
+/// <paramref name="Source"/> faqat formada bo'ladi (Instagram/Telegram...), testda bo'sh.
+/// </summary>
+public record FunnelAiChannelDto(
+    string Name, string Source, int Submissions, int Leads, int Converted,
+    int ActiveStudents, int Paid, decimal Revenue, double ConvertRate, double PayRate);
+
+/// <summary>
+/// AI tahlilga beriladigan DETERMINISTIK raqamlar — statistika sahifasidagi bilan AYNAN bir xil
+/// manbadan (<c>LeadFormService.BuildStatsAsync</c> / <c>LevelTestService.BuildOverallStatsAsync</c>).
+///
+/// <para>⚠️ Bu yerda FAQAT jamlanma bor: ariza yuborgan odamlarning ismi, telefoni va javoblari
+/// AI'ga HECH QACHON yuborilmaydi (tashqi xizmatga shaxsiy ma'lumot chiqmaydi).</para>
+/// </summary>
+public record FunnelAiMetricsDto(
+    /// <summary><c>lead-forms</c> | <c>level-tests</c>.</summary>
+    string Kind,
+    /// <summary>Formalar (yoki testlar) soni va ulardan nechtasi faol.</summary>
+    int Sources, int ActiveSources,
+    /// <summary>Formada — ochilishlar; testda — yuborilgan bir martalik havolalar.</summary>
+    int Views,
+    int Submissions, int Leads, int Converted, int ActiveStudents, int Paid, decimal Revenue,
+    /// <summary>Ariza/ochilish (formada) yoki topshiriq/havola (testda); manba bo'lmasa 0.</summary>
+    double SubmitRate,
+    double ConvertRate, double PayRate,
+    List<FunnelAiChannelDto> Channels,
+    List<LeadStageCountDto> Stages,
+    List<DayCountDto> Daily);
+
+/// <summary>Voronka tahlilining 0..100 baholari (radar/ring uchun).</summary>
+public record FunnelAiScoresDto(
+    /// <summary>Oqim hajmi — kelayotgan ariza/topshiriq yetarlimi.</summary>
+    int Hajm,
+    /// <summary>Lid → o'quvchi konversiyasi.</summary>
+    int Konversiya,
+    /// <summary>Sotuv — o'quvchilarning pul to'lashi.</summary>
+    int Sotuv,
+    /// <summary>Barqarorlik — oqim uzilib-uzilib emas, muntazam kelyaptimi.</summary>
+    int Barqarorlik,
+    int Umumiy);
+
+/// <summary>AI yozgan narrativ (o'zbekcha, TANQIDIY) — voronka tahlilining matn qismlari.</summary>
+public record FunnelAiNarrativeDto(
+    string Umumiy, string Kanallar, string Voronka, string Sifat, string Pul, string Ozgarishlar,
+    List<string> Kuchli, List<string> Zaif, List<string> Xavflar, List<string> Tavsiyalar,
+    FunnelAiScoresDto Baholar, string Trend);
+
+/// <summary>Saqlangan bitta voronka tahlili (AI narrativ + deterministik raqamlar).</summary>
+public record FunnelAiRecordDto(
+    string Id, string Kind, string Date, string CreatedAt, string Model, int OverallScore,
+    FunnelAiNarrativeDto Ai, FunnelAiMetricsDto Metrics);
+
+/// <summary>Yaratish javobi. AlreadyToday=true — bugun allaqachon yaratilgan (Gemini chaqirilmadi).</summary>
+public record FunnelAiResponseDto(
+    bool Ok, bool AlreadyToday, FunnelAiRecordDto? Record, string? Error);
+
 /* ---------- O'quvchi baholash statistikasi (oylik + har darslik) ---------- */
 /// <summary>Mezon bo'yicha OYLIK xulosa: shu oyda nechta darsda bajargan / jami dars.</summary>
 public record StudentGradingCriterionDto(string Id, string Name, int Done, int Total);
@@ -2240,19 +2312,37 @@ public record LevelTestInviteDto(
     string Id, string TestId, string LeadId, string LeadName, string Phone,
     string SmsStatus, string CreatedAt, bool Used, string UsedAt, int Percent, string Level);
 
-/// <summary>Daraja testlari UMUMIY statistikasi (barcha testlar bo'yicha jami). Rows — barcha testlarni
-/// topshirgan har bir o'quvchi (qaysi testga tegishli + natija + hozir aktivmi).</summary>
+/// <summary>
+/// Daraja testlari UMUMIY statistikasi — "Formalar → Test statistikasi" sahifasi (testga KIRMASDAN
+/// ko'riladi). Voronka lid formalaridagi bilan BIR XIL o'qiladi: topshirdi → lid → o'quvchi →
+/// TO'LADI, foizlar esa TAKRORSIZ lidlar bo'yicha (bir odam testni ikki marta topshirsa ham bitta
+/// mijoz). Rows — har bir topshiruvchi (qaysi testga tegishli + natija + bosqich/to'lov/holat).
+/// </summary>
 public record LevelTestOverallStatsDto(
-    int TestCount, int Submissions, int Invites, int InvitesUsed, double AvgPercent, int Active,
-    List<LevelCountDto> ByLevel, List<TestStatRowDto> ByTest, List<LevelTestOverallRowDto> Rows);
+    int TestCount, int ActiveTests, int Submissions, int Invites, int InvitesUsed, double AvgPercent,
+    int Leads, int Converted, int Active, int Paid, decimal Revenue,
+    List<LevelCountDto> ByLevel, List<TestStatRowDto> ByTest,
+    List<LeadStageCountDto> ByStage, List<DayCountDto> Daily,
+    /// <summary>JAMI topshiruvchilar soni. <c>Rows</c> ko'pi bilan
+    /// <c>LevelTestService.MaxRows</c> ta (eng yangilari) — sahifa cheklovni ochiq yozadi.</summary>
+    int RowsTotal,
+    List<LevelTestOverallRowDto> Rows);
 public record LevelCountDto(string Level, int Count);
-public record TestStatRowDto(string TestId, string Title, int Submissions, int Invites, int InvitesUsed, double AvgPercent);
+/// <summary>Bitta test bo'yicha voronka qatori (lid formalaridagi <see cref="LeadFormStatRowDto"/> ning
+/// daraja testi uchun ko'rinishi: "ochildi" o'rniga HAVOLA yuborilgani/ishlangani).</summary>
+public record TestStatRowDto(
+    string TestId, string Title, bool IsActive,
+    int Submissions, int Invites, int InvitesUsed, double AvgPercent,
+    int Leads, int Converted, int ActiveStudents, int Paid, decimal Revenue,
+    double ConvertRate, double PayRate);
 /// <summary>Umumiy statistikadagi bitta topshiruvchi qatori — qaysi testga tegishli (TestTitle) + natija +
-/// hozirgi holati (aktivmi, guruh, o'qituvchi). Bitta test statistikasi bilan bir xil, faqat test nomi qo'shilgan.</summary>
+/// hozirgi holati (bosqich, to'lov, aktivmi, guruh, o'qituvchi). Bitta test statistikasi bilan bir xil,
+/// faqat test nomi qo'shilgan.</summary>
 public record LevelTestOverallRowDto(
     string SubmissionId, string TestId, string TestTitle,
     string FullName, string Phone, string Level, int Percent, string CreatedAt,
-    string LeadId, string? StudentId, bool Active, string GroupName, string TeacherName, bool IsDeleted);
+    string LeadId, string? StudentId, bool Active, string GroupName, string TeacherName, bool IsDeleted,
+    string StageTitle, string StageColor, bool Paid, decimal PaidTotal, string FirstPaidAt);
 
 /// <summary>Arxiv yozuvi (o'chirilgan entity surati) — ko'rsatish uchun.</summary>
 public record ArchivedRecordDto(
