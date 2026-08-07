@@ -3,9 +3,10 @@ import {
   Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts'
 import {
-  Banknote, CreditCard, Wallet, Package, BookOpen, FileDown, TrendingUp, AlertTriangle, PackagePlus,
+  Banknote, CreditCard, Wallet, Package, BookOpen, FileDown, TrendingUp, AlertTriangle,
+  PackagePlus, HandCoins, ChevronDown, ChevronRight, CalendarDays,
 } from 'lucide-react'
-import type { BookAnalytics } from '@/api/services/books'
+import type { BookAnalytics, BookDayBookSales, BookSaleRow } from '@/api/services/books'
 import { exportBookAnalytics, getBookAnalytics } from '@/api/services/books'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -13,6 +14,7 @@ import { Loader } from '@/components/ui/Loader'
 import { Input } from '@/components/ui/Input'
 import { StatCard } from '@/components/ui/StatCard'
 import { apiErrorMessage, cn, formatMoney } from '@/lib/utils'
+import { paymentLabel, paymentPillCls } from './bookLabels'
 
 /** Joriy oyning 1-kuni (default davr boshi). */
 function monthStart(): string {
@@ -21,10 +23,34 @@ function monthStart(): string {
 }
 const today = () => new Date().toISOString().slice(0, 10)
 
+const WEEKDAYS = ['yakshanba', 'dushanba', 'seshanba', 'chorshanba', 'payshanba', 'juma', 'shanba']
+
+/** "2026-08-07" → "07.08 · payshanba" (kun tanlashda o'qishga qulay). */
+function dayLabel(date: string): string {
+  const d = new Date(`${date}T00:00:00`)
+  if (Number.isNaN(d.getTime())) return date
+  return `${date.slice(8, 10)}.${date.slice(5, 7)} · ${WEEKDAYS[d.getDay()]}`
+}
+
+/** Kunlik grafik ustuni bosilganda ko'rinadigan izoh (dona + to'lov turlari). */
+interface DayPoint {
+  name: string
+  date: string
+  qty: number
+  Naqd: number
+  Karta: number
+  Nasiya: number
+  total: number
+}
+
 /**
- * ANALITIKA: davr bo'yicha qaysi kitob qancha sotilgani, tushum (naqd/karta alohida va jami),
- * kunlik grafik, top kitoblar va ombor qoldig'i ogohlantirishi. Tushum FAQAT tasdiqlangan
- * buyurtmalardan hisoblanadi.
+ * ANALITIKA: davr bo'yicha qancha kitob sotilgani, sotuv summasi to'lov turlari kesimida
+ * (naqd · karta · NASIYA), kunlik grafik, **har kuni qaysi kitob sotilgani** (kun bo'yicha
+ * ochiladigan ro'yxat — ichida aniq soati bilan sotuvlar), kitob kesimi va qoldiq ogohlantirishi.
+ *
+ * ⚠️ Sotuv taqsimoti SOTUV paytidagi to'lov turi bo'yicha: nasiya keyin to'lansa ham o'sha kunda
+ * "Nasiya" bo'lib qoladi — aks holda o'tgan kunlarning grafigi orqaga qarab o'zgarib turardi.
+ * "Nasiyadan yig'ildi" esa alohida raqam (to'lov sanasi bo'yicha).
  */
 export function BookAnalyticsTab() {
   const [from, setFrom] = useState(monthStart)
@@ -32,6 +58,8 @@ export function BookAnalyticsTab() {
   const [data, setData] = useState<BookAnalytics | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  /** Kunlik ro'yxatda ochilgan kun (sotuvlar soati bilan ko'rinadi). */
+  const [openDay, setOpenDay] = useState<string | null>(null)
 
   useEffect(() => {
     setLoading(true)
@@ -42,15 +70,39 @@ export function BookAnalyticsTab() {
       .finally(() => setLoading(false))
   }, [from, to])
 
-  const chartData = useMemo(
+  const chartData = useMemo<DayPoint[]>(
     () =>
       (data?.byDay ?? []).map((d) => ({
         name: d.date.slice(5), // MM-DD
+        date: d.date,
+        qty: d.qty,
         Naqd: d.cash,
         Karta: d.card,
+        Nasiya: d.credit,
+        total: d.total,
       })),
     [data],
   )
+
+  /** Kunlar ro'yxati (eng yangisi tepada): kun → sotilgan kitoblar + o'sha kungi sotuvlar. */
+  const days = useMemo(() => {
+    const booksByDate = new Map<string, BookDayBookSales[]>()
+    for (const r of data?.byDayBook ?? []) {
+      const list = booksByDate.get(r.date)
+      if (list) list.push(r)
+      else booksByDate.set(r.date, [r])
+    }
+    const salesByDate = new Map<string, BookSaleRow[]>()
+    for (const s of data?.sales ?? []) {
+      const key = s.soldAt.slice(0, 10)
+      const list = salesByDate.get(key)
+      if (list) list.push(s)
+      else salesByDate.set(key, [s])
+    }
+    return [...(data?.byDay ?? [])]
+      .reverse()
+      .map((d) => ({ ...d, books: booksByDate.get(d.date) ?? [], sales: salesByDate.get(d.date) ?? [] }))
+  }, [data])
 
   const quick = (days: number) => {
     const end = new Date()
@@ -115,13 +167,21 @@ export function BookAnalyticsTab() {
         </Card>
       ) : (
         <>
-          {/* ---- Moliyaviy ko'rsatkichlar ---- */}
+          {/* ---- SOTUV (davr ichida) ---- */}
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <StatCard
-              label="Tushum — jami"
+              label="Sotilgan kitob"
+              value={`${data.soldQty} dona`}
+              icon={BookOpen}
+              iconBg="bg-violet-50"
+              iconColor="text-violet-600"
+              hint={`${data.ordersApproved} ta sotuv · ${data.ordersPending} kutilmoqda`}
+            />
+            <StatCard
+              label="Sotuv — jami"
               value={`${formatMoney(data.revenueTotal)} so'm`}
               icon={Wallet}
-              hint={`${data.ordersApproved} ta tasdiqlangan buyurtma`}
+              hint="Naqd + karta + nasiya (tasdiqlangan sotuvlar)"
             />
             <StatCard
               label="Naqd"
@@ -139,37 +199,56 @@ export function BookAnalyticsTab() {
               iconColor="text-sky-600"
               hint={pct(data.revenueCard, data.revenueTotal)}
             />
-            <StatCard
-              label="Sotilgan kitob"
-              value={`${data.soldQty} dona`}
-              icon={BookOpen}
-              iconBg="bg-violet-50"
-              iconColor="text-violet-600"
-              hint={`${data.ordersPending} kutilmoqda · ${data.ordersRejected} rad etilgan`}
-            />
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          {/* ---- NASIYA va OMBOR ---- */}
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <StatCard
+              label="Nasiyaga sotildi"
+              value={`${formatMoney(data.creditSold)} so'm`}
+              icon={HandCoins}
+              iconBg="bg-orange-50"
+              iconColor="text-orange-600"
+              hint={
+                data.creditSoldCount === 0
+                  ? 'Bu davrda nasiya yo\'q'
+                  : `${data.creditSoldCount} ta · shundan to'landi ${formatMoney(data.creditSoldPaid)}`
+              }
+            />
+            <StatCard
+              label="Joriy qarz"
+              value={`${formatMoney(data.creditOutstanding)} so'm`}
+              icon={HandCoins}
+              iconBg={data.creditOverdue > 0 ? 'bg-red-50' : 'bg-orange-50'}
+              iconColor={data.creditOverdue > 0 ? 'text-red-600' : 'text-orange-600'}
+              hint={
+                `${data.creditOutstandingCount} ta to'lanmagan` +
+                (data.creditOverdueCount > 0
+                  ? ` · ${data.creditOverdueCount} tasi muddati o'tgan (${formatMoney(data.creditOverdue)})`
+                  : '') +
+                ' — davrga bog\'liq emas'
+              }
+            />
+            <StatCard
+              label="Nasiyadan yig'ildi"
+              value={`${formatMoney(data.creditCollected)} so'm`}
+              icon={PackagePlus}
+              iconBg="bg-emerald-50"
+              iconColor="text-emerald-600"
+              hint={`Davr ichida ${data.creditCollectedCount} ta nasiya to'landi (to'lov sanasi bo'yicha)`}
+            />
             <StatCard
               label="Ombordagi qoldiq"
               value={`${data.stockTotal} dona`}
               icon={Package}
               iconBg="bg-slate-100"
               iconColor="text-slate-600"
-              hint="Barcha kitoblar bo'yicha (davrga bog'liq emas)"
-            />
-            <StatCard
-              label="Davr ichida kirim"
-              value={`${data.stockInQty} dona`}
-              icon={PackagePlus}
-              iconBg="bg-amber-50"
-              iconColor="text-amber-600"
-              hint="Omborga qo'shilgan kitoblar"
+              hint={`Davr ichida kirim: ${data.stockInQty} dona`}
             />
           </div>
 
           {/* ---- Kunlik grafik ---- */}
-          <Card title="Kunlik tushum" sub="Naqd va karta bo'yicha (tasdiqlangan buyurtmalar)">
+          <Card title="Kunlik sotuv" sub="Naqd · karta · nasiya (sotuv paytidagi to'lov turi bo'yicha)">
             {chartData.length === 0 ? (
               <p className="py-10 text-center text-sm text-slate-400">
                 Bu davrda tasdiqlangan sotuv yo'q.
@@ -185,16 +264,127 @@ export function BookAnalyticsTab() {
                     tick={{ fontSize: 12, fill: '#94a3b8' }}
                     tickFormatter={(v: number) => (v >= 1_000_000 ? `${v / 1_000_000}M` : `${v / 1000}k`)}
                   />
-                  <Tooltip
-                    cursor={{ fill: 'rgba(0,0,0,0.03)' }}
-                    contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 13 }}
-                    formatter={(value) => formatMoney(Number(value))}
-                  />
+                  <Tooltip cursor={{ fill: 'rgba(0,0,0,0.03)' }} content={<DayTooltip />} />
                   <Legend wrapperStyle={{ fontSize: 13 }} />
                   <Bar dataKey="Naqd" stackId="a" fill="#16a34a" maxBarSize={28} />
-                  <Bar dataKey="Karta" stackId="a" fill="#0284c7" radius={[6, 6, 0, 0]} maxBarSize={28} />
+                  <Bar dataKey="Karta" stackId="a" fill="#0284c7" maxBarSize={28} />
+                  <Bar dataKey="Nasiya" stackId="a" fill="#f97316" radius={[6, 6, 0, 0]} maxBarSize={28} />
                 </BarChart>
               </ResponsiveContainer>
+            )}
+          </Card>
+
+          {/* ---- HAR KUNI SOTILGAN KITOBLAR ---- */}
+          <Card
+            tight
+            title="Har kuni sotilgan kitoblar"
+            sub="Qaysi kun qaysi kitob nechta sotilgani — kunni bosing, sotuvlar soati bilan ochiladi"
+          >
+            {days.length === 0 ? (
+              <div className="state">
+                <div className="state-icon">
+                  <CalendarDays className="h-5 w-5" />
+                </div>
+                <h4>Sotuv yo'q</h4>
+                <p>Bu davrda tasdiqlangan sotuv topilmadi.</p>
+              </div>
+            ) : (
+              <div className="max-h-[560px] overflow-auto">
+                <ul className="divide-y divide-slate-100">
+                  {days.map((d) => {
+                    const open = openDay === d.date
+                    return (
+                      <li key={d.date}>
+                        <button
+                          type="button"
+                          onClick={() => setOpenDay(open ? null : d.date)}
+                          className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-slate-50"
+                        >
+                          {open ? (
+                            <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
+                          )}
+                          <span className="w-40 shrink-0 text-sm font-semibold text-slate-800">
+                            {dayLabel(d.date)}
+                          </span>
+                          <span className="shrink-0 rounded bg-violet-50 px-2 py-0.5 text-xs font-semibold text-violet-700">
+                            {d.qty} dona
+                          </span>
+                          <span className="truncate text-xs text-slate-400">
+                            {d.books.map((b) => `${b.bookTitle} ×${b.qty}`).join(', ')}
+                          </span>
+                          <span className="ml-auto shrink-0 font-mono text-sm font-semibold text-slate-800">
+                            {formatMoney(d.total)}
+                          </span>
+                        </button>
+
+                        {open && (
+                          <div className="bg-slate-50/60 px-4 pb-3 pt-1">
+                            {/* Kitob kesimi — shu kunning to'liq surati */}
+                            <table className="table">
+                              <thead>
+                                <tr>
+                                  <th>Kitob</th>
+                                  <th className="text-right">Dona</th>
+                                  <th className="text-right">Sotuvlar</th>
+                                  <th className="text-right">Summa</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {d.books.map((b) => (
+                                  <tr key={b.bookId}>
+                                    <td className="text-slate-700">{b.bookTitle}</td>
+                                    <td className="text-right font-mono font-semibold text-slate-800">{b.qty}</td>
+                                    <td className="text-right font-mono text-slate-500">{b.orders}</td>
+                                    <td className="text-right font-mono text-slate-700">{formatMoney(b.total)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+
+                            {/* Sotuvlar lentasi — aniq soati va xaridori bilan */}
+                            {d.sales.length > 0 ? (
+                              <ul className="mt-2 space-y-1">
+                                {d.sales.map((s) => (
+                                  <li
+                                    key={s.id}
+                                    className="flex flex-wrap items-center gap-2 rounded-lg bg-white px-3 py-1.5 text-sm"
+                                  >
+                                    <span className="font-mono text-xs text-slate-400">
+                                      {s.soldAt.slice(11, 16)}
+                                    </span>
+                                    <span className="text-slate-700">{s.bookTitle}</span>
+                                    <span className="font-mono text-xs text-slate-500">×{s.qty}</span>
+                                    <span className="truncate text-xs text-slate-500">
+                                      {s.customerName || "Noma'lum"}
+                                    </span>
+                                    <span className={paymentPillCls(s.paymentMethod)}>
+                                      {paymentLabel(s.paymentMethod)}
+                                      {s.paymentMethod === 'credit' && !s.isPaid && ' · qarz'}
+                                    </span>
+                                    <span className="ml-auto font-mono text-slate-700">
+                                      {formatMoney(s.total)}
+                                    </span>
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : (
+                              data.salesTruncated && (
+                                <p className="mt-2 text-xs text-slate-400">
+                                  Bu kunning alohida sotuvlari lentaga sig'madi (faqat eng oxirgi{' '}
+                                  {data.sales.length} ta sotuv ko'rsatiladi) — to'liq ro'yxat
+                                  «Buyurtmalar» tabida.
+                                </p>
+                              )
+                            )}
+                          </div>
+                        )}
+                      </li>
+                    )
+                  })}
+                </ul>
+              </div>
             )}
           </Card>
 
@@ -288,6 +478,35 @@ export function BookAnalyticsTab() {
           </div>
         </>
       )}
+    </div>
+  )
+}
+
+/** Grafik izohi: pul taqsimotidan tashqari SOTILGAN DONA ham ko'rinadi (ikkinchi y-o'q solmasdan). */
+function DayTooltip({ active, payload }: { active?: boolean; payload?: { payload: DayPoint }[] }) {
+  if (!active || !payload?.length) return null
+  const d = payload[0].payload
+  const rows: [string, number, string][] = [
+    ['Naqd', d.Naqd, 'text-emerald-600'],
+    ['Karta', d.Karta, 'text-sky-600'],
+    ['Nasiya', d.Nasiya, 'text-orange-600'],
+  ]
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[13px] shadow-sm">
+      <div className="font-semibold text-slate-800">{dayLabel(d.date)}</div>
+      <div className="mb-1 text-xs text-slate-500">{d.qty} dona sotilgan</div>
+      {rows
+        .filter(([, v]) => v > 0)
+        .map(([label, value, cls]) => (
+          <div key={label} className="flex justify-between gap-6">
+            <span className={cls}>{label}</span>
+            <span className="font-mono text-slate-700">{formatMoney(value)}</span>
+          </div>
+        ))}
+      <div className="mt-1 flex justify-between gap-6 border-t border-slate-100 pt-1">
+        <span className="text-slate-500">Jami</span>
+        <span className="font-mono font-semibold text-slate-800">{formatMoney(d.total)}</span>
+      </div>
     </div>
   )
 }

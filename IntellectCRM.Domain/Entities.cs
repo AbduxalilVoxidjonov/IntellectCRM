@@ -2944,7 +2944,8 @@ public class BookOrder
     public int Qty { get; set; } = 1;
     /// <summary>Umumiy summa = UnitPrice × Qty (buyurtma vaqtida hisoblanadi).</summary>
     public decimal Total { get; set; }
-    /// <summary>To'lov turi: "cash" (naqd) | "card" (karta raqamiga o'tkazma).</summary>
+    /// <summary>To'lov turi: "cash" (naqd) | "card" (karta raqamiga o'tkazma) |
+    /// "credit" (NASIYA — kitob berildi, pul keyin olinadi; faqat markazda qo'lda sotuvda).</summary>
     public string PaymentMethod { get; set; } = "cash";
     /// <summary>Karta to'lovida mijoz yuborgan chek rasmi/PDF'i (`/uploads/...`). Naqdda bo'sh.</summary>
     public string ReceiptUrl { get; set; } = string.Empty;
@@ -2971,6 +2972,32 @@ public class BookOrder
     /// <summary>KARTA to'lovi HAQIQATAN qilingan vaqt ("HH:mm"). Sana — <see cref="CreatedAt"/>.
     /// Moliyadagi <c>FinanceTransaction.PaidTime</c> bilan bir xil format.</summary>
     public string? PaidTime { get; set; }
+
+    // -------------------------------------------------------------------------------------
+    //  NASIYA (PaymentMethod = "credit") — kitob BERILDI, pul KEYIN olinadi
+    //
+    //  DIQQAT: nasiya sotuvda ham buyurtma odatdagidek TASDIQLANADI (Status="approved") va
+    //  qoldiqdan ayiriladi — kitob mijozning qo'lida. Farqi faqat PULDA: pul olinmaguncha
+    //  `PaidAt` bo'sh turadi va sotuv "qarz" bo'lib sanaladi. Kassir pulni olgach
+    //  "Tasdiqlash" bosadi → `PaidAt`/`PaidBy`/`SettledMethod` to'ldiriladi va summa
+    //  to'lovlarga (tushumga) qo'shiladi. Shu sababdan "to'landimi" savoli `Status` bilan
+    //  EMAS, `BookSalesService.IsPaid` bilan javob beriladi.
+    // -------------------------------------------------------------------------------------
+
+    /// <summary>NASIYA: pulni qaytarish uchun va'da qilingan sana (ixtiyoriy). Bu sanadan
+    /// keyin to'lanmagan nasiya "muddati o'tgan" bo'lib ajratiladi.</summary>
+    public DateTime? DueDate { get; set; }
+
+    /// <summary>Pul HAQIQATAN olingan payt. Naqd/kartada — tasdiqlangan vaqt; nasiyada —
+    /// kassir "To'landi" bosgan payt. Bo'sh = pul hali olinmagan (faqat nasiyada bo'ladi).</summary>
+    public DateTime? PaidAt { get; set; }
+
+    /// <summary>Nasiya to'lovini kim qabul qilgani (admin/kassir F.I.Sh.).</summary>
+    public string PaidBy { get; set; } = string.Empty;
+
+    /// <summary>NASIYA qanday yopilgani: "cash" | "card". Nasiya bo'lmagan yoki hali
+    /// to'lanmagan buyurtmada bo'sh. Karta bo'lsa <see cref="CardLast4"/> ham to'ldiriladi.</summary>
+    public string? SettledMethod { get; set; }
 }
 
 /// <summary>

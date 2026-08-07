@@ -423,6 +423,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         {
             (typeof(BookStockMove), "BookId"), (typeof(BookStockMove), "Reason"),
             (typeof(BookOrder), "BookId"), (typeof(BookOrder), "Status"),
+            (typeof(BookOrder), "PaymentMethod"), (typeof(BookOrder), "SettledMethod"),
         })
             b.Entity(type).Property(prop).HasMaxLength(200);
         // Ombor harakati: kitob bo'yicha tarix + "kirim tarixi" sanaga qarab o'qiladi.
@@ -433,6 +434,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         b.Entity<BookOrder>().HasIndex(o => o.CreatedAt);
         b.Entity<BookOrder>().HasIndex(o => new { o.BookId, o.Status });
         b.Entity<BookOrder>().HasIndex(o => o.ChatId);
+        // NASIYA navbati: "to'lanmagan qarzlar" ro'yxati (PaymentMethod="credit" AND PaidAt IS NULL)
+        // va "davr ichida nasiyadan yig'ilgan pul" (PaidAt bo'yicha) shu indeksdan o'qiydi.
+        b.Entity<BookOrder>().HasIndex(o => new { o.PaymentMethod, o.PaidAt });
         // Bot savdo sessiyasi — bitta chatda bitta faol sessiya.
         b.Entity<BookBotSession>().HasIndex(s => s.ChatId).IsUnique();
 

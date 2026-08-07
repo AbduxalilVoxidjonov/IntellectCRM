@@ -31,12 +31,25 @@ public static class BookSalesService
     public const string PayCash = "cash";
     public const string PayCard = "card";
 
+    /// <summary>
+    /// NASIYA — kitob berildi, pul keyin olinadi. Buyurtma odatdagidek tasdiqlanadi (qoldiqdan
+    /// ayiriladi), lekin <see cref="BookOrder.PaidAt"/> bo'sh turadi va summa "qarz" bo'lib
+    /// sanaladi; kassir pulni olgach <see cref="PayCreditAsync"/> uni to'lovlarga qo'shadi.
+    /// FAQAT markazda qo'lda sotuvda (botda YO'Q — noma'lum Telegram mijoziga qarz berilmaydi).
+    /// </summary>
+    public const string PayCredit = "credit";
+
     // Buyurtma manbai: mijoz botdan bergan yoki markazda qo'lda sotilgan
     public const string SourceBot = "bot";
     public const string SourceManual = "manual";
 
-    public static string PaymentLabel(string? method) =>
-        method == PayCard ? "Karta" : method == PayCash ? "Naqd" : (method ?? "");
+    public static string PaymentLabel(string? method) => method switch
+    {
+        PayCard => "Karta",
+        PayCash => "Naqd",
+        PayCredit => "Nasiya",
+        _ => method ?? "",
+    };
 
     public static string SourceLabel(string? source) =>
         source == SourceManual ? "Qo'lda" : "Bot";
@@ -145,6 +158,84 @@ public static class BookSalesService
         : !book.IsActive ? "Kitob sotuvdan olingan — avval \"Sotuvda\" belgisini yoqing"
         : null;
 
+    // =============================================================================================
+    //  NASIYA (credit) — kitob berildi, pul keyin olinadi
+    // =============================================================================================
+
+    /// <summary>Buyurtma nasiyaga sotilganmi.</summary>
+    public static bool IsCredit(BookOrder o) => o.PaymentMethod == PayCredit;
+
+    /// <summary>
+    /// PUL OLINGANMI. Naqd/karta sotuvda pul tasdiqlash paytida olinadi, ya'ni tasdiqlangan
+    /// buyurtma = to'langan. Nasiyada esa pul KEYIN olinadi — <see cref="BookOrder.PaidAt"/>
+    /// to'lgunicha bu <c>false</c>, ya'ni summa tushumga emas, QARZGA sanaladi.
+    ///
+    /// <para>⚠️ ATAYIN <c>PaidAt != null</c> emas: eski (nasiya moduli qo'shilishidan oldingi)
+    /// qatorlarda <c>PaidAt</c> bo'sh, lekin ular naqd/karta bo'lgani uchun to'langan hisoblanadi
+    /// — migratsiyadagi to'ldirish bajarilmagan bazada ham hisobot to'g'ri chiqsin.</para>
+    /// </summary>
+    public static bool IsPaid(BookOrder o) =>
+        o.Status == StatusApproved && (!IsCredit(o) || o.PaidAt != null);
+
+    /// <summary>
+    /// Pul QAYSI ko'rinishda olingani: naqd/kartada — o'sha turning o'zi, nasiyada — u qanday
+    /// yopilgani (<see cref="BookOrder.SettledMethod"/>). Hali to'lanmagan nasiyada
+    /// <see cref="PayCredit"/> qaytadi.
+    /// </summary>
+    public static string EffectiveMethod(BookOrder o) =>
+        IsCredit(o) ? (string.IsNullOrEmpty(o.SettledMethod) ? PayCredit : o.SettledMethod!) : o.PaymentMethod;
+
+    /// <summary>
+    /// MUDDATI O'TGAN nasiya: to'lanmagan va va'da qilingan sana <paramref name="today"/> dan
+    /// oldin. Sana belgilanmagan nasiya hech qachon "muddati o'tgan" bo'lmaydi (kassir muddat
+    /// qo'ymagan bo'lsa uni kechikkan deb ayblash noto'g'ri bo'lardi).
+    /// <paramref name="today"/> PARAMETR — funksiya sof qolsin uchun ichkarida AppClock o'qilmaydi.
+    /// </summary>
+    public static bool IsOverdue(BookOrder o, DateTime today) =>
+        IsCredit(o) && o.Status == StatusApproved && o.PaidAt is null
+        && o.DueDate is { } due && due.Date < today.Date;
+
+    /// <summary>
+    /// NASIYADA XARIDOR MAJBURIY: qarzni kimdan olish kerakligi yozilmasa nasiya ma'nosini
+    /// yo'qotadi. Naqd/kartada esa xaridor ixtiyoriy bo'lib qoladi (chetdan kelgan odam).
+    /// </summary>
+    /// <returns><c>null</c> — sotsa bo'ladi; aks holda xato matni.</returns>
+    public static string? CreditCustomerError(string? method, string? studentId, string? customerName) =>
+        method == PayCredit
+        && string.IsNullOrWhiteSpace(studentId)
+        && string.IsNullOrWhiteSpace(customerName)
+            ? "Nasiyada xaridor ko'rsatilishi shart — o'quvchini F.I.Sh. bo'yicha qidirib tanlang "
+              + "yoki xaridor ismini yozing."
+            : null;
+
+    /// <summary>
+    /// NASIYA TO'LOVINI QABUL QILISH ("pulini oldim → Tasdiqlash"): buyurtma to'langan deb
+    /// belgilanadi va summa shu paytdan boshlab tushumga (to'lovlarga) qo'shiladi.
+    /// <b>Ombor TEGILMAYDI</b> — kitob allaqachon sotuv paytida berilgan va qoldiqdan ayirilgan.
+    /// </summary>
+    /// <param name="method">Pul qanday olindi: <see cref="PayCash"/> yoki <see cref="PayCard"/>.</param>
+    /// <param name="cardLast4">Karta bo'lsa — oxirgi 4 raqam (to'liq raqam SAQLANMAYDI).</param>
+    /// <returns><c>null</c> — muvaffaqiyat; aks holda foydalanuvchiga ko'rsatiladigan xato matni.</returns>
+    public static async Task<string?> PayCreditAsync(
+        IAppDbContext db, BookOrder order, string method, string? cardLast4, string paidBy,
+        CancellationToken ct = default)
+    {
+        if (!IsCredit(order)) return "Bu buyurtma nasiyaga sotilmagan — to'lov allaqachon olingan.";
+        if (order.Status != StatusApproved)
+            return $"Buyurtma holati mos emas ({StatusLabel(order.Status)}).";
+        if (order.PaidAt is not null) return "Bu nasiya allaqachon to'langan deb belgilangan.";
+        if (method != PayCash && method != PayCard)
+            return "To'lov turini tanlang: naqd yoki karta.";
+
+        order.PaidAt = AppClock.Now;
+        order.PaidBy = paidBy ?? string.Empty;
+        order.SettledMethod = method;
+        // Karta bo'lsa oxirgi 4 raqam yoziladi; naqdda eski qiymat qolib ketmasin.
+        order.CardLast4 = method == PayCard ? cardLast4 : null;
+        await db.SaveChangesAsync(ct);
+        return null;
+    }
+
     /// <summary>
     /// Buyurtmani TASDIQLAYDI: qoldiqdan kitob soni ayiriladi, harakat tarixi yoziladi, holat
     /// <c>approved</c> bo'ladi. Qoldiq yetmasa yoki buyurtma allaqachon hal qilingan bo'lsa —
@@ -171,6 +262,9 @@ public static class BookSalesService
         order.RejectReason = string.Empty;
         order.DecidedAt = AppClock.Now;
         order.DecidedBy = decidedBy ?? string.Empty;
+        // Naqd/kartada pul shu paytda olinadi. NASIYADA esa yo'q — `PaidAt` bo'sh qoladi va
+        // buyurtma "qarz" bo'lib sanaladi (qarang: PayCreditAsync).
+        if (!IsCredit(order)) order.PaidAt = order.DecidedAt;
 
         try
         {
@@ -189,6 +283,7 @@ public static class BookSalesService
             order.Status = StatusPending;
             order.DecidedAt = null;
             order.DecidedBy = string.Empty;
+            order.PaidAt = null;
             return "Qoldiq shu payt boshqa amalda o'zgardi — qaytadan urinib ko'ring.";
         }
         return null;

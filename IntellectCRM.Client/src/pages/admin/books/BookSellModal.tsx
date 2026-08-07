@@ -1,5 +1,5 @@
 ﻿import { useEffect, useMemo, useRef, useState } from 'react'
-import { Loader2, Search, ShoppingCart, User, X, Banknote, CreditCard } from 'lucide-react'
+import { Loader2, Search, ShoppingCart, User, X, Banknote, CreditCard, HandCoins } from 'lucide-react'
 import type { Book, BookOrder, BookPaymentMethod, BookStudent } from '@/api/services/books'
 import { searchBookStudents, sellBookManual } from '@/api/services/books'
 import { Modal } from '@/components/ui/Modal'
@@ -30,6 +30,11 @@ const nowTime = () => new Date().toTimeString().slice(0, 5)
  * Karta bo'lsa to'lov vaqti va kartaning oxirgi 4 raqami kiritiladi (chek rasmi YO'Q — pul
  * kassirning oldida to'langan). Buyurtma DARHOL tasdiqlangan holatda yaratiladi: qoldiq shu
  * zahoti ayiriladi va sotuv analitikaga tushadi.
+ *
+ * NASIYA: kitob beriladi, pul keyin olinadi. Bunda xaridor MAJBURIY (o'quvchini F.I.Sh. bo'yicha
+ * qidirib tanlash yoki ismini yozish) — qarz kimda ekani yozilmasa nasiyaning ma'nosi qolmaydi.
+ * Qoldiq baribir shu zahoti ayiriladi (kitob mijozning qo'lida), lekin summa tushumga emas
+ * QARZGA tushadi va "Nasiya" tabida "To'landi" bosilguncha shunday qoladi.
  */
 export function BookSellModal({ open, books, onClose, onSold }: Props) {
   const [bookId, setBookId] = useState('')
@@ -37,6 +42,9 @@ export function BookSellModal({ open, books, onClose, onSold }: Props) {
   const [method, setMethod] = useState<BookPaymentMethod>('cash')
   const [cardLast4, setCardLast4] = useState('')
   const [paidTime, setPaidTime] = useState(nowTime())
+  /** NASIYA: va'da qilingan to'lov sanasi va (o'quvchi tanlanmasa) xaridor telefoni. */
+  const [dueDate, setDueDate] = useState('')
+  const [buyerPhone, setBuyerPhone] = useState('')
 
   // O'quvchi qidiruvi
   const [query, setQuery] = useState('')
@@ -63,6 +71,8 @@ export function BookSellModal({ open, books, onClose, onSold }: Props) {
     setMethod('cash')
     setCardLast4('')
     setPaidTime(nowTime())
+    setDueDate('')
+    setBuyerPhone('')
     setQuery('')
     setResults([])
     setStudent(null)
@@ -107,6 +117,12 @@ export function BookSellModal({ open, books, onClose, onSold }: Props) {
         return setError("Karta raqamining oxirgi 4 raqamini kiriting")
       if (!paidTime) return setError("To'lov vaqtini kiriting")
     }
+    // NASIYADA xaridor MAJBURIY — qarzni kimdan olish kerakligi yozilmasa nasiya ma'nosini
+    // yo'qotadi (server ham shu qoidani tekshiradi).
+    if (method === 'credit' && !student && !buyerName.trim())
+      return setError(
+        "Nasiyada xaridorni ko'rsating — o'quvchini F.I.Sh. bo'yicha qidirib tanlang yoki ismini yozing",
+      )
 
     setBusy(true)
     setError('')
@@ -119,6 +135,12 @@ export function BookSellModal({ open, books, onClose, onSold }: Props) {
         qty: qtyNum,
         paymentMethod: method,
         ...(method === 'card' ? { cardLast4: cardLast4.replace(/\D/g, '').slice(-4), paidTime } : {}),
+        ...(method === 'credit'
+          ? {
+              dueDate: dueDate || undefined,
+              ...(student ? {} : { customerPhone: buyerPhone.trim() || undefined }),
+            }
+          : {}),
       })
       onSold(order)
       onClose()
@@ -142,7 +164,7 @@ export function BookSellModal({ open, books, onClose, onSold }: Props) {
           </Button>
           <Button onClick={submit} disabled={busy || !book}>
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingCart className="h-4 w-4" />}
-            Sotish
+            {method === 'credit' ? 'Nasiyaga berish' : 'Sotish'}
           </Button>
         </>
       }
@@ -266,8 +288,10 @@ export function BookSellModal({ open, books, onClose, onSold }: Props) {
                   placeholder="Masalan: Aziza Karimova (ota-ona)"
                   maxLength={120}
                 />
-                <p className="mt-1 text-xs text-slate-400">
-                  Bo'sh qoldirsangiz ham sotish mumkin — ro'yxatda "Noma'lum" bo'lib ko'rinadi.
+                <p className={cn('mt-1 text-xs', method === 'credit' ? 'text-orange-600' : 'text-slate-400')}>
+                  {method === 'credit'
+                    ? "Nasiyada shart: o'quvchini tanlang yoki shu yerga xaridor ismini yozing."
+                    : 'Bo\'sh qoldirsangiz ham sotish mumkin — ro\'yxatda "Noma\'lum" bo\'lib ko\'rinadi.'}
                 </p>
               </div>
             </>
@@ -277,10 +301,11 @@ export function BookSellModal({ open, books, onClose, onSold }: Props) {
         {/* 4. To'lov turi */}
         <div>
           <label className="mb-1.5 block text-sm font-medium text-slate-600">To'lov turi</label>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-3 gap-2">
             {([
               { value: 'cash' as const, label: 'Naqd', icon: Banknote },
               { value: 'card' as const, label: 'Karta', icon: CreditCard },
+              { value: 'credit' as const, label: 'Nasiya', icon: HandCoins },
             ]).map((m) => (
               <button
                 key={m.value}
@@ -324,10 +349,42 @@ export function BookSellModal({ open, books, onClose, onSold }: Props) {
           </div>
         )}
 
+        {/* 5b. Nasiya bo'lsa — muddat va (o'quvchi tanlanmagan bo'lsa) telefon */}
+        {method === 'credit' && (
+          <div className="space-y-3 rounded-lg border border-orange-200 bg-orange-50/60 p-3">
+            <p className="text-sm text-orange-800">
+              Kitob hoziroq beriladi va ombordan ayiriladi, lekin <b>pul qarzga yoziladi</b>. Pulni
+              olgach «Nasiya» tabidan «To'landi» bosasiz — shundan keyin summa tushumga qo'shiladi.
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Input
+                label="To'lov muddati (ixtiyoriy)"
+                type="date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+              />
+              {!student && (
+                <Input
+                  label="Xaridor telefoni (ixtiyoriy)"
+                  inputMode="tel"
+                  placeholder="90 123 45 67"
+                  value={buyerPhone}
+                  onChange={(e) => setBuyerPhone(e.target.value)}
+                />
+              )}
+            </div>
+            <p className="text-xs text-orange-700">
+              Muddat qo'yilsa, o'tib ketgan qarzlar ro'yxatda qizil bo'lib ajralib turadi.
+            </p>
+          </div>
+        )}
+
         {/* Jami */}
         {book && (
           <div className="flex items-center justify-between rounded-lg bg-slate-800 px-4 py-3 text-white">
-            <span className="text-sm text-slate-300">Jami</span>
+            <span className="text-sm text-slate-300">
+              {method === 'credit' ? 'Nasiya (qarz)' : 'Jami'}
+            </span>
             <span className="font-mono text-lg font-bold">{formatMoney(total)}</span>
           </div>
         )}

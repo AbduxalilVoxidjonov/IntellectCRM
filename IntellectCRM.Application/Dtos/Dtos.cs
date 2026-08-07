@@ -2784,7 +2784,17 @@ public record BookOrderDto(
     string Source = "bot",
     // Karta to'lovida: karta oxirgi 4 raqami va to'lov qilingan vaqt ("HH:mm").
     string? CardLast4 = null,
-    string? PaidTime = null);
+    string? PaidTime = null,
+    // ---- NASIYA (PaymentMethod = "credit") ----
+    // Pul olinganmi (naqd/kartada tasdiqlangani = to'langani; nasiyada — PaidAt to'lganida).
+    bool IsPaid = true,
+    // Va'da qilingan to'lov sanasi ("yyyy-MM-dd") va u o'tib ketganmi.
+    string? DueDate = null,
+    bool IsOverdue = false,
+    // Pul qachon va kim tomonidan olindi; nasiya qanday yopildi ("cash" | "card").
+    string? PaidAt = null,
+    string PaidBy = "",
+    string? SettledMethod = null);
 
 /// <summary>Buyurtmani rad etish sababi.</summary>
 public record BookRejectPayload(string Reason);
@@ -2805,8 +2815,24 @@ public record BookManualSalePayload(
     string? CardLast4 = null,
     string? PaidTime = null,
     /// <summary>O'quvchi tanlanmaganda xaridor ismi — bu ham IXTIYORIY. Bo'sh qolsa ro'yxatda
-    /// "Noma'lum" bo'lib ko'rinadi (bot buyurtmalarida allaqachon shunday).</summary>
-    string? CustomerName = null);
+    /// "Noma'lum" bo'lib ko'rinadi (bot buyurtmalarida allaqachon shunday). NASIYADA esa
+    /// o'quvchi yoki shu ism SHART (qarz kimdaligi yozilmasa nasiya ma'nosini yo'qotadi).</summary>
+    string? CustomerName = null,
+    /// <summary>O'quvchi tanlanmaganda xaridor telefoni (ixtiyoriy) — nasiyada qarzdorni topish
+    /// uchun asqotadi. O'quvchi tanlansa raqam undan olinadi va bu maydon inobatga olinmaydi.</summary>
+    string? CustomerPhone = null,
+    /// <summary>NASIYA: pulni qaytarish uchun va'da qilingan sana ("yyyy-MM-dd", ixtiyoriy).</summary>
+    string? DueDate = null);
+
+/// <summary>
+/// NASIYA TO'LOVINI QABUL QILISH ("pulini oldim → Tasdiqlash"). Ombor TEGILMAYDI — kitob sotuv
+/// paytida berilgan; bu yerda faqat pul to'landi deb belgilanadi va summa tushumga qo'shiladi.
+/// </summary>
+public record BookCreditPayPayload(
+    /// <summary>Pul qanday olindi: "cash" | "card".</summary>
+    string Method,
+    /// <summary>Karta bo'lsa — oxirgi 4 raqam (to'liq raqam saqlanmaydi).</summary>
+    string? CardLast4 = null);
 
 /// <summary>Qo'lda sotuvda o'quvchi qidirish natijasi (yengil — balans/hisob hisoblanmaydi).</summary>
 public record BookStudentDto(
@@ -2834,11 +2860,33 @@ public record BookCardPaymentsDto(
     int CountRejected,
     List<BookOrderDto> Orders);
 
-/// <summary>Kunlik sotuv nuqtasi (grafik uchun).</summary>
-public record BookDaySalesDto(string Date, int Qty, decimal Cash, decimal Card, decimal Total);
+/// <summary>Kunlik sotuv nuqtasi (grafik uchun). <c>Cash+Card+Credit = Total</c> — taqsimot
+/// SOTUV paytidagi to'lov turi bo'yicha (nasiya keyin to'lansa ham o'sha kunda nasiya bo'lib
+/// qoladi, ya'ni o'tgan kunlarning grafigi orqaga qarab o'zgarmaydi).</summary>
+public record BookDaySalesDto(
+    string Date, int Qty, decimal Cash, decimal Card, decimal Credit, decimal Total);
 
 /// <summary>Kitob kesimidagi sotuv (top kitoblar jadvali).</summary>
 public record BookSalesByBookDto(string BookId, string BookTitle, int Qty, decimal Total, int Stock);
+
+/// <summary>HAR KUNI qaysi kitob nechta sotilgani ("kunlik sotuv tarixi" jadvali).</summary>
+public record BookDayBookSalesDto(
+    string Date, string BookId, string BookTitle, int Qty, decimal Total, int Orders);
+
+/// <summary>Bitta SOTUV yozuvi — "qaysi kitob QACHON (soati bilan) va kimga sotildi" lentasi.</summary>
+public record BookSaleRowDto(
+    string Id,
+    int Number,
+    // Sotuv payti ("yyyy-MM-ddTHH:mm:ss") — tasdiqlangan vaqt, bo'lmasa yaratilgan vaqt.
+    string SoldAt,
+    string BookId,
+    string BookTitle,
+    int Qty,
+    decimal Total,
+    string CustomerName,
+    string PaymentMethod,
+    bool IsPaid,
+    string Source);
 
 /// <summary>Kitoblar sotuvi analitikasi — tanlangan davr bo'yicha.</summary>
 public record BookAnalyticsDto(
@@ -2850,6 +2898,7 @@ public record BookAnalyticsDto(
     int OrdersRejected,
     // Sotilgan umumiy dona (tasdiqlangan).
     int SoldQty,
+    // Davr ichidagi SOTUV summasi, to'lov turi bo'yicha taqsimlangan (jami = uchalasining yig'indisi).
     decimal RevenueCash,
     decimal RevenueCard,
     decimal RevenueTotal,
@@ -2860,7 +2909,57 @@ public record BookAnalyticsDto(
     List<BookDaySalesDto> ByDay,
     List<BookSalesByBookDto> ByBook,
     // Qoldig'i tugagan/kam qolgan kitoblar (qoldiq ≤ 3).
-    List<BookSalesByBookDto> LowStock);
+    List<BookSalesByBookDto> LowStock,
+    // ---- HAR KUNI SOTILGAN KITOBLAR ----
+    // Kun × kitob kesimi (TO'LIQ — chegarasiz) va sotuvlar lentasi (soati bilan, cheklangan).
+    List<BookDayBookSalesDto> ByDayBook,
+    List<BookSaleRowDto> Sales,
+    // Lentaga hamma sotuv sig'madimi (rost bo'lsa UI "eng oxirgi N tasi" deb ogohlantiradi).
+    bool SalesTruncated,
+    // ---- NASIYA: DAVR ICHIDA SOTILGANI (sotuv sanasi bo'yicha) ----
+    decimal CreditSold,
+    int CreditSoldCount,
+    // Shu davrda nasiyaga sotilganlarning ALLAQACHON to'langan qismi.
+    decimal CreditSoldPaid,
+    // ---- NASIYA: JORIY QARZ (davrga BOG'LIQ EMAS — xuddi ombor qoldig'i kabi) ----
+    decimal CreditOutstanding,
+    int CreditOutstandingCount,
+    decimal CreditOverdue,
+    int CreditOverdueCount,
+    // ---- NASIYA: davr ichida YIG'ILGAN pul (to'lov sanasi bo'yicha) ----
+    decimal CreditCollected,
+    int CreditCollectedCount);
+
+/// <summary>NASIYA bo'limidagi bitta QARZDOR (xaridor kesimida jamlangan).</summary>
+public record BookDebtorDto(
+    // Guruhlash kaliti: o'quvchi id'si bo'lsa "s:{id}", aks holda "n:{ism}|{telefon}".
+    string Key,
+    string? StudentId,
+    string Name,
+    string Phone,
+    // To'lanmagan nasiyalar soni va summasi.
+    int Orders,
+    decimal Total,
+    // Eng eski to'lanmagan nasiya sanasi va muddati o'tganlari bormi.
+    string OldestDate,
+    bool HasOverdue);
+
+/// <summary>
+/// NASIYA bo'limi: to'lanmagan qarzlar ro'yxati + qarzdorlar kesimi + jamlanma.
+/// Jami summalar TO'LIQ topilma bo'yicha SQL tomonda hisoblanadi (<paramref name="Orders"/>
+/// ko'rsatish uchun cheklangan bo'lishi mumkin).
+/// </summary>
+public record BookCreditsDto(
+    // Joriy qarz (butun tarix bo'yicha, filtrdan qat'i nazar) — bo'limning asosiy raqami.
+    decimal TotalUnpaid,
+    int CountUnpaid,
+    decimal TotalOverdue,
+    int CountOverdue,
+    // Tanlangan davrda nasiyadan yig'ilgan pul.
+    decimal CollectedInPeriod,
+    int CollectedCount,
+    List<BookDebtorDto> Debtors,
+    List<BookOrderDto> Orders);
 
 /// <summary>Botdagi kitob sotuvi sozlamalari (to'lov rekvizitlari).</summary>
 public record BookSettingsDto(

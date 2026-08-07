@@ -6,7 +6,14 @@
  * Tasdiqlanganda ombor qoldig'idan ayiriladi va sotuv analitikaga tushadi.
  */
 
-export type BookPaymentMethod = 'cash' | 'card'
+/**
+ * To'lov turi. `credit` = NASIYA: kitob berildi, pul keyin olinadi (faqat markazda qo'lda
+ * sotuvda — botda yo'q). Nasiya sotuv ham odatdagidek tasdiqlanadi va qoldiqdan ayiriladi;
+ * pul olinganda "Nasiya" tabidan "To'landi" bosiladi va summa tushumga qo'shiladi.
+ */
+export type BookPaymentMethod = 'cash' | 'card' | 'credit'
+/** Nasiya qanday yopilgani (pul qaysi ko'rinishda olingani). */
+export type BookSettleMethod = 'cash' | 'card'
 export type BookOrderStatus = 'pending' | 'approved' | 'rejected'
 /** Buyurtma manbai: botdan tushgan yoki markazda qo'lda sotilgan. */
 export type BookOrderSource = 'bot' | 'manual'
@@ -88,6 +95,17 @@ export interface BookOrder {
   cardLast4?: string | null
   /** Karta to'lovi qilingan vaqt ("HH:mm"). Sana — `createdAt`. */
   paidTime?: string | null
+  /** Pul olinganmi. Naqd/kartada tasdiqlangani = to'langani; nasiyada — "To'landi" bosilganda. */
+  isPaid: boolean
+  /** NASIYA: va'da qilingan to'lov sanasi ("yyyy-MM-dd"). */
+  dueDate?: string | null
+  /** NASIYA: muddat o'tib ketgan va hali to'lanmagan. */
+  isOverdue: boolean
+  /** Pul qachon olindi ("yyyy-MM-ddTHH:mm:ss") va kim qabul qildi. */
+  paidAt?: string | null
+  paidBy: string
+  /** NASIYA qanday yopildi: naqd yoki karta. */
+  settledMethod?: BookSettleMethod | null
 }
 
 /** Qo'lda sotuv oynasidagi o'quvchi qidiruvi natijasi. */
@@ -113,6 +131,17 @@ export interface BookManualSalePayload {
   cardLast4?: string
   /** Karta to'lovida MAJBURIY — to'lov qilingan vaqt ("HH:mm"). */
   paidTime?: string
+  /** O'quvchi tanlanmaganda xaridor telefoni (nasiyada qarzdorni topish uchun). */
+  customerPhone?: string
+  /** NASIYADA: pul qaytarish uchun va'da qilingan sana ("yyyy-MM-dd", ixtiyoriy). */
+  dueDate?: string
+}
+
+/** Nasiya to'lovini qabul qilish ("pulini oldim → Tasdiqlash"). Ombor tegilmaydi. */
+export interface BookCreditPayPayload {
+  method: BookSettleMethod
+  /** Karta bo'lsa MAJBURIY — oxirgi 4 raqam. */
+  cardLast4?: string
 }
 
 export interface BookDaySales {
@@ -120,6 +149,8 @@ export interface BookDaySales {
   qty: number
   cash: number
   card: number
+  /** Nasiyaga sotilgan summa (o'sha kuni) — keyin to'lansa ham shu kunda nasiya bo'lib qoladi */
+  credit: number
   total: number
 }
 
@@ -131,6 +162,32 @@ export interface BookSalesByBook {
   stock: number
 }
 
+/** Har kuni qaysi kitob nechta sotilgani (kun × kitob kesimi). */
+export interface BookDayBookSales {
+  date: string
+  bookId: string
+  bookTitle: string
+  qty: number
+  total: number
+  /** Shu kuni shu kitob bo'yicha nechta alohida sotuv bo'lgani */
+  orders: number
+}
+
+/** Bitta sotuv — "qaysi kitob qachon (soati bilan) va kimga sotildi" lentasi uchun. */
+export interface BookSaleRow {
+  id: string
+  number: number
+  soldAt: string
+  bookId: string
+  bookTitle: string
+  qty: number
+  total: number
+  customerName: string
+  paymentMethod: BookPaymentMethod
+  isPaid: boolean
+  source: BookOrderSource
+}
+
 export interface BookAnalytics {
   from: string
   to: string
@@ -138,6 +195,7 @@ export interface BookAnalytics {
   ordersPending: number
   ordersRejected: number
   soldQty: number
+  /** Davr ichidagi SOTUV summasi to'lov turi bo'yicha: naqd + karta + nasiya = revenueTotal */
   revenueCash: number
   revenueCard: number
   revenueTotal: number
@@ -146,6 +204,50 @@ export interface BookAnalytics {
   byDay: BookDaySales[]
   byBook: BookSalesByBook[]
   lowStock: BookSalesByBook[]
+  /** Har kuni qaysi kitob sotilgani — TO'LIQ (chegarasiz) */
+  byDayBook: BookDayBookSales[]
+  /** Sotuvlar lentasi (soati bilan) — eng oxirgi 400 tasi */
+  sales: BookSaleRow[]
+  salesTruncated: boolean
+  /** NASIYA: davr ichida nasiyaga sotilgani va shundan to'langani */
+  creditSold: number
+  creditSoldCount: number
+  creditSoldPaid: number
+  /** NASIYA: JORIY qarz — davrga bog'liq emas (ombor qoldig'i kabi) */
+  creditOutstanding: number
+  creditOutstandingCount: number
+  creditOverdue: number
+  creditOverdueCount: number
+  /** NASIYA: davr ichida yig'ilgan pul (to'lov sanasi bo'yicha) */
+  creditCollected: number
+  creditCollectedCount: number
+}
+
+/** Bitta qarzdor (nasiya bo'limida xaridor kesimi). */
+export interface BookDebtor {
+  key: string
+  studentId?: string | null
+  name: string
+  phone: string
+  orders: number
+  total: number
+  oldestDate: string
+  hasOverdue: boolean
+}
+
+/**
+ * NASIYA bo'limi. Jamlanma raqamlari (qarz, muddati o'tgan) — JORIY holat, davr va qidiruvdan
+ * qat'i nazar; `collectedInPeriod` esa tanlangan davrda yig'ilgan pul (to'lov sanasi bo'yicha).
+ */
+export interface BookCredits {
+  totalUnpaid: number
+  countUnpaid: number
+  totalOverdue: number
+  countOverdue: number
+  collectedInPeriod: number
+  collectedCount: number
+  debtors: BookDebtor[]
+  orders: BookOrder[]
 }
 
 export interface BookSettings {
@@ -270,9 +372,16 @@ export async function sellBookManual(payload: BookManualSalePayload): Promise<Bo
   return data
 }
 
-export async function getPendingBookOrderCount(): Promise<number> {
-  const { data } = await api.get<{ count: number }>('/admin/books/orders/pending-count')
-  return data.count
+/** Tab belgilari: kutilayotgan buyurtmalar + to'lanmagan nasiyalar (shundan muddati o'tganlari). */
+export interface BookBadges {
+  count: number
+  credits: number
+  overdue: number
+}
+
+export async function getBookBadges(): Promise<BookBadges> {
+  const { data } = await api.get<BookBadges>('/admin/books/orders/pending-count')
+  return data
 }
 
 /** Tasdiqlash: qoldiqdan ayiriladi + mijozga botda xabar ketadi. */
@@ -284,6 +393,23 @@ export async function approveBookOrder(id: string): Promise<BookOrder> {
 /** Rad etish: sabab mijozga botda yuboriladi. */
 export async function rejectBookOrder(id: string, reason: string): Promise<BookOrder> {
   const { data } = await api.post<BookOrder>(`/admin/books/orders/${id}/reject`, { reason })
+  return data
+}
+
+// ---------- Nasiya (kitob berildi, pul keyin) ----------
+
+/** Nasiya ro'yxati. `status: 'paid'` — tanlangan davrda to'langanlari; aks holda to'lanmaganlar. */
+export async function getBookCredits(
+  filters: { status?: 'unpaid' | 'paid'; from?: string; to?: string; q?: string } = {},
+): Promise<BookCredits> {
+  const { data } = await api.get<BookCredits>('/admin/books/credits', { params: clean(filters) })
+  return data
+}
+
+/** "Pulini oldim" → nasiya to'langan deb belgilanadi va summa tushumga qo'shiladi.
+ *  Ombor TEGILMAYDI — kitob sotuv paytida berilgan. */
+export async function payBookCredit(id: string, payload: BookCreditPayPayload): Promise<BookOrder> {
+  const { data } = await api.post<BookOrder>(`/admin/books/orders/${id}/pay`, payload)
   return data
 }
 
@@ -331,3 +457,7 @@ export const exportBookStockMoves = (
 
 export const exportBookAnalytics = (from?: string, to?: string) =>
   download('/admin/books/analytics/export', { from, to }, `kitob_hisobot_${today()}.xlsx`)
+
+export const exportBookCredits = (
+  filters: { status?: 'unpaid' | 'paid'; from?: string; to?: string; q?: string } = {},
+) => download('/admin/books/credits/export', filters, `kitob_nasiya_${today()}.xlsx`)

@@ -12,7 +12,7 @@ import { Loader } from '@/components/ui/Loader'
 import { Modal } from '@/components/ui/Modal'
 import { Input, Select, Textarea } from '@/components/ui/Input'
 import { apiErrorMessage, cn, formatMoney, maskPhone } from '@/lib/utils'
-import { statusLabel, statusPillCls, paymentLabel } from './bookLabels'
+import { statusLabel, statusPillCls, paymentLabel, paymentPillCls } from './bookLabels'
 import { BookSellModal } from './BookSellModal'
 
 interface Props {
@@ -162,9 +162,10 @@ export function BookOrdersTab({ canDecide, canSell, onDecided }: Props) {
               setFilters((f) => ({ ...f, method: e.target.value as BookOrderFilters['method'] }))
             }
           >
-            <option value="">Naqd + Karta</option>
+            <option value="">Barchasi</option>
             <option value="cash">Naqd</option>
             <option value="card">Karta</option>
+            <option value="credit">Nasiya</option>
           </Select>
 
           <form
@@ -281,16 +282,26 @@ export function BookOrdersTab({ canDecide, canSell, onDecided }: Props) {
                       {formatMoney(o.total)}
                     </td>
                     <td>
-                      <span
-                        className={cn(
-                          'rounded px-2 py-0.5 text-xs font-semibold',
-                          o.paymentMethod === 'card'
-                            ? 'bg-sky-50 text-sky-700'
-                            : 'bg-emerald-50 text-emerald-700',
-                        )}
-                      >
+                      <span className={paymentPillCls(o.paymentMethod)}>
                         {paymentLabel(o.paymentMethod)}
                       </span>
+                      {/* Nasiyada eng muhim savol — pul olindimi yoki hali qarzmi. */}
+                      {o.paymentMethod === 'credit' && (
+                        <div
+                          className={cn(
+                            'mt-0.5 text-xs font-medium',
+                            o.isPaid ? 'text-emerald-600' : o.isOverdue ? 'text-red-600' : 'text-orange-600',
+                          )}
+                        >
+                          {o.isPaid
+                            ? "to'landi"
+                            : o.isOverdue
+                              ? `muddati o'tgan (${o.dueDate})`
+                              : o.dueDate
+                                ? `qarz · ${o.dueDate}`
+                                : 'qarz'}
+                        </div>
+                      )}
                     </td>
                     <td>
                       {o.receiptUrl ? (

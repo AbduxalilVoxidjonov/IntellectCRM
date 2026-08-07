@@ -20,7 +20,7 @@ Telegram bot orqali buyurtma qabul qiladi. **Click/Payme YO'Q** — faqat naqd y
 |---|---|
 | `Book` | Tovar: `Title/Author/Description/CoverUrl/CoverFileId/Price/Stock/IsActive/CreatedAt/CreatedBy` |
 | `BookStockMove` | Qoldiqning HAR bir o'zgarishi: `Qty` (±), `Reason`, `OrderId?`, `Note`, `StockAfter`, `CreatedBy` |
-| `BookOrder` | Buyurtma (nom/narx SNAPSHOT), `Number` (#1,#2…), `Status`, `ReceiptUrl`, `DecidedAt/By`, `Source`, `CardLast4`, `PaidTime` |
+| `BookOrder` | Buyurtma (nom/narx SNAPSHOT), `Number` (#1,#2…), `Status`, `ReceiptUrl`, `DecidedAt/By`, `Source`, `CardLast4`, `PaidTime` + NASIYA: `DueDate`, `PaidAt`, `PaidBy`, `SettledMethod` |
 | `BookBotSession` | Chatning vaqtinchalik savdo holati — `ChatId` UNIKAL (bir chatda bitta faol sessiya) |
 
 - `Book.CoverFileId` — Telegram keshlagan `file_id`. Muqova bir marta yuklangach botga qayta
@@ -52,6 +52,46 @@ Qo'lda sotuv             →  pending yaratiladi + DARHOL ApproveAsync (bitta Sa
   `AdminNewOrderText`) — controller va bot bir xil matn yuborsin.
 - `NotifyAdminsAsync` — yangi buyurtma haqida `TelegramRegistration`dagi admin/superadminlarga xabar.
   Xato **jim yutiladi** (`LeadNotifier` bilan bir xil siyosat) — xabarnoma buyurtmani buzmasin.
+
+## 2.4 NASIYA — kitob berildi, pul keyin (migratsiya `AddBookCreditSales`)
+
+Uchinchi to'lov turi: `BookSalesService.PayCredit` = `"credit"`. **FAQAT markazda qo'lda sotuvda**
+— botda yo'q (noma'lum Telegram mijoziga qarz berilmaydi).
+
+```
+Nasiyaga sotuv  →  Status=approved, qoldiq AYIRILADI (kitob mijozning qo'lida), PaidAt=NULL
+                   ⇒ summa TUSHUMGA emas, QARZGA sanaladi
+«To'landi»      →  PayCreditAsync: PaidAt/PaidBy/SettledMethod  ⇒ summa to'lovlarga qo'shiladi
+                   OMBOR TEGILMAYDI (kitob allaqachon berilgan)
+```
+
+⚠️ **"To'landimi" savoli `Status` bilan EMAS, `BookSalesService.IsPaid` bilan javob beriladi.**
+Naqd/kartada `approved` = to'langan; nasiyada esa qo'shimcha `PaidAt != null` sharti bor.
+`IsPaid` ATAYIN `PaidAt != null` deb yozilmagan: migratsiyadagi to'ldirish bajarilmagan bazada
+eski naqd/karta qatorlarida `PaidAt` bo'sh bo'lib, ular "to'lanmagan" bo'lib ko'rinardi.
+
+⚠️ **XARIDOR NASIYADA MAJBURIY** (`CreditCustomerError`): o'quvchini F.I.Sh. bo'yicha qidirib
+tanlash YOKI ismini yozish. Qarz kimda ekani yozilmasa nasiyaning ma'nosi qolmaydi. Naqd/kartada
+xaridor ilgarigidek IXTIYORIY (§2.1). O'quvchi tanlanmasa telefon ham kiritish mumkin
+(`CustomerPhone`) — qarzdorni topish uchun.
+
+⚠️ **MUDDAT IXTIYORIY**, lekin `IsOverdue` faqat muddat QO'YILGAN va to'lanmagan nasiyani
+kechikkan deb sanaydi (`today` — parametr, funksiya sof). Muddatsiz qarz hech qachon
+"muddati o'tgan" bo'lmaydi — kassir muddat qo'ymagani uchun mijozni ayblash noto'g'ri bo'lardi.
+
+**Qarzdorlar kesimi** (`BooksController.DebtorKey`): o'quvchi bo'lsa `s:{id}` (ismi o'zgarsa ham
+qarz bitta odamda qoladi), aks holda `n:{ism}|{mahalliy telefon}`.
+
+**Analitikada:**
+- sotuv taqsimoti — SOTUV paytidagi to'lov turi bo'yicha (`naqd + karta + nasiya = jami`).
+  Nasiya keyin to'lansa ham o'sha kunda "nasiya" bo'lib qoladi — aks holda o'tgan kunlar grafigi
+  orqaga qarab o'zgarib turardi;
+- `CreditOutstanding`/`CreditOverdue` — **davrga BOG'LIQ EMAS** (ombor qoldig'i kabi joriy holat);
+- `CreditCollected` — davr ichida yig'ilgan pul, **`PaidAt` bo'yicha** (nasiya o'tgan oyda
+  sotilib, pul shu oyda kelishi mumkin).
+
+Kitob sotuvi baribir `FinanceTransaction`ga yozilmaydi (§7) — nasiya ham o'quvchi balansiga
+tegmaydi, u faqat shu bo'limning qarzi.
 
 ## 2.2 QOLDIQ POYGASI (race) — `Book.Stock` konkurentlik tokeni
 
@@ -189,7 +229,9 @@ Sozlamalar `CenterMeta`da (maxfiy EMAS — mijozga baribir ko'rsatiladi, `.env` 
 | `DELETE /{id}` | Buyurtma tarixi bor kitob O'CHIRILMAYDI (hisobot buzilmasin) — `IsActive=false` qiling |
 | `POST /{id}/stock` | Qoldiq kirim/korreksiya (`qty` ±, `note`) |
 | `GET /stock-moves` | Ombor tarixi; `onlyIn=true` → faqat kirim (Qty>0) |
-| `GET /orders`, `GET /orders/pending-count` | Buyurtmalar + nav belgisi uchun sanoq |
+| `GET /orders`, `GET /orders/pending-count` | Buyurtmalar + tab belgilari (`count` kutilmoqda, `credits` to'lanmagan nasiya, `overdue`) |
+| `GET /credits`, `GET /credits/export` | NASIYA: to'lanmaganlar (yoki davrda to'langanlari) + qarzdorlar kesimi + jamlanma |
+| `POST /orders/{id}/pay` | NASIYA to'lovini qabul qilish (`method` naqd/karta) — ombor tegilmaydi |
 | `POST /orders/manual` | QO'LDA SOTUV — yaratadi va darhol tasdiqlaydi (§2.1) |
 | `GET /students?q=` | Qo'lda sotuv uchun o'quvchi qidiruvi (min 2 belgi, max 20) |
 | `GET /card-payments` | KARTA to'lovlari + jamlanma (tasdiqlangan/kutilayotgan summa) va karta rekvizitlari |
@@ -201,8 +243,12 @@ Sozlamalar `CenterMeta`da (maxfiy EMAS — mijozga baribir ko'rsatiladi, `.env` 
 
 ## 6. Frontend — `/admin/books` (nav: O'quv bo'limi → Kitoblar sotuvi)
 
-`pages/admin/books/BookSalesPage.tsx` — 5 tab: **Buyurtmalar** (default) · **Karta to'lovlari** ·
-**Ombor** · **Analitika** · **Sozlamalar**.
+`pages/admin/books/BookSalesPage.tsx` — 6 tab: **Buyurtmalar** (default) · **Karta to'lovlari** ·
+**Nasiya** · **Ombor** · **Analitika** · **Sozlamalar**.
+"Nasiya" (`BookCreditsTab`) — qarzlar ro'yxati + qarzdorlar kesimi; tab belgisi qarz soni bilan
+(muddati o'tgani bo'lsa QIZIL). Analitikada "Har kuni sotilgan kitoblar" — kun bosilganda o'sha
+kunning kitob kesimi va sotuvlari (soati bilan) ochiladi; sotuvlar lentasi eng oxirgi **400** ta
+bilan cheklangan va sig'magani ro'yxatda ochiq yozib qo'yiladi (jim qirqilmaydi).
 "Karta to'lovlari" (`BookCardPaymentsTab`) — kartaga o'tkazma qilganlar: chek rasmi jadvalda
 kichik ko'rinishda turadi (bosilsa kattalashadi), tepada bo'lim bog'langan karta rekvizitlari va
 shu kartaga hisoblangan jami summa. **Jamlanma SERVERDA butun topilma bo'yicha hisoblanadi** —

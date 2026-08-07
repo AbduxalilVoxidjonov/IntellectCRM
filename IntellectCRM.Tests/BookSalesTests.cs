@@ -1,4 +1,4 @@
-using IntellectCRM.Application.Services;
+﻿using IntellectCRM.Application.Services;
 using IntellectCRM.Domain;
 using IntellectCRM.Infrastructure.Data;
 using Microsoft.Data.Sqlite;
@@ -92,6 +92,12 @@ public class BookSalesTests
     }
 
     [Fact]
+    public void PaymentLabel_Nasiya()
+    {
+        Assert.Equal("Nasiya", BookSalesService.PaymentLabel(BookSalesService.PayCredit));
+    }
+
+    [Fact]
     public void PaymentLabel_NomalumQiymat_XomSatrniOzgartirmaydi()
     {
         // null → bo'sh satr (xabar matnida "💳 To'lov: " bo'sh chiqadi, "null" emas).
@@ -128,6 +134,7 @@ public class BookSalesTests
         Assert.Equal("correction", BookSalesService.ReasonCorrection);
         Assert.Equal("cash", BookSalesService.PayCash);
         Assert.Equal("card", BookSalesService.PayCard);
+        Assert.Equal("credit", BookSalesService.PayCredit);
     }
 
     // =============================================================================================
@@ -867,6 +874,268 @@ public class BookSalesTests
         Assert.Contains("sotuvdan olingan", err);
 
         Assert.Equal("Kitob topilmadi", BookSalesService.ManualSaleBookError(null));
+    }
+
+    // =============================================================================================
+    //  NASIYA — kitob berildi, pul keyin olinadi
+    //
+    //  Qoida (.claude/rules/books.md §2.4): nasiya sotuv ham odatdagidek TASDIQLANADI va
+    //  qoldiqdan ayiriladi (kitob mijozning qo'lida), lekin PUL olinmaguncha `PaidAt` bo'sh
+    //  turadi va summa tushumga emas QARZGA sanaladi.
+    // =============================================================================================
+
+    /// <summary>Nasiyaga sotilgan (tasdiqlangan, lekin hali to'lanmagan) buyurtma.</summary>
+    private static BookOrder NewCreditOrder(Book book, int qty = 1, DateTime? due = null)
+    {
+        var o = NewManualOrder(book, qty);
+        o.PaymentMethod = BookSalesService.PayCredit;
+        o.CardLast4 = null;
+        o.PaidTime = null;
+        o.DueDate = due;
+        return o;
+    }
+
+    [Fact]
+    public void IsPaid_NaqdVaKarta_TasdiqlanganiToLanganiDeganI()
+    {
+        // ESKI qatorlarda `PaidAt` bo'sh (migratsiyagacha yozilgan) — ular baribir to'langan.
+        var o = NewOrder(NewBook(), status: BookSalesService.StatusApproved);
+        o.PaidAt = null;
+        Assert.True(BookSalesService.IsPaid(o));
+
+        o.Status = BookSalesService.StatusPending;
+        Assert.False(BookSalesService.IsPaid(o));    // hali tasdiqlanmagan = pul olinmagan
+    }
+
+    [Fact]
+    public void IsPaid_Nasiya_FaqatPaidAtToLganda()
+    {
+        var o = NewCreditOrder(NewBook());
+        o.Status = BookSalesService.StatusApproved;
+
+        Assert.True(BookSalesService.IsCredit(o));
+        Assert.False(BookSalesService.IsPaid(o));   // tasdiqlangan, lekin pul olinmagan
+
+        o.PaidAt = AppClock.Now;
+        Assert.True(BookSalesService.IsPaid(o));
+    }
+
+    [Fact]
+    public void EffectiveMethod_NasiyaYopilganUsulniQaytaradi()
+    {
+        var o = NewCreditOrder(NewBook());
+        Assert.Equal(BookSalesService.PayCredit, BookSalesService.EffectiveMethod(o));
+
+        o.SettledMethod = BookSalesService.PayCash;
+        Assert.Equal(BookSalesService.PayCash, BookSalesService.EffectiveMethod(o));
+
+        var naqd = NewOrder(NewBook());
+        Assert.Equal(BookSalesService.PayCash, BookSalesService.EffectiveMethod(naqd));
+    }
+
+    [Fact]
+    public void IsOverdue_MuddatSizNasiya_HECHQACHONkechikkanEMAS()
+    {
+        // Kassir muddat qo'ymagan bo'lsa uni "kechikkan" deb ayblash noto'g'ri bo'lardi.
+        var o = NewCreditOrder(NewBook(), due: null);
+        o.Status = BookSalesService.StatusApproved;
+
+        Assert.False(BookSalesService.IsOverdue(o, new DateTime(2030, 1, 1)));
+    }
+
+    [Fact]
+    public void IsOverdue_MuddatOtganVaToLANMAGAN()
+    {
+        var bugun = new DateTime(2026, 8, 7);
+        var o = NewCreditOrder(NewBook(), due: bugun.AddDays(-1));
+        o.Status = BookSalesService.StatusApproved;
+
+        Assert.True(BookSalesService.IsOverdue(o, bugun));
+
+        // AYNAN bugungi muddat hali o'tmagan.
+        o.DueDate = bugun;
+        Assert.False(BookSalesService.IsOverdue(o, bugun));
+
+        // To'langan nasiya — muddat o'tgan bo'lsa ham qarz emas.
+        o.DueDate = bugun.AddDays(-5);
+        o.PaidAt = AppClock.Now;
+        Assert.False(BookSalesService.IsOverdue(o, bugun));
+    }
+
+    [Fact]
+    public void IsOverdue_NaqdSotuv_NASIYAEMAS()
+    {
+        var o = NewOrder(NewBook(), status: BookSalesService.StatusApproved);
+        o.DueDate = new DateTime(2020, 1, 1);   // ma'nosiz, lekin bo'lib qolsa ham
+        Assert.False(BookSalesService.IsOverdue(o, new DateTime(2026, 8, 7)));
+    }
+
+    [Fact]
+    public void CreditCustomerError_NasiyadaXaridorMAJBURIY()
+    {
+        // Naqd/kartada xaridor ixtiyoriy (chetdan kelgan odamga ham sotiladi).
+        Assert.Null(BookSalesService.CreditCustomerError(BookSalesService.PayCash, null, null));
+        Assert.Null(BookSalesService.CreditCustomerError(BookSalesService.PayCard, null, "  "));
+
+        // Nasiyada — o'quvchi YOKI ism bo'lishi shart.
+        var err = BookSalesService.CreditCustomerError(BookSalesService.PayCredit, null, "   ");
+        Assert.NotNull(err);
+        Assert.Contains("xaridor", err);
+
+        Assert.Null(BookSalesService.CreditCustomerError(BookSalesService.PayCredit, "st-1", null));
+        Assert.Null(BookSalesService.CreditCustomerError(BookSalesService.PayCredit, null, "Ali Valiyev"));
+    }
+
+    [Fact]
+    public async Task Approve_Naqd_PaidAtniQOYADI_NasiyaDaQOYMAYDI()
+    {
+        using var db = TestDb.Sqlite();
+        var ctx = db.Context;
+        var book = NewBook(stock: 10);
+        var naqd = NewOrder(book, qty: 1);
+        var nasiya = NewCreditOrder(book, qty: 1);
+        nasiya.Number = 2;
+        nasiya.Status = BookSalesService.StatusPending;
+        ctx.Books.Add(book);
+        ctx.BookOrders.AddRange(naqd, nasiya);
+        await ctx.SaveChangesAsync();
+
+        Assert.Null(await BookSalesService.ApproveAsync(ctx, naqd, "Kassir"));
+        Assert.Null(await BookSalesService.ApproveAsync(ctx, nasiya, "Kassir"));
+
+        Assert.Equal(naqd.DecidedAt, naqd.PaidAt);   // pul tasdiqlash paytida olindi
+        Assert.Null(nasiya.PaidAt);                  // nasiya — qarz bo'lib qoldi
+        // IKKALASIDA ham qoldiq ayirilgan: kitob mijozning qo'lida.
+        Assert.Equal(8, book.Stock);
+        Assert.Equal(2, await ctx.BookStockMoves.CountAsync());
+    }
+
+    [Fact]
+    public async Task PayCredit_ToLovniQabulQiladi_OMBORGATEGMAYDI()
+    {
+        using var db = TestDb.Sqlite();
+        var ctx = db.Context;
+        var book = NewBook(stock: 5, price: 30000);
+        var order = NewCreditOrder(book, qty: 2);
+        ctx.Books.Add(book);
+        ctx.BookOrders.Add(order);
+        await ctx.SaveChangesAsync();
+        Assert.Null(await BookSalesService.ApproveAsync(ctx, order, "Kassir"));
+        Assert.Equal(3, book.Stock);
+        var harakatlar = await ctx.BookStockMoves.CountAsync();
+
+        var err = await BookSalesService.PayCreditAsync(
+            ctx, order, BookSalesService.PayCard, "1234", "Kassir-2");
+
+        Assert.Null(err);
+        Assert.NotNull(order.PaidAt);
+        Assert.Equal("Kassir-2", order.PaidBy);
+        Assert.Equal(BookSalesService.PayCard, order.SettledMethod);
+        Assert.Equal("1234", order.CardLast4);
+        Assert.True(BookSalesService.IsPaid(order));
+        // OMBOR TEGILMAYDI — kitob sotuv paytida berilgan.
+        Assert.Equal(3, book.Stock);
+        Assert.Equal(harakatlar, await ctx.BookStockMoves.CountAsync());
+    }
+
+    [Fact]
+    public async Task PayCredit_Naqd_EskiKartaRaqaminiTOZALAYDI()
+    {
+        using var db = TestDb.Sqlite();
+        var ctx = db.Context;
+        var book = NewBook(stock: 5);
+        var order = NewCreditOrder(book);
+        order.CardLast4 = "9999";              // qandaydir eski qiymat qolib ketgan bo'lsa
+        ctx.Books.Add(book);
+        ctx.BookOrders.Add(order);
+        await ctx.SaveChangesAsync();
+        Assert.Null(await BookSalesService.ApproveAsync(ctx, order, "Kassir"));
+
+        Assert.Null(await BookSalesService.PayCreditAsync(
+            ctx, order, BookSalesService.PayCash, null, "Kassir"));
+
+        Assert.Null(order.CardLast4);          // naqd to'lovda karta raqami turmasin
+        Assert.Equal(BookSalesService.PayCash, order.SettledMethod);
+    }
+
+    [Fact]
+    public async Task PayCredit_IKKINCHImarta_QabulQILINMAYDI()
+    {
+        using var db = TestDb.Sqlite();
+        var ctx = db.Context;
+        var book = NewBook(stock: 5);
+        var order = NewCreditOrder(book);
+        ctx.Books.Add(book);
+        ctx.BookOrders.Add(order);
+        await ctx.SaveChangesAsync();
+        Assert.Null(await BookSalesService.ApproveAsync(ctx, order, "Kassir"));
+
+        Assert.Null(await BookSalesService.PayCreditAsync(ctx, order, BookSalesService.PayCash, null, "K"));
+        var birinchiPaytI = order.PaidAt;
+
+        var err = await BookSalesService.PayCreditAsync(ctx, order, BookSalesService.PayCash, null, "K2");
+
+        Assert.NotNull(err);
+        Assert.Contains("allaqachon to'langan", err);
+        Assert.Equal(birinchiPaytI, order.PaidAt);   // ikkinchi tasdiq vaqtni surib yubormadi
+        Assert.Equal("K", order.PaidBy);
+    }
+
+    [Fact]
+    public async Task PayCredit_NasiyaBOLMAGANbuyurtma_RadEtiladi()
+    {
+        using var db = TestDb.Sqlite();
+        var ctx = db.Context;
+        var book = NewBook(stock: 5);
+        var order = NewOrder(book);                 // naqd
+        ctx.Books.Add(book);
+        ctx.BookOrders.Add(order);
+        await ctx.SaveChangesAsync();
+        Assert.Null(await BookSalesService.ApproveAsync(ctx, order, "Kassir"));
+
+        var err = await BookSalesService.PayCreditAsync(ctx, order, BookSalesService.PayCash, null, "K");
+
+        Assert.NotNull(err);
+        Assert.Contains("nasiyaga sotilmagan", err);
+    }
+
+    [Fact]
+    public async Task PayCredit_NOTOGRIusul_RadEtiladi()
+    {
+        using var db = TestDb.Sqlite();
+        var ctx = db.Context;
+        var book = NewBook(stock: 5);
+        var order = NewCreditOrder(book);
+        ctx.Books.Add(book);
+        ctx.BookOrders.Add(order);
+        await ctx.SaveChangesAsync();
+        Assert.Null(await BookSalesService.ApproveAsync(ctx, order, "Kassir"));
+
+        var err = await BookSalesService.PayCreditAsync(ctx, order, "click", null, "K");
+
+        Assert.NotNull(err);
+        Assert.Contains("naqd yoki karta", err);
+        Assert.Null(order.PaidAt);
+    }
+
+    [Fact]
+    public async Task PayCredit_TasdiqlanmaganBuyurtma_QabulQILINMAYDI()
+    {
+        // Nasiya "pending" holatda qolib ketgan bo'lsa (kitob hali berilmagan) — pulni
+        // qabul qilib bo'lmaydi, avval sotuvning o'zi tasdiqlanishi kerak.
+        using var db = TestDb.Sqlite();
+        var ctx = db.Context;
+        var book = NewBook(stock: 5);
+        var order = NewCreditOrder(book);
+        ctx.Books.Add(book);
+        ctx.BookOrders.Add(order);
+        await ctx.SaveChangesAsync();
+
+        var err = await BookSalesService.PayCreditAsync(ctx, order, BookSalesService.PayCash, null, "K");
+
+        Assert.NotNull(err);
+        Assert.Contains("holati mos emas", err);
+        Assert.Null(order.PaidAt);
     }
 
     // =============================================================================================

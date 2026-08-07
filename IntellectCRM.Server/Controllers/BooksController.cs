@@ -290,16 +290,38 @@ public class BooksController(AppDbContext db, TelegramService telegram, IWebHost
         var (fromDt, toDt) = DateRange(from, to);
         if (fromDt is not null) query = query.Where(o => o.CreatedAt >= fromDt);
         if (toDt is not null) query = query.Where(o => o.CreatedAt < toDt);
-        if (!string.IsNullOrWhiteSpace(q))
-        {
-            var term = q.Trim();
-            var digits = PhoneUtil.DigitsOnly(term);
-            query = digits.Length >= 4
-                ? query.Where(o => o.Phone.Contains(digits) || o.CustomerName.Contains(term))
-                : query.Where(o => o.CustomerName.Contains(term) || o.BookTitle.Contains(term)
-                                   || o.Number.ToString().Contains(term));
-        }
-        return query;
+        return ApplySearch(query, q);
+    }
+
+    /// <summary>
+    /// Buyurtma QIDIRUVI (ism / telefon / kitob nomi / buyurtma raqami) — barcha ro'yxatlar
+    /// (buyurtmalar, karta to'lovlari, nasiya) uchun YAGONA joyda, aks holda bir xil so'rov
+    /// bo'limlarda har xil natija berardi.
+    /// </summary>
+    private static IQueryable<BookOrder> ApplySearch(IQueryable<BookOrder> query, string? q)
+    {
+        if (string.IsNullOrWhiteSpace(q)) return query;
+        var term = q.Trim();
+        var digits = PhoneUtil.DigitsOnly(term);
+        return digits.Length >= 4
+            ? query.Where(o => o.Phone.Contains(digits) || o.CustomerName.Contains(term))
+            : query.Where(o => o.CustomerName.Contains(term) || o.BookTitle.Contains(term)
+                               || o.Number.ToString().Contains(term));
+    }
+
+    /// <summary>Xotiradagi ro'yxat uchun AYNI qidiruv (nasiya ro'yxati to'liq yuklab olinadi —
+    /// jamlanma qidiruvdan oldin hisoblanishi kerak).</summary>
+    private static List<BookOrder> SearchInMemory(List<BookOrder> orders, string? q)
+    {
+        if (string.IsNullOrWhiteSpace(q)) return orders;
+        var term = q.Trim();
+        var digits = PhoneUtil.DigitsOnly(term);
+        return digits.Length >= 4
+            ? orders.Where(o => o.Phone.Contains(digits)
+                                || o.CustomerName.Contains(term, StringComparison.OrdinalIgnoreCase)).ToList()
+            : orders.Where(o => o.CustomerName.Contains(term, StringComparison.OrdinalIgnoreCase)
+                                || o.BookTitle.Contains(term, StringComparison.OrdinalIgnoreCase)
+                                || o.Number.ToString().Contains(term)).ToList();
     }
 
     private async Task<List<BookOrder>> FilteredOrdersAsync(
@@ -312,16 +334,7 @@ public class BooksController(AppDbContext db, TelegramService telegram, IWebHost
         var (fromDt, toDt) = DateRange(from, to);
         if (fromDt is not null) query = query.Where(o => o.CreatedAt >= fromDt);
         if (toDt is not null) query = query.Where(o => o.CreatedAt < toDt);
-        if (!string.IsNullOrWhiteSpace(q))
-        {
-            var term = q.Trim();
-            var digits = PhoneUtil.DigitsOnly(term);
-            query = digits.Length >= 4
-                ? query.Where(o => o.Phone.Contains(digits) || o.CustomerName.Contains(term))
-                : query.Where(o => o.CustomerName.Contains(term) || o.BookTitle.Contains(term)
-                                   || o.Number.ToString().Contains(term));
-        }
-        return await query.OrderByDescending(o => o.CreatedAt).Take(1000).ToListAsync();
+        return await ApplySearch(query, q).OrderByDescending(o => o.CreatedAt).Take(1000).ToListAsync();
     }
 
     /// <summary>Buyurtmalarga o'quvchi ismi va kitobning joriy qoldig'ini biriktiradi (bitta so'rovda).</summary>
@@ -340,6 +353,7 @@ public class BooksController(AppDbContext db, TelegramService telegram, IWebHost
             : await db.Books.AsNoTracking().Where(b => bookIds.Contains(b.Id))
                 .ToDictionaryAsync(b => b.Id, b => b.Stock);
 
+        var today = AppClock.Now;
         return orders.Select(o => new BookOrderDto(
             o.Id, o.Number, o.CustomerName, o.Phone, o.StudentId,
             o.StudentId is null ? null : names.GetValueOrDefault(o.StudentId),
@@ -347,13 +361,31 @@ public class BooksController(AppDbContext db, TelegramService telegram, IWebHost
             o.Status, o.RejectReason, o.CreatedAt.ToString("yyyy-MM-ddTHH:mm:ss"),
             o.DecidedAt?.ToString("yyyy-MM-ddTHH:mm:ss"), o.DecidedBy,
             stocks.GetValueOrDefault(o.BookId, 0),
-            o.Source, o.CardLast4, o.PaidTime)).ToList();
+            o.Source, o.CardLast4, o.PaidTime,
+            BookSalesService.IsPaid(o),
+            o.DueDate?.ToString("yyyy-MM-dd"),
+            BookSalesService.IsOverdue(o, today),
+            o.PaidAt?.ToString("yyyy-MM-ddTHH:mm:ss"), o.PaidBy, o.SettledMethod)).ToList();
     }
 
-    /// <summary>Kutilayotgan buyurtmalar soni (nav/tab belgisi uchun).</summary>
+    /// <summary>Tab belgilari uchun sanoqlar: kutilayotgan buyurtmalar va to'lanmagan nasiyalar
+    /// (shundan muddati o'tganlari). Bitta yengil so'rov — har tab uchun alohida chaqiruv bo'lmasin.</summary>
     [HttpGet("orders/pending-count")]
-    public async Task<ActionResult<object>> PendingCount() =>
-        Ok(new { count = await db.BookOrders.CountAsync(o => o.Status == BookSalesService.StatusPending) });
+    public async Task<ActionResult<object>> PendingCount()
+    {
+        var unpaid = await db.BookOrders.AsNoTracking()
+            .Where(o => o.PaymentMethod == BookSalesService.PayCredit
+                        && o.Status == BookSalesService.StatusApproved && o.PaidAt == null)
+            .Select(o => o.DueDate)
+            .ToListAsync();
+        var today = AppClock.Now.Date;
+        return Ok(new
+        {
+            count = await db.BookOrders.CountAsync(o => o.Status == BookSalesService.StatusPending),
+            credits = unpaid.Count,
+            overdue = unpaid.Count(d => d is { } due && due.Date < today),
+        });
+    }
 
     /// <summary>
     /// Buyurtmani TASDIQLASH: qoldiqdan kitob soni ayiriladi, sotuv analitikaga tushadi va mijozga
@@ -495,9 +527,16 @@ public class BooksController(AppDbContext db, TelegramService telegram, IWebHost
         var customerName = student?.FullName ?? (payload.CustomerName ?? "").Trim();
         if (customerName.Length > 120) customerName = customerName[..120];
 
-        var method = payload.PaymentMethod == BookSalesService.PayCard
-            ? BookSalesService.PayCard
-            : BookSalesService.PayCash;
+        var method = payload.PaymentMethod switch
+        {
+            BookSalesService.PayCard => BookSalesService.PayCard,
+            BookSalesService.PayCredit => BookSalesService.PayCredit,
+            _ => BookSalesService.PayCash,
+        };
+
+        // NASIYADA xaridor MAJBURIY — qarz kimda ekani yozilmasa nasiyaning ma'nosi qolmaydi.
+        if (BookSalesService.CreditCustomerError(method, student?.Id, customerName) is { } customerError)
+            return BadRequest(new { message = customerError });
 
         // Karta to'lovida oxirgi 4 raqam va to'lov vaqti — moliya bo'limi bilan BIR XIL
         // normalizatsiya (PaymentFields): to'liq karta raqami hech qachon saqlanmaydi.
@@ -515,16 +554,29 @@ public class BooksController(AppDbContext db, TelegramService telegram, IWebHost
                 return BadRequest(new { message = "Karta to'lovida to'lov vaqti majburiy" });
         }
 
+        // NASIYA: va'da qilingan sana (ixtiyoriy). Noto'g'ri matn jimgina yutilmaydi — kassir
+        // sanani yozdim deb o'ylab, ro'yxatda "muddatsiz" ko'rib qolmasin.
+        DateTime? dueDate = null;
+        if (method == BookSalesService.PayCredit && !string.IsNullOrWhiteSpace(payload.DueDate))
+        {
+            if (!DateTime.TryParse(payload.DueDate, out var due))
+                return BadRequest(new { message = "To'lov muddati noto'g'ri (YYYY-MM-DD)" });
+            dueDate = due.Date;
+        }
+
         var order = new BookOrder
         {
             Number = await BookSalesService.NextOrderNumberAsync(db),
             ChatId = 0,                       // Telegram chat yo'q — xabar yuborilmaydi
             Source = BookSalesService.SourceManual,
             CustomerName = customerName,
+            // O'quvchi tanlansa raqam undan olinadi (asl manba); aks holda kassir kiritgani
+            // (nasiyada qarzdorni topish uchun kerak, boshqa turlarda ixtiyoriy).
             Phone = student is null
-                ? ""
+                ? PhoneUtil.Normalize((payload.CustomerPhone ?? "").Trim())
                 : string.IsNullOrWhiteSpace(student.Phone) ? student.ParentPhone : student.Phone,
             StudentId = student?.Id,
+            DueDate = dueDate,
             BookId = book.Id,
             BookTitle = book.Title,           // SNAPSHOT — keyin narx/nom o'zgarsa hisobot buzilmasin
             UnitPrice = book.Price,
@@ -543,10 +595,120 @@ public class BooksController(AppDbContext db, TelegramService telegram, IWebHost
         if (error is not null) return BadRequest(new { message = error });
 
         audit.Record("BookOrder", order.Id, "create",
-            $"Kitob qo'lda sotildi: {order.BookTitle} x {order.Qty} dona — " +
-            $"{AuditService.Money(order.Total)} so'm" +
+            $"Kitob qo'lda sotildi{(method == BookSalesService.PayCredit ? " (NASIYAGA)" : "")}: " +
+            $"{order.BookTitle} x {order.Qty} dona — {AuditService.Money(order.Total)} so'm" +
             // Ism bo'sh bo'lishi mumkin (chetdan xaridor) — bo'sh qavs qolib ketmasin.
-            (order.CustomerName.Length > 0 ? $" ({order.CustomerName})" : ""),
+            (order.CustomerName.Length > 0 ? $" ({order.CustomerName})" : "") +
+            (dueDate is { } d ? $", to'lov muddati {d:yyyy-MM-dd}" : ""),
+            studentId: order.StudentId);
+        await db.SaveChangesAsync();
+
+        return (await ToOrderDtosAsync(new List<BookOrder> { order }))[0];
+    }
+
+    // =============================================================================================
+    //  NASIYA — kitob berildi, pul keyin olinadi
+    // =============================================================================================
+
+    /// <summary>
+    /// NASIYA bo'limi: to'lanmagan qarzlar (yoki tanlangan davrda to'langanlari), xaridor
+    /// kesimidagi jamlanma va joriy qarz raqamlari.
+    ///
+    /// <para><b>Davr (from/to) faqat "to'langan" ro'yxatiga va "yig'ilgan pul" raqamiga tegishli</b>
+    /// (to'lov sanasi bo'yicha). TO'LANMAGAN qarz esa har doim TO'LIQ ko'rsatiladi — "kimda qarz
+    /// bor" savoli sanaga bog'liq emas va davr filtri bilan qarzning bir qismini yashirib qo'yish
+    /// operatorni chalg'itardi.</para>
+    /// </summary>
+    [HttpGet("credits")]
+    public async Task<ActionResult<BookCreditsDto>> Credits(
+        [FromQuery] string? status, [FromQuery] string? from, [FromQuery] string? to,
+        [FromQuery] string? q)
+    {
+        var today = AppClock.Now;
+        var credits = db.BookOrders.AsNoTracking()
+            .Where(o => o.PaymentMethod == BookSalesService.PayCredit
+                        && o.Status == BookSalesService.StatusApproved);
+
+        // JORIY QARZ — filtrlardan QAT'I NAZAR (bo'limning asosiy raqami har doim ko'rinib tursin).
+        var unpaid = await credits.Where(o => o.PaidAt == null)
+            .OrderBy(o => o.DueDate == null).ThenBy(o => o.DueDate).ThenBy(o => o.CreatedAt)
+            .ToListAsync();
+        var overdue = unpaid.Where(o => BookSalesService.IsOverdue(o, today)).ToList();
+
+        // Davr ichida nasiyadan YIG'ILGAN pul (to'lov sanasi bo'yicha).
+        var (fromDt, toDt) = DateRange(from, to);
+        var paidQuery = ApplySearch(credits.Where(o => o.PaidAt != null), q);
+        if (fromDt is not null) paidQuery = paidQuery.Where(o => o.PaidAt >= fromDt);
+        if (toDt is not null) paidQuery = paidQuery.Where(o => o.PaidAt < toDt);
+        var collected = await paidQuery.SumAsync(o => (decimal?)o.Total) ?? 0m;
+        var collectedCount = await paidQuery.CountAsync();
+
+        // QARZDORLAR — to'lanmaganlarning TO'LIQ ro'yxatidan (qidiruv bunga ta'sir qilmaydi:
+        // "jami kimda qancha qarz bor" surati qidiruv bilan o'zgarmasligi kerak).
+        var debtors = unpaid
+            .GroupBy(DebtorKey)
+            .Select(g => new BookDebtorDto(
+                g.Key,
+                g.Select(x => x.StudentId).FirstOrDefault(id => !string.IsNullOrEmpty(id)),
+                g.Select(x => x.CustomerName).FirstOrDefault(n => !string.IsNullOrWhiteSpace(n)) ?? "",
+                g.Select(x => x.Phone).FirstOrDefault(p => !string.IsNullOrWhiteSpace(p)) ?? "",
+                g.Count(),
+                g.Sum(x => x.Total),
+                g.Min(x => x.DecidedAt ?? x.CreatedAt).ToString("yyyy-MM-dd"),
+                g.Any(x => BookSalesService.IsOverdue(x, today))))
+            .OrderByDescending(d => d.HasOverdue).ThenByDescending(d => d.Total)
+            .ToList();
+
+        var list = status == "paid"
+            ? await paidQuery.OrderByDescending(o => o.PaidAt).Take(1000).ToListAsync()
+            : SearchInMemory(unpaid, q);
+
+        return new BookCreditsDto(
+            unpaid.Sum(o => o.Total), unpaid.Count,
+            overdue.Sum(o => o.Total), overdue.Count,
+            collected, collectedCount,
+            debtors,
+            await ToOrderDtosAsync(list));
+    }
+
+    /// <summary>Qarzdorni GURUHLASH kaliti: o'quvchi bo'lsa uning id'si (ismi o'zgarsa ham qarz
+    /// bitta odamda qoladi), aks holda ism + mahalliy telefon raqami.</summary>
+    private static string DebtorKey(BookOrder o) =>
+        string.IsNullOrEmpty(o.StudentId)
+            ? $"n:{o.CustomerName.Trim().ToLowerInvariant()}|{PhoneUtil.Key(o.Phone)}"
+            : $"s:{o.StudentId}";
+
+    /// <summary>
+    /// NASIYA TO'LOVI QABUL QILINDI ("pulini oldim → Tasdiqlash"): summa shu paytdan boshlab
+    /// tushumga (to'lovlarga) qo'shiladi. <b>Ombor tegilmaydi</b> — kitob sotuv paytida berilgan.
+    /// </summary>
+    [HttpPost("orders/{id}/pay")]
+    public async Task<ActionResult<BookOrderDto>> PayCredit(string id, BookCreditPayPayload payload)
+    {
+        var order = await db.BookOrders.FirstOrDefaultAsync(o => o.Id == id);
+        if (order is null) return NotFound();
+
+        var method = (payload.Method ?? "").Trim();
+        // Karta bo'lsa oxirgi 4 raqam — moliya bo'limi bilan BIR XIL normalizatsiya
+        // (to'liq karta raqami hech qachon saqlanmaydi).
+        string? last4 = null;
+        if (method == BookSalesService.PayCard)
+        {
+            if (!PaymentFields.TryNormalizeCardLast4(payload.CardLast4, out last4))
+                return BadRequest(new { message = "Karta raqamining oxirgi 4 raqamini to'liq kiriting" });
+            if (last4 is null)
+                return BadRequest(new { message = "Karta to'lovida oxirgi 4 raqam majburiy" });
+        }
+
+        var error = await BookSalesService.PayCreditAsync(db, order, method, last4, Actor);
+        if (error is not null) return BadRequest(new { message = error });
+
+        // DIQQAT: PayCreditAsync O'ZI SaveChanges qiladi — audit yozuvi alohida saqlanadi
+        // (aks holda u bazaga umuman tushmasdi).
+        audit.Record("BookOrder", order.Id, "update",
+            $"Nasiya to'lovi qabul qilindi: {order.BookTitle} x {order.Qty} dona — " +
+            $"{AuditService.Money(order.Total)} so'm ({BookSalesService.PaymentLabel(method)})" +
+            (order.CustomerName.Length > 0 ? $", {order.CustomerName}" : ""),
             studentId: order.StudentId);
         await db.SaveChangesAsync();
 
@@ -557,9 +719,16 @@ public class BooksController(AppDbContext db, TelegramService telegram, IWebHost
     //  ANALITIKA
     // =============================================================================================
 
+    /// <summary>Sotuvlar LENTASIDA ("qaysi kitob qachon sotildi") ko'pi bilan shuncha yozuv
+    /// qaytadi — undan ko'pi ro'yxatga sig'maydi va javobni shishirardi. Kunlik/kitob kesimi
+    /// aggregatlari esa TO'LIQ (chegarasiz) hisoblanadi.</summary>
+    private const int MaxSalesFeed = 400;
+
     /// <summary>
-    /// Davr bo'yicha kitoblar sotuvi analitikasi. Tushum FAQAT tasdiqlangan buyurtmalardan
-    /// hisoblanadi (kutilayotgan/rad etilgan pul emas). Naqd va karta alohida ko'rsatiladi.
+    /// Davr bo'yicha kitoblar sotuvi analitikasi. FAQAT tasdiqlangan buyurtmalar hisoblanadi
+    /// (kutilayotgan/rad etilgan pul emas). Sotuv summasi to'lov turlariga ajratiladi:
+    /// naqd · karta · <b>nasiya</b>; nasiyaning qancha qismi allaqachon to'langani, joriy qarz
+    /// va davr ichida nasiyadan yig'ilgan pul alohida ko'rsatiladi.
     /// </summary>
     [HttpGet("analytics")]
     public async Task<ActionResult<BookAnalyticsDto>> Analytics([FromQuery] string? from, [FromQuery] string? to)
@@ -568,6 +737,7 @@ public class BooksController(AppDbContext db, TelegramService telegram, IWebHost
     private async Task<BookAnalyticsDto> BuildAnalyticsAsync(string? from, string? to)
     {
         var (fromDt, toDt) = DateRange(from, to);
+        var today = AppClock.Now;
 
         var ordersQuery = db.BookOrders.AsNoTracking().AsQueryable();
         if (fromDt is not null) ordersQuery = ordersQuery.Where(o => o.CreatedAt >= fromDt);
@@ -578,16 +748,61 @@ public class BooksController(AppDbContext db, TelegramService telegram, IWebHost
         var books = await db.Books.AsNoTracking().ToListAsync();
         var stockById = books.ToDictionary(b => b.Id, b => b.Stock);
 
+        // Sotuv sanasi = tasdiqlangan vaqt (qo'lda sotuvda = sotuv payti), bo'lmasa yaratilgan vaqt.
+        static DateTime SoldAt(BookOrder o) => o.DecidedAt ?? o.CreatedAt;
+        static decimal SumOf(IEnumerable<BookOrder> src, string method) =>
+            src.Where(x => x.PaymentMethod == method).Sum(x => x.Total);
+
         var byDay = approved
-            .GroupBy(o => (o.DecidedAt ?? o.CreatedAt).ToString("yyyy-MM-dd"))
+            .GroupBy(o => SoldAt(o).ToString("yyyy-MM-dd"))
             .OrderBy(g => g.Key)
             .Select(g => new BookDaySalesDto(
                 g.Key,
                 g.Sum(x => x.Qty),
-                g.Where(x => x.PaymentMethod == BookSalesService.PayCash).Sum(x => x.Total),
-                g.Where(x => x.PaymentMethod == BookSalesService.PayCard).Sum(x => x.Total),
+                SumOf(g, BookSalesService.PayCash),
+                SumOf(g, BookSalesService.PayCard),
+                SumOf(g, BookSalesService.PayCredit),
                 g.Sum(x => x.Total)))
             .ToList();
+
+        // HAR KUNI QAYSI KITOB SOTILDI — kun × kitob kesimi (eng yangi kun yuqorida).
+        var byDayBook = approved
+            .GroupBy(o => new { Date = SoldAt(o).ToString("yyyy-MM-dd"), o.BookId, o.BookTitle })
+            .Select(g => new BookDayBookSalesDto(
+                g.Key.Date, g.Key.BookId, g.Key.BookTitle,
+                g.Sum(x => x.Qty), g.Sum(x => x.Total), g.Count()))
+            .OrderByDescending(x => x.Date).ThenByDescending(x => x.Qty).ThenBy(x => x.BookTitle)
+            .ToList();
+
+        // SOTUVLAR LENTASI — "qaysi kitob QACHON (soati bilan) sotildi", eng yangisi tepada.
+        var sales = approved
+            .OrderByDescending(SoldAt)
+            .Take(MaxSalesFeed)
+            .Select(o => new BookSaleRowDto(
+                o.Id, o.Number, SoldAt(o).ToString("yyyy-MM-ddTHH:mm:ss"),
+                o.BookId, o.BookTitle, o.Qty, o.Total, o.CustomerName,
+                o.PaymentMethod, BookSalesService.IsPaid(o), o.Source))
+            .ToList();
+
+        // NASIYA — davr ichida sotilganlari (sotuv sanasi bo'yicha).
+        var creditSold = approved.Where(BookSalesService.IsCredit).ToList();
+
+        // NASIYA — JORIY QARZ: davrga BOG'LIQ EMAS (xuddi ombor qoldig'i kabi). Filtr bilan
+        // qarzning bir qismini yashirib qo'yish "hozir qancha qarz bor" savolini buzardi.
+        var unpaidCredits = await db.BookOrders.AsNoTracking()
+            .Where(o => o.PaymentMethod == BookSalesService.PayCredit
+                        && o.Status == BookSalesService.StatusApproved && o.PaidAt == null)
+            .ToListAsync();
+        var overdueCredits = unpaidCredits.Where(o => BookSalesService.IsOverdue(o, today)).ToList();
+
+        // NASIYA — davr ichida YIG'ILGAN pul (sotuv emas, TO'LOV sanasi bo'yicha: nasiya o'tgan
+        // oyda sotilib, pul shu oyda kelgan bo'lishi mumkin).
+        var collectedQuery = db.BookOrders.AsNoTracking()
+            .Where(o => o.PaymentMethod == BookSalesService.PayCredit && o.PaidAt != null);
+        if (fromDt is not null) collectedQuery = collectedQuery.Where(o => o.PaidAt >= fromDt);
+        if (toDt is not null) collectedQuery = collectedQuery.Where(o => o.PaidAt < toDt);
+        var creditCollected = await collectedQuery.SumAsync(o => (decimal?)o.Total) ?? 0m;
+        var creditCollectedCount = await collectedQuery.CountAsync();
 
         var byBook = approved
             .GroupBy(o => new { o.BookId, o.BookTitle })
@@ -614,14 +829,26 @@ public class BooksController(AppDbContext db, TelegramService telegram, IWebHost
             OrdersPending: orders.Count(o => o.Status == BookSalesService.StatusPending),
             OrdersRejected: orders.Count(o => o.Status == BookSalesService.StatusRejected),
             SoldQty: approved.Sum(o => o.Qty),
-            RevenueCash: approved.Where(o => o.PaymentMethod == BookSalesService.PayCash).Sum(o => o.Total),
-            RevenueCard: approved.Where(o => o.PaymentMethod == BookSalesService.PayCard).Sum(o => o.Total),
+            RevenueCash: SumOf(approved, BookSalesService.PayCash),
+            RevenueCard: SumOf(approved, BookSalesService.PayCard),
             RevenueTotal: approved.Sum(o => o.Total),
             StockTotal: books.Sum(b => b.Stock),
             StockInQty: stockIn,
             ByDay: byDay,
             ByBook: byBook,
-            LowStock: lowStock);
+            LowStock: lowStock,
+            ByDayBook: byDayBook,
+            Sales: sales,
+            SalesTruncated: approved.Count > MaxSalesFeed,
+            CreditSold: creditSold.Sum(o => o.Total),
+            CreditSoldCount: creditSold.Count,
+            CreditSoldPaid: creditSold.Where(o => o.PaidAt != null).Sum(o => o.Total),
+            CreditOutstanding: unpaidCredits.Sum(o => o.Total),
+            CreditOutstandingCount: unpaidCredits.Count,
+            CreditOverdue: overdueCredits.Sum(o => o.Total),
+            CreditOverdueCount: overdueCredits.Count,
+            CreditCollected: creditCollected,
+            CreditCollectedCount: creditCollectedCount);
     }
 
     // =============================================================================================
@@ -635,12 +862,44 @@ public class BooksController(AppDbContext db, TelegramService telegram, IWebHost
         [FromQuery] string? bookId, [FromQuery] string? method, [FromQuery] string? q)
     {
         var dtos = await ToOrderDtosAsync(await FilteredOrdersAsync(status, from, to, bookId, method, q));
-        var headers = new[]
+        return File(ExcelExport.Build("Kitob sotuvlari", OrderHeaders, OrderRows(dtos)), XlsxMime,
+            $"kitob_sotuvlari_{AppClock.Now:yyyy-MM-dd}.xlsx");
+    }
+
+    /// <summary>NASIYA ro'yxati — .xlsx (qarzdorlarni chop etib olib yurish uchun).</summary>
+    [HttpGet("credits/export")]
+    public async Task<IActionResult> ExportCredits(
+        [FromQuery] string? status, [FromQuery] string? from, [FromQuery] string? to,
+        [FromQuery] string? q)
+    {
+        var result = await Credits(status, from, to, q);
+        var data = result.Value;
+        if (data is null) return BadRequest();
+
+        var bytes = ExcelExport.Build(new[]
         {
-            "№", "Sana", "Mijoz", "Telefon", "O'quvchi", "Kitob", "Soni",
-            "Narx", "Summa", "To'lov turi", "Holat", "Sabab", "Qaror vaqti", "Qaror qildi",
-        };
-        var rows = dtos.Select(o => (IReadOnlyList<string>)new[]
+            new ExcelExport.SheetSpec("Qarzdorlar",
+                new[] { "Xaridor", "Telefon", "Nasiyalar", "Qarz (so'm)", "Eng eski sana", "Muddati o'tgan" },
+                data.Debtors.Select(d => (IReadOnlyList<string>)new[]
+                {
+                    string.IsNullOrWhiteSpace(d.Name) ? "Noma'lum" : d.Name,
+                    d.Phone, d.Orders.ToString(), AuditService.Money(d.Total),
+                    d.OldestDate, d.HasOverdue ? "ha" : "",
+                })),
+            new ExcelExport.SheetSpec("Nasiyalar", OrderHeaders, OrderRows(data.Orders)),
+        });
+        return File(bytes, XlsxMime, $"kitob_nasiya_{AppClock.Now:yyyy-MM-dd}.xlsx");
+    }
+
+    private static readonly string[] OrderHeaders =
+    [
+        "№", "Sana", "Mijoz", "Telefon", "O'quvchi", "Kitob", "Soni",
+        "Narx", "Summa", "To'lov turi", "To'lov holati", "Muddat", "To'landi",
+        "Holat", "Sabab", "Qaror vaqti", "Qaror qildi",
+    ];
+
+    private static IEnumerable<IReadOnlyList<string>> OrderRows(IEnumerable<BookOrderDto> dtos) =>
+        dtos.Select(o => (IReadOnlyList<string>)new[]
         {
             o.Number.ToString(),
             o.CreatedAt.Replace('T', ' '),
@@ -652,14 +911,15 @@ public class BooksController(AppDbContext db, TelegramService telegram, IWebHost
             AuditService.Money(o.UnitPrice),
             AuditService.Money(o.Total),
             BookSalesService.PaymentLabel(o.PaymentMethod),
+            // Nasiyada eng muhim ustun: pul olindimi yoki hali qarzmi.
+            o.PaymentMethod != BookSalesService.PayCredit ? "" : o.IsPaid ? "To'langan" : "Qarz",
+            o.DueDate ?? "",
+            o.PaidAt?.Replace('T', ' ') ?? "",
             BookSalesService.StatusLabel(o.Status),
             o.RejectReason,
             o.DecidedAt?.Replace('T', ' ') ?? "",
             o.DecidedBy,
         });
-        return File(ExcelExport.Build("Kitob sotuvlari", headers, rows), XlsxMime,
-            $"kitob_sotuvlari_{AppClock.Now:yyyy-MM-dd}.xlsx");
-    }
 
     /// <summary>Ombor harakatlari (kirim tarixi) — .xlsx.</summary>
     [HttpGet("stock-moves/export")]
@@ -696,9 +956,16 @@ public class BooksController(AppDbContext db, TelegramService telegram, IWebHost
             new[] { "Kutilayotgan buyurtmalar", a.OrdersPending.ToString() },
             new[] { "Rad etilgan buyurtmalar", a.OrdersRejected.ToString() },
             new[] { "Sotilgan kitob (dona)", a.SoldQty.ToString() },
-            new[] { "Tushum — Naqd (so'm)", AuditService.Money(a.RevenueCash) },
-            new[] { "Tushum — Karta (so'm)", AuditService.Money(a.RevenueCard) },
-            new[] { "Tushum — Jami (so'm)", AuditService.Money(a.RevenueTotal) },
+            new[] { "Sotuv — Naqd (so'm)", AuditService.Money(a.RevenueCash) },
+            new[] { "Sotuv — Karta (so'm)", AuditService.Money(a.RevenueCard) },
+            new[] { "Sotuv — Nasiya (so'm)", AuditService.Money(a.CreditSold) },
+            new[] { "Sotuv — Jami (so'm)", AuditService.Money(a.RevenueTotal) },
+            new[] { "Nasiyaga sotuvlar (ta)", a.CreditSoldCount.ToString() },
+            new[] { "Shundan to'langan (so'm)", AuditService.Money(a.CreditSoldPaid) },
+            new[] { "Davr ichida nasiyadan yig'ildi (so'm)", AuditService.Money(a.CreditCollected) },
+            new[] { "JORIY QARZ — jami (so'm)", AuditService.Money(a.CreditOutstanding) },
+            new[] { "JORIY QARZ — nasiyalar (ta)", a.CreditOutstandingCount.ToString() },
+            new[] { "JORIY QARZ — muddati o'tgan (so'm)", AuditService.Money(a.CreditOverdue) },
             new[] { "Davr ichida kirim (dona)", a.StockInQty.ToString() },
             new[] { "Ombordagi qoldiq (dona)", a.StockTotal.ToString() },
         };
@@ -707,11 +974,20 @@ public class BooksController(AppDbContext db, TelegramService telegram, IWebHost
         {
             new ExcelExport.SheetSpec("Umumiy", new[] { "Ko'rsatkich", "Qiymat" }, summary),
             new ExcelExport.SheetSpec("Kunlik",
-                new[] { "Sana", "Dona", "Naqd", "Karta", "Jami" },
+                new[] { "Sana", "Dona", "Naqd", "Karta", "Nasiya", "Jami" },
                 a.ByDay.Select(d => (IReadOnlyList<string>)new[]
                 {
                     d.Date, d.Qty.ToString(), AuditService.Money(d.Cash),
-                    AuditService.Money(d.Card), AuditService.Money(d.Total),
+                    AuditService.Money(d.Card), AuditService.Money(d.Credit),
+                    AuditService.Money(d.Total),
+                })),
+            // "Har kuni qaysi kitob sotildi" — bo'limning asosiy so'rovi (kun × kitob).
+            new ExcelExport.SheetSpec("Kunlik kitoblar",
+                new[] { "Sana", "Kitob", "Dona", "Summa", "Sotuvlar" },
+                a.ByDayBook.Select(d => (IReadOnlyList<string>)new[]
+                {
+                    d.Date, d.BookTitle, d.Qty.ToString(),
+                    AuditService.Money(d.Total), d.Orders.ToString(),
                 })),
             new ExcelExport.SheetSpec("Kitoblar",
                 new[] { "Kitob", "Sotilgan (dona)", "Tushum", "Joriy qoldiq" },
