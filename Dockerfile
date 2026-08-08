@@ -12,7 +12,11 @@ COPY IntellectCRM.Client/ ./
 # Build-time env: frontend real domenni tanishi va REAL API'ga (mock emas) ulanishi uchun.
 ARG VITE_ROOT_DOMAIN=intellectcrm.uz
 ARG VITE_USE_MOCK=false
-ENV VITE_ROOT_DOMAIN=$VITE_ROOT_DOMAIN VITE_USE_MOCK=$VITE_USE_MOCK
+# PostHog (frontend analytics) — kalit OMMAVIY (brauzer bundle'ida ko'rinadi), maxfiy emas.
+ARG VITE_POSTHOG_KEY=phc_rF4d6snTYcGoaTKfd5GjjfUyVNLNNNTZNBGbH8BhEzHd
+ARG VITE_POSTHOG_HOST=https://us.i.posthog.com
+ENV VITE_ROOT_DOMAIN=$VITE_ROOT_DOMAIN VITE_USE_MOCK=$VITE_USE_MOCK \
+    VITE_POSTHOG_KEY=$VITE_POSTHOG_KEY VITE_POSTHOG_HOST=$VITE_POSTHOG_HOST
 # Node HEAP chegarasi: konteynerda Node o'zi ~512 MB "old space" tanlab oladi va loyiha
 # o'sgani sayin `tsc -b && vite build` o'sha chegarada "heap out of memory" (exit 134) bilan
 # yiqiladi. Aniq belgilab qo'yamiz. DIQQAT: Docker VM'ining o'zida ham shuncha RAM bo'lishi

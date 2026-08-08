@@ -1,4 +1,5 @@
 import axios from 'axios'
+import posthog from '@/lib/posthog'
 
 /**
  * Markaziy axios klienti.
@@ -27,6 +28,7 @@ api.interceptors.response.use(
     const url: string = error.config?.url ?? ''
     const isLoginCall = url.includes('/auth/login')
     if (status === 401 && !isLoginCall) {
+      posthog.reset()
       localStorage.removeItem('token')
       localStorage.removeItem('user')
       if (window.location.pathname !== '/login') {

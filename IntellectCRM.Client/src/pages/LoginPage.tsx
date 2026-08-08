@@ -8,6 +8,7 @@ import { homeFor } from '@/config/navigation'
 import { getPublicBrand, type PublicBrand } from '@/api/services/settings'
 import { apiErrorMessage, cn } from '@/lib/utils'
 import type { User } from '@/types'
+import posthog from '@/lib/posthog'
 
 interface LocationState {
   from?: string
@@ -50,6 +51,7 @@ export function LoginPage() {
     setLoading(true)
     try {
       const u = await login(email, password)
+      posthog.capture('user_logged_in', { login_method: 'password' })
       afterLogin(u)
     } catch (err) {
       setError(apiErrorMessage(err, "Kirishda xatolik yuz berdi"))
@@ -64,6 +66,7 @@ export function LoginPage() {
     setLoading(true)
     try {
       const u = await loginWithCode(code.trim())
+      posthog.capture('user_logged_in', { login_method: 'one_time_code' })
       afterLogin(u)
     } catch (err) {
       setError(apiErrorMessage(err, 'Kod noto\'g\'ri yoki muddati o\'tgan'))
