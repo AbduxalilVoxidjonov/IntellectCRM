@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { sendStudentFeedback } from '@/api/services/studentPortal'
 import { Icon } from '@/pages/student/lib'
+import posthog from '@/lib/posthog'
 
 /* ============================================================
    O'quvchi portali — Taklif va shikoyat ekrani.
@@ -37,6 +38,10 @@ export function StudentFeedbackScreen() {
     setBusy(true)
     try {
       await sendStudentFeedback(type, t, file)
+      posthog.capture('student_feedback_submitted', {
+        feedback_type: type,
+        has_attachment: Boolean(file),
+      })
       setToast('Yuborildi. Rahmat!')
       setTimeout(() => navigate(-1), 600)
     } catch (e) {

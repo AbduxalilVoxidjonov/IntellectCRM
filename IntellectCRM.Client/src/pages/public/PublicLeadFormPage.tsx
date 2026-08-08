@@ -10,6 +10,7 @@ import {
 import { getPublicBrand, type PublicBrand } from '@/api/services/settings'
 import { apiErrorMessage, cn } from '@/lib/utils'
 import { inputCls, cardPadX, primaryBtnCls, Field } from './publicFormUi'
+import posthog from '@/lib/posthog'
 
 type Phase = 'loading' | 'notfound' | 'form' | 'done'
 
@@ -102,6 +103,7 @@ export function PublicLeadFormPage() {
         ref: refTag,
       })
       setDoneMessage(r.message)
+      posthog.capture('public_lead_form_submitted')
       setPhase('done')
     } catch (err) {
       setError(apiErrorMessage(err, "Xatolik yuz berdi. Qayta urinib ko'ring."))

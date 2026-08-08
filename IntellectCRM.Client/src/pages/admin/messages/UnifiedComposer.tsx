@@ -27,6 +27,7 @@ import { MessageEditor, type TokenDef } from '@/components/messaging/MessageEdit
 import { SmsProviderPicker } from '@/components/messaging/SmsProviderPicker'
 import { getMessageTokens } from '@/api/services/autoMessages'
 import { MessageTemplateLibrary } from './MessageTemplateLibrary'
+import posthog from '@/lib/posthog'
 
 /** Kanal — bir vaqtda bir nechtasi tanlanadi. */
 type Channel = ChannelKey
@@ -335,6 +336,15 @@ export function UnifiedComposer({
     }
 
     setResults(out)
+    const successfulChannels = out.filter((result) => result.ok).map((result) => result.channel.toLowerCase())
+    if (successfulChannels.length > 0) {
+      posthog.capture('message_campaign_sent', {
+        audience,
+        channels: successfulChannels,
+        only_debtors: onlyDebtors,
+        recipient_selection: audience === 'selected' ? 'selected' : 'all_matching',
+      })
+    }
     if (out.every((r) => r.ok)) {
       setText('')
       setTitle('')
