@@ -129,6 +129,17 @@ export function TeacherDetailPage() {
     const d = new Date()
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
   }, [])
+  // O'tgan oy — "guruh yopildi, oylik hisoblanmadi" holatida eng ko'p qaraladigan oy.
+  const prevMonthKey = useMemo(() => {
+    const d = new Date()
+    d.setDate(1)
+    d.setMonth(d.getMonth() - 1)
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+  }, [])
+
+  // Maosh bo'limi ARXIV guruhlarni ham qamrab oladi — yopilgan guruh uchun o'tgan oylarda
+  // hisoblangan maosh ko'rinib tursin va sozlamasini tuzatish mumkin bo'lsin.
+  const salaryGroups = useMemo(() => [...groups, ...archivedGroups], [groups, archivedGroups])
 
   // Salary
   const [salaryLoading, setSalaryLoading] = useState(false)
@@ -842,7 +853,7 @@ export function TeacherDetailPage() {
       {/* SALARY TAB */}
       {tab === 'salary' && (
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
             <StatCard label="Guruhlar soni" value={groups.length} icon={Users} />
             <StatCard
               label="Joriy oy hisoblandi"
@@ -852,6 +863,17 @@ export function TeacherDetailPage() {
               icon={Wallet}
               iconBg="bg-emerald-50"
               iconColor="text-emerald-600"
+            />
+            {/* O'TGAN OY — guruh yopilgach eng ko'p qaraladigan raqam: "o'tgan oy uchun qancha
+                hisoblangan edi". Guruh arxivlangan bo'lsa ham saqlanadi va ko'rinaveradi. */}
+            <StatCard
+              label="O'tgan oy hisoblandi"
+              value={formatMoney(
+                salaryLedger?.months.find((m) => m.month === prevMonthKey)?.expected ?? 0,
+              )}
+              icon={Wallet}
+              iconBg="bg-amber-50"
+              iconColor="text-amber-600"
             />
             <StatCard
               label="Jami hisoblangan"
@@ -1132,8 +1154,11 @@ export function TeacherDetailPage() {
             )}
           </Card>
 
-          {/* PER-GURUH maosh sozlamasi */}
-          {groups.length === 0 ? (
+          {/* PER-GURUH maosh sozlamasi.
+              ARXIVLANGAN (yopilgan) guruhlar ham ro'yxatda qoladi: aks holda o'qituvchining yagona
+              guruhi yopilgach bu bo'lim butunlay yo'qolib, "Guruh biriktirilmagan" chiqardi va
+              o'tgan oylar uchun maoshni na ko'rish, na tuzatish mumkin bo'lardi. */}
+          {salaryGroups.length === 0 ? (
             <Card>
               <div className="state">
                 <h4>Guruh biriktirilmagan</h4>
@@ -1147,7 +1172,7 @@ export function TeacherDetailPage() {
             <GroupSalaryEditor
               key={salaryVersion}
               teacherId={teacher.id}
-              groups={groups}
+              groups={salaryGroups}
               subjects={subjects}
               lines={salaryLedger?.groups}
               saving={salaryLoading}
@@ -1187,6 +1212,17 @@ export function TeacherDetailPage() {
                         </td>
                         <td className="px-4 py-3 text-right font-mono text-slate-700">
                           {formatMoney(row.expected)}
+                          {/* FOIZLI maoshda pul hali yig'ilmagan bo'lsa "Hisoblangan" 0 chiqadi
+                              (masalan guruh yopilib, o'quvchilar to'lamay qolgan oy). Shu sabab
+                              yonida "hisoblangan bo'yicha" — hammasi to'lansa qancha bo'lishi. */}
+                          {(row.potentialExpected ?? 0) > row.expected && (
+                            <div
+                              className="text-[11px] font-normal text-amber-600"
+                              title="O'quvchilarga hisoblangan (qarz bilan) summadan chiqadigan maosh — pul kelgani sari asosiy raqam shunga yaqinlashadi"
+                            >
+                              hisob bo'yicha {formatMoney(row.potentialExpected ?? 0)}
+                            </div>
+                          )}
                         </td>
                         <td className="px-4 py-3 text-right font-mono text-emerald-700">
                           {formatMoney(row.paid)}
@@ -1404,6 +1440,8 @@ type SalaryRow = {
   mode: string
   percent: number
   fixed: number
+  /** Guruh yopilgan/arxivlangan — ro'yxatda qoladi (o'tgan oylar hisobi shunga bog'liq) */
+  archived: boolean
 }
 
 /**
@@ -1448,6 +1486,7 @@ function GroupSalaryEditor({
         mode,
         percent: raw === 'percent' ? g.teacherSalaryPercent ?? 0 : line?.percent ?? g.teacherSalaryPercent ?? 0,
         fixed: raw === 'fixed' ? g.teacherSalaryFixed ?? 0 : line?.fixed ?? g.teacherSalaryFixed ?? 0,
+        archived: !!g.isArchived,
       }
     })
 
@@ -1500,16 +1539,25 @@ function GroupSalaryEditor({
   return (
     <Card
       title="Per-guruh maosh"
-      sub="Har guruh uchun alohida foiz yoki qat'iy summa. O'qituvchi oyligi = guruhlar yig'indisi."
+      sub="Har guruh uchun alohida foiz yoki qat'iy summa. O'qituvchi oyligi = guruhlar yig'indisi. Yopilgan guruhlar ham qoladi — o'tgan oylar hisobi ularga bog'liq."
     >
       <div className="space-y-2">
         {rows.map((r) => {
           const line = lineByGroup[r.groupId]
           return (
-            <div key={r.groupId} className="rounded-xl border border-slate-200 p-3">
+            <div
+              key={r.groupId}
+              className={cn(
+                'rounded-xl border p-3',
+                r.archived ? 'border-slate-200 bg-slate-50/60' : 'border-slate-200',
+              )}
+            >
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="min-w-0">
-                  <div className="font-semibold text-slate-800">{r.name}</div>
+                  <div className="flex items-center gap-2 font-semibold text-slate-800">
+                    {r.name}
+                    {r.archived && <Badge tone="default">Yopilgan</Badge>}
+                  </div>
                   <div className="text-xs text-slate-400">
                     {r.courseName || '—'} · oylik {formatMoney(r.monthlyFee)}
                   </div>

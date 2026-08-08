@@ -167,7 +167,19 @@ export function TeacherSalaryDetailModal({ teacher, from, to, onClose }: Props) 
                               )}
                             </td>
                           )}
-                          <td className="num text-slate-600">{formatMoney(m.expected)}</td>
+                          <td className="num text-slate-600">
+                            {formatMoney(m.expected)}
+                            {/* Foizli maoshda pul hali yig'ilmagan oy (masalan guruh yopilgan oy)
+                                0 bo'lib ko'rinardi — yonida "hisob bo'yicha" turadi. */}
+                            {(m.potentialExpected ?? 0) > m.expected && (
+                              <div
+                                className="text-[11px] text-amber-600"
+                                title="O'quvchilarga hisoblangan (qarz bilan) summadan chiqadigan maosh"
+                              >
+                                hisob bo'yicha {formatMoney(m.potentialExpected ?? 0)}
+                              </div>
+                            )}
+                          </td>
                           <td className="num text-emerald-600">{formatMoney(m.paid)}</td>
                           <td
                             className={cn(

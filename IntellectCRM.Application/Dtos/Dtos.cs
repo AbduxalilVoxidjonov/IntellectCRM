@@ -193,11 +193,20 @@ public record SalaryLessonStatDto(
 /// <param name="Collected">FOIZLI maosh bazasi — shu OY UCHUN o'qituvchi guruhlaridan yig'ilgan
 /// tuition summasi (vozvrat ayrilgan). Qat'iy maoshda 0. Shu raqam ko'rsatilgani uchun o'qituvchi
 /// "Hisoblandi" qayerdan chiqqanini ko'radi: yig'ilgan × foiz = hisoblangan.</param>
+/// <param name="Charged">O'quvchilarga SHU OY UCHUN HISOBLANGAN (chegirma ayrilgan, qarz ham kiradi)
+/// tuition summasi — o'qituvchi guruhlari bo'yicha. Qat'iy maoshda 0.</param>
+/// <param name="PotentialExpected">"Hammasi to'lansa" maosh qancha bo'lardi (hisoblangan × foiz,
+/// jurnal ushlanmasi ayrilgan). Qat'iy maoshda <paramref name="Expected"/> ga teng.
+/// <para>NEGA KERAK: guruh yopilib o'quvchilar muzlatilganda o'sha oyning puli hali yig'ilmagan
+/// bo'lishi mumkin va foizli maosh 0 bo'lib ko'rinardi — o'qituvchi/admin "oylik yozilmadi" deb
+/// o'ylardi. Endi yonida "hisoblangan bo'yicha" raqami turadi va pul kelgani sari
+/// <paramref name="Expected"/> unga yaqinlashadi.</para></param>
 public record MonthSalaryDto(
     string Month, decimal Expected, decimal Paid, decimal Remaining, string Status,
     decimal BaseExpected = 0, decimal Deduction = 0,
     int PlannedLessons = 0, int ConductedLessons = 0, int MissedLessons = 0,
-    List<SalaryLessonStatDto>? Lessons = null, decimal Collected = 0);
+    List<SalaryLessonStatDto>? Lessons = null, decimal Collected = 0,
+    decimal Charged = 0, decimal PotentialExpected = 0);
 /// <summary>
 /// Maosh hisobida bitta guruhning ulushi (davr bo'yicha): qaysi rejim (foiz/qat'iy), qiymati,
 /// shu davrda guruhdan yig'ilgan to'lov bazasi va shu guruh keltirgan hisoblangan maosh.
@@ -1276,8 +1285,16 @@ public record MonthLedgerDto(
 /// <summary>Bitta to'lov yozuvi (kassa). GroupName/CourseName — to'lov QAYSI guruh (va uning kursi)
 /// uchun qilingani; TeacherName — o'sha guruh o'qituvchisi (to'lov guruhga teglanmagan bo'lsa null).
 /// O'quvchi profilida "Guruh — Kurs" ko'rinishida chiqadi.</summary>
+/// <summary>
+/// Bitta to'lov yozuvi (o'quvchi to'lov tarixi va o'qituvchi maosh to'lovlari uchun umumiy).
+/// <para><paramref name="ReceiptNo"/> — NAQD to'lovda kassir kiritgan QOG'OZ kvitansiya raqami
+/// ("KV000123"); <paramref name="PaidTime"/> — KARTA to'lovida pul o'tkazilgan haqiqiy vaqt ("HH:mm");
+/// <paramref name="CardLast4"/> — kartaning OXIRGI 4 raqami ("1234", to'liq raqam hech qachon
+/// saqlanmaydi). Uchalasi ham to'lov oynasida kiritilmagan bo'lsa <c>null</c> (eski yozuvlar ham).</para>
+/// </summary>
 public record PaymentDto(string Date, decimal Amount, string? Note, string? Month, string? Comment, string? Method = null,
-    string? GroupName = null, string? TeacherName = null, string? CourseName = null);
+    string? GroupName = null, string? TeacherName = null, string? CourseName = null,
+    string? ReceiptNo = null, string? PaidTime = null, string? CardLast4 = null);
 /// <summary>To'lov oynasi uchun BITTA guruh bo'yicha oylik hisob: shu guruhning oylik to'lovi (chegirma
 /// ayirilgan), shu guruhga teglangan to'langan summa va qoldiq. Aggregate emas — faqat shu guruh.</summary>
 public record GroupMonthDto(string Month, decimal Fee, decimal Paid, decimal Remaining, string Status);
@@ -1679,8 +1696,16 @@ public record BranchDto(
 public record BranchPayload(
     string Name, string Address, double Latitude, double Longitude, int RadiusMeters);
 
-/// <summary>Xodim (o'qituvchi bo'lmagan ishchi) — admin akkaunti bilan.</summary>
-public record StaffDto(string Id, string FullName, string Position, string Login, List<string> Permissions, string Phone = "");
+/// <summary>Xodim (o'qituvchi bo'lmagan ishchi) — admin akkaunti bilan.
+/// <para><paramref name="Role"/> — akkaunt roli (<c>staff</c> | <c>admin</c> | <c>superadmin</c>).
+/// "Xodimlar va rollar" ro'yxatida faqat xodimlar emas, admin/superadmin akkauntlar ham ko'rinadi —
+/// aks holda superadminlikka ko'tarilgan odam ro'yxatdan yo'qolib, orqaga qaytarib bo'lmasdi.</para></summary>
+public record StaffDto(string Id, string FullName, string Position, string Login, List<string> Permissions,
+    string Phone = "", string Role = "staff");
+
+/// <summary>Panel akkauntining ROLINI o'zgartirish — "ikkinchi superadmin" tayinlash yoki qaytarish.
+/// Ruxsat etilgan qiymatlar: <c>superadmin</c> | <c>admin</c> | <c>staff</c>.</summary>
+public record SetStaffRoleRequest(string Role);
 
 /* ---------- Adminga topshiriq (xodim checklist) ---------- */
 /// <summary>Chap ro'yxatdagi xodim (topshiriq biriktirish uchun). HasTelegram — bot orqali ro'yxatdan

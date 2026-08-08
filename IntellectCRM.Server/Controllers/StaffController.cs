@@ -17,6 +17,17 @@ namespace IntellectCRM.Server.Controllers;
 /// <see cref="SetPermissions"/>). Bu bo'limga to'liq ruxsat berilgan xodim amalda superadmin
 /// bilan bir xil darajada boshqa xodimlarni boshqara oladi — ATAYLAB shunday (ikkinchi
 /// "superadmin darajali" boshqaruvchi kerak bo'lganda shu orqali beriladi).
+///
+/// <para><b>IKKINCHI SUPERADMIN</b> (<see cref="SetRole"/>): ruxsat matritsasi bermaydigan
+/// imtiyozlar ham bor (moliya tahriri, o'chirish, AI, CTI'da hammani ko'rish — qarang
+/// <see cref="AdminPermAttribute.IsSuperAdminOrGranted"/>). Shu sabab admin/xodim akkauntini
+/// TO'LIQ superadminga aylantirish mumkin: <c>PUT {id}/role</c>. Ro'yxat (<see cref="GetAll"/>)
+/// shu sababdan faqat <c>staff</c> emas, <b>panel akkauntlarining hammasini</b> qaytaradi —
+/// ko'tarilgan odam ro'yxatdan yo'qolib qolsa, uni orqaga qaytarib bo'lmasdi.</para>
+///
+/// <para><b>Ism/parol/o'chirish amallari ATAYIN faqat <c>staff</c> uchun</b> qoladi: aks holda
+/// "Xodimlar"ga to'liq ruxsati bor oddiy xodim SUPERADMIN parolini qayta yaratib, uning
+/// akkauntiga kirib olardi (huquq oshirish). Rolni esa faqat superadminning O'ZI o'zgartira oladi.</para>
 /// </summary>
 [ApiController]
 [Authorize]
@@ -27,11 +38,31 @@ public class StaffController(AppDbContext db, AuditService audit) : ControllerBa
     private const int MinPasswordLength = 8;
     private const string WeakPasswordMessage = "Parol kamida 8 belgidan iborat bo'lsin";
 
+    /// <summary>Admin paneliga kiradigan akkaunt rollari — ro'yxat va rol almashtirish shular ustida ishlaydi.
+    /// O'qituvchi/o'quvchi/ota-ona bu yerga umuman tushmaydi.</summary>
+    private static readonly string[] PanelRoles = [Roles.Staff, Roles.Admin, Roles.SuperAdmin];
+
+    /// <summary>Rolni faqat TIZIM EGASI o'zgartiradi (platforma egasi ham). Oddiy <c>admin</c> ham,
+    /// "Xodimlar"ga to'liq ruxsatli xodim ham o'zini/boshqasini superadmin qila olmaydi.</summary>
+    private bool CanManageRoles =>
+        User.IsInRole(Roles.SuperAdmin) || User.IsInRole(Roles.PlatformOwner);
 
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<StaffDto>>> GetAll() =>
-        (await db.Users.Where(u => u.Role == Roles.Staff).OrderBy(u => u.FullName).ToListAsync())
-            .Select(ToDto).ToList();
+    public async Task<ActionResult<IEnumerable<StaffDto>>> GetAll()
+    {
+        // Odatdagidek GET xodimga ochiq (AdminPerm qoidasi). Lekin admin/superadmin akkauntining
+        // LOGINI oddiy xodimga ko'rsatilmaydi — parol tiklash u yerdan baribir yopiq, login esa
+        // brute-force uchun kerakli yarim ma'lumot. Superadmin/admin uchun to'liq ko'rinadi.
+        var seesLogins = User.IsInRole(Roles.Admin) || User.IsInRole(Roles.SuperAdmin)
+                         || User.IsInRole(Roles.PlatformOwner);
+        return (await db.Users.AsNoTracking().Where(u => PanelRoles.Contains(u.Role))
+                .OrderBy(u => u.FullName).ToListAsync())
+            // Superadminlar tepada — "kim egasi" savoli ro'yxatning boshida javob topsin.
+            .OrderBy(u => u.Role == Roles.SuperAdmin ? 0 : u.Role == Roles.Admin ? 1 : 2)
+            .ThenBy(u => u.FullName, StringComparer.OrdinalIgnoreCase)
+            .Select(u => seesLogins || u.Role == Roles.Staff ? ToDto(u) : ToDto(u) with { Login = "" })
+            .ToList();
+    }
 
     /// <summary>Barcha xodim roli shablonlari — yangi xodim qo'shishda tanlash uchun.</summary>
     [HttpGet("role-templates")]
@@ -187,6 +218,69 @@ public class StaffController(AppDbContext db, AuditService audit) : ControllerBa
         return ToDto(user);
     }
 
+    /// <summary>
+    /// PANEL AKKAUNTINING ROLI — "ikkinchi superadmin" tayinlash (yoki qaytarish).
+    ///
+    /// <para>Nega kerak: ruxsat matritsasi (<see cref="SetPermissions"/>) bo'limlarni ochadi, lekin
+    /// superadminning BA'ZI imtiyozlari ruxsat kaliti bilan berilmaydi — masalan to'lovni tahrirlash/
+    /// vozvrat, hisoblangan oylikni qo'lda tuzatish, markaz AI tahlili, Local Call'da hamma
+    /// operatorni ko'rish. Markazda ikkinchi to'liq huquqli boshqaruvchi kerak bo'lsa, uning
+    /// akkaunti shu endpoint bilan <c>superadmin</c> qilinadi.</para>
+    ///
+    /// <para>Cheklovlar (har biri ATAYIN):</para>
+    /// <list type="bullet">
+    ///   <item>faqat superadmin (yoki platforma egasi) chaqira oladi — <see cref="CanManageRoles"/>;</item>
+    ///   <item><b>o'z rolini o'zgartirib bo'lmaydi</b> — tasodifan o'zini tushirib, tizimni
+    ///     boshqaruvsiz qoldirmasin;</item>
+    ///   <item><b>oxirgi superadminni tushirib bo'lmaydi</b> — markaz egasiz qolmasin;</item>
+    ///   <item>o'qituvchi/o'quvchi akkaunti bu yerdan rol ololmaydi (faqat panel rollari).</item>
+    /// </list>
+    ///
+    /// <para>Rol DB'da o'zgaradi va HAR so'rovda tokenga qayta o'qiladi (<c>Program.cs</c>
+    /// <c>OnTokenValidated</c>) — ya'ni <b>qayta login shart emas</b>, xuddi ruxsatlar kabi.</para>
+    /// </summary>
+    [HttpPut("{id}/role")]
+    public async Task<ActionResult<StaffDto>> SetRole(string id, SetStaffRoleRequest req)
+    {
+        if (!CanManageRoles) return Forbid();
+
+        var role = (req.Role ?? "").Trim().ToLowerInvariant();
+        if (!PanelRoles.Contains(role))
+            return BadRequest(new { message = "Rol noto'g'ri (superadmin | admin | staff)" });
+
+        var user = await db.Users.FindAsync(id);
+        if (user is null || !PanelRoles.Contains(user.Role)) return NotFound();
+
+        var meId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (!string.IsNullOrEmpty(meId) && meId == user.Id)
+            return BadRequest(new { message = "O'z rolingizni o'zgartira olmaysiz" });
+
+        if (user.Role == role) return ToDto(user);
+
+        if (user.Role == Roles.SuperAdmin)
+        {
+            var superCount = await db.Users.CountAsync(u => u.Role == Roles.SuperAdmin);
+            if (superCount <= 1)
+                return BadRequest(new { message = "Oxirgi superadminni tushirib bo'lmaydi" });
+        }
+
+        var oldRole = user.Role;
+        user.Role = role;
+        audit.Record("Staff", user.Id, "update",
+            $"Akkaunt roli o'zgartirildi: {user.FullName} — {RoleLabel(oldRole)} → {RoleLabel(role)}"
+            + (role == Roles.SuperAdmin ? " (to'liq huquq: bo'lim ruxsatlari endi tekshirilmaydi)" : ""),
+            before: new { Role = oldRole }, after: new { user.Role });
+        await db.SaveChangesAsync();
+        return ToDto(user);
+    }
+
+    private static string RoleLabel(string role) => role switch
+    {
+        Roles.SuperAdmin => "Superadmin",
+        Roles.Admin => "Admin",
+        _ => "Xodim",
+    };
+
     private static StaffDto ToDto(AppUser u) =>
-        new(u.Id, u.FullName, u.Position, u.Email, u.Permissions, u.Phone);
+        new(u.Id, u.FullName, u.Position, u.Email, u.Permissions, u.Phone, u.Role);
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Plus, Eye, Pencil, Trash2, Users } from 'lucide-react'
+import { Plus, Eye, Pencil, Trash2, Users, ShieldCheck, ShieldOff } from 'lucide-react'
 import type { Staff, Credentials, StaffRoleTemplate } from '@/types'
 import {
   getStaff,
@@ -10,13 +10,14 @@ import {
   getStaffCredentials,
   resetStaffPassword,
   setStaffPermissions,
+  setStaffRole,
   type CreateStaffWithTemplatePayload,
 } from '@/api/services/staff'
 import { adminPermissions } from '@/config/constants'
 import { useAuth } from '@/context/auth-context'
 import { toggleSectionAction, sectionActions, type PermAction } from '@/lib/permissions'
 import { PermMatrix } from '@/components/staff/PermMatrix'
-import { cn, randomPassword } from '@/lib/utils'
+import { apiErrorMessage, cn, randomPassword } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
@@ -46,6 +47,10 @@ const avatarColor = (name: string) => {
   return AVATAR_COLORS[h % AVATAR_COLORS.length]
 }
 
+/** Akkaunt roli yorlig'i — ro'yxatda chip sifatida ko'rinadi. */
+const roleLabel = (role?: string) =>
+  role === 'superadmin' ? 'Superadmin' : role === 'admin' ? 'Admin' : 'Xodim'
+
 export function StaffPage() {
   const { user } = useAuth()
   // Rollar (ruxsatlar)ni faqat tizim egasi (superadmin) o'zgartira oladi — backend ham shuni talab qiladi.
@@ -71,6 +76,8 @@ export function StaffPage() {
   const [creds, setCreds] = useState<Credentials | null>(null)
   const [credLoading, setCredLoading] = useState(false)
   const [deleting, setDeleting] = useState<Staff | null>(null)
+  /** Rol almashtirilayotgan akkaunt id'si (tugma bloklanadi) */
+  const [roleBusyId, setRoleBusyId] = useState<string | null>(null)
 
   const syncDraft = (list: Staff[]) =>
     setDraft(Object.fromEntries(list.map((s) => [s.id, new Set(s.permissions)])))
@@ -175,6 +182,29 @@ export function StaffPage() {
     return cur.size !== s.permissions.length || s.permissions.some((p) => !cur.has(p))
   }
 
+  /**
+   * "Superadmin qilish" / "Superadminlikni olib tashlash". Superadminda bo'lim ruxsatlari umuman
+   * tekshirilmaydi — shu sabab qaytarib bo'lmaydigan amal emasligi ta'kidlanib, tasdiq so'raladi.
+   * Olib tashlanganda akkaunt xodimga (staff) qaytadi va eski ruxsat matritsasi yana kuchga kiradi.
+   */
+  const toggleSuperAdmin = async (s: Staff) => {
+    const makeSuper = s.role !== 'superadmin'
+    const msg = makeSuper
+      ? `"${s.fullName}" TO'LIQ superadmin bo'ladi: barcha bo'limlar, moliyani tahrirlash, o'chirish va sozlamalar ochiladi. Davom etamizmi?`
+      : `"${s.fullName}" superadminlikdan olinadi va oddiy xodimga qaytadi (faqat belgilangan bo'limlar). Davom etamizmi?`
+    if (!confirm(msg)) return
+    setRoleBusyId(s.id)
+    try {
+      const u = await setStaffRole(s.id, makeSuper ? 'superadmin' : 'staff')
+      setStaff((p) => p.map((x) => (x.id === u.id ? u : x)))
+      setDraft((d) => ({ ...d, [u.id]: new Set(u.permissions) }))
+    } catch (e) {
+      alert(apiErrorMessage(e, "Rolni o'zgartirib bo'lmadi"))
+    } finally {
+      setRoleBusyId(null)
+    }
+  }
+
   const savePerms = (s: Staff) => {
     const perms = [...(draft[s.id] ?? new Set())]
     setSavingPermsId(s.id)
@@ -192,8 +222,8 @@ export function StaffPage() {
           <>
             O'qituvchi bo'lmagan ishchilar (kassir, administrator, ...)
             {canManageRoles
-              ? " — har biriga kerakli bo'limlarni (rollarni) shu yerda belgilang."
-              : "."}
+              ? " — har biriga kerakli bo'limlarni (rollarni) shu yerda belgilang. Kerak bo'lsa akkauntni TO'LIQ superadmin qilib ham qo'yish mumkin."
+              : '.'}
           </>
         }
         actions={
@@ -221,6 +251,11 @@ export function StaffPage() {
         <div className="space-y-4">
           {staff.map((s) => {
             const cur = draft[s.id] ?? new Set<string>()
+            // Superadmin/admin akkauntida bo'lim ruxsatlari o'rinsiz (baribir tekshirilmaydi),
+            // ism/parol/o'chirish esa ATAYIN yopiq — huquq oshirishning oldini oladi (backend ham shunday).
+            const isSuper = s.role === 'superadmin'
+            const isStaffRow = (s.role ?? 'staff') === 'staff'
+            const isMe = user?.id === s.id
             return (
               <Card key={s.id}>
                 <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
@@ -229,20 +264,50 @@ export function StaffPage() {
                       {initialsOf(s.fullName)}
                     </div>
                     <div className="meta">
-                      <strong className="text-slate-800">{s.fullName}</strong>
+                      <strong className="flex items-center gap-2 text-slate-800">
+                        {s.fullName}
+                        {!isStaffRow && (
+                          <Badge tone={isSuper ? 'amber' : 'violet'}>{roleLabel(s.role)}</Badge>
+                        )}
+                      </strong>
                       <span className="text-slate-400">
-                        {s.position || 'Xodim'} · <code className="font-mono">{s.login}</code>
+                        {s.position || roleLabel(s.role)} · <code className="font-mono">{s.login}</code>
                       </span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-0.5">
-                    <IconBtn icon={Eye} title="Login/parol" onClick={() => showCredentials(s)} />
-                    <IconBtn icon={Pencil} title="Tahrirlash" onClick={() => openEdit(s)} />
-                    <IconBtn icon={Trash2} title="O'chirish" danger onClick={() => handleDelete(s)} />
+                  <div className="flex items-center gap-1.5">
+                    {canManageRoles && !isMe && (
+                      <Button
+                        variant="secondary"
+                        onClick={() => toggleSuperAdmin(s)}
+                        disabled={roleBusyId === s.id}
+                      >
+                        {isSuper ? <ShieldOff className="h-4 w-4" /> : <ShieldCheck className="h-4 w-4" />}
+                        {roleBusyId === s.id
+                          ? 'Saqlanmoqda...'
+                          : isSuper
+                            ? 'Superadminlikni olib tashlash'
+                            : 'Superadmin qilish'}
+                      </Button>
+                    )}
+                    {isStaffRow && (
+                      <div className="flex items-center gap-0.5">
+                        <IconBtn icon={Eye} title="Login/parol" onClick={() => showCredentials(s)} />
+                        <IconBtn icon={Pencil} title="Tahrirlash" onClick={() => openEdit(s)} />
+                        <IconBtn icon={Trash2} title="O'chirish" danger onClick={() => handleDelete(s)} />
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                {canManageRoles ? (
+                {!isStaffRow ? (
+                  <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
+                    {isSuper
+                      ? "To'liq huquqli akkaunt — barcha bo'limlar ochiq, bo'lim ruxsatlari tekshirilmaydi."
+                      : "Administrator akkaunti — bo'limlar ochiq (superadminning ayrim imtiyozlaridan tashqari)."}
+                    {isMe && ' Bu — sizning akkauntingiz.'}
+                  </p>
+                ) : canManageRoles ? (
                   <>
                     <p className="mb-2 text-xs text-slate-400">
                       Har bo'lim uchun ruxsat: <b>Ko'rish</b> (ochadi), <b>Qo'shish</b>, <b>Tahrir</b>,

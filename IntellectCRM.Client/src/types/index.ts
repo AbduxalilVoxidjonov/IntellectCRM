@@ -1287,6 +1287,12 @@ export interface LedgerPayment {
   teacherName?: string
   /** O'sha guruhning kursi — ro'yxatda "Guruh — Kurs" bo'lib chiqadi */
   courseName?: string
+  /** NAQD to'lovda kassir kiritgan QOG'OZ kvitansiya raqami ("KV000123") */
+  receiptNo?: string
+  /** KARTA to'lovida pul o'tkazilgan haqiqiy vaqt ("HH:mm") */
+  paidTime?: string
+  /** KARTA raqamining oxirgi 4 raqami ("1234") — to'liq raqam saqlanmaydi */
+  cardLast4?: string
 }
 
 export interface StudentLedger {
@@ -1556,6 +1562,8 @@ export interface Staff {
   permissions: string[]
   /** Telefon — botda yangi lid xabarnomasini olish uchun */
   phone?: string
+  /** Akkaunt roli: 'staff' | 'admin' | 'superadmin'. Superadminda bo'lim ruxsatlari tekshirilmaydi. */
+  role?: string
 }
 
 /** Xodim roli shabloni — yangi xodim qo'shishda template tanlab olsa, default ruxsatlari avtomatik belgilanadi */
@@ -1639,6 +1647,17 @@ export interface MonthSalary {
    * (3-avgustda iyul uchun to'lansa → iyul oyiga).
    */
   collected?: number
+  /**
+   * Shu OY UCHUN o'quvchilarga HISOBLANGAN (chegirma ayrilgan, to'lanmagan qarz ham kiradi)
+   * tuition summasi. Qat'iy maoshda 0.
+   */
+  charged?: number
+  /**
+   * "Hammasi to'lansa" maosh qancha bo'lardi (hisoblangan × foiz, ushlanma ayrilgan).
+   * Guruh yopilib pul hali yig'ilmagan oyda `expected` 0 bo'lib ko'rinadi — shu raqam
+   * o'qituvchining o'sha oydagi haqiqiy hissasini ko'rsatadi. Qat'iy maoshda `expected` ga teng.
+   */
+  potentialExpected?: number
 }
 
 /** Maosh hisobida bitta guruhning ulushi (davr bo'yicha) */

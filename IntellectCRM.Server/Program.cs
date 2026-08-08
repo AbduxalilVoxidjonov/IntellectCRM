@@ -154,13 +154,32 @@ builder.Services
                 {
                     var u = await db.Users.FirstOrDefaultAsync(x => x.Id == userId);
                     blocked = u is null;
-                    // Xodim (staff) ruxsatlarini HAR so'rovda DB'dan claim sifatida qo'shamiz — tokenga
-                    // yozilmaydi, shuning uchun superadmin ruxsatni o'zgartirsa darrov amal qiladi
-                    // (qayta login shart emas). AdminPerm atributi shu claim'larni tekshiradi.
-                    if (!blocked && p.IsInRole(Roles.Staff) && u!.Permissions is { Count: > 0 } perms
-                        && p.Identity is ClaimsIdentity ident)
-                        foreach (var perm in perms)
-                            ident.AddClaim(new Claim(AdminPermAttribute.ClaimType, perm));
+                    if (!blocked && p.Identity is ClaimsIdentity ident)
+                    {
+                        // ROL ham HAR so'rovda DB'dan olinadi. Sabab: "ikkinchi superadmin" tayinlansa
+                        // (StaffController.SetRole) yoki qaytarilsa, tokendagi ESKI rol 12 soatgacha
+                        // amal qilib turardi — ko'tarilgan odam qayta login qilmaguncha yangi
+                        // huquqlarni olmasdi, tushirilgani esa eski huquqlar bilan ishlayverardi.
+                        // Ruxsat claim'lari bilan bir xil siyosat: qayta login SHART EMAS.
+                        if (!string.IsNullOrEmpty(u!.Role))
+                        {
+                            var tokenRole = ident.FindFirst(ident.RoleClaimType)?.Value;
+                            if (!string.Equals(tokenRole, u.Role, StringComparison.Ordinal))
+                            {
+                                foreach (var c in ident.FindAll(ident.RoleClaimType).ToList())
+                                    ident.RemoveClaim(c);
+                                ident.AddClaim(new Claim(ident.RoleClaimType, u.Role));
+                            }
+                        }
+
+                        // Xodim (staff) ruxsatlarini HAR so'rovda DB'dan claim sifatida qo'shamiz — tokenga
+                        // yozilmaydi, shuning uchun superadmin ruxsatni o'zgartirsa darrov amal qiladi
+                        // (qayta login shart emas). AdminPerm atributi shu claim'larni tekshiradi.
+                        // DIQQAT: shart TOKENdagi emas, DB'dagi rolga qaraydi (yuqorida sinxronlandi).
+                        if (u.Role == Roles.Staff && u.Permissions is { Count: > 0 } perms)
+                            foreach (var perm in perms)
+                                ident.AddClaim(new Claim(AdminPermAttribute.ClaimType, perm));
+                    }
                 }
                 else
                     blocked = false; // parent / boshqa — tegmaymiz

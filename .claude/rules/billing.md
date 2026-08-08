@@ -85,6 +85,11 @@ paths:
   `PaymentEditModal`da tuzatish mumkin; chekda (`receipt.ts`) "Kvitansiya" qatori chiqadi.
   DIQQAT: chekdagi `ReceiptNo` (tranzaksiya Id'sidan hosil bo'ladigan ichki raqam) va qog'oz
   kvitansiya raqami (`KvNo`) — BOSHQA-BOSHQA maydonlar.
+  **O'QUVCHI PROFILIDA HAM KO'RINADI:** `PaymentDto` ga `ReceiptNo`/`PaidTime`/`CardLast4`
+  qo'shilgan (`StudentLedger`) — "Amalga oshirilgan to'lovlar" ro'yxatida naqd to'lovda **kun +
+  KV raqami**, kartada **kun + vaqt + `•••• 1234`** chiqadi. Ilgari bu ma'lumot faqat Moliya
+  bo'limida bor edi va o'quvchi kartochkasidan "qaysi kartadan, qachon to'landi" ko'rinmasdi.
+  Shu DTO o'qituvchi maosh to'lovlarida ham ishlatiladi (u yerda maydonlar bo'sh).
 
 - **KARTA RAQAMINING OXIRGI 4 RAQAMI** (migratsiya `AddPaymentCardLast4`): `FinanceTransaction.CardLast4`
   — KARTA to'lovida kassir kiritadi (bank ko'chirmasi bilan solishtirish uchun), to'lov vaqtidan
@@ -249,6 +254,35 @@ paths:
   muzlatilgan boshqa a'zolikdan (qo'lda "muzlatish + yangi guruhga qo'shish" oqimi); ilgari muzlatilgan
   (ta'tildagi) a'zolik avansi tegilmaydi. Ko'chirilgan summa auditga yoziladi. Eski (fiks'dan oldingi)
   yozuvlarni tuzatish: Moliya → to'lovni tahrirlash → guruhni yangi guruhga o'zgartirish.
+
+- **GURUH YOPILGACH MAOSH YO'QOLMAYDI** (`SalaryLedger`, migratsiya KERAK EMAS): guruh yopilib
+  o'quvchilar muzlatilgach o'qituvchining o'tgan oy maoshi uch xil sabab bilan "yozilmay" qolardi.
+  Uchalasi ham tuzatildi (`TeacherSalaryClosedGroupTests`):
+  1. **Davr.** Standart `from` — `AcademicYearStartMonthAsync` (ARXIVLANMAGAN o'quvchilarning eng
+     erta kelgan oyi); guruh bilan birga o'quvchilar arxivlangach u JORIY oyga sakrar va **o'tgan
+     oy qatori jadvaldan umuman tushib qolardi**. Endi standart davr **oxirgi 6 oyni**
+     (`RecentMonths`) va maosh BERILGAN eng erta oyni HAR DOIM qamrab oladi (`MaxLookbackMonths = 24`
+     chegarasi bilan). Markaz odatdagidek ishlayotganda akademik yil boshi baribir ertaroq bo'ladi
+     va bu blok hech narsani o'zgartirmaydi. `from` aniq berilsa (Moliya → O'qituvchilar davri) —
+     umuman tegilmaydi.
+  2. **Jurnal ushlanmasi.** Rejadagi darslar guruh `Days` idan chiqariladi, chegara esa faqat
+     `Group.EndDate` edi — u "Yopish" yo'lida qo'yiladi, **"Arxivlash" yo'lida esa YO'Q**. Natijada
+     arxivdan keyingi barcha "darslar" belgilanmagan hisoblanib, ushlanma butun oylikni yeb qo'yardi.
+     Endi chegara = `EndDate` va `ArchivedAt` dan ERTAROG'I (`SalaryLedger.LessonEnd`).
+  3. **Foizli maoshda 0.** Foiz YIG'ILGAN puldan hisoblanadi; guruh yopilib pul hali kelmagan oyda
+     maosh 0 bo'lib ko'rinardi. Endi `MonthSalaryDto` da ikkita yangi maydon bor: **`Charged`**
+     (o'quvchilarga shu oy uchun hisoblangan, chegirma ayrilgan — qarz ham kiradi) va
+     **`PotentialExpected`** ("hammasi to'lansa" maosh, ushlanma ayrilgan). Manba —
+     `SalaryLedger.PercentBasesAsync` (ilgari `CollectedPerGroupAsync`): u endi IKKITA xarita
+     qaytaradi va **hisoblangan** ham to'lovlar bilan AYNAN bir xil qoida bo'yicha taqsimlanadi
+     (teglangan qator 100% guruhga, teglanmagan — `MonthlyFee` nisbatida).
+     ⚠️ `Expected` MA'NOSI O'ZGARMADI — pul kelmaguncha maosh baribir hisoblanmaydi; yangi raqam
+     faqat YONIDA ko'rsatiladi ("hisob bo'yicha").
+  UI: o'qituvchi profili → Maosh tabida **«O'tgan oy hisoblandi»** kartochkasi; oylar jadvalida,
+  Moliya → `TeacherSalaryDetailModal` da va o'qituvchi ilovasining Maosh ekranida "hisob bo'yicha"
+  qatori (faqat `PotentialExpected > Expected` bo'lganda). **Per-guruh maosh sozlagichi endi
+  ARXIVLANGAN guruhlarni ham ko'rsatadi** ("Yopilgan" belgisi bilan) — ilgari yagona guruhi
+  yopilgan o'qituvchida bo'lim butunlay yo'qolib "Guruh biriktirilmagan" chiqardi.
 
 - **Maoshni jurnalga bog'lash** (migratsiya `AddSalaryJournalPolicy`): "Jurnal boshqaruvi" modalidagi
   "Maosh va jurnal" bo'limi — `CenterMeta.SalaryRequireJournal` + `SalaryGraceDays` (0-30). Yoqilsa har

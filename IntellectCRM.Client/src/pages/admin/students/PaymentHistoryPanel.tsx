@@ -311,8 +311,13 @@ export function PaymentHistoryPanel({ studentId, onPaid }: Props) {
                   className="rounded-lg border border-slate-100 px-3 py-2 text-sm"
                 >
                   <div className="flex items-center justify-between">
-                    <span className="flex items-center gap-2 text-slate-500">
-                      <span className="font-mono">{formatDate(p.date)}</span>
+                    <span className="flex flex-wrap items-center gap-2 text-slate-500">
+                      <span className="font-mono">
+                        {formatDate(p.date)}
+                        {/* KARTA to'lovida pul o'tkazilgan aniq VAQT ham ko'rsatiladi (bank
+                            ilovasidagi vaqt bilan solishtirish uchun kiritilgan). */}
+                        {p.paidTime && <span className="text-slate-400"> · {p.paidTime}</span>}
+                      </span>
                       {p.month && (
                         <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-500">
                           {formatMonth(p.month)} uchun
@@ -323,9 +328,34 @@ export function PaymentHistoryPanel({ studentId, onPaid }: Props) {
                           {paymentMethodLabel(p.method)}
                         </span>
                       )}
+                      {/* KARTA — qaysi kartaga tushgani (oxirgi 4 raqam; to'liq raqam saqlanmaydi) */}
+                      {p.cardLast4 && (
+                        <span className="rounded-md bg-indigo-50 px-1.5 py-0.5 font-mono text-xs font-medium text-indigo-600">
+                          •••• {p.cardLast4}
+                        </span>
+                      )}
+                      {/* NAQD — qog'oz kvitansiya (KV) raqami */}
+                      {p.receiptNo && (
+                        <span className="rounded-md bg-amber-50 px-1.5 py-0.5 font-mono text-xs font-medium text-amber-700">
+                          {p.receiptNo}
+                        </span>
+                      )}
                     </span>
-                    <span className="font-mono font-medium text-emerald-600">+{formatMoney(p.amount)}</span>
+                    <span className="shrink-0 font-mono font-medium text-emerald-600">
+                      +{formatMoney(p.amount)}
+                    </span>
                   </div>
+                  {/* Usul bo'yicha to'liq tafsilot — bir qarashda "qachon, qaysi karta / qaysi
+                      kvitansiya" savoliga javob. Ma'lumot kiritilmagan bo'lsa qator umuman chiqmaydi. */}
+                  {(p.cardLast4 || p.paidTime || p.receiptNo) && (
+                    <p className="mt-0.5 text-xs text-slate-400">
+                      {p.method === 'cash'
+                        ? `Naqd · ${formatDate(p.date)}${p.receiptNo ? ` · kvitansiya ${p.receiptNo}` : ''}`
+                        : `${paymentMethodLabel(p.method ?? 'card')} · ${formatDate(p.date)}${
+                            p.paidTime ? ` ${p.paidTime}` : ''
+                          }${p.cardLast4 ? ` · karta •••• ${p.cardLast4}` : ''}`}
+                    </p>
+                  )}
                   {/* To'lov qaysi GURUHGA tushgani — yonida shu guruhning kursi ("Guruh — Kurs"). */}
                   {p.groupName && (
                     <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-500">

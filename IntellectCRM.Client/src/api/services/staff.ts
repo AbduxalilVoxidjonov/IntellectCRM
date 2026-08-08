@@ -62,3 +62,13 @@ export async function setStaffPermissions(id: string, permissions: string[]): Pr
   const { data } = await api.put<Staff>(`/admin/staff/${id}/permissions`, { permissions })
   return data
 }
+
+/**
+ * Akkaunt ROLINI o'zgartirish — "ikkinchi superadmin" tayinlash yoki qaytarish (faqat superadmin).
+ * Superadminda bo'lim ruxsatlari umuman tekshirilmaydi: u markazning to'liq huquqli egasi bo'ladi.
+ * Qayta login SHART EMAS — rol har so'rovda bazadan o'qiladi.
+ */
+export async function setStaffRole(id: string, role: 'superadmin' | 'admin' | 'staff'): Promise<Staff> {
+  const { data } = await api.put<Staff>(`/admin/staff/${id}/role`, { role })
+  return data
+}

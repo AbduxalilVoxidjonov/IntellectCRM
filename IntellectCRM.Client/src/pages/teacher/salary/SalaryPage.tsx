@@ -252,6 +252,17 @@ export function TeacherSalaryPage() {
                           <span className="font-mono text-mute">{formatMoney(m.collected ?? 0)}</span>
                         </p>
                       )}
+                      {/* Pul hali to'liq kelmagan bo'lsa (masalan guruh yopilgan oy) — "hammasi
+                          to'lansa" qancha bo'lishi. Aks holda o'sha oy 0 bo'lib ko'rinardi. */}
+                      {(m.potentialExpected ?? 0) > m.expected && (
+                        <p className="text-[11px] text-amber-700">
+                          Hisob bo'yicha:{' '}
+                          <span className="font-mono font-semibold">
+                            {formatMoney(m.potentialExpected ?? 0)}
+                          </span>
+                          <span className="ml-1 text-faint">(to'lovlar kelgani sari qo'shiladi)</span>
+                        </p>
+                      )}
                       {deduction > 0 && (
                         <p className="mt-0.5 text-[12px] font-semibold text-rose-600">
                           Ushlandi: <span className="font-mono">−{formatMoney(deduction)}</span>

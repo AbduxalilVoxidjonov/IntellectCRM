@@ -152,7 +152,11 @@ public static class StudentLedger
                 tName = gi.Teacher;
                 cName = gi.Course;
             }
-            return new PaymentDto(t.Date, t.Amount, t.Note, t.Month, t.Comment, t.Method, gName, tName, cName);
+            // NAQD bo'lsa — qog'oz kvitansiya raqami, KARTA bo'lsa — oxirgi 4 raqam + to'lov vaqti.
+            // Ikkalasi ham to'lov oynasida kiritiladi; bu yerda faqat uzatiladi (tozalash/normalizatsiya
+            // `PaymentFields` da, yozish paytida bo'lgan).
+            return new PaymentDto(t.Date, t.Amount, t.Note, t.Month, t.Comment, t.Method, gName, tName, cName,
+                t.ReceiptNo, t.PaidTime, t.CardLast4);
         }).ToList();
 
         return new StudentLedgerDto(
