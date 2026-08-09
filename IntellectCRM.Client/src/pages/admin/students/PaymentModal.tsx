@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/Input'
 import { Loader } from '@/components/ui/Loader'
 import { formatMoney, formatDate, formatDateTime, apiErrorMessage, cn } from '@/lib/utils'
 import { formatMonth, monthStatusLabels, paymentMethods, paymentMethodLabel } from '@/config/constants'
+import posthog from '@/lib/posthog'
 
 interface Props {
   student: Student | null
@@ -187,6 +188,11 @@ export function PaymentModal({ student, onClose, onSubmit }: Props) {
         forceReceipt: force,
       })
       setDuplicate(null)
+      posthog.capture('student_payment_recorded', {
+        payment_method: method,
+        has_group: Boolean(groupId),
+        is_for_future_month: month > currentMonth(),
+      })
     } catch (err) {
       // Kvitansiya raqami allaqachon ishlatilgan — modal yopilmaydi, kassir qaror qabul qiladi.
       const dup = receiptDuplicateOf(err)

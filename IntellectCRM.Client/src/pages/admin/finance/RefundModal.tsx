@@ -8,6 +8,7 @@ import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input, Textarea } from '@/components/ui/Input'
 import { apiErrorMessage, formatMoney } from '@/lib/utils'
+import posthog from '@/lib/posthog'
 
 interface Props {
   /** Vozvrat qilinadigan o'quvchi to'lovi (income + tuition) */
@@ -67,6 +68,7 @@ export function RefundModal({ payment, onClose, onSaved }: Props) {
     setError(null)
     try {
       await refundPayment(payment.id, { amount, date, reason: reason.trim() || undefined })
+      posthog.capture('payment_refunded', { is_partial_refund: amount < refundable })
       onSaved()
       onClose()
     } catch (err) {

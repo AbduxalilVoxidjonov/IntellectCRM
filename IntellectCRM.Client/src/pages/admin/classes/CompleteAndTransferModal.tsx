@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/Button'
 import { completeAndTransferClass, type CompleteAndTransferResult } from '@/api/services/classes'
 import { getSubjects } from '@/api/services/subjects'
 import type { Subject } from '@/types'
+import posthog from '@/lib/posthog'
 
 /** "YYYY-MM-DD" bugungi sana */
 const today = () => new Date().toISOString().slice(0, 10)
@@ -75,6 +76,11 @@ export function CompleteAndTransferModal({
         closeDate,
         activateDate: activateDate || closeDate,
         activateInNewGroup: autoEnroll && activateInNew,
+      })
+      posthog.capture('class_completed_and_transferred', {
+        auto_enrolled_active_students: autoEnroll,
+        activated_in_new_group: autoEnroll && activateInNew,
+        used_current_course: !targetCourseId || targetCourseId === currentCourseId,
       })
       onSuccess?.(result)
       onClose()

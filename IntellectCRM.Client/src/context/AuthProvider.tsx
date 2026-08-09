@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { User } from '@/types'
+import posthog from '@/lib/posthog'
 import { AuthContext } from './auth-context'
 import { login as loginRequest, otpLogin, fetchMe } from '@/api/services/auth'
 import { USE_MOCK } from '@/api/client'
@@ -24,6 +25,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(() =>
     localStorage.getItem(TOKEN_KEY) ? readStoredUser() : null,
   )
+  const identifiedUserId = useRef<string | null>(null)
+
+  const identifyUser = useCallback((u: User) => {
+    if (!u.id || identifiedUserId.current === u.id) return
+
+    if (identifiedUserId.current) posthog.reset()
+
+    posthog.identify(u.id, {
+      name: u.fullName,
+      role: u.role,
+      ...(u.email ? { email: u.email } : {}),
+    })
+    identifiedUserId.current = u.id
+  }, [])
 
   const logout = useCallback(() => {
     // Push: qurilma tokenini o'chirib qo'yamiz (JWT hali tozalanmagan — explicit header bilan).
@@ -32,6 +47,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const fcm = getFcmToken()
     if (jwt && role && fcm) unregisterDevice(role, fcm, jwt).catch(() => {})
 
+    posthog.reset()
+    identifiedUserId.current = null
     localStorage.removeItem(TOKEN_KEY)
     localStorage.removeItem(USER_KEY)
     setUser(null)
@@ -41,12 +58,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const applySession = useCallback((token: string, u: User) => {
     localStorage.setItem(TOKEN_KEY, token)
     localStorage.setItem(USER_KEY, JSON.stringify(u))
+    identifyUser(u)
     setUser(u)
     // Push: Flutter token mavjud bo'lsa — qurilmani shu foydalanuvchiga bog'laymiz.
     const fcm = getFcmToken()
     if (fcm) registerDevice(u.role, fcm).catch(() => {})
     return u
-  }, [])
+  }, [identifyUser])
 
   const login = useCallback(
     async (email: string, password: string) => {
@@ -69,16 +87,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(u)
   }, [])
 
+  // Saqlangan sessiya bilan sahifa yangilanganda PostHog identifikatsiyasini tiklaymiz.
+  useEffect(() => {
+    if (user) identifyUser(user)
+  }, [identifyUser, user])
+
   // Real rejimda tokenni /me orqali tekshiramiz: amal qilmasa — chiqaramiz.
   useEffect(() => {
     if (USE_MOCK || !localStorage.getItem(TOKEN_KEY)) return
     fetchMe()
       .then((u) => {
         localStorage.setItem(USER_KEY, JSON.stringify(u))
+        identifyUser(u)
         setUser(u)
       })
       .catch(() => logout())
-  }, [logout])
+  }, [identifyUser, logout])
 
   // Web/PWA push: NATIVE token bo'lmasa (oddiy brauzer/PWA), student/teacher kirganda Firebase JS
   // SDK orqali FCM token olib, joriy foydalanuvchiga bog'laymiz. Native ilovada window.__FCM_TOKEN__
