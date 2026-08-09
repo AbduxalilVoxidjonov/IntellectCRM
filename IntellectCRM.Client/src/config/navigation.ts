@@ -1,4 +1,4 @@
-﻿import type { LucideIcon } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import {
   LayoutDashboard,
   UserPlus,
@@ -189,6 +189,7 @@ export const navByRole: Record<Role, NavItem[]> = {
         { label: "To'lov cheki", to: '/admin/settings/check', perm: 'settings' },
         { label: 'Turniket integratsiya', to: '/admin/settings/turnstile', perm: 'settings' },
         { label: 'Kamera integratsiya', to: '/admin/settings/cameras', perm: 'settings' },
+        { label: 'PostHog Analitika', to: '/admin/settings/posthog', perm: 'settings' },
         { label: "O'zgarishlar tarixi", to: '/admin/settings/history', perm: 'audit' },
       ],
     },

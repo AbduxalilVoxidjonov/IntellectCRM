@@ -20,6 +20,7 @@ import { GeminiSettings } from './GeminiSettings'
 import { TurnstileSettings } from './TurnstileSettings'
 import { CameraSettings } from './CameraSettings'
 import { CheckSettings } from './CheckSettings'
+import { PosthogSettings } from './PosthogSettings'
 
 type Status = 'idle' | 'saving' | 'saved'
 
@@ -37,6 +38,7 @@ const sectionTitles: Record<string, string> = {
   check: "To'lov cheki",
   turnstile: 'Turniket integratsiya',
   cameras: 'Kamera integratsiya',
+  posthog: 'PostHog Analitika',
 }
 
 /** Eski alohida sozlama sahifalari — endi "Xabar kanallari" ichidagi tab. */
@@ -184,6 +186,9 @@ export function SettingsPage() {
           {section === 'cameras' && <CameraSettings />}
 
           {section === 'check' && <CheckSettings />}
+
+          {/* PostHog analytics */}
+          {section === 'posthog' && <PosthogSettings />}
         </div>
       )}
     </div>
