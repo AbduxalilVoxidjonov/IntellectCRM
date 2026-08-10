@@ -284,6 +284,24 @@ paths:
   ARXIVLANGAN guruhlarni ham ko'rsatadi** ("Yopilgan" belgisi bilan) — ilgari yagona guruhi
   yopilgan o'qituvchida bo'lim butunlay yo'qolib "Guruh biriktirilmagan" chiqardi.
 
+- **OY TAFSILOTIDA TUSHUM HAM KO'RINADI** (o'qituvchi profili → Maosh → oy tanlanganda; migratsiya
+  KERAK EMAS): bitta kartochkada beshta raqam — **tushum bo'lishi kerak** (`MonthSalaryDto.TuitionCharged`)
+  · **tushum bo'ldi** (`TuitionCollected`) · **maosh hisoblandi** (`Expected`) · **berildi** (`Paid`) ·
+  **qoldi** (`Remaining`), yonida yig'ilmagan qarz va yig'ilish foizi.
+  ⚠️ `TuitionCharged/TuitionCollected` — o'qituvchining **BARCHA** guruhlari bo'yicha TUSHUM;
+  `Charged/Collected` esa **MAOSH BAZASI** (faqat foizli ulushi bor guruhlar). Barcha guruhlari
+  foizli o'qituvchida ular teng, ARALASH sozlamada FARQ qiladi — shuning uchun ikkita alohida
+  maydon, biri ikkinchisining o'rniga ishlatilmaydi.
+  Tuition bazasi odatda faqat FOIZLI maosh uchun o'qiladi; tushum raqamlari qat'iy maoshda ham
+  kerak bo'lgani uchun `SalaryLedger.BuildAsync` ga **`withRevenue`** bayrog'i qo'shilgan.
+  Standart `false` ATAYIN: **faqat** `GET /api/admin/teachers/{id}/salary-ledger` uni yoqadi.
+  Moliya → "O'qituvchilar" hisoboti `BuildAsync` ni HAR BIR o'qituvchi uchun chaqiradi (yoqilsa
+  qat'iy maoshlilarga ham beshta ortiqcha so'rov qo'shilardi), o'qituvchi ILOVASI esa qat'iy
+  maoshli o'qituvchiga markaz tushumini ko'rsatmasligi kerak. Testlar: `TeacherSalaryRevenueTests`.
+  Oy boshida hisob hali yozilmagan bo'lishi mumkin (`AccrueMonth` fon xizmati) — u holda "tushum
+  bo'lishi kerak" 0 bo'lib, to'lov "avans" bo'lib ko'rinardi; UI bunda "hisob hali yozilmagan" deb
+  yozadi.
+
 - **Maoshni jurnalga bog'lash** (migratsiya `AddSalaryJournalPolicy`): "Jurnal boshqaruvi" modalidagi
   "Maosh va jurnal" bo'limi — `CenterMeta.SalaryRequireJournal` + `SalaryGraceDays` (0-30). Yoqilsa har
   oyda guruh `Days` bo'yicha REJADAGI darslardan jurnalda `LessonNote.Conducted` belgilanmaganlari

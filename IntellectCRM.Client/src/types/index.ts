@@ -1658,6 +1658,15 @@ export interface MonthSalary {
    * o'qituvchining o'sha oydagi haqiqiy hissasini ko'rsatadi. Qat'iy maoshda `expected` ga teng.
    */
   potentialExpected?: number
+  /**
+   * TUSHUM REJASI — o'qituvchining BARCHA guruhlarida shu oy uchun o'quvchilarga hisoblangan
+   * (chegirma ayrilgan) summa: "aslida qancha tushum bo'lishi kerak edi".
+   * ⚠️ `charged` MAOSH bazasi (faqat foizli guruhlar), bu esa TUSHUM (hamma guruh).
+   * Faqat admin endpointida to'ladi (`/admin/teachers/{id}/salary-ledger`).
+   */
+  tuitionCharged?: number
+  /** Shu oy uchun haqiqatda yig'ilgan tushum (vozvrat ayrilgan) — barcha guruhlar bo'yicha. */
+  tuitionCollected?: number
 }
 
 /** Maosh hisobida bitta guruhning ulushi (davr bo'yicha) */

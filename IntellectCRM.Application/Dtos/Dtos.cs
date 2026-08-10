@@ -201,12 +201,24 @@ public record SalaryLessonStatDto(
 /// bo'lishi mumkin va foizli maosh 0 bo'lib ko'rinardi — o'qituvchi/admin "oylik yozilmadi" deb
 /// o'ylardi. Endi yonida "hisoblangan bo'yicha" raqami turadi va pul kelgani sari
 /// <paramref name="Expected"/> unga yaqinlashadi.</para></param>
+/// <param name="TuitionCharged">TUSHUM REJASI — o'qituvchining BARCHA guruhlarida shu oy uchun
+/// o'quvchilarga hisoblangan (chegirma ayrilgan) tuition summasi: "aslida qancha tushum bo'lishi
+/// kerak edi". <see cref="SalaryLedger.BuildAsync"/> ga <c>withRevenue: true</c> berilgandagina
+/// to'ldiriladi (aks holda 0).</param>
+/// <param name="TuitionCollected">Shu oy uchun HAQIQATDA yig'ilgan tuition (vozvrat ayrilgan) —
+/// o'qituvchining BARCHA guruhlari bo'yicha. Farqi (<paramref name="TuitionCharged"/> −
+/// <paramref name="TuitionCollected"/>) = shu oy bo'yicha yig'ilmagan qarz.
+/// <para>⚠️ <paramref name="Collected"/>/<paramref name="Charged"/> bilan ADASHTIRMANG: ular MAOSH
+/// bazasi (faqat foizli ulushi bor guruhlar), bu ikkisi esa markazning TUSHUMI (hamma guruh).
+/// Barcha guruhlari foizli bo'lgan o'qituvchida ular teng chiqadi, aralash sozlamada esa farq
+/// qiladi.</para></param>
 public record MonthSalaryDto(
     string Month, decimal Expected, decimal Paid, decimal Remaining, string Status,
     decimal BaseExpected = 0, decimal Deduction = 0,
     int PlannedLessons = 0, int ConductedLessons = 0, int MissedLessons = 0,
     List<SalaryLessonStatDto>? Lessons = null, decimal Collected = 0,
-    decimal Charged = 0, decimal PotentialExpected = 0);
+    decimal Charged = 0, decimal PotentialExpected = 0,
+    decimal TuitionCharged = 0, decimal TuitionCollected = 0);
 /// <summary>
 /// Maosh hisobida bitta guruhning ulushi (davr bo'yicha): qaysi rejim (foiz/qat'iy), qiymati,
 /// shu davrda guruhdan yig'ilgan to'lov bazasi va shu guruh keltirgan hisoblangan maosh.

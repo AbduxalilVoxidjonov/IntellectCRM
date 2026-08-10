@@ -185,6 +185,17 @@ export function TeacherDetailPage() {
     [monthOptions, selMonth],
   )
 
+  // Tanlangan oyning TUSHUM ko'rsatkichlari (o'qituvchi guruhlari bo'yicha).
+  // Manfiy farq = ortiqcha to'langan (avans), shuning uchun `Math.max` bilan kesilmaydi.
+  const tuitionDebt =
+    (selMonthData?.tuitionCharged ?? 0) - (selMonthData?.tuitionCollected ?? 0)
+  const collectedPct =
+    (selMonthData?.tuitionCharged ?? 0) > 0
+      ? Math.round(
+          ((selMonthData?.tuitionCollected ?? 0) / (selMonthData?.tuitionCharged ?? 1)) * 100,
+        )
+      : 0
+
   const loadSelMonth = (month: string) => {
     if (!id) return
     setSelMonthLoading(true)
@@ -927,51 +938,122 @@ export function TeacherDetailPage() {
                 Bu oy uchun maosh ma'lumoti yo'q.
               </p>
             ) : (
-              <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <div className="rounded-xl border border-slate-100 px-3 py-2.5 text-center">
-                  <p className="text-xs text-slate-400">Hisoblangan</p>
-                  <p className="mt-0.5 font-mono font-semibold text-slate-700">
-                    {formatMoney(selMonthData.expected)}
-                  </p>
-                </div>
-                <div className="rounded-xl border border-slate-100 px-3 py-2.5 text-center">
-                  <p className="text-xs text-slate-400">Berilgan</p>
-                  <p className="mt-0.5 font-mono font-semibold text-emerald-600">
-                    {formatMoney(selMonthData.paid)}
-                  </p>
-                </div>
-                <div className="rounded-xl border border-slate-100 px-3 py-2.5 text-center">
-                  <p className="text-xs text-slate-400">Qoldiq</p>
-                  <p
-                    className={cn(
-                      'mt-0.5 font-mono font-semibold',
-                      selMonthData.remaining > 0 ? 'text-red-600' : 'text-slate-600',
+              <div className="mt-4 space-y-4">
+                {/* 1) TUSHUM — o'qituvchining guruhlaridan shu oyda kutilgan va kelgan pul.
+                    Maosh rejimidan (foiz/qat'iy) QAT'I NAZAR ko'rsatiladi: admin uchun "shu
+                    o'qituvchi shu oyda markazga qancha pul keltirdi" savoli maosh hisobidan
+                    alohida. Guruhi yo'q o'qituvchida bo'lim umuman chizilmaydi (hammasi 0). */}
+                {salaryGroups.length > 0 && (
+                  <div>
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                      Guruhlar tushumi
+                    </p>
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                      <MonthTile
+                        label="Bo'lishi kerak"
+                        value={formatMoney(selMonthData.tuitionCharged ?? 0)}
+                        hint="O'quvchilarga shu oy uchun hisoblangan (chegirma ayrilgan)"
+                      />
+                      <MonthTile
+                        label="Tushum bo'ldi"
+                        value={formatMoney(selMonthData.tuitionCollected ?? 0)}
+                        valueClass="text-emerald-600"
+                        hint="Shu oy uchun to'langan pul (vozvrat ayrilgan)"
+                      />
+                      <MonthTile
+                        label="Yig'ilmagan"
+                        value={
+                          tuitionDebt < 0
+                            ? `+${formatMoney(-tuitionDebt)}`
+                            : formatMoney(tuitionDebt)
+                        }
+                        valueClass={tuitionDebt > 0 ? 'text-red-600' : 'text-emerald-600'}
+                        /* Oy boshida hisob hali yozilmagan bo'lishi mumkin (oylik hisoblash fon
+                           xizmati har 12 soatda ishlaydi), o'quvchi esa oldindan to'lagan bo'ladi —
+                           bu "avans" emas, shuni ochiq yozamiz, aks holda raqam xato ko'rinardi. */
+                        hint={
+                          (selMonthData.tuitionCharged ?? 0) === 0 &&
+                          (selMonthData.tuitionCollected ?? 0) > 0
+                            ? "Bu oy uchun hisob hali yozilmagan"
+                            : tuitionDebt > 0
+                              ? "Shu oy bo'yicha qarz"
+                              : tuitionDebt < 0
+                                ? "Ortiqcha to'langan (avans)"
+                                : "Hammasi yig'ilgan"
+                        }
+                      />
+                    </div>
+                    {(selMonthData.tuitionCharged ?? 0) > 0 && (
+                      <div className="mt-2 flex items-center gap-2">
+                        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
+                          <div
+                            className="h-full rounded-full bg-emerald-500"
+                            style={{ width: `${Math.min(100, Math.max(0, collectedPct))}%` }}
+                          />
+                        </div>
+                        <span className="font-mono text-xs text-slate-500">
+                          {collectedPct}% yig'ildi
+                        </span>
+                      </div>
                     )}
-                  >
-                    {selMonthData.remaining < 0
-                      ? `+${formatMoney(-selMonthData.remaining)}`
-                      : formatMoney(selMonthData.remaining)}
+                  </div>
+                )}
+
+                {/* 2) MAOSH — shu oy uchun hisoblangan, berilgan va qoldiq. */}
+                <div>
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    Maosh
                   </p>
-                </div>
-                <div className="flex flex-col items-center justify-center rounded-xl border border-slate-100 px-3 py-2.5 text-center">
-                  <p className="text-xs text-slate-400">Holat</p>
-                  <div className="mt-1">
-                    <Badge
-                      tone={
-                        selMonthData.status === 'paid'
-                          ? 'green'
-                          : selMonthData.status === 'partial'
-                            ? 'amber'
-                            : 'default'
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    <MonthTile
+                      label="Hisoblandi"
+                      value={formatMoney(selMonthData.expected)}
+                      /* Foizli maoshda pul hali kelmagan oyda "Hisoblandi" 0 chiqadi — yonida
+                         "hammasi to'lansa qancha bo'lishi" turadi (oylar jadvalidagi bilan bir xil). */
+                      hint={
+                        (selMonthData.potentialExpected ?? 0) > selMonthData.expected
+                          ? `hisob bo'yicha ${formatMoney(selMonthData.potentialExpected ?? 0)}`
+                          : undefined
                       }
-                      dot
-                    >
-                      {selMonthData.status === 'paid'
-                        ? "To'liq"
-                        : selMonthData.status === 'partial'
-                          ? 'Qisman'
-                          : "To'lanmadi"}
-                    </Badge>
+                      hintClass="text-amber-600"
+                    />
+                    <MonthTile
+                      label="Berildi"
+                      value={formatMoney(selMonthData.paid)}
+                      valueClass="text-emerald-600"
+                    />
+                    <MonthTile
+                      label="Qoldi"
+                      value={
+                        selMonthData.remaining < 0
+                          ? `+${formatMoney(-selMonthData.remaining)}`
+                          : formatMoney(selMonthData.remaining)
+                      }
+                      valueClass={
+                        selMonthData.remaining > 0 ? 'text-red-600' : 'text-slate-600'
+                      }
+                    />
+                    <div className="flex flex-col items-center justify-center rounded-xl border border-slate-100 px-3 py-2.5 text-center">
+                      <p className="text-xs text-slate-400">Holat</p>
+                      <div className="mt-1">
+                        <Badge
+                          tone={
+                            selMonthData.status === 'paid'
+                              ? 'green'
+                              : selMonthData.status === 'partial'
+                                ? 'amber'
+                                : 'default'
+                          }
+                          dot
+                        >
+                          {selMonthData.status === 'paid'
+                            ? "To'liq"
+                            : selMonthData.status === 'partial'
+                              ? 'Qisman'
+                              : "To'lanmadi"}
+                        </Badge>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1428,6 +1510,32 @@ export function TeacherDetailPage() {
           setTeacher((t) => (t ? { ...t, photoUrl: url } : t))
         }}
       />
+    </div>
+  )
+}
+
+/**
+ * Tanlangan oy kartochkasidagi bitta raqam (tushum yoki maosh). `hint` — raqam ostidagi kichik
+ * izoh: "bo'lishi kerak" va "yig'ilmagan" kabi qiymatlar izohsiz bir-biri bilan adashtiriladi.
+ */
+function MonthTile({
+  label,
+  value,
+  valueClass = 'text-slate-700',
+  hint,
+  hintClass = 'text-slate-400',
+}: {
+  label: string
+  value: string
+  valueClass?: string
+  hint?: string
+  hintClass?: string
+}) {
+  return (
+    <div className="rounded-xl border border-slate-100 px-3 py-2.5 text-center">
+      <p className="text-xs text-slate-400">{label}</p>
+      <p className={cn('mt-0.5 font-mono font-semibold', valueClass)}>{value}</p>
+      {hint && <p className={cn('mt-0.5 text-[11px] leading-tight', hintClass)}>{hint}</p>}
     </div>
   )
 }

@@ -571,6 +571,9 @@ public class TeachersController(AppDbContext db, AuditService audit, IConfigurat
     /// <summary>
     /// O'qituvchi maoshi bo'yicha batafsil hisob (davr bo'yicha): jami berilgan, qoldiq va
     /// har oyda qancha oylik berilgani. Oylar davr (from..to) bo'yicha, oy = to'lov sanasi oyi.
+    /// <para><c>withRevenue: true</c> — har oyda o'qituvchi guruhlarining TUSHUMI ham qaytadi
+    /// ("bo'lishi kerak" / "bo'ldi"), qat'iy maoshli o'qituvchida ham: admin kartochkasidagi oy
+    /// tafsiloti aynan shuni ko'rsatadi.</para>
     /// </summary>
     [HttpGet("{id}/salary-ledger")]
     public async Task<ActionResult<SalaryLedgerDto>> SalaryLedger(
@@ -578,7 +581,8 @@ public class TeachersController(AppDbContext db, AuditService audit, IConfigurat
     {
         var teacher = await db.Teachers.FindAsync(id);
         if (teacher is null) return NotFound();
-        return await IntellectCRM.Application.Services.SalaryLedger.BuildAsync(db, teacher, from, to);
+        return await IntellectCRM.Application.Services.SalaryLedger.BuildAsync(
+            db, teacher, from, to, withRevenue: true);
     }
 
     /// <summary>

@@ -54,8 +54,19 @@ public static class SalaryLedger
         return string.CompareOrdinal(a, b) <= 0 ? a : b;
     }
 
+    /// <param name="withRevenue">
+    /// <b>TUSHUM raqamlari</b> (<see cref="MonthSalaryDto.TuitionCharged"/> /
+    /// <see cref="MonthSalaryDto.TuitionCollected"/>) HAR DOIM hisoblansinmi — maosh rejimidan
+    /// qat'i nazar. Odatda tuition bazasi faqat FOIZLI maosh uchun o'qiladi (qat'iy maoshda u
+    /// hisobga kerak emas), lekin admin o'qituvchi kartochkasida "shu oyda guruhlardan qancha
+    /// tushum bo'lishi kerak edi va qanchasi tushdi" ko'rsatiladi — qat'iy maoshli o'qituvchida ham.
+    /// <para>Standart <c>false</c> ATAYIN: Moliya → "O'qituvchilar" hisoboti bu metodni HAR BIR
+    /// o'qituvchi uchun chaqiradi, ya'ni yoqib qo'yilsa qat'iy maoshlilarga ham beshta ortiqcha
+    /// so'rov qo'shilardi. O'qituvchi ILOVASI ham <c>false</c> — qat'iy maoshli o'qituvchi ilgari
+    /// ko'rmagan markaz tushumini ko'rib qolmasin.</para>
+    /// </param>
     public static async Task<SalaryLedgerDto> BuildAsync(
-        IAppDbContext db, Teacher teacher, string? from, string? to)
+        IAppDbContext db, Teacher teacher, string? from, string? to, bool withRevenue = false)
     {
         // MAOSH QAYSI OYGA TEGISHLI — `Month` maydoni hal qiladi, to'lov SANASI emas:
         // iyul maoshi 5-avgustda berilishi mumkin. `Month` bo'sh bo'lsa (eski yozuvlar,
@@ -170,7 +181,9 @@ public static class SalaryLedger
         var anyConfigured = groups.Any(g => g.TeacherSalaryMode is "percent" or "fixed");
         // Foizli ulush bo'lsa (legacy yoki per-guruh) — yig'ilgan to'lov bazasi kerak.
         var anyPercent = teacher.SalaryMode == "percent" || groups.Any(g => g.TeacherSalaryMode == "percent");
-        var bases = (groups.Count > 0 && anyPercent)
+        // `withRevenue` bo'lsa QAT'IY maoshda ham o'qiladi — tushum raqamlari maosh rejimiga
+        // bog'liq emas (hisobga ta'sir qilmaydi, faqat ko'rsatiladi).
+        var bases = (groups.Count > 0 && (anyPercent || withRevenue))
             ? await PercentBasesAsync(db, teacher, startMonth, toMonth)
             : new PercentBases(new(), new());
         var collectedPerGroup = bases.Collected;
@@ -315,7 +328,14 @@ public static class SalaryLedger
                 plannedTotal, conductedTotal, plannedTotal - conductedTotal,
                 journalLinked ? lessonLines : null,
                 decimal.Round(monthCollected, 2),
-                decimal.Round(monthCharged, 2), decimal.Round(potentialExpected, 2)));
+                decimal.Round(monthCharged, 2), decimal.Round(potentialExpected, 2),
+                // TUSHUM — o'qituvchining BARCHA guruhlari bo'yicha (maosh rejimidan qat'i nazar).
+                // `monthCollected`/`monthCharged` dan farqi: ular FOIZLI ulushi bor guruhlarnigina
+                // sanaydi (maosh bazasi), bu ikkisi esa "shu oyda guruhlardan qancha pul kutilgan
+                // va qanchasi kelgan" degan SAVOLGA javob beradi — aralash sozlamada raqamlar
+                // farq qiladi, shuning uchun bir-birining o'rniga ishlatilmaydi.
+                decimal.Round(TotalCharged(month), 2),
+                decimal.Round(TotalCollected(month), 2)));
         }
 
         var totalExpected = months.Sum(m => m.Expected);
