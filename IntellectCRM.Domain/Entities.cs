@@ -1,4 +1,4 @@
-﻿namespace IntellectCRM.Domain;
+namespace IntellectCRM.Domain;
 
 // Frontend (IntellectCRM.Client/src/types/index.ts) dagi tiplarga mos keluvchi
 // EF Core entity'lari. ID'lar string (frontend uid() — UUID ishlatadi),
@@ -1600,8 +1600,9 @@ public class CenterMeta
     /// <summary>Kosinus o'xshashligi chegarasi (0..1). Bundan past — "Yuz mos kelmadi".</summary>
     public double LoginFaceThreshold { get; set; } = 0.60;
     /// <summary>Vektorlarni yaratadigan model nomi/versiyasi. Ilova AYNAN shu qiymatni yuborishi
-    /// shart — aks holda "Ilovani yangilang" (turli modellarning vektorlarini solishtirib bo'lmaydi).</summary>
-    public string LoginFaceModelVersion { get; set; } = "buffalo_s@512";
+    /// shart — aks holda "Ilovani yangilang" (turli modellarning vektorlarini solishtirib bo'lmaydi).
+    /// SFace (OpenCV Zoo): face_recognition_sface_2021dec_int8.onnx — 128-o'lchamli vektor.</summary>
+    public string LoginFaceModelVersion { get; set; } = "sface-2021dec-int8-v1";
     /// <summary>Bitta o'quvchi uchun saqlanadigan oxirgi selfilar soni. Bundan eskilari (yozuvi ham,
     /// FAYLI ham) o'chiriladi — biometrik ma'lumot cheksiz to'planmasin.</summary>
     public int LoginFaceKeepChecks { get; set; } = 5;
