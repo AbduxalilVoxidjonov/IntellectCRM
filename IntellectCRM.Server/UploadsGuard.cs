@@ -84,6 +84,16 @@ public sealed class UploadsGuard(
             handler.ValidateToken(token, Parameters(), out var validated);
             var expires = validated.ValidTo;
             if (expires <= DateTime.UtcNow) return false;
+
+            // YUZ TASDIG'I KUTILAYOTGAN sessiya (scope=face) — `/uploads` ga KIRITILMAYDI.
+            // Bu darvoza pipeline'da `UseAuthentication` dan OLDIN turadi, ya'ni `FaceScopeGate`
+            // middleware'i bu so'rovni umuman ko'rmaydi. Busiz cheklangan token bilan
+            // sarlavha orqali istalgan yuklangan faylni (passport skani, shartnoma) olib
+            // bo'lardi — cheklangan token esa faqat SELFI yuborish uchun berilgan.
+            if (validated is JwtSecurityToken jwtToken
+                && jwtToken.Claims.Any(c => c.Type == JwtTokenService.FaceScopeClaimType
+                                            && c.Value == JwtTokenService.FaceScopeClaimValue))
+                return false;
             // Kesh cheksiz o'smasin — vaqti-vaqti bilan eskirganlarini tozalaymiz.
             if (_tokenCache.Count > 500)
                 foreach (var (k, v) in _tokenCache)

@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using IntellectCRM.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace IntellectCRM.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260810142549_AddFaceLogin")]
+    partial class AddFaceLogin
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1146,12 +1149,6 @@ namespace IntellectCRM.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<bool>("LoginFaceRequireAttestation")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("LoginFaceRequireLiveness")
-                        .HasColumnType("boolean");
-
                     b.Property<double>("LoginFaceThreshold")
                         .HasColumnType("double precision");
 
@@ -2263,53 +2260,6 @@ namespace IntellectCRM.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("ExternalTestScores");
-                });
-
-            modelBuilder.Entity("IntellectCRM.Domain.FaceChallenge", b =>
-                {
-                    b.Property<string>("Id")
-                        .HasColumnType("text");
-
-                    b.Property<string>("ActionsJson")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("CreatedAt")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
-
-                    b.Property<string>("ExpiresAt")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
-
-                    b.Property<string>("Nonce")
-                        .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("character varying(128)");
-
-                    b.Property<string>("StudentId")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<string>("UsedAt")
-                        .HasColumnType("text");
-
-                    b.Property<string>("UserId")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Nonce")
-                        .IsUnique();
-
-                    b.HasIndex("UserId", "CreatedAt");
-
-                    b.ToTable("FaceChallenges");
                 });
 
             modelBuilder.Entity("IntellectCRM.Domain.Feedback", b =>
@@ -3555,14 +3505,6 @@ namespace IntellectCRM.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<string>("AppVersion")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("AttestReason")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Attested")
                         .IsRequired()
                         .HasColumnType("text");
 

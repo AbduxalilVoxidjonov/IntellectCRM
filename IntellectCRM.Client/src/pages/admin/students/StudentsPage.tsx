@@ -50,6 +50,14 @@ type PhotoFilter = 'all' | 'with' | 'without'
 type Tab = 'active' | 'archived'
 type SortOption = 'default' | 'ball-desc' | 'ball-asc'
 
+/**
+ * Qarz oralig'i maydonlarida strelka (▲▼) bosilganda summa shu qadam bilan o'zgaradi.
+ * Qo'lda ISTALGAN summa yozilaveradi — qadam faqat strelka/klaviatura uchun (`step`
+ * validatsiya emas: maydon `<form>` ichida emas, ya'ni "50 000 ga karrali bo'lsin"
+ * degan cheklov qo'ymaydi).
+ */
+const DEBT_STEP = 50_000
+
 /** Filtr select'lari uchun yagona ko'rinish (toolbar ichida). */
 const control =
   'rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 outline-none transition-colors focus:border-brand-400 focus:ring-2 focus:ring-brand-100'
@@ -116,6 +124,13 @@ export function StudentsPage() {
   const [teacherFilter, setTeacherFilter] = usePersistentState('students.teacherFilter', 'all')
   const [genderFilter, setGenderFilter] = usePersistentState<'all' | Gender>('students.genderFilter', 'all')
   const [balanceFilter, setBalanceFilter] = usePersistentState<BalanceFilter>('students.balanceFilter', 'all')
+  /**
+   * QARZ SUMMASI oralig'i ("shu summadan baland / shu summadan past qarzdorlar").
+   * MATN sifatida saqlanadi: bo'sh satr = chegara qo'yilmagan, bu `0` dan FARQ qiladi
+   * (0 kiritilsa "qarzi 0 dan katta", ya'ni barcha qarzdorlar degani).
+   */
+  const [debtMin, setDebtMin] = usePersistentState('students.debtMin', '')
+  const [debtMax, setDebtMax] = usePersistentState('students.debtMax', '')
   const [activeFilter, setActiveFilter] = usePersistentState<'all' | 'active' | 'inactive'>('students.activeFilter', 'all')
   const [districtFilter, setDistrictFilter] = usePersistentState('students.districtFilter', 'all')
   const [schoolFilter, setSchoolFilter] = usePersistentState('students.schoolFilter', 'all')
@@ -230,6 +245,20 @@ export function StudentsPage() {
   // "Bugun tug'ilgan kun" filtri uchun — yilsiz "MM-DD" solishtirish.
   const todayMonthDay = new Date().toISOString().slice(5, 10)
 
+  // Qarz oralig'i chegarasi: bo'sh/xato qiymat = chegara YO'Q (`null`).
+  // Bo'sh joylar olib tashlanadi — "1 000 000" deb yopishtirilgan summa ham ishlasin.
+  const parseAmount = (v: string): number | null => {
+    const raw = v.replace(/\s/g, '')
+    if (raw === '') return null
+    const n = Number(raw)
+    return Number.isFinite(n) && n >= 0 ? n : null
+  }
+  const debtMinNum = parseAmount(debtMin)
+  const debtMaxNum = parseAmount(debtMax)
+  const debtRangeOn = debtMinNum !== null || debtMaxNum !== null
+  /** "dan" > "gacha" — hech kim topilmaydi; foydalanuvchiga ochiq aytiladi (jim bo'sh ro'yxat emas). */
+  const debtRangeInvalid = debtMinNum !== null && debtMaxNum !== null && debtMinNum > debtMaxNum
+
   const filtered = source.filter((s) => {
     const q = search.trim().toLowerCase()
     const matchSearch =
@@ -262,6 +291,19 @@ export function StudentsPage() {
     const matchBalance =
       balanceFilter === 'all' ||
       (balanceFilter === 'debt' ? s.balance < 0 : s.balance >= 0)
+    /*
+     * QARZ SUMMASI oralig'i — "500 000 dan baland qarzi borlar" kabi savol uchun.
+     * Solishtirish MUSBAT qarz miqdorida ketadi (`balance` manfiy bo'lgani uchun uni to'g'ridan
+     * solishtirsak "baland/past" TESKARI ishlardi).
+     * ⚠️ Chegara qo'yilgan bo'lsa QARZSIZLAR chiqmaydi (qarzi 0 bo'lgan o'quvchi "1 mln gacha"
+     * shartiga formal mos kelardi va ro'yxat qarzdorlar o'rniga hammani ko'rsatardi).
+     */
+    const debt = s.balance < 0 ? -s.balance : 0
+    const matchDebtRange =
+      !debtRangeOn ||
+      (debt > 0 &&
+        (debtMinNum === null || debt >= debtMinNum) &&
+        (debtMaxNum === null || debt <= debtMaxNum))
     // Aktivlik FILTRI o'quvchi darajasida faqat guruh/o'qituvchi tanlanmaganda qo'llanadi —
     // aks holda yuqoridagi a'zolik darajasidagi tekshiruv bilan ikki marta filtrlanib,
     // "X ning muzlatilgan o'quvchilari" ro'yxati bo'sh chiqib qolardi.
@@ -276,7 +318,7 @@ export function StudentsPage() {
     const hasPhoto = !!(s.birthCertificateUrl && s.birthCertificateUrl.trim())
     const matchPhoto =
       photoFilter === 'all' || (photoFilter === 'with' ? hasPhoto : !hasPhoto)
-    return matchSearch && matchClass && matchTeacher && matchGender && matchBalance && matchActive && matchDistrict && matchSchool && matchBirthday && matchPhoto
+    return matchSearch && matchClass && matchTeacher && matchGender && matchBalance && matchDebtRange && matchActive && matchDistrict && matchSchool && matchBirthday && matchPhoto
   })
     .sort((a, b) => {
       if (sort === 'ball-desc' || sort === 'ball-asc') {
@@ -288,6 +330,9 @@ export function StudentsPage() {
       // "Yangi kiritilgani tepada": tizimga kiritilgan vaqt (bo'lmasa qabul sanasi) bo'yicha kamayish.
       return (b.createdAt || b.enrollmentDate || '').localeCompare(a.createdAt || a.enrollmentDate || '')
     })
+
+  /** Filtrlangan ro'yxatdagi JAMI qarz (musbat son) — toolbar o'ng tomonida ko'rsatiladi. */
+  const filteredDebtTotal = filtered.reduce((sum, s) => sum + (s.balance < 0 ? -s.balance : 0), 0)
 
   // Pagination — standart 30 talik, pastda sahifa hajmini tanlash mumkin.
   const [page, setPage] = useState(1)
@@ -301,7 +346,7 @@ export function StudentsPage() {
   // qidirib bir o'quvchini belgilab, keyin boshqasini qidirib belgilay olishi uchun.
   useEffect(() => {
     setPage(1)
-  }, [search, classFilter, teacherFilter, genderFilter, balanceFilter, activeFilter, districtFilter, schoolFilter, photoFilter, birthdayToday, sort, tab, pageSize])
+  }, [search, classFilter, teacherFilter, genderFilter, balanceFilter, debtMin, debtMax, activeFilter, districtFilter, schoolFilter, photoFilter, birthdayToday, sort, tab, pageSize])
   // Faqat tab (faol/arxiv/hammasi) almashganda tanlovni tozalaymiz — bu boshqa ro'yxat.
   useEffect(() => {
     setSelected(new Set())
@@ -349,6 +394,7 @@ export function StudentsPage() {
     teacherFilter !== 'all' ||
     genderFilter !== 'all' ||
     balanceFilter !== 'all' ||
+    debtRangeOn ||
     activeFilter !== 'all' ||
     districtFilter !== 'all' ||
     schoolFilter !== 'all' ||
@@ -361,6 +407,8 @@ export function StudentsPage() {
     setTeacherFilter('all')
     setGenderFilter('all')
     setBalanceFilter('all')
+    setDebtMin('')
+    setDebtMax('')
     setActiveFilter('all')
     setDistrictFilter('all')
     setSchoolFilter('all')
@@ -731,13 +779,89 @@ export function StudentsPage() {
           </select>
           <select
             value={balanceFilter}
-            onChange={(e) => setBalanceFilter(e.target.value as BalanceFilter)}
+            onChange={(e) => {
+              const v = e.target.value as BalanceFilter
+              setBalanceFilter(v)
+              // "Qarzsizlar" + qarz oralig'i = mantiqan bo'sh kesishma; oraliq tozalanadi
+              // (Muddat/Holat filtrlari bir-birini tozalagani bilan bir xil qoida).
+              if (v === 'paid') {
+                setDebtMin('')
+                setDebtMax('')
+              }
+            }}
             className={control}
           >
             <option value="all">Barcha balans</option>
             <option value="debt">Qarzdorlar</option>
             <option value="paid">Qarzsizlar</option>
           </select>
+          {/* QARZ SUMMASI oralig'i — "shu summadan baland / past qarzdorlarni ajratish".
+              Ikkalasi ham ixtiyoriy: faqat "dan" — undan kattalar, faqat "gacha" — kichiklar. */}
+          <div
+            className={cn(
+              'flex items-center gap-1.5 rounded-lg border bg-white px-2.5 py-1.5 text-sm transition-colors',
+              debtRangeInvalid
+                ? 'border-red-300 bg-red-50'
+                : debtRangeOn
+                  ? 'border-brand-400'
+                  : 'border-slate-200',
+            )}
+            title="Qarz summasi bo'yicha: 'dan' — shu summadan baland qarzi borlar, 'gacha' — shu summadan past. Chegara qo'yilsa faqat QARZDORLAR ko'rsatiladi. Strelka (▲▼) bilan 50 000 dan oshadi/kamayadi."
+          >
+            <Wallet className="h-4 w-4 shrink-0 text-slate-400" />
+            <span className="shrink-0 text-xs font-medium text-slate-500">Qarz:</span>
+            <input
+              type="number"
+              min={0}
+              step={DEBT_STEP}
+              inputMode="numeric"
+              value={debtMin}
+              onChange={(e) => {
+                setDebtMin(e.target.value)
+                // Oraliq faqat qarzdorlarga tegishli — "Qarzsizlar" tanlangan bo'lsa ro'yxat
+                // jimgina bo'sh qolardi.
+                if (e.target.value.trim() !== '' && balanceFilter === 'paid') {
+                  setBalanceFilter('debt')
+                }
+              }}
+              placeholder="dan"
+              className="w-24 rounded-md border-0 bg-transparent px-1 py-0.5 font-mono text-sm text-slate-700 outline-none placeholder:font-sans placeholder:text-slate-400"
+            />
+            <span className="text-slate-300">—</span>
+            <input
+              type="number"
+              min={0}
+              step={DEBT_STEP}
+              inputMode="numeric"
+              value={debtMax}
+              onChange={(e) => {
+                setDebtMax(e.target.value)
+                if (e.target.value.trim() !== '' && balanceFilter === 'paid') {
+                  setBalanceFilter('debt')
+                }
+              }}
+              placeholder="gacha"
+              className="w-24 rounded-md border-0 bg-transparent px-1 py-0.5 font-mono text-sm text-slate-700 outline-none placeholder:font-sans placeholder:text-slate-400"
+            />
+            {debtRangeOn && (
+              <button
+                type="button"
+                onClick={() => {
+                  setDebtMin('')
+                  setDebtMax('')
+                }}
+                className="shrink-0 text-slate-400 transition-colors hover:text-slate-600"
+                title="Qarz oralig'ini tozalash"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+          {debtRangeInvalid && (
+            <span className="self-center text-xs font-medium text-red-600">
+              «dan» «gacha»dan katta
+            </span>
+          )}
           <select
             value={activeFilter}
             onChange={(e) => setActiveFilter(e.target.value as 'all' | 'active' | 'inactive')}
@@ -823,6 +947,17 @@ export function StudentsPage() {
           )}
         </div>
         <div className="right">
+          {/* Qarz bo'yicha filtrlanganda "nechta odam" yetarli emas — "jami qancha pul" kerak
+              (masalan 1 mln dan baland qarzdorlarni ajratib, umumiy summani ko'rish uchun).
+              Summa EKRANDAGI (filtrlangan) butun ro'yxat bo'yicha, sahifa bo'yicha emas. */}
+          {(debtRangeOn || balanceFilter === 'debt') && filteredDebtTotal > 0 && (
+            <span className="mr-3 text-sm text-slate-500">
+              Jami qarz:{' '}
+              <span className="font-mono font-semibold text-red-600">
+                {formatMoney(filteredDebtTotal)}
+              </span>
+            </span>
+          )}
           <span className="text-sm text-slate-400">{filtered.length} ta</span>
         </div>
       </div>

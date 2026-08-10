@@ -46,7 +46,36 @@ public class JwtTokenService(JwtOptions options)
         return Write(claims);
     }
 
-    private string Write(IEnumerable<Claim> claims)
+    /// <summary>
+    /// CHEKLANGAN token — login yuz tasdig'ini talab qilganda beriladi. Odatdagi token bilan
+    /// bir xil, lekin ichida <c>scope=face</c> claim'i bor: shunday token BILAN faqat yuz
+    /// tasdiqlash oqimiga kirish mumkin (qoida — <c>FaceScopeGate</c>, darvoza — Program.cs),
+    /// qolgan har qanday API so'rovi 401 oladi.
+    ///
+    /// <para>Muddat ATAYIN qisqa (<c>minutes</c>, standart 15 daqiqa): bu token selfi olish uchun
+    /// yetadi, lekin o'g'irlansa uzoq yashamasin. Odatdagi token 12 soat.</para>
+    /// </summary>
+    public string CreateFaceScopedToken(AppUser user, int minutes)
+    {
+        var claims = new List<Claim>
+        {
+            new(JwtRegisteredClaimNames.Sub, user.Id),
+            new(ClaimTypes.NameIdentifier, user.Id),
+            new(ClaimTypes.Name, user.FullName),
+            new(ClaimTypes.Email, user.Email),
+            new(ClaimTypes.Role, user.Role),
+            new(FaceScopeClaimType, FaceScopeClaimValue),
+        };
+        return Write(claims, TimeSpan.FromMinutes(Math.Clamp(minutes, 1, 120)));
+    }
+
+    /// <summary>Cheklangan token claim'i — qiymatlar <c>FaceScopeGate</c> bilan bir xil bo'lishi
+    /// shart. (Infrastructure Application'ga referens qilmagani uchun bu yerda takrorlangan;
+    /// mos kelishini <c>FaceLoginTests</c> tekshiradi.)</summary>
+    public const string FaceScopeClaimType = "scope";
+    public const string FaceScopeClaimValue = "face";
+
+    private string Write(IEnumerable<Claim> claims, TimeSpan? lifetime = null)
     {
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_o.Key));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
@@ -55,7 +84,7 @@ public class JwtTokenService(JwtOptions options)
             issuer: _o.Issuer,
             audience: _o.Audience,
             claims: claims,
-            expires: DateTime.UtcNow.AddHours(_o.ExpiresHours),
+            expires: DateTime.UtcNow.Add(lifetime ?? TimeSpan.FromHours(_o.ExpiresHours)),
             signingCredentials: creds);
 
         return new JwtSecurityTokenHandler().WriteToken(token);

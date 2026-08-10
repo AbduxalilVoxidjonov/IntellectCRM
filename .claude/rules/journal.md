@@ -63,8 +63,12 @@ paths:
   qo'llanadi — undan oldingilari BO'SH qoladi (o'qituvchi qo'lda belgilaydi), chunki o'sha
   paytda bu o'quvchi guruhda yo'q edi va `BulkAttendanceAsync` uni chetlab o'tgan.
   Qo'llanadigan joylar: `JournalService.GroupMonthAsync` → `PresentDefaultFrom` (admin va
-  o'qituvchi guruh jurnali) VA `StudentAttendanceController.Journal` (o'quvchi profilidagi
-  jurnal modali). **Yangi jurnal ko'rinishi qo'shilsa — shu cheklovni ham qo'shish SHART.**
+  o'qituvchi guruh jurnali) VA **`StudentJournalBuilder`** — o'quvchining O'Z QATORI uchun
+  yagona yadro: `GroupMonthAsync` (admin profilidagi jurnal modali,
+  `GET /api/admin/student-attendance/journal`) va `PeriodAsync` (o'quvchi ilovasining
+  «Umumiy statistika» ekrani, `GET /api/student/journal?from=&to=&groupId=`) shundan quriladi.
+  **Yangi jurnal ko'rinishi qo'shilsa — shu cheklovni ham qo'shish SHART** (eng yaxshisi —
+  `StudentJournalBuilder`ni chaqirish, mantiqni nusxalamaslik).
   O'quvchi profilidagi modalda bunday NOMA'LUM (yozuvsiz, RecordedAt'dan oldingi) darslar
   jamlanma sanog'iga ham kirmaydi — aks holda davomat foizi asossiz tushardi.
   `RecordedAt` a'zolik yaratilgan/aktivlashtirilgan HAR bir joyda to'ldirilishi shart

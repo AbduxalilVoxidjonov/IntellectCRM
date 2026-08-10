@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using IntellectCRM.Infrastructure.Data;
@@ -94,150 +94,17 @@ public class StudentAttendanceController(AppDbContext db) : ControllerBase
     /// <summary>
     /// O'quvchining guruh jurnalidagi o'z qatori (oy bo'yicha, faqat o'qish uchun).
     /// Guruh berilmasa — birinchi faol guruhi; oy berilmasa — oxirgi (joriy) oy.
+    ///
+    /// <para><b>Mantiq bu yerda EMAS</b> — <see cref="StudentJournalBuilder.GroupMonthAsync"/> da.
+    /// Sabab: AYNAN shu hisob (blocked / RecordedAt / "noma'lum dars" qoidalari) o'quvchi ilovasining
+    /// «Umumiy statistika» ekraniga ham kerak (<c>GET /api/student/journal</c>). Nusxalansa ikki ekran
+    /// bir xil o'quvchi uchun turli davomat foizini ko'rsatib qolardi.</para>
     /// </summary>
     [HttpGet("journal")]
     public async Task<ActionResult<StudentJournalDto>> Journal(
         [FromQuery] string studentId, [FromQuery] string? groupId, [FromQuery] string? month)
     {
-        var student = await db.Students.AsNoTracking().FirstOrDefaultAsync(s => s.Id == studentId);
-        if (student is null) return NotFound();
-
-        // O'quvchining a'zoliklari (faol bo'lganlari tanlovda birinchi).
-        var memberships = await db.StudentGroups.AsNoTracking()
-            .Where(sg => sg.StudentId == studentId).ToListAsync();
-        var mGroupIds = memberships.Select(m => m.GroupId).Distinct().ToList();
-        var groups = await db.Classes.AsNoTracking().Where(c => mGroupIds.Contains(c.Id)).ToListAsync();
-        if (groups.Count == 0)
-            return new StudentJournalDto(student.Id, student.FullName, new(), "", new(), "", new(), 0, 0, 0, 0, 0);
-
-        var courseNames = (await db.Subjects.AsNoTracking().ToListAsync()).ToDictionary(s => s.Id, s => s.Name);
-        var teacherNames = (await db.Teachers.AsNoTracking().ToListAsync()).ToDictionary(t => t.Id, t => t.FullName);
-
-        var options = groups
-            .OrderByDescending(g => memberships.Any(m => m.GroupId == g.Id && m.IsActive))
-            .ThenBy(g => g.Name, StringComparer.OrdinalIgnoreCase)
-            .Select(g => new StudentJournalGroupDto(
-                g.Id, g.Name,
-                string.IsNullOrEmpty(g.CourseId) ? "" : courseNames.GetValueOrDefault(g.CourseId, ""),
-                string.IsNullOrEmpty(g.TeacherId) ? "" : teacherNames.GetValueOrDefault(g.TeacherId, "")))
-            .ToList();
-
-        var gid = !string.IsNullOrWhiteSpace(groupId) && groups.Any(g => g.Id == groupId)
-            ? groupId! : options[0].GroupId;
-        var group = groups.First(g => g.Id == gid);
-        var membership = memberships.FirstOrDefault(m => m.GroupId == gid);
-        var subjectId = group.CourseId ?? "";
-
-        // Mavjud oylar: guruh boshlanish sanasi (yoki a'zolik) oyidan joriy oygacha.
-        var cur = TuitionService.CurrentMonth();
-        var starts = new List<string>();
-        if (group.StartDate is { Length: >= 7 }) starts.Add(group.StartDate[..7]);
-        if (membership?.JoinedAt is { Length: >= 7 }) starts.Add(membership.JoinedAt[..7]);
-        var from = starts.Count > 0 ? starts.Min()! : cur;
-        if (string.CompareOrdinal(from, cur) > 0) from = cur;
-        var months = TuitionService.MonthRange(from, cur).ToList();
-        if (months.Count == 0) months.Add(cur);
-        var resolved = !string.IsNullOrEmpty(month) && months.Contains(month) ? month! : months[^1];
-
-        // A'zolik boshlangan sana — undan oldingi darslar o'quvchiga tegishli emas (blocked).
-        var memberStart = membership?.ActivatedAt is { Length: >= 10 } ? membership.ActivatedAt[..10]
-            : membership?.JoinedAt is { Length: >= 10 } ? membership.JoinedAt[..10] : null;
-        // A'zolik tugagan/muzlatilgan sana — undan KEYINGI darslar ham tegishli emas (blocked).
-        // Muzlatilgan bo'lsa FrozenAt sanasi o'zi hali hisoblanadi (shu kungacha qatnashgan), undan keyingisi emas.
-        var memberEnd = membership?.Status == "frozen" && membership.FrozenAt is { Length: >= 10 } ? membership.FrozenAt[..10]
-            : !string.Equals(membership?.Status, "frozen", StringComparison.Ordinal) && membership?.LeftAt is { Length: >= 10 } ? membership.LeftAt[..10]
-            : null;
-        // A'zolik HAQIQATDA tizimga kiritilgan sana (RecordedAt — ORQAGA SANALMAYDI).
-        // JoinedAt/ActivatedAt orqaga sanalgan bo'lishi mumkin: o'quvchi bugun qo'shilib, o'tgan
-        // oydan aktivlashtirilsa — o'sha eski darslarda o'qituvchi "hammasi keldi" bosgan paytda bu
-        // o'quvchi hali GURUHDA YO'Q edi (JournalService.BulkAttendanceAsync uni chetlab o'tgan),
-        // shu sabab unda yozuv yo'q. Standart "davomat olindi + yozuv yo'q = keldi" qoidasi
-        // FAQAT shu sanadan keyin qo'llanadi, aks holda bo'sh qolishi kerak kataklar avto-✓ bo'lardi.
-        // Guruh jurnali (JournalService → PresentDefaultFrom) bilan AYNAN bir xil qoida.
-        // Bo'sh = cheklovsiz (eski a'zoliklar).
-        var presentDefaultFrom = membership?.RecordedAt is { Length: >= 10 }
-            ? membership.RecordedAt[..10]
-            : null;
-
-        var entries = string.IsNullOrEmpty(subjectId)
-            ? new List<JournalEntry>()
-            : await db.JournalEntries.AsNoTracking()
-                .Where(e => e.ClassId == gid && e.SubjectId == subjectId
-                            && e.StudentId == studentId && e.Date.StartsWith(resolved))
-                .ToListAsync();
-        var entryByDate = entries.GroupBy(e => e.Date).ToDictionary(g => g.Key, g => g.First());
-
-        // "Conducted" — dars o'tildi (ustun bor). "AttendanceTaken" — RASSMIY davomat olindi (guruh
-        // sahifasida "hammasi keldi"/"hammasi kelmadi" tugmasi bosilgan) — faqat shunda, alohida
-        // ma'lumoti (baho/sabab) yo'q o'quvchi standart "keldi" deb hisoblanadi. Bitta boshqa o'quvchiga
-        // baho qo'yilishi bilan dars "o'tildi" bo'lib qolsa ham, DAVOMAT olinmagan bo'lsa bu o'quvchi
-        // "keldi" deb ko'rsatilmaydi (belgilanmagan holatda qoladi).
-        var conducted = new HashSet<string>();
-        var attendanceTaken = new HashSet<string>();
-        if (!string.IsNullOrEmpty(subjectId))
-        {
-            var notes = await db.LessonNotes.AsNoTracking()
-                .Where(n => n.ClassId == gid && n.SubjectId == subjectId && n.Conducted && n.Date.StartsWith(resolved))
-                .Select(n => new { n.Date, n.AttendanceTaken })
-                .ToListAsync();
-            foreach (var n in notes)
-            {
-                conducted.Add(n.Date);
-                if (n.AttendanceTaken) attendanceTaken.Add(n.Date);
-            }
-        }
-
-        var reasons = await db.AbsenceReasons.AsNoTracking().ToDictionaryAsync(r => r.Id);
-
-        var moves = (await db.LessonReschedules.Where(r => r.ClassId == gid).ToListAsync())
-            .Select(m => new JournalService.LessonMove(m.FromDate, m.ToDate)).ToList();
-        var cells = new List<StudentJournalCellDto>();
-        // A'zolik tizimga kiritilishidan OLDINGI (orqaga sanalgan) va bu o'quvchida yozuvi
-        // BO'LMAGAN darslar — holati NOMA'LUM: o'qituvchi ularni qo'lda belgilamaguncha ular
-        // na "keldi", na "kelmadi". Shuning uchun jamlanmada (jami/keldi/qoldirdi) ham
-        // sanalmaydi — aks holda orqaga sanab qo'shilgan o'quvchining davomat foizi asossiz
-        // tushib ketardi. O'qituvchi belgilagach (yozuv paydo bo'ladi) darhol hisobga kiradi.
-        var unknown = new HashSet<string>();
-        foreach (var date in JournalService.EffectiveLessonDatesInMonth(group.Days, resolved, moves))
-        {
-            var blocked = (group.StartDate is { Length: >= 10 } && string.CompareOrdinal(date, group.StartDate[..10]) < 0)
-                || (memberStart is not null && string.CompareOrdinal(date, memberStart) < 0)
-                || (memberEnd is not null && string.CompareOrdinal(date, memberEnd) > 0);
-            entryByDate.TryGetValue(date, out var e);
-            AbsenceReason? reason = e?.ReasonId is not null ? reasons.GetValueOrDefault(e.ReasonId) : null;
-            var isConducted = conducted.Contains(date);
-            var isAttendanceTaken = attendanceTaken.Contains(date);
-            // ANIQ Present belgisi (katakdagi "Keldi" tugmasi / "hammasi keldi") davomat olinmagan
-            // kunda ham "keldi" hisoblanadi. STANDART "keldi" (davomat olingan, lekin bu o'quvchida
-            // yozuv yo'q) esa faqat a'zolik tizimga kiritilgan sanadan (presentDefaultFrom) keyin.
-            var defaultPresent = isAttendanceTaken
-                && (presentDefaultFrom is null || string.CompareOrdinal(date, presentDefaultFrom) >= 0);
-            var present = !blocked && e?.Grade is null && reason is null
-                && (e?.Present == true || defaultPresent);
-            if (!blocked && isConducted && e is null
-                && presentDefaultFrom is not null
-                && string.CompareOrdinal(date, presentDefaultFrom) < 0)
-            {
-                unknown.Add(date);
-            }
-
-            cells.Add(new StudentJournalCellDto(
-                date, isConducted, blocked, present,
-                e?.Grade, reason?.Name, reason?.Short, reason?.IsLate ?? false,
-                e?.Homework ?? 0, e?.Behavior ?? 0, e?.Mastery));
-        }
-
-        var live = cells.Where(c => !c.Blocked && c.Conducted && !unknown.Contains(c.Date)).ToList();
-        var absent = live.Count(c => c.ReasonName is not null && !c.IsLate);
-        var late = live.Count(c => c.ReasonName is not null && c.IsLate);
-        // "Keldi" — faqat rassmiy tasdiqlangan (present) yoki baho olingan kunlar; davomat olinmagan
-        // (belgilanmagan) kunlar "keldi" hisoblanmaydi.
-        var attended = live.Count(c => c.Present || c.Grade.HasValue);
-        var grades = cells.Where(c => c.Grade.HasValue).Select(c => (double)c.Grade!.Value).ToList();
-
-        return new StudentJournalDto(
-            student.Id, student.FullName, options, gid, months, resolved, cells,
-            live.Count, attended, absent, late,
-            grades.Count > 0 ? Math.Round(grades.Average(), 1) : 0);
+        var dto = await StudentJournalBuilder.GroupMonthAsync(db, studentId, groupId, month);
+        return dto is null ? NotFound() : dto;
     }
 }

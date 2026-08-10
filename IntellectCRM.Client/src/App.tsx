@@ -74,6 +74,7 @@ import { KassaMobileLayout } from '@/components/layout/KassaMobileLayout'
 import { SettingsPage } from '@/pages/admin/settings/SettingsPage'
 import { AuditLogPage } from '@/pages/admin/settings/AuditLogPage'
 import { ContactQueuePage } from '@/pages/admin/students/contacts/ContactQueuePage'
+import { FaceLoginPage } from '@/pages/admin/students/face/FaceLoginPage'
 import { CourseAnalyticsPage } from '@/pages/admin/subjects/CourseAnalyticsPage'
 import { AccountPage } from '@/pages/admin/account/AccountPage'
 // Marketing — ijtimoiy tarmoq avtojavob (Javobot UI; hozircha faqat UI, mock)
@@ -184,6 +185,9 @@ export default function App() {
           <Route path="students/boglanish" element={<RequirePerm perm="contacts"><ContactQueuePage /></RequirePerm>} />
           <Route path="students/davomat" element={<RequirePerm perm="students"><StudentAbsencePage /></RequirePerm>} />
           <Route path="students/bonus" element={<RequirePerm perm="students"><RetentionBonusPage /></RequirePerm>} />
+          {/* Yuz bilan kirish — `students/:id` dan OLDIN turishi shart emas (statik yo'l dinamikdan
+              ustun), lekin qolgan o'quvchi sahifalari bilan bir joyda tursin. */}
+          <Route path="students/yuz" element={<RequirePerm perm="students"><FaceLoginPage /></RequirePerm>} />
           <Route path="students/:id" element={<RequirePerm perm="students"><StudentDetailPage /></RequirePerm>} />
           <Route path="teachers" element={<RequirePerm perm="teachers"><TeachersPage /></RequirePerm>} />
           <Route path="teachers/:id" element={<RequirePerm perm="teachers"><TeacherDetailPage /></RequirePerm>} />

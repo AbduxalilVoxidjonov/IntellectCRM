@@ -1588,6 +1588,35 @@ public class CenterMeta
     public string BookCardHolder { get; set; } = string.Empty;
     /// <summary>Rekvizitlar ostida ko'rsatiladigan qo'shimcha izoh (masalan bank nomi/eslatma).</summary>
     public string BookPaymentNote { get; set; } = string.Empty;
+
+    // ---------- YUZ BILAN KIRISH (o'quvchi mobil ilovasi) ----------
+    // Bular MAXFIY EMAS (kalit/parol emas) — shuning uchun `.env` emas, CenterMeta to'g'ri joy
+    // (BookSalesEnabled bilan bir xil siyosat, CLAUDE.md "KALITLAR — FAQAT .env" qoidasiga mos).
+    /// <summary>Yangi qurilmada kirishda selfi so'ralsinmi. <b>Default FALSE</b>: mavjud
+    /// o'quvchilarning kirishi deploy bilan birdan buzilmasin (BookSalesEnabled'dagi saboq —
+    /// u yerda entity default'i `true` edi, migratsiya esa `false` qo'ygan va farq chalkashlik
+    /// tug'dirgan; bu yerda IKKALASI ham `false`).</summary>
+    public bool LoginFaceEnabled { get; set; }
+    /// <summary>Kosinus o'xshashligi chegarasi (0..1). Bundan past — "Yuz mos kelmadi".</summary>
+    public double LoginFaceThreshold { get; set; } = 0.60;
+    /// <summary>Vektorlarni yaratadigan model nomi/versiyasi. Ilova AYNAN shu qiymatni yuborishi
+    /// shart — aks holda "Ilovani yangilang" (turli modellarning vektorlarini solishtirib bo'lmaydi).</summary>
+    public string LoginFaceModelVersion { get; set; } = "buffalo_s@512";
+    /// <summary>Bitta o'quvchi uchun saqlanadigan oxirgi selfilar soni. Bundan eskilari (yozuvi ham,
+    /// FAYLI ham) o'chiriladi — biometrik ma'lumot cheksiz to'planmasin.</summary>
+    public int LoginFaceKeepChecks { get; set; } = 5;
+    /// <summary>TIRIKLIK (liveness) tekshiruvi MAJBURIYmi — ilova avval
+    /// <c>POST /api/student/face/challenge</c> dan bir martalik nonce va TASODIFIY harakatlar
+    /// olishi, keyin ularning natijasini yuborishi shart. <b>Default TRUE</b>: modulning o'zi
+    /// yangi, ya'ni "eski klient" degan tushuncha yo'q (kitob sotuvidagi kabi orqaga moslik
+    /// muammosi bu yerda YO'Q). O'chirilsa — bosma surat/ekrandagi rasm bilan kirish ochiladi.</summary>
+    public bool LoginFaceRequireLiveness { get; set; } = true;
+    /// <summary>ILOVA HAQIQIYLIGI (Play Integrity) MAJBURIYmi. <b>Default FALSE</b>: kalit
+    /// (<c>PLAY_INTEGRITY_*</c>) sozlanmaguncha va ilovaning yangi versiyasi tarqalmaguncha hech
+    /// kim qulflanib qolmasin — natija baribir jurnalga yoziladi (<c>LoginFaceCheck.Attested</c>).
+    /// Yoqilsa: <c>failed</c>, <c>notConfigured</c> va <c>unavailable</c> — hammasi RAD etiladi
+    /// (fail-closed, <c>AppAttestation.Gate</c>).</summary>
+    public bool LoginFaceRequireAttestation { get; set; }
 }
 
 /// <summary>Avto-xabar qoidasi — hodisa (Trigger) yuz berganda tanlangan kanallar orqali
@@ -3304,4 +3333,184 @@ public static class ContactAttemptTypes
     public const string Contact = "contact";
     public const string Note = "note";
     public const string Reopen = "reopen";
+}
+
+/* =================================================================================================
+ *  YUZ BILAN KIRISH (face login) — o'quvchi MOBIL ILOVASIGA kirishda shaxsni tasdiqlash.
+ *
+ *  MUAMMO: o'quvchilar login/parolni bir-biriga berib yuboradi (do'sti uning nomidan kiradi).
+ *  YECHIM: YANGI QURILMADA birinchi kirishda selfi so'raladi va yuz solishtiriladi.
+ *
+ *  ⚠️ MODEL SERVERDA ISHLAMAYDI (server 1 GB RAM — `FACE-DETEKT-PLAN.md` §2, §6). Yuz modeli
+ *  TELEFONDA ishlaydi va serverga faqat VEKTOR (512 yoki 128 ta float32) yuboriladi; server esa
+ *  kosinus bilan solishtiradi (oddiy matematika — ML kutubxonasi kerak emas).
+ *
+ *  ⚠️ MAXFIYLIK (`FACE-DETEKT-PLAN.md` §5): yuz vektori — BIOMETRIK ma'lumot, ustiga voyaga
+ *  yetmaganlarniki, va baza zaxirasi Telegram'ga yuboriladi. Shu sabab:
+ *    • selfi FAYLLARI cheklangan muddat saqlanadi — `CenterMeta.LoginFaceKeepChecks` dan
+ *      oshgan eski urinishlar (yozuvi ham, fayli ham) O'CHIRILADI (`FaceLoginService.CleanupAsync`);
+ *    • auditga selfi MANZILI hech qachon yozilmaydi (`.claude/rules/audit.md` qoidasi);
+ *    • VEKTORLAR BAZADA SHIFRLANGAN (AES-256-GCM, `FaceVault`). Kalit — FAQAT `.env`
+ *      (`FACE_VECTOR_KEY`), bazada saqlanmaydi. Ya'ni baza dump'i O'ZI yetmaydi. Kalit
+ *      sozlanmagan bo'lsa modul UMUMAN yoqilmaydi (shifrlanmagan saqlash varianti YO'Q);
+ *    • SELFI FAYLLARI `uploads/face/` ostida — bu papka zaxira arxividan CHIQARILGAN
+ *      (docker-compose `backup` xizmatida `--exclude`) va statik yo'l bilan ham berilmaydi
+ *      (`PrivateFolderFileProvider`), faqat admin endpointi orqali.
+ *
+ *  ⚠️ TIRIKLIK (liveness): server har urinishdan oldin bir martalik `FaceChallenge` (nonce +
+ *  tasodifiy harakatlar) beradi. Bu bosma surat/ekrandagi rasmni yopadi, lekin oldindan
+ *  yozilgan VIDEO yoki o'zgartirilgan APK'ga qarshi KAFOLAT EMAS (`FaceLiveness` izohi).
+ * ============================================================================================== */
+
+/// <summary>
+/// O'quvchining ETALON yuz vektori — kirishda kelgan selfi shu bilan solishtiriladi.
+/// Har o'quvchida BITTA (StudentId unikal).
+/// </summary>
+public class StudentFaceProfile
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary><see cref="Student"/>.Id — UNIKAL (bir o'quvchi — bitta etalon).</summary>
+    public string StudentId { get; set; } = string.Empty;
+
+    /// <summary>Yuz vektori — <b>SHIFRLANGAN</b> blob (<c>FaceVault.Protect</c>: AES-256-GCM,
+    /// kalit faqat `.env` da). `float[]` sifatida saqlanmaydi: Npgsql'da `real[]`, SQLite'da JSON
+    /// bo'lib ketardi, `byte[]` esa ikkala provayderda ham bir xil `bytea`/`BLOB`.
+    /// ⚠️ Kalit almashsa blob OCHILMAYDI — bu holat "etalon yo'q" deb qaraladi (istisno emas).</summary>
+    public byte[] Vector { get; set; } = Array.Empty<byte>();
+
+    /// <summary>Vektor o'lchami (odatda 512 yoki 128) — `Vector.Length / 4` ga teng bo'lishi shart.</summary>
+    public int Dim { get; set; }
+
+    /// <summary>Vektorni YARATGAN model nomi/versiyasi. Vektor faqat O'ZINI yaratgan model bilan
+    /// taqqoslanadi — model almashsa etalon YAROQSIZ (`CenterMeta.LoginFaceModelVersion`).</summary>
+    public string ModelVersion { get; set; } = string.Empty;
+
+    /// <summary>Etalon qayerdan keldi: <c>photo</c> — o'quvchining profil rasmiga mos kelgan selfidan
+    /// (avtomatik), <c>admin</c> — admin qo'lda tasdiqlagan urinishdan.</summary>
+    public string Source { get; set; } = "photo";
+
+    /// <summary>Etalon olingan selfi manzili (`/uploads/...`) — admin ko'rishi uchun. Eski
+    /// urinishlar tozalanganda ham bu fayl O'CHIRILMAYDI (u etalonning "dalili").</summary>
+    public string SampleUrl { get; set; } = string.Empty;
+
+    public string CreatedAt { get; set; } = string.Empty;
+    public string UpdatedAt { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Kirishdagi HAR bir yuz tekshiruvi urinishi — admin "kim, qachon, qaysi qurilmadan urindi va
+/// nima uchun rad etildi" savoliga shundan javob oladi.
+/// </summary>
+public class LoginFaceCheck
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    public string StudentId { get; set; } = string.Empty;
+    /// <summary>Kirayotgan akkaunt (<see cref="AppUser"/>.Id) — qurilma ishonchi shu bo'yicha beriladi.</summary>
+    public string UserId { get; set; } = string.Empty;
+
+    /// <summary>Vaqt (ISO "yyyy-MM-ddTHH:mm:ss").</summary>
+    public string CreatedAt { get; set; } = string.Empty;
+
+    public string DeviceId { get; set; } = string.Empty;
+    public string DeviceName { get; set; } = string.Empty;
+    public string Platform { get; set; } = string.Empty;
+    public string AppVersion { get; set; } = string.Empty;
+    /// <summary>So'rov IP'si (Cloudflare ortida CF-Connecting-IP).</summary>
+    public string Ip { get; set; } = string.Empty;
+
+    /// <summary>Selfi manzili (`/uploads/...`). ⚠️ Bu manzil AUDITGA yozilmaydi.</summary>
+    public string ImageUrl { get; set; } = string.Empty;
+
+    /// <summary>Kosinus o'xshashligi (0..1). Solishtirishgacha yetmagan urinishda (sifat past,
+    /// etalon yo'q) — <c>null</c>.</summary>
+    public double? Score { get; set; }
+
+    public string ModelVersion { get; set; } = string.Empty;
+
+    /// <summary>approved | rejected | pending (<c>FaceLoginService</c> konstantalari).</summary>
+    public string Status { get; set; } = string.Empty;
+
+    /// <summary>O'zbekcha sabab — foydalanuvchiga ham, admin ro'yxatiga ham SHU matn ko'rsatiladi
+    /// (matnlar yagona joyda: <c>FaceMatch</c>).</summary>
+    public string Reason { get; set; } = string.Empty;
+
+    /// <summary>Klient hisoblagan sifat ko'rsatkichlari (JSON): sharpness/brightness/faceRatio/
+    /// yaw/roll/eyesOpen/faces.</summary>
+    public string Quality { get; set; } = string.Empty;
+
+    /// <summary>Shu urinishdagi selfi vektori — <b>SHIFRLANGAN</b> (<c>FaceVault.Protect</c>,
+    /// etalon bilan bir xil format). ⚠️ KERAK: <c>pending</c> urinishni admin tasdiqlaganda AYNAN
+    /// shu vektor etalon bo'ladi — busiz "tasdiqlash" amalga oshmaydi.
+    /// Eski urinishlar tozalanganda vektor ham yozuv bilan birga o'chadi.</summary>
+    public byte[]? Vector { get; set; }
+    public int Dim { get; set; }
+
+    /// <summary>ILOVA HAQIQIYLIGI xulosasi (<c>AppAttestation.Code</c>):
+    /// <c>ok</c> | <c>failed</c> | <c>unavailable</c> | <c>notConfigured</c>.
+    /// Sozlama o'chiq bo'lsa ham YOZILADI — admin "qancha urinish o'zgartirilgan ilovadan
+    /// keladi" ni ko'rib, majburiy qilishga qaror qila olsin.</summary>
+    public string Attested { get; set; } = string.Empty;
+
+    /// <summary>Attestation xulosasining qisqa sababi (masalan "paket nomi mos emas", "timeout").
+    /// ⚠️ Maxfiy qiymat (token) yozilmaydi.</summary>
+    public string AttestReason { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// BIR MARTALIK TIRIKLIK CHAQIRUVI (challenge) — server har selfi urinishidan OLDIN beradi:
+/// tasodifiy <c>nonce</c> + TASODIFIY harakatlar ketma-ketligi (<c>FaceLiveness</c>).
+///
+/// <para><b>Nega kerak?</b> Nonce'siz o'zgartirilgan ilova bir marta ushlangan (yoki yasalgan)
+/// so'rovni QAYTA-QAYTA yuboraverardi. Endi har urinish o'z nonce'i bilan bo'ladi va nonce
+/// BIR MARTA ishlatiladi (<see cref="UsedAt"/>).</para>
+///
+/// <para>⚠️ Nonce urinish MUVAFFAQIYATSIZ bo'lsa ham ISHLATILGAN deb belgilanadi — aks holda
+/// hujumchi bitta nonce bilan cheksiz urinardi.</para>
+/// </summary>
+public class FaceChallenge
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary>Chaqiruvni olgan akkaunt (<see cref="AppUser"/>.Id). Boshqa foydalanuvchining
+    /// nonce'i qabul QILINMAYDI.</summary>
+    public string UserId { get; set; } = string.Empty;
+    public string StudentId { get; set; } = string.Empty;
+
+    /// <summary>Tasodifiy satr (base64url, 32 bayt) — UNIKAL. Ilova uni Play Integrity tokeniga
+    /// ham qo'yadi (<c>AppAttestation.Judge</c> solishtiradi).</summary>
+    public string Nonce { get; set; } = string.Empty;
+
+    /// <summary>So'ralgan harakatlar JSON massivi, masalan <c>["blink","turn_left"]</c>.
+    /// TARTIB muhim — javob aynan shu tartibda kelishi shart.</summary>
+    public string ActionsJson { get; set; } = string.Empty;
+
+    public string CreatedAt { get; set; } = string.Empty;
+    /// <summary>Muddat (ISO) — <c>FaceLiveness.ChallengeTtlSeconds</c> (90 s).</summary>
+    public string ExpiresAt { get; set; } = string.Empty;
+    /// <summary>Ishlatilgan vaqt (ISO). Bo'sh/null = hali ishlatilmagan.</summary>
+    public string? UsedAt { get; set; }
+}
+
+/// <summary>
+/// ISHONCHLI QURILMA — bir marta yuz bilan tasdiqlangan telefon. Keyingi kirishlarda selfi
+/// so'ralmaydi. Telefon yo'qolsa admin bekor qiladi (<see cref="RevokedAt"/>) va o'sha qurilmada
+/// yana yuz so'raladi.
+/// </summary>
+public class TrustedDevice
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary><see cref="AppUser"/>.Id (o'quvchi akkaunti).</summary>
+    public string UserId { get; set; } = string.Empty;
+    /// <summary>Ilova generatsiya qiladigan barqaror qurilma identifikatori.</summary>
+    public string DeviceId { get; set; } = string.Empty;
+    public string DeviceName { get; set; } = string.Empty;
+    public string Platform { get; set; } = string.Empty;
+
+    public string CreatedAt { get; set; } = string.Empty;
+    public string LastSeenAt { get; set; } = string.Empty;
+    /// <summary>Bekor qilingan vaqt (ISO). Bo'sh/null = ishonchli.</summary>
+    public string? RevokedAt { get; set; }
 }

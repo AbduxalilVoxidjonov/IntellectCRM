@@ -59,7 +59,7 @@ kuzating.
 | Katalog ro'yxati o'chiq | `UseDirectoryBrowser` yo'q; fayl nomlarini ro'yxatlaydigan endpoint ham yo'q |
 | `Referrer-Policy: no-referrer` | Manzil "Referer" orqali tashqi saytga sizib chiqmaydi |
 | `Cache-Control: private` | Cloudflare/proxy umumiy keshida saqlanmaydi |
-| `PrivateFolderFileProvider` | `uploads/certificates` STATIK yo'l bilan berilmaydi (qarang: `tests.md`) |
+| `PrivateFolderFileProvider` | `uploads/certificates` va `uploads/face` STATIK yo'l bilan berilmaydi (qarang: `tests.md`) |
 
 ⚠️ **So'rov loglari YO'Q:** `appsettings.json` da `"Microsoft.AspNetCore": "Warning"` — ya'ni
 `/uploads` ga kim murojaat qilgani **yozilmaydi**. Demak "sizdimi?" degan savolga o'tmishga qarab
@@ -76,6 +76,16 @@ javob berib bo'lmaydi. Buni yoqish — alohida ish.
   yaratardi va shablonlarni o'chira olardi. Endi har bir admin amalida
   `[AdminPerm("students", ReadRequiresPerm = true)]`. Controllerda ochiq/o'quvchi/admin marshrutlari
   aralash bo'lgani uchun atribut **metod darajasida** qo'yilgan.
+
+### Yuz bilan kirish selfilari — `uploads/face/`
+- Fayl statik yo'ldan **berilmaydi** (`PrivateFolderFileProvider`), faqat
+  `GET /api/admin/face/checks/{id}/image` va `GET /api/admin/face/profile/{studentId}/image`
+  (`[AdminPerm("students", ReadRequiresPerm = true)]`). DTO'lardagi `imageUrl`/`sampleUrl`
+  aynan shu API yo'lini qaytaradi — `/uploads/...` manzili **hech qachon** javobga tushmaydi.
+- ⚠️ `Uploads:PublicCertificates=true` favqulodda kaliti bu papkaga **TA'SIR QILMAYDI**: u faqat
+  sertifikatlarni ochadi. Biometrik suratni "vaqtincha ochib qo'yish" varianti yo'q.
+- Papka kunlik zaxira arxividan ham chiqarilgan (`docker-compose` → `tar --exclude`), sabab
+  `DEPLOY.md` §6.1 da.
 
 ### Xodim (staff) uchun O'QISH darvozasi
 `AdminPermAttribute` da GET/HEAD/OPTIONS xodimga **ataylab ochiq** — bo'limlararo o'qish buzilmasin

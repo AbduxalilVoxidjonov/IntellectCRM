@@ -325,6 +325,14 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IntellectCRM.Application.Services.AuditService>();
 // Bog'lanish navbatiga qo'shish — admin va O'QITUVCHI controllerlari uchun yagona manba.
 builder.Services.AddScoped<IntellectCRM.Application.Services.ContactQueueService>();
+// Yuz bilan kirish (o'quvchi mobil ilovasi) — login qarori, tekshirish, ishonchli qurilma.
+// Auth, o'quvchi va admin controllerlari AYNAN shuni chaqiradi (qoida bitta joyda).
+builder.Services.AddScoped<IntellectCRM.Application.Services.FaceLoginService>();
+// Biometrik vektorlar seyfi — kalit FAQAT `.env` da (FACE_VECTOR_KEY). Holatsiz → Singleton.
+// ⚠️ Kalit yo'q bo'lsa modul o'chiq bo'ladi (pastda startupda ogohlantirish logi yoziladi).
+builder.Services.AddSingleton(IntellectCRM.Application.Services.FaceVault.FromSecrets());
+// Ilova haqiqiyligi (Google Play Integrity) — OAuth tokenini keshlaydi → Singleton.
+builder.Services.AddSingleton<IntellectCRM.Application.Services.AppAttestation>();
 
 // Shartnoma andozasini (Word) to'ldirish xizmati
 builder.Services.AddScoped<IntellectCRM.Application.Services.ContractService>();
@@ -756,16 +764,35 @@ Directory.CreateDirectory(uploadsDir);
 // `Uploads:PublicCertificates=true` — favqulodda qaytarish kaliti (kutilmaganda biror mijoz
 // faylni to'g'ridan-to'g'ri olayotgani aniqlansa, kodni qayta yig'masdan yoqib turish uchun).
 var webRootForPrivate = app.Environment.WebRootPath ?? app.Environment.ContentRootPath;
-var privateFolders = new[]
+// ⚠️ `uploads/face` — YUZ BILAN KIRISH selfilari (biometrika, ustiga voyaga yetmaganlarniki).
+// Sertifikatlar bilan bir xil siyosat: statik yo'l bilan UMUMAN berilmaydi, faqat
+// avtorizatsiyalangan admin endpointi orqali (`/api/admin/face/checks/{id}/image`). Bundan
+// tashqari bu papka kunlik zaxira arxividan ham chiqarilgan (docker-compose `backup` → `--exclude`).
+var certificateFolders = new[]
 {
     Path.Combine(uploadsDir, "certificates"),
     Path.Combine(webRootForPrivate, "uploads", "certificates"),
+};
+// ⚠️ Yuz selfilari HAR DOIM yopiq: `Uploads:PublicCertificates` favqulodda kaliti FAQAT
+// sertifikatlarga tegishli — biometrik suratlarni "vaqtincha ochib qo'yish" varianti YO'Q.
+var faceFolders = new[]
+{
+    Path.Combine(uploadsDir, IntellectCRM.Application.Services.FaceStorage.FolderName),
+    Path.Combine(webRootForPrivate, "uploads", IntellectCRM.Application.Services.FaceStorage.FolderName),
 };
 var privateFilesLogger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("PrivateFiles");
 var certificatesArePublic = app.Configuration.GetValue("Uploads:PublicCertificates", false);
 if (certificatesArePublic)
     privateFilesLogger.LogWarning(
         "DIQQAT: Uploads:PublicCertificates=true — sertifikat fayllari statik yo'l bilan OCHIQ berilmoqda.");
+
+// YUZ BILAN KIRISH: shifrlash kaliti yo'q bo'lsa modul UMUMAN ishlamaydi (biometrik vektorni
+// ochiq saqlash varianti yo'q — `FaceVault`). Admin sozlamada "yoqilgan" deb turib, nima uchun
+// selfi so'ralmayotganini tushunmay qolmasin.
+if (!IntellectCRM.Application.Services.AppSecrets.FaceVectorKeyConfigured)
+    app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("FaceLogin").LogWarning(
+        "DIQQAT: FACE_VECTOR_KEY sozlanmagan (yoki 32 baytlik base64 emas) — YUZ BILAN KIRISH "
+        + "moduli O'CHIQ. Kalit yaratish: openssl rand -base64 32");
 
 // ---------------------------------------------------------------------------------------------
 // `/uploads` DARVOZASI — yuklangan fayllar login talab qiladi (batafsil: UploadsGuard).
@@ -788,10 +815,9 @@ app.Use(async (context, next) =>
 });
 
 IFileProvider Guarded(IFileProvider innerProvider) =>
-    certificatesArePublic
-        ? innerProvider
-        : new IntellectCRM.Application.Services.PrivateFolderFileProvider(
-            innerProvider, privateFilesLogger, privateFolders);
+    new IntellectCRM.Application.Services.PrivateFolderFileProvider(
+        innerProvider, privateFilesLogger,
+        certificatesArePublic ? faceFolders : [.. certificateFolders, .. faceFolders]);
 
 // DIQQAT: UseDefaultFiles ATAYLAB ishlatilmaydi — `/` ni o'zimiz SPA fallback'da beramiz.
 // SPA statik fayllari: Vite assetlari kontent-hash bilan (immutable, 1 yil); index.html — no-cache.
@@ -887,12 +913,46 @@ app.UseHttpsRedirection();
 
 app.UseAuthentication();
 
+// ---------------------------------------------------------------------------------------------
+// YUZ TASDIG'I DARVOZASI — CHEKLANGAN token (scope=face) bilan kelgan so'rovlar.
+//
+// Login yuz tasdig'ini talab qilganda o'quvchiga TO'LIQ token BERILMAYDI (AuthController):
+// qaytadigan JWT'da `scope=face` claim'i bo'ladi va u FAQAT selfi yuborish oqimiga yetadi.
+// Bu darvoza bo'lmasa butun funksiya bezakka aylanardi — ilova selfi ekranini ko'rsatib
+// turarkan, o'sha token bilan jurnal/baho/chat endpointlariga bemalol borib kelaverardi.
+//
+// Ruxsat ro'yxati SOF FUNKSIYADA (`FaceScopeGate.IsAllowed`, testlangan) — bu yerda faqat
+// chaqiriladi. Javob 401 + `faceRequired:true`: ilova buni ko'rib selfi ekranini ochadi.
+// DIQQAT: `UseAuthorization` dan OLDIN va cookie beruvchi middleware'dan ham OLDIN turadi
+// (cheklangan sessiyaga `/uploads` cookie'si berilmasin).
+app.Use(async (context, next) =>
+{
+    if (context.User.Identity?.IsAuthenticated == true
+        && context.User.HasClaim(FaceScopeGate.ClaimType, FaceScopeGate.FaceScope)
+        && !FaceScopeGate.IsAllowed(context.Request.Path.Value, context.Request.Method))
+    {
+        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+        await context.Response.WriteAsJsonAsync(new
+        {
+            faceRequired = true,
+            message = FaceScopeGate.BlockedMessage,
+        });
+        return;
+    }
+    await next();
+});
+
 // `/uploads` cookie'sini TIKLASH — avtorizatsiyalangan har qanday so'rovdan keyin.
 // Alohida "login" qadami yo'q: SPA baribir doim API chaqiradi, ya'ni mavjud sessiyalar ham
 // qayta login qilmasdan rasmlarni ko'raveradi. Cookie faqat `Path=/uploads` ga tegishli.
+// ⚠️ Cheklangan (scope=face) sessiyaga cookie BERILMAYDI — u yuqoridagi darvozadan o'tolmaydi,
+// lekin ruxsat etilgan uchta yo'l ham cookie olmasligi kerak (aks holda selfi ekranidagi
+// foydalanuvchi butun `/uploads` papkasini ocha olardi).
 app.Use(async (context, next) =>
 {
-    if (context.User.Identity?.IsAuthenticated == true) uploadsGuard.IssueCookie(context);
+    if (context.User.Identity?.IsAuthenticated == true
+        && !context.User.HasClaim(FaceScopeGate.ClaimType, FaceScopeGate.FaceScope))
+        uploadsGuard.IssueCookie(context);
     await next();
 });
 

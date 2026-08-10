@@ -81,6 +81,13 @@ services:
       MoiZvonki__UserName: "${MOIZVONKI_USERNAME:-}"
       MoiZvonki__ApiKey: "${MOIZVONKI_API_KEY:-}"
       MoiZvonki__WebhookSecret: "${MOIZVONKI_WEBHOOK_SECRET:-}"
+      # YUZ BILAN KIRISH — vektorlarni bazada shifrlash kaliti (MAXFIY, base64 32 bayt).
+      # Bo'sh bo'lsa modul UMUMAN ishlamaydi (startupda ogohlantirish logi). DEPLOY.md §2.1.
+      Face__VectorKey: "${FACE_VECTOR_KEY:-}"
+      # Ilova haqiqiyligi (Google Play Integrity). SA JSON bo'sh bo'lsa FCM'niki zaxira sifatida
+      # ishlatiladi. Bo'sh qoldirilsa tekshiruv "notConfigured" — kirishga to'siq BO'LMAYDI.
+      PlayIntegrity__ServiceAccountJson: "${PLAY_INTEGRITY_SA_JSON:-}"
+      PlayIntegrity__Package: "${PLAY_INTEGRITY_PACKAGE:-}"
       # Kamera / to'lov eslatmasi / kunlik AI tahlil / backup (yoqish-o'chirish + vaqt):
       Camera__Enabled: "${CAMERA_ENABLED:-}"
       PaymentReminders__Enabled: "${PAYMENT_REMINDERS_ENABLED:-}"
@@ -184,8 +191,13 @@ services:
             db="/backups/intellectcrm_$${ts}.sql.gz"; files="/backups/intellectcrm_$${ts}_files.tar.gz"
             echo "[backup] $$ts — baza dump..."
             pg_dump | gzip > "$$db" || { echo "[backup] XATO: pg_dump"; rm -f "$$db"; }
-            echo "[backup] $$ts — fayllar (uploads + cti audio)..."
-            tar czf "$$files" -C /data uploads recordings 2>/dev/null || { echo "[backup] OGOHLANTIRISH: fayllar tar xato"; rm -f "$$files"; }
+            echo "[backup] $$ts — fayllar (uploads + cti audio, uploads/face TASHQARIDA)..."
+            # ⚠️ `uploads/face` ISTISNO: yuz bilan kirish selfilari — BIOMETRIK ma'lumot va
+            # ustiga voyaga yetmaganlarniki. Bu arxiv off-site'ga/Telegram'ga chiqishi mumkin,
+            # shuning uchun selfilar unga UMUMAN qo'shilmaydi. (Yuz VEKTORLARI bazada, lekin
+            # ular AES-GCM bilan shifrlangan — kalit faqat .env da, dump'da yo'q.)
+            # Selfilar baribir vaqtinchalik: CenterMeta.LoginFaceKeepChecks dan oshgani o'chadi.
+            tar czf "$$files" --exclude='uploads/face' --exclude='uploads/face/*' -C /data uploads recordings 2>/dev/null || { echo "[backup] OGOHLANTIRISH: fayllar tar xato"; rm -f "$$files"; }
             # Shifrlash (parol berilgan bo'lsa) — natija .gpg, asl fayl o'chiriladi.
             if [ -n "$$ENC" ]; then
               for f in "$$db" "$$files"; do

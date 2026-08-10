@@ -74,9 +74,78 @@ public static class RatingService
             var gradeLevel = firstCls?.Grade ?? 0;
 
             var ball = balls.GetValueOrDefault(st.Id)?.Ball ?? 0;
-            result.Add(new StudentRatingRowDto(Map(st), className, gradeLevel, average, attendance, ball));
+            // GroupIds — guruh reytingi SHU bo'yicha ajratiladi (ClassName matni emas).
+            result.Add(new StudentRatingRowDto(
+                Map(st), className, gradeLevel, average, attendance, ball, groupIds));
         }
         return result;
+    }
+
+    /// <summary>
+    /// O'QUVCHI/PARENT PORTALI reytingi: markaz TOP 15 + o'quvchining HAR BIR faol guruhi alohida.
+    ///
+    /// <para><b>Nega guruh a'zoligi bo'yicha:</b> ilgari guruh ro'yxati <c>ClassName</c> matn
+    /// yorlig'i tengligi bilan qurilardi. M2M a'zolikka o'tilgandan keyin bu yorliq ko'p
+    /// o'quvchida BO'SH yoki ESKIRGAN — bo'sh bo'lsa ro'yxat umuman bo'sh chiqar
+    /// ("Reyting yo'q"), eskirgan bo'lsa butunlay boshqa guruh odamlari ko'rinardi.</para>
+    ///
+    /// <para>Har guruh ichida o'rin QAYTA raqamlanadi (1,2,3...) — podium (1/2/3) shunga tayanadi.
+    /// Faol a'zoligi yo'q o'quvchida eski <c>ClassName</c> tengligiga qaytiladi (fallback) —
+    /// eski/guruhsiz yozuvlar yo'qolmasin.</para>
+    /// </summary>
+    /// <param name="school">Keshdan olingan markaz reytingi (<see cref="SchoolAsync"/>) — bu yerda
+    /// saralanadi, chaqiruvchi oldindan saralashi shart emas.</param>
+    public static async Task<PortalRatingDto> PortalAsync(
+        IAppDbContext db, Student s, IEnumerable<StudentRatingRowDto> school)
+    {
+        // YIG'ILGAN BALL bo'yicha kamayish tartibida (teng bo'lsa o'rtacha baho hal qiladi).
+        var ordered = school.OrderByDescending(r => r.Ball).ThenByDescending(r => r.Average).ToList();
+
+        static PortalRatingRowDto Map(StudentRatingRowDto r, int i) =>
+            new(i + 1, r.Student.Id, r.Student.FullName, r.ClassName, r.Average, r.Attendance, r.Ball);
+
+        // O'quvchining FAOL guruhlari — bitta so'rov (N+1 yo'q).
+        var myGroupIds = await db.StudentGroups.AsNoTracking()
+            .Where(sg => sg.StudentId == s.Id && sg.IsActive)
+            .Select(sg => sg.GroupId).Distinct().ToListAsync();
+
+        var groups = new List<PortalRatingGroupDto>();
+        if (myGroupIds.Count > 0)
+        {
+            // Guruh nomlari — yana bitta so'rov (har guruh uchun alohida emas).
+            var names = await db.Classes.AsNoTracking()
+                .Where(c => myGroupIds.Contains(c.Id))
+                .Select(c => new { c.Id, c.Name })
+                .ToListAsync();
+            foreach (var g in names.OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase))
+            {
+                var rows = ordered
+                    .Where(r => r.GroupIds != null && r.GroupIds.Contains(g.Id))
+                    .Select(Map).ToList();   // o'rin guruh ICHIDA qayta raqamlanadi
+                if (rows.Count == 0) continue;
+                var me = rows.FindIndex(r => r.StudentId == s.Id);
+                groups.Add(new PortalRatingGroupDto(g.Id, g.Name, rows, me >= 0 ? me + 1 : 0, rows.Count));
+            }
+        }
+        else if (!string.IsNullOrEmpty(s.ClassName))
+        {
+            // FALLBACK: faol a'zolik yo'q — eski "asosiy guruh" yorlig'i bo'yicha.
+            var rows = ordered.Where(r => r.ClassName == s.ClassName).Select(Map).ToList();
+            if (rows.Count > 0)
+            {
+                var me = rows.FindIndex(r => r.StudentId == s.Id);
+                groups.Add(new PortalRatingGroupDto("", s.ClassName, rows, me >= 0 ? me + 1 : 0, rows.Count));
+            }
+        }
+
+        // ClassRows — ESKI maydon (web klient va ilovaning eski versiyalari o'qiydi): birinchi guruh.
+        var classRows = groups.Count > 0 ? groups[0].Rows : new List<PortalRatingRowDto>();
+        var schoolRows = ordered.Take(15).Select(Map).ToList();
+
+        var meIdx = ordered.FindIndex(r => r.Student.Id == s.Id);
+        int? meSchoolRank = meIdx >= 0 ? meIdx + 1 : null;
+
+        return new PortalRatingDto(s.Id, classRows, schoolRows, meSchoolRank, ordered.Count, groups);
     }
 
     private static StudentDto Map(Student s) => new(

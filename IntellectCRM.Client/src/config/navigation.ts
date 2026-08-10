@@ -81,6 +81,8 @@ export const navByRole: Record<Role, NavItem[]> = {
         { label: "O'quvchilar davomati", to: '/admin/students/davomat', perm: 'students' },
         { label: 'Bonus hisoboti', to: '/admin/students/bonus', perm: 'students' },
         { label: 'Turniket', to: '/admin/students/turniket', perm: 'students' },
+        // Yuz bilan kirish — o'quvchi ilovasiga yangi qurilmadan kirishdagi selfi tekshiruvi.
+        { label: 'Yuz bilan kirish', to: '/admin/students/yuz', perm: 'students' },
       ],
     },
     // O'qituvchilar — BITTA band. Ro'yxati/Davomati/Hisoboti sahifalari orasida sahifa tepasidagi

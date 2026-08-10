@@ -105,12 +105,24 @@ export interface RatingRow {
   /** Yig'ilgan ball (jurnal baholari + bajarilgan mezonlar) — reyting shu bo'yicha */
   ball?: number
 }
+/** O'quvchining BITTA guruhi bo'yicha reyting (o'rin guruh ichida qayta raqamlangan). */
+export interface RatingGroup {
+  groupId: string
+  groupName: string
+  rows: RatingRow[]
+  /** O'quvchining shu guruhdagi o'rni (0 — ro'yxatda yo'q) */
+  meRank: number
+  size: number
+}
 export interface StudentRating {
   meStudentId: string
+  /** ESKI nom — birinchi guruh qatorlari (orqaga moslik). Yangi kod `groups` dan foydalansin. */
   classRows: RatingRow[]
   schoolRows: RatingRow[]
   meSchoolRank?: number | null
   schoolSize: number
+  /** Har bir faol guruh alohida (o'quvchi bir necha kursda o'qishi mumkin) */
+  groups?: RatingGroup[]
 }
 
 export interface SubjectProgress {

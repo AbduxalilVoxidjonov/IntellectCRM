@@ -78,6 +78,31 @@ public static class AppSecrets
     public static string TurnstileUsername => Read("Turnstile:Username", EnvKeys.TurnstileUsername);
     public static string TurnstilePassword => Read("Turnstile:Password", EnvKeys.TurnstilePassword);
 
+    /* ---------- YUZ BILAN KIRISH: vektorlarni shifrlash kaliti ---------- */
+
+    /// <summary>Yuz vektorlarini bazada shifrlash kaliti — <b>base64, AYNAN 32 bayt</b>
+    /// (<c>openssl rand -base64 32</c>). <see cref="FaceVault"/> ishlatadi.
+    /// <para>⚠️ Bo'sh bo'lsa yuz bilan kirish moduli UMUMAN yoqilmaydi — biometrik vektorni
+    /// jimgina ochiq saqlash varianti YO'Q. Yo'qolsa/almashsa: eski etalonlar ochilmaydi va
+    /// o'quvchilar keyingi kirishda profil rasmi orqali qayta ro'yxatdan o'tadi (ma'lumot
+    /// yo'qolmaydi, faqat qayta ro'yxat).</para></summary>
+    public static string FaceVectorKey => Read("Face:VectorKey", EnvKeys.FaceVectorKey);
+
+    /* ---------- ILOVA HAQIQIYLIGI (Google Play Integrity) ---------- */
+
+    /// <summary>Play Integrity API uchun Google Cloud service account JSON (bir qatorda).
+    /// <para>Bo'sh bo'lsa <see cref="FcmServiceAccountJson"/> ZAXIRA sifatida ishlatiladi
+    /// (<c>AppAttestation.ServiceAccountJson</c>) — Firebase loyihasi ayni paytda GCP loyihasi,
+    /// lekin o'sha loyihada <b>Play Integrity API yoqilgan</b> va Play Console'dagi ilova unga
+    /// <b>bog'langan</b> bo'lishi shart.</para></summary>
+    public static string PlayIntegrityServiceAccountJson =>
+        Read("PlayIntegrity:ServiceAccountJson", EnvKeys.PlayIntegritySaJson);
+
+    /// <summary>Android ilovaning paket nomi (masalan <c>uz.intellectcrm.student</c>) —
+    /// Play Integrity so'rovi va javobdagi <c>packageName</c> tekshiruvi uchun. MAXFIY EMAS,
+    /// lekin kalit bilan birga sozlansin (yarmi UI'da, yarmi `.env` da bo'lib qolmasin).</summary>
+    public static string PlayIntegrityPackage => Read("PlayIntegrity:Package", EnvKeys.PlayIntegrityPackage);
+
     /* ---------- Holat (Sozlamalar sahifasi uchun) ---------- */
 
     public static bool TelegramConfigured => TelegramBotToken.Length > 0;
@@ -86,6 +111,8 @@ public static class AppSecrets
     public static bool AzureSpeechConfigured => AzureSpeechKey.Length > 0 && AzureSpeechRegion.Length > 0;
     public static bool EskizConfigured => EskizEmail.Length > 0 && EskizPassword.Length > 0;
     public static bool TurnstileCredentialsConfigured => TurnstileUsername.Length > 0 && TurnstilePassword.Length > 0;
+    /// <summary>Yuz vektorlari kaliti bor VA yaroqli (32 bayt base64) — modul shu bilan yoqiladi.</summary>
+    public static bool FaceVectorKeyConfigured => FaceVault.IsValidKey(FaceVectorKey);
 
     /// <summary>
     /// <c>.env</c> o'zgaruvchilari nomlari — Sozlamalar sahifasida adminga "qaysi qatorni qo'shish
@@ -103,5 +130,8 @@ public static class AppSecrets
         public const string EskizPassword = "ESKIZ_PASSWORD";
         public const string TurnstileUsername = "TURNSTILE_USERNAME";
         public const string TurnstilePassword = "TURNSTILE_PASSWORD";
+        public const string FaceVectorKey = "FACE_VECTOR_KEY";
+        public const string PlayIntegritySaJson = "PLAY_INTEGRITY_SA_JSON";
+        public const string PlayIntegrityPackage = "PLAY_INTEGRITY_PACKAGE";
     }
 }

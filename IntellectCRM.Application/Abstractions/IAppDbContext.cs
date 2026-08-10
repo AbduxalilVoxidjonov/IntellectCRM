@@ -171,6 +171,12 @@ public interface IAppDbContext
     DbSet<ContactRequest> ContactRequests { get; }
     DbSet<ContactAttempt> ContactAttempts { get; }
 
+    // Yuz bilan kirish (o'quvchi mobil ilovasi) — etalon vektor, urinishlar, ishonchli qurilmalar
+    DbSet<StudentFaceProfile> StudentFaceProfiles { get; }
+    DbSet<LoginFaceCheck> LoginFaceChecks { get; }
+    DbSet<TrustedDevice> TrustedDevices { get; }
+    DbSet<FaceChallenge> FaceChallenges { get; }
+
     int SaveChanges();
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

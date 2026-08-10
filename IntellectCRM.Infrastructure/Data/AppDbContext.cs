@@ -173,6 +173,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<ContactRequest> ContactRequests => Set<ContactRequest>();
     public DbSet<ContactAttempt> ContactAttempts => Set<ContactAttempt>();
 
+    /* ---------- Yuz bilan kirish (o'quvchi mobil ilovasi) ---------- */
+    public DbSet<StudentFaceProfile> StudentFaceProfiles => Set<StudentFaceProfile>();
+    public DbSet<LoginFaceCheck> LoginFaceChecks => Set<LoginFaceCheck>();
+    public DbSet<TrustedDevice> TrustedDevices => Set<TrustedDevice>();
+    public DbSet<FaceChallenge> FaceChallenges => Set<FaceChallenge>();
+
     protected override void OnModelCreating(ModelBuilder b)
     {
         // SQL Server: indeksda qatnashadigan string ustunlar default `nvarchar(max)` bo'lib
@@ -260,6 +266,33 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         b.Entity<ContactAttempt>().Property(a => a.Date).HasMaxLength(200);
         b.Entity<ContactAttempt>().HasIndex(a => a.RequestId);
         b.Entity<ContactAttempt>().HasIndex(a => a.Date);
+        // YUZ BILAN KIRISH: etalon o'quvchi bo'yicha BITTA (unikal), urinishlar o'quvchi+vaqt
+        // bo'yicha o'qiladi (soatlik chegara va admin ro'yxati), qurilma esa (foydalanuvchi,
+        // qurilma) bo'yicha yagona bo'lishi SHART — aks holda bir telefon uchun bir nechta
+        // "ishonchli" qator paydo bo'lib, bekor qilish ishonchsiz bo'lib qolardi.
+        b.Entity<StudentFaceProfile>().Property(p => p.StudentId).HasMaxLength(200);
+        b.Entity<StudentFaceProfile>().Property(p => p.ModelVersion).HasMaxLength(100);
+        b.Entity<StudentFaceProfile>().HasIndex(p => p.StudentId).IsUnique();
+        b.Entity<LoginFaceCheck>().Property(c => c.StudentId).HasMaxLength(200);
+        b.Entity<LoginFaceCheck>().Property(c => c.UserId).HasMaxLength(200);
+        b.Entity<LoginFaceCheck>().Property(c => c.CreatedAt).HasMaxLength(32);
+        b.Entity<LoginFaceCheck>().Property(c => c.Status).HasMaxLength(32);
+        b.Entity<LoginFaceCheck>().Property(c => c.DeviceId).HasMaxLength(200);
+        b.Entity<LoginFaceCheck>().HasIndex(c => new { c.StudentId, c.CreatedAt });
+        b.Entity<LoginFaceCheck>().HasIndex(c => c.Status);
+        b.Entity<TrustedDevice>().Property(d => d.UserId).HasMaxLength(200);
+        b.Entity<TrustedDevice>().Property(d => d.DeviceId).HasMaxLength(200);
+        b.Entity<TrustedDevice>().HasIndex(d => new { d.UserId, d.DeviceId }).IsUnique();
+        // Bir martalik tiriklik chaqiruvi (nonce). Nonce UNIKAL — takrorlanish "ikkinchi urinishda
+        // eskisini ishlatish" yo'lini ochib qo'yardi.
+        b.Entity<FaceChallenge>().Property(c => c.UserId).HasMaxLength(200);
+        b.Entity<FaceChallenge>().Property(c => c.StudentId).HasMaxLength(200);
+        b.Entity<FaceChallenge>().Property(c => c.Nonce).HasMaxLength(128);
+        b.Entity<FaceChallenge>().Property(c => c.CreatedAt).HasMaxLength(32);
+        b.Entity<FaceChallenge>().Property(c => c.ExpiresAt).HasMaxLength(32);
+        b.Entity<FaceChallenge>().HasIndex(c => c.Nonce).IsUnique();
+        b.Entity<FaceChallenge>().HasIndex(c => new { c.UserId, c.CreatedAt });
+
         b.Entity<StudentAiAnalysis>().HasIndex(a => new { a.StudentId, a.Date });
         b.Entity<TeacherAiAnalysis>().HasIndex(a => new { a.TeacherId, a.Date });
         b.Entity<GroupAiAnalysis>().HasIndex(a => new { a.GroupId, a.Date });

@@ -54,6 +54,12 @@ public static class AuditSections
         // "StudentDiscount" — chegirma, arxivlash/tiklash, login bloklash, qo'lda oylik tahriri.
         ["StudentDiscount"] = "students",
         ["Student"] = "students",
+        // YUZ BILAN KIRISH — etalon (tasdiqlash/tozalash) va ishonchli qurilmani bekor qilish.
+        // O'quvchilar bo'limida, chunki amal AYNAN bitta o'quvchining kirishiga tegishli.
+        // ⚠️ Bu yozuvlarda selfi MANZILI hech qachon bo'lmaydi (biometrik ma'lumot tarixga
+        // tushmasin — `.claude/rules/audit.md` "Maxfiy qiymat yozilmaydi" qoidasi).
+        ["StudentFaceProfile"] = "students",
+        ["TrustedDevice"] = "students",
 
         // --- Bog'lanish kerak (follow-up navbati) ---
         ["ContactRequest"] = "contacts",

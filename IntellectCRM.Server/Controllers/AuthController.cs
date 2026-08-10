@@ -12,7 +12,9 @@ namespace IntellectCRM.Server.Controllers;
 
 [ApiController]
 [Route("api/auth")]
-public class AuthController(AppDbContext db, JwtTokenService jwt, ILogger<AuthController> logger) : ControllerBase
+public class AuthController(
+    AppDbContext db, JwtTokenService jwt, ILogger<AuthController> logger,
+    FaceLoginService face) : ControllerBase
 {
     /// <summary>Akkaunt bloklanishidan oldingi ketma-ket noto'g'ri urinishlar chegarasi.</summary>
     private const int MaxFailedAttempts = 5;
@@ -83,6 +85,27 @@ public class AuthController(AppDbContext db, JwtTokenService jwt, ILogger<AuthCo
         user.LastLoginAt = now;
         // Foydalanuvchi parolni ishlatdi — dastlabki ochiq parol endi superadmin'ga ko'rsatilmaydi.
         user.InitialPassword = null;
+
+        // YUZ BILAN KIRISH (faqat O'QUVCHI roli). Qurilma ishonchli emas va sozlama yoqilgan bo'lsa —
+        // TO'LIQ token o'rniga CHEKLANGAN (scope=face) token beriladi: u bilan faqat selfi yuborish
+        // mumkin (`FaceScopeGate`). Ishonchli qurilmada esa hech narsa o'zgarmaydi.
+        // ⚠️ Qaror `FaceLoginService` da — o'qituvchi/admin/ota-onaga TEGMAYDI va `deviceId`
+        // yubormaydigan ESKI klientlar uchun ham xatti-harakat o'zgarmaydi.
+        var faceDecision = await face.DecideAsync(user, req.DeviceId, HttpContext.RequestAborted);
+        if (faceDecision.Required)
+        {
+            await db.SaveChangesAsync();
+            logger.LogInformation("Yuz tasdig'i talab qilindi: userId={UserId}, IP={IP}", user.Id, ip);
+            var faceToken = jwt.CreateFaceScopedToken(user, FaceScopeGate.TokenMinutes);
+            return new LoginResponse(
+                faceToken,
+                new UserDto(user.Id, user.FullName, user.Role, user.Email, user.AvatarUrl, await PermsFor(user)),
+                FaceRequired: true, FaceStatus: faceDecision.Status);
+        }
+
+        // Ishonchli qurilmadan kirildi — "oxirgi ko'rilgan" yangilanadi (admin ro'yxatida
+        // qaysi telefon hali ishlatilayotgani ko'rinsin).
+        await face.TouchAsync(user.Id, req.DeviceId, HttpContext.RequestAborted);
         await db.SaveChangesAsync();
 
         var token = jwt.CreateToken(user);

@@ -7,13 +7,29 @@ using IntellectCRM.Domain;
 // JSON camelCase'ga ASP.NET Core standart sozlamasi orqali aylantiriladi.
 
 /* ---------- Auth ---------- */
-public record LoginRequest(string Email, string Password);
+/// <summary>
+/// Login so'rovi. <paramref name="DeviceId"/> va qolgan qurilma maydonlari — MOBIL ILOVA uchun
+/// (yuz bilan kirish: "yangi qurilmami?"). ⚠️ Ular IXTIYORIY: eski klientlar (web SPA va
+/// yangilanmagan ilovalar) ularni yubormaydi va ular uchun xatti-harakat HOZIRGIDEK qoladi —
+/// yuz so'ralmaydi (batafsil: <c>FaceLoginService.DecideAsync</c>).
+/// </summary>
+public record LoginRequest(
+    string Email, string Password,
+    string? DeviceId = null, string? DeviceName = null,
+    string? Platform = null, string? AppVersion = null);
 /// <summary>Bot orqali olingan bir martalik kirish kodi bilan login (parol o'rniga).</summary>
 public record OtpLoginRequest(string Code);
 public record UserDto(
     string Id, string FullName, string Role, string Email, string? AvatarUrl,
     List<string>? Permissions = null, string Phone = "");
-public record LoginResponse(string Token, UserDto User);
+/// <summary>
+/// Login javobi. <paramref name="FaceRequired"/> true bo'lsa <paramref name="Token"/> — CHEKLANGAN
+/// token (faqat yuz tasdiqlash endpointlariga yetadi), ilova selfi ekranini ochishi kerak.
+/// Eski klientlar bu ikki maydonni e'tiborsiz qoldiradi (JSON'da qo'shimcha maydon).
+/// </summary>
+/// <param name="FaceStatus">enroll (etalon yo'q — birinchi marta) | verify.</param>
+public record LoginResponse(
+    string Token, UserDto User, bool FaceRequired = false, string? FaceStatus = null);
 /// <summary>O'quvchi/o'qituvchiga biriktirilgan tizim akkaunti ma'lumotlari (admin uchun).</summary>
 public record CredentialsDto(string Login, string Password, string Role);
 /// <summary>Joriy foydalanuvchi o'z login (email) va/yoki parolini o'zgartirishi uchun.
@@ -1014,9 +1030,14 @@ public record ClassStudentRowDto(StudentDto Student, Dictionary<string, double> 
 public record ClassPerformanceDataDto(List<SubjectDto> Subjects, List<ClassStudentRowDto> Rows);
 public record ClassStatsDto(int StudentsCount, double AverageGrade, double? Attendance);
 /// <summary>Reyting qatori. <paramref name="Ball"/> — yig'ilgan ball (jurnal baholari + bajarilgan
-/// baholash mezonlari); reyting SHU bo'yicha saralanadi. Average/Attendance — qo'shimcha ko'rsatkich.</summary>
+/// baholash mezonlari); reyting SHU bo'yicha saralanadi. Average/Attendance — qo'shimcha ko'rsatkich.
+/// <para><paramref name="GroupIds"/> — o'quvchining FAOL guruhlari (M2M a'zolik; a'zoligi bo'lmasa
+/// eski <c>ClassName</c> yorlig'idan topilganlari). Guruh reytingi SHU bo'yicha ajratiladi —
+/// <c>ClassName</c> matni ko'p o'quvchida bo'sh yoki eskirgan bo'lgani uchun unga tayanib bo'lmaydi.
+/// Ixtiyoriy (default `null`) — eski chaqiruvchilar buzilmasin.</para></summary>
 public record StudentRatingRowDto(
-    StudentDto Student, string ClassName, int Grade, double Average, double? Attendance, int Ball = 0);
+    StudentDto Student, string ClassName, int Grade, double Average, double? Attendance, int Ball = 0,
+    List<string>? GroupIds = null);
 
 /* ---------- BALL (reyting bali) — jurnal baholari + bajarilgan baholash mezonlari ---------- */
 
@@ -1078,15 +1099,31 @@ public record PortalRatingRowDto(
     int Ball = 0);
 
 /// <summary>
-/// O'quvchi/parent reytingi (adminniki bilan bir xil hisob, YIG'ILGAN ball bo'yicha): o'z guruhi TO'LIQ
+/// Portal reytingidagi BITTA GURUH: o'quvchining har bir faol guruhi uchun alohida ro'yxat.
+/// <para><paramref name="Rows"/> — guruh a'zolari, o'rin (<c>Rank</c>) GURUH ICHIDA qayta
+/// raqamlangan (1,2,3...), markaz o'rni EMAS — aks holda podium (1/2/3) noto'g'ri chizilardi.
+/// <paramref name="MeRank"/> — o'quvchining shu guruhdagi o'rni (0 — ro'yxatda yo'q, masalan
+/// arxivlangan), <paramref name="Size"/> — guruhdagi jami o'quvchi.</para>
+/// <para>Guruhsiz (faqat eski <c>ClassName</c> yorlig'i bo'lgan) o'quvchida bitta "soxta" guruh
+/// qaytadi: <c>GroupId = ""</c>, nomi — o'sha yorliq.</para>
+/// </summary>
+public record PortalRatingGroupDto(
+    string GroupId, string GroupName, List<PortalRatingRowDto> Rows, int MeRank, int Size);
+
+/// <summary>
+/// O'quvchi/parent reytingi (adminniki bilan bir xil hisob, YIG'ILGAN ball bo'yicha): o'z guruhlari TO'LIQ
 /// ranglangan, markaz bo'yicha esa faqat TOP 15. `MeStudentId` — o'z qatorini ajratish uchun;
 /// `MeSchoolRank` top 15 dan tashqarida bo'lsa ham o'quvchining markaz o'rnini beradi (`SchoolSize` — jami).
+/// <para><b>`Groups`</b> — o'quvchining HAR BIR faol guruhi alohida (loyihada bir o'quvchi bir necha
+/// kursda o'qishi odatiy hol). <b>`ClassRows`</b> ESKI nom sifatida QOLADI (birinchi guruh qatorlari
+/// bilan to'ldiriladi) — web klient va ilovaning eski versiyalari uni o'qiydi, orqaga moslik shart.</para>
 /// </summary>
 public record PortalRatingDto(
     string MeStudentId,
     List<PortalRatingRowDto> ClassRows,
     List<PortalRatingRowDto> SchoolRows,
-    int? MeSchoolRank, int SchoolSize);
+    int? MeSchoolRank, int SchoolSize,
+    List<PortalRatingGroupDto> Groups);
 
 
 /// <summary>Markaz ma'lumotlari (profil sozlamasi).</summary>
@@ -1397,14 +1434,52 @@ public record HomeworkItemDto(
     string Topic, string? Homework, bool Conducted,
     int? Grade, string? ReasonId, string? ReasonName, bool IsLate);
 
-/// <summary>O'quvchi jurnali — bitta dars qatori (sana + dars raqami + fan + o'qituvchi + mavzu/uyga vazifa + baho/sabab).</summary>
-public record StudentJournalRowDto(
-    string Date, int Period, int Quarter, int Week,
-    string? StartTime, string? EndTime,
-    string SubjectId, string SubjectName,
-    string? TeacherId, string? TeacherName,
-    string Topic, string? Homework, bool Conducted,
-    int? Grade, string? ReasonId, string? ReasonName, bool IsLate);
+/* ---------------------------------------------------------------------------------------------
+ *  O'QUVCHI ILOVASI — «Umumiy statistika» (sana oralig'i bo'yicha jurnal).
+ *  GET /api/student/journal?from=&to=&groupId=  →  StudentPeriodJournalDto
+ *  Mantiq: StudentJournalBuilder.PeriodAsync (admin jurnal modali bilan YAGONA yadro).
+ * ------------------------------------------------------------------------------------------- */
+
+/// <summary>
+/// Oraliqdagi BITTA dars — o'quvchi shu darsda nima olgani (baho, davomat, uyga vazifa, xulq).
+/// <para><c>Grade</c> — jurnal bahosi (yo'q bo'lsa null); <c>ReasonName</c>/<c>ReasonShort</c> —
+/// davomat sababi (kelmadi/kechikdi), <c>IsLate</c> bo'lsa o'quvchi darsda QATNASHGAN hisoblanadi.
+/// <c>HomeworkMark</c>: 0=belgilanmagan, 1=qildi, 2=qilmadi, 3=chala; <c>Behavior</c>: 0/1=yaxshi/2=yomon.
+/// <c>HomeworkText</c> — o'qituvchi bergan uyga vazifa MATNI (<c>LessonNote.Homework</c>), bahosi emas.</para>
+/// </summary>
+public record StudentPeriodLessonDto(
+    string Date, int Period,
+    string GroupId, string GroupName, string SubjectId, string SubjectName,
+    string Topic, string HomeworkText,
+    bool Conducted, bool Present,
+    int? Grade, string? ReasonName, string? ReasonShort, bool IsLate,
+    int HomeworkMark, int Behavior, MasteryLevel? Mastery);
+
+/// <summary>
+/// Oraliq jamlanmasi. <c>Held</c> — hisobga kirgan (o'tilgan, o'quvchiga tegishli, holati MA'LUM)
+/// darslar soni; <c>AttendancePct</c> = attended×100/held (held=0 bo'lsa 0). <c>AvgGrade</c> —
+/// 1 xonagacha yaxlitlangan, baho bo'lmasa 0.
+/// </summary>
+public record StudentPeriodSummaryDto(
+    int Held, int Attended, int Absent, int Late, int AttendancePct,
+    int GradesCount, double AvgGrade,
+    int HomeworkDone, int HomeworkMissed, int BehaviorGood, int BehaviorBad);
+
+/// <summary>Fan (kurs) kesimi — o'quvchi qaysi kursda qanday ko'rsatkichga ega.</summary>
+public record StudentPeriodSubjectDto(
+    string SubjectId, string SubjectName, int Held, int Attended, int GradesCount, double AvgGrade);
+
+/// <summary>
+/// O'quvchining SANA ORALIG'IDAGI jurnali (hafta/oy). <c>Groups</c> — o'quvchining barcha guruhlari
+/// (ilovadagi tanlov ro'yxati; <c>GroupId</c> filtri qo'yilgan bo'lsa ham to'liq qaytadi).
+/// <c>Lessons</c> — faqat O'TILGAN va o'quvchiga tegishli darslar, sana bo'yicha tartiblangan.
+/// </summary>
+public record StudentPeriodJournalDto(
+    string From, string To, string GroupId,
+    List<StudentJournalGroupDto> Groups,
+    StudentPeriodSummaryDto Summary,
+    List<StudentPeriodSubjectDto> Subjects,
+    List<StudentPeriodLessonDto> Lessons);
 
 /// <summary>O'quvchining bitta davomatsizlik (yoki kech qolish) yozuvi.</summary>
 public record StudentAbsenceRowDto(

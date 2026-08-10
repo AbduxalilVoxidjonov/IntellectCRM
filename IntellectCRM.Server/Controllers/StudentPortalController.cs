@@ -355,10 +355,14 @@ public class StudentPortalController(
     }
 
     /// <summary>
-    /// O'quvchi reytingi (admin "Reyting"i bilan bir xil hisob — o'rtacha baho bo'yicha):
-    /// <b>o'z guruhini to'liq</b>, <b>markaz bo'yicha esa faqat TOP 15</b> ko'radi.
+    /// O'quvchi reytingi (admin "Reyting"i bilan bir xil hisob — yig'ilgan ball bo'yicha):
+    /// <b>o'z guruhlarini to'liq</b> (har biri alohida, `Groups`), <b>markaz bo'yicha esa faqat TOP 15</b>.
     /// O'z qatori `MeStudentId` bilan, markaz o'rni (top 15 dan tashqarida bo'lsa ham) `MeSchoolRank` bilan beriladi.
     /// Parent farzandi nomidan; admin uchun `?studentId=` shart.
+    ///
+    /// <para>Guruh ro'yxati M2M A'ZOLIK bo'yicha quriladi (<see cref="RatingService.PortalAsync"/>) —
+    /// ilgari `ClassName` matn yorlig'i tengligi ishlatilar va yorliq bo'sh bo'lgan o'quvchida
+    /// guruh reytingi BO'SH chiqardi.</para>
     /// </summary>
     [HttpGet("rating")]
     public async Task<ActionResult<PortalRatingDto>> Rating([FromQuery] string? studentId)
@@ -367,34 +371,49 @@ public class StudentPortalController(
         var s = await TargetAsync(studentId);
         if (s is null) return NotFound();
 
-        // YIG'ILGAN BALL bo'yicha kamayish tartibida (o'rtacha baho emas; teng bo'lsa o'rtacha baho hal qiladi).
         // Butun markaz reytingi admin endpointi bilan BIR xil kesh kalitidan ("rating:school") o'qiladi —
-        // bog'liq jadval o'zgarsa interceptor uni avtomatik yangilaydi.
-        var school = (await dataCache.GetOrCreateAsync(
-                "rating:school",
-                new[]
-                {
-                    nameof(JournalEntry), nameof(LessonNote), nameof(Student),
-                    nameof(StudentGroup), nameof(Group), nameof(AbsenceReason), nameof(CriterionGrade),
-                },
-                TimeSpan.FromMinutes(15),
-                db2 => RatingService.SchoolAsync(db2)))
-            .OrderByDescending(r => r.Ball)
-            .ThenByDescending(r => r.Average)
-            .ToList();
+        // bog'liq jadval (jumladan StudentGroup) o'zgarsa interceptor uni avtomatik yangilaydi.
+        var school = await dataCache.GetOrCreateAsync(
+            "rating:school",
+            new[]
+            {
+                nameof(JournalEntry), nameof(LessonNote), nameof(Student),
+                nameof(StudentGroup), nameof(Group), nameof(AbsenceReason), nameof(CriterionGrade),
+            },
+            TimeSpan.FromMinutes(15),
+            db2 => RatingService.SchoolAsync(db2));
 
-        static PortalRatingRowDto Map(StudentRatingRowDto r, int i) =>
-            new(i + 1, r.Student.Id, r.Student.FullName, r.ClassName, r.Average, r.Attendance, r.Ball);
+        return await RatingService.PortalAsync(db, s, school);
+    }
 
-        var classRows = school
-            .Where(r => r.ClassName == s.ClassName)
-            .Select(Map).ToList();                       // o'z guruhi — to'liq
-        var schoolRows = school.Take(15).Select(Map).ToList(); // markaz — top 15
+    /// <summary>
+    /// «UMUMIY STATISTIKA» — sana ORALIG'I bo'yicha jurnal (hafta/oy): har darsga olingan baho,
+    /// davomat, uyga vazifa va xulq + jamlanma va fanlar kesimi.
+    ///
+    /// <para>Nega alohida endpoint: <c>grades</c> faqat fan×chorak O'RTACHASINI, <c>attendance</c>
+    /// esa faqat davomatsizlik yozuvlarini beradi — ikkalasidan ham "shu haftada har darsda nima
+    /// bo'ldi" degan savolga javob chiqmaydi.</para>
+    ///
+    /// <para><c>from</c>/<c>to</c> berilmasa — joriy oy. <c>groupId</c> berilmasa — o'quvchining
+    /// BARCHA guruhlari birlashtiriladi (har dars o'z guruhi/fani bilan). Hisob mantig'i admin
+    /// jurnal modali bilan YAGONA (<see cref="StudentJournalBuilder"/>): guruhga qo'shilishidan
+    /// oldingi / chiqib ketganidan keyingi darslar chiqmaydi, orqaga sanalgan a'zolikdagi
+    /// "noma'lum" darslar esa davomat foizini buzmaydi.</para>
+    /// </summary>
+    [HttpGet("journal")]
+    public async Task<ActionResult<StudentPeriodJournalDto>> Journal(
+        [FromQuery] string? from, [FromQuery] string? to,
+        [FromQuery] string? groupId, [FromQuery] string? studentId)
+    {
+        if (User.IsInRole("admin") && string.IsNullOrWhiteSpace(studentId)) return NeedStudentId();
+        var s = await TargetAsync(studentId);
+        if (s is null) return NotFound();
 
-        var meIdx = school.FindIndex(r => r.Student.Id == s.Id);
-        int? meSchoolRank = meIdx >= 0 ? meIdx + 1 : null;
+        var (f, t, error) = StudentJournalBuilder.NormalizeRange(from, to);
+        if (error is not null) return BadRequest(new { message = error });
 
-        return new PortalRatingDto(s.Id, classRows, schoolRows, meSchoolRank, school.Count);
+        var dto = await StudentJournalBuilder.PeriodAsync(db, s.Id, f, t, groupId);
+        return dto is null ? NotFound() : dto;
     }
 
     /// <summary>
