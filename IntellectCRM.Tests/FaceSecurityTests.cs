@@ -598,6 +598,80 @@ public class FaceSecurityTests
         Assert.True(await svc.IsTrustedAsync(user.Id, "dev-1"));
     }
 
+    /* ---------------------------------------------------------------------------------------------
+     *  MODEL ALMASHISHI — `status` va `verify` BIR XIL javob berishi shart
+     * ------------------------------------------------------------------------------------------ */
+
+    /// <summary>⚠️ Bu qoida ikki joyda AYRI hisoblanardi va shu sabab oqim jimgina buzilardi:
+    /// <c>GET /student/face/status</c> etalonni «qatori bormi» deb sanardi, <c>VerifyAsync</c> esa
+    /// model versiyasini ham tekshirardi. Endi ikkalasi <c>TemplateUsable</c> ni chaqiradi.</summary>
+    [Fact]
+    public void TemplateUsable_model_almashsa_eski_etalon_yaroqsiz()
+    {
+        Assert.True(FaceLoginService.TemplateUsable("m1", "m1"));
+        Assert.True(FaceLoginService.TemplateUsable("M1", "m1"));   // registr muhim emas
+        Assert.False(FaceLoginService.TemplateUsable("m1", "m2"));
+        Assert.False(FaceLoginService.TemplateUsable(null, "m2"));
+        // Markaz modeli belgilanmagan — tekshiruv ATAYIN o'chirilgan.
+        Assert.True(FaceLoginService.TemplateUsable("m1", ""));
+        Assert.True(FaceLoginService.TemplateUsable("m1", null));
+    }
+
+    /// <summary>Model almashgach o'quvchi ADMIN TASDIG'INI KUTMASDAN, profil rasmidan olingan
+    /// yangi etalon bilan kirishi kerak — aks holda modelni yangilash «hamma o'quvchini qo'lda
+    /// tasdiqlash» degani bo'lardi.</summary>
+    [Fact]
+    public async Task Model_almashgach_profil_rasmidan_qayta_royxatdan_otadi()
+    {
+        var (db, svc, _) = NewService(liveness: false);
+        using var _d = db;
+        var (user, student) = AddStudent(db);
+        var profil = Vec(77);
+
+        // 1. Eski model ("m1") bilan ro'yxatdan o'tdi.
+        Assert.True((await svc.VerifyAsync(Req(user, student, Near(profil, 0.05), profil))).Enrolled);
+
+        // 2. Markaz modelni almashtirdi.
+        (await db.Context.CenterMeta.FirstAsync()).LoginFaceModelVersion = "m2";
+        await db.Context.SaveChangesAsync();
+
+        // 3. Eski etalon endi YAROQSIZ — `status` shuni ko'rib "etalon yo'q" deydi va ilova
+        //    profil rasmidan `refVector` yuboradi.
+        var saved = await db.Context.StudentFaceProfiles.FirstAsync(p => p.StudentId == student.Id);
+        Assert.False(FaceLoginService.TemplateUsable(saved.ModelVersion, "m2"));
+
+        var r = await svc.VerifyAsync(new FaceLoginService.VerifyRequest(
+            student, user.Id, "/uploads/face/selfi2.jpg", Near(profil, 0.05), profil, GoodQuality,
+            "m2", "dev-1", "Pixel", "android", "1.0", "1.2.3.4"));
+
+        Assert.True(r.Ok);
+        Assert.True(r.Enrolled);
+        Assert.Equal("m2", (await db.Context.StudentFaceProfiles
+            .FirstAsync(p => p.StudentId == student.Id)).ModelVersion);
+    }
+
+    /// <summary>⚠️ `refVector` YUBORILMASA (ilova "etalon bor" deb o'ylagan holat) — o'quvchi
+    /// `pending` ga tushadi. AYNAN shu eski nosozlikning oqibati edi; test uni yodda tutadi.</summary>
+    [Fact]
+    public async Task Model_almashgach_refVector_kelmasa_pending_boladi()
+    {
+        var (db, svc, _) = NewService(liveness: false);
+        using var _d = db;
+        var (user, student) = AddStudent(db);
+        var profil = Vec(78);
+
+        Assert.True((await svc.VerifyAsync(Req(user, student, Near(profil, 0.05), profil))).Enrolled);
+        (await db.Context.CenterMeta.FirstAsync()).LoginFaceModelVersion = "m2";
+        await db.Context.SaveChangesAsync();
+
+        var r = await svc.VerifyAsync(new FaceLoginService.VerifyRequest(
+            student, user.Id, "/uploads/face/selfi2.jpg", Near(profil, 0.05), null, GoodQuality,
+            "m2", "dev-1", "Pixel", "android", "1.0", "1.2.3.4"));
+
+        Assert.False(r.Ok);
+        Assert.Equal(FaceLoginService.StatusPending, r.Status);
+    }
+
     /* =============================================================================================
      *  4. ILOVA HAQIQIYLIGI (attestation)
      * ========================================================================================== */

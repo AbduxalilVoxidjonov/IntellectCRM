@@ -376,6 +376,26 @@ public class FaceLoginService(IAppDbContext db, FaceVault vault)
         bool Enrolled, IReadOnlyList<string> RemovedImages, bool Recorded);
 
     /// <summary>
+    /// Saqlangan etalon HOZIR ishlatishga yaroqlimi — ya'ni uni yaratgan model markaz kutayotgan
+    /// model bilan bir xilmi. Turli modellarning vektorlarini solishtirish tasodifiy natija beradi.
+    ///
+    /// <para>⚠️ <b>BU YAGONA MANBA — ikkita joyda AYRIM hisoblamang.</b> Ilgari
+    /// <c>GET /student/face/status</c> etalonni shunchaki "qatori bormi" deb sanardi
+    /// (<c>AnyAsync(p =&gt; p.StudentId == me.Id)</c>), <see cref="VerifyAsync"/> esa model
+    /// versiyasini ham tekshirardi. Model almashganda ikkalasi AYRI javob berardi va oqim
+    /// jimgina buzilardi: <c>status</c> «etalon bor» deydi → ilova profil rasmidan
+    /// <c>refVector</c> YUBORMAYDI → <c>verify</c> da esa etalon yaroqsiz, <c>refVector</c> ham
+    /// yo'q → har bir o'quvchi <c>pending</c> ga tushib, admin tasdig'ini kutib qolardi.
+    /// Holbuki profil rasmi joyida turgan va hammasi avtomatik hal bo'lishi kerak edi.</para>
+    ///
+    /// <para>Markaz modeli belgilanmagan bo'lsa (bo'sh satr) tekshirilmaydi — bu ATAYIN
+    /// "o'chirilgan" holat.</para>
+    /// </summary>
+    public static bool TemplateUsable(string? templateModelVersion, string? centerModelVersion) =>
+        string.IsNullOrEmpty(centerModelVersion)
+        || string.Equals(templateModelVersion, centerModelVersion, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
     /// Selfini tekshiradi, urinishni yozadi va (muvaffaqiyatda) qurilmani ishonchli qiladi.
     /// SaveChanges O'ZI chaqiriladi — oqim bitta tranzaksiyada tugasin.
     /// </summary>
@@ -437,9 +457,7 @@ public class FaceLoginService(IAppDbContext db, FaceVault vault)
         // berardi. Bunday holatda etalon yo'q deb qaraladi va profil rasmi orqali qayta olinadi.
         // ⚠️ `Unprotect` null qaytarsa (kalit almashgan / blob buzuq) — bu ISTISNO EMAS: etalon
         // "yo'q" deb qaraladi va o'quvchi profil rasmi orqali qayta ro'yxatdan o'tadi.
-        var enrolledVector = profile is not null
-            && (string.IsNullOrEmpty(settings.ModelVersion)
-                || string.Equals(profile.ModelVersion, settings.ModelVersion, StringComparison.OrdinalIgnoreCase))
+        var enrolledVector = profile is not null && TemplateUsable(profile.ModelVersion, settings.ModelVersion)
             ? vault.Unprotect(profile.Vector)
             : null;
 

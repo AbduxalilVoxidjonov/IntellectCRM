@@ -53,7 +53,15 @@ public class StudentFaceController(
         if (me is null) return NotFound(new { message = "O'quvchi topilmadi" });
 
         var settings = await face.SettingsAsync(ct);
-        var enrolled = await db.StudentFaceProfiles.AsNoTracking().AnyAsync(p => p.StudentId == me.Id, ct);
+        // ⚠️ "Qatori bormi" YETARLI EMAS — etalonni YARATGAN model markaz kutayotgani bilan bir xil
+        // bo'lishi shart (`FaceLoginService.TemplateUsable` — sabab o'sha yerda yozilgan). Ilova
+        // AYNAN shu bayroqqa qarab profil rasmidan `refVector` yuborish/yubormaslikni hal qiladi.
+        var templateModel = await db.StudentFaceProfiles.AsNoTracking()
+            .Where(p => p.StudentId == me.Id)
+            .Select(p => p.ModelVersion)
+            .FirstOrDefaultAsync(ct);
+        var enrolled = templateModel is not null
+            && FaceLoginService.TemplateUsable(templateModel, settings.ModelVersion);
         var used = await face.RecentAttemptsAsync(me.Id, ct);
         var limits = FaceMatch.DefaultLimits;
 
