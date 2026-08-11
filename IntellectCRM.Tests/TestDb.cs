@@ -72,6 +72,25 @@ public sealed class TestDb : IDisposable
         return new TestDb(context);
     }
 
+    /// <summary>
+    /// AYNI bazaga IKKINCHI (mustaqil o'zgarish kuzatuvchisiga ega) kontekst — <b>parallel ikki
+    /// so'rovni</b> modellashtirish uchun. Faqat <see cref="Sqlite"/> variantida ishlaydi:
+    /// ulanish bitta, ya'ni ikkala kontekst ham bir xil ma'lumotni ko'radi.
+    ///
+    /// <para>Nima uchun kerak? Konkurentlik tokenlari (masalan <c>Book.Stock</c>,
+    /// <c>FaceChallenge.UsedAt</c>) FAQAT shunday sinaladi: bitta kontekstda o'qilgan asl qiymat
+    /// boshqasida allaqachon o'zgargan bo'lishi kerak. Bitta kontekst ichida buni yasab bo'lmaydi.</para>
+    ///
+    /// <para>Qaytarilgan kontekstni chaqiruvchi O'ZI yopadi (<c>using</c>).</para>
+    /// </summary>
+    public AppDbContext NewContext()
+    {
+        if (_sqliteConnection is null)
+            throw new InvalidOperationException("NewContext() faqat TestDb.Sqlite() bilan ishlaydi");
+        return new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
+            .UseSqlite(_sqliteConnection).Options);
+    }
+
     public void Dispose()
     {
         Context.Dispose();

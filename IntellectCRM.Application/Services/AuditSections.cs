@@ -58,6 +58,9 @@ public static class AuditSections
         // O'quvchilar bo'limida, chunki amal AYNAN bitta o'quvchining kirishiga tegishli.
         // ⚠️ Bu yozuvlarda selfi MANZILI hech qachon bo'lmaydi (biometrik ma'lumot tarixga
         // tushmasin — `.claude/rules/audit.md` "Maxfiy qiymat yozilmaydi" qoidasi).
+        // "StudentBall" — reyting balini QO'LDA tuzatish (qo'shish / 0 ga tushirish).
+        // O'quvchilar bo'limida: amal aynan bitta o'quvchining reytingdagi o'rniga tegishli.
+        ["StudentBall"] = "students",
         ["StudentFaceProfile"] = "students",
         ["TrustedDevice"] = "students",
 

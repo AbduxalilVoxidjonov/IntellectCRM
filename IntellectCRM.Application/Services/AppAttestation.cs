@@ -85,6 +85,12 @@ public sealed class AppAttestation(IHttpClientFactory httpFactory, ILogger<AppAt
     /// <para><paramref name="required"/> = <c>false</c> (STANDART) bo'lsa attestation HECH QACHON
     /// kirishni to'smaydi — natija faqat jurnalga yoziladi. Sabab: kalit sozlanmaguncha yoki
     /// ilovaning yangi versiyasi tarqalmaguncha hech kim qulflanib qolmasin.</para>
+    ///
+    /// <para>⚠️ <c>true</c> QILISHDAN OLDIN: <see cref="Verdict.NotConfigured"/> ham RAD etiladi,
+    /// iOS esa <see cref="VerifyAsync"/> da HAR DOIM shu xulosani oladi (App Attest yozilmagan) —
+    /// ya'ni yoqilishi bilan hamma iOS foydalanuvchisi bloklanadi. Kalitlar umuman qo'yilmagan
+    /// bo'lsa (<see cref="Configured"/> = <c>false</c>) esa Android ham bloklanadi; shu sabab
+    /// <c>PUT /api/admin/face/settings</c> bunday holatda sozlamani YOQTIRMAYDI.</para>
     /// </summary>
     public static string? Gate(Verdict verdict, bool required)
     {

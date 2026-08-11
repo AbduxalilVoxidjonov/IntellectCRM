@@ -379,6 +379,8 @@ public class StudentPortalController(
             {
                 nameof(JournalEntry), nameof(LessonNote), nameof(Student),
                 nameof(StudentGroup), nameof(Group), nameof(AbsenceReason), nameof(CriterionGrade),
+                // Qo'lda tuzatish ballni darhol o'zgartiradi (admin endpointi bilan BIR XIL ro'yxat).
+                nameof(StudentBallAdjustment),
             },
             TimeSpan.FromMinutes(15),
             db2 => RatingService.SchoolAsync(db2));

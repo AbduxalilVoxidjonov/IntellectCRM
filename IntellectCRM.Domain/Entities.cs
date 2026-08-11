@@ -1242,6 +1242,39 @@ public class CriterionGrade
     public string UpdatedAt { get; set; } = string.Empty;
 }
 
+/// <summary>
+/// BALLNI QO'LDA TUZATISH — admin/superadmin kiritgan qo'shimcha (+) yoki ayirma (−).
+///
+/// <para>Ball loyihada <b>PER-GURUH</b> hisoblanadi (<c>StudentBallService</c>), shuning uchun
+/// tuzatish ham har doim BITTA guruhga tegishli: <see cref="GroupId"/> majburiy. "Umumiy"
+/// tuzatish bo'lganda "jami = guruhlar ballari yig'indisi" invarianti buzilardi va markaz
+/// o'rtachasi (jami ÷ guruhlar soni) ma'nosini yo'qotardi.</para>
+///
+/// <para>Guruhdagi amaldagi ball = <c>Math.Max(0, hisoblangan + Σ Delta)</c> — MANFIYGA
+/// TUSHMAYDI. Sabab: "0 ga tushirish" amali <c>Delta = −(joriy ball)</c> sifatida yoziladi;
+/// keyinchalik o'qituvchi eski bahoni o'chirsa yoki kamaytirsa yig'indi manfiy chiqib,
+/// o'quvchi reytingda hammadan pastga tushib ketardi.</para>
+///
+/// <para>Yozuvlar HECH QACHON o'chirilmaydi/tahrirlanmaydi — ular ball tarixining bir qismi
+/// (<c>GET /api/admin/students/{id}/ball-history</c>). Bekor qilish = teskari ishorali yangi yozuv.</para>
+/// </summary>
+public class StudentBallAdjustment
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string StudentId { get; set; } = string.Empty;
+    /// <summary>Qaysi guruh bali tuzatildi (Group.Id) — MAJBURIY.</summary>
+    public string GroupId { get; set; } = string.Empty;
+    /// <summary>Qo'shilgan (+) yoki ayirilgan (−) ball.</summary>
+    public int Delta { get; set; }
+    /// <summary>NEGA — majburiy izoh (bo'sh bo'lsa server 400 qaytaradi).</summary>
+    public string Reason { get; set; } = string.Empty;
+    /// <summary>ISO vaqt ("yyyy-MM-ddTHH:mm:ss") — tarix shu bo'yicha tartiblanadi.</summary>
+    public string CreatedAt { get; set; } = string.Empty;
+    /// <summary>Kim qildi — F.I.Sh. (SNAPSHOT: xodim o'chirilsa ham tarixda qoladi).</summary>
+    public string CreatedBy { get; set; } = string.Empty;
+    public string? CreatedById { get; set; }
+}
+
 /// <summary>O'quvchiga oy uchun hisoblangan oylik to'lov (qarz yozuvi/tarix).</summary>
 public class MonthlyCharge
 {
@@ -1616,7 +1649,14 @@ public class CenterMeta
     /// (<c>PLAY_INTEGRITY_*</c>) sozlanmaguncha va ilovaning yangi versiyasi tarqalmaguncha hech
     /// kim qulflanib qolmasin — natija baribir jurnalga yoziladi (<c>LoginFaceCheck.Attested</c>).
     /// Yoqilsa: <c>failed</c>, <c>notConfigured</c> va <c>unavailable</c> — hammasi RAD etiladi
-    /// (fail-closed, <c>AppAttestation.Gate</c>).</summary>
+    /// (fail-closed, <c>AppAttestation.Gate</c>).
+    ///
+    /// <para>⚠️ <b>YOQISHDAN OLDIN — iOS.</b> App Attest hali yozilmagan, ya'ni
+    /// <c>AppAttestation.VerifyAsync</c> iOS uchun HAR DOIM <c>notConfigured</c> qaytaradi.
+    /// Fail-closed bilan birga bu shuni bildiradi: yoqilsa HAMMA iOS foydalanuvchisi kira
+    /// olmay qoladi. Buni "iOS bo'lsa o'tkazamiz" deb yechib BO'LMAYDI — <c>platform</c>
+    /// maydonini klientning O'ZI yuboradi, ya'ni o'zgartirilgan APK <c>platform=ios</c>
+    /// deyish bilan butun darvozadan o'tib ketardi. To'g'ri yechim — App Attest'ni yozish.</para></summary>
     public bool LoginFaceRequireAttestation { get; set; }
 }
 

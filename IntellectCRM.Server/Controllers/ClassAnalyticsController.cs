@@ -108,6 +108,8 @@ public class ClassAnalyticsController(AppDbContext db, DataCache dataCache) : Co
             {
                 nameof(JournalEntry), nameof(LessonNote), nameof(Student),
                 nameof(StudentGroup), nameof(Group), nameof(AbsenceReason), nameof(CriterionGrade),
+                // Qo'lda tuzatish ballni darhol o'zgartiradi — bo'lmasa 15 daqiqagacha ko'rinmasdi.
+                nameof(StudentBallAdjustment),
             },
             TimeSpan.FromMinutes(15),
             db2 => RatingService.SchoolAsync(db2));
@@ -120,7 +122,12 @@ public class ClassAnalyticsController(AppDbContext db, DataCache dataCache) : Co
     public async Task<ActionResult<IEnumerable<StudentBallDto>>> Balls() =>
         await dataCache.GetOrCreateAsync(
             "ball:students",
-            new[] { nameof(JournalEntry), nameof(CriterionGrade), nameof(Student) },
+            // O'rtacha ball (AvgBall) endi A'ZOLIKKA ham bog'liq — StudentGroup/Group ham deps'da.
+            new[]
+            {
+                nameof(JournalEntry), nameof(CriterionGrade), nameof(Student),
+                nameof(StudentGroup), nameof(Group), nameof(StudentBallAdjustment),
+            },
             TimeSpan.FromMinutes(10),
             db2 => StudentBallService.SchoolAsync(db2));
 }

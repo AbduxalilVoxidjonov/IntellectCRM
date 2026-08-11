@@ -17,8 +17,18 @@ public record LoginRequest(
     string Email, string Password,
     string? DeviceId = null, string? DeviceName = null,
     string? Platform = null, string? AppVersion = null);
-/// <summary>Bot orqali olingan bir martalik kirish kodi bilan login (parol o'rniga).</summary>
-public record OtpLoginRequest(string Code);
+/// <summary>
+/// Bot orqali olingan bir martalik kirish kodi bilan login (parol o'rniga).
+///
+/// <para>⚠️ Qurilma maydonlari <see cref="LoginRequest"/> dagi bilan AYNAN bir xil sabab bilan
+/// bor: OTP ham LOGIN yo'li, ya'ni yuz tasdig'i darvozasi unga ham tegishli. Ular bo'lmaganda
+/// modul YOQILGAN bo'lsa ham "bot orqali kod olib kirish" selfini butunlay chetlab o'tardi.
+/// Maydonlar IXTIYORIY — eski klientlar uchun xatti-harakat o'zgarmaydi.</para>
+/// </summary>
+public record OtpLoginRequest(
+    string Code,
+    string? DeviceId = null, string? DeviceName = null,
+    string? Platform = null, string? AppVersion = null);
 public record UserDto(
     string Id, string FullName, string Role, string Email, string? AvatarUrl,
     List<string>? Permissions = null, string Phone = "");
@@ -1034,25 +1044,79 @@ public record ClassStatsDto(int StudentsCount, double AverageGrade, double? Atte
 /// <para><paramref name="GroupIds"/> — o'quvchining FAOL guruhlari (M2M a'zolik; a'zoligi bo'lmasa
 /// eski <c>ClassName</c> yorlig'idan topilganlari). Guruh reytingi SHU bo'yicha ajratiladi —
 /// <c>ClassName</c> matni ko'p o'quvchida bo'sh yoki eskirgan bo'lgani uchun unga tayanib bo'lmaydi.
-/// Ixtiyoriy (default `null`) — eski chaqiruvchilar buzilmasin.</para></summary>
+/// Ixtiyoriy (default `null`) — eski chaqiruvchilar buzilmasin.</para>
+/// <para><paramref name="AvgBall"/> — <b>MARKAZ REYTINGI SHU BO'YICHA</b> saralanadi:
+/// jami ball ÷ ball tushgan guruhlar soni (<paramref name="GroupCount"/>). Ko'p guruhda o'qiydigan
+/// o'quvchi shunchaki ko'p baho olgani uchun tepaga chiqib qolmasin.
+/// <paramref name="GroupBalls"/> — guruh → SHU guruhdagi ball; guruh reytingi (portal) shundan
+/// quriladi, ya'ni guruh ro'yxatida markaz JAMISI emas, o'sha guruh bali turadi.</para></summary>
 public record StudentRatingRowDto(
     StudentDto Student, string ClassName, int Grade, double Average, double? Attendance, int Ball = 0,
-    List<string>? GroupIds = null);
+    List<string>? GroupIds = null,
+    double AvgBall = 0, int GroupCount = 0, Dictionary<string, int>? GroupBalls = null);
 
 /* ---------- BALL (reyting bali) — jurnal baholari + bajarilgan baholash mezonlari ---------- */
 
-/// <summary>Bitta o'quvchining markaz bo'yicha bali (admin "O'quvchilar" ro'yxatidagi "Ball" ustuni).</summary>
-public record StudentBallDto(string StudentId, int JournalTotal, int CriteriaDone, int Ball, double Average);
+/// <summary>Bitta o'quvchining markaz bo'yicha bali (admin "O'quvchilar" ro'yxatidagi "Ball" ustuni).
+/// <para><paramref name="Ball"/> — barcha guruhlar YIG'INDISI (ma'nosi o'zgarmagan),
+/// <paramref name="AvgBall"/> — guruhlar bo'yicha O'RTACHA (markaz reytingi shu bo'yicha),
+/// <paramref name="GroupCount"/> — ball TUSHGAN guruhlar soni (o'rtachaning maxraji).</para></summary>
+public record StudentBallDto(
+    string StudentId, int JournalTotal, int CriteriaDone, int Ball, double Average,
+    double AvgBall = 0, int GroupCount = 0);
 
-/// <summary>O'qituvchi reytingidagi bitta qator: o'rin, o'quvchi, ball tarkibi va davomat.</summary>
+/// <summary>O'qituvchi reytingidagi bitta qator: o'rin, o'quvchi, ball tarkibi va davomat.
+/// <para><b>Qator = (o'quvchi, GURUH)</b>: bir o'quvchi o'qituvchining ikki guruhida bo'lsa
+/// ikkita qator chiqadi va har birida FAQAT o'sha guruh bali turadi. <paramref name="Rank"/> —
+/// GURUH ICHIDAGI o'rin (1,2,3...). <paramref name="Groups"/> ESKI nom sifatida qoladi va shu
+/// qatorning guruh nomi bilan to'ldiriladi (ilovaning eski versiyalari uni matn bo'yicha
+/// filtrlaydi) — yangi kod <paramref name="GroupId"/>/<paramref name="GroupName"/> ni o'qisin.</para></summary>
 public record TeacherRatingRowDto(
     int Rank, string StudentId, string FullName, string Groups,
-    int JournalTotal, int CriteriaDone, int Ball, double Average, double? Attendance);
+    int JournalTotal, int CriteriaDone, int Ball, double Average, double? Attendance,
+    string GroupId = "", string GroupName = "");
 
-/// <summary>O'qituvchi guruhlaridagi o'quvchilar reytingi (ball bo'yicha, o'rin bilan).</summary>
+/// <summary>O'qituvchi guruhlaridagi o'quvchilar reytingi (ball bo'yicha, o'rin bilan).
+/// <para><paramref name="StudentsCount"/> — DISTINCT o'quvchi soni (qatorlar soni EMAS: qator =
+/// o'quvchi×guruh). Qatorlar soni kerak bo'lsa — <paramref name="RowsCount"/>.</para></summary>
 public record TeacherRatingDto(
     string TeacherId, string FullName, int GroupsCount, int StudentsCount, double AverageBall,
-    List<TeacherRatingRowDto> Rows);
+    List<TeacherRatingRowDto> Rows, int RowsCount = 0);
+
+/* ---------- BALL TAFSILOTI, TARIXI va QO'LDA TUZATISH (admin/superadmin) ---------- */
+
+/// <summary>O'quvchi balining BITTA GURUH kesimi.
+/// <para><paramref name="Computed"/> — jurnal+mezon (xom hisob), <paramref name="Adjustment"/> —
+/// qo'lda tuzatishlar yig'indisi, <paramref name="Ball"/> — amaldagi ball
+/// (<c>Math.Max(0, Computed + Adjustment)</c>, manfiyga tushmaydi).</para></summary>
+public record StudentBallGroupDto(
+    string GroupId, string GroupName, int JournalTotal, int CriteriaDone,
+    int Computed, int Adjustment, int Ball);
+
+/// <summary>O'quvchi balining to'liq tafsiloti (profil → "Ball" paneli).</summary>
+public record StudentBallDetailDto(
+    string StudentId, int Total, double AvgBall, int GroupCount, List<StudentBallGroupDto> Groups);
+
+/// <summary>Ball tarixidagi bitta hodisa.
+/// <para><paramref name="Source"/>: <c>journal</c> (jurnal bahosi), <c>criterion</c> (bajarilgan
+/// baholash mezoni, <paramref name="Points"/> = 1) yoki <c>manual</c> (qo'lda tuzatish,
+/// <paramref name="Points"/> = Delta, manfiy bo'lishi mumkin).</para></summary>
+public record StudentBallHistoryItemDto(
+    string Date, string GroupId, string GroupName, string Source, string Label, int Points, string Actor);
+
+/// <summary>Ball tarixi. <paramref name="Truncated"/> — chegara (<paramref name="Limit"/>) ga
+/// yetgani uchun eski yozuvlar qirqilgan (jimgina emas, ochiq bildiriladi).</summary>
+public record StudentBallHistoryDto(
+    List<StudentBallHistoryItemDto> Items, bool Truncated, int Limit, int Total);
+
+/// <summary>Ballni qo'lda tuzatish so'rovi. <paramref name="ResetToZero"/> berilsa
+/// <paramref name="Delta"/> e'tiborga olinmaydi — server joriy balni O'ZI o'qib teskarisini yozadi.</summary>
+public record StudentBallAdjustPayload(
+    string GroupId, int? Delta, bool ResetToZero, string Reason);
+
+/// <summary>Tuzatish natijasi: nima o'zgardi + yangilangan tafsilot (UI qayta so'ramasin).</summary>
+public record StudentBallAdjustResultDto(
+    string GroupId, string GroupName, int Before, int Delta, int After, StudentBallDetailDto Ball);
 /// <summary>O'quvchi davomati — har metrika chorak (1-4) → son ko'rinishida.</summary>
 public record StudentAttendanceDto(
     Dictionary<int, int> MissedDays, Dictionary<int, int> IllnessDays,
@@ -1093,10 +1157,16 @@ public record StudentNotebookDto(
     int HomeworkDone, int HomeworkMissed, int BehaviorGood, int BehaviorBad, List<MonthMarksDto> MarksTrend);
 
 /// <summary>Portal reytingidagi bitta qator (o'quvchi/parent ko'rinishi — shaxsiy ma'lumotsiz: telefon/balans/manzil yo'q).
-/// <paramref name="Ball"/> — YIG'ILGAN ball (reyting shu bo'yicha); Average — qo'shimcha ko'rsatkich.</summary>
+/// <paramref name="Ball"/> — YIG'ILGAN ball (reyting shu bo'yicha); Average — qo'shimcha ko'rsatkich.
+/// <para><b>`Ball` — RO'YXAT NIMA BO'YICHA TUZILGAN BO'LSA, O'SHA SON:</b> guruh ro'yxatida
+/// (<c>Groups[].Rows</c>, <c>ClassRows</c>) — SHU GURUHDAGI ball; markaz ro'yxatida
+/// (<c>SchoolRows</c>) — guruhlar bo'yicha O'RTACHA (butunlashtirilgan). Shu sababdan klient
+/// qo'shimcha mantiqsiz `Ball`ni ko'rsataveradi. Aniq o'rtacha — <paramref name="AvgBall"/>,
+/// barcha guruhlar yig'indisi — <paramref name="TotalBall"/>, guruhlar soni —
+/// <paramref name="GroupCount"/>.</para></summary>
 public record PortalRatingRowDto(
     int Rank, string StudentId, string FullName, string ClassName, double Average, double? Attendance,
-    int Ball = 0);
+    int Ball = 0, int TotalBall = 0, int GroupCount = 0, double AvgBall = 0);
 
 /// <summary>
 /// Portal reytingidagi BITTA GURUH: o'quvchining har bir faol guruhi uchun alohida ro'yxat.

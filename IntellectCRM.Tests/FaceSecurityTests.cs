@@ -298,6 +298,63 @@ public class FaceSecurityTests
         Assert.Equal(FaceMatch.ReasonNoChallenge, again.Reason);
     }
 
+    /// <summary>
+    /// PARALLEL ikki so'rov AYNI nonce bilan — faqat BITTASI o'tishi kerak.
+    ///
+    /// <para>⚠️ Ketma-ket takrorni (yuqoridagi test) <c>UsedAt</c> ni o'qish yetarli to'sadi, PARALLEL
+    /// so'rovni esa YO'Q: nonce'ni "ishlatilgan" deb belgilash bilan saqlash oralig'ida <c>await</c>
+    /// bor, ya'ni ikkala so'rov ham "ishlatilmagan" ni ko'rib o'tib ketardi. Bu bir marta yozib
+    /// olingan tiriklik sessiyasini IKKI marta ishlatish yo'li edi. Himoya —
+    /// <c>FaceChallenge.UsedAt</c> konkurentlik tokeni (<c>AppDbContext</c>).</para>
+    ///
+    /// <para>Ikki kontekst = ikki so'rov (`TestDb.NewContext`): birinchisi nonce'ni bandlab
+    /// saqlaydi, ikkinchisi esa uni HALI BO'SH deb o'qib olgan edi.</para>
+    /// </summary>
+    [Fact]
+    public async Task Parallel_ikki_sorov_bitta_nonce_bilan_faqat_bittasi_otadi()
+    {
+        var (db, svc, vault) = NewService();
+        using var _d = db;
+        var (user, student) = AddStudent(db);
+        var profil = Vec(46);
+
+        var ch = await svc.IssueChallengeAsync(user.Id, student.Id);
+
+        // Ikkinchi "so'rov" — mustaqil kontekst, AYNI baza.
+        using var other = db.NewContext();
+        var svcB = new FaceLoginService(other, vault);
+
+        // ⚠️ POYGANI MODELLASHTIRISH: B chaqiruvni A dan OLDIN o'qib oldi (`UsedAt` hali bo'sh).
+        // EF tracker uni eslab qoladi va B keyinroq so'rov yuborganda AYNAN shu (eskirgan)
+        // nusxani qaytaradi — haqiqiy parallel so'rovda ham xuddi shunday bo'ladi.
+        await other.FaceChallenges.FirstAsync(c => c.Nonce == ch.Nonce);
+
+        // A yakunlanadi va nonce'ni bandlaydi.
+        var rA = await svc.VerifyAsync(Req(user, student, Near(profil, 0.05), profil,
+            ch.Nonce, GoodLiveness(ch.Actions)));
+        Assert.True(rA.Ok);
+
+        // B "nonce bo'sh" deb o'ylab davom etadi — uni FAQAT konkurentlik tokeni to'sadi.
+        var rB = await svcB.VerifyAsync(Req(user, student, Near(profil, 0.05, seed: 31), profil,
+            ch.Nonce, GoodLiveness(ch.Actions)));
+        Assert.False(rB.Ok);
+        Assert.Equal(FaceMatch.ReasonNoChallenge, rB.Reason);
+    }
+
+    /// <summary>Konkurentlik himoyasi model metadatasida turibdi — kimdir uni olib tashlasa
+    /// yuqoridagi poyga JIMGINA qaytadi (SQL o'zgarmaydi, test esa qizaradi).</summary>
+    [Fact]
+    public void Nonce_UsedAt_konkurentlik_tokeni()
+    {
+        using var db = TestDb.Sqlite();
+        var prop = db.Context.Model
+            .FindEntityType(typeof(FaceChallenge))!
+            .FindProperty(nameof(FaceChallenge.UsedAt))!;
+        Assert.True(prop.IsConcurrencyToken,
+            "FaceChallenge.UsedAt konkurentlik tokeni bo'lishi SHART — aks holda parallel ikki "
+            + "verify bitta nonce bilan o'tib ketadi (AppDbContext izohiga qarang).");
+    }
+
     [Fact]
     public async Task Muddati_otgan_nonce_rad_etiladi()
     {

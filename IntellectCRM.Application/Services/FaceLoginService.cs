@@ -236,6 +236,16 @@ public class FaceLoginService(IAppDbContext db, FaceVault vault)
                              && (c.Score != null || c.Status == StatusPending), ct);
     }
 
+    /// <summary>
+    /// Urinish SOATLIK CHEGARAGA kiradimi (<see cref="RecentAttemptsAsync"/> dagi shart bilan
+    /// AYNAN bir xil bo'lishi SHART).
+    ///
+    /// <para>⚠️ Nega alohida funksiya? Chegarani <b>tozalash</b> ham bilishi kerak: hisoblanadigan
+    /// qatorni o'chirib yuborish hisobni orqaga qaytaradi (qarang <see cref="CleanupAsync"/>).</para>
+    /// </summary>
+    private static bool CountsTowardLimit(LoginFaceCheck c) =>
+        c.Score is not null || c.Status == StatusPending;
+
     /* =============================================================================================
      *  TIRIKLIK CHAQIRUVI (challenge) — bir martalik nonce + tasodifiy harakatlar
      * ========================================================================================== */
@@ -352,9 +362,18 @@ public class FaceLoginService(IAppDbContext db, FaceVault vault)
     /// <param name="AttemptsLeft">Shu soatda qolgan urinishlar (0 — chegara tugadi).</param>
     /// <param name="RemovedImages">Tozalashda o'chirilgan eski selfi manzillari — chaqiruvchi
     /// FAYLLARNI diskdan o'chiradi.</param>
+    /// <param name="Recorded">Shu urinish uchun <c>LoginFaceCheck</c> qatori YOZILDIMI.
+    /// <c>false</c> bo'lsa chaqiruvchi endigina saqlagan selfi faylini O'CHIRADI — unga
+    /// ishora qiladigan yozuv yo'q, ya'ni u diskda "egasiz" qolib ketardi.
+    ///
+    /// <para>⚠️ Bu bayroq ATAYIN bor: ilgari controller <b>sabab matni</b> bo'yicha taxmin
+    /// qilardi (<c>ReasonTooManyAttempts</c> yoki <c>ReasonOldApp</c> bo'lsa fayl o'chiriladi).
+    /// <c>ReasonOldApp</c> esa IKKI joydan keladi — model versiyasi mos kelmasa (yozuv YO'Q) va
+    /// vektor o'lchami mos kelmasa (<c>FaceMatch.Evaluate</c>, yozuv BOR). Ikkinchisida fayl
+    /// o'chib ketar, admin esa urinish ro'yxatida buzuq rasm ko'rardi.</para></param>
     public readonly record struct VerifyResult(
         bool Ok, string Status, string Reason, double? Score, int AttemptsLeft,
-        bool Enrolled, IReadOnlyList<string> RemovedImages);
+        bool Enrolled, IReadOnlyList<string> RemovedImages, bool Recorded);
 
     /// <summary>
     /// Selfini tekshiradi, urinishni yozadi va (muvaffaqiyatda) qurilmani ishonchli qiladi.
@@ -371,14 +390,14 @@ public class FaceLoginService(IAppDbContext db, FaceVault vault)
         var used = await RecentAttemptsAsync(studentId, ct);
         if (used >= MaxAttemptsPerHour)
             return new VerifyResult(false, StatusRejected, FaceMatch.ReasonTooManyAttempts,
-                null, 0, false, Array.Empty<string>());
+                null, 0, false, Array.Empty<string>(), Recorded: false);
 
         // 2. Model mos kelmasa — solishtirish MA'NOSIZ (turli modellar vektorlari taqqoslanmaydi).
         //    Yozuv qo'shilmaydi: bu shaxs urinishi emas, ilova versiyasi muammosi.
         if (!string.IsNullOrEmpty(settings.ModelVersion)
             && !string.Equals(settings.ModelVersion, req.ModelVersion, StringComparison.OrdinalIgnoreCase))
             return new VerifyResult(false, StatusRejected, FaceMatch.ReasonOldApp,
-                null, MaxAttemptsPerHour - used, false, Array.Empty<string>());
+                null, MaxAttemptsPerHour - used, false, Array.Empty<string>(), Recorded: false);
 
         // 2.5. TIRIKLIK (nonce + harakatlar) va ILOVA HAQIQIYLIGI.
         //
@@ -393,9 +412,9 @@ public class FaceLoginService(IAppDbContext db, FaceVault vault)
         {
             AddCheck(req, StatusRejected, gateReason, null, settings.ModelVersion, storeVector: false);
             var cleanedG = await CleanupAsync(studentId, settings.KeepChecks - 1, ct);
-            await db.SaveChangesAsync(ct);
+            if (!await TrySaveAsync(ct)) return NonceRace(used);
             return new VerifyResult(false, StatusRejected, gateReason,
-                null, MaxAttemptsPerHour - used, false, cleanedG);
+                null, MaxAttemptsPerHour - used, false, cleanedG, Recorded: true);
         }
 
         // 3. Kadr sifati — foydalanuvchiga aniq maslahat beradi. Urinish YOZILADI (admin "nega
@@ -407,9 +426,9 @@ public class FaceLoginService(IAppDbContext db, FaceVault vault)
             // KeepChecks - 1: yangi qo'shilgan urinish hali BAZADA yo'q (SaveChanges qilinmagan),
             // ya'ni u so'rov natijasiga tushmaydi — o'rnini oldindan bo'shatib qo'yamiz.
             var cleanedQ = await CleanupAsync(studentId, settings.KeepChecks - 1, ct);
-            await db.SaveChangesAsync(ct);
+            if (!await TrySaveAsync(ct)) return NonceRace(used);
             return new VerifyResult(false, StatusRejected, qualityReason,
-                null, MaxAttemptsPerHour - used, false, cleanedQ);
+                null, MaxAttemptsPerHour - used, false, cleanedQ, Recorded: true);
         }
 
         // 4. Etalon (bo'lsa) va qaror.
@@ -444,14 +463,48 @@ public class FaceLoginService(IAppDbContext db, FaceVault vault)
         }
 
         var cleaned = await CleanupAsync(studentId, settings.KeepChecks - 1, ct);
-        await db.SaveChangesAsync(ct);
+        if (!await TrySaveAsync(ct)) return NonceRace(used);
 
         var left = outcome.Score is null && outcome.Status != StatusPending
             ? MaxAttemptsPerHour - used
             : MaxAttemptsPerHour - used - 1;
         return new VerifyResult(outcome.Ok, outcome.Status, outcome.Reason, outcome.Score,
-            Math.Max(0, left), enrolledNow, cleaned);
+            Math.Max(0, left), enrolledNow, cleaned, Recorded: true);
     }
+
+    /// <summary>
+    /// Saqlashga urinadi. <c>false</c> — <b>bir martalik nonce ayni shu paytda BOSHQA so'rovda
+    /// ishlatilgan</b>.
+    ///
+    /// <para>⚠️ Nega kerak? <see cref="ConsumeChallengeAsync"/> nonce'ni "ishlatilgan" deb
+    /// belgilaydi, lekin saqlash keyinroq bo'ladi — orada <c>await</c> bor. Ya'ni AYNI bir nonce
+    /// bilan yuborilgan IKKI parallel <c>verify</c> so'rovi ikkalasi ham "ishlatilmagan" ni ko'rib
+    /// o'tib ketardi va "nonce BIR MARTA ishlatiladi" kafolati buzilardi (bir marta yozib olingan
+    /// tiriklik sessiyasini ikki marta ishlatish mumkin bo'lardi).</para>
+    ///
+    /// <para>Yechim <c>Book.Stock</c> dagi bilan bir xil: <c>FaceChallenge.UsedAt</c> —
+    /// KONKURENTLIK TOKENI (<c>AppDbContext</c>), ya'ni EF <c>… WHERE UsedAt IS NULL</c> yozadi va
+    /// ikkinchi so'rov 0 qator yangilab, istisno oladi. <b>Migratsiya kerak emas</b> — bu faqat
+    /// model metadatasi.</para>
+    /// </summary>
+    private async Task<bool> TrySaveAsync(CancellationToken ct)
+    {
+        try
+        {
+            await db.SaveChangesAsync(ct);
+            return true;
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>Nonce poygasida yutqazgan so'rov uchun javob: yozuv SAQLANMADI (tranzaksiya
+    /// qaytdi), demak selfi fayli ham keraksiz — <c>Recorded: false</c>.</summary>
+    private static VerifyResult NonceRace(int used) => new(
+        false, StatusRejected, FaceMatch.ReasonNoChallenge, null,
+        Math.Max(0, MaxAttemptsPerHour - used), false, Array.Empty<string>(), Recorded: false);
 
     /// <summary>
     /// HAQIQIYLIK DARVOZASI: bir martalik nonce + tiriklik harakatlari + ilova attestation'i.
@@ -597,6 +650,17 @@ public class FaceLoginService(IAppDbContext db, FaceVault vault)
     /// <para>⚠️ <c>pending</c> urinishlar HECH QACHON o'chirilmaydi va chegaraga ham kirmaydi —
     /// ular admin qaroriga muhtoj; tozalash ularni yeb qo'ysa o'quvchi hech qachon kira olmasdi.</para>
     /// <para>⚠️ Etalonning "dalili" (<c>StudentFaceProfile.SampleUrl</c>) fayli o'chirilmaydi.</para>
+    ///
+    /// <para>⚠️ <b>O'CHIRISH NAVBATI — avval CHEGARAGA KIRMAYDIGAN urinishlar</b>
+    /// (<see cref="CountsTowardLimit"/>), keyin qolganlari; har ikkalasida eng eskisidan boshlab.
+    /// Bu ATAYIN shunday va u <b>xavfsizlik</b> qoidasi, tartib masalasi emas:</para>
+    /// <para>Ilgari tozalash oddiy "eng eskisini o'chir" edi. Sifat/tiriklik sababli rad etilgan
+    /// urinish (<c>Score = null</c>) esa soatlik chegarani <b>YEMAYDI</b>, lekin bazada JOY
+    /// EGALLAYDI — ya'ni hujumchi ataylab yaroqsiz kadr yuborib, <c>KeepChecks</c> oynasidan
+    /// SOLISHTIRILGAN urinishlarni surib chiqarardi va <see cref="MaxAttemptsPerHour"/> hisobi
+    /// nolga qaytardi. Tiriklik o'chirilgan bo'lsa (nonce shart emas) bu <b>cheksiz</b> yuz
+    /// solishtirish degani edi. Endi bunday qatorlar birinchi bo'lib o'chadi, ya'ni chegarani
+    /// tashkil qiladigan qatorlar joyida qoladi.</para>
     /// </summary>
     public async Task<IReadOnlyList<string>> CleanupAsync(
         string studentId, int keep, CancellationToken ct = default)
@@ -609,15 +673,26 @@ public class FaceLoginService(IAppDbContext db, FaceVault vault)
             .ToListAsync(ct);
         if (all.Count <= keep) return Array.Empty<string>();
 
+        // `pending` umuman qatnashmaydi (na chegarada, na o'chirishda).
+        var candidates = all.Where(c => c.Status != StatusPending).ToList();
+        var excess = candidates.Count - keep;
+        if (excess <= 0) return Array.Empty<string>();
+
         var sampleUrl = await db.StudentFaceProfiles.AsNoTracking()
             .Where(p => p.StudentId == studentId).Select(p => p.SampleUrl).FirstOrDefaultAsync(ct);
 
+        // `candidates` yangisidan eskisiga tartiblangan → indeks KATTA = ESKI.
+        var doomed = candidates
+            .Select((Check, Index) => (Check, Index))
+            .OrderBy(x => CountsTowardLimit(x.Check) ? 1 : 0)   // avval chegaraga kirmaydiganlar
+            .ThenByDescending(x => x.Index)                     // har guruhda eng eskisidan
+            .Take(excess)
+            .Select(x => x.Check)
+            .ToList();
+
         var removed = new List<string>();
-        var kept = 0;
-        foreach (var c in all)
+        foreach (var c in doomed)
         {
-            if (c.Status == StatusPending) continue;
-            if (kept < keep) { kept++; continue; }
             db.LoginFaceChecks.Remove(c);
             if (!string.IsNullOrEmpty(c.ImageUrl) && c.ImageUrl != sampleUrl) removed.Add(c.ImageUrl);
         }

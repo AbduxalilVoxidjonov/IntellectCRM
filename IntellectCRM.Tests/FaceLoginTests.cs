@@ -561,6 +561,48 @@ public class FaceLoginTests
         Assert.True(ok.Ok);
     }
 
+    /// <summary>
+    /// ⚠️ CHEGARANI CHETLAB O'TISH: yaroqsiz kadr yuborib, SOLISHTIRILGAN urinishlarni
+    /// jurnaldan surib chiqarish MUMKIN BO'LMASLIGI kerak.
+    ///
+    /// <para>Sifat sababli rad etilgan urinish soatlik chegarani yemaydi (yuqoridagi test), lekin
+    /// bazada JOY EGALLAYDI. Tozalash oddiy "eng eskisini o'chir" bo'lganda hujumchi har safar bitta
+    /// qorong'i kadr yuborib, <c>KeepChecks</c> oynasidan haqiqiy urinishni chiqarib yuborardi va
+    /// <c>RecentAttemptsAsync</c> hisobi ORQAGA qaytardi — ya'ni yuz solishtirishni CHEKSIZ takrorlash
+    /// mumkin edi (tiriklik o'chirilgan bo'lsa nonce ham kerak emas). Endi tozalash avval
+    /// CHEGARAGA KIRMAYDIGAN qatorlarni o'chiradi.</para>
+    /// </summary>
+    [Fact]
+    public async Task Yaroqsiz_kadrlar_chegara_hisobini_orqaga_qaytara_olmaydi()
+    {
+        // KeepChecks chegara bilan bir xil — "oyna to'lgan" holat aynan shu yerda boshlanadi.
+        var (db, svc) = NewService(keep: FaceLoginService.MaxAttemptsPerHour);
+        using var _ = db;
+        var (user, student) = AddStudent(db);
+        var profil = Vec(74);
+        var qorongi = """{"faces":1,"sharpness":500,"brightness":10,"faceRatio":0.4}""";
+
+        // Chegaraga BIR QADAM qolguncha SOLISHTIRILGAN (begona yuz) urinishlar.
+        for (var i = 0; i < FaceLoginService.MaxAttemptsPerHour - 1; i++)
+            Assert.Equal(FaceMatch.ReasonNoMatch,
+                (await svc.VerifyAsync(Req(user, student, Vec(400 + i), profil))).Reason);
+        Assert.Equal(FaceLoginService.MaxAttemptsPerHour - 1, await svc.RecentAttemptsAsync(student.Id));
+
+        // HUJUM: yaroqsiz kadrlar bilan jurnalni "yuvib", hisobni nolga qaytarishga urinish.
+        for (var i = 0; i < 10; i++)
+            Assert.Equal(FaceMatch.ReasonDark,
+                (await svc.VerifyAsync(Req(user, student, Vec(500 + i), profil, quality: qorongi))).Reason);
+
+        // Hisob JOYIDA (nuqsonli tozalashda bu 0 ga tushib ketardi).
+        Assert.Equal(FaceLoginService.MaxAttemptsPerHour - 1, await svc.RecentAttemptsAsync(student.Id));
+
+        // Oxirgi solishtirish chegarani yopadi, keyingisi esa TO'G'RI yuz bilan ham o'tmaydi.
+        await svc.VerifyAsync(Req(user, student, Vec(600), profil));
+        var blocked = await svc.VerifyAsync(Req(user, student, Near(profil, 0.05), profil));
+        Assert.False(blocked.Ok);
+        Assert.Equal(FaceMatch.ReasonTooManyAttempts, blocked.Reason);
+    }
+
     [Fact]
     public async Task Model_mos_kelmasa_Ilovani_yangilang_va_urinish_yozilmaydi()
     {
@@ -573,6 +615,34 @@ public class FaceLoginTests
         Assert.False(r.Ok);
         Assert.Equal(FaceMatch.ReasonOldApp, r.Reason);
         Assert.Equal(0, await db.Context.LoginFaceChecks.CountAsync());
+        // Yozuv yo'q → controller endigina saqlagan selfi FAYLINI o'chiradi.
+        Assert.False(r.Recorded);
+    }
+
+    /// <summary>
+    /// ⚠️ <c>ReasonOldApp</c> IKKI joydan keladi va ular <b>ustma-ust tushmaydi</b>: model
+    /// versiyasi mos kelmasa yozuv YOZILMAYDI (yuqoridagi test), vektor O'LCHAMI mos kelmasa esa
+    /// yoziladi. Controller faylni o'chirish qarorini SABAB MATNI bo'yicha qabul qilganda
+    /// ikkinchisida ham o'chirib yuborardi — jurnalda qator qolib, rasmi yo'qolardi.
+    /// </summary>
+    [Fact]
+    public async Task Vektor_olchami_mos_kelmasa_urinish_YOZILADI_va_fayl_saqlanadi()
+    {
+        var (db, svc) = NewService();
+        using var _ = db;
+        var (user, student) = AddStudent(db);
+
+        // Etalon 128 o'lchamli, selfi esa 64 — model bir xil ("m1"), ya'ni 2-bosqichdan o'tadi.
+        var profil = Vec(75);
+        Assert.True((await svc.VerifyAsync(Req(user, student, Near(profil, 0.05), profil))).Ok);
+
+        var r = await svc.VerifyAsync(Req(user, student, Vec(76, dim: 64), image: "/uploads/face/kichik.jpg"));
+
+        Assert.False(r.Ok);
+        Assert.Equal(FaceMatch.ReasonOldApp, r.Reason);
+        Assert.True(r.Recorded, "O'lcham mos kelmaganda urinish YOZILADI — fayl o'chirilmasin");
+        Assert.True(await db.Context.LoginFaceChecks
+            .AnyAsync(c => c.ImageUrl == "/uploads/face/kichik.jpg"));
     }
 
     /* =============================================================================================
@@ -719,6 +789,43 @@ public class FaceLoginTests
         // middleware'i uni ko'rmaydi, shuning uchun tekshiruv o'sha yerda ham bo'lishi SHART.
         var src = ServerSource("UploadsGuard.cs");
         Assert.Contains("FaceScopeClaimType", src);
+    }
+
+    /// <summary>
+    /// ⚠️ YUZ DARVOZASI <b>HAR IKKALA</b> login yo'lida bo'lishi SHART: parol bilan ham, botdan
+    /// olingan bir martalik KOD bilan ham (<c>otp-login</c>).
+    ///
+    /// <para>Aks holda modul bezakka aylanardi: login/parolini birovga bergan o'quvchi o'sha odamga
+    /// bot kodini yuborib qo'ysa yetardi — selfi umuman so'ralmasdi. Bundan tashqari
+    /// <c>FaceScopeGate</c> cheklangan token bilan <c>otp-login</c> ga ATAYIN ruxsat beradi (qayta
+    /// login uchun), ya'ni selfi ekranidagi foydalanuvchi to'g'ridan-to'g'ri TO'LIQ token olib
+    /// ketardi.</para>
+    /// </summary>
+    [Fact]
+    public void OTP_login_ham_yuz_darvozasidan_otadi()
+    {
+        var src = ServerSource("Controllers", "AuthController.cs");
+        var otp = src[src.IndexOf("public async Task<ActionResult<LoginResponse>> OtpLogin", StringComparison.Ordinal)..];
+
+        Assert.Contains("face.DecideAsync", otp);
+        Assert.Contains("CreateFaceScopedToken", otp);
+        // Ishonchli qurilmada "oxirgi ko'rilgan" ham yangilanadi (parol yo'li bilan bir xil).
+        Assert.Contains("face.TouchAsync", otp);
+    }
+
+    /// <summary>
+    /// ⚠️ Saqlanadigan urinishlar soni SOATLIK CHEGARADAN kam bo'lmasligi kerak: chegara AYNAN
+    /// o'sha jurnal qatorlaridan sanaladi (<c>RecentAttemptsAsync</c>). Admin uni 1 ga tushirsa
+    /// hisob hech qachon chegaraga yetmasdi va brute-force himoyasi JIMGINA o'chib qolardi.
+    /// </summary>
+    [Fact]
+    public void Sozlamada_KeepChecks_chegaradan_past_tusha_olmaydi()
+    {
+        var src = ServerSource("Controllers", "AdminFaceController.cs");
+        Assert.Matches(
+            new Regex(@"LoginFaceKeepChecks\s*=\s*Math\.Clamp\(\s*payload\.KeepChecks,\s*"
+                      + @"FaceLoginService\.MaxAttemptsPerHour,\s*100\)"),
+            src);
     }
 
     [Fact]

@@ -7,74 +7,190 @@ namespace IntellectCRM.Application.Services;
 
 /// <summary>
 /// O'quvchi "BALL"i — guruh sahifasidagi "Reyting" tabi bilan BIR XIL formula:
-/// <c>Ball = Σ(jurnal baholari) + Σ(bajarilgan baholash mezonlari)</c>.
+/// <c>Ball = Σ(jurnal baholari) + Σ(bajarilgan baholash mezonlari) + Σ(qo'lda tuzatish)</c>.
 ///
-/// Ikki joyda ishlatiladi:
-///   • <b>O'qituvchi reytingi</b> — faqat SHU o'qituvchi guruhlaridagi ball (admin o'qituvchi sahifasi
-///     "Reyting" tabi + o'qituvchi ilovasidagi "O'quvchilar reytingi").
-///   • <b>Admin "O'quvchilar" ro'yxati</b> — markaz bo'yicha umumiy ball ustuni (barcha guruhlar).
+/// <para><b>BALL PER-GURUH HISOBLANADI</b> (<see cref="ComputeByGroupAsync"/>): kalit —
+/// <c>(o'quvchi, guruh)</c>. Ilgari hisob faqat <c>StudentId</c> bo'yicha guruhlanardi, ya'ni
+/// ball hech qachon guruhlarga ajratilmagan: bir nechta guruhda o'qiydigan o'quvchining barcha
+/// ballari QO'SHILIB, u markazda ham, HAR BIR guruh reytingida ham nohaq yuqorida turardi.</para>
 ///
-/// Manbalar: <see cref="JournalEntry.Grade"/> (jurnal bahosi) va <see cref="CriterionGrade"/>
-/// (<c>Done=true</c> belgilangan baholash mezonlari).
+/// <para><b>Markazdagi o'rin — O'RTACHA bo'yicha</b> (<see cref="SchoolAsync"/>):
+/// <c>AvgBall = Jami ÷ (ball tushgan guruhlar soni)</c>. Maxraj ATAYIN "faol a'zoliklar soni"
+/// emas: surat va maxraj bitta to'plamdan olinishi shart, aks holda o'qituvchisi hali baho
+/// qo'ymagan yangi guruh o'quvchining o'rtachasini tushirib yuborardi. Bitta guruhli o'quvchida
+/// <c>AvgBall == Ball</c> — ya'ni ko'pchilik uchun hech narsa o'zgarmaydi.</para>
+///
+/// <para><b>QO'LDA TUZATISH</b> (<see cref="StudentBallAdjustment"/>) hisobning ichida:
+/// guruh bali = <c>Math.Max(0, hisoblangan + Σ Delta)</c> — manfiyga tushmaydi. Shu sababdan
+/// tuzatish BARCHA reytinglarda (markaz, guruh, o'qituvchi) avtomatik hisobga olinadi.</para>
+///
+/// Manbalar: <see cref="JournalEntry.Grade"/> (jurnal bahosi), <see cref="CriterionGrade"/>
+/// (<c>Done=true</c> belgilangan baholash mezonlari) va <see cref="StudentBallAdjustment"/>.
 /// </summary>
 public static class StudentBallService
 {
-    /// <summary>Bitta o'quvchining ball tarkibi.</summary>
-    public sealed record BallStat(int JournalTotal, int GradeCount, int CriteriaDone)
+    /// <summary>
+    /// Ball tarkibi. Odatda BITTA guruh uchun (<see cref="ComputeByGroupAsync"/>).
+    /// <para><paramref name="GroupBallSum"/> — faqat guruhlar bo'yicha JAMLANGAN statda to'ldiriladi
+    /// (<see cref="ComputeAsync"/>): u yerda jami = har guruhda ALOHIDA 0 ga qirqilgan ballar
+    /// yig'indisi bo'lishi shart. Aks holda bitta guruhdagi manfiy tuzatish boshqa guruh balini
+    /// "yeb" qo'yardi.</para>
+    /// </summary>
+    public sealed record BallStat(
+        int JournalTotal, int GradeCount, int CriteriaDone, int Adjustment = 0, int? GroupBallSum = null)
     {
-        public int Ball => JournalTotal + CriteriaDone;
+        /// <summary>Amaldagi ball — hech qachon manfiy emas.</summary>
+        public int Ball => GroupBallSum ?? Math.Max(0, JournalTotal + CriteriaDone + Adjustment);
+        /// <summary>Tuzatishsiz, xom hisob (tarix/tafsilot oynasi uchun).</summary>
+        public int Computed => JournalTotal + CriteriaDone;
         /// <summary>O'rtacha baho (baho qo'yilgan darslar bo'yicha); baho yo'q bo'lsa 0.</summary>
         public double Average => GradeCount > 0 ? Math.Round((double)JournalTotal / GradeCount, 1) : 0;
     }
 
     /// <summary>
-    /// O'quvchi → ball tarkibi. <paramref name="groupIds"/> berilsa faqat shu guruhlardagi
-    /// baho/mezonlar hisoblanadi (o'qituvchi reytingi); null bo'lsa — barcha guruhlar (markaz bo'yicha).
+    /// O'quvchining barcha guruhlari bo'yicha JAMLANGAN ball.
+    /// <para><paramref name="GroupCount"/> — BALL TUSHGAN guruhlar soni (<c>Ball &gt; 0</c>),
+    /// <paramref name="AvgBall"/> — markaz reytingi saralanadigan o'rtacha (1 kasrgacha).
+    /// <paramref name="GroupBalls"/> — guruh → shu guruhdagi ball (guruh reytingi shundan quriladi).</para>
     /// </summary>
-    public static async Task<Dictionary<string, BallStat>> ComputeAsync(
+    public sealed record StudentBallTotals(
+        int JournalTotal, int GradeCount, int CriteriaDone, int Adjustment,
+        int Ball, double Average, int GroupCount, double AvgBall,
+        IReadOnlyDictionary<string, int> GroupBalls);
+
+    /// <summary>
+    /// <b>PER-GURUH ball</b> — kalit <c>(StudentId, GroupId)</c>. <paramref name="groupIds"/> berilsa
+    /// faqat shu guruhlar hisoblanadi (o'qituvchi reytingi / guruh tahlili); null — barcha guruhlar.
+    /// </summary>
+    public static async Task<Dictionary<(string StudentId, string GroupId), BallStat>> ComputeByGroupAsync(
         IAppDbContext db, IReadOnlyCollection<string>? groupIds = null)
     {
-        if (groupIds is { Count: 0 }) return new Dictionary<string, BallStat>();
+        var result = new Dictionary<(string, string), BallStat>();
+        if (groupIds is { Count: 0 }) return result;
 
+        // Jurnal baholari — GURUH (ClassId) ham guruhlash kalitida.
         var jq = db.JournalEntries.AsNoTracking().Where(e => e.Grade != null);
         if (groupIds is not null) jq = jq.Where(e => groupIds.Contains(e.ClassId));
         var journal = await jq
-            .GroupBy(e => e.StudentId)
-            .Select(g => new { StudentId = g.Key, Total = g.Sum(x => x.Grade ?? 0), Count = g.Count() })
+            .GroupBy(e => new { e.StudentId, e.ClassId })
+            .Select(g => new
+            {
+                g.Key.StudentId,
+                GroupId = g.Key.ClassId,
+                Total = g.Sum(x => x.Grade ?? 0),
+                Count = g.Count(),
+            })
             .ToListAsync();
 
         var cq = db.CriterionGrades.AsNoTracking().Where(g => g.Done);
         if (groupIds is not null) cq = cq.Where(g => groupIds.Contains(g.GroupId));
         var criteria = await cq
-            .GroupBy(g => g.StudentId)
-            .Select(g => new { StudentId = g.Key, Done = g.Count() })
+            .GroupBy(g => new { g.StudentId, g.GroupId })
+            .Select(g => new { g.Key.StudentId, g.Key.GroupId, Done = g.Count() })
             .ToListAsync();
 
-        var result = new Dictionary<string, BallStat>();
-        foreach (var j in journal) result[j.StudentId] = new BallStat(j.Total, j.Count, 0);
+        var aq = db.StudentBallAdjustments.AsNoTracking();
+        if (groupIds is not null) aq = aq.Where(a => groupIds.Contains(a.GroupId));
+        var adjustments = await aq
+            .GroupBy(a => new { a.StudentId, a.GroupId })
+            .Select(g => new { g.Key.StudentId, g.Key.GroupId, Delta = g.Sum(x => x.Delta) })
+            .ToListAsync();
+
+        foreach (var j in journal)
+            result[(j.StudentId, j.GroupId)] = new BallStat(j.Total, j.Count, 0);
         foreach (var c in criteria)
-            result[c.StudentId] = result.TryGetValue(c.StudentId, out var b)
+            result[(c.StudentId, c.GroupId)] = result.TryGetValue((c.StudentId, c.GroupId), out var b)
                 ? b with { CriteriaDone = c.Done }
                 : new BallStat(0, 0, c.Done);
+        foreach (var a in adjustments)
+            result[(a.StudentId, a.GroupId)] = result.TryGetValue((a.StudentId, a.GroupId), out var b)
+                ? b with { Adjustment = a.Delta }
+                : new BallStat(0, 0, 0, a.Delta);
         return result;
     }
 
-    /// <summary>Markaz bo'yicha barcha (arxivlanmagan) o'quvchilar bali — admin ro'yxati ustuni uchun.</summary>
+    /// <summary>
+    /// Per-guruh statlarni O'QUVCHI bo'yicha jamlaydi (jami, o'rtacha, guruhlar kesimi).
+    /// Sof funksiya — testlanadi va bazaga tegmaydi.
+    /// </summary>
+    public static Dictionary<string, StudentBallTotals> AggregateByStudent(
+        IReadOnlyDictionary<(string StudentId, string GroupId), BallStat> byGroup)
+    {
+        var result = new Dictionary<string, StudentBallTotals>();
+        foreach (var g in byGroup.GroupBy(kv => kv.Key.StudentId))
+        {
+            int journal = 0, grades = 0, criteria = 0, adjust = 0, ball = 0, withBall = 0;
+            var groupBalls = new Dictionary<string, int>(StringComparer.Ordinal);
+            foreach (var kv in g)
+            {
+                var s = kv.Value;
+                journal += s.JournalTotal;
+                grades += s.GradeCount;
+                criteria += s.CriteriaDone;
+                adjust += s.Adjustment;
+                // Har guruhda ALOHIDA 0 ga qirqiladi, keyin qo'shiladi.
+                ball += s.Ball;
+                if (s.Ball > 0) withBall++;      // maxraj: faqat ball TUSHGAN guruhlar
+                groupBalls[kv.Key.GroupId] = s.Ball;
+            }
+            var average = grades > 0 ? Math.Round((double)journal / grades, 1) : 0;
+            var avgBall = withBall > 0 ? Math.Round((double)ball / withBall, 1) : 0;
+            result[g.Key] = new StudentBallTotals(
+                journal, grades, criteria, adjust, ball, average, withBall, avgBall, groupBalls);
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// O'quvchi → JAMLANGAN ball tarkibi (barcha guruhlari qo'shilgan holda).
+    /// <paramref name="groupIds"/> berilsa faqat shu guruhlar (o'qituvchi reytingi / guruh tahlili).
+    /// <para>⚠️ Imzo va MA'NO ataylab o'zgarmadi (bitta guruh berilganda AYNAN o'sha guruh bali
+    /// qaytadi — <c>GroupSnapshotBuilder</c> shunga tayanadi). Per-guruh kesim kerak bo'lsa
+    /// <see cref="ComputeByGroupAsync"/> ishlatiladi.</para>
+    /// </summary>
+    public static async Task<Dictionary<string, BallStat>> ComputeAsync(
+        IAppDbContext db, IReadOnlyCollection<string>? groupIds = null)
+    {
+        var byGroup = await ComputeByGroupAsync(db, groupIds);
+        return AggregateByStudent(byGroup).ToDictionary(
+            kv => kv.Key,
+            kv => new BallStat(
+                kv.Value.JournalTotal, kv.Value.GradeCount, kv.Value.CriteriaDone,
+                kv.Value.Adjustment, GroupBallSum: kv.Value.Ball));
+    }
+
+    /// <summary>
+    /// Markaz bo'yicha barcha (arxivlanmagan) o'quvchilar bali — admin ro'yxati ustuni uchun.
+    /// <para><b>Markaz reytingi <c>AvgBall</c> bo'yicha saralanadi</b> (yig'indi emas): ko'p guruhda
+    /// o'qiydigan o'quvchi shunchaki ko'p baho olgani uchun tepaga chiqib qolmasin.</para>
+    /// </summary>
     public static async Task<List<StudentBallDto>> SchoolAsync(IAppDbContext db)
     {
-        var balls = await ComputeAsync(db);
+        var totals = AggregateByStudent(await ComputeByGroupAsync(db));
         var ids = await db.Students.AsNoTracking().Where(s => !s.IsArchived).Select(s => s.Id).ToListAsync();
         return ids.Select(id =>
         {
-            var b = balls.GetValueOrDefault(id, new BallStat(0, 0, 0));
-            return new StudentBallDto(id, b.JournalTotal, b.CriteriaDone, b.Ball, b.Average);
+            var b = totals.GetValueOrDefault(id);
+            return b is null
+                ? new StudentBallDto(id, 0, 0, 0, 0)
+                : new StudentBallDto(id, b.JournalTotal, b.CriteriaDone, b.Ball, b.Average, b.AvgBall, b.GroupCount);
         }).ToList();
     }
 
     /// <summary>
-    /// O'qituvchi guruhlaridagi o'quvchilar reytingi (ball kamayish tartibida, o'rin bilan).
-    /// Faqat FAOL a'zolar va arxivlanmagan o'quvchilar. Davomat — shu o'qituvchi guruhlarida
-    /// o'tilgan darslar bo'yicha (kech kelish sababi qatnashmaydi).
+    /// O'qituvchi guruhlaridagi o'quvchilar reytingi — <b>qator = (o'quvchi, GURUH)</b>.
+    ///
+    /// <para>Ilgari bitta o'quvchi bitta qator bo'lib, o'qituvchining BARCHA guruhlaridagi bali
+    /// qo'shilardi: ikki guruhda o'qiydigan o'quvchi ikki barobar ball bilan birinchi chiqardi va
+    /// "qaysi guruhda qanaqa" degan savolga javob yo'q edi. Endi har guruh uchun alohida qator,
+    /// <c>Rank</c> esa GURUH ICHIDA (1,2,3...) — aralash o'rin emas.</para>
+    ///
+    /// <para>Ro'yxatning O'ZI ball kamayishi bo'yicha (podium/eski ilova shunga tayanadi);
+    /// <c>Groups</c> maydoni orqaga moslik uchun SHU qatorning guruh nomi bilan to'ldiriladi —
+    /// o'qituvchi ilovasining eski versiyalari uni matn bo'yicha filtrlaydi.</para>
+    ///
+    /// Faqat FAOL a'zolar va arxivlanmagan o'quvchilar. Davomat — SHU guruhda o'tilgan darslar
+    /// bo'yicha (kech kelish sababi qatnashmaydi).
     /// </summary>
     public static async Task<TeacherRatingDto> TeacherAsync(IAppDbContext db, Teacher teacher)
     {
@@ -92,17 +208,19 @@ public static class StudentBallService
         var memberships = await db.StudentGroups.AsNoTracking()
             .Where(sg => groupIds.Contains(sg.GroupId) && sg.IsActive)
             .Select(sg => new { sg.StudentId, sg.GroupId })
+            .Distinct()
             .ToListAsync();
         var studentIds = memberships.Select(m => m.StudentId).Distinct().ToList();
         if (studentIds.Count == 0)
             return new TeacherRatingDto(teacher.Id, teacher.FullName, groups.Count, 0, 0, new List<TeacherRatingRowDto>());
 
-        var students = await db.Students.AsNoTracking()
-            .Where(s => studentIds.Contains(s.Id) && !s.IsArchived)
-            .Select(s => new { s.Id, s.FullName })
-            .ToListAsync();
+        var studentName = (await db.Students.AsNoTracking()
+                .Where(s => studentIds.Contains(s.Id) && !s.IsArchived)
+                .Select(s => new { s.Id, s.FullName })
+                .ToListAsync())
+            .ToDictionary(s => s.Id, s => s.FullName);
 
-        var balls = await ComputeAsync(db, groupIds);
+        var balls = await ComputeByGroupAsync(db, groupIds);
 
         // Davomat: o'tilgan darslar (LessonNote.Conducted) va sababli qoldirilganlar (kech kelish emas).
         var lateIds = (await db.AbsenceReasons.AsNoTracking().Where(r => r.IsLate).Select(r => r.Id).ToListAsync())
@@ -113,44 +231,62 @@ public static class StudentBallService
                 .ToListAsync())
             .GroupBy(n => n.ClassId)
             .ToDictionary(g => g.Key, g => g.Select(n => (n.SubjectId, n.Date, n.Period)).ToHashSet());
-        var absencesByStudent = (await db.JournalEntries.AsNoTracking()
+        var absencesByKey = (await db.JournalEntries.AsNoTracking()
                 .Where(e => groupIds.Contains(e.ClassId) && e.ReasonId != null)
                 .Select(e => new { e.StudentId, e.ClassId, e.SubjectId, e.Date, e.Period, e.ReasonId })
                 .ToListAsync())
             .Where(e => !lateIds.Contains(e.ReasonId!))
-            .GroupBy(e => e.StudentId)
+            .GroupBy(e => (e.StudentId, e.ClassId))
             .ToDictionary(g => g.Key, g => g.ToList());
 
-        var groupsByStudent = memberships.GroupBy(m => m.StudentId)
-            .ToDictionary(g => g.Key, g => g.Select(m => m.GroupId).Distinct().ToList());
-
-        var rows = students.Select(st =>
-        {
-            var mine = groupsByStudent.GetValueOrDefault(st.Id, new List<string>());
-            var b = balls.GetValueOrDefault(st.Id, new BallStat(0, 0, 0));
-
-            int conducted = 0, absent = 0;
-            foreach (var gid in mine)
+        // Qator = (o'quvchi, guruh). Arxivlangan o'quvchi ro'yxatga kirmaydi.
+        var raw = memberships
+            .Where(m => studentName.ContainsKey(m.StudentId))
+            .Select(m =>
             {
-                if (!conductedByGroup.TryGetValue(gid, out var cond)) continue;
-                conducted += cond.Count;
-                if (absencesByStudent.TryGetValue(st.Id, out var abs))
-                    absent += abs.Count(e => e.ClassId == gid && cond.Contains((e.SubjectId, e.Date, e.Period)));
-            }
-            double? attendance = conducted > 0
-                ? Math.Round((double)(conducted - absent) / conducted * 100)
-                : null;
+                var b = balls.GetValueOrDefault((m.StudentId, m.GroupId), new BallStat(0, 0, 0));
 
-            var names = string.Join(", ", mine.Select(g => groupName.GetValueOrDefault(g, "")).Where(n => n != ""));
-            return new TeacherRatingRowDto(
-                0, st.Id, st.FullName, names, b.JournalTotal, b.CriteriaDone, b.Ball, b.Average, attendance);
-        })
-        .OrderByDescending(r => r.Ball)
-        .ThenBy(r => r.FullName, StringComparer.OrdinalIgnoreCase)
-        .Select((r, i) => r with { Rank = i + 1 })
-        .ToList();
+                int conducted = 0, absent = 0;
+                if (conductedByGroup.TryGetValue(m.GroupId, out var cond))
+                {
+                    conducted = cond.Count;
+                    if (absencesByKey.TryGetValue((m.StudentId, m.GroupId), out var abs))
+                        absent = abs.Count(e => cond.Contains((e.SubjectId, e.Date, e.Period)));
+                }
+                double? attendance = conducted > 0
+                    ? Math.Round((double)(conducted - absent) / conducted * 100)
+                    : null;
+
+                var name = groupName.GetValueOrDefault(m.GroupId, "");
+                return new TeacherRatingRowDto(
+                    0, m.StudentId, studentName[m.StudentId], name,
+                    b.JournalTotal, b.CriteriaDone, b.Ball, b.Average, attendance,
+                    m.GroupId, name);
+            })
+            .ToList();
+
+        // O'RIN — GURUH ICHIDA (1,2,3...); ro'yxatning o'zi esa ball kamayishi bo'yicha.
+        var rankByRow = new Dictionary<(string StudentId, string GroupId), int>();
+        foreach (var g in raw.GroupBy(r => r.GroupId))
+        {
+            var i = 1;
+            foreach (var r in g.OrderByDescending(r => r.Ball)
+                         .ThenBy(r => r.FullName, StringComparer.OrdinalIgnoreCase))
+                rankByRow[(r.StudentId, r.GroupId)] = i++;
+        }
+
+        var rows = raw
+            .Select(r => r with { Rank = rankByRow[(r.StudentId, r.GroupId)] })
+            .OrderByDescending(r => r.Ball)
+            .ThenBy(r => r.GroupName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(r => r.FullName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
         var avgBall = rows.Count > 0 ? Math.Round(rows.Average(r => (double)r.Ball), 1) : 0;
-        return new TeacherRatingDto(teacher.Id, teacher.FullName, groups.Count, rows.Count, avgBall, rows);
+        // StudentsCount — DISTINCT o'quvchi (qatorlar soni EMAS): bir o'quvchi ikki guruhda
+        // bo'lsa "o'quvchilar soni" ikki barobar ko'rinib qolardi.
+        var studentsCount = rows.Select(r => r.StudentId).Distinct().Count();
+        return new TeacherRatingDto(
+            teacher.Id, teacher.FullName, groups.Count, studentsCount, avgBall, rows, rows.Count);
     }
 }

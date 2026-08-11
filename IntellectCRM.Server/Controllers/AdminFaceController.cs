@@ -155,29 +155,46 @@ public class AdminFaceController(
      *  ISHONCHLI QURILMALAR
      * ========================================================================================== */
 
-    /// <summary>Ishonchli qurilmalar (ixtiyoriy — bitta o'quvchi bo'yicha).</summary>
+    /// <summary>
+    /// Ishonchli qurilmalar (ixtiyoriy — bitta o'quvchi bo'yicha).
+    ///
+    /// <para>⚠️ Tartib: avval QURILMALAR o'qiladi, keyin faqat o'shalarning egalari. Ilgari
+    /// teskarisi edi — BUTUN o'quvchilar jadvali xotiraga yig'ilib, ularning ID'lari bitta
+    /// ulkan <c>IN (...)</c> ro'yxatiga aylanardi (bir necha ming o'quvchida so'rov cho'kib
+    /// ketardi), holbuki javobga ko'pi bilan <see cref="MaxLimit"/> ta qator chiqadi.</para>
+    /// </summary>
     [HttpGet("devices")]
     public async Task<ActionResult<List<FaceDeviceDto>>> Devices(
         [FromQuery] string? studentId, CancellationToken ct)
     {
-        // Qurilma AKKAUNTGA (AppUser) bog'langan, filtr esa o'quvchi bo'yicha so'raladi —
-        // shuning uchun avval o'quvchi → UserId xaritasi tuziladi.
-        var students = await db.Students.AsNoTracking()
-            .Where(s => s.UserId != null && (studentId == null || s.Id == studentId))
+        // Qurilma AKKAUNTGA (AppUser) bog'langan, filtr esa o'quvchi bo'yicha so'raladi.
+        var q = db.TrustedDevices.AsNoTracking();
+        if (!string.IsNullOrWhiteSpace(studentId))
+        {
+            var ownerId = await db.Students.AsNoTracking()
+                .Where(s => s.Id == studentId).Select(s => s.UserId).FirstOrDefaultAsync(ct);
+            if (string.IsNullOrEmpty(ownerId)) return new List<FaceDeviceDto>();
+            q = q.Where(d => d.UserId == ownerId);
+        }
+
+        var rows = await q.OrderByDescending(d => d.LastSeenAt).Take(MaxLimit).ToListAsync(ct);
+        if (rows.Count == 0) return new List<FaceDeviceDto>();
+
+        var userIds = rows.Select(r => r.UserId).Distinct().ToList();
+        var owners = await db.Students.AsNoTracking()
+            .Where(s => s.UserId != null && userIds.Contains(s.UserId))
             .Select(s => new { s.Id, s.UserId, s.FullName })
             .ToListAsync(ct);
-        var byUser = students.Where(s => s.UserId is not null)
-            .ToDictionary(s => s.UserId!, s => s);
-
-        var userIds = byUser.Keys.ToList();
-        var q = db.TrustedDevices.AsNoTracking().Where(d => userIds.Contains(d.UserId));
-        var rows = await q.OrderByDescending(d => d.LastSeenAt).Take(MaxLimit).ToListAsync(ct);
+        // ⚠️ `ToDictionary` EMAS: bitta akkauntga ikkita o'quvchi yozuvi biriktirilib qolgan
+        // (ma'lumot nuqsoni) baza butun sahifani 500 bilan yiqitmasin.
+        var byUser = new Dictionary<string, (string Id, string FullName)>();
+        foreach (var s in owners) byUser.TryAdd(s.UserId!, (s.Id, s.FullName));
 
         return rows.Select(d =>
         {
-            var s = byUser.GetValueOrDefault(d.UserId);
+            var owner = byUser.TryGetValue(d.UserId, out var s) ? s : (Id: "", FullName: "—");
             return new FaceDeviceDto(
-                d.Id, d.UserId, s?.Id ?? "", s?.FullName ?? "—",
+                d.Id, d.UserId, owner.Id, owner.FullName,
                 d.DeviceId, d.DeviceName, d.Platform, d.CreatedAt, d.LastSeenAt, d.RevokedAt);
         }).ToList();
     }
@@ -245,7 +262,13 @@ public class AdminFaceController(
         await db.SaveChangesAsync(ct);
 
         // Etalon "dalili" ham qoladigan joyi yo'q — biometrik ma'lumot ortiqcha yotmasin.
-        DeleteFile(sampleUrl);
+        // ⚠️ Lekin AYNI fayl urinishlar jurnalidagi qatorga ham tegishli bo'lishi mumkin: etalon
+        // odatda o'sha urinishning selfisidan yasaladi (`ApproveCheckAsync` / birinchi kirish) va
+        // `CleanupAsync` uni ATAYIN o'chirmay saqlab turadi. Shu sabab fayl faqat unga ishora
+        // qiladigan urinish QOLMAGANDA o'chiriladi — aks holda admin ro'yxatida buzuq rasm qolardi.
+        var stillUsed = !string.IsNullOrEmpty(sampleUrl)
+            && await db.LoginFaceChecks.AsNoTracking().AnyAsync(c => c.ImageUrl == sampleUrl, ct);
+        if (!stillUsed) DeleteFile(sampleUrl);
         return Ok(new { message = "Etalon o'chirildi" });
     }
 
@@ -277,6 +300,21 @@ public class AdminFaceController(
         var meta = await db.CenterMeta.FirstOrDefaultAsync(ct);
         if (meta is null) { meta = new CenterMeta(); db.CenterMeta.Add(meta); }
 
+        // ⚠️ HAMMANI QULFLAB QO'YADIGAN SOZLAMA. `AppAttestation.Gate` majburiy rejimda
+        // FAIL-CLOSED: `Ok` dan boshqa HAMMA xulosa — `NotConfigured` ham — rad etiladi.
+        // Kalitlar qo'yilmagan bo'lsa `VerifyAsync` hech qachon `Ok` qaytara olmaydi, ya'ni
+        // yoqilgan zahoti BITTA ham o'quvchi kira olmay qoladi (jumladan admin o'zi ham
+        // ilovadan). Shuning uchun yoqishga faqat Android tomoni HAQIQATAN sozlanganda
+        // ruxsat beramiz.
+        if (payload.RequireAttestation && !AppAttestation.Configured)
+        {
+            return BadRequest(new
+            {
+                message = "Ilova haqiqiyligini tekshirish yoqilmadi: PLAY_INTEGRITY_PACKAGE va "
+                        + "PLAY_INTEGRITY_SA_JSON sozlanmagan. Hozir yoqilsa hech kim kira olmaydi.",
+            });
+        }
+
         var before = new
         {
             meta.LoginFaceEnabled, meta.LoginFaceThreshold, meta.LoginFaceModelVersion,
@@ -288,7 +326,13 @@ public class AdminFaceController(
         // yetmaydi) — ikkalasi ham modulni jimgina buzardi.
         meta.LoginFaceThreshold = Math.Clamp(payload.Threshold, 0.05, 0.99);
         meta.LoginFaceModelVersion = (payload.ModelVersion ?? "").Trim();
-        meta.LoginFaceKeepChecks = Math.Clamp(payload.KeepChecks, 1, 100);
+        // ⚠️ ENG KAMI — `MaxAttemptsPerHour`, 1 EMAS. Soatlik urinishlar chegarasi AYNAN shu
+        // jurnal qatorlaridan sanaladi (`RecentAttemptsAsync`); saqlanadigan qator soni chegaradan
+        // kam bo'lsa hisob hech qachon chegaraga yetmaydi va brute-force himoyasi JIMGINA
+        // ishlamay qo'yadi. Bu — `MaxChallengesPerHour` uchun tozalash chegarasi 1 soat qilib
+        // qo'yilgani bilan bir xil sabab.
+        meta.LoginFaceKeepChecks = Math.Clamp(
+            payload.KeepChecks, FaceLoginService.MaxAttemptsPerHour, 100);
         meta.LoginFaceRequireLiveness = payload.RequireLiveness;
         meta.LoginFaceRequireAttestation = payload.RequireAttestation;
 
@@ -301,7 +345,7 @@ public class AdminFaceController(
             meta.LoginFaceEnabled
                 ? $"Yuz bilan kirish YOQILDI (chegara {meta.LoginFaceThreshold:0.00}, model «{meta.LoginFaceModelVersion}», "
                   + $"tiriklik {(meta.LoginFaceRequireLiveness ? "MAJBURIY" : "ixtiyoriy")}, "
-                  + $"ilova tekshiruvi {(meta.LoginFaceRequireAttestation ? "MAJBURIY" : "ixtiyoriy")})"
+                  + $"ilova tekshiruvi {(meta.LoginFaceRequireAttestation ? "MAJBURIY — iOS foydalanuvchilari KIRA OLMAYDI" : "ixtiyoriy")})"
                 : "Yuz bilan kirish O'CHIRILDI",
             before: before, after: after);
         await db.SaveChangesAsync(ct);

@@ -18,6 +18,15 @@ const RECOMMENDED_THRESHOLD = 0.6
 /** Server qabul qiladigan oraliq (`AdminFaceController` uni shu chegaralarga qisadi). */
 const MIN_THRESHOLD = 0.05
 const MAX_THRESHOLD = 0.99
+/**
+ * Saqlanadigan urinishlarning ENG KAMI — `FaceLoginService.MaxAttemptsPerHour` bilan bir xil.
+ *
+ * ⚠️ Soatlik urinishlar chegarasi AYNAN shu jurnal qatorlaridan sanaladi; undan kam saqlansa
+ * hisob hech qachon chegaraga yetmaydi va brute-force himoyasi JIMGINA o'chib qoladi. Server ham
+ * shu qiymatgacha qisadi (`AdminFaceController.PutSettings`) — bu yerdagi `min` faqat foydalanuvchi
+ * pastroq son yozib, keyin "nega o'zgarmadi" deb hayron bo'lmasligi uchun.
+ */
+const MIN_KEEP_CHECKS = 5
 
 /**
  * SOZLAMALAR — modulni yoqish, o'xshashlik chegarasi, model versiyasi va saqlanadigan
@@ -175,7 +184,7 @@ export function FaceSettingsTab({ canEdit }: Props) {
             <Input
               label="Saqlanadigan selfilar (o'quvchi boshiga)"
               type="number"
-              min={1}
+              min={MIN_KEEP_CHECKS}
               max={100}
               className="w-40"
               disabled={!canEdit}
@@ -184,8 +193,14 @@ export function FaceSettingsTab({ canEdit }: Props) {
             />
             <p className="mt-1 text-xs text-slate-500">
               Har bir o'quvchidan faqat shuncha oxirgi urinish (yozuv + selfi FAYLI) saqlanadi,
-              eskilari avtomatik o'chiriladi. Qiymat 1 dan 100 gacha. Kichik son — kamroq
-              biometrik ma'lumot saqlanadi; katta son — tekshirish uchun ko'proq tarix qoladi.
+              eskilari avtomatik o'chiriladi. Qiymat {MIN_KEEP_CHECKS} dan 100 gacha. Kichik son —
+              kamroq biometrik ma'lumot saqlanadi; katta son — tekshirish uchun ko'proq tarix
+              qoladi.
+            </p>
+            <p className="mt-1 text-xs text-slate-500">
+              Eng kamida {MIN_KEEP_CHECKS} ta: soatlik urinishlar chegarasi aynan shu yozuvlardan
+              hisoblanadi, undan kam saqlansa chegara ishlamay qoladi. Server ham shu qiymatdan
+              pastini qabul qilmaydi.
             </p>
           </div>
 

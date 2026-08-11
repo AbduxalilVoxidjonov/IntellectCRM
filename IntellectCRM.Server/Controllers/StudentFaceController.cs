@@ -245,11 +245,12 @@ public class StudentFaceController(
         // MAXFIYLIK: chegaradan oshgan eski selfilar — yozuvi servis tomonidan o'chirildi,
         // FAYLLARI shu yerda o'chiriladi (biometrik ma'lumot cheksiz to'planmasin).
         DeleteFiles(result.RemovedImages);
-        // Urinish umuman yozilmagan bo'lsa (chegara/model mos emas) — endigina saqlangan rasm
-        // ham keraksiz: uni qoldirsak diskda "egasiz" selfilar yig'ilib qolardi.
-        if (result.Score is null && result.Status != FaceLoginService.StatusPending
-            && (result.Reason == FaceMatch.ReasonTooManyAttempts || result.Reason == FaceMatch.ReasonOldApp))
-            DeleteFiles(new[] { imageUrl });
+        // Urinish umuman YOZILMAGAN bo'lsa (chegara / model mos emas / nonce poygasi) — endigina
+        // saqlangan rasm ham keraksiz: uni qoldirsak diskda "egasiz" selfilar yig'ilib qolardi.
+        // ⚠️ Bu qaror SABAB MATNI bo'yicha emas, `Recorded` bayrog'i bo'yicha qabul qilinadi —
+        // `ReasonOldApp` ikki joydan keladi va ulardan birida yozuv BOR (`VerifyResult.Recorded`
+        // izohi). Ilgari o'sha holatda fayl o'chib, admin ro'yxatida buzuq rasm qolardi.
+        if (!result.Recorded) DeleteFiles(new[] { imageUrl });
 
         if (!result.Ok)
             return new FaceVerifyResponse(false, result.Status, result.Reason, result.Score,

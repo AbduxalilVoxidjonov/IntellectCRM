@@ -46,6 +46,8 @@ public interface IAppDbContext
     DbSet<GradingCriterion> GradingCriteria { get; }
     DbSet<GroupGradingCriterion> GroupGradingCriteria { get; }
     DbSet<CriterionGrade> CriterionGrades { get; }
+    /// <summary>Ballni qo'lda tuzatish yozuvlari (per-guruh, faqat admin/superadmin).</summary>
+    DbSet<StudentBallAdjustment> StudentBallAdjustments { get; }
     DbSet<FinanceTransaction> FinanceTransactions { get; }
     DbSet<MonthlyCharge> MonthlyCharges { get; }
     DbSet<AuditLog> AuditLogs { get; }

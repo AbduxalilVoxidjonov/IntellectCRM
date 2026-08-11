@@ -143,6 +143,25 @@ public class AuthController(
         var now = AppClock.Now.ToString("yyyy-MM-ddTHH:mm:ss");
         if (string.IsNullOrEmpty(user.FirstLoginAt)) user.FirstLoginAt = now;
         user.LastLoginAt = now;
+
+        // YUZ BILAN KIRISH — parol yo'li bilan AYNAN bir xil darvoza (`Login` dagi izohga qarang).
+        // ⚠️ Bu SHART: OTP ham to'liq huquqli login yo'li. Darvoza faqat parolda tursa, modul
+        // yoqilgan bo'lsa ham "botdan kod olib kirish" selfini butunlay chetlab o'tardi — ya'ni
+        // login/parolni birovga bergan o'quvchi o'sha odamga bot kodini yuborib qo'ya olardi va
+        // yuz tekshiruvi bezakka aylanardi. Ilova yangilanmagan bo'lsa (deviceId yo'q) xatti-
+        // harakat ilgarigidek qoladi.
+        var faceDecision = await face.DecideAsync(user, req.DeviceId, HttpContext.RequestAborted);
+        if (faceDecision.Required)
+        {
+            await db.SaveChangesAsync();
+            logger.LogInformation("Yuz tasdig'i talab qilindi (OTP): userId={UserId}, IP={IP}", user.Id, ip);
+            return new LoginResponse(
+                jwt.CreateFaceScopedToken(user, FaceScopeGate.TokenMinutes),
+                new UserDto(user.Id, user.FullName, user.Role, user.Email, user.AvatarUrl, await PermsFor(user)),
+                FaceRequired: true, FaceStatus: faceDecision.Status);
+        }
+
+        await face.TouchAsync(user.Id, req.DeviceId, HttpContext.RequestAborted);
         await db.SaveChangesAsync();
 
         logger.LogInformation("OTP orqali login: userId={UserId}, IP={IP}", user.Id, ip);

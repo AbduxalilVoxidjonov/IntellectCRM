@@ -43,6 +43,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<GradingCriterion> GradingCriteria => Set<GradingCriterion>();
     public DbSet<GroupGradingCriterion> GroupGradingCriteria => Set<GroupGradingCriterion>();
     public DbSet<CriterionGrade> CriterionGrades => Set<CriterionGrade>();
+    public DbSet<StudentBallAdjustment> StudentBallAdjustments => Set<StudentBallAdjustment>();
     public DbSet<FinanceTransaction> FinanceTransactions => Set<FinanceTransaction>();
     public DbSet<MonthlyCharge> MonthlyCharges => Set<MonthlyCharge>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
@@ -253,6 +254,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         b.Entity<GroupGradingCriterion>().HasIndex(g => new { g.GroupId, g.CriterionId }).IsUnique();
         b.Entity<CriterionGrade>().HasIndex(g => new { g.GroupId, g.StudentId, g.CriterionId, g.Date }).IsUnique();
         b.Entity<CriterionGrade>().HasIndex(g => new { g.GroupId, g.Date });
+        // Ballni qo'lda tuzatish: hisob HAR DOIM (o'quvchi, guruh) kesimida o'qiladi.
+        b.Entity<StudentBallAdjustment>().Property(a => a.StudentId).HasMaxLength(200);
+        b.Entity<StudentBallAdjustment>().Property(a => a.GroupId).HasMaxLength(200);
+        b.Entity<StudentBallAdjustment>().HasIndex(a => new { a.StudentId, a.GroupId });
 
         b.Entity<AuditLog>().HasIndex(a => new { a.EntityType, a.EntityId });
         // Bog'lanish kerak: navbat "holat + muddat" bo'yicha o'qiladi, hisobot esa KUN bo'yicha
@@ -292,6 +297,13 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         b.Entity<FaceChallenge>().Property(c => c.ExpiresAt).HasMaxLength(32);
         b.Entity<FaceChallenge>().HasIndex(c => c.Nonce).IsUnique();
         b.Entity<FaceChallenge>().HasIndex(c => new { c.UserId, c.CreatedAt });
+        // ⚠️ `UsedAt` — KONKURENTLIK TOKENI (`Book.Stock` bilan bir xil naqsh). Nonce'ni
+        // "ishlatilgan" deb belgilash bilan saqlash oralig'ida `await` bor, ya'ni AYNI nonce bilan
+        // yuborilgan ikki parallel `verify` ikkalasi ham o'tib ketardi. Endi EF
+        // `UPDATE … WHERE Id=@id AND UsedAt IS NULL` yozadi va ikkinchisi
+        // `DbUpdateConcurrencyException` oladi (`FaceLoginService.TrySaveAsync` ushlaydi).
+        // Bu FAQAT model metadatasi — ustun/indeks o'zgarmaydi, MIGRATSIYA KERAK EMAS.
+        b.Entity<FaceChallenge>().Property(c => c.UsedAt).IsConcurrencyToken();
 
         b.Entity<StudentAiAnalysis>().HasIndex(a => new { a.StudentId, a.Date });
         b.Entity<TeacherAiAnalysis>().HasIndex(a => new { a.TeacherId, a.Date });

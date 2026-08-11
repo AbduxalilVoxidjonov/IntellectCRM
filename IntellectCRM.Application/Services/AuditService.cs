@@ -25,6 +25,8 @@ public class AuditService(IAppDbContext db, IHttpContextAccessor http)
     public const string EntityStudent = "Student";
     /// <summary>Guruh yozuvining o'zi (yaratildi/tahrirlandi/o'chirildi) — "kim yaratdi/o'zgartirdi".</summary>
     public const string EntityGroup = "Group";
+    /// <summary>Reyting balini QO'LDA tuzatish (qo'shish / 0 ga tushirish) — per-guruh.</summary>
+    public const string EntityStudentBall = "StudentBall";
 
     /// <summary>Audit yozuvini joriy DbContext'ga qo'shadi (hali SaveChanges qilinmaydi).</summary>
     public void Record(
