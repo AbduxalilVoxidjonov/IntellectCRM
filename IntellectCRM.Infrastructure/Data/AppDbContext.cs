@@ -180,6 +180,15 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<TrustedDevice> TrustedDevices => Set<TrustedDevice>();
     public DbSet<FaceChallenge> FaceChallenges => Set<FaceChallenge>();
 
+    /* ---------- Marketing: Instagram AI agenti ---------- */
+    public DbSet<IgAccount> IgAccounts => Set<IgAccount>();
+    public DbSet<IgWebhookEvent> IgWebhookEvents => Set<IgWebhookEvent>();
+    public DbSet<IgConversation> IgConversations => Set<IgConversation>();
+    public DbSet<IgMessage> IgMessages => Set<IgMessage>();
+    public DbSet<IgAutoRule> IgAutoRules => Set<IgAutoRule>();
+    public DbSet<IgKnowledge> IgKnowledges => Set<IgKnowledge>();
+    public DbSet<IgOAuthState> IgOAuthStates => Set<IgOAuthState>();
+
     protected override void OnModelCreating(ModelBuilder b)
     {
         // SQL Server: indeksda qatnashadigan string ustunlar default `nvarchar(max)` bo'lib
@@ -304,6 +313,32 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         // `DbUpdateConcurrencyException` oladi (`FaceLoginService.TrySaveAsync` ushlaydi).
         // Bu FAQAT model metadatasi — ustun/indeks o'zgarmaydi, MIGRATSIYA KERAK EMAS.
         b.Entity<FaceChallenge>().Property(c => c.UsedAt).IsConcurrencyToken();
+
+        // INSTAGRAM AI AGENTI.
+        // 1) `EventKey` — UNIKAL: Meta javob kechikkanda AYNI hodisani qayta yuboradi va unikal
+        //    indekssiz mijoz bitta savoliga bir necha marta javob olardi. Dedupni kodda emas,
+        //    BAZADA kafolatlaymiz (ikki nusxa parallel qabul qilsa ham).
+        // 2) `Status` — fon xizmati har siklda faqat `pending` qatorlarni tanlaydi.
+        // 3) `IgConversation.IgUserId` — har kiruvchi hodisada suhbat shu bo'yicha topiladi.
+        // 4) `IgMessage.ConversationId` — suhbat lentasi va AI kontekst tarixi shu bo'yicha o'qiladi.
+        // 5) `IgMessage.IgMessageId` va 6) `IgMessage.CommentId` — DEDUP so'rovi
+        //    (`InstagramPipeline.AlreadyHandledAsync`) HAR kiruvchi hodisada shu ikki ustundan biri
+        //    bo'yicha `Any(...)` qiladi. Indekssiz bu butun `IgMessages` bo'ylab seq-scan edi:
+        //    jadval yozishmalar bilan o'sgani sayin har webhook sekinlashardi. Unikal EMAS —
+        //    ikkala ustun ham bo'sh ("") bo'lishi mumkin (masalan chiquvchi xabar yoki izohsiz DM),
+        //    unikal indeks esa shunday qatorlarni ikkinchisidan boshlab rad etardi.
+        b.Entity<IgWebhookEvent>().Property(e => e.EventKey).HasMaxLength(200);
+        b.Entity<IgWebhookEvent>().Property(e => e.Status).HasMaxLength(32);
+        b.Entity<IgWebhookEvent>().HasIndex(e => e.EventKey).IsUnique();
+        b.Entity<IgWebhookEvent>().HasIndex(e => e.Status);
+        b.Entity<IgConversation>().Property(c => c.IgUserId).HasMaxLength(200);
+        b.Entity<IgConversation>().HasIndex(c => c.IgUserId);
+        b.Entity<IgMessage>().Property(m => m.ConversationId).HasMaxLength(200);
+        b.Entity<IgMessage>().HasIndex(m => m.ConversationId);
+        b.Entity<IgMessage>().Property(m => m.IgMessageId).HasMaxLength(200);
+        b.Entity<IgMessage>().HasIndex(m => m.IgMessageId);
+        b.Entity<IgMessage>().Property(m => m.CommentId).HasMaxLength(200);
+        b.Entity<IgMessage>().HasIndex(m => m.CommentId);
 
         b.Entity<StudentAiAnalysis>().HasIndex(a => new { a.StudentId, a.Date });
         b.Entity<TeacherAiAnalysis>().HasIndex(a => new { a.TeacherId, a.Date });

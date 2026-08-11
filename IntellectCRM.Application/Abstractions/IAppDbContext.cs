@@ -179,6 +179,16 @@ public interface IAppDbContext
     DbSet<TrustedDevice> TrustedDevices { get; }
     DbSet<FaceChallenge> FaceChallenges { get; }
 
+    // Marketing: Instagram AI agenti — ulangan akkaunt, webhook navbati, suhbat/xabarlar,
+    // kalit so'z qoidalari, bilim bazasi va OAuth `state` (bir martalik).
+    DbSet<IgAccount> IgAccounts { get; }
+    DbSet<IgWebhookEvent> IgWebhookEvents { get; }
+    DbSet<IgConversation> IgConversations { get; }
+    DbSet<IgMessage> IgMessages { get; }
+    DbSet<IgAutoRule> IgAutoRules { get; }
+    DbSet<IgKnowledge> IgKnowledges { get; }
+    DbSet<IgOAuthState> IgOAuthStates { get; }
+
     int SaveChanges();
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

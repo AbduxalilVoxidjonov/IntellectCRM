@@ -1,0 +1,258 @@
+using System.Globalization;
+using System.Text;
+using IntellectCRM.Domain;
+
+namespace IntellectCRM.Application.Services;
+
+/// <summary>
+/// Instagram AI agenti — KONSTANTALAR (yagona manba).
+/// <para>Kanal/holat nomlari, enum ro'yxatlari va vaqt chegaralari SHU YERDA. Xom satr
+/// ("dm", "comment", "pending") kodning boshqa joyida yozilmaydi: NUR loyihasida mock provayder
+/// <c>price_inquiry</c>, sxema esa <c>price_question</c> qaytarardi va nomuvofiqlik uzoq vaqt
+/// sezilmay yurgan.</para>
+/// </summary>
+public static class IgConst
+{
+    /// <summary>⚠️ <c>graph.facebook.com</c> EMAS — "Instagram Login" yo'lida baza shu.</summary>
+    public const string GraphBase = "https://graph.instagram.com/v23.0";
+    /// <summary>Token almashish (OAuth) uchun alohida host.</summary>
+    public const string OauthTokenUrl = "https://api.instagram.com/oauth/access_token";
+    public const string GraphRoot = "https://graph.instagram.com";
+    public const string AuthorizeUrl = "https://www.instagram.com/oauth/authorize";
+
+    /// <summary>OAuth ruxsatlari — "Instagram Login" yo'lining YANGI nomlari
+    /// (eski <c>pages_*</c> ruxsatlari Facebook Login yo'liga tegishli va bizga kerak emas).</summary>
+    public const string Scopes = "instagram_business_basic,instagram_business_manage_messages,instagram_business_manage_comments";
+
+    public const string ChannelComment = "comment", ChannelDm = "dm", ChannelPrivateReply = "private_reply";
+    public const string StatusBot = "bot", StatusOperator = "operator", StatusClosed = "closed";
+    public const string EvPending = "pending", EvDone = "done", EvFailed = "failed", EvSkipped = "skipped";
+    public const string DirIn = "in", DirOut = "out";
+    public const string KindComment = "comment", KindDm = "dm", KindEcho = "echo";
+
+    /// <summary>Javobni kim yozgani (<see cref="IgMessage.ActorName"/>) — inbox lentasida ko'rinadi.</summary>
+    public const string ActorAi = "AI agent";
+    public const string ActorRule = "Avto-qoida";
+    public const string ActorOperatorIg = "Operator (Instagram ilovasidan)";
+
+    public static readonly string[] Intents =
+    {
+        "greeting", "price_question", "product_question", "buying_intent", "complaint", "spam", "other"
+    };
+    public static readonly string[] Languages = { "uz-Cyrl", "uz-Latn", "ru", "en" };
+
+    public const string DefaultIntent = "other";
+    public const string DefaultLanguage = "uz-Latn";
+
+    /// <summary>Shu balldan boshlab lid "qaynoq" (operatorga signal + CRM'ga yoziladi).</summary>
+    public const int HotLeadScore = 70;
+
+    /// <summary>Meta qoidasi: mijoz yozganidan keyin DM yuborishga BERILGAN vaqt.</summary>
+    public const int DmWindowHours = 24;
+    /// <summary>Izohga yopiq javob (private reply) muddati — izohdan keyin 7 kun, BIR marta.</summary>
+    public const int PrivateReplyDays = 7;
+    /// <summary>60 kunlik token 45-kunda yangilanadi (15 kun zaxira qoladi).</summary>
+    public const int TokenRefreshDays = 45;
+    /// <summary>Token muddatiga shundan kam qolganda yangilanadi (45-kun bilan bir xil chegara).</summary>
+    public const int TokenRefreshBeforeDays = 60 - TokenRefreshDays;
+
+    /// <summary>AI'ga beriladigan suhbat tarixi (oxirgi N ta xabar).</summary>
+    public const int DmHistoryLimit = 20;
+    /// <summary>Post matni (caption) promptga shuncha belgigacha kiradi.</summary>
+    public const int MediaCaptionLimit = 300;
+    /// <summary>Bilim bazasi promptga shuncha belgigacha kiradi (token narxi cheksiz o'smasin).</summary>
+    public const int KnowledgeLimit = 12000;
+    /// <summary>Instagram DM matni chegarasi (Meta: UTF-8, ≤1000 bayt).</summary>
+    public const int MaxReplyLength = 900;
+
+    /// <summary>Operator qo'lda javob yozsa bot shuncha DAQIQA jim turadi — <b>12 soat</b>.
+    /// <para>Operator Instagram ilovasidan qo'lda javob yozgan bo'lsa, bot uning ustiga yozib
+    /// mijozni chalkashtirmasin. Botga qaytarish — Inbox'dagi «Botga qaytarish» tugmasi bilan
+    /// bir bosishda.</para>
+    /// <para>⚠️ Qiymat FAQAT SHU YERDA: echo orqali yoqiladigan pauza ham, operator javobidan
+    /// keyingi pauza ham (<c>InstagramController.Reply</c>) shu konstantani o'qiydi — aks holda
+    /// ikki yo'l ikki xil xulq berardi.</para></summary>
+    public const int OperatorPauseMinutes = 720;
+
+    /// <summary>Echo qaytganda "bu bizning javobimizmi" tekshiruvi shuncha daqiqalik oynada
+    /// bo'ladi (o'sha matnli chiquvchi xabar shu oyna ichida yozilgan bo'lsa — bizniki).</summary>
+    public const int EchoOwnReplyMinutes = 10;
+
+    /// <summary>Navbatdagi hodisa shuncha marta urinilgach <c>failed</c> bo'ladi.</summary>
+    public const int MaxAttempts = 3;
+    /// <summary>Bir siklda nechta hodisa olinadi.</summary>
+    public const int QueueBatch = 10;
+    /// <summary>Bajarilgan hodisalar shuncha kundan keyin tozalanadi.</summary>
+    public const int EventRetentionDays = 30;
+    /// <summary>OAuth <c>state</c> amal qilish muddati (daqiqa).</summary>
+    public const int OAuthStateMinutes = 15;
+
+    /// <summary>Javob kechikishining yuqori chegarasi (soniya) — sozlama xato kiritilsa fon
+    /// xizmati soatlab qotib qolmasin.</summary>
+    public const int MaxReplyDelaySeconds = 60;
+
+    /// <summary>Bot oshkorligi matni sozlanmagan bo'lsa ishlatiladigan standart (Meta talabi).</summary>
+    public const string DefaultGreeting =
+        "🤖 Men markazning AI yordamchisiman. Operator kerak bo'lsa yozing — ulaymiz.";
+}
+
+/// <summary>
+/// AI agentining STRUKTURALI chiqishi (IG-SPEC §5.1).
+/// <para>⚠️ Diapazon/enum cheklovlari LLM sxemasida emas, KOD tomonda qo'llanadi
+/// (<see cref="InstagramContract.ClampScore"/>, <see cref="InstagramContract.NormalizeIntent"/>) —
+/// structured output <c>minimum</c>/<c>maximum</c> kabi cheklovlarni qabul qilmaydi.</para>
+/// </summary>
+public record IgAgentOutput(
+    string Reply,
+    string Language,
+    string Intent,
+    int LeadScore,
+    bool IsHotLead,
+    bool MoveToDm,
+    bool EscalateToHuman,
+    string LeadName,
+    string LeadContact,
+    string LeadProductInterest,
+    string LeadSummary);
+
+/// <summary>
+/// Instagram moduli qoidalarining SOF (I/O'siz) qismi — baza ham, tarmoq ham chaqirilmaydi,
+/// shuning uchun to'liq testlanadi.
+/// </summary>
+public static class InstagramContract
+{
+    /// <summary>Ballni 0..100 oralig'iga keltiradi (LLM 150 yoki -5 qaytarishi mumkin).</summary>
+    public static int ClampScore(int v) => Math.Clamp(v, 0, 100);
+
+    /// <summary>Noma'lum/bo'sh niyat → <c>other</c> (yozuv YO'QOLMAYDI, faqat "boshqa"ga tushadi).</summary>
+    public static string NormalizeIntent(string? v)
+    {
+        var s = (v ?? "").Trim().ToLowerInvariant();
+        foreach (var i in IgConst.Intents) if (i == s) return i;
+        return IgConst.DefaultIntent;
+    }
+
+    /// <summary>Noma'lum/bo'sh til → <c>uz-Latn</c> (markazning asosiy yozuvi).</summary>
+    public static string NormalizeLanguage(string? v)
+    {
+        var s = (v ?? "").Trim();
+        foreach (var l in IgConst.Languages)
+            if (string.Equals(l, s, StringComparison.OrdinalIgnoreCase)) return l;
+        return IgConst.DefaultLanguage;
+    }
+
+    /// <summary>"Qaynoq lid": LLM shunday belgiladi, YOKI ball chegaradan yuqori, YOKI kontakt berildi.
+    /// <para>Uchala shart ham mustaqil: LLM ehtiyotkorlik qilib <c>is_hot_lead=false</c> qo'ysa ham,
+    /// telefon qoldirgan odam qaynoq lid — bu "operator qo'ng'iroq qilsin" degani.</para></summary>
+    public static bool IsHot(IgAgentOutput o) =>
+        o.IsHotLead || ClampScore(o.LeadScore) >= IgConst.HotLeadScore || HasContact(o);
+
+    /// <summary>CRM'ga lid yoziladimi. ⚠️ HAR suhbat lid EMAS — salom-alik va spam CRM'ni
+    /// ifloslantirmaydi (IG-SPEC §5.3).</summary>
+    public static bool ShouldCreateLead(IgAgentOutput o) => IsHot(o);
+
+    /// <summary>Kontakt (telefon yoki boshqa aloqa) berilganmi.</summary>
+    public static bool HasContact(IgAgentOutput o) => !string.IsNullOrWhiteSpace(o.LeadContact);
+
+    /// <summary>
+    /// DM'ning 24 soatlik javob oynasi ochiqmi (mijoz oxirgi marta qachon yozgan).
+    /// <para>⚠️ FAIL-CLOSED: sana bo'sh yoki o'qib bo'lmaydigan bo'lsa <c>false</c> — "bilmasak
+    /// yubormaymiz". Meta baribir rad etardi, lekin bizda bu holat operator signaliga aylanadi.</para>
+    /// </summary>
+    public static bool DmWindowOpen(string lastInboundAtIso, DateTime now)
+    {
+        if (!TryIso(lastInboundAtIso, out var last)) return false;
+        var diff = now - last;
+        // Kelajakdagi sana (soat farqi/qo'lda tuzatilgan yozuv) — oyna ochiq deb qaraladi.
+        if (diff < TimeSpan.Zero) return true;
+        return diff < TimeSpan.FromHours(IgConst.DmWindowHours);
+    }
+
+    /// <summary>Operator pauzasi kuchdami: suhbat qo'lda "operator"ga olingan yoki echo tufayli
+    /// vaqtincha pauzada.</summary>
+    public static bool OperatorPaused(IgConversation c, DateTime now)
+    {
+        if (c.Status == IgConst.StatusOperator) return true;
+        if (!TryIso(c.OperatorPausedUntil, out var until)) return false;
+        return now < until;
+    }
+
+    /// <summary>Bot javob berishi mumkin bo'lgan suhbatmi (yopiq emas, pauzada emas).</summary>
+    public static bool BotMayReply(IgConversation c, DateTime now) =>
+        c.Status != IgConst.StatusClosed && !OperatorPaused(c, now);
+
+    /// <summary>
+    /// Matndan O'ZBEK telefon raqamini ajratib oladi (topilmasa "").
+    /// <para>Qabul qilinadi: <c>+998 90 123 45 67</c>, <c>998901234567</c>, <c>90 123 45 67</c>.
+    /// Raqamlar orasidagi ajratuvchilar (bo'sh joy, <c>-</c>, qavs, nuqta) uzilish hisoblanmaydi.</para>
+    /// <para>⚠️ Uzunlik AYNAN 9 yoki 998 bilan boshlanuvchi 12 bo'lishi shart: Instagram id'lari
+    /// (17 raqam), narx (<c>500000</c>) va yil (<c>2026</c>) telefon deb olinib, begona lidga
+    /// biriktirilib ketmasin.</para>
+    /// </summary>
+    public static string ExtractPhone(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return "";
+
+        var run = new StringBuilder();
+        for (var i = 0; i <= text.Length; i++)
+        {
+            var c = i < text.Length ? text[i] : '\n';
+            if (char.IsDigit(c)) { run.Append(c); continue; }
+            if (IsPhoneSeparator(c) && run.Length > 0) continue;   // raqamlar orasidagi ajratuvchi
+            var hit = TryPhone(run.ToString());
+            if (hit.Length > 0) return hit;
+            run.Clear();
+        }
+        return "";
+    }
+
+    private static bool IsPhoneSeparator(char c) =>
+        c is ' ' or '-' or '(' or ')' or '.' or '+' or ' ' or '‑' or '–';
+
+    private static string TryPhone(string digits)
+    {
+        string local;
+        if (digits.Length == 12 && digits.StartsWith("998", StringComparison.Ordinal)) local = digits[3..];
+        else if (digits.Length == 9) local = digits;
+        else return "";
+        if (local[0] == '0') return "";   // mahalliy raqam 0 bilan boshlanmaydi
+        return PhoneUtil.Normalize("998" + local);
+    }
+
+    /// <summary>
+    /// Kalit so'z qoidasi shu xabarga mos keladimi (AI'dan OLDINGI tez yo'l).
+    /// <para>Moslik registr farqisiz va "so'zning bir qismi" bo'yicha (<c>narx</c> → <c>narxi</c>).
+    /// Kanal <c>any</c> bo'lsa ikkala kanalda ham ishlaydi. Yopiq javob (<c>private_reply</c>)
+    /// izohning davomi bo'lgani uchun <c>comment</c> qoidalari bilan tekshiriladi.</para>
+    /// </summary>
+    public static bool RuleMatches(IgAutoRule rule, string channel, string text)
+    {
+        if (!rule.IsActive || string.IsNullOrWhiteSpace(text)) return false;
+        var ch = channel == IgConst.ChannelPrivateReply ? IgConst.ChannelComment : channel;
+        if (rule.Channel != "any" && rule.Channel != ch) return false;
+
+        var hay = text.ToLowerInvariant();
+        foreach (var raw in (rule.Keywords ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var kw = raw.ToLowerInvariant();
+            if (kw.Length > 0 && hay.Contains(kw, StringComparison.Ordinal)) return true;
+        }
+        return false;
+    }
+
+    /// <summary>Matnni belgilangan uzunlikka qisqartiradi (oxiriga "…" qo'yiladi).</summary>
+    public static string Trim(string? s, int max)
+    {
+        var t = (s ?? "").Trim();
+        if (max <= 1 || t.Length <= max) return t;
+        return t[..(max - 1)] + "…";
+    }
+
+    /// <summary>Loyihadagi ISO satrni (<c>AppClock.Iso()</c>) o'qiydi.</summary>
+    public static bool TryIso(string? iso, out DateTime value)
+    {
+        value = default;
+        if (string.IsNullOrWhiteSpace(iso)) return false;
+        return DateTime.TryParse(iso, CultureInfo.InvariantCulture, DateTimeStyles.None, out value);
+    }
+}

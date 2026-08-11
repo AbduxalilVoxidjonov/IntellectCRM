@@ -241,6 +241,20 @@ builder.Services.AddRateLimiter(options =>
                 QueueLimit = 0,
             }));
 
+    // Instagram webhook — ochiq (auth'siz) endpoint, lekin uni META chaqiradi. Limit ATAYIN SAXIY:
+    // "public-lead" (daqiqada 5) bu yerda YARAMAYDI — faol akkauntda izoh/DM oqimi undan oson
+    // oshadi, rad etilgan (429) hodisani esa Meta 36 soat qayta yuboradi va takrorlansa webhookni
+    // BUTUNLAY o'chirib qo'yishi mumkin. Shu sabab chegara faqat qo'pol flood'ni ushlaydi.
+    options.AddPolicy("instagram-webhook", httpContext =>
+        System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: ClientIp(httpContext),
+            factory: _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 300,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+            }));
+
     // GLOBAL (fallback) limiter — flood'ga qarshi himoya darvozasi (admission control). MUHIM: bir IP
     // ortida bir nechta xodim bo'lishi mumkin (markaz ofisi), shuning uchun AUTENTIFIKATSIYALANGAN
     // so'rov FOYDALANUVCHI bo'yicha (o'z bucketi — bir-birini bloklamaydi), anonim so'rov IP bo'yicha
@@ -299,6 +313,17 @@ builder.Services.AddHostedService<TelegramBotService>();
 builder.Services.AddSingleton<CareerTelegramService>();
 builder.Services.AddSingleton<CareerService>();
 builder.Services.AddHostedService<CareerBotService>();
+// MARKETING — INSTAGRAM AI AGENTI.
+// `InstagramApi` — Graph API mijozi: typed HttpClient (`AddHttpClient<T>`), ya'ni ulanishlar
+// pulda boshqariladi va socket tugab qolmaydi (`CameraGateway` bilan bir xil naqsh).
+builder.Services.AddHttpClient<IntellectCRM.Application.Services.InstagramApi>();
+// Oqim (webhook hodisasi → qoida/AI → javob → lid) — har hodisa uchun O'ZI scope ochadi,
+// shuning uchun Singleton (fon xizmati uni bir marta oladi va sikl bo'yi ishlatadi).
+builder.Services.AddSingleton<IntellectCRM.Application.Services.InstagramPipeline>();
+// Navbatni qayta ishlovchi + tokenni 45-kunda yangilovchi + eski hodisalarni tozalovchi fon xizmati.
+// ⚠️ `CenterMeta.InstagramEnabled == false` bo'lsa u HECH QANDAY tashqi so'rov qilmaydi.
+builder.Services.AddHostedService<IntellectCRM.Application.Services.InstagramWorkerService>();
+
 // FCM (Firebase push) — service account CenterMeta'da; token keshi uchun singleton.
 builder.Services.AddSingleton<FcmService>();
 // Eskiz.uz SMS — login/parol CenterMeta'da; token keshi uchun singleton.

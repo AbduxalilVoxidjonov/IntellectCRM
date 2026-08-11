@@ -103,6 +103,21 @@ public static class AppSecrets
     /// lekin kalit bilan birga sozlansin (yarmi UI'da, yarmi `.env` da bo'lib qolmasin).</summary>
     public static string PlayIntegrityPackage => Read("PlayIntegrity:Package", EnvKeys.PlayIntegrityPackage);
 
+    /* ---------- MARKETING: INSTAGRAM AI AGENTI ---------- */
+
+    /// <summary>Meta ilovasining <b>App Secret</b>i — ikki vazifasi bor:
+    /// (1) webhook <c>X-Hub-Signature-256</c> imzosini tekshirish, (2) OAuth'da kodni tokenga
+    /// almashtirish.
+    /// <para>⚠️ Bo'sh bo'lsa imzo tekshiruvi <b>FAIL-CLOSED</b> ishlaydi: webhook so'rovlari
+    /// rad etiladi (403). Bu ataylab — sozlanmagan kalit "himoyasiz ochiq endpoint"ga
+    /// aylanmasligi kerak.</para></summary>
+    public static string InstagramAppSecret => Read("Instagram:AppSecret", EnvKeys.InstagramAppSecret);
+
+    /// <summary>Webhook GET tasdig'i (verify) uchun O'ZIMIZ o'ylab topadigan token — Meta
+    /// Dashboard'dagi "Verify token" bilan AYNAN bir xil bo'lishi shart. Maxfiy: bilgan odam
+    /// bizning manzilni o'z ilovasiga webhook qilib ulay olardi.</summary>
+    public static string InstagramVerifyToken => Read("Instagram:VerifyToken", EnvKeys.InstagramVerifyToken);
+
     /* ---------- Holat (Sozlamalar sahifasi uchun) ---------- */
 
     public static bool TelegramConfigured => TelegramBotToken.Length > 0;
@@ -113,6 +128,10 @@ public static class AppSecrets
     public static bool TurnstileCredentialsConfigured => TurnstileUsername.Length > 0 && TurnstilePassword.Length > 0;
     /// <summary>Yuz vektorlari kaliti bor VA yaroqli (32 bayt base64) — modul shu bilan yoqiladi.</summary>
     public static bool FaceVectorKeyConfigured => FaceVault.IsValidKey(FaceVectorKey);
+    /// <summary>Instagram moduli uchun ikkala `.env` kaliti ham berilganmi. Ikkalasi HAM shart:
+    /// verify tokensiz Meta webhookni ro'yxatga ololmaydi, app secretsiz esa kelgan hodisa
+    /// imzosini tekshirib bo'lmaydi (va u rad etiladi).</summary>
+    public static bool InstagramConfigured => InstagramAppSecret.Length > 0 && InstagramVerifyToken.Length > 0;
 
     /// <summary>
     /// <c>.env</c> o'zgaruvchilari nomlari — Sozlamalar sahifasida adminga "qaysi qatorni qo'shish
@@ -133,5 +152,7 @@ public static class AppSecrets
         public const string FaceVectorKey = "FACE_VECTOR_KEY";
         public const string PlayIntegritySaJson = "PLAY_INTEGRITY_SA_JSON";
         public const string PlayIntegrityPackage = "PLAY_INTEGRITY_PACKAGE";
+        public const string InstagramAppSecret = "INSTAGRAM_APP_SECRET";
+        public const string InstagramVerifyToken = "INSTAGRAM_VERIFY_TOKEN";
     }
 }

@@ -75,7 +75,8 @@ IntellectCRM.slnx
 - **Maosh** — qat'iy yoki guruhdan yig'ilgan to'lovning foizi
 - **Xabarlar** — SMS (Eskiz yoki Local SIM) · Telegram · Push, avto-xabar qoidalari (13 trigger)
 - **Call Center** — Bulut (MoiZvonki) va **Local Call** (Android agent-telefonlar, `README-CTI.md`)
-- **Marketing** — inbox, javob qoidalari, kanallar, AI yordamchi, analitika
+- **Marketing — Instagram AI agenti** — izoh/DM ga avtojavob, inbox, javob qoidalari,
+  bilim bazasi, avtomatik lid yaratish (`instagram/`)
 - **Daraja testi** + **onlayn test** (Telegram bot orqali PDF, avtomatik baholash)
 - **Kitoblar sotuvi** — ombor + botdan buyurtma + admin tasdiqlash + analitika
 - **Shartnomalar** — Word/matnli andoza (`@`-o'rinbosarlar) → har bir oluvchi uchun .docx hosil bo'ladi
@@ -244,7 +245,8 @@ App ishga tushganda `Migrate()` mavjud bazaga `ALTER` qo'llaydi.
 | [`DEPLOY.md`](DEPLOY.md) | Prod deploy, Cloudflare Tunnel, backup/restore, serverni ko'chirish |
 | [`README-CTI.md`](README-CTI.md) | Local Call moduli — API xaritasi, WS/FCM oqimi, audio saqlash |
 | [`WORKLOG.md`](WORKLOG.md) | To'liq o'zgarishlar tarixi |
-| `.claude/rules/*.md` | Modulga xos qoidalar: billing · messaging · journal · tests · exercise · books · crm-leads · career |
+| [`instagram/README.md`](instagram/README.md) | Instagram AI agenti — modul, sozlash qo'llanmasi (`SOZLASH.md`), protokol (`TEXNIK.md`) |
+| `.claude/rules/*.md` | Modulga xos qoidalar: billing · messaging · journal · tests · exercise · books · crm-leads · career · marketing-instagram |
 
 ---
 

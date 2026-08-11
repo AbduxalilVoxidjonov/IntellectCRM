@@ -37,6 +37,7 @@ public static class AuditSections
         new("schedule",  "Kurslar"),
         new("finance",   "Moliya"),
         new("leads",     "Lidlar"),
+        new("marketing", "Marketing"),
         new("books",     "Kitoblar sotuvi"),
         new("contracts", "Shartnomalar"),
         new("vacancies", "Vakansiyalar"),
@@ -91,6 +92,14 @@ public static class AuditSections
         // "LeadForm" — ijtimoiy tarmoq formalari (yaratish/tahrir/nusxa/o'chirish). Lidlar
         // bo'limida, chunki forma AYNAN lid ishlab chiqaradi.
         ["LeadForm"] = "leads",
+        // --- Marketing (Instagram AI agenti) ---
+        // "Instagram" — BUTUN modulning yagona turi: akkauntni ulash/uzish, sozlamalar, kalit so'z
+        // qoidalari, bilim bazasi, operator javobi va suhbatni lidga aylantirish. Bo'lim kaliti
+        // `marketing` ruxsat kaliti bilan bir xil (`adminPermissions` da allaqachon bor).
+        // ⚠️ Bu yozuvlarda TOKEN/SECRET hech qachon bo'lmaydi ("Maxfiy qiymat yozilmaydi" qoidasi),
+        // shuningdek mijozning DM matni ham tarixga ko'chirilmaydi — faqat "kimga javob berildi".
+        ["Instagram"] = "marketing",
+
         ["Book"] = "books",
         ["BookOrder"] = "books",
         ["Contract"] = "contracts",

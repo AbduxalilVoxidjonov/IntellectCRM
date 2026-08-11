@@ -77,13 +77,13 @@ import { ContactQueuePage } from '@/pages/admin/students/contacts/ContactQueuePa
 import { FaceLoginPage } from '@/pages/admin/students/face/FaceLoginPage'
 import { CourseAnalyticsPage } from '@/pages/admin/subjects/CourseAnalyticsPage'
 import { AccountPage } from '@/pages/admin/account/AccountPage'
-// Marketing — ijtimoiy tarmoq avtojavob (Javobot UI; hozircha faqat UI, mock)
-import { MarketingDashboard } from '@/pages/admin/marketing/MarketingDashboard'
-import { MarketingInbox } from '@/pages/admin/marketing/MarketingInbox'
-import { MarketingRules } from '@/pages/admin/marketing/MarketingRules'
-import { MarketingChannels } from '@/pages/admin/marketing/MarketingChannels'
-import { MarketingAi } from '@/pages/admin/marketing/MarketingAi'
-import { MarketingAnalytics } from '@/pages/admin/marketing/MarketingAnalytics'
+// Marketing — Instagram AI agenti (izoh/DM avtojavobi, lidga aylantirish)
+import { InstagramDashboard } from '@/pages/admin/marketing/InstagramDashboard'
+import { InstagramInbox } from '@/pages/admin/marketing/InstagramInbox'
+import { InstagramRules } from '@/pages/admin/marketing/InstagramRules'
+import { InstagramKnowledge } from '@/pages/admin/marketing/InstagramKnowledge'
+import { InstagramAnalytics } from '@/pages/admin/marketing/InstagramAnalytics'
+import { InstagramSettings } from '@/pages/admin/marketing/InstagramSettings'
 // O'qituvchi portali (SPA ichida, /teacher/*)
 import { TeacherDashboard } from '@/pages/teacher/TeacherDashboard'
 import { TeacherGroupsPage } from '@/pages/teacher/groups/TeacherGroupsPage'
@@ -168,13 +168,13 @@ export default function App() {
       <Route element={<ProtectedRoute role="admin" />}>
         <Route path="/admin" element={<AppLayout />}>
           <Route index element={<AdminDashboard />} />
-          {/* Marketing — ijtimoiy tarmoq avtojavob (hozircha UI/mock) */}
-          <Route path="marketing" element={<RequirePerm perm="marketing"><MarketingDashboard /></RequirePerm>} />
-          <Route path="marketing/inbox" element={<RequirePerm perm="marketing"><MarketingInbox /></RequirePerm>} />
-          <Route path="marketing/rules" element={<RequirePerm perm="marketing"><MarketingRules /></RequirePerm>} />
-          <Route path="marketing/channels" element={<RequirePerm perm="marketing"><MarketingChannels /></RequirePerm>} />
-          <Route path="marketing/ai" element={<RequirePerm perm="marketing"><MarketingAi /></RequirePerm>} />
-          <Route path="marketing/analytics" element={<RequirePerm perm="marketing"><MarketingAnalytics /></RequirePerm>} />
+          {/* Marketing — Instagram AI agenti */}
+          <Route path="marketing" element={<RequirePerm perm="marketing"><InstagramDashboard /></RequirePerm>} />
+          <Route path="marketing/inbox" element={<RequirePerm perm="marketing"><InstagramInbox /></RequirePerm>} />
+          <Route path="marketing/rules" element={<RequirePerm perm="marketing"><InstagramRules /></RequirePerm>} />
+          <Route path="marketing/knowledge" element={<RequirePerm perm="marketing"><InstagramKnowledge /></RequirePerm>} />
+          <Route path="marketing/analytics" element={<RequirePerm perm="marketing"><InstagramAnalytics /></RequirePerm>} />
+          <Route path="marketing/settings" element={<RequirePerm perm="marketing"><InstagramSettings /></RequirePerm>} />
           <Route path="leads" element={<RequirePerm perm="leads"><LeadsPage /></RequirePerm>} />
           <Route path="calls" element={<RequirePerm perm="calls"><CallCenterPage /></RequirePerm>} />
           <Route path="calls/local" element={<RequirePerm perm="calls"><LocalCallPage /></RequirePerm>} />

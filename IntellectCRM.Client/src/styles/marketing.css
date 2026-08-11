@@ -254,6 +254,43 @@
 .marketing-app .modal-body { padding: 24px; }
 .marketing-app .modal-foot { padding: 18px 24px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 10px; }
 
+/* ============================================================ HOLAT BLOKCHALARI */
+.marketing-app .mk-state { display: flex; align-items: center; gap: 10px; padding: 22px; border: 1px dashed var(--border-strong); border-radius: var(--radius); color: var(--text-2); font-size: 13.5px; background: var(--surface); }
+.marketing-app .mk-state-error { border-style: solid; border-color: var(--danger); background: var(--danger-soft); color: var(--danger); font-weight: 600; }
+
+/* diagnostika kartochkalari (Sozlamalar) */
+.marketing-app .mk-status-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+.marketing-app .mk-status { display: flex; gap: 11px; align-items: flex-start; background: var(--surface); border: 1px solid var(--border); border-left-width: 3px; border-radius: var(--radius-sm); padding: 13px 14px; }
+.marketing-app .mk-status-dot { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; flex-shrink: 0; }
+.marketing-app .mk-status-label { font-size: 12.5px; color: var(--text-2); font-weight: 600; }
+.marketing-app .mk-status-value { font-size: 14px; font-weight: 800; margin-top: 1px; }
+
+/* nusxa olinadigan manzil */
+.marketing-app .mk-copy { display: flex; align-items: center; gap: 8px; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 8px 8px 12px; }
+.marketing-app .mk-copy code { flex: 1; min-width: 0; font-family: var(--font-mono); font-size: 12.5px; overflow-x: auto; white-space: nowrap; }
+
+/* oddiy jadval (qoidalar, navbat, kesimlar) */
+.marketing-app .mk-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.marketing-app .mk-table th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-3); font-weight: 700; padding: 9px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.marketing-app .mk-table td { padding: 11px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.marketing-app .mk-table tr:last-child td { border-bottom: none; }
+.marketing-app .mk-table tbody tr:hover { background: var(--surface-2); }
+.marketing-app .mk-num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; }
+
+/* bilim bazasi bo'lagi */
+.marketing-app .mk-kb-item { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 12px; box-shadow: var(--shadow-sm); }
+.marketing-app .mk-kb-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+
+/* ogohlantirish banneri (modul o'chiq va h.k.) */
+.marketing-app .mk-alert { display: flex; gap: 12px; align-items: flex-start; border-radius: var(--radius); padding: 16px 18px; margin-bottom: 20px; border: 1px solid var(--warning); background: var(--warning-soft); color: #7a4c05; }
+.marketing-app .mk-alert-danger { border-color: var(--danger); background: var(--danger-soft); color: #8a1e2f; }
+.marketing-app .mk-alert-title { font-weight: 800; font-size: 14px; margin-bottom: 3px; }
+
+/* inbox qo'shimchalari */
+.marketing-app .conv-flags { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 5px; }
+.marketing-app .chat-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.marketing-app .msg-error { font-size: 11px; color: var(--danger); font-weight: 700; margin-top: 3px; }
+
 /* animations */
 @keyframes mkFadeUp { from { transform: translateY(7px); opacity: .6; } to { transform: none; opacity: 1; } }
 .marketing-app .fade-up { animation: mkFadeUp .3s ease; }

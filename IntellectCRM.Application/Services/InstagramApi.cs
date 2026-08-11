@@ -1,0 +1,361 @@
+using System.Net;
+using System.Net.Http;
+using System.Text;
+using System.Text.Json;
+
+namespace IntellectCRM.Application.Services;
+
+/// <summary>
+/// Instagram Graph API mijozi (OAuth + izohga javob + private reply + DM + media).
+///
+/// <para><b>Uslub — loyihadagi <see cref="GeminiService"/> bilan bir xil: ISTISNO OTILMAYDI.</b>
+/// Har metod <c>(Ok, …, Error)</c> qaytaradi, <c>Error</c> — foydalanuvchiga ko'rsatiladigan
+/// O'ZBEKCHA matn. Sabab: bu chaqiruvlar fon xizmatidan turadi va bitta tarmoq uzilishi butun
+/// navbatni yiqitmasligi kerak.</para>
+///
+/// <para><b>Chiquvchi throttle (IG-SPEC §4.1):</b> ketma-ket ikki so'rov orasi kamida 1 soniya —
+/// holat STATIK, ya'ni butun ilova bo'yicha (NUR'da har worker o'z hisobini yuritgani uchun
+/// amalda 2 so'rov/soniya chiqib ketgan).</para>
+///
+/// <para><b>Retry:</b> faqat VAQTINCHALIK xatolarda (429/5xx/tarmoq, Meta rate-limit kodlari) —
+/// 1s → 2s → 4s. Token yaroqsiz (190) yoki ruxsat yetishmasa (10/200) qayta urinilmaydi: bu
+/// odam aralashuvini talab qiladigan doimiy xato.</para>
+///
+/// <para>DI: <c>builder.Services.AddHttpClient&lt;InstagramApi&gt;();</c></para>
+/// </summary>
+public sealed class InstagramApi(HttpClient http, ILogger<InstagramApi> logger)
+{
+    private const int MaxAttempts = 3;
+
+    // Butun ilova bo'yicha yagona "oxirgi so'rov" hisobi (throttle).
+    private static readonly SemaphoreSlim Gate = new(1, 1);
+    private static DateTime _lastSentUtc = DateTime.MinValue;
+    private static readonly TimeSpan MinInterval = TimeSpan.FromSeconds(1);
+
+    private static readonly JsonSerializerOptions JsonOpts = new()
+    {
+        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+    };
+
+    /* ═════════════════════════ OAuth ═════════════════════════ */
+
+    /// <summary>
+    /// Authorize URL (SOF funksiya — tarmoq yo'q). <paramref name="redirectUri"/> Meta'da
+    /// ro'yxatga olingani bilan AYNAN bir xil bo'lishi shart (oxirida <c>/</c> yo'q), aks holda
+    /// Instagram <c>Invalid redirect_uri</c> beradi.
+    /// </summary>
+    public static string BuildAuthorizeUrl(string appId, string redirectUri, string state) =>
+        $"{IgConst.AuthorizeUrl}?client_id={Uri.EscapeDataString(appId ?? "")}" +
+        $"&redirect_uri={Uri.EscapeDataString(redirectUri ?? "")}" +
+        $"&response_type=code&scope={Uri.EscapeDataString(IgConst.Scopes)}" +
+        $"&state={Uri.EscapeDataString(state ?? "")}";
+
+    /// <summary>
+    /// [4] <c>code</c> → QISQA muddatli token (1 soat) + akkaunt id.
+    /// ⚠️ Javob <c>data[]</c> MASSIVI ichida keladi (to'g'ridan-to'g'ri obyekt emas) — eski
+    /// formatdagi javob ham qabul qilinadi.
+    /// </summary>
+    public async Task<(bool Ok, string ShortToken, string IgUserId, string Error)> ExchangeCodeAsync(
+        string appId, string appSecret, string redirectUri, string code, CancellationToken ct)
+    {
+        // Kod URL'da `#_` fragmenti bilan kelishi mumkin — kesib tashlanadi.
+        var clean = (code ?? "").Split('#')[0];
+        var form = new Dictionary<string, string>
+        {
+            ["client_id"] = appId ?? "",
+            ["client_secret"] = appSecret ?? "",
+            ["grant_type"] = "authorization_code",
+            ["redirect_uri"] = redirectUri ?? "",
+            ["code"] = clean,
+        };
+
+        var (ok, body, err) = await SendAsync(
+            () => new HttpRequestMessage(HttpMethod.Post, IgConst.OauthTokenUrl) { Content = new FormUrlEncodedContent(form) },
+            ct);
+        if (!ok) return (false, "", "", err);
+
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            var root = doc.RootElement;
+            if (root.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Array && data.GetArrayLength() > 0)
+                root = data[0];
+            var token = Str(root, "access_token");
+            var userId = Str(root, "user_id");
+            if (token.Length == 0) return (false, "", "", "Instagram token qaytarmadi — App ID/Secret va redirect manzilni tekshiring.");
+            return (true, token, userId, "");
+        }
+        catch (JsonException)
+        {
+            return (false, "", "", "Instagram javobini o'qib bo'lmadi (kutilmagan format).");
+        }
+    }
+
+    /// <summary>[5] Qisqa token → UZOQ muddatli (≈60 kun).</summary>
+    public async Task<(bool Ok, string LongToken, int ExpiresIn, string Error)> ExchangeLongLivedAsync(
+        string appSecret, string shortToken, CancellationToken ct)
+    {
+        var url = $"{IgConst.GraphRoot}/access_token?grant_type=ig_exchange_token" +
+                  $"&client_secret={Uri.EscapeDataString(appSecret ?? "")}" +
+                  $"&access_token={Uri.EscapeDataString(shortToken ?? "")}";
+        return await TokenCallAsync(url, ct);
+    }
+
+    /// <summary>[7] Tokenni yangilash (yana ≈60 kun). Token kamida bir marta ishlatilgan bo'lishi kerak.</summary>
+    public async Task<(bool Ok, string Token, int ExpiresIn, string Error)> RefreshTokenAsync(
+        string longToken, CancellationToken ct)
+    {
+        var url = $"{IgConst.GraphRoot}/refresh_access_token?grant_type=ig_refresh_token" +
+                  $"&access_token={Uri.EscapeDataString(longToken ?? "")}";
+        return await TokenCallAsync(url, ct);
+    }
+
+    private async Task<(bool Ok, string Token, int ExpiresIn, string Error)> TokenCallAsync(string url, CancellationToken ct)
+    {
+        var (ok, body, err) = await SendAsync(() => new HttpRequestMessage(HttpMethod.Get, url), ct);
+        if (!ok) return (false, "", 0, err);
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            var token = Str(doc.RootElement, "access_token");
+            var expires = doc.RootElement.TryGetProperty("expires_in", out var e) && e.TryGetInt32(out var s) ? s : 0;
+            if (token.Length == 0) return (false, "", 0, "Instagram yangi token qaytarmadi.");
+            return (true, token, expires, "");
+        }
+        catch (JsonException)
+        {
+            return (false, "", 0, "Instagram javobini o'qib bo'lmadi (kutilmagan format).");
+        }
+    }
+
+    /// <summary>
+    /// [6] O'z akkauntimiz. ⚠️ <c>user_id</c> (IGSID) ustun olinadi — webhook'dagi
+    /// <c>from.id</c> aynan shu formatda keladi va "o'zimizni tanish" tekshiruvi shunga tayanadi.
+    /// U bo'lmasa <c>id</c> ishlatiladi.
+    /// </summary>
+    public async Task<(bool Ok, string IgUserId, string Username, string Name, string PictureUrl, string Error)> MeAsync(
+        string token, CancellationToken ct)
+    {
+        var url = $"{IgConst.GraphBase}/me?fields=id,user_id,username,name,account_type,profile_picture_url" +
+                  $"&access_token={Uri.EscapeDataString(token ?? "")}";
+        var (ok, body, err) = await SendAsync(() => new HttpRequestMessage(HttpMethod.Get, url), ct);
+        if (!ok) return (false, "", "", "", "", err);
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            var r = doc.RootElement;
+            var userId = Str(r, "user_id");
+            if (userId.Length == 0) userId = Str(r, "id");
+            if (userId.Length == 0) return (false, "", "", "", "", "Instagram akkaunt id'sini aniqlab bo'lmadi.");
+            return (true, userId, Str(r, "username"), Str(r, "name"), Str(r, "profile_picture_url"), "");
+        }
+        catch (JsonException)
+        {
+            return (false, "", "", "", "", "Instagram javobini o'qib bo'lmadi (kutilmagan format).");
+        }
+    }
+
+    /// <summary>[8] Webhook obunasi. <c>message_echoes</c> ATAYIN — operator pauzasi shunga tayanadi.</summary>
+    public async Task<(bool Ok, string Error)> SubscribeWebhookAsync(string token, CancellationToken ct)
+    {
+        var url = $"{IgConst.GraphBase}/me/subscribed_apps?subscribed_fields=comments,messages,message_echoes" +
+                  $"&access_token={Uri.EscapeDataString(token ?? "")}";
+        var (ok, _, err) = await SendAsync(() => new HttpRequestMessage(HttpMethod.Post, url), ct);
+        return (ok, err);
+    }
+
+    /* ═════════════════════════ Amallar ═════════════════════════ */
+
+    /// <summary>Izohga OCHIQ javob (post ostida hamma ko'radi).</summary>
+    public async Task<(bool Ok, string Error)> ReplyToCommentAsync(
+        string commentId, string message, string token, CancellationToken ct)
+    {
+        var form = new Dictionary<string, string>
+        {
+            ["message"] = message ?? "",
+            ["access_token"] = token ?? "",
+        };
+        var (ok, _, err) = await SendAsync(
+            () => new HttpRequestMessage(HttpMethod.Post, $"{IgConst.GraphBase}/{Uri.EscapeDataString(commentId ?? "")}/replies")
+            {
+                Content = new FormUrlEncodedContent(form)
+            }, ct);
+        return (ok, err);
+    }
+
+    /// <summary>
+    /// Izoh yozgan odamga YOPIQ javob (private reply).
+    /// ⚠️ Har izoh uchun FAQAT BIR MARTA va izohdan keyin 7 kun ichida — takroriy urinish xato
+    /// beradi, shuning uchun chaqiruvchi yuborilganini yozib qo'yishi shart.
+    /// Manzil <c>recipient.id</c> emas, <c>recipient.comment_id</c>.
+    /// </summary>
+    public async Task<(bool Ok, string Error)> SendPrivateReplyAsync(
+        string commentId, string message, string token, CancellationToken ct)
+    {
+        var payload = new
+        {
+            recipient = new { comment_id = commentId ?? "" },
+            message = new { text = message ?? "" },
+        };
+        return await PostMessagesAsync("me", payload, token, ct);
+    }
+
+    /// <summary>
+    /// Oddiy DM. ⚠️ Chaqirishdan OLDIN 24 soatlik oyna tekshirilgan bo'lishi kerak
+    /// (<see cref="InstagramContract.DmWindowOpen"/>) — bu yerda faqat HTTP bajariladi.
+    /// </summary>
+    public async Task<(bool Ok, string Error)> SendDmAsync(
+        string igUserId, string recipientId, string message, string token, CancellationToken ct)
+    {
+        var payload = new
+        {
+            recipient = new { id = recipientId ?? "" },
+            message = new { text = InstagramContract.Trim(message, IgConst.MaxReplyLength) },
+        };
+        var path = string.IsNullOrWhiteSpace(igUserId) ? "me" : igUserId;
+        return await PostMessagesAsync(path, payload, token, ct);
+    }
+
+    private async Task<(bool Ok, string Error)> PostMessagesAsync(
+        string path, object payload, string token, CancellationToken ct)
+    {
+        var url = $"{IgConst.GraphBase}/{Uri.EscapeDataString(path)}/messages?access_token={Uri.EscapeDataString(token ?? "")}";
+        var json = JsonSerializer.Serialize(payload, JsonOpts);
+        var (ok, _, err) = await SendAsync(
+            () => new HttpRequestMessage(HttpMethod.Post, url)
+            {
+                Content = new StringContent(json, Encoding.UTF8, "application/json")
+            }, ct);
+        return (ok, err);
+    }
+
+    /// <summary>Post matni (caption) — AI'ga "mijoz qaysi post ostida yozdi" konteksti uchun.</summary>
+    public async Task<(bool Ok, string Caption, string Permalink, string Error)> GetMediaAsync(
+        string mediaId, string token, CancellationToken ct)
+    {
+        var url = $"{IgConst.GraphBase}/{Uri.EscapeDataString(mediaId ?? "")}?fields=id,caption,permalink" +
+                  $"&access_token={Uri.EscapeDataString(token ?? "")}";
+        var (ok, body, err) = await SendAsync(() => new HttpRequestMessage(HttpMethod.Get, url), ct);
+        if (!ok) return (false, "", "", err);
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            return (true, Str(doc.RootElement, "caption"), Str(doc.RootElement, "permalink"), "");
+        }
+        catch (JsonException)
+        {
+            return (false, "", "", "Instagram javobini o'qib bo'lmadi (kutilmagan format).");
+        }
+    }
+
+    /* ═════════════════════════ Ichki qism ═════════════════════════ */
+
+    /// <summary>So'rovni yuboradi: throttle + retry + xatoni o'zbekcha matnga aylantirish.
+    /// <paramref name="factory"/> — HAR urinishda YANGI <c>HttpRequestMessage</c> (bittasini
+    /// qayta yuborib bo'lmaydi).</summary>
+    private async Task<(bool Ok, string Body, string Error)> SendAsync(
+        Func<HttpRequestMessage> factory, CancellationToken ct)
+    {
+        var delayMs = 1000;
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                await ThrottleAsync(ct);
+                using var req = factory();
+                using var resp = await http.SendAsync(req, ct);
+                var body = await resp.Content.ReadAsStringAsync(ct);
+                if (resp.IsSuccessStatusCode) return (true, body, "");
+
+                var (code, sub, msg) = ParseError(body);
+                var retryable = IsRetryable(resp.StatusCode, code);
+                logger.LogWarning("Instagram API xato ({Status}/{Code}/{Sub}): {Msg}", (int)resp.StatusCode, code, sub, msg);
+                if (retryable && attempt < MaxAttempts)
+                {
+                    await Task.Delay(delayMs, ct);
+                    delayMs *= 2;
+                    continue;
+                }
+                return (false, body, MapError((int)resp.StatusCode, code, sub, msg));
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                return (false, "", "So'rov bekor qilindi.");
+            }
+            catch (TaskCanceledException)
+            {
+                if (attempt < MaxAttempts) { await Task.Delay(delayMs, ct); delayMs *= 2; continue; }
+                return (false, "", "Instagram javob bermadi (vaqt tugadi) — keyinroq qayta urinamiz.");
+            }
+            catch (HttpRequestException ex)
+            {
+                if (attempt < MaxAttempts) { await Task.Delay(delayMs, ct); delayMs *= 2; continue; }
+                return (false, "", $"Tarmoq xatosi: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>Ketma-ket so'rovlar orasida kamida 1 soniya (butun ilova bo'yicha).</summary>
+    private static async Task ThrottleAsync(CancellationToken ct)
+    {
+        await Gate.WaitAsync(ct);
+        try
+        {
+            var wait = MinInterval - (DateTime.UtcNow - _lastSentUtc);
+            if (wait > TimeSpan.Zero) await Task.Delay(wait, ct);
+            _lastSentUtc = DateTime.UtcNow;
+        }
+        finally { Gate.Release(); }
+    }
+
+    private static bool IsRetryable(HttpStatusCode status, int code)
+    {
+        if (status is HttpStatusCode.TooManyRequests
+            or HttpStatusCode.InternalServerError
+            or HttpStatusCode.BadGateway
+            or HttpStatusCode.ServiceUnavailable
+            or HttpStatusCode.GatewayTimeout) return true;
+        // Meta rate-limit kodlari (app/user/custom) — vaqtinchalik.
+        return code is 4 or 17 or 32 or 613 or 2;
+    }
+
+    /// <summary>Meta xato kodini foydalanuvchi o'qiydigan O'ZBEKCHA matnga aylantiradi
+    /// (IG-SPEC §3.6 xaritasi). Tamoyil: <b>vaqtinchalik → qayta urinamiz, doimiy → signal</b>.</summary>
+    private static string MapError(int httpStatus, int code, int sub, string msg) => code switch
+    {
+        190 => "Token muddati tugagan yoki bekor qilingan — akkauntni qayta ulang.",
+        4 or 17 or 32 or 613 => "Instagram so'rov chegarasi (rate limit) — keyinroq qayta urinamiz.",
+        10 when sub == 2534022 => "24 soatlik javob oynasi yopilgan — Instagram DM'ni qabul qilmadi.",
+        10 or 200 => "Ruxsat yetishmaydi — akkauntni qayta ulab, xabar va izoh ruxsatlarini bering.",
+        100 => $"Noto'g'ri so'rov parametri: {msg}",
+        551 => "Mijoz xabarni qabul qila olmadi (akkaunt cheklangan yoki bloklangan).",
+        _ => msg.Length > 0
+            ? $"Instagram xato ({(code != 0 ? code : httpStatus)}): {msg}"
+            : $"Instagram xato ({httpStatus}).",
+    };
+
+    private static (int Code, int Sub, string Message) ParseError(string body)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            if (!doc.RootElement.TryGetProperty("error", out var e) || e.ValueKind != JsonValueKind.Object)
+                return (0, 0, "");
+            var code = e.TryGetProperty("code", out var c) && c.TryGetInt32(out var ci) ? ci : 0;
+            var sub = e.TryGetProperty("error_subcode", out var s) && s.TryGetInt32(out var si) ? si : 0;
+            return (code, sub, Str(e, "message"));
+        }
+        catch (JsonException) { return (0, 0, ""); }
+    }
+
+    private static string Str(JsonElement e, string name)
+    {
+        if (!e.TryGetProperty(name, out var v)) return "";
+        return v.ValueKind switch
+        {
+            JsonValueKind.String => v.GetString() ?? "",
+            JsonValueKind.Number => v.ToString(),
+            _ => "",
+        };
+    }
+}

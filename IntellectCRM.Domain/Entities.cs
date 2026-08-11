@@ -1658,6 +1658,51 @@ public class CenterMeta
     /// maydonini klientning O'ZI yuboradi, ya'ni o'zgartirilgan APK <c>platform=ios</c>
     /// deyish bilan butun darvozadan o'tib ketardi. To'g'ri yechim — App Attest'ni yozish.</para></summary>
     public bool LoginFaceRequireAttestation { get; set; }
+
+    // ---------- MARKETING: INSTAGRAM AI AGENTI ----------
+    // Bular MAXFIY EMAS (kalit/parol emas), shuning uchun `.env` emas, CenterMeta to'g'ri joy.
+    // Maxfiylar — `INSTAGRAM_APP_SECRET` va `INSTAGRAM_VERIFY_TOKEN` — avvalgidek `.env` da,
+    // ulangan akkaunt tokeni esa `IgAccount.AccessToken` da (u OAuth orqali ish vaqtida olinadi).
+    //
+    // ⚠️ XAVFSIZLIK DEFAULTI: quyidagi to'rt bayroq ham entity'da, ham migratsiyada `false`.
+    // (BookSalesEnabled saboqi: entity'da `true`, migratsiyada `false` bo'lgani chalkashlik
+    // tug'dirgan.) Modul sozlanmagunicha jonli mijozga bironta javob ketmasin.
+
+    /// <summary>Instagram AI agenti umuman yoqilganmi. <b>Default FALSE</b> — o'chiq bo'lsa fon
+    /// xizmati navbatni umuman qayta ishlamaydi va HECH QANDAY tashqi so'rov ketmaydi
+    /// (webhook baribir qabul qilinadi va navbatga yoziladi, faqat javob berilmaydi).</summary>
+    public bool InstagramEnabled { get; set; }
+    /// <summary>Post ostidagi IZOHLARGA avtomatik javob berilsinmi. <b>Default FALSE</b> —
+    /// izohdagi javob OMMAVIY ko'rinadi, ya'ni xatoning narxi eng yuqori.</summary>
+    public bool InstagramAutoReplyComments { get; set; }
+    /// <summary>DM (shaxsiy xabar)larga avtomatik javob berilsinmi. <b>Default FALSE</b>.</summary>
+    public bool InstagramAutoReplyDm { get; set; }
+    /// <summary>Izoh yozgan odamga qo'shimcha ravishda YOPIQ javob (private reply) ham
+    /// yuborilsinmi. <b>Default FALSE</b> — Meta buni izohdan keyin 7 kun ichida bir marta
+    /// ruxsat beradi va ortiqcha ishlatilsa spam sifatida qabul qilinadi.</summary>
+    public bool InstagramPrivateReplyEnabled { get; set; }
+
+    /// <summary>Meta ilovasining App ID'si — maxfiy EMAS (u OAuth havolasida ochiq ko'rinadi),
+    /// shuning uchun `.env` emas, shu yerda. Maxfiy juftligi (`App Secret`) `.env` da.</summary>
+    public string InstagramAppId { get; set; } = string.Empty;
+    /// <summary>Javob yozadigan Gemini modeli. Bo'sh = `GeminiService` default modeli.</summary>
+    public string InstagramAiModel { get; set; } = string.Empty;
+    /// <summary>Yaratilgan lidlarda `Lead.Source` sifatida yoziladigan manba NOMI (FK emas —
+    /// lidlar moduli manbani nom bilan saqlaydi).</summary>
+    public string InstagramLeadSource { get; set; } = "Instagram";
+    /// <summary>Qaynoq lid va eskalatsiya haqida Telegram'da xabar berilsinmi (mavjud bot orqali).</summary>
+    public bool InstagramNotifyTelegram { get; set; } = true;
+
+    /// <summary>Javobdan oldingi kutish (soniya) — tabiiylik uchun. Bir zumda kelgan javob
+    /// mijozga "bot" bo'lib ko'rinadi va Instagram tomonidan ham spamga o'xshaydi.</summary>
+    public int InstagramReplyDelaySeconds { get; set; } = 5;
+    /// <summary>Bir kunda yuboriladigan avtomatik javoblarning MAKSIMAL soni — himoya chegarasi.
+    /// Sikl yoki hujum bo'lganda akkaunt bloklanib qolmasin.</summary>
+    public int InstagramDailyReplyLimit { get; set; } = 200;
+    /// <summary>Birinchi javobga qo'shiladigan BOT OSHKORLIGI matni (masalan "Bu — avtomatik
+    /// yordamchi"). Meta platforma qoidalari avtomatlashtirilgan javobni oshkor qilishni talab
+    /// qiladi; bo'sh qoldirilsa agent sukut bo'yicha matnni ishlatadi.</summary>
+    public string InstagramGreeting { get; set; } = string.Empty;
 }
 
 /// <summary>Avto-xabar qoidasi — hodisa (Trigger) yuz berganda tanlangan kanallar orqali
@@ -3554,4 +3599,253 @@ public class TrustedDevice
     public string LastSeenAt { get; set; } = string.Empty;
     /// <summary>Bekor qilingan vaqt (ISO). Bo'sh/null = ishonchli.</summary>
     public string? RevokedAt { get; set; }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════
+//                          MARKETING — INSTAGRAM AI AGENTI
+// ═══════════════════════════════════════════════════════════════════════════════════════════
+// Modul Instagram'dagi izoh va DM'larga AI bilan javob beradi, qiziqqan odamni LID'ga aylantiradi.
+// Konvensiya (butun loyihadagi kabi): `Id` — string GUID; sana/vaqt — ISO SATR (`AppClock.Iso()`),
+// `DateTime` ustun EMAS; "yo'q" qiymat — `""` (nullable faqat ma'nosi bor joyda: `IgConversation.LeadId`).
+// Modul o'chirilgan holatda (`CenterMeta.InstagramEnabled == false`) hech qanday tashqi so'rov ketmaydi.
+
+/// <summary>
+/// Ulangan Instagram akkaunt (Instagram Login orqali OAuth). Jadval bir nechta qatorga tayyor
+/// (kelajakda filial), lekin amalda bir vaqtda bitta faol akkaunt yetarli.
+/// </summary>
+public class IgAccount
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary>Instagram professional akkaunt id — webhook'da "biznikimi" tekshiruvi shu bilan
+    /// qilinadi (o'zimiz yozgan izoh/xabarga javob berib cheksiz halqaga tushmaslik uchun).</summary>
+    public string IgUserId { get; set; } = string.Empty;
+    public string Username { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string ProfilePictureUrl { get; set; } = string.Empty;
+
+    /// <summary>Uzoq muddatli (60 kunlik) kirish tokeni.
+    /// <para>⚠️ Bu — "kalitlar FAQAT .env" qoidasidan ATAYIN chekinish: token OAuth orqali ISH
+    /// VAQTIDA olinadi va 45-kunda avtomatik yangilanadi, ya'ni uni `.env` ga yozib bo'lmaydi.
+    /// `INSTAGRAM_APP_SECRET` va `INSTAGRAM_VERIFY_TOKEN` esa avvalgidek `.env` da qoladi.</para>
+    /// <para>⚠️ Qiymat HECH QACHON DTO'ga, javobga, logga va auditga tushmaydi — tashqariga faqat
+    /// "ulangan / muddati N kun qoldi" holati chiqadi.</para></summary>
+    public string AccessToken { get; set; } = string.Empty;
+
+    /// <summary>Token muddati (ISO). Fon xizmati shu sanaga 15 kundan kam qolganda yangilaydi.</summary>
+    public string TokenExpiresAt { get; set; } = string.Empty;
+    /// <summary>Oxirgi marta qachon yangilangani (ISO) — diagnostika ekrani uchun.</summary>
+    public string TokenRefreshedAt { get; set; } = string.Empty;
+
+    /// <summary>Webhook obunasi (`subscribed_apps`) muvaffaqiyatli qilinganmi. False bo'lsa
+    /// hodisalar umuman kelmaydi — Sozlamalar sahifasi buni qizil holat sifatida ko'rsatadi.</summary>
+    public bool WebhookSubscribed { get; set; }
+
+    /// <summary>Akkaunt uzilganda (`disconnect`) qator O'CHIRILMAYDI, faqat `false` qilinadi —
+    /// suhbatlar tarixi va analitika saqlanib qolsin.</summary>
+    public bool IsActive { get; set; } = true;
+
+    public string ConnectedAt { get; set; } = string.Empty;
+    /// <summary>Kim ulagani (xodim ismi) — audit yozuvi bilan bir xil ism.</summary>
+    public string ConnectedBy { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Webhook'dan kelgan XOM hodisa — <b>durable navbat</b>.
+/// <para><b>Nega jadval?</b> Meta webhook javobini ~5 soniyada kutadi va kechiksa hodisani qayta
+/// yuboradi. AI + Graph API chaqiruvlari esa bundan uzoq davom etadi. Shuning uchun controller
+/// xom JSON'ni SHU jadvalga yozib DARHOL 200 qaytaradi, haqiqiy ish esa fon xizmatida bajariladi.
+/// Fire-and-forget'da (`Task.Run`) ilova qayta ishga tushsa hodisa yo'qolib ketardi.</para>
+/// </summary>
+public class IgWebhookEvent
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary>Dedup kaliti — <b>UNIKAL indeks</b>. Meta bitta hodisani bir necha marta yuborishi
+    /// mumkin (javob kechikkanda qayta urinadi); unikal indeks bo'lmasa mijoz bir xil savoliga
+    /// bir necha marta javob olardi. Kalit deterministik: izohda `comment_id`, DM'da `mid`,
+    /// ikkalasi ham yo'q bo'lsa sender+vaqt+matn hash'i.</summary>
+    public string EventKey { get; set; } = string.Empty;
+
+    /// <summary>Meta yuborgan payload — o'zgartirilmagan holda. Qayta ishlash xato bersa hodisani
+    /// shu yerdan qayta o'ynatish mumkin.</summary>
+    public string RawJson { get; set; } = string.Empty;
+
+    /// <summary>`pending` | `done` | `failed` | `skipped` (`IgConst.Ev*`). Indekslanadi —
+    /// fon xizmati har bir sikl aynan `pending` qatorlarni tanlab oladi.</summary>
+    public string Status { get; set; } = "pending";
+
+    /// <summary>Nechta marta urinilgani. 3 ga yetganda `failed` — cheksiz sikl bo'lmasin.</summary>
+    public int Attempts { get; set; }
+
+    /// <summary>Oxirgi xato matni (o'zbekcha) — diagnostika ekranida ko'rinadi.</summary>
+    public string Error { get; set; } = string.Empty;
+
+    public string ReceivedAt { get; set; } = string.Empty;
+    public string ProcessedAt { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Bitta Instagram foydalanuvchisi bilan suhbat — <b>izoh ham, DM ham BIRGA</b>.
+/// <para>Nega birga? Odam avval post ostiga "narxi qancha?" deb yozadi, keyin DM'ga o'tadi.
+/// Ikkita alohida yozuv bo'lsa operator bir odamning ikki yarim suhbatini ko'rardi va AI
+/// kontekstni yo'qotardi.</para>
+/// </summary>
+public class IgConversation
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary>Suhbatdoshning Instagram id'si — indekslanadi (har kiruvchi hodisada suhbat
+    /// aynan shu bo'yicha topiladi).</summary>
+    public string IgUserId { get; set; } = string.Empty;
+    public string Username { get; set; } = string.Empty;
+
+    /// <summary>`bot` = AI javob beradi · `operator` = pauza (odam yozyapti) · `closed` = yopilgan.</summary>
+    public string Status { get; set; } = "bot";
+
+    /// <summary>Operator pauzasi qachongacha (ISO). Bo'sh = pauza yo'q.
+    /// <para><b>Nega muddat bilan?</b> Xodim suhbatga qo'lda kirsa (yoki biz yuborgan xabar
+    /// "echo" bo'lib qaytsa) bot darhol jim bo'lishi kerak — aks holda mijoz odam va bot
+    /// javoblarini aralash olardi. Ammo pauza abadiy qolsa suhbat jimgina "o'lik" bo'lib
+    /// qolardi va hech kim sezmasdi, shuning uchun u O'ZI tugaydi.</para></summary>
+    public string OperatorPausedUntil { get; set; } = string.Empty;
+
+    /// <summary>Oxirgi KIRUVCHI xabar vaqti (ISO) — Instagram'ning <b>24 soatlik javob oynasi</b>
+    /// aynan shundan hisoblanadi. Oyna yopiq bo'lsa DM yuborib bo'lmaydi (Meta rad etadi).</summary>
+    public string LastInboundAt { get; set; } = string.Empty;
+    public string LastOutboundAt { get; set; } = string.Empty;
+
+    /// <summary>Ro'yxat uchun DENORMALIZATSIYA — inbox chizishda har suhbat uchun alohida
+    /// "oxirgi xabar" so'rovi (N+1) qilinmasin.</summary>
+    public string LastMessageText { get; set; } = string.Empty;
+    public int MessageCount { get; set; }
+
+    /// <summary>Operator hali ochib ko'rmagan.</summary>
+    public bool Unread { get; set; } = true;
+
+    /// <summary>ODAM ARALASHUVI KERAK: mijoz operatorni so'radi, AI ishlamadi yoki 24 soatlik
+    /// oyna yopilib javob yubora olmadik. Inbox'da qizil chip bilan tepaga chiqadi.</summary>
+    public bool NeedsOperator { get; set; }
+    /// <summary>Nega operator kerakligi (o'zbekcha, qisqa) — operator ochmasdan sababini ko'rsin.</summary>
+    public string NeedsOperatorReason { get; set; } = string.Empty;
+
+    /// <summary>`uz-Cyrl` | `uz-Latn` | `ru` | `en` — mijoz qaysi tilda/yozuvda yozgan bo'lsa
+    /// javob ham shunda bo'lishi uchun.</summary>
+    public string Language { get; set; } = string.Empty;
+    /// <summary>Oxirgi aniqlangan niyat (`IgConst.Intents`).</summary>
+    public string Intent { get; set; } = string.Empty;
+
+    /// <summary>Qiziqish darajasi 0..100. <b>max(eski, yangi)</b> tarzida yangilanadi: odam bir
+    /// marta "yozildim" desa, keyin "rahmat" deb yozgani uchun ball tushib ketmasin.</summary>
+    public int LeadScore { get; set; }
+
+    /// <summary>Bog'langan <see cref="Lead"/>.Id. <c>null</c> = hali lid yaratilmagan.
+    /// Bu — modulda YAGONA nullable maydon: "lid yo'q" holati mazmunan mavjud va
+    /// `""` bilan chalkashtirilmasligi kerak.</summary>
+    public string? LeadId { get; set; }
+
+    public string CreatedAt { get; set; } = string.Empty;
+}
+
+/// <summary>Suhbatdagi bitta xabar (kirish yoki chiqish). AI kontekst tarixini shundan oladi.</summary>
+public class IgMessage
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary><see cref="IgConversation"/>.Id — indekslanadi (suhbat lentasi shu bo'yicha o'qiladi).</summary>
+    public string ConversationId { get; set; } = string.Empty;
+
+    /// <summary>`in` (mijozdan) | `out` (bizdan).</summary>
+    public string Direction { get; set; } = "in";
+    /// <summary>`comment` | `dm` | `private_reply` (`IgConst.Channel*`) — izohga ochiq javob,
+    /// shaxsiy xabar yoki izohga yopiq javob.</summary>
+    public string Channel { get; set; } = "dm";
+
+    public string Text { get; set; } = string.Empty;
+    /// <summary>Post id (izoh bo'lsa) — AI javobda post matnini (caption) hisobga oladi.</summary>
+    public string MediaId { get; set; } = string.Empty;
+    /// <summary>Izoh id — javob aynan shu izoh ostiga yoziladi.</summary>
+    public string CommentId { get; set; } = string.Empty;
+    /// <summary>Instagram tomonidagi xabar id (`mid`) — dedup va "echo" ni tanish uchun.</summary>
+    public string IgMessageId { get; set; } = string.Empty;
+
+    /// <summary>Kim yozgani: `"AI agent"` | xodim ismi | `@username`. Inbox lentasida ko'rinadi —
+    /// operator qaysi javobni bot, qaysinisini odam yozganini adashtirmasin.</summary>
+    public string ActorName { get; set; } = string.Empty;
+    public bool IsAi { get; set; }
+    public string AiIntent { get; set; } = string.Empty;
+    public int AiScore { get; set; }
+
+    /// <summary>Yuborishda xato bo'lsa — o'zbekcha matn. Xabar qatori BARIBIR saqlanadi:
+    /// "javob ketmadi" ni operator ko'rishi kerak (jim yo'qolgan javob eng yomon holat).</summary>
+    public string Error { get; set; } = string.Empty;
+
+    public string CreatedAt { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Kalit so'z qoidasi — AI'dan OLDIN ishlaydi.
+/// <para>Nega kerak? Ko'p savol bir xil ("narx", "manzil", "ish vaqti"). Ularga tayyor matn bilan
+/// javob berish TEZ (AI kutilmaydi), ARZON (token sarflanmaydi) va ANIQ (AI o'ylab topmaydi).</para>
+/// </summary>
+public class IgAutoRule
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string Title { get; set; } = string.Empty;
+
+    /// <summary>Vergul bilan ajratilgan kalit so'zlar (masalan: `narx, narxi, qancha`).</summary>
+    public string Keywords { get; set; } = string.Empty;
+    /// <summary>`comment` | `dm` | `any` — qoida qaysi kanalda ishlaydi.</summary>
+    public string Channel { get; set; } = "any";
+    public string ReplyText { get; set; } = string.Empty;
+
+    /// <summary>true — qoida ishlagach AI umuman chaqirilmaydi (mijoz ikkita javob olmasin).</summary>
+    public bool StopAi { get; set; } = true;
+
+    public bool IsActive { get; set; } = true;
+    /// <summary>Tekshirish TARTIBI — birinchi mos kelgan qoida ishlaydi, shuning uchun aniqroq
+    /// qoidalar yuqoriroq turadi.</summary>
+    public int Order { get; set; }
+    /// <summary>Nechta marta ishlagani — "qaysi qoida foydali" savoliga analitikada javob beradi.</summary>
+    public int MatchCount { get; set; }
+
+    public string CreatedAt { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Bilim bazasi bo'lagi — <b>AI FAQAT shundan javob beradi</b>.
+/// <para>Nega? Til modeli bo'sh joyni "o'ylab topish" bilan to'ldiradi: narx, chegirma va dars
+/// jadvalini to'qib chiqarish esa markazning haqiqiy zarariga aylanadi. Prompt'da qat'iy qoida
+/// bor — bu yerda yo'q ma'lumot so'ralsa AI operatorga o'tkazadi.</para>
+/// </summary>
+public class IgKnowledge
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string Title { get; set; } = string.Empty;
+    public string Content { get; set; } = string.Empty;
+    /// <summary>Prompt'ga qo'shilish tartibi (muhimi yuqorida — prompt uzayib ketsa ham
+    /// eng kerakli qism kesilmasin).</summary>
+    public int Order { get; set; }
+    public bool IsActive { get; set; } = true;
+    public string UpdatedAt { get; set; } = string.Empty;
+    public string UpdatedBy { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// OAuth `state` — callback'ni tasdiqlash uchun BIR MARTALIK kalit (CSRF himoyasi).
+/// <para>Nega baza? Callback'ni Meta boshqa so'rov sifatida yuboradi, ya'ni sessiya konteksti
+/// yo'q. `state` bazada bo'lsa: (1) callback haqiqatan BIZ boshlagan oqimdanmi, (2) kim
+/// boshlaganini bilamiz, (3) qayta ishlatib bo'lmaydi (<see cref="Used"/>).</para>
+/// </summary>
+public class IgOAuthState
+{
+    /// <summary>`state` qiymatining O'ZI (alohida ustun kerak emas — kalit shuning o'zi).</summary>
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    /// <summary>Oqimni boshlagan xodim ismi.</summary>
+    public string CreatedBy { get; set; } = string.Empty;
+    public string CreatedAt { get; set; } = string.Empty;
+    /// <summary>Muddat (ISO) — +15 daqiqa. Eskirgan `state` qabul qilinmaydi.</summary>
+    public string ExpiresAt { get; set; } = string.Empty;
+    /// <summary>Bir marta ishlatilgan — qayta ishlatishga urinish rad etiladi.</summary>
+    public bool Used { get; set; }
 }

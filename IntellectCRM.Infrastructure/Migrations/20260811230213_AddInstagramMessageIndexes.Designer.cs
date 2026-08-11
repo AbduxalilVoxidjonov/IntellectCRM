@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using IntellectCRM.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace IntellectCRM.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260811230213_AddInstagramMessageIndexes")]
+    partial class AddInstagramMessageIndexes
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2332,7 +2335,6 @@ namespace IntellectCRM.Infrastructure.Migrations
                         .HasColumnType("character varying(200)");
 
                     b.Property<string>("UsedAt")
-                        .IsConcurrencyToken()
                         .HasColumnType("text");
 
                     b.Property<string>("UserId")
@@ -4773,46 +4775,6 @@ namespace IntellectCRM.Infrastructure.Migrations
                     b.HasIndex("StudentId", "Date");
 
                     b.ToTable("StudentAiAnalyses");
-                });
-
-            modelBuilder.Entity("IntellectCRM.Domain.StudentBallAdjustment", b =>
-                {
-                    b.Property<string>("Id")
-                        .HasColumnType("text");
-
-                    b.Property<string>("CreatedAt")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("CreatedBy")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("CreatedById")
-                        .HasColumnType("text");
-
-                    b.Property<int>("Delta")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("GroupId")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<string>("Reason")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("StudentId")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("StudentId", "GroupId");
-
-                    b.ToTable("StudentBallAdjustments");
                 });
 
             modelBuilder.Entity("IntellectCRM.Domain.StudentCertificate", b =>
