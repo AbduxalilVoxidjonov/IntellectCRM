@@ -6,6 +6,8 @@ import {
   type ContactStats, type ContactResponseRow,
 } from '@/api/services/contacts'
 import { MonthDayStrip, currentMonth, todayIso } from './MonthDayStrip'
+import { ContactDailyJournal } from './ContactDailyJournal'
+import { ContactAiPanel } from '@/components/ai/ContactAiPanel'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Loader } from '@/components/ui/Loader'
@@ -217,6 +219,11 @@ export function ContactStatsPanel() {
             />
           </div>
 
+          {/* AI TAHLIL — KPI kartochkalaridan keyin, jadvallardan OLDIN: u sahifaning
+              "boshqaruvchi xulosasi" (voronka tahlilidagi bilan bir xil joylashuv qoidasi).
+              Davr — yuqorida tanlangani; tahlil AYNAN shu davr uchun. */}
+          <ContactAiPanel from={from} to={to} />
+
           {/* KUNLIK — "kunlik nechta odam bilan bog'lanildi" */}
           <Card title="Kunlik" sub="Har kuni nechta yangi talab ochilgan va nechta bog'lanish bo'lgan.">
             {data.daily.every((d) => d.created + d.attempts === 0) ? (
@@ -253,6 +260,10 @@ export function ContactStatsPanel() {
               </div>
             )}
           </Card>
+
+          {/* KUNLIK JURNAL — kunning O'ZI: kimga, qachon, nima dedi (jadvaldan keyin, chunki
+              jadval "nechta" ni, jurnal esa "nima bo'ldi" ni ko'rsatadi). */}
+          <ContactDailyJournal from={from} to={to} />
 
           {/* XODIMLAR — "kim qaysi bosqichga oldi, natijasi qanday bo'ldi" */}
           <Card title="Xodimlar kesimi" sub="Kim nechta bog'lanish qildi va qaysi bosqichga o'tkazdi.">

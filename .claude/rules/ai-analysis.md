@@ -1,5 +1,5 @@
 ---
-description: AI tahlil (Gemini) — markaz kunlik tahlili, o'quvchi, O'QITUVCHI, GURUH va VORONKA (lid formalari · daraja testlari) tahlili — oqim, ketish sabablari, davomat, jurnal intizomi, imtihon, to'lov, kanallar va sotuv konversiyasi.
+description: AI tahlil (Gemini) — markaz kunlik tahlili, o'quvchi, O'QITUVCHI, GURUH, VORONKA (lid formalari · daraja testlari) va BOG'LANISH KERAK (follow-up navbati) tahlili — oqim, ketish sabablari, davomat, jurnal intizomi, imtihon, to'lov, kanallar, sotuv konversiyasi va qo'ng'iroq javoblari.
 paths:
   - "IntellectCRM.Application/Services/*Ai*.cs"
   - "IntellectCRM.Application/Services/GeminiService.cs"
@@ -19,7 +19,7 @@ paths:
 
 # AI tahlil qoidalari (Gemini)
 
-- **UMUMIY ARXITEKTURA (beshtala tahlilda ham bir xil):** RAQAMLAR DETERMINISTIK hisoblanadi (kod),
+- **UMUMIY ARXITEKTURA (oltala tahlilda ham bir xil):** RAQAMLAR DETERMINISTIK hisoblanadi (kod),
   AI faqat NARRATIV yozadi (o'zbekcha) va 0..100 sohaviy baho qo'yadi. Natija
   `ResultJson` (`{ ai, metrics }`) sifatida saqlanadi — shu sabab eski tahlil ochilganda ham
   diagrammalar ishlaydi. Gemini javobi ```json fence'dan tozalanadi va `Sanitize` bilan null'lardan
@@ -37,7 +37,7 @@ paths:
   DIQQAT: komponent va oddiy funksiyalar ARALASH bo'lmasin (eslint
   `react-refresh/only-export-components`) — shuning uchun funksiyalar `lib/ai.ts` da.
 
-- **Beshta tahlil:**
+- **Oltita tahlil:**
   1. **Markaz** — `CenterAiAnalysisService` + `CenterAiSchedulerService` (har kuni ertalab avtomatik),
      `AiAnalysisController` (`api/admin/ai-analysis/center`). KIRISH: superadmin yoki "ai" ruxsatli
      xodim (oddiy admin KO'RMAYDI). Bosh sahifadagi `CenterAiAnalysisCard`.
@@ -55,6 +55,17 @@ paths:
      `GET/POST api/admin/level-tests/ai-analyses|ai-analysis`. Ruxsat: `leads` / `schedule`.
      UI: `components/ai/FunnelAiPanel.tsx` — "Formalar" bo'limining IKKALA statistika sahifasida.
      Batafsil quyida.
+
+  6. **BOG'LANISH KERAK** (follow-up navbati hisoboti) — `ContactAiAnalysisService`, entity
+     `ContactAiAnalysis` (migratsiya `AddContactAiAnalysis`, indeks `(FromDate, ToDate, Date)`).
+     Endpointlar: `GET/POST api/admin/contacts/ai-analyses|ai-analysis`. Ruxsat: `contacts`
+     (yaratish — `contacts:create`). UI: `components/ai/ContactAiPanel.tsx` — hisobot tabida.
+     ⚠️ **DAVRGA BOG'LANGAN**: kalit `Date` emas, `(FromDate, ToDate)` — sahifada tanlangan
+     kun/oy/oraliq tahlil qilinadi va "kuniga bir marta" cheklovi SHU davr bo'yicha ishlaydi.
+     Raqamlar `ContactReport.BuildAsync` dan — hisobot sahifasidagi sonlar bilan AYNAN bir xil.
+     ⚠️ Promptga o'quvchi ISMI/TELEFONI tushmaydi (voronka tahlilidagi maxfiylik chegarasi bilan
+     bir xil sabab); xodim ismi qoladi. Bo'sh davrda Gemini umuman chaqirilmaydi.
+     Batafsil: `.claude/rules/contacts.md` §7.55.
 
 - **VORONKA TAHLILI — bitta servis, IKKI tur** (`FunnelAiAnalysisService`, `Kind` =
   `lead-forms` | `level-tests`; `IsValidKind` — klientdan kelgan qiymat shu yerda tekshiriladi,

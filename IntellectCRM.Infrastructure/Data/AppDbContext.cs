@@ -173,6 +173,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     /* ---------- Bog'lanish kerak (follow-up navbati) ---------- */
     public DbSet<ContactRequest> ContactRequests => Set<ContactRequest>();
     public DbSet<ContactAttempt> ContactAttempts => Set<ContactAttempt>();
+    public DbSet<ContactAiAnalysis> ContactAiAnalyses => Set<ContactAiAnalysis>();
 
     /* ---------- Yuz bilan kirish (o'quvchi mobil ilovasi) ---------- */
     public DbSet<StudentFaceProfile> StudentFaceProfiles => Set<StudentFaceProfile>();
@@ -280,6 +281,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         b.Entity<ContactAttempt>().Property(a => a.Date).HasMaxLength(200);
         b.Entity<ContactAttempt>().HasIndex(a => a.RequestId);
         b.Entity<ContactAttempt>().HasIndex(a => a.Date);
+        // AI tahlil DAVR bo'yicha saqlanadi — "shu davr uchun bugun tahlil bo'lganmi" savoli
+        // uchun kalit (FromDate, ToDate, Date).
+        b.Entity<ContactAiAnalysis>().Property(a => a.FromDate).HasMaxLength(10);
+        b.Entity<ContactAiAnalysis>().Property(a => a.ToDate).HasMaxLength(10);
+        b.Entity<ContactAiAnalysis>().Property(a => a.Date).HasMaxLength(10);
+        b.Entity<ContactAiAnalysis>().HasIndex(a => new { a.FromDate, a.ToDate, a.Date });
         // YUZ BILAN KIRISH: etalon o'quvchi bo'yicha BITTA (unikal), urinishlar o'quvchi+vaqt
         // bo'yicha o'qiladi (soatlik chegara va admin ro'yxati), qurilma esa (foydalanuvchi,
         // qurilma) bo'yicha yagona bo'lishi SHART — aks holda bir telefon uchun bir nechta

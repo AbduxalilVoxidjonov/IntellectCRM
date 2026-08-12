@@ -3483,6 +3483,107 @@ public record ContactResponseRowDto(
 /// <summary>Javoblarda eng ko'p uchragan so'z.</summary>
 public record ContactWordDto(string Word, int Count);
 
+/* ---------- Bog'lanish kerak: KUNLIK JURNAL ("bugun kimga qo'ng'iroq qilindi") ---------- */
+
+/// <summary>
+/// Kunlik jurnalning BITTA qatori — bitta hodisa: kimga, qachon, nima deyilgani.
+/// </summary>
+/// <param name="Type">created | contact | note | reopen (<c>ContactAttemptTypes</c>).</param>
+/// <param name="Time">"HH:mm" — jurnalda soat ko'rinsin (to'liq ISO ham <paramref name="CreatedAt"/> da).</param>
+/// <param name="Phones">O'quvchi + ota-ona raqamlari — operator qatordan darhol qayta qo'ng'iroq qila olsin.</param>
+public record ContactJournalItemDto(
+    string Id, string RequestId, string StudentId, string StudentName,
+    string ReasonLabel, string Type, string TypeLabel,
+    string Result, string ResultLabel,
+    string NextStatus, string NextStatusLabel, string DueDate,
+    string Response, string ActorName, string Time, string CreatedAt,
+    List<string> Phones);
+
+/// <summary>BITTA KUN — o'sha kunning jamlanmasi va hodisalari (ertalabdan kechgacha).</summary>
+public record ContactJournalDayDto(
+    string Date, int Created, int Attempts, int Reached, int Done, int Callback, int Failed,
+    List<ContactJournalItemDto> Items);
+
+/* ---------- Bog'lanish kerak: AI TAHLIL (davr bo'yicha) ---------- */
+
+/// <summary>
+/// AI'ga beriladigan DETERMINISTIK raqamlar — hisobot sahifasidagi sonlar bilan AYNAN bir xil
+/// (<c>ContactAiAnalysisService.BuildMetricsAsync</c> ularni <c>ContactsController.Stats</c> bilan
+/// bir xil qoidada yig'adi).
+/// </summary>
+/// <param name="Samples">Javob MATNLARIDAN namunalar — AI "nima deyilyapti" ni shundan o'qiydi.
+/// ⚠️ O'QUVCHI ISMI va TELEFONI kirmaydi (qarang: <c>ContactAiSampleDto</c>).</param>
+public record ContactAiMetricsDto(
+    string From, string To,
+    int Created, int Attempts, int Reached, int Done, int Callback, int Failed,
+    int OpenNow, int OverdueNow, int WithResponse,
+    List<ContactDailyRowDto> Daily,
+    List<ContactStaffRowDto> ByStaff,
+    List<ContactReasonRowDto> ByReason,
+    List<ContactResultRowDto> ByResult,
+    List<ContactWordDto> TopWords,
+    List<ContactAiSampleDto> Samples);
+
+/// <summary>
+/// Promptga ketadigan BITTA javob namunasi.
+///
+/// <para>⚠️ MAXFIYLIK: o'quvchining ISMI ham, TELEFONI ham ATAYIN yo'q — tahlil savoli
+/// "kim" emas, "NIMA deyilyapti va natija qanday". Xodim ismi qoladi: xodimlar kesimi
+/// (kim qanday ishlayapti) tahlilning maqsadli qismi va bu ICHKI ma'lumot.</para>
+/// </summary>
+public record ContactAiSampleDto(
+    string Date, string ReasonLabel, string ResultLabel, string NextStatusLabel,
+    string Response, string ActorName);
+
+/// <summary>Sohaviy baholar (0..100).</summary>
+/// <param name="Qamrov">Navbat ishlanyaptimi (ochiq/muddati o'tganlarga nisbatan urinishlar).</param>
+/// <param name="Aloqa">Odam bilan haqiqatan gaplashish ulushi (Reached / Attempts).</param>
+/// <param name="Natija">Bog'lanishlar natija berdimi (hal bo'ldi / bo'lmadi).</param>
+/// <param name="Sifat">Yozuvlar sifati — "javobi nima dedi" to'ldirilyaptimi, matn mazmunlimi.</param>
+public record ContactAiScoresDto(int Qamrov, int Aloqa, int Natija, int Sifat, int Umumiy);
+
+/// <summary>AI yozgan narrativ — bo'sh maydon ekranda umuman chizilmaydi.</summary>
+/// <param name="Sabablar">Qaysi sabablar ustunlik qilmoqda va ular nimani ko'rsatadi.</param>
+/// <param name="Javoblar">Javob matnlaridagi TAKRORLANUVCHI naqshlar ("nima deyilyapti").</param>
+/// <param name="Sifat">Aloqa sifati: ko'tarmagan/band ulushi, yozuvlarning to'liqligi.</param>
+/// <param name="Xodimlar">Xodimlar kesimi — kim qanday ishlayapti.</param>
+public record ContactAiNarrativeDto(
+    string Umumiy, string Sabablar, string Javoblar, string Sifat, string Xodimlar,
+    string Ozgarishlar,
+    List<string> Kuchli, List<string> Zaif, List<string> Xavflar, List<string> Tavsiyalar,
+    ContactAiScoresDto Baholar, string Trend);
+
+/// <summary>AI tahlil so'rovi — QAYSI DAVR tahlil qilinadi (bo'sh — oxirgi 30 kun).</summary>
+public record ContactAiRequest(string? From = null, string? To = null);
+
+/// <summary>Saqlangan bitta tahlil (raqamlari bilan — eski tahlil ochilganda ham to'liq ko'rinadi).</summary>
+public record ContactAiRecordDto(
+    string Id, string From, string To, string Date, string CreatedAt, string Model,
+    int OverallScore, ContactAiNarrativeDto Ai, ContactAiMetricsDto Metrics);
+
+/// <summary>
+/// Tahlil yaratish javobi. <paramref name="AlreadyToday"/>=true — XATO EMAS: shu DAVR uchun
+/// bugun tahlil qilingan, <paramref name="Record"/> da o'sha qaytadi (Gemini chaqirilmaydi).
+/// </summary>
+public record ContactAiResponseDto(
+    bool Ok, bool AlreadyToday, ContactAiRecordDto? Record, string? Error);
+
+/* =================================================================================================
+ *  IZOHLARGA JAVOBLAR — o'quvchi profillariga yozilgan izohlar bir joyda (O'quvchilar bo'limi)
+ * ============================================================================================== */
+
+/// <summary>
+/// Bitta o'quvchi — unga yozilgan izohlarning JAMLANMASI ("Izohlarga javoblar" ro'yxati).
+/// </summary>
+/// <param name="NoteCount">Shu o'quvchiga yozilgan izohlar soni (filtrga tushganlari).</param>
+/// <param name="LastNoteText">Oxirgi izoh matni — ro'yxatda ko'rinadi (qisqartirilmaydi, UI kesadi).</param>
+/// <param name="Authors">Izoh yozgan xodimlar (takrorsiz, F.I.Sh).</param>
+public record StudentNoteOverviewDto(
+    string StudentId, string FullName, List<string> Groups, string Phone, string ParentPhone,
+    bool IsArchived,
+    int NoteCount, string FirstNoteAt, string LastNoteAt, string LastNoteText,
+    string LastAuthorName, List<string> Authors);
+
 /// <summary>
 /// O'qituvchi jurnalidagi "Aloqa" tabidan navbatga yuborish. SANA YO'Q — talab darhol
 /// navbatga tushadi (bugungi ish); rejalashtirish operatorning ishi.

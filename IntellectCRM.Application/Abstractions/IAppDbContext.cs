@@ -172,6 +172,8 @@ public interface IAppDbContext
     // Bog'lanish kerak (follow-up navbati)
     DbSet<ContactRequest> ContactRequests { get; }
     DbSet<ContactAttempt> ContactAttempts { get; }
+    // "Bog'lanish kerak" hisobotining AI tahlili (davr bo'yicha)
+    DbSet<ContactAiAnalysis> ContactAiAnalyses { get; }
 
     // Yuz bilan kirish (o'quvchi mobil ilovasi) — etalon vektor, urinishlar, ishonchli qurilmalar
     DbSet<StudentFaceProfile> StudentFaceProfiles { get; }

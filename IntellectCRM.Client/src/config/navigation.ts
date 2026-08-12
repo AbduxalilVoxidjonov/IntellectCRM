@@ -78,6 +78,9 @@ export const navByRole: Record<Role, NavItem[]> = {
       children: [
         { label: "O'quvchilar ro'yxati", to: '/admin/students', end: true, perm: 'students' },
         { label: "Bog'lanish kerak", to: '/admin/students/boglanish', perm: 'contacts' },
+        // Izohlarga javoblar — profillarga yozilgan izohlar bir joyda (izohning O'ZI profilda
+        // yoziladi, bu yerda esa "kimda izoh bor" savoliga javob beriladi).
+        { label: 'Izohlarga javoblar', to: '/admin/students/izohlar', perm: 'students' },
         { label: "O'quvchilar davomati", to: '/admin/students/davomat', perm: 'students' },
         { label: 'Bonus hisoboti', to: '/admin/students/bonus', perm: 'students' },
         { label: 'Turniket', to: '/admin/students/turniket', perm: 'students' },

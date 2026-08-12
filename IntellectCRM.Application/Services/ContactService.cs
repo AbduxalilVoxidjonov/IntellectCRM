@@ -50,6 +50,26 @@ public static class ContactService
         new("other",        "Boshqa",                    true),
     };
 
+    /// <summary>
+    /// HODISA turlarining yorliqlari (<see cref="ContactAttemptTypes"/>) — kunlik jurnalda
+    /// har qator nima ekani yozilib turadi ("Bog'lanildi", "Talab ochildi", ...).
+    /// </summary>
+    public static readonly IReadOnlyList<(string Key, string Label)> AttemptTypes =
+        new[]
+        {
+            (ContactAttemptTypes.Created, "Talab ochildi"),
+            (ContactAttemptTypes.Contact, "Bog'lanildi"),
+            (ContactAttemptTypes.Note,    "Izoh"),
+            (ContactAttemptTypes.Reopen,  "Qayta ochildi"),
+        };
+
+    /// <inheritdoc cref="StatusLabel"/>
+    public static string TypeLabel(string? key)
+    {
+        foreach (var t in AttemptTypes) if (t.Key == key) return t.Label;
+        return key ?? "";
+    }
+
     public static bool IsValidStatus(string? key) => Statuses.Any(s => s.Key == key);
     public static bool IsValidResult(string? key) => Results.Any(r => r.Key == key);
     public static bool IsOpen(string? status) => OpenStatuses.Contains(status ?? "");

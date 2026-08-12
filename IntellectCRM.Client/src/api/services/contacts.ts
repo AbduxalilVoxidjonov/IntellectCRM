@@ -305,3 +305,152 @@ export async function getContactResponses(params: {
   const { data } = await api.get<ContactResponseRow[]>('/admin/contacts/responses', { params })
   return data
 }
+
+/* ---------- Kunlik jurnal ("bugun kimga qo'ng'iroq qilindi") ---------- */
+
+/** Jurnaldagi BITTA hodisa: kimga, qachon, nima deyilgani. */
+export interface ContactJournalItem {
+  id: string
+  requestId: string
+  studentId: string
+  studentName: string
+  reasonLabel: string
+  /** created | contact | note | reopen */
+  type: string
+  typeLabel: string
+  result: string
+  resultLabel: string
+  nextStatus: string
+  nextStatusLabel: string
+  dueDate: string
+  response: string
+  actorName: string
+  /** "HH:mm" — jurnalda soat ko'rinadi. */
+  time: string
+  createdAt: string
+  /** O'quvchi + ota-ona raqamlari — jurnaldan darhol qayta qo'ng'iroq qilish uchun. */
+  phones: string[]
+}
+
+/** BITTA KUN — jamlanmasi va hodisalari (kun ichida ertalabdan kechgacha). */
+export interface ContactJournalDay {
+  date: string
+  created: number
+  attempts: number
+  reached: number
+  done: number
+  callback: number
+  failed: number
+  items: ContactJournalItem[]
+}
+
+/**
+ * KUNLIK JURNAL — har kun alohida: kimga qo'ng'iroq qilindi, qachon, nima dedi, qaysi sabab bilan.
+ *
+ * Kunlar yangisidan eskisiga; chegara ENG YANGI hodisalardan olinadi (uzun davr tanlanganda
+ * eng so'nggilari qaytadi).
+ */
+export async function getContactJournal(params: {
+  from?: string
+  to?: string
+  /** Faqat shu turdagi hodisalar (vergul bilan): contact | created | note | reopen. */
+  type?: string
+  limit?: number
+} = {}): Promise<ContactJournalDay[]> {
+  if (USE_MOCK) {
+    await delay()
+    return []
+  }
+  const { data } = await api.get<ContactJournalDay[]>('/admin/contacts/journal', { params })
+  return data
+}
+
+/* ---------- AI tahlil (sabablar, javoblar va natijalar bo'yicha) ---------- */
+
+/** Sohaviy baholar (0..100). */
+export interface ContactAiScores {
+  /** Navbat ishlanyaptimi (ochiq/muddati o'tganlarga nisbatan urinishlar). */
+  qamrov: number
+  /** Odam bilan haqiqatan gaplashish ulushi. */
+  aloqa: number
+  /** Bog'lanishlar natija berdimi. */
+  natija: number
+  /** "Javobi nima dedi" to'ldirilyaptimi va mazmunlimi. */
+  sifat: number
+  umumiy: number
+}
+
+/** AI yozgan narrativ — bo'sh maydon ekranda umuman chizilmaydi. */
+export interface ContactAiNarrative {
+  umumiy: string
+  sabablar: string
+  javoblar: string
+  sifat: string
+  xodimlar: string
+  ozgarishlar: string
+  kuchli: string[]
+  zaif: string[]
+  xavflar: string[]
+  tavsiyalar: string[]
+  baholar: ContactAiScores
+  trend: string
+}
+
+/** Promptga ketgan javob namunasi — o'quvchi ismi/telefoni ATAYIN yo'q (maxfiylik). */
+export interface ContactAiSample {
+  date: string
+  reasonLabel: string
+  resultLabel: string
+  nextStatusLabel: string
+  response: string
+  actorName: string
+}
+
+/** Tahlil paytidagi DETERMINISTIK raqamlar — hisobot sahifasidagi sonlar bilan AYNAN bir xil. */
+export interface ContactAiMetrics extends ContactStats {
+  samples: ContactAiSample[]
+}
+
+/** Saqlangan bitta tahlil (raqamlari bilan — eski tahlil ochilganda ham to'liq ko'rinadi). */
+export interface ContactAiRecord {
+  id: string
+  /** Tahlil qilingan DAVR. */
+  from: string
+  to: string
+  /** Tahlil YARATILGAN kun ("yyyy-MM-dd"). */
+  date: string
+  createdAt: string
+  model: string
+  overallScore: number
+  ai: ContactAiNarrative
+  metrics: ContactAiMetrics
+}
+
+/**
+ * ⚠️ `alreadyToday=true` — XATO EMAS: shu DAVR uchun bugun tahlil qilingan, `record` da o'sha
+ * qaytadi (Gemini qayta chaqirilmaydi). Xato faqat `ok=false` da — matn `error` da.
+ */
+export interface ContactAiResponse {
+  ok: boolean
+  alreadyToday: boolean
+  record: ContactAiRecord | null
+  error: string | null
+}
+
+/** Saqlangan tahlillar — eng yangisi birinchi. Davr berilsa faqat AYNI o'sha davrniki. */
+export async function getContactAiAnalyses(from?: string, to?: string): Promise<ContactAiRecord[]> {
+  if (USE_MOCK) {
+    await delay()
+    return []
+  }
+  const { data } = await api.get<ContactAiRecord[]>('/admin/contacts/ai-analyses', {
+    params: { from, to },
+  })
+  return data
+}
+
+/** Tanlangan davr uchun yangi AI tahlil (shu davr uchun kuniga bir marta — serverda darvozalangan). */
+export async function runContactAiAnalysis(from?: string, to?: string): Promise<ContactAiResponse> {
+  const { data } = await api.post<ContactAiResponse>('/admin/contacts/ai-analysis', { from, to })
+  return data
+}

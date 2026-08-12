@@ -7,7 +7,7 @@ import {
   CalendarClock, Award, Download, LifeBuoy, Sparkles, Pencil, MessageSquare,
   PhoneIncoming, PhoneOutgoing, PhoneMissed, PhoneCall, MessageSquareText,
   Snowflake, CheckCircle2, RotateCcw, ArrowLeftRight, Plus, NotebookText, X,
-  StickyNote, Trash2, Gift, Camera,
+  StickyNote, Gift, Camera,
 } from 'lucide-react'
 import { genderLabels } from '@/config/constants'
 import {
@@ -26,12 +26,7 @@ import {
   getStudent,
   updateStudent,
   addPayment,
-  getStudentNotes,
-  addStudentNote,
   updateStudentPhoto,
-  updateStudentNote,
-  deleteStudentNote,
-  type StudentNote,
   type StudentCompletedCourse,
   type StudentSupportFeedback,
   type StudentAiAnalysisRecord,
@@ -77,6 +72,7 @@ import { PaymentHistoryPanel } from './PaymentHistoryPanel'
 import { TeacherReviewsSection } from './TeacherReviewsSection'
 import { StudentPhotoDialog } from './StudentPhotoDialog'
 import { NeedContactModal } from './contacts/NeedContactModal'
+import { StudentNotesThread } from '@/components/students/StudentNotesThread'
 import { getStudentContactRequests, type ContactRequestItem } from '@/api/services/contacts'
 import { ReceiptModal } from '@/components/finance/ReceiptModal'
 import { PaymentModal } from './PaymentModal'
@@ -2499,186 +2495,14 @@ const Empty = ({ children }: { children: React.ReactNode }) => (
 
 /**
  * O'quvchi izohlari — xodim yozadigan erkin eslatmalar (ota-ona bilan suhbat, to'lov kelishuvi, ...).
- * TARIX: har izoh o'z muallifi va vaqti bilan qoladi, ustiga yozilmaydi. O'chirishni faqat muallifi
- * yoki superadmin qila oladi (server ham tekshiradi — `canDelete` shundan keladi).
+ *
+ * Ro'yxat/yozish/tahrirning O'ZI `StudentNotesThread` da — AYNAN o'sha komponent
+ * "O'quvchilar → Izohlarga javoblar" sahifasida ham ishlatiladi (nusxa YO'Q, qoida bir joyda).
  */
 function NotesSection({ studentId }: { studentId: string }) {
-  const [notes, setNotes] = useState<StudentNote[]>([])
-  const [loading, setLoading] = useState(true)
-  const [text, setText] = useState('')
-  const [saving, setSaving] = useState(false)
-  /** Hozir tahrirlanayotgan izoh id'si (null = tahrir rejimi yopiq) + tahrir matni. */
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [editText, setEditText] = useState('')
-  const [editSaving, setEditSaving] = useState(false)
-
-  useEffect(() => {
-    let alive = true
-    setLoading(true)
-    getStudentNotes(studentId)
-      .then((n) => alive && setNotes(n))
-      .catch(() => alive && setNotes([]))
-      .finally(() => alive && setLoading(false))
-    return () => {
-      alive = false
-    }
-  }, [studentId])
-
-  const handleAdd = () => {
-    const value = text.trim()
-    if (!value || saving) return
-    setSaving(true)
-    addStudentNote(studentId, value)
-      .then((note) => {
-        setNotes((prev) => [note, ...prev])
-        setText('')
-      })
-      .catch((e) => alert(apiErrorMessage(e, "Izohni saqlab bo'lmadi")))
-      .finally(() => setSaving(false))
-  }
-
-  const handleDelete = (note: StudentNote) => {
-    if (!confirm("Bu izoh o'chirilsinmi?")) return
-    deleteStudentNote(note.id)
-      .then(() => setNotes((prev) => prev.filter((n) => n.id !== note.id)))
-      .catch((e) => alert(apiErrorMessage(e, "Izohni o'chirib bo'lmadi")))
-  }
-
-  /** Tahrirlashni boshlash — izoh o'rnida matn maydoni ochiladi. */
-  const startEdit = (note: StudentNote) => {
-    setEditingId(note.id)
-    setEditText(note.text)
-  }
-
-  const cancelEdit = () => {
-    setEditingId(null)
-    setEditText('')
-  }
-
-  /** Tahrirni saqlash — muallif va yozilgan vaqt o'zgarmaydi, "tahrirlangan" belgisi qo'shiladi. */
-  const handleEditSave = (note: StudentNote) => {
-    const value = editText.trim()
-    if (!value || editSaving) return
-    if (value === note.text) {
-      cancelEdit()
-      return
-    }
-    setEditSaving(true)
-    updateStudentNote(note.id, value)
-      .then((updated) => {
-        setNotes((prev) => prev.map((n) => (n.id === updated.id ? { ...n, ...updated } : n)))
-        cancelEdit()
-      })
-      .catch((e) => alert(apiErrorMessage(e, "Izohni tahrirlab bo'lmadi")))
-      .finally(() => setEditSaving(false))
-  }
-
   return (
     <Section title="Izohlar" icon={StickyNote}>
-      <div className="mb-5">
-        <textarea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          // Ctrl/Cmd+Enter — tez saqlash (matnda oddiy Enter yangi qator bo'lib qolsin).
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-              e.preventDefault()
-              handleAdd()
-            }
-          }}
-          rows={3}
-          placeholder="Izoh yozing — masalan: onasi qo'ng'iroq qildi, dushanba kelolmaydi..."
-          className="w-full resize-y rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-brand-400"
-        />
-        <div className="mt-2 flex items-center justify-between gap-3">
-          <span className="text-xs text-slate-400">Saqlash: Ctrl + Enter</span>
-          <Button onClick={handleAdd} disabled={!text.trim() || saving}>
-            <Plus className="h-4 w-4" /> {saving ? 'Saqlanmoqda...' : "Qo'shish"}
-          </Button>
-        </div>
-      </div>
-
-      {loading ? (
-        <Empty>Yuklanmoqda...</Empty>
-      ) : notes.length === 0 ? (
-        <Empty>Bu o'quvchi haqida hali izoh yozilmagan.</Empty>
-      ) : (
-        <div className="divide-y divide-slate-100">
-          {notes.map((n) => {
-            // Tahrirlash huquqi o'chirish bilan bir xil (muallifi yoki superadmin); eski javoblarda
-            // canEdit bo'lmasligi mumkin — o'shanda canDelete'ga tayanamiz.
-            const canEdit = n.canEdit ?? n.canDelete
-            const editing = editingId === n.id
-            return (
-              <div key={n.id} className="group flex items-start gap-3 py-3">
-                <div className="min-w-0 flex-1">
-                  {editing ? (
-                    <>
-                      <textarea
-                        value={editText}
-                        onChange={(e) => setEditText(e.target.value)}
-                        // Ctrl/Cmd+Enter — saqlash, Esc — bekor qilish.
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-                            e.preventDefault()
-                            handleEditSave(n)
-                          } else if (e.key === 'Escape') {
-                            e.preventDefault()
-                            cancelEdit()
-                          }
-                        }}
-                        rows={3}
-                        autoFocus
-                        className="w-full resize-y rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-brand-400"
-                      />
-                      <div className="mt-2 flex items-center gap-2">
-                        <Button
-                          onClick={() => handleEditSave(n)}
-                          disabled={!editText.trim() || editSaving}
-                        >
-                          {editSaving ? 'Saqlanmoqda...' : 'Saqlash'}
-                        </Button>
-                        <Button variant="secondary" onClick={cancelEdit} disabled={editSaving}>
-                          Bekor qilish
-                        </Button>
-                        <span className="text-xs text-slate-400">Ctrl + Enter · Esc</span>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <p className="whitespace-pre-wrap break-words text-sm text-slate-700">{n.text}</p>
-                      <p className="mt-1 text-xs text-slate-400">
-                        {n.authorName || 'Admin'} · {formatDateTime(n.createdAt)}
-                        {n.editedAt ? ` · tahrirlangan ${formatDateTime(n.editedAt)}` : ''}
-                      </p>
-                    </>
-                  )}
-                </div>
-                {!editing && canEdit && (
-                  <button
-                    type="button"
-                    title="Izohni tahrirlash"
-                    onClick={() => startEdit(n)}
-                    className="rounded-lg p-1.5 text-slate-300 transition-colors hover:bg-brand-50 hover:text-brand-600"
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </button>
-                )}
-                {!editing && n.canDelete && (
-                  <button
-                    type="button"
-                    title="Izohni o'chirish"
-                    onClick={() => handleDelete(n)}
-                    className="rounded-lg p-1.5 text-slate-300 transition-colors hover:bg-red-50 hover:text-red-600"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      )}
+      <StudentNotesThread studentId={studentId} />
     </Section>
   )
 }

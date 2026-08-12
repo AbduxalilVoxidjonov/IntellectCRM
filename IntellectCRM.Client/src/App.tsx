@@ -74,6 +74,7 @@ import { KassaMobileLayout } from '@/components/layout/KassaMobileLayout'
 import { SettingsPage } from '@/pages/admin/settings/SettingsPage'
 import { AuditLogPage } from '@/pages/admin/settings/AuditLogPage'
 import { ContactQueuePage } from '@/pages/admin/students/contacts/ContactQueuePage'
+import { StudentNotesPage } from '@/pages/admin/students/notes/StudentNotesPage'
 import { FaceLoginPage } from '@/pages/admin/students/face/FaceLoginPage'
 import { CourseAnalyticsPage } from '@/pages/admin/subjects/CourseAnalyticsPage'
 import { AccountPage } from '@/pages/admin/account/AccountPage'
@@ -183,6 +184,8 @@ export default function App() {
           <Route path="students/turniket" element={<RequirePerm perm="students"><StudentTurnstilePage /></RequirePerm>} />
           {/* Bog'lanish kerak — O'quvchilar bo'limi ICHIDA, lekin ruxsati alohida (`contacts`). */}
           <Route path="students/boglanish" element={<RequirePerm perm="contacts"><ContactQueuePage /></RequirePerm>} />
+          {/* Izohlarga javoblar — profillarga yozilgan izohlar bir ro'yxatda. */}
+          <Route path="students/izohlar" element={<RequirePerm perm="students"><StudentNotesPage /></RequirePerm>} />
           <Route path="students/davomat" element={<RequirePerm perm="students"><StudentAbsencePage /></RequirePerm>} />
           <Route path="students/bonus" element={<RequirePerm perm="students"><RetentionBonusPage /></RequirePerm>} />
           {/* Yuz bilan kirish — `students/:id` dan OLDIN turishi shart emas (statik yo'l dinamikdan

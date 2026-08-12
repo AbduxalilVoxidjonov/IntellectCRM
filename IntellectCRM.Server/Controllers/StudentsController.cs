@@ -808,6 +808,26 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
 
     // ---------- IZOHLAR (o'quvchi profilidagi erkin eslatmalar) ----------
 
+    /// <summary>
+    /// "IZOHLARGA JAVOBLAR" — izoh YOZILGAN o'quvchilar ro'yxati (kimga, nechta, oxirgisi qachon
+    /// va nima deb yozilgan). O'quvchilar bo'limidagi alohida sahifa shu endpointdan to'ladi.
+    ///
+    /// <para>⚠️ <c>ReadRequiresPerm = true</c> — METOD darajasida, sinf darajasidagi
+    /// <c>[AdminPerm("students")]</c> ustiga. Sabab: bitta o'quvchining izohlari uning profilida
+    /// ko'rinadi, bu yerda esa BUTUN markazning izohlari BIR ro'yxatda — ichida ota-ona bilan
+    /// suhbat, to'lov kelishuvi, sog'liq kabi shaxsiy eslatmalar bo'ladi. Bunday jamlanma
+    /// "bo'limlararo o'qish" uchun kerak emas (uploads-security.md dagi bir xil mantiq).</para>
+    /// </summary>
+    /// <param name="q">O'quvchi ismi YOKI izoh matni ichidan qidiruv.</param>
+    /// <param name="from">Izoh yozilgan sana "yyyy-MM-dd" dan.</param>
+    /// <param name="to">Izoh yozilgan sana "yyyy-MM-dd" gacha (kun oxirigacha — server o'zi cho'zadi).</param>
+    [HttpGet("notes/overview")]
+    [AdminPerm("students", ReadRequiresPerm = true)]
+    public async Task<ActionResult<IEnumerable<StudentNoteOverviewDto>>> NotesOverview(
+        [FromQuery] string? q, [FromQuery] string? from, [FromQuery] string? to,
+        [FromQuery] int limit = StudentNoteService.DefaultLimit, CancellationToken ct = default) =>
+        await StudentNoteService.OverviewAsync(db, q, from, to, limit, ct);
+
     /// <summary>O'quvchining izohlari — yangisi tepada. CanDelete/CanEdit: o'z izohi yoki superadmin.</summary>
     [HttpGet("{id}/notes")]
     public async Task<ActionResult<IEnumerable<StudentNoteDto>>> Notes(string id)

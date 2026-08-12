@@ -769,3 +769,46 @@ export async function updateStudentNote(noteId: string, text: string): Promise<S
 export async function deleteStudentNote(noteId: string): Promise<void> {
   await api.delete(`/admin/students/notes/${noteId}`)
 }
+
+/* ---------- "Izohlarga javoblar" — izoh yozilgan o'quvchilar bir ro'yxatda ---------- */
+
+/** Bitta o'quvchi — unga yozilgan izohlarning jamlanmasi. */
+export interface StudentNoteOverviewRow {
+  studentId: string
+  fullName: string
+  /** Faol guruhlari (muzlatilganlarsiz — o'quvchilar ro'yxatidagi qoida bilan bir xil). */
+  groups: string[]
+  phone: string
+  parentPhone: string
+  isArchived: boolean
+  /** Izohlar soni (davr tanlangan bo'lsa — o'sha davrdagilar). */
+  noteCount: number
+  /** Birinchi izoh vaqti (ISO). */
+  firstNoteAt: string
+  /** Oxirgi izoh vaqti (ISO) — ro'yxat shu bo'yicha saralangan. */
+  lastNoteAt: string
+  lastNoteText: string
+  lastAuthorName: string
+  /** Izoh yozgan xodimlar (takrorsiz). */
+  authors: string[]
+}
+
+/**
+ * IZOH YOZILGAN o'quvchilar ro'yxati — eng yangi izoh tepada.
+ *
+ * `q` — o'quvchi ISMI yoki izoh MATNI ichidan qidiradi; `from`/`to` — izoh yozilgan sana
+ * (server `to` ni kun oxirigacha cho'zadi).
+ */
+export async function getStudentNotesOverview(params: {
+  q?: string
+  from?: string
+  to?: string
+  limit?: number
+} = {}): Promise<StudentNoteOverviewRow[]> {
+  if (USE_MOCK) {
+    await delay()
+    return []
+  }
+  const { data } = await api.get<StudentNoteOverviewRow[]>('/admin/students/notes/overview', { params })
+  return data
+}

@@ -3452,6 +3452,36 @@ public static class ContactAttemptTypes
     public const string Reopen = "reopen";
 }
 
+/// <summary>
+/// "BOG'LANISH KERAK" hisobotining AI tahlili (Gemini) — yozilgan SABABLAR, javob matnlari va
+/// natijalar bo'yicha xulosa.
+///
+/// <para>⚠️ Boshqa AI tahlillardan FARQI — u DAVRGA bog'langan: hisobot sahifasida operator
+/// kun/oy/oraliq tanlaydi va tahlil AYNAN o'sha davr uchun yaratiladi. Shu sabab kalit
+/// <see cref="Date"/> emas, (<see cref="FromDate"/>, <see cref="ToDate"/>) juftligi bo'ladi;
+/// "kuniga bir marta" cheklovi esa AYNI davr uchun BUGUN yaratilgan yozuv bo'yicha ishlaydi
+/// (ya'ni bir kunda har xil davrlarni tahlil qilish mumkin, bitta davrni ikki marta emas).</para>
+/// </summary>
+public class ContactAiAnalysis
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    /// <summary>Tahlil qilingan davr boshi ("yyyy-MM-dd").</summary>
+    public string FromDate { get; set; } = string.Empty;
+    /// <summary>Tahlil qilingan davr oxiri ("yyyy-MM-dd").</summary>
+    public string ToDate { get; set; } = string.Empty;
+    /// <summary>Tahlil YARATILGAN kun ("yyyy-MM-dd", Toshkent) — kuniga bir marta cheklovi shu bo'yicha.</summary>
+    public string Date { get; set; } = string.Empty;
+    public string CreatedAt { get; set; } = AppClock.Iso();
+    /// <summary>Ishlatilgan Gemini modeli.</summary>
+    public string Model { get; set; } = string.Empty;
+    /// <summary>Qisqa xulosa — tarix ro'yxatida ko'rinadi.</summary>
+    public string Summary { get; set; } = string.Empty;
+    /// <summary>Umumiy ball (0-100) — tarix/badge uchun.</summary>
+    public int OverallScore { get; set; }
+    /// <summary>To'liq strukturali natija (JSON): { ai, metrics }.</summary>
+    public string ResultJson { get; set; } = string.Empty;
+}
+
 /* =================================================================================================
  *  YUZ BILAN KIRISH (face login) — o'quvchi MOBIL ILOVASIGA kirishda shaxsni tasdiqlash.
  *

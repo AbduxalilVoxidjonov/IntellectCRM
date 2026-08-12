@@ -188,6 +188,29 @@ Ochilganda BUGUN tanlangan. Kalendar kataklaridagi sonlar (o'sha kundagi urinish
 OY uchun ALOHIDA yengil so'rovdan keladi — aks holda bitta kun tanlanganda kalendar
 bo'shab qolardi.
 
+### 7.1. KUNLIK JURNAL — "bugun kimga qo'ng'iroq qilindi"
+
+Jadvallar "NECHTA" ga javob beradi, jurnal esa KUNNING O'ZINI ko'rsatadi: rahbar bir kunni ochib,
+o'sha kuni nima bo'lganini boshdan-oxir o'qiy oladi — **kimga**, **qachon** (soati bilan),
+**nima dedi**, **qaysi sabab** bilan va **kim** qildi.
+
+**`GET /api/admin/contacts/journal?from&to&type&limit`** → kunlar ro'yxati (`ContactJournalDayDto`),
+har kunda jamlanma + hodisalar (`ContactJournalItemDto`).
+
+- **Kunlar YANGISIDAN eskisiga, kun ICHIDA esa ertalabdan kechgacha** — jurnal xronologik o'qilsin
+  (qolgan ro'yxatlar "eng yangisi tepada" bo'lgani bilan bu yerda kun ichida teskarisi mantiqiy).
+- `type` — `contact` | `created` | `note` | `reopen` (vergul bilan bir nechtasi). **Noma'lum tur
+  JIM tashlanadi** — klientdagi xato kalit tufayli jurnal butunlay bo'shab qolmasin.
+  UI'da ikki rejim: «Qo'ng'iroqlar» (default, `type=contact`) va «Barcha amallar».
+- Chegara **500** (max `MaxJournalItems` = 2000) va u **ENG YANGI** hodisalardan olinadi: bitta kun
+  tanlanganda uning hammasi kiradi, uzun davrda esa qirqilgani ro'yxat ostida ochiq yoziladi.
+- Qatorda telefon raqamlari ham bor (`tel:` havolasi) — operator jurnaldan darhol qayta qo'ng'iroq
+  qila oladi. Javob yozilmagan urinish "javob yozilmagan" deb KO'RSATILADI (jimgina bo'sh qolmaydi).
+
+⚠️ Hisob-kitob `ContactReport` da (Application/Services) — **`GET /stats` ham AYNAN shu funksiyadan
+foydalanadi**. Sabab: bir xil raqam uch joyda (hisobot, jurnal, AI) kerak; ayri hisoblansa
+"AI boshqa son ko'rsatyapti" holati kelib chiqardi.
+
 ## 7.5. JAVOBLAR TAHLILI ("nima deb yozilgan")
 
 Sonlar "nechta" ga javob beradi, bu bo'lim esa **"NIMA deyilgan"** ga:
@@ -204,6 +227,36 @@ Sonlar "nechta" ga javob beradi, bu bo'lim esa **"NIMA deyilgan"** ga:
   - `StopWords` ATAYIN qisqa: faqat bog'lovchi/olmosh/yordamchi so'zlar. "to'lov", "dars",
     "kasal", "kerak" QOLADI — aynan ular hisobotning ma'nosi.
 - UI'da so'z bosilsa javoblar lentasi o'sha so'z bo'yicha filtrlanadi ("nega bu so'z ko'p?").
+
+## 7.55. AI TAHLIL (Gemini) — "nima deyilyapti va nimani tuzatish kerak"
+
+Hisobot tabida, KPI kartochkalaridan keyin va jadvallardan oldin (voronka tahlilidagi bilan bir xil
+joylashuv). Servis — `ContactAiAnalysisService`, entity `ContactAiAnalysis`
+(migratsiya `AddContactAiAnalysis`), panel — `components/ai/ContactAiPanel.tsx`.
+Umumiy arxitektura: `.claude/rules/ai-analysis.md`.
+
+⚠️ **DAVRGA BOG'LANGAN — boshqa AI tahlillardan asosiy FARQI.** Boshqalarida kalit `Date`, bu yerda
+`(FromDate, ToDate)`: hisobotda tanlangan kun/oy/oraliq uchun tahlil qilinadi. "Kuniga bir marta"
+cheklovi ham SHU davr bo'yicha — bir kunda har xil davrlarni tahlil qilish mumkin, bitta davrni
+ikki marta emas. Tarix ham davr bo'yicha filtrlanadi (`GET /ai-analyses?from&to`): aks holda
+ekranda boshqa davrning raqamlari ko'rinib qolardi.
+
+⚠️ **MAXFIYLIK — promptga o'quvchi ISMI ham, TELEFONI ham TUSHMAYDI** (`ContactAiSampleDto` da
+bunday maydon umuman yo'q). Savol "kim" emas, "NIMA deyilyapti va natija qanday". Xodim ismi esa
+qoladi — "kim qanday ishlayapti" tahlilning maqsadli qismi va bu ichki ma'lumot.
+
+- Promptga: jamlanma sonlar + kunlik oqim + xodimlar/sabablar/natijalar kesimi + eng ko'p uchragan
+  so'zlar + **javob matnlaridan namunalar** (eng yangi 120 ta, har biri 300 belgigacha).
+- Baholar: `qamrov · aloqa · natija · sifat · umumiy`.
+  Narrativ: `umumiy, sabablar, javoblar, sifat, xodimlar, ozgarishlar, kuchli[], zaif[],
+  xavflar[], tavsiyalar[], trend`.
+- ⚠️ **BO'SH DAVRDA Gemini UMUMAN chaqirilmaydi** (`attempts == 0 && created == 0`) — bo'sh
+  davrdan xulosa chiqmaydi, so'rov puli esa baribir ketardi. Bu tekshiruv **API kaliti
+  tekshiruvidan ham oldin**: u foydalanuvchining TANLOVI haqidagi xato ("boshqa davrni tanlang"),
+  kalit esa sozlama muammosi.
+- Yaratish — `contacts:create` (POST), o'qish — bo'lim ruxsati (sinf darajasida
+  `ReadRequiresPerm = true`). Auditga YOZILMAYDI (tahlil ma'lumotni o'zgartirmaydi).
+- Testlar: `IntellectCRM.Tests/ContactReportTests.cs`.
 
 ## 7.6. O'QUVCHI PROFILIDA
 

@@ -27,7 +27,8 @@ namespace IntellectCRM.Server.Controllers;
 [Authorize]
 [AdminPerm("contacts", ReadRequiresPerm = true)]
 [Route("api/admin/contacts")]
-public class ContactsController(AppDbContext db, AuditService audit, ContactQueueService queue) : ControllerBase
+public class ContactsController(
+    AppDbContext db, AuditService audit, ContactQueueService queue, IConfiguration config) : ControllerBase
 {
     private string Actor => User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value ?? "Admin";
     private string ActorId => User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
@@ -470,102 +471,80 @@ public class ContactsController(AppDbContext db, AuditService audit, ContactQueu
     /// "nima bo'ldi" emas, "kim nima qildi" bo'yicha.
     /// </summary>
     /// <param name="from">"yyyy-MM-dd" (bo'sh — oxirgi 30 kun).</param>
+    /// <remarks>Hisob-kitobning O'ZI <see cref="ContactReport.BuildAsync"/> da — AYNAN o'sha
+    /// funksiyadan kunlik jurnal va AI tahlili ham foydalanadi (raqamlar bir joyda hisoblansin).</remarks>
     [HttpGet("stats")]
     public async Task<ActionResult<ContactStatsDto>> Stats([FromQuery] string? from, [FromQuery] string? to)
     {
-        var today = AppClock.Today;
-        var fromDate = string.IsNullOrWhiteSpace(from)
-            ? today.AddDays(-29).ToString("yyyy-MM-dd") : from!.Trim();
-        var toDate = string.IsNullOrWhiteSpace(to) ? today.ToString("yyyy-MM-dd") : to!.Trim();
-        if (!DateOnly.TryParse(fromDate, out var f) || !DateOnly.TryParse(toDate, out var t))
+        if (!TryPeriod(from, to, out var fromDate, out var toDate))
             return BadRequest(new { message = "Sana noto'g'ri (YYYY-MM-DD)" });
-        if (t < f) (fromDate, toDate, f, t) = (toDate, fromDate, t, f);
 
-        var attempts = await db.ContactAttempts.AsNoTracking()
-            .Where(a => string.Compare(a.Date, fromDate) >= 0 && string.Compare(a.Date, toDate) <= 0)
-            .ToListAsync();
-
-        // "Bog'lanildi" hisoblanadigan urinishlar — natija kaliti Reached bo'lganlari.
-        // Qoida ContactService da (yagona manba), shuning uchun bu yerda SQL emas, C# da sanaladi.
-        bool Reached(ContactAttempt a) => a.Type == ContactAttemptTypes.Contact && ContactService.Reached(a.Result);
-        bool IsContact(ContactAttempt a) => a.Type == ContactAttemptTypes.Contact;
-
-        var daily = new List<ContactDailyRowDto>();
-        for (var d = f; d <= t; d = d.AddDays(1))
-        {
-            var key = d.ToString("yyyy-MM-dd");
-            var day = attempts.Where(a => a.Date == key).ToList();
-            daily.Add(new ContactDailyRowDto(
-                key,
-                Created: day.Count(a => a.Type == ContactAttemptTypes.Created),
-                Attempts: day.Count(IsContact),
-                Reached: day.Count(Reached),
-                Done: day.Count(a => a.NextStatus == ContactStatuses.Done),
-                Callback: day.Count(a => a.NextStatus == ContactStatuses.Callback && IsContact(a)),
-                Failed: day.Count(a => a.NextStatus == ContactStatuses.Failed)));
-        }
-
-        var byStaff = attempts
-            .Where(a => a.ActorName.Length > 0)
-            .GroupBy(a => a.ActorName)
-            .Select(g => new ContactStaffRowDto(
-                g.Key,
-                Attempts: g.Count(IsContact),
-                Reached: g.Count(Reached),
-                Done: g.Count(a => a.NextStatus == ContactStatuses.Done),
-                Callback: g.Count(a => a.NextStatus == ContactStatuses.Callback && IsContact(a)),
-                Failed: g.Count(a => a.NextStatus == ContactStatuses.Failed)))
-            .Where(r => r.Attempts > 0 || r.Done > 0 || r.Failed > 0)
-            .OrderByDescending(r => r.Attempts).ThenBy(r => r.ActorName)
-            .ToList();
-
-        var byResult = ContactService.Results
-            .Select(r => new ContactResultRowDto(r.Key, r.Label,
-                attempts.Count(a => IsContact(a) && a.Result == r.Key)))
-            .Where(r => r.Count > 0)
-            .ToList();
-
-        // SABABLAR — talab OCHILGAN sana bo'yicha (urinish emas): "qaysi sabab bilan kelgan".
-        var requests = await db.ContactRequests.AsNoTracking()
-            .Where(c => c.CreatedAt.Length >= 10
-                        && string.Compare(c.CreatedAt.Substring(0, 10), fromDate) >= 0
-                        && string.Compare(c.CreatedAt.Substring(0, 10), toDate) <= 0)
-            .ToListAsync();
-
-        var byReason = requests
-            .GroupBy(c => c.ReasonLabel.Length > 0 ? c.ReasonLabel : "— sababsiz —")
-            .Select(g => new ContactReasonRowDto(
-                g.Key,
-                Created: g.Count(),
-                Done: g.Count(c => c.Status == ContactStatuses.Done),
-                Failed: g.Count(c => c.Status == ContactStatuses.Failed),
-                Open: g.Count(c => ContactService.IsOpen(c.Status))))
-            .OrderByDescending(r => r.Created).ThenBy(r => r.ReasonLabel)
-            .ToList();
-
-        var todayKey = today.ToString("yyyy-MM-dd");
-        var openNow = await db.ContactRequests.CountAsync(
-            c => c.Status == ContactStatuses.New || c.Status == ContactStatuses.Callback);
-        var overdueNow = await db.ContactRequests.CountAsync(
-            c => c.Status == ContactStatuses.Callback && c.DueDate != ""
-                 && string.Compare(c.DueDate, todayKey) < 0);
-
+        var m = await ContactReport.BuildAsync(db, fromDate, toDate, Today);
         return new ContactStatsDto(
-            fromDate, toDate,
-            Created: attempts.Count(a => a.Type == ContactAttemptTypes.Created),
-            Attempts: attempts.Count(IsContact),
-            Reached: attempts.Count(Reached),
-            Done: attempts.Count(a => a.NextStatus == ContactStatuses.Done),
-            Callback: attempts.Count(a => a.NextStatus == ContactStatuses.Callback && IsContact(a)),
-            Failed: attempts.Count(a => a.NextStatus == ContactStatuses.Failed),
-            OpenNow: openNow, OverdueNow: overdueNow,
-            Daily: daily, ByStaff: byStaff, ByReason: byReason, ByResult: byResult,
-            // JAVOBLAR TAHLILI — eng ko'p uchragan so'zlar. Qoida `ContactService.TopWords` da
-            // (sof funksiya, testlangan): bir matnda takrorlangan so'z BIR marta sanaladi.
-            TopWords: ContactService
-                .TopWords(attempts.Where(IsContact).Select(a => a.Response), 25)
-                .Select(w => new ContactWordDto(w.Word, w.Count)).ToList(),
-            WithResponse: attempts.Count(a => IsContact(a) && a.Response.Length > 0));
+            m.From, m.To, m.Created, m.Attempts, m.Reached, m.Done, m.Callback, m.Failed,
+            m.OpenNow, m.OverdueNow,
+            m.Daily, m.ByStaff, m.ByReason, m.ByResult,
+            TopWords: m.TopWords, WithResponse: m.WithResponse);
+    }
+
+    /// <summary>
+    /// KUNLIK JURNAL — "kimga qo'ng'iroq qilindi, qachon, nima dedi, qaysi sabab bilan",
+    /// HAR KUN ALOHIDA. Yuqoridagi jadvallar "nechta" ga javob beradi, jurnal esa kunning
+    /// o'zini boshdan-oxir ko'rsatadi.
+    /// </summary>
+    /// <param name="type">Faqat shu turdagi hodisalar: contact | created | note | reopen
+    /// (bo'sh — hammasi). Vergul bilan bir nechtasi ham beriladi.</param>
+    [HttpGet("journal")]
+    public async Task<ActionResult<IEnumerable<ContactJournalDayDto>>> Journal(
+        [FromQuery] string? from, [FromQuery] string? to, [FromQuery] string? type,
+        [FromQuery] int limit = ContactReport.DefaultJournalItems)
+    {
+        if (!TryPeriod(from, to, out var fromDate, out var toDate))
+            return BadRequest(new { message = "Sana noto'g'ri (YYYY-MM-DD)" });
+
+        // Noma'lum tur JIM tashlanadi (filtr bo'sh bo'lib qolsa hammasi qaytadi) — klientdagi
+        // xato kalit tufayli jurnal butunlay bo'shab qolmasin.
+        var types = (type ?? "")
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(k => ContactService.AttemptTypes.Any(t => t.Key == k))
+            .ToList();
+
+        return await ContactReport.JournalAsync(db, fromDate, toDate, types, limit);
+    }
+
+    /* =========================================================================================
+     *  AI TAHLIL (Gemini) — sabablar, javob matnlari va natijalar bo'yicha xulosa
+     * ====================================================================================== */
+
+    /// <summary>Saqlangan tahlillar — eng yangisi birinchi. Davr berilsa faqat AYNI o'sha davrniki.</summary>
+    [HttpGet("ai-analyses")]
+    public async Task<ActionResult<IEnumerable<ContactAiRecordDto>>> AiAnalyses(
+        [FromQuery] string? from, [FromQuery] string? to, CancellationToken ct) =>
+        await ContactAiAnalysisService.HistoryAsync(db, from, to, ct);
+
+    /// <summary>
+    /// Tanlangan davr uchun yangi AI tahlil. Shu davr uchun BUGUN tahlil qilingan bo'lsa Gemini
+    /// chaqirilmaydi — mavjudi qaytadi (<c>alreadyToday=true</c>, xato EMAS).
+    /// </summary>
+    /// <remarks>POST — ya'ni <c>contacts</c> bo'limining "qo'shish" ruxsati talab qilinadi
+    /// (<c>AdminPermAttribute</c>): faqat ko'rish ruxsati bor xodim tahlilni O'QIYDI, lekin
+    /// yangisini (pulli Gemini chaqiruvini) boshlay olmaydi — voronka tahlilidagi bilan bir xil qoida.</remarks>
+    [HttpPost("ai-analysis")]
+    public async Task<ActionResult<ContactAiResponseDto>> AiAnalysis(
+        ContactAiRequest? req, CancellationToken ct) =>
+        await ContactAiAnalysisService.GenerateAsync(db, config, req?.From, req?.To, ct);
+
+    /// <summary>Davr chegaralari: bo'sh bo'lsa oxirgi 30 kun; teskari berilsa almashtiriladi.</summary>
+    private static bool TryPeriod(string? from, string? to, out string fromDate, out string toDate)
+    {
+        var today = AppClock.Today;
+        fromDate = string.IsNullOrWhiteSpace(from)
+            ? today.AddDays(-29).ToString("yyyy-MM-dd") : from!.Trim();
+        toDate = string.IsNullOrWhiteSpace(to) ? today.ToString("yyyy-MM-dd") : to!.Trim();
+        if (!DateOnly.TryParse(fromDate, out var f) || !DateOnly.TryParse(toDate, out var t))
+            return false;
+        if (t < f) (fromDate, toDate) = (toDate, fromDate);
+        return true;
     }
 
     /// <summary>
