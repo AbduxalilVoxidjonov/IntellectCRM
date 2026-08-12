@@ -9,7 +9,8 @@ import {
   type ContactMeta, type ContactRequestItem, type ContactDue,
 } from '@/api/services/contacts'
 import { ContactAttemptModal } from './ContactAttemptModal'
-import { MonthDayStrip, currentMonth, todayIso } from './MonthDayStrip'
+import { MonthDayStrip } from '@/components/ui/MonthDayStrip'
+import { currentMonth, todayIso } from '@/lib/month'
 import { ContactStatsPanel } from './ContactStatsPanel'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'

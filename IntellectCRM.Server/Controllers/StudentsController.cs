@@ -828,6 +828,16 @@ public class StudentsController(AppDbContext db, AuditService audit, IConfigurat
         [FromQuery] int limit = StudentNoteService.DefaultLimit, CancellationToken ct = default) =>
         await StudentNoteService.OverviewAsync(db, q, from, to, limit, ct);
 
+    /// <summary>
+    /// Oylik kalendar kataklaridagi sonlar: shu oyning qaysi kunida nechta izoh yozilgan.
+    /// Tanlangan davrga BOG'LIQ EMAS — bitta kun tanlanganda ham oy to'liq ko'rinib tursin.
+    /// </summary>
+    [HttpGet("notes/days")]
+    [AdminPerm("students", ReadRequiresPerm = true)]
+    public async Task<ActionResult<IEnumerable<StudentNoteDayDto>>> NoteDays(
+        [FromQuery] string? month, CancellationToken ct = default) =>
+        await StudentNoteService.DaysAsync(db, month, ct);
+
     /// <summary>O'quvchining izohlari — yangisi tepada. CanDelete/CanEdit: o'z izohi yoki superadmin.</summary>
     [HttpGet("{id}/notes")]
     public async Task<ActionResult<IEnumerable<StudentNoteDto>>> Notes(string id)

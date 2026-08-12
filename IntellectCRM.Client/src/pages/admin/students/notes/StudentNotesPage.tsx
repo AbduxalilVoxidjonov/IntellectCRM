@@ -3,29 +3,29 @@ import { Link } from 'react-router-dom'
 import { MessageSquareText, Search, StickyNote, User } from 'lucide-react'
 import {
   getStudentNotesOverview,
+  getStudentNoteDays,
   type StudentNoteOverviewRow,
 } from '@/api/services/students'
 import { StudentNotesThread } from '@/components/students/StudentNotesThread'
+import { MonthDayStrip } from '@/components/ui/MonthDayStrip'
+import { currentMonth, monthRange } from '@/lib/month'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
 import { Loader } from '@/components/ui/Loader'
 import { PageHeader } from '@/components/ui/PageHeader'
-import { apiErrorMessage, cn, formatDateTime } from '@/lib/utils'
+import { apiErrorMessage, cn, formatDate, formatDateTime } from '@/lib/utils'
 
-/** "YYYY-MM-DD" — bugundan `days` kun oldin. */
-function daysAgo(days: number): string {
-  const d = new Date()
-  d.setDate(d.getDate() - days)
-  return d.toISOString().slice(0, 10)
-}
-
-const ranges = [
-  { label: 'Butun davr', days: -1 },
-  { label: '7 kun', days: 6 },
-  { label: '30 kun', days: 29 },
-  { label: '90 kun', days: 89 },
-]
+/**
+ * Tanlangan DAVR — bir vaqtda faqat BITTASI bo'ladi.
+ *
+ * ⚠️ Ataylab "union": ilgari (kun + oraliq + tez tugmalar) bir-biriga qarama-qarshi holatlar
+ * paydo bo'lishi mumkin edi. Endi holat bitta: hammasi | oy | aniq KUN.
+ */
+type Period =
+  | { kind: 'all' }
+  | { kind: 'month' }
+  | { kind: 'day'; date: string }
 
 /**
  * "IZOHLARGA JAVOBLAR" — o'quvchi profillariga yozilgan izohlar BIR RO'YXATDA.
@@ -48,8 +48,22 @@ export function StudentNotesPage() {
 
   const [term, setTerm] = useState('')
   const [q, setQ] = useState('')
-  const [from, setFrom] = useState('')
-  const [to, setTo] = useState('')
+
+  /** Kalendarda ko'rinayotgan oy ("yyyy-MM"). */
+  const [month, setMonth] = useState(currentMonth())
+  /**
+   * Davr. Standart — HAMMASI: sahifaning asosiy savoli "kimda umuman izoh bor", shuning uchun
+   * ochilganda ro'yxat to'liq turadi (bugun izoh yozilmagan bo'lsa bo'sh ekran chiqmasin).
+   * Aniq kun kerak bo'lsa — kalendardan bosiladi.
+   */
+  const [period, setPeriod] = useState<Period>({ kind: 'all' })
+  /** Kalendar kataklaridagi sonlar: oyning har kunida nechta izoh yozilgan. */
+  const [monthCounts, setMonthCounts] = useState<Record<string, number>>({})
+
+  // Davr — tanlovdan HOSILA (bitta haqiqat manbai).
+  const range = monthRange(month)
+  const from = period.kind === 'all' ? '' : period.kind === 'month' ? range.from : period.date
+  const to = period.kind === 'all' ? '' : period.kind === 'month' ? range.to : period.date
 
   /** Ochilgan o'quvchi (izohlar oynasi). */
   const [open, setOpen] = useState<StudentNoteOverviewRow | null>(null)
@@ -70,6 +84,29 @@ export function StudentNotesPage() {
       alive = false
     }
   }, [q, from, to])
+
+  /** Kalendar sonlari — BUTUN OY bo'yicha (tanlangan davrga bog'liq emas). */
+  useEffect(() => {
+    let alive = true
+    getStudentNoteDays(month)
+      .then((d) => {
+        if (!alive) return
+        setMonthCounts(Object.fromEntries(d.map((x) => [x.date, x.count])))
+      })
+      .catch(() => alive && setMonthCounts({}))
+    return () => {
+      alive = false
+    }
+  }, [month])
+
+  /**
+   * Oy almashtirilganda tanlangan KUN saqlanib qolmaydi — u boshqa oyga tegishli edi va
+   * kalendarda ko'rinmagan holda ro'yxatni jimgina filtrlab turardi.
+   */
+  const changeMonth = (m: string) => {
+    setMonth(m)
+    setPeriod((p) => (p.kind === 'day' ? { kind: 'month' } : p))
+  }
 
   const totalNotes = rows.reduce((sum, r) => sum + r.noteCount, 0)
 
@@ -96,69 +133,63 @@ export function StudentNotesPage() {
 
       <Card
         className="mb-4"
-        title="Filtr"
-        sub="Qidiruv o'quvchi ismi bo'yicha ham, izoh matni bo'yicha ham ishlaydi."
+        title="Sana"
+        sub="Kalendardan ANIQ KUNNI bosing — o'sha kuni yozilgan izohlar chiqadi. Qidiruv esa ism bo'yicha ham, izoh matni bo'yicha ham ishlaydi."
       >
-        <div className="flex flex-wrap items-end gap-3">
-          <form
-            className="flex gap-2"
-            onSubmit={(e) => {
-              e.preventDefault()
-              setQ(term.trim())
-            }}
-          >
-            <input
-              value={term}
-              onChange={(e) => setTerm(e.target.value)}
-              placeholder="Ism yoki izoh matni"
-              className="min-w-[220px] rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 outline-none focus:border-brand-400"
-            />
-            <Button type="submit" variant="secondary">
-              <Search className="h-4 w-4" />
-            </Button>
-          </form>
+        <div className="space-y-3">
+          <MonthDayStrip
+            month={month}
+            onMonthChange={changeMonth}
+            selected={period.kind === 'day' ? period.date : ''}
+            onSelect={(d) => setPeriod(d ? { kind: 'day', date: d } : { kind: 'month' })}
+            counts={monthCounts}
+            hint="Katakdagi son — o'sha kuni yozilgan izohlar soni. Tanlangan kunni qayta bossangiz butun oyga qaytadi."
+          />
 
-          {ranges.map((r) => {
-            const value = r.days < 0 ? '' : daysAgo(r.days)
-            const active = from === value && (r.days < 0 ? !to : true)
-            return (
-              <button
-                key={r.label}
-                type="button"
-                onClick={() => {
-                  setFrom(value)
-                  setTo('')
-                }}
-                className={cn(
-                  'rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors',
-                  active
-                    ? 'border-brand-500 bg-brand-50 text-brand-700'
-                    : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50',
-                )}
-              >
-                {r.label}
-              </button>
-            )
-          })}
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPeriod({ kind: 'all' })}
+              className={cn(
+                'rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors',
+                period.kind === 'all'
+                  ? 'border-brand-500 bg-brand-50 text-brand-700'
+                  : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50',
+              )}
+            >
+              Hamma vaqt
+            </button>
+            <button
+              type="button"
+              onClick={() => setPeriod({ kind: 'month' })}
+              className={cn(
+                'rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors',
+                period.kind === 'month'
+                  ? 'border-brand-500 bg-brand-50 text-brand-700'
+                  : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50',
+              )}
+            >
+              Butun oy
+            </button>
 
-          <label className="flex flex-col gap-1 text-xs font-medium text-slate-500">
-            Sanadan
-            <input
-              type="date"
-              value={from}
-              onChange={(e) => setFrom(e.target.value)}
-              className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 outline-none focus:border-brand-400"
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-xs font-medium text-slate-500">
-            Sanagacha
-            <input
-              type="date"
-              value={to}
-              onChange={(e) => setTo(e.target.value)}
-              className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 outline-none focus:border-brand-400"
-            />
-          </label>
+            <form
+              className="ml-auto flex gap-2"
+              onSubmit={(e) => {
+                e.preventDefault()
+                setQ(term.trim())
+              }}
+            >
+              <input
+                value={term}
+                onChange={(e) => setTerm(e.target.value)}
+                placeholder="Ism yoki izoh matni"
+                className="min-w-[220px] rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 outline-none focus:border-brand-400"
+              />
+              <Button type="submit" variant="secondary">
+                <Search className="h-4 w-4" />
+              </Button>
+            </form>
+          </div>
         </div>
       </Card>
 
@@ -169,6 +200,12 @@ export function StudentNotesPage() {
         title={
           <span className="inline-flex items-center gap-2">
             <StickyNote className="h-4 w-4 text-slate-400" /> Izoh yozilgan o'quvchilar
+            {/* Tanlangan davr SARLAVHADA ham turadi — ro'yxat nega qisqarganini izohlaydi. */}
+            {period.kind !== 'all' && (
+              <span className="rounded-md bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-700">
+                {period.kind === 'day' ? formatDate(period.date) : `${formatDate(range.from)} — ${formatDate(range.to)}`}
+              </span>
+            )}
           </span>
         }
         sub={
@@ -183,7 +220,11 @@ export function StudentNotesPage() {
           </div>
         ) : rows.length === 0 ? (
           <p className="py-10 text-center text-sm text-slate-400">
-            {q || from || to ? 'Bu filtrlarda izoh topilmadi' : 'Hali hech kimga izoh yozilmagan'}
+            {period.kind === 'day'
+              ? `${formatDate(period.date)} kuni izoh yozilmagan`
+              : q || period.kind === 'month'
+                ? 'Bu filtrlarda izoh topilmadi'
+                : 'Hali hech kimga izoh yozilmagan'}
           </p>
         ) : (
           <div className="overflow-x-auto">

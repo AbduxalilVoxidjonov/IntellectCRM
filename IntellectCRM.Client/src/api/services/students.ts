@@ -812,3 +812,20 @@ export async function getStudentNotesOverview(params: {
   const { data } = await api.get<StudentNoteOverviewRow[]>('/admin/students/notes/overview', { params })
   return data
 }
+
+/**
+ * Oylik kalendar kataklaridagi sonlar: shu oyning qaysi kunida nechta izoh yozilgan.
+ *
+ * ⚠️ Tanlangan davrga BOG'LIQ EMAS (alohida yengil so'rov) — bitta kun tanlanganda ham
+ * kalendar butun oyni ko'rsatib tursin.
+ */
+export async function getStudentNoteDays(month?: string): Promise<{ date: string; count: number }[]> {
+  if (USE_MOCK) {
+    await delay()
+    return []
+  }
+  const { data } = await api.get<{ date: string; count: number }[]>('/admin/students/notes/days', {
+    params: { month },
+  })
+  return data
+}

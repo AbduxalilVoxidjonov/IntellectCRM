@@ -5,7 +5,8 @@ import {
   getContactStats, getContactResponses,
   type ContactStats, type ContactResponseRow,
 } from '@/api/services/contacts'
-import { MonthDayStrip, currentMonth, todayIso } from './MonthDayStrip'
+import { MonthDayStrip } from '@/components/ui/MonthDayStrip'
+import { currentMonth, monthRange, todayIso } from '@/lib/month'
 import { ContactDailyJournal } from './ContactDailyJournal'
 import { ContactAiPanel } from '@/components/ai/ContactAiPanel'
 import { Card } from '@/components/ui/Card'
@@ -38,14 +39,6 @@ const ranges = [
  * (server: `ContactService.Reached`) — ko'tarmagan qo'ng'iroq "urinish"ga kiradi, "bog'lanildi"ga
  * emas. Aks holda hisobot haqiqiy aloqani ko'rsatmasdi.</p>
  */
-/** Oyning birinchi va oxirgi kuni ("yyyy-MM" → "yyyy-MM-dd"). */
-function monthRange(month: string): { from: string; to: string } {
-  const y = Number(month.slice(0, 4))
-  const m = Number(month.slice(5, 7))
-  const last = new Date(y, m, 0).getDate()
-  return { from: `${month}-01`, to: `${month}-${String(last).padStart(2, '0')}` }
-}
-
 export function ContactStatsPanel() {
   /** Kalendarda ko'rinayotgan oy. */
   const [month, setMonth] = useState(currentMonth())

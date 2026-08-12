@@ -3,6 +3,8 @@ description: O'quvchi izohlari (profildagi erkin eslatmalar) va ular yig'iladiga
 paths:
   - "IntellectCRM.Application/Services/StudentNoteService.cs"
   - "IntellectCRM.Client/src/components/students/StudentNotesThread.tsx"
+  - "IntellectCRM.Client/src/components/ui/MonthDayStrip.tsx"
+  - "IntellectCRM.Client/src/lib/month.ts"
   - "IntellectCRM.Client/src/pages/admin/students/notes/**"
 ---
 
@@ -37,6 +39,25 @@ profilni ochib chiqish kerak edi. **O'quvchilar → Izohlarga javoblar**
 | Oxirgi izoh | sanasi va matni + kim yozgani |
 
 Qator bosilsa — o'quvchining butun izoh tarixi va **o'sha yerdan qo'shimcha izoh yozish**.
+
+### Sana — OYLIK KALENDAR, aniq KUN bilan
+
+Filtr **`MonthDayStrip`** (bog'lanish navbatidagi bilan AYNAN bir xil komponent,
+`components/ui/MonthDayStrip.tsx`): oy strelkalar bilan almashadi, har katakda **o'sha kuni
+yozilgan izohlar soni** turadi, katak bosilsa — faqat o'sha kunning izohlari. Yonida ikki chip:
+**«Hamma vaqt»** va **«Butun oy»**.
+
+- ⚠️ **"7 kun / 30 kun / 90 kun" kabi tez oraliqlar ATAYIN YO'Q** — bu yerda savol "oxirgi N kun"
+  emas, **"falon kuni nima yozilgan"**.
+- ⚠️ **Standart holat — «Hamma vaqt»** (bog'lanish navbatidagidan FARQ QILADI, u yerda bugun
+  tanlangan): sahifaning asosiy savoli "kimda umuman izoh bor", shuning uchun ochilganda ro'yxat
+  to'liq turadi — bugun izoh yozilmagan bo'lsa bo'sh ekran chiqmasin.
+- Davr holati **bitta union** (`{kind:'all'|'month'|'day'}`) — "kun + oraliq + tez tugma" kabi
+  bir-biriga qarama-qarshi kombinatsiyalar bo'lishi MUMKIN EMAS.
+- Oy almashtirilsa tanlangan KUN bekor qilinadi (u boshqa oyga tegishli edi va ko'rinmagan holda
+  ro'yxatni filtrlab turardi) — «Butun oy» ga o'tadi.
+- Kalendar sonlari **alohida yengil so'rovdan**: `GET /admin/students/notes/days?month=yyyy-MM`
+  (`StudentNoteService.DaysAsync`) — aks holda bitta kun tanlanganda kalendar bo'shab qolardi.
 
 **YAGONA MANBA:** ro'yxat `StudentNoteService.OverviewAsync` da (Application, testlangan:
 `StudentNoteServiceTests`), yozish/tahrir/o'chirish esa avvalgidek `StudentsController` dagi

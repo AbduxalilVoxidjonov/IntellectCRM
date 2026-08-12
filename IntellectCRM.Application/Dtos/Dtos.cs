@@ -3578,6 +3578,12 @@ public record ContactAiResponseDto(
 /// <param name="NoteCount">Shu o'quvchiga yozilgan izohlar soni (filtrga tushganlari).</param>
 /// <param name="LastNoteText">Oxirgi izoh matni — ro'yxatda ko'rinadi (qisqartirilmaydi, UI kesadi).</param>
 /// <param name="Authors">Izoh yozgan xodimlar (takrorsiz, F.I.Sh).</param>
+/// <summary>
+/// Oyning bir KUNIDA nechta izoh yozilgan — sana chizig'idagi kataklar uchun.
+/// (Kalendar TANLANGAN davrga bog'liq emas: bitta kun tanlanganda ham butun oy ko'rinib tursin.)
+/// </summary>
+public record StudentNoteDayDto(string Date, int Count);
+
 public record StudentNoteOverviewDto(
     string StudentId, string FullName, List<string> Groups, string Phone, string ParentPhone,
     bool IsArchived,

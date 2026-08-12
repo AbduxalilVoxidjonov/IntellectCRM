@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using IntellectCRM.Application.Abstractions;
 using IntellectCRM.Application.Dtos;
+using IntellectCRM.Domain;
 
 namespace IntellectCRM.Application.Services;
 
@@ -31,6 +32,37 @@ public static class StudentNoteService
     /// (audit modulidagi bilan bir xil muammo).
     /// </summary>
     public const string DayEnd = "T23:59:59";
+
+    /// <summary>
+    /// OYLIK KALENDAR uchun: shu oyning har kunida nechta izoh yozilgan.
+    ///
+    /// <para>ALOHIDA (yengil) so'rov — ataylab: sahifada bitta KUN tanlanganda ham kalendar
+    /// butun oyni ko'rsatib tursin (aks holda tanlangan kundan boshqa kataklar bo'shab qolardi —
+    /// "Bog'lanish kerak" dagi bilan bir xil sabab).</para>
+    /// </summary>
+    /// <param name="month">"yyyy-MM" (noto'g'ri bo'lsa — joriy oy).</param>
+    public static async Task<List<StudentNoteDayDto>> DaysAsync(
+        IAppDbContext db, string? month, CancellationToken ct = default)
+    {
+        var m = (month ?? "").Trim();
+        if (m.Length != 7 || !int.TryParse(m[..4], out _) || !int.TryParse(m[5..7], out _))
+            m = AppClock.Today.ToString("yyyy-MM");
+
+        var start = $"{m}-01";
+        var end = $"{m}-31{DayEnd}";   // satr solishtiruvi uchun yetarli (kun 31 dan oshmaydi)
+
+        var rows = await db.StudentNotes.AsNoTracking()
+            .Where(n => string.Compare(n.CreatedAt, start) >= 0 && string.Compare(n.CreatedAt, end) <= 0)
+            .Select(n => n.CreatedAt)
+            .ToListAsync(ct);
+
+        return rows
+            .Where(c => c.Length >= 10)
+            .GroupBy(c => c[..10])
+            .Select(g => new StudentNoteDayDto(g.Key, g.Count()))
+            .OrderBy(d => d.Date, StringComparer.Ordinal)
+            .ToList();
+    }
 
     /// <summary>
     /// Izoh yozilgan o'quvchilar ro'yxati — oxirgi izoh vaqti bo'yicha, eng yangisi tepada.

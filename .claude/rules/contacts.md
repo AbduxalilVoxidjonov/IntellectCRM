@@ -94,6 +94,10 @@ SQL tarjimasi controllerda, QOIDA esa `ContactService` da — ikkisi bir xil bo'
 **UI:** navbat tepasida uchta katta raqam (Bugun qilish kerak · Muddati o'tgan · Ertaga),
 **oylik kalendar chizig'i** (`MonthDayStrip`) va "Muddat" chiplari.
 
+Kalendar komponenti — `components/ui/MonthDayStrip.tsx` (sana funksiyalari `lib/month.ts` da:
+komponent va oddiy funksiyalar bir faylda ARALASHMAYDI — eslint
+`react-refresh/only-export-components`). U "Izohlarga javoblar" sahifasida ham ishlatiladi.
+
 Kalendar: OY TO'LIQ chiqadi (bo'sh kunlar ham o'z o'rnida — ilgari faqat "ish bor" kunlar
 ko'rsatilib, ro'yxat sakrab turardi), strelkalar bilan oy almashadi, **BUGUN doim tanlangan**
 (sahifa ochilganda va joriy oyga qaytilganda). Boshqa oyga o'tilganda tanlov tozalanadi —

@@ -124,6 +124,40 @@ public class StudentNoteServiceTests
     }
 
     [Fact]
+    public async Task Days_OY_boyicha_KUNLIK_sanoq()
+    {
+        using var db = TestDb.Sqlite();
+        var ali = AddStudent(db, "Ali Valiyev");
+        var vali = AddStudent(db, "Vali Aliyev");
+        AddNote(db, ali, "1", "2026-08-10T09:00:00");
+        AddNote(db, vali, "2", "2026-08-10T18:45:00");   // o'sha kun, kechqurun
+        AddNote(db, ali, "3", "2026-08-21T10:00:00");
+        AddNote(db, ali, "boshqa oy", "2026-07-31T23:00:00");
+
+        var days = await StudentNoteService.DaysAsync(db.Context, "2026-08");
+
+        Assert.Equal(2, days.Count);                       // faqat shu oyning ish BOR kunlari
+        Assert.Equal("2026-08-10", days[0].Date);          // sana bo'yicha o'sish tartibida
+        Assert.Equal(2, days[0].Count);                    // kun oxirigacha hisobga olinadi
+        Assert.Equal("2026-08-21", days[1].Date);
+        Assert.Equal(1, days[1].Count);
+    }
+
+    [Fact]
+    public async Task Days_NOTOGRI_oy_berilsa_JORIY_oy_olinadi()
+    {
+        using var db = TestDb.Sqlite();
+        var ali = AddStudent(db, "Ali Valiyev");
+        var today = AppClock.Today.ToString("yyyy-MM-dd");
+        AddNote(db, ali, "bugungi", $"{today}T09:00:00");
+
+        var days = await StudentNoteService.DaysAsync(db.Context, "buzuq");
+
+        var d = Assert.Single(days);
+        Assert.Equal(today, d.Date);
+    }
+
+    [Fact]
     public async Task Overview_ARXIVLANGAN_oquvchi_ham_korinadi_lekin_BELGILANADI()
     {
         using var db = TestDb.Sqlite();
