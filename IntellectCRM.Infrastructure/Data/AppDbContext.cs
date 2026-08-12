@@ -499,6 +499,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         b.Entity<Book>().Property(x => x.Stock).IsConcurrencyToken();
         b.Entity<BookOrder>().Property(x => x.UnitPrice).HasPrecision(18, 2);
         b.Entity<BookOrder>().Property(x => x.Total).HasPrecision(18, 2);
+        // QAYTARISH: mijozga qaytarilgan pul (to'lanmagan nasiyada 0 — u yerda qarz kamayadi).
+        b.Entity<BookOrder>().Property(x => x.RefundedAmount).HasPrecision(18, 2);
         foreach (var (type, prop) in new (Type, string)[]
         {
             (typeof(BookStockMove), "BookId"), (typeof(BookStockMove), "Reason"),
@@ -517,6 +519,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         // NASIYA navbati: "to'lanmagan qarzlar" ro'yxati (PaymentMethod="credit" AND PaidAt IS NULL)
         // va "davr ichida nasiyadan yig'ilgan pul" (PaidAt bo'yicha) shu indeksdan o'qiydi.
         b.Entity<BookOrder>().HasIndex(o => new { o.PaymentMethod, o.PaidAt });
+        // QAYTARISH: "davr ichida qancha pul qaytarildi" hisoboti ReturnedAt bo'yicha o'qiydi
+        // (qaytarilganlar butun jadvalning kichik qismi — indeks bo'lmasa to'liq skan bo'lardi).
+        b.Entity<BookOrder>().HasIndex(o => o.ReturnedAt);
         // Bot savdo sessiyasi — bitta chatda bitta faol sessiya.
         b.Entity<BookBotSession>().HasIndex(s => s.ChatId).IsUnique();
 

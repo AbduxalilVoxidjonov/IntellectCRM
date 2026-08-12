@@ -15,10 +15,16 @@ export type BookPaymentMethod = 'cash' | 'card' | 'credit'
 /** Nasiya qanday yopilgani (pul qaysi ko'rinishda olingani). */
 export type BookSettleMethod = 'cash' | 'card'
 export type BookOrderStatus = 'pending' | 'approved' | 'rejected'
+/**
+ * Ro'yxat filtri: holatlar + `returned` — QAYTARILGAN sotuvlar kesimi.
+ * `returned` holat EMAS: qaytarish buyurtmani "approved" holida qoldiradi (qisman ham bo'ladi),
+ * shuning uchun bu faqat filtr qiymati.
+ */
+export type BookOrderStatusFilter = BookOrderStatus | 'returned'
 /** Buyurtma manbai: botdan tushgan yoki markazda qo'lda sotilgan. */
 export type BookOrderSource = 'bot' | 'manual'
-/** Ombor harakati turi: boshlang'ich qoldiq | kirim | sotuv | qo'lda korreksiya */
-export type BookStockReason = 'initial' | 'restock' | 'sale' | 'correction'
+/** Ombor harakati turi: boshlang'ich qoldiq | kirim | sotuv | QAYTARISH | qo'lda korreksiya */
+export type BookStockReason = 'initial' | 'restock' | 'sale' | 'return' | 'correction'
 
 export interface Book {
   id: string
@@ -106,6 +112,15 @@ export interface BookOrder {
   paidBy: string
   /** NASIYA qanday yopildi: naqd yoki karta. */
   settledMethod?: BookSettleMethod | null
+  /** QAYTARISH: shu sotuvdan jami qaytarilgan dona (0 = qaytarilmagan). */
+  returnedQty: number
+  returnedAt?: string | null
+  returnedBy: string
+  returnReason: string
+  /** Mijozga haqiqatan qaytarilgan pul (to'lanmagan nasiyada 0 — u yerda qarz kamaygan). */
+  refundedAmount: number
+  /** SOF summa = total − qaytarilganlar qiymati. Hisobotlarda AYNAN shu ishlatiladi. */
+  netTotal: number
 }
 
 /** Qo'lda sotuv oynasidagi o'quvchi qidiruvi natijasi. */
@@ -144,6 +159,10 @@ export interface BookCreditPayPayload {
   cardLast4?: string
 }
 
+/**
+ * Kunlik sotuv nuqtasi. ⚠️ Barcha sonlar SOF — qaytarilgan kitoblar AYIRILGAN va qaytarish
+ * aynan SOTILGAN kunga yoziladi (aks holda "shu kuni nima sotildi" noto'g'ri chiqardi).
+ */
 export interface BookDaySales {
   date: string
   qty: number
@@ -152,6 +171,9 @@ export interface BookDaySales {
   /** Nasiyaga sotilgan summa (o'sha kuni) — keyin to'lansa ham shu kunda nasiya bo'lib qoladi */
   credit: number
   total: number
+  /** Shu kunning sotuvlaridan keyinchalik qaytarilgani (yuqoridagi sonlar shu qadar kamaygan) */
+  returnedQty: number
+  returnedTotal: number
 }
 
 export interface BookSalesByBook {
@@ -171,9 +193,15 @@ export interface BookDayBookSales {
   total: number
   /** Shu kuni shu kitob bo'yicha nechta alohida sotuv bo'lgani */
   orders: number
+  /** Shu kitobdan o'sha kungi sotuvlardan qaytarilgan dona */
+  returnedQty: number
 }
 
-/** Bitta sotuv — "qaysi kitob qachon (soati bilan) va kimga sotildi" lentasi uchun. */
+/**
+ * Bitta sotuv — "qaysi kitob qachon (soati bilan) va kimga sotildi" lentasi uchun.
+ * ⚠️ `qty`/`total` — sotuv PAYTIDAGI (xom) qiymat: lenta hodisalar tarixi, kunlik jamlanma esa
+ * sof. Farqni `returnedQty` tushuntiradi.
+ */
 export interface BookSaleRow {
   id: string
   number: number
@@ -186,6 +214,8 @@ export interface BookSaleRow {
   paymentMethod: BookPaymentMethod
   isPaid: boolean
   source: BookOrderSource
+  /** Shu sotuvdan keyinchalik qaytarilgan dona (0 = qaytarilmagan) */
+  returnedQty: number
 }
 
 export interface BookAnalytics {
@@ -221,6 +251,12 @@ export interface BookAnalytics {
   /** NASIYA: davr ichida yig'ilgan pul (to'lov sanasi bo'yicha) */
   creditCollected: number
   creditCollectedCount: number
+  /** QAYTARISH: davr SOTUVLARIDAN qaytarilgani (sotuv sanasi bo'yicha — sof raqamlar shu qadar kam) */
+  returnedQty: number
+  returnedTotal: number
+  /** QAYTARISH: davr ICHIDA kassadan chiqqan pul (qaytarish sanasi bo'yicha) */
+  refundedInPeriod: number
+  refundedCount: number
 }
 
 /** Bitta qarzdor (nasiya bo'limida xaridor kesimi). */
@@ -258,7 +294,7 @@ export interface BookSettings {
 }
 
 export interface BookOrderFilters {
-  status?: BookOrderStatus | ''
+  status?: BookOrderStatusFilter | ''
   from?: string
   to?: string
   bookId?: string
@@ -393,6 +429,25 @@ export async function approveBookOrder(id: string): Promise<BookOrder> {
 /** Rad etish: sabab mijozga botda yuboriladi. */
 export async function rejectBookOrder(id: string, reason: string): Promise<BookOrder> {
   const { data } = await api.post<BookOrder>(`/admin/books/orders/${id}/reject`, { reason })
+  return data
+}
+
+// ---------- Qaytarish (vozvrat) ----------
+
+/** Sotilgan kitobni qaytarish: `qty` dona omborga qaytadi, `reason` — sabab (ixtiyoriy). */
+export interface BookReturnPayload {
+  qty: number
+  reason?: string
+}
+
+/**
+ * SOTILGAN KITOBNI QAYTARISH — naqd, karta va nasiya sotuvlari uchun.
+ * Ombor qoldig'i oshadi va sotuv summasidan qaytarilgan qismi ayiriladi (barcha hisobotlar sof).
+ * To'lanmagan nasiyada pul chiqmaydi — shunchaki QARZ kamayadi.
+ * Qisman qaytarish mumkin; sotilganidan ko'p qaytarilsa server 400 qaytaradi.
+ */
+export async function returnBookOrder(id: string, payload: BookReturnPayload): Promise<BookOrder> {
+  const { data } = await api.post<BookOrder>(`/admin/books/orders/${id}/return`, payload)
   return data
 }
 

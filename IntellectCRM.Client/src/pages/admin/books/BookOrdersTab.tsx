@@ -1,11 +1,15 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
-  Check, X, FileDown, Loader2, Search, ShoppingCart, ExternalLink, AlertTriangle, Receipt,
+  Check, X, FileDown, Loader2, Search, ShoppingCart, ExternalLink, AlertTriangle, Receipt, Undo2,
 } from 'lucide-react'
-import type { Book, BookOrder, BookOrderFilters, BookOrderStatus } from '@/api/services/books'
+import type {
+  Book, BookOrder, BookOrderFilters, BookOrderStatusFilter,
+} from '@/api/services/books'
 import {
   approveBookOrder, exportBookOrders, getBookOrders, getBooks, rejectBookOrder,
 } from '@/api/services/books'
+import type { BookReturnTarget } from './BookReturnModal'
+import { BookReturnModal } from './BookReturnModal'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Loader } from '@/components/ui/Loader'
@@ -16,7 +20,7 @@ import { statusLabel, statusPillCls, paymentLabel, paymentPillCls } from './book
 import { BookSellModal } from './BookSellModal'
 
 interface Props {
-  /** Tasdiqlash/rad etish tugmalari ko'rinadimi (books:edit ruxsati) */
+  /** Tasdiqlash/rad etish/qaytarish tugmalari ko'rinadimi (books:edit ruxsati) */
   canDecide: boolean
   /** "Kitob sotish" (markazda qo'lda sotuv) tugmasi ko'rinadimi (books:create ruxsati) */
   canSell: boolean
@@ -24,10 +28,13 @@ interface Props {
   onDecided: () => void
 }
 
-const statusTabs: { value: BookOrderStatus | ''; label: string }[] = [
+const statusTabs: { value: BookOrderStatusFilter | ''; label: string }[] = [
   { value: 'pending', label: 'Kutilmoqda' },
   { value: 'approved', label: 'Tasdiqlangan' },
   { value: 'rejected', label: 'Rad etilgan' },
+  // "Qaytarilgan" — HOLAT emas, kesim: qaytarilgan sotuv "Tasdiqlangan" bo'lib qolaveradi
+  // (qaytarish qisman ham bo'ladi), shuning uchun uni alohida ko'rish uchun filtr kerak.
+  { value: 'returned', label: 'Qaytarilgan' },
   { value: '', label: 'Barchasi' },
 ]
 
@@ -45,6 +52,8 @@ export function BookOrdersTab({ canDecide, canSell, onDecided }: Props) {
   const [rejecting, setRejecting] = useState<BookOrder | null>(null)
   const [rejectReason, setRejectReason] = useState('')
   const [receipt, setReceipt] = useState<BookOrder | null>(null)
+  /** Qaytarish oynasi (sotilgan kitob qaytarib olinadi). */
+  const [returning, setReturning] = useState<BookReturnTarget | null>(null)
   /** Markazda qo'lda sotuv oynasi ("Kitob sotish"). */
   const [sellOpen, setSellOpen] = useState(false)
 
@@ -70,11 +79,18 @@ export function BookOrdersTab({ canDecide, canSell, onDecided }: Props) {
   }, [])
 
   const patch = (updated: BookOrder) => {
-    // Holat filtri yoqilgan bo'lsa, qarordan keyin qator ro'yxatdan chiqadi.
+    // Holat filtri yoqilgan bo'lsa, qarordan keyin qator ro'yxatdan chiqadi. "Qaytarilgan"
+    // kesimida esa holat emas, qaytarilgan dona muhim (qaytarilgan sotuv "approved" bo'lib qoladi).
+    const stays =
+      !filters.status
+        ? true
+        : filters.status === 'returned'
+          ? updated.returnedQty > 0
+          : filters.status === updated.status
     setOrders((prev) =>
-      filters.status && filters.status !== updated.status
-        ? prev.filter((o) => o.id !== updated.id)
-        : prev.map((o) => (o.id === updated.id ? updated : o)),
+      stays
+        ? prev.map((o) => (o.id === updated.id ? updated : o))
+        : prev.filter((o) => o.id !== updated.id),
     )
     onDecided()
   }
@@ -277,16 +293,29 @@ export function BookOrdersTab({ canDecide, canSell, onDecided }: Props) {
                         )}
                       </div>
                     </td>
-                    <td className="text-right font-mono">{o.qty}</td>
+                    {/* Soni va summa — SOF (qaytarilgani ayirilgan), xomi tagi chizilgan holda. */}
+                    <td className="text-right font-mono">
+                      {o.qty - o.returnedQty}
+                      {o.returnedQty > 0 && (
+                        <span className="ml-1 text-xs text-slate-400 line-through">{o.qty}</span>
+                      )}
+                    </td>
                     <td className="text-right font-mono font-semibold text-slate-800">
-                      {formatMoney(o.total)}
+                      {formatMoney(o.netTotal)}
+                      {o.returnedQty > 0 && (
+                        <div className="text-xs font-normal text-slate-400 line-through">
+                          {formatMoney(o.total)}
+                        </div>
+                      )}
                     </td>
                     <td>
                       <span className={paymentPillCls(o.paymentMethod)}>
                         {paymentLabel(o.paymentMethod)}
                       </span>
-                      {/* Nasiyada eng muhim savol — pul olindimi yoki hali qarzmi. */}
-                      {o.paymentMethod === 'credit' && (
+                      {/* Nasiyada eng muhim savol — pul olindimi yoki hali qarzmi.
+                          To'liq qaytarilganda esa qarz ham qolmaydi — "qarz" deb yozib
+                          qo'yish noto'g'ri bo'lardi. */}
+                      {o.paymentMethod === 'credit' && o.returnedQty < o.qty && (
                         <div
                           className={cn(
                             'mt-0.5 text-xs font-medium',
@@ -324,6 +353,21 @@ export function BookOrdersTab({ canDecide, canSell, onDecided }: Props) {
                     </td>
                     <td>
                       <span className={statusPillCls(o.status)}>{statusLabel(o.status)}</span>
+                      {/* QAYTARISH holatni o'zgartirmaydi — alohida belgi bilan ko'rsatiladi. */}
+                      {o.returnedQty > 0 && (
+                        <div className="mt-0.5">
+                          <span className="rounded bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700">
+                            {o.returnedQty >= o.qty
+                              ? 'Qaytarilgan'
+                              : `Qisman qaytarildi (${o.returnedQty})`}
+                          </span>
+                          <div className="mt-0.5 max-w-[180px] text-xs text-slate-400">
+                            {[o.returnedAt?.slice(0, 10), o.returnReason, o.returnedBy]
+                              .filter(Boolean)
+                              .join(' · ')}
+                          </div>
+                        </div>
+                      )}
                       {o.status === 'rejected' && o.rejectReason && (
                         <div className="mt-0.5 max-w-[180px] text-xs text-slate-400">{o.rejectReason}</div>
                       )}
@@ -359,6 +403,29 @@ export function BookOrdersTab({ canDecide, canSell, onDecided }: Props) {
                             <X className="h-4 w-4" /> Rad etish
                           </Button>
                         </div>
+                      )}
+                      {/* QAYTARISH — faqat TASDIQLANGAN sotuvda (kitob mijozga berilgan va
+                          ombordan ayirilgan). Kutilayotgani "Rad etish" bilan yopiladi. */}
+                      {canDecide && o.status === 'approved' && o.qty > o.returnedQty && (
+                        <Button
+                          variant="secondary"
+                          className="!bg-amber-50 !text-amber-700 hover:!bg-amber-100"
+                          onClick={() =>
+                            setReturning({
+                              id: o.id,
+                              number: o.number,
+                              bookTitle: o.bookTitle,
+                              customerName: o.customerName,
+                              qty: o.qty,
+                              returnedQty: o.returnedQty,
+                              unitPrice: o.unitPrice,
+                              paymentMethod: o.paymentMethod,
+                              isPaid: o.isPaid,
+                            })
+                          }
+                        >
+                          <Undo2 className="h-4 w-4" /> Qaytarish
+                        </Button>
                       )}
                     </td>
                   </tr>
@@ -455,6 +522,17 @@ export function BookOrdersTab({ canDecide, canSell, onDecided }: Props) {
           </div>
         )}
       </Modal>
+
+      {/* ---- Kitobni qaytarish (vozvrat) ---- */}
+      <BookReturnModal
+        order={returning}
+        onClose={() => setReturning(null)}
+        onDone={(updated) => {
+          patch(updated)
+          // Qoldiq oshdi — kitoblar ro'yxatidagi "omborda N dona" ham yangilansin.
+          getBooks().then(setBooks).catch(() => {})
+        }}
+      />
 
       {/* Markazda qo'lda sotuv — buyurtma darhol tasdiqlangan holatda yaratiladi */}
       <BookSellModal

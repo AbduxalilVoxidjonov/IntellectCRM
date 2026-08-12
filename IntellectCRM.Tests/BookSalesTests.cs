@@ -623,13 +623,14 @@ public class BookSalesTests
         Assert.Equal(8, book.Stock);   // BEKOR QILISH YO'Q: tasdiqlangan buyurtmada qoldiq qaytmaydi
     }
 
-    [Fact(Skip = "XATO (BookSalesService.cs:104 RejectAsync): tasdiqlangan buyurtmani BEKOR qilish "
-                 + "(qoldiqni omborga qaytarish) mantig'i UMUMAN yo'q. Admin xato tasdiqlasa — qoldiqni "
-                 + "faqat qo'lda 'correction' kirimi bilan tiklaydi va buyurtma 'approved' bo'lib qoladi. "
-                 + "Tuzatish: BookSalesService'ga CancelApprovedAsync(order, reason, by) qo'shilsin — "
-                 + "Move(book, +Qty, ReasonCorrection, 'Buyurtma #N bekor qilindi', by, order.Id) + "
-                 + "Status='rejected'. Shundan keyin shu test yoqiladi.")]
-    public async Task Approve_KeyinBekorQilish_QoldiqOmborgaQaytadi_KUTILGAN()
+    /// <summary>
+    /// Ilgari bu yerda SKIP qilingan test turardi: "tasdiqlangan sotuvni bekor qilib, qoldiqni
+    /// omborga qaytarish mantig'i UMUMAN yo'q". Endi u bor — lekin `RejectAsync` orqali EMAS
+    /// (rad etish hali BERILMAGAN buyurtma uchun), balki <see cref="BookSalesService.ReturnAsync"/>
+    /// bilan: qaytarish qisman ham bo'ladi, shuning uchun holat emas, DONA hisoblanadi.
+    /// </summary>
+    [Fact]
+    public async Task Approve_KeyinQaytarish_QoldiqOmborgaQaytadI()
     {
         using var db = TestDb.Sqlite();
         var ctx = db.Context;
@@ -642,10 +643,12 @@ public class BookSalesTests
         Assert.Null(await BookSalesService.ApproveAsync(ctx, order, "Admin"));
         Assert.Equal(7, book.Stock);
 
-        // KUTILGAN: bekor qilish qoldiqni qaytaradi va teskari harakat yozadi.
-        Assert.Null(await BookSalesService.RejectAsync(ctx, order, "Xato tasdiqlandi", "Admin"));
+        // Qaytarish qoldiqni tiklaydi va teskari harakat yozadi (sotuv + qaytarish = 2 ta).
+        Assert.Null(await BookSalesService.ReturnAsync(ctx, order, 3, "Xato tasdiqlandi", "Admin"));
         Assert.Equal(10, book.Stock);
         Assert.Equal(2, await ctx.BookStockMoves.CountAsync());
+        Assert.True(BookSalesService.IsFullyReturned(order));
+        Assert.Equal(0, BookSalesService.NetTotal(order));
     }
 
     // =============================================================================================
@@ -1295,5 +1298,259 @@ public class BookSalesTests
         Assert.Equal(new[] { "Ali Valiyev" }, Topilgan("901234567"));
         Assert.Equal(new[] { "Vali Aliyev" }, Topilgan("5566"));
         Assert.Empty(Topilgan("998"));   // mamlakat kodi — 4 raqamdan qisqa, umuman qidirilmaydi
+    }
+
+    // =============================================================================================
+    //  QAYTARISH (vozvrat) — `BookSalesService.ReturnAsync` va sof yordamchilar
+    //
+    //  Kutilayotgan xulq (.claude/rules/books.md, "Qaytarish"):
+    //    • qaytarilgan dona OMBORGA qaytadi ("return" harakati bilan);
+    //    • sotuv summasidan qaytarilgan qismi AYIRILADI (NetQty/NetTotal — hisobotlarning manbai);
+    //    • buyurtma HOLATI o'zgarmaydi (qaytarish qisman ham bo'ladi);
+    //    • pul faqat OLINGAN bo'lsa qaytariladi — to'lanmagan nasiyada qarz kamayadi, xolos;
+    //    • sotilganidan ko'p qaytarib bo'lmaydi; tasdiqlanmagan sotuvni umuman qaytarib bo'lmaydi.
+    // =============================================================================================
+
+    /// <summary>Tasdiqlangan (naqd) sotuv — qaytarish uchun tayyor buyurtma yasaydi.</summary>
+    private static async Task<(AppDbContext Ctx, Book Book, BookOrder Order)> SotilganAsync(
+        AppDbContext ctx, int stock = 10, int qty = 3, decimal price = 25000,
+        string method = BookSalesService.PayCash)
+    {
+        var book = NewBook(price: price, stock: stock);
+        var order = NewOrder(book, qty: qty);
+        order.PaymentMethod = method;
+        ctx.Books.Add(book);
+        ctx.BookOrders.Add(order);
+        await ctx.SaveChangesAsync();
+        Assert.Null(await BookSalesService.ApproveAsync(ctx, order, "Kassir"));
+        return (ctx, book, order);
+    }
+
+    [Fact]
+    public void NetQty_NetTotal_QaytarilganiAyiriladi()
+    {
+        var book = NewBook(price: 20000);
+        var order = NewOrder(book, qty: 3);   // 60 000
+
+        Assert.Equal(3, BookSalesService.NetQty(order));
+        Assert.Equal(60000, BookSalesService.NetTotal(order));
+        Assert.False(BookSalesService.IsFullyReturned(order));
+
+        order.ReturnedQty = 1;
+        Assert.Equal(2, BookSalesService.NetQty(order));
+        Assert.Equal(40000, BookSalesService.NetTotal(order));
+        Assert.Equal(20000, BookSalesService.ReturnedAmount(order));
+        Assert.False(BookSalesService.IsFullyReturned(order));
+
+        order.ReturnedQty = 3;
+        Assert.Equal(0, BookSalesService.NetQty(order));
+        Assert.Equal(0, BookSalesService.NetTotal(order));
+        Assert.True(BookSalesService.IsFullyReturned(order));
+    }
+
+    [Fact]
+    public async Task Qaytarish_QoldiqniOSHIRADI_HarakatYozadi()
+    {
+        using var db = TestDb.Sqlite();
+        var (ctx, book, order) = await SotilganAsync(db.Context, stock: 10, qty: 3);
+        Assert.Equal(7, book.Stock);
+
+        Assert.Null(await BookSalesService.ReturnAsync(ctx, order, 3, "Kitob yaroqsiz", "Kassir"));
+
+        Assert.Equal(10, book.Stock);
+        Assert.Equal(3, order.ReturnedQty);
+        Assert.NotNull(order.ReturnedAt);
+        Assert.Equal("Kassir", order.ReturnedBy);
+        Assert.Equal("Kitob yaroqsiz", order.ReturnReason);
+        // Naqd sotuvda pul olingan edi — demak mijozga qaytariladi.
+        Assert.Equal(order.Total, order.RefundedAmount);
+        // HOLAT o'zgarmaydi: qaytarish "rad etish" emas.
+        Assert.Equal(BookSalesService.StatusApproved, order.Status);
+
+        var move = await ctx.BookStockMoves.OrderByDescending(m => m.CreatedAt).FirstAsync();
+        Assert.Equal(BookSalesService.ReasonReturn, move.Reason);
+        Assert.Equal(3, move.Qty);
+        Assert.Equal(10, move.StockAfter);
+        Assert.Equal(order.Id, move.OrderId);
+    }
+
+    [Fact]
+    public async Task Qaytarish_QISMAN_QolganiSotuvdaQoladi()
+    {
+        using var db = TestDb.Sqlite();
+        var (ctx, book, order) = await SotilganAsync(db.Context, stock: 10, qty: 3, price: 20000);
+
+        Assert.Null(await BookSalesService.ReturnAsync(ctx, order, 1, "", "Kassir"));
+
+        Assert.Equal(8, book.Stock);                                  // 10 − 3 + 1
+        Assert.Equal(2, BookSalesService.NetQty(order));
+        Assert.Equal(40000, BookSalesService.NetTotal(order));        // 60 000 − 20 000
+        Assert.Equal(20000, order.RefundedAmount);
+        Assert.False(BookSalesService.IsFullyReturned(order));
+
+        // Ikkinchi qism ham qaytarilishi mumkin — sonlar QO'SHILIB boradi.
+        Assert.Null(await BookSalesService.ReturnAsync(ctx, order, 2, "", "Kassir"));
+        Assert.Equal(10, book.Stock);
+        Assert.Equal(3, order.ReturnedQty);
+        Assert.Equal(60000, order.RefundedAmount);
+        Assert.True(BookSalesService.IsFullyReturned(order));
+    }
+
+    [Fact]
+    public async Task Qaytarish_SOTILGANIDANKOP_QABULQILINMAYDI()
+    {
+        using var db = TestDb.Sqlite();
+        var (ctx, book, order) = await SotilganAsync(db.Context, stock: 10, qty: 2);
+
+        var err = await BookSalesService.ReturnAsync(ctx, order, 3, "", "Kassir");
+
+        Assert.NotNull(err);
+        Assert.Contains("2 dona", err);
+        Assert.Equal(8, book.Stock);          // ombor TEGILMAGAN
+        Assert.Equal(0, order.ReturnedQty);
+        Assert.Equal(1, await ctx.BookStockMoves.CountAsync());   // faqat sotuv harakati
+    }
+
+    [Fact]
+    public async Task Qaytarish_IKKINCHImarta_QOLGANIDANKOP_bolmaydi()
+    {
+        using var db = TestDb.Sqlite();
+        var (ctx, _, order) = await SotilganAsync(db.Context, qty: 2);
+
+        Assert.Null(await BookSalesService.ReturnAsync(ctx, order, 2, "", "Kassir"));
+        var err = await BookSalesService.ReturnAsync(ctx, order, 1, "", "Kassir");
+
+        Assert.NotNull(err);
+        Assert.Contains("to'liq qaytarilgan", err);
+        Assert.Equal(2, order.ReturnedQty);
+    }
+
+    [Fact]
+    public void Qaytarish_NOLYOKIMANFIY_son_QABULQILINMAYDI()
+    {
+        var order = NewOrder(NewBook(), qty: 2, status: BookSalesService.StatusApproved);
+
+        Assert.Contains("kamida 1 dona", BookSalesService.ReturnError(order, 0));
+        Assert.Contains("kamida 1 dona", BookSalesService.ReturnError(order, -1));
+        Assert.Null(BookSalesService.ReturnError(order, 2));
+    }
+
+    [Fact]
+    public async Task Qaytarish_TASDIQLANMAGANsotuv_QABULQILINMAYDI()
+    {
+        using var db = TestDb.Sqlite();
+        var ctx = db.Context;
+        var book = NewBook(stock: 10);
+        var order = NewOrder(book, qty: 2);   // pending — kitob hali berilmagan
+        ctx.Books.Add(book);
+        ctx.BookOrders.Add(order);
+        await ctx.SaveChangesAsync();
+
+        var err = await BookSalesService.ReturnAsync(ctx, order, 1, "", "Kassir");
+
+        Assert.NotNull(err);
+        Assert.Contains("Rad etish", err);
+        Assert.Equal(10, book.Stock);         // kutilayotgan buyurtma qoldiqqa tegmagan edi
+        Assert.Equal(0, order.ReturnedQty);
+    }
+
+    [Fact]
+    public async Task Qaytarish_TOLANMAGANNASIYA_PULQAYTARILMAYDI_QARZKAMAYADI()
+    {
+        using var db = TestDb.Sqlite();
+        var (ctx, book, order) = await SotilganAsync(
+            db.Context, stock: 10, qty: 2, price: 30000, method: BookSalesService.PayCredit);
+        Assert.False(BookSalesService.IsPaid(order));   // nasiya: pul hali olinmagan
+
+        Assert.Null(await BookSalesService.ReturnAsync(ctx, order, 1, "", "Kassir"));
+
+        Assert.Equal(9, book.Stock);
+        // PUL CHIQMAYDI — qarz kamayadi (30 000 qolgan).
+        Assert.Equal(0, order.RefundedAmount);
+        Assert.Equal(30000, BookSalesService.NetTotal(order));
+    }
+
+    [Fact]
+    public async Task Qaytarish_TOLANGANNASIYA_PULQAYTARILADI()
+    {
+        using var db = TestDb.Sqlite();
+        var (ctx, _, order) = await SotilganAsync(
+            db.Context, qty: 2, price: 30000, method: BookSalesService.PayCredit);
+        Assert.Null(await BookSalesService.PayCreditAsync(
+            ctx, order, BookSalesService.PayCash, null, "Kassir"));
+
+        Assert.Null(await BookSalesService.ReturnAsync(ctx, order, 1, "", "Kassir"));
+
+        Assert.Equal(30000, order.RefundedAmount);   // pul olingan edi — qaytariladi
+        Assert.Equal(30000, BookSalesService.NetTotal(order));
+    }
+
+    [Fact]
+    public async Task ToLIQQAYTARILGANnasiya_TOLOVQABULQILINMAYDI()
+    {
+        using var db = TestDb.Sqlite();
+        var (ctx, _, order) = await SotilganAsync(
+            db.Context, qty: 2, method: BookSalesService.PayCredit);
+        Assert.Null(await BookSalesService.ReturnAsync(ctx, order, 2, "", "Kassir"));
+
+        var err = await BookSalesService.PayCreditAsync(
+            ctx, order, BookSalesService.PayCash, null, "Kassir");
+
+        Assert.NotNull(err);
+        Assert.Contains("to'liq qaytarilgan", err);
+        Assert.Null(order.PaidAt);
+    }
+
+    /// <summary>
+    /// QOLDIQ POYGASI qaytarishda ham: ikki kassir bir vaqtda qaytarsa, ikkinchisi eskirgan
+    /// qoldiq ustiga yozmaydi — tushunarli xato oladi va HECH NARSA o'zgarmaydi
+    /// (`Book.Stock` konkurentlik tokeni; `ApproveAsync` bilan bir xil naqsh).
+    /// </summary>
+    [Fact]
+    public async Task Qaytarish_IkkiKassirBirVaqtda_OXIRGISI_TushunarliXATOoladi()
+    {
+        using var kassir = new IkkiKassir();
+        var book = NewBook(stock: 10);
+        var order = NewOrder(book, qty: 2);
+        kassir.A.Books.Add(book);
+        kassir.A.BookOrders.Add(order);
+        await kassir.A.SaveChangesAsync();
+        Assert.Null(await BookSalesService.ApproveAsync(kassir.A, order, "Kassir A"));
+
+        // Ikkinchi kassir buyurtmani VA kitobni o'z so'rovida OLDINDAN o'qib qo'ydi (qoldiq: 8) —
+        // aynan shu "eskirgan" nusxa poygani yuzaga keltiradi.
+        var b = await kassir.B.BookOrders.SingleAsync(o => o.Id == order.Id);
+        var bookB = await kassir.B.Books.SingleAsync(x => x.Id == book.Id);
+        Assert.Equal(8, bookB.Stock);
+
+        // Birinchi kassir ulgurdi — bazada qoldiq 9 bo'ldi.
+        Assert.Null(await BookSalesService.ReturnAsync(kassir.A, order, 1, "", "Kassir A"));
+        var err = await BookSalesService.ReturnAsync(kassir.B, b, 1, "", "Kassir B");
+
+        Assert.NotNull(err);
+        Assert.Contains("qaytadan urinib", err);
+        // XOTIRA: ikkinchi kassirning kontekstida "qaytarilgan" ko'rinish qolmadi.
+        Assert.Equal(0, b.ReturnedQty);
+        Assert.Null(b.ReturnedAt);
+        Assert.Equal(8, bookB.Stock);
+        // BAZA: faqat BITTA qaytarish yozilgan (sotuv + bitta qaytarish = 2 ta harakat).
+        var saqlangan = await kassir.A.Books.AsNoTracking().FirstAsync(x => x.Id == book.Id);
+        Assert.Equal(9, saqlangan.Stock);
+        Assert.Equal(2, await kassir.A.BookStockMoves.AsNoTracking().CountAsync());
+    }
+
+    [Fact]
+    public async Task Qaytarish_KitobOchirilgan_XatoQaytaradi()
+    {
+        using var db = TestDb.Sqlite();
+        var (ctx, book, order) = await SotilganAsync(db.Context, qty: 1);
+        ctx.Books.Remove(book);
+        await ctx.SaveChangesAsync();
+
+        var err = await BookSalesService.ReturnAsync(ctx, order, 1, "", "Kassir");
+
+        Assert.NotNull(err);
+        Assert.Contains("Kitob topilmadi", err);
+        Assert.Equal(0, order.ReturnedQty);
     }
 }

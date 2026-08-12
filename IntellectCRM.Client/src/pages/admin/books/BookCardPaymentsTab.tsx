@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
-  AlertTriangle, Check, CreditCard, Clock, ExternalLink, Loader2, Receipt, Search, X, XCircle,
+  AlertTriangle, Check, CreditCard, Clock, ExternalLink, Loader2, Receipt, Search, Undo2, X, XCircle,
 } from 'lucide-react'
 import type { BookCardPayments, BookOrder, BookOrderFilters, BookOrderStatus } from '@/api/services/books'
 import { approveBookOrder, getBookCardPayments, rejectBookOrder } from '@/api/services/books'
+import type { BookReturnTarget } from './BookReturnModal'
+import { BookReturnModal } from './BookReturnModal'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Loader } from '@/components/ui/Loader'
@@ -52,6 +54,8 @@ export function BookCardPaymentsTab({ canDecide, onDecided }: Props) {
   const [rejecting, setRejecting] = useState<BookOrder | null>(null)
   const [rejectReason, setRejectReason] = useState('')
   const [receipt, setReceipt] = useState<BookOrder | null>(null)
+  /** Qaytarish oynasi (karta bilan to'langan kitob qaytarib olinadi — pul mijozga qaytadi). */
+  const [returning, setReturning] = useState<BookReturnTarget | null>(null)
 
   const [filters, setFilters] = useState<Filters>({ status: 'pending' })
   // Qidiruv har harfda emas, "Enter"/tugma bosilganda qo'llanadi.
@@ -318,12 +322,32 @@ export function BookCardPaymentsTab({ canDecide, onDecided }: Props) {
                         )}
                       </div>
                     </td>
-                    <td className="text-right font-mono">{o.qty}</td>
+                    {/* Soni va summa — SOF (qaytarilgani ayirilgan): kartaga qolgan pul aynan shu. */}
+                    <td className="text-right font-mono">
+                      {o.qty - o.returnedQty}
+                      {o.returnedQty > 0 && (
+                        <span className="ml-1 text-xs text-slate-400 line-through">{o.qty}</span>
+                      )}
+                    </td>
                     <td className="text-right font-mono font-semibold text-slate-800">
-                      {formatMoney(o.total)}
+                      {formatMoney(o.netTotal)}
+                      {o.returnedQty > 0 && (
+                        <div className="text-xs font-normal text-slate-400 line-through">
+                          {formatMoney(o.total)}
+                        </div>
+                      )}
                     </td>
                     <td>
                       <span className={statusPillCls(o.status)}>{statusLabel(o.status)}</span>
+                      {o.returnedQty > 0 && (
+                        <div className="mt-0.5">
+                          <span className="rounded bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700">
+                            {o.returnedQty >= o.qty
+                              ? 'Qaytarilgan'
+                              : `Qisman qaytarildi (${o.returnedQty})`}
+                          </span>
+                        </div>
+                      )}
                       {o.status === 'rejected' && o.rejectReason && (
                         <div className="mt-0.5 max-w-[180px] text-xs text-slate-400">
                           {o.rejectReason}
@@ -361,6 +385,28 @@ export function BookCardPaymentsTab({ canDecide, onDecided }: Props) {
                             <X className="h-4 w-4" /> Rad etish
                           </Button>
                         </div>
+                      )}
+                      {/* QAYTARISH — tasdiqlangan karta sotuvida pul mijozga qaytariladi. */}
+                      {canDecide && o.status === 'approved' && o.qty > o.returnedQty && (
+                        <Button
+                          variant="secondary"
+                          className="!bg-amber-50 !text-amber-700 hover:!bg-amber-100"
+                          onClick={() =>
+                            setReturning({
+                              id: o.id,
+                              number: o.number,
+                              bookTitle: o.bookTitle,
+                              customerName: o.customerName,
+                              qty: o.qty,
+                              returnedQty: o.returnedQty,
+                              unitPrice: o.unitPrice,
+                              paymentMethod: o.paymentMethod,
+                              isPaid: o.isPaid,
+                            })
+                          }
+                        >
+                          <Undo2 className="h-4 w-4" /> Qaytarish
+                        </Button>
                       )}
                     </td>
                   </tr>
@@ -465,6 +511,13 @@ export function BookCardPaymentsTab({ canDecide, onDecided }: Props) {
           </div>
         )}
       </Modal>
+
+      {/* ---- Kitobni qaytarish (vozvrat) — jamlanma ham o'zgaradi, ro'yxat qayta yuklanadi ---- */}
+      <BookReturnModal
+        order={returning}
+        onClose={() => setReturning(null)}
+        onDone={afterDecision}
+      />
     </div>
   )
 }

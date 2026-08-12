@@ -27,6 +27,13 @@ public static class BookSalesService
     public const string ReasonSale = "sale";
     public const string ReasonCorrection = "correction";
 
+    /// <summary>
+    /// QAYTARISH (vozvrat) — mijoz kitobni qaytarib berdi, dona omborga qaytdi.
+    /// <b>Kirim (<see cref="ReasonRestock"/>) EMAS</b>: "davr ichida kirim" hisoboti nashriyotdan
+    /// olingan kitoblarni ko'rsatadi, qaytarilgan sotuv esa u yerga qo'shilsa raqam shishardi.
+    /// </summary>
+    public const string ReasonReturn = "return";
+
     // To'lov turlari (avtomatik to'lov tizimi YO'Q — faqat naqd yoki karta raqamiga o'tkazma)
     public const string PayCash = "cash";
     public const string PayCard = "card";
@@ -224,6 +231,10 @@ public static class BookSalesService
         if (order.Status != StatusApproved)
             return $"Buyurtma holati mos emas ({StatusLabel(order.Status)}).";
         if (order.PaidAt is not null) return "Bu nasiya allaqachon to'langan deb belgilangan.";
+        // TO'LIQ QAYTARILGAN nasiyada olinadigan pul qolmaydi (qarz 0 ga tushgan) — "To'landi"
+        // bosilsa summa tushumga qo'shilib, qaytarilgan kitob sotilgandek ko'rinardi.
+        if (IsFullyReturned(order))
+            return "Bu nasiya to'liq qaytarilgan — qarz qolmagan, to'lov qabul qilinmaydi.";
         if (method != PayCash && method != PayCard)
             return "To'lov turini tanlang: naqd yoki karta.";
 
@@ -305,6 +316,130 @@ public static class BookSalesService
         return null;
     }
 
+    // =============================================================================================
+    //  QAYTARISH (vozvrat) — mijoz kitobni qaytarib berdi
+    //
+    //  Ikki narsa bir vaqtda to'g'rilanadi:
+    //    1) OMBOR — qaytarilgan dona qoldiqqa qo'shiladi (`BookStockMove`, Reason="return");
+    //    2) PUL   — sotuv summasidan qaytarilgan qismi AYIRILADI, ya'ni barcha hisobotlar
+    //               (tushum, kunlik grafik, kitob kesimi, qarz) SOF qiymat bilan ishlaydi.
+    //
+    //  Buyurtma HOLATI o'zgarmaydi ("approved" bo'lib qoladi): qaytarish QISMAN ham bo'ladi
+    //  (3 dona sotilib, 1 tasi qaytarilishi mumkin) va "rad etilgan" holat buni ifodalay olmaydi.
+    //  Rad etish (`RejectAsync`) esa hali BERILMAGAN buyurtma uchun — u ombordan hech narsa
+    //  ayirmagan, shuning uchun qaytariladigan narsa ham yo'q.
+    // =============================================================================================
+
+    /// <summary>Shu buyurtmadan qaytarilgan kitoblarning SOTUV summasi (dona × sotuv narxi).</summary>
+    public static decimal ReturnedAmount(BookOrder o) => o.UnitPrice * o.ReturnedQty;
+
+    /// <summary>SOF (haqiqatan mijozda qolgan) dona = sotilgan − qaytarilgan.</summary>
+    public static int NetQty(BookOrder o) => o.Qty - o.ReturnedQty;
+
+    /// <summary>SOF summa = sotuv summasi − qaytarilganlarning qiymati. Hisobotlarda
+    /// (tushum, qarz, kitob kesimi) <b>har doim shu</b> ishlatiladi, xom <c>Total</c> emas.</summary>
+    public static decimal NetTotal(BookOrder o) => o.Total - ReturnedAmount(o);
+
+    /// <summary>Butun buyurtma qaytarilganmi (mijozda hech narsa qolmagan).</summary>
+    public static bool IsFullyReturned(BookOrder o) => o.Qty > 0 && o.ReturnedQty >= o.Qty;
+
+    /// <summary>Yana qancha dona qaytarish mumkin.</summary>
+    public static int ReturnableQty(BookOrder o) => Math.Max(0, NetQty(o));
+
+    /// <summary>
+    /// Shu qaytarishda mijozga QAYTARILADIGAN pul. Pul faqat ALLAQACHON OLINGAN bo'lsa qaytariladi:
+    /// to'lanmagan nasiyada kassadan hech narsa chiqmaydi — qarz kamayadi, xolos.
+    /// (Chaqiruvchi audit yozuvi va mijozga ketadigan xabar uchun ham shu funksiyadan foydalanadi —
+    /// qoida ikki joyda ikki xil bo'lib ketmasin.)
+    /// </summary>
+    public static decimal RefundFor(BookOrder o, int qty) => IsPaid(o) ? o.UnitPrice * qty : 0m;
+
+    /// <summary>
+    /// QAYTARISH DARVOZASI (sof funksiya — testlangan). <c>null</c> bo'lsa qaytarsa bo'ladi,
+    /// aks holda foydalanuvchiga ko'rsatiladigan xato matni.
+    /// </summary>
+    /// <param name="qty">Hozir qaytarilayotgan dona.</param>
+    public static string? ReturnError(BookOrder order, int qty)
+    {
+        // Faqat TASDIQLANGAN sotuvda kitob mijozga berilgan va ombordan ayirilgan. Kutilayotgan
+        // buyurtma "Rad etish" bilan yopiladi (u qoldiqqa umuman tegmagan).
+        if (order.Status != StatusApproved)
+            return $"Faqat tasdiqlangan sotuvni qaytarish mumkin (hozirgi holat: {StatusLabel(order.Status)}). "
+                   + "Kutilayotgan buyurtmani «Rad etish» bilan yoping.";
+        if (qty <= 0) return "Qaytariladigan sonni kiriting (kamida 1 dona).";
+
+        var left = ReturnableQty(order);
+        if (left == 0)
+            return $"Bu sotuv allaqachon to'liq qaytarilgan ({order.ReturnedQty} dona).";
+        if (qty > left)
+            return $"Bu sotuvdan ko'pi bilan {left} dona qaytarish mumkin "
+                   + $"(sotilgan {order.Qty}, allaqachon qaytarilgan {order.ReturnedQty}).";
+        return null;
+    }
+
+    /// <summary>
+    /// SOTILGAN KITOBNI QAYTARISH: dona omborga qaytadi va sotuv summasidan o'sha qismi ayiriladi.
+    ///
+    /// <para><b>Pul:</b> faqat ALLAQACHON OLINGAN bo'lsa qaytariladi. To'lanmagan nasiyada pul
+    /// umuman olinmagan — kitob qaytsa shunchaki QARZ kamayadi, kassadan hech narsa chiqmaydi.</para>
+    ///
+    /// <para>Qisman qaytarish qo'llab-quvvatlanadi va bir necha marta bo'lishi mumkin —
+    /// <see cref="BookOrder.ReturnedQty"/> qo'shilib boradi, <see cref="BookOrder.Qty"/> dan oshmaydi.</para>
+    /// </summary>
+    /// <returns><c>null</c> — muvaffaqiyat; aks holda foydalanuvchiga ko'rsatiladigan xato matni.</returns>
+    public static async Task<string?> ReturnAsync(
+        IAppDbContext db, BookOrder order, int qty, string reason, string returnedBy,
+        CancellationToken ct = default)
+    {
+        if (ReturnError(order, qty) is { } error) return error;
+
+        // Kitob KUZATILGAN holda yuklanadi (`AsNoTracking` SIZ) — `Book.Stock` konkurentlik
+        // tokeni bo'lgani uchun EF asl qiymatni bilishi shart.
+        var book = await db.Books.FirstOrDefaultAsync(x => x.Id == order.BookId, ct);
+        if (book is null) return "Kitob topilmadi (o'chirilgan bo'lishi mumkin).";
+
+        // Pul mijozdan OLINGANMI — o'zgartirishdan OLDIN aniqlanadi.
+        var refund = RefundFor(order, qty);
+
+        var move = Move(
+            book, qty, ReasonReturn,
+            $"Buyurtma #{order.Number} — qaytarildi{(string.IsNullOrWhiteSpace(reason) ? "" : $": {reason.Trim()}")}",
+            returnedBy, order.Id);
+        db.BookStockMoves.Add(move);
+
+        // Poygada tiklash uchun ESKI qiymatlar (bu buyurtma ilgari ham qisman qaytarilgan
+        // bo'lishi mumkin — u holda "bo'sh"ga emas, aynan oldingi holatga qaytariladi).
+        var prevAt = order.ReturnedAt;
+        var prevBy = order.ReturnedBy;
+        var prevReason = order.ReturnReason;
+
+        order.ReturnedQty += qty;
+        order.ReturnedAt = AppClock.Now;
+        order.ReturnedBy = returnedBy ?? string.Empty;
+        order.ReturnReason = (reason ?? string.Empty).Trim();
+        order.RefundedAmount += refund;
+
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // QOLDIQ POYGASI (`ApproveAsync` bilan bir xil): oraga boshqa amal tushgan, UPDATE 0
+            // qator yangilagan va bazaga HECH NARSA yozilmagan. Xotiradagi o'zgarishlarni ham
+            // qaytaramiz — chaqiruvchi "qaytarilgan" buyurtmani ko'rib qolmasin.
+            book.Stock -= qty;
+            db.BookStockMoves.Remove(move);
+            order.ReturnedQty -= qty;
+            order.RefundedAmount -= refund;
+            order.ReturnedAt = prevAt;
+            order.ReturnedBy = prevBy;
+            order.ReturnReason = prevReason;
+            return "Qoldiq shu payt boshqa amalda o'zgardi — qaytadan urinib ko'ring.";
+        }
+        return null;
+    }
+
     // ---------------------------------------------------------------------------------
     //  Mijozga (botga) yuboriladigan xabar matnlari — controller ham, bot ham shu yerdan oladi
     // ---------------------------------------------------------------------------------
@@ -338,6 +473,28 @@ public static class BookSalesService
             "",
             "Savolingiz bo'lsa «✍️ Adminga murojaat» tugmasi orqali yozing.",
         });
+    }
+
+    /// <summary>
+    /// Mijozga (botga) — kitob QAYTARIB olindi. <paramref name="qty"/> — shu safar qaytarilgani,
+    /// <paramref name="refund"/> — mijozga qaytarilgan pul (to'lanmagan nasiyada 0 bo'ladi,
+    /// u yerda pul emas, QARZ kamayadi — matn ham shuni aytadi).
+    /// </summary>
+    public static string CustomerReturnedText(BookOrder o, int qty, decimal refund)
+    {
+        var lines = new List<string>
+        {
+            "↩️ Kitob qaytarib olindi.",
+            "",
+            $"📕 {o.BookTitle}",
+            $"🔢 Qaytarildi: {qty} dona",
+        };
+        if (refund > 0) lines.Add($"💵 Qaytarilgan summa: {AuditService.Money(refund)} so'm");
+        else if (IsCredit(o)) lines.Add($"💳 Qarzingiz {AuditService.Money(o.UnitPrice * qty)} so'mga kamaydi.");
+        if (!string.IsNullOrWhiteSpace(o.ReturnReason)) lines.Add($"💬 Sabab: {o.ReturnReason}");
+        if (NetQty(o) > 0) lines.Add($"\n📦 Sizda shu buyurtmadan {NetQty(o)} dona qoldi.");
+        lines.Add("\nSavolingiz bo'lsa «✍️ Adminga murojaat» tugmasi orqali yozing.");
+        return string.Join("\n", lines);
     }
 
     /// <summary>Adminlarga (Telegram) yuboriladigan "yangi buyurtma" xabari.</summary>

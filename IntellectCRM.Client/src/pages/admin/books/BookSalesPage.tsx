@@ -106,7 +106,7 @@ export function BookSalesPage() {
           canDelete={can('books', 'delete')}
         />
       ) : tab === 'analytics' ? (
-        <BookAnalyticsTab />
+        <BookAnalyticsTab canReturn={can('books', 'edit')} onReturned={refreshPending} />
       ) : (
         <BookSettingsTab canEdit={can('books', 'edit')} />
       )}

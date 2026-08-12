@@ -2976,10 +2976,26 @@ public record BookOrderDto(
     // Pul qachon va kim tomonidan olindi; nasiya qanday yopildi ("cash" | "card").
     string? PaidAt = null,
     string PaidBy = "",
-    string? SettledMethod = null);
+    string? SettledMethod = null,
+    // ---- QAYTARISH (vozvrat) ----
+    // Shu sotuvdan jami qaytarilgan dona (0 = qaytarilmagan) va qaytarish izlari.
+    int ReturnedQty = 0,
+    string? ReturnedAt = null,
+    string ReturnedBy = "",
+    string ReturnReason = "",
+    // Mijozga haqiqatan qaytarilgan pul (to'lanmagan nasiyada 0 — u yerda qarz kamaygan).
+    decimal RefundedAmount = 0m,
+    // SOF summa = Total − qaytarilganlarning qiymati. Hisobotlarda AYNAN shu ishlatiladi.
+    decimal NetTotal = 0m);
 
 /// <summary>Buyurtmani rad etish sababi.</summary>
 public record BookRejectPayload(string Reason);
+
+/// <summary>
+/// SOTILGAN KITOBNI QAYTARISH (vozvrat): <paramref name="Qty"/> dona omborga qaytadi va sotuv
+/// summasidan o'sha qismi ayiriladi. Qisman qaytarish mumkin (sotilganidan ko'p emas).
+/// </summary>
+public record BookReturnPayload(int Qty, string? Reason = null);
 
 /// <summary>
 /// MARKAZDA QO'LDA SOTUV ("Buyurtmalar → Kitob sotish"): admin kitobni o'quvchiga joyida sotadi.
@@ -3044,18 +3060,30 @@ public record BookCardPaymentsDto(
 
 /// <summary>Kunlik sotuv nuqtasi (grafik uchun). <c>Cash+Card+Credit = Total</c> — taqsimot
 /// SOTUV paytidagi to'lov turi bo'yicha (nasiya keyin to'lansa ham o'sha kunda nasiya bo'lib
-/// qoladi, ya'ni o'tgan kunlarning grafigi orqaga qarab o'zgarmaydi).</summary>
+/// qoladi, ya'ni o'tgan kunlarning grafigi orqaga qarab o'zgarmaydi).
+/// <para>⚠️ Barcha sonlar SOF — qaytarilgan kitoblar AYIRILGAN (qaytarish o'zi sotilgan KUNGA
+/// yoziladi, aks holda "shu kuni qancha sotildi" savoliga noto'g'ri javob chiqardi).
+/// <paramref name="ReturnedQty"/>/<paramref name="ReturnedTotal"/> — shu kunning sotuvlaridan
+/// keyinchalik qaytarilgani (izoh uchun).</para></summary>
 public record BookDaySalesDto(
-    string Date, int Qty, decimal Cash, decimal Card, decimal Credit, decimal Total);
+    string Date, int Qty, decimal Cash, decimal Card, decimal Credit, decimal Total,
+    int ReturnedQty = 0, decimal ReturnedTotal = 0m);
 
 /// <summary>Kitob kesimidagi sotuv (top kitoblar jadvali).</summary>
 public record BookSalesByBookDto(string BookId, string BookTitle, int Qty, decimal Total, int Stock);
 
-/// <summary>HAR KUNI qaysi kitob nechta sotilgani ("kunlik sotuv tarixi" jadvali).</summary>
+/// <summary>HAR KUNI qaysi kitob nechta sotilgani ("kunlik sotuv tarixi" jadvali).
+/// <paramref name="Qty"/>/<paramref name="Total"/> — SOF (qaytarilgani ayirilgan).</summary>
 public record BookDayBookSalesDto(
-    string Date, string BookId, string BookTitle, int Qty, decimal Total, int Orders);
+    string Date, string BookId, string BookTitle, int Qty, decimal Total, int Orders,
+    int ReturnedQty = 0);
 
-/// <summary>Bitta SOTUV yozuvi — "qaysi kitob QACHON (soati bilan) va kimga sotildi" lentasi.</summary>
+/// <summary>
+/// Bitta SOTUV yozuvi — "qaysi kitob QACHON (soati bilan) va kimga sotildi" lentasi.
+/// <para>⚠️ <paramref name="Qty"/>/<paramref name="Total"/> — sotuv PAYTIDAGI (xom) qiymat:
+/// lenta hodisalar tarixi, kunlik jamlanma esa sof. Farqni <paramref name="ReturnedQty"/>
+/// tushuntiradi — qator ustida "N dona qaytarildi" belgisi chiqadi.</para>
+/// </summary>
 public record BookSaleRowDto(
     string Id,
     int Number,
@@ -3068,7 +3096,9 @@ public record BookSaleRowDto(
     string CustomerName,
     string PaymentMethod,
     bool IsPaid,
-    string Source);
+    string Source,
+    // Shu sotuvdan keyinchalik qaytarilgan dona (0 = qaytarilmagan).
+    int ReturnedQty = 0);
 
 /// <summary>Kitoblar sotuvi analitikasi — tanlangan davr bo'yicha.</summary>
 public record BookAnalyticsDto(
@@ -3110,7 +3140,16 @@ public record BookAnalyticsDto(
     int CreditOverdueCount,
     // ---- NASIYA: davr ichida YIG'ILGAN pul (to'lov sanasi bo'yicha) ----
     decimal CreditCollected,
-    int CreditCollectedCount);
+    int CreditCollectedCount,
+    // ---- QAYTARISH (vozvrat) ----
+    // Davr SOTUVLARIDAN qaytarilgani (SOTUV sanasi bo'yicha) — yuqoridagi sof raqamlar shu
+    // qadar kamaygan, ya'ni "xom sotuv − qaytarilgan = sof" tenglamasi ko'rinib turadi.
+    int ReturnedQty = 0,
+    decimal ReturnedTotal = 0m,
+    // Davr ICHIDA qaytarib berilgan pul (QAYTARISH sanasi bo'yicha — kassadan haqiqatan
+    // chiqqan summa; o'tgan oyda sotilgan kitob shu oyda qaytarilishi mumkin).
+    decimal RefundedInPeriod = 0m,
+    int RefundedCount = 0);
 
 /// <summary>NASIYA bo'limidagi bitta QARZDOR (xaridor kesimida jamlangan).</summary>
 public record BookDebtorDto(

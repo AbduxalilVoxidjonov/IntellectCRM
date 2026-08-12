@@ -3113,6 +3113,37 @@ public class BookOrder
     /// <summary>NASIYA qanday yopilgani: "cash" | "card". Nasiya bo'lmagan yoki hali
     /// to'lanmagan buyurtmada bo'sh. Karta bo'lsa <see cref="CardLast4"/> ham to'ldiriladi.</summary>
     public string? SettledMethod { get; set; }
+
+    // -------------------------------------------------------------------------------------
+    //  QAYTARISH (vozvrat) — mijoz kitobni qaytarib berdi
+    //
+    //  DIQQAT: qaytarish buyurtma HOLATINI o'zgartirmaydi (u "approved" bo'lib qoladi) —
+    //  chunki qaytarish QISMAN ham bo'ladi (3 dona sotilib, 1 tasi qaytarilishi mumkin).
+    //  Shu sababdan "qancha sotildi / qancha pul qoldi" savoliga `Status` emas,
+    //  `BookSalesService.NetQty` / `NetTotal` javob beradi — barcha hisobotlar SOF
+    //  (qaytarilgani ayirilgan) qiymat bilan ishlaydi.
+    //
+    //  Qaytarilgan dona OMBORGA QAYTADI (`BookStockMove`, Reason="return"), pul esa faqat
+    //  ALLAQACHON OLINGAN bo'lsa qaytariladi: to'lanmagan nasiyada kitob qaytsa pul
+    //  chiqmaydi — shunchaki qarz kamayadi.
+    // -------------------------------------------------------------------------------------
+
+    /// <summary>Shu buyurtmadan JAMI qaytarilgan dona (0 = qaytarilmagan). Bir necha marta
+    /// qisman qaytarilsa qo'shilib boradi; <see cref="Qty"/> dan oshmaydi.</summary>
+    public int ReturnedQty { get; set; }
+
+    /// <summary>Oxirgi qaytarish payti (bo'sh = umuman qaytarilmagan).</summary>
+    public DateTime? ReturnedAt { get; set; }
+
+    /// <summary>Qaytarishni kim qabul qilgani (admin/kassir F.I.Sh.).</summary>
+    public string ReturnedBy { get; set; } = string.Empty;
+
+    /// <summary>Qaytarish sababi (kassir yozadi) — oxirgi qaytarishniki.</summary>
+    public string ReturnReason { get; set; } = string.Empty;
+
+    /// <summary>Mijozga HAQIQATAN qaytarilgan pul (jami). To'lanmagan nasiyada 0 bo'ladi —
+    /// u yerda pul umuman olinmagan, faqat qarz kamayadi.</summary>
+    public decimal RefundedAmount { get; set; }
 }
 
 /// <summary>

@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
   AlertTriangle, Banknote, CheckCircle2, CreditCard, FileDown, HandCoins, Loader2, Search,
-  TrendingDown, Users, Wallet,
+  TrendingDown, Undo2, Users, Wallet,
 } from 'lucide-react'
 import type { BookCredits, BookOrder, BookSettleMethod } from '@/api/services/books'
 import { exportBookCredits, getBookCredits, payBookCredit } from '@/api/services/books'
+import type { BookReturnTarget } from './BookReturnModal'
+import { BookReturnModal } from './BookReturnModal'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Loader } from '@/components/ui/Loader'
@@ -14,10 +16,25 @@ import { StatCard } from '@/components/ui/StatCard'
 import { apiErrorMessage, cn, formatMoney, maskPhone } from '@/lib/utils'
 
 interface Props {
-  /** "To'landi" tugmasi ko'rinadimi (books:edit ruxsati) */
+  /** "To'landi" va "Qaytarish" tugmalari ko'rinadimi (books:edit ruxsati) */
   canDecide: boolean
-  /** To'lov qabul qilingach — sahifadagi qarz belgisini yangilash */
+  /** To'lov qabul qilingach (yoki kitob qaytarilgach) — sahifadagi qarz belgisini yangilash */
   onPaid: () => void
+}
+
+/** Nasiya qatoridan qaytarish oynasiga uzatiladigan ma'lumot. */
+function returnTarget(o: BookOrder): BookReturnTarget {
+  return {
+    id: o.id,
+    number: o.number,
+    bookTitle: o.bookTitle,
+    customerName: o.customerName,
+    qty: o.qty,
+    returnedQty: o.returnedQty,
+    unitPrice: o.unitPrice,
+    paymentMethod: o.paymentMethod,
+    isPaid: o.isPaid,
+  }
 }
 
 type CreditTab = 'unpaid' | 'paid'
@@ -35,6 +52,10 @@ const today = () => new Date().toISOString().slice(0, 10)
  * Oqim: «Kitob sotish» oynasida to'lov turi "Nasiya" tanlanadi va xaridor F.I.Sh. bo'yicha
  * qidirib biriktiriladi → kitob ombordan ayiriladi, summa QARZ bo'lib shu tabga tushadi →
  * pul olingach «To'landi» bosiladi va summa o'sha paytdan boshlab tushumga (to'lovlarga) qo'shiladi.
+ *
+ * «Qaytarish» — kitob qaytarib olinsa dona omborga qaytadi va QARZ o'shancha kamayadi (to'langan
+ * nasiyada esa pul mijozga qaytariladi). To'liq qaytarilgan nasiya ro'yxatdan butunlay chiqadi:
+ * kitob ham, qarz ham qolmagan.
  *
  * ⚠️ Yuqoridagi "Jami qarz" va "Muddati o'tgan" — JORIY holat: davr va qidiruvdan qat'i nazar
  * butun tarix bo'yicha hisoblanadi (aks holda filtr qarzning bir qismini yashirib qo'yardi).
@@ -56,6 +77,8 @@ export function BookCreditsTab({ canDecide, onPaid }: Props) {
   const [payMethod, setPayMethod] = useState<BookSettleMethod>('cash')
   const [cardLast4, setCardLast4] = useState('')
   const [busy, setBusy] = useState(false)
+  /** Qaytarish oynasi (kitob qaytarib olindi — qarz kamayadi yoki pul qaytariladi). */
+  const [returning, setReturning] = useState<BookReturnTarget | null>(null)
 
   const load = useCallback(() => {
     setLoading(true)
@@ -248,10 +271,29 @@ export function BookCreditsTab({ canDecide, onPaid }: Props) {
                             <div className="text-xs text-brand-600">o'quvchi: {o.studentName}</div>
                           )}
                         </td>
-                        <td className="text-slate-700">{o.bookTitle}</td>
-                        <td className="text-right font-mono">{o.qty}</td>
+                        <td className="text-slate-700">
+                          {o.bookTitle}
+                          {o.returnedQty > 0 && (
+                            <div className="text-xs font-medium text-amber-700">
+                              {o.returnedQty} dona qaytarildi
+                              {o.returnReason && ` — ${o.returnReason}`}
+                            </div>
+                          )}
+                        </td>
+                        {/* Soni va summa — SOF (qaytarilgani ayirilgan): qarz aynan shu. */}
+                        <td className="text-right font-mono">
+                          {o.qty - o.returnedQty}
+                          {o.returnedQty > 0 && (
+                            <span className="ml-1 text-xs text-slate-400 line-through">{o.qty}</span>
+                          )}
+                        </td>
                         <td className="text-right font-mono font-semibold text-slate-800">
-                          {formatMoney(o.total)}
+                          {formatMoney(o.netTotal)}
+                          {o.returnedQty > 0 && (
+                            <div className="text-xs font-normal text-slate-400 line-through">
+                              {formatMoney(o.total)}
+                            </div>
+                          )}
                         </td>
                         <td className="whitespace-nowrap">
                           {tab === 'paid' ? (
@@ -278,18 +320,33 @@ export function BookCreditsTab({ canDecide, onPaid }: Props) {
                           )}
                         </td>
                         <td className="whitespace-nowrap text-right">
-                          {canDecide && !o.isPaid && (
-                            <Button
-                              variant="secondary"
-                              className="!bg-emerald-50 !text-emerald-700 hover:!bg-emerald-100"
-                              onClick={() => {
-                                setPaying(o)
-                                setPayMethod('cash')
-                                setCardLast4('')
-                              }}
-                            >
-                              <CheckCircle2 className="h-4 w-4" /> To'landi
-                            </Button>
+                          {canDecide && (
+                            <div className="inline-flex gap-1.5">
+                              {!o.isPaid && (
+                                <Button
+                                  variant="secondary"
+                                  className="!bg-emerald-50 !text-emerald-700 hover:!bg-emerald-100"
+                                  onClick={() => {
+                                    setPaying(o)
+                                    setPayMethod('cash')
+                                    setCardLast4('')
+                                  }}
+                                >
+                                  <CheckCircle2 className="h-4 w-4" /> To'landi
+                                </Button>
+                              )}
+                              {/* QAYTARISH: kitob omborga qaytadi va qarz kamayadi (to'langan
+                                  nasiyada esa pul mijozga qaytariladi). */}
+                              {o.qty > o.returnedQty && (
+                                <Button
+                                  variant="secondary"
+                                  className="!bg-amber-50 !text-amber-700 hover:!bg-amber-100"
+                                  onClick={() => setReturning(returnTarget(o))}
+                                >
+                                  <Undo2 className="h-4 w-4" /> Qaytarish
+                                </Button>
+                              )}
+                            </div>
                           )}
                         </td>
                       </tr>
@@ -423,6 +480,18 @@ export function BookCreditsTab({ canDecide, onPaid }: Props) {
           </div>
         )}
       </Modal>
+
+      {/* ---- Kitobni qaytarish (vozvrat) ---- */}
+      <BookReturnModal
+        order={returning}
+        onClose={() => setReturning(null)}
+        onDone={() => {
+          // Qaytarishdan keyin qarz summasi ham, qarzdorlar kesimi ham o'zgaradi — ro'yxatni
+          // qayta yuklaymiz (to'liq qaytarilgan nasiya ro'yxatdan butunlay chiqadi).
+          load()
+          onPaid()
+        }}
+      />
     </div>
   )
 }

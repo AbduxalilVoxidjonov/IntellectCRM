@@ -59,6 +59,8 @@ export function stockReasonLabel(reason: BookStockReason | string): string {
       return 'Kirim'
     case 'sale':
       return 'Sotuv'
+    case 'return':
+      return 'Qaytarish'
     case 'correction':
       return 'Korreksiya'
     default:

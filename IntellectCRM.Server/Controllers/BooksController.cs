@@ -53,14 +53,21 @@ public class BooksController(AppDbContext db, TelegramService telegram, IWebHost
     }
 
     /// <summary>Kitoblar ro'yxatiga sotuv/kutilayotgan statistikani biriktiradi (N+1 bo'lmasin —
-    /// buyurtmalar BIR marta guruhlab o'qiladi).</summary>
+    /// buyurtmalar BIR marta guruhlab o'qiladi). Sotuv sonlari SOF — qaytarilgan kitoblar
+    /// ayirilgan (aks holda "sotilgan" ustuni ombordagi haqiqat bilan mos kelmasdi).</summary>
     private async Task<List<BookDto>> ToDtosAsync(List<Book> books)
     {
         var ids = books.Select(b => b.Id).ToList();
         var stats = await db.BookOrders.AsNoTracking()
             .Where(o => ids.Contains(o.BookId))
             .GroupBy(o => new { o.BookId, o.Status })
-            .Select(g => new { g.Key.BookId, g.Key.Status, Qty = g.Sum(x => x.Qty), Total = g.Sum(x => x.Total) })
+            .Select(g => new
+            {
+                g.Key.BookId,
+                g.Key.Status,
+                Qty = g.Sum(x => x.Qty - x.ReturnedQty),
+                Total = g.Sum(x => x.Total - x.UnitPrice * x.ReturnedQty),
+            })
             .ToListAsync();
 
         return books.Select(b =>
@@ -212,7 +219,10 @@ public class BooksController(AppDbContext db, TelegramService telegram, IWebHost
     {
         var query = db.BookStockMoves.AsNoTracking().AsQueryable();
         if (!string.IsNullOrWhiteSpace(bookId)) query = query.Where(m => m.BookId == bookId);
-        if (onlyIn) query = query.Where(m => m.Qty > 0);
+        // "Faqat kirim" — kitob QAYERDAN kelgani (nashriyot/boshlang'ich qoldiq). Sotuvdan
+        // QAYTARILGAN kitob ham qoldiqni oshiradi, lekin u kirim EMAS — bu ro'yxatga qo'shilsa
+        // "qancha kitob olib kelindi" hisoboti shishardi (to'liq tarixda u baribir ko'rinadi).
+        if (onlyIn) query = query.Where(m => m.Qty > 0 && m.Reason != BookSalesService.ReasonReturn);
         var (fromDt, toDt) = DateRange(from, to);
         if (fromDt is not null) query = query.Where(m => m.CreatedAt >= fromDt);
         if (toDt is not null) query = query.Where(m => m.CreatedAt < toDt);
@@ -258,9 +268,15 @@ public class BooksController(AppDbContext db, TelegramService telegram, IWebHost
         // Jamlanma — holat filtridan QAT'I NAZAR (foydalanuvchi "kutilmoqda"ni ko'rayotganda ham
         // kartaga jami qancha tushgani ko'rinib tursin).
         var summaryQuery = CardOrdersQuery(from, to, bookId, q);
+        // Summalar SOF: qaytarilgan kitobning puli mijozga qaytgan, ya'ni kartada qolmagan.
         var totals = await summaryQuery
             .GroupBy(o => o.Status)
-            .Select(g => new { Status = g.Key, Count = g.Count(), Sum = g.Sum(x => x.Total) })
+            .Select(g => new
+            {
+                Status = g.Key,
+                Count = g.Count(),
+                Sum = g.Sum(x => x.Total - x.UnitPrice * x.ReturnedQty),
+            })
             .ToListAsync();
         var byStatus = totals.ToDictionary(x => x.Status);
         (int Count, decimal Sum) Of(string s) =>
@@ -324,11 +340,16 @@ public class BooksController(AppDbContext db, TelegramService telegram, IWebHost
                                 || o.Number.ToString().Contains(term)).ToList();
     }
 
+    /// <summary>Ro'yxat filtridagi maxsus qiymat: HOLAT emas, "qaytarilgan sotuvlar" kesimi
+    /// (qaytarish buyurtma holatini o'zgartirmaydi — qarang: <see cref="BookSalesService.ReturnAsync"/>).</summary>
+    private const string StatusFilterReturned = "returned";
+
     private async Task<List<BookOrder>> FilteredOrdersAsync(
         string? status, string? from, string? to, string? bookId, string? method, string? q)
     {
         var query = db.BookOrders.AsNoTracking().AsQueryable();
-        if (!string.IsNullOrWhiteSpace(status)) query = query.Where(o => o.Status == status);
+        if (status == StatusFilterReturned) query = query.Where(o => o.ReturnedQty > 0);
+        else if (!string.IsNullOrWhiteSpace(status)) query = query.Where(o => o.Status == status);
         if (!string.IsNullOrWhiteSpace(bookId)) query = query.Where(o => o.BookId == bookId);
         if (!string.IsNullOrWhiteSpace(method)) query = query.Where(o => o.PaymentMethod == method);
         var (fromDt, toDt) = DateRange(from, to);
@@ -365,7 +386,9 @@ public class BooksController(AppDbContext db, TelegramService telegram, IWebHost
             BookSalesService.IsPaid(o),
             o.DueDate?.ToString("yyyy-MM-dd"),
             BookSalesService.IsOverdue(o, today),
-            o.PaidAt?.ToString("yyyy-MM-ddTHH:mm:ss"), o.PaidBy, o.SettledMethod)).ToList();
+            o.PaidAt?.ToString("yyyy-MM-ddTHH:mm:ss"), o.PaidBy, o.SettledMethod,
+            o.ReturnedQty, o.ReturnedAt?.ToString("yyyy-MM-ddTHH:mm:ss"), o.ReturnedBy,
+            o.ReturnReason, o.RefundedAmount, BookSalesService.NetTotal(o))).ToList();
     }
 
     /// <summary>Tab belgilari uchun sanoqlar: kutilayotgan buyurtmalar va to'lanmagan nasiyalar
@@ -373,9 +396,12 @@ public class BooksController(AppDbContext db, TelegramService telegram, IWebHost
     [HttpGet("orders/pending-count")]
     public async Task<ActionResult<object>> PendingCount()
     {
+        // TO'LIQ QAYTARILGAN nasiyada qarz qolmaydi — u navbat belgisida sanalmaydi
+        // (aks holda "3 ta qarz" deb ko'rsatib, ro'yxatda 2 tasi chiqardi).
         var unpaid = await db.BookOrders.AsNoTracking()
             .Where(o => o.PaymentMethod == BookSalesService.PayCredit
-                        && o.Status == BookSalesService.StatusApproved && o.PaidAt == null)
+                        && o.Status == BookSalesService.StatusApproved && o.PaidAt == null
+                        && o.ReturnedQty < o.Qty)
             .Select(o => o.DueDate)
             .ToListAsync();
         var today = AppClock.Now.Date;
@@ -432,6 +458,49 @@ public class BooksController(AppDbContext db, TelegramService telegram, IWebHost
 
         if (order.ChatId != 0)
             await telegram.SendMessageAsync(order.ChatId, BookSalesService.CustomerRejectedText(order));
+        return (await ToOrderDtosAsync(new List<BookOrder> { order }))[0];
+    }
+
+    /// <summary>
+    /// SOTILGAN KITOBNI QAYTARISH (vozvrat) — naqd, karta va nasiya sotuvlarining hammasi uchun.
+    /// Ikki narsa birdan to'g'rilanadi: <b>ombor</b> (dona qoldiqqa qaytadi) va <b>pul</b>
+    /// (sotuv summasidan qaytarilgan qismi ayiriladi, ya'ni tushum/qarz sof bo'lib qoladi).
+    ///
+    /// <para>Qisman qaytarish mumkin: 3 dona sotilib, 1 tasi qaytarilsa qolgan 2 tasi sotuvda
+    /// qoladi. To'lanmagan NASIYADA pul chiqmaydi — shunchaki qarz kamayadi.</para>
+    /// </summary>
+    [HttpPost("orders/{id}/return")]
+    public async Task<ActionResult<BookOrderDto>> Return(string id, BookReturnPayload payload)
+    {
+        var order = await db.BookOrders.FirstOrDefaultAsync(o => o.Id == id);
+        if (order is null) return NotFound();
+
+        // Pul qaytdimi yoki qarz kamaydimi — SERVIS o'zgartirishidan OLDIN aniqlanadi
+        // (audit yozuvi va mijozga ketadigan xabar aynan shu farqni aytishi kerak).
+        var refund = BookSalesService.RefundFor(order, payload.Qty);
+
+        var error = await BookSalesService.ReturnAsync(
+            db, order, payload.Qty, payload.Reason ?? "", Actor);
+        if (error is not null) return BadRequest(new { message = error });
+
+        // DIQQAT: ReturnAsync O'ZI SaveChanges qiladi — audit yozuvi alohida saqlanadi
+        // (aks holda u bazaga umuman tushmasdi).
+        audit.Record("BookOrder", order.Id, "update",
+            $"Kitob qaytarildi: {order.BookTitle} x {payload.Qty} dona (buyurtma #{order.Number}" +
+            (order.CustomerName.Length > 0 ? $", {order.CustomerName}" : "") + ") — " +
+            (refund > 0
+                ? $"{AuditService.Money(refund)} so'm qaytarildi"
+                : BookSalesService.IsCredit(order)
+                    ? $"qarz {AuditService.Money(order.UnitPrice * payload.Qty)} so'mga kamaydi"
+                    : "pul qaytarilmadi (olinmagan edi)") +
+            (string.IsNullOrWhiteSpace(payload.Reason) ? "" : $", sabab: {payload.Reason!.Trim()}"),
+            studentId: order.StudentId);
+        await db.SaveChangesAsync();
+
+        // Qo'lda sotilgan buyurtmada Telegram chat yo'q (ChatId=0) — xabar yuborilmaydi.
+        if (order.ChatId != 0)
+            await telegram.SendMessageAsync(
+                order.ChatId, BookSalesService.CustomerReturnedText(order, payload.Qty, refund));
         return (await ToOrderDtosAsync(new List<BookOrder> { order }))[0];
     }
 
@@ -630,7 +699,9 @@ public class BooksController(AppDbContext db, TelegramService telegram, IWebHost
                         && o.Status == BookSalesService.StatusApproved);
 
         // JORIY QARZ — filtrlardan QAT'I NAZAR (bo'limning asosiy raqami har doim ko'rinib tursin).
-        var unpaid = await credits.Where(o => o.PaidAt == null)
+        // TO'LIQ QAYTARILGANLAR CHIQARIB TASHLANADI: kitob omborga qaytgan, olinadigan pul ham
+        // qolmagan — bunday yozuv qarzdorlar ro'yxatida turishi noto'g'ri bo'lardi.
+        var unpaid = await credits.Where(o => o.PaidAt == null && o.ReturnedQty < o.Qty)
             .OrderBy(o => o.DueDate == null).ThenBy(o => o.DueDate).ThenBy(o => o.CreatedAt)
             .ToListAsync();
         var overdue = unpaid.Where(o => BookSalesService.IsOverdue(o, today)).ToList();
@@ -640,7 +711,8 @@ public class BooksController(AppDbContext db, TelegramService telegram, IWebHost
         var paidQuery = ApplySearch(credits.Where(o => o.PaidAt != null), q);
         if (fromDt is not null) paidQuery = paidQuery.Where(o => o.PaidAt >= fromDt);
         if (toDt is not null) paidQuery = paidQuery.Where(o => o.PaidAt < toDt);
-        var collected = await paidQuery.SumAsync(o => (decimal?)o.Total) ?? 0m;
+        // SOF summa — qaytarilgan kitobning puli mijozga qaytarilgan (yoki umuman olinmagan).
+        var collected = await paidQuery.SumAsync(o => (decimal?)(o.Total - o.UnitPrice * o.ReturnedQty)) ?? 0m;
         var collectedCount = await paidQuery.CountAsync();
 
         // QARZDORLAR — to'lanmaganlarning TO'LIQ ro'yxatidan (qidiruv bunga ta'sir qilmaydi:
@@ -653,7 +725,8 @@ public class BooksController(AppDbContext db, TelegramService telegram, IWebHost
                 g.Select(x => x.CustomerName).FirstOrDefault(n => !string.IsNullOrWhiteSpace(n)) ?? "",
                 g.Select(x => x.Phone).FirstOrDefault(p => !string.IsNullOrWhiteSpace(p)) ?? "",
                 g.Count(),
-                g.Sum(x => x.Total),
+                // Qarz SOF: qisman qaytarilgan nasiyada faqat mijozda qolgan kitoblar puli.
+                g.Sum(BookSalesService.NetTotal),
                 g.Min(x => x.DecidedAt ?? x.CreatedAt).ToString("yyyy-MM-dd"),
                 g.Any(x => BookSalesService.IsOverdue(x, today))))
             .OrderByDescending(d => d.HasOverdue).ThenByDescending(d => d.Total)
@@ -664,8 +737,8 @@ public class BooksController(AppDbContext db, TelegramService telegram, IWebHost
             : SearchInMemory(unpaid, q);
 
         return new BookCreditsDto(
-            unpaid.Sum(o => o.Total), unpaid.Count,
-            overdue.Sum(o => o.Total), overdue.Count,
+            unpaid.Sum(BookSalesService.NetTotal), unpaid.Count,
+            overdue.Sum(BookSalesService.NetTotal), overdue.Count,
             collected, collectedCount,
             debtors,
             await ToOrderDtosAsync(list));
@@ -750,19 +823,26 @@ public class BooksController(AppDbContext db, TelegramService telegram, IWebHost
 
         // Sotuv sanasi = tasdiqlangan vaqt (qo'lda sotuvda = sotuv payti), bo'lmasa yaratilgan vaqt.
         static DateTime SoldAt(BookOrder o) => o.DecidedAt ?? o.CreatedAt;
+
+        // ⚠️ BARCHA SOTUV RAQAMLARI SOF — qaytarilgan kitoblar ayirilgan
+        // (`BookSalesService.NetQty` / `NetTotal`). Qaytarish o'zi SOTILGAN KUNGA yoziladi:
+        // "shu kuni nima sotildi" savoliga qaytarilgan kitob bilan javob berish noto'g'ri bo'lardi.
+        // Kassadan pul QACHON chiqqani esa alohida raqam (`RefundedInPeriod`, qaytarish sanasi bo'yicha).
         static decimal SumOf(IEnumerable<BookOrder> src, string method) =>
-            src.Where(x => x.PaymentMethod == method).Sum(x => x.Total);
+            src.Where(x => x.PaymentMethod == method).Sum(BookSalesService.NetTotal);
 
         var byDay = approved
             .GroupBy(o => SoldAt(o).ToString("yyyy-MM-dd"))
             .OrderBy(g => g.Key)
             .Select(g => new BookDaySalesDto(
                 g.Key,
-                g.Sum(x => x.Qty),
+                g.Sum(BookSalesService.NetQty),
                 SumOf(g, BookSalesService.PayCash),
                 SumOf(g, BookSalesService.PayCard),
                 SumOf(g, BookSalesService.PayCredit),
-                g.Sum(x => x.Total)))
+                g.Sum(BookSalesService.NetTotal),
+                g.Sum(x => x.ReturnedQty),
+                g.Sum(BookSalesService.ReturnedAmount)))
             .ToList();
 
         // HAR KUNI QAYSI KITOB SOTILDI — kun × kitob kesimi (eng yangi kun yuqorida).
@@ -770,7 +850,8 @@ public class BooksController(AppDbContext db, TelegramService telegram, IWebHost
             .GroupBy(o => new { Date = SoldAt(o).ToString("yyyy-MM-dd"), o.BookId, o.BookTitle })
             .Select(g => new BookDayBookSalesDto(
                 g.Key.Date, g.Key.BookId, g.Key.BookTitle,
-                g.Sum(x => x.Qty), g.Sum(x => x.Total), g.Count()))
+                g.Sum(BookSalesService.NetQty), g.Sum(BookSalesService.NetTotal), g.Count(),
+                g.Sum(x => x.ReturnedQty)))
             .OrderByDescending(x => x.Date).ThenByDescending(x => x.Qty).ThenBy(x => x.BookTitle)
             .ToList();
 
@@ -778,10 +859,12 @@ public class BooksController(AppDbContext db, TelegramService telegram, IWebHost
         var sales = approved
             .OrderByDescending(SoldAt)
             .Take(MaxSalesFeed)
+            // Lentada XOM (sotuv paytidagi) dona/summa turadi — bu hodisalar tarixi; qaytarilgan
+            // qismi alohida ustunda ko'rinadi va qatordan "Qaytarish" qilinadi.
             .Select(o => new BookSaleRowDto(
                 o.Id, o.Number, SoldAt(o).ToString("yyyy-MM-ddTHH:mm:ss"),
                 o.BookId, o.BookTitle, o.Qty, o.Total, o.CustomerName,
-                o.PaymentMethod, BookSalesService.IsPaid(o), o.Source))
+                o.PaymentMethod, BookSalesService.IsPaid(o), o.Source, o.ReturnedQty))
             .ToList();
 
         // NASIYA — davr ichida sotilganlari (sotuv sanasi bo'yicha).
@@ -791,7 +874,9 @@ public class BooksController(AppDbContext db, TelegramService telegram, IWebHost
         // qarzning bir qismini yashirib qo'yish "hozir qancha qarz bor" savolini buzardi.
         var unpaidCredits = await db.BookOrders.AsNoTracking()
             .Where(o => o.PaymentMethod == BookSalesService.PayCredit
-                        && o.Status == BookSalesService.StatusApproved && o.PaidAt == null)
+                        && o.Status == BookSalesService.StatusApproved && o.PaidAt == null
+                        // To'liq qaytarilganda qarz qolmaydi (Nasiya bo'limi bilan bir xil qoida).
+                        && o.ReturnedQty < o.Qty)
             .ToListAsync();
         var overdueCredits = unpaidCredits.Where(o => BookSalesService.IsOverdue(o, today)).ToList();
 
@@ -801,13 +886,23 @@ public class BooksController(AppDbContext db, TelegramService telegram, IWebHost
             .Where(o => o.PaymentMethod == BookSalesService.PayCredit && o.PaidAt != null);
         if (fromDt is not null) collectedQuery = collectedQuery.Where(o => o.PaidAt >= fromDt);
         if (toDt is not null) collectedQuery = collectedQuery.Where(o => o.PaidAt < toDt);
-        var creditCollected = await collectedQuery.SumAsync(o => (decimal?)o.Total) ?? 0m;
+        var creditCollected =
+            await collectedQuery.SumAsync(o => (decimal?)(o.Total - o.UnitPrice * o.ReturnedQty)) ?? 0m;
         var creditCollectedCount = await collectedQuery.CountAsync();
+
+        // QAYTARISH — davr ICHIDA kassadan chiqqan pul (QAYTARISH sanasi bo'yicha: o'tgan oyda
+        // sotilgan kitob shu oyda qaytarilishi mumkin, pul esa shu oyda chiqqan).
+        var refundQuery = db.BookOrders.AsNoTracking().Where(o => o.ReturnedAt != null);
+        if (fromDt is not null) refundQuery = refundQuery.Where(o => o.ReturnedAt >= fromDt);
+        if (toDt is not null) refundQuery = refundQuery.Where(o => o.ReturnedAt < toDt);
+        var refundedInPeriod = await refundQuery.SumAsync(o => (decimal?)o.RefundedAmount) ?? 0m;
+        var refundedCount = await refundQuery.CountAsync();
 
         var byBook = approved
             .GroupBy(o => new { o.BookId, o.BookTitle })
             .Select(g => new BookSalesByBookDto(
-                g.Key.BookId, g.Key.BookTitle, g.Sum(x => x.Qty), g.Sum(x => x.Total),
+                g.Key.BookId, g.Key.BookTitle,
+                g.Sum(BookSalesService.NetQty), g.Sum(BookSalesService.NetTotal),
                 stockById.GetValueOrDefault(g.Key.BookId, 0)))
             .OrderByDescending(x => x.Qty)
             .ToList();
@@ -818,7 +913,10 @@ public class BooksController(AppDbContext db, TelegramService telegram, IWebHost
             .Select(b => new BookSalesByBookDto(b.Id, b.Title, 0, 0m, b.Stock))
             .ToList();
 
-        var movesQuery = db.BookStockMoves.AsNoTracking().Where(m => m.Qty > 0);
+        // "Davr ichida kirim" — nashriyotdan olingan/boshlang'ich qoldiq. QAYTARILGAN kitob ham
+        // qoldiqni oshiradi, lekin u kirim EMAS (aks holda raqam sotuv qaytgani hisobiga shishardi).
+        var movesQuery = db.BookStockMoves.AsNoTracking()
+            .Where(m => m.Qty > 0 && m.Reason != BookSalesService.ReasonReturn);
         if (fromDt is not null) movesQuery = movesQuery.Where(m => m.CreatedAt >= fromDt);
         if (toDt is not null) movesQuery = movesQuery.Where(m => m.CreatedAt < toDt);
         var stockIn = await movesQuery.SumAsync(m => (int?)m.Qty) ?? 0;
@@ -828,10 +926,10 @@ public class BooksController(AppDbContext db, TelegramService telegram, IWebHost
             OrdersApproved: approved.Count,
             OrdersPending: orders.Count(o => o.Status == BookSalesService.StatusPending),
             OrdersRejected: orders.Count(o => o.Status == BookSalesService.StatusRejected),
-            SoldQty: approved.Sum(o => o.Qty),
+            SoldQty: approved.Sum(BookSalesService.NetQty),
             RevenueCash: SumOf(approved, BookSalesService.PayCash),
             RevenueCard: SumOf(approved, BookSalesService.PayCard),
-            RevenueTotal: approved.Sum(o => o.Total),
+            RevenueTotal: approved.Sum(BookSalesService.NetTotal),
             StockTotal: books.Sum(b => b.Stock),
             StockInQty: stockIn,
             ByDay: byDay,
@@ -840,15 +938,21 @@ public class BooksController(AppDbContext db, TelegramService telegram, IWebHost
             ByDayBook: byDayBook,
             Sales: sales,
             SalesTruncated: approved.Count > MaxSalesFeed,
-            CreditSold: creditSold.Sum(o => o.Total),
+            CreditSold: creditSold.Sum(BookSalesService.NetTotal),
             CreditSoldCount: creditSold.Count,
-            CreditSoldPaid: creditSold.Where(o => o.PaidAt != null).Sum(o => o.Total),
-            CreditOutstanding: unpaidCredits.Sum(o => o.Total),
+            CreditSoldPaid: creditSold.Where(o => o.PaidAt != null).Sum(BookSalesService.NetTotal),
+            CreditOutstanding: unpaidCredits.Sum(BookSalesService.NetTotal),
             CreditOutstandingCount: unpaidCredits.Count,
-            CreditOverdue: overdueCredits.Sum(o => o.Total),
+            CreditOverdue: overdueCredits.Sum(BookSalesService.NetTotal),
             CreditOverdueCount: overdueCredits.Count,
             CreditCollected: creditCollected,
-            CreditCollectedCount: creditCollectedCount);
+            CreditCollectedCount: creditCollectedCount,
+            // Davr SOTUVLARIDAN qaytarilgani (yuqoridagi sof raqamlar shu qadar kamaygan).
+            ReturnedQty: approved.Sum(o => o.ReturnedQty),
+            ReturnedTotal: approved.Sum(BookSalesService.ReturnedAmount),
+            // Davr ICHIDA kassadan qaytarilgan pul (qaytarish sanasi bo'yicha).
+            RefundedInPeriod: refundedInPeriod,
+            RefundedCount: refundedCount);
     }
 
     // =============================================================================================
@@ -896,6 +1000,8 @@ public class BooksController(AppDbContext db, TelegramService telegram, IWebHost
         "№", "Sana", "Mijoz", "Telefon", "O'quvchi", "Kitob", "Soni",
         "Narx", "Summa", "To'lov turi", "To'lov holati", "Muddat", "To'landi",
         "Holat", "Sabab", "Qaror vaqti", "Qaror qildi",
+        // QAYTARISH: "Sof summa" = Summa − qaytarilganlar qiymati (hisobotlarda AYNAN shu).
+        "Qaytarilgan (dona)", "Qaytarilgan sana", "Qaytarish sababi", "Qaytarilgan pul", "Sof summa",
     ];
 
     private static IEnumerable<IReadOnlyList<string>> OrderRows(IEnumerable<BookOrderDto> dtos) =>
@@ -919,6 +1025,11 @@ public class BooksController(AppDbContext db, TelegramService telegram, IWebHost
             o.RejectReason,
             o.DecidedAt?.Replace('T', ' ') ?? "",
             o.DecidedBy,
+            o.ReturnedQty > 0 ? o.ReturnedQty.ToString() : "",
+            o.ReturnedAt?.Replace('T', ' ') ?? "",
+            o.ReturnReason,
+            o.RefundedAmount > 0 ? AuditService.Money(o.RefundedAmount) : "",
+            AuditService.Money(o.NetTotal),
         });
 
     /// <summary>Ombor harakatlari (kirim tarixi) — .xlsx.</summary>
@@ -955,7 +1066,10 @@ public class BooksController(AppDbContext db, TelegramService telegram, IWebHost
             new[] { "Tasdiqlangan buyurtmalar", a.OrdersApproved.ToString() },
             new[] { "Kutilayotgan buyurtmalar", a.OrdersPending.ToString() },
             new[] { "Rad etilgan buyurtmalar", a.OrdersRejected.ToString() },
-            new[] { "Sotilgan kitob (dona)", a.SoldQty.ToString() },
+            new[] { "Sotilgan kitob (dona, SOF)", a.SoldQty.ToString() },
+            new[] { "Qaytarilgan (dona)", a.ReturnedQty.ToString() },
+            new[] { "Qaytarilgan (so'm)", AuditService.Money(a.ReturnedTotal) },
+            new[] { "Davr ichida qaytarilgan pul (so'm)", AuditService.Money(a.RefundedInPeriod) },
             new[] { "Sotuv — Naqd (so'm)", AuditService.Money(a.RevenueCash) },
             new[] { "Sotuv — Karta (so'm)", AuditService.Money(a.RevenueCard) },
             new[] { "Sotuv — Nasiya (so'm)", AuditService.Money(a.CreditSold) },
@@ -974,20 +1088,23 @@ public class BooksController(AppDbContext db, TelegramService telegram, IWebHost
         {
             new ExcelExport.SheetSpec("Umumiy", new[] { "Ko'rsatkich", "Qiymat" }, summary),
             new ExcelExport.SheetSpec("Kunlik",
-                new[] { "Sana", "Dona", "Naqd", "Karta", "Nasiya", "Jami" },
+                new[] { "Sana", "Dona", "Naqd", "Karta", "Nasiya", "Jami", "Qaytarilgan (dona)", "Qaytarilgan (so'm)" },
                 a.ByDay.Select(d => (IReadOnlyList<string>)new[]
                 {
                     d.Date, d.Qty.ToString(), AuditService.Money(d.Cash),
                     AuditService.Money(d.Card), AuditService.Money(d.Credit),
                     AuditService.Money(d.Total),
+                    d.ReturnedQty > 0 ? d.ReturnedQty.ToString() : "",
+                    d.ReturnedTotal > 0 ? AuditService.Money(d.ReturnedTotal) : "",
                 })),
             // "Har kuni qaysi kitob sotildi" — bo'limning asosiy so'rovi (kun × kitob).
             new ExcelExport.SheetSpec("Kunlik kitoblar",
-                new[] { "Sana", "Kitob", "Dona", "Summa", "Sotuvlar" },
+                new[] { "Sana", "Kitob", "Dona", "Summa", "Sotuvlar", "Qaytarilgan" },
                 a.ByDayBook.Select(d => (IReadOnlyList<string>)new[]
                 {
                     d.Date, d.BookTitle, d.Qty.ToString(),
                     AuditService.Money(d.Total), d.Orders.ToString(),
+                    d.ReturnedQty > 0 ? d.ReturnedQty.ToString() : "",
                 })),
             new ExcelExport.SheetSpec("Kitoblar",
                 new[] { "Kitob", "Sotilgan (dona)", "Tushum", "Joriy qoldiq" },
@@ -1062,6 +1179,7 @@ public class BooksController(AppDbContext db, TelegramService telegram, IWebHost
         BookSalesService.ReasonInitial => "Boshlang'ich qoldiq",
         BookSalesService.ReasonRestock => "Kirim",
         BookSalesService.ReasonSale => "Sotuv",
+        BookSalesService.ReasonReturn => "Qaytarish",
         BookSalesService.ReasonCorrection => "Korreksiya",
         _ => reason,
     };
