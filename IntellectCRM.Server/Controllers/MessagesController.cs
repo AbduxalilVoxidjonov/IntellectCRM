@@ -18,7 +18,8 @@ namespace IntellectCRM.Server.Controllers;
 [AdminPerm("messages")]
 [Route("api/admin/messages")]
 public class MessagesController(
-    AppDbContext db, ChatService chat, TelegramService telegram, FcmService fcm, EskizService eskiz, CtiSmsService ctiSms) : ControllerBase
+    AppDbContext db, ChatService chat, TelegramService telegram, FcmService fcm, EskizService eskiz,
+    SmsQueueService smsQueue) : ControllerBase
 {
     private string Uid => User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "";
 
@@ -527,6 +528,22 @@ public class MessagesController(
             b.CreatedAt.ToString("o"), b.RecipientCount, b.SentCount, b.Provider)).ToList();
     }
 
+    /// <summary>
+    /// Ommaviy (fonda ketayotgan) partiyaning JONLI holati — modal "Yuborilmoqda: 12/300" deb ko'rsatadi.
+    /// Avval xotiradagi navbat holati o'qiladi; u yerda bo'lmasa (ilova qayta ishga tushgan yoki partiya
+    /// ancha oldin tugagan) bazadagi yozuvlardan tiklanadi va tugagan deb qaytariladi.
+    /// </summary>
+    [HttpGet("sms/{id}/progress")]
+    public async Task<ActionResult<SmsProgressDto>> SmsProgress(string id)
+    {
+        if (smsQueue.Get(id) is { } live)
+            return new SmsProgressDto(id, live.Total, live.Done, live.Sent, live.Finished);
+        var batch = await db.SmsBatches.AsNoTracking().FirstOrDefaultAsync(b => b.Id == id);
+        if (batch is null) return NotFound();
+        var done = await db.SmsLogs.CountAsync(l => l.BatchId == id);
+        return new SmsProgressDto(id, batch.RecipientCount, done, batch.SentCount, true);
+    }
+
     /// <summary>Bitta SMS partiyasi bo'yicha raqamlar va yetkazib berish holati.</summary>
     [HttpGet("sms/{id}/logs")]
     public async Task<ActionResult<IEnumerable<SmsLogDto>>> SmsLogs(string id)
@@ -668,51 +685,49 @@ public class MessagesController(
         if (await ValidateLocalSmsAsync(provider, req.AgentId, meta) is { } localErr)
             return BadRequest(new { message = localErr });
 
-        var callbackUrl = $"{Request.Scheme}://{Request.Host}/api/sms/callback";
-        var batchId = Guid.NewGuid().ToString();
-        var sent = 0;
-        var logs = new List<SmsLog>();
-        foreach (var t in targets)
-        {
-            if (provider == "local")
-            {
-                var lr = await ctiSms.SendSmsAsync(db, req.AgentId, t.Phone, t.Message, t.Name, batchId, HttpContext.RequestAborted);
-                if (lr.Ok) sent++;
-                // CtiSmsService allaqachon SmsLog yozdi (Provider=local) — qayta yozmaymiz.
-                continue;
-            }
-            var r = await eskiz.SendSmsAsync(db, t.Phone, t.Message, callbackUrl);
-            if (r.Ok) sent++;
-            logs.Add(new SmsLog
-            {
-                BatchId = batchId,
-                PhoneNumber = EskizService.NormalizePhone(t.Phone),
-                RecipientName = t.Name,
-                Message = t.Message,
-                RequestId = r.RequestId,
-                Status = r.Ok ? r.Status : (r.Error ?? "error"),
-            });
-        }
-        db.SmsLogs.AddRange(logs);
-
         var user = await db.Users.FindAsync(Uid);
+        return await StartBatchAsync(
+            label, text, targets.Select(t => new SmsQueueService.Target(t.Phone, t.Name, t.Message)).ToList(),
+            provider, req.AgentId, user?.FullName ?? "Administrator");
+    }
+
+    /// <summary>
+    /// SMS partiyasini BOSHLAYDI: <see cref="SmsBatch"/>ni darhol yozadi (tarixda o'sha zahoti ko'rinadi),
+    /// so'ng kichik bo'lsa shu yerda yuboradi, katta bo'lsa <see cref="SmsQueueService"/> navbatiga qo'yadi.
+    ///
+    /// <para>⚠️ Ommaviy yuborishni so'rov ichida qilib bo'lmaydi: har SMS alohida ketadi (Eskiz — HTTP
+    /// so'rov, Local — sozlangan kutish), 100 ta oluvchi bir necha daqiqa oladi, Cloudflare esa javobni
+    /// 100 soniyagina kutadi va ulanishni uzadi ("Yuborishda xatolik" — aslida SMS'lar ketayotgan bo'ladi).</para>
+    /// </summary>
+    private async Task<SmsBatchDto> StartBatchAsync(
+        string label, string text, List<SmsQueueService.Target> queueTargets,
+        string provider, string? agentId, string senderName, string? leadNote = null)
+    {
         var batch = new SmsBatch
         {
-            Id = batchId,
+            Id = Guid.NewGuid().ToString(),
             Audience = label,
             Message = text,
             SenderUserId = Uid,
-            SenderName = user?.FullName ?? "Administrator",
+            SenderName = senderName,
             CreatedAt = AppClock.Now,
-            RecipientCount = targets.Count,
-            SentCount = sent,
+            RecipientCount = queueTargets.Count,
+            SentCount = 0,
             Provider = provider,
         };
         db.SmsBatches.Add(batch);
         await db.SaveChangesAsync();
 
+        var callbackUrl = $"{Request.Scheme}://{Request.Host}/api/sms/callback";
+        var job = new SmsQueueService.Job(
+            batch.Id, provider, agentId, callbackUrl, queueTargets, leadNote, senderName);
+
+        var queued = SmsQueueService.ShouldQueue(queueTargets.Count);
+        if (queued) smsQueue.Enqueue(job);
+        else await smsQueue.RunInlineAsync(db, job);   // SentCount'ni o'zi yangilab saqlaydi
+
         return new SmsBatchDto(batch.Id, batch.Audience, batch.Message, batch.SenderName,
-            batch.CreatedAt.ToString("o"), batch.RecipientCount, batch.SentCount, batch.Provider);
+            batch.CreatedAt.ToString("o"), batch.RecipientCount, batch.SentCount, batch.Provider, queued);
     }
 
     /// <summary>
@@ -781,17 +796,14 @@ public class MessagesController(
 
     // ---------- Lidga SMS yuborish ----------
 
-    private enum LeadSmsOutcome { Sent, Failed, NoPhone }
-
-    /// <summary>Bitta lidga SMS: token render (sinov darsi jadvali bilan), Eskiz yoki Local orqali
-    /// yuborish, SmsLog + LeadEvent (timeline) yozish. SaveChanges CHAQIRUVCHIDA. Telefon: Phone→Father→Mother.</summary>
-    private async Task<LeadSmsOutcome> SendOneLeadSmsAsync(
-        Lead lead, string text, string batchId, string centerName, string actorName,
-        string provider = "eskiz", string? agentId = null)
+    /// <summary>Lid uchun SMS matnini tayyorlaydi (token render — sinov darsi jadvali bilan) va
+    /// navbat oluvchisini qaytaradi. Telefon: Phone→Father→Mother; raqami yo'q lid uchun null.
+    /// YUBORMAYDI — yuborish <see cref="SmsQueueService"/> orqali (lid tarixi ham o'sha yerda yoziladi).</summary>
+    private async Task<SmsQueueService.Target?> BuildLeadTargetAsync(Lead lead, string text, string centerName)
     {
         var phone = !string.IsNullOrWhiteSpace(lead.Phone) ? lead.Phone
             : !string.IsNullOrWhiteSpace(lead.FatherPhone) ? lead.FatherPhone : lead.MotherPhone;
-        if (string.IsNullOrWhiteSpace(phone)) return LeadSmsOutcome.NoPhone;
+        if (string.IsNullOrWhiteSpace(phone)) return null;
 
         // {dars_sana}/{dars_vaqti} uchun — lidning eng so'nggi sinov darsi (avval "pending"ini olamiz).
         var trial = await db.TrialLessons.Where(t => t.LeadId == lead.Id && t.Result == "pending")
@@ -804,33 +816,12 @@ public class MessagesController(
         var trialTeacher = await MessageTokenizer.GroupTeacherNameAsync(db, trialGroup);
         var msg = MessageTokenizer.Lead(text, lead, phone, centerName,
             group: trialGroup, trialAt: trial?.ScheduledAt, teacherName: trialTeacher);
-
-        bool ok;
-        if (provider == "local")
-        {
-            var lr = await ctiSms.SendSmsAsync(db, agentId, phone, msg, lead.FullName, batchId, HttpContext.RequestAborted);
-            ok = lr.Ok;
-            // CtiSmsService allaqachon SmsLog yozdi (Provider=local) — qayta yozmaymiz.
-        }
-        else
-        {
-            var callbackUrl = $"{Request.Scheme}://{Request.Host}/api/sms/callback";
-            var r = await eskiz.SendSmsAsync(db, phone, msg, callbackUrl);
-            ok = r.Ok;
-            db.SmsLogs.Add(new SmsLog
-            {
-                BatchId = batchId, PhoneNumber = EskizService.NormalizePhone(phone), RecipientName = lead.FullName,
-                Message = msg, RequestId = r.RequestId, Status = r.Ok ? r.Status : (r.Error ?? "error"),
-            });
-        }
-        // Lid tarixiga yozamiz (timeline).
-        db.LeadEvents.Add(new LeadEvent
-        {
-            LeadId = lead.Id, Type = "note", ActorName = actorName, CreatedAt = AppClock.Iso(),
-            Text = "SMS yuborildi: " + (text.Length > 140 ? text[..140] + "…" : text),
-        });
-        return ok ? LeadSmsOutcome.Sent : LeadSmsOutcome.Failed;
+        return new SmsQueueService.Target(phone, lead.FullName, msg, lead.Id);
     }
+
+    /// <summary>Lid tarixiga (timeline) yoziladigan izoh matni — yuborilgandan keyin navbat yozadi.</summary>
+    private static string LeadSmsNote(string text) =>
+        "SMS yuborildi: " + (text.Length > 140 ? text[..140] + "…" : text);
 
     [HttpPost("sms/lead")]
     public async Task<ActionResult<SmsBatchDto>> SendLeadSms(SendLeadSmsRequest req)
@@ -847,22 +838,11 @@ public class MessagesController(
             return BadRequest(new { message = localErr });
 
         var user = await db.Users.FindAsync(Uid);
-        var batchId = Guid.NewGuid().ToString();
-        var outcome = await SendOneLeadSmsAsync(
-            lead, text, batchId, meta?.Name ?? "", user?.FullName ?? "Admin", provider, req.AgentId);
-        if (outcome == LeadSmsOutcome.NoPhone) return BadRequest(new { message = "Lidda telefon raqami yo'q" });
+        var target = await BuildLeadTargetAsync(lead, text, meta?.Name ?? "");
+        if (target is null) return BadRequest(new { message = "Lidda telefon raqami yo'q" });
 
-        var batch = new SmsBatch
-        {
-            Id = batchId, Audience = $"Lid: {lead.FullName}", Message = text, SenderUserId = Uid,
-            SenderName = user?.FullName ?? "Administrator", CreatedAt = AppClock.Now,
-            RecipientCount = 1, SentCount = outcome == LeadSmsOutcome.Sent ? 1 : 0,
-            Provider = provider,
-        };
-        db.SmsBatches.Add(batch);
-        await db.SaveChangesAsync();
-        return new SmsBatchDto(batch.Id, batch.Audience, batch.Message, batch.SenderName,
-            batch.CreatedAt.ToString("o"), batch.RecipientCount, batch.SentCount, batch.Provider);
+        return await StartBatchAsync($"Lid: {lead.FullName}", text, [target],
+            provider, req.AgentId, user?.FullName ?? "Administrator", LeadSmsNote(text));
     }
 
     /// <summary>Bir nechta lidga birdan SMS — har lidga sms/lead bilan bir xil mantiq
@@ -884,31 +864,27 @@ public class MessagesController(
 
         var leads = await db.Leads.Where(l => ids.Contains(l.Id)).ToListAsync();
         var user = await db.Users.FindAsync(Uid);
-        var actorName = user?.FullName ?? "Admin";
         var centerName = meta?.Name ?? "";
-        var batchId = Guid.NewGuid().ToString();
 
-        int sent = 0, failed = 0, noPhone = 0;
+        // Avval matnlar tayyorlanadi (faqat baza) — yuborishning O'ZI navbat orqali.
+        var targets = new List<SmsQueueService.Target>();
+        var noPhone = 0;
         foreach (var lead in leads)
         {
-            switch (await SendOneLeadSmsAsync(lead, text, batchId, centerName, actorName, provider, req.AgentId))
-            {
-                case LeadSmsOutcome.Sent: sent++; break;
-                case LeadSmsOutcome.NoPhone: noPhone++; break;
-                default: failed++; break;
-            }
+            if (await BuildLeadTargetAsync(lead, text, centerName) is { } t) targets.Add(t);
+            else noPhone++;
         }
-        failed += ids.Count - leads.Count; // topilmagan id'lar
+        var notFound = ids.Count - leads.Count;
+        if (targets.Count == 0) return new LeadBulkSmsResultDto(0, notFound, noPhone);
 
-        db.SmsBatches.Add(new SmsBatch
-        {
-            Id = batchId, Audience = $"Lidlar (ommaviy): {leads.Count} ta", Message = text,
-            SenderUserId = Uid, SenderName = user?.FullName ?? "Administrator", CreatedAt = AppClock.Now,
-            RecipientCount = leads.Count, SentCount = sent,
-            Provider = provider,
-        });
-        await db.SaveChangesAsync();
-        return new LeadBulkSmsResultDto(sent, failed, noPhone);
+        var batch = await StartBatchAsync($"Lidlar (ommaviy): {targets.Count} ta", text, targets,
+            provider, req.AgentId, user?.FullName ?? "Administrator", LeadSmsNote(text));
+
+        // Fonda ketayotgan bo'lsa natija hali noma'lum — modal navbat holatini ko'rsatadi.
+        return batch.Queued
+            ? new LeadBulkSmsResultDto(0, notFound, noPhone, true, targets.Count, batch.Id)
+            : new LeadBulkSmsResultDto(batch.SentCount, notFound + (targets.Count - batch.SentCount), noPhone,
+                false, 0, batch.Id);
     }
 
 }

@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Send, AlertTriangle, Check } from 'lucide-react'
 import type { Lead, Stage } from '@/types'
 import {
   getSmsStatus,
   getPickableTemplates,
   sendLeadSmsBulk,
+  watchSmsProgress,
   type SmsProvider,
   type PickableTemplate,
   type LeadBulkSmsResult,
@@ -39,6 +40,14 @@ export function LeadBulkSmsModal({ open, onClose, leads, stages }: Props) {
   const [sending, setSending] = useState(false)
   const [result, setResult] = useState<LeadBulkSmsResult | null>(null)
   const [error, setError] = useState('')
+  /** Fonda ketayotgan partiyani kuzatishni to'xtatuvchi. */
+  const stopWatchRef = useRef<(() => void) | null>(null)
+  useEffect(() => {
+    if (open) return
+    stopWatchRef.current?.()
+    stopWatchRef.current = null
+  }, [open])
+  useEffect(() => () => stopWatchRef.current?.(), [])
 
   useEffect(() => {
     if (!open) return
@@ -100,6 +109,15 @@ export function LeadBulkSmsModal({ open, onClose, leads, stages }: Props) {
     try {
       const r = await sendLeadSmsBulk(targets.map((l) => l.id), text.trim(), { provider, agentId: agentId || undefined })
       setResult(r)
+      // Ko'p lid — SMS'lar FONDA ketmoqda. Jonli holatni kuzatamiz (oyna yopilsa ham yuborish davom etadi).
+      if (r.queued && r.batchId) {
+        stopWatchRef.current?.()
+        stopWatchRef.current = watchSmsProgress(r.batchId, (p) =>
+          setResult((prev) =>
+            prev ? { ...prev, sent: p.sent, queued: !p.finished, queuedCount: p.total - p.done } : prev,
+          ),
+        )
+      }
     } catch (e) {
       setError(
         (e as { response?: { data?: { message?: string } } })?.response?.data?.message ??
@@ -198,12 +216,21 @@ export function LeadBulkSmsModal({ open, onClose, leads, stages }: Props) {
 
         {error && <p className="text-sm font-medium text-red-600">{error}</p>}
         {result && (
-          <div className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-sm">
-            <span className="inline-flex items-center gap-1 font-medium text-emerald-700">
-              <Check className="h-4 w-4" /> Yuborildi: {result.sent}
-            </span>
-            <span className="font-medium text-red-600">Xato: {result.failed}</span>
-            <span className="font-medium text-amber-600">Telefonsiz: {result.noPhone}</span>
+          <div className="space-y-1 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-sm">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="inline-flex items-center gap-1 font-medium text-emerald-700">
+                <Check className="h-4 w-4" /> Yuborildi: {result.sent}
+              </span>
+              {!result.queued && <span className="font-medium text-red-600">Xato: {result.failed}</span>}
+              <span className="font-medium text-amber-600">Telefonsiz: {result.noPhone}</span>
+            </div>
+            {result.queued && (
+              // Ko'p lid — fonda yuborilmoqda: oynani yopsa ham to'xtamaydi.
+              <p className="text-slate-600">
+                Navbatda: <b>{result.queuedCount}</b> — yuborish fonda davom etmoqda, oynani yopsangiz
+                ham to'xtamaydi (natija «Xabarlar → Tarix»da).
+              </p>
+            )}
           </div>
         )}
       </div>

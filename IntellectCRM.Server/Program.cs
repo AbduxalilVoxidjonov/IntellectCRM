@@ -345,6 +345,12 @@ builder.Services.AddSingleton<CtiConnectionManager>();
 // MessagesController/AutoMessageService/CtiController tomonidan ishlatiladi.
 builder.Services.AddSingleton<CtiSmsService>();
 
+// OMMAVIY SMS NAVBATI — ko'p oluvchili partiya so'rov ichida emas, FONDA yuboriladi (Cloudflare
+// javobni 100 s kutadi, 100 ta SMS esa bir necha daqiqa oladi). Singleton + fon ishchisi bir xil
+// nusxa: controller unga navbatga qo'yadi, ishchi esa bittalab yuboradi.
+builder.Services.AddSingleton<SmsQueueService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<SmsQueueService>());
+
 // O'zgarishlar tarixi (audit) — joriy foydalanuvchini aniqlash uchun HttpContext kerak
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IntellectCRM.Application.Services.AuditService>();

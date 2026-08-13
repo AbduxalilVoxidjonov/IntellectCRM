@@ -141,6 +141,25 @@ paths:
   `AutoMessageRule.SmsProvider` — har qoida mustaqil Eskiz/Local tanlaydi (`AutoMessageSmsSender` —
   umumiy yordamchi, provider bo'yicha branch qiladi, `SmsLog`/`SmsBatch` yozadi).
 
+- **OMMAVIY SMS — SO'ROV ICHIDA EMAS, FONDA** (`SmsQueueService`, Application/Services; singleton +
+  `AddHostedService`). SMS'lar bittalab ketadi: Eskiz'da har raqamga alohida HTTP so'rov (~0.5–1.5 s),
+  Local'da esa yuborishlar orasida `LocalSmsDelaySeconds` kutish (agent oflayn bo'lsa yana ~6 s
+  "uyg'otish"). 100 oluvchi = bir necha daqiqa, **Cloudflare Tunnel esa javobni 100 soniya kutadi** va
+  uzadi → brauzerda "Yuborishda xatolik", SMS'lar esa aslida ketayotgan bo'ladi.
+  • Controller (`MessagesController.StartBatchAsync` — `sms/send`, `sms/lead`, `sms/lead-bulk` uchun
+    YAGONA joy) oluvchilar ro'yxatini yig'adi, `SmsBatch` ni DARHOL yozadi (tarixda o'sha zahoti
+    ko'rinadi) va navbatga qo'yadi;
+  • `InlineLimit` (3) gacha bo'lgan partiya avvalgidek so'rov ichida ketadi — bitta o'quvchi/lidga
+    yuborishda admin natijani darhol ko'radi;
+  • ⚠️ **HAR SMS'dan keyin saqlanadi** (`SmsLog` + `SmsBatch.SentCount`). Ilgari barcha `SmsLog`
+    faqat siklning OXIRIDA saqlanardi: ulanish uzilsa (`HttpContext.RequestAborted`) sikl o'lar,
+    **pul ketgan, SMS borgan, tarix esa bo'sh** qolardi — admin xatoni ko'rib qayta yuborardi;
+  • holat: `GET sms/{id}/progress` — avval xotiradagi navbatdan, u yerda bo'lmasa (ilova qayta ishga
+    tushgan) bazadagi `SmsLog` sonidan tiklanadi. Frontendda `watchSmsProgress` (har 2 s) — modal
+    "Yuborilmoqda: 12/300" deb ko'rsatadi va oyna yopilsa ham yuborish davom etadi;
+  • lid tarixi (`LeadEvent`) ham navbatda yoziladi — `Job.LeadNote` + `Target.LeadId`.
+  Testlar: `IntellectCRM.Tests/SmsQueueTests.cs`.
+
 - **To'lov eslatmasi:** mavjud `MessagesController` broadcast `OnlyDebtors=true` (Telegram +
   `{qarzdorlik}` tokenlari). Avtomatik (hisob yaratilganda) trigger — hali yo'q (kelajak).
 

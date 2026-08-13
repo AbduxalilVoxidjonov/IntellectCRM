@@ -1,6 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Send, AlertTriangle, Check, ChevronDown, Search } from 'lucide-react'
-import { getSmsStatus, getPickableTemplates, sendSms, type SmsProvider, type PickableTemplate } from '@/api/services/messages'
+import {
+  getSmsStatus, getPickableTemplates, sendSms, watchSmsProgress,
+  type SmsProvider, type PickableTemplate,
+} from '@/api/services/messages'
 import { getMessageTokens } from '@/api/services/autoMessages'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
@@ -73,6 +76,8 @@ export function SmsModal({ open, onClose, recipients }: Props) {
   const [tokens, setTokens] = useState<TokenDef[]>([])
   const [sending, setSending] = useState(false)
   const [result, setResult] = useState<string | null>(null)
+  /** Fonda ketayotgan partiyani kuzatishni to'xtatuvchi (oyna yopilganda chaqiriladi). */
+  const stopWatchRef = useRef<(() => void) | null>(null)
 
   // ---- Oluvchilar filtri ----
   /** Tanlangan holatlar; bo'sh = hammasi. */
@@ -103,6 +108,14 @@ export function SmsModal({ open, onClose, recipients }: Props) {
       .then((ts) => setTokens(ts.filter((t) => t.group !== 'lead')))
       .catch(() => setTokens([]))
   }, [open])
+
+  // Oyna yopilganda (yoki komponent yo'q qilinganda) fon partiyasi kuzatuvini to'xtatamiz.
+  useEffect(() => {
+    if (open) return
+    stopWatchRef.current?.()
+    stopWatchRef.current = null
+  }, [open])
+  useEffect(() => () => stopWatchRef.current?.(), [])
 
   const multi = recipients.length > 1
 
@@ -189,11 +202,23 @@ export function SmsModal({ open, onClose, recipients }: Props) {
         provider,
         agentId: agentId || undefined,
       })
-      setResult(
-        b.recipientCount === 0
-          ? 'Raqamli oluvchi topilmadi — hech kimga yuborilmadi.'
-          : `SMS yuborildi: ${b.sentCount}/${b.recipientCount} raqamga.`,
-      )
+      if (b.recipientCount === 0) {
+        setResult('Raqamli oluvchi topilmadi — hech kimga yuborilmadi.')
+      } else if (b.queued) {
+        // Ko'p oluvchi: SMS'lar FONDA ketmoqda (so'rov ichida kutilsa proksi ulanishni uzardi).
+        // Oynani yopsa ham yuborish davom etadi — natija "Xabarlar → Tarix"da.
+        setResult(`Yuborilmoqda: 0/${b.recipientCount} — oynani yopsangiz ham davom etadi.`)
+        stopWatchRef.current?.()
+        stopWatchRef.current = watchSmsProgress(b.id, (p) =>
+          setResult(
+            p.finished
+              ? `SMS yuborildi: ${p.sent}/${p.total} raqamga.`
+              : `Yuborilmoqda: ${p.done}/${p.total} — oynani yopsangiz ham davom etadi.`,
+          ),
+        )
+      } else {
+        setResult(`SMS yuborildi: ${b.sentCount}/${b.recipientCount} raqamga.`)
+      }
     } catch (e) {
       setResult(
         (e as { response?: { data?: { message?: string } } })?.response?.data?.message ??

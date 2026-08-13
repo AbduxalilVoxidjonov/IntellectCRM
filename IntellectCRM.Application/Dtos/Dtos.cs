@@ -1662,10 +1662,14 @@ public record PushConfirmationDto(string Name, string Group, bool Confirmed, str
 /// </summary>
 public record SendSmsRequest(string Audience, string? ClassName, bool OnlyDebtors, List<string>? StudentIds, string Text,
     bool ToParent = true, List<string>? TeacherIds = null, string? Provider = null, string? AgentId = null);
-/// <summary>Yuborilgan SMS partiyasi (tarix). CreatedAt — ISO. Provider: eskiz|local.</summary>
+/// <summary>Yuborilgan SMS partiyasi (tarix). CreatedAt — ISO. Provider: eskiz|local.
+/// <paramref name="Queued"/> — partiya FONDA yuborilmoqda (ko'p oluvchi): SentCount hali 0, holatni
+/// <c>GET sms/{id}/progress</c> dan kuzatiladi. Qarang: <c>SmsQueueService</c>.</summary>
 public record SmsBatchDto(
     string Id, string Audience, string Message, string SenderName, string CreatedAt,
-    int RecipientCount, int SentCount, string Provider);
+    int RecipientCount, int SentCount, string Provider, bool Queued = false);
+/// <summary>Ommaviy SMS partiyasining jonli holati: jami / ishlangan / yuborilgan + tugaganmi.</summary>
+public record SmsProgressDto(string Id, int Total, int Done, int Sent, bool Finished);
 /// <summary>Bitta SMS jurnali (raqam bo'yicha) — partiya tafsilotida ko'rsatiladi. Provider: eskiz|local.</summary>
 public record SmsLogDto(string Id, string PhoneNumber, string RecipientName, string Status, string CreatedAt, string Provider);
 /// <summary>SMS holati — admin UI uchun: Eskiz sozlangan/sender/balans + Local SMS yoqilganmi/standart agent.</summary>
@@ -1678,8 +1682,11 @@ public record SaveSmsTemplateRequest(string Name, string Text);
 public record SendLeadSmsRequest(string LeadId, string Text, string? Provider = null, string? AgentId = null);
 /// <summary>Bir nechta lidga birdan SMS yuborish so'rovi.</summary>
 public record SendLeadBulkSmsRequest(List<string> LeadIds, string Text, string? Provider = null, string? AgentId = null);
-/// <summary>Ommaviy lid SMS natijasi: yuborildi / xato / raqamsiz lidlar soni.</summary>
-public record LeadBulkSmsResultDto(int Sent, int Failed, int NoPhone);
+/// <summary>Ommaviy lid SMS natijasi: yuborildi / xato / raqamsiz lidlar soni.
+/// <paramref name="Queued"/> — partiya FONDA yuborilmoqda (u holda Sent hali 0 va
+/// <paramref name="QueuedCount"/> ta lid navbatda; holat <c>sms/{BatchId}/progress</c> dan o'qiladi).</summary>
+public record LeadBulkSmsResultDto(
+    int Sent, int Failed, int NoPhone, bool Queued = false, int QueuedCount = 0, string? BatchId = null);
 /// <summary>Eskiz callback (yetkazib berish holati webhook'i) tanasi.</summary>
 public record EskizCallbackDto(string? request_id, string? message_id, string? phone_number, string? status, string? status_date);
 /// <summary>SMS (Eskiz) sozlamasi holati. Login/parol .env dan (qiymat qaytmaydi) — faqat

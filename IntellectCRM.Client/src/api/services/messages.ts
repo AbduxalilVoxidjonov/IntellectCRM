@@ -155,6 +155,19 @@ export interface SmsBatch {
   sentCount: number
   /** Yuborish manbai: "eskiz" (default) | "local" (CTI agent telefonidan). */
   provider: string
+  /**
+   * Partiya FONDA yuborilmoqda (ko'p oluvchi) — `sentCount` hali 0. Holatni `watchSmsProgress`
+   * bilan kuzatiladi. Sabab: 100 ta SMS bir necha daqiqa oladi, so'rov esa ~100 soniyada uziladi.
+   */
+  queued?: boolean
+}
+/** Ommaviy partiyaning jonli holati (fonda yuborilayotgan SMS'lar). */
+export interface SmsProgress {
+  id: string
+  total: number
+  done: number
+  sent: number
+  finished: boolean
 }
 export interface SmsLog {
   id: string
@@ -217,6 +230,39 @@ export async function getSmsLogs(id: string): Promise<SmsLog[]> {
 export async function sendSms(req: SendSmsReq): Promise<SmsBatch> {
   const { data } = await api.post<SmsBatch>('/admin/messages/sms/send', req)
   return data
+}
+
+/** Fonda ketayotgan partiyaning holati. */
+export async function getSmsProgress(id: string): Promise<SmsProgress> {
+  const { data } = await api.get<SmsProgress>(`/admin/messages/sms/${id}/progress`)
+  return data
+}
+
+/**
+ * Fonda ketayotgan partiyani tugaguncha kuzatadi (har 2 soniyada). Qaytgan funksiya kuzatuvni
+ * to'xtatadi — oyna yopilganda/komponent yo'q qilinganda CHAQIRISH SHART.
+ * Xato bo'lsa to'xtamaydi (tarmoq uzilishi vaqtinchalik bo'lishi mumkin), keyingi urinishda davom etadi.
+ */
+export function watchSmsProgress(id: string, onTick: (p: SmsProgress) => void): () => void {
+  let stopped = false
+  let timer: ReturnType<typeof setTimeout>
+  const tick = async () => {
+    if (stopped) return
+    try {
+      const p = await getSmsProgress(id)
+      if (stopped) return
+      onTick(p)
+      if (p.finished) return
+    } catch {
+      /* keyingi urinishda davom etamiz */
+    }
+    timer = setTimeout(tick, 2000)
+  }
+  timer = setTimeout(tick, 1200)
+  return () => {
+    stopped = true
+    clearTimeout(timer)
+  }
 }
 
 /** "Tanlab" SMS uchun oluvchi (o'quvchi). Telefon yo'q bo'lsa null. */
@@ -342,6 +388,10 @@ export interface LeadBulkSmsResult {
   sent: number
   failed: number
   noPhone: number
+  /** Partiya FONDA yuborilmoqda — `sent` hali 0, `queuedCount` ta lid navbatda. */
+  queued?: boolean
+  queuedCount?: number
+  batchId?: string | null
 }
 /** Bir nechta lidga SMS yuborish (har biriga o'z raqamiga, tokenlar lidga moslab to'ldiriladi). */
 export async function sendLeadSmsBulk(

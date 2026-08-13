@@ -12,6 +12,7 @@ import {
   sendSms,
   sendPush,
   sendBroadcast,
+  watchSmsProgress,
   type SmsProvider,
   type SmsRecipient,
   type SmsTeacherRecipient,
@@ -103,6 +104,9 @@ export function UnifiedComposer({
   // Yuborish
   const [sending, setSending] = useState(false)
   const [results, setResults] = useState<{ channel: string; ok: boolean; text: string }[]>([])
+  /** Fonda ketayotgan SMS partiyasi kuzatuvini to'xtatuvchi (sahifadan chiqilganda). */
+  const stopSmsWatch = useRef<(() => void) | null>(null)
+  useEffect(() => () => stopSmsWatch.current?.(), [])
 
   useEffect(() => {
     Promise.all([getSmsStatus(), getPushStatus(), getTelegramStatus()])
@@ -247,6 +251,8 @@ export function UnifiedComposer({
     setSending(true)
     setResults([])
     const out: { channel: string; ok: boolean; text: string }[] = []
+    /** Fonda ketayotgan SMS partiyasi (bo'lsa) — natija chizilgandan keyin kuzatiladi. */
+    let queuedSmsBatchId: string | null = null
 
     // --- SMS ---
     if (channels.sms) {
@@ -269,7 +275,13 @@ export function UnifiedComposer({
           provider: smsProvider,
           agentId: smsAgentId || undefined,
         })
-        out.push({ channel: 'SMS', ok: true, text: `yuborildi ${b.sentCount}/${b.recipientCount}` })
+        if (b.queued) {
+          // Ko'p oluvchi — SMS'lar FONDA ketmoqda (so'rov ichida kutilsa proksi uzib qo'yardi).
+          out.push({ channel: 'SMS', ok: true, text: `yuborilmoqda 0/${b.recipientCount}` })
+          queuedSmsBatchId = b.id
+        } else {
+          out.push({ channel: 'SMS', ok: true, text: `yuborildi ${b.sentCount}/${b.recipientCount}` })
+        }
       } catch (e) {
         out.push({ channel: 'SMS', ok: false, text: errMsg(e) })
       }
@@ -336,6 +348,18 @@ export function UnifiedComposer({
     }
 
     setResults(out)
+    if (queuedSmsBatchId) {
+      stopSmsWatch.current?.()
+      stopSmsWatch.current = watchSmsProgress(queuedSmsBatchId, (p) =>
+        setResults((prev) =>
+          prev.map((r) =>
+            r.channel === 'SMS'
+              ? { ...r, text: p.finished ? `yuborildi ${p.sent}/${p.total}` : `yuborilmoqda ${p.done}/${p.total}` }
+              : r,
+          ),
+        ),
+      )
+    }
     const successfulChannels = out.filter((result) => result.ok).map((result) => result.channel.toLowerCase())
     if (successfulChannels.length > 0) {
       posthog.capture('message_campaign_sent', {
