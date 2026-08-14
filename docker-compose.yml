@@ -81,6 +81,11 @@ services:
       MoiZvonki__UserName: "${MOIZVONKI_USERNAME:-}"
       MoiZvonki__ApiKey: "${MOIZVONKI_API_KEY:-}"
       MoiZvonki__WebhookSecret: "${MOIZVONKI_WEBHOOK_SECRET:-}"
+      # Instagram AI agenti (Marketing) — ikkalasi ham MAXFIY. Bo'sh bo'lsa modul FAIL-CLOSED:
+      # Meta'ning webhook tasdig'i ham (GET), hodisalari ham (POST) 403 bilan rad etiladi.
+      # Qolgan Instagram sozlamalari (App ID, bayroqlar) — bazada, UI'dan. marketing-instagram.md §7.
+      Instagram__AppSecret: "${INSTAGRAM_APP_SECRET:-}"
+      Instagram__VerifyToken: "${INSTAGRAM_VERIFY_TOKEN:-}"
       # YUZ BILAN KIRISH — vektorlarni bazada shifrlash kaliti (MAXFIY, base64 32 bayt).
       # Bo'sh bo'lsa modul UMUMAN ishlamaydi (startupda ogohlantirish logi). DEPLOY.md §2.1.
       Face__VectorKey: "${FACE_VECTOR_KEY:-}"

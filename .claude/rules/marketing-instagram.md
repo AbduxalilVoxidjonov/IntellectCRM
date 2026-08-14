@@ -147,6 +147,16 @@ paydo bo'ladi.
 faqat holat qaytaradi: `appIdSet`, `appSecretSet`, `verifyTokenSet`, `tokenDaysLeft`,
 `connected`. Qiymatning o'zi emas.
 
+⚠️ **`.env` ga yozish YETARLI EMAS** (2026-08-14 da aynan shu tufayli modul ulanmagan edi):
+prod `app` servisida `env_file` YO'Q, shuning uchun kalit `docker-compose.yml` dagi
+`environment:` ro'yxatiga ham qo'yilishi SHART (`Instagram__AppSecret` / `Instagram__VerifyToken`).
+Bo'lmasa `AppSecrets` bo'sh qiymat o'qiydi va webhook fail-closed bo'lib **403** qaytaradi —
+tashqaridan bu "Meta tasdiqlamayapti" bo'lib ko'rinadi. `EnvKeysWiringTests` shuni qulflaydi.
+
+⚠️ **Meta konsolida webhook maydoni ham «Callback URL» deb ataladi** — u yerga
+`…/api/public/instagram/**webhook**` qo'yiladi. `…/callback` — bu OAuth qaytish manzili, faqat
+"Valid OAuth Redirect URIs" uchun; webhook maydoniga qo'yilsa Meta 302 oladi va tasdiqlamaydi.
+
 **Token hayoti:** uzoq token ~60 kun; `InstagramWorkerService` kuniga bir marta tekshiradi
 va muddatiga **< 15 kun** qolganda (`IgConst.TokenRefreshDays = 45`) yangilaydi.
 Muvaffaqiyatsiz bo'lsa — **Telegram alert**, jim yiqilmaydi.

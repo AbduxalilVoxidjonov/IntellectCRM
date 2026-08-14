@@ -14,8 +14,11 @@ docker compose up -d --build    # app + postgres + cloudflared + backup + mediam
   `TUNNEL_TOKEN` (tunnel `80531fd7`).
 - **KALITLAR faqat `.env` da** (bazada saqlanmaydi, UI'dan kiritilmaydi — `AppSecrets`):
   `TELEGRAM_BOT_TOKEN`, `FCM_SERVICE_ACCOUNT_JSON`, `GEMINI_API_KEY`, `AZURE_SPEECH_KEY/REGION`,
-  `ESKIZ_EMAIL/PASSWORD`, `TURNSTILE_USERNAME/PASSWORD`, `MOIZVONKI_*`. O'zgartirgach
-  `docker compose up -d`. Eski (kalitlar bazada bo'lgan) o'rnatishdan yangilashda — DEPLOY.md §2.1
+  `ESKIZ_EMAIL/PASSWORD`, `TURNSTILE_USERNAME/PASSWORD`, `MOIZVONKI_*`,
+  `INSTAGRAM_APP_SECRET/VERIFY_TOKEN`. O'zgartirgach `docker compose up -d`.
+  ⚠️ **Yangi kalit qo'shsangiz `docker-compose.yml` dagi `app` → `environment:` ga HAM qo'shing** —
+  `app` servisida `env_file` YO'Q, ya'ni faqat `.env` ga yozilgan qiymat konteynerga UMUMAN
+  yetib bormaydi va modul jimgina "sozlanmagan" bo'lib qoladi (`EnvKeysWiringTests` shuni qulflaydi). Eski (kalitlar bazada bo'lgan) o'rnatishdan yangilashda — DEPLOY.md §2.1
   (migratsiya ustunlarni o'chiradi; qiymatlar startup logida `.env` qatorlari bo'lib chiqadi).
 - **DB:** PostgreSQL 16 (alpine). Server'da **>=1GB RAM** (+swap tavsiya). Baza `intellectcrm`.
   Volume `postgres-data`.
