@@ -78,9 +78,20 @@ solishtiradi.
 
 ✅ **Qanday tekshiriladi:** manzil ro'yxatda saqlangan holda turibdi.
 
-❌ **Xato bo'lsa:** ulash paytida `Invalid redirect_uri` chiqadi → 99% hollarda oxirgi `/`
-yoki `http`/`https` farqi. Meta'dagi qatorni CRM Sozlamalar sahifasidagi "Callback URL"
-maydonidan **nusxa olib** qo'ying.
+⚠️ **JOYI ham muhim.** Manzil AYNAN *Instagram → API setup with Instagram login* →
+**Business login settings** ichiga yoziladi. Meta konsolida yana ikkita o'xshash joy bor va
+ular bu oqimga **umuman ta'sir qilmaydi**:
+*Facebook Login → Settings → Valid OAuth Redirect URIs* va *App settings → Basic → App Domains*.
+Manzil o'sha yerlarga yozilgan bo'lsa, saqlangandek ko'rinadi, lekin `Invalid redirect_uri`
+baribir chiqaveradi.
+
+❌ **Xato bo'lsa:** ulash paytida `Invalid redirect_uri` chiqadi → sabablari kamayish
+tartibida: (1) noto'g'ri joyga yozilgan (yuqoridagi ⚠️), (2) oxirgi `/`, (3) `http`/`https`
+farqi, (4) domen xato. Meta'dagi qatorni CRM Sozlamalar sahifasidagi "OAuth callback URL"
+maydonidan **nusxa olib** qo'ying — qo'lda termang.
+
+🔍 **Qanday tekshiriladi:** xato chiqqan sahifaning manzil satridagi `redirect_uri=` qiymatini
+ko'ring (`%3A%2F%2F` → `://`) va Meta'dagi qator bilan harfma-harf solishtiring.
 
 ---
 
