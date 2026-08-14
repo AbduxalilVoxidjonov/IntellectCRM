@@ -274,12 +274,12 @@ export function InstagramSettings() {
             <MkCopyRow
               label="Webhook URL"
               value={status.webhookUrl}
-              hint="Meta konsolida «Callback URL» sifatida ko'rsatiladi."
+              hint="Meta → Webhooks → «Callback URL» maydoniga AYNAN shu manzil (…/webhook) qo'yiladi. Pastdagi OAuth manzili emas!"
             />
             <MkCopyRow
               label="OAuth callback URL"
               value={status.callbackUrl}
-              hint="Meta konsolidagi «Valid OAuth Redirect URIs» ro'yxatiga aynan shu manzil qo'shiladi."
+              hint="FAQAT «Valid OAuth Redirect URIs» ro'yxati uchun. Webhook maydoniga bu manzil YARAMAYDI."
             />
           </div>
         </div>
