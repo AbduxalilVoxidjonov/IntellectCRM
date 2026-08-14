@@ -220,6 +220,9 @@ export function InstagramSettings() {
               placeholder="masalan: 1234567890123456"
             />
             <div className="field-hint">
+              Meta konsolida <b>Instagram → API setup with Instagram login</b> → 3-bo'limdagi
+              raqam. ⚠️ Ilova tepasidagi (App settings → Basic) <b>Meta App ID</b> EMAS —
+              u kiritilsa Instagram «Invalid platform app» xatosini beradi.
               Maxfiy emas — OAuth havolasida baribir ochiq ko'rinadi. Saqlanmaguncha
               «Instagram akkauntni ulash» tugmasi ishlamaydi.
             </div>

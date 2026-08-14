@@ -290,6 +290,7 @@ yig'ilmaydi, kim bilan bo'lishiladi va qanday o'chiriladi.
 | Webhook "Verify and save" qizil | Verify token mos emas · manzil tashqaridan ochiq emas · HTTP | 5-qadam |
 | «Ulash» tugmasi o'chiq | App ID / App Secret / Verify token to'ldirilmagan yoki saqlanmagan | 3–4-qadam |
 | `Invalid redirect_uri` | Meta'dagi manzil aynan mos emas (oxirgi `/`) | 2-qadam |
+| `Invalid platform app` | **App ID noto'g'ri turdagi.** Ilova sahifasining tepasidagi / *App settings → Basic* dagi **Meta App ID** kiritilgan, holbuki bu oqim **Instagram App ID** ni talab qiladi — u boshqa raqam va faqat *Instagram → API setup with Instagram login* → 3-bo'limda turadi. Yoki "API setup with **Facebook** login" yo'li tanlangan | 1-qadam |
 | Bot umuman javob bermayapti | Modul o'chiq · avtojavob bayrog'i o'chiq · Gemini kaliti yo'q · webhook obunasi yo'q · token muddati o'tgan | Sozlamalar → diagnostika kartochkasi |
 | Navbatda `pending` to'planib qolgan | `InstagramEnabled=false` (worker ishlamayapti) yoki xato | `GET /events` — xatolar matni bilan ko'rinadi |
 | Bot **o'ziga** javob berayapti 🚨 | Saqlangan akkaunt ID lari bo'sh | **Darhol modulni o'chiring** va qaytadan «Ulash» qiling |
