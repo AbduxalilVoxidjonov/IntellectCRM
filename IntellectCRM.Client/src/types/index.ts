@@ -1,4 +1,4 @@
-﻿// Tizimdagi barcha asosiy tiplar
+// Tizimdagi barcha asosiy tiplar
 
 // Sertifikat tiplari API qatlamida yozilgan (yagona manba) — bu yerda faqat qayta ishlatiladi.
 import type { TestCertificate } from '@/api/services/testCertificates'
@@ -994,6 +994,8 @@ export interface Group {
   teacherSalaryPercent?: number
   /** Qat'iy bo'lsa — shu guruh uchun o'qituvchiga beriladigan oylik summa (so'm) */
   teacherSalaryFixed?: number
+  /** Guruhdagi faol o'quvchilar soni */
+  studentCount?: number
 }
 
 /** Guruh a'zosi (many-to-many a'zolik) */
@@ -1660,6 +1662,8 @@ export interface MonthSalary {
   potentialExpected?: number
   /**
    * TUSHUM REJASI — o'qituvchining BARCHA guruhlarida shu oy uchun o'quvchilarga hisoblangan
+  /**
+   * TUSHUM REJASI — o'qituvchining BARCHA guruhlarida shu oy uchun o'quvchilarga hisoblangan
    * (chegirma ayrilgan) summa: "aslida qancha tushum bo'lishi kerak edi".
    * ⚠️ `charged` MAOSH bazasi (faqat foizli guruhlar), bu esa TUSHUM (hamma guruh).
    * Faqat admin endpointida to'ladi (`/admin/teachers/{id}/salary-ledger`).
@@ -1667,6 +1671,10 @@ export interface MonthSalary {
   tuitionCharged?: number
   /** Shu oy uchun haqiqatda yig'ilgan tushum (vozvrat ayrilgan) — barcha guruhlar bo'yicha. */
   tuitionCollected?: number
+  /** Shu oyda boshqa o'qituvchilar o'rniga o'rinbosar bo'lib o'tilgan darslar uchun qo'shimcha haq (so'm). */
+  substituteFee?: number
+  /** Shu oyda o'z guruhida o'rinbosar o'qituvchi dars o'tgani uchun chegirilgan summa (so'm). */
+  substituteDeduction?: number
 }
 
 /** Maosh hisobida bitta guruhning ulushi (davr bo'yicha) */
@@ -1685,6 +1693,10 @@ export interface GroupSalaryLine {
   periodCollected: number
   /** Shu guruh keltirgan hisoblangan maosh (davr bo'yicha) */
   periodExpected: number
+  /** Guruh bo'yicha o'rinbosarga berilgan summa (so'm) */
+  substituteDeduction?: number
+  /** O'rinbosar o'tgan darslar soni */
+  substitutedLessons?: number
 }
 
 /** O'qituvchi maoshi bo'yicha batafsil hisob (davr bo'yicha) */
@@ -2302,3 +2314,42 @@ export interface StudentTestResult {
   rank: number
   total: number
 }
+
+/** O'rinbosar o'qituvchi tayinlovi */
+export interface SubstituteTeacherAssignment {
+  id: string
+  groupId: string
+  groupName: string
+  originalTeacherId: string
+  originalTeacherName: string
+  substituteTeacherId: string
+  substituteTeacherName: string
+  date: string
+  endDate: string | null
+  reason: string
+  createdBy: string
+  createdAt: string
+  isActive: boolean
+  lessonCount?: number
+  estimatedSalary?: number
+  dates?: string[]
+  perLessonFee?: number
+}
+
+/** Yangi o'rinbosar o'qituvchi tayinlash so'rovi */
+export interface CreateSubstituteAssignmentPayload {
+  groupId: string
+  substituteTeacherId: string
+  dates?: string[]
+  date?: string
+  endDate?: string | null
+  reason?: string | null
+}
+
+/** Guruhning oydagi dars sanasi (modal uchun) */
+export interface GroupLessonDate {
+  date: string
+  dayName: string
+  isScheduled: boolean
+}
+

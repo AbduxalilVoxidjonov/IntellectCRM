@@ -6,19 +6,35 @@
   var modalBackdrop = document.getElementById('modalBackdrop');
   var modalClose = document.getElementById('modalClose');
   var openTriggers = document.querySelectorAll('[data-open-modal]');
+  var navToggle = document.getElementById('navToggle');
+  var navLinks = document.getElementById('navLinks');
+  var subjectSelect = document.getElementById('leadSubject');
 
-  function openModal(){
+  function openModal(selectedSubject){
+    if (selectedSubject && subjectSelect) {
+      for (var i = 0; i < subjectSelect.options.length; i++) {
+        if (subjectSelect.options[i].value === selectedSubject) {
+          subjectSelect.selectedIndex = i;
+          break;
+        }
+      }
+    }
     modalBackdrop.classList.add('show');
     document.body.style.overflow = 'hidden';
   }
+
   function closeModal(){
     modalBackdrop.classList.remove('show');
     document.body.style.overflow = '';
   }
 
   openTriggers.forEach(function(btn){
-    btn.addEventListener('click', openModal);
+    btn.addEventListener('click', function(){
+      var subj = btn.getAttribute('data-subject');
+      openModal(subj);
+    });
   });
+
   modalClose.addEventListener('click', closeModal);
   modalBackdrop.addEventListener('click', function(e){
     if (e.target === modalBackdrop) closeModal();
@@ -27,6 +43,39 @@
     if (e.key === 'Escape' && modalBackdrop.classList.contains('show')) closeModal();
   });
 
+  // Mobil menyu toggle
+  if (navToggle && navLinks) {
+    navToggle.addEventListener('click', function(){
+      navLinks.classList.toggle('show');
+    });
+
+    // Nav-link bosilganda mobil menyuni yopish
+    var links = navLinks.querySelectorAll('a');
+    links.forEach(function(link){
+      link.addEventListener('click', function(){
+        navLinks.classList.remove('show');
+      });
+    });
+  }
+
+  // FAQ Akordeon
+  var faqToggles = document.querySelectorAll('[data-faq-toggle]');
+  faqToggles.forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var item = btn.closest('.faq-item');
+      if (item) {
+        var isOpen = item.classList.contains('active');
+        document.querySelectorAll('.faq-item').forEach(function(fi){
+          fi.classList.remove('active');
+        });
+        if (!isOpen) {
+          item.classList.add('active');
+        }
+      }
+    });
+  });
+
+  // Brend ma'lumotlarini dinamik yuklash
   fetch('/api/public/brand').then(function(res){
     if (!res.ok) return null;
     return res.json();
@@ -37,7 +86,7 @@
       if (mark) mark.innerHTML = '<img src="' + brand.logoUrl + '" alt="logo">';
     }
     if (brand.name) {
-      ['brandName', 'brandNameCopy'].forEach(function(id){
+      ['brandName', 'brandNameCopy', 'brandNameFooter'].forEach(function(id){
         var el = document.getElementById(id);
         if (el) el.textContent = brand.name;
       });
@@ -54,9 +103,6 @@
   var submitBtn = document.getElementById('leadSubmitBtn');
   var nameInput = document.getElementById('leadName');
   var phoneInput = document.getElementById('leadPhone');
-  // Yo'nalish — BITTA tanlov (dropdown). Ilgari "chip"lar bilan bir nechtasini tanlash mumkin edi
-  // va ular vergul bilan birlashtirilib yuborilardi; endi ariza bitta yo'nalish bilan keladi.
-  var subjectSelect = document.getElementById('leadSubject');
 
   function showError(text){
     msgEl.textContent = text;
@@ -71,9 +117,7 @@
     return (str || '').replace(/\D/g, '');
   }
 
-  phoneInput.addEventListener('input', function(){
-    clearError();
-  });
+  phoneInput.addEventListener('input', clearError);
   nameInput.addEventListener('input', clearError);
 
   if (subjectSelect) subjectSelect.addEventListener('change', clearError);

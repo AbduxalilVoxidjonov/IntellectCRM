@@ -16,6 +16,7 @@ export function teacherTabs(canSeeReports: boolean): CardTabItem[] {
     // `end` — `/admin/teachers/attendance` ochilganda «Ro'yxati» ham faol bo'lib qolmasin
     { label: "Ro'yxati", to: '/admin/teachers', end: true },
     { label: 'Davomati', to: '/admin/teachers/attendance' },
+    { label: "O'rinbosarlar", to: '/admin/teachers/substitutions' },
     { label: 'Hisoboti', to: '/admin/teacher-reports', hidden: !canSeeReports },
   ]
 }

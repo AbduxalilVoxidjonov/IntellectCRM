@@ -1,4 +1,4 @@
-﻿# Secrets / environment (HECH QACHON git'ga tushmasin)
+# Secrets / environment (HECH QACHON git'ga tushmasin)
 .env
 *.env
 !.env.example
@@ -9,6 +9,7 @@
 [Dd]ebug/
 [Rr]elease/
 *.user
+.dotnet_temp/
 
 # dotnet test natijalari (coverlet .trx/.coverage)
 TestResults/

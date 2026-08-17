@@ -753,6 +753,37 @@ public class GroupTeacherAssignment
 }
 
 /// <summary>
+/// O'rinbosar o'qituvchi biriktiruvi — muayyan sana(lar)da guruhga asosiy o'qituvchi o'rniga
+/// vaqtincha boshqa o'qituvchi dars o'tishi uchun tayinlanadi.
+/// </summary>
+public class SubstituteTeacherAssignment
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    /// <summary>Guruh/Class ID (<see cref="Group.Id"/>).</summary>
+    public string GroupId { get; set; } = string.Empty;
+    /// <summary>Asosiy (doimiy) o'qituvchi ID (<see cref="Teacher.Id"/>).</summary>
+    public string OriginalTeacherId { get; set; } = string.Empty;
+    /// <summary>O'rinbosar (vaqtincha) o'qituvchi ID (<see cref="Teacher.Id"/>).</summary>
+    public string SubstituteTeacherId { get; set; } = string.Empty;
+    /// <summary>O'rinbosar dars o'tadigan sana ("YYYY-MM-DD").</summary>
+    public string Date { get; set; } = string.Empty;
+    /// <summary>Vaqtinchalik biriktirish tugash sanasi ("YYYY-MM-DD", bo'sh/null = faqat bitta kun Date).</summary>
+    public string? EndDate { get; set; }
+    /// <summary>Almashtirish sababi (masalan: "Kasal bo'lib qolgani sababli", "Ta'tilda").</summary>
+    public string Reason { get; set; } = string.Empty;
+    /// <summary>Biriktirishni yaratgan admin/xodim nomi.</summary>
+    public string CreatedBy { get; set; } = string.Empty;
+    /// <summary>Yaratgan admin/xodim foydalanuvchi ID (<see cref="AppUser.Id"/>).</summary>
+    public string? CreatedById { get; set; }
+    /// <summary>Yaratilgan vaqti.</summary>
+    public DateTime CreatedAt { get; set; } = AppClock.Now;
+    /// <summary>Biriktiruv faolmi (bekor qilinmaganmi).</summary>
+    public bool IsActive { get; set; } = true;
+    /// <summary>Tanlangan aniq dars sanalari ro'yxati (ISO "YYYY-MM-DD").</summary>
+    public List<string>? SelectedDates { get; set; } = new();
+}
+
+/// <summary>
 /// O'quvchi ↔ Guruh a'zoligi (M2M). Bir o'quvchi bir vaqtda bir nechta guruhda bo'lishi mumkin.
 /// JoinedAt — qo'shilish sanasi, LeftAt — chiqish sanasi (null = hozir ham a'zo).
 /// </summary>

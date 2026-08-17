@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using IntellectCRM.Domain;
 
 namespace IntellectCRM.Application.Abstractions;
@@ -21,6 +21,7 @@ public interface IAppDbContext
     DbSet<Subject> Subjects { get; }
     DbSet<Group> Classes { get; }
     DbSet<GroupTeacherAssignment> GroupTeacherAssignments { get; }
+    DbSet<SubstituteTeacherAssignment> SubstituteTeacherAssignments { get; }
     DbSet<RetentionBonusAward> RetentionBonusAwards { get; }
     DbSet<RetentionBonusShare> RetentionBonusShares { get; }
     DbSet<RetentionBonusTrack> RetentionBonusTracks { get; }

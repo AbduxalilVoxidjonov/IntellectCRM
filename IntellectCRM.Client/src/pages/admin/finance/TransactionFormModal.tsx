@@ -141,6 +141,24 @@ export function TransactionFormModal({ open, onClose, onSubmit, initial }: Props
     autoNoteRef.current = ''
   }, [open])
 
+  const [salaryType, setSalaryType] = useState<'all' | 'main' | 'substitute'>('all')
+
+  const handleSalaryTypeChange = (type: 'all' | 'main' | 'substitute') => {
+    setSalaryType(type)
+    if (!monthInfo) return
+    const subFee = monthInfo.substituteFee ?? 0
+    const teacherName = teachers.find((t) => t.id === form.teacherId)?.fullName ?? ''
+    const typeLabel = type === 'substitute' ? "O'rinbosarlik haqi" : type === 'main' ? 'Asosiy maosh' : 'Umumiy maosh'
+    const note = `Oylik maosh (${typeLabel}) — ${teacherName} (${formatMonth(monthInfo.month)})`
+
+    let amt = Math.max(0, monthInfo.remaining)
+    if (type === 'substitute') amt = subFee
+    else if (type === 'main') amt = Math.max(0, monthInfo.remaining - subFee)
+
+    setForm((f) => ({ ...f, amount: amt, note }))
+    autoNoteRef.current = note
+  }
+
   // Oylik maosh + o'qituvchi tanlanganda: shu oy uchun belgilangan/berilgan/qoldiq
   useEffect(() => {
     if (!open || !isSalaryExpense || !form.teacherId || !month) {
@@ -155,10 +173,15 @@ export function TransactionFormModal({ open, onClose, onSubmit, initial }: Props
       // Yangi amalda qoldiqni avtomatik summaga qo'yamiz
       if (!initial && m) {
         const teacherName = teachers.find((t) => t.id === form.teacherId)?.fullName ?? ''
-        const autoNote = `Oylik maosh — ${teacherName} (${formatMonth(month)})`
+        const typeLabel = salaryType === 'substitute' ? "O'rinbosarlik haqi" : salaryType === 'main' ? 'Asosiy maosh' : 'Umumiy maosh'
+        const autoNote = `Oylik maosh (${typeLabel}) — ${teacherName} (${formatMonth(month)})`
+        let amt = Math.max(0, m.remaining)
+        if (salaryType === 'substitute') amt = m.substituteFee ?? 0
+        else if (salaryType === 'main') amt = Math.max(0, m.remaining - (m.substituteFee ?? 0))
+
         setForm((f) => ({
           ...f,
-          amount: Math.max(0, m.remaining),
+          amount: amt,
           // Izoh bo'sh yoki oldingi AVTO izoh bo'lsa — tanlangan oyga qarab yangilanadi
           note: !f.note?.trim() || f.note === autoNoteRef.current ? autoNote : f.note,
         }))
@@ -169,7 +192,7 @@ export function TransactionFormModal({ open, onClose, onSubmit, initial }: Props
       active = false
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- teachers nomini faqat prefill uchun ishlatamiz
-  }, [open, isSalaryExpense, form.teacherId, month, initial])
+  }, [open, isSalaryExpense, form.teacherId, month, initial, salaryType])
 
   const update = <K extends keyof FinanceTransactionPayload>(
     key: K,
@@ -310,6 +333,23 @@ export function TransactionFormModal({ open, onClose, onSubmit, initial }: Props
                 maoshini 5-avgustda berish mumkin.
               </p>
             </div>
+
+            {form.teacherId && monthInfo && (monthInfo.substituteFee ?? 0) > 0 && (
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-600">Maosh turi</label>
+                <select
+                  value={salaryType}
+                  onChange={(e) => handleSalaryTypeChange(e.target.value as 'all' | 'main' | 'substitute')}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-brand-400"
+                >
+                  <option value="all">Umumiy (Asosiy + O'rinbosarlik)</option>
+                  <option value="main">Asosiy maosh</option>
+                  <option value="substitute">
+                    O'rinbosarlik haqi (+{formatMoney(monthInfo.substituteFee ?? 0)})
+                  </option>
+                </select>
+              </div>
+            )}
 
             {form.teacherId && monthInfo && (
               <div className="grid grid-cols-3 gap-2 text-center text-sm">

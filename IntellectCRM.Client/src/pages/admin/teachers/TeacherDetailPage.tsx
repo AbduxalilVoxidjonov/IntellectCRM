@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -16,6 +16,7 @@ import {
   Sparkles,
   MessageSquareQuote,
   Camera,
+  UserCheck,
 } from 'lucide-react'
 import type {
   Credentials,
@@ -206,34 +207,59 @@ export function TeacherDetailPage() {
       .finally(() => setSelMonthLoading(false))
   }
 
-  /** Maosh izohi — tanlangan OY bo'yicha (berilgan sana emas). */
-  const salaryNoteFor = (month: string) =>
-    teacher ? `Oylik maosh — ${teacher.fullName} (${formatMonth(month)})` : ''
+  const [payType, setPayType] = useState<'all' | 'main' | 'substitute'>('all')
+
+  /** Maosh izohi — tanlangan OY va TURI bo'yicha. */
+  const salaryNoteFor = (month: string, type: 'all' | 'main' | 'substitute' = 'all') => {
+    if (!teacher) return ''
+    const typeLabel = type === 'substitute' ? "O'rinbosarlik haqi" : type === 'main' ? 'Asosiy maosh' : 'Umumiy maosh'
+    return `Oylik maosh (${typeLabel}) — ${teacher.fullName} (${formatMonth(month)})`
+  }
 
   const openPayForm = () => {
     setPayMonth(selMonth)
     setPayInfo(selMonthData)
+    setPayType('all')
     setPayAmount(Math.max(0, selMonthData?.remaining ?? 0))
     setPayDate(new Date().toISOString().slice(0, 10))
-    setPayNote(salaryNoteFor(selMonth))
+    setPayNote(salaryNoteFor(selMonth, 'all'))
     setPayError(null)
     setPayOpen(true)
+  }
+
+  const handlePayTypeChange = (type: 'all' | 'main' | 'substitute') => {
+    setPayType(type)
+    setPayNote(salaryNoteFor(payMonth, type))
+    if (!payInfo) return
+    const subFee = payInfo.substituteFee ?? 0
+    if (type === 'substitute') {
+      setPayAmount(subFee)
+    } else if (type === 'main') {
+      setPayAmount(Math.max(0, payInfo.remaining - subFee))
+    } else {
+      setPayAmount(Math.max(0, payInfo.remaining))
+    }
   }
 
   /** Formada oy o'zgarganda — o'sha oyning qoldig'i va izohi ham yangilanadi. */
   const changePayMonth = (month: string) => {
     setPayMonth(month)
-    setPayNote(salaryNoteFor(month))
+    setPayNote(salaryNoteFor(month, payType))
     if (!id || !month) return
     setPayInfoLoading(true)
     getSalaryMonth(id, month)
       .then((m) => {
         setPayInfo(m)
-        setPayAmount(Math.max(0, m?.remaining ?? 0))
+        const subFee = m?.substituteFee ?? 0
+        if (payType === 'substitute') {
+          setPayAmount(subFee)
+        } else if (payType === 'main') {
+          setPayAmount(Math.max(0, (m?.remaining ?? 0) - subFee))
+        } else {
+          setPayAmount(Math.max(0, m?.remaining ?? 0))
+        }
       })
       .catch(() => {
-        // Summani ham nolga tushiramiz: aks holda oy almashtirilib so'rov muvaffaqiyatsiz
-        // bo'lsa, forma OLDINGI oyning qoldig'ini YANGI oyga yozib yuborardi.
         setPayInfo(null)
         setPayAmount(0)
       })
@@ -1056,6 +1082,32 @@ export function TeacherDetailPage() {
                     </div>
                   </div>
                 </div>
+
+                {/* 3) O'rinbosarlik haqi (bo'lsa — bu o'qituvchi o'rinbosar bo'lgan) */}
+                {selMonthData && (selMonthData.substituteFee ?? 0) > 0 && (
+                  <div className="flex items-center justify-between rounded-lg border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-xs text-emerald-800 font-medium">
+                    <span className="flex items-center gap-2">
+                      <UserCheck className="h-4 w-4 text-emerald-600" />
+                      <span>O'rinbosarlik haqi (boshqa o'qituvchilar o'rniga o'tilgan darslar uchun):</span>
+                    </span>
+                    <span className="font-mono text-sm font-bold text-emerald-700">
+                      +{formatMoney(selMonthData.substituteFee ?? 0)}
+                    </span>
+                  </div>
+                )}
+
+                {/* 4) O'rinbosar ushlanmasi (bo'lsa — bu o'qituvchining guruhida o'rinbosar dars o'tgan) */}
+                {selMonthData && (selMonthData.substituteDeduction ?? 0) > 0 && (
+                  <div className="flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs text-amber-900 font-medium">
+                    <span className="flex items-center gap-2">
+                      <Users className="h-4 w-4 text-amber-600" />
+                      <span>O'rinbosar ushlanmasi (guruhlaringizda o'rinbosar dars o'tgani uchun):</span>
+                    </span>
+                    <span className="font-mono text-sm font-bold text-amber-700">
+                      −{formatMoney(selMonthData.substituteDeduction ?? 0)}
+                    </span>
+                  </div>
+                )}
               </div>
             )}
 
@@ -1119,7 +1171,7 @@ export function TeacherDetailPage() {
                 <p className="mb-3 text-sm font-semibold text-slate-700">
                   {payMonth ? `${formatMonth(payMonth)} uchun maosh berish` : 'Maosh berish'}
                 </p>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
                   <label className="block">
                     <span className="text-xs text-slate-500">Qaysi oy uchun</span>
                     <input
@@ -1139,6 +1191,22 @@ export function TeacherDetailPage() {
                             }`
                           : "Bu oy uchun ma'lumot yo'q"}
                     </span>
+                  </label>
+                  <label className="block">
+                    <span className="text-xs text-slate-500">Maosh turi</span>
+                    <select
+                      value={payType}
+                      onChange={(e) => handlePayTypeChange(e.target.value as 'all' | 'main' | 'substitute')}
+                      className="mt-1 w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm focus:border-brand-400 focus:outline-none bg-white"
+                    >
+                      <option value="all">Umumiy maosh</option>
+                      <option value="main">Asosiy maosh</option>
+                      {(payInfo?.substituteFee ?? 0) > 0 && (
+                        <option value="substitute">
+                          O'rinbosarlik haqi (+{formatMoney(payInfo?.substituteFee ?? 0)})
+                        </option>
+                      )}
+                    </select>
                   </label>
                   <label className="block">
                     <span className="text-xs text-slate-500">Summa (so'm)</span>
@@ -1290,7 +1358,17 @@ export function TeacherDetailPage() {
                     {salaryLedger.months.map((row) => (
                       <tr key={row.month} className="hover:bg-slate-50/60">
                         <td className="px-4 py-3 font-medium text-slate-800">
-                          {formatMonth(row.month)}
+                          <div>{formatMonth(row.month)}</div>
+                          {(row.substituteFee ?? 0) > 0 && (
+                            <div className="text-[11px] font-semibold text-emerald-600">
+                              O'rinbosarlik: +{formatMoney(row.substituteFee ?? 0)}
+                            </div>
+                          )}
+                          {(row.substituteDeduction ?? 0) > 0 && (
+                            <div className="text-[11px] font-semibold text-amber-700">
+                              O'rinbosarga: −{formatMoney(row.substituteDeduction ?? 0)}
+                            </div>
+                          )}
                         </td>
                         <td className="px-4 py-3 text-right font-mono text-slate-700">
                           {formatMoney(row.expected)}
@@ -1676,6 +1754,11 @@ function GroupSalaryEditor({
                     <div className="font-mono text-sm font-semibold text-emerald-700">
                       {formatMoney(line.periodExpected)}
                     </div>
+                    {line.substituteDeduction && line.substituteDeduction > 0 ? (
+                      <div className="text-[11px] font-medium text-amber-700 mt-0.5">
+                        O'rinbosarga: −{formatMoney(line.substituteDeduction)} ({line.substitutedLessons || 1} dars)
+                      </div>
+                    ) : null}
                   </div>
                 )}
               </div>

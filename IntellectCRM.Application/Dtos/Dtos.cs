@@ -1,4 +1,4 @@
-﻿namespace IntellectCRM.Application.Dtos;
+namespace IntellectCRM.Application.Dtos;
 
 using System.ComponentModel.DataAnnotations;
 using IntellectCRM.Domain;
@@ -244,7 +244,8 @@ public record MonthSalaryDto(
     int PlannedLessons = 0, int ConductedLessons = 0, int MissedLessons = 0,
     List<SalaryLessonStatDto>? Lessons = null, decimal Collected = 0,
     decimal Charged = 0, decimal PotentialExpected = 0,
-    decimal TuitionCharged = 0, decimal TuitionCollected = 0);
+    decimal TuitionCharged = 0, decimal TuitionCollected = 0,
+    decimal SubstituteFee = 0, decimal SubstituteDeduction = 0);
 /// <summary>
 /// Maosh hisobida bitta guruhning ulushi (davr bo'yicha): qaysi rejim (foiz/qat'iy), qiymati,
 /// shu davrda guruhdan yig'ilgan to'lov bazasi va shu guruh keltirgan hisoblangan maosh.
@@ -252,7 +253,8 @@ public record MonthSalaryDto(
 public record GroupSalaryLineDto(
     string GroupId, string GroupName, string CourseName, decimal MonthlyFee,
     string Mode, decimal Percent, decimal Fixed,
-    decimal PeriodCollected, decimal PeriodExpected);
+    decimal PeriodCollected, decimal PeriodExpected,
+    decimal SubstituteDeduction = 0, int SubstitutedLessons = 0);
 public record SalaryLedgerDto(
     string TeacherId, string FullName, decimal Salary,
     decimal TotalExpected, decimal TotalPaid, decimal Remaining,
@@ -3602,3 +3604,40 @@ public record StudentNoteOverviewDto(
 /// navbatga tushadi (bugungi ish); rejalashtirish operatorning ishi.
 /// </summary>
 public record TeacherContactRequest(List<string> StudentIds, string? ReasonId = null, string? Note = null);
+
+/* =================================================================================================
+ *  O'RINBOSAR O'QITUVCHILAR (Substitute Teacher Assignments)
+ * ============================================================================================== */
+
+/// <summary>O'rinbosar o'qituvchi tayinlash so'rovi (admin).</summary>
+public record CreateSubstituteAssignmentRequest(
+    [Required] string GroupId,
+    [Required] string SubstituteTeacherId,
+    List<string>? Dates = null,
+    string? Date = null,
+    string? EndDate = null,
+    string? Reason = null);
+
+/// <summary>O'rinbosar o'qituvchi tayinlovi ma'lumoti.</summary>
+public record SubstituteTeacherAssignmentDto(
+    string Id,
+    string GroupId,
+    string GroupName,
+    string OriginalTeacherId,
+    string OriginalTeacherName,
+    string SubstituteTeacherId,
+    string SubstituteTeacherName,
+    string Date,
+    string? EndDate,
+    string Reason,
+    string CreatedBy,
+    DateTime CreatedAt,
+    bool IsActive,
+    int LessonCount = 1,
+    decimal EstimatedSalary = 0m,
+    List<string>? Dates = null,
+    decimal PerLessonFee = 0m);
+
+/// <summary>Guruhning oydagi rejalashtirilgan dars sanasi (modal uchun).</summary>
+public record GroupLessonDateDto(string Date, string DayName, bool IsScheduled);
+

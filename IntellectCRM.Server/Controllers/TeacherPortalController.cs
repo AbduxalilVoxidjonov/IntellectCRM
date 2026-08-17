@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using IntellectCRM.Infrastructure.Data;
@@ -49,14 +49,18 @@ public class TeacherPortalController(
     }
 
     /// <summary>O'qituvchi shu guruhda shu kursni (fan) o'qitadimi? Biriktirish to'g'ridan-to'g'ri
-    /// guruhda: Group.TeacherId (o'qituvchi) + Group.CourseId (kurs). subjectId bo'sh = faqat o'qituvchi.
+    /// guruhda: Group.TeacherId (o'qituvchi) yoki vaqtincha o'rinbosar biriktiruvi.
     /// <para>Arxivlangan/tugatilgan va vaqtincha bloklangan guruh o'qituvchi uchun UMUMAN yo'q —
     /// qoida <see cref="TeacherGroupAccess"/> da (ro'yxat bilan bitta manbadan).</para></summary>
     private async Task<bool> Teaches(string teacherId, string classId, string subjectId)
     {
         var g = await db.Classes.FindAsync(classId);
-        return g != null && TeacherGroupAccess.OwnedBy(g, teacherId)
-            && (g.CourseId == subjectId || string.IsNullOrEmpty(subjectId));
+        if (g == null || !TeacherGroupAccess.Visible(g)) return false;
+
+        var isOwner = TeacherGroupAccess.OwnedBy(g, teacherId);
+        var isSubstitute = !isOwner && await SubstituteTeacherService.IsSubstituteForGroupAsync(db, teacherId, classId);
+
+        return (isOwner || isSubstitute) && (g.CourseId == subjectId || string.IsNullOrEmpty(subjectId));
     }
 
     // ---------- Profil ----------
@@ -215,11 +219,20 @@ public class TeacherPortalController(
 
         var subjectNames = await db.Subjects.ToDictionaryAsync(s => s.Id, s => s.Name);
 
+        var today = AppClock.Today.ToString("yyyy-MM-dd");
+        var substituteGroupIds = await db.SubstituteTeacherAssignments.AsNoTracking()
+            .Where(a => a.SubstituteTeacherId == t.Id && a.IsActive &&
+                ((a.EndDate == null && a.Date == today) ||
+                 (a.EndDate != null && string.Compare(a.Date, today) <= 0 && string.Compare(a.EndDate, today) >= 0)))
+            .Select(a => a.GroupId)
+            .Distinct()
+            .ToListAsync();
+
         // FAQAT FAOL GURUHLAR. Arxivlangan/tugatilgan (sertifikat bilan yopilgan) va vaqtincha
         // bloklangan guruhlar o'qituvchida UMUMAN ko'rinmaydi — qoida TeacherGroupAccess da,
         // guruh ichiga kirish darvozasi (ResolveOwnedGroup/Teaches) ham AYNAN shunga tayanadi.
         var classes = await db.Classes.AsNoTracking()
-            .Where(c => c.TeacherId == t.Id)
+            .Where(c => c.TeacherId == t.Id || substituteGroupIds.Contains(c.Id))
             .Where(TeacherGroupAccess.VisibleQuery)
             .ToListAsync();
 
@@ -236,6 +249,19 @@ public class TeacherPortalController(
             result.Add(new TeacherClassDto(cls.Id, cls.Name, cls.Grade, subjects));
         }
         return result.OrderBy(c => c.Grade).ThenBy(c => c.ClassName).ToList();
+    }
+
+    /// <summary>
+    /// O'qituvchining o'rinbosar o'qituvchi tayinlovlari (o'rinbosar yoki almashtirilgan holatda).
+    /// </summary>
+    [HttpGet("substitutions")]
+    public async Task<IActionResult> MySubstitutions()
+    {
+        var t = await Me();
+        if (t is null) return NotFound();
+
+        var list = await SubstituteTeacherService.GetAssignmentsAsync(db, teacherId: t.Id);
+        return Ok(list);
     }
 
     // ---------- O'quvchilar reytingi (faqat o'z guruhlari) ----------

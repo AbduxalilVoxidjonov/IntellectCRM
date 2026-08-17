@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using IntellectCRM.Application.Abstractions;
 using IntellectCRM.Application.Services;
 using IntellectCRM.Domain;
@@ -21,6 +21,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<Subject> Subjects => Set<Subject>();
     public DbSet<Group> Classes => Set<Group>();
     public DbSet<GroupTeacherAssignment> GroupTeacherAssignments => Set<GroupTeacherAssignment>();
+    public DbSet<SubstituteTeacherAssignment> SubstituteTeacherAssignments => Set<SubstituteTeacherAssignment>();
     public DbSet<RetentionBonusAward> RetentionBonusAwards => Set<RetentionBonusAward>();
     public DbSet<RetentionBonusShare> RetentionBonusShares => Set<RetentionBonusShare>();
     public DbSet<RetentionBonusTrack> RetentionBonusTracks => Set<RetentionBonusTrack>();

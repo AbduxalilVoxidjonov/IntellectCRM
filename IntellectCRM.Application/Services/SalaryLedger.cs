@@ -204,6 +204,23 @@ public static class SalaryLedger
 
         var groupPeriodExpected = groups.ToDictionary(g => g.Id, _ => 0m);
         var groupPeriodCollected = groups.ToDictionary(g => g.Id, _ => 0m);
+        var groupPeriodSubDeduction = groups.ToDictionary(g => g.Id, _ => 0m);
+        var groupPeriodSubLessons = groups.ToDictionary(g => g.Id, _ => 0);
+        var meta = await db.CenterMeta.AsNoTracking().FirstOrDefaultAsync();
+
+        var subAssignments = await db.SubstituteTeacherAssignments.AsNoTracking()
+            .Where(a => a.SubstituteTeacherId == teacher.Id && a.IsActive)
+            .ToListAsync();
+
+        var allSubGroupIds = subAssignments.Select(a => a.GroupId).Distinct().ToList();
+        var allSubGroups = await db.Classes.AsNoTracking()
+            .Where(c => allSubGroupIds.Contains(c.Id))
+            .ToDictionaryAsync(c => c.Id);
+
+        var groupIdsList = groups.Select(g => g.Id).ToList();
+        var origTeacherSubstitutions = await db.SubstituteTeacherAssignments.AsNoTracking()
+            .Where(a => groupIdsList.Contains(a.GroupId) && a.OriginalTeacherId == teacher.Id && a.IsActive)
+            .ToListAsync();
 
         var months = new List<MonthSalaryDto>();
         foreach (var month in TuitionService.MonthRange(startMonth, toMonth))
@@ -217,15 +234,26 @@ public static class SalaryLedger
                 factor = (decimal)(dim - sd.Day + 1) / dim;
             }
 
+            // O'rinbosarlik darslari haqi (shu oyga to'g'ri keladigan tayinlovlar bo'yicha)
+            decimal monthSubstituteFee = 0m;
+            foreach (var sub in subAssignments)
+            {
+                if (sub.Date.Length >= 7 && sub.Date[..7] == month)
+                {
+                    var g = allSubGroups.GetValueOrDefault(sub.GroupId);
+                    Group? fullGroup = g == null ? null : new Group { Id = g.Id, TeacherSalaryMode = g.TeacherSalaryMode, TeacherSalaryFixed = g.TeacherSalaryFixed, TeacherSalaryPercent = g.TeacherSalaryPercent, MonthlyFee = g.MonthlyFee, Days = g.Days };
+                    int lessonsInMonth = sub.SelectedDates != null && sub.SelectedDates.Count > 0 ? sub.SelectedDates.Count : SubstituteTeacherService.CalculateScheduledLessons(fullGroup, sub.Date, sub.EndDate);
+                    decimal rate = SubstituteTeacherService.CalculateSingleLessonRate(fullGroup, teacher, meta, 10, month);
+                    monthSubstituteFee += Math.Round(rate * lessonsInMonth, 2);
+                }
+            }
+            monthSubstituteFee = Math.Round(monthSubstituteFee, 2);
+
+            decimal monthSubstituteDeduction = 0m;
+
             // Har guruhning shu oydagi ulushi (breakdown + per-guruh yig'indisi uchun doim hisoblanadi).
-            // Jurnalga bog'langan bo'lsa — shu yerda ushlanma ham ayriladi (guruh o'z darslariga javob beradi).
             decimal grossSum = 0m, groupDeduction = 0m;
-            // Foizli maosh BAZASI (shu oy uchun yig'ilgan) — o'qituvchiga "Hisoblandi" qayerdan
-            // chiqqanini ko'rsatish uchun: yig'ilgan × foiz = hisoblangan.
             decimal monthCollected = 0m;
-            // O'quvchilarga SHU OY UCHUN HISOBLANGAN (qarz bilan birga) summa va undan chiqadigan
-            // "potentsial" maosh — guruh yopilib pul hali yig'ilmagan oyda foizli maosh 0 bo'lib
-            // ko'rinardi va o'qituvchi nima uchun ishlaganini bilmasdi. Endi ikkala raqam ham beriladi.
             decimal monthCharged = 0m, grossPotential = 0m;
             var lessonLines = new List<SalaryLessonStatDto>();
             int plannedTotal = 0, conductedTotal = 0;
@@ -247,12 +275,33 @@ public static class SalaryLedger
                 }
                 else
                 {
-                    // Qat'iy: per-guruh sozlangan bo'lsa shu summa; sozlanmagan guruh legacy fixed'da 0 (admin kiritadi).
                     var amt = g.TeacherSalaryMode == "fixed" ? g.TeacherSalaryFixed : 0m;
                     contribution = decimal.Round(amt * factor, 2);
-                    // Qat'iy maosh o'quvchi to'loviga bog'liq emas — potentsial = hisoblanganning o'zi.
                     potential = contribution;
                 }
+
+                // Asosiy o'qituvchidan o'rinbosar o'tgan darslar haqini ayirish (adolatli taqsimot)
+                var subsForThisGroup = origTeacherSubstitutions.Where(a => a.GroupId == g.Id && a.Date.Length >= 7 && a.Date[..7] == month).ToList();
+                if (subsForThisGroup.Count > 0)
+                {
+                    Group fullGroup = new Group { Id = g.Id, TeacherSalaryMode = g.TeacherSalaryMode, TeacherSalaryFixed = g.TeacherSalaryFixed, TeacherSalaryPercent = g.TeacherSalaryPercent, MonthlyFee = g.MonthlyFee, Days = g.Days };
+                    int totalScheduledLessons = SubstituteTeacherService.CalculateScheduledLessons(fullGroup, $"{month}-01", $"{month}-28");
+                    if (totalScheduledLessons > 0)
+                    {
+                        int subLessons = subsForThisGroup.Sum(s => s.SelectedDates != null && s.SelectedDates.Count > 0 ? s.SelectedDates.Count : SubstituteTeacherService.CalculateScheduledLessons(fullGroup, s.Date, s.EndDate));
+                        decimal basePool = contribution > 0 ? contribution : (potential > 0 ? potential : SubstituteTeacherService.CalculateSingleLessonRate(fullGroup, teacher, meta, 10, month) * totalScheduledLessons);
+                        decimal perLessonFee = basePool / totalScheduledLessons;
+                        decimal subDeduction = Math.Round(perLessonFee * subLessons, 2);
+
+                        if (contribution > 0) contribution = Math.Max(0m, contribution - subDeduction);
+                        if (potential > 0) potential = Math.Max(0m, potential - subDeduction);
+
+                        monthSubstituteDeduction += subDeduction;
+                        groupPeriodSubDeduction[g.Id] += subDeduction;
+                        groupPeriodSubLessons[g.Id] += subLessons;
+                    }
+                }
+
                 grossPotential += potential;
 
                 var stat = lessonStats.GetValueOrDefault((month, g.Id));
@@ -289,6 +338,10 @@ public static class SalaryLedger
                 baseExpected = decimal.Round(teacher.Salary * factor, 2);
                 basePotential = baseExpected;
             }
+
+            // O'rinbosarlik haqi maosh bazasiga qo'shiladi
+            baseExpected += monthSubstituteFee;
+            basePotential += monthSubstituteFee;
 
             // Ushlanma: per-guruh ulushi bor bo'lsa (per-guruh yoki legacy foiz) — guruhlar bo'yicha yig'indi;
             // legacy QAT'IY oylikda guruh ulushi yo'q, shuning uchun bitta dars narxi = oylik ÷ rejadagi darslar.
@@ -329,13 +382,10 @@ public static class SalaryLedger
                 journalLinked ? lessonLines : null,
                 decimal.Round(monthCollected, 2),
                 decimal.Round(monthCharged, 2), decimal.Round(potentialExpected, 2),
-                // TUSHUM — o'qituvchining BARCHA guruhlari bo'yicha (maosh rejimidan qat'i nazar).
-                // `monthCollected`/`monthCharged` dan farqi: ular FOIZLI ulushi bor guruhlarnigina
-                // sanaydi (maosh bazasi), bu ikkisi esa "shu oyda guruhlardan qancha pul kutilgan
-                // va qanchasi kelgan" degan SAVOLGA javob beradi — aralash sozlamada raqamlar
-                // farq qiladi, shuning uchun bir-birining o'rniga ishlatilmaydi.
                 decimal.Round(TotalCharged(month), 2),
-                decimal.Round(TotalCollected(month), 2)));
+                decimal.Round(TotalCollected(month), 2),
+                monthSubstituteFee,
+                decimal.Round(monthSubstituteDeduction, 2)));
         }
 
         var totalExpected = months.Sum(m => m.Expected);
@@ -351,7 +401,9 @@ public static class SalaryLedger
                 : g.TeacherSalaryMode == "fixed" ? 0m : teacher.SalaryPercent,
             g.TeacherSalaryMode == "fixed" ? g.TeacherSalaryFixed : 0m,
             decimal.Round(groupPeriodCollected.GetValueOrDefault(g.Id, 0m), 2),
-            decimal.Round(groupPeriodExpected.GetValueOrDefault(g.Id, 0m), 2)
+            decimal.Round(groupPeriodExpected.GetValueOrDefault(g.Id, 0m), 2),
+            decimal.Round(groupPeriodSubDeduction.GetValueOrDefault(g.Id, 0m), 2),
+            groupPeriodSubLessons.GetValueOrDefault(g.Id, 0)
         )).ToList();
 
         return new SalaryLedgerDto(

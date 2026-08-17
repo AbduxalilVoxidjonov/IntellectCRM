@@ -1,4 +1,4 @@
-﻿import { useEffect } from 'react'
+import { useEffect } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { getPublicBrand } from '@/api/services/settings'
 import { AppLayout } from '@/components/layout/AppLayout'
@@ -18,6 +18,7 @@ import { StudentAbsencePage } from '@/pages/admin/students/StudentAbsencePage'
 import { TeachersPage } from '@/pages/admin/teachers/TeachersPage'
 import { TeacherDetailPage } from '@/pages/admin/teachers/TeacherDetailPage'
 import { TeacherAttendancePage } from '@/pages/admin/teachers/TeacherAttendancePage'
+import { SubstituteTeachersPage } from '@/pages/admin/teachers/SubstituteTeachersPage'
 import { ClassesPage } from '@/pages/admin/classes/ClassesPage'
 import { ClassDetailPage } from '@/pages/admin/classes/ClassDetailPage'
 import { RoomsPage } from '@/pages/admin/rooms/RoomsPage'
@@ -193,6 +194,7 @@ export default function App() {
           <Route path="students/yuz" element={<RequirePerm perm="students"><FaceLoginPage /></RequirePerm>} />
           <Route path="students/:id" element={<RequirePerm perm="students"><StudentDetailPage /></RequirePerm>} />
           <Route path="teachers" element={<RequirePerm perm="teachers"><TeachersPage /></RequirePerm>} />
+          <Route path="teachers/substitutions" element={<RequirePerm perm="teachers"><SubstituteTeachersPage /></RequirePerm>} />
           <Route path="teachers/:id" element={<RequirePerm perm="teachers"><TeacherDetailPage /></RequirePerm>} />
           <Route path="teachers/attendance" element={<RequirePerm perm="teachers"><TeacherAttendancePage /></RequirePerm>} />
           <Route path="classes" element={<RequirePerm perm="classes"><ClassesPage /></RequirePerm>} />

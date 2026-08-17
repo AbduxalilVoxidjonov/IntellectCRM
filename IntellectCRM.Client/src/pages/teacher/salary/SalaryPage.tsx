@@ -263,6 +263,16 @@ export function TeacherSalaryPage() {
                           <span className="ml-1 text-faint">(to'lovlar kelgani sari qo'shiladi)</span>
                         </p>
                       )}
+                      {(m.substituteFee ?? 0) > 0 && (
+                        <p className="mt-0.5 text-[12px] font-semibold text-emerald-600">
+                          O'rinbosarlik haqi: <span className="font-mono">+{formatMoney(m.substituteFee ?? 0)}</span>
+                        </p>
+                      )}
+                      {(m.substituteDeduction ?? 0) > 0 && (
+                        <p className="mt-0.5 text-[12px] font-semibold text-amber-700">
+                          O'rinbosar ushlanmasi: <span className="font-mono">−{formatMoney(m.substituteDeduction ?? 0)}</span>
+                        </p>
+                      )}
                       {deduction > 0 && (
                         <p className="mt-0.5 text-[12px] font-semibold text-rose-600">
                           Ushlandi: <span className="font-mono">−{formatMoney(deduction)}</span>
