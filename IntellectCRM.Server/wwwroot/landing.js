@@ -485,94 +485,6 @@
     });
   }
 
-  // Contact Box Inline Lead Form Submission
-  var contactLeadForm = document.getElementById('contactLeadForm');
-  var contactLeadName = document.getElementById('contactLeadName');
-  var contactLeadPhone = document.getElementById('contactLeadPhone');
-  var contactLeadSubject = document.getElementById('contactLeadSubject');
-  var contactLeadSubmitBtn = document.getElementById('contactLeadSubmitBtn');
-  var contactLeadFormMsg = document.getElementById('contactLeadFormMsg');
-
-  function setContactMsg(text, isError, isSuccess) {
-    if (!contactLeadFormMsg) return;
-    contactLeadFormMsg.textContent = text;
-    contactLeadFormMsg.style.display = text ? 'block' : 'none';
-    contactLeadFormMsg.style.marginTop = '12px';
-    contactLeadFormMsg.style.padding = '10px 14px';
-    contactLeadFormMsg.style.borderRadius = '10px';
-    contactLeadFormMsg.style.fontSize = '13px';
-    contactLeadFormMsg.style.fontWeight = '600';
-    contactLeadFormMsg.style.textAlign = 'center';
-
-    if (isError) {
-      contactLeadFormMsg.style.color = '#ff8b96';
-      contactLeadFormMsg.style.background = 'rgba(220, 53, 69, 0.15)';
-      contactLeadFormMsg.style.border = '1px solid rgba(220, 53, 69, 0.4)';
-    } else if (isSuccess) {
-      contactLeadFormMsg.style.color = '#4ade80';
-      contactLeadFormMsg.style.background = 'rgba(74, 222, 128, 0.15)';
-      contactLeadFormMsg.style.border = '1px solid rgba(74, 222, 128, 0.4)';
-    } else {
-      contactLeadFormMsg.style.color = '#38bdf8';
-      contactLeadFormMsg.style.background = 'rgba(56, 189, 248, 0.15)';
-      contactLeadFormMsg.style.border = '1px solid rgba(56, 189, 248, 0.4)';
-    }
-  }
-
-  if (contactLeadName) contactLeadName.addEventListener('input', function() { setContactMsg('', false, false); });
-  if (contactLeadPhone) contactLeadPhone.addEventListener('input', function() { setContactMsg('', false, false); });
-  if (contactLeadSubject) contactLeadSubject.addEventListener('change', function() { setContactMsg('', false, false); });
-
-  if (contactLeadForm) {
-    contactLeadForm.addEventListener('submit', function(e) {
-      e.preventDefault();
-      var name = contactLeadName ? contactLeadName.value.trim() : '';
-      var phone = contactLeadPhone ? contactLeadPhone.value.trim() : '';
-      var subject = contactLeadSubject ? contactLeadSubject.value : '';
-
-      if (!name) {
-        setContactMsg('Iltimos, ismingizni kiriting.', true, false);
-        if (contactLeadName) contactLeadName.focus();
-        return;
-      }
-      if (!phone || digitsOnly(phone).length < 9) {
-        setContactMsg('Iltimos, to\'g\'ri telefon raqamingizni kiriting.', true, false);
-        if (contactLeadPhone) contactLeadPhone.focus();
-        return;
-      }
-      if (!subject) {
-        setContactMsg('Iltimos, qiziqqan faningizni tanlang.', true, false);
-        if (contactLeadSubject) contactLeadSubject.focus();
-        return;
-      }
-
-      setContactMsg('Yuborilmoqda...', false, false);
-      if (contactLeadSubmitBtn) contactLeadSubmitBtn.disabled = true;
-
-      fetch('/api/public/landing-lead', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fullName: name,
-          phone: phone,
-          subject: subject,
-          note: 'Aloqa bo\'limidagi "Bepul maslahat oling" formasidan'
-        })
-      }).then(function(res) {
-        if (res.ok) {
-          setContactMsg('✅ Arizangiz muvaffaqiyatli yuborildi! Tez orada bog\'lanamiz.', false, true);
-          contactLeadForm.reset();
-        } else {
-          setContactMsg('❌ Xatolik yuz berdi. Qayta urinib ko\'ring.', true, false);
-        }
-      }).catch(function() {
-        setContactMsg('❌ Xatolik yuz berdi.', true, false);
-      }).finally(function() {
-        if (contactLeadSubmitBtn) contactLeadSubmitBtn.disabled = false;
-      });
-    });
-  }
-
   // URL Query Parameters Parsing & Auto-Lead Intake (?name=...&phone=...&subject=...#contact)
   (function handleUrlQueryParams() {
     try {
@@ -586,17 +498,18 @@
 
       if (!urlName && !urlPhone && !urlSubject) return;
 
-      // 1) Form shakllarini (Modal, Contact, FAQ) pre-fill (avto to'ldirish)
+      // 1) Lid MODALI shakllarini pre-fill (avto to'ldirish).
+      //    Ilgari bu yerda aloqa bo'limidagi "Bepul maslahat oling" formasi ham to'ldirilardi —
+      //    o'sha forma sahifadan butunlay olib tashlangani uchun havolalar ham olib tashlandi
+      //    (aks holda getElementById har safar null qaytaradigan o'lik kod qolardi).
       if (urlName) {
         if (nameInput) nameInput.value = urlName;
-        if (contactLeadName) contactLeadName.value = urlName;
       }
       if (urlPhone) {
         if (phoneInput) phoneInput.value = urlPhone;
-        if (contactLeadPhone) contactLeadPhone.value = urlPhone;
       }
       if (urlSubject) {
-        [subjectSelect, contactLeadSubject].forEach(function(sel) {
+        [subjectSelect].forEach(function(sel) {
           if (!sel) return;
           for (var i = 0; i < sel.options.length; i++) {
             var val = sel.options[i].value || sel.options[i].text;
