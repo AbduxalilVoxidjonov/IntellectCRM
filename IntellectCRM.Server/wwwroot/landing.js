@@ -10,7 +10,9 @@
   var navLinks = document.getElementById('navLinks');
   var subjectSelect = document.getElementById('leadSubject');
 
-  function openModal(selectedSubject){
+  var currentLeadNote = '';
+
+  function openModal(selectedSubject, customNote){
     if (selectedSubject && subjectSelect) {
       for (var i = 0; i < subjectSelect.options.length; i++) {
         if (subjectSelect.options[i].value === selectedSubject) {
@@ -19,6 +21,7 @@
         }
       }
     }
+    currentLeadNote = customNote || 'Sayt tugmasidan yozilish';
     modalBackdrop.classList.add('show');
     document.body.style.overflow = 'hidden';
   }
@@ -31,7 +34,8 @@
   openTriggers.forEach(function(btn){
     btn.addEventListener('click', function(){
       var subj = btn.getAttribute('data-subject');
-      openModal(subj);
+      var note = btn.getAttribute('data-note') || 'Tugma: ' + (btn.textContent || '').trim();
+      openModal(subj, note);
     });
   });
 
@@ -152,7 +156,7 @@
     fetch('/api/public/landing-lead', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fullName: fullName, phone: phone, subject: subject })
+      body: JSON.stringify({ fullName: fullName, phone: phone, subject: subject, note: currentLeadNote })
     }).then(function(response){
       if (response.ok) {
         formWrap.innerHTML =
@@ -194,4 +198,828 @@
   }
   updateNavCta();
   window.addEventListener('resize', updateNavCta);
+
+  // Teacher Modal Controls
+  var teacherModalBackdrop = document.getElementById('teacherModalBackdrop');
+  var teacherModalClose = document.getElementById('teacherModalClose');
+  var teacherModalPhoto = document.getElementById('teacherModalPhoto');
+  var teacherModalBadge = document.getElementById('teacherModalBadge');
+  var teacherModalName = document.getElementById('teacherModalName');
+  var teacherModalSubject = document.getElementById('teacherModalSubject');
+  var teacherModalBio = document.getElementById('teacherModalBio');
+  var teacherModalCta = document.getElementById('teacherModalCta');
+
+  var currentTeacherName = '';
+  function openTeacherModal(t) {
+    if (!t) return;
+    currentTeacherName = t.fullName || '';
+    if (teacherModalPhoto) teacherModalPhoto.src = t.photoUrl || 'img/icons/icon-teacher.png';
+    if (teacherModalBadge) {
+      teacherModalBadge.textContent = t.badge || '';
+      teacherModalBadge.style.display = t.badge ? 'inline-block' : 'none';
+    }
+    if (teacherModalName) teacherModalName.textContent = t.fullName || '';
+    if (teacherModalSubject) teacherModalSubject.textContent = t.subject || '';
+    if (teacherModalBio) teacherModalBio.textContent = t.fullBio || t.shortBio || '';
+    if (teacherModalCta) teacherModalCta.setAttribute('data-subject', t.subject || 'General English');
+
+    if (teacherModalBackdrop) {
+      teacherModalBackdrop.classList.add('show');
+      document.body.style.overflow = 'hidden';
+    }
+  }
+
+  function closeTeacherModal() {
+    if (teacherModalBackdrop) {
+      teacherModalBackdrop.classList.remove('show');
+      document.body.style.overflow = '';
+    }
+  }
+
+  if (teacherModalClose) teacherModalClose.addEventListener('click', closeTeacherModal);
+  if (teacherModalBackdrop) {
+    teacherModalBackdrop.addEventListener('click', function(e) {
+      if (e.target === teacherModalBackdrop) closeTeacherModal();
+    });
+  }
+
+  if (teacherModalCta) {
+    teacherModalCta.addEventListener('click', function() {
+      var subj = teacherModalCta.getAttribute('data-subject');
+      closeTeacherModal();
+      openModal(subj, "Ustoz: " + currentTeacherName + " darsiga yozilmoqchi");
+    });
+  }
+
+  // Result / Certificate Detail Modal Logic
+  var resultModalBackdrop = document.getElementById('resultModalBackdrop');
+  var resultModalClose = document.getElementById('resultModalClose');
+  var resultModalImg = document.getElementById('resultModalImg');
+  var resultModalStudentName = document.getElementById('resultModalStudentName');
+  var resultModalCategory = document.getElementById('resultModalCategory');
+  var resultModalOverall = document.getElementById('resultModalOverall');
+  var resultModalListening = document.getElementById('resultModalListening');
+  var resultModalReading = document.getElementById('resultModalReading');
+  var resultModalWriting = document.getElementById('resultModalWriting');
+  var resultModalSpeaking = document.getElementById('resultModalSpeaking');
+  var resultModalCta = document.getElementById('resultModalCta');
+
+  var currentCertInfo = '';
+
+  function openResultModal(certData) {
+    currentCertInfo = (certData.studentName || certData.title || '') + (certData.overall ? ' (' + certData.overall + ')' : '');
+    if (resultModalImg) resultModalImg.src = certData.imageUrl || 'img/certificates/cert-1.jpg';
+    if (resultModalStudentName) resultModalStudentName.textContent = certData.studentName || certData.title || 'O\'QUVCHI SERTIFIKATI';
+    if (resultModalCategory) resultModalCategory.textContent = certData.category || 'IELTS SERTIFIKATI';
+    if (resultModalOverall) resultModalOverall.textContent = certData.overall || '8.5';
+    if (resultModalListening) resultModalListening.textContent = certData.listening || '9.0';
+    if (resultModalReading) resultModalReading.textContent = certData.reading || '8.5';
+    if (resultModalWriting) resultModalWriting.textContent = certData.writing || '7.5';
+    if (resultModalSpeaking) resultModalSpeaking.textContent = certData.speaking || '8.0';
+
+    if (resultModalBackdrop) {
+      resultModalBackdrop.classList.add('show');
+      document.body.style.overflow = 'hidden';
+    }
+  }
+
+  function closeResultModal() {
+    if (resultModalBackdrop) {
+      resultModalBackdrop.classList.remove('show');
+      document.body.style.overflow = '';
+    }
+  }
+
+  if (resultModalClose) resultModalClose.addEventListener('click', closeResultModal);
+  if (resultModalBackdrop) {
+    resultModalBackdrop.addEventListener('click', function(e) {
+      if (e.target === resultModalBackdrop) closeResultModal();
+    });
+  }
+  if (resultModalCta) {
+    resultModalCta.addEventListener('click', function() {
+      closeResultModal();
+      openModal('IELTS', "Sertifikat: " + currentCertInfo + " natijasi orqali yozildi");
+    });
+  }
+
+  // Student App Platform Modal Logic
+  var appModalBackdrop = document.getElementById('appModalBackdrop');
+  var appModalClose = document.getElementById('appModalClose');
+  var btnViewAppPlatform = document.getElementById('btnViewAppPlatform');
+  var appModalCta = document.getElementById('appModalCta');
+
+  function openAppModal() {
+    if (appModalBackdrop) {
+      appModalBackdrop.classList.add('show');
+      document.body.style.overflow = 'hidden';
+    }
+  }
+
+  function closeAppModal() {
+    if (appModalBackdrop) {
+      appModalBackdrop.classList.remove('show');
+      document.body.style.overflow = '';
+    }
+  }
+
+  if (btnViewAppPlatform) {
+    btnViewAppPlatform.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      openAppModal();
+    });
+  }
+
+  if (appModalClose) appModalClose.addEventListener('click', closeAppModal);
+  if (appModalBackdrop) {
+    appModalBackdrop.addEventListener('click', function(e) {
+      if (e.target === appModalBackdrop) closeAppModal();
+    });
+  }
+  if (appModalCta) {
+    appModalCta.addEventListener('click', function() {
+      closeAppModal();
+      openModal('', 'Student App platformasi modalidan yozildi');
+    });
+  }
+
+  // FAQ Contact Banner Lead Form Submission
+  var faqLeadForm = document.getElementById('faqLeadForm');
+  var faqLeadName = document.getElementById('faqLeadName');
+  var faqLeadPhone = document.getElementById('faqLeadPhone');
+  var faqLeadSubject = document.getElementById('faqLeadSubject');
+  var faqLeadSubmitBtn = document.getElementById('faqLeadSubmitBtn');
+  var faqLeadFormMsg = document.getElementById('faqLeadFormMsg');
+
+  function setFaqMsg(text, isError, isSuccess) {
+    if (!faqLeadFormMsg) return;
+    faqLeadFormMsg.textContent = text;
+    faqLeadFormMsg.style.display = text ? 'block' : 'none';
+    faqLeadFormMsg.style.marginTop = '16px';
+    faqLeadFormMsg.style.padding = '12px 18px';
+    faqLeadFormMsg.style.borderRadius = '12px';
+    faqLeadFormMsg.style.fontSize = '14px';
+    faqLeadFormMsg.style.fontWeight = '600';
+    faqLeadFormMsg.style.textAlign = 'center';
+    faqLeadFormMsg.style.gridColumn = '1 / -1';
+
+    if (isError) {
+      faqLeadFormMsg.style.color = '#ff8b96';
+      faqLeadFormMsg.style.background = 'rgba(220, 53, 69, 0.15)';
+      faqLeadFormMsg.style.border = '1px solid rgba(220, 53, 69, 0.4)';
+    } else if (isSuccess) {
+      faqLeadFormMsg.style.color = '#4ade80';
+      faqLeadFormMsg.style.background = 'rgba(74, 222, 128, 0.15)';
+      faqLeadFormMsg.style.border = '1px solid rgba(74, 222, 128, 0.4)';
+    } else {
+      faqLeadFormMsg.style.color = '#38bdf8';
+      faqLeadFormMsg.style.background = 'rgba(56, 189, 248, 0.15)';
+      faqLeadFormMsg.style.border = '1px solid rgba(56, 189, 248, 0.4)';
+    }
+  }
+
+  if (faqLeadName) faqLeadName.addEventListener('input', function() { setFaqMsg('', false, false); });
+  if (faqLeadPhone) faqLeadPhone.addEventListener('input', function() { setFaqMsg('', false, false); });
+  if (faqLeadSubject) faqLeadSubject.addEventListener('change', function() { setFaqMsg('', false, false); });
+
+  if (faqLeadForm) {
+    faqLeadForm.addEventListener('submit', function(e) {
+      e.preventDefault();
+      var name = faqLeadName ? faqLeadName.value.trim() : '';
+      var phone = faqLeadPhone ? faqLeadPhone.value.trim() : '';
+      var subject = faqLeadSubject ? faqLeadSubject.value : '';
+
+      if (!name) {
+        setFaqMsg('Iltimos, ismingizni kiriting.', true, false);
+        if (faqLeadName) faqLeadName.focus();
+        return;
+      }
+      if (!phone || digitsOnly(phone).length < 9) {
+        setFaqMsg('Iltimos, to\'g\'ri telefon raqamingizni kiriting.', true, false);
+        if (faqLeadPhone) faqLeadPhone.focus();
+        return;
+      }
+      if (!subject) {
+        setFaqMsg('Iltimos, qiziqqan faningizni tanlang.', true, false);
+        if (faqLeadSubject) faqLeadSubject.focus();
+        return;
+      }
+
+      setFaqMsg('Yuborilmoqda...', false, false);
+      if (faqLeadSubmitBtn) faqLeadSubmitBtn.disabled = true;
+
+      fetch('/api/public/landing-lead', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fullName: name,
+          phone: phone,
+          subject: subject,
+          note: 'FAQ ostidagi "Savollaringiz qoldimi? Biz bilan bog\'laning!" formasidan'
+        })
+      }).then(function(res) {
+        if (res.ok) {
+          setFaqMsg('✅ Arizangiz muvaffaqiyatli yuborildi! Tez orada bog\'lanamiz.', false, true);
+          faqLeadForm.reset();
+        } else {
+          setFaqMsg('❌ Xatolik yuz berdi. Qayta urinib ko\'ring.', true, false);
+        }
+      }).catch(function() {
+        setFaqMsg('❌ Xatolik yuz berdi.', true, false);
+      }).finally(function() {
+        if (faqLeadSubmitBtn) faqLeadSubmitBtn.disabled = false;
+      });
+    });
+  }
+
+  // Contact Box Inline Lead Form Submission
+  var contactLeadForm = document.getElementById('contactLeadForm');
+  var contactLeadName = document.getElementById('contactLeadName');
+  var contactLeadPhone = document.getElementById('contactLeadPhone');
+  var contactLeadSubject = document.getElementById('contactLeadSubject');
+  var contactLeadSubmitBtn = document.getElementById('contactLeadSubmitBtn');
+  var contactLeadFormMsg = document.getElementById('contactLeadFormMsg');
+
+  function setContactMsg(text, isError, isSuccess) {
+    if (!contactLeadFormMsg) return;
+    contactLeadFormMsg.textContent = text;
+    contactLeadFormMsg.style.display = text ? 'block' : 'none';
+    contactLeadFormMsg.style.marginTop = '12px';
+    contactLeadFormMsg.style.padding = '10px 14px';
+    contactLeadFormMsg.style.borderRadius = '10px';
+    contactLeadFormMsg.style.fontSize = '13px';
+    contactLeadFormMsg.style.fontWeight = '600';
+    contactLeadFormMsg.style.textAlign = 'center';
+
+    if (isError) {
+      contactLeadFormMsg.style.color = '#ff8b96';
+      contactLeadFormMsg.style.background = 'rgba(220, 53, 69, 0.15)';
+      contactLeadFormMsg.style.border = '1px solid rgba(220, 53, 69, 0.4)';
+    } else if (isSuccess) {
+      contactLeadFormMsg.style.color = '#4ade80';
+      contactLeadFormMsg.style.background = 'rgba(74, 222, 128, 0.15)';
+      contactLeadFormMsg.style.border = '1px solid rgba(74, 222, 128, 0.4)';
+    } else {
+      contactLeadFormMsg.style.color = '#38bdf8';
+      contactLeadFormMsg.style.background = 'rgba(56, 189, 248, 0.15)';
+      contactLeadFormMsg.style.border = '1px solid rgba(56, 189, 248, 0.4)';
+    }
+  }
+
+  if (contactLeadName) contactLeadName.addEventListener('input', function() { setContactMsg('', false, false); });
+  if (contactLeadPhone) contactLeadPhone.addEventListener('input', function() { setContactMsg('', false, false); });
+  if (contactLeadSubject) contactLeadSubject.addEventListener('change', function() { setContactMsg('', false, false); });
+
+  if (contactLeadForm) {
+    contactLeadForm.addEventListener('submit', function(e) {
+      e.preventDefault();
+      var name = contactLeadName ? contactLeadName.value.trim() : '';
+      var phone = contactLeadPhone ? contactLeadPhone.value.trim() : '';
+      var subject = contactLeadSubject ? contactLeadSubject.value : '';
+
+      if (!name) {
+        setContactMsg('Iltimos, ismingizni kiriting.', true, false);
+        if (contactLeadName) contactLeadName.focus();
+        return;
+      }
+      if (!phone || digitsOnly(phone).length < 9) {
+        setContactMsg('Iltimos, to\'g\'ri telefon raqamingizni kiriting.', true, false);
+        if (contactLeadPhone) contactLeadPhone.focus();
+        return;
+      }
+      if (!subject) {
+        setContactMsg('Iltimos, qiziqqan faningizni tanlang.', true, false);
+        if (contactLeadSubject) contactLeadSubject.focus();
+        return;
+      }
+
+      setContactMsg('Yuborilmoqda...', false, false);
+      if (contactLeadSubmitBtn) contactLeadSubmitBtn.disabled = true;
+
+      fetch('/api/public/landing-lead', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fullName: name,
+          phone: phone,
+          subject: subject,
+          note: 'Aloqa bo\'limidagi "Bepul maslahat oling" formasidan'
+        })
+      }).then(function(res) {
+        if (res.ok) {
+          setContactMsg('✅ Arizangiz muvaffaqiyatli yuborildi! Tez orada bog\'lanamiz.', false, true);
+          contactLeadForm.reset();
+        } else {
+          setContactMsg('❌ Xatolik yuz berdi. Qayta urinib ko\'ring.', true, false);
+        }
+      }).catch(function() {
+        setContactMsg('❌ Xatolik yuz berdi.', true, false);
+      }).finally(function() {
+        if (contactLeadSubmitBtn) contactLeadSubmitBtn.disabled = false;
+      });
+    });
+  }
+
+  // Add click handlers to static result cards
+  var staticResultCards = document.querySelectorAll('.result-card');
+  staticResultCards.forEach(function(card) {
+    card.addEventListener('click', function() {
+      var nameEl = card.querySelector('.result-student-name');
+      var scoreEl = card.querySelector('.result-overall-score');
+      var imgEl = card.querySelector('.result-cert-img-wrap img');
+      openResultModal({
+        studentName: nameEl ? nameEl.textContent : '',
+        overall: scoreEl ? scoreEl.textContent : '8.5',
+      });
+    });
+  });
+
+  function normalizeMapUrl(url) {
+    if (!url) return '';
+    var u = url.trim();
+
+    // Handle Yandex Maps URLs
+    if (u.indexOf('yandex.uz') !== -1 || u.indexOf('yandex.ru') !== -1) {
+      var oidMatch = u.match(/oid%3D(\d+)/i) || u.match(/oid=(\d+)/i) || u.match(/org\/(\d+)/i);
+      if (oidMatch && oidMatch[1]) {
+        return 'https://yandex.uz/map-widget/v1/org/' + oidMatch[1];
+      }
+      var llMatch = u.match(/ll=([\d\.\%2C\,]+)/i);
+      if (llMatch && llMatch[1]) {
+        var coords = decodeURIComponent(llMatch[1]);
+        return 'https://yandex.uz/map-widget/v1/?ll=' + coords + '&z=16';
+      }
+      if (u.indexOf('/map-widget/') === -1) {
+        return u.replace(/\/maps\//i, '/map-widget/v1/');
+      }
+      return u;
+    }
+
+    // Handle Google Maps URLs
+    if (u.indexOf('google.com') !== -1) {
+      u = u.replace(/www\.google\.com/gi, 'maps.google.com');
+      if (u.indexOf('output=embed') === -1 && u.indexOf('/embed') === -1) {
+        u += (u.indexOf('?') === -1 ? '?' : '&') + 'output=embed';
+      }
+    }
+    return u;
+  }
+
+  function renderMap(mapSource) {
+    var wrap = document.getElementById('landingMapWrap');
+    if (!wrap) return;
+    var raw = (mapSource || '').trim();
+    if (!raw) return;
+
+    var overlayBtns = '<div class="map-overlay-actions" style="position:absolute; bottom:16px; left:16px; right:16px; display:flex; gap:12px; flex-wrap:wrap; justify-content:center; z-index:10; pointer-events:auto;">' +
+      '<a id="btnYandexNav" href="https://yandex.uz/maps/10332/kokand/?ll=70.931183%2C40.546732&amp;mode=poi&amp;poi%5Bpoint%5D=70.929596%2C40.546279&amp;poi%5Buri%5D=ymapsbm1%3A%2F%2Forg%3Foid%3D239829322269&amp;z=17" target="_blank" rel="noopener noreferrer" style="background:#fc3f1d; border:none; color:#ffffff; padding:12px 22px; border-radius:14px; font-size:14px; font-weight:700; text-decoration:none; display:inline-flex; align-items:center; gap:8px; box-shadow:0 10px 25px rgba(252,63,29,0.5); transition:transform 0.2s, box-shadow 0.2s; font-family:inherit;">' +
+        '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>' +
+        'Yandex Maps-da ochish' +
+      '</a>' +
+      '<a id="btnGoogleNav" href="https://maps.google.com/?q=40.546115,70.930010" target="_blank" rel="noopener noreferrer" style="background:rgba(15,23,42,0.85); backdrop-filter:blur(12px); border:1px solid rgba(255,255,255,0.2); color:#ffffff; padding:12px 22px; border-radius:14px; font-size:14px; font-weight:600; text-decoration:none; display:inline-flex; align-items:center; gap:8px; box-shadow:0 10px 25px rgba(0,0,0,0.4); transition:transform 0.2s; font-family:inherit;">' +
+        '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"></polygon></svg>' +
+        'Google Maps-da ochish' +
+      '</a>' +
+    '</div>';
+
+    wrap.style.position = 'relative';
+
+    var iframeMatch = raw.match(/<iframe[^>]*src=["']([^"']+)["']/i);
+    var targetUrl = '';
+
+    if (iframeMatch && iframeMatch[1]) {
+      targetUrl = iframeMatch[1].replace(/&amp;/gi, '&');
+    } else if (raw.indexOf('http://') === 0 || raw.indexOf('https://') === 0) {
+      targetUrl = raw.split(/\s+/)[0].replace(/&amp;/gi, '&');
+    }
+
+    if (targetUrl) {
+      targetUrl = normalizeMapUrl(targetUrl);
+      wrap.innerHTML = '<iframe id="landingMapIframe" src="' + targetUrl + '" width="100%" height="100%" style="border:0; min-height:380px; width:100%; display:block;" allowfullscreen="" loading="lazy"></iframe>' + overlayBtns;
+    } else if (raw.indexOf('<') !== -1) {
+      var cleanHtml = raw;
+      if (raw.indexOf('<body') !== -1) {
+        var bM = raw.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+        if (bM) cleanHtml = bM[1];
+      }
+
+      cleanHtml = cleanHtml.replace(/<!DOCTYPE[^>]*>/gi, '')
+                           .replace(/<\/?html[^>]*>/gi, '')
+                           .replace(/<\/?head[^>]*>/gi, '');
+
+      wrap.innerHTML = cleanHtml + overlayBtns;
+
+      var scriptRegex = /<script([^>]*)>([\s\S]*?)<\/script>/gi;
+      var match;
+      while ((match = scriptRegex.exec(raw)) !== null) {
+        var attrs = match[1];
+        var code = match[2];
+        var srcM = attrs.match(/src=["']([^"']+)["']/i);
+        var typeM = attrs.match(/type=["']([^"']+)["']/i);
+
+        var s = document.createElement('script');
+        if (typeM && typeM[1]) s.type = typeM[1];
+        if (srcM && srcM[1]) {
+          s.src = srcM[1];
+          s.async = true;
+        } else if (code && code.trim()) {
+          s.text = code;
+        }
+        document.head.appendChild(s);
+      }
+    }
+  }
+
+  // Dynamic Landing Data Fetch & Carousel Init
+  fetch('/api/public/landing-data').then(function(res) {
+    if (!res.ok) return null;
+    return res.json();
+  }).then(function(data) {
+    if (!data) return;
+
+    if (data.mapUrl) {
+      renderMap(data.mapUrl);
+    }
+
+    // Render Teachers
+    if (data.teachers && data.teachers.length > 0) {
+      renderTeachers(data.teachers);
+    }
+
+    // Render Certificates
+    if (data.certificates && data.certificates.length > 0) {
+      renderCertificates(data.certificates);
+    }
+
+    // Render Socials & Contact Info
+    if (data.socials) {
+      renderSocials(data.socials);
+    }
+  }).catch(function() {});
+
+  function renderSocials(socials) {
+    if (!socials) return;
+
+    // Contact Phone
+    var phoneEl = document.getElementById('contactPhoneValue');
+    if (phoneEl && socials.contactPhone) {
+      phoneEl.textContent = socials.contactPhone;
+      phoneEl.href = 'tel:' + socials.contactPhone.replace(/[^0-9+]/g, '');
+    }
+
+    // Working Hours
+    var hoursEl = document.getElementById('workingHoursValue');
+    if (hoursEl && socials.workingHours) {
+      hoursEl.innerHTML = escapeHtml(socials.workingHours).replace(/\n/g, '<br>');
+    }
+
+    // Center Address
+    var addrEl = document.getElementById('centerAddressValue');
+    if (addrEl && socials.centerAddress) {
+      addrEl.textContent = socials.centerAddress;
+    }
+
+    // Social links in footer
+    var tgLink = document.getElementById('socialTelegramLink');
+    if (tgLink && socials.telegramUrl) tgLink.href = socials.telegramUrl;
+
+    var instaLink = document.getElementById('socialInstagramLink');
+    if (instaLink && socials.instagramUrl) instaLink.href = socials.instagramUrl;
+
+    var ytLink = document.getElementById('socialYoutubeLink');
+    if (ytLink && socials.youtubeUrl) ytLink.href = socials.youtubeUrl;
+
+    var fbLink = document.getElementById('socialFacebookLink');
+    if (fbLink && socials.facebookUrl) fbLink.href = socials.facebookUrl;
+
+    var emailLink = document.getElementById('socialEmailLink');
+    if (emailLink && socials.centerEmail) emailLink.href = 'mailto:' + socials.centerEmail;
+
+    var appStoreBtn = document.getElementById('appStoreFooterBtn');
+    if (appStoreBtn && socials.appStoreUrl && socials.appStoreUrl.trim()) {
+      appStoreBtn.href = socials.appStoreUrl.trim();
+      appStoreBtn.target = '_blank';
+      appStoreBtn.removeAttribute('data-open-modal');
+    }
+
+    var playMarketBtn = document.getElementById('playMarketFooterBtn');
+    if (playMarketBtn && socials.playMarketUrl && socials.playMarketUrl.trim()) {
+      playMarketBtn.href = socials.playMarketUrl.trim();
+      playMarketBtn.target = '_blank';
+      playMarketBtn.removeAttribute('data-open-modal');
+    }
+  }
+
+  function renderTeachers(teachersList) {
+    var track = document.getElementById('teacherTrack');
+    if (!track) return;
+    track.innerHTML = '';
+
+    teachersList.forEach(function(t) {
+      var slide = document.createElement('div');
+      slide.className = 'teacher-slide';
+      slide.style.cursor = 'pointer';
+
+      var badgeHtml = t.badge ? '<span class="teacher-top-badge">' + escapeHtml(t.badge) + '</span>' : '';
+      
+      slide.innerHTML =
+        '<div class="teacher-card">' +
+          '<img class="teacher-photo-bg" src="' + escapeHtml(t.photoUrl || 'img/icons/icon-teacher.png') + '" alt="' + escapeHtml(t.fullName) + '" loading="lazy">' +
+          badgeHtml +
+          '<div class="teacher-card-overlay">' +
+            '<div class="teacher-card-name">' + escapeHtml(t.fullName) + '</div>' +
+            '<div class="teacher-card-subject">' + escapeHtml(t.subject) + '</div>' +
+            '<div class="teacher-card-meta">' +
+              '<div class="teacher-meta-item">' +
+                '<span class="teacher-meta-label">Ma\'lumot</span>' +
+                '<span class="teacher-meta-val">Batafsil ko\'rish →</span>' +
+              '</div>' +
+            '</div>' +
+          '</div>' +
+        '</div>';
+
+      slide.addEventListener('click', function() {
+        openTeacherModal(t);
+      });
+
+      track.appendChild(slide);
+    });
+
+    initTeacherCarousel();
+  }
+
+  var currentCertificatesList = [];
+  var activeCertFilter = 'all';
+
+  function renderCertificates(certList) {
+    currentCertificatesList = certList || [];
+    filterAndDrawCertificates();
+
+    var filterBtns = document.querySelectorAll('.result-filter-btn');
+    filterBtns.forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        filterBtns.forEach(function(b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+        activeCertFilter = btn.getAttribute('data-filter') || 'all';
+        filterAndDrawCertificates();
+      });
+    });
+  }
+
+  function filterAndDrawCertificates() {
+    var track = document.getElementById('resultsTrack');
+    if (!track) return;
+    track.innerHTML = '';
+
+    var filtered = currentCertificatesList.filter(function(c) {
+      if (activeCertFilter === 'all') return true;
+      return (c.category || '').toLowerCase() === activeCertFilter.toLowerCase();
+    });
+
+    if (filtered.length === 0) {
+      track.innerHTML = '<div style="color:var(--muted);padding:40px;text-align:center;width:100%;font-weight:600;">Ushbu bo\'limda hali sertifikatlar mavjud emas.</div>';
+      return;
+    }
+
+    filtered.forEach(function(c) {
+      var slide = document.createElement('div');
+      slide.className = 'result-slide';
+      slide.style.cursor = 'pointer';
+
+      var scoreSectionHtml = '';
+      if (c.listening || c.reading || c.writing || c.speaking) {
+        scoreSectionHtml =
+          '<div class="result-breakdown">' +
+            (c.listening ? '<div class="result-breakdown-row"><span>Listening</span> <span>' + escapeHtml(c.listening) + '</span></div>' : '') +
+            (c.reading ? '<div class="result-breakdown-row"><span>Reading</span> <span>' + escapeHtml(c.reading) + '</span></div>' : '') +
+            (c.writing ? '<div class="result-breakdown-row"><span>Writing</span> <span>' + escapeHtml(c.writing) + '</span></div>' : '') +
+            (c.speaking ? '<div class="result-breakdown-row"><span>Speaking</span> <span>' + escapeHtml(c.speaking) + '</span></div>' : '') +
+          '</div>';
+      } else if (c.resultNote) {
+        scoreSectionHtml = '<div style="font-size:13px;color:#f5a623;font-weight:700;margin-top:8px;">' + escapeHtml(c.resultNote) + '</div>';
+      }
+
+      slide.innerHTML =
+        '<div class="result-card">' +
+          '<div class="result-cert-img-wrap">' +
+            '<img src="' + escapeHtml(c.imageUrl || 'img/certificates/cert-1.jpg') + '" alt="' + escapeHtml(c.title || c.studentName) + '" loading="lazy">' +
+          '</div>' +
+          '<div class="result-student-name">' + escapeHtml(c.studentName || c.title) + '</div>' +
+          '<div class="result-card-bottom">' +
+            '<div class="result-overall-box">' +
+              '<span class="result-overall-label">' + escapeHtml(c.certType || 'OVERALL') + '</span>' +
+              '<span class="result-overall-score">' + escapeHtml(c.overallScore || '8.5') + '</span>' +
+            '</div>' +
+            scoreSectionHtml +
+          '</div>' +
+        '</div>';
+
+      slide.addEventListener('click', function() {
+        openResultModal({
+          studentName: c.studentName || c.title,
+          overall: c.overallScore || '8.5',
+          category: c.category || 'XALQARO SERTIFIKAT',
+          listening: c.listening || '—',
+          reading: c.reading || '—',
+          writing: c.writing || '—',
+          speaking: c.speaking || '—',
+          imageUrl: c.imageUrl || 'img/certificates/cert-1.jpg'
+        });
+      });
+
+      track.appendChild(slide);
+    });
+
+    initResultsCarousel();
+  }
+
+  function renderFaqs(faqList) {
+    var container = document.querySelector('.faq-list');
+    if (!container) return;
+    container.innerHTML = '';
+
+    faqList.forEach(function(f) {
+      var item = document.createElement('div');
+      item.className = 'faq-item';
+      item.innerHTML =
+        '<button type="button" class="faq-question" data-faq-toggle>' +
+          '<span>' + escapeHtml(f.question) + '</span>' +
+          '<span class="faq-icon">▾</span>' +
+        '</button>' +
+        '<div class="faq-answer">' + escapeHtml(f.answer) + '</div>';
+
+      var toggleBtn = item.querySelector('[data-faq-toggle]');
+      toggleBtn.addEventListener('click', function() {
+        var isOpen = item.classList.contains('active');
+        document.querySelectorAll('.faq-item').forEach(function(fi) { fi.classList.remove('active'); });
+        if (!isOpen) item.classList.add('active');
+      });
+
+      container.appendChild(item);
+    });
+  }
+
+  function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  // Ustozlar Karuseli (Auto-rotate carousel)
+  function initTeacherCarousel() {
+    var track = document.getElementById('teacherTrack');
+    var prevBtn = document.getElementById('prevTeacher');
+    var nextBtn = document.getElementById('nextTeacher');
+    var dotsContainer = document.getElementById('teacherDots');
+    if (!track) return;
+
+    var slides = Array.from(track.children);
+    if (slides.length === 0) return;
+    var currentIndex = 0;
+    var autoTimer = null;
+
+    function getSlidesPerPage() {
+      if (window.innerWidth <= 640) return 1;
+      if (window.innerWidth <= 992) return 2;
+      return 3;
+    }
+
+    function maxIndex() {
+      return Math.max(0, slides.length - getSlidesPerPage());
+    }
+
+    function renderDots() {
+      if (!dotsContainer) return;
+      dotsContainer.innerHTML = '';
+      var totalDots = maxIndex() + 1;
+      for (var i = 0; i < totalDots; i++) {
+        (function(index) {
+          var dot = document.createElement('div');
+          dot.className = 'carousel-dot' + (index === currentIndex ? ' active' : '');
+          dot.addEventListener('click', function() { goToIndex(index); });
+          dotsContainer.appendChild(dot);
+        })(i);
+      }
+    }
+
+    function updateCarousel() {
+      if (!slides[0]) return;
+      var slideWidth = slides[0].getBoundingClientRect().width + 24; // gap: 24px
+      track.style.transform = 'translateX(-' + (currentIndex * slideWidth) + 'px)';
+      renderDots();
+    }
+
+    function goToIndex(index) {
+      currentIndex = index;
+      if (currentIndex > maxIndex()) currentIndex = 0;
+      if (currentIndex < 0) currentIndex = maxIndex();
+      updateCarousel();
+    }
+
+    function nextSlide() {
+      goToIndex(currentIndex + 1);
+    }
+
+    function prevSlide() {
+      goToIndex(currentIndex - 1);
+    }
+
+    function startAutoSlide() {
+      stopAutoSlide();
+      autoTimer = setInterval(nextSlide, 3500);
+    }
+
+    function stopAutoSlide() {
+      if (autoTimer) clearInterval(autoTimer);
+    }
+
+    if (nextBtn) nextBtn.onclick = function() { nextSlide(); startAutoSlide(); };
+    if (prevBtn) prevBtn.onclick = function() { prevSlide(); startAutoSlide(); };
+
+    track.onmouseenter = stopAutoSlide;
+    track.onmouseleave = startAutoSlide;
+
+    updateCarousel();
+    startAutoSlide();
+  }
+
+  // Natijalar (Results Certificates) Carousel
+  function initResultsCarousel() {
+    var track = document.getElementById('resultsTrack');
+    var prevBtn = document.getElementById('prevResult');
+    var nextBtn = document.getElementById('nextResult');
+    var dotsContainer = document.getElementById('resultDots');
+    if (!track) return;
+
+    var slides = Array.from(track.children);
+    if (slides.length === 0) return;
+    var currentIndex = 0;
+    var autoTimer = null;
+
+    function getSlidesPerPage() {
+      if (window.innerWidth <= 640) return 1;
+      if (window.innerWidth <= 992) return 2;
+      return 3;
+    }
+
+    function maxIndex() {
+      return Math.max(0, slides.length - getSlidesPerPage());
+    }
+
+    function renderDots() {
+      if (!dotsContainer) return;
+      dotsContainer.innerHTML = '';
+      var totalDots = maxIndex() + 1;
+      for (var i = 0; i < totalDots; i++) {
+        (function(index) {
+          var dot = document.createElement('div');
+          dot.className = 'carousel-dot' + (index === currentIndex ? ' active' : '');
+          dot.addEventListener('click', function() { goToIndex(index); });
+          dotsContainer.appendChild(dot);
+        })(i);
+      }
+    }
+
+    function updateCarousel() {
+      if (!slides[0]) return;
+      var slideWidth = slides[0].getBoundingClientRect().width + 24; // gap: 24px
+      track.style.transform = 'translateX(-' + (currentIndex * slideWidth) + 'px)';
+      renderDots();
+    }
+
+    function goToIndex(index) {
+      currentIndex = index;
+      if (currentIndex > maxIndex()) currentIndex = 0;
+      if (currentIndex < 0) currentIndex = maxIndex();
+      updateCarousel();
+    }
+
+    function nextSlide() {
+      goToIndex(currentIndex + 1);
+    }
+
+    function prevSlide() {
+      goToIndex(currentIndex - 1);
+    }
+
+    function startAutoSlide() {
+      stopAutoSlide();
+      autoTimer = setInterval(nextSlide, 3500);
+    }
+
+    function stopAutoSlide() {
+      if (autoTimer) clearInterval(autoTimer);
+    }
+
+    if (nextBtn) nextBtn.onclick = function() { nextSlide(); startAutoSlide(); };
+    if (prevBtn) prevBtn.onclick = function() { prevSlide(); startAutoSlide(); };
+
+    track.onmouseenter = stopAutoSlide;
+    track.onmouseleave = startAutoSlide;
+
+    updateCarousel();
+    startAutoSlide();
+  }
+
+  initResultsCarousel();
 })();

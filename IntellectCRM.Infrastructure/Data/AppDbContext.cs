@@ -118,6 +118,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     // O'qituvchi AI tahlili (Gemini)
     public DbSet<TeacherAiAnalysis> TeacherAiAnalyses => Set<TeacherAiAnalysis>();
 
+    // Landing CMS
+    public DbSet<LandingTeacher> LandingTeachers => Set<LandingTeacher>();
+    public DbSet<LandingCertificate> LandingCertificates => Set<LandingCertificate>();
+    public DbSet<LandingTestimonial> LandingTestimonials => Set<LandingTestimonial>();
+    public DbSet<LandingFaq> LandingFaqs => Set<LandingFaq>();
+
     // Guruh AI tahlili (Gemini)
     public DbSet<GroupAiAnalysis> GroupAiAnalyses => Set<GroupAiAnalysis>();
 

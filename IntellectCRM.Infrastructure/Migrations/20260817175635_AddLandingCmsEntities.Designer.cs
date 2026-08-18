@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using IntellectCRM.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace IntellectCRM.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260817175635_AddLandingCmsEntities")]
+    partial class AddLandingCmsEntities
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -3357,10 +3360,6 @@ namespace IntellectCRM.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<string>("CertType")
-                        .IsRequired()
-                        .HasColumnType("text");
-
                     b.Property<string>("CreatedAt")
                         .IsRequired()
                         .HasColumnType("text");
@@ -3372,38 +3371,14 @@ namespace IntellectCRM.Infrastructure.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
-                    b.Property<string>("Listening")
-                        .IsRequired()
-                        .HasColumnType("text");
-
                     b.Property<int>("Order")
                         .HasColumnType("integer");
-
-                    b.Property<string>("OverallScore")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Reading")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("ResultNote")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Speaking")
-                        .IsRequired()
-                        .HasColumnType("text");
 
                     b.Property<string>("StudentName")
                         .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Title")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Writing")
                         .IsRequired()
                         .HasColumnType("text");
 

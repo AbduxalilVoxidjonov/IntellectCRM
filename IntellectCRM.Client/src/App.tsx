@@ -37,6 +37,7 @@ import { CurriculumLessonsPage } from '@/pages/admin/curricula/CurriculumLessons
 import { CurriculumItemsPage } from '@/pages/admin/curricula/CurriculumItemsPage'
 import { CurriculumItemEditorPage } from '@/pages/admin/curricula/CurriculumItemEditorPage'
 import { ReasonsPage } from '@/pages/admin/reasons/ReasonsPage'
+import { LandingCmsPage } from '@/pages/admin/landing/LandingCmsPage'
 import { TestResultsPage } from '@/pages/admin/tests/TestResultsPage'
 import { TestGroupPage } from '@/pages/admin/tests/TestGroupPage'
 import { TestDetailPage } from '@/pages/admin/tests/TestDetailPage'
@@ -247,6 +248,7 @@ export default function App() {
           {/* Bitta kassir qabul qilgan to'lovlar — alohida sahifa (Moliya → Kassirlar qatoridan). */}
           <Route path="finance/cashiers/:key" element={<RequirePerm perm="finance"><CashierPaymentsPage /></RequirePerm>} />
           <Route path="settings" element={<Navigate to="/admin/settings/school" replace />} />
+          <Route path="landing" element={<RequirePerm perm="settings"><LandingCmsPage /></RequirePerm>} />
           {/* O'zgarishlar tarixi — Sozlamalar ICHIDA, lekin ruxsati boshqa (`audit`). Statik
               segment `settings/:section` dinamikasidan ustun turadi (React Router reyting), ya'ni
               bu marshrut `settings/:section` dan OLDIN yozilishi shart emas, lekin qo'shni tursin. */}

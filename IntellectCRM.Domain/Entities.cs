@@ -1450,6 +1450,18 @@ public class CenterMeta
     /// <summary>Ko'p-guruh to'lov rejimi: aggregate (barcha faol guruhlar yig'indisi — bitta oylik hisob) |
     /// perGroup (kelajakda — har guruh uchun alohida). Default: aggregate.</summary>
     public string BillingMode { get; set; } = "aggregate";
+    /// <summary>Landing sahifasidagi xarita iframe havolasi / URL.</summary>
+    public string MapIframeUrl { get; set; } = string.Empty;
+    public string TelegramUrl { get; set; } = "https://t.me/intellect_kokand";
+    public string InstagramUrl { get; set; } = "https://instagram.com/intellect_kokand";
+    public string YoutubeUrl { get; set; } = "https://youtube.com";
+    public string FacebookUrl { get; set; } = "https://facebook.com";
+    public string CenterEmail { get; set; } = "info@intellect.uz";
+    public string AppStoreUrl { get; set; } = string.Empty;
+    public string PlayMarketUrl { get; set; } = string.Empty;
+    public string ContactPhone { get; set; } = "+998 (90) 344-44-34";
+    public string CenterAddress { get; set; } = "Farg'ona viloyati, Qo'qon shahar, Asqarali charxiy 5A";
+    public string WorkingHours { get; set; } = "Dushanba — Shanba: 09:00 – 17:00";
 
     /* ---------- Jurnal boshqaruvi (tahrirlash siyosati) — admin "Guruhlar → Jurnal boshqaruvi" ---------- */
 
@@ -3940,4 +3952,64 @@ public class IgOAuthState
     public string ExpiresAt { get; set; } = string.Empty;
     /// <summary>Bir marta ishlatilgan — qayta ishlatishga urinish rad etiladi.</summary>
     public bool Used { get; set; }
+}
+
+/// <summary>Landing sahifasidagi o'qituvchi kartochkasi va to'liq ma'lumotlari.</summary>
+public class LandingTeacher
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string FullName { get; set; } = string.Empty;
+    public string Subject { get; set; } = string.Empty;
+    public string PhotoUrl { get; set; } = string.Empty;
+    public string Badge { get; set; } = string.Empty;
+    public string ShortBio { get; set; } = string.Empty;
+    public string FullBio { get; set; } = string.Empty;
+    public int Order { get; set; } = 0;
+    public bool IsActive { get; set; } = true;
+    public string CreatedAt { get; set; } = string.Empty;
+}
+
+/// <summary>Landing sahifasidagi sertifikatlar va o'quvchilar muvaffaqiyati ko'rgazmasi.</summary>
+public class LandingCertificate
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string Title { get; set; } = string.Empty;
+    public string StudentName { get; set; } = string.Empty;
+    public string ImageUrl { get; set; } = string.Empty;
+    public string Category { get; set; } = "Xalqaro"; // "Xalqaro" or "Milliy"
+    public string CertType { get; set; } = "IELTS"; // "IELTS", "Multilevel", "Milliy", "SAT", "Boshqa"
+    public string OverallScore { get; set; } = string.Empty;
+    public string Listening { get; set; } = string.Empty;
+    public string Reading { get; set; } = string.Empty;
+    public string Writing { get; set; } = string.Empty;
+    public string Speaking { get; set; } = string.Empty;
+    public string ResultNote { get; set; } = string.Empty;
+    public int Order { get; set; } = 0;
+    public bool IsActive { get; set; } = true;
+    public string CreatedAt { get; set; } = string.Empty;
+}
+
+/// <summary>Landing sahifasidagi ota-onalar va o'quvchilar fikrlari (Testimonials).</summary>
+public class LandingTestimonial
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string AuthorName { get; set; } = string.Empty;
+    public string AuthorRole { get; set; } = "Ota-ona";
+    public string AvatarUrl { get; set; } = string.Empty;
+    public int Rating { get; set; } = 5;
+    public string Comment { get; set; } = string.Empty;
+    public int Order { get; set; } = 0;
+    public bool IsActive { get; set; } = true;
+    public string CreatedAt { get; set; } = string.Empty;
+}
+
+/// <summary>Landing sahifasidagi ko'p beriladigan savollar va javoblar (FAQ).</summary>
+public class LandingFaq
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string Question { get; set; } = string.Empty;
+    public string Answer { get; set; } = string.Empty;
+    public int Order { get; set; } = 0;
+    public bool IsActive { get; set; } = true;
+    public string CreatedAt { get; set; } = string.Empty;
 }

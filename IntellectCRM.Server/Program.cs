@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
@@ -446,6 +446,15 @@ using (var scope = app.Services.CreateScope())
         }
     }
 
+    try
+    {
+        await db.Database.ExecuteSqlRawAsync(@"ALTER TABLE ""CenterMeta"" ADD COLUMN IF NOT EXISTS ""MapIframeUrl"" text DEFAULT '';");
+    }
+    catch (Exception ex)
+    {
+        app.Logger.LogWarning(ex, "[fix] CenterMeta MapIframeUrl ustuni qo'shish o'tkazib yuborildi");
+    }
+
     // SELF-HEAL: eski "support" rolli akkauntlar role="teacher" bo'lishi kerak (support sahifasi
     // teacher portalida IsSupport bo'yicha ko'rinadi). "support" rol bilan ular /teacher portaliga
     // kira olmasdi — bir martalik idempotent tuzatish.
@@ -456,10 +465,26 @@ using (var scope = app.Services.CreateScope())
         if (movedSupport > 0)
             app.Logger.LogInformation("[fix] {N} ta 'support' rolli akkaunt 'teacher'ga ko'chirildi", movedSupport);
     }
-    catch (Exception ex)
+    catch { }
+
+    try
     {
-        app.Logger.LogWarning(ex, "[fix] support→teacher rol ko'chirish o'tkazib yuborildi");
+        db.Database.ExecuteSqlRaw(@"
+            ALTER TABLE ""CenterMeta"" ADD COLUMN IF NOT EXISTS ""MapIframeUrl"" text DEFAULT '';
+            ALTER TABLE ""CenterMeta"" ADD COLUMN IF NOT EXISTS ""TelegramUrl"" text DEFAULT 'https://t.me/intellect_kokand';
+            ALTER TABLE ""CenterMeta"" ADD COLUMN IF NOT EXISTS ""InstagramUrl"" text DEFAULT 'https://instagram.com/intellect_kokand';
+            ALTER TABLE ""CenterMeta"" ADD COLUMN IF NOT EXISTS ""YoutubeUrl"" text DEFAULT 'https://youtube.com';
+            ALTER TABLE ""CenterMeta"" ADD COLUMN IF NOT EXISTS ""FacebookUrl"" text DEFAULT 'https://facebook.com';
+            ALTER TABLE ""CenterMeta"" ADD COLUMN IF NOT EXISTS ""CenterEmail"" text DEFAULT 'info@intellect.uz';
+            ALTER TABLE ""CenterMeta"" ADD COLUMN IF NOT EXISTS ""AppStoreUrl"" text DEFAULT '';
+            ALTER TABLE ""CenterMeta"" ADD COLUMN IF NOT EXISTS ""PlayMarketUrl"" text DEFAULT '';
+            ALTER TABLE ""CenterMeta"" ADD COLUMN IF NOT EXISTS ""ContactPhone"" text DEFAULT '+998 (90) 344-44-34';
+            ALTER TABLE ""CenterMeta"" ADD COLUMN IF NOT EXISTS ""CenterAddress"" text DEFAULT 'Farg''ona viloyati, Qo''qon shahar, Asqarali charxiy 5A';
+            ALTER TABLE ""CenterMeta"" ADD COLUMN IF NOT EXISTS ""WorkingHours"" text DEFAULT 'Dushanba — Shanba: 09:00 – 17:00';
+            UPDATE ""CenterMeta"" SET ""MapIframeUrl"" = 'https://www.openstreetmap.org/export/embed.html?bbox=70.9200,40.5400,70.9400,40.5520&layer=mapnik&marker=40.546115,70.930010' WHERE ""MapIframeUrl"" IS NULL OR ""MapIframeUrl"" = '';
+        ");
     }
+    catch { }
 
     // Birinchi ishga tushish: hech qanday foydalanuvchi bo'lmasa, standart SUPER ADMIN yaratamiz —
     // aks holda tizimga kira oladigan hech kim bo'lmaydi. Login/parol muhit o'zgaruvchisidan keladi
@@ -1055,6 +1080,19 @@ app.MapFallback(async ctx =>
     // ko'rsatilsin (Google Play talab qiladigan ochiq sahifa istalgan hostda ishlashi uchun).
     var path = ctx.Request.Path.Value?.ToLowerInvariant() ?? "";
     var isPrivacy = path.StartsWith("/privacy");
+    var isSertifikatlar = path.StartsWith("/sertifikatlar");
+
+    if (isSertifikatlar)
+    {
+        var certsFile = Path.Combine(webRoot, "sertifikatlar.html");
+        if (File.Exists(certsFile))
+        {
+            ctx.Response.ContentType = "text/html; charset=utf-8";
+            ctx.Response.Headers.CacheControl = "no-cache";
+            await ctx.Response.SendFileAsync(certsFile);
+            return;
+        }
+    }
 
     if (isApexHost && !isPrivacy && File.Exists(landingFile))
     {

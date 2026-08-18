@@ -16,9 +16,10 @@ namespace IntellectCRM.Server.Controllers;
 [Route("api/public/landing-lead")]
 public class PublicLandingController(AppDbContext db, TelegramService telegram, AutoMessageService autoMsg) : ControllerBase
 {
-    public record LandingLeadRequest(string FullName, string Phone, string? Subject);
+    public record LandingLeadRequest(string FullName, string Phone, string? Subject, string? Note);
 
     [HttpPost]
+    [HttpPost("/api/public/leads")]
     [EnableRateLimiting("public-lead")]
     public async Task<IActionResult> Create(LandingLeadRequest p)
     {
@@ -36,6 +37,10 @@ public class PublicLandingController(AppDbContext db, TelegramService telegram, 
         if (subject.Length > 100)
             return BadRequest(new { message = "Yo'nalish nomi juda uzun" });
 
+        var note = (p.Note ?? "").Trim();
+        if (note.Length > 500)
+            note = note.Substring(0, 500);
+
         var firstStageId = await db.LeadStages.OrderBy(s => s.Order).Select(s => s.Id).FirstOrDefaultAsync() ?? "";
 
         var lead = new Lead
@@ -45,19 +50,22 @@ public class PublicLandingController(AppDbContext db, TelegramService telegram, 
             Stage = firstStageId,
             Source = "sayt",
             InterestSubject = subject,
+            Note = note,
             CreatedAt = Now(),
         };
         db.Leads.Add(lead);
         db.LeadEvents.Add(new LeadEvent
         {
-            LeadId = lead.Id, Type = "created", Text = $"Lid yaratildi ({lead.FullName})",
-            ActorName = "Sayt", CreatedAt = Now(),
-            // Voronka analitikasi uchun: lid birinchi bosqichga tushdi (ActorUserId yo'q — sayt formasi).
+            LeadId = lead.Id,
+            Type = "created",
+            Text = string.IsNullOrWhiteSpace(note) ? $"Lid yaratildi ({lead.FullName})" : $"Lid yaratildi ({lead.FullName}) — Izoh: {note}",
+            ActorName = "Sayt",
+            CreatedAt = Now(),
             ToStage = firstStageId,
         });
         await db.SaveChangesAsync();
 
-        await LeadNotifier.NotifyNewLeadAsync(db, telegram, lead, createdBy: "Sayt (ochiq forma)");
+        await LeadNotifier.NotifyNewLeadAsync(db, telegram, lead, createdBy: string.IsNullOrWhiteSpace(note) ? "Sayt (ochiq forma)" : $"Sayt ({note})");
         await autoMsg.DispatchLeadAsync(db, AutoMessageTriggers.LeadNew, lead);
 
         return Ok(new { ok = true });

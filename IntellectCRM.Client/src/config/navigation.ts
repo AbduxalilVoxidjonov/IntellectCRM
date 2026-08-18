@@ -185,6 +185,7 @@ export const navByRole: Record<Role, NavItem[]> = {
       icon: Settings,
       children: [
         { label: "Markaz ma'lumotlari", to: '/admin/settings/school', perm: 'settings' },
+        { label: 'Landing Boshqaruvi', to: '/admin/landing', perm: 'settings' },
         { label: 'Tuman va maktablar', to: '/admin/districts', perm: 'settings' },
         { label: 'Xabar kanallari', to: '/admin/settings/channels', perm: 'settings' },
         { label: 'Zaxira nusxa', to: '/admin/settings/backup', perm: 'settings' },

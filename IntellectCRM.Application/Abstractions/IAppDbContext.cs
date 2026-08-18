@@ -73,6 +73,12 @@ public interface IAppDbContext
     /// <summary>O'quvchining o'qituvchi haqidagi fikrlari (admin yozadi, AI tahlil manbai).</summary>
     DbSet<TeacherReview> TeacherReviews { get; }
 
+    // Landing CMS
+    DbSet<LandingTeacher> LandingTeachers { get; }
+    DbSet<LandingCertificate> LandingCertificates { get; }
+    DbSet<LandingTestimonial> LandingTestimonials { get; }
+    DbSet<LandingFaq> LandingFaqs { get; }
+
     // Tuman + maktab (o'quvchi formasi uchun, sozlamalardan boshqariladi)
     DbSet<District> Districts { get; }
     DbSet<School> Schools { get; }
