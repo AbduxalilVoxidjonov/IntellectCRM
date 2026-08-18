@@ -373,4 +373,31 @@
       });
     });
   }
+
+  // ---- BREND (logo + nom) ----
+  // Landing bilan bir xil manba: GET /api/public/brand (CenterMeta). Ilgari bu sahifa uni
+  // umuman chaqirmasdi — nav'da faqat qattiq yozilgan matn turardi va Sozlamalardagi logo
+  // bu yerda hech qachon ko'rinmasdi.
+  // Rasm AVVAL yuklab ko'riladi: manzil buzuq bo'lsa "singan rasm" chiqmasin (inline
+  // `onerror=` prod CSP tufayli mumkin emas). Yuklanmasa belgi bo'sh qoladi va CSS
+  // (.logo .mark:empty) uni chizmaydi — faqat "Intellect Kokand" matni ko'rinadi.
+  fetch('/api/public/brand').then(function(res){
+    return res.ok ? res.json() : null;
+  }).then(function(brand){
+    if (!brand) return;
+    if (brand.name) {
+      var nameEl = document.getElementById('brandName');
+      if (nameEl) nameEl.textContent = brand.name;
+    }
+    if (!brand.logoUrl) return;
+    var probe = new Image();
+    probe.onload = function(){
+      var mark = document.getElementById('brandMark');
+      // alt="" — markaz nomi yonida matn bilan yozilgan, takrorlash shart emas
+      if (mark) mark.innerHTML = '<img src="' + escapeHtml(brand.logoUrl) + '" alt="" style="width:100%; height:100%; object-fit:contain; border-radius:inherit;">';
+      var link = document.getElementById('brandFavicon');
+      if (link) link.href = brand.logoUrl;
+    };
+    probe.src = brand.logoUrl;
+  }).catch(function(){});
 })();

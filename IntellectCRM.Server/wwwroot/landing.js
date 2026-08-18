@@ -114,14 +114,11 @@
     return res.json();
   }).then(function(brand){
     if (!brand) return;
-    if (brand.logoUrl) {
-      ['brandMark', 'brandMarkFooter'].forEach(function(id){
-        var mark = document.getElementById(id);
-        if (mark) mark.innerHTML = '<img src="' + brand.logoUrl + '" alt="logo" style="width:100%; height:100%; object-fit:contain; border-radius:inherit;">';
-      });
-    }
+    if (brand.logoUrl) applyBrandLogo(brand.logoUrl);
+    // `brandNameCopy` ro'yxatdan OLIB TASHLANDI — bunday ID landing.html da umuman yo'q edi
+    // (o'lik havola: getElementById har safar null qaytarardi).
     if (brand.name) {
-      ['brandName', 'brandNameCopy', 'brandNameFooter'].forEach(function(id){
+      ['brandName', 'brandNameFooter'].forEach(function(id){
         var el = document.getElementById(id);
         if (el) el.textContent = brand.name;
       });
@@ -131,6 +128,36 @@
       if (fab) fab.setAttribute('href', 'tel:' + brand.phone.replace(/[^\d+]/g, ''));
     }
   }).catch(function(){});
+
+  // Logo AVVAL yuklab ko'riladi, KEYIN qo'yiladi. Sabab: CMS'dagi manzil buzuq bo'lsa
+  // nav va footerda "singan rasm" ikonkasi chiqib qolardi, inline `onerror=` esa prod
+  // CSP (script-src 'self') tufayli mumkin emas. Rasm yuklanmasa belgi BO'SH qoladi va
+  // CSS (.logo .mark:empty) uni umuman chizmaydi — faqat "Intellect Kokand" matni ko'rinadi.
+  function applyBrandLogo(url) {
+    var probe = new Image();
+    probe.onload = function(){
+      var safeUrl = escapeHtml(url); // manzil CMS'dan keladi — atribut ichiga qo'yishdan oldin tozalanadi
+      ['brandMark', 'brandMarkFooter'].forEach(function(id){
+        var mark = document.getElementById(id);
+        // alt="" — yonida markaz nomi matn bilan yozilgan, skrinrider takrorlamasin
+        if (mark) mark.innerHTML = '<img src="' + safeUrl + '" alt="" style="width:100%; height:100%; object-fit:contain; border-radius:inherit;">';
+      });
+      setFavicon(url);
+    };
+    probe.src = url;
+  }
+
+  // Tab ikonkasi — markaz logosi. Statik 🎓 emoji favicon HTML'dan olib tashlangan, ya'ni
+  // logo sozlanmagan bo'lsa u QAYTMAYDI: tabda faqat "Intellect Kokand" sarlavhasi qoladi.
+  function setFavicon(url) {
+    var link = document.getElementById('brandFavicon') || document.querySelector('link[rel="icon"]');
+    if (!link) {
+      link = document.createElement('link');
+      link.rel = 'icon';
+      document.head.appendChild(link);
+    }
+    link.href = url;
+  }
 
   var form = document.getElementById('leadForm');
   var formWrap = document.getElementById('formWrap');

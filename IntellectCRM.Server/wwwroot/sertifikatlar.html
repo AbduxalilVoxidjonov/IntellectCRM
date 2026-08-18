@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sertifikatlar va Natijalar — Intellect Kokand O'quv Markazi</title>
   <meta name="description" content="Intellect Kokand o'quvchilarining IELTS 8.5+, Multilevel (CEFR B2/C1), Milliy Sertifikat A+ hamda SAT imtihon natijalari va sertifikatlari katalogi.">
+  <!-- Tab ikonkasi: emoji YO'Q (landing bilan bir xil). Markaz logosi sozlangan bo'lsa
+       sertifikatlar.js shu link'ni logoga almashtiradi, bo'lmasa ikonka qo'yilmaydi. -->
+  <link rel="icon" id="brandFavicon" href="data:,">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -65,14 +68,17 @@
       gap: 10px;
     }
     .logo .mark {
-      background: var(--grad);
       width: 40px;
       height: 40px;
       border-radius: 12px;
       display: grid;
       place-items: center;
       font-size: 20px;
+      overflow: hidden;
+      flex-shrink: 0;
     }
+    /* Belgi FAQAT ichida logo bo'lsa ko'rinadi — bo'sh kvadrat ham, singan rasm ham chiqmaydi. */
+    .logo .mark:empty { display: none; }
     .nav-links {
       display: flex;
       gap: 32px;
@@ -547,7 +553,7 @@
 <header>
   <div class="container">
     <nav>
-      <a href="/" class="logo"><span>Intellect Kokand</span></a>
+      <a href="/" class="logo"><span class="mark" id="brandMark"></span><span id="brandName">Intellect Kokand</span></a>
       
       <ul class="nav-links">
         <li><a href="/#about" class="nav-link">Biz haqimizda</a></li>
@@ -667,6 +673,6 @@
      kontent-hash bilan chiqqani uchun bu muammodan xoli). Query o'zgarishi manzilni boshqa
      resursga aylantiradi va keshni chetlab o'tadi.
      ⚠️ sertifikatlar.js O'ZGARTIRILGANDA bu sanani QO'LDA yangilang. -->
-<script src="/sertifikatlar.js?v=20260818b" defer></script>
+<script src="/sertifikatlar.js?v=20260818c" defer></script>
 </body>
 </html>

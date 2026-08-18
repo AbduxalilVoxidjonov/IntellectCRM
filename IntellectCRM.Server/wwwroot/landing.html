@@ -3,13 +3,16 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>Intellect Kokand — Qo'qondagi zamonaviy ko'p yo'nalishli o'quv markazi</title>
+<title>Intellect Kokand</title>
 <meta name="description" content="Intellect Kokand — Qo'qon shahridagi zamonaviy ko'p yo'nalishli o'quv markazi. Ingliz tili, IELTS, Multilevel, Matematika, SAT, Ona tili, Rus tili, Fizika bo'yicha malakali ustozlardan sifatli ta'lim. Birinchi dars — bepul!">
 <meta property="og:title" content="Intellect Kokand — zamonaviy o'quv markazi">
 <meta property="og:description" content="Qo'qon shahridagi zamonaviy ko'p yo'nalishli o'quv markazi. Ingliz tili, IELTS, Matematika, SAT va boshqa fanlar. Birinchi dars — bepul!">
 <meta property="og:type" content="website">
 <meta name="theme-color" content="#0d1b2a">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%93%3C/text%3E%3C/svg%3E">
+<!-- Tab ikonkasi: emoji (🎓) ATAYIN olib tashlandi. Bo'sh `data:,` brauzerni
+     /favicon.ico ga bormasligi uchun; markaz logosi bo'lsa landing.js shu link'ni
+     logoga almashtiradi (setFavicon), bo'lmasa tabda faqat sarlavha qoladi. -->
+<link rel="icon" id="brandFavicon" href="data:,">
 <style>
   :root{
     --bg:#0d1b2a; --bg-2:#12233a; --card:#182b45;
@@ -30,7 +33,11 @@
   header{position:sticky;top:0;z-index:100;background:rgba(13,27,42,.92);backdrop-filter:blur(14px);border-bottom:1px solid rgba(255,255,255,.08)}
   nav{display:flex;align-items:center;justify-content:space-between;height:74px}
   .logo{display:flex;align-items:center;gap:10px;font-weight:800;font-size:20px}
-  .logo .mark{width:40px;height:40px;border-radius:10px;background:var(--grad);display:grid;place-items:center;font-size:20px;overflow:hidden}
+  .logo .mark{width:40px;height:40px;border-radius:10px;display:grid;place-items:center;font-size:20px;overflow:hidden;flex-shrink:0}
+  /* Brend belgisi FAQAT ichida logo bo'lsa ko'rinadi. `:empty` — logo sozlanmagan yoki
+     rasm yuklanmagan holatda element umuman chizilmaydi, ya'ni bo'sh ko'k kvadrat ham,
+     singan rasm ham HECH QACHON chiqmaydi; yonidagi "Intellect Kokand" matni qoladi. */
+  .logo .mark:empty{display:none}
   .logo .mark img{width:100%;height:100%;object-fit:contain;border-radius:10px;background:#fff}
   
   .nav-links{display:flex;align-items:center;gap:28px;list-style:none}
@@ -1355,7 +1362,7 @@
 <header>
   <div class="container">
     <nav>
-      <div class="logo"><span class="mark" id="brandMark" style="display:none;"></span><span id="brandName">Intellect Kokand</span></div>
+      <div class="logo"><span class="mark" id="brandMark"></span><span id="brandName">Intellect Kokand</span></div>
       
       <ul class="nav-links" id="navLinks">
         <li><a href="#about" class="nav-link">Biz haqimizda</a></li>
@@ -1870,7 +1877,7 @@
         
         <!-- Logo -->
         <div class="logo" style="display:flex; align-items:center; gap:10px; font-size:22px; font-weight:800; color:#ffffff;">
-          <span class="mark" id="brandMarkFooter" style="width:36px; height:36px; border-radius:10px; background:linear-gradient(135deg, #3b82f6, #1d4ed8); display:inline-flex; align-items:center; justify-content:center; font-size:18px; box-shadow:0 6px 16px rgba(59,130,246,0.3);">🎓</span>
+          <span class="mark" id="brandMarkFooter" style="width:36px; height:36px;"></span>
           <span id="brandNameFooter">Intellect Kokand</span>
         </div>
 
@@ -2052,6 +2059,6 @@
      2026-08-05 da tuzatilgan xato 13 kun prodda ko'rinib turdi). Query o'zgarsa — manzil boshqa
      resurs bo'lib hisoblanadi va kesh chetlab o'tiladi.
      ⚠️ landing.js O'ZGARTIRILGANDA bu sanani QO'LDA yangilang (deploy SKILL.md da ham eslatma bor). -->
-<script src="/landing.js?v=20260818b" defer></script>
+<script src="/landing.js?v=20260818c" defer></script>
 </body>
 </html>
