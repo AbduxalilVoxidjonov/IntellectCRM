@@ -662,6 +662,11 @@
 <!-- Sahifa mantiqi ALOHIDA faylda: prod CSP (script-src 'self') inline <script> ni bloklaydi,
      ya'ni ilgari serverda sertifikatlar yuklanmas, filtr/qidiruv ishlamas va ariza formasi
      umuman yubormasdi (lokalda esa CSP yo'qligi uchun "ishlab turgandek" ko'rinardi). -->
-<script src="/sertifikatlar.js" defer></script>
+<!-- ?v=... — KESH-BUSTER. Fayl nomi DOIMIY, ya'ni manzil hech qachon o'zgarmaydi: brauzer yoki
+     Cloudflare bir marta keshlagach eski nusxa abadiy qolib ketishi mumkin (SPA assetlari esa
+     kontent-hash bilan chiqqani uchun bu muammodan xoli). Query o'zgarishi manzilni boshqa
+     resursga aylantiradi va keshni chetlab o'tadi.
+     ⚠️ sertifikatlar.js O'ZGARTIRILGANDA bu sanani QO'LDA yangilang. -->
+<script src="/sertifikatlar.js?v=20260818" defer></script>
 </body>
 </html>

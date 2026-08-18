@@ -925,6 +925,36 @@ IFileProvider Guarded(IFileProvider innerProvider) =>
         innerProvider, privateFilesLogger,
         certificatesArePublic ? faceFolders : [.. certificateFolders, .. faceFolders]);
 
+// ── LANDING FAYLLARI UCHUN QAT'IY "KESHLAMA" SIYOSATI ──────────────────────────────────────────
+// Vite assetlari kontent-hash bilan chiqadi (`/assets/index-XXXX.js`) — nomi har build'da o'zgargani
+// uchun ular eskirmaydi. Landing esa DOIMIY nomli fayllardan iborat: manzil hech qachon o'zgarmaydi,
+// ya'ni brauzer yoki ORALIQDAGI kesh (Cloudflare, korporativ proksi, mobil brauzer) bir marta saqlab
+// qo'ysa — eski nusxa abadiy qolib ketishi mumkin. Aynan shu sababdan 2026-08-05 da tuzatilgan xato
+// prodda 13 kun ko'rinib turdi va lid formasi validatsiyada to'xtab qolardi.
+//
+// `no-cache` = "keshla, lekin har safar qayta tasdiqla" — odatda YETARLI, lekin oraliqdagi CDN/proksi
+// buni turlicha talqin qilishi mumkin. Shuning uchun landing HTML/JS uchun `no-store` (umuman
+// saqlama) qo'yiladi, ustiga eski HTTP/1.0 proksilar tushunadigan `Pragma`/`Expires` ham.
+//
+// ⚠️ FAQAT quyidagi 4 fayl uchun — butun saytga EMAS: rasm, shrift va `/assets/` keshlanishi KERAK,
+// aks holda har ochilishda qaytadan yuklanib trafik va sahifa ochilish vaqti oshib ketardi.
+string[] landingNoStorePaths =
+[
+    "/landing.html", "/landing.js", "/sertifikatlar.html", "/sertifikatlar.js",
+];
+
+// Sarlavhalar BITTA joyda: statik fayl pipeline'i ham, `/landing` va `MapFallback` marshrutlari ham
+// aynan shuni chaqiradi — aks holda ikkovi ayri ketib, biri keshlanadigan bo'lib qolardi.
+static void ApplyLandingNoStore(HttpResponse res)
+{
+    res.Headers.CacheControl = "no-cache, no-store, must-revalidate";
+    res.Headers.Pragma = "no-cache";
+    res.Headers.Expires = "0";
+}
+
+bool IsLandingNoStorePath(string path) =>
+    landingNoStorePaths.Contains(path, StringComparer.OrdinalIgnoreCase);
+
 // DIQQAT: UseDefaultFiles ATAYLAB ishlatilmaydi — `/` ni o'zimiz SPA fallback'da beramiz.
 // SPA statik fayllari: Vite assetlari kontent-hash bilan (immutable, 1 yil); index.html — no-cache.
 app.UseStaticFiles(new StaticFileOptions
@@ -939,6 +969,9 @@ app.UseStaticFiles(new StaticFileOptions
         // yangilanishlar brauzer/Cloudflare keshida ko'rinmay qoladi.
         if (path.Contains("/assets/", StringComparison.OrdinalIgnoreCase))
             headers.CacheControl = "public,max-age=31536000,immutable";
+        // Landing HTML/JS — doimiy nomli, shuning uchun umuman saqlanmasin (yuqoridagi izoh).
+        else if (IsLandingNoStorePath(path))
+            ApplyLandingNoStore(ctx.Context.Response);
         else
             headers.CacheControl = "no-cache";
     },
@@ -1115,8 +1148,10 @@ app.MapGet("/landing", async ctx =>
     var landingFile = Path.Combine(webRoot, "landing.html");
     if (!File.Exists(landingFile)) { ctx.Response.StatusCode = StatusCodes.Status404NotFound; return; }
     ctx.Response.ContentType = "text/html; charset=utf-8";
-    // no-cache: telefon brauzerlari yangilangan sahifani darhol olsin (sahifa kichik, kesh shart emas).
-    ctx.Response.Headers.CacheControl = "no-cache";
+    // no-store: telefon brauzerlari va Cloudflare yangilangan sahifani darhol olsin (sahifa kichik,
+    // kesh shart emas). Statik `/landing.html` bilan BIR XIL siyosat — bir yo'ldan eski, boshqasidan
+    // yangi nusxa kelib chalkashmasin.
+    ApplyLandingNoStore(ctx.Response);
     await ctx.Response.SendFileAsync(landingFile);
 });
 
@@ -1138,7 +1173,7 @@ app.MapFallback(async ctx =>
         if (File.Exists(certsFile))
         {
             ctx.Response.ContentType = "text/html; charset=utf-8";
-            ctx.Response.Headers.CacheControl = "no-cache";
+            ApplyLandingNoStore(ctx.Response);
             await ctx.Response.SendFileAsync(certsFile);
             return;
         }
@@ -1147,8 +1182,8 @@ app.MapFallback(async ctx =>
     if (isApexHost && !isPrivacy && File.Exists(landingFile))
     {
         ctx.Response.ContentType = "text/html; charset=utf-8";
-        // no-cache: telefon brauzerlari yangilangan sahifani darhol olsin (sahifa kichik, kesh shart emas).
-        ctx.Response.Headers.CacheControl = "no-cache";
+        // no-store: apex domenda landing aynan shu yo'ldan keladi — statik fayl bilan bir xil siyosat.
+        ApplyLandingNoStore(ctx.Response);
         await ctx.Response.SendFileAsync(landingFile);
         return;
     }
