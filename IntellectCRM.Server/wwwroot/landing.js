@@ -348,47 +348,6 @@
     });
   }
 
-  // Student App Platform Modal Logic
-  var appModalBackdrop = document.getElementById('appModalBackdrop');
-  var appModalClose = document.getElementById('appModalClose');
-  var btnViewAppPlatform = document.getElementById('btnViewAppPlatform');
-  var appModalCta = document.getElementById('appModalCta');
-
-  function openAppModal() {
-    if (appModalBackdrop) {
-      appModalBackdrop.classList.add('show');
-      document.body.style.overflow = 'hidden';
-    }
-  }
-
-  function closeAppModal() {
-    if (appModalBackdrop) {
-      appModalBackdrop.classList.remove('show');
-      document.body.style.overflow = '';
-    }
-  }
-
-  if (btnViewAppPlatform) {
-    btnViewAppPlatform.addEventListener('click', function(e) {
-      e.preventDefault();
-      e.stopPropagation();
-      openAppModal();
-    });
-  }
-
-  if (appModalClose) appModalClose.addEventListener('click', closeAppModal);
-  if (appModalBackdrop) {
-    appModalBackdrop.addEventListener('click', function(e) {
-      if (e.target === appModalBackdrop) closeAppModal();
-    });
-  }
-  if (appModalCta) {
-    appModalCta.addEventListener('click', function() {
-      closeAppModal();
-      openModal('', 'Student App platformasi modalidan yozildi');
-    });
-  }
-
   // FAQ Contact Banner Lead Form Submission
   var faqLeadForm = document.getElementById('faqLeadForm');
   var faqLeadName = document.getElementById('faqLeadName');
