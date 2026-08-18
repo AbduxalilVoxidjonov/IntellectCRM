@@ -83,6 +83,10 @@ public static class AuditSections
         // "TeacherSalary" — maosh to'lovi VA o'qituvchi yozuvining o'zi (yaratish/tahrir/arxiv).
         ["TeacherSalary"] = "teachers",
         ["TeacherReview"] = "teachers",
+        // "substitute_teacher" — O'RINBOSAR biriktirish va uni bekor qilish. "Guruhlar" emas,
+        // "O'qituvchilar" bo'limida: amal guruhning tarkibiga emas, KIM dars o'tishiga va kimning
+        // MAOSHIGA (o'rinbosarga haq, asosiy o'qituvchidan ushlanma) tegishli.
+        ["substitute_teacher"] = "teachers",
 
         // --- Moliya ---
         ["FinanceTransaction"] = "finance",

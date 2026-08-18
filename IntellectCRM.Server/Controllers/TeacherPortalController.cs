@@ -51,14 +51,24 @@ public class TeacherPortalController(
     /// <summary>O'qituvchi shu guruhda shu kursni (fan) o'qitadimi? Biriktirish to'g'ridan-to'g'ri
     /// guruhda: Group.TeacherId (o'qituvchi) yoki vaqtincha o'rinbosar biriktiruvi.
     /// <para>Arxivlangan/tugatilgan va vaqtincha bloklangan guruh o'qituvchi uchun UMUMAN yo'q —
-    /// qoida <see cref="TeacherGroupAccess"/> da (ro'yxat bilan bitta manbadan).</para></summary>
-    private async Task<bool> Teaches(string teacherId, string classId, string subjectId)
+    /// qoida <see cref="TeacherGroupAccess"/> da (ro'yxat bilan bitta manbadan).</para>
+    ///
+    /// <para>⚠️ <paramref name="date"/> — AYNAN yozilayotgan/o'qilayotgan SANA. O'rinbosar uchun
+    /// darvoza SHU sanaga qarab ochiladi (<c>SubstituteTeacherService.CanSubstituteWriteAsync</c>):
+    /// ilgari tekshiruvga sana umuman uzatilmasdi va ichkarida <c>AppClock.Today</c> o'qilardi —
+    /// natijada tayinlangan kuni o'rinbosar guruhning O'TGAN ISTALGAN kunidagi baho/davomatini
+    /// o'zgartira olardi, tayinlov tugagach esa o'z xatosini tuzata olmasdi.</para>
+    ///
+    /// <para><paramref name="date"/> berilmasa (guruh darajasidagi amal, masalan "Aloqa" tabi) —
+    /// BUGUN olinadi.</para></summary>
+    private async Task<bool> Teaches(string teacherId, string classId, string subjectId, string? date = null)
     {
         var g = await db.Classes.FindAsync(classId);
         if (g == null || !TeacherGroupAccess.Visible(g)) return false;
 
         var isOwner = TeacherGroupAccess.OwnedBy(g, teacherId);
-        var isSubstitute = !isOwner && await SubstituteTeacherService.IsSubstituteForGroupAsync(db, teacherId, classId);
+        var isSubstitute = !isOwner && await SubstituteTeacherService.CanSubstituteWriteAsync(
+            db, teacherId, classId, date ?? AppClock.Today.ToString("yyyy-MM-dd"));
 
         return (isOwner || isSubstitute) && (g.CourseId == subjectId || string.IsNullOrEmpty(subjectId));
     }
@@ -219,14 +229,11 @@ public class TeacherPortalController(
 
         var subjectNames = await db.Subjects.ToDictionaryAsync(s => s.Id, s => s.Name);
 
-        var today = AppClock.Today.ToString("yyyy-MM-dd");
-        var substituteGroupIds = await db.SubstituteTeacherAssignments.AsNoTracking()
-            .Where(a => a.SubstituteTeacherId == t.Id && a.IsActive &&
-                ((a.EndDate == null && a.Date == today) ||
-                 (a.EndDate != null && string.Compare(a.Date, today) <= 0 && string.Compare(a.EndDate, today) >= 0)))
-            .Select(a => a.GroupId)
-            .Distinct()
-            .ToListAsync();
+        // O'rinbosar sifatida BUGUN kirish huquqi bor guruhlar. Qoida YAGONA joyda
+        // (SubstituteTeacherService) — ro'yxat va guruhga kirish darvozasi (Teaches) ilgari
+        // ikki xil ishlar edi: bu yerda faqat ORALIQ tekshirilib, tanlangan sanalar
+        // (SelectedDates) e'tiborga olinmasdi.
+        var substituteGroupIds = await SubstituteTeacherService.SubstituteGroupIdsAsync(db, t.Id);
 
         // FAQAT FAOL GURUHLAR. Arxivlangan/tugatilgan (sertifikat bilan yopilgan) va vaqtincha
         // bloklangan guruhlar o'qituvchida UMUMAN ko'rinmaydi — qoida TeacherGroupAccess da,
@@ -253,6 +260,21 @@ public class TeacherPortalController(
 
     /// <summary>
     /// O'qituvchining o'rinbosar o'qituvchi tayinlovlari (o'rinbosar yoki almashtirilgan holatda).
+    ///
+    /// <para>⚠️ <b>PUL MAYDONLARI DARVOZALANGAN</b> (<c>TeacherPermissions.Salary</c>). Filtr
+    /// <c>SubstituteTeacherId == me || OriginalTeacherId == me</c> — ya'ni javobda ASOSIY
+    /// o'qituvchi ham qatnashadi, va u yerda o'rinbosarga to'lanadigan haq turadi. Ilgari bu
+    /// endpointda <c>Salary</c> tekshiruvi UMUMAN yo'q edi (qiyoslang: <c>salary</c> va
+    /// <c>retention-bonus</c>) — maoshni ko'rish taqiqlangan o'qituvchi ham, hatto begona
+    /// odamning haqini ham ko'raverardi.</para>
+    ///
+    /// <para>403 QAYTARILMAYDI, javob TOZALANADI (`uploads-security.md` dagi "javobni tozalash"
+    /// siyosati): ro'yxatning O'ZI ("qaysi kuni qaysi guruhda dars o'taman") pul ma'lumoti emas
+    /// va u modulning ishlashi uchun kerak. Pul maydonlari 0 bo'lib qaytadi.</para>
+    ///
+    /// <para>Nol yig'indili modelda <c>EstimatedSalary</c> va <c>EstimatedDeduction</c> TENG,
+    /// shuning uchun "birini yashirib, ikkinchisini ko'rsatish" ma'nosiz — ikkalasi birga
+    /// darvozalanadi.</para>
     /// </summary>
     [HttpGet("substitutions")]
     public async Task<IActionResult> MySubstitutions()
@@ -260,7 +282,19 @@ public class TeacherPortalController(
         var t = await Me();
         if (t is null) return NotFound();
 
-        var list = await SubstituteTeacherService.GetAssignmentsAsync(db, teacherId: t.Id);
+        // FAQAT FAOL tayinlovlar: bekor qilingani o'qituvchida "menda dars bor" bo'lib
+        // ko'rinib turardi (ro'yxatda holat ustuni ham yo'q).
+        var list = await SubstituteTeacherService.GetAssignmentsAsync(db, teacherId: t.Id, isActive: true);
+
+        if (!t.Permissions.Contains(TeacherPermissions.Salary))
+            list = list.Select(x => x with
+            {
+                EstimatedSalary = 0m,
+                EstimatedDeduction = 0m,
+                PerLessonFee = 0m,
+                StudentCount = 0,
+            }).ToList();
+
         return Ok(list);
     }
 
@@ -308,7 +342,9 @@ public class TeacherPortalController(
     [HttpPut("journal")]
     public async Task<IActionResult> SetEntry(SetJournalEntryRequest req)
     {
-        if (!await Authorized(req.ClassId, req.SubjectId)) return Forbid();
+        // K3: darvozaga AYNAN yozilayotgan SANA uzatiladi — o'rinbosar faqat o'zi o'tgan
+        // (va tuzatish oynasidagi) kunga yoza oladi.
+        if (!await Authorized(req.ClassId, req.SubjectId, req.Date)) return Forbid();
         // Hali o'tilmagan (sanasi kelmagan) darsga baho/jurnal kiritib bo'lmaydi.
         if (string.CompareOrdinal(req.Date, AppClock.Now.ToString("yyyy-MM-dd")) > 0)
             return BadRequest(new { message = "Dars hali o'tilmagan — kelajakdagi sanaga baho qo'yib bo'lmaydi" });
@@ -333,7 +369,8 @@ public class TeacherPortalController(
         [FromQuery] string classId, [FromQuery] string subjectId, [FromQuery] int quarter,
         [FromQuery] string studentId, [FromQuery] string date, [FromQuery] int period)
     {
-        if (!await Authorized(classId, subjectId)) return Forbid();
+        // K3: tozalash ham AYNAN o'sha sana bo'yicha darvozalanadi.
+        if (!await Authorized(classId, subjectId, date)) return Forbid();
         // Tozalash ham sana oynasiga bo'ysunadi (yopiq davr yozuvini o'chirib ham bo'lmaydi).
         var deny = await JournalPolicy.CheckAsync(db, classId, subjectId, date, period,
             isAdmin: false, skipConducted: true);
@@ -353,26 +390,46 @@ public class TeacherPortalController(
         return t is not null && t.Permissions.Contains(perm);
     }
 
-    /// <summary>Jurnal ruxsati + shu guruh+fanga dars beradimi.</summary>
-    private async Task<bool> Authorized(string classId, string subjectId)
+    /// <summary>Jurnal ruxsati + shu guruh+fanga SHU SANADA dars beradimi.</summary>
+    private async Task<bool> Authorized(string classId, string subjectId, string? date = null)
     {
         var t = await Me();
         return t is not null && t.Permissions.Contains(TeacherPermissions.Journal)
-            && await Teaches(t.Id, classId, subjectId);
+            && await Teaches(t.Id, classId, subjectId, date);
     }
 
-    /// <summary>Guruh joriy o'qituvchinikimi (Group.TeacherId == me). Topilmasa null, egasi bo'lmasa false.
+    /// <summary>
+    /// GURUHGA KIRISHNING YAGONA DARVOZASI. Guruh joriy o'qituvchinikimi (<c>Owns</c>) va/yoki u
+    /// shu guruhda O'RINBOSARmi (<c>IsSubstitute</c>). Topilmasa <c>Group == null</c>.
+    ///
     /// <para>EGALIK YETARLI EMAS: guruh arxivlangan/tugatilgan yoki admin tomonidan vaqtincha
     /// bloklangan bo'lsa <c>Owns=false</c> qaytadi (403). Aks holda guruh ro'yxatdan yo'qolsa ham,
-    /// eski havola/keshlangan id bilan jurnalga yozib ketish mumkin bo'lardi.</para></summary>
-    private async Task<(Teacher? Me, Group? Group, bool Owns)> ResolveOwnedGroup(string classId)
+    /// eski havola/keshlangan id bilan jurnalga yozib ketish mumkin bo'lardi.</para>
+    ///
+    /// <para>⚠️ <c>IsSubstitute</c> — O'QISH darajasidagi bayroq (<c>CanSubstituteReadAsync</c>:
+    /// tayinlov ko'rish oynasiga tushadimi). YOZISH uchun bu YETARLI EMAS — u AYNAN sana bo'yicha
+    /// <see cref="SubstituteWrite"/> bilan tekshiriladi. Ilgari bu metod o'rinbosarlikni umuman
+    /// bilmasdi: o'rinbosar guruhni ro'yxatda ko'rar, bosar va 403 olardi — modulning asosiy
+    /// stsenariysi ishlamasdi.</para>
+    ///
+    /// <para>Har bir chaqiruvchi o'rinbosarga NIMA ochilishini O'ZI hal qiladi (jadval:
+    /// <c>.claude/rules/substitute-teachers.md</c> §3).</para>
+    /// </summary>
+    private async Task<(Teacher? Me, Group? Group, bool Owns, bool IsSubstitute)> ResolveOwnedGroup(string classId)
     {
         var t = await Me();
-        if (t is null) return (null, null, false);
+        if (t is null) return (null, null, false, false);
         var g = await db.Classes.FindAsync(classId);
-        if (g is null) return (t, null, false);
-        return (t, g, TeacherGroupAccess.OwnedBy(g, t.Id));
+        if (g is null) return (t, null, false, false);
+        var owns = TeacherGroupAccess.OwnedBy(g, t.Id);
+        var sub = !owns && TeacherGroupAccess.Visible(g)
+            && await SubstituteTeacherService.CanSubstituteReadAsync(db, t.Id, classId);
+        return (t, g, owns, sub);
     }
+
+    /// <summary>O'rinbosar AYNAN shu SANAdagi ishni o'zgartira oladimi (tuzatish oynasi bilan).</summary>
+    private Task<bool> SubstituteWrite(string teacherId, string classId, string? date) =>
+        SubstituteTeacherService.CanSubstituteWriteAsync(db, teacherId, classId, date);
 
     // ---------- ZAMONAVIY: Guruh OYLIK jurnali + sillabus o'tilishi (admin bilan bir xil, o'qituvchiga skoplangan) ----------
     // Yangi monthly model: guruh dars kunlari bo'yicha avtomatik ustunlar + sillabus o'tilishi/prognoz.
@@ -383,11 +440,13 @@ public class TeacherPortalController(
     public async Task<ActionResult<GroupJournalDto>> JournalGroupMonth(
         [FromQuery] string classId, [FromQuery] string? month)
     {
-        var (t, g, owns) = await ResolveOwnedGroup(classId);
+        var (t, g, owns, isSub) = await ResolveOwnedGroup(classId);
         if (t is null) return NotFound();
         if (!t.Permissions.Contains(TeacherPermissions.Journal)) return Forbid();
         if (g is null) return NotFound(new { message = "Guruh topilmadi" });
-        if (!owns) return Forbid();
+        // O'RINBOSARGA OCHIQ (o'qish): dars o'tayotgan odam jurnalni ko'rmasa davomat ham qo'ya
+        // olmaydi — bu modulning asosiy stsenariysi. Yozish esa AYNAN SANA bo'yicha darvozalanadi.
+        if (!owns && !isSub) return Forbid();
         var result = await JournalService.GroupMonthAsync(db, classId, month);
         if (result is null) return NotFound(new { message = "Guruh topilmadi" });
         // TO'LOV "DARVOZASI": to'lov qilmagan o'quvchi o'qituvchi jurnalida UMUMAN ko'rinmasin —
@@ -407,11 +466,13 @@ public class TeacherPortalController(
     [HttpPost("journal/bulk-attendance")]
     public async Task<IActionResult> JournalBulkAttendance(BulkAttendanceRequest req)
     {
-        var (t, g, owns) = await ResolveOwnedGroup(req.ClassId);
+        var (t, g, owns, _) = await ResolveOwnedGroup(req.ClassId);
         if (t is null) return NotFound();
         if (!t.Permissions.Contains(TeacherPermissions.Journal)) return Forbid();
         if (g is null) return NotFound(new { message = "Guruh topilmadi" });
-        if (!owns) return Forbid();
+        // O'RINBOSARGA OCHIQ (yozish) — davomat aynan uning ishi. Lekin FAQAT o'zi o'tgan kunga
+        // (tuzatish oynasi bilan): darvozaga req.Date uzatiladi, "bugun" emas.
+        if (!owns && !await SubstituteWrite(t.Id, req.ClassId, req.Date)) return Forbid();
         // Jurnal siyosati: sana oynasi (skipConducted — davomat darsni o'zi "o'tildi" qiladi).
         var deny = await JournalPolicy.CheckAsync(db, req.ClassId, req.SubjectId, req.Date, req.Period,
             isAdmin: false, skipConducted: true);
@@ -435,10 +496,12 @@ public class TeacherPortalController(
     [HttpPost("journal/reschedule")]
     public async Task<ActionResult<LessonRescheduleDto>> JournalReschedule(RescheduleLessonRequest req)
     {
-        var (t, g, owns) = await ResolveOwnedGroup(req.ClassId);
+        var (t, g, owns, _) = await ResolveOwnedGroup(req.ClassId);
         if (t is null) return NotFound();
         if (!t.Permissions.Contains(TeacherPermissions.Journal)) return Forbid();
         if (g is null) return NotFound(new { message = "Guruh topilmadi" });
+        // O'RINBOSARGA YOPIQ: dars ko'chirish guruhning JADVALINI o'zgartiradi — u oyning dars
+        // soniga (maosh maxraji) va boshqa kunlarga ta'sir qiladi. Bu guruh egasining qarori.
         if (!owns) return Forbid();
         try
         {
@@ -458,10 +521,11 @@ public class TeacherPortalController(
     {
         var rec = await db.LessonReschedules.FindAsync(id);
         if (rec is null) return NoContent();
-        var (t, g, owns) = await ResolveOwnedGroup(rec.ClassId);
+        var (t, g, owns, _) = await ResolveOwnedGroup(rec.ClassId);
         if (t is null) return NotFound();
         if (!t.Permissions.Contains(TeacherPermissions.Journal)) return Forbid();
         if (g is null) return NotFound(new { message = "Guruh topilmadi" });
+        // O'RINBOSARGA YOPIQ — ko'chirishni qo'yish bilan bir xil sabab (yuqoriga qarang).
         if (!owns) return Forbid();
         await JournalService.CancelRescheduleAsync(db, id);
         return NoContent();
@@ -472,10 +536,11 @@ public class TeacherPortalController(
     [HttpGet("grading/group/{groupId}/board")]
     public async Task<ActionResult<GradingBoardDto>> GradingBoard(string groupId, [FromQuery] string? month)
     {
-        var (t, g, owns) = await ResolveOwnedGroup(groupId);
+        var (t, g, owns, isSub) = await ResolveOwnedGroup(groupId);
         if (t is null) return NotFound();
         if (g is null) return NotFound();
-        if (!owns) return Forbid();
+        // O'RINBOSARGA OCHIQ (o'qish): baho qo'yish uchun mezonlar taxtasini ko'rish shart.
+        if (!owns && !isSub) return Forbid();
         return await GradingController.BuildBoardAsync(db, g, month);
     }
 
@@ -483,10 +548,12 @@ public class TeacherPortalController(
     [HttpPost("grading/grade")]
     public async Task<IActionResult> GradingGrade(SetCriterionGradeRequest req)
     {
-        var (t, g, owns) = await ResolveOwnedGroup(req.GroupId);
+        var (t, g, owns, _) = await ResolveOwnedGroup(req.GroupId);
         if (t is null) return NotFound();
         if (g is null) return NotFound();
-        if (!owns) return Forbid();
+        // O'RINBOSARGA OCHIQ (yozish) — o'zi o'tgan darsning bahosi aynan uning ishi, FAQAT
+        // req.Date kuni (tuzatish oynasi bilan).
+        if (!owns && !await SubstituteWrite(t.Id, req.GroupId, req.Date)) return Forbid();
         try
         {
             await GradingController.UpsertGradeAsync(db, req);
@@ -503,10 +570,11 @@ public class TeacherPortalController(
     [HttpPost("grading/grade/bulk")]
     public async Task<IActionResult> GradingBulk(BulkCriterionGradeRequest req)
     {
-        var (t, g, owns) = await ResolveOwnedGroup(req.GroupId);
+        var (t, g, owns, _) = await ResolveOwnedGroup(req.GroupId);
         if (t is null) return NotFound();
         if (g is null) return NotFound();
-        if (!owns) return Forbid();
+        // O'RINBOSARGA OCHIQ (yozish), FAQAT req.Date kuni — yakka baho bilan bir xil qoida.
+        if (!owns && !await SubstituteWrite(t.Id, req.GroupId, req.Date)) return Forbid();
         await GradingController.BulkGradeAsync(db, g, req.CriterionId, req.Date, req.Done);
         await db.SaveChangesAsync();
         return Ok(new { ok = true });
@@ -516,11 +584,13 @@ public class TeacherPortalController(
     [HttpGet("curriculum/group/{groupId}")]
     public async Task<ActionResult<GroupCurriculumDto>> CurriculumGroup(string groupId)
     {
-        var (t, group, owns) = await ResolveOwnedGroup(groupId);
+        var (t, group, owns, isSub) = await ResolveOwnedGroup(groupId);
         if (t is null) return NotFound();
         if (!t.Permissions.Contains(TeacherPermissions.Schedule)) return Forbid();
         if (group is null) return NotFound();
-        if (!owns) return Forbid();
+        // O'RINBOSARGA OCHIQ (o'qish): "guruh qayerga yetgan, bugun qaysi mavzuni o'tishim kerak"
+        // — dars o'tish uchun ZARUR ma'lumot.
+        if (!owns && !isSub) return Forbid();
 
         return await CurriculumForecast.BuildGroupAsync(db, group);
     }
@@ -529,10 +599,12 @@ public class TeacherPortalController(
     [HttpPost("curriculum/group/{groupId}/cover")]
     public async Task<ActionResult> CurriculumCover(string groupId, CoverRequest req)
     {
-        var (t, group, owns) = await ResolveOwnedGroup(groupId);
+        var (t, group, owns, _) = await ResolveOwnedGroup(groupId);
         if (t is null) return NotFound();
         if (!t.Permissions.Contains(TeacherPermissions.Schedule)) return Forbid();
         if (group is null) return NotFound();
+        // O'RINBOSARGA YOPIQ: o'quv dasturi o'tilishini BELGILASH — kurs prognozini (qachon
+        // tugaydi) va guruh rejasini o'zgartiradi, ya'ni bir kunlik o'rinbosarning ishi emas.
         if (!owns) return Forbid();
 
         if (req.Covered)
@@ -565,10 +637,11 @@ public class TeacherPortalController(
     [HttpPost("curriculum/group/{groupId}/revision")]
     public async Task<ActionResult> CurriculumRevision(string groupId, RevisionRequest req)
     {
-        var (t, group, owns) = await ResolveOwnedGroup(groupId);
+        var (t, group, owns, _) = await ResolveOwnedGroup(groupId);
         if (t is null) return NotFound();
         if (!t.Permissions.Contains(TeacherPermissions.Schedule)) return Forbid();
         if (group is null) return NotFound();
+        // O'RINBOSARGA YOPIQ — o'quv dasturini tahrirlash bilan bir xil sabab.
         if (!owns) return Forbid();
 
         if (req.Delta > 0)
@@ -862,7 +935,10 @@ public class TeacherPortalController(
     private async Task<bool> OwnsGroup(string classId)
     {
         if (!await HasPerm(TeacherPermissions.Journal)) return false;
-        var (_, _, owns) = await ResolveOwnedGroup(classId);
+        // ⚠️ O'RINBOSARGA YOPIQ (o'qish ham): testlar bo'limida test YARATISH/O'CHIRISH,
+        // ball qo'yish va SERTIFIKAT berish bor — bular kurs davomidagi ish, bir kunlik
+        // o'rinbosarnikimas. Shuning uchun bu yerda faqat `owns`.
+        var (_, _, owns, _) = await ResolveOwnedGroup(classId);
         return owns;
     }
 

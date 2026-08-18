@@ -35,9 +35,19 @@ public static class SalaryJournalStats
     /// (oy, guruhId) → jurnal holati. <paramref name="notBefore"/> — o'qituvchi ishga kirgan sana
     /// ("yyyy-MM-dd"); undan oldingi darslar rejaga kirmaydi.
     /// </summary>
+    /// <param name="excludeDates">
+    /// (guruhId → sanalar) — REJADAN CHIQARILADIGAN kunlar. Hozircha yagona manba:
+    /// <b>o'rinbosar o'qituvchi qamragan darslar</b>.
+    /// <para>⚠️ NEGA KERAK: o'rinbosar o'tgan dars ham guruhning rejasida turadi. U jurnalda
+    /// belgilanmasa, asosiy o'qituvchi uni "o'tkazib yuborgan" hisoblanib jarimaga tortilardi —
+    /// USTIGA o'sha darsning haqi o'rinbosarlik ushlanmasi sifatida ham ayrilgan bo'lardi.
+    /// Ya'ni BITTA dars uchun IKKI marta jarima. Endi u kun asosiy o'qituvchining
+    /// <c>Planned</c>/<c>Missed</c> sanog'iga umuman kirmaydi (u kuni dars bergan boshqa odam).</para>
+    /// </param>
     public static async Task<Dictionary<(string Month, string GroupId), Stat>> BuildAsync(
         IAppDbContext db, IReadOnlyList<GroupInfo> groups,
-        string startMonth, string toMonth, int graceDays, string? notBefore)
+        string startMonth, string toMonth, int graceDays, string? notBefore,
+        IReadOnlyDictionary<string, HashSet<string>>? excludeDates = null)
     {
         var result = new Dictionary<(string, string), Stat>();
         if (groups.Count == 0) return result;
@@ -73,8 +83,10 @@ public static class SalaryJournalStats
                 var planned = 0;
                 var done = 0;
                 var missed = new List<string>();
+                var skip = excludeDates?.GetValueOrDefault(g.Id);
                 foreach (var date in JournalService.EffectiveLessonDatesInMonth(g.Days, month, movesByGroup.GetValueOrDefault(g.Id, noMoves)))
                 {
+                    if (skip is not null && skip.Contains(date)) continue;             // o'rinbosar o'tgan dars
                     if (string.CompareOrdinal(date, cutoff) > 0) continue;             // hali muhlati kelmagan
                     if (notBefore is { Length: >= 10 } && string.CompareOrdinal(date, notBefore) < 0) continue;
                     if (g.StartDate is { Length: >= 10 } && string.CompareOrdinal(date, g.StartDate[..10]) < 0) continue;

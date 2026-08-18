@@ -3618,7 +3618,20 @@ public record CreateSubstituteAssignmentRequest(
     string? EndDate = null,
     string? Reason = null);
 
-/// <summary>O'rinbosar o'qituvchi tayinlovi ma'lumoti.</summary>
+/// <summary>
+/// O'rinbosar o'qituvchi tayinlovi ma'lumoti.
+///
+/// <para><b>PUL — NOL YIG'INDILI:</b> <paramref name="EstimatedSalary"/> (o'rinbosarga to'lanadi)
+/// va <paramref name="EstimatedDeduction"/> (asosiy o'qituvchidan ushlanadi) AYNAN TENG —
+/// markaz uchun amal neytral. Ikkalasi ham bitta hisoblagichdan
+/// (<c>SubstituteTeacherService.PerLesson</c>). Ikki alohida maydon ATAYIN: UI ikki tomonni
+/// ("kimga qo'shildi / kimdan ayrildi") ochiq ko'rsatadi va model kelajakda o'zgarsa
+/// (masalan markaz ustidan qo'shsa) shartnoma buzilmaydi.</para>
+///
+/// <para>⚠️ Bu maydonlar — MAOSH ma'lumoti. Admin API'da o'qish <c>teachers</c> ruxsati bilan
+/// darvozalangan, o'qituvchi ilovasida esa <c>TeacherPermissions.Salary</c> yo'q bo'lsa
+/// TOZALANADI (nolga tushiriladi).</para>
+/// </summary>
 public record SubstituteTeacherAssignmentDto(
     string Id,
     string GroupId,
@@ -3636,7 +3649,30 @@ public record SubstituteTeacherAssignmentDto(
     int LessonCount = 1,
     decimal EstimatedSalary = 0m,
     List<string>? Dates = null,
-    decimal PerLessonFee = 0m);
+    decimal PerLessonFee = 0m,
+    decimal EstimatedDeduction = 0m,
+    int StudentCount = 0);
+
+/// <summary>
+/// Admin modalidagi JONLI hisob (<c>GET /api/admin/substitute-teachers/preview</c>) — frontend
+/// pulni O'ZI hisoblamaydi (ilgari hisoblardi va serverdagi raqamdan farq qilardi).
+/// </summary>
+/// <param name="LessonCount">Tanlangan dars sanalari soni.</param>
+/// <param name="PerLessonFee">Bitta dars narxi (bir necha oyga tushsa — O'RTACHA).</param>
+/// <param name="EstimatedSalary">O'rinbosarga to'lanadigan summa.</param>
+/// <param name="EstimatedDeduction">Asosiy o'qituvchidan ushlanadigan summa (nol yig'indili — teng).</param>
+/// <param name="StudentCount">Guruhdagi FAOL o'quvchilar soni (foizli hovuz shundan).</param>
+/// <param name="MonthLessons">Oyning HAQIQIY dars soni — bitta dars narxining MAXRAJI.</param>
+/// <param name="Warning">Foydalanuvchiga ko'rsatiladigan ogohlantirish yoki <c>null</c>
+/// (masalan "guruhda faol o'quvchi yo'q", "bu oyda pul yig'ilmagan").</param>
+public record SubstituteFeePreviewDto(
+    int LessonCount,
+    decimal PerLessonFee,
+    decimal EstimatedSalary,
+    decimal EstimatedDeduction,
+    int StudentCount,
+    int MonthLessons,
+    string? Warning);
 
 /// <summary>Guruhning oydagi rejalashtirilgan dars sanasi (modal uchun).</summary>
 public record GroupLessonDateDto(string Date, string DayName, bool IsScheduled);

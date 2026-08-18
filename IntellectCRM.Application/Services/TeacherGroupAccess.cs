@@ -51,8 +51,18 @@ public static class TeacherGroupAccess
     public static bool Visible(Group g) => HiddenReason(g) is null;
 
     /// <summary>
-    /// Guruh AYNAN shu o'qituvchiniki VA unga ko'rinadimi. Guruhga kirishning yagona darvozasi:
-    /// <c>TeacherPortalController.ResolveOwnedGroup</c> va <c>Teaches</c> shuni chaqiradi.
+    /// Guruh AYNAN shu o'qituvchiniki (EGASI) VA unga ko'rinadimi. Guruhga kirishning yagona
+    /// darvozasi: <c>TeacherPortalController.ResolveOwnedGroup</c> va <c>Teaches</c> shuni chaqiradi.
+    ///
+    /// <para>⚠️ <b>EGALIK — YAGONA yo'l EMAS:</b> guruhga vaqtincha O'RINBOSAR ham kira oladi.
+    /// Bu qoida SHU faylda emas, <see cref="SubstituteTeacherService"/> da (u SANAGA bog'liq va
+    /// bazani talab qiladi — bu yerdagi sof funksiyalarga sig'maydi). <c>ResolveOwnedGroup</c>
+    /// ikkalasini ham BIRGA hal qiladi va <c>IsSubstitute</c> bayrog'ini qaytaradi; har bir
+    /// endpoint o'rinbosarga NIMA ochilishini o'zi hal qiladi
+    /// (jadval: <c>.claude/rules/substitute-teachers.md</c> §3).</para>
+    ///
+    /// <para>Bu yerdagi <see cref="Visible"/> tekshiruvi esa IKKALA yo'l uchun ham majburiy:
+    /// arxivlangan/bloklangan guruh o'rinbosarga ham ochilmaydi.</para>
     /// </summary>
     public static bool OwnedBy(Group g, string teacherId) =>
         g is not null && !string.IsNullOrEmpty(teacherId)

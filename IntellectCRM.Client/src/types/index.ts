@@ -994,8 +994,11 @@ export interface Group {
   teacherSalaryPercent?: number
   /** Qat'iy bo'lsa — shu guruh uchun o'qituvchiga beriladigan oylik summa (so'm) */
   teacherSalaryFixed?: number
-  /** Guruhdagi faol o'quvchilar soni */
-  studentCount?: number
+  // ⚠️ `studentCount` ATAYIN YO'Q: `ClassesController` xom `Group` entity qaytaradi, unda bunday
+  // ustun umuman yo'q. Maydon turda turgani uchun UI uni "bor" deb o'ylab, fallback bilan
+  // pul hisoblab yuborardi (o'rinbosarlik summasi doim 10 o'quvchiga hisoblanardi).
+  // Guruhdagi o'quvchilar soni kerak bo'lsa — shu ma'lumotni HAQIQATAN qaytaradigan
+  // endpoint DTO'sidan oling (masalan moliya/xonalar DTO'lari).
 }
 
 /** Guruh a'zosi (many-to-many a'zolik) */
@@ -1660,8 +1663,6 @@ export interface MonthSalary {
    * o'qituvchining o'sha oydagi haqiqiy hissasini ko'rsatadi. Qat'iy maoshda `expected` ga teng.
    */
   potentialExpected?: number
-  /**
-   * TUSHUM REJASI — o'qituvchining BARCHA guruhlarida shu oy uchun o'quvchilarga hisoblangan
   /**
    * TUSHUM REJASI — o'qituvchining BARCHA guruhlarida shu oy uchun o'quvchilarga hisoblangan
    * (chegirma ayrilgan) summa: "aslida qancha tushum bo'lishi kerak edi".
@@ -2334,6 +2335,46 @@ export interface SubstituteTeacherAssignment {
   estimatedSalary?: number
   dates?: string[]
   perLessonFee?: number
+  /** Asosiy o'qituvchidan ushlanadigan summa (so'm) — SERVER hisoblaydi, klient qayta hisoblamaydi. */
+  estimatedDeduction?: number
+  /**
+   * Guruhdagi FAOL o'quvchilar soni (foizli maosh hovuzi shundan hisoblanadi).
+   * Server DTO'da bor edi, turda esa yo'q edi — ya'ni maydon javobda kelib turgani bilan
+   * TypeScript uni "yo'q" deb bilardi va UI'da ishlatib bo'lmasdi.
+   * ⚠️ O'qituvchi ilovasida (`GET /teacher/substitutions`) `Salary` ruxsati yo'q bo'lsa
+   * boshqa pul maydonlari bilan birga 0 ga tushiriladi — "0 ta o'quvchi" deb ko'rsatmang.
+   */
+  studentCount?: number
+}
+
+/**
+ * O'rinbosar biriktirish oynasidagi JONLI hisob-kitob (server javobi).
+ *
+ * ⚠️ Bu raqamlar FAQAT serverdan keladi. Ilgari modal formulani o'zi qayta yozgan edi va
+ * natijada bitta tayinlov uchun uch xil summa ko'rinardi (modal, jadval, maosh varaqasi).
+ */
+export interface SubstitutePreview {
+  /** Tanlangan dars kunlari soni */
+  lessonCount: number
+  /** Bitta dars narxi (so'm) */
+  perLessonFee: number
+  /** O'rinbosar o'qituvchiga to'lanadigan summa (so'm) */
+  estimatedSalary: number
+  /** Asosiy o'qituvchidan ushlanadigan summa (so'm) */
+  estimatedDeduction: number
+  /** Guruhdagi hisobga olingan o'quvchilar soni */
+  studentCount: number
+  /** Shu oydagi jami dars soni (maxraj) */
+  monthLessons: number
+  /** Server ogohlantirishi (masalan "guruh maoshi sozlanmagan") — bo'lsa ko'rsatiladi */
+  warning: string | null
+}
+
+/** Ro'yxat endpointi javobi — server 500 ta bilan CHEKLAYDI, shuning uchun jami son ham keladi. */
+export interface SubstituteAssignmentsResult {
+  items: SubstituteTeacherAssignment[]
+  /** Filtrga mos JAMI yozuvlar soni (chegaradan oldin) */
+  total: number
 }
 
 /** Yangi o'rinbosar o'qituvchi tayinlash so'rovi */

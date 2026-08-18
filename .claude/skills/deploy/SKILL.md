@@ -30,3 +30,38 @@ docker compose up -d --build    # app + postgres + cloudflared + backup + mediam
   Restore: `docker exec intellectcrm-backup sh -c "gunzip -c ...|psql"`.
 - **Ubuntu/Docker auditi + noldan o'rnatish** — `DEPLOY.md` "0-bo'lim" (Docker o'rnatish, swap,
   klon, run, tekshirish).
+
+## ⚠️ "Lokalda ishlaydi, prodda yo'q" — landing va lid formasi
+
+Sabab deyarli har doim BITTA: **CSP faqat proddagina qo'llanadi**
+(`Program.cs` → `if (!app.Environment.IsDevelopment())`). Dev'da (`dotnet run`) CSP UMUMAN
+yuborilmaydi, konteynerda esa `ASPNETCORE_ENVIRONMENT=Production` — ya'ni brauzer prodda
+qo'shimcha qoidalarni qo'llaydi va farq shu yerdan chiqadi.
+
+Statik sahifa (`landing.html`, `sertifikatlar.html`) yozganda:
+
+- **Inline `<script>` ISHLAMAYDI** — `script-src 'self' …` da `'unsafe-inline'` YO'Q (ataylab).
+  Butun mantiq inline blokda bo'lsa sahifa prodda O'LIK bo'ladi: tugmalar bosilmaydi, forma
+  yuborilmaydi, hech qanday xato ko'rinmaydi. Skriptni ALOHIDA `.js` fayliga chiqaring.
+- **Inline `on*=` atributlari** (`onclick=`, `onmouseover=`) ham shu sababdan ishlamaydi —
+  `addEventListener` ishlating.
+- **Yangi tashqi host** (iframe, shrift, skript, so'rov) qo'shsangiz — CSP'dagi tegishli
+  direktivaga ham qo'shing: `frame-src` (xarita), `style-src`+`font-src` (Google Fonts),
+  `connect-src` (fetch), `script-src`. Aks holda faqat prodda jim bloklanadi.
+
+Tekshirish (deploydan keyin, 1 daqiqa): sahifani prodda oching → DevTools → Console.
+`Refused to … because it violates the Content Security Policy` qatorlari aynan shu muammoni
+ko'rsatadi.
+
+## Deploy tekshiruvi (landing/lid)
+
+1. `docker compose up -d --build` — **`--build` SHART**: landing fayllari image ICHIDA keladi
+   (bind-mount YO'Q), ya'ni `up -d` bilan eski nusxa qolib ketadi.
+2. Cloudflare panelda **ikkala** Public Hostname bo'lsin: `crm.intellectschool.uz` VA apex
+   `intellectschool.uz` (+ `www`) → HTTP → `app:8080`. Apex marshrutsiz landing umuman ochilmaydi.
+3. Cloudflare keshi: `landing.js`/`landing.html` origin'dan `Cache-Control: no-cache` bilan
+   keladi, lekin CF sozlamalarida "Cache Everything" qoidasi bo'lsa eski nusxa qolishi mumkin —
+   shubha bo'lsa **Purge Everything**.
+4. Lidni oxirigacha sinang: apex sahifasidagi forma → CRM → "Lidlar" bo'limida yangi qator.
+   `429` chiqsa — bu rate-limit (`public-lead`, IP bo'yicha daqiqada 5 ta); javob endi
+   o'zbekcha matn bilan keladi ("Juda ko'p urinish…"), ya'ni chalkashmaydi.

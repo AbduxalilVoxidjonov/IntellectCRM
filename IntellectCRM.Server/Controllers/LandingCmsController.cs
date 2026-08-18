@@ -7,8 +7,28 @@ using IntellectCRM.Domain;
 namespace IntellectCRM.Server.Controllers;
 
 [ApiController]
-public class LandingCmsController(AppDbContext db) : ControllerBase
+public class LandingCmsController(AppDbContext db, ILogger<LandingCmsController> logger) : ControllerBase
 {
+    /// <summary>Landing CMS "Sozlamalar" bo'limining bir qismi — nav (`/admin/landing`) va marshrut
+    /// darvozasi (`RequirePerm perm="settings"`) bilan AYNAN bir xil kalit.</summary>
+    private const string SectionPerm = "settings";
+
+    // ==================== SUKUT QIYMATLAR (FAQAT O'QISHDA) ====================
+    // ⚠️ Bu qiymatlar BAZAGA yozilmaydi — faqat OMMAVIY javobda bo'sh maydon o'rniga qo'yiladi.
+    // Ilgari ular saqlashda ham qo'llanardi: admin YouTube havolasini O'CHIRSA, u
+    // "https://youtube.com" bo'lib qaytib qolar va saytda baribir ko'rinardi — ya'ni maydonni
+    // umuman o'chirib bo'lmasdi.
+
+    private const string DefaultMapUrl = "https://www.openstreetmap.org/export/embed.html?bbox=70.9200,40.5400,70.9400,40.5520&layer=mapnik&marker=40.546115,70.930010";
+    private const string DefaultTelegramUrl = "https://t.me/intellect_kokand";
+    private const string DefaultInstagramUrl = "https://instagram.com/intellect_kokand";
+    private const string DefaultYoutubeUrl = "https://youtube.com";
+    private const string DefaultFacebookUrl = "https://facebook.com";
+    private const string DefaultEmail = "info@intellect.uz";
+    private const string DefaultPhone = "+998 (90) 344-44-34";
+    private const string DefaultAddress = "Farg'ona viloyati, Qo'qon shahar, Asqarali charxiy 5A";
+    private const string DefaultWorkingHours = "Dushanba — Shanba: 09:00 – 17:00";
+
     // ==================== OMMAVIY ENDPOINT ====================
 
     /// <summary>Landing sahifasi uchun barcha faol ma'lumotlar (O'qituvchilar, Sertifikatlar, Fikrlar, FAQ).</summary>
@@ -52,24 +72,23 @@ public class LandingCmsController(AppDbContext db) : ControllerBase
             faqs = GetDefaultFaqs();
         }
 
-        await EnsureColumnsAsync();
         var meta = await db.CenterMeta.OrderBy(m => m.Id).FirstOrDefaultAsync();
-        var mapUrl = string.IsNullOrWhiteSpace(meta?.MapIframeUrl)
-            ? "https://www.openstreetmap.org/export/embed.html?bbox=70.9200,40.5400,70.9400,40.5520&layer=mapnik&marker=40.546115,70.930010"
-            : meta.MapIframeUrl.Trim();
+        var mapUrl = string.IsNullOrWhiteSpace(meta?.MapIframeUrl) ? DefaultMapUrl : meta.MapIframeUrl.Trim();
 
+        // Sukut qiymatlar FAQAT shu yerda (ommaviy o'qishda) qo'llanadi — bazada bo'sh qiymat
+        // bo'sh bo'lib qoladi (admin maydonni haqiqatan o'chira olsin).
         var socials = new
         {
-            telegramUrl = NormalizeUrl(meta?.TelegramUrl, "https://t.me/intellect_kokand"),
-            instagramUrl = NormalizeUrl(meta?.InstagramUrl, "https://instagram.com/intellect_kokand"),
-            youtubeUrl = NormalizeUrl(meta?.YoutubeUrl, "https://youtube.com"),
-            facebookUrl = NormalizeUrl(meta?.FacebookUrl, "https://facebook.com"),
-            centerEmail = string.IsNullOrWhiteSpace(meta?.CenterEmail) ? "info@intellect.uz" : meta.CenterEmail,
+            telegramUrl = NormalizeUrl(meta?.TelegramUrl, DefaultTelegramUrl),
+            instagramUrl = NormalizeUrl(meta?.InstagramUrl, DefaultInstagramUrl),
+            youtubeUrl = NormalizeUrl(meta?.YoutubeUrl, DefaultYoutubeUrl),
+            facebookUrl = NormalizeUrl(meta?.FacebookUrl, DefaultFacebookUrl),
+            centerEmail = string.IsNullOrWhiteSpace(meta?.CenterEmail) ? DefaultEmail : meta.CenterEmail,
             appStoreUrl = NormalizeUrl(meta?.AppStoreUrl, string.Empty),
             playMarketUrl = NormalizeUrl(meta?.PlayMarketUrl, string.Empty),
-            contactPhone = string.IsNullOrWhiteSpace(meta?.ContactPhone) ? "+998 (90) 344-44-34" : meta.ContactPhone,
-            centerAddress = string.IsNullOrWhiteSpace(meta?.CenterAddress) ? "Farg'ona viloyati, Qo'qon shahar, Asqarali charxiy 5A" : meta.CenterAddress,
-            workingHours = string.IsNullOrWhiteSpace(meta?.WorkingHours) ? "Dushanba — Shanba: 09:00 – 17:00" : meta.WorkingHours
+            contactPhone = string.IsNullOrWhiteSpace(meta?.ContactPhone) ? DefaultPhone : meta.ContactPhone,
+            centerAddress = string.IsNullOrWhiteSpace(meta?.CenterAddress) ? DefaultAddress : meta.CenterAddress,
+            workingHours = string.IsNullOrWhiteSpace(meta?.WorkingHours) ? DefaultWorkingHours : meta.WorkingHours
         };
 
         return Ok(new
@@ -86,23 +105,26 @@ public class LandingCmsController(AppDbContext db) : ControllerBase
     // ==================== ADMIN MAP & SOCIALS ENDPOINTS ====================
 
     [HttpGet("api/admin/landing/socials")]
-    [Authorize]
+    [AdminPerm(SectionPerm)]
     public async Task<IActionResult> GetSocials()
     {
         await EnsureColumnsAsync();
         var meta = await db.CenterMeta.OrderBy(m => m.Id).FirstOrDefaultAsync();
+        // ⚠️ ADMIN formasi XOM qiymatni ko'radi (sukut qiymat QO'YILMAYDI): aks holda admin
+        // maydonni tozalab saqlaganidan keyin forma qayta ochilganda u yana to'lgan bo'lib
+        // ko'rinar va keyingi saqlashda default qiymat bazaga qaytib yozilardi.
         return Ok(new
         {
-            telegramUrl = NormalizeUrl(meta?.TelegramUrl, "https://t.me/intellect_kokand"),
-            instagramUrl = NormalizeUrl(meta?.InstagramUrl, "https://instagram.com/intellect_kokand"),
-            youtubeUrl = NormalizeUrl(meta?.YoutubeUrl, "https://youtube.com"),
-            facebookUrl = NormalizeUrl(meta?.FacebookUrl, "https://facebook.com"),
-            centerEmail = string.IsNullOrWhiteSpace(meta?.CenterEmail) ? "info@intellect.uz" : meta.CenterEmail,
-            appStoreUrl = NormalizeUrl(meta?.AppStoreUrl, string.Empty),
-            playMarketUrl = NormalizeUrl(meta?.PlayMarketUrl, string.Empty),
-            contactPhone = string.IsNullOrWhiteSpace(meta?.ContactPhone) ? "+998 (90) 344-44-34" : meta.ContactPhone,
-            centerAddress = string.IsNullOrWhiteSpace(meta?.CenterAddress) ? "Farg'ona viloyati, Qo'qon shahar, Asqarali charxiy 5A" : meta.CenterAddress,
-            workingHours = string.IsNullOrWhiteSpace(meta?.WorkingHours) ? "Dushanba — Shanba: 09:00 – 17:00" : meta.WorkingHours
+            telegramUrl = meta?.TelegramUrl ?? "",
+            instagramUrl = meta?.InstagramUrl ?? "",
+            youtubeUrl = meta?.YoutubeUrl ?? "",
+            facebookUrl = meta?.FacebookUrl ?? "",
+            centerEmail = meta?.CenterEmail ?? "",
+            appStoreUrl = meta?.AppStoreUrl ?? "",
+            playMarketUrl = meta?.PlayMarketUrl ?? "",
+            contactPhone = meta?.ContactPhone ?? "",
+            centerAddress = meta?.CenterAddress ?? "",
+            workingHours = meta?.WorkingHours ?? ""
         });
     }
 
@@ -134,8 +156,18 @@ public class LandingCmsController(AppDbContext db) : ControllerBase
         return "https://" + trimmed;
     }
 
+    /// <summary>Yuborilmagan (<c>null</c>) maydon — ESKI qiymatida qoladi; yuborilgan bo'sh satr
+    /// esa ATAYIN tozalash deb qabul qilinadi. Qisman payload butun blokni o'chirib yubormasin.</summary>
+    private static string MergeText(string? incoming, string current) =>
+        incoming is null ? current : incoming.Trim();
+
+    /// <summary><see cref="MergeText"/> ning havola varianti — yuborilgan qiymat saqlashdan oldin
+    /// <see cref="NormalizeUrl"/> dan o'tadi (sxemasiz yozilgan havola ham ishlasin).</summary>
+    private static string MergeUrl(string? incoming, string current) =>
+        incoming is null ? current : NormalizeUrl(incoming);
+
     [HttpPost("api/admin/landing/socials")]
-    [Authorize]
+    [AdminPerm(SectionPerm)]
     public async Task<IActionResult> UpdateSocials([FromBody] SocialsInput? input)
     {
         await EnsureColumnsAsync();
@@ -149,16 +181,26 @@ public class LandingCmsController(AppDbContext db) : ControllerBase
 
         foreach (var meta in allMetas)
         {
-            meta.TelegramUrl = NormalizeUrl(input?.TelegramUrl, "https://t.me/intellect_kokand");
-            meta.InstagramUrl = NormalizeUrl(input?.InstagramUrl, "https://instagram.com/intellect_kokand");
-            meta.YoutubeUrl = NormalizeUrl(input?.YoutubeUrl, "https://youtube.com");
-            meta.FacebookUrl = NormalizeUrl(input?.FacebookUrl, "https://facebook.com");
-            meta.CenterEmail = string.IsNullOrWhiteSpace(input?.CenterEmail) ? "info@intellect.uz" : input.CenterEmail.Trim();
-            meta.AppStoreUrl = NormalizeUrl(input?.AppStoreUrl, string.Empty);
-            meta.PlayMarketUrl = NormalizeUrl(input?.PlayMarketUrl, string.Empty);
-            meta.ContactPhone = string.IsNullOrWhiteSpace(input?.ContactPhone) ? "+998 (90) 344-44-34" : input.ContactPhone.Trim();
-            meta.CenterAddress = string.IsNullOrWhiteSpace(input?.CenterAddress) ? "Farg'ona viloyati, Qo'qon shahar, Asqarali charxiy 5A" : input.CenterAddress.Trim();
-            meta.WorkingHours = string.IsNullOrWhiteSpace(input?.WorkingHours) ? "Dushanba — Shanba: 09:00 – 17:00" : input.WorkingHours.Trim();
+            // ⚠️ YUBORILMAGAN (null) va ATAYIN TOZALANGAN ("") — IKKI XIL NARSA.
+            //
+            // Bu endpoint BARCHA maydonni kelgan payload'dan yozadi. Ilgari yuborilmagan maydon ham
+            // `?? ""` orqali BO'SHGA aylanardi: klient (yoki mobil ilova, yoki qo'lda curl) faqat
+            // telefonni yuborsa, Telegram/Instagram/manzil/ish vaqti JIMGINA o'chib ketardi va
+            // saytdan yo'qolardi. Ilgari bu xavf qattiq kodlangan default'lar bilan "yashiringan"
+            // edi — endi default'lar faqat OMMAVIY o'qishda qo'yilgani uchun yo'qolish KO'RINADI.
+            //
+            // Shuning uchun: `null` = "tegilmadi" (eski qiymat qoladi), `""` = "admin ataylab
+            // tozaladi" (bo'sh saqlanadi — maydonni o'chirish imkoni SAQLANADI).
+            meta.TelegramUrl = MergeUrl(input?.TelegramUrl, meta.TelegramUrl);
+            meta.InstagramUrl = MergeUrl(input?.InstagramUrl, meta.InstagramUrl);
+            meta.YoutubeUrl = MergeUrl(input?.YoutubeUrl, meta.YoutubeUrl);
+            meta.FacebookUrl = MergeUrl(input?.FacebookUrl, meta.FacebookUrl);
+            meta.CenterEmail = MergeText(input?.CenterEmail, meta.CenterEmail);
+            meta.AppStoreUrl = MergeUrl(input?.AppStoreUrl, meta.AppStoreUrl);
+            meta.PlayMarketUrl = MergeUrl(input?.PlayMarketUrl, meta.PlayMarketUrl);
+            meta.ContactPhone = MergeText(input?.ContactPhone, meta.ContactPhone);
+            meta.CenterAddress = MergeText(input?.CenterAddress, meta.CenterAddress);
+            meta.WorkingHours = MergeText(input?.WorkingHours, meta.WorkingHours);
         }
 
         await db.SaveChangesAsync();
@@ -178,46 +220,82 @@ public class LandingCmsController(AppDbContext db) : ControllerBase
     }
 
     [HttpGet("api/admin/landing/map-url")]
-    [Authorize]
+    [AdminPerm(SectionPerm)]
     public async Task<IActionResult> GetMapUrl()
     {
         await EnsureColumnsAsync();
         var meta = await db.CenterMeta.FirstOrDefaultAsync();
-        var mapUrl = string.IsNullOrWhiteSpace(meta?.MapIframeUrl)
-            ? "https://www.openstreetmap.org/export/embed.html?bbox=70.9200,40.5400,70.9400,40.5520&layer=mapnik&marker=40.546115,70.930010"
-            : meta.MapIframeUrl.Trim();
-
-        return Ok(new { mapUrl });
+        // Admin XOM qiymatni ko'radi (GetSocials bilan bir xil sabab).
+        return Ok(new { mapUrl = meta?.MapIframeUrl ?? "" });
     }
 
     public class MapUrlInput
     {
-        public string MapUrl { get; set; } = string.Empty;
+        /// <summary>⚠️ NULLABLE ATAYIN: <c>null</c> = maydon umuman yuborilmadi (eski qiymat
+        /// qoladi), <c>""</c> = admin ataylab tozaladi. Ilgari bu <c>string = ""</c> edi va bo'sh
+        /// tanali (<c>{}</c>) so'rov xaritani JIMGINA o'chirib yuborardi.</summary>
+        public string? MapUrl { get; set; }
     }
 
+    // ==================== USTUNLARNI TA'MINLASH (bir martalik) ====================
+
+    /// <summary>Jarayon davomida BIR MARTA bajarilganini bildiradi (muvaffaqiyatli bo'lsa).</summary>
+    private static bool _columnsEnsured;
+
+    /// <summary>Bir vaqtda kelgan so'rovlar DDL'ni takrorlamasin.</summary>
+    private static readonly SemaphoreSlim EnsureGate = new(1, 1);
+
+    /// <summary>
+    /// <c>CenterMeta</c> jadvalidagi landing ustunlarini ta'minlaydi (eski bazalar uchun).
+    ///
+    /// <para>⚠️ Bu MIGRATSIYANING ishi va bu yerda faqat VAQTINCHALIK yechim sifatida qolgan.
+    /// Shuning uchun ikki narsa qat'iy:</para>
+    /// <list type="bullet">
+    ///   <item><b>OMMAVIY endpointdan chaqirilmaydi</b> — <c>GET /api/public/landing-data</c> landing
+    ///     har ochilganda kelib turadi, ya'ni 11 ta <c>ALTER TABLE</c> tashqaridan boshqariladigan
+    ///     yuk va jadval qulfi bo'lardi. Endi u faqat ADMIN marshrutlarida.</item>
+    ///   <item><b>Jarayon davomida BIR MARTA</b> (<see cref="_columnsEnsured"/> + qulf) — har
+    ///     so'rovda emas.</item>
+    ///   <item><b>Xato JIM YUTILMAYDI</b> — logga yoziladi (ilgari istisno BO'SH bloqda jimgina yutilardi: prodda
+    ///     ustun qo'shilmasa ham hech kim bilmasdi). So'rovning o'zi baribir buzilmaydi.</item>
+    /// </list>
+    /// </summary>
     private async Task EnsureColumnsAsync()
     {
+        if (_columnsEnsured) return;
+        await EnsureGate.WaitAsync();
         try
         {
+            if (_columnsEnsured) return;
             await db.Database.ExecuteSqlRawAsync(@"
                 ALTER TABLE ""CenterMeta"" ADD COLUMN IF NOT EXISTS ""MapIframeUrl"" text DEFAULT '';
-                ALTER TABLE ""CenterMeta"" ADD COLUMN IF NOT EXISTS ""TelegramUrl"" text DEFAULT 'https://t.me/intellect_kokand';
-                ALTER TABLE ""CenterMeta"" ADD COLUMN IF NOT EXISTS ""InstagramUrl"" text DEFAULT 'https://instagram.com/intellect_kokand';
-                ALTER TABLE ""CenterMeta"" ADD COLUMN IF NOT EXISTS ""YoutubeUrl"" text DEFAULT 'https://youtube.com';
-                ALTER TABLE ""CenterMeta"" ADD COLUMN IF NOT EXISTS ""FacebookUrl"" text DEFAULT 'https://facebook.com';
-                ALTER TABLE ""CenterMeta"" ADD COLUMN IF NOT EXISTS ""CenterEmail"" text DEFAULT 'info@intellect.uz';
+                ALTER TABLE ""CenterMeta"" ADD COLUMN IF NOT EXISTS ""TelegramUrl"" text DEFAULT '';
+                ALTER TABLE ""CenterMeta"" ADD COLUMN IF NOT EXISTS ""InstagramUrl"" text DEFAULT '';
+                ALTER TABLE ""CenterMeta"" ADD COLUMN IF NOT EXISTS ""YoutubeUrl"" text DEFAULT '';
+                ALTER TABLE ""CenterMeta"" ADD COLUMN IF NOT EXISTS ""FacebookUrl"" text DEFAULT '';
+                ALTER TABLE ""CenterMeta"" ADD COLUMN IF NOT EXISTS ""CenterEmail"" text DEFAULT '';
                 ALTER TABLE ""CenterMeta"" ADD COLUMN IF NOT EXISTS ""AppStoreUrl"" text DEFAULT '';
                 ALTER TABLE ""CenterMeta"" ADD COLUMN IF NOT EXISTS ""PlayMarketUrl"" text DEFAULT '';
-                ALTER TABLE ""CenterMeta"" ADD COLUMN IF NOT EXISTS ""ContactPhone"" text DEFAULT '+998 (90) 344-44-34';
-                ALTER TABLE ""CenterMeta"" ADD COLUMN IF NOT EXISTS ""CenterAddress"" text DEFAULT 'Farg''ona viloyati, Qo''qon shahar, Asqarali charxiy 5A';
-                ALTER TABLE ""CenterMeta"" ADD COLUMN IF NOT EXISTS ""WorkingHours"" text DEFAULT 'Dushanba — Shanba: 09:00 – 17:00';
+                ALTER TABLE ""CenterMeta"" ADD COLUMN IF NOT EXISTS ""ContactPhone"" text DEFAULT '';
+                ALTER TABLE ""CenterMeta"" ADD COLUMN IF NOT EXISTS ""CenterAddress"" text DEFAULT '';
+                ALTER TABLE ""CenterMeta"" ADD COLUMN IF NOT EXISTS ""WorkingHours"" text DEFAULT '';
             ");
+            _columnsEnsured = true;
         }
-        catch { }
+        catch (Exception ex)
+        {
+            // Ataylab qayta urinishga qoldiriladi (_columnsEnsured yoqilmaydi), lekin xato
+            // KO'RINADI — bo'shliq jimgina yo'qolmasin.
+            logger.LogWarning(ex, "Landing CMS: CenterMeta ustunlarini ta'minlab bo'lmadi");
+        }
+        finally
+        {
+            EnsureGate.Release();
+        }
     }
 
     [HttpPost("api/admin/landing/map-url")]
-    [Authorize]
+    [AdminPerm(SectionPerm)]
     public async Task<IActionResult> UpdateMapUrl([FromBody] MapUrlInput? input)
     {
         await EnsureColumnsAsync();
@@ -227,9 +305,9 @@ public class LandingCmsController(AppDbContext db) : ControllerBase
             meta = new CenterMeta();
             db.CenterMeta.Add(meta);
         }
-        meta.MapIframeUrl = string.IsNullOrWhiteSpace(input?.MapUrl)
-            ? "https://www.openstreetmap.org/export/embed.html?bbox=70.9200,40.5400,70.9400,40.5520&layer=mapnik&marker=40.546115,70.930010"
-            : input.MapUrl.Trim();
+        // Yuborilmagan (null) — tegilmaydi; bo'sh satr ATAYIN tozalash (ommaviy javobda sukut
+        // xarita ko'rsatiladi). Farqi UpdateSocials dagi bilan bir xil.
+        meta.MapIframeUrl = MergeText(input?.MapUrl, meta.MapIframeUrl ?? "");
         await db.SaveChangesAsync();
         return Ok(new { ok = true, mapUrl = meta.MapIframeUrl });
     }
@@ -239,36 +317,42 @@ public class LandingCmsController(AppDbContext db) : ControllerBase
     // --- O'QITUVCHILAR (TEACHERS) ---
 
     [HttpGet("api/admin/landing/teachers")]
-    [Authorize]
+    [AdminPerm(SectionPerm)]
     public async Task<IActionResult> GetTeachers()
     {
         var list = await db.LandingTeachers.OrderBy(t => t.Order).ToListAsync();
         return Ok(list);
     }
 
+    /// <summary>⚠️ POSITIONAL RECORD: JSON'da maydon YO'Q bo'lsa u <c>null</c> bo'lib keladi
+    /// (klientda tur <c>Partial&lt;LandingTeacher&gt;</c>, ya'ni bu HAQIQIY holat). Shuning uchun
+    /// maydonlar NULLABLE deb e'lon qilingan va foydalanishda <c>?? ""</c> bilan o'qiladi —
+    /// aks holda <c>dto.FullName.Trim()</c> NullReferenceException berib, klientga xato SHAKLI
+    /// mutlaqo boshqacha bo'lgan 500 qaytardi (`CertificateDto` da bu allaqachon shunday edi).</summary>
     public record TeacherDto(
-        string FullName,
-        string Subject,
-        string PhotoUrl,
-        string Badge,
-        string ShortBio,
-        string FullBio,
+        string? FullName,
+        string? Subject,
+        string? PhotoUrl,
+        string? Badge,
+        string? ShortBio,
+        string? FullBio,
         int Order,
         bool IsActive
     );
 
     [HttpPost("api/admin/landing/teachers")]
-    [Authorize]
-    public async Task<IActionResult> CreateTeacher([FromBody] TeacherDto dto)
+    [AdminPerm(SectionPerm)]
+    public async Task<IActionResult> CreateTeacher([FromBody] TeacherDto? dto)
     {
+        if (dto is null) return BadRequest(new { message = "Ma'lumot yuborilmadi" });
         var teacher = new LandingTeacher
         {
-            FullName = dto.FullName.Trim(),
-            Subject = dto.Subject.Trim(),
-            PhotoUrl = dto.PhotoUrl.Trim(),
-            Badge = dto.Badge.Trim(),
-            ShortBio = dto.ShortBio.Trim(),
-            FullBio = dto.FullBio.Trim(),
+            FullName = (dto.FullName ?? "").Trim(),
+            Subject = (dto.Subject ?? "").Trim(),
+            PhotoUrl = (dto.PhotoUrl ?? "").Trim(),
+            Badge = (dto.Badge ?? "").Trim(),
+            ShortBio = (dto.ShortBio ?? "").Trim(),
+            FullBio = (dto.FullBio ?? "").Trim(),
             Order = dto.Order,
             IsActive = dto.IsActive,
             CreatedAt = DateTime.UtcNow.ToString("o")
@@ -279,18 +363,19 @@ public class LandingCmsController(AppDbContext db) : ControllerBase
     }
 
     [HttpPut("api/admin/landing/teachers/{id}")]
-    [Authorize]
-    public async Task<IActionResult> UpdateTeacher(string id, [FromBody] TeacherDto dto)
+    [AdminPerm(SectionPerm)]
+    public async Task<IActionResult> UpdateTeacher(string id, [FromBody] TeacherDto? dto)
     {
+        if (dto is null) return BadRequest(new { message = "Ma'lumot yuborilmadi" });
         var teacher = await db.LandingTeachers.FindAsync(id);
         if (teacher == null) return NotFound();
 
-        teacher.FullName = dto.FullName.Trim();
-        teacher.Subject = dto.Subject.Trim();
-        teacher.PhotoUrl = dto.PhotoUrl.Trim();
-        teacher.Badge = dto.Badge.Trim();
-        teacher.ShortBio = dto.ShortBio.Trim();
-        teacher.FullBio = dto.FullBio.Trim();
+        teacher.FullName = (dto.FullName ?? "").Trim();
+        teacher.Subject = (dto.Subject ?? "").Trim();
+        teacher.PhotoUrl = (dto.PhotoUrl ?? "").Trim();
+        teacher.Badge = (dto.Badge ?? "").Trim();
+        teacher.ShortBio = (dto.ShortBio ?? "").Trim();
+        teacher.FullBio = (dto.FullBio ?? "").Trim();
         teacher.Order = dto.Order;
         teacher.IsActive = dto.IsActive;
 
@@ -299,7 +384,7 @@ public class LandingCmsController(AppDbContext db) : ControllerBase
     }
 
     [HttpDelete("api/admin/landing/teachers/{id}")]
-    [Authorize]
+    [AdminPerm(SectionPerm)]
     public async Task<IActionResult> DeleteTeacher(string id)
     {
         var teacher = await db.LandingTeachers.FindAsync(id);
@@ -312,33 +397,35 @@ public class LandingCmsController(AppDbContext db) : ControllerBase
     // --- SERTIFIKATLAR (CERTIFICATES) ---
 
     [HttpGet("api/admin/landing/certificates")]
-    [Authorize]
+    [AdminPerm(SectionPerm)]
     public async Task<IActionResult> GetCertificates()
     {
         var list = await db.LandingCertificates.OrderBy(c => c.Order).ToListAsync();
         return Ok(list);
     }
 
+    /// <summary>Maydonlar NULLABLE — sabab <see cref="TeacherDto"/> dagi bilan bir xil.</summary>
     public record CertificateDto(
-        string Title,
-        string StudentName,
-        string ImageUrl,
-        string Category,
-        string CertType,
-        string OverallScore,
-        string Listening,
-        string Reading,
-        string Writing,
-        string Speaking,
-        string ResultNote,
+        string? Title,
+        string? StudentName,
+        string? ImageUrl,
+        string? Category,
+        string? CertType,
+        string? OverallScore,
+        string? Listening,
+        string? Reading,
+        string? Writing,
+        string? Speaking,
+        string? ResultNote,
         int Order,
         bool IsActive
     );
 
     [HttpPost("api/admin/landing/certificates")]
-    [Authorize]
-    public async Task<IActionResult> CreateCertificate([FromBody] CertificateDto dto)
+    [AdminPerm(SectionPerm)]
+    public async Task<IActionResult> CreateCertificate([FromBody] CertificateDto? dto)
     {
+        if (dto is null) return BadRequest(new { message = "Ma'lumot yuborilmadi" });
         var item = new LandingCertificate
         {
             Title = (dto.Title ?? "").Trim(),
@@ -362,9 +449,10 @@ public class LandingCmsController(AppDbContext db) : ControllerBase
     }
 
     [HttpPut("api/admin/landing/certificates/{id}")]
-    [Authorize]
-    public async Task<IActionResult> UpdateCertificate(string id, [FromBody] CertificateDto dto)
+    [AdminPerm(SectionPerm)]
+    public async Task<IActionResult> UpdateCertificate(string id, [FromBody] CertificateDto? dto)
     {
+        if (dto is null) return BadRequest(new { message = "Ma'lumot yuborilmadi" });
         var item = await db.LandingCertificates.FindAsync(id);
         if (item == null) return NotFound();
 
@@ -387,7 +475,7 @@ public class LandingCmsController(AppDbContext db) : ControllerBase
     }
 
     [HttpDelete("api/admin/landing/certificates/{id}")]
-    [Authorize]
+    [AdminPerm(SectionPerm)]
     public async Task<IActionResult> DeleteCertificate(string id)
     {
         var item = await db.LandingCertificates.FindAsync(id);
@@ -400,34 +488,36 @@ public class LandingCmsController(AppDbContext db) : ControllerBase
     // --- FIKRLAR (TESTIMONIALS) ---
 
     [HttpGet("api/admin/landing/testimonials")]
-    [Authorize]
+    [AdminPerm(SectionPerm)]
     public async Task<IActionResult> GetTestimonials()
     {
         var list = await db.LandingTestimonials.OrderBy(t => t.Order).ToListAsync();
         return Ok(list);
     }
 
+    /// <summary>Maydonlar NULLABLE — sabab <see cref="TeacherDto"/> dagi bilan bir xil.</summary>
     public record TestimonialDto(
-        string AuthorName,
-        string AuthorRole,
-        string AvatarUrl,
+        string? AuthorName,
+        string? AuthorRole,
+        string? AvatarUrl,
         int Rating,
-        string Comment,
+        string? Comment,
         int Order,
         bool IsActive
     );
 
     [HttpPost("api/admin/landing/testimonials")]
-    [Authorize]
-    public async Task<IActionResult> CreateTestimonial([FromBody] TestimonialDto dto)
+    [AdminPerm(SectionPerm)]
+    public async Task<IActionResult> CreateTestimonial([FromBody] TestimonialDto? dto)
     {
+        if (dto is null) return BadRequest(new { message = "Ma'lumot yuborilmadi" });
         var item = new LandingTestimonial
         {
-            AuthorName = dto.AuthorName.Trim(),
-            AuthorRole = dto.AuthorRole.Trim(),
-            AvatarUrl = dto.AvatarUrl.Trim(),
+            AuthorName = (dto.AuthorName ?? "").Trim(),
+            AuthorRole = (dto.AuthorRole ?? "").Trim(),
+            AvatarUrl = (dto.AvatarUrl ?? "").Trim(),
             Rating = dto.Rating,
-            Comment = dto.Comment.Trim(),
+            Comment = (dto.Comment ?? "").Trim(),
             Order = dto.Order,
             IsActive = dto.IsActive,
             CreatedAt = DateTime.UtcNow.ToString("o")
@@ -438,17 +528,18 @@ public class LandingCmsController(AppDbContext db) : ControllerBase
     }
 
     [HttpPut("api/admin/landing/testimonials/{id}")]
-    [Authorize]
-    public async Task<IActionResult> UpdateTestimonial(string id, [FromBody] TestimonialDto dto)
+    [AdminPerm(SectionPerm)]
+    public async Task<IActionResult> UpdateTestimonial(string id, [FromBody] TestimonialDto? dto)
     {
+        if (dto is null) return BadRequest(new { message = "Ma'lumot yuborilmadi" });
         var item = await db.LandingTestimonials.FindAsync(id);
         if (item == null) return NotFound();
 
-        item.AuthorName = dto.AuthorName.Trim();
-        item.AuthorRole = dto.AuthorRole.Trim();
-        item.AvatarUrl = dto.AvatarUrl.Trim();
+        item.AuthorName = (dto.AuthorName ?? "").Trim();
+        item.AuthorRole = (dto.AuthorRole ?? "").Trim();
+        item.AvatarUrl = (dto.AvatarUrl ?? "").Trim();
         item.Rating = dto.Rating;
-        item.Comment = dto.Comment.Trim();
+        item.Comment = (dto.Comment ?? "").Trim();
         item.Order = dto.Order;
         item.IsActive = dto.IsActive;
 
@@ -457,7 +548,7 @@ public class LandingCmsController(AppDbContext db) : ControllerBase
     }
 
     [HttpDelete("api/admin/landing/testimonials/{id}")]
-    [Authorize]
+    [AdminPerm(SectionPerm)]
     public async Task<IActionResult> DeleteTestimonial(string id)
     {
         var item = await db.LandingTestimonials.FindAsync(id);
@@ -470,28 +561,30 @@ public class LandingCmsController(AppDbContext db) : ControllerBase
     // --- FAQ (KO'P BERILADIGAN SAVOLLAR) ---
 
     [HttpGet("api/admin/landing/faqs")]
-    [Authorize]
+    [AdminPerm(SectionPerm)]
     public async Task<IActionResult> GetFaqs()
     {
         var list = await db.LandingFaqs.OrderBy(f => f.Order).ToListAsync();
         return Ok(list);
     }
 
+    /// <summary>Maydonlar NULLABLE — sabab <see cref="TeacherDto"/> dagi bilan bir xil.</summary>
     public record FaqDto(
-        string Question,
-        string Answer,
+        string? Question,
+        string? Answer,
         int Order,
         bool IsActive
     );
 
     [HttpPost("api/admin/landing/faqs")]
-    [Authorize]
-    public async Task<IActionResult> CreateFaq([FromBody] FaqDto dto)
+    [AdminPerm(SectionPerm)]
+    public async Task<IActionResult> CreateFaq([FromBody] FaqDto? dto)
     {
+        if (dto is null) return BadRequest(new { message = "Ma'lumot yuborilmadi" });
         var item = new LandingFaq
         {
-            Question = dto.Question.Trim(),
-            Answer = dto.Answer.Trim(),
+            Question = (dto.Question ?? "").Trim(),
+            Answer = (dto.Answer ?? "").Trim(),
             Order = dto.Order,
             IsActive = dto.IsActive,
             CreatedAt = DateTime.UtcNow.ToString("o")
@@ -502,14 +595,15 @@ public class LandingCmsController(AppDbContext db) : ControllerBase
     }
 
     [HttpPut("api/admin/landing/faqs/{id}")]
-    [Authorize]
-    public async Task<IActionResult> UpdateFaq(string id, [FromBody] FaqDto dto)
+    [AdminPerm(SectionPerm)]
+    public async Task<IActionResult> UpdateFaq(string id, [FromBody] FaqDto? dto)
     {
+        if (dto is null) return BadRequest(new { message = "Ma'lumot yuborilmadi" });
         var item = await db.LandingFaqs.FindAsync(id);
         if (item == null) return NotFound();
 
-        item.Question = dto.Question.Trim();
-        item.Answer = dto.Answer.Trim();
+        item.Question = (dto.Question ?? "").Trim();
+        item.Answer = (dto.Answer ?? "").Trim();
         item.Order = dto.Order;
         item.IsActive = dto.IsActive;
 
@@ -518,7 +612,7 @@ public class LandingCmsController(AppDbContext db) : ControllerBase
     }
 
     [HttpDelete("api/admin/landing/faqs/{id}")]
-    [Authorize]
+    [AdminPerm(SectionPerm)]
     public async Task<IActionResult> DeleteFaq(string id)
     {
         var item = await db.LandingFaqs.FindAsync(id);
@@ -529,6 +623,10 @@ public class LandingCmsController(AppDbContext db) : ControllerBase
     }
 
     // ==================== DEFAULT FALLBACK DATA ====================
+    // ⚠️ Rasm manzillari MUTLAQ (`/img/...`) — NISBIY emas. Sabab: landing va sertifikatlar
+    // sahifalari `MapFallback` orqali ISTALGAN yo'lda beriladi (`/sertifikatlar`, `/kurslar/`, ...).
+    // Nisbiy `img/...` esa brauzerda joriy yo'lga nisbatan hal qilinardi: `/sertifikatlar/` da u
+    // `/sertifikatlar/img/certificates/cert-1.jpg` bo'lib 404 berardi va zaxira rasm ko'rinmasdi.
 
     private static List<LandingTeacher> GetDefaultTeachers()
     {
@@ -539,7 +637,7 @@ public class LandingCmsController(AppDbContext db) : ControllerBase
                 Id = "t1",
                 FullName = "Muhabbatxon Ubaydullayeva",
                 Subject = "Bosh Ingliz tili va IELTS Ustozisi",
-                PhotoUrl = "img/teachers/teacher-1.jpg",
+                PhotoUrl = "/img/teachers/teacher-1.jpg",
                 Badge = "IELTS 8.5+",
                 ShortBio = "CELTA sertifikati sohibasi. Oliy toifali pedagogik tajribaga ega bo'lib, 500+ o'quvchilari IELTS 7.0+ natijalarni qo'lga kiritgan.",
                 FullBio = "Muhabbatxon Ubaydullayeva — 8 yildan ortiq tajribaga ega bo'lgan yetakchi IELTS mutaxassisi. U Cambridge CELTA xalqaro o'qituvchilik sertifikatiga ega. Darslar intensiv so'zlashuv (Speaking), akademik yozish (Writing) va eshitib tushunish ko'nikmalarini rivojlantirishga qaratilgan. Uning rahbarligida 500 dan ortiq o'quvchilar IELTS 7.0 va undan yuqori natijalarni qayd etgan.",
@@ -551,7 +649,7 @@ public class LandingCmsController(AppDbContext db) : ControllerBase
                 Id = "t2",
                 FullName = "Abdumutal Abdujabborov",
                 Subject = "Matematika & SAT Eksperti",
-                PhotoUrl = "img/teachers/teacher-2.jpg",
+                PhotoUrl = "/img/teachers/teacher-2.jpg",
                 Badge = "SAT 1500+",
                 ShortBio = "Mantiqiy fikrlash hamda abituriyentlarni DTM va SAT Math imtihonlariga 100% natija bilan tayyorlovchi tajribali mutaxassis.",
                 FullBio = "Abdumutal Abdujabborov — Matematika va SAT Math bo'yicha 10+ yillik tajribaga ega oliy toifali ustoz. Uning o'quvchilari xalqaro SAT imtihonida 1500+ ball toplagan hamda O'zbekistondagi yetakchi va xorijiy universitetlarga davlat granti asosida o'qishga kirgan.",
@@ -563,7 +661,7 @@ public class LandingCmsController(AppDbContext db) : ControllerBase
                 Id = "t3",
                 FullName = "Rustamjon Nuriddinov",
                 Subject = "Fizika va Oliy Ta'lim Tayyorgarligi",
-                PhotoUrl = "img/teachers/teacher-3.jpg",
+                PhotoUrl = "/img/teachers/teacher-3.jpg",
                 Badge = "Fizika Eksperti",
                 ShortBio = "Chuqurlashtirilgan fizika metodikasi, amaliy va nazariy darslar o'tkazish bo'yicha ko'plab grant talabalari ustozi.",
                 FullBio = "Rustamjon Nuriddinov — Fizika fanidan murakkab masalalarni sodda va tushunarli usulda o'rgatuvchi ekspert. DTM imtihonlari hamda fizika olimpiadalari g'oliblarini tayyorlagan.",
@@ -575,7 +673,7 @@ public class LandingCmsController(AppDbContext db) : ControllerBase
                 Id = "t4",
                 FullName = "Nurjaxon Abduazizova",
                 Subject = "Ona tili va Adabiyot Mutaxassisi",
-                PhotoUrl = "img/teachers/teacher-4.jpg",
+                PhotoUrl = "/img/teachers/teacher-4.jpg",
                 Badge = "Milliy Sertifikat A+",
                 ShortBio = "Ona tili va adabiyot fanidan DTM testlari va Milliy Sertifikat A+ natijalariga yo'naltirilgan intensiv metodika muallifi.",
                 FullBio = "Nurjaxon Abduazizova — Milliy sertifikat (A, A+) hamda DTM imtihonlarida maksimal natija kafolati bilan dars beruvchi tajribali pedagog.",
@@ -625,7 +723,7 @@ public class LandingCmsController(AppDbContext db) : ControllerBase
                 Id = "c1",
                 Title = "IELTS 8.5",
                 StudentName = "MUKHAMMADISA MAKHMUDOV",
-                ImageUrl = "img/certificates/cert-1.jpg",
+                ImageUrl = "/img/certificates/cert-1.jpg",
                 Category = "Xalqaro",
                 CertType = "IELTS",
                 OverallScore = "8.5",
@@ -641,7 +739,7 @@ public class LandingCmsController(AppDbContext db) : ControllerBase
                 Id = "c2",
                 Title = "IELTS 8.0",
                 StudentName = "KRISTINA KHAFIZOVA",
-                ImageUrl = "img/certificates/cert-2.jpg",
+                ImageUrl = "/img/certificates/cert-2.jpg",
                 Category = "Xalqaro",
                 CertType = "IELTS",
                 OverallScore = "8.0",
@@ -657,7 +755,7 @@ public class LandingCmsController(AppDbContext db) : ControllerBase
                 Id = "c3",
                 Title = "SAT Math 800",
                 StudentName = "ASADBEK RAHIMOV",
-                ImageUrl = "img/certificates/cert-3.jpg",
+                ImageUrl = "/img/certificates/cert-3.jpg",
                 Category = "Milliy",
                 CertType = "SAT",
                 OverallScore = "1520",

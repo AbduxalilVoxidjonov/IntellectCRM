@@ -45,7 +45,7 @@ public static class SalaryLedger
     /// <summary>Guruhda DARS bo'lishi mumkin bo'lgan oxirgi sana: rejalashtirilgan tugash sanasi
     /// (<see cref="Group.EndDate"/>) va arxivga olingan sana (<see cref="Group.ArchivedAt"/>) dan
     /// ERTAROG'I. Ikkalasi ham bo'sh bo'lsa <c>null</c> (chegara yo'q).</summary>
-    private static string? LessonEnd(string? endDate, string? archivedAt)
+    public static string? LessonEnd(string? endDate, string? archivedAt)
     {
         var a = endDate is { Length: >= 10 } ? endDate[..10] : null;
         var b = archivedAt is { Length: >= 10 } ? archivedAt[..10] : null;
@@ -170,11 +170,80 @@ public static class SalaryLedger
         // — natijada arxivdan keyingi barcha "rejadagi" darslar o'tkazib yuborilgan hisoblanib,
         // ushlanma butun oylikni yeb qo'yardi (oy qatori 0 bo'lib qolardi).
         // Endi chegara = EndDate va ArchivedAt dan ERTAROG'I.
+
+        // =========================================================================================
+        //  O'RINBOSARLIK — nol yig'indili model uchun kerakli hamma narsa BIR JOYDA yuklanadi
+        // =========================================================================================
+        // ⚠️ J14: Moliya → "O'qituvchilar" hisoboti bu metodni HAR BIR o'qituvchi uchun sikl ichida
+        // chaqiradi. Ilgari bu yerda 4 ta SHARTSIZ so'rov turardi (N×4 aylanish, jadvalda indeks
+        // ham yo'q). Endi avval BITTA yengil `AnyAsync`: markazda o'rinbosarlik umuman ishlatilmasa
+        // (odatiy hol) qolgan so'rovlarning hech biri ketmaydi.
+        var groupIdsList = groups.Select(g => g.Id).ToList();
+        var hasSubstitutions = await db.SubstituteTeacherAssignments.AsNoTracking()
+            .AnyAsync(a => a.IsActive
+                && (a.SubstituteTeacherId == teacher.Id
+                    || (a.OriginalTeacherId == teacher.Id && groupIdsList.Contains(a.GroupId))));
+
+        // teacher = O'RINBOSAR (begona guruhda dars o'tgan) → unga HAQ qo'shiladi.
+        var subAssignments = new List<SubstituteTeacherAssignment>();
+        // teacher = ASOSIY o'qituvchi (uning guruhida boshqa odam dars o'tgan) → undan USHLANADI.
+        var origSubstitutions = new List<SubstituteTeacherAssignment>();
+        // ⚠️ O17: guruhlar TO'LIQ entity sifatida yuklanadi. Ilgari `new Group { … }` bilan qisman
+        // to'ldirilardi va `ArchivedAt`/`EndDate`/`StartDate` tashlanib ketardi — arxivlangan
+        // guruhda ham "dars bor" deb sanalib, pul to'lanaverardi.
+        var subGroups = new Dictionary<string, Group>();
+        var subMoves = new Dictionary<string, IReadOnlyList<JournalService.LessonMove>>();
+        // (guruh, oy) → bitta dars narxi. IKKALA tomon ham AYNAN shu jadvaldan o'qiydi —
+        // nol yig'indililik shu bilan STRUKTURAVIY kafolatlanadi.
+        var subRates = new Dictionary<(string GroupId, string Month), SubstituteTeacherService.PerLessonResult>();
+        // Guruh → o'rinbosar QAMRAGAN sanalar (asosiy o'qituvchining jurnal rejasidan chiqariladi).
+        var substitutedDates = new Dictionary<string, HashSet<string>>();
+
+        if (hasSubstitutions)
+        {
+            subAssignments = await db.SubstituteTeacherAssignments.AsNoTracking()
+                .Where(a => a.SubstituteTeacherId == teacher.Id && a.IsActive)
+                .ToListAsync();
+
+            origSubstitutions = await db.SubstituteTeacherAssignments.AsNoTracking()
+                .Where(a => groupIdsList.Contains(a.GroupId) && a.OriginalTeacherId == teacher.Id && a.IsActive)
+                .ToListAsync();
+
+            var involvedGroupIds = subAssignments.Select(a => a.GroupId)
+                .Concat(origSubstitutions.Select(a => a.GroupId)).Distinct().ToList();
+
+            subGroups = await db.Classes.AsNoTracking()
+                .Where(c => involvedGroupIds.Contains(c.Id)).ToDictionaryAsync(c => c.Id);
+            subMoves = await SubstituteTeacherService.MovesByGroupAsync(db, involvedGroupIds);
+
+            var keys = new HashSet<(string, string)>();
+            foreach (var a in subAssignments.Concat(origSubstitutions))
+            {
+                var g = subGroups.GetValueOrDefault(a.GroupId);
+                var mv = subMoves.GetValueOrDefault(a.GroupId);
+                foreach (var m in SubstituteTeacherService.MonthsOf(a, g, mv))
+                    keys.Add((a.GroupId, m));
+            }
+            subRates = await SubstituteTeacherService.PerLessonBatchAsync(db, keys);
+
+            foreach (var a in origSubstitutions)
+            {
+                var g = subGroups.GetValueOrDefault(a.GroupId);
+                var mv = subMoves.GetValueOrDefault(a.GroupId);
+                if (!substitutedDates.TryGetValue(a.GroupId, out var set))
+                    substitutedDates[a.GroupId] = set = new HashSet<string>();
+                foreach (var d in SubstituteTeacherService.EffectiveDates(a, g, mv)) set.Add(d);
+            }
+        }
+
         var lessonStats = journalLinked && groups.Count > 0
             ? await SalaryJournalStats.BuildAsync(db,
                 groups.Select(g => new SalaryJournalStats.GroupInfo(
                     g.Id, g.Name, g.Days, g.StartDate, LessonEnd(g.EndDate, g.ArchivedAt))).ToList(),
-                startMonth, toMonth, policy.SalaryGraceDays, startDate)
+                startMonth, toMonth, policy.SalaryGraceDays, startDate,
+                // J10: o'rinbosar o'tgan dars asosiy o'qituvchining rejasidan CHIQARILADI —
+                // aks holda u bitta dars uchun ikki marta jarimalanardi.
+                substitutedDates.Count > 0 ? substitutedDates : null)
             : new Dictionary<(string Month, string GroupId), SalaryJournalStats.Stat>();
 
         // Kamida bitta guruh per-guruh sozlangan bo'lsa — YIG'INDI (per-guruh) hisob; aks holda LEGACY.
@@ -184,7 +253,7 @@ public static class SalaryLedger
         // `withRevenue` bo'lsa QAT'IY maoshda ham o'qiladi — tushum raqamlari maosh rejimiga
         // bog'liq emas (hisobga ta'sir qilmaydi, faqat ko'rsatiladi).
         var bases = (groups.Count > 0 && (anyPercent || withRevenue))
-            ? await PercentBasesAsync(db, teacher, startMonth, toMonth)
+            ? await PercentBasesAsync(db, groupIdsList, startMonth, toMonth)
             : new PercentBases(new(), new());
         var collectedPerGroup = bases.Collected;
         var chargedPerGroup = bases.Charged;
@@ -206,21 +275,10 @@ public static class SalaryLedger
         var groupPeriodCollected = groups.ToDictionary(g => g.Id, _ => 0m);
         var groupPeriodSubDeduction = groups.ToDictionary(g => g.Id, _ => 0m);
         var groupPeriodSubLessons = groups.ToDictionary(g => g.Id, _ => 0);
-        var meta = await db.CenterMeta.AsNoTracking().FirstOrDefaultAsync();
 
-        var subAssignments = await db.SubstituteTeacherAssignments.AsNoTracking()
-            .Where(a => a.SubstituteTeacherId == teacher.Id && a.IsActive)
-            .ToListAsync();
-
-        var allSubGroupIds = subAssignments.Select(a => a.GroupId).Distinct().ToList();
-        var allSubGroups = await db.Classes.AsNoTracking()
-            .Where(c => allSubGroupIds.Contains(c.Id))
-            .ToDictionaryAsync(c => c.Id);
-
-        var groupIdsList = groups.Select(g => g.Id).ToList();
-        var origTeacherSubstitutions = await db.SubstituteTeacherAssignments.AsNoTracking()
-            .Where(a => groupIdsList.Contains(a.GroupId) && a.OriginalTeacherId == teacher.Id && a.IsActive)
-            .ToListAsync();
+        // (guruh, oy) uchun bitta dars narxi — YAGONA hisoblagichdan.
+        decimal PerLesson(string gid, string month) =>
+            subRates.GetValueOrDefault((gid, month))?.PerLessonFee ?? 0m;
 
         var months = new List<MonthSalaryDto>();
         foreach (var month in TuitionService.MonthRange(startMonth, toMonth))
@@ -234,18 +292,20 @@ public static class SalaryLedger
                 factor = (decimal)(dim - sd.Day + 1) / dim;
             }
 
-            // O'rinbosarlik darslari haqi (shu oyga to'g'ri keladigan tayinlovlar bo'yicha)
+            // ---------- O'RINBOSARLIK HAQI (teacher = O'RINBOSAR) ----------
+            // ⚠️ Tayinlov FAQAT boshlangan oyiga emas, TEGADIGAN HAR OYGA taqsimlanadi
+            // (25-avgust — 5-sentabr tayinlovi ilgari butunlay avgustga tushib, sentabr maoshida
+            // umuman ko'rinmasdi). Qoida yagona: SubstituteTeacherService.LessonsInMonth.
+            // ⚠️ NARX ham yagona (`subRates`) — asosiy o'qituvchidan AYNAN shu narx bilan
+            // ushlanadi, ya'ni model NOL YIG'INDILI.
             decimal monthSubstituteFee = 0m;
             foreach (var sub in subAssignments)
             {
-                if (sub.Date.Length >= 7 && sub.Date[..7] == month)
-                {
-                    var g = allSubGroups.GetValueOrDefault(sub.GroupId);
-                    Group? fullGroup = g == null ? null : new Group { Id = g.Id, TeacherSalaryMode = g.TeacherSalaryMode, TeacherSalaryFixed = g.TeacherSalaryFixed, TeacherSalaryPercent = g.TeacherSalaryPercent, MonthlyFee = g.MonthlyFee, Days = g.Days };
-                    int lessonsInMonth = sub.SelectedDates != null && sub.SelectedDates.Count > 0 ? sub.SelectedDates.Count : SubstituteTeacherService.CalculateScheduledLessons(fullGroup, sub.Date, sub.EndDate);
-                    decimal rate = SubstituteTeacherService.CalculateSingleLessonRate(fullGroup, teacher, meta, 10, month);
-                    monthSubstituteFee += Math.Round(rate * lessonsInMonth, 2);
-                }
+                var g = subGroups.GetValueOrDefault(sub.GroupId);
+                var mv = subMoves.GetValueOrDefault(sub.GroupId);
+                var lessons = SubstituteTeacherService.LessonsInMonth(sub, g, month, mv);
+                if (lessons <= 0) continue;
+                monthSubstituteFee += Math.Round(PerLesson(sub.GroupId, month) * lessons, 2);
             }
             monthSubstituteFee = Math.Round(monthSubstituteFee, 2);
 
@@ -280,25 +340,37 @@ public static class SalaryLedger
                     potential = contribution;
                 }
 
-                // Asosiy o'qituvchidan o'rinbosar o'tgan darslar haqini ayirish (adolatli taqsimot)
-                var subsForThisGroup = origTeacherSubstitutions.Where(a => a.GroupId == g.Id && a.Date.Length >= 7 && a.Date[..7] == month).ToList();
-                if (subsForThisGroup.Count > 0)
+                // ---------- ASOSIY O'QITUVCHIDAN USHLANMA (teacher = ASOSIY) ----------
+                // Shu OYGA tushgan o'rinbosarlik darslari (tayinlov boshlangan oy MUHIM EMAS).
+                // ⚠️ Narx — AYNAN o'rinbosarga to'lanadigan narx (`subRates`), ya'ni ushlangan
+                // summa to'langan summaga TENG (nol yig'indili). Ilgari bu yerda ayrim formula
+                // turardi: o'rinbosarga "hisoblangan × foiz" dan to'lanib, asosiydan "yig'ilgan ×
+                // foiz" dan ushlanardi va farqni markaz to'lardi.
+                if (subGroups.ContainsKey(g.Id))
                 {
-                    Group fullGroup = new Group { Id = g.Id, TeacherSalaryMode = g.TeacherSalaryMode, TeacherSalaryFixed = g.TeacherSalaryFixed, TeacherSalaryPercent = g.TeacherSalaryPercent, MonthlyFee = g.MonthlyFee, Days = g.Days };
-                    int totalScheduledLessons = SubstituteTeacherService.CalculateScheduledLessons(fullGroup, $"{month}-01", $"{month}-28");
-                    if (totalScheduledLessons > 0)
+                    var fullGroup = subGroups[g.Id];
+                    var mv = subMoves.GetValueOrDefault(g.Id);
+                    int subLessons = origSubstitutions
+                        .Where(a => a.GroupId == g.Id)
+                        .Sum(a => SubstituteTeacherService.LessonsInMonth(a, fullGroup, month, mv));
+                    if (subLessons > 0)
                     {
-                        int subLessons = subsForThisGroup.Sum(s => s.SelectedDates != null && s.SelectedDates.Count > 0 ? s.SelectedDates.Count : SubstituteTeacherService.CalculateScheduledLessons(fullGroup, s.Date, s.EndDate));
-                        decimal basePool = contribution > 0 ? contribution : (potential > 0 ? potential : SubstituteTeacherService.CalculateSingleLessonRate(fullGroup, teacher, meta, 10, month) * totalScheduledLessons);
-                        decimal perLessonFee = basePool / totalScheduledLessons;
-                        decimal subDeduction = Math.Round(perLessonFee * subLessons, 2);
+                        decimal subDeduction = Math.Round(PerLesson(g.Id, month) * subLessons, 2);
+                        if (subDeduction > 0)
+                        {
+                            monthSubstituteDeduction += subDeduction;
+                            groupPeriodSubDeduction[g.Id] += subDeduction;
+                            groupPeriodSubLessons[g.Id] += subLessons;
 
-                        if (contribution > 0) contribution = Math.Max(0m, contribution - subDeduction);
-                        if (potential > 0) potential = Math.Max(0m, potential - subDeduction);
-
-                        monthSubstituteDeduction += subDeduction;
-                        groupPeriodSubDeduction[g.Id] += subDeduction;
-                        groupPeriodSubLessons[g.Id] += subLessons;
+                            // Guruh ulushi bor rejimlarda (per-guruh va legacy-foiz) ushlanma AYNAN
+                            // shu guruh ulushidan ayriladi. Legacy-QAT'IYda guruh ulushi umuman
+                            // yo'q (contribution == 0) — u yerda ushlanma OY BAZASIDAN ayriladi
+                            // (pastda). ⚠️ Ilgari `if (contribution > 0)` sharti tufayli
+                            // legacy-qat'iyda ushlanma HECH QACHON qo'llanmas, lekin ekranga
+                            // "ushlandi" deb yuborilardi.
+                            contribution = Math.Max(0m, contribution - subDeduction);
+                            potential = Math.Max(0m, potential - subDeduction);
+                        }
                     }
                 }
 
@@ -325,6 +397,7 @@ public static class SalaryLedger
             decimal baseExpected, basePotential;
             if (anyConfigured)
             {
+                // Per-guruh: ushlanma allaqachon HAR GURUH ulushidan ayrilgan (yuqorida).
                 baseExpected = decimal.Round(grossSum, 2);
                 basePotential = decimal.Round(grossPotential, 2);
             }
@@ -332,14 +405,29 @@ public static class SalaryLedger
             {
                 baseExpected = decimal.Round(TotalCollected(month) * teacher.SalaryPercent / 100m, 2);
                 basePotential = decimal.Round(TotalCharged(month) * teacher.SalaryPercent / 100m, 2);
+                // ⚠️ LEGACY-FOIZ baza guruhlar ulushidan EMAS, oyning JAMI yig'ilganidan chiqadi
+                // — ya'ni sikl ichida ayrilgan ushlanma bu raqamga UMUMAN ta'sir qilmagan. Ilgari
+                // shu sabab ushlanma hisoblanib, ekranga yuborilib, lekin maoshdan AYRILMASDI.
+                baseExpected = Math.Max(0m, baseExpected - monthSubstituteDeduction);
+                basePotential = Math.Max(0m, basePotential - monthSubstituteDeduction);
             }
             else
             {
+                // ⚠️ LEGACY-QAT'IYda guruh ulushi umuman yo'q (contribution == 0), shuning uchun
+                // ushlanma AYNAN shu yerda — yakuniy bazadan — ayriladi.
                 baseExpected = decimal.Round(teacher.Salary * factor, 2);
                 basePotential = baseExpected;
+                baseExpected = Math.Max(0m, baseExpected - monthSubstituteDeduction);
+                basePotential = Math.Max(0m, basePotential - monthSubstituteDeduction);
             }
 
-            // O'rinbosarlik haqi maosh bazasiga qo'shiladi
+            // ⚠️ J9: JURNAL JARIMASINING MAXRAJI — o'rinbosarlik haqi QO'SHILMAGAN baza.
+            // O'rinbosarlik haqi BOSHQA guruhlarda o'tilgan darslar uchun; uni o'qituvchining
+            // O'Z guruhlaridagi "belgilanmagan dars" jarimasi maxrajiga qo'shish jarimani
+            // sun'iy ravishda kattalashtirardi (`.claude/rules/billing.md`).
+            var ownWorkBase = baseExpected;
+
+            // O'rinbosarlik haqi maosh bazasiga qo'shiladi (guruhlar ulushidan KEYIN).
             baseExpected += monthSubstituteFee;
             basePotential += monthSubstituteFee;
 
@@ -352,9 +440,9 @@ public static class SalaryLedger
                 {
                     deduction = decimal.Round(groupDeduction, 2);
                 }
-                else if (baseExpected > 0)
+                else if (ownWorkBase > 0)
                 {
-                    var perLesson = baseExpected / plannedTotal;
+                    var perLesson = ownWorkBase / plannedTotal;
                     for (var i = 0; i < lessonLines.Count; i++)
                     {
                         var line = lessonLines[i];
@@ -362,7 +450,7 @@ public static class SalaryLedger
                         lessonLines[i] = line with { Deduction = ded };
                         deduction += ded;
                     }
-                    if (deduction > baseExpected) deduction = baseExpected;  // yaxlitlash himoyasi
+                    if (deduction > ownWorkBase) deduction = ownWorkBase;  // yaxlitlash himoyasi
                 }
             }
 
@@ -443,21 +531,34 @@ public static class SalaryLedger
         Dictionary<(string month, string groupId), decimal> Collected,
         Dictionary<(string month, string groupId), decimal> Charged);
 
+    /// <summary>
+    /// (oy, guruh) → SHU OY UCHUN yig'ilgan pul — <b>o'rinbosarlik hovuzining bazasi</b>.
+    ///
+    /// <para>⚠️ NEGA OMMAVIY: o'rinbosarning maosh varaqasini hisoblashda u O'ZI O'QITMAYDIGAN
+    /// (begona) guruhning yig'ilgan puli kerak bo'ladi — nol yig'indili modelda ikkala tomon ham
+    /// AYNAN shu bazadan chiqadi. Taqsimot qoidasi (teglangan to'lov 100% guruhga, teglanmagani
+    /// <c>MonthlyFee</c> nisbatida) shu sabab nusxalanmaydi: manba bitta.</para>
+    /// </summary>
+    public static async Task<Dictionary<(string month, string groupId), decimal>> CollectedForGroupsAsync(
+        IAppDbContext db, IReadOnlyCollection<string> groupIds, string startMonth, string toMonth) =>
+        (await PercentBasesAsync(db, groupIds, startMonth, toMonth)).Collected;
+
     private static async Task<PercentBases> PercentBasesAsync(
-        IAppDbContext db, Teacher teacher, string startMonth, string toMonth)
+        IAppDbContext db, IReadOnlyCollection<string> groupIds, string startMonth, string toMonth)
     {
         var result = new Dictionary<(string month, string groupId), decimal>();
         var charged = new Dictionary<(string month, string groupId), decimal>();
+        if (groupIds.Count == 0) return new PercentBases(result, charged);
 
         void Add(string month, string groupId, decimal amount) =>
             result[(month, groupId)] = result.GetValueOrDefault((month, groupId), 0m) + amount;
         void AddCharge(string month, string groupId, decimal amount) =>
             charged[(month, groupId)] = charged.GetValueOrDefault((month, groupId), 0m) + amount;
 
-        // O'qituvchi guruhlari (id → oylik narx). ARXIVLANGANLARI HAM — yopilgan guruhning
+        // So'ralgan guruhlar (id → oylik narx). ARXIVLANGANLARI HAM — yopilgan guruhning
         // o'tgan oylardagi hisobi tarixdan yo'qolmasin.
         var teacherGroups = await db.Classes
-            .Where(c => c.TeacherId == teacher.Id)
+            .Where(c => groupIds.Contains(c.Id))
             .Select(c => new { c.Id, c.MonthlyFee }).ToListAsync();
         if (teacherGroups.Count == 0) return new PercentBases(result, charged);
         var tgIds = teacherGroups.Select(g => g.Id).ToHashSet();

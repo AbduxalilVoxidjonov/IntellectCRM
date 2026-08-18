@@ -208,6 +208,21 @@ static string ClientIp(HttpContext ctx)
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    // 429 javobiga O'ZBEKCHA JSON matn qo'shamiz. Sabab: rate-limiter sukut bo'yicha BO'SH tana
+    // qaytaradi, landing formasi esa `data.message`ni o'qiydi va topolmagach umumiy "Xatolik yuz
+    // berdi" ko'rsatardi — tashrifchi nima bo'lganini bilmay qayta-qayta bosaverardi (va limitni
+    // yanada uzaytirardi). Endi u "bir daqiqadan keyin urinib ko'ring" deb aniq yozadi.
+    // Retry-After — standart sarlavha; limiter oynaning qolgan vaqtini bersa o'shani ishlatamiz.
+    options.OnRejected = async (context, token) =>
+    {
+        context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+        if (context.Lease.TryGetMetadata(System.Threading.RateLimiting.MetadataName.RetryAfter, out var retryAfter))
+            context.HttpContext.Response.Headers.RetryAfter = ((int)retryAfter.TotalSeconds).ToString();
+        context.HttpContext.Response.ContentType = "application/json; charset=utf-8";
+        await context.HttpContext.Response.WriteAsync(
+            "{\"message\":\"Juda ko'p urinish. Iltimos, bir daqiqadan keyin qayta urinib ko'ring.\"}",
+            token);
+    };
     options.AddPolicy("login", httpContext =>
         System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
             partitionKey: ClientIp(httpContext),
@@ -467,24 +482,44 @@ using (var scope = app.Services.CreateScope())
     }
     catch { }
 
+    // CenterMeta ustunlarini idempotent qo'shish (ADD COLUMN IF NOT EXISTS) — eski o'rnatishlarda
+    // ustun allaqachon bor, ya'ni bu blok FAQAT yangi/bo'sh bazaga ta'sir qiladi.
+    //
+    // ⚠️ DEFAULT qiymatlar ATAYIN BO'SH (''). Ilgari bu yerda 'https://youtube.com',
+    // 'info@intellect.uz', '+998 (90) 344-44-34' kabi "namuna" qiymatlar turardi va natijada YANGI
+    // o'rnatishda bazada markazga tegishli BO'LMAGAN kontaktlar paydo bo'lardi: sahifada YouTube
+    // kanali "bor" bo'lib ko'rinardi, admin esa uni bo'shata olmasdi. Endi "kiritilmagan" holati
+    // BO'SH satr bilan ifodalanadi; ommaviy sahifada ko'rsatiladigan zaxira matn faqat O'QISH
+    // paytida (LandingCmsController / GET /api/public/landing-data) qo'llanadi.
+    //
+    // ⚠️ Bu yerda MapIframeUrl'ni "bo'sh bo'lsa OpenStreetMap havolasi bilan to'ldirish" UPDATE'i
+    // bor edi — OLIB TASHLANDI va QAYTA QO'SHILMASIN. U har startupda ishlagani uchun admin CMS'dan
+    // xarita havolasini o'chirsa, server qayta ishga tushgach havola O'ZI qaytib kelardi va xaritani
+    // umuman o'chirib bo'lmasdi. Bo'sh qiymat — adminning ATAYIN qilgan tanlovi.
     try
     {
         db.Database.ExecuteSqlRaw(@"
             ALTER TABLE ""CenterMeta"" ADD COLUMN IF NOT EXISTS ""MapIframeUrl"" text DEFAULT '';
-            ALTER TABLE ""CenterMeta"" ADD COLUMN IF NOT EXISTS ""TelegramUrl"" text DEFAULT 'https://t.me/intellect_kokand';
-            ALTER TABLE ""CenterMeta"" ADD COLUMN IF NOT EXISTS ""InstagramUrl"" text DEFAULT 'https://instagram.com/intellect_kokand';
-            ALTER TABLE ""CenterMeta"" ADD COLUMN IF NOT EXISTS ""YoutubeUrl"" text DEFAULT 'https://youtube.com';
-            ALTER TABLE ""CenterMeta"" ADD COLUMN IF NOT EXISTS ""FacebookUrl"" text DEFAULT 'https://facebook.com';
-            ALTER TABLE ""CenterMeta"" ADD COLUMN IF NOT EXISTS ""CenterEmail"" text DEFAULT 'info@intellect.uz';
+            ALTER TABLE ""CenterMeta"" ADD COLUMN IF NOT EXISTS ""TelegramUrl"" text DEFAULT '';
+            ALTER TABLE ""CenterMeta"" ADD COLUMN IF NOT EXISTS ""InstagramUrl"" text DEFAULT '';
+            ALTER TABLE ""CenterMeta"" ADD COLUMN IF NOT EXISTS ""YoutubeUrl"" text DEFAULT '';
+            ALTER TABLE ""CenterMeta"" ADD COLUMN IF NOT EXISTS ""FacebookUrl"" text DEFAULT '';
+            ALTER TABLE ""CenterMeta"" ADD COLUMN IF NOT EXISTS ""CenterEmail"" text DEFAULT '';
             ALTER TABLE ""CenterMeta"" ADD COLUMN IF NOT EXISTS ""AppStoreUrl"" text DEFAULT '';
             ALTER TABLE ""CenterMeta"" ADD COLUMN IF NOT EXISTS ""PlayMarketUrl"" text DEFAULT '';
-            ALTER TABLE ""CenterMeta"" ADD COLUMN IF NOT EXISTS ""ContactPhone"" text DEFAULT '+998 (90) 344-44-34';
-            ALTER TABLE ""CenterMeta"" ADD COLUMN IF NOT EXISTS ""CenterAddress"" text DEFAULT 'Farg''ona viloyati, Qo''qon shahar, Asqarali charxiy 5A';
-            ALTER TABLE ""CenterMeta"" ADD COLUMN IF NOT EXISTS ""WorkingHours"" text DEFAULT 'Dushanba — Shanba: 09:00 – 17:00';
-            UPDATE ""CenterMeta"" SET ""MapIframeUrl"" = 'https://www.openstreetmap.org/export/embed.html?bbox=70.9200,40.5400,70.9400,40.5520&layer=mapnik&marker=40.546115,70.930010' WHERE ""MapIframeUrl"" IS NULL OR ""MapIframeUrl"" = '';
+            ALTER TABLE ""CenterMeta"" ADD COLUMN IF NOT EXISTS ""ContactPhone"" text DEFAULT '';
+            ALTER TABLE ""CenterMeta"" ADD COLUMN IF NOT EXISTS ""CenterAddress"" text DEFAULT '';
+            ALTER TABLE ""CenterMeta"" ADD COLUMN IF NOT EXISTS ""WorkingHours"" text DEFAULT '';
         ");
     }
-    catch { }
+    catch (Exception ex)
+    {
+        // Ilgari bu yerda jim `catch { }` turardi: DDL bajarilmasa (masalan baza foydalanuvchisida
+        // ALTER huquqi yo'q) hech kim bilmasdi va keyinroq "column does not exist" xatolari chiqib,
+        // sababi noma'lum qolardi. Endi kamida ogohlantirish yoziladi (yuqoridagi MapIframeUrl
+        // bloki bilan bir xil uslub) — startup baribir to'xtatilmaydi.
+        app.Logger.LogWarning(ex, "[fix] CenterMeta ustunlarini qo'shish o'tkazib yuborildi");
+    }
 
     // Birinchi ishga tushish: hech qanday foydalanuvchi bo'lmasa, standart SUPER ADMIN yaratamiz —
     // aks holda tizimga kira oladigan hech kim bo'lmaydi. Login/parol muhit o'zgaruvchisidan keladi
@@ -775,14 +810,29 @@ app.Use(async (context, next) =>
             // blob: — Call Center yozuv pleyeri (audio auth bilan blob qilib ochiladi) va
             // shunga o'xshash media; busiz prod'da <audio src="blob:..."> JIM bloklanadi.
             "media-src 'self' blob:; " +
-            "style-src 'self' 'unsafe-inline'; " +
+            // fonts.googleapis.com — landing/sertifikatlar sahifalari Google Fonts'ni
+            // <link rel="stylesheet"> bilan yuklaydi (SPA emas, statik marketing sahifalari).
+            // Busiz prod'da shrift STYLESHEET'i bloklanadi va sahifa zaxira shriftda chiqadi.
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
             // gstatic — FCM web SW (firebase-messaging-sw.js) importScripts qiladi.
             // telegram.org — bot Menu Button orqali Web App sifatida ochilganda kerak bo'ladigan SDK.
             "script-src 'self' https://www.gstatic.com https://telegram.org; " +
             "worker-src 'self'; " +
             // googleapis/gstatic — FCM web token olish (getToken) so'rovlari.
             "connect-src 'self' ws: wss: https://*.googleapis.com https://*.gstatic.com https://fcm.googleapis.com; " +
-            "font-src 'self' data:; " +
+            // fonts.gstatic.com — Google Fonts'ning .woff2 fayllari aynan shu hostdan keladi
+            // (stylesheet googleapis'da, shriftning O'ZI gstatic'da — ikkalasi ham kerak).
+            "font-src 'self' data: https://fonts.gstatic.com; " +
+            // frame-src ILGARI YO'Q EDI -> default-src 'self' ga tushardi va landing'dagi
+            // XARITA <iframe> (landing.js `renderMap`) PRODDA JIM BLOKLANARDI (dev'da CSP
+            // umuman yo'q, shuning uchun "lokalda ishlaydi, serverda yo'q" ko'rinishini berardi).
+            // Ro'yxat — markaz Sozlamalaridagi "Xarita" maydoniga qo'yilishi mumkin bo'lgan
+            // provayderlar: Yandex (map-widget), Google Maps embed, OpenStreetMap.
+            // ATAYIN oq ro'yxat ('self' + shu uchtasi): CMS maydoniga tashqi HTML yozilsa ham
+            // ixtiyoriy sayt iframe'da ochilib ketmasin.
+            "frame-src 'self' https://yandex.uz https://*.yandex.uz https://yandex.ru https://*.yandex.ru " +
+                "https://www.google.com https://maps.google.com https://*.google.com " +
+                "https://www.openstreetmap.org https://*.openstreetmap.org; " +
             "frame-ancestors 'self' https://web.telegram.org https://*.web.telegram.org; object-src 'none'; base-uri 'self'";
     }
     else

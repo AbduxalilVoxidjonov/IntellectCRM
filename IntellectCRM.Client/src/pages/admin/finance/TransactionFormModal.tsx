@@ -55,6 +55,9 @@ export function TransactionFormModal({ open, onClose, onSubmit, initial }: Props
   // Maosh izohi avtomatik to'ldiriladi — foydalanuvchi qo'lda yozganini bosib ketmaslik uchun
   // oxirgi avto izohni eslab turamiz.
   const autoNoteRef = useRef('')
+  // ⚠️ E'LON QILISH JOYI MUHIM: bu holat quyidagi `[open]` effektidan OLDIN turishi shart,
+  // aks holda modal yopilganda tozalab bo'lmaydi (JS'da `useState` hoisting qilinmaydi).
+  const [salaryType, setSalaryType] = useState<'all' | 'main' | 'substitute'>('all')
 
   const isSalaryExpense = isSalaryCat(form.direction, form.category)
   const isTuitionIncome = form.direction === 'income' && form.category === 'tuition'
@@ -138,10 +141,24 @@ export function TransactionFormModal({ open, onClose, onSubmit, initial }: Props
     setTuitionTeacherId('')
     setClassId('')
     setLedgerMonths([])
+    // ⚠️ Maosh TURI ham tozalanadi: ilgari u yopilganda qolib ketardi va keyingi
+    // o'qituvchida "O'rinbosarlik haqi" tanlovi kuchda bo'lardi. Uning `substituteFee`si 0
+    // bo'lsa "Maosh turi" select'i UMUMAN ko'rinmaydi, ya'ni summa jimgina 0 ga tushar va
+    // kassir buni tuzatadigan boshqaruvni ekranda topa olmasdi.
+    setSalaryType('all')
     autoNoteRef.current = ''
   }, [open])
 
-  const [salaryType, setSalaryType] = useState<'all' | 'main' | 'substitute'>('all')
+  /**
+   * O'rinbosarlik haqi uchun taklif qilinadigan summa.
+   *
+   * ⚠️ QOLDIQ bilan CHEKLANADI: oylik allaqachon to'liq to'langan bo'lsa (`remaining <= 0`)
+   * o'rinbosarlik haqini yana to'liq taklif qilish o'qituvchiga ORTIQCHA pul berilishiga olib
+   * kelardi. `FinanceTransaction` da "bu to'lov o'rinbosarlik uchun" degan maydon yo'q, ya'ni
+   * ledger buni keyin qaytarib ajrata olmaydi — shuning uchun chegara SHU YERDA qo'yiladi.
+   */
+  const substituteAmount = (remaining: number, subFee: number) =>
+    Math.min(subFee, Math.max(0, remaining))
 
   const handleSalaryTypeChange = (type: 'all' | 'main' | 'substitute') => {
     setSalaryType(type)
@@ -152,7 +169,7 @@ export function TransactionFormModal({ open, onClose, onSubmit, initial }: Props
     const note = `Oylik maosh (${typeLabel}) — ${teacherName} (${formatMonth(monthInfo.month)})`
 
     let amt = Math.max(0, monthInfo.remaining)
-    if (type === 'substitute') amt = subFee
+    if (type === 'substitute') amt = substituteAmount(monthInfo.remaining, subFee)
     else if (type === 'main') amt = Math.max(0, monthInfo.remaining - subFee)
 
     setForm((f) => ({ ...f, amount: amt, note }))
@@ -176,7 +193,7 @@ export function TransactionFormModal({ open, onClose, onSubmit, initial }: Props
         const typeLabel = salaryType === 'substitute' ? "O'rinbosarlik haqi" : salaryType === 'main' ? 'Asosiy maosh' : 'Umumiy maosh'
         const autoNote = `Oylik maosh (${typeLabel}) — ${teacherName} (${formatMonth(month)})`
         let amt = Math.max(0, m.remaining)
-        if (salaryType === 'substitute') amt = m.substituteFee ?? 0
+        if (salaryType === 'substitute') amt = substituteAmount(m.remaining, m.substituteFee ?? 0)
         else if (salaryType === 'main') amt = Math.max(0, m.remaining - (m.substituteFee ?? 0))
 
         setForm((f) => ({
@@ -348,6 +365,15 @@ export function TransactionFormModal({ open, onClose, onSubmit, initial }: Props
                     O'rinbosarlik haqi (+{formatMoney(monthInfo.substituteFee ?? 0)})
                   </option>
                 </select>
+                {/* Chegara JIMGINA qo'llanmaydi — kassir summa nega kamayganini bilsin. */}
+                {salaryType === 'substitute' &&
+                  (monthInfo.substituteFee ?? 0) > Math.max(0, monthInfo.remaining) && (
+                    <p className="mt-1 text-xs font-medium text-amber-600">
+                      O'rinbosarlik haqi {formatMoney(monthInfo.substituteFee ?? 0)}, lekin bu oyda
+                      qoldiq {formatMoney(Math.max(0, monthInfo.remaining))} — summa qoldiq bilan
+                      cheklandi (ortiqcha to'lov bo'lmasin).
+                    </p>
+                  )}
               </div>
             )}
 

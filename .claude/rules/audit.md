@@ -37,10 +37,17 @@ bo'yicha tuzilgan:
 | `ClassFee` | guruh oyligi **+** guruh yaratish/tahrir/arxiv | `classes` |
 | `TeacherSalary` | maosh to'lovi **+** o'qituvchi yozuvining o'zi (yaratish/tahrir/arxiv/rasm) | `teachers` |
 | `Membership` | a'zolik hodisalari, `EntityId = "{groupId}:{studentId}"` | `classes` |
+| `substitute_teacher` | o'rinbosar biriktirish/bekor qilish, `EntityId = "{groupId}:{assignmentId}"` | `teachers` |
 
 **Yangi `audit.Record` qo'shsangiz** — `EntityType`ni `AuditSections.ByEntityType` ga ham qo'shing,
 aks holda yozuv "Boshqa"da qolib, bo'lim filtrida topilmaydi. `AuditSectionsTests` xaritadagi har bir
 tur `All` ro'yxatidagi bo'limga tushishini tekshiradi.
+
+⚠️ `substitute_teacher` bo'limi **`teachers`** ("Guruhlar" EMAS): amal guruh tarkibiga emas, KIM
+dars o'tishiga va kimning MAOSHIGA tegishli (o'rinbosarga haq, asosiy o'qituvchidan ushlanma).
+`EntityId` esa `Membership` naqshida prefiksli — aks holda yozuv guruh sahifasining "Tarix"
+tabida hech qachon ko'rinmasdi (`groupId` filtri `EntityId.StartsWith(groupId + ":")` deb
+qidiradi). Batafsil: `.claude/rules/substitute-teachers.md` §6.
 
 Tarixiy izoh: kurs narxi ilgari `ClassFee` deb yozilar va "Guruhlar"ga tushardi; endi `Course`
 (bo'lim: Kurslar). **Eski qatorlar qayta yozilmaydi** — ular o'sha joyda qoladi.

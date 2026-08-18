@@ -12,6 +12,12 @@
 
   var currentLeadNote = '';
 
+  // Karusel taymerlari MODUL darajasida saqlanadi: init funksiyasi qayta chaqirilganda
+  // (CMS ma'lumoti kelib slaydlar qaytadan chizilganda) eski setInterval to'xtatilmasa,
+  // bir nechta taymer bitta trekni bir vaqtda surib, karusel sakrab-sakrab qolardi.
+  var teacherAutoTimer = null;
+  var resultsAutoTimer = null;
+
   function openModal(selectedSubject, customNote){
     clearError();
     if (subjectSelect) {
@@ -33,29 +39,41 @@
       }
     }
     currentLeadNote = customNote || 'Sayt tugmasidan yozilish';
+    if (!modalBackdrop) return;
     modalBackdrop.classList.add('show');
     document.body.style.overflow = 'hidden';
   }
 
   function closeModal(){
+    if (!modalBackdrop) return;
     modalBackdrop.classList.remove('show');
     document.body.style.overflow = '';
   }
 
   openTriggers.forEach(function(btn){
-    btn.addEventListener('click', function(){
+    btn.addEventListener('click', function(e){
+      // Atribut AYNAN BOSILGAN PAYTDA tekshiriladi: renderSocials() App Store / Play Market
+      // tugmalaridan `data-open-modal` ni olib tashlaydi, lekin removeAttribute listenerni
+      // O'CHIRMAYDI — tekshiruvsiz bunday tugma ham modalni ochib, ham havolaga o'tib ketardi.
+      if (!btn.hasAttribute('data-open-modal')) return;
+      // Footer tugmalari <a href="#"> — busiz sahifa sahifa boshiga sakrab ketardi.
+      if (btn.tagName === 'A') e.preventDefault();
       var subj = btn.getAttribute('data-subject');
       var note = btn.getAttribute('data-note') || 'Tugma: ' + (btn.textContent || '').trim();
       openModal(subj, note);
     });
   });
 
-  modalClose.addEventListener('click', closeModal);
-  modalBackdrop.addEventListener('click', function(e){
-    if (e.target === modalBackdrop) closeModal();
-  });
+  // Barcha DOM murojaatlari himoyalangan: bitta element HTML'dan olib tashlansa ham butun
+  // IIFE xato berib, landingdagi HAMMA skript (karusel, modallar, formalar) o'lib qolardi.
+  if (modalClose) modalClose.addEventListener('click', closeModal);
+  if (modalBackdrop) {
+    modalBackdrop.addEventListener('click', function(e){
+      if (e.target === modalBackdrop) closeModal();
+    });
+  }
   document.addEventListener('keydown', function(e){
-    if (e.key === 'Escape' && modalBackdrop.classList.contains('show')) closeModal();
+    if (e.key === 'Escape' && modalBackdrop && modalBackdrop.classList.contains('show')) closeModal();
   });
 
   // Mobil menyu toggle
@@ -122,29 +140,37 @@
   var phoneInput = document.getElementById('leadPhone');
 
   function showError(text){
+    if (!msgEl) return;
     msgEl.textContent = text;
     msgEl.classList.add('error');
   }
   function clearError(){
+    if (!msgEl) return;
     msgEl.textContent = '';
     msgEl.classList.remove('error');
+  }
+  // Tugma holati bitta joyda — har bir tarmoqda null-tekshiruv takrorlanmasin.
+  function setLeadSubmitState(busy){
+    if (!submitBtn) return;
+    submitBtn.disabled = busy;
+    submitBtn.textContent = busy ? 'Yuborilmoqda…' : 'Ariza qoldirish';
   }
 
   function digitsOnly(str){
     return (str || '').replace(/\D/g, '');
   }
 
-  phoneInput.addEventListener('input', clearError);
-  nameInput.addEventListener('input', clearError);
+  if (phoneInput) phoneInput.addEventListener('input', clearError);
+  if (nameInput) nameInput.addEventListener('input', clearError);
 
   if (subjectSelect) subjectSelect.addEventListener('change', clearError);
 
-  form.addEventListener('submit', function(event){
+  if (form) form.addEventListener('submit', function(event){
     event.preventDefault();
     clearError();
 
-    var fullName = nameInput.value.trim();
-    var phone = phoneInput.value.trim();
+    var fullName = nameInput ? nameInput.value.trim() : '';
+    var phone = phoneInput ? phoneInput.value.trim() : '';
     var subject = '';
     if (subjectSelect) {
       subject = subjectSelect.value;
@@ -164,17 +190,16 @@
 
     if (!fullName) {
       showError('Iltimos, ismingizni kiriting.');
-      nameInput.focus();
+      if (nameInput) nameInput.focus();
       return;
     }
     if (digitsOnly(phone).length < 9) {
       showError('Iltimos, to\'g\'ri telefon raqam kiriting (kamida 9 ta raqam).');
-      phoneInput.focus();
+      if (phoneInput) phoneInput.focus();
       return;
     }
 
-    submitBtn.disabled = true;
-    submitBtn.textContent = 'Yuborilmoqda…';
+    setLeadSubmitState(true);
 
     fetch('/api/public/landing-lead', {
       method: 'POST',
@@ -182,7 +207,7 @@
       body: JSON.stringify({ fullName: fullName, phone: phone, subject: subject, note: currentLeadNote })
     }).then(function(response){
       if (response.ok) {
-        formWrap.innerHTML =
+        if (formWrap) formWrap.innerHTML =
           '<div class="form-success">' +
             '<div class="ic">✅</div>' +
             '<h4>Arizangiz qabul qilindi!</h4>' +
@@ -194,18 +219,15 @@
         return response.json().catch(function(){ return null; }).then(function(data){
           var message = (data && data.message) ? data.message : 'Xatolik yuz berdi, qayta urinib ko\'ring yoki qo\'ng\'iroq qiling.';
           showError(message);
-          submitBtn.disabled = false;
-          submitBtn.textContent = 'Ariza qoldirish';
+          setLeadSubmitState(false);
         });
       }
       showError('Xatolik yuz berdi, qayta urinib ko\'ring yoki qo\'ng\'iroq qiling.');
-      submitBtn.disabled = false;
-      submitBtn.textContent = 'Ariza qoldirish';
+      setLeadSubmitState(false);
       return null;
     }).catch(function(){
       showError('Xatolik yuz berdi, qayta urinib ko\'ring yoki qo\'ng\'iroq qiling.');
-      submitBtn.disabled = false;
-      submitBtn.textContent = 'Ariza qoldirish';
+      setLeadSubmitState(false);
     });
   });
 
@@ -236,7 +258,7 @@
   function openTeacherModal(t) {
     if (!t) return;
     currentTeacherName = t.fullName || '';
-    if (teacherModalPhoto) teacherModalPhoto.src = t.photoUrl || 'img/icons/icon-teacher.png';
+    if (teacherModalPhoto) teacherModalPhoto.src = t.photoUrl || '/img/icons/icon-teacher.png';
     if (teacherModalBadge) {
       teacherModalBadge.textContent = t.badge || '';
       teacherModalBadge.style.display = t.badge ? 'inline-block' : 'none';
@@ -291,7 +313,7 @@
 
   function openResultModal(certData) {
     currentCertInfo = (certData.studentName || certData.title || '') + (certData.overall ? ' (' + certData.overall + ')' : '');
-    if (resultModalImg) resultModalImg.src = certData.imageUrl || 'img/certificates/cert-1.jpg';
+    if (resultModalImg) resultModalImg.src = certData.imageUrl || '/img/certificates/cert-1.jpg';
     if (resultModalStudentName) resultModalStudentName.textContent = certData.studentName || certData.title || 'O\'QUVCHI SERTIFIKATI';
     if (resultModalCategory) resultModalCategory.textContent = certData.category || 'IELTS SERTIFIKATI';
     if (resultModalOverall) resultModalOverall.textContent = certData.overall || '8.5';
@@ -579,38 +601,65 @@
         });
       }
 
-      // 2) Agar URL'da kamida ism va telefon raqami bo'lsa — CRM'ga avtomatik lid yuborish
+      // 2) Agar URL'da kamida ism va telefon raqami bo'lsa — CRM'ga avtomatik lid yuborish.
+      //    ⚠️ FAQAT BIR MARTA. Ilgari so'rov sahifa har ochilganda ketardi: foydalanuvchi F5
+      //    bossa yoki "orqaga" qaytsa, serverda lidning RepeatCount'i oshib, operator soxta
+      //    "takroriy murojaat" ko'rardi. Kalit telefon raqamidan yasaladi va sessionStorage'da
+      //    saqlanadi (tab yopilguncha yetarli — bir seansda takror yuborishning oldi olinadi).
       if (urlName && digitsOnly(urlPhone).length >= 7) {
         var autoSubj = urlSubject || 'General English';
         var autoNote = 'Sayt URL havolasi orqali kelgan ariza (URL: ' + window.location.href + ')';
+        var autoKey = 'landingAutoLead:' + digitsOnly(urlPhone);
 
-        fetch('/api/public/landing-lead', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            fullName: urlName,
-            phone: urlPhone,
-            subject: autoSubj,
-            note: autoNote
-          })
-        }).then(function(res) {
-          if (res.ok) {
-            console.log('[Auto-Lead] URL havolasidagi ariza CRM ga muvaffaqiyatli yuborildi');
-            if (formWrap) {
-              formWrap.innerHTML =
-                '<div class="form-success">' +
-                  '<div class="ic">✅</div>' +
-                  '<h4>Arizangiz CRM ga qabul qilindi!</h4>' +
-                  '<p>Tez orada siz bilan bog\'lanamiz.</p>' +
-                '</div>';
-            }
-            if (modalBackdrop) {
-              modalBackdrop.classList.add('show');
-            }
+        var autoLeadSent = function() {
+          try { return sessionStorage.getItem(autoKey) === '1'; } catch (err) { return false; }
+        };
+        var markAutoLead = function(sent) {
+          try {
+            if (sent) sessionStorage.setItem(autoKey, '1');
+            else sessionStorage.removeItem(autoKey);
+          } catch (err) {}
+        };
+        var showAutoLeadSuccess = function() {
+          if (formWrap) {
+            formWrap.innerHTML =
+              '<div class="form-success">' +
+                '<div class="ic">✅</div>' +
+                '<h4>Arizangiz CRM ga qabul qilindi!</h4>' +
+                '<p>Tez orada siz bilan bog\'lanamiz.</p>' +
+              '</div>';
           }
-        }).catch(function(err) {
-          console.error('[Auto-Lead] Xatolik:', err);
-        });
+          if (modalBackdrop) modalBackdrop.classList.add('show');
+        };
+
+        if (autoLeadSent()) {
+          // Ariza allaqachon yuborilgan — server bezovta qilinmaydi, lekin foydalanuvchi
+          // tasdiqni baribir ko'rsin (aks holda "yuborildimi?" degan savol qolardi).
+          showAutoLeadSuccess();
+        } else {
+          // Belgi so'rovdan OLDIN qo'yiladi — juda tez qayta yuklashda ikkinchi so'rov ketmasin.
+          markAutoLead(true);
+          fetch('/api/public/landing-lead', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              fullName: urlName,
+              phone: urlPhone,
+              subject: autoSubj,
+              note: autoNote
+            })
+          }).then(function(res) {
+            if (res.ok) {
+              showAutoLeadSuccess();
+            } else {
+              // Server qabul qilmadi — belgini olib tashlaymiz, keyingi urinishga yo'l ochiq qolsin.
+              markAutoLead(false);
+            }
+          }).catch(function(err) {
+            markAutoLead(false);
+            console.error('[Auto-Lead] Xatolik:', err);
+          });
+        }
       }
     } catch (e) {
       console.error('[Auto-Lead] Query param error:', e);
@@ -692,6 +741,7 @@
 
     if (targetUrl) {
       targetUrl = normalizeMapUrl(targetUrl);
+      wrap.style.display = 'block';
       wrap.innerHTML = '<iframe id="landingMapIframe" src="' + targetUrl + '" width="100%" height="100%" style="border:0; min-height:380px; width:100%; display:block;" allowfullscreen="" loading="lazy"></iframe>' + overlayBtns;
     } else if (raw.indexOf('<') !== -1) {
       var cleanHtml = raw;
@@ -704,6 +754,7 @@
                            .replace(/<\/?html[^>]*>/gi, '')
                            .replace(/<\/?head[^>]*>/gi, '');
 
+      wrap.style.display = 'block';
       wrap.innerHTML = cleanHtml + overlayBtns;
 
       var scriptRegex = /<script([^>]*)>([\s\S]*?)<\/script>/gi;
@@ -747,6 +798,19 @@
     if (data.certificates && data.certificates.length > 0) {
       renderCertificates(data.certificates);
     }
+
+    // FAQ — ilgari renderFaqs() yozilgan, lekin HECH QAYERDA chaqirilmagan edi: admin CMS'da
+    // savol qo'shsa ham saytda hech narsa o'zgarmasdi. Ro'yxat bo'sh bo'lsa HTML'dagi statik
+    // savollar joyida qoladi (bo'sh ekran ko'rsatilmaydi).
+    if (data.faqs && data.faqs.length > 0) {
+      renderFaqs(data.faqs);
+    }
+
+    // FIKRLAR — SHARTSIZ chaqiriladi (yuqoridagilardan farqi shu). Sabab: bo'limning HTML'da
+    // statik zaxirasi yo'q va u boshidan yopiq, ya'ni "ro'yxat bo'sh bo'lsa yashir" qarorini
+    // ham aynan shu funksiya qabul qiladi. Shart qo'yilsa bo'sh ro'yxatda funksiya umuman
+    // chaqirilmas, keyinchalik kimdir bo'limni ochib qo'ysa esa bo'sh quti osilib qolardi.
+    renderTestimonials(data.testimonials);
 
     // Render Socials & Contact Info
     if (data.socials) {
@@ -821,7 +885,7 @@
       slide.style.cursor = 'pointer';
 
       var badgeHtml = t.badge ? '<span class="teacher-badge">' + escapeHtml(t.badge) + '</span>' : '';
-      var photoSrc = escapeHtml(t.photoUrl || 'img/teachers/teacher-1.jpg');
+      var photoSrc = escapeHtml(t.photoUrl || '/img/teachers/teacher-1.jpg');
       var bioText = escapeHtml(t.shortBio || t.fullBio || '');
 
       slide.innerHTML =
@@ -874,6 +938,8 @@
     });
 
     if (filtered.length === 0) {
+      if (resultsAutoTimer) { clearInterval(resultsAutoTimer); resultsAutoTimer = null; }
+      track.style.transform = 'translateX(0)';
       track.innerHTML = '<div style="color:var(--muted);padding:40px;text-align:center;width:100%;font-weight:600;">Ushbu bo\'limda hali sertifikatlar mavjud emas.</div>';
       return;
     }
@@ -899,7 +965,7 @@
       slide.innerHTML =
         '<div class="result-card">' +
           '<div class="result-cert-img-wrap">' +
-            '<img src="' + escapeHtml(c.imageUrl || 'img/certificates/cert-1.jpg') + '" alt="' + escapeHtml(c.title || c.studentName) + '" loading="lazy">' +
+            '<img src="' + escapeHtml(c.imageUrl || '/img/certificates/cert-1.jpg') + '" alt="' + escapeHtml(c.title || c.studentName) + '" loading="lazy">' +
           '</div>' +
           '<div class="result-student-name">' + escapeHtml(c.studentName || c.title) + '</div>' +
           '<div class="result-card-bottom">' +
@@ -920,7 +986,7 @@
           reading: c.reading || '—',
           writing: c.writing || '—',
           speaking: c.speaking || '—',
-          imageUrl: c.imageUrl || 'img/certificates/cert-1.jpg'
+          imageUrl: c.imageUrl || '/img/certificates/cert-1.jpg'
         });
       });
 
@@ -956,9 +1022,97 @@
     });
   }
 
+  // ---------------------------------------------------------------- FIKRLAR (Testimonials)
+  //
+  // Maydonlar `LandingTestimonial` entity'sidan (camelCase): authorName, authorRole, avatarUrl,
+  // rating (butun son), comment, order, isActive. Server allaqachon FAQAT `isActive` yozuvlarni
+  // va `order` bo'yicha tartiblab qaytaradi — bu yerda qayta filtrlash/saralash SHART EMAS.
+
+  // `rating` — RAQAM, shuning uchun u to'g'ridan-to'g'ri innerHTML'ga qo'yilmaydi: avval butun
+  // songa keltiriladi va 0..5 oralig'iga CHEKLANADI (CMS'ga xato bilan 50 kiritilsa kartochka
+  // yulduzlar bilan to'lib ketmasin). 0 yoki yo'q bo'lsa — yulduz umuman chizilmaydi.
+  function starsHtml(rating) {
+    var n = Math.round(Number(rating));
+    if (!isFinite(n) || n <= 0) return '';
+    if (n > 5) n = 5;
+    var out = '';
+    for (var i = 0; i < 5; i++) out += (i < n ? '★' : '☆');
+    // `n` — yuqorida tozalangan butun son (1..5), ya'ni atributga xavfsiz qo'yiladi.
+    return '<div class="testimonial-stars" role="img" aria-label="Baho: ' + n + ' / 5">' + out + '</div>';
+  }
+
+  // Ism va familiyaning bosh harflari — avatar bo'lmaganda ishlatiladigan zaxira.
+  function initialsOf(name) {
+    var parts = String(name || '').trim().split(/\s+/);
+    var out = '';
+    for (var i = 0; i < parts.length && out.length < 2; i++) {
+      if (parts[i]) out += parts[i].charAt(0).toUpperCase();
+    }
+    return out || '?';
+  }
+
+  // `avatarUrl` bo'sh bo'lsa SINUQ `<img>` ko'rsatilmaydi — loyihadagi odatdagi zaxira
+  // (surat o'rniga bosh harflar) qo'llanadi. Avatar bor bo'lsa manzil `/uploads/<guid>.png`:
+  // u mehmonga ochilishi uchun `UploadsGuard` ochiq ro'yxatiga qo'shilgan.
+  function testimonialAvatarHtml(url, name) {
+    if (url) {
+      return '<img class="testimonial-avatar" src="' + escapeHtml(url) +
+             '" alt="' + escapeHtml(name) + '" loading="lazy">';
+    }
+    return '<div class="testimonial-initials" aria-hidden="true">' +
+           escapeHtml(initialsOf(name)) + '</div>';
+  }
+
+  function renderTestimonials(list) {
+    var section = document.getElementById('testimonials');
+    var grid = document.getElementById('testimonialsGrid');
+    if (!section || !grid) return;
+
+    var items = list || [];
+    grid.innerHTML = '';
+
+    // BO'SH RO'YXAT — bo'lim BUTUNLAY yashiriladi. O'qituvchi/sertifikat/FAQ dan farqli ravishda
+    // server fikrlar uchun sukut (zaxira) ma'lumot qaytarmaydi, ya'ni aks holda sahifada bo'sh
+    // sarlavha va bo'sh quti osilib qolardi.
+    if (items.length === 0) {
+      section.style.display = 'none';
+      return;
+    }
+
+    items.forEach(function(t) {
+      var card = document.createElement('article');
+      card.className = 'testimonial-card';
+
+      // Lavozim ("Ota-ona", "O'quvchi") bo'sh bo'lsa qator umuman chizilmaydi — bo'sh
+      // element ostida ortiqcha bo'shliq qolmasin.
+      var roleHtml = t.authorRole
+        ? '<div class="testimonial-role">' + escapeHtml(t.authorRole) + '</div>'
+        : '';
+
+      card.innerHTML =
+        starsHtml(t.rating) +
+        '<p class="testimonial-text">' + escapeHtml(t.comment) + '</p>' +
+        '<div class="testimonial-author">' +
+          testimonialAvatarHtml(t.avatarUrl, t.authorName) +
+          '<div>' +
+            '<div class="testimonial-name">' + escapeHtml(t.authorName) + '</div>' +
+            roleHtml +
+          '</div>' +
+        '</div>';
+
+      grid.appendChild(card);
+    });
+
+    // Bo'lim FAQAT haqiqiy ma'lumot bo'lganda ochiladi (HTML'da u `display:none` bilan keladi).
+    section.style.display = '';
+  }
+
+  // CMS'dan raqam ham kelishi mumkin (masalan overallScore: 8.5) — xom raqamda `.replace`
+  // metodi yo'q, TypeError chiqib BUTUN sertifikatlar ro'yxati chizilmay qolardi. Shu sabab
+  // qiymat avval String() ga o'tkaziladi.
   function escapeHtml(str) {
-    if (!str) return '';
-    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    if (str === null || str === undefined || str === '') return '';
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
   // Ustozlar Karuseli (Auto-rotate carousel)
@@ -972,7 +1126,8 @@
     var slides = Array.from(track.children);
     if (slides.length === 0) return;
     var currentIndex = 0;
-    var autoTimer = null;
+    // Eski taymer to'xtatiladi: init qayta chaqirilsa ikkita interval bitta trekni surardi.
+    if (teacherAutoTimer) { clearInterval(teacherAutoTimer); teacherAutoTimer = null; }
 
     function getSlidesPerPage() {
       if (window.innerWidth <= 640) return 1;
@@ -1022,11 +1177,11 @@
 
     function startAutoSlide() {
       stopAutoSlide();
-      autoTimer = setInterval(nextSlide, 3500);
+      teacherAutoTimer = setInterval(nextSlide, 3500);
     }
 
     function stopAutoSlide() {
-      if (autoTimer) clearInterval(autoTimer);
+      if (teacherAutoTimer) clearInterval(teacherAutoTimer);
     }
 
     if (nextBtn) nextBtn.onclick = function() { nextSlide(); startAutoSlide(); };
@@ -1050,7 +1205,8 @@
     var slides = Array.from(track.children);
     if (slides.length === 0) return;
     var currentIndex = 0;
-    var autoTimer = null;
+    // Eski taymer to'xtatiladi: init qayta chaqirilsa ikkita interval bitta trekni surardi.
+    if (resultsAutoTimer) { clearInterval(resultsAutoTimer); resultsAutoTimer = null; }
 
     function getSlidesPerPage() {
       if (window.innerWidth <= 640) return 1;
@@ -1100,11 +1256,11 @@
 
     function startAutoSlide() {
       stopAutoSlide();
-      autoTimer = setInterval(nextSlide, 3500);
+      resultsAutoTimer = setInterval(nextSlide, 3500);
     }
 
     function stopAutoSlide() {
-      if (autoTimer) clearInterval(autoTimer);
+      if (resultsAutoTimer) clearInterval(resultsAutoTimer);
     }
 
     if (nextBtn) nextBtn.onclick = function() { nextSlide(); startAutoSlide(); };

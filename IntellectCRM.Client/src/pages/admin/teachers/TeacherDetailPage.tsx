@@ -233,7 +233,9 @@ export function TeacherDetailPage() {
     if (!payInfo) return
     const subFee = payInfo.substituteFee ?? 0
     if (type === 'substitute') {
-      setPayAmount(subFee)
+      // Qoldiq bilan CHEKLANADI — oylik to'liq to'langan bo'lsa o'rinbosarlik haqi ustiga
+      // qo'shilib, ortiqcha to'lov bo'lib ketardi (ledger buni keyin ajrata olmaydi).
+      setPayAmount(Math.min(subFee, Math.max(0, payInfo.remaining)))
     } else if (type === 'main') {
       setPayAmount(Math.max(0, payInfo.remaining - subFee))
     } else {
@@ -251,9 +253,18 @@ export function TeacherDetailPage() {
       .then((m) => {
         setPayInfo(m)
         const subFee = m?.substituteFee ?? 0
-        if (payType === 'substitute') {
-          setPayAmount(subFee)
-        } else if (payType === 'main') {
+        // ⚠️ Yangi oyda o'rinbosarlik haqi bo'lmasa TURNI ham qaytaramiz: "O'rinbosarlik haqi"
+        // varianti faqat `substituteFee > 0` bo'lganda render bo'ladi, ya'ni tanlov o'sha holicha
+        // qolsa select BO'SH ko'rinar, summa esa jimgina 0 ga tushardi (sababi yozilmagan).
+        const type = subFee > 0 ? payType : 'all'
+        if (type !== payType) {
+          setPayType('all')
+          setPayNote(salaryNoteFor(month, 'all'))
+        }
+        if (type === 'substitute') {
+          // Qoldiq bilan cheklaymiz — oylik allaqachon to'langan bo'lsa ortiqcha berilmasin.
+          setPayAmount(Math.min(subFee, Math.max(0, m?.remaining ?? 0)))
+        } else if (type === 'main') {
           setPayAmount(Math.max(0, (m?.remaining ?? 0) - subFee))
         } else {
           setPayAmount(Math.max(0, m?.remaining ?? 0))

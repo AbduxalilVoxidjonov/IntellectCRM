@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { landingCmsService } from '@/api/services/landingCms'
+import { useAuth } from '@/context/auth-context'
+import { can } from '@/lib/permissions'
 import type {
   LandingTeacher,
   LandingCertificate,
@@ -29,26 +31,108 @@ import {
   Mail,
   Smartphone,
   Download,
+  Map,
+  ExternalLink,
+  AlertTriangle,
 } from 'lucide-react'
+
+/**
+ * CSP `frame-src` OQ RO'YXATI — manba: `IntellectCRM.Server/Program.cs` (`frame-src` qatori,
+ * ~833-835). Prodda faqat shu domenlardagi `<iframe>` ochiladi ('self' dan tashqari), boshqasi
+ * (masalan 2GIS) brauzer tomonidan JIMGINA bloklanadi: sayt ochiladi, xarita joyi bo'sh qoladi va
+ * admin sababini bilmaydi. Shuning uchun ogohlantirish AYNAN kiritish paytida ko'rsatiladi.
+ *
+ * ⚠️ Ro'yxat Program.cs dan KO'CHIRILGAN — u yerda kengaytirilsa, bu yerga ham qo'shilsin.
+ * Bu faqat OGOHLANTIRISH manbai: saqlash TAQIQLANMAYDI (CSP kelajakda kengayishi mumkin).
+ */
+const MAP_ALLOWED_HOSTS = ['yandex.uz', 'yandex.ru', 'google.com', 'openstreetmap.org']
+
+/**
+ * Kiritilgan matndan xarita MANZILINI ajratadi — AYNAN `wwwroot/landing.js` dagi `renderMap`
+ * kabi: avval `<iframe ... src="...">`, aks holda `http(s)://` bilan boshlangan yalang URL.
+ * Hech biri mos kelmasa `''` qaytadi. Sabab: admin ekranda saytdagi bilan BIR XIL natijani
+ * ko'rsin — "kiritdim, lekin saytda chiqmadi" holati saqlashdan OLDIN ma'lum bo'lsin.
+ */
+const extractMapUrl = (raw: string): string => {
+  const v = (raw || '').trim()
+  if (!v) return ''
+  const iframeMatch = v.match(/<iframe[^>]*src=["']([^"']+)["']/i)
+  if (iframeMatch && iframeMatch[1]) return iframeMatch[1].replace(/&amp;/gi, '&')
+  if (/^https?:\/\//i.test(v)) return v.split(/\s+/)[0].replace(/&amp;/gi, '&')
+  return ''
+}
+
+/** Manzil CSP oq ro'yxatidagi domenga (yoki uning subdomeniga) tegishlimi. */
+const isMapHostAllowed = (url: string): boolean => {
+  try {
+    const host = new URL(url).hostname.toLowerCase()
+    return MAP_ALLOWED_HOSTS.some((h) => host === h || host.endsWith('.' + h))
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Manzil ALLAQACHON "embed/widget" shaklidami.
+ *
+ * ⚠️ Oldindan ko'rish FAQAT shundagina chiziladi. Sabab: oddiy xarita havolasini sayt o'zi
+ * `normalizeMapUrl` bilan widget shakliga keltiradi, bu yerda esa xom havola iframe'da
+ * ochilmaydi (provayder o'zi taqiqlaydi) — admin ISHLAYDIGAN havolani "buzuq" deb o'ylab,
+ * tuzatishga urinardi. `normalizeMapUrl` mantig'i bu yerda ATAYIN takrorlanmadi: ikki joyda
+ * turgan bir xil qoida vaqt o'tib ajralib ketardi (drift).
+ */
+const isMapEmbedUrl = (url: string): boolean => {
+  const u = url.toLowerCase()
+  return (
+    u.includes('/map-widget/') ||
+    u.includes('output=embed') ||
+    u.includes('/maps/embed') ||
+    u.includes('export/embed')
+  )
+}
 
 export const LandingCmsPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'teachers' | 'certificates' | 'testimonials' | 'faqs' | 'socials'>('teachers')
   const [loading, setLoading] = useState(false)
   const [uploading, setUploading] = useState(false)
 
-  const [socials, setSocials] = useState<LandingSocials>({
-    telegramUrl: 'https://t.me/intellect_kokand',
-    instagramUrl: 'https://instagram.com/intellect_kokand',
-    youtubeUrl: 'https://youtube.com',
-    facebookUrl: 'https://facebook.com',
-    centerEmail: 'info@intellect.uz',
+  // ⚠️ BO'SH BOSHLANADI — qattiq kodlangan "namuna" qiymatlar bilan EMAS.
+  // Sabab: saqlash TO'LIQ obyektni yuboradi. Ilgari bu yerda haqiqiy havolalar/telefon turardi va
+  // `getSocials()` xato bersa (tarmoq uzilishi, 403) admin ekranda O'SHA soxta qiymatlarni ko'rib
+  // "Saqlash" bossa, ular bazadagi haqiqiy ma'lumot ustidan yozilardi. Sukut qiymatlar SERVERda,
+  // faqat ommaviy o'qishda qo'yiladi (`GetPublicLandingData`).
+  const emptySocials: LandingSocials = {
+    telegramUrl: '',
+    instagramUrl: '',
+    youtubeUrl: '',
+    facebookUrl: '',
+    centerEmail: '',
     appStoreUrl: '',
     playMarketUrl: '',
-    contactPhone: '+998 (90) 344-44-34',
-    centerAddress: "Farg'ona viloyati, Qo'qon shahar, Asqarali charxiy 5A",
-    workingHours: 'Dushanba — Shanba: 09:00 – 17:00',
-  })
+    contactPhone: '',
+    centerAddress: '',
+    workingHours: '',
+  }
+  const [socials, setSocials] = useState<LandingSocials>(emptySocials)
+  /** Server javobi KELDIMI — kelmaguncha saqlash yopiq (bo'sh forma bazani tozalab yubormasin). */
+  const [socialsLoaded, setSocialsLoaded] = useState(false)
   const [socialsSaving, setSocialsSaving] = useState(false)
+
+  // XARITA — aloqa ma'lumotining bir qismi, lekin ENDPOINTI AYRI (`/landing/map-url`).
+  // Boshlang'ich qiymat BO'SH: `socials` dagi bilan bir xil tuzoq — soxta boshlang'ich qiymat
+  // bilan ochilgan forma "Saqlash" bosilganda bazadagi haqiqiy manzil ustidan yozib yuborardi.
+  const [mapUrl, setMapUrl] = useState('')
+  /** Server javobi KELDIMI — kelmaguncha saqlash YOPIQ (bo'sh forma xaritani o'chirib yubormasin). */
+  const [mapUrlLoaded, setMapUrlLoaded] = useState(false)
+  const [mapUrlSaving, setMapUrlSaving] = useState(false)
+
+  // Ruxsat darvozasi — server `[AdminPerm("settings")]` bilan AYNAN bir xil kalit.
+  // Sahifaning O'ZI `RequirePerm perm="settings"` bilan ochiladi, lekin u faqat KO'RISHni
+  // tekshiradi: `settings:view` bo'lgan xodim formani to'ldirib, oxirida sababsiz 403 olardi.
+  const { user } = useAuth()
+  const canCreate = can(user?.permissions, 'settings', 'create')
+  const canEdit = can(user?.permissions, 'settings', 'edit')
+  const canDelete = can(user?.permissions, 'settings', 'delete')
 
   // Data states
   const [teachers, setTeachers] = useState<LandingTeacher[]>([])
@@ -98,8 +182,23 @@ export const LandingCmsPage: React.FC = () => {
         const res = await landingCmsService.getFaqs()
         setFaqs(res.data || [])
       } else if (activeTab === 'socials') {
-        const res = await landingCmsService.getSocials()
-        if (res.data) setSocials(res.data)
+        // Ikkala ma'lumot ham shu tabda ko'rinadi, lekin ENDPOINTLARI ayri. `allSettled` ATAYIN:
+        // biri xato bersa (tarmoq, 403) ikkinchisi baribir yuklansin — aks holda bitta xato
+        // ikkala formani ham "yuklanmadi" holatida qoldirib, saqlashni yopib qo'yardi.
+        const [socialsRes, mapRes] = await Promise.allSettled([
+          landingCmsService.getSocials(),
+          landingCmsService.getMapUrl(),
+        ])
+        if (socialsRes.status === 'fulfilled' && socialsRes.value.data) {
+          setSocials({ ...emptySocials, ...socialsRes.value.data })
+          setSocialsLoaded(true)
+        }
+        if (mapRes.status === 'fulfilled' && mapRes.value.data) {
+          // Bo'sh satr ham TO'LIQ HAQIQIY javob (xarita hali kiritilmagan) — shuning uchun
+          // qiymatning o'ziga emas, javob KELGANIGA qaraymiz.
+          setMapUrl(mapRes.value.data.mapUrl || '')
+          setMapUrlLoaded(true)
+        }
       }
     } catch (err) {
       console.error('Landing CMS data load error:', err)
@@ -232,6 +331,13 @@ export const LandingCmsPage: React.FC = () => {
     }
   }
 
+  // XARITA maydonining joriy qiymati tahlili — ogohlantirish SAQLASHDAN OLDIN ko'rinsin
+  // (prodda CSP bloklagan xarita hech qanday xato bermaydi, shunchaki bo'sh joy qoladi).
+  const mapTrimmed = mapUrl.trim()
+  const mapExtractedUrl = extractMapUrl(mapUrl)
+  const mapHostAllowed = mapExtractedUrl ? isMapHostAllowed(mapExtractedUrl) : false
+  const mapCanPreview = mapHostAllowed && isMapEmbedUrl(mapExtractedUrl)
+
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
       {/* Header Banner - Matching Clean CRM Theme */}
@@ -352,6 +458,8 @@ export const LandingCmsPage: React.FC = () => {
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">O'qituvchilar Ro'yxati</h2>
               <button
                 onClick={() => openTeacherModal()}
+                disabled={!canCreate}
+                title={canCreate ? '' : "Qo'shish uchun ruxsatingiz yo'q"}
                 className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg text-sm transition-colors"
               >
                 <Plus className="w-4 h-4" />
@@ -397,12 +505,16 @@ export const LandingCmsPage: React.FC = () => {
                       <div className="flex items-center gap-1">
                         <button
                           onClick={() => openTeacherModal(t)}
+                          disabled={!canEdit}
+                          title={canEdit ? '' : "Tahrirlash uchun ruxsatingiz yo'q"}
                           className="p-1.5 text-gray-600 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-400"
                         >
                           <Edit2 className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => handleDelete(t.id)}
+                          disabled={!canDelete}
+                          title={canDelete ? '' : "O'chirish uchun ruxsatingiz yo'q"}
                           className="p-1.5 text-gray-600 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -423,6 +535,8 @@ export const LandingCmsPage: React.FC = () => {
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Sertifikatlar Ro'yxati</h2>
               <button
                 onClick={() => openCertificateModal()}
+                disabled={!canCreate}
+                title={canCreate ? '' : "Qo'shish uchun ruxsatingiz yo'q"}
                 className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg text-sm transition-colors"
               >
                 <Plus className="w-4 h-4" />
@@ -459,12 +573,16 @@ export const LandingCmsPage: React.FC = () => {
                       <div className="flex items-center gap-1">
                         <button
                           onClick={() => openCertificateModal(c)}
+                          disabled={!canEdit}
+                          title={canEdit ? '' : "Tahrirlash uchun ruxsatingiz yo'q"}
                           className="p-1.5 text-gray-600 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-400"
                         >
                           <Edit2 className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => handleDelete(c.id)}
+                          disabled={!canDelete}
+                          title={canDelete ? '' : "O'chirish uchun ruxsatingiz yo'q"}
                           className="p-1.5 text-gray-600 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -485,6 +603,8 @@ export const LandingCmsPage: React.FC = () => {
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Fikrlar Ro'yxati</h2>
               <button
                 onClick={() => openTestimonialModal()}
+                disabled={!canCreate}
+                title={canCreate ? '' : "Qo'shish uchun ruxsatingiz yo'q"}
                 className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg text-sm transition-colors"
               >
                 <Plus className="w-4 h-4" />
@@ -530,12 +650,16 @@ export const LandingCmsPage: React.FC = () => {
                       <div className="flex items-center gap-1">
                         <button
                           onClick={() => openTestimonialModal(t)}
+                          disabled={!canEdit}
+                          title={canEdit ? '' : "Tahrirlash uchun ruxsatingiz yo'q"}
                           className="p-1.5 text-gray-600 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-400"
                         >
                           <Edit2 className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => handleDelete(t.id)}
+                          disabled={!canDelete}
+                          title={canDelete ? '' : "O'chirish uchun ruxsatingiz yo'q"}
                           className="p-1.5 text-gray-600 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -556,6 +680,8 @@ export const LandingCmsPage: React.FC = () => {
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Savol-Javoblar (FAQ)</h2>
               <button
                 onClick={() => openFaqModal()}
+                disabled={!canCreate}
+                title={canCreate ? '' : "Qo'shish uchun ruxsatingiz yo'q"}
                 className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg text-sm transition-colors"
               >
                 <Plus className="w-4 h-4" />
@@ -579,10 +705,10 @@ export const LandingCmsPage: React.FC = () => {
                       <p className="text-sm text-gray-600 dark:text-gray-300">💡 {f.answer}</p>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      <button onClick={() => openFaqModal(f)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-md">
+                      <button onClick={() => openFaqModal(f)} disabled={!canEdit} title={canEdit ? '' : "Tahrirlash uchun ruxsatingiz yo'q"} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-md">
                         <Edit2 className="w-4 h-4" />
                       </button>
-                      <button onClick={() => handleDelete(f.id)} className="p-1.5 text-red-600 hover:bg-red-50 rounded-md">
+                      <button onClick={() => handleDelete(f.id)} disabled={!canDelete} title={canDelete ? '' : "O'chirish uchun ruxsatingiz yo'q"} className="p-1.5 text-red-600 hover:bg-red-50 rounded-md">
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
@@ -767,7 +893,7 @@ export const LandingCmsPage: React.FC = () => {
             <div className="pt-4 border-t border-gray-200 dark:border-gray-800 flex items-center gap-3">
               <button
                 type="button"
-                disabled={socialsSaving}
+                disabled={socialsSaving || !socialsLoaded || !canEdit}
                 onClick={async () => {
                   setSocialsSaving(true)
                   try {
@@ -784,6 +910,153 @@ export const LandingCmsPage: React.FC = () => {
               >
                 {socialsSaving ? 'Saqlanmoqda...' : "Ma'lumotlarni Saqlash"}
               </button>
+              {!socialsLoaded && (
+                <span className="text-xs text-amber-600 dark:text-amber-400">
+                  Ma'lumot hali yuklanmadi — saqlash yopiq (bo'sh forma bazani tozalab yubormasin).
+                </span>
+              )}
+              {socialsLoaded && !canEdit && (
+                <span className="text-xs text-gray-500">Tahrirlash uchun ruxsatingiz yo'q.</span>
+              )}
+            </div>
+
+            {/* ---------- XARITA ---------- */}
+            {/* Joylashuvi: aloqa ma'lumotining bir qismi (manzil/telefon bilan yonma-yon), lekin
+                ALOHIDA karta va ALOHIDA "Saqlash" tugmasi — chunki endpointi ham ayri
+                (`/landing/map-url`). Bitta tugmaga qo'shib yuborilsa, ikkita so'rovdan biri
+                xato bersa "saqlandi" degan yolg'on xabar chiqib ketardi. */}
+            <div className="pt-6 border-t border-gray-200 dark:border-gray-800 space-y-4 max-w-4xl">
+              <div>
+                <h3 className="flex items-center gap-2 text-base font-bold text-gray-900 dark:text-white">
+                  <Map className="w-4 h-4 text-rose-500" />
+                  <span>Xarita (Aloqa bo'limi)</span>
+                </h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  Landing sahifasining "Aloqa" bo'limida ko'rsatiladigan xarita. To'liq{' '}
+                  <code className="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-[11px]">&lt;iframe ... &gt;</code>{' '}
+                  kodini ham, yalang havolani ham qo'yish mumkin — sayt manzilni o'zi ajratib oladi va
+                  Yandex/Google havolasini widget (embed) shakliga keltiradi.
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300">
+                  <MapPin className="w-4 h-4 text-rose-500" />
+                  <span>Xarita kodi yoki havolasi:</span>
+                </label>
+                <textarea
+                  rows={4}
+                  value={mapUrl}
+                  onChange={(e) => setMapUrl(e.target.value)}
+                  disabled={!mapUrlLoaded}
+                  placeholder={'<iframe src="https://yandex.uz/map-widget/v1/org/239829322269" ...></iframe>\nyoki: https://yandex.uz/maps/?ll=70.93,40.54&z=16'}
+                  className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-xs font-mono focus:ring-2 focus:ring-indigo-500 disabled:opacity-60"
+                />
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Ishlaydigan provayderlar: <b>Yandex Maps</b> (yandex.uz / yandex.ru),{' '}
+                  <b>Google Maps</b> (google.com / maps.google.com), <b>OpenStreetMap</b>{' '}
+                  (openstreetmap.org). Boshqa provayder (masalan 2GIS) saytning xavfsizlik
+                  siyosati (CSP) tomonidan bloklanadi va xarita o'rni bo'sh qoladi.
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Maydon <b>bo'sh qoldirilsa</b> — saytda standart xarita (OpenStreetMap) ko'rsatiladi.
+                  Ya'ni maydonni tozalab saqlash ham haqiqiy amal, u kiritilgan manzilni o'chiradi.
+                </p>
+              </div>
+
+              {/* Ogohlantirishlar — saqlashni TAQIQLAMAYDI (CSP kelajakda kengayishi mumkin),
+                  lekin admin nima bo'lishini oldindan bilib tursin. */}
+              {mapTrimmed && !mapExtractedUrl && (
+                <div className="flex items-start gap-2 rounded-lg border border-amber-300 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
+                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>
+                    Kiritilgan matndan manzil ajratib olinmadi. <code>&lt;iframe src="..."&gt;</code>{' '}
+                    kodini yoki <code>https://</code> bilan boshlanadigan havolani qo'ying.
+                  </span>
+                </div>
+              )}
+              {mapExtractedUrl && !mapHostAllowed && (
+                <div className="flex items-start gap-2 rounded-lg border border-rose-300 dark:border-rose-800/60 bg-rose-50 dark:bg-rose-950/30 px-3 py-2 text-xs text-rose-800 dark:text-rose-300">
+                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>
+                    Bu manzil ruxsat etilgan provayderlar ro'yxatida yo'q — saytda xarita{' '}
+                    <b>jimgina bloklanadi</b> (brauzer CSP). Saqlash mumkin, lekin Yandex, Google yoki
+                    OpenStreetMap havolasini ishlatish tavsiya etiladi.
+                  </span>
+                </div>
+              )}
+
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  disabled={mapUrlSaving || !mapUrlLoaded || !canEdit}
+                  onClick={async () => {
+                    setMapUrlSaving(true)
+                    try {
+                      // Bo'sh satr ATAYIN yuboriladi: serverda `""` = tozalash, `null` = tegilmadi.
+                      const res = await landingCmsService.updateMapUrl(mapTrimmed)
+                      // Server qiymatni Trim qilib qaytaradi — ekranda AYNAN saqlangani tursin.
+                      setMapUrl(res.data?.mapUrl ?? mapTrimmed)
+                      alert(
+                        mapTrimmed
+                          ? 'Xarita manzili saqlandi!'
+                          : "Xarita tozalandi — saytda standart xarita ko'rsatiladi.",
+                      )
+                    } catch (err) {
+                      // `any` ATAYIN emas (eslint `no-explicit-any`): xato shakli shu yerda
+                      // tor tur bilan tavsiflanadi — xulq socials'dagi bilan bir xil qoladi.
+                      const e = err as { response?: { data?: { message?: string } }; message?: string }
+                      const msg = e?.response?.data?.message || e?.message || 'Xatolik yuz berdi!'
+                      alert('Xatolik: ' + msg)
+                    } finally {
+                      setMapUrlSaving(false)
+                    }
+                  }}
+                  className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl text-sm transition-all shadow-md shadow-indigo-600/20 disabled:opacity-50"
+                >
+                  {mapUrlSaving ? 'Saqlanmoqda...' : 'Xaritani Saqlash'}
+                </button>
+                {!mapUrlLoaded && (
+                  <span className="text-xs text-amber-600 dark:text-amber-400">
+                    Ma'lumot hali yuklanmadi — saqlash yopiq (bo'sh forma xaritani o'chirib yubormasin).
+                  </span>
+                )}
+                {mapUrlLoaded && !canEdit && (
+                  <span className="text-xs text-gray-500">Tahrirlash uchun ruxsatingiz yo'q.</span>
+                )}
+                <a
+                  href="/#contact"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>Saytda tekshirish</span>
+                </a>
+              </div>
+
+              {/* Oldindan ko'rish — FAQAT ruxsat etilgan domen VA allaqachon embed/widget shaklidagi
+                  manzil uchun. Xom havola sayt tomonida widget shakliga keltiriladi, bu yerda esa
+                  bo'sh oyna chiqib, ishlaydigan havolani "buzuq" deb ko'rsatib qo'yardi. */}
+              {mapExtractedUrl && mapCanPreview && (
+                <div className="space-y-1.5">
+                  <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">Oldindan ko'rish:</span>
+                  <iframe
+                    key={mapExtractedUrl}
+                    src={mapExtractedUrl}
+                    title="Xarita oldindan ko'rish"
+                    className="w-full h-64 rounded-xl border border-gray-200 dark:border-gray-800"
+                    loading="lazy"
+                  />
+                </div>
+              )}
+              {mapExtractedUrl && mapHostAllowed && !mapCanPreview && (
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Bu havola saytda avtomatik widget (embed) shakliga keltiriladi, shuning uchun bu
+                  yerda oldindan ko'rsatib bo'lmaydi — natijani "Saytda tekshirish" havolasi orqali
+                  ko'ring.
+                </p>
+              )}
             </div>
           </div>
         )}
@@ -1163,7 +1436,8 @@ export const LandingCmsPage: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg"
+                  disabled={editingItem ? !canEdit : !canCreate}
+                  className="px-5 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg disabled:opacity-50"
                 >
                   Saqlash
                 </button>

@@ -284,6 +284,24 @@ paths:
   ARXIVLANGAN guruhlarni ham ko'rsatadi** ("Yopilgan" belgisi bilan) — ilgari yagona guruhi
   yopilgan o'qituvchida bo'lim butunlay yo'qolib "Guruh biriktirilmagan" chiqardi.
 
+- **O'RINBOSARLIK HAQI `Expected` GA QANDAY KIRADI** (nol yig'indili model — to'liq qoida:
+  `.claude/rules/substitute-teachers.md`): o'rinbosar begona guruhda o'tgan darslar uchun
+  `MonthSalaryDto.SubstituteFee` **`Expected` ga QO'SHILADI**, asosiy o'qituvchidan esa AYNAN
+  o'shancha (`SubstituteDeduction`) AYIRILADI. Ikkalasi ham bitta hisoblagichdan
+  (`SubstituteTeacherService.PerLesson`) va bitta bazadan — guruhning shu oydagi maosh ulushi
+  (foizli rejimda **YIG'ILGAN** pul × foiz), oyning HAQIQIY dars soniga bo'lingan.
+  ⚠️ `Expected` MA'NOSI SHU BILAN HAM O'ZGARMAYDI: o'rinbosarlik haqi ham YIG'ILGAN puldan
+  chiqadi, ya'ni "pul kelmaguncha maosh hisoblanmaydi" qoidasi buzilmaydi — pul kelmagan oyda
+  o'rinbosarlik haqi ham 0 bo'ladi.
+  ⚠️ **JURNAL JARIMASINING MAXRAJIGA KIRMAYDI:** legacy-qat'iy rejimda bitta dars narxi
+  `ownWorkBase / plannedTotal` dan hisoblanadi, bunda `ownWorkBase` — o'rinbosarlik haqi
+  QO'SHILMAGAN baza. Sabab: jarima o'qituvchining O'Z guruhlaridagi belgilanmagan darslarga
+  tegishli; boshqa guruhda o'tilgan dars haqini maxrajga qo'shish jarimani sun'iy
+  kattalashtirardi. Shuningdek o'rinbosar qamragan sanalar asosiy o'qituvchining
+  `Planned`/`Missed` sanog'idan CHIQARILADI (`SalaryJournalStats.BuildAsync(excludeDates:)`) —
+  aks holda bitta dars uchun IKKI marta jarima bo'lardi (jurnal jarimasi + o'rinbosarlik
+  ushlanmasi).
+
 - **OY TAFSILOTIDA TUSHUM HAM KO'RINADI** (o'qituvchi profili → Maosh → oy tanlanganda; migratsiya
   KERAK EMAS): bitta kartochkada beshta raqam — **tushum bo'lishi kerak** (`MonthSalaryDto.TuitionCharged`)
   · **tushum bo'ldi** (`TuitionCollected`) · **maosh hisoblandi** (`Expected`) · **berildi** (`Paid`) ·

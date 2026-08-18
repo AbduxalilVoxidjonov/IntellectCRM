@@ -13,16 +13,26 @@ import {
 } from 'lucide-react'
 import { api } from '@/api/client'
 
+/**
+ * `GET /api/public/landing-data` → `certificates[]` (server: `LandingCertificate` entity, camelCase).
+ *
+ * ⚠️ MAYDON NOMLARI SERVERDAGIDEK: `listening` / `reading` / `writing` / `speaking`.
+ * Ilgari bu yerda `listeningScore` va h.k. yozilgan edi — bunday maydon javobda UMUMAN YO'Q,
+ * shuning uchun ballar bo'limi hech qachon chizilmasdi (jimgina bo'sh qolardi).
+ * `category` ham qo'shildi: filtr statik `sertifikatlar.js` dagi kabi shu maydonga ham qarashi kerak.
+ */
 export interface PublicCertItem {
   id: string
   title: string
   studentName: string
+  category: string
   certType: string
   overallScore: string
-  listeningScore?: string
-  readingScore?: string
-  writingScore?: string
-  speakingScore?: string
+  listening?: string
+  reading?: string
+  writing?: string
+  speaking?: string
+  resultNote?: string
   imageUrl: string
   order: number
 }
@@ -81,12 +91,16 @@ export function PublicCertificatesPage() {
     if (activeCategory === 'all') return true
     const typeLower = (item.certType || '').toLowerCase()
     const titleLower = (item.title || '').toLowerCase()
+    // ⚠️ `category` ham hisobga olinadi (statik `sertifikatlar.js` bilan BIR XIL qoida): CMS'da
+    // toifa "Milliy" deb belgilangan, lekin turi/sarlavhasi "SAT/Milliy" so'zini o'z ichiga
+    // olmagan sertifikat aks holda hech bir filtrga tushmay, ro'yxatdan yo'qolardi.
+    const catLower = (item.category || '').toLowerCase()
 
     if (activeCategory === 'xalqaro') {
-      return typeLower.includes('ielts') || typeLower.includes('multi') || typeLower.includes('cefr') || titleLower.includes('ielts') || titleLower.includes('multi')
+      return typeLower.includes('ielts') || typeLower.includes('multi') || typeLower.includes('cefr') || titleLower.includes('ielts') || titleLower.includes('multi') || catLower.includes('xalqaro')
     }
     if (activeCategory === 'milliy') {
-      return typeLower.includes('sat') || typeLower.includes('milli') || titleLower.includes('sat') || titleLower.includes('milli')
+      return typeLower.includes('sat') || typeLower.includes('milli') || titleLower.includes('sat') || titleLower.includes('milli') || catLower.includes('milliy')
     }
 
     return true
@@ -248,30 +262,30 @@ export function PublicCertificatesPage() {
                         <p className="text-xs text-gray-400 mt-1 font-medium">{cert.title}</p>
 
                         {/* Sub-scores grid if available */}
-                        {(cert.listeningScore || cert.readingScore || cert.writingScore || cert.speakingScore) && (
+                        {(cert.listening || cert.reading || cert.writing || cert.speaking) && (
                           <div className="grid grid-cols-4 gap-1.5 mt-4 pt-3 border-t border-white/5 text-center">
-                            {cert.listeningScore && (
+                            {cert.listening && (
                               <div className="bg-white/5 rounded-lg p-1.5">
                                 <span className="block text-[10px] text-gray-400 font-bold uppercase">L</span>
-                                <span className="text-xs font-extrabold text-blue-400">{cert.listeningScore}</span>
+                                <span className="text-xs font-extrabold text-blue-400">{cert.listening}</span>
                               </div>
                             )}
-                            {cert.readingScore && (
+                            {cert.reading && (
                               <div className="bg-white/5 rounded-lg p-1.5">
                                 <span className="block text-[10px] text-gray-400 font-bold uppercase">R</span>
-                                <span className="text-xs font-extrabold text-blue-400">{cert.readingScore}</span>
+                                <span className="text-xs font-extrabold text-blue-400">{cert.reading}</span>
                               </div>
                             )}
-                            {cert.writingScore && (
+                            {cert.writing && (
                               <div className="bg-white/5 rounded-lg p-1.5">
                                 <span className="block text-[10px] text-gray-400 font-bold uppercase">W</span>
-                                <span className="text-xs font-extrabold text-blue-400">{cert.writingScore}</span>
+                                <span className="text-xs font-extrabold text-blue-400">{cert.writing}</span>
                               </div>
                             )}
-                            {cert.speakingScore && (
+                            {cert.speaking && (
                               <div className="bg-white/5 rounded-lg p-1.5">
                                 <span className="block text-[10px] text-gray-400 font-bold uppercase">S</span>
-                                <span className="text-xs font-extrabold text-blue-400">{cert.speakingScore}</span>
+                                <span className="text-xs font-extrabold text-blue-400">{cert.speaking}</span>
                               </div>
                             )}
                           </div>

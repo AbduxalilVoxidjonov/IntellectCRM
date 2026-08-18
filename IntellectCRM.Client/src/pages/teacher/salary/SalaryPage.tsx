@@ -273,6 +273,25 @@ export function TeacherSalaryPage() {
                           O'rinbosar ushlanmasi: <span className="font-mono">−{formatMoney(m.substituteDeduction ?? 0)}</span>
                         </p>
                       )}
+                      {/* SOF NATIJA — o'qituvchi ikki qatorni O'ZI ayirmasin. Ikkalasi ham
+                          bo'lgan oyda "qo'shildimi yoki ushlandimi" savoli shu yerda yopiladi. */}
+                      {(m.substituteFee ?? 0) > 0 && (m.substituteDeduction ?? 0) > 0 && (
+                        <p className="mt-0.5 text-[12px] font-semibold text-slate-700">
+                          O'rinbosarlik bo'yicha sof natija:{' '}
+                          <span
+                            className={`font-mono ${
+                              (m.substituteFee ?? 0) - (m.substituteDeduction ?? 0) >= 0
+                                ? 'text-emerald-600'
+                                : 'text-amber-700'
+                            }`}
+                          >
+                            {(m.substituteFee ?? 0) - (m.substituteDeduction ?? 0) >= 0 ? '+' : '−'}
+                            {formatMoney(
+                              Math.abs((m.substituteFee ?? 0) - (m.substituteDeduction ?? 0)),
+                            )}
+                          </span>
+                        </p>
+                      )}
                       {deduction > 0 && (
                         <p className="mt-0.5 text-[12px] font-semibold text-rose-600">
                           Ushlandi: <span className="font-mono">−{formatMoney(deduction)}</span>

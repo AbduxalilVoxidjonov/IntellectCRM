@@ -30,11 +30,41 @@ Cookie sozlamalari va ular NEGA shunday:
 guard ichida `HttpContext.User` hali bo'sh. Shuning uchun token (sarlavha yoki cookie) qo'lda
 tekshiriladi va natija keshlanadi (bitta sahifada o'nlab rasm bo'lishi mumkin).
 
-**OCHIQ qoladigan yagona narsa — markaz LOGOTIPI:** u login sahifasida, PWA manifestida va ochiq
-vakansiya sahifasida kerak (foydalanuvchi hali kirmagan). Ro'yxat bazadan olinadi
-(`CenterMeta.LogoUrl`, `CareerAbout.LogoUrl`) va 1 daqiqa keshlanadi — ya'ni "ochiq" deb faqat
-markaz O'ZI ommaviy ko'rsatayotgan fayl hisoblanadi. Qoidalar `UploadAccessRules` (Application)
+**OCHIQ qoladigan narsalar — LOGIN'SIZ ko'riladigan sahifalarning rasmlari.** Printsip BITTA:
+"ochiq" deb faqat markaz **O'ZI ommaviy ko'rsatayotgan** fayl hisoblanadi. Ro'yxat bazadan olinadi,
+1 daqiqa keshlanadi (`UploadsGuard.PublicNamesAsync`), qaror esa `UploadAccessRules` (Application)
 da — testlangan.
+
+| Manba | Nima uchun ochiq | Filtr |
+|---|---|---|
+| `CenterMeta.LogoUrl`, `CareerAbout.LogoUrl` | Logotip login sahifasida, PWA manifestida va ochiq vakansiya sahifasida kerak — foydalanuvchi hali kirmagan | — (hammasi) |
+| `LandingTeacher.PhotoUrl` | Landing OMMAVIY sahifa (`GET /api/public/landing-data`, `[AllowAnonymous]`) — o'qituvchi surati mehmonga ko'rsatiladi | **faqat `IsActive`** |
+| `LandingCertificate.ImageUrl` | O'sha landing: natija/sertifikat rasmi | **faqat `IsActive`** |
+| `LandingTestimonial.AvatarUrl` | O'sha landing: "Ota-onalar va o'quvchilar fikri" bo'limidagi avatar | **faqat `IsActive`** |
+
+⚠️ **NEGA landing rasmlari ochilishi SHART edi:** admin CMS orqali rasmni yuklaydi, manzil
+`/uploads/<guid>.png` bo'lib bazaga tushadi. Admin o'zi (login qilgan, `up_at` cookie'si bor) rasmni
+KO'RADI, tashqaridagi mehmon esa 404 olib **sinuq rasm** ko'rardi. Ya'ni nosozlik "lokalda ishlaydi,
+serverda ishlamaydi" bo'lib ko'rinardi — aslida farq lokal/server emas, **login qilgan/qilmagan** edi.
+
+⚠️ **YANGI LANDING BO'LIMI QO'SHSANGIZ — bu jadvalni ham to'ldiring.** "Fikrlar" (testimonials)
+CMS tabi aynan shu sababdan yarim ishlagan: admin fikr qo'shardi, `landing-data` uni qaytarardi,
+lekin avatar ro'yxatda yo'q edi — ya'ni bo'lim chizilganda mehmon sinuq rasm ko'rardi. Qoida:
+**landing markup'iga `/uploads/...` manzili chiqadigan har bir yangi maydon shu ro'yxatga
+qo'shilishi SHART**, aks holda nosozlik faqat login qilmagan mehmonda ko'rinadi (ishlab
+chiquvchida esa ishlaydi).
+
+⚠️ **NEGA faqat `IsActive`:** admin sertifikatni yoki o'qituvchini saytdan olib tashlasa, fayl ham
+darhol (kesh muddatidan keyin, ko'pi bilan 1 daqiqada) YOPILADI. "Bir marta ommaviy bo'lgan fayl
+abadiy ommaviy" qoidasi bu yerda ishlamaydi — filtr `landing-data` endpointidagi filtr bilan
+AYNAN bir xil.
+
+⚠️ **CHEGARA — `UploadAccessRules.MaxPublicNames` (2000).** Ro'yxat xotirada turadi va har
+`/uploads` so'rovida ko'riladi, ya'ni cheksiz o'sa olmaydi. Chegaradan oshgani **jimgina
+tashlanmaydi** — `PublicNamesFrom` nechtasi kirmaganini qaytaradi, guard esa ogohlantirish logi
+yozadi ("nega bu sertifikat saytda ko'rinmayapti" savoli javobsiz qolmasin). Guard manzillarni
+**LOGOTIPDAN boshlab** yig'adi, shuning uchun chegara faqat landing rasmlarini qirqadi —
+login sahifasi hech qachon buzilmaydi.
 
 **Favqulodda o'chirish:** `Uploads:RequireAuth=false` — kodni qayta yig'masdan eski xatti-harakatga
 qaytaradi (startupda ogohlantirish logi yoziladi). Rad etilgan har so'rov logga yoziladi
@@ -121,7 +151,8 @@ adashish yo'q: `"students-arxiv"` ruxsati `"students"` ni ochmaydi.
 
 ## Qatlamlar (kim nimani ko'radi)
 
-1. **Tashqaridagi begona** — `/uploads` dan faqat LOGOTIPNI oladi, boshqa hech narsani (404).
+1. **Tashqaridagi begona** — `/uploads` dan faqat LOGOTIP va landing sahifasining FAOL rasmlarini
+   (o'qituvchi surati, sertifikat) oladi, boshqa hech narsani (404).
 2. **Tizimga kirgan foydalanuvchi** — manzilni bilsa faylni oladi. Shuning uchun manzilni
    javobga qo'shishdan oldin "bu rol buni ko'rishi kerakmi" savoli baribir muhim (yuqoridagi
    darvozalar shu uchun).

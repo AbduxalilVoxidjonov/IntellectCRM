@@ -27,9 +27,13 @@ namespace IntellectCRM.Server;
 /// avtorizatsiyalangan API so'rovi qilganda cookie o'z-o'zidan qo'yiladi
 /// (<see cref="IssueCookie"/>). Ya'ni mavjud sessiyalar ham qayta login qilmasdan ishlayveradi.</para>
 ///
-/// <para><b>Nima OCHIQ qoladi:</b> faqat markaz LOGOTIPI — u login sahifasida, PWA manifestida va
-/// ochiq vakansiya sahifasida kerak (foydalanuvchi hali kirmagan). Ro'yxat bazadan olinadi va
-/// keshlanadi.</para>
+/// <para><b>Nima OCHIQ qoladi:</b> markaz LOGOTIPI (login sahifasi, PWA manifesti, ochiq vakansiya
+/// sahifasi) VA landing sahifasining ommaviy rasmlari — faol o'qituvchi surati, faol
+/// sertifikat/natija rasmi hamda faol FIKR (testimonial) avatari. Landing login'siz ko'riladi,
+/// ya'ni bu rasmlar yopiq bo'lsa mehmon sinuq rasm ko'rardi.
+/// Printsip o'zgarmaydi: "ochiq" deb faqat markaz O'ZI ommaviy ko'rsatayotgan
+/// fayl hisoblanadi (<c>IsActive=false</c> yozuvning rasmi darhol yopiladi). Ro'yxat bazadan
+/// olinadi va keshlanadi.</para>
 ///
 /// <para><b>Favqulodda o'chirish:</b> <c>Uploads:RequireAuth=false</c> — kodni qayta yig'masdan
 /// eski xatti-harakatga qaytaradi. Rad etilgan har so'rov logga yoziladi.</para>
@@ -43,7 +47,15 @@ public sealed class UploadsGuard(
     /// <summary>Darvoza yoqilganmi (standart — HA).</summary>
     public bool Enabled { get; } = config.GetValue("Uploads:RequireAuth", true);
 
-    /// <summary>Ochiq fayllar ro'yxati shuncha vaqtda bir yangilanadi (logotip kamdan-kam o'zgaradi).</summary>
+    /// <summary>
+    /// Ochiq fayllar ro'yxati shuncha vaqtda bir yangilanadi.
+    ///
+    /// <para>Logotip kamdan-kam o'zgaradi, landing sertifikatlari esa tez-tez qo'shiladi — shuning
+    /// uchun TTL aynan shu ikkinchisiga qarab tanlangan: admin yangi sertifikat qo'shsa, u saytda
+    /// ko'pi bilan 1 daqiqada ochiladi (va olib tashlansa — ko'pi bilan 1 daqiqada yopiladi).
+    /// So'rov arzon: ikkita indekssiz skan emas, faqat bitta ustunli <c>Select</c>, va u
+    /// trafikdan QAT'IY NAZAR daqiqada bir marta ketadi.</para>
+    /// </summary>
     private static readonly TimeSpan PublicCacheTtl = TimeSpan.FromMinutes(1);
 
     private volatile IReadOnlyCollection<string> _publicNames = [];
@@ -116,7 +128,10 @@ public sealed class UploadsGuard(
         return ctx.Request.Cookies[UploadAccessRules.CookieName];
     }
 
-    /// <summary>Ochiq fayllar (logotip) ro'yxati — keshdan, kerak bo'lsa bazadan yangilanadi.</summary>
+    /// <summary>
+    /// Ochiq fayllar (logotip + landing sahifasining FAOL rasmlari) ro'yxati — keshdan, kerak
+    /// bo'lsa bazadan yangilanadi.
+    /// </summary>
     private async Task<IReadOnlyCollection<string>> PublicNamesAsync()
     {
         if (DateTime.UtcNow - _publicLoadedUtc < PublicCacheTtl) return _publicNames;
@@ -127,9 +142,40 @@ public sealed class UploadsGuard(
             using var scope = scopes.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
             var urls = new List<string?>();
+
+            // TARTIB MUHIM: LOGOTIP birinchi. Ro'yxat chegarasiga (MaxPublicNames) yetilganda
+            // qirqiladigan qism landing rasmlari bo'lsin — login sahifasi hech qachon buzilmasin.
             urls.AddRange(await db.CenterMeta.AsNoTracking().Select(m => m.LogoUrl).ToListAsync());
             urls.AddRange(await db.CareerAbout.AsNoTracking().Select(a => a.LogoUrl).ToListAsync());
-            _publicNames = UploadAccessRules.PublicNamesFrom(urls);
+
+            // LANDING — ommaviy (login'siz) sahifa: `GET /api/public/landing-data` faqat
+            // `IsActive` yozuvlarni qaytaradi, ya'ni bu yerdagi filtr AYNAN o'sha filtr.
+            // `Take(cap)` — nazoratsiz o'sgan jadval butunlay xotiraga yig'ilib qolmasin
+            // (+1: chegaradan oshgani BILINSIN va logga tushsin).
+            const int cap = UploadAccessRules.MaxPublicNames + 1;
+            urls.AddRange(await db.LandingTeachers.AsNoTracking()
+                .Where(t => t.IsActive && !string.IsNullOrEmpty(t.PhotoUrl))
+                .Select(t => t.PhotoUrl).Take(cap).ToListAsync());
+            urls.AddRange(await db.LandingCertificates.AsNoTracking()
+                .Where(c => c.IsActive && !string.IsNullOrEmpty(c.ImageUrl))
+                .Select(c => c.ImageUrl).Take(cap).ToListAsync());
+            // FIKRLAR (testimonials) avatari — landing'dagi "Ota-onalar fikri" bo'limida
+            // ko'rsatiladi. Busiz mehmon avatarlar o'rnida SINUQ rasm ko'rardi: CMS avatarni
+            // xuddi shu `/uploads/<guid>.png` ga yuklaydi.
+            urls.AddRange(await db.LandingTestimonials.AsNoTracking()
+                .Where(t => t.IsActive && !string.IsNullOrEmpty(t.AvatarUrl))
+                .Select(t => t.AvatarUrl).Take(cap).ToListAsync());
+
+            _publicNames = UploadAccessRules.PublicNamesFrom(
+                urls, UploadAccessRules.MaxPublicNames, out var skipped);
+            // Cheklov JIMGINA qirqilmaydi — aks holda "nega bu sertifikat saytda ko'rinmayapti"
+            // savoliga javob topib bo'lmasdi.
+            if (skipped > 0)
+                logger.LogWarning(
+                    "Ochiq fayllar ro'yxati chegaraga yetdi ({Max} ta) — {Skipped} ta landing rasmi "
+                    + "ro'yxatga KIRMADI va mehmonga ko'rinmaydi (faol yozuvlar sonini kamaytiring).",
+                    UploadAccessRules.MaxPublicNames, skipped);
+
             _publicLoadedUtc = DateTime.UtcNow;
             return _publicNames;
         }
