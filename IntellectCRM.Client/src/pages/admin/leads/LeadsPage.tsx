@@ -420,10 +420,16 @@ export function LeadsPage() {
                 stage={stage}
                 leads={visibleLeads
                   .filter((l) => l.stage === stage.id || (i === 0 && !stageIds.has(l.stage)))
-                  // Yangi kelgan (eng so'nggi kiritilgan) lid tepada.
+                  // Eng so'nggi HARAKAT tepada. `createdAt` EMAS, chunki takroriy murojaatda
+                  // u ATAYIN o'zgarmaydi (first-touch: lid QACHON birinchi kelgani hisobotlar
+                  // uchun saqlanadi — `.claude/rules/lead-forms.md` §4). Operatorga esa "kim
+                  // YAQINDA murojaat qildi" kerak, shuning uchun takroriy kelgan lid ham
+                  // yuqoriga chiqadi.
                   .sort((a, b) => {
-                    const ta = a.createdAt ? new Date(a.createdAt).getTime() : 0
-                    const tb = b.createdAt ? new Date(b.createdAt).getTime() : 0
+                    const at = a.lastRepeatAt || a.createdAt
+                    const bt = b.lastRepeatAt || b.createdAt
+                    const ta = at ? new Date(at).getTime() : 0
+                    const tb = bt ? new Date(bt).getTime() : 0
                     return tb - ta
                   })}
                 isFirst={i === 0}
