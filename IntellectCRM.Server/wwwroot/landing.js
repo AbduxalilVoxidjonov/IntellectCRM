@@ -623,18 +623,11 @@
     var raw = (mapSource || '').trim();
     if (!raw) return;
 
-    var overlayBtns = '<div class="map-overlay-actions" style="position:absolute; bottom:16px; left:16px; right:16px; display:flex; gap:12px; flex-wrap:wrap; justify-content:center; z-index:10; pointer-events:auto;">' +
-      '<a id="btnYandexNav" href="https://yandex.uz/maps/10332/kokand/?ll=70.931183%2C40.546732&amp;mode=poi&amp;poi%5Bpoint%5D=70.929596%2C40.546279&amp;poi%5Buri%5D=ymapsbm1%3A%2F%2Forg%3Foid%3D239829322269&amp;z=17" target="_blank" rel="noopener noreferrer" style="background:#fc3f1d; border:none; color:#ffffff; padding:12px 22px; border-radius:14px; font-size:14px; font-weight:700; text-decoration:none; display:inline-flex; align-items:center; gap:8px; box-shadow:0 10px 25px rgba(252,63,29,0.5); transition:transform 0.2s, box-shadow 0.2s; font-family:inherit;">' +
-        '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>' +
-        'Yandex Maps-da ochish' +
-      '</a>' +
-      '<a id="btnGoogleNav" href="https://maps.google.com/?q=40.546115,70.930010" target="_blank" rel="noopener noreferrer" style="background:rgba(15,23,42,0.85); backdrop-filter:blur(12px); border:1px solid rgba(255,255,255,0.2); color:#ffffff; padding:12px 22px; border-radius:14px; font-size:14px; font-weight:600; text-decoration:none; display:inline-flex; align-items:center; gap:8px; box-shadow:0 10px 25px rgba(0,0,0,0.4); transition:transform 0.2s; font-family:inherit;">' +
-        '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"></polygon></svg>' +
-        'Google Maps-da ochish' +
-      '</a>' +
-    '</div>';
-
-    wrap.style.position = 'relative';
+    // Xarita USTIDAGI "Yandex/Google Maps-da ochish" overlay tugmalari ATAYIN YO'Q:
+    // aynan o'sha ikki havola aloqa kartochkasining pastki qatorida STATIK holda turadi.
+    // Statik variant afzal — u JS'siz ham ishlaydi va Google havolasi to'liq Place
+    // sahifasiga olib boradi (overlay'da faqat koordinata edi). Ikki ustunli tartibda
+    // xarita tor bo'lgani uchun overlay uning yarmini bekitib ham qo'yardi.
 
     // Xarita HAQIQATAN chizilganda chaqiriladi: konteynerni ochadi VA aloqa gridiga
     // `has-map` sinfini qo'yadi (CSS shunda ikki ustunga o'tadi).
@@ -663,7 +656,7 @@
     if (targetUrl) {
       targetUrl = normalizeMapUrl(targetUrl);
       showMapWrap();
-      wrap.innerHTML = '<iframe id="landingMapIframe" src="' + targetUrl + '" width="100%" height="100%" style="border:0; min-height:380px; width:100%; display:block;" allowfullscreen="" loading="lazy"></iframe>' + overlayBtns;
+      wrap.innerHTML = '<iframe id="landingMapIframe" src="' + targetUrl + '" width="100%" height="100%" style="border:0; min-height:380px; width:100%; display:block;" allowfullscreen="" loading="lazy"></iframe>';
     } else if (raw.indexOf('<') !== -1) {
       var cleanHtml = raw;
       if (raw.indexOf('<body') !== -1) {
@@ -676,7 +669,7 @@
                            .replace(/<\/?head[^>]*>/gi, '');
 
       showMapWrap();
-      wrap.innerHTML = cleanHtml + overlayBtns;
+      wrap.innerHTML = cleanHtml;
 
       var scriptRegex = /<script([^>]*)>([\s\S]*?)<\/script>/gi;
       var match;
