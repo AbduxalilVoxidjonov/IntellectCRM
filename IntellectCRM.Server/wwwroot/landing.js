@@ -86,8 +86,10 @@
   }).then(function(brand){
     if (!brand) return;
     if (brand.logoUrl) {
-      var mark = document.getElementById('brandMark');
-      if (mark) mark.innerHTML = '<img src="' + brand.logoUrl + '" alt="logo">';
+      ['brandMark', 'brandMarkFooter'].forEach(function(id){
+        var mark = document.getElementById(id);
+        if (mark) mark.innerHTML = '<img src="' + brand.logoUrl + '" alt="logo" style="width:100%; height:100%; object-fit:contain; border-radius:inherit;">';
+      });
     }
     if (brand.name) {
       ['brandName', 'brandNameCopy', 'brandNameFooter'].forEach(function(id){

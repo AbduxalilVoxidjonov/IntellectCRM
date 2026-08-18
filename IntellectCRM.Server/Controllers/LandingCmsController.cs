@@ -48,20 +48,20 @@ public class LandingCmsController(AppDbContext db) : ControllerBase
         }
 
         await EnsureColumnsAsync();
-        var meta = await db.CenterMeta.FirstOrDefaultAsync();
+        var meta = await db.CenterMeta.OrderBy(m => m.Id).FirstOrDefaultAsync();
         var mapUrl = string.IsNullOrWhiteSpace(meta?.MapIframeUrl)
             ? "https://www.openstreetmap.org/export/embed.html?bbox=70.9200,40.5400,70.9400,40.5520&layer=mapnik&marker=40.546115,70.930010"
             : meta.MapIframeUrl.Trim();
 
         var socials = new
         {
-            telegramUrl = string.IsNullOrWhiteSpace(meta?.TelegramUrl) ? "https://t.me/intellect_kokand" : meta.TelegramUrl,
-            instagramUrl = string.IsNullOrWhiteSpace(meta?.InstagramUrl) ? "https://instagram.com/intellect_kokand" : meta.InstagramUrl,
-            youtubeUrl = string.IsNullOrWhiteSpace(meta?.YoutubeUrl) ? "https://youtube.com" : meta.YoutubeUrl,
-            facebookUrl = string.IsNullOrWhiteSpace(meta?.FacebookUrl) ? "https://facebook.com" : meta.FacebookUrl,
+            telegramUrl = NormalizeUrl(meta?.TelegramUrl, "https://t.me/intellect_kokand"),
+            instagramUrl = NormalizeUrl(meta?.InstagramUrl, "https://instagram.com/intellect_kokand"),
+            youtubeUrl = NormalizeUrl(meta?.YoutubeUrl, "https://youtube.com"),
+            facebookUrl = NormalizeUrl(meta?.FacebookUrl, "https://facebook.com"),
             centerEmail = string.IsNullOrWhiteSpace(meta?.CenterEmail) ? "info@intellect.uz" : meta.CenterEmail,
-            appStoreUrl = meta?.AppStoreUrl ?? string.Empty,
-            playMarketUrl = meta?.PlayMarketUrl ?? string.Empty,
+            appStoreUrl = NormalizeUrl(meta?.AppStoreUrl, string.Empty),
+            playMarketUrl = NormalizeUrl(meta?.PlayMarketUrl, string.Empty),
             contactPhone = string.IsNullOrWhiteSpace(meta?.ContactPhone) ? "+998 (90) 344-44-34" : meta.ContactPhone,
             centerAddress = string.IsNullOrWhiteSpace(meta?.CenterAddress) ? "Farg'ona viloyati, Qo'qon shahar, Asqarali charxiy 5A" : meta.CenterAddress,
             workingHours = string.IsNullOrWhiteSpace(meta?.WorkingHours) ? "Dushanba — Shanba: 09:00 – 17:00" : meta.WorkingHours
@@ -85,16 +85,16 @@ public class LandingCmsController(AppDbContext db) : ControllerBase
     public async Task<IActionResult> GetSocials()
     {
         await EnsureColumnsAsync();
-        var meta = await db.CenterMeta.FirstOrDefaultAsync();
+        var meta = await db.CenterMeta.OrderBy(m => m.Id).FirstOrDefaultAsync();
         return Ok(new
         {
-            telegramUrl = string.IsNullOrWhiteSpace(meta?.TelegramUrl) ? "https://t.me/intellect_kokand" : meta.TelegramUrl,
-            instagramUrl = string.IsNullOrWhiteSpace(meta?.InstagramUrl) ? "https://instagram.com/intellect_kokand" : meta.InstagramUrl,
-            youtubeUrl = string.IsNullOrWhiteSpace(meta?.YoutubeUrl) ? "https://youtube.com" : meta.YoutubeUrl,
-            facebookUrl = string.IsNullOrWhiteSpace(meta?.FacebookUrl) ? "https://facebook.com" : meta.FacebookUrl,
+            telegramUrl = NormalizeUrl(meta?.TelegramUrl, "https://t.me/intellect_kokand"),
+            instagramUrl = NormalizeUrl(meta?.InstagramUrl, "https://instagram.com/intellect_kokand"),
+            youtubeUrl = NormalizeUrl(meta?.YoutubeUrl, "https://youtube.com"),
+            facebookUrl = NormalizeUrl(meta?.FacebookUrl, "https://facebook.com"),
             centerEmail = string.IsNullOrWhiteSpace(meta?.CenterEmail) ? "info@intellect.uz" : meta.CenterEmail,
-            appStoreUrl = meta?.AppStoreUrl ?? string.Empty,
-            playMarketUrl = meta?.PlayMarketUrl ?? string.Empty,
+            appStoreUrl = NormalizeUrl(meta?.AppStoreUrl, string.Empty),
+            playMarketUrl = NormalizeUrl(meta?.PlayMarketUrl, string.Empty),
             contactPhone = string.IsNullOrWhiteSpace(meta?.ContactPhone) ? "+998 (90) 344-44-34" : meta.ContactPhone,
             centerAddress = string.IsNullOrWhiteSpace(meta?.CenterAddress) ? "Farg'ona viloyati, Qo'qon shahar, Asqarali charxiy 5A" : meta.CenterAddress,
             workingHours = string.IsNullOrWhiteSpace(meta?.WorkingHours) ? "Dushanba — Shanba: 09:00 – 17:00" : meta.WorkingHours
@@ -115,41 +115,60 @@ public class LandingCmsController(AppDbContext db) : ControllerBase
         public string? WorkingHours { get; set; }
     }
 
+    private static string NormalizeUrl(string? url, string fallback = "")
+    {
+        if (string.IsNullOrWhiteSpace(url)) return fallback;
+        var trimmed = url.Trim();
+        if (trimmed.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+            trimmed.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
+            trimmed.StartsWith("mailto:", StringComparison.OrdinalIgnoreCase) ||
+            trimmed.StartsWith("tel:", StringComparison.OrdinalIgnoreCase))
+        {
+            return trimmed;
+        }
+        return "https://" + trimmed;
+    }
+
     [HttpPost("api/admin/landing/socials")]
     [Authorize]
     public async Task<IActionResult> UpdateSocials([FromBody] SocialsInput? input)
     {
         await EnsureColumnsAsync();
-        var meta = await db.CenterMeta.FirstOrDefaultAsync();
-        if (meta == null)
+        var allMetas = await db.CenterMeta.ToListAsync();
+        if (allMetas.Count == 0)
         {
-            meta = new CenterMeta();
-            db.CenterMeta.Add(meta);
+            var newMeta = new CenterMeta();
+            db.CenterMeta.Add(newMeta);
+            allMetas.Add(newMeta);
         }
 
-        meta.TelegramUrl = string.IsNullOrWhiteSpace(input?.TelegramUrl) ? "https://t.me/intellect_kokand" : input.TelegramUrl.Trim();
-        meta.InstagramUrl = string.IsNullOrWhiteSpace(input?.InstagramUrl) ? "https://instagram.com/intellect_kokand" : input.InstagramUrl.Trim();
-        meta.YoutubeUrl = string.IsNullOrWhiteSpace(input?.YoutubeUrl) ? "https://youtube.com" : input.YoutubeUrl.Trim();
-        meta.FacebookUrl = string.IsNullOrWhiteSpace(input?.FacebookUrl) ? "https://facebook.com" : input.FacebookUrl.Trim();
-        meta.CenterEmail = string.IsNullOrWhiteSpace(input?.CenterEmail) ? "info@intellect.uz" : input.CenterEmail.Trim();
-        meta.AppStoreUrl = input?.AppStoreUrl?.Trim() ?? string.Empty;
-        meta.PlayMarketUrl = input?.PlayMarketUrl?.Trim() ?? string.Empty;
-        meta.ContactPhone = string.IsNullOrWhiteSpace(input?.ContactPhone) ? "+998 (90) 344-44-34" : input.ContactPhone.Trim();
-        meta.CenterAddress = string.IsNullOrWhiteSpace(input?.CenterAddress) ? "Farg'ona viloyati, Qo'qon shahar, Asqarali charxiy 5A" : input.CenterAddress.Trim();
-        meta.WorkingHours = string.IsNullOrWhiteSpace(input?.WorkingHours) ? "Dushanba — Shanba: 09:00 – 17:00" : input.WorkingHours.Trim();
+        foreach (var meta in allMetas)
+        {
+            meta.TelegramUrl = NormalizeUrl(input?.TelegramUrl, "https://t.me/intellect_kokand");
+            meta.InstagramUrl = NormalizeUrl(input?.InstagramUrl, "https://instagram.com/intellect_kokand");
+            meta.YoutubeUrl = NormalizeUrl(input?.YoutubeUrl, "https://youtube.com");
+            meta.FacebookUrl = NormalizeUrl(input?.FacebookUrl, "https://facebook.com");
+            meta.CenterEmail = string.IsNullOrWhiteSpace(input?.CenterEmail) ? "info@intellect.uz" : input.CenterEmail.Trim();
+            meta.AppStoreUrl = NormalizeUrl(input?.AppStoreUrl, string.Empty);
+            meta.PlayMarketUrl = NormalizeUrl(input?.PlayMarketUrl, string.Empty);
+            meta.ContactPhone = string.IsNullOrWhiteSpace(input?.ContactPhone) ? "+998 (90) 344-44-34" : input.ContactPhone.Trim();
+            meta.CenterAddress = string.IsNullOrWhiteSpace(input?.CenterAddress) ? "Farg'ona viloyati, Qo'qon shahar, Asqarali charxiy 5A" : input.CenterAddress.Trim();
+            meta.WorkingHours = string.IsNullOrWhiteSpace(input?.WorkingHours) ? "Dushanba — Shanba: 09:00 – 17:00" : input.WorkingHours.Trim();
+        }
 
         await db.SaveChangesAsync();
+        var updated = allMetas.First();
         return Ok(new { ok = true, socials = new {
-            telegramUrl = meta.TelegramUrl,
-            instagramUrl = meta.InstagramUrl,
-            youtubeUrl = meta.YoutubeUrl,
-            facebookUrl = meta.FacebookUrl,
-            centerEmail = meta.CenterEmail,
-            appStoreUrl = meta.AppStoreUrl,
-            playMarketUrl = meta.PlayMarketUrl,
-            contactPhone = meta.ContactPhone,
-            centerAddress = meta.CenterAddress,
-            workingHours = meta.WorkingHours
+            telegramUrl = updated.TelegramUrl,
+            instagramUrl = updated.InstagramUrl,
+            youtubeUrl = updated.YoutubeUrl,
+            facebookUrl = updated.FacebookUrl,
+            centerEmail = updated.CenterEmail,
+            appStoreUrl = updated.AppStoreUrl,
+            playMarketUrl = updated.PlayMarketUrl,
+            contactPhone = updated.ContactPhone,
+            centerAddress = updated.CenterAddress,
+            workingHours = updated.WorkingHours
         } });
     }
 
