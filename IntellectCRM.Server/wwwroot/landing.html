@@ -1081,6 +1081,46 @@
     min-height: 380px !important;
   }
 
+  /* ===== Aloqa bo'limi: CHAPda ma'lumot ustuni, O'NGda xarita =====
+     ⚠️ Standart holat ATAYIN BITTA ustun. `#landingMapWrap` `display:none` bilan boshlanadi
+     va renderMap() uni FAQAT kontent haqiqatan chizilganda ochadi (CMS'da "Xarita URL"
+     bo'lmasa yoki so'rov yiqilsa — yopiq qoladi). Agar grid doim `1fr 1fr` bo'lganda,
+     xaritasiz holatda kartochkaning O'NG YARMI BO'SH qolib buzuq ko'rinardi.
+     Shuning uchun ikkinchi ustun faqat `.has-map` sinfi bilan ochiladi va bu sinfni
+     renderMap() xaritani KO'RSATGAN yo'lda qo'yadi — ya'ni qaror JS'da, ko'rinish CSS'da
+     (loyihadagi `setSectionVisible` naqshi bilan bir xil mantiq). */
+  /* Kenglik inline style'dan SHU YERGA ko'chirildi: inline CSS'dan kuchliroq bo'lgani uchun
+     `.has-map` holatida uni `!important`siz kengaytirib bo'lmasdi.
+     Xarita bo'lsa kartochka kengroq — 850px ichida ikki ustun juda siqilib qolardi
+     (har biri ~380px). Xarita yo'q bo'lsa eski kenglik AYNAN saqlanadi. */
+  .contact-card-box{max-width:850px;margin:0 auto}
+  .contact-card-box.has-map{max-width:1120px}
+  .contact-split{display:grid;grid-template-columns:1fr;gap:20px;margin-bottom:32px;align-items:stretch}
+  .contact-split.has-map{grid-template-columns:minmax(0,1fr) minmax(0,1.05fr)}
+  .contact-split-info{display:flex;flex-direction:column;gap:20px}
+  /* Xarita bo'lsa chap ustundagi uchta kartochka baland ustunga tekis taqsimlanadi —
+     aks holda ular tepaga yig'ilib, ostida bo'sh joy qolardi. */
+  .contact-split.has-map .contact-split-info{justify-content:space-between}
+  /* Xarita chap ustun balandligiga moslashadi, lekin hech qachon o'qib bo'lmas darajada
+     pasayib ketmaydi. */
+  .contact-split.has-map .contact-map-wrap{height:100%;min-height:360px}
+  @media (max-width: 992px) {
+    /* Planshet/telefon: bitta ustun. Aloqa ma'lumoti MUHIMROQ — u tepada qoladi, xarita
+       pastga tushadi. Qo'shimcha `order` kerak emas: HTML tartibi allaqachon shunday. */
+    .contact-split.has-map{grid-template-columns:1fr}
+    .contact-split.has-map .contact-map-wrap{height:auto;min-height:300px}
+  }
+  @media (max-width: 640px) {
+    /* Mobilda 380px ekranning yarmini egallardi. `!important` SHART: renderMap yaratgan
+       iframe'da `min-height:380px` inline style sifatida turadi. */
+    .contact-map-wrap,
+    .contact-split.has-map .contact-map-wrap{min-height:260px}
+    .contact-map-wrap iframe,
+    .contact-map-wrap .gmap_iframe,
+    .contact-map-wrap .mapouter,
+    .contact-map-wrap .gmap_canvas{min-height:260px !important}
+  }
+
   /* Hover effektlari — ilgari inline onmouseover/onmouseout bilan qilingan edi, prod CSP
      (script-src 'self') inline handlerlarni bloklaydi, ya'ni serverda ular umuman ishlamasdi.
      Inline style ustidan yozish uchun !important SHART. */
@@ -1635,44 +1675,54 @@
       <p class="section-desc">Markazimizga tashrif buyuring yoki telefon orqali ma'lumot oling.</p>
     </div>
 
-    <div class="contact-card-box" style="max-width:850px; margin:0 auto; background:rgba(15,23,42,0.7); backdrop-filter:blur(16px); border:1px solid rgba(255,255,255,0.12); border-radius:28px; padding:36px; box-shadow:0 25px 60px rgba(0,0,0,0.4);">
+    <div class="contact-card-box" style="background:rgba(15,23,42,0.7); backdrop-filter:blur(16px); border:1px solid rgba(255,255,255,0.12); border-radius:28px; padding:36px; box-shadow:0 25px 60px rgba(0,0,0,0.4);">
       
-      <!-- Top Row: Telefon & Ish vaqti side-by-side -->
-      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:20px; margin-bottom:20px;">
-        
-        <!-- Telefon -->
-        <div class="contact-item" style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:20px; padding:24px; display:flex; align-items:center; gap:20px;">
-          <div class="contact-icon" style="width:52px; height:52px; border-radius:16px; background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.3); display:flex; align-items:center; justify-content:center; font-size:24px; flex-shrink:0;">📞</div>
-          <div>
-            <h4 style="margin:0 0 6px 0; font-size:17px; font-weight:700; color:#ffffff;">Telefon raqami</h4>
-            <p style="margin:0; font-size:16px;"><a href="tel:+998903444434" id="contactPhoneValue" style="color:#60a5fa; text-decoration:none; font-weight:700;">+998 (90) 344-44-34</a></p>
+      <!-- CHAP: aloqa ma'lumoti ustuni · O'NG: xarita.
+           Grid standart holatda BITTA ustun; ikkinchi ustun renderMap() qo'yadigan
+           `.has-map` sinfi bilan ochiladi (izoh CSS'da, `.contact-split` yonida). -->
+      <div class="contact-split" id="contactSplit">
+
+        <div class="contact-split-info">
+
+          <!-- Telefon -->
+          <div class="contact-item" style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:20px; padding:24px; display:flex; align-items:center; gap:20px;">
+            <div class="contact-icon" style="width:52px; height:52px; border-radius:16px; background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.3); display:flex; align-items:center; justify-content:center; font-size:24px; flex-shrink:0;">📞</div>
+            <div>
+              <h4 style="margin:0 0 6px 0; font-size:17px; font-weight:700; color:#ffffff;">Telefon raqami</h4>
+              <p style="margin:0; font-size:16px;"><a href="tel:+998903444434" id="contactPhoneValue" style="color:#60a5fa; text-decoration:none; font-weight:700;">+998 (90) 344-44-34</a></p>
+            </div>
           </div>
+
+          <!-- Ish vaqti -->
+          <div class="contact-item" style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:20px; padding:24px; display:flex; align-items:center; gap:20px;">
+            <div class="contact-icon" style="width:52px; height:52px; border-radius:16px; background:rgba(245,158,11,0.15); border:1px solid rgba(245,158,11,0.3); display:flex; align-items:center; justify-content:center; font-size:24px; flex-shrink:0;">⏰</div>
+            <div>
+              <h4 style="margin:0 0 6px 0; font-size:17px; font-weight:700; color:#ffffff;">Ish vaqti</h4>
+              <p id="workingHoursValue" style="margin:0; font-size:15px; color:#cbd5e1; font-weight:500; line-height:1.4;">Dushanba — Shanba: 09:00 – 17:00<br><span style="font-size:13px; color:#64748b;">Yakshanba: Dam olish kuni</span></p>
+            </div>
+          </div>
+
+          <!-- Manzil. ⚠️ Ilgari bu blok markazlashgan va to'liq kenglikda edi; endi tor
+               ustunda telefon/ish vaqti bilan yonma-yon turgani uchun AYNAN o'sha
+               gorizontal ko'rinishga keltirildi (ikonka chapda, matn yonida) — aks holda
+               bitta ustunda ikki xil tekislash aralashib ko'rinardi. -->
+          <div class="contact-item" style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:20px; padding:24px; display:flex; align-items:center; gap:20px;">
+            <div class="contact-icon" style="width:52px; height:52px; border-radius:16px; background:rgba(59,130,246,0.15); border:1px solid rgba(59,130,246,0.3); display:flex; align-items:center; justify-content:center; font-size:24px; flex-shrink:0;">📍</div>
+            <div>
+              <h4 style="margin:0 0 6px 0; font-size:17px; font-weight:700; color:#ffffff;">Manzilimiz</h4>
+              <p id="centerAddressValue" style="margin:0; font-size:15px; color:#cbd5e1; line-height:1.5; font-weight:500;">Farg'ona viloyati, Qo'qon shahar, Asqarali charxiy 5A</p>
+            </div>
+          </div>
+
         </div>
 
-        <!-- Ish vaqti -->
-        <div class="contact-item" style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:20px; padding:24px; display:flex; align-items:center; gap:20px;">
-          <div class="contact-icon" style="width:52px; height:52px; border-radius:16px; background:rgba(245,158,11,0.15); border:1px solid rgba(245,158,11,0.3); display:flex; align-items:center; justify-content:center; font-size:24px; flex-shrink:0;">⏰</div>
-          <div>
-            <h4 style="margin:0 0 6px 0; font-size:17px; font-weight:700; color:#ffffff;">Ish vaqti</h4>
-            <p id="workingHoursValue" style="margin:0; font-size:15px; color:#cbd5e1; font-weight:500; line-height:1.4;">Dushanba — Shanba: 09:00 – 17:00<br><span style="font-size:13px; color:#64748b;">Yakshanba: Dam olish kuni</span></p>
-          </div>
-        </div>
+        <!-- Xarita. CMS'dagi "Xarita URL" (landing-data.mapUrl) AYNAN shu konteynerga chiziladi:
+             renderMap() `landingMapWrap` ni topmasa darhol return qilardi, ya'ni admin xarita
+             kiritsa ham saytda hech narsa ko'rinmasdi. CSS (.contact-map-wrap) allaqachon bor edi.
+             `display:none` ATAYIN inline: renderMap uni `style.display='block'` bilan ochadi. -->
+        <div class="contact-map-wrap" id="landingMapWrap" style="display:none;"></div>
 
       </div>
-
-      <!-- Middle Row: Full-width Centered Address block -->
-      <div class="contact-item" style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:20px; padding:24px; display:flex; flex-direction:column; align-items:center; text-align:center; gap:12px; margin-bottom:32px;">
-        <div class="contact-icon" style="width:52px; height:52px; border-radius:16px; background:rgba(59,130,246,0.15); border:1px solid rgba(59,130,246,0.3); display:flex; align-items:center; justify-content:center; font-size:24px; flex-shrink:0;">📍</div>
-        <div>
-          <h4 style="margin:0 0 6px 0; font-size:18px; font-weight:700; color:#ffffff;">Manzilimiz</h4>
-          <p id="centerAddressValue" style="margin:0; font-size:15px; color:#cbd5e1; line-height:1.5; font-weight:500;">Farg'ona viloyati, Qo'qon shahar, Asqarali charxiy 5A</p>
-        </div>
-      </div>
-
-      <!-- Xarita. CMS'dagi "Xarita URL" (landing-data.mapUrl) AYNAN shu konteynerga chiziladi:
-           renderMap() `landingMapWrap` ni topmasa darhol return qilardi, ya'ni admin xarita
-           kiritsa ham saytda hech narsa ko'rinmasdi. CSS (.contact-map-wrap) allaqachon bor edi. -->
-      <div class="contact-map-wrap" id="landingMapWrap" style="display:none; margin-bottom:28px;"></div>
 
       <!-- Bottom Row: Equal Size Navigation Buttons -->
       <div style="border-top:1px solid rgba(255,255,255,0.08); padding-top:28px; display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:16px; max-width:640px; margin:0 auto;">
@@ -1964,6 +2014,6 @@
      2026-08-05 da tuzatilgan xato 13 kun prodda ko'rinib turdi). Query o'zgarsa — manzil boshqa
      resurs bo'lib hisoblanadi va kesh chetlab o'tiladi.
      ⚠️ landing.js O'ZGARTIRILGANDA bu sanani QO'LDA yangilang (deploy SKILL.md da ham eslatma bor). -->
-<script src="/landing.js?v=20260818d" defer></script>
+<script src="/landing.js?v=20260818e" defer></script>
 </body>
 </html>

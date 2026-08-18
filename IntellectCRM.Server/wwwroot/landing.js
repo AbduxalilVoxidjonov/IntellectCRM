@@ -636,6 +636,21 @@
 
     wrap.style.position = 'relative';
 
+    // Xarita HAQIQATAN chizilganda chaqiriladi: konteynerni ochadi VA aloqa gridiga
+    // `has-map` sinfini qo'yadi (CSS shunda ikki ustunga o'tadi).
+    // ⚠️ Sinf faqat SHU YERDA qo'yiladi — xarita chizilmagan yo'lda (mapUrl bo'sh yoki
+    // URL topilmadi) grid bitta ustunda qoladi, aks holda kartochkaning o'ng yarmi bo'sh qolardi.
+    function showMapWrap() {
+      wrap.style.display = 'block';
+      if (!wrap.closest) return;
+      // Grid ikki ustunga o'tadi...
+      var split = wrap.closest('.contact-split');
+      if (split) split.classList.add('has-map');
+      // ...va kartochkaning o'zi kengayadi (850px ichida ikki ustun siqilib qolardi).
+      var box = wrap.closest('.contact-card-box');
+      if (box) box.classList.add('has-map');
+    }
+
     var iframeMatch = raw.match(/<iframe[^>]*src=["']([^"']+)["']/i);
     var targetUrl = '';
 
@@ -647,7 +662,7 @@
 
     if (targetUrl) {
       targetUrl = normalizeMapUrl(targetUrl);
-      wrap.style.display = 'block';
+      showMapWrap();
       wrap.innerHTML = '<iframe id="landingMapIframe" src="' + targetUrl + '" width="100%" height="100%" style="border:0; min-height:380px; width:100%; display:block;" allowfullscreen="" loading="lazy"></iframe>' + overlayBtns;
     } else if (raw.indexOf('<') !== -1) {
       var cleanHtml = raw;
@@ -660,7 +675,7 @@
                            .replace(/<\/?html[^>]*>/gi, '')
                            .replace(/<\/?head[^>]*>/gi, '');
 
-      wrap.style.display = 'block';
+      showMapWrap();
       wrap.innerHTML = cleanHtml + overlayBtns;
 
       var scriptRegex = /<script([^>]*)>([\s\S]*?)<\/script>/gi;
