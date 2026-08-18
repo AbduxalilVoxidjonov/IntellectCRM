@@ -98,9 +98,6 @@ export function PublicCertificatesPage() {
       <header className="sticky top-0 z-50 bg-[#090d16]/90 backdrop-blur-md border-b border-white/10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-3 group">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-blue-400 flex items-center justify-center text-xl shadow-lg shadow-blue-500/20 group-hover:scale-105 transition-transform">
-              🎓
-            </div>
             <span className="font-extrabold text-xl tracking-tight text-white group-hover:text-blue-400 transition-colors">
               Intellect Kokand
             </span>

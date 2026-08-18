@@ -544,6 +544,79 @@
     });
   }
 
+  // URL Query Parameters Parsing & Auto-Lead Intake (?name=...&phone=...&subject=...#contact)
+  (function handleUrlQueryParams() {
+    try {
+      var searchStr = window.location.search;
+      if (!searchStr) return;
+      var params = new URLSearchParams(searchStr);
+
+      var urlName = (params.get('name') || params.get('fullName') || params.get('ism') || '').trim();
+      var urlPhone = (params.get('phone') || params.get('tel') || params.get('raqam') || '').trim();
+      var urlSubject = (params.get('subject') || params.get('course') || params.get('fan') || '').trim();
+
+      if (!urlName && !urlPhone && !urlSubject) return;
+
+      // 1) Form shakllarini (Modal, Contact, FAQ) pre-fill (avto to'ldirish)
+      if (urlName) {
+        if (nameInput) nameInput.value = urlName;
+        if (contactLeadName) contactLeadName.value = urlName;
+      }
+      if (urlPhone) {
+        if (phoneInput) phoneInput.value = urlPhone;
+        if (contactLeadPhone) contactLeadPhone.value = urlPhone;
+      }
+      if (urlSubject) {
+        [subjectSelect, contactLeadSubject].forEach(function(sel) {
+          if (!sel) return;
+          for (var i = 0; i < sel.options.length; i++) {
+            var val = sel.options[i].value || sel.options[i].text;
+            if (val && (val === urlSubject || urlSubject.indexOf(val) !== -1 || val.indexOf(urlSubject) !== -1)) {
+              sel.selectedIndex = i;
+              break;
+            }
+          }
+        });
+      }
+
+      // 2) Agar URL'da kamida ism va telefon raqami bo'lsa — CRM'ga avtomatik lid yuborish
+      if (urlName && digitsOnly(urlPhone).length >= 7) {
+        var autoSubj = urlSubject || 'General English';
+        var autoNote = 'Sayt URL havolasi orqali kelgan ariza (URL: ' + window.location.href + ')';
+
+        fetch('/api/public/landing-lead', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fullName: urlName,
+            phone: urlPhone,
+            subject: autoSubj,
+            note: autoNote
+          })
+        }).then(function(res) {
+          if (res.ok) {
+            console.log('[Auto-Lead] URL havolasidagi ariza CRM ga muvaffaqiyatli yuborildi');
+            if (formWrap) {
+              formWrap.innerHTML =
+                '<div class="form-success">' +
+                  '<div class="ic">✅</div>' +
+                  '<h4>Arizangiz CRM ga qabul qilindi!</h4>' +
+                  '<p>Tez orada siz bilan bog\'lanamiz.</p>' +
+                '</div>';
+            }
+            if (modalBackdrop) {
+              modalBackdrop.classList.add('show');
+            }
+          }
+        }).catch(function(err) {
+          console.error('[Auto-Lead] Xatolik:', err);
+        });
+      }
+    } catch (e) {
+      console.error('[Auto-Lead] Query param error:', e);
+    }
+  })();
+
   // Add click handlers to static result cards
   var staticResultCards = document.querySelectorAll('.result-card');
   staticResultCards.forEach(function(card) {
