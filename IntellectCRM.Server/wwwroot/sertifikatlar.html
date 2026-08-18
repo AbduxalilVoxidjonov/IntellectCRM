@@ -45,24 +45,32 @@
     .container { max-width: 1240px; margin: 0 auto; padding: 0 24px; }
 
     /* Header & Nav */
+    /* ===== HEADER / NAV — `landing.html` ETALON, qiymatlar AYNAN o'sha =====
+       Foydalanuvchi `/` dan `/sertifikatlar` ga o'tganda header "sakrab" o'zgarardi:
+       fon, blur, balandlik va yozuv ranglari ikki faylda boshqacha edi.
+       ⚠️ Ranglar ATAYIN xom (literal) yozilgan, `var(...)` bilan emas: ikki faylning
+       `:root` bloklari mustaqil va qiymatlari FARQ qiladi
+       (--muted: #9fb3cc vs #94a3b8, --text: #eaf1fb vs #f8fafc, --bg-2: #12233a vs #0f172a).
+       Ya'ni bir xil ko'rinadigan `color: var(--muted)` qoidasi ikki sahifada IKKI XIL rang
+       chizardi — nav yozuvlarining o'zgarib ketishi aynan shundan edi. Xom qiymat esa
+       `:root` ga bog'liq emas va sahifaning qolgan uslubiga TEGMAYDI. */
     header {
       position: sticky;
       top: 0;
       z-index: 100;
-      background: rgba(9, 13, 22, 0.92);
-      backdrop-filter: blur(16px);
-      border-bottom: 1px solid var(--border);
+      background: rgba(13, 27, 42, 0.92);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     }
     nav {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      height: 80px;
+      height: 74px;
     }
     .logo {
-      font-size: 22px;
-      font-weight: 900;
-      letter-spacing: -0.5px;
+      font-size: 20px;
+      font-weight: 800;
       display: flex;
       align-items: center;
       gap: 10px;
@@ -70,7 +78,7 @@
     .logo .mark {
       width: 40px;
       height: 40px;
-      border-radius: 12px;
+      border-radius: 10px;
       display: grid;
       place-items: center;
       font-size: 20px;
@@ -79,21 +87,47 @@
     }
     /* Belgi FAQAT ichida logo bo'lsa ko'rinadi — bo'sh kvadrat ham, singan rasm ham chiqmaydi. */
     .logo .mark:empty { display: none; }
+    /* Oq fon — shaffof (PNG/SVG) logo to'q header ustida yo'qolib ketmasin (landingda ham shunday). */
+    .logo .mark img { width: 100%; height: 100%; object-fit: contain; border-radius: 10px; background: #fff; }
     .nav-links {
       display: flex;
-      gap: 32px;
+      align-items: center;
+      gap: 28px;
       list-style: none;
     }
     .nav-link {
       font-weight: 600;
       font-size: 15px;
-      color: var(--muted);
+      color: #9fb3cc;
       transition: color 0.2s ease;
     }
+    /* `.active` (joriy sahifa) QOLDIRILDI, lekin rangi landingdagi :hover bilan bir xil —
+       landingda `.active` qoidasi umuman yo'q, shuning uchun yangi rang o'ylab topilmadi. */
     .nav-link:hover, .nav-link.active {
-      color: #ffffff;
+      color: #eaf1fb;
     }
-    .nav-actions { display: flex; align-items: center; gap: 16px; }
+    .nav-actions { display: flex; align-items: center; gap: 12px; }
+    /* Mobil menyu tugmasi — landingdagi bilan aynan bir xil (ilgari bu sahifada YO'Q edi:
+       telefonda 6 ta havola header'ga sig'may qolardi). */
+    .nav-toggle { display: none; flex-direction: column; justify-content: space-between; width: 28px; height: 20px; background: transparent; border: none; cursor: pointer; padding: 0; }
+    .nav-toggle span { width: 100%; height: 3px; background: #eaf1fb; border-radius: 3px; transition: transform .3s, opacity .3s; }
+    @media (max-width: 860px) {
+      .nav-toggle { display: flex; }
+      .nav-links {
+        position: absolute;
+        top: 74px;
+        left: 0;
+        right: 0;
+        background: #12233a;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        flex-direction: column;
+        padding: 24px;
+        gap: 18px;
+        display: none;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+      }
+      .nav-links.show { display: flex; }
+    }
 
     .btn {
       display: inline-flex;
@@ -108,6 +142,11 @@
       transition: all 0.25s ease;
     }
     .btn-primary { background: var(--grad); color: #ffffff; box-shadow: 0 8px 24px rgba(47,128,237,0.3); }
+    /* Header CTA — landing bilan bir xil (u yerdagi global .btn/.btn-primary qiymatlari).
+       Sahifaning qolgan tugmalari (ariza formasi, modal) O'Z uslubida qoladi. */
+    header .btn { padding: 12px 22px; border-radius: 12px; font-weight: 600; font-size: 16px; }
+    header .btn-primary { background: linear-gradient(135deg, #3b9bff, #2f6fed); box-shadow: none; }
+    header .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(47, 111, 237, 0.4); }
     .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(47,128,237,0.45); }
     .btn-accent { background: linear-gradient(135deg, #f5a623 0%, #ea580c 100%); color: #ffffff; box-shadow: 0 8px 24px rgba(245,166,35,0.35); }
     .btn-accent:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(245,166,35,0.5); }
@@ -453,13 +492,16 @@
     .cta-form input:focus, .cta-form select:focus { border-color: var(--primary); }
 
     /* Footer Sticky at bottom */
+    /* Footer — landing.html bilan AYNAN bir xil fon/padding/matn rangi.
+       (Landingda bu qiymatlar ilgari <footer> elementining inline style'ida edi va
+       CSS'dagi footer{} qoidasini jimgina bekor qilardi — u yerda ham tuzatildi.) */
     footer {
       flex-shrink: 0;
-      background: #060911;
-      border-top: 1px solid var(--border);
-      padding: 40px 0;
+      background: #090d16;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 48px 0 36px 0;
       text-align: center;
-      color: var(--muted);
+      color: #cbd5e1;
       font-size: 14px;
       margin-top: auto;
     }
@@ -555,7 +597,7 @@
     <nav>
       <a href="/" class="logo"><span class="mark" id="brandMark"></span><span id="brandName">Intellect Kokand</span></a>
       
-      <ul class="nav-links">
+      <ul class="nav-links" id="navLinks">
         <li><a href="/#about" class="nav-link">Biz haqimizda</a></li>
         <li><a href="/#teachers" class="nav-link">O'qituvchilar</a></li>
         <li><a href="/sertifikatlar" class="nav-link active">Sertifikatlar</a></li>
@@ -566,6 +608,9 @@
 
       <div class="nav-actions">
         <button type="button" class="btn btn-primary" id="openHeaderLeadBtn">Bepul darsga yozilish</button>
+        <button type="button" class="nav-toggle" id="navToggle" aria-label="Menyu">
+          <span></span><span></span><span></span>
+        </button>
       </div>
     </nav>
   </div>
@@ -673,6 +718,6 @@
      kontent-hash bilan chiqqani uchun bu muammodan xoli). Query o'zgarishi manzilni boshqa
      resursga aylantiradi va keshni chetlab o'tadi.
      ⚠️ sertifikatlar.js O'ZGARTIRILGANDA bu sanani QO'LDA yangilang. -->
-<script src="/sertifikatlar.js?v=20260818c" defer></script>
+<script src="/sertifikatlar.js?v=20260818d" defer></script>
 </body>
 </html>

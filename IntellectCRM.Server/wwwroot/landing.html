@@ -1094,7 +1094,12 @@
   .store-btn:hover{background:rgba(255,255,255,0.12) !important}
 
   /* Footer */
-  footer{background:var(--bg-2);padding:40px 0 24px;border-top:1px solid rgba(255,255,255,.06)}
+  /* ⚠️ Bu qoida ilgari O'LIK edi — <footer> elementidagi inline style uni butunlay bekor
+     qilardi (background, padding, border-top — uchtasi ham). Ya'ni faylda `var(--bg-2)`
+     yozilgan bo'lsa-da, ekranda #090d16 chizilardi. Inline style olib tashlandi va HAQIQIY
+     qiymatlar shu yerga ko'chirildi: endi footer uslubi bitta joyda va sertifikatlar.html
+     bilan grep orqali solishtiriladi. */
+  footer{background:#090d16;padding:48px 0 36px 0;border-top:1px solid rgba(255,255,255,.08);color:#cbd5e1}
   .footer-inner{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:20px;margin-bottom:24px}
   .footer-links{display:flex;gap:24px;flex-wrap:wrap}
   .footer-links a{color:var(--muted);font-size:14px;transition:color .2s}
@@ -1768,7 +1773,7 @@
   </div>
 </section>
 
-<footer style="background:#090d16; border-top:1px solid rgba(255,255,255,0.08); padding:48px 0 36px 0; color:#cbd5e1;">
+<footer>
   <div class="container" style="max-width:1200px; margin:0 auto; padding:0 24px;">
     <div style="display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:32px;">
       

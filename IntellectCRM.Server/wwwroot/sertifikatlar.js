@@ -6,6 +6,24 @@
 (function(){
   'use strict';
 
+  // Mobil menyu — landing.js dagi bilan AYNAN bir xil mantiq. Ilgari bu sahifada hamburger
+  // umuman yo'q edi: telefonda 6 ta nav havolasi header'ga sig'may, landingdan o'tganda nav
+  // butunlay boshqacha ko'rinardi.
+  var navToggle = document.getElementById('navToggle');
+  var navLinks = document.getElementById('navLinks');
+  if (navToggle && navLinks) {
+    navToggle.addEventListener('click', function(){
+      navLinks.classList.toggle('show');
+    });
+    // Havola bosilganda menyu yopiladi (aks holda ochiq menyu sahifani to'sib turardi)
+    var navItems = navLinks.querySelectorAll('a');
+    Array.prototype.forEach.call(navItems, function(link){
+      link.addEventListener('click', function(){
+        navLinks.classList.remove('show');
+      });
+    });
+  }
+
   // ⚠️ NAMUNA (soxta) SERTIFIKATLAR YO'Q. Ilgari bu yerda 4 ta o'ylab topilgan o'quvchi
   // (ism, ball, boshqa odamning sertifikat surati) qattiq kodlangan va sahifa ochilishi
   // bilan AYNAN shular chizilardi — ya'ni CMS'ga hech narsa kiritilmagan markaz ommaviy
