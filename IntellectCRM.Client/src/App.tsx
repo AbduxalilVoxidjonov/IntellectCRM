@@ -60,6 +60,7 @@ import { SupportDetailPage } from '@/pages/admin/support/SupportDetailPage'
 import { PublicTestPage } from '@/pages/public/PublicTestPage'
 import { VerifyCertificatePage } from '@/pages/public/VerifyCertificate'
 import { PrivacyPolicyPage } from '@/pages/public/PrivacyPolicyPage'
+import { PublicCertificatesPage } from '@/pages/public/PublicCertificatesPage'
 import { MessagesPage } from '@/pages/admin/messages/MessagesPage'
 import { GroupChatPage } from '@/pages/admin/chats/GroupChatPage'
 import { SupportTelegramPage } from '@/pages/admin/messages/SupportTelegramPage'
@@ -164,6 +165,9 @@ export default function App() {
       {/* Maxfiylik siyosati (autentifikatsiyasiz) — Google Play / App Store uchun */}
       <Route path="/privacy" element={<PrivacyPolicyPage />} />
       <Route path="/privacy-policy" element={<Navigate to="/privacy" replace />} />
+      {/* Ommaviy sertifikatlar katalogi (React SPA) */}
+      <Route path="/sertifikatlar" element={<PublicCertificatesPage />} />
+      <Route path="/sertifikatlar.html" element={<Navigate to="/sertifikatlar" replace />} />
 
       <Route path="/" element={<RootRedirect />} />
 
