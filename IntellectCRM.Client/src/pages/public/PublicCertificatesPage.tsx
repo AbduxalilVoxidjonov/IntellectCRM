@@ -64,11 +64,9 @@ export function PublicCertificatesPage() {
 
   // Categories extraction
   const categories = [
-    { id: 'all', label: 'Barcha Natijalar' },
-    { id: 'ielts', label: 'IELTS (7.0+)' },
-    { id: 'cefr', label: 'Multilevel (CEFR)' },
-    { id: 'sat', label: 'SAT / Math' },
-    { id: 'milliy', label: 'Milliy Sertifikat' },
+    { id: 'all', label: '🏆 Barchasi' },
+    { id: 'xalqaro', label: '🌐 Xalqaro Sertifikatlar (IELTS / Multilevel)' },
+    { id: 'milliy', label: '🇺🇿 Milliy Sertifikatlar (A/A+ / SAT)' },
   ]
 
   const filteredCerts = certs.filter((item) => {
@@ -84,10 +82,12 @@ export function PublicCertificatesPage() {
     const typeLower = (item.certType || '').toLowerCase()
     const titleLower = (item.title || '').toLowerCase()
 
-    if (activeCategory === 'ielts') return typeLower.includes('ielts') || titleLower.includes('ielts')
-    if (activeCategory === 'cefr') return typeLower.includes('cefr') || typeLower.includes('multi') || titleLower.includes('cefr')
-    if (activeCategory === 'sat') return typeLower.includes('sat') || titleLower.includes('sat')
-    if (activeCategory === 'milliy') return typeLower.includes('milli') || titleLower.includes('milli')
+    if (activeCategory === 'xalqaro') {
+      return typeLower.includes('ielts') || typeLower.includes('multi') || typeLower.includes('cefr') || titleLower.includes('ielts') || titleLower.includes('multi')
+    }
+    if (activeCategory === 'milliy') {
+      return typeLower.includes('sat') || typeLower.includes('milli') || titleLower.includes('sat') || titleLower.includes('milli')
+    }
 
     return true
   })

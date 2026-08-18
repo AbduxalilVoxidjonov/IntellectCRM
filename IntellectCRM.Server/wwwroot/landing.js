@@ -13,12 +13,23 @@
   var currentLeadNote = '';
 
   function openModal(selectedSubject, customNote){
-    if (selectedSubject && subjectSelect) {
-      for (var i = 0; i < subjectSelect.options.length; i++) {
-        if (subjectSelect.options[i].value === selectedSubject) {
-          subjectSelect.selectedIndex = i;
-          break;
+    clearError();
+    if (subjectSelect) {
+      if (selectedSubject) {
+        var matched = false;
+        for (var i = 0; i < subjectSelect.options.length; i++) {
+          var val = subjectSelect.options[i].value || subjectSelect.options[i].text;
+          if (val && (val === selectedSubject || selectedSubject.indexOf(val) !== -1 || val.indexOf(selectedSubject) !== -1)) {
+            subjectSelect.selectedIndex = i;
+            matched = true;
+            break;
+          }
         }
+        if (!matched && subjectSelect.options.length > 1) {
+          subjectSelect.selectedIndex = 1;
+        }
+      } else if (subjectSelect.selectedIndex === 0 && subjectSelect.options.length > 1) {
+        subjectSelect.selectedIndex = 1;
       }
     }
     currentLeadNote = customNote || 'Sayt tugmasidan yozilish';
@@ -134,7 +145,22 @@
 
     var fullName = nameInput.value.trim();
     var phone = phoneInput.value.trim();
-    var subject = subjectSelect ? subjectSelect.value : '';
+    var subject = '';
+    if (subjectSelect) {
+      subject = subjectSelect.value;
+      if (!subject && subjectSelect.selectedIndex >= 0 && subjectSelect.options[subjectSelect.selectedIndex]) {
+        var opt = subjectSelect.options[subjectSelect.selectedIndex];
+        if (!opt.disabled) {
+          subject = opt.value || opt.text;
+        }
+      }
+      if (!subject && subjectSelect.options.length > 1) {
+        subjectSelect.selectedIndex = 1;
+        var opt2 = subjectSelect.options[1];
+        subject = opt2.value || opt2.text || 'General English';
+      }
+    }
+    if (!subject) subject = 'General English';
 
     if (!fullName) {
       showError('Iltimos, ismingizni kiriting.');
@@ -144,11 +170,6 @@
     if (digitsOnly(phone).length < 9) {
       showError('Iltimos, to\'g\'ri telefon raqam kiriting (kamida 9 ta raqam).');
       phoneInput.focus();
-      return;
-    }
-    if (!subject) {
-      showError('Iltimos, yo\'nalishni tanlang.');
-      if (subjectSelect) subjectSelect.focus();
       return;
     }
 

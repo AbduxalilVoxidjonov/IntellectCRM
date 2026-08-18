@@ -728,8 +728,28 @@
   function renderGrid() {
     certsGrid.innerHTML = '';
     var list = allCertificates.filter(function(c) {
-      var matchCat = currentFilter === 'all' || (c.category && c.category.toLowerCase() === currentFilter.toLowerCase());
-      var matchSearch = !currentSearch || (c.studentName && c.studentName.toLowerCase().indexOf(currentSearch.toLowerCase()) !== -1) || (c.overallScore && c.overallScore.toLowerCase().indexOf(currentSearch.toLowerCase()) !== -1);
+      var catLower = (currentFilter || 'all').toLowerCase();
+      var typeLower = (c.certType || '').toLowerCase();
+      var titleLower = (c.title || '').toLowerCase();
+      var cCategoryLower = (c.category || '').toLowerCase();
+
+      var matchCat = true;
+      if (catLower !== 'all') {
+        if (catLower === 'xalqaro') {
+          matchCat = typeLower.indexOf('ielts') !== -1 || typeLower.indexOf('multi') !== -1 || typeLower.indexOf('cefr') !== -1 || titleLower.indexOf('ielts') !== -1 || titleLower.indexOf('multi') !== -1 || cCategoryLower.indexOf('xalqaro') !== -1;
+        } else if (catLower === 'milliy') {
+          matchCat = typeLower.indexOf('sat') !== -1 || typeLower.indexOf('milli') !== -1 || titleLower.indexOf('sat') !== -1 || titleLower.indexOf('milli') !== -1 || cCategoryLower.indexOf('milliy') !== -1;
+        } else {
+          matchCat = cCategoryLower === catLower || typeLower.indexOf(catLower) !== -1 || titleLower.indexOf(catLower) !== -1;
+        }
+      }
+
+      var s = (currentSearch || '').trim().toLowerCase();
+      var matchSearch = !s || (c.studentName && c.studentName.toLowerCase().indexOf(s) !== -1) || 
+                        (c.overallScore && c.overallScore.toLowerCase().indexOf(s) !== -1) ||
+                        (c.title && c.title.toLowerCase().indexOf(s) !== -1) ||
+                        (c.certType && c.certType.toLowerCase().indexOf(s) !== -1);
+
       return matchCat && matchSearch;
     });
 
