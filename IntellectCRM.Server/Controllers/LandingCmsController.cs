@@ -140,16 +140,16 @@ public class LandingCmsController(AppDbContext db) : ControllerBase
 
         await db.SaveChangesAsync();
         return Ok(new { ok = true, socials = new {
-            meta.TelegramUrl,
-            meta.InstagramUrl,
-            meta.YoutubeUrl,
-            meta.FacebookUrl,
-            meta.CenterEmail,
-            meta.AppStoreUrl,
-            meta.PlayMarketUrl,
-            meta.ContactPhone,
-            meta.CenterAddress,
-            meta.WorkingHours
+            telegramUrl = meta.TelegramUrl,
+            instagramUrl = meta.InstagramUrl,
+            youtubeUrl = meta.YoutubeUrl,
+            facebookUrl = meta.FacebookUrl,
+            centerEmail = meta.CenterEmail,
+            appStoreUrl = meta.AppStoreUrl,
+            playMarketUrl = meta.PlayMarketUrl,
+            contactPhone = meta.ContactPhone,
+            centerAddress = meta.CenterAddress,
+            workingHours = meta.WorkingHours
         } });
     }
 

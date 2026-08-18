@@ -694,7 +694,10 @@
     if (fbLink && socials.facebookUrl) fbLink.href = socials.facebookUrl;
 
     var emailLink = document.getElementById('socialEmailLink');
-    if (emailLink && socials.centerEmail) emailLink.href = 'mailto:' + socials.centerEmail;
+    if (emailLink && socials.centerEmail) {
+      var cleanEmail = socials.centerEmail.trim().replace(/^mailto:/i, '');
+      emailLink.href = 'mailto:' + cleanEmail;
+    }
 
     var appStoreBtn = document.getElementById('appStoreFooterBtn');
     if (appStoreBtn && socials.appStoreUrl && socials.appStoreUrl.trim()) {
