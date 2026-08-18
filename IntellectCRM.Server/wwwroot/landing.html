@@ -1042,6 +1042,65 @@
     white-space: nowrap;
     border-radius: 14px;
   }
+  /* ===== "Bepul maslahat oling" — ALOHIDA lid kartochkasi =====
+     Ilgari forma .contact-card-box ICHIDA (telefon/ish vaqti/manzil bilan bir qutida) turardi
+     va ko'zga tashlanmasdi. Endi u mustaqil blok.
+
+     NEGA aynan GRADIENT CHEGARA (fon emas):
+     sahifada FAQ ostida allaqachon .faq-contact-banner bor — u "tekis to'q fon + markazlashgan
+     matn" ko'rinishida. Agar shu uslub qayta ishlatilsa, bitta sahifada ikkita bir xil ko'rinishli
+     lid bloki chiqardi va ikkalasi ham urg'usini yo'qotardi. Shuning uchun bu yerda mavjud
+     --grad O'ZGARUVCHISI (yangi rang EMAS) fon uchun emas, CHEGARA uchun ishlatildi:
+     palitra bir xil, shakl esa boshqa — blok sahifadagi yagona gradient chegarali element
+     bo'lgani uchun ajralib turadi. Sarlavha ham kattaroq (bu bo'limning asosiy CTA'si). */
+  .contact-lead-card {
+    max-width: 850px;                /* .contact-card-box bilan bir xil kenglik — ustma-ust turadi */
+    margin: 28px auto 0;
+    background: var(--grad);         /* 2px "padding" orqali chegara bo'lib ko'rinadi */
+    padding: 2px;
+    border-radius: 30px;
+    box-shadow: 0 25px 60px rgba(0,0,0,.45), 0 0 40px rgba(47,128,237,.15);
+  }
+  .contact-lead-card-inner {
+    background: linear-gradient(135deg, #0d1726 0%, #14263e 100%);
+    border-radius: 28px;
+    padding: 40px 32px;              /* .contact-card-box (36px) dan kengroq — ko'proq havo */
+    text-align: center;
+  }
+  .contact-lead-badge {              /* gradient ikonka — urg'uni kuchaytiradi */
+    width: 60px; height: 60px;
+    margin: 0 auto 16px;
+    border-radius: 20px;
+    background: var(--grad);
+    display: grid; place-items: center;
+    font-size: 28px;
+    box-shadow: 0 12px 30px rgba(47,128,237,.35);
+  }
+  .contact-lead-card h3 {
+    font-size: clamp(24px, 4vw, 32px);   /* .faq-contact-banner sarlavhasidan kattaroq */
+    font-weight: 900;
+    color: #ffffff;
+    margin: 0 0 8px;
+  }
+  .contact-lead-card-inner > p {
+    color: var(--muted);
+    font-size: 15px;
+    line-height: 1.55;
+    margin: 0 auto 28px;
+    max-width: 560px;
+  }
+  /* Mobil: .faq-lead-form 992px da allaqachon bitta ustunga tushadi (grid-template-columns:1fr),
+     shuning uchun bu yerda faqat tegish maydonini kafolatlaymiz (>=44px). */
+  @media (max-width: 992px) {
+    .contact-lead-card .faq-form-group input,
+    .contact-lead-card .faq-form-group select { min-height: 48px; }
+    .contact-lead-card .faq-lead-btn { width: 100%; justify-content: center; min-height: 48px; }
+  }
+  @media (max-width: 640px) {
+    .contact-lead-card { border-radius: 26px; margin-top: 22px; }
+    .contact-lead-card-inner { padding: 28px 18px; border-radius: 24px; }
+    .contact-lead-badge { width: 52px; height: 52px; font-size: 24px; border-radius: 18px; }
+  }
 
   /* Contact Section */
   .contact-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:30px;align-items:start}
@@ -1662,38 +1721,6 @@
            kiritsa ham saytda hech narsa ko'rinmasdi. CSS (.contact-map-wrap) allaqachon bor edi. -->
       <div class="contact-map-wrap" id="landingMapWrap" style="display:none; margin-bottom:28px;"></div>
 
-      <!-- Bepul maslahat formasi. ID'lar landing.js dagi contactLead* bloki bilan AYNAN mos —
-           ilgari JS mantiqi to'liq yozilgan, markup esa umuman yo'q edi (o'lik kod). Uslub
-           FAQ ostidagi forma bilan bir xil klasslardan olinadi (yangi CSS kerak emas). -->
-      <div style="border-top:1px solid rgba(255,255,255,0.08); padding-top:28px; margin-bottom:28px;">
-        <h4 style="margin:0 0 6px 0; font-size:19px; font-weight:800; color:#ffffff; text-align:center;">Bepul maslahat oling</h4>
-        <p style="margin:0 0 22px 0; font-size:14px; color:var(--muted); text-align:center;">Ma'lumotlaringizni qoldiring — mutaxassisimiz tez orada bog'lanadi.</p>
-
-        <form id="contactLeadForm" class="faq-lead-form" novalidate>
-          <div class="faq-form-group">
-            <input type="text" id="contactLeadName" name="name" placeholder="F.I.SH (Ism va familiyangiz)" required>
-          </div>
-          <div class="faq-form-group">
-            <input type="tel" id="contactLeadPhone" name="phone" placeholder="Telefon raqamingiz (+998 ...)" required>
-          </div>
-          <div class="faq-form-group">
-            <select id="contactLeadSubject" name="subject" required>
-              <option value="" disabled selected>Qiziqqan faningizni tanlang</option>
-              <option value="General English">General English</option>
-              <option value="IELTS">IELTS</option>
-              <option value="Multilevel">Multilevel</option>
-              <option value="Matematika">Matematika</option>
-              <option value="SAT">SAT</option>
-              <option value="Ona tili">Ona tili va Adabiyot</option>
-              <option value="Rus tili">Rus tili</option>
-              <option value="Fizika">Fizika</option>
-            </select>
-          </div>
-          <button type="submit" class="btn btn-accent faq-lead-btn" id="contactLeadSubmitBtn">Yuborish →</button>
-        </form>
-        <div class="form-msg" id="contactLeadFormMsg" style="margin-top:14px; text-align:center;"></div>
-      </div>
-
       <!-- Bottom Row: Equal Size Navigation Buttons -->
       <div style="border-top:1px solid rgba(255,255,255,0.08); padding-top:28px; display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:16px; max-width:640px; margin:0 auto;">
         <a href="https://yandex.uz/maps/10332/kokand/?ll=70.931183%2C40.546732&amp;mode=poi&amp;poi%5Bpoint%5D=70.929596%2C40.546279&amp;poi%5Buri%5D=ymapsbm1%3A%2F%2Forg%3Foid%3D239829322269&amp;z=17" target="_blank" rel="noopener noreferrer" style="background:#fc3f1d; border:none; color:#ffffff; padding:16px 24px; border-radius:16px; font-size:15px; font-weight:700; text-decoration:none; display:inline-flex; align-items:center; justify-content:center; gap:10px; box-shadow:0 12px 28px rgba(252,63,29,0.4); transition:all 0.2s ease; text-align:center;">
@@ -1706,6 +1733,47 @@
         </a>
       </div>
     </div>
+
+      <!-- ================= BEPUL MASLAHAT (ALOHIDA KARTOCHKA) =================
+           Ilgari bu forma yuqoridagi .contact-card-box ICHIDA — telefon, ish vaqti va
+           manzil bilan BIR qutida turardi va ko'zga tashlanmasdi. Endi u mustaqil
+           kartochka: avval "biz qayerdamiz / qanday bog'lanish mumkin", keyin
+           "yoki ma'lumotingizni qoldiring — biz o'zimiz bog'lanamiz" (mantiqiy ketma-ketlik).
+           Xarita (#landingMapWrap) ATAYIN kontakt kartochkasida qoldi — u kontakt
+           ma'lumotining davomi.
+           ⚠️ ID'lar (contactLead*) va <form novalidate> tuzilishi O'ZGARMADI — landing.js
+           aynan shular bo'yicha ishlaydi. -->
+      <div class="contact-lead-card">
+        <div class="contact-lead-card-inner">
+          <div class="contact-lead-badge" aria-hidden="true">💬</div>
+          <h3>Bepul maslahat oling</h3>
+          <p>Ma'lumotlaringizni qoldiring — mutaxassisimiz tez orada bog'lanadi.</p>
+
+          <form id="contactLeadForm" class="faq-lead-form" novalidate>
+            <div class="faq-form-group">
+              <input type="text" id="contactLeadName" name="name" placeholder="F.I.SH (Ism va familiyangiz)" required>
+            </div>
+            <div class="faq-form-group">
+              <input type="tel" id="contactLeadPhone" name="phone" placeholder="Telefon raqamingiz (+998 ...)" required>
+            </div>
+            <div class="faq-form-group">
+              <select id="contactLeadSubject" name="subject" required>
+                <option value="" disabled selected>Qiziqqan faningizni tanlang</option>
+                <option value="General English">General English</option>
+                <option value="IELTS">IELTS</option>
+                <option value="Multilevel">Multilevel</option>
+                <option value="Matematika">Matematika</option>
+                <option value="SAT">SAT</option>
+                <option value="Ona tili">Ona tili va Adabiyot</option>
+                <option value="Rus tili">Rus tili</option>
+                <option value="Fizika">Fizika</option>
+              </select>
+            </div>
+            <button type="submit" class="btn btn-accent faq-lead-btn" id="contactLeadSubmitBtn">Yuborish →</button>
+          </form>
+          <div class="form-msg" id="contactLeadFormMsg" style="margin-top:14px; text-align:center;"></div>
+        </div>
+      </div>
   </div>
 </section>
 
